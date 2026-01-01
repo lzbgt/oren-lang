@@ -51,20 +51,29 @@ static OrenAllocNode* g_roots = NULL;
 // Track a coarse [min,max] allocation address range so the mark phase can skip the vast
 // majority of false positives without hashing into the alloc index.
 //
-// This is an optimization only (does not affect correctness): we still confirm with the
-// alloc registry/index before marking anything as live.
+// NOTE:
+// This is an optimization only. The alloc registry/index remains authoritative.
 static uintptr_t g_alloc_ptr_min = UINTPTR_MAX;
 static uintptr_t g_alloc_ptr_max = 0;
+static size_t oren_ptr_hash(void* p);
+// Tiny bloom filter to skip most false positives before doing an alloc-index lookup.
+// Never cleared (false positives are fine; false negatives must not happen).
+static uint64_t g_alloc_bloom[4] = {0, 0, 0, 0}; // 256 bits
 
-static inline uintptr_t oren_ptr_canon(uintptr_t p) {
-    // Some architectures/OSes use tagged pointers (e.g. AArch64 TBI).
-    // For conservative scanning, treat any value that differs only in the top byte
-    // as the same address.
-#if defined(__aarch64__)
-    return p & (uintptr_t)0x00FFFFFFFFFFFFFFULL;
-#else
-    return p;
-#endif
+static inline void oren_alloc_bloom_add(uintptr_t p) {
+    // Two hashes -> two bits. Deterministic and cheap.
+    size_t h1 = oren_ptr_hash((void*)p);
+    size_t h2 = oren_ptr_hash((void*)(p ^ (uintptr_t)0x9e3779b97f4a7c15ULL));
+    g_alloc_bloom[h1 & 3u] |= (uint64_t)1u << ((h1 >> 2) & 63u);
+    g_alloc_bloom[h2 & 3u] |= (uint64_t)1u << ((h2 >> 2) & 63u);
+}
+
+static inline int oren_alloc_bloom_maybe_has(uintptr_t p) {
+    size_t h1 = oren_ptr_hash((void*)p);
+    size_t h2 = oren_ptr_hash((void*)(p ^ (uintptr_t)0x9e3779b97f4a7c15ULL));
+    uint64_t b1 = g_alloc_bloom[h1 & 3u] & ((uint64_t)1u << ((h1 >> 2) & 63u));
+    uint64_t b2 = g_alloc_bloom[h2 & 3u] & ((uint64_t)1u << ((h2 >> 2) & 63u));
+    return (b1 != 0u) && (b2 != 0u);
 }
 
 // Large raw blocks: use mmap so memory can be returned to the OS on free/GC sweep.
@@ -589,9 +598,10 @@ static void oren_register_alloc(void* ptr, OrenAllocKind kind) {
     n->next = g_allocs;
     g_allocs = n;
     oren_alloc_index_put_locked(n);
-    uintptr_t p = oren_ptr_canon((uintptr_t)ptr);
+    uintptr_t p = (uintptr_t)ptr;
     if (p < g_alloc_ptr_min) g_alloc_ptr_min = p;
     if (p > g_alloc_ptr_max) g_alloc_ptr_max = p;
+    oren_alloc_bloom_add(p);
     pthread_mutex_unlock(&g_alloc_mutex);
 
 #ifndef OREN_NO_GC
@@ -618,14 +628,14 @@ static void oren_register_alloc(void* ptr, OrenAllocKind kind) {
 static OrenAllocNode* oren_find_node(void* ptr) {
     // Contract: caller holds g_alloc_mutex (mark/sweep or explicit frees).
     // Fallback to linear scan only if index isn't initialized (should not happen in practice).
-    uintptr_t p = oren_ptr_canon((uintptr_t)ptr);
+    uintptr_t p = (uintptr_t)ptr;
     if (g_alloc_ptr_max < g_alloc_ptr_min) return NULL;
     if (p < g_alloc_ptr_min || p > g_alloc_ptr_max) return NULL;
-    OrenAllocNode* n = oren_alloc_index_get_locked((void*)p);
+    OrenAllocNode* n = oren_alloc_index_get_locked(ptr);
     if (n) return n;
     OrenAllocNode* cur = g_allocs;
     while (cur) {
-        if (cur->ptr == (void*)p) return cur;
+        if (cur->ptr == ptr) return cur;
         cur = cur->next;
     }
     return NULL;
@@ -1005,10 +1015,10 @@ static void oren_mark_ptr_range_words(void* a, void* b) {
     for (uintptr_t p = lo; p + sizeof(uintptr_t) <= hi; p += sizeof(uintptr_t)) {
         uintptr_t w = 0;
         memcpy(&w, (void*)p, sizeof(w));
-        w = oren_ptr_canon(w);
         if ((w & (uintptr_t)0x7) != 0) continue;
         if (g_alloc_ptr_max < g_alloc_ptr_min) continue;
         if (w < g_alloc_ptr_min || w > g_alloc_ptr_max) continue;
+        if (!oren_alloc_bloom_maybe_has(w)) continue;
         oren_mark_alloc_ptr((void*)w);
     }
 }

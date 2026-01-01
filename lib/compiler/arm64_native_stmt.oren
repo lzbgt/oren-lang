@@ -614,6 +614,13 @@ fn native_compile_stmt(ctx, stmt) {
         var jump_end_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
 
+        // GC safepoint on loop entry (parity with C backend).
+        // Native compiler builds can run very long loops in the lexer/parser; without
+        // safepoints, OREN_GC_AUTO cannot initiate collections and RSS can balloon.
+        var bl_sp = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_sp, "name": "oren_gc_safepoint"})
+
         native_compile_stmt(ctx, stmt["body"])
 
         // Ensure stack is restored to the loop base before post/next iter.
@@ -831,6 +838,11 @@ fn native_compile_stmt(ctx, stmt) {
         
         var jump_end_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0) 
+
+        // GC safepoint on loop entry (parity with C backend).
+        var bl_sp = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_sp, "name": "oren_gc_safepoint"})
         
         native_compile_stmt(ctx, stmt["body"])
 

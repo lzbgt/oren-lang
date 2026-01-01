@@ -119,6 +119,24 @@ fn get_sp() { return 0 } // Intrinsic
 // - disabled (deterministic/manual): disable scanning/collection; keep tracking so `free()` can reuse blocks
 var g_gc_enabled = 1
 
+// Auto-GC (native backend; rolling):
+//
+// The native runtime GC is conservative mark/sweep. For long-running tools like the compiler
+// self-host build (stage2 native), we need a bounded-memory mode so RSS doesn't climb into
+// multi‑GB territory.
+//
+// Strategy:
+// - Count tracked allocations in `oren_track_alloc` (compiler inserts it after malloc).
+// - When the threshold is reached, set a pending flag.
+// - A safepoint (`oren_gc_safepoint`) initiates collection in a safe place.
+//
+// NOTE: we only auto-collect in single-threaded programs for now. The native GC scans
+// stacks without a stop-the-world protocol; collecting while other threads run would be unsafe.
+var g_gc_auto_enabled = 0
+var g_gc_alloc_threshold = 200000
+var g_gc_allocs_since_collect = 0
+var g_gc_auto_pending = 0
+
 @oren.keep
 fn native_runtime_init_gc_mode(default_enabled) {
     // default_enabled is provided by the compiler from `--no-gc`.
@@ -129,6 +147,199 @@ fn native_runtime_init_gc_mode(default_enabled) {
     var v = native_envp_get_value_ptr("OREN_NO_GC")
     if v != 0 {
         if ptr_get_byte(v) != 0 { g_gc_enabled = 0 }
+    }
+
+    // Auto-GC policy (opt-in; compiler/test harness can enable via env).
+    //
+    // Env:
+    // - OREN_GC_AUTO=1 enables auto-collection
+    // - OREN_GC_ALLOC_THRESHOLD=<n> triggers a collection request after n tracked allocations
+    //   (0 disables auto-GC even if OREN_GC_AUTO is set)
+    g_gc_auto_enabled = 0
+    g_gc_alloc_threshold = 200000
+    g_gc_allocs_since_collect = 0
+    g_gc_auto_pending = 0
+
+    var v_auto = native_envp_get_value_ptr("OREN_GC_AUTO")
+    if v_auto != 0 {
+        if ptr_get_byte(v_auto) != 0 && ptr_get_byte(v_auto) != 48 { // not empty and not '0'
+            g_gc_auto_enabled = 1
+        }
+    }
+
+    var v_thr = native_envp_get_value_ptr("OREN_GC_ALLOC_THRESHOLD")
+    if v_thr != 0 {
+        var thr = native_parse_i64_dec_cstr_or_neg1(v_thr)
+        if thr >= 0 { g_gc_alloc_threshold = thr }
+    }
+    if g_gc_alloc_threshold == 0 { g_gc_auto_enabled = 0 }
+    return 0
+}
+
+fn native_gc_single_threaded() {
+    if oren_globals() == 0 { return true }
+    acquire_lock()
+    var head = global_get_threads()
+    var ok = true
+    if head != 0 {
+        var next = ptr_get(iadd(head, 16))
+        if next != 0 { ok = false }
+    }
+    release_lock()
+    return ok
+}
+
+// --- Allocation index (native runtime) ---
+//
+// The GC scans large memory ranges conservatively (stack words). A linear scan of the alloc
+// registry on every candidate word becomes catastrophically slow for compiler workloads.
+//
+// Maintain an open-addressing hash table mapping `ptr -> alloc_node` so `oren_find_node`
+// is O(1) average.
+var g_alloc_index_ptr = 0
+var g_alloc_index_cap = 0
+var g_alloc_index_len = 0
+var g_alloc_index_tomb = 1 // sentinel (not a valid pointer)
+
+fn native_alloc_index_hash(ptr) {
+    // Multiplicative hash (Knuth) for 64-bit keys. Shift away low alignment bits.
+    var x = ptr / 16
+    return x * 11400714819323198485
+}
+
+fn native_alloc_index_clear(table_ptr, cap) {
+    if table_ptr == 0 { return 0 }
+    var i = 0
+    while i < cap {
+        ptr_set(iadd(table_ptr, i * 8), 0)
+        i = i + 1
+    }
+    return 0
+}
+
+fn native_alloc_index_init_min(min_cap) {
+    if g_alloc_index_cap != 0 { return 0 }
+    var cap = 1024
+    if min_cap != nil && min_cap > cap { cap = min_cap }
+    // Ensure power-of-two cap (keep it simple: round up by doubling).
+    while cap & (cap - 1) != 0 { cap = cap * 2 }
+    var table = malloc_raw(cap * 8)
+    if table == 0 { return 0 }
+    native_alloc_index_clear(table, cap)
+    g_alloc_index_ptr = table
+    g_alloc_index_cap = cap
+    g_alloc_index_len = 0
+    return 0
+}
+
+fn native_alloc_index_get(ptr) {
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+    var mask = g_alloc_index_cap - 1
+    var idx = native_alloc_index_hash(ptr) & mask
+    while true {
+        var slot = ptr_get(iadd(g_alloc_index_ptr, idx * 8))
+        if slot == 0 { return 0 }
+        if slot != g_alloc_index_tomb {
+            if ptr_get(slot) == ptr { return slot }
+        }
+        idx = (idx + 1) & mask
+    }
+    return 0
+}
+
+fn native_alloc_index_put_node(node) {
+    if node == 0 { return 0 }
+    var ptr = ptr_get(node)
+    if ptr == 0 || ptr < 4096 { return 0 }
+    if g_alloc_index_cap == 0 { native_alloc_index_init_min(1024) }
+    if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+
+    // Resize when load factor exceeds ~0.75.
+    if (g_alloc_index_len * 4) >= (g_alloc_index_cap * 3) {
+        // Rebuild from allocs list (deterministic, keeps table fresh and avoids tombstone drift).
+        var new_cap = g_alloc_index_cap * 2
+        var new_tab = malloc_raw(new_cap * 8)
+        if new_tab != 0 {
+            native_alloc_index_clear(new_tab, new_cap)
+            g_alloc_index_ptr = new_tab
+            g_alloc_index_cap = new_cap
+            g_alloc_index_len = 0
+
+            // Reinsert all live alloc nodes.
+            var cur = global_get_allocs()
+            while cur != 0 {
+                // Insert cur (no further resize expected during rebuild).
+                var p0 = ptr_get(cur)
+                if p0 != 0 && p0 >= 4096 {
+                    var mask0 = g_alloc_index_cap - 1
+                    var idx0 = native_alloc_index_hash(p0) & mask0
+                    var first_tomb = -1
+                    while true {
+                        var slot0 = ptr_get(iadd(g_alloc_index_ptr, idx0 * 8))
+                        if slot0 == 0 {
+                            if first_tomb >= 0 { idx0 = first_tomb }
+                            ptr_set(iadd(g_alloc_index_ptr, idx0 * 8), cur)
+                            g_alloc_index_len = g_alloc_index_len + 1
+                            break
+                        }
+                        if slot0 == g_alloc_index_tomb {
+                            if first_tomb < 0 { first_tomb = idx0 }
+                        } else {
+                            if ptr_get(slot0) == p0 {
+                                ptr_set(iadd(g_alloc_index_ptr, idx0 * 8), cur)
+                                break
+                            }
+                        }
+                        idx0 = (idx0 + 1) & mask0
+                    }
+                }
+                cur = ptr_get(iadd(cur, 32))
+            }
+        }
+    }
+
+    var mask = g_alloc_index_cap - 1
+    var idx = native_alloc_index_hash(ptr) & mask
+    var first_tomb = -1
+    while true {
+        var slot = ptr_get(iadd(g_alloc_index_ptr, idx * 8))
+        if slot == 0 {
+            if first_tomb >= 0 { idx = first_tomb }
+            ptr_set(iadd(g_alloc_index_ptr, idx * 8), node)
+            g_alloc_index_len = g_alloc_index_len + 1
+            return 0
+        }
+        if slot == g_alloc_index_tomb {
+            if first_tomb < 0 { first_tomb = idx }
+        } else {
+            if ptr_get(slot) == ptr {
+                ptr_set(iadd(g_alloc_index_ptr, idx * 8), node)
+                return 0
+            }
+        }
+        idx = (idx + 1) & mask
+    }
+    return 0
+}
+
+fn native_alloc_index_remove_ptr(ptr) {
+    if ptr == 0 || ptr < 4096 { return 0 }
+    if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+    var mask = g_alloc_index_cap - 1
+    var idx = native_alloc_index_hash(ptr) & mask
+    while true {
+        var slot = ptr_get(iadd(g_alloc_index_ptr, idx * 8))
+        if slot == 0 { return 0 }
+        if slot != g_alloc_index_tomb {
+            if ptr_get(slot) == ptr {
+                ptr_set(iadd(g_alloc_index_ptr, idx * 8), g_alloc_index_tomb)
+                if g_alloc_index_len > 0 { g_alloc_index_len = g_alloc_index_len - 1 }
+                return 0
+            }
+        }
+        idx = (idx + 1) & mask
     }
     return 0
 }
@@ -331,6 +542,15 @@ fn oren_track_alloc(ptr, size, kind) {
             if kind != 0 { ptr_set(iadd(cur, 16), kind) }
             // Clear "freed" and mark flags on re-track.
             ptr_set(iadd(cur, 24), 0)
+            native_alloc_index_put_node(cur)
+            // Auto-GC accounting: treat tracking as allocation event (compiler emits this after malloc).
+            if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
+                g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
+                if g_gc_alloc_threshold > 0 && g_gc_allocs_since_collect >= g_gc_alloc_threshold {
+                    g_gc_allocs_since_collect = 0
+                    g_gc_auto_pending = 1
+                }
+            }
             release_lock()
             return ptr
         }
@@ -355,6 +575,15 @@ fn oren_track_alloc(ptr, size, kind) {
             ptr_set(iadd(cur, 24), 0)
             ptr_set(iadd(cur, 32), global_get_allocs())
             global_set_allocs(cur)
+            native_alloc_index_put_node(cur)
+
+            if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
+                g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
+                if g_gc_alloc_threshold > 0 && g_gc_allocs_since_collect >= g_gc_alloc_threshold {
+                    g_gc_allocs_since_collect = 0
+                    g_gc_auto_pending = 1
+                }
+            }
 
             release_lock()
             return ptr
@@ -372,6 +601,15 @@ fn oren_track_alloc(ptr, size, kind) {
         ptr_set(iadd(node, 24), 0) // not freed, not marked
         ptr_set(iadd(node, 32), global_get_allocs())
         global_set_allocs(node)
+        native_alloc_index_put_node(node)
+    }
+
+    if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
+        g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
+        if g_gc_alloc_threshold > 0 && g_gc_allocs_since_collect >= g_gc_alloc_threshold {
+            g_gc_allocs_since_collect = 0
+            g_gc_auto_pending = 1
+        }
     }
 
     release_lock()
@@ -439,15 +677,33 @@ fn oren_find_node(ptr) {
     // - This also avoids accidental "pointer probing" semantics in places like map key-kind inference.
     if ptr < 4096 { return 0 }
     acquire_lock()
+    var hit = native_alloc_index_get(ptr)
+    if hit != 0 {
+        release_lock()
+        return hit
+    }
+    // Fallback (should be rare): linear scan if index isn't initialized yet.
     var cur = global_get_allocs()
     while cur != 0 {
-        if ptr_get(cur) == ptr { 
+        if ptr_get(cur) == ptr {
+            native_alloc_index_put_node(cur)
             release_lock()
-            return cur 
+            return cur
         }
         cur = ptr_get(iadd(cur, 32))
     }
     release_lock()
+    return 0
+}
+
+@oren.keep
+fn oren_gc_safepoint() {
+    if g_gc_enabled == 0 { return 0 }
+    if g_gc_auto_enabled == 0 { return 0 }
+    if g_gc_auto_pending == 0 { return 0 }
+    if native_gc_single_threaded() == false { return 0 }
+    g_gc_auto_pending = 0
+    native_gc_collect()
     return 0
 }
 
@@ -552,6 +808,10 @@ fn native_gc_collect() {
             } else {
                 ptr_set(iadd(prev, 32), next_node)
             }
+
+            // Remove from alloc index so freed nodes in free_blocks are never treated as live.
+            var dead_ptr = ptr_get(cur)
+            if dead_ptr != 0 { native_alloc_index_remove_ptr(dead_ptr) }
 
             var kind = ptr_get(iadd(cur, 16))
             if kind == 9 {

@@ -352,3 +352,80 @@ fn oren_sha256_range(bytes, start, length) {
     free(state)
     return out
 }
+
+fn oren_sha256_string(s) {
+    if s == 0 { oren_panic("sha256_string expects string") }
+    var n = native_cstr_len(s)
+    // Hash the string's bytes (excluding NUL terminator) without building a list<int> first.
+    //
+    // This is important for toolchain workloads that hash many large sources (build cache keys).
+    // Avoiding `oren_bytes_from_string` keeps allocations and GC pressure bounded.
+    var state = malloc(8 * 8)
+    var data = malloc(64)
+    var k = malloc(64 * 8)
+    var w = malloc(64 * 8)
+    if state == 0 || data == 0 || k == 0 || w == 0 { oren_panic("sha256_string: alloc failed") }
+    sha256_k_init(k)
+
+    // Initialize state (same IV as sha256_range).
+    ptr_set(state + 0 * 8, 1779033703)
+    ptr_set(state + 1 * 8, 3144134277)
+    ptr_set(state + 2 * 8, 1013904242)
+    ptr_set(state + 3 * 8, 2773480762)
+    ptr_set(state + 4 * 8, 1359893119)
+    ptr_set(state + 5 * 8, 2600822924)
+    ptr_set(state + 6 * 8, 528734635)
+    ptr_set(state + 7 * 8, 1541459225)
+
+    // Stream bytes into 64-byte blocks.
+    var used = 0
+    var i = 0
+    while i < n {
+        ptr_set_byte(data + used, ptr_get_byte(s + i))
+        used = used + 1
+        if used == 64 {
+            sha256_transform(state, data, k, w)
+            used = 0
+        }
+        i = i + 1
+    }
+
+    // Pad: append 0x80, then zeros, then 64-bit bitlen in big-endian.
+    var bitlen = n * 8
+    ptr_set_byte(data + used, 128)
+    used = used + 1
+    if used > 56 {
+        while used < 64 { ptr_set_byte(data + used, 0); used = used + 1 }
+        sha256_transform(state, data, k, w)
+        used = 0
+    }
+    while used < 56 { ptr_set_byte(data + used, 0); used = used + 1 }
+    // 64-bit length big-endian at data[56..63].
+    var j = 0
+    while j < 8 {
+        var shift = (7 - j) * 8
+        var b = (bitlen >> shift) & 255
+        ptr_set_byte(data + 56 + j, b)
+        j = j + 1
+    }
+    sha256_transform(state, data, k, w)
+
+    // Emit digest bytes list<int 0..255> (32 bytes).
+    var out = oren_new_list(32)
+    var di = 0
+    while di < 32 {
+        var word = ptr_get(state + (di / 4) * 8) & 4294967295
+        var off = (3 - (di & 3)) * 8
+        var byte = (word >> off) & 255
+        oren_list_push(out, byte)
+        di = di + 1
+    }
+
+    // Free temporary buffers to keep allocs list small even when GC is disabled.
+    free(state)
+    free(data)
+    free(k)
+    free(w)
+
+    return out
+}

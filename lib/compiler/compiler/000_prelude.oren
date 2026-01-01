@@ -212,6 +212,12 @@ fn _sha256_hex(bs) {
     return _bytes_to_hex(d)
 }
 
+fn _sha256_hex_string(s) {
+    if s == nil { return "" }
+    var d = oren_sha256_string(s)
+    return _bytes_to_hex(d)
+}
+
 fn _emit_artifact_hash(kind, path, bs) {
     var h = _sha256_hex(bs)
     print("OREN_ARTIFACT kind=" + kind + " sha256=" + h + " path=" + path)

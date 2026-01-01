@@ -441,11 +441,20 @@ fn native_compile_program_arm64(linked, platform) {
     callable.rewrite_local_fn_decls_in_stmt_list(ctx, runtime_stmts)
     callable.rewrite_local_fn_decls_in_stmt_list(ctx, user_stmts)
 
-    // Collect lambdas from user code (lambdas are anonymous Function nodes with name="").
+    // Collect lambdas from runtime + user code (lambdas are anonymous Function nodes with name="").
+    //
     // This annotates lambda nodes with:
     //   - lambda_name: generated wrapper name
     //   - captures: free vars in deterministic first-use order
+    //
+    // Note: the runtime contains a small number of local `fn` declarations which are normalized
+    // into lambdas+vars for Tier‑1 parity. Those lambdas must be collected too.
     var li = 0
+    while li < oren_list_len(runtime_stmts) {
+        callable.collect_lambdas_in_statement(ctx, runtime_stmts[li])
+        li = li + 1
+    }
+    li = 0
     while li < oren_list_len(user_stmts) {
         callable.collect_lambdas_in_statement(ctx, user_stmts[li])
         li = li + 1

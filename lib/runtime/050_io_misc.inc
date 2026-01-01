@@ -626,6 +626,49 @@ OrenValue oren_sha256_range(OrenValue bytes, OrenValue start, OrenValue length) 
     return v;
 }
 
+OrenValue oren_sha256_string(OrenValue s) {
+    if (s.type != OREN_TYPE_STRING) {
+        oren_panic("sha256_string expects string");
+        return OREN_NIL; // Should not be reached
+    }
+    const unsigned char* p = (const unsigned char*)s.as.string_val;
+    size_t n = strlen((const char*)p);
+
+    OrenSha256Ctx ctx;
+    oren_sha256_init(&ctx);
+    if (n > 0) {
+        oren_sha256_update(&ctx, p, n);
+    }
+
+    uint8_t digest[32];
+    oren_sha256_final(&ctx, digest);
+
+    lock_collections();
+    OrenList* out = malloc(sizeof(OrenList));
+    if (!out) {
+        unlock_collections();
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("sha256_string: alloc failed"));
+    }
+    oren_register_alloc(out, OREN_ALLOC_LIST);
+
+    out->count = 32;
+    out->capacity = 32;
+    out->items = malloc(sizeof(OrenValue) * 32);
+    if (!out->items) {
+        unlock_collections();
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("sha256_string: alloc failed"));
+    }
+    for (int i = 0; i < 32; i++) {
+        out->items[i] = oren_int(digest[i]);
+    }
+    unlock_collections();
+
+    OrenValue v;
+    v.type = OREN_TYPE_LIST;
+    v.as.list_val = out;
+    return v;
+}
+
 OrenValue oren_chmod(OrenValue path, OrenValue mode) {
     if (path.type != OREN_TYPE_STRING || mode.type != OREN_TYPE_INT) {
         oren_panic("chmod expects (string, int)");

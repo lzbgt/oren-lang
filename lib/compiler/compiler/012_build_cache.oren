@@ -94,7 +94,7 @@ fn _cache_scan_imports_for_file(full_path, config) {
         if msg == nil { msg = "failed to read" }
         return {"ok": false, "err": msg}
     }
-    var sh = _sha256_hex(oren_bytes_from_string(src))
+    var sh = _sha256_hex_string(src)
 
     var l = lexer.new_lexer(src)
     l["file"] = full_path
@@ -266,7 +266,7 @@ fn _cache_scan_imports_for_file_cached(full_path, config, scan_state) {
         if msg == nil { msg = "failed to read" }
         return {"ok": false, "err": msg}
     }
-    var sh = _sha256_hex(oren_bytes_from_string(src))
+    var sh = _sha256_hex_string(src)
 
     // Cache hit: reuse imports without token scanning.
     var rec = cache_map[full_path]
@@ -324,7 +324,7 @@ fn _cache_hash_expanded_includes(path) {
         if msg == nil { msg = "failed to read" }
         return {"ok": false, "err": msg}
     }
-    return {"ok": true, "hash": _sha256_hex(oren_bytes_from_string(src))}
+    return {"ok": true, "hash": _sha256_hex_string(src)}
 }
 
 fn cache_compute_key_build(entry_path, build_cfg) {
@@ -357,7 +357,7 @@ fn cache_compute_key_build(entry_path, build_cfg) {
 
         // External std spec markers: hash the spec string itself.
         if starts_with(pth, "std:") || starts_with(pth, "std/") {
-            inputs[pth] = _sha256_hex(oren_bytes_from_string(pth))
+            inputs[pth] = _sha256_hex_string(pth)
             continue
         }
 
@@ -480,7 +480,7 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         s = s + "in " + k2 + " " + inputs[k2] + "\n"
         ki = ki + 1
     }
-    var key = _sha256_hex(oren_bytes_from_string(s))
+    var key = _sha256_hex_string(s)
     return {"ok": true, "key": key, "inputs": inputs}
 }
 

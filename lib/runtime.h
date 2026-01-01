@@ -460,6 +460,9 @@ OrenValue oren_bytes_set_u64_le(OrenValue bytes, OrenValue index, OrenValue valu
 OrenValue oren_bytes_set_i64_be(OrenValue bytes, OrenValue index, OrenValue value);
 OrenValue oren_bytes_set_i64_le(OrenValue bytes, OrenValue index, OrenValue value);
 OrenValue oren_sha256_range(OrenValue bytes, OrenValue start, OrenValue length);
+// Compute SHA-256 of a string's bytes (excluding the NUL terminator).
+// Returns a list<int 0..255> of length 32 (digest bytes).
+OrenValue oren_sha256_string(OrenValue s);
 OrenValue oren_env(OrenValue name);
 OrenValue oren_net_get(OrenValue url);
 
