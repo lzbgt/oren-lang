@@ -1,6 +1,6 @@
 # Async IO Readiness + `select` in Oren (Rolling Design + Current Reality)
 
-**Last updated:** 2025-12-30
+**Last updated:** 2026-01-02
 
 This doc answers a recurring question:
 
@@ -75,7 +75,9 @@ Notes:
 
 - These are currently annotated `@cap.requires(domain="NET")` and call `native_capsule_require(CAP_NET, "NET")`,
   because they were introduced as part of the NET substrate.
-- They are **not a language keyword** and they are not yet integrated with a scheduler (they block the calling OS thread).
+- They are **not a language keyword** and they are not yet integrated with a native scheduler:
+  - on native today they block the calling OS thread (Windows) or the calling process (POSIX fork-based `spawn` v0),
+  - there is no native green-thread scheduler yet, so “blocking IO” does not automatically unblock other work within a single process.
 
 ### 1.4 File readiness is not yet a stable cross-OS language primitive
 
@@ -150,6 +152,16 @@ References:
 - `docs/AVM_SPEC.md` (VirtualFS/VirtualNET/VirtualPROC backends)
 - `docs/AVM_MULTIVERSE.md` (nested universes / host service constraints)
 
+### 3.3 Current native constraint: `spawn` is not “green threads” yet
+
+In the native backend today, `spawn` is not a lightweight task scheduled on a shared runtime:
+
+- **macOS/Linux (POSIX v0):** `spawn` uses **fork + pipe** (process-based). There is no shared heap, no shared GC, and no shared scheduler state.
+- **Windows x64 Tier‑1:** `spawn` uses **CreateThread** (OS threads), and `oren_join(_timeout)` uses Win32 synchronization.
+
+This is why the design direction here emphasizes “channel-based select” + “netpoller wakes channels”:
+it composes with both a future native scheduler and AVM determinism, without baking OS fd/HANDLE details into the language surface.
+
 ---
 
 ## 4) Proposed future language syntax: `select { case ... }` (planned)
@@ -207,4 +219,3 @@ The relevant near-term items are:
 - Tier‑1 native parity (x86_64 + arm64; macOS/Linux/Windows) — see `docs/TODOS.md` P0.1
 - Backend architecture unification (CoreIR boundary) — see `docs/TODOS.md` P0.3
 - After that: native scheduler + channels/select maturity and IO integration — see `docs/CONCURRENCY_MODEL.md` / `docs/NATIVE_GMP_SCHEDULER.md`
-

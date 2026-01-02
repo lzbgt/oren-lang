@@ -22,23 +22,33 @@ Rules for this tracker:
      - `make test` (curated suite)
      - `./oretest --matrix tier1` (host + linux/arm64 docker + remote x64 gate when available)
    - Avoid O(n²) string/collection patterns in compiler-side tooling (include expansion, C backend transpiler, whole-program lowering passes).
+   - Hard gate (non-negotiable for rolling):
+     - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
+     - RSS should stay **< 300 MB** for the compilation process.
+   - High-leverage path (avoid “parameter tuning”):
+     - deterministic parallel compilation pipeline (module graph scheduling + cache hits)
+     - eliminate global/shared mutable state that prevents safe parallelism (or centralize it behind explicit concurrency primitives)
 
 1) **Tier‑1 native support parity (arm64 + x86_64; macOS/Linux/Windows)** (L)
    - Keep native semantics aligned across platforms:
      - callables/closures/varargs + deterministic failure modes (`OREN_DIAG` + stack traces)
      - container ops (list/map/buf) with identical semantics across arch/OS
      - concurrency primitives on Windows (no fork/pipe assumptions): `spawn`, `oren_join(_timeout)`, and a path to cooperative cancellation
-	   - Remaining gaps (active):
+   - Remaining gaps (active):
+     - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory synchronization:
+       - mutex/condvar + parking/unparking primitives (`ulock` on macOS; futex-like on Linux; Win32 already exists)
+       - a GC/safepoint model that remains correct once true threads exist (no “mutex works but GC breaks”)
      - Windows: complete a coherent PROC story (pid/kill/wait semantics or define a cross-OS `sys_spawn` boundary).
        - Current blocker: `oren_system(_timeout)` on `x64-windows` fails in the remote gate (`sys_win_createprocess` returns `-998` / `GetLastError()==998` = `ERROR_NOACCESS`).
          - Tier‑1 fixture currently *soft-skips* the failure on Windows to keep the remote gate usable; remove this skip once CreateProcess wiring is correct.
-	     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
-	   - **done (rolling, 2026-01-02):** fix POSIX `spawn`/`join` handle correctness by using byte-accurate pointer offsets (`iadd(...)`) instead of `+` in runtime metadata structs (prevents fork+pipe returning corrupted results on Linux).
-	   - **done (rolling, 2026-01-02):** add native `oren_set_result` / `oren_get_result` surface and pin result values as GC roots (parity with C backend + AVM job orchestration).
-	   - References:
-	     - `docs/REMOTE_X64_ENV.md`
-	     - `docs/TEST_SYSTEM.md`
-	     - `docs/LANGUAGE_FEATURE_MATRIX.md`
+     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
+   - **done (rolling, 2026-01-02):**
+     - fix POSIX `spawn`/`join` handle correctness by using byte-accurate pointer offsets (`iadd(...)`) instead of `+` in runtime metadata structs (prevents fork+pipe returning corrupted results on Linux)
+     - add native `oren_set_result` / `oren_get_result` surface and pin result values as GC roots (parity with C backend + AVM job orchestration)
+   - References:
+     - `docs/REMOTE_X64_ENV.md`
+     - `docs/TEST_SYSTEM.md`
+     - `docs/LANGUAGE_FEATURE_MATRIX.md`
 
 2) **Determinism + replay (native + AVM)** (L)
    - MANTIS requires deterministic replay and traceability (`mantis.md` “Observability & reproducibility”).
