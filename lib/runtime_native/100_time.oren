@@ -105,8 +105,8 @@ fn oren_time_mono_raw() {
     return t
 }
 
-@oren.keep
-fn oren_register_thread(top) {
+	@oren.keep
+	fn oren_register_thread(top) {
     // Thread Node (rolling):
     // - [top, saved_sp, next] must stay at offsets 0/8/16 because GC stack scanning depends on it.
     // - Additional fields may be appended for tier-1 runtime services.
@@ -117,14 +117,14 @@ fn oren_register_thread(top) {
     //   16: next
     //   24: call_depth (stack safety)
     //
-    // Size: 32 bytes
-    // Runtime metadata: use malloc_raw so GC never reclaims thread nodes.
-    var node = malloc_raw(32)
-    if node != 0 {
-        ptr_set(node, top)
-        ptr_set(iadd(node, 8), 0) // saved_sp
-        ptr_set(iadd(node, 24), 0) // call_depth
-        
+	    // Size: 32 bytes
+	    // Runtime metadata: use malloc_raw so GC never reclaims thread nodes.
+	    var node = native_malloc_raw_or_mmap(32)
+	    if node != 0 {
+	        ptr_set(node, top)
+	        ptr_set(iadd(node, 8), 0) // saved_sp
+	        ptr_set(iadd(node, 24), 0) // call_depth
+	        
         // Link
         acquire_lock()
         
@@ -247,7 +247,7 @@ fn native_alloc_index_init_min(min_cap) {
     if min_cap != nil && min_cap > cap { cap = min_cap }
     // Ensure power-of-two cap (keep it simple: round up by doubling).
     while cap & (cap - 1) != 0 { cap = cap * 2 }
-    var table = malloc_raw(cap * 8)
+    var table = native_malloc_raw_or_mmap(cap * 8)
     if table == 0 { return 0 }
     native_alloc_index_clear(table, cap)
     g_alloc_index_ptr = table
@@ -284,7 +284,7 @@ fn native_alloc_index_put_node(node) {
     if g_alloc_index_len * 4 >= g_alloc_index_cap * 3 {
         // Rebuild from allocs list (deterministic, keeps table fresh and avoids tombstone drift).
         var new_cap = g_alloc_index_cap * 2
-        var new_tab = malloc_raw(new_cap * 8)
+        var new_tab = native_malloc_raw_or_mmap(new_cap * 8)
         if new_tab != 0 {
             native_alloc_index_clear(new_tab, new_cap)
             g_alloc_index_ptr = new_tab
@@ -413,6 +413,17 @@ fn native_gc_scan_stack() {
 // otherwise we'd lose pointers to freed object memory and create leaks/corruption.
 @oren.keep
 fn native_try_reuse_node(size) {
+    // Rolling robustness: disable raw-node reuse for now.
+    //
+    // Rationale:
+    // - `malloc_raw` is used for runtime metadata nodes (alloc tracking nodes, root nodes, thread nodes).
+    // - A single corrupted node in the free-nodes list can cause allocator to return an invalid pointer,
+    //   which then crashes in `oren_track_alloc` with small addresses like 0xF.
+    // - Tier‑1 correctness is higher priority than micro-optimizing metadata reuse during rolling.
+    //
+    // TODO: re-enable after we harden free-node list integrity + add determinism guards.
+    return 0
+
     if oren_globals() == 0 { return 0 }
     acquire_lock()
     var prev = 0
@@ -440,6 +451,15 @@ fn native_try_reuse_node(size) {
 
 @oren.keep
 fn native_try_reuse(size) {
+    // Rolling robustness: temporarily disable free-block reuse.
+    //
+    // This is a Tier‑1 correctness stopgap while the native allocator + tracking-node reuse
+    // are still stabilizing (see integration suite crash reports involving invalid pointers).
+    //
+    // TODO: re-enable after fixing the underlying allocator invariants and adding validation
+    // for free-block list nodes (ptr/size/kind sanity).
+    return 0
+
     if oren_globals() == 0 { return 0 }
     acquire_lock()
     // Simple first-fit from the free list.
@@ -545,6 +565,49 @@ fn release_lock() {
 
 fn malloc_raw(size) { return 0 }
 
+// --- Raw allocator fallback (native backend rolling robustness) ---
+//
+// `malloc_raw` is an intrinsic provided by the native backend. It is used for runtime metadata
+// (alloc tracking nodes, root nodes, alloc index tables, thread nodes) that must NOT be tracked
+// by the mark/sweep GC.
+//
+// Rolling robustness rule:
+// - If `malloc_raw` returns an invalid pointer (0, negative, or too small to be a real pointer),
+//   fall back to a syscall-first anonymous mmap via `sys_mmap_private_anon`.
+//
+// This keeps Tier‑1 native tests actionable even while the intrinsic allocator path is still rolling.
+fn native_is_neg_i64(x) {
+    // Signed negativity predicate for syscall-first code paths that return -errno.
+    // NOTE: keep this as a simple top-level helper (no nested fns) while closures are still rolling.
+    return x < 0
+}
+
+fn native_abort(msg) {
+    // Fail-fast helper that avoids heap allocation (safe even if allocator is corrupted).
+    if msg != 0 {
+        sys_write(2, msg, oren_string_len(msg))
+    }
+    exit(199)
+    return 0
+}
+
+fn native_malloc_raw_or_mmap(size) {
+    var p = malloc_raw(size)
+    if p == -1 { native_abort("native_malloc_raw_or_mmap: malloc_raw returned -1\n") }
+    if p != 0 {
+        if native_is_neg_i64(p) == false {
+            if p >= 4096 { return p }
+        }
+    }
+
+    var q = sys_mmap_private_anon(size)
+    if q == 0 { return 0 }
+    if q == -1 { native_abort("native_malloc_raw_or_mmap: sys_mmap_private_anon returned -1\n") }
+    if native_is_neg_i64(q) == true { return 0 }
+    if q < 4096 { return 0 }
+    return q
+}
+
 @oren.keep
 fn oren_track_alloc(ptr, size, kind) {
     if oren_globals() == 0 { return ptr }
@@ -616,8 +679,8 @@ fn oren_track_alloc(ptr, size, kind) {
         cur = ptr_get(iadd(cur, 32))
     }
 
-    // Allocate a new tracking node.
-    var node = malloc_raw(40)
+    // Allocate a new tracking node (raw, untracked by GC).
+    var node = native_malloc_raw_or_mmap(40)
     if node != 0 {
         ptr_set(node, ptr)
         ptr_set(iadd(node, 8), size)
@@ -645,7 +708,7 @@ fn native_gc_register_root(ptr) {
     if ptr == 0 { return 0 }
     acquire_lock()
     
-    var node = malloc_raw(40)
+    var node = native_malloc_raw_or_mmap(40)
     if node != 0 {
         ptr_set(node, ptr)
         ptr_set(iadd(node, 8), 0)
@@ -692,6 +755,40 @@ fn native_gc_unregister_root(ptr) {
     return 0
 }
 
+// --- Compiler/tooling GC pin (Tier‑1 parity with C backend) ---
+//
+// The self-hosted compiler uses `oren_gc_pin(x)` as a cheap way to keep a composite
+// object graph alive across deep recursive traversals (renamer/parser/serde lowering)
+// when auto-GC is enabled with bounded stack scanning.
+//
+// Native runtime does not have the C backend's per-thread pin slot, so we implement a
+// best-effort process-wide pin that registers/unregisters the pinned pointer as a GC root.
+//
+// Contract matches the C backend:
+// - returns previous pin value
+// - caller may restore the previous pin (stack discipline)
+var g_oren_gc_pin = 0
+
+@oren.keep
+fn oren_gc_pin(v) {
+    if g_gc_enabled == 0 { return 0 }
+    var prev = g_oren_gc_pin
+    // Unregister previous pinned pointer if it is a tracked heap object.
+    if prev != 0 {
+        if oren_find_node(prev) != 0 {
+            native_gc_unregister_root(prev)
+        }
+    }
+    g_oren_gc_pin = v
+    // Register new pinned pointer if it is a tracked heap object.
+    if v != 0 {
+        if oren_find_node(v) != 0 {
+            native_gc_register_root(v)
+        }
+    }
+    return prev
+}
+
 @oren.keep
 fn oren_find_node(ptr) {
     if oren_globals() == 0 { return 0 }
@@ -727,6 +824,19 @@ fn oren_gc_safepoint() {
     if g_gc_auto_pending == 0 { return 0 }
     if native_gc_single_threaded() == false { return 0 }
     g_gc_auto_pending = 0
+    native_gc_collect()
+    return 0
+}
+
+// Tier‑1 parity: provide `oren_gc_collect()` so compiler-internal modules can request
+// a collection without depending on the C backend runtime.
+//
+// Native backend note:
+// - This is a best-effort stopgap until the compiler's memory story is fully bounded
+//   by arena allocation + explicit phase ownership.
+@oren.keep
+fn oren_gc_collect() {
+    if g_gc_enabled == 0 { return 0 }
     native_gc_collect()
     return 0
 }

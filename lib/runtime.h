@@ -83,8 +83,7 @@ typedef struct OrenList {
 } OrenList;
 
 typedef struct OrenMap {
-    // Basic linear scan map for POC, or hash table.
-    // Let's use simple linear scan of key-value pairs for simplicity in C
+    // Deterministic ordered map: keys kept sorted, linear storage.
     OrenValue* keys;
     OrenValue* values;
     int count;
@@ -97,15 +96,35 @@ typedef struct OrenBuf {
     uint32_t elem_size; // 4 for i32/f32, 8 for i64/f64
 } OrenBuf;
 
-// GC / roots
-void oren_register_root(OrenValue* slot);
-void oren_unregister_root(OrenValue* slot);
-void oren_gc_collect();
-void oren_gc_safepoint();
+	// GC / roots
+	void oren_register_root(OrenValue* slot);
+	void oren_unregister_root(OrenValue* slot);
+	void oren_gc_collect();
+	void oren_gc_safepoint();
+	// Pin a value in the current thread state so GC can always find it (even if the caller
+	// keeps it only in registers under -O2). Returns the previous pinned value.
+	OrenValue oren_gc_pin(OrenValue v);
+	// Precise per-thread root stack (fast, rolling):
+	// - Designed for generated C code to keep locals/temporaries alive without relying on
+	//   conservative stack/register scanning (which is fragile under -O2 and threads).
+	// - Roots are thread-local and GC scans them during stop-the-world marking.
+	//
+	// Typical pattern:
+	//   size_t mark = oren_roots_mark();
+	//   OrenValue tmp = ...; oren_roots_push(&tmp);
+	//   ...
+	//   oren_roots_reset(mark);
+size_t oren_roots_mark(void);
+void oren_roots_push(OrenValue* slot);
+// Root an rvalue / temporary by value (does not require taking the address of a local).
+// This avoids forcing large numbers of temporaries onto the C stack (important for the
+// self-hosted compiler, which otherwise can blow the OS thread stack under -O2).
+void oren_roots_push_value(OrenValue v);
+void oren_roots_reset(size_t mark);
 
-extern OrenValue OREN_NIL;
-extern OrenValue OREN_TRUE;
-extern OrenValue OREN_FALSE;
+	extern OrenValue OREN_NIL;
+	extern OrenValue OREN_TRUE;
+	extern OrenValue OREN_FALSE;
 
 void oren_init(int argc, char **argv);
 OrenValue oren_args();
@@ -131,6 +150,8 @@ OrenValue oren_func(OrenFn fn, void* env);
 // The environment is stored as a GC-managed list; the returned function value
 // keeps it alive via GC marking of `OREN_TYPE_FUNC`.
 OrenValue oren_closure(OrenFn fn, int capture_count, ...);
+// Like `oren_closure`, but captures are passed as an array to avoid varargs/struct ABI issues.
+OrenValue oren_closure_from_array(OrenFn fn, int capture_count, const OrenValue* captures);
 
 OrenValue oren_int(long long v);
 OrenValue oren_float(double v);
@@ -180,14 +201,32 @@ OrenValue oren_call_obj_list(OrenValue fn, OrenValue args_list);
 OrenValue oren_call_obj_spread(OrenValue fn, OrenValue fixed_args, OrenValue spread_list);
 
 OrenValue oren_new_list(int count, ...);
+// Build a list from an array of OrenValue items (no varargs/struct ABI issues).
+// Intended for C transpilers to lower list literals safely and efficiently.
+OrenValue oren_new_list_from_array(int count, const OrenValue* items);
 OrenValue oren_list_len(OrenValue list);
 OrenValue oren_list_push(OrenValue list, OrenValue value);
 OrenValue oren_list_get(OrenValue list, OrenValue index);
 OrenValue oren_list_set(OrenValue list, OrenValue index, OrenValue value);
 OrenValue oren_iter_next(OrenValue container, OrenValue idx, OrenValue out_pair);
+// Map entry iterator (key+value). Returns ok:int (1/0) and writes into out_pair[0..1].
+OrenValue oren_iter_next_entry(OrenValue map, OrenValue idx, OrenValue out_pair);
 OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value);
+// Safe type predicates (must not panic on wrong type).
+OrenValue oren_is_list(OrenValue v);
+OrenValue oren_is_map(OrenValue v);
+OrenValue oren_is_string(OrenValue v);
+// Typed buffer predicates (must not panic on wrong type).
+OrenValue oren_is_buf(OrenValue v);
+OrenValue oren_is_u8_buf(OrenValue v);
+// Debug/interop helper: return the runtime type tag (matches OrenType enum values).
+OrenValue oren_type_tag(OrenValue v);
 
 OrenValue oren_new_map(int count, ...);
+// Build a map from an array of key/value pairs:
+//   kv_pairs[0]=k0, kv_pairs[1]=v0, kv_pairs[2]=k1, kv_pairs[3]=v1, ...
+// This avoids passing OrenValue structs through varargs (undefined behavior).
+OrenValue oren_new_map_from_pairs(int count, const OrenValue* kv_pairs);
 OrenValue oren_map_get(OrenValue map, OrenValue key);
 OrenValue oren_map_get_int(OrenValue map, OrenValue key);
 OrenValue oren_map_get_str(OrenValue map, OrenValue key);
@@ -202,6 +241,9 @@ OrenValue oren_string_char_at(OrenValue s, OrenValue index);
 // the caller has already bounds-checked `index` against a known string length.
 // This avoids an O(n) `strlen` per character, which is catastrophic for lexing.
 OrenValue oren_string_char_at_unchecked(OrenValue s, OrenValue index);
+// Build a string from a slice of a byte container (list<int 0..255> or u8_buf).
+// Used by the compiler's parallel module pipeline to decode astbin without per-byte boxing.
+OrenValue oren_string_from_bytes_slice(OrenValue bytes, OrenValue start, OrenValue len);
 OrenValue oren_string_slice(OrenValue s, OrenValue start, OrenValue end);
 OrenValue oren_char(OrenValue code);
 OrenValue oren_int_to_string(OrenValue v);

@@ -25,9 +25,10 @@ import global_dce "global_dce.oren"
 import capsule "capsule.oren"
 import intparse "int_lit.oren"
 
-// Compiler process GC hook (C backend runtime).
-// Used sparingly to keep native self-hosting builds within resource bounds.
-ffi oren_gc_collect
+// Compiler process GC hook (rolling):
+// - `oren_gc_collect()` is a runtime-provided hook (C backend + native runtime both provide it).
+// - Keep this module free of `ffi` declarations so native self-hosted compilers do not
+//   accidentally emit unresolved external symbols (dyld: _oren_gc_collect).
 
 fn _bundle_err(ctx, msg) {
     if ctx == nil { return nil }

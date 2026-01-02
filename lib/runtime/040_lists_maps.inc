@@ -1,16 +1,125 @@
+static void oren_list_grow(OrenList* l, int newCap) {
+    if (!l) return;
+    if (newCap <= l->capacity) return;
+    if (newCap < 1) newCap = 1;
+    OrenValue* np = (OrenValue*)realloc(l->items, sizeof(OrenValue) * (size_t)newCap);
+    if (!np) {
+        oren_panic("list grow: realloc failed");
+        return;
+    }
+    l->items = np;
+    l->capacity = newCap;
+}
+
+static void oren_map_grow(OrenMap* m, int newCap) {
+    if (!m) return;
+    if (newCap <= m->capacity) return;
+    if (newCap < 1) newCap = 1;
+    OrenValue* nk = (OrenValue*)malloc(sizeof(OrenValue) * (size_t)newCap);
+    OrenValue* nv = (OrenValue*)malloc(sizeof(OrenValue) * (size_t)newCap);
+    if (!nk || !nv) {
+        if (nk) free(nk);
+        if (nv) free(nv);
+        oren_panic("map grow: alloc failed");
+        return;
+    }
+    if (m->count > 0) {
+        memcpy(nk, m->keys, sizeof(OrenValue) * (size_t)m->count);
+        memcpy(nv, m->values, sizeof(OrenValue) * (size_t)m->count);
+    }
+    if (m->keys) free(m->keys);
+    if (m->values) free(m->values);
+    m->keys = nk;
+    m->values = nv;
+    m->capacity = newCap;
+}
+
+// --- Thread-safe container ops (rolling) ---
+//
+// The compiler uses OS threads for parallel parsing. Oren source and compiler subsystems
+// still contain shared global state, so list/map operations must be thread-safe.
+//
+// Use striped mutexes keyed by object address to avoid a single global lock while also
+// keeping per-object overhead near-zero (important: AST nodes are tiny maps).
+//
+// GC note:
+// - The collector is stop-the-world (cooperative), so it does not take these locks.
+// - Container operations must not call into GC while holding a container lock.
+
+#define OREN_OBJ_LOCKS 4096u
+static pthread_mutex_t g_obj_locks[OREN_OBJ_LOCKS];
+static pthread_once_t g_obj_locks_once = PTHREAD_ONCE_INIT;
+
+static void oren_obj_locks_init(void) {
+    for (size_t i = 0; i < (size_t)OREN_OBJ_LOCKS; i++) {
+        pthread_mutex_init(&g_obj_locks[i], NULL);
+    }
+}
+
+static inline pthread_mutex_t* oren_obj_lock_for_ptr(void* p) {
+    (void)pthread_once(&g_obj_locks_once, oren_obj_locks_init);
+    size_t h = oren_ptr_hash(p);
+    return &g_obj_locks[h & (OREN_OBJ_LOCKS - 1u)];
+}
+
+static inline int oren_map_key_rank(OrenType t) {
+    // Keep in sync with map insertion ordering.
+    return (t == OREN_TYPE_NIL) ? 0 :
+           (t == OREN_TYPE_BOOL) ? 1 :
+           (t == OREN_TYPE_INT) ? 2 :
+           (t == OREN_TYPE_STRING) ? 3 : 99;
+}
+
+static inline int oren_map_key_cmp(OrenValue a, OrenValue b) {
+    int ra = oren_map_key_rank(a.type);
+    int rb = oren_map_key_rank(b.type);
+    if (ra != rb) return (ra < rb) ? -1 : 1;
+    if (a.type == OREN_TYPE_NIL) return 0;
+    if (a.type == OREN_TYPE_BOOL) {
+        return (a.as.bool_val < b.as.bool_val) ? -1 : (a.as.bool_val > b.as.bool_val) ? 1 : 0;
+    }
+    if (a.type == OREN_TYPE_INT) {
+        return (a.as.int_val < b.as.int_val) ? -1 : (a.as.int_val > b.as.int_val) ? 1 : 0;
+    }
+    if (a.type == OREN_TYPE_STRING) {
+        int c = strcmp(a.as.string_val, b.as.string_val);
+        if (c < 0) return -1;
+        if (c > 0) return 1;
+        return 0;
+    }
+    // Unsupported key types should be rejected at call sites.
+    return 0;
+}
+
+static inline int oren_map_key_eq(OrenValue a, OrenValue b) {
+    if (a.type != b.type) return 0;
+    if (a.type == OREN_TYPE_NIL) return 1;
+    if (a.type == OREN_TYPE_BOOL) return a.as.bool_val == b.as.bool_val;
+    if (a.type == OREN_TYPE_INT) return a.as.int_val == b.as.int_val;
+    if (a.type == OREN_TYPE_STRING) return strcmp(a.as.string_val, b.as.string_val) == 0;
+    return 0;
+}
+
 OrenValue oren_new_list(int count, ...) {
     va_list args;
     va_start(args, count);
 
-    lock_collections();
     OrenList* list = malloc(sizeof(OrenList));
     oren_register_alloc(list, OREN_ALLOC_LIST);
+    if (count < 0) count = 0;
     list->count = count;
     list->capacity = count;
-    list->items = malloc(sizeof(OrenValue) * count);
+    list->items = NULL;
+    if (count > 0) {
+        list->items = malloc(sizeof(OrenValue) * (size_t)count);
+        if (!list->items) {
+            va_end(args);
+            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("new_list: alloc failed"));
+        }
+    }
 
     for (int i = 0; i < count; i++) {
-        list->items[i] = va_arg(args, OrenValue);
+        list->items[i] = va_arg(args, OrenValue); // NOTE: passing structs via varargs is UB; avoid in new codegen.
     }
 
     va_end(args);
@@ -18,7 +127,30 @@ OrenValue oren_new_list(int count, ...) {
     OrenValue v;
     v.type = OREN_TYPE_LIST;
     v.as.list_val = list;
-    unlock_collections();
+    return v;
+}
+
+OrenValue oren_new_list_from_array(int count, const OrenValue* items) {
+    if (count < 0) count = 0;
+    OrenList* list = malloc(sizeof(OrenList));
+    oren_register_alloc(list, OREN_ALLOC_LIST);
+    list->count = count;
+    list->capacity = count;
+    list->items = NULL;
+    if (count > 0) {
+        list->items = malloc(sizeof(OrenValue) * (size_t)count);
+        if (!list->items) {
+            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("new_list_from_array: alloc failed"));
+        }
+    }
+    if (items) {
+        if (count > 0) memcpy(list->items, items, sizeof(OrenValue) * (size_t)count);
+    } else {
+        for (int i = 0; i < count; i++) list->items[i] = OREN_NIL;
+    }
+    OrenValue v;
+    v.type = OREN_TYPE_LIST;
+    v.as.list_val = list;
     return v;
 }
 
@@ -27,10 +159,17 @@ OrenValue oren_list_len(OrenValue list) {
         oren_panic("len on non-list");
         return OREN_NIL; // Should not be reached
     }
-    lock_collections();
-    int c = list.as.list_val->count;
-    unlock_collections();
+    OrenList* l = list.as.list_val;
+    if (!l) return oren_int(0);
+    pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
+    pthread_mutex_lock(mu);
+    int c = l->count;
+    pthread_mutex_unlock(mu);
     return oren_int(c);
+}
+
+OrenValue oren_is_list(OrenValue v) {
+    return oren_bool(v.type == OREN_TYPE_LIST);
 }
 
 OrenValue oren_list_push(OrenValue list, OrenValue value) {
@@ -39,15 +178,19 @@ OrenValue oren_list_push(OrenValue list, OrenValue value) {
         return OREN_NIL; // Should not be reached
     }
     OrenList *l = list.as.list_val;
-    lock_collections();
+    if (!l) {
+        oren_panic("push on nil list");
+        return OREN_NIL;
+    }
+    pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
+    pthread_mutex_lock(mu);
     if (l->count >= l->capacity) {
-        int newCap = l->capacity == 0 ? 4 : l->capacity * 2;
-        l->items = realloc(l->items, sizeof(OrenValue) * newCap);
-        l->capacity = newCap;
+        int newCap = l->capacity < 1 ? 4 : l->capacity * 2;
+        oren_list_grow(l, newCap);
     }
     l->items[l->count] = value;
     l->count += 1;
-    unlock_collections();
+    pthread_mutex_unlock(mu);
     // Language-level semantics: `oren_list_push` returns `nil`.
     return OREN_NIL;
 }
@@ -58,16 +201,24 @@ OrenValue oren_list_get(OrenValue list, OrenValue index) {
              oren_panic("index must be integer");
              return OREN_NIL; // Should not be reached
         }
+        OrenList* l = list.as.list_val;
+        if (!l) {
+            oren_panic("index get on nil list");
+            return OREN_NIL;
+        }
+        pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
+        pthread_mutex_lock(mu);
         int idx = (int)index.as.int_val;
-        if (idx < 0 || idx >= list.as.list_val->count) {
+        int cnt = l->count;
+        if (idx < 0 || idx >= cnt) {
             char buf[128];
-            snprintf(buf, sizeof(buf), "index out of bounds (idx=%d, count=%d)", idx, list.as.list_val->count);
+            snprintf(buf, sizeof(buf), "index out of bounds (idx=%d, count=%d)", idx, cnt);
+            pthread_mutex_unlock(mu);
             oren_panic(buf);
             return OREN_NIL; // Should not be reached
         }
-        lock_collections();
-        OrenValue v = list.as.list_val->items[idx];
-        unlock_collections();
+        OrenValue v = l->items[idx];
+        pthread_mutex_unlock(mu);
         return v;
     }
     // Also support python list get item?
@@ -108,14 +259,22 @@ OrenValue oren_list_set(OrenValue list, OrenValue index, OrenValue value) {
         oren_panic("list_set index must be int");
         return value; // Should not be reached
     }
+    OrenList* l = list.as.list_val;
+    if (!l) {
+        oren_panic("list_set on nil list");
+        return value;
+    }
+    pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
+    pthread_mutex_lock(mu);
     int idx = (int)index.as.int_val;
-    if (idx < 0 || idx >= list.as.list_val->count) {
+    int cnt = l->count;
+    if (idx < 0 || idx >= cnt) {
+        pthread_mutex_unlock(mu);
         oren_panic("list_set index out of bounds");
         return value; // Should not be reached
     }
-    lock_collections();
-    list.as.list_val->items[idx] = value;
-    unlock_collections();
+    l->items[idx] = value;
+    pthread_mutex_unlock(mu);
     return value;
 }
 
@@ -539,81 +698,74 @@ OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value) 
             oren_panic("index must be integer");
             return value; // Should not be reached
         }
+        OrenList* l = container.as.list_val;
+        if (!l) {
+            oren_panic("index_set on nil list");
+            return value;
+        }
+        pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
+        pthread_mutex_lock(mu);
         int idx = (int)index.as.int_val;
         if (idx < 0) {
             char buf[128];
-            snprintf(buf, sizeof(buf), "index out of bounds (idx=%d, count=%d)", idx, container.as.list_val->count);
+            snprintf(buf, sizeof(buf), "index out of bounds (idx=%d, count=%d)", idx, l->count);
+            pthread_mutex_unlock(mu);
             oren_panic(buf);
             return value; // Should not be reached
         }
-        if (idx >= container.as.list_val->capacity) {
-            int newCap = container.as.list_val->capacity == 0 ? (idx + 1) : container.as.list_val->capacity;
+        if (idx >= l->capacity) {
+            int newCap = (l->capacity == 0) ? (idx + 1) : l->capacity;
+            if (newCap < 4) newCap = 4;
             while (newCap <= idx) { newCap *= 2; }
-            container.as.list_val->items = realloc(container.as.list_val->items, sizeof(OrenValue) * newCap);
-            container.as.list_val->capacity = newCap;
+            oren_list_grow(l, newCap);
         }
-        if (idx >= container.as.list_val->count) {
+        if (idx >= l->count) {
             // zero-fill new slots
-            for (int i = container.as.list_val->count; i <= idx; i++) {
-                container.as.list_val->items[i] = OREN_NIL;
+            for (int i = l->count; i <= idx; i++) {
+                l->items[i] = OREN_NIL;
             }
-            container.as.list_val->count = idx + 1;
+            l->count = idx + 1;
         }
-        lock_collections();
-        container.as.list_val->items[idx] = value;
-        unlock_collections();
+        l->items[idx] = value;
+        pthread_mutex_unlock(mu);
         return value;
     }
 
     if (container.type == OREN_TYPE_MAP) {
         OrenMap* map = container.as.map_val;
-        lock_collections();
+        if (!map) {
+            oren_panic("index_set on nil map");
+            return value;
+        }
+        pthread_mutex_t* mu = oren_obj_lock_for_ptr(map);
+        pthread_mutex_lock(mu);
         if (!(index.type == OREN_TYPE_NIL || index.type == OREN_TYPE_BOOL || index.type == OREN_TYPE_INT || index.type == OREN_TYPE_STRING)) {
-            unlock_collections();
+            pthread_mutex_unlock(mu);
             oren_panic("map key type not supported (need nil/bool/int/string)");
             return value; // Should not be reached
         }
-
-        int rk = (index.type == OREN_TYPE_NIL) ? 0 : (index.type == OREN_TYPE_BOOL) ? 1 : (index.type == OREN_TYPE_INT) ? 2 : 3;
 
         int lo = 0;
         int hi = map->count;
         while (lo < hi) {
             int mid = lo + (hi - lo) / 2;
             OrenValue mk = map->keys[mid];
-            int rmk = (mk.type == OREN_TYPE_NIL) ? 0 : (mk.type == OREN_TYPE_BOOL) ? 1 : (mk.type == OREN_TYPE_INT) ? 2 : 3;
-
-            int cmp = 0;
-            if (rmk != rk) {
-                cmp = (rmk < rk) ? -1 : 1;
-            } else if (index.type == OREN_TYPE_NIL) {
-                cmp = 0;
-            } else if (index.type == OREN_TYPE_BOOL) {
-                cmp = (mk.as.bool_val < index.as.bool_val) ? -1 : (mk.as.bool_val > index.as.bool_val) ? 1 : 0;
-            } else if (index.type == OREN_TYPE_INT) {
-                cmp = (mk.as.int_val < index.as.int_val) ? -1 : (mk.as.int_val > index.as.int_val) ? 1 : 0;
-            } else { // STRING
-                cmp = strcmp(mk.as.string_val, index.as.string_val);
-                if (cmp < 0) cmp = -1;
-                else if (cmp > 0) cmp = 1;
-            }
+            int cmp = oren_map_key_cmp(mk, index);
 
             if (cmp < 0) lo = mid + 1;
             else hi = mid;
         }
         int idx = lo;
 
-        if (idx < map->count && oren_eq(map->keys[idx], index).as.bool_val) {
+        if (idx < map->count && oren_map_key_eq(map->keys[idx], index)) {
             map->values[idx] = value;
-            unlock_collections();
+            pthread_mutex_unlock(mu);
             return value;
         }
 
         if (map->count >= map->capacity) {
-            int newCap = map->capacity == 0 ? 8 : map->capacity * 2;
-            map->keys = realloc(map->keys, sizeof(OrenValue) * newCap);
-            map->values = realloc(map->values, sizeof(OrenValue) * newCap);
-            map->capacity = newCap;
+            int newCap = (map->capacity == 0) ? 4 : map->capacity * 2;
+            oren_map_grow(map, newCap);
         }
         for (int j = map->count; j > idx; j--) {
             map->keys[j] = map->keys[j - 1];
@@ -622,7 +774,7 @@ OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value) 
         map->keys[idx] = index;
         map->values[idx] = value;
         map->count += 1;
-        unlock_collections();
+        pthread_mutex_unlock(mu);
         return value;
     }
 
@@ -656,13 +808,23 @@ OrenValue oren_new_map(int count, ...) {
     va_list args;
     va_start(args, count);
 
-    lock_collections();
     OrenMap* map = malloc(sizeof(OrenMap));
     oren_register_alloc(map, OREN_ALLOC_MAP);
     map->count = 0;
-    map->capacity = count + 8;
-    map->keys = malloc(sizeof(OrenValue) * map->capacity);
-    map->values = malloc(sizeof(OrenValue) * map->capacity);
+    if (count < 0) count = 0;
+    map->capacity = count;
+    map->keys = NULL;
+    map->values = NULL;
+    if (count > 0) {
+        map->keys = (OrenValue*)malloc(sizeof(OrenValue) * (size_t)count);
+        map->values = (OrenValue*)malloc(sizeof(OrenValue) * (size_t)count);
+        if (!map->keys || !map->values) {
+            if (map->keys) free(map->keys);
+            if (map->values) free(map->values);
+            va_end(args);
+            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("new_map: alloc failed"));
+        }
+    }
 
     // Deterministic ordered maps (rolling): keep keys in sorted order.
     // Supported key types: NIL, BOOL, INT, STRING.
@@ -677,45 +839,26 @@ OrenValue oren_new_map(int count, ...) {
             break;
         }
 
-        int rk = (key.type == OREN_TYPE_NIL) ? 0 : (key.type == OREN_TYPE_BOOL) ? 1 : (key.type == OREN_TYPE_INT) ? 2 : 3;
-
         int lo = 0;
         int hi = map->count;
         while (lo < hi) {
             int mid = lo + (hi - lo) / 2;
             OrenValue mk = map->keys[mid];
-            int rmk = (mk.type == OREN_TYPE_NIL) ? 0 : (mk.type == OREN_TYPE_BOOL) ? 1 : (mk.type == OREN_TYPE_INT) ? 2 : 3;
-
-            int cmp = 0;
-            if (rmk != rk) {
-                cmp = (rmk < rk) ? -1 : 1;
-            } else if (key.type == OREN_TYPE_NIL) {
-                cmp = 0;
-            } else if (key.type == OREN_TYPE_BOOL) {
-                cmp = (mk.as.bool_val < key.as.bool_val) ? -1 : (mk.as.bool_val > key.as.bool_val) ? 1 : 0;
-            } else if (key.type == OREN_TYPE_INT) {
-                cmp = (mk.as.int_val < key.as.int_val) ? -1 : (mk.as.int_val > key.as.int_val) ? 1 : 0;
-            } else { // STRING
-                cmp = strcmp(mk.as.string_val, key.as.string_val);
-                if (cmp < 0) cmp = -1;
-                else if (cmp > 0) cmp = 1;
-            }
+            int cmp = oren_map_key_cmp(mk, key);
 
             if (cmp < 0) lo = mid + 1;
             else hi = mid;
         }
         int idx = lo;
 
-        if (idx < map->count && oren_eq(map->keys[idx], key).as.bool_val) {
+        if (idx < map->count && oren_map_key_eq(map->keys[idx], key)) {
             map->values[idx] = value;
             continue;
         }
 
         if (map->count >= map->capacity) {
-            int newCap = map->capacity == 0 ? 8 : map->capacity * 2;
-            map->keys = realloc(map->keys, sizeof(OrenValue) * newCap);
-            map->values = realloc(map->values, sizeof(OrenValue) * newCap);
-            map->capacity = newCap;
+            int newCap = (map->capacity == 0) ? 4 : map->capacity * 2;
+            oren_map_grow(map, newCap);
         }
         for (int j = map->count; j > idx; j--) {
             map->keys[j] = map->keys[j - 1];
@@ -731,23 +874,98 @@ OrenValue oren_new_map(int count, ...) {
     OrenValue v;
     v.type = OREN_TYPE_MAP;
     v.as.map_val = map;
-    unlock_collections();
+    return v;
+}
+
+OrenValue oren_new_map_from_pairs(int count, const OrenValue* kv_pairs) {
+    if (count < 0) count = 0;
+    OrenMap* map = malloc(sizeof(OrenMap));
+    oren_register_alloc(map, OREN_ALLOC_MAP);
+    map->count = 0;
+    map->capacity = count;
+    map->keys = NULL;
+    map->values = NULL;
+    if (count > 0) {
+        map->keys = (OrenValue*)malloc(sizeof(OrenValue) * (size_t)count);
+        map->values = (OrenValue*)malloc(sizeof(OrenValue) * (size_t)count);
+        if (!map->keys || !map->values) {
+            if (map->keys) free(map->keys);
+            if (map->values) free(map->values);
+            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("new_map_from_pairs: alloc failed"));
+        }
+    }
+
+    for (int i = 0; i < count; i++) {
+        OrenValue key = kv_pairs ? kv_pairs[i * 2 + 0] : OREN_NIL;
+        OrenValue value = kv_pairs ? kv_pairs[i * 2 + 1] : OREN_NIL;
+
+        if (!(key.type == OREN_TYPE_NIL || key.type == OREN_TYPE_BOOL || key.type == OREN_TYPE_INT || key.type == OREN_TYPE_STRING)) {
+            oren_panic("map key type not supported (need nil/bool/int/string)");
+            break;
+        }
+
+        int lo = 0;
+        int hi = map->count;
+        while (lo < hi) {
+            int mid = lo + (hi - lo) / 2;
+            OrenValue mk = map->keys[mid];
+            int cmp = oren_map_key_cmp(mk, key);
+
+            if (cmp < 0) lo = mid + 1;
+            else hi = mid;
+        }
+        int idx = lo;
+
+        if (idx < map->count && oren_map_key_eq(map->keys[idx], key)) {
+            map->values[idx] = value;
+            continue;
+        }
+
+        if (map->count >= map->capacity) {
+            int newCap = (map->capacity == 0) ? 4 : map->capacity * 2;
+            oren_map_grow(map, newCap);
+        }
+        for (int j = map->count; j > idx; j--) {
+            map->keys[j] = map->keys[j - 1];
+            map->values[j] = map->values[j - 1];
+        }
+        map->keys[idx] = key;
+        map->values[idx] = value;
+        map->count += 1;
+    }
+
+    OrenValue v;
+    v.type = OREN_TYPE_MAP;
+    v.as.map_val = map;
     return v;
 }
 
 OrenValue oren_map_get(OrenValue map, OrenValue key) {
     if (map.type != OREN_TYPE_MAP) return OREN_NIL;
-    lock_collections();
-    for (int i = 0; i < map.as.map_val->count; i++) {
-        OrenValue k = map.as.map_val->keys[i];
-        if (oren_eq(k, key).as.bool_val) {
-            OrenValue v = map.as.map_val->values[i];
-            unlock_collections();
-            return v;
-        }
+    OrenMap* m = map.as.map_val;
+    if (!m) return OREN_NIL;
+    if (!(key.type == OREN_TYPE_NIL || key.type == OREN_TYPE_BOOL || key.type == OREN_TYPE_INT || key.type == OREN_TYPE_STRING)) {
+        return OREN_NIL;
     }
-    unlock_collections();
-    return OREN_NIL;
+
+    pthread_mutex_t* mu = oren_obj_lock_for_ptr(m);
+    pthread_mutex_lock(mu);
+    int lo = 0;
+    int hi = m->count;
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        OrenValue mk = m->keys[mid];
+        int cmp = oren_map_key_cmp(mk, key);
+        if (cmp < 0) lo = mid + 1;
+        else hi = mid;
+    }
+
+    OrenValue out = OREN_NIL;
+    if (lo < m->count && oren_map_key_eq(m->keys[lo], key)) {
+        out = m->values[lo];
+    }
+    pthread_mutex_unlock(mu);
+    return out;
 }
 
 OrenValue oren_map_get_int(OrenValue map, OrenValue key) {
@@ -798,10 +1016,17 @@ OrenValue oren_map_len(OrenValue map) {
         oren_panic("len on non-map");
         return OREN_NIL; // Should not be reached
     }
-    lock_collections();
-    int c = map.as.map_val->count;
-    unlock_collections();
+    OrenMap* m = map.as.map_val;
+    if (!m) return oren_int(0);
+    pthread_mutex_t* mu = oren_obj_lock_for_ptr(m);
+    pthread_mutex_lock(mu);
+    int c = m->count;
+    pthread_mutex_unlock(mu);
     return oren_int(c);
+}
+
+OrenValue oren_is_map(OrenValue v) {
+    return oren_bool(v.type == OREN_TYPE_MAP);
 }
 
 OrenValue oren_call_obj_argv(OrenValue fn, int argc, OrenValue* argv) {
@@ -1442,7 +1667,7 @@ static OrenValue iter_fill_pair(OrenValue out_pair, OrenValue okv, OrenValue val
             return out_pair;
         }
     }
-    return oren_new_list(2, okv, val);
+    return oren_new_list_from_array(2, (OrenValue[]){okv, val});
 }
 
 OrenValue oren_iter_next(OrenValue container, OrenValue idx, OrenValue out_pair) {
@@ -1612,12 +1837,64 @@ OrenValue oren_iter_next(OrenValue container, OrenValue idx, OrenValue out_pair)
     return OREN_NIL; // Should not be reached
 }
 
+OrenValue oren_iter_next_entry(OrenValue map, OrenValue idx, OrenValue out_pair) {
+    // Map-only entry iteration: fill out_pair[0]=key out_pair[1]=value.
+    if (idx.type != OREN_TYPE_INT) {
+        oren_panic("iter_next_entry expects (map, int idx, list out_pair)");
+        return OREN_NIL;
+    }
+    if (out_pair.type != OREN_TYPE_LIST || !out_pair.as.list_val) {
+        oren_panic("iter_next_entry expects out_pair list");
+        return OREN_NIL;
+    }
+    if (map.type != OREN_TYPE_MAP || !map.as.map_val) {
+        return oren_int(0);
+    }
+    long long i = idx.as.int_val;
+    if (i < 0) return oren_int(0);
+    OrenMap* m = map.as.map_val;
+    if (i >= m->count) return oren_int(0);
+    OrenList* l = out_pair.as.list_val;
+    if (l->capacity < 2) {
+        // Expand out_pair to at least 2.
+        lock_collections();
+        oren_list_grow(l, 2);
+        unlock_collections();
+    }
+    if (l->count < 2) l->count = 2;
+    l->items[0] = m->keys[(int)i];
+    l->items[1] = m->values[(int)i];
+    return oren_int(1);
+}
+
 OrenValue oren_string_len(OrenValue s) {
     if (s.type != OREN_TYPE_STRING) {
         oren_panic("string_len expects string");
         return OREN_NIL; // Should not be reached
     }
     return oren_int((long long)strlen(s.as.string_val));
+}
+
+OrenValue oren_is_string(OrenValue v) {
+    return oren_bool(v.type == OREN_TYPE_STRING);
+}
+
+OrenValue oren_is_buf(OrenValue v) {
+    return oren_bool(
+        v.type == OREN_TYPE_U8_BUF ||
+        v.type == OREN_TYPE_I32_BUF ||
+        v.type == OREN_TYPE_I64_BUF ||
+        v.type == OREN_TYPE_F32_BUF ||
+        v.type == OREN_TYPE_F64_BUF
+    );
+}
+
+OrenValue oren_is_u8_buf(OrenValue v) {
+    return oren_bool(v.type == OREN_TYPE_U8_BUF);
+}
+
+OrenValue oren_type_tag(OrenValue v) {
+    return oren_int((long long)v.type);
 }
 
 static pthread_once_t g_single_byte_strings_once = PTHREAD_ONCE_INIT;
@@ -1664,70 +1941,4 @@ OrenValue oren_string_char_at_unchecked(OrenValue s, OrenValue index) {
     // Caller guarantees idx is within the string's known length.
     // Avoid `strlen` here: lexing is otherwise O(n^2).
     return oren_string_from_single_byte((unsigned char)s.as.string_val[(size_t)idx]);
-}
-
-OrenValue oren_char(OrenValue code) {
-    if (code.type != OREN_TYPE_INT) {
-        oren_panic("char expects int");
-        return OREN_NIL; // Should not be reached
-    }
-    long long v = code.as.int_val;
-    if (v < 0 || v > 255) {
-        char buf[128];
-        snprintf(buf, sizeof(buf), "char code out of range (code=%lld)", v);
-        oren_panic(buf);
-        return OREN_NIL; // Should not be reached
-    }
-    return oren_string_from_single_byte((unsigned char)v);
-}
-
-OrenValue oren_string_const(const char* s) {
-    OrenValue v;
-    v.type = OREN_TYPE_STRING;
-    v.as.string_val = (char*)s;
-    return v;
-}
-
-OrenValue oren_err(OrenValue code, OrenValue msg) {
-    if (code.type != OREN_TYPE_INT || msg.type != OREN_TYPE_STRING) {
-        oren_panic("oren_err expects (int, string)");
-        return OREN_NIL; // Should not be reached
-    }
-    return oren_new_map(
-        3,
-        oren_string_const("__err"), OREN_TRUE,
-        oren_string_const("code"), code,
-        oren_string_const("msg"), msg
-    );
-}
-
-OrenValue oren_is_err(OrenValue v) {
-    if (v.type != OREN_TYPE_MAP) return OREN_FALSE;
-    OrenValue marker = oren_map_get(v, oren_string_const("__err"));
-    return oren_bool(oren_is_truthy(marker));
-}
-
-OrenValue oren_err_code(OrenValue v) {
-    if (!oren_is_err(v).as.bool_val) return oren_int(-1);
-    OrenValue code = oren_map_get(v, oren_string_const("code"));
-    if (code.type != OREN_TYPE_INT) return oren_int(-1);
-    return code;
-}
-
-OrenValue oren_err_msg(OrenValue v) {
-    if (!oren_is_err(v).as.bool_val) return OREN_NIL;
-    OrenValue msg = oren_map_get(v, oren_string_const("msg"));
-    if (msg.type != OREN_TYPE_STRING) return OREN_NIL;
-    return msg;
-}
-
-static OrenValue oren_err_from_errno(const char* action, const char* path, int err) {
-    int code = OREN_ERR_IO;
-    if (err == EACCES || err == EPERM) code = OREN_ERR_PERM;
-    else if (err == ENOENT) code = OREN_ERR_NOT_FOUND;
-
-    char buf[512];
-    if (path) snprintf(buf, sizeof(buf), "%s: %s (errno=%d)", action, path, err);
-    else snprintf(buf, sizeof(buf), "%s (errno=%d)", action, err);
-    return oren_err(oren_int(code), oren_string(buf));
 }

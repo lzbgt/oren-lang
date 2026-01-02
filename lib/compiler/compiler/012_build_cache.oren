@@ -88,12 +88,13 @@ fn _cache_scan_imports_for_file(full_path, config) {
     // - this function is called for every module reachable from the entrypoint.
     // - avoid parsing the full program AST; we only need top-level `import` statements.
     // - use token scanning via the lexer for a much cheaper dependency walk.
-    var src = expand_includes_file(full_path, [])
-    if src == nil {
-        var msg = include_last_err()
+    var rr = expand_includes_file_result(full_path, [])
+    if rr["ok"] != true {
+        var msg = rr["err"]
         if msg == nil { msg = "failed to read" }
         return {"ok": false, "err": msg}
     }
+    var src = rr["src"]
     var sh = _sha256_hex_string(src)
 
     var l = lexer.new_lexer(src)
@@ -260,12 +261,13 @@ fn _cache_scan_imports_for_file_cached(full_path, config, scan_state) {
     if cache_map == nil { cache_map = {} ; scan_state["cache"] = cache_map }
 
     // Compute expanded-source hash (still required for correctness).
-    var src = expand_includes_file(full_path, [])
-    if src == nil {
-        var msg = include_last_err()
+    var rr = expand_includes_file_result(full_path, [])
+    if rr["ok"] != true {
+        var msg = rr["err"]
         if msg == nil { msg = "failed to read" }
         return {"ok": false, "err": msg}
     }
+    var src = rr["src"]
     var sh = _sha256_hex_string(src)
 
     // Cache hit: reuse imports without token scanning.
@@ -318,12 +320,13 @@ fn _cache_hash_expanded_includes(path) {
     //
     // This is used for injected sources that are not necessarily visible through the
     // user's `import` graph (e.g. the native runtime bundle injected by native backends).
-    var src = expand_includes_file(path, [])
-    if src == nil {
-        var msg = include_last_err()
+    var rr = expand_includes_file_result(path, [])
+    if rr["ok"] != true {
+        var msg = rr["err"]
         if msg == nil { msg = "failed to read" }
         return {"ok": false, "err": msg}
     }
+    var src = rr["src"]
     return {"ok": true, "hash": _sha256_hex_string(src)}
 }
 

@@ -313,7 +313,7 @@ fn transpile_type_ctor(t, type_decl) {
             args = args + "oren_string_const(" + CH_QUOTE + c_escape_string(type_decl["fields"][i]["value"]) + CH_QUOTE + "), " + type_decl["fields"][i]["value"]
             i = i + 1
         }
-        emit(t, "return oren_new_map(" + int_str(n) + ", " + args + ");")
+        emit(t, "return oren_new_map_from_pairs(" + int_str(n) + ", (OrenValue[]){" + args + "});")
     }
     indent_less(t)
     emit(t, "}")
@@ -348,7 +348,7 @@ fn transpile_args_list_expr(t, args) {
         parts = parts + transpile_expression(t, args[j])
         j = j + 1
     }
-    return "oren_new_list(" + int_str(argc) + ", " + parts + ")"
+    return "oren_new_list_from_array(" + int_str(argc) + ", (OrenValue[]){" + parts + "})"
 }
 
 fn starts_with(s, prefix) {
@@ -836,7 +836,7 @@ fn transpile_statement(t, stmt) {
             args = args + transpile_expression(t, call["args"][i])
             i = i + 1
         }
-        return "oren_spawn_call_list(" + fn_expr + ", oren_new_list(" + oren_int_to_string(n) + ", " + args + "));"
+        return "oren_spawn_call_list(" + fn_expr + ", oren_new_list_from_array(" + oren_int_to_string(n) + ", (OrenValue[]){" + args + "}));"
     }
     if stmt["type"] == "Block" {
         var stmts = stmt["stmts"]
@@ -997,7 +997,7 @@ fn transpile_expression(t, exp) {
             args = args + transpile_expression(t, {"type": "Identifier", "value": caps[i]})
             i = i + 1
         }
-        return "oren_closure(" + lname + ", " + oren_int_to_string(oren_list_len(caps)) + ", " + args + ")"
+        return "oren_closure_from_array(" + lname + ", " + oren_int_to_string(oren_list_len(caps)) + ", (OrenValue[]){" + args + "})"
     }
     if et == "Prefix" {
         var right = transpile_expression(t, exp["right"])
@@ -1154,8 +1154,8 @@ fn transpile_expression(t, exp) {
             if spread != nil {
                 return "oren_call_obj_spread(" + fn_expr + ", " + transpile_args_list_expr(t, exp["args"]) + ", " + transpile_expression(t, spread) + ")"
             }
-            if argc == 0 { return "oren_call_obj(" + fn_expr + ", 0)" }
-            return "oren_call_obj(" + fn_expr + ", " + int_str(argc) + ", " + args_s + ")"
+            if argc == 0 { return "oren_call_obj_argv(" + fn_expr + ", 0, NULL)" }
+            return "oren_call_obj_argv(" + fn_expr + ", " + int_str(argc) + ", (OrenValue[]){" + args_s + "})"
         }
         // Direct call
         if fn_sym != "" { return c_fn_name(fn_sym) + "(" + args_s + ")" }
@@ -1174,7 +1174,7 @@ fn transpile_expression(t, exp) {
             args = args + transpile_expression(t, call["args"][i])
             i = i + 1
         }
-        return "oren_spawn_call_list(" + fn_expr + ", oren_new_list(" + oren_int_to_string(n) + ", " + args + "))"
+        return "oren_spawn_call_list(" + fn_expr + ", oren_new_list_from_array(" + oren_int_to_string(n) + ", (OrenValue[]){" + args + "}))"
     }
     if et == "Member" {
         var ns = ns_resolve(t, exp)
@@ -1197,7 +1197,7 @@ fn transpile_expression(t, exp) {
         }
         var count = oren_list_len(exp["elements"])
         if count == 0 { return "oren_new_list(0)" }
-        return "oren_new_list(" + int_str(count) + ", " + els + ")"
+        return "oren_new_list_from_array(" + int_str(count) + ", (OrenValue[]){" + els + "})"
     }
     if et == "Index" {
         var left_expr = transpile_expression(t, exp["left"])
@@ -1215,7 +1215,7 @@ fn transpile_expression(t, exp) {
             i_pairs = i_pairs + 1
         }
         if count_pairs == 0 { return "oren_new_map(0)" }
-        return "oren_new_map(" + int_str(count_pairs) + ", " + parts + ")"
+        return "oren_new_map_from_pairs(" + int_str(count_pairs) + ", (OrenValue[]){" + parts + "})"
     }
     return "/* unknown expr */ OREN_NIL"
 }

@@ -244,18 +244,19 @@ fn compiler_main() {
             }
             return nil
         }
-    if kind == "linked" {
+        if kind == "linked" {
             if dbg_flow != nil { print("DEBUG_FLOW dump linked start") }
-            var src = expand_includes_file(path, [])
-            if src == nil {
+            var rr = expand_includes_file_result(path, [])
+            if rr["ok"] != true {
                 var emsg = "Failed to read file: " + path
-                var msg = include_last_err()
+                var msg = rr["err"]
                 if msg != nil { emsg = emsg + " (" + msg + ")" }
                 emit_diag("compile", 2, emsg)
                 print("Failed to read file: " + path)
                 if msg != nil { print(msg) }
                 oren_exit(2)
             }
+            var src = rr["src"]
             if dbg_flow != nil { print("DEBUG_FLOW dump linked got_src") }
             var l = lexer.new_lexer(src)
             l["file"] = path
@@ -285,18 +286,19 @@ fn compiler_main() {
             }
             return nil
         }
-    if kind == "graph" {
+        if kind == "graph" {
             if dbg_flow != nil { print("DEBUG_FLOW dump graph start") }
-            var srcg = expand_includes_file(path, [])
-            if srcg == nil {
+            var rrg = expand_includes_file_result(path, [])
+            if rrg["ok"] != true {
                 var emsgg = "Failed to read file: " + path
-                var msgg = include_last_err()
+                var msgg = rrg["err"]
                 if msgg != nil { emsgg = emsgg + " (" + msgg + ")" }
                 emit_diag("compile", 2, emsgg)
                 print("Failed to read file: " + path)
                 if msgg != nil { print(msgg) }
                 oren_exit(2)
             }
+            var srcg = rrg["src"]
             if dbg_flow != nil { print("DEBUG_FLOW dump graph got_src") }
             var lg = lexer.new_lexer(srcg)
             lg["file"] = path
@@ -372,16 +374,17 @@ fn compiler_main() {
         ATTR_ALLOW_PREFIXES = split_csv(opts["attr-allow-prefixes"])
         if seen["out"] == true { out_meta = opts["out"] }
 
-        var src = expand_includes_file(path, [])
-        if src == nil {
+        var rr = expand_includes_file_result(path, [])
+        if rr["ok"] != true {
             var emsg = "Failed to read file: " + path
-            var msg = include_last_err()
+            var msg = rr["err"]
             if msg != nil { emsg = emsg + " (" + msg + ")" }
             emit_diag("compile", 2, emsg)
             print("Failed to read file: " + path)
             if msg != nil { print(msg) }
             oren_exit(2)
         }
+        var src = rr["src"]
         var l = lexer.new_lexer(src)
         l["file"] = path
         var p = parser.new_parser(l)
@@ -701,16 +704,17 @@ fn compiler_main() {
     // Ensure the output directory exists before any backend attempts to write.
     ensure_dir(dirname(out_path))
 
-    var src = expand_includes_file(path, [])
-    if src == nil {
+    var rr = expand_includes_file_result(path, [])
+    if rr["ok"] != true {
         var emsg = "Failed to read file: " + path
-        var msg = include_last_err()
+        var msg = rr["err"]
         if msg != nil { emsg = emsg + " (" + msg + ")" }
         emit_diag("compile", 2, emsg)
         print("Failed to read file: " + path)
         if msg != nil { print(msg) }
         oren_exit(2)
     }
+    var src = rr["src"]
     var l = lexer.new_lexer(src)
     l["file"] = path
     var p = parser.new_parser(l)

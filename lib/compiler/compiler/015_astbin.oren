@@ -1,0 +1,483 @@
+// AST binary codec (rolling)
+//
+// Purpose:
+// - Move module parsing work into fork-based `spawn` workers (macOS/Linux Tier-1),
+//   then transfer parsed ASTs back to the parent compiler process cheaply.
+// - This is a pipeline optimization (parallel parse) rather than GC tuning.
+//
+// Encoding format (byte stream):
+//   tag (u8) + payload
+// Tags:
+//   0 = nil
+//   1 = false
+//   2 = true
+//   3 = int  (zigzag varint)
+//   4 = string (uvarint len + raw bytes, no NUL)
+//   5 = list (uvarint count + values)
+//   6 = map  (uvarint count + (string_key,value) pairs)  // keys must be strings
+//   7 = u8_buf (uvarint len + raw bytes)
+//   8 = float (u64 bits, little-endian)
+//
+// Determinism:
+// - Map iteration in Oren is defined to be deterministic (sorted keys) for Tier‑1 tooling.
+
+fn _astbin_uvarint_size(x) {
+    var n = 1
+    var v = x
+    while v >= 128 {
+        v = v >> 7
+        n = n + 1
+    }
+    return n
+}
+
+fn _astbin_zigzag(x) {
+    // x is signed 64-bit integer.
+    return (x << 1) ^ (x >> 63)
+}
+
+fn _astbin_varint_size_signed(x) {
+    var zz = _astbin_zigzag(x)
+    if zz < 0 { zz = 0 } // defensive
+    return _astbin_uvarint_size(zz)
+}
+
+fn _astbin_is_list(v) {
+    return oren_is_list(v) == true
+}
+
+fn _astbin_is_map(v) {
+    return oren_is_map(v) == true
+}
+
+fn _astbin_is_string(v) {
+    return oren_is_string(v) == true
+}
+
+fn _astbin_is_buf(v) {
+    return oren_is_buf(v) == true
+}
+
+fn _astbin_is_u8_buf(v) {
+    return oren_is_u8_buf(v) == true
+}
+
+fn _astbin_size(v) {
+    if v == nil { return 1 }
+    if v == true { return 1 }
+    if v == false { return 1 }
+    if _astbin_is_list(v) {
+        var n = oren_list_len(v)
+        var total = 1 + _astbin_uvarint_size(n)
+        var i = 0
+        while i < n {
+            total = total + _astbin_size(v[i])
+            i = i + 1
+        }
+        return total
+    }
+    if _astbin_is_map(v) {
+        var n2 = oren_map_len(v)
+        var total2 = 1 + _astbin_uvarint_size(n2)
+        var idx = 0
+        // `oren_iter_next_entry` fills out_pair[0]=key out_pair[1]=value and returns ok:int.
+        var out_pair = [nil, nil]
+        while 1 {
+            var ok = oren_iter_next_entry(v, idx, out_pair)
+            if ok == 0 { break }
+            var k = out_pair[0]
+            var val = out_pair[1]
+            // Keys are encoded as full values (rolling v1): support int + string keys.
+            total2 = total2 + _astbin_size(k)
+            total2 = total2 + _astbin_size(val)
+            idx = idx + 1
+        }
+        return total2
+    }
+    if _astbin_is_string(v) {
+        var sl = oren_string_len(v)
+        return 1 + _astbin_uvarint_size(sl) + sl
+    }
+    if _astbin_is_u8_buf(v) {
+        var n3 = oren_buf_len(v)
+        return 1 + _astbin_uvarint_size(n3) + n3
+    }
+    if _astbin_is_buf(v) {
+        print("astbin: unsupported typed buffer (only u8_buf is supported)")
+        oren_exit(1)
+    }
+    // Float: encode as 8 bytes (IEEE bits) for determinism.
+    // Type tags follow lib/runtime.h OrenType enum values (float == 2).
+    if oren_type_tag(v) == 2 { return 1 + 8 }
+    // Default: int
+    var tt = oren_type_tag(v)
+    if tt != 1 {
+        print("astbin: unsupported value type tag=" + oren_int_to_string(tt))
+        oren_exit(1)
+    }
+    return 1 + _astbin_varint_size_signed(v)
+}
+
+fn _astbin_write_u8(buf, off, b) {
+    // Write a single byte and return next offset.
+    oren_buf_store_u8(buf, off, b & 255)
+    return off + 1
+}
+
+fn _astbin_write_uvarint(buf, off, x) {
+    var v = x
+    // Defensive clamp: treat negatives as 0.
+    if v < 0 { v = 0 }
+    while v >= 128 {
+        off = _astbin_write_u8(buf, off, (v & 127) | 128)
+        v = v >> 7
+    }
+    off = _astbin_write_u8(buf, off, v & 127)
+    return off
+}
+
+fn _astbin_write_varint_signed(buf, off, x) {
+    var zz = _astbin_zigzag(x)
+    if zz < 0 { zz = 0 } // defensive
+    return _astbin_write_uvarint(buf, off, zz)
+}
+
+fn _astbin_write_string(buf, off, s) {
+    // Encode string as uvarint(len) + raw bytes.
+    //
+    // Keep this backend-portable:
+    // - avoid raw pointer byte loads (ptr_get_byte) and malloc/free
+    // - use `oren_bytes_from_string` and list iteration
+    var bs = oren_bytes_from_string(s)
+    var n = oren_list_len(bs)
+    off = _astbin_write_uvarint(buf, off, n)
+    var i = 0
+    while i < n {
+        var b = bs[i]
+        if b == nil { b = 0 }
+        if b < 0 { b = 0 }
+        if b > 255 { b = _imod(b, 256) }
+        off = _astbin_write_u8(buf, off, b)
+        i = i + 1
+    }
+    return off
+}
+
+fn _astbin_write_u64_le(buf, off, x0) {
+    var x = x0
+    var i = 0
+    while i < 8 {
+        off = _astbin_write_u8(buf, off, x & 255)
+        x = x >> 8
+        i = i + 1
+    }
+    return off
+}
+
+fn _astbin_write_value(buf, off, v) {
+    if v == nil { return _astbin_write_u8(buf, off, 0) }
+    if v == false { return _astbin_write_u8(buf, off, 1) }
+    if v == true { return _astbin_write_u8(buf, off, 2) }
+
+    if _astbin_is_list(v) {
+        off = _astbin_write_u8(buf, off, 5)
+        var n = oren_list_len(v)
+        off = _astbin_write_uvarint(buf, off, n)
+        var i = 0
+        while i < n {
+            off = _astbin_write_value(buf, off, v[i])
+            i = i + 1
+        }
+        return off
+    }
+    if _astbin_is_map(v) {
+        off = _astbin_write_u8(buf, off, 6)
+        var n2 = oren_map_len(v)
+        off = _astbin_write_uvarint(buf, off, n2)
+        var idx = 0
+        var out_pair = [nil, nil]
+        while 1 {
+            var ok = oren_iter_next_entry(v, idx, out_pair)
+            if ok == 0 { break }
+            var k = out_pair[0]
+            var val = out_pair[1]
+            // Keys are encoded as full values (rolling v1):
+            // - allow int keys (used by compiler internals)
+            // - allow string keys (most AST nodes)
+            // Avoid bool/nil keys because native runtime treats non-string keys as int-kind.
+            if k == nil || k == true || k == false {
+                print("astbin: unsupported map key (need int|string), got bool/nil")
+                return off
+            }
+            off = _astbin_write_value(buf, off, k)
+            off = _astbin_write_value(buf, off, val)
+            idx = idx + 1
+        }
+        return off
+    }
+    if _astbin_is_string(v) {
+        off = _astbin_write_u8(buf, off, 4)
+        return _astbin_write_string(buf, off, v)
+    }
+    if _astbin_is_u8_buf(v) {
+        off = _astbin_write_u8(buf, off, 7)
+        var n3 = oren_buf_len(v)
+        off = _astbin_write_uvarint(buf, off, n3)
+        var i3 = 0
+        while i3 < n3 {
+            var b = oren_buf_load_u8(v, i3)
+            if oren_is_err(b) {
+                print("astbin: buf_load_u8 failed")
+                oren_exit(1)
+            }
+            off = _astbin_write_u8(buf, off, b & 255)
+            i3 = i3 + 1
+        }
+        return off
+    }
+    if _astbin_is_buf(v) {
+        print("astbin: unsupported typed buffer (only u8_buf is supported)")
+        oren_exit(1)
+    }
+
+    // Float: encode as raw IEEE bits for determinism.
+    // Type tags follow lib/runtime.h OrenType enum values (float == 2).
+    if oren_type_tag(v) == 2 {
+        off = _astbin_write_u8(buf, off, 8)
+        // Native backend requires a "floaty" argument at compile-time (it does not flow-narrow on
+        // runtime `oren_type_tag` checks). Adding a float literal makes the expression floaty while
+        // preserving value when `v` is already a float.
+        var bits = oren_f64_to_u64_bits(v + 0.0)
+        return _astbin_write_u64_le(buf, off, bits)
+    }
+
+    // Default: int
+    var tt = oren_type_tag(v)
+    if tt != 1 {
+        print("astbin: unsupported value type tag=" + oren_int_to_string(tt))
+        oren_exit(1)
+    }
+    off = _astbin_write_u8(buf, off, 3)
+    return _astbin_write_varint_signed(buf, off, v)
+}
+
+fn _astbin_validate_value(v, ctx_key, ctx_idx, depth) {
+    // Debug-only: validate that `v` is encodable without crashing.
+    // Keep this lightweight and only use under env `OREN_ASTBIN_VALIDATE=1`.
+    if depth > 512 {
+        print("astbin_validate: depth limit exceeded")
+        return false
+    }
+    if v == nil { return true }
+    if v == true { return true }
+    if v == false { return true }
+    if _astbin_is_string(v) { return true }
+    if _astbin_is_u8_buf(v) { return true }
+    if _astbin_is_list(v) {
+        var n = oren_list_len(v)
+        var i = 0
+        while i < n {
+            if !_astbin_validate_value(v[i], ctx_key, i, depth + 1) { return false }
+            i = i + 1
+        }
+        return true
+    }
+    if _astbin_is_map(v) {
+        var idx = 0
+        var out_pair = [nil, nil]
+        while 1 {
+            var ok = oren_iter_next_entry(v, idx, out_pair)
+            if ok == 0 { break }
+            var k = out_pair[0]
+            var val = out_pair[1]
+            // Validate key itself (should usually be string or int).
+            if !_astbin_validate_value(k, ctx_key, ctx_idx, depth + 1) { return false }
+            // If key is a string, use it as context for the value.
+            var next_key = ctx_key
+            if _astbin_is_string(k) { next_key = k }
+            if !_astbin_validate_value(val, next_key, ctx_idx, depth + 1) { return false }
+            idx = idx + 1
+        }
+        return true
+    }
+    if _astbin_is_buf(v) {
+        print("astbin_validate: unsupported typed buffer (only u8_buf is supported)")
+        return false
+    }
+
+    var tt = oren_type_tag(v)
+    if tt == 1 { return true } // int
+    if tt == 2 { return true } // float
+
+    var where = "root"
+    if ctx_key != nil && ctx_key != "" { where = "key=" + ctx_key }
+    if ctx_idx != nil && ctx_idx >= 0 { where = where + " idx=" + oren_int_to_string(ctx_idx) }
+    print("astbin_validate: unsupported value type tag=" + oren_int_to_string(tt) + " at " + where)
+    return false
+}
+
+fn astbin_encode(v) {
+    if oren_env("OREN_ASTBIN_VALIDATE") != nil {
+        if !_astbin_validate_value(v, "", -1, 0) {
+            print("astbin_validate: FAILED")
+            oren_exit(1)
+        }
+    }
+    var n = _astbin_size(v)
+    var buf = oren_u8_buf_new(n)
+    var off = _astbin_write_value(buf, 0, v)
+    // Defensive: ignore mismatch; buffer is fixed-size.
+    if off != n {
+        // Best-effort: if we underfilled, remaining bytes are already zeroed by allocator.
+        // If we overfilled, store_u8 would have errored earlier.
+        return buf
+    }
+    return buf
+}
+
+fn _astbin_read_u8(bytes, off) {
+    var b = oren_bytes_get_u8(bytes, off)
+    if oren_is_err(b) { return {"ok": 0, "err": "astbin: read_u8 failed", "off": off} }
+    return {"ok": 1, "b": b & 255, "off": off + 1}
+}
+
+fn _astbin_read_uvarint(bytes, off0) {
+    var off = off0
+    var shift = 0
+    var out = 0
+    while 1 {
+        var r = _astbin_read_u8(bytes, off)
+        if r["ok"] != 1 { return r }
+        var b = r["b"]
+        off = r["off"]
+        out = out | ((b & 127) << shift)
+        var cont = b & 128
+        if cont == 0 { break }
+        shift = shift + 7
+        if shift > 63 { return {"ok": 0, "err": "astbin: uvarint overflow", "off": off} }
+    }
+    return {"ok": 1, "v": out, "off": off}
+}
+
+fn _astbin_read_u64_le(bytes, off0) {
+    var off = off0
+    var out = 0
+    var i = 0
+    while i < 8 {
+        var r = _astbin_read_u8(bytes, off)
+        if r["ok"] != 1 { return r }
+        var b = r["b"]
+        off = r["off"]
+        out = out | ((b & 255) << (i * 8))
+        i = i + 1
+    }
+    return {"ok": 1, "v": out, "off": off}
+}
+
+fn _astbin_unzigzag(zz) {
+    // Inverse of zigzag: (zz >> 1) ^ -(zz & 1)
+    var x = zz >> 1
+    var odd = zz & 1
+    if odd != 0 { x = 0 - x - 1 }
+    return x
+}
+
+fn _astbin_read_string(bytes, off0) {
+    var lr = _astbin_read_uvarint(bytes, off0)
+    if lr["ok"] != 1 { return lr }
+    var n = lr["v"]
+    var off = lr["off"]
+    // Fast path: avoid boxing bytes into list<int> (critical for stage2 throughput).
+    var s = oren_string_from_bytes_slice(bytes, off, n)
+    if oren_is_err(s) { return {"ok": 0, "err": "astbin: string slice decode failed", "off": off} }
+    return {"ok": 1, "s": s, "off": off + n}
+}
+
+fn _astbin_read_value(bytes, off0) {
+    var tr = _astbin_read_u8(bytes, off0)
+    if tr["ok"] != 1 { return tr }
+    var tag = tr["b"]
+    var off = tr["off"]
+    if tag == 0 { return {"ok": 1, "v": nil, "off": off} }
+    if tag == 1 { return {"ok": 1, "v": false, "off": off} }
+    if tag == 2 { return {"ok": 1, "v": true, "off": off} }
+    if tag == 3 {
+        var vr = _astbin_read_uvarint(bytes, off)
+        if vr["ok"] != 1 { return vr }
+        var x = _astbin_unzigzag(vr["v"])
+        return {"ok": 1, "v": x, "off": vr["off"]}
+    }
+    if tag == 4 {
+        var sr = _astbin_read_string(bytes, off)
+        if sr["ok"] != 1 { return sr }
+        return {"ok": 1, "v": sr["s"], "off": sr["off"]}
+    }
+    if tag == 5 {
+        var nr = _astbin_read_uvarint(bytes, off)
+        if nr["ok"] != 1 { return nr }
+        var n = nr["v"]
+        off = nr["off"]
+        var out = []
+        var i = 0
+        while i < n {
+            var rr = _astbin_read_value(bytes, off)
+            if rr["ok"] != 1 { return rr }
+            oren_list_push(out, rr["v"])
+            off = rr["off"]
+            i = i + 1
+        }
+        return {"ok": 1, "v": out, "off": off}
+    }
+    if tag == 6 {
+        var nr2 = _astbin_read_uvarint(bytes, off)
+        if nr2["ok"] != 1 { return nr2 }
+        var n2 = nr2["v"]
+        off = nr2["off"]
+        var mp = {}
+        var i2 = 0
+        while i2 < n2 {
+            // Keys are encoded as string values (tag 4 + payload).
+            var kr = _astbin_read_value(bytes, off)
+            if kr["ok"] != 1 { return kr }
+            off = kr["off"]
+            var vr2 = _astbin_read_value(bytes, off)
+            if vr2["ok"] != 1 { return vr2 }
+            off = vr2["off"]
+            mp[kr["v"]] = vr2["v"]
+            i2 = i2 + 1
+        }
+        return {"ok": 1, "v": mp, "off": off}
+    }
+    if tag == 7 {
+        var nr3 = _astbin_read_uvarint(bytes, off)
+        if nr3["ok"] != 1 { return nr3 }
+        var n3 = nr3["v"]
+        off = nr3["off"]
+        var out = oren_u8_buf_new(n3)
+        if oren_is_err(out) { return {"ok": 0, "err": "astbin: u8_buf_new failed", "off": off} }
+        var i3 = 0
+        while i3 < n3 {
+            var b = oren_bytes_get_u8(bytes, off + i3)
+            if oren_is_err(b) { return {"ok": 0, "err": "astbin: u8_buf byte read failed", "off": off + i3} }
+            oren_buf_store_u8(out, i3, b & 255)
+            i3 = i3 + 1
+        }
+        return {"ok": 1, "v": out, "off": off + n3}
+    }
+    if tag == 8 {
+        var rr8 = _astbin_read_u64_le(bytes, off)
+        if rr8["ok"] != 1 { return rr8 }
+        var f = oren_u64_bits_to_f64(rr8["v"])
+        return {"ok": 1, "v": f, "off": rr8["off"]}
+    }
+    return {"ok": 0, "err": "astbin: unknown tag " + oren_int_to_string(tag), "off": off}
+}
+
+fn astbin_decode(bytes) {
+    var rr = _astbin_read_value(bytes, 0)
+    if rr["ok"] != 1 {
+        print(rr["err"])
+        return nil
+    }
+    return rr["v"]
+}

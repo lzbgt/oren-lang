@@ -24,7 +24,7 @@ type moduleInfo struct {
 }
 
 type unit struct {
-	prefix   string
+	prefix    string
 	ctx       transpileCtx
 	globals   []*ast.VarStatement
 	functions []*ast.FunctionLiteral
@@ -427,6 +427,12 @@ func renameExpression(exp ast.Expression, mapping map[string]string, stack []ren
 			return renameStatement(e.Body, mapping, next, false)
 		}
 		return nil
+	case *ast.SpawnExpression:
+		if e.Call != nil {
+			return renameExpression(e.Call, mapping, stack)
+		}
+		return nil
+
 	default:
 		return fmt.Errorf("rename: unsupported expression %T", exp)
 	}

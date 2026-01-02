@@ -473,16 +473,57 @@ fn native_expr_chunk_noncall(ctx, expr) {
             return true
         }
 
-        if expr["type"] == "Identifier" {
-            var name = expr["value"]
-            
-            // Check locals
-            var off = ctx["locals"][name]
-            if off != nil {
-                var current_sp_off = ctx["stack_size"] - off - 16
-                emit_ldr_reg_sp_any(ctx, 0, current_sp_off)
-                return true
-            }
+	        if expr["type"] == "Identifier" {
+	            var name = expr["value"]
+	            var fn_name = name
+	
+	            // Robustness (rolling):
+	            // Module linking prefixes top-level function names (e.g. `M1_foo`), and all intra-module
+	            // references are supposed to be rewritten accordingly. If that rewrite misses an internal
+	            // `__name` reference, SpawnExpr lowering (which needs a first-class function value)
+	            // would otherwise fail with "undefined variable".
+	            //
+	            // To keep self-hosting stable (and deterministic), we allow a narrow suffix resolution:
+	            // - only for names starting with "__"
+	            // - only if it uniquely matches a declared top-level function name in ctx["func_arity"]
+	            if ctx != nil && ctx["func_arity"] != nil {
+	                if ctx["func_arity"][fn_name] == nil {
+	                    if fn_name != nil && oren_string_len(fn_name) >= 2 &&
+	                       oren_string_char_at(fn_name, 0) == "_" && oren_string_char_at(fn_name, 1) == "_" {
+	                        var match = nil
+	                        var match_count = 0
+	                        for k in ctx["func_arity"] {
+	                            var klen = oren_string_len(k)
+	                            var nlen = oren_string_len(fn_name)
+	                            if klen >= nlen {
+	                                // ends_with(k, fn_name)
+	                                var ok = true
+	                                var j = 0
+	                                while j < nlen {
+	                                    if oren_string_char_at(k, klen - nlen + j) != oren_string_char_at(fn_name, j) { ok = false; break }
+	                                    j = j + 1
+	                                }
+	                                if ok {
+	                                    match = k
+	                                    match_count = match_count + 1
+	                                    if match_count > 1 { break }
+	                                }
+	                            }
+	                        }
+	                        if match_count == 1 && match != nil {
+	                            fn_name = match
+	                        }
+	                    }
+	                }
+	            }
+	            
+	            // Check locals
+	            var off = ctx["locals"][name]
+	            if off != nil {
+	                var current_sp_off = ctx["stack_size"] - off - 16
+	                emit_ldr_reg_sp_any(ctx, 0, current_sp_off)
+	                return true
+	            }
     
             // Check globals
             var global_off = ctx["globals"][name]
@@ -503,23 +544,23 @@ fn native_expr_chunk_noncall(ctx, expr) {
                 return true
             }
     
-            // First-class function value (named function -> callable object).
-            // Wrapper name convention: __oren_fnwrap_<fn>.
-            if ctx["func_arity"] != nil {
-                if ctx["func_arity"][name] != nil {
-                    push_u32_le(ctx["code"], insn_movz(1, 0)) // env_ptr = 0
-                    var wname = "__oren_fnwrap_" + name
-                    var adr_pos2 = bytes_len(ctx["code"])
-                    push_u32_le(ctx["code"], 0)
-                    push_u32_le(ctx["code"], 0)
-                    oren_list_push(ctx["fixups"], {"type": "adr_code", "pos": adr_pos2, "name": wname, "reg": 0})
-    
-                    var bl_make2 = bytes_len(ctx["code"])
-                    push_u32_le(ctx["code"], 0)
-                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_make2, "name": "oren_func"})
-                    return true
-                }
-            }
+	            // First-class function value (named function -> callable object).
+	            // Wrapper name convention: __oren_fnwrap_<fn>.
+	            if ctx["func_arity"] != nil {
+	                if ctx["func_arity"][fn_name] != nil {
+	                    push_u32_le(ctx["code"], insn_movz(1, 0)) // env_ptr = 0
+	                    var wname = "__oren_fnwrap_" + fn_name
+	                    var adr_pos2 = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+	                    push_u32_le(ctx["code"], 0)
+	                    oren_list_push(ctx["fixups"], {"type": "adr_code", "pos": adr_pos2, "name": wname, "reg": 0})
+	    
+	                    var bl_make2 = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+	                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_make2, "name": "oren_func"})
+	                    return true
+	                }
+	            }
             
             native_error(ctx, expr["token"], "native backend: undefined variable " + name)
             push_u32_le(ctx["code"], insn_movz(0, 0))

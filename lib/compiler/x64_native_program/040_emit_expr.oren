@@ -321,14 +321,15 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         _intr_tmp_pop(ctx, base)
         return nil
     }
-    if t == "Identifier" {
-        var name = expr["value"]
-        var off = locals[name]
-        if off != nil {
-            // Load full 64-bit slot so function pointers round-trip correctly.
-            _emit_mov_r64_mrbp(ctx, 0, 0 - off)
-            return nil
-        }
+	    if t == "Identifier" {
+	        var name = expr["value"]
+	        var fn_name = name
+	        var off = locals[name]
+	        if off != nil {
+	            // Load full 64-bit slot so function pointers round-trip correctly.
+	            _emit_mov_r64_mrbp(ctx, 0, 0 - off)
+	            return nil
+	        }
 
         // Global var (top-level `var`) => load from the appended data blob.
         //
@@ -352,19 +353,48 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         //     fn __oren_fnwrap_name(__env, __args_list)
         // - `env_ptr` is 0 for now (no closures on x64 native yet).
         //
-        // This makes indirect calls backend/arch neutral and matches the shared lowering helpers
-        // in `lib/compiler/native_callable.oren`.
-        if ctx["func_arity"] != nil && ctx["func_arity"][name] != nil {
-            var wname = "__oren_fnwrap_" + name
-            var fnobj_off = _data_add_fnobj(ctx, wname)
-            if fnobj_off == nil { err(ctx, "x64 native v0: failed to allocate fnobj"); return nil }
-
-            var lea_pos = bytes_len(ctx["code"])
-            bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
-            // Patch disp32 to point at the fnobj data record.
-            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": fnobj_off})
-            return nil
-        }
+	        // This makes indirect calls backend/arch neutral and matches the shared lowering helpers
+	        // in `lib/compiler/native_callable.oren`.
+	        // Robustness (rolling): allow resolving internal `__name` by unique suffix match against
+	        // declared function names (e.g. `M1___name`) when module prefixing missed a reference rewrite.
+	        if ctx["func_arity"] != nil {
+	            if ctx["func_arity"][fn_name] == nil {
+	                if fn_name != nil && oren_string_len(fn_name) >= 2 &&
+	                   oren_string_char_at(fn_name, 0) == "_" && oren_string_char_at(fn_name, 1) == "_" {
+	                    var match = nil
+	                    var match_count = 0
+	                    for k in ctx["func_arity"] {
+	                        var klen = oren_string_len(k)
+	                        var nlen = oren_string_len(fn_name)
+	                        if klen >= nlen {
+	                            var ok = true
+	                            var j = 0
+	                            while j < nlen {
+	                                if oren_string_char_at(k, klen - nlen + j) != oren_string_char_at(fn_name, j) { ok = false; break }
+	                                j = j + 1
+	                            }
+	                            if ok {
+	                                match = k
+	                                match_count = match_count + 1
+	                                if match_count > 1 { break }
+	                            }
+	                        }
+	                    }
+	                    if match_count == 1 && match != nil { fn_name = match }
+	                }
+	            }
+	        }
+	        if ctx["func_arity"] != nil && ctx["func_arity"][fn_name] != nil {
+	            var wname = "__oren_fnwrap_" + fn_name
+	            var fnobj_off = _data_add_fnobj(ctx, wname)
+	            if fnobj_off == nil { err(ctx, "x64 native v0: failed to allocate fnobj"); return nil }
+	
+	            var lea_pos = bytes_len(ctx["code"])
+	            bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
+	            // Patch disp32 to point at the fnobj data record.
+	            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": fnobj_off})
+	            return nil
+	        }
 
         err(ctx, "x64 native v0: unknown var " + name)
         return nil

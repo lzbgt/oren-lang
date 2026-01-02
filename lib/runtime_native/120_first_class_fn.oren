@@ -22,8 +22,10 @@ fn oren_func(code_ptr, env_ptr) {
 //
 // This is the syscall-first native analogue of the C backend's spawn-callable helper.
 // It returns the same handle layout expected by `oren_join(handle)`:
-//   0: pid (u64)
-//   8: read_fd (u64)
+//   [0]  pid (u64)
+//   [8]  read_fd (u64)
+//   [16] got (u64)        - number of bytes already read into inline result buffer
+//   [24] result_buf (u64) - inline 8-byte result buffer (filled by is_done/join)
 @oren.keep
 fn oren_spawn_call_list(fn_obj, args_list) {
     var pipe_buf = malloc(16)
@@ -93,10 +95,12 @@ fn oren_spawn_call_list(fn_obj, args_list) {
     }
     free(pipe_buf)
 
-    var handle = malloc(16)
+    var handle = malloc(32)
     if handle == 0 { exit(324) }
     ptr_set(handle, pid)
     ptr_set(handle + 8, rfd)
+    ptr_set(handle + 16, 0) // got
+    ptr_set(handle + 24, 0) // result_buf
     return handle
 }
 

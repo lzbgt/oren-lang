@@ -134,11 +134,21 @@ fn scope_push(stack) {
 fn rename_program_in_place(prog, pairs) {
     var stmts = prog["statements"]
     var stack = []
+    // GC safety (rolling):
+    // The compiler stage2 build enables auto-GC and may use bounded conservative stack scanning.
+    // During deep recursive renaming, key locals (`prog`, `pairs`, `stack`) can live beyond the
+    // scanned region or in registers; if the collector misses them it can free live AST nodes,
+    // causing non-deterministic panics under parallel builds.
+    //
+    // Pin a single composite root for the duration of this traversal.
+    var gcroot = {"prog": prog, "pairs": pairs, "stack": stack}
+    var prev_pin = oren_gc_pin(gcroot)
     var i = 0
     while i < oren_list_len(stmts) {
         rename_stmt(stmts[i], pairs, stack, true)
         i = i + 1
     }
+    oren_gc_pin(prev_pin)
 }
 
 fn rename_stmt(stmt, pairs, stack, at_top_level) {
@@ -176,6 +186,12 @@ fn rename_stmt(stmt, pairs, stack, at_top_level) {
     }
     if stmt["type"] == "Return" {
         rename_expr(stmt["value"], pairs, stack)
+        return nil
+    }
+    if stmt["type"] == "Spawn" {
+        // `spawn foo(...)` is represented as a statement containing a call expression.
+        // Renaming must recurse into it so intra-module references are prefixed correctly.
+        rename_expr(stmt["call"], pairs, stack)
         return nil
     }
     if stmt["type"] == "Function" {
@@ -304,6 +320,12 @@ fn rename_expr(expr, pairs, stack) {
             rename_expr(args[i2], pairs, stack)
             i2 = i2 + 1
         }
+        return nil
+    }
+    if expr["type"] == "SpawnExpr" {
+        // Expression form: `spawn foo(...)` used in initializers/expressions.
+        // Must be renamed so the callee identifier is prefixed correctly.
+        rename_expr(expr["call"], pairs, stack)
         return nil
     }
     if expr["type"] == "Infix" {

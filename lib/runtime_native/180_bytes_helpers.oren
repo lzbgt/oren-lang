@@ -13,6 +13,36 @@ fn oren_bytes_len(bytes) {
     return oren_err(4, "bytes_len expects list<int> or u8_buf")
 }
 
+// Build a string from a slice of a byte container (list<int 0..255> or u8_buf).
+// Used by the compiler's parallel module pipeline to decode astbin without per-byte boxing.
+@oren.keep
+fn oren_string_from_bytes_slice(bytes, start, len) {
+    if bytes == 0 { return oren_err(4, "string_from_bytes_slice: bytes is nil") }
+    if start == nil || len == nil { return oren_err(4, "string_from_bytes_slice expects (bytes, int start, int len)") }
+    if start < 0 || len < 0 { return oren_err(4, "string_from_bytes_slice: negative range") }
+
+    var total = oren_bytes_len(bytes)
+    if oren_is_err(total) { return oren_err(4, "string_from_bytes_slice expects list<int> or u8_buf") }
+    if start > total || start + len > total { return oren_err(4, "string_from_bytes_slice: out of bounds") }
+
+    var out = malloc(len + 1)
+    if out == 0 { return oren_err(8, "string_from_bytes_slice: alloc failed") }
+
+    var i = 0
+    while i < len {
+        var b = oren_bytes_get_u8(bytes, start + i)
+        if oren_is_err(b) {
+            free(out)
+            return oren_err(4, "string_from_bytes_slice: byte read failed")
+        }
+        ptr_set_byte(out + i, b & 255)
+        i = i + 1
+    }
+    ptr_set_byte(out + len, 0)
+    oren_track_alloc(out, len + 1, 1) // 1=STRING
+    return out
+}
+
 fn bytes_hex_nibble(c) {
     // Return 0..15 or -1.
     if c >= 48 && c <= 57 { return c - 48 } // '0'..'9'

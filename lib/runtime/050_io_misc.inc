@@ -346,6 +346,81 @@ OrenValue oren_string_from_bytes(OrenValue bytes) {
     return v;
 }
 
+OrenValue oren_string_from_bytes_slice(OrenValue bytes, OrenValue start, OrenValue len) {
+    if (start.type != OREN_TYPE_INT || len.type != OREN_TYPE_INT) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice expects (bytes, int start, int len)"));
+    }
+    long long s0 = start.as.int_val;
+    long long n0 = len.as.int_val;
+    if (s0 < 0 || n0 < 0) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: negative range"));
+    }
+    if (n0 > (long long)INT32_MAX) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: len too large"));
+    }
+
+    size_t s = (size_t)s0;
+    size_t n = (size_t)n0;
+
+    // u8_buf fast path (preferred for astbin decoding).
+    if (bytes.type == OREN_TYPE_U8_BUF) {
+        OrenBuf* b = bytes.as.buf_val;
+        if (!b || !b->data) {
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: invalid u8_buf"));
+        }
+        size_t bn = (size_t)b->len;
+        if (s > bn || n > bn || s + n > bn) {
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: out of bounds"));
+        }
+        char* out = (char*)malloc(n + 1u);
+        if (!out) {
+            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("string_from_bytes_slice: out of memory"));
+        }
+        memcpy(out, b->data + s, n);
+        out[n] = 0;
+        lock_collections();
+        oren_register_alloc(out, OREN_ALLOC_STRING);
+        unlock_collections();
+        OrenValue v;
+        v.type = OREN_TYPE_STRING;
+        v.as.string_val = out;
+        return v;
+    }
+
+    // list<int> slow path
+    if (bytes.type != OREN_TYPE_LIST) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice expects list<int 0..255> or u8_buf"));
+    }
+    OrenList* list = bytes.as.list_val;
+    if (!list || list->count < 0) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: invalid list"));
+    }
+    size_t bn2 = (size_t)list->count;
+    if (s > bn2 || n > bn2 || s + n > bn2) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: out of bounds"));
+    }
+    char* out2 = (char*)malloc(n + 1u);
+    if (!out2) {
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("string_from_bytes_slice: out of memory"));
+    }
+    for (size_t i = 0; i < n; i++) {
+        OrenValue it = list->items[s + i];
+        if (it.type != OREN_TYPE_INT || it.as.int_val < 0 || it.as.int_val > 255) {
+            free(out2);
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_from_bytes_slice: expected bytes list<int 0..255>"));
+        }
+        out2[i] = (char)(unsigned char)it.as.int_val;
+    }
+    out2[n] = 0;
+    lock_collections();
+    oren_register_alloc(out2, OREN_ALLOC_STRING);
+    unlock_collections();
+    OrenValue v2;
+    v2.type = OREN_TYPE_STRING;
+    v2.as.string_val = out2;
+    return v2;
+}
+
 OrenValue oren_string_join(OrenValue parts) {
     if (parts.type != OREN_TYPE_LIST) {
         return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_join expects list<string>"));

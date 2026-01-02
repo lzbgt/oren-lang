@@ -1,28 +1,28 @@
 // --- Lists ---
 // Layout: [count][capacity][buffer_ptr][magic]
-@oren.keep
-fn oren_new_list(cap) {
-    if cap < 0 { cap = 0 }
-    var header = malloc(32)
-    if header == 0 { exit(200) }
-    if header == -1 { exit(200) }
-    oren_track_alloc(header, 32, 0)
-    var buf = 0
-    if cap > 0 {
-        buf = malloc(cap * 8)
-        if buf == 0 { exit(201) }
-        if buf == -1 { exit(201) }
-        oren_track_alloc(buf, cap * 8, 0)
-    }
-    ptr_set(header, 0)      // count
-    ptr_set(header + 8, cap) // capacity
-    ptr_set(header + 16, buf) // data buffer
-    ptr_set(header + 24, list_magic())
-    // Mark list header kind for GC traversal (kind=2 => LIST).
-    var node = oren_find_node(header)
-    if node != 0 { ptr_set(iadd(node, 16), 2) }
-    return header
-}
+	@oren.keep
+	fn oren_new_list(cap) {
+	    if cap < 0 { cap = 0 }
+	    var header = malloc(32)
+	    if header == 0 { exit(200) }
+	    if header == -1 { exit(200) }
+	    // Track list header with kind=LIST so:
+	    // - list ops can validate via `oren_find_node(v).kind`
+	    // - GC can traverse list elements deterministically
+	    oren_track_alloc(header, 32, 2)
+	    var buf = 0
+	    if cap > 0 {
+	        buf = malloc(cap * 8)
+	        if buf == 0 { exit(201) }
+	        if buf == -1 { exit(201) }
+	        oren_track_alloc(buf, cap * 8, 0)
+	    }
+	    ptr_set(header, 0)      // count
+	    ptr_set(header + 8, cap) // capacity
+	    ptr_set(header + 16, buf) // data buffer
+	    ptr_set(header + 24, list_magic())
+	    return header
+	}
 
 @oren.keep
 fn oren_list_len(list) {
@@ -34,6 +34,17 @@ fn oren_list_len(list) {
     if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_len on non-list"); return 0 }
     if ptr_get(list + 24) != list_magic() { oren_panic("list_len on non-list"); return 0 }
     return ptr_get(list)
+}
+
+// Safe type predicate: must not panic.
+@oren.keep
+fn oren_is_list(v) {
+    if v == 0 { return false }
+    var node = oren_find_node(v)
+    if node == 0 { return false }
+    if ptr_get(iadd(node, 16)) != 2 { return false }
+    if ptr_get(v + 24) != list_magic() { return false }
+    return true
 }
 
 @oren.keep

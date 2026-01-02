@@ -58,13 +58,13 @@ fn detect_host_platform() {
 }
 
 fn enforce_syscall_policy(file, allowed_darwin, allowed_linux) {
-    var src = expand_includes_file(file, [])
-    if src == nil {
+    var rr = expand_includes_file_result(file, [])
+    if rr["ok"] != true {
         print("ERROR: failed to read for syscall-policy check: " + file)
-        var msg = include_last_err()
-        if msg != nil { print(msg) }
+        if rr["err"] != nil { print(rr["err"]) }
         oren_exit(2)
     }
+    var src = rr["src"]
     var dar = scan_syscalls_in_src(src, "darwin_sys_")
     var lin = scan_syscalls_in_src(src, "linux_sys_")
 
@@ -138,13 +138,13 @@ fn count_substring_in_src(src, needle) {
 }
 
 fn enforce_svc_emit_policy(file, allowed_svc_emits) {
-    var src = expand_includes_file(file, [])
-    if src == nil {
+    var rr = expand_includes_file_result(file, [])
+    if rr["ok"] != true {
         print("ERROR: failed to read for svc-policy check: " + file)
-        var msg = include_last_err()
-        if msg != nil { print(msg) }
+        if rr["err"] != nil { print(rr["err"]) }
         oren_exit(2)
     }
+    var src = rr["src"]
 
     // Only count actual instruction emission, not function definitions.
     var pattern = "push_u32_le(ctx[\"code\"], insn_svc("
@@ -234,10 +234,6 @@ fn include_path_from_line(line) {
     return oren_string_slice(t, i + 1, j)
 }
 
-var INCLUDE_LAST_ERR = nil
-
-fn include_last_err() { return INCLUDE_LAST_ERR }
-
 fn _include_join_parts(parts) {
     if parts == nil { return "" }
     if oren_list_len(parts) == 0 { return "" }
@@ -246,12 +242,11 @@ fn _include_join_parts(parts) {
     return oren_string_join(parts)
 }
 
-fn expand_includes_file(full_path, include_stack) {
+fn expand_includes_file_result(full_path, include_stack) {
     // Expand `// @include "..."` directives recursively and return the concatenated source.
     //
-    // On failure, returns nil and sets `INCLUDE_LAST_ERR` to a best-effort message.
+    // On failure, returns {"ok":false, "err": string}.
     // Callers should format their own diagnostics so user-facing output stays stable.
-    INCLUDE_LAST_ERR = nil
     var dbg_inc = oren_env("OREN_DEBUG_INCLUDES")
     if dbg_inc != nil {
         print("DEBUG_INCLUDES open=" + full_path)
@@ -260,15 +255,15 @@ fn expand_includes_file(full_path, include_stack) {
     }
 
     if full_path == nil {
-        INCLUDE_LAST_ERR = "include: empty path"
+        var msg0 = "include: empty path"
         if dbg_inc != nil { print("DEBUG_INCLUDES empty(nil)") }
-        return nil
+        return {"ok": false, "err": msg0}
     }
     // Use length check to avoid relying on string equality semantics for "" in early runtimes.
     if oren_string_len(full_path) == 0 || full_path == "" {
-        INCLUDE_LAST_ERR = "include: empty path"
+        var msg1 = "include: empty path"
         if dbg_inc != nil { print("DEBUG_INCLUDES empty(len==0)") }
-        return nil
+        return {"ok": false, "err": msg1}
     }
 
     // Include-cycle check.
@@ -276,8 +271,7 @@ fn expand_includes_file(full_path, include_stack) {
         var si = 0
         while si < oren_list_len(include_stack) {
             if include_stack[si] == full_path {
-                INCLUDE_LAST_ERR = "include cycle detected: " + full_path
-                return nil
+                return {"ok": false, "err": "include cycle detected: " + full_path}
             }
             si = si + 1
         }
@@ -285,9 +279,9 @@ fn expand_includes_file(full_path, include_stack) {
 
     var src = oren_read_file(full_path)
     if oren_is_err(src) {
-        INCLUDE_LAST_ERR = oren_err_msg(src)
-        if INCLUDE_LAST_ERR == nil { INCLUDE_LAST_ERR = "failed to read" }
-        return nil
+        var em = oren_err_msg(src)
+        if em == nil { em = "failed to read" }
+        return {"ok": false, "err": em}
     }
     if dbg_inc != nil {
         print("DEBUG_INCLUDES read ok len=" + oren_int_to_string(oren_string_len(src)))
@@ -330,8 +324,9 @@ fn expand_includes_file(full_path, include_stack) {
                     inc_full = resolve_path(dirname(full_path), inc)
                 }
                 if dbg_inc != nil { print("DEBUG_INCLUDES include full=" + inc_full) }
-                var child = expand_includes_file(inc_full, next_stack)
-                if child == nil { return nil }
+                var cr = expand_includes_file_result(inc_full, next_stack)
+                if cr["ok"] != true { return cr }
+                var child = cr["src"]
                 oren_list_push(out_parts, child)
                 if !ends_with_newline(child) { oren_list_push(out_parts, "\n") }
                 seg_start = i + 1
@@ -353,7 +348,14 @@ fn expand_includes_file(full_path, include_stack) {
         oren_list_push(out_parts, "\n")
     }
 
-    return _include_join_parts(out_parts)
+    return {"ok": true, "src": _include_join_parts(out_parts)}
+}
+
+fn expand_includes_file(full_path, include_stack) {
+    // Convenience wrapper (kept for legacy call sites).
+    var r = expand_includes_file_result(full_path, include_stack)
+    if r["ok"] != true { return nil }
+    return r["src"]
 }
 
 fn default_output_path(path) {

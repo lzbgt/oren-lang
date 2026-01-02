@@ -149,12 +149,25 @@ static size_t raw_mmap_threshold_cached(void) {
 // Multi-threaded auto-GC remains opt-in; initiating a stop-the-world collection while other
 // threads don't reach safepoints would deadlock. Keep this conservative until concurrency
 // semantics are formalized.
+static int gc_auto_enabled_cached(void);
 static size_t gc_alloc_threshold_cached(void) {
     // 0 disables auto-GC.
     // Default tuned for compiler workloads; adjust via env as needed.
     static size_t cached = (size_t)-1;
     if (cached != (size_t)-1) return cached;
-    cached = parse_env_size(getenv("OREN_GC_ALLOC_THRESHOLD"), 200000u);
+    // Rolling default:
+    // - The compiler self-hosting stage2 build enables auto-GC (OREN_GC_AUTO=1).
+    // - A too-small threshold causes frequent stop-the-world collections and can blow the
+    //   3-minute self-hosting gate by >10x in large-module builds.
+    //
+    // If the user did not set OREN_GC_ALLOC_THRESHOLD explicitly, pick a much higher default
+    // when auto-GC is enabled.
+    const char* env = getenv("OREN_GC_ALLOC_THRESHOLD");
+    if (env && env[0]) {
+        cached = parse_env_size(env, 200000u);
+    } else {
+        cached = gc_auto_enabled_cached() ? 4000000u : 200000u;
+    }
     return cached;
 }
 
@@ -186,7 +199,12 @@ static size_t gc_stack_scan_limit_bytes_cached(void) {
     //   explicit GC roots in hot components (parser/compiler structures) + setjmp snapshots.
     // - For debugging/maximum conservatism, users can set OREN_GC_STACK_SCAN_LIMIT_BYTES=0
     //   to scan the full stack.
-    if (gc_auto_enabled_cached()) cached = (size_t)(8u << 20); // 8 MiB
+    if (gc_auto_enabled_cached()) {
+        // With precise per-thread roots (oren_roots_*), we do not need full-stack conservative
+        // scanning for compiler correctness under parallel builds. Keep a bounded scan as a
+        // best-effort safety net for non-generated C code and legacy paths.
+        cached = (size_t)(2u << 20); // 2 MiB
+    }
     else cached = (size_t)(2u << 20); // 2 MiB
     return cached;
 }
@@ -206,7 +224,10 @@ static int gc_raw_ptr_scan_enabled_cached(void) {
         cached = (env[0] != '0');
         return cached;
     }
-    cached = 1;
+    // Rolling policy:
+    // - Raw stack-byte scanning is extremely expensive; on compiler workloads it can dominate.
+    // - When auto-GC is enabled we prefer explicit roots + jmpbuf scanning over raw-byte scans.
+    cached = gc_auto_enabled_cached() ? 0 : 1;
     return cached;
 }
 
@@ -229,7 +250,7 @@ static int gc_jmpbuf_scan_enabled_cached(void) {
     return cached;
 }
 
-static size_t g_gc_allocs_since_collect = 0;
+static _Atomic size_t g_gc_allocs_since_collect = 0;
 static _Atomic int g_gc_auto_pending = 0;
 
 typedef struct {
@@ -402,6 +423,22 @@ typedef struct OrenThreadState {
     uint64_t safepoint_tick;
     uint64_t call_depth;
     uint64_t call_depth_max;
+    OrenValue gc_pin;
+    // Precise root stack (fast, rolling):
+    // Stores addresses of OrenValue slots that must be considered GC roots.
+    // Generated C code uses mark/reset to manage lifetimes deterministically.
+    OrenValue** root_slots;
+    size_t root_slots_len;
+    size_t root_slots_cap;
+    // Rooted temporaries by value (does not require taking the address of a local).
+    // This avoids forcing large numbers of temporaries onto the C stack.
+    OrenValue* root_vals;
+    size_t root_vals_len;
+    size_t root_vals_cap;
+    // Thread-local allocation staging to reduce global mutex contention.
+    // Allocations are registered into this per-thread list and flushed in batches.
+    OrenAllocNode* local_allocs;
+    size_t local_allocs_len;
     jmp_buf panic_buf;
     int has_panic_buf;
     // Best-effort register snapshot for conservative GC (setjmp spills caller-saved state).
@@ -433,8 +470,26 @@ static uint64_t parse_env_u64(const char* s, uint64_t def) {
     return out;
 }
 
+static void thread_state_key_destructor(void* p) {
+    if (!p) return;
+    OrenThreadState* st = (OrenThreadState*)p;
+    if (st->root_slots) {
+        free(st->root_slots);
+        st->root_slots = NULL;
+        st->root_slots_len = 0u;
+        st->root_slots_cap = 0u;
+    }
+    if (st->root_vals) {
+        free(st->root_vals);
+        st->root_vals = NULL;
+        st->root_vals_len = 0u;
+        st->root_vals_cap = 0u;
+    }
+    free(st);
+}
+
 static void thread_key_init() {
-    (void)pthread_key_create(&g_thread_key, free);
+    (void)pthread_key_create(&g_thread_key, thread_state_key_destructor);
 }
 
 static OrenThreadState* oren_thread_state() {
@@ -456,7 +511,27 @@ static OrenThreadState* oren_thread_state() {
         //
         // Prefer OS APIs when available; fall back to a best-effort marker otherwise.
 #if defined(__APPLE__)
-        st->stack_top = pthread_get_stackaddr_np(pthread_self()); // high address
+        // Darwin nuance:
+        // - `pthread_get_stackaddr_np` returns the "base" of the stack, but its exact meaning
+        //   (high vs low address) depends on platform/ABI quirks.
+        // - If we misinterpret it as the high end, GC stack scanning can walk into the
+        //   guard page and crash with SIGBUS under multi-threaded workloads (stage2 build).
+        //
+        // Make it robust by using stack size and the current stack pointer to infer the
+        // high address boundary deterministically.
+        int stack_marker = 0;
+        uintptr_t sp = (uintptr_t)&stack_marker;
+        void* stack_addr = pthread_get_stackaddr_np(pthread_self());
+        size_t stack_size = pthread_get_stacksize_np(pthread_self());
+        if (stack_addr && stack_size > 0) {
+            uintptr_t base = (uintptr_t)stack_addr;
+            // If the reported base is below the current SP, treat it as the low address.
+            // Otherwise treat it as the high address (common on Darwin where stacks grow down).
+            uintptr_t high = (base <= sp) ? (base + (uintptr_t)stack_size) : base;
+            st->stack_top = (void*)high;
+        } else {
+            st->stack_top = (void*)sp;
+        }
 #elif defined(__linux__)
         pthread_attr_t attr;
         if (pthread_getattr_np(pthread_self(), &attr) == 0) {
@@ -479,6 +554,15 @@ static OrenThreadState* oren_thread_state() {
         st->has_panic_buf = 0;
         st->call_depth = 0;
         st->call_depth_max = parse_env_u64(getenv("OREN_CALL_DEPTH_MAX"), OREN_CALL_DEPTH_MAX_DEFAULT);
+        st->gc_pin = OREN_NIL;
+        st->root_slots = NULL;
+        st->root_slots_len = 0u;
+        st->root_slots_cap = 0u;
+        st->root_vals = NULL;
+        st->root_vals_len = 0u;
+        st->root_vals_cap = 0u;
+        st->local_allocs = NULL;
+        st->local_allocs_len = 0u;
         // Config contract: OREN_CALL_DEPTH_MAX=0 disables the deterministic guard (unlimited).
         if (st->call_depth_max == 0) st->call_depth_max = UINT64_MAX;
         pthread_setspecific(g_thread_key, st);
@@ -489,6 +573,99 @@ static OrenThreadState* oren_thread_state() {
         unlock_collections();
     }
     return st;
+}
+
+OrenValue oren_gc_pin(OrenValue v) {
+#ifdef OREN_NO_GC
+    (void)v;
+    return OREN_NIL;
+#endif
+    OrenThreadState* st = oren_thread_state();
+    if (!st) return OREN_NIL;
+    OrenValue prev = st->gc_pin;
+    st->gc_pin = v;
+    return prev;
+}
+
+size_t oren_roots_mark(void) {
+#ifdef OREN_NO_GC
+    return 0u;
+#endif
+    OrenThreadState* st = oren_thread_state();
+    if (!st) return 0u;
+    // Pack (slots_len, vals_len) into one size_t mark for cheap nested scopes.
+    //  - low 32 bits: slot roots length
+    //  - high 32 bits: value roots length
+    // On 32-bit builds, fall back to slot roots only.
+#if SIZE_MAX <= UINT32_MAX
+    return st->root_slots_len;
+#else
+    size_t lo = (size_t)(st->root_slots_len & 0xFFFFFFFFu);
+    size_t hi = (size_t)(st->root_vals_len & 0xFFFFFFFFu);
+    return lo | (hi << 32);
+#endif
+}
+
+void oren_roots_push(OrenValue* slot) {
+#ifdef OREN_NO_GC
+    (void)slot;
+    return;
+#endif
+    if (!slot) return;
+    OrenThreadState* st = oren_thread_state();
+    if (!st) return;
+    if (st->root_slots_len == st->root_slots_cap) {
+        size_t new_cap = st->root_slots_cap ? (st->root_slots_cap * 2u) : 256u;
+        OrenValue** np = (OrenValue**)realloc(st->root_slots, new_cap * sizeof(OrenValue*));
+        if (!np) {
+            fprintf(stderr, "root stack realloc failed\n");
+            exit(1);
+        }
+        st->root_slots = np;
+        st->root_slots_cap = new_cap;
+    }
+    st->root_slots[st->root_slots_len++] = slot;
+}
+
+void oren_roots_push_value(OrenValue v) {
+#ifdef OREN_NO_GC
+    (void)v;
+    return;
+#endif
+    OrenThreadState* st = oren_thread_state();
+    if (!st) return;
+    if (st->root_vals_len == st->root_vals_cap) {
+        size_t new_cap = st->root_vals_cap ? (st->root_vals_cap * 2u) : 256u;
+        OrenValue* np = (OrenValue*)realloc(st->root_vals, new_cap * sizeof(OrenValue));
+        if (!np) {
+            fprintf(stderr, "root vals realloc failed\n");
+            exit(1);
+        }
+        st->root_vals = np;
+        st->root_vals_cap = new_cap;
+    }
+    st->root_vals[st->root_vals_len++] = v;
+}
+
+void oren_roots_reset(size_t mark) {
+#ifdef OREN_NO_GC
+    (void)mark;
+    return;
+#endif
+    OrenThreadState* st = oren_thread_state();
+    if (!st) return;
+#if SIZE_MAX <= UINT32_MAX
+    if (mark > st->root_slots_len) mark = st->root_slots_len;
+    st->root_slots_len = mark;
+    st->root_vals_len = 0u;
+#else
+    size_t slots_mark = (size_t)(mark & 0xFFFFFFFFu);
+    size_t vals_mark = (size_t)(mark >> 32);
+    if (slots_mark > st->root_slots_len) slots_mark = st->root_slots_len;
+    if (vals_mark > st->root_vals_len) vals_mark = st->root_vals_len;
+    st->root_slots_len = slots_mark;
+    st->root_vals_len = vals_mark;
+#endif
 }
 
 static void oren_diag_emit(const char* kind, int code, const char* msg) {
@@ -582,6 +759,29 @@ static void oren_thread_unregister() {
     }
 
     lock_collections();
+    // Flush any thread-local staged allocations so they remain visible to GC and shutdown
+    // after this thread state is removed.
+    if (st->local_allocs) {
+        pthread_mutex_lock(&g_alloc_mutex);
+        OrenAllocNode* cur = st->local_allocs;
+        st->local_allocs = NULL;
+        st->local_allocs_len = 0u;
+        while (cur) {
+            OrenAllocNode* next = cur->next;
+            cur->next = g_allocs;
+            g_allocs = cur;
+            oren_alloc_index_put_locked(cur);
+            uintptr_t p = (uintptr_t)cur->ptr;
+#if defined(__aarch64__)
+            p &= (uintptr_t)0x0000FFFFFFFFFFFFULL;
+#endif
+            if (p < g_alloc_ptr_min) g_alloc_ptr_min = p;
+            if (p > g_alloc_ptr_max) g_alloc_ptr_max = p;
+            oren_alloc_bloom_add(p);
+            cur = next;
+        }
+        pthread_mutex_unlock(&g_alloc_mutex);
+    }
     if (st->at_safepoint) {
         st->at_safepoint = 0;
         g_threads_waiting--;
@@ -606,6 +806,18 @@ static void oren_thread_unregister() {
     pthread_cond_broadcast(&g_collection_cv);
     unlock_collections();
     pthread_setspecific(g_thread_key, NULL);
+    if (st->root_slots) {
+        free(st->root_slots);
+        st->root_slots = NULL;
+        st->root_slots_len = 0u;
+        st->root_slots_cap = 0u;
+    }
+    if (st->root_vals) {
+        free(st->root_vals);
+        st->root_vals = NULL;
+        st->root_vals_len = 0u;
+        st->root_vals_cap = 0u;
+    }
     free(st);
 }
 
@@ -666,7 +878,36 @@ void oren_unregister_root(OrenValue* slot) {
 
 static void oren_register_alloc(void* ptr, OrenAllocKind kind) {
     if (ptr == NULL) return;
-    pthread_mutex_lock(&g_alloc_mutex);
+    // PERF (rolling):
+    // The self-hosted compiler allocates heavily (strings/tokens/AST nodes).
+    // Registering every allocation under a single global mutex becomes the dominant cost
+    // under parse parallelism. Stage2 (<3min) requires batching here.
+    OrenThreadState* st = oren_thread_state();
+    if (!st) {
+        // Fallback: no TLS state, register globally.
+        pthread_mutex_lock(&g_alloc_mutex);
+        OrenAllocNode* n = (OrenAllocNode*)malloc(sizeof(OrenAllocNode));
+        if (!n) {
+            fprintf(stderr, "alloc registry failed\n");
+            exit(1);
+        }
+        n->ptr = ptr;
+        n->kind = kind;
+        n->freed = 0;
+        n->next = g_allocs;
+        g_allocs = n;
+        oren_alloc_index_put_locked(n);
+        uintptr_t p = (uintptr_t)ptr;
+#if defined(__aarch64__)
+        p &= (uintptr_t)0x0000FFFFFFFFFFFFULL;
+#endif
+        if (p < g_alloc_ptr_min) g_alloc_ptr_min = p;
+        if (p > g_alloc_ptr_max) g_alloc_ptr_max = p;
+        oren_alloc_bloom_add(p);
+        pthread_mutex_unlock(&g_alloc_mutex);
+        return;
+    }
+
     OrenAllocNode* n = (OrenAllocNode*)malloc(sizeof(OrenAllocNode));
     if (!n) {
         fprintf(stderr, "alloc registry failed\n");
@@ -675,28 +916,51 @@ static void oren_register_alloc(void* ptr, OrenAllocKind kind) {
     n->ptr = ptr;
     n->kind = kind;
     n->freed = 0;
-    n->next = g_allocs;
-    g_allocs = n;
-    oren_alloc_index_put_locked(n);
-    uintptr_t p = (uintptr_t)ptr;
+    n->next = st->local_allocs;
+    st->local_allocs = n;
+    st->local_allocs_len++;
+
+    // Flush in batches to keep global registry coherent and avoid unbounded per-thread staging.
+    // Default chosen to amortize mutex cost while keeping GC scans bounded.
+    static size_t flush_batch_cached = (size_t)-1;
+    if (flush_batch_cached == (size_t)-1) {
+        // Default: large batch to minimize global mutex contention under parallel compiler workloads.
+        // GC flushes all staged allocations at collection start, so correctness does not require
+        // frequent per-thread flushing in the steady state.
+        flush_batch_cached = parse_env_size(getenv("OREN_ALLOC_FLUSH_BATCH"), 65536u);
+        if (flush_batch_cached == 0u) flush_batch_cached = 4096u;
+    }
+    if (st->local_allocs_len >= flush_batch_cached) {
+        pthread_mutex_lock(&g_alloc_mutex);
+        // Splice staged allocations into the global list and update the alloc index/filters.
+        OrenAllocNode* cur = st->local_allocs;
+        st->local_allocs = NULL;
+        st->local_allocs_len = 0u;
+        while (cur) {
+            OrenAllocNode* next = cur->next;
+            cur->next = g_allocs;
+            g_allocs = cur;
+            oren_alloc_index_put_locked(cur);
+            uintptr_t p = (uintptr_t)cur->ptr;
 #if defined(__aarch64__)
-    p &= (uintptr_t)0x0000FFFFFFFFFFFFULL;
+            p &= (uintptr_t)0x0000FFFFFFFFFFFFULL;
 #endif
-    if (p < g_alloc_ptr_min) g_alloc_ptr_min = p;
-    if (p > g_alloc_ptr_max) g_alloc_ptr_max = p;
-    oren_alloc_bloom_add(p);
-    pthread_mutex_unlock(&g_alloc_mutex);
+            if (p < g_alloc_ptr_min) g_alloc_ptr_min = p;
+            if (p > g_alloc_ptr_max) g_alloc_ptr_max = p;
+            oren_alloc_bloom_add(p);
+            cur = next;
+        }
+        pthread_mutex_unlock(&g_alloc_mutex);
+    }
 
 #ifndef OREN_NO_GC
     // Single-thread auto-collection: keep memory bounded for long-running tools.
     if (!gc_auto_enabled_cached()) return;
-    // Avoid stop-the-world coordination in multi-threaded programs by default.
-    if (g_threads_total > 1) return;
     size_t thr = gc_alloc_threshold_cached();
     if (thr == 0u) return;
-    g_gc_allocs_since_collect++;
-    if (g_gc_allocs_since_collect < thr) return;
-    g_gc_allocs_since_collect = 0;
+    size_t allocs_now = atomic_fetch_add_explicit(&g_gc_allocs_since_collect, 1u, memory_order_relaxed) + 1u;
+    if (allocs_now < thr) return;
+    atomic_store_explicit(&g_gc_allocs_since_collect, 0u, memory_order_relaxed);
 
     // Avoid deadlocks: skip if the collections mutex is already held (or contended).
     // Mark a pending GC request instead; the next `oren_gc_safepoint()` will initiate the collection.
@@ -819,10 +1083,14 @@ static inline void oren_capture_gp_regs_words(uintptr_t* out_words, size_t out_w
     for (size_t i = 0; i < out_words_len; i++) out_words[i] = 0u;
 
 #if defined(__aarch64__)
-    // Try hard not to clobber x0 with the input operand register. If the compiler places
-    // the input pointer in x0, we'd overwrite the very register we want to snapshot.
-    // Force the base pointer into x16 (caller-saved scratch) instead.
-    register uintptr_t* out asm("x16") = out_words;
+    // IMPORTANT (correctness under -O2 + inlining):
+    // Do NOT force the output pointer into a fixed register (e.g. x16). When this helper is
+    // inlined into hot loops (compiler stage2), the optimizer may keep live OrenValues in
+    // arbitrary caller-saved registers, including x16. Forcing `%0` into x16 would overwrite
+    // a live root *without* giving the compiler a chance to spill it, which can lead to GC
+    // missing roots and freeing live objects (observed as type-tag drift / "index get on non-list/map").
+    //
+    // Let the compiler choose an operand register; it will spill any live values as needed.
     asm volatile(
         "stp x0,  x1,  [%0, #0]\n"
         "stp x2,  x3,  [%0, #16]\n"
@@ -841,7 +1109,7 @@ static inline void oren_capture_gp_regs_words(uintptr_t* out_words, size_t out_w
         "stp x28, x29, [%0, #224]\n"
         "str x30,      [%0, #240]\n"
         :
-        : "r"(out)
+        : "r"(out_words)
         : "memory");
 #elif defined(__x86_64__) || defined(_M_X64)
     asm volatile(
@@ -888,6 +1156,31 @@ void oren_gc_collect() {
     }
 
     pthread_mutex_lock(&g_alloc_mutex);
+    // Flush thread-local staged allocations into the global registry before marking.
+    // GC is stop-the-world at this point, so no other thread can mutate its local list.
+    OrenThreadState* ts = g_thread_states;
+    while (ts) {
+        if (ts->local_allocs) {
+            OrenAllocNode* cur = ts->local_allocs;
+            ts->local_allocs = NULL;
+            ts->local_allocs_len = 0u;
+            while (cur) {
+                OrenAllocNode* next = cur->next;
+                cur->next = g_allocs;
+                g_allocs = cur;
+                oren_alloc_index_put_locked(cur);
+                uintptr_t p = (uintptr_t)cur->ptr;
+#if defined(__aarch64__)
+                p &= (uintptr_t)0x0000FFFFFFFFFFFFULL;
+#endif
+                if (p < g_alloc_ptr_min) g_alloc_ptr_min = p;
+                if (p > g_alloc_ptr_max) g_alloc_ptr_max = p;
+                oren_alloc_bloom_add(p);
+                cur = next;
+            }
+        }
+        ts = ts->next;
+    }
     // PERF (rolling):
     // Rebuilding the conservative-GC filters is O(n) over tracked allocations, and the sweep
     // phase is already O(n). Keep filter rebuild opt-in so stage2 self-hosting is not paying
@@ -914,9 +1207,24 @@ void oren_gc_collect() {
         //
         // - `result` keeps finished thread outputs alive until join/free.
         // - `fn` and `args_list` keep in-flight callables and their arguments alive.
-        if (t->done) oren_mark_value(t->result);
-        oren_mark_value(t->fn);
-        oren_mark_value(t->args_list);
+        // IMPORTANT:
+        // `done/result/fn/args_list` are mutated by worker threads under `t->mu`.
+        // The collector must not read them without synchronization, otherwise the
+        // data race can cause memory corruption (observed as SIGBUS / type-tag drift
+        // during stage2 parallel builds).
+        int done = 0;
+        OrenValue result = OREN_NIL;
+        OrenValue fn = OREN_NIL;
+        OrenValue args_list = OREN_NIL;
+        pthread_mutex_lock(&t->mu);
+        done = t->done;
+        result = t->result;
+        fn = t->fn;
+        args_list = t->args_list;
+        pthread_mutex_unlock(&t->mu);
+        if (done) oren_mark_value(result);
+        oren_mark_value(fn);
+        oren_mark_value(args_list);
         t = t->next;
     }
 
@@ -932,10 +1240,24 @@ void oren_gc_collect() {
         oren_mark_ptr_range_words((void*)&self_regs, (void*)((char*)&self_regs + sizeof(self_regs)));
     }
 
-    OrenThreadState* cur = g_thread_states;
-    while (cur) {
-        void* sp = cur->stack_sp;
-        void* top = cur->stack_top;
+        OrenThreadState* cur = g_thread_states;
+        while (cur) {
+            // Explicit thread-local GC pin (compiler uses this for parser state).
+            oren_mark_value(cur->gc_pin);
+            // Precise root stack (generated C code uses this for locals/temporaries).
+            if (cur->root_slots && cur->root_slots_len > 0u) {
+                for (size_t ri = 0; ri < cur->root_slots_len; ri++) {
+                    OrenValue* slot = cur->root_slots[ri];
+                    if (slot) oren_mark_value(*slot);
+                }
+            }
+            if (cur->root_vals && cur->root_vals_len > 0u) {
+                for (size_t ri = 0; ri < cur->root_vals_len; ri++) {
+                    oren_mark_value(cur->root_vals[ri]);
+                }
+            }
+            void* sp = cur->stack_sp;
+            void* top = cur->stack_top;
         if (cur == self) {
             sp = self_sp;
         }
@@ -1057,13 +1379,14 @@ void oren_gc_safepoint() {
         }
     }
 
-    // Auto-GC initiation (single-thread only): request is set by allocation counting
-    // and collected only at this safepoint call boundary (keeps stack/register state safe).
+    // Auto-GC initiation:
+    // - request is set by allocation counting
+    // - collected only at this safepoint call boundary (keeps stack/register state safe)
+    // - safe under multi-threading via the stop-the-world protocol in `oren_gc_collect`
     int do_auto = 0;
     lock_collections();
     if (atomic_load_explicit(&g_gc_auto_pending, memory_order_relaxed) &&
-        !atomic_load_explicit(&g_gc_in_progress, memory_order_relaxed) &&
-        g_threads_total <= 1) {
+        !atomic_load_explicit(&g_gc_in_progress, memory_order_relaxed)) {
         atomic_store_explicit(&g_gc_auto_pending, 0, memory_order_relaxed);
         do_auto = 1;
     }

@@ -935,6 +935,24 @@ fn free(ptr) {
     return 0
 }
 
+fn native_fd_set_nonblock(fd0) {
+    var fl = sys_fcntl_getfl(fd0)
+    if fl < 0 { return fl }
+    var nb = fl & OREN_O_NONBLOCK
+    if nb != 0 { return 0 }
+    return sys_fcntl_setfl(fd0, fl | OREN_O_NONBLOCK)
+}
+
+fn native_fd_set_blocking(fd0) {
+    var fl = sys_fcntl_getfl(fd0)
+    if fl < 0 { return fl }
+    var nb = fl & OREN_O_NONBLOCK
+    if nb == 0 { return 0 }
+    // Clear the NONBLOCK bit without relying on bitwise-not (keep semantics stable in rolling mode).
+    var fl2 = fl ^ OREN_O_NONBLOCK
+    return sys_fcntl_setfl(fd0, fl2)
+}
+
 fn oren_join_timeout(handle, timeout_ms) {
     if handle == 0 { return 0 }
 
@@ -1020,54 +1038,119 @@ fn oren_join_timeout(handle, timeout_ms) {
     }
 
     // Spawn handle layout (native backend, macOS v0 fork+pipe):
-    // 0: pid (u64)
-    // 8: read_fd (u64)
+    //   [0]  pid (u64)
+    //   [8]  read_fd (u64)
+    //   [16] got (u64)        - bytes read into inline result buffer
+    //   [24] result_buf (u64) - inline 8-byte result buffer
 
-    var pid = ptr_get(handle)
-    var fd = ptr_get(handle + 8)
-
-    // Read exactly 8 bytes (result value) with an optional timeout budget.
-    var got = 0
-
-    // Timeout semantics (rolling, syscall-first):
-    // - `timeout_ms < 0`: wait forever (blocking read).
-    // - `timeout_ms >= 0`: deterministic poll budget (no kqueue/epoll dependency).
+    // IMPORTANT: use `iadd` for raw pointer arithmetic.
     //
-    // Rationale:
-    // - Linux does not have kqueue, and we don't want libc poll()/select() shims.
-    // - For spawn/join, we can wait on child termination via wait4(WNOHANG) and only
-    //   attempt to read the pipe once the child has exited.
-    // - This keeps behavior portable and makes tests deterministic.
-    var reaped = 0
-    if timeout_ms >= 0 {
-        // Non-blocking probe (no cancellation): if not done, return ETIMEDOUT but keep handle alive.
-        if timeout_ms == 0 {
-            var wpid_probe = sys_wait4(pid, 0, 1, 0) // WNOHANG
-            if wpid_probe == 0 { return 0 - 60 }     // not done
-            if wpid_probe < 0 {
+    // The native runtime implements `+` via `oren_add` (string concat when both operands are tracked strings),
+    // which is correct for language semantics but is not appropriate for low-level pointer offsets in the
+    // syscall-first runtime.
+    //
+    // Using `iadd` here keeps join semantics deterministic and avoids accidental container/type probing.
+    var pid = ptr_get(handle)
+    var fd = ptr_get(iadd(handle, 8))
+    var got_slot = iadd(handle, 16)
+    var got = ptr_get(got_slot)
+    var res_buf = iadd(handle, 24)
+
+    if fd <= 0 {
+        // No readable pipe => treat as failed join.
+        free(handle)
+        return -1
+    }
+
+    // Join semantics (rolling, syscall-first, no libc poll/select dependency):
+    // - `timeout_ms < 0`: wait forever; reads until 8 bytes available.
+    // - `timeout_ms == 0`: non-blocking probe; on "not ready" return -60 (ETIMEDOUT) and keep handle alive.
+    // - `timeout_ms > 0`: wait up to N ms (real-time budget via nanosleep); on timeout kill+reap child to avoid zombies.
+    //
+    // Completion is defined as "we have read exactly 8 bytes (u64 result) from the pipe".
+    //
+    // NOTE: Unlike the old implementation, we do NOT call wait4(WNOHANG) for probing because that
+    // would reap the child and make later `oren_join(handle)` unreliable. Instead, we probe the pipe.
+    if timeout_ms == 0 {
+        var nb = native_fd_set_nonblock(fd)
+        if nb < 0 {
+            sys_close(fd)
+            sys_wait4(pid, 0, 0, 0) // best-effort reap
+            free(handle)
+            return nb
+        }
+        if got < 8 {
+            var n0 = sys_read(fd, iadd(res_buf, got), 8 - got)
+            // EAGAIN/EWOULDBLOCK: macOS=35, Linux=11
+            if n0 == 0 - 35 || n0 == 0 - 11 { return 0 - 60 }
+            if n0 < 0 {
                 sys_close(fd)
+                sys_wait4(pid, 0, 0, 0) // best-effort reap
                 free(handle)
-                return wpid_probe
+                return n0
             }
-            if wpid_probe == pid {
-                reaped = 1
+            if n0 == 0 { return 0 - 60 } // EOF or not ready => treat as not done for probe
+            got = got + n0
+            ptr_set(got_slot, got)
+        }
+        if got < 8 { return 0 - 60 }
+        // Fall through to cleanup below.
+    } else if timeout_ms < 0 {
+        // Ensure blocking behavior so we don't spin if an earlier probe set O_NONBLOCK.
+        native_fd_set_blocking(fd)
+        while got < 8 {
+            var n1 = sys_read(fd, iadd(res_buf, got), 8 - got)
+            if n1 == 0 { break } // EOF
+            if n1 < 0 {
+                // If non-blocking leaks through, treat EAGAIN as "wait a bit".
+                if n1 == 0 - 35 || n1 == 0 - 11 {
+                    sys_nanosleep(1000000) // 1ms
+                    continue
+                }
+                sys_close(fd)
+                sys_wait4(pid, 0, 0, 0) // best-effort reap
+                free(handle)
+                return n1
             }
-        } else {
+            got = got + n1
+            ptr_set(got_slot, got)
+        }
+        if got < 8 {
+            sys_close(fd)
+            sys_wait4(pid, 0, 0, 0)
+            free(handle)
+            return -1
+        }
+        // Fall through to cleanup below.
+    } else {
         var remaining = timeout_ms
+        var nb2 = native_fd_set_nonblock(fd)
+        if nb2 < 0 {
+            sys_close(fd)
+            sys_wait4(pid, 0, 0, 0)
+            free(handle)
+            return nb2
+        }
         while remaining > 0 {
-            var wpid0 = sys_wait4(pid, 0, 1, 0) // WNOHANG
-            if wpid0 == pid {
-                reaped = 1
-                break
+            if got < 8 {
+                var n2 = sys_read(fd, iadd(res_buf, got), 8 - got)
+                if n2 > 0 {
+                    got = got + n2
+                    ptr_set(got_slot, got)
+                } else if n2 < 0 {
+                    if n2 != 0 - 35 && n2 != 0 - 11 {
+                        sys_close(fd)
+                        sys_wait4(pid, 0, 0, 0)
+                        free(handle)
+                        return n2
+                    }
+                }
             }
-            if wpid0 < 0 {
-                sys_close(fd)
-                free(handle)
-                return wpid0
-            }
+            if got >= 8 { break }
+            sys_nanosleep(1000000) // 1ms
             remaining = remaining - 1
         }
-        if reaped == 0 {
+        if got < 8 {
             // Timeout: kill child and reap to avoid zombies.
             oren_kill(pid, 9) // SIGKILL
             sys_wait4(pid, 0, 0, 0) // best-effort reap
@@ -1075,45 +1158,62 @@ fn oren_join_timeout(handle, timeout_ms) {
             free(handle)
             return 0 - 60 // ETIMEDOUT (BSD)
         }
-        // Child is already reaped by the WNOHANG wait4 above; proceed to read pipe.
-        }
-    }
-
-    var buf = malloc_raw(8)
-    if buf == 0 { exit(270) }
-    if buf == -1 { exit(270) }
-    ptr_set(buf, 0)
-
-    while got < 8 {
-        var n = sys_read(fd, buf + got, 8 - got)
-        if n == 0 { break } // EOF
-        if n < 0 {
-            sys_close(fd)
-            if reaped == 0 { sys_wait4(pid, 0, 0, 0) }
-            free(buf)
-            free(handle)
-            return n
-        }
-        got = got + n
+        // Fall through to cleanup below.
     }
 
     sys_close(fd)
-
     // Reap child (best-effort).
-    if reaped == 0 { sys_wait4(pid, 0, 0, 0) }
-
-    if got != 8 {
-        free(buf)
-        free(handle)
-        return -1
-    }
-
-    var ret_val = ptr_get(buf)
-    free(buf)
+    sys_wait4(pid, 0, 0, 0)
+    var ret_val = ptr_get(res_buf)
     free(handle)
     return ret_val
 }
 
 fn oren_join(handle) {
     return oren_join_timeout(handle, -1)
+}
+
+// Probe whether a `spawn` handle has completed without consuming the handle.
+//
+// For the POSIX v0 fork+pipe substrate, we treat "done" as "the 8-byte result is available on the pipe".
+// This avoids `wait4(WNOHANG)` probes, which would reap the child and make later `oren_join(handle)` unreliable.
+fn oren_is_done(handle) {
+    if handle == 0 { return false }
+
+    // Windows Tier‑1 (CreateThread): probe via WaitForSingleObject(0).
+    if g_target_os == 3 {
+        var h = ptr_get(handle)
+        if h == 0 { return false }
+        var rc = sys_win_wait_single_object(h, 0)
+        if rc == 0 { return true }
+        return false
+    }
+
+    var got = ptr_get(iadd(handle, 16))
+    if got >= 8 { return true }
+
+    var fd = ptr_get(iadd(handle, 8))
+    if fd <= 0 { return false }
+
+    // Best-effort non-blocking read into inline buffer.
+    var fl = sys_fcntl_getfl(fd)
+    if fl >= 0 {
+        var nb = fl & OREN_O_NONBLOCK
+        if nb == 0 {
+            sys_fcntl_setfl(fd, fl | OREN_O_NONBLOCK)
+        }
+    }
+
+    var n = sys_read(fd, iadd(iadd(handle, 24), got), 8 - got)
+    if n > 0 {
+        got = got + n
+        ptr_set(iadd(handle, 16), got)
+    } else if n < 0 {
+        // EAGAIN/EWOULDBLOCK: macOS=35, Linux=11
+        if n == 0 - 35 || n == 0 - 11 { return false }
+        // Unexpected read failure: treat as not done (caller will hit join error path later).
+        return false
+    }
+
+    return got >= 8
 }

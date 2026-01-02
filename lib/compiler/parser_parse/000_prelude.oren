@@ -57,14 +57,14 @@ fn expect_peek_ident_like(p, what) { return core.expect_peek_ident_like(p, what)
 fn parse_type_name_after_colon(p) { return core.parse_type_name_after_colon(p) }
 fn parse_type_name_after_for(p) { return core.parse_type_name_after_for(p) }
 
-// GC stability for self-hosting stage2:
-// Keep the parser state reachable via an always-rooted global while parsing, so conservative
-// scanning does not need to rely on register spilling behavior under -O2.
-var __oren_gc_root_parser = nil
-
 fn parse_program(p) {
-    __oren_gc_root_parser = p
+    var __prev_gc_pin = oren_gc_pin(p)
     var prog = ast.new_program()
+    // GC safety (rolling):
+    // Stage2 self-hosting uses auto-GC and may run with bounded conservative stack scanning.
+    // Ensure the in-progress program (and per-iteration scratch lists) remain reachable from
+    // the pinned parser state so they cannot be collected mid-parse.
+    p["_gc_prog"] = prog
     while p["cur"]["type"] != token.TOK_EOF {
         // Allow doc comments and attributes to appear in either order before a declaration:
         //   /// doc
@@ -79,6 +79,8 @@ fn parse_program(p) {
         // We collect both deterministically and attach to the next declaration only.
         var doc_lines = []
         var attrs = []
+        p["_gc_doc_lines"] = doc_lines
+        p["_gc_attrs"] = attrs
         while cur_is(p, token.TOK_DOC) || cur_is(p, token.TOK_AT) {
             if cur_is(p, token.TOK_DOC) {
                 oren_list_push(doc_lines, p["cur"]["literal"])
@@ -92,6 +94,7 @@ fn parse_program(p) {
         var doc = docs_join(doc_lines)
         p["_pending_doc"] = doc
         var stmt = parse_statement(p)
+        p["_gc_stmt"] = stmt
         if stmt != nil {
             if stmt["type"] == "StmtList" {
                 if attrs != nil && oren_list_len(attrs) != 0 {
@@ -131,11 +134,18 @@ fn parse_program(p) {
         }
         // If no statement consumed the doc, clear it to avoid leakage.
         p["_pending_doc"] = nil
+        p["_gc_stmt"] = nil
+        p["_gc_attrs"] = nil
+        p["_gc_doc_lines"] = nil
         parser_next_token(p)
     }
     // Carry trait declarations for tooling/metadata (no runtime meaning in v0).
     prog["traits"] = p["traits"]
-    __oren_gc_root_parser = nil
+    p["_gc_stmt"] = nil
+    p["_gc_attrs"] = nil
+    p["_gc_doc_lines"] = nil
+    p["_gc_prog"] = nil
+    oren_gc_pin(__prev_gc_pin)
     return prog
 }
 

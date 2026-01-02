@@ -29,6 +29,22 @@ fn _maybe_get_toplevel_function_node(stmt) {
     return nil
 }
 
+fn _toplevel_has_attr(stmt, name) {
+    // Attributes can attach either to:
+    // - the Function node itself (`stmt["type"] == "Function"`), or
+    // - the wrapper statement (`ExprStmt(Function)`), depending on the parser/normalization path.
+    // Global DCE must honour both to keep semantics stable.
+    if stmt == nil { return false }
+    if _has_attr(stmt, name) == true { return true }
+    if stmt["type"] == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "Function" {
+            if _has_attr(e, name) == true { return true }
+        }
+    }
+    return false
+}
+
 fn _has_attr(node, name) {
     if node == nil || name == nil { return false }
     var attrs = node["attrs"]
@@ -55,6 +71,40 @@ fn _starts_with(s, prefix) {
     return true
 }
 
+fn _ends_with(s, suffix) {
+    if s == nil || suffix == nil { return false }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(suffix)
+    if sl < pl { return false }
+    var i = 0
+    while i < pl {
+        if oren_string_char_at(s, sl - pl + i) != oren_string_char_at(suffix, i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _resolve_toplevel_suffix_name(top_fns, name) {
+    // Rolling robustness:
+    // Module linking prefixes top-level names (e.g. `M1_foo`). If an internal helper reference
+    // accidentally remains unprefixed (`__foo`), allow resolving it by unique suffix match.
+    //
+    // Intentionally narrow: only applies to names starting with "__", and only if unique.
+    if top_fns == nil || name == nil { return nil }
+    if _starts_with(name, "__") != true { return nil }
+    var match = nil
+    var match_count = 0
+    for k in top_fns {
+        if _ends_with(k, name) == true {
+            match = k
+            match_count = match_count + 1
+            if match_count > 1 { return nil }
+        }
+    }
+    if match_count == 1 { return match }
+    return nil
+}
+
 fn _resolve_ns_member(aliases, expr) {
     // Resolve an imported-namespace member access into a concrete prefixed symbol name.
     //
@@ -74,10 +124,15 @@ fn _resolve_ns_member(aliases, expr) {
 
 fn _add_ref_if_toplevel_name(top_fns, reachable, queue, name) {
     if name == nil || name == "" { return nil }
-    if top_fns[name] == nil { return nil }
-    if reachable[name] == true { return nil }
-    reachable[name] = true
-    oren_list_push(queue, name)
+    var nm = name
+    if top_fns[nm] == nil {
+        var resolved = _resolve_toplevel_suffix_name(top_fns, nm)
+        if resolved != nil { nm = resolved }
+    }
+    if top_fns[nm] == nil { return nil }
+    if reachable[nm] == true { return nil }
+    reachable[nm] = true
+    oren_list_push(queue, nm)
     return nil
 }
 
@@ -260,7 +315,7 @@ fn lower_linked_program_in_place(linked) {
             // them available when whole-program DCE runs after runtime injection.
             if _starts_with(nm0, "native_capsule_sys_") == true {
                 _add_ref_if_toplevel_name(top_fns, reachable, queue, nm0)
-            } else if _has_attr(fn0, "oren.keep") == true {
+            } else if _toplevel_has_attr(stmts[i], "oren.keep") == true {
                 _add_ref_if_toplevel_name(top_fns, reachable, queue, fn0["name"])
             }
         }

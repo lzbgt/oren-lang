@@ -64,6 +64,10 @@ else
   RUN_SUITE_WITH_TIMEOUT =
 endif
 
+# Parser parallelism (self-hosting speed knob).
+# Used by the compiler include-aggregator fast path (stage2 hotspot).
+OREN_PARSE_JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
+
 # Output control:
 # - Default is quiet to avoid huge logs during rolling development.
 # - Set TEST_QUIET=0 to print full compiler/runtime output.
@@ -107,6 +111,11 @@ OREN_RUNTIME_INC := $(shell find lib/runtime -name "*.inc")
 
 # --- Build Stages ---
 
+# GC tuning for self-hosting builds (rolling):
+# - Keep stage2 within time/RSS budgets by avoiding full-stack scans.
+# - Override per-host/CI as needed.
+OREN_GC_STACK_SCAN_LIMIT_BYTES ?= 8388608
+
 # Stage 0: Bootstrap Compiler (Go)
 oren_bootstrap: $(GO_SRC)
 	@echo "Building Stage 0 (Bootstrap)..."
@@ -140,10 +149,10 @@ oren: oren_bootstrap $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 oren_stage2: oren $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 	@echo "Building Stage 2 (Self-Hosted)..."
 	@if [ "$(UNAME_S)" = "Darwin" ]; then \
-			PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=500000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_SCAN_JMPBUFS=0 OREN_GC_STACK_SCAN_LIMIT_BYTES=2097152 ./oren build $(OREN_SRC) --backend native --no-debug -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG); \
+			PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./oren build $(OREN_SRC) --backend native --no-debug -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)'; \
 		else \
-			OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=500000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_SCAN_JMPBUFS=0 OREN_GC_STACK_SCAN_LIMIT_BYTES=2097152 ./oren build $(OREN_SRC) --backend native --no-debug -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG); \
-		fi
+				OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./oren build $(OREN_SRC) --backend native --no-debug -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)'; \
+			fi
 
 # Aliases
 bootstrap: oren_bootstrap

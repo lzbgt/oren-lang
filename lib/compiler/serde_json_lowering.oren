@@ -26,11 +26,9 @@ import ast "ast.oren"
 //   {"t":"array","a":[JsonValue...]}
 //   {"t":"object","o":{ string_key: JsonValue, ... }}
 
-var SERDE_JSON_ERRS = nil
-
-fn serde_json_error(msg) {
-    if SERDE_JSON_ERRS == nil { SERDE_JSON_ERRS = [] }
-    oren_list_push(SERDE_JSON_ERRS, msg)
+fn serde_json_error(errs, msg) {
+    if errs == nil { return nil }
+    oren_list_push(errs, msg)
     return nil
 }
 
@@ -593,7 +591,7 @@ fn lower_one_type_cbor(type_stmt, stmts, prefix, field_info) {
     return nil
 }
 
-fn lower_one_type(type_stmt, stmts, prefix) {
+fn lower_one_type(type_stmt, stmts, prefix, errs) {
     var tname = type_stmt["name"]["value"]
     var fields = type_stmt["fields"]
     if fields == nil { return nil }
@@ -635,7 +633,7 @@ fn lower_one_type(type_stmt, stmts, prefix) {
     while fi0 < oren_list_len(fmts) {
         var fmt0 = fmts[fi0]
         if fmt0 != "json" && fmt0 != "yaml" && fmt0 != "cbor" {
-            serde_json_error("serde: unknown derive format '" + fmt0 + "' (supported: \"json\"|\"yaml\"|\"cbor\") (struct " + tname + ")")
+            serde_json_error(errs, "serde: unknown derive format '" + fmt0 + "' (supported: \"json\"|\"yaml\"|\"cbor\") (struct " + tname + ")")
             return nil
         }
         fi0 = fi0 + 1
@@ -653,14 +651,14 @@ fn lower_one_type(type_stmt, stmts, prefix) {
             var dflt = field_default_literal_any(f2)
             var kind = serde_kind_for_ann(ann)
             if skip && dflt == nil {
-                serde_json_error("serde: skipped field requires @serde.default(...) (struct " + tname + " field " + fname + ")")
+                serde_json_error(errs, "serde: skipped field requires @serde.default(...) (struct " + tname + " field " + fname + ")")
             }
             if !skip {
                 if ann == nil {
-                    serde_json_error("serde: field requires type annotation (e.g. name: string) (struct " + tname + " field " + fname + ")")
+                    serde_json_error(errs, "serde: field requires type annotation (e.g. name: string) (struct " + tname + " field " + fname + ")")
                 } else {
                     if kind == nil {
-                        serde_json_error("serde: unsupported field type '" + ann + "' (rolling supports string|bool|int widths) (struct " + tname + " field " + fname + ")")
+                        serde_json_error(errs, "serde: unsupported field type '" + ann + "' (rolling supports string|bool|int widths) (struct " + tname + " field " + fname + ")")
                     }
                 }
             }
@@ -892,23 +890,30 @@ fn lower_one_type(type_stmt, stmts, prefix) {
 }
 
 fn lower_program_in_place(prog, prefix) {
-    SERDE_JSON_ERRS = nil
+    var errs = []
     if prog == nil { return nil }
     var stmts = prog["statements"]
     if stmts == nil { return nil }
+    // GC safety (rolling):
+    // During stage2 self-hosting with auto-GC + bounded conservative scanning, `errs` and
+    // `stmts` can be missed if they live only in registers or beyond the scanned stack range.
+    // Pin a composite root for the duration of this pass.
+    var gcroot = {"prog": prog, "errs": errs, "stmts": stmts}
+    var prev_pin = oren_gc_pin(gcroot)
 
     // Iterate over type declarations and generate serde helpers where requested.
     var i = 0
     while i < oren_list_len(stmts) {
         var s = stmts[i]
         if s != nil && s["type"] == "Type" {
-            lower_one_type(s, stmts, prefix)
+            lower_one_type(s, stmts, prefix, errs)
         }
         i = i + 1
     }
 
-    if SERDE_JSON_ERRS != nil && oren_list_len(SERDE_JSON_ERRS) > 0 {
-        prog["serde_json_errors"] = SERDE_JSON_ERRS
+    if errs != nil && oren_list_len(errs) > 0 {
+        prog["serde_json_errors"] = errs
     }
+    oren_gc_pin(prev_pin)
     return nil
 }

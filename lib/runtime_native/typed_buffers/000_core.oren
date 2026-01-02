@@ -43,6 +43,21 @@ fn native_buf_as_node(buf) {
     return node
 }
 
+// Safe type predicate: must not panic.
+@oren.keep
+fn oren_is_buf(v) {
+    return native_buf_as_node(v) != 0
+}
+
+// Safe type predicate: must not panic.
+@oren.keep
+fn oren_is_u8_buf(v) {
+    if native_buf_as_node(v) == 0 { return false }
+    if ptr_get(v + 32) != BUF_TAG_U8 { return false }
+    if ptr_get(v + 8) != 1 { return false }
+    return true
+}
+
 fn native_buf_check(buf, tag, elem_size) {
     if buf == 0 { return oren_err(4, "buf: nil") }
     if native_buf_as_node(buf) == 0 { return oren_err(4, "buf: invalid buffer") }
@@ -176,4 +191,3 @@ fn native_buf_wrap_ptr(data, len, elem_size, tag) {
     ptr_set(header + 40, data)
     return header
 }
-

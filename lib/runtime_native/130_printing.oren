@@ -212,8 +212,40 @@ fn oren_call_obj_spread(fn_obj, fixed_args, spread_list) {
 fn list_magic() { return 1279870019 } // 'LIST'
 fn map_magic() { return 1296121168 } // 'MAP\0' (rolling; used only for type discrimination in native runtime)
 
+// Debug/interop helper: return runtime type tag compatible with the C backend enum values.
+// This is best-effort for native mode: ints/bools share the same immediate representation.
 @oren.keep
-fn oren_new_map(cap) {
+fn oren_type_tag(v) {
+    // Mirror lib/runtime.h OrenType enum values:
+    //   0 nil, 1 int, 2 float, 3 bool, 4 string, 5 py_obj, 6 list, 7 map, 8 func,
+    //   9..13 typed buffers.
+    if v == 0 { return 0 } // nil (native uses 0)
+    if oren_is_string(v) == true { return 4 }
+    if oren_is_list(v) == true { return 6 }
+    if oren_is_map(v) == true { return 7 }
+    if oren_is_buf(v) == true {
+        // typed buffer tags follow the C enum ordering (u8=9, i32=10, i64=11, f32=12, f64=13)
+        if oren_is_u8_buf(v) == true { return 9 }
+        // Best-effort: unknown buffer kind.
+        return 9
+    }
+    // Best-effort: treat all other immediates as ints.
+    return 1
+}
+
+// Safe type predicate: must not panic.
+@oren.keep
+fn oren_is_map(v) {
+    if v == 0 { return false }
+    var node = oren_find_node(v)
+    if node == 0 { return false }
+    if ptr_get(iadd(node, 16)) != 3 { return false }
+    if ptr_get(v + 24) != map_magic() { return false }
+    return true
+}
+
+	@oren.keep
+	fn oren_new_map(cap) {
     // Map header layout mirrors list layout for safety and future growth:
     //   [count][cap][entries_ptr][magic][dirty_sort]
     // Where entries_ptr points to an array of entries:
@@ -233,11 +265,14 @@ fn oren_new_map(cap) {
     // - cap        @ +8
     // - entries ptr@ +16
     // - magic      @ +24
-    // - dirty_sort @ +32  (0=sorted, 1=needs sort for deterministic iteration)
-    var header = malloc(40)
-    if header == 0 { exit(1) }
-    if header == -1 { exit(1) }
-    oren_track_alloc(header, 40, 0)
+	    // - dirty_sort @ +32  (0=sorted, 1=needs sort for deterministic iteration)
+	    var header = malloc(40)
+	    if header == 0 { exit(1) }
+	    if header == -1 { exit(1) }
+	    // Track map header with kind=MAP so:
+	    // - map ops can validate via `oren_find_node(v).kind`
+	    // - GC can traverse map entries deterministically
+	    oren_track_alloc(header, 40, 3)
 
     var buf = 0
     // Map entry layout (24 bytes, 8-byte aligned):
@@ -257,14 +292,10 @@ fn oren_new_map(cap) {
     ptr_set(header + 0, 0)       // count
     ptr_set(header + 8, cap)     // cap
     ptr_set(header + 16, buf)    // entries_ptr
-    ptr_set(header + 24, map_magic())
-    ptr_set(header + 32, 0)      // dirty_sort
-
-    // Mark map header kind for GC traversal (kind=3 => MAP).
-    var node = oren_find_node(header)
-    if node != 0 { ptr_set(iadd(node, 16), 3) }
-    return header
-}
+	    ptr_set(header + 24, map_magic())
+	    ptr_set(header + 32, 0)      // dirty_sort
+	    return header
+	}
 
 fn _oren_map_check(m) {
     if m == 0 { oren_panic("map op on nil") }
@@ -275,6 +306,37 @@ fn _oren_map_check(m) {
     if ptr_get(iadd(node, 16)) != 3 { oren_panic("map op on non-map") }
     if ptr_get(m + 24) != map_magic() { oren_panic("map op on non-map") }
     return 0
+}
+
+// Map-only entry iteration: fill out_pair[0]=key out_pair[1]=value.
+// Returns 1 if entry exists at idx, 0 otherwise.
+@oren.keep
+fn oren_iter_next_entry(m, idx, out_pair) {
+    if idx == nil { return 0 }
+    if out_pair == 0 { oren_panic("iter_next_entry expects out_pair list") }
+    // out_pair must be a list with capacity >= 2.
+    var node = oren_find_node(out_pair)
+    if node == 0 { oren_panic("iter_next_entry expects out_pair list") }
+    if ptr_get(iadd(node, 16)) != 2 { oren_panic("iter_next_entry expects out_pair list") }
+    if ptr_get(out_pair + 24) != list_magic() { oren_panic("iter_next_entry expects out_pair list") }
+    if ptr_get(out_pair + 8) < 2 { oren_panic("iter_next_entry expects out_pair cap>=2") }
+
+    _oren_map_check(m)
+    var count = ptr_get(m + 0)
+    if idx < 0 || idx >= count { return 0 }
+    var buf = ptr_get(m + 16)
+    if buf == 0 { return 0 }
+
+    var off = idx * 24
+    var k = ptr_get(buf + off + 0)
+    var v = ptr_get(buf + off + 16)
+
+    // Ensure out_pair count>=2.
+    if ptr_get(out_pair + 0) < 2 { ptr_set(out_pair + 0, 2) }
+    var obuf = ptr_get(out_pair + 16)
+    ptr_set(obuf + 0, k)
+    ptr_set(obuf + 8, v)
+    return 1
 }
 
 fn _oren_assert_string_ptr(k) {
@@ -380,7 +442,6 @@ fn oren_map_set(m, k, v) {
     // Rolling v0 map key kind inference (native runtime):
     // - ints are raw and untracked
     // - strings are tracked heap strings (kind=1)
-    if k == 0 { oren_panic("map_set: key is nil") }
     var node = oren_find_node(k)
     if node == 0 { return _oren_map_set_kind(m, k, v, 0) }
     var kind = ptr_get(iadd(node, 16))
@@ -529,7 +590,6 @@ fn oren_map_get(m, k) {
     // Rolling v0 map key kind inference (native runtime):
     // - ints are raw and untracked
     // - strings are tracked heap strings (kind=1)
-    if k == 0 { return 0 }
     var node = oren_find_node(k)
     if node == 0 { return _oren_map_get_kind(m, k, 0) }
     var kind = ptr_get(iadd(node, 16))

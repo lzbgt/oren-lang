@@ -7,6 +7,7 @@
 
 // @include "compiler/000_prelude.oren"
 // @include "compiler/010_cli_helpers.oren"
+// @include "compiler/015_astbin.oren"
 // @include "compiler/012_build_cache.oren"
 // @include "compiler/020_modules_linking.oren"
 // @include "compiler/030_commands_dump_meta_scan.oren"
