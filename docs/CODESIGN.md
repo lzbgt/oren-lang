@@ -14,9 +14,13 @@ codesign -s - --force <output>
   - `--codesign "Developer ID Application: ..."`
   - or env `OREN_CODESIGN_ID="Developer ID Application: ..."`
 
-- To force-disable external signing (debug only): `OREN_SKIP_CODESIGN=1`.
+- Oren’s macOS-native outputs are expected to be signed for local execution. Disabling signing is not supported because the OS may kill the process at runtime.
 
-- Deterministic builds (`--deterministic`) disable external signing by design (signing mutates the output and breaks reproducibility).
+- Deterministic builds (`--deterministic`) avoid post-processing steps that mutate the output (including external signing). A deterministic output is therefore **not guaranteed runnable** on macOS until you sign it (for local use, ad-hoc signing is typically sufficient):
+
+```bash
+codesign -s - --force <output>
+```
 
 ## Embedded signatures (compiler)
 

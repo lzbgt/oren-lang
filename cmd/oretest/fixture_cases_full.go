@@ -1019,7 +1019,7 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		})
 	}
 
-	if envBool("OREN_REMOTE_RUN", false) {
+		if envBool("OREN_REMOTE_RUN", false) {
 		// Opt-in remote-run gate for x86_64 artifacts (Win11 + WSL2).
 		//
 		// Performance + stability:
@@ -1034,15 +1034,25 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		//
 		// If you want to run the full set of remote x86_64 fixtures, use:
 		//   OREN_REMOTE_RUN_FULL=1
-		tests := []remoteX64Test{
-			{
-				name: "tier1_native_smoke",
-				src:  "tests/fixtures/tier1_native_smoke_main.oren",
-				env:  "OREN_ENABLE_SIMD=1",
-				args: "ARG_A ARG_B",
-				expectSubstrings: []string{
-					"tier1 smoke ok",
-					"tier1 spawn join ok",
+			baseEnv := "OREN_ENABLE_SIMD=1"
+			if envBool("OREN_DEBUG_JOIN_TIMEOUT", false) {
+				baseEnv += " OREN_DEBUG_JOIN_TIMEOUT=1"
+			}
+			if envBool("OREN_DEBUG_SLEEP", false) {
+				baseEnv += " OREN_DEBUG_SLEEP=1"
+			}
+			if envBool("OREN_DEBUG_SLEEP_ALL", false) {
+				baseEnv += " OREN_DEBUG_SLEEP_ALL=1"
+			}
+			tests := []remoteX64Test{
+				{
+					name: "tier1_native_smoke",
+					src:  "tests/fixtures/tier1_native_smoke_main.oren",
+					env:  baseEnv,
+					args: "ARG_A ARG_B",
+					expectSubstrings: []string{
+						"tier1 smoke ok",
+						"tier1 spawn join ok",
 					"tier1 local fn ok",
 					"tier1 args ok",
 					"SIMD_ENABLED=1",

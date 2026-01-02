@@ -58,7 +58,7 @@ This repo already has a persistent docker workflow:
 - container name default: `oren-linux-oretest`
 - image default: `ubuntu:24.04` (override via `OREN_LINUX_DOCKER_IMAGE=...`)
 
-The script will create/start the container if needed, sync tracked sources, rebuild AVM, then execute the host-built `.obc`.
+The script requires an already-running persistent container, syncs tracked sources, rebuilds AVM, then executes the host-built `.obc`.
 
 ### 3) Remote x64 host (Win11 + WSL2)
 

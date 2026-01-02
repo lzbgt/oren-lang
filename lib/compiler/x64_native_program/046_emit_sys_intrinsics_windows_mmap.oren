@@ -1,0 +1,63 @@
+// x64 native: Windows-only helpers for mmap/munmap-style intrinsics.
+//
+// NOTE:
+// This file must not emit direct Linux/Darwin sysno constants; it is used by the syscall
+// lowering module to keep Windows mappings readable while satisfying the repo "svc audit".
+
+fn _emit_sys_mmap_private_anon_windows_x64(ctx, locals, tmp_len) {
+    // Implements `sys_mmap_private_anon(len)` on Windows via VirtualAlloc.
+    //
+    // Contract (shared with other syscalls): return ptr on success, -1 on failure.
+    //
+    // - VirtualAlloc(0, len, MEM_COMMIT|MEM_RESERVE=0x3000, PAGE_READWRITE=0x04)
+    // - returns 0 on failure; normalize to -1
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0)) // ecx = 0
+    _intr_load_x64(ctx, 2, tmp_len) // rdx = len
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 12288)) // r8d = 0x3000
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 4))     // r9d = 4
+    var mov_iat_va = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_va + 3, "data_label": "IAT_VirtualAlloc"})
+    bytes_extend(ctx["code"], insn_call_rax())
+
+    // if rax == 0 => rax = -1
+    var labels = {}
+    var local_fixups = []
+    var l_ok = _new_label(ctx, "sys_mmap_va_ok")
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_ok)
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(0, -1))
+    _emit_label(ctx, labels, l_ok)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
+fn _emit_sys_munmap_windows_x64(ctx, locals, tmp_addr) {
+    // Implements `sys_munmap(addr, len)` on Windows via VirtualFree.
+    //
+    // Contract: return 0 on success, -1 on failure.
+    _intr_load_x64(ctx, 1, tmp_addr) // rcx = addr
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0)) // edx = 0
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 32768)) // r8d = MEM_RELEASE (0x8000)
+    var mov_iat_vf = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_vf + 3, "data_label": "IAT_VirtualFree"})
+    bytes_extend(ctx["code"], insn_call_rax())
+
+    // if rax == 0 => -1 else 0
+    var labels = {}
+    var local_fixups = []
+    var l_fail = _new_label(ctx, "sys_munmap_vf_fail")
+    var l_done = _new_label(ctx, "sys_munmap_vf_done")
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_fail)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+    _emit_label(ctx, labels, l_fail)
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(0, -1))
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+

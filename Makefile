@@ -10,15 +10,11 @@ CC ?= cc
 CODESIGN_IDENTITY ?= -
 MACOS_SYSTEM_PATH_PREFIX := /usr/bin:/bin:/usr/sbin:/sbin
 MACOS_CODESIGN_BIN := /usr/bin/codesign
-# Speed knob for rolling iteration: allow disabling codesign during test runs.
-# Keep production builds signed by default on macOS.
-OREN_SKIP_CODESIGN ?=
 ifeq ($(UNAME_S),Darwin)
   ifeq ($(strip $(OREN_SKIP_CODESIGN)),1)
-    CODESIGN_ARG :=
-  else
-    CODESIGN_ARG := --codesign "$(CODESIGN_IDENTITY)"
+    $(error OREN_SKIP_CODESIGN=1 is not supported on macOS; unsigned native outputs may be killed by the OS)
   endif
+  CODESIGN_ARG := --codesign "$(CODESIGN_IDENTITY)"
 else
   CODESIGN_ARG :=
 endif
@@ -171,22 +167,21 @@ test: oren
 		echo "WARN: 'timeout'/'gtimeout' not found; running without outer suite timeout (oretest uses internal timeouts)."; \
 	fi
 	@# Global failsafe: wrap the entire suite.
-	@$(RUN_SUITE_WITH_TIMEOUT) $(MAKE) OREN_SKIP_CODESIGN= test-inner || { \
-			rc=$$?; \
-			if [ $$rc -eq 124 ]; then echo "FAIL: test suite timed out after $(SUITE_TIMEOUT_SECS)s"; fi; \
-			exit $$rc; \
-		}
+	@$(RUN_SUITE_WITH_TIMEOUT) $(MAKE) test-inner || { \
+				rc=$$?; \
+				if [ $$rc -eq 124 ]; then echo "FAIL: test suite timed out after $(SUITE_TIMEOUT_SECS)s"; fi; \
+				exit $$rc; \
+			}
 
 test-inner: oren avm oretest
 	@# macOS safety: ensure all binaries executed during tests are runnable.
 	@# - Always use the system-shipped codesign tool (/usr/bin/codesign).
-	@# - Do not allow OREN_SKIP_CODESIGN to accidentally leak into test runs.
 	@if [ "$(UNAME_S)" = "Darwin" ]; then \
-		for b in ./oren ./oretest ./avm; do \
-			if [ ! -f "$$b" ]; then echo "ERROR: missing $$b (run make stage1/avm/oretest)"; exit 2; fi; \
-			"$(MACOS_CODESIGN_BIN)" -s - --force "$$b" >/dev/null || { echo "ERROR: codesign failed for $$b"; exit 2; }; \
-		done; \
-	fi
+			for b in ./oren ./oretest ./avm; do \
+				if [ ! -f "$$b" ]; then echo "ERROR: missing $$b (run make stage1/avm/oretest)"; exit 2; fi; \
+				"$(MACOS_CODESIGN_BIN)" -s - --force "$$b" >/dev/null || { echo "ERROR: codesign failed for $$b"; exit 2; }; \
+			done; \
+		fi
 	@# Canonical curated runner lives inside the compiler:
 	@# - timeout-protected
 	@# - failure-only output
@@ -198,12 +193,12 @@ test-inner: oren avm oretest
 	@ORETEST_ARGS="--target $(OREN_TEST_TARGET) $(GC_ARG)"; \
 			if [ "$$OREN_TEST_FULL" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --full"; fi; \
 			if [ "$$OREN_TEST_SELFHOST" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --selfhost"; fi; \
-			if [ "$$OREN_TEST_VERBOSE" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --verbose"; fi; \
-			if [ "$(UNAME_S)" = "Darwin" ]; then \
-				PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_SKIP_CODESIGN= $(RUN_SUITE_WITH_TIMEOUT) ./oretest $$ORETEST_ARGS; \
-			else \
-				$(RUN_SUITE_WITH_TIMEOUT) ./oretest $$ORETEST_ARGS; \
-			fi
+				if [ "$$OREN_TEST_VERBOSE" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --verbose"; fi; \
+				if [ "$(UNAME_S)" = "Darwin" ]; then \
+					PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" $(RUN_SUITE_WITH_TIMEOUT) ./oretest $$ORETEST_ARGS; \
+				else \
+					$(RUN_SUITE_WITH_TIMEOUT) ./oretest $$ORETEST_ARGS; \
+				fi
 
 # Self-hosting stability gate (Stage1 -> Stage2 determinism checks).
 # This runs the curated suite plus the `oretest --selfhost` gate.
@@ -224,13 +219,13 @@ test-legacy-inner: oren avm oretest oredoc orensign
 		echo "WARN: 'timeout'/'gtimeout' not found; running without outer suite timeout (oretest uses internal timeouts)."; \
 	fi
 	@ORETEST_ARGS="--target $(OREN_TEST_TARGET) $(GC_ARG) --full"; \
-			if [ "$$OREN_TEST_SELFHOST" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --selfhost"; fi; \
-			if [ "$$OREN_TEST_VERBOSE" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --verbose"; fi; \
-			if [ "$(UNAME_S)" = "Darwin" ]; then \
-				PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_SKIP_CODESIGN= $(RUN_SUITE_WITH_TIMEOUT) ./oretest $$ORETEST_ARGS; \
-			else \
-				$(RUN_SUITE_WITH_TIMEOUT) ./oretest $$ORETEST_ARGS; \
-			fi
+				if [ "$$OREN_TEST_SELFHOST" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --selfhost"; fi; \
+				if [ "$$OREN_TEST_VERBOSE" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --verbose"; fi; \
+				if [ "$(UNAME_S)" = "Darwin" ]; then \
+					PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" $(RUN_SUITE_WITH_TIMEOUT) ./oretest $$ORETEST_ARGS; \
+				else \
+					$(RUN_SUITE_WITH_TIMEOUT) ./oretest $$ORETEST_ARGS; \
+				fi
 
 test-native-all: oren
 	@echo "=== Native Tests (All) ==="

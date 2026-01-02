@@ -164,7 +164,7 @@ fn native_runtime_init(target_os) {
     // IMPORTANT: allocate globals storage with malloc_raw so it is NOT tracked by GC.
     // This is runtime metadata and must never be reclaimed by mark/sweep.
     g_storage = malloc_raw(GLOBAL_SLOTS_RESERVED * GLOBAL_SLOT_BYTES)
-    if g_storage == 0 { exit(199) }
+    if g_storage == 0 { exit(301) }
     
     // Zero it
     var i = 0
@@ -203,7 +203,7 @@ fn native_runtime_init(target_os) {
     // - Allocation uses malloc_raw so GC never reclaims it.
     var max_fds = 4096
     var caps = malloc_raw(max_fds)
-    if caps == 0 { exit(199) }
+    if caps == 0 { exit(302) }
     var zi = 0
     while zi < max_fds {
         ptr_set_byte(caps + zi, 0)
@@ -231,7 +231,7 @@ fn native_runtime_init(target_os) {
     var map_cap = 16384
     var keys = malloc_raw(map_cap * 8)
     var vals = malloc_raw(map_cap)
-    if keys == 0 || vals == 0 { exit(199) }
+    if keys == 0 || vals == 0 { exit(303) }
     zi = 0
     while zi < map_cap {
         ptr_set(iadd(keys, zi * 8), 0)
@@ -250,7 +250,7 @@ fn native_runtime_init(target_os) {
     // cannot target arbitrary host processes in capsule mode.
     var pid_cap = 1024
     var ptab = malloc_raw(pid_cap * 8)
-    if ptab == 0 { exit(199) }
+    if ptab == 0 { exit(304) }
     zi = 0
     while zi < pid_cap {
         ptr_set(iadd(ptab, zi * 8), 0)

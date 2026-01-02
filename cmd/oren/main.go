@@ -91,8 +91,6 @@ func main() {
 				cc = "cc"
 			}
 			codesignID := os.Getenv("OREN_CODESIGN_ID")
-			skipCodesign := os.Getenv("OREN_SKIP_CODESIGN") == "1"
-			codesignExplicit := false
 			noGC := os.Getenv("OREN_NO_GC") != ""
 			notarize := false
 			notaryProfile := os.Getenv("OREN_NOTARY_PROFILE")
@@ -130,7 +128,6 @@ func main() {
 						os.Exit(1)
 					}
 					codesignID = os.Args[i+1]
-					codesignExplicit = true
 					i += 2
 				case "--notarize":
 					notarize = true
@@ -158,15 +155,16 @@ func main() {
 				}
 			}
 
-			if skipCodesign && !codesignExplicit {
-				codesignID = ""
+			if runtime.GOOS == "darwin" && target == "macos" && os.Getenv("OREN_SKIP_CODESIGN") == "1" {
+				fmt.Printf("OREN_SKIP_CODESIGN=1 is not supported on macOS; unsigned native outputs may be killed by the OS\n")
+				os.Exit(2)
 			}
-			if runtime.GOOS == "darwin" && target == "macos" && codesignID == "" && !skipCodesign {
+			if runtime.GOOS == "darwin" && target == "macos" && codesignID == "" {
 				// Default to ad-hoc signing so the output is runnable without a certificate.
 				codesignID = "-"
 			}
 			if notarize && target == "macos" && (codesignID == "" || codesignID == "-") {
-				fmt.Printf("Notarization requested but codesign is disabled (set --codesign or OREN_CODESIGN_ID; or unset OREN_SKIP_CODESIGN)\n")
+				fmt.Printf("Notarization requested but codesign is disabled (set --codesign or OREN_CODESIGN_ID)\n")
 				os.Exit(1)
 			}
 
@@ -201,10 +199,10 @@ func main() {
 				return
 			}
 
-				args := []string{"-o", outFilename, cFilename, "lib/runtime.c", "lib/runtime_buf.c", "-Ilib", "-pthread"}
-				if noGC {
-					args = append(args, "-DOREN_NO_GC")
-				}
+			args := []string{"-o", outFilename, cFilename, "lib/runtime.c", "lib/runtime_buf.c", "-Ilib", "-pthread"}
+			if noGC {
+				args = append(args, "-DOREN_NO_GC")
+			}
 
 			if enablePython {
 				args = append(args, "-DOREN_ENABLE_PYTHON")

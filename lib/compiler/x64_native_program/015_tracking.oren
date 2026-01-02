@@ -201,8 +201,14 @@ fn _emit_ensure_tracked_ptr_kind_x64(ctx, locals, ptr_reg, kind_imm) {
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_ensure_tracked"})
 
-    // Restore the original pointer into the requested register.
-    _emit_mov_r64_mrbp(ctx, ptr_reg, 0 - off_ptr)
+    // Return value:
+    // - `oren_ensure_tracked(ptr, kind)` returns the pointer to use.
+    // - For STRING (kind=1), this may be a *different* pointer (heap copy) than the input
+    //   embedded literal pointer, so we must not restore the original spilled value here.
+    // - Return register is RAX; copy it into `ptr_reg` when needed.
+    if ptr_reg != 0 {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(ptr_reg, 0))
+    }
 
     _intr_tmp_pop(ctx, base)
     return nil

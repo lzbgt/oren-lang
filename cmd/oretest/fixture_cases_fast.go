@@ -132,11 +132,21 @@ func buildFixtureCasesFast(target string, gcArg string) []fixtureCase {
 	// - one program (`tier1_native_smoke_main.oren`) covers most Tier‑1 semantics
 	// - re-run the same artifact with env/args to validate runtime propagation
 	if envBool("OREN_REMOTE_RUN", false) {
+		baseEnv := "OREN_ENABLE_SIMD=1"
+		if envBool("OREN_DEBUG_JOIN_TIMEOUT", false) {
+			baseEnv += " OREN_DEBUG_JOIN_TIMEOUT=1"
+		}
+		if envBool("OREN_DEBUG_SLEEP", false) {
+			baseEnv += " OREN_DEBUG_SLEEP=1"
+		}
+		if envBool("OREN_DEBUG_SLEEP_ALL", false) {
+			baseEnv += " OREN_DEBUG_SLEEP_ALL=1"
+		}
 		tests := []remoteX64Test{
 			{
 				name: "tier1_native_smoke",
 				src:  "tests/fixtures/tier1_native_smoke_main.oren",
-				env:  "OREN_ENABLE_SIMD=1",
+				env:  baseEnv,
 				args: "ARG_A ARG_B",
 				expectSubstrings: []string{
 					"tier1 smoke ok",

@@ -952,12 +952,36 @@ fn native_fd_set_blocking(fd0) {
     return sys_fcntl_setfl(fd0, fl2)
 }
 
+fn native_canon_timeout_ms_arg(v) {
+    // Rolling correctness guard (x64 bring-up + WSL2):
+    // Some call sites can materialize small integers into 8-byte stack slots without
+    // fully initializing the high 32 bits, then reload as 64-bit. This can turn
+    // `timeout_ms=20` into a huge negative value and break the join-timeout contract.
+    //
+    // Canonicalize to a signed 32-bit ms value when the high 32 bits are neither
+    // all-zero nor all-one.
+    var lo = v & 4294967295
+    var sign = (lo >> 31) & 1
+    var hi = (v >> 32) & 4294967295
+
+    // Accept already-canonical i32 sign extension:
+    // - non-negative: hi == 0 and sign == 0
+    // - negative: hi == 0xffffffff and sign == 1
+    if hi == 0 && sign == 0 { return v }
+    if hi == 4294967295 && sign != 0 { return v }
+
+    // Otherwise, treat as an un-canonicalized i32 argument and sign-extend from the low 32 bits.
+    if sign == 0 { return lo }
+    return lo - 4294967296
+}
+
 fn oren_join_timeout(handle, timeout_ms) {
     // Rolling: the native backend still has known local-slot/clobber edge cases in some injected
     // runtime functions. Copy args to fresh locals so the compiler is forced to spill/reload
     // deterministically across calls.
     var h = handle
     var t = timeout_ms
+    t = native_canon_timeout_ms_arg(t)
 
     if h == 0 { return 0 }
     // Keep the dispatcher tiny: the native backend still has edge cases when compiling very large
@@ -967,84 +991,84 @@ fn oren_join_timeout(handle, timeout_ms) {
         return r_win
     }
 
-    // Shared POSIX handle decode.
-    var pid = ptr_get(h)
+    // POSIX handle decode (minimal locals; avoid x64 Tier‑1 local-slot overlap edge cases).
     var fd = ptr_get(iadd(h, 8))
-    var got_slot = iadd(h, 16)
-    var got = ptr_get(got_slot)
-    var res_buf = iadd(h, 24)
-
     if fd <= 0 {
         free(h)
         return -1
     }
 
-    // timeout_ms > 0: wait up to N ms.
-    //
-    // Implemented inline to avoid known native-backend arg/local slot edge cases in helper functions.
-    if t > 0 {
-        var remaining = t
-        while remaining > 0 {
-            if oren_is_done(h) != 0 {
-                sys_close(fd)
-                sys_wait4(pid, 0, 0, 0)
-                var ret_done = ptr_get(res_buf)
-                free(h)
-                return ret_done
-            }
-            oren_sleep_ms(1)
-            remaining = remaining - 1
-        }
-        // Timeout: kill child and reap to avoid zombies.
-        oren_kill(pid, 9) // SIGKILL
-        sys_wait4(pid, 0, 0, 0)
-        sys_close(fd)
-        free(h)
-        return 0 - 60
+    var dbg_jt = native_envp_get_value_ptr("OREN_DEBUG_JOIN_TIMEOUT")
+    var dbg_on = false
+    if dbg_jt != 0 {
+        if ptr_get_byte(dbg_jt) != 0 { dbg_on = true }
+    }
+    if dbg_on {
+        var pid_dbg = ptr_get(h)
+        print("join_timeout debug: t=" + oren_int_to_string(t) + " pid=" + oren_int_to_string(pid_dbg) + " fd=" + oren_int_to_string(fd))
+    }
+
+    // timeout_ms < 0: wait forever (use the regular join path).
+    if t < 0 {
+        return oren_join_posix(h)
     }
 
     // timeout_ms == 0: non-blocking probe.
-    // If done, consume result + cleanup here (avoid calling other helpers from this function).
     if t == 0 {
         if oren_is_done(h) == 0 { return 0 - 60 }
-        sys_close(fd)
-        sys_wait4(pid, 0, 0, 0)
-        var ret0 = ptr_get(res_buf)
-        free(h)
-        return ret0
+        return oren_join_posix(h)
     }
 
-    // timeout_ms < 0: wait forever.
-    while got < 8 {
-        var n = sys_read(fd, iadd(res_buf, got), 8 - got)
-        if n > 0 {
-            got = got + n
-            ptr_set(got_slot, got)
-            continue
-        }
-        if n == 0 { break } // EOF
-        if n == 0 - 35 || n == 0 - 11 {
+    // timeout_ms > 0: wait up to N ms.
+    //
+    // IMPORTANT (WSL2 correctness):
+    // WSL2 can oversleep very small nanosleeps by ~100ms+ under load or coarse timer resolution.
+    // Implement timeout based on wall-clock time instead of assuming 1ms sleeps are accurate.
+    var start_ns = oren_time_unix_ns()
+    if start_ns == 0 {
+        // Fallback: no clock available; use the old ms-loop.
+        var i = 0
+        while i < t {
+            if oren_is_done(h) != 0 {
+                if dbg_on {
+                    var got_dbg = ptr_get(iadd(h, 16))
+                    print("join_timeout debug: done i=" + oren_int_to_string(i) + " got=" + oren_int_to_string(got_dbg))
+                }
+                return oren_join_posix(h)
+            }
             oren_sleep_ms(1)
-            continue
+            i = i + 1
         }
-        sys_close(fd)
-        sys_wait4(pid, 0, 0, 0)
-        free(h)
-        return n
+    } else {
+        var deadline = start_ns + t * 1000000
+        while 1 {
+            if oren_is_done(h) != 0 {
+                if dbg_on {
+                    var got_dbg2 = ptr_get(iadd(h, 16))
+                    print("join_timeout debug: done got=" + oren_int_to_string(got_dbg2))
+                }
+                return oren_join_posix(h)
+            }
+            var now = oren_time_unix_ns()
+            if now == 0 { break }
+            if now >= deadline { break }
+            var rem_ns = deadline - now
+            // If we have a lot of slack, yield a bit to avoid burning CPU.
+            // For small remaining windows, spin to avoid oversleeping past the deadline.
+            if rem_ns > 50000000 { // >50ms
+                oren_sleep_ms(1)
+            }
+        }
     }
 
-    if got < 8 {
-        sys_close(fd)
-        sys_wait4(pid, 0, 0, 0)
-        free(h)
-        return -1
-    }
-
-    sys_close(fd)
+    // Timeout: kill child and reap to avoid zombies.
+    var pid = ptr_get(h)
+    if dbg_on { print("join_timeout debug: timeout") }
+    oren_kill(pid, 9) // SIGKILL
     sys_wait4(pid, 0, 0, 0)
-    var ret = ptr_get(res_buf)
+    sys_close(fd)
     free(h)
-    return ret
+    return 0 - 60
 }
 
 // Windows Tier‑1: `spawn` is lowered to CreateThread(...) by the x64 native backend.

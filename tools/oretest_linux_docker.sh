@@ -12,6 +12,7 @@ set -euo pipefail
 #   OREN_LINUX_DOCKER_ID       : existing persistent container id/name (default: c7e5f7bd9f5c)
 #   OREN_LINUX_DOCKER_JOBS     : forwarded to OREN_TEST_JOBS (default: detected via nproc)
 #   OREN_LINUX_DOCKER_CLEAN    : if 1, wipe /work/repo before sync (default: 0)
+#   OREN_LINUX_DOCKER_ALLOW_DIRTY : if 1, allow untracked files on the host (still syncs tracked files only)
 #
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

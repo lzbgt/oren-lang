@@ -27,7 +27,7 @@ This document explains the current state and the planned evolution.
   - `OREN_TEST_JOBS` (`./oretest --jobs`)
   - `OREN_TEST_FIXTURE_JOBS` (`./oretest --fixture-jobs`)
   - `OREN_TEST_NATIVE_JOBS` (`./oretest --native-jobs`)
-- macOS speed knob: `OREN_SKIP_CODESIGN=1 make test` (skips codesign in rolling iteration)
+- macOS note: **do not disable codesigning**. Unsigned/invalidly-signed native outputs may be killed by the OS during execution.
     - `oren build` has a repo-local default output layout under `build/targets/...`
     - `./oretest` passes explicit `-o ...` paths for fixtures/tests (so logs and cleanup lists stay stable), but those outputs now also follow the `build/targets/...` layout for the main suites:
       - native: `build/targets/<arch>-<os>/native/<test>`

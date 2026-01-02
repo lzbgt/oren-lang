@@ -245,8 +245,21 @@ tools/oretest_linux_docker.sh
 
 Notes (rolling, important):
 
+- This is the **only supported** way to run the curated suite on `linux/arm64` from a macOS host.
+  - Do **not** `docker exec ... ./oretest` inside the container: the `./oretest` binary in your repo root is a macOS binary and will fail with “Exec format error”.
+  - Prefer either:
+    - `./oretest --platform arm64-linux` (delegates to `tools/oretest_linux_docker.sh`), or
+    - run the script directly.
 - The docker runner syncs **tracked** files into `/work/repo` via `git ls-files` (it does not copy your `.git` dir).
+- Because it syncs tracked files only, newly created files must be staged (`git add -A`) before the container will see them (or set `OREN_LINUX_DOCKER_ALLOW_DIRTY=1` for local experiments).
 - Do not copy host-built binaries into the container (`./oren`, `./oretest`, `./avm`): they are not runnable on Linux and can also cause Make to incorrectly treat targets as up-to-date.
+
+Environment knobs:
+
+- `OREN_LINUX_DOCKER_ID` (default: `c7e5f7bd9f5c`): persistent container id/name
+- `OREN_LINUX_DOCKER_JOBS`: forwarded to `OREN_TEST_JOBS` inside the container
+- `OREN_LINUX_DOCKER_ALLOW_DIRTY=1`: allow syncing tracked files even when untracked files exist
+- `OREN_LINUX_DOCKER_CLEAN=1`: wipe `/work/repo` before syncing (rarely needed)
 
 ### Troubleshooting
 *   **SSH permissions**: If `scp`/`ssh` fails with "Permission denied", ensure your SSH key is installed (or the host allows password auth) and that you are using the correct user/host.

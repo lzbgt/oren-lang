@@ -540,18 +540,21 @@ fn compiler_main() {
     // - For local execution, macOS can reject/kill unsigned binaries.
     // - Default to *ad-hoc signing* (`codesign -s -`) so outputs are runnable.
     // - Developer ID signing is opt-in via `--codesign <identity>` / `OREN_CODESIGN_ID`.
-    // - Use `OREN_SKIP_CODESIGN=1` to force-disable external signing (debug only).
     var have_codesign = (oren_system("command -v codesign >/dev/null 2>&1") == 0)
     codesign_id = opts["codesign"]
     if codesign_id == nil { codesign_id = "" }
     var skip_codesign = oren_env("OREN_SKIP_CODESIGN")
-    if skip_codesign != nil && skip_codesign == "1" { codesign_id = "" }
+    if target == "macos" && skip_codesign != nil && skip_codesign == "1" {
+        emit_diag("compile", 2, "oren build: OREN_SKIP_CODESIGN=1 is not supported on macOS (unsigned native outputs may be killed by the OS)")
+        print("oren build: OREN_SKIP_CODESIGN=1 is not supported on macOS (unsigned native outputs may be killed by the OS)")
+        oren_exit(2)
+    }
     if target == "macos" && codesign_id != "" && have_codesign != true {
         emit_diag("compile", 2, "oren build: codesign requested but `codesign` tool not found in PATH")
         print("oren build: codesign requested but `codesign` tool not found in PATH")
         oren_exit(2)
     }
-    if target == "macos" && codesign_id == "" && deterministic != true && have_codesign == true && (skip_codesign == nil || skip_codesign != "1") {
+    if target == "macos" && codesign_id == "" && deterministic != true && have_codesign == true {
         // Ad-hoc signing is fast and does not require a certificate.
         codesign_id = "-"
     }

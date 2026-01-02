@@ -21,6 +21,22 @@ fn oren_sleep_ns(ns) {
     var t0 = oren_time_unix_ns()
     var rc = sys_nanosleep(ns)
     var t1 = oren_time_unix_ns()
+    // Debugging aid (Tier‑1 bring-up): diagnose environments where nanosleep/time are stubbed
+    // or failing. Keep output bounded: only print for "long" sleeps.
+    var dbg_sleep = native_envp_get_value_ptr("OREN_DEBUG_SLEEP")
+    var dbg_sleep_all = native_envp_get_value_ptr("OREN_DEBUG_SLEEP_ALL")
+    var do_log = false
+    if dbg_sleep_all != 0 {
+        if ptr_get_byte(dbg_sleep_all) != 0 { do_log = true }
+    }
+    if do_log != true && dbg_sleep != 0 {
+        if ptr_get_byte(dbg_sleep) != 0 {
+            if ns >= 1000000000 { do_log = true }
+        }
+    }
+    if do_log {
+        print("sleep debug: ns=" + oren_int_to_string(ns) + " rc=" + oren_int_to_string(rc) + " t0=" + oren_int_to_string(t0) + " t1=" + oren_int_to_string(t1))
+    }
     if t0 != 0 && t1 != 0 {
         var dt = t1 - t0
         // If we asked for a positive sleep and got essentially no time advancement,
@@ -236,10 +252,10 @@ fn native_alloc_index_mmap_table(bytes) {
     //
     // By pinning the table in its own mapping, we eliminate aliasing with tracked allocations.
     var q = sys_mmap_private_anon(bytes)
-    if q == 0 { exit(199) }
-    if q == -1 { exit(199) }
-    if q < 0 { exit(199) }
-    if q < 4096 { exit(199) }
+    if q == 0 { exit(311) }
+    if q == -1 { exit(312) }
+    if q < 0 { exit(313) }
+    if q < 4096 { exit(314) }
     return q
 }
 

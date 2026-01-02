@@ -1042,19 +1042,30 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base13); return nil }
 
         // pre: native_capsule_sys_mmap_private_anon_pre(len) -> len
-        _intr_load_x64(ctx, 7, tmp_len)
+        var is_win = false
+        var sh = abi.caller_shadow_bytes(ctx["abi"])
+        if sh != nil && sh > 0 { is_win = true }
+        if is_win {
+            _intr_load_x64(ctx, 1, tmp_len) // rcx = len
+        } else {
+            _intr_load_x64(ctx, 7, tmp_len) // rdi = len
+        }
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mmap_private_anon_pre")
         _emit_mov_mrbp_r64(ctx, 0 - tmp_len, 0)
 
-        // mmap(0, len, PROT=3, MAP_PRIVATE|MAP_ANON=0x22, -1, 0)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(7, 0)) // edi = 0 (addr)
-        _intr_load_x64(ctx, 6, tmp_len) // rsi = len
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(2, labi.linux_mmap_prot_read_write()))
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(10, labi.linux_mmap_flags_private_anon()))
-        bytes_extend(ctx["code"], insn_mov_r64_imm64(8, -1))
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 0))
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_mmap()))
-        bytes_extend(ctx["code"], insn_syscall())
+        if is_win {
+            _emit_sys_mmap_private_anon_windows_x64(ctx, locals, tmp_len)
+        } else {
+            // Linux x86_64: mmap(0, len, PROT=3, MAP_PRIVATE|MAP_ANON=0x22, -1, 0)
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(7, 0)) // edi = 0 (addr)
+            _intr_load_x64(ctx, 6, tmp_len) // rsi = len
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(2, labi.linux_mmap_prot_read_write()))
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(10, labi.linux_mmap_flags_private_anon()))
+            bytes_extend(ctx["code"], insn_mov_r64_imm64(8, -1))
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 0))
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_mmap()))
+            bytes_extend(ctx["code"], insn_syscall())
+        }
 
         _intr_tmp_pop(ctx, base13)
         return nil
@@ -1067,22 +1078,34 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         var base14 = _intr_tmp_push(ctx, 2) // addr, len
         if base14 == nil { return nil }
         var tmp_addr = _intr_tmp_off(ctx, locals, base14 + 0)
-        var tmp_len = _intr_tmp_off(ctx, locals, base14 + 1)
-        if tmp_addr == nil || tmp_len == nil { _intr_tmp_pop(ctx, base14); return nil }
+        var tmp_len2 = _intr_tmp_off(ctx, locals, base14 + 1)
+        if tmp_addr == nil || tmp_len2 == nil { _intr_tmp_pop(ctx, base14); return nil }
 
         _intr_eval_spill_x64(ctx, locals, args[0], tmp_addr)
-        _intr_eval_spill_x64(ctx, locals, args[1], tmp_len)
+        _intr_eval_spill_x64(ctx, locals, args[1], tmp_len2)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base14); return nil }
 
         // pre: native_capsule_sys_munmap_pre(addr, len)
-        _intr_load_x64(ctx, 7, tmp_addr)
-        _intr_load_x64(ctx, 6, tmp_len)
+        var is_win = false
+        var sh = abi.caller_shadow_bytes(ctx["abi"])
+        if sh != nil && sh > 0 { is_win = true }
+        if is_win {
+            _intr_load_x64(ctx, 1, tmp_addr) // rcx = addr
+            _intr_load_x64(ctx, 2, tmp_len2) // rdx = len
+        } else {
+            _intr_load_x64(ctx, 7, tmp_addr) // rdi = addr
+            _intr_load_x64(ctx, 6, tmp_len2) // rsi = len
+        }
         _emit_call_rel32_named_x64(ctx, "native_capsule_sys_munmap_pre")
 
-        _intr_load_x64(ctx, 7, tmp_addr)
-        _intr_load_x64(ctx, 6, tmp_len)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_munmap()))
-        bytes_extend(ctx["code"], insn_syscall())
+        if is_win {
+            _emit_sys_munmap_windows_x64(ctx, locals, tmp_addr)
+        } else {
+            _intr_load_x64(ctx, 7, tmp_addr)
+            _intr_load_x64(ctx, 6, tmp_len2)
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_munmap()))
+            bytes_extend(ctx["code"], insn_syscall())
+        }
 
         _intr_tmp_pop(ctx, base14)
         return nil
@@ -1443,7 +1466,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_nanosleep expects 1 arg"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_nanosleep does not support spread"); return nil }
 
-        var base25 = _intr_tmp_push(ctx, 3) // ns, timespec(2q)
+        var base25 = _intr_tmp_push(ctx, 1) // ns
         if base25 == nil { return nil }
         var tmp_ns = _intr_tmp_off(ctx, locals, base25 + 0)
         if tmp_ns == nil { _intr_tmp_pop(ctx, base25); return nil }
@@ -1471,7 +1494,12 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _emit_label(ctx, labels25, l_do)
 
         // Linux x86_64: nanosleep(const struct timespec* req, struct timespec* rem)
-        // Build `struct timespec { tv_sec(u64), tv_nsec(u64) }` on stack.
+        // Build `struct timespec { tv_sec(u64), tv_nsec(u64) }` on the stack.
+        //
+        // IMPORTANT (Tier‑1 x64 correctness):
+        // Do not rely on rbp-indexed intrinsic-temp slots for syscall argument structs here.
+        // Use an explicit 16B scratch area on RSP so the pointer we pass to the kernel is
+        // contiguous and independent of local-slot layout.
         //
         // - tv_sec  = ns / 1_000_000_000
         // - tv_nsec = ns % 1_000_000_000
@@ -1480,31 +1508,30 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         // - rax = __NR_nanosleep (35)
         // - rdi = &timespec
         // - rsi = NULL
-        var off_ts0 = _intr_tmp_off(ctx, locals, base25 + 1)
-        var off_ts1 = _intr_tmp_off(ctx, locals, base25 + 2)
-        if off_ts0 == nil || off_ts1 == nil { _intr_tmp_pop(ctx, base25); return nil }
-
         // rax = ns
         _intr_load_x64(ctx, 0, tmp_ns)
         // rdx:rax = sign-extend rax (ns is positive here)
         bytes_extend(ctx["code"], insn_cqo())
-        // r10 = 1_000_000_000
-        bytes_extend(ctx["code"], insn_mov_r64_imm64(10, 1000000000))
+        // rcx = 1_000_000_000
+        bytes_extend(ctx["code"], insn_mov_r64_imm64(1, 1000000000))
         // rax = sec, rdx = nsec
-        bytes_extend(ctx["code"], insn_idiv_r64(10))
+        bytes_extend(ctx["code"], insn_idiv_r64(1))
 
-        // [timespec+0] = tv_sec (rax)
-        _emit_mov_mrbp_r64(ctx, 0 - off_ts0, 0)
-        // [timespec+8] = tv_nsec (rdx)
-        _emit_mov_mrbp_r64(ctx, 0 - off_ts1, 2)
+        // Allocate a 16B scratch timespec on RSP (keeps alignment).
+        bytes_extend(ctx["code"], insn_sub_rsp_imm32(16))
+        // [rsp+0] = tv_sec (rax)
+        _emit_mov_mrsp_r64(ctx, 0, 0)
+        // [rsp+8] = tv_nsec (rdx)
+        _emit_mov_mrsp_r64(ctx, 8, 2)
 
-        // rdi = req = &timespec
-        _emit_addr_rbp_minus_off_x64(ctx, 7, off_ts0)
+        // rdi = req = rsp
+        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 4)) // rdi = rsp
         // rsi = rem = 0
         bytes_extend(ctx["code"], insn_mov_r32_imm32(6, 0))
 
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_nanosleep()))
         bytes_extend(ctx["code"], insn_syscall())
+        bytes_extend(ctx["code"], insn_add_rsp_imm32(16))
 
         _emit_label(ctx, labels25, l_done)
         _patch_local_fixups(ctx, labels25, fixups25)

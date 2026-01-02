@@ -343,12 +343,23 @@ fn _emit_intrinsic_sys_gettid_windows_x64(ctx, expr, locals, args) {
 }
 
 fn _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args) {
-    var platform = ctx["platform"]
-    if platform != nil && platform["os"] == "windows" {
+    // Prefer ABI-derived detection instead of `ctx["platform"]` so Windows builds remain correct
+    // even if the higher-level driver does not thread a platform map into the x64 backend ctx.
+    var is_win = false
+    var sh = abi.caller_shadow_bytes(ctx["abi"])
+    if sh != nil && sh > 0 { is_win = true }
+
+    if is_win {
         // Windows syscall surface (rolling):
         // - core IO + exit
         // - TIME substrate
         // - NET substrate (WinSock)
+        //
+        // Some cross-platform syscalls are implemented in the shared syscall module but have a
+        // Windows mapping (VirtualAlloc/VirtualFree). Delegate those to the shared dispatcher.
+        if nm == "sys_mmap_private_anon" || nm == "sys_munmap" {
+            return _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args)
+        }
         if nm == "sys_write" { return _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) }
         if nm == "sys_read" { return _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) }
         if nm == "sys_open" { return _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args) }
