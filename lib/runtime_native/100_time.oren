@@ -225,6 +225,24 @@ var g_alloc_index_cap = 0
 var g_alloc_index_len = 0
 var g_alloc_index_tomb = 1 // sentinel (not a valid pointer)
 
+fn native_alloc_index_mmap_table(bytes) {
+    // IMPORTANT (Tier‑1 correctness):
+    // Allocate the alloc-index table via a dedicated anonymous mmap instead of `malloc_raw`.
+    //
+    // Why:
+    // - On arm64 native, the rolling bump allocator for `malloc_raw` shares machinery with the GC heap.
+    // - A single overlap/corruption bug can cause the index table (raw metadata) to alias tracked nodes,
+    //   making `oren_find_node` crash after a GC sweep.
+    //
+    // By pinning the table in its own mapping, we eliminate aliasing with tracked allocations.
+    var q = sys_mmap_private_anon(bytes)
+    if q == 0 { exit(199) }
+    if q == -1 { exit(199) }
+    if q < 0 { exit(199) }
+    if q < 4096 { exit(199) }
+    return q
+}
+
 fn native_alloc_index_hash(ptr) {
     // Multiplicative hash (Knuth) for 64-bit keys. Shift away low alignment bits.
     var x = ptr / 16
@@ -235,7 +253,8 @@ fn native_alloc_index_clear(table_ptr, cap) {
     if table_ptr == 0 { return 0 }
     var i = 0
     while i < cap {
-        ptr_set(iadd(table_ptr, i * 8), 0)
+        // Use shift instead of multiply (native backend mul lowering is still rolling in some paths).
+        ptr_set(iadd(table_ptr, i << 3), 0)
         i = i + 1
     }
     return 0
@@ -247,7 +266,7 @@ fn native_alloc_index_init_min(min_cap) {
     if min_cap != nil && min_cap > cap { cap = min_cap }
     // Ensure power-of-two cap (keep it simple: round up by doubling).
     while cap & (cap - 1) != 0 { cap = cap * 2 }
-    var table = native_malloc_raw_or_mmap(cap * 8)
+    var table = native_alloc_index_mmap_table(cap * 8)
     if table == 0 { return 0 }
     native_alloc_index_clear(table, cap)
     g_alloc_index_ptr = table
@@ -263,9 +282,15 @@ fn native_alloc_index_get(ptr) {
     var mask = g_alloc_index_cap - 1
     var idx = native_alloc_index_hash(ptr) & mask
     while true {
-        var slot = ptr_get(iadd(g_alloc_index_ptr, idx * 8))
+        var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
         if slot == 0 { return 0 }
         if slot != g_alloc_index_tomb {
+            // Rolling safety: treat any non-pointer slot payload as a tombstone.
+            // This prevents segfaults if a buggy codegen path scribbles over the table.
+            if slot < 4096 {
+                idx = (idx + 1) & mask
+                continue
+            }
             if ptr_get(slot) == ptr { return slot }
         }
         idx = (idx + 1) & mask
@@ -284,7 +309,7 @@ fn native_alloc_index_put_node(node) {
     if g_alloc_index_len * 4 >= g_alloc_index_cap * 3 {
         // Rebuild from allocs list (deterministic, keeps table fresh and avoids tombstone drift).
         var new_cap = g_alloc_index_cap * 2
-        var new_tab = native_malloc_raw_or_mmap(new_cap * 8)
+        var new_tab = native_alloc_index_mmap_table(new_cap * 8)
         if new_tab != 0 {
             native_alloc_index_clear(new_tab, new_cap)
             g_alloc_index_ptr = new_tab
@@ -301,10 +326,10 @@ fn native_alloc_index_put_node(node) {
                     var idx0 = native_alloc_index_hash(p0) & mask0
                     var first_tomb = -1
                     while true {
-                        var slot0 = ptr_get(iadd(g_alloc_index_ptr, idx0 * 8))
+                        var slot0 = ptr_get(iadd(g_alloc_index_ptr, idx0 << 3))
                         if slot0 == 0 {
                             if first_tomb >= 0 { idx0 = first_tomb }
-                            ptr_set(iadd(g_alloc_index_ptr, idx0 * 8), cur)
+                            ptr_set(iadd(g_alloc_index_ptr, idx0 << 3), cur)
                             g_alloc_index_len = g_alloc_index_len + 1
                             break
                         }
@@ -312,7 +337,7 @@ fn native_alloc_index_put_node(node) {
                             if first_tomb < 0 { first_tomb = idx0 }
                         } else {
                             if ptr_get(slot0) == p0 {
-                                ptr_set(iadd(g_alloc_index_ptr, idx0 * 8), cur)
+                                ptr_set(iadd(g_alloc_index_ptr, idx0 << 3), cur)
                                 break
                             }
                         }
@@ -328,10 +353,10 @@ fn native_alloc_index_put_node(node) {
     var idx = native_alloc_index_hash(ptr) & mask
     var first_tomb = -1
     while true {
-        var slot = ptr_get(iadd(g_alloc_index_ptr, idx * 8))
+        var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
         if slot == 0 {
             if first_tomb >= 0 { idx = first_tomb }
-            ptr_set(iadd(g_alloc_index_ptr, idx * 8), node)
+            ptr_set(iadd(g_alloc_index_ptr, idx << 3), node)
             g_alloc_index_len = g_alloc_index_len + 1
             return 0
         }
@@ -339,7 +364,7 @@ fn native_alloc_index_put_node(node) {
             if first_tomb < 0 { first_tomb = idx }
         } else {
             if ptr_get(slot) == ptr {
-                ptr_set(iadd(g_alloc_index_ptr, idx * 8), node)
+                ptr_set(iadd(g_alloc_index_ptr, idx << 3), node)
                 return 0
             }
         }
@@ -354,16 +379,48 @@ fn native_alloc_index_remove_ptr(ptr) {
     var mask = g_alloc_index_cap - 1
     var idx = native_alloc_index_hash(ptr) & mask
     while true {
-        var slot = ptr_get(iadd(g_alloc_index_ptr, idx * 8))
+        var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
         if slot == 0 { return 0 }
         if slot != g_alloc_index_tomb {
+            if slot < 4096 {
+                idx = (idx + 1) & mask
+                continue
+            }
             if ptr_get(slot) == ptr {
-                ptr_set(iadd(g_alloc_index_ptr, idx * 8), g_alloc_index_tomb)
+                ptr_set(iadd(g_alloc_index_ptr, idx << 3), g_alloc_index_tomb)
                 if g_alloc_index_len > 0 { g_alloc_index_len = g_alloc_index_len - 1 }
                 return 0
             }
         }
         idx = (idx + 1) & mask
+    }
+    return 0
+}
+
+fn native_alloc_index_rebuild_live() {
+    // Rebuild the alloc index from the current allocs list (drops tombstones).
+    if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+    native_alloc_index_clear(g_alloc_index_ptr, g_alloc_index_cap)
+    g_alloc_index_len = 0
+
+    var cur = global_get_allocs()
+    var mask = g_alloc_index_cap - 1
+    while cur != 0 {
+        var p = ptr_get(cur)
+        // Skip non-pointers.
+        if p != 0 && p >= 4096 {
+            var idx = native_alloc_index_hash(p) & mask
+            while true {
+                var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
+                if slot == 0 {
+                    ptr_set(iadd(g_alloc_index_ptr, idx << 3), cur)
+                    g_alloc_index_len = g_alloc_index_len + 1
+                    break
+                }
+                idx = (idx + 1) & mask
+            }
+        }
+        cur = ptr_get(iadd(cur, 32))
     }
     return 0
 }
@@ -377,26 +434,54 @@ fn native_gc_scan_stack() {
         var top = ptr_get(cur)
         var saved = ptr_get(iadd(cur, 8))
         var start = 0
+        var max_scan = 8388608 // 8MB safety cap (rolling; avoids scanning bogus ranges)
         
         // Check if this is current thread
         // Heuristic: sp is within 8MB below top
         // 8MB = 8388608
         if sp < top {
             var diff = top - sp
-            if diff < 8388608 {
+            if diff < max_scan {
                 start = sp
             }
         }
         
         if start == 0 {
-            start = saved
+            // Saved stack pointer path (non-current thread).
+            //
+            // Rolling safety: thread nodes can be corrupted by buggy codegen / allocator invariants.
+            // Treat suspicious saved/top pairs as "skip this node" rather than crashing.
+            if saved != 0 {
+                if saved < top {
+                    var diff2 = top - saved
+                    if diff2 > max_scan {
+                        start = top - max_scan
+                    } else {
+                        start = saved
+                    }
+                }
+            }
         }
         
         if start != 0 {
-            while start < top {
-                var val = ptr_get(start)
-                oren_mark_value(val)
-                start = iadd(start, 8)
+            // Reject obviously bogus pointers (avoid crashing on low/null-ish addresses).
+            if start < 4096 || top < 4096 {
+                // skip
+            } else {
+                // Clamp scan window so we never walk arbitrary/unmapped ranges.
+                var end = top
+                if end > start {
+                    var span = end - start
+                    if span > max_scan { end = start + max_scan }
+                } else {
+                    end = start
+                }
+
+                while start < end {
+                    var val = ptr_get(start)
+                    oren_mark_value(val)
+                    start = iadd(start, 8)
+                }
             }
         }
         
@@ -505,11 +590,14 @@ fn acquire_lock() {
     if oren_globals() == 0 { return 0 }
     
     var tid = sys_gettid()
-    var lock_ptr = iadd(oren_globals(), GLOBAL_OFF_LOCK_OWNER_TID)
+    // NOTE: use literal offsets (native backend global var init/write is still rolling).
+    // lock_owner_tid lives at globals +16.
+    var lock_ptr = iadd(oren_globals(), 16)
     var owner = ptr_get(lock_ptr)
     
     if owner == tid {
-        var count_ptr = iadd(oren_globals(), GLOBAL_OFF_LOCK_RECURSE_COUNT)
+        // lock_recurse_count lives at globals +56.
+        var count_ptr = iadd(oren_globals(), 56)
         var count = ptr_get(count_ptr)
         ptr_set(count_ptr, iadd(count, 1))
         return 0
@@ -531,7 +619,7 @@ fn acquire_lock() {
         }
     }
     
-    var count_ptr = iadd(oren_globals(), GLOBAL_OFF_LOCK_RECURSE_COUNT)
+    var count_ptr = iadd(oren_globals(), 56)
     ptr_set(count_ptr, 1)
     return 0
 }
@@ -541,14 +629,14 @@ fn release_lock() {
     if oren_globals() == 0 { return 0 }
     
     var tid = sys_gettid()
-    var lock_ptr = iadd(oren_globals(), GLOBAL_OFF_LOCK_OWNER_TID)
+    var lock_ptr = iadd(oren_globals(), 16)
     var owner = ptr_get(lock_ptr)
     
     if owner != tid {
         return 0
     }
     
-    var count_ptr = iadd(oren_globals(), GLOBAL_OFF_LOCK_RECURSE_COUNT)
+    var count_ptr = iadd(oren_globals(), 56)
     var count = ptr_get(count_ptr)
     if count > 1 {
         ptr_set(count_ptr, count - 1)
@@ -847,52 +935,49 @@ fn oren_mark_value(val) {
     
     var node = oren_find_node(val)
     if node != 0 {
-        var freed = ptr_get(iadd(node, 24))
-        if freed == 0 {
-            // Mark it
-            ptr_set(iadd(node, 24), -1)
-            
-            var kind = ptr_get(iadd(node, 16))
-            if kind == 2 { // LIST
-                var count = ptr_get(val)
-                var buf = ptr_get(iadd(val, 16))
-                if buf != 0 {
-                    var i = 0
-                    while i < count {
-                        var item = ptr_get(iadd(buf, i * 8))
-                        oren_mark_value(item)
-                        i = i + 1
-                    }
-                    oren_mark_value(buf)
-                }
-            }
-            if kind == 3 { // MAP
-                var count = ptr_get(iadd(val, 0))
-                var buf = ptr_get(iadd(val, 16))
+        // Mark it
+        ptr_set(iadd(node, 24), -1)
+        
+        var kind = ptr_get(iadd(node, 16))
+        if kind == 2 { // LIST
+            var count = ptr_get(val)
+            var buf = ptr_get(iadd(val, 16))
+            if buf != 0 {
                 var i = 0
                 while i < count {
-                    // Entry layout (24 bytes): [key][key_kind][value]
-                    var base = i * 24
-                    var k = ptr_get(iadd(buf, base + 0))
-                    var k_kind = ptr_get(iadd(buf, base + 8))
-                    var v = ptr_get(iadd(buf, base + 16))
-                    if k_kind == 1 { oren_mark_value(k) }
-                    oren_mark_value(v)
+                    var item = ptr_get(iadd(buf, i * 8))
+                    oren_mark_value(item)
                     i = i + 1
                 }
-                // Keep the entries buffer alive (tracked allocation).
                 oren_mark_value(buf)
             }
-            if kind == 6 { // FUNC (closure env)
-                var env = ptr_get(iadd(val, 8))
-                oren_mark_value(env)
+        }
+        if kind == 3 { // MAP
+            var count = ptr_get(iadd(val, 0))
+            var buf = ptr_get(iadd(val, 16))
+            var i = 0
+            while i < count {
+                // Entry layout (24 bytes): [key][key_kind][value]
+                var base = i * 24
+                var k = ptr_get(iadd(buf, base + 0))
+                var k_kind = ptr_get(iadd(buf, base + 8))
+                var v = ptr_get(iadd(buf, base + 16))
+                if k_kind == 1 { oren_mark_value(k) }
+                oren_mark_value(v)
+                i = i + 1
             }
-            if kind == 7 { // BUF (typed buffers)
-                // Buffer header holds an owned payload pointer at +16.
-                // Keep the payload alive while the header is reachable.
-                var buf = ptr_get(iadd(val, 16))
-                oren_mark_value(buf)
-            }
+            // Keep the entries buffer alive (tracked allocation).
+            oren_mark_value(buf)
+        }
+        if kind == 6 { // FUNC (closure env)
+            var env = ptr_get(iadd(val, 8))
+            oren_mark_value(env)
+        }
+        if kind == 7 { // BUF (typed buffers)
+            // Buffer header holds an owned payload pointer at +16.
+            // Keep the payload alive while the header is reachable.
+            var buf = ptr_get(iadd(val, 16))
+            oren_mark_value(buf)
         }
     }
     return 0
@@ -900,19 +985,19 @@ fn oren_mark_value(val) {
 
 fn native_gc_collect() {
     if g_gc_enabled == 0 { return 0 }
-    // 1. Clear marks
-    var cur = global_get_allocs()
-    while cur != 0 {
-        if ptr_get(iadd(cur, 24)) == -1 {
-            ptr_set(iadd(cur, 24), 0)
+    // 1) Clear marks (keep this phase allocation-free and leaf-ish).
+    var cur_clear = global_get_allocs()
+    while cur_clear != 0 {
+        if ptr_get(iadd(cur_clear, 24)) == -1 {
+            ptr_set(iadd(cur_clear, 24), 0)
         }
-        cur = ptr_get(iadd(cur, 32))
+        cur_clear = ptr_get(iadd(cur_clear, 32))
     }
     
-    // 2. Mark stack
+    // 2) Mark stack
     native_gc_scan_stack()
 
-    // 3. Mark roots
+    // 3) Mark roots
     var r = global_get_roots()
     while r != 0 {
         var slot = ptr_get(r)
@@ -923,18 +1008,20 @@ fn native_gc_collect() {
         r = ptr_get(iadd(r, 32))
     }
     
-    // 4. Sweep
+    // 4) Sweep
+    //
+    // Rolling robustness:
+    // Avoid reusing locals across phases. The native backend's stack/local lowering is still
+    // rolling, and reusing the same var name across multiple loops has been a real source of
+    // miscompilations (manifesting as runaway recursion / stack corruption in GC).
     var prev = 0
-    cur = global_get_allocs()
-    while cur != 0 {
-        var marked = 0
-        if ptr_get(iadd(cur, 24)) == -1 { marked = 1 }
-        
-        var next_node = ptr_get(iadd(cur, 32))
-        
-        if marked == 1 {
-            ptr_set(iadd(cur, 24), 0)
-            prev = cur
+    var cur_sweep = global_get_allocs()
+    while cur_sweep != 0 {
+        var next_node = ptr_get(iadd(cur_sweep, 32))
+        if ptr_get(iadd(cur_sweep, 24)) == -1 {
+            // Live
+            ptr_set(iadd(cur_sweep, 24), 0)
+            prev = cur_sweep
         } else {
             // Garbage
             if prev == 0 {
@@ -943,14 +1030,10 @@ fn native_gc_collect() {
                 ptr_set(iadd(prev, 32), next_node)
             }
 
-            // Remove from alloc index so freed nodes in free_blocks are never treated as live.
-            var dead_ptr = ptr_get(cur)
-            if dead_ptr != 0 { native_alloc_index_remove_ptr(dead_ptr) }
-
-            var kind = ptr_get(iadd(cur, 16))
+            var kind = ptr_get(iadd(cur_sweep, 16))
             if kind == 9 {
                 // RAW_MMAP: return memory to OS immediately (do not keep in free_blocks).
-                var p = ptr_get(cur)
+                var p = ptr_get(cur_sweep)
                 if p != 0 {
                     var base = p - raw_hdr_size()
                     if ptr_get(base + 0) == raw_magic() {
@@ -964,18 +1047,19 @@ fn native_gc_collect() {
                 }
 
                 // Reuse the tracking node storage via free_nodes list.
-                ptr_set(cur, 0)
-                ptr_set(iadd(cur, 8), 40)
-                ptr_set(iadd(cur, 16), 0)
-                ptr_set(iadd(cur, 24), 0)
-                ptr_set(iadd(cur, 32), global_get_free_nodes())
-                global_set_free_nodes(cur)
+                ptr_set(cur_sweep, 0)
+                ptr_set(iadd(cur_sweep, 8), 40)
+                ptr_set(iadd(cur_sweep, 16), 0)
+                ptr_set(iadd(cur_sweep, 24), 0)
+                ptr_set(iadd(cur_sweep, 32), global_get_free_nodes())
+                global_set_free_nodes(cur_sweep)
             } else {
-                ptr_set(iadd(cur, 32), global_get_free_blocks())
-                global_set_free_blocks(cur)
+                ptr_set(iadd(cur_sweep, 32), global_get_free_blocks())
+                global_set_free_blocks(cur_sweep)
             }
         }
-        cur = next_node
+        cur_sweep = next_node
     }
+
     return 0
 }

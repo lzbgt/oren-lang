@@ -18,5 +18,4 @@ fn main() {
     oren_exit(0)
 }
 
-main()
-
+	

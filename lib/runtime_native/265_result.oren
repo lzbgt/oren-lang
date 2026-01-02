@@ -1,0 +1,22 @@
+// --- Result selection (native backend) ---
+//
+// The AVM and C backends expose a "result selection" surface used by agentic tooling:
+// programs can set a structured result value for orchestration to consume.
+//
+// Native backend implements the same surface by storing the value in a reserved
+// globals slot and pinning it as a GC root.
+
+@oren.keep
+fn oren_set_result(v) {
+    var prev = global_get_result_value()
+    if prev != 0 { native_gc_unregister_root(prev) }
+    global_set_result_value(v)
+    if v != 0 { native_gc_register_root(v) }
+    return v
+}
+
+@oren.keep
+fn oren_get_result() {
+    return global_get_result_value()
+}
+

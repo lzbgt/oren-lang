@@ -60,7 +60,8 @@ fn oren_call_depth_enter() {
     // Prefer per-thread call-depth tracking (production direction).
     // Find current thread node based on SP heuristics (same as GC stack scanning).
     var sp = get_sp()
-    var node = ptr_get(iadd(g, GLOBAL_OFF_THREADS))
+    // Use literal offsets (native backend global var init/write is still rolling).
+    var node = ptr_get(iadd(g, 32)) // threads
     while node != 0 {
         var top = ptr_get(node)
         if sp < top {
@@ -121,7 +122,7 @@ fn oren_call_depth_exit() {
 
     // Prefer per-thread call-depth tracking.
     var sp = get_sp()
-    var node = ptr_get(iadd(g, GLOBAL_OFF_THREADS))
+    var node = ptr_get(iadd(g, 32)) // threads
     while node != 0 {
         var top = ptr_get(node)
         if sp < top {

@@ -901,7 +901,6 @@ fn free(ptr) {
                 ptr_set(iadd(prev, 32), next)
             }
             var kind = ptr_get(iadd(cur, 16))
-            ptr_set(iadd(cur, 24), 0) // clear freed/mark flags
 
             if kind == 9 {
                 // RAW_MMAP: return to OS now; do not keep for reuse.
@@ -954,102 +953,187 @@ fn native_fd_set_blocking(fd0) {
 }
 
 fn oren_join_timeout(handle, timeout_ms) {
-    if handle == 0 { return 0 }
+    // Rolling: the native backend still has known local-slot/clobber edge cases in some injected
+    // runtime functions. Copy args to fresh locals so the compiler is forced to spill/reload
+    // deterministically across calls.
+    var h = handle
+    var t = timeout_ms
 
-    // Windows Tier‑1: `spawn` is lowered to CreateThread(...) by the x64 native backend.
-    // Handle layout (opaque to user code):
-    //   [0]  thread_handle (HANDLE, u64)
-    //   [8]  result_ptr    (u64*)
-    //   [16] arg_ptr       (spawn arg struct ptr; freed by join)
-    //
-    // Thread arg struct layout:
-    //   [0]  fn_obj
-    //   [8]  args_list
-    //   [16] result_ptr
-    //   [24] auto_free (u64; set by join_timeout detach)
-    //
-    // NOTE: This is intentionally separate from POSIX fork+pipe semantics; the goal is
-    // Tier‑1 correctness first, then backend unification.
+    if h == 0 { return 0 }
+    // Keep the dispatcher tiny: the native backend still has edge cases when compiling very large
+    // injected runtime functions. Split OS-specific logic so `oren_join` remains stable on Tier‑1.
     if g_target_os == 3 {
-        var h = ptr_get(handle)
-        var result_ptr = ptr_get(handle + 8)
-        var arg_ptr = ptr_get(handle + 16)
+        var r_win = oren_join_timeout_win(h, t)
+        return r_win
+    }
 
-        if h == 0 {
-            if result_ptr != 0 { free(result_ptr) }
-            if arg_ptr != 0 { free(arg_ptr) }
-            free(handle)
-            return -1
+    // Shared POSIX handle decode.
+    var pid = ptr_get(h)
+    var fd = ptr_get(iadd(h, 8))
+    var got_slot = iadd(h, 16)
+    var got = ptr_get(got_slot)
+    var res_buf = iadd(h, 24)
+
+    if fd <= 0 {
+        free(h)
+        return -1
+    }
+
+    // timeout_ms > 0: wait up to N ms.
+    //
+    // Implemented inline to avoid known native-backend arg/local slot edge cases in helper functions.
+    if t > 0 {
+        var remaining = t
+        while remaining > 0 {
+            if oren_is_done(h) != 0 {
+                sys_close(fd)
+                sys_wait4(pid, 0, 0, 0)
+                var ret_done = ptr_get(res_buf)
+                free(h)
+                return ret_done
+            }
+            oren_sleep_ms(1)
+            remaining = remaining - 1
         }
+        // Timeout: kill child and reap to avoid zombies.
+        oren_kill(pid, 9) // SIGKILL
+        sys_wait4(pid, 0, 0, 0)
+        sys_close(fd)
+        free(h)
+        return 0 - 60
+    }
 
-        // Wait model (Windows):
-        // - timeout_ms < 0 => wait forever (blocking).
-        // - timeout_ms == 0 => non-blocking probe; on timeout keep handle alive.
-        // - timeout_ms > 0 => wait up to N ms; on timeout detach safely (no TerminateThread).
-        if timeout_ms == 0 {
-            var rc0 = sys_win_wait_single_object(h, 0)
-            if rc0 == 0 {
-                // Completed: fall through to result extraction + cleanup below.
-            } else {
-                if rc0 == (0 - 60) { return 0 - 60 }
-                // Unexpected failure: close + cleanup to avoid leaking handles/allocations.
-                sys_win_close_handle(h)
-                if result_ptr != 0 { free(result_ptr) }
-                if arg_ptr != 0 { free(arg_ptr) }
-                free(handle)
-                return rc0
-            }
-        } else if timeout_ms < 0 {
-            var rcw = sys_win_wait_single_object(h, -1)
-            if rcw != 0 {
-                sys_win_close_handle(h)
-                if result_ptr != 0 { free(result_ptr) }
-                if arg_ptr != 0 { free(arg_ptr) }
-                free(handle)
-                return rcw
-            }
-        } else {
-            var rcw2 = sys_win_wait_single_object(h, timeout_ms)
-            if rcw2 != 0 {
-                if rcw2 == (0 - 60) {
-                    // Timeout: detach instead of TerminateThread (unsafe). The running thread will
-                    // free its own arg/result buffers if we set auto_free=1 in the arg struct.
-                    if arg_ptr != 0 { ptr_set(arg_ptr + 24, 1) }
-                    sys_win_close_handle(h)
-                    free(handle)
-                    return 0 - 60
-                }
-                // Unexpected failure: close + cleanup to avoid leaking handles/allocations.
-                sys_win_close_handle(h)
-                if result_ptr != 0 { free(result_ptr) }
-                if arg_ptr != 0 { free(arg_ptr) }
-                free(handle)
-                return rcw2
-            }
+    // timeout_ms == 0: non-blocking probe.
+    // If done, consume result + cleanup here (avoid calling other helpers from this function).
+    if t == 0 {
+        if oren_is_done(h) == 0 { return 0 - 60 }
+        sys_close(fd)
+        sys_wait4(pid, 0, 0, 0)
+        var ret0 = ptr_get(res_buf)
+        free(h)
+        return ret0
+    }
+
+    // timeout_ms < 0: wait forever.
+    while got < 8 {
+        var n = sys_read(fd, iadd(res_buf, got), 8 - got)
+        if n > 0 {
+            got = got + n
+            ptr_set(got_slot, got)
+            continue
         }
+        if n == 0 { break } // EOF
+        if n == 0 - 35 || n == 0 - 11 {
+            oren_sleep_ms(1)
+            continue
+        }
+        sys_close(fd)
+        sys_wait4(pid, 0, 0, 0)
+        free(h)
+        return n
+    }
 
-        var ret_val = 0
-        if result_ptr != 0 { ret_val = ptr_get(result_ptr) }
-        sys_win_close_handle(h)
+    if got < 8 {
+        sys_close(fd)
+        sys_wait4(pid, 0, 0, 0)
+        free(h)
+        return -1
+    }
+
+    sys_close(fd)
+    sys_wait4(pid, 0, 0, 0)
+    var ret = ptr_get(res_buf)
+    free(h)
+    return ret
+}
+
+// Windows Tier‑1: `spawn` is lowered to CreateThread(...) by the x64 native backend.
+// Handle layout (opaque to user code):
+//   [0]  thread_handle (HANDLE, u64)
+//   [8]  result_ptr    (u64*)
+//   [16] arg_ptr       (spawn arg struct ptr; freed by join)
+//
+// Thread arg struct layout:
+//   [0]  fn_obj
+//   [8]  args_list
+//   [16] result_ptr
+//   [24] auto_free (u64; set by join_timeout detach)
+//
+// NOTE: This is intentionally separate from POSIX fork+pipe semantics; the goal is
+// Tier‑1 correctness first, then backend unification.
+fn oren_join_timeout_win(handle, timeout_ms) {
+    var h = ptr_get(handle)
+    var result_ptr = ptr_get(handle + 8)
+    var arg_ptr = ptr_get(handle + 16)
+
+    if h == 0 {
         if result_ptr != 0 { free(result_ptr) }
         if arg_ptr != 0 { free(arg_ptr) }
         free(handle)
-        return ret_val
+        return -1
     }
 
-    // Spawn handle layout (native backend, macOS v0 fork+pipe):
-    //   [0]  pid (u64)
-    //   [8]  read_fd (u64)
-    //   [16] got (u64)        - bytes read into inline result buffer
-    //   [24] result_buf (u64) - inline 8-byte result buffer
+    // Wait model (Windows):
+    // - timeout_ms < 0 => wait forever (blocking).
+    // - timeout_ms == 0 => non-blocking probe; on timeout keep handle alive.
+    // - timeout_ms > 0 => wait up to N ms; on timeout detach safely (no TerminateThread).
+    if timeout_ms == 0 {
+        var rc0 = sys_win_wait_single_object(h, 0)
+        if rc0 == 0 {
+            // Completed: fall through to result extraction + cleanup below.
+        } else {
+            if rc0 == (0 - 60) { return 0 - 60 }
+            // Unexpected failure: close + cleanup to avoid leaking handles/allocations.
+            sys_win_close_handle(h)
+            if result_ptr != 0 { free(result_ptr) }
+            if arg_ptr != 0 { free(arg_ptr) }
+            free(handle)
+            return rc0
+        }
+    } else if timeout_ms < 0 {
+        var rcw = sys_win_wait_single_object(h, -1)
+        if rcw != 0 {
+            sys_win_close_handle(h)
+            if result_ptr != 0 { free(result_ptr) }
+            if arg_ptr != 0 { free(arg_ptr) }
+            free(handle)
+            return rcw
+        }
+    } else {
+        var rcw2 = sys_win_wait_single_object(h, timeout_ms)
+        if rcw2 != 0 {
+            if rcw2 == (0 - 60) {
+                // Timeout: detach instead of TerminateThread (unsafe). The running thread will
+                // free its own arg/result buffers if we set auto_free=1 in the arg struct.
+                if arg_ptr != 0 { ptr_set(arg_ptr + 24, 1) }
+                sys_win_close_handle(h)
+                free(handle)
+                return 0 - 60
+            }
+            // Unexpected failure: close + cleanup to avoid leaking handles/allocations.
+            sys_win_close_handle(h)
+            if result_ptr != 0 { free(result_ptr) }
+            if arg_ptr != 0 { free(arg_ptr) }
+            free(handle)
+            return rcw2
+        }
+    }
 
-    // IMPORTANT: use `iadd` for raw pointer arithmetic.
-    //
-    // The native runtime implements `+` via `oren_add` (string concat when both operands are tracked strings),
-    // which is correct for language semantics but is not appropriate for low-level pointer offsets in the
-    // syscall-first runtime.
-    //
-    // Using `iadd` here keeps join semantics deterministic and avoids accidental container/type probing.
+    var ret_val = 0
+    if result_ptr != 0 { ret_val = ptr_get(result_ptr) }
+    sys_win_close_handle(h)
+    if result_ptr != 0 { free(result_ptr) }
+    if arg_ptr != 0 { free(arg_ptr) }
+    free(handle)
+    return ret_val
+}
+
+// Spawn handle layout (native backend, POSIX v0 fork+pipe):
+//   [0]  pid (u64)
+//   [8]  read_fd (u64)
+//   [16] got (u64)        - bytes read into inline result buffer
+//   [24] result_buf (u64) - inline 8-byte result buffer
+fn oren_join_posix(handle) {
     var pid = ptr_get(handle)
     var fd = ptr_get(iadd(handle, 8))
     var got_slot = iadd(handle, 16)
@@ -1057,126 +1141,87 @@ fn oren_join_timeout(handle, timeout_ms) {
     var res_buf = iadd(handle, 24)
 
     if fd <= 0 {
-        // No readable pipe => treat as failed join.
         free(handle)
         return -1
     }
 
-    // Join semantics (rolling, syscall-first, no libc poll/select dependency):
-    // - `timeout_ms < 0`: wait forever; reads until 8 bytes available.
-    // - `timeout_ms == 0`: non-blocking probe; on "not ready" return -60 (ETIMEDOUT) and keep handle alive.
-    // - `timeout_ms > 0`: wait up to N ms (real-time budget via nanosleep); on timeout kill+reap child to avoid zombies.
+    // Read until we have the full 8-byte result.
     //
-    // Completion is defined as "we have read exactly 8 bytes (u64 result) from the pipe".
-    //
-    // NOTE: Unlike the old implementation, we do NOT call wait4(WNOHANG) for probing because that
-    // would reap the child and make later `oren_join(handle)` unreliable. Instead, we probe the pipe.
-    if timeout_ms == 0 {
-        var nb = native_fd_set_nonblock(fd)
-        if nb < 0 {
-            sys_close(fd)
-            sys_wait4(pid, 0, 0, 0) // best-effort reap
-            free(handle)
-            return nb
-        }
-        if got < 8 {
-            var n0 = sys_read(fd, iadd(res_buf, got), 8 - got)
-            // EAGAIN/EWOULDBLOCK: macOS=35, Linux=11
-            if n0 == 0 - 35 || n0 == 0 - 11 { return 0 - 60 }
-            if n0 < 0 {
-                sys_close(fd)
-                sys_wait4(pid, 0, 0, 0) // best-effort reap
-                free(handle)
-                return n0
-            }
-            if n0 == 0 { return 0 - 60 } // EOF or not ready => treat as not done for probe
-            got = got + n0
+    // We do not require the fd to be blocking: if an earlier probe flipped O_NONBLOCK,
+    // EAGAIN/EWOULDBLOCK is handled with a small sleep.
+    while got < 8 {
+        var n = sys_read(fd, iadd(res_buf, got), 8 - got)
+        if n > 0 {
+            got = got + n
             ptr_set(got_slot, got)
+            continue
         }
-        if got < 8 { return 0 - 60 }
-        // Fall through to cleanup below.
-    } else if timeout_ms < 0 {
-        // Ensure blocking behavior so we don't spin if an earlier probe set O_NONBLOCK.
-        native_fd_set_blocking(fd)
-        while got < 8 {
-            var n1 = sys_read(fd, iadd(res_buf, got), 8 - got)
-            if n1 == 0 { break } // EOF
-            if n1 < 0 {
-                // If non-blocking leaks through, treat EAGAIN as "wait a bit".
-                if n1 == 0 - 35 || n1 == 0 - 11 {
-                    sys_nanosleep(1000000) // 1ms
-                    continue
-                }
-                sys_close(fd)
-                sys_wait4(pid, 0, 0, 0) // best-effort reap
-                free(handle)
-                return n1
-            }
-            got = got + n1
-            ptr_set(got_slot, got)
+        if n == 0 { break } // EOF
+        // EAGAIN/EWOULDBLOCK: macOS=35, Linux=11
+        if n == 0 - 35 || n == 0 - 11 {
+            oren_sleep_ms(1)
+            continue
         }
-        if got < 8 {
-            sys_close(fd)
-            sys_wait4(pid, 0, 0, 0)
-            free(handle)
-            return -1
-        }
-        // Fall through to cleanup below.
-    } else {
-        var remaining = timeout_ms
-        var nb2 = native_fd_set_nonblock(fd)
-        if nb2 < 0 {
-            sys_close(fd)
-            sys_wait4(pid, 0, 0, 0)
-            free(handle)
-            return nb2
-        }
-        while remaining > 0 {
-            if got < 8 {
-                var n2 = sys_read(fd, iadd(res_buf, got), 8 - got)
-                if n2 > 0 {
-                    got = got + n2
-                    ptr_set(got_slot, got)
-                } else if n2 < 0 {
-                    if n2 != 0 - 35 && n2 != 0 - 11 {
-                        sys_close(fd)
-                        sys_wait4(pid, 0, 0, 0)
-                        free(handle)
-                        return n2
-                    }
-                }
-            }
-            if got >= 8 { break }
-            sys_nanosleep(1000000) // 1ms
-            remaining = remaining - 1
-        }
-        if got < 8 {
-            // Timeout: kill child and reap to avoid zombies.
-            oren_kill(pid, 9) // SIGKILL
-            sys_wait4(pid, 0, 0, 0) // best-effort reap
-            sys_close(fd)
-            free(handle)
-            return 0 - 60 // ETIMEDOUT (BSD)
-        }
-        // Fall through to cleanup below.
+        sys_close(fd)
+        sys_wait4(pid, 0, 0, 0)
+        free(handle)
+        return n
+    }
+
+    if got < 8 {
+        sys_close(fd)
+        sys_wait4(pid, 0, 0, 0)
+        free(handle)
+        return -1
     }
 
     sys_close(fd)
-    // Reap child (best-effort).
     sys_wait4(pid, 0, 0, 0)
     var ret_val = ptr_get(res_buf)
     free(handle)
     return ret_val
 }
 
+fn oren_join_timeout_posix(handle, timeout_ms) {
+    // timeout_ms must be > 0 (handled by the dispatcher).
+    var pid = ptr_get(handle)
+    var fd = ptr_get(iadd(handle, 8))
+    if fd <= 0 {
+        free(handle)
+        return -1
+    }
+
+    var remaining = timeout_ms
+    while remaining > 0 {
+        if oren_is_done(handle) != 0 {
+            return oren_join_posix(handle)
+        }
+        oren_sleep_ms(1)
+        remaining = remaining - 1
+    }
+
+    // Timeout: kill child and reap to avoid zombies.
+    oren_kill(pid, 9) // SIGKILL
+    sys_wait4(pid, 0, 0, 0)
+    sys_close(fd)
+    free(handle)
+    return 0 - 60
+}
+
+@oren.keep
 fn oren_join(handle) {
-    return oren_join_timeout(handle, -1)
+    if handle == 0 { return 0 }
+    if g_target_os == 3 {
+        return oren_join_timeout_win(handle, -1)
+    }
+    return oren_join_posix(handle)
 }
 
 // Probe whether a `spawn` handle has completed without consuming the handle.
 //
 // For the POSIX v0 fork+pipe substrate, we treat "done" as "the 8-byte result is available on the pipe".
 // This avoids `wait4(WNOHANG)` probes, which would reap the child and make later `oren_join(handle)` unreliable.
+@oren.keep
 fn oren_is_done(handle) {
     if handle == 0 { return false }
 

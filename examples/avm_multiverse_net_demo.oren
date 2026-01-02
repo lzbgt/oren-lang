@@ -37,5 +37,4 @@ fn main() {
     oren_set_result({"exit_code": exit_code, "result": result, "log_len": log_len})
 }
 
-main()
-
+	

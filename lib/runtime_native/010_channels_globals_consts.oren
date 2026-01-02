@@ -90,6 +90,7 @@ fn oren_pipe() {
 //   336:net_fd_caps_map_cap (entry count; power of two) (rolling)
 //   344:net_fd_caps_map_len (live entries) (rolling)
 //   352:net_fd_caps_lock (spinlock; 0|1) (rolling)
+//   360:result_value (rolling; `oren_set_result` / `oren_get_result`)
 var g_storage = 0
 
 fn oren_globals() {
@@ -150,56 +151,65 @@ var GLOBAL_OFF_NET_FD_CAPS_LOCK = 352
 // Reserve extra room for rolling ABI growth.
 var GLOBAL_SLOTS_RESERVED = 56
 
-fn global_get_allocs() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ALLOCS)) }
-fn global_set_allocs(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ALLOCS), v) }
+// IMPORTANT (native backend rolling):
+// These offsets are ABI constants for the runtime, but the native backend does not yet reliably
+// execute global initializers (and global var writes are still rolling in some paths).
+//
+// To keep Tier‑1 semantics correct, the accessors below use literal offsets rather than reading
+// `GLOBAL_OFF_*` vars at runtime.
+fn global_get_allocs() { return ptr_get(iadd(oren_globals(), 0)) }
+fn global_set_allocs(v) { ptr_set(iadd(oren_globals(), 0), v) }
 
-fn global_get_roots() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ROOTS)) }
-fn global_set_roots(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ROOTS), v) }
+fn global_get_roots() { return ptr_get(iadd(oren_globals(), 8)) }
+fn global_set_roots(v) { ptr_set(iadd(oren_globals(), 8), v) }
 
-fn global_get_lock() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_LOCK_OWNER_TID)) }
-fn global_set_lock(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_LOCK_OWNER_TID), v) }
+fn global_get_lock() { return ptr_get(iadd(oren_globals(), 16)) }
+fn global_set_lock(v) { ptr_set(iadd(oren_globals(), 16), v) }
 
-fn global_get_free_nodes() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FREE_NODES)) }
-fn global_set_free_nodes(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FREE_NODES), v) }
+fn global_get_free_nodes() { return ptr_get(iadd(oren_globals(), 24)) }
+fn global_set_free_nodes(v) { ptr_set(iadd(oren_globals(), 24), v) }
 
-fn global_get_free_blocks() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FREE_BLOCKS)) }
-fn global_set_free_blocks(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FREE_BLOCKS), v) }
+fn global_get_free_blocks() { return ptr_get(iadd(oren_globals(), 72)) }
+fn global_set_free_blocks(v) { ptr_set(iadd(oren_globals(), 72), v) }
 
-fn global_get_threads() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_THREADS)) }
-fn global_set_threads(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_THREADS), v) }
+fn global_get_threads() { return ptr_get(iadd(oren_globals(), 32)) }
+fn global_set_threads(v) { ptr_set(iadd(oren_globals(), 32), v) }
 
-fn global_get_argc() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ARGC)) }
-fn global_set_argc(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ARGC), v) }
+fn global_get_argc() { return ptr_get(iadd(oren_globals(), 40)) }
+fn global_set_argc(v) { ptr_set(iadd(oren_globals(), 40), v) }
 
-fn global_get_argv() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ARGV)) }
-fn global_set_argv(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ARGV), v) }
+fn global_get_argv() { return ptr_get(iadd(oren_globals(), 48)) }
+fn global_set_argv(v) { ptr_set(iadd(oren_globals(), 48), v) }
 
-fn global_get_lock_count() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_LOCK_RECURSE_COUNT)) }
-fn global_set_lock_count(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_LOCK_RECURSE_COUNT), v) }
+fn global_get_lock_count() { return ptr_get(iadd(oren_globals(), 56)) }
+fn global_set_lock_count(v) { ptr_set(iadd(oren_globals(), 56), v) }
 
-fn global_get_envp() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ENVP)) }
-fn global_set_envp(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ENVP), v) }
+fn global_get_envp() { return ptr_get(iadd(oren_globals(), 64)) }
+fn global_set_envp(v) { ptr_set(iadd(oren_globals(), 64), v) }
 
-fn global_get_enable_simd() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_ENABLE_SIMD)) }
-fn global_set_enable_simd(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_ENABLE_SIMD), v) }
+fn global_get_enable_simd() { return ptr_get(iadd(oren_globals(), 264)) }
+fn global_set_enable_simd(v) { ptr_set(iadd(oren_globals(), 264), v) }
 
-fn global_get_raw_mmap_threshold() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_RAW_MMAP_THRESHOLD)) }
-fn global_set_raw_mmap_threshold(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_RAW_MMAP_THRESHOLD), v) }
+fn global_get_raw_mmap_threshold() { return ptr_get(iadd(oren_globals(), 272)) }
+fn global_set_raw_mmap_threshold(v) { ptr_set(iadd(oren_globals(), 272), v) }
 
-fn global_get_buf_align() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_BUF_ALIGN)) }
-fn global_set_buf_align(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_BUF_ALIGN), v) }
+fn global_get_buf_align() { return ptr_get(iadd(oren_globals(), 280)) }
+fn global_set_buf_align(v) { ptr_set(iadd(oren_globals(), 280), v) }
 
-fn global_get_buf_force_mmap() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_BUF_FORCE_MMAP)) }
-fn global_set_buf_force_mmap(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_BUF_FORCE_MMAP), v) }
+fn global_get_buf_force_mmap() { return ptr_get(iadd(oren_globals(), 288)) }
+fn global_set_buf_force_mmap(v) { ptr_set(iadd(oren_globals(), 288), v) }
 
-fn global_get_buf_payload_limit() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_BUF_PAYLOAD_LIMIT)) }
-fn global_set_buf_payload_limit(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_BUF_PAYLOAD_LIMIT), v) }
+fn global_get_buf_payload_limit() { return ptr_get(iadd(oren_globals(), 296)) }
+fn global_set_buf_payload_limit(v) { ptr_set(iadd(oren_globals(), 296), v) }
 
-fn global_get_call_depth() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_CALL_DEPTH)) }
-fn global_set_call_depth(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_CALL_DEPTH), v) }
+fn global_get_call_depth() { return ptr_get(iadd(oren_globals(), 304)) }
+fn global_set_call_depth(v) { ptr_set(iadd(oren_globals(), 304), v) }
 
-fn global_get_call_depth_max() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_CALL_DEPTH_MAX)) }
-fn global_set_call_depth_max(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_CALL_DEPTH_MAX), v) }
+fn global_get_call_depth_max() { return ptr_get(iadd(oren_globals(), 312)) }
+fn global_set_call_depth_max(v) { ptr_set(iadd(oren_globals(), 312), v) }
+
+fn global_get_result_value() { return ptr_get(iadd(oren_globals(), 360)) }
+fn global_set_result_value(v) { ptr_set(iadd(oren_globals(), 360), v) }
 
 fn native_simd_enabled() { return global_get_enable_simd() }
 
@@ -217,89 +227,89 @@ fn native_simd_enabled() { return global_get_enable_simd() }
 fn native_simd_f32_dot_enabled() { return 1 }
 fn native_simd_f32_dot4_enabled() { return 1 }
 
-fn global_get_capsule_mode() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_CAPSULE_MODE)) }
-fn global_set_capsule_mode(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_CAPSULE_MODE), v) }
+fn global_get_capsule_mode() { return ptr_get(iadd(oren_globals(), 80)) }
+fn global_set_capsule_mode(v) { ptr_set(iadd(oren_globals(), 80), v) }
 
-fn global_get_cap_allow_mask() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_CAP_ALLOW_MASK)) }
-fn global_set_cap_allow_mask(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_CAP_ALLOW_MASK), v) }
+fn global_get_cap_allow_mask() { return ptr_get(iadd(oren_globals(), 88)) }
+fn global_set_cap_allow_mask(v) { ptr_set(iadd(oren_globals(), 88), v) }
 
-fn global_get_fs_allow_prefixes_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_PREFIXES_PTR)) }
-fn global_set_fs_allow_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_PREFIXES_PTR), v) }
+fn global_get_fs_allow_prefixes_ptr() { return ptr_get(iadd(oren_globals(), 96)) }
+fn global_set_fs_allow_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), 96), v) }
 
-fn global_get_fs_allow_read_prefixes_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_READ_PREFIXES_PTR)) }
-fn global_set_fs_allow_read_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_READ_PREFIXES_PTR), v) }
+fn global_get_fs_allow_read_prefixes_ptr() { return ptr_get(iadd(oren_globals(), 104)) }
+fn global_set_fs_allow_read_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), 104), v) }
 
-fn global_get_fs_allow_write_prefixes_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_WRITE_PREFIXES_PTR)) }
-fn global_set_fs_allow_write_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_ALLOW_WRITE_PREFIXES_PTR), v) }
+fn global_get_fs_allow_write_prefixes_ptr() { return ptr_get(iadd(oren_globals(), 112)) }
+fn global_set_fs_allow_write_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), 112), v) }
 
-fn global_get_fs_mounts_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_PTR)) }
-fn global_set_fs_mounts_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_PTR), v) }
+fn global_get_fs_mounts_ptr() { return ptr_get(iadd(oren_globals(), 120)) }
+fn global_set_fs_mounts_ptr(v) { ptr_set(iadd(oren_globals(), 120), v) }
 
-fn global_get_fs_mounts_read_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_READ_PTR)) }
-fn global_set_fs_mounts_read_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_READ_PTR), v) }
+fn global_get_fs_mounts_read_ptr() { return ptr_get(iadd(oren_globals(), 128)) }
+fn global_set_fs_mounts_read_ptr(v) { ptr_set(iadd(oren_globals(), 128), v) }
 
-fn global_get_fs_mounts_write_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_WRITE_PTR)) }
-fn global_set_fs_mounts_write_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_FS_MOUNTS_WRITE_PTR), v) }
+fn global_get_fs_mounts_write_ptr() { return ptr_get(iadd(oren_globals(), 136)) }
+fn global_set_fs_mounts_write_ptr(v) { ptr_set(iadd(oren_globals(), 136), v) }
 
-fn global_get_net_allow_loopback() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_LOOPBACK)) }
-fn global_set_net_allow_loopback(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_LOOPBACK), v) }
+fn global_get_net_allow_loopback() { return ptr_get(iadd(oren_globals(), 144)) }
+fn global_set_net_allow_loopback(v) { ptr_set(iadd(oren_globals(), 144), v) }
 
-fn global_get_net_allow_tcp_connect_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR)) }
-fn global_set_net_allow_tcp_connect_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_TCP_CONNECT_PTR), v) }
+fn global_get_net_allow_tcp_connect_ptr() { return ptr_get(iadd(oren_globals(), 152)) }
+fn global_set_net_allow_tcp_connect_ptr(v) { ptr_set(iadd(oren_globals(), 152), v) }
 
-fn global_get_net_allow_tcp_listen_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR)) }
-fn global_set_net_allow_tcp_listen_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_ALLOW_TCP_LISTEN_PTR), v) }
+fn global_get_net_allow_tcp_listen_ptr() { return ptr_get(iadd(oren_globals(), 160)) }
+fn global_set_net_allow_tcp_listen_ptr(v) { ptr_set(iadd(oren_globals(), 160), v) }
 
-fn global_get_net_tcp_connect_map_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_TCP_CONNECT_MAP_PTR)) }
-fn global_set_net_tcp_connect_map_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_TCP_CONNECT_MAP_PTR), v) }
+fn global_get_net_tcp_connect_map_ptr() { return ptr_get(iadd(oren_globals(), 208)) }
+fn global_set_net_tcp_connect_map_ptr(v) { ptr_set(iadd(oren_globals(), 208), v) }
 
-fn global_get_net_tcp_listen_map_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_TCP_LISTEN_MAP_PTR)) }
-fn global_set_net_tcp_listen_map_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_TCP_LISTEN_MAP_PTR), v) }
+fn global_get_net_tcp_listen_map_ptr() { return ptr_get(iadd(oren_globals(), 216)) }
+fn global_set_net_tcp_listen_map_ptr(v) { ptr_set(iadd(oren_globals(), 216), v) }
 
-fn global_get_net_fd_caps_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_PTR)) }
-fn global_set_net_fd_caps_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_PTR), v) }
+fn global_get_net_fd_caps_ptr() { return ptr_get(iadd(oren_globals(), 224)) }
+fn global_set_net_fd_caps_ptr(v) { ptr_set(iadd(oren_globals(), 224), v) }
 
-fn global_get_net_fd_caps_len() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_LEN)) }
-fn global_set_net_fd_caps_len(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_LEN), v) }
+fn global_get_net_fd_caps_len() { return ptr_get(iadd(oren_globals(), 232)) }
+fn global_set_net_fd_caps_len(v) { ptr_set(iadd(oren_globals(), 232), v) }
 
-fn global_get_net_fd_caps_map_keys_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_KEYS_PTR)) }
-fn global_set_net_fd_caps_map_keys_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_KEYS_PTR), v) }
+fn global_get_net_fd_caps_map_keys_ptr() { return ptr_get(iadd(oren_globals(), 320)) }
+fn global_set_net_fd_caps_map_keys_ptr(v) { ptr_set(iadd(oren_globals(), 320), v) }
 
-fn global_get_net_fd_caps_map_vals_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_VALS_PTR)) }
-fn global_set_net_fd_caps_map_vals_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_VALS_PTR), v) }
+fn global_get_net_fd_caps_map_vals_ptr() { return ptr_get(iadd(oren_globals(), 328)) }
+fn global_set_net_fd_caps_map_vals_ptr(v) { ptr_set(iadd(oren_globals(), 328), v) }
 
-fn global_get_net_fd_caps_map_cap() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_CAP)) }
-fn global_set_net_fd_caps_map_cap(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_CAP), v) }
+fn global_get_net_fd_caps_map_cap() { return ptr_get(iadd(oren_globals(), 336)) }
+fn global_set_net_fd_caps_map_cap(v) { ptr_set(iadd(oren_globals(), 336), v) }
 
-fn global_get_net_fd_caps_map_len() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_LEN)) }
-fn global_set_net_fd_caps_map_len(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_MAP_LEN), v) }
+fn global_get_net_fd_caps_map_len() { return ptr_get(iadd(oren_globals(), 344)) }
+fn global_set_net_fd_caps_map_len(v) { ptr_set(iadd(oren_globals(), 344), v) }
 
-fn global_get_net_fd_caps_lock() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_LOCK)) }
-fn global_set_net_fd_caps_lock(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_LOCK), v) }
+fn global_get_net_fd_caps_lock() { return ptr_get(iadd(oren_globals(), 352)) }
+fn global_set_net_fd_caps_lock(v) { ptr_set(iadd(oren_globals(), 352), v) }
 
-fn global_get_proc_allow_system() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_SYSTEM)) }
-fn global_set_proc_allow_system(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_SYSTEM), v) }
+fn global_get_proc_allow_system() { return ptr_get(iadd(oren_globals(), 168)) }
+fn global_set_proc_allow_system(v) { ptr_set(iadd(oren_globals(), 168), v) }
 
-fn global_get_proc_allow_exec_prefixes_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR)) }
-fn global_set_proc_allow_exec_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_EXEC_PREFIXES_PTR), v) }
+fn global_get_proc_allow_exec_prefixes_ptr() { return ptr_get(iadd(oren_globals(), 176)) }
+fn global_set_proc_allow_exec_prefixes_ptr(v) { ptr_set(iadd(oren_globals(), 176), v) }
 
-fn global_get_proc_inherit_env() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_INHERIT_ENV)) }
-fn global_set_proc_inherit_env(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_INHERIT_ENV), v) }
+fn global_get_proc_inherit_env() { return ptr_get(iadd(oren_globals(), 184)) }
+fn global_set_proc_inherit_env(v) { ptr_set(iadd(oren_globals(), 184), v) }
 
-fn global_get_proc_allow_env_keys_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR)) }
-fn global_set_proc_allow_env_keys_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_ENV_KEYS_PTR), v) }
+fn global_get_proc_allow_env_keys_ptr() { return ptr_get(iadd(oren_globals(), 192)) }
+fn global_set_proc_allow_env_keys_ptr(v) { ptr_set(iadd(oren_globals(), 192), v) }
 
-fn global_get_proc_allow_argv_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_ARGV_PTR)) }
-fn global_set_proc_allow_argv_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOW_ARGV_PTR), v) }
+fn global_get_proc_allow_argv_ptr() { return ptr_get(iadd(oren_globals(), 200)) }
+fn global_set_proc_allow_argv_ptr(v) { ptr_set(iadd(oren_globals(), 200), v) }
 
-fn global_get_proc_allowed_pids_ptr() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOWED_PIDS_PTR)) }
-fn global_set_proc_allowed_pids_ptr(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOWED_PIDS_PTR), v) }
+fn global_get_proc_allowed_pids_ptr() { return ptr_get(iadd(oren_globals(), 240)) }
+fn global_set_proc_allowed_pids_ptr(v) { ptr_set(iadd(oren_globals(), 240), v) }
 
-fn global_get_proc_allowed_pids_len() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOWED_PIDS_LEN)) }
-fn global_set_proc_allowed_pids_len(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOWED_PIDS_LEN), v) }
+fn global_get_proc_allowed_pids_len() { return ptr_get(iadd(oren_globals(), 248)) }
+fn global_set_proc_allowed_pids_len(v) { ptr_set(iadd(oren_globals(), 248), v) }
 
-fn global_get_proc_allowed_pids_cap() { return ptr_get(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOWED_PIDS_CAP)) }
-fn global_set_proc_allowed_pids_cap(v) { ptr_set(iadd(oren_globals(), GLOBAL_OFF_PROC_ALLOWED_PIDS_CAP), v) }
+fn global_get_proc_allowed_pids_cap() { return ptr_get(iadd(oren_globals(), 256)) }
+fn global_set_proc_allowed_pids_cap(v) { ptr_set(iadd(oren_globals(), 256), v) }
 
 // Capsule/capability mask bits (rolling; native backend only).
 var CAP_FS = 1

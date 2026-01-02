@@ -1,0 +1,351 @@
+// --- AVM bridge (native backend) ---
+//
+// Goal:
+// - Make Oren native binaries able to run `.obc` child programs as nested universes
+//   via the existing `./avm` runner.
+//
+// Rationale (rolling):
+// - The bytecode backend lowers `oren_avm_run_obc_bytes` to an AVM domain op.
+// - Native backend needs a pragmatic bridge so examples and tooling can stay backend-agnostic.
+// - This implementation intentionally uses the existing `avm` binary rather than embedding
+//   the VM as a library (future work).
+//
+// Contract (matches docs/AVM_MULTIVERSE.md implementation reality today):
+// - cfg_map keys (subset supported here):
+//   - allowed_domains: int (bitmask)
+//   - gas_limit: int
+//   - deterministic: bool
+//   - time_start_ns: int, time_step_ns: int, rng_seed: int
+//   - mem_bytes: int, io_bytes: int, log_bytes: int
+//   - fs_backend/proc_backend/net_backend: int (0 host, 1 virtual)
+//   - vfs_fixtures/proc_fixtures/net_fixtures: bytes
+//
+// Returned map (rolling superset):
+// - exit_code: int
+// - result: string (when child sets a string result; otherwise "")
+// - record_log: bytes (AVMLOG01... as u8_buf)
+// - state_hash: bytes (sha256, if printed)
+// - result_hash: bytes (sha256, if printed)
+// - trace_hash: bytes (sha256, if printed)
+//
+// NOTE: This bridge currently relies on parsing stable text lines printed by `avm`.
+//       It uses file redirection rather than pipes to keep it portable across targets.
+
+fn _native_substr_at(s, i, pat) {
+    // Return true if pat matches s at byte offset i.
+    if s == 0 || pat == 0 { return false }
+    var j = 0
+    while true {
+        var pc = ptr_get_byte(pat + j)
+        if pc == 0 { return true }
+        var sc = ptr_get_byte(s + i + j)
+        if sc == 0 { return false }
+        if sc != pc { return false }
+        j = j + 1
+        if j > 4096 { return false }
+    }
+}
+
+fn _native_find_substr(s, pat) {
+    if s == 0 || pat == 0 { return -1 }
+    var n = oren_string_len(s)
+    var m = oren_string_len(pat)
+    if m == 0 { return 0 }
+    if m > n { return -1 }
+    var i = 0
+    while i <= n - m {
+        if _native_substr_at(s, i, pat) == true { return i }
+        i = i + 1
+        if i > 1048576 { return -1 }
+    }
+    return -1
+}
+
+fn _native_parse_int_at(s, i) {
+    // Parse optional leading '-' and digits starting at s[i].
+    // Returns a map: {"ok":bool, "val":int, "next":int}.
+    var out = oren_new_map(3)
+    if s == 0 || i < 0 {
+        oren_map_set(out, "ok", false)
+        oren_map_set(out, "val", 0)
+        oren_map_set(out, "next", i)
+        return out
+    }
+    var sign = 1
+    var c0 = ptr_get_byte(s + i)
+    if c0 == 45 { sign = -1; i = i + 1 }
+    var v = 0
+    var any = 0
+    while true {
+        var c = ptr_get_byte(s + i)
+        if c < 48 || c > 57 { break }
+        any = 1
+        v = v * 10 + (c - 48)
+        i = i + 1
+        if i > 1048576 { break }
+    }
+    oren_map_set(out, "ok", any == 1)
+    oren_map_set(out, "val", v * sign)
+    oren_map_set(out, "next", i)
+    return out
+}
+
+fn _native_parse_json_int_field(json, key) {
+    // Best-effort parse of: "<key>":<int>
+    if json == 0 || key == 0 { return 0 }
+    var pat = "\"" + key + "\":"
+    var pos = _native_find_substr(json, pat)
+    if pos < 0 { return 0 }
+    var start = pos + oren_string_len(pat)
+    // Skip whitespace
+    while true {
+        var c = ptr_get_byte(json + start)
+        if c == 32 || c == 9 || c == 10 || c == 13 { start = start + 1 } else { break }
+        if start > 1048576 { break }
+    }
+    var r = _native_parse_int_at(json, start)
+    if oren_map_get(r, "ok") != true { return 0 }
+    return oren_map_get(r, "val")
+}
+
+fn _native_parse_json_string_field(json, key) {
+    // Best-effort parse of: "<key>":"...".
+    // Handles basic escapes: \\ \" \n \r \t
+    if json == 0 || key == 0 { return "" }
+    var pat = "\"" + key + "\":\""
+    var pos = _native_find_substr(json, pat)
+    if pos < 0 { return "" }
+    var i = pos + oren_string_len(pat)
+
+    // First pass: find end quote to bound allocation.
+    var n = 0
+    var j = i
+    while true {
+        var c = ptr_get_byte(json + j)
+        if c == 0 { break }
+        if c == 34 { break } // '"'
+        if c == 92 { // '\\' escape
+            var c2 = ptr_get_byte(json + j + 1)
+            if c2 == 0 { break }
+            n = n + 1
+            j = j + 2
+        } else {
+            n = n + 1
+            j = j + 1
+        }
+        if n > 1048576 { break }
+    }
+
+    var out = malloc(n + 1)
+    if out == 0 { return "" }
+    var oi = 0
+    while oi < n {
+        var c = ptr_get_byte(json + i)
+        if c == 0 { break }
+        if c == 34 { break }
+        if c == 92 {
+            var e = ptr_get_byte(json + i + 1)
+            if e == 0 { break }
+            if e == 110 { ptr_set_byte(out + oi, 10) } // \n
+            else if e == 114 { ptr_set_byte(out + oi, 13) } // \r
+            else if e == 116 { ptr_set_byte(out + oi, 9) } // \t
+            else { ptr_set_byte(out + oi, e) } // \" \\ or unknown => literal
+            i = i + 2
+        } else {
+            ptr_set_byte(out + oi, c)
+            i = i + 1
+        }
+        oi = oi + 1
+    }
+    ptr_set_byte(out + oi, 0)
+    oren_track_alloc(out, oi + 1, 1) // STRING
+    return out
+}
+
+fn _native_extract_line_payload(s, prefix) {
+    // Return the substring after `prefix` up to '\n' (or end). Returns "" if not found.
+    if s == 0 || prefix == 0 { return "" }
+    var pos = _native_find_substr(s, prefix)
+    if pos < 0 { return "" }
+    var start = pos + oren_string_len(prefix)
+    // Trim leading space
+    while ptr_get_byte(s + start) == 32 { start = start + 1 }
+    var end = start
+    while true {
+        var c = ptr_get_byte(s + end)
+        if c == 0 { break }
+        if c == 10 { break }
+        end = end + 1
+        if end - start > 1048576 { break }
+    }
+    return oren_string_slice(s, start, end)
+}
+
+fn _native_domains_mask_to_csv(mask) {
+    // Convert a bitmask to "0,4,8" CSV.
+    if mask == nil { mask = 0 }
+    var out = ""
+    var first = 1
+    var i = 0
+    while i < 63 {
+        var bit = 1 << i
+        if mask & bit != 0 {
+            if first == 1 {
+                out = oren_int_to_string(i)
+                first = 0
+            } else {
+                out = out + "," + oren_int_to_string(i)
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _native_avm_build_env_prefix(cfg) {
+    // Build a POSIX shell env prefix: "K=V K2=V2 ".
+    // Caller is responsible for Windows handling separately.
+    var env = "AVM_RECORD_MEM=1 "
+
+    if cfg != 0 {
+        if cfg["deterministic"] == true {
+            env = env + "AVM_DETERMINISTIC=1 "
+            if cfg["time_start_ns"] != nil { env = env + "AVM_TIME_START_NS=" + oren_int_to_string(cfg["time_start_ns"]) + " " }
+            if cfg["time_step_ns"] != nil { env = env + "AVM_TIME_STEP_NS=" + oren_int_to_string(cfg["time_step_ns"]) + " " }
+            if cfg["rng_seed"] != nil { env = env + "AVM_RNG_SEED=" + oren_int_to_string(cfg["rng_seed"]) + " " }
+        }
+
+        if cfg["gas_limit"] != nil { env = env + "AVM_GAS=" + oren_int_to_string(cfg["gas_limit"]) + " " }
+        if cfg["mem_bytes"] != nil { env = env + "AVM_MEM_BYTES=" + oren_int_to_string(cfg["mem_bytes"]) + " " }
+        if cfg["io_bytes"] != nil { env = env + "AVM_IO_BYTES=" + oren_int_to_string(cfg["io_bytes"]) + " " }
+        if cfg["log_bytes"] != nil { env = env + "AVM_LOG_BYTES=" + oren_int_to_string(cfg["log_bytes"]) + " " }
+    }
+
+    return env
+}
+
+fn _native_avm_build_args(cfg) {
+    var args = ""
+    // Strict capsule-like defaults: deny all and then allow exactly the requested domains.
+    var allowed = 0
+    if cfg != 0 && cfg["allowed_domains"] != nil { allowed = cfg["allowed_domains"] }
+    var csv = _native_domains_mask_to_csv(allowed)
+    args = args + " --deny-by-default"
+    if csv != "" { args = args + " --allow-domains " + csv }
+
+    // Virtual backends + fixtures (hex) - only when requested.
+    if cfg != 0 {
+        if cfg["fs_backend"] == 1 { args = args + " --fs-backend vfs" } // host|vfs
+        if cfg["proc_backend"] == 1 { args = args + " --proc-backend vproc" } // host|vproc
+        if cfg["net_backend"] == 1 { args = args + " --net-backend vnet" } // host|vnet
+
+        if cfg["proc_backend"] == 1 && cfg["proc_fixtures"] != nil {
+            var hex2 = oren_bytes_to_hex(cfg["proc_fixtures"])
+            if oren_is_err(hex2) != true { args = args + " --proc-fixtures-hex " + hex2 }
+        }
+        if cfg["net_backend"] == 1 && cfg["net_fixtures"] != nil {
+            var hex3 = oren_bytes_to_hex(cfg["net_fixtures"])
+            if oren_is_err(hex3) != true { args = args + " --net-fixtures-hex " + hex3 }
+        }
+    }
+
+    // Always print machine-readable outputs.
+    args = args + " --print-run-json --print-state-hash --print-result-hash --print-record-log-hex"
+    return args
+}
+
+fn oren_avm_run_obc_bytes(child_obc_bytes, cfg) {
+    // Native bridge: write child bytes to a temp file and invoke `./avm`.
+    //
+    // This function is intentionally deterministic given fixed inputs:
+    // - it uses AVM_RECORD_MEM so the record log is returned as data
+    // - it uses explicit allow-domains
+    // - it relies on `avm` output formats intended for tooling
+    //
+    // NOTE: Caller must ensure `./avm` exists and is executable.
+    // In repo workflows, `make avm` provides it.
+
+    // Ensure build/ exists (ignore EEXIST).
+    sys_mkdir("build", 493) // 0755
+
+    var obc_path = "build/native_child_tmp.obc"
+    var out_path = "build/native_avm_out.txt"
+    var err_path = "build/native_avm_err.txt"
+
+    // Overwrite old files to keep repeated runs stable.
+    sys_unlink(obc_path)
+    sys_unlink(out_path)
+    sys_unlink(err_path)
+
+    oren_write_bytes(obc_path, child_obc_bytes)
+
+    var env_prefix = _native_avm_build_env_prefix(cfg)
+    var args = _native_avm_build_args(cfg)
+
+    // Use `oren_system_timeout` so we can rely on simple shell redirection for stdout/stderr capture.
+    // Default timeout: 20s (tight but enough for fixtures demos); can be made cfg-driven later.
+    var cmd = ""
+    if g_target_os == 3 {
+        // Windows cmd.exe does not support POSIX "K=V cmd" env prefix.
+        // For now, run without env overrides; callers can use host env for budgets/determinism.
+        cmd = "avm" + args + " " + obc_path + " > " + out_path + " 2> " + err_path
+    } else {
+        cmd = env_prefix + "./avm" + args + " " + obc_path + " > " + out_path + " 2> " + err_path
+    }
+
+    oren_system_timeout(cmd, 20000)
+    // Status is raw wait status or -errno. We intentionally parse stdout for the logical exit_code.
+
+    var stdout_s = oren_read_file(out_path)
+    var stderr_s = oren_read_file(err_path)
+
+    // Extract run JSON (first '{...}\\n' line).
+    var json_line = ""
+    if stdout_s != 0 {
+        var n = oren_string_len(stdout_s)
+        var i = 0
+        while i < n {
+            if ptr_get_byte(stdout_s + i) == 123 { // '{'
+                var j = i
+                while j < n && ptr_get_byte(stdout_s + j) != 10 { j = j + 1 }
+                json_line = oren_string_slice(stdout_s, i, j)
+                break
+            }
+            i = i + 1
+        }
+    }
+
+    var exit_code = _native_parse_json_int_field(json_line, "exit_code")
+    var result = _native_parse_json_string_field(json_line, "result")
+
+    // Hashes + record log
+    var state_hex = _native_extract_line_payload(stdout_s, "STATE_HASH")
+    var result_hex = _native_extract_line_payload(stdout_s, "RESULT_HASH")
+    var trace_hex = _native_extract_line_payload(stdout_s, "TRACE_HASH")
+    var log_hex = _native_extract_line_payload(stdout_s, "RECORD_LOG_HEX")
+
+    var record_log = oren_bytes_from_hex(log_hex)
+    if oren_is_err(record_log) == true { record_log = oren_u8_buf_new(0) }
+
+    var out = oren_new_map(8)
+    oren_map_set(out, "exit_code", exit_code)
+    oren_map_set(out, "result", result)
+    oren_map_set(out, "record_log", record_log)
+
+    if state_hex != "" {
+        var sh = oren_bytes_from_hex(state_hex)
+        if oren_is_err(sh) != true { oren_map_set(out, "state_hash", sh) }
+    }
+    if result_hex != "" {
+        var rh = oren_bytes_from_hex(result_hex)
+        if oren_is_err(rh) != true { oren_map_set(out, "result_hash", rh) }
+    }
+    if trace_hex != "" {
+        var th = oren_bytes_from_hex(trace_hex)
+        if oren_is_err(th) != true { oren_map_set(out, "trace_hash", th) }
+    }
+
+    // Debug hooks (rolling): make stderr available for diagnostics without crashing callers.
+    oren_map_set(out, "stderr", stderr_s)
+    return out
+}

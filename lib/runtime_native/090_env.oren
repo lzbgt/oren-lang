@@ -10,12 +10,13 @@ fn oren_getenv(key) {
     if key == 0 { return 0 }
 
     var g = oren_globals()
-    var envp = ptr_get(iadd(g, GLOBAL_OFF_ENVP))
+    // Use literal offsets (native backend global var init/write is still rolling).
+    var envp = ptr_get(iadd(g, 64)) // envp
 
     // If envp wasn't captured at entry, derive it from argv/argc layout:
     // envp starts right after argv[argc] and the NULL terminator.
-    var argc = ptr_get(iadd(g, GLOBAL_OFF_ARGC))
-    var argv = ptr_get(iadd(g, GLOBAL_OFF_ARGV))
+    var argc = ptr_get(iadd(g, 40)) // argc
+    var argv = ptr_get(iadd(g, 48)) // argv
     if envp == 0 {
         if argv == 0 { return 0 }
         envp = iadd(argv, (iadd(argc, 1)) * 8)

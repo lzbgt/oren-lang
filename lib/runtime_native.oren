@@ -40,3 +40,5 @@
 // @include "runtime_native/245_select.oren"
 // @include "runtime_native/250_udp.oren"
 // @include "runtime_native/260_threads.oren"
+// @include "runtime_native/265_result.oren"
+// @include "runtime_native/270_avm_bridge.oren"

@@ -2159,6 +2159,51 @@ static void print_pause_json(FILE* out, AvmVM* vm) {
     fprintf(out, "}\n");
 }
 
+static void print_json_escaped_string(FILE* out, const char* s) {
+    // Minimal JSON string escaping:
+    // - quotes and backslash
+    // - common control chars: \n, \r, \t
+    //
+    // This is intentionally conservative; AVM is rolling and the primary consumer
+    // today is tooling that needs stable machine-readable output.
+    if (!out) return;
+    if (!s) { fputs("", out); return; }
+    for (const unsigned char* p = (const unsigned char*)s; *p; p++) {
+        unsigned char c = *p;
+        if (c == '\\' || c == '\"') { fputc('\\', out); fputc((int)c, out); continue; }
+        if (c == '\n') { fputs("\\n", out); continue; }
+        if (c == '\r') { fputs("\\r", out); continue; }
+        if (c == '\t') { fputs("\\t", out); continue; }
+        if (c < 0x20) {
+            // Escape other control bytes as \u00XX.
+            static const char* hex = "0123456789abcdef";
+            fputs("\\u00", out);
+            fputc(hex[(c >> 4) & 0xF], out);
+            fputc(hex[c & 0xF], out);
+            continue;
+        }
+        fputc((int)c, out);
+    }
+}
+
+static const char* avm_value_type_name(int t) {
+    switch (t) {
+        case AVM_VAL_INT: return "INT";
+        case AVM_VAL_FLOAT: return "FLOAT";
+        case AVM_VAL_STRING: return "STRING";
+        case AVM_VAL_BOOL: return "BOOL";
+        case AVM_VAL_NIL: return "NIL";
+        case AVM_VAL_LIST: return "LIST";
+        case AVM_VAL_MAP: return "MAP";
+        case AVM_VAL_FUNC: return "FUNC";
+        case AVM_VAL_I32_BUF: return "I32_BUF";
+        case AVM_VAL_I64_BUF: return "I64_BUF";
+        case AVM_VAL_F32_BUF: return "F32_BUF";
+        case AVM_VAL_F64_BUF: return "F64_BUF";
+        default: return "VAL?";
+    }
+}
+
 int main(int argc, char** argv) {
     const char* obc_path = NULL;
     const char* snap_in = NULL;
@@ -3816,6 +3861,44 @@ int main(int argc, char** argv) {
                 double gas_per_sec = (double)vm->gas_executed / ((double)elapsed_ns / 1e9);
                 fprintf(stdout, ",\"ns_per_gas\":%.3f", ns_per_gas);
                 fprintf(stdout, ",\"gas_per_sec\":%.3f", gas_per_sec);
+            }
+            // Result selection (rolling): expose explicit consensus result for orchestration.
+            // This is especially important for "AVM-in-AVM" style workflows where the parent
+            // needs a stable machine-readable value.
+            fprintf(stdout, ",\"has_result\":%s", vm->has_result_value ? "true" : "false");
+            AvmValue rv;
+            if (vm->has_result_value) {
+                rv = vm->result_value;
+            } else {
+                rv.type = AVM_VAL_NIL;
+                rv.as.i = 0;
+            }
+            fprintf(stdout, ",\"result_type\":\"%s\"", avm_value_type_name(rv.type));
+            fprintf(stdout, ",\"result\":");
+            switch (rv.type) {
+                case AVM_VAL_NIL:
+                    fprintf(stdout, "null");
+                    break;
+                case AVM_VAL_BOOL:
+                    fprintf(stdout, "%s", rv.as.i ? "true" : "false");
+                    break;
+                case AVM_VAL_INT:
+                    fprintf(stdout, "%lld", (long long)rv.as.i);
+                    break;
+                case AVM_VAL_FLOAT:
+                    fprintf(stdout, "%.17g", rv.as.f);
+                    break;
+                case AVM_VAL_STRING:
+                    fputc('\"', stdout);
+                    print_json_escaped_string(stdout, (const char*)rv.as.p);
+                    fputc('\"', stdout);
+                    break;
+                default:
+                    // Complex values are not yet serialized in v0 run JSON; callers can
+                    // rely on hashes/logs for deterministic verification and treat this
+                    // field as informational.
+                    fprintf(stdout, "null");
+                    break;
             }
             fprintf(stdout, "}\n");
         }

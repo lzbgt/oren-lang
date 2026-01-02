@@ -283,6 +283,8 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 return true
             }
 
+
+
             if fn_name == "ptr_get" {
                 native_compile_expr(ctx, args[0])
                 push_u32_le(ctx["code"], insn_ldr_ptr(0, 0))

@@ -167,7 +167,8 @@ fn native_capsule_net_fdmap_lock_acquire() {
     // - the fd-kind map is used on syscall boundaries where taking the allocator lock
     //   could introduce unexpected recursion/cycles.
     if oren_globals() == 0 { return 0 }
-    var lock_ptr = iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_LOCK)
+    // Use literal offsets (native backend global var init/write is still rolling).
+    var lock_ptr = iadd(oren_globals(), 352) // net_fd_caps_lock
     while atomic_cas(lock_ptr, 0, 1) != 0 {
         // spin
     }
@@ -176,7 +177,7 @@ fn native_capsule_net_fdmap_lock_acquire() {
 
 fn native_capsule_net_fdmap_lock_release() {
     if oren_globals() == 0 { return 0 }
-    var lock_ptr = iadd(oren_globals(), GLOBAL_OFF_NET_FD_CAPS_LOCK)
+    var lock_ptr = iadd(oren_globals(), 352) // net_fd_caps_lock
     ptr_set(lock_ptr, 0)
     return 0
 }
