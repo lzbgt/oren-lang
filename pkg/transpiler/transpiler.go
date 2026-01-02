@@ -891,19 +891,19 @@ func (t *Transpiler) transpileStatement(stmt ast.Statement) (string, error) {
 	case *ast.ContinueStatement:
 		return "continue;", nil
 
-	case *ast.WhileStatement:
-		cond, err := t.transpileExpression(s.Condition)
-		if err != nil {
-			return "", err
-		}
-
-		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("while (oren_is_truthy(%s)) {\n", cond))
-		sb.WriteString("    oren_gc_safepoint();\n")
-
-		for _, bs := range s.Body.Statements {
-			st, err := t.transpileStatement(bs)
+		case *ast.WhileStatement:
+			cond, err := t.transpileExpression(s.Condition)
 			if err != nil {
+				return "", err
+			}
+
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("while (oren_is_truthy(%s)) {\n", cond))
+			sb.WriteString("    oren_gc_safepoint();\n")
+
+			for _, bs := range s.Body.Statements {
+				st, err := t.transpileStatement(bs)
+				if err != nil {
 				return "", err
 			}
 			sb.WriteString("    " + st + "\n") // Simplistic indent
@@ -940,7 +940,7 @@ func (t *Transpiler) transpileForHeaderStatement(stmt ast.Statement) (string, er
 	return strings.TrimSpace(s), nil
 }
 
-func (t *Transpiler) transpileForStatement(fs *ast.ForStatement) (string, error) {
+	func (t *Transpiler) transpileForStatement(fs *ast.ForStatement) (string, error) {
 	init, err := t.transpileForHeaderStatement(fs.Init)
 	if err != nil {
 		return "", err
@@ -960,13 +960,13 @@ func (t *Transpiler) transpileForStatement(fs *ast.ForStatement) (string, error)
 		cond = fmt.Sprintf("oren_is_truthy(%s)", condExpr)
 	}
 
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("for (%s; %s; %s) {\n", init, cond, post))
-	sb.WriteString("    oren_gc_safepoint();\n")
-	for _, bs := range fs.Body.Statements {
-		st, err := t.transpileStatement(bs)
-		if err != nil {
-			return "", err
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("for (%s; %s; %s) {\n", init, cond, post))
+		sb.WriteString("    oren_gc_safepoint();\n")
+		for _, bs := range fs.Body.Statements {
+			st, err := t.transpileStatement(bs)
+			if err != nil {
+				return "", err
 		}
 		sb.WriteString("    " + st + "\n")
 	}

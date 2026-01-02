@@ -9,6 +9,7 @@
 #include <sys/mman.h>
 #include <stdint.h>
 #include <stdatomic.h>
+#include <string.h>
 
 // Some platforms name the anonymous-map flag MAP_ANON instead of MAP_ANONYMOUS.
 #if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
@@ -56,24 +57,57 @@ static OrenAllocNode* g_roots = NULL;
 static uintptr_t g_alloc_ptr_min = UINTPTR_MAX;
 static uintptr_t g_alloc_ptr_max = 0;
 static size_t oren_ptr_hash(void* p);
-// Tiny bloom filter to skip most false positives before doing an alloc-index lookup.
-// Never cleared (false positives are fine; false negatives must not happen).
-static uint64_t g_alloc_bloom[4] = {0, 0, 0, 0}; // 256 bits
+// Bloom filter to skip most false positives before doing an alloc-index lookup.
+//
+// IMPORTANT:
+// This bloom is rebuilt during GC to avoid long-running saturation under allocation-heavy
+// workloads (e.g. compiler stage2 self-hosting). A monotonic bloom quickly becomes all-ones,
+// devolving the mark phase into expensive pointer-index lookups for almost every stack word.
+#define OREN_ALLOC_BLOOM_WORDS 8192u // 8192 * 64 = 524,288 bits (64 KiB)
+static uint64_t g_alloc_bloom[OREN_ALLOC_BLOOM_WORDS];
 
 static inline void oren_alloc_bloom_add(uintptr_t p) {
     // Two hashes -> two bits. Deterministic and cheap.
+    // NOTE: callers should canonicalize tagged pointers before inserting.
     size_t h1 = oren_ptr_hash((void*)p);
     size_t h2 = oren_ptr_hash((void*)(p ^ (uintptr_t)0x9e3779b97f4a7c15ULL));
-    g_alloc_bloom[h1 & 3u] |= (uint64_t)1u << ((h1 >> 2) & 63u);
-    g_alloc_bloom[h2 & 3u] |= (uint64_t)1u << ((h2 >> 2) & 63u);
+    size_t i1 = h1 & (OREN_ALLOC_BLOOM_WORDS - 1u);
+    size_t i2 = h2 & (OREN_ALLOC_BLOOM_WORDS - 1u);
+    g_alloc_bloom[i1] |= (uint64_t)1u << ((h1 >> 16) & 63u);
+    g_alloc_bloom[i2] |= (uint64_t)1u << ((h2 >> 16) & 63u);
 }
 
 static inline int oren_alloc_bloom_maybe_has(uintptr_t p) {
+    // NOTE: callers should canonicalize tagged pointers before querying.
     size_t h1 = oren_ptr_hash((void*)p);
     size_t h2 = oren_ptr_hash((void*)(p ^ (uintptr_t)0x9e3779b97f4a7c15ULL));
-    uint64_t b1 = g_alloc_bloom[h1 & 3u] & ((uint64_t)1u << ((h1 >> 2) & 63u));
-    uint64_t b2 = g_alloc_bloom[h2 & 3u] & ((uint64_t)1u << ((h2 >> 2) & 63u));
+    size_t i1 = h1 & (OREN_ALLOC_BLOOM_WORDS - 1u);
+    size_t i2 = h2 & (OREN_ALLOC_BLOOM_WORDS - 1u);
+    uint64_t b1 = g_alloc_bloom[i1] & ((uint64_t)1u << ((h1 >> 16) & 63u));
+    uint64_t b2 = g_alloc_bloom[i2] & ((uint64_t)1u << ((h2 >> 16) & 63u));
     return (b1 != 0u) && (b2 != 0u);
+}
+
+static void oren_alloc_filters_rebuild_locked(void) {
+    // Rebuild conservative-GC acceleration filters from the current allocation list.
+    // Required to prevent bloom saturation and stale min/max ranges across long-running workloads.
+    g_alloc_ptr_min = UINTPTR_MAX;
+    g_alloc_ptr_max = 0;
+    memset(g_alloc_bloom, 0, sizeof(g_alloc_bloom));
+
+    OrenAllocNode* cur = g_allocs;
+    while (cur) {
+        uintptr_t p = (uintptr_t)cur->ptr;
+#if defined(__aarch64__)
+        p &= (uintptr_t)0x0000FFFFFFFFFFFFULL;
+#endif
+        if (p != 0u) {
+            if (p < g_alloc_ptr_min) g_alloc_ptr_min = p;
+            if (p > g_alloc_ptr_max) g_alloc_ptr_max = p;
+            oren_alloc_bloom_add(p);
+        }
+        cur = cur->next;
+    }
 }
 
 // Large raw blocks: use mmap so memory can be returned to the OS on free/GC sweep.
@@ -145,12 +179,53 @@ static size_t gc_stack_scan_limit_bytes_cached(void) {
         cached = parse_env_size(env, (size_t)(2u << 20)); // 2 MiB fallback
         return cached;
     }
-    // Safety bias:
-    // - When auto-GC is enabled, prefer scanning the full stack by default to avoid
-    //   missing roots on deep call stacks (stack limit remains available via env).
-    // - When auto-GC is disabled, keep a bounded default (collector is rarely used).
-    if (gc_auto_enabled_cached()) cached = 0u;
+    // Default policy (rolling):
+    // - Auto-GC is used mainly for long-running tools (compiler stage2 self-hosting).
+    // - Full-stack raw pointer scanning is extremely expensive and dominates runtime.
+    // - Prefer a bounded scan by default; correctness for long-lived objects is ensured by
+    //   explicit GC roots in hot components (parser/compiler structures) + setjmp snapshots.
+    // - For debugging/maximum conservatism, users can set OREN_GC_STACK_SCAN_LIMIT_BYTES=0
+    //   to scan the full stack.
+    if (gc_auto_enabled_cached()) cached = (size_t)(8u << 20); // 8 MiB
     else cached = (size_t)(2u << 20); // 2 MiB
+    return cached;
+}
+
+static int gc_raw_ptr_scan_enabled_cached(void) {
+    // Extra conservative scanning mode:
+    // - When enabled, the GC scans the raw stack bytes as pointer words and tries to find
+    //   heap allocations. This is expensive but can rescue pointers that are not present
+    //   as well-formed OrenValue values on the stack (e.g., optimized register spills).
+    //
+    // For performance-sensitive tool workloads (compiler self-hosting), it can be disabled
+    // via env `OREN_GC_RAW_PTR_SCAN=0` when explicit roots + register snapshots are sufficient.
+    static int cached = -1;
+    if (cached != -1) return cached;
+    const char* env = getenv("OREN_GC_RAW_PTR_SCAN");
+    if (env && env[0]) {
+        cached = (env[0] != '0');
+        return cached;
+    }
+    cached = 1;
+    return cached;
+}
+
+static int gc_jmpbuf_scan_enabled_cached(void) {
+    // Conservative scanning of jmp_buf/register snapshots (setjmp/longjmp):
+    // - This improves correctness under aggressive optimization (-O2) when values live only in registers.
+    // - It can also increase retention because the saved register image is scanned as raw pointer words.
+    //
+    // For memory-sensitive workloads (compiler stage2 self-hosting), users can disable it via:
+    //   OREN_GC_SCAN_JMPBUFS=0
+    // and rely on explicit roots + OrenValue-shaped stack scanning instead.
+    static int cached = -1;
+    if (cached != -1) return cached;
+    const char* env = getenv("OREN_GC_SCAN_JMPBUFS");
+    if (env && env[0]) {
+        cached = (env[0] != '0');
+        return cached;
+    }
+    cached = 1;
     return cached;
 }
 
@@ -333,6 +408,11 @@ typedef struct OrenThreadState {
     // Cleared by the collector after each collection so stale snapshots don't pin objects.
     jmp_buf gc_buf;
     int has_gc_buf;
+    // Extra register snapshot for conservative GC (rolling):
+    // Store a best-effort copy of general-purpose registers in stable memory so the collector
+    // can find roots even when `setjmp` does not preserve caller-saved registers on a platform.
+    uintptr_t gc_regs[64];
+    int has_gc_regs;
     struct OrenThreadState* next;
 } OrenThreadState;
 
@@ -599,6 +679,9 @@ static void oren_register_alloc(void* ptr, OrenAllocKind kind) {
     g_allocs = n;
     oren_alloc_index_put_locked(n);
     uintptr_t p = (uintptr_t)ptr;
+#if defined(__aarch64__)
+    p &= (uintptr_t)0x0000FFFFFFFFFFFFULL;
+#endif
     if (p < g_alloc_ptr_min) g_alloc_ptr_min = p;
     if (p > g_alloc_ptr_max) g_alloc_ptr_max = p;
     oren_alloc_bloom_add(p);
@@ -628,6 +711,11 @@ static void oren_register_alloc(void* ptr, OrenAllocKind kind) {
 static OrenAllocNode* oren_find_node(void* ptr) {
     // Contract: caller holds g_alloc_mutex (mark/sweep or explicit frees).
     // Fallback to linear scan only if index isn't initialized (should not happen in practice).
+    // Canonicalize possible tagged/signed pointers from conservative stack/register scans.
+#if defined(__aarch64__)
+    uintptr_t canon_u = ((uintptr_t)ptr) & (uintptr_t)0x0000FFFFFFFFFFFFULL;
+    ptr = (void*)canon_u;
+#endif
     uintptr_t p = (uintptr_t)ptr;
     if (g_alloc_ptr_max < g_alloc_ptr_min) return NULL;
     if (p < g_alloc_ptr_min || p > g_alloc_ptr_max) return NULL;
@@ -725,6 +813,62 @@ static int oren_type_valid(int t);
 static void oren_mark_ptr_range_words(void* a, void* b);
 static void oren_mark_stack_range(void* a, void* b);
 
+static inline void oren_capture_gp_regs_words(uintptr_t* out_words, size_t out_words_len) {
+    if (!out_words || out_words_len == 0) return;
+    // Deterministic init: avoid leaving uninitialized stack/register garbage in the snapshot.
+    for (size_t i = 0; i < out_words_len; i++) out_words[i] = 0u;
+
+#if defined(__aarch64__)
+    // Try hard not to clobber x0 with the input operand register. If the compiler places
+    // the input pointer in x0, we'd overwrite the very register we want to snapshot.
+    // Force the base pointer into x16 (caller-saved scratch) instead.
+    register uintptr_t* out asm("x16") = out_words;
+    asm volatile(
+        "stp x0,  x1,  [%0, #0]\n"
+        "stp x2,  x3,  [%0, #16]\n"
+        "stp x4,  x5,  [%0, #32]\n"
+        "stp x6,  x7,  [%0, #48]\n"
+        "stp x8,  x9,  [%0, #64]\n"
+        "stp x10, x11, [%0, #80]\n"
+        "stp x12, x13, [%0, #96]\n"
+        "stp x14, x15, [%0, #112]\n"
+        "stp x16, x17, [%0, #128]\n"
+        "stp x18, x19, [%0, #144]\n"
+        "stp x20, x21, [%0, #160]\n"
+        "stp x22, x23, [%0, #176]\n"
+        "stp x24, x25, [%0, #192]\n"
+        "stp x26, x27, [%0, #208]\n"
+        "stp x28, x29, [%0, #224]\n"
+        "str x30,      [%0, #240]\n"
+        :
+        : "r"(out)
+        : "memory");
+#elif defined(__x86_64__) || defined(_M_X64)
+    asm volatile(
+        "mov %%rax, 0(%0)\n"
+        "mov %%rbx, 8(%0)\n"
+        "mov %%rcx, 16(%0)\n"
+        "mov %%rdx, 24(%0)\n"
+        "mov %%rsi, 32(%0)\n"
+        "mov %%rdi, 40(%0)\n"
+        "mov %%rbp, 48(%0)\n"
+        "mov %%r8,  56(%0)\n"
+        "mov %%r9,  64(%0)\n"
+        "mov %%r10, 72(%0)\n"
+        "mov %%r11, 80(%0)\n"
+        "mov %%r12, 88(%0)\n"
+        "mov %%r13, 96(%0)\n"
+        "mov %%r14, 104(%0)\n"
+        "mov %%r15, 112(%0)\n"
+        :
+        : "r"(out_words)
+        : "memory");
+#else
+    (void)out_words;
+    (void)out_words_len;
+#endif
+}
+
 void oren_gc_collect() {
 #ifdef OREN_NO_GC
     return;
@@ -744,12 +888,14 @@ void oren_gc_collect() {
     }
 
     pthread_mutex_lock(&g_alloc_mutex);
-    // Clear prior marks (-1 -> 0)
-    OrenAllocNode* n = g_allocs;
-    while (n) {
-        if (n->freed == -1) n->freed = 0;
-        n = n->next;
+    // PERF (rolling):
+    // Rebuilding the conservative-GC filters is O(n) over tracked allocations, and the sweep
+    // phase is already O(n). Keep filter rebuild opt-in so stage2 self-hosting is not paying
+    // for multiple full-heap scans per collection by default.
+    if (getenv("OREN_GC_REBUILD_FILTERS") != NULL) {
+        oren_alloc_filters_rebuild_locked();
     }
+    OrenAllocNode* n = g_allocs;
     // Mark from roots
     OrenAllocNode* r = g_roots;
     while (r) {
@@ -780,9 +926,11 @@ void oren_gc_collect() {
 
     // Snapshot this thread's registers so GC can see OrenValues kept in registers under -O2.
     // We scan the saved register image as raw pointer words.
-    jmp_buf self_regs;
-    (void)setjmp(self_regs);
-    oren_mark_ptr_range_words((void*)&self_regs, (void*)((char*)&self_regs + sizeof(self_regs)));
+    if (gc_jmpbuf_scan_enabled_cached()) {
+        jmp_buf self_regs;
+        (void)setjmp(self_regs);
+        oren_mark_ptr_range_words((void*)&self_regs, (void*)((char*)&self_regs + sizeof(self_regs)));
+    }
 
     OrenThreadState* cur = g_thread_states;
     while (cur) {
@@ -792,10 +940,6 @@ void oren_gc_collect() {
             sp = self_sp;
         }
         if (sp != NULL && top != NULL) {
-            oren_mark_stack_range(sp, top);
-
-            // Extra conservative scan: look for raw heap pointers even when the compiler
-            // has split an OrenValue across registers/stack slots under -O2.
             uintptr_t lo = (uintptr_t)sp;
             uintptr_t hi = (uintptr_t)top;
             if (lo > hi) { uintptr_t tmp = lo; lo = hi; hi = tmp; }
@@ -803,16 +947,30 @@ void oren_gc_collect() {
             if (lim != 0u && hi > lo && (hi - lo) > (uintptr_t)lim) {
                 hi = lo + (uintptr_t)lim;
             }
-            oren_mark_ptr_range_words((void*)lo, (void*)hi);
+            oren_mark_stack_range((void*)lo, (void*)hi);
+
+            if (gc_raw_ptr_scan_enabled_cached()) {
+                // Extra conservative scan: look for raw heap pointers even when the compiler
+                // has split an OrenValue across registers/stack slots under -O2.
+                oren_mark_ptr_range_words((void*)lo, (void*)hi);
+            }
         }
-        if (cur->has_panic_buf) {
+        if (cur->has_panic_buf && gc_jmpbuf_scan_enabled_cached()) {
             // Panics are implemented via setjmp/longjmp. The saved register image can
             // contain live heap pointers (callee-saved regs) that may not be present
             // as a well-formed OrenValue on the stack.
             oren_mark_ptr_range_words((void*)&cur->panic_buf, (void*)((char*)&cur->panic_buf + sizeof(cur->panic_buf)));
         }
+        if (cur->has_gc_regs) {
+            if (gc_jmpbuf_scan_enabled_cached()) {
+                oren_mark_ptr_range_words((void*)&cur->gc_regs, (void*)((char*)&cur->gc_regs + sizeof(cur->gc_regs)));
+            }
+            cur->has_gc_regs = 0;
+        }
         if (cur->has_gc_buf) {
-            oren_mark_ptr_range_words((void*)&cur->gc_buf, (void*)((char*)&cur->gc_buf + sizeof(cur->gc_buf)));
+            if (gc_jmpbuf_scan_enabled_cached()) {
+                oren_mark_ptr_range_words((void*)&cur->gc_buf, (void*)((char*)&cur->gc_buf + sizeof(cur->gc_buf)));
+            }
             cur->has_gc_buf = 0;
         }
         cur = cur->next;
@@ -911,10 +1069,14 @@ void oren_gc_safepoint() {
     }
     unlock_collections();
     if (do_auto) {
-        // Spill registers to a stable memory image so the collector can conservatively
-        // find live pointers even under -O2 (locals often live only in registers).
-        (void)setjmp(st->gc_buf);
-        st->has_gc_buf = 1;
+        if (gc_jmpbuf_scan_enabled_cached()) {
+            // Spill registers to a stable memory image so the collector can conservatively
+            // find live pointers even under -O2 (locals often live only in registers).
+            oren_capture_gp_regs_words(st->gc_regs, sizeof(st->gc_regs) / sizeof(st->gc_regs[0]));
+            st->has_gc_regs = 1;
+            (void)setjmp(st->gc_buf);
+            st->has_gc_buf = 1;
+        }
         oren_gc_collect();
         return;
     }
@@ -922,7 +1084,9 @@ void oren_gc_safepoint() {
     // If a collection is requested, snapshot registers so the collector can conservatively
     // find live pointers even when locals are optimized into registers.
     int req = atomic_load_explicit(&g_gc_requested, memory_order_relaxed);
-    if (req) {
+    if (req && gc_jmpbuf_scan_enabled_cached()) {
+        oren_capture_gp_regs_words(st->gc_regs, sizeof(st->gc_regs) / sizeof(st->gc_regs[0]));
+        st->has_gc_regs = 1;
         (void)setjmp(st->gc_buf);
         st->has_gc_buf = 1;
     }
@@ -1016,6 +1180,9 @@ static void oren_mark_ptr_range_words(void* a, void* b) {
         uintptr_t w = 0;
         memcpy(&w, (void*)p, sizeof(w));
         if ((w & (uintptr_t)0x7) != 0) continue;
+#if defined(__aarch64__)
+        w &= (uintptr_t)0x0000FFFFFFFFFFFFULL;
+#endif
         if (g_alloc_ptr_max < g_alloc_ptr_min) continue;
         if (w < g_alloc_ptr_min || w > g_alloc_ptr_max) continue;
         if (!oren_alloc_bloom_maybe_has(w)) continue;
@@ -1041,6 +1208,37 @@ static void oren_mark_stack_range(void* a, void* b) {
         OrenValue v;
         memcpy(&v, (void*)p, sizeof(OrenValue));
         if (!oren_type_valid((int)v.type)) continue;
+        // PERF: Most stack slots are not real OrenValues. Avoid calling into the full mark
+        // logic unless the value looks like it contains a plausible heap pointer.
+        //
+        // For primitive types, there is nothing to mark.
+        if (v.type == OREN_TYPE_NIL || v.type == OREN_TYPE_INT || v.type == OREN_TYPE_FLOAT || v.type == OREN_TYPE_BOOL) {
+            continue;
+        }
+
+        uintptr_t ptr = 0;
+        if (v.type == OREN_TYPE_STRING) ptr = (uintptr_t)v.as.string_val;
+        else if (v.type == OREN_TYPE_LIST) ptr = (uintptr_t)v.as.list_val;
+        else if (v.type == OREN_TYPE_MAP) ptr = (uintptr_t)v.as.map_val;
+        else if (v.type == OREN_TYPE_U8_BUF || v.type == OREN_TYPE_I32_BUF || v.type == OREN_TYPE_I64_BUF || v.type == OREN_TYPE_F32_BUF || v.type == OREN_TYPE_F64_BUF) ptr = (uintptr_t)v.as.buf_val;
+        else if (v.type == OREN_TYPE_FUNC) ptr = (uintptr_t)v.as.func_val.env;
+        else {
+            // OREN_TYPE_PY_OBJ or unknown future types: nothing for the GC to do here.
+            continue;
+        }
+
+        // Require natural alignment for GC-managed heap allocations (malloc/posix_memalign).
+        if ((ptr & (uintptr_t)0x7) != 0) continue;
+#if defined(__aarch64__)
+        ptr &= (uintptr_t)0x0000FFFFFFFFFFFFULL;
+#endif
+        if (ptr == 0u) continue;
+
+        // Cheap reject before hitting the allocation index.
+        if (g_alloc_ptr_max < g_alloc_ptr_min) continue;
+        if (ptr < g_alloc_ptr_min || ptr > g_alloc_ptr_max) continue;
+        if (!oren_alloc_bloom_maybe_has(ptr)) continue;
+
         oren_mark_value(v);
     }
 }

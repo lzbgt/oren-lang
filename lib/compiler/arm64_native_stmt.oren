@@ -29,6 +29,7 @@ fn push_u32_be(buf, n) { return core.push_u32_be(buf, n) }
 fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
 fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
 fn insn_add_reg(rd, rn, rm) { return core.insn_add_reg(rd, rn, rm) }
+fn insn_and_reg(rd, rn, rm) { return core.insn_and_reg(rd, rn, rm) }
 fn insn_b(off) { return core.insn_b(off) }
 fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
 fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
@@ -57,6 +58,40 @@ fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, va
 // Delegate expression compilation to the expr module.
 fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) }
 fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
+
+fn native_emit_gc_safepoint_throttled(ctx, loop_base_stack, tick_mask) {
+    // PERF:
+    // Calling `oren_gc_safepoint()` on every loop iteration dominates lexer/parser loops.
+    // Emit a cheap counter+mask gate so we only call into the runtime periodically.
+    //
+    // Contract:
+    // - Caller must ensure a u64 tick slot exists at loop_base_stack (offset 0 when SP==base).
+    // - Uses X9/X10 as scratch (caller-saved).
+    //
+    // tick = tick + 1; if (tick & mask) != 0 => skip; else call safepoint.
+    var tick_off = ctx["stack_size"] - loop_base_stack
+    // Load tick into X9.
+    emit_ldr_reg_sp_any(ctx, 9, tick_off)
+    // tick++
+    push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
+    emit_str_reg_sp_any(ctx, 9, tick_off)
+    // if ((tick & mask) != 0) goto skip
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
+    push_u32_le(ctx["code"], insn_and_reg(9, 9, 10))
+    push_u32_le(ctx["code"], insn_cmp_reg(9, 31))
+    var jskip_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.ne skip
+
+    var bl_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_gc_safepoint"})
+
+    var after_call = bytes_len(ctx["code"])
+    var off = (after_call - jskip_pos) / 4
+    // cond=1 is NE in the AArch64 condition-code encoding.
+    set_u32_le(ctx["code"], jskip_pos, insn_b_cond(off, 1))
+    return nil
+}
 
 fn native_compile_stmt(ctx, stmt) {
     if stmt["type"] == "Spawn" {
@@ -596,8 +631,15 @@ fn native_compile_stmt(ctx, stmt) {
 
         var outer_base_stack = ctx["stack_size"]
         if stmt["init"] != nil { native_compile_stmt(ctx, stmt["init"]) }
-        var loop_base_stack = ctx["stack_size"]
 
+        // GC tick local for throttling safepoints (u64 at SP+0 when at loop base).
+        // Allocate once for the whole loop scope.
+        push_u32_le(ctx["code"], insn_sub_sp(16))
+        ctx["stack_size"] = ctx["stack_size"] + 16
+        push_u32_le(ctx["code"], insn_movz(9, 0))
+        emit_str_reg_sp_any(ctx, 9, 0)
+
+        var loop_base_stack = ctx["stack_size"]
         var start_pos = bytes_len(ctx["code"])
 
         var prev_loop = ctx["loop_ctx"]
@@ -614,12 +656,9 @@ fn native_compile_stmt(ctx, stmt) {
         var jump_end_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
 
-        // GC safepoint on loop entry (parity with C backend).
-        // Native compiler builds can run very long loops in the lexer/parser; without
-        // safepoints, OREN_GC_AUTO cannot initiate collections and RSS can balloon.
-        var bl_sp = bytes_len(ctx["code"])
-        push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_sp, "name": "oren_gc_safepoint"})
+        // GC safepoint on loop entry (parity with C backend), throttled for performance.
+        // Call once per 256 iterations by default.
+        native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 255)
 
         native_compile_stmt(ctx, stmt["body"])
 
@@ -669,6 +708,7 @@ fn native_compile_stmt(ctx, stmt) {
         ctx["loop_ctx"] = prev_loop
 
         // `for` introduces an init-scope like a block: pop init locals after the loop.
+        // loop_base_stack includes the GC tick local.
         var init_delta = loop_base_stack - outer_base_stack
         if init_delta > 0 {
             push_u32_le(ctx["code"], insn_add_sp(init_delta))
@@ -825,6 +865,12 @@ fn native_compile_stmt(ctx, stmt) {
     }
     
     if stmt["type"] == "While" {
+        // GC tick local for throttling safepoints (u64 at SP+0 when at loop base).
+        push_u32_le(ctx["code"], insn_sub_sp(16))
+        ctx["stack_size"] = ctx["stack_size"] + 16
+        push_u32_le(ctx["code"], insn_movz(9, 0))
+        emit_str_reg_sp_any(ctx, 9, 0)
+
         var loop_base_stack = ctx["stack_size"]
         var start_pos = bytes_len(ctx["code"])
 
@@ -839,10 +885,8 @@ fn native_compile_stmt(ctx, stmt) {
         var jump_end_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0) 
 
-        // GC safepoint on loop entry (parity with C backend).
-        var bl_sp = bytes_len(ctx["code"])
-        push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_sp, "name": "oren_gc_safepoint"})
+        // GC safepoint on loop entry (parity with C backend), throttled for performance.
+        native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 255)
         
         native_compile_stmt(ctx, stmt["body"])
 
@@ -881,6 +925,10 @@ fn native_compile_stmt(ctx, stmt) {
 
         // Pop loop context
         ctx["loop_ctx"] = prev_loop
+
+        // Pop GC tick local
+        push_u32_le(ctx["code"], insn_add_sp(16))
+        ctx["stack_size"] = ctx["stack_size"] - 16
         
         return nil
     }

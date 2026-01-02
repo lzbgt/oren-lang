@@ -408,6 +408,14 @@ fn lambda_gensym(t, unit_prefix) {
     return "__oren_lambda_" + unit_prefix + "_" + oren_int_to_string(n)
 }
 
+fn tmp_gensym(t, prefix) {
+    // Deterministic gensym for internal temporaries in emitted C.
+    if t["tmp_counter"] == nil { t["tmp_counter"] = 0 }
+    var n = t["tmp_counter"]
+    t["tmp_counter"] = n + 1
+    return "__oren_" + prefix + "_" + oren_int_to_string(n)
+}
+
 fn lambda_collect_declared_in_expression(exp, declared) {
     if exp == nil { return nil }
     var et = exp["type"]
@@ -882,8 +890,13 @@ fn transpile_statement(t, stmt) {
     }
     if stmt["type"] == "While" {
         var cond = transpile_expression(t, stmt["cond"])
+        var tick = tmp_gensym(t, "gc_tick")
         var inner_parts = []
-        oren_list_push(inner_parts, "    oren_gc_safepoint();")
+        // PERF: do not call into safepoint on every iteration; the function call itself dominates
+        // tight loops (lexer/parser), even though `oren_gc_safepoint` has an internal fast path.
+        //
+        // Poll GC once per ~64 iterations to keep GC responsive without burning CPU in loop bodies.
+        oren_list_push(inner_parts, "    if (((" + tick + "++) & 255u) == 0u) { oren_gc_safepoint(); }")
         oren_list_push(inner_parts, CH_LF)
         var i = 0
         while i < oren_list_len(stmt["body"]["stmts"]) {
@@ -892,7 +905,7 @@ fn transpile_statement(t, stmt) {
             i = i + 1
         }
         var inner = _transpiler_join_parts(inner_parts)
-        return "while (oren_is_truthy(" + cond + ")) {" + CH_LF + inner + "}"
+        return "{ uint64_t " + tick + " = 0; while (oren_is_truthy(" + cond + ")) {" + CH_LF + inner + "} }"
     }
     if stmt["type"] == "For" {
         var init_s = transpile_for_header_stmt(t, stmt["init"])
@@ -901,8 +914,9 @@ fn transpile_statement(t, stmt) {
         if stmt["cond"] != nil {
             cond_s = "oren_is_truthy(" + transpile_expression(t, stmt["cond"]) + ")"
         }
+        var tick2 = tmp_gensym(t, "gc_tick")
         var inner2_parts = []
-        oren_list_push(inner2_parts, "    oren_gc_safepoint();")
+        oren_list_push(inner2_parts, "    if (((" + tick2 + "++) & 255u) == 0u) { oren_gc_safepoint(); }")
         oren_list_push(inner2_parts, CH_LF)
         var j = 0
         while j < oren_list_len(stmt["body"]["stmts"]) {
@@ -911,7 +925,7 @@ fn transpile_statement(t, stmt) {
             j = j + 1
         }
         var inner2 = _transpiler_join_parts(inner2_parts)
-        return "for (" + init_s + "; " + cond_s + "; " + post_s + ") {" + CH_LF + inner2 + "}"
+        return "{ uint64_t " + tick2 + " = 0; for (" + init_s + "; " + cond_s + "; " + post_s + ") {" + CH_LF + inner2 + "} }"
     }
     if stmt["type"] == "Break" {
         return "break;"

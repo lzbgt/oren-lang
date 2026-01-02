@@ -57,7 +57,13 @@ fn expect_peek_ident_like(p, what) { return core.expect_peek_ident_like(p, what)
 fn parse_type_name_after_colon(p) { return core.parse_type_name_after_colon(p) }
 fn parse_type_name_after_for(p) { return core.parse_type_name_after_for(p) }
 
+// GC stability for self-hosting stage2:
+// Keep the parser state reachable via an always-rooted global while parsing, so conservative
+// scanning does not need to rely on register spilling behavior under -O2.
+var __oren_gc_root_parser = nil
+
 fn parse_program(p) {
+    __oren_gc_root_parser = p
     var prog = ast.new_program()
     while p["cur"]["type"] != token.TOK_EOF {
         // Allow doc comments and attributes to appear in either order before a declaration:
@@ -129,6 +135,7 @@ fn parse_program(p) {
     }
     // Carry trait declarations for tooling/metadata (no runtime meaning in v0).
     prog["traits"] = p["traits"]
+    __oren_gc_root_parser = nil
     return prog
 }
 

@@ -201,10 +201,10 @@ func main() {
 				return
 			}
 
-			args := []string{"-o", outFilename, cFilename, "lib/runtime.c", "lib/runtime_buf.c", "-Ilib", "-pthread"}
-			if noGC {
-				args = append(args, "-DOREN_NO_GC")
-			}
+				args := []string{"-o", outFilename, cFilename, "lib/runtime.c", "lib/runtime_buf.c", "-Ilib", "-pthread"}
+				if noGC {
+					args = append(args, "-DOREN_NO_GC")
+				}
 
 			if enablePython {
 				args = append(args, "-DOREN_ENABLE_PYTHON")
