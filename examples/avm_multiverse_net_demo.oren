@@ -9,7 +9,22 @@ fn main() {
     // This is the “direct child run” model: the child runs as an in-process VM instance,
     // not via a relay protocol between universes.
 
-    var child_obc = oren_read_bytes("build/ex_multiverse_child_net.obc")
+    // NOTE: In AVM today, `oren_read_bytes` returns the legacy `list<int 0..255>` shape.
+    // Nested-universe execution requires true BYTES, so pack the list into a bytes object.
+    var child_list = oren_read_bytes("build/ex_multiverse_child_net.obc")
+    if oren_is_err(child_list) {
+        print("FAIL: read child obc")
+        var em = oren_err_msg(child_list)
+        if em != nil { print(em) }
+        oren_exit(1)
+    }
+    var child_obc = oren_bytes_pack(child_list)
+    if oren_is_err(child_obc) {
+        print("FAIL: bytes_pack(child_obc)")
+        var em2 = oren_err_msg(child_obc)
+        if em2 != nil { print(em2) }
+        oren_exit(1)
+    }
 
     // Child must be allowed CORE (0) + NET (4).
     var allowed = (1 << 0) + (1 << 4)
@@ -26,6 +41,12 @@ fn main() {
     }
 
     var r = oren_avm_run_obc_bytes(child_obc, cfg)
+    if oren_is_err(r) {
+        print("FAIL: avm.run_obc_bytes")
+        var em3 = oren_err_msg(r)
+        if em3 != nil { print(em3) }
+        oren_exit(1)
+    }
     var exit_code = r["exit_code"]
     var result = r["result"]
     var log_len = oren_bytes_len(r["record_log"])
@@ -33,6 +54,15 @@ fn main() {
     print("child exit_code=" + oren_int_to_string(exit_code))
     print("child result=" + result)
     print("child log_len=" + oren_int_to_string(log_len))
+
+    if exit_code != 0 {
+        print("FAIL: child exit_code != 0")
+        oren_exit(1)
+    }
+    if result != "ok" {
+        print("FAIL: unexpected child result")
+        oren_exit(1)
+    }
 
     oren_set_result({"exit_code": exit_code, "result": result, "log_len": log_len})
 }

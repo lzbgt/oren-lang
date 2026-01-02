@@ -7727,42 +7727,40 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                     return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                 }
 
-                AvmMap* out = (AvmMap*)malloc(sizeof(AvmMap));
+                // Return a deterministic map.
+                //
+                // Important: AVM map lookups use a deterministic sorted-key representation
+                // (binary search). Build the map via `avm_map_set_sorted`, not by manually
+                // populating arrays in arbitrary order.
+                AvmMap* out = (AvmMap*)avm_heap_malloc_k(sizeof(AvmMap), AVM_ALLOC_KIND_MAP);
                 if (!out) {
                     if (child_argv) { for (int i = 0; i < child_argc; i++) if (child_argv[i]) free(child_argv[i]); free(child_argv); }
                     avm_free(child);
                     return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                 }
-                out->count = 6;
-                out->capacity = 8;
-                out->keys = (AvmValue*)malloc(sizeof(AvmValue) * out->capacity);
-                out->values = (AvmValue*)malloc(sizeof(AvmValue) * out->capacity);
-                if (!out->keys || !out->values) {
-                    if (out->keys) free(out->keys);
-                    if (out->values) free(out->values);
-                    free(out);
+                out->count = 0;
+                out->capacity = 0;
+                out->keys = NULL;
+                out->values = NULL;
+
+                int ok = 1;
+                ok = ok && avm_map_set_sorted(out, avm_string("exit_code"), avm_int((int64_t)child->exit_code));
+                ok = ok && avm_map_set_sorted(out, avm_string("result_hash"), v_rh);
+                ok = ok && avm_map_set_sorted(out, avm_string("state_hash"), v_sh);
+                AvmValue v_log;
+                v_log.type = AVM_VAL_BYTES;
+                v_log.as.b = child->record_log_bytes;
+                ok = ok && avm_map_set_sorted(out, avm_string("record_log"), avm_clone_value(v_log));
+                ok = ok && avm_map_set_sorted(out, avm_string("last_error"), avm_clone_value(child->last_error));
+                // v_vfs was constructed in the parent VM heap; keep it directly to avoid
+                // double-allocation and to keep the snapshot reachable.
+                ok = ok && avm_map_set_sorted(out, avm_string("vfs_snapshot"), v_vfs);
+                ok = ok && avm_map_set_sorted(out, avm_string("result"), child->has_result_value ? avm_clone_value(child->result_value) : avm_nil());
+                if (!ok) {
                     if (child_argv) { for (int i = 0; i < child_argc; i++) if (child_argv[i]) free(child_argv[i]); free(child_argv); }
                     avm_free(child);
                     return avm_err_domop(AVM_ERR_INTERNAL, "oom", domain, op);
                 }
-
-                out->keys[0] = avm_string("exit_code");
-                out->values[0] = avm_int((int64_t)child->exit_code);
-                out->keys[1] = avm_string("result_hash");
-                out->values[1] = v_rh;
-                out->keys[2] = avm_string("state_hash");
-                out->values[2] = v_sh;
-                out->keys[3] = avm_string("record_log");
-                AvmValue v_log;
-                v_log.type = AVM_VAL_BYTES;
-                v_log.as.b = child->record_log_bytes;
-                out->values[3] = avm_clone_value(v_log);
-                out->keys[4] = avm_string("last_error");
-                out->values[4] = avm_clone_value(child->last_error);
-                out->keys[5] = avm_string("vfs_snapshot");
-                // v_vfs was constructed in the parent VM heap; keep it directly to avoid
-                // double-allocation and to keep the snapshot reachable.
-                out->values[5] = v_vfs;
 
                 AvmValue ret; ret.type = AVM_VAL_MAP; ret.as.m = out;
                 if (child_argv) { for (int i = 0; i < child_argc; i++) if (child_argv[i]) free(child_argv[i]); free(child_argv); child->argv = NULL; child->argc = 0; }

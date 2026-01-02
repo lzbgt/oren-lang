@@ -294,6 +294,26 @@ When calling `oren_avm_run_obc_bytes(child_obc_bytes, cfg_map)`, the following `
   - `proc_fixtures: bytes` with magic `AVMPRC01` (cmd→exit_code table)
   - `net_fixtures: bytes` with magic `AVMNET01` (url→body table)
 
+Notes (important, implementation reality):
+
+- **Capability nesting is enforced:** if the parent universe is restricted (deny-by-default with an allowlist),
+  the child’s requested `allowed_domains` must be a **subset** of the parent’s allow mask.
+  - Example: if the child needs `NET` (domain 4), the parent must also allow domain 4 (otherwise the parent cannot delegate it).
+- **Input type matters:** `oren_avm_run_obc_bytes` requires `child_obc_bytes` to be true `BYTES`.
+  - `oren_read_bytes(path)` in AVM is legacy and returns `list<int 0..255>`; pack it with `oren_bytes_pack(...)` before calling `oren_avm_run_obc_bytes`.
+
+### Return shape (today)
+
+On success, `oren_avm_run_obc_bytes(...)` returns a `map` with these keys:
+
+- `exit_code: int`
+- `result_hash: bytes` (32 bytes)
+- `state_hash: bytes` (32 bytes)
+- `record_log: bytes` (magic `AVMLOG01`)
+- `last_error: err | nil`
+- `vfs_snapshot: bytes | nil` (magic `AVMVFS01` when present)
+- `result: any | nil` (child `oren_set_result(...)` value)
+
 ## 7) Top emergency tasks (prioritized)
 
 These are the most urgent tasks to make “multiverse” real (not speculative).

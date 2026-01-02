@@ -700,8 +700,7 @@ fn _ml_parse_module_bucket_mem(bucket) {
     //
     // Contract: returns a structured result so the parent can surface errors deterministically.
     // This is only used when `spawn` is backed by threads (shared memory).
-    if bucket == nil { return {"ok": true, "mods": []} }
-    var out = []
+    if bucket == nil { return {"ok": true, "count": 0} }
     var bi = 0
     var trace = (oren_env("OREN_PARSE_WORKER_TRACE") != nil)
     while bi < oren_list_len(bucket) {
@@ -716,10 +715,17 @@ fn _ml_parse_module_bucket_mem(bucket) {
         if rr["ok"] != true {
             return {"ok": false, "path": full, "err": rr["err"], "errors": rr["errors"]}
         }
-        oren_list_push(out, {"path": full, "prog": rr["prog"]})
+
+        // Avoid returning pointer-heavy ASTs through join results.
+        // In thread mode (shared memory), attach directly to the module record.
+        var mrec = MODULES[full]
+        if mrec == nil {
+            return {"ok": false, "path": full, "err": "internal: module record missing", "errors": []}
+        }
+        mrec["program"] = rr["prog"]
         bi = bi + 1
     }
-    return {"ok": true, "mods": out}
+    return {"ok": true, "count": oren_list_len(bucket)}
 }
 
 fn _ml_parse_program_for_module(full, config) {
@@ -1114,23 +1120,7 @@ fn _ml_parse_discovered_modules_parallel(config) {
                             }
                         }
                     } else {
-                        // Attach parsed programs directly to module records (shared memory).
-                        var mods = res0["mods"]
-                        if mods != nil {
-                            var mi2 = 0
-                            while mi2 < oren_list_len(mods) {
-                                var e2 = mods[mi2]
-                                var pth = e2["path"]
-                                var prg = e2["prog"]
-                                if pth != nil {
-                                    var mrec = MODULES[pth]
-                                    if mrec != nil {
-                                        mrec["program"] = prg
-                                    }
-                                }
-                                mi2 = mi2 + 1
-                            }
-                        }
+                        // Success: worker attached module programs in-place.
                     }
                 } else {
                     oren_list_push(next_remaining, item0)

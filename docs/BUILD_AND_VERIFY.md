@@ -232,6 +232,22 @@ If you prefer local verification, install QEMU:
 brew install qemu
 ```
 
+### Option C (repo standard): persistent Linux toolchain container (Docker)
+
+This repo also supports running the curated suite inside the already-running Ubuntu toolchain container.
+This is the fastest way to validate Linux behavior from a macOS dev host without provisioning a VM.
+
+Repo helper:
+
+```bash
+tools/oretest_linux_docker.sh
+```
+
+Notes (rolling, important):
+
+- The docker runner syncs **tracked** files into `/work/repo` via `git ls-files` (it does not copy your `.git` dir).
+- Do not copy host-built binaries into the container (`./oren`, `./oretest`, `./avm`): they are not runnable on Linux and can also cause Make to incorrectly treat targets as up-to-date.
+
 ### Troubleshooting
 *   **SSH permissions**: If `scp`/`ssh` fails with "Permission denied", ensure your SSH key is installed (or the host allows password auth) and that you are using the correct user/host.
 *   **Architecture**: Ensure you built with `--target linux`. Run `file build/linux_hello` on macOS to confirm it says `ELF 64-bit LSB executable, ARM aarch64`.

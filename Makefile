@@ -282,12 +282,13 @@ verify: clean oren_stage2
 # --- AVM (experimental) ---
 
 AVM_C_SRC := $(shell find lib/avm -maxdepth 1 -name '*.c' -print | sort) third_party/tweetnacl/tweetnacl.c
+AVM_INC := $(shell find lib/avm -maxdepth 1 -name '*.inc' -print | sort)
 
 build/avm_root_pubkey.inc: tools/gen_avm_root_pubkeys_inc.sh
 	@mkdir -p build
 	@tools/gen_avm_root_pubkeys_inc.sh > build/avm_root_pubkey.inc
 
-avm: $(AVM_C_SRC) build/avm_root_pubkey.inc
+avm: $(AVM_C_SRC) $(AVM_INC) build/avm_root_pubkey.inc
 	@echo "Building AVM..."
 	@mkdir -p build
 	@$(CC) $(AVM_CFLAGS) $(AVM_DETERMINISM_CFLAGS) -I lib/avm -I build -o avm $(AVM_C_SRC)
@@ -353,7 +354,7 @@ examples-test-inner: oren avm
 	@# 6) AVM multiverse demo (parent runs child with VirtualNET fixtures)
 	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/avm_fixtures/multiverse_child_net.oren --backend bytecode -o build/ex_multiverse_child_net.obc
 	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/avm_multiverse_net_demo.oren --backend bytecode -o build/ex_avm_multiverse_net_demo.obc
-	@$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,1,8,6" --fs-allow-prefixes "build/" --fs-backend host build/ex_avm_multiverse_net_demo.obc >/dev/null
+	@$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,1,4,6,8" --fs-allow-prefixes "build/" --fs-backend host build/ex_avm_multiverse_net_demo.obc >/dev/null
 	@echo "Examples OK"
 
 # Verify `.obc` portability across AVM hosts (rolling).
