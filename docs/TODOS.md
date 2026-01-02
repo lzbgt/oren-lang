@@ -25,9 +25,12 @@ Rules for this tracker:
    - Hard gate (non-negotiable for rolling):
      - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
      - RSS should stay **< 300 MB** for the compilation process.
-   - High-leverage path (avoid “parameter tuning”):
-     - deterministic parallel compilation pipeline (module graph scheduling + cache hits)
-     - eliminate global/shared mutable state that prevents safe parallelism (or centralize it behind explicit concurrency primitives)
+	   - High-leverage path (avoid “parameter tuning”):
+	     - deterministic parallel compilation pipeline (module graph scheduling + cache hits)
+	     - eliminate global/shared mutable state that prevents safe parallelism (or centralize it behind explicit concurrency primitives)
+	     - reduce compiler heap churn by moving hot internal data away from pointer-heavy `map/list` graphs:
+	       - prefer typed buffers (`u8_buf`) + compact encodings for AST/IR/module artifacts (e.g. `astbin` / CBOR-like) when crossing worker boundaries or caching
+	       - keep the in-process “fast path” zero-copy where possible (shared-memory attach instead of returning large graphs through `join`)
 
 1) **Tier‑1 native support parity (arm64 + x86_64; macOS/Linux/Windows)** (L)
    - Keep native semantics aligned across platforms:
