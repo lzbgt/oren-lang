@@ -9,11 +9,11 @@ fn oren_func(code_ptr, env_ptr) {
     var obj = malloc(16)
     if obj == 0 { exit(320) }
     ptr_set(obj, code_ptr)
-    ptr_set(obj + 8, env_ptr)
+    ptr_set(iadd(obj, 8), env_ptr)
     // Update kind to 6 (FUNC) so GC can traverse env_ptr.
     var node = oren_find_node(obj)
     if node != 0 {
-        ptr_set(node + 16, 6)
+        ptr_set(iadd(node, 16), 6)
     }
     return obj
 }
@@ -34,7 +34,7 @@ fn oren_spawn_call_list(fn_obj, args_list) {
     if rv != 0 { exit(322) }
 
     var rfd = ptr_get(pipe_buf)
-    var wfd = ptr_get(pipe_buf + 8)
+    var wfd = ptr_get(iadd(pipe_buf, 8))
 
     // IMPORTANT (fork hygiene):
     // Use `oren_fork()` (not raw `sys_fork()`) so the child resets any inherited
@@ -57,7 +57,7 @@ fn oren_spawn_call_list(fn_obj, args_list) {
                 print("  fn_obj=" + oren_int_to_string(fn_obj))
                 if fn_obj != 0 {
                     print("  fn.code_ptr=" + oren_int_to_string(ptr_get(fn_obj)))
-                    print("  fn.env_ptr=" + oren_int_to_string(ptr_get(fn_obj + 8)))
+                    print("  fn.env_ptr=" + oren_int_to_string(ptr_get(iadd(fn_obj, 8))))
                 }
                 print("  args_list=" + oren_int_to_string(args_list))
                 print("  args_len=" + oren_int_to_string(oren_list_len(args_list)))
@@ -98,9 +98,9 @@ fn oren_spawn_call_list(fn_obj, args_list) {
     var handle = malloc(32)
     if handle == 0 { exit(324) }
     ptr_set(handle, pid)
-    ptr_set(handle + 8, rfd)
-    ptr_set(handle + 16, 0) // got
-    ptr_set(handle + 24, 0) // result_buf
+    ptr_set(iadd(handle, 8), rfd)
+    ptr_set(iadd(handle, 16), 0) // got
+    ptr_set(iadd(handle, 24), 0) // result_buf
     return handle
 }
 
@@ -134,16 +134,16 @@ fn __oren_win_spawn_thread_entry(arg_ptr) {
     if dbg != 0 {
         if ptr_get_byte(dbg) != 0 { dbg_on = true }
     }
-    var fn_obj = ptr_get(arg_ptr + 0)
-    var args_list = ptr_get(arg_ptr + 8)
-    var out_ptr = ptr_get(arg_ptr + 16)
+    var fn_obj = ptr_get(iadd(arg_ptr, 0))
+    var args_list = ptr_get(iadd(arg_ptr, 8))
+    var out_ptr = ptr_get(iadd(arg_ptr, 16))
     if dbg_on {
         print("spawn debug (win thread):")
         print("  arg_ptr=" + oren_int_to_string(arg_ptr))
         print("  fn_obj=" + oren_int_to_string(fn_obj))
         if fn_obj != 0 {
             print("  fn.code_ptr=" + oren_int_to_string(ptr_get(fn_obj)))
-            print("  fn.env_ptr=" + oren_int_to_string(ptr_get(fn_obj + 8)))
+            print("  fn.env_ptr=" + oren_int_to_string(ptr_get(iadd(fn_obj, 8))))
         }
         print("  args_list=" + oren_int_to_string(args_list))
         if args_list != 0 {
@@ -161,7 +161,7 @@ fn __oren_win_spawn_thread_entry(arg_ptr) {
     //
     // In detach mode, the joiner closes its handle and drops the join-handle object;
     // the thread cleans up its own arg/result allocations before returning.
-    var auto_free = ptr_get(arg_ptr + 24)
+    var auto_free = ptr_get(iadd(arg_ptr, 24))
     if auto_free != 0 {
         if out_ptr != 0 { free(out_ptr) }
         free(arg_ptr)
@@ -177,7 +177,7 @@ fn oren_alloc_struct(size) {
     // Update kind to 4 (STRUCT)
     var node = oren_find_node(ptr)
     if node != 0 {
-        ptr_set(node + 16, 4)
+        ptr_set(iadd(node, 16), 4)
     }
     return ptr
 }

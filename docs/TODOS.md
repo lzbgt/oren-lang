@@ -1,6 +1,6 @@
 # Active Tracker (Succinct)
 
-**Last updated:** 2026-01-01
+**Last updated:** 2026-01-02
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order.
 
@@ -28,15 +28,17 @@ Rules for this tracker:
      - callables/closures/varargs + deterministic failure modes (`OREN_DIAG` + stack traces)
      - container ops (list/map/buf) with identical semantics across arch/OS
      - concurrency primitives on Windows (no fork/pipe assumptions): `spawn`, `oren_join(_timeout)`, and a path to cooperative cancellation
-   - Remaining gaps (active):
+	   - Remaining gaps (active):
      - Windows: complete a coherent PROC story (pid/kill/wait semantics or define a cross-OS `sys_spawn` boundary).
        - Current blocker: `oren_system(_timeout)` on `x64-windows` fails in the remote gate (`sys_win_createprocess` returns `-998` / `GetLastError()==998` = `ERROR_NOACCESS`).
          - Tier‑1 fixture currently *soft-skips* the failure on Windows to keep the remote gate usable; remove this skip once CreateProcess wiring is correct.
-     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
-   - References:
-     - `docs/REMOTE_X64_ENV.md`
-     - `docs/TEST_SYSTEM.md`
-     - `docs/LANGUAGE_FEATURE_MATRIX.md`
+	     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
+	   - **done (rolling, 2026-01-02):** fix POSIX `spawn`/`join` handle correctness by using byte-accurate pointer offsets (`iadd(...)`) instead of `+` in runtime metadata structs (prevents fork+pipe returning corrupted results on Linux).
+	   - **done (rolling, 2026-01-02):** add native `oren_set_result` / `oren_get_result` surface and pin result values as GC roots (parity with C backend + AVM job orchestration).
+	   - References:
+	     - `docs/REMOTE_X64_ENV.md`
+	     - `docs/TEST_SYSTEM.md`
+	     - `docs/LANGUAGE_FEATURE_MATRIX.md`
 
 2) **Determinism + replay (native + AVM)** (L)
    - MANTIS requires deterministic replay and traceability (`mantis.md` “Observability & reproducibility”).
@@ -78,10 +80,11 @@ Rules for this tracker:
 
 6) **AVM in AVM + compiler-in-AVM (deterministic toolchain in a capsule)** (M)
    - Make `.oren → .obc` compilation runnable inside AVM with budgets and locked capability surfaces.
-   - References:
-     - `docs/AVM_MULTIVERSE.md`
-     - `docs/AVM_SPEC_V1.md`
-     - `docs/SELF_HOSTING.md`
+	   - References:
+	     - `docs/AVM_MULTIVERSE.md`
+	     - `docs/AVM_SPEC_V1.md`
+	     - `docs/SELF_HOSTING.md`
+	   - **done (rolling, 2026-01-02):** native backend bridge for `oren_avm_run_obc_bytes(child_obc_bytes, cfg)` (runs `./avm` + returns record log bytes + hashes; `avm` run JSON now includes selected result for orchestration).
 
 7) **Stdlib distribution + module resolution (native + AVM)** (M)
    - One coherent story for end users:
