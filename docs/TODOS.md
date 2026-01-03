@@ -55,8 +55,8 @@ Rules for this tracker:
 		       - `OREN_NATIVE_RUNTIME_EXPANDED=...` troubleshooting fast-path (skip include expansion)
 		       - `OREN_NATIVE_RUNTIME_ASTBIN=...` troubleshooting fast-path (force a specific astbin file)
 		       - Status (rolling, 2026-01-03):
-		         - Implemented: arm64 + x86_64 native backend runtime object cache (non-capsule, non-debug) so “compile one file” can skip recompiling `lib/runtime_native.oren` on cache hit.
-		         - Remaining: integrate capsule/debug safely; decide how to keep binaries small (DCE/prune strategy) without reintroducing per-build runtime compilation.
+		         - Implemented: arm64 + x86_64 native backend runtime object cache (default-on for non-capsule builds) so “compile one file” can skip recompiling `lib/runtime_native.oren` on cache hit.
+		         - Remaining: integrate capsule safely; consider persisting runtime debug line mapping (optional), and decide how to keep binaries small (DCE/prune strategy) without reintroducing per-build runtime compilation.
 		       - (capsule) ensure `native_capsule_sys_*` hooks are emitted + kept only when `--capsule` is enabled (non-capsule builds should not pay this cost)
 
 2) **Determinism + replay (native + AVM)** (L)

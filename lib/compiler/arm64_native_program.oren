@@ -165,6 +165,16 @@ fn _rtobj_decode_int_enc(x_enc) {
     return x_enc - 1
 }
 
+fn _arm64_sym_entries_push_unique(sym_seen, sym_entries, off, name) {
+    if sym_seen == nil || sym_entries == nil { return nil }
+    if off == nil { return nil }
+    if name == nil || name == "" { return nil }
+    if sym_seen[name] != nil { return nil }
+    sym_seen[name] = true
+    oren_list_push(sym_entries, {"off": off, "name": name})
+    return nil
+}
+
 fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
     if ctx == nil || meta == nil { return false }
     if ctx["errors"] == nil { ctx["errors"] = [] }
@@ -333,6 +343,13 @@ fn _arm64_build_runtime_obj(platform, runtime_path) {
     // - data_tail_u8 (u8_buf)  // after the shared prefix slot
     var linked0 = {"statements": [], "aliases": {}, "type_ns": {}}
     var ctx = _arm64_new_ctx(linked0, platform)
+    // Debug builds expect a `debug_info` table to exist so statement compilation can
+    // append function ranges deterministically. The runtime object cache currently does
+    // not persist runtime debug info, but we still must keep the compiler codegen path
+    // safe (no nil indexing panics) when `--debug` is enabled.
+    if platform != nil && platform["debug"] == true {
+        ctx["debug_info"] = {"funcs": []}
+    }
 
     // IMPORTANT (native backend self-hosting):
     // When the compiler runs under the native runtime, `nil` is represented as 0.
@@ -453,8 +470,6 @@ fn _arm64_build_runtime_obj(platform, runtime_path) {
 fn _arm64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
     if ctx == nil { return false }
     if rtobj.rtobj_cache_enabled(platform) != true { return false }
-    // Conservative: skip cache for debug builds until debug symbol story is integrated.
-    if platform != nil && platform["debug"] == true { return false }
 
     var trace = rtobj.rtobj_trace_enabled()
     var t0 = 0
@@ -834,7 +849,6 @@ fn native_compile_program_arm64(linked, platform) {
     if trace { t_bun0 = oren_time_now_ns() }
     var runtime_path = "lib/runtime_native.oren"
     var used_rtobj = false
-    var runtime_prog = nil
     var runtime_stmts = []
     var user_stmts = []
 
@@ -846,7 +860,6 @@ fn native_compile_program_arm64(linked, platform) {
     if used_rtobj != true {
         bun = bundle.prepare_native_runtime_bundle(ctx, "arm64", linked, platform, {"runtime_path": runtime_path, "inject_runtime": true})
         if bun == nil { return ctx }
-        runtime_prog = bun["runtime_prog"]
         runtime_stmts = bun["runtime_stmts"]
         user_stmts = bun["user_stmts"]
     } else {
@@ -1065,68 +1078,29 @@ fn native_compile_program_arm64(linked, platform) {
 
         // Build list of {off:int, name:string} and sort descending by off.
         // This ensures resolve_symbol picks the closest preceding function.
+        //
+        // NOTE (rtobj + debug):
+        // When we use a cached compiled runtime object, we do not have a runtime AST program to
+        // scan here. Instead, use the final `ctx["functions"]` map as the source of truth.
         var sym_entries = []
+        var sym_seen = {}
 
-        // Pseudo-symbols for unlabeled code regions:
-        // - entry stub at offset 0
-        // - top-level statement lowering (when present)
-        oren_list_push(sym_entries, {"off": 0, "name": "__entry_stub__"})
+        // Pseudo-symbol for the unlabeled entry stub.
+        _arm64_sym_entries_push_unique(sym_seen, sym_entries, 0, "__entry_stub__")
+
+        // Prefer an explicit __top_level__ entry if present.
         var top_off = ctx["functions"]["__top_level__"]
-        if top_off != nil {
-            oren_list_push(sym_entries, {"off": top_off, "name": "__top_level__"})
-        }
+        if top_off != nil { _arm64_sym_entries_push_unique(sym_seen, sym_entries, top_off, "__top_level__") }
 
-        // Runtime functions
+        // All compiled symbols (runtime + user + wrappers).
         var j = 0
-        while j < oren_list_len(runtime_prog["statements"]) {
-            var st = runtime_prog["statements"][j]
-            if st["type"] == "Function" {
-                var name = st["name"]
-                var off = ctx["functions"][name]
-                if off != nil {
-                    oren_list_push(sym_entries, {"off": off, "name": name})
-                }
-            }
-            j = j + 1
-        }
-
-        // User functions
-        j = 0
-        while j < oren_list_len(user_stmts) {
-            var st2 = user_stmts[j]
-            if st2["type"] == "Function" {
-                var name2 = st2["name"]
-                var off2 = ctx["functions"][name2]
-                if off2 == nil {
-                    print("codegen error: function offset not found for " + name2)
-                } else {
-                    oren_list_push(sym_entries, {"off": off2, "name": name2})
-                }
-            }
-            j = j + 1
-        }
-
-        // Wrapper symbols for first-class named functions (deterministic: driven by func_decl_order).
-        j = 0
-        while j < oren_list_len(ctx["func_decl_order"]) {
-            var fname = ctx["func_decl_order"][j]
-            var wname = "__oren_fnwrap_" + fname
-            var woff = ctx["functions"][wname]
-            if woff != nil {
-                oren_list_push(sym_entries, {"off": woff, "name": wname})
-            }
-            j = j + 1
-        }
-
-        // Lambda wrapper symbols (deterministic: driven by lambda_defs collection order).
-        j = 0
-        while j < oren_list_len(ctx["lambda_defs"]) {
-            var def = ctx["lambda_defs"][j]
-            var lname = def["name"]
-            var loff = ctx["functions"][lname]
-            if loff != nil {
-                oren_list_push(sym_entries, {"off": loff, "name": lname})
-            }
+        var pair = [nil, nil]
+        while 1 {
+            var ok = oren_iter_next_entry(ctx["functions"], j, pair)
+            if ok == 0 { break }
+            var nm = pair[0]
+            var off = pair[1]
+            _arm64_sym_entries_push_unique(sym_seen, sym_entries, off, nm)
             j = j + 1
         }
 
