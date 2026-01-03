@@ -690,7 +690,29 @@ OrenValue oren_get_result() {
     return OREN_RESULT_VALUE;
 }
 
+#if !defined(_WIN32)
+static void oren_raise_stack_limit_best_effort(void) {
+    // Stage2 self-hosting (native backend) uses deep recursion in compiler passes (parser/typechecker/codegen).
+    // On macOS, the default soft stack limit can be ~8MiB, which is too small and can crash with
+    // EXC_BAD_ACCESS in `___chkstk_darwin`. Raise the soft limit up to the hard limit when possible.
+    struct rlimit rl;
+    if (getrlimit(RLIMIT_STACK, &rl) != 0) return;
+    if (rl.rlim_cur >= rl.rlim_max) return;
+    rlim_t want = rl.rlim_max;
+    if (want == RLIM_INFINITY) {
+        // Conservative fallback when the hard limit is reported as infinite.
+        want = (rlim_t)(64u * 1024u * 1024u);
+        if (rl.rlim_cur >= want) return;
+    }
+    rl.rlim_cur = want;
+    (void)setrlimit(RLIMIT_STACK, &rl);
+}
+#endif
+
 void oren_init(int argc, char **argv) {
+#if !defined(_WIN32)
+    oren_raise_stack_limit_best_effort();
+#endif
     OREN_NIL.type = OREN_TYPE_NIL;
     OREN_TRUE.type = OREN_TYPE_BOOL;
     OREN_TRUE.as.bool_val = 1;

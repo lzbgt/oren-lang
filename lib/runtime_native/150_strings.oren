@@ -19,18 +19,17 @@ fn _oren_init_single_byte_string_cache() {
     // A 256-entry table of pointers to tracked 1-byte strings.
     // We keep the table itself untracked (leak-by-design, bounded) and root each string
     // so GC cannot collect them even though they are only referenced by a global pointer table.
-    var table = malloc(256 * 8)
+    var table = malloc_k(256 * 8, 0)
     if table == 0 { oren_panic("single_byte_string_cache: malloc failed") }
     if table == -1 { oren_panic("single_byte_string_cache: malloc failed") }
 
     var i = 0
     while i < 256 {
-        var s = malloc(2)
+        var s = malloc_k(2, 1)
         if s == 0 { oren_panic("single_byte_string_cache: malloc failed") }
         if s == -1 { oren_panic("single_byte_string_cache: malloc failed") }
         ptr_set_byte(s + 0, i)
         ptr_set_byte(s + 1, 0)
-        oren_track_alloc(s, 2, 1)
         native_gc_register_root(s)
         ptr_set(table + i * 8, s)
         i = i + 1
@@ -63,7 +62,7 @@ fn oren_intern_cstr(cstr_ptr) {
     if cached != 0 { return cached }
 
     var n = oren_string_len(cstr_ptr)
-    var out = malloc(iadd(n, 1))
+    var out = malloc_k(iadd(n, 1), 1)
     if out == 0 { oren_panic("intern_cstr: malloc failed") }
 
     var i = 0
@@ -72,9 +71,6 @@ fn oren_intern_cstr(cstr_ptr) {
         i = iadd(i, 1)
     }
     ptr_set_byte(iadd(out, n), 0)
-
-    // Track as STRING (kind=1). This makes map key-kind inference safe and deterministic.
-    oren_track_alloc(out, iadd(n, 1), 1)
 
     // Cache and return.
     oren_map_set_int(g_intern_cstr_cache, cstr_ptr, out)
@@ -353,14 +349,13 @@ fn oren_string_slice(s, start, end) {
     if j > len { j = len }
     if i >= j {
         // Return empty string (stable allocation).
-        var out0 = malloc(1)
+        var out0 = malloc_k(1, 1)
         if out0 == 0 { return 0 }
         ptr_set_byte(out0, 0)
-        oren_track_alloc(out0, 1, 1)
         return out0
     }
     var n = j - i
-    var out = malloc(iadd(n, 1))
+    var out = malloc_k(iadd(n, 1), 1)
     if out == 0 { return 0 }
     var src = iadd(s, i)
     var k = 0
@@ -369,7 +364,6 @@ fn oren_string_slice(s, start, end) {
         k = iadd(k, 1)
     }
     ptr_set_byte(iadd(out, n), 0)
-    oren_track_alloc(out, iadd(n, 1), 1)
     return out
 }
 
@@ -389,13 +383,12 @@ fn oren_string_slice_unchecked(s, start, end) {
     if j < i { j = i }
     var n = j - i
     if n <= 0 {
-        var out0 = malloc(1)
+        var out0 = malloc_k(1, 1)
         if out0 == 0 { return 0 }
         ptr_set_byte(out0, 0)
-        oren_track_alloc(out0, 1, 1)
         return out0
     }
-    var out = malloc(iadd(n, 1))
+    var out = malloc_k(iadd(n, 1), 1)
     if out == 0 { return 0 }
     var src = iadd(s, i)
     var k = 0
@@ -404,7 +397,6 @@ fn oren_string_slice_unchecked(s, start, end) {
         k = iadd(k, 1)
     }
     ptr_set_byte(iadd(out, n), 0)
-    oren_track_alloc(out, iadd(n, 1), 1)
     return out
 }
 

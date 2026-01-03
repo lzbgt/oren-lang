@@ -1,0 +1,4 @@
+fn main() {
+    print("min_main OK")
+    return 0
+}

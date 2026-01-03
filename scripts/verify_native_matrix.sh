@@ -128,13 +128,6 @@ fi
 need_bin go
 need_bin make
 
-if [[ "$LOCAL_ONLY" -eq 0 ]]; then
-  need_bin docker
-  need_bin ssh
-  need_bin scp
-  need_bin socat
-fi
-
 mkdir -p build/tmp build/logs
 
 normalize_target() {
@@ -175,6 +168,20 @@ has_target() {
   return 1
 }
 
+if [[ "$LOCAL_ONLY" -eq 0 ]]; then
+  # Only require tools for the targets we are actually going to execute.
+  # (Common workflows like `--targets local` or `--targets arm64-linux` should not
+  # fail just because remote x64 prerequisites aren't installed.)
+  if has_target arm64-linux; then
+    need_bin docker
+  fi
+  if has_target x64-win || has_target x64-wsl; then
+    need_bin ssh
+    need_bin scp
+    need_bin socat
+  fi
+fi
+
 run_with_timeout() {
   local secs="$1"
   shift
@@ -196,6 +203,23 @@ run_with_timeout() {
   return "$rc"
 }
 
+need_stage1_and_stage2() {
+  # The purpose of this script is to verify the **native backend** artifacts produced by:
+  # - stage1 compiler (`./oren`)
+  # - stage2 compiler (`./oren_stage2`)
+  #
+  # On arm64 hosts, `make stage2` bootstraps `./oren_stage2` via the C backend (rolling constraint),
+  # but the matrix checks are about the **native backend output binaries** compiled by stage1/stage2.
+  if [[ ! -x ./oren ]]; then
+    log "== ensure: stage1 compiler (./oren) =="
+    make stage1
+  fi
+  if [[ ! -x ./oren_stage2 ]]; then
+    log "== ensure: stage2 compiler (./oren_stage2) =="
+    make stage2
+  fi
+}
+
 if has_target stage0; then
   log "== build: stage0 (Go bootstrap) =="
   make bootstrap
@@ -207,6 +231,11 @@ fi
 if has_target stage2; then
   log "== build: stage2 (self-hosted) =="
   make stage2
+fi
+
+# For any verification target (local/docker/remote), ensure stage1+stage2 compilers exist.
+if has_target local || has_target arm64-linux || has_target x64-win || has_target x64-wsl; then
+  need_stage1_and_stage2
 fi
 
 if has_target local; then

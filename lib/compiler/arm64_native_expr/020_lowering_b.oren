@@ -301,17 +301,23 @@ fn native_expr_chunk_call(ctx, expr) {
     // Load register args from the temporary stack (do not destroy the ABI stack args).
     var reg_arg_count = nargs
     if reg_arg_count > regc { reg_arg_count = regc }
-    var r = 0
-    while r < reg_arg_count {
-        var dst_reg = callabi.int_arg_reg(call_abi, r)
-        if dst_reg == nil {
-            native_error(ctx, expr["token"], "native backend: missing ABI int arg reg for arg " + oren_int_to_string(r))
-            dst_reg = r
-        }
-        var src_off2 = (nargs - 1 - r) * 16
-        emit_load_ptr_from_base_plus(ctx, dst_reg, 9, src_off2)
-        r = r + 1
-    }
+		    var r = 0
+		    while r < reg_arg_count {
+		        var dst_reg = callabi.int_arg_reg(call_abi, r)
+		        if dst_reg == nil {
+		            if ctx["abi_int_arg_reg_missing_emitted"] != true {
+		                ctx["abi_int_arg_reg_missing_emitted"] = true
+		                native_error(ctx, expr["token"], "native backend: missing ABI int arg reg for arg " + oren_int_to_string(r))
+		            }
+		            dst_reg = r
+		        } else {
+		            // `callabi.int_arg_reg` returns `reg+1` (to avoid nil/0 ambiguity).
+		            dst_reg = dst_reg - 1
+		        }
+		        var src_off2 = (nargs - 1 - r) * 16
+		        emit_load_ptr_from_base_plus(ctx, dst_reg, 9, src_off2)
+		        r = r + 1
+		    }
 
     // BL
     var bl_pos = bytes_len(ctx["code"])

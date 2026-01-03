@@ -140,6 +140,8 @@ Rules for this tracker:
 
 3) **Native scheduler + netpoller (IO readiness → channels + select)** (L)
    - Keep `select` **channel-based** at the language surface; fd readiness integrates by producing channel events.
+   - Already exists (today, in code/tests): `oren_select` / `oren_select_recv` runtime APIs (native + AVM), plus fd readiness waits (`oren_fd_wait_{readable,writable}` etc).
+     - Not done yet: language-level `select { ... }` syntax, and a native green-thread scheduler/netpoller that wakes channels instead of blocking the whole process/thread.
    - Bring native closer to AVM semantics:
      - mature channels beyond pipe-based bring-up
      - deterministic fairness rules where practical (round-robin cursor)

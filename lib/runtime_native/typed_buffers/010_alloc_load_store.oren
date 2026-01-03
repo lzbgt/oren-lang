@@ -11,6 +11,12 @@ fn oren_buf_len(buf) {
     return ptr_get(buf + 0)
 }
 
+// Unsafe/fast-path (tooling/internal): return the raw payload pointer as an int.
+@oren.keep
+fn oren_buf_data_ptr_unchecked(buf) {
+    return native_buf_data_ptr(buf)
+}
+
 fn oren_buf_load_i32(buf, idx) {
     var err = native_buf_check(buf, BUF_TAG_I32, 4)
     if oren_is_err(err) { return err }
@@ -32,6 +38,14 @@ fn oren_buf_load_u8(buf, idx) {
     if oren_is_err(err) { return err }
     var n = ptr_get(buf + 0)
     if idx < 0 || idx >= n { return oren_err(4, "buf_load_u8: index out of bounds") }
+    var data = native_buf_data_ptr(buf)
+    return ptr_get_byte(data + idx) & 255
+}
+
+// Unsafe/fast-path (tooling/internal): load without bounds/type checks.
+// Caller must ensure `buf` is a u8_buf and `idx` is in range.
+@oren.keep
+fn oren_buf_load_u8_unchecked(buf, idx) {
     var data = native_buf_data_ptr(buf)
     return ptr_get_byte(data + idx) & 255
 }
@@ -159,4 +173,3 @@ fn oren_buf_store_f32(buf, idx, v: f64) {
     ptr_set_byte(data + off + 3, (bits >> 24) & 255)
     return buf
 }
-

@@ -109,7 +109,9 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     var off_argv = _data_add_zeros(ctx, (max_args + 1) * 8)
     var pool_cap = 65536
     var off_pool = _data_add_zeros(ctx, pool_cap)
-    if off_argv == nil || off_pool == nil { return nil }
+    // Offsets can legitimately be 0 (the first bytes in the data blob). Under the native
+    // runtime stopgap value model, 0 is indistinguishable from `nil`, so never treat 0 as
+    // failure here. `_data_add_zeros` only returns nil when `ctx` is nil or nbytes<=0.
 
     var labels = {}
     var local_fixups = []
@@ -493,9 +495,15 @@ fn native_compile_program_x64(linked, platform) {
         if fn0 != nil { nm0 = fn0["name"] }
         if nm0 != nil && nm0 != "" {
             var ar0 = nil
-            if ctx["func_arity"] != nil { ar0 = ctx["func_arity"][nm0] }
+            if ctx["func_arity"] != nil {
+                var ar0_enc = ctx["func_arity"][nm0]
+                if ar0_enc != nil { ar0 = ar0_enc - 1 }
+            }
             var vf0 = nil
-            if ctx["func_varargs_fixed"] != nil { vf0 = ctx["func_varargs_fixed"][nm0] }
+            if ctx["func_varargs_fixed"] != nil {
+                var vf0_enc = ctx["func_varargs_fixed"][nm0]
+                if vf0_enc != nil { vf0 = vf0_enc - 1 }
+            }
             if ar0 != nil {
                 var st = callable.synth_fnwrap(nm0, ar0, vf0)
                 if st != nil && st["type"] == "ExprStmt" && st["expr"] != nil && st["expr"]["type"] == "Function" {
@@ -911,11 +919,9 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
                 return nil
             }
             var off0 = _data_add_u64(ctx, 0)
-            if off0 == nil {
-                err(ctx, "x64 native v0: failed to allocate runtime global var slot")
-                return nil
-            }
-            ctx["globals"][nm] = off0
+            // Store as offset+1 so a real offset of 0 is not indistinguishable from `nil`
+            // when the compiler runs under the native runtime (where `nil` is 0).
+            ctx["globals"][nm] = off0 + 1
         }
         i = i + 1
     }
@@ -931,11 +937,9 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
                 return nil
             }
             var off2 = _data_add_u64(ctx, 0)
-            if off2 == nil {
-                err(ctx, "x64 native v0: failed to allocate global var slot")
-                return nil
-            }
-            ctx["globals"][nm2] = off2
+            // Store as offset+1 so a real offset of 0 is not indistinguishable from `nil`
+            // when the compiler runs under the native runtime (where `nil` is 0).
+            ctx["globals"][nm2] = off2 + 1
         }
         i = i + 1
     }
@@ -1001,7 +1005,7 @@ fn _x64_extract_type_constructors_v0(ctx, linked) {
         if ctx["declared_functions"] == nil { ctx["declared_functions"] = {} }
         ctx["declared_functions"][nm] = true
         if ctx["func_arity"] == nil { ctx["func_arity"] = {} }
-        ctx["func_arity"][nm] = n_fields
+        ctx["func_arity"][nm] = n_fields + 1
         if ctx["func_decl_order"] != nil { oren_list_push(ctx["func_decl_order"], nm) }
 
         i = i + 1

@@ -1364,6 +1364,27 @@ fn selftest_native_run() {
     selftest_native_expect_eq_int(43, h[2] & 255, 0x16, "sha256[2]")
     selftest_native_expect_eq_int(44, h[3] & 255, 0xbf, "sha256[3]")
 
+    // 4) sha256_string must hash full strings (used heavily for build cache keys).
+    var hs = oren_sha256_string("abc")
+    selftest_native_expect_eq_int(45, oren_list_len(hs), 32, "sha256_string length")
+    selftest_native_expect_eq_int(46, hs[0] & 255, 0xba, "sha256_string[0]")
+    selftest_native_expect_eq_int(47, hs[1] & 255, 0x78, "sha256_string[1]")
+    selftest_native_expect_eq_int(48, hs[2] & 255, 0x16, "sha256_string[2]")
+    selftest_native_expect_eq_int(49, hs[3] & 255, 0xbf, "sha256_string[3]")
+
+    // 5) sha256_range must handle u8_buf fast path correctly (cache hashes compiler binaries via u8_buf).
+    var ub = oren_u8_buf_new(3)
+    if ub == 0 { selftest_native_fail(50, "u8_buf_new returned nil") }
+    var w0 = oren_bytes_set_u8(ub, 0, 97)
+    if selftest_native_boolish(oren_is_err(w0)) == true { selftest_native_fail(51, "bytes_set_u8 failed") }
+    var w1 = oren_bytes_set_u8(ub, 1, 98)
+    if selftest_native_boolish(oren_is_err(w1)) == true { selftest_native_fail(52, "bytes_set_u8 failed") }
+    var w2 = oren_bytes_set_u8(ub, 2, 99)
+    if selftest_native_boolish(oren_is_err(w2)) == true { selftest_native_fail(53, "bytes_set_u8 failed") }
+    var hu = oren_sha256_range(ub, 0, 3)
+    selftest_native_expect_eq_int(54, oren_list_len(hu), 32, "sha256 u8_buf length")
+    selftest_native_expect_eq_int(55, hu[0] & 255, 0xba, "sha256 u8_buf[0]")
+
     print("selftest-native OK")
     return nil
 }

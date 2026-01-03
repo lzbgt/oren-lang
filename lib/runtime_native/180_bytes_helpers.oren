@@ -16,30 +16,96 @@ fn oren_bytes_len(bytes) {
 // Build a string from a slice of a byte container (list<int 0..255> or u8_buf).
 // Used by the compiler's parallel module pipeline to decode astbin without per-byte boxing.
 @oren.keep
-fn oren_string_from_bytes_slice(bytes, start, len) {
+	fn oren_string_from_bytes_slice(bytes, start, len) {
     if bytes == 0 { return oren_err(4, "string_from_bytes_slice: bytes is nil") }
-    if start == nil || len == nil { return oren_err(4, "string_from_bytes_slice expects (bytes, int start, int len)") }
     if start < 0 || len < 0 { return oren_err(4, "string_from_bytes_slice: negative range") }
 
     var total = oren_bytes_len(bytes)
     if oren_is_err(total) { return oren_err(4, "string_from_bytes_slice expects list<int> or u8_buf") }
     if start > total || start + len > total { return oren_err(4, "string_from_bytes_slice: out of bounds") }
 
-    var out = malloc(len + 1)
-    if out == 0 { return oren_err(8, "string_from_bytes_slice: alloc failed") }
+	    // If tracking is enabled, allocate as a tracked STRING directly (single tracking call).
+	    // When untracked mode is enabled, we fall back to `malloc` and skip the extra tracking,
+	    // preserving the existing "best-effort" semantics (strings are not guaranteed to be kind=1).
+	    var out = 0
+	    if bytes_untracked_strings_enabled() == 0 {
+	        out = malloc_k(len + 1, 1)
+	    } else {
+	        out = malloc(len + 1)
+	    }
+	    if out == 0 { return oren_err(8, "string_from_bytes_slice: alloc failed") }
 
+    // Fast path: u8_buf can be copied directly (critical for stage2-native astbin throughput).
+    if native_bytes_is_u8_buf(bytes) == true {
+        var data = native_buf_data_ptr(bytes)
+        if data == 0 {
+            free(out)
+            return oren_err(4, "string_from_bytes_slice: buf payload is nil")
+        }
+        if len > 0 { oren_memcpy(out, data + start, len) }
+    } else {
+        var i = 0
+        while i < len {
+            var b = oren_bytes_get_u8(bytes, start + i)
+            if oren_is_err(b) {
+                free(out)
+                return oren_err(4, "string_from_bytes_slice: byte read failed")
+            }
+            ptr_set_byte(out + i, b & 255)
+            i = i + 1
+        }
+	    }
+	    ptr_set_byte(out + len, 0)
+	    return out
+	}
+
+// Cached env flag to avoid repeated envp lookups in hot paths.
+var g_untracked_strings = -1
+fn bytes_untracked_strings_enabled() {
+    if g_untracked_strings == 0 || g_untracked_strings == 1 { return g_untracked_strings }
+    var v = native_envp_get_value_ptr("OREN_UNTRACKED_STRINGS")
+    var on = 0
+    if v != 0 {
+        var b0 = ptr_get_byte(v) & 255
+        if b0 != 0 && b0 != 48 { on = 1 } // not empty and not '0'
+    }
+    g_untracked_strings = on
+    return g_untracked_strings
+}
+
+// Build a u8_buf from a slice of a byte container (list<int 0..255> or u8_buf).
+// Used by tooling (astbin decode) to avoid per-byte `oren_bytes_get_u8`/`oren_buf_store_u8` loops.
+@oren.keep
+fn oren_u8_buf_from_bytes_slice(bytes, start, len) {
+    if bytes == 0 { return oren_err(4, "u8_buf_from_bytes_slice: bytes is nil") }
+    if start < 0 || len < 0 { return oren_err(4, "u8_buf_from_bytes_slice: negative range") }
+
+    var total = oren_bytes_len(bytes)
+    if oren_is_err(total) { return oren_err(4, "u8_buf_from_bytes_slice expects list<int> or u8_buf") }
+    if start > total || start + len > total { return oren_err(4, "u8_buf_from_bytes_slice: out of bounds") }
+
+    var out = oren_u8_buf_new(len)
+    if oren_is_err(out) { return out }
+    if len == 0 { return out }
+
+    var dst = native_buf_data_ptr(out)
+    if dst == 0 { return oren_err(8, "u8_buf_from_bytes_slice: alloc failed") }
+
+    if native_bytes_is_u8_buf(bytes) == true {
+        var src = native_buf_data_ptr(bytes)
+        if src == 0 { return oren_err(4, "u8_buf_from_bytes_slice: buf payload is nil") }
+        oren_memcpy(dst, src + start, len)
+        return out
+    }
+
+    // list<int> slow path
     var i = 0
     while i < len {
         var b = oren_bytes_get_u8(bytes, start + i)
-        if oren_is_err(b) {
-            free(out)
-            return oren_err(4, "string_from_bytes_slice: byte read failed")
-        }
-        ptr_set_byte(out + i, b & 255)
+        if oren_is_err(b) { return oren_err(4, "u8_buf_from_bytes_slice: byte read failed") }
+        ptr_set_byte(dst + i, b & 255)
         i = i + 1
     }
-    ptr_set_byte(out + len, 0)
-    oren_track_alloc(out, len + 1, 1) // 1=STRING
     return out
 }
 
@@ -79,11 +145,11 @@ fn bytes_hex_char(n) {
     return 87 + n // 'a'..'f'
 }
 
-fn oren_bytes_to_hex(bytes) {
-    var n = oren_bytes_len(bytes)
-    if oren_is_err(n) { return n }
-    var out = malloc(n * 2 + 1)
-    if out == 0 { return oren_err(8, "bytes_to_hex: alloc failed") }
+	fn oren_bytes_to_hex(bytes) {
+	    var n = oren_bytes_len(bytes)
+	    if oren_is_err(n) { return n }
+	    var out = malloc_k(n * 2 + 1, 1)
+	    if out == 0 { return oren_err(8, "bytes_to_hex: alloc failed") }
     var i = 0
     while i < n {
         var b = oren_bytes_get_u8(bytes, i)
@@ -91,11 +157,10 @@ fn oren_bytes_to_hex(bytes) {
         ptr_set_byte(out + i * 2 + 0, bytes_hex_char((b >> 4) & 15))
         ptr_set_byte(out + i * 2 + 1, bytes_hex_char(b & 15))
         i = i + 1
-    }
-    ptr_set_byte(out + n * 2, 0)
-    oren_track_alloc(out, n * 2 + 1, 1) // STRING
-    return out
-}
+	    }
+	    ptr_set_byte(out + n * 2, 0)
+	    return out
+	}
 
 fn oren_bytes_unpack(bytes) {
     var n = oren_bytes_len(bytes)
@@ -288,10 +353,6 @@ fn oren_sha256_range(bytes, start, length) {
     ptr_set(state + 6 * 8, 528734635)
     ptr_set(state + 7 * 8, 1541459225)
 
-    // Stream bytes into 64-byte blocks.
-    var datalen = 0
-    var bitlen = 0
-
     // Fast path: avoid per-byte dynamic checks by handling list/u8_buf directly.
     var is_list = native_bytes_is_list(bytes)
     var is_u8buf = false
@@ -312,57 +373,83 @@ fn oren_sha256_range(bytes, start, length) {
         }
     }
 
-    var i = 0
-    while i < length {
-        var idx = start + i
-        var byte = 0
-        if is_list == true {
-            byte = ptr_get(list_buf + idx * 8)
-        } else {
-            byte = ptr_get_byte(buf_ptr + idx) & 255
+    // Hash full 64-byte blocks first to avoid per-byte loop overhead on large inputs
+    // (critical for compiler build cache: hashing compiler binaries + expanded runtime bundles).
+    var off = 0
+    if is_list != true {
+        // u8_buf: contiguous bytes (fast path).
+        var src_ptr = iadd(buf_ptr, start)
+        while off + 64 <= length {
+            sha256_transform(state, iadd(src_ptr, off), k, w)
+            off = off + 64
         }
-        if byte < 0 || byte > 255 { oren_panic("sha256_range: byte out of range") }
-
-        ptr_set_byte(data + datalen, byte)
-        datalen = datalen + 1
-        if datalen == 64 {
+        // Copy remainder (<64) into `data` for padding+final block.
+        var rem = length - off
+        var i = 0
+        while i < rem {
+            ptr_set_byte(data + i, ptr_get_byte(iadd(src_ptr, off + i)) & 255)
+            i = i + 1
+        }
+        // Pad: append 0x80, then zeros, then big-endian bit length.
+        var bitlen = length * 8
+        ptr_set_byte(data + rem, 128)
+        var used = rem + 1
+        if used > 56 {
+            while used < 64 { ptr_set_byte(data + used, 0); used = used + 1 }
             sha256_transform(state, data, k, w)
-            bitlen = bitlen + 512
-            datalen = 0
+            used = 0
         }
-        i = i + 1
-    }
-
-    // Pad (same as the C runtime implementation): append 0x80, then zeros, then big-endian bit length.
-    var j = datalen
-    ptr_set_byte(data + j, 128)
-    j = j + 1
-
-    if j > 56 {
-        while j < 64 {
-            ptr_set_byte(data + j, 0)
-            j = j + 1
-        }
+        while used < 56 { ptr_set_byte(data + used, 0); used = used + 1 }
+        // Store bitlen as big-endian u64 at data[56..63].
+        ptr_set_byte(data + 63, (bitlen >> 0) & 255)
+        ptr_set_byte(data + 62, (bitlen >> 8) & 255)
+        ptr_set_byte(data + 61, (bitlen >> 16) & 255)
+        ptr_set_byte(data + 60, (bitlen >> 24) & 255)
+        ptr_set_byte(data + 59, (bitlen >> 32) & 255)
+        ptr_set_byte(data + 58, (bitlen >> 40) & 255)
+        ptr_set_byte(data + 57, (bitlen >> 48) & 255)
+        ptr_set_byte(data + 56, (bitlen >> 56) & 255)
         sha256_transform(state, data, k, w)
-        j = 0
+    } else {
+        // list<int>: build 64-byte blocks in `data`, then transform.
+        while off + 64 <= length {
+            var j = 0
+            while j < 64 {
+                var byte = ptr_get(list_buf + (start + off + j) * 8)
+                if byte < 0 || byte > 255 { oren_panic("sha256_range: byte out of range") }
+                ptr_set_byte(data + j, byte)
+                j = j + 1
+            }
+            sha256_transform(state, data, k, w)
+            off = off + 64
+        }
+        var rem2 = length - off
+        var k0 = 0
+        while k0 < rem2 {
+            var byte2 = ptr_get(list_buf + (start + off + k0) * 8)
+            if byte2 < 0 || byte2 > 255 { oren_panic("sha256_range: byte out of range") }
+            ptr_set_byte(data + k0, byte2)
+            k0 = k0 + 1
+        }
+        var bitlen2 = length * 8
+        ptr_set_byte(data + rem2, 128)
+        var used2 = rem2 + 1
+        if used2 > 56 {
+            while used2 < 64 { ptr_set_byte(data + used2, 0); used2 = used2 + 1 }
+            sha256_transform(state, data, k, w)
+            used2 = 0
+        }
+        while used2 < 56 { ptr_set_byte(data + used2, 0); used2 = used2 + 1 }
+        ptr_set_byte(data + 63, (bitlen2 >> 0) & 255)
+        ptr_set_byte(data + 62, (bitlen2 >> 8) & 255)
+        ptr_set_byte(data + 61, (bitlen2 >> 16) & 255)
+        ptr_set_byte(data + 60, (bitlen2 >> 24) & 255)
+        ptr_set_byte(data + 59, (bitlen2 >> 32) & 255)
+        ptr_set_byte(data + 58, (bitlen2 >> 40) & 255)
+        ptr_set_byte(data + 57, (bitlen2 >> 48) & 255)
+        ptr_set_byte(data + 56, (bitlen2 >> 56) & 255)
+        sha256_transform(state, data, k, w)
     }
-
-    while j < 56 {
-        ptr_set_byte(data + j, 0)
-        j = j + 1
-    }
-
-    bitlen = bitlen + datalen * 8
-    // Store bitlen as big-endian u64 at data[56..63].
-    ptr_set_byte(data + 63, (bitlen >> 0) & 255)
-    ptr_set_byte(data + 62, (bitlen >> 8) & 255)
-    ptr_set_byte(data + 61, (bitlen >> 16) & 255)
-    ptr_set_byte(data + 60, (bitlen >> 24) & 255)
-    ptr_set_byte(data + 59, (bitlen >> 32) & 255)
-    ptr_set_byte(data + 58, (bitlen >> 40) & 255)
-    ptr_set_byte(data + 57, (bitlen >> 48) & 255)
-    ptr_set_byte(data + 56, (bitlen >> 56) & 255)
-    sha256_transform(state, data, k, w)
 
     // Produce digest bytes in big-endian word order.
     var out = oren_new_list(0)
@@ -385,7 +472,9 @@ fn oren_sha256_range(bytes, start, length) {
 
 fn oren_sha256_string(s) {
     if s == 0 { oren_panic("sha256_string expects string") }
-    var n = native_cstr_len(s)
+    // IMPORTANT: use `oren_string_len` (unbounded) rather than `native_cstr_len` (capped),
+    // otherwise long source strings (>64KB) would truncate and cause cache key collisions.
+    var n = oren_string_len(s)
     // Hash the string's bytes (excluding NUL terminator) without building a list<int> first.
     //
     // This is important for toolchain workloads that hash many large sources (build cache keys).
@@ -407,23 +496,23 @@ fn oren_sha256_string(s) {
     ptr_set(state + 6 * 8, 528734635)
     ptr_set(state + 7 * 8, 1541459225)
 
-    // Stream bytes into 64-byte blocks.
-    var used = 0
+    // Hash full blocks directly from the string memory to avoid per-byte copy overhead.
+    var off = 0
+    while off + 64 <= n {
+        sha256_transform(state, iadd(s, off), k, w)
+        off = off + 64
+    }
+    var rem = n - off
     var i = 0
-    while i < n {
-        ptr_set_byte(data + used, ptr_get_byte(s + i))
-        used = used + 1
-        if used == 64 {
-            sha256_transform(state, data, k, w)
-            used = 0
-        }
+    while i < rem {
+        ptr_set_byte(data + i, ptr_get_byte(iadd(s, off + i)) & 255)
         i = i + 1
     }
 
     // Pad: append 0x80, then zeros, then 64-bit bitlen in big-endian.
     var bitlen = n * 8
-    ptr_set_byte(data + used, 128)
-    used = used + 1
+    ptr_set_byte(data + rem, 128)
+    var used = rem + 1
     if used > 56 {
         while used < 64 { ptr_set_byte(data + used, 0); used = used + 1 }
         sha256_transform(state, data, k, w)

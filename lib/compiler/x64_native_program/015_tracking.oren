@@ -48,12 +48,13 @@ fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
         return nil
     }
 
-    var goff = nil
-    if ctx["globals"] != nil { goff = ctx["globals"]["g_storage"] }
-    if goff == nil {
+    var goff_enc = nil
+    if ctx["globals"] != nil { goff_enc = ctx["globals"]["g_storage"] }
+    if goff_enc == nil {
         err(ctx, "x64 native v0: internal error: missing runtime global g_storage")
         return nil
     }
+    var goff = goff_enc - 1
 
     // Save ptr into r12.
     bytes_extend(ctx["code"], insn_mov_r64_r64(12, ptr_reg))
@@ -130,13 +131,16 @@ fn _emit_track_alloc_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
         return nil
     }
 
-    var a0 = abi.int_arg_reg(ctx["abi"], 0)
-    var a1 = abi.int_arg_reg(ctx["abi"], 1)
-    var a2 = abi.int_arg_reg(ctx["abi"], 2)
-    if a0 == nil || a1 == nil || a2 == nil {
+    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
+    var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
+    var a2_enc = abi.int_arg_reg(ctx["abi"], 2)
+    if a0_enc == nil || a1_enc == nil || a2_enc == nil {
         err(ctx, "x64 native v0: missing ABI arg regs for oren_track_alloc")
         return nil
     }
+    var a0 = a0_enc - 1
+    var a1 = a1_enc - 1
+    var a2 = a2_enc - 1
 
     // Spill the args we need to keep stable across the call.
     var base = _intr_tmp_push(ctx, 3)
@@ -180,12 +184,14 @@ fn _emit_ensure_tracked_ptr_kind_x64(ctx, locals, ptr_reg, kind_imm) {
         return nil
     }
 
-    var a0 = abi.int_arg_reg(ctx["abi"], 0)
-    var a1 = abi.int_arg_reg(ctx["abi"], 1)
-    if a0 == nil || a1 == nil {
+    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
+    var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
+    if a0_enc == nil || a1_enc == nil {
         err(ctx, "x64 native v0: missing ABI arg regs for oren_ensure_tracked")
         return nil
     }
+    var a0 = a0_enc - 1
+    var a1 = a1_enc - 1
 
     var base = _intr_tmp_push(ctx, 1)
     if base == nil { return nil }

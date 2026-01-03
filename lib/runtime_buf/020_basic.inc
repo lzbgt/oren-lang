@@ -29,6 +29,13 @@ OrenValue oren_buf_data_mod(OrenValue buf, OrenValue modv) {
     return oren_int((long long)(u % (uintptr_t)m));
 }
 
+OrenValue oren_buf_data_ptr_unchecked(OrenValue buf) {
+    // Tooling/internal: expose the raw payload pointer as an int (uintptr_t bits carried in i64).
+    // This is used by compiler hot paths (e.g. astbin decode) to avoid per-byte runtime calls.
+    OrenBuf* b = buf.as.buf_val;
+    return oren_int((long long)(uintptr_t)buf_data(b));
+}
+
 static int buf_check_idx(OrenBuf* b, long long idx) {
     if (!b) return 0;
     if (idx < 0) return 0;
@@ -71,6 +78,16 @@ OrenValue oren_buf_load_u8(OrenValue buf, OrenValue idxv) {
     long long idx = idxv.as.int_val;
     if (!buf_check_idx(b, idx)) return buf_err("buf_load_u8: index out of bounds");
     uint8_t* p = buf_data(b) + (uint32_t)idx;
+    return oren_int((long long)(*p));
+}
+
+OrenValue oren_buf_load_u8_unchecked(OrenValue buf, OrenValue idxv) {
+    // Tooling/internal fast-path: skip bounds/type checks.
+    // Caller must ensure:
+    // - buf is a u8_buf
+    // - 0 <= idx < buf_len(buf)
+    OrenBuf* b = buf.as.buf_val;
+    uint8_t* p = buf_data(b) + (uint32_t)idxv.as.int_val;
     return oren_int((long long)(*p));
 }
 
@@ -254,4 +271,3 @@ static OrenValue buf_new_like(OrenValue a) {
     if (buf_is_f64(a)) return oren_f64_buf_new(oren_int((long long)a.as.buf_val->len));
     return buf_err("buf_new_like: invalid buffer");
 }
-

@@ -421,6 +421,79 @@ OrenValue oren_string_from_bytes_slice(OrenValue bytes, OrenValue start, OrenVal
     return v2;
 }
 
+OrenValue oren_u8_buf_from_bytes_slice(OrenValue bytes, OrenValue start, OrenValue len) {
+    if (start.type != OREN_TYPE_INT || len.type != OREN_TYPE_INT) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice expects (bytes, int start, int len)"));
+    }
+    long long s0 = start.as.int_val;
+    long long n0 = len.as.int_val;
+    if (s0 < 0 || n0 < 0) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice: negative range"));
+    }
+    if (n0 > (long long)INT32_MAX) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice: len too large"));
+    }
+
+    size_t s = (size_t)s0;
+    size_t n = (size_t)n0;
+
+    // Determine source length.
+    size_t total = 0;
+    if (bytes.type == OREN_TYPE_U8_BUF) {
+        OrenBuf* b = bytes.as.buf_val;
+        if (!b || b->elem_size != 1u || (b->len > 0 && !b->data)) {
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice: invalid u8_buf"));
+        }
+        total = (size_t)b->len;
+    } else if (bytes.type == OREN_TYPE_LIST) {
+        OrenList* list = bytes.as.list_val;
+        if (!list || list->count < 0) {
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice: invalid list"));
+        }
+        total = (size_t)list->count;
+    } else {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice expects list<int 0..255> or u8_buf"));
+    }
+
+    if (s > total || n > total || s + n > total) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice: out of bounds"));
+    }
+
+    OrenValue outv = oren_u8_buf_new(oren_int((long long)n0));
+    if (oren_is_err(outv).as.bool_val) {
+        return outv;
+    }
+    if (outv.type != OREN_TYPE_U8_BUF || !outv.as.buf_val) {
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("u8_buf_from_bytes_slice: invalid buffer"));
+    }
+    OrenBuf* out = outv.as.buf_val;
+    if (out->elem_size != 1u) {
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("u8_buf_from_bytes_slice: invalid elem_size"));
+    }
+    if (n > 0 && !out->data) {
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("u8_buf_from_bytes_slice: u8_buf payload is nil"));
+    }
+
+    if (n == 0) return outv;
+
+    if (bytes.type == OREN_TYPE_U8_BUF) {
+        OrenBuf* b = bytes.as.buf_val;
+        memcpy(out->data, b->data + s, n);
+        return outv;
+    }
+
+    // list<int> slow path
+    OrenList* list = bytes.as.list_val;
+    for (size_t i = 0; i < n; i++) {
+        OrenValue it = list->items[s + i];
+        if (it.type != OREN_TYPE_INT || it.as.int_val < 0 || it.as.int_val > 255) {
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("u8_buf_from_bytes_slice: expected bytes list<int 0..255>"));
+        }
+        ((unsigned char*)out->data)[i] = (unsigned char)it.as.int_val;
+    }
+    return outv;
+}
+
 OrenValue oren_string_join(OrenValue parts) {
     if (parts.type != OREN_TYPE_LIST) {
         return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("string_join expects list<string>"));

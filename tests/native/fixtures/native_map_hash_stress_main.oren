@@ -1,0 +1,61 @@
+fn fail(code) {
+    print("FAIL code=" + oren_int_to_string(code))
+    oren_exit(code)
+    return 0
+}
+
+fn assert_eq(got, want, code) {
+    if got != want {
+        print("ASSERT_EQ FAIL code=" + oren_int_to_string(code) + " got=" + oren_int_to_string(got) + " want=" + oren_int_to_string(want))
+        fail(code)
+    }
+    return 0
+}
+
+fn main() {
+    // Stress native map hash mode (>=32 entries) with string keys where equality is by bytes,
+    // not pointer identity.
+    var m = {}
+    var n = 2000
+
+    // Sanity: concatenated strings must be tracked as kind=STRING for map key-kind inference.
+    var k0 = "k" + oren_int_to_string(0)
+    if oren_is_string(k0) != true {
+        print("k0 is not a tracked string; map string-key semantics will break")
+        fail(1001)
+    }
+
+    var i = 0
+    while i < n {
+        var k = "k" + oren_int_to_string(i)
+        // Avoid ambiguity with nil==0 by storing a non-zero value.
+        m[k] = 1000000 + i
+        i = i + 1
+    }
+    assert_eq(oren_map_len(m), n, 1500)
+
+    // Verify with freshly-allocated equal strings.
+    i = 0
+    while i < n {
+        var k2 = "k" + oren_int_to_string(i)
+        var v = m[k2]
+        assert_eq(v, 1000000 + i, 2000 + i)
+        i = i + 1
+    }
+
+    // Also stress int-keyed maps.
+    var m2 = {}
+    i = 0
+    while i < n {
+        m2[i] = 2000000 + i
+        i = i + 1
+    }
+    i = 0
+    while i < n {
+        assert_eq(m2[i], 2000000 + i, 4000 + i)
+        i = i + 1
+    }
+
+    print("native map hash stress OK")
+    return 0
+}

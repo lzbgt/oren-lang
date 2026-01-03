@@ -32,13 +32,15 @@ fn _emit_intrinsic_oren_call_obj_list_x64(ctx, locals, fn_obj_expr, args_list_ex
     _emit_eval_int_to_rax(ctx, args_list_expr, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, spill); return nil }
 
-    var env_reg = abi.int_arg_reg(ctx["abi"], 0)
-    var args_reg = abi.int_arg_reg(ctx["abi"], 1)
-    if env_reg == nil || args_reg == nil {
+    var env_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
+    var args_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
+    if env_reg_enc == nil || args_reg_enc == nil {
         _intr_tmp_pop(ctx, spill)
         err(ctx, "x64 native v0: missing ABI arg regs for oren_call_obj_list")
         return nil
     }
+    var env_reg = env_reg_enc - 1
+    var args_reg = args_reg_enc - 1
 
     // args_reg = args_list (value already in rax)
     if args_reg != 0 { bytes_extend(ctx["code"], insn_mov_r64_r64(args_reg, 0)) }
@@ -226,13 +228,15 @@ fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
     }
 
     // Load wrapper args and call wrapper(env_ptr, args_list).
-    var env_reg = abi.int_arg_reg(ctx["abi"], 0)
-    var args_reg = abi.int_arg_reg(ctx["abi"], 1)
-    if env_reg == nil || args_reg == nil {
+    var env_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
+    var args_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
+    if env_reg_enc == nil || args_reg_enc == nil {
         _intr_tmp_pop(ctx, base)
         err(ctx, "x64 native v0: missing ABI arg regs for indirect call")
         return nil
     }
+    var env_reg = env_reg_enc - 1
+    var args_reg = args_reg_enc - 1
 
     // r10 = fnobj ptr
     _emit_mov_r64_mrbp(ctx, 10, 0 - callee_off)
@@ -654,7 +658,10 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     // `...rest`, pack extra args into a list and call the real function with:
     //   fn(fixed0, fixed1, ..., rest_list)
     var varargs_fixed = nil
-    if ctx["func_varargs_fixed"] != nil { varargs_fixed = ctx["func_varargs_fixed"][nm] }
+    if ctx["func_varargs_fixed"] != nil {
+        var vf_enc = ctx["func_varargs_fixed"][nm]
+        if vf_enc != nil { varargs_fixed = vf_enc - 1 }
+    }
     var is_varargs_named = (is_direct == true && varargs_fixed != nil)
     // Wrapper functions (`__oren_fnwrap_<name>`) already receive a pre-packed `rest_list` and
     // must call the real varargs function at fixed arity (fixed args + rest_list).
@@ -685,8 +692,9 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     //
     // Rolling: stack args are supported; arg count is bounded only by call-area capacity.
     if is_direct == true {
-        var arity2 = ctx["func_arity"][nm]
-        if arity2 == nil { err(ctx, "x64 native v0: missing arity for function " + nm); return nil }
+        var arity2_enc = ctx["func_arity"][nm]
+        if arity2_enc == nil { err(ctx, "x64 native v0: missing arity for function " + nm); return nil }
+        var arity2 = arity2_enc - 1
         if is_varargs_named {
             var fixed = varargs_fixed
             if argc < fixed { err(ctx, "x64 native v0: varargs arity mismatch for " + nm); return nil }
@@ -763,8 +771,9 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         if tmp_off2 == nil { _intr_tmp_pop(ctx, base2); return nil }
 
         if i3 < regc2 {
-            var reg2 = abi.int_arg_reg(ctx["abi"], i3)
-            if reg2 == nil { _intr_tmp_pop(ctx, base2); err(ctx, "x64 native v0: unsupported call arg index"); return nil }
+            var reg2_enc = abi.int_arg_reg(ctx["abi"], i3)
+            if reg2_enc == nil { _intr_tmp_pop(ctx, base2); err(ctx, "x64 native v0: unsupported call arg index"); return nil }
+            var reg2 = reg2_enc - 1
             _emit_mov_r64_mrbp(ctx, reg2, 0 - tmp_off2)
         } else {
             _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_off2)

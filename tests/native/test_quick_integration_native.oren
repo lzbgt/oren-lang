@@ -38,6 +38,16 @@ fn assert_streq(a, b, code) {
     fail(code)
 }
 
+var g_qi_trace_on = 0
+
+fn trace(msg) {
+    // Opt-in progress markers for debugging remote hangs/timeouts.
+    // Enable by setting `OREN_QI_TRACE=1` in the environment.
+    if g_qi_trace_on != 0 {
+        print(msg)
+    }
+}
+
 fn add(a, b) { return a + b }
 fn add3(a, b, c) { return a + b + c }
 
@@ -185,12 +195,61 @@ fn test_spawn_join() {
     assert_eq(r1, 55, 401)
 }
 
+fn test_select() {
+    trace("QI: test_select")
+    // Native select over pipe-based channels is not supported on Windows yet.
+    if g_target_os == 3 { return 0 }
+
+    var c1 = oren_new_channel()
+    var c2 = oren_new_channel()
+    if c1 == 0 || c2 == 0 { fail(450) }
+
+    // select-recv returns [idx, val] where idx is the chosen channel index.
+    trace("QI: select_recv")
+    oren_chan_send(c2, 111)
+    var sel = oren_select_recv([c1, c2])
+    if sel == 0 { fail(451) }
+    assert_eq(oren_list_len(sel), 2, 452)
+    assert_eq(oren_list_get(sel, 0), 1, 453)
+    assert_eq(oren_list_get(sel, 1), 111, 454)
+
+    // select-send returns [idx, 1] and the value must be readable from that channel.
+    // Run twice to exercise the rolling fairness cursor update path (`g_select_cursor`).
+    trace("QI: select send #1")
+    var s1 = oren_select([[1, c1, 11], [1, c2, 22]])
+    if s1 == 0 { fail(455) }
+    assert_eq(oren_list_len(s1), 2, 456)
+    assert_eq(oren_list_get(s1, 1), 1, 457)
+    var idx1 = oren_list_get(s1, 0)
+    if idx1 == 0 {
+        assert_eq(oren_chan_recv(c1), 11, 458)
+    } else {
+        assert_eq(oren_chan_recv(c2), 22, 459)
+    }
+
+    trace("QI: select send #2")
+    var s2 = oren_select([[1, c1, 33], [1, c2, 44]])
+    if s2 == 0 { fail(460) }
+    assert_eq(oren_list_len(s2), 2, 461)
+    assert_eq(oren_list_get(s2, 1), 1, 462)
+    var idx2 = oren_list_get(s2, 0)
+    if idx2 == 0 {
+        assert_eq(oren_chan_recv(c1), 33, 463)
+    } else {
+        assert_eq(oren_chan_recv(c2), 44, 464)
+    }
+    return 0
+}
+
 fn main() {
+    if oren_getenv("OREN_QI_TRACE") != 0 { g_qi_trace_on = 1 }
+
     test_core()
     test_numeric_casts()
     test_float_and_bytes()
     test_json()
     test_spawn_join()
+    test_select()
     print("native quick integration OK")
     exit(0)
 }

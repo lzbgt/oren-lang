@@ -206,6 +206,9 @@ OrenValue oren_new_list(int count, ...);
 OrenValue oren_new_list_from_array(int count, const OrenValue* items);
 OrenValue oren_list_len(OrenValue list);
 OrenValue oren_list_push(OrenValue list, OrenValue value);
+// Unsafe/fast-path (tooling/internal): assumes `list` is a valid list object.
+// Returns `nil` (matches `oren_list_push`).
+OrenValue oren_list_push_unchecked(OrenValue list, OrenValue value);
 OrenValue oren_list_get(OrenValue list, OrenValue index);
 OrenValue oren_list_set(OrenValue list, OrenValue index, OrenValue value);
 OrenValue oren_iter_next(OrenValue container, OrenValue idx, OrenValue out_pair);
@@ -233,7 +236,29 @@ OrenValue oren_map_get_str(OrenValue map, OrenValue key);
 OrenValue oren_map_set(OrenValue map, OrenValue key, OrenValue value);
 OrenValue oren_map_set_int(OrenValue map, OrenValue key, OrenValue value);
 OrenValue oren_map_set_str(OrenValue map, OrenValue key, OrenValue value);
-OrenValue oren_map_len(OrenValue map);
+	// Unsafe/fast-path (tooling/internal): assumes `map` is a valid map and the key kind is correct.
+	OrenValue oren_map_set_int_unchecked(OrenValue map, OrenValue key, OrenValue value);
+	OrenValue oren_map_set_str_unchecked(OrenValue map, OrenValue key, OrenValue value);
+	// Unsafe builder fast-path (tooling/internal):
+	// Append a new entry without doing a duplicate-key search.
+	// Intended for astbin decode when the map capacity is preallocated and the input has no duplicates.
+	//
+	// Return value matches `oren_map_set_*`: returns `value`.
+	OrenValue oren_map_push_entry_int_unchecked(OrenValue map, OrenValue key, OrenValue value);
+	OrenValue oren_map_push_entry_str_unchecked(OrenValue map, OrenValue key, OrenValue value);
+	// Finalize a map after bulk pushes (native backend may build a hash index).
+	// `want_entries` is the expected entry count (best-effort hint).
+	// Returns `map`.
+	OrenValue oren_map_build_finalize_unchecked(OrenValue map, OrenValue want_entries);
+	OrenValue oren_map_len(OrenValue map);
+
+// Allocate an empty list with reserved capacity `cap`.
+// This is a tooling/perf helper used by compiler internals (e.g. astbin decode) to avoid
+// O(n) growth reallocations. Semantics: list length starts at 0.
+OrenValue oren_list_new_cap(OrenValue cap);
+// Allocate an empty map with reserved capacity `cap`.
+// Semantics: map length starts at 0.
+OrenValue oren_map_new_cap(OrenValue cap);
 
 OrenValue oren_string_len(OrenValue s);
 OrenValue oren_string_char_at(OrenValue s, OrenValue index);
@@ -251,6 +276,9 @@ OrenValue oren_string_char_code_at(OrenValue s, OrenValue index);
 // Build a string from a slice of a byte container (list<int 0..255> or u8_buf).
 // Used by the compiler's parallel module pipeline to decode astbin without per-byte boxing.
 OrenValue oren_string_from_bytes_slice(OrenValue bytes, OrenValue start, OrenValue len);
+// Build a u8_buf from a slice of a byte container (list<int 0..255> or u8_buf).
+// Used by compiler tooling to decode astbin efficiently (memcpy on u8_buf inputs).
+OrenValue oren_u8_buf_from_bytes_slice(OrenValue bytes, OrenValue start, OrenValue len);
 OrenValue oren_string_slice(OrenValue s, OrenValue start, OrenValue end);
 // Like `oren_string_slice`, but assumes the caller already validated bounds against a known length.
 // This avoids repeated O(n) `strlen` scans in compiler hot paths (e.g., runtime include expansion).
@@ -294,12 +322,19 @@ OrenValue oren_buf_payload_is_raw(OrenValue buf);
 // Diagnostic helper: return true if the buffer payload was mmap-allocated (and can be returned to OS).
 OrenValue oren_buf_payload_is_mmap(OrenValue buf);
 
-// Debug/diagnostic helper (C backend): returns (uintptr_t)buf->data % mod.
-// Does not expose the full pointer value, but enables alignment assertions in tests.
-OrenValue oren_buf_data_mod(OrenValue buf, OrenValue mod);
+	// Debug/diagnostic helper (C backend): returns (uintptr_t)buf->data % mod.
+	// Does not expose the full pointer value, but enables alignment assertions in tests.
+	OrenValue oren_buf_data_mod(OrenValue buf, OrenValue mod);
+	// Unsafe/fast-path (tooling/internal): return (uintptr_t)buf->data as an int.
+	// Intended for native+tooling hot paths that need raw byte access without per-byte calls.
+	// Caller must treat this as an internal pointer value (not stable ABI).
+	OrenValue oren_buf_data_ptr_unchecked(OrenValue buf);
 
-OrenValue oren_buf_load_u8(OrenValue buf, OrenValue idx);
-OrenValue oren_buf_store_u8(OrenValue buf, OrenValue idx, OrenValue v);
+	OrenValue oren_buf_load_u8(OrenValue buf, OrenValue idx);
+	// Unsafe/fast-path (tooling/internal): load a byte from a u8_buf without bounds/type checks.
+	// Intended for compiler hot paths like astbin decode after a single upfront validation.
+	OrenValue oren_buf_load_u8_unchecked(OrenValue buf, OrenValue idx);
+	OrenValue oren_buf_store_u8(OrenValue buf, OrenValue idx, OrenValue v);
 OrenValue oren_buf_load_i32(OrenValue buf, OrenValue idx);
 OrenValue oren_buf_store_i32(OrenValue buf, OrenValue idx, OrenValue v);
 OrenValue oren_buf_load_i64(OrenValue buf, OrenValue idx);

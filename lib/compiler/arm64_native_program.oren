@@ -121,7 +121,9 @@ fn _arm64_alloc_global_slot(ctx, name_node, init_expr, from_runtime) {
     var data_off = bytes_len(ctx["data"])
     var k = 0
     while k < 8 { bytes_push(ctx["data"], 0); k = k + 1 }
-    ctx["globals"][nm] = data_off
+    // Store as offset+1 so a real offset of 0 is not indistinguishable from `nil`
+    // when the compiler runs under the native runtime (where `nil` is 0).
+    ctx["globals"][nm] = data_off + 1
 
     var is_floaty = exprm.native_expr_is_floaty(ctx, init_expr)
     var is_stringy = exprm.native_expr_is_stringy(ctx, init_expr)
@@ -509,9 +511,12 @@ fn native_compile_program_arm64(linked, platform) {
     var wi = 0
     while wi < oren_list_len(ctx["func_decl_order"]) {
         var fname = ctx["func_decl_order"][wi]
-        var arity = ctx["func_arity"][fname]
-        if arity != nil {
-            var vf = ctx["func_varargs_fixed"][fname]
+        var arity_enc = ctx["func_arity"][fname]
+        if arity_enc != nil {
+            var arity = arity_enc - 1
+            var vf = nil
+            var vf_enc = ctx["func_varargs_fixed"][fname]
+            if vf_enc != nil { vf = vf_enc - 1 }
             native_compile_stmt(ctx, callable.synth_fnwrap(fname, arity, vf))
         }
         wi = wi + 1

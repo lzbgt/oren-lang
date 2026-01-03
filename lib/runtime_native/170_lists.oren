@@ -3,26 +3,28 @@
 	@oren.keep
 	fn oren_new_list(cap) {
 	    if cap < 0 { cap = 0 }
-	    var header = malloc(32)
+	    var header = malloc_k(32, 2)
 	    if header == 0 { exit(200) }
 	    if header == -1 { exit(200) }
-	    // Track list header with kind=LIST so:
-	    // - list ops can validate via `oren_find_node(v).kind`
-	    // - GC can traverse list elements deterministically
-	    oren_track_alloc(header, 32, 2)
 	    var buf = 0
 	    if cap > 0 {
-	        buf = malloc(cap * 8)
+	        buf = malloc_k(cap * 8, 0)
 	        if buf == 0 { exit(201) }
 	        if buf == -1 { exit(201) }
-	        oren_track_alloc(buf, cap * 8, 0)
 	    }
 	    ptr_set(iadd(header, 0), 0)       // count
 	    ptr_set(iadd(header, 8), cap)     // capacity
 	    ptr_set(iadd(header, 16), buf)    // data buffer
 	    ptr_set(iadd(header, 24), list_magic())
-	    return header
-		}
+		    return header
+			}
+
+// Cross-backend helper: allocate an empty list with reserved capacity.
+// In native runtime, `oren_new_list(cap)` already has "capacity constructor" semantics.
+@oren.keep
+fn oren_list_new_cap(cap) {
+    return oren_new_list(cap)
+}
 
 @oren.keep
 fn oren_list_len(list) {
@@ -60,18 +62,17 @@ fn oren_list_push(list, value) {
 	    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_push on non-list"); return 0 }
 	    var count = ptr_get(iadd(list, 0))
 	    var cap = ptr_get(iadd(list, 8))
-	    var buf = ptr_get(iadd(list, 16))
-	    if count >= cap {
-	        var new_cap = cap * 2
-	        if new_cap < 4 { new_cap = 4 }
-	        var new_buf = malloc(new_cap * 8)
-        if new_buf == 0 { exit(211) }
-        if new_buf == -1 { exit(211) }
-	        oren_track_alloc(new_buf, new_cap * 8, 0)
-	        var i = 0
-	        while i < count {
-	            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
-	            i = iadd(i, 1)
+		    var buf = ptr_get(iadd(list, 16))
+		    if count >= cap {
+		        var new_cap = cap * 2
+		        if new_cap < 4 { new_cap = 4 }
+		        var new_buf = malloc_k(new_cap * 8, 0)
+	        if new_buf == 0 { exit(211) }
+	        if new_buf == -1 { exit(211) }
+		        var i = 0
+		        while i < count {
+		            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+		            i = iadd(i, 1)
 	        }
 	        buf = new_buf
 	        cap = new_cap
@@ -83,6 +84,35 @@ fn oren_list_push(list, value) {
 	    // Language-level semantics: `oren_list_push` is statement-like and returns `nil`.
 	    // (The list header pointer is stable and does not need to be returned.)
 	    return 0
+}
+
+// Unsafe/fast-path (tooling/internal): push without `oren_find_node` / kind/magic validation.
+// Used by compiler hot paths (astbin decode) where the container provenance is trusted.
+@oren.keep
+fn oren_list_push_unchecked(list, value) {
+    if list == 0 { oren_panic("list_push_unchecked on nil"); return 0 }
+    var count = ptr_get(iadd(list, 0))
+    var cap = ptr_get(iadd(list, 8))
+	    var buf = ptr_get(iadd(list, 16))
+	    if count >= cap {
+	        var new_cap = cap * 2
+	        if new_cap < 4 { new_cap = 4 }
+	        var new_buf = malloc_k(new_cap * 8, 0)
+	        if new_buf == 0 { exit(211) }
+	        if new_buf == -1 { exit(211) }
+	        var i = 0
+	        while i < count {
+	            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+	            i = iadd(i, 1)
+        }
+        buf = new_buf
+        cap = new_cap
+        ptr_set(iadd(list, 8), cap)
+        ptr_set(iadd(list, 16), buf)
+    }
+    ptr_set(iadd(buf, count * 8), value)
+    ptr_set(iadd(list, 0), iadd(count, 1))
+    return 0
 }
 
 fn oren_list_get(list, idx) {
@@ -140,10 +170,9 @@ fn oren_list_set(list, idx, value) {
         var new_cap = cap * 2
         if new_cap < 4 { new_cap = 4 }
         if new_cap < want { new_cap = want }
-        var new_buf = malloc(new_cap * 8)
+        var new_buf = malloc_k(new_cap * 8, 0)
         if new_buf == 0 { exit(212) }
         if new_buf == -1 { exit(212) }
-        oren_track_alloc(new_buf, new_cap * 8, 0)
 
         var i = 0
         while i < count {

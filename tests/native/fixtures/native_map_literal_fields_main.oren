@@ -1,0 +1,25 @@
+fn fail(code) {
+    print("FAIL code=" + oren_int_to_string(code))
+    oren_exit(code)
+    return 0
+}
+
+fn main() {
+    // This exercises non-empty map literals with string keys, which are heavily used by
+    // compiler internals (AST nodes are maps like {"type": "...", "value": ...}).
+    var m = {"type": "Integer", "value": "123", "ok": 1}
+
+    var t = m["type"]
+    if t == 0 { fail(100) }
+    if strcmp(t, "Integer") != 0 { fail(101) }
+
+    var v = m["value"]
+    if v == 0 { fail(110) }
+    if strcmp(v, "123") != 0 { fail(111) }
+
+    var okv = m["ok"]
+    if okv != 1 { fail(120) }
+
+    print("native map literal fields OK")
+    return 0
+}

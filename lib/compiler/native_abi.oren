@@ -27,7 +27,21 @@ fn int_arg_reg(abi, arg_index) {
     if abi != nil { regs = abi["int_arg_regs"] }
     if regs == nil { return nil }
     if arg_index < 0 || arg_index >= oren_list_len(regs) { return nil }
-    return regs[arg_index]
+    // IMPORTANT (native backend compatibility):
+    // Native runtime uses `0` as the "nil" sentinel, so callers must never use `== nil`
+    // checks on values where 0 is a valid payload (e.g. register number X0).
+    //
+    // To avoid nil/0 ambiguity, return register numbers encoded as `reg+1`:
+    // - 0 means "missing"
+    // - 1..N map to real regs 0..N-1
+    //
+    // Note: on arm64, the first int arg reg is X0 (reg 0). Under the native runtime's
+    // stopgap value model, list element 0 is indistinguishable from `nil` when read back,
+    // so `regs[0]` may appear as `nil` even though the ABI list contains `0`.
+    // Treat that as reg 0 and continue with the encoding.
+    var reg = regs[arg_index]
+    if reg == nil { reg = 0 }
+    return reg + 1
 }
 
 fn caller_shadow_bytes(abi) {

@@ -31,11 +31,12 @@ fn func_decl_add(ctx, fn_name, arity) {
     if _str_starts_with(fn_name, "__oren_fnwrap_") { return nil }
     if _str_starts_with(fn_name, "__oren_lambda_") { return nil }
 
-    var existing = ctx["func_arity"][fn_name]
-    if existing == nil {
-        ctx["func_arity"][fn_name] = arity
+    var existing_enc = ctx["func_arity"][fn_name]
+    if existing_enc == nil {
+        ctx["func_arity"][fn_name] = arity + 1
         oren_list_push(ctx["func_decl_order"], fn_name)
     } else {
+        var existing = existing_enc - 1
         if existing != arity {
             // Do not hard-exit inside codegen: collect and let the outer compiler emit OREN_DIAG.
             oren_list_push(ctx["errors"], "native backend: inconsistent arity for '" + fn_name + "' (" + oren_int_to_string(existing) + " vs " + oren_int_to_string(arity) + ")")
@@ -74,7 +75,7 @@ fn func_decl_scan_stmt_list(ctx, stmts) {
                 func_decl_add(ctx, name, oren_list_len(fn_node["params"]))
                 var vf = func_varargs_fixed_from_params(fn_node["params"])
                 if vf >= 0 {
-                    ctx["func_varargs_fixed"][name] = vf
+                    ctx["func_varargs_fixed"][name] = vf + 1
                 }
             }
         }

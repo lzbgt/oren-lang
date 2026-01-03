@@ -393,28 +393,44 @@ fn read_oct_number(l) {
 
 fn read_string(l) {
     // opening quote already consumed
-    var out = ""
+    //
+    // PERF (native backend):
+    // Building `out` via repeated string concatenation (`out = out + ch`) is O(n^2) per string literal,
+    // and becomes a major self-host compiler bottleneck because the runtime/stdlib contains many
+    // string literals (error messages, diagnostics, etc.).
+    //
+    // Instead, accumulate bytes and allocate exactly once at the end.
+    var bs = []
     read_char(l)
     while l["ch"] != token.CH_QUOTE {
-        if l["ch"] == "" { return out }
-        if l["ch"] == token.CH_BACKSLASH {
+        var ch = l["ch"]
+        if ch == "" {
+            return oren_string_from_bytes(bs)
+        }
+        if ch == token.CH_BACKSLASH {
             read_char(l)
-            if l["ch"] == "" { return out }
-            var escaped = ""
-            if l["ch"] == "n" { escaped = token.CH_LF }
-            if l["ch"] == "r" { escaped = token.CH_CR }
-            if l["ch"] == "t" { escaped = token.CH_TAB }
-            if l["ch"] == token.CH_QUOTE { escaped = token.CH_QUOTE }
-            if l["ch"] == token.CH_BACKSLASH { escaped = token.CH_BACKSLASH }
-            if escaped == "" { escaped = l["ch"] }
-            out = out + escaped
+            ch = l["ch"]
+            if ch == "" {
+                return oren_string_from_bytes(bs)
+            }
+            var b = _byte0(ch)
+            if ch == "n" { b = 10 }        // '\n'
+            else if ch == "r" { b = 13 }   // '\r'
+            else if ch == "t" { b = 9 }    // '\t'
+            else if ch == token.CH_QUOTE { b = 34 }       // '"'
+            else if ch == token.CH_BACKSLASH { b = 92 }   // '\\'
+            // Unknown escape: keep the old behavior (treat as literal char).
+            if b < 0 { b = 0 }
+            oren_list_push(bs, b)
             read_char(l)
         } else {
-            out = out + l["ch"]
+            var b2 = _byte0(ch)
+            if b2 < 0 { b2 = 0 }
+            oren_list_push(bs, b2)
             read_char(l)
         }
     }
-    return out
+    return oren_string_from_bytes(bs)
 }
 
 fn tok_lc(l, t, lit, start_pos, end_pos, line, col) {

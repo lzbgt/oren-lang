@@ -227,6 +227,14 @@ fn map_magic() { return 1296121168 } // 'MAP\0' (rolling; used only for type dis
 fn _map_hash_empty() { return 0 }
 fn _map_hash_tomb() { return 1 }
 
+// IMPORTANT (compiler self-hosting perf):
+// Most compiler-internal maps are tiny (AST nodes: {"type": "...", ...}).
+// Allocating and clearing a hash table for every such map dominates runtime.
+//
+// Below this entry count, we use linear scans and keep `hash_ptr/hash_cap` at 0.
+// When a map grows beyond this threshold, we build and maintain a hash index.
+fn _map_hash_threshold_entries() { return 32 }
+
 fn _map_hash_int(k) {
     // 64-bit multiplicative hash (Knuth).
     return k * 11400714819323198485
@@ -274,10 +282,9 @@ fn _map_hash_init_or_resize(m, want_entries) {
     var tab = ptr_get(iadd(m, 40))
     var cap = ptr_get(iadd(m, 48))
     if tab == 0 || cap == 0 || cap < want_cap {
-        tab = malloc(want_cap * 8)
+        tab = malloc_k(want_cap * 8, 0)
         if tab == 0 { oren_panic("map: hash alloc failed") }
         if tab == -1 { oren_panic("map: hash alloc failed") }
-        oren_track_alloc(tab, want_cap * 8, 0)
         ptr_set(iadd(m, 40), tab)
         ptr_set(iadd(m, 48), want_cap)
         cap = want_cap
@@ -292,8 +299,15 @@ fn _map_hash_rebuild_for(m, want_entries) {
     var n_entries = count
     if want_entries != nil && want_entries > n_entries { n_entries = want_entries }
 
+    // Do not allocate hash tables for tiny maps (compiler AST nodes).
+    if n_entries < _map_hash_threshold_entries() {
+        // Keep hash_ptr/hash_cap at 0 and rely on linear scans.
+        ptr_set(iadd(m, 40), 0)
+        ptr_set(iadd(m, 48), 0)
+        return 0
+    }
     if n_entries <= 0 || buf == 0 {
-        // Still ensure a minimal table exists so future inserts are O(1).
+        // Ensure a minimal table exists once we cross the threshold.
         _map_hash_init_or_resize(m, 0)
         return 0
     }
@@ -367,8 +381,8 @@ fn oren_is_map(v) {
     return true
 }
 
-	@oren.keep
-	fn oren_new_map(cap) {
+			@oren.keep
+			fn oren_new_map(cap) {
     // Map header layout mirrors list layout for safety and future growth:
     //   [count][cap][entries_ptr][magic][dirty_sort]
     // Where entries_ptr points to an array of entries:
@@ -391,13 +405,9 @@ fn oren_is_map(v) {
     // - dirty_sort @ +32  (0=sorted, 1=needs sort for deterministic iteration)
     // - hash_ptr   @ +40  (u64 ptr to slot table; 0 means uninitialized)
     // - hash_cap   @ +48  (u64 number of slots; 0 means uninitialized)
-    var header = malloc(56)
+    var header = malloc_k(56, 3)
     if header == 0 { exit(1) }
     if header == -1 { exit(1) }
-    // Track map header with kind=MAP so:
-    // - map ops can validate via `oren_find_node(v).kind`
-    // - GC can traverse map entries deterministically
-    oren_track_alloc(header, 56, 3)
 
     var buf = 0
     // Map entry layout (24 bytes, 8-byte aligned):
@@ -408,10 +418,9 @@ fn oren_is_map(v) {
     // This allows the native runtime to support int-keyed maps used by the compiler
     // (e.g. `type_scopes: {0: {...}}`) without relying on unsafe `strcmp` on integers.
     if cap > 0 {
-        buf = malloc(cap * 24)
+        buf = malloc_k(cap * 24, 0)
         if buf == 0 { exit(1) }
         if buf == -1 { exit(1) }
-        oren_track_alloc(buf, cap * 24, 0)
     }
 
     ptr_set(iadd(header, 0), 0)       // count
@@ -421,8 +430,15 @@ fn oren_is_map(v) {
     ptr_set(iadd(header, 32), 0)      // dirty_sort
     ptr_set(iadd(header, 40), 0)      // hash_ptr
     ptr_set(iadd(header, 48), 0)      // hash_cap
-    return header
-		}
+	    return header
+			}
+
+// Cross-backend helper: allocate an empty map with reserved capacity.
+// In native runtime, `oren_new_map(cap)` already has "capacity constructor" semantics.
+@oren.keep
+fn oren_map_new_cap(cap) {
+    return oren_new_map(cap)
+}
 
 fn _oren_map_check(m) {
     if m == 0 { oren_panic("map op on nil") }
@@ -499,11 +515,71 @@ fn _oren_map_set_kind(m, k, v, k_kind) {
     if buf == 0 && cap > 0 { oren_panic("map_set: buf missing") }
     if cap == 0 && buf != 0 { oren_panic("map_set: cap/buf mismatch") }
 
-    // Ensure hash index exists and has capacity for the next insert.
     var want = iadd(count, 1)
+
+    // For tiny maps, avoid allocating a hash table; do a linear scan/update/append.
     var tab = ptr_get(iadd(m, 40))
     var hcap = ptr_get(iadd(m, 48))
     if tab == 0 || hcap == 0 {
+        if want < _map_hash_threshold_entries() {
+            // Update if key exists.
+            if count > 0 && buf != 0 {
+                var si = 0
+                while si < count {
+                    var base0 = iadd(buf, si * 24)
+                    var ek0 = ptr_get(iadd(base0, 0))
+                    var ek_kind0 = ptr_get(iadd(base0, 8))
+                    if ek_kind0 == k_kind {
+                        if k_kind == 0 {
+                            if ek0 == k {
+                                ptr_set(iadd(base0, 16), v)
+                                return v
+                            }
+                        } else {
+                            if strcmp(ek0, k) == 0 {
+                                ptr_set(iadd(base0, 16), v)
+                                return v
+                            }
+                        }
+                    }
+                    si = iadd(si, 1)
+                }
+            }
+
+            // Grow if needed (like lists).
+            if count >= cap {
+                var new_cap0 = cap * 2
+                if new_cap0 < 4 { new_cap0 = 4 }
+                var new_buf0 = malloc_k(new_cap0 * 24, 0)
+                if new_buf0 == 0 { oren_panic("map_set: out of memory") }
+                if new_buf0 == -1 { oren_panic("map_set: out of memory") }
+                var ci0 = 0
+                while ci0 < count {
+                    var from0 = iadd(buf, ci0 * 24)
+                    var to0 = iadd(new_buf0, ci0 * 24)
+                    ptr_set(iadd(to0, 0), ptr_get(iadd(from0, 0)))
+                    ptr_set(iadd(to0, 8), ptr_get(iadd(from0, 8)))
+                    ptr_set(iadd(to0, 16), ptr_get(iadd(from0, 16)))
+                    ci0 = iadd(ci0, 1)
+                }
+                buf = new_buf0
+                cap = new_cap0
+                ptr_set(iadd(m, 8), cap)
+                ptr_set(iadd(m, 16), buf)
+            }
+
+            // Append new entry.
+            var offn0 = count * 24
+            var base2_0 = iadd(buf, offn0)
+            ptr_set(iadd(base2_0, 0), k)
+            ptr_set(iadd(base2_0, 8), k_kind)
+            ptr_set(iadd(base2_0, 16), v)
+            ptr_set(iadd(m, 0), iadd(count, 1))
+            ptr_set(iadd(m, 32), 1)
+            return v
+        }
+
+        // Crossed threshold: build hash index and continue in hashed mode.
         _map_hash_rebuild_for(m, want)
         tab = ptr_get(iadd(m, 40))
         hcap = ptr_get(iadd(m, 48))
@@ -516,7 +592,8 @@ fn _oren_map_set_kind(m, k, v, k_kind) {
         }
     }
 
-    // Fast path: probe via hash index for update/insert.
+    // Hash mode: probe via hash index for update/insert.
+    if tab == 0 || hcap == 0 { oren_panic("map_set: missing hash table") }
     var mask = hcap - 1
     var idx = _map_hash_key(k, k_kind) & mask
     var first_tomb = -1
@@ -525,9 +602,7 @@ fn _oren_map_set_kind(m, k, v, k_kind) {
         if rem <= 0 { oren_panic("map_set: hash probe exhausted") }
         rem = rem - 1
         var slot = ptr_get(iadd(tab, idx << 3))
-        if slot == _map_hash_empty() {
-            break
-        }
+        if slot == _map_hash_empty() { break }
         if slot == _map_hash_tomb() {
             if first_tomb < 0 { first_tomb = idx }
         } else {
@@ -562,10 +637,9 @@ fn _oren_map_set_kind(m, k, v, k_kind) {
     if count >= cap {
         var new_cap = cap * 2
         if new_cap < 4 { new_cap = 4 }
-        var new_buf = malloc(new_cap * 24)
+        var new_buf = malloc_k(new_cap * 24, 0)
         if new_buf == 0 { oren_panic("map_set: out of memory") }
         if new_buf == -1 { oren_panic("map_set: out of memory") }
-        oren_track_alloc(new_buf, new_cap * 24, 0)
         var ci = 0
         while ci < count {
             var from = iadd(buf, ci * 24)
@@ -606,6 +680,222 @@ fn oren_map_set_int(m, k, v) {
 @oren.keep
 fn oren_map_set_str(m, k, v) {
     return _oren_map_set_kind(m, k, v, 1)
+}
+
+// Unsafe/fast-path (tooling/internal): assumes `m` is a valid map pointer and the key kind is correct.
+// This avoids repeated `oren_find_node` checks in compiler hot paths (astbin decode, parsing).
+fn _oren_map_set_kind_unchecked(m, k, v, k_kind) {
+    // No `_oren_map_check` / `_oren_assert_string_ptr` here by design.
+    if m == 0 { oren_panic("map_set_unchecked on nil"); return 0 }
+    if k_kind != 0 && k_kind != 1 { oren_panic("map_set_unchecked: invalid key kind"); return 0 }
+
+    var count = ptr_get(iadd(m, 0))
+    var cap = ptr_get(iadd(m, 8))
+    if count < 0 { count = 0; ptr_set(iadd(m, 0), 0) }
+    if cap < 0 { cap = 0; ptr_set(iadd(m, 8), 0) }
+
+    var buf = ptr_get(iadd(m, 16))
+    if buf == 0 && cap > 0 { oren_panic("map_set_unchecked: buf missing"); return 0 }
+    if cap == 0 && buf != 0 { oren_panic("map_set_unchecked: cap/buf mismatch"); return 0 }
+
+    var want = iadd(count, 1)
+
+    // Tiny maps: linear scan/update/append.
+    var tab = ptr_get(iadd(m, 40))
+    var hcap = ptr_get(iadd(m, 48))
+    if tab == 0 || hcap == 0 {
+        if want < _map_hash_threshold_entries() {
+            if count > 0 && buf != 0 {
+                var si = 0
+                while si < count {
+                    var base0 = iadd(buf, si * 24)
+                    var ek0 = ptr_get(iadd(base0, 0))
+                    var ek_kind0 = ptr_get(iadd(base0, 8))
+                    if ek_kind0 == k_kind {
+                        if k_kind == 0 {
+                            if ek0 == k { ptr_set(iadd(base0, 16), v); return v }
+                        } else {
+                            if strcmp(ek0, k) == 0 { ptr_set(iadd(base0, 16), v); return v }
+                        }
+                    }
+                    si = iadd(si, 1)
+                }
+            }
+
+            if count >= cap {
+                var new_cap0 = cap * 2
+                if new_cap0 < 4 { new_cap0 = 4 }
+                var new_buf0 = malloc_k(new_cap0 * 24, 0)
+                if new_buf0 == 0 { oren_panic("map_set_unchecked: out of memory"); return 0 }
+                if new_buf0 == -1 { oren_panic("map_set_unchecked: out of memory"); return 0 }
+                var ci0 = 0
+                while ci0 < count {
+                    var from0 = iadd(buf, ci0 * 24)
+                    var to0 = iadd(new_buf0, ci0 * 24)
+                    ptr_set(iadd(to0, 0), ptr_get(iadd(from0, 0)))
+                    ptr_set(iadd(to0, 8), ptr_get(iadd(from0, 8)))
+                    ptr_set(iadd(to0, 16), ptr_get(iadd(from0, 16)))
+                    ci0 = iadd(ci0, 1)
+                }
+                buf = new_buf0
+                cap = new_cap0
+                ptr_set(iadd(m, 8), cap)
+                ptr_set(iadd(m, 16), buf)
+            }
+
+            var offn0 = count * 24
+            var base2_0 = iadd(buf, offn0)
+            ptr_set(iadd(base2_0, 0), k)
+            ptr_set(iadd(base2_0, 8), k_kind)
+            ptr_set(iadd(base2_0, 16), v)
+            ptr_set(iadd(m, 0), iadd(count, 1))
+            ptr_set(iadd(m, 32), 1)
+            return v
+        }
+
+        // Crossed threshold: build hash index and continue in hashed mode.
+        _map_hash_rebuild_for(m, want)
+        tab = ptr_get(iadd(m, 40))
+        hcap = ptr_get(iadd(m, 48))
+    } else {
+        if want * 4 >= hcap * 3 {
+            _map_hash_rebuild_for(m, want)
+            tab = ptr_get(iadd(m, 40))
+            hcap = ptr_get(iadd(m, 48))
+        }
+    }
+
+    if tab == 0 || hcap == 0 { oren_panic("map_set_unchecked: missing hash table"); return 0 }
+
+    var mask = hcap - 1
+    var idx = _map_hash_key(k, k_kind) & mask
+    var first_tomb = -1
+    var rem = hcap
+    while 1 {
+        if rem <= 0 { oren_panic("map_set_unchecked: hash probe exhausted"); return 0 }
+        rem = rem - 1
+        var slot = ptr_get(iadd(tab, idx << 3))
+        if slot == _map_hash_empty() { break }
+        if slot == _map_hash_tomb() {
+            if first_tomb < 0 { first_tomb = idx }
+        } else {
+            var ei = slot - 2
+            if ei >= 0 && ei < count {
+                var base = iadd(buf, ei * 24)
+                var ek = ptr_get(iadd(base, 0))
+                var ek_kind = ptr_get(iadd(base, 8))
+                if ek_kind == k_kind {
+                    if k_kind == 0 {
+                        if ek == k { ptr_set(iadd(base, 16), v); return v }
+                    } else {
+                        if strcmp(ek, k) == 0 { ptr_set(iadd(base, 16), v); return v }
+                    }
+                }
+            } else {
+                _map_hash_rebuild_for(m, want)
+                return _oren_map_set_kind_unchecked(m, k, v, k_kind)
+            }
+        }
+        idx = iadd(idx, 1) & mask
+    }
+
+    if count >= cap {
+        var new_cap = cap * 2
+        if new_cap < 4 { new_cap = 4 }
+        var new_buf = malloc_k(new_cap * 24, 0)
+        if new_buf == 0 { oren_panic("map_set_unchecked: out of memory"); return 0 }
+        if new_buf == -1 { oren_panic("map_set_unchecked: out of memory"); return 0 }
+        var ci = 0
+        while ci < count {
+            var from = iadd(buf, ci * 24)
+            var to = iadd(new_buf, ci * 24)
+            ptr_set(iadd(to, 0), ptr_get(iadd(from, 0)))
+            ptr_set(iadd(to, 8), ptr_get(iadd(from, 8)))
+            ptr_set(iadd(to, 16), ptr_get(iadd(from, 16)))
+            ci = iadd(ci, 1)
+        }
+        buf = new_buf
+        cap = new_cap
+        ptr_set(iadd(m, 8), cap)
+        ptr_set(iadd(m, 16), buf)
+    }
+
+    var offn = count * 24
+    var base2 = iadd(buf, offn)
+    ptr_set(iadd(base2, 0), k)
+    ptr_set(iadd(base2, 8), k_kind)
+    ptr_set(iadd(base2, 16), v)
+    ptr_set(iadd(m, 0), iadd(count, 1))
+    ptr_set(iadd(m, 32), 1)
+
+    var ins = idx
+    if first_tomb >= 0 { ins = first_tomb }
+    ptr_set(iadd(tab, ins << 3), iadd(count, 2))
+    return v
+}
+
+@oren.keep
+fn oren_map_set_int_unchecked(m, k, v) {
+    return _oren_map_set_kind_unchecked(m, k, v, 0)
+}
+
+@oren.keep
+fn oren_map_set_str_unchecked(m, k, v) {
+    return _oren_map_set_kind_unchecked(m, k, v, 1)
+}
+
+// Unsafe builder fast-path (tooling/internal):
+// Append a new entry without doing a duplicate-key lookup.
+//
+// Intended for astbin decode where:
+// - the map was created via `oren_map_new_cap(n)` (so cap is sufficient)
+// - keys are known-unique for the serialized representation
+//
+// This avoids O(n^2) behavior from repeated linear scans on tiny maps.
+@oren.keep
+fn oren_map_push_entry_int_unchecked(m, k, v) {
+    if m == 0 { oren_panic("map_push_entry_int_unchecked on nil"); return v }
+    var count = ptr_get(iadd(m, 0))
+    var cap = ptr_get(iadd(m, 8))
+    if count < 0 { count = 0; ptr_set(iadd(m, 0), 0) }
+    if cap < 0 { cap = 0; ptr_set(iadd(m, 8), 0) }
+    if count >= cap { oren_panic("map_push_entry_int_unchecked: capacity exceeded"); return v }
+    var buf = ptr_get(iadd(m, 16))
+    if buf == 0 && cap > 0 { oren_panic("map_push_entry_int_unchecked: buf missing"); return v }
+    var base = iadd(buf, count * 24)
+    ptr_set(iadd(base, 0), k)
+    ptr_set(iadd(base, 8), 0)
+    ptr_set(iadd(base, 16), v)
+    ptr_set(iadd(m, 0), iadd(count, 1))
+    ptr_set(iadd(m, 32), 1) // dirty_sort
+    return v
+}
+
+@oren.keep
+fn oren_map_push_entry_str_unchecked(m, k, v) {
+    if m == 0 { oren_panic("map_push_entry_str_unchecked on nil"); return v }
+    var count = ptr_get(iadd(m, 0))
+    var cap = ptr_get(iadd(m, 8))
+    if count < 0 { count = 0; ptr_set(iadd(m, 0), 0) }
+    if cap < 0 { cap = 0; ptr_set(iadd(m, 8), 0) }
+    if count >= cap { oren_panic("map_push_entry_str_unchecked: capacity exceeded"); return v }
+    var buf = ptr_get(iadd(m, 16))
+    if buf == 0 && cap > 0 { oren_panic("map_push_entry_str_unchecked: buf missing"); return v }
+    var base = iadd(buf, count * 24)
+    ptr_set(iadd(base, 0), k)
+    ptr_set(iadd(base, 8), 1)
+    ptr_set(iadd(base, 16), v)
+    ptr_set(iadd(m, 0), iadd(count, 1))
+    ptr_set(iadd(m, 32), 1) // dirty_sort
+    return v
+}
+
+// Finalize after bulk appends (native backend builds hash index if needed).
+@oren.keep
+fn oren_map_build_finalize_unchecked(m, want_entries) {
+    if m == 0 { return 0 }
+    _map_hash_rebuild_for(m, want_entries)
+    return m
 }
 
 @oren.keep
@@ -732,46 +1022,58 @@ fn _oren_map_get_kind(m, k, k_kind) {
     var count = ptr_get(iadd(m, 0))
     var buf = ptr_get(iadd(m, 16))
 
-    // Prefer hash index for O(1) average lookups.
-    if count > 0 && buf != 0 {
-        var tab = ptr_get(iadd(m, 40))
-        var cap = ptr_get(iadd(m, 48))
-        if tab == 0 || cap == 0 {
-            _map_hash_rebuild(m)
-            tab = ptr_get(iadd(m, 40))
-            cap = ptr_get(iadd(m, 48))
+    // Tiny maps: linear scan is faster than maintaining a hash table (AST nodes).
+    if count <= 0 || buf == 0 { return 0 }
+    var tab = ptr_get(iadd(m, 40))
+    var cap = ptr_get(iadd(m, 48))
+    if tab == 0 || cap == 0 {
+        var i0 = 0
+        while i0 < count {
+            var off0 = i0 * 24
+            var base0 = iadd(buf, off0)
+            var kp0 = ptr_get(iadd(base0, 0))
+            var kp0_kind = ptr_get(iadd(base0, 8))
+            if kp0_kind == k_kind {
+                if k_kind == 0 {
+                    if kp0 == k { return ptr_get(iadd(base0, 16)) }
+                } else {
+                    if strcmp(kp0, k) == 0 { return ptr_get(iadd(base0, 16)) }
+                }
+            }
+            i0 = iadd(i0, 1)
         }
-        if tab != 0 && cap > 0 {
-            var mask = cap - 1
-            var idx = _map_hash_key(k, k_kind) & mask
-            var rem = cap
-            while 1 {
-                if rem <= 0 { break }
-                rem = rem - 1
-                var slot = ptr_get(iadd(tab, idx << 3))
-                if slot == _map_hash_empty() { return 0 }
-                if slot != _map_hash_tomb() {
-                    var ei = slot - 2
-                    if ei >= 0 && ei < count {
-                        var base = iadd(buf, ei * 24)
-                        var kp = ptr_get(iadd(base, 0))
-                        var kp_kind = ptr_get(iadd(base, 8))
-                        if kp_kind == k_kind {
-                            if k_kind == 0 {
-                                if kp == k { return ptr_get(iadd(base, 16)) }
-                            } else {
-                                if strcmp(kp, k) == 0 { return ptr_get(iadd(base, 16)) }
-                            }
-                        }
+        return 0
+    }
+
+    // Hash mode: O(1) average lookups.
+    var mask = cap - 1
+    var idx = _map_hash_key(k, k_kind) & mask
+    var rem = cap
+    while 1 {
+        if rem <= 0 { break }
+        rem = rem - 1
+        var slot = ptr_get(iadd(tab, idx << 3))
+        if slot == _map_hash_empty() { return 0 }
+        if slot != _map_hash_tomb() {
+            var ei = slot - 2
+            if ei >= 0 && ei < count {
+                var base = iadd(buf, ei * 24)
+                var kp = ptr_get(iadd(base, 0))
+                var kp_kind = ptr_get(iadd(base, 8))
+                if kp_kind == k_kind {
+                    if k_kind == 0 {
+                        if kp == k { return ptr_get(iadd(base, 16)) }
                     } else {
-                        // Stale index (should not happen): rebuild once and retry.
-                        _map_hash_rebuild(m)
-                        return _oren_map_get_kind(m, k, k_kind)
+                        if strcmp(kp, k) == 0 { return ptr_get(iadd(base, 16)) }
                     }
                 }
-                idx = iadd(idx, 1) & mask
+            } else {
+                // Stale index (should not happen): rebuild once and retry.
+                _map_hash_rebuild(m)
+                return _oren_map_get_kind(m, k, k_kind)
             }
         }
+        idx = iadd(idx, 1) & mask
     }
 
     // Fallback: linear scan (should only happen for very small maps or during bringup).

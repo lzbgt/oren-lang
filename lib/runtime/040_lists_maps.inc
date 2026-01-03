@@ -195,6 +195,30 @@ OrenValue oren_list_push(OrenValue list, OrenValue value) {
     return OREN_NIL;
 }
 
+OrenValue oren_list_push_unchecked(OrenValue list, OrenValue value) {
+    // Tooling/internal fast-path: still validates the outer type, but otherwise behaves like push.
+    // This keeps the portable API surface consistent across backends.
+    if (list.type != OREN_TYPE_LIST) {
+        oren_panic("push_unchecked on non-list");
+        return OREN_NIL;
+    }
+    OrenList *l = list.as.list_val;
+    if (!l) {
+        oren_panic("push_unchecked on nil list");
+        return OREN_NIL;
+    }
+    pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
+    pthread_mutex_lock(mu);
+    if (l->count >= l->capacity) {
+        int newCap = l->capacity < 1 ? 4 : l->capacity * 2;
+        oren_list_grow(l, newCap);
+    }
+    l->items[l->count] = value;
+    l->count += 1;
+    pthread_mutex_unlock(mu);
+    return OREN_NIL;
+}
+
 OrenValue oren_list_get(OrenValue list, OrenValue index) {
     if (list.type == OREN_TYPE_LIST) {
         if (index.type != OREN_TYPE_INT) {
@@ -877,6 +901,84 @@ OrenValue oren_new_map(int count, ...) {
     return v;
 }
 
+OrenValue oren_list_new_cap(OrenValue capv) {
+    if (capv.type != OREN_TYPE_INT) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("list_new_cap expects int"));
+    }
+    long long cap0 = capv.as.int_val;
+    if (cap0 < 0) cap0 = 0;
+    if (cap0 > (long long)INT32_MAX) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("list_new_cap: cap too large"));
+    }
+
+    int cap = (int)cap0;
+    lock_collections();
+    OrenList* list = malloc(sizeof(OrenList));
+    if (!list) {
+        unlock_collections();
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("list_new_cap: alloc failed"));
+    }
+    oren_register_alloc(list, OREN_ALLOC_LIST);
+    list->count = 0;
+    list->capacity = cap;
+    list->items = NULL;
+    if (cap > 0) {
+        list->items = malloc(sizeof(OrenValue) * (size_t)cap);
+        if (!list->items) {
+            free(list);
+            unlock_collections();
+            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("list_new_cap: alloc failed"));
+        }
+    }
+    unlock_collections();
+
+    OrenValue v;
+    v.type = OREN_TYPE_LIST;
+    v.as.list_val = list;
+    return v;
+}
+
+OrenValue oren_map_new_cap(OrenValue capv) {
+    if (capv.type != OREN_TYPE_INT) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("map_new_cap expects int"));
+    }
+    long long cap0 = capv.as.int_val;
+    if (cap0 < 0) cap0 = 0;
+    if (cap0 > (long long)INT32_MAX) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("map_new_cap: cap too large"));
+    }
+
+    int cap = (int)cap0;
+    lock_collections();
+    OrenMap* map = malloc(sizeof(OrenMap));
+    if (!map) {
+        unlock_collections();
+        return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("map_new_cap: alloc failed"));
+    }
+    oren_register_alloc(map, OREN_ALLOC_MAP);
+    map->count = 0;
+    map->capacity = cap;
+    map->keys = NULL;
+    map->values = NULL;
+    if (cap > 0) {
+        map->keys = (OrenValue*)malloc(sizeof(OrenValue) * (size_t)cap);
+        map->values = (OrenValue*)malloc(sizeof(OrenValue) * (size_t)cap);
+        if (!map->keys || !map->values) {
+            if (map->keys) free(map->keys);
+            if (map->values) free(map->values);
+            free(map);
+            unlock_collections();
+            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("map_new_cap: alloc failed"));
+        }
+    }
+    unlock_collections();
+
+    OrenValue v;
+    v.type = OREN_TYPE_MAP;
+    v.as.map_val = map;
+    return v;
+}
+
 OrenValue oren_new_map_from_pairs(int count, const OrenValue* kv_pairs) {
     if (count < 0) count = 0;
     OrenMap* map = malloc(sizeof(OrenMap));
@@ -1009,6 +1111,31 @@ OrenValue oren_map_set_str(OrenValue map, OrenValue key, OrenValue value) {
         return value; // Should not be reached
     }
     return oren_index_set(map, key, value);
+}
+
+OrenValue oren_map_set_int_unchecked(OrenValue map, OrenValue key, OrenValue value) {
+    // Tooling/internal fast-path: keep behavior deterministic but avoid extra layering in the compiler.
+    return oren_map_set_int(map, key, value);
+}
+
+OrenValue oren_map_set_str_unchecked(OrenValue map, OrenValue key, OrenValue value) {
+    return oren_map_set_str(map, key, value);
+}
+
+OrenValue oren_map_push_entry_int_unchecked(OrenValue map, OrenValue key, OrenValue value) {
+    // Tooling/internal builder fast-path (portable):
+    // C backend keeps maps sorted; implement this in terms of the regular set helper.
+    return oren_map_set_int_unchecked(map, key, value);
+}
+
+OrenValue oren_map_push_entry_str_unchecked(OrenValue map, OrenValue key, OrenValue value) {
+    return oren_map_set_str_unchecked(map, key, value);
+}
+
+OrenValue oren_map_build_finalize_unchecked(OrenValue map, OrenValue want_entries) {
+    // No-op for the C backend map representation (always sorted, no hash index).
+    (void)want_entries;
+    return map;
 }
 
 OrenValue oren_map_len(OrenValue map) {

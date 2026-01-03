@@ -10,6 +10,9 @@
 #include <stdint.h>
 #include <stdatomic.h>
 #include <string.h>
+#if !defined(_WIN32)
+#include <sys/resource.h>
+#endif
 
 // Some platforms name the anonymous-map flag MAP_ANON instead of MAP_ANONYMOUS.
 #if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)

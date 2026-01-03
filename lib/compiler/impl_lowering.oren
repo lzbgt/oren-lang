@@ -328,9 +328,21 @@ fn infer_container_kind(expr, kind_env) {
     }
     if t == "Infix" {
         // Best-effort: arithmetic/bitwise infix ops produce int.
+        // BUT: `+` is also used for string concatenation in the modern surface.
+        //
+        // If either side is known to be a string, treat the result as a string so
+        // key-kind inference and container sugar stay correct on native backends.
+        //
         // Comparisons (==, <, etc) are intentionally not treated as int here.
         var op2 = expr["op"]
-        if op2 == "+" || op2 == "-" || op2 == "*" || op2 == "/" || op2 == "%" ||
+        if op2 == "+" {
+            var kl = infer_container_kind(expr["left"], kind_env)
+            var kr = infer_container_kind(expr["right"], kind_env)
+            if kl == "string" || kr == "string" { return "string" }
+            if kl == "int" && kr == "int" { return "int" }
+            return nil
+        }
+        if op2 == "-" || op2 == "*" || op2 == "/" || op2 == "%" ||
            op2 == "&" || op2 == "|" || op2 == "^" || op2 == "<<" || op2 == ">>" {
             return "int"
         }
@@ -395,7 +407,16 @@ fn infer_map_key_kind(expr, kind_env) {
     }
     if t == "Infix" {
         var op2 = expr["op"]
-        if op2 == "+" || op2 == "-" || op2 == "*" || op2 == "/" || op2 == "%" ||
+        if op2 == "+" {
+            // `+` can be numeric add or string concat; only infer int if both sides are
+            // confidently int-like, otherwise prefer string or leave unknown.
+            var kl = infer_container_kind(expr["left"], kind_env)
+            var kr = infer_container_kind(expr["right"], kind_env)
+            if kl == "string" || kr == "string" { return 1 }
+            if kl == "int" && kr == "int" { return 0 }
+            return nil
+        }
+        if op2 == "-" || op2 == "*" || op2 == "/" || op2 == "%" ||
            op2 == "&" || op2 == "|" || op2 == "^" || op2 == "<<" || op2 == ">>" {
             return 0
         }

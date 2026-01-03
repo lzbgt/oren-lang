@@ -90,11 +90,19 @@ fn collect_top_level_functions(ctx, linked, err_prefix) {
             }
 
             // Record arity and optional varargs fixed count (last param is `...rest`).
-            ctx["func_arity"][name] = pc
+            //
+            // IMPORTANT (native-runtime compatibility):
+            // When the compiler runs under the native runtime, `nil` is represented as 0.
+            // Many compiler maps use `m[k] == nil` to mean "missing", so storing a real 0
+            // payload (e.g. arity 0) becomes ambiguous.
+            //
+            // To keep stage2-native functional without a full tagged value model yet,
+            // store small integer payloads as `n+1` (so 0 is reserved for "missing").
+            ctx["func_arity"][name] = pc + 1
             if pc > 0 {
                 var last = params[pc - 1]
                 if last != nil && last["is_varargs"] == true {
-                    ctx["func_varargs_fixed"][name] = pc - 1
+                    ctx["func_varargs_fixed"][name] = (pc - 1) + 1
                 }
             }
 
@@ -107,4 +115,3 @@ fn collect_top_level_functions(ctx, linked, err_prefix) {
     ctx["declared_functions"] = declared
     return out
 }
-

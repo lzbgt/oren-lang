@@ -114,44 +114,63 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 return true
             }
 
-            if fn_name == "oren_globals" {
-                // Inline globals pointer to avoid an extra call frame.
-                native_compile_expr(ctx, {"type": "Identifier", "value": "g_storage"})
-                return true
-            }
-
-            if fn_name == "malloc" || fn_name == "malloc_raw" {
-                // Bump-pointer heap in X28 (ptr) / X27 (limit); reuse free blocks if available.
-                native_compile_expr(ctx, args[0]) // size -> X0
-    
-                // Align size up to 16: size = (size + 15) & ~15
-                push_u32_le(ctx["code"], insn_add_imm(0, 0, 15))
-                push_u32_le(ctx["code"], insn_movn(1, 15))      // X1 = ~0xF
-                push_u32_le(ctx["code"], insn_and_reg(0, 0, 1)) // X0 = aligned size
-                push_u32_le(ctx["code"], insn_mov_reg(9, 0))    // save size in X9
-    
-                // SAVE X9
-                push_u32_le(ctx["code"], insn_sub_sp(16))
-                push_u32_le(ctx["code"], insn_str_reg_sp(9, 0))
-    
-                // Try reuse:
-                // - malloc(): reuse freed blocks (tracked alloc records pointing at object memory)
-                // - malloc_raw(): reuse free node storage (tracking/root nodes), never object blocks
-                var bl_reuse_pos = bytes_len(ctx["code"])
+		            if fn_name == "malloc" || fn_name == "malloc_raw" || fn_name == "malloc_k" {
+		                var want_args = 1
+		                if fn_name == "malloc_k" { want_args = 2 }
+		                if args == nil || oren_list_len(args) != want_args {
+	                    native_error(ctx, expr["token"], "native backend: " + fn_name + " expects " + oren_int_to_string(want_args) + " argument(s)")
+	                    push_u32_le(ctx["code"], insn_movz(0, 0))
+	                    return true
+	                }
+	                // Bump-pointer heap in X28 (ptr) / X27 (limit); reuse free blocks if available.
+	                native_compile_expr(ctx, args[0]) // size -> X0
+	    
+	                // Align size up to 16: size = (size + 15) & ~15
+	                push_u32_le(ctx["code"], insn_add_imm(0, 0, 15))
+	                push_u32_le(ctx["code"], insn_movn(1, 15))      // X1 = ~0xF
+	                push_u32_le(ctx["code"], insn_and_reg(0, 0, 1)) // X0 = aligned size
+	                push_u32_le(ctx["code"], insn_mov_reg(9, 0))    // save size in X9
+	                
+	                if fn_name == "malloc_k" {
+	                    // kind -> X10 (must be preserved across reuse and syscalls)
+	                    native_compile_expr(ctx, args[1])
+	                    push_u32_le(ctx["code"], insn_mov_reg(10, 0))
+	                }
+	    
+	                // SAVE X9 (and X10 for malloc_k) across helper call.
+	                if fn_name == "malloc_k" {
+	                    push_u32_le(ctx["code"], insn_sub_sp(32))
+	                    push_u32_le(ctx["code"], insn_str_reg_sp(9, 0))
+	                    push_u32_le(ctx["code"], insn_str_reg_sp(10, 8))
+	                } else {
+	                    push_u32_le(ctx["code"], insn_sub_sp(16))
+	                    push_u32_le(ctx["code"], insn_str_reg_sp(9, 0))
+	                }
+	    
+	                // Try reuse:
+	                // - malloc(): reuse freed blocks (tracked alloc records pointing at object memory)
+	                // - malloc_raw(): reuse free node storage (tracking/root nodes), never object blocks
+	                var bl_reuse_pos = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 if fn_name == "malloc" {
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reuse_pos, "name": "native_try_reuse"})
                 } else {
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reuse_pos, "name": "native_try_reuse_node"})
-                }
-                
-                // RESTORE X9
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 0))
-                push_u32_le(ctx["code"], insn_add_sp(16))
-                
-                push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
-                var jump_reuse_done = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0) // B.NE reuse_done
+	                }
+	                
+	                // RESTORE X9 (and X10 for malloc_k)
+	                if fn_name == "malloc_k" {
+	                    push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 0))
+	                    push_u32_le(ctx["code"], insn_ldr_reg_sp(10, 8))
+	                    push_u32_le(ctx["code"], insn_add_sp(32))
+	                } else {
+	                    push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 0))
+	                    push_u32_le(ctx["code"], insn_add_sp(16))
+	                }
+	                
+	                push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+	                var jump_reuse_done = bytes_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0) // B.NE reuse_done
     
                 // Bump path: candidate_end = heap_ptr (X28) + size
                 push_u32_le(ctx["code"], insn_mov_reg(0, 9))    // restore size
@@ -204,11 +223,18 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 // mmap(0, chunk, PROT=3, flags, -1, 0)
                 push_u32_le(ctx["code"], insn_add_imm(1, 3, 0)) // X1 = chunk
                 
-                // SAVE X3 (chunk) and X9 (aligned size) before syscall.
-                // The kernel may clobber registers across syscalls.
-                push_u32_le(ctx["code"], insn_sub_sp(32))
-                push_u32_le(ctx["code"], insn_str_reg_sp(3, 0))
-                push_u32_le(ctx["code"], insn_str_reg_sp(9, 8))
+	                // SAVE X3 (chunk) and X9 (aligned size) before syscall.
+	                // The kernel may clobber registers across syscalls.
+	                if fn_name == "malloc_k" {
+	                    push_u32_le(ctx["code"], insn_sub_sp(48))
+	                    push_u32_le(ctx["code"], insn_str_reg_sp(3, 0))
+	                    push_u32_le(ctx["code"], insn_str_reg_sp(9, 8))
+	                    push_u32_le(ctx["code"], insn_str_reg_sp(10, 16))
+	                } else {
+	                    push_u32_le(ctx["code"], insn_sub_sp(32))
+	                    push_u32_le(ctx["code"], insn_str_reg_sp(3, 0))
+	                    push_u32_le(ctx["code"], insn_str_reg_sp(9, 8))
+	                }
                 
                 push_u32_le(ctx["code"], insn_movz(0, 0))
                 push_u32_le(ctx["code"], insn_movz(2, mmap_prot))
@@ -247,10 +273,17 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 var mmap_ok_target = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_mmap_ok, insn_b_cond((mmap_ok_target - br_mmap_ok) / 4, 10)) // GE
     
-                // RESTORE X3 (chunk) and X9 (aligned size)
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 8))
-                push_u32_le(ctx["code"], insn_add_sp(32))
+	                // RESTORE X3 (chunk) and X9 (aligned size)
+	                if fn_name == "malloc_k" {
+	                    push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
+	                    push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 8))
+	                    push_u32_le(ctx["code"], insn_ldr_reg_sp(10, 16))
+	                    push_u32_le(ctx["code"], insn_add_sp(48))
+	                } else {
+	                    push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
+	                    push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 8))
+	                    push_u32_le(ctx["code"], insn_add_sp(32))
+	                }
     
                 // Update heap_ptr/limit: X0=base, X3=chunk, X9=aligned size.
                 //
@@ -268,20 +301,33 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 set_u32_le(ctx["code"], jump_end_malloc, insn_b((end_target - jump_end_malloc) / 4))
                 set_u32_le(ctx["code"], jump_use_chunk, insn_b_cond((chunk_target - jump_use_chunk) / 4, 11)) // LT -> chunk
     
-                if fn_name == "malloc" {
-                    // Track allocation (kind = misc)
-                    push_u32_le(ctx["code"], insn_mov_reg(1, 9))    // X1 = size
-                    push_u32_le(ctx["code"], insn_movz(2, 5))       // kind = 5
-                    var bl_track_pos = bytes_len(ctx["code"])
-                    push_u32_le(ctx["code"], 0)
-                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track_pos, "name": "oren_track_alloc"})
-                }
-                
-                // Return path
-                var malloc_end = bytes_len(ctx["code"])
-                set_u32_le(ctx["code"], jump_reuse_done, insn_b_cond((malloc_end - jump_reuse_done) / 4, 1)) // B.NE -> reuse_done/end
-                return true
-            }
+	                var track_target = bytes_len(ctx["code"])
+	                if fn_name == "malloc" {
+	                    // Track allocation (kind = misc)
+	                    push_u32_le(ctx["code"], insn_mov_reg(1, 9))    // X1 = size
+	                    push_u32_le(ctx["code"], insn_movz(2, 5))       // kind = 5
+	                    var bl_track_pos = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+	                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track_pos, "name": "oren_track_alloc"})
+	                }
+	                if fn_name == "malloc_k" {
+	                    // Track allocation with caller-provided kind.
+	                    push_u32_le(ctx["code"], insn_mov_reg(1, 9))    // X1 = size
+	                    push_u32_le(ctx["code"], insn_mov_reg(2, 10))   // X2 = kind
+	                    var bl_track_pos2 = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+	                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track_pos2, "name": "oren_track_alloc"})
+	                }
+	                
+	                // Return path
+	                var malloc_end = bytes_len(ctx["code"])
+	                if fn_name == "malloc_k" {
+	                    set_u32_le(ctx["code"], jump_reuse_done, insn_b_cond((track_target - jump_reuse_done) / 4, 1)) // B.NE -> track
+	                } else {
+	                    set_u32_le(ctx["code"], jump_reuse_done, insn_b_cond((malloc_end - jump_reuse_done) / 4, 1)) // B.NE -> reuse_done/end
+	                }
+	                return true
+	            }
 
 
 

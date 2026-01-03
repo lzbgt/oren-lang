@@ -103,9 +103,10 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             } else {
                 // Global assignment (top-level `var` in data blob).
                 var name = op["name"]
-                var goff = nil
-                if ctx["globals"] != nil { goff = ctx["globals"][name] }
-                if goff == nil { err(ctx, "x64 native v0: assign unknown var " + name); return nil }
+                var goff_enc = nil
+                if ctx["globals"] != nil { goff_enc = ctx["globals"][name] }
+                if goff_enc == nil { err(ctx, "x64 native v0: assign unknown var " + name); return nil }
+                var goff = goff_enc - 1
 
                 // r10 = &global_slot ; *(u64*)r10 = rax
                 var lea_pos = bytes_len(ctx["code"])

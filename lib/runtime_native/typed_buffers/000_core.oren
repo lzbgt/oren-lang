@@ -85,12 +85,8 @@ fn native_buf_new(len, elem_size, tag) {
     if len > 2147483647 { return oren_err(4, "buf_new: length too large") }
     if elem_size != 1 && elem_size != 4 && elem_size != 8 { return oren_err(4, "buf_new: invalid elem_size") }
 
-    var header = malloc(56)
+    var header = malloc_k(56, 7)
     if header == 0 || header == -1 { return oren_err(8, "buf_new: alloc failed") }
-    oren_track_alloc(header, 56, 0)
-    // Mark header kind=7 (BUF) so GC can keep payload alive.
-    var node = oren_find_node(header)
-    if node != 0 { ptr_set(iadd(node, 16), 7) }
 
     var bytes_len = len * elem_size
     var data = 0
@@ -115,22 +111,16 @@ fn native_buf_new(len, elem_size, tag) {
             data_ptr = data // already aligned due to 64-byte header
             // Mark payload kind=9 (RAW_MMAP).
             oren_track_alloc(data, bytes_len, 9)
-
-            // Zero-fill (mmap does not guarantee zero? In practice anonymous is zeroed, but keep explicit).
-            var i = 0
-            while i < bytes_len {
-                ptr_set_byte(data + i, 0)
-                i = i + 1
-            }
+	
+	            // Anonymous private mmap is guaranteed to be zero-filled by the OS.
+	            // Do not re-zero in userland: large compiler workloads allocate multi-megabyte buffers
+	            // (u8_buf for hashing/caching) and the byte loop here can dominate runtime.
         } else {
             // Small payload: heap allocate and align within the block.
             // Over-allocate so we can align the working payload pointer while keeping the GC anchor stable.
             var cap = bytes_len + (buf_align_default() - 1)
-            data = malloc(cap)
+            data = malloc_k(cap, 8)
             if data == 0 || data == -1 { return oren_err(8, "buf_new: payload alloc failed") }
-            // Mark payload kind=8 (RAW) so GC never treats it as pointer-containing memory.
-            // This is an explicit contract for typed buffers (HPC).
-            oren_track_alloc(data, cap, 8)
             data_ptr = native_align_up(data, buf_align_default())
             // Zero-fill (malloc does not promise zeroed memory).
             var i2 = 0
@@ -176,12 +166,8 @@ fn native_buf_wrap_ptr(data, len, elem_size, tag) {
         if cap < bytes_len { return oren_err(4, "buf_wrap_ptr: payload too small") }
     }
 
-    var header = malloc(56)
+    var header = malloc_k(56, 7)
     if header == 0 || header == -1 { return oren_err(8, "buf_wrap_ptr: alloc failed") }
-    oren_track_alloc(header, 56, 0)
-    // Mark header kind=7 (BUF) so GC can keep payload alive.
-    var node2 = oren_find_node(header)
-    if node2 != 0 { ptr_set(iadd(node2, 16), 7) }
 
     ptr_set(header + 0, len)
     ptr_set(header + 8, elem_size)
