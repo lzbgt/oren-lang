@@ -1,0 +1,15 @@
+fn assert_eq(a, b, code) {
+    if a != b {
+        print("assert_eq failed: code=" + oren_int_to_string(code))
+        print("  got=" + oren_int_to_string(a))
+        print("  expected=" + oren_int_to_string(b))
+        oren_fail(code, "f32_round_main")
+    }
+}
+
+fn main() {
+    var x = oren_f32_round(16777217.0)
+    assert_eq(x, 16777216.0, 1)
+    print("f32_round_main OK")
+    return 0
+}
