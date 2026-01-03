@@ -106,26 +106,61 @@ var CH_CR = oren_char(13)
 var CH_QUOTE = oren_char(34)
 var CH_BACKSLASH = oren_char(92)
 
+// Debug flags (env-gated; used during stage2-native bringup).
+var g_trace_token_once = false
+var g_trace_token_once2 = false
+
 // Helpers
-fn is_letter(ch) {
-    if ch == "_" { return true }
-    if ch >= "a" {
-        if ch <= "z" { return true }
+fn _ch_byte0(ch) {
+    // Compiler lexer operates on "byte chars" (1-byte NUL-terminated strings).
+    // Avoid relying on string ordering comparisons (>=, <=) because the native backend
+    // lowering for string relational ops is currently not stable.
+    if ch == nil { return -1 }
+    if ch == "" { return -1 }
+    var trace = oren_env("OREN_TRACE_TOKEN")
+    if trace != nil && trace != "" {
+        var once = g_trace_token_once
+        if once != true {
+            g_trace_token_once = true
+            // Print pointer value (int carrier) to avoid dereferencing possibly-bad strings during tracing.
+            print("TRACE_TOKEN _ch_byte0 ch_ptr=" + oren_int_to_string(ch))
+        }
     }
-    if ch >= "A" {
-        if ch <= "Z" { return true }
+    var b = oren_string_char_code_at(ch, 0)
+    if trace != nil && trace != "" {
+        if g_trace_token_once2 != true {
+            g_trace_token_once2 = true
+            print("TRACE_TOKEN _ch_byte0 code=" + oren_int_to_string(b))
+        }
+    }
+    return b
+}
+
+fn is_letter(ch) {
+    var b = _ch_byte0(ch)
+    if b < 0 { return false }
+    // '_' or [A-Za-z]
+    if b == 95 { return true }
+    if b >= 97 {
+        if b <= 122 { return true }
+    }
+    if b >= 65 {
+        if b <= 90 { return true }
     }
     return false
 }
 
 fn is_digit(ch) {
-    if ch >= "0" {
-        if ch <= "9" { return true }
+    var b = _ch_byte0(ch)
+    if b < 0 { return false }
+    if b >= 48 {
+        if b <= 57 { return true }
     }
     return false
 }
 
 fn is_whitespace(ch) {
+    if ch == "" { return false }
     if ch == " " { return true }
     if ch == CH_TAB { return true }
     if ch == CH_LF { return true }

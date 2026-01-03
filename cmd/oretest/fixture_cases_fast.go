@@ -189,6 +189,25 @@ func buildFixtureCasesFast(target string, gcArg string) []fixtureCase {
 			},
 		}
 		fixtures = append(fixtures, remoteX64BatchFixture(tests))
+
+		// Optional remote native self-hosting gate (x64):
+		// Build a stage2 native compiler for x64-linux (WSL2) and/or x64-windows, then run
+		// its `selftest-native` command remotely.
+		if envBool("OREN_TEST_SELFHOST_NATIVE", false) {
+			selfhostTests := []remoteX64Test{
+				{
+					name:       "remote_stage2_native_selftest",
+					artifact:   "oren_stage2_native",
+					src:        "oren.oren",
+					args:       "selftest-native",
+					expectExit: 0,
+					expectSubstrings: []string{
+						"selftest-native OK",
+					},
+				},
+			}
+			fixtures = append(fixtures, remoteX64SelfhostNativeFixture(selfhostTests))
+		}
 	}
 
 	return fixtures

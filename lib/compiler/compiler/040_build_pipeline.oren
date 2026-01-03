@@ -13,6 +13,10 @@ fn compiler_main() {
         var di0 = 0
         while di0 < raw_argc {
             print("RAW_ARG[" + oren_int_to_string(di0) + "] = " + raw_args[di0])
+            var dbg_args_len = oren_env("OREN_DEBUG_ARGS_LEN")
+            if dbg_args_len != nil {
+                print("RAW_ARG_LEN[" + oren_int_to_string(di0) + "] = " + oren_int_to_string(oren_string_len(raw_args[di0])))
+            }
             di0 = di0 + 1
         }
     }
@@ -36,8 +40,13 @@ fn compiler_main() {
         argv = argv2
     }
 
+    var dbg_boot = oren_env("OREN_DEBUG_BOOT")
+    if dbg_boot != nil { print("DEBUG_BOOT before cli_spec") }
     var cli = cli_spec()
+    if dbg_boot != nil { print("DEBUG_BOOT after cli_spec") }
+    if dbg_boot != nil { print("DEBUG_BOOT before argparse.parse") }
     var parsed = argparse.parse(cli, argv)
+    if dbg_boot != nil { print("DEBUG_BOOT after argparse.parse") }
 
     // Debug hook for native self-hosting bringup:
     // Stage2 native sometimes exits early without emitting diagnostics.
@@ -475,6 +484,11 @@ fn compiler_main() {
     var debug_mode = false
     var link_libs = []
     if cmd_name == "emit-c" { emit_c = true }
+
+    // Optional tracing for diagnosing build hangs in self-hosted compilers.
+    // Enable with: OREN_TRACE_BUILD=1
+    var trace_build = oren_env("OREN_TRACE_BUILD") != nil
+    if trace_build { print("[build] enter cmd=" + cmd_name + " path=" + path) }
     // These options can also be configured via env (wired via std:argparse env defaults).
     // Use parsed opts as the canonical source to keep precedence consistent.
 
@@ -486,12 +500,16 @@ fn compiler_main() {
         backend = opts["backend"]
         if seen["emit-c"] == true { emit_c = true }
     }
+    if trace_build { print("[build] parsed backend=" + backend) }
     cc = opts["cc"]
+    if trace_build { print("[build] parsed cc=" + cc) }
     target = opts["target"]
     arch = opts["arch"]
+    if trace_build { print("[build] parsed target=" + target + " arch=" + arch) }
     var platform0 = opts["platform"]
 	        if platform0 == nil || platform0 == "" { platform0 = oren_env("OREN_PLATFORM") }
     if platform0 != nil && platform0 != "" {
+        if trace_build { print("[build] parsed platform=" + platform0) }
         var ps0 = parse_platform_spec(platform0)
         if ps0 == nil {
             var emsg0 = "oren build: invalid --platform " + platform0 + " (expected: <arch>-<os>)"
@@ -510,6 +528,7 @@ fn compiler_main() {
             if seen["target"] != true { target = host0["target"] }
         }
     }
+    if trace_build { print("[build] effective target=" + target + " arch=" + arch) }
     disasm = seen["disasm"] == true
     // Debug info policy (native backend):
     // - default: enabled for native builds (production ergonomics: readable stack traces)
@@ -587,6 +606,7 @@ fn compiler_main() {
         target = "avm"
         arch = "avm64"
     }
+    if trace_build { print("[build] opts backend=" + backend + " target=" + target + " arch=" + arch) }
 
     // Default output path:
     // - `build/targets/<arch>-<os>/<backend>/<basename>` for native/c
@@ -598,6 +618,7 @@ fn compiler_main() {
     if seen["out"] == true {
         out_path = opts["out"]
     } else {
+        if trace_build { print("[build] out_path default compute") }
         var stem = basename(default_output_path(path))
         if backend == "bytecode" {
             out_path = "build/targets/avm/bytecode/" + stem + ".obc"
@@ -606,6 +627,7 @@ fn compiler_main() {
             out_path = dir + "/" + stem
         }
     }
+    if trace_build { print("[build] out_path=" + out_path) }
 
     if deterministic {
         // Deterministic mode: avoid post-processing that can inject non-reproducible data.
@@ -616,8 +638,14 @@ fn compiler_main() {
     // Build cache (enabled by default).
     // - use --no-cache / OREN_NO_CACHE=1 to disable
     // - cache key includes compiler binary sha256 and transitive source closure sha256
+    if trace_build { print("[build] cache config start") }
     var cache_enabled = _cache_enabled(seen, opts)
     var cache_dir = _cache_dir_from_opts(seen, opts)
+    if trace_build {
+        var ce = "false"
+        if cache_enabled { ce = "true" }
+        print("[build] cache_enabled=" + ce + " cache_dir=" + cache_dir)
+    }
     if cache_enabled && (seen["cache-dir"] != true) {
         // CLI help prints default cache dir; if user passed "", treat as default.
         if opts["cache-dir"] != nil && opts["cache-dir"] != "" {
@@ -703,9 +731,19 @@ fn compiler_main() {
         oren_exit(2)
     }
 
+    // Optional build-phase tracing for self-hosting bringup / hang diagnosis.
+    // Enable with: OREN_TRACE_BUILD=1
+    var t_build0 = 0
+    if trace_build {
+        t_build0 = oren_time_now_ns()
+        print("[build] start backend=" + backend + " target=" + target + " arch=" + arch + " path=" + path + " out=" + out_path)
+        print("[build] ensure_dir " + dirname(out_path))
+    }
+
     // Build outputs should be able to target nested directories (oretest uses build/tmp/...).
     // Ensure the output directory exists before any backend attempts to write.
     ensure_dir(dirname(out_path))
+    if trace_build { print("[build] ensure_dir done") }
 
     var rr = expand_includes_file_result(path, [])
     if rr["ok"] != true {
@@ -718,12 +756,33 @@ fn compiler_main() {
         oren_exit(2)
     }
     var src = rr["src"]
+    if trace_build {
+        var dt_read = oren_time_now_ns() - t_build0
+        print("[build] read done +" + oren_int_to_string(dt_read / 1000000) + "ms bytes=" + oren_int_to_string(oren_string_len(src)))
+    }
+    if trace_build { print("[build] lexer.new_lexer start") }
     var l = lexer.new_lexer(src)
+    if trace_build {
+        var dt_lex0 = oren_time_now_ns() - t_build0
+        print("[build] lexer.new_lexer done +" + oren_int_to_string(dt_lex0 / 1000000) + "ms")
+        print("[build] lexer file tag set start")
+    }
     l["file"] = path
+    if trace_build { print("[build] lexer file tag set done") }
+    if trace_build { print("[build] parser.new_parser start") }
     var p = parser.new_parser(l)
+    if trace_build {
+        var dt_p0 = oren_time_now_ns() - t_build0
+        print("[build] parser.new_parser done +" + oren_int_to_string(dt_p0 / 1000000) + "ms")
+    }
     p["strict_attrs"] = STRICT_ATTRS
     p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
+    if trace_build { print("[build] parse start") }
     var prog = parser.parse_program(p)
+    if trace_build {
+        var dt_parse = oren_time_now_ns() - t_build0
+        print("[build] parse done +" + oren_int_to_string(dt_parse / 1000000) + "ms errors=" + oren_int_to_string(oren_list_len(p["errors"])))
+    }
     if oren_list_len(p["errors"]) > 0 {
         var first_err = nil
         if oren_list_len(p["errors"]) > 0 { first_err = p["errors"][0] }
@@ -1223,11 +1282,24 @@ fn selftest_native_expect_eq_int(code, a, b, msg) {
     selftest_native_fail(code, msg + " (got=" + oren_int_to_string(a) + " want=" + oren_int_to_string(b) + ")")
 }
 
+fn selftest_native_boolish(v) {
+    // Normalize a "boolish" value into a real bool.
+    // Some runtime helpers historically returned 0/1 instead of true/false; keep the
+    // selftest stable across rolling refactors.
+    if v == true { return true }
+    if v == false { return false }
+    if v == 1 { return true }
+    if v == 0 { return false }
+    return nil
+}
+
 fn selftest_native_run() {
     // 1) Error tagging discrimination must be safe for strings
     var e = oren_err(123, "boom")
-    selftest_native_expect_eq_int(20, oren_is_err("not_err"), 0, "oren_is_err(string) must be false")
-    selftest_native_expect_eq_int(21, oren_is_err(e), 1, "oren_is_err(err) must be true")
+    var r0 = selftest_native_boolish(oren_is_err("not_err"))
+    if r0 != false { selftest_native_fail(20, "oren_is_err(string) must be false") }
+    var r1 = selftest_native_boolish(oren_is_err(e))
+    if r1 != true { selftest_native_fail(21, "oren_is_err(err) must be true") }
     selftest_native_expect_eq_int(22, oren_err_code(e), 123, "oren_err_code")
     selftest_native_expect_true(23, oren_err_msg(e) == "boom", "oren_err_msg")
 

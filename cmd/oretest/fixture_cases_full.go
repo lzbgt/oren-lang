@@ -1019,7 +1019,7 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		})
 	}
 
-		if envBool("OREN_REMOTE_RUN", false) {
+	if envBool("OREN_REMOTE_RUN", false) {
 		// Opt-in remote-run gate for x86_64 artifacts (Win11 + WSL2).
 		//
 		// Performance + stability:
@@ -1034,25 +1034,25 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 		//
 		// If you want to run the full set of remote x86_64 fixtures, use:
 		//   OREN_REMOTE_RUN_FULL=1
-			baseEnv := "OREN_ENABLE_SIMD=1"
-			if envBool("OREN_DEBUG_JOIN_TIMEOUT", false) {
-				baseEnv += " OREN_DEBUG_JOIN_TIMEOUT=1"
-			}
-			if envBool("OREN_DEBUG_SLEEP", false) {
-				baseEnv += " OREN_DEBUG_SLEEP=1"
-			}
-			if envBool("OREN_DEBUG_SLEEP_ALL", false) {
-				baseEnv += " OREN_DEBUG_SLEEP_ALL=1"
-			}
-			tests := []remoteX64Test{
-				{
-					name: "tier1_native_smoke",
-					src:  "tests/fixtures/tier1_native_smoke_main.oren",
-					env:  baseEnv,
-					args: "ARG_A ARG_B",
-					expectSubstrings: []string{
-						"tier1 smoke ok",
-						"tier1 spawn join ok",
+		baseEnv := "OREN_ENABLE_SIMD=1"
+		if envBool("OREN_DEBUG_JOIN_TIMEOUT", false) {
+			baseEnv += " OREN_DEBUG_JOIN_TIMEOUT=1"
+		}
+		if envBool("OREN_DEBUG_SLEEP", false) {
+			baseEnv += " OREN_DEBUG_SLEEP=1"
+		}
+		if envBool("OREN_DEBUG_SLEEP_ALL", false) {
+			baseEnv += " OREN_DEBUG_SLEEP_ALL=1"
+		}
+		tests := []remoteX64Test{
+			{
+				name: "tier1_native_smoke",
+				src:  "tests/fixtures/tier1_native_smoke_main.oren",
+				env:  baseEnv,
+				args: "ARG_A ARG_B",
+				expectSubstrings: []string{
+					"tier1 smoke ok",
+					"tier1 spawn join ok",
 					"tier1 local fn ok",
 					"tier1 args ok",
 					"SIMD_ENABLED=1",
@@ -1113,6 +1113,25 @@ func buildFixtureCasesFull(target string, gcArg string) []fixtureCase {
 			)
 		}
 		fixtures = append(fixtures, remoteX64BatchFixture(tests))
+
+		// Optional remote native self-hosting gate (x64):
+		// Build a stage2 native compiler for x64-linux (WSL2) and/or x64-windows, then run
+		// its `selftest-native` command remotely.
+		if envBool("OREN_TEST_SELFHOST_NATIVE", false) {
+			selfhostTests := []remoteX64Test{
+				{
+					name:       "remote_stage2_native_selftest",
+					artifact:   "oren_stage2_native",
+					src:        "oren.oren",
+					args:       "selftest-native",
+					expectExit: 0,
+					expectSubstrings: []string{
+						"selftest-native OK",
+					},
+				},
+			}
+			fixtures = append(fixtures, remoteX64SelfhostNativeFixture(selfhostTests))
+		}
 	}
 
 	return fixtures

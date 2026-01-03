@@ -241,6 +241,10 @@ OrenValue oren_string_char_at(OrenValue s, OrenValue index);
 // the caller has already bounds-checked `index` against a known string length.
 // This avoids an O(n) `strlen` per character, which is catastrophic for lexing.
 OrenValue oren_string_char_at_unchecked(OrenValue s, OrenValue index);
+// Return the unsigned byte value at `index` (0..255).
+// Rolling v0 note: the language currently treats strings as C-strings (bytes until NUL),
+// so this is a byte-oriented helper used by the compiler lexer and AVM tests.
+OrenValue oren_string_char_code_at(OrenValue s, OrenValue index);
 // Build a string from a slice of a byte container (list<int 0..255> or u8_buf).
 // Used by the compiler's parallel module pipeline to decode astbin without per-byte boxing.
 OrenValue oren_string_from_bytes_slice(OrenValue bytes, OrenValue start, OrenValue len);

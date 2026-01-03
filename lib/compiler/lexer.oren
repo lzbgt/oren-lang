@@ -50,9 +50,35 @@ fn peek_char2(l) {
     return oren_string_char_at_unchecked(l["input"], pos)
 }
 
+fn _byte0(ch) {
+    if ch == nil { return -1 }
+    if ch == "" { return -1 }
+    return oren_string_char_code_at(ch, 0)
+}
+
+fn _is_letter_b(b) {
+    if b < 0 { return false }
+    if b == 95 { return true } // '_'
+    if b >= 65 && b <= 90 { return true }  // A..Z
+    if b >= 97 && b <= 122 { return true } // a..z
+    return false
+}
+
+fn _is_digit_b(b) {
+    if b < 0 { return false }
+    if b >= 48 && b <= 57 { return true } // 0..9
+    return false
+}
+
 fn skip_whitespace(l) {
-    while token.is_whitespace(l["ch"]) {
-        read_char(l)
+    // Never spin at EOF even if `token.is_whitespace("")` ever regresses.
+    // Keep the logic branchy (no `&&`) so it is easy for the native backends to lower correctly.
+    while l["ch"] != "" {
+        if token.is_whitespace(l["ch"]) {
+            read_char(l)
+        } else {
+            break
+        }
     }
 }
 
@@ -166,7 +192,21 @@ fn skip_block_comment(l) {
 
 fn read_identifier(l) {
     var start = l["position"]
-    while token.is_letter(l["ch"]) || token.is_digit(l["ch"]) {
+    var do_trace = false
+    var trace = oren_env("OREN_TRACE_LEX")
+    if trace != nil && trace != "" { do_trace = true }
+    var guard = 0
+    while _is_letter_b(_byte0(l["ch"])) || _is_digit_b(_byte0(l["ch"])) {
+        if do_trace {
+            if guard == 0 {
+                print("TRACE_LEX read_identifier start_pos=" + oren_int_to_string(start) + " ch=" + l["ch"])
+            }
+            guard = guard + 1
+            if guard > 1000000 {
+                print("lexer read_identifier: exceeded 1,000,000 iterations (likely stuck at EOF)")
+                exit(299)
+            }
+        }
         read_char(l)
     }
     return oren_string_slice(l["input"], start, l["position"])
@@ -174,7 +214,21 @@ fn read_identifier(l) {
 
 fn read_number(l) {
     var start = l["position"]
-    while token.is_digit(l["ch"]) || l["ch"] == "_" {
+    var do_trace = false
+    var trace = oren_env("OREN_TRACE_LEX")
+    if trace != nil && trace != "" { do_trace = true }
+    var guard = 0
+    while _is_digit_b(_byte0(l["ch"])) || l["ch"] == "_" {
+        if do_trace {
+            if guard == 0 {
+                print("TRACE_LEX read_number start_pos=" + oren_int_to_string(start) + " ch=" + l["ch"])
+            }
+            guard = guard + 1
+            if guard > 1000000 {
+                print("lexer read_number: exceeded 1,000,000 iterations (likely stuck at EOF)")
+                exit(298)
+            }
+        }
         read_char(l)
     }
     var raw = oren_string_slice(l["input"], start, l["position"])
@@ -193,9 +247,11 @@ fn read_exponent(l) {
 }
 
 fn is_hex_digit(ch) {
-    if token.is_digit(ch) { return true }
-    if ch >= "a" && ch <= "f" { return true }
-    if ch >= "A" && ch <= "F" { return true }
+    if ch == "" { return false }
+    var b = _byte0(ch)
+    if _is_digit_b(b) { return true }
+    if b >= 97 && b <= 102 { return true } // a..f
+    if b >= 65 && b <= 70 { return true }  // A..F
     return false
 }
 
@@ -221,7 +277,11 @@ fn read_oct_number(l) {
     var start = l["position"]
     while 1 {
         var ch = l["ch"]
-        var is_oct = ch >= "0" && ch <= "7"
+        var is_oct = false
+        if ch != "" {
+            var b = oren_string_char_code_at(ch, 0)
+            if b >= 48 && b <= 55 { is_oct = true }
+        }
         if is_oct || ch == "_" {
             read_char(l)
         } else {
@@ -266,14 +326,41 @@ fn tok_lc(l, t, lit, start_pos, end_pos, line, col) {
 }
 
 fn next_token(l) {
+    var trace = oren_env("OREN_TRACE_LEX")
+    if trace != nil && trace != "" {
+        var n0 = l["_trace_lex_n"]
+        if n0 == nil { n0 = 0 }
+        if n0 < 1 {
+            print("TRACE_LEX enter pos=" + oren_int_to_string(l["position"]) + " rp=" + oren_int_to_string(l["read_position"]) + " ch=" + l["ch"])
+            l["_trace_lex_n"] = n0 + 1
+        }
+    }
     skip_whitespace(l)
+    if trace != nil && trace != "" {
+        var n1 = l["_trace_lex_n"]
+        if n1 == nil { n1 = 0 }
+        if n1 < 2 {
+            print("TRACE_LEX after_ws pos=" + oren_int_to_string(l["position"]) + " rp=" + oren_int_to_string(l["read_position"]) + " ch=" + l["ch"])
+            l["_trace_lex_n"] = n1 + 1
+        }
+    }
     var ch = l["ch"]
     var start = l["position"]
     var start_line = l["line"]
     var start_col = l["col"]
+    var b = _byte0(ch)
 
-    if ch == "&" {
-        if peek_char(l) == "&" {
+    if trace != nil && trace != "" {
+        var n4 = l["_trace_lex_n4"]
+        if n4 == nil { n4 = 0 }
+        if n4 < 1 {
+            print("TRACE_LEX after_vars start=" + oren_int_to_string(start) + " line=" + oren_int_to_string(start_line) + " col=" + oren_int_to_string(start_col) + " ch=" + ch + " b=" + oren_int_to_string(b))
+            l["_trace_lex_n4"] = n4 + 1
+        }
+    }
+
+    if b == 38 { // '&'
+        if _byte0(peek_char(l)) == 38 {
             var cur = ch
             read_char(l)
             read_char(l)
@@ -282,8 +369,8 @@ fn next_token(l) {
         read_char(l)
         return tok_lc(l, token.TOK_BITAND, "&", start, l["position"], start_line, start_col)
     }
-    if ch == "|" {
-        if peek_char(l) == "|" {
+    if b == 124 { // '|'
+        if _byte0(peek_char(l)) == 124 {
             var cur2 = ch
             read_char(l)
             read_char(l)
@@ -292,9 +379,9 @@ fn next_token(l) {
         read_char(l)
         return tok_lc(l, token.TOK_BITOR, "|", start, l["position"], start_line, start_col)
     }
-    if ch == "^" { read_char(l); return tok_lc(l, token.TOK_BITXOR, "^", start, l["position"], start_line, start_col) }
-    if ch == "=" {
-        if peek_char(l) == "=" {
+    if b == 94 { read_char(l); return tok_lc(l, token.TOK_BITXOR, "^", start, l["position"], start_line, start_col) } // '^'
+    if b == 61 { // '='
+        if _byte0(peek_char(l)) == 61 {
             var cur = ch
             read_char(l)
             read_char(l)
@@ -303,8 +390,8 @@ fn next_token(l) {
         read_char(l)
         return tok_lc(l, token.TOK_ASSIGN, "=", start, l["position"], start_line, start_col)
     }
-    if ch == ":" {
-        if peek_char(l) == "=" {
+    if b == 58 { // ':'
+        if _byte0(peek_char(l)) == 61 {
             var cur = ch
             read_char(l)
             read_char(l)
@@ -313,12 +400,12 @@ fn next_token(l) {
         read_char(l)
         return tok_lc(l, token.TOK_COLON, ":", start, l["position"], start_line, start_col)
     }
-    if ch == "+" { read_char(l); return tok_lc(l, token.TOK_PLUS, "+", start, l["position"], start_line, start_col) }
-    if ch == "-" { read_char(l); return tok_lc(l, token.TOK_MINUS, "-", start, l["position"], start_line, start_col) }
-    if ch == "~" { read_char(l); return tok_lc(l, token.TOK_TILDE, "~", start, l["position"], start_line, start_col) }
-    if ch == "%" { read_char(l); return tok_lc(l, token.TOK_PERCENT, "%", start, l["position"], start_line, start_col) }
-    if ch == "!" {
-        if peek_char(l) == "=" {
+    if b == 43 { read_char(l); return tok_lc(l, token.TOK_PLUS, "+", start, l["position"], start_line, start_col) } // '+'
+    if b == 45 { read_char(l); return tok_lc(l, token.TOK_MINUS, "-", start, l["position"], start_line, start_col) } // '-'
+    if b == 126 { read_char(l); return tok_lc(l, token.TOK_TILDE, "~", start, l["position"], start_line, start_col) } // '~'
+    if b == 37 { read_char(l); return tok_lc(l, token.TOK_PERCENT, "%", start, l["position"], start_line, start_col) } // '%'
+    if b == 33 { // '!'
+        if _byte0(peek_char(l)) == 61 {
             var curb = ch
             read_char(l)
             read_char(l)
@@ -327,12 +414,12 @@ fn next_token(l) {
         read_char(l)
         return tok_lc(l, token.TOK_BANG, "!", start, l["position"], start_line, start_col)
     }
-    if ch == "/" {
+    if b == 47 { // '/'
         // Doc comment: `/// ...`
         //
         // Emitted as a token so the parser can attach it to the next declaration
         // and export it in metadata deterministically.
-        if peek_char(l) == "/" && peek_char2(l) == "/" {
+        if _byte0(peek_char(l)) == 47 && _byte0(peek_char2(l)) == 47 {
             read_char(l) // consume first '/'
             read_char(l) // consume second '/'
             read_char(l) // consume third '/'
@@ -341,11 +428,11 @@ fn next_token(l) {
             // Do not consume the \\n here; `skip_whitespace` will handle it.
             return tok_lc(l, token.TOK_DOC, text, start, l["position"], start_line, start_col)
         }
-        if peek_char(l) == "/" {
+        if _byte0(peek_char(l)) == 47 {
             skip_comment(l)
             return next_token(l)
         }
-        if peek_char(l) == "*" {
+        if _byte0(peek_char(l)) == 42 {
             read_char(l) // consume /
             read_char(l) // consume *
             skip_block_comment(l)
@@ -354,15 +441,15 @@ fn next_token(l) {
         read_char(l)
         return tok_lc(l, token.TOK_SLASH, "/", start, l["position"], start_line, start_col)
     }
-    if ch == "*" { read_char(l); return tok_lc(l, token.TOK_ASTERISK, "*", start, l["position"], start_line, start_col) }
-    if ch == "<" {
-        if peek_char(l) == "=" {
+    if b == 42 { read_char(l); return tok_lc(l, token.TOK_ASTERISK, "*", start, l["position"], start_line, start_col) } // '*'
+    if b == 60 { // '<'
+        if _byte0(peek_char(l)) == 61 {
             var curc = ch
             read_char(l)
             read_char(l)
             return tok_lc(l, token.TOK_LTE, curc + "=", start, l["position"], start_line, start_col)
         }
-        if peek_char(l) == "<" {
+        if _byte0(peek_char(l)) == 60 {
             var curshl = ch
             read_char(l)
             read_char(l)
@@ -371,14 +458,14 @@ fn next_token(l) {
         read_char(l)
         return tok_lc(l, token.TOK_LT, "<", start, l["position"], start_line, start_col)
     }
-    if ch == ">" {
-        if peek_char(l) == "=" {
+    if b == 62 { // '>'
+        if _byte0(peek_char(l)) == 61 {
             var curd = ch
             read_char(l)
             read_char(l)
             return tok_lc(l, token.TOK_GTE, curd + "=", start, l["position"], start_line, start_col)
         }
-        if peek_char(l) == ">" {
+        if _byte0(peek_char(l)) == 62 {
             var curshr = ch
             read_char(l)
             read_char(l)
@@ -387,11 +474,11 @@ fn next_token(l) {
         read_char(l)
         return tok_lc(l, token.TOK_GT, ">", start, l["position"], start_line, start_col)
     }
-    if ch == ";" { read_char(l); return tok_lc(l, token.TOK_SEMICOLON, ";", start, l["position"], start_line, start_col) }
-    if ch == "@" { read_char(l); return tok_lc(l, token.TOK_AT, "@", start, l["position"], start_line, start_col) }
-    if ch == "." {
+    if b == 59 { read_char(l); return tok_lc(l, token.TOK_SEMICOLON, ";", start, l["position"], start_line, start_col) } // ';'
+    if b == 64 { read_char(l); return tok_lc(l, token.TOK_AT, "@", start, l["position"], start_line, start_col) } // '@'
+    if b == 46 { // '.'
         // Ellipsis for call-site spread: f(xs...)
-        if peek_char(l) == "." && peek_char2(l) == "." {
+        if _byte0(peek_char(l)) == 46 && _byte0(peek_char2(l)) == 46 {
             read_char(l) // second '.'
             read_char(l) // third '.'
             read_char(l)
@@ -400,26 +487,60 @@ fn next_token(l) {
         read_char(l)
         return tok_lc(l, token.TOK_DOT, ".", start, l["position"], start_line, start_col)
     }
-    if ch == "," { read_char(l); return tok_lc(l, token.TOK_COMMA, ",", start, l["position"], start_line, start_col) }
-    if ch == "(" { read_char(l); return tok_lc(l, token.TOK_LPAREN, "(", start, l["position"], start_line, start_col) }
-    if ch == ")" { read_char(l); return tok_lc(l, token.TOK_RPAREN, ")", start, l["position"], start_line, start_col) }
-    if ch == "{" { read_char(l); return tok_lc(l, token.TOK_LBRACE, "{", start, l["position"], start_line, start_col) }
-    if ch == "}" { read_char(l); return tok_lc(l, token.TOK_RBRACE, "}", start, l["position"], start_line, start_col) }
-    if ch == "[" { read_char(l); return tok_lc(l, token.TOK_LBRACKET, "[", start, l["position"], start_line, start_col) }
-    if ch == "]" { read_char(l); return tok_lc(l, token.TOK_RBRACKET, "]", start, l["position"], start_line, start_col) }
-    if ch == token.CH_QUOTE {
+    if b == 44 { read_char(l); return tok_lc(l, token.TOK_COMMA, ",", start, l["position"], start_line, start_col) } // ','
+    if b == 40 { read_char(l); return tok_lc(l, token.TOK_LPAREN, "(", start, l["position"], start_line, start_col) } // '('
+    if b == 41 { read_char(l); return tok_lc(l, token.TOK_RPAREN, ")", start, l["position"], start_line, start_col) } // ')'
+    if b == 123 { read_char(l); return tok_lc(l, token.TOK_LBRACE, "{", start, l["position"], start_line, start_col) } // '{'
+    if b == 125 { read_char(l); return tok_lc(l, token.TOK_RBRACE, "}", start, l["position"], start_line, start_col) } // '}'
+    if b == 91 { read_char(l); return tok_lc(l, token.TOK_LBRACKET, "[", start, l["position"], start_line, start_col) } // '['
+    if b == 93 { read_char(l); return tok_lc(l, token.TOK_RBRACKET, "]", start, l["position"], start_line, start_col) } // ']'
+    if b == 34 {
         var str = read_string(l)
         read_char(l)
         return tok_lc(l, token.TOK_STRING, str, start, l["position"], start_line, start_col)
     }
-    if ch == "" {
+    if b < 0 {
         return tok_lc(l, token.TOK_EOF, "", start, start, start_line, start_col)
     }
-    if token.is_letter(ch) {
+
+    if trace != nil && trace != "" {
+        var n5 = l["_trace_lex_n5"]
+        if n5 == nil { n5 = 0 }
+        if n5 < 1 {
+            print("TRACE_LEX before_is_letter")
+            l["_trace_lex_n5"] = n5 + 1
+        }
+    }
+    var is_letter = _is_letter_b(b)
+    if trace != nil && trace != "" {
+        var n2 = l["_trace_lex_n2"]
+        if n2 == nil { n2 = 0 }
+        if n2 < 1 {
+            var s2 = "nil"
+            if is_letter == true { s2 = "true" }
+            if is_letter == false { s2 = "false" }
+            print("TRACE_LEX is_letter=" + s2)
+            l["_trace_lex_n2"] = n2 + 1
+        }
+    }
+    if is_letter {
         var ident = read_identifier(l)
         return tok_lc(l, token.lookup_ident(ident), ident, start, l["position"], start_line, start_col)
     }
-    if token.is_digit(ch) {
+
+    var is_digit = _is_digit_b(b)
+    if trace != nil && trace != "" {
+        var n3 = l["_trace_lex_n3"]
+        if n3 == nil { n3 = 0 }
+        if n3 < 1 {
+            var s3 = "nil"
+            if is_digit == true { s3 = "true" }
+            if is_digit == false { s3 = "false" }
+            print("TRACE_LEX is_digit=" + s3)
+            l["_trace_lex_n3"] = n3 + 1
+        }
+    }
+    if is_digit {
         // Numeric literals (rolling):
         // - decimal int/float: allow `_` separators (ignored)
         // - ints: allow base prefixes 0x, 0b, 0o (also allow `_` separators)
@@ -456,7 +577,7 @@ fn next_token(l) {
         var is_float = false
 
         // Decimal fraction: 123.456
-        if l["ch"] == "." && token.is_digit(peek_char(l)) {
+        if l["ch"] == "." && _is_digit_b(_byte0(peek_char(l))) {
             is_float = true
             read_char(l)
             var frac = read_number(l)
@@ -473,7 +594,7 @@ fn next_token(l) {
                 sign = l["ch"]
                 read_char(l)
             }
-            if !token.is_digit(l["ch"]) {
+            if !_is_digit_b(_byte0(l["ch"])) {
                 // Reject invalid forms like `1e` / `1e+` deterministically.
                 return tok_lc(l, token.TOK_ILLEGAL, lit + e + sign, start, l["position"], start_line, start_col)
             }

@@ -546,8 +546,8 @@ fn oren_bytes_put_u32_le(bytes, idx, v) {
 // Index assignment helper used by the frontend/lowerings that still target
 // `oren_index_set` directly (rolling).
 //
-// Semantics (per `docs/LANGUAGE_SPEC.md`):
-// - Lists: `xs[i] = v` must be in-bounds (does not grow); out-of-range is a panic.
+// Semantics (rolling; matches C backend + `tests/native/test_list_append_grow.oren`):
+// - Lists: `xs[i] = v` grows `xs` to length `i+1` if needed; new slots become `nil`.
 // - Maps: `m[key] = v` inserts/replaces and returns `v`.
 @oren.keep
 fn oren_index_set(container, index, value) {

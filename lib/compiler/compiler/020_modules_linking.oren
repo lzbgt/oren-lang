@@ -45,9 +45,12 @@ fn _stable_std_prefix(path) {
         var c = oren_string_char_at(key, i)
         // Keep [A-Za-z0-9_], map everything else to '_'
         var ok = false
-        if c >= "a" && c <= "z" { ok = true }
-        if c >= "A" && c <= "Z" { ok = true }
-        if c >= "0" && c <= "9" { ok = true }
+        if c != "" {
+            var b = oren_string_char_code_at(c, 0)
+            if b >= 97 && b <= 122 { ok = true } // a..z
+            if b >= 65 && b <= 90 { ok = true }  // A..Z
+            if b >= 48 && b <= 57 { ok = true }  // 0..9
+        }
         if c == "_" { ok = true }
         if ok {
             out = out + c
@@ -111,15 +114,19 @@ fn _ml_scan_is_ws(ch) {
 }
 
 fn _ml_scan_is_ident_start(ch) {
-    if ch >= "a" && ch <= "z" { return true }
-    if ch >= "A" && ch <= "Z" { return true }
+    if ch == "" { return false }
+    var b = oren_string_char_code_at(ch, 0)
+    if b >= 97 && b <= 122 { return true } // a..z
+    if b >= 65 && b <= 90 { return true }  // A..Z
     if ch == "_" { return true }
     return false
 }
 
 fn _ml_scan_is_ident_char(ch) {
     if _ml_scan_is_ident_start(ch) { return true }
-    if ch >= "0" && ch <= "9" { return true }
+    if ch == "" { return false }
+    var b = oren_string_char_code_at(ch, 0)
+    if b >= 48 && b <= 57 { return true } // 0..9
     return false
 }
 

@@ -9,7 +9,7 @@ This doc answers a recurring question in rolling mode:
 Oren is already **partially self-hosting**:
 
 - **Stage 1 compiler** `./oren` is built by the **Go bootstrap** `./oren_bootstrap` (`make stage1`).
-- **Stage 2 compiler** `./oren_stage2` is built by **Stage 1** (`make stage2`).
+- **Stage 2 compiler** `./oren_stage2` is built by **Stage 1** (`make stage2`). In rolling mode the *bootstrap backend* may vary by host arch (for example: arm64 currently bootstraps stage2 via `--backend c`).
 - The **canonical test runner** is **Go**: `./oretest` (`cmd/oretest/*`), invoked by `make test`.
 - The **metadata tool** is **Go**: `./oredoc` (`cmd/oredoc`).
 - The **signing tool** is **Go**: `./orensign` (`cmd/orensign`).

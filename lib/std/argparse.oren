@@ -109,7 +109,8 @@ fn _contains(s, ch) {
     if oren_string_len(ch) != 1 { return false }
     var target = oren_string_char_at(ch, 0)
     var i = 0
-    while i < oren_string_len(s) {
+    var n = oren_string_len(s)
+    while i < n {
         if oren_string_char_at(s, i) == target { return true }
         i = i + 1
     }
@@ -119,9 +120,10 @@ fn _contains(s, ch) {
 fn _split_once(s, sep) {
     // Returns [left, right] or [s, nil] if sep not found.
     var i = 0
-    while i < oren_string_len(s) {
+    var n = oren_string_len(s)
+    while i < n {
         if oren_string_slice(s, i, i + 1) == sep {
-            return [oren_string_slice(s, 0, i), oren_string_slice(s, i + 1, oren_string_len(s))]
+            return [oren_string_slice(s, 0, i), oren_string_slice(s, i + 1, n)]
         }
         i = i + 1
     }
@@ -183,11 +185,16 @@ fn _normalize_key(name) {
     // - "-o" => "o"
     // - "---weird" => "weird"
     if name == nil { return "" }
-    var k = name
-    while _starts_with(k, "-") {
-        k = oren_string_slice(k, 1, oren_string_len(k))
+    var n = oren_string_len(name)
+    if n == 0 { return "" }
+    var i = 0
+    while i < n {
+        if oren_string_char_at(name, i) != "-" { break }
+        i = i + 1
     }
-    return k
+    if i == 0 { return name }
+    if i >= n { return "" }
+    return oren_string_slice(name, i, n)
 }
 
 fn _opt_env(opt) {
@@ -1088,7 +1095,14 @@ fn parse(p, argv) {
             // Parse a root option token.
             var parsed0 = _parse_one_option(root_cmd, p, "", argv, i, res)
             if parsed0["ok"] != true { return parsed0["res"] }
-            i = parsed0["next_i"]
+            var next_i0 = parsed0["next_i"]
+            // Safety: never allow the parser to spin if an option parser regresses and makes no progress.
+            if next_i0 == nil || next_i0 <= i {
+                res["err"] = "internal argparse error: option parser made no progress on token: " + tok0
+                res["help"] = render_help(p, nil)
+                return res
+            }
+            i = next_i0
             continue
         }
 
@@ -1149,7 +1163,13 @@ fn parse(p, argv) {
 
             var parsed = _parse_one_option(cmd, p, cmd_name, argv, i, res)
             if parsed["ok"] != true { return parsed["res"] }
-            i = parsed["next_i"]
+            var next_i1 = parsed["next_i"]
+            if next_i1 == nil || next_i1 <= i {
+                res["err"] = "internal argparse error: option parser made no progress on token: " + tok
+                res["help"] = render_help(p, cmd_name)
+                return res
+            }
+            i = next_i1
             continue
         }
 

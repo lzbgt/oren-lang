@@ -32,8 +32,15 @@ Use the bootstrap compiler to compile the self-hosted Oren source (`oren.oren`) 
 Use the Stage 1 compiler (`oren`) to compile the Oren source code again. The resulting binary should be identical in function to Stage 1.
 
 ```bash
-./oren build oren.oren -o oren_stage2
+make stage2
 ```
+
+Notes (rolling, important):
+
+- `make stage2` is the repo-supported entrypoint because the bootstrap backend can vary by host architecture.
+  - On `arm64` hosts (macOS arm64 + Linux arm64 container), Stage 2 is currently bootstrapped via the **C backend** because native self-hosting on arm64 is still rolling/unstable.
+  - On other hosts, Stage 2 may be bootstrapped via the native backend.
+- This does **not** mean Stage 2 “doesn’t have the C backend”: Stage 2 is built from the same compiler sources and supports `--backend {c|native|bytecode}` (check `./oren_stage2 --help`).
 
 ---
 
@@ -243,6 +250,13 @@ Repo helper:
 tools/oretest_linux_docker.sh
 ```
 
+This helper also supports running other high-signal targets inside the same container:
+
+```bash
+tools/oretest_linux_docker.sh examples-test
+tools/oretest_linux_docker.sh verify
+```
+
 Notes (rolling, important):
 
 - This is the **only supported** way to run the curated suite on `linux/arm64` from a macOS host.
@@ -260,6 +274,7 @@ Environment knobs:
 - `OREN_LINUX_DOCKER_JOBS`: forwarded to `OREN_TEST_JOBS` inside the container
 - `OREN_LINUX_DOCKER_ALLOW_DIRTY=1`: allow syncing tracked files even when untracked files exist
 - `OREN_LINUX_DOCKER_CLEAN=1`: wipe `/work/repo` before syncing (rarely needed)
+- `OREN_LINUX_DOCKER_GOPROXY` / `OREN_LINUX_DOCKER_GOSUMDB`: override Go module mirror settings inside the container (only needed on restricted networks)
 
 ### Troubleshooting
 *   **SSH permissions**: If `scp`/`ssh` fails with "Permission denied", ensure your SSH key is installed (or the host allows password auth) and that you are using the correct user/host.

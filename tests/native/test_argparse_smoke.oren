@@ -1,0 +1,22 @@
+import argparse "std:argparse"
+
+fn main() {
+    var p = argparse.new_parser("argparse-smoke", "argparse smoke test")
+    argparse.cmd_flag(argparse.root(p), "--version", "-V", "Show version and exit")
+
+    var sub = argparse.add_command(p, "sub", "A subcommand")
+    argparse.cmd_positional(sub, "file", true, "A required positional")
+    argparse.cmd_option(sub, "--opt", "-o", "string", "", "An optional flag")
+
+    // Just ensure rendering doesn't hang/crash under the native backend.
+    var lines = argparse.render_help_lines(p, nil)
+    var i = 0
+    while i < oren_list_len(lines) {
+        // Keep output small (avoid dumping huge help in CI logs).
+        if i >= 10 { break }
+        print(lines[i])
+        i = i + 1
+    }
+    print("argparse smoke OK")
+}
+

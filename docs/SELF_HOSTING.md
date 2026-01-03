@@ -89,7 +89,7 @@ go build -o oren_bootstrap ./cmd/oren
 ```
 3) Use stage1 to rebuild itself (stage2) without Go:
 ```sh
-./oren build oren.oren -o oren_stage2
+make stage2
 ```
 
 Native backend option (syscall-first Mach-O/ELF emitter):
@@ -99,6 +99,9 @@ Native backend option (syscall-first Mach-O/ELF emitter):
 
 Notes:
 - The native backend path depends on a small “compiler subset” of the native runtime being present (e.g. `oren_string_to_float_bits`, `oren_sha256_range`, `oren_chmod`, `oren_env`). This repo treats that subset as a self-hosting stability gate.
+- `make stage2` is the repo-supported entrypoint because the bootstrap backend can vary by host architecture:
+  - On `arm64` hosts, Stage 2 is currently bootstrapped via the **C backend** (native self-host is still rolling/unstable on arm64).
+  - Stage 2 still supports `--backend {c|native|bytecode}`; it is built from the same compiler sources as Stage 1.
 
 4) From here on, you can keep rebuilding without Go:
 ```sh

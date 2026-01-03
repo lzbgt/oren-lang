@@ -529,120 +529,143 @@ fn native_compile_program_arm64(linked, platform) {
     // Record entry (main) offset if present
     ctx["entry_idx"] = 0
     
-    // Generate resolve_symbol function
-    // NOTE: resolve_symbol is used by the native runtime's non-debug stack trace.
-    // It must match the actual static __TEXT base + header size used by the Mach-O emitter.
+    // Generate `resolve_symbol` for stack traces.
     //
-    // Mach-O emitter uses:
-    //   text_base=0x100000000, header_size=2048
-    // so the first instruction is at 0x100000000 + 2048.
-    var base_addr = 4294969344
-    if ctx["platform"]["os"] == "linux" {
-        base_addr = 4194304 + 120 // 0x400000 + 120 (ELF header approx, need verify)
-    }
+    // Rolling policy:
+    // - Only generate this helper when debug is enabled (otherwise it can be extremely large,
+    //   slowing builds and inflating binaries).
+    // - Users can force-enable it via env for debugging postmortems.
+    var want_resolve_symbol = (ctx["platform"]["debug"] == true)
+    var env_rs = oren_env("OREN_NATIVE_RESOLVE_SYMBOL")
+    if env_rs != nil && env_rs == "1" { want_resolve_symbol = true }
 
-    // Build list of {off:int, name:string} and sort descending by off.
-    // This ensures resolve_symbol picks the closest preceding function.
-    var sym_entries = []
+    if want_resolve_symbol {
+        // NOTE: resolve_symbol must match the actual static __TEXT base + header size used by the emitters.
+        //
+        // Mach-O emitter uses:
+        //   text_base=0x100000000, header_size=2048
+        // so the first instruction is at 0x100000000 + 2048.
+        var base_addr = 4294969344
+        if ctx["platform"]["os"] == "linux" {
+            base_addr = 4194304 + 120 // 0x400000 + 120 (ELF header approx, need verify)
+        }
 
-    // Pseudo-symbols for unlabeled code regions:
-    // - entry stub at offset 0
-    // - top-level statement lowering (when present)
-    oren_list_push(sym_entries, {"off": 0, "name": "__entry_stub__"})
-    var top_off = ctx["functions"]["__top_level__"]
-    if top_off != nil {
-        oren_list_push(sym_entries, {"off": top_off, "name": "__top_level__"})
-    }
+        // Build list of {off:int, name:string} and sort descending by off.
+        // This ensures resolve_symbol picks the closest preceding function.
+        var sym_entries = []
 
-    // Runtime functions
-    var j = 0
-    while j < oren_list_len(runtime_prog["statements"]) {
-        var st = runtime_prog["statements"][j]
-        if st["type"] == "Function" {
-            var name = st["name"]
-            var off = ctx["functions"][name]
-            if off != nil {
-                oren_list_push(sym_entries, {"off": off, "name": name})
+        // Pseudo-symbols for unlabeled code regions:
+        // - entry stub at offset 0
+        // - top-level statement lowering (when present)
+        oren_list_push(sym_entries, {"off": 0, "name": "__entry_stub__"})
+        var top_off = ctx["functions"]["__top_level__"]
+        if top_off != nil {
+            oren_list_push(sym_entries, {"off": top_off, "name": "__top_level__"})
+        }
+
+        // Runtime functions
+        var j = 0
+        while j < oren_list_len(runtime_prog["statements"]) {
+            var st = runtime_prog["statements"][j]
+            if st["type"] == "Function" {
+                var name = st["name"]
+                var off = ctx["functions"][name]
+                if off != nil {
+                    oren_list_push(sym_entries, {"off": off, "name": name})
+                }
             }
+            j = j + 1
         }
-        j = j + 1
-    }
 
-    // User functions
-    j = 0
-    while j < oren_list_len(user_stmts) {
-        var st2 = user_stmts[j]
-        if st2["type"] == "Function" {
-            var name2 = st2["name"]
-            var off2 = ctx["functions"][name2]
-            if off2 == nil {
-                print("codegen error: function offset not found for " + name2)
-            } else {
-                oren_list_push(sym_entries, {"off": off2, "name": name2})
+        // User functions
+        j = 0
+        while j < oren_list_len(user_stmts) {
+            var st2 = user_stmts[j]
+            if st2["type"] == "Function" {
+                var name2 = st2["name"]
+                var off2 = ctx["functions"][name2]
+                if off2 == nil {
+                    print("codegen error: function offset not found for " + name2)
+                } else {
+                    oren_list_push(sym_entries, {"off": off2, "name": name2})
+                }
             }
+            j = j + 1
         }
-        j = j + 1
-    }
 
-    // Wrapper symbols for first-class named functions (deterministic: driven by func_decl_order).
-    j = 0
-    while j < oren_list_len(ctx["func_decl_order"]) {
-        var fname = ctx["func_decl_order"][j]
-        var wname = "__oren_fnwrap_" + fname
-        var woff = ctx["functions"][wname]
-        if woff != nil {
-            oren_list_push(sym_entries, {"off": woff, "name": wname})
+        // Wrapper symbols for first-class named functions (deterministic: driven by func_decl_order).
+        j = 0
+        while j < oren_list_len(ctx["func_decl_order"]) {
+            var fname = ctx["func_decl_order"][j]
+            var wname = "__oren_fnwrap_" + fname
+            var woff = ctx["functions"][wname]
+            if woff != nil {
+                oren_list_push(sym_entries, {"off": woff, "name": wname})
+            }
+            j = j + 1
         }
-        j = j + 1
-    }
 
-    // Lambda wrapper symbols (deterministic: driven by lambda_defs collection order).
-    j = 0
-    while j < oren_list_len(ctx["lambda_defs"]) {
-        var def = ctx["lambda_defs"][j]
-        var lname = def["name"]
-        var loff = ctx["functions"][lname]
-        if loff != nil {
-            oren_list_push(sym_entries, {"off": loff, "name": lname})
+        // Lambda wrapper symbols (deterministic: driven by lambda_defs collection order).
+        j = 0
+        while j < oren_list_len(ctx["lambda_defs"]) {
+            var def = ctx["lambda_defs"][j]
+            var lname = def["name"]
+            var loff = ctx["functions"][lname]
+            if loff != nil {
+                oren_list_push(sym_entries, {"off": loff, "name": lname})
+            }
+            j = j + 1
         }
-        j = j + 1
-    }
 
-    // Insertion sort (descending by off). Small N; keep it simple and deterministic.
-    var si = 1
-    while si < oren_list_len(sym_entries) {
-        var key = sym_entries[si]
-        var k_off = key["off"]
-        var k = si - 1
-        while k >= 0 {
-            if sym_entries[k]["off"] >= k_off { break }
-            sym_entries[k + 1] = sym_entries[k]
-            k = k - 1
+        // Insertion sort (descending by off). Small N; keep it simple and deterministic.
+        var si = 1
+        while si < oren_list_len(sym_entries) {
+            var key = sym_entries[si]
+            var k_off = key["off"]
+            var k = si - 1
+            while k >= 0 {
+                if sym_entries[k]["off"] >= k_off { break }
+                sym_entries[k + 1] = sym_entries[k]
+                k = k - 1
+            }
+            sym_entries[k + 1] = key
+            si = si + 1
         }
-        sym_entries[k + 1] = key
-        si = si + 1
-    }
 
-    var sym_src = "fn resolve_symbol(addr) { var off = addr - " + oren_int_to_string(base_addr) + " "
-	    j = 0
-	    while j < oren_list_len(sym_entries) {
-	        var e = sym_entries[j]
-	        sym_src = sym_src + "if off >= " + oren_int_to_string(e["off"]) + " { return " + token.CH_QUOTE + e["name"] + token.CH_QUOTE + " } "
-	        j = j + 1
-	    }
+        var sym_src = "fn resolve_symbol(addr) { var off = addr - " + oren_int_to_string(base_addr) + " "
+            j = 0
+            while j < oren_list_len(sym_entries) {
+                var e = sym_entries[j]
+                sym_src = sym_src + "if off >= " + oren_int_to_string(e["off"]) + " { return " + token.CH_QUOTE + e["name"] + token.CH_QUOTE + " } "
+                j = j + 1
+            }
 
-    sym_src = sym_src + "return \"???\" }"
-    
-    print("Generating symbol table...")
-    var l_sym = lexer.new_lexer(sym_src)
-    l_sym["file"] = "<native:symbol_table>"
-    var p_sym = parser.new_parser(l_sym)
-    var prog_sym = parser.parse_program(p_sym)
-    if oren_list_len(prog_sym["statements"]) > 0 {
-        native_compile_stmt(ctx, prog_sym["statements"][0])
+        sym_src = sym_src + "return \"???\" }"
+
+        print("Generating symbol table...")
+        var l_sym = lexer.new_lexer(sym_src)
+        l_sym["file"] = "<native:symbol_table>"
+        var p_sym = parser.new_parser(l_sym)
+        var prog_sym = parser.parse_program(p_sym)
+        if oren_list_len(prog_sym["statements"]) > 0 {
+            native_compile_stmt(ctx, prog_sym["statements"][0])
+        } else {
+            print("native backend: failed to compile resolve_symbol")
+            // print(sym_src) // Debug
+        }
     } else {
-        print("native backend: failed to compile resolve_symbol")
-        // print(sym_src) // Debug
+        // Minimal stub to satisfy native runtime stack traces without inflating binaries.
+        // (Non-debug builds only need a valid symbol; names can be "???".)
+        var sym_src2 = "fn resolve_symbol(addr) { return \"???\" }"
+        var l_sym2 = lexer.new_lexer(sym_src2)
+        l_sym2["file"] = "<native:symbol_table>"
+        var p_sym2 = parser.new_parser(l_sym2)
+        var prog_sym2 = parser.parse_program(p_sym2)
+        if oren_list_len(prog_sym2["statements"]) > 0 {
+            native_compile_stmt(ctx, prog_sym2["statements"][0])
+        } else {
+            print("native backend: failed to compile resolve_symbol stub")
+        }
     }
 
     return ctx

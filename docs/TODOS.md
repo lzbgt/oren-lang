@@ -1,6 +1,6 @@
 # Active Tracker (Succinct)
 
-**Last updated:** 2026-01-02
+**Last updated:** 2026-01-03
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order.
 
@@ -45,13 +45,21 @@ Rules for this tracker:
        - Current blocker: `oren_system(_timeout)` on `x64-windows` fails in the remote gate (`sys_win_createprocess` returns `-998` / `GetLastError()==998` = `ERROR_NOACCESS`).
          - Tier‑1 fixture currently *soft-skips* the failure on Windows to keep the remote gate usable; remove this skip once CreateProcess wiring is correct.
      - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
-   - **done (rolling, 2026-01-02):**
+	     - **done (rolling, 2026-01-02):**
      - fix POSIX `spawn`/`join` handle correctness by using byte-accurate pointer offsets (`iadd(...)`) instead of `+` in runtime metadata structs (prevents fork+pipe returning corrupted results on Linux)
      - add native `oren_set_result` / `oren_get_result` surface and pin result values as GC roots (parity with C backend + AVM job orchestration)
-   - References:
-     - `docs/REMOTE_X64_ENV.md`
-     - `docs/TEST_SYSTEM.md`
-     - `docs/LANGUAGE_FEATURE_MATRIX.md`
+	     - References:
+	       - `docs/REMOTE_X64_ENV.md`
+	       - `docs/TEST_SYSTEM.md`
+	       - `docs/LANGUAGE_FEATURE_MATRIX.md`
+	   - **active (2026-01-03): stage2-native compiler lexing hang**
+	     - Symptom: `stage2_native dump tokens tests/native/func.oren` hangs (no output) on arm64-macos.
+	     - Constraint: reproduce/fix via explicit stage0/stage1/stage2 builds; do not use `make *`/`./oretest` during troubleshooting.
+	     - Working repro (macOS arm64):
+	       - build stage0: `go build -o oren_bootstrap ./cmd/oren`
+	       - build stage1: `./oren_bootstrap build oren.oren`
+	       - build stage2-native: `./oren build oren.oren --backend native --platform arm64-macos --no-cache --no-debug -o build/selfhost_manual/oren_stage2_native` + `codesign -s - --force ...`
+	       - hang: `build/selfhost_manual/oren_stage2_native dump tokens tests/native/func.oren --out build/logs/dump_tokens_stage2.json --platform arm64-macos`
 
 2) **Determinism + replay (native + AVM)** (L)
    - MANTIS requires deterministic replay and traceability (`mantis.md` “Observability & reproducibility”).

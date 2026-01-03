@@ -1,0 +1,8 @@
+import token "../../lib/compiler/token.oren"
+
+fn main() {
+    if token.is_letter("f") != true { exit(1) }
+    if token.is_digit("7") != true { exit(2) }
+    if token.is_letter("7") != false { exit(3) }
+    exit(0)
+}

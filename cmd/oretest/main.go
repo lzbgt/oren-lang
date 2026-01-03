@@ -68,6 +68,15 @@ func main() {
 	)
 	flag.Parse()
 
+	// Export CLI-selected flags into env vars so env-driven fixture selection can
+	// observe them (including when oretest is invoked by matrix runners).
+	if *selfhost {
+		_ = os.Setenv("OREN_TEST_SELFHOST", "1")
+	}
+	if *selfhostNative {
+		_ = os.Setenv("OREN_TEST_SELFHOST_NATIVE", "1")
+	}
+
 	if *jobs < 1 {
 		*jobs = 1
 	}
@@ -243,20 +252,18 @@ func main() {
 			fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
 		}
-
-		// Optional native self-hosting gate (rolling; slower). This is separate from the bytecode
-		// self-host gate because it requires the syscall-first native runtime surface to be present.
-		enableNative := *full || *selfhostNative
-		if enableNative {
-			nt := hostNativeTarget()
-			na := hostNativeArch()
-			if nt == "" || na == "" {
-				fmt.Fprintln(os.Stderr, "WARN: native self-host gate skipped: unsupported host platform:", runtime.GOOS, runtime.GOARCH)
-			} else {
-				if err := runNativeSelfHostingGate(timeoutBin, gcArg, buildTimeout, nt, na); err != nil {
-					fmt.Fprintln(os.Stderr, err.Error())
-					os.Exit(1)
-				}
+	}
+	// Optional native self-hosting gate (rolling; slower). This is separate from the bytecode
+	// self-host gate because it requires the syscall-first native runtime surface to be present.
+	if *full || *selfhostNative {
+		nt := hostNativeTarget()
+		na := hostNativeArch()
+		if nt == "" || na == "" {
+			fmt.Fprintln(os.Stderr, "WARN: native self-host gate skipped: unsupported host platform:", runtime.GOOS, runtime.GOARCH)
+		} else {
+			if err := runNativeSelfHostingGate(timeoutBin, gcArg, buildTimeout, nt, na); err != nil {
+				fmt.Fprintln(os.Stderr, err.Error())
+				os.Exit(1)
 			}
 		}
 	}

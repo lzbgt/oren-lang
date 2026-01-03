@@ -118,7 +118,11 @@ fn oren_list_get(list, idx) {
     return ptr_get(buf + idx * 8)
 }
 
-// Set list element in-bounds (does not grow). Returns the written value.
+// Set list element, growing the list as needed. Returns the written value.
+//
+// Language-level semantics (rolling, matches C backend + tests):
+// - `xs[i] = v` on a list grows `xs` to length `i+1` if needed.
+// - New slots are initialized to `nil`.
 fn oren_list_set(list, idx, value) {
     if list == 0 { oren_panic("list_set on nil") }
     // Safety: do not dereference arbitrary large integers as pointers.
@@ -128,9 +132,50 @@ fn oren_list_set(list, idx, value) {
     if ptr_get(list + 24) != list_magic() { oren_panic("list_set on non-list") }
     var count = ptr_get(list)
     if idx < 0 { oren_panic("Index out of bounds (negative)") }
-    if idx >= count { oren_panic("Index out of bounds") }
+    var want = idx + 1
+    var cap = ptr_get(list + 8)
     var buf = ptr_get(list + 16)
-    if buf == 0 { oren_panic("list buffer is nil") }
+
+    if want > cap {
+        var new_cap = cap * 2
+        if new_cap < 4 { new_cap = 4 }
+        if new_cap < want { new_cap = want }
+        var new_buf = malloc(new_cap * 8)
+        if new_buf == 0 { exit(212) }
+        if new_buf == -1 { exit(212) }
+        oren_track_alloc(new_buf, new_cap * 8, 0)
+
+        var i = 0
+        while i < count {
+            ptr_set(new_buf + i * 8, ptr_get(buf + i * 8))
+            i = i + 1
+        }
+        // Initialize new slots to nil.
+        while i < want {
+            ptr_set(new_buf + i * 8, 0)
+            i = i + 1
+        }
+
+        buf = new_buf
+        cap = new_cap
+        ptr_set(list + 8, cap)
+        ptr_set(list + 16, buf)
+    } else {
+        if buf == 0 {
+            // cap may be 0 for an empty list, but then want>cap and we would have allocated above.
+            // If we reach here, treat it as a runtime invariant violation.
+            oren_panic("list buffer is nil")
+            return 0
+        }
+        // Grow count in-place; ensure newly exposed slots are nil.
+        var j = count
+        while j < want {
+            ptr_set(buf + j * 8, 0)
+            j = j + 1
+        }
+    }
+
     ptr_set(buf + idx * 8, value)
+    if want > count { ptr_set(list, want) }
     return value
 }

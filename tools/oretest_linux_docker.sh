@@ -18,18 +18,38 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+MAKE_TARGET="${1:-test}"
+case "$MAKE_TARGET" in
+  test|examples-test|verify)
+    ;;
+  *)
+    echo "[linux-oretest-docker] ERROR: unsupported make target: $MAKE_TARGET (supported: test|examples-test|verify)" >&2
+    exit 2
+    ;;
+esac
+
 DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 CLEAN="${OREN_LINUX_DOCKER_CLEAN:-0}"
 JOBS="${OREN_LINUX_DOCKER_JOBS:-}"
 
-# Go module mirrors (the repo uses the Go toolchain directive; on some networks
-# the default proxy can time out).
+# Go module mirror overrides (optional). Most users should not need this.
 #
-# Examples:
+# Examples (for restricted networks):
 #   OREN_LINUX_DOCKER_GOPROXY=https://goproxy.cn,direct
 #   OREN_LINUX_DOCKER_GOSUMDB=sum.golang.google.cn
-GOPROXY="${OREN_LINUX_DOCKER_GOPROXY:-https://goproxy.cn,direct}"
-GOSUMDB="${OREN_LINUX_DOCKER_GOSUMDB:-sum.golang.google.cn}"
+#
+# Default behavior: inherit Go's defaults inside the container.
+GOPROXY="${OREN_LINUX_DOCKER_GOPROXY:-}"
+GOSUMDB="${OREN_LINUX_DOCKER_GOSUMDB:-}"
+
+GOPROXY_EXPORT=""
+if [[ -n "$GOPROXY" ]]; then
+  GOPROXY_EXPORT="export GOPROXY=$(printf %q "$GOPROXY")"
+fi
+GOSUMDB_EXPORT=""
+if [[ -n "$GOSUMDB" ]]; then
+  GOSUMDB_EXPORT="export GOSUMDB=$(printf %q "$GOSUMDB")"
+fi
 
 if ! docker inspect "$DOCKER_ID" >/dev/null 2>&1; then
   echo "[linux-oretest-docker] ERROR: required persistent container not found: $DOCKER_ID" >&2
@@ -63,7 +83,7 @@ if ! command -v cc >/dev/null 2>&1; then
 fi
 '
 
-echo "[linux-oretest-docker] running make test (OREN_TEST_JOBS=$JOBS)"
+echo "[linux-oretest-docker] running make ${MAKE_TARGET} (OREN_TEST_JOBS=$JOBS)"
 
 # Sync sources into the container.
 #
@@ -120,14 +140,14 @@ rm -f ./oredoc || true
 rm -rf ./build/logs || true
 export OREN_TEST_JOBS='$JOBS'
 export OREN_TEST_NATIVE_JOBS='${OREN_TEST_NATIVE_JOBS:-1}'
-export OREN_TEST_FIXTURE_JOBS='${OREN_TEST_FIXTURE_JOBS:-1}'
-export OREN_TEST_FULL='${OREN_TEST_FULL:-0}'
-export OREN_TEST_VERBOSE='${OREN_TEST_VERBOSE:-0}'
-export OREN_NO_GC='${OREN_NO_GC:-}'
-export GOPROXY='$GOPROXY'
-export GOSUMDB='$GOSUMDB'
-make bootstrap
-make test
+	export OREN_TEST_FIXTURE_JOBS='${OREN_TEST_FIXTURE_JOBS:-1}'
+	export OREN_TEST_FULL='${OREN_TEST_FULL:-0}'
+	export OREN_TEST_VERBOSE='${OREN_TEST_VERBOSE:-0}'
+	export OREN_NO_GC='${OREN_NO_GC:-}'
+	$GOPROXY_EXPORT
+	$GOSUMDB_EXPORT
+	make bootstrap
+	make ${MAKE_TARGET}
 "
 
 echo "[linux-oretest-docker] OK"

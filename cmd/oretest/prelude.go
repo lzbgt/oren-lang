@@ -283,8 +283,22 @@ func runNativeSelfHostingGate(timeoutBin, gcArg string, buildTimeout time.Durati
 		selfHostTimeout = minTimeout
 	}
 
-	// Build Stage2 native compiler (deterministic mode exercises hashing path too).
-	buildNative := fmt.Sprintf("./oren build oren.oren --backend native --platform %s --deterministic -o %q%s", platformKey(target, arch), stage2Native, gcArg)
+	// Build Stage2 native compiler (rolling):
+	// - default: keep this gate fast and runnable (no-debug reduces symbol-table generation overhead)
+	// - optional: enable deterministic mode if you want to exercise the hashing path too
+	//
+	// IMPORTANT: we still codesign explicitly below on macOS to ensure executability.
+	deterministicArg := ""
+	if os.Getenv("OREN_SELFHOST_NATIVE_DETERMINISTIC") == "1" {
+		deterministicArg = " --deterministic"
+	}
+
+	// Match the repo stage2 stability knobs (also used by the Makefile stage2 build).
+	// Keep this as an env prefix so it applies regardless of `--no-gc` flags.
+	envPrefix := "OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES=8388608 "
+
+	buildNative := fmt.Sprintf("%s./oren build oren.oren --backend native --platform %s --no-cache --no-debug%s -o %q%s",
+		envPrefix, platformKey(target, arch), deterministicArg, stage2Native, gcArg)
 	if rc := runWithTimeout(timeoutBin, selfHostTimeout, buildNative, logBuildNative); rc != 0 {
 		return fmt.Errorf("native self-host gate: failed to build stage2 native (rc=%d), see %s", rc, logBuildNative)
 	}

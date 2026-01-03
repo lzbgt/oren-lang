@@ -1,0 +1,8 @@
+fn main() {
+    var c = oren_string_char_code_at("f", 0)
+    if c != 102 { exit(1) }
+    var z = oren_string_char_code_at("0", 0)
+    if z != 48 { exit(2) }
+    exit(0)
+}
+

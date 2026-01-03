@@ -53,12 +53,11 @@ Outputs are stored under:
 
 ### 2) Linux docker container (arm64)
 
-This repo already has a persistent docker workflow:
+This repo uses an **already-running** persistent Ubuntu toolchain container (it must exist and be running; the scripts do **not** create a container for you).
 
-- container name default: `oren-linux-oretest`
-- image default: `ubuntu:24.04` (override via `OREN_LINUX_DOCKER_IMAGE=...`)
+- container id/name default: `c7e5f7bd9f5c` (override via `OREN_LINUX_DOCKER_ID=...`)
 
-The script requires an already-running persistent container, syncs tracked sources, rebuilds AVM, then executes the host-built `.obc`.
+The portability gate syncs **tracked** sources into `/work/repo`, rebuilds AVM inside the container, then executes the host-built `.obc`.
 
 ### 3) Remote x64 host (Win11 + WSL2)
 

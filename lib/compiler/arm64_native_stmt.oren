@@ -296,45 +296,12 @@ fn native_compile_stmt(ctx, stmt) {
             push_u32_le(ctx["code"], insn_mov_reg(0, 19))
             push_u32_le(ctx["code"], insn_mov_reg(1, 20))
             push_u32_le(ctx["code"], insn_mov_reg(2, 21))
-            // count = *(container + 0)
-            emit_load_ptr_from_base_plus(ctx, 6, 0, 0) // X6 = count
 
-            // idx < 0 => panic
-            push_u32_le(ctx["code"], insn_movz(4, 0))
-            push_u32_le(ctx["code"], insn_cmp_reg(1, 4))
-            var br_nonneg = bytes_len(ctx["code"])
+            // Semantics: `xs[i] = v` grows lists as needed (matches C backend + tests).
+            // Delegate to the native runtime helper rather than inlining strict in-bounds stores.
+            var bl_list_set = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
-            exprm.native_emit_panic(ctx, "Index out of bounds (negative)")
-            var nonneg_pos = bytes_len(ctx["code"])
-            set_u32_le(ctx["code"], br_nonneg, insn_b_cond((nonneg_pos - br_nonneg) / 4, 10)) // GE
-
-            // idx >= count => panic
-            push_u32_le(ctx["code"], insn_cmp_reg(1, 6))
-            var br_in_bounds = bytes_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-            exprm.native_emit_panic(ctx, "Index out of bounds")
-            var in_bounds_pos = bytes_len(ctx["code"])
-            set_u32_le(ctx["code"], br_in_bounds, insn_b_cond((in_bounds_pos - br_in_bounds) / 4, 11)) // LT
-
-            // buf = *(container + 16)
-            emit_load_ptr_from_base_plus(ctx, 6, 0, 16) // X6 = buf
-
-            // buf == 0 => panic (should only happen for empty lists, but keep it deterministic)
-            push_u32_le(ctx["code"], insn_movz(4, 0))
-            push_u32_le(ctx["code"], insn_cmp_reg(6, 4))
-            var br_buf_ok = bytes_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-            exprm.native_emit_panic(ctx, "list buffer is nil")
-            var buf_ok_pos = bytes_len(ctx["code"])
-            set_u32_le(ctx["code"], br_buf_ok, insn_b_cond((buf_ok_pos - br_buf_ok) / 4, 1)) // NE
-
-            // addr = buf + idx*8
-            emit_load_i64_imm(ctx, 4, 8)
-            push_u32_le(ctx["code"], insn_mul(7, 1, 4))     // X7 = idx*8
-            push_u32_le(ctx["code"], insn_add_reg(7, 6, 7)) // X7 = buf + off
-
-            // *(addr) = value
-            push_u32_le(ctx["code"], insn_str_ptr(2, 7))
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_set, "name": "oren_list_set"})
 
             // Done.
             var br_done = bytes_len(ctx["code"])

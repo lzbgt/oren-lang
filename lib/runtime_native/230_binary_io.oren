@@ -166,9 +166,79 @@ fn oren_read_u8_buf(path) {
 @cap.requires(domain="FS")
 fn oren_read_file(path) {
     // Returns a string pointer (NUL-terminated).
-    // Failure behavior is inherited from `oren_read_bytes` in rolling native mode.
-    var bs = oren_read_bytes(path)
-    return oren_string_from_bytes(bs)
+    //
+    // IMPORTANT (performance, compiler self-hosting):
+    // The compiler reads a lot of source code. Reading via `oren_read_bytes` (list<int>)
+    // boxes every byte and can be catastrophically slow under the native runtime.
+    //
+    // Prefer a direct bulk-read into a single malloc'd NUL-terminated buffer.
+    // This keeps the string representation correct while avoiding typed-buffer plumbing
+    // in the compiler hot path.
+    //
+    // Failure behavior remains "fail-fast" (rolling native mode).
+    var pair = native_capsule_fs_path_resolve_pair(path, 0)
+    var rpath = ptr_get(pair + 0)
+    var owned = ptr_get(pair + 8)
+    free(pair)
+
+    // Stat size first so we can do a single allocation and a bounded read loop.
+    var st = oren_stat_alloc()
+    var src = sys_stat(rpath, st)
+    if src < 0 {
+        free(st)
+        if owned == 1 { free(rpath) }
+        exit(276)
+    }
+    var size = oren_stat_get_size(st)
+    free(st)
+    if size < 0 {
+        if owned == 1 { free(rpath) }
+        exit(277)
+    }
+
+    var fd = sys_open(rpath, 0, 0) // O_RDONLY
+    if fd < 0 {
+        if owned == 1 { free(rpath) }
+        exit(279)
+    }
+
+    // Allocate string buffer (+1 for NUL).
+    var out = malloc(size + 1)
+    if out == 0 {
+        sys_close(fd)
+        if owned == 1 { free(rpath) }
+        exit(278)
+    }
+
+    var off = 0
+    while off < size {
+        var want = size - off
+        if want > 65536 { want = 65536 }
+        var rn = sys_read(fd, out + off, want)
+        if rn < 0 {
+            sys_close(fd)
+            if owned == 1 { free(rpath) }
+            exit(280)
+        }
+        if rn == 0 {
+            // Unexpected EOF: keep behavior deterministic by failing fast.
+            sys_close(fd)
+            if owned == 1 { free(rpath) }
+            exit(281)
+        }
+        off = off + rn
+    }
+
+    ptr_set_byte(out + size, 0)
+    oren_track_alloc(out, size + 1, 1) // STRING
+
+    var crc = sys_close(fd)
+    if crc < 0 {
+        if owned == 1 { free(rpath) }
+        exit(282)
+    }
+    if owned == 1 { free(rpath) }
+    return out
 }
 
 @cap.requires(domain="FS")

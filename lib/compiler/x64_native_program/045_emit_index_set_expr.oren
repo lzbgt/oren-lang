@@ -148,64 +148,9 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
     // --- list path ---
     _emit_label(ctx, labels, l_is_list)
 
-    // idx -> rcx (1)
-    _emit_mov_r64_mrbp(ctx, 1, 0 - off_idx)
-
-    // Tier-1 parity: validate list magic (matches native runtime list_set).
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019)) // list_magic()
-    var l_magic_ok = _new_label(ctx, "idx_set_list_magic_ok")
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_magic_ok)
-    _emit_abort_panic_str(ctx, "list_set on non-list")
-    _emit_label(ctx, labels, l_magic_ok)
-
-    // count = *(container + 0) -> r8
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(8, 0))
-
-    // idx >= 0
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
-    var l_nonneg = _new_label(ctx, "idx_set_nonneg")
-    _emit_jcc_to_label(ctx, local_fixups, "ge", l_nonneg)
-    _emit_abort_panic_str(ctx, "Index out of bounds (negative)")
-    _emit_label(ctx, labels, l_nonneg)
-
-    // idx < count
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(1, 8))
-    var l_inbounds = _new_label(ctx, "idx_set_inbounds")
-    _emit_jcc_to_label(ctx, local_fixups, "l", l_inbounds)
-    _emit_abort_panic_str(ctx, "Index out of bounds")
-    _emit_label(ctx, labels, l_inbounds)
-
-    // buf = *(container + 16) -> r9
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_mov_rax_mrax())
-    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0))
-
-    // buf != 0
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
-    var l_buf_ok = _new_label(ctx, "idx_set_buf_ok")
-    _emit_jcc_to_label(ctx, local_fixups, "ne", l_buf_ok)
-    _emit_abort_panic_str(ctx, "list buffer is nil")
-    _emit_label(ctx, labels, l_buf_ok)
-
-    // addr = buf + idx*8  (r10)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 1))
-    bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
-    bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
-
-    // value -> r11, store *(addr) = value
-    _emit_mov_r64_mrbp(ctx, 11, 0 - off_val)
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11))
-
-    // Return value in RAX.
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+    // Semantics: `xs[i] = v` grows lists as needed (matches C backend + tests).
+    // Delegate to the native runtime helper rather than inlining strict in-bounds stores.
+    _emit_call_rel32_3args_x64(ctx, locals, "oren_list_set", off_cont, off_idx, off_val)
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     // --- map path ---
@@ -239,4 +184,3 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
     _intr_tmp_pop(ctx, base0)
     return nil
 }
-

@@ -781,22 +781,43 @@ func remoteX64BatchEnsureBuiltArtifacts(logPath string, tests []remoteX64Test, j
 			}
 		}
 
+		// Remote self-hosting builds `oren.oren` into a stage2 compiler binary. That build is
+		// intentionally expensive, and debug symbol-table generation can dominate wall time.
+		// For the self-hosting gate we only need a runnable stage2 binary, so build with
+		// `--no-debug` plus the stage2 GC knobs (matching the Makefile stage2 build) to keep
+		// this fixture within a practical time budget.
+		noDebug := (src == "oren.oren" && art == "oren_stage2_native")
+
 		if wantWsl && !remoteX64BatchShouldReuse("linux", art, buildID) {
+			args := []string{"./oren", "build", src, "--backend", "native", "--platform", "x64-linux", "--no-cache", "-o", linuxBuilt}
+			if noDebug {
+				// IMPORTANT: Keep this aligned with the Makefile stage2 build knobs.
+				cmd := strings.Join(append(args[:], "--no-debug"), " ")
+				cmd = "OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES=8388608 " + cmd
+				args = []string{"sh", "-c", cmd}
+			}
 			tasks = append(tasks, remoteX64BuildTask{
 				target:    "linux",
 				artifact:  art,
 				src:       src,
 				outPath:   linuxBuilt,
-				buildArgs: []string{"./oren", "build", src, "--backend", "native", "--platform", "x64-linux", "-o", linuxBuilt},
+				buildArgs: args,
 			})
 		}
 		if wantWin && !remoteX64BatchShouldReuse("windows", art+".exe", buildID) {
+			args := []string{"./oren", "build", src, "--backend", "native", "--platform", "x64-windows", "--no-cache", "-o", winBuilt}
+			if noDebug {
+				// IMPORTANT: Keep this aligned with the Makefile stage2 build knobs.
+				cmd := strings.Join(append(args[:], "--no-debug"), " ")
+				cmd = "OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES=8388608 " + cmd
+				args = []string{"sh", "-c", cmd}
+			}
 			tasks = append(tasks, remoteX64BuildTask{
 				target:    "windows",
 				artifact:  art + ".exe",
 				src:       src,
 				outPath:   winBuilt,
-				buildArgs: []string{"./oren", "build", src, "--backend", "native", "--platform", "x64-windows", "-o", winBuilt},
+				buildArgs: args,
 			})
 		}
 	}
@@ -1376,6 +1397,27 @@ func remoteX64BatchFixture(tests []remoteX64Test) fixtureCase {
 			// Use the fixture-provided timeout (if non-zero) as the outer budget.
 			// Per-command timeouts are derived internally.
 			_ = timeoutBin
+			return remoteX64BatchFixtureRunner(timeoutBin, timeout, logPath, tests)
+		},
+		// Keep remote artifacts (and local build/tmp workdir) on failure for debugging.
+		cleanup: []string{},
+	}
+}
+
+func remoteX64SelfhostNativeFixture(tests []remoteX64Test) fixtureCase {
+	// Remote self-hosting checks are more expensive than Tier-1 smoke:
+	// building a stage2 native compiler (`oren.oren`) takes longer than a small fixture binary.
+	logPath := "build/logs/fixture_remote_x64_selfhost_native.log"
+	timeoutSecs := envInt("OREN_REMOTE_SELFHOST_TIMEOUT_SECS", 900)
+	if timeoutSecs < 1 {
+		timeoutSecs = 900
+	}
+	return fixtureCase{
+		name:    "remote_x64_selfhost_native",
+		timeout: time.Duration(timeoutSecs) * time.Second,
+		log:     logPath,
+		ok:      func(rc int) bool { return rc == 0 },
+		run: func(timeoutBin string, timeout time.Duration, logPath string) int {
 			return remoteX64BatchFixtureRunner(timeoutBin, timeout, logPath, tests)
 		},
 		// Keep remote artifacts (and local build/tmp workdir) on failure for debugging.

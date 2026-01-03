@@ -1,0 +1,7 @@
+fn main() {
+    var ch = oren_char(102) // "f"
+    if ch == "&" { exit(1) }
+    if ch == "f" { exit(0) }
+    exit(2)
+}
+

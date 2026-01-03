@@ -16,11 +16,17 @@ codesign -s - --force <output>
 
 - Oren’s macOS-native outputs are expected to be signed for local execution. Disabling signing is not supported because the OS may kill the process at runtime.
 
-- Deterministic builds (`--deterministic`) avoid post-processing steps that mutate the output (including external signing). A deterministic output is therefore **not guaranteed runnable** on macOS until you sign it (for local use, ad-hoc signing is typically sufficient):
+- `OREN_SKIP_CODESIGN=1` is rejected on macOS (the Makefile and both compiler frontends error out).
+
+- Deterministic builds (`--deterministic`) are defined as “minimize post-processing that mutates the emitted artifact bytes”.
+  On macOS this means the compiler does **not** automatically run `codesign` for deterministic outputs.
+  A deterministic output is therefore **not guaranteed runnable** on macOS until you sign it (for local use, ad-hoc signing is typically sufficient):
 
 ```bash
 codesign -s - --force <output>
 ```
+
+Important nuance: signing after the fact can make the file no longer byte-for-byte identical to the deterministic pre-sign output. The deterministic flag is intended for reproducible build artifacts, not for “runnable without signing”.
 
 ## Embedded signatures (compiler)
 

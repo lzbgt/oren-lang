@@ -1,0 +1,12 @@
+import lexer "../../lib/compiler/lexer.oren"
+import token "../../lib/compiler/token.oren"
+
+fn main() {
+    var src = oren_read_file("tests/native/func.oren")
+    var l = lexer.new_lexer(src)
+    l["file"] = "<mem>"
+    var t0 = lexer.next_token(l)
+    if t0 == nil { exit(1) }
+    if t0["type"] != token.TOK_FUNCTION { exit(2) }
+    exit(0)
+}
