@@ -44,6 +44,15 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `./scripts/verify_native_matrix.sh --targets arm64-linux`
   - `make verify-native-x64-compile`
 
+## Archived (2026-01-03) — Native: stage2-native correctness + hot-path fixes (rtobj + debug)
+
+- Correctness (native runtime + compiler):
+  - Fixed a native runtime iteration bug where `oren_iter_next_entry(m, idx, out_pair)` treated `idx==0` as “nil” (native v0 represents `nil` as integer 0).
+    - Impact: map iteration starting at index 0 returned “no entries”, which broke runtime-object metadata application (e.g. merging `meta["globals"]`), leading to missing runtime globals like `g_target_os`.
+- Throughput (stage2-native compiler):
+  - Runtime object cache selection now uses a fast non-cryptographic fingerprint (schema v2) instead of SHA-256 of the full expanded runtime source, avoiding multi-second hashing in native self-host workloads.
+  - arm64 debug symbol resolver generation no longer uses quadratic string concatenation; it now builds parts and joins once.
+
 ## Archived (2026-01-03) — Native runtime: GC should not “root” string literals
 
 - Native runtime model:

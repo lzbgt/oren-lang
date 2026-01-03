@@ -483,7 +483,25 @@ fn _arm64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
     var hit = rtobj.rtobj_load(dir, key)
     if hit != nil {
         if trace { print("[rtobj] hit backend=arm64 key=" + key) }
-        return _arm64_rtobj_apply_to_ctx(ctx, hit)
+        if trace {
+            var gl = hit["globals"]
+            var gln = 0
+            if gl != nil { gln = oren_map_len(gl) }
+            print("[rtobj] meta globals len=" + oren_int_to_string(gln))
+        }
+        var ok_hit = _arm64_rtobj_apply_to_ctx(ctx, hit)
+        if trace {
+            var cg = ctx["globals"]
+            var cgn = 0
+            if cg != nil { cgn = oren_map_len(cg) }
+            var have = 0
+            if cg != nil {
+                var vv = cg["g_target_os"]
+                if vv != nil { have = 1 }
+            }
+            print("[rtobj] ctx globals len=" + oren_int_to_string(cgn) + " g_target_os_present=" + oren_int_to_string(have))
+        }
+        return ok_hit
     }
 
     if trace { print("[rtobj] miss backend=arm64 key=" + key + " (building)") }
@@ -501,6 +519,15 @@ fn _arm64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
     if trace {
         var dt = oren_time_now_ns() - t0
         print("[rtobj] build+apply done +" + oren_int_to_string(dt / 1000000) + "ms")
+        var cg2 = ctx["globals"]
+        var cgn2 = 0
+        if cg2 != nil { cgn2 = oren_map_len(cg2) }
+        var have2 = 0
+        if cg2 != nil {
+            var vv2 = cg2["g_target_os"]
+            if vv2 != nil { have2 = 1 }
+        }
+        print("[rtobj] ctx globals len=" + oren_int_to_string(cgn2) + " g_target_os_present=" + oren_int_to_string(have2))
     }
     return ok
 }
@@ -1119,15 +1146,27 @@ fn native_compile_program_arm64(linked, platform) {
             si = si + 1
         }
 
-        var sym_src = "fn resolve_symbol(addr) { var off = addr - " + oren_int_to_string(base_addr) + " "
-            j = 0
-            while j < oren_list_len(sym_entries) {
-                var e = sym_entries[j]
-                sym_src = sym_src + "if off >= " + oren_int_to_string(e["off"]) + " { return " + token.CH_QUOTE + e["name"] + token.CH_QUOTE + " } "
-                j = j + 1
-            }
-
-        sym_src = sym_src + "return \"???\" }"
+        // PERF (critical for stage2-native):
+        // Avoid quadratic `sym_src = sym_src + ...` concatenation when the runtime contributes
+        // many symbols. Build a parts list and join once.
+        var sym_parts = []
+        oren_list_push(sym_parts, "fn resolve_symbol(addr) { var off = addr - ")
+        oren_list_push(sym_parts, oren_int_to_string(base_addr))
+        oren_list_push(sym_parts, " ")
+        j = 0
+        while j < oren_list_len(sym_entries) {
+            var e = sym_entries[j]
+            oren_list_push(sym_parts, "if off >= ")
+            oren_list_push(sym_parts, oren_int_to_string(e["off"]))
+            oren_list_push(sym_parts, " { return ")
+            oren_list_push(sym_parts, token.CH_QUOTE)
+            oren_list_push(sym_parts, e["name"])
+            oren_list_push(sym_parts, token.CH_QUOTE)
+            oren_list_push(sym_parts, " } ")
+            j = j + 1
+        }
+        oren_list_push(sym_parts, "return \"???\" }")
+        var sym_src = oren_string_join(sym_parts)
 
         print("Generating symbol table...")
         var l_sym = lexer.new_lexer(sym_src)

@@ -41,25 +41,30 @@ Rules for this tracker:
      - container ops (list/map/buf) with identical semantics across arch/OS
      - concurrency primitives on Windows (no fork/pipe assumptions): `spawn`, `oren_join(_timeout)`, and a path to cooperative cancellation
    - Remaining gaps (active):
-     - **Stage2-native (arm64-macos) self-hosting via `--backend native` is still unstable** (as of 2026-01-03).
-       - Repro: `./oren build oren.oren --backend native --platform arm64-macos --no-cache --no-debug -o build/selfhost_manual/oren_stage2_native && codesign -s - --force build/selfhost_manual/oren_stage2_native`
-       - Minimal compare: compile+run `tests/native/test_quick_integration_native.oren` using `./scripts/run_native_quick_integration.sh ./build/selfhost_manual/oren_stage2_native`
+     - **arm64-macos: stage2 compiler is still bootstrapped via C backend** (rolling constraint), but the produced `./oren_stage2` now emits fast/working native artifacts for Tier‑1 fixtures.
+       - Verified (local): `make verify-native-quick`
+       - Verified (linux/arm64): `./scripts/verify_native_matrix.sh --targets arm64-linux`
+       - Perf evidence lives in `docs/TODOS_ARCHIVE.md` (“compile one file” miss→hit using the runtime object cache).
+       - Still pending: produce a fully self-hosted **native** stage2 compiler on arm64-macos and gate it:
+         - Repro: `./oren build oren.oren --backend native --platform arm64-macos --no-cache --no-debug -o build/selfhost_manual/oren_stage2_native && codesign -s - --force build/selfhost_manual/oren_stage2_native`
+         - Minimal compare: compile+run `tests/native/test_quick_integration_native.oren` using `./scripts/run_native_quick_integration.sh ./build/selfhost_manual/oren_stage2_native`
      - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory synchronization:
        - mutex/condvar + parking/unparking primitives (`ulock` on macOS; futex-like on Linux; Win32 already exists)
        - a GC/safepoint model that remains correct once true threads exist (no “mutex works but GC breaks”)
      - Windows: complete a coherent PROC story (pid/kill/wait semantics or define a cross-OS `sys_spawn` boundary).
        - Current blocker: `oren_system(_timeout)` on `x64-windows` fails in the remote gate (`sys_win_createprocess` returns `-998` / `GetLastError()==998` = `ERROR_NOACCESS`).
          - Tier‑1 fixture currently *soft-skips* the failure on Windows to keep the remote gate usable; remove this skip once CreateProcess wiring is correct.
-	     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
-		     - (performance) stage2-native runtime bundle cost remains high; keep iterating toward:
+		     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
+			     - (performance) stage2-native runtime bundle cost remains high; keep iterating toward:
 		       - default: hashed runtime AST cache under `build/cache/native_runtime_astbin/` (disable via `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0`)
 		       - default (Tier‑1 throughput): cached compiled runtime object under `build/cache/native_runtime_obj/` (disable via `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`)
 		       - `OREN_NATIVE_RUNTIME_EXPANDED=...` troubleshooting fast-path (skip include expansion)
 		       - `OREN_NATIVE_RUNTIME_ASTBIN=...` troubleshooting fast-path (force a specific astbin file)
-		       - Status (rolling, 2026-01-03):
-		         - Implemented: arm64 + x86_64 native backend runtime object cache (default-on for non-capsule builds; works for debug and non-debug) so “compile one file” can skip recompiling `lib/runtime_native.oren` on cache hit.
-		         - Remaining: integrate capsule safely; consider persisting runtime debug line mapping (optional), and decide how to keep binaries small (DCE/prune strategy) without reintroducing per-build runtime compilation.
-		       - (capsule) ensure `native_capsule_sys_*` hooks are emitted + kept only when `--capsule` is enabled (non-capsule builds should not pay this cost)
+			       - Status (rolling, 2026-01-03):
+			         - Implemented: arm64 + x86_64 native backend runtime object cache (default-on for non-capsule builds; works for debug and non-debug) so “compile one file” can skip recompiling `lib/runtime_native.oren` on cache hit.
+			         - Implemented: runtime object cache schema v2 (fast runtime fingerprint for cache selection; avoids expensive SHA-256 on the expanded runtime in stage2-native hot paths).
+			         - Remaining: integrate capsule safely; consider persisting runtime debug line mapping (optional), and decide how to keep binaries small (DCE/prune strategy) without reintroducing per-build runtime compilation.
+			       - (capsule) ensure `native_capsule_sys_*` hooks are emitted + kept only when `--capsule` is enabled (non-capsule builds should not pay this cost)
 
 2) **Determinism + replay (native + AVM)** (L)
    - MANTIS requires deterministic replay and traceability (`mantis.md` “Observability & reproducibility”).

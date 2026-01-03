@@ -15,7 +15,16 @@
 import rtinj "native_runtime_inject.oren"
 import astbin "astbin.oren"
 
-var RUNTIME_OBJ_SCHEMA = 1
+// Schema version for on-disk runtime object cache format.
+//
+// IMPORTANT (stage2-native throughput):
+// Avoid using SHA-256 of the full expanded runtime source as the cache key input, because the
+// native runtime's pure-Oren SHA-256 implementation is much slower than the C backend and can
+// dominate “compile one file” even on cache hits (the hash is required just to find the cache dir).
+//
+// Schema v2 switches the cache key input to a fast 63-bit FNV-1a-style fingerprint (two lanes)
+// so repeated builds can find cached runtime objects without spending seconds hashing the runtime.
+var RUNTIME_OBJ_SCHEMA = 2
 var RUNTIME_OBJ_DATA_PREFIX_LEN = 8 // cstr0 table slot reserved by native entry stubs
 
 fn _is_false(v) {
@@ -61,9 +70,42 @@ fn _bytes_to_hex(bs) {
 }
 
 fn _sha256_hex_string(s) {
+    // Still used for small deterministic fingerprints (e.g. manifest hashes).
     if s == nil { return "" }
     var d = oren_sha256_string(s)
     return _bytes_to_hex(d)
+}
+
+fn _mask63(x) {
+    // Keep hashes non-negative so decimal formatting is stable across backends.
+    return x & 9223372036854775807
+}
+
+fn _fnv1a63_string(s, basis) {
+    // Fast fingerprint for cache keys (not a cryptographic hash).
+    //
+    // Implementation notes:
+    // - Keep state in 63-bit domain to avoid signed-negative values (native v0 uses i64 carriers).
+    // - Use a small prime; overflow wraps via masking.
+    if s == nil { return 0 }
+    var h = _mask63(basis)
+    var prime = 1099511628211 // FNV-ish multiplier (fits in i64)
+    var n = oren_string_len(s)
+    var i = 0
+    while i < n {
+        var b = oren_string_byte_at_unchecked(s, i) & 255
+        h = _mask63(h ^ b)
+        h = _mask63(h * prime)
+        i = i + 1
+    }
+    return h
+}
+
+fn _rtobj_runtime_fingerprint_v2(src) {
+    // Two-lane 63-bit fingerprint to reduce collision risk without expensive SHA-256.
+    var h1 = _fnv1a63_string(src, 1469598103934665603)
+    var h2 = _fnv1a63_string(src, 1099511628211)
+    return "v2_" + oren_int_to_string(h1) + "_" + oren_int_to_string(h2)
 }
 
 fn _shell_quote(s) {
@@ -89,6 +131,13 @@ fn _ensure_dir(path) {
 }
 
 fn rtobj_runtime_hash(ctx, runtime_path) {
+    var trace = rtobj_trace_enabled()
+    var t0 = 0
+    if trace {
+        t0 = oren_time_now_ns()
+        print("[rtobj] hash start path=" + runtime_path)
+    }
+
     var runtime_src = nil
     var expanded_override = oren_env("OREN_NATIVE_RUNTIME_EXPANDED")
     if expanded_override != nil {
@@ -101,7 +150,20 @@ fn rtobj_runtime_hash(ctx, runtime_path) {
         runtime_src = rtinj.runtime_expand_includes_file(ctx, runtime_path, [])
     }
     if runtime_src == nil { return nil }
-    return _sha256_hex_string(runtime_src)
+
+    if trace {
+        var dt = oren_time_now_ns() - t0
+        print("[rtobj] hash expand done +" + oren_int_to_string(dt / 1000000) + "ms")
+    }
+
+    var t1 = 0
+    if trace { t1 = oren_time_now_ns() }
+    var h = _rtobj_runtime_fingerprint_v2(runtime_src)
+    if trace {
+        var dt2 = oren_time_now_ns() - t1
+        print("[rtobj] hash fp done +" + oren_int_to_string(dt2 / 1000000) + "ms")
+    }
+    return h
 }
 
 fn rtobj_cache_key(backend, platform, runtime_hash) {
@@ -115,14 +177,15 @@ fn rtobj_cache_key(backend, platform, runtime_hash) {
         if platform["debug"] == true { dbg = "1" }
         if platform["no_gc"] == true { ngc = "1" }
     }
-    var s = "rtobj_schema=" + oren_int_to_string(RUNTIME_OBJ_SCHEMA) +
-        " backend=" + backend +
-        " os=" + os +
-        " arch=" + arch +
-        " debug=" + dbg +
-        " no_gc=" + ngc +
-        " runtime_hash=" + runtime_hash
-    return _sha256_hex_string(s)
+    // Key must be filesystem-friendly and stable. Avoid hashing this string again: the runtime_hash
+    // already includes a strong-enough fingerprint for cache selection in rolling mode.
+    return "s" + oren_int_to_string(RUNTIME_OBJ_SCHEMA) +
+        "_b_" + backend +
+        "_os_" + os +
+        "_a_" + arch +
+        "_d" + dbg +
+        "_g" + ngc +
+        "_rh_" + runtime_hash
 }
 
 fn rtobj_paths(cache_dir, key) {
@@ -162,4 +225,3 @@ fn rtobj_store(cache_dir, key, meta, code_u8, data_tail_u8) {
     oren_write_bytes(paths["data_tail"], data_tail_u8)
     return nil
 }
-
