@@ -5,6 +5,34 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2026-01-03) — Native: OrenStatV0 time fields + stat-aware scan cache v3
+
+- Native backends:
+  - `sys_stat/sys_lstat/sys_fstat` now populate the Oren-owned cross-platform `OrenStatV0` time fields:
+    - `atime_ns`, `mtime_ns`, `ctime_ns` (ns since Unix epoch; best-effort per OS).
+  - Offsets for host `struct stat` time fields are recorded as **repo-owned ABI constants**:
+    - macOS arm64: `docs/refs/darwin_arm64_abi.md` + `lib/compiler/arm64_abi_macos.oren`
+    - Linux arm64: `docs/refs/linux_arm64_abi.md` + `lib/compiler/arm64_abi_linux.oren`
+    - Linux x86_64: `docs/refs/linux_x86_64_abi.md` + `lib/compiler/x64_abi_linux.oren`
+- Runtimes:
+  - Added `oren_file_stat_size_mtime_ns(path)` for build tooling:
+    - native runtime: implemented via `sys_stat` + OrenStatV0 decode
+    - C backend runtime: implemented via libc `stat(2)`
+- Compiler build cache (performance):
+  - Scan cache bumped to **v3** (`build/cache/scan_cache_v3.txt`), storing per file:
+    - `(mtime_ns, size)` for validation
+    - file content hash (`raw`)
+    - include edges (`includes`)
+    - direct imports (`imports_self`)
+    - derived closure hash + merged imports (`hash`, `imports`)
+  - Include-closure hashing in rolling mode is now **stat-aware**, so unchanged sources do not get re-read during build-cache key computation.
+- Evidence (arm64-macos, stage2 compiler):
+  - `./oren_stage2 build examples/hello.oren --backend native --platform arm64-macos --debug ...` completes in ~`261ms` (two consecutive runs with `OREN_TRACE_BUILD=1`).
+- Verified:
+  - `make verify-native-quick`
+  - `./scripts/verify_native_matrix.sh --targets arm64-linux`
+  - `make verify-native-x64-compile`
+
 ## Archived (2026-01-03) — Native: runtime object cache (arm64 throughput)
 
 - Compiler (arm64 native backend):

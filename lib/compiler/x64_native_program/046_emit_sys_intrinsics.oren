@@ -780,6 +780,25 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(10, 11, labi.linux_stat_off_st_mode())) // r10d = *(u32*)(host_stat+off)
         bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(8, nstat.oren_stat_v0_off_mode(), 10))
 
+        // times (i64 ns): sec*1_000_000_000 + nsec
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(10, 11, labi.linux_stat_off_st_atime_sec()))
+        bytes_extend(ctx["code"], insn_imul_r64_imm32(10, 1000000000))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(9, 11, labi.linux_stat_off_st_atime_nsec()))
+        bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
+        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(8, nstat.oren_stat_v0_off_atime_ns(), 10))
+
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(10, 11, labi.linux_stat_off_st_mtime_sec()))
+        bytes_extend(ctx["code"], insn_imul_r64_imm32(10, 1000000000))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(9, 11, labi.linux_stat_off_st_mtime_nsec()))
+        bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
+        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(8, nstat.oren_stat_v0_off_mtime_ns(), 10))
+
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(10, 11, labi.linux_stat_off_st_ctime_sec()))
+        bytes_extend(ctx["code"], insn_imul_r64_imm32(10, 1000000000))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(9, 11, labi.linux_stat_off_st_ctime_nsec()))
+        bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
+        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(8, nstat.oren_stat_v0_off_ctime_ns(), 10))
+
         _emit_label(ctx, labels, l_norm_done)
         _patch_local_fixups(ctx, labels, fixups)
 
@@ -844,6 +863,25 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], insn_mov_mr64_r64(8, 10))
         bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(10, 11, labi.linux_stat_off_st_mode()))
         bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(8, nstat.oren_stat_v0_off_mode(), 10))
+
+        // times (i64 ns): sec*1_000_000_000 + nsec
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(10, 11, labi.linux_stat_off_st_atime_sec()))
+        bytes_extend(ctx["code"], insn_imul_r64_imm32(10, 1000000000))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(9, 11, labi.linux_stat_off_st_atime_nsec()))
+        bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
+        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(8, nstat.oren_stat_v0_off_atime_ns(), 10))
+
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(10, 11, labi.linux_stat_off_st_mtime_sec()))
+        bytes_extend(ctx["code"], insn_imul_r64_imm32(10, 1000000000))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(9, 11, labi.linux_stat_off_st_mtime_nsec()))
+        bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
+        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(8, nstat.oren_stat_v0_off_mtime_ns(), 10))
+
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(10, 11, labi.linux_stat_off_st_ctime_sec()))
+        bytes_extend(ctx["code"], insn_imul_r64_imm32(10, 1000000000))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(9, 11, labi.linux_stat_off_st_ctime_nsec()))
+        bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
+        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(8, nstat.oren_stat_v0_off_ctime_ns(), 10))
 
         _emit_label(ctx, labels, l_norm_done)
         _patch_local_fixups(ctx, labels, fixups)

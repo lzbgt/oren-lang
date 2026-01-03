@@ -24,6 +24,7 @@ Rules for this tracker:
 	   - Avoid O(n²) string/collection patterns in compiler-side tooling (include expansion, C backend transpiler, whole-program lowering passes).
 	   - Recently completed: pooled embedded string literals + one-time startup registration (`oren_init_static_cstr0_table`) to remove per-use tracking overhead in compiler workloads (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: GC pin/result no longer roots static string literals (classification-only nodes), reducing root churn in compiler/tooling runs (details in `docs/TODOS_ARCHIVE.md`).
+	   - Recently completed: native `sys_stat/sys_lstat/sys_fstat` now populate OrenStatV0 `{a,m,c}time_ns` on macOS/Linux (arm64+x86_64), and the build scan cache is now stat-aware (`scan_cache_v3.txt`) to avoid re-reading unchanged sources during build-cache key computation (details in `docs/TODOS_ARCHIVE.md`).
 		   - Hard gate (non-negotiable for rolling):
 		     - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
 		     - Stage2 native backend “compile one file” (cache hit; non-capsule) should stay **< 4s** wall time on the primary dev host; regressions indicate a fundamental hot-path flaw to investigate.

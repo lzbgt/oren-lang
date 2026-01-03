@@ -9,6 +9,9 @@
 fn oren_stat_size_bytes() { return 64 }
 fn oren_stat_off_size() { return 0 }
 fn oren_stat_off_mode() { return 8 }
+fn oren_stat_off_atime_ns() { return 16 }
+fn oren_stat_off_mtime_ns() { return 24 }
+fn oren_stat_off_ctime_ns() { return 32 }
 
 fn oren_stat_alloc() {
     var n = oren_stat_size_bytes()
@@ -32,3 +35,42 @@ fn oren_stat_get_mode(st_ptr) {
     return oren_ptr_get_u32_le(st_ptr + oren_stat_off_mode())
 }
 
+fn oren_stat_get_atime_ns(st_ptr) {
+    if st_ptr == 0 { return 0 }
+    return oren_ptr_get_i64_le(st_ptr + oren_stat_off_atime_ns())
+}
+
+fn oren_stat_get_mtime_ns(st_ptr) {
+    if st_ptr == 0 { return 0 }
+    return oren_ptr_get_i64_le(st_ptr + oren_stat_off_mtime_ns())
+}
+
+fn oren_stat_get_ctime_ns(st_ptr) {
+    if st_ptr == 0 { return 0 }
+    return oren_ptr_get_i64_le(st_ptr + oren_stat_off_ctime_ns())
+}
+
+@cap.requires(domain="FS")
+fn oren_file_stat_size_mtime_ns(path) {
+    // Return [size_bytes, mtime_ns] (list<int> length 2), or an error map.
+    //
+    // This is used by compiler/tooling hot paths (build cache / dependency scanning) to avoid
+    // reading large source files just to decide whether a cached record is still valid.
+    var pair = native_capsule_fs_path_resolve_pair(path, 0)
+    var rpath = ptr_get(pair + 0)
+    var owned = ptr_get(pair + 8)
+    free(pair)
+
+    var st = oren_stat_alloc()
+    var rc = sys_stat(rpath, st)
+    if rc < 0 {
+        free(st)
+        if owned == 1 { free(rpath) }
+        return oren_err(2, "sys_stat failed")
+    }
+    var size = oren_stat_get_size(st)
+    var mtime = oren_stat_get_mtime_ns(st)
+    free(st)
+    if owned == 1 { free(rpath) }
+    return [size, mtime]
+}

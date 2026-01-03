@@ -516,10 +516,15 @@ OrenValue oren_buf_gemm_f32_4x4_slice_into(
 OrenValue oren_write_file(OrenValue path, OrenValue content);
 OrenValue oren_write_bytes(OrenValue path, OrenValue bytes);
 OrenValue oren_read_bytes(OrenValue path);
-// Read a file into a typed byte buffer (u8_buf) with one allocation.
-// This avoids boxing each byte as an int (which can explode memory for large artifacts).
-OrenValue oren_read_u8_buf(OrenValue path);
-OrenValue oren_bytes_from_string(OrenValue s);
+	// Read a file into a typed byte buffer (u8_buf) with one allocation.
+	// This avoids boxing each byte as an int (which can explode memory for large artifacts).
+	OrenValue oren_read_u8_buf(OrenValue path);
+	// Fast file metadata query for build tooling.
+	//
+	// Returns a list<int> of length 2: [size_bytes, mtime_ns].
+	// On error returns the structured error map (same convention as other `oren_*` helpers).
+	OrenValue oren_file_stat_size_mtime_ns(OrenValue path);
+	OrenValue oren_bytes_from_string(OrenValue s);
 // Build a string from list<int 0..255> (inverse of bytes_from_string).
 OrenValue oren_string_from_bytes(OrenValue bytes);
 

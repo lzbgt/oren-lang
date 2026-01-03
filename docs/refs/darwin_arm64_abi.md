@@ -56,6 +56,12 @@ Verified on macOS arm64 by building and running a tiny audit program (not shippe
 - `sizeof(struct stat)` == **144**
 - `offsetof(st_mode)` == **4**
 - `offsetof(st_size)` == **96**
+- `offsetof(st_atimespec.tv_sec)` == **32**
+- `offsetof(st_atimespec.tv_nsec)` == **40**
+- `offsetof(st_mtimespec.tv_sec)` == **48**
+- `offsetof(st_mtimespec.tv_nsec)` == **56**
+- `offsetof(st_ctimespec.tv_sec)` == **64**
+- `offsetof(st_ctimespec.tv_nsec)` == **72**
 
 Code location:
 - `lib/compiler/arm64_abi_macos.oren`
@@ -66,5 +72,14 @@ Repro (manual audit):
 #include <stddef.h>
 #include <sys/stat.h>
 #include <stdio.h>
-int main(){printf("%zu %zu %zu\n", sizeof(struct stat), offsetof(struct stat, st_mode), offsetof(struct stat, st_size));}
+#include <time.h>
+int main(){
+  printf("%zu %zu %zu\n", sizeof(struct stat), offsetof(struct stat, st_mode), offsetof(struct stat, st_size));
+  printf("%zu %zu\n", offsetof(struct stat, st_atimespec) + offsetof(struct timespec, tv_sec),
+                      offsetof(struct stat, st_atimespec) + offsetof(struct timespec, tv_nsec));
+  printf("%zu %zu\n", offsetof(struct stat, st_mtimespec) + offsetof(struct timespec, tv_sec),
+                      offsetof(struct stat, st_mtimespec) + offsetof(struct timespec, tv_nsec));
+  printf("%zu %zu\n", offsetof(struct stat, st_ctimespec) + offsetof(struct timespec, tv_sec),
+                      offsetof(struct stat, st_ctimespec) + offsetof(struct timespec, tv_nsec));
+}
 ```

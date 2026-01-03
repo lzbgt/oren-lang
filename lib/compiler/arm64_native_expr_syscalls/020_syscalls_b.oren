@@ -129,6 +129,47 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 }
                 push_u32_le(ctx["code"], insn_str_w(8, 4, nstat.oren_stat_v0_off_mode()))
 
+                // times (i64 ns) -> OrenStatV0.{a,m,c}time_ns
+                //
+                // Store as: sec*1_000_000_000 + nsec.
+                var off_atime_sec = abi.darwin_stat_off_st_atime_sec()
+                var off_atime_nsec = abi.darwin_stat_off_st_atime_nsec()
+                var off_mtime_sec = abi.darwin_stat_off_st_mtime_sec()
+                var off_mtime_nsec = abi.darwin_stat_off_st_mtime_nsec()
+                var off_ctime_sec = abi.darwin_stat_off_st_ctime_sec()
+                var off_ctime_nsec = abi.darwin_stat_off_st_ctime_nsec()
+                if ctx["platform"]["os"] == "linux" {
+                    off_atime_sec = labi.linux_stat_off_st_atime_sec()
+                    off_atime_nsec = labi.linux_stat_off_st_atime_nsec()
+                    off_mtime_sec = labi.linux_stat_off_st_mtime_sec()
+                    off_mtime_nsec = labi.linux_stat_off_st_mtime_nsec()
+                    off_ctime_sec = labi.linux_stat_off_st_ctime_sec()
+                    off_ctime_nsec = labi.linux_stat_off_st_ctime_nsec()
+                }
+
+                emit_load_i64_imm(ctx, 9, 1000000000) // X9 = 1e9
+
+                // atime
+                push_u32_le(ctx["code"], insn_ldur_reg(10, 6, off_atime_sec))
+                push_u32_le(ctx["code"], insn_ldur_reg(11, 6, off_atime_nsec))
+                push_u32_le(ctx["code"], insn_mul(10, 10, 9))
+                push_u32_le(ctx["code"], insn_add_reg(10, 10, 11))
+                push_u32_le(ctx["code"], insn_stur_reg(10, 4, nstat.oren_stat_v0_off_atime_ns()))
+
+                // mtime
+                push_u32_le(ctx["code"], insn_ldur_reg(10, 6, off_mtime_sec))
+                push_u32_le(ctx["code"], insn_ldur_reg(11, 6, off_mtime_nsec))
+                push_u32_le(ctx["code"], insn_mul(10, 10, 9))
+                push_u32_le(ctx["code"], insn_add_reg(10, 10, 11))
+                push_u32_le(ctx["code"], insn_stur_reg(10, 4, nstat.oren_stat_v0_off_mtime_ns()))
+
+                // ctime
+                push_u32_le(ctx["code"], insn_ldur_reg(10, 6, off_ctime_sec))
+                push_u32_le(ctx["code"], insn_ldur_reg(11, 6, off_ctime_nsec))
+                push_u32_le(ctx["code"], insn_mul(10, 10, 9))
+                push_u32_le(ctx["code"], insn_add_reg(10, 10, 11))
+                push_u32_le(ctx["code"], insn_stur_reg(10, 4, nstat.oren_stat_v0_off_ctime_ns()))
+
                 var norm_end = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_norm, insn_b_cond((norm_end - br_skip_norm) / 4, 11)) // LT
     
@@ -263,6 +304,45 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 }
                 push_u32_le(ctx["code"], insn_str_w(8, 4, nstat.oren_stat_v0_off_mode()))
 
+                // times (i64 ns) -> OrenStatV0.{a,m,c}time_ns
+                var off_atime_sec = abi.darwin_stat_off_st_atime_sec()
+                var off_atime_nsec = abi.darwin_stat_off_st_atime_nsec()
+                var off_mtime_sec = abi.darwin_stat_off_st_mtime_sec()
+                var off_mtime_nsec = abi.darwin_stat_off_st_mtime_nsec()
+                var off_ctime_sec = abi.darwin_stat_off_st_ctime_sec()
+                var off_ctime_nsec = abi.darwin_stat_off_st_ctime_nsec()
+                if ctx["platform"]["os"] == "linux" {
+                    off_atime_sec = labi.linux_stat_off_st_atime_sec()
+                    off_atime_nsec = labi.linux_stat_off_st_atime_nsec()
+                    off_mtime_sec = labi.linux_stat_off_st_mtime_sec()
+                    off_mtime_nsec = labi.linux_stat_off_st_mtime_nsec()
+                    off_ctime_sec = labi.linux_stat_off_st_ctime_sec()
+                    off_ctime_nsec = labi.linux_stat_off_st_ctime_nsec()
+                }
+
+                emit_load_i64_imm(ctx, 9, 1000000000) // X9 = 1e9
+
+                // atime
+                push_u32_le(ctx["code"], insn_ldur_reg(10, 6, off_atime_sec))
+                push_u32_le(ctx["code"], insn_ldur_reg(11, 6, off_atime_nsec))
+                push_u32_le(ctx["code"], insn_mul(10, 10, 9))
+                push_u32_le(ctx["code"], insn_add_reg(10, 10, 11))
+                push_u32_le(ctx["code"], insn_stur_reg(10, 4, nstat.oren_stat_v0_off_atime_ns()))
+
+                // mtime
+                push_u32_le(ctx["code"], insn_ldur_reg(10, 6, off_mtime_sec))
+                push_u32_le(ctx["code"], insn_ldur_reg(11, 6, off_mtime_nsec))
+                push_u32_le(ctx["code"], insn_mul(10, 10, 9))
+                push_u32_le(ctx["code"], insn_add_reg(10, 10, 11))
+                push_u32_le(ctx["code"], insn_stur_reg(10, 4, nstat.oren_stat_v0_off_mtime_ns()))
+
+                // ctime
+                push_u32_le(ctx["code"], insn_ldur_reg(10, 6, off_ctime_sec))
+                push_u32_le(ctx["code"], insn_ldur_reg(11, 6, off_ctime_nsec))
+                push_u32_le(ctx["code"], insn_mul(10, 10, 9))
+                push_u32_le(ctx["code"], insn_add_reg(10, 10, 11))
+                push_u32_le(ctx["code"], insn_stur_reg(10, 4, nstat.oren_stat_v0_off_ctime_ns()))
+
                 var norm_end = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_norm, insn_b_cond((norm_end - br_skip_norm) / 4, 11)) // LT
     
@@ -374,6 +454,45 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                     push_u32_le(ctx["code"], insn_and_reg(8, 8, 9))
                 }
                 push_u32_le(ctx["code"], insn_str_w(8, 4, nstat.oren_stat_v0_off_mode()))
+
+                // times (i64 ns) -> OrenStatV0.{a,m,c}time_ns
+                var off_atime_sec = abi.darwin_stat_off_st_atime_sec()
+                var off_atime_nsec = abi.darwin_stat_off_st_atime_nsec()
+                var off_mtime_sec = abi.darwin_stat_off_st_mtime_sec()
+                var off_mtime_nsec = abi.darwin_stat_off_st_mtime_nsec()
+                var off_ctime_sec = abi.darwin_stat_off_st_ctime_sec()
+                var off_ctime_nsec = abi.darwin_stat_off_st_ctime_nsec()
+                if ctx["platform"]["os"] == "linux" {
+                    off_atime_sec = labi.linux_stat_off_st_atime_sec()
+                    off_atime_nsec = labi.linux_stat_off_st_atime_nsec()
+                    off_mtime_sec = labi.linux_stat_off_st_mtime_sec()
+                    off_mtime_nsec = labi.linux_stat_off_st_mtime_nsec()
+                    off_ctime_sec = labi.linux_stat_off_st_ctime_sec()
+                    off_ctime_nsec = labi.linux_stat_off_st_ctime_nsec()
+                }
+
+                emit_load_i64_imm(ctx, 9, 1000000000) // X9 = 1e9
+
+                // atime
+                push_u32_le(ctx["code"], insn_ldur_reg(10, 6, off_atime_sec))
+                push_u32_le(ctx["code"], insn_ldur_reg(11, 6, off_atime_nsec))
+                push_u32_le(ctx["code"], insn_mul(10, 10, 9))
+                push_u32_le(ctx["code"], insn_add_reg(10, 10, 11))
+                push_u32_le(ctx["code"], insn_stur_reg(10, 4, nstat.oren_stat_v0_off_atime_ns()))
+
+                // mtime
+                push_u32_le(ctx["code"], insn_ldur_reg(10, 6, off_mtime_sec))
+                push_u32_le(ctx["code"], insn_ldur_reg(11, 6, off_mtime_nsec))
+                push_u32_le(ctx["code"], insn_mul(10, 10, 9))
+                push_u32_le(ctx["code"], insn_add_reg(10, 10, 11))
+                push_u32_le(ctx["code"], insn_stur_reg(10, 4, nstat.oren_stat_v0_off_mtime_ns()))
+
+                // ctime
+                push_u32_le(ctx["code"], insn_ldur_reg(10, 6, off_ctime_sec))
+                push_u32_le(ctx["code"], insn_ldur_reg(11, 6, off_ctime_nsec))
+                push_u32_le(ctx["code"], insn_mul(10, 10, 9))
+                push_u32_le(ctx["code"], insn_add_reg(10, 10, 11))
+                push_u32_le(ctx["code"], insn_stur_reg(10, 4, nstat.oren_stat_v0_off_ctime_ns()))
 
                 var norm_end = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_norm, insn_b_cond((norm_end - br_skip_norm) / 4, 11)) // LT

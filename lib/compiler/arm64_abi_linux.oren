@@ -110,3 +110,16 @@ fn linux_mmap_flags_private_anon() { return 34 } // MAP_PRIVATE|MAP_ANONYMOUS (0
 fn linux_stat_size_bytes() { return 128 }
 fn linux_stat_off_st_mode() { return 16 }
 fn linux_stat_off_st_size() { return 48 }
+// Verified on the Tier‑1 linux/arm64 container via `offsetof`:
+// - offsetof(st_atim.tv_sec)  == 72
+// - offsetof(st_atim.tv_nsec) == 80
+// - offsetof(st_mtim.tv_sec)  == 88
+// - offsetof(st_mtim.tv_nsec) == 96
+// - offsetof(st_ctim.tv_sec)  == 104
+// - offsetof(st_ctim.tv_nsec) == 112
+fn linux_stat_off_st_atime_sec() { return 72 }
+fn linux_stat_off_st_atime_nsec() { return 80 }
+fn linux_stat_off_st_mtime_sec() { return 88 }
+fn linux_stat_off_st_mtime_nsec() { return 96 }
+fn linux_stat_off_st_ctime_sec() { return 104 }
+fn linux_stat_off_st_ctime_nsec() { return 112 }

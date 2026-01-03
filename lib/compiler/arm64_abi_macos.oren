@@ -95,9 +95,22 @@ fn posix_fcntl_f_setfl() { return 4 }
 // - sizeof(struct stat) == 144
 // - offsetof(st_mode) == 4
 // - offsetof(st_size) == 96
+// - time fields are `struct timespec`:
+//   - offsetof(st_atimespec.tv_sec)  == 32
+//   - offsetof(st_atimespec.tv_nsec) == 40
+//   - offsetof(st_mtimespec.tv_sec)  == 48
+//   - offsetof(st_mtimespec.tv_nsec) == 56
+//   - offsetof(st_ctimespec.tv_sec)  == 64
+//   - offsetof(st_ctimespec.tv_nsec) == 72
 fn darwin_stat_size_bytes() { return 144 }
 fn darwin_stat_off_st_mode() { return 4 }
 fn darwin_stat_off_st_size() { return 96 }
+fn darwin_stat_off_st_atime_sec() { return 32 }
+fn darwin_stat_off_st_atime_nsec() { return 40 }
+fn darwin_stat_off_st_mtime_sec() { return 48 }
+fn darwin_stat_off_st_mtime_nsec() { return 56 }
+fn darwin_stat_off_st_ctime_sec() { return 64 }
+fn darwin_stat_off_st_ctime_nsec() { return 72 }
 
 // --- mmap constants (Darwin) ---
 //

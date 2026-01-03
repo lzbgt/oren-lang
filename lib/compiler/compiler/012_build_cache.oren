@@ -24,7 +24,7 @@ import token "token.oren"
 // v2 uses a fast non-cryptographic fingerprint by default, while keeping sha256 for
 // deterministic/reproducible build modes.
 var BUILD_CACHE_SCHEMA = 2
-var SCAN_CACHE_SCHEMA = 2
+var SCAN_CACHE_SCHEMA = 3
 
 fn _cache_force_sha256(build_cfg) {
     // Force sha256 hashing even in non-deterministic builds.
@@ -368,7 +368,7 @@ fn _cache_hash_includes_closure(full_path, build_cfg, memo, include_stack) {
 
 fn _scan_cache_file(cache_dir) {
     if cache_dir == nil || cache_dir == "" { cache_dir = _cache_default_dir() }
-    return path_norm(cache_dir + "/scan_cache_v2.txt")
+    return path_norm(cache_dir + "/scan_cache_v3.txt")
 }
 
 fn _scan_cache_split_lines(s) {
@@ -415,34 +415,106 @@ fn _scan_cache_parse_u32(s) {
     return n
 }
 
+fn _scan_cache_parse_i64(s) {
+    // Parse a non-negative decimal int into i64. (Used for mtime_ns/size.)
+    if s == nil { return 0 }
+    var bs = oren_bytes_from_string(s)
+    var n = 0
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        if b < 48 || b > 57 { return 0 }
+        n = n * 10 + (b - 48)
+        i = i + 1
+    }
+    if n < 0 { n = 0 }
+    return n
+}
+
 fn _scan_cache_load(cache_dir) {
-    // Returns a map: path -> {"hash":hex, "imports":[...]}
+    // Returns a map: path -> record
+    //
+    // Record shape (v3):
+    // - "mtime_ns": int
+    // - "size": int
+    // - "raw": string      (hash of the file contents only; build_cfg-dependent)
+    // - "includes": list<string> (resolved include file paths)
+    // - "imports_self": list<string> (direct imports from this file only)
+    // - "hash": string     (hash of file + include closure; derived from "raw"+"includes"+children)
+    // - "imports": list<string> (merged imports including include-imports)
     var p = _scan_cache_file(cache_dir)
     if !file_exists(p) { return {} }
     var s = oren_read_file(p)
     if s == nil { return {} }
     var lines = _scan_cache_split_lines(s)
     if lines == nil || oren_list_len(lines) == 0 { return {} }
-    if lines[0] != "OREN_SCAN_CACHE_V2" { return {} }
+    if lines[0] != "OREN_SCAN_CACHE_V3" { return {} }
 
     var out = {}
     var i = 1
-    while i + 2 < oren_list_len(lines) {
-        var path = lines[i]
-        var hash = lines[i + 1]
-        var nline = lines[i + 2]
-        i = i + 3
+    while i < oren_list_len(lines) {
+        // Fixed-order record:
+        //   path
+        //   mtime_ns
+        //   size
+        //   raw_hash
+        //   n_includes
+        //   includes...
+        //   n_imports_self
+        //   imports_self...
+        //   closure_hash
+        //   n_imports_merged
+        //   imports_merged...
+        if i + 5 >= oren_list_len(lines) { break }
+        var path = lines[i]; i = i + 1
+        var mline = lines[i]; i = i + 1
+        var szline = lines[i]; i = i + 1
+        var raw = lines[i]; i = i + 1
+        var ninc_line = lines[i]; i = i + 1
         if path == nil || path == "" { continue }
-        if hash == nil { hash = "" }
-        var n = _scan_cache_parse_u32(nline)
-        var imps = []
+
+        var mtime = _scan_cache_parse_i64(mline)
+        var size = _scan_cache_parse_i64(szline)
+        if raw == nil { raw = "" }
+        var ninc = _scan_cache_parse_u32(ninc_line)
+        var incs = []
         var j = 0
-        while j < n && i < oren_list_len(lines) {
-            oren_list_push(imps, lines[i])
+        while j < ninc && i < oren_list_len(lines) {
+            oren_list_push(incs, lines[i])
             i = i + 1
             j = j + 1
         }
-        out[path] = {"hash": hash, "imports": imps}
+        if i >= oren_list_len(lines) { break }
+        var nself = _scan_cache_parse_u32(lines[i]); i = i + 1
+        var self_imps = []
+        var j2 = 0
+        while j2 < nself && i < oren_list_len(lines) {
+            oren_list_push(self_imps, lines[i])
+            i = i + 1
+            j2 = j2 + 1
+        }
+        if i >= oren_list_len(lines) { break }
+        var hh = lines[i]; i = i + 1
+        if hh == nil { hh = "" }
+        if i >= oren_list_len(lines) { break }
+        var nmerged = _scan_cache_parse_u32(lines[i]); i = i + 1
+        var merged = []
+        var j3 = 0
+        while j3 < nmerged && i < oren_list_len(lines) {
+            oren_list_push(merged, lines[i])
+            i = i + 1
+            j3 = j3 + 1
+        }
+
+        out[path] = {
+            "mtime_ns": mtime,
+            "size": size,
+            "raw": raw,
+            "includes": incs,
+            "imports_self": self_imps,
+            "hash": hh,
+            "imports": merged
+        }
     }
     return out
 }
@@ -453,25 +525,54 @@ fn _scan_cache_save(cache_dir, cache_map) {
     var paths = []
     for k in cache_map { oren_list_push(paths, k) }
     paths = _cache_sort_strings(paths)
-    var out = "OREN_SCAN_CACHE_V2\n"
+    var out = "OREN_SCAN_CACHE_V3\n"
     var i = 0
     while i < oren_list_len(paths) {
         var path = paths[i]
         var rec = cache_map[path]
         if rec == nil { i = i + 1; continue }
+        var mtime = rec["mtime_ns"]
+        if mtime == nil { mtime = 0 }
+        var size = rec["size"]
+        if size == nil { size = 0 }
+        var raw = rec["raw"]
+        if raw == nil { raw = "" }
+        var incs = rec["includes"]
+        if incs == nil { incs = [] }
+        var self_imps = rec["imports_self"]
+        if self_imps == nil { self_imps = [] }
         var hh = rec["hash"]
         if hh == nil { hh = "" }
-        var imps = rec["imports"]
-        if imps == nil { imps = [] }
+        var merged = rec["imports"]
+        if merged == nil { merged = [] }
         out = out + path + "\n"
-        out = out + hh + "\n"
-        out = out + oren_int_to_string(oren_list_len(imps)) + "\n"
+        out = out + oren_int_to_string(mtime) + "\n"
+        out = out + oren_int_to_string(size) + "\n"
+        out = out + raw + "\n"
+        out = out + oren_int_to_string(oren_list_len(incs)) + "\n"
         var j = 0
-        while j < oren_list_len(imps) {
-            var imp = imps[j]
+        while j < oren_list_len(incs) {
+            var inc = incs[j]
+            if inc == nil { inc = "" }
+            out = out + inc + "\n"
+            j = j + 1
+        }
+        out = out + oren_int_to_string(oren_list_len(self_imps)) + "\n"
+        var j2 = 0
+        while j2 < oren_list_len(self_imps) {
+            var imp = self_imps[j2]
             if imp == nil { imp = "" }
             out = out + imp + "\n"
-            j = j + 1
+            j2 = j2 + 1
+        }
+        out = out + hh + "\n"
+        out = out + oren_int_to_string(oren_list_len(merged)) + "\n"
+        var j3 = 0
+        while j3 < oren_list_len(merged) {
+            var imp2 = merged[j3]
+            if imp2 == nil { imp2 = "" }
+            out = out + imp2 + "\n"
+            j3 = j3 + 1
         }
         i = i + 1
     }
@@ -479,52 +580,30 @@ fn _scan_cache_save(cache_dir, cache_map) {
     return nil
 }
 
-fn _cache_scan_imports_for_file_cached(full_path, config, scan_state) {
-    // scan_state:
-    // - "dir": cache dir
-    // - "cache": map(path -> {"hash":hex, "imports":[...]})
-    // - "dirty": bool
+fn _cache_file_meta(full_path) {
+    // Return {"ok":bool, "size":int, "mtime_ns":int, "err":string}
     //
-    // Returns {"ok":bool, "imports":[...], "src_hash":hex, "err":string}
-    if scan_state == nil { return _cache_scan_imports_for_file(full_path, config) }
-    var cache_dir = scan_state["dir"]
-    var cache_map = scan_state["cache"]
-    if cache_map == nil { cache_map = {} ; scan_state["cache"] = cache_map }
-    var memo = scan_state["memo"]
-    if memo == nil { memo = {} ; scan_state["memo"] = memo }
-    var inprog = scan_state["in_progress"]
-    if inprog == nil { inprog = {} ; scan_state["in_progress"] = inprog }
-
-    // Include recursion can create cycles (accidental or malicious). Guard against infinite recursion.
-    if inprog[full_path] == true {
-        return {"ok": false, "err": "include cycle detected: " + full_path}
-    }
-    inprog[full_path] = true
-
-    // Hash the file + include closure without materializing expanded source (fast path).
-    var sh = _cache_hash_includes_closure(full_path, config, memo, [])
-
-    // Cache hit: reuse imports without token scanning.
-    var rec = cache_map[full_path]
-    if rec != nil && rec["hash"] == sh {
-        var imps = rec["imports"]
-        if imps == nil { imps = [] }
-        inprog[full_path] = nil
-        return {"ok": true, "imports": imps, "src_hash": sh}
-    }
-
-    // Miss: token scan *this file only* and merge include-imports recursively.
-    var src2 = oren_read_file(full_path)
-    if oren_is_err(src2) {
-        var em = oren_err_msg(src2)
-        if em == nil { em = "failed to read" }
-        inprog[full_path] = nil
+    // Backends implement this via their own runtime layers:
+    // - native runtime: `sys_stat` → OrenStatV0 → [size,mtime_ns]
+    // - C backend: libc `stat(2)`
+    var r = oren_file_stat_size_mtime_ns(full_path)
+    if oren_is_err(r) {
+        var em = oren_err_msg(r)
+        if em == nil { em = "stat failed" }
         return {"ok": false, "err": em}
     }
-    var l = lexer.new_lexer(src2)
+    if r == nil || oren_is_list(r) != true || oren_list_len(r) < 2 {
+        return {"ok": false, "err": "stat returned invalid shape"}
+    }
+    return {"ok": true, "size": r[0], "mtime_ns": r[1]}
+}
+
+fn _cache_scan_direct_imports_from_src(src, full_path, config) {
+    // Scan only *this file's* imports (not includes), returning resolved paths.
+    if src == nil || full_path == nil { return {"ok": true, "imports": []} }
+    var l = lexer.new_lexer(src)
     l["file"] = full_path
     var imports = []
-    var seen_imp = {}
     var base_dir = dirname(full_path)
     var tok = lexer.next_token(l)
     while tok != nil && tok["type"] != token.TOK_EOF {
@@ -541,22 +620,210 @@ fn _cache_scan_imports_for_file_cached(full_path, config, scan_state) {
             if imp_path != nil {
                 if config != nil && config["stdlib_mode"] == "obc" {
                     if starts_with(imp_path, "std:") || starts_with(imp_path, "std/") {
-                        if seen_imp[imp_path] != true { seen_imp[imp_path] = true; oren_list_push(imports, imp_path) }
+                        oren_list_push(imports, imp_path)
                     } else {
                         var full_imp = resolve_import_path(base_dir, imp_path)
-                        if seen_imp[full_imp] != true { seen_imp[full_imp] = true; oren_list_push(imports, full_imp) }
+                        oren_list_push(imports, full_imp)
                     }
                 } else {
                     var full_imp2 = resolve_import_path(base_dir, imp_path)
-                    if seen_imp[full_imp2] != true { seen_imp[full_imp2] = true; oren_list_push(imports, full_imp2) }
+                    oren_list_push(imports, full_imp2)
                 }
             }
         }
         tok = lexer.next_token(l)
     }
+    return {"ok": true, "imports": imports}
+}
 
-    // Merge include-imports (if any) by scanning include directives and importing their imports.
-    var incs2 = _cache_scan_includes_from_src(src2, full_path)
+fn _scan_cache_refresh_file_record(full_path, config, scan_state) {
+    // Ensure scan cache has an up-to-date record for full_path.
+    // Returns {"ok":bool, "rec":map, "err":string}
+    if scan_state == nil { return {"ok": false, "err": "scan_state is nil"} }
+    var cache_map = scan_state["cache"]
+    if cache_map == nil { cache_map = {} ; scan_state["cache"] = cache_map }
+
+    var meta = _cache_file_meta(full_path)
+    if meta["ok"] != true {
+        return {"ok": false, "err": meta["err"]}
+    }
+
+    var mtime = meta["mtime_ns"]
+    var size = meta["size"]
+    var rec = cache_map[full_path]
+    if rec != nil &&
+       rec["mtime_ns"] == mtime &&
+       rec["size"] == size &&
+       rec["raw"] != nil &&
+       rec["includes"] != nil &&
+       rec["imports_self"] != nil {
+        return {"ok": true, "rec": rec}
+    }
+
+    var src = oren_read_file(full_path)
+    if oren_is_err(src) {
+        var em = oren_err_msg(src)
+        if em == nil { em = "failed to read" }
+        return {"ok": false, "err": em}
+    }
+    if src == nil {
+        return {"ok": false, "err": "failed to read (nil)"}
+    }
+
+    var raw = _cache_hash_string(src, config)
+    var incs = _cache_scan_includes_from_src(src, full_path)
+    var r2 = _cache_scan_direct_imports_from_src(src, full_path, config)
+    if r2["ok"] != true {
+        return {"ok": false, "err": r2["err"]}
+    }
+    var imps_self = r2["imports"]
+    if imps_self == nil { imps_self = [] }
+
+    var next = {
+        "mtime_ns": mtime,
+        "size": size,
+        "raw": raw,
+        "includes": incs,
+        "imports_self": imps_self,
+        // Derived fields (recomputed when include children change).
+        "hash": "",
+        "imports": []
+    }
+    cache_map[full_path] = next
+    scan_state["dirty"] = true
+    return {"ok": true, "rec": next}
+}
+
+fn _cache_hash_includes_closure_stat(full_path, build_cfg, scan_state, include_stack) {
+    // Compute a stable hash for a file + its include closure using:
+    // - file stat (mtime/size) for cache validation
+    // - cached "raw" content hashes and cached include edge lists
+    //
+    // This avoids reading unchanged files during build-cache key computation.
+    var memo = scan_state["memo_hash"]
+    if memo == nil { memo = {} ; scan_state["memo_hash"] = memo }
+    if memo[full_path] != nil { return memo[full_path] }
+
+    // Include-cycle check (keep it deterministic and safe).
+    if include_stack != nil {
+        var si = 0
+        while si < oren_list_len(include_stack) {
+            if include_stack[si] == full_path {
+                return "include_cycle:" + full_path
+            }
+            si = si + 1
+        }
+    }
+    var next_stack = []
+    if include_stack != nil {
+        var ci = 0
+        while ci < oren_list_len(include_stack) { oren_list_push(next_stack, include_stack[ci]); ci = ci + 1 }
+    }
+    oren_list_push(next_stack, full_path)
+
+    var rr = _scan_cache_refresh_file_record(full_path, build_cfg, scan_state)
+    if rr["ok"] != true {
+        var em = rr["err"]
+        if em == nil { em = "failed" }
+        return "include_err:" + em
+    }
+    var rec = rr["rec"]
+    var raw = rec["raw"]
+    if raw == nil { raw = "" }
+    var incs = rec["includes"]
+    if incs == nil { incs = [] }
+
+    var h1 = 1469598103934665603
+    var h2 = 1099511628211
+    var mm = _cache_mix_fingerprint(h1, h2, "F:")
+    h1 = mm["h1"]; h2 = mm["h2"]
+    mm = _cache_mix_fingerprint(h1, h2, raw)
+    h1 = mm["h1"]; h2 = mm["h2"]
+
+    var ii = 0
+    while ii < oren_list_len(incs) {
+        var incp = incs[ii]
+        if incp != nil && incp != "" {
+            var child_hash = _cache_hash_includes_closure_stat(incp, build_cfg, scan_state, next_stack)
+            mm = _cache_mix_fingerprint(h1, h2, "\nI:")
+            h1 = mm["h1"]; h2 = mm["h2"]
+            mm = _cache_mix_fingerprint(h1, h2, incp)
+            h1 = mm["h1"]; h2 = mm["h2"]
+            mm = _cache_mix_fingerprint(h1, h2, "=")
+            h1 = mm["h1"]; h2 = mm["h2"]
+            mm = _cache_mix_fingerprint(h1, h2, child_hash)
+            h1 = mm["h1"]; h2 = mm["h2"]
+        }
+        ii = ii + 1
+    }
+
+    var out = "v2_" + oren_int_to_string(_mask63(h1)) + "_" + oren_int_to_string(_mask63(h2))
+    memo[full_path] = out
+    return out
+}
+
+fn _cache_scan_imports_for_file_cached(full_path, config, scan_state) {
+    // scan_state:
+    // - "dir": cache dir
+    // - "cache": map(path -> record)
+    // - "dirty": bool
+    //
+    // Returns {"ok":bool, "imports":[...], "src_hash":hex, "err":string}
+    if scan_state == nil { return _cache_scan_imports_for_file(full_path, config) }
+    var cache_map = scan_state["cache"]
+    if cache_map == nil { cache_map = {} ; scan_state["cache"] = cache_map }
+    var inprog = scan_state["in_progress"]
+    if inprog == nil { inprog = {} ; scan_state["in_progress"] = inprog }
+
+    // Include recursion can create cycles (accidental or malicious). Guard against infinite recursion.
+    if inprog[full_path] == true {
+        return {"ok": false, "err": "include cycle detected: " + full_path}
+    }
+    inprog[full_path] = true
+
+    // Ensure we have an up-to-date record for this file (reads only when mtime/size changed).
+    var rr = _scan_cache_refresh_file_record(full_path, config, scan_state)
+    if rr["ok"] != true {
+        inprog[full_path] = nil
+        return {"ok": false, "err": rr["err"]}
+    }
+    var rec = rr["rec"]
+
+    // Compute include-closure hash:
+    // - deterministic builds: sha256(expanded source) (slow but reproducible)
+    // - rolling builds: stat-aware fingerprint based on cached raw hashes and include edges
+    var sh = ""
+    if _cache_deterministic(config) || _cache_force_sha256(config) {
+        var memo = scan_state["memo"]
+        if memo == nil { memo = {} ; scan_state["memo"] = memo }
+        sh = _cache_hash_includes_closure(full_path, config, memo, [])
+    } else {
+        sh = _cache_hash_includes_closure_stat(full_path, config, scan_state, [])
+    }
+
+    // Cache hit: the merged imports were computed for the same closure hash.
+    if rec != nil && rec["hash"] == sh && rec["imports"] != nil {
+        inprog[full_path] = nil
+        return {"ok": true, "imports": rec["imports"], "src_hash": sh}
+    }
+
+    // Recompute merged imports using cached direct imports + include-imports.
+    var imports = []
+    var seen_imp = {}
+    var self_imps = rec["imports_self"]
+    if self_imps == nil { self_imps = [] }
+    var si = 0
+    while si < oren_list_len(self_imps) {
+        var dep0 = self_imps[si]
+        if dep0 != nil && dep0 != "" && seen_imp[dep0] != true {
+            seen_imp[dep0] = true
+            oren_list_push(imports, dep0)
+        }
+        si = si + 1
+    }
+
+    var incs2 = rec["includes"]
+    if incs2 == nil { incs2 = [] }
     var ii2 = 0
     while ii2 < oren_list_len(incs2) {
         var ip = incs2[ii2]
@@ -575,26 +842,45 @@ fn _cache_scan_imports_for_file_cached(full_path, config, scan_state) {
                         jj = jj + 1
                     }
                 }
+            } else {
+                inprog[full_path] = nil
+                return {"ok": false, "err": r2["err"]}
             }
         }
         ii2 = ii2 + 1
     }
 
-    cache_map[full_path] = {"hash": sh, "imports": imports}
+    rec["hash"] = sh
+    rec["imports"] = imports
+    cache_map[full_path] = rec
     scan_state["dirty"] = true
     inprog[full_path] = nil
     return {"ok": true, "imports": imports, "src_hash": sh}
 }
 
-fn _cache_hash_expanded_includes(path, build_cfg) {
+fn _cache_hash_expanded_includes(path, build_cfg, scan_state) {
     // Hash source including `// @include` closure.
     //
     // This is used for injected sources that are not necessarily visible through the
     // user's `import` graph (e.g. the native runtime bundle injected by native backends).
     //
-    // Perf: avoid building a giant expanded string in non-deterministic mode.
-    var memo = {}
-    var h = _cache_hash_includes_closure(path, build_cfg, memo, [])
+    // Perf:
+    // - deterministic builds keep sha256(expanded) as the cache contract
+    // - rolling builds use stat-aware closure hashing to avoid re-reading unchanged files
+    var h = ""
+    if _cache_deterministic(build_cfg) || _cache_force_sha256(build_cfg) {
+        var memo = {}
+        h = _cache_hash_includes_closure(path, build_cfg, memo, [])
+    } else {
+        // Best-effort: if scan_state wasn't provided, use a temporary one.
+        var ss = scan_state
+        if ss == nil {
+            var cache_dir = _cache_default_dir()
+            if build_cfg != nil && build_cfg["cache_dir"] != nil { cache_dir = build_cfg["cache_dir"] }
+            ss = {"dir": cache_dir, "cache": _scan_cache_load(cache_dir), "dirty": false}
+        }
+        h = _cache_hash_includes_closure_stat(path, build_cfg, ss, [])
+    }
     if starts_with(h, "include_err:") || starts_with(h, "include_cycle:") || h == "read_err" {
         return {"ok": false, "err": h}
     }
@@ -692,7 +978,7 @@ fn cache_compute_key_build(entry_path, build_cfg) {
     // invalidate the build cache (observed as stale Windows x64 artifacts).
     if build_cfg != nil && build_cfg["backend"] == "native" {
         var rt_path = "lib/runtime_native.oren"
-        var rh = _cache_hash_expanded_includes(rt_path, build_cfg)
+        var rh = _cache_hash_expanded_includes(rt_path, build_cfg, scan_state)
         if rh["ok"] != true {
             return {"ok": false, "err": "failed to read injected runtime: " + rt_path + " (" + rh["err"] + ")"}
         }

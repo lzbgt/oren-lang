@@ -14,9 +14,9 @@
 //   +0x00: i64 size
 //   +0x08: u32 mode
 //   +0x0C: u32 _pad0
-//   +0x10: i64 atime_ns   (0 for now in native v0)
-//   +0x18: i64 mtime_ns   (0 for now in native v0)
-//   +0x20: i64 ctime_ns   (0 for now in native v0)
+//   +0x10: i64 atime_ns
+//   +0x18: i64 mtime_ns
+//   +0x20: i64 ctime_ns
 //   +0x28: u64 _reserved0
 //   +0x30: u64 _reserved1
 //   +0x38: u32 _reserved2

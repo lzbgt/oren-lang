@@ -28,6 +28,36 @@ OrenValue oren_read_file(OrenValue path) {
     return oren_string(buf);
 }
 
+OrenValue oren_file_stat_size_mtime_ns(OrenValue path) {
+    if (path.type != OREN_TYPE_STRING) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("file_stat_size_mtime_ns expects string path"));
+    }
+    struct stat st;
+    if (stat(path.as.string_val, &st) != 0) {
+        return oren_err_from_errno("cannot stat file", path.as.string_val, errno);
+    }
+
+    long long size = (long long)st.st_size;
+    long long sec = 0;
+    long long nsec = 0;
+
+#if defined(__APPLE__)
+    sec = (long long)st.st_mtimespec.tv_sec;
+    nsec = (long long)st.st_mtimespec.tv_nsec;
+#elif defined(_WIN32)
+    // Best-effort: second resolution only.
+    sec = (long long)st.st_mtime;
+    nsec = 0;
+#else
+    // POSIX (Linux): require XOPEN2K8/GNU features for st_mtim.
+    sec = (long long)st.st_mtim.tv_sec;
+    nsec = (long long)st.st_mtim.tv_nsec;
+#endif
+
+    long long mtime_ns = sec * 1000000000LL + nsec;
+    return oren_new_list(2, oren_int(size), oren_int(mtime_ns));
+}
+
 OrenValue oren_write_file(OrenValue path, OrenValue content) {
     if (path.type != OREN_TYPE_STRING || content.type != OREN_TYPE_STRING) {
         oren_panic("write_file expects (string, string)");
