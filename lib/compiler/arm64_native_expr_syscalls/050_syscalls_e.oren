@@ -1,5 +1,7 @@
 // Chunked out of native_compile_syscall_call for include coherence.
 fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
+    var capsule = false
+    if ctx != nil && ctx["platform"] != nil && ctx["platform"]["capsule"] == true { capsule = true }
 
             if fn_name == "sys_gettimeofday" {
                 // sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) -> 0_or_neg_errno
@@ -36,9 +38,11 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // tv
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // tz
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // abs
-                var bl_gtod_pre = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_gtod_pre, "name": "native_capsule_sys_gettimeofday_pre"})
+                if capsule {
+                    var bl_gtod_pre = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_gtod_pre, "name": "native_capsule_sys_gettimeofday_pre"})
+                }
     
                 // Reload args for syscall (pre-hook may clobber regs).
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // tv
@@ -99,9 +103,11 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                 compile_expr(ctx, args[0]) // ns -> X0
     
                 // pre: native_capsule_sys_nanosleep_pre(ns) -> ns (may return <=0 to skip sleep)
-                var bl_ns_pre = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_ns_pre, "name": "native_capsule_sys_nanosleep_pre"})
+                if capsule {
+                    var bl_ns_pre = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_ns_pre, "name": "native_capsule_sys_nanosleep_pre"})
+                }
     
                 // Preserve heap globals across syscalls (rolling ABI hygiene).
                 push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -313,12 +319,14 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))  // flags
                 push_u32_le(ctx["code"], insn_movz(4, 0))
                 push_u32_le(ctx["code"], insn_movz(5, 0))
-                var bl_pre_send = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                if fn_name == "sys_send" {
-                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_send, "name": "native_capsule_sys_sendto_pre"})
-                } else {
-                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_send, "name": "native_capsule_sys_recvfrom_pre"})
+                if capsule {
+                    var bl_pre_send = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    if fn_name == "sys_send" {
+                        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_send, "name": "native_capsule_sys_sendto_pre"})
+                    } else {
+                        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_send, "name": "native_capsule_sys_recvfrom_pre"})
+                    }
                 }
     
                 // Reload args for syscall.
@@ -377,9 +385,11 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                     return true
                 }
                 // pre: native_capsule_sys_kqueue_pre()
-                var bl_kqueue_pre = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_kqueue_pre, "name": "native_capsule_sys_kqueue_pre"})
+                if capsule {
+                    var bl_kqueue_pre = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_kqueue_pre, "name": "native_capsule_sys_kqueue_pre"})
+                }
                 // SYS_kqueue = 362
                 push_u32_le(ctx["code"], insn_sub_sp(16))
                 push_u32_le(ctx["code"], insn_str_reg_sp(27, 0))
@@ -399,9 +409,11 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                 set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
     
                 // post: native_capsule_sys_kqueue_post(fd) -> fd
-                var bl_kqueue_post = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_kqueue_post, "name": "native_capsule_sys_kqueue_post"})
+                if capsule {
+                    var bl_kqueue_post = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_kqueue_post, "name": "native_capsule_sys_kqueue_post"})
+                }
                 return true
             }
     
@@ -413,9 +425,11 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                 // Darwin: epoll does not exist (return -ENOSYS).
                 compile_expr(ctx, args[0]) // flags -> X0
                 // pre: native_capsule_sys_epoll_create1_pre(flags) -> flags
-                var bl_epoll_pre = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_epoll_pre, "name": "native_capsule_sys_epoll_create1_pre"})
+                if capsule {
+                    var bl_epoll_pre = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_epoll_pre, "name": "native_capsule_sys_epoll_create1_pre"})
+                }
     
                 if ctx["platform"]["os"] != "linux" {
                     // -ENOSYS (78)
@@ -435,9 +449,11 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] - 16
     
                 // post: native_capsule_sys_epoll_create1_post(fd) -> fd
-                var bl_epoll_post = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_epoll_post, "name": "native_capsule_sys_epoll_create1_post"})
+                if capsule {
+                    var bl_epoll_post = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_epoll_post, "name": "native_capsule_sys_epoll_create1_post"})
+                }
                 return true
             }
     
@@ -475,9 +491,11 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32))
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16))
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
-                var bl_epoll_ctl_pre = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_epoll_ctl_pre, "name": "native_capsule_sys_epoll_ctl_pre"})
+                if capsule {
+                    var bl_epoll_ctl_pre = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_epoll_ctl_pre, "name": "native_capsule_sys_epoll_ctl_pre"})
+                }
     
                 if ctx["platform"]["os"] != "linux" {
                     emit_load_i64_imm(ctx, 0, -78) // -ENOSYS

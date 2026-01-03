@@ -1,5 +1,7 @@
 // Chunked out of native_compile_syscall_call for include coherence.
 fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
+    var capsule = false
+    if ctx != nil && ctx["platform"] != nil && ctx["platform"]["capsule"] == true { capsule = true }
 
             if fn_name == "sys_stat" {
                 // sys_stat(path, st_ptr) -> 0 or negative errno
@@ -18,14 +20,26 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] + 16
     
                 // pre: native_capsule_sys_stat_pre(path) -> pair
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // path
-                var bl_pre_st = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_st, "name": "native_capsule_sys_stat_pre"})
-                // save pair
-                push_u32_le(ctx["code"], insn_sub_sp(16))
-                push_u32_le(ctx["code"], insn_str_x0_sp(0))
-                ctx["stack_size"] = ctx["stack_size"] + 16
+                // Non-capsule: synthesize an in-stack pair {path_ptr, owned=0} and use its address.
+                if capsule {
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // path
+                    var bl_pre_st = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_st, "name": "native_capsule_sys_stat_pre"})
+                    // save pair pointer
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+                } else {
+                    // Allocate pair struct on stack at [SP..SP+16) and fill:
+                    //   [0]=path_ptr, [8]=owned(0)
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // path
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0)) // pair[0]=path
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(8)) // pair[8]=0
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+                }
     
                 // Use a private host `struct stat` buffer and translate into OrenStatV0
                 // (stable cross-OS layout) in the caller-provided `st_ptr`.
@@ -36,7 +50,11 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] + host_stat_aligned
 
                 // X0 = resolved path, X1 = tmp_host_stat_ptr (SP)
-                emit_ldr_reg_sp_any(ctx, 2, host_stat_aligned) // pair (above tmp buffer)
+                if capsule {
+                    emit_ldr_reg_sp_any(ctx, 2, host_stat_aligned) // pair ptr (above tmp buffer)
+                } else {
+                    emit_add_sp_offset_to_reg(ctx, 2, host_stat_aligned) // pair ptr = SP + host_stat_aligned
+                }
                 push_u32_le(ctx["code"], insn_ldr_ptr(0, 2))    // path_ptr
                 emit_add_sp_offset_to_reg(ctx, 1, 0)            // buf = SP
     
@@ -114,12 +132,14 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 var norm_end = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_norm, insn_b_cond((norm_end - br_skip_norm) / 4, 11)) // LT
     
-                // post: native_capsule_sys_stat_post(pair, rc) -> rc
-                push_u32_le(ctx["code"], insn_mov_reg(1, 0))
-                emit_ldr_reg_sp_any(ctx, 0, host_stat_aligned) // pair
-                var bl_post_st = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_st, "name": "native_capsule_sys_stat_post"})
+                if capsule {
+                    // post: native_capsule_sys_stat_post(pair, rc) -> rc
+                    push_u32_le(ctx["code"], insn_mov_reg(1, 0))
+                    emit_ldr_reg_sp_any(ctx, 0, host_stat_aligned) // pair
+                    var bl_post_st = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_st, "name": "native_capsule_sys_stat_post"})
+                }
     
                 // Pop tmp host stat + pair + st_ptr + path
                 push_u32_le(ctx["code"], insn_add_sp(host_stat_aligned))
@@ -148,14 +168,24 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] + 16
     
                 // pre: native_capsule_sys_lstat_pre(path) -> pair
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // path
-                var bl_pre_lst = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_lst, "name": "native_capsule_sys_lstat_pre"})
-                // save pair
-                push_u32_le(ctx["code"], insn_sub_sp(16))
-                push_u32_le(ctx["code"], insn_str_x0_sp(0))
-                ctx["stack_size"] = ctx["stack_size"] + 16
+                // Non-capsule: synthesize an in-stack pair {path_ptr, owned=0} and use its address.
+                if capsule {
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // path
+                    var bl_pre_lst = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_lst, "name": "native_capsule_sys_lstat_pre"})
+                    // save pair pointer
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+                } else {
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // path
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0)) // pair[0]=path
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(8)) // pair[8]=0
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+                }
     
                 // Use a private host `struct stat` buffer and translate into OrenStatV0.
                 var host_stat_bytes = abi.darwin_stat_size_bytes()
@@ -165,7 +195,11 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] + host_stat_aligned
 
                 // X0 = resolved path, X1 = tmp_host_stat_ptr (SP)
-                emit_ldr_reg_sp_any(ctx, 2, host_stat_aligned) // pair (above tmp buffer)
+                if capsule {
+                    emit_ldr_reg_sp_any(ctx, 2, host_stat_aligned) // pair ptr (above tmp buffer)
+                } else {
+                    emit_add_sp_offset_to_reg(ctx, 2, host_stat_aligned) // pair ptr = SP + host_stat_aligned
+                }
                 push_u32_le(ctx["code"], insn_ldr_ptr(0, 2))    // path_ptr
                 emit_add_sp_offset_to_reg(ctx, 1, 0)            // buf = SP
     
@@ -232,12 +266,14 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 var norm_end = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_norm, insn_b_cond((norm_end - br_skip_norm) / 4, 11)) // LT
     
-                // post: native_capsule_sys_lstat_post(pair, rc) -> rc
-                push_u32_le(ctx["code"], insn_mov_reg(1, 0))
-                emit_ldr_reg_sp_any(ctx, 0, host_stat_aligned) // pair
-                var bl_post_lst = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_lst, "name": "native_capsule_sys_lstat_post"})
+                if capsule {
+                    // post: native_capsule_sys_lstat_post(pair, rc) -> rc
+                    push_u32_le(ctx["code"], insn_mov_reg(1, 0))
+                    emit_ldr_reg_sp_any(ctx, 0, host_stat_aligned) // pair
+                    var bl_post_lst = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_lst, "name": "native_capsule_sys_lstat_post"})
+                }
     
                 // Pop tmp host stat + pair + st_ptr + path
                 push_u32_le(ctx["code"], insn_add_sp(host_stat_aligned))
@@ -267,9 +303,11 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
     
                 // pre: native_capsule_sys_fstat_pre(fd) -> fd
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // fd
-                var bl_pre_fst = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_fst, "name": "native_capsule_sys_fstat_pre"})
+                if capsule {
+                    var bl_pre_fst = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_fst, "name": "native_capsule_sys_fstat_pre"})
+                }
     
                 // Use a private host `struct stat` buffer and translate into OrenStatV0.
                 var host_stat_bytes = abi.darwin_stat_size_bytes()
@@ -340,10 +378,12 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 var norm_end = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_norm, insn_b_cond((norm_end - br_skip_norm) / 4, 11)) // LT
     
-                // post: native_capsule_sys_fstat_post(rc) -> rc
-                var bl_post_fst = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_fst, "name": "native_capsule_sys_fstat_post"})
+                if capsule {
+                    // post: native_capsule_sys_fstat_post(rc) -> rc
+                    var bl_post_fst = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_fst, "name": "native_capsule_sys_fstat_post"})
+                }
     
                 // Pop tmp host stat + st_ptr + fd
                 push_u32_le(ctx["code"], insn_add_sp(host_stat_aligned))
@@ -376,9 +416,11 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 }
     
                 // pre: native_capsule_sys_getcwd_pre()
-                var bl_getcwd_pre = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_getcwd_pre, "name": "native_capsule_sys_getcwd_pre"})
+                if capsule {
+                    var bl_getcwd_pre = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_getcwd_pre, "name": "native_capsule_sys_getcwd_pre"})
+                }
     
                 // X0=buf, X1=size
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
@@ -429,9 +471,11 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
     
                 // pre: native_capsule_sys_getdirentries64_pre(fd) -> fd
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 48)) // fd
-                var bl_pre_gde = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_gde, "name": "native_capsule_sys_getdirentries64_pre"})
+                if capsule {
+                    var bl_pre_gde = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_gde, "name": "native_capsule_sys_getdirentries64_pre"})
+                }
     
                 // X0=fd, X1=buf, X2=bufsize, X3=pos_ptr
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32)) // buf
@@ -458,10 +502,12 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                     emit_svc_preserve_heap(ctx, svc_imm)
                 }
     
-                // post: native_capsule_sys_getdirentries64_post(rc) -> rc
-                var bl_post_gde = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_gde, "name": "native_capsule_sys_getdirentries64_post"})
+                if capsule {
+                    // post: native_capsule_sys_getdirentries64_post(rc) -> rc
+                    var bl_post_gde = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_gde, "name": "native_capsule_sys_getdirentries64_post"})
+                }
     
                 // Pop pos_ptr + bufsize + buf + fd
                 push_u32_le(ctx["code"], insn_add_sp(16))
@@ -485,18 +531,23 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_str_x0_sp(0))
                 ctx["stack_size"] = ctx["stack_size"] + 16
     
-                // pre: native_capsule_sys_rmdir_pre(path) -> pair
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
-                var bl_pre_rd = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_rd, "name": "native_capsule_sys_rmdir_pre"})
-                // save pair
-                push_u32_le(ctx["code"], insn_sub_sp(16))
-                push_u32_le(ctx["code"], insn_str_x0_sp(0))
-                ctx["stack_size"] = ctx["stack_size"] + 16
-                // X1 = resolved path
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
-                push_u32_le(ctx["code"], insn_ldr_ptr(1, 2))
+                if capsule {
+                    // pre: native_capsule_sys_rmdir_pre(path) -> pair
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+                    var bl_pre_rd = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre_rd, "name": "native_capsule_sys_rmdir_pre"})
+                    // save pair
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+                    // X1 = resolved path
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+                    push_u32_le(ctx["code"], insn_ldr_ptr(1, 2))
+                } else {
+                    // No capsule pre-hook: use original path.
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // path -> X1
+                }
     
                 var svc_imm = abi.darwin_svc_imm()
                 var sys_reg = abi.darwin_syscall_reg()
@@ -523,17 +574,23 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                     emit_svc_preserve_heap(ctx, svc_imm)
                 }
     
-                // post: native_capsule_sys_rmdir_post(pair, rc) -> rc
-                push_u32_le(ctx["code"], insn_mov_reg(1, 0))
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // pair
-                var bl_post_rd = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_rd, "name": "native_capsule_sys_rmdir_post"})
-    
-                // Pop pair + original path
-                push_u32_le(ctx["code"], insn_add_sp(16))
-                push_u32_le(ctx["code"], insn_add_sp(16))
-                ctx["stack_size"] = ctx["stack_size"] - 32
+                if capsule {
+                    // post: native_capsule_sys_rmdir_post(pair, rc) -> rc
+                    push_u32_le(ctx["code"], insn_mov_reg(1, 0))
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0)) // pair
+                    var bl_post_rd = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_rd, "name": "native_capsule_sys_rmdir_post"})
+
+                    // Pop pair + original path
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 32
+                } else {
+                    // Pop original path
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+                }
                 return true
             }
     
@@ -542,17 +599,19 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 // sys_close(fd)
                 compile_expr(ctx, args[0]) // fd -> X0
     
-                // pre: native_capsule_sys_close_pre(fd) -> fd
-                var bl_close_pre = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_close_pre, "name": "native_capsule_sys_close_pre"})
-    
-                // Save fd so we can run a capsule post-hook that clears per-fd NET tags.
-                push_u32_le(ctx["code"], insn_sub_sp(16))
-                push_u32_le(ctx["code"], insn_str_x0_sp(0))
-                ctx["stack_size"] = ctx["stack_size"] + 16
-                // Reload fd into X0 for the syscall (post-hook call may clobber X0 later).
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+                if capsule {
+                    // pre: native_capsule_sys_close_pre(fd) -> fd
+                    var bl_close_pre = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_close_pre, "name": "native_capsule_sys_close_pre"})
+
+                    // Save fd so we can run a capsule post-hook that clears per-fd NET tags.
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+                    // Reload fd into X0 for the syscall (post-hook call may clobber X0 later).
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+                }
     
                 var sys_close = abi.darwin_sys_close()
                 var svc_imm = abi.darwin_svc_imm()
@@ -607,15 +666,17 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                     set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
                 }
     
-                // post: native_capsule_sys_close_post(rc, fd) -> rc
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // fd
-                var bl_post_close = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_close, "name": "native_capsule_sys_close_post"})
-    
-                // Pop saved fd slot.
-                push_u32_le(ctx["code"], insn_add_sp(16))
-                ctx["stack_size"] = ctx["stack_size"] - 16
+                if capsule {
+                    // post: native_capsule_sys_close_post(rc, fd) -> rc
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0)) // fd
+                    var bl_post_close = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_post_close, "name": "native_capsule_sys_close_post"})
+
+                    // Pop saved fd slot.
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+                }
                 return true
             }
     
@@ -637,15 +698,17 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 push_u32_le(ctx["code"], insn_str_x0_sp(0))
                 ctx["stack_size"] = ctx["stack_size"] + 16
     
-                // pre: native_capsule_sys_fcntl_pre(fd, cmd, arg)
-                // Enforce domain based on fd kind (FS/NET/PROC) to prevent bypass.
-                // Keep values on stack and reload after the call (AArch64 caller-saved regs).
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // cmd
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // arg
-                var bl_fcntl_pre = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fcntl_pre, "name": "native_capsule_sys_fcntl_pre"})
+                if capsule {
+                    // pre: native_capsule_sys_fcntl_pre(fd, cmd, arg)
+                    // Enforce domain based on fd kind (FS/NET/PROC) to prevent bypass.
+                    // Keep values on stack and reload after the call (AArch64 caller-saved regs).
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 16)) // cmd
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))  // arg
+                    var bl_fcntl_pre = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fcntl_pre, "name": "native_capsule_sys_fcntl_pre"})
+                }
     
                 // Reload args for syscall.
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 32)) // fd
@@ -680,13 +743,15 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                     set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
                 }
     
-                // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32)) // fd
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16)) // cmd
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))  // arg
-                var bl_fcntl_post = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fcntl_post, "name": "native_capsule_sys_fcntl_post"})
+                if capsule {
+                    // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 32)) // fd
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 16)) // cmd
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))  // arg
+                    var bl_fcntl_post = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_fcntl_post, "name": "native_capsule_sys_fcntl_post"})
+                }
     
                 // Pop arg/cmd/fd slots.
                 push_u32_le(ctx["code"], insn_add_sp(16))

@@ -205,6 +205,8 @@ fn native_compile_program_arm64(linked, platform) {
     var v_trace = oren_env("OREN_TRACE_ARM64_NATIVE_COMPILE")
     if v_trace != nil && v_trace != "" { trace = true }
     if trace { print("[arm64] native_compile_program_arm64: enter") }
+    var t_enter = 0
+    if trace { t_enter = oren_time_now_ns() }
     var ctx = {
         "code": bytes_new(),
         "data": bytes_new(),
@@ -223,6 +225,9 @@ fn native_compile_program_arm64(linked, platform) {
         // Named function varargs mapping (name -> fixed param count). Presence means varargs.
         "func_varargs_fixed": {},
         "func_decl_order": [],
+        // Named-function wrappers are only needed when a function is used as a *value*
+        // (Identifier expression), not when it is only ever called directly.
+        "fnwrap_needed": {},
         // Lambda collection state (lambdas are parsed as anonymous Function nodes with name="").
         "lambda_defs": [],
         "lambda_counter": 0,
@@ -356,11 +361,16 @@ fn native_compile_program_arm64(linked, platform) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_envp, "name": "native_runtime_set_envp"})
 
-    // Initialize runtime capsule mode (defense-in-depth; runtime-side deny-by-default).
-    // This reads envp and sets global capsule flags/mask before user code runs.
-    var bl_capsule = bytes_len(ctx["code"])
-    push_u32_le(ctx["code"], 0)
-    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_capsule, "name": "native_runtime_capsule_init"})
+    // Initialize runtime capsule mode when `--capsule` is enabled.
+    //
+    // NOTE: This is a compile-time capsule feature gate. Without `--capsule`, the native
+    // backend does not emit the capsule syscall hook ABI surface, so enabling capsule by
+    // env alone would not provide a capability-safe boundary.
+    if platform != nil && platform["capsule"] == true {
+        var bl_capsule = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_capsule, "name": "native_runtime_capsule_init"})
+    }
 
     // Initialize GC mode for the native runtime (two-mode GC):
     // - default enabled unless compiled with `--no-gc`
@@ -430,8 +440,14 @@ fn native_compile_program_arm64(linked, platform) {
     // This is shared with the x86_64 native backend so Tier‑1 backends converge on one
     // injection + DCE policy (and the same entry-stub DCE roots).
     if trace { print("[arm64] runtime bundle prepare start") }
+    var t_bun0 = 0
+    if trace { t_bun0 = oren_time_now_ns() }
     var bun = bundle.prepare_native_runtime_bundle(ctx, "arm64", linked, platform, {"runtime_path": "lib/runtime_native.oren", "inject_runtime": true})
     if bun == nil { return ctx }
+    if trace {
+        var dt_bun = (oren_time_now_ns() - t_bun0) / 1000000
+        print("[arm64] runtime bundle prepare +" + oren_int_to_string(dt_bun) + "ms")
+    }
     var runtime_prog = bun["runtime_prog"]
     var runtime_stmts = bun["runtime_stmts"]
     var user_stmts = bun["user_stmts"]
@@ -446,13 +462,25 @@ fn native_compile_program_arm64(linked, platform) {
     // - compute lambda free-var captures without accidentally capturing global functions
     //
     // CoreIR v0 keeps function metadata deterministic across backends.
+    var t_fnmeta0 = 0
+    if trace { t_fnmeta0 = oren_time_now_ns() }
     coreir.collect_top_level_functions(ctx, bun["linked"], "arm64 native")
+    if trace {
+        var dt_fnmeta = (oren_time_now_ns() - t_fnmeta0) / 1000000
+        print("[arm64] collect_top_level_functions +" + oren_int_to_string(dt_fnmeta) + "ms")
+    }
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
     // Normalize local `fn name(...) { ... }` declarations inside blocks into lambdas+vars
     // so Tier‑1 native backends share the same nested-function semantics.
+    var t_rewrite0 = 0
+    if trace { t_rewrite0 = oren_time_now_ns() }
     callable.rewrite_local_fn_decls_in_stmt_list(ctx, runtime_stmts)
     callable.rewrite_local_fn_decls_in_stmt_list(ctx, user_stmts)
+    if trace {
+        var dt_rewrite = (oren_time_now_ns() - t_rewrite0) / 1000000
+        print("[arm64] rewrite_local_fn_decls +" + oren_int_to_string(dt_rewrite) + "ms")
+    }
 
     // Collect lambdas from runtime + user code (lambdas are anonymous Function nodes with name="").
     //
@@ -462,6 +490,8 @@ fn native_compile_program_arm64(linked, platform) {
     //
     // Note: the runtime contains a small number of local `fn` declarations which are normalized
     // into lambdas+vars for Tier‑1 parity. Those lambdas must be collected too.
+    var t_lamb0 = 0
+    if trace { t_lamb0 = oren_time_now_ns() }
     var li = 0
     while li < oren_list_len(runtime_stmts) {
         callable.collect_lambdas_in_statement(ctx, runtime_stmts[li])
@@ -472,11 +502,20 @@ fn native_compile_program_arm64(linked, platform) {
         callable.collect_lambdas_in_statement(ctx, user_stmts[li])
         li = li + 1
     }
-    if trace { print("[arm64] collected lambdas") }
+    if trace {
+        var dt_lamb = (oren_time_now_ns() - t_lamb0) / 1000000
+        print("[arm64] collect_lambdas +" + oren_int_to_string(dt_lamb) + "ms")
+    }
     
     // Prepare globals + top-level wrapper for Tier‑1 parity.
+    var t_prep0 = 0
+    if trace { t_prep0 = oren_time_now_ns() }
     var prep = _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts)
     if prep == nil { return ctx }
+    if trace {
+        var dt_prep = (oren_time_now_ns() - t_prep0) / 1000000
+        print("[arm64] prepare_globals +" + oren_int_to_string(dt_prep) + "ms")
+    }
     var runtime_decls = prep["runtime_decls"]
     var user_decls = prep["user_decls"]
     var top_stmt = prep["top_stmt"]
@@ -484,33 +523,55 @@ fn native_compile_program_arm64(linked, platform) {
     // Compile runtime declarations (functions/types/ffi), but not runtime global initializers.
     var i = 0
     if trace { print("[arm64] compile runtime decls start n=" + oren_int_to_string(oren_list_len(runtime_decls))) }
+    var t_rt0 = 0
+    if trace { t_rt0 = oren_time_now_ns() }
     while i < oren_list_len(runtime_decls) {
         native_compile_stmt(ctx, runtime_decls[i])
         i = i + 1
     }
-    if trace { print("[arm64] compile runtime decls done") }
+    if trace {
+        var dt_rt = (oren_time_now_ns() - t_rt0) / 1000000
+        print("[arm64] compile runtime decls done +" + oren_int_to_string(dt_rt) + "ms")
+    }
 
     // Compile user declarations (functions/types/ffi).
     i = 0
     if trace { print("[arm64] compile user decls start n=" + oren_int_to_string(oren_list_len(user_decls))) }
+    var t_user0 = 0
+    if trace { t_user0 = oren_time_now_ns() }
     while i < oren_list_len(user_decls) {
         native_compile_stmt(ctx, user_decls[i])
         i = i + 1
     }
-    if trace { print("[arm64] compile user decls done") }
+    if trace {
+        var dt_user = (oren_time_now_ns() - t_user0) / 1000000
+        print("[arm64] compile user decls done +" + oren_int_to_string(dt_user) + "ms")
+    }
 
     // Compile synthesized __top_level__ last (it can reference any user/runtime symbols).
     // The entry stub calls it before main.
+    var t_top0 = 0
+    if trace { t_top0 = oren_time_now_ns() }
     native_compile_stmt(ctx, top_stmt)
+    if trace {
+        var dt_top = (oren_time_now_ns() - t_top0) / 1000000
+        print("[arm64] compile __top_level__ +" + oren_int_to_string(dt_top) + "ms")
+    }
 
     // Synthesize wrappers for first-class named functions and for lambda literals.
     // These wrappers implement the uniform callable ABI:
     //   fn wrapper(__env, __args_list) -> value
     //
     // They are emitted after user code so forward references resolve via fixups.
+    var t_wrap0 = 0
+    if trace { t_wrap0 = oren_time_now_ns() }
+    var need = ctx["fnwrap_needed"]
+    var n_wrap = 0
     var wi = 0
     while wi < oren_list_len(ctx["func_decl_order"]) {
         var fname = ctx["func_decl_order"][wi]
+        if need == nil || need[fname] == nil { wi = wi + 1; continue }
+        n_wrap = n_wrap + 1
         var arity_enc = ctx["func_arity"][fname]
         if arity_enc != nil {
             var arity = arity_enc - 1
@@ -526,6 +587,10 @@ fn native_compile_program_arm64(linked, platform) {
     while wi < oren_list_len(ctx["lambda_defs"]) {
         native_compile_stmt(ctx, callable.synth_lambda_wrapper(ctx["lambda_defs"][wi]))
         wi = wi + 1
+    }
+    if trace {
+        var dt_wrap = (oren_time_now_ns() - t_wrap0) / 1000000
+        print("[arm64] synth wrappers +" + oren_int_to_string(dt_wrap) + "ms fnwrap=" + oren_int_to_string(n_wrap) + " lambdas=" + oren_int_to_string(oren_list_len(ctx["lambda_defs"])))
     }
 
     // Debug pseudo-symbol for code region that is not a Function node:
@@ -689,6 +754,10 @@ fn native_compile_program_arm64(linked, platform) {
         }
     }
 
+    if trace {
+        var dt_all = (oren_time_now_ns() - t_enter) / 1000000
+        print("[arm64] native_compile_program_arm64: done +" + oren_int_to_string(dt_all) + "ms")
+    }
     return ctx
 }
 

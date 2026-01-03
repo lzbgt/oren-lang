@@ -68,8 +68,9 @@ fn _bundle_roots_base() {
     //
     // Rolling approach (preferred):
     // - Runtime functions that must survive DCE are annotated with `@oren.keep`.
-    // - Capsule syscall hooks are kept by name prefix (`native_capsule_sys_`) because
-    //   syscall lowering may reference them directly in codegen without emitting AST calls.
+    // - Capsule syscall hooks are kept by name prefix (`native_capsule_sys_`) only when
+    //   `--capsule` is enabled, because syscall lowering may reference them directly in
+    //   codegen without emitting AST calls.
     //
     // Keep this list empty unless we discover a truly non-annotatable root.
     return []
@@ -88,6 +89,14 @@ fn _bundle_roots_x64_extra(platform) {
 fn _bundle_roots_for_backend(backend, platform) {
     // backend: "arm64" | "x64"
     var roots = _bundle_clone_list(_bundle_roots_base())
+    // Capsule mode requires runtime-side initialization:
+    // - parse capsule env knobs (domains, mounts, allowlists)
+    // - initialize global capsule masks
+    //
+    // Entry stubs call this by fixup/call, so it must be pinned explicitly when enabled.
+    if platform != nil && platform["capsule"] == true {
+        oren_list_push(roots, "native_runtime_capsule_init")
+    }
     var extra = []
     if backend == "arm64" { extra = _bundle_roots_arm64_extra(platform) }
     else if backend == "x64" { extra = _bundle_roots_x64_extra(platform) }
@@ -108,6 +117,15 @@ fn _bundle_config_merge_roots(cfg0, roots_add) {
     var cfg = {}
     if cfg0 != nil && cfg0["keep_all_top_level_functions"] == true {
         cfg["keep_all_top_level_functions"] = true
+    }
+    // Preserve platform identity (some downstream passes consult these fields).
+    if cfg0 != nil {
+        if cfg0["target"] != nil { cfg["target"] = cfg0["target"] }
+        if cfg0["arch"] != nil { cfg["arch"] = cfg0["arch"] }
+        if cfg0["capsule"] == true { cfg["capsule"] = true }
+        if cfg0["cap_allow_domains"] != nil {
+            cfg["cap_allow_domains"] = _bundle_clone_list(cfg0["cap_allow_domains"])
+        }
     }
     // Copy existing roots if present.
     var roots = []
@@ -521,6 +539,10 @@ fn inject_runtime_into_linked_and_dce(ctx, backend, linked, runtime_prog, platfo
     var cfg0 = linked["config"]
     var roots = _bundle_roots_for_backend(backend, platform)
     var cfg = _bundle_config_merge_roots(cfg0, roots)
+    // Thread capsule mode through config so whole-program DCE can make correct decisions.
+    if platform != nil && platform["capsule"] == true {
+        cfg["capsule"] = true
+    }
 
     var linked2 = {"statements": merged, "aliases": aliases, "config": cfg}
 

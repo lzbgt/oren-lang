@@ -27,9 +27,12 @@ fn _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // pre: native_capsule_sys_nanosleep_pre(ns) -> ns
-    _intr_load_x64(ctx, 1, tmp_ns) // rcx = ns (Win64 ABI)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_nanosleep_pre")
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_ns, 0) // spill adjusted ns
+    var capsule = _x64_capsule_enabled(ctx)
+    if capsule {
+        _intr_load_x64(ctx, 1, tmp_ns) // rcx = ns (Win64 ABI)
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_nanosleep_pre")
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_ns, 0) // spill adjusted ns
+    }
 
     var labels = {}
     var fixups = []
@@ -108,10 +111,13 @@ fn _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // pre: native_capsule_sys_gettimeofday_pre(tv, tz, abs)
-    _intr_load_x64(ctx, 1, tmp_tv)  // rcx = tv
-    _intr_load_x64(ctx, 2, tmp_tz)  // rdx = tz
-    _intr_load_x64(ctx, 8, tmp_abs) // r8  = abs
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_gettimeofday_pre")
+    var capsule = _x64_capsule_enabled(ctx)
+    if capsule {
+        _intr_load_x64(ctx, 1, tmp_tv)  // rcx = tv
+        _intr_load_x64(ctx, 2, tmp_tz)  // rdx = tz
+        _intr_load_x64(ctx, 8, tmp_abs) // r8  = abs
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_gettimeofday_pre")
+    }
 
     var labels = {}
     var fixups = []
@@ -222,14 +228,21 @@ fn _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // pre: native_capsule_sys_open_pre(path, flags) -> pair
-    _intr_load_x64(ctx, 1, tmp_path)  // rcx = path
-    _intr_load_x64(ctx, 2, tmp_flags) // rdx = flags
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_open_pre")
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0) // spill pair
+    var capsule = _x64_capsule_enabled(ctx)
+    if capsule {
+        _intr_load_x64(ctx, 1, tmp_path)  // rcx = path
+        _intr_load_x64(ctx, 2, tmp_flags) // rdx = flags
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_open_pre")
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0) // spill pair
+    }
 
-    // rcx = resolved_path_ptr (pair[0])
-    _intr_load_x64(ctx, 11, tmp_pair)              // r11 = pair
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(1, 11)) // rcx = *(u64*)pair
+    // rcx = resolved_path_ptr (pair[0]) if capsule; else rcx = original path.
+    if capsule {
+        _intr_load_x64(ctx, 11, tmp_pair)                   // r11 = pair
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(1, 11))  // rcx = *(u64*)pair
+    } else {
+        _intr_load_x64(ctx, 1, tmp_path) // rcx = path
+    }
 
     // rdx = desired_access (GENERIC_*)
     // - access bits: flags & 3 => 0=RDONLY,1=WRONLY,2=RDWR
@@ -319,9 +332,11 @@ fn _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args) {
     _emit_call_iat_x64(ctx, "IAT_CreateFileA")
 
     // post: native_capsule_sys_open_post(pair, rc) -> rc
-    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rc (HANDLE or -1)
-    _intr_load_x64(ctx, 1, tmp_pair)                  // rcx = pair
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_open_post")
+    if capsule {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rc (HANDLE or -1)
+        _intr_load_x64(ctx, 1, tmp_pair)                  // rcx = pair
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_open_post")
+    }
 
     _patch_local_fixups(ctx, labels, fixups)
     _intr_tmp_pop(ctx, base)

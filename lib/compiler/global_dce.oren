@@ -274,6 +274,8 @@ fn lower_linked_program_in_place(linked) {
     if config != nil && config["keep_all_top_level_functions"] == true {
         return nil
     }
+    var keep_capsule_sys_hooks = false
+    if config != nil && config["capsule"] == true { keep_capsule_sys_hooks = true }
 
     var stmts = linked["statements"]
     if stmts == nil { return nil }
@@ -313,7 +315,7 @@ fn lower_linked_program_in_place(linked) {
             // Capsule syscall hooks are a compiler/runtime ABI surface: syscall lowering
             // can reference them directly in codegen without emitting AST calls, so keep
             // them available when whole-program DCE runs after runtime injection.
-            if _starts_with(nm0, "native_capsule_sys_") == true {
+            if keep_capsule_sys_hooks == true && _starts_with(nm0, "native_capsule_sys_") == true {
                 _add_ref_if_toplevel_name(top_fns, reachable, queue, nm0)
             } else if _toplevel_has_attr(stmts[i], "oren.keep") == true {
                 _add_ref_if_toplevel_name(top_fns, reachable, queue, fn0["name"])

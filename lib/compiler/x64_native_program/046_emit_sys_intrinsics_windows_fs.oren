@@ -114,6 +114,8 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): " + nm + " expects 2 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): " + nm + " does not support spread"); return nil }
 
+    var capsule = _x64_capsule_enabled(ctx)
+
     var base = _intr_tmp_push(ctx, 9) // path, st_ptr, pair, win32_attr_buf(6q)
     if base == nil { return nil }
     var tmp_path = _intr_tmp_off(ctx, locals, base + 0)
@@ -126,14 +128,18 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // pre: native_capsule_sys_stat_pre(path) / lstat_pre(path) -> pair
-    _intr_load_x64(ctx, 1, tmp_path) // rcx = path
-    if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_pre") }
-    else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_pre") }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0) // spill pair
+    if capsule {
+        _intr_load_x64(ctx, 1, tmp_path) // rcx = path
+        if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_pre") }
+        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_pre") }
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0) // spill pair
 
-    // rcx = resolved path pointer from pair[0]
-    _intr_load_x64(ctx, 11, tmp_pair)
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(1, 11))
+        // rcx = resolved path pointer from pair[0]
+        _intr_load_x64(ctx, 11, tmp_pair)
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(1, 11))
+    } else {
+        _intr_load_x64(ctx, 1, tmp_path) // rcx = path (direct)
+    }
 
     // GetFileAttributesExA(path, GetFileExInfoStandard=0, &WIN32_FILE_ATTRIBUTE_DATA) -> BOOL
     //
@@ -223,10 +229,12 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: native_capsule_sys_stat_post(pair, rc) / lstat_post(pair, rc) -> rc
-    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rc
-    _intr_load_x64(ctx, 1, tmp_pair)                  // rcx = pair
-    if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_post") }
-    else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_post") }
+    if capsule {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rc
+        _intr_load_x64(ctx, 1, tmp_pair)                  // rcx = pair
+        if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_post") }
+        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_post") }
+    }
 
     _intr_tmp_pop(ctx, base)
     return nil
@@ -236,6 +244,8 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     if ctx == nil { return nil }
     if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): sys_fstat expects 2 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): sys_fstat does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 4) // fd, st_ptr, li(2q)
     if base == nil { return nil }
@@ -247,7 +257,7 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     _emit_eval_int_to_rax(ctx, args[0], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = fd
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_pre")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_pre") }
     _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
 
     // Evaluate st_ptr for side effects/compatibility (ignored for now).
@@ -355,8 +365,10 @@ fn _emit_intrinsic_sys_fstat_windows_x64(ctx, expr, locals, args) {
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: native_capsule_sys_fstat_post(rc) -> rc
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_post")
+    if capsule {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_post")
+    }
 
     _intr_tmp_pop(ctx, base)
     return nil
@@ -366,6 +378,8 @@ fn _emit_intrinsic_sys_unlink_or_rmdir_windows_x64(ctx, nm, expr, locals, args) 
     if ctx == nil { return nil }
     if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0 (windows): " + nm + " expects 1 arg"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): " + nm + " does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 2) // path, pair
     if base == nil { return nil }
@@ -377,14 +391,18 @@ fn _emit_intrinsic_sys_unlink_or_rmdir_windows_x64(ctx, nm, expr, locals, args) 
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // pre: unlink_pre(path) / rmdir_pre(path) -> pair
-    _intr_load_x64(ctx, 1, tmp_path) // rcx = path
-    if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_pre") }
-    else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_pre") }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0) // spill pair
+    if capsule {
+        _intr_load_x64(ctx, 1, tmp_path) // rcx = path
+        if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_pre") }
+        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_pre") }
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0) // spill pair
 
-    // rcx = resolved path pointer from pair[0]
-    _intr_load_x64(ctx, 11, tmp_pair)
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(1, 11))
+        // rcx = resolved path pointer from pair[0]
+        _intr_load_x64(ctx, 11, tmp_pair)
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(1, 11))
+    } else {
+        _intr_load_x64(ctx, 1, tmp_path) // rcx = path (direct)
+    }
 
     // DeleteFileA / RemoveDirectoryA -> BOOL
     if nm == "sys_unlink" { _emit_call_iat_x64(ctx, "IAT_DeleteFileA") }
@@ -410,10 +428,12 @@ fn _emit_intrinsic_sys_unlink_or_rmdir_windows_x64(ctx, nm, expr, locals, args) 
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: unlink_post(pair, rc) / rmdir_post(pair, rc) -> rc
-    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rc
-    _intr_load_x64(ctx, 1, tmp_pair)                  // rcx = pair
-    if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_post") }
-    else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_post") }
+    if capsule {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rc
+        _intr_load_x64(ctx, 1, tmp_pair)                  // rcx = pair
+        if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_post") }
+        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_post") }
+    }
 
     _intr_tmp_pop(ctx, base)
     return nil
@@ -423,6 +443,8 @@ fn _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) {
     if ctx == nil { return nil }
     if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): sys_rename expects 2 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): sys_rename does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 3) // from, to, bundle
     if base == nil { return nil }
@@ -436,17 +458,22 @@ fn _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // pre: native_capsule_sys_rename_pre(from, to) -> bundle
-    _intr_load_x64(ctx, 1, tmp_from) // rcx = from
-    _intr_load_x64(ctx, 2, tmp_to)   // rdx = to
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_pre")
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_bundle, 0)
+    if capsule {
+        _intr_load_x64(ctx, 1, tmp_from) // rcx = from
+        _intr_load_x64(ctx, 2, tmp_to)   // rdx = to
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_pre")
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_bundle, 0)
 
-    // existing = *(u64*)bundle (rcx), new = *(u64*)(bundle+16) (rdx)
-    _intr_load_x64(ctx, 11, tmp_bundle)
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(1, 11)) // rcx = from_ptr
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(2, 10)) // rdx = to_ptr
+        // existing = *(u64*)bundle (rcx), new = *(u64*)(bundle+16) (rdx)
+        _intr_load_x64(ctx, 11, tmp_bundle)
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(1, 11)) // rcx = from_ptr
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(2, 10)) // rdx = to_ptr
+    } else {
+        _intr_load_x64(ctx, 1, tmp_from) // rcx = from
+        _intr_load_x64(ctx, 2, tmp_to)   // rdx = to
+    }
 
     // flags = MOVEFILE_REPLACE_EXISTING (1)
     bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 1)) // r8d
@@ -473,9 +500,11 @@ fn _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) {
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: native_capsule_sys_rename_post(bundle, rc) -> rc
-    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rc
-    _intr_load_x64(ctx, 1, tmp_bundle)                // rcx = bundle
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_post")
+    if capsule {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rc
+        _intr_load_x64(ctx, 1, tmp_bundle)                // rcx = bundle
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_post")
+    }
 
     _intr_tmp_pop(ctx, base)
     return nil
@@ -485,6 +514,8 @@ fn _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args) {
     if ctx == nil { return nil }
     if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0 (windows): " + nm + " expects 2 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0 (windows): " + nm + " does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 3) // path, mode, pair
     if base == nil { return nil }
@@ -498,14 +529,18 @@ fn _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args) {
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // pre: mkdir_pre(path) / chmod_pre(path) -> pair
-    _intr_load_x64(ctx, 1, tmp_path) // rcx = path
-    if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_pre") }
-    else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_pre") }
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
+    if capsule {
+        _intr_load_x64(ctx, 1, tmp_path) // rcx = path
+        if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_pre") }
+        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_pre") }
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
 
-    // rcx = resolved path pointer from pair[0]
-    _intr_load_x64(ctx, 11, tmp_pair)
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(1, 11))
+        // rcx = resolved path pointer from pair[0]
+        _intr_load_x64(ctx, 11, tmp_pair)
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(1, 11))
+    } else {
+        _intr_load_x64(ctx, 1, tmp_path) // rcx = path (direct)
+    }
 
     if nm == "sys_mkdir" {
         // CreateDirectoryA(path, NULL) -> BOOL
@@ -540,10 +575,12 @@ fn _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args) {
     _patch_local_fixups(ctx, labels, fixups)
 
     // post: mkdir_post(pair, rc) / chmod_post(pair, rc) -> rc
-    bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rc
-    _intr_load_x64(ctx, 1, tmp_pair)                  // rcx = pair
-    if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_post") }
-    else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_post") }
+    if capsule {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = rc
+        _intr_load_x64(ctx, 1, tmp_pair)                  // rcx = pair
+        if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_post") }
+        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_post") }
+    }
 
     _intr_tmp_pop(ctx, base)
     return nil

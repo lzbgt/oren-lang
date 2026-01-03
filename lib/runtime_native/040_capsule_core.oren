@@ -1,4 +1,3 @@
-@oren.keep
 fn native_runtime_capsule_init() {
     // Initialize runtime capsule enforcement from env:
     // - OREN_CAPSULE=1 enables deny-by-default enforcement for host-effectful APIs.

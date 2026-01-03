@@ -758,10 +758,16 @@ fn native_compile_program_x64(linked, platform) {
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_set_envp_pos, "name": "native_runtime_set_envp"})
 
-    // native_runtime_capsule_init()
-    var call_capsule_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
-    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_capsule_pos, "name": "native_runtime_capsule_init"})
+    // native_runtime_capsule_init() when `--capsule` is enabled.
+    //
+    // NOTE: This is a compile-time capsule feature gate. Without `--capsule`, the native
+    // backend does not emit the capsule syscall hook ABI surface, so enabling capsule by
+    // env alone would not provide a capability-safe boundary.
+    if platform != nil && platform["capsule"] == true {
+        var call_capsule_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_capsule_pos, "name": "native_runtime_capsule_init"})
+    }
 
     // native_runtime_init_gc_mode(default_enabled)
     var gc_default = 1

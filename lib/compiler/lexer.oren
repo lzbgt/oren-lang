@@ -141,10 +141,10 @@ fn read_line_comment_text(l) {
     // Read until '\n' or EOF, leaving l["ch"] on '\n' or "".
     var start = l["position"]
     while l["ch"] != "" {
-        if l["ch"] == token.CH_LF { return oren_string_slice(l["input"], start, l["position"]) }
+        if l["ch"] == token.CH_LF { return oren_string_slice_unchecked(l["input"], start, l["position"]) }
         read_char(l)
     }
-    return oren_string_slice(l["input"], start, l["position"])
+    return oren_string_slice_unchecked(l["input"], start, l["position"])
 }
 
 fn _join_parts(parts) {
@@ -291,7 +291,8 @@ fn read_identifier(l) {
     if trace_step == true {
         print("TRACE_LEX_STEP ident_before_slice start=" + oren_int_to_string(start) + " end=" + oren_int_to_string(l["position"]))
     }
-    var out = oren_string_slice(l["input"], start, l["position"])
+    // PERF: input_len was computed once in new_lexer(); avoid per-token O(n) scans in oren_string_slice.
+    var out = oren_string_slice_unchecked(l["input"], start, l["position"])
     if trace_step == true {
         print("TRACE_LEX_STEP ident_after_slice")
     }
@@ -326,7 +327,7 @@ fn read_number(l) {
         }
         read_char(l)
     }
-    var raw = oren_string_slice(l["input"], start, l["position"])
+    var raw = oren_string_slice_unchecked(l["input"], start, l["position"])
     return _strip_underscores(raw)
 }
 
@@ -337,7 +338,7 @@ fn read_exponent(l) {
     while token.is_digit(l["ch"]) || l["ch"] == "_" {
         read_char(l)
     }
-    var raw = oren_string_slice(l["input"], start, l["position"])
+    var raw = oren_string_slice_unchecked(l["input"], start, l["position"])
     return _strip_underscores(raw)
 }
 
@@ -359,7 +360,7 @@ fn read_hex_number(l) {
     while is_hex_digit(l["ch"]) || l["ch"] == "_" {
         read_char(l)
     }
-    var raw = oren_string_slice(l["input"], start, l["position"])
+    var raw = oren_string_slice_unchecked(l["input"], start, l["position"])
     return _strip_underscores(raw)
 }
 
@@ -368,7 +369,7 @@ fn read_bin_number(l) {
     while l["ch"] == "0" || l["ch"] == "1" || l["ch"] == "_" {
         read_char(l)
     }
-    var raw = oren_string_slice(l["input"], start, l["position"])
+    var raw = oren_string_slice_unchecked(l["input"], start, l["position"])
     return _strip_underscores(raw)
 }
 
@@ -387,7 +388,7 @@ fn read_oct_number(l) {
             break
         }
     }
-    var raw = oren_string_slice(l["input"], start, l["position"])
+    var raw = oren_string_slice_unchecked(l["input"], start, l["position"])
     return _strip_underscores(raw)
 }
 

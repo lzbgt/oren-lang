@@ -290,6 +290,8 @@ fn _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args) {
     if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_socket expects 3 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_socket does not support spread"); return nil }
 
+    var capsule = _x64_capsule_enabled(ctx)
+
     var base = _intr_tmp_push(ctx, 3) // domain,type,proto
     if base == nil { return nil }
     var tmp_dom = _intr_tmp_off(ctx, locals, base + 0)
@@ -306,7 +308,7 @@ fn _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 1, tmp_dom)
     _intr_load_x64(ctx, 2, tmp_type)
     _intr_load_x64(ctx, 8, tmp_proto)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_pre")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_pre") }
 
     // socket(domain, type, proto) -> SOCKET
     _intr_load_x64(ctx, 1, tmp_dom)
@@ -330,7 +332,7 @@ fn _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 2, tmp_dom)
     _intr_load_x64(ctx, 8, tmp_type)
     _intr_load_x64(ctx, 9, tmp_proto)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_post")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_post") }
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
@@ -342,6 +344,8 @@ fn _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args) {
     if ctx == nil { return nil }
     if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_connect expects 3 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_connect does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 3) // fd, addr, len
     if base == nil { return nil }
@@ -359,7 +363,7 @@ fn _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 1, tmp_fd)
     _intr_load_x64(ctx, 2, tmp_addr)
     _intr_load_x64(ctx, 8, tmp_len)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_pre")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_pre") }
 
     // connect(fd, addr, len) -> 0 or SOCKET_ERROR(-1)
     _intr_load_x64(ctx, 1, tmp_fd)
@@ -386,7 +390,7 @@ fn _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 2, tmp_fd)
     _intr_load_x64(ctx, 8, tmp_addr)
     _intr_load_x64(ctx, 9, tmp_len)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_post")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_post") }
 
     _patch_local_fixups(ctx, labels, fixups)
     _intr_tmp_pop(ctx, base)
@@ -397,6 +401,8 @@ fn _emit_intrinsic_sys_bind_windows_x64(ctx, expr, locals, args) {
     if ctx == nil { return nil }
     if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_bind expects 3 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_bind does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 3) // fd, addr, len
     if base == nil { return nil }
@@ -414,7 +420,7 @@ fn _emit_intrinsic_sys_bind_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 1, tmp_fd)
     _intr_load_x64(ctx, 2, tmp_addr)
     _intr_load_x64(ctx, 8, tmp_len)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_pre")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_pre") }
 
     _intr_load_x64(ctx, 1, tmp_fd)
     _intr_load_x64(ctx, 2, tmp_addr)
@@ -437,7 +443,7 @@ fn _emit_intrinsic_sys_bind_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 2, tmp_fd)
     _intr_load_x64(ctx, 8, tmp_addr)
     _intr_load_x64(ctx, 9, tmp_len)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_post")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_post") }
     _patch_local_fixups(ctx, labels, fixups)
 
     _intr_tmp_pop(ctx, base)
@@ -448,6 +454,8 @@ fn _emit_intrinsic_sys_listen_windows_x64(ctx, expr, locals, args) {
     if ctx == nil { return nil }
     if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_listen expects 2 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_listen does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 2) // fd, backlog
     if base == nil { return nil }
@@ -461,7 +469,7 @@ fn _emit_intrinsic_sys_listen_windows_x64(ctx, expr, locals, args) {
 
     _intr_load_x64(ctx, 1, tmp_fd)
     _intr_load_x64(ctx, 2, tmp_backlog)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_pre")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_pre") }
 
     _intr_load_x64(ctx, 1, tmp_fd)
     _intr_load_x64(ctx, 2, tmp_backlog)
@@ -482,7 +490,7 @@ fn _emit_intrinsic_sys_listen_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
     _intr_load_x64(ctx, 2, tmp_fd)
     _intr_load_x64(ctx, 8, tmp_backlog)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_post")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_post") }
     _patch_local_fixups(ctx, labels, fixups)
 
     _intr_tmp_pop(ctx, base)
@@ -493,6 +501,8 @@ fn _emit_intrinsic_sys_accept_windows_x64(ctx, expr, locals, args) {
     if ctx == nil { return nil }
     if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_accept expects 3 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_accept does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 3) // fd, addr, lenptr
     if base == nil { return nil }
@@ -509,7 +519,7 @@ fn _emit_intrinsic_sys_accept_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 1, tmp_fd)
     _intr_load_x64(ctx, 2, tmp_addr)
     _intr_load_x64(ctx, 8, tmp_lenp)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_pre")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_pre") }
 
     _intr_load_x64(ctx, 1, tmp_fd)
     _intr_load_x64(ctx, 2, tmp_addr)
@@ -532,7 +542,7 @@ fn _emit_intrinsic_sys_accept_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 2, tmp_fd)
     _intr_load_x64(ctx, 8, tmp_addr)
     _intr_load_x64(ctx, 9, tmp_lenp)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_post")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_post") }
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, fixups)
@@ -544,6 +554,8 @@ fn _emit_intrinsic_sys_getsockname_windows_x64(ctx, expr, locals, args) {
     if ctx == nil { return nil }
     if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_getsockname expects 3 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getsockname does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 3) // fd, addr, lenp
     if base == nil { return nil }
@@ -560,7 +572,7 @@ fn _emit_intrinsic_sys_getsockname_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 1, tmp_fd)
     _intr_load_x64(ctx, 2, tmp_addr)
     _intr_load_x64(ctx, 8, tmp_lenp)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockname_pre")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockname_pre") }
 
     _intr_load_x64(ctx, 1, tmp_fd)
     _intr_load_x64(ctx, 2, tmp_addr)
@@ -590,6 +602,8 @@ fn _emit_intrinsic_sys_getpeername_windows_x64(ctx, expr, locals, args) {
     if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_getpeername expects 3 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getpeername does not support spread"); return nil }
 
+    var capsule = _x64_capsule_enabled(ctx)
+
     var base = _intr_tmp_push(ctx, 3) // fd, addr, lenp
     if base == nil { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -605,7 +619,7 @@ fn _emit_intrinsic_sys_getpeername_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 1, tmp_fd)
     _intr_load_x64(ctx, 2, tmp_addr)
     _intr_load_x64(ctx, 8, tmp_lenp)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getpeername_pre")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getpeername_pre") }
 
     _intr_load_x64(ctx, 1, tmp_fd)
     _intr_load_x64(ctx, 2, tmp_addr)
@@ -635,6 +649,8 @@ fn _emit_intrinsic_sys_setsockopt_windows_x64(ctx, expr, locals, args) {
     if args == nil || oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_setsockopt expects 5 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_setsockopt does not support spread"); return nil }
 
+    var capsule = _x64_capsule_enabled(ctx)
+
     var base = _intr_tmp_push(ctx, 5) // fd, level, opt, val, len
     if base == nil { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -658,7 +674,7 @@ fn _emit_intrinsic_sys_setsockopt_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 9, tmp_val)
     _intr_load_x64(ctx, 10, tmp_len)
     _emit_mov_mrsp_r64(ctx, 32, 10)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_setsockopt_pre")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_setsockopt_pre") }
 
     // Translate Oren-level (portable) constants to WinSock constants.
     //
@@ -721,6 +737,8 @@ fn _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) {
     if args == nil || oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_getsockopt expects 5 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getsockopt does not support spread"); return nil }
 
+    var capsule = _x64_capsule_enabled(ctx)
+
     var base = _intr_tmp_push(ctx, 5) // fd, level, opt, val, lenp
     if base == nil { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -744,7 +762,7 @@ fn _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 9, tmp_val)
     _intr_load_x64(ctx, 10, tmp_lenp)
     _emit_mov_mrsp_r64(ctx, 32, 10)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockopt_pre")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockopt_pre") }
 
     // Translate level/optname.
     _intr_load_x64(ctx, 2, tmp_lvl)
@@ -811,6 +829,8 @@ fn _emit_intrinsic_sys_shutdown_windows_x64(ctx, expr, locals, args) {
     if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_shutdown expects 2 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_shutdown does not support spread"); return nil }
 
+    var capsule = _x64_capsule_enabled(ctx)
+
     var base = _intr_tmp_push(ctx, 2) // fd, how
     if base == nil { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -823,7 +843,7 @@ fn _emit_intrinsic_sys_shutdown_windows_x64(ctx, expr, locals, args) {
 
     _intr_load_x64(ctx, 1, tmp_fd)
     _intr_load_x64(ctx, 2, tmp_how)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_shutdown_pre")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_shutdown_pre") }
 
     _intr_load_x64(ctx, 1, tmp_fd)
     _intr_load_x64(ctx, 2, tmp_how)
@@ -852,6 +872,8 @@ fn _emit_intrinsic_sys_sendto_windows_x64(ctx, expr, locals, args) {
     if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_sendto expects 6 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_sendto does not support spread"); return nil }
 
+    var capsule = _x64_capsule_enabled(ctx)
+
     var base = _intr_tmp_push(ctx, 6) // fd,buf,len,flags,to,tolen
     if base == nil { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -879,7 +901,7 @@ fn _emit_intrinsic_sys_sendto_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 11, tmp_tolen)
     _emit_mov_mrsp_r64(ctx, 32, 10)
     _emit_mov_mrsp_r64(ctx, 40, 11)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_sendto_pre")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_sendto_pre") }
 
     // sendto(fd, buf, len, flags, to, tolen)
     _intr_load_x64(ctx, 1, tmp_fd)
@@ -915,6 +937,8 @@ fn _emit_intrinsic_sys_recvfrom_windows_x64(ctx, expr, locals, args) {
     if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_recvfrom expects 6 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_recvfrom does not support spread"); return nil }
 
+    var capsule = _x64_capsule_enabled(ctx)
+
     var base = _intr_tmp_push(ctx, 6) // fd,buf,len,flags,from,fromlen
     if base == nil { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -942,7 +966,7 @@ fn _emit_intrinsic_sys_recvfrom_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 11, tmp_fromlen)
     _emit_mov_mrsp_r64(ctx, 32, 10)
     _emit_mov_mrsp_r64(ctx, 40, 11)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_recvfrom_pre")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_recvfrom_pre") }
 
     // recvfrom(fd, buf, len, flags, from, fromlen)
     _intr_load_x64(ctx, 1, tmp_fd)
@@ -977,6 +1001,8 @@ fn _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) {
     if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_close expects 1 arg"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_close does not support spread"); return nil }
 
+    var capsule = _x64_capsule_enabled(ctx)
+
     var base = _intr_tmp_push(ctx, 1) // fd
     if base == nil { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
@@ -987,9 +1013,11 @@ fn _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) {
     _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
 
     // pre: native_capsule_sys_close_pre(fd) -> fd
-    _intr_load_x64(ctx, 1, tmp_fd)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_pre")
-    _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+    if capsule {
+        _intr_load_x64(ctx, 1, tmp_fd)
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_pre")
+        _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
+    }
 
     // Close semantics (rolling):
     // - Prefer closesocket(fd) (socket handles)
@@ -1030,9 +1058,11 @@ fn _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) {
 
     _emit_label(ctx, labels, l_post)
     // post: native_capsule_sys_close_post(rc, fd) -> rc
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
-    _intr_load_x64(ctx, 2, tmp_fd) // rdx = fd
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_post")
+    if capsule {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+        _intr_load_x64(ctx, 2, tmp_fd) // rdx = fd
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_post")
+    }
 
     _patch_local_fixups(ctx, labels, fixups)
     _intr_tmp_pop(ctx, base)
@@ -1043,6 +1073,8 @@ fn _emit_intrinsic_sys_fcntl_getfl_windows_x64(ctx, expr, locals, args) {
     if ctx == nil { return nil }
     if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_fcntl_getfl expects 1 arg"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_fcntl_getfl does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 1) // fd
     if base == nil { return nil }
@@ -1057,18 +1089,20 @@ fn _emit_intrinsic_sys_fcntl_getfl_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 1, tmp_fd)
     bytes_extend(ctx["code"], insn_mov_r32_imm32(2, labi.posix_fcntl_f_getfl()))
     bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 0))
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre") }
 
     // WinSock does not expose an equivalent F_GETFL for sockets; return 0 (blocking).
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], insn_cdqe())
 
     // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
-    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
-    _intr_load_x64(ctx, 2, tmp_fd) // rdx = fd
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, labi.posix_fcntl_f_getfl())) // r8 = cmd
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 0)) // r9 = arg
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
+    if capsule {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = rc
+        _intr_load_x64(ctx, 2, tmp_fd) // rdx = fd
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(8, labi.posix_fcntl_f_getfl())) // r8 = cmd
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 0)) // r9 = arg
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
+    }
 
     _intr_tmp_pop(ctx, base)
     return nil
@@ -1078,6 +1112,8 @@ fn _emit_intrinsic_sys_fcntl_setfl_windows_x64(ctx, expr, locals, args) {
     if ctx == nil { return nil }
     if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_fcntl_setfl expects 2 args"); return nil }
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_fcntl_setfl does not support spread"); return nil }
+
+    var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 2) // fd, oren_flags
     if base == nil { return nil }
@@ -1093,7 +1129,7 @@ fn _emit_intrinsic_sys_fcntl_setfl_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 1, tmp_fd)
     bytes_extend(ctx["code"], insn_mov_r32_imm32(2, labi.posix_fcntl_f_setfl()))
     _intr_load_x64(ctx, 8, tmp_flags)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre") }
 
     // ioctlsocket(fd, FIONBIO, &mode)
     //
@@ -1132,7 +1168,7 @@ fn _emit_intrinsic_sys_fcntl_setfl_windows_x64(ctx, expr, locals, args) {
     _intr_load_x64(ctx, 2, tmp_fd)
     bytes_extend(ctx["code"], insn_mov_r32_imm32(8, labi.posix_fcntl_f_setfl()))
     _intr_load_x64(ctx, 9, tmp_flags) // r9 = original oren flags (debug)
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
+    if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post") }
 
     _patch_local_fixups(ctx, labels, fixups)
     _intr_tmp_pop(ctx, base)

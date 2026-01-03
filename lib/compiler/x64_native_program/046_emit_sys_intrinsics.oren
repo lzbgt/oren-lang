@@ -19,6 +19,13 @@ var OREN_O_CREAT = 256
 var OREN_O_TRUNC = 512
 var OREN_O_NONBLOCK = 1024
 
+fn _x64_capsule_enabled(ctx) {
+    if ctx == nil { return false }
+    var platform = ctx["platform"]
+    if platform != nil && platform["capsule"] == true { return true }
+    return false
+}
+
 fn _emit_call_rel32_named_x64(ctx, name) {
     var call_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
@@ -146,6 +153,7 @@ fn _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) {
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_read does not support spread"); return nil }
 
     var platform = ctx["platform"]
+    var capsule = _x64_capsule_enabled(ctx)
     if platform != nil && platform["os"] == "windows" {
         // Windows: ReadFile-based reader.
         // - fd 0 => STD_INPUT_HANDLE (GetStdHandle(-10))
@@ -167,7 +175,12 @@ fn _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) {
         // Capsule prehook is an internal Oren call and must use the platform ABI.
         // Win64: arg0 in RCX; SysV: arg0 in RDI.
         bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = fd
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_read_pre")
+        if capsule {
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_read_pre")
+        } else {
+            // rax = fd
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 1))
+        }
         _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
 
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_ptr)
@@ -267,7 +280,12 @@ fn _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) {
     _emit_eval_int_to_rax(ctx, args[0], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
     bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi=fd
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_read_pre")
+    if capsule {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_read_pre")
+    } else {
+        // rax = fd
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 7))
+    }
     _emit_mov_mrbp_r64(ctx, 0 - tmp_fd2, 0)
 
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_ptr2)
@@ -290,6 +308,7 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_write does not support spread"); return nil }
 
     var platform = ctx["platform"]
+    var capsule = _x64_capsule_enabled(ctx)
 
     // Spill args LTR.
     var base = _intr_tmp_push(ctx, 3)
@@ -307,7 +326,16 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
     } else {
         bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi=fd
     }
-    _emit_call_rel32_named_x64(ctx, "native_capsule_sys_write_pre")
+    if capsule {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_write_pre")
+    } else {
+        // rax = fd (from the ABI arg register)
+        if platform != nil && platform["os"] == "windows" {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 1)) // rax = rcx
+        } else {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 7)) // rax = rdi
+        }
+    }
     _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
 
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_ptr)
@@ -469,6 +497,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
 
     if args == nil { args = [] }
+    var capsule = _x64_capsule_enabled(ctx)
 
     // Windows-only helpers that may appear in the injected runtime but must never lower on Linux.
     // Keep them as explicit -ENOSYS so cross-target builds remain deterministic.
@@ -497,7 +526,12 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _emit_eval_int_to_rax(ctx, args[0], locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
         bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi=ptr
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_pipe_pre")
+        if capsule {
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_pipe_pre")
+        } else {
+            // rax = ptr
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 7))
+        }
         _emit_mov_mrbp_r64(ctx, 0 - tmp_ptr, 0) // save ptr
 
         _intr_load_x64(ctx, 7, tmp_ptr) // rdi = ptr
@@ -531,9 +565,11 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _patch_local_fixups(ctx, labels, fixups)
 
         // post: native_capsule_sys_pipe_post(ptr, rc) -> rc
-        _intr_load_x64(ctx, 7, tmp_ptr) // rdi = ptr
-        _intr_load_x64(ctx, 6, tmp_rc)  // rsi = rc
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_pipe_post")
+        if capsule {
+            _intr_load_x64(ctx, 7, tmp_ptr) // rdi = ptr
+            _intr_load_x64(ctx, 6, tmp_rc)  // rsi = rc
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_pipe_post")
+        }
         _intr_tmp_pop(ctx, base)
         return nil
     }
@@ -557,15 +593,20 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _intr_eval_spill_x64(ctx, locals, args[2], tmp_mode)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
 
-        // pre: native_capsule_sys_open_pre(path, flags) -> pair
-        _intr_load_x64(ctx, 7, tmp_path)  // rdi = path
-        _intr_load_x64(ctx, 6, tmp_flags) // rsi = flags
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_open_pre")
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0) // save pair
+        if capsule {
+            // pre: native_capsule_sys_open_pre(path, flags) -> pair
+            _intr_load_x64(ctx, 7, tmp_path)  // rdi = path
+            _intr_load_x64(ctx, 6, tmp_flags) // rsi = flags
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_open_pre")
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0) // save pair
 
-        // Load resolved path_ptr from pair[0] into RSI.
-        _intr_load_x64(ctx, 11, tmp_pair)              // r11 = pair
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(6, 11)) // rsi = *(u64*)pair
+            // Load resolved path_ptr from pair[0] into RSI.
+            _intr_load_x64(ctx, 11, tmp_pair)              // r11 = pair
+            bytes_extend(ctx["code"], insn_mov_r64_mr64(6, 11)) // rsi = *(u64*)pair
+        } else {
+            // No capsule path resolution: path is already a host cstr.
+            _intr_load_x64(ctx, 6, tmp_path) // rsi = path
+        }
 
         // rdx = os_flags (translated)
         _emit_translate_open_flags_linux_x64(ctx, locals, tmp_flags)
@@ -577,10 +618,12 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_openat()))
         bytes_extend(ctx["code"], insn_syscall())
 
-        // post: native_capsule_sys_open_post(pair, rc) -> rc
-        bytes_extend(ctx["code"], insn_mov_r64_r64(6, 0)) // rsi = rc
-        _intr_load_x64(ctx, 7, tmp_pair)                  // rdi = pair
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_open_post")
+        if capsule {
+            // post: native_capsule_sys_open_post(pair, rc) -> rc
+            bytes_extend(ctx["code"], insn_mov_r64_r64(6, 0)) // rsi = rc
+            _intr_load_x64(ctx, 7, tmp_pair)                  // rdi = pair
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_open_post")
+        }
         _intr_tmp_pop(ctx, base2)
         return nil
     }
@@ -597,17 +640,24 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _emit_eval_int_to_rax(ctx, args[0], locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base3); return nil }
         bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = fd
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_pre")
+        if capsule {
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_pre")
+        } else {
+            // rax = fd
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 7))
+        }
         _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0) // fd
 
         _intr_load_x64(ctx, 7, tmp_fd)
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_close()))
         bytes_extend(ctx["code"], insn_syscall())
 
-        // post: native_capsule_sys_close_post(rc, fd) -> rc
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = rc
-        _intr_load_x64(ctx, 6, tmp_fd)                    // rsi = fd
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_post")
+        if capsule {
+            // post: native_capsule_sys_close_post(rc, fd) -> rc
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = rc
+            _intr_load_x64(ctx, 6, tmp_fd)                    // rsi = fd
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_close_post")
+        }
         _intr_tmp_pop(ctx, base3)
         return nil
     }
@@ -627,14 +677,18 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_mode)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base4); return nil }
 
-        // pre: native_capsule_sys_access_pre(path) -> pair
-        _intr_load_x64(ctx, 7, tmp_path)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_access_pre")
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
+        if capsule {
+            // pre: native_capsule_sys_access_pre(path) -> pair
+            _intr_load_x64(ctx, 7, tmp_path)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_access_pre")
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
 
-        // path_ptr from pair[0] into RSI
-        _intr_load_x64(ctx, 11, tmp_pair)
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(6, 11))
+            // path_ptr from pair[0] into RSI
+            _intr_load_x64(ctx, 11, tmp_pair)
+            bytes_extend(ctx["code"], insn_mov_r64_mr64(6, 11))
+        } else {
+            _intr_load_x64(ctx, 6, tmp_path) // rsi = path
+        }
 
         // faccessat(AT_FDCWD, path, mode, flags=0)
         bytes_extend(ctx["code"], insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
@@ -643,10 +697,12 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_faccessat()))
         bytes_extend(ctx["code"], insn_syscall())
 
-        // post: native_capsule_sys_access_post(pair, rc) -> rc
-        bytes_extend(ctx["code"], insn_mov_r64_r64(6, 0)) // rsi = rc
-        _intr_load_x64(ctx, 7, tmp_pair)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_access_post")
+        if capsule {
+            // post: native_capsule_sys_access_post(pair, rc) -> rc
+            bytes_extend(ctx["code"], insn_mov_r64_r64(6, 0)) // rsi = rc
+            _intr_load_x64(ctx, 7, tmp_pair)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_access_post")
+        }
         _intr_tmp_pop(ctx, base4)
         return nil
     }
@@ -666,15 +722,20 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_st)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base5); return nil }
 
-        // pre: native_capsule_sys_stat_pre(path) or lstat_pre(path) -> pair
-        _intr_load_x64(ctx, 7, tmp_path)
-        if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_pre") }
-        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_pre") }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
+        if capsule {
+            // pre: native_capsule_sys_stat_pre(path) or lstat_pre(path) -> pair
+            _intr_load_x64(ctx, 7, tmp_path)
+            if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_pre") }
+            else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_pre") }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
 
-        // path_ptr from pair[0] into RSI
-        _intr_load_x64(ctx, 11, tmp_pair)
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(6, 11))
+            // path_ptr from pair[0] into RSI
+            _intr_load_x64(ctx, 11, tmp_pair)
+            bytes_extend(ctx["code"], insn_mov_r64_mr64(6, 11))
+        } else {
+            // No capsule path resolution: path is already a host cstr.
+            _intr_load_x64(ctx, 6, tmp_path) // rsi = path
+        }
 
         // Use a private host `struct stat` buffer and translate into OrenStatV0
         // (stable cross-OS layout) in the caller-provided `st_ptr`.
@@ -722,11 +783,13 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _emit_label(ctx, labels, l_norm_done)
         _patch_local_fixups(ctx, labels, fixups)
 
-        // post: native_capsule_sys_stat_post(pair, rc) / lstat_post(pair, rc) -> rc
-        bytes_extend(ctx["code"], insn_mov_r64_r64(6, 0)) // rsi = rc
-        _intr_load_x64(ctx, 7, tmp_pair) // rdi = pair
-        if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_post") }
-        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_post") }
+        if capsule {
+            // post: native_capsule_sys_stat_post(pair, rc) / lstat_post(pair, rc) -> rc
+            bytes_extend(ctx["code"], insn_mov_r64_r64(6, 0)) // rsi = rc
+            _intr_load_x64(ctx, 7, tmp_pair) // rdi = pair
+            if nm == "sys_stat" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_stat_post") }
+            else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_lstat_post") }
+        }
         _intr_tmp_pop(ctx, base5)
         return nil
     }
@@ -743,8 +806,12 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
 
         _emit_eval_int_to_rax(ctx, args[0], locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base6); return nil }
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0))
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_pre")
+        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = fd
+        if capsule {
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_pre")
+        } else {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 7)) // rax = fd
+        }
         _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
 
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_st)
@@ -781,8 +848,10 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _emit_label(ctx, labels, l_norm_done)
         _patch_local_fixups(ctx, labels, fixups)
 
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = rc
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_post")
+        if capsule {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = rc
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fstat_post")
+        }
         _intr_tmp_pop(ctx, base6)
         return nil
     }
@@ -800,14 +869,18 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base7); return nil }
 
-        // pre: native_capsule_sys_unlink_pre(path) / rmdir_pre(path) -> pair
-        _intr_load_x64(ctx, 7, tmp_path)
-        if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_pre") }
-        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_pre") }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
+        if capsule {
+            // pre: native_capsule_sys_unlink_pre(path) / rmdir_pre(path) -> pair
+            _intr_load_x64(ctx, 7, tmp_path)
+            if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_pre") }
+            else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_pre") }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
 
-        _intr_load_x64(ctx, 11, tmp_pair)
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(6, 11)) // rsi = path_ptr
+            _intr_load_x64(ctx, 11, tmp_pair)
+            bytes_extend(ctx["code"], insn_mov_r64_mr64(6, 11)) // rsi = path_ptr
+        } else {
+            _intr_load_x64(ctx, 6, tmp_path) // rsi = path
+        }
 
         bytes_extend(ctx["code"], insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
         var flags2 = 0
@@ -816,11 +889,13 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_unlinkat()))
         bytes_extend(ctx["code"], insn_syscall())
 
-        // post: unlink_post(pair, rc) / rmdir_post(pair, rc)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(6, 0)) // rsi = rc
-        _intr_load_x64(ctx, 7, tmp_pair)
-        if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_post") }
-        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_post") }
+        if capsule {
+            // post: unlink_post(pair, rc) / rmdir_post(pair, rc)
+            bytes_extend(ctx["code"], insn_mov_r64_r64(6, 0)) // rsi = rc
+            _intr_load_x64(ctx, 7, tmp_pair)
+            if nm == "sys_unlink" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_unlink_post") }
+            else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rmdir_post") }
+        }
         _intr_tmp_pop(ctx, base7)
         return nil
     }
@@ -840,29 +915,36 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_to)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base8); return nil }
 
-        // pre: native_capsule_sys_rename_pre(from, to) -> bundle
-        _intr_load_x64(ctx, 7, tmp_from)
-        _intr_load_x64(ctx, 6, tmp_to)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_pre")
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_bundle, 0)
+        if capsule {
+            // pre: native_capsule_sys_rename_pre(from, to) -> bundle
+            _intr_load_x64(ctx, 7, tmp_from)
+            _intr_load_x64(ctx, 6, tmp_to)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_pre")
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_bundle, 0)
 
-        // Load from_ptr into RSI = *(u64*)bundle
-        _intr_load_x64(ctx, 11, tmp_bundle)
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(6, 11))
-        // Load to_ptr into R10 = *(u64*)(bundle+16)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+            // Load from_ptr into RSI = *(u64*)bundle
+            _intr_load_x64(ctx, 11, tmp_bundle)
+            bytes_extend(ctx["code"], insn_mov_r64_mr64(6, 11))
+            // Load to_ptr into R10 = *(u64*)(bundle+16)
+            bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+            bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+            bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+        } else {
+            _intr_load_x64(ctx, 6, tmp_from) // rsi = from
+            _intr_load_x64(ctx, 10, tmp_to)  // r10 = to
+        }
 
         bytes_extend(ctx["code"], insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
         bytes_extend(ctx["code"], insn_mov_r64_imm64(2, labi.linux_at_fdcwd()))
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_renameat()))
         bytes_extend(ctx["code"], insn_syscall())
 
-        // post: native_capsule_sys_rename_post(bundle, rc) -> rc
-        bytes_extend(ctx["code"], insn_mov_r64_r64(6, 0)) // rsi = rc
-        _intr_load_x64(ctx, 7, tmp_bundle)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_post")
+        if capsule {
+            // post: native_capsule_sys_rename_post(bundle, rc) -> rc
+            bytes_extend(ctx["code"], insn_mov_r64_r64(6, 0)) // rsi = rc
+            _intr_load_x64(ctx, 7, tmp_bundle)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_rename_post")
+        }
         _intr_tmp_pop(ctx, base8)
         return nil
     }
@@ -883,31 +965,39 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_mode)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base9); return nil }
 
-        // pre: mkdir_pre(path) / chmod_pre(path) -> pair
-        _intr_load_x64(ctx, 7, tmp_path)
-        if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_pre") }
-        else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_pre") }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
+        if capsule {
+            // pre: mkdir_pre(path) / chmod_pre(path) -> pair
+            _intr_load_x64(ctx, 7, tmp_path)
+            if nm == "sys_mkdir" { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_pre") }
+            else { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_pre") }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_pair, 0)
 
-        // path_ptr from pair[0] into RSI
-        _intr_load_x64(ctx, 11, tmp_pair)
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(6, 11))
+            // path_ptr from pair[0] into RSI
+            _intr_load_x64(ctx, 11, tmp_pair)
+            bytes_extend(ctx["code"], insn_mov_r64_mr64(6, 11))
+        } else {
+            _intr_load_x64(ctx, 6, tmp_path) // rsi = path
+        }
 
         bytes_extend(ctx["code"], insn_mov_r64_imm64(7, labi.linux_at_fdcwd()))
         _intr_load_x64(ctx, 2, tmp_mode) // rdx = mode
         if nm == "sys_mkdir" {
             bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_mkdirat()))
             bytes_extend(ctx["code"], insn_syscall())
-            bytes_extend(ctx["code"], insn_mov_r64_r64(6, 0)) // rsi = rc
-            _intr_load_x64(ctx, 7, tmp_pair)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_post")
+            if capsule {
+                bytes_extend(ctx["code"], insn_mov_r64_r64(6, 0)) // rsi = rc
+                _intr_load_x64(ctx, 7, tmp_pair)
+                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mkdir_post")
+            }
         } else {
             bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 0)) // r10d = flags=0
             bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_fchmodat()))
             bytes_extend(ctx["code"], insn_syscall())
-            bytes_extend(ctx["code"], insn_mov_r64_r64(6, 0)) // rsi = rc
-            _intr_load_x64(ctx, 7, tmp_pair)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_post")
+            if capsule {
+                bytes_extend(ctx["code"], insn_mov_r64_r64(6, 0)) // rsi = rc
+                _intr_load_x64(ctx, 7, tmp_pair)
+                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_chmod_post")
+            }
         }
 
         _intr_tmp_pop(ctx, base9)
@@ -928,7 +1018,11 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _emit_eval_int_to_rax(ctx, args[0], locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base10); return nil }
         bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi=fd
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getdirentries64_pre")
+        if capsule {
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getdirentries64_pre")
+        } else {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 7)) // rax = fd
+        }
         _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
 
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_buf)
@@ -943,9 +1037,11 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_getdents64()))
         bytes_extend(ctx["code"], insn_syscall())
 
-        // post: native_capsule_sys_getdirentries64_post(rc) -> rc
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = rc
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getdirentries64_post")
+        if capsule {
+            // post: native_capsule_sys_getdirentries64_post(rc) -> rc
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = rc
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getdirentries64_post")
+        }
         _intr_tmp_pop(ctx, base10)
         return nil
     }
@@ -955,12 +1051,16 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_fork does not support spread"); return nil }
 
         // pre: native_capsule_sys_fork_pre()
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fork_pre")
+        if capsule {
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fork_pre")
+        }
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_fork()))
         bytes_extend(ctx["code"], insn_syscall())
-        // post: native_capsule_sys_fork_post(pid) -> pid
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = pid
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fork_post")
+        if capsule {
+            // post: native_capsule_sys_fork_post(pid) -> pid
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = pid
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fork_post")
+        }
         return nil
     }
 
@@ -981,11 +1081,13 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base11); return nil }
 
         // pre: native_capsule_sys_execve_pre(path, argv, envp) -> envp_to_use
-        _intr_load_x64(ctx, 7, tmp_path)
-        _intr_load_x64(ctx, 6, tmp_argv)
-        _intr_load_x64(ctx, 2, tmp_envp)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_execve_pre")
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_envp, 0) // overwrite envp slot
+        if capsule {
+            _intr_load_x64(ctx, 7, tmp_path)
+            _intr_load_x64(ctx, 6, tmp_argv)
+            _intr_load_x64(ctx, 2, tmp_envp)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_execve_pre")
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_envp, 0) // overwrite envp slot
+        }
 
         _intr_load_x64(ctx, 7, tmp_path)
         _intr_load_x64(ctx, 6, tmp_argv)
@@ -1015,9 +1117,11 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base12); return nil }
 
         // pre: native_capsule_sys_wait4_pre(pid, options)
-        _intr_load_x64(ctx, 7, tmp_pid)
-        _intr_load_x64(ctx, 6, tmp_opts)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_wait4_pre")
+        if capsule {
+            _intr_load_x64(ctx, 7, tmp_pid)
+            _intr_load_x64(ctx, 6, tmp_opts)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_wait4_pre")
+        }
 
         _intr_load_x64(ctx, 7, tmp_pid)
         _intr_load_x64(ctx, 6, tmp_status)
@@ -1050,8 +1154,10 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         } else {
             _intr_load_x64(ctx, 7, tmp_len) // rdi = len
         }
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mmap_private_anon_pre")
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_len, 0)
+        if capsule {
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_mmap_private_anon_pre")
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_len, 0)
+        }
 
         if is_win {
             _emit_sys_mmap_private_anon_windows_x64(ctx, locals, tmp_len)
@@ -1096,7 +1202,9 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
             _intr_load_x64(ctx, 7, tmp_addr) // rdi = addr
             _intr_load_x64(ctx, 6, tmp_len2) // rsi = len
         }
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_munmap_pre")
+        if capsule {
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_munmap_pre")
+        }
 
         if is_win {
             _emit_sys_munmap_windows_x64(ctx, locals, tmp_addr)
@@ -1126,7 +1234,9 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base15); return nil }
 
         // pre: native_capsule_sys_clone_pre()
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_clone_pre")
+        if capsule {
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_clone_pre")
+        }
 
         _intr_load_x64(ctx, 7, tmp_flags) // rdi = flags
         _intr_load_x64(ctx, 6, tmp_stack) // rsi = stack
@@ -1164,11 +1274,13 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _intr_eval_spill_x64(ctx, locals, args[2], tmp_arg)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base16); return nil }
 
-        // pre: native_capsule_sys_fcntl_pre(fd, cmd, arg)
-        _intr_load_x64(ctx, 7, tmp_fd)
-        _intr_load_x64(ctx, 6, tmp_cmd)
-        _intr_load_x64(ctx, 2, tmp_arg)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre")
+        if capsule {
+            // pre: native_capsule_sys_fcntl_pre(fd, cmd, arg)
+            _intr_load_x64(ctx, 7, tmp_fd)
+            _intr_load_x64(ctx, 6, tmp_cmd)
+            _intr_load_x64(ctx, 2, tmp_arg)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre")
+        }
 
         _intr_load_x64(ctx, 7, tmp_fd)
         _intr_load_x64(ctx, 6, tmp_cmd)
@@ -1176,12 +1288,14 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_fcntl()))
         bytes_extend(ctx["code"], insn_syscall())
 
-        // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = rc
-        _intr_load_x64(ctx, 6, tmp_fd)
-        _intr_load_x64(ctx, 2, tmp_cmd)
-        _intr_load_x64(ctx, 1, tmp_arg) // rcx = arg
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
+        if capsule {
+            // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = rc
+            _intr_load_x64(ctx, 6, tmp_fd)
+            _intr_load_x64(ctx, 2, tmp_cmd)
+            _intr_load_x64(ctx, 1, tmp_arg) // rcx = arg
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
+        }
 
         _intr_tmp_pop(ctx, base16)
         return nil
@@ -1204,7 +1318,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _intr_load_x64(ctx, 7, tmp_fd)
         bytes_extend(ctx["code"], insn_mov_r32_imm32(6, labi.posix_fcntl_f_getfl()))
         bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0))
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre")
+        if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre") }
 
         _intr_load_x64(ctx, 7, tmp_fd)
         bytes_extend(ctx["code"], insn_mov_r32_imm32(6, labi.posix_fcntl_f_getfl()))
@@ -1215,11 +1329,13 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _emit_translate_fcntl_getfl_return_linux_x64(ctx)
 
         // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = rc
-        _intr_load_x64(ctx, 6, tmp_fd) // rsi = fd
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(2, labi.posix_fcntl_f_getfl())) // edx = cmd
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0)) // ecx = arg=0
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
+        if capsule {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = rc
+            _intr_load_x64(ctx, 6, tmp_fd) // rsi = fd
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(2, labi.posix_fcntl_f_getfl())) // edx = cmd
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0)) // ecx = arg=0
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
+        }
 
         _intr_tmp_pop(ctx, base17)
         return nil
@@ -1244,7 +1360,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(6, labi.posix_fcntl_f_setfl()))
         _intr_load_x64(ctx, 2, tmp_flags) // rdx = oren_flags
         _emit_translate_fcntl_setfl_flags_linux_x64(ctx)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre")
+        if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_pre") }
 
         // syscall fcntl(fd, F_SETFL, os_flags)
         _intr_load_x64(ctx, 7, tmp_fd)
@@ -1255,11 +1371,13 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], insn_syscall())
 
         // post: native_capsule_sys_fcntl_post(rc, fd, cmd, arg) -> rc
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = rc
-        _intr_load_x64(ctx, 6, tmp_fd)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(2, labi.posix_fcntl_f_setfl()))
-        _intr_load_x64(ctx, 1, tmp_flags) // rcx = original oren_flags (debug)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
+        if capsule {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = rc
+            _intr_load_x64(ctx, 6, tmp_fd)
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(2, labi.posix_fcntl_f_setfl()))
+            _intr_load_x64(ctx, 1, tmp_flags) // rcx = original oren_flags (debug)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_fcntl_post")
+        }
 
         _intr_tmp_pop(ctx, base18)
         return nil
@@ -1285,17 +1403,23 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _emit_eval_int_to_rax(ctx, args[0], locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base19); return nil }
         bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi=fd
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_dup_pre")
+        if capsule {
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_dup_pre")
+        } else {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(0, 7)) // rax = fd
+        }
         _emit_mov_mrbp_r64(ctx, 0 - tmp_fd, 0)
 
         _intr_load_x64(ctx, 7, tmp_fd)
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_dup()))
         bytes_extend(ctx["code"], insn_syscall())
 
-        // post: native_capsule_sys_dup_post(newfd, oldfd) -> newfd
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = newfd
-        _intr_load_x64(ctx, 6, tmp_fd) // rsi = oldfd
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_dup_post")
+        if capsule {
+            // post: native_capsule_sys_dup_post(newfd, oldfd) -> newfd
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = newfd
+            _intr_load_x64(ctx, 6, tmp_fd) // rsi = oldfd
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_dup_post")
+        }
         _intr_tmp_pop(ctx, base19)
         return nil
     }
@@ -1320,9 +1444,11 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base20); return nil }
 
         // pre: native_capsule_sys_dup2_pre(oldfd, newfd)
-        _intr_load_x64(ctx, 7, tmp_old)
-        _intr_load_x64(ctx, 6, tmp_new)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_dup2_pre")
+        if capsule {
+            _intr_load_x64(ctx, 7, tmp_old)
+            _intr_load_x64(ctx, 6, tmp_new)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_dup2_pre")
+        }
 
         _intr_load_x64(ctx, 7, tmp_old)
         _intr_load_x64(ctx, 6, tmp_new)
@@ -1334,11 +1460,13 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         }
         bytes_extend(ctx["code"], insn_syscall())
 
-        // post: native_capsule_sys_dup2_post(rc, oldfd, newfd) -> rc
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = rc
-        _intr_load_x64(ctx, 6, tmp_old)
-        _intr_load_x64(ctx, 2, tmp_new)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_dup2_post")
+        if capsule {
+            // post: native_capsule_sys_dup2_post(rc, oldfd, newfd) -> rc
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = rc
+            _intr_load_x64(ctx, 6, tmp_old)
+            _intr_load_x64(ctx, 2, tmp_new)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_dup2_post")
+        }
 
         _intr_tmp_pop(ctx, base20)
         return nil
@@ -1361,10 +1489,12 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base21); return nil }
 
         // pre: native_capsule_sys_ioctl_pre(fd, req, argp)
-        _intr_load_x64(ctx, 7, tmp_fd)
-        _intr_load_x64(ctx, 6, tmp_req)
-        _intr_load_x64(ctx, 2, tmp_argp)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_ioctl_pre")
+        if capsule {
+            _intr_load_x64(ctx, 7, tmp_fd)
+            _intr_load_x64(ctx, 6, tmp_req)
+            _intr_load_x64(ctx, 2, tmp_argp)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_ioctl_pre")
+        }
 
         _intr_load_x64(ctx, 7, tmp_fd)
         _intr_load_x64(ctx, 6, tmp_req)
@@ -1391,9 +1521,11 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base22); return nil }
 
         // pre: native_capsule_sys_kill_pre(pid, signum)
-        _intr_load_x64(ctx, 7, tmp_pid)
-        _intr_load_x64(ctx, 6, tmp_sig)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_kill_pre")
+        if capsule {
+            _intr_load_x64(ctx, 7, tmp_pid)
+            _intr_load_x64(ctx, 6, tmp_sig)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_kill_pre")
+        }
 
         _intr_load_x64(ctx, 7, tmp_pid)
         _intr_load_x64(ctx, 6, tmp_sig)
@@ -1421,10 +1553,12 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base23); return nil }
 
         // pre: native_capsule_sys_gettimeofday_pre(tv, tz, abs)
-        _intr_load_x64(ctx, 7, tmp_tv)
-        _intr_load_x64(ctx, 6, tmp_tz)
-        _intr_load_x64(ctx, 2, tmp_abs)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_gettimeofday_pre")
+        if capsule {
+            _intr_load_x64(ctx, 7, tmp_tv)
+            _intr_load_x64(ctx, 6, tmp_tz)
+            _intr_load_x64(ctx, 2, tmp_abs)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_gettimeofday_pre")
+        }
 
         // Linux syscall gettimeofday(tv, tz) ignores abs_ptr; keep signature stable.
         _intr_load_x64(ctx, 7, tmp_tv)
@@ -1451,7 +1585,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base24); return nil }
 
         // pre: native_capsule_sys_getcwd_pre()
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getcwd_pre")
+        if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getcwd_pre") }
 
         _intr_load_x64(ctx, 7, tmp_buf)
         _intr_load_x64(ctx, 6, tmp_sz)
@@ -1475,9 +1609,11 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base25); return nil }
 
         // pre: native_capsule_sys_nanosleep_pre(ns) -> ns (may return <=0 to skip sleep)
-        _intr_load_x64(ctx, 7, tmp_ns) // rdi = ns
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_nanosleep_pre")
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_ns, 0) // spill adjusted ns
+        if capsule {
+            _intr_load_x64(ctx, 7, tmp_ns) // rdi = ns
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_nanosleep_pre")
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_ns, 0) // spill adjusted ns
+        }
 
         // Fast path: ns <= 0 => return 0 (skip syscall).
         var labels25 = {}
@@ -1557,10 +1693,12 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base26); return nil }
 
         // pre: native_capsule_sys_socket_pre(domain, type, protocol)
-        _intr_load_x64(ctx, 7, tmp_dom)
-        _intr_load_x64(ctx, 6, tmp_type)
-        _intr_load_x64(ctx, 2, tmp_proto)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_pre")
+        if capsule {
+            _intr_load_x64(ctx, 7, tmp_dom)
+            _intr_load_x64(ctx, 6, tmp_type)
+            _intr_load_x64(ctx, 2, tmp_proto)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_pre")
+        }
 
         _intr_load_x64(ctx, 7, tmp_dom)
         _intr_load_x64(ctx, 6, tmp_type)
@@ -1569,11 +1707,13 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], insn_syscall())
 
         // post: native_capsule_sys_socket_post(fd, domain, type, protocol) -> fd
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = fd
-        _intr_load_x64(ctx, 6, tmp_dom)
-        _intr_load_x64(ctx, 2, tmp_type)
-        _intr_load_x64(ctx, 1, tmp_proto)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_post")
+        if capsule {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = fd
+            _intr_load_x64(ctx, 6, tmp_dom)
+            _intr_load_x64(ctx, 2, tmp_type)
+            _intr_load_x64(ctx, 1, tmp_proto)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_socket_post")
+        }
 
         _intr_tmp_pop(ctx, base26)
         return nil
@@ -1596,10 +1736,12 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base27); return nil }
 
         if nm == "sys_connect" {
-            _intr_load_x64(ctx, 7, tmp_fd)
-            _intr_load_x64(ctx, 6, tmp_addr)
-            _intr_load_x64(ctx, 2, tmp_len)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_pre")
+            if capsule {
+                _intr_load_x64(ctx, 7, tmp_fd)
+                _intr_load_x64(ctx, 6, tmp_addr)
+                _intr_load_x64(ctx, 2, tmp_len)
+                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_pre")
+            }
 
             _intr_load_x64(ctx, 7, tmp_fd)
             _intr_load_x64(ctx, 6, tmp_addr)
@@ -1607,16 +1749,20 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
             bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_connect()))
             bytes_extend(ctx["code"], insn_syscall())
 
-            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rc
-            _intr_load_x64(ctx, 6, tmp_fd)
-            _intr_load_x64(ctx, 2, tmp_addr)
-            _intr_load_x64(ctx, 1, tmp_len)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_post")
+            if capsule {
+                bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rc
+                _intr_load_x64(ctx, 6, tmp_fd)
+                _intr_load_x64(ctx, 2, tmp_addr)
+                _intr_load_x64(ctx, 1, tmp_len)
+                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_connect_post")
+            }
         } else if nm == "sys_bind" {
-            _intr_load_x64(ctx, 7, tmp_fd)
-            _intr_load_x64(ctx, 6, tmp_addr)
-            _intr_load_x64(ctx, 2, tmp_len)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_pre")
+            if capsule {
+                _intr_load_x64(ctx, 7, tmp_fd)
+                _intr_load_x64(ctx, 6, tmp_addr)
+                _intr_load_x64(ctx, 2, tmp_len)
+                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_pre")
+            }
 
             _intr_load_x64(ctx, 7, tmp_fd)
             _intr_load_x64(ctx, 6, tmp_addr)
@@ -1624,16 +1770,20 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
             bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_bind()))
             bytes_extend(ctx["code"], insn_syscall())
 
-            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rc
-            _intr_load_x64(ctx, 6, tmp_fd)
-            _intr_load_x64(ctx, 2, tmp_addr)
-            _intr_load_x64(ctx, 1, tmp_len)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_post")
+            if capsule {
+                bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rc
+                _intr_load_x64(ctx, 6, tmp_fd)
+                _intr_load_x64(ctx, 2, tmp_addr)
+                _intr_load_x64(ctx, 1, tmp_len)
+                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_bind_post")
+            }
         } else if nm == "sys_getpeername" {
-            _intr_load_x64(ctx, 7, tmp_fd)
-            _intr_load_x64(ctx, 6, tmp_addr)
-            _intr_load_x64(ctx, 2, tmp_len)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getpeername_pre")
+            if capsule {
+                _intr_load_x64(ctx, 7, tmp_fd)
+                _intr_load_x64(ctx, 6, tmp_addr)
+                _intr_load_x64(ctx, 2, tmp_len)
+                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getpeername_pre")
+            }
 
             _intr_load_x64(ctx, 7, tmp_fd)
             _intr_load_x64(ctx, 6, tmp_addr)
@@ -1641,10 +1791,12 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
             bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_getpeername()))
             bytes_extend(ctx["code"], insn_syscall())
         } else {
-            _intr_load_x64(ctx, 7, tmp_fd)
-            _intr_load_x64(ctx, 6, tmp_addr)
-            _intr_load_x64(ctx, 2, tmp_len)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockname_pre")
+            if capsule {
+                _intr_load_x64(ctx, 7, tmp_fd)
+                _intr_load_x64(ctx, 6, tmp_addr)
+                _intr_load_x64(ctx, 2, tmp_len)
+                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockname_pre")
+            }
 
             _intr_load_x64(ctx, 7, tmp_fd)
             _intr_load_x64(ctx, 6, tmp_addr)
@@ -1672,23 +1824,29 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base28); return nil }
 
         if nm == "sys_listen" {
-            _intr_load_x64(ctx, 7, tmp_fd)
-            _intr_load_x64(ctx, 6, tmp_arg)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_pre")
+            if capsule {
+                _intr_load_x64(ctx, 7, tmp_fd)
+                _intr_load_x64(ctx, 6, tmp_arg)
+                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_pre")
+            }
 
             _intr_load_x64(ctx, 7, tmp_fd)
             _intr_load_x64(ctx, 6, tmp_arg)
             bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_listen()))
             bytes_extend(ctx["code"], insn_syscall())
 
-            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rc
-            _intr_load_x64(ctx, 6, tmp_fd)
-            _intr_load_x64(ctx, 2, tmp_arg)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_post")
+            if capsule {
+                bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rc
+                _intr_load_x64(ctx, 6, tmp_fd)
+                _intr_load_x64(ctx, 2, tmp_arg)
+                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_listen_post")
+            }
         } else {
-            _intr_load_x64(ctx, 7, tmp_fd)
-            _intr_load_x64(ctx, 6, tmp_arg)
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_shutdown_pre")
+            if capsule {
+                _intr_load_x64(ctx, 7, tmp_fd)
+                _intr_load_x64(ctx, 6, tmp_arg)
+                _emit_call_rel32_named_x64(ctx, "native_capsule_sys_shutdown_pre")
+            }
 
             _intr_load_x64(ctx, 7, tmp_fd)
             _intr_load_x64(ctx, 6, tmp_arg)
@@ -1716,10 +1874,12 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _intr_eval_spill_x64(ctx, locals, args[2], tmp_lenp)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base29); return nil }
 
-        _intr_load_x64(ctx, 7, tmp_fd)
-        _intr_load_x64(ctx, 6, tmp_addr)
-        _intr_load_x64(ctx, 2, tmp_lenp)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_pre")
+        if capsule {
+            _intr_load_x64(ctx, 7, tmp_fd)
+            _intr_load_x64(ctx, 6, tmp_addr)
+            _intr_load_x64(ctx, 2, tmp_lenp)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_pre")
+        }
 
         _intr_load_x64(ctx, 7, tmp_fd)
         _intr_load_x64(ctx, 6, tmp_addr)
@@ -1728,11 +1888,13 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], insn_syscall())
 
         // post: native_capsule_sys_accept_post(newfd, listen_fd, addr, addrlen_ptr) -> newfd
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = newfd
-        _intr_load_x64(ctx, 6, tmp_fd)
-        _intr_load_x64(ctx, 2, tmp_addr)
-        _intr_load_x64(ctx, 1, tmp_lenp)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_post")
+        if capsule {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // rdi = newfd
+            _intr_load_x64(ctx, 6, tmp_fd)
+            _intr_load_x64(ctx, 2, tmp_addr)
+            _intr_load_x64(ctx, 1, tmp_lenp)
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_accept_post")
+        }
 
         _intr_tmp_pop(ctx, base29)
         return nil
@@ -1764,7 +1926,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
             _intr_load_x64(ctx, 2, tmp_opt)
             _intr_load_x64(ctx, 1, tmp_val) // rcx = optval
             _intr_load_x64(ctx, 8, tmp_lenp) // r8 = optlen_ptr
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockopt_pre")
+            if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_getsockopt_pre") }
 
             _intr_load_x64(ctx, 7, tmp_fd)
             _intr_load_x64(ctx, 6, tmp_level)
@@ -1779,7 +1941,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
             _intr_load_x64(ctx, 2, tmp_opt)
             _intr_load_x64(ctx, 1, tmp_val) // rcx = optval
             _intr_load_x64(ctx, 8, tmp_lenp) // r8 = optlen
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_setsockopt_pre")
+            if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_setsockopt_pre") }
 
             _intr_load_x64(ctx, 7, tmp_fd)
             _intr_load_x64(ctx, 6, tmp_level)
@@ -1823,7 +1985,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
             _intr_load_x64(ctx, 1, o3) // rcx=flags
             _intr_load_x64(ctx, 8, o4) // r8=to
             _intr_load_x64(ctx, 9, o5) // r9=tolen
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_sendto_pre")
+            if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_sendto_pre") }
 
             _intr_load_x64(ctx, 7, o0)
             _intr_load_x64(ctx, 6, o1)
@@ -1840,7 +2002,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
             _intr_load_x64(ctx, 1, o3) // rcx=flags
             _intr_load_x64(ctx, 8, o4) // r8=from
             _intr_load_x64(ctx, 9, o5) // r9=fromlen
-            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_recvfrom_pre")
+            if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_recvfrom_pre") }
 
             _intr_load_x64(ctx, 7, o0)
             _intr_load_x64(ctx, 6, o1)
@@ -1869,16 +2031,20 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
 
         // pre: native_capsule_sys_epoll_create1_pre(flags) -> flags
         _intr_load_x64(ctx, 7, tmp_flags)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_create1_pre")
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_flags, 0)
+        if capsule {
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_create1_pre")
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_flags, 0)
+        }
 
         _intr_load_x64(ctx, 7, tmp_flags)
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_epoll_create1()))
         bytes_extend(ctx["code"], insn_syscall())
 
         // post: native_capsule_sys_epoll_create1_post(epfd) -> epfd
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0))
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_create1_post")
+        if capsule {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0))
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_create1_post")
+        }
 
         _intr_tmp_pop(ctx, base32)
         return nil
@@ -1907,7 +2073,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _intr_load_x64(ctx, 6, a1)
         _intr_load_x64(ctx, 2, a2)
         _intr_load_x64(ctx, 1, a3)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_ctl_pre")
+        if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_ctl_pre") }
 
         _intr_load_x64(ctx, 7, a0)
         _intr_load_x64(ctx, 6, a1)
@@ -1949,7 +2115,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _intr_load_x64(ctx, 1, b3)
         _intr_load_x64(ctx, 8, b4)
         _intr_load_x64(ctx, 9, b5)
-        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_pwait_pre")
+        if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_epoll_pwait_pre") }
 
         _intr_load_x64(ctx, 7, b0)
         _intr_load_x64(ctx, 6, b1)

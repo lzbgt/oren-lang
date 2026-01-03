@@ -571,7 +571,9 @@ fn native_compile_stmt_inner(ctx, stmt) {
             ctx["stack_size"] = ctx["stack_size"] + 16
 
             // Load value -> X0 (from saved local slot).
-            var off = ctx["locals"][f_name2]
+            // Locals store offsets as `off+1` to avoid nil/0 ambiguity under the native runtime.
+            var off_enc = ctx["locals"][f_name2]
+            var off = off_enc - 1
             var current_sp_off = ctx["stack_size"] - off - 16
             emit_ldr_reg_sp_any(ctx, 0, current_sp_off)
 

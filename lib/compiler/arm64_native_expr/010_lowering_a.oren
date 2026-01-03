@@ -546,14 +546,17 @@ fn native_expr_chunk_noncall(ctx, expr) {
                 return true
             }
     
-	            // First-class function value (named function -> callable object).
-	            // Wrapper name convention: __oren_fnwrap_<fn>.
-	            if ctx["func_arity"] != nil {
-	                if ctx["func_arity"][fn_name] != nil {
-	                    push_u32_le(ctx["code"], insn_movz(1, 0)) // env_ptr = 0
-	                    var wname = "__oren_fnwrap_" + fn_name
-	                    var adr_pos2 = bytes_len(ctx["code"])
-	                    push_u32_le(ctx["code"], 0)
+		            // First-class function value (named function -> callable object).
+		            // Wrapper name convention: __oren_fnwrap_<fn>.
+		            if ctx["func_arity"] != nil {
+		                if ctx["func_arity"][fn_name] != nil {
+		                    // Track which named-function wrappers are actually referenced as values.
+		                    // This keeps wrapper synthesis bounded for native builds that inject the runtime.
+		                    if ctx["fnwrap_needed"] != nil { ctx["fnwrap_needed"][fn_name] = 1 }
+		                    push_u32_le(ctx["code"], insn_movz(1, 0)) // env_ptr = 0
+		                    var wname = "__oren_fnwrap_" + fn_name
+		                    var adr_pos2 = bytes_len(ctx["code"])
+		                    push_u32_le(ctx["code"], 0)
 	                    push_u32_le(ctx["code"], 0)
 	                    oren_list_push(ctx["fixups"], {"type": "adr_code", "pos": adr_pos2, "name": wname, "reg": 0})
 	    
