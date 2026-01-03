@@ -110,6 +110,27 @@ fn compiler_main() {
         return nil
     }
 
+    if cmd_name == "sym" {
+        // Resolve a program counter address to a function name (native debug builds).
+        //
+        // Motivation: native stage2 bringup can crash in deep recursion; `nm` is not useful
+        // for our custom native emitter outputs. `resolve_symbol` is generated in native
+        // debug builds and can map addresses back to function names.
+        if pos == nil || oren_list_len(pos) < 1 {
+            usage_cmd("sym")
+            oren_exit(2)
+        }
+        var addr_s = pos[0]
+        var addr = optimizer.parse_int(addr_s)
+        if addr == nil {
+            emit_diag("compile", 2, "oren sym: invalid address: " + addr_s)
+            print("oren sym: invalid address: " + addr_s)
+            oren_exit(2)
+        }
+        print(oren_resolve_symbol(addr))
+        return nil
+    }
+
     if cmd_name == "scan" {
         var lib = pos[0]
         ensure_dir("build/tmp")
@@ -980,7 +1001,12 @@ fn compiler_main() {
         MODULE_STACK = []
         MODULE_ORDER = []
         MODULE_ID_COUNTER = 0
-        oren_gc_collect()
+        // Rolling native-selfhost safety:
+        // The native GC does not yet scan compiler global variables reliably, so unconditional
+        // collections can trigger UAF crashes. Keep this opt-in for now.
+        if oren_env("OREN_COMPILER_GC") != nil {
+            oren_gc_collect()
+        }
         var export_names = []
         
         if is_shared_lib {
@@ -1075,13 +1101,27 @@ fn compiler_main() {
 
         if arch == nil { arch = "arm64" }
         if arch == "arm64" {
+            var t_emit0 = 0
+            if trace_build {
+                t_emit0 = oren_time_now_ns()
+                print("[build] native emit start (arm64) target=" + target)
+            }
             if target == "linux" {
                 arm64_elf.elf_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode, no_gc, CAPSULE, CAP_ALLOW_DOMAINS)
             } else {
                 arm64_macho.macho_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode, no_gc, CAPSULE, CAP_ALLOW_DOMAINS)
             }
+            if trace_build {
+                var dt_emit = oren_time_now_ns() - t_emit0
+                print("[build] native emit done +" + oren_int_to_string(dt_emit / 1000000) + "ms")
+            }
         } else {
             if arch == "x64" || arch == "x86_64" || arch == "amd64" {
+                var t_emit1 = 0
+                if trace_build {
+                    t_emit1 = oren_time_now_ns()
+                    print("[build] native emit start (x64) target=" + target)
+                }
                 if target == "linux" {
                     x64_elf.elf_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
                 } else {
@@ -1091,6 +1131,10 @@ fn compiler_main() {
                         print("native backend (x64) unsupported target: " + target)
                         oren_exit(1)
                     }
+                }
+                if trace_build {
+                    var dt_emit1 = oren_time_now_ns() - t_emit1
+                    print("[build] native emit done +" + oren_int_to_string(dt_emit1 / 1000000) + "ms")
                 }
             } else {
                 print("native backend unsupported arch: " + arch)

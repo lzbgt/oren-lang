@@ -100,6 +100,9 @@ fn cli_spec() {
     var scan = argparse.add_command(p, "scan", "Scan a dylib and print exported symbols")
     argparse.cmd_positional(scan, "lib.dylib", true, "Library path")
 
+    var sym = argparse.add_command(p, "sym", "Resolve a native PC address to a function name (native debug builds)")
+    argparse.cmd_positional(sym, "addr", true, "Address (int or hex like 0x1000)")
+
     var clean = argparse.add_command(p, "clean", "Remove Oren build caches")
     argparse.cmd_option_env(clean, "--cache-dir", nil, "string", "", "Build cache directory to remove", "OREN_CACHE_DIR")
 

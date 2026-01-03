@@ -44,10 +44,11 @@ fn err_push(errs, tok, msg) {
 fn split_base_and_suffix(name) {
     // Split `foo__bar` -> {"base":"foo","suff":"bar"}, otherwise {"base":nil,"suff":nil}.
     if name == nil { return {"base": nil, "suff": nil} }
+    var n = oren_string_len(name)
     var j = 0
-    while j + 1 < oren_string_len(name) {
+    while j + 1 < n {
         if oren_string_char_at(name, j) == "_" && oren_string_char_at(name, j + 1) == "_" {
-            return {"base": oren_string_slice(name, 0, j), "suff": oren_string_slice(name, j + 2, oren_string_len(name))}
+            return {"base": oren_string_slice(name, 0, j), "suff": oren_string_slice(name, j + 2, n)}
         }
         j = j + 1
     }
@@ -63,39 +64,30 @@ fn split_type_string(tname) {
     // Returns {prefix, base, suffix}.
     if tname == nil { return {"prefix": "", "base": "", "suffix": ""} }
     var s = tname
-    var prefix = ""
+    var n = oren_string_len(s)
+
+    // Parse prefix: '*' and repeated '[]' (pointer + slice sugar).
     var i = 0
-    while i < oren_string_len(s) {
+    while i < n {
         var ch = oren_string_char_at(s, i)
-        if ch == "*" {
-            prefix = prefix + "*"
-            i = i + 1
-            continue
-        }
-        // '[]'
+        if ch == "*" { i = i + 1; continue }
         if ch == "[" {
-            if i + 1 < oren_string_len(s) && oren_string_char_at(s, i + 1) == "]" {
-                prefix = prefix + "[]"
+            if i + 1 < n && oren_string_char_at(s, i + 1) == "]" {
                 i = i + 2
                 continue
             }
         }
         break
     }
-    // Base until '[' or end.
-    var base = ""
-    while i < oren_string_len(s) {
-        var ch2 = oren_string_char_at(s, i)
-        if ch2 == "[" { break }
-        base = base + ch2
-        i = i + 1
+
+    // Base until '[' (fixed arrays) or end.
+    var j = i
+    while j < n {
+        if oren_string_char_at(s, j) == "[" { break }
+        j = j + 1
     }
-    var suffix = ""
-    while i < oren_string_len(s) {
-        suffix = suffix + oren_string_char_at(s, i)
-        i = i + 1
-    }
-    return {"prefix": prefix, "base": base, "suffix": suffix}
+
+    return {"prefix": oren_string_slice(s, 0, i), "base": oren_string_slice(s, i, j), "suffix": oren_string_slice(s, j, n)}
 }
 
 fn replace_type_param_in_type_string(tname, param, concrete) {
@@ -644,9 +636,14 @@ fn validate_type_param_constraint(template_fn, tp, concrete_type, impl_pairs, er
 
 fn lower_linked_program_in_place(linked) {
     if linked == nil { return nil }
+    var trace = false
+    var v = oren_env("OREN_TRACE_GENERIC_MONO")
+    if v != nil && v != "" { trace = true }
+    if trace { print("[gen_mono] enter") }
     var errs = []
     var templates = collect_generic_templates(linked, errs)
     var impl_pairs = collect_impl_pairs(linked)
+    if trace { print("[gen_mono] templates=" + oren_int_to_string(oren_map_len(templates)) + " stmts=" + oren_int_to_string(oren_list_len(linked["statements"]))) }
 
     // Collect instantiations by scanning the whole program (after generic-call lowering).
     var insts = {}
@@ -656,6 +653,7 @@ fn lower_linked_program_in_place(linked) {
         collect_instantiations_stmt(ss[i], templates, insts, errs)
         i = i + 1
     }
+    if trace { print("[gen_mono] inst scan done insts=" + oren_int_to_string(oren_map_len(insts)) + " errs=" + oren_int_to_string(oren_list_len(errs))) }
 
     // Rebuild statements: replace each generic template statement with its generated specializations.
     var out_stmts = []
@@ -691,8 +689,10 @@ fn lower_linked_program_in_place(linked) {
     }
 
     linked["statements"] = out_stmts
+    if trace { print("[gen_mono] rewrite done out_stmts=" + oren_int_to_string(oren_list_len(out_stmts))) }
     if oren_list_len(errs) > 0 {
         linked["generic_monomorph_errors"] = errs
     }
+    if trace { print("[gen_mono] exit") }
     return nil
 }

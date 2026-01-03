@@ -1125,6 +1125,10 @@ fn transpile_expression(t, exp) {
             if name == "exit" {
                 if argc == 1 { return "oren_exit(" + args_s + ")" }
             }
+            if name == "iadd" {
+                if argc == 2 { return "oren_add(" + args_s + ")" }
+                return "/* iadd expects 2 args */ OREN_NIL"
+            }
         }
 
         if exp["fn"]["type"] == "Member" {

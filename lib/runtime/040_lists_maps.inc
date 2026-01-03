@@ -1943,6 +1943,20 @@ OrenValue oren_string_char_at_unchecked(OrenValue s, OrenValue index) {
     return oren_string_from_single_byte((unsigned char)s.as.string_val[(size_t)idx]);
 }
 
+OrenValue oren_string_byte_at_unchecked(OrenValue s, OrenValue index) {
+    if (s.type != OREN_TYPE_STRING || index.type != OREN_TYPE_INT) {
+        oren_panic("string_byte_at_unchecked expects (string, int)");
+        return OREN_NIL; // Should not be reached
+    }
+    long long idx = index.as.int_val;
+    if (idx < 0) {
+        oren_panic("string_byte_at_unchecked index out of range");
+        return OREN_NIL; // Should not be reached
+    }
+    // Caller guarantees idx is within the string's known length.
+    return oren_int((long long)(unsigned char)s.as.string_val[(size_t)idx]);
+}
+
 OrenValue oren_string_char_code_at(OrenValue s, OrenValue index) {
     if (s.type != OREN_TYPE_STRING || index.type != OREN_TYPE_INT) {
         oren_panic("char_code_at expects (string, int)");
@@ -1957,4 +1971,12 @@ OrenValue oren_string_char_code_at(OrenValue s, OrenValue index) {
         return OREN_NIL; // Should not be reached
     }
     return oren_int((long long)(unsigned char)s.as.string_val[(size_t)idx]);
+}
+
+OrenValue oren_resolve_symbol(OrenValue addr) {
+    // C backend fallback: native emitters may generate a real symbol resolver in debug mode,
+    // but C runtime builds do not have access to that symbol table. Keep this stub so
+    // compiler tooling can call `oren_resolve_symbol(...)` portably.
+    (void)addr;
+    return oren_string("???");
 }

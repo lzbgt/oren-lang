@@ -17,6 +17,16 @@ import intparse "int_lit.oren"
 // - Escape analysis / stack-vs-heap decisions.
 // - Float folding/rounding.
 
+var OPT_TRACE_BUDGET = 200
+
+fn opt_trace(msg) {
+    if oren_env("OREN_TRACE_OPTIMIZER") == nil { return nil }
+    if OPT_TRACE_BUDGET <= 0 { return nil }
+    OPT_TRACE_BUDGET = OPT_TRACE_BUDGET - 1
+    print(msg)
+    return nil
+}
+
 fn is_int_lit(e) {
     return e != nil && e["type"] == "Integer" && e["value"] != nil
 }
@@ -288,19 +298,27 @@ fn collect_uses_stmt(s, uses, env) {
 fn fold_expr(e) {
     if e == nil { return nil }
     var t = e["type"]
+    opt_trace("[opt] fold_expr t=" + t)
     if t == "Prefix" {
         e["right"] = fold_expr(e["right"])
         return e
     }
     if t == "Infix" {
+        opt_trace("[opt] infix: left fold start")
         e["left"] = fold_expr(e["left"])
+        opt_trace("[opt] infix: left fold done")
+        opt_trace("[opt] infix: right fold start")
         e["right"] = fold_expr(e["right"])
+        opt_trace("[opt] infix: right fold done")
         // constant fold
         var op = e["op"]
+        opt_trace("[opt] infix: op=" + op)
         var folded = fold_infix(op, e["left"], e["right"])
+        opt_trace("[opt] infix: fold_infix done")
         if folded != nil { return folded }
         // peepholes
         var peep = fold_peephole_infix(op, e["left"], e["right"])
+        opt_trace("[opt] infix: fold_peephole done")
         if peep != nil { return peep }
         return e
     }
@@ -345,10 +363,14 @@ fn fold_expr(e) {
     if t == "Call" {
         e["fn"] = fold_expr(e["fn"])
         var args = e["args"]
-        var i3 = 0
-        while i3 < oren_list_len(args) {
-            args[i3] = fold_expr(args[i3])
-            i3 = i3 + 1
+        if args == nil {
+            opt_trace("[opt] call: args is nil (treat as 0 args)")
+        } else {
+            var i3 = 0
+            while i3 < oren_list_len(args) {
+                args[i3] = fold_expr(args[i3])
+                i3 = i3 + 1
+            }
         }
         if e["spread"] != nil { e["spread"] = fold_expr(e["spread"]) }
         return e
@@ -363,6 +385,7 @@ fn fold_expr(e) {
 fn fold_stmt(s) {
     if s == nil { return nil }
     var t = s["type"]
+    opt_trace("[opt] fold_stmt t=" + t)
     if t == "Block" {
         var ss = s["stmts"]
         var i = 0
@@ -390,7 +413,9 @@ fn fold_stmt(s) {
         return nil
     }
     if t == "Return" {
+        opt_trace("[opt] return: fold value start")
         s["value"] = fold_expr(s["value"])
+        opt_trace("[opt] return: fold value done")
         return nil
     }
     if t == "While" {
@@ -941,19 +966,30 @@ fn _tco_function_in_place(fun_expr) {
 }
 
 fn lower_linked_program_in_place(linked) {
+    var trace_opt = oren_env("OREN_TRACE_OPTIMIZER") != nil
+    if trace_opt { print("[opt] enter") }
     if linked == nil { return nil }
 
     // Fold expressions first (so DCE sees simplified RHS).
     var ss = linked["statements"]
+    if trace_opt { print("[opt] got statements") }
     var i = 0
+    if trace_opt { print("[opt] stmts_len=" + oren_int_to_string(oren_list_len(ss))) }
     while i < oren_list_len(ss) {
+        if trace_opt && i == 0 { print("[opt] fold first stmt type=" + ss[i]["type"]) }
         fold_stmt(ss[i])
         // DCE for function bodies.
         if ss[i] != nil && ss[i]["type"] == "ExprStmt" && ss[i]["expr"] != nil && ss[i]["expr"]["type"] == "Function" {
             // Try to eliminate simple non-tail recursion first (modulo constant), then do plain tail recursion elimination.
+            if trace_opt && i == 0 { print("[opt] tco_modconst start") }
             _tco_modconst_function_in_place(ss[i]["expr"])
+            if trace_opt && i == 0 { print("[opt] tco_modconst done") }
+            if trace_opt && i == 0 { print("[opt] tco start") }
             _tco_function_in_place(ss[i]["expr"])
+            if trace_opt && i == 0 { print("[opt] tco done") }
+            if trace_opt && i == 0 { print("[opt] dce start") }
             dce_block_in_place(ss[i]["expr"]["body"])
+            if trace_opt && i == 0 { print("[opt] dce done") }
         }
         i = i + 1
     }

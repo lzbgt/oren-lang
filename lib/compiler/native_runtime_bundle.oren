@@ -21,6 +21,7 @@
 import lexer "lexer.oren"
 import parser "parser.oren"
 import rtinj "native_runtime_inject.oren"
+import astbin "astbin.oren"
 import global_dce "global_dce.oren"
 import capsule "capsule.oren"
 import intparse "int_lit.oren"
@@ -330,8 +331,84 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
         return nil
     }
 
-    var runtime_src = rtinj.runtime_expand_includes_file(ctx, runtime_path, [])
-    if runtime_src == nil { return nil }
+    var trace = false
+    var v_trace = oren_env("OREN_TRACE_RUNTIME_BUNDLE")
+    if v_trace != nil && v_trace != "" { trace = true }
+
+    // Troubleshooting fast path:
+    // - Parsing the full native runtime can be extremely slow in stage2 native compilers.
+    // - Allow loading a pre-parsed AST from an astbin file.
+    //
+    // Generate it via a fast stage1 build:
+    //   OREN_DUMP_NATIVE_RUNTIME_ASTBIN=build/runtime_native.astbin ./oren build ...
+    // Then use it from stage2:
+    //   OREN_NATIVE_RUNTIME_ASTBIN=build/runtime_native.astbin <stage2> build ...
+    var runtime_astbin = oren_env("OREN_NATIVE_RUNTIME_ASTBIN")
+    if runtime_astbin != nil {
+        var p_ast = runtime_astbin
+        if p_ast == "" { p_ast = "build/runtime_native.astbin" }
+        if trace { print("[rt_bundle] astbin load start path=" + p_ast) }
+        var t_ast0 = 0
+        if trace { t_ast0 = oren_time_now_ns() }
+        // Prefer u8_buf to avoid boxing huge byte arrays into list<int>.
+        var bs = oren_read_u8_buf(p_ast)
+        if oren_is_err(bs) {
+            var msgB = oren_err_msg(bs)
+            var emsgB = "native runtime bundle: failed to read OREN_NATIVE_RUNTIME_ASTBIN=" + p_ast
+            if msgB != nil { emsgB = emsgB + ": " + msgB }
+            _bundle_err(ctx, emsgB)
+            return nil
+        }
+        if trace {
+            print("[rt_bundle] astbin read done bytes=" + oren_int_to_string(oren_buf_len(bs)))
+            print("[rt_bundle] astbin decode start")
+        }
+        var prog0 = astbin.astbin_decode(bs)
+        if prog0 == nil {
+            _bundle_err(ctx, "native runtime bundle: astbin_decode failed: " + p_ast)
+            return nil
+        }
+        if trace {
+            var dtA = oren_time_now_ns() - t_ast0
+            print("[rt_bundle] astbin load done +" + oren_int_to_string(dtA / 1000000) + "ms")
+        }
+        return prog0
+    }
+
+    var t0 = 0
+    if trace {
+        t0 = oren_time_now_ns()
+        print("[rt_bundle] expand start path=" + runtime_path)
+    }
+    // Troubleshooting override:
+    // - Stage2 native compilers can be extremely slow in include expansion.
+    // - Allow bypassing expansion by providing a pre-expanded runtime file.
+    //   Generate it via: OREN_DUMP_NATIVE_RUNTIME=build/runtime_native.expanded.oren <compiler> build ...
+    var runtime_src = nil
+    var expanded_override = oren_env("OREN_NATIVE_RUNTIME_EXPANDED")
+    if expanded_override != nil {
+        var p_exp = expanded_override
+        if p_exp == "" { p_exp = "build/runtime_native.expanded.oren" }
+        var rr = oren_read_file(p_exp)
+        if oren_is_err(rr) {
+            var msg = oren_err_msg(rr)
+            var emsg = "native runtime bundle: failed to read OREN_NATIVE_RUNTIME_EXPANDED=" + p_exp
+            if msg != nil { emsg = emsg + ": " + msg }
+            _bundle_err(ctx, emsg)
+            return nil
+        }
+        runtime_src = rr
+        if trace { print("[rt_bundle] using expanded runtime file: " + p_exp) }
+    } else {
+        runtime_src = rtinj.runtime_expand_includes_file(ctx, runtime_path, [])
+        if runtime_src == nil { return nil }
+    }
+    if trace {
+        var dt = oren_time_now_ns() - t0
+        print("[rt_bundle] expand done +" + oren_int_to_string(dt / 1000000) + "ms bytes=" + oren_int_to_string(oren_string_len(runtime_src)))
+        t0 = oren_time_now_ns()
+        print("[rt_bundle] parse start")
+    }
 
     // Include expansion can allocate many temporary strings/slices.
     // Collecting here is expensive (full heap scan) so we only do it in "aggressive"
@@ -353,6 +430,12 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
     l["file"] = runtime_path
     var p2 = parser.new_parser(l)
     var runtime_prog = parser.parse_program(p2)
+    if trace {
+        var dt2 = oren_time_now_ns() - t0
+        var nerr = 0
+        if p2 != nil && p2["errors"] != nil { nerr = oren_list_len(p2["errors"]) }
+        print("[rt_bundle] parse done +" + oren_int_to_string(dt2 / 1000000) + "ms errors=" + oren_int_to_string(nerr))
+    }
     if p2 != nil && p2["errors"] != nil && oren_list_len(p2["errors"]) != 0 {
         _bundle_err(ctx, "Parse errors in " + runtime_path)
         var ei = 0
@@ -385,6 +468,17 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
         return nil
     }
     if _bundle_validate_runtime_global_consts(ctx, runtime_prog) == false { return nil }
+
+    // Optional: dump the parsed runtime AST to astbin for fast future loads.
+    var dump_astbin = oren_env("OREN_DUMP_NATIVE_RUNTIME_ASTBIN")
+    if dump_astbin != nil {
+        var p_out = dump_astbin
+        if p_out == "" { p_out = "build/runtime_native.astbin" }
+        var bs2 = astbin.astbin_encode(runtime_prog)
+        if bs2 != nil {
+            oren_write_bytes(p_out, bs2)
+        }
+    }
 
     // Parser/lexer temporaries become unreachable after building the runtime AST.
     // Collect here so long native builds don't accumulate dead objects.
@@ -474,12 +568,10 @@ fn prepare_native_runtime_bundle(ctx, backend, linked, platform, opts) {
     // - For self-hosting / huge graphs, it prevents runaway memory growth from dead temporaries.
     var force_gc = oren_env("OREN_COMPILER_GC")
     var aggressive_gc = (force_gc == "1" || force_gc == "true")
-    if aggressive_gc == false {
-        var st = linked["statements"]
-        if st != nil && oren_list_len(st) >= 20000 {
-            aggressive_gc = true
-        }
-    }
+    // IMPORTANT (native runtime correctness, rolling):
+    // The current native GC does not yet scan compiler global variables, so forcing collections
+    // automatically can trigger use-after-free crashes in the self-hosted compiler. Keep this
+    // strictly opt-in until global-root scanning is implemented.
     ctx["__compiler_gc_aggressive"] = aggressive_gc
 
     var runtime_prog = load_and_parse_runtime_native(ctx, runtime_path)

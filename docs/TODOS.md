@@ -38,6 +38,12 @@ Rules for this tracker:
      - container ops (list/map/buf) with identical semantics across arch/OS
      - concurrency primitives on Windows (no fork/pipe assumptions): `spawn`, `oren_join(_timeout)`, and a path to cooperative cancellation
    - Remaining gaps (active):
+     - **Stage2 native (arm64-macos) still fails late in native codegen** (as of 2026-01-03):
+       - Repro (explicit CLI, no `make` / no `oretest`): `env OREN_PARSE_JOBS=1 ./build/selfhost_manual/oren_stage2_native_sym10 build tests/native/func.oren --backend native --platform arm64-macos --no-cache --no-debug -o build/tmp/func_stage2`
+       - Observed failures (post runtime parse): `native backend: missing ABI int arg reg for arg 0` and `native backend: undefined variable g_storage` (error locations currently collapse to `lib/runtime_native.oren:<include-line>` due to include expansion token mapping).
+       - High-leverage next steps:
+         - make runtime-parse iteration fast (astbin runtime load) so this bug can be fixed in tight loops
+         - then fix the underlying ABI descriptor / global resolution path (likely: container semantics or symbol table lookup mismatch during native codegen)
      - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory synchronization:
        - mutex/condvar + parking/unparking primitives (`ulock` on macOS; futex-like on Linux; Win32 already exists)
        - a GC/safepoint model that remains correct once true threads exist (no “mutex works but GC breaks”)
@@ -52,14 +58,23 @@ Rules for this tracker:
 	       - `docs/REMOTE_X64_ENV.md`
 	       - `docs/TEST_SYSTEM.md`
 	       - `docs/LANGUAGE_FEATURE_MATRIX.md`
-	   - **active (2026-01-03): stage2-native compiler lexing hang**
-	     - Symptom: `stage2_native dump tokens tests/native/func.oren` hangs (no output) on arm64-macos.
+	   - **active (2026-01-03): stage2-native arm64-macos instability + runtime bundle cost**
 	     - Constraint: reproduce/fix via explicit stage0/stage1/stage2 builds; do not use `make *`/`./oretest` during troubleshooting.
-	     - Working repro (macOS arm64):
+	     - Baseline repro (macOS arm64):
 	       - build stage0: `go build -o oren_bootstrap ./cmd/oren`
 	       - build stage1: `./oren_bootstrap build oren.oren`
 	       - build stage2-native: `./oren build oren.oren --backend native --platform arm64-macos --no-cache --no-debug -o build/selfhost_manual/oren_stage2_native` + `codesign -s - --force ...`
-	       - hang: `build/selfhost_manual/oren_stage2_native dump tokens tests/native/func.oren --out build/logs/dump_tokens_stage2.json --platform arm64-macos`
+	       - compare stage1 vs stage2 on a tiny program: `tests/native/func.oren` (always pass `--no-cache` while debugging).
+	     - Current symptoms (observed in rolling work):
+	       - stage2-native sometimes segfaults during compiler passes (e.g. optimizer / later phases) on tiny inputs.
+	       - runtime bundle pipeline is too expensive in stage2-native:
+	         - include expansion of `lib/runtime_native.oren` can dominate wall time.
+	         - parsing the expanded runtime (≈ 487KB source) can take minutes in stage2-native.
+	     - Troubleshooting knobs (opt-in; do not change default caching behavior):
+	       - `OREN_DUMP_NATIVE_RUNTIME=build/runtime_native.expanded.oren` dumps the expanded runtime (from stage1, fast).
+	       - `OREN_NATIVE_RUNTIME_EXPANDED=build/runtime_native.expanded.oren` bypasses include expansion by reading a pre-expanded runtime file.
+	       - `OREN_DUMP_NATIVE_RUNTIME_ASTBIN=build/runtime_native.astbin` dumps a parsed runtime AST in astbin format (stage1).
+	       - `OREN_NATIVE_RUNTIME_ASTBIN=build/runtime_native.astbin` loads the runtime AST from astbin (stage2), avoiding runtime parse (currently still unstable on stage2-native).
 
 2) **Determinism + replay (native + AVM)** (L)
    - MANTIS requires deterministic replay and traceability (`mantis.md` “Observability & reproducibility”).

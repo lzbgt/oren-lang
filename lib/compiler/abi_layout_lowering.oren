@@ -507,6 +507,9 @@ fn lower_stmt_in_place(stmt, abi_layouts) {
 fn lower_linked_program_in_place(linked) {
     ABI_LAYOUT_ERRS = []
     if linked == nil { return nil }
+    var trace = false
+    var v_trace = oren_env("OREN_TRACE_ABI_LAYOUT")
+    if v_trace != nil && v_trace != "" { trace = true }
     var stmts = linked["statements"]
     var abi_layouts = {}
     var abi_types = {}
@@ -524,6 +527,10 @@ fn lower_linked_program_in_place(linked) {
     }
     if arch == nil { arch = "arm64" }
 
+    if trace {
+        print("[abi_layout] enter target=" + target + " arch=" + arch + " stmts=" + oren_int_to_string(oren_list_len(stmts)))
+    }
+
     // Reserve config keys inside abi_layouts for compile-time builtins.
     // (Type names can't reasonably collide with these.)
     abi_layouts["__oren_config_target"] = target
@@ -540,6 +547,7 @@ fn lower_linked_program_in_place(linked) {
         }
         i = i + 1
     }
+    if trace { print("[abi_layout] collect done abi_types=" + oren_int_to_string(oren_map_len(abi_types))) }
 
     // Compute layouts with nested type support (lazy recursion).
     var visiting = {}
@@ -556,6 +564,7 @@ fn lower_linked_program_in_place(linked) {
         }
         it = it + 1
     }
+    if trace { print("[abi_layout] compute done") }
 
     // Rewrite expressions in all statements (compile-time-only builtins).
     i = 0
@@ -563,6 +572,7 @@ fn lower_linked_program_in_place(linked) {
         lower_stmt_in_place(stmts[i], abi_layouts)
         i = i + 1
     }
+    if trace { print("[abi_layout] rewrite done") }
 
     if ABI_LAYOUT_ERRS != nil && oren_list_len(ABI_LAYOUT_ERRS) > 0 {
         linked["abi_layout_errors"] = ABI_LAYOUT_ERRS

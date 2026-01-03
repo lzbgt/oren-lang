@@ -129,6 +129,13 @@ fn parse_int_lit(s) {
 fn parse_int_lit_strict(s) {
     var n = parse_int_lit(s)
     if n == nil {
+        if oren_env("OREN_TRACE_INT_LIT") != nil {
+            var tt = oren_type_tag(s)
+            var is_str = oren_is_string(s)
+            var extra = "type_tag=" + oren_int_to_string(tt)
+            if is_str == true { extra = extra + " str_len=" + oren_int_to_string(oren_string_len(s)) }
+            print("[int_lit] parse_int_lit_strict failed " + extra)
+        }
         var msg = "invalid or overflowed int literal: "
         if s == nil { msg = msg + "<nil>" }
         else { msg = msg + s }

@@ -585,9 +585,14 @@ fn macho_emit_exit_arm64(out_path, exit_code) {
 }
 
 fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode, no_gc, capsule, cap_allow_domains) {
+    var trace_emit = false
+    var v_trace = oren_env("OREN_TRACE_NATIVE_EMIT")
+    if v_trace != nil && v_trace != "" { trace_emit = true }
+    if trace_emit { print("[emit] macho arm64: compile start") }
     var ctx = native_compile_program_arm64(linked, {"os": "macos", "debug": debug_mode, "no_gc": no_gc, "capsule": capsule, "cap_allow_domains": cap_allow_domains})
     if ctx == nil { return nil }
     native_emit_errors_and_exit(ctx)
+    if trace_emit { print("[emit] macho arm64: compile done") }
     
     var code = ctx["code"]
     var data = ctx["data"]
@@ -595,6 +600,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var functions = ctx["functions"]
     
     var imports = ctx["import_list"]
+    if trace_emit { print("[emit] macho arm64: imports=" + oren_int_to_string(oren_list_len(imports)) + " fixups=" + oren_int_to_string(oren_list_len(fixups))) }
     
     // FFI Tables
     var strtab = bytes_new()
@@ -615,9 +621,11 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         while k < 8 { bytes_push(data, 0); k = k + 1 }
         k_got = k_got + 1
     }
+    if trace_emit { print("[emit] macho arm64: GOT placeholder done") }
 
     var bind_opcodes = macho_build_bind_opcodes(imports, got_offset)
     var bind_size = bytes_len(bind_opcodes)
+    if trace_emit { print("[emit] macho arm64: bind opcodes size=" + oren_int_to_string(bind_size)) }
 
     var i_imp = 0
     while i_imp < oren_list_len(imports) {
@@ -655,6 +663,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         
         i_imp = i_imp + 1
     }
+    if trace_emit { print("[emit] macho arm64: stubs+symtab for imports done") }
 
     if is_shared {
         var i_exp = 0
@@ -727,8 +736,14 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var data_vmaddr = text_base + text_size
     
     // Apply fixups
+    if trace_emit { print("[emit] macho arm64: apply fixups start n=" + oren_int_to_string(oren_list_len(fixups))) }
     var i = 0
     while i < oren_list_len(fixups) {
+        if trace_emit {
+            if i == 0 { print("[emit] macho arm64: fixup[0] start") }
+            if i == 10000 { print("[emit] macho arm64: fixup[10000]") }
+            if i == 20000 { print("[emit] macho arm64: fixup[20000]") }
+        }
         var fix = fixups[i]
         var pos = fix["pos"]
         
@@ -792,6 +807,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         
         i = i + 1
     }
+    if trace_emit { print("[emit] macho arm64: apply fixups done") }
     
     // Pad strtab to 16 bytes for stable layout/alignment
     while int_mod(bytes_len(strtab), 16) != 0 {

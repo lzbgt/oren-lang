@@ -241,6 +241,9 @@ OrenValue oren_string_char_at(OrenValue s, OrenValue index);
 // the caller has already bounds-checked `index` against a known string length.
 // This avoids an O(n) `strlen` per character, which is catastrophic for lexing.
 OrenValue oren_string_char_at_unchecked(OrenValue s, OrenValue index);
+// Fast path for tooling: return the raw byte value at `index` (0..255) without bounds checks.
+// Caller must ensure `index` is within the string's known length.
+OrenValue oren_string_byte_at_unchecked(OrenValue s, OrenValue index);
 // Return the unsigned byte value at `index` (0..255).
 // Rolling v0 note: the language currently treats strings as C-strings (bytes until NUL),
 // so this is a byte-oriented helper used by the compiler lexer and AVM tests.
@@ -249,6 +252,12 @@ OrenValue oren_string_char_code_at(OrenValue s, OrenValue index);
 // Used by the compiler's parallel module pipeline to decode astbin without per-byte boxing.
 OrenValue oren_string_from_bytes_slice(OrenValue bytes, OrenValue start, OrenValue len);
 OrenValue oren_string_slice(OrenValue s, OrenValue start, OrenValue end);
+// Like `oren_string_slice`, but assumes the caller already validated bounds against a known length.
+// This avoids repeated O(n) `strlen` scans in compiler hot paths (e.g., runtime include expansion).
+OrenValue oren_string_slice_unchecked(OrenValue s, OrenValue start, OrenValue end);
+// Best-effort symbol resolver for debug tooling. Native emitters provide real symbol mapping in
+// debug builds; C backend uses a minimal stub.
+OrenValue oren_resolve_symbol(OrenValue addr);
 OrenValue oren_char(OrenValue code);
 OrenValue oren_int_to_string(OrenValue v);
 OrenValue oren_float_to_string(OrenValue v);

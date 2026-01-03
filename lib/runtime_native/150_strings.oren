@@ -63,18 +63,18 @@ fn oren_intern_cstr(cstr_ptr) {
     if cached != 0 { return cached }
 
     var n = oren_string_len(cstr_ptr)
-    var out = malloc(n + 1)
+    var out = malloc(iadd(n, 1))
     if out == 0 { oren_panic("intern_cstr: malloc failed") }
 
     var i = 0
     while i < n {
-        ptr_set_byte(out + i, ptr_get_byte(cstr_ptr + i))
-        i = i + 1
+        ptr_set_byte(iadd(out, i), ptr_get_byte(iadd(cstr_ptr, i)))
+        i = iadd(i, 1)
     }
-    ptr_set_byte(out + n, 0)
+    ptr_set_byte(iadd(out, n), 0)
 
     // Track as STRING (kind=1). This makes map key-kind inference safe and deterministic.
-    oren_track_alloc(out, n + 1, 1)
+    oren_track_alloc(out, iadd(n, 1), 1)
 
     // Cache and return.
     oren_map_set_int(g_intern_cstr_cache, cstr_ptr, out)
@@ -85,7 +85,7 @@ fn oren_string_len(s) {
     if s == 0 { return 0 }
     var i = 0
     while ptr_get_byte(iadd(s, i)) != 0 {
-        i = i + 1
+        i = iadd(i, 1)
     }
     return i
 }
@@ -115,6 +115,14 @@ fn oren_string_char_at_unchecked(s, idx) {
     if s == 0 { oren_panic("char_at_unchecked expects string") }
     if idx < 0 { oren_panic("char_at_unchecked index out of range") }
     return _oren_string_from_single_byte(ptr_get_byte(iadd(s, idx)))
+}
+
+fn oren_string_byte_at_unchecked(s, idx) {
+    // Tooling fast path: return the raw byte (0..255) at `idx` without bounds checks.
+    // Caller guarantees bounds by checking against a known string length.
+    if s == 0 { oren_panic("string_byte_at_unchecked expects string") }
+    if idx < 0 { oren_panic("string_byte_at_unchecked index out of range") }
+    return ptr_get_byte(iadd(s, idx)) & 255
 }
 
 fn oren_string_char_code_at(s, idx) {
@@ -352,15 +360,51 @@ fn oren_string_slice(s, start, end) {
         return out0
     }
     var n = j - i
-    var out = malloc(n + 1)
+    var out = malloc(iadd(n, 1))
     if out == 0 { return 0 }
+    var src = iadd(s, i)
     var k = 0
     while k < n {
-        ptr_set_byte(out + k, ptr_get_byte(s + i + k))
-        k = k + 1
+        ptr_set_byte(iadd(out, k), ptr_get_byte(iadd(src, k)))
+        k = iadd(k, 1)
     }
-    ptr_set_byte(out + n, 0)
-    oren_track_alloc(out, n + 1, 1)
+    ptr_set_byte(iadd(out, n), 0)
+    oren_track_alloc(out, iadd(n, 1), 1)
+    return out
+}
+
+// Slice a C-string when the caller already guarantees bounds.
+//
+// Contract:
+// - `0 <= start <= end`
+// - `end` is within the source string length (caller checked once)
+//
+// This avoids the O(n) `oren_string_len` scan that makes some compiler-side string
+// processing (include expansion) accidentally O(n^2).
+fn oren_string_slice_unchecked(s, start, end) {
+    if s == 0 { return 0 }
+    var i = start
+    var j = end
+    if i < 0 { i = 0 }
+    if j < i { j = i }
+    var n = j - i
+    if n <= 0 {
+        var out0 = malloc(1)
+        if out0 == 0 { return 0 }
+        ptr_set_byte(out0, 0)
+        oren_track_alloc(out0, 1, 1)
+        return out0
+    }
+    var out = malloc(iadd(n, 1))
+    if out == 0 { return 0 }
+    var src = iadd(s, i)
+    var k = 0
+    while k < n {
+        ptr_set_byte(iadd(out, k), ptr_get_byte(iadd(src, k)))
+        k = iadd(k, 1)
+    }
+    ptr_set_byte(iadd(out, n), 0)
+    oren_track_alloc(out, iadd(n, 1), 1)
     return out
 }
 

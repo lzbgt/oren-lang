@@ -1,0 +1,18 @@
+// astbin.oren
+//
+// Shared AST-binary codec for compiler-internal tooling.
+//
+// NOTE:
+// - The compiler driver (`lib/compiler/compiler.oren`) also text-includes the same implementation
+//   so the core compiler module can call `astbin_encode/decode` unqualified.
+// - Other compiler-internal modules should import this file as `astbin` and call
+//   `astbin.astbin_encode` / `astbin.astbin_decode` to avoid cross-module symbol assumptions.
+//
+fn _imod(a, b) {
+    // Small helper used by the astbin codec (kept local to avoid depending on compiler prelude).
+    if b == 0 { return 0 }
+    var q = a / b
+    return a - q * b
+}
+
+// @include "compiler/015_astbin.oren"

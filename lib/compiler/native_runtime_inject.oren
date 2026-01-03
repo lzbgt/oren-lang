@@ -33,14 +33,15 @@ fn str_ends_with_newline(s) {
     if s == nil { return false }
     var n = oren_string_len(s)
     if n == 0 { return false }
-    return oren_string_char_at(s, n - 1) == "\n"
+    // PERF: avoid allocating single-byte strings or repeated `strlen` scans in hot loops.
+    return oren_string_byte_at_unchecked(s, n - 1) == 10
 }
 
 fn path_dirname(path) {
     if path == nil { return "." }
     var i = oren_string_len(path) - 1
     while i >= 0 {
-        if oren_string_char_at(path, i) == "/" {
+        if oren_string_byte_at_unchecked(path, i) == 47 {
             if i == 0 { return "/" }
             return oren_string_slice(path, 0, i)
         }
@@ -51,10 +52,10 @@ fn path_dirname(path) {
 
 fn path_join(base, rel) {
     if rel == nil { return "" }
-    if oren_string_len(rel) > 0 && oren_string_char_at(rel, 0) == "/" { return rel }
+    if oren_string_len(rel) > 0 && oren_string_byte_at_unchecked(rel, 0) == 47 { return rel }
     if base == nil || base == "" || base == "." { return rel }
     var bl = oren_string_len(base)
-    if bl > 0 && oren_string_char_at(base, bl - 1) == "/" { return base + rel }
+    if bl > 0 && oren_string_byte_at_unchecked(base, bl - 1) == 47 { return base + rel }
     return base + "/" + rel
 }
 
@@ -63,7 +64,7 @@ fn trim_left_ws(s) {
     var i = 0
     var n = oren_string_len(s)
     while i < n {
-        var c = oren_string_char_at(s, i)
+        var c = oren_string_char_at_unchecked(s, i)
         if c != " " && c != "\t" && c != "\r" { break }
         i = i + 1
     }
@@ -82,44 +83,72 @@ fn runtime_include_path_from_line(line) {
     var n = oren_string_len(t)
     var i = 0
     while i < n {
-        if oren_string_char_at(t, i) == "\"" { break }
+        if oren_string_char_at_unchecked(t, i) == "\"" { break }
         i = i + 1
     }
     if i >= n { return "" }
     var j = i + 1
     while j < n {
-        if oren_string_char_at(t, j) == "\"" { break }
+        if oren_string_char_at_unchecked(t, j) == "\"" { break }
         j = j + 1
     }
     if j >= n { return "" }
     return oren_string_slice(t, i + 1, j)
 }
 
-fn _rtinj_join_parts(parts) {
-    if parts == nil { return "" }
-    if oren_list_len(parts) == 0 { return "" }
-    var cur = parts
-    while oren_list_len(cur) > 1 {
-        var next = []
-        var i = 0
-        var n = oren_list_len(cur)
-        while i < n {
-            if i + 1 < n {
-                oren_list_push(next, cur[i] + cur[i + 1])
-            } else {
-                oren_list_push(next, cur[i])
-            }
-            i = i + 2
-        }
-        cur = next
+fn runtime_include_path_from_src_line(src, line_start, line_end) {
+    // Parse `// @include "path"` directly from the source string without slicing the whole line.
+    //
+    // Returns "" if the line is not an include directive.
+    if src == nil { return "" }
+    if line_start == nil || line_end == nil { return "" }
+    if line_start < 0 || line_end < line_start { return "" }
+
+    // Skip leading whitespace (space/tab/\r).
+    var i = line_start
+    while i < line_end {
+        var c = oren_string_char_at_unchecked(src, i)
+        if c != " " && c != "\t" && c != "\r" { break }
+        i = i + 1
     }
-    return cur[0]
+
+    // Match prefix `// @include` (no trailing space required here; we scan for quotes next).
+    var pref = "// @include"
+    var plen = oren_string_len(pref)
+    if i + plen > line_end { return "" }
+    var j = 0
+    while j < plen {
+        if oren_string_char_at_unchecked(src, i + j) != oren_string_char_at_unchecked(pref, j) { return "" }
+        j = j + 1
+    }
+
+    // Find opening quote.
+    var q = i + plen
+    while q < line_end {
+        if oren_string_char_at_unchecked(src, q) == "\"" { break }
+        q = q + 1
+    }
+    if q >= line_end { return "" }
+
+    // Find closing quote.
+    var q2 = q + 1
+    while q2 < line_end {
+        if oren_string_char_at_unchecked(src, q2) == "\"" { break }
+        q2 = q2 + 1
+    }
+    if q2 >= line_end { return "" }
+    if q2 <= q + 1 { return "" }
+    return oren_string_slice_unchecked(src, q + 1, q2)
 }
 
-fn runtime_expand_includes_file(ctx, full_path, stack) {
-    // Returns expanded source string, or nil on error (errors pushed into ctx["errors"]).
+fn runtime_expand_includes_file_into_parts(ctx, full_path, stack, out_parts) {
+    // Append expanded source to out_parts (list<string>), return true or nil on error.
     if full_path == nil || full_path == "" {
         _err(ctx, "native backend: runtime include: empty path")
+        return nil
+    }
+    if out_parts == nil {
+        _err(ctx, "native backend: runtime include: out_parts is nil")
         return nil
     }
 
@@ -154,28 +183,35 @@ fn runtime_expand_includes_file(ctx, full_path, stack) {
     }
     oren_list_push(next_stack, full_path)
 
-    var out_parts = []
+    var out_start = oren_list_len(out_parts)
+
     var seg_start = 0
     var line_start = 0
     var i = 0
     var n = oren_string_len(src)
     while i < n {
-        var ch = oren_string_char_at(src, i)
-        if ch == "\n" {
-            var line = oren_string_slice(src, line_start, i)
-            var inc = runtime_include_path_from_line(line)
+        if oren_string_byte_at_unchecked(src, i) == 10 {
+            var inc = runtime_include_path_from_src_line(src, line_start, i)
             if inc != nil && oren_string_len(inc) > 0 {
                 if seg_start < line_start {
-                    var seg = oren_string_slice(src, seg_start, line_start)
+                    var seg = oren_string_slice_unchecked(src, seg_start, line_start)
                     if seg != nil && oren_string_len(seg) > 0 { oren_list_push(out_parts, seg) }
                 }
+
                 var inc_full = path_join(path_dirname(full_path), inc)
-                var child = runtime_expand_includes_file(ctx, inc_full, next_stack)
-                if child == nil { return nil }
-                oren_list_push(out_parts, child)
-                if !str_ends_with_newline(child) {
+                var before = oren_list_len(out_parts)
+                var ok = runtime_expand_includes_file_into_parts(ctx, inc_full, next_stack, out_parts)
+                if ok == nil { return nil }
+                var after = oren_list_len(out_parts)
+
+                // Preserve the old contract: ensure a newline after the include insertion.
+                if after == before {
                     oren_list_push(out_parts, "\n")
+                } else {
+                    var last = out_parts[after - 1]
+                    if !str_ends_with_newline(last) { oren_list_push(out_parts, "\n") }
                 }
+
                 seg_start = i + 1
             }
             line_start = i + 1
@@ -183,14 +219,51 @@ fn runtime_expand_includes_file(ctx, full_path, stack) {
         i = i + 1
     }
 
+    // Handle a final unterminated line (no trailing '\n'): it can still contain an include directive.
+    var inc_last = runtime_include_path_from_src_line(src, line_start, n)
+    if inc_last != nil && oren_string_len(inc_last) > 0 {
+        if seg_start < line_start {
+            var seg_last = oren_string_slice_unchecked(src, seg_start, line_start)
+            if seg_last != nil && oren_string_len(seg_last) > 0 { oren_list_push(out_parts, seg_last) }
+        }
+
+        var inc_full_last = path_join(path_dirname(full_path), inc_last)
+        var before_last = oren_list_len(out_parts)
+        var ok_last = runtime_expand_includes_file_into_parts(ctx, inc_full_last, next_stack, out_parts)
+        if ok_last == nil { return nil }
+        var after_last = oren_list_len(out_parts)
+        if after_last == before_last {
+            oren_list_push(out_parts, "\n")
+        } else {
+            var last2 = out_parts[after_last - 1]
+            if !str_ends_with_newline(last2) { oren_list_push(out_parts, "\n") }
+        }
+
+        seg_start = n
+    }
+
     if seg_start < n {
-        var seg2 = oren_string_slice(src, seg_start, n)
+        var seg2 = oren_string_slice_unchecked(src, seg_start, n)
         if seg2 != nil && oren_string_len(seg2) > 0 { oren_list_push(out_parts, seg2) }
     }
 
-    if n > 0 && oren_string_char_at(src, n - 1) != "\n" {
-        oren_list_push(out_parts, "\n")
+    // Ensure this file contributes a trailing newline if it contributed any content.
+    if oren_list_len(out_parts) > out_start {
+        var last3 = out_parts[oren_list_len(out_parts) - 1]
+        if !str_ends_with_newline(last3) { oren_list_push(out_parts, "\n") }
     }
 
-    return _rtinj_join_parts(out_parts)
+    return true
+}
+
+fn runtime_expand_includes_file(ctx, full_path, stack) {
+    // Returns expanded source string, or nil on error (errors pushed into ctx["errors"]).
+    //
+    // PERF:
+    // - Flatten into a single parts list across the whole include tree.
+    // - Join once at the end to avoid quadratic re-concatenation of large child expansions.
+    var out_parts = []
+    var ok = runtime_expand_includes_file_into_parts(ctx, full_path, stack, out_parts)
+    if ok == nil { return nil }
+    return oren_string_join(out_parts)
 }

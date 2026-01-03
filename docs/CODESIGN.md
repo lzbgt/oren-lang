@@ -19,8 +19,11 @@ codesign -s - --force <output>
 - `OREN_SKIP_CODESIGN=1` is rejected on macOS (the Makefile and both compiler frontends error out).
 
 - Deterministic builds (`--deterministic`) are defined as “minimize post-processing that mutates the emitted artifact bytes”.
-  On macOS this means the compiler does **not** automatically run `codesign` for deterministic outputs.
-  A deterministic output is therefore **not guaranteed runnable** on macOS until you sign it (for local use, ad-hoc signing is typically sufficient):
+  On macOS this means the compiler intentionally does **not** automatically run `codesign` for deterministic outputs (because signing mutates the file).
+
+  You still must sign native outputs to run them locally; a deterministic output is therefore **not guaranteed runnable** on macOS until you sign it (for local use, ad-hoc signing is typically sufficient). If you need both:
+  - keep an unsigned deterministic artifact for reproducibility, and
+  - sign a separate copy for local execution.
 
 ```bash
 codesign -s - --force <output>

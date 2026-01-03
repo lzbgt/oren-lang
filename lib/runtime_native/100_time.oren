@@ -67,23 +67,33 @@ fn oren_kill(pid, signum) {
     return sys_kill(pid, signum)
 }
 
+// Reusable scratch buffers for time syscalls (native runtime).
+//
+// Avoid per-call `malloc/free` in time helpers:
+// - reduces allocator churn in compiler workloads
+// - avoids crashes if `free()` / reuse lists are still rolling on some platforms
+// - keeps `oren_time_now_ns()` safe to call from tracing/profiling paths
+var g_time_tv_buf = 0   // 16 bytes
+var g_time_abs_buf = 0  // 8 bytes
+
 // Wall time in nanoseconds since Unix epoch (best-effort; not monotonic).
 fn oren_time_unix_ns() {
     // struct timeval { tv_sec(u64), tv_usec(u64) } (we use 2x u64 for simplicity)
-    var tv = malloc(16)
-    if tv == 0 { return 0 }
+    if g_time_tv_buf == 0 {
+        g_time_tv_buf = native_malloc_raw_or_mmap(16)
+        if g_time_tv_buf == 0 { return 0 }
+    }
+    var tv = g_time_tv_buf
     ptr_set(tv + 0, 0)
     ptr_set(tv + 8, 0)
-
+    
     var rc = sys_gettimeofday(tv, 0, 0)
     if rc < 0 {
-        free(tv)
         return 0
     }
-
+    
     var sec = ptr_get(tv + 0)
     var usec = ptr_get(tv + 8)
-    free(tv)
     return sec * 1000000000 + usec * 1000
 }
 
@@ -96,33 +106,31 @@ fn oren_time_now_ns() {
 // On Linux, this will be nanoseconds (via clock_gettime64 monotonic in the intrinsic).
 // On macOS, this is mach_absolute_time units (returned by gettimeofday's 3rd out-arg).
 fn oren_time_mono_raw() {
-    var tv = malloc(16)
-    if tv == 0 { return 0 }
+    if g_time_tv_buf == 0 {
+        g_time_tv_buf = native_malloc_raw_or_mmap(16)
+        if g_time_tv_buf == 0 { return 0 }
+    }
+    if g_time_abs_buf == 0 {
+        g_time_abs_buf = native_malloc_raw_or_mmap(8)
+        if g_time_abs_buf == 0 { return 0 }
+    }
+    var tv = g_time_tv_buf
+    var abs_ptr = g_time_abs_buf
     ptr_set(tv + 0, 0)
     ptr_set(tv + 8, 0)
-
-    var abs_ptr = malloc(8)
-    if abs_ptr == 0 {
-        free(tv)
-        return 0
-    }
     ptr_set(abs_ptr, 0)
-
+    
     var rc = sys_gettimeofday(tv, 0, abs_ptr)
     if rc < 0 {
-        free(abs_ptr)
-        free(tv)
         return 0
     }
-
+    
     var t = ptr_get(abs_ptr)
-    free(abs_ptr)
-    free(tv)
     return t
 }
 
 	@oren.keep
-	fn oren_register_thread(top) {
+fn oren_register_thread(top) {
     // Thread Node (rolling):
     // - [top, saved_sp, next] must stay at offsets 0/8/16 because GC stack scanning depends on it.
     // - Additional fields may be appended for tier-1 runtime services.
@@ -143,10 +151,13 @@ fn oren_time_mono_raw() {
 	        
         // Link
         acquire_lock()
-        
-        ptr_set(iadd(node, 16), global_get_threads())
+
+        var prev_head = global_get_threads()
+        ptr_set(iadd(node, 16), prev_head)
         global_set_threads(node)
-        
+        // If we ever register more than one thread, disable the single-thread fast path.
+        if prev_head != 0 { g_runtime_single_threaded = 0 }
+
         release_lock()
     }
     return node
@@ -240,6 +251,10 @@ var g_alloc_index_ptr = 0
 var g_alloc_index_cap = 0
 var g_alloc_index_len = 0
 var g_alloc_index_tomb = 1 // sentinel (not a valid pointer)
+// Rolling robustness: set when a probe loop exhausts its cap bound.
+// This should be impossible in a healthy open-addressing table (we resize before full),
+// so treat it as a corruption signal and rebuild the table on the next lookup.
+var g_alloc_index_probe_exhausted = 0
 
 fn native_alloc_index_mmap_table(bytes) {
     // IMPORTANT (Tier‑1 correctness):
@@ -297,19 +312,32 @@ fn native_alloc_index_get(ptr) {
     if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
     var mask = g_alloc_index_cap - 1
     var idx = native_alloc_index_hash(ptr) & mask
+    // Bound probing to avoid non-termination if the table becomes corrupted or saturated.
+    // If we cannot find an empty slot within `cap` probes, treat as a miss.
+    var rem = g_alloc_index_cap
     while true {
+        if rem <= 0 {
+            g_alloc_index_probe_exhausted = 1
+            return 0
+        }
+        rem = rem - 1
         var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
         if slot == 0 { return 0 }
         if slot != g_alloc_index_tomb {
             // Rolling safety: treat any non-pointer slot payload as a tombstone.
             // This prevents segfaults if a buggy codegen path scribbles over the table.
             if slot < 4096 {
-                idx = (idx + 1) & mask
+                // IMPORTANT (Tier‑1 correctness):
+                // Use primitive integer add instead of `+` (which lowers to `oren_add`).
+                // If `g_alloc_index_cap` grows beyond 4096, `idx` becomes >=4096 and `oren_add`
+                // will treat it as a pointer candidate, calling `oren_find_node()` which calls
+                // back into `native_alloc_index_get()`, causing infinite recursion/stack overflow.
+                idx = iadd(idx, 1) & mask
                 continue
             }
             if ptr_get(slot) == ptr { return slot }
         }
-        idx = (idx + 1) & mask
+        idx = iadd(idx, 1) & mask
     }
     return 0
 }
@@ -341,12 +369,18 @@ fn native_alloc_index_put_node(node) {
                     var mask0 = g_alloc_index_cap - 1
                     var idx0 = native_alloc_index_hash(p0) & mask0
                     var first_tomb = -1
+                    var rem0 = g_alloc_index_cap
                     while true {
+                        if rem0 <= 0 {
+                            g_alloc_index_probe_exhausted = 1
+                            break
+                        }
+                        rem0 = rem0 - 1
                         var slot0 = ptr_get(iadd(g_alloc_index_ptr, idx0 << 3))
                         if slot0 == 0 {
                             if first_tomb >= 0 { idx0 = first_tomb }
                             ptr_set(iadd(g_alloc_index_ptr, idx0 << 3), cur)
-                            g_alloc_index_len = g_alloc_index_len + 1
+                            g_alloc_index_len = iadd(g_alloc_index_len, 1)
                             break
                         }
                         if slot0 == g_alloc_index_tomb {
@@ -357,7 +391,7 @@ fn native_alloc_index_put_node(node) {
                                 break
                             }
                         }
-                        idx0 = (idx0 + 1) & mask0
+                        idx0 = iadd(idx0, 1) & mask0
                     }
                 }
                 cur = ptr_get(iadd(cur, 32))
@@ -368,12 +402,18 @@ fn native_alloc_index_put_node(node) {
     var mask = g_alloc_index_cap - 1
     var idx = native_alloc_index_hash(ptr) & mask
     var first_tomb = -1
+    var rem = g_alloc_index_cap
     while true {
+        if rem <= 0 {
+            g_alloc_index_probe_exhausted = 1
+            return 0
+        }
+        rem = rem - 1
         var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
         if slot == 0 {
             if first_tomb >= 0 { idx = first_tomb }
             ptr_set(iadd(g_alloc_index_ptr, idx << 3), node)
-            g_alloc_index_len = g_alloc_index_len + 1
+            g_alloc_index_len = iadd(g_alloc_index_len, 1)
             return 0
         }
         if slot == g_alloc_index_tomb {
@@ -384,7 +424,7 @@ fn native_alloc_index_put_node(node) {
                 return 0
             }
         }
-        idx = (idx + 1) & mask
+        idx = iadd(idx, 1) & mask
     }
     return 0
 }
@@ -394,12 +434,18 @@ fn native_alloc_index_remove_ptr(ptr) {
     if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
     var mask = g_alloc_index_cap - 1
     var idx = native_alloc_index_hash(ptr) & mask
+    var rem = g_alloc_index_cap
     while true {
+        if rem <= 0 {
+            g_alloc_index_probe_exhausted = 1
+            return 0
+        }
+        rem = rem - 1
         var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
         if slot == 0 { return 0 }
         if slot != g_alloc_index_tomb {
             if slot < 4096 {
-                idx = (idx + 1) & mask
+                idx = iadd(idx, 1) & mask
                 continue
             }
             if ptr_get(slot) == ptr {
@@ -408,7 +454,7 @@ fn native_alloc_index_remove_ptr(ptr) {
                 return 0
             }
         }
-        idx = (idx + 1) & mask
+        idx = iadd(idx, 1) & mask
     }
     return 0
 }
@@ -426,14 +472,20 @@ fn native_alloc_index_rebuild_live() {
         // Skip non-pointers.
         if p != 0 && p >= 4096 {
             var idx = native_alloc_index_hash(p) & mask
+            var rem = g_alloc_index_cap
             while true {
+                if rem <= 0 {
+                    g_alloc_index_probe_exhausted = 1
+                    break
+                }
+                rem = rem - 1
                 var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
                 if slot == 0 {
                     ptr_set(iadd(g_alloc_index_ptr, idx << 3), cur)
-                    g_alloc_index_len = g_alloc_index_len + 1
+                    g_alloc_index_len = iadd(g_alloc_index_len, 1)
                     break
                 }
-                idx = (idx + 1) & mask
+                idx = iadd(idx, 1) & mask
             }
         }
         cur = ptr_get(iadd(cur, 32))
@@ -600,10 +652,17 @@ fn native_try_reuse(size) {
 }
 
 var g_panicking = 0
+// Single-thread fast path (native runtime):
+// The self-host compiler and most tooling run single-threaded. Avoid taking the global lock
+// in that mode, because `oren_find_node` and container ops are extremely lock-heavy.
+//
+// This is automatically disabled once a second thread is registered.
+var g_runtime_single_threaded = 1
 
 fn acquire_lock() {
     if g_panicking == 1 { return 0 }
     if oren_globals() == 0 { return 0 }
+    if g_runtime_single_threaded == 1 { return 0 }
     
     var tid = sys_gettid()
     // NOTE: use literal offsets (native backend global var init/write is still rolling).
@@ -643,6 +702,7 @@ fn acquire_lock() {
 fn release_lock() {
     if g_panicking == 1 { return 0 }
     if oren_globals() == 0 { return 0 }
+    if g_runtime_single_threaded == 1 { return 0 }
     
     var tid = sys_gettid()
     var lock_ptr = iadd(oren_globals(), 16)
@@ -725,33 +785,46 @@ fn oren_track_alloc(ptr, size, kind) {
     if ptr < 4096 { return ptr }
     acquire_lock()
 
-    // De-duplicate: if already tracked (allocs), update in place.
-    var cur = global_get_allocs()
-    while cur != 0 {
-        if ptr_get(cur) == ptr {
-            if size != 0 { ptr_set(iadd(cur, 8), size) }
-            if kind != 0 { ptr_set(iadd(cur, 16), kind) }
-            // Clear "freed" and mark flags on re-track.
-            ptr_set(iadd(cur, 24), 0)
-            native_alloc_index_put_node(cur)
-            // Auto-GC accounting: treat tracking as allocation event (compiler emits this after malloc).
-            if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
-                g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
-                if g_gc_alloc_threshold > 0 && g_gc_allocs_since_collect >= g_gc_alloc_threshold {
-                    g_gc_allocs_since_collect = 0
-                    g_gc_auto_pending = 1
-                }
+    // Ensure the alloc-index exists before we rely on it for de-duplication.
+    // This is a one-time cost in early init; it prevents duplicate tracking nodes.
+    if g_alloc_index_cap == 0 {
+        native_alloc_index_init_min(1024)
+        native_alloc_index_rebuild_live()
+    }
+
+    // De-duplicate (critical perf):
+    // Use the alloc-index hash table instead of scanning the full allocs list.
+    // The compiler self-host workload can create millions of allocations; an O(n) scan here
+    // makes `malloc + track` degrade to O(n^2) and can look like a hang.
+    var hit = native_alloc_index_get(ptr)
+    if hit == 0 && g_alloc_index_probe_exhausted != 0 {
+        // Rare corruption guard: rebuild once and retry.
+        g_alloc_index_probe_exhausted = 0
+        native_alloc_index_rebuild_live()
+        hit = native_alloc_index_get(ptr)
+    }
+    if hit != 0 {
+        if size != 0 { ptr_set(iadd(hit, 8), size) }
+        if kind != 0 { ptr_set(iadd(hit, 16), kind) }
+        // Clear "freed" and mark flags on re-track.
+        ptr_set(iadd(hit, 24), 0)
+        native_alloc_index_put_node(hit)
+        // Auto-GC accounting: treat tracking as allocation event (compiler emits this after malloc).
+        if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
+            g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
+            if g_gc_alloc_threshold > 0 && g_gc_allocs_since_collect >= g_gc_alloc_threshold {
+                g_gc_allocs_since_collect = 0
+                g_gc_auto_pending = 1
             }
-            release_lock()
-            return ptr
         }
-        cur = ptr_get(iadd(cur, 32))
+        release_lock()
+        return ptr
     }
 
     // If it exists in the free list (reused pointer or manual re-track),
     // move it back into allocs to avoid duplicate nodes pointing at the same ptr.
     var prev = 0
-    cur = global_get_free_blocks()
+    var cur = global_get_free_blocks()
     while cur != 0 {
         if ptr_get(cur) == ptr {
             var next = ptr_get(iadd(cur, 32))
@@ -907,7 +980,28 @@ fn oren_find_node(ptr) {
         release_lock()
         return hit
     }
-    // Fallback (should be rare): linear scan if index isn't initialized yet.
+
+    // If probing exhausted, the table is likely corrupted/saturated. Rebuild it once and retry.
+    if g_alloc_index_probe_exhausted != 0 {
+        g_alloc_index_probe_exhausted = 0
+        native_alloc_index_rebuild_live()
+        hit = native_alloc_index_get(ptr)
+        if hit != 0 {
+            release_lock()
+            return hit
+        }
+    }
+
+    // Critical perf rule (native runtime):
+    // If the alloc-index is initialized and we missed, treat it as "not tracked" and return 0.
+    // Scanning the full alloc list on misses is catastrophically slow for compiler workloads
+    // because many pointers (embedded literals, argv/envp, raw buffers) are intentionally untracked.
+    if g_alloc_index_ptr != 0 && g_alloc_index_cap != 0 {
+        release_lock()
+        return 0
+    }
+
+    // Fallback for early init only: linear scan when the index isn't initialized yet.
     var cur = global_get_allocs()
     while cur != 0 {
         if ptr_get(cur) == ptr {

@@ -220,6 +220,23 @@ fn find_func_info(pc) {
     return 0
 }
 
+@oren.keep
+fn oren_resolve_symbol(addr) {
+    // Best-effort symbol resolver:
+    // - Prefer the embedded debug-info table (exact, range-based).
+    // - Fall back to the generated `resolve_symbol(addr)` (coarser; may only include pseudo-symbols).
+    if addr == nil { return "???" }
+
+    if g_debug_info != 0 {
+        var info_ptr = find_func_info(addr)
+        if info_ptr != 0 {
+            var name_len = ptr_get_u64(info_ptr)
+            return read_string_at(info_ptr + 8, name_len)
+        }
+    }
+    return resolve_symbol(addr)
+}
+
 fn debug_value_to_string(val) {
     var node = oren_find_node(val)
     if node != 0 {

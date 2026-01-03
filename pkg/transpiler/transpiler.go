@@ -1310,6 +1310,18 @@ func (t *Transpiler) transpileExpression(exp ast.Expression) (string, error) {
 			return fmt.Sprintf("oren_exit(%s)", args[0]), nil
 		}
 
+		// Low-level integer intrinsics used pervasively in the self-host compiler sources.
+		//
+		// The stage0 bootstrap transpiler does not represent first-class functions as OrenValue,
+		// so these must lower to direct runtime calls rather than `oren_call_obj_argv(...)`.
+		if fn == "iadd" {
+			if len(args) != 2 {
+				return "", fmt.Errorf("iadd expects 2 arguments")
+			}
+			// Use the runtime's deterministic i64 wrap semantics.
+			return fmt.Sprintf("oren_add(%s, %s)", args[0], args[1]), nil
+		}
+
 		// Struct/class constructor shorthand: Name(...) -> Name__new(...)
 		if id, ok := e.Function.(*ast.Identifier); ok {
 			if _, isType := t.ctx.typeNamespaces[id.Value]; isType {
@@ -2196,6 +2208,19 @@ func (t *Transpiler) evalExprValue(exp ast.Expression) (string, error) {
 					return "", err
 				}
 				return t.materializeAndRoot(fmt.Sprintf("oren_exit(%s)", a0)), nil
+			case "iadd":
+				if len(e.Arguments) != 2 {
+					return "", fmt.Errorf("iadd expects 2 arguments")
+				}
+				a0, err := t.evalExprValue(e.Arguments[0])
+				if err != nil {
+					return "", err
+				}
+				a1, err := t.evalExprValue(e.Arguments[1])
+				if err != nil {
+					return "", err
+				}
+				return t.materializeAndRoot(fmt.Sprintf("oren_add(%s, %s)", a0, a1)), nil
 			}
 		}
 

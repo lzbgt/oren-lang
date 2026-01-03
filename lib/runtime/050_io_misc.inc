@@ -900,6 +900,35 @@ OrenValue oren_string_slice(OrenValue s, OrenValue start, OrenValue end) {
     return v;
 }
 
+OrenValue oren_string_slice_unchecked(OrenValue s, OrenValue start, OrenValue end) {
+    if (s.type != OREN_TYPE_STRING || start.type != OREN_TYPE_INT || end.type != OREN_TYPE_INT) {
+        oren_panic("string_slice_unchecked type mismatch");
+        return OREN_NIL; // Should not be reached
+    }
+    char* str = s.as.string_val;
+    long long i = start.as.int_val;
+    long long j = end.as.int_val;
+    if (i < 0) i = 0;
+    if (j < i) j = i;
+    long long n = j - i;
+    if (n <= 0) {
+        return oren_string_const("");
+    }
+    char* sub = malloc((size_t)n + 1);
+    if (!sub) {
+        oren_panic("string_slice_unchecked: malloc failed");
+        return OREN_NIL; // Should not be reached
+    }
+    memcpy(sub, str + i, (size_t)n);
+    sub[n] = '\0';
+    oren_register_alloc(sub, OREN_ALLOC_STRING);
+
+    OrenValue v;
+    v.type = OREN_TYPE_STRING;
+    v.as.string_val = sub;
+    return v;
+}
+
 // getenv wrapper: returns string or NIL
 OrenValue oren_env(OrenValue name) {
     if (name.type != OREN_TYPE_STRING || name.as.string_val == NULL) {

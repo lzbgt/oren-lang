@@ -17,34 +17,34 @@
 	        if buf == -1 { exit(201) }
 	        oren_track_alloc(buf, cap * 8, 0)
 	    }
-	    ptr_set(header, 0)      // count
-	    ptr_set(header + 8, cap) // capacity
-	    ptr_set(header + 16, buf) // data buffer
-	    ptr_set(header + 24, list_magic())
+	    ptr_set(iadd(header, 0), 0)       // count
+	    ptr_set(iadd(header, 8), cap)     // capacity
+	    ptr_set(iadd(header, 16), buf)    // data buffer
+	    ptr_set(iadd(header, 24), list_magic())
 	    return header
-	}
+		}
 
 @oren.keep
 fn oren_list_len(list) {
     if list == 0 { return 0 }
     // Safety: do not dereference arbitrary large integers as pointers.
     // Rely on the tracked-alloc metadata (native) / runtime tracking (C) to discriminate.
-    var node = oren_find_node(list)
-    if node == 0 { oren_panic("list_len on non-list"); return 0 }
-    if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_len on non-list"); return 0 }
-    if ptr_get(list + 24) != list_magic() { oren_panic("list_len on non-list"); return 0 }
-    return ptr_get(list)
+	    var node = oren_find_node(list)
+	    if node == 0 { oren_panic("list_len on non-list"); return 0 }
+	    if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_len on non-list"); return 0 }
+	    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_len on non-list"); return 0 }
+	    return ptr_get(iadd(list, 0))
 }
 
 // Safe type predicate: must not panic.
 @oren.keep
 fn oren_is_list(v) {
     if v == 0 { return false }
-    var node = oren_find_node(v)
-    if node == 0 { return false }
-    if ptr_get(iadd(node, 16)) != 2 { return false }
-    if ptr_get(v + 24) != list_magic() { return false }
-    return true
+	    var node = oren_find_node(v)
+	    if node == 0 { return false }
+	    if ptr_get(iadd(node, 16)) != 2 { return false }
+	    if ptr_get(iadd(v, 24)) != list_magic() { return false }
+	    return true
 }
 
 @oren.keep
@@ -54,35 +54,35 @@ fn oren_list_push(list, value) {
         return 0
     }
     // Safety: do not dereference arbitrary large integers as pointers.
-    var node = oren_find_node(list)
-    if node == 0 { oren_panic("list_push on non-list"); return 0 }
-    if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_push on non-list"); return 0 }
-    if ptr_get(list + 24) != list_magic() { oren_panic("list_push on non-list"); return 0 }
-    var count = ptr_get(list)
-    var cap = ptr_get(list + 8)
-    var buf = ptr_get(list + 16)
-    if count >= cap {
-        var new_cap = cap * 2
-        if new_cap < 4 { new_cap = 4 }
-        var new_buf = malloc(new_cap * 8)
+	    var node = oren_find_node(list)
+	    if node == 0 { oren_panic("list_push on non-list"); return 0 }
+	    if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_push on non-list"); return 0 }
+	    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_push on non-list"); return 0 }
+	    var count = ptr_get(iadd(list, 0))
+	    var cap = ptr_get(iadd(list, 8))
+	    var buf = ptr_get(iadd(list, 16))
+	    if count >= cap {
+	        var new_cap = cap * 2
+	        if new_cap < 4 { new_cap = 4 }
+	        var new_buf = malloc(new_cap * 8)
         if new_buf == 0 { exit(211) }
         if new_buf == -1 { exit(211) }
-        oren_track_alloc(new_buf, new_cap * 8, 0)
-        var i = 0
-        while i < count {
-            ptr_set(new_buf + i * 8, ptr_get(buf + i * 8))
-            i = i + 1
-        }
-        buf = new_buf
-        cap = new_cap
-        ptr_set(list + 8, cap)
-        ptr_set(list + 16, buf)
-    }
-    ptr_set(buf + count * 8, value)
-    ptr_set(list, count + 1)
-    // Language-level semantics: `oren_list_push` is statement-like and returns `nil`.
-    // (The list header pointer is stable and does not need to be returned.)
-    return 0
+	        oren_track_alloc(new_buf, new_cap * 8, 0)
+	        var i = 0
+	        while i < count {
+	            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+	            i = iadd(i, 1)
+	        }
+	        buf = new_buf
+	        cap = new_cap
+	        ptr_set(iadd(list, 8), cap)
+	        ptr_set(iadd(list, 16), buf)
+	    }
+	    ptr_set(iadd(buf, count * 8), value)
+	    ptr_set(iadd(list, 0), iadd(count, 1))
+	    // Language-level semantics: `oren_list_push` is statement-like and returns `nil`.
+	    // (The list header pointer is stable and does not need to be returned.)
+	    return 0
 }
 
 fn oren_list_get(list, idx) {
@@ -94,18 +94,18 @@ fn oren_list_get(list, idx) {
     // `x[i]` is defined for lists and maps; reject other values deterministically.
     var node = oren_find_node(list)
     if node == 0 { oren_panic("Indexing on non-container"); return 0 }
-    var kind = ptr_get(iadd(node, 16))
-    if kind != 2 {
-        if kind == 3 {
+	    var kind = ptr_get(iadd(node, 16))
+	    if kind != 2 {
+	        if kind == 3 {
             // Not a list: treat as map indexing.
             // Key kind is selected by `oren_map_get` using tracking metadata.
             return oren_map_get(list, idx)
         }
         oren_panic("Indexing on non-container")
-        return 0
-    }
-    if ptr_get(list + 24) != list_magic() { oren_panic("Indexing on non-list"); return 0 }
-    var count = ptr_get(list)
+	        return 0
+	    }
+	    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("Indexing on non-list"); return 0 }
+	    var count = ptr_get(iadd(list, 0))
     if idx < 0 { 
         oren_panic("Index out of bounds (negative)")
         return 0
@@ -114,8 +114,8 @@ fn oren_list_get(list, idx) {
         oren_panic("Index out of bounds")
         return 0
     }
-    var buf = ptr_get(list + 16)
-    return ptr_get(buf + idx * 8)
+	    var buf = ptr_get(iadd(list, 16))
+	    return ptr_get(iadd(buf, idx * 8))
 }
 
 // Set list element, growing the list as needed. Returns the written value.
@@ -126,15 +126,15 @@ fn oren_list_get(list, idx) {
 fn oren_list_set(list, idx, value) {
     if list == 0 { oren_panic("list_set on nil") }
     // Safety: do not dereference arbitrary large integers as pointers.
-    var node = oren_find_node(list)
-    if node == 0 { oren_panic("list_set on non-list"); return 0 }
-    if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_set on non-list"); return 0 }
-    if ptr_get(list + 24) != list_magic() { oren_panic("list_set on non-list") }
-    var count = ptr_get(list)
-    if idx < 0 { oren_panic("Index out of bounds (negative)") }
-    var want = idx + 1
-    var cap = ptr_get(list + 8)
-    var buf = ptr_get(list + 16)
+	    var node = oren_find_node(list)
+	    if node == 0 { oren_panic("list_set on non-list"); return 0 }
+	    if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_set on non-list"); return 0 }
+	    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_set on non-list") }
+	    var count = ptr_get(iadd(list, 0))
+	    if idx < 0 { oren_panic("Index out of bounds (negative)") }
+	    var want = iadd(idx, 1)
+	    var cap = ptr_get(iadd(list, 8))
+	    var buf = ptr_get(iadd(list, 16))
 
     if want > cap {
         var new_cap = cap * 2
@@ -147,19 +147,19 @@ fn oren_list_set(list, idx, value) {
 
         var i = 0
         while i < count {
-            ptr_set(new_buf + i * 8, ptr_get(buf + i * 8))
-            i = i + 1
+            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+            i = iadd(i, 1)
         }
         // Initialize new slots to nil.
         while i < want {
-            ptr_set(new_buf + i * 8, 0)
-            i = i + 1
+            ptr_set(iadd(new_buf, i * 8), 0)
+            i = iadd(i, 1)
         }
 
         buf = new_buf
         cap = new_cap
-        ptr_set(list + 8, cap)
-        ptr_set(list + 16, buf)
+        ptr_set(iadd(list, 8), cap)
+        ptr_set(iadd(list, 16), buf)
     } else {
         if buf == 0 {
             // cap may be 0 for an empty list, but then want>cap and we would have allocated above.
@@ -170,12 +170,12 @@ fn oren_list_set(list, idx, value) {
         // Grow count in-place; ensure newly exposed slots are nil.
         var j = count
         while j < want {
-            ptr_set(buf + j * 8, 0)
-            j = j + 1
+            ptr_set(iadd(buf, j * 8), 0)
+            j = iadd(j, 1)
         }
     }
 
-    ptr_set(buf + idx * 8, value)
-    if want > count { ptr_set(list, want) }
+    ptr_set(iadd(buf, idx * 8), value)
+    if want > count { ptr_set(iadd(list, 0), want) }
     return value
 }
