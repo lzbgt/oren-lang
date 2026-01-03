@@ -15,6 +15,92 @@
 
 import token "token.oren"
 
+// Rolling cache schemas.
+//
+// v1 used sha256 for every input (source strings + compiler exe + injected runtime).
+// Under the native runtime, pure-Oren sha256 can dominate `oren build` wall time because
+// cache key computation happens before any compilation work.
+//
+// v2 uses a fast non-cryptographic fingerprint by default, while keeping sha256 for
+// deterministic/reproducible build modes.
+var BUILD_CACHE_SCHEMA = 2
+var SCAN_CACHE_SCHEMA = 2
+
+fn _cache_force_sha256(build_cfg) {
+    // Force sha256 hashing even in non-deterministic builds.
+    // Useful for debugging collisions or validating cache invariants.
+    var v = oren_env("OREN_CACHE_SHA256")
+    if v != nil && v != "" && v != "0" && v != "false" { return true }
+    return false
+}
+
+fn _cache_deterministic(build_cfg) {
+    if build_cfg != nil && build_cfg["deterministic"] == 1 { return true }
+    return false
+}
+
+fn _mask63(x) { return x & 9223372036854775807 }
+
+fn _fnv1a63_string(s, basis) {
+    if s == nil { return 0 }
+    var h = _mask63(basis)
+    var prime = 1099511628211
+    var n = oren_string_len(s)
+    var i = 0
+    while i < n {
+        var b = oren_string_byte_at_unchecked(s, i) & 255
+        h = _mask63(h ^ b)
+        h = _mask63(h * prime)
+        i = i + 1
+    }
+    return h
+}
+
+fn _fnv1a63_u8_buf(ub, basis) {
+    if ub == nil { return 0 }
+    if oren_is_u8_buf(ub) != true { return 0 }
+    var h = _mask63(basis)
+    var prime = 1099511628211
+    var n = oren_buf_len(ub)
+    if n <= 0 { return h }
+    var p = oren_buf_data_ptr_unchecked(ub)
+    if p == 0 { return h }
+    var i = 0
+    while i < n {
+        var b = ptr_get_byte(iadd(p, i)) & 255
+        h = _mask63(h ^ b)
+        h = _mask63(h * prime)
+        i = i + 1
+    }
+    return h
+}
+
+fn _fingerprint2_string(s) {
+    var h1 = _fnv1a63_string(s, 1469598103934665603)
+    var h2 = _fnv1a63_string(s, 1099511628211)
+    return "v2_" + oren_int_to_string(h1) + "_" + oren_int_to_string(h2)
+}
+
+fn _fingerprint2_u8_buf(ub) {
+    var h1 = _fnv1a63_u8_buf(ub, 1469598103934665603)
+    var h2 = _fnv1a63_u8_buf(ub, 1099511628211)
+    return "v2_" + oren_int_to_string(h1) + "_" + oren_int_to_string(h2)
+}
+
+fn _cache_hash_string(s, build_cfg) {
+    if _cache_deterministic(build_cfg) || _cache_force_sha256(build_cfg) {
+        return _sha256_hex_string(s)
+    }
+    return _fingerprint2_string(s)
+}
+
+fn _cache_hash_u8_buf(ub, build_cfg) {
+    if _cache_deterministic(build_cfg) || _cache_force_sha256(build_cfg) {
+        return _sha256_hex(ub)
+    }
+    return _fingerprint2_u8_buf(ub)
+}
+
 fn _cache_sort_strings(xs) {
     // Insertion sort (small lists expected).
     if xs == nil { return [] }
@@ -45,7 +131,7 @@ fn _cache_default_dir() {
     return path_norm("build/cache")
 }
 
-fn _cache_compiler_sig() {
+fn _cache_compiler_sig(build_cfg) {
     // Best-effort: hash argv[0] bytes so cache invalidates when the compiler binary changes.
     // When argv[0] is not a file path, fall back to OREN_VERSION (weaker).
     var args = oren_args()
@@ -55,7 +141,7 @@ fn _cache_compiler_sig() {
             // Prefer u8_buf to avoid boxing each byte as an int (can blow up memory for big binaries).
             var bs = oren_read_u8_buf(exe)
             if !oren_is_err(bs) {
-                return _sha256_hex(bs)
+                return _cache_hash_u8_buf(bs, build_cfg)
             }
         }
     }
@@ -95,7 +181,7 @@ fn _cache_scan_imports_for_file(full_path, config) {
         return {"ok": false, "err": msg}
     }
     var src = rr["src"]
-    var sh = _sha256_hex_string(src)
+    var sh = _cache_hash_string(src, config)
 
     var l = lexer.new_lexer(src)
     l["file"] = full_path
@@ -135,9 +221,154 @@ fn _cache_scan_imports_for_file(full_path, config) {
     return {"ok": true, "imports": imports, "src_hash": sh}
 }
 
+fn _cache_scan_includes_from_src(src, full_path) {
+    // Return a list of resolved include file paths (in source order).
+    //
+    // Include directive form:
+    //   // @include "relative/or/absolute/path.oren"
+    //
+    // We intentionally avoid materializing expanded source here; cache hashing needs
+    // include closure awareness but not concatenation.
+    if src == nil || full_path == nil { return [] }
+    var out = []
+    var n = oren_string_len(src)
+    var line_start = 0
+    var i = 0
+    while i <= n {
+        if i == n || oren_string_char_at_unchecked(src, i) == "\n" {
+            // Process line [line_start, i)
+            var j = line_start
+            while j < i {
+                var c = oren_string_char_at_unchecked(src, j)
+                if c != " " && c != "\t" && c != "\r" { break }
+                j = j + 1
+            }
+            // Fast prefix match: "// @include"
+            if j + 10 < i {
+                if oren_string_char_at_unchecked(src, j) == "/" &&
+                   oren_string_char_at_unchecked(src, j + 1) == "/" &&
+                   oren_string_char_at_unchecked(src, j + 2) == " " &&
+                   oren_string_char_at_unchecked(src, j + 3) == "@" &&
+                   oren_string_char_at_unchecked(src, j + 4) == "i" &&
+                   oren_string_char_at_unchecked(src, j + 5) == "n" &&
+                   oren_string_char_at_unchecked(src, j + 6) == "c" &&
+                   oren_string_char_at_unchecked(src, j + 7) == "l" &&
+                   oren_string_char_at_unchecked(src, j + 8) == "u" &&
+                   oren_string_char_at_unchecked(src, j + 9) == "d" &&
+                   oren_string_char_at_unchecked(src, j + 10) == "e" {
+                    // Find quoted path.
+                    var q1 = -1
+                    var k = j + 11
+                    while k < i {
+                        if oren_string_char_at_unchecked(src, k) == "\"" { q1 = k; break }
+                        k = k + 1
+                    }
+                    if q1 >= 0 {
+                        var q2 = -1
+                        var k2 = q1 + 1
+                        while k2 < i {
+                            if oren_string_char_at_unchecked(src, k2) == "\"" { q2 = k2; break }
+                            k2 = k2 + 1
+                        }
+                        if q2 > q1 + 1 {
+                            var inc = oren_string_slice(src, q1 + 1, q2)
+                            var inc_full = inc
+                            if inc != nil && oren_string_len(inc) > 0 && oren_string_char_at_unchecked(inc, 0) != "/" {
+                                inc_full = resolve_path(dirname(full_path), inc)
+                            }
+                            if inc_full != nil && oren_string_len(inc_full) > 0 {
+                                oren_list_push(out, inc_full)
+                            }
+                        }
+                    }
+                }
+            }
+            line_start = i + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _cache_mix_fingerprint(h1, h2, s) {
+    // Mix a string into the two-lane fingerprint state.
+    if s == nil { return {"h1": h1, "h2": h2} }
+    return {"h1": _fnv1a63_string(s, h1), "h2": _fnv1a63_string(s, h2)}
+}
+
+fn _cache_hash_includes_closure_fingerprint(full_path, src, includes, build_cfg, memo, include_stack) {
+    // Compute a stable fingerprint for a file + its include closure without expanding source.
+    //
+    // This avoids building giant expanded strings during build-cache key computation.
+    if memo != nil && memo[full_path] != nil { return memo[full_path] }
+
+    // Include-cycle check (keep it deterministic and safe).
+    if include_stack != nil {
+        var si = 0
+        while si < oren_list_len(include_stack) {
+            if include_stack[si] == full_path {
+                return "include_cycle:" + full_path
+            }
+            si = si + 1
+        }
+    }
+    var next_stack = []
+    if include_stack != nil {
+        var ci = 0
+        while ci < oren_list_len(include_stack) { oren_list_push(next_stack, include_stack[ci]); ci = ci + 1 }
+    }
+    oren_list_push(next_stack, full_path)
+
+    var h1 = _fnv1a63_string(src, 1469598103934665603)
+    var h2 = _fnv1a63_string(src, 1099511628211)
+
+    var ii = 0
+    while includes != nil && ii < oren_list_len(includes) {
+        var incp = includes[ii]
+        if incp != nil && incp != "" {
+            var child_src = oren_read_file(incp)
+            if !oren_is_err(child_src) && child_src != nil {
+                var child_incs = _cache_scan_includes_from_src(child_src, incp)
+                var child_hash = _cache_hash_includes_closure_fingerprint(incp, child_src, child_incs, build_cfg, memo, next_stack)
+                var mm = _cache_mix_fingerprint(h1, h2, "\nI:")
+                h1 = mm["h1"]; h2 = mm["h2"]
+                mm = _cache_mix_fingerprint(h1, h2, incp)
+                h1 = mm["h1"]; h2 = mm["h2"]
+                mm = _cache_mix_fingerprint(h1, h2, "=")
+                h1 = mm["h1"]; h2 = mm["h2"]
+                mm = _cache_mix_fingerprint(h1, h2, child_hash)
+                h1 = mm["h1"]; h2 = mm["h2"]
+            }
+        }
+        ii = ii + 1
+    }
+
+    var out = "v2_" + oren_int_to_string(_mask63(h1)) + "_" + oren_int_to_string(_mask63(h2))
+    if memo != nil { memo[full_path] = out }
+    return out
+}
+
+fn _cache_hash_includes_closure(full_path, build_cfg, memo, include_stack) {
+    // Deterministic builds keep sha256 of the fully expanded source as the cache contract.
+    if _cache_deterministic(build_cfg) || _cache_force_sha256(build_cfg) {
+        var rr = expand_includes_file_result(full_path, [])
+        if rr["ok"] != true {
+            var msg = rr["err"]
+            if msg == nil { msg = "failed to read" }
+            return "include_err:" + msg
+        }
+        return _sha256_hex_string(rr["src"])
+    }
+
+    var src = oren_read_file(full_path)
+    if oren_is_err(src) { return "read_err" }
+    var incs = _cache_scan_includes_from_src(src, full_path)
+    return _cache_hash_includes_closure_fingerprint(full_path, src, incs, build_cfg, memo, include_stack)
+}
+
 fn _scan_cache_file(cache_dir) {
     if cache_dir == nil || cache_dir == "" { cache_dir = _cache_default_dir() }
-    return path_norm(cache_dir + "/scan_cache_v1.txt")
+    return path_norm(cache_dir + "/scan_cache_v2.txt")
 }
 
 fn _scan_cache_split_lines(s) {
@@ -192,7 +423,7 @@ fn _scan_cache_load(cache_dir) {
     if s == nil { return {} }
     var lines = _scan_cache_split_lines(s)
     if lines == nil || oren_list_len(lines) == 0 { return {} }
-    if lines[0] != "OREN_SCAN_CACHE_V1" { return {} }
+    if lines[0] != "OREN_SCAN_CACHE_V2" { return {} }
 
     var out = {}
     var i = 1
@@ -222,7 +453,7 @@ fn _scan_cache_save(cache_dir, cache_map) {
     var paths = []
     for k in cache_map { oren_list_push(paths, k) }
     paths = _cache_sort_strings(paths)
-    var out = "OREN_SCAN_CACHE_V1\n"
+    var out = "OREN_SCAN_CACHE_V2\n"
     var i = 0
     while i < oren_list_len(paths) {
         var path = paths[i]
@@ -259,29 +490,41 @@ fn _cache_scan_imports_for_file_cached(full_path, config, scan_state) {
     var cache_dir = scan_state["dir"]
     var cache_map = scan_state["cache"]
     if cache_map == nil { cache_map = {} ; scan_state["cache"] = cache_map }
+    var memo = scan_state["memo"]
+    if memo == nil { memo = {} ; scan_state["memo"] = memo }
+    var inprog = scan_state["in_progress"]
+    if inprog == nil { inprog = {} ; scan_state["in_progress"] = inprog }
 
-    // Compute expanded-source hash (still required for correctness).
-    var rr = expand_includes_file_result(full_path, [])
-    if rr["ok"] != true {
-        var msg = rr["err"]
-        if msg == nil { msg = "failed to read" }
-        return {"ok": false, "err": msg}
+    // Include recursion can create cycles (accidental or malicious). Guard against infinite recursion.
+    if inprog[full_path] == true {
+        return {"ok": false, "err": "include cycle detected: " + full_path}
     }
-    var src = rr["src"]
-    var sh = _sha256_hex_string(src)
+    inprog[full_path] = true
+
+    // Hash the file + include closure without materializing expanded source (fast path).
+    var sh = _cache_hash_includes_closure(full_path, config, memo, [])
 
     // Cache hit: reuse imports without token scanning.
     var rec = cache_map[full_path]
     if rec != nil && rec["hash"] == sh {
         var imps = rec["imports"]
         if imps == nil { imps = [] }
+        inprog[full_path] = nil
         return {"ok": true, "imports": imps, "src_hash": sh}
     }
 
-    // Miss: token scan and update cache.
-    var l = lexer.new_lexer(src)
+    // Miss: token scan *this file only* and merge include-imports recursively.
+    var src2 = oren_read_file(full_path)
+    if oren_is_err(src2) {
+        var em = oren_err_msg(src2)
+        if em == nil { em = "failed to read" }
+        inprog[full_path] = nil
+        return {"ok": false, "err": em}
+    }
+    var l = lexer.new_lexer(src2)
     l["file"] = full_path
     var imports = []
+    var seen_imp = {}
     var base_dir = dirname(full_path)
     var tok = lexer.next_token(l)
     while tok != nil && tok["type"] != token.TOK_EOF {
@@ -298,36 +541,64 @@ fn _cache_scan_imports_for_file_cached(full_path, config, scan_state) {
             if imp_path != nil {
                 if config != nil && config["stdlib_mode"] == "obc" {
                     if starts_with(imp_path, "std:") || starts_with(imp_path, "std/") {
-                        oren_list_push(imports, imp_path)
+                        if seen_imp[imp_path] != true { seen_imp[imp_path] = true; oren_list_push(imports, imp_path) }
                     } else {
-                        oren_list_push(imports, resolve_import_path(base_dir, imp_path))
+                        var full_imp = resolve_import_path(base_dir, imp_path)
+                        if seen_imp[full_imp] != true { seen_imp[full_imp] = true; oren_list_push(imports, full_imp) }
                     }
                 } else {
-                    oren_list_push(imports, resolve_import_path(base_dir, imp_path))
+                    var full_imp2 = resolve_import_path(base_dir, imp_path)
+                    if seen_imp[full_imp2] != true { seen_imp[full_imp2] = true; oren_list_push(imports, full_imp2) }
                 }
             }
         }
         tok = lexer.next_token(l)
     }
 
+    // Merge include-imports (if any) by scanning include directives and importing their imports.
+    var incs2 = _cache_scan_includes_from_src(src2, full_path)
+    var ii2 = 0
+    while ii2 < oren_list_len(incs2) {
+        var ip = incs2[ii2]
+        if ip != nil && ip != "" {
+            var r2 = _cache_scan_imports_for_file_cached(ip, config, scan_state)
+            if r2["ok"] == true {
+                var im2 = r2["imports"]
+                if im2 != nil {
+                    var jj = 0
+                    while jj < oren_list_len(im2) {
+                        var dep = im2[jj]
+                        if dep != nil && dep != "" && seen_imp[dep] != true {
+                            seen_imp[dep] = true
+                            oren_list_push(imports, dep)
+                        }
+                        jj = jj + 1
+                    }
+                }
+            }
+        }
+        ii2 = ii2 + 1
+    }
+
     cache_map[full_path] = {"hash": sh, "imports": imports}
     scan_state["dirty"] = true
+    inprog[full_path] = nil
     return {"ok": true, "imports": imports, "src_hash": sh}
 }
 
-fn _cache_hash_expanded_includes(path) {
-    // Hash the fully expanded source (including `// @include` expansion).
+fn _cache_hash_expanded_includes(path, build_cfg) {
+    // Hash source including `// @include` closure.
     //
     // This is used for injected sources that are not necessarily visible through the
     // user's `import` graph (e.g. the native runtime bundle injected by native backends).
-    var rr = expand_includes_file_result(path, [])
-    if rr["ok"] != true {
-        var msg = rr["err"]
-        if msg == nil { msg = "failed to read" }
-        return {"ok": false, "err": msg}
+    //
+    // Perf: avoid building a giant expanded string in non-deterministic mode.
+    var memo = {}
+    var h = _cache_hash_includes_closure(path, build_cfg, memo, [])
+    if starts_with(h, "include_err:") || starts_with(h, "include_cycle:") || h == "read_err" {
+        return {"ok": false, "err": h}
     }
-    var src = rr["src"]
-    return {"ok": true, "hash": _sha256_hex_string(src)}
+    return {"ok": true, "hash": h}
 }
 
 fn cache_compute_key_build(entry_path, build_cfg) {
@@ -360,7 +631,7 @@ fn cache_compute_key_build(entry_path, build_cfg) {
 
         // External std spec markers: hash the spec string itself.
         if starts_with(pth, "std:") || starts_with(pth, "std/") {
-            inputs[pth] = _sha256_hex_string(pth)
+            inputs[pth] = _cache_hash_string(pth, build_cfg)
             continue
         }
 
@@ -385,7 +656,7 @@ fn cache_compute_key_build(entry_path, build_cfg) {
     }
 
     // Include stdlib `.obc` and linked `.obc` libraries (bytecode mode) into the key.
-    if build_cfg != nil && build_cfg["stdlib_mode"] == "obc" {
+        if build_cfg != nil && build_cfg["stdlib_mode"] == "obc" {
         var std_obc = build_cfg["stdlib_obc"]
         if std_obc != nil && std_obc != "" {
             // OBC blobs can be large; use u8_buf to keep memory bounded.
@@ -393,7 +664,7 @@ fn cache_compute_key_build(entry_path, build_cfg) {
             if oren_is_err(bs) {
                 return {"ok": false, "err": "failed to read stdlib obc: " + std_obc}
             }
-            inputs["OBC:" + std_obc] = _sha256_hex(bs)
+            inputs["OBC:" + std_obc] = _cache_hash_u8_buf(bs, build_cfg)
         }
     }
     if build_cfg != nil && build_cfg["link_obc"] != nil {
@@ -406,7 +677,7 @@ fn cache_compute_key_build(entry_path, build_cfg) {
                 if oren_is_err(bs2) {
                     return {"ok": false, "err": "failed to read link obc: " + lp}
                 }
-                inputs["OBC:" + lp] = _sha256_hex(bs2)
+                inputs["OBC:" + lp] = _cache_hash_u8_buf(bs2, build_cfg)
             }
             li = li + 1
         }
@@ -421,7 +692,7 @@ fn cache_compute_key_build(entry_path, build_cfg) {
     // invalidate the build cache (observed as stale Windows x64 artifacts).
     if build_cfg != nil && build_cfg["backend"] == "native" {
         var rt_path = "lib/runtime_native.oren"
-        var rh = _cache_hash_expanded_includes(rt_path)
+        var rh = _cache_hash_expanded_includes(rt_path, build_cfg)
         if rh["ok"] != true {
             return {"ok": false, "err": "failed to read injected runtime: " + rt_path + " (" + rh["err"] + ")"}
         }
@@ -429,10 +700,10 @@ fn cache_compute_key_build(entry_path, build_cfg) {
     }
 
 
-    var compiler_sig = _cache_compiler_sig()
+    var compiler_sig = _cache_compiler_sig(build_cfg)
 
     // Build a stable key string.
-    var s = "OREN_BUILD_CACHE_V1\n"
+    var s = "OREN_BUILD_CACHE_V" + oren_int_to_string(BUILD_CACHE_SCHEMA) + "\n"
     s = s + "compiler=" + compiler_sig + "\n"
     if build_cfg != nil {
         s = s + "backend=" + build_cfg["backend"] + "\n"
@@ -483,7 +754,7 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         s = s + "in " + k2 + " " + inputs[k2] + "\n"
         ki = ki + 1
     }
-    var key = _sha256_hex_string(s)
+    var key = _cache_hash_string(s, build_cfg)
     return {"ok": true, "key": key, "inputs": inputs}
 }
 

@@ -53,6 +53,19 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Runtime object cache selection now uses a fast non-cryptographic fingerprint (schema v2) instead of SHA-256 of the full expanded runtime source, avoiding multi-second hashing in native self-host workloads.
   - arm64 debug symbol resolver generation no longer uses quadratic string concatenation; it now builds parts and joins once.
 
+## Archived (2026-01-03) — Native self-host runtime: Mach-O emit throughput + debug build bounds
+
+- Compiler core bytes builder (`u8_buf`-backed) now copies via raw pointer operations in 8-byte chunks for:
+  - buffer growth (`_bytes_ensure_capacity`)
+  - splicing (`bytes_extend`, `bytes_extend_u8_buf`)
+  - finalization (`bytes_finalize`)
+  - Result: native-runtime stage2 compiler can now emit Mach-O outputs within Tier‑1 timeout budgets (previously could stall >30s in large per-byte copy loops).
+- arm64 native backend no longer generates a giant parsed `resolve_symbol` function by default:
+  - Debug builds rely on the embedded `g_debug_info` table for accurate symbolication; `resolve_symbol` remains a stub unless `OREN_NATIVE_RESOLVE_SYMBOL=1`.
+- Build cache policy (rolling):
+  - Debug builds default to cache-disabled to avoid expensive content-hash key computation under the native runtime.
+  - Opt-in: `OREN_CACHE_DEBUG=1`.
+
 ## Archived (2026-01-03) — Native runtime: GC should not “root” string literals
 
 - Native runtime model:

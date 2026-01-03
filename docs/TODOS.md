@@ -24,10 +24,11 @@ Rules for this tracker:
 	   - Avoid O(n²) string/collection patterns in compiler-side tooling (include expansion, C backend transpiler, whole-program lowering passes).
 	   - Recently completed: pooled embedded string literals + one-time startup registration (`oren_init_static_cstr0_table`) to remove per-use tracking overhead in compiler workloads (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: GC pin/result no longer roots static string literals (classification-only nodes), reducing root churn in compiler/tooling runs (details in `docs/TODOS_ARCHIVE.md`).
-	   - Hard gate (non-negotiable for rolling):
-	     - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
-	     - Stage2 native backend “compile one file” (cache hit; non-capsule) should stay **< 4s** wall time on the primary dev host; regressions indicate a fundamental hot-path flaw to investigate.
-     - RSS should stay **< 300 MB** for the compilation process.
+		   - Hard gate (non-negotiable for rolling):
+		     - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
+		     - Stage2 native backend “compile one file” (cache hit; non-capsule) should stay **< 4s** wall time on the primary dev host; regressions indicate a fundamental hot-path flaw to investigate.
+		     - Debug builds used by Tier‑1 fixtures must stay **< 10s** per `oren build ... --backend native --debug` step (default script timeout).
+	     - RSS should stay **< 300 MB** for the compilation process.
 	   - High-leverage path (avoid “parameter tuning”):
 	     - deterministic parallel compilation pipeline (module graph scheduling + cache hits)
 	     - eliminate global/shared mutable state that prevents safe parallelism (or centralize it behind explicit concurrency primitives)
@@ -45,7 +46,11 @@ Rules for this tracker:
        - Verified (local): `make verify-native-quick`
        - Verified (linux/arm64): `./scripts/verify_native_matrix.sh --targets arm64-linux`
        - Perf evidence lives in `docs/TODOS_ARCHIVE.md` (“compile one file” miss→hit using the runtime object cache).
-       - Still pending: produce a fully self-hosted **native** stage2 compiler on arm64-macos and gate it:
+       - Progress (rolling, 2026-01-03): a **native-runtime** self-hosted stage2 compiler now builds and passes the integrated native quick test:
+         - Build: `./oren build oren.oren --backend native --platform arm64-macos --no-cache --no-debug -o build/selfhost_manual/oren_stage2_native && codesign -s - --force build/selfhost_manual/oren_stage2_native`
+         - Run gate: `./scripts/run_native_quick_integration.sh ./build/selfhost_manual/oren_stage2_native`
+         - Note: debug builds no longer pay the artifact build-cache key cost by default (opt-in via `OREN_CACHE_DEBUG=1`) to keep Tier‑1 debug fixtures bounded.
+       - Still pending: integrate the **native-runtime** stage2 compiler into the default `make stage2`/`make verify` gates (and keep it under the <3min self-host budget):
          - Repro: `./oren build oren.oren --backend native --platform arm64-macos --no-cache --no-debug -o build/selfhost_manual/oren_stage2_native && codesign -s - --force build/selfhost_manual/oren_stage2_native`
          - Minimal compare: compile+run `tests/native/test_quick_integration_native.oren` using `./scripts/run_native_quick_integration.sh ./build/selfhost_manual/oren_stage2_native`
      - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory synchronization:

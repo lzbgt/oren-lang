@@ -37,6 +37,25 @@ fn _bytes_set_len_raw(b, n) {
 
 fn bytes_len(b) { return _bytes_len_raw(b) }
 
+fn _memcpy8(dst, src, len) {
+    // Copy `len` bytes from src to dst.
+    //
+    // PERF (native self-hosted compiler):
+    // Avoid per-byte `oren_buf_load_u8` / `oren_buf_store_u8` calls (function-call overhead).
+    // Use raw pointer loads/stores in 8-byte chunks where possible.
+    var i = 0
+    while i < len {
+        if len - i >= 8 {
+            ptr_set(iadd(dst, i), ptr_get(iadd(src, i)))
+            i = i + 8
+        } else {
+            ptr_set_byte(iadd(dst, i), ptr_get_byte(iadd(src, i)))
+            i = i + 1
+        }
+    }
+    return nil
+}
+
 fn _bytes_ensure_capacity(b, want) {
     // Ensure capacity >= want.
     if want <= b["cap"] { return nil }
@@ -45,11 +64,12 @@ fn _bytes_ensure_capacity(b, want) {
     while new_cap < want { new_cap = new_cap * 2 }
     var nb = oren_u8_buf_new(new_cap)
     if oren_is_err(nb) { oren_fail(1, "bytes_grow: u8_buf alloc failed") }
-    var i = 0
     var used = _bytes_len_raw(b)
-    while i < used {
-        oren_buf_store_u8(nb, i, oren_buf_load_u8(b["buf"], i))
-        i = i + 1
+    if used > 0 {
+        var srcp = oren_buf_data_ptr_unchecked(b["buf"])
+        var dstp = oren_buf_data_ptr_unchecked(nb)
+        if srcp == 0 || dstp == 0 { oren_fail(1, "bytes_grow: buf data ptr is nil") }
+        _memcpy8(dstp, srcp, used)
     }
     b["buf"] = nb
     b["cap"] = new_cap
@@ -71,10 +91,11 @@ fn bytes_extend(b, other) {
     var n = other_enc - 1
     var used = _bytes_len_raw(b)
     _bytes_ensure_capacity(b, used + n)
-    var i = 0
-    while i < n {
-        oren_buf_store_u8(b["buf"], used + i, oren_buf_load_u8(other["buf"], i))
-        i = i + 1
+    if n > 0 {
+        var srcp = oren_buf_data_ptr_unchecked(other["buf"])
+        var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+        if srcp == 0 || dstp == 0 { oren_fail(1, "bytes_extend: buf data ptr is nil") }
+        _memcpy8(iadd(dstp, used), srcp, n)
     }
     _bytes_set_len_raw(b, used + n)
     return nil
@@ -106,11 +127,10 @@ fn bytes_extend_u8_buf(b, ubuf) {
     if n <= 0 { return nil }
     var used = _bytes_len_raw(b)
     _bytes_ensure_capacity(b, used + n)
-    var i = 0
-    while i < n {
-        oren_buf_store_u8(b["buf"], used + i, oren_buf_load_u8_unchecked(ubuf, i))
-        i = i + 1
-    }
+    var srcp = oren_buf_data_ptr_unchecked(ubuf)
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if srcp == 0 || dstp == 0 { oren_fail(1, "bytes_extend_u8_buf: buf data ptr is nil") }
+    _memcpy8(iadd(dstp, used), srcp, n)
     _bytes_set_len_raw(b, used + n)
     return nil
 }
@@ -127,10 +147,11 @@ fn bytes_finalize(b) {
     var n = _bytes_len_raw(b)
     var out = oren_u8_buf_new(n)
     if oren_is_err(out) { oren_fail(1, "bytes_finalize: u8_buf alloc failed") }
-    var i = 0
-    while i < n {
-        oren_buf_store_u8(out, i, oren_buf_load_u8(b["buf"], i))
-        i = i + 1
+    if n > 0 {
+        var srcp = oren_buf_data_ptr_unchecked(b["buf"])
+        var dstp = oren_buf_data_ptr_unchecked(out)
+        if srcp == 0 || dstp == 0 { oren_fail(1, "bytes_finalize: buf data ptr is nil") }
+        _memcpy8(dstp, srcp, n)
     }
     return out
 }

@@ -679,6 +679,16 @@ fn compiler_main() {
     if emit_meta { cache_enabled = false }
     if is_shared_lib { cache_enabled = false }
     if notarize { cache_enabled = false }
+    // Rolling perf policy:
+    // Debug builds are frequently used in tests/bring-up and can be expensive to hash for
+    // content-addressed caching under the native runtime. Disable build cache for debug builds
+    // by default; opt-in via `OREN_CACHE_DEBUG=1`.
+    if debug_mode {
+        var v_cd = oren_env("OREN_CACHE_DEBUG")
+        if v_cd == nil || v_cd == "" || v_cd == "0" || v_cd == "false" {
+            cache_enabled = false
+        }
+    }
 
     var cache_key = nil
     if cache_enabled {
@@ -689,6 +699,8 @@ fn compiler_main() {
             "arch": arch,
             "cc": cc,
             "codesign_id": codesign_id,
+            // Deterministic mode affects cache hashing strategy (sha256 vs fast fingerprint).
+            "deterministic": 0,
             // Performance-only: pass the selected cache dir so the dependency scan cache
             // lives next to the artifact cache (does not affect cache key).
             "cache_dir": cache_dir,
@@ -704,13 +716,22 @@ fn compiler_main() {
             "stdlib_obc": stdlib_obc,
             "link_obc": link_obc,
         }
+        if deterministic { cfg["deterministic"] = 1 }
         if no_gc { cfg["no_gc"] = 1 }
         if enable_python { cfg["enable_python"] = 1 }
         if debug_mode { cfg["debug_mode"] = 1 }
         if is_shared_lib { cfg["shared_lib"] = 1 }
         if CAPSULE { cfg["capsule"] = 1 }
 
+        var t_key0 = 0
+        if trace_build { t_key0 = oren_time_now_ns() }
         var kk = cache_compute_key_build(path, cfg)
+        if trace_build {
+            var dt_key = (oren_time_now_ns() - t_key0) / 1000000
+            var okk = 0
+            if kk != nil && kk["ok"] == true { okk = 1 }
+            print("[build] cache key compute +" + oren_int_to_string(dt_key) + "ms ok=" + oren_int_to_string(okk))
+        }
         if kk["ok"] == true {
             cache_key = kk["key"]
             var chmod_mode = 0

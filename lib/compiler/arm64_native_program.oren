@@ -1084,11 +1084,18 @@ fn native_compile_program_arm64(linked, platform) {
     
     // Generate `resolve_symbol` for stack traces.
     //
-    // Rolling policy:
-    // - Only generate this helper when debug is enabled (otherwise it can be extremely large,
-    //   slowing builds and inflating binaries).
-    // - Users can force-enable it via env for debugging postmortems.
-    var want_resolve_symbol = (ctx["platform"]["debug"] == true)
+    // NOTE (native backend; rolling):
+    // In debug builds, the native runtime prefers the embedded debug-info table (`g_debug_info`)
+    // for accurate range-based symbolication. That table is authoritative and does not require
+    // generating a huge `resolve_symbol` function.
+    //
+    // Generating `resolve_symbol` by emitting + parsing a giant Oren source string is expensive,
+    // especially for self-hosted native compilers, and can dominate debug-build wall time.
+    //
+    // Policy:
+    // - Default: keep `resolve_symbol` as a tiny stub ("???") and rely on `g_debug_info` in debug mode.
+    // - Opt-in: set `OREN_NATIVE_RESOLVE_SYMBOL=1` to generate the full resolver (postmortem/debugging).
+    var want_resolve_symbol = false
     var env_rs = oren_env("OREN_NATIVE_RESOLVE_SYMBOL")
     if env_rs != nil && env_rs == "1" { want_resolve_symbol = true }
 
@@ -1168,7 +1175,7 @@ fn native_compile_program_arm64(linked, platform) {
         oren_list_push(sym_parts, "return \"???\" }")
         var sym_src = oren_string_join(sym_parts)
 
-        print("Generating symbol table...")
+        if trace { print("[arm64] generating resolve_symbol...") }
         var l_sym = lexer.new_lexer(sym_src)
         l_sym["file"] = "<native:symbol_table>"
         var p_sym = parser.new_parser(l_sym)
