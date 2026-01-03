@@ -174,8 +174,40 @@ fn _emit_panic_with_msg_ptr(ctx, msg_ptr_reg) {
     _emit_strlen_cstr0_to_rdx(ctx, msg_reg)
     _emit_linux_write_ptr_len(ctx, msg_reg, 2)
     _emit_linux_write_str(ctx, "\n")
-    _emit_stack_trace_best_effort(ctx)
+    // Keep stack traces in debug builds by default (size/perf tradeoff for release builds).
+    if platform != nil && platform["debug"] == true {
+        _emit_stack_trace_best_effort(ctx)
+    }
     _emit_abort_exitcode(ctx, 1)
+    return nil
+}
+
+fn _x64_panic_helper_name() { return "__oren_panic_helper" }
+
+fn _emit_panic_helper_mark_needed_x64(ctx) {
+    if ctx == nil { return nil }
+    ctx["need_panic_helper"] = true
+    return nil
+}
+
+fn _emit_panic_helper_fn_if_needed_x64(ctx) {
+    // Emit a single shared panic helper function and let all compiler-generated panics
+    // call it instead of inlining large panic+stacktrace sequences at every site.
+    if ctx == nil { return nil }
+    if ctx["need_panic_helper"] != true { return nil }
+
+    var name = _x64_panic_helper_name()
+    if ctx["functions"] != nil && ctx["functions"][name] != nil { return nil }
+
+    var off = bytes_len(ctx["code"])
+    if ctx["functions"] == nil { ctx["functions"] = {} }
+    ctx["functions"][name] = off
+
+    // Emit body: expect msg pointer in the platform arg register (SysV: RDI, Win64: RCX).
+    var platform = ctx["platform"]
+    var msg_reg = 7
+    if platform != nil && platform["os"] == "windows" { msg_reg = 1 }
+    _emit_panic_with_msg_ptr(ctx, msg_reg)
     return nil
 }
 

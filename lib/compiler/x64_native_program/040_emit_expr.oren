@@ -13,9 +13,9 @@ fn _emit_abort_exitcode(ctx, exit_code) {
         return nil
     }
 
-    // Linux x86_64: exit(exit_code) via syscall
+    // Linux x86_64: exit_group(exit_code) via syscall (process-wide)
     bytes_extend(ctx["code"], insn_mov_r32_imm32(7, exit_code)) // mov edi, imm32
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 60))        // mov eax, SYS_exit
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_exit_group()))
     bytes_extend(ctx["code"], insn_syscall())
     bytes_extend(ctx["code"], insn_ret())
     return nil
@@ -34,9 +34,16 @@ fn _emit_abort_panic_str(ctx, msg) {
         return nil
     }
     var lea_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0)) // rax = &msg
+    // Call the shared panic helper instead of inlining a full panic+trace sequence
+    // at every compiler-generated panic site (keeps x64 binaries smaller).
+    var platform = ctx["platform"]
+    var arg_reg = 7 // SysV: RDI
+    if platform != nil && platform["os"] == "windows" { arg_reg = 1 } // Win64: RCX
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(arg_reg, 0)) // arg = &msg
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
-    _emit_panic_with_msg_ptr(ctx, 0)
+    _emit_panic_helper_mark_needed_x64(ctx)
+    _emit_call_rel32_named_x64(ctx, _x64_panic_helper_name())
+    bytes_extend(ctx["code"], insn_ret())
     return nil
 }
 

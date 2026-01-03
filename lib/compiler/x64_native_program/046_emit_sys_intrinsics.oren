@@ -441,9 +441,9 @@ fn _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) {
         return nil
     }
 
-    // Linux: exit(code) syscall
+    // Linux: exit_group(code) syscall (process-wide)
     bytes_extend(ctx["code"], insn_mov_r32_r32(7, 0)) // mov edi, eax
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_exit()))
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_exit_group()))
     bytes_extend(ctx["code"], insn_syscall())
     bytes_extend(ctx["code"], insn_ret())
     return nil

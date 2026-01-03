@@ -384,6 +384,12 @@ fn native_compile_program_x64(linked, platform) {
     linked2 = bun["linked"]
     ctx["runtime_injected"] = true
 
+    // Runtime pruning (size + compile time):
+    // The injected native runtime branches on `g_target_os`, but for a target-specific
+    // build those branches are compile-time constants. Prune unreachable runtime branches
+    // early so the x64 backend does not compile dead platform code.
+    pprune.prune_runtime_os_branches_in_linked_program_in_place(linked2, platform)
+
     // Normalize local `fn name(...) { ... }` declarations inside blocks into lambdas+vars
     // so Tier‑1 native backends share the same nested-function semantics.
     callable.rewrite_local_fn_decls_in_stmt_list(ctx, bun["runtime_stmts"])
@@ -803,11 +809,11 @@ fn native_compile_program_x64(linked, platform) {
         // Record entrypoint offset (start of code).
         ctx["entry_off"] = 0
     } else {
-        // Linux x86_64: exit(main_ret) via syscall
+        // Linux x86_64: exit_group(main_ret) via syscall (process-wide)
         // rdi = rax
         bytes_extend(ctx["code"], insn_mov_r64_r64(7, 0)) // mov rdi, rax
-        // rax = 60 (SYS_exit)
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 60))
+        // rax = SYS_exit_group
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_exit_group()))
         bytes_extend(ctx["code"], insn_syscall())
         // Should not return; if it does, ret.
         if entry_total > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(entry_total)) }
@@ -839,6 +845,12 @@ fn native_compile_program_x64(linked, platform) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
         j1 = j1 + 1
     }
+
+    // Emit shared panic helper after compiling user/runtime functions so:
+    // - call-site fixups can resolve it by name, and
+    // - we avoid inlining large panic sequences at every compiler-generated site.
+    _emit_panic_helper_fn_if_needed_x64(ctx)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
 
     var dbg_lam2 = oren_env("OREN_DEBUG_X64_LAMBDAS")

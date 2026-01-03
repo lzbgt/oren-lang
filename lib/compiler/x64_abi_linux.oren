@@ -41,6 +41,13 @@ fn linux_sys_clone() { return 56 }
 fn linux_sys_fork() { return 57 }
 fn linux_sys_execve() { return 59 }
 fn linux_sys_exit() { return 60 }
+// Process-wide exit (terminates the whole thread group).
+//
+// Rationale:
+// - `exit(2)` terminates only the calling thread.
+// - `exit_group(2)` terminates the whole process (thread group), which matches the
+//   semantics expected by Oren’s `exit(...)` / `oren_exit(...)` surface.
+fn linux_sys_exit_group() { return 231 }
 fn linux_sys_wait4() { return 61 }
 fn linux_sys_kill() { return 62 }
 fn linux_sys_gettimeofday() { return 96 }

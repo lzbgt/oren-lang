@@ -1,0 +1,177 @@
+// native_platform_prune.oren
+//
+// Target-specific pruning for injected native runtime code.
+//
+// Motivation:
+// - The injected native runtime is a single portable source that branches on `g_target_os`.
+// - For a *targeted* native build (e.g. x64-linux), those branches are compile-time constants.
+// - Pruning unreachable `if g_target_os == ...` / `!= ...` branches makes binaries smaller and
+//   avoids compiling dead platform code paths.
+//
+// Scope:
+// - Only prunes statements inside runtime-tagged top-level Function statements
+//   (stmt["__oren_from_runtime"] == true).
+// - Conservative: only folds simple comparisons against integer literals.
+
+import intparse "int_lit.oren"
+
+fn _os_id_from_platform(platform) {
+    if platform == nil { return 0 }
+    var os = platform["os"]
+    if os == "macos" { return 1 }
+    if os == "linux" { return 2 }
+    if os == "windows" { return 3 }
+    return 0
+}
+
+fn _expr_is_ident_named(expr, name) {
+    if expr == nil { return false }
+    if expr["type"] != "Identifier" { return false }
+    return expr["value"] == name
+}
+
+fn _expr_parse_int_lit(expr) {
+    if expr == nil { return nil }
+    if expr["type"] != "Integer" { return nil }
+    return intparse.parse_int_lit(expr["value"])
+}
+
+fn _eval_cond_is_target_os(cond, os_id) {
+    // Returns:
+    // - true/false when we can prove the condition constant from `g_target_os`
+    // - nil otherwise
+    if cond == nil { return nil }
+    var t = cond["type"]
+    if t == "Boolean" { return cond["value"] }
+    if t == "Prefix" {
+        if cond["op"] != "!" { return nil }
+        var v = _eval_cond_is_target_os(cond["right"], os_id)
+        if v == nil { return nil }
+        return !v
+    }
+    if t != "Infix" { return nil }
+
+    var op = cond["op"]
+    if op != "==" && op != "!=" { return nil }
+
+    var left = cond["left"]
+    var right = cond["right"]
+
+    var lit = nil
+    if _expr_is_ident_named(left, "g_target_os") {
+        lit = _expr_parse_int_lit(right)
+    } else if _expr_is_ident_named(right, "g_target_os") {
+        lit = _expr_parse_int_lit(left)
+    } else {
+        return nil
+    }
+    if lit == nil { return nil }
+
+    var eq = (os_id == lit)
+    if op == "==" { return eq }
+    return !eq
+}
+
+fn _prune_stmt_keep_one(stmt, os_id) {
+    var xs = _prune_stmt(stmt, os_id)
+    if xs == nil || oren_list_len(xs) == 0 {
+        return {"type": "Block", "stmts": []}
+    }
+    if oren_list_len(xs) == 1 {
+        return xs[0]
+    }
+    return {"type": "Block", "stmts": xs}
+}
+
+fn _prune_stmt_list(stmts, os_id) {
+    if stmts == nil { return [] }
+    var out = []
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        var xs = _prune_stmt(st, os_id)
+        var j = 0
+        while xs != nil && j < oren_list_len(xs) {
+            oren_list_push(out, xs[j])
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _prune_stmt(stmt, os_id) {
+    // Returns a list of statements to splice at the current level.
+    if stmt == nil { return [] }
+    var t = stmt["type"]
+
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        stmt["stmts"] = _prune_stmt_list(ss, os_id)
+        return [stmt]
+    }
+
+    if t == "If" {
+        var v = _eval_cond_is_target_os(stmt["cond"], os_id)
+        if v == true {
+            return _prune_stmt(stmt["consq"], os_id)
+        }
+        if v == false {
+            if stmt["alt"] != nil { return _prune_stmt(stmt["alt"], os_id) }
+            return []
+        }
+        // Unknown condition: prune inside both branches.
+        stmt["consq"] = _prune_stmt_keep_one(stmt["consq"], os_id)
+        if stmt["alt"] != nil {
+            stmt["alt"] = _prune_stmt_keep_one(stmt["alt"], os_id)
+        }
+        return [stmt]
+    }
+
+    if t == "While" {
+        stmt["body"] = _prune_stmt_keep_one(stmt["body"], os_id)
+        return [stmt]
+    }
+
+    if t == "For" {
+        if stmt["init"] != nil { stmt["init"] = _prune_stmt_keep_one(stmt["init"], os_id) }
+        if stmt["post"] != nil { stmt["post"] = _prune_stmt_keep_one(stmt["post"], os_id) }
+        stmt["body"] = _prune_stmt_keep_one(stmt["body"], os_id)
+        return [stmt]
+    }
+
+    if t == "FnDecl" {
+        // Local fn declarations (inside blocks) are rewritten to lambdas+vars later.
+        // Still prune the body now so dead platform branches don't survive into codegen.
+        stmt["body"] = _prune_stmt_keep_one(stmt["body"], os_id)
+        return [stmt]
+    }
+
+    // Other stmt kinds: keep as-is.
+    return [stmt]
+}
+
+fn prune_runtime_os_branches_in_linked_program_in_place(linked, platform) {
+    if linked == nil { return nil }
+    var os_id = _os_id_from_platform(platform)
+    if os_id == 0 { return nil }
+
+    var stmts = linked["statements"]
+    if stmts == nil { stmts = [] }
+
+    var out = []
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        if st != nil && st["__oren_from_runtime"] == true && st["type"] == "Function" {
+            st["body"] = _prune_stmt_keep_one(st["body"], os_id)
+            oren_list_push(out, st)
+        } else {
+            oren_list_push(out, st)
+        }
+        i = i + 1
+    }
+    linked["statements"] = out
+    return nil
+}
+

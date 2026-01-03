@@ -1,0 +1,364 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Verify native backend across a practical Tier‑1 matrix without any external test runner.
+#
+# Host requirements:
+# - macOS arm64 host (this script is written primarily for that workflow)
+# - docker (for linux/arm64 container execution)
+# - ssh/scp + socat (for remote x64 Windows + WSL2 execution)
+#
+# This verifies the integrated native smoke:
+#   tests/native/test_quick_integration_native.oren
+#
+# It builds:
+# - stage0 (Go): ./oren_bootstrap
+# - stage1 (self-hosted): ./oren
+# - stage2 (self-hosted): ./oren_stage2
+#
+# Then it compiles that test to:
+# - arm64-macos (runs locally)
+# - arm64-linux (runs in the persistent container)
+# - x64-linux (runs under remote WSL2)
+# - x64-windows (runs on remote Win11)
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+TEST_SRC="tests/native/test_quick_integration_native.oren"
+
+LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
+
+REMOTE_HOST="${OREN_REMOTE_X64_HOST:-lzbgt@pc.work}"
+REMOTE_PROXY="${OREN_REMOTE_X64_PROXY:-ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002}"
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/verify_native_matrix.sh [--targets <csv>] [--local-only]
+       scripts/verify_native_matrix.sh [--targets <csv>] [--trace]
+
+Runs:
+  1) local arm64-macos (stage1 + stage2)
+  2) linux/arm64 in existing docker container (stage1 + stage2 compiled artifacts)
+  3) remote windows/x64 on Win11 (stage1 + stage2 compiled artifacts)
+  4) remote linux/x64 under WSL2 (stage1 + stage2 compiled artifacts)
+
+Targets (comma-separated):
+  all         (default)
+  stage0      build ./oren_bootstrap
+  stage1      build ./oren
+  stage2      build ./oren_stage2
+  local       run local native quick (stage1+stage2)
+  arm64-linux run linux/arm64 in docker container
+  x64-win     run x64-windows on remote Win11
+  x64-wsl     run x64-linux under remote WSL2
+
+Examples:
+  ./scripts/verify_native_matrix.sh
+  ./scripts/verify_native_matrix.sh --targets stage0,stage1,stage2,local
+  ./scripts/verify_native_matrix.sh --targets x64-win,x64-wsl
+  ./scripts/verify_native_matrix.sh --targets x64-wsl --trace
+
+Env overrides:
+  OREN_LINUX_DOCKER_ID   (default: c7e5f7bd9f5c)
+  OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
+  OREN_REMOTE_X64_PROXY  (default: ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002)
+
+Notes:
+  - This script does NOT start containers; it expects the persistent container to exist and be running.
+  - Remote steps require ssh/scp connectivity to the Win11 host, and WSL2 to be available there.
+EOF
+}
+
+LOCAL_ONLY=0
+TARGETS_CSV="all"
+TRACE=0
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --local-only)
+      LOCAL_ONLY=1
+      shift
+      ;;
+    --trace)
+      TRACE=1
+      shift
+      ;;
+    --targets)
+      TARGETS_CSV="${2:-}"
+      if [[ -z "$TARGETS_CSV" ]]; then
+        echo "ERROR: --targets requires a value" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    *)
+      echo "ERROR: unknown arg: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+log() { printf '%s\n' "$*"; }
+
+need_bin() {
+  local b="$1"
+  if ! command -v "$b" >/dev/null 2>&1; then
+    echo "ERROR: missing required tool in PATH: $b" >&2
+    exit 2
+  fi
+}
+
+host_os="$(uname -s)"
+host_arch="$(uname -m)"
+if [[ "$host_os" != "Darwin" ]]; then
+  echo "ERROR: this script currently assumes a macOS host; got OS=$host_os" >&2
+  exit 2
+fi
+if [[ "$host_arch" != "arm64" ]]; then
+  echo "ERROR: this script currently assumes an arm64 macOS host; got arch=$host_arch" >&2
+  exit 2
+fi
+
+need_bin go
+need_bin make
+
+if [[ "$LOCAL_ONLY" -eq 0 ]]; then
+  need_bin docker
+  need_bin ssh
+  need_bin scp
+  need_bin socat
+fi
+
+mkdir -p build/tmp build/logs
+
+normalize_target() {
+  local t="$1"
+  # Trim whitespace
+  t="${t#"${t%%[![:space:]]*}"}"
+  t="${t%"${t##*[![:space:]]}"}"
+  # Common typos / aliases from interactive usage.
+  case "$t" in
+    starge0) echo stage0 ;;
+    starge1) echo stage1 ;;
+    starge2) echo stage2 ;;
+    win|windows|x64-windows) echo x64-win ;;
+    wsl|x64-linux|linux-x64) echo x64-wsl ;;
+    *) echo "$t" ;;
+  esac
+}
+
+TARGETS_NORM=()
+if [[ "$TARGETS_CSV" != "all" ]]; then
+  IFS=',' read -r -a _parts <<<"$TARGETS_CSV"
+  for p in "${_parts[@]}"; do
+    TARGETS_NORM+=("$(normalize_target "$p")")
+  done
+fi
+
+has_target() {
+  local want="$1"
+  if [[ "$TARGETS_CSV" == "all" ]]; then
+    return 0
+  fi
+  want="$(normalize_target "$want")"
+  for p in "${TARGETS_NORM[@]}"; do
+    if [[ "$p" == "$want" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+run_with_timeout() {
+  local secs="$1"
+  shift
+  set +e
+  "$@" &
+  local pid=$!
+  (
+    sleep "$secs"
+    kill -TERM "$pid" 2>/dev/null || true
+    sleep 1
+    kill -KILL "$pid" 2>/dev/null || true
+  ) &
+  local killer=$!
+  wait "$pid"
+  local rc=$?
+  kill "$killer" 2>/dev/null || true
+  wait "$killer" 2>/dev/null || true
+  set -e
+  return "$rc"
+}
+
+if has_target stage0; then
+  log "== build: stage0 (Go bootstrap) =="
+  make bootstrap
+fi
+if has_target stage1; then
+  log "== build: stage1 (self-hosted) =="
+  make stage1
+fi
+if has_target stage2; then
+  log "== build: stage2 (self-hosted) =="
+  make stage2
+fi
+
+if has_target local; then
+  log "== verify: local arm64-macos (stage1 + stage2) =="
+  make verify-native-quick
+fi
+
+if [[ "$LOCAL_ONLY" -ne 0 ]]; then
+  log "OK: local-only verification complete"
+  exit 0
+fi
+
+build_native_bin() {
+  local compiler="$1"
+  local platform="$2"
+  local out="$3"
+
+  if [[ ! -x "$compiler" ]]; then
+    echo "ERROR: missing compiler executable: $compiler (build with: make stage1 stage2)" >&2
+    exit 2
+  fi
+  "$compiler" build "$TEST_SRC" --backend native --platform "$platform" --debug -o "$out"
+}
+
+run_in_linux_container() {
+  local bin="$1"
+  local dst="/tmp/$(basename "$bin")"
+
+  # Best-effort cleanup of any previous stuck processes/artifacts.
+  docker exec -i "$LINUX_DOCKER_ID" bash -lc 'pkill -9 -x qi_stage1_arm64_linux >/dev/null 2>&1 || true; pkill -9 -x qi_stage2_arm64_linux >/dev/null 2>&1 || true; rm -f /tmp/qi_stage* || true' >/dev/null 2>&1 || true
+  docker cp "$bin" "${LINUX_DOCKER_ID}:${dst}"
+  docker exec -i "$LINUX_DOCKER_ID" bash -lc "chmod +x '$dst' && '$dst'"
+}
+
+remote_user="$REMOTE_HOST"
+if [[ "$REMOTE_HOST" == *"@"* ]]; then
+  remote_user="${REMOTE_HOST%@*}"
+fi
+# IMPORTANT: for OpenSSH on Windows, scp/sftp path handling is not consistent for POSIX-style
+# absolute paths like `/Users/<name>/...`. Use a home-relative path for reliability.
+remote_unix_root="tmp_oren"
+remote_win_root="C:\\Users\\${remote_user}\\tmp_oren"
+remote_wsl_root="/mnt/c/Users/${remote_user}/tmp_oren"
+
+ssh_base=(ssh -o "$REMOTE_PROXY" "$REMOTE_HOST")
+scp_base=(scp -o "$REMOTE_PROXY")
+
+remote_mkdir() {
+  # Ensure the Windows user profile staging directory exists. (This also backs the WSL /mnt/c path.)
+  "${ssh_base[@]}" 'cmd.exe /c "if not exist %USERPROFILE%\\tmp_oren mkdir %USERPROFILE%\\tmp_oren"'
+}
+
+remote_del() {
+  # Best-effort remove of a previously-uploaded artifact.
+  # This avoids intermittent scp failures when a prior run left the file locked/read-only.
+  local name="$1"
+  "${ssh_base[@]}" "cmd.exe /c \"del /f /q %USERPROFILE%\\\\tmp_oren\\\\${name} 2>nul\""
+}
+
+remote_kill_win() {
+  local exe="$1"
+  "${ssh_base[@]}" "cmd.exe /c \"taskkill /f /im ${exe} >nul 2>nul\""
+}
+
+remote_kill_wsl() {
+  local exe="$1"
+  # Best-effort: kill by process name (not `-f`), otherwise it can match the current shell command line.
+  "${ssh_base[@]}" "wsl.exe -e bash -lc \"pkill -9 -x '${exe}' >/dev/null 2>&1 || true\""
+}
+
+remote_upload() {
+  local src="$1"
+  local dst_name="$2"
+  remote_del "$dst_name"
+  "${scp_base[@]}" "$src" "${REMOTE_HOST}:${remote_unix_root}/${dst_name}"
+}
+
+remote_run_win() {
+  local exe_name="$1"
+  remote_kill_win "$exe_name" >/dev/null 2>&1 || true
+  set +e
+  run_with_timeout 30 "${ssh_base[@]}" "cmd.exe /v:on /c \"${remote_win_root}\\\\${exe_name} & echo EXIT=!ERRORLEVEL!\""
+  local rc=$?
+  set -e
+  if [[ "$rc" -ne 0 ]]; then
+    remote_kill_win "$exe_name" >/dev/null 2>&1 || true
+  fi
+  return "$rc"
+}
+
+remote_run_wsl() {
+  local bin_name="$1"
+  remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
+  # Use WSL-side `timeout` to avoid leaving background processes if the outer ssh is terminated.
+  local envp=""
+  if [[ "$TRACE" -ne 0 ]]; then
+    envp="OREN_QI_TRACE=1 "
+  fi
+  local cmd="file ${remote_wsl_root}/${bin_name} || true; chmod +x ${remote_wsl_root}/${bin_name} && ${envp}timeout 20s ${remote_wsl_root}/${bin_name}; echo EXIT=\\$?"
+  set +e
+  run_with_timeout 30 "${ssh_base[@]}" "wsl.exe -e bash -lc \"${cmd}\""
+  local rc=$?
+  set -e
+  if [[ "$rc" -ne 0 ]]; then
+    remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
+  fi
+  return "$rc"
+}
+
+if has_target arm64-linux; then
+  log "== verify: linux/arm64 via docker container id=${LINUX_DOCKER_ID} =="
+  docker ps --filter "id=${LINUX_DOCKER_ID}" --format 'id={{.ID}} status={{.Status}}' | grep -q "id=${LINUX_DOCKER_ID}" || {
+    echo "ERROR: required persistent container not running: ${LINUX_DOCKER_ID}" >&2
+    exit 2
+  }
+
+  build_native_bin "./oren" "arm64-linux" "build/tmp/qi_stage1_arm64_linux"
+  build_native_bin "./oren_stage2" "arm64-linux" "build/tmp/qi_stage2_arm64_linux"
+  run_in_linux_container "build/tmp/qi_stage1_arm64_linux"
+  run_in_linux_container "build/tmp/qi_stage2_arm64_linux"
+  log "OK: linux/arm64 container"
+fi
+
+if has_target x64-win || has_target x64-wsl; then
+  log "== verify: remote x64 Windows + WSL2 via ${REMOTE_HOST} =="
+  remote_mkdir
+fi
+
+if has_target x64-win; then
+  build_native_bin "./oren" "x64-windows" "build/tmp/qi_stage1_x64_windows.exe"
+  build_native_bin "./oren_stage2" "x64-windows" "build/tmp/qi_stage2_x64_windows.exe"
+
+  remote_upload "build/tmp/qi_stage1_x64_windows.exe" "qi_stage1_x64_windows.exe"
+  remote_upload "build/tmp/qi_stage2_x64_windows.exe" "qi_stage2_x64_windows.exe"
+
+  log "-- run: Win11 (x64-windows) --"
+  remote_run_win "qi_stage1_x64_windows.exe"
+  remote_run_win "qi_stage2_x64_windows.exe"
+  log "OK: remote Win11 x64"
+fi
+
+if has_target x64-wsl; then
+  build_native_bin "./oren" "x64-linux" "build/tmp/qi_stage1_x64_linux"
+  build_native_bin "./oren_stage2" "x64-linux" "build/tmp/qi_stage2_x64_linux"
+
+  remote_upload "build/tmp/qi_stage1_x64_linux" "qi_stage1_x64_linux"
+  remote_upload "build/tmp/qi_stage2_x64_linux" "qi_stage2_x64_linux"
+
+  log "-- run: WSL2 (x64-linux) --"
+  remote_run_wsl "qi_stage1_x64_linux"
+  remote_run_wsl "qi_stage2_x64_linux"
+  log "OK: remote WSL2 x64"
+fi
+
+log "ALL OK: native matrix verification passed"

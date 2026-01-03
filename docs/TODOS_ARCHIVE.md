@@ -5,6 +5,17 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2026-01-03) — x64-linux: WSL exit code + ELF sections + runtime pruning
+
+- Linux x86_64 native now terminates via `exit_group(2)` (process-wide) for:
+  - entry stub (`main` return → process exit), and
+  - `sys_exit` lowering (`exit(code)` / `oren_exit(code)`).
+- ELF emitter now writes a minimal section header table (SHT) so `readelf/objdump` show sane `.text`/`.data` sections.
+- Runtime pruning for targeted builds:
+  - prunes runtime-tagged `if g_target_os == ...` / `!= ...` branches at compile time to avoid compiling dead platform code.
+- Code size win:
+  - compiler-generated panics now call a shared helper instead of inlining a full panic+trace sequence at every site (debug builds keep the trace).
+
 ## Archived (2025-12-31) — macOS Mach-O signing rule simplified (external `codesign`)
 
 - Removed the custom embedded ad-hoc code signature generator from `lib/compiler/arm64_macho.oren` (it did not produce a signature accepted by macOS tooling).
