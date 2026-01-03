@@ -115,3 +115,71 @@ fn collect_top_level_functions(ctx, linked, err_prefix) {
     ctx["declared_functions"] = declared
     return out
 }
+
+// Merge top-level named function declarations from `linked` into an existing `ctx`.
+//
+// This is used by build pipelines that pre-seed `ctx` with additional function metadata
+// (e.g. from a cached compiled runtime object) and then need to add user program functions
+// without clobbering the existing maps.
+//
+// Side effects (merged):
+// - ctx["declared_functions"] (adds new names; errors on duplicates)
+// - ctx["func_arity"], ctx["func_varargs_fixed"], ctx["func_decl_order"]
+//
+// Returns a list of Function AST nodes (from `linked`, in source order), or nil on error.
+fn collect_top_level_functions_merge(ctx, linked, err_prefix) {
+    var stmts = nil
+    if linked != nil { stmts = linked["statements"] }
+    if stmts == nil {
+        if err_prefix != nil && err_prefix != "" { _err(ctx, err_prefix, "missing program statements") }
+        else { _err(ctx, "coreir", "missing program statements") }
+        return nil
+    }
+
+    if ctx["func_arity"] == nil { ctx["func_arity"] = {} }
+    if ctx["func_varargs_fixed"] == nil { ctx["func_varargs_fixed"] = {} }
+    if ctx["func_decl_order"] == nil { ctx["func_decl_order"] = [] }
+
+    var declared = ctx["declared_functions"]
+    if declared == nil { declared = {} }
+
+    var out = []
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var fn0 = _stmt_to_function_decl(stmts[i])
+        if fn0 != nil {
+            var name = fn0["name"]
+            if name == nil { _err(ctx, err_prefix, "function missing name"); return nil }
+            if declared[name] != nil { _err(ctx, err_prefix, "duplicate function " + name); return nil }
+            declared[name] = 1
+
+            var params = fn0["params"]
+            var pc = 0
+            if params != nil { pc = oren_list_len(params) }
+            var j = 0
+            while j < pc {
+                var p = params[j]
+                if p == nil || p["type"] != "Identifier" {
+                    _err(ctx, err_prefix, "param must be identifier: " + name)
+                    return nil
+                }
+                j = j + 1
+            }
+
+            ctx["func_arity"][name] = pc + 1
+            if pc > 0 {
+                var last = params[pc - 1]
+                if last != nil && last["is_varargs"] == true {
+                    ctx["func_varargs_fixed"][name] = (pc - 1) + 1
+                }
+            }
+
+            if name != "" { oren_list_push(ctx["func_decl_order"], name) }
+            oren_list_push(out, fn0)
+        }
+        i = i + 1
+    }
+
+    ctx["declared_functions"] = declared
+    return out
+}

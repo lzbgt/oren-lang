@@ -82,6 +82,22 @@ Tracing knobs (bounded output; prints timing summaries):
 - `OREN_TRACE_RUNTIME_BUNDLE=1`: runtime expand/parse/cache timings
 - `OREN_TRACE_ASTBIN=1`: astbin decode timings (and v2 pool size)
 
+### Native Runtime Object Cache (Native Backend; Tier‑1 throughput)
+
+For Tier‑1 native backends, injecting *and compiling* the full native runtime can still dominate “compile one file” throughput.
+To avoid paying that cost on every invocation, the compiler can cache a backend-specific compiled runtime “object” and splice it into the output.
+
+Rolling notes:
+
+- The cache is **disabled for capsule builds** by default (until it can live inside the capsule boundary).
+- Debug builds currently bypass the runtime object cache (until the debug symbol story is integrated).
+
+Environment knobs:
+
+- disable: `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`
+- override cache dir: `OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR=<dir>` (default: `build/cache/native_runtime_obj/`)
+- tracing (bounded): `OREN_TRACE_RUNTIME_OBJ_CACHE=1`
+
 ### Native Backend (Tier‑1 intent: arm64 + x86_64)
 Compiles directly to machine code (Mach-O / ELF / PE). Fast and dependency-free for the emitted artifact (no libc shims for native output).
 

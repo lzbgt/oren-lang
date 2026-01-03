@@ -644,6 +644,20 @@ fn oren_init_static_cstr0_table(table_ptr) {
         native_alloc_index_rebuild_live()
     }
 
+    // Performance (native self-hosted compiler):
+    // Avoid allocating one 40-byte tracking node per string literal (tens of thousands of tiny
+    // allocations can dominate startup). Prefer a single contiguous allocation for all nodes
+    // and slice it into fixed-size records.
+    //
+    // If the bulk allocation fails, fall back to the original per-node allocation path.
+    var bulk_nodes = 0
+    var bulk_i = 0
+    if count > 0 {
+        // bytes = count * 40 = count*(32+8) = (count<<5) + (count<<3)
+        var bytes = iadd(count << 5, count << 3)
+        bulk_nodes = native_malloc_raw_or_mmap(bytes)
+    }
+
     var i = 0
     var p = iadd(table_ptr, 16)
     while i < count {
@@ -658,7 +672,14 @@ fn oren_init_static_cstr0_table(table_ptr) {
                 // Force kind=STRING for safety (some backends may accidentally track as kind=0).
                 ptr_set(iadd(hit, 16), 1)
             } else {
-                var node = native_malloc_raw_or_mmap(40)
+                var node = 0
+                if bulk_nodes != 0 {
+                    // node = bulk_nodes + bulk_i * 40 (use shifts to avoid mul lowering quirks).
+                    node = iadd(bulk_nodes, iadd(bulk_i << 5, bulk_i << 3))
+                    bulk_i = iadd(bulk_i, 1)
+                } else {
+                    node = native_malloc_raw_or_mmap(40)
+                }
                 if node != 0 {
                     ptr_set(node, s_ptr)
                     ptr_set(iadd(node, 8), 0)

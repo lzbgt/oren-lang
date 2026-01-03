@@ -5,11 +5,30 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2026-01-03) — Native: runtime object cache (arm64 throughput)
+
+- Compiler (arm64 native backend):
+  - Added a backend-specific compiled runtime cache (“runtime object”) so “compile one file” can skip recompiling `lib/runtime_native.oren` on cache hit.
+  - Cache stores:
+    - `meta.astbin` (function offsets, fixups, globals, cstr0 offsets, and function metadata)
+    - `code.u8` and `data_tail.u8` (runtime machine code and `.data` tail after the shared prefix slot)
+  - Env knobs:
+    - disable: `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`
+    - override dir: `OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR=...`
+    - trace: `OREN_TRACE_RUNTIME_OBJ_CACHE=1`
+- Evidence (arm64-macos, stage2 compiler, `tests/native/test_quick_integration_native.oren`, `--no-cache --no-debug`):
+  - cache miss (build runtime object): `real ~2.04s`
+  - cache hit: `real ~0.58s`
+- Verified:
+  - `make verify-native-quick`
+  - `./scripts/verify_native_matrix.sh --targets arm64-linux`
+
 ## Archived (2026-01-03) — Native: pooled static string literals (no per-use tracking)
 
 - Native runtime:
   - String literals are treated as **static-kind** (not GC-managed heap allocations).
   - Added a startup init hook `oren_init_static_cstr0_table(table_ptr)` so `oren_find_node(ptr)` can classify literals as kind=STRING without per-use `oren_ensure_tracked` calls.
+  - Optimized startup: `oren_init_static_cstr0_table` allocates literal tracking nodes from a single contiguous block (avoids N tiny allocations on large binaries).
 - Native backends:
   - arm64: embedded cstr0 literal pool is now deduped (matches x86_64 behavior).
   - arm64: member/struct field-name keys now use the same pooled cstr0 path (no ad-hoc duplicated cstr emission per access).

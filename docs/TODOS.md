@@ -49,14 +49,15 @@ Rules for this tracker:
        - Current blocker: `oren_system(_timeout)` on `x64-windows` fails in the remote gate (`sys_win_createprocess` returns `-998` / `GetLastError()==998` = `ERROR_NOACCESS`).
          - Tier‑1 fixture currently *soft-skips* the failure on Windows to keep the remote gate usable; remove this skip once CreateProcess wiring is correct.
 	     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
-	     - (performance) stage2-native runtime bundle cost remains high; keep iterating toward:
-	       - default: hashed runtime AST cache under `build/cache/native_runtime_astbin/` (disable via `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0`)
-	       - `OREN_NATIVE_RUNTIME_EXPANDED=...` troubleshooting fast-path (skip include expansion)
-	       - `OREN_NATIVE_RUNTIME_ASTBIN=...` troubleshooting fast-path (force a specific astbin file)
-	       - Current measured hotspot (arm64-macos, `tests/native/test_quick_integration_native.oren`, stage2-native compiler):
-	         - runtime astbin decode is still multi-second (~7.4s decode for the runtime bundle on 2026-01-03 with `OREN_TRACE_RUNTIME_BUNDLE=1 OREN_TRACE_ASTBIN=1`), despite recent wins from inlining `oren_buf_load_u8_unchecked` in native emit.
-	         - next high-leverage direction: avoid compiling the full injected runtime on every build (cache a platform+opts-specific compiled runtime blob and link/merge it), so “compile one file” doesn’t pay the full runtime cost.
-	       - (capsule) ensure `native_capsule_sys_*` hooks are emitted + kept only when `--capsule` is enabled (non-capsule builds should not pay this cost)
+		     - (performance) stage2-native runtime bundle cost remains high; keep iterating toward:
+		       - default: hashed runtime AST cache under `build/cache/native_runtime_astbin/` (disable via `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0`)
+		       - default (Tier‑1 throughput): cached compiled runtime object under `build/cache/native_runtime_obj/` (disable via `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`)
+		       - `OREN_NATIVE_RUNTIME_EXPANDED=...` troubleshooting fast-path (skip include expansion)
+		       - `OREN_NATIVE_RUNTIME_ASTBIN=...` troubleshooting fast-path (force a specific astbin file)
+		       - Status (rolling, 2026-01-03):
+		         - Implemented: arm64 native backend runtime object cache (non-capsule, non-debug) so “compile one file” can skip recompiling `lib/runtime_native.oren` on cache hit.
+		         - Remaining: extend the runtime object cache to x86_64 native backend; integrate capsule/debug safely; decide how to keep binaries small (DCE/prune strategy) without reintroducing per-build runtime compilation.
+		       - (capsule) ensure `native_capsule_sys_*` hooks are emitted + kept only when `--capsule` is enabled (non-capsule builds should not pay this cost)
 
 2) **Determinism + replay (native + AVM)** (L)
    - MANTIS requires deterministic replay and traceability (`mantis.md` “Observability & reproducibility”).

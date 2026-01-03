@@ -1,0 +1,165 @@
+// native_runtime_obj_cache.oren
+//
+// Compiled native runtime cache ("runtime object") for native backends.
+//
+// Motivation (rolling, Tier‑1 throughput):
+// - Injecting + compiling `lib/runtime_native.oren` dominates stage2-native build time.
+// - Caching the parsed runtime AST (astbin) helps, but decoding + compiling hundreds of
+//   runtime decls still costs many seconds per build.
+// - Caching a backend-specific "runtime object" makes "compile one file" not pay the full
+//   runtime cost on every invocation.
+//
+// Safety:
+// - Disabled for capsule builds by default (until the cache is within the capsule boundary).
+
+import rtinj "native_runtime_inject.oren"
+import astbin "astbin.oren"
+
+var RUNTIME_OBJ_SCHEMA = 1
+var RUNTIME_OBJ_DATA_PREFIX_LEN = 8 // cstr0 table slot reserved by native entry stubs
+
+fn _is_false(v) {
+    if v == nil || v == "" { return false }
+    if v == "0" || v == "false" { return true }
+    return false
+}
+
+fn rtobj_cache_enabled(platform) {
+    if platform != nil && platform["capsule"] == true { return false }
+    var v = oren_env("OREN_NATIVE_RUNTIME_OBJ_CACHE")
+    if _is_false(v) { return false }
+    return true
+}
+
+fn rtobj_cache_dir() {
+    var v = oren_env("OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR")
+    if v == nil || v == "" { return "build/cache/native_runtime_obj" }
+    return v
+}
+
+fn rtobj_trace_enabled() {
+    var v = oren_env("OREN_TRACE_RUNTIME_OBJ_CACHE")
+    if v != nil && v != "" { return true }
+    return false
+}
+
+fn _hex_digit(n) { return oren_string_char_at("0123456789abcdef", n) }
+
+fn _bytes_to_hex(bs) {
+    if bs == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        if b == nil { b = 0 }
+        if b < 0 { b = 0 }
+        if b > 255 { b = b & 255 }
+        out = out + _hex_digit(b / 16) + _hex_digit(b & 15)
+        i = i + 1
+    }
+    return out
+}
+
+fn _sha256_hex_string(s) {
+    if s == nil { return "" }
+    var d = oren_sha256_string(s)
+    return _bytes_to_hex(d)
+}
+
+fn _shell_quote(s) {
+    // Minimal single-quote escaping: ' -> '\''.
+    if s == nil { return "''" }
+    var out = "'"
+    var i = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at(s, i)
+        if ch == "'" { out = out + "'\\''" }
+        else { out = out + ch }
+        i = i + 1
+    }
+    out = out + "'"
+    return out
+}
+
+fn _ensure_dir(path) {
+    if path == nil || path == "" { return nil }
+    // Rolling: use shell to avoid growing the compiler syscall surface here.
+    oren_system("mkdir -p " + _shell_quote(path))
+    return nil
+}
+
+fn rtobj_runtime_hash(ctx, runtime_path) {
+    var runtime_src = nil
+    var expanded_override = oren_env("OREN_NATIVE_RUNTIME_EXPANDED")
+    if expanded_override != nil {
+        var p = expanded_override
+        if p == "" { p = "build/runtime_native.expanded.oren" }
+        var rr = oren_read_file(p)
+        if oren_is_err(rr) { return nil }
+        runtime_src = rr
+    } else {
+        runtime_src = rtinj.runtime_expand_includes_file(ctx, runtime_path, [])
+    }
+    if runtime_src == nil { return nil }
+    return _sha256_hex_string(runtime_src)
+}
+
+fn rtobj_cache_key(backend, platform, runtime_hash) {
+    var os = "unknown"
+    var arch = "unknown"
+    var dbg = "0"
+    var ngc = "0"
+    if platform != nil {
+        if platform["os"] != nil { os = platform["os"] }
+        if platform["arch"] != nil { arch = platform["arch"] }
+        if platform["debug"] == true { dbg = "1" }
+        if platform["no_gc"] == true { ngc = "1" }
+    }
+    var s = "rtobj_schema=" + oren_int_to_string(RUNTIME_OBJ_SCHEMA) +
+        " backend=" + backend +
+        " os=" + os +
+        " arch=" + arch +
+        " debug=" + dbg +
+        " no_gc=" + ngc +
+        " runtime_hash=" + runtime_hash
+    return _sha256_hex_string(s)
+}
+
+fn rtobj_paths(cache_dir, key) {
+    var dir = cache_dir + "/" + key
+    return {
+        "dir": dir,
+        "meta": dir + "/meta.astbin",
+        "code": dir + "/code.u8",
+        "data_tail": dir + "/data_tail.u8"
+    }
+}
+
+fn rtobj_load(cache_dir, key) {
+    var paths = rtobj_paths(cache_dir, key)
+    var meta_bs = oren_read_u8_buf(paths["meta"])
+    if oren_is_err(meta_bs) { return nil }
+    var meta = astbin.astbin_decode(meta_bs)
+    if meta == nil { return nil }
+    if meta["schema"] == nil || meta["schema"] != RUNTIME_OBJ_SCHEMA { return nil }
+
+    var code = oren_read_u8_buf(paths["code"])
+    if oren_is_err(code) { return nil }
+    var data_tail = oren_read_u8_buf(paths["data_tail"])
+    if oren_is_err(data_tail) { return nil }
+    meta["code_u8"] = code
+    meta["data_tail_u8"] = data_tail
+    return meta
+}
+
+fn rtobj_store(cache_dir, key, meta, code_u8, data_tail_u8) {
+    var paths = rtobj_paths(cache_dir, key)
+    _ensure_dir(paths["dir"])
+    var meta_bs = astbin.astbin_encode(meta)
+    if meta_bs == nil { return nil }
+    oren_write_bytes(paths["meta"], meta_bs)
+    oren_write_bytes(paths["code"], code_u8)
+    oren_write_bytes(paths["data_tail"], data_tail_u8)
+    return nil
+}
+
