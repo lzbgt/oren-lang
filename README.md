@@ -80,8 +80,9 @@ This repo is intentionally syscall-first and “no libc shims” for native runt
 ```bash
 make bootstrap   # build stage0 Go compiler
 make            # build stage1 self-hosted compiler (default target)
-make test       # curated native + module + AVM bytecode tests (wrapper over `./oretest`)
-make test-legacy # compatibility alias for `./oretest --full` (broader curated coverage, still parallel)
+make test       # fast native smoke (stage1)
+make test-native-all # native tests (all tests/native/*.oren)
+make verify-native-quick # stage1 + stage2 native smoke
 make verify     # clean + stage2 self-hosting verification
 ```
 
@@ -115,9 +116,9 @@ Notes:
 - The Linux/Windows x86_64 backend is Tier‑1 intent but still in bring-up; see `docs/TODOS.md`.
 - To run x86_64 artifacts on real hardware (Win11 + WSL2), use the documented remote workflow: `docs/REMOTE_X64_ENV.md`.
 
-### Run the curated suite (recommended)
+### Fast native verification (recommended on macOS/Linux)
 ```bash
-./oretest --target macos
+make verify-native-quick
 ```
 
 ### Build bytecode + run on AVM (experimental)

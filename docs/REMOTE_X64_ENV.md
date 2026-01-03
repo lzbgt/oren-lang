@@ -5,63 +5,16 @@ To test it on real x86_64 machines, we use a remote Win11 host with WSL2 enabled
 
 ## Terminology: platform, target, and the remote x64 gate
 
-- Prefer `./oretest --platform <arch>-<os>` (or env `OREN_PLATFORM`) for anything Tier‑1:
-  - `arm64-macos` runs locally on the Mac host.
-  - `arm64-linux` runs via the persistent Docker runner.
-  - `x64-windows` / `x64-linux` run via the remote Win11+WSL2 batch gate.
-
-- `./oretest --target <os>` is legacy and only selects the **host** native-backend target (`macos` or `linux`) for tests that run locally (or in the local Linux Docker runner).
-
-- For direct compilation, prefer the unified platform flag on the compiler too:
+- For direct compilation, prefer the unified platform flag on the compiler:
   - `./oren build ... --platform <arch>-<os>`
   - env fallback: `OREN_PLATFORM=<arch>-<os>` is used when `--platform` is not provided.
   - `--target`/`--arch` are legacy (still supported).
-
-- The remote x64 gate can also be controlled directly by env flags and runs **x64-windows + x64-linux (WSL2)** on the remote Win11 machine:
-  - enable: `OREN_REMOTE_RUN=1`
-  - choose run kind: `OREN_REMOTE_X64_RUN_KIND=both|windows|wsl` (default: `both`)
-
-Examples:
-
-```bash
-# Run the full Tier‑1 matrix from the Mac host (includes remote x64 gate)
-./oretest --matrix tier1
-
-# Run only the remote Windows PE fixture batch
-./oretest --platform x64-windows
-
-# Run only the remote WSL2 Linux x64 fixture batch
-./oretest --platform x64-linux
-```
 
 ## Prerequisites (local machine)
 
 - `socat` available in `PATH` (required for `ProxyCommand`).
   - macOS (Homebrew): `brew install socat`
   - Linux: `apt-get install socat` / `dnf install socat` / etc.
-
-## Optional overrides (for non-default hosts)
-
-`cmd/oretest` has a default Win11+WSL2 host and proxy configuration (documented below), but you can
-override the remote connection details without editing source:
-
-- `OREN_REMOTE_X64_HOST` (default: `lzbgt@pc.work`)
-- `OREN_REMOTE_X64_PROXY_ARG` (default: the `socat` ProxyCommand; set to empty to disable)
-- `OREN_REMOTE_X64_UNIX_ROOT` (default: `/Users/lzbgt/tmp_oren`)
-- `OREN_REMOTE_X64_WIN_ROOT` (default: `C:\Users\lzbgt\tmp_oren`)
-- `OREN_REMOTE_X64_WSL_ROOT` (default: `/mnt/c/Users/lzbgt/tmp_oren`)
-- `OREN_REMOTE_X64_RUN_KIND` (default: `both`)
-  - `both`: run the batch on Windows + WSL2 (Tier‑1 canonical)
-  - `windows`: run only the Windows PE executable(s)
-  - `wsl` / `linux`: run only the WSL2 Linux executable(s)
-- `OREN_REMOTE_TIER1_TIMEOUT_SECS` (default: `180`) — outer wall-time budget for the remote Tier‑1 fixture batch
-
-Example:
-
-```bash
-export OREN_REMOTE_X64_HOST="user@myhost"
-export OREN_REMOTE_X64_PROXY_ARG=""
-```
 
 ## Connect to the remote host
 
@@ -141,8 +94,7 @@ scp -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" build/x64_f
 
 ## Rolling guidance
 
-- Keep the remote-run steps **opt-in** in automated tests (use env flags like `OREN_REMOTE_RUN=1`) so CI remains deterministic/offline by default.
-- The remote batch runner uses a SHA-addressed bundle directory on the remote host so repeated runs can reuse the uploaded+extracted bundle when inputs are unchanged (reduces proxy/SCP overhead).
+- Keep remote execution **opt-in** in automated workflows so CI remains deterministic/offline by default.
 - Never copy root CA private keys or other secrets into the repo or remote host unless explicitly designed for secure storage (`../oren-ca/` remains the secret boundary).
 
 ## Troubleshooting
@@ -156,4 +108,4 @@ What to do:
 - Re-try later (this has been observed as intermittent).
 - Verify `socat` is installed and that the command is exactly:
   - `ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work ...`
-- If the proxy stays unavailable, use the environment overrides above to point `oretest` at an alternate reachable x86_64 host.
+- If the proxy stays unavailable, use a different reachable x86_64 host (or disable the proxy and connect directly).

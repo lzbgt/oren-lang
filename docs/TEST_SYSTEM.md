@@ -1,196 +1,59 @@
-# Test & Build System (Rolling, Syscall-First)
+# Test System (Direct, No Runner)
 
-This repo is intentionally in **rolling ABI** mode. The development constraint is:
+This repo is intentionally in **rolling ABI** mode. The testing constraint is:
 
 - iteration must be **fast**
 - tests must **never hang forever**
 - failures must be **actionable** (logs, minimal noise)
-- the toolchain must evolve toward **Oren-native tooling** (build/test), without forcing a big-bang rewrite.
 
-This document explains the current state and the planned evolution.
+The current approach is **direct compilation + direct execution** using the compiler binaries
+(`./oren` and `./oren_stage2`) rather than a separate repo test runner.
 
-## Current State (Today)
+## What “tests” mean in this repo
 
-### 1) `make test` (curated, timeout-protected)
+`tests/` contains multiple categories:
 
-`make test` is a curated, timeout-protected suite intended for fast iteration:
+- `tests/native/*.oren`: programs intended to be compiled with `--backend native` and executed on the host OS
+- `tests/modules/*.oren`: module-/stdlib-heavy programs (some are written without a `main()` and execute via top-level statements)
+- `tests/avm/*.oren`: programs intended for the AVM workflow (`--backend bytecode` + `./avm`)
+- `tests/fixtures/*.oren`: fixtures for compile-time contracts (many are expected failures under specific flags)
 
-- runs the canonical curated runner: `./oretest` (host target inferred)
-- legacy explicit host target: `./oretest --target macos` / `./oretest --target linux`
-- platform selector (preferred mental model): `./oretest --platform <arch>-<os>` (e.g. `arm64-macos`)
-- Tier‑1 platform matrix (host orchestration): `./oretest --matrix tier1`
-- Tier‑1 + OBC portability (recommended after compiler/runtime changes): `./oretest --matrix tier1-obc`
-- remote x64 gate (Win11 + WSL2): `OREN_REMOTE_RUN=1 OREN_REMOTE_X64_RUN_KIND=both ./oretest`
-- captures per-test logs under `build/logs/`
-- prints **only summaries** on success; prints **details only on failures**
-- runs tests/fixtures in parallel by default (bounded); tune with:
-  - `OREN_TEST_JOBS` (`./oretest --jobs`)
-  - `OREN_TEST_FIXTURE_JOBS` (`./oretest --fixture-jobs`)
-  - `OREN_TEST_NATIVE_JOBS` (`./oretest --native-jobs`)
-- macOS note: **do not disable codesigning**. Unsigned/invalidly-signed native outputs may be killed by the OS during execution.
-    - `oren build` has a repo-local default output layout under `build/targets/...`
-    - `./oretest` passes explicit `-o ...` paths for fixtures/tests (so logs and cleanup lists stay stable), but those outputs now also follow the `build/targets/...` layout for the main suites:
-      - native: `build/targets/<arch>-<os>/native/<test>`
-      - c: `build/targets/<arch>-<os>/c/<test>`
-      - bytecode: `build/targets/avm/bytecode/<test>.obc`
-  - portability note:
-    - the `.obc` portability contract is verified via `tools/verify_obc_portability.sh` (compiles once, runs the same `.obc` across macOS arm64 + linux/arm64 docker + linux/x64 WSL2 and compares `RESULT_HASH`/`TRACE_HASH`)
-    - details: `docs/OBC_PORTABILITY.md`
-- quick bottleneck discovery:
-  - `OREN_TEST_PROFILE=1 make test` (or `./oretest --profile`) prints the slowest tests (per-test elapsed time)
-- SIMD validation note:
-  - native SIMD is treated as an **optimization only** (scalar semantics are authoritative)
-  - the native SIMD suite (`tests/native/test_simd_suite.oren`) is executed **twice**:
-    - scalar baseline: `OREN_NO_SIMD=1` (expects `SIMD_ENABLED=0`)
-    - SIMD run: `OREN_ENABLE_SIMD=1` (expects `SIMD_ENABLED=1`) and compares stable outputs to scalar
-  - today, `./oretest` only performs the SIMD-on comparison when the *runner host* is `arm64` (NEON); x86_64 SIMD parity will expand this gate once SSE/AVX backends land
-  - logs:
-    - scalar: `build/logs/native_test_simd_suite.log`
-    - SIMD: `build/logs/native_test_simd_suite_simd.log`
-- rolling split (speed vs coverage):
-  - default fast suite skips expensive fixture families (signing / OpenAPI export)
-  - enable when needed:
-    - `OREN_TEST_SIGNING=1 make test` (requires `./orensign`)
-    - `OREN_TEST_OREDOC=1 make test` (requires `./oredoc`)
-  - `make test-legacy` / `./oretest --full` implies those families (broader coverage)
+Rolling rule: **Oren source should be backend-universal** when the program is within the supported feature set of that backend.
+When a source file is intended to be backend-specific (e.g. AVM domain tests), it should be documented as such in-file.
 
-It benefits from `timeout` (Linux) or `gtimeout` (macOS coreutils) as an outer failsafe, but it is not required for correctness.
+## Fast native verification (macOS/Linux host)
 
-Rolling update:
+These targets are intended to be runnable without additional tooling:
 
-- `timeout`/`gtimeout` is **recommended** as an outer failsafe (Makefile uses it when present).
-- `./oretest` also implements internal process-group timeouts and will warn (not fail) if `timeout` is missing.
+```bash
+# Build stage1 compiler
+make stage1
 
-Legacy behavior (broader Makefile-driven lists) is preserved as:
+# Fast, single-file native integration smoke (stage1)
+make test-native-quick
 
-- `make test-legacy`
-  - note: `test-legacy` is now a **compatibility alias** for `./oretest --full` (broader curated coverage, still parallel).
-- the historical shell-heavy Makefile runner has been removed (rolling); use git history if you need to recover it.
+# Build stage2 compiler
+make stage2
 
-### 2) `./oretest` (repo runner, outside the compiler)
+# Fast, single-file native integration smoke (stage2)
+make test-native-quick-stage2
 
-`./oretest` is a repo-local test runner (currently written in Go):
+# Convenience: stage1 + stage2
+make verify-native-quick
+```
 
-- same “curated + timeout + failure-only logs” philosophy
-- enforces SOLID by keeping repo test orchestration **out of** `lib/compiler/*.oren`
-- shells out to:
-  - `./oren` (self-hosted compiler binary) for compilation
-  - `./avm` (C VM) for running `.obc` tests
+For broader native coverage:
 
-Platform terminology (important for arch/OS unification work):
+```bash
+make test-native-all
+```
 
-- `oren build` always has two axes:
-  - `--target`: OS (`macos|linux|windows`)
-  - `--arch`: CPU (`arm64|x64|...`)
-- `./oretest --target` is **only the native backend OS target** for the *host-run* suite:
-  - it currently accepts `macos|linux` because the curated runner executes on the host.
-- `./oretest --platform` is a convenience layer that matches the repo artifact naming:
-  - examples: `arm64-macos`, `arm64-linux` (docker), `x64-windows` (remote gate), `x64-linux` (WSL2 gate)
-- `./oretest --matrix tier1` runs a practical Tier‑1 platform matrix from the dev host:
-  - `arm64-macos` (host)
-  - `arm64-linux` (docker, persistent container)
-  - `x64-windows` + `x64-linux` (remote Win11 + WSL2 batch gate)
+## Logs and artifacts
 
-This arrangement intentionally keeps “compiler as a library” as a future goal, without
-forcing repo tooling concerns into the compiler sources today.
+- Logs:
+  - `build/logs/*`
+- Native test artifacts created by the quick smoke:
+  - `build/tmp/*_native_quick_integration`
 
-Rolling guidance:
+The goal is that any failure leaves a single stable log file that can be inspected directly.
 
-- Prefer **integration-first fixtures** that exercise multiple language features at once.
-- Keep Tier‑1 x86_64 validation small:
-  - one local “builds exist” smoke that checks ELF+PE outputs
-  - one opt-in remote-run smoke on real Win11+WSL2 (see `docs/REMOTE_X64_ENV.md`)
-  - grow this set only when a regression escapes the integration suite.
-
-## Design Goals (What We’re Optimizing For)
-
-1) **No hangs**: every build/run step has a wall-time timeout.
-2) **Deterministic, replayable AVM**: AVM tests must be safe under snapshot/resume and record/replay.
-3) **Syscall-first runtime**: native backend runtime is designed to be independent of libc shims (the syscall substrate is the long-term stable base).
-4) **Minimal rewrite pressure**: migrate tooling incrementally.
-5) **Composable tooling**: “compiler as a library” is a target state (for both Oren tools and AVM universes).
-
-## Near-Term Roadmap (Incremental, No Big Rewrite)
-
-### Phase A — Makefile becomes a thin wrapper (now)
-
-Goal: Makefile stays as a convenience entrypoint, but the canonical runner is `./oretest`.
-
-Deliverables:
-
-- `make test` calls `./oretest` (kept in sync)
-- curated lists stay **short** and **integration-first**
-- module tests run in parallel; AVM tests become parallel-safe by isolating per-test workdirs
-
-### Phase B — Oren-native test manifest + structured output (later)
-
-Goal: remove most shell logic while keeping the same safety properties.
-
-Deliverables:
-
-- test manifests declared in `.oren` (or a small `tests/manifest.oren`) **outside the compiler**
-- structured output:
-  - summary `X/Y`
-  - `failed:` list
-  - stable log paths
-- optional `--json` output for agentic tooling
-
-#### Proposed v0 spec (manifest + CLI)
-
-This is the minimum bar for an Oren-native runner to replace most Makefile glue *without*
-becoming a compiler-internal concern.
-
-**Manifest file**
-
-- Location: `tests/manifest.oren`
-- The manifest is a normal `.oren` module that returns a list of test entries.
-- Each entry is a plain map (stable keys, no reflection required):
-
-  - `name`: string (stable identifier; used for filtering and log paths)
-  - `kind`: string enum: `native|module|avm|fixture`
-  - `path`: string (repo-relative source path)
-  - `tags`: list[string] (e.g. `["fast","stdlib","serde"]`)
-  - `timeout_ms`: int (wall clock; defaults by kind if omitted)
-
-**Runner CLI**
-
-- `oretest --list` prints stable test IDs (one per line).
-- `oretest --filter <glob>` runs only tests whose `name` or `path` matches.
-- `oretest --tag <tag>` runs only tests containing that tag (can repeat).
-- `oretest --jobs <N>` controls parallelism (default: `min(num_cpu, 32)`).
-- `oretest --json` emits a machine-readable JSON line per test result:
-  - `{ "name": "...", "kind": "...", "path": "...", "ok": true|false, "ms": 123, "log": "build/logs/..." }`
-
-**Text output contract**
-
-Keep human output small and stable (agent-friendly):
-
-- success: `X/Y <kind> tests passed`
-- failure summary: `failed:` then indented list of test IDs + log file paths
-- failure details: only show the tail of log by default; full log stays in `build/logs/`
-
-### Phase C — Oren-native build/test language surface
-
-Goal: a first-class Oren “tooling DSL” so the project does not depend on Make in production workflows.
-
-Possible design:
-
-- a future Oren-native successor to `./oretest` evaluates a `tests/` manifest as Oren code (not shell)
-- a tiny “tooling runtime” provides:
-  - process spawning with timeouts (PROC substrate)
-  - structured logs
-  - path utilities
-  - host capability enrollment (explicit)
-
-## Relationship to AVM & Multiverse
-
-Long-term, parts of the build/test system can run inside AVM universes for:
-
-- deterministic compilation capsules (“compile inside a capability-restricted universe”)
-- replayable debugging (“replay the compiler run by hash”)
-
-This is **not required** for the next milestones. The immediate goal is:
-
-- syscall-first native backend correctness
-- Oren-native tooling ergonomics
-- deterministic AVM core primitives (snapshot/resume/record-replay)

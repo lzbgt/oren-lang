@@ -275,7 +275,7 @@ Given Oren’s “agent-safe VM” goals, treat this as an advanced feature, not
 1) Add a formal “module search path” list (like `OREN_PATH`) for non-stdlib packages.
 2) Add a standard “vendor” directory layout (`vendor/<pkg>/...`) for reproducible builds.
 3) Decide whether stdlib is versioned with the compiler or independently.
-4) Add oretest audits ensuring docs/examples do not regress to `../../lib/std/...`.
+4) Add repo audits ensuring docs/examples do not regress to `../../lib/std/...`.
 5) Decide stdlib artifact format(s):
    - source tree (`.oren`) for transparency + patchability
    - precompiled `.obc` for AVM distribution

@@ -761,7 +761,7 @@ fn compiler_main() {
         print("[build] ensure_dir " + dirname(out_path))
     }
 
-    // Build outputs should be able to target nested directories (oretest uses build/tmp/...).
+    // Build outputs should be able to target nested directories (tests commonly use build/tmp/...).
     // Ensure the output directory exists before any backend attempts to write.
     ensure_dir(dirname(out_path))
     if trace_build { print("[build] ensure_dir done") }
@@ -1203,7 +1203,7 @@ fn compiler_main() {
     var c_code = transpiler.transpile_entry(path, prog, MODULE_ORDER, linked_c["aliases"])
     // IMPORTANT (rolling hygiene):
     // Do NOT write generated C next to sources. This breaks Makefile implicit rules
-    // and pollutes the working tree (especially under parallel oretest runs).
+    // and pollutes the working tree (especially under parallel test runs).
     //
     // Emit the C file alongside the output binary instead.
     ensure_dir(dirname(out_path))

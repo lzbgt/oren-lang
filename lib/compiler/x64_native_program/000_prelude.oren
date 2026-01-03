@@ -1,6 +1,6 @@
 // x86_64 native codegen (rolling; Tier-1 target).
 //
-// The x64 backend is brought up incrementally with focused fixtures (oretest) to keep ABI
+// The x64 backend is brought up incrementally with focused fixtures to keep ABI
 // details correct across:
 // - Linux x86_64 SysV (ELF)
 // - Windows x64 (PE32+, Win64 ABI)

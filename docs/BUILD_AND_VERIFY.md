@@ -99,25 +99,26 @@ Transpiles Oren to C, then compiles with the system C compiler (`cc`). Best for 
 ## 2.1 Test Runner Timeouts (Rolling Safety)
 
 This repo runs in **rolling ABI** mode, so the priority is fast iteration and avoiding hangs.
-The canonical curated runner is:
+The recommended fast path on macOS is to run native backend tests directly, without an extra repo runner layer:
 
 ```bash
-./oretest --platform arm64-macos
+# Fast smoke (single integrated test)
+make test-native-quick
+
+# Stage1 + Stage2 native smoke
+make verify-native-quick
+
+# Broader native coverage (all tests/native/*.oren)
+make test-native-all
 ```
-
-`make test` is a thin wrapper over `./oretest`.
-The legacy Makefile-driven suite is still available as `make test-legacy` (broader coverage, slower).
-
-`./oretest` follows the same principles (curated, timeout-protected, failure-only logs), while keeping repo test orchestration out of the self-hosted compiler sources. See `docs/TEST_SYSTEM.md` for the evolution plan.
 
 Environment knobs:
 
 - `OREN_TEST_JOBS` (default `4`): parallelism for module + AVM tests.
-- `OREN_NO_GC=1`: disable GC scanning for stress/debug (also available as `./oretest --no-gc`).
+- `OREN_NO_GC=1`: disable GC scanning for stress/debug.
 
 Timeout behavior (rolling):
 
-- `./oretest` has internal timeouts and will warn (not fail) if `timeout`/`gtimeout` is missing.
 - The Makefile will use `timeout`/`gtimeout` as an extra *outer* failsafe when available.
 - Installing coreutils on macOS is still recommended for a stronger outer guard:
   - `brew install coreutils`
@@ -219,17 +220,17 @@ ssh blu@qemu-blu.local "chmod +x linux_hello && ./linux_hello"
 
 This avoids maintaining local VM images, and it matches the project direction: **Linux parity early** without slowing down macOS iteration.
 
-#### Running the full curated suite on the remote host
+#### Running the native test suite on the remote host
 
-For Linux parity work, it’s more useful to run the curated suite (`./oretest --target linux`) on the Linux ARM64 host.
-
-This repo provides a helper script:
+For Linux parity work, run the native backend suite on a real Linux ARM64 host:
 
 ```bash
-SSH_DEST=blu@qemu-blu.local ./scripts/oretest_remote_linux_arm64.sh
+# On the Linux ARM64 machine (after cloning/copying the repo):
+make stage1
+make test-native-all
+make stage2
+make test-native-quick-stage2
 ```
-
-This script does not store credentials; it relies on your SSH config/key and copies the current repo state to the remote host under `/tmp/`.
 
 ### Option B (optional): local QEMU VM on macOS
 
@@ -238,43 +239,6 @@ If you prefer local verification, install QEMU:
 ```bash
 brew install qemu
 ```
-
-### Option C (repo standard): persistent Linux toolchain container (Docker)
-
-This repo also supports running the curated suite inside the already-running Ubuntu toolchain container.
-This is the fastest way to validate Linux behavior from a macOS dev host without provisioning a VM.
-
-Repo helper:
-
-```bash
-tools/oretest_linux_docker.sh
-```
-
-This helper also supports running other high-signal targets inside the same container:
-
-```bash
-tools/oretest_linux_docker.sh examples-test
-tools/oretest_linux_docker.sh verify
-```
-
-Notes (rolling, important):
-
-- This is the **only supported** way to run the curated suite on `linux/arm64` from a macOS host.
-  - Do **not** `docker exec ... ./oretest` inside the container: the `./oretest` binary in your repo root is a macOS binary and will fail with “Exec format error”.
-  - Prefer either:
-    - `./oretest --platform arm64-linux` (delegates to `tools/oretest_linux_docker.sh`), or
-    - run the script directly.
-- The docker runner syncs **tracked** files into `/work/repo` via `git ls-files` (it does not copy your `.git` dir).
-- Because it syncs tracked files only, newly created files must be staged (`git add -A`) before the container will see them (or set `OREN_LINUX_DOCKER_ALLOW_DIRTY=1` for local experiments).
-- Do not copy host-built binaries into the container (`./oren`, `./oretest`, `./avm`): they are not runnable on Linux and can also cause Make to incorrectly treat targets as up-to-date.
-
-Environment knobs:
-
-- `OREN_LINUX_DOCKER_ID` (default: `c7e5f7bd9f5c`): persistent container id/name
-- `OREN_LINUX_DOCKER_JOBS`: forwarded to `OREN_TEST_JOBS` inside the container
-- `OREN_LINUX_DOCKER_ALLOW_DIRTY=1`: allow syncing tracked files even when untracked files exist
-- `OREN_LINUX_DOCKER_CLEAN=1`: wipe `/work/repo` before syncing (rarely needed)
-- `OREN_LINUX_DOCKER_GOPROXY` / `OREN_LINUX_DOCKER_GOSUMDB`: override Go module mirror settings inside the container (only needed on restricted networks)
 
 ### Troubleshooting
 *   **SSH permissions**: If `scp`/`ssh` fails with "Permission denied", ensure your SSH key is installed (or the host allows password auth) and that you are using the correct user/host.

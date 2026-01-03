@@ -10,7 +10,6 @@ Oren is already **partially self-hosting**:
 
 - **Stage 1 compiler** `./oren` is built by the **Go bootstrap** `./oren_bootstrap` (`make stage1`).
 - **Stage 2 compiler** `./oren_stage2` is built by **Stage 1** (`make stage2`). In rolling mode the *bootstrap backend* may vary by host arch (for example: arm64 currently bootstraps stage2 via `--backend c`).
-- The **canonical test runner** is **Go**: `./oretest` (`cmd/oretest/*`), invoked by `make test`.
 - The **metadata tool** is **Go**: `./oredoc` (`cmd/oredoc`).
 - The **signing tool** is **Go**: `./orensign` (`cmd/orensign`).
 - The **AVM interpreter** is **C**: `./avm` (sources under `lib/avm/`).
@@ -18,7 +17,7 @@ Oren is already **partially self-hosting**:
 So today, the compiler can compile itself (stage2), but the repo toolchain is still a **mixed bootstrap stack**:
 
 ```
-Go: oren_bootstrap / oretest / oredoc / orensign
+Go: oren_bootstrap / oredoc / orensign
 Oren: oren / oren_stage2 (compiler)
 C: avm (VM)
 ```
@@ -64,7 +63,7 @@ Self-hosting the LSP in Oren becomes realistic once:
 
 ### C) `oren test` (test runner; future)
 
-Right now `./oretest` is **already integration-first and parallel** (and it deliberately lives outside `lib/compiler/*.oren`).
+Right now the repo runs tests via **direct compilation + direct execution** of test programs using `./oren` and `./oren_stage2` (see `docs/TEST_SYSTEM.md`).
 
 A self-hosted replacement would require:
 
@@ -126,7 +125,7 @@ Treat self-hosting as a staged migration with explicit acceptance tests:
 
 Each gate should include:
 
-- correctness suite (run `./oretest --full`)
+- correctness suite (native backend + AVM + cross-platform where applicable)
 - determinism checks (stable outputs)
 - cross-platform checks (macOS + Linux + Windows, x64+arm64 where applicable)
 

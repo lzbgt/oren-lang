@@ -116,7 +116,7 @@ fn cli_spec() {
     argparse.cmd_flag_env(dumpcmd, "--strict-attrs", nil, "Reject unknown attributes unless allowlisted", "OREN_STRICT_ATTRS")
     argparse.cmd_option_env(dumpcmd, "--attr-allow-prefixes", nil, "string", "", "CSV allow attribute prefixes in strict mode", "OREN_ATTR_ALLOW_PREFIXES")
 
-    var selftest_native = argparse.add_command(p, "selftest-native", "Fast native runtime self-test (no parsing/linking; used by oretest native gate)")
+    var selftest_native = argparse.add_command(p, "selftest-native", "Fast native runtime self-test (no parsing/linking)")
 
     return p
 }

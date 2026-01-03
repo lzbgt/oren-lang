@@ -167,7 +167,7 @@ production maturity requires both implementation *and* regression coverage.
 
 - **Stdlib should track current grammar**
   - Avoid legacy syntax drift: if/else forms, match forms, for-in syntax, etc.
-  - The repo already enforces some audits via `./oretest`; expand as grammar stabilizes.
+  - The repo enforces audits via Makefile + direct test programs; expand as grammar stabilizes.
 
 ### P2: Distribution and “production runtime” story
 

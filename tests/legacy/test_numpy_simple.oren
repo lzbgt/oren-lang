@@ -1,1 +1,0 @@
-var np = py_import("numpy"); var list = py_import("builtins").list; var a = np.zeros(5); print(a)

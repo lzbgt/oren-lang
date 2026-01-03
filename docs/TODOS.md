@@ -17,10 +17,10 @@ Rules for this tracker:
 
 0) **Toolchain resource bounds (self-hosting + tests)** (L)
    - MANTIS is a forcing function for “production-level” maturity, but the compiler/test runner must also be stable enough to iterate quickly.
-   - Keep these paths reliable and bounded:
-     - `make verify` (stage1 → stage2 self-hosting gate)
-     - `make test` (curated suite)
-     - `./oretest --matrix tier1` (host + linux/arm64 docker + remote x64 gate when available)
+	   - Keep these paths reliable and bounded:
+	     - `make verify` (stage1 → stage2 self-hosting gate)
+	     - `make test-native-quick` (fast native smoke)
+	     - `make test-native-all` (native suite)
    - Avoid O(n²) string/collection patterns in compiler-side tooling (include expansion, C backend transpiler, whole-program lowering passes).
    - Hard gate (non-negotiable for rolling):
      - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
@@ -38,8 +38,8 @@ Rules for this tracker:
      - container ops (list/map/buf) with identical semantics across arch/OS
      - concurrency primitives on Windows (no fork/pipe assumptions): `spawn`, `oren_join(_timeout)`, and a path to cooperative cancellation
    - Remaining gaps (active):
-     - **Stage2 native (arm64-macos) still fails late in native codegen** (as of 2026-01-03):
-       - Repro (explicit CLI, no `make` / no `oretest`): `env OREN_PARSE_JOBS=1 ./build/selfhost_manual/oren_stage2_native_sym10 build tests/native/func.oren --backend native --platform arm64-macos --no-cache --no-debug -o build/tmp/func_stage2`
+	     - **Stage2 native (arm64-macos) still fails late in native codegen** (as of 2026-01-03):
+	       - Repro (explicit CLI, avoid wrappers): `env OREN_PARSE_JOBS=1 ./build/selfhost_manual/oren_stage2_native_sym10 build tests/native/func.oren --backend native --platform arm64-macos --no-cache --no-debug -o build/tmp/func_stage2`
        - Observed failures (post runtime parse): `native backend: missing ABI int arg reg for arg 0` and `native backend: undefined variable g_storage` (error locations currently collapse to `lib/runtime_native.oren:<include-line>` due to include expansion token mapping).
        - High-leverage next steps:
          - make runtime-parse iteration fast (astbin runtime load) so this bug can be fixed in tight loops
@@ -59,7 +59,7 @@ Rules for this tracker:
 	       - `docs/TEST_SYSTEM.md`
 	       - `docs/LANGUAGE_FEATURE_MATRIX.md`
 	   - **active (2026-01-03): stage2-native arm64-macos instability + runtime bundle cost**
-	     - Constraint: reproduce/fix via explicit stage0/stage1/stage2 builds; do not use `make *`/`./oretest` during troubleshooting.
+	     - Constraint: reproduce/fix via explicit stage0/stage1/stage2 builds; avoid relying on wrapper tooling during troubleshooting.
 	     - Baseline repro (macOS arm64):
 	       - build stage0: `go build -o oren_bootstrap ./cmd/oren`
 	       - build stage1: `./oren_bootstrap build oren.oren`
@@ -152,7 +152,7 @@ Rules for this tracker:
    - Prefer a small number of high-signal integration suites + fixtures as living spec.
    - Keep tests hermetic: avoid relying on host shells or external utilities (prefer helper binaries built from Oren sources + explicit `oren_proc_spawn`).
    - Keep tests OS-neutral: avoid asserting platform `struct stat` layouts; prefer Oren-owned stable ABIs (e.g. OrenStatV0 via `oren_stat_alloc()`).
-   - Make test tooling robust in minimal environments too: `oretest` now supports deterministic shell discovery and an override via `ORETEST_SHELL`.
+   - Make test tooling robust in minimal environments too: avoid relying on host shells/utilities in test programs.
    - Reference: `docs/TEST_SYSTEM.md`
 
 ## P1 (Soon)

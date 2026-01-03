@@ -1,0 +1,198 @@
+import json "../../lib/std/json.oren"
+import ints "../../lib/std/ints.oren"
+
+// Quick, self-contained native backend integration smoke.
+//
+// Design goals:
+// - single file (easy manual invocation)
+// - no reliance on external binaries (/bin/sh, /usr/bin/*)
+// - no network dependencies
+// - exercises high-signal language + runtime surfaces that should be backend-universal
+//
+// NOTE: This is intentionally smaller than `tests/native/test_integration_suite.oren`,
+// and avoids runner-provided helper binaries.
+
+fn fail(code) {
+    oren_fail(code, "native quick integration")
+    return 0
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    print("assert_eq failed: code=" + oren_int_to_string(code))
+    print("  got=" + oren_int_to_string(a))
+    print("  expected=" + oren_int_to_string(b))
+    fail(code)
+}
+
+fn assert_streq(a, b, code) {
+    if strcmp(a, b) == 0 { return 0 }
+    print("assert_streq failed: code=" + oren_int_to_string(code))
+    print("  got=" + a)
+    print("  expected=" + b)
+    fail(code)
+}
+
+fn add(a, b) { return a + b }
+fn add3(a, b, c) { return a + b + c }
+
+fn sum_rec(n) {
+    if n <= 0 { return 0 }
+    return n + sum_rec(n - 1)
+}
+
+fn worker_sleep_short() {
+    oren_sleep_ms(200)
+    return 55
+}
+
+@pack
+struct PV_H {
+    v: u8,
+    t: u8,
+    len: u16be,
+    src: u32be,
+    dst: u32be
+}
+
+struct F32Box {
+    x: f32
+}
+
+fn test_core() {
+    // Arithmetic / bool / bit ops.
+    assert_eq(2 + 3, 5, 10)
+    assert_true(true, 11)
+    assert_true(!false, 12)
+    assert_eq((1 | 2), 3, 13)
+    assert_eq((5 ^ 1), 4, 14)
+    assert_eq((1 << 5), 32, 15)
+    assert_eq((32 >> 5), 1, 16)
+    assert_eq(7 / 3, 2, 17)
+    assert_eq(-7 / 3, -2, 18)
+    assert_eq(7 / -3, -2, 19)
+    assert_eq(-7 / -3, 2, 20)
+
+    // Lists + for-in + break/continue.
+    var xs = [1, 2, 3, 4]
+    xs[1] = 20
+    assert_eq(xs[1], 20, 30)
+    var s = 0
+    for x in xs {
+        if x == 20 { continue }
+        s = s + x
+    }
+    assert_eq(s, 1 + 3 + 4, 31)
+
+    // Deterministic map iteration order (keys).
+    var m = {"b": 1, "a": 2}
+    var ks = []
+    for k in m { oren_list_push(ks, k) }
+    assert_eq(oren_list_len(ks), 2, 40)
+    assert_streq(ks[0], "a", 41)
+    assert_streq(ks[1], "b", 42)
+
+    // String operations (portable).
+    var st = "a" + "b" + "c"
+    assert_eq(oren_string_len(st), 3, 43)
+    assert_streq(oren_string_char_at(st, 0), "a", 44)
+    assert_streq(oren_string_char_at(st, 2), "c", 45)
+
+    // Function values + spread calls.
+    var f = add
+    assert_eq(f(10, 1), 11, 50)
+    var xs3 = [2, 3]
+    assert_eq(add3(1, xs3...), 6, 51)
+
+    // Recursion depth (moderate): sum 1..2000 = 2001000.
+    assert_eq(sum_rec(2000), 2001000, 60)
+}
+
+fn test_numeric_casts() {
+    // Unchecked casts (wrap/truncate).
+    assert_eq(ints.u8(256 + 5), 5, 100)
+    assert_eq(ints.u8(-1), 255, 101)
+    assert_eq(ints.i8(255), -1, 102)
+    assert_eq(ints.i8(128), -128, 103)
+
+    assert_eq(ints.u16(65536 + 7), 7, 110)
+    assert_eq(ints.u16(-1), 65535, 111)
+    assert_eq(ints.i16(65535), -1, 112)
+    assert_eq(ints.i16(32768), -32768, 113)
+
+    assert_eq(ints.u32(4294967296 + 9), 9, 120)
+    assert_eq(ints.u32(-1), 4294967295, 121)
+    assert_eq(ints.i32(4294967295), -1, 122)
+    assert_eq(ints.i32(2147483648), -2147483648, 123)
+
+    // Cast sugar (compiler-lowered) must work without stdlib imports.
+    assert_eq(u8(1.9), 1, 130)
+    assert_eq(i32(-1.9), -1, 131)
+    assert_eq(f64(1), 1.0, 132)
+}
+
+fn test_float_and_bytes() {
+    var a = 1.5
+    var b = 2.5
+    assert_eq(a + b, 4.0, 200)
+    assert_eq(b - a, 1.0, 201)
+    assert_eq(a * 2.0, 3.0, 202)
+    assert_eq(3.0 / a, 2.0, 203)
+
+    // f32 rounding: 16777217 (2^24+1) is not representable in float32; it rounds to 16777216.
+    var b32 = F32Box(16777217.0)
+    assert_eq(b32.x, 16777216.0, 210)
+
+    // bytes hex helpers + iteration.
+    var hx = "00ff1020"
+    var bb = oren_bytes_from_hex(hx)
+    assert_true(oren_is_err(bb) == 0, 220)
+    assert_eq(oren_bytes_len(bb), 4, 221)
+    assert_streq(oren_bytes_to_hex(bb), hx, 222)
+    var sum = 0
+    for x in bb { sum = sum + x }
+    assert_eq(sum, 0 + 255 + 16 + 32, 223)
+
+    // pack_view (network-order parsing story).
+    var pkt = [69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
+    assert_eq(pack_view("PV_H", pkt, 0).v, 69, 230)
+    assert_eq(pack_view("PV_H", pkt, 0).len, 84, 231)
+    assert_eq(pack_view("PV_H", pkt, 0).src, 3232235521, 232)
+    assert_eq(pack_view("PV_H", pkt, 0).dst, 134744072, 233)
+}
+
+fn test_json() {
+    // JSON encode should be stable with deterministic map ordering.
+    var jr = json.decode("{\"b\":2,\"a\":1,\"s\":\"x\\\\n\\\"y\"}")
+    assert_eq(jr["ok"], 1, 300)
+    var out = json.encode(jr["v"])
+    assert_streq(out, "{\"a\":1,\"b\":2,\"s\":\"x\\\\n\\\"y\"}", 301)
+}
+
+fn test_spawn_join() {
+    // `timeout_ms == 0` is a non-blocking probe:
+    // - if not finished, returns ETIMEDOUT but must NOT cancel/kill the spawned worker
+    // - a later `oren_join` must still return the worker's value.
+    var h = spawn worker_sleep_short()
+    var r0 = oren_join_timeout(h, 0)
+    assert_eq(r0, 0 - 60, 400) // ETIMEDOUT (BSD)
+    var r1 = oren_join(h)
+    assert_eq(r1, 55, 401)
+}
+
+fn main() {
+    test_core()
+    test_numeric_casts()
+    test_float_and_bytes()
+    test_json()
+    test_spawn_join()
+    print("native quick integration OK")
+    exit(0)
+}
+
+main()

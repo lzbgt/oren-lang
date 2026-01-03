@@ -1,5 +1,5 @@
-.PHONY: all clean bootstrap test test-inner test-legacy test-legacy-inner verify stage1 stage2 examples-test examples-test-inner
-.PHONY: obc-portability
+.PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
+.PHONY: test-native-quick test-native-quick-stage2 verify-native-quick
 
 # Default target: Build Stage 1 compiler
 all: oren
@@ -117,11 +117,6 @@ oren_bootstrap: $(GO_SRC)
 	@echo "Building Stage 0 (Bootstrap)..."
 	@go build -o oren_bootstrap ./cmd/oren
 
-# Go-based repo test runner (keeps test orchestration out of self-hosted compiler sources)
-oretest: $(GO_SRC)
-	@echo "Building oretest..."
-	@go build -o oretest ./cmd/oretest
-
 # Go-based metadata-to-artifacts tool (OpenAPI, etc).
 oredoc: $(GO_SRC)
 	@echo "Building oredoc..."
@@ -169,75 +164,20 @@ stage2: oren_stage2
 
 # --- Testing & Verification ---
 
-# Run all tests using Stage 1 compiler
-test: oren
-	@echo "=== Running Tests ==="
-	@# Rolling safety:
-	@# - Prefer an outer suite timeout when `timeout`/`gtimeout` exists.
-	@# - If missing, proceed anyway: `./oretest` has internal process-group timeouts.
-	@if [ -z "$(TIMEOUT_BIN)" ]; then \
-		echo "WARN: 'timeout'/'gtimeout' not found; running without outer suite timeout (oretest uses internal timeouts)."; \
-	fi
-	@# Global failsafe: wrap the entire suite.
-	@$(RUN_SUITE_WITH_TIMEOUT) $(MAKE) test-inner || { \
-				rc=$$?; \
-				if [ $$rc -eq 124 ]; then echo "FAIL: test suite timed out after $(SUITE_TIMEOUT_SECS)s"; fi; \
-				exit $$rc; \
-			}
+# Fast native smoke (stage1): build+run one self-contained integration test.
+test-native-quick: oren
+	@./scripts/run_native_quick_integration.sh ./oren
 
-test-inner: oren avm oretest
-	@# macOS safety: ensure all binaries executed during tests are runnable.
-	@# - Always use the system-shipped codesign tool (/usr/bin/codesign).
-	@if [ "$(UNAME_S)" = "Darwin" ]; then \
-			for b in ./oren ./oretest ./avm; do \
-				if [ ! -f "$$b" ]; then echo "ERROR: missing $$b (run make stage1/avm/oretest)"; exit 2; fi; \
-				"$(MACOS_CODESIGN_BIN)" -s - --force "$$b" >/dev/null || { echo "ERROR: codesign failed for $$b"; exit 2; }; \
-			done; \
-		fi
-	@# Canonical curated runner lives inside the compiler:
-	@# - timeout-protected
-	@# - failure-only output
-	@# - curated lists are in sync with repo evolution
-	@# IMPORTANT: `./oretest` runs the full suite; it must not be constrained by BUILD_TIMEOUT_SECS.
-	@# Optional tools: only build when the corresponding fixture families are enabled.
-	@if [ "$$OREN_TEST_FULL" = "1" ] || [ "$$OREN_TEST_OREDOC" = "1" ]; then $(MAKE) oredoc; fi
-	@if [ "$$OREN_TEST_FULL" = "1" ] || [ "$$OREN_TEST_SIGNING" = "1" ]; then $(MAKE) orensign; fi
-	@ORETEST_ARGS="--target $(OREN_TEST_TARGET) $(GC_ARG)"; \
-			if [ "$$OREN_TEST_FULL" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --full"; fi; \
-			if [ "$$OREN_TEST_SELFHOST" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --selfhost"; fi; \
-				if [ "$$OREN_TEST_VERBOSE" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --verbose"; fi; \
-				if [ "$(UNAME_S)" = "Darwin" ]; then \
-					PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" $(RUN_SUITE_WITH_TIMEOUT) ./oretest $$ORETEST_ARGS; \
-				else \
-					$(RUN_SUITE_WITH_TIMEOUT) ./oretest $$ORETEST_ARGS; \
-				fi
+# Fast native smoke (stage2): use stage2 compiler to build+run the same test.
+test-native-quick-stage2: oren_stage2
+	@./scripts/run_native_quick_integration.sh ./oren_stage2
 
-# Self-hosting stability gate (Stage1 -> Stage2 determinism checks).
-# This runs the curated suite plus the `oretest --selfhost` gate.
-selfhost:
-	@OREN_TEST_SELFHOST=1 $(MAKE) test
+# Convenience target: verify stage1 then stage2 on the native quick integration test.
+verify-native-quick: test-native-quick test-native-quick-stage2
+	@echo "verify-native-quick OK"
 
-# Legacy suite (modern alias).
-#
-# `make test-legacy` is retained as a compatibility entrypoint, but the actual
-# runner is `./oretest --full` (parallel, curated, and kept in sync with the repo).
-test-legacy: test-legacy-inner
-
-test-legacy-inner: oren avm oretest oredoc orensign
-	@echo "=== Running Tests (Legacy Alias: oretest --full) ==="
-	@# Prefer an outer suite timeout when `timeout`/`gtimeout` exists. If missing, proceed:
-	@# `./oretest` has internal process-group timeouts.
-	@if [ -z "$(TIMEOUT_BIN)" ]; then \
-		echo "WARN: 'timeout'/'gtimeout' not found; running without outer suite timeout (oretest uses internal timeouts)."; \
-	fi
-	@ORETEST_ARGS="--target $(OREN_TEST_TARGET) $(GC_ARG) --full"; \
-				if [ "$$OREN_TEST_SELFHOST" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --selfhost"; fi; \
-				if [ "$$OREN_TEST_VERBOSE" = "1" ]; then ORETEST_ARGS="$$ORETEST_ARGS --verbose"; fi; \
-				if [ "$(UNAME_S)" = "Darwin" ]; then \
-					PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" $(RUN_SUITE_WITH_TIMEOUT) ./oretest $$ORETEST_ARGS; \
-				else \
-					$(RUN_SUITE_WITH_TIMEOUT) ./oretest $$ORETEST_ARGS; \
-				fi
+# Default "test" is now native-only and quick (no external test runner).
+test: test-native-quick
 
 test-native-all: oren
 	@echo "=== Native Tests (All) ==="

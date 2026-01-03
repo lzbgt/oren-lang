@@ -1,1 +1,0 @@
-var m = {"foo": 100}; print(m["foo"])

@@ -45,7 +45,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - f32 axpy semantics: float32 boundary + mul-then-add (no FMA), matching C runtime + AVM determinism.
 - Stdlib linalg:
   - Reduced allocation pressure by reusing the 1×4 dot scratch buffer in `matmul_f32_buf` and `matmul_i32_buf` (avoid per-row scratch allocation).
-- Verified: `make stage1` + `./oretest --target macos` pass.
+- Verified: `make stage1` + `previous test runner --target macos` pass.
 
 ## Archived (2025-12-21) — Explicit fixed-width types + cast sugar (HPC/FFI baseline)
 
@@ -59,7 +59,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `casts.f32(int)` accepts integer input (coerce int->f64->f32 boundary deterministically).
 - Coverage:
   - `tests/modules/test_integration_suite.oren` exercises wrap/truncate, endian casts, and f32 rounding boundary.
-- Verified: `make stage1` + `./oretest --target macos` pass at the time this was moved out of the active TODO list.
+- Verified: `make stage1` + `previous test runner --target macos` pass at the time this was moved out of the active TODO list.
 
 ## Archived (2025-12-28) — Active TODO list compacted (x64/CoreIR focus)
 
@@ -88,10 +88,10 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Removed the previous conservative “|x| too large” error for trig.
   - Added reference sources under `docs/refs/fdlibm/` (`e_rem_pio2.c`, `k_rem_pio2.c`) to keep the implementation anchored to an audited algorithm.
 - Tests:
-  - Added `tests/modules/test_math_trig_huge.oren` and wired it into `./oretest --full` (not in the fast suite).
+  - Added `tests/modules/test_math_trig_huge.oren` and wired it into `previous test runner --full` (not in the fast suite).
 - Verified:
-  - `./oretest --target macos` pass.
-  - `./oretest --full --target macos` pass.
+  - `previous test runner --target macos` pass.
+  - `previous test runner --full --target macos` pass.
 
 ## Archived (2025-12-21) — Unify `struct` semantics (map-shaped, mutable) across backends
 
@@ -115,7 +115,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 
 - AVM snapshots: added **AVMSNAP7** with full scheduler snapshot/restore (tasks + channels + ready/select queues).
   - `--snapshot-out` now works even when `spawn`/channels are active (pause/resume of non-trivial scheduler).
-  - Updated AVM test from “forbidden” to “resume” (`tests/avm/test_snapshot_tasks_resume.oren`) and oretest wiring.
+  - Updated AVM test from “forbidden” to “resume” (`tests/avm/test_snapshot_tasks_resume.oren`) and previous test runner wiring.
 - Internal refactor: moved scheduler structs (`AvmTask`, `AvmChan`, `AvmSched`) into `lib/avm/avm_internal.h` so snapshot code can serialize them.
 - Bytecode backend fix: `oren_yield()` now returns a canonical `nil` value (stack-balanced as an expression), preventing verifier stack-height mismatches in real programs.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
@@ -128,7 +128,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `OREN_BUF_FORCE_MMAP=1` (native) to force typed buffers to mmap (debug/benchmark).
   - `OREN_BUF_PAYLOAD_LIMIT_BYTES` to bound payload size deterministically and fail with a budget error.
 - Test runner hardening:
-  - `cmd/oretest` sanitizes allocator env vars (prevents user shell env from changing test behavior).
+  - `cmd/previous test runner` sanitizes allocator env vars (prevents user shell env from changing test behavior).
 - Tests:
   - Added churn-style fragmentation stress: `tests/modules/test_buffer_alloc_stress.oren`.
   - Added payload-budget regression: `tests/modules/test_buffer_payload_limit.oren`.
@@ -142,8 +142,8 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Added integration harness `tests/avm/fixtures/compiler_in_avm_vfs_harness.oren`:
   - Runs the compiler `.obc` in a nested universe with VirtualFS fixtures (no host effects).
   - Extracts `out.obc` from returned `vfs_snapshot` and runs it in another nested universe.
-- Wired into `./oretest --full` as fixture `compiler_in_avm_smoke` (host FS read restricted to `build/` only).
-- Verified: `./oretest --full --target macos` passes.
+- Wired into `previous test runner --full` as fixture `compiler_in_avm_smoke` (host FS read restricted to `build/` only).
+- Verified: `previous test runner --full --target macos` passes.
 
 ## Archived (2025-12-21) — Typed buffer slice/strided views + iteration semantics
 
@@ -161,7 +161,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Extended integration coverage in `tests/modules/test_buffer_views.oren`:
   - slice, slice-of-slice, strided view, `for-in` over views
   - `std/linalg` view helpers (`dot_*_view`) and strided matrix-view matmul (`matmul_f32_mat_view`)
-- Verified: `./oretest --target macos` and `./oretest --full --target macos` pass.
+- Verified: `previous test runner --target macos` and `previous test runner --full --target macos` pass.
 
 ## Archived (2025-12-21) — Iteration model v1: `Iterable` trait extension (static-first, no vtables)
 
@@ -176,7 +176,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
     preserving the identifier in the call site so type-based rewriting is possible.
 - Added integration coverage to ensure it works end-to-end:
   - `tests/modules/test_integration_suite.oren` adds `MyRange` + `Iterable.iter_next` and sums values via `for-in`.
-- Verified: `make stage1` then `./oretest --target macos` passes.
+- Verified: `make stage1` then `previous test runner --target macos` passes.
 
 ## Archived (2025-12-21) — Typecheck v0: reject non-numeric cast inputs (HPC signal)
 
@@ -187,7 +187,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Extended the existing `tests/fixtures/typecheck_bad_cast.oren` to cover:
   - `f32("...")`, `u8("...")`, `bool("...")`
   - `bytes` annotated value cast via `i32(b)` and `b as i32`
-- Verified: `make stage1` then `./oretest --target macos` passes.
+- Verified: `make stage1` then `previous test runner --target macos` passes.
 
 ## Archived (2025-12-21) — Type namespacing v1: `alias.Type` annotations resolve across modules
 
@@ -202,7 +202,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Added cross-module integration coverage:
   - `tests/modules/iterable_mod.oren` defines `struct MyRange` + `impl Iterable for MyRange`.
   - `tests/modules/test_integration_suite.oren` imports it and iterates `for x in r3` where `r3: itmod.MyRange`.
-- Verified: `make stage1` then `./oretest --target macos` passes.
+- Verified: `make stage1` then `previous test runner --target macos` passes.
 
 ## Archived (2025-12-21) — Generic trait constraints (static-first)
 
@@ -215,7 +215,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Tests:
   - Added module coverage: `tests/modules/test_generic_trait_constraints.oren`
   - Added compile-fail fixture (full suite only): `tests/fixtures/generic_constraint_missing_impl.oren`
-- Verified: `./oretest --full --target macos` passes.
+- Verified: `previous test runner --full --target macos` passes.
 
 ## Archived (2025-12-21) — Typed `for x:T in ...` iterator variable annotations
 
@@ -226,7 +226,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Coverage:
   - Updated typed-buffer iteration module test: `tests/modules/test_iter_buffers.oren`.
   - Added integration test for bytes/strings + typed annotation: `tests/modules/test_for_in_bytes_typed.oren`.
-- Verified: `./oretest --full --target macos` passes.
+- Verified: `previous test runner --full --target macos` passes.
 
 ## Archived (2025-12-19) — Previously in `docs/TODOS.md` “Recently Completed”
 
@@ -260,9 +260,9 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Casting: removed strict-casts mode (language semantics are deterministic by default).
 - Casting: compiler lowers builtin cast sugar (`u8(x)`, `i32(x)`, `f32(x)`, `bool(x)`, endian spellings like `u16be(x)`) into deterministic rewrites (no dynamic call overhead).
 - Casting: added `lib/std/casts.oren` as an optional clarity layer matching annotation lowering.
-- Tests: added regression module test `tests/modules/test_cast_sugar.oren` and wired it into `cmd/oretest`.
+- Tests: added regression module test `tests/modules/test_cast_sugar.oren` and wired it into `cmd/previous test runner`.
 - Docs: added `docs/TYPE_SYSTEM_PLAN.md` to guide gradual typing → generics/traits.
-- Stdlib: added `lib/std/linalg.oren` (scalar-first `dot_*`, `axpy_*`, `matmul_*`) with module test `tests/modules/test_linalg.oren` and oretest wiring.
+- Stdlib: added `lib/std/linalg.oren` (scalar-first `dot_*`, `axpy_*`, `matmul_*`) with module test `tests/modules/test_linalg.oren` and previous test runner wiring.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
 ## Archived (2025-12-20) — Numeric cast semantics (float→int truncation)
@@ -278,12 +278,12 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 
 - Language: added `as` cast operator (`expr as u8`) desugared to builtin cast sugar.
 - Language: added opt-in `--typecheck` pass to reject obvious invalid casts and mismatched annotated boundaries.
-- Tests: added `tests/modules/test_as_cast.oren` and fixture `tests/fixtures/typecheck_bad_cast.oren` wired into `cmd/oretest`.
+- Tests: added `tests/modules/test_as_cast.oren` and fixture `tests/fixtures/typecheck_bad_cast.oren` wired into `cmd/previous test runner`.
 
 ## Archived (2025-12-20) — Test system evolution spec (no rewrite)
 
 - Documented a minimal Oren-native test manifest shape and runner CLI/output contract in `docs/TEST_SYSTEM.md`.
-- The design keeps `cmd/oretest` as the current orchestrator (Go), enforcing SOLID by keeping test orchestration out of `lib/compiler/*.oren`.
+- The design keeps `cmd/previous test runner` as the current orchestrator (Go), enforcing SOLID by keeping test orchestration out of `lib/compiler/*.oren`.
 
 ## Archived (2025-12-20) — Serde JSON v1 (attribute-driven, no reflection)
 
@@ -299,7 +299,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Parser: allowed `default` keyword token in attribute dotted names (`@json.default(...)`) without making `default` a general identifier.
 - Tests:
   - Added `tests/modules/test_json_serde_attrs.oren` (integration: encode + decode + ordering + defaults).
-  - Updated curated runner list (`cmd/oretest/main.go`) to include it.
+  - Updated curated runner list (`cmd/previous test runner/main.go`) to include it.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
 ## Archived (2025-12-20) — Serde attribute ergonomics v1 (format-first)
@@ -320,7 +320,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Implemented a normalized serde schema under `structs[*].serde` in metadata output (deterministic, versioned).
   - Includes: `version`, `format`, optional `tag`, and normalized fields:
     - `name`, `ann_type`, `wire`, `skip`, `default`
-- Added oretest coverage to ensure `oren meta` contains the serde schema for the JSON fixture.
+- Added previous test runner coverage to ensure `oren meta` contains the serde schema for the JSON fixture.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
 ## Archived (2025-12-20) — CBOR v1 (RFC 8949 subset) + `@serde(format="cbor")`
@@ -330,7 +330,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - canonical map key ordering (length then bytewise) for stable bytes
 - Extended serde lowering to support `@serde(format="cbor")`:
   - generates `<Type>__cbor_encode` / `<Type>__cbor_decode` (tagged value; binary encoding is via std/cbor)
-- Added integration test `tests/modules/test_cbor_serde_attrs.oren` and wired it into `cmd/oretest`.
+- Added integration test `tests/modules/test_cbor_serde_attrs.oren` and wired it into `cmd/previous test runner`.
 - Vendored RFC 8949 text into `docs/refs/cbor/rfc8949.txt` for audit reference.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
@@ -349,7 +349,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Implemented buffer ops in `lib/runtime_buf.c` (alloc, load/store, fill, add/mul/scale, dot, reduce_sum; `_into` variants for out-params).
   - Linked C backend builds against both `lib/runtime.c` and `lib/runtime_buf.c` (see `lib/compiler/compiler.oren`).
   - Added `lib/std/buffer.oren` (zero-copy slice + matrix-stride views using map-based view objects in v0).
-  - Added `tests/modules/test_buffer_views.oren` and wired it into `cmd/oretest`.
+  - Added `tests/modules/test_buffer_views.oren` and wired it into `cmd/previous test runner`.
 
 - **Language ergonomics / parsing**:
   - Parser: added `[]T` prefix type annotation parsing (stored as `"[]T"` string) in `lib/compiler/parser_core.oren`.
@@ -364,7 +364,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - C runtime: `print_value_no_newline` now prints buffer values as `<i32_buf len=N>` (etc) and no longer triggers missing-switch warnings.
 
 - Verified:
-  - `./oretest` on macOS
+  - `previous test runner` on macOS
   - `tools/oretest_linux_docker.sh` on Linux (docker arm64)
 
 ## Archived (2025-12-21) — `std/linalg` v0.2 (buffers + safe NEON) + i32 overflow hardening
@@ -383,7 +383,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Extended `tests/modules/test_linalg.oren` to cover typed-buffer dot/axpy.
 
 - Verified:
-  - `./oretest` on macOS
+  - `previous test runner` on macOS
   - `tools/oretest_linux_docker.sh` on Linux (docker arm64)
 
 ## Archived (2025-12-21) — GC allocation registry indexing (hash table) + stress test
@@ -395,12 +395,12 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Sweep now removes freed nodes from the index as well.
 
 - Tests:
-  - Added `tests/modules/test_alloc_gc_scale.oren` (allocation churn + periodic `oren_gc_collect()`) and wired it into `cmd/oretest`.
+  - Added `tests/modules/test_alloc_gc_scale.oren` (allocation churn + periodic `oren_gc_collect()`) and wired it into `cmd/previous test runner`.
 
 - Verified:
-  - `./oretest` on macOS
+  - `previous test runner` on macOS
   - `tools/oretest_linux_docker.sh` on Linux (docker arm64)
-- Added tests: `tests/modules/test_cbor_sequence.oren` and wired into `cmd/oretest`.
+- Added tests: `tests/modules/test_cbor_sequence.oren` and wired into `cmd/previous test runner`.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
 ## Archived (2025-12-20) — `std/time` v0 (UTC-only ISO8601 + epoch conversions)
@@ -421,7 +421,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
     - `sleep_ms`, `now_unix_ns`, `now_ns`, `mono_raw`, `instant_now`
   - Design: UTC-only v0; fractional seconds (1..9 digits) supported; format trims trailing zeros.
 - Tests:
-  - Added `tests/modules/test_time_std.oren` and wired into `cmd/oretest`.
+  - Added `tests/modules/test_time_std.oren` and wired into `cmd/previous test runner`.
 - Verified:
   - `make test` on macOS.
 
@@ -435,11 +435,11 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - AVM bytecode adds opcode `MOD` (0x1F) with deterministic error semantics for div0/overflow.
   - Native backend lowers `%` to the native runtime helper `oren_mod` so semantics stay deterministic.
 - Tests:
-  - Added `tests/modules/test_mod.oren` and wired it into `cmd/oretest`.
+  - Added `tests/modules/test_mod.oren` and wired it into `cmd/previous test runner`.
 - Tooling:
   - Fixed `tools/oretest_linux_docker.sh` quoting hazard by removing backticks inside docker `bash -lc` heredoc.
 - Verified:
-  - `./oretest --target macos`
+  - `previous test runner --target macos`
   - `tools/oretest_linux_docker.sh`
 
 ## Archived (2025-12-21) — `oredoc openapi` (OpenAPI 3.1 export from metadata)
@@ -452,7 +452,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Exports minimal valid OpenAPI 3.1 document with `components.schemas` derived from `structs[*].serde`.
   - Maps Oren scalar annotations (`i32`, `u64`, `f32`, `bool`, `string`, `[]T`, etc.) to OpenAPI schema shapes.
 - Tests:
-  - Added an oretest fixture `oredoc_openapi_export` that roundtrips `oren meta` → `oredoc openapi` and validates key fields.
+  - Added an previous test runner fixture `oredoc_openapi_export` that roundtrips `oren meta` → `oredoc openapi` and validates key fields.
 
 ## Archived (2025-12-21) — C-backend build hygiene + GC stack-scan hardening
 
@@ -481,7 +481,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Extended serde lowering to support `@serde(format="yaml")`:
   - generates `<Type>__yaml_encode` / `<Type>__yaml_decode`
   - representation matches JSON tagged value shape (`YamlValue` == `JsonValue` shape)
-- Added integration test `tests/modules/test_yaml_serde_attrs.oren` and wired it into `cmd/oretest`.
+- Added integration test `tests/modules/test_yaml_serde_attrs.oren` and wired it into `cmd/previous test runner`.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
 ## Archived (2025-12-20) — Stdlib math + regex v1 (portable, deterministic)
@@ -494,7 +494,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - syntax v1: literals, `.`, `?`, `*`, `+`, `|`, grouping `( )`, anchors `^` `$`, classes `[a-z]` / `[^...]`, escapes via `\\`
 - Tests:
   - added `tests/modules/test_math.oren` + `tests/modules/test_regex.oren`
-  - wired into `cmd/oretest/main.go`
+  - wired into `cmd/previous test runner/main.go`
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
 # TODOs (Rolling, Prioritized)
@@ -942,7 +942,7 @@ Focus statement (to avoid roadmap thrash):
 
 ## 2025-12-20 (Recent)
 
-- `oretest`: added a repeated-run determinism guard for `tests/avm/test_smoke_suite.oren` (rerun scalar mode, require `RESULT_HASH` + `TRACE_HASH` match).
+- `previous test runner`: added a repeated-run determinism guard for `tests/avm/test_smoke_suite.oren` (rerun scalar mode, require `RESULT_HASH` + `TRACE_HASH` match).
 - Docs: clarified that AVM FLOAT constants are wired end-to-end and documented const tag `3` as float64 bit-pattern in the bootstrap spec (`docs/AVM_SPEC.md`).
 - Compiler: added `///` doc comments (lexer/parser) and exported docs in metadata JSON for functions/structs/traits (covered by `tests/modules/test_metadata_attrs.oren`).
 
@@ -960,7 +960,7 @@ Focus statement (to avoid roadmap thrash):
   - strict attribute mode (`--strict-attrs`, allow-prefixes) for governance/auditing
 - Tooling:
   - `./oren meta` emits stable JSON metadata including `attrs` and a normalized `meta.serde` schema for serde-related annotations.
-  - Deterministic meta artifact hash (`--deterministic`) is wired into `cmd/oretest`.
+  - Deterministic meta artifact hash (`--deterministic`) is wired into `cmd/previous test runner`.
 
 ### YAML + CBOR adaptors (comments + streaming)
 
@@ -1020,10 +1020,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - No bypassing capsule capability checks by emitting direct `svc` / OS sysno calls outside the approved lowering modules.
 
 5) **Verify before declaring done** `[quality]`
-   - If code changes: run the canonical suite (preferred) `./oretest --target macos` (or `make test`).
+   - If code changes: run the canonical suite (preferred) `previous test runner --target macos` (or `make test`).
    - If the change touches the **compiler itself** (`oren.oren`, `lib/compiler/*`):
      - rebuild stage1 first: `make stage1`
-     - then run: `./oretest --target macos`
+     - then run: `previous test runner --target macos`
    - If **docs-only** changes (only documentation files modified): tests are not required.
      - Allowed docs-only set: `docs/*`, `README.md`, `LICENSE`.
 
@@ -1031,10 +1031,10 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Each item must have a concrete “Definition of Done” (DoD) and be finishable.
    - Avoid “infinite P0s” like “harden everything” without a crisp deliverable.
    - Keep the list *short and top-down prioritized* (target ~10–20 items max); merge and archive aggressively.
-   - Repo must build from a clean clone: ignore build outputs only (do not accidentally ignore source dirs like `cmd/oren/` or `cmd/oretest/`).
+   - Repo must build from a clean clone: ignore build outputs only (do not accidentally ignore source dirs like `cmd/oren/` or `cmd/previous test runner/`).
    - Test policy guard:
      - Default (fast) suite must stay **integration-first** and **small** (goal: ≤ ~3 module tests + ≤ ~8 AVM tests).
-     - New fine-grained tests should go to `./oretest --full` unless they catch a regression that cannot be represented in an integration suite.
+     - New fine-grained tests should go to `previous test runner --full` unless they catch a regression that cannot be represented in an integration suite.
 
 7) **Linux Docker runner is persistent** `[maint]`
    - Use a long-lived linux/arm64 container for smoke tests (avoid `docker run --rm` + repeated installs).
@@ -1043,11 +1043,11 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Prefer syncing **tracked sources only** (git index) into `/work/repo` so host-built binaries never pollute the container workspace.
    - If you add new files, you must `git add`/commit them before running the docker suite (otherwise the container won't see them).
    - Forward feature flags via env (e.g. `OREN_TEST_FULL=1`) so Linux matches macOS runner behavior.
-   - Remove stale build outputs (`oren`, `oretest`, `avm`) before running `make` to avoid timestamp skew from tar sync.
+   - Remove stale build outputs (`oren`, `previous test runner`, `avm`) before running `make` to avoid timestamp skew from tar sync.
 
 8) **Never generate `*.oren.c` next to sources** `[maint]`
    - `./oren_bootstrap build path/to/file.oren` writes `file.oren.c` next to sources; Make may then treat the source as a build target via implicit C rules.
-   - Avoid running bootstrap builds on in-tree modules/tests/tools; prefer `./oren build ... -o build/...` or the curated runners (`make test`, `./oretest`).
+   - Avoid running bootstrap builds on in-tree modules/tests/tools; prefer `./oren build ... -o build/...` or the curated runners (`make test`, `previous test runner`).
    - If you *did* create `*.oren.c` artifacts, delete them before running `make test` (keep `oren.oren.c` only).
 
 9) ** Refactor in rolling **
@@ -1057,7 +1057,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 
 10) **Tests must target public tool surfaces** `[maint]`
    - Avoid importing `lib/compiler/*` inside `.oren` tests (couples tests to compiler internals).
-   - Prefer using `./oren` subcommands (`build`, `meta`, etc.) and checking outputs via `cmd/oretest` fixtures.
+   - Prefer using `./oren` subcommands (`build`, `meta`, etc.) and checking outputs via `cmd/previous test runner` fixtures.
 
 ## Tasks (Priority Order: Top = Next)
 
@@ -1107,7 +1107,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
    - Current rolling note:
      - `oren build` / `oren meta` now support `--manifest` to emit `<out>.manifest.json` with a stable `sha256` record (use with `--deterministic` for content-addressed builds).
      - When `oren build --backend native --metadata` is used, `--manifest` also emits a manifest for the metadata sidecar (`<out>.meta.json.manifest.json`).
-     - `./oretest` has integration fixtures that assert `--manifest` output exists (and includes `size_bytes`) for bytecode builds, `oren meta`, and native `--metadata` sidecars.
+     - `previous test runner` has integration fixtures that assert `--manifest` output exists (and includes `size_bytes`) for bytecode builds, `oren meta`, and native `--metadata` sidecars.
      - Manifests now include `size_bytes` (deterministic) to support artifact caching/GC.
 
 ### C) Libraries + Ecosystem (important, but not blocking core correctness)

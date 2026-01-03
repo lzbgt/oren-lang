@@ -288,7 +288,7 @@ Names like `push`, `len`, `get`, `set`, `iter`, `next` should be treated as:
 
 ### Phase 3: audits + enforcement
 
-Add `oretest` audits to:
+Add repo audits to:
 - discourage direct `oren_*` usage in most stdlib modules,
 - keep a tight allowlist for low-level kernel/ABI code.
 

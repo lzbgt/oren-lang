@@ -927,7 +927,7 @@ In strict mode:
 
 - unknown/forbidden attribute prefixes are rejected at compile time
 
-See `tests/native/fixtures/strict_attrs_ok.oren` / `strict_attrs_bad.oren` and the oretest fixture harness in `cmd/oretest/fixture_cases.go`.
+See `tests/native/fixtures/strict_attrs_ok.oren` / `strict_attrs_bad.oren` (these fixtures can be exercised via the native test targets, e.g. `make test-native-all`).
 
 #### ABI layout example
 
@@ -1190,18 +1190,11 @@ Fixtures covering this contract:
 - Runtime fail header: `tests/native/fixtures/diag_fail.oren`
 - ABI/packview compile errors: `tests/native/fixtures/abi_layout_error.oren`, `tests/native/fixtures/packview_error.oren`
 
-In rolling mode, the canonical verification step is:
+In rolling mode, a fast native verification step is:
 
 ```sh
-./oretest --platform arm64-macos
+make verify-native-quick
 ```
-
-Notes:
-
-- `./oretest --target` still exists and currently accepts `macos|linux` (it selects which native backend target OS is used for the curated suite).
-- `./oretest --platform` is a higher-level platform selector (`<arch>-<os>`) that can delegate to docker/remote gates when needed.
-- For x86_64 Windows + WSL2 validation, remote execution is opt-in; see `docs/REMOTE_X64_ENV.md`.
-- `timeout` is optional: oretest has internal timeouts and will warn if `timeout`/`gtimeout` is not installed.
 
 ## 12) Test fixtures are a living spec (recommended)
 
@@ -1259,8 +1252,8 @@ exactly one syscall/domain edge.
 The x86_64 native backend is Tier‑1, but still in bring-up. The x64 fixtures in `tests/fixtures/`
 are the canonical incremental contract for what the x64 backend supports today:
 
-- `tests/fixtures/x64_*_main.oren` are compiled for Linux ELF + Windows PE in `oretest`.
-- Remote execution (Win11 + WSL2) is opt-in; see `docs/REMOTE_X64_ENV.md`.
+- `tests/fixtures/x64_*_main.oren` are intended to compile under the native backend for Linux ELF + Windows PE (`./oren build ... --backend native --platform x64-linux` / `x64-windows`).
+- Remote execution (Win11 + WSL2) is opt-in and can be done by copying the built artifact to a real x86_64 host.
 - High-signal Tier‑1 fixtures (remote-gated via `OREN_REMOTE_RUN=1`):
   - Closures + varargs: `tests/fixtures/tier1_native_lambda_varargs_main.oren`
   - Maps (empty map + dynamic string key kind): `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren`

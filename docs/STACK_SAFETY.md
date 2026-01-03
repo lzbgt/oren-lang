@@ -39,7 +39,7 @@ Today, both backends have a **deterministic recursion guard** (rolling):
 - **C backend**
   - runtime implements `oren_call_depth_enter/exit()` with a per-thread counter + max
   - configured via env: `OREN_CALL_DEPTH_MAX` (default 8192; `0` disables the guard)
-  - validated by `tests/native/fixtures/call_depth_overflow.oren` via oretest runtime fixture
+  - validated by `tests/native/fixtures/call_depth_overflow.oren` (compile+run under both backends)
 
 - **Native backend (arm64 today)**
   - compiler inserts `oren_call_depth_enter()` on user-function entry and `oren_call_depth_exit()` on return

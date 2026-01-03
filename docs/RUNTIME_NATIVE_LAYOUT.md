@@ -18,7 +18,7 @@ translation unit, but stays maintainable in source form.
 
 - Each chunk stays small (hundreds of lines, not thousands).
 - You can review/edit one subsystem at a time without loading the entire runtime.
-- `oretest` enforces include-chunk coherence so we don’t accidentally regress back into a monolith.
+- Repo audits should enforce include-chunk coherence so we don’t accidentally regress back into a monolith.
 
 ## How to add a new runtime module
 
@@ -26,7 +26,7 @@ translation unit, but stays maintainable in source form.
    - Use a numeric prefix to keep ordering obvious (e.g. `270_crypto.oren`).
    - Keep it focused; if a chunk grows too large, split it again.
 2) Add a corresponding include line to `lib/runtime_native.oren`.
-3) Run `make test` to ensure the include expansion and runtime audits stay green.
+3) Run `make test-native-all` (or at least `make test-native-quick`) to ensure include expansion and runtime behavior stay green.
 
 ## Oren-owned stable ABIs (recommended)
 

@@ -186,7 +186,7 @@ To keep the codebase maintainable as targets grow:
    - stack alignment-sensitive calls
 
 3) **Opt-in remote Tier‑1 smoke**:
-   - validate x86_64 on real Windows + WSL2 (`OREN_REMOTE_RUN=1 ./oretest ...`)
+   - validate x86_64 on real Windows + WSL2 by copying the built artifact(s) to an x86_64 host and executing them
 
 ## References (Existing Docs)
 
