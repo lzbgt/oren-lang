@@ -62,6 +62,26 @@ Once you have the `oren` executable (Stage 1), you can compile user applications
 - override cache location: `--cache-dir <dir>` or env `OREN_CACHE_DIR`
 - clear cache: `./oren clean` (or `./oren clean --cache-dir <dir>`)
 
+### Native Runtime Bundle Cache (Native Backend)
+
+The native backend injects the native runtime bundle (`lib/runtime_native.oren`, expanded from `lib/runtime_native/**`) into every native build.
+On stage2-native compilers this can dominate build time, so the compiler maintains a separate (non-artifact) cache for the runtime **AST**:
+
+- default cache dir: `build/cache/native_runtime_astbin/`
+- key: SHA-256 of the fully expanded runtime source
+- disable: `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0`
+- override cache dir: `OREN_NATIVE_RUNTIME_ASTBIN_CACHE_DIR=<dir>`
+
+Troubleshooting overrides (force a specific input, bypassing default behavior):
+
+- `OREN_NATIVE_RUNTIME_EXPANDED=<path>`: use a pre-expanded runtime file (skips include expansion)
+- `OREN_NATIVE_RUNTIME_ASTBIN=<path>`: force loading a specific runtime astbin file
+
+Tracing knobs (bounded output; prints timing summaries):
+
+- `OREN_TRACE_RUNTIME_BUNDLE=1`: runtime expand/parse/cache timings
+- `OREN_TRACE_ASTBIN=1`: astbin decode timings (and v2 pool size)
+
 ### Native Backend (Tier‑1 intent: arm64 + x86_64)
 Compiles directly to machine code (Mach-O / ELF / PE). Fast and dependency-free for the emitted artifact (no libc shims for native output).
 

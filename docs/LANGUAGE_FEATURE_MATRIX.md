@@ -1,6 +1,6 @@
 # Oren Language Feature Matrix (Rolling, AI-Friendly)
 
-**Last updated:** 2025-12-30  
+**Last updated:** 2026-01-03  
 
 This document is a **quick index** for AI agents and maintainers:
 

@@ -3,14 +3,21 @@
 	@oren.keep
 	fn oren_new_list(cap) {
 	    if cap < 0 { cap = 0 }
-	    var header = malloc_k(32, 2)
+	    // Performance (native tooling / stage2-native compiler):
+	    // Allocate header + initial buffer in a single tracked block to cut allocation+tracking
+	    // overhead in half for the common "many small lists" workload (AST/IR graphs).
+	    //
+	    // Layout remains stable:
+	    //   [count][capacity][buffer_ptr][magic]
+	    // When cap>0, buffer_ptr points to inline storage at header+32.
+	    var total = 32
+	    if cap > 0 { total = total + cap * 8 }
+	    var header = malloc_k(total, 2)
 	    if header == 0 { exit(200) }
 	    if header == -1 { exit(200) }
 	    var buf = 0
 	    if cap > 0 {
-	        buf = malloc_k(cap * 8, 0)
-	        if buf == 0 { exit(201) }
-	        if buf == -1 { exit(201) }
+	        buf = iadd(header, 32)
 	    }
 	    ptr_set(iadd(header, 0), 0)       // count
 	    ptr_set(iadd(header, 8), cap)     // capacity

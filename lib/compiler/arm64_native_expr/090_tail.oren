@@ -361,6 +361,46 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 return true
             }
 
+            if fn_name == "oren_buf_load_u8_unchecked" {
+                // Intrinsic fast path (tooling critical):
+                //
+                // `oren_buf_load_u8_unchecked(buf, idx)` is a runtime helper in native mode, but
+                // calling it for every byte is catastrophically slow in stage2-native compilers
+                // (astbin decode reads multi-megabyte blobs).
+                //
+                // Inline the load using the native buffer layout:
+                // - typed buffer header stores the aligned payload pointer at buf+40
+                // - payload byte at data_ptr+idx is returned (zero-extended)
+                //
+                // NOTE: this assumes `buf` is a valid u8_buf and `idx` is in range, matching the
+                // "unchecked" contract.
+                native_compile_expr(ctx, args[0]) // buf -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                native_compile_expr(ctx, args[1]) // idx -> X0
+                push_u32_le(ctx["code"], insn_str_x0_sp(8))
+
+                // X1 = buf
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                // X1 = buf + 40
+                push_u32_le(ctx["code"], insn_add_imm(1, 1, 40))
+                // X1 = *(buf + 40)  (data_ptr)
+                push_u32_le(ctx["code"], insn_ldr_ptr(1, 1))
+                // X0 = idx
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 8))
+                // pop stack
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // X1 = data_ptr + idx
+                push_u32_le(ctx["code"], insn_add_reg(1, 1, 0))
+                // W0 = *(u8*)(X1)
+                push_u32_le(ctx["code"], insn_ldrb(0, 1))
+                return true
+            }
+
             if sysm.native_compile_syscall_call(ctx, fn_name, args, native_compile_expr) {
                 return true
             }

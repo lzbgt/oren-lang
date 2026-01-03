@@ -38,6 +38,55 @@ fn _bundle_err(ctx, msg) {
     return nil
 }
 
+fn _rt_bundle_hex_digit(n) {
+    // n in [0,15]
+    return oren_string_char_at("0123456789abcdef", n)
+}
+
+fn _rt_bundle_bytes_to_hex(bs) {
+    if bs == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        if b == nil { b = 0 }
+        if b < 0 { b = 0 }
+        if b > 255 { b = b & 255 }
+        out = out + _rt_bundle_hex_digit(b / 16) + _rt_bundle_hex_digit(b & 15)
+        i = i + 1
+    }
+    return out
+}
+
+fn _rt_bundle_sha256_hex_string(s) {
+    if s == nil { return "" }
+    var d = oren_sha256_string(s)
+    return _rt_bundle_bytes_to_hex(d)
+}
+
+fn _rt_bundle_shell_quote(s) {
+    // Minimal single-quote shell escaping: ' -> '\''.
+    // This is used only for dev tooling (mkdir -p cache dir).
+    if s == nil { return "''" }
+    var out = "'"
+    var i = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at(s, i)
+        if ch == "'" { out = out + "'\\''" }
+        else { out = out + ch }
+        i = i + 1
+    }
+    out = out + "'"
+    return out
+}
+
+fn _rt_bundle_ensure_dir(path) {
+    if path == nil || path == "" { return nil }
+    // Use shell to avoid adding FS syscalls to the compiler surface right now.
+    oren_system("mkdir -p " + _rt_bundle_shell_quote(path))
+    return nil
+}
+
 fn _bundle_clone_list(xs) {
     if xs == nil { return [] }
     var out = []
@@ -57,6 +106,47 @@ fn _bundle_list_contains(xs, v) {
         i = i + 1
     }
     return false
+}
+
+fn _rt_bundle_validate_runtime_prog(ctx, runtime_prog, runtime_path) {
+    if ctx == nil { return false }
+    if runtime_prog == nil { _bundle_err(ctx, "native runtime bundle: runtime_prog is nil"); return false }
+
+    // Validate that the injected native runtime does not contain top-level executable statements.
+    //
+    // Tier-1 invariant: the runtime is injected as a library; its side effects must be
+    // driven by `native_runtime_init` (and explicit runtime calls), not by implicit top-level
+    // execution order inside `__top_level__`.
+    var sts = runtime_prog["statements"]
+    if sts == nil { sts = [] }
+    var si = 0
+    while si < oren_list_len(sts) {
+        var st = sts[si]
+        if st == nil { si = si + 1; continue }
+        if st["type"] == "Function" { si = si + 1; continue }
+        if st["type"] == "ExprStmt" {
+            var e = st["expr"]
+            if e != nil && e["type"] == "Function" { si = si + 1; continue }
+        }
+        if st["type"] == "Type" || st["type"] == "FFI" || st["type"] == "Var" { si = si + 1; continue }
+        _bundle_err(ctx, "native runtime bundle: runtime contains top-level executable stmt type=" + st["type"])
+        return false
+    }
+    if _bundle_validate_runtime_global_consts(ctx, runtime_prog) == false { return false }
+    return true
+}
+
+fn _rt_bundle_cache_enabled() {
+    var v = oren_env("OREN_NATIVE_RUNTIME_ASTBIN_CACHE")
+    if v == nil || v == "" { return true }
+    if v == "0" || v == "false" { return false }
+    return true
+}
+
+fn _rt_bundle_cache_dir() {
+    var v = oren_env("OREN_NATIVE_RUNTIME_ASTBIN_CACHE_DIR")
+    if v == nil || v == "" { return "build/cache/native_runtime_astbin" }
+    return v
 }
 
 fn _bundle_roots_base() {
@@ -386,6 +476,7 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
             _bundle_err(ctx, "native runtime bundle: astbin_decode failed: " + p_ast)
             return nil
         }
+        if _rt_bundle_validate_runtime_prog(ctx, prog0, runtime_path) == false { return nil }
         if trace {
             var dtA = oren_time_now_ns() - t_ast0
             print("[rt_bundle] astbin load done +" + oren_int_to_string(dtA / 1000000) + "ms")
@@ -425,7 +516,6 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
         var dt = oren_time_now_ns() - t0
         print("[rt_bundle] expand done +" + oren_int_to_string(dt / 1000000) + "ms bytes=" + oren_int_to_string(oren_string_len(runtime_src)))
         t0 = oren_time_now_ns()
-        print("[rt_bundle] parse start")
     }
 
     // Include expansion can allocate many temporary strings/slices.
@@ -444,6 +534,34 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
         oren_write_file(p, runtime_src)
     }
 
+    // Default fast path (rolling): parse the runtime once and cache an astbin keyed by the
+    // expanded source hash. This avoids pathological stage2-native compiler slowdowns where
+    // parsing the injected runtime dominates compilation time.
+    var cache_enabled = _rt_bundle_cache_enabled()
+    var runtime_hash = _rt_bundle_sha256_hex_string(runtime_src)
+    var cache_dir = _rt_bundle_cache_dir()
+    var cache_astbin = cache_dir + "/" + runtime_hash + ".astbin"
+
+    if cache_enabled == true {
+        var t_hit0 = 0
+        if trace { t_hit0 = oren_time_now_ns() }
+        var bs_hit = oren_read_u8_buf(cache_astbin)
+        if !oren_is_err(bs_hit) {
+            if trace { print("[rt_bundle] cache astbin hit path=" + cache_astbin + " bytes=" + oren_int_to_string(oren_buf_len(bs_hit))) }
+            var prog_hit = astbin.astbin_decode(bs_hit)
+            if prog_hit != nil {
+                if _rt_bundle_validate_runtime_prog(ctx, prog_hit, runtime_path) == false { return nil }
+                if trace {
+                    var dt_hit = oren_time_now_ns() - t_hit0
+                    print("[rt_bundle] cache astbin decode done +" + oren_int_to_string(dt_hit / 1000000) + "ms")
+                }
+                return prog_hit
+            }
+            if trace { print("[rt_bundle] cache astbin miss (decode failed), falling back to parse") }
+        }
+    }
+
+    if trace { print("[rt_bundle] parse start") }
     var l = lexer.new_lexer(runtime_src)
     l["file"] = runtime_path
     var p2 = parser.new_parser(l)
@@ -465,27 +583,7 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
     }
 
 
-    // Validate that the injected native runtime does not contain top-level executable statements.
-    //
-    // Tier-1 invariant: the runtime is injected as a library; its side effects must be
-    // driven by `native_runtime_init` (and explicit runtime calls), not by implicit top-level
-    // execution order inside `__top_level__`.
-    var sts = runtime_prog["statements"]
-    if sts == nil { sts = [] }
-    var si = 0
-    while si < oren_list_len(sts) {
-        var st = sts[si]
-        if st == nil { si = si + 1; continue }
-        if st["type"] == "Function" { si = si + 1; continue }
-        if st["type"] == "ExprStmt" {
-            var e = st["expr"]
-            if e != nil && e["type"] == "Function" { si = si + 1; continue }
-        }
-        if st["type"] == "Type" || st["type"] == "FFI" || st["type"] == "Var" { si = si + 1; continue }
-        _bundle_err(ctx, "native runtime bundle: runtime contains top-level executable stmt type=" + st["type"])
-        return nil
-    }
-    if _bundle_validate_runtime_global_consts(ctx, runtime_prog) == false { return nil }
+    if _rt_bundle_validate_runtime_prog(ctx, runtime_prog, runtime_path) == false { return nil }
 
     // Optional: dump the parsed runtime AST to astbin for fast future loads.
     var dump_astbin = oren_env("OREN_DUMP_NATIVE_RUNTIME_ASTBIN")
@@ -495,6 +593,20 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
         var bs2 = astbin.astbin_encode(runtime_prog)
         if bs2 != nil {
             oren_write_bytes(p_out, bs2)
+        }
+    }
+
+    // Default: write an astbin cache keyed by the expanded runtime hash.
+    if cache_enabled == true {
+        // Only write on miss.
+        var bs_chk = oren_read_u8_buf(cache_astbin)
+        if oren_is_err(bs_chk) {
+            _rt_bundle_ensure_dir(cache_dir)
+            var bs3 = astbin.astbin_encode(runtime_prog)
+            if bs3 != nil {
+                oren_write_bytes(cache_astbin, bs3)
+                if trace { print("[rt_bundle] cache astbin wrote path=" + cache_astbin) }
+            }
         }
     }
 

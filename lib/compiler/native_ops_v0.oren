@@ -1169,7 +1169,7 @@ fn _intr_tmp_base_slots_for_call(ctx, locals, expr, nm, argc) {
     if nm == "atomic_cas" { return 2 }
     if nm == "oren_u8_buf_new" || nm == "oren_i32_buf_new" || nm == "oren_i64_buf_new" || nm == "oren_f32_buf_new" || nm == "oren_f64_buf_new" { return 2 }
     if nm == "oren_buf_store_i32" || nm == "oren_buf_store_u8" || nm == "oren_buf_store_i64" || nm == "oren_buf_store_f32" || nm == "oren_buf_store_f64" { return 3 }
-    if nm == "oren_buf_load_i32" || nm == "oren_buf_load_u8" || nm == "oren_buf_load_i64" || nm == "oren_buf_load_f32" || nm == "oren_buf_load_f64" { return 1 }
+    if nm == "oren_buf_load_i32" || nm == "oren_buf_load_u8" || nm == "oren_buf_load_u8_unchecked" || nm == "oren_buf_load_i64" || nm == "oren_buf_load_f32" || nm == "oren_buf_load_f64" { return 1 }
     if nm == "oren_map_get" || nm == "oren_map_get_int" || nm == "oren_map_get_str" { return 2 }
     if nm == "oren_map_set" || nm == "oren_map_set_int" || nm == "oren_map_set_str" { return argc }
     if nm == "oren_index_set" { return argc }

@@ -621,9 +621,26 @@ fn oren_init_static_cstr0_table(table_ptr) {
     var data_base = table_ptr - table_off
 
     // Ensure the alloc-index exists so `oren_find_node` remains fast.
+    //
+    // Performance note (self-hosted compiler workloads):
+    // A large native binary (like `oren` itself) can have tens of thousands of unique literals.
+    // If we start from a tiny alloc-index (1024) and insert each literal node, the hash table
+    // will resize repeatedly and reinsert the growing static list many times.
+    //
+    // Pre-sizing the table based on the literal count keeps startup bounded.
     acquire_lock()
     if g_alloc_index_cap == 0 {
-        native_alloc_index_init_min(1024)
+        var need = count * 2
+        if need < 1024 { need = 1024 }
+        // Cap the initial table to keep worst-case mmap size bounded:
+        // - cap is entry count (u64 slots), table size is cap*8 bytes
+        // - 4,194,304 entries => 32 MiB table
+        var cap = 1024
+        while cap < need {
+            if cap >= 4194304 { cap = 4194304; break }
+            cap = cap * 2
+        }
+        native_alloc_index_init_min(cap)
         native_alloc_index_rebuild_live()
     }
 
@@ -1113,6 +1130,28 @@ fn native_gc_unregister_root(ptr) {
 // - caller may restore the previous pin (stack discipline)
 var g_oren_gc_pin = 0
 
+// `oren_find_node` is a hot path in native v0 because many container/string operations
+// validate pointers via tracked metadata (Tier‑1 safety).
+//
+// Keep a tiny MRU cache for single-threaded compiler/tooling workloads to reduce repeated
+// alloc-index probes for the same few pointers.
+//
+// Correctness note:
+// - This cache is best-effort and is cleared on `native_gc_collect()` because sweep may
+//   recycle tracking nodes.
+var g_find_cache_ptr0 = 0
+var g_find_cache_node0 = 0
+var g_find_cache_ptr1 = 0
+var g_find_cache_node1 = 0
+
+fn native_find_cache_clear() {
+    g_find_cache_ptr0 = 0
+    g_find_cache_node0 = 0
+    g_find_cache_ptr1 = 0
+    g_find_cache_node1 = 0
+    return 0
+}
+
 @oren.keep
 fn oren_gc_pin(v) {
     if g_gc_enabled == 0 { return 0 }
@@ -1141,9 +1180,21 @@ fn oren_find_node(ptr) {
     // - Small integers are not pointers; don't scan the alloc list for them.
     // - This also avoids accidental "pointer probing" semantics in places like map key-kind inference.
     if ptr < 4096 { return 0 }
+
+    // Single-threaded fast path: avoid repeated hash probes for the same ptrs.
+    if g_runtime_single_threaded == 1 {
+        if ptr == g_find_cache_ptr0 { return g_find_cache_node0 }
+        if ptr == g_find_cache_ptr1 { return g_find_cache_node1 }
+    }
     acquire_lock()
     var hit = native_alloc_index_get(ptr)
     if hit != 0 {
+        if g_runtime_single_threaded == 1 {
+            g_find_cache_ptr1 = g_find_cache_ptr0
+            g_find_cache_node1 = g_find_cache_node0
+            g_find_cache_ptr0 = ptr
+            g_find_cache_node0 = hit
+        }
         release_lock()
         return hit
     }
@@ -1154,6 +1205,12 @@ fn oren_find_node(ptr) {
         native_alloc_index_rebuild_live()
         hit = native_alloc_index_get(ptr)
         if hit != 0 {
+            if g_runtime_single_threaded == 1 {
+                g_find_cache_ptr1 = g_find_cache_ptr0
+                g_find_cache_node1 = g_find_cache_node0
+                g_find_cache_ptr0 = ptr
+                g_find_cache_node0 = hit
+            }
             release_lock()
             return hit
         }
@@ -1173,6 +1230,12 @@ fn oren_find_node(ptr) {
     while cur != 0 {
         if ptr_get(cur) == ptr {
             native_alloc_index_put_node(cur)
+            if g_runtime_single_threaded == 1 {
+                g_find_cache_ptr1 = g_find_cache_ptr0
+                g_find_cache_node1 = g_find_cache_node0
+                g_find_cache_ptr0 = ptr
+                g_find_cache_node0 = cur
+            }
             release_lock()
             return cur
         }
@@ -1262,6 +1325,7 @@ fn oren_mark_value(val) {
 
 fn native_gc_collect() {
     if g_gc_enabled == 0 { return 0 }
+    native_find_cache_clear()
     // 1) Clear marks (keep this phase allocation-free and leaf-ish).
     var cur_clear = global_get_allocs()
     while cur_clear != 0 {

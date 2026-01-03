@@ -18,6 +18,24 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `make verify-native-quick` (stage1 + stage2 local smoke)
   - `./scripts/verify_native_matrix.sh --targets arm64-linux` (linux/arm64 docker run for both stage1 + stage2 native outputs)
 
+## Archived (2026-01-03) — Native: runtime bundle AST cache + astbin decode hot-path win
+
+- Compiler:
+  - Added a default runtime astbin cache for native runtime injection:
+    - caches under `build/cache/native_runtime_astbin/` keyed by SHA-256 of expanded `lib/runtime_native.oren`
+    - disable via `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0` (or override dir via `OREN_NATIVE_RUNTIME_ASTBIN_CACHE_DIR=...`)
+    - kept troubleshooting overrides: `OREN_NATIVE_RUNTIME_EXPANDED` / `OREN_NATIVE_RUNTIME_ASTBIN`
+- Native backends:
+  - Inlined `oren_buf_load_u8_unchecked(buf, idx)` in both arm64 and x86_64 emit to avoid per-byte function-call overhead in compiler hot paths (notably astbin decode).
+  - Evidence (arm64-macos, stage2-native compiler, quick integration build):
+    - runtime astbin decode dropped from ~11–12s → ~7–8s (`OREN_TRACE_RUNTIME_BUNDLE=1 OREN_TRACE_ASTBIN=1`).
+- Native runtime:
+  - Lists/maps allocate header + initial backing buffer in a single tracked block (reduces allocation+tracking volume for AST-heavy workloads).
+
+- Verified:
+  - `make verify-native-quick`
+  - `./scripts/verify_native_matrix.sh --targets arm64-linux`
+
 ## Archived (2026-01-03) — x64-linux: WSL exit code + ELF sections + runtime pruning
 
 - Linux x86_64 native now terminates via `exit_group(2)` (process-wide) for:

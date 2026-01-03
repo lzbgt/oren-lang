@@ -632,6 +632,41 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             _intr_tmp_pop(ctx, base)
             return nil
         }
+
+        if nm == "oren_buf_load_u8_unchecked" {
+            // Tooling hot path (stage2-native compiler):
+            // Inline `oren_buf_load_u8_unchecked(buf, idx)` to avoid per-byte function call overhead
+            // during astbin decode.
+            //
+            // Buffer layout contract (native runtime typed buffers):
+            // - aligned payload pointer lives at buf+40 (u64)
+            // - load byte at data_ptr+idx and return it as int (0..255)
+            if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: oren_buf_load_u8_unchecked expects 2 args"); return nil }
+
+            var base = _intr_tmp_push(ctx, 1)
+            if base == nil { return nil }
+            var tmp_buf = _intr_tmp_off(ctx, locals, base + 0)
+            if tmp_buf == nil { _intr_tmp_pop(ctx, base); return nil }
+
+            _emit_eval_int_to_rax(ctx, args[0], locals) // buf -> rax
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            _emit_mov_mrbp_r64(ctx, 0 - tmp_buf, 0)
+
+            _emit_eval_int_to_rax(ctx, args[1], locals) // idx -> rax
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+            bytes_extend(ctx["code"], insn_mov_r64_r64(2, 0)) // rdx = idx
+
+            _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_buf) // rax = buf
+            // rax = *(u64*)(buf + 40)  (data_ptr)
+            bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(0, 0, 40))
+            // rax = data_ptr + idx
+            bytes_extend(ctx["code"], insn_add_r64_r64(0, 2))
+            // eax = zero-extended byte [rax]
+            bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 0))
+
+            _intr_tmp_pop(ctx, base)
+            return nil
+        }
         if nm == "atomic_add" { _emit_intrinsic_atomic_add_x64(ctx, expr, locals); return nil }
         if nm == "atomic_cas" { _emit_intrinsic_atomic_cas_x64(ctx, expr, locals); return nil }
 
