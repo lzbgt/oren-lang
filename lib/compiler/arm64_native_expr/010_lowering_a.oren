@@ -288,15 +288,12 @@ fn native_expr_chunk_noncall(ctx, expr) {
 
         if expr["type"] == "String" {
             var s = expr["value"]
-            var bytes = oren_bytes_from_string(s)
-            oren_list_push(bytes, 0) // Null terminator
-            
-            while int_mod(bytes_len(ctx["data"]), 8) != 0 {
-                bytes_push(ctx["data"], 0)
+            var data_off = native_data_add_cstr0(ctx, s)
+            if data_off == nil {
+                native_error(ctx, expr["token"], "native backend: failed to add string literal data")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return true
             }
-            
-            var data_off = bytes_len(ctx["data"])
-            bytes_extend_list(ctx["data"], bytes)
             
             var adr_pos = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)

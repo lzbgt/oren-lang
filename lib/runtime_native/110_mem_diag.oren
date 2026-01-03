@@ -360,41 +360,17 @@ var g_const_string_cache = 0
 @oren.keep
 fn oren_ensure_tracked(ptr, kind) {
     if ptr == 0 { return 0 }
-    var node0 = oren_find_node(ptr)
-    if node0 != 0 { return ptr }
 
     // IMPORTANT (native backend correctness):
-    // `ptr` may point at a read-only embedded literal (in the __TEXT/__cstring region).
-    // If we "track" that pointer in-place, GC/free can later:
-    // - treat it as a normal heap allocation,
-    // - recycle its tracking node into `free_blocks`,
-    // - and eventually hand the read-only pointer back out as a writable allocation,
-    //   causing deterministic crashes when code writes into it.
-    //
-    // For STRING (kind=1), always make a heap copy and track the copy.
+    // String literals should not be GC-managed. They already live in the binary's data segment.
+    // We only need to classify them as kind=STRING so container ops can safely infer key kinds.
     if kind == 1 {
-        // Best-effort literal cache keyed by the original embedded pointer value.
-        // Key kind is INT (0) so we can cache even before the literal is tracked.
-        // Value is a tracked heap STRING pointer.
-        //
-        // Note: this cache is process-local and intentionally not freed; it is bounded
-        // by the program's distinct embedded literals.
-        if g_const_string_cache == 0 {
-            g_const_string_cache = oren_new_map(0)
-        }
-        var hit = oren_map_get_int(g_const_string_cache, ptr)
-        if hit != 0 { return hit }
-
-        var size1 = oren_string_len(ptr) + 1
-        var out = malloc(size1)
-        if out == 0 { exit(361) }
-        if out == -1 { exit(361) }
-        oren_memcpy(out, ptr, size1 - 1)
-        ptr_set_byte(out + (size1 - 1), 0)
-        oren_track_alloc(out, size1, 1)
-        oren_map_set_int(g_const_string_cache, ptr, out)
-        return out
+        oren_track_static(ptr, 1)
+        return ptr
     }
+
+    var node0 = oren_find_node(ptr)
+    if node0 != 0 { return ptr }
 
     // For other kinds, a best-effort in-place track is acceptable.
     oren_track_alloc(ptr, 0, kind)

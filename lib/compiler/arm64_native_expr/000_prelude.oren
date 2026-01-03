@@ -78,6 +78,31 @@ fn trim_trailing_underscores(s) {
     return oren_string_slice(s, 0, end)
 }
 
+fn native_data_add_cstr0(ctx, s) {
+    // Add a NUL-terminated C string to the appended data blob and return its byte offset.
+    //
+    // Deduping:
+    // - Not required for correctness (string semantics are strcmp-based), but it reduces binary size
+    //   and makes pointer identity stable for repeated literals.
+    if ctx == nil { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+    if ctx["cstr0_offs"] == nil { ctx["cstr0_offs"] = {} }
+
+    if s == nil { s = "" }
+    // Store offsets as `off+1` so a real offset of 0 is not indistinguishable from `nil`
+    // when the compiler runs under the native runtime (where `nil` is 0).
+    var existing_enc = ctx["cstr0_offs"][s]
+    if existing_enc != nil { return existing_enc - 1 }
+
+    var b = oren_bytes_from_string(s)
+    oren_list_push(b, 0)
+    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var off = bytes_len(ctx["data"])
+    bytes_extend_list(ctx["data"], b)
+    ctx["cstr0_offs"][s] = off + 1
+    return off
+}
+
 // Resolve module/type namespace paths (import aliases + type namespaces) into
 // flattened symbol names, matching the C-backend's `ns_resolve` convention.
 //
