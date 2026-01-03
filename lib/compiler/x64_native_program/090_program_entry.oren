@@ -375,6 +375,19 @@ fn native_compile_program_x64(linked, platform) {
     ctx["lambda_defs"] = []
     ctx["lambda_counter"] = 0
 
+    // Reserve a `.data` slot holding the cstr0-literal table offset (u64).
+    //
+    // Entry stubs are assembly-only, so we cannot reference the eventual table by AST symbol.
+    // Instead we:
+    // - store the table offset (relative to data base) in this reserved slot
+    // - entry stub computes data_base from the slot address and reads the offset
+    // - then calls `oren_init_static_cstr0_table(table_ptr)` once at startup
+    //
+    // Store as offset+1 so a real offset of 0 is not indistinguishable from `nil`
+    // when the compiler runs under the native runtime (where `nil` is 0).
+    var cstr_slot_off = _data_add_u64(ctx, 0)
+    ctx["cstr0_table_slot_enc"] = cstr_slot_off + 1
+
     // Runtime injection (default-on; see comment at top of function).
     //
     // Use the shared Tier‑1 native runtime bundle so arm64/x64 converge on:
@@ -704,6 +717,41 @@ fn native_compile_program_x64(linked, platform) {
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_init_pos, "name": "native_runtime_init"})
 
+    // Register embedded string literals once at startup (Tier‑1 performance).
+    //
+    // Do this immediately after `native_runtime_init` so any subsequent runtime helpers
+    // (capsule init, env parsing, etc) can safely use string literals as map keys.
+    //
+    // Table pointer derivation (PIE-safe):
+    // - slot_addr = &data[slot_off] (RIP-relative LEA)
+    // - table_off = *(u64*)slot_addr
+    // - data_base = slot_addr - slot_off
+    // - table_ptr = data_base + table_off
+    var slot_off_enc = ctx["cstr0_table_slot_enc"]
+    if slot_off_enc != nil {
+        var slot_off = slot_off_enc - 1
+        // r10 = slot_addr
+        var lea_slot_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_slot_pos + 3, "data_off": slot_off})
+        // r11 = table_off (u64)
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 10))
+        // r12 = data_base
+        bytes_extend(ctx["code"], insn_mov_r64_r64(12, 10))
+        bytes_extend(ctx["code"], insn_sub_r64_imm32(12, core.int_mod(slot_off, 4294967296)))
+        // r12 = table_ptr
+        bytes_extend(ctx["code"], insn_add_r64_r64(12, 11))
+        // arg0 = table_ptr
+        if platform != nil && platform["os"] == "windows" {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(1, 12)) // rcx
+        } else {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 12)) // rdi
+        }
+        var call_cstr_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_cstr_pos, "name": "oren_init_static_cstr0_table"})
+    }
+
     // native_runtime_set_args(argc, argv)
     if platform != nil && platform["os"] == "windows" {
         _emit_mov_r64_mrsp(ctx, 1, scratch_base + 0) // rcx=argc
@@ -886,6 +934,13 @@ fn native_compile_program_x64(linked, platform) {
 
     // Fill the linetab now that code offsets are stable.
     _data_finalize_linetab(ctx)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+
+    // Finalize the embedded-string table after all codegen so it includes:
+    // - user literals
+    // - injected runtime literals
+    // - backend-emitted literal cstrs (panic helpers, etc)
+    _data_finalize_cstr0_table(ctx)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
     return ctx

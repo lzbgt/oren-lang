@@ -599,6 +599,67 @@ fn oren_track_static(ptr, kind) {
     return ptr
 }
 
+@oren.keep
+fn oren_init_static_cstr0_table(table_ptr) {
+    // Register all embedded string literals (cstr0 pool) as static-kind STRING (kind=1).
+    //
+    // Rationale:
+    // - String literals already live in the native binary's data segment; they are not GC-managed.
+    // - We still need `oren_find_node(ptr)` to classify them as kind=STRING so container ops
+    //   can safely infer key kinds (e.g., map/set) without per-use `oren_ensure_tracked` calls.
+    //
+    // Table layout (u64 slots, little-endian):
+    //   [0] table_off  (u64)  -- offset of this table from data base
+    //   [1] count      (u64)  -- number of offsets
+    //   [2..] offs[i]  (u64)  -- byte offsets of each cstr0 literal from data base
+    //
+    // The entry stub passes `table_ptr = data_base + table_off`, and we recover:
+    //   data_base = table_ptr - table_off
+    if table_ptr == 0 { return 0 }
+    var table_off = ptr_get(table_ptr)
+    var count = ptr_get(iadd(table_ptr, 8))
+    var data_base = table_ptr - table_off
+
+    // Ensure the alloc-index exists so `oren_find_node` remains fast.
+    acquire_lock()
+    if g_alloc_index_cap == 0 {
+        native_alloc_index_init_min(1024)
+        native_alloc_index_rebuild_live()
+    }
+
+    var i = 0
+    var p = iadd(table_ptr, 16)
+    while i < count {
+        var off = ptr_get(p)
+        p = iadd(p, 8)
+        var s_ptr = data_base + off
+
+        if s_ptr != 0 && s_ptr >= 4096 {
+            // De-duplicate: only allocate a node if not already present in the index.
+            var hit = native_alloc_index_get(s_ptr)
+            if hit != 0 {
+                // Force kind=STRING for safety (some backends may accidentally track as kind=0).
+                ptr_set(iadd(hit, 16), 1)
+            } else {
+                var node = native_malloc_raw_or_mmap(40)
+                if node != 0 {
+                    ptr_set(node, s_ptr)
+                    ptr_set(iadd(node, 8), 0)
+                    ptr_set(iadd(node, 16), 1)
+                    ptr_set(iadd(node, 24), 0) // not freed, not marked (meaningless for static nodes)
+                    ptr_set(iadd(node, 32), g_static_allocs)
+                    g_static_allocs = node
+                    native_alloc_index_put_node(node)
+                }
+            }
+        }
+        i = i + 1
+    }
+
+    release_lock()
+    return 0
+}
+
 fn native_gc_scan_stack() {
     if g_gc_enabled == 0 { return 0 }
     var sp = get_sp()

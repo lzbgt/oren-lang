@@ -5,6 +5,19 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2026-01-03) — Native: pooled static string literals (no per-use tracking)
+
+- Native runtime:
+  - String literals are treated as **static-kind** (not GC-managed heap allocations).
+  - Added a startup init hook `oren_init_static_cstr0_table(table_ptr)` so `oren_find_node(ptr)` can classify literals as kind=STRING without per-use `oren_ensure_tracked` calls.
+- Native backends:
+  - arm64: embedded cstr0 literal pool is now deduped (matches x86_64 behavior).
+  - arm64: member/struct field-name keys now use the same pooled cstr0 path (no ad-hoc duplicated cstr emission per access).
+  - Entry stubs (arm64 + x86_64) call `oren_init_static_cstr0_table` immediately after `native_runtime_init` so later runtime init helpers can safely use string literals as map keys.
+- Verified:
+  - `make verify-native-quick` (stage1 + stage2 local smoke)
+  - `./scripts/verify_native_matrix.sh --targets arm64-linux` (linux/arm64 docker run for both stage1 + stage2 native outputs)
+
 ## Archived (2026-01-03) — x64-linux: WSL exit code + ELF sections + runtime pruning
 
 - Linux x86_64 native now terminates via `exit_group(2)` (process-wide) for:

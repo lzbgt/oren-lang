@@ -21,9 +21,10 @@ Rules for this tracker:
      - `make verify-native-quick` (stage1 + stage2 native smoke)
      - `make test-native-all` (native suite; stage1)
      - `make verify` (stage1 → stage2 self-hosting gate)
-   - Avoid O(n²) string/collection patterns in compiler-side tooling (include expansion, C backend transpiler, whole-program lowering passes).
-   - Hard gate (non-negotiable for rolling):
-     - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
+	   - Avoid O(n²) string/collection patterns in compiler-side tooling (include expansion, C backend transpiler, whole-program lowering passes).
+	   - Recently completed: pooled embedded string literals + one-time startup registration (`oren_init_static_cstr0_table`) to remove per-use tracking overhead in compiler workloads (details in `docs/TODOS_ARCHIVE.md`).
+	   - Hard gate (non-negotiable for rolling):
+	     - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
      - RSS should stay **< 300 MB** for the compilation process.
 	   - High-leverage path (avoid “parameter tuning”):
 	     - deterministic parallel compilation pipeline (module graph scheduling + cache hits)

@@ -25,6 +25,7 @@ fn _data_add_cstr0(ctx, s) {
     if ctx == nil { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
     if ctx["cstr0_offs"] == nil { ctx["cstr0_offs"] = {} }
+    if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
 
     if s == nil { s = "" }
     // Store offsets as `off+1` so a real offset of 0 is not indistinguishable from `nil`
@@ -38,7 +39,55 @@ fn _data_add_cstr0(ctx, s) {
     var off = bytes_len(ctx["data"])
     bytes_extend_list(ctx["data"], b)
     ctx["cstr0_offs"][s] = off + 1
+    // Track the unique byte offsets so the entry stub can register all literals once at startup
+    // (avoids per-use `oren_ensure_tracked` overhead in compiler workloads).
+    oren_list_push(ctx["cstr0_list"], off)
     return off
+}
+
+fn _data_finalize_cstr0_table(ctx) {
+    // Build a compact table of all unique embedded C-string literals so the program entry stub can
+    // register them once via `oren_init_static_cstr0_table` (native runtime).
+    //
+    // Layout (u64 slots, little-endian) stored in the appended data blob:
+    //   [0] table_off  (u64)  -- offset of this table from data base
+    //   [1] count      (u64)  -- number of offsets
+    //   [2..] offs[i]  (u64)  -- each is a byte offset of a NUL-terminated cstr0 literal
+    //
+    // The entry stub computes `table_ptr = data_base + table_off`, and the runtime computes:
+    //   data_base = table_ptr - table_off
+    //
+    // This is PIE-safe (no absolute pointers in `.data`) and works across x64/arm64 emitters.
+    if ctx == nil { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+
+    var slot_enc = ctx["cstr0_table_slot_enc"]
+    if slot_enc == nil {
+        // If the backend didn't reserve a slot, do nothing (rolling safety).
+        return nil
+    }
+    var slot_off = slot_enc - 1
+
+    var offs = ctx["cstr0_list"]
+    if offs == nil { offs = [] }
+
+    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var table_off = bytes_len(ctx["data"])
+
+    // Always emit a table (even if empty) so entry stubs can call init unconditionally.
+    push_u64_le(ctx["data"], table_off)
+    push_u64_le(ctx["data"], oren_list_len(offs))
+    var i = 0
+    while i < oren_list_len(offs) {
+        push_u64_le(ctx["data"], offs[i])
+        i = i + 1
+    }
+
+    // Write table_off into the reserved slot as a u64 (little-endian).
+    // table_off fits in u32 for all practical binaries, so hi32 is 0.
+    set_u32_le(ctx["data"], slot_off + 0, core.int_mod(table_off, 4294967296))
+    set_u32_le(ctx["data"], slot_off + 4, 0)
+    return table_off
 }
 
 fn _data_add_fnobj(ctx, fn_name) {

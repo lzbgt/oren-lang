@@ -87,6 +87,7 @@ fn native_data_add_cstr0(ctx, s) {
     if ctx == nil { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
     if ctx["cstr0_offs"] == nil { ctx["cstr0_offs"] = {} }
+    if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
 
     if s == nil { s = "" }
     // Store offsets as `off+1` so a real offset of 0 is not indistinguishable from `nil`
@@ -100,6 +101,8 @@ fn native_data_add_cstr0(ctx, s) {
     var off = bytes_len(ctx["data"])
     bytes_extend_list(ctx["data"], b)
     ctx["cstr0_offs"][s] = off + 1
+    // Track unique offsets so the program entry stub can register all literals once at startup.
+    oren_list_push(ctx["cstr0_list"], off)
     return off
 }
 

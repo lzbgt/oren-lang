@@ -239,9 +239,9 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         var lea_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0)) // lea rax, [rip+disp32]
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
-        // Tier‑1 convergence (rolling): mark embedded string literals as tracked (kind=1)
-        // so container ops can safely infer key kinds without heuristics.
-        _emit_ensure_tracked_ptr_kind_x64(ctx, locals, 0, 1)
+        // Tier‑1 convergence (rolling):
+        // Embedded string literals are registered once at program startup via
+        // `oren_init_static_cstr0_table` (entry stub), so per-use tracking is unnecessary here.
         return nil
     }
     if t == "Function" {

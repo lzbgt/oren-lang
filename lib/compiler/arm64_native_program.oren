@@ -43,7 +43,9 @@ fn insn_mul(rd, rn, rm) { return core.insn_mul(rd, rn, rm) }
 fn insn_stp_pre() { return core.insn_stp_pre() }
 fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
 fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
+fn insn_sub_reg(rd, rn, rm) { return core.insn_sub_reg(rd, rn, rm) }
 fn insn_svc(imm) { return core.insn_svc(imm) }
+fn emit_load_u64_imm(ctx, reg, val) { return core.emit_load_u64_imm(ctx, reg, val) }
 
 // Delegate statement compilation to the stmt module.
 fn native_compile_stmt(ctx, stmt) { return stmtm.native_compile_stmt(ctx, stmt) }
@@ -249,6 +251,18 @@ fn native_compile_program_arm64(linked, platform) {
         // Keep the field_offsets knob for future layout-stable structs, but default to empty for now.
         "field_offsets": {}
     }
+
+    // Reserve a `.data` slot holding the cstr0-literal table offset (u64).
+    //
+    // We store the *offset* (not an absolute pointer) so Mach-O PIE stays correct without relocations.
+    // The entry stub computes `table_ptr` using PC-relative `adrp/add` fixups plus this offset.
+    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var cstr_slot_off = bytes_len(ctx["data"])
+    var z = 0
+    while z < 8 { bytes_push(ctx["data"], 0); z = z + 1 }
+    // Store as offset+1 so a real offset of 0 is not indistinguishable from `nil`
+    // when the compiler runs under the native runtime (where `nil` is 0).
+    ctx["cstr0_table_slot_enc"] = cstr_slot_off + 1
     
     if platform["debug"] == true {
         ctx["debug_info"] = {"funcs": []}
@@ -327,6 +341,39 @@ fn native_compile_program_arm64(linked, platform) {
     var bl_init = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_init, "name": "native_runtime_init"})
+
+    // Register embedded string literals once at startup (Tier‑1 performance).
+    //
+    // Do this immediately after `native_runtime_init` so subsequent runtime helpers
+    // (capsule init, env parsing, etc) can safely use string literals as map keys.
+    //
+    // Table pointer derivation (PIE-safe):
+    //   slot_addr = &data[slot_off] (PC-relative ADRP+ADD via fixup)
+    //   table_off = *(u64*)slot_addr
+    //   data_base = slot_addr - slot_off
+    //   table_ptr = data_base + table_off
+    // Then call `oren_init_static_cstr0_table(table_ptr)` once.
+    var slot_off_enc = ctx["cstr0_table_slot_enc"]
+    if slot_off_enc != nil {
+        var slot_off = slot_off_enc - 1
+        var adr_slot_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_slot_pos, "data_off": slot_off})
+        // X1 = table_off
+        push_u32_le(ctx["code"], insn_ldr_ptr(1, 0))
+        // X2 = slot_addr
+        push_u32_le(ctx["code"], insn_mov_reg(2, 0))
+        // X3 = slot_off
+        emit_load_u64_imm(ctx, 3, slot_off)
+        // X2 = data_base
+        push_u32_le(ctx["code"], insn_sub_reg(2, 2, 3))
+        // X0 = table_ptr
+        push_u32_le(ctx["code"], insn_add_reg(0, 2, 1))
+        var bl_cstr = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_cstr, "name": "oren_init_static_cstr0_table"})
+    }
 
     // Restore argc/argv/envp saved across native_runtime_init.
     push_u32_le(ctx["code"], insn_ldr_reg_sp(19, 0))
@@ -758,6 +805,31 @@ fn native_compile_program_arm64(linked, platform) {
         var dt_all = (oren_time_now_ns() - t_enter) / 1000000
         print("[arm64] native_compile_program_arm64: done +" + oren_int_to_string(dt_all) + "ms")
     }
+
+    // Finalize the embedded-string literal table after all codegen so it includes:
+    // - user literals
+    // - injected runtime literals
+    // - backend-emitted literal cstrs (diagnostics, etc)
+    var slot_enc2 = ctx["cstr0_table_slot_enc"]
+    if slot_enc2 != nil {
+        var slot_off2 = slot_enc2 - 1
+        var offs = ctx["cstr0_list"]
+        if offs == nil { offs = [] }
+        while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+        var table_off2 = bytes_len(ctx["data"])
+        // Layout: [table_off][count][offs...]
+        push_u64_le(ctx["data"], table_off2)
+        push_u64_le(ctx["data"], oren_list_len(offs))
+        var ii = 0
+        while ii < oren_list_len(offs) {
+            push_u64_le(ctx["data"], offs[ii])
+            ii = ii + 1
+        }
+        // Write table_off into reserved slot as u64 (lo32/hi32).
+        set_u32_le(ctx["data"], slot_off2 + 0, int_mod(table_off2, 4294967296))
+        set_u32_le(ctx["data"], slot_off2 + 4, 0)
+    }
+
     return ctx
 }
 

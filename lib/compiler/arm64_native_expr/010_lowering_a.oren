@@ -299,13 +299,8 @@ fn native_expr_chunk_noncall(ctx, expr) {
             push_u32_le(ctx["code"], 0)
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
-
-            // Ensure embedded C-string literals are tracked as STRING (kind=1).
-            // This keeps key-kind inference safe without forcing heap copies of literals.
-            push_u32_le(ctx["code"], insn_movz(1, 1)) // X1 = kind STRING
-            var bl_track = bytes_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track, "name": "oren_ensure_tracked"})
+            // Embedded string literals are registered once at program startup via
+            // `oren_init_static_cstr0_table` (entry stub), so per-use tracking is unnecessary here.
             return true
         }
 
@@ -1072,18 +1067,11 @@ fn native_expr_chunk_noncall(ctx, expr) {
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
             ctx["stack_size"] = ctx["stack_size"] + 16
             
-            var bytes = oren_bytes_from_string(prop_name)
-            oren_list_push(bytes, 0)
-            var data_off = bytes_len(ctx["data"])
-            bytes_extend_list(ctx["data"], bytes)
+            var data_off = native_data_add_cstr0(ctx, prop_name)
             var adr_pos = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": data_off})
-            push_u32_le(ctx["code"], insn_movz(1, 1)) // X1 = kind STRING
-            var bl_track = bytes_len(ctx["code"])
-            push_u32_le(ctx["code"], 0)
-            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track, "name": "oren_ensure_tracked"})
             
             // Push key -> stack
             push_u32_le(ctx["code"], insn_sub_sp(16))

@@ -352,11 +352,6 @@ fn stack_trace_debug() {
     return 0
 }
 
-// Cache for embedded string literals that are first "ensured" at runtime.
-// Key: original embedded cstr pointer (treated as INT key kind).
-// Value: tracked heap STRING pointer.
-var g_const_string_cache = 0
-
 @oren.keep
 fn oren_ensure_tracked(ptr, kind) {
     if ptr == 0 { return 0 }
