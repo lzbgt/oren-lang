@@ -28,6 +28,7 @@ cd "$ROOT"
 TEST_SRC="tests/native/test_quick_integration_native.oren"
 
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
+BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
 
 REMOTE_HOST="${OREN_REMOTE_X64_HOST:-lzbgt@pc.work}"
 REMOTE_PROXY="${OREN_REMOTE_X64_PROXY:-ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002}"
@@ -61,6 +62,7 @@ Examples:
 
 Env overrides:
   OREN_LINUX_DOCKER_ID   (default: c7e5f7bd9f5c)
+  OREN_NATIVE_BUILD_TIMEOUT_SECS (default: 10) timeout for each `oren build ...` step (rolling hang guard)
   OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
   OREN_REMOTE_X64_PROXY  (default: ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002)
 
@@ -257,7 +259,14 @@ build_native_bin() {
     echo "ERROR: missing compiler executable: $compiler (build with: make stage1 stage2)" >&2
     exit 2
   fi
-  "$compiler" build "$TEST_SRC" --backend native --platform "$platform" --debug -o "$out"
+  set +e
+  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$TEST_SRC" --backend native --platform "$platform" --debug -o "$out"
+  local rc=$?
+  set -e
+  if [[ "$rc" -ne 0 ]]; then
+    echo "ERROR: build failed or timed out: compiler=$compiler platform=$platform timeout=${BUILD_TIMEOUT_SECS}s" >&2
+    exit "$rc"
+  fi
 }
 
 run_in_linux_container() {

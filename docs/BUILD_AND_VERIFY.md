@@ -161,6 +161,11 @@ Cross‑arch Tier‑1 matrix (stage1 + stage2):
 make verify-native-x64-compile
 ```
 
+Rolling hang guard:
+
+- `scripts/verify_native_matrix.sh` and the x64 compile-only gate apply a per-build timeout
+  (`OREN_NATIVE_BUILD_TIMEOUT_SECS`, default `10`) to keep regressions actionable.
+
 Environment knobs:
 
 - `OREN_TEST_JOBS` (default `4`): parallelism for module + AVM tests.

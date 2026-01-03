@@ -71,6 +71,16 @@ Rolling guardrails:
 
 - The matrix script uses short timeouts to avoid hangs.
 - It does **not** start containers; it expects the existing linux container to be running.
+- Per-build timeout can be tuned via `OREN_NATIVE_BUILD_TIMEOUT_SECS` (default: `10`).
+
+## Quick perf check (compile-one-file)
+
+When investigating “why did `oren build` take >10s?” regressions, use the bounded benchmark helper:
+
+```bash
+./scripts/bench_native_compile_one_file.sh
+./scripts/bench_native_compile_one_file.sh --debug --trace
+```
 
 ## Logs and artifacts
 

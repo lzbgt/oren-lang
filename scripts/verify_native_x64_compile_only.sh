@@ -28,6 +28,28 @@ need_bin make
 mkdir -p build/tmp
 
 TEST_SRC="tests/native/test_quick_integration_native.oren"
+BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
+
+run_with_timeout() {
+  local secs="$1"
+  shift
+  set +e
+  "$@" &
+  local pid=$!
+  (
+    sleep "$secs"
+    kill -TERM "$pid" 2>/dev/null || true
+    sleep 1
+    kill -KILL "$pid" 2>/dev/null || true
+  ) &
+  local killer=$!
+  wait "$pid"
+  local rc=$?
+  kill "$killer" 2>/dev/null || true
+  wait "$killer" 2>/dev/null || true
+  set -e
+  return "$rc"
+}
 
 if [[ ! -x ./oren ]]; then
   echo "== ensure: stage1 compiler (./oren) ==" >&2
@@ -44,7 +66,14 @@ build_one() {
   local out="$3"
 
   echo "== build: $compiler -> $platform ==" >&2
-  "$compiler" build "$TEST_SRC" --backend native --platform "$platform" --no-cache --no-debug -o "$out"
+  set +e
+  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$TEST_SRC" --backend native --platform "$platform" --no-cache --no-debug -o "$out"
+  local rc=$?
+  set -e
+  if [[ "$rc" -ne 0 ]]; then
+    echo "ERROR: build failed or timed out: compiler=$compiler platform=$platform timeout=${BUILD_TIMEOUT_SECS}s" >&2
+    return "$rc"
+  fi
 }
 
 check_elf_x64() {
