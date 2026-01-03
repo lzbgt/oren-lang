@@ -325,15 +325,28 @@ OrenValue oren_buf_payload_is_mmap(OrenValue buf);
 	// Debug/diagnostic helper (C backend): returns (uintptr_t)buf->data % mod.
 	// Does not expose the full pointer value, but enables alignment assertions in tests.
 	OrenValue oren_buf_data_mod(OrenValue buf, OrenValue mod);
-	// Unsafe/fast-path (tooling/internal): return (uintptr_t)buf->data as an int.
-	// Intended for native+tooling hot paths that need raw byte access without per-byte calls.
-	// Caller must treat this as an internal pointer value (not stable ABI).
-	OrenValue oren_buf_data_ptr_unchecked(OrenValue buf);
+		// Unsafe/fast-path (tooling/internal): return (uintptr_t)buf->data as an int.
+		// Intended for native+tooling hot paths that need raw byte access without per-byte calls.
+		// Caller must treat this as an internal pointer value (not stable ABI).
+		OrenValue oren_buf_data_ptr_unchecked(OrenValue buf);
 
-	OrenValue oren_buf_load_u8(OrenValue buf, OrenValue idx);
-	// Unsafe/fast-path (tooling/internal): load a byte from a u8_buf without bounds/type checks.
-	// Intended for compiler hot paths like astbin decode after a single upfront validation.
-	OrenValue oren_buf_load_u8_unchecked(OrenValue buf, OrenValue idx);
+	// --- unsafe pointer primitives (tooling/internal) ---
+	//
+	// These are exposed to generated C code as first-class function values (OrenValue type FUNC),
+	// so the C backend can use the uniform-call ABI (`oren_call_obj_*`) without special-casing.
+	//
+	// Contract:
+	// - pointers are passed as OREN_TYPE_INT containing a (uintptr_t) address
+	// - these are intentionally unsafe and may crash on invalid pointers
+	extern OrenValue ptr_get;
+	extern OrenValue ptr_set;
+	extern OrenValue ptr_get_byte;
+	extern OrenValue ptr_set_byte;
+
+		OrenValue oren_buf_load_u8(OrenValue buf, OrenValue idx);
+		// Unsafe/fast-path (tooling/internal): load a byte from a u8_buf without bounds/type checks.
+		// Intended for compiler hot paths like astbin decode after a single upfront validation.
+		OrenValue oren_buf_load_u8_unchecked(OrenValue buf, OrenValue idx);
 	OrenValue oren_buf_store_u8(OrenValue buf, OrenValue idx, OrenValue v);
 OrenValue oren_buf_load_i32(OrenValue buf, OrenValue idx);
 OrenValue oren_buf_store_i32(OrenValue buf, OrenValue idx, OrenValue v);

@@ -545,7 +545,7 @@ fn _astbin_read_value(bytes, off_ref, is_u8_buf) {
 	        // Finalize bulk build (native backend may build a hash index when map is large).
 	        oren_map_build_finalize_unchecked(mp, n2)
 	        return mp
-	    }
+		    }
     if tag == 7 {
         return _astbin_read_u8_buf(bytes, off_ref, is_u8_buf)
     }
@@ -632,6 +632,10 @@ fn _astbin_read_value_v2(pool, bytes, off_ref, is_u8_buf) {
 }
 
 fn astbin_decode(bytes) {
+    // Keep the input bytes alive across decoder allocations + auto-GC even if the native backend
+    // decides to keep `bytes` only in a register (GC scans stack, not registers).
+    var prev_pin = oren_gc_pin(bytes)
+
     var trace = false
     var v_trace = oren_env("OREN_TRACE_ASTBIN")
     if v_trace != nil && v_trace != "" { trace = true }
@@ -668,6 +672,7 @@ fn astbin_decode(bytes) {
             var dt = oren_time_now_ns() - t0
             print("[astbin] decode done +" + oren_int_to_string(dt / 1000000) + "ms")
         }
+        oren_gc_pin(prev_pin)
         return out2
     }
 
@@ -678,6 +683,7 @@ fn astbin_decode(bytes) {
         var dt2 = oren_time_now_ns() - t0
         print("[astbin] decode(v1) done +" + oren_int_to_string(dt2 / 1000000) + "ms")
     }
+    oren_gc_pin(prev_pin)
     return out
 }
 

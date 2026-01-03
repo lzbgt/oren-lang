@@ -719,6 +719,14 @@ void oren_init(int argc, char **argv) {
     OREN_FALSE.type = OREN_TYPE_BOOL;
     OREN_FALSE.as.bool_val = 0;
 
+    // Tooling/internal unsafe pointer primitives.
+    // Expose them as first-class function values so generated C code can call them via
+    // the uniform-call ABI (`oren_call_obj_*`).
+    ptr_get = oren_func(ptr_get__oren_fnwrap, NULL);
+    ptr_set = oren_func(ptr_set__oren_fnwrap, NULL);
+    ptr_get_byte = oren_func(ptr_get_byte__oren_fnwrap, NULL);
+    ptr_set_byte = oren_func(ptr_set_byte__oren_fnwrap, NULL);
+
     // Result selection is part of the agentic tooling surface; keep it GC-live as a root.
     OREN_RESULT_VALUE = OREN_NIL;
     oren_register_root(&OREN_RESULT_VALUE);

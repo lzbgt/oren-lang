@@ -54,7 +54,8 @@ Rules for this tracker:
 	       - `OREN_NATIVE_RUNTIME_EXPANDED=...` troubleshooting fast-path (skip include expansion)
 	       - `OREN_NATIVE_RUNTIME_ASTBIN=...` troubleshooting fast-path (force a specific astbin file)
 	       - Current measured hotspot (arm64-macos, `tests/native/test_quick_integration_native.oren`, stage2-native compiler):
-	         - runtime astbin decode is still multi-second (`OREN_TRACE_RUNTIME_BUNDLE=1 OREN_TRACE_ASTBIN=1`), despite recent wins from inlining `oren_buf_load_u8_unchecked` in native emit.
+	         - runtime astbin decode is still multi-second (~7.4s decode for the runtime bundle on 2026-01-03 with `OREN_TRACE_RUNTIME_BUNDLE=1 OREN_TRACE_ASTBIN=1`), despite recent wins from inlining `oren_buf_load_u8_unchecked` in native emit.
+	         - next high-leverage direction: avoid compiling the full injected runtime on every build (cache a platform+opts-specific compiled runtime blob and link/merge it), so “compile one file” doesn’t pay the full runtime cost.
 	       - (capsule) ensure `native_capsule_sys_*` hooks are emitted + kept only when `--capsule` is enabled (non-capsule builds should not pay this cost)
 
 2) **Determinism + replay (native + AVM)** (L)

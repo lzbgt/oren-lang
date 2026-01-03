@@ -1164,3 +1164,4 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 ## Snapshot Notes (Rolling)
 
 - 2025-12-28: `docs/TODOS.md` was condensed back to a short “active tracker” (per its own header). The prior expanded tracker remains available via git history (commit `3580ebb` and earlier).
+- 2026-01-03: C backend runtime gained unsafe pointer primitives (`ptr_get/ptr_set/ptr_get_byte/ptr_set_byte`) exposed as first-class function values for compiler/tooling hot paths; astbin decode now pins its input via `oren_gc_pin` for GC robustness under the native backend.
