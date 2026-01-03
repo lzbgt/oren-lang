@@ -148,6 +148,19 @@ make verify-native-quick
 make test-native-all
 ```
 
+Cross‑arch Tier‑1 matrix (stage1 + stage2):
+
+```bash
+# Local arm64-macos + docker arm64-linux (no remote required)
+./scripts/verify_native_matrix.sh --targets local,arm64-linux
+
+# Full matrix (requires the persistent linux container + remote x64 host)
+./scripts/verify_native_matrix.sh
+
+# Local sanity gate: compile-only for x64-linux + x64-windows (stage1 + stage2)
+make verify-native-x64-compile
+```
+
 Environment knobs:
 
 - `OREN_TEST_JOBS` (default `4`): parallelism for module + AVM tests.

@@ -1178,16 +1178,26 @@ fn oren_gc_pin(v) {
     if g_gc_enabled == 0 { return 0 }
     var prev = g_oren_gc_pin
     // Unregister previous pinned pointer if it is a tracked heap object.
+    //
+    // IMPORTANT (native runtime model):
+    // Embedded string literals are tracked as *static-kind* nodes (size=0) so container ops can
+    // classify them as kind=STRING. They are not GC-managed and must NOT be rooted here.
     if prev != 0 {
-        if oren_find_node(prev) != 0 {
-            native_gc_unregister_root(prev)
+        var prev_node = oren_find_node(prev)
+        if prev_node != 0 {
+            if ptr_get(iadd(prev_node, 8)) != 0 {
+                native_gc_unregister_root(prev)
+            }
         }
     }
     g_oren_gc_pin = v
     // Register new pinned pointer if it is a tracked heap object.
     if v != 0 {
-        if oren_find_node(v) != 0 {
-            native_gc_register_root(v)
+        var node = oren_find_node(v)
+        if node != 0 {
+            if ptr_get(iadd(node, 8)) != 0 {
+                native_gc_register_root(v)
+            }
         }
     }
     return prev
@@ -1296,10 +1306,16 @@ fn oren_mark_value(val) {
     
     var node = oren_find_node(val)
     if node != 0 {
+        var kind = ptr_get(iadd(node, 16))
+        // String literals are tracked as static-kind nodes (size=0) for classification only.
+        // They are not GC-managed and should not participate in mark/sweep.
+        if kind == 1 {
+            if ptr_get(iadd(node, 8)) == 0 { return 0 }
+        }
+
         // Mark it
         ptr_set(iadd(node, 24), -1)
-        
-        var kind = ptr_get(iadd(node, 16))
+
         if kind == 2 { // LIST
             var count = ptr_get(val)
             var buf = ptr_get(iadd(val, 16))

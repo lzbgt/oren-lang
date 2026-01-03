@@ -9,9 +9,23 @@
 @oren.keep
 fn oren_set_result(v) {
     var prev = global_get_result_value()
-    if prev != 0 { native_gc_unregister_root(prev) }
+    if prev != 0 {
+        var prev_node = oren_find_node(prev)
+        if prev_node != 0 {
+            if ptr_get(iadd(prev_node, 8)) != 0 {
+                native_gc_unregister_root(prev)
+            }
+        }
+    }
     global_set_result_value(v)
-    if v != 0 { native_gc_register_root(v) }
+    if v != 0 {
+        var node = oren_find_node(v)
+        if node != 0 {
+            if ptr_get(iadd(node, 8)) != 0 {
+                native_gc_register_root(v)
+            }
+        }
+    }
     return v
 }
 
@@ -19,4 +33,3 @@ fn oren_set_result(v) {
 fn oren_get_result() {
     return global_get_result_value()
 }
-

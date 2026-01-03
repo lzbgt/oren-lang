@@ -23,8 +23,10 @@ Rules for this tracker:
      - `make verify` (stage1 → stage2 self-hosting gate)
 	   - Avoid O(n²) string/collection patterns in compiler-side tooling (include expansion, C backend transpiler, whole-program lowering passes).
 	   - Recently completed: pooled embedded string literals + one-time startup registration (`oren_init_static_cstr0_table`) to remove per-use tracking overhead in compiler workloads (details in `docs/TODOS_ARCHIVE.md`).
+	   - Recently completed: GC pin/result no longer roots static string literals (classification-only nodes), reducing root churn in compiler/tooling runs (details in `docs/TODOS_ARCHIVE.md`).
 	   - Hard gate (non-negotiable for rolling):
 	     - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
+	     - Stage2 native backend “compile one file” (cache hit; non-capsule) should stay **< 4s** wall time on the primary dev host; regressions indicate a fundamental hot-path flaw to investigate.
      - RSS should stay **< 300 MB** for the compilation process.
 	   - High-leverage path (avoid “parameter tuning”):
 	     - deterministic parallel compilation pipeline (module graph scheduling + cache hits)
@@ -55,7 +57,7 @@ Rules for this tracker:
 		       - `OREN_NATIVE_RUNTIME_EXPANDED=...` troubleshooting fast-path (skip include expansion)
 		       - `OREN_NATIVE_RUNTIME_ASTBIN=...` troubleshooting fast-path (force a specific astbin file)
 		       - Status (rolling, 2026-01-03):
-		         - Implemented: arm64 + x86_64 native backend runtime object cache (default-on for non-capsule builds) so “compile one file” can skip recompiling `lib/runtime_native.oren` on cache hit.
+		         - Implemented: arm64 + x86_64 native backend runtime object cache (default-on for non-capsule builds; works for debug and non-debug) so “compile one file” can skip recompiling `lib/runtime_native.oren` on cache hit.
 		         - Remaining: integrate capsule safely; consider persisting runtime debug line mapping (optional), and decide how to keep binaries small (DCE/prune strategy) without reintroducing per-build runtime compilation.
 		       - (capsule) ensure `native_capsule_sys_*` hooks are emitted + kept only when `--capsule` is enabled (non-capsule builds should not pay this cost)
 

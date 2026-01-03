@@ -48,6 +48,30 @@ For broader native coverage:
 make test-native-all
 ```
 
+## Cross-arch native verification (Tier‑1 matrix)
+
+When you need confidence that the **native backend** output works across the practical Tier‑1 matrix
+(without relying on a separate test runner), use the purpose-built scripts under `scripts/`:
+
+```bash
+# Local (arm64-macos): stage1 + stage2 build+run
+./scripts/verify_native_matrix.sh --targets local
+
+# Linux/arm64 via the persistent container (stage1 + stage2 artifacts)
+./scripts/verify_native_matrix.sh --targets arm64-linux
+
+# Full matrix: local + linux/arm64 container + remote x64 Win11 + remote x64 WSL2
+./scripts/verify_native_matrix.sh
+
+# Local gate: compile-only for x64-linux + x64-windows (stage1 + stage2)
+make verify-native-x64-compile
+```
+
+Rolling guardrails:
+
+- The matrix script uses short timeouts to avoid hangs.
+- It does **not** start containers; it expects the existing linux container to be running.
+
 ## Logs and artifacts
 
 - Logs:
@@ -56,4 +80,3 @@ make test-native-all
   - `build/tmp/*_native_quick_integration`
 
 The goal is that any failure leaves a single stable log file that can be inspected directly.
-

@@ -31,6 +31,33 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Added a local compile-only gate: `make verify-native-x64-compile`
     - stage1+stage2 emit x64-linux ELF and x64-windows PE32+ (no remote/WSL required).
 
+## Archived (2026-01-03) — Native: runtime object cache (debug builds enabled)
+
+- Compiler (arm64 + x86_64 native backends):
+  - Enabled the compiled runtime object cache for **debug** builds (non-capsule), so debug builds can also skip recompiling the full injected native runtime on cache hit.
+  - Fixed debug symbolization plumbing to work in runtime-object-splice mode:
+    - arm64: derive resolve-symbol entries from `ctx["functions"]` rather than scanning an in-memory `runtime_prog` AST that does not exist when rtobj is used.
+    - x86_64: ensure runtime symbols are included in the debug symbol table list when rtobj is used.
+  - Fixed a stage2 C-backend bootstrap failure caused by an unused/optimized-away `runtime_prog` declaration mismatch.
+- Verified:
+  - `make verify-native-quick`
+  - `./scripts/verify_native_matrix.sh --targets arm64-linux`
+  - `make verify-native-x64-compile`
+
+## Archived (2026-01-03) — Native runtime: GC should not “root” string literals
+
+- Native runtime model:
+  - Embedded string literals are represented as pointers into the native binary’s data segment and tracked as **static-kind** nodes (size=0) for classification only.
+  - Static-kind nodes are **not GC-managed heap allocations** and should not be pinned/registered as GC roots.
+- Implementation:
+  - `oren_gc_pin(v)` now only roots values whose tracking node has a non-zero `size` (heap-managed); static string literals are skipped.
+  - `oren_set_result(v)` now applies the same rule so setting the result to a string literal does not allocate a pointless GC root node.
+  - `oren_mark_value(v)` fast-skips static-kind STRING nodes (size=0, kind=STRING) so they do not participate in mark/sweep.
+- Verified:
+  - `make verify-native-quick`
+  - `./scripts/verify_native_matrix.sh --targets arm64-linux`
+  - `make verify-native-x64-compile`
+
 ## Archived (2026-01-03) — Native: pooled static string literals (no per-use tracking)
 
 - Native runtime:
