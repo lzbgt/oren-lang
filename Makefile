@@ -1,5 +1,6 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: test-native-quick test-native-quick-stage2 verify-native-quick
+.PHONY: verify-native-x64-compile
 
 # Default target: Build Stage 1 compiler
 all: oren
@@ -175,6 +176,10 @@ test-native-quick-stage2: oren_stage2
 # Convenience target: verify stage1 then stage2 on the native quick integration test.
 verify-native-quick: test-native-quick test-native-quick-stage2
 	@echo "verify-native-quick OK"
+
+# Compile-only sanity gate for x64 targets (does not run artifacts).
+verify-native-x64-compile: oren_stage2
+	@./scripts/verify_native_x64_compile_only.sh
 
 # Default "test" is now native-only and quick (no external test runner).
 test: test-native-quick

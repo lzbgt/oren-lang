@@ -23,6 +23,14 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `make verify-native-quick`
   - `./scripts/verify_native_matrix.sh --targets arm64-linux`
 
+## Archived (2026-01-03) — Native: runtime object cache (x64 throughput)
+
+- Compiler (x86_64 native backend):
+  - Extended the compiled runtime object cache to x64 so x64-linux/x64-windows builds do not recompile the full injected runtime on every build (cache hit splices precompiled runtime code/data).
+- Verification:
+  - Added a local compile-only gate: `make verify-native-x64-compile`
+    - stage1+stage2 emit x64-linux ELF and x64-windows PE32+ (no remote/WSL required).
+
 ## Archived (2026-01-03) — Native: pooled static string literals (no per-use tracking)
 
 - Native runtime:

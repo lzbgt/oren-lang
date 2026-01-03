@@ -91,6 +91,7 @@ Rolling notes:
 
 - The cache is **disabled for capsule builds** by default (until it can live inside the capsule boundary).
 - Debug builds currently bypass the runtime object cache (until the debug symbol story is integrated).
+- Supported today: arm64 + x86_64 native backends.
 
 Environment knobs:
 
