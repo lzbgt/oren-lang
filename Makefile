@@ -1,6 +1,7 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: test-native-quick test-native-quick-stage2 verify-native-quick
 .PHONY: verify-native-x64-compile
+.PHONY: bench-native-compile
 
 # Default target: Build Stage 1 compiler
 all: oren
@@ -180,6 +181,10 @@ verify-native-quick: test-native-quick test-native-quick-stage2
 # Compile-only sanity gate for x64 targets (does not run artifacts).
 verify-native-x64-compile: oren_stage2
 	@./scripts/verify_native_x64_compile_only.sh
+
+# Perf smoke: benchmark stage2 native "compile one file" (rtobj miss -> hit).
+bench-native-compile: oren_stage2
+	@./scripts/bench_native_compile_one_file.sh
 
 # Default "test" is now native-only and quick (no external test runner).
 test: test-native-quick
