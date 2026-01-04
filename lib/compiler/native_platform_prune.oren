@@ -24,6 +24,55 @@ fn _os_id_from_platform(platform) {
     return 0
 }
 
+fn _count_prunable_target_os_ifs_in_stmt(stmt, os_id) {
+    if stmt == nil { return 0 }
+    var t = stmt["type"]
+    var out = 0
+
+    if t == "If" {
+        var v = _eval_cond_is_target_os(stmt["cond"], os_id)
+        if v == true || v == false { out = 1 }
+        out = out + _count_prunable_target_os_ifs_in_stmt(stmt["consq"], os_id)
+        if stmt["alt"] != nil { out = out + _count_prunable_target_os_ifs_in_stmt(stmt["alt"], os_id) }
+        return out
+    }
+    if t == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "If" {
+            var v2 = _eval_cond_is_target_os(e["cond"], os_id)
+            if v2 == true || v2 == false { out = 1 }
+            out = out + _count_prunable_target_os_ifs_in_stmt(e["consq"], os_id)
+            if e["alt"] != nil { out = out + _count_prunable_target_os_ifs_in_stmt(e["alt"], os_id) }
+            return out
+        }
+        return 0
+    }
+    if t == "Block" {
+        var xs = stmt["stmts"]
+        if xs == nil { return 0 }
+        var i = 0
+        while i < oren_list_len(xs) {
+            out = out + _count_prunable_target_os_ifs_in_stmt(xs[i], os_id)
+            i = i + 1
+        }
+        return out
+    }
+    if t == "While" {
+        return _count_prunable_target_os_ifs_in_stmt(stmt["body"], os_id)
+    }
+    if t == "For" {
+        if stmt["init"] != nil { out = out + _count_prunable_target_os_ifs_in_stmt(stmt["init"], os_id) }
+        if stmt["post"] != nil { out = out + _count_prunable_target_os_ifs_in_stmt(stmt["post"], os_id) }
+        out = out + _count_prunable_target_os_ifs_in_stmt(stmt["body"], os_id)
+        return out
+    }
+    if t == "FnDecl" {
+        return _count_prunable_target_os_ifs_in_stmt(stmt["body"], os_id)
+    }
+
+    return 0
+}
+
 fn _expr_is_ident_named(expr, name) {
     if expr == nil { return false }
     if expr["type"] != "Identifier" { return false }
@@ -107,6 +156,29 @@ fn _prune_stmt(stmt, os_id) {
     if stmt == nil { return [] }
     var t = stmt["type"]
 
+    if t == "ExprStmt" {
+        // Some front-end lowering forms represent control-flow as an expression that is
+        // wrapped in an ExprStmt. Prune platform-constant `if g_target_os ...` forms here too.
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "If" {
+            var v0 = _eval_cond_is_target_os(e["cond"], os_id)
+            if v0 == true {
+                return _prune_stmt(e["consq"], os_id)
+            }
+            if v0 == false {
+                if e["alt"] != nil { return _prune_stmt(e["alt"], os_id) }
+                return []
+            }
+            // Unknown condition: prune inside both branches.
+            e["consq"] = _prune_stmt_keep_one(e["consq"], os_id)
+            if e["alt"] != nil {
+                e["alt"] = _prune_stmt_keep_one(e["alt"], os_id)
+            }
+            return [stmt]
+        }
+        return [stmt]
+    }
+
     if t == "Block" {
         var ss = stmt["stmts"]
         stmt["stmts"] = _prune_stmt_list(ss, os_id)
@@ -161,18 +233,78 @@ fn prune_runtime_os_branches_in_linked_program_in_place(linked, platform) {
     var stmts = linked["statements"]
     if stmts == nil { stmts = [] }
 
+    // Record a cheap "pruned for target OS" marker on the program so cache loaders can
+    // skip redundant pruning and can detect stale/unpruned cache files.
+    //
+    // This relies on astbin encoding preserving unknown top-level keys (program is a map).
+    linked["__oren_pruned_target_os_id"] = os_id
+    linked["__oren_pruned_target_os_kind"] = "g_target_os"
+
+    var trace = oren_env("OREN_TRACE_RUNTIME_OS_PRUNE") != nil
+    var before = 0
+    if trace {
+        var bi = 0
+        while bi < oren_list_len(stmts) {
+            var st0 = stmts[bi]
+            if st0 != nil && st0["__oren_from_runtime"] != nil {
+                if st0["type"] == "Function" {
+                    before = before + _count_prunable_target_os_ifs_in_stmt(st0["body"], os_id)
+                } else if st0["type"] == "ExprStmt" {
+                    var e0 = st0["expr"]
+                    if e0 != nil && e0["type"] == "Function" {
+                        before = before + _count_prunable_target_os_ifs_in_stmt(e0["body"], os_id)
+                    }
+                }
+            }
+            bi = bi + 1
+        }
+    }
+
     var out = []
     var i = 0
     while i < oren_list_len(stmts) {
         var st = stmts[i]
-        if st != nil && st["__oren_from_runtime"] == true && st["type"] == "Function" {
-            st["body"] = _prune_stmt_keep_one(st["body"], os_id)
-            oren_list_push(out, st)
-        } else {
-            oren_list_push(out, st)
+        if st != nil && st["__oren_from_runtime"] != nil {
+            // Runtime top-level functions can appear as:
+            // - {type:"Function", body:...}
+            // - {type:"ExprStmt", expr:{type:"Function", body:...}}
+            //
+            // Keep this pruning pass robust to both shapes so it works across the
+            // runtime bundle cache, injection, and rtobj build paths.
+            if st["type"] == "Function" {
+                st["body"] = _prune_stmt_keep_one(st["body"], os_id)
+            } else if st["type"] == "ExprStmt" {
+                var e = st["expr"]
+                if e != nil && e["type"] == "Function" {
+                    e["body"] = _prune_stmt_keep_one(e["body"], os_id)
+                }
+            }
         }
+        oren_list_push(out, st)
         i = i + 1
     }
     linked["statements"] = out
+
+    if trace {
+        var after = 0
+        var ai = 0
+        while ai < oren_list_len(out) {
+            var st1 = out[ai]
+            if st1 != nil && st1["__oren_from_runtime"] != nil {
+                if st1["type"] == "Function" {
+                    after = after + _count_prunable_target_os_ifs_in_stmt(st1["body"], os_id)
+                } else if st1["type"] == "ExprStmt" {
+                    var e1 = st1["expr"]
+                    if e1 != nil && e1["type"] == "Function" {
+                        after = after + _count_prunable_target_os_ifs_in_stmt(e1["body"], os_id)
+                    }
+                }
+            }
+            ai = ai + 1
+        }
+        print("[pprune] g_target_os prune os_id=" + oren_int_to_string(os_id) +
+              " before=" + oren_int_to_string(before) +
+              " after=" + oren_int_to_string(after))
+    }
     return nil
 }

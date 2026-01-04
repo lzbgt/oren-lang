@@ -32,6 +32,7 @@ Optional bounded tracing:
 ```bash
 OREN_NATIVE_BUILD_TIMEOUT_SECS=60 \
   OREN_TRACE_RUNTIME_BUNDLE=1 \
+  OREN_TRACE_RUNTIME_OS_PRUNE=1 \
   OREN_TRACE_RUNTIME_OBJ_CACHE=1 \
   OREN_TRACE_ASTBIN=1 \
   OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1 \
@@ -52,6 +53,7 @@ In practice, “compile one file is slow” is almost always one of:
 1) **Runtime bundle overhead** (native backend injects `lib/runtime_native.oren` into every program):
    - runtime expansion (`// @include`) and parsing
    - runtime astbin decode (multi-megabyte blobs)
+   - runtime OS pruning (`if g_target_os == ...`) and cache hygiene
 2) **Runtime object miss** (cold path):
    - compiling hundreds of runtime decls + fixups
 3) **Emitter hot loops**:
@@ -61,6 +63,23 @@ In practice, “compile one file is slow” is almost always one of:
 The bounded tracing knobs in `docs/BUILD_AND_VERIFY.md` are designed to tell you *which bucket* you’re in without spamming.
 
 ## 4) The biggest performance footguns we hit (and how to avoid them)
+
+### 4.0 Runtime astbin cache hygiene (pruned runtime)
+
+The compiler caches the expanded+parsed native runtime under `build/cache/native_runtime_astbin/`.
+
+Rolling policy:
+
+- Per-target-OS cache files use suffixes like:
+  - `*_os_macos_pruned2.astbin`
+  - `*_os_linux_pruned2.astbin`
+- These are expected to already have dead `g_target_os` branches pruned.
+  - The pruned program is marked with:
+    - `__oren_pruned_target_os_id`
+    - `__oren_pruned_target_os_kind="g_target_os"`
+- If you see runtime OS pruning happening on an astbin cache hit (`OREN_TRACE_RUNTIME_OS_PRUNE=1`),
+  treat it as a stale/unpruned cache file. The compiler will attempt a best-effort rewrite, which can
+  be expensive once. After rewrite, runtime astbin decode should be materially faster.
 
 ### 4.1 Per-byte helper calls in tight loops
 
@@ -149,4 +168,3 @@ The long-term fix for “runtime bundle dominates cold builds” is to reduce th
 - avoid pointer-heavy AST graphs crossing boundaries unless necessary
 
 Track active work in `docs/TODOS.md`.
-

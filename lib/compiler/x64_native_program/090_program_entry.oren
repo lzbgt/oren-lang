@@ -663,11 +663,8 @@ fn _x64_build_runtime_obj(platform, runtime_path) {
     // (0 is `nil` in the native runtime value model.)
     bytes_push(ctx["code"], 144) // 0x90 (NOP)
 
-    var prog = bundle.load_and_parse_runtime_native(ctx, runtime_path)
+    var prog = bundle.load_and_parse_runtime_native_for_platform(ctx, runtime_path, platform)
     if prog == nil { return nil }
-
-    // Prune dead platform branches inside runtime-tagged functions.
-    pprune.prune_runtime_os_branches_in_linked_program_in_place(prog, platform)
 
     var stmts = prog["statements"]
     if stmts == nil { stmts = [] }

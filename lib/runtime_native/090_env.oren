@@ -4,12 +4,24 @@
 // NOTE: This returns a pointer into the process environment strings (not a copy).
 @cap.requires(domain="ENV")
 fn oren_getenv(key) {
-    native_capsule_require(CAP_ENV, "ENV")
     // Keep this leaf-like (no calls) to avoid any cross-call local slot issues
     // while the native backend ABI is still rolling.
     if key == 0 { return 0 }
 
-    var g = oren_globals()
+    // Inline capsule check to keep this function leaf-like:
+    // - if capsule mode is disabled, allow ENV reads
+    // - if enabled and ENV is not allowed, return 0 (as if missing)
+    //
+    // NOTE: use literal offsets; native backend global var init/write is still rolling.
+    var g = g_storage
+    if g == 0 { return 0 }
+    var capsule = ptr_get(iadd(g, 80)) // capsule_mode
+    if capsule != 0 {
+        var allow = ptr_get(iadd(g, 88)) // cap_allow_mask
+        // CAP_ENV = 8 (see native_runtime_init constants).
+        if (allow & 8) == 0 { return 0 }
+    }
+
     // Use literal offsets (native backend global var init/write is still rolling).
     var envp = ptr_get(iadd(g, 64)) // envp
 

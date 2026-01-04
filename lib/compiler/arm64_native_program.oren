@@ -374,7 +374,7 @@ fn _arm64_build_runtime_obj(platform, runtime_path) {
     push_u32_le(ctx["code"], 3573751839) // 0xD503201F (AArch64 NOP)
 
     // Parse/astbin-load the runtime source (shared helper in runtime bundle module).
-    var prog = bundle.load_and_parse_runtime_native(ctx, runtime_path)
+    var prog = bundle.load_and_parse_runtime_native_for_platform(ctx, runtime_path, platform)
     if prog == nil { return nil }
     if trace_sum { t_parse_done = oren_time_now_ns() }
     var stmts = prog["statements"]
@@ -419,13 +419,76 @@ fn _arm64_build_runtime_obj(platform, runtime_path) {
     if trace_sum { t_globals_done = oren_time_now_ns() }
 
     // Compile runtime declarations (functions/types/ffi).
+    var trace_decls = oren_env("OREN_TRACE_ARM64_RT_OBJ_TOP_DECLS") != nil
+    var top_decls = nil
+    var top_keep = 12
+    if trace_decls { top_decls = [] }
     var i = 0
     while i < oren_list_len(runtime_decls) {
+        var t_decl0 = 0
+        if trace_decls { t_decl0 = oren_time_now_ns() }
         native_compile_stmt(ctx, runtime_decls[i])
+        if trace_decls {
+            var dt_decl = oren_time_now_ns() - t_decl0
+            var ms = dt_decl / 1000000
+            // Keep only the slowest `top_keep` decls to avoid huge logs.
+            var st = runtime_decls[i]
+            var nm = ""
+            var ty = ""
+            if st != nil {
+                ty = st["type"]
+                if ty == "Function" && st["name"] != nil { nm = st["name"] }
+                else if ty == "ExprStmt" && st["expr"] != nil && st["expr"]["type"] == "Function" {
+                    ty = "Function"
+                    if st["expr"]["name"] != nil { nm = st["expr"]["name"] }
+                }
+                else if ty == "Type" && st["name"] != nil && st["name"]["value"] != nil { nm = st["name"]["value"] }
+                else if ty == "FFI" && st["name"] != nil && st["name"]["value"] != nil { nm = st["name"]["value"] }
+                else if ty == "Var" && st["name"] != nil && st["name"]["value"] != nil { nm = st["name"]["value"] }
+            }
+            // Keep a bounded set of the slowest decls without relying on list_pop/insert.
+            if top_decls == nil { top_decls = [] }
+            var ent = {"ms": ms, "type": ty, "name": nm}
+            if oren_list_len(top_decls) < top_keep {
+                oren_list_push(top_decls, ent)
+            } else {
+                // Replace the current minimum if this decl is slower.
+                var min_idx = 0
+                var min_ms = top_decls[0]["ms"]
+                var j = 1
+                while j < oren_list_len(top_decls) {
+                    var e0 = top_decls[j]
+                    if e0 != nil && e0["ms"] != nil && e0["ms"] < min_ms {
+                        min_ms = e0["ms"]
+                        min_idx = j
+                    }
+                    j = j + 1
+                }
+                if ms > min_ms {
+                    top_decls[min_idx] = ent
+                }
+            }
+        }
         i = i + 1
     }
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
     if trace_sum { t_decls_done = oren_time_now_ns() }
+
+    if trace_decls && top_decls != nil {
+        print("[arm64_rtobj] top decls (ms):")
+        var ti = 0
+        while ti < oren_list_len(top_decls) {
+            var e1 = top_decls[ti]
+            if e1 != nil {
+                var nm1 = e1["name"]
+                if nm1 == nil { nm1 = "" }
+                var ty1 = e1["type"]
+                if ty1 == nil { ty1 = "" }
+                print("  " + oren_int_to_string(e1["ms"]) + " " + ty1 + " " + nm1)
+            }
+            ti = ti + 1
+        }
+    }
 
     // Synthesize wrappers needed by runtime itself (named fns used as values, lambda wrappers).
     var need = ctx["fnwrap_needed"]

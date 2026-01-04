@@ -136,6 +136,60 @@ fn _astbin_write_u8(buf, off, b) {
     return off + 1
 }
 
+// --- Fast u8_buf encoder helpers (stage2-native critical) ---
+//
+// These helpers assume the output buffer is a `u8_buf` allocated with the correct final size.
+// They write via a pre-materialized `data_ptr` and use intrinsic integer add (`iadd`) in hot loops.
+//
+// Motivation:
+// - `oren_buf_store_u8(...)` is bounds/type-checked and can be catastrophically slow when used per-byte.
+// - astbin encoding is used in hot caches (runtime bundle cache, rtobj meta), so encode speed matters too.
+
+fn _astbin_write_u8_ptr(data_ptr, off, b) {
+    ptr_set_byte(iadd(data_ptr, off), b & 255)
+    return iadd(off, 1)
+}
+
+fn _astbin_write_uvarint_ptr(data_ptr, off, x) {
+    var v = x
+    if v < 0 { v = 0 } // defensive clamp
+    while v >= 128 {
+        off = _astbin_write_u8_ptr(data_ptr, off, (v & 127) | 128)
+        v = v >> 7
+    }
+    off = _astbin_write_u8_ptr(data_ptr, off, v & 127)
+    return off
+}
+
+fn _astbin_write_varint_signed_ptr(data_ptr, off, x) {
+    var zz = _astbin_zigzag(x)
+    if zz < 0 { zz = 0 } // defensive
+    return _astbin_write_uvarint_ptr(data_ptr, off, zz)
+}
+
+fn _astbin_write_u64_le_ptr(data_ptr, off, x0) {
+    var x = x0
+    var i = 0
+    while i < 8 {
+        off = _astbin_write_u8_ptr(data_ptr, off, x & 255)
+        x = x >> 8
+        i = iadd(i, 1)
+    }
+    return off
+}
+
+fn _astbin_write_string_ptr(data_ptr, off, s) {
+    // Encode string as uvarint(len) + raw bytes (no intermediate bytes list allocation).
+    var n = oren_string_len(s)
+    off = _astbin_write_uvarint_ptr(data_ptr, off, n)
+    var i = 0
+    while i < n {
+        off = _astbin_write_u8_ptr(data_ptr, off, oren_string_byte_at_unchecked(s, i) & 255)
+        i = iadd(i, 1)
+    }
+    return off
+}
+
 fn _astbin_write_uvarint(buf, off, x) {
     var v = x
     // Defensive clamp: treat negatives as 0.
@@ -706,26 +760,26 @@ fn astbin_decode(bytes) {
 }
 
 // --- v2 encoding ---
-fn _astbin_write_value_v2(buf, off, v, pool_idx_map) {
-    if v == nil { return _astbin_write_u8(buf, off, 0) }
-    if v == false { return _astbin_write_u8(buf, off, 1) }
-    if v == true { return _astbin_write_u8(buf, off, 2) }
+fn _astbin_write_value_v2_ptr(buf, data_ptr, off, v, pool_idx_map) {
+    if v == nil { return _astbin_write_u8_ptr(data_ptr, off, 0) }
+    if v == false { return _astbin_write_u8_ptr(data_ptr, off, 1) }
+    if v == true { return _astbin_write_u8_ptr(data_ptr, off, 2) }
 
     if _astbin_is_list(v) {
-        off = _astbin_write_u8(buf, off, 5)
+        off = _astbin_write_u8_ptr(data_ptr, off, 5)
         var n = oren_list_len(v)
-        off = _astbin_write_uvarint(buf, off, n)
+        off = _astbin_write_uvarint_ptr(data_ptr, off, n)
         var i = 0
         while i < n {
-            off = _astbin_write_value_v2(buf, off, v[i], pool_idx_map)
-            i = i + 1
+            off = _astbin_write_value_v2_ptr(buf, data_ptr, off, v[i], pool_idx_map)
+            i = iadd(i, 1)
         }
         return off
     }
     if _astbin_is_map(v) {
-        off = _astbin_write_u8(buf, off, 6)
+        off = _astbin_write_u8_ptr(data_ptr, off, 6)
         var n2 = oren_map_len(v)
-        off = _astbin_write_uvarint(buf, off, n2)
+        off = _astbin_write_uvarint_ptr(data_ptr, off, n2)
         var idx = 0
         var out_pair = [nil, nil]
         while 1 {
@@ -740,35 +794,52 @@ fn _astbin_write_value_v2(buf, off, v, pool_idx_map) {
             }
             // Encode key:
             if _astbin_is_string(k) {
-                off = _astbin_write_u8(buf, off, 4)
+                off = _astbin_write_u8_ptr(data_ptr, off, 4)
                 var enc = oren_map_get_str(pool_idx_map, k)
                 if enc == nil || enc == 0 { _astbin_fail("v2 encode missing pool idx", off) }
-                off = _astbin_write_uvarint(buf, off, (enc - 1))
+                off = _astbin_write_uvarint_ptr(data_ptr, off, (enc - 1))
             } else {
-                off = _astbin_write_value(buf, off, k) // int/float/buf/etc (but keys should be int)
+                // int key
+                off = _astbin_write_u8_ptr(data_ptr, off, 3)
+                off = _astbin_write_varint_signed_ptr(data_ptr, off, k)
             }
             // Encode value (recursive).
-            off = _astbin_write_value_v2(buf, off, val, pool_idx_map)
-            idx = idx + 1
+            off = _astbin_write_value_v2_ptr(buf, data_ptr, off, val, pool_idx_map)
+            idx = iadd(idx, 1)
         }
         return off
     }
     if _astbin_is_string(v) {
-        off = _astbin_write_u8(buf, off, 4)
+        off = _astbin_write_u8_ptr(data_ptr, off, 4)
         var enc2 = oren_map_get_str(pool_idx_map, v)
         if enc2 == nil || enc2 == 0 { _astbin_fail("v2 encode missing pool idx", off) }
-        return _astbin_write_uvarint(buf, off, (enc2 - 1))
+        return _astbin_write_uvarint_ptr(data_ptr, off, (enc2 - 1))
     }
     if _astbin_is_u8_buf(v) {
-        return _astbin_write_value(buf, off, v)
+        // Encode u8_buf as v1 tag 7 (not pooled).
+        off = _astbin_write_u8_ptr(data_ptr, off, 7)
+        var n3 = oren_buf_len(v)
+        off = _astbin_write_uvarint_ptr(data_ptr, off, n3)
+        var src_ptr = oren_buf_data_ptr_unchecked(v)
+        var i3 = 0
+        while i3 < n3 {
+            off = _astbin_write_u8_ptr(data_ptr, off, ptr_get_byte(iadd(src_ptr, i3)) & 255)
+            i3 = iadd(i3, 1)
+        }
+        return off
     }
     if _astbin_is_buf(v) {
         return _astbin_write_value(buf, off, v)
     }
     if oren_type_tag(v) == 2 {
-        return _astbin_write_value(buf, off, v)
+        // float
+        off = _astbin_write_u8_ptr(data_ptr, off, 8)
+        var bits = oren_f64_to_u64_bits(v + 0.0)
+        return _astbin_write_u64_le_ptr(data_ptr, off, bits)
     }
-    return _astbin_write_value(buf, off, v)
+    // int
+    off = _astbin_write_u8_ptr(data_ptr, off, 3)
+    return _astbin_write_varint_signed_ptr(data_ptr, off, v)
 }
 
 fn _astbin_size_v2(v, pool_idx_map) {
@@ -816,11 +887,43 @@ fn _astbin_size_v2(v, pool_idx_map) {
     return 1 + _astbin_varint_size_signed(v)
 }
 
+fn _astbin_guess_pool_cap_for_v2(v) {
+    // Heuristic for v2 string pool index sizing.
+    //
+    // Motivation:
+    // - The v2 encoder collects strings into a `pool_idx_map` (string -> idx+1).
+    // - For very large ASTs (notably the injected native runtime), repeated hash-table rebuilds
+    //   inside `oren_map_set_str_unchecked` can dominate encode time in stage2-native compilers.
+    // - Pre-sizing the map entry buffer and pre-building a sufficiently-large hash table keeps
+    //   amortized behavior closer to O(n).
+    //
+    // Return 0 to keep the default tiny-map behavior for small values.
+    if !_astbin_is_map(v) { return 0 }
+    var sts = v["statements"]
+    if sts == nil { return 0 }
+    if !_astbin_is_list(sts) { return 0 }
+    var n = oren_list_len(sts)
+    if n < 512 { return 0 }
+    // Conservative guess: large ASTs tend to have many unique strings (identifiers, tokens),
+    // but we clamp to keep memory bounded.
+    var cap = n * 16
+    if cap < 4096 { cap = 4096 }
+    if cap > 131072 { cap = 131072 }
+    return cap
+}
+
 fn astbin_encode_v2(v) {
     // Build string pool (deterministic discovery order).
     var pool = []
     // Use the cross-backend capacity constructor (native runtime maps treat 0 as nil internally).
+    var pool_cap = _astbin_guess_pool_cap_for_v2(v)
     var pool_idx_map = oren_map_new_cap(0)
+    if pool_cap > 0 {
+        pool_idx_map = oren_map_new_cap(pool_cap)
+        // Build a hash index up front so `map_get/map_set` do not repeatedly rebuild it.
+        // (Safe on an empty map; it just allocates the table.)
+        oren_map_build_finalize_unchecked(pool_idx_map, pool_cap)
+    }
     _astbin_collect_strings(v, pool_idx_map, pool)
 
     // Header:
@@ -838,14 +941,15 @@ fn astbin_encode_v2(v) {
     var body_n = _astbin_size_v2(v, pool_idx_map)
     var total_n = header_n + body_n
     var buf = oren_u8_buf_new(total_n)
+    var data_ptr = oren_buf_data_ptr_unchecked(buf)
     var off = 0
-    off = _astbin_write_u8(buf, off, 9)
-    off = _astbin_write_uvarint(buf, off, pool_n)
+    off = _astbin_write_u8_ptr(data_ptr, off, 9)
+    off = _astbin_write_uvarint_ptr(data_ptr, off, pool_n)
     si = 0
     while si < pool_n {
-        off = _astbin_write_string(buf, off, pool[si])
-        si = si + 1
+        off = _astbin_write_string_ptr(data_ptr, off, pool[si])
+        si = iadd(si, 1)
     }
-    off = _astbin_write_value_v2(buf, off, v, pool_idx_map)
+    off = _astbin_write_value_v2_ptr(buf, data_ptr, off, v, pool_idx_map)
     return buf
 }

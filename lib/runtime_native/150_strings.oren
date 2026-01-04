@@ -54,9 +54,17 @@ fn oren_intern_cstr(cstr_ptr) {
     if cstr_ptr == 0 { return 0 }
     if cstr_ptr < 4096 { oren_panic("intern_cstr: pointer too small") }
 
+    // String literals already live in the native binary's data segment and are registered
+    // as static-kind STRING via `oren_init_static_cstr0_table` (entry stub). Do not copy
+    // them into the GC heap.
+    if oren_is_string(cstr_ptr) { return cstr_ptr }
+
     if g_intern_cstr_cache == 0 {
         // Keyed by the original pointer value (int-keyed map).
         g_intern_cstr_cache = oren_new_map(0)
+        // The cache map lives in a plain runtime global; register it as a GC root so
+        // it cannot be reclaimed during a collection.
+        native_gc_register_root(g_intern_cstr_cache)
     }
 
     var cached = oren_map_get_int(g_intern_cstr_cache, cstr_ptr)

@@ -43,6 +43,32 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Verified:
   - `./scripts/verify_native_matrix.sh --targets x64-wsl-tier1` (stage1 + stage2) passes and prints full Tier‑1 progress through spawn/join and proc.
 
+## Archived (2026-01-04) — Native: pruned runtime astbin cache stability (g_target_os) + v2 encode guardrails
+
+- Runtime OS pruning became meaningfully effective (native backend throughput):
+  - Fixed platform pruning to handle runtime top-level shapes and control-flow-as-expression:
+    - runtime-tagged `ExprStmt` wrapping `Function`
+    - `ExprStmt` wrapping expression `If`
+  - Added bounded tracer:
+    - `OREN_TRACE_RUNTIME_OS_PRUNE=1` prints one summary line (`[pprune] ... before=... after=...`).
+- Runtime bundle cache policy tightened (avoid “cache hit but still unpruned”):
+  - Pruning now records a cheap marker on the program:
+    - `__oren_pruned_target_os_id`
+    - `__oren_pruned_target_os_kind="g_target_os"`
+  - The runtime bundle loader skips redundant pruning when the marker matches the target.
+  - If the cache file is supposed to be pruned (`*_pruned2.astbin`) but is missing the marker or still contains prunable branches,
+    the loader does a best-effort rewrite once (decode → prune → re-encode) so subsequent runs decode less.
+- astbin v2 encoder guardrail (large ASTs):
+  - Added a heuristic pre-sizing step for the v2 string pool index map when encoding large Program ASTs (based on statement count).
+  - Purpose: avoid repeated hash-table rebuilds inside `oren_map_set_str_unchecked` during string pool collection (can dominate stage2-native cache writes).
+- String literals vs GC (native runtime correctness/perf):
+  - `oren_intern_cstr` now returns already-classified string literals unchanged (does not copy literals into the GC heap).
+  - Rooted `g_intern_cstr_cache` (map) so it cannot be reclaimed by a collection (native GC scans stacks, not arbitrary globals yet).
+- Evidence (arm64-macos, stage2 compiler, `./scripts/bench_native_compile_one_file.sh --no-debug`):
+  - runtime bundle cache decode (pruned2): ~`2.8s` after cache rewrite/marker is present
+  - rtobj miss: ~`13s`
+  - rtobj hit: ~`3.6s` (still under the `<4s` gate)
+
 ## Archived (2026-01-04) — Tooling: bounded build timing summary (no huge logs)
 
 - Compiler:

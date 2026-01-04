@@ -25,6 +25,7 @@ import astbin "astbin.oren"
 import global_dce "global_dce.oren"
 import capsule "capsule.oren"
 import intparse "int_lit.oren"
+import pprune "native_platform_prune.oren"
 
 // Compiler process GC hook (rolling):
 // - `oren_gc_collect()` is a runtime-provided hook (C backend + native runtime both provide it).
@@ -186,6 +187,43 @@ fn _rt_bundle_cache_dir() {
     var v = oren_env("OREN_NATIVE_RUNTIME_ASTBIN_CACHE_DIR")
     if v == nil || v == "" { return "build/cache/native_runtime_astbin" }
     return v
+}
+
+fn _rt_bundle_pruned_cache_enabled() {
+    // Default-on (rolling):
+    // the runtime contains many `if g_target_os == ...` branches that are constant for a
+    // targeted native build. Caching a pruned AST reduces both decode cost and rtobj-miss time.
+    var v = oren_env("OREN_NATIVE_RUNTIME_ASTBIN_PRUNE_CACHE")
+    if v == nil || v == "" { return true }
+    if v == "0" || v == "false" { return false }
+    return true
+}
+
+fn _rt_bundle_pruned_cache_write_enabled() {
+    // Writing the pruned cache can be expensive in stage2-native compilers.
+    // Keep it default-on for throughput, but allow opting out.
+    var v = oren_env("OREN_NATIVE_RUNTIME_ASTBIN_PRUNE_WRITE")
+    if v == nil || v == "" { return true }
+    if v == "0" || v == "false" { return false }
+    return true
+}
+
+fn _rt_bundle_platform_os_key(platform) {
+    if platform == nil { return "" }
+    var os = platform["os"]
+    if os == "macos" { return "os_macos" }
+    if os == "linux" { return "os_linux" }
+    if os == "windows" { return "os_windows" }
+    return ""
+}
+
+fn _rt_bundle_platform_os_id(platform) {
+    if platform == nil { return 0 }
+    var os = platform["os"]
+    if os == "macos" { return 1 }
+    if os == "linux" { return 2 }
+    if os == "windows" { return 3 }
+    return 0
 }
 
 fn _bundle_roots_base() {
@@ -467,7 +505,7 @@ fn _bundle_validate_runtime_global_consts(ctx, runtime_prog) {
     return true
 }
 
-fn load_and_parse_runtime_native(ctx, runtime_path) {
+fn _load_and_parse_runtime_native_impl(ctx, runtime_path, platform) {
     // Expand and parse a native runtime source file.
     //
     // Returns a program AST {statements: ...} or nil (errors recorded in ctx).
@@ -480,6 +518,8 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
     var trace = false
     var v_trace = oren_env("OREN_TRACE_RUNTIME_BUNDLE")
     if v_trace != nil && v_trace != "" { trace = true }
+
+    var os_key = _rt_bundle_platform_os_key(platform)
 
     // Troubleshooting fast path:
     // - Parsing the full native runtime can be extremely slow in stage2 native compilers.
@@ -514,6 +554,10 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
             _bundle_err(ctx, "native runtime bundle: astbin_decode failed: " + p_ast)
             return nil
         }
+        // Mark as runtime so platform pruning can apply.
+        _bundle_tag_stmt_list(prog0["statements"], true)
+        // Prune dead `g_target_os` branches for targeted builds (best-effort; no-op when unknown).
+        pprune.prune_runtime_os_branches_in_linked_program_in_place(prog0, platform)
         if _rt_bundle_validate_runtime_prog(ctx, prog0, runtime_path) == false { return nil }
         if trace {
             var dtA = oren_time_now_ns() - t_ast0
@@ -586,6 +630,22 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
     var cache_dir = _rt_bundle_cache_dir()
     var fp2 = _rt_bundle_runtime_fingerprint_v2(runtime_src)
     var cache_astbin_v2 = cache_dir + "/" + fp2 + ".astbin"
+    var cache_astbin_v2_legacy = cache_astbin_v2
+    var cache_astbin_v2_plain = cache_astbin_v2
+    var cache_astbin_v2_pruned = nil
+    var cache_astbin_v2_pruned_legacy = nil
+    if os_key != "" {
+        // Platform-aware cache reduces decode+compile work by caching the pruned runtime AST
+        // (dead `g_target_os` branches removed) per target OS.
+        cache_astbin_v2_plain = cache_dir + "/" + fp2 + "_" + os_key + ".astbin"
+        cache_astbin_v2 = cache_astbin_v2_plain
+        if _rt_bundle_pruned_cache_enabled() == true {
+            // Bump suffix when pruning/encoding strategy changes so stale caches don't mask wins.
+            cache_astbin_v2_pruned = cache_dir + "/" + fp2 + "_" + os_key + "_pruned2.astbin"
+            cache_astbin_v2_pruned_legacy = cache_dir + "/" + fp2 + "_" + os_key + "_pruned.astbin"
+            cache_astbin_v2 = cache_astbin_v2_pruned
+        }
+    }
 
     if cache_enabled == true {
         var t_hit0 = 0
@@ -597,6 +657,31 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
             if trace { print("[rt_bundle] cache astbin hit path=" + cache_astbin_v2 + " bytes=" + oren_int_to_string(oren_buf_len(bs_hit))) }
             var prog_hit = astbin.astbin_decode(bs_hit)
             if prog_hit != nil {
+                _bundle_tag_stmt_list(prog_hit["statements"], true)
+                var os_id2 = _rt_bundle_platform_os_id(platform)
+                var already_pruned = false
+                if os_id2 != 0 && prog_hit["__oren_pruned_target_os_id"] == os_id2 && prog_hit["__oren_pruned_target_os_kind"] == "g_target_os" {
+                    already_pruned = true
+                }
+                if already_pruned == false {
+                    pprune.prune_runtime_os_branches_in_linked_program_in_place(prog_hit, platform)
+                    // If this cache file is expected to be the pruned variant, but we still had to
+                    // prune after decoding, opportunistically rewrite it so future runs decode less.
+                    if cache_astbin_v2_pruned != nil && cache_astbin_v2 == cache_astbin_v2_pruned && _rt_bundle_pruned_cache_write_enabled() == true {
+                        if trace { print("[rt_bundle] cache astbin prune encode start (rewrite) -> " + cache_astbin_v2_pruned) }
+                        var t_rew0 = 0
+                        if trace { t_rew0 = oren_time_now_ns() }
+                        var bs_rew = astbin.astbin_encode(prog_hit)
+                        if bs_rew != nil {
+                            _rt_bundle_ensure_dir(cache_dir)
+                            oren_write_bytes(cache_astbin_v2_pruned, bs_rew)
+                            if trace {
+                                var dt_rew = oren_time_now_ns() - t_rew0
+                                print("[rt_bundle] cache astbin prune encode done (rewrite) +" + oren_int_to_string(dt_rew / 1000000) + "ms bytes=" + oren_int_to_string(oren_buf_len(bs_rew)))
+                            }
+                        }
+                    }
+                }
                 if _rt_bundle_validate_runtime_prog(ctx, prog_hit, runtime_path) == false { return nil }
                 if trace {
                     var dt_hit = oren_time_now_ns() - t_hit0
@@ -607,6 +692,134 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
             if trace { print("[rt_bundle] cache astbin miss (decode failed), falling back") }
         }
 
+        // Backward-compatible: support the previous pruned filename suffix.
+        if cache_astbin_v2_pruned_legacy != nil && cache_astbin_v2_pruned != nil {
+            var bs_pr_leg = oren_read_u8_buf(cache_astbin_v2_pruned_legacy)
+            if !oren_is_err(bs_pr_leg) {
+                if trace { print("[rt_bundle] cache astbin hit(legacy pruned) path=" + cache_astbin_v2_pruned_legacy + " bytes=" + oren_int_to_string(oren_buf_len(bs_pr_leg))) }
+                var prog_pr_leg = astbin.astbin_decode(bs_pr_leg)
+                if prog_pr_leg != nil {
+                    _bundle_tag_stmt_list(prog_pr_leg["statements"], true)
+                    var os_id3 = _rt_bundle_platform_os_id(platform)
+                    var already_pruned2 = false
+                    if os_id3 != 0 && prog_pr_leg["__oren_pruned_target_os_id"] == os_id3 && prog_pr_leg["__oren_pruned_target_os_kind"] == "g_target_os" {
+                        already_pruned2 = true
+                    }
+                    if already_pruned2 == false {
+                        pprune.prune_runtime_os_branches_in_linked_program_in_place(prog_pr_leg, platform)
+                    }
+                    if _rt_bundle_validate_runtime_prog(ctx, prog_pr_leg, runtime_path) == false { return nil }
+                    // Best-effort: migrate to the new suffix so future runs don't need legacy probing.
+                    var bs_chk2 = oren_read_u8_buf(cache_astbin_v2_pruned)
+                    if oren_is_err(bs_chk2) {
+                        if _rt_bundle_pruned_cache_write_enabled() == true {
+                            if trace { print("[rt_bundle] cache astbin prune encode start (migrate legacy pruned) -> " + cache_astbin_v2_pruned) }
+                            var t_enc_leg0 = 0
+                            if trace { t_enc_leg0 = oren_time_now_ns() }
+                            var bs_pr_leg2 = astbin.astbin_encode(prog_pr_leg)
+                            if bs_pr_leg2 != nil {
+                                _rt_bundle_ensure_dir(cache_dir)
+                                oren_write_bytes(cache_astbin_v2_pruned, bs_pr_leg2)
+                                if trace {
+                                    var dt_enc_leg = oren_time_now_ns() - t_enc_leg0
+                                    print("[rt_bundle] cache astbin prune encode done (migrate legacy pruned) +" + oren_int_to_string(dt_enc_leg / 1000000) + "ms bytes=" + oren_int_to_string(oren_buf_len(bs_pr_leg2)))
+                                }
+                            } else {
+                                // Fallback: copy raw bytes (may be stale/unpruned, but preserves speed).
+                                _rt_bundle_ensure_dir(cache_dir)
+                                oren_write_bytes(cache_astbin_v2_pruned, bs_pr_leg)
+                                if trace { print("[rt_bundle] cache astbin migrated (copy legacy pruned) -> " + cache_astbin_v2_pruned) }
+                            }
+                        } else {
+                            _rt_bundle_ensure_dir(cache_dir)
+                            oren_write_bytes(cache_astbin_v2_pruned, bs_pr_leg)
+                            if trace { print("[rt_bundle] cache astbin migrated (copy legacy pruned) -> " + cache_astbin_v2_pruned) }
+                        }
+                    }
+                    if trace {
+                        var dt_hit2a = oren_time_now_ns() - t_hit0
+                        print("[rt_bundle] cache astbin decode(legacy pruned) done +" + oren_int_to_string(dt_hit2a / 1000000) + "ms")
+                    }
+                    return prog_pr_leg
+                }
+                if trace { print("[rt_bundle] cache astbin miss(legacy pruned) (decode failed), falling back") }
+            }
+        }
+
+        // If the primary cache is the pruned variant, fall back to the non-pruned per-OS cache.
+        if cache_astbin_v2_pruned != nil && cache_astbin_v2_plain != nil && cache_astbin_v2 != cache_astbin_v2_plain {
+            var bs_plain = oren_read_u8_buf(cache_astbin_v2_plain)
+            if !oren_is_err(bs_plain) {
+                if trace { print("[rt_bundle] cache astbin hit(fallback) path=" + cache_astbin_v2_plain + " bytes=" + oren_int_to_string(oren_buf_len(bs_plain))) }
+                var prog_plain = astbin.astbin_decode(bs_plain)
+                if prog_plain != nil {
+                    _bundle_tag_stmt_list(prog_plain["statements"], true)
+                    pprune.prune_runtime_os_branches_in_linked_program_in_place(prog_plain, platform)
+                    if _rt_bundle_validate_runtime_prog(ctx, prog_plain, runtime_path) == false { return nil }
+                    // Best-effort upgrade: write the pruned cache so future loads avoid decoding dead branches.
+                    if _rt_bundle_pruned_cache_write_enabled() == true {
+                        var bs_chk = oren_read_u8_buf(cache_astbin_v2_pruned)
+                        if oren_is_err(bs_chk) {
+                            if trace { print("[rt_bundle] cache astbin prune encode start -> " + cache_astbin_v2_pruned) }
+                            var t_enc0 = 0
+                            if trace { t_enc0 = oren_time_now_ns() }
+                            var bs_pr = astbin.astbin_encode(prog_plain)
+                            if bs_pr != nil {
+                                _rt_bundle_ensure_dir(cache_dir)
+                                oren_write_bytes(cache_astbin_v2_pruned, bs_pr)
+                                if trace {
+                                    var dt_enc = oren_time_now_ns() - t_enc0
+                                    print("[rt_bundle] cache astbin prune encode done +" + oren_int_to_string(dt_enc / 1000000) + "ms bytes=" + oren_int_to_string(oren_buf_len(bs_pr)))
+                                }
+                            }
+                        }
+                    }
+                    if trace {
+                        var dt_hit2 = oren_time_now_ns() - t_hit0
+                        print("[rt_bundle] cache astbin decode(fallback) done +" + oren_int_to_string(dt_hit2 / 1000000) + "ms")
+                    }
+                    return prog_plain
+                }
+                if trace { print("[rt_bundle] cache astbin miss(fallback) (decode failed), falling back") }
+            }
+        }
+
+        // Best-effort migration from legacy non-platform cache to the platform-aware filename.
+        if os_key != "" {
+            var bs_leg = oren_read_u8_buf(cache_astbin_v2_legacy)
+            if !oren_is_err(bs_leg) {
+                if trace { print("[rt_bundle] cache astbin legacy hit path=" + cache_astbin_v2_legacy + " bytes=" + oren_int_to_string(oren_buf_len(bs_leg))) }
+                var prog_leg = astbin.astbin_decode(bs_leg)
+                if prog_leg != nil {
+                    _bundle_tag_stmt_list(prog_leg["statements"], true)
+                    pprune.prune_runtime_os_branches_in_linked_program_in_place(prog_leg, platform)
+                    if _rt_bundle_validate_runtime_prog(ctx, prog_leg, runtime_path) == false { return nil }
+                    // Best-effort migrate to the platform-aware cache filename.
+                    _rt_bundle_ensure_dir(cache_dir)
+                    if cache_astbin_v2_pruned != nil && _rt_bundle_pruned_cache_write_enabled() == true {
+                        if trace { print("[rt_bundle] cache astbin prune encode start (migrate) -> " + cache_astbin_v2_pruned) }
+                        var t_enc1 = 0
+                        if trace { t_enc1 = oren_time_now_ns() }
+                        var bs_pr2 = astbin.astbin_encode(prog_leg)
+                        if bs_pr2 != nil {
+                            oren_write_bytes(cache_astbin_v2_pruned, bs_pr2)
+                            if trace {
+                                var dt_enc2 = oren_time_now_ns() - t_enc1
+                                print("[rt_bundle] cache astbin prune encode done (migrate) +" + oren_int_to_string(dt_enc2 / 1000000) + "ms bytes=" + oren_int_to_string(oren_buf_len(bs_pr2)))
+                            }
+                        }
+                    } else {
+                        // Cheap migration: copy legacy bytes to the platform-aware filename.
+                        // (Pruning still occurs in-memory.)
+                        oren_write_bytes(cache_astbin_v2_plain, bs_leg)
+                        if trace { print("[rt_bundle] cache astbin migrated (copy) -> " + cache_astbin_v2_plain) }
+                    }
+                    return prog_leg
+                }
+                if trace { print("[rt_bundle] cache astbin legacy miss (decode failed), falling back") }
+            }
+        }
+
         // Legacy SHA-256 path (migration).
         var legacy_hash = _rt_bundle_sha256_hex_string(runtime_src)
         var cache_astbin_legacy = cache_dir + "/" + legacy_hash + ".astbin"
@@ -615,10 +828,27 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
             if trace { print("[rt_bundle] cache astbin legacy hit path=" + cache_astbin_legacy + " bytes=" + oren_int_to_string(oren_buf_len(bs_old))) }
             var prog_old = astbin.astbin_decode(bs_old)
             if prog_old != nil {
+                _bundle_tag_stmt_list(prog_old["statements"], true)
+                pprune.prune_runtime_os_branches_in_linked_program_in_place(prog_old, platform)
                 if _rt_bundle_validate_runtime_prog(ctx, prog_old, runtime_path) == false { return nil }
                 // Best-effort migrate to v2 so future runs avoid SHA-256 entirely.
                 _rt_bundle_ensure_dir(cache_dir)
-                oren_write_bytes(cache_astbin_v2, bs_old)
+                if cache_astbin_v2_pruned != nil && _rt_bundle_pruned_cache_write_enabled() == true {
+                    if trace { print("[rt_bundle] cache astbin prune encode start (sha legacy) -> " + cache_astbin_v2_pruned) }
+                    var t_enc3 = 0
+                    if trace { t_enc3 = oren_time_now_ns() }
+                    var bs_pr3 = astbin.astbin_encode(prog_old)
+                    if bs_pr3 != nil {
+                        oren_write_bytes(cache_astbin_v2_pruned, bs_pr3)
+                        if trace {
+                            var dt_enc3 = oren_time_now_ns() - t_enc3
+                            print("[rt_bundle] cache astbin prune encode done (sha legacy) +" + oren_int_to_string(dt_enc3 / 1000000) + "ms bytes=" + oren_int_to_string(oren_buf_len(bs_pr3)))
+                        }
+                    }
+                } else {
+                    // Cheap migration: copy bytes.
+                    oren_write_bytes(cache_astbin_v2, bs_old)
+                }
                 if trace { print("[rt_bundle] cache astbin migrated -> " + cache_astbin_v2) }
                 if trace {
                     var dt_old = oren_time_now_ns() - t_hit0
@@ -652,6 +882,10 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
     }
 
 
+    // Mark as runtime so platform pruning can apply.
+    _bundle_tag_stmt_list(runtime_prog["statements"], true)
+    // Prune dead `g_target_os` branches before validation and caching.
+    pprune.prune_runtime_os_branches_in_linked_program_in_place(runtime_prog, platform)
     if _rt_bundle_validate_runtime_prog(ctx, runtime_prog, runtime_path) == false { return nil }
 
     // Optional: dump the parsed runtime AST to astbin for fast future loads.
@@ -685,6 +919,14 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
         oren_gc_collect()
     }
     return runtime_prog
+}
+
+fn load_and_parse_runtime_native(ctx, runtime_path) {
+    return _load_and_parse_runtime_native_impl(ctx, runtime_path, nil)
+}
+
+fn load_and_parse_runtime_native_for_platform(ctx, runtime_path, platform) {
+    return _load_and_parse_runtime_native_impl(ctx, runtime_path, platform)
 }
 
 fn inject_runtime_into_linked_and_dce(ctx, backend, linked, runtime_prog, platform, aliases) {
@@ -777,7 +1019,7 @@ fn prepare_native_runtime_bundle(ctx, backend, linked, platform, opts) {
     // strictly opt-in until global-root scanning is implemented.
     ctx["__compiler_gc_aggressive"] = aggressive_gc
 
-    var runtime_prog = load_and_parse_runtime_native(ctx, runtime_path)
+    var runtime_prog = load_and_parse_runtime_native_for_platform(ctx, runtime_path, platform)
     if runtime_prog == nil { return nil }
 
     // Capsule enforcement (compile-time):

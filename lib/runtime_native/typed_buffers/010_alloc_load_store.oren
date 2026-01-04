@@ -117,13 +117,25 @@ fn oren_buf_load_f64(buf, idx): f64 {
     if idx < 0 || idx >= n { return oren_err(4, "buf_load_f64: index out of bounds") }
     var data = native_buf_data_ptr(buf)
     var off = idx * 8
-    var bits = 0
-    var i = 0
-    while i < 8 {
-        var b = ptr_get_byte(data + off + i)
-        bits = bits | (b << (i * 8))
-        i = i + 1
-    }
+    // PERF (compiler + runtime):
+    // Avoid a byte loop here. The native backend lowers loops conservatively and can spend
+    // disproportionate compile time in hot runtime helpers.
+    var b0 = ptr_get_byte(data + off + 0) & 255
+    var b1 = ptr_get_byte(data + off + 1) & 255
+    var b2 = ptr_get_byte(data + off + 2) & 255
+    var b3 = ptr_get_byte(data + off + 3) & 255
+    var b4 = ptr_get_byte(data + off + 4) & 255
+    var b5 = ptr_get_byte(data + off + 5) & 255
+    var b6 = ptr_get_byte(data + off + 6) & 255
+    var b7 = ptr_get_byte(data + off + 7) & 255
+    var bits = b0 |
+        (b1 << 8) |
+        (b2 << 16) |
+        (b3 << 24) |
+        (b4 << 32) |
+        (b5 << 40) |
+        (b6 << 48) |
+        (b7 << 56)
     return bits
 }
 
@@ -135,11 +147,14 @@ fn oren_buf_store_f64(buf, idx, v: f64) {
     if idx < 0 || idx >= n { return oren_err(4, "buf_store_f64: index out of bounds") }
     var data = native_buf_data_ptr(buf)
     var off = idx * 8
-    var i = 0
-    while i < 8 {
-        ptr_set_byte(data + off + i, (v >> (i * 8)) & 255)
-        i = i + 1
-    }
+    ptr_set_byte(data + off + 0, v & 255)
+    ptr_set_byte(data + off + 1, (v >> 8) & 255)
+    ptr_set_byte(data + off + 2, (v >> 16) & 255)
+    ptr_set_byte(data + off + 3, (v >> 24) & 255)
+    ptr_set_byte(data + off + 4, (v >> 32) & 255)
+    ptr_set_byte(data + off + 5, (v >> 40) & 255)
+    ptr_set_byte(data + off + 6, (v >> 48) & 255)
+    ptr_set_byte(data + off + 7, (v >> 56) & 255)
     return buf
 }
 

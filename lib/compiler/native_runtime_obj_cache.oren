@@ -519,12 +519,39 @@ fn rtobj_load(cache_dir, key) {
 }
 
 fn rtobj_store(cache_dir, key, meta, code_u8, data_tail_u8) {
+    var trace = rtobj_trace_enabled()
+    var t0 = 0
+    if trace { t0 = oren_time_now_ns() }
     var paths = rtobj_paths(cache_dir, key)
     _ensure_dir(paths["dir"])
+    if trace {
+        var dt0 = oren_time_now_ns() - t0
+        print("[rtobj] store ensure dir done +" + oren_int_to_string(dt0 / 1000000) + "ms")
+        t0 = oren_time_now_ns()
+    }
     var meta_bs = astbin.astbin_encode(meta)
     if meta_bs == nil { return nil }
+    if trace {
+        var dt1 = oren_time_now_ns() - t0
+        print("[rtobj] store meta encode done +" + oren_int_to_string(dt1 / 1000000) + "ms bytes=" + oren_int_to_string(oren_buf_len(meta_bs)))
+        t0 = oren_time_now_ns()
+    }
     oren_write_bytes(paths["meta"], meta_bs)
+    if trace {
+        var dt2 = oren_time_now_ns() - t0
+        print("[rtobj] store meta write done +" + oren_int_to_string(dt2 / 1000000) + "ms")
+        t0 = oren_time_now_ns()
+    }
     oren_write_bytes(paths["code"], code_u8)
+    if trace {
+        var dt3 = oren_time_now_ns() - t0
+        print("[rtobj] store code write done +" + oren_int_to_string(dt3 / 1000000) + "ms bytes=" + oren_int_to_string(oren_buf_len(code_u8)))
+        t0 = oren_time_now_ns()
+    }
     oren_write_bytes(paths["data_tail"], data_tail_u8)
+    if trace {
+        var dt4 = oren_time_now_ns() - t0
+        print("[rtobj] store data write done +" + oren_int_to_string(dt4 / 1000000) + "ms bytes=" + oren_int_to_string(oren_buf_len(data_tail_u8)))
+    }
     return nil
 }
