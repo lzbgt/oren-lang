@@ -23,6 +23,15 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - local: `./oren build tests/fixtures/tier1_native_smoke_main.oren --backend native --platform arm64-macos --debug ...` (runs OK)
   - remote: `./scripts/verify_native_matrix.sh --targets x64-win-tier1` (stage1 + stage2)
 
+## Archived (2026-01-04) — Tooling: bounded build timing summary (no huge logs)
+
+- Compiler:
+  - Added a bounded build-phase timing summary for diagnosing “native build took >10s” regressions without dumping huge trace logs:
+    - `OREN_TRACE_BUILD_SUMMARY=1` prints a single `[build] summary ...` line per `oren build` (native backend path).
+    - `OREN_TRACE_BUILD_SLOW_MS=<n>` only prints the summary if the total build time is at least `<n>` ms.
+- Docs:
+  - `docs/BUILD_AND_VERIFY.md` documents the knobs.
+
 ## Archived (2026-01-03) — Native: OrenStatV0 time fields + stat-aware scan cache v3
 
 - Native backends:

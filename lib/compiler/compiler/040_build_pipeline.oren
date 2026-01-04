@@ -1,3 +1,27 @@
+fn _build_parse_nonneg_dec_or_neg1(s) {
+    // Parse a non-negative decimal integer from a string (best-effort).
+    // Returns -1 on invalid input.
+    //
+    // This is intentionally implemented here (compiler code) instead of relying on a
+    // runtime-specific helper so build tracing knobs behave consistently across backends.
+    if s == nil || s == "" { return -1 }
+    var i = 0
+    var v = 0
+    var any = 0
+    while 1 {
+        var c = oren_string_byte_at_unchecked(s, i) & 255
+        if c == 0 { break }
+        if c < 48 { return -1 }
+        if c > 57 { return -1 }
+        any = 1
+        v = v * 10 + (c - 48)
+        i = i + 1
+        if i > 32 { return -1 } // bound
+    }
+    if any == 0 { return -1 }
+    return v
+}
+
 fn compiler_main() {
     // Modern CLI parsing (click-style):
     // - supports `--opt=value` and interspersed options/args
@@ -510,6 +534,28 @@ fn compiler_main() {
     // Enable with: OREN_TRACE_BUILD=1
     var trace_build = oren_env("OREN_TRACE_BUILD") != nil
     if trace_build { print("[build] enter cmd=" + cmd_name + " path=" + path) }
+
+    // Bounded build-phase timing summary (avoid large logs).
+    //
+    // - `OREN_TRACE_BUILD_SUMMARY=1` prints a single summary line per build (native backend path).
+    // - `OREN_TRACE_BUILD_SLOW_MS=<n>` prints the summary only if total_ms >= n.
+    //   (Setting it implies summary enabled; invalid values treated as 0.)
+    var trace_build_summary = oren_env("OREN_TRACE_BUILD_SUMMARY") != nil
+    var slow_ms = -1
+    var v_slow = oren_env("OREN_TRACE_BUILD_SLOW_MS")
+    if v_slow != nil && v_slow != "" {
+        slow_ms = _build_parse_nonneg_dec_or_neg1(v_slow)
+        if slow_ms < 0 { slow_ms = 0 }
+        trace_build_summary = true
+    }
+    var t_sum0 = 0
+    var t_sum_read_done = 0
+    var t_sum_parse_done = 0
+    var t_sum_link_done = 0
+    var t_sum_emit_done = 0
+    var t_sum_codesign_done = 0
+    var t_sum_hash_done = 0
+    if trace_build_summary { t_sum0 = oren_time_now_ns() }
     // These options can also be configured via env (wired via std:argparse env defaults).
     // Use parsed opts as the canonical source to keep precedence consistent.
 
@@ -802,6 +848,7 @@ fn compiler_main() {
         var dt_read = oren_time_now_ns() - t_build0
         print("[build] read done +" + oren_int_to_string(dt_read / 1000000) + "ms bytes=" + oren_int_to_string(oren_string_len(src)))
     }
+    if trace_build_summary { t_sum_read_done = oren_time_now_ns() }
     if trace_build { print("[build] lexer.new_lexer start") }
     var l = lexer.new_lexer(src)
     if trace_build {
@@ -825,6 +872,7 @@ fn compiler_main() {
         var dt_parse = oren_time_now_ns() - t_build0
         print("[build] parse done +" + oren_int_to_string(dt_parse / 1000000) + "ms errors=" + oren_int_to_string(oren_list_len(p["errors"])))
     }
+    if trace_build_summary { t_sum_parse_done = oren_time_now_ns() }
     if oren_list_len(p["errors"]) > 0 {
         var first_err = nil
         if oren_list_len(p["errors"]) > 0 { first_err = p["errors"][0] }
@@ -1011,6 +1059,7 @@ fn compiler_main() {
         }
 
         var linked = link_program(path, prog, {"target": target, "arch": arch, "typecheck": do_typecheck, "keep_all_top_level_functions": is_shared_lib})
+        if trace_build_summary { t_sum_link_done = oren_time_now_ns() }
         // Memory hygiene (rolling):
         // - After linking, the native backend no longer needs the parsed root AST `prog`.
         // - The module loader globals (MODULES/MODULE_ORDER/MODULE_STACK) retain per-module
@@ -1136,6 +1185,7 @@ fn compiler_main() {
                 var dt_emit = oren_time_now_ns() - t_emit0
                 print("[build] native emit done +" + oren_int_to_string(dt_emit / 1000000) + "ms")
             }
+            if trace_build_summary { t_sum_emit_done = oren_time_now_ns() }
         } else {
             if arch == "x64" || arch == "x86_64" || arch == "amd64" {
                 var t_emit1 = 0
@@ -1157,6 +1207,7 @@ fn compiler_main() {
                     var dt_emit1 = oren_time_now_ns() - t_emit1
                     print("[build] native emit done +" + oren_int_to_string(dt_emit1 / 1000000) + "ms")
                 }
+                if trace_build_summary { t_sum_emit_done = oren_time_now_ns() }
             } else {
                 print("native backend unsupported arch: " + arch)
                 oren_exit(1)
@@ -1178,6 +1229,7 @@ fn compiler_main() {
                 }
             }
         }
+        if trace_build_summary { t_sum_codesign_done = oren_time_now_ns() }
         
         if deterministic || emit_manifest {
             // Use u8_buf to avoid boxing the artifact into list<int> (huge memory blowups).
@@ -1194,8 +1246,34 @@ fn compiler_main() {
                 _write_artifact_manifest("native", out_path, h, target, arch, deterministic, _bytes_len_any(bs))
             }
         }
+        if trace_build_summary { t_sum_hash_done = oren_time_now_ns() }
 
         print("Build successful: " + out_path)
+        if trace_build_summary && t_sum0 != 0 {
+            var tend = oren_time_now_ns()
+            var total_ms = (tend - t_sum0) / 1000000
+            if slow_ms < 0 || total_ms >= slow_ms {
+                var read_ms = 0
+                var parse_ms = 0
+                var link_ms = 0
+                var emit_ms = 0
+                var codesign_ms = 0
+                var hash_ms = 0
+                if t_sum_read_done != 0 { read_ms = (t_sum_read_done - t_sum0) / 1000000 }
+                if t_sum_parse_done != 0 && t_sum_read_done != 0 { parse_ms = (t_sum_parse_done - t_sum_read_done) / 1000000 }
+                if t_sum_link_done != 0 && t_sum_parse_done != 0 { link_ms = (t_sum_link_done - t_sum_parse_done) / 1000000 }
+                if t_sum_emit_done != 0 && t_sum_link_done != 0 { emit_ms = (t_sum_emit_done - t_sum_link_done) / 1000000 }
+                if t_sum_codesign_done != 0 && t_sum_emit_done != 0 { codesign_ms = (t_sum_codesign_done - t_sum_emit_done) / 1000000 }
+                if t_sum_hash_done != 0 && t_sum_codesign_done != 0 { hash_ms = (t_sum_hash_done - t_sum_codesign_done) / 1000000 }
+                print("[build] summary total_ms=" + oren_int_to_string(total_ms) +
+                    " read_ms=" + oren_int_to_string(read_ms) +
+                    " parse_ms=" + oren_int_to_string(parse_ms) +
+                    " link_ms=" + oren_int_to_string(link_ms) +
+                    " emit_ms=" + oren_int_to_string(emit_ms) +
+                    " codesign_ms=" + oren_int_to_string(codesign_ms) +
+                    " hash_ms=" + oren_int_to_string(hash_ms))
+            }
+        }
         
         if cache_enabled && cache_key != nil {
             // Store native artifact bytes for future cache hits.

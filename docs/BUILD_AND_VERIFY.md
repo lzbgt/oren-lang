@@ -81,6 +81,8 @@ Tracing knobs (bounded output; prints timing summaries):
 
 - `OREN_TRACE_RUNTIME_BUNDLE=1`: runtime expand/parse/cache timings
 - `OREN_TRACE_ASTBIN=1`: astbin decode timings (and v2 pool size)
+- `OREN_TRACE_BUILD_SUMMARY=1`: prints a single `[build] summary ...` line per `oren build` (native backend path)
+- `OREN_TRACE_BUILD_SLOW_MS=<n>`: only print the summary when the build takes at least `<n>` ms (implies summary enabled)
 
 ### Native Runtime Object Cache (Native Backend; Tier‑1 throughput)
 

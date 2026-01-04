@@ -22,6 +22,7 @@ Rules for this tracker:
      - `make test-native-all` (native suite; stage1)
      - `make verify` (stage1 → stage2 self-hosting gate)
 	   - Avoid O(n²) string/collection patterns in compiler-side tooling (include expansion, C backend transpiler, whole-program lowering passes).
+	   - Recently completed: bounded build timing summaries via `OREN_TRACE_BUILD_SUMMARY=1` / `OREN_TRACE_BUILD_SLOW_MS=<n>` so “>10s builds” are diagnosable without huge logs (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: pooled embedded string literals + one-time startup registration (`oren_init_static_cstr0_table`) to remove per-use tracking overhead in compiler workloads (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: GC pin/result no longer roots static string literals (classification-only nodes), reducing root churn in compiler/tooling runs (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: native `sys_stat/sys_lstat/sys_fstat` now populate OrenStatV0 `{a,m,c}time_ns` on macOS/Linux (arm64+x86_64), and the build scan cache is now stat-aware (`scan_cache_v3.txt`) to avoid re-reading unchanged sources during build-cache key computation (details in `docs/TODOS_ARCHIVE.md`).
