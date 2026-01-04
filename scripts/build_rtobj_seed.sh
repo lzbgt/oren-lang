@@ -285,10 +285,10 @@ mkdir -p build/tmp
 if [[ -n "${runtime_profile:-}" && "${runtime_profile:-}" != "full" ]]; then
   OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$cache_dir" \
   OREN_NATIVE_RUNTIME_PROFILE="$runtime_profile" \
-    "$compiler" build examples/hello.oren --backend native --platform "$platform" "$debug_flag" -o build/tmp/rtobj_seed_probe >/dev/null
+    "$compiler" build examples/hello.oren --backend native --platform "$platform" "$debug_flag" --no-cache -o build/tmp/rtobj_seed_probe >/dev/null
 else
   OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$cache_dir" \
-    "$compiler" build examples/hello.oren --backend native --platform "$platform" "$debug_flag" -o build/tmp/rtobj_seed_probe >/dev/null
+    "$compiler" build examples/hello.oren --backend native --platform "$platform" "$debug_flag" --no-cache -o build/tmp/rtobj_seed_probe >/dev/null
 fi
 
 want_rh="$(runtime_hash_from_cache || true)"
