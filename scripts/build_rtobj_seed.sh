@@ -146,9 +146,48 @@ find_latest_key() {
   return 0
 }
 
+prune_seed_dir_keep() {
+  local keep="$1"
+  [[ -z "$keep" ]] && return 0
+  [[ ! -d "$seed_dir" ]] && return 0
+
+  # Keep the seed dir bounded: remove older keys for the same (backend, os, arch, debug) profile.
+  # This avoids slow directory scans over time and keeps the seed mechanism predictable.
+  #
+  # Also delete legacy `_a_unknown_` keys once we have an arch-qualified key.
+  local names
+  names="$(
+    ls -1 "$seed_dir" 2>/dev/null | \
+      rg "^s2_b_${backend}_" | \
+      rg "_os_${os}_" | \
+      rg "_${dbg}_g" || true
+  )"
+  [[ -z "$names" ]] && return 0
+
+  while IFS= read -r nm; do
+    [[ -z "$nm" ]] && continue
+    [[ "$nm" = "$keep" ]] && continue
+    # If the new key is arch-qualified, prune both matching-arch and legacy unknown-arch keys.
+    if [[ "$keep" = *"_a_${arch}_"* ]]; then
+      if [[ "$nm" = *"_a_${arch}_"* || "$nm" = *"_a_unknown_"* ]]; then
+        rm -rf "$seed_dir/$nm" 2>/dev/null || true
+      fi
+    else
+      # Legacy mode: only prune other unknown-arch keys.
+      if [[ "$nm" = *"_a_unknown_"* ]]; then
+        rm -rf "$seed_dir/$nm" 2>/dev/null || true
+      fi
+    fi
+  done <<<"$names"
+
+  return 0
+}
+
 copy_key_to_seed() {
   local key="$1"
   mkdir -p "$seed_dir"
+  prune_seed_dir_keep "$key"
+
   rm -rf "$seed_dir/$key" 2>/dev/null || true
   cp -R "$cache_dir/$key" "$seed_dir/"
   echo "OK: rtobj seed updated"
@@ -160,12 +199,13 @@ copy_key_to_seed() {
 
 key=""
 if [[ -z "$force" ]]; then
-  if key="$(find_seed_key)"; then
-    echo "OK: rtobj seed already present (no-op)" >&2
-    echo "platform=$platform backend=$backend debug=$debug_flag" >&2
-    echo "seed_dir=$seed_dir" >&2
-    echo "key=$key" >&2
-    exit 0
+if key="$(find_seed_key)"; then
+  prune_seed_dir_keep "$key"
+  echo "OK: rtobj seed already present (no-op)" >&2
+  echo "platform=$platform backend=$backend debug=$debug_flag" >&2
+  echo "seed_dir=$seed_dir" >&2
+  echo "key=$key" >&2
+  exit 0
   fi
 fi
 

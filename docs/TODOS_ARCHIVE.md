@@ -1470,6 +1470,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
   - Sentinel validation no longer depends on runtime decl presence (e.g. `_map_hash_empty`), which can legitimately vary under pruning/DCE.
 - 2026-01-04: Native emitters now pass an explicit `arch` in the backend `platform` map (`arm64`/`x64`), so rtobj cache keys avoid `_a_unknown` and are more collision-resistant across targets.
 - 2026-01-04: Added an idempotent cross-target rtobj seed target (`make rtobj-seed-x64`) so `make verify-native-x64-compile` stays bounded on a clean cache (arm64 hosts can still prewarm x64-linux/x64-windows rtobj entries via cross compilation).
+- 2026-01-04: `scripts/build_rtobj_seed.sh` now prunes stale seed entries per (backend, os, arch, debug) so `build/cache/native_runtime_obj_seed/` stays bounded over time (also cleans up legacy `_a_unknown_` keys when arch-qualified keys exist).
 - 2026-01-04: x64 PE/ELF fixup patching now uses a fast `bytes_set_u32_le` path (single bounds check + raw stores), bringing `scripts/verify_native_x64_compile_only.sh` stage2 `x64-windows` under the default 10s timeout on the primary dev host.
 - 2026-01-04: Fixed a Tier‑1 cross‑arch bring‑up crash: arm64-linux native binaries could segfault during early `native_runtime_init` because the `malloc_raw` intrinsic could return invalid pointers on that target.
   - Added `lib/runtime_native/015_raw_alloc.oren` with `native_malloc_raw_or_mmap(size)` (validates `malloc_raw`, falls back to `sys_mmap_private_anon`).
