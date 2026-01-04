@@ -5,6 +5,29 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2026-01-04) — Native: runtime decl compile hotspots + runtime-astbin seed correctness
+
+- Runtime decl compile-time hotspot fixes (native stage2 throughput; cross-target x86_64 also benefits):
+  - Simplified `oren_iter_next` by removing legacy “view list shape” heuristics; iteration now yields list elements (typed buffers still supported).
+  - `oren_bytes_from_string_ptr` no longer does per-byte `oren_list_push`:
+    - allocate the list with exact capacity and fill the backing buffer directly
+    - use `iadd` and shifts (`i<<3`) to avoid slow generic `+` / `*` lowering inside byte loops.
+  - `oren_int_to_string` correctness + perf hygiene:
+    - fixed INT64_MIN handling by staying in the negative domain (no `n = -n` overflow)
+    - avoid generic `*` lowering for `q*10` via `(q<<3)+(q<<1)`.
+- Runtime-astbin seed script correctness (keeps stage2-native cold parse bounded across OS targets):
+  - `scripts/build_runtime_astbin_seed.sh` no-op logic now uses a per-OS meta file (`.runtime_astbin_seed_meta_os_<os>.txt`) keyed by:
+    - sha256 of all runtime source inputs (`lib/runtime_native*.oren` + `lib/runtime_native/**/*.oren`), and
+    - sha256 of the chosen seed compiler binary (`--compiler`).
+  - Rationale: runtime astbin basenames are derived from a fingerprint of the expanded runtime source, which is not the same as the rtobj runtime hash used by `build/cache/native_runtime_hash/`.
+- Script hardening:
+  - Fixed a subtle `rg -n` pitfall in seed scripts (line-number prefixes broke `hash=` parsing), affecting both:
+    - `scripts/build_runtime_astbin_seed.sh`
+    - `scripts/build_rtobj_seed.sh`.
+- Evidence (x64-linux, stage2, true rtobj miss with seed disabled, bounded tracers):
+  - `OREN_TRACE_X64_RT_OBJ_SUMMARY=1`: total ~`18.0s` (parse ~`1.9s`, decls ~`14.5s`, finalize ~`1.2s`)
+  - With rtobj seed enabled on an empty cache dir: total ~`5.3s` (seed-hit).
+
 ## Archived (2026-01-04) — Native: Tier‑1 stack traces (x64) + varargs wrapper recursion fix (arm64)
 
 - x86_64 native (Win11 Tier‑1 / rtobj cache mode):

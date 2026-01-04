@@ -265,36 +265,47 @@ fn oren_int_to_string(n) {
     if buf == 0 { exit(300) }
     var i = 0
     var neg = 0
+    // Avoid overflow on INT64_MIN by doing digit extraction in the negative domain.
+    //
+    // In two's complement, `-INT64_MIN` is not representable, so `n=-n` would be wrong.
+    // Use a classic trick:
+    // - keep `n` <= 0 for the digit loop
+    // - remainder will be in [-9..0], so digit is `0 - rem`
     if n < 0 {
         neg = 1
-        n = -n
+    } else {
+        n = 0 - n
     }
     if n == 0 {
         ptr_set_byte(buf, 48)
         i = 1
     } else {
-        while n > 0 {
-            var digit = n - (n / 10) * 10
-            ptr_set_byte(buf + i, 48 + digit)
-            i = i + 1
-            n = n / 10
+        while n != 0 {
+            var q = n / 10
+            // Avoid generic `*` lowering in the native backend: q*10 = (q<<3)+(q<<1).
+            var q10 = iadd(q << 3, q << 1)
+            var rem = n - q10 // in [-9..0] under trunc-to-zero division
+            var digit = 0 - rem
+            ptr_set_byte(iadd(buf, i), iadd(48, digit))
+            i = iadd(i, 1)
+            n = q
         }
         if neg == 1 {
-            ptr_set_byte(buf + i, 45)
-            i = i + 1
+            ptr_set_byte(iadd(buf, i), 45)
+            i = iadd(i, 1)
         }
         // reverse
         var s = 0
         var e = i - 1
         while s < e {
-            var t = ptr_get_byte(buf + s)
-            ptr_set_byte(buf + s, ptr_get_byte(buf + e))
-            ptr_set_byte(buf + e, t)
-            s = s + 1
-            e = e - 1
+            var t = ptr_get_byte(iadd(buf, s))
+            ptr_set_byte(iadd(buf, s), ptr_get_byte(iadd(buf, e)))
+            ptr_set_byte(iadd(buf, e), t)
+            s = iadd(s, 1)
+            e = iadd(e, -1)
         }
     }
-    ptr_set_byte(buf + i, 0) // null term
+    ptr_set_byte(iadd(buf, i), 0) // null term
     oren_track_alloc(buf, 32, 1) // 1=STRING
     return buf
 }

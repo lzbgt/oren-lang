@@ -99,7 +99,7 @@ runtime_hash_from_cache() {
   local p="build/cache/native_runtime_hash/lib_runtime_native.oren.hash.txt"
   if [[ ! -f "$p" ]]; then return 1; fi
   local line
-  line="$(rg -n "^hash=" "$p" 2>/dev/null | head -n 1 || true)"
+  line="$(rg "^hash=" "$p" 2>/dev/null | head -n 1 || true)"
   [[ -z "$line" ]] && return 1
   echo "${line#hash=}"
   return 0

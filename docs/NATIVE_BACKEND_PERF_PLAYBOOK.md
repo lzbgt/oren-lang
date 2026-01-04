@@ -102,6 +102,11 @@ Seed (rolling, optional):
   - env: `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR=<dir>` (default: `build/cache/native_runtime_astbin_seed/`; disable with `0`/`false`)
   - generator: `make astbin-seed` (uses stage1 `./oren` to pre-warm and copy seed files)
   - cross-target seeds: `make astbin-seed-x64` (generates `x64-linux`/`x64-windows` pruned astbins so cross-target verification stays bounded when runtime hashes change)
+- Seed correctness note (rolling):
+  - The runtime astbin cache basename uses a fingerprint of the **expanded runtime source** (`_rt_bundle_runtime_fingerprint_v2(expanded_runtime_src)`), which is intentionally distinct from the runtime-object cache hash (`rtobj_runtime_hash(...)`).
+  - To avoid “seed dir exists but stage2 still cold-parses”, `scripts/build_runtime_astbin_seed.sh` writes a per-OS meta file (`.runtime_astbin_seed_meta_os_<os>.txt`) that invalidates the seed when either:
+    - runtime source inputs change (hash of `lib/runtime_native*.oren` + `lib/runtime_native/**/*.oren`), or
+    - the chosen seed compiler binary changes (sha256 of `--compiler`).
 
 ### 4.0.1 Don’t use `nil` as a tri-state sentinel in compiler passes (native backend)
 
