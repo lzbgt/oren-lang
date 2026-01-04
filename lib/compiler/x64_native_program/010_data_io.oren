@@ -1,16 +1,26 @@
 fn _data_add_cstr_newline(ctx, s) {
     if ctx == nil { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
-    var b = oren_bytes_from_string(s)
-    // Append newline and NUL for tooling visibility.
-    oren_list_push(b, 10)
-    oren_list_push(b, 0)
+    if s == nil { s = "" }
     // 8B align (helps future u64 reads; harmless for strings).
     while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
     var off = bytes_len(ctx["data"])
-    bytes_extend_list(ctx["data"], b)
+    // Avoid allocating an intermediate `list<int>` for large compiler workloads.
+    // Append bytes (excluding NUL), then newline+NUL.
+    var n = oren_string_len(s)
+    if n > 1048576 { n = 1048576 } // safety cap
+    var i = 0
+    while i < n {
+        bytes_push(ctx["data"], oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
+    // Append newline and NUL for tooling visibility.
+    bytes_push(ctx["data"], 10)
+    bytes_push(ctx["data"], 0)
+    // Re-align after the write (keeps following tables u64-friendly).
+    while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
     // Return {"off": int, "len": int} where len excludes trailing NUL.
-    return {"off": off, "len": oren_list_len(b) - 1}
+    return {"off": off, "len": n + 1}
 }
 
 fn _data_add_cstr0(ctx, s) {
@@ -33,11 +43,17 @@ fn _data_add_cstr0(ctx, s) {
     var existing_enc = ctx["cstr0_offs"][s]
     if existing_enc != nil { return existing_enc - 1 }
 
-    var b = oren_bytes_from_string(s)
-    oren_list_push(b, 0)
     while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
     var off = bytes_len(ctx["data"])
-    bytes_extend_list(ctx["data"], b)
+    // Append bytes including trailing NUL (cstr0).
+    var n0 = oren_string_len(s)
+    if n0 > 1048576 { n0 = 1048576 } // safety cap
+    var i0 = 0
+    while i0 < n0 {
+        bytes_push(ctx["data"], oren_string_byte_at_unchecked(s, i0) & 255)
+        i0 = i0 + 1
+    }
+    bytes_push(ctx["data"], 0)
     ctx["cstr0_offs"][s] = off + 1
     // Track the unique byte offsets so the entry stub can register all literals once at startup
     // (avoids per-use `oren_ensure_tracked` overhead in compiler workloads).

@@ -126,6 +126,21 @@ This file preserves the previous long-form rolling TODO list (history + detailed
     - rtobj hit: ~`3.1–3.4s` (meets the `<4s` gate)
     - rtobj miss: ~`21s` (active work item; see `docs/TODOS.md`)
 
+## Archived (2026-01-04) — Native: astbin v2 decode fast path + cheaper literal emission (compiler throughput)
+
+- astbin v2 decode (stage2-native):
+  - Added a v2 `u8_buf` fast path that keeps the decode offset in a plain integer global (avoids per-byte `off_ref[0]` list traffic).
+  - Result: runtime bundle astbin v2 decode for the cached runtime (`pool_n=2571`, ~3.2MB) drops to ~`1.3s` on arm64-macos stage2 (`OREN_TRACE_ASTBIN=1`).
+- Native codegen literal emission (arm64 + x64):
+  - Avoid allocating an intermediate `list<int>` for each embedded string literal when emitting the `cstr0` pool:
+    - arm64: `lib/compiler/arm64_native_expr/000_prelude.oren`
+    - x64: `lib/compiler/x64_native_program/010_data_io.oren`
+  - Uses `oren_string_len` + `oren_string_byte_at_unchecked` to append bytes directly into the bytes builder (cross-backend safe).
+- Evidence (arm64-macos, stage2 compiler; isolated rtobj cache dir; `examples/hello.oren`, `--no-cache --no-debug`, seed disabled):
+  - rtobj miss (“compile one file” run-1): ~`19.6s` → ~`15.3s`
+  - rtobj build+apply: ~`17.3s` → ~`13.1s`
+  - Remaining dominant bucket: runtime decl compilation still ~`7.0s` (`OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1`)
+
 ## Archived (2026-01-03) — Native: OrenStatV0 time fields + stat-aware scan cache v3
 
 - Native backends:

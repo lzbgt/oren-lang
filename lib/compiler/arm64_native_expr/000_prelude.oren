@@ -95,11 +95,21 @@ fn native_data_add_cstr0(ctx, s) {
     var existing_enc = ctx["cstr0_offs"][s]
     if existing_enc != nil { return existing_enc - 1 }
 
-    var b = oren_bytes_from_string(s)
-    oren_list_push(b, 0)
     while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
     var off = bytes_len(ctx["data"])
-    bytes_extend_list(ctx["data"], b)
+    // Avoid allocating an intermediate `list<int>` for each literal via `oren_bytes_from_string`.
+    // Tooling workloads (compiler self-host) can have thousands of distinct literals, and list
+    // allocations here inflate GC pressure and runtime-object compile time.
+    //
+    // Use the stable `oren_string_*` helpers (works under both C and native runtimes).
+    var n = oren_string_len(s)
+    if n > 1048576 { n = 1048576 } // safety cap
+    var i = 0
+    while i < n {
+        bytes_push(ctx["data"], oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
+    bytes_push(ctx["data"], 0)
     ctx["cstr0_offs"][s] = off + 1
     // Track unique offsets so the program entry stub can register all literals once at startup.
     oren_list_push(ctx["cstr0_list"], off)

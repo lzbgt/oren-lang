@@ -547,6 +547,149 @@ fn _astbin_read_u8_buf(bytes, data_ptr, off_ref, is_u8_buf) {
     return out
 }
 
+// --- v2 decode fast path (u8_buf input) ---
+//
+// Stage2-native throughput note:
+// The v2 decoder originally threaded `off_ref=[off]` through helper calls so it could mutate
+// the offset by reference. Under the native runtime this can turn into a surprising amount
+// of overhead (list element loads/stores) because it happens per byte in varint parsing.
+//
+// For hot paths like the cached runtime bundle decode (multi-megabyte astbin blobs), keep a
+// dedicated decoder state in globals so reads update a plain integer offset.
+//
+// Constraints:
+// - not re-entrant / not thread-safe (OK for current single-threaded compiler execution)
+// - only used for v2 + u8_buf inputs; other backends/inputs keep the generic path
+var g_astbin_g_bytes = 0
+var g_astbin_g_data_ptr = 0
+var g_astbin_g_is_u8 = 0
+var g_astbin_g_off = 0
+
+fn _astbin_g_read_u8() {
+    // Caller guarantees we are decoding a u8_buf.
+    var b0 = ptr_get_byte(iadd(g_astbin_g_data_ptr, g_astbin_g_off))
+    g_astbin_g_off = iadd(g_astbin_g_off, 1)
+    return b0 & 255
+}
+
+fn _astbin_g_read_uvarint() {
+    var shift = 0
+    var out = 0
+    while 1 {
+        var b = _astbin_g_read_u8()
+        out = out | ((b & 127) << shift)
+        var cont = b & 128
+        if cont == 0 { break }
+        shift = iadd(shift, 7)
+        if shift > 63 { _astbin_fail("uvarint overflow", g_astbin_g_off) }
+    }
+    return out
+}
+
+fn _astbin_g_read_u64_le() {
+    var out = 0
+    var i = 0
+    while i < 8 {
+        var b = _astbin_g_read_u8()
+        out = out | ((b & 255) << (i * 8))
+        i = iadd(i, 1)
+    }
+    return out
+}
+
+fn _astbin_g_read_string() {
+    var n = _astbin_g_read_uvarint()
+    var off = g_astbin_g_off
+    var s = oren_string_from_bytes_slice(g_astbin_g_bytes, off, n)
+    if oren_is_err(s) {
+        _astbin_fail("string slice decode failed (fast v2)", off)
+    }
+    g_astbin_g_off = iadd(off, n)
+    return s
+}
+
+fn _astbin_g_read_u8_buf() {
+    var n = _astbin_g_read_uvarint()
+    var off = g_astbin_g_off
+    var out = oren_u8_buf_from_bytes_slice(g_astbin_g_bytes, off, n)
+    if oren_is_err(out) { _astbin_fail("u8_buf slice decode failed (fast v2)", off) }
+    g_astbin_g_off = iadd(off, n)
+    return out
+}
+
+fn _astbin_g_read_string_ref_v2(pool, pool_len) {
+    var idx = _astbin_g_read_uvarint()
+    if idx < 0 || idx >= pool_len {
+        _astbin_fail("string ref out of range idx=" + oren_int_to_string(idx), g_astbin_g_off)
+    }
+    return pool[idx]
+}
+
+fn _astbin_g_read_value_v2(pool, pool_len) {
+    var tag = _astbin_g_read_u8()
+    if tag == 0 { return nil }
+    if tag == 1 { return false }
+    if tag == 2 { return true }
+    if tag == 3 {
+        var zz = _astbin_g_read_uvarint()
+        return _astbin_unzigzag(zz)
+    }
+    // v2: tag 4 is string ref (pool index)
+    if tag == 4 {
+        return _astbin_g_read_string_ref_v2(pool, pool_len)
+    }
+    if tag == 5 {
+        var n = _astbin_g_read_uvarint()
+        var out = oren_list_new_cap(n)
+        if oren_is_err(out) { _astbin_fail("list_new_cap failed", g_astbin_g_off) }
+        var i = 0
+        while i < n {
+            oren_list_push_unchecked(out, _astbin_g_read_value_v2(pool, pool_len))
+            i = iadd(i, 1)
+        }
+        return out
+    }
+    if tag == 6 {
+        var n2 = _astbin_g_read_uvarint()
+        var mp = oren_map_new_cap(n2)
+        if oren_is_err(mp) { _astbin_fail("map_new_cap failed", g_astbin_g_off) }
+        var i2 = 0
+        while i2 < n2 {
+            var k_kind = 0
+            var k = 0
+            var kt = _astbin_g_read_u8()
+            if kt == 3 {
+                var zz2 = _astbin_g_read_uvarint()
+                k_kind = 0
+                k = _astbin_unzigzag(zz2)
+            } else if kt == 4 {
+                k_kind = 1
+                k = _astbin_g_read_string_ref_v2(pool, pool_len)
+            } else {
+                _astbin_fail("map key must be int|string_ref (tag 3|4), got tag " + oren_int_to_string(kt), g_astbin_g_off)
+            }
+            var v = _astbin_g_read_value_v2(pool, pool_len)
+            if k_kind == 1 {
+                oren_map_push_entry_str_unchecked(mp, k, v)
+            } else {
+                oren_map_push_entry_int_unchecked(mp, k, v)
+            }
+            i2 = iadd(i2, 1)
+        }
+        oren_map_build_finalize_unchecked(mp, n2)
+        return mp
+    }
+    if tag == 7 {
+        return _astbin_g_read_u8_buf()
+    }
+    if tag == 8 {
+        var bits = _astbin_g_read_u64_le()
+        return oren_u64_bits_to_f64(bits)
+    }
+    _astbin_fail("unknown v2 tag " + oren_int_to_string(tag), g_astbin_g_off)
+    return nil
+}
+
 fn _astbin_read_value(bytes, data_ptr, off_ref, is_u8_buf) {
     var tag = _astbin_read_u8(bytes, data_ptr, off_ref, is_u8_buf)
     if tag == 0 { return nil }
@@ -614,27 +757,27 @@ fn _astbin_read_value(bytes, data_ptr, off_ref, is_u8_buf) {
 }
 
 // --- v2 decode helpers ---
-fn _astbin_read_string_ref_v2(pool, bytes, off_ref, is_u8_buf) {
+fn _astbin_read_string_ref_v2(pool, pool_len, bytes, off_ref, is_u8_buf) {
     // Legacy helper (kept for compatibility with older call sites):
     // materialize data_ptr only if we are reading from a u8_buf.
     var data_ptr = 0
     if is_u8_buf == true { data_ptr = oren_buf_data_ptr_unchecked(bytes) }
     var idx = _astbin_read_uvarint(bytes, data_ptr, off_ref, is_u8_buf)
-    if idx < 0 || idx >= oren_list_len(pool) {
+    if idx < 0 || idx >= pool_len {
         _astbin_fail("string ref out of range idx=" + oren_int_to_string(idx), off_ref[0])
     }
     return pool[idx]
 }
 
-fn _astbin_read_string_ref_v2_ptr(pool, bytes, data_ptr, off_ref, is_u8_buf) {
+fn _astbin_read_string_ref_v2_ptr(pool, pool_len, bytes, data_ptr, off_ref, is_u8_buf) {
     var idx = _astbin_read_uvarint(bytes, data_ptr, off_ref, is_u8_buf)
-    if idx < 0 || idx >= oren_list_len(pool) {
+    if idx < 0 || idx >= pool_len {
         _astbin_fail("string ref out of range idx=" + oren_int_to_string(idx), off_ref[0])
     }
     return pool[idx]
 }
 
-fn _astbin_read_value_v2(pool, bytes, data_ptr, off_ref, is_u8_buf) {
+fn _astbin_read_value_v2(pool, pool_len, bytes, data_ptr, off_ref, is_u8_buf) {
     var tag = _astbin_read_u8(bytes, data_ptr, off_ref, is_u8_buf)
     if tag == 0 { return nil }
     if tag == 1 { return false }
@@ -645,7 +788,7 @@ fn _astbin_read_value_v2(pool, bytes, data_ptr, off_ref, is_u8_buf) {
     }
     // v2: tag 4 is string ref (pool index)
     if tag == 4 {
-        return _astbin_read_string_ref_v2_ptr(pool, bytes, data_ptr, off_ref, is_u8_buf)
+        return _astbin_read_string_ref_v2_ptr(pool, pool_len, bytes, data_ptr, off_ref, is_u8_buf)
     }
     if tag == 5 {
         var n = _astbin_read_uvarint(bytes, data_ptr, off_ref, is_u8_buf)
@@ -653,7 +796,7 @@ fn _astbin_read_value_v2(pool, bytes, data_ptr, off_ref, is_u8_buf) {
         if oren_is_err(out) { _astbin_fail("list_new_cap failed", off_ref[0]) }
         var i = 0
         while i < n {
-            oren_list_push_unchecked(out, _astbin_read_value_v2(pool, bytes, data_ptr, off_ref, is_u8_buf))
+            oren_list_push_unchecked(out, _astbin_read_value_v2(pool, pool_len, bytes, data_ptr, off_ref, is_u8_buf))
             i = iadd(i, 1)
         }
         return out
@@ -673,11 +816,11 @@ fn _astbin_read_value_v2(pool, bytes, data_ptr, off_ref, is_u8_buf) {
                 k = _astbin_unzigzag(zz2)
             } else if kt == 4 {
                 k_kind = 1
-                k = _astbin_read_string_ref_v2_ptr(pool, bytes, data_ptr, off_ref, is_u8_buf)
+                k = _astbin_read_string_ref_v2_ptr(pool, pool_len, bytes, data_ptr, off_ref, is_u8_buf)
             } else {
                 _astbin_fail("map key must be int|string_ref (tag 3|4), got tag " + oren_int_to_string(kt), off_ref[0])
             }
-            var v = _astbin_read_value_v2(pool, bytes, data_ptr, off_ref, is_u8_buf)
+            var v = _astbin_read_value_v2(pool, pool_len, bytes, data_ptr, off_ref, is_u8_buf)
             if k_kind == 1 {
                 oren_map_push_entry_str_unchecked(mp, k, v)
             } else {
@@ -739,7 +882,17 @@ fn astbin_decode(bytes) {
             oren_list_push_unchecked(pool, s)
             i = iadd(i, 1)
         }
-        var out2 = _astbin_read_value_v2(pool, bytes, data_ptr, off_ref2, is_u8)
+        var out2 = nil
+        if is_u8 == true {
+            // Fast path: use global-state decoder to avoid per-byte off_ref list traffic.
+            g_astbin_g_bytes = bytes
+            g_astbin_g_data_ptr = data_ptr
+            g_astbin_g_is_u8 = 1
+            g_astbin_g_off = off_ref2[0]
+            out2 = _astbin_g_read_value_v2(pool, pool_n)
+        } else {
+            out2 = _astbin_read_value_v2(pool, pool_n, bytes, data_ptr, off_ref2, is_u8)
+        }
         if trace {
             var dt = oren_time_now_ns() - t0
             print("[astbin] decode done +" + oren_int_to_string(dt / 1000000) + "ms")
@@ -846,7 +999,11 @@ fn _astbin_size_v2(v, pool_idx_map) {
     if v == nil { return 1 }
     if v == true { return 1 }
     if v == false { return 1 }
-    if _astbin_is_string(v) { return 1 + _astbin_uvarint_size((oren_map_get_str(pool_idx_map, v) - 1)) }
+    if _astbin_is_string(v) {
+        var enc2 = oren_map_get_str(pool_idx_map, v)
+        if enc2 == nil || enc2 == 0 { _astbin_fail("v2 encode missing pool idx", -1) }
+        return 1 + _astbin_uvarint_size((enc2 - 1))
+    }
     if _astbin_is_u8_buf(v) {
         var n3 = oren_buf_len(v)
         return 1 + _astbin_uvarint_size(n3) + n3
@@ -873,7 +1030,9 @@ fn _astbin_size_v2(v, pool_idx_map) {
             var val = out_pair[1]
             // key
             if _astbin_is_string(k) {
-                total2 = total2 + 1 + _astbin_uvarint_size((oren_map_get_str(pool_idx_map, k) - 1))
+                var enc3 = oren_map_get_str(pool_idx_map, k)
+                if enc3 == nil || enc3 == 0 { _astbin_fail("v2 encode missing pool idx", -1) }
+                total2 = total2 + 1 + _astbin_uvarint_size((enc3 - 1))
             } else {
                 total2 = total2 + _astbin_size(k)
             }
@@ -899,17 +1058,48 @@ fn _astbin_guess_pool_cap_for_v2(v) {
     //
     // Return 0 to keep the default tiny-map behavior for small values.
     if !_astbin_is_map(v) { return 0 }
+
+    // Common compiler AST shape: Program { statements: [...] }.
     var sts = v["statements"]
-    if sts == nil { return 0 }
-    if !_astbin_is_list(sts) { return 0 }
-    var n = oren_list_len(sts)
-    if n < 512 { return 0 }
-    // Conservative guess: large ASTs tend to have many unique strings (identifiers, tokens),
-    // but we clamp to keep memory bounded.
-    var cap = n * 16
-    if cap < 4096 { cap = 4096 }
-    if cap > 131072 { cap = 131072 }
-    return cap
+    if sts != nil && _astbin_is_list(sts) {
+        var n = oren_list_len(sts)
+        if n >= 512 {
+            // Conservative guess: large ASTs tend to have many unique strings (identifiers, tokens),
+            // but we clamp to keep memory bounded.
+            var cap = n * 16
+            if cap < 4096 { cap = 4096 }
+            if cap > 131072 { cap = 131072 }
+            return cap
+        }
+    }
+
+    // Runtime-object meta shape: a map with large nested lists/maps (`fixups_enc`, `fn_offs_enc`, ...).
+    //
+    // For these, the previous heuristic returned 0 and `pool_idx_map` stayed tiny, making
+    // `oren_map_set_str_unchecked` rebuild repeatedly while collecting strings. Pre-size it using
+    // cheap, shallow probes of the biggest nested containers.
+    var cap2 = 0
+    var fx = v["fixups_enc"]
+    if fx != nil && _astbin_is_list(fx) {
+        var nfx = oren_list_len(fx)
+        if nfx > 0 { cap2 = nfx * 2 }
+    }
+    var fnm = v["fn_offs_enc"]
+    if fnm != nil && _astbin_is_map(fnm) {
+        var nfn = oren_map_len(fnm)
+        var cand = nfn * 4
+        if cand > cap2 { cap2 = cand }
+    }
+    var gl = v["globals"]
+    if gl != nil && _astbin_is_map(gl) {
+        var ng = oren_map_len(gl)
+        var cand2 = ng * 4
+        if cand2 > cap2 { cap2 = cand2 }
+    }
+
+    if cap2 < 4096 { return 0 }
+    if cap2 > 131072 { cap2 = 131072 }
+    return cap2
 }
 
 fn astbin_encode_v2(v) {

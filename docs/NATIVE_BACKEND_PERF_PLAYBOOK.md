@@ -182,10 +182,16 @@ If you touch compiler hot paths (astbin decode, native emit, runtime injection),
 2) Run the bounded perf check:
    - `OREN_NATIVE_BUILD_TIMEOUT_SECS=60 ./scripts/bench_native_compile_one_file.sh --no-debug`
 3) If you see “rtobj miss” > 10s, re-run with tracing and identify the dominant bucket:
+   - `OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1` (arm64) prints one `[arm64_rtobj] ...` line with parse/decl/finalize timings.
+   - `OREN_TRACE_ASTBIN=1` prints `[astbin] decode done +...ms` for the runtime bundle decode.
    - runtime expand/parse
    - astbin decode
    - runtime decl compilation
    - emit/fixups
+
+Healthy reference (arm64-macos stage2, rolling as of 2026-01-04; isolated rtobj dir, seed disabled):
+- runtime astbin v2 decode: ~`1.3s` (`pool_n=2571`)
+- rtobj miss compile-one-file: ~`15s` (still being pushed toward `<10s`)
 
 If the slow path is “expected” (cold cache), consider whether we should:
 

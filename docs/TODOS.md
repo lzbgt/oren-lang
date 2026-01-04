@@ -38,8 +38,13 @@ Rules for this tracker:
 		     - rolling builds use a cheap stat-based compiler signature (avoid hashing the full `./oren_stage2` binary every run)
 		     - scan cache persistence happens after injected-runtime hashing (so the runtime include-closure is not re-walked each build)
 		     - scan cache serialization now uses a `u8_buf` builder (no O(n²) string concatenation) (details in `docs/TODOS_ARCHIVE.md`).
-		   - Remaining (active): rtobj-miss (cold) path is still too slow in stage2-native due to runtime bundle decode + runtime decl compilation; keep pushing toward **< 10s** cold “compile one file” when caches are empty (see `docs/TODOS_ARCHIVE.md` for current measurements + profiling knobs; current is ~20s on arm64-macos stage2 for `examples/hello.oren` in `./scripts/bench_native_compile_one_file.sh --no-debug` run-1 (isolated rtobj dir)).
-		     - Current miss breakdown (arm64-macos; runtime astbin hit; `OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1`): astbin decode/parse ~`6–7s`, runtime decl compile ~`7s`, finalize ~`1.1s`, meta encode ~`1.2s`.
+		   - Remaining (active): rtobj-miss (cold) path is still too slow in stage2-native due to runtime bundle decode + runtime decl compilation; keep pushing toward **< 10s** cold “compile one file” when caches are empty (see `docs/TODOS_ARCHIVE.md` for current measurements + profiling knobs; current is ~`15s` on arm64-macos stage2 for `examples/hello.oren` in `./scripts/bench_native_compile_one_file.sh --no-debug` run-1 (isolated rtobj dir; seed disabled)).
+		     - Current miss breakdown (arm64-macos; stage2; `OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1`, seed disabled):
+		       - runtime astbin decode/parse: ~`2.1s` total (astbin v2 decode ~`1.3s`)
+		       - runtime decl compile: ~`7.0s`
+		       - finalize: ~`1.4s`
+		       - rtobj meta encode (astbin v2): ~`1.1s`
+		       - rtobj build+apply total: ~`13.1s` (overall compile-one-file miss: ~`15.3s`)
 				   - Hard gate (non-negotiable for rolling):
 				     - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
 			     - Stage2 native backend “compile one file” (cache hit; non-capsule) should stay **< 4s** wall time on the primary dev host; regressions indicate a fundamental hot-path flaw to investigate.
