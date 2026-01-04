@@ -1,6 +1,6 @@
 # Active Tracker (Succinct)
 
-**Last updated:** 2026-01-03
+**Last updated:** 2026-01-04
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order.
 Recent completions live in `docs/TODOS_ARCHIVE.md` (keep this list “what’s next”, not a changelog).
@@ -58,8 +58,10 @@ Rules for this tracker:
        - mutex/condvar + parking/unparking primitives (`ulock` on macOS; futex-like on Linux; Win32 already exists)
        - a GC/safepoint model that remains correct once true threads exist (no “mutex works but GC breaks”)
      - Windows: complete a coherent PROC story (pid/kill/wait semantics or define a cross-OS `sys_spawn` boundary).
-       - Current blocker: `oren_system(_timeout)` on `x64-windows` fails in the remote gate (`sys_win_createprocess` returns `-998` / `GetLastError()==998` = `ERROR_NOACCESS`).
-         - Tier‑1 fixture currently *soft-skips* the failure on Windows to keep the remote gate usable; remove this skip once CreateProcess wiring is correct.
+       - Fixed (2026-01-04): `oren_system(_timeout)` now works on `x64-windows` (CreateProcessA path).
+         - Tier‑1 fixture no longer soft-skips Windows.
+         - Native quick integration now includes a Windows-only `oren_system_timeout(...)` smoke to prevent regressions.
+         - Runtime object cache key now includes a backend signature so codegen changes invalidate cached runtime machine code.
 		     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
 			     - (performance) stage2-native runtime bundle cost remains high; keep iterating toward:
 		       - default: hashed runtime AST cache under `build/cache/native_runtime_astbin/` (disable via `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0`)

@@ -27,6 +27,27 @@ import astbin "astbin.oren"
 var RUNTIME_OBJ_SCHEMA = 2
 var RUNTIME_OBJ_DATA_PREFIX_LEN = 8 // cstr0 table slot reserved by native entry stubs
 
+// Backend signature for the compiled runtime object cache key.
+//
+// IMPORTANT:
+// The runtime object cache stores *compiled machine code* for the injected runtime.
+// Therefore, changes to backend codegen (instruction selection/encoding, ABI layout,
+// call-area sizing, syscall/Win32 intrinsic lowering, etc) MUST invalidate the cache,
+// even when the runtime source text is unchanged.
+//
+// Rolling contract:
+// - Bump the relevant backend sig whenever a change can affect emitted code/data bytes.
+// - This is intentionally cheap (string constant) so cache hits stay fast.
+var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_1"
+var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_2"
+
+fn rtobj_backend_sig(backend) {
+    if backend == "arm64" { return RUNTIME_OBJ_BACKEND_SIG_ARM64 }
+    if backend == "x64" { return RUNTIME_OBJ_BACKEND_SIG_X64 }
+    // Unknown backend: keep key deterministic but force isolation.
+    return "unknown_v0"
+}
+
 fn _is_false(v) {
     if v == nil || v == "" { return false }
     if v == "0" || v == "false" { return true }
@@ -179,8 +200,10 @@ fn rtobj_cache_key(backend, platform, runtime_hash) {
     }
     // Key must be filesystem-friendly and stable. Avoid hashing this string again: the runtime_hash
     // already includes a strong-enough fingerprint for cache selection in rolling mode.
+    var bsig = rtobj_backend_sig(backend)
     return "s" + oren_int_to_string(RUNTIME_OBJ_SCHEMA) +
         "_b_" + backend +
+        "_bv_" + bsig +
         "_os_" + os +
         "_a_" + arch +
         "_d" + dbg +

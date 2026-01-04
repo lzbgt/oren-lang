@@ -28,11 +28,20 @@ fn x64_win64() {
         // v0: reserve a fixed call-area in each function frame so intrinsic lowering can
         // place stack args without mutating RSP.
         //
-        // Must cover the worst-case Win64 IAT calls emitted by intrinsics (e.g. CreateProcessA):
-        // - 32B shadow space
-        // - up to 6 stack args (CreateProcessA has 10 args total, 4 in regs + 6 on stack)
-        // Total: 32 + 6*8 = 80 bytes; reserve 96 to keep 16B alignment slack.
-        "callee_call_area_bytes": 96,
+        // Must cover the worst-case Win64 IAT call-site footprint emitted by intrinsics.
+        //
+        // Current worst-case (Tier‑1):
+        // - Win64 caller shadow space: 32B
+        // - CreateProcessA stack args: 6 * 8B = 48B (total stack arg window = 80B)
+        // - sys_win_createprocess scratch (kept in the call area so we don't depend on large
+        //   RBP-relative frames / stack probing):
+        //     STARTUPINFOA 112B (rounded up to 8B slots)
+        //     PROCESS_INFORMATION 32B (rounded up)
+        //     exit code + saved rax 16B
+        //   Scratch total: 160B
+        //
+        // Total call-area bytes needed: 80 + 160 = 240B; reserve 256B for alignment slack.
+        "callee_call_area_bytes": 256,
         // Outgoing stack args are passed as 8-byte slots; stack must be 16-byte aligned.
         "stack_arg_slot_bytes": 8,
         "stack_align_bytes": 16,

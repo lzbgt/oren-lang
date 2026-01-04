@@ -500,19 +500,8 @@ fn main() {
     // - keeps the smoke program OS-neutral (`oren_system` should work on Windows + Linux)
     var rc = oren_system("echo tier1 smoke proc ok")
     print("tier1 proc system rc=" + oren_int_to_string(rc))
-    if rc != 0 {
-        // Rolling: Windows x64 PROC spawn path is still in bring-up. Record the failure but
-        // don't fail Tier‑1 smoke on Windows so the rest of the parity surface remains gated.
-        //
-        // This keeps `x64-windows` remote gate usable while we iterate on CreateProcess wiring.
-        if g_target_os == 3 {
-            print("tier1 proc ok (skipped on windows; rc=" + oren_int_to_string(rc) + ")")
-        } else {
-            return 80
-        }
-    } else {
-        print("tier1 proc ok")
-    }
+    if rc != 0 { return 80 }
+    print("tier1 proc ok")
 
     return 0
 }
