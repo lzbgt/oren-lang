@@ -70,9 +70,33 @@ fn _intr_tmp_off(ctx, locals, idx) {
         return nil
     }
 
-    // PERF (stage2-native compiler):
-    // Avoid allocating a fresh string for `$tmp_intrN` on every intrinsic lowering.
-    // Reuse cached names from `_x64_tmp_intr_name(ctx, idx)`.
+    // Fast path: per-function intrinsic-temp pool base offset.
+    //
+    // Each slot is an 8-byte word at:
+    //   [rbp - (intr_tmp_base_off + idx*8)]
+    //
+    // Use only `iadd` here so stage1 (C runtime) doesn't pay the cost of generic `*`/`<<`.
+    if ctx != nil && ctx["intr_tmp_base_off"] != nil {
+        if idx < 0 { err(ctx, "x64 native v0: intrinsic temp idx < 0"); return nil }
+        var lim = 0
+        if ctx["intr_tmp_limit"] != nil { lim = ctx["intr_tmp_limit"] }
+        if lim != 0 && idx >= lim {
+            err(ctx, "x64 native v0: intrinsic temp idx out of range (idx=" + oren_int_to_string(idx) +
+                     " lim=" + oren_int_to_string(lim) + ")")
+            return nil
+        }
+        var base = ctx["intr_tmp_base_off"]
+        var scale = iadd(idx, idx)   // *2
+        scale = iadd(scale, scale)   // *4
+        scale = iadd(scale, scale)   // *8
+        return iadd(base, scale)
+    }
+
+    // Fallback (compat/debug): named locals `$tmp_intrN`.
+    //
+    // PERF NOTE:
+    // This path should not run for the current x64 backend, but keeping it provides
+    // a clearer error surface if some older lowering still constructs `$tmp_intrN` identifiers.
     var nm = _x64_tmp_intr_name(ctx, idx)
     var off = nil
     if locals != nil { off = locals[nm] }

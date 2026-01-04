@@ -628,6 +628,9 @@ fn _expr_int_check(ctx, expr, locals) {
     if t == "Nil" { return nil }
     if t == "String" { return nil }
     if t == "Identifier" { return nil }
+    // Compiler-internal expression node (x64 native backend):
+    // Reference an intrinsic temp slot by numeric index rather than by string name.
+    if t == "IntrTmp" { return nil }
     if t == "Function" {
         // Lambda literal in expression position.
         //

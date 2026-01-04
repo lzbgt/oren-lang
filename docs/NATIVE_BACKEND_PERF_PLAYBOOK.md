@@ -230,6 +230,32 @@ Rolling rule:
   - Example footgun: using `ptr_get_byte(...)` directly on a “string” value inside compiler code can work under the native runtime but break under stage1 if the C backend’s string representation differs.
   - Prefer portable helpers (`oren_string_len`, `strcmp`, etc.) unless the code is explicitly guarded to run only under one runtime model.
 
+### 4.6 Intrinsic temp spill slots: never materialize `$tmp_intrN` identifiers in hot paths
+
+The x64 native backend uses an **intrinsic temp pool** to safely spill values while lowering nested intrinsic calls.
+
+Perf + robustness rule (rolling):
+
+- Do **not** construct `{"type":"Identifier","value":"$tmp_intrN"}` AST nodes inside lowering helpers.
+  - It causes:
+    - per-use string allocation churn (`"$tmp_intr" + int_to_string(n)`), and
+    - per-function locals-map inserts for every intrinsic temp slot.
+
+Current contract (x64 native v0):
+
+- Intrinsic temp references must use the compiler-internal node:
+  - `{"type":"IntrTmp","idx": <int>}`
+- The function prologue reserves a contiguous spill region and records:
+  - `ctx["intr_tmp_base_off"]` (RBP-relative base offset, slot 0)
+- `_intr_tmp_off(ctx, locals, idx)` computes:
+  - `off = intr_tmp_base_off + idx*8`
+  - using `iadd` only (stage1-safe; avoids slow generic `*` / `<<` lowering in the C runtime).
+
+If you see compiler-side errors like `missing intrinsic temp slot $tmp_intr...`, it usually means:
+
+- some lowering path reintroduced `$tmp_intrN` identifiers (regression), or
+- a function codegen path forgot to set `intr_tmp_base_off` before lowering.
+
 ## 5) GC + string literal policy (perf + correctness)
 
 String literals in native output are **pooled and embedded** in the binary’s data segment (cstr0 pool).

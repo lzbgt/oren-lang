@@ -1,6 +1,6 @@
 # Active Tracker (Succinct)
 
-**Last updated:** 2026-01-04
+**Last updated:** 2026-01-05
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order.
 Recent completions live in `docs/TODOS_ARCHIVE.md` (keep this list “what’s next”, not a changelog).
@@ -48,7 +48,7 @@ Rules for this tracker:
 				       - eliminating per-instruction allocations in the x64 encoder (`lib/compiler/x64_core.oren`)
 				       - keeping capsule enforcement implementation out of the non-capsule runtime rtobj (`lib/runtime_native/035_capsule_stubs.oren`)
 				       - simplifying runtime decl hotspots to reduce stage2-native decl compile work (`oren_iter_next`, `oren_bytes_from_string_ptr`, `oren_int_to_string`), plus using `iadd`/shifts in byte loops to avoid slow generic `+`/`*` lowering (details in `docs/TODOS_ARCHIVE.md`)
-				       - Recent (2026-01-04): x64 intrinsic temp name churn reduced by caching `$tmp_intrN` names (avoid repeated `"$tmp_intr"+int_to_string(i)` allocations in call lowering), and by using cached literal spill names in array/hash literal lowering.
+					       - Recent (2026-01-05): x64 intrinsic temp spill slots are now addressed via compiler-internal `IntrTmp{idx}` nodes + a per-function base-offset reservation (`ctx["intr_tmp_base_off"]`), eliminating `$tmp_intrN` identifier strings and per-function locals-map inserts in stage2-native rtobj builds.
 				       - Recent (2026-01-04): native runtime `oren_string_from_bytes` restored a fast list-backed-buffer copy path (keeps lexer/tooling bounded); u8_buf continues to use the slice helper fast memcpy path.
 				       - Note (regression prevention): compiler-side helpers must remain portable across stage1 (C runtime) and stage2 (native runtime); avoid using `ptr_*` byte loads on “string” values unless explicitly guarded.
 				       - Next: continue shrinking the rtobj decl bucket by refactoring remaining large native-runtime helpers (recent top decls include `oren_string_from_bytes` and `oren_net_get`; prefer direct buffer access and `iadd`/shift arithmetic in loops).

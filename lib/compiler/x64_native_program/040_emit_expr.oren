@@ -265,7 +265,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         // `oren_init_static_cstr0_table` (entry stub), so per-use tracking is unnecessary here.
         return nil
     }
-    if t == "Function" {
+	    if t == "Function" {
         // Lambda literal (anonymous function) in expression position.
         //
         // Representation:
@@ -289,8 +289,10 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         // Spill slots: fnobj ptr, env ptr, tmp code ptr.
         var base = _intr_tmp_push(ctx, 2)
         if base == nil { return nil }
-        var tmp_fnobj = _intr_tmp_off(ctx, locals, base + 0)
-        var tmp_env = _intr_tmp_off(ctx, locals, base + 1)
+        var slot_fnobj = base
+        var slot_env = iadd(base, 1)
+        var tmp_fnobj = _intr_tmp_off(ctx, locals, slot_fnobj)
+        var tmp_env = _intr_tmp_off(ctx, locals, slot_env)
         if tmp_fnobj == nil || tmp_env == nil {
             _intr_tmp_pop(ctx, base)
             err(ctx, "x64 native v0: missing spill slots for lambda literal")
@@ -307,15 +309,15 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
             _emit_mov_mrbp_r64(ctx, 0 - tmp_env, 0)
-            var env_name = _x64_tmp_intr_name(ctx, iadd(base, 1))
+            var env_tmp = {"type": "IntrTmp", "idx": slot_env}
 
             // Push captured values in deterministic order.
             var i = 0
             while i < oren_list_len(caps) {
                 var cname = caps[i]
-                _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": env_name}, {"type": "Identifier", "value": cname}]}, locals)
+                _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [env_tmp, {"type": "Identifier", "value": cname}]}, locals)
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-                i = i + 1
+                i = iadd(i, 1)
             }
         }
 
@@ -343,8 +345,19 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         // Return fnobj pointer in RAX.
         _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_fnobj)
         _intr_tmp_pop(ctx, base)
-        return nil
-    }
+	        return nil
+	    }
+	    if t == "IntrTmp" {
+	        // Compiler-internal expr node: intrinsic temp slot reference.
+	        // Stored as an integer idx into the per-function intrinsic temp pool.
+	        if ctx == nil { err(ctx, "x64 native v0: IntrTmp requires ctx"); return nil }
+	        var idx = expr["idx"]
+	        if idx == nil { err(ctx, "x64 native v0: IntrTmp missing idx"); return nil }
+	        var off = _intr_tmp_off(ctx, locals, idx)
+	        if off == nil { return nil }
+	        _emit_mov_r64_mrbp(ctx, 0, 0 - off)
+	        return nil
+	    }
 		    if t == "Identifier" {
 		        var name = expr["value"]
 		        var fn_name = name

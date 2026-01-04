@@ -138,6 +138,9 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // Reset the intrinsic temp allocator for this function.
     ctx["intr_tmp_cursor"] = 0
     ctx["intr_tmp_limit"] = intr_lim
+    // Per-function intrinsic-temp spill region base offset (RBP-relative).
+    // Cleared/overwritten for each function; used by `_intr_tmp_off`.
+    ctx["intr_tmp_base_off"] = nil
 
     // Bounded debug aid: print frame sizing for one function name.
     // Example:
@@ -152,15 +155,17 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     }
 
     // Reserve a pool of spill slots used by intrinsic lowering to support nesting safely.
-    // These are distinct from `$tmp1..$tmp8` and are allocated via `_intr_tmp_push/_intr_tmp_pop`.
-    var it = 0
-    while it < intr_lim {
-        var nm_intr = _x64_tmp_intr_name(ctx, it)
-        if locals[nm_intr] != nil { err(ctx, "x64 native v0: reserved local name " + nm_intr + " used"); return nil }
-        locals[nm_intr] = local_next
-        local_next = iadd(local_next, 8)
-        it = iadd(it, 1)
-    }
+    // These slots are addressed via `IntrTmp{idx}` (not string-named locals) to avoid:
+    // - per-use `$tmp_intrN` string allocations
+    // - per-function locals-map inserts for each intrinsic temp
+    //
+    // Slots are a contiguous region of 8-byte stack words.
+    ctx["intr_tmp_base_off"] = local_next
+    var intr_bytes = intr_lim
+    intr_bytes = iadd(intr_bytes, intr_bytes) // *2
+    intr_bytes = iadd(intr_bytes, intr_bytes) // *4
+    intr_bytes = iadd(intr_bytes, intr_bytes) // *8
+    local_next = iadd(local_next, intr_bytes)
 
     // Reserve literal-building spill slots. These must be re-entrant because list/map literals
     // can be nested (e.g. `[0, 1, [0, 0]]` in for-in lowering).

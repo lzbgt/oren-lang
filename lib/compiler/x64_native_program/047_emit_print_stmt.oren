@@ -27,9 +27,12 @@ fn _emit_print_stmt_str_x64(ctx, locals, str_expr) {
     // Linux/Windows behavior unified (syscall vs WinAPI).
     var base = _intr_tmp_push(ctx, 3)
     if base == nil { return nil }
-    var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
-    var tmp_ptr = _intr_tmp_off(ctx, locals, base + 1)
-    var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
+    var slot_fd = base
+    var slot_ptr = iadd(base, 1)
+    var slot_len = iadd(base, 2)
+    var tmp_fd = _intr_tmp_off(ctx, locals, slot_fd)
+    var tmp_ptr = _intr_tmp_off(ctx, locals, slot_ptr)
+    var tmp_len = _intr_tmp_off(ctx, locals, slot_len)
     if tmp_fd == nil || tmp_ptr == nil || tmp_len == nil { _intr_tmp_pop(ctx, base); return nil }
 
     // fd=1
@@ -44,15 +47,12 @@ fn _emit_print_stmt_str_x64(ctx, locals, str_expr) {
     _emit_mov_mrbp_r64(ctx, 0 - tmp_len, 0)
 
     // sys_write(1, s, len)
-    var nm_fd = _x64_tmp_intr_name(ctx, base)
-    var nm_ptr = _x64_tmp_intr_name(ctx, iadd(base, 1))
-    var nm_len = _x64_tmp_intr_name(ctx, iadd(base, 2))
     var call_write = {
         "type": "Call",
         "fn": {"type": "Identifier", "token": nil, "value": "sys_write"},
-        "args": [{"type": "Identifier", "token": nil, "value": nm_fd},
-                 {"type": "Identifier", "token": nil, "value": nm_ptr},
-                 {"type": "Identifier", "token": nil, "value": nm_len}],
+        "args": [{"type": "IntrTmp", "idx": slot_fd},
+                 {"type": "IntrTmp", "idx": slot_ptr},
+                 {"type": "IntrTmp", "idx": slot_len}],
     }
     _emit_eval_int_to_rax(ctx, call_write, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
