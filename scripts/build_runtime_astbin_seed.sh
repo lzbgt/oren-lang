@@ -17,7 +17,7 @@ cd "$ROOT"
 
 platform=""
 compiler="./oren"
-cache_dir="${OREN_NATIVE_RUNTIME_ASTBIN_CACHE_DIR:-build/cache/native_runtime_astbin}"
+work_dir="${OREN_NATIVE_RUNTIME_ASTBIN_SEED_WORK_DIR:-build/tmp/runtime_astbin_seed_work}"
 seed_dir="${OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR:-build/cache/native_runtime_astbin_seed}"
 
 usage() {
@@ -27,7 +27,7 @@ Usage: scripts/build_runtime_astbin_seed.sh [options]
 Options:
   --platform <spec>   target platform (e.g. arm64-macos, x64-linux). Default: auto-detect host.
   --compiler <path>   compiler binary (default: ./oren, stage1 recommended)
-  --cache-dir <dir>   runtime astbin cache dir (default: build/cache/native_runtime_astbin)
+  --work-dir <dir>    temp work dir for generating astbins (default: build/tmp/runtime_astbin_seed_work)
   --seed-dir <dir>    seed dir (default: build/cache/native_runtime_astbin_seed)
   --help              show this help
 
@@ -41,7 +41,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --platform) platform="${2:-}"; shift 2 ;;
     --compiler) compiler="${2:-}"; shift 2 ;;
-    --cache-dir) cache_dir="${2:-}"; shift 2 ;;
+    --work-dir) work_dir="${2:-}"; shift 2 ;;
+    --cache-dir) work_dir="${2:-}"; shift 2 ;; # backward-compatible alias
     --seed-dir) seed_dir="${2:-}"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) echo "ERROR: unknown arg: $1" >&2; usage >&2; exit 2 ;;
@@ -80,7 +81,7 @@ if [[ ! -x "$compiler" ]]; then
   exit 2
 fi
 
-mkdir -p build/tmp build/logs "$cache_dir" "$seed_dir"
+mkdir -p build/tmp build/logs "$work_dir" "$seed_dir"
 
 extract_cache_path() {
   local log_text="$1"
@@ -100,11 +101,12 @@ build_one() {
   shift
   local out="build/tmp/astbin_seed_${name}_out"
   local log="build/logs/astbin_seed_${name}.log"
-  local cache_one="${cache_dir}/${name}"
+  local cache_one="${work_dir}/${name}"
   rm -f "$out" "$log" 2>/dev/null || true
+  rm -rf "$cache_one" 2>/dev/null || true
   mkdir -p "$cache_one"
 
-  # `--no-cache` is build-cache only; runtime astbin cache remains enabled and is written under $cache_dir.
+  # `--no-cache` is build-cache only; runtime astbin cache remains enabled and is written under $cache_one.
   local out_text
   out_text="$(
     OREN_TRACE_RUNTIME_BUNDLE=1 \
@@ -138,7 +140,7 @@ build_one() {
 echo "== runtime astbin seed ==" >&2
 echo "platform=$platform" >&2
 echo "compiler=$compiler" >&2
-echo "cache_dir=$cache_dir" >&2
+echo "work_dir=$work_dir" >&2
 echo "seed_dir=$seed_dir" >&2
 
 # Non-capsule runtime (lib/runtime_native.oren).

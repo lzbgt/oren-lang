@@ -43,7 +43,7 @@ Rules for this tracker:
 		     - scan cache persistence happens after injected-runtime hashing (so the runtime include-closure is not re-walked each build)
 		     - scan cache serialization now uses a `u8_buf` builder (no O(n²) string concatenation) (details in `docs/TODOS_ARCHIVE.md`).
 		   - Remaining (active): rtobj-miss (cold) path is still too slow in stage2-native due to runtime bundle decode + runtime decl compilation; keep pushing toward **< 10s** cold “compile one file” when caches are empty (see `docs/TODOS_ARCHIVE.md` for current measurements + profiling knobs; current is ~`15s` on arm64-macos stage2 for `examples/hello.oren` in `./scripts/bench_native_compile_one_file.sh --no-debug` run-1 (isolated rtobj dir; seed disabled)).
-		     - Capsule note (active): if the runtime astbin cache for `lib/runtime_native_capsule.oren` is missing, stage2-native may spend ~`20s+` just parsing the expanded capsule runtime once to regenerate `*_pruned3.astbin` (bounded but too slow for “first capsule build” UX). Consider seeding capsule runtime astbin/rtobj (or reducing capsule runtime surface) so cold `--capsule` builds stay under the default 10s per-build timeout.
+		     - Capsule note (resolved): stage2-native “cold parse” of `lib/runtime_native_capsule.oren` can be tens of seconds if the runtime astbin cache is empty; this is now mitigated by the runtime-astbin seed (`make astbin-seed`, `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR`) so cold capsule builds can stay under the default 10s timeout in typical dev setups.
 		     - Current miss breakdown (arm64-macos; stage2; `OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1`, seed disabled):
 		       - runtime astbin decode/parse: ~`2.1s` total (astbin v2 decode ~`1.3s`)
 		       - runtime decl compile: ~`7.0s`
