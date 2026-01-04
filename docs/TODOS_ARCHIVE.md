@@ -1468,6 +1468,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - 2026-01-04: Fixed a stage1↔stage2 rtobj cache compatibility bug where stage2 could reject stage1-generated rtobj entries and rebuild the runtime object (timing out `make verify-native-x64-compile`).
   - Key parsing and meta matching now avoid runtime-dependent string equality and avoid allocating substrings in hot cache paths.
   - Sentinel validation no longer depends on runtime decl presence (e.g. `_map_hash_empty`), which can legitimately vary under pruning/DCE.
+- 2026-01-04: Native emitters now pass an explicit `arch` in the backend `platform` map (`arm64`/`x64`), so rtobj cache keys avoid `_a_unknown` and are more collision-resistant across targets.
 - 2026-01-04: x64 PE/ELF fixup patching now uses a fast `bytes_set_u32_le` path (single bounds check + raw stores), bringing `scripts/verify_native_x64_compile_only.sh` stage2 `x64-windows` under the default 10s timeout on the primary dev host.
 - 2026-01-04: Fixed a Tier‑1 cross‑arch bring‑up crash: arm64-linux native binaries could segfault during early `native_runtime_init` because the `malloc_raw` intrinsic could return invalid pointers on that target.
   - Added `lib/runtime_native/015_raw_alloc.oren` with `native_malloc_raw_or_mmap(size)` (validates `malloc_raw`, falls back to `sys_mmap_private_anon`).
