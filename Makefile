@@ -200,7 +200,9 @@ oren_stage2: oren $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 # Aliases
 bootstrap: oren_bootstrap
 stage1: oren
-stage2: oren_stage2
+# `make stage2` is the primary rolling path; keep it fast on first-run by also ensuring
+# a rtobj seed exists (best-effort, cheap copy).
+stage2: oren_stage2 rtobj-seed
 
 # Generate/update rtobj seed for the host platform (best-effort).
 # This keeps first-run stage2-native builds fast even when the active rtobj cache dir is empty.
