@@ -78,10 +78,9 @@ Rules for this tracker:
 	         - Also hardened `scripts/verify_native_matrix.sh` to propagate remote exit codes and assert Tier‑1 output markers (prevents silent early-exit false positives).
 	         - Details: `docs/TODOS_ARCHIVE.md`.
 				     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
-				       - (perf) Converge x64 wrapper synthesis with arm64:
-				         - stop eagerly synthesizing `__oren_fnwrap_*` for every named user function
-				         - rely on `fnwrap_needed` (and/or an AST scan) so only functions actually used as values pay wrapper cost
-				         - keep the stage2-native compiler build under the <3min budget as function count scales
+				       - Fixed (2026-01-04): x64 no longer eagerly synthesizes `__oren_fnwrap_*` for every named user function.
+				         - Now uses `fnwrap_needed` to synthesize/compile fnwraps only when a function is used as a value (also works for runtime functions, including rtobj mode).
+				         - Bumped x64 rtobj backend sig to invalidate cached runtime objects after wrapper emission strategy changes.
 					     - (performance) stage2-native runtime bundle cost remains high; keep iterating toward:
 			       - default: hashed runtime AST cache under `build/cache/native_runtime_astbin/` (disable via `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0`)
 		       - default (Tier‑1 throughput): cached compiled runtime object under `build/cache/native_runtime_obj/` (disable via `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`)
