@@ -30,11 +30,15 @@ fn _emit_array_literal_expr(ctx, expr, locals) {
     var d0 = _lit_enter(ctx)
     if d0 == nil { return nil }
 
+    // PERF (stage2-native compiler):
+    // Avoid allocating `"$tmp_lit_list_hdr" + int_to_string(d0)` in hot literal lowering.
+    // `080_functions_compile.oren` pre-populates the name list on `ctx`.
     var hn = "$tmp_lit_list_hdr" + oren_int_to_string(d0)
-    var bn = "$tmp_lit_list_buf" + oren_int_to_string(d0)
+    if ctx != nil && ctx["__x64_tmp_lit_list_hdr_names"] != nil {
+        hn = oren_list_get(ctx["__x64_tmp_lit_list_hdr_names"], d0)
+    }
     var tmp_hdr = locals[hn]
-    var tmp_buf = locals[bn]
-    if tmp_hdr == nil || tmp_buf == nil {
+    if tmp_hdr == nil {
         _lit_exit(ctx, d0)
         err(ctx, "x64 native v0: missing literal spill slots for array literal")
         return nil
@@ -92,7 +96,12 @@ fn _emit_hash_literal_expr(ctx, expr, locals) {
     var d0 = _lit_enter(ctx)
     if d0 == nil { return nil }
 
+    // PERF (stage2-native compiler):
+    // Same as list literals: use cached header temp names when available.
     var hn = "$tmp_lit_map_hdr" + oren_int_to_string(d0)
+    if ctx != nil && ctx["__x64_tmp_lit_map_hdr_names"] != nil {
+        hn = oren_list_get(ctx["__x64_tmp_lit_map_hdr_names"], d0)
+    }
     var tmp_hdr = locals[hn]
     if tmp_hdr == nil {
         _lit_exit(ctx, d0)

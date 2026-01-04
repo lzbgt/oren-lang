@@ -44,9 +44,9 @@ fn _emit_print_stmt_str_x64(ctx, locals, str_expr) {
     _emit_mov_mrbp_r64(ctx, 0 - tmp_len, 0)
 
     // sys_write(1, s, len)
-    var nm_fd = "$tmp_intr" + oren_int_to_string(base + 0)
-    var nm_ptr = "$tmp_intr" + oren_int_to_string(base + 1)
-    var nm_len = "$tmp_intr" + oren_int_to_string(base + 2)
+    var nm_fd = _x64_tmp_intr_name(ctx, base)
+    var nm_ptr = _x64_tmp_intr_name(ctx, iadd(base, 1))
+    var nm_len = _x64_tmp_intr_name(ctx, iadd(base, 2))
     var call_write = {
         "type": "Call",
         "fn": {"type": "Identifier", "token": nil, "value": "sys_write"},

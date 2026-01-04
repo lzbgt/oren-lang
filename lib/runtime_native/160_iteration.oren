@@ -222,38 +222,44 @@ fn oren_bytes_from_string(s) {
     return oren_bytes_from_string_ptr(s)
 }
 
-// Build a string (NUL-terminated) from a list<int 0..255>.
+// Build a string (NUL-terminated) from a byte container.
 // This is the inverse of `oren_bytes_from_string(...)` in other backends.
 fn oren_string_from_bytes(bytes) {
     if bytes == 0 { return 0 }
 
-    // PERF (native backend + compiler workloads):
-    // Avoid per-element `oren_list_get` calls (each does `oren_find_node` checks + bounds checks).
-    // We already validate `bytes` once and then read the backing buffer directly.
-    var node = oren_find_node(bytes)
-    if node == 0 { oren_panic("string_from_bytes on non-list"); return 0 }
-    if ptr_get(iadd(node, 16)) != 2 { oren_panic("string_from_bytes on non-list"); return 0 }
-    if ptr_get(iadd(bytes, 24)) != list_magic() { oren_panic("string_from_bytes on non-list"); return 0 }
+    // Fast path: list<int 0..255> can be copied directly from its backing buffer.
+    // Avoids per-byte helper calls (critical for lexing/tooling performance).
+    if native_bytes_is_list(bytes) == true {
+        var n = ptr_get(bytes + 0)
+        if n < 0 { return 0 }
+        var buf = ptr_get(bytes + 16)
+        if buf == 0 { return 0 }
 
-    var n = ptr_get(iadd(bytes, 0))
-    if n < 0 { return 0 }
-    var buf = ptr_get(iadd(bytes, 16))
+        var out = 0
+        if bytes_untracked_strings_enabled() == 0 {
+            out = malloc_k(n + 1, 1)
+        } else {
+            out = malloc(n + 1)
+        }
+        if out == 0 { return 0 }
 
-    var out = malloc(iadd(n, 1))
-    if out == 0 { return 0 }
-
-    var i = 0
-    while i < n {
-        // Contract: `bytes` is list<int 0..255>. Keep the runtime path compact and fast;
-        // treat each element as a byte by masking to 8 bits (matches typical byte semantics).
-        var b = ptr_get(iadd(buf, i << 3)) & 255
-        ptr_set_byte(iadd(out, i), b)
-        i = iadd(i, 1)
+        var i = 0
+        while i < n {
+            // List elements are stored as 8-byte slots; treat each as a byte by masking to 8 bits.
+            var b = ptr_get(buf + (i << 3)) & 255
+            ptr_set_byte(out + i, b)
+            i = iadd(i, 1)
+        }
+        ptr_set_byte(out + n, 0)
+        return out
     }
 
-    ptr_set_byte(iadd(out, n), 0)
-    oren_track_alloc(out, iadd(n, 1), 1) // 1=STRING
-    return out
+    // Generic path: u8_buf (and future byte containers) route through the slice helper.
+    var total = oren_bytes_len(bytes)
+    if oren_is_err(total) == 1 { return 0 }
+    var out2 = oren_string_from_bytes_slice(bytes, 0, total)
+    if oren_is_err(out2) == 1 { return 0 }
+    return out2
 }
 
 fn string_concat(a, b) {

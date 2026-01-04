@@ -4,6 +4,27 @@ fn _extract_functions_v0(ctx, linked) {
     return coreir.collect_top_level_functions(ctx, linked, "x64 native v0")
 }
 
+fn _x64_tmp_names_init(ctx) {
+    if ctx == nil { return nil }
+    if ctx["__x64_tmp_names"] != nil { return nil }
+
+    // Keep these as string literals to avoid per-function string allocation churn.
+    ctx["__x64_tmp_names"] = [
+        "$tmp1", "$tmp2", "$tmp3", "$tmp4", "$tmp5", "$tmp6", "$tmp7", "$tmp8"
+    ]
+
+    // Literal spill names are fixed small sets; keep them as literals too.
+    ctx["__x64_tmp_lit_list_hdr_names"] = [
+        "$tmp_lit_list_hdr0", "$tmp_lit_list_hdr1", "$tmp_lit_list_hdr2", "$tmp_lit_list_hdr3",
+        "$tmp_lit_list_hdr4", "$tmp_lit_list_hdr5", "$tmp_lit_list_hdr6", "$tmp_lit_list_hdr7"
+    ]
+    ctx["__x64_tmp_lit_map_hdr_names"] = [
+        "$tmp_lit_map_hdr0", "$tmp_lit_map_hdr1", "$tmp_lit_map_hdr2", "$tmp_lit_map_hdr3",
+        "$tmp_lit_map_hdr4", "$tmp_lit_map_hdr5", "$tmp_lit_map_hdr6", "$tmp_lit_map_hdr7"
+    ]
+    return nil
+}
+
 fn _compile_function_v0(ctx, fn_node, platform) {
     if fn_node == nil { return nil }
     var name = fn_node["name"]
@@ -87,9 +108,11 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // Reserve additional general-purpose spill slots used by x64 intrinsics.
     // These are intentionally generic so future intrinsic lowering doesn't need to keep
     // growing the reserved namespace (keeps ABI stable while the backend evolves).
+    _x64_tmp_names_init(ctx)
+    var tmp_names = ctx["__x64_tmp_names"]
     var ti = 1
     while ti <= 8 {
-        var tnm = "$tmp" + oren_int_to_string(ti)
+        var tnm = oren_list_get(tmp_names, ti - 1)
         if locals[tnm] != nil { err(ctx, "x64 native v0: reserved local name " + tnm + " used"); return nil }
         locals[tnm] = local_next
         local_next = local_next + 8
@@ -116,15 +139,27 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     ctx["intr_tmp_cursor"] = 0
     ctx["intr_tmp_limit"] = intr_lim
 
+    // Bounded debug aid: print frame sizing for one function name.
+    // Example:
+    //   OREN_TRACE_X64_FN_FRAME=oren_string_from_bytes OREN_TRACE_X64_RT_OBJ_TOP_DECLS=1 ...
+    var want_frame = oren_env("OREN_TRACE_X64_FN_FRAME")
+    if want_frame != nil && want_frame != "" && want_frame == name {
+        print("[x64_fn] name=" + name +
+                  " max_call_argc=" + oren_int_to_string(max_call_argc) +
+                  " max_intr=" + oren_int_to_string(max_intr) +
+                  " intr_lim=" + oren_int_to_string(intr_lim) +
+                  " locals_pre_align_bytes=" + oren_int_to_string(local_next - 8))
+    }
+
     // Reserve a pool of spill slots used by intrinsic lowering to support nesting safely.
     // These are distinct from `$tmp1..$tmp8` and are allocated via `_intr_tmp_push/_intr_tmp_pop`.
     var it = 0
     while it < intr_lim {
-        var nm_intr = "$tmp_intr" + oren_int_to_string(it)
+        var nm_intr = _x64_tmp_intr_name(ctx, it)
         if locals[nm_intr] != nil { err(ctx, "x64 native v0: reserved local name " + nm_intr + " used"); return nil }
         locals[nm_intr] = local_next
-        local_next = local_next + 8
-        it = it + 1
+        local_next = iadd(local_next, 8)
+        it = iadd(it, 1)
     }
 
     // Reserve literal-building spill slots. These must be re-entrant because list/map literals
@@ -134,22 +169,14 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // those across nested expression evaluation. Dedicated `$tmp_lit_*` slots avoid clobbering.
     var ld = 0
     while ld < 8 {
-        var hn1 = "$tmp_lit_list_hdr" + oren_int_to_string(ld)
-        var bn1 = "$tmp_lit_list_buf" + oren_int_to_string(ld)
+        var hn1 = oren_list_get(ctx["__x64_tmp_lit_list_hdr_names"], ld)
         if locals[hn1] != nil { err(ctx, "x64 native v0: reserved local name " + hn1 + " used"); return nil }
         locals[hn1] = local_next
         local_next = local_next + 8
-        if locals[bn1] != nil { err(ctx, "x64 native v0: reserved local name " + bn1 + " used"); return nil }
-        locals[bn1] = local_next
-        local_next = local_next + 8
 
-        var hn2 = "$tmp_lit_map_hdr" + oren_int_to_string(ld)
-        var bn2 = "$tmp_lit_map_buf" + oren_int_to_string(ld)
+        var hn2 = oren_list_get(ctx["__x64_tmp_lit_map_hdr_names"], ld)
         if locals[hn2] != nil { err(ctx, "x64 native v0: reserved local name " + hn2 + " used"); return nil }
         locals[hn2] = local_next
-        local_next = local_next + 8
-        if locals[bn2] != nil { err(ctx, "x64 native v0: reserved local name " + bn2 + " used"); return nil }
-        locals[bn2] = local_next
         local_next = local_next + 8
         ld = ld + 1
     }

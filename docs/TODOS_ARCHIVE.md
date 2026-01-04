@@ -15,7 +15,9 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `oren_int_to_string` correctness + perf hygiene:
     - fixed INT64_MIN handling by staying in the negative domain (no `n = -n` overflow)
     - avoid generic `*` lowering for `q*10` via `(q<<3)+(q<<1)`.
-  - `oren_string_from_bytes` now uses direct list-buffer reads (single `oren_find_node` validation) and treats each element as a byte via `& 255` to keep the loop compact.
+  - `oren_string_from_bytes` uses direct list-backed-buffer reads (treat each element as a byte via `& 255`) and allocates as a tracked STRING in one step (`malloc_k`) when tracking is enabled (keeps lexer/tooling bounded).
+  - x86_64 native: cached `$tmp_intrN` names via `_x64_tmp_intr_name(ctx, idx)` to avoid repeated `"$tmp_intr"+int_to_string(i)` allocations in call lowering during rtobj builds.
+    - Note (portability): compiler-side helpers must remain stage1-safe; avoid `ptr_*` byte reads on “string” values unless explicitly guarded to run only under the native runtime model.
   - Windows-only CreateProcessA helpers no longer compile into non-Windows runtime objects:
     - `lib/runtime_native/260_threads.oren` wraps the helper suite in a top-level `if g_target_os == 3 { ... }` block,
     - `lib/compiler/native_platform_prune.oren` now splices prunable top-level `if g_target_os ...` blocks into the top-level statement list (so the runtime bundle stays “no top-level executable code” after pruning).

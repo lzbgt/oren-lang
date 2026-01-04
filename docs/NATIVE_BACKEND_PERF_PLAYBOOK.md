@@ -217,6 +217,19 @@ Policy (rolling):
 - The runtime include-closure hash should be **milliseconds** on a warm cache (`build/cache/scan_cache_v3.txt`).
 - If you need an emergency bypass while diagnosing, use `--no-cache` (but treat a multi-second cache-key as a bug to fix, not a “flag to keep”).
 
+### 4.5 Compiler code must remain cross-runtime portable (stage1 vs stage2)
+
+The compiler implementation is executed in multiple runtime modes:
+
+- **Stage1** typically runs under the **C backend runtime**.
+- **Stage2** runs under the **native runtime**.
+
+Rolling rule:
+
+- Avoid assuming a specific low-level value layout in compiler-side helpers (especially for strings).
+  - Example footgun: using `ptr_get_byte(...)` directly on a “string” value inside compiler code can work under the native runtime but break under stage1 if the C backend’s string representation differs.
+  - Prefer portable helpers (`oren_string_len`, `strcmp`, etc.) unless the code is explicitly guarded to run only under one runtime model.
+
 ## 5) GC + string literal policy (perf + correctness)
 
 String literals in native output are **pooled and embedded** in the binary’s data segment (cstr0 pool).

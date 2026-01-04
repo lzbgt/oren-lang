@@ -307,7 +307,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
             _emit_mov_mrbp_r64(ctx, 0 - tmp_env, 0)
-            var env_name = "$tmp_intr" + oren_int_to_string(base + 1)
+            var env_name = _x64_tmp_intr_name(ctx, iadd(base, 1))
 
             // Push captured values in deterministic order.
             var i = 0
@@ -345,19 +345,20 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         _intr_tmp_pop(ctx, base)
         return nil
     }
-	    if t == "Identifier" {
-	        var name = expr["value"]
-	        var fn_name = name
-	        var off = locals[name]
-	        if off != nil {
-	            // Load full 64-bit slot so function pointers round-trip correctly.
-	            _emit_mov_r64_mrbp(ctx, 0, 0 - off)
-	            return nil
-	        }
+		    if t == "Identifier" {
+		        var name = expr["value"]
+		        var fn_name = name
+		        var off = nil
+		        if locals != nil { off = locals[name] }
+		        if off != nil {
+		            // Load full 64-bit slot so function pointers round-trip correctly.
+		            _emit_mov_r64_mrbp(ctx, 0, 0 - off)
+		            return nil
+		        }
 
-        // Global var (top-level `var`) => load from the appended data blob.
-        //
-        // Precedence rule (rolling): locals > globals > named functions-as-values.
+		        // Global var (top-level `var`) => load from the appended data blob.
+		        //
+		        // Precedence rule (rolling): locals > globals > named functions-as-values.
         var goff_enc = nil
         if ctx["globals"] != nil { goff_enc = ctx["globals"][name] }
         if goff_enc != nil {

@@ -122,12 +122,12 @@ fn _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, fn_obj_expr, arg
     _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - fixed_off, 0)
-    var fixed_name = "$tmp_intr" + oren_int_to_string(fixed_slot)
+    var fixed_name = _x64_tmp_intr_name(ctx, fixed_slot)
 
     // Push explicit args into fixed_list.
     var j = 0
     while j < argc {
-        var arg_name = "$tmp_intr" + oren_int_to_string(base + j)
+        var arg_name = _x64_tmp_intr_name(ctx, iadd(base, j))
         _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": fixed_name}, {"type": "Identifier", "value": arg_name}]}, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
         j = j + 1
@@ -137,13 +137,13 @@ fn _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, fn_obj_expr, arg
     _emit_eval_int_to_rax(ctx, spread, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - spread_off, 0)
-    var spread_name = "$tmp_intr" + oren_int_to_string(spread_slot)
+    var spread_name = _x64_tmp_intr_name(ctx, spread_slot)
 
     // Spill fn_obj.
     _emit_eval_int_to_rax(ctx, fn_obj_expr, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - fn_off, 0)
-    var fn_name = "$tmp_intr" + oren_int_to_string(fn_slot)
+    var fn_name = _x64_tmp_intr_name(ctx, fn_slot)
 
     // Call runtime helper: oren_call_obj_spread(fn_obj, fixed_args, spread_list)
     _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_call_obj_spread"}, "args": [{"type": "Identifier", "value": fn_name}, {"type": "Identifier", "value": fixed_name}, {"type": "Identifier", "value": spread_name}]}, locals)
@@ -202,7 +202,7 @@ fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
     var args_slot = base + argc
     var args_off = _intr_tmp_off(ctx, locals, args_slot)
     if args_off == nil { _intr_tmp_pop(ctx, base); return nil }
-    var args_name = "$tmp_intr" + oren_int_to_string(args_slot)
+    var args_name = _x64_tmp_intr_name(ctx, args_slot)
 
     // Spill callee fnobj value (can be an arbitrary expression).
     var callee_slot = base + argc + 1
@@ -221,7 +221,7 @@ fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
     // Push explicit args in order.
     var k0 = 0
     while k0 < argc {
-        var arg_name0 = "$tmp_intr" + oren_int_to_string(base + k0)
+        var arg_name0 = _x64_tmp_intr_name(ctx, iadd(base, k0))
         _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": arg_name0}]}, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
         k0 = k0 + 1
@@ -330,7 +330,7 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
     var args_slot = base + argc
     var args_off = _intr_tmp_off(ctx, locals, args_slot)
     if args_off == nil { _intr_tmp_pop(ctx, base); return nil }
-    var args_name = "$tmp_intr" + oren_int_to_string(args_slot)
+    var args_name = _x64_tmp_intr_name(ctx, args_slot)
 
     // Build args_list.
     if has_spread {
@@ -342,7 +342,7 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
         // Push explicit args.
         var j = 0
         while j < argc {
-            var arg_name = "$tmp_intr" + oren_int_to_string(base + j)
+            var arg_name = _x64_tmp_intr_name(ctx, iadd(base, j))
             _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": arg_name}]}, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
             j = j + 1
@@ -366,7 +366,7 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
         _emit_eval_int_to_rax(ctx, spread, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
         _emit_mov_mrbp_r64(ctx, 0 - spread_off, 0)
-        var spread_name = "$tmp_intr" + oren_int_to_string(spread_slot)
+        var spread_name = _x64_tmp_intr_name(ctx, spread_slot)
 
         // len = oren_list_len(spread)
         _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_len"}, "args": [{"type": "Identifier", "value": spread_name}]}, locals)
@@ -377,8 +377,8 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
         bytes_extend(ctx["code"], insn_cdqe())
         _emit_mov_mrbp_r64(ctx, 0 - idx_off, 0)
-        var idx_name = "$tmp_intr" + oren_int_to_string(idx_slot)
-        var elem_name = "$tmp_intr" + oren_int_to_string(elem_slot)
+        var idx_name = _x64_tmp_intr_name(ctx, idx_slot)
+        var elem_name = _x64_tmp_intr_name(ctx, elem_slot)
 
         var labels = {}
         var fixups = []
@@ -417,7 +417,7 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
         // Push args into args_list in order.
         var j2 = 0
         while j2 < argc {
-            var arg_name2 = "$tmp_intr" + oren_int_to_string(base + j2)
+            var arg_name2 = _x64_tmp_intr_name(ctx, iadd(base, j2))
             _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": arg_name2}]}, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
             j2 = j2 + 1
@@ -432,7 +432,7 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
     _emit_eval_int_to_rax(ctx, fn_expr, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - fn_off, 0)
-    var fn_name = "$tmp_intr" + oren_int_to_string(fn_slot)
+    var fn_name = _x64_tmp_intr_name(ctx, fn_slot)
 
     if is_windows {
         // Windows Tier-1: lower `spawn` to CreateThread(...) using syscall intrinsics.
@@ -506,7 +506,7 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
         _emit_mov_mrbp_r64(ctx, 0 - off_start, 0)
 
         // thread_handle = sys_win_createthread(start_ptr, arg_ptr)
-        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "sys_win_createthread"}, "args": [{"type": "Identifier", "value": "$tmp_intr" + oren_int_to_string(slot_start)}, {"type": "Identifier", "value": "$tmp_intr" + oren_int_to_string(slot_arg)}]}, locals)
+        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "sys_win_createthread"}, "args": [{"type": "Identifier", "value": _x64_tmp_intr_name(ctx, slot_start)}, {"type": "Identifier", "value": _x64_tmp_intr_name(ctx, slot_arg)}]}, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
         _emit_mov_mrbp_r64(ctx, 0 - off_handle, 0)
 
@@ -581,12 +581,12 @@ fn _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args) {
     _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": oren_int_to_string(argc)}]}, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - args_off, 0)
-    var args_name = "$tmp_intr" + oren_int_to_string(args_slot)
+    var args_name = _x64_tmp_intr_name(ctx, args_slot)
 
     // Push args into args_list in order.
     var j = 0
     while j < argc {
-        var arg_name = "$tmp_intr" + oren_int_to_string(base + j)
+        var arg_name = _x64_tmp_intr_name(ctx, iadd(base, j))
         _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": args_name}, {"type": "Identifier", "value": arg_name}]}, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
         j = j + 1
@@ -596,7 +596,7 @@ fn _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args) {
     _emit_eval_int_to_rax(ctx, {"type": "Identifier", "value": nm}, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - fn_off, 0)
-    var fn_name = "$tmp_intr" + oren_int_to_string(fn_slot)
+    var fn_name = _x64_tmp_intr_name(ctx, fn_slot)
 
     // Inline-call: oren_call_obj_list(fn_obj, args_list)
     _emit_intrinsic_oren_call_obj_list_x64(ctx, locals, {"type": "Identifier", "value": fn_name}, {"type": "Identifier", "value": args_name})
@@ -746,8 +746,8 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         // push extra args into rest_list
         var j2 = fixed2
         while j2 < argc {
-            var rest_name = "$tmp_intr" + oren_int_to_string(rest_idx)
-            var arg_name = "$tmp_intr" + oren_int_to_string(base2 + j2)
+            var rest_name = _x64_tmp_intr_name(ctx, rest_idx)
+            var arg_name = _x64_tmp_intr_name(ctx, iadd(base2, j2))
             _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [{"type": "Identifier", "value": rest_name}, {"type": "Identifier", "value": arg_name}]}, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
             j2 = j2 + 1
