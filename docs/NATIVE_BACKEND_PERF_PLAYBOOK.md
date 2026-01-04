@@ -34,10 +34,15 @@ OREN_NATIVE_BUILD_TIMEOUT_SECS=60 \
   OREN_TRACE_RUNTIME_BUNDLE=1 \
   OREN_TRACE_RUNTIME_OS_PRUNE=1 \
   OREN_TRACE_RUNTIME_OBJ_CACHE=1 \
-  OREN_TRACE_ASTBIN=1 \
-  OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1 \
-  ./scripts/bench_native_compile_one_file.sh --no-debug
+	  OREN_TRACE_ASTBIN=1 \
+	  OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1 \
+	  ./scripts/bench_native_compile_one_file.sh --no-debug
 ```
+
+Notes on the tracers:
+
+- `OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1` prints a **single-line breakdown** of the rtobj build (parse/decode, decl compile, finalize, counts/bytes).
+  - Use it to decide whether to optimize astbin decode vs runtime decl compilation.
 
 ### 2.2 Cross-arch sanity (native backend)
 
