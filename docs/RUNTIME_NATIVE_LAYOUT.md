@@ -28,6 +28,23 @@ translation unit, but stays maintainable in source form.
 2) Add a corresponding include line to `lib/runtime_native.oren`.
 3) Run `make test-native-all` (or at least `make test-native-quick`) to ensure include expansion and runtime behavior stay green.
 
+## Early-init guardrails (must stay robust cross‑OS)
+
+The native runtime runs during **program entry** before any user code. In rolling mode, assume:
+
+- global initializers may not reliably run before `native_runtime_init`
+- some “fast path” intrinsics may temporarily be buggy on new targets
+
+Hard rule: early-init code must not segfault just because a raw allocator returns garbage.
+
+Implementation guardrail:
+
+- `lib/runtime_native/015_raw_alloc.oren` defines `native_malloc_raw_or_mmap(size)`.
+  - It validates the native-backend `malloc_raw` intrinsic result.
+  - If invalid, it falls back to `sys_mmap_private_anon`.
+  - `native_runtime_init` and envp construction use this helper so `scripts/verify_native_matrix.sh --targets arm64-linux`
+    can compile+run artifacts in the Linux container reliably.
+
 ## Oren-owned stable ABIs (recommended)
 
 Some low-level “syscall-first” APIs expose raw buffers for performance. In rolling mode we prefer an
@@ -46,3 +63,16 @@ Current example:
   - string concatenation: use `+` rather than `string_concat(...)` chains
   - list operations: use container method sugar where possible
 - Do not edit generated `.c` artifacts (they are build outputs / debug aids).
+
+## Embedded string literals (constant pool)
+
+Native-backend string literals are intentionally treated as **static data**, not GC heap objects:
+
+- The code generator de-duplicates string-literal bytes into a `cstr0` pool in the appended data blob.
+- The program entry stub calls `oren_init_static_cstr0_table(table_ptr)` once at startup to register all embedded literals
+  as **static-kind STRING** for safe container ops (maps infer key kind from `oren_find_node(ptr).kind`).
+- The GC mark path (`oren_mark_value`) explicitly skips static-kind strings (size=0) so literals do not inflate GC roots or
+  participate in mark/sweep.
+
+The quick native integration fixture asserts these properties:
+- `tests/native/test_quick_integration_native.oren` (`test_string_literals_static`).

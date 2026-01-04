@@ -932,50 +932,8 @@ fn release_lock() {
     return 0
 }
 
-fn malloc_raw(size) { return 0 }
-
-// --- Raw allocator fallback (native backend rolling robustness) ---
-//
-// `malloc_raw` is an intrinsic provided by the native backend. It is used for runtime metadata
-// (alloc tracking nodes, root nodes, alloc index tables, thread nodes) that must NOT be tracked
-// by the mark/sweep GC.
-//
-// Rolling robustness rule:
-// - If `malloc_raw` returns an invalid pointer (0, negative, or too small to be a real pointer),
-//   fall back to a syscall-first anonymous mmap via `sys_mmap_private_anon`.
-//
-// This keeps Tier‑1 native tests actionable even while the intrinsic allocator path is still rolling.
-fn native_is_neg_i64(x) {
-    // Signed negativity predicate for syscall-first code paths that return -errno.
-    // NOTE: keep this as a simple top-level helper (no nested fns) while closures are still rolling.
-    return x < 0
-}
-
-fn native_abort(msg) {
-    // Fail-fast helper that avoids heap allocation (safe even if allocator is corrupted).
-    if msg != 0 {
-        sys_write(2, msg, oren_string_len(msg))
-    }
-    exit(199)
-    return 0
-}
-
-fn native_malloc_raw_or_mmap(size) {
-    var p = malloc_raw(size)
-    if p == -1 { native_abort("native_malloc_raw_or_mmap: malloc_raw returned -1\n") }
-    if p != 0 {
-        if native_is_neg_i64(p) == false {
-            if p >= 4096 { return p }
-        }
-    }
-
-    var q = sys_mmap_private_anon(size)
-    if q == 0 { return 0 }
-    if q == -1 { native_abort("native_malloc_raw_or_mmap: sys_mmap_private_anon returned -1\n") }
-    if native_is_neg_i64(q) == true { return 0 }
-    if q < 4096 { return 0 }
-    return q
-}
+// NOTE: `malloc_raw` and the `native_malloc_raw_or_mmap` fallback live in
+// `lib/runtime_native/015_raw_alloc.oren` so early init code can safely use them.
 
 @oren.keep
 fn oren_track_alloc(ptr, size, kind) {

@@ -161,9 +161,12 @@ fn native_runtime_init(target_os) {
 
     // Reserve room for current globals + some growth slack (rolling ABI).
     //
-    // IMPORTANT: allocate globals storage with malloc_raw so it is NOT tracked by GC.
+    // IMPORTANT: allocate globals storage with a raw allocator so it is NOT tracked by GC.
     // This is runtime metadata and must never be reclaimed by mark/sweep.
-    g_storage = malloc_raw(GLOBAL_SLOTS_RESERVED * GLOBAL_SLOT_BYTES)
+    //
+    // Rolling robustness: use `native_malloc_raw_or_mmap` (mmap fallback) so bring-up on new
+    // targets cannot crash the process if `malloc_raw` returns an invalid pointer.
+    g_storage = native_malloc_raw_or_mmap(GLOBAL_SLOTS_RESERVED * GLOBAL_SLOT_BYTES)
     if g_storage == 0 { exit(301) }
     
     // Zero it
@@ -202,7 +205,7 @@ fn native_runtime_init(target_os) {
     //   via raw `sys_*` NET syscalls in capsule mode.
     // - Allocation uses malloc_raw so GC never reclaims it.
     var max_fds = 4096
-    var caps = malloc_raw(max_fds)
+    var caps = native_malloc_raw_or_mmap(max_fds)
     if caps == 0 { exit(302) }
     var zi = 0
     while zi < max_fds {
@@ -229,8 +232,8 @@ fn native_runtime_init(target_os) {
     //     1 => tombstone
     // - vals is a byte-per-entry kind.
     var map_cap = 16384
-    var keys = malloc_raw(map_cap * 8)
-    var vals = malloc_raw(map_cap)
+    var keys = native_malloc_raw_or_mmap(map_cap * 8)
+    var vals = native_malloc_raw_or_mmap(map_cap)
     if keys == 0 || vals == 0 { exit(303) }
     zi = 0
     while zi < map_cap {
@@ -249,7 +252,7 @@ fn native_runtime_init(target_os) {
     // Tracks subprocess pids created by syscall-first spawn so raw sys_wait4/sys_kill
     // cannot target arbitrary host processes in capsule mode.
     var pid_cap = 1024
-    var ptab = malloc_raw(pid_cap * 8)
+    var ptab = native_malloc_raw_or_mmap(pid_cap * 8)
     if ptab == 0 { exit(304) }
     zi = 0
     while zi < pid_cap {

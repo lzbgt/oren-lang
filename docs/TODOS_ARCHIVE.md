@@ -1396,3 +1396,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - 2026-01-04: Stage1 C runtime `ptr_get/ptr_set` now use `memcpy` for 64-bit loads/stores to avoid UB on unaligned addresses (arm64 correctness; used by compiler hot paths).
 - 2026-01-04: Runtime-object cache load now has a cheap sentinel integrity check (and opt-in full validation) so corrupted/stale rtobj meta becomes a cache miss (rebuild) instead of a stage1 panic during x64 codegen.
 - 2026-01-04: x64 PE/ELF fixup patching now uses a fast `bytes_set_u32_le` path (single bounds check + raw stores), bringing `scripts/verify_native_x64_compile_only.sh` stage2 `x64-windows` under the default 10s timeout on the primary dev host.
+- 2026-01-04: Fixed a Tier‑1 cross‑arch bring‑up crash: arm64-linux native binaries could segfault during early `native_runtime_init` because the `malloc_raw` intrinsic could return invalid pointers on that target.
+  - Added `lib/runtime_native/015_raw_alloc.oren` with `native_malloc_raw_or_mmap(size)` (validates `malloc_raw`, falls back to `sys_mmap_private_anon`).
+  - Switched early raw allocations in `native_runtime_init` and Win envp construction to use the validated raw allocator.
+  - Result: `scripts/verify_native_matrix.sh --targets local,arm64-linux` now builds and runs stage1 + stage2 artifacts in the Linux/arm64 container without crashing.

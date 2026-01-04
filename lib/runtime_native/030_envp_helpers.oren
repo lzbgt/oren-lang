@@ -1,13 +1,3 @@
-fn native_cstr_len(s) {
-    if s == 0 { return 0 }
-    var n = 0
-    while n < 65536 {
-        if ptr_get_byte(iadd(s, n)) == 0 { return n }
-        n = n + 1
-    }
-    return 65536
-}
-
 fn native_envp_get_value_ptr(key_cstr) {
     // Low-level envp scanner for early init and capsule enforcement.
     // Returns pointer to value substring for KEY in envp ("KEY=VALUE"), or 0 if not found.
@@ -199,14 +189,12 @@ fn native_envp_build_from_win_envblock(env_block) {
     //
     // Use raw allocation: envp is not part of the tracked heap object model.
     var bytes = (count + 1) * 8
-    var envp = malloc_raw(bytes)
+    var envp = native_malloc_raw_or_mmap(bytes)
     if envp == 0 { exit(203) }
-    if envp == -1 { exit(203) }
 
     // Allocate a contiguous pool to hold all "K=V\0" strings copied from env_block.
-    var pool = malloc_raw(total_bytes)
+    var pool = native_malloc_raw_or_mmap(total_bytes)
     if pool == 0 { exit(203) }
-    if pool == -1 { exit(203) }
 
     // Second pass: copy strings into pool and fill envp pointers.
     p = env_block

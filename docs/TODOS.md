@@ -24,6 +24,7 @@ Rules for this tracker:
 	   - Avoid O(n²) string/collection patterns in compiler-side tooling (include expansion, C backend transpiler, whole-program lowering passes).
 	   - Recently completed: bounded build timing summaries via `OREN_TRACE_BUILD_SUMMARY=1` / `OREN_TRACE_BUILD_SLOW_MS=<n>` so “>10s builds” are diagnosable without huge logs (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: pooled embedded string literals + one-time startup registration (`oren_init_static_cstr0_table`) to remove per-use tracking overhead in compiler workloads (details in `docs/TODOS_ARCHIVE.md`).
+	   - Recently completed: arm64-linux native binaries no longer segfault at startup; early runtime raw allocations now use `native_malloc_raw_or_mmap` (mmap fallback) instead of trusting `malloc_raw` unconditionally (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: shared compiler growable-bytes builder extracted to `lib/compiler/bytes_builder.oren` to reduce arm64/x64 backend drift (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: native `oren_read_u8_buf` now returns structured errors on missing files (no hard-exit), fixing stage2-native runtime-object cache cold misses (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: GC pin/result no longer roots static string literals (classification-only nodes), reducing root churn in compiler/tooling runs (details in `docs/TODOS_ARCHIVE.md`).

@@ -1,0 +1,61 @@
+// --- Raw allocation helpers (native backend; syscall-first robustness) ---
+//
+// `malloc_raw` is a native-backend intrinsic intended for runtime metadata allocations
+// that must NOT be tracked by the mark/sweep GC.
+//
+// Rolling reality:
+// - When bringing up new OS/ABI targets, `malloc_raw` can temporarily return invalid
+//   values (0, small, or negative -errno style).
+// - Early runtime init code must stay robust: prefer a syscall-first `mmap` fallback.
+//
+// IMPORTANT: this module must not depend on later runtime helpers (strings, heap, etc).
+// Keep it leaf-ish and safe for use during `native_runtime_init`.
+
+// Native-backend intrinsic (stub for parsing/other backends).
+fn malloc_raw(size) { return 0 }
+
+fn native_is_neg_i64(x) {
+    // Signed negativity predicate for syscall-first paths that return -errno.
+    return x < 0
+}
+
+fn native_cstr_len(cstr_ptr) {
+    // Best-effort NUL-terminated length (bounded) for emergency diagnostics.
+    if cstr_ptr == 0 { return 0 }
+    var i = 0
+    while i < 65536 {
+        if ptr_get_byte(iadd(cstr_ptr, i)) == 0 { return i }
+        i = i + 1
+    }
+    return 65536
+}
+
+fn native_abort(msg_cstr) {
+    // Fail-fast helper that avoids heap allocation (safe even if allocator is corrupted).
+    if msg_cstr != 0 {
+        sys_write(2, msg_cstr, native_cstr_len(msg_cstr))
+    }
+    exit(199)
+    return 0
+}
+
+fn native_malloc_raw_or_mmap(size) {
+    // Robust raw allocator:
+    // - Try the intrinsic fast-path `malloc_raw`
+    // - Validate the returned pointer
+    // - Fall back to `sys_mmap_private_anon` if invalid
+    var p = malloc_raw(size)
+    if p != 0 {
+        if native_is_neg_i64(p) == false {
+            if p >= 4096 { return p }
+        }
+    }
+
+    var q = sys_mmap_private_anon(size)
+    if q == 0 { return 0 }
+    if q == -1 { native_abort("native_malloc_raw_or_mmap: sys_mmap_private_anon returned -1\n") }
+    if native_is_neg_i64(q) == true { return 0 }
+    if q < 4096 { return 0 }
+    return q
+}
+
