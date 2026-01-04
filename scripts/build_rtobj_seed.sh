@@ -21,6 +21,7 @@ cd "$ROOT"
 platform=""
 compiler="./oren_stage2"
 debug_flag="--no-debug"
+force="${OREN_FORCE_RUNTIME_OBJ_SEED:-}"
 
 usage() {
   cat <<'EOF'
@@ -31,11 +32,13 @@ Options:
   --compiler <path>   compiler binary (default: ./oren_stage2)
   --debug             generate seed for debug runtime objects
   --no-debug          generate seed for non-debug runtime objects (default)
+  --force             rebuild seed even if already present
   --help              show this help
 
 Env:
   OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR   source rtobj cache dir (default: build/cache/native_runtime_obj)
   OREN_NATIVE_RUNTIME_OBJ_SEED_DIR    destination seed dir (default: build/cache/native_runtime_obj_seed)
+  OREN_FORCE_RUNTIME_OBJ_SEED         if set, do not take the fast no-op path
 EOF
 }
 
@@ -45,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     --compiler) compiler="${2:-}"; shift 2 ;;
     --debug) debug_flag="--debug"; shift ;;
     --no-debug) debug_flag="--no-debug"; shift ;;
+    --force) force="1"; shift ;;
     --help|-h) usage; exit 0 ;;
     *) echo "ERROR: unknown arg: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -87,6 +91,33 @@ seed_dir="${OREN_NATIVE_RUNTIME_OBJ_SEED_DIR:-build/cache/native_runtime_obj_see
 dbg="d0"
 if [[ "$debug_flag" = "--debug" ]]; then dbg="d1"; fi
 
+find_seed_key() {
+  if [[ ! -d "$seed_dir" ]]; then return 1; fi
+  local key
+  # Prefer the explicit arch key; fall back to older `_a_unknown_` entries if present.
+  key="$(
+    ls -1t "$seed_dir" 2>/dev/null | \
+      rg "^s2_b_${backend}_" | \
+      rg "_os_${os}_" | \
+      rg "_a_${arch}_" | \
+      rg "_${dbg}_g" | \
+      head -n 1
+  )"
+  if [[ -z "$key" ]]; then
+    key="$(
+      ls -1t "$seed_dir" 2>/dev/null | \
+        rg "^s2_b_${backend}_" | \
+        rg "_os_${os}_" | \
+        rg "_a_unknown_" | \
+        rg "_${dbg}_g" | \
+        head -n 1
+    )"
+  fi
+  if [[ -z "$key" ]]; then return 1; fi
+  echo "$key"
+  return 0
+}
+
 find_latest_key() {
   if [[ ! -d "$cache_dir" ]]; then return 1; fi
   # Newest first (mtime order).
@@ -95,9 +126,21 @@ find_latest_key() {
     ls -1t "$cache_dir" 2>/dev/null | \
       rg "^s2_b_${backend}_" | \
       rg "_os_${os}_" | \
+      rg "_a_${arch}_" | \
       rg "_${dbg}_g" | \
       head -n 1
   )"
+  if [[ -z "$key" ]]; then
+    # Backward-compatible fallback for older cache entries that used `_a_unknown`.
+    key="$(
+      ls -1t "$cache_dir" 2>/dev/null | \
+        rg "^s2_b_${backend}_" | \
+        rg "_os_${os}_" | \
+        rg "_a_unknown_" | \
+        rg "_${dbg}_g" | \
+        head -n 1
+    )"
+  fi
   if [[ -z "$key" ]]; then return 1; fi
   echo "$key"
   return 0
@@ -116,6 +159,16 @@ copy_key_to_seed() {
 }
 
 key=""
+if [[ -z "$force" ]]; then
+  if key="$(find_seed_key)"; then
+    echo "OK: rtobj seed already present (no-op)" >&2
+    echo "platform=$platform backend=$backend debug=$debug_flag" >&2
+    echo "seed_dir=$seed_dir" >&2
+    echo "key=$key" >&2
+    exit 0
+  fi
+fi
+
 if key="$(find_latest_key)"; then
   copy_key_to_seed "$key"
   exit 0

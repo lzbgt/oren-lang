@@ -31,6 +31,7 @@ Note:
 
 - The benchmark script disables the rtobj “seed” fallback (`OREN_NATIVE_RUNTIME_OBJ_SEED_DIR=0`) so it measures a true miss → hit.
   - For real user experience, it is recommended to keep a seed available (see `make rtobj-seed`).
+  - For cross-target x86_64 sanity on arm64 hosts, generate seeds with `make rtobj-seed-x64` so compile-only gates stay bounded on a clean cache.
 
 Optional bounded tracing:
 

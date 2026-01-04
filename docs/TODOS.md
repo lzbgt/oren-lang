@@ -105,7 +105,7 @@ Rules for this tracker:
 					     - (performance) stage2-native runtime bundle cost remains high; keep iterating toward:
 			       - default: hashed runtime AST cache under `build/cache/native_runtime_astbin/` (disable via `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0`)
 			       - default (Tier‑1 throughput): cached compiled runtime object under `build/cache/native_runtime_obj/` (disable via `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`)
-			       - optional (fast first-run): rtobj “seed” dir under `build/cache/native_runtime_obj_seed/` (override via `OREN_NATIVE_RUNTIME_OBJ_SEED_DIR=...`, disable with `0`); generate with `make rtobj-seed`
+				       - optional (fast first-run): rtobj “seed” dir under `build/cache/native_runtime_obj_seed/` (override via `OREN_NATIVE_RUNTIME_OBJ_SEED_DIR=...`, disable with `0`); generate with `make rtobj-seed` (host) and `make rtobj-seed-x64` (cross `x64-linux`/`x64-windows`)
 			       - `OREN_NATIVE_RUNTIME_EXPANDED=...` troubleshooting fast-path (skip include expansion)
 			       - `OREN_NATIVE_RUNTIME_ASTBIN=...` troubleshooting fast-path (force a specific astbin file)
 			       - Status (rolling, 2026-01-03):

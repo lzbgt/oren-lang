@@ -115,6 +115,7 @@ Seed notes (rolling):
 - The seed is a normal rtobj cache entry copied to a stable location and used as a fallback on cache misses.
 - Generate/update it with:
   - `make rtobj-seed` (also runs as part of `make stage2`)
+  - `make rtobj-seed-x64` (cross-target seeds for `x64-linux`/`x64-windows`; used by `make verify-native-x64-compile`)
   - or `./scripts/build_rtobj_seed.sh --platform <arch-os>`
 
 ### Native Backend (Tier‑1 intent: arm64 + x86_64)

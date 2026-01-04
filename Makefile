@@ -4,6 +4,7 @@
 .PHONY: bench-native-compile
 .PHONY: perf-guard-native-hit
 .PHONY: rtobj-seed
+.PHONY: rtobj-seed-x64
 .PHONY: astbin-seed
 
 # Default target: Build Stage 1 compiler
@@ -218,6 +219,12 @@ rtobj-seed: oren_stage2
 		echo "NOTE: host platform unknown; skipping rtobj seed"; \
 	fi
 
+# Generate/update rtobj seed for cross x64 targets (best-effort).
+# This keeps `make verify-native-x64-compile` bounded even on a clean cache.
+rtobj-seed-x64: oren_stage2
+	@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler ./oren_stage2 --no-debug || true
+	@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler ./oren_stage2 --no-debug || true
+
 # Generate/update runtime astbin seed for the host platform (best-effort).
 astbin-seed: oren
 	@if [ -n "$(HOST_PLATFORM)" ]; then \
@@ -245,7 +252,7 @@ verify-native-quick: test-native-quick test-native-quick-stage2 test-native-caps
 	@echo "verify-native-quick OK"
 
 # Compile-only sanity gate for x64 targets (does not run artifacts).
-verify-native-x64-compile: oren_stage2
+verify-native-x64-compile: oren_stage2 rtobj-seed-x64
 	@./scripts/verify_native_x64_compile_only.sh
 
 # Perf smoke: benchmark stage2 native "compile one file" (rtobj miss -> hit).
