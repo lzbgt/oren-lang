@@ -649,7 +649,7 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
     return true
 }
 
-fn _x64_build_runtime_obj(platform, runtime_path) {
+fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     // Compile the injected native runtime into a reusable object blob for x86_64 native.
     var linked0 = {"statements": [], "aliases": {}, "type_ns": {}}
     var ctx = _x64_new_ctx(linked0, platform)
@@ -786,6 +786,8 @@ fn _x64_build_runtime_obj(platform, runtime_path) {
     var meta = {
         "schema": rtobj.RUNTIME_OBJ_SCHEMA,
         "backend": "x64",
+        "backend_sig": backend_sig,
+        "runtime_hash": runtime_hash,
         "data_prefix_len": prefix,
         "fn_offs_enc": _x64_rtobj_encode_offsets_map_int(ctx["functions"]),
         "fixups_enc": _x64_rtobj_encode_fixups(ctx["fixups"]),
@@ -816,6 +818,7 @@ fn _x64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
     var rh = rtobj.rtobj_runtime_hash(ctx, runtime_path)
     if rh == nil || rh == "" { return false }
     var key = rtobj.rtobj_cache_key("x64", platform, rh)
+    var bsig = rtobj.rtobj_backend_sig("x64")
     var dir = rtobj.rtobj_cache_dir()
 
     var hit = rtobj.rtobj_load(dir, key)
@@ -833,7 +836,7 @@ fn _x64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
     }
 
     if trace { print("[rtobj] miss backend=x64 key=" + key + " (building)") }
-    var built = _x64_build_runtime_obj(platform, runtime_path)
+    var built = _x64_build_runtime_obj(platform, runtime_path, rh, bsig)
     if built == nil { return false }
 
     // Persist to cache.

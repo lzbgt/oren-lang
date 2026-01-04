@@ -35,7 +35,8 @@ Rules for this tracker:
 		   - Recently completed: added a runtime-astbin “seed” mechanism so stage2-native can avoid very slow cold parsing of `lib/runtime_native_capsule.oren`:
 		     - compiler tries `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR` on astbin cache miss and copies the seed into the active cache dir
 		     - `make astbin-seed` (also run best-effort by `make stage2`) generates/refreshes the seed using stage1 `./oren` (details in `docs/TODOS_ARCHIVE.md`).
-		   - Recently completed: runtime-object cache load is now hardened with a cheap sentinel integrity check so corrupted/stale rtobj meta becomes a miss+rebuild (instead of a stage1 panic in x64 codegen) (details in `docs/TODOS_ARCHIVE.md`).
+		   - Recently completed: runtime-object cache load is now hardened with a cheap invariant-based integrity check so corrupted/stale rtobj meta becomes a miss+rebuild (instead of a stage1 panic in x64 codegen) (details in `docs/TODOS_ARCHIVE.md`).
+		   - Recently completed: fixed a stage1↔stage2 rtobj cache compatibility bug where stage2 could reject stage1-generated rtobj entries and rebuild the runtime object, timing out `make verify-native-x64-compile` (details in `docs/TODOS_ARCHIVE.md`).
 		   - Recently completed: x64 PE/ELF fixup patching now uses a fast `bytes_set_u32_le` raw-store path, keeping `scripts/verify_native_x64_compile_only.sh` stage2 `x64-windows` under the default 10s timeout (details in `docs/TODOS_ARCHIVE.md`).
 		   - Recently completed: native `sys_stat/sys_lstat/sys_fstat` now populate OrenStatV0 `{a,m,c}time_ns` on macOS/Linux (arm64+x86_64), and the build scan cache is now stat-aware (`scan_cache_v3.txt`) to avoid re-reading unchanged sources during build-cache key computation (details in `docs/TODOS_ARCHIVE.md`).
 		   - Recently completed: native stage2 build-cache key computation is now bounded (no more multi-second “cache key compute” stalls):

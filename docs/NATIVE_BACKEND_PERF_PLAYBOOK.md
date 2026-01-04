@@ -109,6 +109,23 @@ the same immediate as `false`/`0`, which can silently flip pruning decisions.
 Preferred pattern: return an explicit integer state (`1=true`, `-1=false`, `0=unknown`) and compare
 it with exact integer tests.
 
+### 4.0.2 rtobj cache meta must be stable across stage1 and stage2
+
+The runtime-object cache (`build/cache/native_runtime_obj/`) is shared across:
+
+- **stage1** compiler runs (C runtime)
+- **stage2** compiler runs (native runtime)
+
+Rolling rule:
+
+- Any validation of rtobj meta against the cache key must be **runtime-agnostic**.
+  - Avoid relying on subtle runtime differences like “string equality” semantics or substring allocation behavior.
+  - Prefer byte-wise key parsing and byte-wise string comparisons in the rtobj cache module when correctness matters.
+
+If this regresses, it typically shows up as:
+
+- `make verify-native-x64-compile` timing out because stage2 treats a valid stage1-generated cache entry as a miss and rebuilds the runtime object.
+
 ### 4.1 Per-byte helper calls in tight loops
 
 Stage2-native compiler workloads can decode or emit **millions of bytes**. If the code does:

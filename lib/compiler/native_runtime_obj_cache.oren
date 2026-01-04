@@ -55,10 +55,114 @@ fn _is_false(v) {
 }
 
 fn rtobj_cache_enabled(platform) {
-    if platform != nil && platform["capsule"] == true { return false }
+    // Disabled for capsule builds by default (until the cache is within the capsule boundary).
+    // Can be enabled explicitly for dev perf experiments:
+    //   OREN_NATIVE_RUNTIME_OBJ_CACHE_CAPSULE=1
+    if platform != nil && platform["capsule"] == true {
+        var vcap = oren_env("OREN_NATIVE_RUNTIME_OBJ_CACHE_CAPSULE")
+        if vcap == nil || vcap == "" { return false }
+        if _is_false(vcap) { return false }
+        // otherwise: allow
+    }
     var v = oren_env("OREN_NATIVE_RUNTIME_OBJ_CACHE")
     if _is_false(v) { return false }
     return true
+}
+
+fn _rtobj_key_find(s, needle, start) {
+    if s == nil || needle == nil { return -1 }
+    var n = oren_string_len(s)
+    var m = oren_string_len(needle)
+    if m == 0 { return start }
+    if start < 0 { start = 0 }
+    if start + m > n { return -1 }
+    // Avoid allocating substrings and avoid depending on runtime string equality semantics.
+    var i = start
+    while i + m <= n {
+        var j = 0
+        var ok = 1
+        while j < m {
+            var a = oren_string_byte_at_unchecked(s, i + j) & 255
+            var b = oren_string_byte_at_unchecked(needle, j) & 255
+            if a != b { ok = 0; break }
+            j = j + 1
+        }
+        if ok == 1 { return i }
+        i = i + 1
+    }
+    return -1
+}
+
+fn _rtobj_string_eq(a, b) {
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    if oren_type_tag(a) != 4 { return false }
+    if oren_type_tag(b) != 4 { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        var ba = oren_string_byte_at_unchecked(a, i) & 255
+        var bb = oren_string_byte_at_unchecked(b, i) & 255
+        if ba != bb { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _rtobj_key_extract_between(key, a, b) {
+    if key == nil { return "" }
+    if a < 0 || b < 0 { return "" }
+    if b < a { return "" }
+    return oren_string_slice(key, a, b)
+}
+
+fn _rtobj_key_extract_rh(key) {
+    // Return substring after "_rh_" (or "" if missing).
+    var m = "_rh_"
+    var i = _rtobj_key_find(key, m, 0)
+    if i < 0 { return "" }
+    return oren_string_slice(key, i + oren_string_len(m), oren_string_len(key))
+}
+
+fn _rtobj_key_extract_bv(key) {
+    // Return backend sig substring between "_bv_" and "_os_" (or "" if missing).
+    var a0 = _rtobj_key_find(key, "_bv_", 0)
+    if a0 < 0 { return "" }
+    var a = a0 + 4
+    var b0 = _rtobj_key_find(key, "_os_", a)
+    if b0 < 0 { return "" }
+    return _rtobj_key_extract_between(key, a, b0)
+}
+
+fn _rtobj_meta_match_or_migrate_key_fields(key, meta) {
+    // Return:
+    // - 1: ok (matches key)
+    // - 2: ok, but migrated meta in-place (was missing fields)
+    // - 0: mismatch / invalid
+    //
+    // Rationale:
+    // - Older caches may not include `runtime_hash`/`backend_sig` fields.
+    // - Rebuilding a full runtime object can exceed the default 10s timeout gates (Tier‑1),
+    //   so we migrate these fields from the key as a cheap best-effort compatibility layer.
+    if meta == nil { return 0 }
+    var want_rh = _rtobj_key_extract_rh(key)
+    var want_bv = _rtobj_key_extract_bv(key)
+    if want_rh == "" || want_bv == "" { return 0 }
+
+    var mh = meta["runtime_hash"]
+    var mbv = meta["backend_sig"]
+    if mh == nil || mbv == nil {
+        meta["runtime_hash"] = want_rh
+        meta["backend_sig"] = want_bv
+        return 2
+    }
+    // Do not rely on `==` for strings here: this check must be stable across stage1 (C runtime)
+    // and stage2 (native runtime) when decoding an astbin-encoded meta file.
+    if _rtobj_string_eq(mh, want_rh) != true { return 0 }
+    if _rtobj_string_eq(mbv, want_bv) != true { return 0 }
+    return 1
 }
 
 fn rtobj_cache_dir() {
@@ -128,16 +232,37 @@ fn _rtobj_meta_validate_sentinels(meta) {
     // Cheap integrity check for cache compatibility/corruption.
     //
     // Full meta validation is expensive under the native runtime (large maps),
-    // but we still want to detect common corruption cases that would crash later.
+    // but we still want to catch the most common cases that would crash later.
     //
-    // Contract: the Tier-1 runtime should provide `_map_hash_empty` and it should have arity 0
-    // (encoded as int 1).
+    // IMPORTANT (rolling):
+    // Do not depend on runtime decl presence (e.g. `_map_hash_empty`) because pruning/DCE can
+    // legitimately remove functions from the injected runtime depending on the build.
+    //
+    // Use invariants that must always hold for rtobj meta:
+    // - data prefix length matches the ABI contract (slot reserved by native entry stubs)
+    // - backend tag is present (string)
     if meta == nil { return false }
+
+    // `data_prefix_len` was added as the cache format stabilized; migrate old entries.
+    var dpl = meta["data_prefix_len"]
+    if dpl == nil {
+        meta["data_prefix_len"] = RUNTIME_OBJ_DATA_PREFIX_LEN
+    } else {
+        if oren_type_tag(dpl) != 1 { return false }
+        if dpl != RUNTIME_OBJ_DATA_PREFIX_LEN { return false }
+    }
+
+    var be = meta["backend"]
+    if be == nil { return false }
+    if oren_type_tag(be) != 4 { return false }
+
+    // Optional: if func_arity is present, ensure sentinel values are well-typed (don't require keys).
     var fa = meta["func_arity"]
-    if fa == nil { return true }
-    var v = fa["_map_hash_empty"]
-    if v == nil { return false }
-    if oren_type_tag(v) != 1 { return false }
+    if fa != nil {
+        var v = fa["_map_hash_empty"]
+        if v != nil && oren_type_tag(v) != 1 { return false }
+    }
+
     return true
 }
 
@@ -518,6 +643,8 @@ fn rtobj_try_load_seed_into_cache(cache_dir, key) {
     if meta == nil { return nil }
     if meta["schema"] == nil || meta["schema"] != RUNTIME_OBJ_SCHEMA { return nil }
     if _rtobj_meta_validate_sentinels(meta) != true { return nil }
+    var key_ok = _rtobj_meta_match_or_migrate_key_fields(key, meta)
+    if key_ok == 0 { return nil }
 
     meta["code_u8"] = code
     meta["data_tail_u8"] = data_tail
@@ -530,7 +657,8 @@ fn rtobj_try_load_seed_into_cache(cache_dir, key) {
     if cache_dir != nil && cache_dir != "" && cache_dir != seed_dir {
         var dst = rtobj_paths(cache_dir, key)
         _ensure_dir(dst["dir"])
-        // Copy raw bytes (avoid meta re-encode cost on first-run seeding).
+        // Copy raw bytes (avoid any re-encode cost on first-run seeding).
+        // If the meta is missing newer key fields, `rtobj_load` will migrate them in-memory.
         oren_write_bytes(dst["meta"], meta_bs)
         oren_write_bytes(dst["code"], code)
         oren_write_bytes(dst["data_tail"], data_tail)
@@ -554,10 +682,41 @@ fn rtobj_load(cache_dir, key) {
     }
     var meta = astbin.astbin_decode(meta_bs)
     if meta == nil { return nil }
-    if meta["schema"] == nil || meta["schema"] != RUNTIME_OBJ_SCHEMA { return nil }
+    if meta["schema"] == nil {
+        if trace { print("[rtobj] load miss: meta missing schema") }
+        return nil
+    }
+    if meta["schema"] != RUNTIME_OBJ_SCHEMA {
+        if trace {
+            print("[rtobj] load miss: schema mismatch have=" + _rtobj_dbg_val_to_string(meta["schema"]) +
+                  " want=" + oren_int_to_string(RUNTIME_OBJ_SCHEMA))
+        }
+        return nil
+    }
     _rtobj_meta_trace_sample(meta)
     // Cheap validation so a corrupted/stale cache becomes a miss instead of crashing deep in codegen.
-    if _rtobj_meta_validate_sentinels(meta) != true { return nil }
+    if _rtobj_meta_validate_sentinels(meta) != true {
+        if trace {
+            var dpl = meta["data_prefix_len"]
+            print("[rtobj] load miss: meta sentinel validation failed (backend=" + _rtobj_dbg_val_to_string(meta["backend"]) +
+                  " data_prefix_len=" + _rtobj_dbg_val_to_string(dpl) + ")")
+        }
+        return nil
+    }
+    // Ensure the cache meta matches the key (avoid collisions/bitrot silently producing wrong code).
+    // Older caches missing these fields are migrated in-place.
+    var key_ok2 = _rtobj_meta_match_or_migrate_key_fields(key, meta)
+    if key_ok2 == 0 {
+        if trace {
+            print("[rtobj] load miss: key/meta mismatch want_bv=" + _rtobj_key_extract_bv(key) +
+                  " want_rh=" + _rtobj_key_extract_rh(key) +
+                  " meta_bv=" + _rtobj_dbg_val_to_string(meta["backend_sig"]) +
+                  " meta_rh=" + _rtobj_dbg_val_to_string(meta["runtime_hash"]))
+        }
+        return nil
+    }
+    // NOTE: if key_ok2 == 2, the cache entry is from an older schema missing key fields.
+    // Do not re-encode meta here: encoding large meta maps can exceed the default 10s build gates.
     // Optional deeper validation (expensive under the native runtime; keep opt-in).
     if oren_env("OREN_RT_OBJ_VALIDATE_META_FULL") != nil {
         if _rtobj_meta_validate_int_map(meta, "func_arity") != true { return nil }
