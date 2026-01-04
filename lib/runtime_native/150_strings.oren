@@ -7,9 +7,10 @@
 // `oren_intern_cstr` is an **optional helper** that copies an unowned C string into an owned,
 // tracked heap string (kind=STRING), caching by pointer identity.
 //
-// Today, the native backend codegen does **not** require heap-copying literals; it marks embedded
-// literals as tracked via `oren_ensure_tracked(ptr, kind=1)` so map key-kind inference can be safe
-// without relying on pointer/int heuristics.
+// Today, the native backend codegen does **not** require heap-copying literals:
+// - the emitter de-duplicates `"literal"` bytes into a single `cstr0` pool in the appended data blob
+// - the program entry stub calls `oren_init_static_cstr0_table(table_ptr)` once at startup
+//   to register all embedded literals as static-kind STRING (kind=1) for safe container ops
 var g_intern_cstr_cache = 0 // map<int ptr -> string_ptr>
 var g_single_byte_string_cache = 0 // ptr to [256] pointers (untracked; roots keep strings alive)
 

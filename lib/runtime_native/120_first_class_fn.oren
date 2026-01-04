@@ -32,9 +32,8 @@ fn oren_spawn_call_list(fn_obj, args_list) {
     if pipe_buf == 0 { exit(321) }
     var rv = sys_pipe(pipe_buf)
     // Linux pipe2 returns 0 on success and -errno on failure.
-    // Treat any negative return as failure so the runtime remains robust even if
-    // a backend temporarily clobbers the syscall return value with a non-negative scratch.
-    if rv < 0 { exit(322) }
+    // Treat any non-zero return as failure (strict) so backend return-value clobbers are caught.
+    if rv != 0 { exit(322) }
 
     var rfd = ptr_get(pipe_buf)
     var wfd = ptr_get(iadd(pipe_buf, 8))

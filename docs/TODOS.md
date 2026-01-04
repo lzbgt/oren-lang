@@ -71,6 +71,8 @@ Rules for this tracker:
 	         - Added a `cur_fn_name` context so call lowering can skip varargs “callable-object” lowering inside `__oren_fnwrap_*`.
 	         - Result: `tests/fixtures/tier1_native_smoke_main.oren` runs successfully on `arm64-macos` native backend in debug mode.
 	       - Fixed (2026-01-04): x86_64-linux Tier‑1 spawn/join now runs successfully under remote WSL2 (stage1 + stage2).
+	         - Root cause: stale cached runtime machine code (rtobj cache) could preserve a buggy historical x64 `sys_pipe` lowering that clobbered the syscall rc while widening fds.
+	         - Fix: bumped `RUNTIME_OBJ_BACKEND_SIG_X64` to invalidate cached runtime objects and restored strict runtime checks (`sys_pipe(...) != 0` fails) so regressions are caught immediately.
 	         - Also hardened `scripts/verify_native_matrix.sh` to propagate remote exit codes and assert Tier‑1 output markers (prevents silent early-exit false positives).
 	         - Details: `docs/TODOS_ARCHIVE.md`.
 			     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).

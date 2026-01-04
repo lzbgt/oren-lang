@@ -29,12 +29,10 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Output stopped at `tier1 spawn begin` / `tier1 lock before spawn ...` and returned early.
   - `scripts/verify_native_matrix.sh` previously printed `EXIT=...` but still returned success because the remote wrappers did not propagate the program exit code.
 - Root cause:
-  - `sys_pipe(pipefd_ptr)` call sites in the injected native runtime treated **any non-zero** return as failure.
-  - The current x86_64 `sys_pipe` intrinsic widens the two 32-bit fds in-place and (rolling bug) can clobber the syscall rc register with a non-zero scratch value, triggering false failures.
-- Fix (runtime hardening):
-  - Treat only **negative** returns as failure (POSIX convention: `0` on success, `-errno` on failure):
-    - `lib/runtime_native/120_first_class_fn.oren` (`oren_spawn_call_list`)
-    - `lib/runtime_native/010_channels_globals_consts.oren` (`oren_pipe`)
+  - The historical x86_64 `sys_pipe` intrinsic widened the two 32-bit fds in-place and (rolling bug) could clobber the syscall rc register with a non-zero scratch value, triggering false failures.
+  - This could be masked locally by the runtime object cache: even after codegen was fixed, an old cached runtime object could keep the buggy machine code alive.
+- Fix (backend + cache hygiene):
+  - Keep strict runtime checks (`sys_pipe(...) != 0` fails) and invalidate cached runtime objects by bumping the x64 runtime-object backend signature.
 - Fix (verification script hardening):
   - `scripts/verify_native_matrix.sh` now preserves true remote exit codes:
     - Win11: uses `set RC=!ERRORLEVEL! ... exit /b !RC!`

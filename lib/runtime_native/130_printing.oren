@@ -497,7 +497,7 @@ fn _oren_assert_string_ptr(k) {
     //
     // Contract (rolling):
     // - string values that flow through generic container ops are tracked heap strings (kind=1)
-    // - embedded string literals are marked tracked via `oren_ensure_tracked(ptr, kind=1)` in codegen
+    // - embedded string literals are registered once at startup via `oren_init_static_cstr0_table`
     if k == 0 { oren_panic("map: string key is nil") }
     var node = oren_find_node(k)
     if node == 0 { oren_panic("map: string key is not tracked") }
