@@ -5,6 +5,21 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2026-01-05) — Native x86_64: IntrTmp spill pool (no `$tmp_intrN` locals)
+
+- x64 native v0 no longer materializes intrinsic temp slots as string-named locals (`$tmp_intrN`):
+  - introduced a compiler-internal expr node: `{"type":"IntrTmp","idx": <int>}`
+  - x64 emitter evaluates `IntrTmp` by loading `[rbp - (intr_tmp_base_off + idx*8)]`
+  - function codegen reserves the intrinsic-temp pool as a contiguous region and sets `ctx["intr_tmp_base_off"]`
+  - `_intr_tmp_off` uses `iadd`-only arithmetic to remain stage1-safe (C runtime), avoiding slow generic `*`/`<<` in this hot path
+- Evidence (bounded tracer, x64-linux true rtobj miss; seed disabled; stage2):
+  - `OREN_TRACE_X64_RT_OBJ_SUMMARY=1 OREN_NATIVE_RUNTIME_OBJ_SEED_DIR=0 ./oren_stage2 build examples/hello.oren --backend native --platform x64-linux --no-cache --no-debug ...`
+  - observed: `[x64_rtobj] total_ms=16350 ... decls_ms=12820 ...` (2026-01-05)
+- Verified:
+  - `make verify-native-quick`
+  - `make verify-native-x64-compile`
+  - `make test`
+
 ## Archived (2026-01-04) — Native: runtime decl compile hotspots + runtime-astbin seed correctness
 
 - Runtime decl compile-time hotspot fixes (native stage2 throughput; cross-target x86_64 also benefits):
@@ -17,6 +32,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
     - avoid generic `*` lowering for `q*10` via `(q<<3)+(q<<1)`.
   - `oren_string_from_bytes` uses direct list-backed-buffer reads (treat each element as a byte via `& 255`) and allocates as a tracked STRING in one step (`malloc_k`) when tracking is enabled (keeps lexer/tooling bounded).
   - x86_64 native: cached `$tmp_intrN` names via `_x64_tmp_intr_name(ctx, idx)` to avoid repeated `"$tmp_intr"+int_to_string(i)` allocations in call lowering during rtobj builds.
+    - Follow-up (2026-01-05): this intermediate step was superseded by `IntrTmp{idx}` + base-offset intrinsic-temp spill regions (see the 2026-01-05 archive entry above).
     - Note (portability): compiler-side helpers must remain stage1-safe; avoid `ptr_*` byte reads on “string” values unless explicitly guarded to run only under the native runtime model.
   - Windows-only CreateProcessA helpers no longer compile into non-Windows runtime objects:
     - `lib/runtime_native/260_threads.oren` wraps the helper suite in a top-level `if g_target_os == 3 { ... }` block,

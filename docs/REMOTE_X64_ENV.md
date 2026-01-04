@@ -10,6 +10,22 @@ To test it on real x86_64 machines, we use a remote Win11 host with WSL2 enabled
   - env fallback: `OREN_PLATFORM=<arch>-<os>` is used when `--platform` is not provided.
   - `--target`/`--arch` are legacy (still supported).
 
+## Preferred workflow: use the repo’s x64 matrix script (stage1 + stage2)
+
+If your local host is macOS arm64 (Tier‑1 dev path), the recommended way to validate x86_64 targets is:
+
+```bash
+# Runs x64-linux under WSL2 and x64-windows under cmd.exe on the remote Win11 host.
+# Also builds the artifacts locally (stage1 + stage2) before copying/running them remotely.
+./scripts/verify_native_matrix.sh --targets x64-wsl,x64-win
+```
+
+Common env overrides (match `scripts/verify_native_matrix.sh` defaults):
+
+- `OREN_REMOTE_X64_HOST` (example: `lzbgt@pc.work`)
+- `OREN_REMOTE_X64_PROXY` (example: `ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002`)
+- `OREN_NATIVE_BUILD_TIMEOUT_SECS` (rolling hang guard; default `10`)
+
 ## Prerequisites (local machine)
 
 - `socat` available in `PATH` (required for `ProxyCommand`).
