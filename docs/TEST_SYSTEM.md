@@ -86,6 +86,10 @@ When investigating “why did `oren build` take >10s?” regressions, use the bo
 ./scripts/bench_native_compile_one_file.sh --debug --trace
 ```
 
+For a deeper “what regressed and how do we keep it bounded” playbook (rolling):
+
+- `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`
+
 ## Logs and artifacts
 
 - Logs:

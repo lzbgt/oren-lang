@@ -84,6 +84,10 @@ Tracing knobs (bounded output; prints timing summaries):
 - `OREN_TRACE_BUILD_SUMMARY=1`: prints a single `[build] summary ...` line per `oren build` (native backend path)
 - `OREN_TRACE_BUILD_SLOW_MS=<n>`: only print the summary when the build takes at least `<n>` ms (implies summary enabled)
 
+Performance guardrails and “what to do when it gets slow” live in:
+
+- `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`
+
 ### Native Runtime Object Cache (Native Backend; Tier‑1 throughput)
 
 For Tier‑1 native backends, injecting *and compiling* the full native runtime can still dominate “compile one file” throughput.
