@@ -15,6 +15,10 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `oren_int_to_string` correctness + perf hygiene:
     - fixed INT64_MIN handling by staying in the negative domain (no `n = -n` overflow)
     - avoid generic `*` lowering for `q*10` via `(q<<3)+(q<<1)`.
+  - `oren_string_from_bytes` now uses direct list-buffer reads (single `oren_find_node` validation) and treats each element as a byte via `& 255` to keep the loop compact.
+  - Windows-only CreateProcessA helpers no longer compile into non-Windows runtime objects:
+    - `lib/runtime_native/260_threads.oren` wraps the helper suite in a top-level `if g_target_os == 3 { ... }` block,
+    - `lib/compiler/native_platform_prune.oren` now splices prunable top-level `if g_target_os ...` blocks into the top-level statement list (so the runtime bundle stays “no top-level executable code” after pruning).
 - Runtime-astbin seed script correctness (keeps stage2-native cold parse bounded across OS targets):
   - `scripts/build_runtime_astbin_seed.sh` no-op logic now uses a per-OS meta file (`.runtime_astbin_seed_meta_os_<os>.txt`) keyed by:
     - sha256 of all runtime source inputs (`lib/runtime_native*.oren` + `lib/runtime_native/**/*.oren`), and
@@ -25,7 +29,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
     - `scripts/build_runtime_astbin_seed.sh`
     - `scripts/build_rtobj_seed.sh`.
 - Evidence (x64-linux, stage2, true rtobj miss with seed disabled, bounded tracers):
-  - `OREN_TRACE_X64_RT_OBJ_SUMMARY=1`: total ~`18.0s` (parse ~`1.9s`, decls ~`14.5s`, finalize ~`1.2s`)
+  - `OREN_TRACE_X64_RT_OBJ_SUMMARY=1`: rtobj `total_ms` ~`17–18s` (`parse_ms` ~`1.8s`, `decls_ms` ~`14.0s`, `finalize_ms` ~`1.1s`)
   - With rtobj seed enabled on an empty cache dir: total ~`5.3s` (seed-hit).
 
 ## Archived (2026-01-04) — Native: Tier‑1 stack traces (x64) + varargs wrapper recursion fix (arm64)

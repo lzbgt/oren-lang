@@ -108,6 +108,13 @@ Seed (rolling, optional):
     - runtime source inputs change (hash of `lib/runtime_native*.oren` + `lib/runtime_native/**/*.oren`), or
     - the chosen seed compiler binary changes (sha256 of `--compiler`).
 
+Runtime OS pruning note (rolling):
+
+- The runtime pruner can also splice away **top-level** `if g_target_os == ... { ... }` blocks, but only when the condition is provably constant for the target platform.
+  - This is intended for large OS-specific helper suites (e.g., Windows CreateProcessA helpers) so non-target builds do not pay for compiling dead runtime decls.
+  - Constraint: after pruning, the top-level must still contain **only** `Function` / `ExprStmt(Function)` / `Var` / `Type` / `FFI` statements.
+    - If a top-level OS-guard cannot be proven constant, the runtime bundle validator will still reject it as “top-level executable code”.
+
 ### 4.0.1 Don’t use `nil` as a tri-state sentinel in compiler passes (native backend)
 
 Some compiler passes want a tri-state “true / false / unknown”.

@@ -226,21 +226,33 @@ fn oren_bytes_from_string(s) {
 // This is the inverse of `oren_bytes_from_string(...)` in other backends.
 fn oren_string_from_bytes(bytes) {
     if bytes == 0 { return 0 }
-    var n = oren_list_len(bytes)
+
+    // PERF (native backend + compiler workloads):
+    // Avoid per-element `oren_list_get` calls (each does `oren_find_node` checks + bounds checks).
+    // We already validate `bytes` once and then read the backing buffer directly.
+    var node = oren_find_node(bytes)
+    if node == 0 { oren_panic("string_from_bytes on non-list"); return 0 }
+    if ptr_get(iadd(node, 16)) != 2 { oren_panic("string_from_bytes on non-list"); return 0 }
+    if ptr_get(iadd(bytes, 24)) != list_magic() { oren_panic("string_from_bytes on non-list"); return 0 }
+
+    var n = ptr_get(iadd(bytes, 0))
     if n < 0 { return 0 }
-    var out = malloc(n + 1)
+    var buf = ptr_get(iadd(bytes, 16))
+
+    var out = malloc(iadd(n, 1))
     if out == 0 { return 0 }
+
     var i = 0
     while i < n {
-        var b = oren_list_get(bytes, i)
-        // Best-effort clamp for rolling native mode.
-        if b < 0 { b = 0 }
-        if b > 255 { b = 255 }
-        ptr_set_byte(out + i, b)
-        i = i + 1
+        // Contract: `bytes` is list<int 0..255>. Keep the runtime path compact and fast;
+        // treat each element as a byte by masking to 8 bits (matches typical byte semantics).
+        var b = ptr_get(iadd(buf, i << 3)) & 255
+        ptr_set_byte(iadd(out, i), b)
+        i = iadd(i, 1)
     }
-    ptr_set_byte(out + n, 0)
-    oren_track_alloc(out, n + 1, 1) // 1=STRING
+
+    ptr_set_byte(iadd(out, n), 0)
+    oren_track_alloc(out, iadd(n, 1), 1) // 1=STRING
     return out
 }
 

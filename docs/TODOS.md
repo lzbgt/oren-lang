@@ -48,8 +48,8 @@ Rules for this tracker:
 			       - eliminating per-instruction allocations in the x64 encoder (`lib/compiler/x64_core.oren`)
 			       - keeping capsule enforcement implementation out of the non-capsule runtime rtobj (`lib/runtime_native/035_capsule_stubs.oren`)
 			       - simplifying runtime decl hotspots to reduce stage2-native decl compile work (`oren_iter_next`, `oren_bytes_from_string_ptr`, `oren_int_to_string`), plus using `iadd`/shifts in byte loops to avoid slow generic `+`/`*` lowering (details in `docs/TODOS_ARCHIVE.md`)
-			       - Next: continue shrinking the rtobj decl bucket by refactoring remaining large native-runtime helpers (recent top decls include `oren_string_from_bytes` and `native_windows_cmdline_write_arg`; prefer direct buffer access and `iadd`/shift arithmetic in loops).
-			       - stage2 `--platform x64-linux` true miss (isolated rtobj dir; `OREN_NATIVE_RUNTIME_OBJ_SEED_DIR=0`): ~`24s` total (rtobj build+apply ~`19s`), with `OREN_TRACE_X64_RT_OBJ_SUMMARY=1`.
+			       - Next: continue shrinking the rtobj decl bucket by refactoring remaining large native-runtime helpers (recent top decls include `oren_string_from_bytes` and `oren_net_get`; prefer direct buffer access and `iadd`/shift arithmetic in loops).
+			       - stage2 `--platform x64-linux` true miss (isolated rtobj dir; `OREN_NATIVE_RUNTIME_OBJ_SEED_DIR=0`, astbin seed enabled): rtobj `total_ms` ~`17–18s` (`parse_ms` ~`1.8s`, `decls_ms` ~`14.0s`), with `OREN_TRACE_X64_RT_OBJ_SUMMARY=1`.
 			       - same build with rtobj seed enabled (empty cache dir; seed-hit): ~`5.3s` total (see `make rtobj-seed-x64`).
 		     - Capsule note (resolved): stage2-native “cold parse” of `lib/runtime_native_capsule.oren` can be tens of seconds if the runtime astbin cache is empty; this is now mitigated by the runtime-astbin seed (`make astbin-seed`, `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR`) so cold capsule builds can stay under the default 10s timeout in typical dev setups.
 		     - Current miss breakdown (arm64-macos; stage2; `OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1`, seed disabled):

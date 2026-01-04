@@ -237,6 +237,39 @@ fn _prune_stmt(stmt, os_id) {
     return [stmt]
 }
 
+fn _prune_runtime_toplevel_exprstmt_if_to_splice_list(st, os_id) {
+    // Runtime-only extension:
+    // Allow top-level `if g_target_os == ... { ... }` blocks in the injected runtime,
+    // as long as the condition is provably constant for this target.
+    //
+    // We *splice* the chosen branch's statements into the top-level statement list so
+    // the runtime bundle still satisfies the invariant "no top-level executable stmts"
+    // after pruning.
+    if st == nil { return nil }
+    if st["type"] != "ExprStmt" { return nil }
+    var e = st["expr"]
+    if e == nil || e["type"] != "If" { return nil }
+
+    var v = _eval_cond_is_target_os(e["cond"], os_id)
+    if v == 0 { return nil } // unknown => keep; runtime bundle validator will reject it
+
+    var take = nil
+    if v == 1 {
+        take = e["consq"]
+    } else {
+        take = e["alt"]
+    }
+    if take == nil { return [] }
+
+    // Prefer flattening blocks into the surrounding statement list.
+    if take["type"] == "Block" {
+        var ss = take["stmts"]
+        if ss == nil { return [] }
+        return ss
+    }
+    return [take]
+}
+
 fn prune_runtime_os_branches_in_linked_program_in_place(linked, platform) {
     if linked == nil { return nil }
     var os_id = _os_id_from_platform(platform)
@@ -281,6 +314,33 @@ fn prune_runtime_os_branches_in_linked_program_in_place(linked, platform) {
     while i < oren_list_len(stmts) {
         var st = stmts[i]
         if st != nil && st["__oren_from_runtime"] != nil {
+            // Runtime can contain prunable top-level `if g_target_os == ... { ... }` blocks.
+            // Splice them away so the runtime bundle remains a pure "library" after pruning.
+            var sp = _prune_runtime_toplevel_exprstmt_if_to_splice_list(st, os_id)
+            if sp != nil {
+                var j0 = 0
+                while j0 < oren_list_len(sp) {
+                    var stx = sp[j0]
+                    if stx != nil {
+                        // Preserve runtime tagging for downstream split/cache logic.
+                        stx["__oren_from_runtime"] = st["__oren_from_runtime"]
+                        // Also prune any platform branches inside spliced runtime functions.
+                        if stx["type"] == "Function" {
+                            stx["body"] = _prune_stmt_keep_one(stx["body"], os_id)
+                        } else if stx["type"] == "ExprStmt" {
+                            var ex = stx["expr"]
+                            if ex != nil && ex["type"] == "Function" {
+                                ex["body"] = _prune_stmt_keep_one(ex["body"], os_id)
+                            }
+                        }
+                    }
+                    oren_list_push(out, stx)
+                    j0 = j0 + 1
+                }
+                i = i + 1
+                continue
+            }
+
             // Runtime top-level functions can appear as:
             // - {type:"Function", body:...}
             // - {type:"ExprStmt", expr:{type:"Function", body:...}}

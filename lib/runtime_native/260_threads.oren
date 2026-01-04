@@ -82,6 +82,11 @@ fn native_envp_push_unique(out, oi, max_out, ptr) {
     return oi + 1
 }
 
+// Windows-only helpers: keep them behind a target-OS guard so non-Windows builds do not
+// pay for compiling them into the runtime object. The runtime bundle pruner removes the
+// entire block for other targets.
+if g_target_os == 3 {
+
 // --- Windows PROC helpers (CreateProcessA command line + environment block) ---
 //
 // Windows uses:
@@ -416,6 +421,8 @@ fn native_windows_envblock_for_proc_child() {
     return block
 }
 
+} // g_target_os == 3
+
 fn native_runtime_get_envp_for_proc_child() {
     // Determine envp for subprocess exec in the child (after fork, before execve).
     //
@@ -498,6 +505,9 @@ fn native_runtime_get_envp_for_proc_child() {
     return out
 }
 
+// Windows-only debugging helpers (CreateProcess bring-up).
+if g_target_os == 3 {
+
 fn _win_proc_debug_enabled() {
     // Debug helper for the Windows CreateProcessA bring-up path.
     // Enabled only when explicitly set to avoid affecting Tier‑1 fixture output.
@@ -527,6 +537,8 @@ fn _win_proc_debug_dump_cstr(prefix, p, max_bytes) {
     print(out)
     return 0
 }
+
+} // g_target_os == 3
 
 @cap.requires(domain="PROC")
 fn oren_proc_spawn(path, argv, timeout_ms) {
