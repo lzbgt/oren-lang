@@ -340,7 +340,10 @@ fn _x64_new_ctx(linked, platform) {
         "func_varargs_fixed": {},
         // Deterministic declaration order (source order). Used by some backends for wrapper synthesis.
         "func_decl_order": [],
-        "declared_functions": {}
+        "declared_functions": {},
+        // Track which named functions are actually used as first-class values so we only
+        // synthesize `__oren_fnwrap_*` wrappers when needed (Tier‑1 perf; parity with arm64).
+        "fnwrap_needed": {}
     }
 
     // Expose whether runtime injection is enabled so lowering can progressively
@@ -636,32 +639,34 @@ fn _x64_build_runtime_obj(platform, runtime_path) {
         i = i + 1
     }
 
-    // Synthesize wrappers for runtime functions and runtime lambdas (Tier‑1 convergence).
+    // Synthesize only wrappers needed by the runtime itself:
+    // - named functions used as first-class values (tracked in ctx["fnwrap_needed"])
+    // - lambda wrappers (always needed when a lambda literal exists)
     var wrappers = []
+    var need = ctx["fnwrap_needed"]
     var wi = 0
-    while wi < oren_list_len(fns) {
-        var fn0 = fns[wi]
-        var nm0 = nil
-        if fn0 != nil { nm0 = fn0["name"] }
-        if nm0 != nil && nm0 != "" {
-            var ar0 = nil
-            if ctx["func_arity"] != nil {
-                var ar0_enc = ctx["func_arity"][nm0]
-                if ar0_enc != nil { ar0 = ar0_enc - 1 }
-            }
-            var vf0 = nil
-            if ctx["func_varargs_fixed"] != nil {
-                var vf0_enc = ctx["func_varargs_fixed"][nm0]
-                if vf0_enc != nil { vf0 = vf0_enc - 1 }
-            }
-            if ar0 != nil {
-                var stw = callable.synth_fnwrap(nm0, ar0, vf0)
-                if stw != nil && stw["type"] == "ExprStmt" && stw["expr"] != nil && stw["expr"]["type"] == "Function" {
-                    oren_list_push(wrappers, stw["expr"])
-                } else {
-                    err(ctx, "x64 native rtobj: failed to synthesize fnwrap for " + nm0)
-                    return nil
-                }
+    while wi < oren_list_len(ctx["func_decl_order"]) {
+        var nm0 = ctx["func_decl_order"][wi]
+        if nm0 == nil || nm0 == "" { wi = wi + 1; continue }
+        if need == nil || need[nm0] == nil { wi = wi + 1; continue }
+
+        var ar0 = nil
+        if ctx["func_arity"] != nil {
+            var ar0_enc = ctx["func_arity"][nm0]
+            if ar0_enc != nil { ar0 = ar0_enc - 1 }
+        }
+        var vf0 = nil
+        if ctx["func_varargs_fixed"] != nil {
+            var vf0_enc = ctx["func_varargs_fixed"][nm0]
+            if vf0_enc != nil { vf0 = vf0_enc - 1 }
+        }
+        if ar0 != nil {
+            var stw = callable.synth_fnwrap(nm0, ar0, vf0)
+            if stw != nil && stw["type"] == "ExprStmt" && stw["expr"] != nil && stw["expr"]["type"] == "Function" {
+                oren_list_push(wrappers, stw["expr"])
+            } else {
+                err(ctx, "x64 native rtobj: failed to synthesize fnwrap for " + nm0)
+                return nil
             }
         }
         wi = wi + 1
@@ -1438,6 +1443,51 @@ fn native_compile_program_x64(linked, platform) {
         _compile_function_v0(ctx, wfn, platform)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
         j1 = j1 + 1
+    }
+
+    // Ensure any missing fnwraps are synthesized and compiled.
+    //
+    // This is needed when:
+    // - a cached runtime object (rtobj) is used, and
+    // - the runtime object does not include all `__oren_fnwrap_*` wrappers, but user code
+    //   references some runtime function as a first-class value.
+    //
+    // `fnwrap_needed` is populated during expression compilation (Identifier-as-value).
+    var need2 = ctx["fnwrap_needed"]
+    if need2 != nil {
+        var wi2 = 0
+        while wi2 < oren_list_len(ctx["func_decl_order"]) {
+            var fname2 = ctx["func_decl_order"][wi2]
+            if fname2 == nil || fname2 == "" { wi2 = wi2 + 1; continue }
+            if need2[fname2] == nil { wi2 = wi2 + 1; continue }
+            var wname2 = "__oren_fnwrap_" + fname2
+            if ctx["functions"][wname2] == nil {
+                var ar_enc2 = nil
+                if ctx["func_arity"] != nil { ar_enc2 = ctx["func_arity"][fname2] }
+                if ar_enc2 != nil {
+                    var ar2 = ar_enc2 - 1
+                    var vf2 = nil
+                    if ctx["func_varargs_fixed"] != nil {
+                        var vf_enc2 = ctx["func_varargs_fixed"][fname2]
+                        if vf_enc2 != nil { vf2 = vf_enc2 - 1 }
+                    }
+                    var st2 = callable.synth_fnwrap(fname2, ar2, vf2)
+                    if st2 != nil && st2["type"] == "ExprStmt" && st2["expr"] != nil && st2["expr"]["type"] == "Function" {
+                        var wfn2 = st2["expr"]
+                        // Keep stack traces readable even for late-synthesized wrappers.
+                        if ctx["symtab_display"] != nil && ctx["symtab_display"][wname2] == nil {
+                            ctx["symtab_display"][wname2] = wname2 + "@<generated>"
+                        }
+                        _compile_function_v0(ctx, wfn2, platform)
+                        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+                    } else {
+                        err(ctx, "x64 native v0: failed to synthesize fnwrap for " + fname2)
+                        return ctx
+                    }
+                }
+            }
+            wi2 = wi2 + 1
+        }
     }
 
     // Emit shared panic helper after compiling user/runtime functions so:

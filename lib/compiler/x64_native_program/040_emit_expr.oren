@@ -388,12 +388,15 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 	                }
 	            }
 	        }
-	        if ctx["func_arity"] != nil && ctx["func_arity"][fn_name] != nil {
-	            var wname = "__oren_fnwrap_" + fn_name
-	            var fnobj_off = _data_add_fnobj(ctx, wname)
-	            if fnobj_off == nil { err(ctx, "x64 native v0: failed to allocate fnobj"); return nil }
-	
-	            var lea_pos = bytes_len(ctx["code"])
+        if ctx["func_arity"] != nil && ctx["func_arity"][fn_name] != nil {
+            // Track which named-function wrappers are actually referenced as values.
+            // This keeps wrapper synthesis bounded for rtobj builds and reduces x64 cold-build time.
+            if ctx["fnwrap_needed"] != nil { ctx["fnwrap_needed"][fn_name] = 1 }
+            var wname = "__oren_fnwrap_" + fn_name
+            var fnobj_off = _data_add_fnobj(ctx, wname)
+            if fnobj_off == nil { err(ctx, "x64 native v0: failed to allocate fnobj"); return nil }
+
+            var lea_pos = bytes_len(ctx["code"])
 	            bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
 	            // Patch disp32 to point at the fnobj data record.
 	            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": fnobj_off})

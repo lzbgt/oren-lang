@@ -73,11 +73,17 @@ Rules for this tracker:
 	       - Fixed (2026-01-04): x86_64-linux Tier‑1 spawn/join now runs successfully under remote WSL2 (stage1 + stage2).
 	         - Root cause: stale cached runtime machine code (rtobj cache) could preserve a buggy historical x64 `sys_pipe` lowering that clobbered the syscall rc while widening fds.
 	         - Fix: bumped `RUNTIME_OBJ_BACKEND_SIG_X64` to invalidate cached runtime objects and restored strict runtime checks (`sys_pipe(...) != 0` fails) so regressions are caught immediately.
+	         - Perf fix (2026-01-04): x64 rtobj build no longer synthesizes `__oren_fnwrap_*` wrappers for **all** runtime functions.
+	           - Now matches arm64’s `fnwrap_needed` strategy (only synthesize wrappers actually used as function values), reducing “compile one file” cold miss on x64 targets (debug) from ~5.4s → ~2.5s in local benchmarks.
 	         - Also hardened `scripts/verify_native_matrix.sh` to propagate remote exit codes and assert Tier‑1 output markers (prevents silent early-exit false positives).
 	         - Details: `docs/TODOS_ARCHIVE.md`.
-			     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
-				     - (performance) stage2-native runtime bundle cost remains high; keep iterating toward:
-		       - default: hashed runtime AST cache under `build/cache/native_runtime_astbin/` (disable via `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0`)
+				     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
+				       - (perf) Converge x64 wrapper synthesis with arm64:
+				         - stop eagerly synthesizing `__oren_fnwrap_*` for every named user function
+				         - rely on `fnwrap_needed` (and/or an AST scan) so only functions actually used as values pay wrapper cost
+				         - keep the stage2-native compiler build under the <3min budget as function count scales
+					     - (performance) stage2-native runtime bundle cost remains high; keep iterating toward:
+			       - default: hashed runtime AST cache under `build/cache/native_runtime_astbin/` (disable via `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0`)
 		       - default (Tier‑1 throughput): cached compiled runtime object under `build/cache/native_runtime_obj/` (disable via `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`)
 		       - `OREN_NATIVE_RUNTIME_EXPANDED=...` troubleshooting fast-path (skip include expansion)
 		       - `OREN_NATIVE_RUNTIME_ASTBIN=...` troubleshooting fast-path (force a specific astbin file)

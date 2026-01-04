@@ -118,9 +118,25 @@ fn test_core() {
     assert_eq(f(10, 1), 11, 50)
     var xs3 = [2, 3]
     assert_eq(add3(1, xs3...), 6, 51)
+    // Runtime function value (ensures native backends can synthesize `__oren_fnwrap_*` on-demand
+    // for injected runtime functions too, not just user-defined functions).
+    var glen = oren_list_len
+    assert_eq(glen([1, 2, 3]), 3, 52)
 
     // Recursion depth (moderate): sum 1..2000 = 2001000.
     assert_eq(sum_rec(2000), 2001000, 60)
+}
+
+fn test_string_literals_static() {
+    trace("QI: test_string_literals_static")
+    // GC correctness/perf: embedded string literals must NOT become GC-managed heap allocations.
+    // They live in the binary's data segment and are registered as static-kind STRING at startup.
+    var before = native_mem_live_count()
+    var node = oren_find_node("qi_static_lit")
+    assert_true(node != 0, 70)
+    assert_eq(ptr_get(iadd(node, 16)), 1, 71) // kind=STRING
+    var after = native_mem_live_count()
+    assert_eq(after, before, 72)
 }
 
 fn test_numeric_casts() {
@@ -255,6 +271,7 @@ fn main() {
     if oren_getenv("OREN_QI_TRACE") != 0 { g_qi_trace_on = 1 }
 
     test_core()
+    test_string_literals_static()
     test_numeric_casts()
     test_float_and_bytes()
     test_json()
