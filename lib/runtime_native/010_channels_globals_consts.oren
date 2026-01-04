@@ -29,7 +29,10 @@ fn oren_pipe() {
     if buf == 0 { return oren_new_list(0) }
     
     var res = sys_pipe(buf)
-    if res != 0 { free(buf); return oren_new_list(0) }
+    // POSIX: pipe2 returns 0 on success and -errno on failure.
+    // Treat any negative return as failure so callers don't mis-handle a non-negative
+    // scratch value as an error (rolling native backend hardening).
+    if res < 0 { free(buf); return oren_new_list(0) }
     
     var r = ptr_get(buf)
     var w = ptr_get(iadd(buf, 8))

@@ -67,11 +67,14 @@ Rules for this tracker:
          - x64 compiler emits an embedded debug-info table and entry stub calls `oren_set_debug_info(...)`.
          - Runtime `stack_trace()` now uses `oren_resolve_symbol(pc)` (debug-info first; fallback to best-effort intrinsic).
          - Tier‑1 smoke asserts `oren_resolve_symbol(lr) != "???"`.
-       - Fixed (2026-01-04): arm64 varargs wrappers no longer self-recurse in native codegen.
-         - Added a `cur_fn_name` context so call lowering can skip varargs “callable-object” lowering inside `__oren_fnwrap_*`.
-         - Result: `tests/fixtures/tier1_native_smoke_main.oren` runs successfully on `arm64-macos` native backend in debug mode.
-		     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
-			     - (performance) stage2-native runtime bundle cost remains high; keep iterating toward:
+	       - Fixed (2026-01-04): arm64 varargs wrappers no longer self-recurse in native codegen.
+	         - Added a `cur_fn_name` context so call lowering can skip varargs “callable-object” lowering inside `__oren_fnwrap_*`.
+	         - Result: `tests/fixtures/tier1_native_smoke_main.oren` runs successfully on `arm64-macos` native backend in debug mode.
+	       - Fixed (2026-01-04): x86_64-linux Tier‑1 spawn/join now runs successfully under remote WSL2 (stage1 + stage2).
+	         - Also hardened `scripts/verify_native_matrix.sh` to propagate remote exit codes and assert Tier‑1 output markers (prevents silent early-exit false positives).
+	         - Details: `docs/TODOS_ARCHIVE.md`.
+			     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
+				     - (performance) stage2-native runtime bundle cost remains high; keep iterating toward:
 		       - default: hashed runtime AST cache under `build/cache/native_runtime_astbin/` (disable via `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0`)
 		       - default (Tier‑1 throughput): cached compiled runtime object under `build/cache/native_runtime_obj/` (disable via `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`)
 		       - `OREN_NATIVE_RUNTIME_EXPANDED=...` troubleshooting fast-path (skip include expansion)
@@ -185,3 +188,19 @@ Rules for this tracker:
      - `docs/CONCURRENCY_MODEL.md`
      - `docs/NATIVE_GMP_SCHEDULER.md`
      - `docs/ASYNC_IO_AND_SELECT.md`
+
+4) **Portable core + reflective types + value repr refactor** (L)
+   - Goal (rolling, allowed to break compatibility): make Oren’s internal “unsafe core” small, fast, and portable, and make types first-class with reflection as a primary design constraint.
+   - Deliverables (design → implementation):
+     - define a portable core runtime layer for unsafe primitives:
+       - string buf / array buf (contiguous, amortized growth, explicit capacity)
+       - IO ops surface (file + fd + basic NET) with explicit error codes
+     - make types first-class and reflective:
+       - stable “type object” representation
+       - reflective APIs for field layout / method tables / generic instantiations (as designed)
+     - redesign the native value representation (reduce “64-byte OrenValue” storage inefficiency):
+       - unify with the native tagged-value plan and remove key-kind inference fragility as a side-effect
+   - References:
+     - `docs/TYPE_SYSTEM_PLAN.md`
+     - `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
+     - `docs/STDLIB_LAYERS.md`

@@ -340,7 +340,8 @@ remote_run_win() {
   local exe_name="$1"
   remote_kill_win "$exe_name" >/dev/null 2>&1 || true
   set +e
-  run_with_timeout 30 "${ssh_base[@]}" "cmd.exe /v:on /c \"${remote_win_root}\\\\${exe_name} & echo EXIT=!ERRORLEVEL!\""
+  # Preserve the program's exit code (do not let trailing `echo` mask failures).
+  run_with_timeout 30 "${ssh_base[@]}" "cmd.exe /v:on /c \"${remote_win_root}\\\\${exe_name} & set RC=!ERRORLEVEL! & echo EXIT=!RC! & exit /b !RC!\""
   local rc=$?
   set -e
   if [[ "$rc" -ne 0 ]]; then
@@ -357,7 +358,33 @@ remote_run_wsl() {
   if [[ "$TRACE" -ne 0 ]]; then
     envp="OREN_QI_TRACE=1 "
   fi
-  local cmd="file ${remote_wsl_root}/${bin_name} || true; chmod +x ${remote_wsl_root}/${bin_name} && ${envp}timeout 20s ${remote_wsl_root}/${bin_name}; echo EXIT=\\$?"
+  local full="${remote_wsl_root}/${bin_name}"
+  local want_tier1=0
+  if [[ "$bin_name" == tier1_* ]]; then
+    want_tier1=1
+  fi
+
+  # Preserve the program's exit code and emit a stable EXIT=... marker for log scanning.
+  #
+  # Additionally, Tier‑1 fixtures must print key markers; otherwise we treat it as a failure
+  # even if the process exits 0 (prevents silent early-exit false positives).
+  local cmd=""
+  if [[ "$want_tier1" -ne 0 ]]; then
+    local out="/tmp/oren_${bin_name}.out"
+    cmd="file ${full} || true; chmod +x ${full} && rm -f '${out}'; ${envp}timeout 20s ${full} >'${out}' 2>&1; rc="
+    cmd+='$?'
+    cmd+="; cat '${out}'; echo EXIT="
+    cmd+='$rc'
+    cmd+="; grep -q 'tier1 spawn join ok' '${out}' || exit 97; grep -q 'tier1 proc ok' '${out}' || exit 98; exit "
+    cmd+='$rc'
+  else
+    cmd="file ${full} || true; chmod +x ${full} && ${envp}timeout 20s ${full}; rc="
+    cmd+='$?'
+    cmd+="; echo EXIT="
+    cmd+='$rc'
+    cmd+="; exit "
+    cmd+='$rc'
+  fi
   set +e
   run_with_timeout 30 "${ssh_base[@]}" "wsl.exe -e bash -lc \"${cmd}\""
   local rc=$?

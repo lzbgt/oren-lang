@@ -23,6 +23,28 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - local: `./oren build tests/fixtures/tier1_native_smoke_main.oren --backend native --platform arm64-macos --debug ...` (runs OK)
   - remote: `./scripts/verify_native_matrix.sh --targets x64-win-tier1` (stage1 + stage2)
 
+## Archived (2026-01-04) — Native: x64-linux Tier‑1 spawn/join unblocked (WSL2) + matrix script hardening
+
+- Symptom (remote WSL2 x86_64, Tier‑1 fixture):
+  - Output stopped at `tier1 spawn begin` / `tier1 lock before spawn ...` and returned early.
+  - `scripts/verify_native_matrix.sh` previously printed `EXIT=...` but still returned success because the remote wrappers did not propagate the program exit code.
+- Root cause:
+  - `sys_pipe(pipefd_ptr)` call sites in the injected native runtime treated **any non-zero** return as failure.
+  - The current x86_64 `sys_pipe` intrinsic widens the two 32-bit fds in-place and (rolling bug) can clobber the syscall rc register with a non-zero scratch value, triggering false failures.
+- Fix (runtime hardening):
+  - Treat only **negative** returns as failure (POSIX convention: `0` on success, `-errno` on failure):
+    - `lib/runtime_native/120_first_class_fn.oren` (`oren_spawn_call_list`)
+    - `lib/runtime_native/010_channels_globals_consts.oren` (`oren_pipe`)
+- Fix (verification script hardening):
+  - `scripts/verify_native_matrix.sh` now preserves true remote exit codes:
+    - Win11: uses `set RC=!ERRORLEVEL! ... exit /b !RC!`
+    - WSL2: captures `rc=$?` and `exit $rc` after printing `EXIT=$rc`
+  - WSL2 Tier‑1 runs additionally require output markers (prevents “exit 0 but incomplete output” false positives):
+    - `tier1 spawn join ok`
+    - `tier1 proc ok`
+- Verified:
+  - `./scripts/verify_native_matrix.sh --targets x64-wsl-tier1` (stage1 + stage2) passes and prints full Tier‑1 progress through spawn/join and proc.
+
 ## Archived (2026-01-04) — Tooling: bounded build timing summary (no huge logs)
 
 - Compiler:

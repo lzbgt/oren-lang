@@ -552,17 +552,26 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 10)) // r11 = packed (wfd<<32 | rfd)
 
         // rfd = (u32)r11
-        bytes_extend(ctx["code"], insn_mov_r32_r32(0, 11)) // eax = r11d => rax = rfd
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0)) // [ptr] = rfd (u64)
+        //
+        // IMPORTANT: do not clobber RAX here: it carries the syscall return code (rc),
+        // and callers commonly store/branch on it immediately after the intrinsic.
+        bytes_extend(ctx["code"], insn_mov_r32_r32(8, 11)) // r8d = r11d => r8 = rfd (zero-extend)
+        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 8)) // [ptr] = rfd (u64)
 
         // wfd = (u32)(r11 >> 32)
         bytes_extend(ctx["code"], insn_shr_r64_imm8(11, 32))
-        bytes_extend(ctx["code"], insn_mov_r32_r32(0, 11)) // eax = wfd
+        bytes_extend(ctx["code"], insn_mov_r32_r32(8, 11)) // r8d = wfd (zero-extend)
         bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8)) // ptr += 8
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))  // [ptr+8] = wfd (u64)
+        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 8))  // [ptr+8] = wfd (u64)
 
         _emit_label(ctx, labels, l_skip_widen)
         _patch_local_fixups(ctx, labels, fixups)
+
+        // IMPORTANT: preserve the syscall return value in RAX.
+        //
+        // The widening block above uses RAX as a scratch register when rewriting the two
+        // 32-bit fds in-place, which would otherwise clobber the rc (0 on success).
+        _intr_load_x64(ctx, 0, tmp_rc) // rax = rc
 
         // post: native_capsule_sys_pipe_post(ptr, rc) -> rc
         if capsule {
