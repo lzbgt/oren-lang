@@ -272,11 +272,29 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 // ok:
                 var mmap_ok_target = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_mmap_ok, insn_b_cond((mmap_ok_target - br_mmap_ok) / 4, 10)) // GE
+
+                // Rolling robustness: reject suspicious "pointer" results that are too small to be a valid
+                // mapping base. A wrong syscall number or clobbered syscall register can otherwise return
+                // small positive integers (e.g. 15), which then get used as pointers and segfault later.
+                //
+                // Contract (native runtime): any heap/metadata pointer must be >= 4096.
+                push_u32_le(ctx["code"], insn_movz(6, 4096)) // X6 = 0x1000
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 6))
+                var br_ptr_ok = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.GE ptr_ok
+                // Fail-fast: exit(315)
+                push_u32_le(ctx["code"], insn_movz(0, 315))
+                var sys_exit2 = abi.darwin_sys_exit()
+                if ctx["platform"]["os"] == "linux" { sys_exit2 = labi.linux_sys_exit() }
+                push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit2))
+                push_u32_le(ctx["code"], insn_svc(svc_imm))
+                var ptr_ok_target = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ptr_ok, insn_b_cond((ptr_ok_target - br_ptr_ok) / 4, 10)) // GE
     
-	                // RESTORE X3 (chunk) and X9 (aligned size)
-	                if fn_name == "malloc_k" {
-	                    push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
-	                    push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 8))
+		                // RESTORE X3 (chunk) and X9 (aligned size)
+		                if fn_name == "malloc_k" {
+		                    push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
+		                    push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 8))
 	                    push_u32_le(ctx["code"], insn_ldr_reg_sp(10, 16))
 	                    push_u32_le(ctx["code"], insn_add_sp(48))
 	                } else {

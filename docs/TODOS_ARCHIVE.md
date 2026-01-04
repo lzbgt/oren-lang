@@ -1400,3 +1400,5 @@ These are “project laws”. If a task can’t follow these, we *change the tas
   - Added `lib/runtime_native/015_raw_alloc.oren` with `native_malloc_raw_or_mmap(size)` (validates `malloc_raw`, falls back to `sys_mmap_private_anon`).
   - Switched early raw allocations in `native_runtime_init` and Win envp construction to use the validated raw allocator.
   - Result: `scripts/verify_native_matrix.sh --targets local,arm64-linux` now builds and runs stage1 + stage2 artifacts in the Linux/arm64 container without crashing.
+- 2026-01-04: Hardened arm64 native `malloc`/`malloc_raw` lowering: after the `mmap` slow path, reject any “pointer” result `< 4096` and fail-fast.
+  - This prevents a wrong syscall number / clobbered syscall register from returning a small positive integer (e.g. 15) that would later be treated as a pointer and segfault.
