@@ -132,11 +132,18 @@ fn test_string_literals_static() {
     // GC correctness/perf: embedded string literals must NOT become GC-managed heap allocations.
     // They live in the binary's data segment and are registered as static-kind STRING at startup.
     var before = native_mem_live_count()
+    var before_roots = native_mem_roots_count()
+    // Identical literals should be de-duplicated into the cstr0 pool (pointer identity stable).
+    var p1 = "qi_static_lit"
+    var p2 = "qi_static_lit"
+    assert_true(p1 == p2, 69)
     var node = oren_find_node("qi_static_lit")
     assert_true(node != 0, 70)
     assert_eq(ptr_get(iadd(node, 16)), 1, 71) // kind=STRING
     var after = native_mem_live_count()
     assert_eq(after, before, 72)
+    var after_roots = native_mem_roots_count()
+    assert_eq(after_roots, before_roots, 73)
 }
 
 fn test_numeric_casts() {
