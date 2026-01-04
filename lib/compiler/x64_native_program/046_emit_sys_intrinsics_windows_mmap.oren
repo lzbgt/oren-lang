@@ -17,7 +17,7 @@ fn _emit_sys_mmap_private_anon_windows_x64(ctx, locals, tmp_len) {
     bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 4))     // r9d = 4
     var mov_iat_va = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_va + 3, "data_label": "IAT_VirtualAlloc"})
+    _x64_add_rip_data32_fixup(ctx, mov_iat_va + 3, "IAT_VirtualAlloc")
     bytes_extend(ctx["code"], insn_call_rax())
 
     // if rax == 0 => rax = -1
@@ -41,7 +41,7 @@ fn _emit_sys_munmap_windows_x64(ctx, locals, tmp_addr) {
     bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 32768)) // r8d = MEM_RELEASE (0x8000)
     var mov_iat_vf = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_vf + 3, "data_label": "IAT_VirtualFree"})
+    _x64_add_rip_data32_fixup(ctx, mov_iat_vf + 3, "IAT_VirtualFree")
     bytes_extend(ctx["code"], insn_call_rax())
 
     // if rax == 0 => -1 else 0
@@ -60,4 +60,3 @@ fn _emit_sys_munmap_windows_x64(ctx, locals, tmp_addr) {
     _patch_local_fixups(ctx, labels, local_fixups)
     return nil
 }
-

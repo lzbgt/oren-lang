@@ -146,6 +146,14 @@ fn test_string_literals_static() {
     assert_eq(after_roots, before_roots, 73)
 }
 
+fn test_read_u8_buf_missing_returns_err() {
+    trace("QI: test_read_u8_buf_missing_returns_err")
+    // Tooling contract: FS helpers must return structured errors (not hard-exit) so compiler caches
+    // can probe optional files and treat ENOENT as a normal miss.
+    var r = oren_read_u8_buf("__qi_missing_file_should_not_exist__u8.bin")
+    assert_true(oren_is_err(r) != 0, 74)
+}
+
 fn test_numeric_casts() {
     // Unchecked casts (wrap/truncate).
     assert_eq(ints.u8(256 + 5), 5, 100)
@@ -279,6 +287,7 @@ fn main() {
 
     test_core()
     test_string_literals_static()
+    test_read_u8_buf_missing_returns_err()
     test_numeric_casts()
     test_float_and_bytes()
     test_json()

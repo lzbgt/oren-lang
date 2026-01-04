@@ -47,16 +47,34 @@ fn push_u8_n(buf, v, n) {
 }
 
 fn push_ascii_z(buf, s) {
-    var bs = oren_bytes_from_string(s)
+    // Avoid `oren_bytes_from_string` (allocates list<int>) in hot emitter paths.
+    // Import table construction calls this many times and must stay fast.
+    if s == nil { bytes_push(buf, 0); return nil }
+    var n = oren_string_len(s)
     var i = 0
-    while i < oren_list_len(bs) { bytes_push(buf, bs[i]); i = i + 1 }
+    while i < n {
+        bytes_push(buf, oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
     bytes_push(buf, 0)
+    return nil
 }
 
 fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
+    // Bounded timing summary for diagnosing x64 Windows build throughput without huge logs.
+    // Enable with: OREN_TRACE_X64_EMIT_SUMMARY=1
+    var trace_sum = oren_env("OREN_TRACE_X64_EMIT_SUMMARY") != nil
+    var t0 = 0
+    var t_compile_done = 0
+    var t_rdata_done = 0
+    var t_fix_done = 0
+    var t_write_done = 0
+    if trace_sum { t0 = oren_time_now_ns() }
+
     var ctx = codegen.native_compile_program_x64(linked, {"os": "windows", "debug": debug_mode, "no_gc": no_gc, "call_depth_max": call_depth_max, "capsule": capsule, "cap_allow_domains": cap_allow_domains})
     if ctx == nil { return nil }
     codegen.native_emit_errors_and_exit(ctx)
+    if trace_sum { t_compile_done = oren_time_now_ns() }
 
     var code = ctx["code"]
     var user_data = ctx["data"]
@@ -300,6 +318,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
 
     var import_dir_rva = rdata_rva + off_import_desc
     var import_dir_size = 80
+    if trace_sum { t_rdata_done = oren_time_now_ns() }
 
     // ---- Build `.data` (user data blob) ----
     //
@@ -320,6 +339,66 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     // We patch:
     // - call rel32 to main
     // - mov rax, [rip+disp32] to read IAT ExitProcess slot
+    //
+    // PERF:
+    // Build a label->offset map once to avoid a large if/else chain for each fixup.
+    // Encode offsets as (off+1) so offset 0 is distinguishable from a missing key (nil==0).
+    var iat_offs = {}
+    // KERNEL32.dll IAT slots (order matches kernel32_funcs above)
+    iat_offs["IAT_ExitProcess"] = off_iat_k32 + 0 + 1
+    iat_offs["IAT_GetStdHandle"] = off_iat_k32 + 8 + 1
+    iat_offs["IAT_WriteFile"] = off_iat_k32 + 16 + 1
+    iat_offs["IAT_ReadFile"] = off_iat_k32 + 24 + 1
+    iat_offs["IAT_VirtualAlloc"] = off_iat_k32 + 32 + 1
+    iat_offs["IAT_GetEnvironmentVariableA"] = off_iat_k32 + 40 + 1
+    iat_offs["IAT_GetEnvironmentStringsA"] = off_iat_k32 + 48 + 1
+    iat_offs["IAT_GetCommandLineW"] = off_iat_k32 + 56 + 1
+    iat_offs["IAT_WideCharToMultiByte"] = off_iat_k32 + 64 + 1
+    iat_offs["IAT_LocalFree"] = off_iat_k32 + 72 + 1
+    iat_offs["IAT_Sleep"] = off_iat_k32 + 80 + 1
+    iat_offs["IAT_GetSystemTimeAsFileTime"] = off_iat_k32 + 88 + 1
+    iat_offs["IAT_QueryPerformanceCounter"] = off_iat_k32 + 96 + 1
+    iat_offs["IAT_CreateProcessA"] = off_iat_k32 + 104 + 1
+    iat_offs["IAT_WaitForSingleObject"] = off_iat_k32 + 112 + 1
+    iat_offs["IAT_GetExitCodeProcess"] = off_iat_k32 + 120 + 1
+    iat_offs["IAT_SetHandleInformation"] = off_iat_k32 + 128 + 1
+    iat_offs["IAT_CloseHandle"] = off_iat_k32 + 136 + 1
+    iat_offs["IAT_CreateThread"] = off_iat_k32 + 144 + 1
+    iat_offs["IAT_TerminateThread"] = off_iat_k32 + 152 + 1
+    iat_offs["IAT_CreateFileA"] = off_iat_k32 + 160 + 1
+    iat_offs["IAT_GetLastError"] = off_iat_k32 + 168 + 1
+    iat_offs["IAT_GetFileAttributesA"] = off_iat_k32 + 176 + 1
+    iat_offs["IAT_DeleteFileA"] = off_iat_k32 + 184 + 1
+    iat_offs["IAT_RemoveDirectoryA"] = off_iat_k32 + 192 + 1
+    iat_offs["IAT_CreateDirectoryA"] = off_iat_k32 + 200 + 1
+    iat_offs["IAT_MoveFileExA"] = off_iat_k32 + 208 + 1
+    iat_offs["IAT_SetFileAttributesA"] = off_iat_k32 + 216 + 1
+    iat_offs["IAT_GetFileAttributesExA"] = off_iat_k32 + 224 + 1
+    iat_offs["IAT_GetFileSizeEx"] = off_iat_k32 + 232 + 1
+    iat_offs["IAT_FreeEnvironmentStringsA"] = off_iat_k32 + 240 + 1
+    iat_offs["IAT_GetCurrentThreadId"] = off_iat_k32 + 248 + 1
+    iat_offs["IAT_VirtualFree"] = off_iat_k32 + 256 + 1
+    // WS2_32.dll IAT slots (order matches ws2_32_funcs above)
+    iat_offs["IAT_WSAStartup"] = off_iat_ws2 + 0 + 1
+    iat_offs["IAT_WSAGetLastError"] = off_iat_ws2 + 8 + 1
+    iat_offs["IAT_socket"] = off_iat_ws2 + 16 + 1
+    iat_offs["IAT_connect"] = off_iat_ws2 + 24 + 1
+    iat_offs["IAT_bind"] = off_iat_ws2 + 32 + 1
+    iat_offs["IAT_listen"] = off_iat_ws2 + 40 + 1
+    iat_offs["IAT_accept"] = off_iat_ws2 + 48 + 1
+    iat_offs["IAT_sendto"] = off_iat_ws2 + 56 + 1
+    iat_offs["IAT_recvfrom"] = off_iat_ws2 + 64 + 1
+    iat_offs["IAT_getsockname"] = off_iat_ws2 + 72 + 1
+    iat_offs["IAT_getpeername"] = off_iat_ws2 + 80 + 1
+    iat_offs["IAT_setsockopt"] = off_iat_ws2 + 88 + 1
+    iat_offs["IAT_getsockopt"] = off_iat_ws2 + 96 + 1
+    iat_offs["IAT_shutdown"] = off_iat_ws2 + 104 + 1
+    iat_offs["IAT_closesocket"] = off_iat_ws2 + 112 + 1
+    iat_offs["IAT_ioctlsocket"] = off_iat_ws2 + 120 + 1
+    iat_offs["IAT_select"] = off_iat_ws2 + 128 + 1
+    // SHELL32.dll IAT slots
+    iat_offs["IAT_CommandLineToArgvW"] = off_iat_s32 + 0 + 1
+
     var i = 0
     while i < oren_list_len(fixups) {
         var f = fixups[i]
@@ -339,65 +418,12 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
             // disp32 relative to next RIP (end of instruction).
             // f["pos"] points to disp32 field within the instruction.
             var label = f["data_label"]
-            var target_off = nil
-            // KERNEL32.dll IAT slots (order matches kernel32_funcs above)
-            if label == "IAT_ExitProcess" { target_off = off_iat_k32 + 0 }
-            else if label == "IAT_GetStdHandle" { target_off = off_iat_k32 + 8 }
-            else if label == "IAT_WriteFile" { target_off = off_iat_k32 + 16 }
-            else if label == "IAT_ReadFile" { target_off = off_iat_k32 + 24 }
-            else if label == "IAT_VirtualAlloc" { target_off = off_iat_k32 + 32 }
-            else if label == "IAT_GetEnvironmentVariableA" { target_off = off_iat_k32 + 40 }
-            else if label == "IAT_GetEnvironmentStringsA" { target_off = off_iat_k32 + 48 }
-            else if label == "IAT_GetCommandLineW" { target_off = off_iat_k32 + 56 }
-            else if label == "IAT_WideCharToMultiByte" { target_off = off_iat_k32 + 64 }
-            else if label == "IAT_LocalFree" { target_off = off_iat_k32 + 72 }
-            else if label == "IAT_Sleep" { target_off = off_iat_k32 + 80 }
-            else if label == "IAT_GetSystemTimeAsFileTime" { target_off = off_iat_k32 + 88 }
-            else if label == "IAT_QueryPerformanceCounter" { target_off = off_iat_k32 + 96 }
-            else if label == "IAT_CreateProcessA" { target_off = off_iat_k32 + 104 }
-            else if label == "IAT_WaitForSingleObject" { target_off = off_iat_k32 + 112 }
-            else if label == "IAT_GetExitCodeProcess" { target_off = off_iat_k32 + 120 }
-            else if label == "IAT_SetHandleInformation" { target_off = off_iat_k32 + 128 }
-            else if label == "IAT_CloseHandle" { target_off = off_iat_k32 + 136 }
-            else if label == "IAT_CreateThread" { target_off = off_iat_k32 + 144 }
-            else if label == "IAT_TerminateThread" { target_off = off_iat_k32 + 152 }
-            else if label == "IAT_CreateFileA" { target_off = off_iat_k32 + 160 }
-            else if label == "IAT_GetLastError" { target_off = off_iat_k32 + 168 }
-            else if label == "IAT_GetFileAttributesA" { target_off = off_iat_k32 + 176 }
-            else if label == "IAT_DeleteFileA" { target_off = off_iat_k32 + 184 }
-            else if label == "IAT_RemoveDirectoryA" { target_off = off_iat_k32 + 192 }
-            else if label == "IAT_CreateDirectoryA" { target_off = off_iat_k32 + 200 }
-            else if label == "IAT_MoveFileExA" { target_off = off_iat_k32 + 208 }
-            else if label == "IAT_SetFileAttributesA" { target_off = off_iat_k32 + 216 }
-            else if label == "IAT_GetFileAttributesExA" { target_off = off_iat_k32 + 224 }
-            else if label == "IAT_GetFileSizeEx" { target_off = off_iat_k32 + 232 }
-            else if label == "IAT_FreeEnvironmentStringsA" { target_off = off_iat_k32 + 240 }
-            else if label == "IAT_GetCurrentThreadId" { target_off = off_iat_k32 + 248 }
-            else if label == "IAT_VirtualFree" { target_off = off_iat_k32 + 256 }
-            // WS2_32.dll IAT slots (order matches ws2_32_funcs above)
-            else if label == "IAT_WSAStartup" { target_off = off_iat_ws2 + 0 }
-            else if label == "IAT_WSAGetLastError" { target_off = off_iat_ws2 + 8 }
-            else if label == "IAT_socket" { target_off = off_iat_ws2 + 16 }
-            else if label == "IAT_connect" { target_off = off_iat_ws2 + 24 }
-            else if label == "IAT_bind" { target_off = off_iat_ws2 + 32 }
-            else if label == "IAT_listen" { target_off = off_iat_ws2 + 40 }
-            else if label == "IAT_accept" { target_off = off_iat_ws2 + 48 }
-            else if label == "IAT_sendto" { target_off = off_iat_ws2 + 56 }
-            else if label == "IAT_recvfrom" { target_off = off_iat_ws2 + 64 }
-            else if label == "IAT_getsockname" { target_off = off_iat_ws2 + 72 }
-            else if label == "IAT_getpeername" { target_off = off_iat_ws2 + 80 }
-            else if label == "IAT_setsockopt" { target_off = off_iat_ws2 + 88 }
-            else if label == "IAT_getsockopt" { target_off = off_iat_ws2 + 96 }
-            else if label == "IAT_shutdown" { target_off = off_iat_ws2 + 104 }
-            else if label == "IAT_closesocket" { target_off = off_iat_ws2 + 112 }
-            else if label == "IAT_ioctlsocket" { target_off = off_iat_ws2 + 120 }
-            else if label == "IAT_select" { target_off = off_iat_ws2 + 128 }
-            // SHELL32.dll IAT slots
-            else if label == "IAT_CommandLineToArgvW" { target_off = off_iat_s32 + 0 }
-            else {
+            var target_off_enc = iat_offs[label]
+            if target_off_enc == nil {
                 print("x64 pe: unknown data label " + label)
                 oren_exit(1)
             }
+            var target_off = target_off_enc - 1
             var disp_pos = f["pos"]
             var insn_start = disp_pos - 3
             var next_rip = text_rva + (insn_start + 7)
@@ -462,6 +488,41 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
             set_u32_le(code, disp_pos3, disp4)
         }
         i = i + 1
+    }
+    if trace_sum { t_fix_done = oren_time_now_ns() }
+
+    // Additional Windows IAT fixups collected during codegen without allocating per-fixup maps.
+    var iat_fix = ctx["rip_data32_fixups"]
+    if iat_fix != nil {
+        var idx2 = 0
+        var pair2 = [nil, nil]
+        while 1 {
+            var ok2 = oren_iter_next_entry(iat_fix, idx2, pair2)
+            if ok2 == 0 { break }
+            var label2 = pair2[0]
+            var poss = pair2[1]
+            if label2 != nil && poss != nil {
+                var target_off_enc2 = iat_offs[label2]
+                if target_off_enc2 == nil {
+                    print("x64 pe: unknown data label " + label2)
+                    oren_exit(1)
+                }
+                var target_off2 = target_off_enc2 - 1
+                var pi = 0
+                while pi < oren_list_len(poss) {
+                    var disp_pos = poss[pi]
+                    // disp32 relative to next RIP (end of instruction).
+                    var insn_start = disp_pos - 3
+                    var next_rip = text_rva + (insn_start + 7)
+                    var target_rva = rdata_rva + target_off2
+                    var disp2 = target_rva - next_rip
+                    if disp2 < 0 { disp2 = 4294967296 + disp2 }
+                    set_u32_le(code, disp_pos, disp2)
+                    pi = pi + 1
+                }
+            }
+            idx2 = idx2 + 1
+        }
     }
 
     // ---- Build headers ----
@@ -566,10 +627,9 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     // ---- Section headers (3 * 40 bytes) ----
     // .text
     var name_text = ".text"
-    var nb = oren_bytes_from_string(name_text)
     var j = 0
     while j < 8 {
-        if j < oren_list_len(nb) { bytes_push(out, nb[j]) } else { bytes_push(out, 0) }
+        if j < oren_string_len(name_text) { bytes_push(out, oren_string_byte_at_unchecked(name_text, j) & 255) } else { bytes_push(out, 0) }
         j = j + 1
     }
     push_u32_le(out, bytes_len(code)) // VirtualSize
@@ -582,10 +642,9 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
 
     // .rdata
     var name_rd = ".rdata"
-    nb = oren_bytes_from_string(name_rd)
     j = 0
     while j < 8 {
-        if j < oren_list_len(nb) { bytes_push(out, nb[j]) } else { bytes_push(out, 0) }
+        if j < oren_string_len(name_rd) { bytes_push(out, oren_string_byte_at_unchecked(name_rd, j) & 255) } else { bytes_push(out, 0) }
         j = j + 1
     }
     push_u32_le(out, bytes_len(rdata))
@@ -598,10 +657,9 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
 
     // .data (user data blob)
     var name_data = ".data"
-    nb = oren_bytes_from_string(name_data)
     j = 0
     while j < 8 {
-        if j < oren_list_len(nb) { bytes_push(out, nb[j]) } else { bytes_push(out, 0) }
+        if j < oren_string_len(name_data) { bytes_push(out, oren_string_byte_at_unchecked(name_data, j) & 255) } else { bytes_push(out, 0) }
         j = j + 1
     }
     push_u32_le(out, bytes_len(data)) // VirtualSize
@@ -634,6 +692,21 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
         print("x64 pe: write error code=" + oren_int_to_string(code))
         if msg != nil { print("x64 pe: write error msg=" + msg) }
         oren_exit(1)
+    }
+    if trace_sum { t_write_done = oren_time_now_ns() }
+    if trace_sum {
+        var compile_ms = (t_compile_done - t0) / 1000000
+        var rdata_ms = (t_rdata_done - t_compile_done) / 1000000
+        var fixups_ms = (t_fix_done - t_rdata_done) / 1000000
+        var write_ms = (t_write_done - t_fix_done) / 1000000
+        print("[x64_pe] summary compile_ms=" + oren_int_to_string(compile_ms) +
+            " rdata_ms=" + oren_int_to_string(rdata_ms) +
+            " fixups_ms=" + oren_int_to_string(fixups_ms) +
+            " write_ms=" + oren_int_to_string(write_ms) +
+            " fixups_n=" + oren_int_to_string(oren_list_len(fixups)) +
+            " code_bytes=" + oren_int_to_string(bytes_len(code)) +
+            " rdata_bytes=" + oren_int_to_string(bytes_len(rdata)) +
+            " data_bytes=" + oren_int_to_string(bytes_len(data)))
     }
     return nil
 }

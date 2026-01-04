@@ -7,7 +7,7 @@ fn _emit_abort_exitcode(ctx, exit_code) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(1, exit_code)) // mov ecx, imm32
         var mov_iat_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0)) // patch disp32 to IAT slot
-        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_pos + 3, "data_label": "IAT_ExitProcess"})
+        _x64_add_rip_data32_fixup(ctx, mov_iat_pos + 3, "IAT_ExitProcess")
         bytes_extend(ctx["code"], insn_call_rax())
         bytes_extend(ctx["code"], insn_ret())
         return nil
@@ -40,6 +40,27 @@ fn _emit_abort_panic_str(ctx, msg) {
     _emit_panic_helper_mark_needed_x64(ctx)
     _emit_call_rel32_named_x64(ctx, _x64_panic_helper_name())
     bytes_extend(ctx["code"], insn_ret())
+    return nil
+}
+
+fn _x64_err_invalid_int_lit(ctx, lit) {
+    // Error-only helper: keep output bounded (avoid dumping long strings/logs).
+    var extra = ""
+    if lit != nil && oren_is_string(lit) == true {
+        var bs = ""
+        var i = 0
+        while i < 16 {
+            var b = ptr_get_byte(lit + i) & 255
+            if i != 0 { bs = bs + "," }
+            bs = bs + oren_int_to_string(b)
+            if b == 0 { break }
+            i = i + 1
+        }
+        extra = " lit_ptr=" + oren_int_to_string(lit) + " lit_bytes=" + bs
+    } else {
+        extra = " lit_tag=" + oren_int_to_string(oren_type_tag(lit))
+    }
+    err(ctx, "x64 native v0: invalid integer literal" + extra)
     return nil
 }
 
@@ -100,7 +121,7 @@ fn _emit_malloc_size_in_rax(ctx, locals) {
 
         var mov_iat_va = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat_va + 3, "data_label": "IAT_VirtualAlloc"})
+        _x64_add_rip_data32_fixup(ctx, mov_iat_va + 3, "IAT_VirtualAlloc")
         bytes_extend(ctx["code"], insn_call_rax())
 
         // if rax == 0 => abort
@@ -194,7 +215,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
     var t = expr["type"]
     if t == "Integer" {
         var n = intparse.parse_int_lit(expr["value"])
-        if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+        if oren_is_err(n) { _x64_err_invalid_int_lit(ctx, expr["value"]); return nil }
         if _is_i32(n) {
             // mov eax, imm32 then sign-extend to rax (cdqe)
             var imm_u32 = n
@@ -235,7 +256,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         // Store literal bytes in the appended data blob and load its address via RIP-relative LEA.
         var s = expr["value"]
         var off = _data_add_cstr0(ctx, s)
-        if off == nil { err(ctx, "x64 native v0: failed to add string literal data"); return nil }
+        // `off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
         var lea_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0)) // lea rax, [rip+disp32]
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
@@ -1010,7 +1031,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // Shift counts must be in 0..63. This keeps semantics consistent with AVM and the C backend runtime.
             if r != nil && r["type"] == "Integer" {
                 var n2 = intparse.parse_int_lit(r["value"])
-                if n2 == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+                if oren_is_err(n2) { _x64_err_invalid_int_lit(ctx, r["value"]); return nil }
                 if n2 < 0 || n2 >= 64 {
                     _emit_abort_panic_str(ctx, "shift count out of range")
                     return nil
@@ -1079,7 +1100,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             if r != nil && r["type"] == "Integer" {
                 var n3 = intparse.parse_int_lit(r["value"])
-                if n3 == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+                if oren_is_err(n3) { _x64_err_invalid_int_lit(ctx, r["value"]); return nil }
                 if _is_i32(n3) {
                     var imm_u32_3 = n3
                     if n3 < 0 { imm_u32_3 = 4294967296 + n3 }
@@ -1126,7 +1147,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         if r != nil && r["type"] == "Integer" {
             var n2 = intparse.parse_int_lit(r["value"])
-            if n2 == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+            if oren_is_err(n2) { _x64_err_invalid_int_lit(ctx, r["value"]); return nil }
             if _is_i32(n2) {
                 var imm_u32_2 = n2
                 if n2 < 0 { imm_u32_2 = 4294967296 + n2 }

@@ -291,9 +291,8 @@ fn _bundle_is_zero_const_expr(expr) {
     if t == "Nil" { return true }
     if t == "Integer" {
         var v = intparse.parse_int_lit(expr["value"])
-        if v == nil { return false }
-        if v == 0 { return true }
-        return false
+        if oren_is_err(v) { return false }
+        return v == 0
     }
     if t == "Boolean" {
         var b = expr["value"]

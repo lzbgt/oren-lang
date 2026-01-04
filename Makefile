@@ -8,6 +8,7 @@ all: oren
 
 # Platform settings
 UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
 CC ?= cc
 CODESIGN_IDENTITY ?= -
 MACOS_SYSTEM_PATH_PREFIX := /usr/bin:/bin:/usr/sbin:/sbin
@@ -19,6 +20,37 @@ ifeq ($(UNAME_S),Darwin)
   CODESIGN_ARG := --codesign "$(CODESIGN_IDENTITY)"
 else
   CODESIGN_ARG :=
+endif
+
+# Host platform (preferred native-backend selector).
+#
+# Keep this in Makefile (not in compiler runtime detection) so:
+# - `make verify` remains robust even if the native runtime cannot (or should not) shell out to `uname`
+# - core gates are deterministic and don't depend on external commands
+HOST_PLATFORM :=
+ifeq ($(UNAME_S),Darwin)
+  ifeq ($(UNAME_M),arm64)
+    HOST_PLATFORM := arm64-macos
+  else ifeq ($(UNAME_M),aarch64)
+    HOST_PLATFORM := arm64-macos
+  else ifeq ($(UNAME_M),x86_64)
+    HOST_PLATFORM := x64-macos
+  endif
+else ifeq ($(UNAME_S),Linux)
+  ifeq ($(UNAME_M),arm64)
+    HOST_PLATFORM := arm64-linux
+  else ifeq ($(UNAME_M),aarch64)
+    HOST_PLATFORM := arm64-linux
+  else ifeq ($(UNAME_M),x86_64)
+    HOST_PLATFORM := x64-linux
+  else ifeq ($(UNAME_M),amd64)
+    HOST_PLATFORM := x64-linux
+  endif
+endif
+
+HOST_PLATFORM_ARG :=
+ifneq ($(strip $(HOST_PLATFORM)),)
+  HOST_PLATFORM_ARG := --platform $(HOST_PLATFORM)
 endif
 
 # AVM C build flags (rolling):
@@ -138,24 +170,29 @@ oren: oren_bootstrap $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 		./oren_bootstrap build $(OREN_SRC) $(CODESIGN_ARG) $(GC_ARG); \
 	fi
 
+#
 # Stage 2: Self-Hosted Compiler (Built by Stage 1)
+#
+# Rolling policy:
+# - Default `make stage2` must build stage2 via the **native backend** on arm64-macos too.
+# - If you need the old C-backend bootstrap for bring-up, use:
+#     make stage2 OREN_STAGE2_BACKEND=c
+OREN_STAGE2_BACKEND ?= native
 oren_stage2: oren $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 	@echo "Building Stage 2 (Self-Hosted)..."
 	@if [ "$(UNAME_S)" = "Darwin" ]; then \
 				arch=$$(uname -m); \
 				if [ "$$arch" = "arm64" ] || [ "$$arch" = "aarch64" ]; then \
-					echo "NOTE: arm64 stage2 compiler is bootstrapped via C backend (native self-host is rolling on arm64). This does NOT verify the C backend; it produces ./oren_stage2 which is then used to compile native backends in verification scripts."; \
-					PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./oren build $(OREN_SRC) --backend c -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)'; \
+					PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./oren build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)'; \
 				else \
-					PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./oren build $(OREN_SRC) --backend native --no-debug -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)'; \
+					PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./oren build $(OREN_SRC) --backend native $(HOST_PLATFORM_ARG) --no-debug -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)'; \
 				fi; \
 			else \
 					arch=$$(uname -m); \
 					if [ "$$arch" = "arm64" ] || [ "$$arch" = "aarch64" ]; then \
-						echo "NOTE: arm64 stage2 compiler is bootstrapped via C backend (native self-host is rolling on arm64). This does NOT verify the C backend; it produces ./oren_stage2 which is then used to compile native backends in verification scripts."; \
-						OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./oren build $(OREN_SRC) --backend c -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)'; \
+						OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./oren build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)'; \
 					else \
-						OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./oren build $(OREN_SRC) --backend native --no-debug -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)'; \
+						OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./oren build $(OREN_SRC) --backend native $(HOST_PLATFORM_ARG) --no-debug -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)'; \
 					fi; \
 				fi
 
@@ -232,7 +269,7 @@ test-native-all: oren
 verify: clean oren_stage2
 	@echo "=== Verifying Stage 2 Compiler ==="
 	@mkdir -p build
-	@./oren_stage2 build tests/native/func.oren --backend native -o build/func_stage2 $(CODESIGN_ARG) $(GC_ARG)
+	@./oren_stage2 build tests/native/func.oren --backend native $(HOST_PLATFORM_ARG) -o build/func_stage2 $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/func_stage2 || (echo "FAIL: Stage 2 Verification"; exit 1)
 	@echo "Verification Successful: Stage 2 is functional."
 

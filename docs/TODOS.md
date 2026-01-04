@@ -25,7 +25,10 @@ Rules for this tracker:
 	   - Recently completed: bounded build timing summaries via `OREN_TRACE_BUILD_SUMMARY=1` / `OREN_TRACE_BUILD_SLOW_MS=<n>` so “>10s builds” are diagnosable without huge logs (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: pooled embedded string literals + one-time startup registration (`oren_init_static_cstr0_table`) to remove per-use tracking overhead in compiler workloads (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: shared compiler growable-bytes builder extracted to `lib/compiler/bytes_builder.oren` to reduce arm64/x64 backend drift (details in `docs/TODOS_ARCHIVE.md`).
+	   - Recently completed: native `oren_read_u8_buf` now returns structured errors on missing files (no hard-exit), fixing stage2-native runtime-object cache cold misses (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: GC pin/result no longer roots static string literals (classification-only nodes), reducing root churn in compiler/tooling runs (details in `docs/TODOS_ARCHIVE.md`).
+	   - Recently completed: runtime-object cache load is now hardened with a cheap sentinel integrity check so corrupted/stale rtobj meta becomes a miss+rebuild (instead of a stage1 panic in x64 codegen) (details in `docs/TODOS_ARCHIVE.md`).
+	   - Recently completed: x64 PE/ELF fixup patching now uses a fast `bytes_set_u32_le` raw-store path, keeping `scripts/verify_native_x64_compile_only.sh` stage2 `x64-windows` under the default 10s timeout (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: native `sys_stat/sys_lstat/sys_fstat` now populate OrenStatV0 `{a,m,c}time_ns` on macOS/Linux (arm64+x86_64), and the build scan cache is now stat-aware (`scan_cache_v3.txt`) to avoid re-reading unchanged sources during build-cache key computation (details in `docs/TODOS_ARCHIVE.md`).
 		   - Hard gate (non-negotiable for rolling):
 		     - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
@@ -44,21 +47,12 @@ Rules for this tracker:
      - callables/closures/varargs + deterministic failure modes (`OREN_DIAG` + stack traces)
      - container ops (list/map/buf) with identical semantics across arch/OS
      - concurrency primitives on Windows (no fork/pipe assumptions): `spawn`, `oren_join(_timeout)`, and a path to cooperative cancellation
-   - Remaining gaps (active):
-     - **arm64-macos: stage2 compiler is still bootstrapped via C backend** (rolling constraint), but the produced `./oren_stage2` now emits fast/working native artifacts for Tier‑1 fixtures.
-       - Verified (local): `make verify-native-quick`
-       - Verified (linux/arm64): `./scripts/verify_native_matrix.sh --targets arm64-linux`
-       - Perf evidence lives in `docs/TODOS_ARCHIVE.md` (“compile one file” miss→hit using the runtime object cache).
-       - Progress (rolling, 2026-01-03): a **native-runtime** self-hosted stage2 compiler now builds and passes the integrated native quick test:
-         - Build: `./oren build oren.oren --backend native --platform arm64-macos --no-cache --no-debug -o build/selfhost_manual/oren_stage2_native && codesign -s - --force build/selfhost_manual/oren_stage2_native`
-         - Run gate: `./scripts/run_native_quick_integration.sh ./build/selfhost_manual/oren_stage2_native`
-         - Note: debug builds no longer pay the artifact build-cache key cost by default (opt-in via `OREN_CACHE_DEBUG=1`) to keep Tier‑1 debug fixtures bounded.
-       - Still pending: integrate the **native-runtime** stage2 compiler into the default `make stage2`/`make verify` gates (and keep it under the <3min self-host budget):
-         - Repro: `./oren build oren.oren --backend native --platform arm64-macos --no-cache --no-debug -o build/selfhost_manual/oren_stage2_native && codesign -s - --force build/selfhost_manual/oren_stage2_native`
-         - Minimal compare: compile+run `tests/native/test_quick_integration_native.oren` using `./scripts/run_native_quick_integration.sh ./build/selfhost_manual/oren_stage2_native`
-     - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory synchronization:
-       - mutex/condvar + parking/unparking primitives (`ulock` on macOS; futex-like on Linux; Win32 already exists)
-       - a GC/safepoint model that remains correct once true threads exist (no “mutex works but GC breaks”)
+	   - Remaining gaps (active):
+	     - Fixed (2026-01-04): **arm64-macos stage2 is now bootstrapped via the native backend by default** (`make stage2`).
+	       - Fallback (bring-up): `make stage2 OREN_STAGE2_BACKEND=c`.
+	     - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory synchronization:
+	       - mutex/condvar + parking/unparking primitives (`ulock` on macOS; futex-like on Linux; Win32 already exists)
+	       - a GC/safepoint model that remains correct once true threads exist (no “mutex works but GC breaks”)
      - Windows: complete a coherent PROC story (pid/kill/wait semantics or define a cross-OS `sys_spawn` boundary).
        - Fixed (2026-01-04): `oren_system(_timeout)` now works on `x64-windows` (CreateProcessA path).
          - Tier‑1 fixture no longer soft-skips Windows.

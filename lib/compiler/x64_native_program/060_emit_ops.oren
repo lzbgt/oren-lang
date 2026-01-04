@@ -53,20 +53,25 @@ fn _linetab_record_tok(ctx, tok) {
     var loc = " @" + file + ":" + line_s + " "
 
     if ctx["linetab_loc_offs"] == nil { ctx["linetab_loc_offs"] = {} }
-    var loc_off = ctx["linetab_loc_offs"][loc]
-    if loc_off == nil {
+    // Store offsets as `off+1` so a real offset of 0 is not indistinguishable from `nil`
+    // when the compiler runs under the native runtime (where `nil` is 0).
+    var loc_off_enc = ctx["linetab_loc_offs"][loc]
+    var loc_off = nil
+    if loc_off_enc != nil { loc_off = loc_off_enc - 1 }
+    if loc_off_enc == nil {
         loc_off = _data_add_cstr0(ctx, loc)
-        if loc_off == nil { return nil }
-        ctx["linetab_loc_offs"][loc] = loc_off
+        // `loc_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
+        ctx["linetab_loc_offs"][loc] = loc_off + 1
     }
 
-    if ctx["linetab_last_loc_off"] != nil && ctx["linetab_last_loc_off"] == loc_off {
+    // Note: `linetab_last_loc_off` stores the encoded offset for the same native-runtime reason.
+    if ctx["linetab_last_loc_off"] != nil && ctx["linetab_last_loc_off"] == loc_off + 1 {
         return nil
     }
 
     var code_off = bytes_len(ctx["code"])
     ctx["linetab_last_code_off"] = code_off
-    ctx["linetab_last_loc_off"] = loc_off
+    ctx["linetab_last_loc_off"] = loc_off + 1
     oren_list_push(ctx["linetab_entries"], {"off": code_off, "loc_off": loc_off})
     return nil
 }

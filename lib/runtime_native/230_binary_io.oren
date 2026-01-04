@@ -106,42 +106,57 @@ fn oren_read_u8_buf(path) {
     if src < 0 {
         free(st)
         if owned == 1 { free(rpath) }
-        exit(276)
+        // IMPORTANT (tooling / caches):
+        // Missing files must not hard-exit the process; compiler caches probe optional
+        // paths and treat ENOENT as a normal cache miss.
+        return oren_err(0 - src, "read_u8_buf: sys_stat failed")
     }
     var size = oren_stat_get_size(st)
     free(st)
     if size < 0 {
         if owned == 1 { free(rpath) }
-        exit(277)
+        return oren_err(4, "read_u8_buf: invalid size")
     }
     // Guard against pathological sizes (u8_buf len is u32).
     if size > 4294967295 {
         if owned == 1 { free(rpath) }
-        exit(278)
+        return oren_err(4, "read_u8_buf: file too large")
     }
 
     var fd = sys_open(rpath, 0, 0) // O_RDONLY
     if fd < 0 {
         if owned == 1 { free(rpath) }
-        exit(279)
+        return oren_err(0 - fd, "read_u8_buf: sys_open failed")
     }
 
-    var out = oren_u8_buf_new(size)
+    // Allocate uninitialized: we immediately overwrite every byte via `sys_read`.
+    // This avoids an O(n) byte-zeroing loop in `native_buf_new` for ~MiB buffers,
+    // which can dominate compiler IO (rtobj cache reads, hashing).
+    var out = oren_u8_buf_new_uninit(size)
+    if oren_is_err(out) {
+        sys_close(fd)
+        if owned == 1 { free(rpath) }
+        return out
+    }
     var off = 0
     while off < size {
         var want = size - off
-        if want > 65536 { want = 65536 }
-        var rn = sys_read_u8_buf(fd, out, off, want)
+        // Use a larger chunk size to reduce syscall/loop overhead in compiler workloads
+        // (rtobj cache reads, hashing, etc). Short reads are still handled correctly.
+        if want > 1048576 { want = 1048576 } // 1 MiB
+        // `out` is a fresh u8_buf allocated by the runtime, so we can skip the
+        // heavier `native_buf_check` in the hot read loop.
+        var rn = sys_read_u8_buf_unchecked(fd, out, off, want)
         if rn < 0 {
             sys_close(fd)
             if owned == 1 { free(rpath) }
-            exit(280)
+            return oren_err(0 - rn, "read_u8_buf: sys_read failed")
         }
         if rn == 0 {
             // Unexpected EOF: keep behavior deterministic by failing fast.
             sys_close(fd)
             if owned == 1 { free(rpath) }
-            exit(281)
+            return oren_err(5, "read_u8_buf: unexpected EOF")
         }
         off = off + rn
     }
@@ -149,7 +164,7 @@ fn oren_read_u8_buf(path) {
     var crc = sys_close(fd)
     if crc < 0 {
         if owned == 1 { free(rpath) }
-        exit(282)
+        return oren_err(0 - crc, "read_u8_buf: sys_close failed")
     }
     if owned == 1 { free(rpath) }
     return out
@@ -213,7 +228,7 @@ fn oren_read_file(path) {
     var off = 0
     while off < size {
         var want = size - off
-        if want > 65536 { want = 65536 }
+        if want > 1048576 { want = 1048576 } // 1 MiB
         var rn = sys_read(fd, out + off, want)
         if rn < 0 {
             sys_close(fd)

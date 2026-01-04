@@ -53,7 +53,7 @@ fn fold_infix(op, a, b) {
     if !is_int_lit(a) || !is_int_lit(b) { return nil }
     var av = parse_int(a["value"])
     var bv = parse_int(b["value"])
-    if av == nil || bv == nil { return nil }
+    if oren_is_err(av) || oren_is_err(bv) { return nil }
     if !small_int(av) || !small_int(bv) { return nil }
 
     if op == "+" { return int_lit(av + bv) }
@@ -69,13 +69,13 @@ fn fold_infix(op, a, b) {
 fn is_zero(e) {
     if !is_int_lit(e) { return false }
     var n = parse_int(e["value"])
-    return n != nil && n == 0
+    return !oren_is_err(n) && n == 0
 }
 
 fn is_one(e) {
     if !is_int_lit(e) { return false }
     var n = parse_int(e["value"])
-    return n != nil && n == 1
+    return !oren_is_err(n) && n == 1
 }
 
 fn fold_peephole_infix(op, left, right) {

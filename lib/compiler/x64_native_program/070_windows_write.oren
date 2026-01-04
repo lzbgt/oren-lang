@@ -15,7 +15,7 @@ fn _emit_windows_write_cstr(ctx, s) {
     bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967285))
     var mov_iat0 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat0 + 3, "data_label": "IAT_GetStdHandle"})
+    _x64_add_rip_data32_fixup(ctx, mov_iat0 + 3, "IAT_GetStdHandle")
     bytes_extend(ctx["code"], insn_call_rax())
 
     // rcx = rax (hStdout)
@@ -40,7 +40,7 @@ fn _emit_windows_write_cstr(ctx, s) {
     // --- WriteFile(...) ---
     var mov_iat1 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat1 + 3, "data_label": "IAT_WriteFile"})
+    _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_WriteFile")
     bytes_extend(ctx["code"], insn_call_rax())
     return nil
 }

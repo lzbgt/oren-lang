@@ -39,7 +39,7 @@ var RUNTIME_OBJ_DATA_PREFIX_LEN = 8 // cstr0 table slot reserved by native entry
 // - Bump the relevant backend sig whenever a change can affect emitted code/data bytes.
 // - This is intentionally cheap (string constant) so cache hits stay fast.
 var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_1"
-var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_4"
+var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_6"
 
 fn rtobj_backend_sig(backend) {
     if backend == "arm64" { return RUNTIME_OBJ_BACKEND_SIG_ARM64 }
@@ -71,6 +71,203 @@ fn rtobj_trace_enabled() {
     var v = oren_env("OREN_TRACE_RUNTIME_OBJ_CACHE")
     if v != nil && v != "" { return true }
     return false
+}
+
+fn _rtobj_dbg_val_to_string(v) {
+    if v == nil { return "nil" }
+    var tt = oren_type_tag(v)
+    if tt == 4 { return v } // string
+    if tt == 1 { return oren_int_to_string(v) } // int
+    if tt == 3 { // bool
+        if v == true { return "true" }
+        return "false"
+    }
+    return "<tag=" + oren_int_to_string(tt) + ">"
+}
+
+fn _rtobj_meta_trace_sample(meta) {
+    // Bounded diagnostic: sample a few meta entries to detect cross-runtime codec drift.
+    if meta == nil { return nil }
+    if oren_env("OREN_TRACE_RT_OBJ_META_SAMPLE") == nil { return nil }
+    var fa = meta["func_arity"]
+    if fa != nil {
+        var i = 0
+        var pair = [nil, nil]
+        while i < 5 {
+            var ok = oren_iter_next_entry(fa, i, pair)
+            if ok == 0 { break }
+            var k = pair[0]
+            var v = pair[1]
+            print("[rtobj] meta sample func_arity key=" + _rtobj_dbg_val_to_string(k) + " val_tag=" + oren_int_to_string(oren_type_tag(v)))
+            i = i + 1
+        }
+    } else {
+        print("[rtobj] meta sample func_arity=nil")
+    }
+    return nil
+}
+
+fn _rtobj_meta_validate_sentinels(meta) {
+    // Cheap integrity check for cache compatibility/corruption.
+    //
+    // Full meta validation is expensive under the native runtime (large maps),
+    // but we still want to detect common corruption cases that would crash later.
+    //
+    // Contract: the Tier-1 runtime should provide `_map_hash_empty` and it should have arity 0
+    // (encoded as int 1).
+    if meta == nil { return false }
+    var fa = meta["func_arity"]
+    if fa == nil { return true }
+    var v = fa["_map_hash_empty"]
+    if v == nil { return false }
+    if oren_type_tag(v) != 1 { return false }
+    return true
+}
+
+fn _rtobj_meta_validate_int_map(meta, field) {
+    // Validate map<string, int> shape. Returns true on ok.
+    if meta == nil { return false }
+    var m = meta[field]
+    if m == nil { return true } // optional
+    // Quick tag check: 7 is OREN_TYPE_MAP in stage1, but avoid hardcoding; just iterate.
+    var idx = 0
+    var pair = [nil, nil]
+    while 1 {
+        var ok = oren_iter_next_entry(m, idx, pair)
+        if ok == 0 { break }
+        var k = pair[0]
+        var v = pair[1]
+        // Keys are expected to be strings, but tolerate non-string keys (rolling) and only
+        // enforce value shape.
+        if v != nil && oren_type_tag(v) != 1 { return false }
+        idx = idx + 1
+    }
+    return true
+}
+
+fn _rtobj_hash_cache_dir() {
+    var v = oren_env("OREN_NATIVE_RUNTIME_HASH_CACHE_DIR")
+    if v == nil || v == "" { return "build/cache/native_runtime_hash" }
+    return v
+}
+
+fn _rtobj_hash_cache_sanitize_path(p) {
+    if p == nil { return "nil" }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(p) {
+        var c = oren_string_char_at_unchecked(p, i)
+        if c == "/" || c == "\\" || c == ":" { out = out + "_" }
+        else { out = out + c }
+        i = i + 1
+    }
+    return out
+}
+
+fn _rtobj_hash_cache_path(runtime_path) {
+    var dir = _rtobj_hash_cache_dir()
+    var base = _rtobj_hash_cache_sanitize_path(runtime_path)
+    return dir + "/" + base + ".hash.txt"
+}
+
+fn _rtobj_parse_nonneg_dec(s, start, end) {
+    if s == nil { return nil }
+    if start == nil || end == nil { return nil }
+    if start < 0 || end < start { return nil }
+    var i = start
+    var v = 0
+    while i < end {
+        var b = oren_string_byte_at_unchecked(s, i) & 255
+        if b < 48 || b > 57 { return nil }
+        v = v * 10 + (b - 48)
+        i = i + 1
+    }
+    return v
+}
+
+fn _rtobj_stat_size_and_mtime_ns(path) {
+    // Portable file metadata query (works in stage1 C runtime + native runtime).
+    var r = oren_file_stat_size_mtime_ns(path)
+    if oren_is_err(r) { return nil }
+    if r == nil || oren_list_len(r) < 2 { return nil }
+    return {"size": r[0], "mtime_ns": r[1]}
+}
+
+fn _rtobj_runtime_hash_cache_try_load(runtime_path) {
+    // Cache file format:
+    //   hash=<hash>\n
+    //   <path>\t<size>\t<mtime_ns>\n
+    var p = _rtobj_hash_cache_path(runtime_path)
+    var s = oren_read_file(p)
+    if oren_is_err(s) { return nil }
+    if s == nil { return nil }
+
+    var n = oren_string_len(s)
+    var i = 0
+    // Read first line.
+    var line_end = 0
+    while line_end < n && oren_string_byte_at_unchecked(s, line_end) != 10 { line_end = line_end + 1 }
+    if line_end <= 5 { return nil }
+    if oren_string_slice_unchecked(s, 0, 5) != "hash=" { return nil }
+    var hash = oren_string_slice_unchecked(s, 5, line_end)
+    if hash == nil || hash == "" { return nil }
+    i = line_end + 1
+
+    while i < n {
+        // Skip empty lines.
+        if oren_string_byte_at_unchecked(s, i) == 10 { i = i + 1; continue }
+
+        // path \t size \t mtime \n
+        var p_end = i
+        while p_end < n && oren_string_byte_at_unchecked(s, p_end) != 9 && oren_string_byte_at_unchecked(s, p_end) != 10 { p_end = p_end + 1 }
+        if p_end >= n || oren_string_byte_at_unchecked(s, p_end) != 9 { return nil }
+        var path = oren_string_slice_unchecked(s, i, p_end)
+        i = p_end + 1
+
+        var sz_end = i
+        while sz_end < n && oren_string_byte_at_unchecked(s, sz_end) != 9 && oren_string_byte_at_unchecked(s, sz_end) != 10 { sz_end = sz_end + 1 }
+        if sz_end >= n || oren_string_byte_at_unchecked(s, sz_end) != 9 { return nil }
+        var want_size = _rtobj_parse_nonneg_dec(s, i, sz_end)
+        i = sz_end + 1
+
+        var mt_end = i
+        while mt_end < n && oren_string_byte_at_unchecked(s, mt_end) != 10 { mt_end = mt_end + 1 }
+        var want_mtime = _rtobj_parse_nonneg_dec(s, i, mt_end)
+        // Consume newline.
+        i = mt_end + 1
+
+        if path == nil || path == "" { return nil }
+        if want_size == nil || want_mtime == nil { return nil }
+        var st = _rtobj_stat_size_and_mtime_ns(path)
+        if st == nil { return nil }
+        if st["size"] != want_size { return nil }
+        if st["mtime_ns"] != want_mtime { return nil }
+    }
+
+    return hash
+}
+
+fn _rtobj_runtime_hash_cache_store(runtime_path, hash, files) {
+    if runtime_path == nil || runtime_path == "" { return nil }
+    if hash == nil || hash == "" { return nil }
+    if files == nil { return nil }
+    var dir = _rtobj_hash_cache_dir()
+    _ensure_dir(dir)
+    var p = _rtobj_hash_cache_path(runtime_path)
+    var out = "hash=" + hash + "\n"
+    var i = 0
+    while i < oren_list_len(files) {
+        var fp = files[i]
+        if fp != nil && fp != "" {
+            var st = _rtobj_stat_size_and_mtime_ns(fp)
+            if st != nil {
+                out = out + fp + "\t" + oren_int_to_string(st["size"]) + "\t" + oren_int_to_string(st["mtime_ns"]) + "\n"
+            }
+        }
+        i = i + 1
+    }
+    oren_write_file(p, out)
+    return nil
 }
 
 fn _hex_digit(n) { return oren_string_char_at("0123456789abcdef", n) }
@@ -122,10 +319,44 @@ fn _fnv1a63_string(s, basis) {
     return h
 }
 
+fn _fnv1a63_update_string(s, h0) {
+    // Continue a 63-bit FNV-1a-style fingerprint from an existing state.
+    if s == nil { return _mask63(h0) }
+    var h = _mask63(h0)
+    var prime = 1099511628211 // keep consistent with `_fnv1a63_string`
+    var n = oren_string_len(s)
+    var i = 0
+    while i < n {
+        var b = oren_string_byte_at_unchecked(s, i) & 255
+        h = _mask63(h ^ b)
+        h = _mask63(h * prime)
+        i = i + 1
+    }
+    return h
+}
+
 fn _rtobj_runtime_fingerprint_v2(src) {
     // Two-lane 63-bit fingerprint to reduce collision risk without expensive SHA-256.
     var h1 = _fnv1a63_string(src, 1469598103934665603)
     var h2 = _fnv1a63_string(src, 1099511628211)
+    return "v2_" + oren_int_to_string(h1) + "_" + oren_int_to_string(h2)
+}
+
+fn _rtobj_runtime_fingerprint_v2_parts(parts) {
+    // Fingerprint the expanded runtime as a list of source fragments.
+    //
+    // This avoids allocating one huge joined string just to hash it.
+    var h1 = _mask63(1469598103934665603)
+    var h2 = _mask63(1099511628211)
+    if parts != nil {
+        var i = 0
+        while i < oren_list_len(parts) {
+            var s = parts[i]
+            h1 = _fnv1a63_update_string(s, h1)
+            h2 = _fnv1a63_update_string(s, h2)
+            i = i + 1
+        }
+    }
     return "v2_" + oren_int_to_string(h1) + "_" + oren_int_to_string(h2)
 }
 
@@ -160,6 +391,8 @@ fn rtobj_runtime_hash(ctx, runtime_path) {
     }
 
     var runtime_src = nil
+    var runtime_parts = nil
+    var runtime_files = nil
     var expanded_override = oren_env("OREN_NATIVE_RUNTIME_EXPANDED")
     if expanded_override != nil {
         var p = expanded_override
@@ -168,9 +401,22 @@ fn rtobj_runtime_hash(ctx, runtime_path) {
         if oren_is_err(rr) { return nil }
         runtime_src = rr
     } else {
-        runtime_src = rtinj.runtime_expand_includes_file(ctx, runtime_path, [])
+        var cached = _rtobj_runtime_hash_cache_try_load(runtime_path)
+        if cached != nil && cached != "" {
+            if trace { print("[rtobj] hash cache hit") }
+            return cached
+        }
+
+        runtime_parts = []
+        runtime_files = []
+        var ok = rtinj.runtime_expand_includes_file_into_parts_and_files(ctx, runtime_path, [], runtime_parts, runtime_files)
+        if ok == nil { return nil }
     }
-    if runtime_src == nil { return nil }
+    if expanded_override != nil {
+        if runtime_src == nil { return nil }
+    } else {
+        if runtime_parts == nil { return nil }
+    }
 
     if trace {
         var dt = oren_time_now_ns() - t0
@@ -179,10 +425,19 @@ fn rtobj_runtime_hash(ctx, runtime_path) {
 
     var t1 = 0
     if trace { t1 = oren_time_now_ns() }
-    var h = _rtobj_runtime_fingerprint_v2(runtime_src)
+    var h = ""
+    if expanded_override != nil {
+        h = _rtobj_runtime_fingerprint_v2(runtime_src)
+    } else {
+        h = _rtobj_runtime_fingerprint_v2_parts(runtime_parts)
+    }
     if trace {
         var dt2 = oren_time_now_ns() - t1
         print("[rtobj] hash fp done +" + oren_int_to_string(dt2 / 1000000) + "ms")
+    }
+    if expanded_override == nil {
+        // Best-effort persist so subsequent compiler invocations can avoid re-expanding + hashing.
+        _rtobj_runtime_hash_cache_store(runtime_path, h, runtime_files)
     }
     return h
 }
@@ -222,17 +477,42 @@ fn rtobj_paths(cache_dir, key) {
 }
 
 fn rtobj_load(cache_dir, key) {
+    var trace = rtobj_trace_enabled()
+    var t0 = 0
+    if trace { t0 = oren_time_now_ns() }
     var paths = rtobj_paths(cache_dir, key)
     var meta_bs = oren_read_u8_buf(paths["meta"])
     if oren_is_err(meta_bs) { return nil }
+    if trace {
+        var dt0 = oren_time_now_ns() - t0
+        print("[rtobj] load meta bytes done +" + oren_int_to_string(dt0 / 1000000) + "ms")
+        t0 = oren_time_now_ns()
+    }
     var meta = astbin.astbin_decode(meta_bs)
     if meta == nil { return nil }
     if meta["schema"] == nil || meta["schema"] != RUNTIME_OBJ_SCHEMA { return nil }
+    _rtobj_meta_trace_sample(meta)
+    // Cheap validation so a corrupted/stale cache becomes a miss instead of crashing deep in codegen.
+    if _rtobj_meta_validate_sentinels(meta) != true { return nil }
+    // Optional deeper validation (expensive under the native runtime; keep opt-in).
+    if oren_env("OREN_RT_OBJ_VALIDATE_META_FULL") != nil {
+        if _rtobj_meta_validate_int_map(meta, "func_arity") != true { return nil }
+        if _rtobj_meta_validate_int_map(meta, "func_varargs_fixed") != true { return nil }
+    }
+    if trace {
+        var dt1 = oren_time_now_ns() - t0
+        print("[rtobj] load meta decode done +" + oren_int_to_string(dt1 / 1000000) + "ms")
+        t0 = oren_time_now_ns()
+    }
 
     var code = oren_read_u8_buf(paths["code"])
     if oren_is_err(code) { return nil }
     var data_tail = oren_read_u8_buf(paths["data_tail"])
     if oren_is_err(data_tail) { return nil }
+    if trace {
+        var dt2 = oren_time_now_ns() - t0
+        print("[rtobj] load code+data bytes done +" + oren_int_to_string(dt2 / 1000000) + "ms")
+    }
     meta["code_u8"] = code
     meta["data_tail_u8"] = data_tail
     return meta

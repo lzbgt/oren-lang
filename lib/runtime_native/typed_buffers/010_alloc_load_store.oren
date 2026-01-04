@@ -4,6 +4,7 @@ fn oren_i64_buf_new(len) { return native_buf_new(len, 8, BUF_TAG_I64) }
 fn oren_f32_buf_new(len) { return native_buf_new(len, 4, BUF_TAG_F32) }
 fn oren_f64_buf_new(len) { return native_buf_new(len, 8, BUF_TAG_F64) }
 fn oren_u8_buf_new(len) { return native_buf_new(len, 1, BUF_TAG_U8) }
+fn oren_u8_buf_new_uninit(len) { return native_buf_new_uninit(len, 1, BUF_TAG_U8) }
 fn oren_u8_buf_wrap_ptr(ptr, len) { return native_buf_wrap_ptr(ptr, len, 1, BUF_TAG_U8) }
 
 fn oren_buf_len(buf) {

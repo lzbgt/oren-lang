@@ -15,6 +15,7 @@ fn bytes_new() { return bb.bytes_new() }
 fn bytes_len(b) { return bb.bytes_len(b) }
 fn bytes_push(b, v) { return bb.bytes_push(b, v) }
 fn bytes_extend(b, other) { return bb.bytes_extend(b, other) }
+fn bytes_extend_zeros(b, n) { return bb.bytes_extend_zeros(b, n) }
 fn bytes_extend_list(b, xs) { return bb.bytes_extend_list(b, xs) }
 fn bytes_extend_u8_buf(b, ubuf) { return bb.bytes_extend_u8_buf(b, ubuf) }
 
@@ -62,11 +63,8 @@ fn push_u64_le(buf, n) {
 }
 
 fn set_u32_le(buf, offset, n) {
-    var base = offset
-    bytes_set_u8(buf, base, int_mod(n, 256))
-    bytes_set_u8(buf, base + 1, int_mod(n / 256, 256))
-    bytes_set_u8(buf, base + 2, int_mod(n / 65536, 256))
-    bytes_set_u8(buf, base + 3, int_mod(n / 16777216, 256))
+    // Delegate to the bytes builder fast path (1 bounds check + raw stores).
+    return bb.bytes_set_u32_le(buf, offset, n)
 }
 
 fn bytes_set_u8(b, idx, v) { return bb.bytes_set_u8(b, idx, v) }

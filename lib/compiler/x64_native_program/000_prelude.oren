@@ -26,12 +26,30 @@ fn bytes_new() { return core.bytes_new() }
 fn bytes_push(b, v) { return core.bytes_push(b, v) }
 fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
 fn bytes_extend_list(b, xs) { return core.bytes_extend_list(b, xs) }
+fn bytes_extend_zeros(b, n) { return core.bytes_extend_zeros(b, n) }
 fn bytes_extend_u8_buf(b, ubuf) { return core.bytes_extend_u8_buf(b, ubuf) }
 fn bytes_len(b) { return core.bytes_len(b) }
 fn bytes_finalize(b) { return core.bytes_finalize(b) }
 fn push_u32_le(b, n) { return core.push_u32_le(b, n) }
 fn push_u64_le(b, n) { return core.push_u64_le(b, n) }
 fn set_u32_le(b, off, n) { return core.set_u32_le(b, off, n) }
+
+fn _x64_add_rip_data32_fixup(ctx, disp_pos, data_label) {
+    // Windows-only: `mov rax, [rip+disp32]` needs patching to point at an IAT slot in `.rdata`.
+    //
+    // PERF:
+    // Avoid allocating a full fixup map per call site during program compilation (can be 1000s).
+    // Instead, collect positions into a label->list<int> map.
+    //
+    if ctx == nil { return nil }
+    if ctx["rip_data32_fixups"] == nil { ctx["rip_data32_fixups"] = {} }
+    var m = ctx["rip_data32_fixups"]
+    if m == nil { m = {}; ctx["rip_data32_fixups"] = m }
+    var xs = m[data_label]
+    if xs == nil { xs = []; m[data_label] = xs }
+    oren_list_push(xs, disp_pos)
+    return nil
+}
 
 fn insn_ret() { return core.insn_ret() }
 fn insn_syscall() { return core.insn_syscall() }

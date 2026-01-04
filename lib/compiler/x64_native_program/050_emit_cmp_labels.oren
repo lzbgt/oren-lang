@@ -143,7 +143,7 @@ fn _emit_cmp_from_cond(ctx, cond, locals) {
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         if r["type"] == "Integer" {
             var n = intparse.parse_int_lit(r["value"])
-            if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+            if oren_is_err(n) { err(ctx, "x64 native v0: invalid integer literal"); return nil }
             if _is_i32(n) {
                 var imm_u32 = n
                 if n < 0 { imm_u32 = 4294967296 + n }

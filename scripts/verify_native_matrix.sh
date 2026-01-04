@@ -216,8 +216,8 @@ need_stage1_and_stage2() {
   # - stage1 compiler (`./oren`)
   # - stage2 compiler (`./oren_stage2`)
   #
-  # On arm64 hosts, `make stage2` bootstraps `./oren_stage2` via the C backend (rolling constraint),
-  # but the matrix checks are about the **native backend output binaries** compiled by stage1/stage2.
+  # Rolling: `make stage2` now builds `./oren_stage2` via the native backend by default on arm64-macos too.
+  # If you need the legacy C-backend bootstrap, use: `make stage2 OREN_STAGE2_BACKEND=c`.
   if [[ ! -x ./oren ]]; then
     log "== ensure: stage1 compiler (./oren) =="
     make stage1

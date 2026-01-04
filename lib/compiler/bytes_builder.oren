@@ -96,6 +96,27 @@ fn bytes_extend(b, other) {
     return nil
 }
 
+fn bytes_extend_zeros(b, n) {
+    // Extend the builder by `n` zero bytes without per-byte bounds/type checks.
+    if n == nil || n <= 0 { return nil }
+    var used = _bytes_len_raw(b)
+    _bytes_ensure_capacity(b, used + n)
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if dstp == 0 { oren_fail(1, "bytes_extend_zeros: buf data ptr is nil") }
+    var i = 0
+    while i < n {
+        if n - i >= 8 {
+            ptr_set(iadd(dstp, used + i), 0)
+            i = i + 8
+        } else {
+            ptr_set_byte(iadd(dstp, used + i), 0)
+            i = i + 1
+        }
+    }
+    _bytes_set_len_raw(b, used + n)
+    return nil
+}
+
 fn bytes_extend_list(b, xs) {
     // Extend from a legacy `list<int 0..255>` (e.g. `oren_bytes_from_string(...)`).
     var n = oren_list_len(xs)
@@ -137,6 +158,50 @@ fn bytes_set_u8(b, idx, v) {
     return nil
 }
 
+fn _int_mod_pos(a, b) {
+    // Positive modulus (result in [0, b) for b>0).
+    var r = a - (a / b) * b
+    if r < 0 { r = r + b }
+    return r
+}
+
+fn _bytes_set_u32_le_ptr(dstp, off, n) {
+    // Write little-endian u32 at dstp+off (no bounds checks).
+    ptr_set_byte(iadd(dstp, off + 0), _int_mod_pos(n, 256))
+    ptr_set_byte(iadd(dstp, off + 1), _int_mod_pos(n / 256, 256))
+    ptr_set_byte(iadd(dstp, off + 2), _int_mod_pos(n / 65536, 256))
+    ptr_set_byte(iadd(dstp, off + 3), _int_mod_pos(n / 16777216, 256))
+    return nil
+}
+
+fn bytes_set_u32_le(b, offset, n) {
+    // Patch a u32 into an existing bytes builder (little-endian).
+    //
+    // PERF: used heavily in x64 PE/ELF fixup application. Do one bounds check and then
+    // write bytes via raw pointer stores.
+    var used = _bytes_len_raw(b)
+    if offset < 0 || offset + 3 >= used { oren_fail(1, "bytes_set_u32_le: index out of bounds") }
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if dstp == 0 { oren_fail(1, "bytes_set_u32_le: buf data ptr is nil") }
+    _bytes_set_u32_le_ptr(dstp, offset, n)
+    return nil
+}
+
+fn bytes_set_u64_le(b, offset, n) {
+    // Patch a u64 into an existing bytes builder (little-endian).
+    //
+    // Encode low 64 bits deterministically for signed carrier ints.
+    var used = _bytes_len_raw(b)
+    if offset < 0 || offset + 7 >= used { oren_fail(1, "bytes_set_u64_le: index out of bounds") }
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if dstp == 0 { oren_fail(1, "bytes_set_u64_le: buf data ptr is nil") }
+    var lo = _int_mod_pos(n, 4294967296)
+    var hi = _int_mod_pos((n - lo) / 4294967296, 4294967296)
+    _bytes_set_u32_le_ptr(dstp, offset, lo)
+    _bytes_set_u32_le_ptr(dstp, offset + 4, hi)
+    return nil
+}
+
 fn bytes_finalize(b) {
     // Materialize a tight `u8_buf` (len==used) for IO/hashing.
     var n = _bytes_len_raw(b)
@@ -150,4 +215,3 @@ fn bytes_finalize(b) {
     }
     return out
 }
-

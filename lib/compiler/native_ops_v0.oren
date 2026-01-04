@@ -590,12 +590,33 @@ fn _analyze_supported_fn_body(ctx, fn_node) {
     return ops
 }
 
+fn _x64_err_invalid_int_lit_ops(ctx, lit) {
+    // Error-only helper: keep output bounded.
+    var extra = ""
+    if lit != nil && oren_is_string(lit) == true {
+        var bs = ""
+        var i = 0
+        while i < 16 {
+            var b = ptr_get_byte(lit + i) & 255
+            if i != 0 { bs = bs + "," }
+            bs = bs + oren_int_to_string(b)
+            if b == 0 { break }
+            i = i + 1
+        }
+        extra = " lit_ptr=" + oren_int_to_string(lit) + " lit_bytes=" + bs
+    } else {
+        extra = " lit_tag=" + oren_int_to_string(oren_type_tag(lit))
+    }
+    err(ctx, "x64 native v0: invalid integer literal" + extra)
+    return nil
+}
+
 fn _expr_int_check(ctx, expr, locals) {
     if expr == nil { err(ctx, "x64 native v0: missing expr"); return nil }
     var t = expr["type"]
     if t == "Integer" {
         var n = intparse.parse_int_lit(expr["value"])
-        if n == nil { err(ctx, "x64 native v0: invalid integer literal"); return nil }
+        if oren_is_err(n) { _x64_err_invalid_int_lit_ops(ctx, expr["value"]); return nil }
         return nil
     }
     if t == "Float" {

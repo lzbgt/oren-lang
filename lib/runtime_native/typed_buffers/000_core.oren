@@ -140,6 +140,65 @@ fn native_buf_new(len, elem_size, tag) {
     return header
 }
 
+fn native_buf_new_uninit(len, elem_size, tag) {
+    // Internal fast-path: allocate a typed buffer payload without zero-filling it.
+    //
+    // Rationale:
+    // - `native_buf_new` must zero-fill heap allocations for deterministic semantics.
+    // - Some internal IO pipelines (e.g. `oren_read_u8_buf`) immediately overwrite every byte
+    //   via `sys_read`, so the byte loop becomes pure overhead for multi-hundred-KiB buffers.
+    //
+    // Safety contract:
+    // - Callers must fully initialize the buffer before exposing it to user code.
+    if len < 0 { return oren_err(4, "buf_new_uninit: negative length") }
+    if len > 2147483647 { return oren_err(4, "buf_new_uninit: length too large") }
+    if elem_size != 1 && elem_size != 4 && elem_size != 8 { return oren_err(4, "buf_new_uninit: invalid elem_size") }
+
+    var header = malloc_k(56, 7)
+    if header == 0 || header == -1 { return oren_err(8, "buf_new_uninit: alloc failed") }
+
+    var bytes_len = len * elem_size
+    var data = 0
+    var data_ptr = 0
+    if bytes_len > 0 {
+        var lim2 = global_get_buf_payload_limit()
+        if lim2 != 0 && bytes_len > lim2 { return oren_err(9, "buf_new_uninit: payload limit exceeded") }
+        var thr = raw_mmap_threshold()
+        var force_mmap = global_get_buf_force_mmap()
+        if force_mmap != 0 || (thr != 0 && bytes_len >= thr) {
+            // Large payload: mmap-backed (OS zero-filled). Still fine for uninit callers.
+            var total = raw_hdr_size() + bytes_len
+            var base = sys_mmap_private_anon(total)
+            if base < 0 { return oren_err(8, "buf_new_uninit: mmap failed") }
+
+            // Write header.
+            ptr_set(base + 0, raw_magic())
+            ptr_set(base + 8, total)
+            ptr_set(base + 16, 1) // backend=1 (mmap)
+
+            data = base + raw_hdr_size()
+            data_ptr = data // already aligned due to 64-byte header
+            // Mark payload kind=9 (RAW_MMAP).
+            oren_track_alloc(data, bytes_len, 9)
+        } else {
+            // Small/medium payload: heap allocate and align within the block.
+            // IMPORTANT: no zero-fill here (caller must initialize).
+            var cap = bytes_len + (buf_align_default() - 1)
+            data = malloc_k(cap, 8)
+            if data == 0 || data == -1 { return oren_err(8, "buf_new_uninit: payload alloc failed") }
+            data_ptr = native_align_up(data, buf_align_default())
+        }
+    }
+
+    ptr_set(header + 0, len)
+    ptr_set(header + 8, elem_size)
+    ptr_set(header + 16, data)
+    ptr_set(header + 24, buf_magic())
+    ptr_set(header + 32, tag)
+    ptr_set(header + 40, data_ptr)
+    return header
+}
+
 fn native_buf_wrap_ptr(data, len, elem_size, tag) {
     // Wrap an existing tracked allocation as a typed buffer payload.
     //

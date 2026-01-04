@@ -15,7 +15,7 @@
 fn _emit_call_iat_x64(ctx, data_label) {
     var mov_iat = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat + 3, "data_label": data_label})
+    _x64_add_rip_data32_fixup(ctx, mov_iat + 3, data_label)
     bytes_extend(ctx["code"], insn_call_rax())
     return nil
 }

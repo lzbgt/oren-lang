@@ -23,7 +23,11 @@ static inline uintptr_t oren_ptr_unsafe_addr(OrenValue ptr, const char* who) {
 
 static OrenValue oren_ptr_get_raw(OrenValue ptr) {
     uintptr_t addr = oren_ptr_unsafe_addr(ptr, "ptr_get expects int pointer");
-    uint64_t v = *(const uint64_t*)addr;
+    // Use memcpy to avoid undefined behavior on unaligned loads.
+    // (Stage1 runs on arm64 macOS where unaligned 64-bit accesses via uint64_t*
+    //  are not guaranteed safe under C aliasing/alignment rules.)
+    uint64_t v = 0;
+    memcpy(&v, (const void*)addr, sizeof(v));
     return oren_int((long long)v);
 }
 
@@ -33,7 +37,9 @@ static OrenValue oren_ptr_set_raw(OrenValue ptr, OrenValue val) {
         oren_panic("ptr_set expects int value");
         return OREN_NIL;
     }
-    *(uint64_t*)addr = (uint64_t)val.as.int_val;
+    // Use memcpy to avoid undefined behavior on unaligned stores.
+    uint64_t v = (uint64_t)val.as.int_val;
+    memcpy((void*)addr, &v, sizeof(v));
     return val;
 }
 

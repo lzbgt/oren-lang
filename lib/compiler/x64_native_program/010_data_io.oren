@@ -152,8 +152,7 @@ fn _data_add_zeros(ctx, nbytes) {
     // Keep pointers 8-byte aligned so later u64 reads/writes remain well-formed.
     while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
     var off = bytes_len(ctx["data"])
-    var i = 0
-    while i < nbytes { bytes_push(ctx["data"], 0); i = i + 1 }
+    bytes_extend_zeros(ctx["data"], nbytes)
     return off
 }
 
@@ -205,7 +204,9 @@ fn _data_reserve_symtab(ctx, sym_names) {
     var i = 0
     while i < total { bytes_push(ctx["data"], 0); i = i + 1 }
 
-    ctx["symtab_off"] = symtab_off
+    // Store offsets as `off+1` so a real offset of 0 is not indistinguishable from `nil`
+    // when the compiler runs under the native runtime (where `nil` is 0).
+    ctx["symtab_off"] = symtab_off + 1
     ctx["symtab_count"] = count
     ctx["symtab_names"] = sym_names
     return symtab_off
@@ -214,9 +215,12 @@ fn _data_reserve_symtab(ctx, sym_names) {
 fn _data_finalize_symtab(ctx) {
     // Fill the reserved symtab region (see `_data_reserve_symtab`).
     if ctx == nil { return nil }
-    var symtab_off = ctx["symtab_off"]
+    // Offsets can legitimately be 0; store/read as `off+1` to avoid `nil` collisions
+    // when the compiler runs under the native runtime (where `nil` is 0).
+    var symtab_off_enc = ctx["symtab_off"]
     var sym_names = ctx["symtab_names"]
-    if symtab_off == nil || sym_names == nil { return nil }
+    if symtab_off_enc == nil || sym_names == nil { return nil }
+    var symtab_off = symtab_off_enc - 1
 
     var count = oren_list_len(sym_names)
     // Header is patched after we know how many valid entries we wrote.
@@ -233,13 +237,15 @@ fn _data_finalize_symtab(ctx) {
         var nm = sym_names[i]
         if nm == nil { i = i + 1; continue }
 
-        var off = nil
+        // Encode offsets as `off+1` so a real offset 0 (`__entry_stub__`) is representable.
+        var off_enc = 0
         if nm == "__entry_stub__" {
-            off = 0
+            off_enc = 1
         } else if ctx["functions"] != nil {
-            off = ctx["functions"][nm]
+            var off0 = ctx["functions"][nm]
+            if off0 != nil { off_enc = off0 + 1 }
         }
-        if off == nil {
+        if off_enc == 0 {
             err(ctx, "x64 native v0: symtab missing function offset for " + nm)
             // Do not create a bogus entry that matches everything.
             i = i + 1
@@ -251,13 +257,8 @@ fn _data_finalize_symtab(ctx) {
             disp = ctx["symtab_display"][nm]
         }
         var name_off = _data_add_cstr0(ctx, disp)
-        if name_off == nil {
-            err(ctx, "x64 native v0: symtab failed to store name " + nm)
-            i = i + 1
-            continue
-        }
-
-        oren_list_push(entries, {"off": off, "name": nm, "name_off": name_off})
+        // name_off can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
+        oren_list_push(entries, {"off_enc": off_enc, "name": nm, "name_off": name_off})
         i = i + 1
     }
 
@@ -265,10 +266,10 @@ fn _data_finalize_symtab(ctx) {
     var si = 1
     while si < oren_list_len(entries) {
         var key = entries[si]
-        var k_off = key["off"]
+        var k_off = key["off_enc"]
         var k = si - 1
         while k >= 0 {
-            if entries[k]["off"] >= k_off { break }
+            if entries[k]["off_enc"] >= k_off { break }
             entries[k + 1] = entries[k]
             k = k - 1
         }
@@ -284,7 +285,7 @@ fn _data_finalize_symtab(ctx) {
     var j = 0
     while j < write_n {
         var e = entries[j]
-        var e_off = e["off"]
+        var e_off = e["off_enc"] - 1
         var e_name_off = e["name_off"]
         // entry word at: symtab_off + 8 + j*8
         var pos = symtab_off + 8 + j * 8

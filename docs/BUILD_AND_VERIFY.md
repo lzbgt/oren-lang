@@ -38,8 +38,8 @@ make stage2
 Notes (rolling, important):
 
 - `make stage2` is the repo-supported entrypoint because the bootstrap backend can vary by host architecture.
-  - On `arm64` hosts (macOS arm64 + Linux arm64 container), Stage 2 is currently bootstrapped via the **C backend** because native self-hosting on arm64 is still rolling/unstable.
-  - On other hosts, Stage 2 may be bootstrapped via the native backend.
+  - Default (2026-01-04+): Stage 2 is bootstrapped via the **native backend** on Tier‑1 hosts (including macOS arm64).
+  - If you need the legacy C-backend bootstrap for bring-up, use: `make stage2 OREN_STAGE2_BACKEND=c`.
 - This does **not** mean Stage 2 “doesn’t have the C backend”: Stage 2 is built from the same compiler sources and supports `--backend {c|native|bytecode}` (check `./oren_stage2 --help`).
 
 ---

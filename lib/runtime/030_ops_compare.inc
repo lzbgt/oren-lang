@@ -68,6 +68,9 @@ OrenValue oren_sub(OrenValue a, OrenValue b) {
     if (a.type == OREN_TYPE_FLOAT && b.type == OREN_TYPE_INT) {
         return oren_float(a.as.float_val - (double)b.as.int_val);
     }
+    if (getenv("OREN_TRACE_SUB_MISMATCH")) {
+        fprintf(stderr, "[trace] sub mismatch a.type=%d b.type=%d\n", a.type, b.type);
+    }
     oren_panic("Type mismatch in sub");
     return OREN_NIL;
 }

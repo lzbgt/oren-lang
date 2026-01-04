@@ -24,6 +24,24 @@ fn sys_read_u8_buf(fd, buf, off, nbytes) {
     return sys_read(fd, data + off, nbytes)
 }
 
+fn sys_read_u8_buf_unchecked(fd, buf, off, nbytes) {
+    // Hot-path helper for compiler/runtime cache IO.
+    //
+    // `sys_read_u8_buf` defensively validates the buffer by calling `native_buf_check`,
+    // which may consult GC metadata (`oren_find_node`). That can become a measurable
+    // overhead in compiler workloads that perform many chunked reads.
+    //
+    // This unchecked variant assumes `buf` is a valid u8_buf allocated by the runtime,
+    // and only performs cheap bounds checks before issuing the syscall.
+    if buf == 0 { return oren_err(4, "sys_read_u8_buf_unchecked: nil buf") }
+    if off < 0 || nbytes < 0 { return oren_err(4, "sys_read_u8_buf_unchecked: negative offset/len") }
+    var n = ptr_get(buf + 0)
+    if off > n { return oren_err(4, "sys_read_u8_buf_unchecked: offset out of bounds") }
+    if off + nbytes > n { return oren_err(4, "sys_read_u8_buf_unchecked: length out of bounds") }
+    var data = native_buf_data_ptr(buf)
+    return sys_read(fd, data + off, nbytes)
+}
+
 fn sys_write_u8_buf(fd, buf, off, nbytes) {
     var err = native_buf_check(buf, BUF_TAG_U8, 1)
     if oren_is_err(err) { return err }
@@ -83,4 +101,3 @@ fn oren_buf_fill_f64(buf, v: f64) {
     }
     return buf
 }
-

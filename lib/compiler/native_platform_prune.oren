@@ -31,8 +31,10 @@ fn _expr_is_ident_named(expr, name) {
 }
 
 fn _expr_parse_int_lit(expr) {
-    if expr == nil { return nil }
-    if expr["type"] != "Integer" { return nil }
+    // IMPORTANT (native runtime): do not return `nil` as a sentinel for failure.
+    // `nil/false/0` collapse to 0 today, so a literal value of 0 must still be representable.
+    if expr == nil { return oren_err(8, "expected Integer expr") }
+    if expr["type"] != "Integer" { return oren_err(8, "expected Integer expr") }
     return intparse.parse_int_lit(expr["value"])
 }
 
@@ -65,7 +67,7 @@ fn _eval_cond_is_target_os(cond, os_id) {
     } else {
         return nil
     }
-    if lit == nil { return nil }
+    if oren_is_err(lit) { return nil }
 
     var eq = (os_id == lit)
     if op == "==" { return eq }
@@ -174,4 +176,3 @@ fn prune_runtime_os_branches_in_linked_program_in_place(linked, platform) {
     linked["statements"] = out
     return nil
 }
-

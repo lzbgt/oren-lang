@@ -68,7 +68,7 @@ fn _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], insn_mov_r32_r32(1, 0)) // mov ecx, eax
     var mov_iat = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat + 3, "data_label": "IAT_Sleep"})
+    _x64_add_rip_data32_fixup(ctx, mov_iat + 3, "IAT_Sleep")
     bytes_extend(ctx["code"], insn_call_rax())
 
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
@@ -139,7 +139,7 @@ fn _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(1, 32)) // rcx = &filetime
     var mov_iat0 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat0 + 3, "data_label": "IAT_GetSystemTimeAsFileTime"})
+    _x64_add_rip_data32_fixup(ctx, mov_iat0 + 3, "IAT_GetSystemTimeAsFileTime")
     bytes_extend(ctx["code"], insn_call_rax())
 
     // rax = filetime (100ns ticks since 1601-01-01 UTC)
@@ -177,7 +177,7 @@ fn _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(1, 40)) // rcx = &qpc
     var mov_iat1 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat1 + 3, "data_label": "IAT_QueryPerformanceCounter"})
+    _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_QueryPerformanceCounter")
     bytes_extend(ctx["code"], insn_call_rax())
 
     bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(0, 40)) // rax = qpc

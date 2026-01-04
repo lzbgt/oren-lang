@@ -211,7 +211,7 @@ fn _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967286)) // ecx = -10
         var mov_iat0 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat0 + 3, "data_label": "IAT_GetStdHandle"})
+        _x64_add_rip_data32_fixup(ctx, mov_iat0 + 3, "IAT_GetStdHandle")
         bytes_extend(ctx["code"], insn_call_rax())
 
         // rcx = handle
@@ -241,7 +241,7 @@ fn _emit_intrinsic_sys_read_x64(ctx, expr, locals, args) {
 
         var mov_iat1 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat1 + 3, "data_label": "IAT_ReadFile"})
+        _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_ReadFile")
         bytes_extend(ctx["code"], insn_call_rax())
 
         // if eax == 0 => failure => return -EIO (rolling)
@@ -382,7 +382,7 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967285)) // ecx = -11
         var mov_iat0 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat0 + 3, "data_label": "IAT_GetStdHandle"})
+        _x64_add_rip_data32_fixup(ctx, mov_iat0 + 3, "IAT_GetStdHandle")
         bytes_extend(ctx["code"], insn_call_rax())
         bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = handle
         _emit_jmp_to_label(ctx, local_fixups, l_have_handle)
@@ -391,7 +391,7 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967284)) // ecx = -12
         var mov_iat1 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat1 + 3, "data_label": "IAT_GetStdHandle"})
+        _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_GetStdHandle")
         bytes_extend(ctx["code"], insn_call_rax())
         bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = handle
 
@@ -411,7 +411,7 @@ fn _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) {
         // call WriteFile
         var mov_iat2 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat2 + 3, "data_label": "IAT_WriteFile"})
+        _x64_add_rip_data32_fixup(ctx, mov_iat2 + 3, "IAT_WriteFile")
         bytes_extend(ctx["code"], insn_call_rax())
 
         // if eax == 0 => failure => return -EIO (rolling)
@@ -463,7 +463,7 @@ fn _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) {
         bytes_extend(ctx["code"], insn_mov_r32_r32(1, 0)) // mov ecx, eax
         var mov_iat0 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-        oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat0 + 3, "data_label": "IAT_ExitProcess"})
+        _x64_add_rip_data32_fixup(ctx, mov_iat0 + 3, "IAT_ExitProcess")
         bytes_extend(ctx["code"], insn_call_rax())
         bytes_extend(ctx["code"], insn_ret())
         return nil

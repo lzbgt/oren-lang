@@ -58,7 +58,7 @@ fn _emit_linux_write_ptr_len(ctx, ptr_reg, len_reg) {
 fn _emit_linux_write_str(ctx, s) {
     if s == nil { s = "" }
     var off = _data_add_cstr0(ctx, s)
-    if off == nil { return nil }
+    // `off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
     var nbytes = oren_string_len(s)
     // rax=1 write, rdi=1 stdout, rsi=&data, rdx=len
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
@@ -90,7 +90,7 @@ fn _emit_windows_write_ptr_len(ctx, ptr_reg, len_reg) {
     bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967285)) // ecx = -11
     var mov_iat0 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat0 + 3, "data_label": "IAT_GetStdHandle"})
+    _x64_add_rip_data32_fixup(ctx, mov_iat0 + 3, "IAT_GetStdHandle")
     bytes_extend(ctx["code"], insn_call_rax())
 
     // rcx = hStdout
@@ -109,7 +109,7 @@ fn _emit_windows_write_ptr_len(ctx, ptr_reg, len_reg) {
     // --- WriteFile ---
     var mov_iat1 = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data32", "pos": mov_iat1 + 3, "data_label": "IAT_WriteFile"})
+    _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_WriteFile")
     bytes_extend(ctx["code"], insn_call_rax())
     return nil
 }
@@ -140,7 +140,7 @@ fn _emit_panic_with_msg_ptr(ctx, msg_ptr_reg) {
         // prefix literal
         var pref = "OREN_DIAG kind=panic code=1 msg="
         var pref_off = _data_add_cstr0(ctx, pref)
-        if pref_off == nil { _emit_abort_exitcode(ctx, 1); return nil }
+        // `pref_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
         // lea rdx, [rip+pref] ; r8d=len
         // GetStdHandle/WriteFile for (ptr,len)
         var lea_pos = bytes_len(ctx["code"])
@@ -158,7 +158,7 @@ fn _emit_panic_with_msg_ptr(ctx, msg_ptr_reg) {
         _emit_windows_write_ptr_len(ctx, msg_reg, 11)
         // newline literal
         var nl_off = _data_add_cstr0(ctx, "\n")
-        if nl_off == nil { _emit_abort_exitcode(ctx, 1); return nil }
+        // `nl_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
         var lea_pos2 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(2, 0))
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos2 + 3, "data_off": nl_off})
@@ -214,7 +214,7 @@ fn _emit_panic_helper_fn_if_needed_x64(ctx) {
 fn _emit_hex_table_ptr_to_r13(ctx) {
     // r13 = &"0123456789abcdef"
     var off = _data_add_cstr0(ctx, "0123456789abcdef")
-    if off == nil { return nil }
+    // `off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
     var lea_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(13, 0))
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
@@ -293,12 +293,13 @@ fn _emit_resolve_symbol_ptr_and_off_best_effort(ctx, addr_reg, out_ptr_reg, out_
     // - out_off_reg = u64 offset within function (0 if unknown)
     //
     // Clobbers: rax, rbx, r8, r9, r10, r11
-    var symtab_off = ctx["symtab_off"]
+    // `ctx["symtab_off"]` is stored as `off+1` (so a real offset 0 is representable
+    // under the native runtime, where `nil` is 0).
+    var symtab_off_enc = ctx["symtab_off"]
+    var symtab_off = nil
+    if symtab_off_enc != nil { symtab_off = symtab_off_enc - 1 }
     var unk_off = _data_add_cstr0(ctx, "???")
-    if unk_off == nil {
-        // If we can't even store the unknown marker, leave out_ptr_reg unchanged.
-        return nil
-    }
+    // `unk_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
 
     // Default out_ptr_reg = "???"; out_off_reg = 0
     var lea_unk = bytes_len(ctx["code"])
@@ -306,7 +307,7 @@ fn _emit_resolve_symbol_ptr_and_off_best_effort(ctx, addr_reg, out_ptr_reg, out_
     oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_unk + 3, "data_off": unk_off})
     bytes_extend(ctx["code"], insn_mov_r64_imm64(out_off_reg, 0))
 
-    if symtab_off == nil { return nil }
+    if symtab_off_enc == nil { return nil }
 
     // Compute code base address used by the fixed-base emitters.
     // Source of truth: `lib/compiler/native_abi.oren` (x64_v0_* helpers).
@@ -401,7 +402,7 @@ fn _emit_resolve_loc_ptr_best_effort(ctx, addr_reg, out_ptr_reg) {
     // Clobbers: rax, rbx, r8, r9, r10, r11, rsi
     var linetab_off = ctx["linetab_off"]
     var empty_off = _data_add_cstr0(ctx, "")
-    if empty_off == nil { return nil }
+    // `empty_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
 
     // Default out_ptr_reg = "".
     var lea_empty = bytes_len(ctx["code"])
@@ -529,7 +530,7 @@ fn _emit_write_newline(ctx) {
     var platform = ctx["platform"]
     if platform != nil && platform["os"] == "windows" {
         var nl_off = _data_add_cstr0(ctx, "\n")
-        if nl_off == nil { return nil }
+        // `nl_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
         var lea_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(2, 0))
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": nl_off})

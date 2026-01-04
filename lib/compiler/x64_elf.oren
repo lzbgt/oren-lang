@@ -111,9 +111,19 @@ fn elf_build_prefix_x64(code, code_pad_len, data, entry_off) {
 }
 
 fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
+    // Bounded timing summary for diagnosing x64 native build throughput without huge logs.
+    // Enable with: OREN_TRACE_X64_EMIT_SUMMARY=1
+    var trace_sum = oren_env("OREN_TRACE_X64_EMIT_SUMMARY") != nil
+    var t0 = 0
+    var t_compile_done = 0
+    var t_fix_start = 0
+    var t_fix_done = 0
+    if trace_sum { t0 = oren_time_now_ns() }
+
     var ctx = codegen.native_compile_program_x64(linked, {"os": "linux", "debug": debug_mode, "no_gc": no_gc, "call_depth_max": call_depth_max, "capsule": capsule, "cap_allow_domains": cap_allow_domains})
     if ctx == nil { return nil }
     codegen.native_emit_errors_and_exit(ctx)
+    if trace_sum { t_compile_done = oren_time_now_ns() }
 
     var code = ctx["code"]
     var data = ctx["data"]
@@ -141,6 +151,7 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, cap
     while pi < pad_len { bytes_push(code_pad, 0); pi = pi + 1 }
     var data_base_off = code_len + bytes_len(code_pad)
 
+    if trace_sum { t_fix_start = oren_time_now_ns() }
     var i = 0
     while i < oren_list_len(fixups) {
         var f = fixups[i]
@@ -222,6 +233,7 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, cap
         }
         i = i + 1
     }
+    if trace_sum { t_fix_done = oren_time_now_ns() }
 
     var prefix = elf_build_prefix_x64(code, bytes_len(code_pad), data, ctx["entry_off"])
     bytes_extend(prefix, code)
@@ -300,5 +312,22 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, cap
         oren_exit(1)
     }
     oren_chmod(out_path, 493) // 0755
+    if trace_sum {
+        var t_end = oren_time_now_ns()
+        var compile_ms = 0
+        var fix_ms = 0
+        var write_ms = 0
+        if t_compile_done != 0 && t0 != 0 { compile_ms = (t_compile_done - t0) / 1000000 }
+        if t_fix_done != 0 && t_fix_start != 0 { fix_ms = (t_fix_done - t_fix_start) / 1000000 }
+        if t_end != 0 && t_fix_done != 0 { write_ms = (t_end - t_fix_done) / 1000000 }
+        var fx_n = 0
+        if fixups != nil { fx_n = oren_list_len(fixups) }
+        print("[x64_elf] summary compile_ms=" + oren_int_to_string(compile_ms) +
+              " fixups_ms=" + oren_int_to_string(fix_ms) +
+              " write_ms=" + oren_int_to_string(write_ms) +
+              " fixups_n=" + oren_int_to_string(fx_n) +
+              " code_bytes=" + oren_int_to_string(code_len) +
+              " data_bytes=" + oren_int_to_string(bytes_len(data)))
+    }
     return nil
 }
