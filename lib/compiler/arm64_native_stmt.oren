@@ -482,40 +482,60 @@ fn native_compile_stmt_inner(ctx, stmt) {
         return nil
     }
     
-    if stmt["type"] == "Type" {
-        var name = stmt["name"]["value"]
-        var fields = stmt["fields"]
-        var n_fields = oren_list_len(fields)
+	        if stmt["type"] == "Type" {
+	            var name = stmt["name"]["value"]
+	            var fields = stmt["fields"]
+	            var n_fields = oren_list_len(fields)
 
-        // Emit the constructor as a real function symbol so type constructors remain
-        // first-class callables in native codegen.
-        //
-        // Rolling v0 decision: structs are map-shaped across backends.
-        // Constructor returns a map with string keys:
+	        // Expose the synthesized constructor as a first-class callable:
+	        // - identifier expressions like `var U = User` must typecheck/codegen
+	        // - wrapper synthesis (fn values) consults `ctx["func_decl_order"]` + `ctx["func_arity"]`
+	        if ctx["declared_functions"] != nil {
+	            if ctx["declared_functions"][name] != nil {
+	                native_error(ctx, stmt["token"], "native backend: duplicate top-level name " + name)
+	                return nil
+	            }
+	            ctx["declared_functions"][name] = true
+	        }
+	        if ctx["func_arity"] != nil {
+	            // Store as arity+1 so 0 is not indistinguishable from `nil` when running stage2-native.
+	            ctx["func_arity"][name] = n_fields + 1
+	        }
+	        if ctx["func_decl_order"] != nil {
+	            oren_list_push(ctx["func_decl_order"], name)
+	        }
+
+	        // Emit the constructor as a real function symbol so type constructors remain
+	        // first-class callables in native codegen.
+	        //
+	        // Rolling v0 decision: structs are map-shaped across backends.
+	        // Constructor returns a map with string keys:
         //   struct User { id, name }  =>  fn User(id, name) { return {"id":id,"name":name} }
         var jump_skip_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
 
         var func_start = bytes_len(ctx["code"])
-        ctx["functions"][name] = func_start
-        oren_list_push(ctx["function_names"], name)
+	        ctx["functions"][name] = func_start
+	        oren_list_push(ctx["function_names"], name)
 
-        var old_locals = ctx["locals"]
-        var old_locals_floaty = ctx["locals_floaty"]
-        var old_locals_stringy = ctx["locals_stringy"]
-        var old_locals_list_stringy = ctx["locals_list_stringy"]
-        var old_stack_size = ctx["stack_size"]
-        ctx["locals"] = {}
-        ctx["locals_floaty"] = {}
-        ctx["locals_stringy"] = {}
-        ctx["locals_list_stringy"] = {}
-        ctx["stack_size"] = 0
+	        var old_locals = ctx["locals"]
+	        var old_locals_floaty = ctx["locals_floaty"]
+	        var old_locals_stringy = ctx["locals_stringy"]
+	        var old_locals_list_stringy = ctx["locals_list_stringy"]
+	        var old_stack_size = ctx["stack_size"]
+	        var old_cur_fn_name = ctx["cur_fn_name"]
+	        ctx["locals"] = {}
+	        ctx["locals_floaty"] = {}
+	        ctx["locals_stringy"] = {}
+	        ctx["locals_list_stringy"] = {}
+	        ctx["stack_size"] = 0
 
-        ctx["in_function"] = true
+	        ctx["in_function"] = true
+	        ctx["cur_fn_name"] = name
 
-        push_u32_le(ctx["code"], insn_stp_pre())
-        push_u32_le(ctx["code"], insn_mov_fp_sp())
-        ctx["stack_size"] = ctx["stack_size"] + 16
+	        push_u32_le(ctx["code"], insn_stp_pre())
+	        push_u32_le(ctx["code"], insn_mov_fp_sp())
+	        ctx["stack_size"] = ctx["stack_size"] + 16
 
         // Save args to stack locals for uniform access.
         var i = 0
@@ -608,13 +628,14 @@ fn native_compile_stmt_inner(ctx, stmt) {
         var skip_off = (func_end - jump_skip_pos) / 4
         set_u32_le(ctx["code"], jump_skip_pos, insn_b(skip_off))
 
-        ctx["in_function"] = false
+	        ctx["in_function"] = false
+	        ctx["cur_fn_name"] = old_cur_fn_name
 
-        ctx["locals"] = old_locals
-        ctx["locals_floaty"] = old_locals_floaty
-        ctx["locals_stringy"] = old_locals_stringy
-        ctx["locals_list_stringy"] = old_locals_list_stringy
-        ctx["stack_size"] = old_stack_size
+	        ctx["locals"] = old_locals
+	        ctx["locals_floaty"] = old_locals_floaty
+	        ctx["locals_stringy"] = old_locals_stringy
+	        ctx["locals_list_stringy"] = old_locals_list_stringy
+	        ctx["stack_size"] = old_stack_size
         return nil
     }
     
@@ -732,8 +753,8 @@ fn native_compile_stmt_inner(ctx, stmt) {
             return nil
         }
         
-        if expr["type"] == "Function" {
-            var fn_name = expr["name"]
+	        if expr["type"] == "Function" {
+	            var fn_name = expr["name"]
 
             // Function expressions are only valid as lambdas in Tier‑1 native: name=="".
             //
@@ -764,21 +785,23 @@ fn native_compile_stmt_inner(ctx, stmt) {
                 ctx["main_idx"] = func_start
             }
             
-            var old_locals = ctx["locals"]
-            var old_locals_floaty = ctx["locals_floaty"]
-            var old_locals_stringy = ctx["locals_stringy"]
-            var old_locals_list_stringy = ctx["locals_list_stringy"]
-            var old_stack_size = ctx["stack_size"]
-            var old_scope = ctx["scope"]
-            var old_call_depth_enabled = ctx["call_depth_enabled"]
-            ctx["locals"] = {}
-            ctx["locals_floaty"] = {}
-            ctx["locals_stringy"] = {}
-            ctx["locals_list_stringy"] = {}
-            ctx["stack_size"] = 0
-            ctx["scope"] = nil
+	            var old_locals = ctx["locals"]
+	            var old_locals_floaty = ctx["locals_floaty"]
+	            var old_locals_stringy = ctx["locals_stringy"]
+	            var old_locals_list_stringy = ctx["locals_list_stringy"]
+	            var old_stack_size = ctx["stack_size"]
+	            var old_scope = ctx["scope"]
+	            var old_call_depth_enabled = ctx["call_depth_enabled"]
+	            var old_cur_fn_name = ctx["cur_fn_name"]
+	            ctx["locals"] = {}
+	            ctx["locals_floaty"] = {}
+	            ctx["locals_stringy"] = {}
+	            ctx["locals_list_stringy"] = {}
+	            ctx["stack_size"] = 0
+	            ctx["scope"] = nil
             
-            ctx["in_function"] = true
+	            ctx["in_function"] = true
+	            ctx["cur_fn_name"] = fn_name
             // Stack safety instrumentation (native backend; rolling):
             //
             // Only instrument **user code** functions.
@@ -943,17 +966,18 @@ fn native_compile_stmt_inner(ctx, stmt) {
             var skip_off = (func_end - jump_skip_pos) / 4
             set_u32_le(ctx["code"], jump_skip_pos, insn_b(skip_off))
             
-            ctx["in_function"] = false
+	            ctx["in_function"] = false
+	            ctx["cur_fn_name"] = old_cur_fn_name
             
-            ctx["locals"] = old_locals
-            ctx["locals_floaty"] = old_locals_floaty
-            ctx["locals_stringy"] = old_locals_stringy
-            ctx["locals_list_stringy"] = old_locals_list_stringy
-            ctx["stack_size"] = old_stack_size
-            ctx["scope"] = old_scope
-            ctx["call_depth_enabled"] = old_call_depth_enabled
-            return nil
-        }
+	            ctx["locals"] = old_locals
+	            ctx["locals_floaty"] = old_locals_floaty
+	            ctx["locals_stringy"] = old_locals_stringy
+	            ctx["locals_list_stringy"] = old_locals_list_stringy
+	            ctx["stack_size"] = old_stack_size
+	            ctx["scope"] = old_scope
+	            ctx["call_depth_enabled"] = old_call_depth_enabled
+	            return nil
+	        }
         
         if expr["type"] == "Call" {
             var fn_name = expr["fn"]["value"]

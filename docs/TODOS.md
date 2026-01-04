@@ -62,6 +62,13 @@ Rules for this tracker:
          - Tier‑1 fixture no longer soft-skips Windows.
          - Native quick integration now includes a Windows-only `oren_system_timeout(...)` smoke to prevent regressions.
          - Runtime object cache key now includes a backend signature so codegen changes invalidate cached runtime machine code.
+       - Fixed (2026-01-04): x86_64 stack traces now resolve symbols under rtobj cache mode (no “???” on Win11 Tier‑1).
+         - x64 compiler emits an embedded debug-info table and entry stub calls `oren_set_debug_info(...)`.
+         - Runtime `stack_trace()` now uses `oren_resolve_symbol(pc)` (debug-info first; fallback to best-effort intrinsic).
+         - Tier‑1 smoke asserts `oren_resolve_symbol(lr) != "???"`.
+       - Fixed (2026-01-04): arm64 varargs wrappers no longer self-recurse in native codegen.
+         - Added a `cur_fn_name` context so call lowering can skip varargs “callable-object” lowering inside `__oren_fnwrap_*`.
+         - Result: `tests/fixtures/tier1_native_smoke_main.oren` runs successfully on `arm64-macos` native backend in debug mode.
 		     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
 			     - (performance) stage2-native runtime bundle cost remains high; keep iterating toward:
 		       - default: hashed runtime AST cache under `build/cache/native_runtime_astbin/` (disable via `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0`)

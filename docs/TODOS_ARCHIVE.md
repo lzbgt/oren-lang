@@ -5,6 +5,24 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2026-01-04) — Native: Tier‑1 stack traces (x64) + varargs wrapper recursion fix (arm64)
+
+- x86_64 native (Win11 Tier‑1 / rtobj cache mode):
+  - Added an embedded debug-info table (function-range map) emitted into the program `.data` blob.
+  - x64 entry stub now calls `oren_set_debug_info(table_ptr, table_ptr)` (fixed-base v0 emitters) so runtime symbolication can use it.
+  - Runtime `stack_trace()` now prefers `oren_resolve_symbol(pc)` (debug-info) and falls back to the best-effort backend intrinsic when missing.
+  - Tier‑1 fixture now asserts symbolication by checking `oren_resolve_symbol(lr) != "???"`.
+- arm64 native:
+  - Fixed a correctness bug where varargs named functions could recurse indefinitely:
+    - call lowering for varargs named functions lowered through `__oren_fnwrap_*` wrappers,
+    - but wrapper bodies call the real varargs function, which previously re-entered varargs lowering.
+  - Added `ctx["cur_fn_name"]` tracking during function codegen and skipped varargs “callable-object” lowering when `cur_fn_name == "__oren_fnwrap_" + fn_name`.
+  - Also recorded synthesized type constructors in `ctx["func_arity"]` / `ctx["func_decl_order"]` so constructor values are first-class (`var U = User`).
+- Verified:
+  - `make test`
+  - local: `./oren build tests/fixtures/tier1_native_smoke_main.oren --backend native --platform arm64-macos --debug ...` (runs OK)
+  - remote: `./scripts/verify_native_matrix.sh --targets x64-win-tier1` (stage1 + stage2)
+
 ## Archived (2026-01-03) — Native: OrenStatV0 time fields + stat-aware scan cache v3
 
 - Native backends:

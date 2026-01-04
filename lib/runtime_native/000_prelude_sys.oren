@@ -36,7 +36,9 @@ fn stack_trace() {
         var align_bits = fp & 7
         if align_bits != 0 { print("  ... (unaligned fp)"); return 0 }
         var lr = ptr_get(iadd(fp, 8))
-        var name = resolve_symbol(lr)
+        // Prefer the embedded debug-info table (when present) via `oren_resolve_symbol`,
+        // falling back to the backend's best-effort `resolve_symbol` intrinsic.
+        var name = oren_resolve_symbol(lr)
         // Prefer language-level string `+` over manual `string_concat` chains.
         print("  at " + name + " (pc=" + oren_int_to_string(lr) + ")")
         // print_hex(lr)

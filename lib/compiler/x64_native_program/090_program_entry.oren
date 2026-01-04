@@ -978,6 +978,25 @@ fn native_compile_program_x64(linked, platform) {
 
     // --- Panic symbolication (best-effort) ---
     //
+    // --- Debug-info table (stack traces; debug builds only) ---
+    //
+    // The injected runtime provides `oren_resolve_symbol(pc)` which prefers an embedded
+    // debug-info table (range-based) when `oren_set_debug_info(ptr, static_addr)` is called.
+    //
+    // In practice, we need this even in rolling v0 because:
+    // - the runtime is usually provided via the compiled runtime-object cache (rtobj),
+    // - rtobj code cannot embed final-program symtab references (those are reserved/finalized
+    //   in this file), so `resolve_symbol(pc)` inside rtobj would otherwise degrade to "???".
+    //
+    // Reserve a u64 slot holding the debug-info table offset so the entry stub can:
+    // - read the final offset at runtime, and
+    // - compute a PIE-safe pointer using the same `data_base` derivation as the cstr0 table.
+    if platform != nil && platform["debug"] == true {
+        var dbg_slot_off = _data_add_u64(ctx, 0)
+        // Store as offset+1 so 0 is not indistinguishable from `nil` in stage2-native.
+        ctx["dbginfo_table_slot_enc"] = dbg_slot_off + 1
+    }
+
     // Reserve a symbol table region early so stack trace codegen can refer to it
     // with stable RIP-relative fixups. We fill the table later, after compilation
     // (when function code offsets are known).
@@ -1206,6 +1225,50 @@ fn native_compile_program_x64(linked, platform) {
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_cstr_pos, "name": "oren_init_static_cstr0_table"})
     }
 
+    // Register embedded debug-info table in debug builds (Tier‑1 debuggability).
+    //
+    // This enables runtime `oren_resolve_symbol(pc)` to resolve program PCs precisely without
+    // depending on the coarser symtab-based `resolve_symbol(pc)` intrinsic.
+    var dbg_slot_off_enc = ctx["dbginfo_table_slot_enc"]
+    if dbg_slot_off_enc != nil {
+        var dbg_slot_off = dbg_slot_off_enc - 1
+        // slot_addr = &data[dbg_slot_off]
+        var lea_dbg_slot_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0)) // r10 = slot_addr
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_dbg_slot_pos + 3, "data_off": dbg_slot_off})
+        // table_off = *(u64*)slot_addr
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 10)) // r11 = table_off
+
+        // If table_off == 0, skip (rolling safety: debug-info finalize may be disabled).
+        var labels_dbg = {}
+        var fixups_dbg = []
+        var l_skip_dbg = _new_label(ctx, "dbginfo_skip")
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+        _emit_jcc_to_label(ctx, fixups_dbg, "e", l_skip_dbg)
+
+        // data_base = slot_addr - dbg_slot_off
+        bytes_extend(ctx["code"], insn_mov_r64_r64(12, 10))
+        bytes_extend(ctx["code"], insn_sub_r64_imm32(12, core.int_mod(dbg_slot_off, 4294967296)))
+        // table_ptr = data_base + table_off
+        bytes_extend(ctx["code"], insn_add_r64_r64(12, 11))
+
+        // oren_set_debug_info(table_ptr, static_addr)
+        // For x64 v0 fixed-base emitters, use static_addr=table_ptr (slide=0).
+        if platform != nil && platform["os"] == "windows" {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(1, 12)) // rcx = table_ptr
+            bytes_extend(ctx["code"], insn_mov_r64_r64(2, 12)) // rdx = table_ptr
+        } else {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 12)) // rdi = table_ptr
+            bytes_extend(ctx["code"], insn_mov_r64_r64(6, 12)) // rsi = table_ptr
+        }
+        var call_dbg_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_dbg_pos, "name": "oren_set_debug_info"})
+
+        _emit_label(ctx, labels_dbg, l_skip_dbg)
+        _patch_local_fixups(ctx, labels_dbg, fixups_dbg)
+    }
+
     // native_runtime_set_args(argc, argv)
     if platform != nil && platform["os"] == "windows" {
         _emit_mov_r64_mrsp(ctx, 1, scratch_base + 0) // rcx=argc
@@ -1403,6 +1466,10 @@ fn native_compile_program_x64(linked, platform) {
 
     // Fill the linetab now that code offsets are stable.
     _data_finalize_linetab(ctx)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+
+    // Fill the debug-info table now that code offsets are stable (debug builds only).
+    _data_finalize_dbginfo_table(ctx, platform)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
     // Finalize the embedded-string table after all codegen so it includes:

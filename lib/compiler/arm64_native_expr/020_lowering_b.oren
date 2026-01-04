@@ -187,7 +187,20 @@ fn native_expr_chunk_call(ctx, expr) {
             // We build an args_list and then inline-call the function object's code pointer.
             // The function object for `fn_name` points at `__oren_fnwrap_<fn_name>`, which
             // packs rest args into a list and calls the real function.
-            if ctx["func_varargs_fixed"][fn_name] != nil {
+            //
+            // IMPORTANT:
+            // The wrapper itself calls the real function at fixed arity (fixed args + rest_list).
+            // Avoid re-entering this varargs lowering inside the wrapper, otherwise the wrapper
+            // would call itself recursively via the callable-object path.
+            var vf_enc0 = nil
+            if ctx != nil && ctx["func_varargs_fixed"] != nil { vf_enc0 = ctx["func_varargs_fixed"][fn_name] }
+            var in_fnwrap = false
+            if vf_enc0 != nil {
+                var cur = nil
+                if ctx != nil { cur = ctx["cur_fn_name"] }
+                if cur != nil && cur == "__oren_fnwrap_" + fn_name { in_fnwrap = true }
+            }
+            if vf_enc0 != nil && in_fnwrap != true {
                 // args_list = oren_new_list(0)
                 push_u32_le(ctx["code"], insn_movz(0, 0))
                 var bl_new_list_v = bytes_len(ctx["code"])

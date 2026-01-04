@@ -82,8 +82,15 @@ fn worker_sleep_long() {
 
 fn stacktrace_leaf() {
     // Validates Tier‑1 x64 symbolication path:
-    // - runtime `stack_trace()` calls `resolve_symbol(pc)` for each frame
-    // - x64 native must resolve PCs to per-binary symtab entries (not "???")
+    // - runtime `stack_trace()` calls `oren_resolve_symbol(pc)` for each frame
+    // - x64 native must install the embedded debug-info table so symbols are not "???"
+    var fp = get_fp()
+    var lr = ptr_get(iadd(fp, 8))
+    var nm = oren_resolve_symbol(lr)
+    if oren_string_eq(nm, "???") {
+        print("tier1 stack trace unresolved pc=" + oren_int_to_string(lr))
+        return 79
+    }
     stack_trace()
     print("tier1 stack trace ok")
     return 0
