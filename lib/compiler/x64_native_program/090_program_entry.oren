@@ -8,6 +8,21 @@
 // - import_list: list of imports (for PE)
 // - errors: list of strings
 
+fn x64_env_str_eq(a, b) {
+    // Avoid depending on runtime string equality semantics in compiler hot paths.
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
 fn _emit_parse_u64_decimal_from_cstr_ptr_x64(ctx, start_ptr_reg, dst_reg, labels, local_fixups) {
     // Parse decimal digits at *(char*)start_ptr_reg into dst_reg (u64).
     //
@@ -1046,6 +1061,16 @@ fn native_compile_program_x64(linked, platform) {
     var runtime_path = "lib/runtime_native.oren"
     if platform != nil && platform["capsule"] == true {
         runtime_path = "lib/runtime_native_capsule.oren"
+    } else {
+        // Optional: smaller injected runtime profile to keep cold rtobj builds bounded.
+        //
+        // Values (rolling):
+        // - unset / "full": default full runtime (`lib/runtime_native.oren`)
+        // - "core" / "minimal": reduced runtime (`lib/runtime_native_core.oren`)
+        var prof = oren_env("OREN_NATIVE_RUNTIME_PROFILE")
+        if x64_env_str_eq(prof, "core") || x64_env_str_eq(prof, "minimal") {
+            runtime_path = "lib/runtime_native_core.oren"
+        }
     }
     var linked2 = linked
 

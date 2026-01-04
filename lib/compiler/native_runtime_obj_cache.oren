@@ -552,7 +552,21 @@ fn rtobj_runtime_hash(ctx, runtime_path) {
         runtime_parts = []
         runtime_files = []
         var ok = rtinj.runtime_expand_includes_file_into_parts_and_files(ctx, runtime_path, [], runtime_parts, runtime_files)
-        if ok == nil { return nil }
+        if ok == nil {
+            // Failure here previously became a silent `nil` hash and an opaque build failure.
+            // Keep output bounded: print only a small prefix of ctx["errors"].
+            if ctx != nil && ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+                print("[rtobj] runtime expand failed (showing first errors):")
+                var ei = 0
+                while ei < oren_list_len(ctx["errors"]) && ei < 5 {
+                    print("  " + ctx["errors"][ei])
+                    ei = ei + 1
+                }
+            } else {
+                print("[rtobj] runtime expand failed (no detailed errors)")
+            }
+            return nil
+        }
     }
     if expanded_override != nil {
         if runtime_src == nil { return nil }

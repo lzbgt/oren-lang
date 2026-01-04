@@ -2,10 +2,6 @@
 fn buf_magic() { return 4609346 } // 'BUF\0'
 // BUF_TAG_* are defined near global constants (used by iterator and native codegen).
 
-// RAW mmap header for large typed-buffer payloads:
-// [magic:u64, total_len:u64, backend:u64, ...padding... ] (64 bytes)
-fn raw_magic() { return 5715707079776360240 } // 0x4f52454e52415730 ("ORENRAW0") as u64 (rolling)
-fn raw_hdr_size() { return 64 }
 fn raw_mmap_threshold() {
     var v = global_get_raw_mmap_threshold()
     if v < 0 { return 1048576 }

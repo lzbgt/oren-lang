@@ -33,6 +33,18 @@ Note:
   - For real user experience, it is recommended to keep a seed available (see `make rtobj-seed`).
   - For cross-target x86_64 sanity on arm64 hosts, generate seeds with `make rtobj-seed-x64` so compile-only gates stay bounded on a clean cache.
 
+Optional (rolling): reduced runtime profile for bounded cold misses
+
+If you are diagnosing the **cold miss** cost (rtobj build) and want a smaller baseline that more closely matches
+“typical programs”, you can use the reduced runtime profile:
+
+```bash
+OREN_NATIVE_RUNTIME_PROFILE=core \
+  OREN_NATIVE_RUNTIME_OBJ_SEED_DIR=0 \
+  OREN_NATIVE_BUILD_TIMEOUT_SECS=60 \
+  ./scripts/bench_native_compile_one_file.sh --no-debug
+```
+
 Optional bounded tracing:
 
 ```bash

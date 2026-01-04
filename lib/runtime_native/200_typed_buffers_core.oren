@@ -1,0 +1,12 @@
+// --- Typed numeric buffers (native backend; core subset) ---
+//
+// This is a reduced typed-buffer surface intended for "core" runtime profiles:
+// - keeps `u8_buf` (critical for compiler IO and caching paths like `oren_read_u8_buf`)
+// - keeps basic allocation + load/store + sys_read/sys_write helpers
+// - excludes heavier numeric/HPC kernels (dot/gemm/reductions) to keep cold rtobj builds bounded
+//
+// Full typed buffer surface is in: `lib/runtime_native/200_typed_buffers.oren`
+
+// @include "typed_buffers/000_core.oren"
+// @include "typed_buffers/010_alloc_load_store.oren"
+// @include "typed_buffers/020_fill_sysio.oren"

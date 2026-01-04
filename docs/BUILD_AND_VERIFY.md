@@ -88,6 +88,17 @@ Troubleshooting overrides (force a specific input, bypassing default behavior):
     - `make astbin-seed` (host platform; runs as part of `make stage2`)
     - `make astbin-seed-x64` (cross-target seeds for `x64-linux`/`x64-windows`; used by `make verify-native-x64-compile`)
 
+Runtime profile (rolling, perf-oriented):
+
+- `OREN_NATIVE_RUNTIME_PROFILE=core` (or `minimal`) uses a reduced runtime entry file (`lib/runtime_native_core.oren`)
+  for non-capsule builds, intended to keep **cold rtobj misses bounded** on stage2-native compilers.
+- Default (unset / `full`) keeps the full runtime (`lib/runtime_native.oren`).
+- Seed tooling: `make astbin-seed` now also generates a seed astbin for the core runtime profile (in addition to full + capsule).
+
+Stage0 bootstrap constraint (keep stage1 buildable):
+
+- Avoid nested named function declarations (`fn name(...) { ... }` inside another function) in compiler sources; stage0 transpilation treats them as unsupported.
+
 Tracing knobs (bounded output; prints timing summaries):
 
 - `OREN_TRACE_RUNTIME_BUNDLE=1`: runtime expand/parse/cache timings

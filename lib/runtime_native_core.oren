@@ -1,18 +1,20 @@
-// Oren native runtime (native backend)
+// Oren native runtime (native backend) — core profile
 //
-// This file is intentionally small.
+// Goal (rolling):
+// - Provide a smaller injected runtime surface for typical programs so a cold runtime-object build
+//   stays bounded (<10s) even when the rtobj seed/cache is empty.
+// - Keep the full runtime available via `lib/runtime_native.oren` (default profile).
 //
-// The native backend expands `// @include "..."` directives at compile time and
-// injects the resulting concatenated source as the runtime.
+// Notes:
+// - Include order remains semantically significant for the runtime.
+// - This profile intentionally excludes heavier subsystems:
+//   - typed numeric buffers (HPC/SIMD surfaces)
+//   - TCP/UDP/select networking surfaces
+//   - AVM bridge
+//   - `oren_net_get` helper (depends on TCP surface)
+//   - SHA-256 helpers (used by AVM/tooling; kept in full runtime)
 //
-// Edit the runtime in `lib/runtime_native/*.oren`.
-//
-// NOTE: include order is semantically significant (kept identical to the former
-// monolithic `lib/runtime_native.oren`).
-//
-// Capsule policy:
-// - This entry file is for **non-capsule** native builds (no capsule hooks).
-// - Capsule builds should use `lib/runtime_native_capsule.oren`.
+// Edit the runtime sources under `lib/runtime_native/*.oren`.
 
 // @include "runtime_native/000_prelude_sys.oren"
 // @include "runtime_native/010_channels_globals_consts.oren"
@@ -31,17 +33,13 @@
 // @include "runtime_native/160_iteration.oren"
 // @include "runtime_native/170_lists.oren"
 // @include "runtime_native/180_bytes_helpers.oren"
-// @include "runtime_native/185_sha256.oren"
 // @include "runtime_native/190_byte_order.oren"
-// @include "runtime_native/200_typed_buffers.oren"
+// Core typed buffers: keep u8_buf IO without HPC kernels.
+// @include "runtime_native/200_typed_buffers_core.oren"
 // @include "runtime_native/210_args.oren"
 // @include "runtime_native/215_stat.oren"
 // @include "runtime_native/220_path_helpers.oren"
 // @include "runtime_native/230_binary_io.oren"
-// @include "runtime_native/240_tcp.oren"
-// @include "runtime_native/245_select.oren"
-// @include "runtime_native/250_udp.oren"
+// Threads include allocator internals (`free`) used by almost everything.
 // @include "runtime_native/260_threads.oren"
-// @include "runtime_native/268_net_get.oren"
 // @include "runtime_native/265_result.oren"
-// @include "runtime_native/270_avm_bridge.oren"

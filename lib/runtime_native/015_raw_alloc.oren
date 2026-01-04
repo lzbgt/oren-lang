@@ -14,6 +14,16 @@
 // Native-backend intrinsic (stub for parsing/other backends).
 fn malloc_raw(size) { return 0 }
 
+// RAW mmap header for large runtime allocations (and typed-buffer payloads):
+// [magic:u64, total_len:u64, backend:u64, ...padding... ] (64 bytes)
+//
+// Placed in the early raw-alloc module so both:
+// - typed buffers (payload mmap)
+// - the allocator free-path (RAW_MMAP kind)
+// can share a single definition even when runtime profiles exclude HPC surfaces.
+fn raw_magic() { return 5715707079776360240 } // 0x4f52454e52415730 ("ORENRAW0") as u64 (rolling)
+fn raw_hdr_size() { return 64 }
+
 fn native_is_neg_i64(x) {
     // Signed negativity predicate for syscall-first paths that return -errno.
     return x < 0
@@ -58,4 +68,3 @@ fn native_malloc_raw_or_mmap(size) {
     if q < 4096 { return 0 }
     return q
 }
-

@@ -22,6 +22,7 @@ platform=""
 compiler="./oren_stage2"
 debug_flag="--no-debug"
 force="${OREN_FORCE_RUNTIME_OBJ_SEED:-}"
+runtime_profile="${OREN_NATIVE_RUNTIME_PROFILE:-}"
 
 usage() {
   cat <<'EOF'
@@ -30,6 +31,8 @@ Usage: scripts/build_rtobj_seed.sh [options]
 Options:
   --platform <spec>   target platform (e.g. arm64-macos, x64-linux). Default: auto-detect host.
   --compiler <path>   compiler binary (default: ./oren_stage2)
+  --runtime-profile <full|core|minimal>
+                     select the non-capsule runtime profile to seed (default: env OREN_NATIVE_RUNTIME_PROFILE, else "full")
   --debug             generate seed for debug runtime objects
   --no-debug          generate seed for non-debug runtime objects (default)
   --force             rebuild seed even if already present
@@ -39,6 +42,7 @@ Env:
   OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR   source rtobj cache dir (default: build/cache/native_runtime_obj)
   OREN_NATIVE_RUNTIME_OBJ_SEED_DIR    destination seed dir (default: build/cache/native_runtime_obj_seed)
   OREN_FORCE_RUNTIME_OBJ_SEED         if set, do not take the fast no-op path
+  OREN_NATIVE_RUNTIME_PROFILE         runtime profile override ("core"/"minimal" => lib/runtime_native_core.oren)
 EOF
 }
 
@@ -46,6 +50,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --platform) platform="${2:-}"; shift 2 ;;
     --compiler) compiler="${2:-}"; shift 2 ;;
+    --runtime-profile) runtime_profile="${2:-}"; shift 2 ;;
     --debug) debug_flag="--debug"; shift ;;
     --no-debug) debug_flag="--no-debug"; shift ;;
     --force) force="1"; shift ;;
@@ -91,12 +96,29 @@ seed_dir="${OREN_NATIVE_RUNTIME_OBJ_SEED_DIR:-build/cache/native_runtime_obj_see
 dbg="d0"
 if [[ "$debug_flag" = "--debug" ]]; then dbg="d1"; fi
 
+# Runtime entry file used for hashing/keys (non-capsule only; capsule uses a different entry file).
+runtime_entry="lib/runtime_native.oren"
+case "${runtime_profile:-}" in
+  ""|"full") runtime_entry="lib/runtime_native.oren" ;;
+  core|minimal) runtime_entry="lib/runtime_native_core.oren" ;;
+  *) echo "ERROR: unsupported --runtime-profile: ${runtime_profile}" >&2; exit 2 ;;
+esac
+
+hash_cache_dir="${OREN_NATIVE_RUNTIME_HASH_CACHE_DIR:-build/cache/native_runtime_hash}"
+
+sanitize_runtime_path() {
+  local p="$1"
+  echo "$p" | sed -E 's#[/\\\\:]#_#g'
+}
+
 runtime_hash_from_cache() {
   # Best-effort: reuse the compiler's persisted runtime hash cache to pick the correct rtobj key.
   #
   # This avoids incorrectly "no-op"ing when the runtime hash changes (e.g. edits to lib/runtime_native.oren),
   # which would leave a stale seed in place and make cross-target verification fall back to a slow rtobj build.
-  local p="build/cache/native_runtime_hash/lib_runtime_native.oren.hash.txt"
+  local base
+  base="$(sanitize_runtime_path "$runtime_entry")"
+  local p="${hash_cache_dir}/${base}.hash.txt"
   if [[ ! -f "$p" ]]; then return 1; fi
   local line
   line="$(rg "^hash=" "$p" 2>/dev/null | head -n 1 || true)"
@@ -168,6 +190,7 @@ find_latest_key() {
 
 prune_seed_dir_keep() {
   local keep="$1"
+  local want_rh="${2:-}"
   [[ -z "$keep" ]] && return 0
   [[ ! -d "$seed_dir" ]] && return 0
 
@@ -180,7 +203,8 @@ prune_seed_dir_keep() {
     ls -1 "$seed_dir" 2>/dev/null | \
       rg "^s2_b_${backend}_" | \
       rg "_os_${os}_" | \
-      rg "_${dbg}_g" || true
+      rg "_${dbg}_g" | \
+      { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; }
   )"
   [[ -z "$names" ]] && return 0
 
@@ -205,13 +229,15 @@ prune_seed_dir_keep() {
 
 copy_key_to_seed() {
   local key="$1"
+  local want_rh="${2:-}"
   mkdir -p "$seed_dir"
-  prune_seed_dir_keep "$key"
+  prune_seed_dir_keep "$key" "$want_rh"
 
   rm -rf "$seed_dir/$key" 2>/dev/null || true
   cp -R "$cache_dir/$key" "$seed_dir/"
   echo "OK: rtobj seed updated"
   echo "platform=$platform backend=$backend"
+  echo "runtime_profile=${runtime_profile:-full} runtime_entry=$runtime_entry"
   echo "cache_dir=$cache_dir"
   echo "seed_dir=$seed_dir"
   echo "key=$key"
@@ -219,20 +245,30 @@ copy_key_to_seed() {
 
 key=""
 want_rh="$(runtime_hash_from_cache || true)"
-if [[ -z "$force" ]]; then
-if key="$(find_seed_key "$want_rh")"; then
-  prune_seed_dir_keep "$key"
-  echo "OK: rtobj seed already present (no-op)" >&2
-  echo "platform=$platform backend=$backend debug=$debug_flag" >&2
-  echo "seed_dir=$seed_dir" >&2
-  echo "key=$key" >&2
-  exit 0
+
+# If we don't know the runtime hash, we must not "guess" by copying an arbitrary newest entry:
+# different runtime profiles (full/core) need distinct seeds keyed by `_rh_<hash>`.
+if [[ -z "$want_rh" ]]; then
+  force="1"
+fi
+
+if [[ -z "$force" && -n "$want_rh" ]]; then
+  if key="$(find_seed_key "$want_rh")"; then
+    prune_seed_dir_keep "$key" "$want_rh"
+    echo "OK: rtobj seed already present (no-op)" >&2
+    echo "platform=$platform backend=$backend debug=$debug_flag" >&2
+    echo "runtime_profile=${runtime_profile:-full} runtime_entry=$runtime_entry" >&2
+    echo "seed_dir=$seed_dir" >&2
+    echo "key=$key" >&2
+    exit 0
   fi
 fi
 
-if key="$(find_latest_key "$want_rh")"; then
-  copy_key_to_seed "$key"
-  exit 0
+if [[ -z "$force" ]]; then
+  if key="$(find_latest_key "$want_rh")"; then
+    copy_key_to_seed "$key" "$want_rh"
+    exit 0
+  fi
 fi
 
 echo "NOTE: no existing rtobj cache entry found; populating cache once via a small build..." >&2
@@ -246,13 +282,26 @@ fi
 mkdir -p build/tmp
 
 # Populate cache dir (do not isolate; we want it under $cache_dir).
-OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$cache_dir" \
-  "$compiler" build examples/hello.oren --backend native --platform "$platform" "$debug_flag" -o build/tmp/rtobj_seed_probe >/dev/null
+if [[ -n "${runtime_profile:-}" && "${runtime_profile:-}" != "full" ]]; then
+  OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$cache_dir" \
+  OREN_NATIVE_RUNTIME_PROFILE="$runtime_profile" \
+    "$compiler" build examples/hello.oren --backend native --platform "$platform" "$debug_flag" -o build/tmp/rtobj_seed_probe >/dev/null
+else
+  OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$cache_dir" \
+    "$compiler" build examples/hello.oren --backend native --platform "$platform" "$debug_flag" -o build/tmp/rtobj_seed_probe >/dev/null
+fi
 
-key="$(find_latest_key || true)"
+want_rh="$(runtime_hash_from_cache || true)"
+if [[ -z "$want_rh" ]]; then
+  echo "ERROR: runtime hash cache still missing after build; cannot safely select a seed key" >&2
+  echo "runtime_profile=${runtime_profile:-full} runtime_entry=$runtime_entry" >&2
+  exit 1
+fi
+
+key="$(find_latest_key "$want_rh" || true)"
 if [[ -z "$key" ]]; then
   echo "ERROR: still no rtobj cache entry found after build; cannot create seed" >&2
   exit 1
 fi
 
-copy_key_to_seed "$key"
+copy_key_to_seed "$key" "$want_rh"

@@ -32,8 +32,12 @@ Options:
   --help              show this help
 
 Behavior:
-  - Builds two tiny programs (non-capsule + capsule) to force the compiler to locate and
-    (if missing) parse+encode the runtime astbin, then copies the exact cache file into the seed dir.
+  - Builds tiny programs to force the compiler to locate and (if missing) parse+encode the runtime astbin,
+    then copies the exact cache file into the seed dir.
+  - Seeds:
+      - full non-capsule runtime (`lib/runtime_native.oren`)
+      - core non-capsule runtime (`OREN_NATIVE_RUNTIME_PROFILE=core` => `lib/runtime_native_core.oren`)
+      - capsule runtime (`lib/runtime_native_capsule.oren`)
 EOF
 }
 
@@ -95,6 +99,7 @@ runtime_sources_sha256() {
   files="$(
     {
       echo "lib/runtime_native.oren"
+      echo "lib/runtime_native_core.oren"
       echo "lib/runtime_native_capsule.oren"
       find lib/runtime_native -type f -name '*.oren' -print 2>/dev/null || true
     } | LC_ALL=C sort -u
@@ -148,7 +153,11 @@ if [[ -d "$seed_dir" && -z "${OREN_FORCE_RUNTIME_ASTBIN_SEED:-}" ]]; then
   # - runtime_sources_sha256 (all runtime inputs that affect the bundle fingerprint)
   # - compiler_sha256 (so compiler fingerprinting changes also invalidate the seed)
   meta="$seed_dir/.runtime_astbin_seed_meta_os_${os}.txt"
-  if [[ "$total" -ge 2 && -f "$meta" ]]; then
+  # Expect at least:
+  # - full runtime
+  # - core runtime
+  # - capsule runtime
+  if [[ "$total" -ge 3 && -f "$meta" ]]; then
     want_runtime_sha="$(runtime_sources_sha256)"
     want_compiler_sha="$(sha256_file "$compiler")"
 
@@ -189,6 +198,8 @@ extract_cache_path() {
 
 build_one() {
   local name="$1"
+  local runtime_profile="$2"
+  shift
   shift
   local out="build/tmp/astbin_seed_${name}_out"
   local log="build/logs/astbin_seed_${name}.log"
@@ -199,13 +210,24 @@ build_one() {
 
   # `--no-cache` is build-cache only; runtime astbin cache remains enabled and is written under $cache_one.
   local out_text
-  out_text="$(
-    OREN_TRACE_RUNTIME_BUNDLE=1 \
-    OREN_NATIVE_RUNTIME_ASTBIN_CACHE=1 \
-    OREN_NATIVE_RUNTIME_ASTBIN_CACHE_DIR="$cache_one" \
-    OREN_NATIVE_RUNTIME_OBJ_CACHE=0 \
-      "$compiler" build "$@" --backend native --platform "$platform" --no-debug --no-cache -o "$out" 2>&1 | tee "$log"
-  )"
+  if [[ -n "$runtime_profile" ]]; then
+    out_text="$(
+      OREN_NATIVE_RUNTIME_PROFILE="$runtime_profile" \
+      OREN_TRACE_RUNTIME_BUNDLE=1 \
+      OREN_NATIVE_RUNTIME_ASTBIN_CACHE=1 \
+      OREN_NATIVE_RUNTIME_ASTBIN_CACHE_DIR="$cache_one" \
+      OREN_NATIVE_RUNTIME_OBJ_CACHE=0 \
+        "$compiler" build "$@" --backend native --platform "$platform" --no-debug --no-cache -o "$out" 2>&1 | tee "$log"
+    )"
+  else
+    out_text="$(
+      OREN_TRACE_RUNTIME_BUNDLE=1 \
+      OREN_NATIVE_RUNTIME_ASTBIN_CACHE=1 \
+      OREN_NATIVE_RUNTIME_ASTBIN_CACHE_DIR="$cache_one" \
+      OREN_NATIVE_RUNTIME_OBJ_CACHE=0 \
+        "$compiler" build "$@" --backend native --platform "$platform" --no-debug --no-cache -o "$out" 2>&1 | tee "$log"
+    )"
+  fi
 
   local p
   p="$(extract_cache_path "$out_text")"
@@ -234,11 +256,14 @@ echo "compiler=$compiler" >&2
 echo "work_dir=$work_dir" >&2
 echo "seed_dir=$seed_dir" >&2
 
-# Non-capsule runtime (lib/runtime_native.oren).
-build_one "native" "tests/native/test_quick_integration_native.oren"
+# Full non-capsule runtime (lib/runtime_native.oren).
+build_one "native" "" "tests/native/test_quick_integration_native.oren"
+
+# Core non-capsule runtime (lib/runtime_native_core.oren).
+build_one "native_core" "core" "examples/hello.oren"
 
 # Capsule runtime (lib/runtime_native_capsule.oren).
-build_one "capsule" "tests/native/fixtures/capsule_ok.oren" --capsule
+build_one "capsule" "" "tests/native/fixtures/capsule_ok.oren" --capsule
 
 os="${platform#*-}"
 meta="$seed_dir/.runtime_astbin_seed_meta_os_${os}.txt"

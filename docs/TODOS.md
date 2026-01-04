@@ -44,6 +44,8 @@ Rules for this tracker:
 		     - scan cache persistence happens after injected-runtime hashing (so the runtime include-closure is not re-walked each build)
 		     - scan cache serialization now uses a `u8_buf` builder (no O(n²) string concatenation) (details in `docs/TODOS_ARCHIVE.md`).
 		   - Remaining (active): rtobj-miss (cold) path is still too slow in stage2-native due to runtime bundle decode + runtime decl compilation; keep pushing toward **< 10s** cold “compile one file” when caches are empty (see `docs/TODOS_ARCHIVE.md` for current measurements + profiling knobs; current is ~`15s` on arm64-macos stage2 for `examples/hello.oren` in `./scripts/bench_native_compile_one_file.sh --no-debug` run-1 (isolated rtobj dir; seed disabled)).
+		     - New (2026-01-05): introduced a smaller “core” native runtime entry (`lib/runtime_native_core.oren`) selectable via `OREN_NATIVE_RUNTIME_PROFILE=core` so cold rtobj misses can be bounded for typical programs without removing the full runtime surface (default remains `lib/runtime_native.oren`).
+		       - Seed support: `scripts/build_runtime_astbin_seed.sh` now seeds full+core+capsule runtime astbins; `scripts/build_rtobj_seed.sh` supports `--runtime-profile` (or env `OREN_NATIVE_RUNTIME_PROFILE`) without pruning other profiles' seeds.
 			     - Recent (2026-01-04): x86_64 cross-target cold miss is still expensive when the rtobj seed is disabled, but it is materially improved by:
 				       - eliminating per-instruction allocations in the x64 encoder (`lib/compiler/x64_core.oren`)
 				       - keeping capsule enforcement implementation out of the non-capsule runtime rtobj (`lib/runtime_native/035_capsule_stubs.oren`)

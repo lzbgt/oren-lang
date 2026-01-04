@@ -66,6 +66,21 @@ fn native_diag_escape(msg) {
     return out
 }
 
+fn native_env_str_eq(a, b) {
+    // Avoid depending on runtime string equality semantics in compiler hot paths.
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
 fn native_emit_errors_and_exit(ctx) {
     if ctx == nil { return nil }
     if ctx["errors"] == nil { return nil }
@@ -1012,6 +1027,16 @@ fn native_compile_program_arm64(linked, platform) {
     var runtime_path = "lib/runtime_native.oren"
     if platform != nil && platform["capsule"] == true {
         runtime_path = "lib/runtime_native_capsule.oren"
+    } else {
+        // Optional: smaller injected runtime profile to keep cold rtobj builds bounded.
+        //
+        // Values (rolling):
+        // - unset / "full": default full runtime (`lib/runtime_native.oren`)
+        // - "core" / "minimal": reduced runtime (`lib/runtime_native_core.oren`)
+        var prof = oren_env("OREN_NATIVE_RUNTIME_PROFILE")
+        if native_env_str_eq(prof, "core") || native_env_str_eq(prof, "minimal") {
+            runtime_path = "lib/runtime_native_core.oren"
+        }
     }
     var used_rtobj = false
     var runtime_stmts = []
