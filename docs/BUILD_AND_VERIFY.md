@@ -70,9 +70,11 @@ The native backend injects the native runtime bundle into every native build:
 On stage2-native compilers this can dominate build time, so the compiler maintains a separate (non-artifact) cache for the runtime **AST**:
 
 - default cache dir: `build/cache/native_runtime_astbin/`
-- key: SHA-256 of the fully expanded runtime source
+- key: rolling v2 fast fingerprint of the fully expanded runtime source (legacy SHA-256 cache files are still supported and auto-migrated)
 - disable: `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0`
 - override cache dir: `OREN_NATIVE_RUNTIME_ASTBIN_CACHE_DIR=<dir>`
+- optional seed dir (fast cold-cache; esp. capsule): `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR=<dir>` (default: `build/cache/native_runtime_astbin_seed/`; disable with `0`/`false`)
+  - generator: `make astbin-seed` (uses stage1 `./oren` to pre-warm)
 
 Troubleshooting overrides (force a specific input, bypassing default behavior):
 

@@ -189,6 +189,22 @@ fn _rt_bundle_cache_dir() {
     return v
 }
 
+fn _rt_bundle_seed_dir() {
+    // Optional seed cache for native runtime AST bundles (astbin).
+    //
+    // Purpose:
+    // - Stage2-native runtime parsing can be very slow on cold cache (especially capsule runtime).
+    // - A seed directory lets tooling (or `make stage2`) pre-warm the runtime astbin once using a
+    //   faster compiler (stage1) and then copy it into the active cache dir on demand.
+    //
+    // Disable by setting:
+    //   OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR=0   (or "false")
+    var v = oren_env("OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR")
+    if v == nil || v == "" { return "build/cache/native_runtime_astbin_seed" }
+    if v == "0" || v == "false" { return "" }
+    return v
+}
+
 fn _rt_bundle_pruned_cache_enabled() {
     // Default-on (rolling):
     // the runtime contains many `if g_target_os == ...` branches that are constant for a
@@ -206,6 +222,20 @@ fn _rt_bundle_pruned_cache_write_enabled() {
     if v == nil || v == "" { return true }
     if v == "0" || v == "false" { return false }
     return true
+}
+
+fn _rt_bundle_try_seed_hit_into_cache(cache_dir, seed_dir, base, trace) {
+    // Returns u8 buf bytes if seed is present, otherwise error/empty.
+    if seed_dir == nil || seed_dir == "" { return oren_err(4, "no seed dir") }
+    if base == nil || base == "" { return oren_err(4, "no base") }
+    var seed_path = seed_dir + "/" + base
+    var bs = oren_read_u8_buf(seed_path)
+    if oren_is_err(bs) { return bs }
+    _rt_bundle_ensure_dir(cache_dir)
+    var dst = cache_dir + "/" + base
+    oren_write_bytes(dst, bs)
+    if trace { print("[rt_bundle] cache astbin seed-hit -> " + dst) }
+    return bs
 }
 
 fn _rt_bundle_platform_os_key(platform) {
@@ -724,7 +754,8 @@ fn _load_and_parse_runtime_native_impl(ctx, runtime_path, platform) {
     var cache_enabled = _rt_bundle_cache_enabled()
     var cache_dir = _rt_bundle_cache_dir()
     var fp2 = _rt_bundle_runtime_fingerprint_v2(runtime_src)
-    var cache_astbin_v2 = cache_dir + "/" + fp2 + ".astbin"
+    var base_v2 = fp2 + ".astbin"
+    var cache_astbin_v2 = cache_dir + "/" + base_v2
     var cache_astbin_v2_legacy = cache_astbin_v2
     var cache_astbin_v2_plain = cache_astbin_v2
     var cache_astbin_v2_pruned = nil
@@ -732,15 +763,18 @@ fn _load_and_parse_runtime_native_impl(ctx, runtime_path, platform) {
     if os_key != "" {
         // Platform-aware cache reduces decode+compile work by caching the pruned runtime AST
         // (dead `g_target_os` branches removed) per target OS.
-        cache_astbin_v2_plain = cache_dir + "/" + fp2 + "_" + os_key + ".astbin"
+        var base_plain = fp2 + "_" + os_key + ".astbin"
+        cache_astbin_v2_plain = cache_dir + "/" + base_plain
         cache_astbin_v2 = cache_astbin_v2_plain
         if _rt_bundle_pruned_cache_enabled() == true {
             // Bump suffix when pruning/encoding strategy changes so stale caches don't mask wins.
-            cache_astbin_v2_pruned = cache_dir + "/" + fp2 + "_" + os_key + "_pruned3.astbin"
+            var base_pruned = fp2 + "_" + os_key + "_pruned3.astbin"
+            cache_astbin_v2_pruned = cache_dir + "/" + base_pruned
             cache_astbin_v2_pruned_legacy = cache_dir + "/" + fp2 + "_" + os_key + "_pruned.astbin"
             cache_astbin_v2 = cache_astbin_v2_pruned
         }
     }
+    var seed_dir = _rt_bundle_seed_dir()
 
     if cache_enabled == true {
         var t_hit0 = 0
@@ -748,6 +782,16 @@ fn _load_and_parse_runtime_native_impl(ctx, runtime_path, platform) {
 
         // v2 path first.
         var bs_hit = oren_read_u8_buf(cache_astbin_v2)
+        if oren_is_err(bs_hit) && seed_dir != "" {
+            // Best-effort: seed can avoid extremely slow stage2-native parsing on cold cache.
+            var base_seed = base_v2
+            if cache_astbin_v2_pruned != nil && cache_astbin_v2 == cache_astbin_v2_pruned {
+                base_seed = fp2 + "_" + os_key + "_pruned3.astbin"
+            } else if cache_astbin_v2_plain != nil && cache_astbin_v2 == cache_astbin_v2_plain && os_key != "" {
+                base_seed = fp2 + "_" + os_key + ".astbin"
+            }
+            bs_hit = _rt_bundle_try_seed_hit_into_cache(cache_dir, seed_dir, base_seed, trace)
+        }
         if !oren_is_err(bs_hit) {
             if trace { print("[rt_bundle] cache astbin hit path=" + cache_astbin_v2 + " bytes=" + oren_int_to_string(oren_buf_len(bs_hit))) }
             var prog_hit = astbin.astbin_decode(bs_hit)

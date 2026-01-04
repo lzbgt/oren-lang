@@ -92,6 +92,12 @@ Rolling policy:
   treat it as a stale/unpruned cache file. The compiler will attempt a best-effort rewrite, which can
   be expensive once. After rewrite, runtime astbin decode should be materially faster.
 
+Seed (rolling, optional):
+
+- A runtime-astbin seed dir can avoid stage2-native “cold parse” costs when the astbin cache is empty:
+  - env: `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR=<dir>` (default: `build/cache/native_runtime_astbin_seed/`; disable with `0`/`false`)
+  - generator: `make astbin-seed` (uses stage1 `./oren` to pre-warm and copy seed files)
+
 ### 4.0.1 Don’t use `nil` as a tri-state sentinel in compiler passes (native backend)
 
 Some compiler passes want a tri-state “true / false / unknown”.

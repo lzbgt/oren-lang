@@ -92,6 +92,24 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `make verify-native-quick`
   - `make verify-native-x64-compile`
 
+## Archived (2026-01-04) — Native: runtime astbin seed (avoid stage2-native capsule cold parse)
+
+- Problem:
+  - Stage2-native parsing of the expanded capsule runtime (`lib/runtime_native_capsule.oren`, ~500KB) can take tens of seconds on cold cache.
+  - This violates the rolling “<10s per build step” expectation for capsule smokes when caches are missing.
+- Key observation:
+  - Stage1 (`./oren`) parses the same expanded capsule runtime in ~`1–2s` on the primary dev host.
+- Solution (rolling, non-artifact cache):
+  - Added an optional runtime-astbin **seed directory**:
+    - env: `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR` (default: `build/cache/native_runtime_astbin_seed/`; disable with `0`/`false`)
+    - on runtime astbin cache miss, the native runtime bundle loader tries to read the matching astbin from the seed dir and copies it into the active cache dir
+  - Added generator tooling:
+    - `scripts/build_runtime_astbin_seed.sh`
+    - `make astbin-seed` (best-effort) and `make stage2` now runs it so typical dev setups have the seed pre-warmed
+- Verified:
+  - `./scripts/verify_native_matrix.sh --targets local,arm64-linux`
+  - `make verify-native-quick`
+
 ## Archived (2026-01-04) — Tooling: bounded build timing summary (no huge logs)
 
 - Compiler:

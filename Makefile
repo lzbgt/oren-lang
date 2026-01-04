@@ -4,6 +4,7 @@
 .PHONY: bench-native-compile
 .PHONY: perf-guard-native-hit
 .PHONY: rtobj-seed
+.PHONY: astbin-seed
 
 # Default target: Build Stage 1 compiler
 all: oren
@@ -203,7 +204,10 @@ bootstrap: oren_bootstrap
 stage1: oren
 # `make stage2` is the primary rolling path; keep it fast on first-run by also ensuring
 # a rtobj seed exists (best-effort, cheap copy).
-stage2: oren_stage2 rtobj-seed
+#
+# Also ensure a runtime-astbin seed exists so capsule builds don't pay an extremely slow
+# stage2-native "cold parse" cost for `lib/runtime_native_capsule.oren`.
+stage2: oren_stage2 rtobj-seed astbin-seed
 
 # Generate/update rtobj seed for the host platform (best-effort).
 # This keeps first-run stage2-native builds fast even when the active rtobj cache dir is empty.
@@ -212,6 +216,14 @@ rtobj-seed: oren_stage2
 		./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler ./oren_stage2 --no-debug || true; \
 	else \
 		echo "NOTE: host platform unknown; skipping rtobj seed"; \
+	fi
+
+# Generate/update runtime astbin seed for the host platform (best-effort).
+astbin-seed: oren
+	@if [ -n "$(HOST_PLATFORM)" ]; then \
+		./scripts/build_runtime_astbin_seed.sh --platform "$(HOST_PLATFORM)" --compiler ./oren || true; \
+	else \
+		echo "NOTE: host platform unknown; skipping runtime astbin seed"; \
 	fi
 
 # --- Testing & Verification ---
@@ -225,7 +237,7 @@ test-native-quick-stage2: oren_stage2
 	@./scripts/run_native_quick_integration.sh ./oren_stage2
 
 # Capsule smoke (stage2): build+run a minimal pure-compute capsule fixture.
-test-native-capsule-smoke-stage2: oren_stage2
+test-native-capsule-smoke-stage2: oren_stage2 astbin-seed
 	@./scripts/run_native_capsule_smoke.sh ./oren_stage2
 
 # Convenience target: verify stage1 then stage2 on the native quick integration test.

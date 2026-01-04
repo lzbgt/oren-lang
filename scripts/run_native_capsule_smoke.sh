@@ -6,8 +6,8 @@ test_src="tests/native/fixtures/capsule_ok.oren"
 
 timeout_bin="$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || echo "")"
 timeout_kill_secs="${OREN_TIMEOUT_KILL_SECS:-2}"
-build_timeout_secs="${OREN_NATIVE_CAPSULE_SMOKE_BUILD_TIMEOUT_SECS:-60}"
-run_timeout_secs="${OREN_NATIVE_CAPSULE_SMOKE_RUN_TIMEOUT_SECS:-5}"
+build_timeout_secs="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
+run_timeout_secs="${OREN_NATIVE_RUN_TIMEOUT_SECS:-5}"
 
 run_with_timeout() {
   local secs="$1"
