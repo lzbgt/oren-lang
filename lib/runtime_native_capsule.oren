@@ -1,0 +1,49 @@
+// Oren native runtime (native backend) — capsule-enabled variant
+//
+// This file is intentionally small.
+//
+// The native backend expands `// @include "..."` directives at compile time and
+// injects the resulting concatenated source as the runtime.
+//
+// Edit the runtime in `lib/runtime_native/*.oren`.
+//
+// NOTE: include order is semantically significant (kept identical to the former
+// monolithic `lib/runtime_native.oren`).
+//
+// Capsule policy:
+// - Non-capsule builds should prefer `lib/runtime_native.oren` (no capsule hooks).
+// - Capsule builds should use this entry file so the `native_capsule_*` ABI surface exists.
+
+// @include "runtime_native/000_prelude_sys.oren"
+// @include "runtime_native/010_channels_globals_consts.oren"
+// @include "runtime_native/015_raw_alloc.oren"
+// @include "runtime_native/020_fork_runtime_init.oren"
+// @include "runtime_native/030_envp_helpers.oren"
+// @include "runtime_native/040_capsule_core.oren"
+// @include "runtime_native/050_capsule_fs_hooks.oren"
+// @include "runtime_native/060_capsule_net_parsing.oren"
+// @include "runtime_native/070_capsule_net_hooks.oren"
+// @include "runtime_native/080_capsule_proc_misc_hooks.oren"
+// @include "runtime_native/090_env.oren"
+// @include "runtime_native/100_time.oren"
+// @include "runtime_native/105_call_depth.oren"
+// @include "runtime_native/110_mem_diag.oren"
+// @include "runtime_native/120_first_class_fn.oren"
+// @include "runtime_native/130_printing.oren"
+// @include "runtime_native/140_errors.oren"
+// @include "runtime_native/150_strings.oren"
+// @include "runtime_native/160_iteration.oren"
+// @include "runtime_native/170_lists.oren"
+// @include "runtime_native/180_bytes_helpers.oren"
+// @include "runtime_native/190_byte_order.oren"
+// @include "runtime_native/200_typed_buffers.oren"
+// @include "runtime_native/210_args.oren"
+// @include "runtime_native/215_stat.oren"
+// @include "runtime_native/220_path_helpers.oren"
+// @include "runtime_native/230_binary_io.oren"
+// @include "runtime_native/240_tcp.oren"
+// @include "runtime_native/245_select.oren"
+// @include "runtime_native/250_udp.oren"
+// @include "runtime_native/260_threads.oren"
+// @include "runtime_native/265_result.oren"
+// @include "runtime_native/270_avm_bridge.oren"
