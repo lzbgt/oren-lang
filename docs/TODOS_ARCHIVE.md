@@ -1481,3 +1481,11 @@ These are “project laws”. If a task can’t follow these, we *change the tas
 - 2026-01-04: x64 instruction encoders no longer allocate per instruction in the self-hosted compiler (`lib/compiler/x64_core.oren` now uses a reusable scratch pool and avoids `bytes_lit([..])` list literals).
   - Cross-target stage2 `x64-linux` true rtobj miss improved from ~`52s` total (rtobj build+apply ~`45s`) → ~`25s` total (rtobj build+apply ~`21s`) on the primary dev host (seed disabled).
   - With rtobj seed enabled (`make rtobj-seed-x64`), an empty cache dir can get a seed-hit and “compile one file” stays ~`4.2s` total for `x64-linux`.
+- 2026-01-04: x64 rtobj miss is now diagnosable with bounded tracers:
+  - `OREN_TRACE_X64_RT_OBJ_SUMMARY=1` (single-line phase breakdown)
+  - `OREN_TRACE_X64_RT_OBJ_TOP_DECLS=1` (bounded slowest-decls list)
+- 2026-01-04: Non-capsule native runtime now uses cheap capsule stubs (`lib/runtime_native/035_capsule_stubs.oren`) so stage2-native rtobj misses do not compile capsule enforcement logic by default.
+  - This reduces x64 rtobj decl compile time and code size for non-capsule programs (capsule builds still use `lib/runtime_native_capsule.oren`).
+- 2026-01-04: Added cross-target runtime-astbin seed generation (`make astbin-seed-x64`) and fixed `scripts/build_runtime_astbin_seed.sh` to not abort when an OS has zero seed files.
+  - This keeps `make verify-native-x64-compile` bounded after runtime hash changes (avoids tens-of-seconds “cold parse” on x64-linux/x64-windows).
+- 2026-01-04: `scripts/build_rtobj_seed.sh` now uses the persisted runtime-hash cache to avoid incorrectly treating stale seeds as “no-op” after runtime changes.

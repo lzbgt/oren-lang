@@ -91,7 +91,22 @@ seed_dir="${OREN_NATIVE_RUNTIME_OBJ_SEED_DIR:-build/cache/native_runtime_obj_see
 dbg="d0"
 if [[ "$debug_flag" = "--debug" ]]; then dbg="d1"; fi
 
+runtime_hash_from_cache() {
+  # Best-effort: reuse the compiler's persisted runtime hash cache to pick the correct rtobj key.
+  #
+  # This avoids incorrectly "no-op"ing when the runtime hash changes (e.g. edits to lib/runtime_native.oren),
+  # which would leave a stale seed in place and make cross-target verification fall back to a slow rtobj build.
+  local p="build/cache/native_runtime_hash/lib_runtime_native.oren.hash.txt"
+  if [[ ! -f "$p" ]]; then return 1; fi
+  local line
+  line="$(rg -n "^hash=" "$p" 2>/dev/null | head -n 1 || true)"
+  [[ -z "$line" ]] && return 1
+  echo "${line#hash=}"
+  return 0
+}
+
 find_seed_key() {
+  local want_rh="${1:-}"
   if [[ ! -d "$seed_dir" ]]; then return 1; fi
   local key
   # Prefer the explicit arch key; fall back to older `_a_unknown_` entries if present.
@@ -101,6 +116,7 @@ find_seed_key() {
       rg "_os_${os}_" | \
       rg "_a_${arch}_" | \
       rg "_${dbg}_g" | \
+      { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; } | \
       head -n 1
   )"
   if [[ -z "$key" ]]; then
@@ -110,6 +126,7 @@ find_seed_key() {
         rg "_os_${os}_" | \
         rg "_a_unknown_" | \
         rg "_${dbg}_g" | \
+        { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; } | \
         head -n 1
     )"
   fi
@@ -119,6 +136,7 @@ find_seed_key() {
 }
 
 find_latest_key() {
+  local want_rh="${1:-}"
   if [[ ! -d "$cache_dir" ]]; then return 1; fi
   # Newest first (mtime order).
   local key
@@ -128,6 +146,7 @@ find_latest_key() {
       rg "_os_${os}_" | \
       rg "_a_${arch}_" | \
       rg "_${dbg}_g" | \
+      { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; } | \
       head -n 1
   )"
   if [[ -z "$key" ]]; then
@@ -138,6 +157,7 @@ find_latest_key() {
         rg "_os_${os}_" | \
         rg "_a_unknown_" | \
         rg "_${dbg}_g" | \
+        { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; } | \
         head -n 1
     )"
   fi
@@ -198,8 +218,9 @@ copy_key_to_seed() {
 }
 
 key=""
+want_rh="$(runtime_hash_from_cache || true)"
 if [[ -z "$force" ]]; then
-if key="$(find_seed_key)"; then
+if key="$(find_seed_key "$want_rh")"; then
   prune_seed_dir_keep "$key"
   echo "OK: rtobj seed already present (no-op)" >&2
   echo "platform=$platform backend=$backend debug=$debug_flag" >&2
@@ -209,7 +230,7 @@ if key="$(find_seed_key)"; then
   fi
 fi
 
-if key="$(find_latest_key)"; then
+if key="$(find_latest_key "$want_rh")"; then
   copy_key_to_seed "$key"
   exit 0
 fi

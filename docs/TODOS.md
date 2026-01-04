@@ -44,9 +44,11 @@ Rules for this tracker:
 		     - scan cache persistence happens after injected-runtime hashing (so the runtime include-closure is not re-walked each build)
 		     - scan cache serialization now uses a `u8_buf` builder (no O(n²) string concatenation) (details in `docs/TODOS_ARCHIVE.md`).
 		   - Remaining (active): rtobj-miss (cold) path is still too slow in stage2-native due to runtime bundle decode + runtime decl compilation; keep pushing toward **< 10s** cold “compile one file” when caches are empty (see `docs/TODOS_ARCHIVE.md` for current measurements + profiling knobs; current is ~`15s` on arm64-macos stage2 for `examples/hello.oren` in `./scripts/bench_native_compile_one_file.sh --no-debug` run-1 (isolated rtobj dir; seed disabled)).
-		     - Recent (2026-01-04): x86_64 cross-target cold miss is still expensive when the rtobj seed is disabled, but performance is materially improved by eliminating per-instruction allocations in the x64 encoder.
-		       - stage2 `--platform x64-linux` true miss (isolated rtobj dir; `OREN_NATIVE_RUNTIME_OBJ_SEED_DIR=0`): ~`25s` total (rtobj build+apply ~`21s`).
-		       - same build with rtobj seed enabled (empty cache dir; seed-hit): ~`4.2s` total (see `make rtobj-seed-x64`).
+		     - Recent (2026-01-04): x86_64 cross-target cold miss is still expensive when the rtobj seed is disabled, but it is materially improved by:
+		       - eliminating per-instruction allocations in the x64 encoder (`lib/compiler/x64_core.oren`)
+		       - keeping capsule enforcement implementation out of the non-capsule runtime rtobj (`lib/runtime_native/035_capsule_stubs.oren`)
+		       - stage2 `--platform x64-linux` true miss (isolated rtobj dir; `OREN_NATIVE_RUNTIME_OBJ_SEED_DIR=0`): ~`24s` total (rtobj build+apply ~`19s`), with `OREN_TRACE_X64_RT_OBJ_SUMMARY=1`.
+		       - same build with rtobj seed enabled (empty cache dir; seed-hit): ~`5.3s` total (see `make rtobj-seed-x64`).
 		     - Capsule note (resolved): stage2-native “cold parse” of `lib/runtime_native_capsule.oren` can be tens of seconds if the runtime astbin cache is empty; this is now mitigated by the runtime-astbin seed (`make astbin-seed`, `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR`) so cold capsule builds can stay under the default 10s timeout in typical dev setups.
 		     - Current miss breakdown (arm64-macos; stage2; `OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1`, seed disabled):
 		       - runtime astbin decode/parse: ~`2.1s` total (astbin v2 decode ~`1.3s`)

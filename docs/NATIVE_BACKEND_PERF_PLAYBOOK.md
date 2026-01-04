@@ -40,15 +40,18 @@ OREN_NATIVE_BUILD_TIMEOUT_SECS=60 \
   OREN_TRACE_RUNTIME_BUNDLE=1 \
   OREN_TRACE_RUNTIME_OS_PRUNE=1 \
   OREN_TRACE_RUNTIME_OBJ_CACHE=1 \
-	  OREN_TRACE_ASTBIN=1 \
-	  OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1 \
-	  ./scripts/bench_native_compile_one_file.sh --no-debug
+		  OREN_TRACE_ASTBIN=1 \
+		  OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1 \
+		  OREN_TRACE_X64_RT_OBJ_SUMMARY=1 \
+		  ./scripts/bench_native_compile_one_file.sh --no-debug
 ```
 
 Notes on the tracers:
 
 - `OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1` prints a **single-line breakdown** of the rtobj build (parse/decode, decl compile, finalize, counts/bytes).
   - Use it to decide whether to optimize astbin decode vs runtime decl compilation.
+- `OREN_TRACE_X64_RT_OBJ_SUMMARY=1` provides the same style of breakdown for x86_64 (useful for cross-target misses).
+- `OREN_TRACE_{ARM64,X64}_RT_OBJ_TOP_DECLS=1` prints a **bounded** “top decls” list (slowest N decls by compile time).
 
 ### 2.2 Cross-arch sanity (native backend)
 
@@ -98,6 +101,7 @@ Seed (rolling, optional):
 - A runtime-astbin seed dir can avoid stage2-native “cold parse” costs when the astbin cache is empty:
   - env: `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR=<dir>` (default: `build/cache/native_runtime_astbin_seed/`; disable with `0`/`false`)
   - generator: `make astbin-seed` (uses stage1 `./oren` to pre-warm and copy seed files)
+  - cross-target seeds: `make astbin-seed-x64` (generates `x64-linux`/`x64-windows` pruned astbins so cross-target verification stays bounded when runtime hashes change)
 
 ### 4.0.1 Don’t use `nil` as a tri-state sentinel in compiler passes (native backend)
 

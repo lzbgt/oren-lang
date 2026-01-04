@@ -83,8 +83,10 @@ fi
 #   OREN_FORCE_RUNTIME_ASTBIN_SEED=1
 if [[ -d "$seed_dir" && -z "${OREN_FORCE_RUNTIME_ASTBIN_SEED:-}" ]]; then
   os="${platform#*-}"
+  # NOTE: `rg` exits 1 on "no matches", and this script runs with `set -euo pipefail`.
+  # Treat "no matches" as count=0 (do not abort).
   n="$(
-    ls -1 "$seed_dir" 2>/dev/null | rg "_os_${os}_pruned3\\.astbin$" | wc -l | tr -d ' '
+    (ls -1 "$seed_dir" 2>/dev/null | rg "_os_${os}_pruned3\\.astbin$" || true) | wc -l | tr -d ' '
   )"
   if [[ "$n" -ge 2 ]]; then
     echo "OK: runtime astbin seed already present (os=$os files=$n)" >&2

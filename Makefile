@@ -233,6 +233,12 @@ astbin-seed: oren
 		echo "NOTE: host platform unknown; skipping runtime astbin seed"; \
 	fi
 
+# Generate/update runtime astbin seed for cross x64 targets (best-effort).
+# This keeps x64 compile-only verification bounded when runtime hashes change.
+astbin-seed-x64: oren
+	@./scripts/build_runtime_astbin_seed.sh --platform x64-linux --compiler ./oren || true
+	@./scripts/build_runtime_astbin_seed.sh --platform x64-windows --compiler ./oren || true
+
 # --- Testing & Verification ---
 
 # Fast native smoke (stage1): build+run one self-contained integration test.
@@ -252,7 +258,7 @@ verify-native-quick: test-native-quick test-native-quick-stage2 test-native-caps
 	@echo "verify-native-quick OK"
 
 # Compile-only sanity gate for x64 targets (does not run artifacts).
-verify-native-x64-compile: oren_stage2 rtobj-seed-x64
+verify-native-x64-compile: oren_stage2 rtobj-seed-x64 astbin-seed-x64
 	@./scripts/verify_native_x64_compile_only.sh
 
 # Perf smoke: benchmark stage2 native "compile one file" (rtobj miss -> hit).

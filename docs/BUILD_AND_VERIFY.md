@@ -81,6 +81,12 @@ Troubleshooting overrides (force a specific input, bypassing default behavior):
 
 - `OREN_NATIVE_RUNTIME_EXPANDED=<path>`: use a pre-expanded runtime file (skips include expansion)
 - `OREN_NATIVE_RUNTIME_ASTBIN=<path>`: force loading a specific runtime astbin file
+- `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR=<dir>`: runtime-astbin seed dir used as a fallback on astbin cache misses
+  - default: `build/cache/native_runtime_astbin_seed/`
+  - disable with `0` / `false`
+  - generate/update with:
+    - `make astbin-seed` (host platform; runs as part of `make stage2`)
+    - `make astbin-seed-x64` (cross-target seeds for `x64-linux`/`x64-windows`; used by `make verify-native-x64-compile`)
 
 Tracing knobs (bounded output; prints timing summaries):
 
@@ -88,6 +94,10 @@ Tracing knobs (bounded output; prints timing summaries):
 - `OREN_TRACE_ASTBIN=1`: astbin decode timings (and v2 pool size)
 - `OREN_TRACE_BUILD_SUMMARY=1`: prints a single `[build] summary ...` line per `oren build` (native backend path)
 - `OREN_TRACE_BUILD_SLOW_MS=<n>`: only print the summary when the build takes at least `<n>` ms (implies summary enabled)
+- rtobj build breakdown (bounded):
+  - `OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1`
+  - `OREN_TRACE_X64_RT_OBJ_SUMMARY=1`
+  - `OREN_TRACE_{ARM64,X64}_RT_OBJ_TOP_DECLS=1` (prints only a small “top decls” list)
 
 Performance guardrails and “what to do when it gets slow” live in:
 

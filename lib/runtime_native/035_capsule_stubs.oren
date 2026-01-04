@@ -1,0 +1,105 @@
+// Capsule stubs for **non-capsule** native runtime builds.
+//
+// Rationale (perf + rolling design):
+// - The full capsule enforcement implementation (mount parsing, NET allowlists, PROC argv parsing)
+//   is expensive to compile into the stage2-native runtime object (rtobj), even when capsule mode
+//   is never used for non-capsule builds.
+// - Non-capsule binaries are not security capsules; they must not rely on env-based enforcement for
+//   correctness. Capsule builds use `lib/runtime_native_capsule.oren`, which includes the real
+//   implementations and syscall hooks.
+//
+// Contract:
+// - Provide the `native_capsule_*` symbols referenced by shared runtime modules (time/fs/net/proc),
+//   but make them cheap no-ops / passthroughs.
+
+fn native_runtime_capsule_init() {
+    // Keep non-capsule behavior deterministic and permissive.
+    global_set_capsule_mode(0)
+    global_set_cap_allow_mask(0)
+
+    // Stack safety env override (shared policy; safe in non-capsule).
+    native_runtime_call_depth_apply_env()
+
+    // SIMD runtime opt-in (rolling):
+    // - Must never change semantics; scalar behavior is authoritative.
+    // - Default off; enable explicitly via env.
+    global_set_enable_simd(0)
+    var v_no_simd = native_envp_get_value_ptr("OREN_NO_SIMD")
+    if v_no_simd != 0 {
+        if ptr_get_byte(v_no_simd) != 0 {
+            if ptr_get_byte(v_no_simd) != 48 { global_set_enable_simd(0) } // not '0'
+        }
+    } else {
+        var v_simd = native_envp_get_value_ptr("OREN_ENABLE_SIMD")
+        if v_simd != 0 {
+            if ptr_get_byte(v_simd) != 0 {
+                if ptr_get_byte(v_simd) != 48 { global_set_enable_simd(1) } // not '0'
+            }
+        }
+    }
+
+    // Allocator policy env overrides (shared; affects typed buffers + raw blocks).
+    var v_thr = native_envp_get_value_ptr("OREN_RAW_MMAP_THRESHOLD")
+    if v_thr != 0 {
+        var thr = native_parse_i64_dec_cstr_or_neg1(v_thr)
+        if thr >= 0 { global_set_raw_mmap_threshold(thr) }
+    }
+    var v_align = native_envp_get_value_ptr("OREN_BUF_ALIGN")
+    if v_align != 0 {
+        var a = native_parse_i64_dec_cstr_or_neg1(v_align)
+        if a == 8 || a == 16 || a == 32 || a == 64 { global_set_buf_align(a) }
+    }
+    global_set_buf_force_mmap(0)
+    var v_force = native_envp_get_value_ptr("OREN_BUF_FORCE_MMAP")
+    if v_force != 0 {
+        if ptr_get_byte(v_force) != 0 {
+            if ptr_get_byte(v_force) != 48 { global_set_buf_force_mmap(1) } // not '0'
+        }
+    }
+    global_set_buf_payload_limit(0)
+    var v_lim = native_envp_get_value_ptr("OREN_BUF_PAYLOAD_LIMIT_BYTES")
+    if v_lim != 0 {
+        var lim = native_parse_i64_dec_cstr_or_neg1(v_lim)
+        if lim >= 0 { global_set_buf_payload_limit(lim) }
+    }
+
+    return 0
+}
+
+fn native_capsule_require(mask_bit, name) {
+    // Non-capsule runtime: always allow.
+    return 0
+}
+
+fn native_capsule_require_any(mask_bits, name_hint) {
+    // Non-capsule runtime: always allow.
+    return 0
+}
+
+fn native_capsule_require_fd_domain(fd) {
+    // Non-capsule runtime: always allow.
+    return 0
+}
+
+fn native_capsule_require_net_connect(ip, port) { return 0 }
+fn native_capsule_require_net_listen(ip, port) { return 0 }
+
+fn native_capsule_require_proc_system() { return 0 }
+fn native_capsule_require_proc_exec(path) { return 0 }
+fn native_capsule_require_proc_argv(exec_path, argv_ptrs, argc) { return 0 }
+
+fn native_capsule_proc_register_pid(pid) { return 0 }
+fn native_capsule_proc_pid_allowed(pid) { return true }
+
+fn native_capsule_fs_path_resolve_pair(path, op_kind) {
+    // Returns pointer to [resolved_path_ptr, owned(0|1)] (16 bytes).
+    // owned=1 means resolved_path_ptr must be free()'d by the caller.
+    //
+    // Non-capsule: passthrough.
+    var pair = malloc(16)
+    if pair == 0 { exit(301) }
+    ptr_set(pair + 0, path)
+    ptr_set(pair + 8, 0)
+    return pair
+}
+
