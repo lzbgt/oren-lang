@@ -52,6 +52,27 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Docs:
   - `docs/BUILD_AND_VERIFY.md` documents the knobs.
 
+## Archived (2026-01-04) — Native: stage2 hot-path perf (byte emit + astbin decode)
+
+- Native backend emit (arm64 + x86_64):
+  - Added bulk little-endian append helpers in `lib/compiler/bytes_builder.oren`:
+    - `bytes_push_u16_le`, `bytes_push_u32_le`, `bytes_push_u64_le` (single growth check + raw byte stores).
+  - Switched the native emitters to use the shared builder fast paths:
+    - `lib/compiler/arm64_core.oren`: `push_u32_le`, `push_u64_le`
+    - `lib/compiler/x64_core.oren`: `push_u16_le`, `push_u32_le`, `push_u64_le`
+  - arm64 Mach-O emission:
+    - `lib/compiler/arm64_macho.oren` now extends zero-filled regions with a bounded bulk helper (`bytes_extend_zeros`) instead of per-byte loops.
+    - avoids `oren_bytes_from_string(name)` allocations while building the string table by reading string bytes directly.
+- astbin decode (stage2-native runtime injection):
+  - Reworked hot decode loops in `lib/compiler/compiler/015_astbin.oren` to use intrinsic integer addition (`iadd`) instead of overloaded `+` in tight loops.
+  - Also added a u8_buf fast path that reads from a pre-materialized `data_ptr` via `ptr_get_byte(iadd(data_ptr, off))` to avoid repeated header loads.
+- Evidence (arm64-macos, stage2 compiler; isolated rtobj cache dir; `examples/hello.oren`, `--no-cache --no-debug`):
+  - runtime bundle astbin decode (`~3.2MB`): ~`10.6s` → ~`6.1s` (still too high for cold-path timeouts)
+  - rtobj meta decode (cache hit): ~`720ms` → ~`405ms`
+  - “compile one file” total:
+    - rtobj hit: ~`3.1–3.4s` (meets the `<4s` gate)
+    - rtobj miss: ~`21s` (active work item; see `docs/TODOS.md`)
+
 ## Archived (2026-01-03) — Native: OrenStatV0 time fields + stat-aware scan cache v3
 
 - Native backends:

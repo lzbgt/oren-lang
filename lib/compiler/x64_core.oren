@@ -37,15 +37,11 @@ fn int_mod(a, b) {
 }
 
 fn push_u16_le(buf, n) {
-    bytes_push(buf, int_mod(n, 256))
-    bytes_push(buf, int_mod(n / 256, 256))
+    return bb.bytes_push_u16_le(buf, n)
 }
 
 fn push_u32_le(buf, n) {
-    bytes_push(buf, int_mod(n, 256))
-    bytes_push(buf, int_mod(n / 256, 256))
-    bytes_push(buf, int_mod(n / 65536, 256))
-    bytes_push(buf, int_mod(n / 16777216, 256))
+    return bb.bytes_push_u32_le(buf, n)
 }
 
 fn push_u64_le(buf, n) {
@@ -58,8 +54,7 @@ fn push_u64_le(buf, n) {
     // a 2^64 constant (which would not fit in signed i64).
     var lo = int_mod(n, 4294967296)
     var hi = int_mod((n - lo) / 4294967296, 4294967296)
-    push_u32_le(buf, lo)
-    push_u32_le(buf, hi)
+    return bb.bytes_push_u64_le(buf, n)
 }
 
 fn set_u32_le(buf, offset, n) {

@@ -174,6 +174,47 @@ fn _bytes_set_u32_le_ptr(dstp, off, n) {
     return nil
 }
 
+fn bytes_push_u16_le(b, n) {
+    // Append little-endian u16.
+    var used = _bytes_len_raw(b)
+    _bytes_ensure_capacity(b, used + 2)
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if dstp == 0 { oren_fail(1, "bytes_push_u16_le: buf data ptr is nil") }
+    ptr_set_byte(iadd(dstp, used + 0), _int_mod_pos(n, 256))
+    ptr_set_byte(iadd(dstp, used + 1), _int_mod_pos(n / 256, 256))
+    _bytes_set_len_raw(b, used + 2)
+    return nil
+}
+
+fn bytes_push_u32_le(b, n) {
+    // Append little-endian u32.
+    //
+    // PERF: one capacity check + raw byte stores (used heavily by native backends).
+    var used = _bytes_len_raw(b)
+    _bytes_ensure_capacity(b, used + 4)
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if dstp == 0 { oren_fail(1, "bytes_push_u32_le: buf data ptr is nil") }
+    _bytes_set_u32_le_ptr(dstp, used, n)
+    _bytes_set_len_raw(b, used + 4)
+    return nil
+}
+
+fn bytes_push_u64_le(b, n) {
+    // Append little-endian u64.
+    //
+    // Encode low 64 bits deterministically for signed carrier ints.
+    var used = _bytes_len_raw(b)
+    _bytes_ensure_capacity(b, used + 8)
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if dstp == 0 { oren_fail(1, "bytes_push_u64_le: buf data ptr is nil") }
+    var lo = _int_mod_pos(n, 4294967296)
+    var hi = _int_mod_pos((n - lo) / 4294967296, 4294967296)
+    _bytes_set_u32_le_ptr(dstp, used + 0, lo)
+    _bytes_set_u32_le_ptr(dstp, used + 4, hi)
+    _bytes_set_len_raw(b, used + 8)
+    return nil
+}
+
 fn bytes_set_u32_le(b, offset, n) {
     // Patch a u32 into an existing bytes builder (little-endian).
     //

@@ -341,6 +341,18 @@ fn _arm64_build_runtime_obj(platform, runtime_path) {
     // - meta (Oren map; ints encoded as +1 where needed)
     // - code_u8 (u8_buf)
     // - data_tail_u8 (u8_buf)  // after the shared prefix slot
+    var trace_sum = oren_env("OREN_TRACE_ARM64_RT_OBJ_SUMMARY") != nil
+    var t0 = 0
+    var t_parse_done = 0
+    var t_meta_done = 0
+    var t_lambda_done = 0
+    var t_split_done = 0
+    var t_globals_done = 0
+    var t_decls_done = 0
+    var t_wrap_done = 0
+    var t_finalize_done = 0
+    if trace_sum { t0 = oren_time_now_ns() }
+
     var linked0 = {"statements": [], "aliases": {}, "type_ns": {}}
     var ctx = _arm64_new_ctx(linked0, platform)
     // Debug builds expect a `debug_info` table to exist so statement compilation can
@@ -364,12 +376,14 @@ fn _arm64_build_runtime_obj(platform, runtime_path) {
     // Parse/astbin-load the runtime source (shared helper in runtime bundle module).
     var prog = bundle.load_and_parse_runtime_native(ctx, runtime_path)
     if prog == nil { return nil }
+    if trace_sum { t_parse_done = oren_time_now_ns() }
     var stmts = prog["statements"]
     if stmts == nil { stmts = [] }
 
     // Function metadata is required for lambda capture analysis and for fnwrap synthesis.
     coreir.collect_top_level_functions(ctx, {"statements": stmts}, "arm64 native rtobj")
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if trace_sum { t_meta_done = oren_time_now_ns() }
 
     // Normalize nested `fn name(...)` to lambdas+vars for Tier‑1 parity.
     callable.rewrite_local_fn_decls_in_stmt_list(ctx, stmts)
@@ -380,6 +394,7 @@ fn _arm64_build_runtime_obj(platform, runtime_path) {
         callable.collect_lambdas_in_statement(ctx, stmts[li])
         li = li + 1
     }
+    if trace_sum { t_lambda_done = oren_time_now_ns() }
 
     // Split runtime decls/vars using the shared Tier‑1 rules, but do not synthesize __top_level__.
     var declared = ctx["declared_functions"]
@@ -389,6 +404,7 @@ fn _arm64_build_runtime_obj(platform, runtime_path) {
     var runtime_vars = split["runtime_vars"]
     if runtime_decls == nil { runtime_decls = [] }
     if runtime_vars == nil { runtime_vars = [] }
+    if trace_sum { t_split_done = oren_time_now_ns() }
 
     // Allocate runtime globals (zero-initialized; runtime init owns their values).
     var vi = 0
@@ -400,6 +416,7 @@ fn _arm64_build_runtime_obj(platform, runtime_path) {
         }
         vi = vi + 1
     }
+    if trace_sum { t_globals_done = oren_time_now_ns() }
 
     // Compile runtime declarations (functions/types/ffi).
     var i = 0
@@ -408,6 +425,7 @@ fn _arm64_build_runtime_obj(platform, runtime_path) {
         i = i + 1
     }
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if trace_sum { t_decls_done = oren_time_now_ns() }
 
     // Synthesize wrappers needed by runtime itself (named fns used as values, lambda wrappers).
     var need = ctx["fnwrap_needed"]
@@ -440,10 +458,12 @@ fn _arm64_build_runtime_obj(platform, runtime_path) {
         wi = wi + 1
     }
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if trace_sum { t_wrap_done = oren_time_now_ns() }
 
     // Materialize blobs for cache storage.
     var code_u8 = bytes_finalize(ctx["code"])
     var data_u8 = bytes_finalize(ctx["data"])
+    if trace_sum { t_finalize_done = oren_time_now_ns() }
     var dn = oren_buf_len(data_u8)
     var prefix = rtobj.RUNTIME_OBJ_DATA_PREFIX_LEN
     if dn < prefix { return nil }
@@ -463,6 +483,33 @@ fn _arm64_build_runtime_obj(platform, runtime_path) {
         "func_varargs_fixed": ctx["func_varargs_fixed"],
         "func_decl_order": ctx["func_decl_order"],
         "lambda_counter_enc": ctx["lambda_counter"] + 1
+    }
+    if trace_sum {
+        var total_ms = (t_finalize_done - t0) / 1000000
+        var parse_ms = (t_parse_done - t0) / 1000000
+        var meta_ms = (t_meta_done - t_parse_done) / 1000000
+        var lambdas_ms = (t_lambda_done - t_meta_done) / 1000000
+        var split_ms = (t_split_done - t_lambda_done) / 1000000
+        var globals_ms = (t_globals_done - t_split_done) / 1000000
+        var decls_ms = (t_decls_done - t_globals_done) / 1000000
+        var wrap_ms = (t_wrap_done - t_decls_done) / 1000000
+        var fin_ms = (t_finalize_done - t_wrap_done) / 1000000
+        var fx_n = 0
+        if ctx["fixups"] != nil { fx_n = oren_list_len(ctx["fixups"]) }
+        print("[arm64_rtobj] total_ms=" + oren_int_to_string(total_ms) +
+              " parse_ms=" + oren_int_to_string(parse_ms) +
+              " meta_ms=" + oren_int_to_string(meta_ms) +
+              " lambdas_ms=" + oren_int_to_string(lambdas_ms) +
+              " split_ms=" + oren_int_to_string(split_ms) +
+              " globals_ms=" + oren_int_to_string(globals_ms) +
+              " decls_ms=" + oren_int_to_string(decls_ms) +
+              " wrappers_ms=" + oren_int_to_string(wrap_ms) +
+              " finalize_ms=" + oren_int_to_string(fin_ms) +
+              " decls_n=" + oren_int_to_string(oren_list_len(runtime_decls)) +
+              " vars_n=" + oren_int_to_string(oren_list_len(runtime_vars)) +
+              " code_bytes=" + oren_int_to_string(oren_buf_len(code_u8)) +
+              " data_bytes=" + oren_int_to_string(oren_buf_len(data_u8)) +
+              " fixups_n=" + oren_int_to_string(fx_n))
     }
     return {"meta": meta, "code_u8": code_u8, "data_tail_u8": tail}
 }

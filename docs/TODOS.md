@@ -30,10 +30,11 @@ Rules for this tracker:
 	   - Recently completed: runtime-object cache load is now hardened with a cheap sentinel integrity check so corrupted/stale rtobj meta becomes a miss+rebuild (instead of a stage1 panic in x64 codegen) (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: x64 PE/ELF fixup patching now uses a fast `bytes_set_u32_le` raw-store path, keeping `scripts/verify_native_x64_compile_only.sh` stage2 `x64-windows` under the default 10s timeout (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: native `sys_stat/sys_lstat/sys_fstat` now populate OrenStatV0 `{a,m,c}time_ns` on macOS/Linux (arm64+x86_64), and the build scan cache is now stat-aware (`scan_cache_v3.txt`) to avoid re-reading unchanged sources during build-cache key computation (details in `docs/TODOS_ARCHIVE.md`).
-		   - Hard gate (non-negotiable for rolling):
-		     - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
-		     - Stage2 native backend “compile one file” (cache hit; non-capsule) should stay **< 4s** wall time on the primary dev host; regressions indicate a fundamental hot-path flaw to investigate.
-		     - Debug builds used by Tier‑1 fixtures must stay **< 10s** per `oren build ... --backend native --debug` step (default script timeout).
+	   - Remaining (active): rtobj-miss (cold) path is still too slow in stage2-native due to runtime bundle decode + runtime decl compilation; keep pushing toward **< 10s** cold “compile one file” when caches are empty (see `docs/TODOS_ARCHIVE.md` for current measurements + profiling knobs).
+			   - Hard gate (non-negotiable for rolling):
+			     - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
+			     - Stage2 native backend “compile one file” (cache hit; non-capsule) should stay **< 4s** wall time on the primary dev host; regressions indicate a fundamental hot-path flaw to investigate.
+			     - Debug builds used by Tier‑1 fixtures must stay **< 10s** per `oren build ... --backend native --debug` step (default script timeout).
 	     - RSS should stay **< 300 MB** for the compilation process.
 	   - High-leverage path (avoid “parameter tuning”):
 	     - deterministic parallel compilation pipeline (module graph scheduling + cache hits)

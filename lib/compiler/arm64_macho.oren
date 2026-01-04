@@ -615,12 +615,8 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         bytes_push(data, 0)
     }
     var got_offset = bytes_len(data)
-    var k_got = 0
-    while k_got < oren_list_len(imports) {
-        var k = 0
-        while k < 8 { bytes_push(data, 0); k = k + 1 }
-        k_got = k_got + 1
-    }
+    // PERF: avoid per-byte `bytes_push` loops when the import list is large.
+    codegen.bytes_extend_zeros(data, oren_list_len(imports) * 8)
     if trace_emit { print("[emit] macho arm64: GOT placeholder done") }
 
     var bind_opcodes = macho_build_bind_opcodes(imports, got_offset)
@@ -645,11 +641,13 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         var name_idx = bytes_len(strtab)
         
         bytes_push(strtab, 95) // '_'
-        var name_bytes = oren_bytes_from_string(name)
+        // Avoid `oren_bytes_from_string` (allocates list<int>) in hot emitter paths.
         var k2 = 0
-        while k2 < oren_list_len(name_bytes) {
-             bytes_push(strtab, name_bytes[k2])
-             k2 = k2 + 1
+        var n2 = 0
+        if name != nil { n2 = oren_string_len(name) }
+        while k2 < n2 {
+            bytes_push(strtab, oren_string_byte_at_unchecked(name, k2) & 255)
+            k2 = k2 + 1
         }
         bytes_push(strtab, 0)
         

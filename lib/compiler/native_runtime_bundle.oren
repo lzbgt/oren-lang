@@ -64,6 +64,45 @@ fn _rt_bundle_sha256_hex_string(s) {
     return _rt_bundle_bytes_to_hex(d)
 }
 
+fn _rt_bundle_mask63(x) {
+    // Keep hashes non-negative so decimal formatting is stable across backends.
+    return x & 9223372036854775807
+}
+
+fn _rt_bundle_fnv1a63_string(s, basis) {
+    // Fast fingerprint for cache keys (not a cryptographic hash).
+    if s == nil { return 0 }
+    var h = _rt_bundle_mask63(basis)
+    var prime = 1099511628211
+    var n = oren_string_len(s)
+    var i = 0
+    while i < n {
+        var b = oren_string_byte_at_unchecked(s, i) & 255
+        h = _rt_bundle_mask63((h ^ b) * prime)
+        i = i + 1
+    }
+    return h
+}
+
+fn _rt_bundle_runtime_fingerprint_v2(runtime_src) {
+    // Stage2-native throughput:
+    // Avoid SHA-256 here. The native runtime's `oren_sha256_string` is pure Oren and can
+    // dominate "compile one file" cold-miss paths just to name the cached astbin file.
+    //
+    // Rolling v2 fingerprint:
+    // - two-lane 63-bit FNV-1a-ish hash
+    // - includes length mixing to reduce trivial collisions
+    var s = runtime_src
+    if s == nil { s = "" }
+    var n = oren_string_len(s)
+    var h1 = _rt_bundle_fnv1a63_string(s, 1469598103934665603)
+    var h2 = _rt_bundle_fnv1a63_string(s, 1099511628211)
+    // Mix length in a stable way.
+    h1 = _rt_bundle_mask63(h1 ^ (n * 1315423911))
+    h2 = _rt_bundle_mask63(h2 ^ (n * 2654435761))
+    return "v2_" + oren_int_to_string(h1) + "_" + oren_int_to_string(h2)
+}
+
 fn _rt_bundle_shell_quote(s) {
     // Minimal single-quote shell escaping: ' -> '\''.
     // This is used only for dev tooling (mkdir -p cache dir).
@@ -533,20 +572,29 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
         oren_write_file(p, runtime_src)
     }
 
-    // Default fast path (rolling): parse the runtime once and cache an astbin keyed by the
-    // expanded source hash. This avoids pathological stage2-native compiler slowdowns where
-    // parsing the injected runtime dominates compilation time.
+    // Default fast path (rolling): parse the runtime once and cache an astbin.
+    //
+    // IMPORTANT (stage2-native throughput):
+    // - Stage2-native parsing of the expanded runtime can be extremely slow.
+    // - The cache key must be cheap to compute; do not require SHA-256 in the hot path.
+    //
+    // Rolling cache key story:
+    // - Preferred: v2 fast fingerprint (two-lane FNV-ish).
+    // - Backward-compatible: fall back to legacy SHA-256 cache filenames if present, and
+    //   opportunistically migrate them to the v2 path to avoid re-parsing.
     var cache_enabled = _rt_bundle_cache_enabled()
-    var runtime_hash = _rt_bundle_sha256_hex_string(runtime_src)
     var cache_dir = _rt_bundle_cache_dir()
-    var cache_astbin = cache_dir + "/" + runtime_hash + ".astbin"
+    var fp2 = _rt_bundle_runtime_fingerprint_v2(runtime_src)
+    var cache_astbin_v2 = cache_dir + "/" + fp2 + ".astbin"
 
     if cache_enabled == true {
         var t_hit0 = 0
         if trace { t_hit0 = oren_time_now_ns() }
-        var bs_hit = oren_read_u8_buf(cache_astbin)
+
+        // v2 path first.
+        var bs_hit = oren_read_u8_buf(cache_astbin_v2)
         if !oren_is_err(bs_hit) {
-            if trace { print("[rt_bundle] cache astbin hit path=" + cache_astbin + " bytes=" + oren_int_to_string(oren_buf_len(bs_hit))) }
+            if trace { print("[rt_bundle] cache astbin hit path=" + cache_astbin_v2 + " bytes=" + oren_int_to_string(oren_buf_len(bs_hit))) }
             var prog_hit = astbin.astbin_decode(bs_hit)
             if prog_hit != nil {
                 if _rt_bundle_validate_runtime_prog(ctx, prog_hit, runtime_path) == false { return nil }
@@ -556,7 +604,29 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
                 }
                 return prog_hit
             }
-            if trace { print("[rt_bundle] cache astbin miss (decode failed), falling back to parse") }
+            if trace { print("[rt_bundle] cache astbin miss (decode failed), falling back") }
+        }
+
+        // Legacy SHA-256 path (migration).
+        var legacy_hash = _rt_bundle_sha256_hex_string(runtime_src)
+        var cache_astbin_legacy = cache_dir + "/" + legacy_hash + ".astbin"
+        var bs_old = oren_read_u8_buf(cache_astbin_legacy)
+        if !oren_is_err(bs_old) {
+            if trace { print("[rt_bundle] cache astbin legacy hit path=" + cache_astbin_legacy + " bytes=" + oren_int_to_string(oren_buf_len(bs_old))) }
+            var prog_old = astbin.astbin_decode(bs_old)
+            if prog_old != nil {
+                if _rt_bundle_validate_runtime_prog(ctx, prog_old, runtime_path) == false { return nil }
+                // Best-effort migrate to v2 so future runs avoid SHA-256 entirely.
+                _rt_bundle_ensure_dir(cache_dir)
+                oren_write_bytes(cache_astbin_v2, bs_old)
+                if trace { print("[rt_bundle] cache astbin migrated -> " + cache_astbin_v2) }
+                if trace {
+                    var dt_old = oren_time_now_ns() - t_hit0
+                    print("[rt_bundle] cache astbin legacy decode done +" + oren_int_to_string(dt_old / 1000000) + "ms")
+                }
+                return prog_old
+            }
+            if trace { print("[rt_bundle] cache astbin legacy miss (decode failed), falling back to parse") }
         }
     }
 
@@ -595,16 +665,16 @@ fn load_and_parse_runtime_native(ctx, runtime_path) {
         }
     }
 
-    // Default: write an astbin cache keyed by the expanded runtime hash.
+    // Default: write an astbin cache keyed by the expanded runtime fingerprint.
     if cache_enabled == true {
         // Only write on miss.
-        var bs_chk = oren_read_u8_buf(cache_astbin)
+        var bs_chk = oren_read_u8_buf(cache_astbin_v2)
         if oren_is_err(bs_chk) {
             _rt_bundle_ensure_dir(cache_dir)
             var bs3 = astbin.astbin_encode(runtime_prog)
             if bs3 != nil {
-                oren_write_bytes(cache_astbin, bs3)
-                if trace { print("[rt_bundle] cache astbin wrote path=" + cache_astbin) }
+                oren_write_bytes(cache_astbin_v2, bs3)
+                if trace { print("[rt_bundle] cache astbin wrote path=" + cache_astbin_v2) }
             }
         }
     }
