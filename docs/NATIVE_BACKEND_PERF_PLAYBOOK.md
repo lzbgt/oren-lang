@@ -147,6 +147,13 @@ Preferred patterns:
 See:
 - `lib/compiler/compiler/015_astbin.oren` (decoder hot path)
 - `lib/compiler/bytes_builder.oren` (shared byte builder)
+- `lib/compiler/x64_core.oren` (x86_64 instruction encoder; uses a reusable scratch pool to avoid per-instruction allocations)
+
+Rolling rule (x64 encoder):
+
+- Do not allocate a fresh byte builder (or `list<int>`) per instruction.
+  - Prefer `_insn_pool_get()` inside `insn_*` helpers and avoid `bytes_lit([..])` list literals in hot paths.
+  - Symptom: x64 rtobj cold miss becomes tens of seconds on stage2-native cross-target builds.
 
 ### 4.2 Overloaded arithmetic in hot loops (`+` vs `iadd`)
 

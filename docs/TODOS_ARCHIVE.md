@@ -1478,3 +1478,6 @@ These are “project laws”. If a task can’t follow these, we *change the tas
   - Result: `scripts/verify_native_matrix.sh --targets local,arm64-linux` now builds and runs stage1 + stage2 artifacts in the Linux/arm64 container without crashing.
 - 2026-01-04: Hardened arm64 native `malloc`/`malloc_raw` lowering: after the `mmap` slow path, reject any “pointer” result `< 4096` and fail-fast.
   - This prevents a wrong syscall number / clobbered syscall register from returning a small positive integer (e.g. 15) that would later be treated as a pointer and segfault.
+- 2026-01-04: x64 instruction encoders no longer allocate per instruction in the self-hosted compiler (`lib/compiler/x64_core.oren` now uses a reusable scratch pool and avoids `bytes_lit([..])` list literals).
+  - Cross-target stage2 `x64-linux` true rtobj miss improved from ~`52s` total (rtobj build+apply ~`45s`) → ~`25s` total (rtobj build+apply ~`21s`) on the primary dev host (seed disabled).
+  - With rtobj seed enabled (`make rtobj-seed-x64`), an empty cache dir can get a seed-hit and “compile one file” stays ~`4.2s` total for `x64-linux`.
