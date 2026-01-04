@@ -138,10 +138,30 @@ fn _cache_compiler_sig(build_cfg) {
     if args != nil && oren_list_len(args) > 0 {
         var exe = args[0]
         if exe != nil && exe != "" && file_exists(exe) {
-            // Prefer u8_buf to avoid boxing each byte as an int (can blow up memory for big binaries).
-            var bs = oren_read_u8_buf(exe)
-            if !oren_is_err(bs) {
-                return _cache_hash_u8_buf(bs, build_cfg)
+            // Rolling performance note:
+            // Hashing the full compiler binary (even with a fast fingerprint) can dominate build
+            // wall time under the native runtime, because cache key computation happens before any
+            // compilation work.
+            //
+            // Contract:
+            // - deterministic/forced-sha256 builds keep strong invalidation (hash file bytes)
+            // - rolling builds use a cheap stat-based signature (path + size + mtime_ns)
+            if _cache_deterministic(build_cfg) || _cache_force_sha256(build_cfg) {
+                // Prefer u8_buf to avoid boxing each byte as an int (can blow up memory for big binaries).
+                var bs = oren_read_u8_buf(exe)
+                if !oren_is_err(bs) {
+                    return _cache_hash_u8_buf(bs, build_cfg)
+                }
+            } else {
+                // Fast signature: file metadata + path fingerprint.
+                var meta = oren_file_stat_size_mtime_ns(exe)
+                if !oren_is_err(meta) && meta != nil && oren_is_list(meta) == true && oren_list_len(meta) >= 2 {
+                    var sz = meta[0]
+                    var mt = meta[1]
+                    return "v2_exe_" + _fingerprint2_string(exe) + "_sz" + oren_int_to_string(sz) + "_mt" + oren_int_to_string(mt)
+                }
+                // Fallback: at least include a stable identifier for argv[0].
+                return "v2_exe_" + _fingerprint2_string(exe)
             }
         }
     }
@@ -519,13 +539,96 @@ fn _scan_cache_load(cache_dir) {
     return out
 }
 
+fn _scan_cache_bytes_new() {
+    // Small u8_buf builder for scan cache serialization (avoid O(n^2) string concat).
+    var cap = 8192
+    var buf = oren_u8_buf_new(cap)
+    if oren_is_err(buf) { oren_fail(1, "scan_cache_save: u8_buf alloc failed") }
+    return {"buf": buf, "len": 0, "cap": cap}
+}
+
+fn _scan_cache_bytes_memcpy8(dst, src, len) {
+    var i = 0
+    while i < len {
+        if len - i >= 8 {
+            ptr_set(iadd(dst, i), ptr_get(iadd(src, i)))
+            i = i + 8
+        } else {
+            ptr_set_byte(iadd(dst, i), ptr_get_byte(iadd(src, i)))
+            i = i + 1
+        }
+    }
+    return nil
+}
+
+fn _scan_cache_bytes_ensure(b, want) {
+    if want <= b["cap"] { return nil }
+    var new_cap = b["cap"]
+    if new_cap < 1024 { new_cap = 1024 }
+    while new_cap < want { new_cap = new_cap * 2 }
+    var nb = oren_u8_buf_new(new_cap)
+    if oren_is_err(nb) { oren_fail(1, "scan_cache_save: u8_buf grow failed") }
+    var used = b["len"]
+    if used > 0 {
+        var srcp = oren_buf_data_ptr_unchecked(b["buf"])
+        var dstp = oren_buf_data_ptr_unchecked(nb)
+        if srcp == 0 || dstp == 0 { oren_fail(1, "scan_cache_save: buf data ptr is nil") }
+        _scan_cache_bytes_memcpy8(dstp, srcp, used)
+    }
+    b["buf"] = nb
+    b["cap"] = new_cap
+    return nil
+}
+
+fn _scan_cache_bytes_push_byte(b, v) {
+    var used = b["len"]
+    _scan_cache_bytes_ensure(b, used + 1)
+    oren_buf_store_u8(b["buf"], used, v)
+    b["len"] = used + 1
+    return nil
+}
+
+fn _scan_cache_bytes_push_str(b, s) {
+    if s == nil { return nil }
+    // Strings are NUL-terminated; `oren_string_len` is O(n), so compute once.
+    var n = oren_string_len(s)
+    if n <= 0 { return nil }
+    var used = b["len"]
+    _scan_cache_bytes_ensure(b, used + n)
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if dstp == 0 { oren_fail(1, "scan_cache_save: buf data ptr is nil") }
+    var i = 0
+    while i < n {
+        ptr_set_byte(iadd(dstp, used + i), oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
+    b["len"] = used + n
+    return nil
+}
+
+fn _scan_cache_bytes_finalize(b) {
+    var n = b["len"]
+    var out = b["buf"]
+    if n == b["cap"] { return out }
+    var tight = oren_u8_buf_new(n)
+    if oren_is_err(tight) { oren_fail(1, "scan_cache_save: u8_buf finalize failed") }
+    if n > 0 {
+        var srcp = oren_buf_data_ptr_unchecked(out)
+        var dstp = oren_buf_data_ptr_unchecked(tight)
+        if srcp == 0 || dstp == 0 { oren_fail(1, "scan_cache_save: buf data ptr is nil") }
+        _scan_cache_bytes_memcpy8(dstp, srcp, n)
+    }
+    return tight
+}
+
 fn _scan_cache_save(cache_dir, cache_map) {
     var p = _scan_cache_file(cache_dir)
     ensure_dir(dirname(p))
     var paths = []
     for k in cache_map { oren_list_push(paths, k) }
     paths = _cache_sort_strings(paths)
-    var out = "OREN_SCAN_CACHE_V3\n"
+    var b = _scan_cache_bytes_new()
+    _scan_cache_bytes_push_str(b, "OREN_SCAN_CACHE_V3\n")
     var i = 0
     while i < oren_list_len(paths) {
         var path = paths[i]
@@ -545,38 +648,50 @@ fn _scan_cache_save(cache_dir, cache_map) {
         if hh == nil { hh = "" }
         var merged = rec["imports"]
         if merged == nil { merged = [] }
-        out = out + path + "\n"
-        out = out + oren_int_to_string(mtime) + "\n"
-        out = out + oren_int_to_string(size) + "\n"
-        out = out + raw + "\n"
-        out = out + oren_int_to_string(oren_list_len(incs)) + "\n"
+        _scan_cache_bytes_push_str(b, path)
+        _scan_cache_bytes_push_byte(b, 10)
+        _scan_cache_bytes_push_str(b, oren_int_to_string(mtime))
+        _scan_cache_bytes_push_byte(b, 10)
+        _scan_cache_bytes_push_str(b, oren_int_to_string(size))
+        _scan_cache_bytes_push_byte(b, 10)
+        _scan_cache_bytes_push_str(b, raw)
+        _scan_cache_bytes_push_byte(b, 10)
+        _scan_cache_bytes_push_str(b, oren_int_to_string(oren_list_len(incs)))
+        _scan_cache_bytes_push_byte(b, 10)
         var j = 0
         while j < oren_list_len(incs) {
             var inc = incs[j]
             if inc == nil { inc = "" }
-            out = out + inc + "\n"
+            _scan_cache_bytes_push_str(b, inc)
+            _scan_cache_bytes_push_byte(b, 10)
             j = j + 1
         }
-        out = out + oren_int_to_string(oren_list_len(self_imps)) + "\n"
+        _scan_cache_bytes_push_str(b, oren_int_to_string(oren_list_len(self_imps)))
+        _scan_cache_bytes_push_byte(b, 10)
         var j2 = 0
         while j2 < oren_list_len(self_imps) {
             var imp = self_imps[j2]
             if imp == nil { imp = "" }
-            out = out + imp + "\n"
+            _scan_cache_bytes_push_str(b, imp)
+            _scan_cache_bytes_push_byte(b, 10)
             j2 = j2 + 1
         }
-        out = out + hh + "\n"
-        out = out + oren_int_to_string(oren_list_len(merged)) + "\n"
+        _scan_cache_bytes_push_str(b, hh)
+        _scan_cache_bytes_push_byte(b, 10)
+        _scan_cache_bytes_push_str(b, oren_int_to_string(oren_list_len(merged)))
+        _scan_cache_bytes_push_byte(b, 10)
         var j3 = 0
         while j3 < oren_list_len(merged) {
             var imp2 = merged[j3]
             if imp2 == nil { imp2 = "" }
-            out = out + imp2 + "\n"
+            _scan_cache_bytes_push_str(b, imp2)
+            _scan_cache_bytes_push_byte(b, 10)
             j3 = j3 + 1
         }
         i = i + 1
     }
-    oren_write_file(p, out)
+    var ub = _scan_cache_bytes_finalize(b)
+    oren_write_bytes(p, ub)
     return nil
 }
 
@@ -893,6 +1008,10 @@ fn cache_compute_key_build(entry_path, build_cfg) {
     // - stdlib_mode, stdlib_obc, link_obc, link_libs, enable_python, debug_mode, shared_lib
     //
     // Returns {"ok":bool, "key":hex, "err":string, "inputs":map(path->hash)}
+    var tv = oren_env("OREN_TRACE_BUILD")
+    var trace_build = false
+    if tv != nil && tv != "" && tv != "0" && tv != "false" { trace_build = true }
+
     var visited = {}
     var inputs = {} // path/spec -> sha256
     // Use an explicit stack pointer to avoid O(n^2) copying behavior.
@@ -904,6 +1023,9 @@ fn cache_compute_key_build(entry_path, build_cfg) {
     if build_cfg != nil && build_cfg["cache_dir"] != nil { cache_dir = build_cfg["cache_dir"] }
     if cache_dir == nil || cache_dir == "" { cache_dir = _cache_default_dir() }
     var scan_state = {"dir": cache_dir, "cache": _scan_cache_load(cache_dir), "dirty": false}
+
+    var t0 = 0
+    if trace_build { t0 = oren_time_now_ns() }
 
     while sp > 0 {
         // pop
@@ -937,8 +1059,17 @@ fn cache_compute_key_build(entry_path, build_cfg) {
             ii = ii + 1
         }
     }
-    if scan_state["dirty"] == true {
-        _scan_cache_save(cache_dir, scan_state["cache"])
+    if trace_build {
+        var t1 = oren_time_now_ns()
+        var dt_scan = (t1 - t0) / 1000000
+        var n_inputs = 0
+        for k_scan in inputs { n_inputs = n_inputs + 1 }
+        var n_recs = 0
+        var cm = scan_state["cache"]
+        if cm != nil {
+            for k_rec in cm { n_recs = n_recs + 1 }
+        }
+        print("[cache] dep_scan +" + oren_int_to_string(dt_scan) + "ms inputs=" + oren_int_to_string(n_inputs) + " scan_cache_recs=" + oren_int_to_string(n_recs))
     }
 
     // Include stdlib `.obc` and linked `.obc` libraries (bytecode mode) into the key.
@@ -977,16 +1108,47 @@ fn cache_compute_key_build(entry_path, build_cfg) {
     // Without hashing the injected runtime bundle, changing runtime source files would not
     // invalidate the build cache (observed as stale Windows x64 artifacts).
     if build_cfg != nil && build_cfg["backend"] == "native" {
+        var t_rt0 = 0
+        if trace_build { t_rt0 = oren_time_now_ns() }
         var rt_path = "lib/runtime_native.oren"
         var rh = _cache_hash_expanded_includes(rt_path, build_cfg, scan_state)
         if rh["ok"] != true {
             return {"ok": false, "err": "failed to read injected runtime: " + rt_path + " (" + rh["err"] + ")"}
         }
         inputs["RUNTIME:" + rt_path] = rh["hash"]
+        if trace_build {
+            var dt_rt = (oren_time_now_ns() - t_rt0) / 1000000
+            print("[cache] injected_runtime_hash +" + oren_int_to_string(dt_rt) + "ms hash=" + inputs["RUNTIME:" + rt_path])
+        }
+    }
+
+    // Persist the scan cache after *all* scan-state consumers have run.
+    // This includes native runtime injection hashing (`_cache_hash_expanded_includes`),
+    // which can touch a large include-closure; saving too early forces every build to
+    // rescan+rehash that closure from scratch.
+    if scan_state["dirty"] == true {
+        var t_save0 = 0
+        if trace_build { t_save0 = oren_time_now_ns() }
+        _scan_cache_save(cache_dir, scan_state["cache"])
+        if trace_build {
+            var dt = (oren_time_now_ns() - t_save0) / 1000000
+            var n_recs2 = 0
+            var cm2 = scan_state["cache"]
+            if cm2 != nil {
+                for k_rec2 in cm2 { n_recs2 = n_recs2 + 1 }
+            }
+            print("[cache] scan_cache save +" + oren_int_to_string(dt) + "ms recs=" + oren_int_to_string(n_recs2))
+        }
     }
 
 
+    var t_sig0 = 0
+    if trace_build { t_sig0 = oren_time_now_ns() }
     var compiler_sig = _cache_compiler_sig(build_cfg)
+    if trace_build {
+        var dt_sig = (oren_time_now_ns() - t_sig0) / 1000000
+        print("[cache] compiler_sig +" + oren_int_to_string(dt_sig) + "ms sig=" + compiler_sig)
+    }
 
     // Build a stable key string.
     var s = "OREN_BUILD_CACHE_V" + oren_int_to_string(BUILD_CACHE_SCHEMA) + "\n"

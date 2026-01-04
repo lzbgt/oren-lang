@@ -122,6 +122,7 @@ fn oren_list_push_unchecked(list, value) {
     return 0
 }
 
+@oren.keep
 fn oren_list_get(list, idx) {
     if list == 0 {
         oren_panic("Indexing on nil")
@@ -160,6 +161,7 @@ fn oren_list_get(list, idx) {
 // Language-level semantics (rolling, matches C backend + tests):
 // - `xs[i] = v` on a list grows `xs` to length `i+1` if needed.
 // - New slots are initialized to `nil`.
+@oren.keep
 fn oren_list_set(list, idx, value) {
     if list == 0 { oren_panic("list_set on nil") }
     // Safety: do not dereference arbitrary large integers as pointers.

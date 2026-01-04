@@ -30,10 +30,14 @@ Rules for this tracker:
 	   - Recently completed: runtime bundle astbin caches now carry a “pruned for target OS” marker so pruned caches can skip redundant `g_target_os` pruning (and stale pruned caches can be rewritten once); astbin v2 encoder pre-sizes the string pool index map for large programs to keep cache writes bounded (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: runtime-object cache load is now hardened with a cheap sentinel integrity check so corrupted/stale rtobj meta becomes a miss+rebuild (instead of a stage1 panic in x64 codegen) (details in `docs/TODOS_ARCHIVE.md`).
 	   - Recently completed: x64 PE/ELF fixup patching now uses a fast `bytes_set_u32_le` raw-store path, keeping `scripts/verify_native_x64_compile_only.sh` stage2 `x64-windows` under the default 10s timeout (details in `docs/TODOS_ARCHIVE.md`).
-	   - Recently completed: native `sys_stat/sys_lstat/sys_fstat` now populate OrenStatV0 `{a,m,c}time_ns` on macOS/Linux (arm64+x86_64), and the build scan cache is now stat-aware (`scan_cache_v3.txt`) to avoid re-reading unchanged sources during build-cache key computation (details in `docs/TODOS_ARCHIVE.md`).
-	   - Remaining (active): rtobj-miss (cold) path is still too slow in stage2-native due to runtime bundle decode + runtime decl compilation; keep pushing toward **< 10s** cold “compile one file” when caches are empty (see `docs/TODOS_ARCHIVE.md` for current measurements + profiling knobs; current is ~13s on arm64-macos stage2 for `examples/hello.oren`).
-			   - Hard gate (non-negotiable for rolling):
-			     - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
+		   - Recently completed: native `sys_stat/sys_lstat/sys_fstat` now populate OrenStatV0 `{a,m,c}time_ns` on macOS/Linux (arm64+x86_64), and the build scan cache is now stat-aware (`scan_cache_v3.txt`) to avoid re-reading unchanged sources during build-cache key computation (details in `docs/TODOS_ARCHIVE.md`).
+		   - Recently completed: native stage2 build-cache key computation is now bounded (no more multi-second “cache key compute” stalls):
+		     - rolling builds use a cheap stat-based compiler signature (avoid hashing the full `./oren_stage2` binary every run)
+		     - scan cache persistence happens after injected-runtime hashing (so the runtime include-closure is not re-walked each build)
+		     - scan cache serialization now uses a `u8_buf` builder (no O(n²) string concatenation) (details in `docs/TODOS_ARCHIVE.md`).
+		   - Remaining (active): rtobj-miss (cold) path is still too slow in stage2-native due to runtime bundle decode + runtime decl compilation; keep pushing toward **< 10s** cold “compile one file” when caches are empty (see `docs/TODOS_ARCHIVE.md` for current measurements + profiling knobs; current is ~20s on arm64-macos stage2 for `examples/hello.oren` in `./scripts/bench_native_compile_one_file.sh --no-debug` run-1 (isolated rtobj dir)).
+				   - Hard gate (non-negotiable for rolling):
+				     - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
 			     - Stage2 native backend “compile one file” (cache hit; non-capsule) should stay **< 4s** wall time on the primary dev host; regressions indicate a fundamental hot-path flaw to investigate.
 			     - Debug builds used by Tier‑1 fixtures must stay **< 10s** per `oren build ... --backend native --debug` step (default script timeout).
 	     - RSS should stay **< 300 MB** for the compilation process.

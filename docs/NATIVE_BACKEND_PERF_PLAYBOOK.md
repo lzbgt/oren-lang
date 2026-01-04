@@ -124,6 +124,30 @@ When diagnosing perf regressions:
 
 If you need deeper info, add **bounded** counters/phase timings rather than printing every event.
 
+### 4.4 Build cache key computation (don’t let it dominate builds)
+
+`oren build` computes a content-addressed **build cache key** *before* doing any expensive compilation work.
+
+If `cache key compute` is taking seconds, the compiler will feel “hung” even though the backend is fine.
+
+Practical workflow:
+
+- Run with bounded tracing:
+  - `OREN_TRACE_BUILD=1 oren build ...`
+- Look for:
+  - `[build] cache key compute +...ms`
+  - `[cache] injected_runtime_hash +...ms ...`
+
+Typical root cause:
+
+- The native backend injects `lib/runtime_native.oren` into every program, and the build cache key includes a hash of the injected runtime include-closure.
+- If the scan cache is not persisted (or is persisted via an O(n²) string concat path), the compiler ends up re-walking that closure on every `oren build` invocation.
+
+Policy (rolling):
+
+- The runtime include-closure hash should be **milliseconds** on a warm cache (`build/cache/scan_cache_v3.txt`).
+- If you need an emergency bypass while diagnosing, use `--no-cache` (but treat a multi-second cache-key as a bug to fix, not a “flag to keep”).
+
 ## 5) GC + string literal policy (perf + correctness)
 
 String literals in native output are **pooled and embedded** in the binary’s data segment (cstr0 pool).

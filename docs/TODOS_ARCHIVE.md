@@ -78,6 +78,19 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Docs:
   - `docs/BUILD_AND_VERIFY.md` documents the knobs.
 
+## Archived (2026-01-04) — Tooling: build cache key compute bounded (native stage2)
+
+- Problem:
+  - Stage2-native `oren build` can appear “hung” before compilation if build-cache key computation is slow.
+  - Root cause was injected runtime hashing (`lib/runtime_native.oren` include-closure) being re-walked every run, and scan-cache writes using O(n²) string concatenation.
+- Fixes (rolling):
+  - Build cache now persists the scan cache **after** injected-runtime hashing, so subsequent builds reuse `build/cache/scan_cache_v3.txt` records.
+  - Scan cache serialization now writes via a `u8_buf` builder + `oren_write_bytes`, avoiding O(n²) `out = out + ...` concatenation in hot tooling paths.
+  - Rolling build-cache compiler signature is now stat-based (path+size+mtime) to avoid hashing the full `./oren_stage2` binary on every build.
+  - Native runtime `oren_file_stat_size_mtime_ns` now uses a bounded scratch stat buffer and avoids allocating a resolve-pair in non-capsule mode.
+- Evidence (arm64-macos, stage2 compiler):
+  - With `OREN_TRACE_BUILD=1`, `[build] cache key compute` drops from multi-second to ~O(100ms) on a warm scan cache, and `[cache] injected_runtime_hash` becomes ~O(10ms).
+
 ## Archived (2026-01-04) — Native: stage2 hot-path perf (byte emit + astbin decode)
 
 - Native backend emit (arm64 + x86_64):

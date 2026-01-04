@@ -50,27 +50,54 @@ fn oren_stat_get_ctime_ns(st_ptr) {
     return oren_ptr_get_i64_le(st_ptr + oren_stat_off_ctime_ns())
 }
 
+// Hot-path scratch buffer for `sys_stat` ABI writes.
+//
+// Used by `oren_file_stat_size_mtime_ns` (compiler/tooling dependency scan) to avoid:
+// - per-call `malloc+free` churn
+// - per-call zeroing loops
+//
+// Rolling note:
+// - Today native runtime has no true threads; this is safe.
+// - Once M:N native scheduling introduces real OS threads, this must become TLS or be
+//   protected by a lock (or `sys_stat` should grow a direct "size+mtime" intrinsic).
+var g_stat_scratch = 0
+
+fn _oren_stat_scratch_ptr() {
+    if g_stat_scratch != 0 { return g_stat_scratch }
+    var n = oren_stat_size_bytes()
+    // Untracked, leak-by-design, bounded: shared scratch buffer.
+    var p = malloc(n)
+    if p == 0 { exit(286) }
+    g_stat_scratch = p
+    return p
+}
+
 @cap.requires(domain="FS")
 fn oren_file_stat_size_mtime_ns(path) {
     // Return [size_bytes, mtime_ns] (list<int> length 2), or an error map.
     //
     // This is used by compiler/tooling hot paths (build cache / dependency scanning) to avoid
     // reading large source files just to decide whether a cached record is still valid.
-    var pair = native_capsule_fs_path_resolve_pair(path, 0)
-    var rpath = ptr_get(pair + 0)
-    var owned = ptr_get(pair + 8)
-    free(pair)
+    // Avoid allocating the 16-byte resolve pair on non-capsule runs (common for local dev).
+    var rpath = path
+    var owned = 0
+    if global_get_capsule_mode() == 1 {
+        var pair = native_capsule_fs_path_resolve_pair(path, 0)
+        rpath = ptr_get(pair + 0)
+        owned = ptr_get(pair + 8)
+        free(pair)
+    } else {
+        native_capsule_require(CAP_FS, "FS")
+    }
 
-    var st = oren_stat_alloc()
+    var st = _oren_stat_scratch_ptr()
     var rc = sys_stat(rpath, st)
     if rc < 0 {
-        free(st)
         if owned == 1 { free(rpath) }
         return oren_err(2, "sys_stat failed")
     }
     var size = oren_stat_get_size(st)
     var mtime = oren_stat_get_mtime_ns(st)
-    free(st)
     if owned == 1 { free(rpath) }
     return [size, mtime]
 }
