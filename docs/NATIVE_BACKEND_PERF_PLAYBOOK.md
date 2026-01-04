@@ -27,6 +27,11 @@ Use these first because they are bounded and don’t produce huge logs.
 OREN_NATIVE_BUILD_TIMEOUT_SECS=60 ./scripts/bench_native_compile_one_file.sh --no-debug
 ```
 
+Note:
+
+- The benchmark script disables the rtobj “seed” fallback (`OREN_NATIVE_RUNTIME_OBJ_SEED_DIR=0`) so it measures a true miss → hit.
+  - For real user experience, it is recommended to keep a seed available (see `make rtobj-seed`).
+
 Optional bounded tracing:
 
 ```bash

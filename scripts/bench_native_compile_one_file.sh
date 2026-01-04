@@ -150,6 +150,10 @@ PY
 
 export OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$rtobj_dir"
 export OREN_TRACE_RUNTIME_OBJ_CACHE=1
+# Ensure the benchmark measures a true miss -> hit in the selected dirs.
+# If a seed dir is configured, the "miss" run could become a fast seed-hit and
+# hide cold-path regressions.
+export OREN_NATIVE_RUNTIME_OBJ_SEED_DIR="0"
 if [[ "$trace" -ne 0 ]]; then
   export OREN_TRACE_BUILD=1
 else

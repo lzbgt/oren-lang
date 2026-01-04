@@ -824,6 +824,14 @@ fn _x64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
         return _x64_rtobj_apply_data_and_meta_to_ctx(ctx, hit)
     }
 
+    // Optional seed fallback (see rtobj module docs): allows fast first-build even when the
+    // selected cache dir is empty.
+    var seed_hit = rtobj.rtobj_try_load_seed_into_cache(dir, key)
+    if seed_hit != nil {
+        if trace { print("[rtobj] seed-hit backend=x64 key=" + key) }
+        return _x64_rtobj_apply_data_and_meta_to_ctx(ctx, seed_hit)
+    }
+
     if trace { print("[rtobj] miss backend=x64 key=" + key + " (building)") }
     var built = _x64_build_runtime_obj(platform, runtime_path)
     if built == nil { return false }

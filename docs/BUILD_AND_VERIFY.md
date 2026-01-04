@@ -102,7 +102,15 @@ Environment knobs:
 
 - disable: `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`
 - override cache dir: `OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR=<dir>` (default: `build/cache/native_runtime_obj/`)
+- optional seed dir (fast first-run): `OREN_NATIVE_RUNTIME_OBJ_SEED_DIR=<dir>` (default: `build/cache/native_runtime_obj_seed/`; disable with `0`/`false`)
 - tracing (bounded): `OREN_TRACE_RUNTIME_OBJ_CACHE=1`
+
+Seed notes (rolling):
+
+- The seed is a normal rtobj cache entry copied to a stable location and used as a fallback on cache misses.
+- Generate/update it with:
+  - `make rtobj-seed`
+  - or `./scripts/build_rtobj_seed.sh --platform <arch-os>`
 
 ### Native Backend (Tier‑1 intent: arm64 + x86_64)
 Compiles directly to machine code (Mach-O / ELF / PE). Fast and dependency-free for the emitted artifact (no libc shims for native output).

@@ -85,9 +85,10 @@ Rules for this tracker:
 				         - Bumped x64 rtobj backend sig to invalidate cached runtime objects after wrapper emission strategy changes.
 					     - (performance) stage2-native runtime bundle cost remains high; keep iterating toward:
 			       - default: hashed runtime AST cache under `build/cache/native_runtime_astbin/` (disable via `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0`)
-		       - default (Tier‑1 throughput): cached compiled runtime object under `build/cache/native_runtime_obj/` (disable via `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`)
-		       - `OREN_NATIVE_RUNTIME_EXPANDED=...` troubleshooting fast-path (skip include expansion)
-		       - `OREN_NATIVE_RUNTIME_ASTBIN=...` troubleshooting fast-path (force a specific astbin file)
+			       - default (Tier‑1 throughput): cached compiled runtime object under `build/cache/native_runtime_obj/` (disable via `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`)
+			       - optional (fast first-run): rtobj “seed” dir under `build/cache/native_runtime_obj_seed/` (override via `OREN_NATIVE_RUNTIME_OBJ_SEED_DIR=...`, disable with `0`); generate with `make rtobj-seed`
+			       - `OREN_NATIVE_RUNTIME_EXPANDED=...` troubleshooting fast-path (skip include expansion)
+			       - `OREN_NATIVE_RUNTIME_ASTBIN=...` troubleshooting fast-path (force a specific astbin file)
 			       - Status (rolling, 2026-01-03):
 			         - Implemented: arm64 + x86_64 native backend runtime object cache (default-on for non-capsule builds; works for debug and non-debug) so “compile one file” can skip recompiling `lib/runtime_native.oren` on cache hit.
 			         - Implemented: runtime object cache schema v2 (fast runtime fingerprint for cache selection; avoids expensive SHA-256 on the expanded runtime in stage2-native hot paths).

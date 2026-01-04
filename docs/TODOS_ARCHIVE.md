@@ -91,6 +91,20 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Evidence (arm64-macos, stage2 compiler):
   - With `OREN_TRACE_BUILD=1`, `[build] cache key compute` drops from multi-second to ~O(100ms) on a warm scan cache, and `[cache] injected_runtime_hash` becomes ~O(10ms).
 
+## Archived (2026-01-04) — Native: rtobj seed fallback (fast first-run builds)
+
+- Problem:
+  - Even with caching, a true rtobj miss (empty cache dir) can cost ~20s on arm64-macos because it has to decode the runtime astbin and compile hundreds of runtime decls.
+  - This is especially painful in ephemeral environments (CI) or when users isolate cache dirs.
+- Fix (rolling, sysroot-like behavior):
+  - Added an **optional rtobj seed directory** (`build/cache/native_runtime_obj_seed/` by default).
+  - On rtobj cache miss, the compiler attempts to load a matching seed entry and (if found) copies the raw bytes into the active cache dir (without re-encoding meta).
+  - Added tooling to generate/update the seed from an existing cache entry:
+    - `make rtobj-seed`
+    - `./scripts/build_rtobj_seed.sh`
+- Notes:
+  - The benchmark script disables the seed fallback so it still measures true miss→hit.
+
 ## Archived (2026-01-04) — Native: stage2 hot-path perf (byte emit + astbin decode)
 
 - Native backend emit (arm64 + x86_64):

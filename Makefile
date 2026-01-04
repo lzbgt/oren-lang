@@ -2,6 +2,7 @@
 .PHONY: test-native-quick test-native-quick-stage2 verify-native-quick
 .PHONY: verify-native-x64-compile
 .PHONY: bench-native-compile
+.PHONY: rtobj-seed
 
 # Default target: Build Stage 1 compiler
 all: oren
@@ -200,6 +201,15 @@ oren_stage2: oren $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 bootstrap: oren_bootstrap
 stage1: oren
 stage2: oren_stage2
+
+# Generate/update rtobj seed for the host platform (best-effort).
+# This keeps first-run stage2-native builds fast even when the active rtobj cache dir is empty.
+rtobj-seed: oren_stage2
+	@if [ -n "$(HOST_PLATFORM)" ]; then \
+		./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler ./oren_stage2 --no-debug || true; \
+	else \
+		echo "NOTE: host platform unknown; skipping rtobj seed"; \
+	fi
 
 # --- Testing & Verification ---
 

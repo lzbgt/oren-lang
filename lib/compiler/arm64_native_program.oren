@@ -614,6 +614,26 @@ fn _arm64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
         return ok_hit
     }
 
+    // Optional seed fallback: allows "first build" to be fast even when the selected cache dir
+    // is empty (e.g. benchmarking scripts that isolate cache dirs).
+    var seed_hit = rtobj.rtobj_try_load_seed_into_cache(dir, key)
+    if seed_hit != nil {
+        if trace { print("[rtobj] seed-hit backend=arm64 key=" + key) }
+        var ok_seed = _arm64_rtobj_apply_to_ctx(ctx, seed_hit)
+        if trace {
+            var cg_seed = ctx["globals"]
+            var cgn_seed = 0
+            if cg_seed != nil { cgn_seed = oren_map_len(cg_seed) }
+            var have_seed = 0
+            if cg_seed != nil {
+                var vv_seed = cg_seed["g_target_os"]
+                if vv_seed != nil { have_seed = 1 }
+            }
+            print("[rtobj] ctx globals len=" + oren_int_to_string(cgn_seed) + " g_target_os_present=" + oren_int_to_string(have_seed))
+        }
+        return ok_seed
+    }
+
     if trace { print("[rtobj] miss backend=arm64 key=" + key + " (building)") }
     var built = _arm64_build_runtime_obj(platform, runtime_path)
     if built == nil { return false }
