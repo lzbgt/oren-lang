@@ -140,12 +140,13 @@ Rules for this tracker:
      - `docs/SELF_HOSTING.md`
 
 10) **Tests & iteration speed (integration-first; backend/arch neutral by default)** (S)
-   - Keep `make test` (native quick smoke) iteration-fast and deterministic.
-   - Prefer a small number of high-signal integration suites + fixtures as living spec.
-   - Keep tests hermetic: avoid relying on host shells or external utilities (prefer helper binaries built from Oren sources + explicit `oren_proc_spawn`).
-   - Keep tests OS-neutral: avoid asserting platform `struct stat` layouts; prefer Oren-owned stable ABIs (e.g. OrenStatV0 via `oren_stat_alloc()`).
-   - Make test tooling robust in minimal environments too: avoid relying on host shells/utilities in test programs.
-   - Reference: `docs/TEST_SYSTEM.md`
+	   - Keep `make test` (native quick smoke) iteration-fast and deterministic.
+	   - Prefer a small number of high-signal integration suites + fixtures as living spec.
+	   - Cross-arch: `./scripts/verify_native_matrix.sh` has opt-in Tier‑1 fixture targets (`x64-win-tier1`, `x64-wsl-tier1`) in addition to the fast quick-integration matrix.
+	   - Keep tests hermetic: avoid relying on host shells or external utilities (prefer helper binaries built from Oren sources + explicit `oren_proc_spawn`).
+	   - Keep tests OS-neutral: avoid asserting platform `struct stat` layouts; prefer Oren-owned stable ABIs (e.g. OrenStatV0 via `oren_stat_alloc()`).
+	   - Make test tooling robust in minimal environments too: avoid relying on host shells/utilities in test programs.
+	   - Reference: `docs/TEST_SYSTEM.md`
 
 ## P1 (Soon)
 

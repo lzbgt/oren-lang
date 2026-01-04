@@ -26,6 +26,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 TEST_SRC="tests/native/test_quick_integration_native.oren"
+TIER1_SRC="tests/fixtures/tier1_native_smoke_main.oren"
 
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
@@ -53,11 +54,14 @@ Targets (comma-separated):
   arm64-linux run linux/arm64 in docker container
   x64-win     run x64-windows on remote Win11
   x64-wsl     run x64-linux under remote WSL2
+  x64-win-tier1  (opt-in) run Tier‑1 native smoke fixture on remote Win11
+  x64-wsl-tier1  (opt-in) run Tier‑1 native smoke fixture under remote WSL2
 
 Examples:
   ./scripts/verify_native_matrix.sh
   ./scripts/verify_native_matrix.sh --targets stage0,stage1,stage2,local
   ./scripts/verify_native_matrix.sh --targets x64-win,x64-wsl
+  ./scripts/verify_native_matrix.sh --targets x64-win-tier1
   ./scripts/verify_native_matrix.sh --targets x64-wsl --trace
 
 Env overrides:
@@ -144,6 +148,8 @@ normalize_target() {
     starge2) echo stage2 ;;
     win|windows|x64-windows) echo x64-win ;;
     wsl|x64-linux|linux-x64) echo x64-wsl ;;
+    win-tier1|windows-tier1|x64-windows-tier1) echo x64-win-tier1 ;;
+    wsl-tier1|x64-linux-tier1|linux-x64-tier1) echo x64-wsl-tier1 ;;
     *) echo "$t" ;;
   esac
 }
@@ -177,7 +183,7 @@ if [[ "$LOCAL_ONLY" -eq 0 ]]; then
   if has_target arm64-linux; then
     need_bin docker
   fi
-  if has_target x64-win || has_target x64-wsl; then
+  if has_target x64-win || has_target x64-wsl || has_target x64-win-tier1 || has_target x64-wsl-tier1; then
     need_bin ssh
     need_bin scp
     need_bin socat
@@ -250,23 +256,31 @@ if [[ "$LOCAL_ONLY" -ne 0 ]]; then
   exit 0
 fi
 
-build_native_bin() {
+build_native_bin_src() {
   local compiler="$1"
   local platform="$2"
-  local out="$3"
+  local src="$3"
+  local out="$4"
 
   if [[ ! -x "$compiler" ]]; then
     echo "ERROR: missing compiler executable: $compiler (build with: make stage1 stage2)" >&2
     exit 2
   fi
   set +e
-  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$TEST_SRC" --backend native --platform "$platform" --debug -o "$out"
+  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$src" --backend native --platform "$platform" --debug -o "$out"
   local rc=$?
   set -e
   if [[ "$rc" -ne 0 ]]; then
-    echo "ERROR: build failed or timed out: compiler=$compiler platform=$platform timeout=${BUILD_TIMEOUT_SECS}s" >&2
+    echo "ERROR: build failed or timed out: compiler=$compiler platform=$platform src=$src timeout=${BUILD_TIMEOUT_SECS}s" >&2
     exit "$rc"
   fi
+}
+
+build_native_bin() {
+  local compiler="$1"
+  local platform="$2"
+  local out="$3"
+  build_native_bin_src "$compiler" "$platform" "$TEST_SRC" "$out"
 }
 
 run_in_linux_container() {
@@ -368,7 +382,7 @@ if has_target arm64-linux; then
   log "OK: linux/arm64 container"
 fi
 
-if has_target x64-win || has_target x64-wsl; then
+if has_target x64-win || has_target x64-wsl || has_target x64-win-tier1 || has_target x64-wsl-tier1; then
   log "== verify: remote x64 Windows + WSL2 via ${REMOTE_HOST} =="
   remote_mkdir
 fi
@@ -386,6 +400,19 @@ if has_target x64-win; then
   log "OK: remote Win11 x64"
 fi
 
+if has_target x64-win-tier1; then
+  build_native_bin_src "./oren" "x64-windows" "$TIER1_SRC" "build/tmp/tier1_stage1_x64_windows.exe"
+  build_native_bin_src "./oren_stage2" "x64-windows" "$TIER1_SRC" "build/tmp/tier1_stage2_x64_windows.exe"
+
+  remote_upload "build/tmp/tier1_stage1_x64_windows.exe" "tier1_stage1_x64_windows.exe"
+  remote_upload "build/tmp/tier1_stage2_x64_windows.exe" "tier1_stage2_x64_windows.exe"
+
+  log "-- run: Win11 Tier‑1 native smoke (x64-windows) --"
+  remote_run_win "tier1_stage1_x64_windows.exe"
+  remote_run_win "tier1_stage2_x64_windows.exe"
+  log "OK: remote Win11 x64 tier1"
+fi
+
 if has_target x64-wsl; then
   build_native_bin "./oren" "x64-linux" "build/tmp/qi_stage1_x64_linux"
   build_native_bin "./oren_stage2" "x64-linux" "build/tmp/qi_stage2_x64_linux"
@@ -397,6 +424,19 @@ if has_target x64-wsl; then
   remote_run_wsl "qi_stage1_x64_linux"
   remote_run_wsl "qi_stage2_x64_linux"
   log "OK: remote WSL2 x64"
+fi
+
+if has_target x64-wsl-tier1; then
+  build_native_bin_src "./oren" "x64-linux" "$TIER1_SRC" "build/tmp/tier1_stage1_x64_linux"
+  build_native_bin_src "./oren_stage2" "x64-linux" "$TIER1_SRC" "build/tmp/tier1_stage2_x64_linux"
+
+  remote_upload "build/tmp/tier1_stage1_x64_linux" "tier1_stage1_x64_linux"
+  remote_upload "build/tmp/tier1_stage2_x64_linux" "tier1_stage2_x64_linux"
+
+  log "-- run: WSL2 Tier‑1 native smoke (x64-linux) --"
+  remote_run_wsl "tier1_stage1_x64_linux"
+  remote_run_wsl "tier1_stage2_x64_linux"
+  log "OK: remote WSL2 x64 tier1"
 fi
 
 log "ALL OK: native matrix verification passed"
