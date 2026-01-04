@@ -75,6 +75,23 @@ if [[ "$seed_dir" = "0" || "$seed_dir" = "false" ]]; then
   exit 0
 fi
 
+# Fast no-op path:
+# If the seed dir already contains (at least) both runtime variants for this OS, skip rebuilding.
+# This keeps `make stage2` bounded in tight edit/verify loops.
+#
+# Force rebuild by setting:
+#   OREN_FORCE_RUNTIME_ASTBIN_SEED=1
+if [[ -d "$seed_dir" && -z "${OREN_FORCE_RUNTIME_ASTBIN_SEED:-}" ]]; then
+  os="${platform#*-}"
+  n="$(
+    ls -1 "$seed_dir" 2>/dev/null | rg "_os_${os}_pruned3\\.astbin$" | wc -l | tr -d ' '
+  )"
+  if [[ "$n" -ge 2 ]]; then
+    echo "OK: runtime astbin seed already present (os=$os files=$n)" >&2
+    exit 0
+  fi
+fi
+
 if [[ ! -x "$compiler" ]]; then
   echo "ERROR: compiler not found/executable: $compiler" >&2
   echo "Hint: build it with: make stage1 (./oren) or set --compiler ./oren_stage2" >&2

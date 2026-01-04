@@ -75,6 +75,7 @@ On stage2-native compilers this can dominate build time, so the compiler maintai
 - override cache dir: `OREN_NATIVE_RUNTIME_ASTBIN_CACHE_DIR=<dir>`
 - optional seed dir (fast cold-cache; esp. capsule): `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR=<dir>` (default: `build/cache/native_runtime_astbin_seed/`; disable with `0`/`false`)
   - generator: `make astbin-seed` (uses stage1 `./oren` to pre-warm)
+  - `make astbin-seed` is best-effort and skips work if the seed already exists; force refresh with `OREN_FORCE_RUNTIME_ASTBIN_SEED=1`
 
 Troubleshooting overrides (force a specific input, bypassing default behavior):
 

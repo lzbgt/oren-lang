@@ -103,9 +103,11 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Added an optional runtime-astbin **seed directory**:
     - env: `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR` (default: `build/cache/native_runtime_astbin_seed/`; disable with `0`/`false`)
     - on runtime astbin cache miss, the native runtime bundle loader tries to read the matching astbin from the seed dir and copies it into the active cache dir
-  - Added generator tooling:
-    - `scripts/build_runtime_astbin_seed.sh`
-    - `make astbin-seed` (best-effort) and `make stage2` now runs it so typical dev setups have the seed pre-warmed
+- Added generator tooling:
+  - `scripts/build_runtime_astbin_seed.sh`
+  - `make astbin-seed` (best-effort) and `make stage2` now runs it so typical dev setups have the seed pre-warmed
+- Iteration guardrail:
+  - `make astbin-seed` is now idempotent and fast in tight loops (skips if seed is already populated; force with `OREN_FORCE_RUNTIME_ASTBIN_SEED=1`).
 - Verified:
   - `./scripts/verify_native_matrix.sh --targets local,arm64-linux`
   - `make verify-native-quick`
