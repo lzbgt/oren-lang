@@ -1,33 +1,13 @@
-# Build outputs
-/oren_bootstrap
-/oren_boostrap
-/oren
-/oren_stage*
-*.o
-*.dSYM/
-/oretest
-/oredoc
-
-
-# Generated C
-*.oren.c
-
-# Bytecode / libs / misc artifacts
-*.obc
-*.otool
-*.dylib
-*.so
-/avm
-
-# Test/build byproducts (keep sources)
-tests/native/*
-!tests/native/*.oren
-!tests/native/tools/
-!tests/native/tools/*.oren
-!tests/native/fixtures/
-!tests/native/fixtures/*.oren
-tests/modules/*
-!tests/modules/*.oren
-
-.DS_Store
+__pycache__/
+*.pyc
 build/
+*.dSYM/
+oren
+oren_stage2
+oren_stage2_dbg
+oren_bootstrap
+oren_boostrap
+oredoc
+orensign
+oretest
+*.oren.c

@@ -56,7 +56,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
     - `__oren_pruned_target_os_id`
     - `__oren_pruned_target_os_kind="g_target_os"`
   - The runtime bundle loader skips redundant pruning when the marker matches the target.
-  - If the cache file is supposed to be pruned (`*_pruned2.astbin`) but is missing the marker or still contains prunable branches,
+  - If the cache file is supposed to be pruned (`*_pruned3.astbin`) but is missing the marker or still contains prunable branches,
     the loader does a best-effort rewrite once (decode → prune → re-encode) so subsequent runs decode less.
 - astbin v2 encoder guardrail (large ASTs):
   - Added a heuristic pre-sizing step for the v2 string pool index map when encoding large Program ASTs (based on statement count).
@@ -65,9 +65,32 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `oren_intern_cstr` now returns already-classified string literals unchanged (does not copy literals into the GC heap).
   - Rooted `g_intern_cstr_cache` (map) so it cannot be reclaimed by a collection (native GC scans stacks, not arbitrary globals yet).
 - Evidence (arm64-macos, stage2 compiler, `./scripts/bench_native_compile_one_file.sh --no-debug`):
-  - runtime bundle cache decode (pruned2): ~`2.8s` after cache rewrite/marker is present
+  - runtime bundle cache decode (pruned3): ~`2.8s` after cache rewrite/marker is present
   - rtobj miss: ~`13s`
   - rtobj hit: ~`3.6s` (still under the `<4s` gate)
+
+## Archived (2026-01-04) — Native: capsule segfault from stale pruned runtime cache (pprune tri-state fix)
+
+- Symptom (arm64-macos, stage2 native backend, `--capsule`):
+  - Building+runnning `tests/native/fixtures/capsule_ok.oren` could crash at startup (`RC=139` / `EXC_BAD_ACCESS address=0x0`).
+  - Crash root was inside a runtime allocator helper (`native_alloc_index_get`) where null/invalid pointers were being dereferenced.
+- Root cause (compiler correctness, not codegen):
+  - The runtime source contained guard `if` statements, but the platform-prune pass (`native_platform_prune.oren`) could incorrectly prune them away.
+  - The trigger was a tri-state “true/false/unknown” helper returning `nil` for “unknown”:
+    - under the native value model, `nil` collapses into the same immediate bucket as `false/0`,
+    - so checks like `if v == false { ... }` treated `unknown(nil)` as `false` and pruned arbitrary `if`s.
+  - A previously-written pruned runtime astbin cache could preserve the buggy pruned-away guards, so even after fixing the pass, builds could still crash until the cache was regenerated.
+- Fixes:
+  - `native_platform_prune.oren`: moved tri-state evaluation to explicit integer states (`1=true`, `-1=false`, `0=unknown`) to avoid `nil` sentinels.
+  - `native_platform_prune.oren`: pruning now records `__oren_pruned_target_os_cache_gen=3` on the pruned program.
+  - `native_runtime_bundle.oren`: bumped pruned cache suffix to `_pruned3.astbin` and rejects older “pruned” caches when the generation marker is missing/mismatched (falls back to the plain cache and re-prunes, which preserves guard statements).
+  - Added a fast capsule regression gate:
+    - `scripts/run_native_capsule_smoke.sh`
+    - wired into `make verify-native-quick`
+- Verified:
+  - `make test`
+  - `make verify-native-quick`
+  - `make verify-native-x64-compile`
 
 ## Archived (2026-01-04) — Tooling: bounded build timing summary (no huge logs)
 

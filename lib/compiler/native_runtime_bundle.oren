@@ -326,6 +326,99 @@ fn _bundle_tag_stmt_list(stmts, is_runtime) {
     return nil
 }
 
+fn _rt_bundle_trace_fn_shape(runtime_prog, stage) {
+    // Bounded debug aid:
+    //   OREN_TRACE_NATIVE_RUNTIME_FN=native_alloc_index_get ./oren_stage2 build ...
+    //
+    // Prints only the first few statement node kinds in the function body to avoid
+    // flooding logs / token budgets.
+    var want = oren_env("OREN_TRACE_NATIVE_RUNTIME_FN")
+    if want == nil || want == "" { return nil }
+    if runtime_prog == nil { return nil }
+    var sts = runtime_prog["statements"]
+    if sts == nil { return nil }
+
+    var i = 0
+    while i < oren_list_len(sts) {
+        var st = sts[i]
+        var fn0 = nil
+        if st != nil && st["type"] == "Function" {
+            fn0 = st
+        } else if st != nil && st["type"] == "ExprStmt" {
+            var e = st["expr"]
+            if e != nil && e["type"] == "Function" { fn0 = e }
+        }
+        if fn0 != nil && fn0["name"] == want {
+            var body = fn0["body"]
+            var bs = []
+            if body != nil && body["type"] == "Block" { bs = body["stmts"] }
+            if bs == nil { bs = [] }
+
+            var tok = fn0["token"]
+            var f = "<unknown>"
+            var ln = 0
+            var col = 0
+            if tok != nil {
+                if tok["file"] != nil { f = tok["file"] }
+                if tok["line"] != nil { ln = tok["line"] }
+                if tok["col"] != nil { col = tok["col"] }
+            }
+            var out = ""
+            var j = 0
+            var n = oren_list_len(bs)
+            if n > 12 { n = 12 }
+            while j < n {
+                var st2 = bs[j]
+                var tag = "nil"
+                if st2 != nil {
+                    tag = st2["type"]
+                    if tag == "ExprStmt" {
+                        var e2 = st2["expr"]
+                        if e2 != nil && e2["type"] != nil {
+                            tag = "ExprStmt(" + e2["type"] + ")"
+                            if e2["type"] == "If" && j < 3 {
+                                var c0 = e2["cond"]
+                                if c0 != nil {
+                                    var ct = c0["type"]
+                                    if ct == nil { ct = "?" }
+                                    var extra = " cond=" + ct
+                                    if ct == "Infix" {
+                                        var op0 = c0["op"]
+                                        if op0 == nil { op0 = "?" }
+                                        extra = extra + " op=" + op0
+                                        var l0 = c0["left"]
+                                        if l0 != nil && l0["type"] == "Identifier" && l0["value"] != nil {
+                                            extra = extra + " left=" + l0["value"]
+                                        }
+                                        var r0 = c0["right"]
+                                        if r0 != nil && r0["type"] == "Identifier" && r0["value"] != nil {
+                                            extra = extra + " right=" + r0["value"]
+                                        }
+                                    }
+                                    tag = tag + extra
+                                }
+                            }
+                        }
+                    }
+                }
+                if j == 0 { out = tag } else { out = out + "," + tag }
+                j = j + 1
+            }
+            var stg = stage
+            if stg == nil { stg = "" }
+            if stg != "" { stg = " stage=" + stg }
+            print("[rt_bundle] trace fn=" + want + stg + " at " + f + ":" + oren_int_to_string(ln) + ":" + oren_int_to_string(col) + " body_stmts=" + oren_int_to_string(oren_list_len(bs)) + " body_first=" + out)
+            return nil
+        }
+        i = i + 1
+    }
+    var stg2 = stage
+    if stg2 == nil { stg2 = "" }
+    if stg2 != "" { stg2 = " stage=" + stg2 }
+    print("[rt_bundle] trace fn=" + want + stg2 + " not_found")
+    return nil
+}
+
 fn _bundle_split_stmt_list_by_runtime_tag(stmts) {
     // Split linked statements into:
     // - runtime statements (tagged __oren_from_runtime=true)
@@ -556,8 +649,10 @@ fn _load_and_parse_runtime_native_impl(ctx, runtime_path, platform) {
         }
         // Mark as runtime so platform pruning can apply.
         _bundle_tag_stmt_list(prog0["statements"], true)
+        _rt_bundle_trace_fn_shape(prog0, "pre_pprune")
         // Prune dead `g_target_os` branches for targeted builds (best-effort; no-op when unknown).
         pprune.prune_runtime_os_branches_in_linked_program_in_place(prog0, platform)
+        _rt_bundle_trace_fn_shape(prog0, "post_pprune")
         if _rt_bundle_validate_runtime_prog(ctx, prog0, runtime_path) == false { return nil }
         if trace {
             var dtA = oren_time_now_ns() - t_ast0
@@ -641,7 +736,7 @@ fn _load_and_parse_runtime_native_impl(ctx, runtime_path, platform) {
         cache_astbin_v2 = cache_astbin_v2_plain
         if _rt_bundle_pruned_cache_enabled() == true {
             // Bump suffix when pruning/encoding strategy changes so stale caches don't mask wins.
-            cache_astbin_v2_pruned = cache_dir + "/" + fp2 + "_" + os_key + "_pruned2.astbin"
+            cache_astbin_v2_pruned = cache_dir + "/" + fp2 + "_" + os_key + "_pruned3.astbin"
             cache_astbin_v2_pruned_legacy = cache_dir + "/" + fp2 + "_" + os_key + "_pruned.astbin"
             cache_astbin_v2 = cache_astbin_v2_pruned
         }
@@ -661,9 +756,22 @@ fn _load_and_parse_runtime_native_impl(ctx, runtime_path, platform) {
                 var os_id2 = _rt_bundle_platform_os_id(platform)
                 var already_pruned = false
                 if os_id2 != 0 && prog_hit["__oren_pruned_target_os_id"] == os_id2 && prog_hit["__oren_pruned_target_os_kind"] == "g_target_os" {
-                    already_pruned = true
+                    // For pruned cache entries, require a prune-generation marker too.
+                    // If missing/mismatched, treat the cache as unsafe and fall back to the plain cache,
+                    // because re-pruning an already-pruned AST cannot recover pruned-away statements.
+                    if cache_astbin_v2_pruned != nil && cache_astbin_v2 == cache_astbin_v2_pruned {
+                        if prog_hit["__oren_pruned_target_os_cache_gen"] == 3 {
+                            already_pruned = true
+                        } else {
+                            if trace { print("[rt_bundle] cache astbin miss (stale pruned gen), falling back") }
+                            already_pruned = false
+                            prog_hit = nil
+                        }
+                    } else {
+                        already_pruned = true
+                    }
                 }
-                if already_pruned == false {
+                if prog_hit != nil && already_pruned == false {
                     pprune.prune_runtime_os_branches_in_linked_program_in_place(prog_hit, platform)
                     // If this cache file is expected to be the pruned variant, but we still had to
                     // prune after decoding, opportunistically rewrite it so future runs decode less.
@@ -682,12 +790,16 @@ fn _load_and_parse_runtime_native_impl(ctx, runtime_path, platform) {
                         }
                     }
                 }
-                if _rt_bundle_validate_runtime_prog(ctx, prog_hit, runtime_path) == false { return nil }
-                if trace {
-                    var dt_hit = oren_time_now_ns() - t_hit0
-                    print("[rt_bundle] cache astbin decode done +" + oren_int_to_string(dt_hit / 1000000) + "ms")
+                if prog_hit == nil {
+                    // fall through to other cache paths
+                } else {
+                    if _rt_bundle_validate_runtime_prog(ctx, prog_hit, runtime_path) == false { return nil }
+                    if trace {
+                        var dt_hit = oren_time_now_ns() - t_hit0
+                        print("[rt_bundle] cache astbin decode done +" + oren_int_to_string(dt_hit / 1000000) + "ms")
+                    }
+                    return prog_hit
                 }
-                return prog_hit
             }
             if trace { print("[rt_bundle] cache astbin miss (decode failed), falling back") }
         }
@@ -700,6 +812,15 @@ fn _load_and_parse_runtime_native_impl(ctx, runtime_path, platform) {
                 var prog_pr_leg = astbin.astbin_decode(bs_pr_leg)
                 if prog_pr_leg != nil {
                     _bundle_tag_stmt_list(prog_pr_leg["statements"], true)
+                    // Legacy pruned caches are unsafe across pruning behavior changes: if a buggy
+                    // prune removed statements, the AST cannot be recovered by "re-pruning".
+                    // Only accept legacy pruned caches if they carry the current prune generation.
+                    if prog_pr_leg["__oren_pruned_target_os_cache_gen"] != 3 {
+                        if trace { print("[rt_bundle] cache astbin miss (legacy pruned stale gen), falling back") }
+                        prog_pr_leg = nil
+                    }
+                }
+                if prog_pr_leg != nil {
                     var os_id3 = _rt_bundle_platform_os_id(platform)
                     var already_pruned2 = false
                     if os_id3 != 0 && prog_pr_leg["__oren_pruned_target_os_id"] == os_id3 && prog_pr_leg["__oren_pruned_target_os_kind"] == "g_target_os" {
@@ -884,8 +1005,10 @@ fn _load_and_parse_runtime_native_impl(ctx, runtime_path, platform) {
 
     // Mark as runtime so platform pruning can apply.
     _bundle_tag_stmt_list(runtime_prog["statements"], true)
+    _rt_bundle_trace_fn_shape(runtime_prog, "pre_pprune")
     // Prune dead `g_target_os` branches before validation and caching.
     pprune.prune_runtime_os_branches_in_linked_program_in_place(runtime_prog, platform)
+    _rt_bundle_trace_fn_shape(runtime_prog, "post_pprune")
     if _rt_bundle_validate_runtime_prog(ctx, runtime_prog, runtime_path) == false { return nil }
 
     // Optional: dump the parsed runtime AST to astbin for fast future loads.

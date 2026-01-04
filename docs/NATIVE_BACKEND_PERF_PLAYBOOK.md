@@ -81,15 +81,27 @@ The compiler caches the expanded+parsed native runtime under `build/cache/native
 Rolling policy:
 
 - Per-target-OS cache files use suffixes like:
-  - `*_os_macos_pruned2.astbin`
-  - `*_os_linux_pruned2.astbin`
+  - `*_os_macos_pruned3.astbin`
+  - `*_os_linux_pruned3.astbin`
 - These are expected to already have dead `g_target_os` branches pruned.
   - The pruned program is marked with:
     - `__oren_pruned_target_os_id`
     - `__oren_pruned_target_os_kind="g_target_os"`
+    - `__oren_pruned_target_os_cache_gen` (bump when pruning behavior changes)
 - If you see runtime OS pruning happening on an astbin cache hit (`OREN_TRACE_RUNTIME_OS_PRUNE=1`),
   treat it as a stale/unpruned cache file. The compiler will attempt a best-effort rewrite, which can
   be expensive once. After rewrite, runtime astbin decode should be materially faster.
+
+### 4.0.1 Don’t use `nil` as a tri-state sentinel in compiler passes (native backend)
+
+Some compiler passes want a tri-state “true / false / unknown”.
+
+In the native backend, **do not** use `nil` to mean “unknown” if the result is later compared with
+`== false` / `!= true`-style checks: under the current native value model, `nil` can collapse into
+the same immediate as `false`/`0`, which can silently flip pruning decisions.
+
+Preferred pattern: return an explicit integer state (`1=true`, `-1=false`, `0=unknown`) and compare
+it with exact integer tests.
 
 ### 4.1 Per-byte helper calls in tight loops
 

@@ -31,7 +31,7 @@ fn _count_prunable_target_os_ifs_in_stmt(stmt, os_id) {
 
     if t == "If" {
         var v = _eval_cond_is_target_os(stmt["cond"], os_id)
-        if v == true || v == false { out = 1 }
+        if v == 1 || v == -1 { out = 1 }
         out = out + _count_prunable_target_os_ifs_in_stmt(stmt["consq"], os_id)
         if stmt["alt"] != nil { out = out + _count_prunable_target_os_ifs_in_stmt(stmt["alt"], os_id) }
         return out
@@ -40,7 +40,7 @@ fn _count_prunable_target_os_ifs_in_stmt(stmt, os_id) {
         var e = stmt["expr"]
         if e != nil && e["type"] == "If" {
             var v2 = _eval_cond_is_target_os(e["cond"], os_id)
-            if v2 == true || v2 == false { out = 1 }
+            if v2 == 1 || v2 == -1 { out = 1 }
             out = out + _count_prunable_target_os_ifs_in_stmt(e["consq"], os_id)
             if e["alt"] != nil { out = out + _count_prunable_target_os_ifs_in_stmt(e["alt"], os_id) }
             return out
@@ -88,39 +88,51 @@ fn _expr_parse_int_lit(expr) {
 }
 
 fn _eval_cond_is_target_os(cond, os_id) {
-    // Returns:
-    // - true/false when we can prove the condition constant from `g_target_os`
-    // - nil otherwise
-    if cond == nil { return nil }
+    // Returns a tri-state integer:
+    // -  1: condition is provably true
+    // - -1: condition is provably false
+    // -  0: unknown / cannot prove
+    //
+    // IMPORTANT (native runtime / stage2-native):
+    // Do NOT use `nil` as the "unknown" sentinel here.
+    // Today `nil/false/0` collapse to 0 under the native runtime model, so comparisons like
+    // `v == false` will treat `nil` as false and can incorrectly prune non-target branches.
+    if cond == nil { return 0 }
     var t = cond["type"]
-    if t == "Boolean" { return cond["value"] }
-    if t == "Prefix" {
-        if cond["op"] != "!" { return nil }
-        var v = _eval_cond_is_target_os(cond["right"], os_id)
-        if v == nil { return nil }
-        return !v
+    if t == "Boolean" {
+        if cond["value"] == true { return 1 }
+        return -1
     }
-    if t != "Infix" { return nil }
-
+    if t == "Prefix" {
+        if cond["op"] != "!" { return 0 }
+        var v = _eval_cond_is_target_os(cond["right"], os_id)
+        if v == 0 { return 0 }
+        if v == 1 { return -1 }
+        return 1
+    }
+    if t != "Infix" { return 0 }
+    
     var op = cond["op"]
-    if op != "==" && op != "!=" { return nil }
-
+    if op != "==" && op != "!=" { return 0 }
+    
     var left = cond["left"]
     var right = cond["right"]
-
+    
     var lit = nil
     if _expr_is_ident_named(left, "g_target_os") {
         lit = _expr_parse_int_lit(right)
     } else if _expr_is_ident_named(right, "g_target_os") {
         lit = _expr_parse_int_lit(left)
     } else {
-        return nil
+        return 0
     }
-    if oren_is_err(lit) { return nil }
-
+    if oren_is_err(lit) { return 0 }
+    
     var eq = (os_id == lit)
-    if op == "==" { return eq }
-    return !eq
+    var ok = eq
+    if op == "!=" { ok = !eq }
+    if ok == true { return 1 }
+    return -1
 }
 
 fn _prune_stmt_keep_one(stmt, os_id) {
@@ -162,10 +174,10 @@ fn _prune_stmt(stmt, os_id) {
         var e = stmt["expr"]
         if e != nil && e["type"] == "If" {
             var v0 = _eval_cond_is_target_os(e["cond"], os_id)
-            if v0 == true {
+            if v0 == 1 {
                 return _prune_stmt(e["consq"], os_id)
             }
-            if v0 == false {
+            if v0 == -1 {
                 if e["alt"] != nil { return _prune_stmt(e["alt"], os_id) }
                 return []
             }
@@ -187,10 +199,10 @@ fn _prune_stmt(stmt, os_id) {
 
     if t == "If" {
         var v = _eval_cond_is_target_os(stmt["cond"], os_id)
-        if v == true {
+        if v == 1 {
             return _prune_stmt(stmt["consq"], os_id)
         }
-        if v == false {
+        if v == -1 {
             if stmt["alt"] != nil { return _prune_stmt(stmt["alt"], os_id) }
             return []
         }
@@ -239,6 +251,10 @@ fn prune_runtime_os_branches_in_linked_program_in_place(linked, platform) {
     // This relies on astbin encoding preserving unknown top-level keys (program is a map).
     linked["__oren_pruned_target_os_id"] = os_id
     linked["__oren_pruned_target_os_kind"] = "g_target_os"
+    // Bump this when pruning behavior changes in a way that makes old pruned caches unsafe.
+    // (Unlike runtime source text changes, pruning bugs can change emitted code without changing
+    // the cache key input; stale pruned ASTs can mask correctness regressions.)
+    linked["__oren_pruned_target_os_cache_gen"] = 3
 
     var trace = oren_env("OREN_TRACE_RUNTIME_OS_PRUNE") != nil
     var before = 0

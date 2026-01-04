@@ -1,5 +1,5 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
-.PHONY: test-native-quick test-native-quick-stage2 verify-native-quick
+.PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick
 .PHONY: verify-native-x64-compile
 .PHONY: bench-native-compile
 .PHONY: perf-guard-native-hit
@@ -224,8 +224,12 @@ test-native-quick: oren
 test-native-quick-stage2: oren_stage2
 	@./scripts/run_native_quick_integration.sh ./oren_stage2
 
+# Capsule smoke (stage2): build+run a minimal pure-compute capsule fixture.
+test-native-capsule-smoke-stage2: oren_stage2
+	@./scripts/run_native_capsule_smoke.sh ./oren_stage2
+
 # Convenience target: verify stage1 then stage2 on the native quick integration test.
-verify-native-quick: test-native-quick test-native-quick-stage2
+verify-native-quick: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2
 	@echo "verify-native-quick OK"
 
 # Compile-only sanity gate for x64 targets (does not run artifacts).

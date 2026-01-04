@@ -119,6 +119,19 @@ fn native_compile_stmt(ctx, stmt) {
 }
 
 fn native_compile_stmt_inner(ctx, stmt) {
+    // Parser/normalization compatibility (rolling):
+    // Some pipelines represent top-level `fn name(...) { ... }` as a raw Function statement,
+    // and block-level `if cond { ... } else { ... }` as a statement node `type=="If"`.
+    //
+    // Tier‑1 native backends historically compiled only the expression-statement forms:
+    //   ExprStmt(Function) and ExprStmt(If)
+    //
+    // Runtime injection can bypass the full frontend normalization passes, so handle these
+    // statement forms here to avoid silently skipping critical guards (e.g. alloc-index init).
+    if stmt["type"] == "If" || stmt["type"] == "Function" {
+        return native_compile_stmt_inner(ctx, {"type": "ExprStmt", "token": stmt["token"], "expr": stmt})
+    }
+
     if stmt["type"] == "Spawn" {
         // Delegate to expression compilation, ignore result (X0)
         var expr = {"type": "SpawnExpr", "call": stmt["call"]}
