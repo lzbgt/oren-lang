@@ -141,6 +141,18 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - rtobj build+apply: ~`17.3s` → ~`13.1s`
   - Remaining dominant bucket: runtime decl compilation still ~`7.0s` (`OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1`)
 
+## Archived (2026-01-04) — Native runtime entry split (capsule vs non-capsule)
+
+- Runtime entry files:
+  - default (non-capsule): `lib/runtime_native.oren`
+  - capsule builds: `lib/runtime_native_capsule.oren`
+- Motivation (throughput + layering):
+  - keep capsule syscall-hook-only modules out of non-capsule builds by default
+  - preserve a single “full capsule” entry file for strict enforcement workflows
+- Evidence (arm64-macos, stage2 rtobj miss summary; seed disabled):
+  - runtime decls in rtobj: `decls_n` ~`748` → ~`696`
+  - runtime code size: `code_bytes` ~`772540` → ~`748432`
+
 ## Archived (2026-01-03) — Native: OrenStatV0 time fields + stat-aware scan cache v3
 
 - Native backends:

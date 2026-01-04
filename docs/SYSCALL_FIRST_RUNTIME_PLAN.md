@@ -19,7 +19,8 @@ This is aligned with the “correct architecture first” constraint: **no tempo
 
 ## 1. Current Reality (As of 2025-12-16)
 
-- Native backend injects `lib/runtime_native.oren` into programs.
+- Native backend injects `lib/runtime_native.oren` into programs (non-capsule).
+  - Capsule builds use `lib/runtime_native_capsule.oren`.
 - The native backend treats `sys_*` calls as **compiler intrinsics** and emits syscalls inline (Darwin arm64 on macOS; Linux arm64 is separate work).
   - The `sys_*` functions remain as stubs in source so programs typecheck, but native code does not call those stubs.
 - `oren_system()` is now syscall-first on macOS: `fork + execve("/bin/sh", ...) + wait4`.
@@ -89,7 +90,7 @@ Public language syntax should remain stable where possible; internal runtime ABI
 ### Layer L0: Compiler + codegen (unchanged externally)
 
 - Codegen continues to call stable runtime entry points like `oren_*`.
-- Native backend continues to inject `lib/runtime_native.oren`.
+- Native backend continues to inject `lib/runtime_native.oren` (non-capsule; capsule builds use `lib/runtime_native_capsule.oren`).
   - Internally, the injected runtime is allowed to be split into smaller files under `lib/runtime_native/*.oren` and composed via `// @include "..."` to keep the codebase maintainable while the project is rolling.
 
 ### Layer L1: Runtime services (`oren_*`)

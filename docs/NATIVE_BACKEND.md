@@ -51,7 +51,10 @@ bring-up fixtures are **ABI facts**, not language constraints.
     - arm64: `X28` = heap_ptr, `X27` = heap_limit
     - x86_64: `R15` = heap_ptr, `R14` = heap_limit
     Stack slots in inner blocks are released automatically to keep frames bounded across loops.
-  - **GC**: Conservative mark/sweep GC lives in `lib/runtime_native.oren` (expanded from smaller parts under `lib/runtime_native/*.oren`) and can be triggered manually via `native_gc_collect()`.
+  - **GC**: Conservative mark/sweep GC lives in the injected native runtime:
+    - default (non-capsule): `lib/runtime_native.oren`
+    - capsule builds: `lib/runtime_native_capsule.oren`
+    (both expanded from smaller parts under `lib/runtime_native/*.oren`) and can be triggered manually via `native_gc_collect()`.
   - **Access**: `ptr_get`, `ptr_set`, `ptr_get_byte`, `ptr_set_byte`.
   - **Lists**: `oren_new_list`, `oren_list_len`, `oren_list_push`, `oren_list_get`, `oren_index_set` (list-aware), plus array literal lowering in codegen.
 - **Atomics**: `atomic_add` (LDADD), `atomic_cas` (CAS).
@@ -60,7 +63,7 @@ bring-up fixtures are **ABI facts**, not language constraints.
   - This is a deliberate syscall-first compatibility choice to avoid depending on `pthread_*` / `bsdthread_*` ABIs until a robust OS-thread design lands.
 
 - **Runtime**:
-  - **ARM64**: automatically injects `lib/runtime_native.oren` (expanded from `lib/runtime_native/*.oren` via `// @include "..."`) which implements `String` comparison and `Map` logic.
+  - **ARM64**: automatically injects the native runtime entry file (expanded from `lib/runtime_native/*.oren` via `// @include "..."`) which implements `String` comparison and `Map` logic.
   - **x86_64 (Tier‑1; rolling)**: injects the **same native runtime source bundle** by default (matching arm64), and keeps only a small set of true “bootstrap intrinsics” in the backend:
     - bump allocator state (`malloc`/`malloc_raw`) and raw memory ops (`ptr_get`/`ptr_set` + byte variants),
     - syscall/WinAPI ABI surfaces needed for entry + IO + capsule gating.

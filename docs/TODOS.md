@@ -44,11 +44,12 @@ Rules for this tracker:
 		       - runtime decl compile: ~`7.0s`
 		       - finalize: ~`1.4s`
 		       - rtobj meta encode (astbin v2): ~`1.1s`
-		       - rtobj build+apply total: ~`13.1s` (overall compile-one-file miss: ~`15.3s`)
+		       - rtobj build+apply total: ~`12.8–13.0s` (overall compile-one-file miss: ~`15.2–15.3s`)
 		     - Decl bucket drill-down (arm64-macos; stage2; `OREN_TRACE_ARM64_RT_OBJ_TOP_DECLS=1`):
 		       - The decl bucket is mostly real per-decl compilation work (sum of decl compile times ~= decls_ms).
 		       - Current “top decls” include (approx): `_oren_map_set_kind_unchecked` (~`839ms`), `native_capsule_proc_match_token` (~`386ms`), `oren_avm_run_obc_bytes` (~`224ms`), `native_capsule_fs_mount_resolve` (~`221ms`), `oren_sha256_range` (~`143ms`).
 		       - High-leverage direction: reduce what the compiler needs to inject/compile (tooling/runtime layering or a DCE/reachability model for rtobj), so cold rtobj builds don’t compile large AVM/HPC/capsule surfaces unnecessarily.
+		     - Recent (2026-01-04): default `lib/runtime_native.oren` no longer includes the syscall-hook-only capsule modules (`050_capsule_fs_hooks`, `070_capsule_net_hooks`), reducing runtime decl count (rtobj `decls_n`) in non-capsule builds; capsule builds use `lib/runtime_native_capsule.oren`.
 				   - Hard gate (non-negotiable for rolling):
 				     - Stage2/Stage3 self-host compiler build must stay **< 3 minutes** wall time on the primary dev host.
 			     - Stage2 native backend “compile one file” (cache hit; non-capsule) should stay **< 4s** wall time on the primary dev host; regressions indicate a fundamental hot-path flaw to investigate.

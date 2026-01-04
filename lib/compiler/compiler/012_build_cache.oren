@@ -1111,6 +1111,9 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         var t_rt0 = 0
         if trace_build { t_rt0 = oren_time_now_ns() }
         var rt_path = "lib/runtime_native.oren"
+        if build_cfg["capsule"] == true {
+            rt_path = "lib/runtime_native_capsule.oren"
+        }
         var rh = _cache_hash_expanded_includes(rt_path, build_cfg, scan_state)
         if rh["ok"] != true {
             return {"ok": false, "err": "failed to read injected runtime: " + rt_path + " (" + rh["err"] + ")"}

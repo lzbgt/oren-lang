@@ -809,12 +809,13 @@ fn native_compile_stmt_inner(ctx, stmt) {
             // intentionally runs before global initializers are reliable and uses bootstrap
             // invariants that must not be perturbed by extra helper calls.
             //
-            // Runtime functions are tagged with token.file == "lib/runtime_native.oren".
+            // Runtime functions are tagged with token.file == runtime entry path.
             ctx["call_depth_enabled"] = true
             var ftok0 = expr["token"]
             var ffile0 = nil
             if ftok0 != nil { ffile0 = ftok0["file"] }
             if ffile0 == "lib/runtime_native.oren" { ctx["call_depth_enabled"] = false }
+            if ffile0 == "lib/runtime_native_capsule.oren" { ctx["call_depth_enabled"] = false }
             if ffile0 != nil {
                 var nff = oren_string_len(ffile0)
                 if nff >= 7 {

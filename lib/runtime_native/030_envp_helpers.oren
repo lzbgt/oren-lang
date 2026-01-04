@@ -142,6 +142,29 @@ fn native_parse_cap_allow_mask(csv_cstr) {
     return mask
 }
 
+fn native_parse_i64_dec_cstr_or_neg1(s) {
+    // Parse a non-negative decimal integer from a NUL-terminated cstr.
+    // Returns parsed value on success; -1 on failure.
+    //
+    // Deterministic: decimal digits only (no spaces, signs, or suffixes).
+    if s == 0 { return -1 }
+    if ptr_get_byte(s) == 0 { return -1 }
+    var v = 0
+    var i = 0
+    while true {
+        var ch = ptr_get_byte(iadd(s, i))
+        if ch == 0 { break }
+        if ch < 48 || ch > 57 { return -1 }
+        var d = ch - 48
+        // Clamp to signed i64 max (9223372036854775807) to avoid overflow.
+        if v > 922337203685477580 { return -1 }
+        if v == 922337203685477580 && d > 7 { return -1 }
+        v = v * 10 + d
+        i = i + 1
+    }
+    return v
+}
+
 // --- Windows env block → POSIX envp ---
 //
 // Win32 `GetEnvironmentStringsA()` returns an environment "block" in the form:

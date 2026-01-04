@@ -5,7 +5,8 @@ In rolling mode we keep it **split into small modules** to avoid review/context 
 
 ## Where to edit
 
-- Include-root: `lib/runtime_native.oren`
+- Include-root (default, non-capsule): `lib/runtime_native.oren`
+  - For capsule builds, the runtime entry file is `lib/runtime_native_capsule.oren`.
   - This file is intentionally tiny.
   - It contains a list of `// @include "runtime_native/NNN_name.oren"` directives.
 - Real implementation: `lib/runtime_native/*.oren`
@@ -25,7 +26,9 @@ translation unit, but stays maintainable in source form.
 1) Create a new chunk file under `lib/runtime_native/`:
    - Use a numeric prefix to keep ordering obvious (e.g. `270_crypto.oren`).
    - Keep it focused; if a chunk grows too large, split it again.
-2) Add a corresponding include line to `lib/runtime_native.oren`.
+2) Add a corresponding include line to the appropriate runtime entry file:
+   - default (non-capsule): `lib/runtime_native.oren`
+   - capsule builds: `lib/runtime_native_capsule.oren`
 3) Run `make test-native-all` (or at least `make test-native-quick`) to ensure include expansion and runtime behavior stay green.
 
 ## Early-init guardrails (must stay robust cross‑OS)

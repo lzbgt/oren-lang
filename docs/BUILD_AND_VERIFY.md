@@ -64,7 +64,9 @@ Once you have the `oren` executable (Stage 1), you can compile user applications
 
 ### Native Runtime Bundle Cache (Native Backend)
 
-The native backend injects the native runtime bundle (`lib/runtime_native.oren`, expanded from `lib/runtime_native/**`) into every native build.
+The native backend injects the native runtime bundle into every native build:
+- default (non-capsule): `lib/runtime_native.oren` (expanded from `lib/runtime_native/**`)
+- capsule builds: `lib/runtime_native_capsule.oren` (expanded from `lib/runtime_native/**`)
 On stage2-native compilers this can dominate build time, so the compiler maintains a separate (non-artifact) cache for the runtime **AST**:
 
 - default cache dir: `build/cache/native_runtime_astbin/`

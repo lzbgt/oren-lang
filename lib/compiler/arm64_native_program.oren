@@ -1007,6 +1007,9 @@ fn native_compile_program_arm64(linked, platform) {
     var t_bun0 = 0
     if trace { t_bun0 = oren_time_now_ns() }
     var runtime_path = "lib/runtime_native.oren"
+    if platform != nil && platform["capsule"] == true {
+        runtime_path = "lib/runtime_native_capsule.oren"
+    }
     var used_rtobj = false
     var runtime_stmts = []
     var user_stmts = []

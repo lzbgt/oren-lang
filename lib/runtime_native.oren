@@ -1,4 +1,4 @@
-// Oren native runtime (ARM64 native backend)
+// Oren native runtime (native backend)
 //
 // This file is intentionally small.
 //
@@ -9,6 +9,10 @@
 //
 // NOTE: include order is semantically significant (kept identical to the former
 // monolithic `lib/runtime_native.oren`).
+//
+// Capsule policy:
+// - This entry file is for **non-capsule** native builds (no capsule hooks).
+// - Capsule builds should use `lib/runtime_native_capsule.oren`.
 
 // @include "runtime_native/000_prelude_sys.oren"
 // @include "runtime_native/010_channels_globals_consts.oren"
@@ -16,9 +20,7 @@
 // @include "runtime_native/020_fork_runtime_init.oren"
 // @include "runtime_native/030_envp_helpers.oren"
 // @include "runtime_native/040_capsule_core.oren"
-// @include "runtime_native/050_capsule_fs_hooks.oren"
 // @include "runtime_native/060_capsule_net_parsing.oren"
-// @include "runtime_native/070_capsule_net_hooks.oren"
 // @include "runtime_native/080_capsule_proc_misc_hooks.oren"
 // @include "runtime_native/090_env.oren"
 // @include "runtime_native/100_time.oren"

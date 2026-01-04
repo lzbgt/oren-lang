@@ -896,6 +896,9 @@ fn native_compile_program_x64(linked, platform) {
     if trace_sum { t0 = oren_time_now_ns() }
 
     var runtime_path = "lib/runtime_native.oren"
+    if platform != nil && platform["capsule"] == true {
+        runtime_path = "lib/runtime_native_capsule.oren"
+    }
     var linked2 = linked
 
     var ctx = _x64_new_ctx(linked, platform)
