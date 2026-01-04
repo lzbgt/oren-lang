@@ -2,6 +2,7 @@
 .PHONY: test-native-quick test-native-quick-stage2 verify-native-quick
 .PHONY: verify-native-x64-compile
 .PHONY: bench-native-compile
+.PHONY: perf-guard-native-hit
 .PHONY: rtobj-seed
 
 # Default target: Build Stage 1 compiler
@@ -234,6 +235,10 @@ verify-native-x64-compile: oren_stage2
 # Perf smoke: benchmark stage2 native "compile one file" (rtobj miss -> hit).
 bench-native-compile: oren_stage2
 	@./scripts/bench_native_compile_one_file.sh
+
+# Lightweight rolling perf tripwire: ensure rtobj-hit compile-one-file stays under threshold.
+perf-guard-native-hit: oren_stage2
+	@./scripts/perf_guard_native_compile_one_file_hit.sh
 
 # Default "test" is now native-only and quick (no external test runner).
 test: test-native-quick

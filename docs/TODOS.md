@@ -173,7 +173,7 @@ Rules for this tracker:
 		   - Prefer a small number of high-signal integration suites + fixtures as living spec.
 		   - Cross-arch: `./scripts/verify_native_matrix.sh` has opt-in Tier‑1 fixture targets (`x64-win-tier1`, `x64-wsl-tier1`) in addition to the fast quick-integration matrix.
 		   - Perf regression playbook (native backend): `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`
-		   - Lightweight tripwire (rtobj hit): `./scripts/perf_guard_native_compile_one_file_hit.sh`
+		   - Lightweight tripwire (rtobj hit): `make perf-guard-native-hit` (or `./scripts/perf_guard_native_compile_one_file_hit.sh`)
 		   - Keep tests hermetic: avoid relying on host shells or external utilities (prefer helper binaries built from Oren sources + explicit `oren_proc_spawn`).
 		   - Keep tests OS-neutral: avoid asserting platform `struct stat` layouts; prefer Oren-owned stable ABIs (e.g. OrenStatV0 via `oren_stat_alloc()`).
 		   - Make test tooling robust in minimal environments too: avoid relying on host shells/utilities in test programs.

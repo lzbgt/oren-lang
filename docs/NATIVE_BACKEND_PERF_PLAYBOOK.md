@@ -183,6 +183,7 @@ If you touch compiler hot paths (astbin decode, native emit, runtime injection),
    - `OREN_NATIVE_BUILD_TIMEOUT_SECS=60 ./scripts/bench_native_compile_one_file.sh --no-debug`
 3) If you see “rtobj miss” > 10s, re-run with tracing and identify the dominant bucket:
    - `OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1` (arm64) prints one `[arm64_rtobj] ...` line with parse/decl/finalize timings.
+   - `OREN_TRACE_ARM64_RT_OBJ_TOP_DECLS=1` (arm64) prints a bounded “top decls” list to spot unusually-slow runtime declarations.
    - `OREN_TRACE_ASTBIN=1` prints `[astbin] decode done +...ms` for the runtime bundle decode.
    - runtime expand/parse
    - astbin decode
