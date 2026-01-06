@@ -1186,18 +1186,26 @@ fn compiler_main() {
                 print("[build] native emit done +" + oren_int_to_string(dt_emit / 1000000) + "ms")
             }
             if trace_build_summary { t_sum_emit_done = oren_time_now_ns() }
-        } else {
-            if arch == "x64" || arch == "x86_64" || arch == "amd64" {
-                var t_emit1 = 0
-                if trace_build {
-                    t_emit1 = oren_time_now_ns()
-                    print("[build] native emit start (x64) target=" + target)
-                }
-                if target == "linux" {
-                    x64_elf.elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
-                } else {
-                    if target == "windows" {
-                        x64_pe.pe_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
+	        } else {
+	            if arch == "x64" || arch == "x86_64" || arch == "amd64" {
+	                var t_emit1 = 0
+	                if trace_build {
+	                    t_emit1 = oren_time_now_ns()
+	                    print("[build] native emit start (x64) target=" + target)
+	                }
+	                if is_shared_lib || oren_list_len(export_names) != 0 {
+	                    print("native backend (x64): shared libraries/exports are not implemented yet")
+	                    var req = "--export"
+	                    if is_shared_lib { req = "--lib/--shared" }
+	                    print("  requested: " + req)
+	                    print("  TODO: implement x64 ELF .so and x64 Windows .dll export tables")
+	                    oren_exit(1)
+	                }
+	                if target == "linux" {
+	                    x64_elf.elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
+	                } else {
+	                    if target == "windows" {
+	                        x64_pe.pe_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
                     } else {
                         print("native backend (x64) unsupported target: " + target)
                         oren_exit(1)
