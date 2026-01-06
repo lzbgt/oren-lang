@@ -59,8 +59,10 @@ bring-up fixtures are **ABI facts**, not language constraints.
   - **Lists**: `oren_new_list`, `oren_list_len`, `oren_list_push`, `oren_list_get`, `oren_index_set` (list-aware), plus array literal lowering in codegen.
 - **Atomics**: `atomic_add` (LDADD), `atomic_cas` (CAS).
 - **SIMD**: 128-bit NEON intrinsics (`simd_add_2d`, `mul_4s`, etc.).
-- **Spawn/Join (macOS v0)**: `spawn` is currently implemented as **fork + pipe** (process-based) and `oren_join` reads the returned value from the pipe and reaps the child via `wait4`.
-  - This is a deliberate syscall-first compatibility choice to avoid depending on `pthread_*` / `bsdthread_*` ABIs until a robust OS-thread design lands.
+- **Spawn/Join (Tier‑1; OS-specific substrate)**:
+  - **macOS + Linux (POSIX)**: `spawn` is currently implemented as **fork + pipe** (process-based) and `oren_join` reads the returned value from the pipe and reaps the child via `wait4`.
+  - **Windows x86_64**: `spawn` is lowered to `CreateThread` by the x64 backend; `oren_join(_timeout)` waits via `WaitForSingleObject` (see `lib/runtime_native/120_first_class_fn.oren` + `lib/runtime_native/260_threads.oren`).
+  - This is a deliberate syscall-first compatibility choice to avoid depending on unstable host threading ABIs until a robust OS-thread + GC safepoint design lands.
 
 - **Runtime**:
   - **ARM64**: automatically injects the native runtime entry file (expanded from `lib/runtime_native/*.oren` via `// @include "..."`) which implements `String` comparison and `Map` logic.

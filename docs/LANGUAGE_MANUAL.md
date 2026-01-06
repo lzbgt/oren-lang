@@ -1254,7 +1254,7 @@ are the canonical incremental contract for what the x64 backend supports today:
 
 - `tests/fixtures/x64_*_main.oren` are intended to compile under the native backend for Linux ELF + Windows PE (`./oren build ... --backend native --platform x64-linux` / `x64-windows`).
 - Remote execution (Win11 + WSL2) is opt-in and can be done by copying the built artifact to a real x86_64 host.
-- High-signal Tier‑1 fixtures (remote-gated via `OREN_REMOTE_RUN=1`):
+- High-signal Tier‑1 fixtures (remote x86_64 gate; run via `scripts/verify_native_matrix.sh --targets x64-win-tier1` / `x64-wsl-tier1` with `--tier1-src <fixture>`; see `docs/REMOTE_X64_ENV.md`):
   - Closures + varargs: `tests/fixtures/tier1_native_lambda_varargs_main.oren`
   - Maps (empty map + dynamic string key kind): `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren`
   - Strings (`+`, `len`, `slice`): `tests/fixtures/tier1_native_string_ops_main.oren`

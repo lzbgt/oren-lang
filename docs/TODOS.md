@@ -82,16 +82,20 @@ Rules for this tracker:
 	       - keep the in-process “fast path” zero-copy where possible (shared-memory attach instead of returning large graphs through `join`)
 
 1) **Tier‑1 native support parity (arm64 + x86_64; macOS/Linux/Windows)** (L)
-   - Keep native semantics aligned across platforms:
+	   - Keep native semantics aligned across platforms:
      - callables/closures/varargs + deterministic failure modes (`OREN_DIAG` + stack traces)
      - container ops (list/map/buf) with identical semantics across arch/OS
      - concurrency primitives on Windows (no fork/pipe assumptions): `spawn`, `oren_join(_timeout)`, and a path to cooperative cancellation
-	   - Remaining gaps (active):
-	     - Fixed (2026-01-04): **arm64-macos stage2 is now bootstrapped via the native backend by default** (`make stage2`).
-	       - Fallback (bring-up): `make stage2 OREN_STAGE2_BACKEND=c`.
-	     - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory synchronization:
-	       - mutex/condvar + parking/unparking primitives (`ulock` on macOS; futex-like on Linux; Win32 already exists)
-	       - a GC/safepoint model that remains correct once true threads exist (no “mutex works but GC breaks”)
+		   - Remaining gaps (active):
+		     - Fixed (2026-01-04): **arm64-macos stage2 is now bootstrapped via the native backend by default** (`make stage2`).
+		       - Fallback (bring-up): `make stage2 OREN_STAGE2_BACKEND=c`.
+		     - Native FFI / dynamic linking parity (macOS-only today):
+		       - Current reality: `ffi` + `--link`/`--lib` are Mach‑O-only; ELF/PE do not implement general dynamic linking for user code yet.
+		       - Deliverable: Linux ELF `DT_NEEDED` + PLT/GOT relocations, and Windows PE import-table (or LoadLibrary/GetProcAddress) for user `ffi` symbols.
+		       - Then un-skip the native FFI example path in `make examples-test` on Linux/Windows.
+		     - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory synchronization:
+		       - mutex/condvar + parking/unparking primitives (`ulock` on macOS; futex-like on Linux; Win32 already exists)
+		       - a GC/safepoint model that remains correct once true threads exist (no “mutex works but GC breaks”)
      - Windows: complete a coherent PROC story (pid/kill/wait semantics or define a cross-OS `sys_spawn` boundary).
        - Fixed (2026-01-04): `oren_system(_timeout)` now works on `x64-windows` (CreateProcessA path).
          - Tier‑1 fixture no longer soft-skips Windows.

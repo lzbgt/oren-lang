@@ -9,7 +9,9 @@ This doc answers a recurring question in rolling mode:
 Oren is already **partially self-hosting**:
 
 - **Stage 1 compiler** `./oren` is built by the **Go bootstrap** `./oren_bootstrap` (`make stage1`).
-- **Stage 2 compiler** `./oren_stage2` is built by **Stage 1** (`make stage2`). In rolling mode the *bootstrap backend* may vary by host arch (for example: arm64 currently bootstraps stage2 via `--backend c`).
+- **Stage 2 compiler** `./oren_stage2` is built by **Stage 1** (`make stage2`).
+  - Rolling default: `make stage2` bootstraps stage2 via the **native backend** on arm64‑macOS.
+  - Bring‑up fallback: `make stage2 OREN_STAGE2_BACKEND=c`.
 - The **metadata tool** is **Go**: `./oredoc` (`cmd/oredoc`).
 - The **signing tool** is **Go**: `./orensign` (`cmd/orensign`).
 - The **AVM interpreter** is **C**: `./avm` (sources under `lib/avm/`).
@@ -61,9 +63,10 @@ Self-hosting the LSP in Oren becomes realistic once:
 - compiler diagnostics are stable and machine-readable
 - stdlib has robust FS/process/JSON IO on macOS/Linux/Windows
 
-### C) `oren test` (test runner; future)
+### C) Oren-native test runner (future)
 
 Right now the repo runs tests via **direct compilation + direct execution** of test programs using `./oren` and `./oren_stage2` (see `docs/TEST_SYSTEM.md`).
+There is no external test runner binary in-tree; the canonical flows are `Makefile` targets and `scripts/` helpers (for example `scripts/verify_native_matrix.sh` for remote x86_64 verification).
 
 A self-hosted replacement would require:
 

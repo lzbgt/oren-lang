@@ -27,6 +27,7 @@ cd "$ROOT"
 
 TEST_SRC="tests/native/test_quick_integration_native.oren"
 TIER1_SRC="tests/fixtures/tier1_native_smoke_main.oren"
+TIER1_EXPECT_MARKERS=1
 
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
@@ -37,6 +38,7 @@ REMOTE_PROXY="${OREN_REMOTE_X64_PROXY:-ProxyCommand=socat - PROXY:hubstack.cn:%h
 usage() {
   cat <<'EOF'
 Usage: scripts/verify_native_matrix.sh [--targets <csv>] [--local-only]
+       scripts/verify_native_matrix.sh [--tier1-src <path>] [--targets <csv>]
        scripts/verify_native_matrix.sh [--targets <csv>] [--trace]
 
 Runs:
@@ -63,6 +65,7 @@ Examples:
   ./scripts/verify_native_matrix.sh --targets x64-win,x64-wsl
   ./scripts/verify_native_matrix.sh --targets x64-win-tier1
   ./scripts/verify_native_matrix.sh --targets x64-wsl --trace
+  ./scripts/verify_native_matrix.sh --targets x64-win-tier1 --tier1-src tests/fixtures/tier1_native_lambda_varargs_main.oren
 
 Env overrides:
   OREN_LINUX_DOCKER_ID   (default: c7e5f7bd9f5c)
@@ -100,6 +103,18 @@ while [[ $# -gt 0 ]]; do
         echo "ERROR: --targets requires a value" >&2
         exit 2
       fi
+      shift 2
+      ;;
+    --tier1-src)
+      TIER1_SRC="${2:-}"
+      if [[ -z "$TIER1_SRC" ]]; then
+        echo "ERROR: --tier1-src requires a value" >&2
+        exit 2
+      fi
+      # Safety: when overriding the Tier‑1 source, disable default marker assertions,
+      # because only `tier1_native_smoke_main.oren` prints the full marker set.
+      # (Exit code remains authoritative.)
+      TIER1_EXPECT_MARKERS=0
       shift 2
       ;;
     *)
@@ -375,7 +390,10 @@ remote_run_wsl() {
     cmd+='$?'
     cmd+="; cat '${out}'; echo EXIT="
     cmd+='$rc'
-    cmd+="; grep -q 'tier1 spawn join ok' '${out}' || exit 97; grep -q 'tier1 proc ok' '${out}' || exit 98; exit "
+    if [[ "$TIER1_EXPECT_MARKERS" -ne 0 ]]; then
+      cmd+="; grep -q 'tier1 spawn join ok' '${out}' || exit 97; grep -q 'tier1 proc ok' '${out}' || exit 98"
+    fi
+    cmd+="; exit "
     cmd+='$rc'
   else
     cmd="file ${full} || true; chmod +x ${full} && ${envp}timeout 20s ${full}; rc="

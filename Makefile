@@ -409,6 +409,7 @@ clean:
 	rm -rf build/ *.dSYM verify_full.sh run_tests.sh
 	rm -f oren_bootstrap oren oren_stage2 oren_stage3 avm
 	rm -f orensign
+	rm -f oretest
 	rm -f *.oren.c *.obc *.otool *.dylib *.so
 	@# Remove local test binaries (keep .oren sources)
 	@find tests/native -maxdepth 1 -type f ! -name '*.oren' -delete 2>/dev/null || true

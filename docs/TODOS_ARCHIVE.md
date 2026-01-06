@@ -401,7 +401,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `fn main()` is optional; programs with only top-level code exit 0 deterministically.
 - Updated the native test suite to match the contract by removing accidental `main()` calls at top-level (tests should define `fn main()` only).
 - Added a Tier‑1 remote x64 fixture covering language-level concurrency on both Linux x86_64 (WSL2) and Windows x64:
-  - `tests/fixtures/tier1_native_spawn_join_main.oren` (run via `OREN_REMOTE_RUN=1 make test`).
+  - `tests/fixtures/tier1_native_spawn_join_main.oren` (run via `scripts/verify_native_matrix.sh --targets x64-win-tier1,x64-wsl-tier1`).
 
 ## Archived (2025-12-29) — OBC portability gate hardened (timeouts + WSL progress)
 
