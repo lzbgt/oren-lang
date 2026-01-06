@@ -111,6 +111,13 @@ fn elf_build_prefix_x64(code, code_pad_len, data, entry_off) {
 }
 
 fn elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
+    // Rolling status: Linux native dynamic linking (`--link`) is not implemented yet.
+    // Fail fast so users don't get a silently-wrong artifact.
+    if link_libs != nil && oren_list_len(link_libs) != 0 {
+        print("x64 linux native backend: dynamic linking (--link) is not implemented yet")
+        oren_exit(1)
+    }
+
     // Bounded timing summary for diagnosing x64 native build throughput without huge logs.
     // Enable with: OREN_TRACE_X64_EMIT_SUMMARY=1
     var trace_sum = oren_env("OREN_TRACE_X64_EMIT_SUMMARY") != nil

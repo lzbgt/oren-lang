@@ -98,7 +98,7 @@ bring-up fixtures are **ABI facts**, not language constraints.
   Rolling guidance:
   - Prefer `+` everywhere.
   - `string_concat(a, b)` exists as a low-level native runtime helper but is treated as an internal primitive; the repo’s curated tests and audits intentionally avoid using it in higher-level code.
-- **Linux FFI/linking:** the ELF emitter does not implement dynamic linking yet; calling an `ffi` symbol panics (no `DT_NEEDED`/PLT/GOT relocation support yet).
+- **Linux FFI/linking:** the ELF emitter does not implement dynamic linking yet; calling an `ffi` symbol panics and `--link` is rejected (no `DT_NEEDED`/PLT/GOT relocation support yet).
 - **Windows FFI/linking:** no general user import-table mapping yet; `ffi` uses lazy runtime resolution (LoadLibrary/GetProcAddress) instead.
 - **W^X (Linux):**
   - Linux ELF uses **separate PT_LOAD segments**: RX (headers+code) + RW (data blob). No RWX pages.
