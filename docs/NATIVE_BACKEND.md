@@ -100,8 +100,8 @@ bring-up fixtures are **ABI facts**, not language constraints.
   - `string_concat(a, b)` exists as a low-level native runtime helper but is treated as an internal primitive; the repo’s curated tests and audits intentionally avoid using it in higher-level code.
 - **Linux FFI/linking:** the ELF emitter does not implement dynamic linking yet; calling an `ffi` symbol panics (no `DT_NEEDED`/PLT/GOT relocation support yet).
 - **Windows FFI/linking:** no general user import-table mapping yet; `ffi` uses lazy runtime resolution (LoadLibrary/GetProcAddress) instead.
-- **W^X (x86_64 bring-up):**
-  - Linux ELF now uses **separate PT_LOAD segments**: RX (headers+code) + RW (data blob). No RWX pages.
+- **W^X (Linux):**
+  - Linux ELF uses **separate PT_LOAD segments**: RX (headers+code) + RW (data blob). No RWX pages.
   - Windows PE now uses a **3-section layout**: `.text` (RX) + `.rdata` (R) + `.data` (RW). Mutable globals
     (e.g. call depth counters) live in `.data`.
 

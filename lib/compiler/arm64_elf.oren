@@ -108,7 +108,7 @@ fn emit_debug_info(ctx, text_base, header_size) {
     return p
 }
 
-fn elf_build_prefix_arm64(text_size, code, entry_idx) {
+fn elf_build_prefix_arm64(code, code_pad_len, data, entry_off) {
     var p = bytes_new()
     
     // ELF Header (64 bytes)
@@ -119,30 +119,53 @@ fn elf_build_prefix_arm64(text_size, code, entry_idx) {
     bytes_push(p, 0); // OS ABI: System V
     push_u64_le(p, 0) // Padding
     
-    push_u16_le(p, 2) // Type: EXEC
+    push_u16_le(p, 2)   // Type: EXEC
     push_u16_le(p, 183) // Machine: AArch64
     push_u32_le(p, 1) // Version
-    var text_file_off = 120 // Ehdr + Phdr size
-    push_u64_le(p, 4194304 + text_file_off + entry_idx) // Entry point
+
+    // v0: minimal ET_EXEC with two PT_LOAD segments (W^X):
+    // - RX: headers + code (+ padding)
+    // - RW: data blob
+    var base = 4194304 // 0x400000
+    var hdr_size = 64 + 56 * 2 // Ehdr + 2*Phdr
+    push_u64_le(p, base + hdr_size + entry_off) // Entry point
     push_u64_le(p, 64) // Phdr offset
     push_u64_le(p, 0) // Shdr offset
     push_u32_le(p, 0) // Flags
     push_u16_le(p, 64) // Ehdr size
     push_u16_le(p, 56) // Phdr size
-    push_u16_le(p, 1) // Phdr count
+    push_u16_le(p, 2) // Phdr count
     push_u16_le(p, 64) // Shdr size
     push_u16_le(p, 0) // Shdr count
     push_u16_le(p, 0) // String index
     
-    // Program Header (56 bytes)
+    var page = 4096
+    var text_filesz = hdr_size + bytes_len(code) + code_pad_len
+    if int_mod(text_filesz, page) != 0 {
+        // Fallback: keep segment offsets valid even if caller forgot to page-align padding.
+        text_filesz = align_up(text_filesz, page)
+    }
+    var data_off = text_filesz
+
+    // Program Header #1: RX (headers + code + padding)
     push_u32_le(p, 1) // Type: LOAD
-    push_u32_le(p, 7) // Flags: RWE (0x1 | 0x2 | 0x4)
+    push_u32_le(p, 5) // Flags: PF_R | PF_X
     push_u64_le(p, 0) // Offset
-    push_u64_le(p, 4194304) // VAddr (0x400000)
-    push_u64_le(p, 4194304) // PAddr
-    push_u64_le(p, text_file_off + bytes_len(code)) // FileSize
-    push_u64_le(p, text_file_off + bytes_len(code)) // MemSize
-    push_u64_le(p, 65536) // Align
+    push_u64_le(p, base) // VAddr (0x400000)
+    push_u64_le(p, base) // PAddr
+    push_u64_le(p, text_filesz) // FileSize
+    push_u64_le(p, text_filesz) // MemSize
+    push_u64_le(p, page) // Align
+
+    // Program Header #2: RW (data blob)
+    push_u32_le(p, 1) // Type: LOAD
+    push_u32_le(p, 6) // Flags: PF_R | PF_W
+    push_u64_le(p, data_off) // Offset
+    push_u64_le(p, base + data_off) // VAddr
+    push_u64_le(p, base + data_off) // PAddr
+    push_u64_le(p, bytes_len(data)) // FileSize
+    push_u64_le(p, bytes_len(data)) // MemSize
+    push_u64_le(p, page) // Align
     
     return p
 }
@@ -196,37 +219,46 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
         i_imp = i_imp + 1
     }
 
-    // Keep data 8-byte aligned in the final image.
-    // The native runtime does `ptr_get_u64` reads from tables in `.data` (debug info,
-    // container headers, etc), which must be aligned for `LDR Xn, [Xm]` on some kernels.
-    while int_mod(bytes_len(code), 8) != 0 { bytes_push(code, 0) }
-    var code_len_before_data = bytes_len(code)
-    
+    // Output layout (v0):
+    //   [ELF hdrs + PHDRs] [code] [pad-to-page] [data]
+    var base = 4194304 // 0x400000
+    var hdr_size = 64 + 56 * 2
+    var page = 4096
+    var debug_off = nil
+
     // Append debug info (Linux ELF).
     //
     // Without this, linux `--debug` builds leave an unpatched 0-word placeholder
     // at ctx["debug_fixup_pos"], which becomes an illegal instruction (UDF #0)
     // at runtime.
     if debug_mode {
-        var text_base = 4194304 // 0x400000
-        var header_size = 120   // Ehdr + Phdr size
-        var debug_blob = emit_debug_info(ctx, text_base, header_size)
+        var debug_blob = emit_debug_info(ctx, base, hdr_size)
         while int_mod(bytes_len(data), 8) != 0 { bytes_push(data, 0) }
-        var debug_off = bytes_len(data)
+        debug_off = bytes_len(data)
         bytes_extend(data, debug_blob)
         if ctx["debug_fixup_pos"] != nil {
             oren_list_push(fixups, {"type": "adr_data", "pos": ctx["debug_fixup_pos"], "data_off": debug_off})
-            
-            var sa = text_base + header_size + code_len_before_data + debug_off
-            var p = ctx["debug_static_addr_pos"]
-            set_u32_le(code, p, insn_movz(1, int_mod(sa, 65536)))
-            set_u32_le(code, p+4, insn_movk(1, int_mod(sa / 65536, 65536), 1))
-            set_u32_le(code, p+8, insn_movk(1, int_mod(sa / u64_2_32(), 65536), 2))
-            set_u32_le(code, p+12, insn_movk(1, int_mod(sa / u64_2_48(), 65536), 3))
         }
     }
-    
-    bytes_extend(code, data)
+
+    // Page-align the start of the data segment (required for PT_LOAD alignment).
+    var code_len = bytes_len(code)
+    var text_end_off = hdr_size + code_len
+    var data_file_off = align_up(text_end_off, page)
+    var pad_len = data_file_off - text_end_off
+    var code_pad = bytes_new()
+    var pi = 0
+    while pi < pad_len { bytes_push(code_pad, 0); pi = pi + 1 }
+
+    // Patch debug static addr constant now that we know the final data segment base address.
+    if debug_mode && debug_off != nil && ctx["debug_static_addr_pos"] != nil {
+        var sa = base + data_file_off + debug_off
+        var p = ctx["debug_static_addr_pos"]
+        set_u32_le(code, p, insn_movz(1, int_mod(sa, 65536)))
+        set_u32_le(code, p+4, insn_movk(1, int_mod(sa / 65536, 65536), 1))
+        set_u32_le(code, p+8, insn_movk(1, int_mod(sa / u64_2_32(), 65536), 2))
+        set_u32_le(code, p+12, insn_movk(1, int_mod(sa / u64_2_48(), 65536), 3))
+    }
     
     if functions["main"] == nil {
         if functions["__top_level__"] != nil { functions["main"] = functions["__top_level__"] }
@@ -263,11 +295,8 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
         
         if fix["type"] == "adr_data" {
             var data_off = fix["data_off"]
-            var target_idx = code_len_before_data + data_off
-            var text_base = 4194304 // 0x400000
-            var header_size = 120   // Ehdr + Phdr size
-            var target_addr = text_base + header_size + target_idx
-            var pc = text_base + header_size + pos
+            var target_addr = base + data_file_off + data_off
+            var pc = base + hdr_size + pos
             var pc_page = pc - int_mod(pc, 4096)
             var target_page = target_addr - int_mod(target_addr, 4096)
             var delta_pages = (target_page - pc_page) / 4096
@@ -287,10 +316,8 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
             }
             var reg = fix["reg"]
             if reg == nil { reg = 0 }
-            var text_base = 4194304 // 0x400000
-            var header_size = 120   // Ehdr + Phdr size
-            var target_addr = text_base + header_size + target2
-            var pc = text_base + header_size + pos
+            var target_addr = base + hdr_size + target2
+            var pc = base + hdr_size + pos
             var pc_page = pc - int_mod(pc, 4096)
             var target_page = target_addr - int_mod(target_addr, 4096)
             var delta_pages = (target_page - pc_page) / 4096
@@ -302,18 +329,19 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
         // Legacy
         if fix["type"] == nil {
             var data_off2 = fix["data_off"]
-            var target_idx2 = code_len_before_data + data_off2
+            var target_idx2 = (data_file_off - hdr_size) + data_off2
             var offset3 = target_idx2 - pos
             set_u32_le(code, pos, insn_adr(1, offset3))
         }
         i = i + 1
     }
-    
-    var text_size = 120 + bytes_len(code)
-    // Entry point is start of code (startup shim)
-    var entry_idx = 0
-    var prefix = elf_build_prefix_arm64(text_size, code, entry_idx)
+
+    // Entry point is start of code (startup shim).
+    var entry_off = 0
+    var prefix = elf_build_prefix_arm64(code, bytes_len(code_pad), data, entry_off)
     bytes_extend(prefix, code)
+    bytes_extend(prefix, code_pad)
+    bytes_extend(prefix, data)
     
     var w3 = oren_write_bytes(out_path, bytes_finalize(prefix))
     if oren_is_err(w3) {
