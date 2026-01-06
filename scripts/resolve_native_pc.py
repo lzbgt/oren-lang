@@ -136,24 +136,38 @@ def find_debug_table(buf: bytes) -> Tuple[int, list[DebugEntry]]:
     marker = b"__entry_stub__"
     want_len = len(marker)
 
-    # Find a concrete occurrence that looks like a debug-info entry name payload:
+    # Find an occurrence that looks like a debug-info entry name payload:
     # ... [start_pc][end_pc][name_len][name_bytes="__entry_stub__"] ...
-    pos = buf.find(marker)
-    if pos < 0:
-        raise SystemExit("resolve_native_pc: '__entry_stub__' string not found in binary")
+    #
+    # NOTE: the marker string can also appear as a pooled literal elsewhere in the binary
+    # (e.g. compiler-side diagnostics). Do not assume the *first* occurrence is the table.
+    pos = -1
+    entry_off = -1
+    scan_from = 0
+    while True:
+        pos = buf.find(marker, scan_from)
+        if pos < 0:
+            break
+        cand = pos - 24
+        scan_from = pos + 1
+        if cand < 0:
+            continue
+        try:
+            name_len0 = _u64_le(buf, cand + 16)
+        except struct.error:
+            continue
+        if name_len0 == want_len:
+            entry_off = cand
+            break
 
-    entry_off = pos - 24
     if entry_off < 0:
-        raise SystemExit("resolve_native_pc: invalid marker position (too early in file)")
-
-    try:
-        name_len = _u64_le(buf, entry_off + 16)
-    except struct.error as e:
-        raise SystemExit(f"resolve_native_pc: failed reading name_len: {e}") from e
-    if name_len != want_len:
         raise SystemExit(
-            "resolve_native_pc: marker string found, but does not look like a dbginfo entry"
+            "resolve_native_pc: '__entry_stub__' found, but no occurrence looked like a dbginfo entry"
         )
+
+    # The marker entry's start_pc is the static address of the entry stub (code offset 0).
+    # We use it as a strong sanity check when choosing among multiple candidate table starts.
+    marker_start_pc = _u64_le(buf, entry_off)
 
     # We do NOT assume __entry_stub__ is the first entry (arm64 may not sort entries).
     # Instead, search backwards for a plausible table start:
@@ -166,6 +180,15 @@ def find_debug_table(buf: bytes) -> Tuple[int, list[DebugEntry]]:
     # - we advance past the marker position without seeing it (candidate rejected)
     #
     # File sizes are small (debug builds); brute force is fine with strong heuristics.
+    # The marker can appear inside the table multiple times (e.g. string pooling), and the byte
+    # stream itself can contain false positives that look like a plausible `[count][entries...]`
+    # prefix when scanning backwards.
+    #
+    # Instead of returning the first candidate that parses, scan all plausible candidates within
+    # a bounded window and pick the one with the largest entry count (then smallest table_off).
+    best: Optional[Tuple[int, list[DebugEntry]]] = None
+    best_count = -1
+
     max_back = min(entry_off, 256 * 1024)
     for back in range(8, max_back + 1, 8):
         table_off = entry_off - back
@@ -218,12 +241,22 @@ def find_debug_table(buf: bytes) -> Tuple[int, list[DebugEntry]]:
                     ok = False
                     break
             if ok and saw_marker:
-                # Extra sanity: table must include the marker.
-                return table_off, entries
+                # Strong sanity: a correct table must include the entry stub at the lowest
+                # start_pc, because the entry stub begins at code offset 0.
+                min_start_pc = min(e.start_pc for e in entries) if entries else 0
+                if min_start_pc != marker_start_pc:
+                    continue
+                if count > best_count or (
+                    count == best_count and best is not None and table_off < best[0]
+                ):
+                    best = (table_off, entries)
+                    best_count = int(count)
         except (struct.error, IndexError, OverflowError):
             continue
 
-    raise SystemExit("resolve_native_pc: failed to locate embedded debug-info table")
+    if best is None:
+        raise SystemExit("resolve_native_pc: failed to locate embedded debug-info table")
+    return best
 
 
 def resolve_pc(entries: list[DebugEntry], pc: int) -> Optional[DebugEntry]:

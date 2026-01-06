@@ -5,6 +5,25 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2026-01-06) — Native arm64: rtobj debug-info persistence + arm64-linux symbolization gate
+
+- Symptom (arm64-linux debug builds in rtobj mode):
+  - Runtime frames in `stack_trace_debug()` could show `???`/`<unknown host>` even when the program embedded debug-info for user code.
+  - This was observable on Linux/arm64 unresolved `ffi` stubs: the panic message was correct (`ffi unresolved: ...`), but the trace could miss `oren_panic`.
+- Fix (arm64 native backend):
+  - Persist runtime debug-info function ranges in the runtime-object cache meta (compact `{name,start,end}` encoding).
+  - Merge those ranges into `ctx["debug_info"]["funcs"]` at rtobj apply time so the final program embeds a complete range table (entry stub + runtime + user code).
+  - arm64-linux unresolved-import stubs are added to the debug-info table when `--debug` so the failing FFI frame is symbolized.
+  - Bumped `RUNTIME_OBJ_BACKEND_SIG_ARM64` to invalidate old rtobj entries after the meta format change.
+- Tooling / regression gates:
+  - `scripts/verify_native_matrix.sh` now asserts Linux unresolved-FFI output includes both `ffi unresolved:` and `oren_panic`.
+  - `scripts/build_rtobj_seed.sh` now filters seed selection by the current rtobj backend signature (`_bv_...`) so seed no-op logic stays correct across backend-sig bumps.
+  - `scripts/resolve_native_pc.py` hardened table discovery (robust marker scan + stronger candidate validation).
+- Verified:
+  - `make verify-native-quick`
+  - `./scripts/verify_native_matrix.sh --targets arm64-linux`
+  - `make verify-native-x64-compile`
+
 ## Archived (2026-01-05) — Native x86_64: IntrTmp spill pool (no `$tmp_intrN` locals)
 
 - x64 native v0 no longer materializes intrinsic temp slots as string-named locals (`$tmp_intrN`):

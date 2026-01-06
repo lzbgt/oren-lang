@@ -313,11 +313,16 @@ run_in_linux_container() {
 run_in_linux_container_expect_fail_contains() {
   local bin="$1"
   local needle="$2"
+  local needle2="${3:-}"
   local dst="/tmp/$(basename "$bin")"
   local out="/tmp/oren_$(basename "$bin").out"
 
   docker cp "$bin" "${LINUX_DOCKER_ID}:${dst}"
-  docker exec -i "$LINUX_DOCKER_ID" bash -lc "chmod +x '$dst'; rm -f '$out'; set +e; '$dst' >'$out' 2>&1; rc=\$?; set -e; cat '$out'; echo EXIT=\$rc; if [ \$rc -eq 0 ]; then exit 96; fi; grep -qF \"$needle\" '$out'"
+  if [[ -n "$needle2" ]]; then
+    docker exec -i "$LINUX_DOCKER_ID" bash -lc "chmod +x '$dst'; rm -f '$out'; set +e; '$dst' >'$out' 2>&1; rc=\$?; set -e; cat '$out'; echo EXIT=\$rc; if [ \$rc -eq 0 ]; then exit 96; fi; grep -qF \"$needle\" '$out' && grep -qF \"$needle2\" '$out'"
+  else
+    docker exec -i "$LINUX_DOCKER_ID" bash -lc "chmod +x '$dst'; rm -f '$out'; set +e; '$dst' >'$out' 2>&1; rc=\$?; set -e; cat '$out'; echo EXIT=\$rc; if [ \$rc -eq 0 ]; then exit 96; fi; grep -qF \"$needle\" '$out'"
+  fi
 }
 
 remote_user="$REMOTE_HOST"
@@ -428,6 +433,7 @@ remote_run_wsl() {
 remote_run_wsl_expect_fail_contains() {
   local bin_name="$1"
   local needle="$2"
+  local needle2="${3:-}"
   remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
   local full="${remote_wsl_root}/${bin_name}"
   local envp=""
@@ -444,7 +450,13 @@ remote_run_wsl_expect_fail_contains() {
   cmd+='$rc'
   cmd+=" -eq 0 ]; then exit 96; fi; grep -qF \""
   cmd+="$needle"
-  cmd+="\" '${out}' || exit 97; exit 0"
+  cmd+="\" '${out}' || exit 97; "
+  if [[ -n "$needle2" ]]; then
+    cmd+="grep -qF \""
+    cmd+="$needle2"
+    cmd+="\" '${out}' || exit 98; "
+  fi
+  cmd+="exit 0"
 
   set +e
   run_with_timeout 30 "${ssh_base[@]}" "wsl.exe -e bash -lc \"${cmd}\""
@@ -469,8 +481,8 @@ if has_target arm64-linux; then
   build_native_bin_src "./oren_stage2" "arm64-linux" "$LINUX_FFI_PANIC_SRC" "build/tmp/ffi_panic_stage2_arm64_linux"
   run_in_linux_container "build/tmp/qi_stage1_arm64_linux"
   run_in_linux_container "build/tmp/qi_stage2_arm64_linux"
-  run_in_linux_container_expect_fail_contains "build/tmp/ffi_panic_stage1_arm64_linux" "ffi unresolved:"
-  run_in_linux_container_expect_fail_contains "build/tmp/ffi_panic_stage2_arm64_linux" "ffi unresolved:"
+  run_in_linux_container_expect_fail_contains "build/tmp/ffi_panic_stage1_arm64_linux" "ffi unresolved:" "oren_panic"
+  run_in_linux_container_expect_fail_contains "build/tmp/ffi_panic_stage2_arm64_linux" "ffi unresolved:" "oren_panic"
   log "OK: linux/arm64 container"
 fi
 
@@ -526,8 +538,8 @@ if has_target x64-wsl; then
   log "-- run: WSL2 (x64-linux) --"
   remote_run_wsl "qi_stage1_x64_linux"
   remote_run_wsl "qi_stage2_x64_linux"
-  remote_run_wsl_expect_fail_contains "ffi_panic_stage1_x64_linux" "ffi unresolved:"
-  remote_run_wsl_expect_fail_contains "ffi_panic_stage2_x64_linux" "ffi unresolved:"
+  remote_run_wsl_expect_fail_contains "ffi_panic_stage1_x64_linux" "ffi unresolved:" "oren_panic"
+  remote_run_wsl_expect_fail_contains "ffi_panic_stage2_x64_linux" "ffi unresolved:" "oren_panic"
   log "OK: remote WSL2 x64"
 fi
 

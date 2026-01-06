@@ -96,6 +96,25 @@ seed_dir="${OREN_NATIVE_RUNTIME_OBJ_SEED_DIR:-build/cache/native_runtime_obj_see
 dbg="d0"
 if [[ "$debug_flag" = "--debug" ]]; then dbg="d1"; fi
 
+# Current backend signature (must match rtobj cache key `_bv_<sig>`).
+#
+# Important: the seed directory must track backend signature bumps; otherwise `rtobj_try_load_seed_into_cache`
+# will miss and stage2-native will pay a slow cold rtobj build.
+want_bv=""
+case "$backend" in
+  arm64)
+    want_bv="$(rg -n '^var RUNTIME_OBJ_BACKEND_SIG_ARM64 = ' lib/compiler/native_runtime_obj_cache.oren 2>/dev/null | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/' || true)"
+    ;;
+  x64)
+    want_bv="$(rg -n '^var RUNTIME_OBJ_BACKEND_SIG_X64 = ' lib/compiler/native_runtime_obj_cache.oren 2>/dev/null | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/' || true)"
+    ;;
+esac
+if [[ -z "$want_bv" ]]; then
+  echo "ERROR: failed to determine runtime obj backend sig for backend=$backend" >&2
+  echo "Hint: check lib/compiler/native_runtime_obj_cache.oren" >&2
+  exit 2
+fi
+
 # Runtime entry file used for hashing/keys (non-capsule only; capsule uses a different entry file).
 runtime_entry="lib/runtime_native.oren"
 case "${runtime_profile:-}" in
@@ -135,6 +154,7 @@ find_seed_key() {
   key="$(
     ls -1t "$seed_dir" 2>/dev/null | \
       rg "^s2_b_${backend}_" | \
+      rg "_bv_${want_bv}_" | \
       rg "_os_${os}_" | \
       rg "_a_${arch}_" | \
       rg "_${dbg}_g" | \
@@ -145,6 +165,7 @@ find_seed_key() {
     key="$(
       ls -1t "$seed_dir" 2>/dev/null | \
         rg "^s2_b_${backend}_" | \
+        rg "_bv_${want_bv}_" | \
         rg "_os_${os}_" | \
         rg "_a_unknown_" | \
         rg "_${dbg}_g" | \
@@ -165,6 +186,7 @@ find_latest_key() {
   key="$(
     ls -1t "$cache_dir" 2>/dev/null | \
       rg "^s2_b_${backend}_" | \
+      rg "_bv_${want_bv}_" | \
       rg "_os_${os}_" | \
       rg "_a_${arch}_" | \
       rg "_${dbg}_g" | \
@@ -176,6 +198,7 @@ find_latest_key() {
     key="$(
       ls -1t "$cache_dir" 2>/dev/null | \
         rg "^s2_b_${backend}_" | \
+        rg "_bv_${want_bv}_" | \
         rg "_os_${os}_" | \
         rg "_a_unknown_" | \
         rg "_${dbg}_g" | \

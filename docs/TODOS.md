@@ -97,7 +97,9 @@ Rules for this tracker:
 			      - Regression gates (current):
 			        - Remote Win11: `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_kernel32.oren` (stage1 + stage2).
 			        - Local sanity: `make verify-native-x64-compile` compiles Windows FFI examples (including `--link msvcrt.dll` propagation checks).
-			        - Linux bring-up contract: `scripts/verify_native_matrix.sh --targets arm64-linux` (and `x64-wsl`) runs `tests/native/ffi_linux_unresolved_panics.oren` and asserts the program fails with `ffi unresolved:` until ELF dynamic linking is implemented.
+			        - Linux bring-up contract: `scripts/verify_native_matrix.sh --targets arm64-linux` (and `x64-wsl`) runs `tests/native/ffi_linux_unresolved_panics.oren` and asserts:
+			          - the program fails with `ffi unresolved:` (until ELF dynamic linking is implemented), and
+			          - the debug stack trace includes `oren_panic` (runtime frame symbolization under rtobj cache mode).
 			      - Deliverable (remaining): Linux ELF `DT_NEEDED` + PLT/GOT relocations (or an explicit dynamic-loader strategy) so `ffi` becomes real on `x64-linux` and `arm64-linux`.
 			      - Then un-skip the native FFI example path in `make examples-test` on Linux.
 			    - Shared library output parity (native `--lib`/`--shared`):
@@ -115,8 +117,10 @@ Rules for this tracker:
 		         - x64 compiler emits an embedded debug-info table and entry stub calls `oren_set_debug_info(...)`.
 		         - Runtime `stack_trace()` now uses `oren_resolve_symbol(pc)` (debug-info first; fallback to best-effort intrinsic).
 		         - Tier‑1 smoke asserts `oren_resolve_symbol(lr) != "???"`.
-		       - Remaining: arm64-linux stack traces still show `???` for many frames in debug builds (missing symbolization parity with x86_64).
-		         - Deliverable: embed a compact symtab/debug table for arm64-linux and wire `oren_resolve_symbol(pc)` to it (same contract as x64), then gate via the linux/arm64 container step in `scripts/verify_native_matrix.sh`.
+		       - Fixed (2026-01-06): arm64 debug stack traces now symbolize runtime frames under rtobj cache mode (no more `???` for helpers like `oren_panic`).
+		         - Runtime-object cache meta now persists runtime debug function ranges, and the arm64 compiler merges them into the final embedded debug-info table at rtobj apply time.
+		         - Linux/arm64 unresolved-import stubs are also added to the debug-info table so `ffi` panics show the failing symbol frame.
+		         - Regression gate: linux/arm64 container step in `scripts/verify_native_matrix.sh` asserts both `ffi unresolved:` and `oren_panic` are present in output.
 	       - Fixed (2026-01-04): arm64 varargs wrappers no longer self-recurse in native codegen.
 	         - Added a `cur_fn_name` context so call lowering can skip varargs “callable-object” lowering inside `__oren_fnwrap_*`.
 	         - Result: `tests/fixtures/tier1_native_smoke_main.oren` runs successfully on `arm64-macos` native backend in debug mode.

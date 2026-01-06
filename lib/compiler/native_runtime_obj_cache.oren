@@ -38,7 +38,7 @@ var RUNTIME_OBJ_DATA_PREFIX_LEN = 8 // cstr0 table slot reserved by native entry
 // Rolling contract:
 // - Bump the relevant backend sig whenever a change can affect emitted code/data bytes.
 // - This is intentionally cheap (string constant) so cache hits stay fast.
-var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_2"
+var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_3"
 var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_7"
 
 fn rtobj_backend_sig(backend) {

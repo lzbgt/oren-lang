@@ -278,6 +278,43 @@ fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
         }
     }
 
+    // Merge runtime debug-info function ranges when the rtobj cache is used.
+    //
+    // This keeps `--debug` stack traces symbolized for runtime frames (e.g. `oren_panic`)
+    // without relying on generating a large `resolve_symbol()` function.
+    //
+    // Note:
+    // - runtime build stores ranges as relative offsets within the rtobj code blob
+    // - we shift them by base_code so the final emitter can write absolute PCs
+    if ctx["platform"] != nil && ctx["platform"]["debug"] == true {
+        var dbg = meta["debug_funcs_enc"]
+        if dbg != nil {
+            if ctx["debug_info"] == nil { ctx["debug_info"] = {"funcs": []} }
+            if ctx["debug_info"]["funcs"] == nil { ctx["debug_info"]["funcs"] = [] }
+            var di = 0
+            while di < oren_list_len(dbg) {
+                var f0 = dbg[di]
+                if f0 != nil {
+                    var nm_dbg = f0["name"]
+                    var st_dbg = _rtobj_decode_int_enc(f0["start_enc"])
+                    var en_dbg = _rtobj_decode_int_enc(f0["end_enc"])
+                    if nm_dbg != nil && st_dbg != nil && en_dbg != nil {
+                        oren_list_push(ctx["debug_info"]["funcs"], {
+                            "name": nm_dbg,
+                            "start": base_code + st_dbg,
+                            "end": base_code + en_dbg,
+                            "file": "<runtime>",
+                            "line": 0,
+                            "col": 0,
+                            "params": []
+                        })
+                    }
+                }
+                di = di + 1
+            }
+        }
+    }
+
     // Merge runtime fixups (pos encoded as +1; adjust by base_code).
     var fx = meta["fixups_enc"]
     if fx != nil {
@@ -349,6 +386,28 @@ fn _arm64_rtobj_encode_fixups(fixups) {
     return out
 }
 
+fn _arm64_rtobj_encode_debug_funcs(funcs) {
+    // Encode debug-info function ranges into a compact cache-friendly form.
+    //
+    // Store ints as +1 to avoid 0-as-nil when the compiler runs under the native runtime.
+    if funcs == nil { return [] }
+    var out = []
+    var i = 0
+    while i < oren_list_len(funcs) {
+        var f0 = funcs[i]
+        if f0 != nil {
+            var nm = f0["name"]
+            var st = f0["start"]
+            var en = f0["end"]
+            if nm != nil && st != nil && en != nil {
+                oren_list_push(out, {"name": nm, "start_enc": st + 1, "end_enc": en + 1})
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
+
 fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     // Compile the injected native runtime into a reusable object blob.
     //
@@ -371,9 +430,9 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     var linked0 = {"statements": [], "aliases": {}, "type_ns": {}}
     var ctx = _arm64_new_ctx(linked0, platform)
     // Debug builds expect a `debug_info` table to exist so statement compilation can
-    // append function ranges deterministically. The runtime object cache currently does
-    // not persist runtime debug info, but we still must keep the compiler codegen path
-    // safe (no nil indexing panics) when `--debug` is enabled.
+    // append function ranges deterministically. When building a runtime object, we also
+    // persist those ranges in the cache meta so rtobj consumers can merge runtime frames
+    // into the final embedded debug-info table.
     if platform != nil && platform["debug"] == true {
         ctx["debug_info"] = {"funcs": []}
     }
@@ -565,6 +624,9 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
         "func_varargs_fixed": ctx["func_varargs_fixed"],
         "func_decl_order": ctx["func_decl_order"],
         "lambda_counter_enc": ctx["lambda_counter"] + 1
+    }
+    if platform != nil && platform["debug"] == true {
+        meta["debug_funcs_enc"] = _arm64_rtobj_encode_debug_funcs(ctx["debug_info"]["funcs"])
     }
     if trace_sum {
         var total_ms = (t_finalize_done - t0) / 1000000
@@ -1270,7 +1332,8 @@ fn native_compile_program_arm64(linked, platform) {
         // so the first instruction is at 0x100000000 + 2048.
         var base_addr = 4294969344
         if ctx["platform"]["os"] == "linux" {
-            base_addr = 4194304 + 120 // 0x400000 + 120 (ELF header approx, need verify)
+            // ELF emitter uses: text_base=0x400000, header_size=(Ehdr 64) + (2*Phdr 56) = 176.
+            base_addr = 4194304 + 176
         }
 
         // Build list of {off:int, name:string} and sort descending by off.
@@ -1352,6 +1415,7 @@ fn native_compile_program_arm64(linked, platform) {
     } else {
         // Minimal stub to satisfy native runtime stack traces without inflating binaries.
         // (Non-debug builds only need a valid symbol; names can be "???".)
+        if trace { print("[arm64] compile resolve_symbol stub") }
         var sym_src2 = "fn resolve_symbol(addr) { return \"???\" }"
         var l_sym2 = lexer.new_lexer(sym_src2)
         l_sym2["file"] = "<native:symbol_table>"
