@@ -69,7 +69,12 @@ fn sys_lstat(path, st_ptr) { return 0 }
 fn sys_fstat(fd, st_ptr) { return 0 }
 fn sys_unlink(path) { return 0 }
 fn sys_rename(from, to) { return 0 }
-fn sys_mkdir(path, mode) { return 0 }
+fn sys_mkdir(path, mode) {
+    // Stub only. Native backends lower call sites to real syscalls / CreateDirectoryA.
+    // If this executes in a native binary, something is badly wrong; returning 0 keeps
+    // failures obvious (subsequent FS ops will fail).
+    return 0
+}
 fn sys_chmod(path, mode) { return 0 }
 fn sys_rmdir(path) { return 0 }
 fn sys_getdirentries64(fd, buf, bufsize, pos_ptr) { return 0 }

@@ -79,6 +79,49 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `make verify-native-quick`
   - manual cache-miss check: build the same source with a fixed `OREN_CACHE_DIR` and toggle `OREN_NATIVE_RUNTIME_PROFILE`.
 
+## Archived (2026-01-06) — Stage2 bytecode backend: eliminate `0`-index collisions in maps
+
+- Symptom (stage2 native compiler, bytecode backend):
+  - `./oren_stage2 build ... --backend bytecode` could fail with internal errors like:
+    - `missing local slot for xs`
+- Root cause (native runtime semantics vs compiler-side sentinels):
+  - In the current native runtime, `nil` collapses to `0` (and `false` is also `0`), so using a raw `0` value as “present” in a map lookup is unsafe.
+  - The bytecode backend stored local/global indices starting at `0` in `map<string->int>`, then used `== nil`/`!= nil` checks to detect presence.
+  - On stage2, a legitimate index `0` could be misinterpreted as “missing”.
+- Fix (bytecode codegen):
+  - Store integer indices as **1-based** (`idx+1`) in all `map` tables that are later checked for `nil`:
+    - locals, globals, env captures, function entry pcs
+  - Decode (`enc-1`) at use sites.
+- Verified:
+  - `./oren_stage2 build examples/hello.oren --backend bytecode --no-cache -o build/tmp/hello_stage2.obc`
+
+## Archived (2026-01-06) — Bootstrap portability: avoid native-only syscalls in stage1-critical code
+
+- Symptom:
+  - Some compiler-side helpers used by both stage1 (C runtime) and stage2 (native runtime) were changed to call `sys_*` intrinsics.
+  - The stage0/stage1 bootstrap (Go → C backend) cannot lower those intrinsics, breaking early toolchain paths.
+- Fix (compiler helpers):
+  - Keep stage1-critical filesystem helpers portable by using `oren_system(...)` with platform-specific commands:
+    - POSIX: `mkdir -p "<path>"`
+    - Windows: `mkdir "<path>" >nul 2>nul`
+  - Avoid reading file contents just to probe existence (binary cache artifacts can contain NULs and can trigger native-runtime hazards); use command probes instead:
+    - POSIX: `test -f "<path>"`
+    - Windows: `if exist "<path>" (exit /b 0) else (exit /b 1)`
+- Verified:
+  - `make stage1`
+  - `make stage2`
+  - `make verify-native-x64-compile`
+
+## Archived (2026-01-06) — Stdlib HTTP: HTTP/1.1 GET (Content-Length + chunked) + cross-OS loopback test
+
+- Implemented:
+  - `lib/std/net/http.oren`: minimal HTTP/1.1 GET client over `std:net/tcp`.
+  - Supports:
+    - Content-Length bodies
+    - Transfer-Encoding: chunked bodies (no TLS/DNS/keep-alive pooling yet)
+- Regression:
+  - `tests/native/test_http_get_loopback.oren` runs an in-process loopback server via `spawn` and validates both Content-Length and chunked responses.
+
 ## Archived (2026-01-05) — Native x86_64: IntrTmp spill pool (no `$tmp_intrN` locals)
 
 - x64 native v0 no longer materializes intrinsic temp slots as string-named locals (`$tmp_intrN`):
@@ -1076,9 +1119,11 @@ Focus statement (to avoid roadmap thrash):
      - `sys_kqueue`, `sys_kevent`, `sys_fcntl`
      - `.oren` helpers: `oren_tcp_connect`, `oren_tcp_listen_local`, `oren_tcp_accept`, `oren_tcp_read_into`, `oren_tcp_write_from`, `oren_tcp_close`
      - test: `tests/native/test_tcp_loopback.oren`
-     - minimal HTTP GET helper built on top of TCP syscalls:
-       - `oren_net_get("http://<ipv4>[:port][/path]")` (v0; no TLS/DNS/chunked)
-       - regression: `tests/native/test_http_get_loopback.oren`
+	     - minimal HTTP GET helper built on top of TCP syscalls (legacy / opt-in):
+	       - `oren_net_get("http://<ipv4>[:port][/path]")` (v0; no TLS/DNS/chunked; full runtime profile only)
+	     - stdlib HTTP client (rolling):
+	       - `lib/std/net/http.oren` (HTTP/1.1 over TCP; Content-Length + chunked; no TLS/DNS yet)
+	       - loopback regression: `tests/native/test_http_get_loopback.oren` (uses `spawn` for cross-OS)
    - Remaining (still required by the “real stdlib NET” goal):
      - add `sys_getsockname` + `sys_getpeername` (useful for debugging/introspection) (done; regression: `tests/native/test_tcp_sockname_peername.oren`)
      - add `sys_send`/`sys_recv` first-class intrinsics (may lower to sendto/recvfrom with NULL addr) (done; regression: `tests/native/test_tcp_send_recv.oren`)

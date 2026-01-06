@@ -217,7 +217,7 @@ fn bytecode_compile_expr(ctx, expr) {
             }
 
             emit_byte(ctx, AVM_PUSH_FUNC32)
-            emit_u32(ctx, ctx["functions"][lname])
+            emit_u32(ctx, ctx["functions"][lname] - 1)
             if oren_list_len(caps) > 0 {
                 emit_byte(ctx, AVM_MAKE_CLOSURE)
                 emit_byte(ctx, oren_list_len(caps))
@@ -233,7 +233,7 @@ fn bytecode_compile_expr(ctx, expr) {
                 bytecode_compile_function(ctx, expr)
             }
             emit_byte(ctx, AVM_PUSH_FUNC32)
-            emit_u32(ctx, ctx["functions"][nm])
+            emit_u32(ctx, ctx["functions"][nm] - 1)
             return nil
         }
     }
@@ -249,13 +249,13 @@ fn bytecode_compile_expr(ctx, expr) {
                 var glob = ctx["globals"][name]
                 if glob != nil {
                     emit_byte(ctx, AVM_LOAD_GLOBAL)
-                    emit_u16(ctx, glob)
+                    emit_u16(ctx, glob - 1)
                     return nil
                 }
                 var faddr = ctx["functions"][name]
                 if faddr != nil {
                     emit_byte(ctx, AVM_PUSH_FUNC32)
-                    emit_u32(ctx, faddr)
+                    emit_u32(ctx, faddr - 1)
                     return nil
                 }
                 if ctx["declared_funcs"][name] == true || ctx["allow_undef"] == true {
@@ -384,7 +384,7 @@ fn bytecode_compile_expr(ctx, expr) {
         var name = expr["value"]
         var loc = ctx["locals"][name]
         if loc != nil {
-            emit_load_local(ctx, loc)
+            emit_load_local(ctx, loc - 1)
             return nil
         }
         var caps = ctx["env_captures"]
@@ -392,20 +392,20 @@ fn bytecode_compile_expr(ctx, expr) {
             var cidx = caps[name]
             if cidx != nil {
                 emit_byte(ctx, AVM_LOAD_ENV)
-                emit_byte(ctx, cidx)
+                emit_byte(ctx, cidx - 1)
                 return nil
             }
         }
         var glob = ctx["globals"][name]
         if glob != nil {
             emit_byte(ctx, AVM_LOAD_GLOBAL)
-            emit_u16(ctx, glob)
+            emit_u16(ctx, glob - 1)
             return nil
         }
         var faddr = ctx["functions"][name]
         if faddr != nil {
             emit_byte(ctx, AVM_PUSH_FUNC32)
-            emit_u32(ctx, faddr)
+            emit_u32(ctx, faddr - 1)
             return nil
         }
         if ctx["declared_funcs"][name] == true {

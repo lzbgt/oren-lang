@@ -502,25 +502,31 @@ fn _rtobj_runtime_fingerprint_v2_parts(parts) {
     return "v2_" + oren_int_to_string(h1) + "_" + oren_int_to_string(h2)
 }
 
-fn _shell_quote(s) {
-    // Minimal single-quote escaping: ' -> '\''.
-    if s == nil { return "''" }
-    var out = "'"
+fn _path_to_windows_sep(s) {
+    if s == nil { return "" }
+    var out = ""
     var i = 0
     while i < oren_string_len(s) {
         var ch = oren_string_char_at(s, i)
-        if ch == "'" { out = out + "'\\''" }
+        if ch == "/" { out = out + "\\" }
         else { out = out + ch }
         i = i + 1
     }
-    out = out + "'"
     return out
 }
 
 fn _ensure_dir(path) {
     if path == nil || path == "" { return nil }
-    // Rolling: use shell to avoid growing the compiler syscall surface here.
-    oren_system("mkdir -p " + _shell_quote(path))
+    // Cross-platform: do not rely on `mkdir -p` on Windows (cmd.exe does not support it).
+    var mk_path = path
+    var cmd = ""
+    if oren_env("OS") == "Windows_NT" {
+        mk_path = _path_to_windows_sep(mk_path)
+        cmd = "mkdir \"" + mk_path + "\" >nul 2>nul"
+    } else {
+        cmd = "mkdir -p \"" + mk_path + "\""
+    }
+    oren_system(cmd)
     return nil
 }
 

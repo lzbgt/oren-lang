@@ -1,48 +1,89 @@
-fn server(port) {
-    var listen_fd = oren_tcp_listen_local(port)
-    if listen_fd < 0 { exit(10) }
-    var fd = oren_tcp_accept(listen_fd, 5000)
-    if fd < 0 { exit(11) }
+import http "../../lib/std/net/http.oren"
 
-    var body = "HELLO"
-    var hdr = "HTTP/1.0 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n"
-    var resp = hdr + body
+fn u16be_at(p, off) {
+    var hi = ptr_get_byte(p + off)
+    var lo = ptr_get_byte(p + off + 1)
+    return (hi << 8) | lo
+}
+
+fn server(listen_fd, mode) {
+    // mode:
+    // - 0: Content-Length body
+    // - 1: Transfer-Encoding: chunked body
+    var fd = oren_tcp_accept(listen_fd, 5000)
+    if fd < 0 { return 11 }
+
+    var resp = 0
+    if mode == 0 {
+        resp = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nHELLO"
+    } else {
+        // Chunked framing:
+        //   2;ext\r\nHE\r\n3\r\nLLO\r\n0\r\n\r\n
+        resp = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n2;foo=bar\r\nHE\r\n3\r\nLLO\r\n0\r\n\r\n"
+    }
+
     var n = oren_tcp_write_from(fd, resp, oren_string_len(resp), 5000)
-    if n < 0 { exit(12) }
+    if n < 0 {
+        oren_tcp_close(fd)
+        return 12
+    }
 
     oren_tcp_close(fd)
+    return 0
+}
+
+fn run_case(mode) {
+    // Loopback-only, timeout-bounded, OS-neutral (no fork required).
+    var listen_fd = oren_tcp_listen_local(0) // port 0 => ephemeral
+    if listen_fd < 0 { return 10 }
+
+    // Determine the chosen port via getsockname.
+    var sa = malloc(32)
+    if sa == 0 { return 20 }
+    var lenp = malloc(8)
+    if lenp == 0 { return 21 }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(listen_fd, sa, lenp)
+    if grc < 0 { return 0 - grc }
+    var port = u16be_at(sa, 2)
+    free(sa)
+    free(lenp)
+    if port <= 0 { return 22 }
+
+    // Spawn server after binding so it doesn't race with the connect.
+    var h = spawn server(listen_fd, mode)
+
+    var url = "http://127.0.0.1:" + oren_int_to_string(port) + "/"
+    var r = http.get_text(url, 2000)
+    free(url)
+    if r["ok"] != 1 {
+        print("http_get_loopback: FAIL get_text: " + r["err"])
+        return 30
+    }
+    var body = r["v"]
+    if body == 0 { return 31 }
+    if strcmp(body, "HELLO") != 0 {
+        print("http_get_loopback: FAIL body mismatch")
+        print(body)
+        free(body)
+        return 32
+    }
+    free(body)
+
+    var sr = oren_join_timeout(h, 5000)
+    if sr != 0 { return 40 }
+
     oren_tcp_close(listen_fd)
+    return 0
+}
+
+fn main() {
+    var rc0 = run_case(0)
+    if rc0 != 0 { exit(rc0) }
+    var rc1 = run_case(1)
+    if rc1 != 0 { exit(rc1) }
+    print("http_get_loopback: OK")
     exit(0)
 }
 
-var port = 18080
-var pid = oren_fork()
-if pid == 0 {
-    server(port)
-}
-
-// Give the child a moment to bind/listen (v0).
-oren_sleep_ms(50)
-
-var url = "http://127.0.0.1:18080/"
-var body = oren_net_get(url)
-if body == 0 {
-    print("http_get: FAIL (nil)")
-    exit(1)
-}
-
-if strcmp(body, "HELLO") != 0 {
-    print("http_get: FAIL (body mismatch)")
-    print(body)
-    exit(1)
-}
-
-// Reap child (best-effort).
-var status_ptr = malloc(8)
-ptr_set(status_ptr, 0)
-sys_wait4(pid, status_ptr, 0, 0)
-free(status_ptr)
-
-print("http_get: OK")
-exit(0)
-
+// NOTE: `fn main()` is invoked automatically by the runtime entrypoint.

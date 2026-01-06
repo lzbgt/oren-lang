@@ -180,6 +180,26 @@ fn _imod(a, b) {
     return a - (a / b) * b
 }
 
+fn _path_is_sep_byte(b) {
+    // Treat both '/' and '\\' as separators so Windows-style paths work too.
+    if b == 47 { return true } // '/'
+    if b == 92 { return true } // '\\'
+    return false
+}
+
+fn _path_to_windows_sep(s) {
+    if s == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at(s, i)
+        if ch == "/" { out = out + "\\" }
+        else { out = out + ch }
+        i = i + 1
+    }
+    return out
+}
+
 fn _hex_digit(n) {
     // n in [0,15]
     return oren_string_char_at("0123456789abcdef", n)
@@ -285,9 +305,25 @@ fn _write_artifact_manifest(kind, path, sha256_hex, target, arch, deterministic,
 }
 
 fn ensure_dir(path) {
-    // Use shell to avoid adding FS syscalls to the compiler surface right now.
-    // This is for dev tooling (tests/build logs).
-    oren_system("mkdir -p " + shell_quote(path))
+    // Cross-platform `mkdir -p` helper for compiler tooling.
+    //
+    // Constraints (rolling):
+    // - Stage 1 is built via the C backend (Go bootstrap transpiler), so we must not
+    //   depend on syscall-first intrinsics like `sys_mkdir` here.
+    // - Windows cmd.exe does not support `mkdir -p`, so we must special-case it.
+    //
+    // Contract:
+    // - Best-effort create the directory (including parents).
+    // - No-op for empty paths.
+    if path == nil || path == "" { return nil }
+    if oren_env("OS") == "Windows_NT" {
+        // Silence "already exists" noise to keep rolling logs bounded.
+        var mk_path = _path_to_windows_sep(path)
+        oren_system("mkdir \"" + mk_path + "\" >nul 2>nul")
+        return nil
+    }
+    // POSIX: `mkdir -p` is reliable and quiet when the directory already exists.
+    oren_system("mkdir -p \"" + path + "\"")
     return nil
 }
 
@@ -342,9 +378,21 @@ fn strip_suffix(s, suffix) {
 }
 
 fn file_exists(path) {
-    // Avoid nested quoting: shell_quote() already uses single quotes.
-    // `test -f 'path'` is fine whether oren_system uses /bin/sh -c or exec.
-    return cmd_ok("test -f " + shell_quote(path))
+    if path == nil || path == "" { return false }
+    // Stage0 bootstrap + native runtime parity:
+    // - We cannot rely on syscall-first `sys_stat` here (stage1 is built via the C backend).
+    // - We also must not read the file just to check existence (can be large/binary).
+    //
+    // Use a small `oren_system` probe:
+    // - POSIX: `test -f ...`
+    // - Windows: `if exist ...`
+    var os_env = oren_env("OS")
+    if os_env == "Windows_NT" {
+        var p = _path_to_windows_sep(path)
+        var cmd = "if exist \"" + p + "\" (exit /b 0) else (exit /b 1)"
+        return oren_system(cmd) == 0
+    }
+    return oren_system("test -f \"" + path + "\"") == 0
 }
 
 fn string_contains(hay, needle) {

@@ -1,12 +1,12 @@
-// Minimal HTTP stdlib (native backend, rolling).
+// HTTP stdlib (native backend, rolling).
 //
-// This is intentionally small:
-// - No TLS
-// - No DNS
-// - No chunked decoding
+// Current scope (rolling, syscall-first):
+// - HTTP/1.1 over plain TCP (no TLS yet)
+// - IP-only URLs (no DNS yet)
+// - Content-Length and Transfer-Encoding: chunked bodies
 //
-// The goal is to provide a stable module path for native Oren libraries to build on,
-// while the syscall-first NET substrate evolves.
+// The goal is to provide a stable module path for native Oren libraries to build on
+// while we iterate toward a full production NET stack (HTTP/2 + WebSocket + TLS + DNS).
 
 import tcp "std:net/tcp"
 
@@ -77,11 +77,11 @@ fn _parse_http_url(url) {
 }
 
 fn _build_get_request(host, path) {
-    // "GET <path> HTTP/1.0\r\nHost: <host>\r\nConnection: close\r\n\r\n"
+    // Minimal HTTP/1.1 request (connection-close).
     //
     // Prefer `+` for string concatenation (native backend lowers to `oren_add`).
     // This avoids manual lifetime management of intermediate concat results.
-    return "GET " + path + " HTTP/1.0\r\nHost: " + host + "\r\nConnection: close\r\n\r\n"
+    return "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\nConnection: close\r\n\r\n"
 }
 
 fn _find_header_body_split(buf, used) {
@@ -102,6 +102,125 @@ fn _find_header_body_split(buf, used) {
     return 0
 }
 
+fn _ascii_lower(b) {
+    // Input is a byte (0..255); return lowercase ASCII byte if A..Z.
+    if b >= 65 && b <= 90 { return b + 32 }
+    return b
+}
+
+fn _header_name_eq_ci(buf, name_start, name_end, want) {
+    // Case-insensitive ASCII compare of buf[name_start:name_end] vs want string.
+    var wl = oren_string_len(want)
+    if (name_end - name_start) != wl { return 0 }
+    var i = 0
+    while i < wl {
+        var b1 = ptr_get_byte(buf + name_start + i) & 255
+        var b2 = ptr_get_byte(want + i) & 255
+        if _ascii_lower(b1) != _ascii_lower(b2) { return 0 }
+        i = i + 1
+    }
+    return 1
+}
+
+fn _trim_left_ws_in_buf(buf, start, end) {
+    var i = start
+    while i < end {
+        var b = ptr_get_byte(buf + i) & 255
+        if b != 32 && b != 9 { break } // space/tab
+        i = i + 1
+    }
+    return i
+}
+
+fn _parse_dec_int_in_buf(buf, start, end) {
+    // Returns integer >=0 on success, or -1 on failure.
+    var i = start
+    if i >= end { return -1 }
+    var acc = 0
+    while i < end {
+        var b = ptr_get_byte(buf + i) & 255
+        if b < 48 || b > 57 { return -1 }
+        acc = acc * 10 + (b - 48)
+        i = i + 1
+    }
+    return acc
+}
+
+fn _hex_val(b) {
+    // Returns 0..15, or -1 on failure.
+    if b >= 48 && b <= 57 { return b - 48 }
+    if b >= 65 && b <= 70 { return b - 55 } // A..F
+    if b >= 97 && b <= 102 { return b - 87 } // a..f
+    return -1
+}
+
+fn _decode_chunked_into_string(body_ptr, body_len) {
+    // Decode Transfer-Encoding: chunked body bytes into a single NUL-terminated string.
+    // Returns out string pointer, or 0 on failure.
+    if body_ptr == 0 { return 0 }
+    if body_len <= 0 {
+        var out0 = malloc(1)
+        if out0 == 0 { return 0 }
+        ptr_set_byte(out0 + 0, 0)
+        return out0
+    }
+
+    // Worst-case output size <= input size (chunk framing adds overhead),
+    // so allocate body_len+1 and shrink-by-copy if needed.
+    var out = malloc(body_len + 1)
+    if out == 0 { return 0 }
+    var out_used = 0
+
+    var i = 0
+    while i < body_len {
+        // Parse chunk size line (hex digits + optional extensions until CRLF).
+        var size = 0
+        var seen_digit = 0
+        while i < body_len {
+            var b = ptr_get_byte(body_ptr + i) & 255
+            if b == 13 { break } // CR
+            if b == 10 { break } // LF (tolerate)
+            if b == 59 { // ';' => chunk extensions, ignore rest of line
+                while i < body_len {
+                    var b2 = ptr_get_byte(body_ptr + i) & 255
+                    if b2 == 13 || b2 == 10 { break }
+                    i = i + 1
+                }
+                break
+            }
+            var hv = _hex_val(b)
+            if hv < 0 { free(out); return 0 }
+            size = size * 16 + hv
+            seen_digit = 1
+            i = i + 1
+        }
+        if seen_digit == 0 { free(out); return 0 }
+
+        // Consume CRLF
+        if i < body_len && (ptr_get_byte(body_ptr + i) & 255) == 13 { i = i + 1 }
+        if i < body_len && (ptr_get_byte(body_ptr + i) & 255) == 10 { i = i + 1 }
+
+        if size == 0 {
+            // Done. Ignore optional trailers.
+            ptr_set_byte(out + out_used, 0)
+            return out
+        }
+
+        if i + size > body_len { free(out); return 0 }
+        oren_memcpy(out + out_used, body_ptr + i, size)
+        out_used = out_used + size
+        i = i + size
+
+        // Consume trailing CRLF after chunk data.
+        if i < body_len && (ptr_get_byte(body_ptr + i) & 255) == 13 { i = i + 1 }
+        if i < body_len && (ptr_get_byte(body_ptr + i) & 255) == 10 { i = i + 1 }
+    }
+
+    // Unterminated stream.
+    free(out)
+    return 0
+}
+
 fn get_text(url, timeout_ms) {
     // Returns:
     //   {"ok":1,"v":string} on success
@@ -109,7 +228,7 @@ fn get_text(url, timeout_ms) {
     //
     // v0 constraints:
     // - no TLS/DNS
-    // - reads until close (no chunked decoding)
+    // - connection-close only (no keep-alive pooling yet)
     if timeout_ms == nil { timeout_ms = 5000 }
 
     var pu = _parse_http_url(url)
@@ -135,8 +254,8 @@ fn get_text(url, timeout_ms) {
         tcp.close(fd)
         return {"ok": 0, "err": "http.get_text: write failed (errno=" + oren_int_to_string(0 - wr) + ")"} }
 
-    // Read full response into a growing buffer.
-    var cap = 4096
+    // Read full response into a growing buffer, but stop early when Content-Length is satisfied.
+    var cap = 8192
     var used = 0
     var buf = malloc(cap)
     if buf == 0 {
@@ -144,10 +263,15 @@ fn get_text(url, timeout_ms) {
         return {"ok": 0, "err": "http.get_text: malloc failed"}
     }
 
+    var header_done = 0
+    var body_off = 0
+    var content_len = -1
+    var is_chunked = 0
+
     while 1 {
-        var tmp = malloc(1024)
+        var tmp = malloc(2048)
         if tmp == 0 { break }
-        var n = tcp.read_into(fd, tmp, 1024, timeout_ms)
+        var n = tcp.read_into(fd, tmp, 2048, timeout_ms)
         if n <= 0 {
             free(tmp)
             break
@@ -167,21 +291,124 @@ fn get_text(url, timeout_ms) {
         oren_memcpy(buf + used, tmp, n)
         used = used + n
         free(tmp)
+
+        if header_done == 0 {
+            body_off = _find_header_body_split(buf, used)
+            if body_off != 0 {
+                header_done = 1
+
+                // Parse status line + headers we care about (Content-Length / Transfer-Encoding).
+                //
+                // Status line: "HTTP/1.1 200 OK\r\n"
+                var line0_end = -1
+                var i0 = 0
+                while i0 + 1 < body_off {
+                    if (ptr_get_byte(buf + i0) & 255) == 13 && (ptr_get_byte(buf + i0 + 1) & 255) == 10 {
+                        line0_end = i0
+                        break
+                    }
+                    i0 = i0 + 1
+                }
+
+                // Parse headers line-by-line from after status line until body_off-4.
+                var hpos = 0
+                if line0_end >= 0 { hpos = line0_end + 2 }
+                while hpos + 1 < body_off {
+                    // Empty line => end.
+                    if (ptr_get_byte(buf + hpos) & 255) == 13 && (ptr_get_byte(buf + hpos + 1) & 255) == 10 {
+                        break
+                    }
+                    // Find end of line.
+                    var lend = -1
+                    var j = hpos
+                    while j + 1 < body_off {
+                        if (ptr_get_byte(buf + j) & 255) == 13 && (ptr_get_byte(buf + j + 1) & 255) == 10 {
+                            lend = j
+                            break
+                        }
+                        j = j + 1
+                    }
+                    if lend < 0 { break }
+
+                    // Find ':' separator.
+                    var colon = -1
+                    var k = hpos
+                    while k < lend {
+                        if (ptr_get_byte(buf + k) & 255) == 58 { colon = k; break } // ':'
+                        k = k + 1
+                    }
+                    if colon >= 0 {
+                        var name_start = hpos
+                        var name_end = colon
+                        var val_start = _trim_left_ws_in_buf(buf, colon + 1, lend)
+                        var val_end = lend
+
+                        if _header_name_eq_ci(buf, name_start, name_end, "content-length") == 1 {
+                            var v = _parse_dec_int_in_buf(buf, val_start, val_end)
+                            if v >= 0 { content_len = v }
+                        } else if _header_name_eq_ci(buf, name_start, name_end, "transfer-encoding") == 1 {
+                            // Minimal: if value contains "chunked" (case-insensitive), treat as chunked.
+                            var ti = val_start
+                            while ti + 6 < val_end {
+                                var c0 = _ascii_lower(ptr_get_byte(buf + ti) & 255)
+                                var c1 = _ascii_lower(ptr_get_byte(buf + ti + 1) & 255)
+                                var c2 = _ascii_lower(ptr_get_byte(buf + ti + 2) & 255)
+                                var c3 = _ascii_lower(ptr_get_byte(buf + ti + 3) & 255)
+                                var c4 = _ascii_lower(ptr_get_byte(buf + ti + 4) & 255)
+                                var c5 = _ascii_lower(ptr_get_byte(buf + ti + 5) & 255)
+                                var c6 = _ascii_lower(ptr_get_byte(buf + ti + 6) & 255)
+                                if c0 == 99 && c1 == 104 && c2 == 117 && c3 == 110 && c4 == 107 && c5 == 101 && c6 == 100 {
+                                    is_chunked = 1
+                                    break
+                                }
+                                ti = ti + 1
+                            }
+                        }
+                    }
+
+                    hpos = lend + 2
+                }
+            }
+        }
+
+        // If Content-Length is known and headers are parsed, stop once we have the whole body.
+        if header_done == 1 && is_chunked == 0 && content_len >= 0 {
+            var need = body_off + content_len
+            if used >= need { break }
+        }
     }
 
     tcp.close(fd)
 
-    // Split headers and body.
-    var body_off = _find_header_body_split(buf, used)
+    if header_done == 0 {
+        free(buf)
+        return {"ok": 0, "err": "http.get_text: missing header terminator"}
+    }
+
     if body_off > used { body_off = used }
-    var body_len = used - body_off
+    var body_len0 = used - body_off
+
+    // If Content-Length is known, clamp to it.
+    var body_len = body_len0
+    if is_chunked == 0 && content_len >= 0 {
+        body_len = content_len
+        if body_len > body_len0 { body_len = body_len0 }
+        if body_len < 0 { body_len = 0 }
+    }
+
+    if is_chunked == 1 {
+        var outc = _decode_chunked_into_string(buf + body_off, body_len0)
+        free(buf)
+        if outc == 0 { return {"ok": 0, "err": "http.get_text: chunked decode failed"} }
+        return {"ok": 1, "v": outc}
+    }
 
     var out = malloc(body_len + 1)
     if out == 0 {
         free(buf)
         return {"ok": 0, "err": "http.get_text: malloc body failed"}
     }
-    oren_memcpy(out, buf + body_off, body_len)
+    if body_len > 0 { oren_memcpy(out, buf + body_off, body_len) }
     ptr_set_byte(out + body_len, 0)
     free(buf)
     return {"ok": 1, "v": out}

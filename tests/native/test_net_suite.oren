@@ -261,7 +261,7 @@ fn test_http_helpers() {
 
     var req = http._build_get_request("127.0.0.1", "/abc")
     if req == 0 { fail(1020) }
-    if http._starts_with(req, "GET /abc HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n") == 0 { fail(1021) }
+    if http._starts_with(req, "GET /abc HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n") == 0 { fail(1021) }
     free(req)
     return 0
 }

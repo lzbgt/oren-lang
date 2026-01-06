@@ -20,6 +20,31 @@ If your local host is macOS arm64 (Tier‑1 dev path), the recommended way to va
 ./scripts/verify_native_matrix.sh --targets x64-wsl,x64-win
 ```
 
+## Optional: x64 self-host compiler gate (compiler runs on x86_64)
+
+`verify_native_matrix.sh` focuses on **running native programs** built by the compiler.
+
+To close the remaining “x64 gap”, we also need the **compiler binary itself** (`oren_stage2` built for x64)
+to run on x86_64 hosts and compile+run a tiny native program.
+
+This is intentionally **opt-in** because building the compiler for x64 can be slow on cold caches.
+
+```bash
+# Builds x64-linux and x64-windows compiler binaries (native backend),
+# copies them + a minimal runtime source bundle to the remote Win11 machine,
+# then runs:
+#   - x64-linux compiler under WSL2
+#   - x64-windows compiler under cmd.exe
+# to compile+run a tiny `print.oren`.
+./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
+```
+
+Tuning knobs (env):
+
+- `OREN_SELFHOST_COMPILER_BUILD_TIMEOUT_SECS` (default `1200`)
+- `OREN_SELFHOST_REMOTE_COMPILE_TIMEOUT_SECS` (default `120`)
+- `OREN_SELFHOST_REMOTE_RUN_TIMEOUT_SECS` (default `30`)
+
 Common env overrides (match `scripts/verify_native_matrix.sh` defaults):
 
 - `OREN_REMOTE_X64_HOST` (example: `lzbgt@pc.work`)

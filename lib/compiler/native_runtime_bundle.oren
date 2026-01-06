@@ -120,10 +120,32 @@ fn _rt_bundle_shell_quote(s) {
     return out
 }
 
+fn _rt_bundle_path_to_windows_sep(s) {
+    if s == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at(s, i)
+        if ch == "/" { out = out + "\\" }
+        else { out = out + ch }
+        i = i + 1
+    }
+    return out
+}
+
 fn _rt_bundle_ensure_dir(path) {
     if path == nil || path == "" { return nil }
-    // Use shell to avoid adding FS syscalls to the compiler surface right now.
-    oren_system("mkdir -p " + _rt_bundle_shell_quote(path))
+    // Cross-platform: do not rely on `mkdir -p` on Windows (cmd.exe does not support it).
+    var mk_path = path
+    var cmd = ""
+    if oren_env("OS") == "Windows_NT" {
+        // cmd.exe prefers backslashes, and built-in `mkdir` creates intermediates.
+        mk_path = _rt_bundle_path_to_windows_sep(mk_path)
+        cmd = "mkdir \"" + mk_path + "\" >nul 2>nul"
+    } else {
+        cmd = "mkdir -p \"" + mk_path + "\""
+    }
+    oren_system(cmd)
     return nil
 }
 
