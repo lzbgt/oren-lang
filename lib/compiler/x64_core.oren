@@ -76,6 +76,79 @@ fn int_mod(a, b) {
     return r
 }
 
+// Parse a decimal integer from a string (best-effort).
+// Returns `dflt` on invalid input.
+//
+// Note: implemented here (compiler core) so it is available in both stage1 (C runtime)
+// and stage2 (native runtime) when decoding env knobs.
+fn parse_int_decimal(s, dflt) {
+    if s == nil { return dflt }
+    var n = oren_string_len(s)
+    if n <= 0 { return dflt }
+    var i = 0
+    var neg = false
+    if (oren_string_byte_at_unchecked(s, 0) & 255) == 45 { // '-'
+        neg = true
+        i = 1
+        if n == 1 { return dflt }
+    }
+    var v = 0
+    while i < n {
+        var c = oren_string_byte_at_unchecked(s, i) & 255
+        if c < 48 || c > 57 { return dflt }
+        v = v * 10 + (c - 48)
+        i = i + 1
+        if i > 32 { return dflt } // bound (avoid runaway on huge strings)
+    }
+    if neg { return -v }
+    return v
+}
+
+// Stable string equality used in compiler hot paths.
+// Avoid depending on runtime string equality semantics (stage1 vs stage2-native).
+fn string_eq_bytes(a, b) {
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+// Prefix/suffix checks without allocating substrings.
+// Keep these in x64_core because they are used in very hot compiler paths (call lowering).
+fn string_has_prefix_bytes(s, prefix) {
+    if s == nil || prefix == nil { return false }
+    var ls = oren_string_len(s)
+    var lp = oren_string_len(prefix)
+    if lp > ls { return false }
+    var i = 0
+    while i < lp {
+        if (oren_string_byte_at_unchecked(s, i) & 255) != (oren_string_byte_at_unchecked(prefix, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn string_has_suffix_bytes(s, suffix) {
+    if s == nil || suffix == nil { return false }
+    var ls = oren_string_len(s)
+    var lp = oren_string_len(suffix)
+    if lp > ls { return false }
+    var start = ls - lp
+    var i = 0
+    while i < lp {
+        if (oren_string_byte_at_unchecked(s, start + i) & 255) != (oren_string_byte_at_unchecked(suffix, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
 fn push_u16_le(buf, n) {
     return bb.bytes_push_u16_le(buf, n)
 }

@@ -291,6 +291,42 @@ Regression gates:
   - Windows PE prologue bytes include the required `disp8=0` byte (and rejects the known-bad omission pattern)
   - stage1 + stage2 compilation of `tests/native/print.oren` embeds `hello from native` into the output binary for `x64-linux` and `x64-windows` (guard against call/arg evaluation regressions).
 
+### 4.8 x86_64 self-host compiler builds: avoid per-call string allocation in hot paths
+
+Symptom:
+
+- Cross-target builds of the compiler itself can look “hung” when building x86_64 compiler binaries:
+  - `./oren_stage2 build oren.oren --backend native --platform x64-linux ...`
+  - `./oren_stage2 build oren.oren --backend native --platform x64-windows ...`
+- The usual failure mode is **one pathological function** dominating codegen time.
+  - This can appear as “stuck at 100% CPU” with no output for minutes.
+
+Diagnosis (bounded; do not dump the world):
+
+- Use the x64 compile progress tracer:
+  - `OREN_TRACE_X64_COMPILE_PROGRESS=1`
+  - `OREN_TRACE_X64_COMPILE_STRIDE=1000` (print every 1000 functions)
+  - `OREN_TRACE_X64_COMPILE_FOCUS_FROM=<i> OREN_TRACE_X64_COMPILE_FOCUS_TO=<j>` (only print a narrow range; useful when you already know the bad region)
+  - `OREN_TRACE_X64_SLOW_FN_MS=2000` (prints `slow_fn` lines)
+- For one known-hot function, add a per-function breakdown:
+  - `OREN_TRACE_X64_FN=<exact function name>`
+  - Optional deep emit tracing (still bounded): `OREN_TRACE_X64_FN_EMIT_OPS=1` with `OREN_TRACE_X64_EMIT_OPS_STRIDE=<n>`
+
+Fix pattern (root cause class we’ve hit in self-host builds):
+
+- **Do not allocate strings in per-call classification hot paths.**
+  - Example footgun: using `oren_string_slice(...)` to check name prefixes/suffixes inside the x64 call emitter.
+  - When compiling the compiler, large backend helper functions contain *many* calls, so tiny per-call allocations become a multi-minute stall.
+- Prefer byte-prefix checks via `oren_string_byte_at_unchecked(...)` for:
+  - `oren_` detection
+  - `oren_buf_` prefix / `_buf_new` suffix checks
+- Avoid paying “runtime call classification” chains for non-`oren_*` internal helper names (encoder helpers, backend emitters, etc); route these calls directly through the generic call path when safe.
+
+Measured improvement (arm64-macos host, 2026-01-06):
+
+- Before: `./oren_stage2 build oren.oren --backend native --platform x64-linux --no-debug` was still compiling after ~11m and was manually interrupted.
+- After fixing the per-call allocation patterns in x64 call emission, the same build completed successfully in ~7m30s, and previously-pathological compiler functions dropped from “minutes” to “~3s” each (see `docs/TODOS_ARCHIVE.md`).
+
 ## 5) GC + string literal policy (perf + correctness)
 
 String literals in native output are **pooled and embedded** in the binary’s data segment (cstr0 pool).

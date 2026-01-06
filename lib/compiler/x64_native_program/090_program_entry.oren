@@ -1051,8 +1051,27 @@ fn native_compile_program_x64(linked, platform) {
     //   available to user code just like on arm64.
     // - Keep x64's existing intrinsics for now; as we converge, we will progressively replace
     //   intrinsic implementations with calls into injected runtime functions.
-
     var trace_sum = oren_env("OREN_TRACE_X64_COMPILE_SUMMARY") != nil
+    // Bounded progress tracing for large cross-target builds (prints every N functions).
+    var trace_prog = false
+    var v_prog = oren_env("OREN_TRACE_X64_COMPILE_PROGRESS")
+    if v_prog != nil && v_prog != "" {
+        if x64_env_str_eq(v_prog, "0") != true && x64_env_str_eq(v_prog, "false") != true {
+            trace_prog = true
+        }
+    }
+    // Debug knobs: OREN_TRACE_X64_COMPILE_STRIDE, _FOCUS_FROM/_TO, OREN_TRACE_X64_SLOW_FN_MS.
+    var prog_stride = 200
+    var prog_focus_from = -1
+    var prog_focus_to = -1
+    var prog_slow_fn_ms = 2000
+    if trace_prog {
+        prog_stride = core.parse_int_decimal(oren_env("OREN_TRACE_X64_COMPILE_STRIDE"), prog_stride)
+        prog_focus_from = core.parse_int_decimal(oren_env("OREN_TRACE_X64_COMPILE_FOCUS_FROM"), prog_focus_from)
+        prog_focus_to = core.parse_int_decimal(oren_env("OREN_TRACE_X64_COMPILE_FOCUS_TO"), prog_focus_to)
+        prog_slow_fn_ms = core.parse_int_decimal(oren_env("OREN_TRACE_X64_SLOW_FN_MS"), prog_slow_fn_ms)
+    }
+    var focus_enabled = trace_prog && prog_focus_from >= 0 && prog_focus_to > prog_focus_from
     // Entry-stub tracing is a runtime-side breadcrumb trail for remote debugging (Win11/WSL).
     // It is intentionally opt-in and bounded (a few short lines).
     var trace_entry = false
@@ -1783,14 +1802,30 @@ fn native_compile_program_x64(linked, platform) {
     }
     if trace_sum { t_apply_rtobj_done = oren_time_now_ns() }
 
+    if trace_prog { print("[x64_compile] compile __top_level__") }
     _compile_function_v0(ctx, top_fn, platform)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
     if trace_sum { t_top_done = oren_time_now_ns() }
 
     var i1 = 0
-    while i1 < oren_list_len(fns) {
+    var fns_n = oren_list_len(fns)
+    while i1 < fns_n {
+        var fn1 = fns[i1]
+        var nm1 = nil
+        if fn1 != nil { nm1 = fn1["name"] }
+        if nm1 == nil || nm1 == "" { nm1 = "?" }
+        if trace_prog && ((focus_enabled && i1 >= prog_focus_from && i1 < prog_focus_to) ||
+                          (prog_stride > 0 && core.int_mod(i1, prog_stride) == 0)) {
+            print("[x64_compile] fns " + oren_int_to_string(i1) + "/" + oren_int_to_string(fns_n) + " next=" + nm1)
+        }
+        var t_fn = 0
+        if trace_prog { t_fn = oren_time_now_ns() }
         _compile_function_v0(ctx, fns[i1], platform)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+        if trace_prog && prog_slow_fn_ms > 0 {
+            var dt_ms = (oren_time_now_ns() - t_fn) / 1000000
+            if dt_ms > prog_slow_fn_ms { print("[x64_compile] slow_fn ms=" + oren_int_to_string(dt_ms) + " name=" + nm1) }
+        }
         i1 = i1 + 1
     }
     if trace_sum { t_fns_done = oren_time_now_ns() }
@@ -1798,7 +1833,11 @@ fn native_compile_program_x64(linked, platform) {
     // Compile synthesized wrappers after user functions (order does not affect fixups, but
     // keeping them grouped makes debugging easier).
     var j1 = 0
-    while j1 < oren_list_len(wrappers) {
+    var wrappers_n = oren_list_len(wrappers)
+    while j1 < wrappers_n {
+        if trace_prog && core.int_mod(j1, 200) == 0 {
+            print("[x64_compile] wrappers " + oren_int_to_string(j1) + "/" + oren_int_to_string(wrappers_n))
+        }
         var wfn = wrappers[j1]
         var wnm = nil
         if wfn != nil { wnm = wfn["name"] }

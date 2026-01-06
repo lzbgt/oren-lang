@@ -1,6 +1,8 @@
 fn _collect_locals_from_ops(ctx, ops, locals, local_next) {
+    var n = 0
+    if ops != nil { n = oren_list_len(ops) }
     var i = 0
-    while ops != nil && i < oren_list_len(ops) {
+    while i < n {
         var op = ops[i]
         if op != nil {
             if op["op"] == "var_i32" {
@@ -77,10 +79,35 @@ fn _linetab_record_tok(ctx, tok) {
 }
 
 fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
+    var n = 0
+    if ops != nil { n = oren_list_len(ops) }
+    var trace = false
+    if ctx != nil && ctx["trace_emit_ops"] == true { trace = true }
+    var trace_stride = 200
+    if trace {
+        trace_stride = core.parse_int_decimal(oren_env("OREN_TRACE_X64_EMIT_OPS_STRIDE"), trace_stride)
+        if trace_stride < 1 { trace_stride = 1 }
+    }
+    if trace { print("[x64_emit_ops] enter len=" + oren_int_to_string(n)) }
     var j = 0
-    while ops != nil && j < oren_list_len(ops) {
+    while j < n {
         var op = ops[j]
         if op == nil { j = j + 1; continue }
+        if trace && core.int_mod(j, trace_stride) == 0 {
+            var opk = op["op"]
+            if opk == nil { opk = "?" }
+            var extra = ""
+            if opk == "var_i32" || opk == "assign_i32" {
+                var nm = op["name"]
+                if nm != nil && nm != "" { extra = " name=" + nm }
+            }
+            var loc = ""
+            var tok = op["tok"]
+            if tok != nil && tok["file"] != nil && tok["line"] != nil {
+                loc = " @" + tok["file"] + ":" + oren_int_to_string(tok["line"])
+            }
+            print("[x64_emit_ops] j=" + oren_int_to_string(j) + "/" + oren_int_to_string(n) + " op=" + opk + extra + loc)
+        }
         _linetab_record_tok(ctx, op["tok"])
         if op["op"] == "var_i32" {
             var off = locals[op["name"]]

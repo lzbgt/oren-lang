@@ -18,31 +18,12 @@ Rules for this tracker:
 
 0) **Toolchain resource bounds (self-hosting + tests)** (L)
    - Keep these paths reliable and bounded:
-     - `make verify-native-quick` (stage1 + stage2 native smoke)
-     - `make test-native-all` (native suite; stage1)
-     - `make verify` (stage1 → stage2 self-hosting gate)
-	   - Avoid O(n²) string/collection patterns in compiler-side tooling (include expansion, C backend transpiler, whole-program lowering passes).
-	   - Recently completed: bounded build timing summaries via `OREN_TRACE_BUILD_SUMMARY=1` / `OREN_TRACE_BUILD_SLOW_MS=<n>` so “>10s builds” are diagnosable without huge logs (details in `docs/TODOS_ARCHIVE.md`).
-	   - Recently completed: pooled embedded string literals + one-time startup registration (`oren_init_static_cstr0_table`) to remove per-use tracking overhead in compiler workloads (details in `docs/TODOS_ARCHIVE.md`).
-	   - Recently completed: arm64-linux native binaries no longer segfault at startup:
-	     - early runtime raw allocations now use `native_malloc_raw_or_mmap` (mmap fallback) instead of trusting `malloc_raw` unconditionally
-	     - arm64 native allocator lowering now rejects suspicious mmap results `< 4096` (fail-fast) to avoid treating small integers as pointers (details in `docs/TODOS_ARCHIVE.md`).
-	   - Recently completed: shared compiler growable-bytes builder extracted to `lib/compiler/bytes_builder.oren` to reduce arm64/x64 backend drift (details in `docs/TODOS_ARCHIVE.md`).
-	   - Recently completed: native `oren_read_u8_buf` now returns structured errors on missing files (no hard-exit), fixing stage2-native runtime-object cache cold misses (details in `docs/TODOS_ARCHIVE.md`).
-		   - Recently completed: GC pin/result no longer roots static string literals (classification-only nodes), reducing root churn in compiler/tooling runs (details in `docs/TODOS_ARCHIVE.md`).
-		   - Recently completed: runtime bundle astbin caches now carry a “pruned for target OS” marker so pruned caches can skip redundant `g_target_os` pruning (and stale pruned caches can be rewritten once); astbin v2 encoder pre-sizes the string pool index map for large programs to keep cache writes bounded (details in `docs/TODOS_ARCHIVE.md`).
-		   - Recently completed: fixed a capsule-build segfault where a stale pruned runtime astbin cache could preserve pruned-away runtime guard checks; pruning now records a cache generation marker and pruned cache suffix bumped to `_pruned3.astbin`, plus `make verify-native-quick` includes a capsule smoke (`scripts/run_native_capsule_smoke.sh`) (details in `docs/TODOS_ARCHIVE.md`).
-		   - Recently completed: added a runtime-astbin “seed” mechanism so stage2-native can avoid very slow cold parsing of `lib/runtime_native_capsule.oren`:
-		     - compiler tries `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR` on astbin cache miss and copies the seed into the active cache dir
-		     - `make astbin-seed` (also run best-effort by `make stage2`) generates/refreshes the seed using stage1 `./oren` (details in `docs/TODOS_ARCHIVE.md`).
-		   - Recently completed: runtime-object cache load is now hardened with a cheap invariant-based integrity check so corrupted/stale rtobj meta becomes a miss+rebuild (instead of a stage1 panic in x64 codegen) (details in `docs/TODOS_ARCHIVE.md`).
-		   - Recently completed: fixed a stage1↔stage2 rtobj cache compatibility bug where stage2 could reject stage1-generated rtobj entries and rebuild the runtime object, timing out `make verify-native-x64-compile` (details in `docs/TODOS_ARCHIVE.md`).
-		   - Recently completed: x64 PE/ELF fixup patching now uses a fast `bytes_set_u32_le` raw-store path, keeping `scripts/verify_native_x64_compile_only.sh` stage2 `x64-windows` under the default 10s timeout (details in `docs/TODOS_ARCHIVE.md`).
-		   - Recently completed: native `sys_stat/sys_lstat/sys_fstat` now populate OrenStatV0 `{a,m,c}time_ns` on macOS/Linux (arm64+x86_64), and the build scan cache is now stat-aware (`scan_cache_v3.txt`) to avoid re-reading unchanged sources during build-cache key computation (details in `docs/TODOS_ARCHIVE.md`).
-		   - Recently completed: native stage2 build-cache key computation is now bounded (no more multi-second “cache key compute” stalls):
-		     - rolling builds use a cheap stat-based compiler signature (avoid hashing the full `./oren_stage2` binary every run)
-		     - scan cache persistence happens after injected-runtime hashing (so the runtime include-closure is not re-walked each build)
-		     - scan cache serialization now uses a `u8_buf` builder (no O(n²) string concatenation) (details in `docs/TODOS_ARCHIVE.md`).
+	     - `make verify-native-quick` (stage1 + stage2 native smoke)
+	     - `make test-native-all` (native suite; stage1)
+	     - `make verify` (stage1 → stage2 self-hosting gate)
+		   - Avoid O(n²) string/collection patterns in compiler-side tooling (include expansion, C backend transpiler, whole-program lowering passes).
+		   - Recent completions are tracked in `docs/TODOS_ARCHIVE.md` (keep this list focused on what’s next).
+		   - New (2026-01-06): x86_64 cross-target self-host compiler builds are now bounded (no multi-minute stalls in single backend helper functions); details in `docs/TODOS_ARCHIVE.md`.
 		   - Remaining (active): rtobj-miss (cold) path is still too slow in stage2-native due to runtime bundle decode + runtime decl compilation; keep pushing toward **< 10s** cold “compile one file” when caches are empty (see `docs/TODOS_ARCHIVE.md` for current measurements + profiling knobs; current is ~`15s` on arm64-macos stage2 for `examples/hello.oren` in `./scripts/bench_native_compile_one_file.sh --no-debug` run-1 (isolated rtobj dir; seed disabled)).
 		     - New (2026-01-05): introduced a smaller “core” native runtime entry (`lib/runtime_native_core.oren`) selectable via `OREN_NATIVE_RUNTIME_PROFILE=core` so cold rtobj misses can be bounded for typical programs without removing the full runtime surface (default remains `lib/runtime_native.oren`).
 		       - Seed support: `scripts/build_runtime_astbin_seed.sh` now seeds full+core+capsule runtime astbins; `scripts/build_rtobj_seed.sh` supports `--runtime-profile` (or env `OREN_NATIVE_RUNTIME_PROFILE`) without pruning other profiles' seeds.

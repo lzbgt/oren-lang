@@ -286,8 +286,9 @@ fn _cond_false_cc_for_cond(cond) {
 fn _analyze_stmt_list_to_ops(ctx, stmts) {
     var ops = []
     if stmts == nil { return ops }
+    var n = oren_list_len(stmts)
     var i = 0
-    while i < oren_list_len(stmts) {
+    while i < n {
         var st = stmts[i]
         if st == nil { i = i + 1; continue }
         var t = st["type"]
@@ -298,7 +299,8 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
             var inner = _analyze_stmt_list_to_ops(ctx, st["stmts"])
             if inner == nil { return nil }
             var k0 = 0
-            while k0 < oren_list_len(inner) { oren_list_push(ops, inner[k0]); k0 = k0 + 1 }
+            var inner_n0 = oren_list_len(inner)
+            while k0 < inner_n0 { oren_list_push(ops, inner[k0]); k0 = k0 + 1 }
             i = i + 1
             continue
         }
@@ -336,8 +338,6 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
             var call = st["call"]
             if call == nil || call["type"] != "Call" { err(ctx, "x64 native v0: Spawn missing call"); return nil }
             var e2 = {"type": "SpawnExpr", "token": tok, "call": call}
-            _expr_int_check(ctx, e2, nil)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             oren_list_push(ops, {"op": "expr", "tok": tok, "expr": e2})
             i = i + 1
             continue
@@ -353,14 +353,13 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 if tmp == nil { return nil }
                 // Splice in the ops produced by the wrapped statement.
                 var k = 0
-                while k < oren_list_len(tmp) { oren_list_push(ops, tmp[k]); k = k + 1 }
+                var tmp_n = oren_list_len(tmp)
+                while k < tmp_n { oren_list_push(ops, tmp[k]); k = k + 1 }
                 i = i + 1
                 continue
             }
             if e["type"] == "SpawnExpr" {
                 // `spawn f(...)` can appear in statement position; evaluate and discard the result.
-                _expr_int_check(ctx, e, nil)
-                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
                 oren_list_push(ops, {"op": "expr", "tok": tok, "expr": e})
                 i = i + 1
                 continue
@@ -387,8 +386,6 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 }
 
                 // Generic call expression statement: evaluate and discard return.
-                _expr_int_check(ctx, e, nil)
-                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
                 oren_list_push(ops, {"op": "expr", "tok": tok, "expr": e})
                 i = i + 1
                 continue
@@ -435,8 +432,6 @@ fn _analyze_stmt_list_to_ops(ctx, stmts) {
                 // - `known_key_kind`: 0=int, 1=string for map keys when inferred
                 if left["recv_kind"] != nil { call["recv_kind"] = left["recv_kind"] }
                 if left["known_key_kind"] != nil { call["known_key_kind"] = left["known_key_kind"] }
-                _expr_int_check(ctx, call, nil)
-                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
                 oren_list_push(ops, {"op": "expr", "tok": tok, "expr": call})
                 i = i + 1
                 continue

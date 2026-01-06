@@ -45,6 +45,34 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `./scripts/verify_native_x64_compile_only.sh`
   - `make verify-native-x64-compile`
 
+## Archived (2026-01-06) — Native x86_64: un-stall self-host compiler builds (x64 call emission hot path)
+
+- Symptom (cross-target self-host builds on arm64-macos):
+  - Building the compiler itself for x86_64 targets could look “hung” for many minutes:
+    - `./oren_stage2 build oren.oren --backend native --platform x64-linux --no-debug`
+    - `./oren_stage2 build oren.oren --backend native --platform x64-windows --no-debug`
+  - Bounded tracing showed the build spending essentially all time compiling one function around the ARM64 backend call-lowering chunks (e.g. `M9_native_call_chunk_070_lowering_g`).
+- Root cause (compiler workload + x64 backend implementation):
+  - The x64 call emitter performed per-call string work that scales badly in “compile the compiler” workloads:
+    - prefix/suffix detection used `oren_string_slice(...)` in a hot path (allocates)
+    - non-runtime helper calls still walked a large intrinsic classification chain
+- Fix (x64 native backend):
+  - `lib/compiler/x64_native_program/040_emit_expr.oren`:
+    - compute `nm_len` once per call site
+    - detect `oren_` / `oren_buf_` / `_buf_new` via `oren_string_byte_at_unchecked(...)` (no slice allocation)
+    - short-circuit common internal helper prefixes to `_emit_generic_call_expr_v0(...)` to avoid the long intrinsic chain
+  - Tooling (bounded diagnostics):
+    - `OREN_TRACE_X64_COMPILE_PROGRESS=1` + `OREN_TRACE_X64_SLOW_FN_MS=<n>` for cross-target progress and slow-fn identification
+    - `OREN_TRACE_X64_FN=<name>` for one-function breakdown without huge logs
+- Measured improvement (arm64-macos host, 2026-01-06):
+  - Before: x64-linux compiler build was manually interrupted at ~`11m33s` wall time while still compiling the pathological function.
+  - After: x64-linux compiler build completed successfully in ~`7m32s`, and the formerly-pathological function compiled in ~`3s`.
+  - x64-windows compiler build completed successfully in ~`7m36s`.
+- Verified:
+  - `make stage2`
+  - `./oren_stage2 build oren.oren --backend native --platform x64-linux --no-debug -o build/tmp/oren_x64_linux`
+  - `./oren_stage2 build oren.oren --backend native --platform x64-windows --no-debug -o build/tmp/oren_x64_windows.exe`
+
 ## Archived (2026-01-06) — Linux epoll ABI: probe `epoll_event` layout (fixes x64-wsl select hang)
 
 - Symptom (remote WSL2 x86_64 Linux, stage1 + stage2 native outputs):

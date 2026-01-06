@@ -96,6 +96,10 @@ need_bin socat
 need_bin tar
 need_bin grep
 
+if [[ "$TRACE" -eq 1 ]]; then
+  set -x
+fi
+
 host_os="$(uname -s)"
 host_arch="$(uname -m)"
 if [[ "$host_os" != "Darwin" || "$host_arch" != "arm64" ]]; then
@@ -157,6 +161,12 @@ SCP=(scp -o "$REMOTE_PROXY")
 
 mkdir -p build/tmp
 
+parse_jobs="$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)"
+
+# Cross-target compiler builds are large and can allocate heavily.
+# Keep them bounded by enabling the cooperative GC trigger and limiting stack scan.
+gc_stack_scan_limit="${OREN_GC_STACK_SCAN_LIMIT_BYTES:-8388608}"
+
 echo "== ensure: stage2 compiler (host) =="
 make stage2 >/dev/null
 
@@ -166,11 +176,33 @@ COMPILER_WIN="build/tmp/oren_selfhost_x64_windows.exe"
 
 echo "== build: compiler x64-linux (native backend) =="
 run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
-  env OREN_TRACE_BUILD_SLOW_MS=0 ./oren_stage2 build oren.oren --backend native --platform x64-linux --no-debug -o "$COMPILER_LINUX"
+  env \
+    OREN_PARSE_JOBS="$parse_jobs" \
+    OREN_GC_AUTO=1 \
+    OREN_GC_ALLOC_THRESHOLD=4000000 \
+    OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
+    OREN_TRACE_PHASES="$TRACE" \
+    OREN_TRACE_X64_COMPILE_PROGRESS="$TRACE" \
+    OREN_TRACE_X64_COMPILE_SUMMARY="$TRACE" \
+    OREN_TRACE_RUNTIME_OBJ_CACHE="$TRACE" \
+    OREN_TRACE_BUILD_SUMMARY="$TRACE" \
+    OREN_TRACE_BUILD_SLOW_MS=0 \
+    ./oren_stage2 build oren.oren --backend native --platform x64-linux --no-debug -o "$COMPILER_LINUX"
 
 echo "== build: compiler x64-windows (native backend) =="
 run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
-  env OREN_TRACE_BUILD_SLOW_MS=0 ./oren_stage2 build oren.oren --backend native --platform x64-windows --no-debug -o "$COMPILER_WIN"
+  env \
+    OREN_PARSE_JOBS="$parse_jobs" \
+    OREN_GC_AUTO=1 \
+    OREN_GC_ALLOC_THRESHOLD=4000000 \
+    OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
+    OREN_TRACE_PHASES="$TRACE" \
+    OREN_TRACE_X64_COMPILE_PROGRESS="$TRACE" \
+    OREN_TRACE_X64_COMPILE_SUMMARY="$TRACE" \
+    OREN_TRACE_RUNTIME_OBJ_CACHE="$TRACE" \
+    OREN_TRACE_BUILD_SUMMARY="$TRACE" \
+    OREN_TRACE_BUILD_SLOW_MS=0 \
+    ./oren_stage2 build oren.oren --backend native --platform x64-windows --no-debug -o "$COMPILER_WIN"
 
 # Package a minimal on-disk layout that the compiler expects at runtime:
 # - injected runtime sources live at lib/runtime_native*.oren + lib/runtime_native/**

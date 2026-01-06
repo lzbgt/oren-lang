@@ -29,6 +29,16 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     if fn_node == nil { return nil }
     var name = fn_node["name"]
     if name == nil { err(ctx, "x64 native v0: function missing name"); return nil }
+    // Targeted tracing for pathological compile-time hot spots (self-host / cross-target).
+    // Example:
+    //   OREN_TRACE_X64_FN=M9_native_call_chunk_070_lowering_g
+    var trace_this = false
+    var trace_fn = oren_env("OREN_TRACE_X64_FN")
+    if trace_fn != nil && trace_fn != "" {
+        if core.string_eq_bytes(trace_fn, name) { trace_this = true }
+    }
+    var t_stage = 0
+    if trace_this { t_stage = oren_time_now_ns(); print("[x64_fn] start name=" + name) }
     // Expose the current function name to lowering passes (used for small, explicit
     // rolling exceptions like "do not varargs-pack inside __oren_fnwrap_* bodies").
     ctx["cur_fn_name"] = name
@@ -40,6 +50,13 @@ fn _compile_function_v0(ctx, fn_node, platform) {
 
     var ops = _analyze_supported_fn_body(ctx, fn_node)
     if ops == nil { return nil }
+    if trace_this {
+        var dt = (oren_time_now_ns() - t_stage) / 1000000
+        var ops_n = 0
+        if ops != nil { ops_n = oren_list_len(ops) }
+        print("[x64_fn] analyze_ops done ms=" + oren_int_to_string(dt) + " ops=" + oren_int_to_string(ops_n))
+        t_stage = oren_time_now_ns()
+    }
 
     // Compute the maximum argument count among calls in this function so we can:
     // - reserve enough outgoing call-area space for stack args (ABI dependent)
@@ -79,6 +96,11 @@ fn _compile_function_v0(ctx, fn_node, platform) {
 
     local_next = _collect_locals_from_ops(ctx, ops, locals, local_next)
     if local_next == nil { return nil }
+    if trace_this {
+        var dt0 = (oren_time_now_ns() - t_stage) / 1000000
+        print("[x64_fn] collect_locals done ms=" + oren_int_to_string(dt0))
+        t_stage = oren_time_now_ns()
+    }
 
     // Reserve a spill slot so expression lowering can safely handle calls on RHS without
     // perturbing RSP (keeps ABI alignment intact for nested calls).
@@ -298,7 +320,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     if ffile0 == "lib/runtime_native.oren" { call_depth_enabled = false }
     if ffile0 == "lib/runtime_native_capsule.oren" { call_depth_enabled = false }
     if ffile0 != nil && oren_string_len(ffile0) >= 7 {
-        if oren_string_slice(ffile0, 0, 7) == "<native:" { call_depth_enabled = false }
+        if core.string_has_prefix_bytes(ffile0, "<native:") { call_depth_enabled = false }
     }
     if name == "oren_call_depth_enter" { call_depth_enabled = false }
     if name == "oren_call_depth_exit" { call_depth_enabled = false }
@@ -308,8 +330,25 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         bytes_extend(ctx["code"], insn_call_rel32(0))
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": pos_enter, "name": "oren_call_depth_enter"})
     }
+    if trace_this { print("[x64_fn] emit_ops start"); t_stage = oren_time_now_ns() }
+    var trace_emit_ops = false
+    if trace_this {
+        var v_ops = oren_env("OREN_TRACE_X64_FN_EMIT_OPS")
+        if v_ops != nil && v_ops != "" {
+            if core.string_eq_bytes(v_ops, "0") != true && core.string_eq_bytes(v_ops, "false") != true {
+                trace_emit_ops = true
+            }
+        }
+    }
+    if trace_emit_ops { ctx["trace_emit_ops"] = true }
     _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    if trace_emit_ops { ctx["trace_emit_ops"] = nil }
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if trace_this {
+        var dt1 = (oren_time_now_ns() - t_stage) / 1000000
+        print("[x64_fn] emit_ops done ms=" + oren_int_to_string(dt1))
+        t_stage = oren_time_now_ns()
+    }
 
     _emit_label(ctx, labels, epilogue_label)
     if call_depth_enabled == true {
@@ -338,5 +377,9 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     bytes_extend(ctx["code"], insn_ret())
 
     _patch_local_fixups(ctx, labels, local_fixups)
+    if trace_this {
+        var dt2 = (oren_time_now_ns() - t_stage) / 1000000
+        print("[x64_fn] patch_fixups done ms=" + oren_int_to_string(dt2))
+    }
     return nil
 }
