@@ -165,6 +165,12 @@ fn _emit_panic_with_msg_ptr(ctx, msg_ptr_reg) {
         bytes_extend(ctx["code"], insn_mov_r32_imm32(11, 1)) // r11d=1
         _emit_windows_write_ptr_len(ctx, 2, 11)
 
+        // Keep best-effort stack traces enabled in debug builds (Tier‑1 parity with Linux).
+        // This is intentionally bounded (<=16 frames) and allocation-free.
+        if platform != nil && platform["debug"] == true {
+            _emit_stack_trace_best_effort(ctx)
+        }
+
         _emit_abort_exitcode(ctx, 1)
         return nil
     }

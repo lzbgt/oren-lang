@@ -222,6 +222,11 @@ fn _mem_base_modrm_and_sib(base_reg, reg_field_low3) {
     // - rm=101 (rbp/r13) cannot be encoded with mod=00; use mod=01 with disp8=0
     //
     // Returns {"modrm": byte, "sib": byte|nil, "disp8": byte|nil}.
+    //
+    // IMPORTANT (native backend semantics):
+    // - `nil` is represented as `0`, so an optional `u8` cannot use `0` as a value.
+    // - For `disp8`, we encode the presence+value as `disp8+1` (range 1..256),
+    //   where `nil` means absent. Callers must decode with `enc["disp8"] - 1`.
     if base_reg < 0 || base_reg > 15 { return nil }
     var rm = int_mod(base_reg, 8)
     var mod = 0
@@ -231,7 +236,7 @@ fn _mem_base_modrm_and_sib(base_reg, reg_field_low3) {
     // rbp/r13: force disp8=0 so it's [rbp+0] instead of RIP-relative.
     if rm == 5 {
         mod = 1
-        disp8 = 0
+        disp8 = 1 // disp8=0, encoded as 0+1
     }
 
     // rsp/r12: require SIB byte with index=none, base=rsp.
@@ -261,6 +266,9 @@ fn _mem_base_modrm_and_sib_disp(base_reg, reg_field_low3, disp) {
     //
     // Returns {"modrm": byte, "sib": byte|nil, "disp8": byte|nil, "disp32": int|nil}.
     // (disp32 is returned as a signed int; caller encodes with push_u32_le)
+    //
+    // IMPORTANT (native backend semantics):
+    // See `_mem_base_modrm_and_sib`: `disp8` is encoded as `disp8+1` so `0` is representable.
     if base_reg < 0 || base_reg > 15 { return nil }
     var rm = int_mod(base_reg, 8)
     var sib = nil
@@ -281,7 +289,7 @@ fn _mem_base_modrm_and_sib_disp(base_reg, reg_field_low3, disp) {
         // Prefer disp8 when possible (including the rbp/r13 disp=0 special-case).
         if disp >= -128 && disp <= 127 {
             mod = 1
-            disp8 = int_mod(disp, 256)
+            disp8 = int_mod(disp, 256) + 1
         } else {
             mod = 2
             disp32 = disp
@@ -291,7 +299,7 @@ fn _mem_base_modrm_and_sib_disp(base_reg, reg_field_low3, disp) {
     // rbp/r13 with disp==0: force disp8=0 so it's [rbp+0] instead of RIP-relative.
     if rm == 5 && disp == 0 {
         mod = 1
-        disp8 = 0
+        disp8 = 1 // disp8=0, encoded as 0+1
         disp32 = nil
     }
 
@@ -317,7 +325,7 @@ fn insn_mov_r64_mr64(dst_reg, base_reg) {
     if enc == nil { return nil }
     bytes_push(out, enc["modrm"])
     if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"] - 1) }
     return out
 }
 
@@ -336,7 +344,7 @@ fn insn_mov_mr64_r64(base_reg, src_reg) {
     if enc == nil { return nil }
     bytes_push(out, enc["modrm"])
     if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"] - 1) }
     return out
 }
 
@@ -363,7 +371,7 @@ fn insn_lock_xadd_mr64_r64(base_reg, src_reg) {
     if enc == nil { return nil }
     bytes_push(out, enc["modrm"])
     if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"] - 1) }
     return out
 }
 
@@ -390,7 +398,7 @@ fn insn_lock_cmpxchg_mr64_r64(base_reg, src_reg) {
     if enc == nil { return nil }
     bytes_push(out, enc["modrm"])
     if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"] - 1) }
     return out
 }
 
@@ -411,7 +419,7 @@ fn insn_movzx_r32_mr8(dst_reg, base_reg) {
     if enc == nil { return nil }
     bytes_push(out, enc["modrm"])
     if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"] - 1) }
     return out
 }
 
@@ -432,7 +440,7 @@ fn insn_movzx_r32_mr8_disp(dst_reg, base_reg, disp) {
     if enc == nil { return nil }
     bytes_push(out, enc["modrm"])
     if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"] - 1) }
     if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
     return out
 }
@@ -448,7 +456,7 @@ fn insn_mov_mr8_al(base_reg) {
     if enc == nil { return nil }
     bytes_push(out, enc["modrm"])
     if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"] - 1) }
     return out
 }
 
@@ -463,7 +471,7 @@ fn insn_mov_mr8_al_disp(base_reg, disp) {
     if enc == nil { return nil }
     bytes_push(out, enc["modrm"])
     if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"] - 1) }
     if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
     return out
 }
@@ -484,7 +492,7 @@ fn insn_mov_r32_mr32_disp(dst_reg, base_reg, disp) {
     if enc == nil { return nil }
     bytes_push(out, enc["modrm"])
     if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"] - 1) }
     if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
     return out
 }
@@ -505,7 +513,7 @@ fn insn_mov_mr32_r32_disp(base_reg, disp, src_reg) {
     if enc == nil { return nil }
     bytes_push(out, enc["modrm"])
     if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"] - 1) }
     if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
     return out
 }
@@ -525,7 +533,7 @@ fn insn_mov_r64_mr64_disp(dst_reg, base_reg, disp) {
     if enc == nil { return nil }
     bytes_push(out, enc["modrm"])
     if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"] - 1) }
     if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
     return out
 }
@@ -545,7 +553,7 @@ fn insn_mov_mr64_r64_disp(base_reg, disp, src_reg) {
     if enc == nil { return nil }
     bytes_push(out, enc["modrm"])
     if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
-    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"] - 1) }
     if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
     return out
 }

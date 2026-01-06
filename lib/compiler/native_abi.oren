@@ -7,8 +7,25 @@ import win64 "native_abi_x64_win64.oren"
 import sysv "native_abi_x64_sysv.oren"
 import aapcs "native_abi_arm64_aapcs.oren"
 
+fn _abi_str_eq(a, b) {
+    // Avoid depending on runtime string equality semantics in compiler/ABI hot paths.
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
 fn x64(platform) {
-    if platform != nil && platform["os"] == "windows" { return win64.x64_win64() }
+    var os = nil
+    if platform != nil { os = platform["os"] }
+    if _abi_str_eq(os, "windows") { return win64.x64_win64() }
     return sysv.x64_sysv()
 }
 
@@ -110,6 +127,8 @@ fn x64_v0_windows_text_rva() { return 4096 } // 0x1000
 fn x64_v0_windows_text_base_addr() { return x64_v0_windows_pe_image_base() + x64_v0_windows_text_rva() }
 
 fn x64_v0_text_base_addr(platform) {
-    if platform != nil && platform["os"] == "windows" { return x64_v0_windows_text_base_addr() }
+    var os = nil
+    if platform != nil { os = platform["os"] }
+    if _abi_str_eq(os, "windows") { return x64_v0_windows_text_base_addr() }
     return x64_v0_linux_text_base_addr()
 }

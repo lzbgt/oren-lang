@@ -152,25 +152,29 @@ find_seed_key() {
   local key
   # Prefer the explicit arch key; fall back to older `_a_unknown_` entries if present.
   key="$(
-    ls -1t "$seed_dir" 2>/dev/null | \
-      rg "^s2_b_${backend}_" | \
-      rg "_bv_${want_bv}_" | \
-      rg "_os_${os}_" | \
-      rg "_a_${arch}_" | \
-      rg "_${dbg}_g" | \
-      { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; } | \
-      head -n 1
-  )"
-  if [[ -z "$key" ]]; then
-    key="$(
+    (
       ls -1t "$seed_dir" 2>/dev/null | \
         rg "^s2_b_${backend}_" | \
         rg "_bv_${want_bv}_" | \
         rg "_os_${os}_" | \
-        rg "_a_unknown_" | \
+        rg "_a_${arch}_" | \
         rg "_${dbg}_g" | \
         { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; } | \
         head -n 1
+    ) || true
+  )"
+  if [[ -z "$key" ]]; then
+    key="$(
+      (
+        ls -1t "$seed_dir" 2>/dev/null | \
+          rg "^s2_b_${backend}_" | \
+          rg "_bv_${want_bv}_" | \
+          rg "_os_${os}_" | \
+          rg "_a_unknown_" | \
+          rg "_${dbg}_g" | \
+          { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; } | \
+          head -n 1
+      ) || true
     )"
   fi
   if [[ -z "$key" ]]; then return 1; fi
@@ -184,26 +188,30 @@ find_latest_key() {
   # Newest first (mtime order).
   local key
   key="$(
-    ls -1t "$cache_dir" 2>/dev/null | \
-      rg "^s2_b_${backend}_" | \
-      rg "_bv_${want_bv}_" | \
-      rg "_os_${os}_" | \
-      rg "_a_${arch}_" | \
-      rg "_${dbg}_g" | \
-      { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; } | \
-      head -n 1
-  )"
-  if [[ -z "$key" ]]; then
-    # Backward-compatible fallback for older cache entries that used `_a_unknown`.
-    key="$(
+    (
       ls -1t "$cache_dir" 2>/dev/null | \
         rg "^s2_b_${backend}_" | \
         rg "_bv_${want_bv}_" | \
         rg "_os_${os}_" | \
-        rg "_a_unknown_" | \
+        rg "_a_${arch}_" | \
         rg "_${dbg}_g" | \
         { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; } | \
         head -n 1
+    ) || true
+  )"
+  if [[ -z "$key" ]]; then
+    # Backward-compatible fallback for older cache entries that used `_a_unknown`.
+    key="$(
+      (
+        ls -1t "$cache_dir" 2>/dev/null | \
+          rg "^s2_b_${backend}_" | \
+          rg "_bv_${want_bv}_" | \
+          rg "_os_${os}_" | \
+          rg "_a_unknown_" | \
+          rg "_${dbg}_g" | \
+          { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; } | \
+          head -n 1
+      ) || true
     )"
   fi
   if [[ -z "$key" ]]; then return 1; fi
@@ -223,11 +231,13 @@ prune_seed_dir_keep() {
   # Also delete legacy `_a_unknown_` keys once we have an arch-qualified key.
   local names
   names="$(
-    ls -1 "$seed_dir" 2>/dev/null | \
-      rg "^s2_b_${backend}_" | \
-      rg "_os_${os}_" | \
-      rg "_${dbg}_g" | \
-      { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; }
+    (
+      ls -1 "$seed_dir" 2>/dev/null | \
+        rg "^s2_b_${backend}_" | \
+        rg "_os_${os}_" | \
+        rg "_${dbg}_g" | \
+        { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; }
+    ) || true
   )"
   [[ -z "$names" ]] && return 0
 

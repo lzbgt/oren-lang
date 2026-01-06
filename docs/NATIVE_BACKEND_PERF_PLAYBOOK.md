@@ -259,6 +259,7 @@ Current contract (x64 native v0):
   - `{"type":"IntrTmp","idx": <int>}`
 - The function prologue reserves a contiguous spill region and records:
   - `ctx["intr_tmp_base_off"]` (RBP-relative base offset, slot 0)
+  - Slot 0 is reserved; intrinsic temp indices start at **1**.
 - `_intr_tmp_off(ctx, locals, idx)` computes:
   - `off = intr_tmp_base_off + idx*8`
   - using `iadd` only (stage1-safe; avoids slow generic `*` / `<<` lowering in the C runtime).
@@ -267,6 +268,28 @@ If you see compiler-side errors like `missing intrinsic temp slot $tmp_intr...`,
 
 - some lowering path reintroduced `$tmp_intrN` identifiers (regression), or
 - a function codegen path forgot to set `intr_tmp_base_off` before lowering.
+
+### 4.7 Native runtime value semantics: never use `0` as an “optional” sentinel
+
+Rolling rule (stage2-native robustness):
+
+- The native runtime currently represents `nil` as `0` (and `false` is also `0`), so `0` is *not a safe sentinel* for “missing/absent” in compiler-side structures.
+- If a compiler helper uses a pattern like `if x == nil { ... }`, and some caller legitimately sets `x = 0`, it can silently skip work.
+
+Two concrete pitfalls we’ve hit in the x86_64 backend:
+
+- **x86_64 ModRM/SIB encoding requires `disp8=0` bytes.**
+  - `[rbp]` / `[r13]` addressing needs `mod=01` + `disp8=0`.
+  - If an encoder returns `{ "disp8": 0 }` as an “optional byte”, and later code checks `if disp8 != nil`, the byte can be omitted (because `0` aliases `nil`), shifting the instruction stream and producing a binary that crashes at entry.
+  - Fix pattern: encode `disp8` as `disp8+1` in the returned dict, and decode at emission time (`enc["disp8"] - 1`).
+- **Intrinsic temp spill allocator must not return base index `0`.**
+  - Use 1-based indices (reserve slot 0) so `base==0` never aliases “no base”.
+
+Regression gates:
+
+- `./scripts/verify_native_x64_compile_only.sh` checks:
+  - Windows PE prologue bytes include the required `disp8=0` byte (and rejects the known-bad omission pattern)
+  - stage1 + stage2 compilation of `tests/native/print.oren` embeds `hello from native` into the output binary for `x64-linux` and `x64-windows` (guard against call/arg evaluation regressions).
 
 ## 5) GC + string literal policy (perf + correctness)
 

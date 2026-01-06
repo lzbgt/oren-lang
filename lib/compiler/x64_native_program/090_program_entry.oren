@@ -1053,6 +1053,15 @@ fn native_compile_program_x64(linked, platform) {
     //   intrinsic implementations with calls into injected runtime functions.
 
     var trace_sum = oren_env("OREN_TRACE_X64_COMPILE_SUMMARY") != nil
+    // Entry-stub tracing is a runtime-side breadcrumb trail for remote debugging (Win11/WSL).
+    // It is intentionally opt-in and bounded (a few short lines).
+    var trace_entry = false
+    var v_entry = oren_env("OREN_TRACE_X64_ENTRY")
+    if v_entry != nil && v_entry != "" {
+        if x64_env_str_eq(v_entry, "0") != true && x64_env_str_eq(v_entry, "false") != true {
+            trace_entry = true
+        }
+    }
     var t0 = 0
     var t_rtobj_done = 0
     var t_entry_done = 0
@@ -1274,51 +1283,23 @@ fn native_compile_program_x64(linked, platform) {
         ctx["dbginfo_table_slot_enc"] = dbg_slot_off + 1
     }
 
-    // Symbol table for stack traces (rolling):
-    // - Debug builds: include a full symtab so panics show readable stack traces.
-    // - Non-debug builds: skip symtab generation for throughput (runtime frames may show "???").
+    // Symbol table for `resolve_symbol(pc)` (optional; rolling):
+    // - Debug builds already embed a range-based debug-info table used by `oren_resolve_symbol(pc)`.
+    // - A full symtab can still be useful for postmortem/debugging when debug-info is missing,
+    //   but it can materially increase compile time (rtobj contributes many symbols).
     //
-    // When symtab is absent, `resolve_symbol(pc)` intrinsics return "???" and still ensure
-    // the pointer is tracked so downstream string ops remain safe.
+    // Policy:
+    // - Default: skip symtab+linetab generation (even in debug builds).
+    // - Opt-in: set `OREN_NATIVE_RESOLVE_SYMBOL=1` to generate the full tables.
+    var want_resolve_symbol = false
+    var env_rs = oren_env("OREN_NATIVE_RESOLVE_SYMBOL")
+    if env_rs != nil && env_rs == "1" { want_resolve_symbol = true }
+
     if platform != nil && platform["debug"] == true {
-        // Reserve a symbol table region early so stack trace codegen can refer to it
-        // with stable RIP-relative fixups. We fill the table later, after compilation
-        // (when function code offsets are known).
-        var sym_names = []
-        var sym_seen = {}
-        // Display name mapping for stack traces:
+        // Display label mapping used by the embedded debug-info table.
         // - key: real function name (used to look up code offsets)
         // - value: display label (may include source location)
-        //
-        // This is intentionally "function definition location" (not call-site line mapping).
-        ctx["symtab_display"] = {}
-        _x64_symtab_push_unique(sym_seen, sym_names, "__entry_stub__")
-        ctx["symtab_display"]["__entry_stub__"] = "__entry_stub__"
-        // Top-level synthetic init frame.
-        _x64_symtab_push_unique(sym_seen, sym_names, "__top_level__")
-        ctx["symtab_display"]["__top_level__"] = "__top_level__@<top-level>"
-
-        // If we used a cached compiled runtime object, the `fns` list only contains user functions.
-        // Add runtime symbols from the cached meta so stack traces can resolve runtime frames too.
-        if used_rtobj == true {
-            var pend = ctx["rtobj_pending"]
-            if pend != nil && pend["fn_offs_enc"] != nil {
-                var idxr = 0
-                var pairr = [nil, nil]
-                while 1 {
-                    var okr = oren_iter_next_entry(pend["fn_offs_enc"], idxr, pairr)
-                    if okr == 0 { break }
-                    var rnm = pairr[0]
-                    if rnm != nil && rnm != "" {
-                        _x64_symtab_push_unique(sym_seen, sym_names, rnm)
-                        if ctx["symtab_display"][rnm] == nil {
-                            ctx["symtab_display"][rnm] = rnm + "@<runtime>"
-                        }
-                    }
-                    idxr = idxr + 1
-                }
-            }
-        }
+        ctx["symtab_display"] = {"__entry_stub__": "__entry_stub__", "__top_level__": "__top_level__@<top-level>"}
 
         // User functions (deterministic: source order).
         var si0 = 0
@@ -1326,7 +1307,6 @@ fn native_compile_program_x64(linked, platform) {
             var fn0 = fns[si0]
             if fn0 != nil && fn0["name"] != nil && fn0["name"] != "" {
                 var nm1 = fn0["name"]
-                _x64_symtab_push_unique(sym_seen, sym_names, nm1)
                 var disp = nm1
                 var tok0 = fn0["token"]
                 if tok0 != nil && tok0["file"] != nil && tok0["line"] != nil {
@@ -1342,7 +1322,6 @@ fn native_compile_program_x64(linked, platform) {
             var w0 = wrappers[si0]
             if w0 != nil && w0["name"] != nil && w0["name"] != "" {
                 var wnm = w0["name"]
-                _x64_symtab_push_unique(sym_seen, sym_names, wnm)
                 // Wrappers are compiler-synthesized; keep them clearly marked in stack traces.
                 ctx["symtab_display"][wnm] = wnm + "@<generated>"
             }
@@ -1356,21 +1335,82 @@ fn native_compile_program_x64(linked, platform) {
             while ii0 < oren_list_len(imports0) {
                 var inm = imports0[ii0]
                 if inm != nil && inm != "" {
-                    _x64_symtab_push_unique(sym_seen, sym_names, inm)
                     ctx["symtab_display"][inm] = inm + "@<ffi>"
                 }
                 ii0 = ii0 + 1
             }
         }
-        _data_reserve_symtab(ctx, sym_names)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+
+        if want_resolve_symbol == true {
+            // Reserve a symbol table region early so stack trace codegen can refer to it
+            // with stable RIP-relative fixups. We fill the table later, after compilation
+            // (when function code offsets are known).
+            var sym_names = []
+            var sym_seen = {}
+            _x64_symtab_push_unique(sym_seen, sym_names, "__entry_stub__")
+            _x64_symtab_push_unique(sym_seen, sym_names, "__top_level__")
+
+            // If we used a cached compiled runtime object, the `fns` list only contains user functions.
+            // Add runtime symbols from the cached meta so best-effort traces can resolve runtime frames too.
+            if used_rtobj == true {
+                var pend = ctx["rtobj_pending"]
+                if pend != nil && pend["fn_offs_enc"] != nil {
+                    var idxr = 0
+                    var pairr = [nil, nil]
+                    while 1 {
+                        var okr = oren_iter_next_entry(pend["fn_offs_enc"], idxr, pairr)
+                        if okr == 0 { break }
+                        var rnm = pairr[0]
+                        if rnm != nil && rnm != "" {
+                            _x64_symtab_push_unique(sym_seen, sym_names, rnm)
+                            if ctx["symtab_display"][rnm] == nil {
+                                ctx["symtab_display"][rnm] = rnm + "@<runtime>"
+                            }
+                        }
+                        idxr = idxr + 1
+                    }
+                }
+            }
+
+            // User functions (deterministic: source order).
+            si0 = 0
+            while si0 < oren_list_len(fns) {
+                var fn1 = fns[si0]
+                if fn1 != nil && fn1["name"] != nil && fn1["name"] != "" {
+                    _x64_symtab_push_unique(sym_seen, sym_names, fn1["name"])
+                }
+                si0 = si0 + 1
+            }
+            // Wrappers (deterministic: synthesis order).
+            si0 = 0
+            while si0 < oren_list_len(wrappers) {
+                var w1 = wrappers[si0]
+                if w1 != nil && w1["name"] != nil && w1["name"] != "" {
+                    _x64_symtab_push_unique(sym_seen, sym_names, w1["name"])
+                }
+                si0 = si0 + 1
+            }
+            // FFI stubs (deterministic: declaration order).
+            if imports0 != nil {
+                var ii1 = 0
+                while ii1 < oren_list_len(imports0) {
+                    var inm1 = imports0[ii1]
+                    if inm1 != nil && inm1 != "" {
+                        _x64_symtab_push_unique(sym_seen, sym_names, inm1)
+                    }
+                    ii1 = ii1 + 1
+                }
+            }
+
+            _data_reserve_symtab(ctx, sym_names)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+        }
     }
 
     // --- Best-effort call-site line mapping (debug-only; rolling) ---
     //
-    // Reserve a compact linetab for stack traces. This enables printing a call-site
-    // `@file:line` in addition to the function definition location in `symtab_display`.
-    if platform != nil && platform["debug"] == true {
+    // Reserve a compact linetab for best-effort call-site mapping (optional, debug-only).
+    if platform != nil && platform["debug"] == true && want_resolve_symbol == true {
         _data_reserve_linetab(ctx, 16384)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
     }
@@ -1421,8 +1461,11 @@ fn native_compile_program_x64(linked, platform) {
     var scratch_base = entry_shadow + entry_stack_args
 
     if platform != nil && platform["os"] == "windows"  {
+        if trace_entry { _emit_windows_write_cstr(ctx, "ENTRY: win begin") }
         _emit_entry_build_args_windows_x64(ctx, scratch_base)
+        if trace_entry { _emit_windows_write_cstr(ctx, "ENTRY: win args ok") }
         _emit_entry_capture_envblock_windows_x64(ctx, scratch_base)
+        if trace_entry { _emit_windows_write_cstr(ctx, "ENTRY: win envblock ok") }
     }
 
     // Native heap registers (rolling Tier-1 design):
@@ -1488,6 +1531,9 @@ fn native_compile_program_x64(linked, platform) {
     var call_init_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_init_pos, "name": "native_runtime_init"})
+    if trace_entry && platform != nil && platform["os"] == "windows" {
+        _emit_windows_write_cstr(ctx, "ENTRY: runtime_init ok")
+    }
 
     // Register embedded string literals once at startup (Tier‑1 performance).
     //
@@ -1522,6 +1568,9 @@ fn native_compile_program_x64(linked, platform) {
         var call_cstr_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_call_rel32(0))
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_cstr_pos, "name": "oren_init_static_cstr0_table"})
+        if trace_entry && platform != nil && platform["os"] == "windows" {
+            _emit_windows_write_cstr(ctx, "ENTRY: cstr0_table ok")
+        }
     }
 
     // Register embedded debug-info table in debug builds (Tier‑1 debuggability).
@@ -1563,6 +1612,9 @@ fn native_compile_program_x64(linked, platform) {
         var call_dbg_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_call_rel32(0))
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_dbg_pos, "name": "oren_set_debug_info"})
+        if trace_entry && platform != nil && platform["os"] == "windows" {
+            _emit_windows_write_cstr(ctx, "ENTRY: set_debug_info ok")
+        }
 
         _emit_label(ctx, labels_dbg, l_skip_dbg)
         _patch_local_fixups(ctx, labels_dbg, fixups_dbg)
@@ -1579,6 +1631,9 @@ fn native_compile_program_x64(linked, platform) {
     var call_set_args_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_set_args_pos, "name": "native_runtime_set_args"})
+    if trace_entry && platform != nil && platform["os"] == "windows" {
+        _emit_windows_write_cstr(ctx, "ENTRY: set_args ok")
+    }
 
     // Windows: convert Win32 env block -> POSIX envp (Tier‑1 parity).
     //
@@ -1610,6 +1665,7 @@ fn native_compile_program_x64(linked, platform) {
         bytes_extend(ctx["code"], insn_call_rax())
         _emit_label(ctx, labels_free_env, l_skip_free_env)
         _patch_local_fixups(ctx, labels_free_env, local_fixups_free_env)
+        if trace_entry { _emit_windows_write_cstr(ctx, "ENTRY: envp ok") }
     }
 
     // native_runtime_set_envp(envp)
@@ -1621,6 +1677,9 @@ fn native_compile_program_x64(linked, platform) {
     var call_set_envp_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_set_envp_pos, "name": "native_runtime_set_envp"})
+    if trace_entry && platform != nil && platform["os"] == "windows" {
+        _emit_windows_write_cstr(ctx, "ENTRY: set_envp ok")
+    }
 
     // native_runtime_capsule_init() when `--capsule` is enabled.
     //
@@ -1644,6 +1703,9 @@ fn native_compile_program_x64(linked, platform) {
     var call_gc_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_gc_pos, "name": "native_runtime_init_gc_mode"})
+    if trace_entry && platform != nil && platform["os"] == "windows" {
+        _emit_windows_write_cstr(ctx, "ENTRY: gc_mode ok")
+    }
 
     // Register main thread for GC/stack safety.
     if platform != nil && platform["os"] == "windows" {
@@ -1654,6 +1716,9 @@ fn native_compile_program_x64(linked, platform) {
     var call_reg_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_reg_pos, "name": "oren_register_thread"})
+    if trace_entry && platform != nil && platform["os"] == "windows" {
+        _emit_windows_write_cstr(ctx, "ENTRY: register_thread ok")
+    }
 
     // Run top-level statements (including non-constant global initializers) before `main`.
     //
@@ -1662,6 +1727,9 @@ fn native_compile_program_x64(linked, platform) {
     var call_top_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_top_pos, "name": "__top_level__"})
+    if trace_entry && platform != nil && platform["os"] == "windows" {
+        _emit_windows_write_cstr(ctx, "ENTRY: top_level ok")
+    }
 
     if has_main {
         var call_pos = bytes_len(ctx["code"])

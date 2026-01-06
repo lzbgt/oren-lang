@@ -24,6 +24,27 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `./scripts/verify_native_matrix.sh --targets arm64-linux`
   - `make verify-native-x64-compile`
 
+## Archived (2026-01-06) — Native x86_64: eliminate `0`-sentinel collisions (disp8 + intrinsic temps)
+
+- Symptom (x64-linux + x64-windows, stage2-native compiler workload):
+  - Some binaries compiled by `./oren_stage2 --backend native` were missing expected work (e.g. a simple `print("hello from native")` could be compiled into a binary that did not embed the string literal at all).
+  - This looked like “call args don’t evaluate” / “print disappears”, and was extremely costly to debug remotely.
+- Root cause (native runtime semantics vs compiler-side sentinels):
+  - The native runtime currently represents `nil` as `0` (and `false` is also `0`), so using `0` as a “missing/absent” sentinel is unsafe.
+  - Two concrete cases in the x86_64 backend:
+    - **Intrinsic temp spill allocator:** `_intr_tmp_push` could return base index `0`; downstream code treated `base==nil` as “no spill region” and silently skipped lowering work when `base==0` aliased `nil`.
+    - **x86_64 disp8 encoding:** `[rbp]` / `[r13]` addressing requires `disp8=0`; when an “optional disp8 byte” was represented as `0`, code that tested `!= nil` could omit the byte, shifting the instruction stream and producing a PE that crashes at entry.
+- Fix (x86_64 backend):
+  - Reserve slot `0` in the intrinsic temp allocator and use 1-based indices (`base >= 1`) so `base==0` never aliases “absent”.
+  - Encode optional `disp8` bytes as `disp8+1` in encoder return dicts, and decode at emission time (`enc["disp8"] - 1`).
+- Regression gates:
+  - `scripts/verify_native_x64_compile_only.sh` now also compiles `tests/native/print.oren` with stage1 `./oren` and stage2 `./oren_stage2` for `x64-linux` and `x64-windows` and asserts the output binary contains `hello from native`.
+  - The same script checks for the presence of the required Windows PE entry prologue bytes (rejects the known-bad disp8 omission pattern).
+- Verified:
+  - `make stage2`
+  - `./scripts/verify_native_x64_compile_only.sh`
+  - `make verify-native-x64-compile`
+
 ## Archived (2026-01-05) — Native x86_64: IntrTmp spill pool (no `$tmp_intrN` locals)
 
 - x64 native v0 no longer materializes intrinsic temp slots as string-named locals (`$tmp_intrN`):

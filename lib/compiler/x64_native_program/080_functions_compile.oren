@@ -136,7 +136,8 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         return nil
     }
     // Reset the intrinsic temp allocator for this function.
-    ctx["intr_tmp_cursor"] = 0
+    // Native-runtime robustness: reserve slot 0 so `base==0` never aliases `nil` (0).
+    ctx["intr_tmp_cursor"] = 1
     ctx["intr_tmp_limit"] = intr_lim
     // Per-function intrinsic-temp spill region base offset (RBP-relative).
     // Cleared/overwritten for each function; used by `_intr_tmp_off`.

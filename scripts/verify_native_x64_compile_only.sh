@@ -24,10 +24,13 @@ need_bin() {
 
 need_bin file
 need_bin make
+need_bin python3
 
 mkdir -p build/tmp
 
 QI_SRC="tests/native/test_quick_integration_native.oren"
+PRINT_SRC="tests/native/print.oren"
+PRINT_NEEDLE="hello from native"
 WIN_FFI_K32_SRC="tests/native/ffi_windows_kernel32.oren"
 WIN_FFI_MSVCRT_SRC="tests/native/ffi.oren"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
@@ -90,6 +93,34 @@ check_pe_x64() {
   file "$p" | grep -qE 'PE32\+'
 }
 
+check_pe_x64_entry_disp8_zero_sane() {
+  # Regression guard (native backend semantics):
+  # x86_64 encoding requires a disp8=0 byte for [rbp] / [r13] addressing.
+  # When an "optional byte" is represented as `0`, native-backend `nil==0` can cause
+  # the displacement byte to be omitted, shifting the instruction stream and producing
+  # a binary that crashes immediately at process entry on Windows.
+  #
+  # We check for the presence of the correct bytes and the absence of the known-bad pattern.
+  local p="$1"
+  python3 - <<'PY' "$p"
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1])
+data = p.read_bytes()
+
+good = bytes.fromhex("4d 89 65 00 49 81 c5 08")
+bad  = bytes.fromhex("4d 89 65 49 81 c5 08")
+
+if data.find(bad) != -1:
+    print(f"ERROR: detected known-bad x64 disp8=0 omission pattern in {p}", file=sys.stderr)
+    sys.exit(2)
+if data.find(good) == -1:
+    print(f"ERROR: missing expected x64 disp8=0 prologue pattern in {p}", file=sys.stderr)
+    sys.exit(3)
+PY
+}
+
 check_bin_contains() {
   local p="$1"
   local needle="$2"
@@ -104,11 +135,29 @@ check_elf_x64 build/tmp/qi_stage1_x64_linux
 build_one ./oren_stage2 x64-linux "$QI_SRC" build/tmp/qi_stage2_x64_linux
 check_elf_x64 build/tmp/qi_stage2_x64_linux
 
+build_one ./oren x64-linux "$PRINT_SRC" build/tmp/print_stage1_x64_linux
+check_elf_x64 build/tmp/print_stage1_x64_linux
+check_bin_contains build/tmp/print_stage1_x64_linux "$PRINT_NEEDLE"
+
+build_one ./oren_stage2 x64-linux "$PRINT_SRC" build/tmp/print_stage2_x64_linux
+check_elf_x64 build/tmp/print_stage2_x64_linux
+check_bin_contains build/tmp/print_stage2_x64_linux "$PRINT_NEEDLE"
+
 build_one ./oren x64-windows "$QI_SRC" build/tmp/qi_stage1_x64_windows.exe
 check_pe_x64 build/tmp/qi_stage1_x64_windows.exe
+check_pe_x64_entry_disp8_zero_sane build/tmp/qi_stage1_x64_windows.exe
 
 build_one ./oren_stage2 x64-windows "$QI_SRC" build/tmp/qi_stage2_x64_windows.exe
 check_pe_x64 build/tmp/qi_stage2_x64_windows.exe
+check_pe_x64_entry_disp8_zero_sane build/tmp/qi_stage2_x64_windows.exe
+
+build_one ./oren x64-windows "$PRINT_SRC" build/tmp/print_stage1_x64_windows.exe
+check_pe_x64 build/tmp/print_stage1_x64_windows.exe
+check_bin_contains build/tmp/print_stage1_x64_windows.exe "$PRINT_NEEDLE"
+
+build_one ./oren_stage2 x64-windows "$PRINT_SRC" build/tmp/print_stage2_x64_windows.exe
+check_pe_x64 build/tmp/print_stage2_x64_windows.exe
+check_bin_contains build/tmp/print_stage2_x64_windows.exe "$PRINT_NEEDLE"
 
 build_one ./oren x64-windows "$WIN_FFI_K32_SRC" build/tmp/ffi_k32_stage1_x64_windows.exe
 check_pe_x64 build/tmp/ffi_k32_stage1_x64_windows.exe

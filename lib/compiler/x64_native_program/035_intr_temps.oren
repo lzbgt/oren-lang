@@ -40,8 +40,13 @@ fn _x64_tmp_intr_name(ctx, idx) {
 }
 
 fn _intr_tmp_push(ctx, n) {
-    var cur = 0
+    // Native-runtime robustness:
+    // `nil/false/0` can collapse to 0 in some contexts today, so using 0 as a sentinel is unsafe.
+    //
+    // Reserve slot 0 and use 1-based intrinsic-temp indices so `base==0` never aliases `nil`.
+    var cur = 1
     if ctx["intr_tmp_cursor"] != nil { cur = ctx["intr_tmp_cursor"] }
+    if cur == 0 { cur = 1 }
     var lim = 0
     if ctx["intr_tmp_limit"] != nil { lim = ctx["intr_tmp_limit"] }
 
@@ -60,7 +65,8 @@ fn _intr_tmp_push(ctx, n) {
 
 fn _intr_tmp_pop(ctx, base) {
     if base == nil { return nil }
-    ctx["intr_tmp_cursor"] = base
+    // Defensive: treat `0` as the reserved base slot.
+    if base == 0 { ctx["intr_tmp_cursor"] = 1 } else { ctx["intr_tmp_cursor"] = base }
     return nil
 }
 

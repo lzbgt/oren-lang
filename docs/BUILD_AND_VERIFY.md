@@ -202,6 +202,14 @@ Cross‑arch Tier‑1 matrix (stage1 + stage2):
 make verify-native-x64-compile
 ```
 
+Notes (host assumptions, rolling):
+
+- `scripts/verify_native_matrix.sh` is written for the primary dev workflow: **arm64 macOS host** + persistent Linux container + remote Win11/WSL2 for x86_64 execution.
+- If you are not on arm64 macOS, prefer:
+  - `make verify-native-quick` (host-native smoke)
+  - `make verify-native-x64-compile` (x86_64 compile-only sanity)
+  - and run x86_64 outputs on their actual target hosts.
+
 Rolling hang guard:
 
 - `scripts/verify_native_matrix.sh` and the x64 compile-only gate apply a per-build timeout
