@@ -34,6 +34,9 @@ bring-up fixtures are **ABI facts**, not language constraints.
     - `.text` (RX) code
     - `.rdata` (R) import table / constant metadata
     - `.data` (RW) user data blob (mutable globals, string literals, fnobjs, symtab)
+    - **FFI (x64-windows, rolling):** `ffi name` is implemented via lazy `LoadLibraryA`/`GetProcAddress` stubs.
+      - `--link <dll>` adds DLL names/paths to the resolver search list.
+      - `kernel32.dll` is searched by default (so simple WinAPI `ffi` can work without `--link`).
 
 - **Language Features**:
   - **Control Flow**: `if/else`, `while`, `Block`, `Return`.
@@ -96,6 +99,7 @@ bring-up fixtures are **ABI facts**, not language constraints.
   - Prefer `+` everywhere.
   - `string_concat(a, b)` exists as a low-level native runtime helper but is treated as an internal primitive; the repo’s curated tests and audits intentionally avoid using it in higher-level code.
 - **Linux FFI/linking:** the ELF emitter currently stubs unresolved imports (no `DT_NEEDED`/PLT/GOT relocation support yet).
+- **Windows FFI/linking:** no general user import-table mapping yet; `ffi` uses lazy runtime resolution (LoadLibrary/GetProcAddress) instead.
 - **W^X (x86_64 bring-up):**
   - Linux ELF now uses **separate PT_LOAD segments**: RX (headers+code) + RW (data blob). No RWX pages.
   - Windows PE now uses a **3-section layout**: `.text` (RX) + `.rdata` (R) + `.data` (RW). Mutable globals
@@ -129,6 +133,7 @@ make verify # Run full self-hosting test
 ## Internal Architecture
 - **Single-Pass Compilation**: Code is emitted sequentially.
 - **Fixups**: Forward jumps (Branches) and Data references (ADR) are patched after emission.
+- **rtobj cache note (Tier‑1 x86_64):** the runtime-object cache splices precompiled runtime machine code into the final program. The cached runtime may include fixups to compiler-emitted helper symbols (e.g. `__oren_panic_helper`), so the program compile must carry forward any “helper needed” state when applying rtobj (otherwise small programs can fail at emit/patch time even though the runtime cache hit succeeded).
 - **Stack Machine**: Expression evaluation pushes operands to stack, operations pop them into registers.
 - **Register Usage**:
   - `X0-X7`: Arguments / Scratch.

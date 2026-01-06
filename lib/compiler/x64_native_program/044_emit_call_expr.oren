@@ -647,6 +647,8 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
 
     var is_direct = false
     var declared = ctx["declared_functions"]
+    var is_import = false
+    if ctx != nil && ctx["imports"] != nil && ctx["imports"][nm] != nil { is_import = true }
     // Rolling shadowing rule: locals/global vars override named functions.
     // If `nm` is a local/global, treat this as an indirect call (callable value).
     var is_shadowed = false
@@ -691,7 +693,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     //     call code_ptr(env_ptr, args_list)
     //
     // Rolling: stack args are supported; arg count is bounded only by call-area capacity.
-    if is_direct == true {
+    if is_direct == true && is_import != true {
         var arity2_enc = ctx["func_arity"][nm]
         if arity2_enc == nil { err(ctx, "x64 native v0: missing arity for function " + nm); return nil }
         var arity2 = arity2_enc - 1

@@ -1,6 +1,6 @@
 # Active Tracker (Succinct)
 
-**Last updated:** 2026-01-05
+**Last updated:** 2026-01-06
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order.
 Recent completions live in `docs/TODOS_ARCHIVE.md` (keep this list “what’s next”, not a changelog).
@@ -81,7 +81,7 @@ Rules for this tracker:
 	       - prefer typed buffers (`u8_buf`) + compact encodings for AST/IR/module artifacts (e.g. `astbin` / CBOR-like) when crossing worker boundaries or caching
 	       - keep the in-process “fast path” zero-copy where possible (shared-memory attach instead of returning large graphs through `join`)
 
-1) **Tier‑1 native support parity (arm64 + x86_64; macOS/Linux/Windows)** (L)
+1) **Tier‑1 native support parity (arm64-macos + arm64-linux + x64-linux + x64-windows)** (L)
 	   - Keep native semantics aligned across platforms:
      - callables/closures/varargs + deterministic failure modes (`OREN_DIAG` + stack traces)
      - container ops (list/map/buf) with identical semantics across arch/OS
@@ -89,13 +89,22 @@ Rules for this tracker:
 		   - Remaining gaps (active):
 		     - Fixed (2026-01-04): **arm64-macos stage2 is now bootstrapped via the native backend by default** (`make stage2`).
 		       - Fallback (bring-up): `make stage2 OREN_STAGE2_BACKEND=c`.
-		     - Native FFI / dynamic linking parity (macOS-only today):
-		       - Current reality: `ffi` + `--link`/`--lib` are Mach‑O-only; ELF/PE do not implement general dynamic linking for user code yet.
-		       - Deliverable: Linux ELF `DT_NEEDED` + PLT/GOT relocations, and Windows PE import-table (or LoadLibrary/GetProcAddress) for user `ffi` symbols.
-		       - Then un-skip the native FFI example path in `make examples-test` on Linux/Windows.
-		     - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory synchronization:
-		       - mutex/condvar + parking/unparking primitives (`ulock` on macOS; futex-like on Linux; Win32 already exists)
-		       - a GC/safepoint model that remains correct once true threads exist (no “mutex works but GC breaks”)
+			    - Native FFI / dynamic linking parity (rolling):
+			      - Current reality:
+			        - **macOS (Mach‑O):** `ffi` works via dyld binding opcodes + `--link` dylibs.
+			        - **Windows x64 (PE):** `ffi` works via lazy `LoadLibraryA`/`GetProcAddress` stubs; `--link` supplies DLL search names/paths (kernel32 searched by default).
+			        - **Linux (ELF):** unresolved imports are still stubbed (FFI not functional yet).
+			      - Regression gates (current):
+			        - Remote Win11: `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_kernel32.oren` (stage1 + stage2).
+			        - Local sanity: `make verify-native-x64-compile` compiles Windows FFI examples (including `--link msvcrt.dll` propagation checks).
+			      - Deliverable (remaining): Linux ELF `DT_NEEDED` + PLT/GOT relocations (or an explicit dynamic-loader strategy) so `ffi` becomes real on `x64-linux` and `arm64-linux`.
+			      - Then un-skip the native FFI example path in `make examples-test` on Linux.
+			    - Shared library output parity (native `--lib`/`--shared`):
+			      - arm64 Mach‑O supports `--lib` today (`.dylib` + headers/metadata).
+			      - Remaining: implement x86_64 ELF `.so` and x86_64 Windows `.dll` emission, including export tables and metadata/header generation hooks.
+			    - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory synchronization:
+			      - mutex/condvar + parking/unparking primitives (`ulock` on macOS; futex-like on Linux; Win32 already exists)
+			      - a GC/safepoint model that remains correct once true threads exist (no “mutex works but GC breaks”)
      - Windows: complete a coherent PROC story (pid/kill/wait semantics or define a cross-OS `sys_spawn` boundary).
        - Fixed (2026-01-04): `oren_system(_timeout)` now works on `x64-windows` (CreateProcessA path).
          - Tier‑1 fixture no longer soft-skips Windows.

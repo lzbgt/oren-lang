@@ -1481,3 +1481,4 @@ fn insn_neg_r64(reg) {
 }
 
 fn insn_call_rax() { var out = _insn_pool_get(); bytes_push(out, 255); bytes_push(out, 208); return out } // FF D0
+fn insn_jmp_rax() { var out = _insn_pool_get(); bytes_push(out, 255); bytes_push(out, 224); return out } // FF E0

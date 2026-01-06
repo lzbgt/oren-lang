@@ -224,6 +224,7 @@ Oren can call external C symbols via `ffi <name>` when using the **native backen
 
 Current status:
 - **macOS (Mach-O):** uses dyld binding opcodes and GOT stubs; this enables basic FFI against `libSystem` and any dylibs you load via `--link`.
+- **Windows x64 (PE):** uses lazy `LoadLibraryA`/`GetProcAddress` stubs; `--link` adds DLLs to the resolver search list (kernel32 is searched by default).
 - **Linux (ELF):** the ELF emitter does not implement dynamic linking yet; unresolved imports are currently stubbed (so FFI is not functional on Linux native builds).
 
 ### Usage

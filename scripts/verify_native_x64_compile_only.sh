@@ -27,7 +27,9 @@ need_bin make
 
 mkdir -p build/tmp
 
-TEST_SRC="tests/native/test_quick_integration_native.oren"
+QI_SRC="tests/native/test_quick_integration_native.oren"
+WIN_FFI_K32_SRC="tests/native/ffi_windows_kernel32.oren"
+WIN_FFI_MSVCRT_SRC="tests/native/ffi.oren"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
 
 run_with_timeout() {
@@ -63,11 +65,13 @@ fi
 build_one() {
   local compiler="$1"
   local platform="$2"
-  local out="$3"
+  local src="$3"
+  local out="$4"
+  shift 4
 
   echo "== build: $compiler -> $platform ==" >&2
   set +e
-  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$TEST_SRC" --backend native --platform "$platform" --no-cache --no-debug -o "$out"
+  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$src" --backend native --platform "$platform" --no-cache --no-debug "$@" -o "$out"
   local rc=$?
   set -e
   if [[ "$rc" -ne 0 ]]; then
@@ -86,16 +90,38 @@ check_pe_x64() {
   file "$p" | grep -qE 'PE32\+'
 }
 
-build_one ./oren x64-linux build/tmp/qi_stage1_x64_linux
+check_bin_contains() {
+  local p="$1"
+  local needle="$2"
+  if command -v strings >/dev/null 2>&1; then
+    strings -a "$p" | grep -qiF "$needle"
+  fi
+}
+
+build_one ./oren x64-linux "$QI_SRC" build/tmp/qi_stage1_x64_linux
 check_elf_x64 build/tmp/qi_stage1_x64_linux
 
-build_one ./oren_stage2 x64-linux build/tmp/qi_stage2_x64_linux
+build_one ./oren_stage2 x64-linux "$QI_SRC" build/tmp/qi_stage2_x64_linux
 check_elf_x64 build/tmp/qi_stage2_x64_linux
 
-build_one ./oren x64-windows build/tmp/qi_stage1_x64_windows.exe
+build_one ./oren x64-windows "$QI_SRC" build/tmp/qi_stage1_x64_windows.exe
 check_pe_x64 build/tmp/qi_stage1_x64_windows.exe
 
-build_one ./oren_stage2 x64-windows build/tmp/qi_stage2_x64_windows.exe
+build_one ./oren_stage2 x64-windows "$QI_SRC" build/tmp/qi_stage2_x64_windows.exe
 check_pe_x64 build/tmp/qi_stage2_x64_windows.exe
+
+build_one ./oren x64-windows "$WIN_FFI_K32_SRC" build/tmp/ffi_k32_stage1_x64_windows.exe
+check_pe_x64 build/tmp/ffi_k32_stage1_x64_windows.exe
+
+build_one ./oren_stage2 x64-windows "$WIN_FFI_K32_SRC" build/tmp/ffi_k32_stage2_x64_windows.exe
+check_pe_x64 build/tmp/ffi_k32_stage2_x64_windows.exe
+
+build_one ./oren x64-windows "$WIN_FFI_MSVCRT_SRC" build/tmp/ffi_msvcrt_stage1_x64_windows.exe --link msvcrt.dll
+check_pe_x64 build/tmp/ffi_msvcrt_stage1_x64_windows.exe
+check_bin_contains build/tmp/ffi_msvcrt_stage1_x64_windows.exe "msvcrt.dll"
+
+build_one ./oren_stage2 x64-windows "$WIN_FFI_MSVCRT_SRC" build/tmp/ffi_msvcrt_stage2_x64_windows.exe --link msvcrt.dll
+check_pe_x64 build/tmp/ffi_msvcrt_stage2_x64_windows.exe
+check_bin_contains build/tmp/ffi_msvcrt_stage2_x64_windows.exe "msvcrt.dll"
 
 echo "OK: x64 compile-only verification passed" >&2

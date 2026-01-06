@@ -110,7 +110,7 @@ fn elf_build_prefix_x64(code, code_pad_len, data, entry_off) {
     return p
 }
 
-fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
+fn elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
     // Bounded timing summary for diagnosing x64 native build throughput without huge logs.
     // Enable with: OREN_TRACE_X64_EMIT_SUMMARY=1
     var trace_sum = oren_env("OREN_TRACE_X64_EMIT_SUMMARY") != nil
@@ -120,7 +120,7 @@ fn elf_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, cap
     var t_fix_done = 0
     if trace_sum { t0 = oren_time_now_ns() }
 
-    var ctx = codegen.native_compile_program_x64(linked, {"os": "linux", "arch": "x64", "debug": debug_mode, "no_gc": no_gc, "call_depth_max": call_depth_max, "capsule": capsule, "cap_allow_domains": cap_allow_domains})
+    var ctx = codegen.native_compile_program_x64(linked, {"os": "linux", "arch": "x64", "debug": debug_mode, "no_gc": no_gc, "call_depth_max": call_depth_max, "capsule": capsule, "cap_allow_domains": cap_allow_domains, "link_libs": link_libs})
     if ctx == nil { return nil }
     codegen.native_emit_errors_and_exit(ctx)
     if trace_sum { t_compile_done = oren_time_now_ns() }

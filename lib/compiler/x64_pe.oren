@@ -7,6 +7,7 @@
 //                   GetEnvironmentStringsA, FreeEnvironmentStringsA, GetCommandLineW, WideCharToMultiByte, LocalFree,
 //                   Sleep, GetSystemTimeAsFileTime, QueryPerformanceCounter,
 //                   CreateProcessA, WaitForSingleObject, GetExitCodeProcess, SetHandleInformation, CloseHandle
+//                   LoadLibraryA, GetProcAddress
 //   - SHELL32.dll: CommandLineToArgvW
 // - entry stub calls main(), then ExitProcess(main_ret)
 //
@@ -60,7 +61,7 @@ fn push_ascii_z(buf, s) {
     return nil
 }
 
-fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
+fn pe_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
     // Bounded timing summary for diagnosing x64 Windows build throughput without huge logs.
     // Enable with: OREN_TRACE_X64_EMIT_SUMMARY=1
     var trace_sum = oren_env("OREN_TRACE_X64_EMIT_SUMMARY") != nil
@@ -71,7 +72,7 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     var t_write_done = 0
     if trace_sum { t0 = oren_time_now_ns() }
 
-    var ctx = codegen.native_compile_program_x64(linked, {"os": "windows", "arch": "x64", "debug": debug_mode, "no_gc": no_gc, "call_depth_max": call_depth_max, "capsule": capsule, "cap_allow_domains": cap_allow_domains})
+    var ctx = codegen.native_compile_program_x64(linked, {"os": "windows", "arch": "x64", "debug": debug_mode, "no_gc": no_gc, "call_depth_max": call_depth_max, "capsule": capsule, "cap_allow_domains": cap_allow_domains, "link_libs": link_libs})
     if ctx == nil { return nil }
     codegen.native_emit_errors_and_exit(ctx)
     if trace_sum { t_compile_done = oren_time_now_ns() }
@@ -145,8 +146,11 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
         // Keep at end to preserve existing IAT offsets.
         "GetCurrentThreadId",
         // mmap/munmap substrate (used by runtime alloc-index table and typed buffers).
-        // Keep at end to preserve existing IAT offsets.
-        "VirtualFree"
+        // Keep VirtualFree at its existing IAT offset; append new imports below.
+        "VirtualFree",
+        // FFI (Tier‑1): lazy DLL symbol resolution for `ffi name` stubs.
+        "LoadLibraryA",
+        "GetProcAddress"
     ]
     // WinSock NET substrate (WS2_32.dll).
     // Keep this list minimal and explicit so the IAT label mapping below stays auditable.
@@ -378,6 +382,8 @@ fn pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, caps
     iat_offs["IAT_FreeEnvironmentStringsA"] = off_iat_k32 + 240 + 1
     iat_offs["IAT_GetCurrentThreadId"] = off_iat_k32 + 248 + 1
     iat_offs["IAT_VirtualFree"] = off_iat_k32 + 256 + 1
+    iat_offs["IAT_LoadLibraryA"] = off_iat_k32 + 264 + 1
+    iat_offs["IAT_GetProcAddress"] = off_iat_k32 + 272 + 1
     // WS2_32.dll IAT slots (order matches ws2_32_funcs above)
     iat_offs["IAT_WSAStartup"] = off_iat_ws2 + 0 + 1
     iat_offs["IAT_WSAGetLastError"] = off_iat_ws2 + 8 + 1

@@ -1,0 +1,13 @@
+// Windows-only native FFI smoke (kernel32 fallback).
+//
+// This source is intentionally NOT used by the host-run quick integration suite,
+// because `ffi` declarations may require the symbol to be resolvable at program startup.
+// Instead, it is compiled (and optionally run) only for x64-windows targets via scripts.
+
+ffi GetCurrentThreadId
+
+var tid = GetCurrentThreadId()
+// GetCurrentThreadId returns a non-zero DWORD on success.
+if tid == 0 { exit(1) }
+exit(0)
+

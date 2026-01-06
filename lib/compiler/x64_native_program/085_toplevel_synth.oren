@@ -1,0 +1,152 @@
+// Tier‑1 x64 native: top-level synthesis helpers.
+//
+// Extracted from `090_program_entry.oren` to keep that entry module bounded.
+
+fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
+    // Collect top-level `var` declarations as globals and build the statement list to run
+    // before `main` (implemented as a synthesized `fn __top_level__(){...}`).
+    //
+    // Tier‑1 convergence (arm64 parity):
+    // - Allocate runtime globals, but do NOT execute runtime global initializers in __top_level__.
+    //   The injected runtime must initialize its own globals in `native_runtime_init`.
+    // - Defer ALL user global initializers into __top_level__ as assignments, so
+    //   startup order is deterministic and matches arm64.
+    // - Disallow top-level executable statements in the injected runtime.
+    if ctx == nil { return nil }
+
+    var declared = ctx["declared_functions"]
+    var split = nt.split_tier1_runtime_user(ctx, "x64 native v0", runtime_stmts, user_stmts, declared)
+    if split == nil { return nil }
+
+    var runtime_vars = split["runtime_vars"]
+    var user_vars = split["user_vars"]
+    var user_exec = split["user_exec"]
+    if runtime_vars == nil { runtime_vars = [] }
+    if user_vars == nil { user_vars = [] }
+    if user_exec == nil { user_exec = [] }
+
+    // Allocate runtime global slots (always zero-initialized; runtime init owns their values).
+    var i = 0
+    while i < oren_list_len(runtime_vars) {
+        var st = runtime_vars[i]
+        if st != nil {
+            var nm = st["name"]["value"]
+            if ctx["globals"] != nil && ctx["globals"][nm] != nil {
+                err(ctx, "x64 native v0: duplicate global var " + nm)
+                return nil
+            }
+            var off0 = _data_add_u64(ctx, 0)
+            // Store as offset+1 so a real offset of 0 is not indistinguishable from `nil`
+            // when the compiler runs under the native runtime (where `nil` is 0).
+            ctx["globals"][nm] = off0 + 1
+        }
+        i = i + 1
+    }
+
+    // Allocate user global slots and defer their initializers into __top_level__.
+    i = 0
+    while i < oren_list_len(user_vars) {
+        var st2 = user_vars[i]
+        if st2 != nil {
+            var nm2 = st2["name"]["value"]
+            if ctx["globals"] != nil && ctx["globals"][nm2] != nil {
+                err(ctx, "x64 native v0: duplicate global var " + nm2)
+                return nil
+            }
+            var off2 = _data_add_u64(ctx, 0)
+            // Store as offset+1 so a real offset of 0 is not indistinguishable from `nil`
+            // when the compiler runs under the native runtime (where `nil` is 0).
+            ctx["globals"][nm2] = off2 + 1
+        }
+        i = i + 1
+    }
+
+    var init_stmts = nt.user_global_init_assign_stmts(user_vars)
+
+    // Top-level exec order:
+    // - user global initializers
+    // - other user top-level statements (expr/assign/control flow)
+    var top_stmts = []
+    var j = 0
+    while j < oren_list_len(init_stmts) { oren_list_push(top_stmts, init_stmts[j]); j = j + 1 }
+    j = 0
+    while j < oren_list_len(user_exec) { oren_list_push(top_stmts, user_exec[j]); j = j + 1 }
+    return {"top_level_fn": _x64_synth_top_level_fn(top_stmts)}
+}
+
+fn _x64_extract_type_constructors_v0(ctx, linked) {
+    if ctx == nil { return nil }
+    var stmts = nil
+    if linked != nil { stmts = linked["statements"] }
+    if stmts == nil { return [] }
+
+    var out = []
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        if st == nil { i = i + 1; continue }
+        if st["type"] != "Type" { i = i + 1; continue }
+
+        var name_node = st["name"]
+        var fields = st["fields"]
+        if name_node == nil || name_node["type"] != "Identifier" { err(ctx, "x64 native v0: Type name must be identifier"); return nil }
+        var nm = name_node["value"]
+        if nm == nil || nm == "" { err(ctx, "x64 native v0: Type name is empty"); return nil }
+        if ctx["declared_functions"] != nil && ctx["declared_functions"][nm] != nil {
+            err(ctx, "x64 native v0: Type constructor name conflicts with existing function " + nm)
+            return nil
+        }
+
+        // Params: one per field.
+        var params = []
+        var pairs = []
+        var n_fields = 0
+        if fields != nil { n_fields = oren_list_len(fields) }
+        var j = 0
+        while j < n_fields {
+            var f = fields[j]
+            if f == nil || f["type"] != "Identifier" { err(ctx, "x64 native v0: Type field must be identifier"); return nil }
+            var fnm = f["value"]
+            if fnm == nil || fnm == "" { err(ctx, "x64 native v0: Type field name is empty"); return nil }
+            oren_list_push(params, callable.node_id(fnm))
+            oren_list_push(pairs, {"key": callable.node_string(fnm), "value": callable.node_id(fnm)})
+            j = j + 1
+        }
+
+        // Body: return {"field": field, ...}
+        var ret = callable.node_return({"type": "Hash", "pairs": pairs})
+        var fun = {"type": "Function", "token": st["token"], "name": nm, "params": params, "body": callable.node_block([ret])}
+        oren_list_push(out, fun)
+
+        // Register arity + declaration (needed for wrappers + function values).
+        if ctx["declared_functions"] == nil { ctx["declared_functions"] = {} }
+        ctx["declared_functions"][nm] = true
+        if ctx["func_arity"] == nil { ctx["func_arity"] = {} }
+        ctx["func_arity"][nm] = n_fields + 1
+        if ctx["func_decl_order"] != nil { oren_list_push(ctx["func_decl_order"], nm) }
+
+        i = i + 1
+    }
+    return out
+}
+
+fn _x64_synth_top_level_fn(stmts) {
+    // Synthesize: `fn __top_level__() { <stmts>; return 0 }`
+    //
+    // `_analyze_supported_fn_body` will append an implicit return if needed, but we keep
+    // this explicit so the AST is well-formed even if that rule changes.
+    if stmts == nil { stmts = [] }
+    var out_stmts = []
+    var i = 0
+    while i < oren_list_len(stmts) { oren_list_push(out_stmts, stmts[i]); i = i + 1 }
+    // Ensure a deterministic trailing return in the synthesized block.
+    oren_list_push(out_stmts, {"type": "Return", "token": nil, "value": {"type": "Integer", "value": "0"}})
+    return {
+        "type": "Function",
+        "token": nil,
+        "name": "__top_level__",
+        "params": [],
+        "body": {"type": "Block", "stmts": out_stmts},
+    }
+}
+

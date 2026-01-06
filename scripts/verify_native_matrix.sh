@@ -28,6 +28,7 @@ cd "$ROOT"
 TEST_SRC="tests/native/test_quick_integration_native.oren"
 TIER1_SRC="tests/fixtures/tier1_native_smoke_main.oren"
 TIER1_EXPECT_MARKERS=1
+WIN_FFI_K32_SRC="tests/native/ffi_windows_kernel32.oren"
 
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
@@ -436,12 +437,19 @@ if has_target x64-win; then
   build_native_bin "./oren" "x64-windows" "build/tmp/qi_stage1_x64_windows.exe"
   build_native_bin "./oren_stage2" "x64-windows" "build/tmp/qi_stage2_x64_windows.exe"
 
+  build_native_bin_src "./oren" "x64-windows" "$WIN_FFI_K32_SRC" "build/tmp/ffi_k32_stage1_x64_windows.exe"
+  build_native_bin_src "./oren_stage2" "x64-windows" "$WIN_FFI_K32_SRC" "build/tmp/ffi_k32_stage2_x64_windows.exe"
+
   remote_upload "build/tmp/qi_stage1_x64_windows.exe" "qi_stage1_x64_windows.exe"
   remote_upload "build/tmp/qi_stage2_x64_windows.exe" "qi_stage2_x64_windows.exe"
+  remote_upload "build/tmp/ffi_k32_stage1_x64_windows.exe" "ffi_k32_stage1_x64_windows.exe"
+  remote_upload "build/tmp/ffi_k32_stage2_x64_windows.exe" "ffi_k32_stage2_x64_windows.exe"
 
   log "-- run: Win11 (x64-windows) --"
   remote_run_win "qi_stage1_x64_windows.exe"
   remote_run_win "qi_stage2_x64_windows.exe"
+  remote_run_win "ffi_k32_stage1_x64_windows.exe"
+  remote_run_win "ffi_k32_stage2_x64_windows.exe"
   log "OK: remote Win11 x64"
 fi
 

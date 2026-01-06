@@ -1,0 +1,320 @@
+// Tier‑1 FFI support (x86_64 native backend).
+//
+// Rolling contract (see docs/LANGUAGE_MANUAL.md "ffi"):
+// - `ffi name` declares an external symbol.
+// - Calls pass raw 64-bit values in the platform ABI.
+// - Strings are NUL-terminated cstr0 pointers.
+//
+// Current status:
+// - Windows x64 (PE): supports FFI via lazy LoadLibraryA/GetProcAddress stubs.
+// - Linux x86_64 (ELF): unresolved imports are still stubbed (returns 0).
+
+fn _x64_collect_ffi_decls_from_stmt_list(ctx, stmts, role) {
+    if ctx == nil { return nil }
+    if stmts == nil { return nil }
+
+    if ctx["imports"] == nil { ctx["imports"] = {} }
+    if ctx["import_list"] == nil { ctx["import_list"] = [] }
+    var imports = ctx["imports"]
+    var import_list = ctx["import_list"]
+
+    var declared = ctx["declared_functions"]
+    if declared == nil { declared = {}; ctx["declared_functions"] = declared }
+
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        if st == nil || st["type"] != "FFI" { i = i + 1; continue }
+
+        var name_node = st["name"]
+        if name_node == nil || name_node["type"] != "Identifier" {
+            err(ctx, "x64 native v0: " + role + " ffi name must be identifier")
+            return nil
+        }
+        var nm = name_node["value"]
+        if nm == nil || nm == "" {
+            err(ctx, "x64 native v0: " + role + " ffi name is empty")
+            return nil
+        }
+        if nm == "__top_level__" {
+            err(ctx, "x64 native v0: reserved ffi name __top_level__")
+            return nil
+        }
+        if imports[nm] != nil {
+            err(ctx, "x64 native v0: duplicate ffi declaration " + nm)
+            return nil
+        }
+        if declared[nm] != nil {
+            err(ctx, "x64 native v0: duplicate top-level name " + nm)
+            return nil
+        }
+
+        imports[nm] = true
+        declared[nm] = true // reserve the name so globals can't shadow it
+        oren_list_push(import_list, nm)
+        i = i + 1
+    }
+    return true
+}
+
+fn _x64_collect_ffi_decls(ctx, runtime_stmts, user_stmts) {
+    if ctx == nil { return nil }
+    if runtime_stmts == nil { runtime_stmts = [] }
+    if user_stmts == nil { user_stmts = [] }
+    _x64_collect_ffi_decls_from_stmt_list(ctx, runtime_stmts, "runtime")
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _x64_collect_ffi_decls_from_stmt_list(ctx, user_stmts, "user")
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    return true
+}
+
+fn _x64_ffi_push_unique(out, seen, s) {
+    if s == nil || s == "" { return nil }
+    if seen[s] != nil { return nil }
+    seen[s] = true
+    oren_list_push(out, s)
+    return nil
+}
+
+fn _x64_ffi_windows_dlls(platform) {
+    // Order (rolling):
+    // - user `--link` DLLs first
+    // - then a built-in kernel32 fallback so `ffi GetCurrentThreadId` works without `--link`
+    var out = []
+    var seen = {}
+
+    if platform != nil && platform["link_libs"] != nil {
+        var xs = platform["link_libs"]
+        var i = 0
+        while i < oren_list_len(xs) {
+            _x64_ffi_push_unique(out, seen, xs[i])
+            i = i + 1
+        }
+    }
+
+    _x64_ffi_push_unique(out, seen, "kernel32.dll")
+    return out
+}
+
+fn _x64_emit_call_iat_rax(ctx, iat_label) {
+    // mov rax, [rip+disp32] (IAT slot) ; call rax
+    var mov_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    _x64_add_rip_data32_fixup(ctx, mov_pos + 3, iat_label)
+    bytes_extend(ctx["code"], insn_call_rax())
+    return nil
+}
+
+fn _x64_emit_ffi_resolver_win64(ctx, platform, dlls) {
+    // fn __oren_ffi_resolve0(sym_ptr) -> fn_ptr (0 if unresolved)
+    //
+    // ABI: Win64 int args in rcx,rdx,r8,r9; return in rax.
+    // - sym_ptr is a cstr0 pointer.
+    //
+    // Implementation:
+    // - preserves r12 (callee-saved) while using it to hold sym_ptr
+    // - allocates 32B shadow for each WinAPI call
+    var name = "__oren_ffi_resolve0"
+    if ctx == nil { return nil }
+    if ctx["functions"] == nil { ctx["functions"] = {} }
+    if ctx["functions"][name] != nil { return name }
+
+    var start = bytes_len(ctx["code"])
+    ctx["functions"][name] = start
+
+    // push r12
+    bytes_push(ctx["code"], 65) // REX.B
+    bytes_push(ctx["code"], 84) // PUSH r12
+    // r12 = rcx (sym_ptr)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(12, 1))
+    // sub rsp, 0x20 (shadow space for LoadLibraryA/GetProcAddress)
+    bytes_extend(ctx["code"], insn_sub_rsp_imm32(32))
+
+    var labels = {}
+    var local_fixups = []
+    var l_done = _new_label(ctx, "ffi_resolve_done")
+
+    var i = 0
+    while i < oren_list_len(dlls) {
+        var dll = dlls[i]
+        if dll == nil || dll == "" { i = i + 1; continue }
+
+        // rcx = &dll_cstr0
+        var dll_off = _data_add_cstr0(ctx, dll)
+        var lea_dll = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(1, 0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_dll + 3, "data_off": dll_off})
+
+        _x64_emit_call_iat_rax(ctx, "IAT_LoadLibraryA")
+
+        // if rax == 0: continue
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        var l_skip = _new_label(ctx, "ffi_resolve_skip")
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_skip)
+
+        // rcx = hmodule (rax)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0))
+        // rdx = sym_ptr (r12)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(2, 12))
+        _x64_emit_call_iat_rax(ctx, "IAT_GetProcAddress")
+
+        // if rax != 0: done
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_done)
+
+        _emit_label(ctx, labels, l_skip)
+        i = i + 1
+    }
+
+    // unresolved => rax=0
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(0, 0))
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+
+    // add rsp, 0x20
+    bytes_extend(ctx["code"], insn_add_rsp_imm32(32))
+    // pop r12
+    bytes_push(ctx["code"], 65) // REX.B
+    bytes_push(ctx["code"], 92) // POP r12
+    bytes_extend(ctx["code"], insn_ret())
+    return name
+}
+
+fn _x64_emit_ffi_stub_linux(ctx, nm) {
+    // Linux x64: unresolved imports are stubbed today (docs/NATIVE_BACKEND.md).
+    // Emit: mov rax, 0; ret
+    if ctx == nil { return nil }
+    if nm == nil || nm == "" { return nil }
+    if ctx["functions"] == nil { ctx["functions"] = {} }
+    if ctx["functions"][nm] != nil { return nil }
+    ctx["functions"][nm] = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(0, 0))
+    bytes_extend(ctx["code"], insn_ret())
+    return nil
+}
+
+fn _x64_emit_ffi_stub_win64(ctx, nm, resolver_name) {
+    // Windows x64: lazy resolve `nm` on first call, cache fnptr in `.data`, then tailcall.
+    if ctx == nil { return nil }
+    if nm == nil || nm == "" { return nil }
+    if resolver_name == nil || resolver_name == "" {
+        err(ctx, "x64 native v0: internal: missing ffi resolver name")
+        return nil
+    }
+
+    if ctx["functions"] == nil { ctx["functions"] = {} }
+    if ctx["functions"][nm] != nil { return nil }
+
+    // data: fnptr cell (u64)
+    var cell_off = _data_add_u64(ctx, 0)
+    // data: symbol name string (cstr0)
+    var sym_off = _data_add_cstr0(ctx, nm)
+    // data: error message (cstr0)
+    var msg_off = _data_add_cstr0(ctx, "ffi unresolved: " + nm)
+
+    ctx["functions"][nm] = bytes_len(ctx["code"])
+
+    // lea r10, [&cell]
+    var lea_cell0 = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_cell0 + 3, "data_off": cell_off})
+    // rax = [r10]
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(0, 10))
+
+    var labels = {}
+    var local_fixups = []
+    var l_have = _new_label(ctx, "ffi_have")
+    var l_fail = _new_label(ctx, "ffi_fail")
+
+    // if rax != 0 => tailcall immediately (args still in regs/stack).
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_have)
+
+    // Spill incoming arg regs into the caller-provided shadow space (Windows ABI):
+    //   [rsp+0x08..0x27] is reserved for this call.
+    _emit_mov_mrsp_r64(ctx, 8, 1)   // rcx
+    _emit_mov_mrsp_r64(ctx, 16, 2)  // rdx
+    _emit_mov_mrsp_r64(ctx, 24, 8)  // r8
+    _emit_mov_mrsp_r64(ctx, 32, 9)  // r9
+
+    // Call resolver with proper alignment + shadow:
+    // entry rsp is 8 mod 16, so sub 0x28 makes it 0 mod 16.
+    bytes_extend(ctx["code"], insn_sub_rsp_imm32(40))
+    // rcx = &sym_cstr0
+    var lea_sym = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(1, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_sym + 3, "data_off": sym_off})
+    var call_res = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_res, "name": resolver_name})
+    bytes_extend(ctx["code"], insn_add_rsp_imm32(40))
+
+    // if rax == 0 => panic (unresolved)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_fail)
+
+    // Cache fnptr in cell.
+    var lea_cell1 = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_cell1 + 3, "data_off": cell_off})
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+    // Restore arg regs.
+    _emit_mov_r64_mrsp(ctx, 1, 8)
+    _emit_mov_r64_mrsp(ctx, 2, 16)
+    _emit_mov_r64_mrsp(ctx, 8, 24)
+    _emit_mov_r64_mrsp(ctx, 9, 32)
+
+    _emit_label(ctx, labels, l_have)
+    // Tailcall to target: jmp rax
+    bytes_extend(ctx["code"], insn_jmp_rax())
+
+    _emit_label(ctx, labels, l_fail)
+    // call oren_panic("ffi unresolved: <name>") (does not return)
+    bytes_extend(ctx["code"], insn_sub_rsp_imm32(40))
+    var lea_msg = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(1, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_msg + 3, "data_off": msg_off})
+    var call_panic = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_panic, "name": "oren_panic"})
+    bytes_extend(ctx["code"], insn_add_rsp_imm32(40))
+    // Fallback: return 0 if panic returns (should not happen).
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(0, 0))
+    bytes_extend(ctx["code"], insn_ret())
+
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
+fn _x64_emit_ffi_stubs(ctx, platform) {
+    if ctx == nil { return nil }
+    var imports = ctx["import_list"]
+    if imports == nil || oren_list_len(imports) == 0 { return nil }
+
+    var os = nil
+    if platform != nil { os = platform["os"] }
+
+    if os == "windows" {
+        var dlls = _x64_ffi_windows_dlls(platform)
+        var resolver_name = _x64_emit_ffi_resolver_win64(ctx, platform, dlls)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        var i = 0
+        while i < oren_list_len(imports) {
+            _x64_emit_ffi_stub_win64(ctx, imports[i], resolver_name)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            i = i + 1
+        }
+        return nil
+    }
+
+    // Linux (and others): stub unresolved imports for now.
+    var j = 0
+    while j < oren_list_len(imports) {
+        _x64_emit_ffi_stub_linux(ctx, imports[j])
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        j = j + 1
+    }
+    return nil
+}

@@ -53,7 +53,7 @@ fn cli_spec() {
     argparse.cmd_option(build, "--call-depth-max", nil, "int", 8192, "(native backend) max call depth before abort (runtime override: OREN_CALL_DEPTH_MAX)")
     argparse.cmd_flag(build, "--lib", nil, "(native backend) build a shared library")
     argparse.cmd_flag(build, "--shared", nil, "(native backend) build a shared library (alias)")
-    argparse.cmd_option_multi(build, "--link", "-l", "string", "(native backend, macOS) add LC_LOAD_DYLIB")
+    argparse.cmd_option_multi(build, "--link", "-l", "string", "(native backend) link dynamic lib (macOS: LC_LOAD_DYLIB; Windows: DLL search list for ffi; Linux: reserved)")
     argparse.cmd_flag(build, "--metadata", nil, "(native backend) write <out>.meta.json")
     argparse.cmd_flag(build, "--analyze", nil, "Print analysis info and exit")
     argparse.cmd_flag(build, "--typecheck", nil, "Typecheck annotated code (fail fast on type errors; still builds on success)")

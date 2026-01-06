@@ -1194,10 +1194,10 @@ fn compiler_main() {
                     print("[build] native emit start (x64) target=" + target)
                 }
                 if target == "linux" {
-                    x64_elf.elf_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
+                    x64_elf.elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
                 } else {
                     if target == "windows" {
-                        x64_pe.pe_emit_program_x64(out_path, linked, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
+                        x64_pe.pe_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
                     } else {
                         print("native backend (x64) unsupported target: " + target)
                         oren_exit(1)

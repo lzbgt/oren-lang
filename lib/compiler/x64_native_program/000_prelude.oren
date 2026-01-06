@@ -81,6 +81,7 @@ fn insn_lea_rsi_rip_disp32(disp32) { return core.insn_lea_rsi_rip_disp32(disp32)
 fn insn_lea_r64_rip_disp32(reg, disp32) { return core.insn_lea_r64_rip_disp32(reg, disp32) }
 fn insn_lea_r64_rsp_disp8(reg, disp8) { return core.insn_lea_r64_rsp_disp8(reg, disp8) }
 fn insn_call_rax() { return core.insn_call_rax() }
+fn insn_jmp_rax() { return core.insn_jmp_rax() }
 fn insn_sub_rsp_imm8(n) { return core.insn_sub_rsp_imm8(n) }
 fn insn_add_rsp_imm8(n) { return core.insn_add_rsp_imm8(n) }
 fn insn_sub_rsp_imm32(n) { return core.insn_sub_rsp_imm32(n) }

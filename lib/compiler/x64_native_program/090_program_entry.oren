@@ -344,6 +344,7 @@ fn _x64_new_ctx(linked, platform) {
         "data": bytes_new(),
         "fixups": [],
         "functions": {},
+        "imports": {},
         "import_list": [],
         "errors": [],
         "platform": platform,
@@ -622,6 +623,12 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
                             _x64_add_rip_data32_fixup(ctx, base_code + pos, lab)
                         }
                     } else {
+                        if f0["type"] == "call_rel32" && f0["name"] == _x64_panic_helper_name() {
+                            // Runtime object code may contain compiler-generated abort sites that call the
+                            // shared panic helper. Mark it needed so the final program emits the helper
+                            // even when user code itself doesn't trigger a compiler panic path.
+                            ctx["need_panic_helper"] = true
+                        }
                         // Mutate in-place to avoid allocating a new map per fixup (can be 10k+ entries).
                         //
                         // Safety:
@@ -1145,6 +1152,14 @@ fn native_compile_program_x64(linked, platform) {
     var has_main = false
     if ctx["declared_functions"] != nil && ctx["declared_functions"]["main"] != nil { has_main = true }
 
+    // --- FFI declarations (Tier‑1 parity) ---
+    //
+    // Collect `ffi name` declarations so:
+    // - the name is reserved (globals can't shadow it)
+    // - direct calls can resolve to backend-emitted stubs
+    _x64_collect_ffi_decls(ctx, runtime_stmts, user_stmts)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
+
     // --- Global vars + top-level statements (Tier‑1 convergence) ---
     //
     // Collect top-level `var` declarations into `ctx["globals"]` and build the statement list
@@ -1332,6 +1347,20 @@ fn native_compile_program_x64(linked, platform) {
                 ctx["symtab_display"][wnm] = wnm + "@<generated>"
             }
             si0 = si0 + 1
+        }
+
+        // FFI stubs (deterministic: declaration order).
+        var imports0 = ctx["import_list"]
+        if imports0 != nil {
+            var ii0 = 0
+            while ii0 < oren_list_len(imports0) {
+                var inm = imports0[ii0]
+                if inm != nil && inm != "" {
+                    _x64_symtab_push_unique(sym_seen, sym_names, inm)
+                    ctx["symtab_display"][inm] = inm + "@<ffi>"
+                }
+                ii0 = ii0 + 1
+            }
         }
         _data_reserve_symtab(ctx, sym_names)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
@@ -1726,7 +1755,7 @@ fn native_compile_program_x64(linked, platform) {
     var need2 = ctx["fnwrap_needed"]
     if need2 != nil {
         var wi2 = 0
-        while wi2 < oren_list_len(ctx["func_decl_order"]) {
+    while wi2 < oren_list_len(ctx["func_decl_order"]) {
             var fname2 = ctx["func_decl_order"][wi2]
             if fname2 == nil || fname2 == "" { wi2 = wi2 + 1; continue }
             if need2[fname2] == nil { wi2 = wi2 + 1; continue }
@@ -1760,6 +1789,12 @@ fn native_compile_program_x64(linked, platform) {
         }
     }
     if trace_sum { t_fnwrap_done = oren_time_now_ns() }
+
+    // --- FFI stubs ---
+    //
+    // Emit any backend stubs required for `ffi` symbols (Windows: real; Linux: stubbed).
+    _x64_emit_ffi_stubs(ctx, platform)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
     // Emit shared panic helper after compiling user/runtime functions so:
     // - call-site fixups can resolve it by name, and
@@ -1842,158 +1877,10 @@ fn native_compile_program_x64(linked, platform) {
     return ctx
 }
 
-fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
-    // Collect top-level `var` declarations as globals and build the statement list to run
-    // before `main` (implemented as a synthesized `fn __top_level__(){...}`).
-    //
-    // Tier‑1 convergence (arm64 parity):
-    // - Allocate runtime globals, but do NOT execute runtime global initializers in __top_level__.
-    //   The injected runtime must initialize its own globals in `native_runtime_init`.
-    // - Defer ALL user global initializers into __top_level__ as assignments, so
-    //   startup order is deterministic and matches arm64.
-    // - Disallow top-level executable statements in the injected runtime.
-    if ctx == nil { return nil }
-
-    var declared = ctx["declared_functions"]
-    var split = nt.split_tier1_runtime_user(ctx, "x64 native v0", runtime_stmts, user_stmts, declared)
-    if split == nil { return nil }
-
-    var runtime_vars = split["runtime_vars"]
-    var user_vars = split["user_vars"]
-    var user_exec = split["user_exec"]
-    if runtime_vars == nil { runtime_vars = [] }
-    if user_vars == nil { user_vars = [] }
-    if user_exec == nil { user_exec = [] }
-
-    // Allocate runtime global slots (always zero-initialized; runtime init owns their values).
-    var i = 0
-    while i < oren_list_len(runtime_vars) {
-        var st = runtime_vars[i]
-        if st != nil {
-            var nm = st["name"]["value"]
-            if ctx["globals"] != nil && ctx["globals"][nm] != nil {
-                err(ctx, "x64 native v0: duplicate global var " + nm)
-                return nil
-            }
-            var off0 = _data_add_u64(ctx, 0)
-            // Store as offset+1 so a real offset of 0 is not indistinguishable from `nil`
-            // when the compiler runs under the native runtime (where `nil` is 0).
-            ctx["globals"][nm] = off0 + 1
-        }
-        i = i + 1
-    }
-
-    // Allocate user global slots and defer their initializers into __top_level__.
-    i = 0
-    while i < oren_list_len(user_vars) {
-        var st2 = user_vars[i]
-        if st2 != nil {
-            var nm2 = st2["name"]["value"]
-            if ctx["globals"] != nil && ctx["globals"][nm2] != nil {
-                err(ctx, "x64 native v0: duplicate global var " + nm2)
-                return nil
-            }
-            var off2 = _data_add_u64(ctx, 0)
-            // Store as offset+1 so a real offset of 0 is not indistinguishable from `nil`
-            // when the compiler runs under the native runtime (where `nil` is 0).
-            ctx["globals"][nm2] = off2 + 1
-        }
-        i = i + 1
-    }
-
-    var init_stmts = nt.user_global_init_assign_stmts(user_vars)
-
-    // Top-level exec order:
-    // - user global initializers
-    // - other user top-level statements (expr/assign/control flow)
-    var top_stmts = []
-    var j = 0
-    while j < oren_list_len(init_stmts) { oren_list_push(top_stmts, init_stmts[j]); j = j + 1 }
-    j = 0
-    while j < oren_list_len(user_exec) { oren_list_push(top_stmts, user_exec[j]); j = j + 1 }
-    return {"top_level_fn": _x64_synth_top_level_fn(top_stmts)}
-}
-
-fn _x64_extract_type_constructors_v0(ctx, linked) {
-    if ctx == nil { return nil }
-    var stmts = nil
-    if linked != nil { stmts = linked["statements"] }
-    if stmts == nil { return [] }
-
-    var out = []
-    var i = 0
-    while i < oren_list_len(stmts) {
-        var st = stmts[i]
-        if st == nil { i = i + 1; continue }
-        if st["type"] != "Type" { i = i + 1; continue }
-
-        var name_node = st["name"]
-        var fields = st["fields"]
-        if name_node == nil || name_node["type"] != "Identifier" { err(ctx, "x64 native v0: Type name must be identifier"); return nil }
-        var nm = name_node["value"]
-        if nm == nil || nm == "" { err(ctx, "x64 native v0: Type name is empty"); return nil }
-        if ctx["declared_functions"] != nil && ctx["declared_functions"][nm] != nil {
-            err(ctx, "x64 native v0: Type constructor name conflicts with existing function " + nm)
-            return nil
-        }
-
-        // Params: one per field.
-        var params = []
-        var pairs = []
-        var n_fields = 0
-        if fields != nil { n_fields = oren_list_len(fields) }
-        var j = 0
-        while j < n_fields {
-            var f = fields[j]
-            if f == nil || f["type"] != "Identifier" { err(ctx, "x64 native v0: Type field must be identifier"); return nil }
-            var fnm = f["value"]
-            if fnm == nil || fnm == "" { err(ctx, "x64 native v0: Type field name is empty"); return nil }
-            oren_list_push(params, callable.node_id(fnm))
-            oren_list_push(pairs, {"key": callable.node_string(fnm), "value": callable.node_id(fnm)})
-            j = j + 1
-        }
-
-        // Body: return {"field": field, ...}
-        var ret = callable.node_return({"type": "Hash", "pairs": pairs})
-        var fun = {"type": "Function", "token": st["token"], "name": nm, "params": params, "body": callable.node_block([ret])}
-        oren_list_push(out, fun)
-
-        // Register arity + declaration (needed for wrappers + function values).
-        if ctx["declared_functions"] == nil { ctx["declared_functions"] = {} }
-        ctx["declared_functions"][nm] = true
-        if ctx["func_arity"] == nil { ctx["func_arity"] = {} }
-        ctx["func_arity"][nm] = n_fields + 1
-        if ctx["func_decl_order"] != nil { oren_list_push(ctx["func_decl_order"], nm) }
-
-        i = i + 1
-    }
-    return out
-}
-
-fn _x64_synth_top_level_fn(stmts) {
-    // Synthesize: `fn __top_level__() { <stmts>; return 0 }`
-    //
-    // `_analyze_supported_fn_body` will append an implicit return if needed, but we keep
-    // this explicit so the AST is well-formed even if that rule changes.
-    if stmts == nil { stmts = [] }
-    var out_stmts = []
-    var i = 0
-    while i < oren_list_len(stmts) { oren_list_push(out_stmts, stmts[i]); i = i + 1 }
-    // Ensure a deterministic trailing return in the synthesized block.
-    oren_list_push(out_stmts, {"type": "Return", "token": nil, "value": {"type": "Integer", "value": "0"}})
-    return {
-        "type": "Function",
-        "token": nil,
-        "name": "__top_level__",
-        "params": [],
-        "body": {"type": "Block", "stmts": out_stmts},
-    }
-}
-
-fn native_emit_errors_and_exit(ctx) {
-    if ctx == nil { return nil }
-    var errs = ctx["errors"]
-    if errs == nil || oren_list_len(errs) == 0 { return nil }
+	fn native_emit_errors_and_exit(ctx) {
+	    if ctx == nil { return nil }
+	    var errs = ctx["errors"]
+	    if errs == nil || oren_list_len(errs) == 0 { return nil }
     var i = 0
     while i < oren_list_len(errs) {
         var e = errs[i]
