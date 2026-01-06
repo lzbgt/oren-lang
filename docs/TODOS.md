@@ -88,8 +88,15 @@ Rules for this tracker:
      - container ops (list/map/buf) with identical semantics across arch/OS
      - concurrency primitives on Windows (no fork/pipe assumptions): `spawn`, `oren_join(_timeout)`, and a path to cooperative cancellation
 		   - Remaining gaps (active):
-		     - Fixed (2026-01-04): **arm64-macos stage2 is now bootstrapped via the native backend by default** (`make stage2`).
-		       - Fallback (bring-up): `make stage2 OREN_STAGE2_BACKEND=c`.
+		     - x86_64 self-host compiler run gate (Win11 + WSL2):
+		       - Local emit sanity: `make verify-native-x64-compile`
+		       - Remote run gate: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win`
+		       - If the x64-windows compiler still hangs when compiling a tiny file, treat it as a Tier‑1 blocker and diagnose with bounded tracing (`OREN_TRACE_BUILD_SUMMARY=1`, `OREN_TRACE_BUILD_SLOW_MS=0`) before adding logging.
+		     - NET stdlib maturity (production direction):
+		       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IP-only; no TLS/DNS/keep-alive pooling yet).
+		       - Next: structured HTTP client/server surface (headers map + status + streaming body), WebSocket handshake+frames, then HTTP/2 framing on top of the TCP substrate.
+			     - Fixed (2026-01-04): **arm64-macos stage2 is now bootstrapped via the native backend by default** (`make stage2`).
+			       - Fallback (bring-up): `make stage2 OREN_STAGE2_BACKEND=c`.
 			    - Native FFI / dynamic linking parity (rolling):
 			      - Current reality:
 			        - **macOS (Mach‑O):** `ffi` works via dyld binding opcodes + `--link` dylibs.
