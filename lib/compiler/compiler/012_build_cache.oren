@@ -1113,6 +1113,14 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         var rt_path = "lib/runtime_native.oren"
         if build_cfg["capsule"] == true {
             rt_path = "lib/runtime_native_capsule.oren"
+        } else {
+            // Optional: reduced runtime profile for native self-hosting throughput.
+            // Must be part of the build cache key; otherwise switching the profile could
+            // incorrectly reuse cached artifacts built with a different injected runtime.
+            var prof = oren_env("OREN_NATIVE_RUNTIME_PROFILE")
+            if prof == "core" || prof == "minimal" {
+                rt_path = "lib/runtime_native_core.oren"
+            }
         }
         var rh = _cache_hash_expanded_includes(rt_path, build_cfg, scan_state)
         if rh["ok"] != true {

@@ -65,6 +65,20 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Verified:
   - `./scripts/verify_native_matrix.sh --targets x64-win,x64-wsl`
 
+## Archived (2026-01-06) — Build cache: include native runtime profile in key (core/full)
+
+- Symptom (native backend, build cache enabled):
+  - Switching `OREN_NATIVE_RUNTIME_PROFILE=core` could incorrectly reuse a cached artifact built with the full injected runtime, because the build cache key always hashed `lib/runtime_native.oren` for non-capsule builds.
+- Fix (compiler build cache key computation):
+  - `cache_compute_key_build` now selects the injected runtime entry path using the same policy as the native backends:
+    - capsule builds: `lib/runtime_native_capsule.oren`
+    - non-capsule + `OREN_NATIVE_RUNTIME_PROFILE=core|minimal`: `lib/runtime_native_core.oren`
+    - default: `lib/runtime_native.oren`
+  - The runtime entry’s expanded include closure is hashed under `inputs["RUNTIME:<path>"]`, so changing the runtime profile forces a cache miss instead of silently reusing the wrong runtime artifact.
+- Verified:
+  - `make verify-native-quick`
+  - manual cache-miss check: build the same source with a fixed `OREN_CACHE_DIR` and toggle `OREN_NATIVE_RUNTIME_PROFILE`.
+
 ## Archived (2026-01-05) — Native x86_64: IntrTmp spill pool (no `$tmp_intrN` locals)
 
 - x64 native v0 no longer materializes intrinsic temp slots as string-named locals (`$tmp_intrN`):
