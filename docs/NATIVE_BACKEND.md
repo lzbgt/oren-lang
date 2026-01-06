@@ -121,6 +121,9 @@ make verify # Run full self-hosting test
   ```bash
   ./oren build mylib.oren --backend native --lib -o mylib.dylib
   ```
+  Notes (rolling):
+  - This is implemented for **arm64-macos (Mach-O)** today.
+  - x86_64 native backends currently reject `--lib/--shared` (ELF `.so` / PE `.dll` export tables are not implemented yet).
 - **Linking**: Link external dynamic libraries using `--link <lib>` or `-l <lib>`.
   ```bash
   ./oren build app.oren --backend native --link /usr/lib/libsqlite3.dylib
