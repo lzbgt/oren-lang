@@ -93,10 +93,11 @@ Rules for this tracker:
 			      - Current reality:
 			        - **macOS (Mach‑O):** `ffi` works via dyld binding opcodes + `--link` dylibs.
 			        - **Windows x64 (PE):** `ffi` works via lazy `LoadLibraryA`/`GetProcAddress` stubs; `--link` supplies DLL search names/paths (kernel32 searched by default).
-			        - **Linux (ELF):** unresolved imports are still stubbed (FFI not functional yet).
+			        - **Linux (ELF):** dynamic linking is not implemented yet; calling an `ffi` symbol panics (FFI not functional yet).
 			      - Regression gates (current):
 			        - Remote Win11: `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_kernel32.oren` (stage1 + stage2).
 			        - Local sanity: `make verify-native-x64-compile` compiles Windows FFI examples (including `--link msvcrt.dll` propagation checks).
+			        - Linux bring-up contract: `scripts/verify_native_matrix.sh --targets arm64-linux` (and `x64-wsl`) runs `tests/native/ffi_linux_unresolved_panics.oren` and asserts the program fails with `ffi unresolved:` until ELF dynamic linking is implemented.
 			      - Deliverable (remaining): Linux ELF `DT_NEEDED` + PLT/GOT relocations (or an explicit dynamic-loader strategy) so `ffi` becomes real on `x64-linux` and `arm64-linux`.
 			      - Then un-skip the native FFI example path in `make examples-test` on Linux.
 			    - Shared library output parity (native `--lib`/`--shared`):

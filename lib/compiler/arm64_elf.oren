@@ -157,7 +157,12 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
     var fixups = ctx["fixups"]
     var functions = ctx["functions"]
     
-    // Generate Stubs for Imports (Placeholder)
+    // Generate stubs for unresolved imports.
+    //
+    // Linux dynamic linking is not implemented in the native backend yet, so we must
+    // not silently return 0 (that would mask missing FFI and create backend-only behavior).
+    //
+    // Instead, calling an `ffi` symbol panics with a stable message.
     var imports = ctx["import_list"]
     var i_imp = 0
     while i_imp < oren_list_len(imports) {
@@ -165,7 +170,26 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
         var stub_pos = bytes_len(code)
         functions[name] = stub_pos
         
-        // Stub: return 0 (avoid syscalls on missing FFI)
+        // data: "ffi unresolved: <name>\0"
+        var msg_off = bytes_len(data)
+        var msg = "ffi unresolved: " + name
+        var bs = oren_bytes_from_string(msg)
+        var bi = 0
+        while bi < oren_list_len(bs) { bytes_push(data, bs[bi]); bi = bi + 1 }
+        bytes_push(data, 0)
+
+        // x0 = &msg (cstr0)
+        var adr_pos = bytes_len(code)
+        push_u32_le(code, 0) // patched to ADRP x0, ...
+        push_u32_le(code, 0) // patched to ADD  x0, x0, #off
+        oren_list_push(fixups, {"type": "adr_data", "pos": adr_pos, "data_off": msg_off})
+
+        // bl oren_panic
+        var bl_pos = bytes_len(code)
+        push_u32_le(code, 0)
+        oren_list_push(fixups, {"type": "bl", "pos": bl_pos, "name": "oren_panic"})
+
+        // Fallback: return 0 if panic returns (should not happen).
         push_u32_le(code, insn_movz(0, 0))
         push_u32_le(code, insn_ret())
         

@@ -192,12 +192,12 @@ Notes (rolling):
 
 - `ffi` is a low-level escape hatch intended primarily for native interop and experiments.
 - In **capsule** mode, `ffi` declarations are rejected (FFI bypasses capability gating).
-- Native backend:
-  - **macOS** supports binding against `libSystem` for `ffi` calls (see `docs/NATIVE_BACKEND.md`).
-  - **Windows x64** supports `ffi` via lazy `LoadLibraryA`/`GetProcAddress` stubs; `--link` adds DLLs to the resolver search list (see `docs/NATIVE_BACKEND.md`).
-  - **Linux** does not yet have a full dynamic-linking story in the native backend; unresolved imports are currently stubbed (see `docs/NATIVE_BACKEND.md`).
-- C backend:
-  - Oren does not have a stabilized “typed C FFI” surface yet, but you can still link extra C by compiling the emitted C yourself (see `docs/C_BACKEND.md`).
+  - Native backend:
+    - **macOS** supports binding against `libSystem` for `ffi` calls (see `docs/NATIVE_BACKEND.md`).
+    - **Windows x64** supports `ffi` via lazy `LoadLibraryA`/`GetProcAddress` stubs; `--link` adds DLLs to the resolver search list (see `docs/NATIVE_BACKEND.md`).
+    - **Linux** does not yet have a full dynamic-linking story in the native backend; calling an `ffi` symbol panics (see `docs/NATIVE_BACKEND.md`).
+  - C backend:
+    - Oren does not have a stabilized “typed C FFI” surface yet, but you can still link extra C by compiling the emitted C yourself (see `docs/C_BACKEND.md`).
 
 ## 2) Values and literals
 

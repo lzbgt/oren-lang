@@ -29,6 +29,7 @@ TEST_SRC="tests/native/test_quick_integration_native.oren"
 TIER1_SRC="tests/fixtures/tier1_native_smoke_main.oren"
 TIER1_EXPECT_MARKERS=1
 WIN_FFI_K32_SRC="tests/native/ffi_windows_kernel32.oren"
+LINUX_FFI_PANIC_SRC="tests/native/ffi_linux_unresolved_panics.oren"
 
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
@@ -309,6 +310,16 @@ run_in_linux_container() {
   docker exec -i "$LINUX_DOCKER_ID" bash -lc "chmod +x '$dst' && '$dst'"
 }
 
+run_in_linux_container_expect_fail_contains() {
+  local bin="$1"
+  local needle="$2"
+  local dst="/tmp/$(basename "$bin")"
+  local out="/tmp/oren_$(basename "$bin").out"
+
+  docker cp "$bin" "${LINUX_DOCKER_ID}:${dst}"
+  docker exec -i "$LINUX_DOCKER_ID" bash -lc "chmod +x '$dst'; rm -f '$out'; set +e; '$dst' >'$out' 2>&1; rc=\$?; set -e; cat '$out'; echo EXIT=\$rc; if [ \$rc -eq 0 ]; then exit 96; fi; grep -qF \"$needle\" '$out'"
+}
+
 remote_user="$REMOTE_HOST"
 if [[ "$REMOTE_HOST" == *"@"* ]]; then
   remote_user="${REMOTE_HOST%@*}"
@@ -414,6 +425,37 @@ remote_run_wsl() {
   return "$rc"
 }
 
+remote_run_wsl_expect_fail_contains() {
+  local bin_name="$1"
+  local needle="$2"
+  remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
+  local full="${remote_wsl_root}/${bin_name}"
+  local envp=""
+  if [[ "$TRACE" -ne 0 ]]; then
+    envp="OREN_QI_TRACE=1 "
+  fi
+
+  local out="/tmp/oren_${bin_name}.out"
+  local cmd="file ${full} || true; chmod +x ${full} && rm -f '${out}'; ${envp}timeout 20s ${full} >'${out}' 2>&1; rc="
+  cmd+='$?'
+  cmd+="; cat '${out}'; echo EXIT="
+  cmd+='$rc'
+  cmd+="; if [ "
+  cmd+='$rc'
+  cmd+=" -eq 0 ]; then exit 96; fi; grep -qF \""
+  cmd+="$needle"
+  cmd+="\" '${out}' || exit 97; exit 0"
+
+  set +e
+  run_with_timeout 30 "${ssh_base[@]}" "wsl.exe -e bash -lc \"${cmd}\""
+  local rc=$?
+  set -e
+  if [[ "$rc" -ne 0 ]]; then
+    remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
+  fi
+  return "$rc"
+}
+
 if has_target arm64-linux; then
   log "== verify: linux/arm64 via docker container id=${LINUX_DOCKER_ID} =="
   docker ps --filter "id=${LINUX_DOCKER_ID}" --format 'id={{.ID}} status={{.Status}}' | grep -q "id=${LINUX_DOCKER_ID}" || {
@@ -423,8 +465,12 @@ if has_target arm64-linux; then
 
   build_native_bin "./oren" "arm64-linux" "build/tmp/qi_stage1_arm64_linux"
   build_native_bin "./oren_stage2" "arm64-linux" "build/tmp/qi_stage2_arm64_linux"
+  build_native_bin_src "./oren" "arm64-linux" "$LINUX_FFI_PANIC_SRC" "build/tmp/ffi_panic_stage1_arm64_linux"
+  build_native_bin_src "./oren_stage2" "arm64-linux" "$LINUX_FFI_PANIC_SRC" "build/tmp/ffi_panic_stage2_arm64_linux"
   run_in_linux_container "build/tmp/qi_stage1_arm64_linux"
   run_in_linux_container "build/tmp/qi_stage2_arm64_linux"
+  run_in_linux_container_expect_fail_contains "build/tmp/ffi_panic_stage1_arm64_linux" "ffi unresolved:"
+  run_in_linux_container_expect_fail_contains "build/tmp/ffi_panic_stage2_arm64_linux" "ffi unresolved:"
   log "OK: linux/arm64 container"
 fi
 
@@ -469,13 +515,19 @@ fi
 if has_target x64-wsl; then
   build_native_bin "./oren" "x64-linux" "build/tmp/qi_stage1_x64_linux"
   build_native_bin "./oren_stage2" "x64-linux" "build/tmp/qi_stage2_x64_linux"
+  build_native_bin_src "./oren" "x64-linux" "$LINUX_FFI_PANIC_SRC" "build/tmp/ffi_panic_stage1_x64_linux"
+  build_native_bin_src "./oren_stage2" "x64-linux" "$LINUX_FFI_PANIC_SRC" "build/tmp/ffi_panic_stage2_x64_linux"
 
   remote_upload "build/tmp/qi_stage1_x64_linux" "qi_stage1_x64_linux"
   remote_upload "build/tmp/qi_stage2_x64_linux" "qi_stage2_x64_linux"
+  remote_upload "build/tmp/ffi_panic_stage1_x64_linux" "ffi_panic_stage1_x64_linux"
+  remote_upload "build/tmp/ffi_panic_stage2_x64_linux" "ffi_panic_stage2_x64_linux"
 
   log "-- run: WSL2 (x64-linux) --"
   remote_run_wsl "qi_stage1_x64_linux"
   remote_run_wsl "qi_stage2_x64_linux"
+  remote_run_wsl_expect_fail_contains "ffi_panic_stage1_x64_linux" "ffi unresolved:"
+  remote_run_wsl_expect_fail_contains "ffi_panic_stage2_x64_linux" "ffi unresolved:"
   log "OK: remote WSL2 x64"
 fi
 

@@ -1,0 +1,13 @@
+// Linux native backend: FFI is not dynamically linked yet.
+//
+// Current rolling contract:
+// - `ffi name` is accepted by the compiler so the syntax surface stays stable.
+// - On Linux native backends (arm64-linux + x64-linux), unresolved imports are stubbed
+//   and will panic when called (until DT_NEEDED/PLT/GOT is implemented).
+//
+// This test is executed only on Linux targets via `scripts/verify_native_matrix.sh`.
+
+ffi puts
+puts("Hello FFI (should panic on Linux native)")
+exit(0)
+
