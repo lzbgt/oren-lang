@@ -23,6 +23,92 @@ fn oren_fork() {
     return pid
 }
 
+fn native_init_epoll_event_layout_linux() {
+    // Linux epoll syscall ABI: `struct epoll_event` layout differs by arch.
+    //
+    // Observed (2026-01-06):
+    // - x86_64: packed 12-byte layout, data @4 (WSL2)
+    // - arm64:  16-byte layout, data @8 (Ubuntu arm64 container)
+    //
+    // We probe once at runtime init so the same portable runtime source works for both.
+    //
+    // Defaults (safe for arm64; overridden on packed kernels):
+    OREN_EPOLL_EVENT_BYTES = 16
+    OREN_EPOLL_EVENT_OFF_EVENTS = 0
+    OREN_EPOLL_EVENT_OFF_DATA = 8
+
+    if g_target_os != 2 { return 0 } // only Linux uses epoll
+
+    // Probe strategy:
+    // - create a pipe
+    // - register the write fd with EPOLLOUT and set `data` to a marker value
+    // - do a non-blocking epoll_pwait(timeout=0) and check where the kernel wrote `data`
+    //
+    // IMPORTANT: we must not write overlapping `u64` values at both candidate offsets (4 and 8),
+    // because they overlap by 4 bytes. Instead we use a marker with `low32 == high32` so the
+    // 8-byte window at offset 4 and the 8-byte window at offset 8 decode to the same `data` value.
+    var marker32 = 287454020 // 0x11223344
+    var marker64 = marker32 | (marker32 << 32)
+    var pipe_buf = native_malloc_raw_or_mmap(16)
+    if pipe_buf == 0 { return 0 }
+    var prc = sys_pipe(pipe_buf)
+    if prc != 0 { return 0 }
+    var rfd = ptr_get(pipe_buf + 0)
+    var wfd = ptr_get(pipe_buf + 8)
+
+    var epfd = sys_epoll_create1(0)
+    if epfd < 0 {
+        sys_close(rfd); sys_close(wfd)
+        return 0
+    }
+
+    var ev = native_malloc_raw_or_mmap(16)
+    var out = native_malloc_raw_or_mmap(32)
+    if ev == 0 || out == 0 {
+        sys_close(epfd); sys_close(rfd); sys_close(wfd)
+        return 0
+    }
+
+    // Zero-fill the control event buffer.
+    var zi = 0
+    while zi < 16 { ptr_set_byte(ev + zi, 0); zi = zi + 1 }
+
+    // Fill the data bytes (4..15) with the marker32 pattern so `epoll_ctl` works regardless of packing.
+    // (The probe only needs the returned event buffer layout.)
+    oren_ptr_set_u32_le(ev + 0, OREN_EPOLLOUT)
+    oren_ptr_set_u32_le(ev + 4, marker32)
+    oren_ptr_set_u32_le(ev + 8, marker32)
+    oren_ptr_set_u32_le(ev + 12, marker32)
+
+    var rc = sys_epoll_ctl(epfd, OREN_EPOLL_CTL_ADD, wfd, ev)
+    if rc < 0 {
+        sys_close(epfd); sys_close(rfd); sys_close(wfd)
+        return 0
+    }
+
+    zi = 0
+    while zi < 32 { ptr_set_byte(out + zi, 0); zi = zi + 1 }
+
+    // Non-blocking: pipe write end should be immediately writable.
+    var n = sys_epoll_pwait(epfd, out, 1, 0, 0, 0)
+    sys_close(epfd)
+    sys_close(rfd)
+    sys_close(wfd)
+
+    if n > 0 {
+        var d4 = oren_ptr_get_u64_le(out + 4)
+        var d8 = oren_ptr_get_u64_le(out + 8)
+        if d4 == marker64 {
+            OREN_EPOLL_EVENT_BYTES = 12
+            OREN_EPOLL_EVENT_OFF_DATA = 4
+        } else if d8 == marker64 {
+            OREN_EPOLL_EVENT_BYTES = 16
+            OREN_EPOLL_EVENT_OFF_DATA = 8
+        }
+    }
+    return 0
+}
+
 @oren.keep
 fn native_runtime_init(target_os) {
     // The native backend is still rolling and does not reliably run global initializers
@@ -158,6 +244,7 @@ fn native_runtime_init(target_os) {
     OREN_EPOLL_CTL_MOD = 3
     OREN_EPOLLIN = 1
     OREN_EPOLLOUT = 4
+    native_init_epoll_event_layout_linux()
 
     // Reserve room for current globals + some growth slack (rolling ABI).
     //

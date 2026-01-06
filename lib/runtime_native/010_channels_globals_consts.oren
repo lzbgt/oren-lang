@@ -413,6 +413,15 @@ var OREN_EPOLL_CTL_MOD = 3
 var OREN_EPOLLIN = 1
 var OREN_EPOLLOUT = 4
 
+// Linux `struct epoll_event` layout used by epoll syscalls can differ by arch:
+// - x86_64: packed (12 bytes), data @4
+// - arm64:  aligned (16 bytes), data @8
+//
+// Rolling: native runtime init probes the active kernel ABI once at startup and fills these.
+var OREN_EPOLL_EVENT_BYTES = 0
+var OREN_EPOLL_EVENT_OFF_EVENTS = 0
+var OREN_EPOLL_EVENT_OFF_DATA = 0
+
 // fcntl(2) commands used for fd duplication (stable across Darwin/Linux).
 // Verified via Apple SDK headers for macOS (audit only; not a build dependency).
 var FCNTL_F_DUPFD = 0

@@ -45,6 +45,26 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `./scripts/verify_native_x64_compile_only.sh`
   - `make verify-native-x64-compile`
 
+## Archived (2026-01-06) — Linux epoll ABI: probe `epoll_event` layout (fixes x64-wsl select hang)
+
+- Symptom (remote WSL2 x86_64 Linux, stage1 + stage2 native outputs):
+  - `tests/native/test_quick_integration_native.oren` could time out under `scripts/verify_native_matrix.sh --targets x64-wsl`.
+  - With `--trace`, it consistently hung at:
+    - `QI: select send #1` (blocking inside `oren_select` send-case path).
+- Root cause (syscall ABI drift across arch):
+  - The native runtime used epoll syscalls directly and assumed the Linux `struct epoll_event` layout was:
+    - 16 bytes, `data` @8 (works on arm64 Linux)
+  - On x86_64 Linux (WSL2), the userspace/kernel ABI is:
+    - 12 bytes, packed, `data` @4
+  - This mismatch caused event parsing to fail when `nready > 1` (send cases commonly produce multiple `EPOLLOUT` events), so `oren_select` never found a “ready” case and blocked forever.
+- Fix (native runtime + tooling):
+  - Native runtime now sets `OREN_EPOLL_EVENT_*` at startup by probing the active kernel ABI once in `native_runtime_init`:
+    - uses a pipe write-fd + non-blocking `epoll_pwait(timeout=0)` to detect where the kernel writes the returned `data` field.
+  - `lib/runtime_native/245_select.oren` and `lib/runtime_native/240_tcp.oren` use `OREN_EPOLL_EVENT_BYTES` / `OREN_EPOLL_EVENT_OFF_DATA` for allocations and parsing (no hard-coded offsets).
+  - `scripts/verify_native_matrix.sh` WSL expect-fail greps now use single quotes (avoid Windows `cmd.exe` truncation when nested double quotes appear inside the WSL command string).
+- Verified:
+  - `./scripts/verify_native_matrix.sh --targets x64-win,x64-wsl`
+
 ## Archived (2026-01-05) — Native x86_64: IntrTmp spill pool (no `$tmp_intrN` locals)
 
 - x64 native v0 no longer materializes intrinsic temp slots as string-named locals (`$tmp_intrN`):

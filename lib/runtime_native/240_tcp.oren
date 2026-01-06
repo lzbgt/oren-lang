@@ -344,26 +344,30 @@ fn oren_fd_wait_epoll(fd, events_mask, timeout_ms) {
     var epfd = sys_epoll_create1(0)
     if epfd < 0 { return epfd }
 
-    // struct epoll_event (Linux arm64):
-    //   u32 events @0
-    //   u32 pad    @4
-    //   u64 data   @8
-    var ev = malloc(16)
+    // Linux epoll syscall ABI is arch-dependent (packed on x86_64, aligned on arm64).
+    // `native_runtime_init` probes the active layout once and fills:
+    //   - OREN_EPOLL_EVENT_BYTES
+    //   - OREN_EPOLL_EVENT_OFF_DATA
+    var evsz = OREN_EPOLL_EVENT_BYTES
+    if evsz == 0 { evsz = 16 }
+    var data_off = OREN_EPOLL_EVENT_OFF_DATA
+    if data_off == 0 { data_off = 8 }
+    var ev = malloc(evsz)
     if ev == 0 { sys_close(epfd); return 0 - 12 } // ENOMEM
-    oren_track_alloc(ev, 16, 0)
-    var out = malloc(16)
+    oren_track_alloc(ev, evsz, 0)
+    var out = malloc(evsz)
     if out == 0 { sys_close(epfd); free(ev); return 0 - 12 } // ENOMEM
-    oren_track_alloc(out, 16, 0)
+    oren_track_alloc(out, evsz, 0)
 
     var zi = 0
-    while zi < 16 {
+    while zi < evsz {
         ptr_set_byte(ev + zi, 0)
         ptr_set_byte(out + zi, 0)
         zi = zi + 1
     }
 
     oren_ptr_set_u32_le(ev + 0, events_mask)
-    oren_ptr_set_u64_le(ev + 8, fd)
+    oren_ptr_set_u64_le(ev + data_off, fd)
 
     var rc = sys_epoll_ctl(epfd, OREN_EPOLL_CTL_ADD, fd, ev)
     if rc < 0 {
@@ -564,19 +568,23 @@ fn oren_fd_wait_any_epoll(fds, events_mask, timeout_ms, out_fd_ptr) {
     var epfd = sys_epoll_create1(0)
     if epfd < 0 { return epfd }
 
-    // struct epoll_event (Linux arm64):
-    //   u32 events @0
-    //   u32 pad    @4
-    //   u64 data   @8
-    var ev = malloc(16)
+    // Linux epoll syscall ABI is arch-dependent (packed on x86_64, aligned on arm64).
+    // `native_runtime_init` probes the active layout once and fills:
+    //   - OREN_EPOLL_EVENT_BYTES
+    //   - OREN_EPOLL_EVENT_OFF_DATA
+    var evsz = OREN_EPOLL_EVENT_BYTES
+    if evsz == 0 { evsz = 16 }
+    var data_off = OREN_EPOLL_EVENT_OFF_DATA
+    if data_off == 0 { data_off = 8 }
+    var ev = malloc(evsz)
     if ev == 0 { sys_close(epfd); return 0 - 12 } // ENOMEM
-    oren_track_alloc(ev, 16, 0)
-    var out = malloc(16)
+    oren_track_alloc(ev, evsz, 0)
+    var out = malloc(evsz)
     if out == 0 { sys_close(epfd); free(ev); return 0 - 12 } // ENOMEM
-    oren_track_alloc(out, 16, 0)
+    oren_track_alloc(out, evsz, 0)
 
     var zi = 0
-    while zi < 16 {
+    while zi < evsz {
         ptr_set_byte(ev + zi, 0)
         ptr_set_byte(out + zi, 0)
         zi = zi + 1
@@ -588,7 +596,7 @@ fn oren_fd_wait_any_epoll(fds, events_mask, timeout_ms, out_fd_ptr) {
         var fd = oren_list_get(fds, i)
         // Set per-fd data so the returned event includes the ready fd.
         oren_ptr_set_u32_le(ev + 0, events_mask)
-        oren_ptr_set_u64_le(ev + 8, fd)
+        oren_ptr_set_u64_le(ev + data_off, fd)
         var rc = sys_epoll_ctl(epfd, OREN_EPOLL_CTL_ADD, fd, ev)
         if rc < 0 {
             sys_close(epfd)
@@ -602,7 +610,7 @@ fn oren_fd_wait_any_epoll(fds, events_mask, timeout_ms, out_fd_ptr) {
     var n = sys_epoll_pwait(epfd, out, 1, timeout_ms, 0, 0)
     sys_close(epfd)
     if n > 0 {
-        var ready_fd = oren_ptr_get_u64_le(out + 8)
+        var ready_fd = oren_ptr_get_u64_le(out + data_off)
         ptr_set(out_fd_ptr, ready_fd)
         n = 1
     }

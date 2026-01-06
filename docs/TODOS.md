@@ -128,14 +128,15 @@ Rules for this tracker:
 	       - Fixed (2026-01-04): x86_64-linux Tier‑1 spawn/join now runs successfully under remote WSL2 (stage1 + stage2).
 	         - Root cause: stale cached runtime machine code (rtobj cache) could preserve a buggy historical x64 `sys_pipe` lowering that clobbered the syscall rc while widening fds.
 	         - Fix: bumped `RUNTIME_OBJ_BACKEND_SIG_X64` to invalidate cached runtime objects and restored strict runtime checks (`sys_pipe(...) != 0` fails) so regressions are caught immediately.
-	         - Perf fix (2026-01-04): x64 rtobj build no longer synthesizes `__oren_fnwrap_*` wrappers for **all** runtime functions.
-	           - Now matches arm64’s `fnwrap_needed` strategy (only synthesize wrappers actually used as function values), reducing “compile one file” cold miss on x64 targets (debug) from ~5.4s → ~2.5s in local benchmarks.
-	         - Also hardened `scripts/verify_native_matrix.sh` to propagate remote exit codes and assert Tier‑1 output markers (prevents silent early-exit false positives).
-	         - Details: `docs/TODOS_ARCHIVE.md`.
-				     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
-				       - Fixed (2026-01-04): x64 no longer eagerly synthesizes `__oren_fnwrap_*` for every named user function.
-				         - Now uses `fnwrap_needed` to synthesize/compile fnwraps only when a function is used as a value (also works for runtime functions, including rtobj mode).
-				         - Bumped x64 rtobj backend sig to invalidate cached runtime objects after wrapper emission strategy changes.
+		         - Perf fix (2026-01-04): x64 rtobj build no longer synthesizes `__oren_fnwrap_*` wrappers for **all** runtime functions.
+		           - Now matches arm64’s `fnwrap_needed` strategy (only synthesize wrappers actually used as function values), reducing “compile one file” cold miss on x64 targets (debug) from ~5.4s → ~2.5s in local benchmarks.
+		         - Also hardened `scripts/verify_native_matrix.sh` to propagate remote exit codes and assert Tier‑1 output markers (prevents silent early-exit false positives).
+		         - Details: `docs/TODOS_ARCHIVE.md`.
+		       - Fixed (2026-01-06): x86_64-linux WSL2 native runtime could hang in `oren_select` send cases due to Linux `epoll_event` ABI differences across arch (x86_64 packed vs arm64 aligned); native runtime now probes the active layout once at `native_runtime_init` and uses `OREN_EPOLL_EVENT_*` offsets for select + NET epoll waits (details in `docs/TODOS_ARCHIVE.md`).
+					     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
+					       - Fixed (2026-01-04): x64 no longer eagerly synthesizes `__oren_fnwrap_*` for every named user function.
+					         - Now uses `fnwrap_needed` to synthesize/compile fnwraps only when a function is used as a value (also works for runtime functions, including rtobj mode).
+					         - Bumped x64 rtobj backend sig to invalidate cached runtime objects after wrapper emission strategy changes.
 					     - (performance) stage2-native runtime bundle cost remains high; keep iterating toward:
 			       - default: hashed runtime AST cache under `build/cache/native_runtime_astbin/` (disable via `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0`)
 			       - default (Tier‑1 throughput): cached compiled runtime object under `build/cache/native_runtime_obj/` (disable via `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`)

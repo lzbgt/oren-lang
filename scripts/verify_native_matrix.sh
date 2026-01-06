@@ -448,13 +448,15 @@ remote_run_wsl_expect_fail_contains() {
   cmd+='$rc'
   cmd+="; if [ "
   cmd+='$rc'
-  cmd+=" -eq 0 ]; then exit 96; fi; grep -qF \""
+  # IMPORTANT (Windows ssh/cmd.exe quoting): avoid double quotes inside the WSL command string,
+  # otherwise `cmd.exe` can terminate the outer `"..."` early and truncate the script.
+  cmd+=" -eq 0 ]; then exit 96; fi; grep -qF '"
   cmd+="$needle"
-  cmd+="\" '${out}' || exit 97; "
+  cmd+="' '${out}' || exit 97; "
   if [[ -n "$needle2" ]]; then
-    cmd+="grep -qF \""
+    cmd+="grep -qF '"
     cmd+="$needle2"
-    cmd+="\" '${out}' || exit 98; "
+    cmd+="' '${out}' || exit 98; "
   fi
   cmd+="exit 0"
 

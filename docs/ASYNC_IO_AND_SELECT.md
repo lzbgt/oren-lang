@@ -75,6 +75,10 @@ Notes:
 
 - These are currently annotated `@cap.requires(domain="NET")` and call `native_capsule_require(CAP_NET, "NET")`,
   because they were introduced as part of the NET substrate.
+- Linux syscall ABI footgun (native, libc-free):
+  - `epoll_event` layout differs by arch (`x86_64` packed 12 bytes vs `arm64` 16 bytes).
+  - The native runtime probes this once at startup (`native_runtime_init`) and fills `OREN_EPOLL_EVENT_*`,
+    which are then used by `oren_select` and the `oren_fd_wait_*` epoll helpers.
 - They are **not a language keyword** and they are not yet integrated with a native scheduler:
   - on native today they block the calling OS thread (Windows) or the calling process (POSIX fork-based `spawn` v0),
   - there is no native green-thread scheduler yet, so “blocking IO” does not automatically unblock other work within a single process.

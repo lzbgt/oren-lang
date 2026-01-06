@@ -54,9 +54,13 @@ fn _select_epoll_event_has(evbuf, nready, want_kind, fd) {
     // want_kind: 0=read, 1=write
     var j = 0
     while j < nready {
-        var base = evbuf + j * 16
+        var stride = OREN_EPOLL_EVENT_BYTES
+        if stride == 0 { stride = 16 }
+        var base = evbuf + j * stride
         var mask = oren_ptr_get_u32_le(base + 0)
-        var d = oren_ptr_get_u64_le(base + 8)
+        var data_off = OREN_EPOLL_EVENT_OFF_DATA
+        if data_off == 0 { data_off = 8 }
+        var d = oren_ptr_get_u64_le(base + data_off)
         if d == fd {
             if want_kind == 0 {
                 var m = mask & OREN_EPOLLIN
@@ -238,13 +242,17 @@ fn oren_select(cases) {
                 return epfd
             }
 
-            // struct epoll_event:
-            //   u32 events @0
-            //   u32 pad    @4
-            //   u64 data   @8
-            var ev = malloc(16)
+            // Linux epoll syscall ABI is arch-dependent (packed on x86_64, aligned on arm64).
+            // `native_runtime_init` probes the active layout once and fills:
+            //   - OREN_EPOLL_EVENT_BYTES
+            //   - OREN_EPOLL_EVENT_OFF_DATA
+            var evsz = OREN_EPOLL_EVENT_BYTES
+            if evsz == 0 { evsz = 16 }
+            var data_off2 = OREN_EPOLL_EVENT_OFF_DATA
+            if data_off2 == 0 { data_off2 = 8 }
+            var ev = malloc(evsz)
             if ev == 0 { sys_close(epfd); free(kinds); free(fds); free(chans); free(vals); return 0 - 12 } // ENOMEM
-            var out = malloc(nfds2 * 16)
+            var out = malloc(nfds2 * evsz)
             if out == 0 { sys_close(epfd); free(ev); free(kinds); free(fds); free(chans); free(vals); return 0 - 12 }
 
             // Register all fds (best-effort; assumes no duplicates).
@@ -255,10 +263,10 @@ fn oren_select(cases) {
                     var fd = ptr_get(iadd(fds, k * 8))
                     // Zero-fill ev
                     var z = 0
-                    while z < 16 { ptr_set_byte(ev + z, 0); z = z + 1 }
+                    while z < evsz { ptr_set_byte(ev + z, 0); z = z + 1 }
                     if kk == 0 { oren_ptr_set_u32_le(ev + 0, OREN_EPOLLIN) }
                     else { oren_ptr_set_u32_le(ev + 0, OREN_EPOLLOUT) }
-                    oren_ptr_set_u64_le(ev + 8, fd)
+                    oren_ptr_set_u64_le(ev + data_off2, fd)
                     var rc = sys_epoll_ctl(epfd, OREN_EPOLL_CTL_ADD, fd, ev)
                     if rc < 0 {
                         sys_close(epfd)
