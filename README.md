@@ -74,7 +74,13 @@ This repo is intentionally syscall-first and “no libc shims” for native runt
 ### Prerequisites
 - `go` (stage0 bootstrap)
 - `make`
-- `cc` (for the C backend; used in self-hosting)
+- A C toolchain (for the stage0→stage1 self-host chain, via the C backend):
+  - macOS/Linux: `cc`
+  - Windows (x64): VS2022 Build Tools / `cl.exe` (stage0 auto-configures via `vswhere.exe` + `VsDevCmd.bat` / `vcvars64.bat`; see `docs/REMOTE_X64_ENV.md`)
+
+Windows note (rolling):
+
+- The build uses bash scripts under `scripts/`; prefer MSYS2/Git Bash/Cygwin when running `make` locally on Windows.
 
 ### Commands
 ```bash

@@ -26,6 +26,7 @@ os_key=""
 case "$uname_s" in
   Darwin) os_key="macos" ;;
   Linux) os_key="linux" ;;
+  MINGW*|MSYS*|CYGWIN*) os_key="windows" ;;
   *) echo "unsupported host OS: $uname_s" >&2; exit 2 ;;
 esac
 
@@ -41,7 +42,11 @@ platform="${arch_key}-${os_key}"
 mkdir -p build/tmp build/logs
 
 compiler_base="$(basename "$compiler")"
-out="build/tmp/${compiler_base}_native_capsule_smoke"
+exe_ext=""
+if [[ "$os_key" == "windows" ]]; then
+  exe_ext=".exe"
+fi
+out="build/tmp/${compiler_base}_native_capsule_smoke${exe_ext}"
 log="build/logs/${compiler_base}_native_capsule_smoke.log"
 
 echo "== native capsule smoke ==" | tee "$log"

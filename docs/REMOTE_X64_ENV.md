@@ -75,6 +75,10 @@ To support native Windows bring-up, we also keep a small regression gate that pr
 ./scripts/verify_stage0_windows_bootstrap.sh
 ```
 
+Local Windows note (rolling):
+
+- If you run `make` on a Windows host under MSYS2/Git Bash/Cygwin, the Makefile emits `*.exe` outputs (`oren.exe`, `oren_stage2.exe`) and the local smoke scripts under `scripts/` will also suffix temporary artifacts with `.exe`.
+
 Tuning knobs (env):
 
 - `OREN_SELFHOST_COMPILER_BUILD_TIMEOUT_SECS` (default `1200`)

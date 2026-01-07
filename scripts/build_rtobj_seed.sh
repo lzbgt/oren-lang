@@ -67,6 +67,7 @@ if [[ -z "$platform" ]]; then
   case "$uname_s" in
     Darwin) os_key="macos" ;;
     Linux) os_key="linux" ;;
+    MINGW*|MSYS*|CYGWIN*) os_key="windows" ;;
     *) echo "ERROR: unsupported host OS: $uname_s" >&2; exit 2 ;;
   esac
 

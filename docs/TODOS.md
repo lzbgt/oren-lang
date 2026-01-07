@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-01-08
+**Last updated:** 2026-01-07
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order,
 plus the **regression gates** that must stay green.
@@ -130,6 +130,9 @@ References:
      - Windows stage0→stage1 bootstrap: `./scripts/verify_stage0_windows_bootstrap.sh`
 
    - Active gaps (keep this list forward-looking; details live in `docs/TODOS_ARCHIVE.md`):
+     - Build system parity (Windows host):
+       - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
+       - Intent: `make`, `make test`, `make stage2`, `make verify-native-quick` should work under MSYS2/Git Bash/Cygwin (stage0 still uses MSVC `cl.exe`, auto-configured by stage0; see `docs/REMOTE_X64_ENV.md`).
 		     - NET stdlib maturity:
 		       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IP-only; no TLS/DNS/keep-alive pooling yet).
 		       - Done: portable `SO_KEEPALIVE` + `std:net/tcp.set_keepalive(fd, enable)` (syscall-first; translated across Darwin/Linux/Windows).

@@ -61,6 +61,7 @@ if [[ -z "$platform" ]]; then
   case "$uname_s" in
     Darwin) os_key="macos" ;;
     Linux) os_key="linux" ;;
+    MINGW*|MSYS*|CYGWIN*) os_key="windows" ;;
     *) echo "ERROR: unsupported host OS: $uname_s" >&2; exit 2 ;;
   esac
 
@@ -79,13 +80,27 @@ if [[ "$seed_dir" = "0" || "$seed_dir" = "false" ]]; then
   exit 0
 fi
 
+sha256_mode=""
+if command -v shasum >/dev/null 2>&1; then
+  sha256_mode="shasum"
+elif command -v sha256sum >/dev/null 2>&1; then
+  sha256_mode="sha256sum"
+fi
+
 sha256_file() {
   local p="$1"
   if [[ ! -f "$p" ]]; then
     echo ""
     return 0
   fi
-  shasum -a 256 "$p" | awk '{print $1}'
+  if [[ -z "$sha256_mode" ]]; then
+    echo ""
+    return 0
+  fi
+  case "$sha256_mode" in
+    shasum) shasum -a 256 "$p" | awk '{print $1}' ;;
+    sha256sum) sha256sum "$p" | awk '{print $1}' ;;
+  esac
 }
 
 runtime_sources_sha256() {
@@ -127,7 +142,14 @@ runtime_sources_sha256() {
     echo ""
     return 0
   fi
-  printf "%s\n" "$per_file" | shasum -a 256 | awk '{print $1}'
+  if [[ -z "$sha256_mode" ]]; then
+    echo ""
+    return 0
+  fi
+  case "$sha256_mode" in
+    shasum) printf "%s\n" "$per_file" | shasum -a 256 | awk '{print $1}' ;;
+    sha256sum) printf "%s\n" "$per_file" | sha256sum | awk '{print $1}' ;;
+  esac
 }
 
 # Fast no-op path:

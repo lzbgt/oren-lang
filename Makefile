@@ -32,6 +32,21 @@ else ifneq (,$(findstring MSYS,$(UNAME_S)))
 else ifneq (,$(findstring CYGWIN,$(UNAME_S)))
   HOST_IS_WINDOWS := 1
 endif
+
+# Windows executable suffix:
+# - Go and MSVC emit `.exe` outputs on Windows hosts.
+# - Make rules should name the actual output file so incremental builds work.
+EXE_EXT :=
+ifeq ($(HOST_IS_WINDOWS),1)
+  EXE_EXT := .exe
+endif
+
+BOOTSTRAP_BIN := oren_bootstrap$(EXE_EXT)
+OREN_BIN := oren$(EXE_EXT)
+OREN_STAGE2_BIN := oren_stage2$(EXE_EXT)
+OREDOC_BIN := oredoc$(EXE_EXT)
+ORENSIGN_BIN := orensign$(EXE_EXT)
+AVM_BIN := avm$(EXE_EXT)
 ifeq ($(UNAME_S),Darwin)
   ifeq ($(strip $(OREN_SKIP_CODESIGN)),1)
     $(error OREN_SKIP_CODESIGN=1 is not supported on macOS; unsigned native outputs may be killed by the OS)
@@ -206,27 +221,43 @@ OREN_RUNTIME_INC := $(shell find lib/runtime -name "*.inc")
 OREN_GC_STACK_SCAN_LIMIT_BYTES ?= 8388608
 
 # Stage 0: Bootstrap Compiler (Go)
-oren_bootstrap: $(GO_SRC)
+ifeq ($(HOST_IS_WINDOWS),1)
+oren_bootstrap: $(BOOTSTRAP_BIN)
+endif
+
+$(BOOTSTRAP_BIN): $(GO_SRC)
 	@echo "Building Stage 0 (Bootstrap)..."
-	@go build -o oren_bootstrap ./cmd/oren
+	@go build -o "$(BOOTSTRAP_BIN)" ./cmd/oren
 
 # Go-based metadata-to-artifacts tool (OpenAPI, etc).
-oredoc: $(GO_SRC)
+ifeq ($(HOST_IS_WINDOWS),1)
+oredoc: $(OREDOC_BIN)
+endif
+
+$(OREDOC_BIN): $(GO_SRC)
 	@echo "Building oredoc..."
-	@go build -o oredoc ./cmd/oredoc
+	@go build -o "$(OREDOC_BIN)" ./cmd/oredoc
 
 # Go-based signing utility (used by AVM signing fixtures).
-orensign: $(GO_SRC)
+ifeq ($(HOST_IS_WINDOWS),1)
+orensign: $(ORENSIGN_BIN)
+endif
+
+$(ORENSIGN_BIN): $(GO_SRC)
 	@echo "Building orensign..."
-	@go build -o orensign ./cmd/orensign
+	@go build -o "$(ORENSIGN_BIN)" ./cmd/orensign
 
 # Stage 1: Self-Hosted Compiler (Built by Stage 0)
-oren: oren_bootstrap $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
+ifeq ($(HOST_IS_WINDOWS),1)
+oren: $(OREN_BIN)
+endif
+
+$(OREN_BIN): $(BOOTSTRAP_BIN) $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 	@echo "Building Stage 1 (Oren)..."
 	@if [ "$(UNAME_S)" = "Darwin" ]; then \
-		PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" ./oren_bootstrap build $(OREN_SRC) $(BOOTSTRAP_TARGET_ARG) $(BOOTSTRAP_CC_ARG) $(CODESIGN_ARG) $(GC_ARG); \
+		PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" ./$(BOOTSTRAP_BIN) build $(OREN_SRC) $(BOOTSTRAP_TARGET_ARG) $(BOOTSTRAP_CC_ARG) -o "$(OREN_BIN)" $(CODESIGN_ARG) $(GC_ARG); \
 	else \
-		./oren_bootstrap build $(OREN_SRC) $(BOOTSTRAP_TARGET_ARG) $(BOOTSTRAP_CC_ARG) $(CODESIGN_ARG) $(GC_ARG); \
+		./$(BOOTSTRAP_BIN) build $(OREN_SRC) $(BOOTSTRAP_TARGET_ARG) $(BOOTSTRAP_CC_ARG) -o "$(OREN_BIN)" $(CODESIGN_ARG) $(GC_ARG); \
 	fi
 
 #
@@ -237,23 +268,27 @@ oren: oren_bootstrap $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 # - If you need the old C-backend bootstrap for bring-up, use:
 #     make stage2 OREN_STAGE2_BACKEND=c
 OREN_STAGE2_BACKEND ?= native
-oren_stage2: oren $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
-	@echo "Building Stage 2 (Self-Hosted)..."
-	@if [ "$(UNAME_S)" = "Darwin" ]; then \
-				arch=$$(uname -m); \
-					if [ "$$arch" = "arm64" ] || [ "$$arch" = "aarch64" ]; then \
-						PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./oren build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)'; \
-					else \
-						PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./oren build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)'; \
-					fi; \
-				else \
-						arch=$$(uname -m); \
+ifeq ($(HOST_IS_WINDOWS),1)
+oren_stage2: $(OREN_STAGE2_BIN)
+endif
+
+$(OREN_STAGE2_BIN): $(OREN_BIN) $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
+			@echo "Building Stage 2 (Self-Hosted)..."
+		@if [ "$(UNAME_S)" = "Darwin" ]; then \
+					arch=$$(uname -m); \
 						if [ "$$arch" = "arm64" ] || [ "$$arch" = "aarch64" ]; then \
-							OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./oren build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)'; \
+							PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./$(OREN_BIN) build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug -o $(OREN_STAGE2_BIN) $(CODESIGN_ARG) $(GC_ARG)'; \
 						else \
-							OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./oren build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug -o oren_stage2 $(CODESIGN_ARG) $(GC_ARG)'; \
+							PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./$(OREN_BIN) build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug -o $(OREN_STAGE2_BIN) $(CODESIGN_ARG) $(GC_ARG)'; \
 						fi; \
-					fi
+					else \
+							arch=$$(uname -m); \
+							if [ "$$arch" = "arm64" ] || [ "$$arch" = "aarch64" ]; then \
+								OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./$(OREN_BIN) build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug -o $(OREN_STAGE2_BIN) $(CODESIGN_ARG) $(GC_ARG)'; \
+							else \
+								OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./$(OREN_BIN) build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug -o $(OREN_STAGE2_BIN) $(CODESIGN_ARG) $(GC_ARG)'; \
+							fi; \
+						fi
 
 # Aliases
 bootstrap: oren_bootstrap
@@ -268,45 +303,45 @@ stage2: oren_stage2 rtobj-seed astbin-seed
 # Generate/update rtobj seed for the host platform (best-effort).
 # This keeps first-run stage2-native builds fast even when the active rtobj cache dir is empty.
 rtobj-seed: oren_stage2
-	@if [ -n "$(HOST_PLATFORM)" ]; then \
-		./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler ./oren_stage2 --no-debug || true; \
-	else \
-		echo "NOTE: host platform unknown; skipping rtobj seed"; \
-	fi
+		@if [ -n "$(HOST_PLATFORM)" ]; then \
+			./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true; \
+		else \
+			echo "NOTE: host platform unknown; skipping rtobj seed"; \
+		fi
 
 # Generate/update rtobj seed for cross x64 targets (best-effort).
 # This keeps `make verify-native-x64-compile` bounded even on a clean cache.
 rtobj-seed-x64: oren_stage2
-	@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler ./oren_stage2 --no-debug || true
-	@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler ./oren_stage2 --no-debug || true
+		@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true
+		@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true
 
 # Generate/update runtime astbin seed for the host platform (best-effort).
 astbin-seed: oren
-	@if [ -n "$(HOST_PLATFORM)" ]; then \
-		./scripts/build_runtime_astbin_seed.sh --platform "$(HOST_PLATFORM)" --compiler ./oren || true; \
-	else \
-		echo "NOTE: host platform unknown; skipping runtime astbin seed"; \
-	fi
+		@if [ -n "$(HOST_PLATFORM)" ]; then \
+			./scripts/build_runtime_astbin_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_BIN)" || true; \
+		else \
+			echo "NOTE: host platform unknown; skipping runtime astbin seed"; \
+		fi
 
 # Generate/update runtime astbin seed for cross x64 targets (best-effort).
 # This keeps x64 compile-only verification bounded when runtime hashes change.
 astbin-seed-x64: oren
-	@./scripts/build_runtime_astbin_seed.sh --platform x64-linux --compiler ./oren || true
-	@./scripts/build_runtime_astbin_seed.sh --platform x64-windows --compiler ./oren || true
+		@./scripts/build_runtime_astbin_seed.sh --platform x64-linux --compiler "./$(OREN_BIN)" || true
+		@./scripts/build_runtime_astbin_seed.sh --platform x64-windows --compiler "./$(OREN_BIN)" || true
 
 # --- Testing & Verification ---
 
 # Fast native smoke (stage1): build+run one self-contained integration test.
 test-native-quick: oren
-	@./scripts/run_native_quick_integration.sh ./oren
+		@./scripts/run_native_quick_integration.sh "./$(OREN_BIN)"
 
 # Fast native smoke (stage2): use stage2 compiler to build+run the same test.
 test-native-quick-stage2: oren_stage2
-	@./scripts/run_native_quick_integration.sh ./oren_stage2
+		@./scripts/run_native_quick_integration.sh "./$(OREN_STAGE2_BIN)"
 
 # Capsule smoke (stage2): build+run a minimal pure-compute capsule fixture.
 test-native-capsule-smoke-stage2: oren_stage2 astbin-seed
-	@./scripts/run_native_capsule_smoke.sh ./oren_stage2
+		@./scripts/run_native_capsule_smoke.sh "./$(OREN_STAGE2_BIN)"
 
 # Convenience target: verify stage1 then stage2 on the native quick integration test.
 verify-native-quick: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2
@@ -314,7 +349,7 @@ verify-native-quick: test-native-quick test-native-quick-stage2 test-native-caps
 
 # Compile-only sanity gate for x64 targets (does not run artifacts).
 verify-native-x64-compile: oren_stage2 rtobj-seed-x64 astbin-seed-x64
-	@./scripts/verify_native_x64_compile_only.sh
+		@./scripts/verify_native_x64_compile_only.sh
 
 # Tier‑1 verification shortcuts (macOS/arm64 host workflow).
 #
@@ -354,20 +389,20 @@ verify-tier1: oren_stage2
 
 # Perf smoke: benchmark stage2 native "compile one file" (rtobj miss -> hit).
 bench-native-compile: oren_stage2
-	@./scripts/bench_native_compile_one_file.sh
+		@./scripts/bench_native_compile_one_file.sh
 
 # Lightweight rolling perf tripwire: ensure rtobj-hit compile-one-file stays under threshold.
 perf-guard-native-hit: oren_stage2
-	@./scripts/perf_guard_native_compile_one_file_hit.sh
+		@./scripts/perf_guard_native_compile_one_file_hit.sh
 
 # Default "test" is now native-only and quick (no external test runner).
 test: test-native-quick
 
 test-native-all: oren
-	@echo "=== Native Tests (All) ==="
-	@mkdir -p build
-	@mkdir -p build/logs
-	@echo "Native parallelism: set NATIVE_TEST_JOBS=... (default: 4)."
+		@echo "=== Native Tests (All) ==="
+		@mkdir -p build
+		@mkdir -p build/logs
+		@echo "Native parallelism: set NATIVE_TEST_JOBS=... (default: 4)."
 	@set -e; \
 		jobs="$(strip $(NATIVE_TEST_JOBS))"; \
 		if [ "$$jobs" = "" ]; then jobs=4; fi; \
@@ -380,13 +415,13 @@ test-native-all: oren
 			log="build/logs/native_all_$${name}.log"; \
 			echo "Testing $$name..."; \
 			if [ "$$name" = "linux_hello" ]; then \
-				$(RUN_BUILD_WITH_TIMEOUT) ./oren build "$$t" --backend native --debug -o "build/$$name" --target linux $(CODESIGN_ARG) $(GC_ARG) > "$$log" 2>&1 || { echo "--- $$name (build) ---"; cat "$$log"; exit 1; }; \
-				file "build/$$name" | grep -q "ELF" || { echo "FAIL: $$name (No ELF)" | tee -a "$$log"; exit 1; }; \
-			elif [ "$$name" = "test_debug_panic" ]; then \
-				$(RUN_BUILD_WITH_TIMEOUT) ./oren build "$$t" --backend native --debug -o "build/$$name" $(CODESIGN_ARG) $(GC_ARG) > "$$log" 2>&1 || { echo "--- $$name (build) ---"; cat "$$log"; exit 1; }; \
-				outf="build/$$name.out"; \
-				set +e; $(RUN_WITH_TIMEOUT) "./build/$$name" > "$$outf" 2>&1; rc=$$?; set -e; \
-				if [ $$rc -eq 0 ]; then \
+					$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build "$$t" --backend native --debug -o "build/$$name" --target linux $(CODESIGN_ARG) $(GC_ARG) > "$$log" 2>&1 || { echo "--- $$name (build) ---"; cat "$$log"; exit 1; }; \
+					file "build/$$name" | grep -q "ELF" || { echo "FAIL: $$name (No ELF)" | tee -a "$$log"; exit 1; }; \
+				elif [ "$$name" = "test_debug_panic" ]; then \
+					$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build "$$t" --backend native --debug -o "build/$$name" $(CODESIGN_ARG) $(GC_ARG) > "$$log" 2>&1 || { echo "--- $$name (build) ---"; cat "$$log"; exit 1; }; \
+					outf="build/$$name.out"; \
+					set +e; $(RUN_WITH_TIMEOUT) "./build/$$name" > "$$outf" 2>&1; rc=$$?; set -e; \
+					if [ $$rc -eq 0 ]; then \
 					echo "FAIL: $$name (Expected panic)" | tee -a "$$log"; cat "$$outf"; exit 1; \
 				elif [ $$rc -eq 124 ]; then \
 					echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)" | tee -a "$$log"; cat "$$outf"; exit 1; \
@@ -394,20 +429,20 @@ test-native-all: oren
 				grep -q "Runtime Panic" "$$outf" || { echo "FAIL: $$name (Missing panic header)" | tee -a "$$log"; cat "$$outf"; exit 1; }; \
 				grep -q "__top_level__" "$$outf" || { echo "FAIL: $$name (Missing __top_level__ in stack trace)" | tee -a "$$log"; cat "$$outf"; exit 1; }; \
 				! grep -q "__oren_fnwrap_crash_me (pc=" "$$outf" || { echo "FAIL: $$name (Host frame mis-labeled as program symbol)" | tee -a "$$log"; cat "$$outf"; exit 1; }; \
-			elif [ "$$name" = "test_no_gc_mode" ]; then \
-				$(RUN_BUILD_WITH_TIMEOUT) ./oren build "$$t" --backend native --debug --no-gc -o "build/$$name" $(CODESIGN_ARG) > "$$log" 2>&1 || { echo "--- $$name (build) ---"; cat "$$log"; exit 1; }; \
-				$(RUN_WITH_TIMEOUT) "./build/$$name" >> "$$log" 2>&1 || { echo "--- $$name (run) ---"; cat "$$log"; exit 1; }; \
-			else \
-				$(RUN_BUILD_WITH_TIMEOUT) ./oren build "$$t" --backend native --debug -o "build/$$name" $(CODESIGN_ARG) $(GC_ARG) > "$$log" 2>&1 || { echo "--- $$name (build) ---"; cat "$$log"; exit 1; }; \
-				$(RUN_WITH_TIMEOUT) "./build/$$name" >> "$$log" 2>&1 || { echo "--- $$name (run) ---"; cat "$$log"; exit 1; }; \
-			fi' sh
+				elif [ "$$name" = "test_no_gc_mode" ]; then \
+					$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build "$$t" --backend native --debug --no-gc -o "build/$$name" $(CODESIGN_ARG) > "$$log" 2>&1 || { echo "--- $$name (build) ---"; cat "$$log"; exit 1; }; \
+					$(RUN_WITH_TIMEOUT) "./build/$$name" >> "$$log" 2>&1 || { echo "--- $$name (run) ---"; cat "$$log"; exit 1; }; \
+				else \
+					$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build "$$t" --backend native --debug -o "build/$$name" $(CODESIGN_ARG) $(GC_ARG) > "$$log" 2>&1 || { echo "--- $$name (build) ---"; cat "$$log"; exit 1; }; \
+					$(RUN_WITH_TIMEOUT) "./build/$$name" >> "$$log" 2>&1 || { echo "--- $$name (run) ---"; cat "$$log"; exit 1; }; \
+				fi' sh
 
 # Full Verification: Clean -> Bootstrap -> Stage 1 -> Stage 2 -> Validation
 verify: clean oren_stage2
 	@echo "=== Verifying Stage 2 Compiler ==="
 	@mkdir -p build
-	@./oren_stage2 build tests/native/func.oren --backend native $(HOST_PLATFORM_ARG) -o build/func_stage2 $(CODESIGN_ARG) $(GC_ARG)
-	@$(RUN_WITH_TIMEOUT) ./build/func_stage2 || (echo "FAIL: Stage 2 Verification"; exit 1)
+	@./$(OREN_STAGE2_BIN) build tests/native/func.oren --backend native $(HOST_PLATFORM_ARG) -o build/func_stage2$(EXE_EXT) $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_WITH_TIMEOUT) ./build/func_stage2$(EXE_EXT) || (echo "FAIL: Stage 2 Verification"; exit 1)
 	@echo "Verification Successful: Stage 2 is functional."
 
 # --- AVM (experimental) ---
@@ -419,10 +454,14 @@ build/avm_root_pubkey.inc: tools/gen_avm_root_pubkeys_inc.sh
 	@mkdir -p build
 	@tools/gen_avm_root_pubkeys_inc.sh > build/avm_root_pubkey.inc
 
-avm: $(AVM_C_SRC) $(AVM_INC) build/avm_root_pubkey.inc
+ifeq ($(HOST_IS_WINDOWS),1)
+avm: $(AVM_BIN)
+endif
+
+$(AVM_BIN): $(AVM_C_SRC) $(AVM_INC) build/avm_root_pubkey.inc
 	@echo "Building AVM..."
 	@mkdir -p build
-	@$(CC) $(AVM_CFLAGS) $(AVM_DETERMINISM_CFLAGS) -I lib/avm -I build -o avm $(AVM_C_SRC)
+	@$(CC) $(AVM_CFLAGS) $(AVM_DETERMINISM_CFLAGS) -I lib/avm -I build -o "$(AVM_BIN)" $(AVM_C_SRC)
 
 # --- Example Builds ---
 
@@ -443,53 +482,53 @@ examples-test: oren avm
 examples-test-inner: oren avm
 	@mkdir -p build
 	@# 1) Native hello world
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/hello.oren --backend native -o build/ex_hello_native $(CODESIGN_ARG) $(GC_ARG)
-	@$(RUN_WITH_TIMEOUT) ./build/ex_hello_native >/dev/null
+	@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/hello.oren --backend native -o build/ex_hello_native$(EXE_EXT) $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_WITH_TIMEOUT) ./build/ex_hello_native$(EXE_EXT) >/dev/null
 	@# 1b) Native module import + stdlib import
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/module_app.oren --backend native -o build/ex_module_app_native $(CODESIGN_ARG) $(GC_ARG)
-	@$(RUN_WITH_TIMEOUT) ./build/ex_module_app_native >/dev/null
+	@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/module_app.oren --backend native -o build/ex_module_app_native$(EXE_EXT) $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_WITH_TIMEOUT) ./build/ex_module_app_native$(EXE_EXT) >/dev/null
 	@# 2) GC suite (native)
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/gc_test.oren --backend native -o build/ex_gc_native $(CODESIGN_ARG) $(GC_ARG)
-	@$(RUN_WITH_TIMEOUT) ./build/ex_gc_native
+	@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/gc_test.oren --backend native -o build/ex_gc_native$(EXE_EXT) $(CODESIGN_ARG) $(GC_ARG)
+	@$(RUN_WITH_TIMEOUT) ./build/ex_gc_native$(EXE_EXT)
 	@# 2b/3) Native FFI + dylib export
 	@# - macOS: FFI works (dyld binding + LC_LOAD_DYLIB); dylib export is supported.
 	@# - Windows x64: FFI works via lazy LoadLibraryA/GetProcAddress stubs (covered by native quick integration on remote Win11).
 	@# - Linux: FFI works when `--link` is used (ELF dynamic linking + `dlsym` resolver); shared libs are not implemented yet.
-	@if [ "$(UNAME_S)" = "Darwin" ]; then \
-		$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/ffi_test.oren --backend native -o build/ex_ffi_puts $(CODESIGN_ARG) $(GC_ARG); \
-		$(RUN_WITH_TIMEOUT) ./build/ex_ffi_puts >/dev/null; \
-		$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/libmath.oren --backend native --lib -o build/libmath.dylib $(CODESIGN_ARG) $(GC_ARG) --metadata; \
-		test -f build/libmath.h; \
-		$(RUN_WITH_TIMEOUT) ./oren scan build/libmath.dylib >/dev/null; \
-		$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/ffi_from_libmath.oren --backend native --link build/libmath.dylib -o build/ex_ffi_from_libmath $(CODESIGN_ARG) $(GC_ARG); \
-		$(RUN_WITH_TIMEOUT) ./build/ex_ffi_from_libmath; \
-	elif [ "$(UNAME_S)" = "Linux" ]; then \
-		$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/ffi_test.oren --backend native --link libc.so.6 -o build/ex_ffi_puts $(CODESIGN_ARG) $(GC_ARG); \
-		$(RUN_WITH_TIMEOUT) ./build/ex_ffi_puts >/dev/null; \
-	else \
-		echo "INFO: skipping macOS dylib/FFI examples on $(UNAME_S)"; \
-	fi
-	@# 4) Bytecode + AVM
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/hello.oren --backend bytecode -o build/ex_hello.obc
-	@$(RUN_WITH_TIMEOUT) ./avm build/ex_hello.obc >/dev/null
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/module_app.oren --backend bytecode -o build/ex_module_app.obc
-	@$(RUN_WITH_TIMEOUT) ./avm build/ex_module_app.obc >/dev/null
+		@if [ "$(UNAME_S)" = "Darwin" ]; then \
+			$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/ffi_test.oren --backend native -o build/ex_ffi_puts$(EXE_EXT) $(CODESIGN_ARG) $(GC_ARG); \
+			$(RUN_WITH_TIMEOUT) ./build/ex_ffi_puts$(EXE_EXT) >/dev/null; \
+			$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/libmath.oren --backend native --lib -o build/libmath.dylib $(CODESIGN_ARG) $(GC_ARG) --metadata; \
+			test -f build/libmath.h; \
+			$(RUN_WITH_TIMEOUT) ./$(OREN_BIN) scan build/libmath.dylib >/dev/null; \
+			$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/ffi_from_libmath.oren --backend native --link build/libmath.dylib -o build/ex_ffi_from_libmath$(EXE_EXT) $(CODESIGN_ARG) $(GC_ARG); \
+			$(RUN_WITH_TIMEOUT) ./build/ex_ffi_from_libmath$(EXE_EXT); \
+		elif [ "$(UNAME_S)" = "Linux" ]; then \
+			$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/ffi_test.oren --backend native --link libc.so.6 -o build/ex_ffi_puts$(EXE_EXT) $(CODESIGN_ARG) $(GC_ARG); \
+			$(RUN_WITH_TIMEOUT) ./build/ex_ffi_puts$(EXE_EXT) >/dev/null; \
+		else \
+			echo "INFO: skipping macOS dylib/FFI examples on $(UNAME_S)"; \
+		fi
+		@# 4) Bytecode + AVM
+		@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/hello.oren --backend bytecode -o build/ex_hello.obc
+		@$(RUN_WITH_TIMEOUT) ./$(AVM_BIN) build/ex_hello.obc >/dev/null
+		@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/module_app.oren --backend bytecode -o build/ex_module_app.obc
+		@$(RUN_WITH_TIMEOUT) ./$(AVM_BIN) build/ex_module_app.obc >/dev/null
 	@# 5) AVM Virtual backends demos (VFS / VPROC / VNET)
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/avm_vfs_demo.oren --backend bytecode -o build/ex_avm_vfs_demo.obc
+		@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/avm_vfs_demo.oren --backend bytecode -o build/ex_avm_vfs_demo.obc
 	@rm -f build/ex_avm_vfs_demo.bin
-	@$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,1,6" --fs-allow-prefixes "build/" --fs-backend vfs build/ex_avm_vfs_demo.obc
+		@$(RUN_WITH_TIMEOUT) ./$(AVM_BIN) --deny-by-default --allow-domains "0,1,6" --fs-allow-prefixes "build/" --fs-backend vfs build/ex_avm_vfs_demo.obc
 	@test ! -f build/ex_avm_vfs_demo.bin
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/avm_vproc_demo.oren --backend bytecode -o build/ex_avm_vproc_demo.obc
+		@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/avm_vproc_demo.oren --backend bytecode -o build/ex_avm_vproc_demo.obc
 	@rm -f build/ex_avm_vproc_should_not_touch.txt
-	@$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,5,6" --proc-backend vproc --proc-exit-code 0 build/ex_avm_vproc_demo.obc
+		@$(RUN_WITH_TIMEOUT) ./$(AVM_BIN) --deny-by-default --allow-domains "0,5,6" --proc-backend vproc --proc-exit-code 0 build/ex_avm_vproc_demo.obc
 	@test ! -f build/ex_avm_vproc_should_not_touch.txt
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/avm_vnet_demo.oren --backend bytecode -o build/ex_avm_vnet_demo.obc
+		@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/avm_vnet_demo.oren --backend bytecode -o build/ex_avm_vnet_demo.obc
 	@hex="41564d4e45543031010000000100000075020000006f6b"; \
-		$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,4,6" --net-backend vnet --net-fixtures-hex "$$hex" build/ex_avm_vnet_demo.obc
+			$(RUN_WITH_TIMEOUT) ./$(AVM_BIN) --deny-by-default --allow-domains "0,4,6" --net-backend vnet --net-fixtures-hex "$$hex" build/ex_avm_vnet_demo.obc
 	@# 6) AVM multiverse demo (parent runs child with VirtualNET fixtures)
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/avm_fixtures/multiverse_child_net.oren --backend bytecode -o build/ex_multiverse_child_net.obc
-	@$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/avm_multiverse_net_demo.oren --backend bytecode -o build/ex_avm_multiverse_net_demo.obc
-	@$(RUN_WITH_TIMEOUT) ./avm --deny-by-default --allow-domains "0,1,4,6,8" --fs-allow-prefixes "build/" --fs-backend host build/ex_avm_multiverse_net_demo.obc >/dev/null
+		@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/avm_fixtures/multiverse_child_net.oren --backend bytecode -o build/ex_multiverse_child_net.obc
+		@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/avm_multiverse_net_demo.oren --backend bytecode -o build/ex_avm_multiverse_net_demo.obc
+		@$(RUN_WITH_TIMEOUT) ./$(AVM_BIN) --deny-by-default --allow-domains "0,1,4,6,8" --fs-allow-prefixes "build/" --fs-backend host build/ex_avm_multiverse_net_demo.obc >/dev/null
 	@echo "Examples OK"
 
 # Verify `.obc` portability across AVM hosts (rolling).
@@ -502,8 +541,7 @@ obc-portability: oren avm
 clean:
 	@echo "Cleaning workspace..."
 	rm -rf build/ *.dSYM verify_full.sh run_tests.sh
-	rm -f oren_bootstrap oren oren_stage2 oren_stage3 avm
-	rm -f orensign
+	rm -f "$(BOOTSTRAP_BIN)" "$(OREN_BIN)" "$(OREN_STAGE2_BIN)" "oren_stage3$(EXE_EXT)" "$(AVM_BIN)" "$(OREDOC_BIN)" "$(ORENSIGN_BIN)"
 	rm -f oretest
 	rm -f *.oren.c *.obc *.otool *.dylib *.so
 	@# Remove local test binaries (keep .oren sources)
