@@ -96,6 +96,8 @@ ifeq ($(strip $(OREN_TEST_TARGET)),)
     OREN_TEST_TARGET := macos
   else ifeq ($(UNAME_S),Linux)
     OREN_TEST_TARGET := linux
+  else ifeq ($(HOST_IS_WINDOWS),1)
+    OREN_TEST_TARGET := windows
   else
     OREN_TEST_TARGET := macos
   endif
@@ -152,6 +154,22 @@ ifneq ($(strip $(OREN_BOOTSTRAP_CC)),)
   BOOTSTRAP_CC_ARG := --cc $(OREN_BOOTSTRAP_CC)
 endif
 
+# Stage0 target OS selection (rolling):
+# The stage0 bootstrap compiler defaults to `--target macos`, so make should explicitly
+# set `--target` on non-macOS hosts to keep bootstrap behavior predictable.
+OREN_BOOTSTRAP_TARGET ?=
+ifeq ($(UNAME_S),Darwin)
+  OREN_BOOTSTRAP_TARGET ?= macos
+else ifeq ($(UNAME_S),Linux)
+  OREN_BOOTSTRAP_TARGET ?= linux
+else ifeq ($(HOST_IS_WINDOWS),1)
+  OREN_BOOTSTRAP_TARGET ?= windows
+endif
+BOOTSTRAP_TARGET_ARG :=
+ifneq ($(strip $(OREN_BOOTSTRAP_TARGET)),)
+  BOOTSTRAP_TARGET_ARG := --target $(OREN_BOOTSTRAP_TARGET)
+endif
+
 # AVM test selection:
 # - Default: curated smoke list for iteration velocity.
 # - Override for full coverage: `make test AVM_TESTS="tests/avm/*.oren"`
@@ -206,9 +224,9 @@ orensign: $(GO_SRC)
 oren: oren_bootstrap $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 	@echo "Building Stage 1 (Oren)..."
 	@if [ "$(UNAME_S)" = "Darwin" ]; then \
-		PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" ./oren_bootstrap build $(OREN_SRC) $(BOOTSTRAP_CC_ARG) $(CODESIGN_ARG) $(GC_ARG); \
+		PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" ./oren_bootstrap build $(OREN_SRC) $(BOOTSTRAP_TARGET_ARG) $(BOOTSTRAP_CC_ARG) $(CODESIGN_ARG) $(GC_ARG); \
 	else \
-		./oren_bootstrap build $(OREN_SRC) $(BOOTSTRAP_CC_ARG) $(CODESIGN_ARG) $(GC_ARG); \
+		./oren_bootstrap build $(OREN_SRC) $(BOOTSTRAP_TARGET_ARG) $(BOOTSTRAP_CC_ARG) $(CODESIGN_ARG) $(GC_ARG); \
 	fi
 
 #
