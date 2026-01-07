@@ -34,6 +34,7 @@ REMOTE_RUN_TIMEOUT_SECS="${OREN_SELFHOST_REMOTE_RUN_TIMEOUT_SECS:-30}"
 
 TARGETS_CSV="x64-win,x64-wsl"
 TRACE=0
+TRACE_ENV=""
 
 usage() {
   cat <<'EOF'
@@ -98,6 +99,7 @@ need_bin grep
 
 if [[ "$TRACE" -eq 1 ]]; then
   set -x
+  TRACE_ENV=1
 fi
 
 host_os="$(uname -s)"
@@ -166,6 +168,9 @@ parse_jobs="$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)"
 # Cross-target compiler builds are large and can allocate heavily.
 # Keep them bounded by enabling the cooperative GC trigger and limiting stack scan.
 gc_stack_scan_limit="${OREN_GC_STACK_SCAN_LIMIT_BYTES:-8388608}"
+# For the self-host compiler build (oren.oren), a too-small GC threshold can cause severe
+# GC thrash and make the build look "hung". Use a larger default than the tiny-file gates.
+gc_alloc_threshold="${OREN_SELFHOST_GC_ALLOC_THRESHOLD:-20000000}"
 
 echo "== ensure: stage2 compiler (host) =="
 make stage2 >/dev/null
@@ -179,14 +184,16 @@ run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
   env \
     OREN_PARSE_JOBS="$parse_jobs" \
     OREN_GC_AUTO=1 \
-    OREN_GC_ALLOC_THRESHOLD=4000000 \
+    OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
     OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
-    OREN_TRACE_PHASES="$TRACE" \
-    OREN_TRACE_X64_COMPILE_PROGRESS="$TRACE" \
-    OREN_TRACE_X64_COMPILE_SUMMARY="$TRACE" \
-    OREN_TRACE_RUNTIME_OBJ_CACHE="$TRACE" \
-    OREN_TRACE_BUILD_SUMMARY="$TRACE" \
-    OREN_TRACE_BUILD_SLOW_MS=0 \
+    ${TRACE_ENV:+OREN_TRACE_PHASES=1} \
+    ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_PROGRESS=1} \
+    ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_SUMMARY=1} \
+    ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_STRIDE=1000} \
+    ${TRACE_ENV:+OREN_TRACE_X64_SLOW_FN_MS=2000} \
+    ${TRACE_ENV:+OREN_TRACE_RUNTIME_OBJ_CACHE=1} \
+    ${TRACE_ENV:+OREN_TRACE_BUILD_SUMMARY=1} \
+    ${TRACE_ENV:+OREN_TRACE_BUILD_SLOW_MS=0} \
     ./oren_stage2 build oren.oren --backend native --platform x64-linux --no-debug -o "$COMPILER_LINUX"
 
 echo "== build: compiler x64-windows (native backend) =="
@@ -194,14 +201,16 @@ run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
   env \
     OREN_PARSE_JOBS="$parse_jobs" \
     OREN_GC_AUTO=1 \
-    OREN_GC_ALLOC_THRESHOLD=4000000 \
+    OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
     OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
-    OREN_TRACE_PHASES="$TRACE" \
-    OREN_TRACE_X64_COMPILE_PROGRESS="$TRACE" \
-    OREN_TRACE_X64_COMPILE_SUMMARY="$TRACE" \
-    OREN_TRACE_RUNTIME_OBJ_CACHE="$TRACE" \
-    OREN_TRACE_BUILD_SUMMARY="$TRACE" \
-    OREN_TRACE_BUILD_SLOW_MS=0 \
+    ${TRACE_ENV:+OREN_TRACE_PHASES=1} \
+    ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_PROGRESS=1} \
+    ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_SUMMARY=1} \
+    ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_STRIDE=1000} \
+    ${TRACE_ENV:+OREN_TRACE_X64_SLOW_FN_MS=2000} \
+    ${TRACE_ENV:+OREN_TRACE_RUNTIME_OBJ_CACHE=1} \
+    ${TRACE_ENV:+OREN_TRACE_BUILD_SUMMARY=1} \
+    ${TRACE_ENV:+OREN_TRACE_BUILD_SLOW_MS=0} \
     ./oren_stage2 build oren.oren --backend native --platform x64-windows --no-debug -o "$COMPILER_WIN"
 
 # Package a minimal on-disk layout that the compiler expects at runtime:

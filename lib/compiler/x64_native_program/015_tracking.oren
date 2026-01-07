@@ -25,89 +25,52 @@ fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
     // - `oren_find_node` itself uses comparisons that consult tracking metadata (string-aware compares).
     // - Calling `oren_find_node` from the tracking lookup introduces recursion and can stack overflow.
     //
-    // Implementation: inline a minimal scan of the injected runtime alloc list head.
+    // Implementation: call the runtime `native_alloc_index_get(ptr)` helper.
     //
-    // Runtime globals:
-    // - `g_storage` holds the globals storage pointer (see `lib/runtime_native/010_channels_globals_consts.oren`).
-    // - `GLOBAL_OFF_ALLOCS` is 0, so `*(u64*)g_storage` is the alloc-list head.
+    // Why:
+    // - The alloc-index includes both heap alloc nodes AND static-kind nodes (string literals registered
+    //   via `oren_init_static_cstr0_table`).
+    // - Scanning only the heap alloc list misses static nodes and breaks string compares like:
+    //     if cmd == "build" { ... }
     //
-    // Node layout matches runtime:
-    //   +0  ptr
-    //   +16 kind
-    //   +32 next
-    //
-    // Clobbers: R10, R11, R12.
+    // Safety:
+    // - `native_alloc_index_get` is implemented using only primitive ops (`iadd`, `ptr_get`) and is
+    //   written specifically to avoid recursion through `oren_add` / `oren_find_node`.
     if ctx == nil { return nil }
     if ctx["runtime_injected"] != true {
         err(ctx, "x64 native v0: internal error: tracking requires injected runtime")
         return nil
     }
 
-    if dst_node_reg == 12 {
-        err(ctx, "x64 native v0: internal error: tracking dst reg cannot be r12")
-        return nil
-    }
-
-    var goff_enc = nil
-    if ctx["globals"] != nil { goff_enc = ctx["globals"]["g_storage"] }
-    if goff_enc == nil {
-        err(ctx, "x64 native v0: internal error: missing runtime global g_storage")
-        return nil
-    }
-    var goff = goff_enc - 1
-
-    // Save ptr into r12.
-    bytes_extend(ctx["code"], insn_mov_r64_r64(12, ptr_reg))
-
     // Default dst = 0.
     bytes_extend(ctx["code"], insn_mov_r32_imm32(dst_node_reg, 0))
 
+    // ptr == 0 => done
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(ptr_reg, 0))
     var labels = {}
     var local_fixups = []
     var l_done = _new_label(ctx, "trk_find_done")
-    var l_scan = _new_label(ctx, "trk_find_scan")
-
-    // ptr == 0 => done
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 0))
+    var l_call = _new_label(ctx, "trk_find_call")
     _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
 
     // Match runtime safety/perf guard: small integers are not pointers.
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 4096))
-    _emit_jcc_to_label(ctx, local_fixups, "l", l_done)
-
-    // r10 = g_storage
-    var lea_pos0 = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
-    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos0 + 3, "data_off": goff})
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
-
-    // If globals not initialized yet => done.
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
-
-    // r11 = head = *(u64*)g_storage (GLOBAL_OFF_ALLOCS = 0)
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 10))
-
-    _emit_label(ctx, labels, l_scan)
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
-    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
-
-    // r10 = node.ptr ; compare with ptr
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 11))
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(10, 12))
-    var l_next = _new_label(ctx, "trk_find_next")
-    _emit_jcc_to_label(ctx, local_fixups, "ne", l_next)
-
-    // Found: dst = node
-    bytes_extend(ctx["code"], insn_mov_r64_r64(dst_node_reg, 11))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(ptr_reg, 4096))
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_call)
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
-    _emit_label(ctx, labels, l_next)
-    // r11 = node.next (at +32)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 32))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 10))
-    _emit_jmp_to_label(ctx, local_fixups, l_scan)
+    _emit_label(ctx, labels, l_call)
+    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
+    if a0_enc == nil {
+        err(ctx, "x64 native v0: missing ABI arg reg for native_alloc_index_get")
+        return nil
+    }
+    var a0 = a0_enc - 1
+    if a0 != ptr_reg { bytes_extend(ctx["code"], insn_mov_r64_r64(a0, ptr_reg)) }
+    var call_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "native_alloc_index_get"})
+    // Return value is node pointer in RAX.
+    if dst_node_reg != 0 { bytes_extend(ctx["code"], insn_mov_r64_r64(dst_node_reg, 0)) }
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, local_fixups)

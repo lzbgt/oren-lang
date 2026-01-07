@@ -335,7 +335,15 @@ fn native_alloc_index_get(ptr) {
         rem = rem - 1
         var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
         if slot == 0 { return 0 }
-        if slot != g_alloc_index_tomb {
+        // IMPORTANT (Tier‑1 correctness):
+        // Avoid `slot != g_alloc_index_tomb` here.
+        //
+        // On some native backends, `==/!=` can lower to a string-aware compare that consults
+        // tracking metadata. That compare uses `native_alloc_index_get`, which would recurse
+        // back into this function and stack-overflow during early runtime init.
+        //
+        // Use arithmetic + compare-to-0 so the backend can lower it as a raw integer compare.
+        if slot - g_alloc_index_tomb != 0 {
             // Rolling safety: treat any non-pointer slot payload as a tombstone.
             // This prevents segfaults if a buggy codegen path scribbles over the table.
             if slot < 4096 {
@@ -347,7 +355,8 @@ fn native_alloc_index_get(ptr) {
                 idx = iadd(idx, 1) & mask
                 continue
             }
-            if ptr_get(slot) == ptr { return slot }
+            // Pointer equality without `==` (avoid string-aware compare recursion).
+            if ptr_get(slot) - ptr == 0 { return slot }
         }
         idx = iadd(idx, 1) & mask
     }
@@ -395,10 +404,10 @@ fn native_alloc_index_put_node(node) {
                             g_alloc_index_len = iadd(g_alloc_index_len, 1)
                             break
                         }
-                        if slot0 == g_alloc_index_tomb {
+                        if slot0 - g_alloc_index_tomb == 0 {
                             if first_tomb < 0 { first_tomb = idx0 }
                         } else {
-                            if ptr_get(slot0) == p0 {
+                            if ptr_get(slot0) - p0 == 0 {
                                 ptr_set(iadd(g_alloc_index_ptr, idx0 << 3), cur)
                                 break
                             }
@@ -429,8 +438,8 @@ fn native_alloc_index_put_node(node) {
                             g_alloc_index_len = iadd(g_alloc_index_len, 1)
                             break
                         }
-                        if slot1 != g_alloc_index_tomb {
-                            if ptr_get(slot1) == p1 {
+                        if slot1 - g_alloc_index_tomb != 0 {
+                            if ptr_get(slot1) - p1 == 0 {
                                 ptr_set(iadd(g_alloc_index_ptr, idx1 << 3), cur_static)
                                 break
                             }
@@ -460,10 +469,10 @@ fn native_alloc_index_put_node(node) {
             g_alloc_index_len = iadd(g_alloc_index_len, 1)
             return 0
         }
-        if slot == g_alloc_index_tomb {
+        if slot - g_alloc_index_tomb == 0 {
             if first_tomb < 0 { first_tomb = idx }
         } else {
-            if ptr_get(slot) == ptr {
+            if ptr_get(slot) - ptr == 0 {
                 ptr_set(iadd(g_alloc_index_ptr, idx << 3), node)
                 return 0
             }
@@ -487,12 +496,12 @@ fn native_alloc_index_remove_ptr(ptr) {
         rem = rem - 1
         var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
         if slot == 0 { return 0 }
-        if slot != g_alloc_index_tomb {
+        if slot - g_alloc_index_tomb != 0 {
             if slot < 4096 {
                 idx = iadd(idx, 1) & mask
                 continue
             }
-            if ptr_get(slot) == ptr {
+            if ptr_get(slot) - ptr == 0 {
                 ptr_set(iadd(g_alloc_index_ptr, idx << 3), g_alloc_index_tomb)
                 if g_alloc_index_len > 0 { g_alloc_index_len = g_alloc_index_len - 1 }
                 return 0

@@ -1160,13 +1160,17 @@ fn _intr_tmp_base_slots_for_call(ctx, locals, expr, nm, argc) {
         // `sys_stat`/`sys_lstat` need an internal host-stat buffer on Linux x86_64.
         if nm == "sys_stat" || nm == "sys_lstat" {
             if os == "windows" { return 9 }
-            return 21
+            // Must match the padding + host-stat scratch sizing in:
+            //   lib/compiler/x64_native_program/046_emit_sys_intrinsics.oren
+            return 38
         }
 
         // `sys_fstat` also needs the host-stat buffer on Linux x86_64.
         if nm == "sys_fstat" {
             if os == "windows" { return 4 }
-            return 20
+            // Must match the padding + host-stat scratch sizing in:
+            //   lib/compiler/x64_native_program/046_emit_sys_intrinsics.oren
+            return 37
         }
 
         // Linux x86_64 nanosleep lowering needs a 16B timespec scratch.

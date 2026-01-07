@@ -5,6 +5,30 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2026-01-07) — Native x86_64 runtime: fix alloc-index compare recursion (stack overflow)
+
+- Symptom (x64-linux artifacts built on arm64-macos):
+  - Freshly-built `--platform x64-linux` native binaries could crash before printing anything under x86_64 Linux (reproduced via `qemu-x86_64`).
+  - Debugging showed a fast-growing call stack that eventually crashed in the prologue of `native_alloc_index_hash(...)`.
+  - `qemu-x86_64 -strace` showed thousands of repeated `gettid()` syscalls (runtime stuck in lock-heavy early init).
+- Root cause (runtime alloc-index + native compare semantics):
+  - The native runtime alloc-index functions (`native_alloc_index_get`, `native_alloc_index_put_node`, etc) used `==/!=` comparisons between non-constant values:
+    - `slot != g_alloc_index_tomb`
+    - `ptr_get(slot) == ptr`
+  - On x86_64 native, `==/!=` can lower to a string-aware compare helper that consults tracking metadata; that compare calls `native_alloc_index_get(...)`.
+  - Result: `native_alloc_index_get(...)` indirectly recursed back into itself while performing the compare, creating an unbounded call stack and eventual stack overflow.
+- Fix (Tier‑1 safety):
+  - Runtime init now sets critical globals that must not rely on global initializers:
+    - `g_alloc_index_tomb = 1`
+    - `g_runtime_single_threaded = 1`
+  - Alloc-index internals avoid `==/!=` between non-constant values:
+    - replace with arithmetic + compare-to-0 patterns (e.g. `if ptr_get(slot) - ptr == 0 { ... }`)
+    - replace tomb checks with `slot - g_alloc_index_tomb == 0` / `!= 0`
+- Verified:
+  - `qemu-x86_64` runs of small x64-linux native programs (e.g. `call_read_bytes_repro.oren`, `call_read_file_repro.oren`)
+  - `make test`
+  - `./scripts/verify_native_x64_compile_only.sh`
+
 ## Archived (2026-01-06) — Native arm64: rtobj debug-info persistence + arm64-linux symbolization gate
 
 - Symptom (arm64-linux debug builds in rtobj mode):

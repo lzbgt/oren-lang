@@ -1,6 +1,6 @@
 # Active Tracker (Succinct)
 
-**Last updated:** 2026-01-06
+**Last updated:** 2026-01-07
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order.
 Recent completions live in `docs/TODOS_ARCHIVE.md` (keep this list “what’s next”, not a changelog).
@@ -121,6 +121,7 @@ Rules for this tracker:
 		         - Also hardened `scripts/verify_native_matrix.sh` to propagate remote exit codes and assert Tier‑1 output markers (prevents silent early-exit false positives).
 		         - Details: `docs/TODOS_ARCHIVE.md`.
 		       - Fixed (2026-01-06): x86_64-linux WSL2 native runtime could hang in `oren_select` send cases due to Linux `epoll_event` ABI differences across arch (x86_64 packed vs arm64 aligned); native runtime now probes the active layout once at `native_runtime_init` and uses `OREN_EPOLL_EVENT_*` offsets for select + NET epoll waits (details in `docs/TODOS_ARCHIVE.md`).
+		       - Fixed (2026-01-07): x86_64-linux native early-init no longer stack-overflows in alloc-index compare recursion (details in `docs/TODOS_ARCHIVE.md`).
 					     - x86_64: finish deleting bring-up-only code paths (keep runtime injection mandatory; converge remaining fast paths on the same safety contract).
 					       - Fixed (2026-01-04): x64 no longer eagerly synthesizes `__oren_fnwrap_*` for every named user function.
 					         - Now uses `fnwrap_needed` to synthesize/compile fnwraps only when a function is used as a value (also works for runtime functions, including rtobj mode).

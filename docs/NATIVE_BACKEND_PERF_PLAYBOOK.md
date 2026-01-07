@@ -72,6 +72,29 @@ Notes on the tracers:
 - Local compile-only x64 sanity (stage1 + stage2 emit):
   - `./scripts/verify_native_x64_compile_only.sh`
 
+### 2.2.1 Local x64-linux “run” sanity via qemu (no remote/WSL required)
+
+When bringing up x86_64 runtime behavior from an arm64-macos dev host, you can run the emitted x64-linux ELF under qemu in the existing Ubuntu toolchain container:
+
+```bash
+# Build x64-linux ELF (host compiler is still arm64-macos).
+./oren_stage2 build tests/native/print.oren \
+  --backend native --platform x64-linux --no-cache --no-debug \
+  -o build/tmp/print_x64_linux
+
+# Copy + run under qemu inside the already-running toolchain container.
+docker cp build/tmp/print_x64_linux c7e5f7bd9f5c:/tmp/hostbins/
+docker exec c7e5f7bd9f5c bash -lc 'cd /tmp/hostbins && chmod +x print_x64_linux && qemu-x86_64 ./print_x64_linux'
+```
+
+Debugging with gdb stub (bounded, no huge logs):
+
+```bash
+docker exec c7e5f7bd9f5c bash -lc 'cd /tmp/hostbins && qemu-x86_64 -g 1234 ./print_x64_linux'
+# In another terminal:
+docker exec -it c7e5f7bd9f5c bash -lc 'cd /tmp/hostbins && gdb-multiarch -q ./print_x64_linux'
+```
+
 ## 3) What “slow” usually means (native backend)
 
 In practice, “compile one file is slow” is almost always one of:
@@ -192,6 +215,33 @@ In very hot compiler-internal loops (decode/emit), prefer intrinsic integer add:
 - `iadd(a, b)` instead of `a + b`
 
 This is especially important when the loop variable or offsets are updated per-iteration.
+
+### 4.2.1 Avoid string-aware compare recursion in alloc-index internals (`==/!=`)
+
+Some native backends lower `==/!=` to a **string-aware compare** that consults tracking metadata
+(so `"a" == "b"` compares contents, not pointer identity).
+
+This becomes a correctness hazard inside the runtime alloc-index itself, because:
+
+- string-aware compare consults tracking via `native_alloc_index_get(...)`, and
+- alloc-index internals also need to compare pointers/slots/tombstones.
+
+If alloc-index code uses `==/!=` between non-constant values (e.g. `slot != tomb`, `ptr_get(node) == ptr`),
+it can **indirectly recurse back into `native_alloc_index_get(...)`** and stack overflow during early init.
+
+Guardrail patterns (Tier‑1):
+
+- Prefer compare-to-0 arithmetic:
+  - equality: `if (a - b) == 0 { ... }`
+  - inequality: `if (a - b) != 0 { ... }`
+- Keep tombstone sentinels small and non-zero:
+  - `g_alloc_index_tomb` must be non-zero and `< 4096`, and should be set in `native_runtime_init`
+    (do not rely on global initializers).
+
+Reference implementation:
+
+- `lib/runtime_native/100_time.oren` (alloc-index internals use arithmetic compares)
+- `lib/runtime_native/020_fork_runtime_init.oren` (init sets `g_alloc_index_tomb`)
 
 ### 4.3 Avoid huge logs (they hide the signal)
 

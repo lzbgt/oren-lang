@@ -385,6 +385,13 @@ fn _x64_new_ctx(linked, platform) {
     // when the compiler runs under the native runtime (where `nil` is 0).
     var cstr_slot_off = _data_add_u64(ctx, 0)
     ctx["cstr0_table_slot_enc"] = cstr_slot_off + 1
+
+    // Bounded debug knob (bring-up):
+    // Enable narrow tracing inside list/hash literal lowering without paying an env lookup per literal.
+    //   OREN_TRACE_X64_ARRAY_LIT=1 ./oren_stage2 build ... --platform x64-linux --no-cache
+    if oren_env("OREN_TRACE_X64_ARRAY_LIT") != nil {
+        ctx["trace_x64_array_lit"] = 1
+    }
     return ctx
 }
 

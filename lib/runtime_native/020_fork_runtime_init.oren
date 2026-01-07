@@ -115,6 +115,18 @@ fn native_runtime_init(target_os) {
     // before entering the runtime. Ensure globals used by early allocation are safe.
     g_storage = 0
 
+    // --- Critical runtime globals (must not rely on global initializers) ---
+    //
+    // These live across multiple runtime modules, but `native_runtime_init` is the first
+    // guaranteed entrypoint on all native targets.
+    //
+    // NOTE:
+    // - `g_alloc_index_tomb` must be non-zero and <4096 so it never aliases a valid tracked pointer.
+    // - `g_runtime_single_threaded` enables the fast-path in `oren_find_node`/locking for compiler-style
+    //   single-threaded workloads (stage2-native).
+    g_alloc_index_tomb = 1
+    g_runtime_single_threaded = 1
+
     // NET wait backend probe state (must not rely on global initializers).
     g_target_os = target_os
     g_net_wsa_inited = 0
