@@ -394,14 +394,19 @@ fn oren_fd_wait_select_one(fd, want_write, timeout_ms) {
     if g_target_os != 3 { return 0 - 78 } // ENOSYS
     if timeout_ms < 0 { timeout_ms = 0 }
 
-    // fd_set (Windows, x64):
+    // fd_set (WinSock) is a fixed-size struct that includes an fd_array[FD_SETSIZE].
+    // Even if fd_count==1, pass a buffer large enough for the full struct to avoid UB
+    // (WinSock may copy/scan the full array).
+    //
+    // Layout (Windows, x64):
     //   u32 fd_count @0
     //   u32 pad      @4
-    //   SOCKET fd0   @8
-    var fds = malloc(16)
+    //   SOCKET fd_array[0] @8
+    var set_bytes = 8 + 8 * 64 // FD_SETSIZE=64 (rolling v0 cap; see `docs/ASYNC_IO_AND_SELECT.md`)
+    var fds = malloc(set_bytes)
     if fds == 0 { return 0 - 12 } // ENOMEM
     var zi = 0
-    while zi < 16 { ptr_set_byte(fds + zi, 0); zi = zi + 1 }
+    while zi < set_bytes { ptr_set_byte(fds + zi, 0); zi = zi + 1 }
     oren_ptr_set_u32_le(fds + 0, 1)
     oren_ptr_set_u64_le(fds + 8, fd)
 
@@ -887,6 +892,9 @@ fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
             deadline_ns = t0 + timeout_ms * 1000000
         }
     }
+    // If TIME is unavailable on a host (t0==0), still avoid returning ETIMEDOUT immediately
+    // on occasional readiness false-negatives. Keep this bounded by a small spin cap.
+    var spins = 0
 
     while 1 {
         // Try the nonblocking recv first. This avoids relying solely on readiness waits:
@@ -920,6 +928,10 @@ fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
                 var now2 = oren_time_unix_ns()
                 if now2 != 0 && now2 < deadline_ns { continue }
             }
+            if timeout_ms > 0 {
+                spins = spins + 1
+                if spins < 64 { continue }
+            }
             return 0 - 60 // ETIMEDOUT
         }
         if n < 0 { return n }
@@ -943,6 +955,7 @@ fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
             deadline_ns = t0 + timeout_ms * 1000000
         }
     }
+    var spins = 0
 
     var off = 0
     while off < len {
@@ -968,6 +981,10 @@ fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
                 if deadline_ns != 0 {
                     var now2 = oren_time_unix_ns()
                     if now2 != 0 && now2 < deadline_ns { continue }
+                }
+                if timeout_ms > 0 {
+                    spins = spins + 1
+                    if spins < 64 { continue }
                 }
                 return 0 - 60 // ETIMEDOUT
             }

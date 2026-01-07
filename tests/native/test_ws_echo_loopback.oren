@@ -108,34 +108,45 @@ fn run_case() {
     } else {
         fd = oren_map_get_str(c, "fd")
 
-        var text = "PING"
-        var wr = ws.send_text_client(fd, text, 5000)
-        if wr < 0 {
-            print("ws_echo_loopback: FAIL send (errno=" + oren_int_to_string(0 - wr) + ")")
+        // Exercise ping/pong handling (Tier‑1): send ping before the text echo.
+        // Server `ws.recv_text` should auto-respond with pong and continue waiting for text.
+        // Client `ws.recv_text` should ignore pong and continue waiting for the echoed text.
+        var prc = ws.send_ping_client(fd, "hi", 5000)
+        if prc < 0 {
+            print("ws_echo_loopback: FAIL ping (errno=" + oren_int_to_string(0 - prc) + ")")
             rc = 21
-        } else {
-            var rr = ws.recv_text(fd, 10000)
-            // Prefer typed map access; do not rely on key-kind inference in tests.
-            var rok = oren_map_get_str(rr, "ok")
-            if rok != 1 {
-                var rerr = oren_map_get_str(rr, "err")
-                if rerr != 0 {
-                    var rerr_s = oren_intern_cstr(rerr)
-                    print("ws_echo_loopback: FAIL recv: " + rerr_s)
-                } else {
-                    print("ws_echo_loopback: FAIL recv: ok=" + oren_int_to_string(rok))
-                }
-                rc = 22
+        }
+
+        if rc == 0 {
+            var text = "PING"
+            var wr = ws.send_text_client(fd, text, 5000)
+            if wr < 0 {
+                print("ws_echo_loopback: FAIL send (errno=" + oren_int_to_string(0 - wr) + ")")
+                rc = 21
             } else {
-                var body = oren_map_get_str(rr, "v")
-                if body == 0 { rc = 23 }
-                else if strcmp(body, "PING") != 0 {
-                    print("ws_echo_loopback: FAIL mismatch")
-                    print(body)
-                    free(body)
-                    rc = 24
+                var rr = ws.recv_text(fd, 10000)
+                // Prefer typed map access; do not rely on key-kind inference in tests.
+                var rok = oren_map_get_str(rr, "ok")
+                if rok != 1 {
+                    var rerr = oren_map_get_str(rr, "err")
+                    if rerr != 0 {
+                        var rerr_s = oren_intern_cstr(rerr)
+                        print("ws_echo_loopback: FAIL recv: " + rerr_s)
+                    } else {
+                        print("ws_echo_loopback: FAIL recv: ok=" + oren_int_to_string(rok))
+                    }
+                    rc = 22
                 } else {
-                    free(body)
+                    var body = oren_map_get_str(rr, "v")
+                    if body == 0 { rc = 23 }
+                    else if strcmp(body, "PING") != 0 {
+                        print("ws_echo_loopback: FAIL mismatch")
+                        print(body)
+                        free(body)
+                        rc = 24
+                    } else {
+                        free(body)
+                    }
                 }
             }
         }

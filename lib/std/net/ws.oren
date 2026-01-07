@@ -12,6 +12,67 @@ import tcp "std:net/tcp"
 import sha1 "std:crypto/sha1"
 import base64 "std:encoding/base64"
 
+// Best-effort RNG state for protocol fields (Sec-WebSocket-Key, client masking).
+//
+// Rolling note:
+// - This is not a cryptographic RNG.
+// - It is intentionally dependency-free (no FS access like /dev/urandom) so NET code stays NET-only.
+// - A future “portable OS RNG” surface should replace this (tracked in `docs/TODOS.md`).
+var g_ws_rng_u32 = 0
+
+fn _ws_rng_next_u32() {
+    // xorshift32 (best-effort)
+    if g_ws_rng_u32 == 0 {
+        var seed = oren_time_unix_ns()
+        if seed == 0 { seed = 2463534242 } // xorshift fallback seed
+        // Fold time into 32-bit space; keep it non-zero.
+        seed = seed % 4294967296
+        if seed == 0 { seed = 2463534242 }
+        g_ws_rng_u32 = seed
+    }
+
+    var x = g_ws_rng_u32
+    x = x ^ ((x << 13) & 4294967295)
+    x = x ^ ((x >> 17) & 4294967295)
+    x = x ^ ((x << 5) & 4294967295)
+    x = x & 4294967295
+    if x == 0 { x = 2463534242 }
+    g_ws_rng_u32 = x
+    return x
+}
+
+fn _ws_random_u8_list(n) {
+    // Returns list<u8> (ints in [0..255]).
+    if n <= 0 { return [] }
+    var out = []
+    var i = 0
+    while i < n {
+        var x = _ws_rng_next_u32()
+        var b0 = x & 255
+        var b1 = (x >> 8) & 255
+        var b2 = (x >> 16) & 255
+        var b3 = (x >> 24) & 255
+        oren_list_push(out, b0)
+        i = i + 1
+        if i >= n { break }
+        oren_list_push(out, b1)
+        i = i + 1
+        if i >= n { break }
+        oren_list_push(out, b2)
+        i = i + 1
+        if i >= n { break }
+        oren_list_push(out, b3)
+        i = i + 1
+    }
+    return out
+}
+
+fn _ws_new_client_key_base64() {
+    // RFC6455: Sec-WebSocket-Key is base64 of 16 random bytes.
+    var xs = _ws_random_u8_list(16)
+    return base64.encode_bytes(oren_bytes_pack(xs))
+}
+
 fn _starts_with(s, prefix) {
     if s == nil || prefix == nil { return 0 }
     var sl = oren_string_len(s)
@@ -356,8 +417,10 @@ fn connect(url, timeout_ms) {
         return {"ok": 0, "err": "ws.connect: connect failed (errno=" + oren_int_to_string(0 - fd) + ")"}
     }
 
-    // Rolling: deterministic key (RFC example nonce) until we have a portable RNG surface.
-    var key = "dGhlIHNhbXBsZSBub25jZQ=="
+    // Best-effort per-connection key (v0.1).
+    // NOTE: this is not currently cryptographically secure; it is only "not constant".
+    var key = _ws_new_client_key_base64()
+    if key == 0 { key = "dGhlIHNhbXBsZSBub25jZQ==" } // fallback (RFC example nonce)
     var hostport = host + ":" + oren_int_to_string(port)
     var req = "GET " + path + " HTTP/1.1\r\nHost: " + hostport +
               "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: " + key +
@@ -368,6 +431,7 @@ fn connect(url, timeout_ms) {
     free(req)
     if wr < 0 {
         tcp.close(fd)
+        free(key)
         free(host)
         free(path)
         return {"ok": 0, "err": "ws.connect: write failed (errno=" + oren_int_to_string(0 - wr) + ")"}
@@ -376,6 +440,7 @@ fn connect(url, timeout_ms) {
     var hdr = _read_http_header_into_buf(fd, timeout_ms, 8192)
     if hdr["ok"] != 1 {
         tcp.close(fd)
+        free(key)
         free(host)
         free(path)
         return {"ok": 0, "err": "ws.connect: " + hdr["err"]}
@@ -386,6 +451,7 @@ fn connect(url, timeout_ms) {
     if _status_is_101(hbuf, body_off) == 0 {
         free(hbuf)
         tcp.close(fd)
+        free(key)
         free(host)
         free(path)
         return {"ok": 0, "err": "ws.connect: expected HTTP 101"}
@@ -395,12 +461,14 @@ fn connect(url, timeout_ms) {
     if accept == 0 {
         free(hbuf)
         tcp.close(fd)
+        free(key)
         free(host)
         free(path)
         return {"ok": 0, "err": "ws.connect: missing Sec-WebSocket-Accept"}
     }
 
     var want = _ws_accept_for_key(key)
+    free(key)
     var ok = (strcmp(accept, want) == 0)
     var got_accept = accept
     var want_accept = want
@@ -536,48 +604,56 @@ fn _mask_byte(mask0, mask1, mask2, mask3, i) {
     return m & 255
 }
 
-fn _send_frame_text(fd, text, timeout_ms, masked) {
-    if text == nil { text = "" }
+fn _send_frame_raw(fd, opcode, payload_ptr, payload_len, timeout_ms, masked) {
+    // Low-level “build a single frame and write it”. Used by text/ping/pong/close.
+    //
+    // payload_ptr may be 0 when payload_len==0.
     if timeout_ms == nil { timeout_ms = 5000 }
-
-    var payload = oren_bytes_from_string(text)
-    var xs = oren_bytes_unpack(payload)
-    var n = oren_list_len(xs)
+    if payload_ptr == nil { payload_ptr = 0 }
+    if payload_len == nil { payload_len = 0 }
+    if payload_len < 0 { payload_len = 0 }
+    if payload_len > 0 && payload_ptr == 0 { return 0 - 22 } // EINVAL
 
     // Header sizing: 2 + ext + mask + payload
     var ext = 0
-    if n < 126 { ext = 0 }
-    else if n < 65536 { ext = 2 }
+    if payload_len < 126 { ext = 0 }
+    else if payload_len < 65536 { ext = 2 }
     else { ext = 8 }
 
     var mask_bytes = 0
     if masked == 1 { mask_bytes = 4 }
-    var total = 2 + ext + mask_bytes + n
+    var total = 2 + ext + mask_bytes + payload_len
     var buf = malloc(total)
     if buf == 0 { return 0 - 12 } // ENOMEM
 
-    // FIN=1, opcode=1 (text)
-    ptr_set_byte(buf + 0, 129) // 0x81
+    // FIN=1, opcode
+    ptr_set_byte(buf + 0, 128 | (opcode & 15))
     var b1 = 0
     if masked == 1 { b1 = 128 } // mask bit
     if ext == 0 {
-        ptr_set_byte(buf + 1, b1 | (n & 127))
+        ptr_set_byte(buf + 1, b1 | (payload_len & 127))
     } else if ext == 2 {
         ptr_set_byte(buf + 1, b1 | 126)
-        _write_u16_be(buf, 2, n)
+        _write_u16_be(buf, 2, payload_len)
     } else {
         ptr_set_byte(buf + 1, b1 | 127)
-        _write_u64_be(buf, 2, n)
+        _write_u64_be(buf, 2, payload_len)
     }
 
-    // Deterministic mask for v0 (TODO: portable RNG).
-    var mask0 = 1
-    var mask1 = 2
-    var mask2 = 3
-    var mask3 = 4
+    // Best-effort mask (v0.1): not constant.
+    var mask0 = 0
+    var mask1 = 0
+    var mask2 = 0
+    var mask3 = 0
 
     var payload_off = 2 + ext
     if masked == 1 {
+        var m = _ws_rng_next_u32()
+        mask0 = m & 255
+        mask1 = (m >> 8) & 255
+        mask2 = (m >> 16) & 255
+        mask3 = (m >> 24) & 255
+
         ptr_set_byte(buf + payload_off + 0, mask0)
         ptr_set_byte(buf + payload_off + 1, mask1)
         ptr_set_byte(buf + payload_off + 2, mask2)
@@ -586,8 +662,8 @@ fn _send_frame_text(fd, text, timeout_ms, masked) {
     }
 
     var i = 0
-    while i < n {
-        var b = xs[i] & 255
+    while i < payload_len {
+        var b = ptr_get_byte(payload_ptr + i) & 255
         if masked == 1 {
             b = b ^ _mask_byte(mask0, mask1, mask2, mask3, i)
         }
@@ -601,6 +677,16 @@ fn _send_frame_text(fd, text, timeout_ms, masked) {
     return 0
 }
 
+fn _send_frame_str(fd, opcode, text, timeout_ms, masked) {
+    if text == nil { text = "" }
+    if timeout_ms == nil { timeout_ms = 5000 }
+    return _send_frame_raw(fd, opcode, text, oren_string_len(text), timeout_ms, masked)
+}
+
+fn _send_frame_text(fd, text, timeout_ms, masked) {
+    return _send_frame_str(fd, 1, text, timeout_ms, masked)
+}
+
 fn send_text_client(fd, text, timeout_ms) {
     return _send_frame_text(fd, text, timeout_ms, 1)
 }
@@ -609,89 +695,128 @@ fn send_text_server(fd, text, timeout_ms) {
     return _send_frame_text(fd, text, timeout_ms, 0)
 }
 
+fn send_ping_client(fd, payload, timeout_ms) {
+    // Client-to-server ping must be masked.
+    return _send_frame_str(fd, 9, payload, timeout_ms, 1)
+}
+
+fn send_ping_server(fd, payload, timeout_ms) {
+    // Server-to-client ping must be unmasked.
+    return _send_frame_str(fd, 9, payload, timeout_ms, 0)
+}
+
 fn recv_text(fd, timeout_ms) {
     // Returns {"ok":1,"v":string} or {"ok":0,"err":string}.
     if timeout_ms == nil { timeout_ms = 5000 }
 
-    var hdr2 = malloc(2)
-    if hdr2 == 0 { return {"ok": 0, "err": "ws.recv_text: malloc failed"} }
-    var rc = _read_exact(fd, hdr2, 2, timeout_ms)
-    if rc < 0 { free(hdr2); return {"ok": 0, "err": "ws.recv_text: read hdr failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
+    // Ping/pong and close are handled internally and do not escape to callers:
+    // - ping => auto-pong + continue
+    // - pong => ignore + continue
+    // - close => respond with close and return ok=0
+    while 1 {
+        var hdr2 = malloc(2)
+        if hdr2 == 0 { return {"ok": 0, "err": "ws.recv_text: malloc failed"} }
+        var rc = _read_exact(fd, hdr2, 2, timeout_ms)
+        if rc < 0 { free(hdr2); return {"ok": 0, "err": "ws.recv_text: read hdr failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
 
-    var b0 = ptr_get_byte(hdr2 + 0) & 255
-    var b1 = ptr_get_byte(hdr2 + 1) & 255
-    free(hdr2)
+        var b0 = ptr_get_byte(hdr2 + 0) & 255
+        var b1 = ptr_get_byte(hdr2 + 1) & 255
+        free(hdr2)
 
-    var fin = (b0 >> 7) & 1
-    var opcode = b0 & 15
-    var masked = (b1 >> 7) & 1
-    var plen7 = b1 & 127
+        var fin = (b0 >> 7) & 1
+        var opcode = b0 & 15
+        var masked = (b1 >> 7) & 1
+        var plen7 = b1 & 127
 
-    if fin != 1 {
-        return {"ok": 0, "err": "ws.recv_text: fragmented frames not supported"}
-    }
-    if opcode == 8 {
-        return {"ok": 0, "err": "ws.recv_text: close"}
-    }
-    if opcode != 1 {
-        return {"ok": 0, "err": "ws.recv_text: unsupported opcode " + oren_int_to_string(opcode)}
-    }
-
-    var plen = plen7
-    if plen7 == 126 {
-        var ex = malloc(2)
-        if ex == 0 { return {"ok": 0, "err": "ws.recv_text: malloc ext"} }
-        rc = _read_exact(fd, ex, 2, timeout_ms)
-        if rc < 0 { free(ex); return {"ok": 0, "err": "ws.recv_text: read ext16 failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
-        plen = ((ptr_get_byte(ex + 0) & 255) << 8) | (ptr_get_byte(ex + 1) & 255)
-        free(ex)
-    } else if plen7 == 127 {
-        var ex8 = malloc(8)
-        if ex8 == 0 { return {"ok": 0, "err": "ws.recv_text: malloc ext"} }
-        rc = _read_exact(fd, ex8, 8, timeout_ms)
-        if rc < 0 { free(ex8); return {"ok": 0, "err": "ws.recv_text: read ext64 failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
-        // u64 be (best-effort; reject huge sizes)
-        plen = 0
-        var i = 0
-        while i < 8 {
-            plen = plen * 256 + (ptr_get_byte(ex8 + i) & 255)
-            i = i + 1
+        if fin != 1 {
+            return {"ok": 0, "err": "ws.recv_text: fragmented frames not supported"}
         }
-        free(ex8)
-    }
 
-    // Rolling safety: cap payload size.
-    if plen < 0 || plen > 1048576 {
-        return {"ok": 0, "err": "ws.recv_text: payload too large"}
-    }
+        var plen = plen7
+        if plen7 == 126 {
+            var ex = malloc(2)
+            if ex == 0 { return {"ok": 0, "err": "ws.recv_text: malloc ext"} }
+            rc = _read_exact(fd, ex, 2, timeout_ms)
+            if rc < 0 { free(ex); return {"ok": 0, "err": "ws.recv_text: read ext16 failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
+            plen = ((ptr_get_byte(ex + 0) & 255) << 8) | (ptr_get_byte(ex + 1) & 255)
+            free(ex)
+        } else if plen7 == 127 {
+            var ex8 = malloc(8)
+            if ex8 == 0 { return {"ok": 0, "err": "ws.recv_text: malloc ext"} }
+            rc = _read_exact(fd, ex8, 8, timeout_ms)
+            if rc < 0 { free(ex8); return {"ok": 0, "err": "ws.recv_text: read ext64 failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
+            // u64 be (best-effort; reject huge sizes)
+            plen = 0
+            var i = 0
+            while i < 8 {
+                plen = plen * 256 + (ptr_get_byte(ex8 + i) & 255)
+                i = i + 1
+            }
+            free(ex8)
+        }
 
-    var mask0 = 0
-    var mask1 = 0
-    var mask2 = 0
-    var mask3 = 0
-    if masked == 1 {
-        var mk = malloc(4)
-        if mk == 0 { return {"ok": 0, "err": "ws.recv_text: malloc mask"} }
-        rc = _read_exact(fd, mk, 4, timeout_ms)
-        if rc < 0 { free(mk); return {"ok": 0, "err": "ws.recv_text: read mask failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
-        mask0 = ptr_get_byte(mk + 0) & 255
-        mask1 = ptr_get_byte(mk + 1) & 255
-        mask2 = ptr_get_byte(mk + 2) & 255
-        mask3 = ptr_get_byte(mk + 3) & 255
-        free(mk)
-    }
+        // Rolling safety: cap payload size.
+        if plen < 0 || plen > 1048576 {
+            return {"ok": 0, "err": "ws.recv_text: payload too large"}
+        }
 
-    var out = malloc(plen + 1)
-    if out == 0 { return {"ok": 0, "err": "ws.recv_text: malloc payload"} }
-    rc = _read_exact(fd, out, plen, timeout_ms)
-    if rc < 0 { free(out); return {"ok": 0, "err": "ws.recv_text: read payload failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
-    var i2 = 0
-    while masked == 1 && i2 < plen {
-        var b = ptr_get_byte(out + i2) & 255
-        b = b ^ _mask_byte(mask0, mask1, mask2, mask3, i2)
-        ptr_set_byte(out + i2, b)
-        i2 = i2 + 1
+        var mask0 = 0
+        var mask1 = 0
+        var mask2 = 0
+        var mask3 = 0
+        if masked == 1 {
+            var mk = malloc(4)
+            if mk == 0 { return {"ok": 0, "err": "ws.recv_text: malloc mask"} }
+            rc = _read_exact(fd, mk, 4, timeout_ms)
+            if rc < 0 { free(mk); return {"ok": 0, "err": "ws.recv_text: read mask failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
+            mask0 = ptr_get_byte(mk + 0) & 255
+            mask1 = ptr_get_byte(mk + 1) & 255
+            mask2 = ptr_get_byte(mk + 2) & 255
+            mask3 = ptr_get_byte(mk + 3) & 255
+            free(mk)
+        }
+
+        var out = malloc(plen + 1)
+        if out == 0 { return {"ok": 0, "err": "ws.recv_text: malloc payload"} }
+        rc = _read_exact(fd, out, plen, timeout_ms)
+        if rc < 0 { free(out); return {"ok": 0, "err": "ws.recv_text: read payload failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
+        var i2 = 0
+        while masked == 1 && i2 < plen {
+            var b = ptr_get_byte(out + i2) & 255
+            b = b ^ _mask_byte(mask0, mask1, mask2, mask3, i2)
+            ptr_set_byte(out + i2, b)
+            i2 = i2 + 1
+        }
+        ptr_set_byte(out + plen, 0)
+
+        // RFC6455: client->server frames are masked; server->client are not.
+        // Use the incoming masked bit as a heuristic for the role when responding.
+        var out_masked = 0
+        if masked == 0 { out_masked = 1 }
+
+        if opcode == 9 {
+            // ping => pong + continue
+            _send_frame_raw(fd, 10, out, plen, timeout_ms, out_masked)
+            free(out)
+            continue
+        }
+        if opcode == 10 {
+            // pong => ignore + continue
+            free(out)
+            continue
+        }
+        if opcode == 8 {
+            // close => echo close + return (caller may close the fd)
+            _send_frame_raw(fd, 8, out, plen, timeout_ms, out_masked)
+            free(out)
+            return {"ok": 0, "err": "ws.recv_text: close"}
+        }
+        if opcode != 1 {
+            free(out)
+            return {"ok": 0, "err": "ws.recv_text: unsupported opcode " + oren_int_to_string(opcode)}
+        }
+
+        // Text
+        return {"ok": 1, "v": out}
     }
-    ptr_set_byte(out + plen, 0)
-    return {"ok": 1, "v": out}
 }

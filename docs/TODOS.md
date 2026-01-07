@@ -78,10 +78,11 @@ Rules for this tracker:
 						       - Fixed (2026-01-07): WebSocket v0 (ws:// handshake + masked text frames + loopback echo) implemented and added to the Tier‑1 NET matrix (`tests/native/test_ws_echo_loopback.oren`).
 						       - Fixed (2026-01-07): Win11 WS echo loopback flake eliminated by hardening NET read/write against spurious readiness timeouts (optimistic `recv`/`send` first; retry until deadline instead of returning `ETIMEDOUT` immediately).
 						       - Next: structured HTTP client/server surface (headers map + status + streaming body), then production WebSocket:
-						         - ping/pong/close + close reason codes
-						         - random client key + random masking (portable RNG surface)
-					         - fragmentation + binary frames + streaming recv API
-					         - then HTTP/2 framing on top of the TCP substrate (then TLS + DNS layers).
+						         - Fixed (2026-01-07): ping/pong/close frames are handled in `ws.recv_text` (auto-pong + ignore pongs), and `ws.send_ping_{client,server}` exists.
+						         - Fixed (2026-01-07): client key + masking are no longer constant (best-effort time-seeded xorshift32).
+						         - Remaining: define a portable OS entropy/RNG surface (avoid “toy RNG” for protocol masking/keys) and plumb it through NET/stdlib.
+						         - fragmentation + binary frames + streaming recv API
+						         - then HTTP/2 framing on top of the TCP substrate (then TLS + DNS layers).
 			     - Fixed (2026-01-04): **arm64-macos stage2 is now bootstrapped via the native backend by default** (`make stage2`).
 			       - Fallback (bring-up): `make stage2 OREN_STAGE2_BACKEND=c`.
 			    - Native FFI / dynamic linking parity (rolling):

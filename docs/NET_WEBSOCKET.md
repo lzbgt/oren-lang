@@ -21,7 +21,10 @@ All functions are timeout‑bounded to avoid hangs.
   - Client frames are **masked** (required by RFC6455).
 - `ws.send_text_server(fd, text, timeout_ms)` → `0` on success, or `-errno`
   - Server frames are **unmasked**.
+- `ws.send_ping_client(fd, payload, timeout_ms)` → `0` on success, or `-errno`
+- `ws.send_ping_server(fd, payload, timeout_ms)` → `0` on success, or `-errno`
 - `ws.recv_text(fd, timeout_ms)` → `{"ok":1,"v":string}` or `{"ok":0,"err":string}`
+  - v0.1 behavior: internally handles **ping/pong/close** frames (auto-pong + ignore pongs).
 
 ## Scope / limitations (v0)
 
@@ -36,7 +39,7 @@ This is intentionally minimal so we can gate correctness across Tier‑1 first.
   - payload size is capped (currently 1 MiB) as a rolling safety bound
 - Handshake:
   - `Sec-WebSocket-Accept` computed via `SHA1(key + GUID)` then base64
-  - client key + masking are currently deterministic (until a portable RNG surface is standardized)
+  - client key + masking are best-effort “not constant” (xorshift32 seeded from time); this is **not yet** a portable OS entropy surface
 
 ## Native runtime caveat: string tracking vs `+`
 
