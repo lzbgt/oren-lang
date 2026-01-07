@@ -6,6 +6,7 @@ set -euo pipefail
 # This focuses on loopback-only network behavior (no external connectivity):
 # - TCP listen/connect/accept/read/write (+ syscall-first send/recv)
 # - UDP bind/sendto/recvfrom
+# - DNS A query loopback over UDP (authoritative toy server; no external resolver)
 # - HTTP/1.1 GET loopback (Content-Length + chunked) over TCP (uses spawn)
 # - WebSocket (ws://) handshake + text echo over TCP (uses spawn)
 #
@@ -16,6 +17,7 @@ set -euo pipefail
 #
 # Then it compiles+executes these tests as native binaries:
 #   tests/native/test_net_suite.oren
+#   tests/native/test_dns_loopback.oren
 #   tests/native/test_http_get_loopback.oren
 #   tests/native/test_ws_echo_loopback.oren
 #
@@ -29,6 +31,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 NET_SUITE_SRC="tests/native/test_net_suite.oren"
+DNS_LOOPBACK_SRC="tests/native/test_dns_loopback.oren"
 HTTP_LOOPBACK_SRC="tests/native/test_http_get_loopback.oren"
 WS_ECHO_SRC="tests/native/test_ws_echo_loopback.oren"
 
@@ -47,6 +50,7 @@ Usage: scripts/verify_native_net_matrix.sh [--targets <csv>] [--local-only]
 
 Runs (loopback-only; no external network):
   - tests/native/test_net_suite.oren
+  - tests/native/test_dns_loopback.oren
   - tests/native/test_http_get_loopback.oren
   - tests/native/test_ws_echo_loopback.oren
 
@@ -267,6 +271,8 @@ if has_target local; then
 
   build_native_bin_src "./oren" "arm64-macos" "$NET_SUITE_SRC" "build/tmp/net_stage1_arm64_macos"
   build_native_bin_src "./oren_stage2" "arm64-macos" "$NET_SUITE_SRC" "build/tmp/net_stage2_arm64_macos"
+  build_native_bin_src "./oren" "arm64-macos" "$DNS_LOOPBACK_SRC" "build/tmp/dns_stage1_arm64_macos"
+  build_native_bin_src "./oren_stage2" "arm64-macos" "$DNS_LOOPBACK_SRC" "build/tmp/dns_stage2_arm64_macos"
   build_native_bin_src "./oren" "arm64-macos" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage1_arm64_macos"
   build_native_bin_src "./oren_stage2" "arm64-macos" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage2_arm64_macos"
   build_native_bin_src "./oren" "arm64-macos" "$WS_ECHO_SRC" "build/tmp/ws_stage1_arm64_macos"
@@ -274,6 +280,8 @@ if has_target local; then
 
   run_local_bin "build/tmp/net_stage1_arm64_macos"
   run_local_bin "build/tmp/net_stage2_arm64_macos"
+  run_local_bin "build/tmp/dns_stage1_arm64_macos"
+  run_local_bin "build/tmp/dns_stage2_arm64_macos"
   run_local_bin "build/tmp/http_stage1_arm64_macos"
   run_local_bin "build/tmp/http_stage2_arm64_macos"
   run_local_bin "build/tmp/ws_stage1_arm64_macos"
@@ -407,6 +415,8 @@ if has_target arm64-linux; then
 
   build_native_bin_src "./oren" "arm64-linux" "$NET_SUITE_SRC" "build/tmp/net_stage1_arm64_linux"
   build_native_bin_src "./oren_stage2" "arm64-linux" "$NET_SUITE_SRC" "build/tmp/net_stage2_arm64_linux"
+  build_native_bin_src "./oren" "arm64-linux" "$DNS_LOOPBACK_SRC" "build/tmp/dns_stage1_arm64_linux"
+  build_native_bin_src "./oren_stage2" "arm64-linux" "$DNS_LOOPBACK_SRC" "build/tmp/dns_stage2_arm64_linux"
   build_native_bin_src "./oren" "arm64-linux" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage1_arm64_linux"
   build_native_bin_src "./oren_stage2" "arm64-linux" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage2_arm64_linux"
   build_native_bin_src "./oren" "arm64-linux" "$WS_ECHO_SRC" "build/tmp/ws_stage1_arm64_linux"
@@ -414,6 +424,8 @@ if has_target arm64-linux; then
 
   run_in_linux_container "build/tmp/net_stage1_arm64_linux"
   run_in_linux_container "build/tmp/net_stage2_arm64_linux"
+  run_in_linux_container "build/tmp/dns_stage1_arm64_linux"
+  run_in_linux_container "build/tmp/dns_stage2_arm64_linux"
   run_in_linux_container "build/tmp/http_stage1_arm64_linux"
   run_in_linux_container "build/tmp/http_stage2_arm64_linux"
   run_in_linux_container "build/tmp/ws_stage1_arm64_linux"
@@ -430,6 +442,8 @@ fi
 if has_target x64-win; then
   build_native_bin_src "./oren" "x64-windows" "$NET_SUITE_SRC" "build/tmp/net_stage1_x64_windows.exe"
   build_native_bin_src "./oren_stage2" "x64-windows" "$NET_SUITE_SRC" "build/tmp/net_stage2_x64_windows.exe"
+  build_native_bin_src "./oren" "x64-windows" "$DNS_LOOPBACK_SRC" "build/tmp/dns_stage1_x64_windows.exe"
+  build_native_bin_src "./oren_stage2" "x64-windows" "$DNS_LOOPBACK_SRC" "build/tmp/dns_stage2_x64_windows.exe"
   build_native_bin_src "./oren" "x64-windows" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage1_x64_windows.exe"
   build_native_bin_src "./oren_stage2" "x64-windows" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage2_x64_windows.exe"
   build_native_bin_src "./oren" "x64-windows" "$WS_ECHO_SRC" "build/tmp/ws_stage1_x64_windows.exe"
@@ -437,6 +451,8 @@ if has_target x64-win; then
 
   remote_upload "build/tmp/net_stage1_x64_windows.exe" "net_stage1_x64_windows.exe"
   remote_upload "build/tmp/net_stage2_x64_windows.exe" "net_stage2_x64_windows.exe"
+  remote_upload "build/tmp/dns_stage1_x64_windows.exe" "dns_stage1_x64_windows.exe"
+  remote_upload "build/tmp/dns_stage2_x64_windows.exe" "dns_stage2_x64_windows.exe"
   remote_upload "build/tmp/http_stage1_x64_windows.exe" "http_stage1_x64_windows.exe"
   remote_upload "build/tmp/http_stage2_x64_windows.exe" "http_stage2_x64_windows.exe"
   remote_upload "build/tmp/ws_stage1_x64_windows.exe" "ws_stage1_x64_windows.exe"
@@ -445,6 +461,8 @@ if has_target x64-win; then
   log "-- run: Win11 (x64-windows) --"
   remote_run_win "net_stage1_x64_windows.exe"
   remote_run_win "net_stage2_x64_windows.exe"
+  remote_run_win "dns_stage1_x64_windows.exe"
+  remote_run_win "dns_stage2_x64_windows.exe"
   remote_run_win "http_stage1_x64_windows.exe"
   remote_run_win "http_stage2_x64_windows.exe"
   remote_run_win "ws_stage1_x64_windows.exe"
@@ -455,6 +473,8 @@ fi
 if has_target x64-wsl; then
   build_native_bin_src "./oren" "x64-linux" "$NET_SUITE_SRC" "build/tmp/net_stage1_x64_linux"
   build_native_bin_src "./oren_stage2" "x64-linux" "$NET_SUITE_SRC" "build/tmp/net_stage2_x64_linux"
+  build_native_bin_src "./oren" "x64-linux" "$DNS_LOOPBACK_SRC" "build/tmp/dns_stage1_x64_linux"
+  build_native_bin_src "./oren_stage2" "x64-linux" "$DNS_LOOPBACK_SRC" "build/tmp/dns_stage2_x64_linux"
   build_native_bin_src "./oren" "x64-linux" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage1_x64_linux"
   build_native_bin_src "./oren_stage2" "x64-linux" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage2_x64_linux"
   build_native_bin_src "./oren" "x64-linux" "$WS_ECHO_SRC" "build/tmp/ws_stage1_x64_linux"
@@ -462,6 +482,8 @@ if has_target x64-wsl; then
 
   remote_upload "build/tmp/net_stage1_x64_linux" "net_stage1_x64_linux"
   remote_upload "build/tmp/net_stage2_x64_linux" "net_stage2_x64_linux"
+  remote_upload "build/tmp/dns_stage1_x64_linux" "dns_stage1_x64_linux"
+  remote_upload "build/tmp/dns_stage2_x64_linux" "dns_stage2_x64_linux"
   remote_upload "build/tmp/http_stage1_x64_linux" "http_stage1_x64_linux"
   remote_upload "build/tmp/http_stage2_x64_linux" "http_stage2_x64_linux"
   remote_upload "build/tmp/ws_stage1_x64_linux" "ws_stage1_x64_linux"
@@ -470,6 +492,8 @@ if has_target x64-wsl; then
   log "-- run: WSL2 (x64-linux) --"
   remote_run_wsl "net_stage1_x64_linux"
   remote_run_wsl "net_stage2_x64_linux"
+  remote_run_wsl "dns_stage1_x64_linux"
+  remote_run_wsl "dns_stage2_x64_linux"
   remote_run_wsl "http_stage1_x64_linux"
   remote_run_wsl "http_stage2_x64_linux"
   remote_run_wsl "ws_stage1_x64_linux"

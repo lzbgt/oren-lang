@@ -1,0 +1,321 @@
+// std/net/dns (rolling)
+//
+// Goal (v0):
+// - Provide a minimal DNS client substrate on top of `std:net/udp`.
+// - Keep it syscall-first and testable under loopback without external network access.
+//
+// Current scope:
+// - DNS over UDP
+// - A (IPv4) queries only
+// - Caller supplies server (ip, port) explicitly (no system resolver integration yet)
+//
+// This is a prerequisite for:
+// - HTTPS / WSS (TLS SNI + certificate validation needs hostname)
+// - Hostname URLs (HTTP client should not be IP-only forever)
+
+import udp "std:net/udp"
+import rand "std:crypto/rand"
+
+fn _u16be_get(p, off) {
+    var hi = ptr_get_byte(p + off) & 255
+    var lo = ptr_get_byte(p + off + 1) & 255
+    return (hi << 8) | lo
+}
+
+fn _u16be_set(p, off, v) {
+    ptr_set_byte(p + off + 0, (v >> 8) & 255)
+    ptr_set_byte(p + off + 1, v & 255)
+    return 0
+}
+
+fn _u32be_set(p, off, v) {
+    ptr_set_byte(p + off + 0, (v >> 24) & 255)
+    ptr_set_byte(p + off + 1, (v >> 16) & 255)
+    ptr_set_byte(p + off + 2, (v >> 8) & 255)
+    ptr_set_byte(p + off + 3, v & 255)
+    return 0
+}
+
+fn _ascii_lower(b) {
+    if b >= 65 && b <= 90 { return b + 32 } // A..Z -> a..z
+    return b
+}
+
+fn _write_qname(buf, cap, off, name) {
+    // Write DNS QNAME encoding (labels) for an ASCII hostname like "a.b.c".
+    // Returns {ok:1, off:<new_off>} or {ok:0, err:string}.
+    if name == nil { return {"ok": 0, "err": "dns.qname: name is nil"} }
+    var n = oren_string_len(name)
+    if n <= 0 { return {"ok": 0, "err": "dns.qname: empty name"} }
+
+    // Reject names that would obviously encode to an empty label (leading dot).
+    if (ptr_get_byte(name + 0) & 255) == 46 { // '.'
+        return {"ok": 0, "err": "dns.qname: leading dot"}
+    }
+
+    var label_start = 0
+    var i = 0
+    var out = off
+    // Iterate to n inclusive by treating i==n as '.' terminator.
+    while i <= n {
+        var b = 46
+        if i < n { b = ptr_get_byte(name + i) & 255 }
+        if b == 46 { // '.'
+            var label_len = i - label_start
+            if label_len == 0 {
+                // Trailing dot (FQDN) is allowed; consecutive dots are not.
+                if i == n { break }
+                return {"ok": 0, "err": "dns.qname: empty label"}
+            }
+            if label_len > 63 { return {"ok": 0, "err": "dns.qname: label too long"} }
+            if out + 1 + label_len + 1 > cap { return {"ok": 0, "err": "dns.qname: buffer too small"} }
+            ptr_set_byte(buf + out, label_len)
+            out = out + 1
+            var j = 0
+            while j < label_len {
+                ptr_set_byte(buf + out + j, ptr_get_byte(name + label_start + j))
+                j = j + 1
+            }
+            out = out + label_len
+            label_start = i + 1
+        } else {
+            // Only allow [a-zA-Z0-9-] for v0. (Enough for basic hostnames; IDNA is out of scope.)
+            var ok = 0
+            if b >= 48 && b <= 57 { ok = 1 } // 0..9
+            else if b >= 65 && b <= 90 { ok = 1 } // A..Z
+            else if b >= 97 && b <= 122 { ok = 1 } // a..z
+            else if b == 45 { ok = 1 } // '-'
+            if ok == 0 {
+                return {"ok": 0, "err": "dns.qname: invalid byte in name"}
+            }
+        }
+        i = i + 1
+    }
+
+    if out + 1 > cap { return {"ok": 0, "err": "dns.qname: buffer too small"} }
+    ptr_set_byte(buf + out, 0)
+    out = out + 1
+    return {"ok": 1, "off": out}
+}
+
+fn _skip_name(buf, len, off) {
+    // Skip a DNS NAME field at buf[off..], including compression pointers.
+    // Returns {ok:1, off:<new_off>} or {ok:0, err:string}.
+    var i = off
+    while 1 {
+        if i >= len { return {"ok": 0, "err": "dns.name: truncated"} }
+        var b = ptr_get_byte(buf + i) & 255
+        if b == 0 {
+            return {"ok": 1, "off": i + 1}
+        }
+        // Compression pointer: 11xxxxxx xxxxxxxx
+        if (b & 192) == 192 {
+            if i + 1 >= len { return {"ok": 0, "err": "dns.name: truncated pointer"} }
+            return {"ok": 1, "off": i + 2}
+        }
+        // Label
+        if b > 63 { return {"ok": 0, "err": "dns.name: invalid label length"} }
+        i = i + 1 + b
+    }
+}
+
+fn _write_u8_dec(out, off, v) {
+    // Write decimal for 0..255; return new off.
+    var x = v & 255
+    if x >= 100 {
+        ptr_set_byte(out + off + 0, 48 + (x / 100))
+        x = x % 100
+        ptr_set_byte(out + off + 1, 48 + (x / 10))
+        ptr_set_byte(out + off + 2, 48 + (x % 10))
+        return off + 3
+    }
+    if x >= 10 {
+        ptr_set_byte(out + off + 0, 48 + (x / 10))
+        ptr_set_byte(out + off + 1, 48 + (x % 10))
+        return off + 2
+    }
+    ptr_set_byte(out + off + 0, 48 + x)
+    return off + 1
+}
+
+fn _ipv4_to_string(b0, b1, b2, b3) {
+    // Max length: "255.255.255.255" = 15 + NUL
+    var out = malloc_k(16, 1)
+    if out == 0 { return 0 }
+    var off = 0
+    off = _write_u8_dec(out, off, b0)
+    ptr_set_byte(out + off, 46); off = off + 1
+    off = _write_u8_dec(out, off, b1)
+    ptr_set_byte(out + off, 46); off = off + 1
+    off = _write_u8_dec(out, off, b2)
+    ptr_set_byte(out + off, 46); off = off + 1
+    off = _write_u8_dec(out, off, b3)
+    ptr_set_byte(out + off, 0)
+    return out
+}
+
+fn _parse_response_a(buf, n, want_id) {
+    // Returns {ok:1, ip:string} or {ok:0, err:string}.
+    if buf == 0 { return {"ok": 0, "err": "dns.resp: buf is nil"} }
+    if n < 12 { return {"ok": 0, "err": "dns.resp: too short"} }
+
+    var id = _u16be_get(buf, 0)
+    if id != want_id { return {"ok": 0, "err": "dns.resp: id mismatch"} }
+
+    var flags = _u16be_get(buf, 2)
+    if (flags & 32768) == 0 { return {"ok": 0, "err": "dns.resp: not a response"} } // QR
+    var rcode = flags & 15
+    if rcode != 0 { return {"ok": 0, "err": "dns.resp: rcode=" + oren_int_to_string(rcode)} }
+
+    var qd = _u16be_get(buf, 4)
+    var an = _u16be_get(buf, 6)
+    if qd <= 0 { return {"ok": 0, "err": "dns.resp: no question"} }
+    if an <= 0 { return {"ok": 0, "err": "dns.resp: no answers"} }
+
+    var off = 12
+    var qi = 0
+    while qi < qd {
+        var sk = _skip_name(buf, n, off)
+        if sk["ok"] != 1 { return {"ok": 0, "err": "dns.resp: bad question name: " + sk["err"]} }
+        off = sk["off"]
+        if off + 4 > n { return {"ok": 0, "err": "dns.resp: truncated question"} }
+        off = off + 4 // QTYPE + QCLASS
+        qi = qi + 1
+    }
+
+    var ai = 0
+    while ai < an {
+        var sk2 = _skip_name(buf, n, off)
+        if sk2["ok"] != 1 { return {"ok": 0, "err": "dns.resp: bad answer name: " + sk2["err"]} }
+        off = sk2["off"]
+        if off + 10 > n { return {"ok": 0, "err": "dns.resp: truncated answer header"} }
+
+        var typ = _u16be_get(buf, off + 0)
+        var cls = _u16be_get(buf, off + 2)
+        // ttl at +4 (ignored)
+        var rdlen = _u16be_get(buf, off + 8)
+        off = off + 10
+        if off + rdlen > n { return {"ok": 0, "err": "dns.resp: truncated rdata"} }
+
+        if typ == 1 && cls == 1 && rdlen == 4 {
+            var b0 = ptr_get_byte(buf + off + 0) & 255
+            var b1 = ptr_get_byte(buf + off + 1) & 255
+            var b2 = ptr_get_byte(buf + off + 2) & 255
+            var b3 = ptr_get_byte(buf + off + 3) & 255
+            return {"ok": 1, "ip": _ipv4_to_string(b0, b1, b2, b3)}
+        }
+
+        off = off + rdlen
+        ai = ai + 1
+    }
+
+    return {"ok": 0, "err": "dns.resp: no A record found"}
+}
+
+fn query_a(name, server_ip, server_port, timeout_ms) {
+    // Query a DNS server for an A record.
+    //
+    // Returns:
+    // - {"ok":1, "ip": "<ipv4>"} on success
+    // - {"ok":0, "err": "..."} on failure
+    //
+    // Notes:
+    // - Caller supplies server explicitly (no /etc/resolv.conf integration yet).
+    // - Uses an ephemeral UDP socket per query (simplest correct behavior for now).
+    if timeout_ms == nil { timeout_ms = 2000 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+    if server_ip == nil { return {"ok": 0, "err": "dns.query_a: server_ip is nil"} }
+    if server_port == nil || server_port <= 0 || server_port > 65535 {
+        return {"ok": 0, "err": "dns.query_a: invalid server_port"}
+    }
+
+    var cap = 512
+    var q = malloc(cap)
+    if q == 0 { return {"ok": 0, "err": "dns.query_a: malloc failed"} }
+
+    // Fill transaction ID with OS entropy (2 bytes).
+    var rc = rand.fill(q, 2)
+    if rc < 0 {
+        free(q)
+        return {"ok": 0, "err": "dns.query_a: rand.fill failed (errno=" + oren_int_to_string(0 - rc) + ")"}
+    }
+    var id = _u16be_get(q, 0)
+
+    // Header:
+    // - flags: 0x0100 recursion desired
+    // - qdcount: 1
+    _u16be_set(q, 2, 256)
+    _u16be_set(q, 4, 1)
+    _u16be_set(q, 6, 0)
+    _u16be_set(q, 8, 0)
+    _u16be_set(q, 10, 0)
+
+    var off = 12
+    var w = _write_qname(q, cap, off, name)
+    if w["ok"] != 1 {
+        free(q)
+        return {"ok": 0, "err": "dns.query_a: " + w["err"]}
+    }
+    off = w["off"]
+    if off + 4 > cap {
+        free(q)
+        return {"ok": 0, "err": "dns.query_a: buffer too small (question)"}
+    }
+    // QTYPE=A, QCLASS=IN
+    _u16be_set(q, off + 0, 1)
+    _u16be_set(q, off + 2, 1)
+    off = off + 4
+
+    var qlen = off
+
+    var fd = udp.bind_local(0)
+    if fd < 0 {
+        free(q)
+        return {"ok": 0, "err": "dns.query_a: udp.bind_local failed (errno=" + oren_int_to_string(0 - fd) + ")"}
+    }
+
+    var wn = udp.send_to(fd, server_ip, server_port, q, qlen, timeout_ms)
+    free(q)
+    if wn < 0 {
+        udp.close(fd)
+        return {"ok": 0, "err": "dns.query_a: send failed (errno=" + oren_int_to_string(0 - wn) + ")"}
+    }
+    if wn != qlen {
+        udp.close(fd)
+        return {"ok": 0, "err": "dns.query_a: short send"}
+    }
+
+    var rbuf = malloc(cap)
+    if rbuf == 0 {
+        udp.close(fd)
+        return {"ok": 0, "err": "dns.query_a: malloc recv failed"}
+    }
+    var sa = malloc(16)
+    if sa == 0 {
+        free(rbuf)
+        udp.close(fd)
+        return {"ok": 0, "err": "dns.query_a: malloc addr failed"}
+    }
+    var lenp = malloc(8)
+    if lenp == 0 {
+        free(rbuf)
+        free(sa)
+        udp.close(fd)
+        return {"ok": 0, "err": "dns.query_a: malloc addr len failed"}
+    }
+    ptr_set(lenp, 16)
+
+    var rn = udp.recv_from_into(fd, rbuf, cap, timeout_ms, sa, lenp)
+    udp.close(fd)
+    free(sa)
+    free(lenp)
+    if rn < 0 {
+        free(rbuf)
+        return {"ok": 0, "err": "dns.query_a: recv failed (errno=" + oren_int_to_string(0 - rn) + ")"}
+    }
+
+    var out = _parse_response_a(rbuf, rn, id)
+    free(rbuf)
+    return out
+}
+
