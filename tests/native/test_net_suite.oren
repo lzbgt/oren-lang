@@ -358,25 +358,48 @@ fn test_udp_loopback() {
 
     var sfd = udp.bind_local(0)
     if sfd < 0 { fail(1102) }
+    var sport = udp.sockname_port(sfd)
+    if sport <= 0 { fail(1103) }
 
     var outb = malloc(4)
-    if outb == 0 { fail(1103) }
+    if outb == 0 { fail(1104) }
     fill5(outb, 112, 105, 110, 103, 0) // "ping" + NUL (we only send 4 bytes)
     var wn = udp.send_to(sfd, "127.0.0.1", rport, outb, 4, 2000)
-    if wn != 4 { fail(1104) }
+    if wn != 4 { fail(1105) }
 
     var inb = malloc(4)
-    if inb == 0 { fail(1105) }
-    var rn = udp.recv_into(rfd, inb, 4, 2000)
-    if rn != 4 { fail(1106) }
-    if ptr_get_byte(inb + 0) != 112 { fail(1107) } // p
-    if ptr_get_byte(inb + 1) != 105 { fail(1108) } // i
-    if ptr_get_byte(inb + 2) != 110 { fail(1109) } // n
-    if ptr_get_byte(inb + 3) != 103 { fail(1110) } // g
+    if inb == 0 { fail(1106) }
+
+    // Also validate the source address from recvfrom.
+    var sa = malloc(16)
+    if sa == 0 { fail(1107) }
+    var lenp = malloc(8)
+    if lenp == 0 { fail(1108) }
+    ptr_set(lenp, 16)
+
+    var rn = udp.recv_from_into(rfd, inb, 4, 2000, sa, lenp)
+    if rn != 4 { fail(1109) }
+    if ptr_get_byte(inb + 0) != 112 { fail(1110) } // p
+    if ptr_get_byte(inb + 1) != 105 { fail(1111) } // i
+    if ptr_get_byte(inb + 2) != 110 { fail(1112) } // n
+    if ptr_get_byte(inb + 3) != 103 { fail(1113) } // g
+
+    // sockaddr_in layout differs by OS:
+    // - macOS/BSD: [0]=len, [1]=family (AF_INET)
+    // - Linux/Windows: [0]=family (u16 LE), [1]=0
+    var fam = ptr_get_byte(sa + 1)
+    if fam != OREN_AF_INET {
+        if ptr_get_byte(sa + 0) != OREN_AF_INET { fail(1114) }
+    }
+    if ipv4_eq(sa, 4, 127, 0, 0, 1) == 0 { fail(1115) }
+    if u16be_at(sa, 2) != sport { fail(1116) }
+
+    free(sa)
+    free(lenp)
 
     // Ensure timeouts are enforced on empty reads.
     var rn2 = udp.recv_into(rfd, inb, 4, 10)
-    if rn2 != 0 - 60 { fail(1111) } // ETIMEDOUT
+    if rn2 != 0 - 60 { fail(1117) } // ETIMEDOUT
 
     udp.close(sfd)
     udp.close(rfd)

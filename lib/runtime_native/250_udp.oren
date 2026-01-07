@@ -150,6 +150,56 @@ fn oren_udp_recvfrom_into(fd, buf, len, timeout_ms) {
 }
 
 @cap.requires(domain="NET")
+fn oren_udp_recvfrom_into_with_addr(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
+    // Like `oren_udp_recvfrom_into`, but also captures the remote sockaddr.
+    //
+    // - `sa_out` must point to at least 16 bytes (sockaddr_in)
+    // - `sa_lenp` must point to at least 4 bytes (socklen_t/int); it will be set to 16 before recv.
+    //
+    // Return:
+    // - bytes read (>=0) on success
+    // - negative errno on failure
+    native_capsule_require(CAP_NET, "NET")
+    if len <= 0 { return 0 }
+    if sa_out == 0 { return 0 - 22 } // EINVAL
+    if sa_lenp == 0 { return 0 - 22 } // EINVAL
+
+    var deadline_ns = 0
+    if timeout_ms > 0 {
+        var t0 = oren_time_unix_ns()
+        if t0 != 0 {
+            deadline_ns = t0 + timeout_ms * 1000000
+        }
+    }
+
+    // Always treat as sockaddr_in for the syscall-first Tier‑1 surface.
+    // Caller may reuse `sa_out`/`sa_lenp` across calls.
+    ptr_set(sa_lenp, 16)
+
+    while 1 {
+        var rem_ms = timeout_ms
+        if deadline_ns != 0 {
+            var now = oren_time_unix_ns()
+            if now != 0 {
+                var rem_ns = deadline_ns - now
+                if rem_ns <= 0 { return 0 - 60 } // ETIMEDOUT
+                rem_ms = rem_ns / 1000000
+                if rem_ms < 0 { rem_ms = 0 }
+            }
+        }
+
+        var n = oren_fd_wait_readable(fd, rem_ms)
+        if n == 0 { return 0 - 60 } // ETIMEDOUT
+        if n < 0 { return n }
+
+        ptr_set(sa_lenp, 16)
+        var r = sys_recvfrom(fd, buf, len, 0, sa_out, sa_lenp)
+        if r == 0 - 35 || r == 0 - 11 { continue } // EAGAIN/EWOULDBLOCK
+        return r
+    }
+}
+
+@cap.requires(domain="NET")
 fn oren_udp_close(fd) {
     native_capsule_require(CAP_NET, "NET")
     if fd < 0 { return 0 }

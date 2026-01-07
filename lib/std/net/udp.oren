@@ -39,6 +39,17 @@ fn recv_into(fd, buf, len, timeout_ms) {
     return oren_udp_recvfrom_into(fd, buf, len, timeout_ms)
 }
 
+fn recv_from_into(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
+    // Receive a datagram into buf and also fill `sa_out` with the remote sockaddr_in.
+    //
+    // Inputs:
+    // - `sa_out`: pointer to at least 16 bytes (sockaddr_in)
+    // - `sa_lenp`: pointer to socklen_t/int (>=4 bytes). This function (and the runtime) will set it to 16.
+    //
+    // Returns bytes read (>=0), or -errno.
+    return oren_udp_recvfrom_into_with_addr(fd, buf, len, timeout_ms, sa_out, sa_lenp)
+}
+
 fn close(fd) {
     return oren_udp_close(fd)
 }
