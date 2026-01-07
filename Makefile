@@ -159,10 +159,12 @@ endif
 # Stage0 (Go bootstrap) uses the C backend to build stage1.
 # - On Windows hosts, prefer MSVC `cl.exe` for stage1 bring-up (rolling goal).
 OREN_BOOTSTRAP_CC ?=
-ifeq ($(HOST_IS_WINDOWS),1)
-  OREN_BOOTSTRAP_CC ?= cl
-else
-  OREN_BOOTSTRAP_CC ?= $(CC)
+ifeq ($(strip $(OREN_BOOTSTRAP_CC)),)
+  ifeq ($(HOST_IS_WINDOWS),1)
+    OREN_BOOTSTRAP_CC := cl
+  else
+    OREN_BOOTSTRAP_CC := $(CC)
+  endif
 endif
 BOOTSTRAP_CC_ARG :=
 ifneq ($(strip $(OREN_BOOTSTRAP_CC)),)
@@ -173,12 +175,14 @@ endif
 # The stage0 bootstrap compiler defaults to `--target macos`, so make should explicitly
 # set `--target` on non-macOS hosts to keep bootstrap behavior predictable.
 OREN_BOOTSTRAP_TARGET ?=
-ifeq ($(UNAME_S),Darwin)
-  OREN_BOOTSTRAP_TARGET ?= macos
-else ifeq ($(UNAME_S),Linux)
-  OREN_BOOTSTRAP_TARGET ?= linux
-else ifeq ($(HOST_IS_WINDOWS),1)
-  OREN_BOOTSTRAP_TARGET ?= windows
+ifeq ($(strip $(OREN_BOOTSTRAP_TARGET)),)
+  ifeq ($(UNAME_S),Darwin)
+    OREN_BOOTSTRAP_TARGET := macos
+  else ifeq ($(UNAME_S),Linux)
+    OREN_BOOTSTRAP_TARGET := linux
+  else ifeq ($(HOST_IS_WINDOWS),1)
+    OREN_BOOTSTRAP_TARGET := windows
+  endif
 endif
 BOOTSTRAP_TARGET_ARG :=
 ifneq ($(strip $(OREN_BOOTSTRAP_TARGET)),)

@@ -2,13 +2,17 @@
 //
 // Current scope (rolling, syscall-first):
 // - HTTP/1.1 over plain TCP (no TLS yet)
-// - IP-only URLs (no DNS yet)
+// - IPv4 literal URLs (no DNS needed)
+// - Hostname URLs via DNS A lookup:
+//   - either pass an explicit resolver config (`http.get_text_resolver`)
+//   - or rely on `dns.default_resolver` (env `OREN_DNS_SERVER`, else `/etc/resolv.conf` on POSIX)
 // - Content-Length and Transfer-Encoding: chunked bodies
 //
 // The goal is to provide a stable module path for native Oren libraries to build on
 // while we iterate toward a full production NET stack (HTTP/2 + WebSocket + TLS + DNS).
 
 import tcp "std:net/tcp"
+import dns "std:net/dns"
 
 fn _starts_with(s, prefix) {
     if s == nil || prefix == nil { return 0 }
@@ -25,7 +29,9 @@ fn _starts_with(s, prefix) {
 
 fn _parse_http_url(url) {
     // Supported:
-    //   http://<ipv4>[:port][/path]
+    //   http://<host>[:port][/path]
+    //
+    // Where <host> can be an IPv4 literal or a hostname (resolved separately).
     //
     // Returns {ok:1, host:string, port:int, path:string} or {ok:0, err:string}.
     if url == nil { return {"ok": 0, "err": "url is nil"} }
@@ -61,16 +67,32 @@ fn _parse_http_url(url) {
     var port = 80
     if colon != -1 {
         var port_s = oren_string_slice(url, colon + 1, slash)
-        if port_s == 0 { return {"ok": 0, "err": "port slice failed"} }
+        if port_s == 0 {
+            free(host)
+            return {"ok": 0, "err": "port slice failed"}
+        }
         var pv = oren_int_from_string(port_s)
-        if pv <= 0 { return {"ok": 0, "err": "invalid port"} }
+        free(port_s)
+        if pv <= 0 {
+            free(host)
+            return {"ok": 0, "err": "invalid port"}
+        }
         port = pv
     }
 
-    var path = "/"
+    // Always allocate `path` so callers can safely `free(...)` without worrying about string literals.
+    var path = oren_string_slice("/", 0, 1)
+    if path == 0 {
+        free(host)
+        return {"ok": 0, "err": "path slice failed"}
+    }
     if slash < ul {
+        free(path)
         path = oren_string_slice(url, slash, ul)
-        if path == 0 { return {"ok": 0, "err": "path slice failed"} }
+        if path == 0 {
+            free(host)
+            return {"ok": 0, "err": "path slice failed"}
+        }
     }
 
     return {"ok": 1, "host": host, "port": port, "path": path}
@@ -82,6 +104,54 @@ fn _build_get_request(host, path) {
     // Prefer `+` for string concatenation (native backend lowers to `oren_add`).
     // This avoids manual lifetime management of intermediate concat results.
     return "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\nConnection: close\r\n\r\n"
+}
+
+fn _looks_like_ipv4(host) {
+    // Conservative "is this probably an IPv4 literal?" check.
+    // (We keep it cheap; `tcp.connect` still validates.)
+    if host == nil { return 0 }
+    var n = oren_string_len(host)
+    if n <= 0 || n > 15 { return 0 }
+    var dots = 0
+    var i = 0
+    while i < n {
+        var b = ptr_get_byte(host + i) & 255
+        if b == 46 {
+            dots = dots + 1
+        } else if b < 48 || b > 57 {
+            return 0
+        }
+        i = i + 1
+    }
+    if dots != 3 { return 0 }
+    return 1
+}
+
+fn _resolve_host_ipv4(host, timeout_ms, resolver) {
+    // Returns:
+    // - {"ok":1, "ip": string, "owned":0|1} (owned=1 => caller must free(ip))
+    // - {"ok":0, "err": string}
+    if host == nil { return {"ok": 0, "err": "http: host is nil"} }
+    if _looks_like_ipv4(host) == 1 { return {"ok": 1, "ip": host, "owned": 0} }
+
+    var r0 = 0
+    if resolver != nil {
+        r0 = dns.resolve_a(resolver, host)
+    } else {
+        var dr = dns.default_resolver(timeout_ms)
+        if dr["ok"] != 1 {
+            return {"ok": 0, "err": "http: hostname requires DNS (set OREN_DNS_SERVER or pass resolver): " + dr["err"]}
+        }
+        var rconf = dr["resolver"]
+        r0 = dns.resolve_a(rconf, host)
+        // Avoid leaking env/resolv.conf strings on one-shot resolver usage.
+        dns.resolver_free(rconf)
+    }
+
+    if r0["ok"] != 1 { return {"ok": 0, "err": "http: dns failed: " + r0["err"]} }
+    var ip = r0["ip"]
+    if ip == 0 { return {"ok": 0, "err": "http: dns returned nil ip"} }
+    return {"ok": 1, "ip": ip, "owned": 1}
 }
 
 fn _find_header_body_split(buf, used) {
@@ -221,13 +291,15 @@ fn _decode_chunked_into_string(body_ptr, body_len) {
     return 0
 }
 
-fn get_text(url, timeout_ms) {
+fn get_text_resolver(url, timeout_ms, resolver) {
     // Returns:
     //   {"ok":1,"v":string} on success
     //   {"ok":0,"err":string} on failure
     //
     // v0 constraints:
-    // - no TLS/DNS
+    // - no TLS
+    // - DNS hostname resolution is IPv4-only (A records) and can be supplied explicitly via `resolver`
+    //   to keep tests loopback-only and deterministic.
     // - connection-close only (no keep-alive pooling yet)
     if timeout_ms == nil { timeout_ms = 5000 }
 
@@ -238,10 +310,27 @@ fn get_text(url, timeout_ms) {
     var port = pu["port"]
     var path = pu["path"]
 
-    var fd = tcp.connect(host, port, timeout_ms)
-    if fd < 0 { return {"ok": 0, "err": "http.get_text: connect failed (errno=" + oren_int_to_string(0 - fd) + ")"} }
+    // Resolve host if it is not a literal IPv4 string.
+    var rh = _resolve_host_ipv4(host, timeout_ms, resolver)
+    if rh["ok"] != 1 {
+        free(host)
+        free(path)
+        return {"ok": 0, "err": "http.get_text: " + rh["err"]}
+    }
+    var ip = rh["ip"]
+    var owned_ip = rh["owned"]
+
+    var fd = tcp.connect(ip, port, timeout_ms)
+    if owned_ip == 1 { free(ip) }
+    if fd < 0 {
+        free(host)
+        free(path)
+        return {"ok": 0, "err": "http.get_text: connect failed (errno=" + oren_int_to_string(0 - fd) + ")"}
+    }
 
     var req = _build_get_request(host, path)
+    free(host)
+    free(path)
     if req == 0 {
         tcp.close(fd)
         return {"ok": 0, "err": "http.get_text: request build failed"}
@@ -422,6 +511,13 @@ fn get_text(url, timeout_ms) {
     ptr_set_byte(out + body_len, 0)
     free(buf)
     return {"ok": 1, "v": out}
+}
+
+fn get_text(url, timeout_ms) {
+    // Default behavior:
+    // - IPv4 literal hosts work without DNS
+    // - hostname hosts use `dns.default_resolver` (env `OREN_DNS_SERVER` or `/etc/resolv.conf`)
+    return get_text_resolver(url, timeout_ms, 0)
 }
 
 fn get(url) {

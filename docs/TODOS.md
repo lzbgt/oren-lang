@@ -132,27 +132,32 @@ References:
    - Active gaps (keep this list forward-looking; details live in `docs/TODOS_ARCHIVE.md`):
      - Build system parity (Windows host):
        - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
+       - Done: Windows-host bootstrap defaults now reliably select MSVC `cl.exe` when `OREN_BOOTSTRAP_CC` is not set (fixes `make test` / `make stage1` under Git Bash/MSYS2).
        - Intent: `make`, `make test`, `make stage2`, `make verify-native-quick` should work under MSYS2/Git Bash/Cygwin (stage0 still uses MSVC `cl.exe`, auto-configured by stage0; see `docs/REMOTE_X64_ENV.md`).
-		     - NET stdlib maturity:
-		       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IP-only; no TLS/DNS/keep-alive pooling yet).
-		       - Done: portable `SO_KEEPALIVE` + `std:net/tcp.set_keepalive(fd, enable)` (syscall-first; translated across Darwin/Linux/Windows).
-		         - Regression: `tests/native/test_net_suite.oren` now asserts `sys_setsockopt(... SO_KEEPALIVE ...)` succeeds (covered by `./scripts/verify_native_net_matrix.sh`).
-		       - Done: UDP `recvfrom` can capture the source sockaddr (src ip/port) via `oren_udp_recvfrom_into_with_addr`.
-		         - Regression: `tests/native/test_net_suite.oren` `test_udp_loopback` asserts the source port matches the sender’s bound port (covered by `./scripts/verify_native_net_matrix.sh`).
-			       - Done: TCP `TCP_NODELAY` exposed as `OREN_TCP_NODELAY` + `std:net/tcp.set_nodelay(fd, enable)`.
-			         - Regression: `tests/native/test_net_suite.oren` asserts `sys_setsockopt(level=IPPROTO_TCP, optname=TCP_NODELAY)` succeeds (covered by `./scripts/verify_native_net_matrix.sh`).
-			       - Done: DNS v0 loopback A-query client (`std:net/dns.query_a`) (server supplied explicitly; no system resolver yet).
-			         - Regression: `tests/native/test_dns_loopback.oren` (stage1 + stage2; all Tier‑1 via `./scripts/verify_native_net_matrix.sh`).
-			       - Next: structured HTTP client/server surface (headers map + status + streaming body), then production WebSocket:
-			         - fragmentation + binary frames + streaming recv API
-			         - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + system resolver (DNS from /etc/resolv.conf + Windows DNS APIs) + AAAA
-	     - Native FFI / dynamic linking parity (rolling):
-	       - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
-	       - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).
-	     - Conditional compilation for cross-platform stdlib (rolling):
-	       - Done: `@cfg(...)` (canonical `@oren.cfg`) filters declarations by target `--platform` (`os`/`arch`/`platform` selectors).
-	       - Regression: `tests/native/cfg_os_select.oren` is compiled in `scripts/verify_native_x64_compile_only.sh` (stage1 + stage2; x64-linux + x64-windows).
-	       - Implementation note: use byte-wise string equality in compiler passes (see `docs/IMPLEMENTATION_NOTES.md` section 9) so behavior matches in stage1 (C runtime) and stage2 (native runtime).
+     - NET stdlib maturity:
+       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IPv4-only; no TLS/keep-alive pooling yet).
+         - Hostname URLs are supported via DNS A lookup (explicit resolver injection; best-effort system default on POSIX only).
+       - Done: portable `SO_KEEPALIVE` + `std:net/tcp.set_keepalive(fd, enable)` (syscall-first; translated across Darwin/Linux/Windows).
+         - Regression: `tests/native/test_net_suite.oren` now asserts `sys_setsockopt(... SO_KEEPALIVE ...)` succeeds (covered by `./scripts/verify_native_net_matrix.sh`).
+       - Done: UDP `recvfrom` can capture the source sockaddr (src ip/port) via `oren_udp_recvfrom_into_with_addr`.
+         - Regression: `tests/native/test_net_suite.oren` `test_udp_loopback` asserts the source port matches the sender’s bound port (covered by `./scripts/verify_native_net_matrix.sh`).
+       - Done: TCP `TCP_NODELAY` exposed as `OREN_TCP_NODELAY` + `std:net/tcp.set_nodelay(fd, enable)`.
+         - Regression: `tests/native/test_net_suite.oren` asserts `sys_setsockopt(level=IPPROTO_TCP, optname=TCP_NODELAY)` succeeds (covered by `./scripts/verify_native_net_matrix.sh`).
+       - Done: DNS v0 loopback A-query client (`std:net/dns.query_a`) + best-effort default resolver selection on POSIX.
+         - Default resolver selection: `dns.default_resolver` reads `OREN_DNS_SERVER`, else parses `/etc/resolv.conf` (IPv4 only; no Windows resolver yet).
+         - HTTP hostname support: `http.get_text_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
+         - Regression: `tests/native/test_dns_loopback.oren` (stage1 + stage2; all Tier‑1 via `./scripts/verify_native_net_matrix.sh`).
+         - Regression: `tests/native/test_http_get_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
+       - Next: structured HTTP client/server surface (headers map + status + streaming body), then production WebSocket:
+         - fragmentation + binary frames + streaming recv API
+         - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + system resolver (Windows DNS APIs + AAAA; POSIX `resolv.conf` AAAA support)
+     - Native FFI / dynamic linking parity (rolling):
+       - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
+       - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).
+     - Conditional compilation for cross-platform stdlib (rolling):
+       - Done: `@cfg(...)` (canonical `@oren.cfg`) filters declarations by target `--platform` (`os`/`arch`/`platform` selectors).
+       - Regression: `tests/native/cfg_os_select.oren` is compiled in `scripts/verify_native_x64_compile_only.sh` (stage1 + stage2; x64-linux + x64-windows).
+       - Implementation note: use byte-wise string equality in compiler passes (see `docs/IMPLEMENTATION_NOTES.md` section 9) so behavior matches in stage1 (C runtime) and stage2 (native runtime).
      - Shared library output parity (native `--lib`/`--shared`):
        - Remaining: x86_64 ELF `.so` and x86_64 Windows `.dll` emission (exports + metadata/header hooks).
      - Concurrency substrate convergence:

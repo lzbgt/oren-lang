@@ -7,7 +7,10 @@
 // Current scope:
 // - DNS over UDP
 // - A (IPv4) queries only
-// - Caller supplies server (ip, port) explicitly (no system resolver integration yet)
+// - Caller can supply server (ip, port) explicitly
+// - Best-effort "default resolver" for hostname URLs:
+//   - reads `OREN_DNS_SERVER` env var, else
+//   - parses `/etc/resolv.conf` (first `nameserver <ipv4>`)
 //
 // This is a prerequisite for:
 // - HTTPS / WSS (TLS SNI + certificate validation needs hostname)
@@ -15,6 +18,180 @@
 
 import udp "std:net/udp"
 import rand "std:crypto/rand"
+
+// --- Resolver helpers (small stable surface) ---
+
+fn resolver(server_ip, server_port, timeout_ms) {
+    // Return a small resolver config object (map).
+    //
+    // Fields:
+    // - server_ip (string)
+    // - server_port (int)
+    // - timeout_ms (int)
+    if timeout_ms == nil { timeout_ms = 2000 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+    if server_port == nil || server_port <= 0 || server_port > 65535 {
+        server_port = 53
+    }
+    return {
+        "server_ip": server_ip,
+        "server_port": server_port,
+        "timeout_ms": timeout_ms,
+        // Ownership model (rolling):
+        // - If `server_ip_owned==1`, the resolver "owns" server_ip and the caller should free it via `dns.resolver_free`.
+        // - Default is 0 for manually-constructed resolvers (string literals, stable buffers, etc).
+        "server_ip_owned": 0,
+    }
+}
+
+fn resolve_a(res, name) {
+    // Resolve an A record using a resolver config map returned by `dns.resolver(...)`.
+    //
+    // Returns the same shape as `dns.query_a`:
+    // - {"ok":1, "ip": "<ipv4>"} on success
+    // - {"ok":0, "err": "..."} on failure
+    if res == nil { return {"ok": 0, "err": "dns.resolve_a: resolver is nil"} }
+    var ip = res["server_ip"]
+    var port = res["server_port"]
+    var timeout_ms = res["timeout_ms"]
+    return query_a(name, ip, port, timeout_ms)
+}
+
+fn resolver_free(res) {
+    // Free any owned resources inside a resolver map returned by `dns.resolver` / `dns.default_resolver`.
+    //
+    // This does NOT free the map itself (maps are runtime-managed); it only frees the owned strings.
+    if res == nil { return 0 }
+    if res["server_ip_owned"] == 1 {
+        var ip = res["server_ip"]
+        if ip != 0 { free(ip) }
+        res["server_ip"] = 0
+        res["server_ip_owned"] = 0
+    }
+    return 0
+}
+
+fn _ascii_lower(b) {
+    if b >= 65 && b <= 90 { return b + 32 } // A..Z -> a..z
+    return b
+}
+
+fn _is_space(b) {
+    return b == 32 || b == 9
+}
+
+fn _is_eol(b) {
+    return b == 10 || b == 13
+}
+
+fn _find_nameserver_ipv4_in_resolv_conf(s) {
+    // Return an IPv4 string (malloc'd) or 0.
+    if s == 0 { return 0 }
+    var n = oren_string_len(s)
+    var i = 0
+    while i < n {
+        // Skip leading whitespace.
+        while i < n && _is_space(ptr_get_byte(s + i) & 255) { i = i + 1 }
+        if i >= n { break }
+
+        var b0 = ptr_get_byte(s + i) & 255
+        // Comment or empty line.
+        if b0 == 35 || b0 == 59 { // '#' or ';'
+            while i < n && _is_eol(ptr_get_byte(s + i) & 255) == 0 { i = i + 1 }
+            while i < n && _is_eol(ptr_get_byte(s + i) & 255) == 1 { i = i + 1 }
+            continue
+        }
+        if _is_eol(b0) {
+            i = i + 1
+            continue
+        }
+
+        // Match "nameserver" (case-insensitive ASCII).
+        // Length = 10.
+        if i + 10 <= n {
+            var ok = 1
+            // Compare bytes with ascii-lower.
+            var j = 0
+            while j < 10 {
+                var bj = ptr_get_byte(s + i + j) & 255
+                if _ascii_lower(bj) != ptr_get_byte("nameserver" + j) {
+                    ok = 0
+                    break
+                }
+                j = j + 1
+            }
+            if ok == 1 {
+                // Require whitespace after directive.
+                if i + 10 < n && _is_space(ptr_get_byte(s + i + 10) & 255) == 1 {
+                    i = i + 10
+                    while i < n && _is_space(ptr_get_byte(s + i) & 255) { i = i + 1 }
+                    var start = i
+                    while i < n {
+                        var b = ptr_get_byte(s + i) & 255
+                        if _is_space(b) || _is_eol(b) || b == 35 || b == 59 { break } // ws/eol/comment
+                        i = i + 1
+                    }
+                    var end = i
+                    if end > start {
+                        var tok = oren_string_slice(s, start, end)
+                        if tok != 0 {
+                            // v0: ignore IPv6 nameservers.
+                            var tl = oren_string_len(tok)
+                            var k = 0
+                            var has_colon = 0
+                            while k < tl {
+                                if (ptr_get_byte(tok + k) & 255) == 58 { has_colon = 1; break } // ':'
+                                k = k + 1
+                            }
+                            if has_colon == 0 { return tok }
+                            free(tok)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Skip to next line.
+        while i < n && _is_eol(ptr_get_byte(s + i) & 255) == 0 { i = i + 1 }
+        while i < n && _is_eol(ptr_get_byte(s + i) & 255) == 1 { i = i + 1 }
+    }
+    return 0
+}
+
+fn default_resolver(timeout_ms) {
+    // Best-effort resolver selection for hostname URLs.
+    //
+    // Source order:
+    // 1) `OREN_DNS_SERVER` env var (value is an IPv4 string)
+    // 2) `/etc/resolv.conf` first `nameserver <ipv4>`
+    //
+    // Returns:
+    // - {"ok":1, "resolver": <map>, "src": "env"|"resolv.conf"} on success
+    // - {"ok":0, "err": "..."} on failure
+    if timeout_ms == nil { timeout_ms = 2000 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+
+    var env_ip = oren_env("OREN_DNS_SERVER")
+    if env_ip != 0 {
+        var r = resolver(env_ip, 53, timeout_ms)
+        r["server_ip_owned"] = 1
+        return {"ok": 1, "resolver": r, "src": "env"}
+    }
+
+    var rc = oren_read_file("/etc/resolv.conf")
+    if oren_is_err(rc) {
+        return {"ok": 0, "err": "dns.default_resolver: missing OREN_DNS_SERVER and cannot read /etc/resolv.conf"}
+    }
+
+    var ip = _find_nameserver_ipv4_in_resolv_conf(rc)
+    free(rc)
+    if ip == 0 {
+        return {"ok": 0, "err": "dns.default_resolver: no IPv4 nameserver found (set OREN_DNS_SERVER=...)"}
+    }
+    var r2 = resolver(ip, 53, timeout_ms)
+    r2["server_ip_owned"] = 1
+    return {"ok": 1, "resolver": r2, "src": "resolv.conf"}
+}
 
 fn _u16be_get(p, off) {
     var hi = ptr_get_byte(p + off) & 255
@@ -34,11 +211,6 @@ fn _u32be_set(p, off, v) {
     ptr_set_byte(p + off + 2, (v >> 8) & 255)
     ptr_set_byte(p + off + 3, v & 255)
     return 0
-}
-
-fn _ascii_lower(b) {
-    if b >= 65 && b <= 90 { return b + 32 } // A..Z -> a..z
-    return b
 }
 
 fn _write_qname(buf, cap, off, name) {
@@ -220,7 +392,8 @@ fn query_a(name, server_ip, server_port, timeout_ms) {
     // - {"ok":0, "err": "..."} on failure
     //
     // Notes:
-    // - Caller supplies server explicitly (no /etc/resolv.conf integration yet).
+    // - `dns.query_a` always takes a server explicitly. Use `dns.default_resolver` if you want a best-effort
+    //   system resolver selection (env `OREN_DNS_SERVER`, else `/etc/resolv.conf` on POSIX).
     // - Uses an ephemeral UDP socket per query (simplest correct behavior for now).
     if timeout_ms == nil { timeout_ms = 2000 }
     if timeout_ms < 0 { timeout_ms = 0 }
@@ -318,4 +491,3 @@ fn query_a(name, server_ip, server_port, timeout_ms) {
     free(rbuf)
     return out
 }
-

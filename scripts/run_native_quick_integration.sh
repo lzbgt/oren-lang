@@ -6,8 +6,14 @@ test_src="tests/native/test_quick_integration_native.oren"
 
 timeout_bin="$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || echo "")"
 timeout_kill_secs="${OREN_TIMEOUT_KILL_SECS:-2}"
-build_timeout_secs="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
-run_timeout_secs="${OREN_NATIVE_RUN_TIMEOUT_SECS:-5}"
+build_timeout_secs=10
+run_timeout_secs=5
+if [[ -n "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
+  build_timeout_secs="${OREN_NATIVE_BUILD_TIMEOUT_SECS}"
+fi
+if [[ -n "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
+  run_timeout_secs="${OREN_NATIVE_RUN_TIMEOUT_SECS}"
+fi
 
 run_with_timeout() {
   local secs="$1"
@@ -45,6 +51,14 @@ compiler_base="$(basename "$compiler")"
 exe_ext=""
 if [[ "$os_key" == "windows" ]]; then
   exe_ext=".exe"
+  # First-run native builds can be slower on Windows due to cold runtime caches.
+  # Keep a hang guard but allow more headroom by default on Windows hosts.
+  if [[ -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
+    build_timeout_secs=30
+  fi
+  if [[ -z "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
+    run_timeout_secs=10
+  fi
 fi
 out="build/tmp/${compiler_base}_native_quick_integration${exe_ext}"
 log="build/logs/${compiler_base}_native_quick_integration.log"

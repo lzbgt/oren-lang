@@ -1,9 +1,149 @@
 import http "../../lib/std/net/http.oren"
+import dns "../../lib/std/net/dns.oren"
+import udp "../../lib/std/net/udp.oren"
 
 fn u16be_at(p, off) {
-    var hi = ptr_get_byte(p + off)
-    var lo = ptr_get_byte(p + off + 1)
+    var hi = ptr_get_byte(p + off) & 255
+    var lo = ptr_get_byte(p + off + 1) & 255
     return (hi << 8) | lo
+}
+
+fn _skip_qname(buf, n, off) {
+    // Skip a DNS QNAME (no compression expected in queries).
+    var i = off
+    while 1 {
+        if i >= n { return -1 }
+        var l = ptr_get_byte(buf + i) & 255
+        i = i + 1
+        if l == 0 { return i }
+        if l > 63 { return -1 }
+        i = i + l
+    }
+}
+
+fn dns_server_one_a(fd, ip0, ip1, ip2, ip3) {
+    // Minimal authoritative DNS server for one query (A/IN).
+    // Replies with a single A record containing (ip0..ip3).
+    var buf = malloc(512)
+    if buf == 0 { return 60 }
+    var sa = malloc(16)
+    if sa == 0 { free(buf); return 61 }
+    var lenp = malloc(8)
+    if lenp == 0 { free(buf); free(sa); return 62 }
+    ptr_set(lenp, 16)
+
+    var rn = udp.recv_from_into(fd, buf, 512, 5000, sa, lenp)
+    if rn < 0 {
+        free(buf)
+        free(sa)
+        free(lenp)
+        return 63
+    }
+    if rn < 12 {
+        free(buf)
+        free(sa)
+        free(lenp)
+        return 64
+    }
+
+    // Validate the query shape: one question.
+    var qd = u16be_at(buf, 4)
+    if qd != 1 {
+        free(buf)
+        free(sa)
+        free(lenp)
+        return 65
+    }
+
+    var qend = _skip_qname(buf, rn, 12)
+    if qend < 0 || qend + 4 > rn {
+        free(buf)
+        free(sa)
+        free(lenp)
+        return 66
+    }
+
+    // QTYPE + QCLASS should be A/IN.
+    var qtype = u16be_at(buf, qend + 0)
+    var qclass = u16be_at(buf, qend + 2)
+    if qtype != 1 || qclass != 1 {
+        free(buf)
+        free(sa)
+        free(lenp)
+        return 67
+    }
+    qend = qend + 4
+
+    // Build response:
+    // - copy the whole question section verbatim
+    // - append 1 answer: NAME pointer to 0x0c, TYPE A, CLASS IN, TTL 0, RDLEN 4, RDATA ip
+    var resp = malloc(512)
+    if resp == 0 {
+        free(buf)
+        free(sa)
+        free(lenp)
+        return 68
+    }
+    // ID
+    ptr_set_byte(resp + 0, ptr_get_byte(buf + 0))
+    ptr_set_byte(resp + 1, ptr_get_byte(buf + 1))
+    // Flags: 0x8180 (response, recursion available, no error)
+    ptr_set_byte(resp + 2, 129)
+    ptr_set_byte(resp + 3, 128)
+    // QDCOUNT=1
+    ptr_set_byte(resp + 4, 0)
+    ptr_set_byte(resp + 5, 1)
+    // ANCOUNT=1
+    ptr_set_byte(resp + 6, 0)
+    ptr_set_byte(resp + 7, 1)
+    // NSCOUNT=0, ARCOUNT=0
+    ptr_set_byte(resp + 8, 0)
+    ptr_set_byte(resp + 9, 0)
+    ptr_set_byte(resp + 10, 0)
+    ptr_set_byte(resp + 11, 0)
+
+    // Copy question bytes [12..qend)
+    var qi = 12
+    var roff = 12
+    while qi < qend {
+        ptr_set_byte(resp + roff, ptr_get_byte(buf + qi))
+        qi = qi + 1
+        roff = roff + 1
+    }
+
+    // Answer NAME: compression pointer to QNAME at offset 12 (0xC00C).
+    ptr_set_byte(resp + roff + 0, 192)
+    ptr_set_byte(resp + roff + 1, 12)
+    // TYPE=A, CLASS=IN
+    ptr_set_byte(resp + roff + 2, 0)
+    ptr_set_byte(resp + roff + 3, 1)
+    ptr_set_byte(resp + roff + 4, 0)
+    ptr_set_byte(resp + roff + 5, 1)
+    // TTL=0
+    ptr_set_byte(resp + roff + 6, 0)
+    ptr_set_byte(resp + roff + 7, 0)
+    ptr_set_byte(resp + roff + 8, 0)
+    ptr_set_byte(resp + roff + 9, 0)
+    // RDLEN=4
+    ptr_set_byte(resp + roff + 10, 0)
+    ptr_set_byte(resp + roff + 11, 4)
+    // RDATA: IPv4 bytes
+    ptr_set_byte(resp + roff + 12, ip0 & 255)
+    ptr_set_byte(resp + roff + 13, ip1 & 255)
+    ptr_set_byte(resp + roff + 14, ip2 & 255)
+    ptr_set_byte(resp + roff + 15, ip3 & 255)
+    var resp_len = roff + 16
+
+    // Extract source port from sockaddr_in and reply to loopback.
+    var src_port = u16be_at(sa, 2)
+    var wn = udp.send_to(fd, "127.0.0.1", src_port, resp, resp_len, 2000)
+
+    free(buf)
+    free(resp)
+    free(sa)
+    free(lenp)
+    if wn != resp_len { return 69 }
+    return 0
 }
 
 fn server(listen_fd, mode) {
@@ -62,7 +202,8 @@ fn run_case(mode) {
     if port <= 0 { return 22 }
 
     // Spawn server after binding so it doesn't race with the connect.
-    var h = spawn server(listen_fd, mode)
+    // (We serve 2 requests: direct IPv4 + hostname via DNS-resolved IPv4.)
+    var h0 = spawn server(listen_fd, mode)
 
     var url = "http://127.0.0.1:" + oren_int_to_string(port) + "/"
     var r = http.get_text(url, 2000)
@@ -81,8 +222,51 @@ fn run_case(mode) {
     }
     free(body)
 
-    var sr = oren_join_timeout(h, 5000)
-    if sr != 0 { return 40 }
+    var sr0 = oren_join_timeout(h0, 5000)
+    if sr0 != 0 { return 40 }
+
+    // Hostname path: serve a loopback DNS A record so the test stays offline and deterministic.
+    var sfd = udp.bind_local(0)
+    if sfd < 0 { return 50 }
+    var sport = udp.sockname_port(sfd)
+    if sport <= 0 { udp.close(sfd); return 51 }
+    var dh = spawn dns_server_one_a(sfd, 127, 0, 0, 1)
+
+    var h1 = spawn server(listen_fd, mode)
+    var url2 = "http://oren.test:" + oren_int_to_string(port) + "/"
+    var res = dns.resolver("127.0.0.1", sport, 2000)
+    var r2 = http.get_text_resolver(url2, 2000, res)
+    free(url2)
+    if r2["ok"] != 1 {
+        print("http_get_loopback: FAIL get_text_resolver: " + r2["err"])
+        udp.close(sfd)
+        oren_join_timeout(h1, 5000)
+        oren_join_timeout(dh, 5000)
+        return 52
+    }
+    var body2 = r2["v"]
+    if body2 == 0 {
+        udp.close(sfd)
+        oren_join_timeout(h1, 5000)
+        oren_join_timeout(dh, 5000)
+        return 53
+    }
+    if strcmp(body2, "HELLO") != 0 {
+        print("http_get_loopback: FAIL body mismatch (hostname)")
+        print(body2)
+        free(body2)
+        udp.close(sfd)
+        oren_join_timeout(h1, 5000)
+        oren_join_timeout(dh, 5000)
+        return 54
+    }
+    free(body2)
+
+    var sr1 = oren_join_timeout(h1, 5000)
+    if sr1 != 0 { udp.close(sfd); return 55 }
+    var dsr = oren_join_timeout(dh, 5000)
+    if dsr != 0 { udp.close(sfd); return 56 }
+    udp.close(sfd)
 
     oren_tcp_close(listen_fd)
     return 0
