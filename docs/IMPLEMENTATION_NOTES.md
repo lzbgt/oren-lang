@@ -186,6 +186,31 @@ Note:
 - x64 call-site `@file:line` mapping depends on embedding the linetab (debug mode).
 - Function definition locations (`fn@file:line`) come from tokens on function nodes during symtab display synthesis.
 
+### 5.3 Native integer canonicalization (goal + current guard)
+
+**Goal (Tier‑1 invariant):** treat Oren “int” values as **canonical i64** in both registers and stack slots.
+
+- **Registers**: carry full 64-bit values (no “upper bits undefined” model).
+- **Stack locals / spills**: use **8-byte slots**; any store must fully initialize all 8 bytes.
+
+Why this matters:
+
+- Many host ABIs and syscalls use 32-bit ints (Windows `DWORD`/`BOOL`, POSIX `int`, socket `socklen_t`, etc).
+- Partial-width stores (or reading 8 bytes back from a 4-byte out-param) can create “high 32-bit garbage” values.
+- These show up first as **timeout/length/port** corruption and can cause hangs or flaky timeouts on x86_64.
+
+**Current state (rolling):**
+
+- The native runtime includes an i32 canonicalization guard (`native_canon_i32_arg` / `native_canon_timeout_ms_arg`) on some syscall-first NET and thread-timeout entrypoints.
+- Debug hook: set `OREN_DEBUG_CANON_I32=1` to emit a single warning when the guard sees a non-canonical i32-ish value (helps catch regressions without dumping huge logs).
+
+**Policy:**
+
+- Treat any guard-trigger as a **native backend correctness bug** to fix at the root.
+- Keep the high-signal regression gate green across the matrix:
+  - `scripts/verify_native_net_matrix.sh` (NET + loopback services)
+  - `scripts/verify_selfhost_x64_compiler.sh` (x86_64 self-host)
+
 ---
 
 ## 6) Quick debugging checklist (fast “where is this implemented?”)

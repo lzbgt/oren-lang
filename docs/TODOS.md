@@ -155,7 +155,7 @@ References:
          - fragmentation + binary frames + streaming recv API
          - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + system resolver (Windows DNS APIs + AAAA; POSIX `resolv.conf` AAAA support)
      - x64 native backend correctness:
-       - Next: eliminate “high 32-bit garbage” in i64 spills/locals (so runtime guards like `native_canon_i32_arg` are no longer needed for stability).
+       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability (debug: `OREN_DEBUG_CANON_I32=1`).
      - Native FFI / dynamic linking parity (rolling):
        - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
        - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).

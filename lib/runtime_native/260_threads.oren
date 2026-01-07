@@ -826,6 +826,8 @@ fn native_fd_set_blocking(fd0) {
     return sys_fcntl_setfl(fd0, fl2)
 }
 
+var g_native_canon_i32_warned = 0
+
 fn native_canon_i32_arg(v) {
     var lo = v & 4294967295
     var sign = (lo >> 31) & 1
@@ -836,6 +838,22 @@ fn native_canon_i32_arg(v) {
     // - negative: hi == 0xffffffff and sign == 1
     if hi == 0 && sign == 0 { return v }
     if hi == 4294967295 && sign != 0 { return v }
+
+    // Debug hook: emit a single bounded warning if callers pass non-canonical i32-ish
+    // arguments (common symptom of partial-width spills or ABI mismatches on x64).
+    //
+    // Enable via:
+    //   OREN_DEBUG_CANON_I32=1
+    if g_native_canon_i32_warned == 0 {
+        var dbg = native_envp_get_value_ptr("OREN_DEBUG_CANON_I32")
+        if dbg != 0 && ptr_get_byte(dbg) != 0 {
+            g_native_canon_i32_warned = 1
+            print("WARN: non-canonical i32 arg: v=" + oren_int_to_string(v) +
+                  " lo=" + oren_int_to_string(lo) +
+                  " hi=" + oren_int_to_string(hi) +
+                  " sign=" + oren_int_to_string(sign))
+        }
+    }
 
     // Otherwise, treat as an un-canonicalized i32 argument and sign-extend from the low 32 bits.
     if sign == 0 { return lo }
