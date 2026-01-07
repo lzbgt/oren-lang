@@ -1,6 +1,7 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick
 .PHONY: verify-native-x64-compile
+.PHONY: verify-native-matrix verify-native-net verify-selfhost-x64 verify-tier1
 .PHONY: bench-native-compile
 .PHONY: perf-guard-native-hit
 .PHONY: rtobj-seed
@@ -260,6 +261,42 @@ verify-native-quick: test-native-quick test-native-quick-stage2 test-native-caps
 # Compile-only sanity gate for x64 targets (does not run artifacts).
 verify-native-x64-compile: oren_stage2 rtobj-seed-x64 astbin-seed-x64
 	@./scripts/verify_native_x64_compile_only.sh
+
+# Tier‑1 verification shortcuts (macOS/arm64 host workflow).
+#
+# These targets wrap the purpose-built scripts under `scripts/`:
+# - `verify-native-matrix`: stage1 + stage2 native quick integration across Tier‑1 targets
+# - `verify-native-net`: loopback NET matrix across Tier‑1 targets (TCP/UDP + HTTP + WebSocket)
+# - `verify-selfhost-x64`: run the compiler itself on remote x86_64 (Win11 + WSL2)
+verify-native-matrix: oren_stage2
+	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
+		echo "ERROR: verify-native-matrix expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
+		exit 2; \
+	fi
+	@./scripts/verify_native_matrix.sh
+
+verify-native-net: oren_stage2
+	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
+		echo "ERROR: verify-native-net expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
+		exit 2; \
+	fi
+	@./scripts/verify_native_net_matrix.sh
+
+verify-selfhost-x64: oren_stage2
+	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
+		echo "ERROR: verify-selfhost-x64 expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
+		exit 2; \
+	fi
+	@./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
+
+verify-tier1: oren_stage2
+	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
+		echo "ERROR: verify-tier1 expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
+		exit 2; \
+	fi
+	@./scripts/verify_native_matrix.sh --targets stage0,stage1,stage2,local,arm64-linux,x64-win,x64-wsl,x64-win-tier1,x64-wsl-tier1
+	@./scripts/verify_native_net_matrix.sh
+	@echo "verify-tier1 OK"
 
 # Perf smoke: benchmark stage2 native "compile one file" (rtobj miss -> hit).
 bench-native-compile: oren_stage2

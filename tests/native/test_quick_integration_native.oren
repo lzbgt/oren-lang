@@ -101,6 +101,27 @@ fn test_core() {
     }
     assert_eq(s, 1 + 3 + 4, 31)
 
+    trace("QI: test_core typed buffer views")
+    // Typed-buffer view iteration (std/buffer protocol):
+    // - slice view:   [buf, off, len]
+    // - strided view: [buf, off, len, stride]
+    //
+    // `for x in view` must iterate underlying buffer values, not the metadata list.
+    var b = oren_i32_buf_new(6)
+    var bi = 0
+    while bi < 6 {
+        oren_buf_store_i32(b, bi, (bi + 1) * 10) // 10,20,30,40,50,60
+        bi = bi + 1
+    }
+    var view = [b, 2, 3] // 30,40,50
+    var s2 = 0
+    for x2 in view { s2 = s2 + x2 }
+    assert_eq(s2, 120, 32)
+    var view2 = [b, 1, 3, 2] // 20,40,60
+    var s3 = 0
+    for x3 in view2 { s3 = s3 + x3 }
+    assert_eq(s3, 120, 33)
+
     trace("QI: test_core maps")
     // Deterministic map iteration order (keys).
     var m = {"b": 1, "a": 2}

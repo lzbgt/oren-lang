@@ -748,7 +748,12 @@ fn synth_fnwrap(fn_name, arity, varargs_fixed) {
             j = j + 1
         }
         oren_list_push(call_args2, node_id(rest_name))
-        oren_list_push(stmts, node_return(node_call(fn_name, call_args2)))
+        var packed_call = node_call(fn_name, call_args2)
+        // Mark as "already packed": wrapper synthesis constructs the `rest_list` explicitly.
+        // Native backends must NOT re-apply call-site varargs packing here, otherwise the
+        // wrapper can accidentally recurse into itself via the uniform callable ABI.
+        packed_call["__oren_varargs_packed"] = 1
+        oren_list_push(stmts, node_return(packed_call))
     }
 
     var fun = {"type": "Function", "name": wname, "params": params, "body": node_block(stmts)}

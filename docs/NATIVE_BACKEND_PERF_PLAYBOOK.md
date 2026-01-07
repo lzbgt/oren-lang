@@ -191,6 +191,31 @@ If this regresses, it typically shows up as:
 
 - `make verify-native-x64-compile` timing out because stage2 treats a valid stage1-generated cache entry as a miss and rebuilds the runtime object.
 
+### 4.0.3 Varargs must be packed exactly once (`__oren_fnwrap_*` recursion hazard)
+
+The native backends use synthesized wrapper functions (`__oren_fnwrap_*`) so a named function can be passed as
+a uniform callable object.
+
+Key contract:
+
+- A wrapper already receives a pre-packed `rest_list` for varargs calls.
+- The wrapper should forward that list directly (it must not “re-pack” varargs inside the wrapper body).
+
+If call lowering tries to pack varargs again inside a wrapper, you can get:
+
+- infinite recursion through the callable ABI (often reported as `call depth exceeded`), or
+- subtle arg shape corruption (nested rest lists).
+
+Rolling guardrail (implementation):
+
+- The fnwrap synthesis marks the internal call as “already packed”:
+  - `packed_call["__oren_varargs_packed"] = 1`
+- The x86_64 call emitter skips varargs packing when that marker is present.
+
+Regression gate:
+
+- `make verify-tier1` (or `./scripts/verify_native_matrix.sh --targets x64-win-tier1,x64-wsl-tier1`) runs a Tier‑1 fixture that exercises varargs + spread across stage1+stage2 on real x86_64.
+
 ### 4.1 Per-byte helper calls in tight loops
 
 Stage2-native compiler workloads can decode or emit **millions of bytes**. If the code does:

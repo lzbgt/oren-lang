@@ -198,8 +198,23 @@ Cross‑arch Tier‑1 matrix (stage1 + stage2):
 # Full matrix (requires the persistent linux container + remote x64 host)
 ./scripts/verify_native_matrix.sh
 
+# Loopback-only NET matrix (TCP/UDP + HTTP GET loopback + WebSocket echo)
+./scripts/verify_native_net_matrix.sh
+
+# x86_64 self-host: run the compiler binary on remote Win11 + WSL2 and compile+run a tiny program
+./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
+
 # Local sanity gate: compile-only for x64-linux + x64-windows (stage1 + stage2)
 make verify-native-x64-compile
+```
+
+Makefile shortcuts (macOS/arm64 host workflow):
+
+```bash
+make verify-native-matrix
+make verify-native-net
+make verify-selfhost-x64
+make verify-tier1
 ```
 
 Notes (host assumptions, rolling):

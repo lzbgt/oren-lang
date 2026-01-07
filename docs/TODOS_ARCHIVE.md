@@ -109,6 +109,55 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `make test`
   - `./scripts/verify_native_x64_compile_only.sh`
 
+## Archived (2026-01-07) — Native x86_64: fix varargs+spread recursion in `__oren_fnwrap_*` (Win11 stage2 Tier‑1)
+
+- Symptom (x64-windows, stage2-compiled Tier‑1 fixture):
+  - `tier1_stage2_x64_windows.exe` aborted with `OREN_DIAG ... msg=call depth exceeded` before printing expected markers.
+  - Stage1 (`tier1_stage1_x64_windows.exe`) succeeded, so this was a **native backend lowering** bug.
+
+- Root cause:
+  - Synthesized wrappers (`__oren_fnwrap_*`) already receive a pre-packed `rest_list` and are supposed to forward it directly.
+  - The x86_64 call emitter could still attempt varargs packing inside the wrapper’s body, which can recurse via the uniform callable ABI.
+
+- Fix:
+  - In fnwrap synthesis (`lib/compiler/native_callable.oren`), the internal wrapper call is now annotated as already-packed:
+    - `packed_call["__oren_varargs_packed"] = 1`
+  - In the x86_64 call emitter (`lib/compiler/x64_native_program/044_emit_call_expr.oren`), varargs packing is skipped when the marker is present.
+  - Result: varargs rest lists are packed **exactly once**.
+
+- Verified:
+  - `make verify-tier1` (includes remote Win11 + remote WSL2 Tier‑1 stage1+stage2 fixture runs).
+
+## Archived (2026-01-07) — Native runtime: `for x in view` iterates typed-buffer views (slice/stride/matrix)
+
+- Symptom:
+  - Typed-buffer “view” values are represented as small lists (e.g. `[buf, off, len]`), but `for x in view` would iterate the view metadata list instead of the underlying buffer elements.
+
+- Fix:
+  - `lib/runtime_native/160_iteration.oren` `oren_iter_next(...)` now detects the view protocol:
+    - slice view: `[buf, off, len]`
+    - strided view: `[buf, off, len, stride]`
+    - matrix view: `[buf, off, rows, cols, row_stride]`
+  - If the first element is a typed buffer (magic + tag), `oren_iter_next(...)` yields buffer elements with bounds checks; otherwise it falls back to normal list iteration.
+
+- Regression coverage:
+  - `tests/native/test_quick_integration_native.oren` adds a view-iteration gate.
+
+- Verified:
+  - `make test`
+  - `make verify-tier1`
+
+## Archived (2026-01-07) — Tier‑1 matrix tooling: retry remote `scp` uploads (proxy flake hardening)
+
+- Symptom:
+  - `make verify-tier1` could fail intermittently with proxy connection resets during `scp` uploads (e.g. `socat ... Connection reset by peer`).
+
+- Fix:
+  - `scripts/verify_native_matrix.sh` now retries `scp` uploads (`OREN_REMOTE_SCP_RETRIES`, default `3`) and makes the pre-delete step best-effort.
+
+- Verified:
+  - `make verify-tier1` completes successfully across all targets with the hardening in place.
+
 ## Archived (2026-01-06) — Native arm64: rtobj debug-info persistence + arm64-linux symbolization gate
 
 - Symptom (arm64-linux debug builds in rtobj mode):

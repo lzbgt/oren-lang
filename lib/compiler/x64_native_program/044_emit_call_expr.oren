@@ -672,7 +672,19 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     // lists (`rest = [[...]]`).
     if is_varargs_named {
         var cur_fn = ctx["cur_fn_name"]
-        if cur_fn != nil && cur_fn == "__oren_fnwrap_" + nm {
+        // Wrapper functions (`__oren_fnwrap_*`) already receive a pre-packed `rest_list` and
+        // must call the real varargs function at fixed arity (fixed args + rest_list).
+        //
+        // Avoid applying call-site packing inside wrappers, otherwise we can produce:
+        // - nested rest lists (`rest = [[...]]`)
+        // - or accidental self-recursion via the uniform callable ABI.
+        //
+        // Prefer an explicit marker from wrapper synthesis when present; fall back to a
+        // name-based check for backwards compatibility.
+        if expr["__oren_varargs_packed"] != nil {
+            is_varargs_named = false
+            varargs_fixed = nil
+        } else if cur_fn != nil && cur_fn == "__oren_fnwrap_" + nm {
             is_varargs_named = false
             varargs_fixed = nil
         }

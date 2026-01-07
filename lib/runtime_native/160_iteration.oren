@@ -20,10 +20,147 @@ fn oren_iter_next(container, idx, out_pair) {
         if node != 0 {
             var kind = ptr_get(iadd(node, 16))
 
-            // List: yield elements.
+            // List: yield elements (or view protocol for typed buffers).
             if kind == 2 {
                 var count = ptr_get(container)
-                if idx < count {
+                var is_buf_view = 0
+
+                // Typed-buffer view protocol (rolling, std/buffer):
+                // - slice view:   [buf, off, len]
+                // - strided view: [buf, off, len, stride]
+                // - matrix view:  [buf, off, rows, cols, row_stride]
+                //
+                // These are represented as *lists* (not maps) to keep hot-loop overhead small.
+                // `for x in view` must iterate underlying values, not the metadata list.
+                if (count == 3 || count == 4 || count == 5) && idx >= 0 {
+                    var buf0 = oren_list_get(container, 0)
+                    var bnode0 = oren_find_node(buf0)
+                    if bnode0 != 0 && ptr_get(iadd(bnode0, 16)) == 7 && ptr_get(buf0 + 24) == buf_magic() {
+                        // Treat this list as a view container (do not fall back to iterating metadata).
+                        is_buf_view = 1
+                        var tag0 = ptr_get(buf0 + 32)
+                        var blen0 = ptr_get(buf0 + 0)
+                        var data0 = native_buf_data_ptr(buf0)
+
+                        // Common validity checks.
+                        if data0 != 0 && blen0 >= 0 {
+                            // Slice view: [buf, off, len]
+                            if count == 3 {
+                                var off0 = oren_list_get(container, 1)
+                                var n0 = oren_list_get(container, 2)
+                                if off0 >= 0 && n0 >= 0 && idx < n0 {
+                                    if off0 <= blen0 {
+                                        var maxn0 = blen0 - off0
+                                        if n0 <= maxn0 {
+                                            ok = 1
+                                            var at = off0 + idx
+                                            if tag0 == BUF_TAG_U8 {
+                                                val = ptr_get_byte(data0 + at) & 255
+                                            } else if tag0 == BUF_TAG_I32 {
+                                                val = oren_ptr_get_i32_le(data0 + (at << 2))
+                                            } else if tag0 == BUF_TAG_I64 {
+                                                val = oren_ptr_get_i64_le(data0 + (at << 3))
+                                            } else if tag0 == BUF_TAG_F32 {
+                                                val = oren_u32_bits_to_f32(oren_ptr_get_u32_le(data0 + (at << 2)))
+                                            } else if tag0 == BUF_TAG_F64 {
+                                                val = oren_u64_bits_to_f64(oren_ptr_get_u64_le(data0 + (at << 3)))
+                                            } else {
+                                                ok = 0
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Strided view: [buf, off, len, stride]
+                            else if count == 4 {
+                                var off1 = oren_list_get(container, 1)
+                                var n1 = oren_list_get(container, 2)
+                                var stride1 = oren_list_get(container, 3)
+                                if off1 >= 0 && n1 >= 0 && stride1 > 0 && idx < n1 {
+                                    if n1 == 0 {
+                                        // empty
+                                    } else if off1 <= blen0 {
+                                        // Bounds check using division to avoid overflow:
+                                        // last index = off + (n-1)*stride must be < blen
+                                        var max_last = blen0 - 1
+                                        if blen0 == 0 { max_last = -1 }
+                                        if max_last >= off1 {
+                                            var max_steps = (max_last - off1) / stride1
+                                            var need_steps = n1 - 1
+                                            if need_steps <= max_steps {
+                                                ok = 1
+                                                var at2 = off1 + idx * stride1
+                                                if tag0 == BUF_TAG_U8 {
+                                                    val = ptr_get_byte(data0 + at2) & 255
+                                                } else if tag0 == BUF_TAG_I32 {
+                                                    val = oren_ptr_get_i32_le(data0 + (at2 << 2))
+                                                } else if tag0 == BUF_TAG_I64 {
+                                                    val = oren_ptr_get_i64_le(data0 + (at2 << 3))
+                                                } else if tag0 == BUF_TAG_F32 {
+                                                    val = oren_u32_bits_to_f32(oren_ptr_get_u32_le(data0 + (at2 << 2)))
+                                                } else if tag0 == BUF_TAG_F64 {
+                                                    val = oren_u64_bits_to_f64(oren_ptr_get_u64_le(data0 + (at2 << 3)))
+                                                } else {
+                                                    ok = 0
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Matrix view: [buf, off, rows, cols, row_stride] (row-major)
+                            else if count == 5 {
+                                var offm = oren_list_get(container, 1)
+                                var rows = oren_list_get(container, 2)
+                                var cols = oren_list_get(container, 3)
+                                var row_stride = oren_list_get(container, 4)
+                                if offm >= 0 && rows >= 0 && cols >= 0 && row_stride > 0 {
+                                    var total = rows * cols
+                                    if idx < total && total >= 0 {
+                                        if total == 0 {
+                                            // empty
+                                        } else if offm <= blen0 {
+                                            // Bounds: last element index = off + (rows-1)*row_stride + (cols-1)
+                                            var max_last2 = blen0 - 1
+                                            if blen0 == 0 { max_last2 = -1 }
+                                            if max_last2 >= offm {
+                                                // Require enough rows (row_stride steps) and cols within a row.
+                                                var max_rows = (max_last2 - offm) / row_stride
+                                                if (rows - 1) <= max_rows && cols > 0 {
+                                                    var max_cols = max_last2 - (offm + (rows - 1) * row_stride)
+                                                    if (cols - 1) <= max_cols {
+                                                        ok = 1
+                                                        var r = idx / cols
+                                                        var c = idx - (r * cols)
+                                                        var at3 = offm + r * row_stride + c
+                                                        if tag0 == BUF_TAG_U8 {
+                                                            val = ptr_get_byte(data0 + at3) & 255
+                                                        } else if tag0 == BUF_TAG_I32 {
+                                                            val = oren_ptr_get_i32_le(data0 + (at3 << 2))
+                                                        } else if tag0 == BUF_TAG_I64 {
+                                                            val = oren_ptr_get_i64_le(data0 + (at3 << 3))
+                                                        } else if tag0 == BUF_TAG_F32 {
+                                                            val = oren_u32_bits_to_f32(oren_ptr_get_u32_le(data0 + (at3 << 2)))
+                                                        } else if tag0 == BUF_TAG_F64 {
+                                                            val = oren_u64_bits_to_f64(oren_ptr_get_u64_le(data0 + (at3 << 3)))
+                                                        } else {
+                                                            ok = 0
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Default list iteration (elements).
+                if ok == 0 && is_buf_view == 0 && idx < count {
                     ok = 1
                     // Use the well-tested list accessor to avoid relying on raw buffer math here.
                     val = oren_list_get(container, idx)

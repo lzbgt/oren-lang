@@ -53,26 +53,38 @@ make test-native-all
 When you need confidence that the **native backend** output works across the practical Tier‑1 matrix
 (without relying on a separate test runner), use the purpose-built scripts under `scripts/`:
 
-	```bash
-	# Local (arm64-macos): stage1 + stage2 build+run
-	./scripts/verify_native_matrix.sh --targets local
+```bash
+# Local (arm64-macos): stage1 + stage2 build+run
+./scripts/verify_native_matrix.sh --targets local
 
 # Linux/arm64 via the persistent container (stage1 + stage2 artifacts)
 ./scripts/verify_native_matrix.sh --targets arm64-linux
 
-	# Full matrix: local + linux/arm64 container + remote x64 Win11 + remote x64 WSL2
-	./scripts/verify_native_matrix.sh
+# Full matrix: local + linux/arm64 container + remote x64 Win11 + remote x64 WSL2
+./scripts/verify_native_matrix.sh
 
-	# Opt-in: run the larger Tier‑1 native smoke fixture on remote x64 hosts
-	./scripts/verify_native_matrix.sh --targets x64-win-tier1
-	./scripts/verify_native_matrix.sh --targets x64-wsl-tier1
+# Opt-in: run the larger Tier‑1 native smoke fixture on remote x64 hosts
+./scripts/verify_native_matrix.sh --targets x64-win-tier1
+./scripts/verify_native_matrix.sh --targets x64-wsl-tier1
 
-	# Opt-in: loopback-only NET matrix (TCP/UDP + HTTP GET loopback) across Tier‑1 hosts
-	./scripts/verify_native_net_matrix.sh --targets x64-win,x64-wsl
+# Loopback NET matrix (TCP/UDP + HTTP GET loopback + WebSocket echo) across Tier‑1 hosts
+./scripts/verify_native_net_matrix.sh
 
-	# Local gate: compile-only for x64-linux + x64-windows (stage1 + stage2)
-	make verify-native-x64-compile
-	```
+# x86_64 self-host: the compiler binary itself runs on Win11 + WSL2 and can compile+run a tiny program
+./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
+
+# Local gate: compile-only for x64-linux + x64-windows (stage1 + stage2)
+make verify-native-x64-compile
+```
+
+Makefile shortcuts (macOS/arm64 host workflow):
+
+```bash
+make verify-native-matrix
+make verify-native-net
+make verify-selfhost-x64
+make verify-tier1
+```
 
 Rolling guardrails:
 
