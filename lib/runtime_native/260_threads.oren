@@ -826,14 +826,7 @@ fn native_fd_set_blocking(fd0) {
     return sys_fcntl_setfl(fd0, fl2)
 }
 
-fn native_canon_timeout_ms_arg(v) {
-    // Rolling correctness guard (x64 bring-up + WSL2):
-    // Some call sites can materialize small integers into 8-byte stack slots without
-    // fully initializing the high 32 bits, then reload as 64-bit. This can turn
-    // `timeout_ms=20` into a huge negative value and break the join-timeout contract.
-    //
-    // Canonicalize to a signed 32-bit ms value when the high 32 bits are neither
-    // all-zero nor all-one.
+fn native_canon_i32_arg(v) {
     var lo = v & 4294967295
     var sign = (lo >> 31) & 1
     var hi = (v >> 32) & 4294967295
@@ -847,6 +840,14 @@ fn native_canon_timeout_ms_arg(v) {
     // Otherwise, treat as an un-canonicalized i32 argument and sign-extend from the low 32 bits.
     if sign == 0 { return lo }
     return lo - 4294967296
+}
+
+fn native_canon_timeout_ms_arg(v) {
+    // Rolling correctness guard (x64 bring-up + WSL2):
+    // Some call sites can materialize small integers into 8-byte stack slots without
+    // fully initializing the high 32 bits, then reload as 64-bit. This can turn
+    // `timeout_ms=20` into a huge negative value and break the join-timeout contract.
+    return native_canon_i32_arg(v)
 }
 
 fn oren_join_timeout(handle, timeout_ms) {

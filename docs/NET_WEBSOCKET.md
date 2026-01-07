@@ -16,6 +16,9 @@ This doc tracks the current “v0” WebSocket support in Oren’s stdlib, imple
 All functions are timeout‑bounded to avoid hangs.
 
 - `ws.connect(url, timeout_ms)` → `{"ok":1,"fd":int}` or `{"ok":0,"err":string}`
+- `ws.connect_resolver(url, timeout_ms, resolver)` → `{"ok":1,"fd":int}` or `{"ok":0,"err":string}`
+  - `resolver` is a config map returned by `std:net/dns.resolver(server_ip, server_port, timeout_ms)`
+  - Use this to keep hostname behavior deterministic in tests (loopback DNS server), or to avoid relying on `/etc/resolv.conf`.
 - `ws.accept(listen_fd, timeout_ms)` → `{"ok":1,"fd":int}` or `{"ok":0,"err":string}`
 - `ws.send_text_client(fd, text, timeout_ms)` → `0` on success, or `-errno`
   - Client frames are **masked** (required by RFC6455).
@@ -30,9 +33,12 @@ All functions are timeout‑bounded to avoid hangs.
 
 This is intentionally minimal so we can gate correctness across Tier‑1 first.
 
-- URL: `ws://<ipv4>[:port][/path]` only
-  - no DNS
-  - no TLS (`wss://`)
+- URL: `ws://<host>[:port][/path]`
+  - IPv4 literal hosts work without DNS
+  - hostname hosts resolve via DNS A:
+    - pass an explicit resolver config (`ws.connect_resolver`)
+    - or rely on `dns.default_resolver` (env `OREN_DNS_SERVER`, else `/etc/resolv.conf` on POSIX)
+  - no TLS (`wss://`) yet
 - Frames:
   - **text frames only** (opcode=1)
   - no fragmentation support

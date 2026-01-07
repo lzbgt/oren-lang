@@ -1,7 +1,12 @@
 // std/net/ws (WebSocket over TCP, rolling)
 //
 // Scope (v0):
-// - ws://<ipv4>[:port][/path] only (no DNS, no TLS)
+// - ws://<host>[:port][/path]
+//   - IPv4 literal hosts work without DNS
+//   - hostname hosts resolve via DNS A:
+//     - pass an explicit resolver config (`ws.connect_resolver`)
+//     - or use `dns.default_resolver` (env `OREN_DNS_SERVER`, else `/etc/resolv.conf` on POSIX)
+//   - no TLS (`wss://`) yet
 // - Text frames (opcode=1) for small messages
 // - Client frames are masked (required by RFC6455); server frames are unmasked
 //
@@ -9,6 +14,7 @@
 // (HTTP/2, TLS, DNS, streaming APIs) is tracked in `docs/TODOS.md`.
 
 import tcp "std:net/tcp"
+import dns "std:net/dns"
 import sha1 "std:crypto/sha1"
 import rand "std:crypto/rand"
 import base64 "std:encoding/base64"
@@ -41,7 +47,9 @@ fn _starts_with(s, prefix) {
 
 fn _parse_ws_url(url) {
     // Supported:
-    //   ws://<ipv4>[:port][/path]
+    //   ws://<host>[:port][/path]
+    //
+    // Where <host> can be an IPv4 literal or a hostname (resolved separately).
     //
     // Returns {ok:1, host:string, port:int, path:string} or {ok:0, err:string}.
     if url == nil { return {"ok": 0, "err": "url is nil"} }
@@ -108,6 +116,52 @@ fn _parse_ws_url(url) {
     }
 
     return {"ok": 1, "host": host, "port": port, "path": path}
+}
+
+fn _looks_like_ipv4(host) {
+    // Conservative "is this probably an IPv4 literal?" check.
+    if host == nil { return 0 }
+    var n = oren_string_len(host)
+    if n <= 0 || n > 15 { return 0 }
+    var dots = 0
+    var i = 0
+    while i < n {
+        var b = ptr_get_byte(host + i) & 255
+        if b == 46 {
+            dots = dots + 1
+        } else if b < 48 || b > 57 {
+            return 0
+        }
+        i = i + 1
+    }
+    if dots != 3 { return 0 }
+    return 1
+}
+
+fn _resolve_host_ipv4(host, timeout_ms, resolver) {
+    // Returns:
+    // - {"ok":1, "ip": string, "owned":0|1} (owned=1 => caller must free(ip))
+    // - {"ok":0, "err": string}
+    if host == nil { return {"ok": 0, "err": "ws: host is nil"} }
+    if _looks_like_ipv4(host) == 1 { return {"ok": 1, "ip": host, "owned": 0} }
+
+    var r0 = 0
+    if resolver != nil {
+        r0 = dns.resolve_a(resolver, host)
+    } else {
+        var dr = dns.default_resolver(timeout_ms)
+        if dr["ok"] != 1 {
+            return {"ok": 0, "err": "ws: hostname requires DNS (set OREN_DNS_SERVER or pass resolver): " + dr["err"]}
+        }
+        var rconf = dr["resolver"]
+        r0 = dns.resolve_a(rconf, host)
+        dns.resolver_free(rconf)
+    }
+
+    if r0["ok"] != 1 { return {"ok": 0, "err": "ws: dns failed: " + r0["err"]} }
+    var ip = r0["ip"]
+    if ip == 0 { return {"ok": 0, "err": "ws: dns returned nil ip"} }
+    return {"ok": 1, "ip": ip, "owned": 1}
 }
 
 fn _find_header_body_split(buf, used) {
@@ -352,8 +406,11 @@ fn _status_is_101(buf, body_off) {
     return 0
 }
 
-fn connect(url, timeout_ms) {
+fn connect_resolver(url, timeout_ms, resolver) {
     // Client handshake. Returns {"ok":1,"fd":int} or {"ok":0,"err":string}.
+    //
+    // - If `resolver` is provided, it must be a `dns.resolver(...)` config map.
+    // - If `resolver` is nil, hostname URLs use `dns.default_resolver` (env `OREN_DNS_SERVER`, else `/etc/resolv.conf` on POSIX).
     if timeout_ms == nil { timeout_ms = 5000 }
     if timeout_ms < 0 { timeout_ms = 0 }
     var pu = _parse_ws_url(url)
@@ -363,7 +420,17 @@ fn connect(url, timeout_ms) {
     var port = pu["port"]
     var path = pu["path"]
 
-    var fd = tcp.connect(host, port, timeout_ms)
+    var rh = _resolve_host_ipv4(host, timeout_ms, resolver)
+    if rh["ok"] != 1 {
+        free(host)
+        free(path)
+        return {"ok": 0, "err": "ws.connect: " + rh["err"]}
+    }
+    var ip = rh["ip"]
+    var owned_ip = rh["owned"]
+
+    var fd = tcp.connect(ip, port, timeout_ms)
+    if owned_ip == 1 { free(ip) }
     if fd < 0 {
         free(host)
         free(path)
@@ -450,6 +517,13 @@ fn connect(url, timeout_ms) {
     return {"ok": 1, "fd": fd}
 }
 
+fn connect(url, timeout_ms) {
+    // Convenience API: connect without an explicit resolver.
+    // - IPv4 literal URLs work without DNS.
+    // - hostname URLs use `dns.default_resolver` (env `OREN_DNS_SERVER`, else `/etc/resolv.conf` on POSIX).
+    return connect_resolver(url, timeout_ms, 0)
+}
+
 fn _server_handshake(fd, timeout_ms) {
     // Returns {"ok":1} or {"ok":0,"err":string}.
     var hdr = _read_http_header_into_buf(fd, timeout_ms, 8192)
@@ -531,6 +605,7 @@ fn _read_exact(fd, buf, want, timeout_ms) {
 
         var n = tcp.read_into(fd, iadd(buf, off), want - off, rem)
         if n == 0 { return 0 - 5 } // EIO (EOF)
+        if n == 0 - 60 { continue } // ETIMEDOUT
         if n < 0 { return n }
         off = off + n
     }
@@ -629,6 +704,7 @@ fn _send_frame_raw(fd, opcode, payload_ptr, payload_len, timeout_ms, masked) {
     var wr = tcp.write_from(fd, buf, total, timeout_ms)
     free(buf)
     if wr < 0 { return wr }
+    if wr != total { return 0 - 5 } // EIO
     return 0
 }
 
@@ -689,19 +765,19 @@ fn recv_text(fd, timeout_ms) {
 
         var plen = plen7
         if plen7 == 126 {
-            var ex = malloc(2)
-            if ex == 0 { return {"ok": 0, "err": "ws.recv_text: malloc ext"} }
-            rc = _read_exact(fd, ex, 2, timeout_ms)
-            if rc < 0 { free(ex); return {"ok": 0, "err": "ws.recv_text: read ext16 failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
-            plen = ((ptr_get_byte(ex + 0) & 255) << 8) | (ptr_get_byte(ex + 1) & 255)
-            free(ex)
-        } else if plen7 == 127 {
-            var ex8 = malloc(8)
-            if ex8 == 0 { return {"ok": 0, "err": "ws.recv_text: malloc ext"} }
-            rc = _read_exact(fd, ex8, 8, timeout_ms)
-            if rc < 0 { free(ex8); return {"ok": 0, "err": "ws.recv_text: read ext64 failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
-            // u64 be (best-effort; reject huge sizes)
-            plen = 0
+        var ex = malloc(2)
+        if ex == 0 { return {"ok": 0, "err": "ws.recv_text: malloc ext"} }
+        rc = _read_exact(fd, ex, 2, timeout_ms)
+        if rc < 0 { free(ex); return {"ok": 0, "err": "ws.recv_text: read ext16 failed (errno=" + oren_int_to_string(0 - rc) + ", opcode=" + oren_int_to_string(opcode) + ", masked=" + oren_int_to_string(masked) + ", plen7=" + oren_int_to_string(plen7) + ")"} }
+        plen = ((ptr_get_byte(ex + 0) & 255) << 8) | (ptr_get_byte(ex + 1) & 255)
+        free(ex)
+    } else if plen7 == 127 {
+        var ex8 = malloc(8)
+        if ex8 == 0 { return {"ok": 0, "err": "ws.recv_text: malloc ext"} }
+        rc = _read_exact(fd, ex8, 8, timeout_ms)
+        if rc < 0 { free(ex8); return {"ok": 0, "err": "ws.recv_text: read ext64 failed (errno=" + oren_int_to_string(0 - rc) + ", opcode=" + oren_int_to_string(opcode) + ", masked=" + oren_int_to_string(masked) + ", plen7=" + oren_int_to_string(plen7) + ")"} }
+        // u64 be (best-effort; reject huge sizes)
+        plen = 0
             var i = 0
             while i < 8 {
                 plen = plen * 256 + (ptr_get_byte(ex8 + i) & 255)
@@ -723,7 +799,7 @@ fn recv_text(fd, timeout_ms) {
             var mk = malloc(4)
             if mk == 0 { return {"ok": 0, "err": "ws.recv_text: malloc mask"} }
             rc = _read_exact(fd, mk, 4, timeout_ms)
-            if rc < 0 { free(mk); return {"ok": 0, "err": "ws.recv_text: read mask failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
+            if rc < 0 { free(mk); return {"ok": 0, "err": "ws.recv_text: read mask failed (errno=" + oren_int_to_string(0 - rc) + ", opcode=" + oren_int_to_string(opcode) + ", plen=" + oren_int_to_string(plen) + ")"} }
             mask0 = ptr_get_byte(mk + 0) & 255
             mask1 = ptr_get_byte(mk + 1) & 255
             mask2 = ptr_get_byte(mk + 2) & 255
@@ -734,7 +810,7 @@ fn recv_text(fd, timeout_ms) {
         var out = malloc(plen + 1)
         if out == 0 { return {"ok": 0, "err": "ws.recv_text: malloc payload"} }
         rc = _read_exact(fd, out, plen, timeout_ms)
-        if rc < 0 { free(out); return {"ok": 0, "err": "ws.recv_text: read payload failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
+        if rc < 0 { free(out); return {"ok": 0, "err": "ws.recv_text: read payload failed (errno=" + oren_int_to_string(0 - rc) + ", opcode=" + oren_int_to_string(opcode) + ", plen=" + oren_int_to_string(plen) + ", masked=" + oren_int_to_string(masked) + ")"} }
         var i2 = 0
         while masked == 1 && i2 < plen {
             var b = ptr_get_byte(out + i2) & 255

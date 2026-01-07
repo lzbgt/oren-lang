@@ -8,6 +8,7 @@
 @cap.requires(domain="NET")
 fn oren_udp_bind_local(port) {
     native_capsule_require(CAP_NET, "NET")
+    port = native_canon_i32_arg(port)
     var init_rc = native_net_init_once()
     if init_rc < 0 { return init_rc }
     // Bind to 127.0.0.1:<port> for loopback-only tests and simple local services.
@@ -77,7 +78,13 @@ fn oren_udp_sockname_port(fd) {
 @cap.requires(domain="NET")
 fn oren_udp_sendto(fd, ip, port, buf, len, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
+    len = native_canon_i32_arg(len)
+    port = native_canon_i32_arg(port)
     if len <= 0 { return 0 }
+
+    var sa = oren_tcp_sockaddr_in(ip, port)
+    if sa == 0 { return 0 - 22 } // EINVAL
 
     var deadline_ns = 0
     if timeout_ms > 0 {
@@ -86,38 +93,58 @@ fn oren_udp_sendto(fd, ip, port, buf, len, timeout_ms) {
             deadline_ns = t0 + timeout_ms * 1000000
         }
     }
+    var spins = 0
 
     while 1 {
+        var w0 = sys_sendto(fd, buf, len, 0, sa, 16)
+        // EAGAIN/EWOULDBLOCK:
+        // - macOS: 35
+        // - Linux: 11
+        if w0 != 0 - 35 && w0 != 0 - 11 {
+            free(sa)
+            return w0
+        }
+
         var rem_ms = timeout_ms
         if deadline_ns != 0 {
             var now = oren_time_unix_ns()
             if now != 0 {
                 var rem_ns = deadline_ns - now
-                if rem_ns <= 0 { return 0 - 60 } // ETIMEDOUT
+                if rem_ns <= 0 { free(sa); return 0 - 60 } // ETIMEDOUT
                 rem_ms = rem_ns / 1000000
                 if rem_ms < 0 { rem_ms = 0 }
             }
         }
 
         var n = oren_fd_wait_writable(fd, rem_ms)
-        if n == 0 { return 0 - 60 } // ETIMEDOUT
-        if n < 0 { return n }
-
-        var sa = oren_tcp_sockaddr_in(ip, port)
-        if sa == 0 { return 0 - 22 } // EINVAL
-        var w = sys_sendto(fd, buf, len, 0, sa, 16)
-        free(sa)
-        // EAGAIN/EWOULDBLOCK:
-        // - macOS: 35
-        // - Linux: 11
-        if w == 0 - 35 || w == 0 - 11 { continue }
-        return w
+        if n == 0 {
+            // Same robustness policy as TCP: retry once before trusting a timeout.
+            var w1 = sys_sendto(fd, buf, len, 0, sa, 16)
+            if w1 != 0 - 35 && w1 != 0 - 11 {
+                free(sa)
+                return w1
+            }
+            if deadline_ns != 0 {
+                var now2 = oren_time_unix_ns()
+                if now2 != 0 && now2 < deadline_ns { continue }
+            }
+            if timeout_ms > 0 {
+                spins = spins + 1
+                if spins < 64 { continue }
+            }
+            free(sa)
+            return 0 - 60 // ETIMEDOUT
+        }
+        if n < 0 { free(sa); return n }
+        // Wait satisfied; loop back and attempt send again.
     }
 }
 
 @cap.requires(domain="NET")
 fn oren_udp_recvfrom_into(fd, buf, len, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
+    len = native_canon_i32_arg(len)
     if len <= 0 { return 0 }
 
     var deadline_ns = 0
@@ -127,8 +154,12 @@ fn oren_udp_recvfrom_into(fd, buf, len, timeout_ms) {
             deadline_ns = t0 + timeout_ms * 1000000
         }
     }
+    var spins = 0
 
     while 1 {
+        var r0 = sys_recvfrom(fd, buf, len, 0, 0, 0)
+        if r0 != 0 - 35 && r0 != 0 - 11 { return r0 }
+
         var rem_ms = timeout_ms
         if deadline_ns != 0 {
             var now = oren_time_unix_ns()
@@ -141,11 +172,21 @@ fn oren_udp_recvfrom_into(fd, buf, len, timeout_ms) {
         }
 
         var n = oren_fd_wait_readable(fd, rem_ms)
-        if n == 0 { return 0 - 60 } // ETIMEDOUT
+        if n == 0 {
+            var r1 = sys_recvfrom(fd, buf, len, 0, 0, 0)
+            if r1 != 0 - 35 && r1 != 0 - 11 { return r1 }
+            if deadline_ns != 0 {
+                var now2 = oren_time_unix_ns()
+                if now2 != 0 && now2 < deadline_ns { continue }
+            }
+            if timeout_ms > 0 {
+                spins = spins + 1
+                if spins < 64 { continue }
+            }
+            return 0 - 60 // ETIMEDOUT
+        }
         if n < 0 { return n }
-        var r = sys_recvfrom(fd, buf, len, 0, 0, 0)
-        if r == 0 - 35 || r == 0 - 11 { continue }
-        return r
+        // Wait satisfied; loop back and attempt recv again.
     }
 }
 
@@ -160,6 +201,8 @@ fn oren_udp_recvfrom_into_with_addr(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
     // - bytes read (>=0) on success
     // - negative errno on failure
     native_capsule_require(CAP_NET, "NET")
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
+    len = native_canon_i32_arg(len)
     if len <= 0 { return 0 }
     if sa_out == 0 { return 0 - 22 } // EINVAL
     if sa_lenp == 0 { return 0 - 22 } // EINVAL
@@ -171,12 +214,17 @@ fn oren_udp_recvfrom_into_with_addr(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
             deadline_ns = t0 + timeout_ms * 1000000
         }
     }
+    var spins = 0
 
     // Always treat as sockaddr_in for the syscall-first Tier‑1 surface.
     // Caller may reuse `sa_out`/`sa_lenp` across calls.
     ptr_set(sa_lenp, 16)
 
     while 1 {
+        ptr_set(sa_lenp, 16)
+        var r0 = sys_recvfrom(fd, buf, len, 0, sa_out, sa_lenp)
+        if r0 != 0 - 35 && r0 != 0 - 11 { return r0 }
+
         var rem_ms = timeout_ms
         if deadline_ns != 0 {
             var now = oren_time_unix_ns()
@@ -189,13 +237,22 @@ fn oren_udp_recvfrom_into_with_addr(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
         }
 
         var n = oren_fd_wait_readable(fd, rem_ms)
-        if n == 0 { return 0 - 60 } // ETIMEDOUT
+        if n == 0 {
+            ptr_set(sa_lenp, 16)
+            var r1 = sys_recvfrom(fd, buf, len, 0, sa_out, sa_lenp)
+            if r1 != 0 - 35 && r1 != 0 - 11 { return r1 }
+            if deadline_ns != 0 {
+                var now2 = oren_time_unix_ns()
+                if now2 != 0 && now2 < deadline_ns { continue }
+            }
+            if timeout_ms > 0 {
+                spins = spins + 1
+                if spins < 64 { continue }
+            }
+            return 0 - 60 // ETIMEDOUT
+        }
         if n < 0 { return n }
-
-        ptr_set(sa_lenp, 16)
-        var r = sys_recvfrom(fd, buf, len, 0, sa_out, sa_lenp)
-        if r == 0 - 35 || r == 0 - 11 { continue } // EAGAIN/EWOULDBLOCK
-        return r
+        // Wait satisfied; loop back and attempt recv again.
     }
 }
 

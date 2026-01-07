@@ -267,6 +267,7 @@ fn native_net_init_once() {
 fn oren_tcp_wait_kqueue(fd, filter, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
     // Returns 1 if ready, 0 if timed out, or negative errno.
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
     if timeout_ms < 0 { timeout_ms = 0 }
     if g_net_has_kqueue == 0 { return 0 - 78 } // ENOSYS
     var kq = sys_kqueue()
@@ -334,6 +335,7 @@ fn oren_tcp_wait_kqueue(fd, filter, timeout_ms) {
 @cap.requires(domain="NET")
 fn oren_fd_wait_epoll(fd, events_mask, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
     // Returns 1 if ready, 0 if timed out, or negative errno.
     //
     // Linux only. Darwin does not have epoll (return -ENOSYS).
@@ -391,6 +393,7 @@ fn oren_fd_wait_select_one(fd, want_write, timeout_ms) {
     // Windows-only readiness wait using WinSock select().
     //
     // Returns 1 if ready, 0 if timed out, or negative errno.
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
     if g_target_os != 3 { return 0 - 78 } // ENOSYS
     if timeout_ms < 0 { timeout_ms = 0 }
 
@@ -443,6 +446,7 @@ fn oren_fd_wait_select_one(fd, want_write, timeout_ms) {
 @cap.requires(domain="NET")
 fn oren_fd_wait_readable(fd, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
     if g_target_os == 3 {
         return oren_fd_wait_select_one(fd, 0, timeout_ms)
     }
@@ -455,6 +459,7 @@ fn oren_fd_wait_readable(fd, timeout_ms) {
 @cap.requires(domain="NET")
 fn oren_fd_wait_writable(fd, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
     if g_target_os == 3 {
         return oren_fd_wait_select_one(fd, 1, timeout_ms)
     }
@@ -475,6 +480,7 @@ fn oren_fd_wait_any_kqueue(fds, filter, timeout_ms, out_fd_ptr) {
     if nfds <= 0 { return 0 - 22 } // EINVAL
 
     // Match existing NET wait semantics: negative timeout means "no wait" (avoid hangs).
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
     if timeout_ms < 0 { timeout_ms = 0 }
     if g_net_has_kqueue == 0 { return 0 - 78 } // ENOSYS (no kqueue backend)
 
@@ -567,6 +573,7 @@ fn oren_fd_wait_any_epoll(fds, events_mask, timeout_ms, out_fd_ptr) {
     if nfds <= 0 { return 0 - 22 } // EINVAL
 
     // Rolling determinism rule: avoid accidental hangs. Treat negative timeout as "no wait".
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
     if timeout_ms < 0 { timeout_ms = 0 }
     var epfd = sys_epoll_create1(0)
     if epfd < 0 { return epfd }
@@ -625,6 +632,7 @@ fn oren_fd_wait_any_epoll(fds, events_mask, timeout_ms, out_fd_ptr) {
 @cap.requires(domain="NET")
 fn oren_fd_wait_any_readable(fds, timeout_ms, out_fd_ptr) {
     native_capsule_require(CAP_NET, "NET")
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
     if g_target_os == 3 {
         // Minimal Windows implementation: build a single fd_set and return the first ready fd.
         if fds == nil { return 0 - 22 } // EINVAL
@@ -681,6 +689,7 @@ fn oren_fd_wait_any_readable(fds, timeout_ms, out_fd_ptr) {
 @cap.requires(domain="NET")
 fn oren_fd_wait_any_writable(fds, timeout_ms, out_fd_ptr) {
     native_capsule_require(CAP_NET, "NET")
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
     if g_target_os == 3 {
         if fds == nil { return 0 - 22 } // EINVAL
         if out_fd_ptr == 0 { return 0 - 22 } // EINVAL
@@ -734,6 +743,7 @@ fn oren_fd_wait_any_writable(fds, timeout_ms, out_fd_ptr) {
 @cap.requires(domain="NET")
 fn oren_tcp_connect(ip, port, timeout_ms) {
     native_capsule_require_net_connect(ip, port)
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
     var init_rc = native_net_init_once()
     if init_rc < 0 { return init_rc }
     var fd = sys_socket(OREN_AF_INET, OREN_SOCK_STREAM, OREN_IPPROTO_TCP)
@@ -859,6 +869,7 @@ fn oren_tcp_listen_local(port) {
 @cap.requires(domain="NET")
 fn oren_tcp_accept(listen_fd, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
     var n = oren_fd_wait_readable(listen_fd, timeout_ms)
     if n == 0 { return 0 - 60 } // ETIMEDOUT
     if n < 0 { return n }
@@ -877,6 +888,8 @@ fn oren_tcp_accept(listen_fd, timeout_ms) {
 @cap.requires(domain="NET")
 fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
+    len = native_canon_i32_arg(len)
     if len <= 0 { return 0 }
 
     // The socket is non-blocking, and readiness waits can be spuriously satisfied
@@ -942,6 +955,8 @@ fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
 @cap.requires(domain="NET")
 fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
+    timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
+    len = native_canon_i32_arg(len)
     if len <= 0 { return 0 }
 
     // `sys_sendto` can return partial writes on stream sockets.

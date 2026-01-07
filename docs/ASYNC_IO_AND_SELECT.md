@@ -77,7 +77,8 @@ Notes:
   because they were introduced as part of the NET substrate.
 - Readiness is treated as **advisory** (not an infallible contract):
   - All sockets are configured non-blocking.
-  - Higher-level helpers (`oren_tcp_read_into` / `oren_tcp_write_from`) try `recv`/`send` first and tolerate occasional false timeouts from readiness waits by retrying until the caller deadline is exhausted.
+  - Higher-level NET helpers (`oren_tcp_read_into` / `oren_tcp_write_from` / `oren_udp_sendto` / `oren_udp_recvfrom_into`) try `recv`/`send` first and tolerate occasional false timeouts from readiness waits by retrying until the caller deadline is exhausted.
+  - Rolling x86_64 note: some NET entrypoints canonicalize i32-ish args (`timeout_ms`, `len`, `port`) to guard against uninitialized high 32-bit spill bugs while the native backend is still converging.
 - Linux syscall ABI footgun (native, libc-free):
   - `epoll_event` layout differs by arch (`x86_64` packed 12 bytes vs `arm64` 16 bytes).
   - The native runtime probes this once at startup (`native_runtime_init`) and fills `OREN_EPOLL_EVENT_*`,
