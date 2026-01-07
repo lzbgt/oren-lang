@@ -319,6 +319,7 @@ var CAP_NET = 2
 var CAP_PROC = 4
 var CAP_ENV = 8
 var CAP_TIME = 16
+var CAP_RNG = 32
 
 // Oren-level open(2) flags (rolling ABI; translated by native codegen).
 //

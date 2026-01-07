@@ -110,11 +110,15 @@ fn native_parse_cap_allow_mask(csv_cstr) {
                         var b2a = ptr_get_byte(iadd(csv_cstr, tok_start + 2))
                         if b1a >= 97 && b1a <= 122 { b1a = b1a - 32 }
                         if b2a >= 97 && b2a <= 122 { b2a = b2a - 32 }
-                        // NET / ENV
+                        // NET / ENV / RNG
                         if b0 == 78 && b1a == 69 && b2a == 84 {
                             mask = mask | CAP_NET
                         } else {
-                            if b0 == 69 && b1a == 78 && b2a == 86 { mask = mask | CAP_ENV }
+                            if b0 == 69 && b1a == 78 && b2a == 86 {
+                                mask = mask | CAP_ENV
+                            } else {
+                                if b0 == 82 && b1a == 78 && b2a == 71 { mask = mask | CAP_RNG }
+                            }
                         }
                     } else {
                         if tok_len == 4 {

@@ -1,7 +1,7 @@
 // Capsule mode (native backend): compile-time capability gating.
 //
 // Goal (v0):
-// - prevent host-effects by default (FS/NET/PROC/ENV/TIME) unless explicitly enrolled
+// - prevent host-effects by default (FS/NET/PROC/ENV/TIME/RNG) unless explicitly enrolled
 // - keep the mechanism simple and deterministic (no dynamic policy at runtime)
 //
 // Enforcement model:

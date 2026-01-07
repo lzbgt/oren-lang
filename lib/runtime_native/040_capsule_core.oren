@@ -1,7 +1,7 @@
 fn native_runtime_capsule_init() {
     // Initialize runtime capsule enforcement from env:
     // - OREN_CAPSULE=1 enables deny-by-default enforcement for host-effectful APIs.
-    // - OREN_CAP_ALLOW_DOMAINS="FS,NET,PROC,ENV,TIME" enrolls domains.
+    // - OREN_CAP_ALLOW_DOMAINS="FS,NET,PROC,ENV,TIME,RNG" enrolls domains.
     //
     // Defaults (non-capsule): allow everything (mask ignored).
     global_set_capsule_mode(0)

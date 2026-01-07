@@ -1006,7 +1006,7 @@ Packed views are designed to avoid heap pressure: they are “structured access 
 Oren has a rolling “capsule” model to make **host effects explicit**.
 This is primarily a **compiler mode** plus a convention for annotating runtime APIs:
 
-- In capsule mode, calls to functions annotated with `@cap.requires(domain="FS|NET|PROC|ENV|TIME")`
+- In capsule mode, calls to functions annotated with `@cap.requires(domain="FS|NET|PROC|ENV|TIME|RNG")`
   are rejected unless that domain is explicitly allowlisted.
 - Direct syscall intrinsics (`sys_*`) are always rejected from user code in capsule mode.
 - `ffi` declarations are rejected in capsule mode (FFI bypasses capability gating).

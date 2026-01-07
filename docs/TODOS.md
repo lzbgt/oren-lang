@@ -159,6 +159,7 @@ References:
 - Fixed (2026-01-07): portable OS entropy surface for protocols:
   - `oren_getentropy(ptr,len)` (native runtime) backed by `getentropy` (macOS) / `getrandom` (Linux) / `BCryptGenRandom` (Win11)
   - `std:crypto/rand` used by WebSocket client key + masking (no more time-seeded xorshift in stdlib)
+  - Capsule: `oren_getentropy` is gated by `@cap.requires(domain="RNG")` (allow via `--cap-allow-domains RNG` / `OREN_CAP_ALLOW_DOMAINS=...`).
   - Fixed (2026-01-07): Win11 WS echo loopback flake eliminated by hardening NET read/write against spurious readiness timeouts (optimistic `recv`/`send` first; retry until deadline instead of returning `ETIMEDOUT` immediately).
   - Fixed (2026-01-07): ping/pong/close frames are handled in `ws.recv_text` (auto-pong + ignore pongs), and `ws.send_ping_{client,server}` exists.
   - Fixed (2026-01-07): client key + masking use OS entropy (`oren_getentropy`), not time-seeded xorshift.

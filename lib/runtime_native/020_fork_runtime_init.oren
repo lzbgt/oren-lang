@@ -198,6 +198,7 @@ fn native_runtime_init(target_os) {
     CAP_PROC = 4
     CAP_ENV = 8
     CAP_TIME = 16
+    CAP_RNG = 32
 
     // Oren-level open(2) flags (translated by native syscall lowering).
     OREN_O_CREAT = 256

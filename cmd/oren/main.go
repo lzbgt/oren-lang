@@ -78,7 +78,12 @@ func cmdQuote(s string) string {
 	return "\"" + s + "\""
 }
 
-func findMSVCDevCmd() (string, error) {
+type msvcDevCmd struct {
+	path string
+	args []string
+}
+
+func findMSVCDevCmd() (msvcDevCmd, error) {
 	// Prefer vswhere.exe in the standard installer location.
 	var candidates []string
 	if pf86 := os.Getenv("ProgramFiles(x86)"); pf86 != "" {
@@ -99,7 +104,7 @@ func findMSVCDevCmd() (string, error) {
 		}
 	}
 	if vswhere == "" {
-		return "", fmt.Errorf("vswhere.exe not found (install Visual Studio 2022 or set PATH)")
+		return msvcDevCmd{}, fmt.Errorf("vswhere.exe not found (install Visual Studio 2022 or set PATH)")
 	}
 
 	out, err := exec.Command(vswhere,
@@ -109,22 +114,27 @@ func findMSVCDevCmd() (string, error) {
 		"-property", "installationPath",
 	).Output()
 	if err != nil {
-		return "", fmt.Errorf("vswhere.exe failed: %w", err)
+		return msvcDevCmd{}, fmt.Errorf("vswhere.exe failed: %w", err)
 	}
 	installPath := strings.TrimSpace(string(out))
 	if installPath == "" {
-		return "", fmt.Errorf("vswhere.exe did not return an installationPath (MSVC toolchain not installed?)")
+		return msvcDevCmd{}, fmt.Errorf("vswhere.exe did not return an installationPath (MSVC toolchain not installed?)")
 	}
 
 	vsDevCmd := filepath.Join(installPath, "Common7", "Tools", "VsDevCmd.bat")
 	if _, err := os.Stat(vsDevCmd); err == nil {
-		return vsDevCmd, nil
+		return msvcDevCmd{
+			path: vsDevCmd,
+			// VsDevCmd supports selecting host + target arch.
+			args: []string{"-arch=amd64", "-host_arch=amd64", "-no_logo"},
+		}, nil
 	}
 	vcvars64 := filepath.Join(installPath, "VC", "Auxiliary", "Build", "vcvars64.bat")
 	if _, err := os.Stat(vcvars64); err == nil {
-		return vcvars64, nil
+		// vcvars64 sets up a 64-bit target environment and does not accept VsDevCmd-style args.
+		return msvcDevCmd{path: vcvars64}, nil
 	}
-	return "", fmt.Errorf("found VS install at %q but could not find VsDevCmd.bat or vcvars64.bat", installPath)
+	return msvcDevCmd{}, fmt.Errorf("found VS install at %q but could not find VsDevCmd.bat or vcvars64.bat", installPath)
 }
 
 func main() {
@@ -344,8 +354,12 @@ func main() {
 				var b strings.Builder
 				b.WriteString("@echo off\r\n")
 				b.WriteString("call ")
-				b.WriteString(cmdQuote(devCmd))
-				b.WriteString(" -arch=amd64 -host_arch=amd64 -no_logo\r\n")
+				b.WriteString(cmdQuote(devCmd.path))
+				for _, a := range devCmd.args {
+					b.WriteString(" ")
+					b.WriteString(cmdQuote(a))
+				}
+				b.WriteString("\r\n")
 				b.WriteString("if errorlevel 1 exit /b %errorlevel%\r\n")
 				b.WriteString(cmdQuote(cc))
 				for _, a := range args {

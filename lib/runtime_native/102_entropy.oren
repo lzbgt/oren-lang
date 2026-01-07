@@ -10,12 +10,11 @@
 //
 // Notes:
 // - The syscall-first runtime prefers OS syscalls / Win32 APIs over FS paths like `/dev/urandom`.
-// - This is still a host effect (nondeterministic); in capsule mode it is currently gated by TIME.
-//   (A dedicated RNG domain can be introduced later if needed.)
+// - This is still a host effect (nondeterministic); in capsule mode it is gated by RNG.
 
-@cap.requires(domain="TIME")
+@cap.requires(domain="RNG")
 fn oren_getentropy(buf, len) {
-    native_capsule_require(CAP_TIME, "TIME")
+    native_capsule_require(CAP_RNG, "RNG")
     if buf == nil { buf = 0 }
     if len == nil { len = 0 }
     if len <= 0 { return 0 }
