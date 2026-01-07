@@ -1,0 +1,137 @@
+// SHA-1 (pure Oren, rolling)
+//
+// Scope:
+// - Deterministic, correctness-first SHA-1 for workflows that need it (WebSocket handshake, etc).
+// - Not optimized; avoid using this in hot perf paths until we have profiling + SIMD plans.
+//
+// API:
+// - `sha1_bytes(input_bytes)` -> BYTES (len=20)
+
+import list "std:list"
+
+fn _u32(x) { return x & 4294967295 } // 0xFFFFFFFF
+
+fn _rotl32(x, n) {
+    x = _u32(x)
+    if n == 0 { return x }
+    var a = _u32(x << n)
+    var b = _u32(x >> (32 - n))
+    return _u32(a | b)
+}
+
+fn _u32_be_at(xs, pos) {
+    // xs: list<u8>
+    var b0 = xs[pos + 0] & 255
+    var b1 = xs[pos + 1] & 255
+    var b2 = xs[pos + 2] & 255
+    var b3 = xs[pos + 3] & 255
+    return _u32((b0 << 24) | (b1 << 16) | (b2 << 8) | b3)
+}
+
+fn _push_u32_be(out, x) {
+    x = _u32(x)
+    list.push(out, (x >> 24) & 255)
+    list.push(out, (x >> 16) & 255)
+    list.push(out, (x >> 8) & 255)
+    list.push(out, x & 255)
+    return nil
+}
+
+fn sha1_bytes(input_bytes) {
+    // Returns BYTES (len=20).
+    if input_bytes == nil {
+        input_bytes = oren_bytes_pack([])
+    }
+
+    var msg = oren_bytes_unpack(input_bytes) // list<u8>
+    var orig_len = list.len(msg)
+    var bit_len = orig_len * 8
+
+    // Padding: append 0x80, then 0x00 until (len + 8) % 64 == 0, then append bit_len (u64 BE)
+    list.push(msg, 128)
+    var pad = (list.len(msg) + 8) % 64
+    while pad != 0 {
+        list.push(msg, 0)
+        pad = (pad + 1) % 64
+    }
+
+    // u64 big-endian bit length
+    var i = 7
+    while i >= 0 {
+        list.push(msg, (bit_len >> (i * 8)) & 255)
+        i = i - 1
+    }
+
+    // Initial hash values
+    var h0 = 1732584193  // 0x67452301
+    var h1 = 4023233417  // 0xEFCDAB89
+    var h2 = 2562383102  // 0x98BADCFE
+    var h3 = 271733878   // 0x10325476
+    var h4 = 3285377520  // 0xC3D2E1F0
+
+    var off = 0
+    while off < list.len(msg) {
+        // message schedule
+        var w = []
+        var t = 0
+        while t < 16 {
+            list.push(w, _u32_be_at(msg, off + t * 4))
+            t = t + 1
+        }
+        while t < 80 {
+            var v = w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16]
+            list.push(w, _rotl32(v, 1))
+            t = t + 1
+        }
+
+        var a = h0
+        var b = h1
+        var c = h2
+        var d = h3
+        var e = h4
+
+        t = 0
+        while t < 80 {
+            var f = 0
+            var k = 0
+            if t < 20 {
+                f = (b & c) | ((~b) & d)
+                k = 1518500249  // 0x5A827999
+            } else if t < 40 {
+                f = b ^ c ^ d
+                k = 1859775393  // 0x6ED9EBA1
+            } else if t < 60 {
+                f = (b & c) | (b & d) | (c & d)
+                k = 2400959708  // 0x8F1BBCDC
+            } else {
+                f = b ^ c ^ d
+                k = 3395469782  // 0xCA62C1D6
+            }
+
+            var temp = _u32(_rotl32(a, 5) + _u32(f) + e + k + w[t])
+            e = d
+            d = c
+            c = _rotl32(b, 30)
+            b = a
+            a = temp
+            t = t + 1
+        }
+
+        h0 = _u32(h0 + a)
+        h1 = _u32(h1 + b)
+        h2 = _u32(h2 + c)
+        h3 = _u32(h3 + d)
+        h4 = _u32(h4 + e)
+
+        off = off + 64
+    }
+
+    var out = []
+    _push_u32_be(out, h0)
+    _push_u32_be(out, h1)
+    _push_u32_be(out, h2)
+    _push_u32_be(out, h3)
+    _push_u32_be(out, h4)
+    return oren_bytes_pack(out)
+}
+

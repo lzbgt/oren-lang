@@ -1,0 +1,156 @@
+import ws "../../lib/std/net/ws.oren"
+
+fn u16be_at(p, off) {
+    var hi = ptr_get_byte(p + off)
+    var lo = ptr_get_byte(p + off + 1)
+    return (hi << 8) | lo
+}
+
+fn server(listen_fd) {
+    // Accept + handshake, then echo one text frame.
+    var r = ws.accept(listen_fd, 5000)
+    var okv = oren_map_get_str(r, "ok")
+    if okv != 1 {
+        var errv = oren_map_get_str(r, "err")
+        if errv != 0 {
+            var es = oren_intern_cstr(errv)
+            print("ws_echo_loopback: server accept FAIL: " + es)
+        } else {
+            print("ws_echo_loopback: server accept FAIL: ok=" + oren_int_to_string(okv))
+        }
+        return 10
+    }
+    var fd = oren_map_get_str(r, "fd")
+    if fd < 0 { return 11 }
+
+    var msg = ws.recv_text(fd, 5000)
+    var mok = oren_map_get_str(msg, "ok")
+    if mok != 1 {
+        var merr = oren_map_get_str(msg, "err")
+        if merr != 0 {
+            var mes = oren_intern_cstr(merr)
+            print("ws_echo_loopback: server recv FAIL: " + mes)
+        } else {
+            print("ws_echo_loopback: server recv FAIL: ok=" + oren_int_to_string(mok))
+        }
+        return 12
+    }
+    var s = oren_map_get_str(msg, "v")
+    if s == 0 { return 13 }
+
+    var wr = ws.send_text_server(fd, s, 5000)
+    free(s)
+    if wr < 0 { return 14 }
+
+    oren_tcp_close(fd)
+    return 0
+}
+
+fn run_case() {
+    // Loopback-only, timeout-bounded, OS-neutral.
+    var listen_fd = oren_tcp_listen_local(0) // port 0 => ephemeral
+    if listen_fd < 0 { return 1 }
+
+    // Determine the chosen port via getsockname.
+    var sa = malloc(32)
+    if sa == 0 { return 2 }
+    var lenp = malloc(8)
+    if lenp == 0 { return 3 }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(listen_fd, sa, lenp)
+    if grc < 0 { return 0 - grc }
+    var port = u16be_at(sa, 2)
+    free(sa)
+    free(lenp)
+    if port <= 0 { return 4 }
+
+    var h = spawn server(listen_fd)
+
+    // Keep a single exit path so we always join the server thread.
+    var rc = 0
+    var fd = -1
+
+    var url = "ws://127.0.0.1:" + oren_int_to_string(port) + "/"
+    var c = ws.connect(url, 2000)
+    free(url)
+    // Avoid relying on `c["ok"]` key-kind inference in rolling mode; use the typed runtime accessor.
+    var okv = oren_map_get_str(c, "ok")
+    if okv != 1 {
+        var errv = oren_map_get_str(c, "err")
+        if errv != 0 {
+            // `errv` can be an untracked C-string in rolling mode; intern it so string ops are safe.
+            var es = oren_intern_cstr(errv)
+            print("ws_echo_loopback: FAIL connect: " + es)
+        } else {
+            print("ws_echo_loopback: FAIL connect: ok=" + oren_int_to_string(okv))
+        }
+        // Bounded dump of the returned map for debugging (up to 8 entries).
+        var count = ptr_get(c + 0)
+        var buf = ptr_get(c + 16)
+        var i = 0
+        while i < count && i < 8 {
+            var base = buf + i * 24
+            var k = ptr_get(base + 0)
+            var kk = ptr_get(base + 8)
+            var v = ptr_get(base + 16)
+            if kk == 1 {
+                print("ws_echo_loopback: entry key=" + k + " v=" + oren_int_to_string(v))
+            } else {
+                print("ws_echo_loopback: entry key_int=" + oren_int_to_string(k) + " v=" + oren_int_to_string(v))
+            }
+            i = i + 1
+        }
+        rc = 20
+    } else {
+        fd = oren_map_get_str(c, "fd")
+
+        var text = "PING"
+        var wr = ws.send_text_client(fd, text, 2000)
+        if wr < 0 {
+            print("ws_echo_loopback: FAIL send")
+            rc = 21
+        } else {
+            var rr = ws.recv_text(fd, 5000)
+            // Prefer typed map access; do not rely on key-kind inference in tests.
+            var rok = oren_map_get_str(rr, "ok")
+            if rok != 1 {
+                var rerr = oren_map_get_str(rr, "err")
+                if rerr != 0 {
+                    var rerr_s = oren_intern_cstr(rerr)
+                    print("ws_echo_loopback: FAIL recv: " + rerr_s)
+                } else {
+                    print("ws_echo_loopback: FAIL recv: ok=" + oren_int_to_string(rok))
+                }
+                rc = 22
+            } else {
+                var body = oren_map_get_str(rr, "v")
+                if body == 0 { rc = 23 }
+                else if strcmp(body, "PING") != 0 {
+                    print("ws_echo_loopback: FAIL mismatch")
+                    print(body)
+                    free(body)
+                    rc = 24
+                } else {
+                    free(body)
+                }
+            }
+        }
+    }
+
+    if fd >= 0 { oren_tcp_close(fd) }
+
+    var sr = oren_join_timeout(h, 5000)
+    if sr != 0 && rc == 0 { rc = 30 }
+
+    oren_tcp_close(listen_fd)
+    return rc
+}
+
+fn main() {
+    var rc = run_case()
+    if rc != 0 { exit(rc) }
+    print("ws_echo_loopback: OK")
+    exit(0)
+}
+
+// NOTE: `fn main()` is invoked automatically by the runtime entrypoint.

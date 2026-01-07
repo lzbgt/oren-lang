@@ -1,0 +1,697 @@
+// std/net/ws (WebSocket over TCP, rolling)
+//
+// Scope (v0):
+// - ws://<ipv4>[:port][/path] only (no DNS, no TLS)
+// - Text frames (opcode=1) for small messages
+// - Client frames are masked (required by RFC6455); server frames are unmasked
+//
+// This module is intentionally small and syscall-first. Production maturity work
+// (HTTP/2, TLS, DNS, streaming APIs) is tracked in `docs/TODOS.md`.
+
+import tcp "std:net/tcp"
+import sha1 "std:crypto/sha1"
+import base64 "std:encoding/base64"
+
+fn _starts_with(s, prefix) {
+    if s == nil || prefix == nil { return 0 }
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(prefix)
+    if sl < pl { return 0 }
+    var i = 0
+    while i < pl {
+        if ptr_get_byte(s + i) != ptr_get_byte(prefix + i) { return 0 }
+        i = i + 1
+    }
+    return 1
+}
+
+fn _parse_ws_url(url) {
+    // Supported:
+    //   ws://<ipv4>[:port][/path]
+    //
+    // Returns {ok:1, host:string, port:int, path:string} or {ok:0, err:string}.
+    if url == nil { return {"ok": 0, "err": "url is nil"} }
+    if _starts_with(url, "ws://") == 0 { return {"ok": 0, "err": "only ws:// is supported"} }
+
+    var ul = oren_string_len(url)
+    var pos = 5 // len("ws://")
+
+    // Find '/' for path start
+    var slash = -1
+    var i = pos
+    while i < ul {
+        if ptr_get_byte(url + i) == 47 { slash = i; break } // '/'
+        i = i + 1
+    }
+    if slash == -1 { slash = ul }
+
+    // Find ':' for port separator (only within host segment)
+    var colon = -1
+    i = pos
+    while i < slash {
+        if ptr_get_byte(url + i) == 58 { colon = i; break } // ':'
+        i = i + 1
+    }
+
+    var host_end = slash
+    if colon != -1 { host_end = colon }
+    if host_end <= pos { return {"ok": 0, "err": "missing host"} }
+
+    var host = oren_string_slice(url, pos, host_end)
+    if host == 0 { return {"ok": 0, "err": "host slice failed"} }
+
+    var port = 80
+    if colon != -1 {
+        var port_s = oren_string_slice(url, colon + 1, slash)
+        if port_s == 0 {
+            free(host)
+            return {"ok": 0, "err": "port slice failed"}
+        }
+        var pv = oren_int_from_string(port_s)
+        free(port_s)
+        if pv <= 0 {
+            free(host)
+            return {"ok": 0, "err": "invalid port"}
+        }
+        port = pv
+    }
+
+    // Always return an owned (malloc) path string so callers can `free()` unconditionally.
+    var path = 0
+    if slash < ul {
+        path = oren_string_slice(url, slash, ul)
+        if path == 0 {
+            free(host)
+            return {"ok": 0, "err": "path slice failed"}
+        }
+    } else {
+        // No explicit path => "/"
+        path = oren_string_slice("/", 0, 1)
+        if path == 0 {
+            free(host)
+            return {"ok": 0, "err": "path alloc failed"}
+        }
+    }
+
+    return {"ok": 1, "host": host, "port": port, "path": path}
+}
+
+fn _find_header_body_split(buf, used) {
+    // Returns offset of body start, or 0 if not found.
+    var i = 0
+    while i + 3 < used {
+        if ptr_get_byte(buf + i) == 13 {
+            if ptr_get_byte(buf + i + 1) == 10 {
+                if ptr_get_byte(buf + i + 2) == 13 {
+                    if ptr_get_byte(buf + i + 3) == 10 {
+                        return i + 4
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+fn _ascii_lower(b) {
+    if b >= 65 && b <= 90 { return b + 32 }
+    return b
+}
+
+fn _header_name_eq_ci(buf, name_start, name_end, want) {
+    var wl = oren_string_len(want)
+    if (name_end - name_start) != wl { return 0 }
+    var i = 0
+    while i < wl {
+        var b1 = ptr_get_byte(buf + name_start + i) & 255
+        var b2 = ptr_get_byte(want + i) & 255
+        if _ascii_lower(b1) != _ascii_lower(b2) { return 0 }
+        i = i + 1
+    }
+    return 1
+}
+
+fn _trim_left_ws_in_buf(buf, start, end) {
+    var i = start
+    while i < end {
+        var b = ptr_get_byte(buf + i) & 255
+        if b != 32 && b != 9 { break }
+        i = i + 1
+    }
+    return i
+}
+
+fn _trim_right_ws_in_buf(buf, start, end) {
+    var i = end
+    while i > start {
+        var b = ptr_get_byte(buf + (i - 1)) & 255
+        if b != 32 && b != 9 && b != 13 && b != 10 { break }
+        i = i - 1
+    }
+    return i
+}
+
+fn _buf_slice_to_string(buf, start, end) {
+    if buf == 0 { return 0 }
+    if end < start { return 0 }
+    var n = end - start
+    // Allocate as a tracked STRING so `+` concatenation works under the native runtime
+    // (string concatenation is kind-gated; untracked strings behave like integers).
+    var out = malloc_k(n + 1, 1)
+    if out == 0 { return 0 }
+    var i = 0
+    while i < n {
+        ptr_set_byte(out + i, ptr_get_byte(buf + start + i))
+        i = i + 1
+    }
+    ptr_set_byte(out + n, 0)
+    return out
+}
+
+fn _read_http_header_into_buf(fd, timeout_ms, max_bytes) {
+    // Returns:
+    //   {"ok":1,"buf":ptr,"used":int,"body_off":int} on success
+    //   {"ok":0,"err":string} on failure
+    if max_bytes == nil { max_bytes = 8192 }
+    if max_bytes < 256 { max_bytes = 256 }
+    if timeout_ms == nil { timeout_ms = 5000 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+
+    var cap = max_bytes
+    var buf = malloc(cap)
+    if buf == 0 { return {"ok": 0, "err": "malloc failed"} }
+    var used = 0
+
+    // Reuse one scratch buffer to avoid per-iteration malloc/free.
+    var tmp = malloc(1024)
+    if tmp == 0 { free(buf); return {"ok": 0, "err": "malloc scratch failed"} }
+
+    var deadline = 0
+    if timeout_ms > 0 {
+        var t0 = oren_time_unix_ns()
+        if t0 != 0 { deadline = t0 + timeout_ms * 1000000 }
+    }
+    var spins = 0
+
+    var body_off = 0
+    while 1 {
+        var rem = timeout_ms
+        if deadline != 0 {
+            var now = oren_time_unix_ns()
+            if now != 0 {
+                var rem_ns = deadline - now
+                if rem_ns <= 0 {
+                    free(tmp)
+                    free(buf)
+                    return {"ok": 0, "err": "read timeout"}
+                }
+                rem = rem_ns / 1000000
+                if rem < 0 { rem = 0 }
+            }
+        } else {
+            // TIME might be unavailable in some bring-up environments; keep bounded.
+            spins = spins + 1
+            if spins > 64 {
+                free(tmp)
+                free(buf)
+                return {"ok": 0, "err": "read timeout"}
+            }
+        }
+
+        var n = tcp.read_into(fd, tmp, 1024, rem)
+        if n == 0 {
+            free(tmp)
+            free(buf)
+            return {"ok": 0, "err": "eof before header complete"}
+        }
+        if n < 0 {
+            free(tmp)
+            free(buf)
+            return {"ok": 0, "err": "read failed (errno=" + oren_int_to_string(0 - n) + ")"}
+        }
+        if used + n > cap {
+            free(tmp)
+            free(buf)
+            return {"ok": 0, "err": "header too large"}
+        }
+        oren_memcpy(buf + used, tmp, n)
+        used = used + n
+        body_off = _find_header_body_split(buf, used)
+        if body_off != 0 { break }
+    }
+
+    free(tmp)
+
+    return {"ok": 1, "buf": buf, "used": used, "body_off": body_off}
+}
+
+fn _ws_accept_for_key(key) {
+    // Sec-WebSocket-Accept = base64( sha1( key + GUID ) )
+    //
+    // GUID: RFC6455
+    var guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+    var s = key + guid
+    var digest = sha1.sha1_bytes(oren_bytes_from_string(s))
+    free(s)
+    return base64.encode_bytes(digest)
+}
+
+fn _extract_header_value_ci(buf, body_off, want_name) {
+    // Returns string value (malloc) or 0 if not found.
+    //
+    // buf contains at least the full header section ending at body_off.
+    // Layout: status line + headers + CRLF.
+    if buf == 0 { return 0 }
+    if body_off <= 4 { return 0 }
+
+    // Find end of status line.
+    var line0_end = -1
+    var i0 = 0
+    while i0 + 1 < body_off {
+        if (ptr_get_byte(buf + i0) & 255) == 13 && (ptr_get_byte(buf + i0 + 1) & 255) == 10 {
+            line0_end = i0
+            break
+        }
+        i0 = i0 + 1
+    }
+
+    var hpos = 0
+    if line0_end >= 0 { hpos = line0_end + 2 }
+    while hpos + 1 < body_off {
+        // Empty line => end.
+        if (ptr_get_byte(buf + hpos) & 255) == 13 && (ptr_get_byte(buf + hpos + 1) & 255) == 10 {
+            break
+        }
+        // Find end of line.
+        var lend = -1
+        var j = hpos
+        while j + 1 < body_off {
+            if (ptr_get_byte(buf + j) & 255) == 13 && (ptr_get_byte(buf + j + 1) & 255) == 10 {
+                lend = j
+                break
+            }
+            j = j + 1
+        }
+        if lend < 0 { break }
+
+        // Find ':' separator.
+        var colon = -1
+        var k = hpos
+        while k < lend {
+            if (ptr_get_byte(buf + k) & 255) == 58 { colon = k; break }
+            k = k + 1
+        }
+        if colon >= 0 {
+            var name_start = hpos
+            var name_end = colon
+            if _header_name_eq_ci(buf, name_start, name_end, want_name) == 1 {
+                var val_start0 = _trim_left_ws_in_buf(buf, colon + 1, lend)
+                var val_end0 = _trim_right_ws_in_buf(buf, val_start0, lend)
+                return _buf_slice_to_string(buf, val_start0, val_end0)
+            }
+        }
+
+        hpos = lend + 2
+    }
+    return 0
+}
+
+fn _status_is_101(buf, body_off) {
+    // Very small status check: require " 101 " on the status line.
+    if buf == 0 { return 0 }
+    if body_off <= 0 { return 0 }
+    var i = 0
+    while i + 4 < body_off {
+        if (ptr_get_byte(buf + i) & 255) == 32 {
+            if (ptr_get_byte(buf + i + 1) & 255) == 49 &&
+               (ptr_get_byte(buf + i + 2) & 255) == 48 &&
+               (ptr_get_byte(buf + i + 3) & 255) == 49 &&
+               (ptr_get_byte(buf + i + 4) & 255) == 32 {
+                return 1
+            }
+        }
+        // Stop at CRLF of status line.
+        if (ptr_get_byte(buf + i) & 255) == 13 { break }
+        i = i + 1
+    }
+    return 0
+}
+
+fn connect(url, timeout_ms) {
+    // Client handshake. Returns {"ok":1,"fd":int} or {"ok":0,"err":string}.
+    if timeout_ms == nil { timeout_ms = 5000 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+    var pu = _parse_ws_url(url)
+    if pu["ok"] != 1 { return {"ok": 0, "err": "ws.connect: " + pu["err"]} }
+
+    var host = pu["host"]
+    var port = pu["port"]
+    var path = pu["path"]
+
+    var fd = tcp.connect(host, port, timeout_ms)
+    if fd < 0 {
+        free(host)
+        free(path)
+        return {"ok": 0, "err": "ws.connect: connect failed (errno=" + oren_int_to_string(0 - fd) + ")"}
+    }
+
+    // Rolling: deterministic key (RFC example nonce) until we have a portable RNG surface.
+    var key = "dGhlIHNhbXBsZSBub25jZQ=="
+    var hostport = host + ":" + oren_int_to_string(port)
+    var req = "GET " + path + " HTTP/1.1\r\nHost: " + hostport +
+              "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: " + key +
+              "\r\nSec-WebSocket-Version: 13\r\n\r\n"
+    free(hostport)
+
+    var wr = tcp.write_from(fd, req, oren_string_len(req), timeout_ms)
+    free(req)
+    if wr < 0 {
+        tcp.close(fd)
+        free(host)
+        free(path)
+        return {"ok": 0, "err": "ws.connect: write failed (errno=" + oren_int_to_string(0 - wr) + ")"}
+    }
+
+    var hdr = _read_http_header_into_buf(fd, timeout_ms, 8192)
+    if hdr["ok"] != 1 {
+        tcp.close(fd)
+        free(host)
+        free(path)
+        return {"ok": 0, "err": "ws.connect: " + hdr["err"]}
+    }
+
+    var hbuf = hdr["buf"]
+    var body_off = hdr["body_off"]
+    if _status_is_101(hbuf, body_off) == 0 {
+        free(hbuf)
+        tcp.close(fd)
+        free(host)
+        free(path)
+        return {"ok": 0, "err": "ws.connect: expected HTTP 101"}
+    }
+
+    var accept = _extract_header_value_ci(hbuf, body_off, "sec-websocket-accept")
+    if accept == 0 {
+        free(hbuf)
+        tcp.close(fd)
+        free(host)
+        free(path)
+        return {"ok": 0, "err": "ws.connect: missing Sec-WebSocket-Accept"}
+    }
+
+    var want = _ws_accept_for_key(key)
+    var ok = (strcmp(accept, want) == 0)
+    var got_accept = accept
+    var want_accept = want
+    free(hbuf)
+    if ok != true {
+        tcp.close(fd)
+        free(host)
+        free(path)
+        // Keep diagnostics short: base64 accept values are small (28 chars).
+        var msg = "ws.connect: accept mismatch (got=" + got_accept + " want=" + want_accept + ")"
+        free(got_accept)
+        free(want_accept)
+        return {"ok": 0, "err": msg}
+    }
+
+    free(got_accept)
+    free(want_accept)
+    free(host)
+    free(path)
+    return {"ok": 1, "fd": fd}
+}
+
+fn _server_handshake(fd, timeout_ms) {
+    // Returns {"ok":1} or {"ok":0,"err":string}.
+    var hdr = _read_http_header_into_buf(fd, timeout_ms, 8192)
+    if hdr["ok"] != 1 {
+        return {"ok": 0, "err": "ws.accept: " + hdr["err"]}
+    }
+    var hbuf = hdr["buf"]
+    var body_off = hdr["body_off"]
+
+    var key = _extract_header_value_ci(hbuf, body_off, "sec-websocket-key")
+    if key == 0 {
+        free(hbuf)
+        return {"ok": 0, "err": "ws.accept: missing Sec-WebSocket-Key"}
+    }
+
+    var accept = _ws_accept_for_key(key)
+    free(key)
+    if accept == 0 {
+        free(hbuf)
+        return {"ok": 0, "err": "ws.accept: accept compute failed"}
+    }
+
+    var resp = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + accept + "\r\n\r\n"
+    free(accept)
+    var wr = tcp.write_from(fd, resp, oren_string_len(resp), timeout_ms)
+    free(resp)
+    free(hbuf)
+    if wr < 0 {
+        return {"ok": 0, "err": "ws.accept: write failed (errno=" + oren_int_to_string(0 - wr) + ")"}
+    }
+    return {"ok": 1}
+}
+
+fn accept(listen_fd, timeout_ms) {
+    // Server accept + handshake. Returns {"ok":1,"fd":int} or {"ok":0,"err":string}.
+    if timeout_ms == nil { timeout_ms = 5000 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+    var fd = tcp.accept(listen_fd, timeout_ms)
+    if fd < 0 {
+        return {"ok": 0, "err": "ws.accept: accept failed (errno=" + oren_int_to_string(0 - fd) + ")"}
+    }
+    var r = _server_handshake(fd, timeout_ms)
+    if r["ok"] != 1 {
+        tcp.close(fd)
+        return r
+    }
+    return {"ok": 1, "fd": fd}
+}
+
+fn _read_exact(fd, buf, want, timeout_ms) {
+    // Returns 0 on success, or -errno.
+    if want <= 0 { return 0 }
+    if buf == 0 { return 0 - 22 } // EINVAL
+    if timeout_ms == nil { timeout_ms = 5000 }
+
+    var deadline = 0
+    if timeout_ms > 0 {
+        var t0 = oren_time_unix_ns()
+        if t0 != 0 { deadline = t0 + timeout_ms * 1000000 }
+    }
+
+    var off = 0
+    var spins = 0
+    while off < want {
+        var rem = timeout_ms
+        if deadline != 0 {
+            var now = oren_time_unix_ns()
+            if now != 0 {
+                var rem_ns = deadline - now
+                if rem_ns <= 0 { return 0 - 60 } // ETIMEDOUT
+                rem = rem_ns / 1000000
+                if rem < 0 { rem = 0 }
+            }
+        } else {
+            // Worst-case guard: if TIME is unavailable, do not loop forever on partial reads.
+            spins = spins + 1
+            if spins > 64 { return 0 - 60 } // ETIMEDOUT (best-effort)
+        }
+
+        var n = tcp.read_into(fd, iadd(buf, off), want - off, rem)
+        if n == 0 { return 0 - 5 } // EIO (EOF)
+        if n < 0 { return n }
+        off = off + n
+    }
+    return 0
+}
+
+fn _write_u16_be(buf, off, v) {
+    ptr_set_byte(buf + off + 0, (v >> 8) & 255)
+    ptr_set_byte(buf + off + 1, v & 255)
+    return nil
+}
+
+fn _write_u64_be(buf, off, v) {
+    // v is treated as unsigned 64-bit.
+    var i = 0
+    while i < 8 {
+        var shift = (7 - i) * 8
+        ptr_set_byte(buf + off + i, (v >> shift) & 255)
+        i = i + 1
+    }
+    return nil
+}
+
+fn _mask_byte(mask0, mask1, mask2, mask3, i) {
+    var m = mask0
+    var r = i % 4
+    if r == 1 { m = mask1 }
+    else if r == 2 { m = mask2 }
+    else if r == 3 { m = mask3 }
+    return m & 255
+}
+
+fn _send_frame_text(fd, text, timeout_ms, masked) {
+    if text == nil { text = "" }
+    if timeout_ms == nil { timeout_ms = 5000 }
+
+    var payload = oren_bytes_from_string(text)
+    var xs = oren_bytes_unpack(payload)
+    var n = oren_list_len(xs)
+
+    // Header sizing: 2 + ext + mask + payload
+    var ext = 0
+    if n < 126 { ext = 0 }
+    else if n < 65536 { ext = 2 }
+    else { ext = 8 }
+
+    var mask_bytes = 0
+    if masked == 1 { mask_bytes = 4 }
+    var total = 2 + ext + mask_bytes + n
+    var buf = malloc(total)
+    if buf == 0 { return 0 - 12 } // ENOMEM
+
+    // FIN=1, opcode=1 (text)
+    ptr_set_byte(buf + 0, 129) // 0x81
+    var b1 = 0
+    if masked == 1 { b1 = 128 } // mask bit
+    if ext == 0 {
+        ptr_set_byte(buf + 1, b1 | (n & 127))
+    } else if ext == 2 {
+        ptr_set_byte(buf + 1, b1 | 126)
+        _write_u16_be(buf, 2, n)
+    } else {
+        ptr_set_byte(buf + 1, b1 | 127)
+        _write_u64_be(buf, 2, n)
+    }
+
+    // Deterministic mask for v0 (TODO: portable RNG).
+    var mask0 = 1
+    var mask1 = 2
+    var mask2 = 3
+    var mask3 = 4
+
+    var payload_off = 2 + ext
+    if masked == 1 {
+        ptr_set_byte(buf + payload_off + 0, mask0)
+        ptr_set_byte(buf + payload_off + 1, mask1)
+        ptr_set_byte(buf + payload_off + 2, mask2)
+        ptr_set_byte(buf + payload_off + 3, mask3)
+        payload_off = payload_off + 4
+    }
+
+    var i = 0
+    while i < n {
+        var b = xs[i] & 255
+        if masked == 1 {
+            b = b ^ _mask_byte(mask0, mask1, mask2, mask3, i)
+        }
+        ptr_set_byte(buf + payload_off + i, b)
+        i = i + 1
+    }
+
+    var wr = tcp.write_from(fd, buf, total, timeout_ms)
+    free(buf)
+    if wr < 0 { return wr }
+    return 0
+}
+
+fn send_text_client(fd, text, timeout_ms) {
+    return _send_frame_text(fd, text, timeout_ms, 1)
+}
+
+fn send_text_server(fd, text, timeout_ms) {
+    return _send_frame_text(fd, text, timeout_ms, 0)
+}
+
+fn recv_text(fd, timeout_ms) {
+    // Returns {"ok":1,"v":string} or {"ok":0,"err":string}.
+    if timeout_ms == nil { timeout_ms = 5000 }
+
+    var hdr2 = malloc(2)
+    if hdr2 == 0 { return {"ok": 0, "err": "ws.recv_text: malloc failed"} }
+    var rc = _read_exact(fd, hdr2, 2, timeout_ms)
+    if rc < 0 { free(hdr2); return {"ok": 0, "err": "ws.recv_text: read hdr failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
+
+    var b0 = ptr_get_byte(hdr2 + 0) & 255
+    var b1 = ptr_get_byte(hdr2 + 1) & 255
+    free(hdr2)
+
+    var fin = (b0 >> 7) & 1
+    var opcode = b0 & 15
+    var masked = (b1 >> 7) & 1
+    var plen7 = b1 & 127
+
+    if fin != 1 {
+        return {"ok": 0, "err": "ws.recv_text: fragmented frames not supported"}
+    }
+    if opcode == 8 {
+        return {"ok": 0, "err": "ws.recv_text: close"}
+    }
+    if opcode != 1 {
+        return {"ok": 0, "err": "ws.recv_text: unsupported opcode " + oren_int_to_string(opcode)}
+    }
+
+    var plen = plen7
+    if plen7 == 126 {
+        var ex = malloc(2)
+        if ex == 0 { return {"ok": 0, "err": "ws.recv_text: malloc ext"} }
+        rc = _read_exact(fd, ex, 2, timeout_ms)
+        if rc < 0 { free(ex); return {"ok": 0, "err": "ws.recv_text: read ext16 failed"} }
+        plen = ((ptr_get_byte(ex + 0) & 255) << 8) | (ptr_get_byte(ex + 1) & 255)
+        free(ex)
+    } else if plen7 == 127 {
+        var ex8 = malloc(8)
+        if ex8 == 0 { return {"ok": 0, "err": "ws.recv_text: malloc ext"} }
+        rc = _read_exact(fd, ex8, 8, timeout_ms)
+        if rc < 0 { free(ex8); return {"ok": 0, "err": "ws.recv_text: read ext64 failed"} }
+        // u64 be (best-effort; reject huge sizes)
+        plen = 0
+        var i = 0
+        while i < 8 {
+            plen = plen * 256 + (ptr_get_byte(ex8 + i) & 255)
+            i = i + 1
+        }
+        free(ex8)
+    }
+
+    // Rolling safety: cap payload size.
+    if plen < 0 || plen > 1048576 {
+        return {"ok": 0, "err": "ws.recv_text: payload too large"}
+    }
+
+    var mask0 = 0
+    var mask1 = 0
+    var mask2 = 0
+    var mask3 = 0
+    if masked == 1 {
+        var mk = malloc(4)
+        if mk == 0 { return {"ok": 0, "err": "ws.recv_text: malloc mask"} }
+        rc = _read_exact(fd, mk, 4, timeout_ms)
+        if rc < 0 { free(mk); return {"ok": 0, "err": "ws.recv_text: read mask failed"} }
+        mask0 = ptr_get_byte(mk + 0) & 255
+        mask1 = ptr_get_byte(mk + 1) & 255
+        mask2 = ptr_get_byte(mk + 2) & 255
+        mask3 = ptr_get_byte(mk + 3) & 255
+        free(mk)
+    }
+
+    var out = malloc(plen + 1)
+    if out == 0 { return {"ok": 0, "err": "ws.recv_text: malloc payload"} }
+    rc = _read_exact(fd, out, plen, timeout_ms)
+    if rc < 0 { free(out); return {"ok": 0, "err": "ws.recv_text: read payload failed"} }
+    var i2 = 0
+    while masked == 1 && i2 < plen {
+        var b = ptr_get_byte(out + i2) & 255
+        b = b ^ _mask_byte(mask0, mask1, mask2, mask3, i2)
+        ptr_set_byte(out + i2, b)
+        i2 = i2 + 1
+    }
+    ptr_set_byte(out + plen, 0)
+    return {"ok": 1, "v": out}
+}

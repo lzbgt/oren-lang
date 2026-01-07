@@ -1,0 +1,58 @@
+// Base64 encoding (pure Oren, rolling)
+//
+// Scope:
+// - Minimal encode surface used by protocols like WebSocket (Sec-WebSocket-Accept).
+// - This is not a streaming API (v0); keep it small and predictable.
+//
+// API:
+// - `encode_bytes(input_bytes)` -> string
+
+import list "std:list"
+
+fn _b64_table_ptr() {
+    return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+}
+
+fn _b64_char(idx) {
+    // idx in [0..63] => ASCII byte code
+    return ptr_get_byte(_b64_table_ptr() + idx) & 255
+}
+
+fn encode_bytes(input_bytes) {
+    if input_bytes == nil {
+        input_bytes = oren_bytes_pack([])
+    }
+
+    var xs = oren_bytes_unpack(input_bytes) // list<u8>
+    var n = list.len(xs)
+
+    var out = [] // list<u8> ascii
+    var i = 0
+    while i < n {
+        var b0 = xs[i] & 255
+        var b1 = 0
+        var b2 = 0
+        var have1 = 0
+        var have2 = 0
+        if i + 1 < n { b1 = xs[i + 1] & 255; have1 = 1 }
+        if i + 2 < n { b2 = xs[i + 2] & 255; have2 = 1 }
+
+        var triple = (b0 << 16) | (b1 << 8) | b2
+        var c0 = (triple >> 18) & 63
+        var c1 = (triple >> 12) & 63
+        var c2 = (triple >> 6) & 63
+        var c3 = triple & 63
+
+        list.push(out, _b64_char(c0))
+        list.push(out, _b64_char(c1))
+        if have1 == 1 { list.push(out, _b64_char(c2)) }
+        else { list.push(out, 61) } // '='
+        if have2 == 1 { list.push(out, _b64_char(c3)) }
+        else { list.push(out, 61) } // '='
+
+        i = i + 3
+    }
+
+    return oren_string_from_bytes(oren_bytes_pack(out))
+}
+
