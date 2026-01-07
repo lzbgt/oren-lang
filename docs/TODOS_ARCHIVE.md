@@ -153,10 +153,14 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `make verify-tier1` could fail intermittently with proxy connection resets during `scp` uploads (e.g. `socat ... Connection reset by peer`).
 
 - Fix:
-  - `scripts/verify_native_matrix.sh` now retries `scp` uploads (`OREN_REMOTE_SCP_RETRIES`, default `3`) and makes the pre-delete step best-effort.
+  - `scripts/verify_native_matrix.sh` and `scripts/verify_native_net_matrix.sh` now retry `scp` uploads (`OREN_REMOTE_SCP_RETRIES`, default `3`) and make the pre-delete step best-effort.
+  - `scripts/verify_selfhost_x64_compiler.sh` now uses a home-relative remote dir by default (`tmp_oren_selfhost`) and retries `scp` uploads with the same knob.
+  - `tests/native/test_ws_echo_loopback.oren` uses slightly more generous timeouts (still bounded) and prints server-side send errno on failure (reduces Win11 flakes).
 
 - Verified:
   - `make verify-tier1` completes successfully across all targets with the hardening in place.
+  - `make verify-selfhost-x64` completes successfully (remote Win11 + WSL2).
+  - `scripts/verify_native_net_matrix.sh --targets x64-win,x64-wsl` completes successfully.
 
 ## Archived (2026-01-06) — Native arm64: rtobj debug-info persistence + arm64-linux symbolization gate
 
