@@ -370,6 +370,31 @@ fn oren_type_tag(v) {
     return 1
 }
 
+// Debug/interop helper: stable string name for the runtime type tag.
+// Intended for logging and basic reflection in user code (e.g. varargs dispatch).
+//
+// Note: native backend tagging is still rolling; this reflects the best-effort tag returned by
+// `oren_type_tag` (ints/bools/floats may all report "int" today).
+@oren.keep
+fn oren_type_name(v) {
+    var t = oren_type_tag(v)
+    if t == 0 { return "nil" }
+    if t == 1 { return "int" }
+    if t == 2 { return "float" }
+    if t == 3 { return "bool" }
+    if t == 4 { return "string" }
+    if t == 5 { return "py_obj" }
+    if t == 6 { return "list" }
+    if t == 7 { return "map" }
+    if t == 8 { return "func" }
+    if t == 9 { return "u8_buf" }
+    if t == 10 { return "i32_buf" }
+    if t == 11 { return "i64_buf" }
+    if t == 12 { return "f32_buf" }
+    if t == 13 { return "f64_buf" }
+    return "unknown"
+}
+
 // Safe type predicate: must not panic.
 @oren.keep
 fn oren_is_map(v) {

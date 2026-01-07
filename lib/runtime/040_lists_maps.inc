@@ -2024,6 +2024,26 @@ OrenValue oren_type_tag(OrenValue v) {
     return oren_int((long long)v.type);
 }
 
+OrenValue oren_type_name(OrenValue v) {
+    switch (v.type) {
+        case OREN_TYPE_NIL: return oren_string_const("nil");
+        case OREN_TYPE_INT: return oren_string_const("int");
+        case OREN_TYPE_FLOAT: return oren_string_const("float");
+        case OREN_TYPE_BOOL: return oren_string_const("bool");
+        case OREN_TYPE_STRING: return oren_string_const("string");
+        case OREN_TYPE_PY_OBJ: return oren_string_const("py_obj");
+        case OREN_TYPE_LIST: return oren_string_const("list");
+        case OREN_TYPE_MAP: return oren_string_const("map");
+        case OREN_TYPE_FUNC: return oren_string_const("func");
+        case OREN_TYPE_U8_BUF: return oren_string_const("u8_buf");
+        case OREN_TYPE_I32_BUF: return oren_string_const("i32_buf");
+        case OREN_TYPE_I64_BUF: return oren_string_const("i64_buf");
+        case OREN_TYPE_F32_BUF: return oren_string_const("f32_buf");
+        case OREN_TYPE_F64_BUF: return oren_string_const("f64_buf");
+        default: return oren_string_const("unknown");
+    }
+}
+
 static pthread_once_t g_single_byte_strings_once = PTHREAD_ONCE_INIT;
 static char g_single_byte_strings[256][2];
 

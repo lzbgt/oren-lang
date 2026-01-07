@@ -224,6 +224,9 @@ OrenValue oren_is_buf(OrenValue v);
 OrenValue oren_is_u8_buf(OrenValue v);
 // Debug/interop helper: return the runtime type tag (matches OrenType enum values).
 OrenValue oren_type_tag(OrenValue v);
+// Debug/interop helper: return a stable type name string for the runtime type tag.
+// Intended for logging and basic reflection in user code (e.g. varargs dispatch).
+OrenValue oren_type_name(OrenValue v);
 
 OrenValue oren_new_map(int count, ...);
 // Build a map from an array of key/value pairs:

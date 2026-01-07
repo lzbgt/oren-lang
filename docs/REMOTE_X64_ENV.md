@@ -8,6 +8,7 @@ To test it on real x86_64 machines, we use a remote Win11 host with WSL2 enabled
 - For direct compilation, prefer the unified platform flag on the compiler:
   - `./oren build ... --platform <arch>-<os>`
   - env fallback: `OREN_PLATFORM=<arch>-<os>` is used when `--platform` is not provided.
+  - if neither is provided, the compiler defaults to the **runtime host platform** (Windows uses env vars; POSIX uses `uname`).
   - `--target`/`--arch` are legacy (still supported).
 
 ## Preferred workflow: use the repo’s x64 matrix script (stage1 + stage2)
@@ -56,6 +57,9 @@ Rolling status:
 #   - x64-linux compiler under WSL2
 #   - x64-windows compiler under cmd.exe
 # to compile+run a tiny `print.oren`.
+#
+# Important: the remote `oren_selfhost_*` invocations intentionally omit `--platform` so this gate also
+# proves the compiler’s host auto-detection works correctly on WSL2 and native Windows.
 ./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
 ```
 

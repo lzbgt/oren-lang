@@ -256,6 +256,10 @@ fn compiler_main() {
         // Modern CLI: options parsed/validated by std:argparse.
         var target = opts["target"]
         var arch = opts["arch"]
+        // `--target/--arch` are legacy and now support `auto` to mean "runtime host".
+        // If the user explicitly passes `--target auto` / `--arch auto`, treat them as unset.
+        if target == "auto" { target = ""; seen["target"] = false }
+        if arch == "auto" { arch = ""; seen["arch"] = false }
         var platform0 = opts["platform"]
         if platform0 == nil || platform0 == "" { platform0 = oren_env("OREN_PLATFORM") }
         if platform0 != nil && platform0 != "" {
@@ -276,6 +280,12 @@ fn compiler_main() {
                 if seen["arch"] != true { arch = host0["arch"] }
                 if seen["target"] != true { target = host0["target"] }
             }
+        }
+        if target == nil || target == "" || arch == nil || arch == "" {
+            var emsg_det = "oren dump: could not determine target platform; pass --platform <arch>-<os> or set OREN_PLATFORM"
+            emit_diag("compile", 2, emsg_det)
+            print(emsg_det)
+            oren_exit(2)
         }
         var outp = ""
         if seen["out"] == true { outp = opts["out"] }
@@ -396,6 +406,10 @@ fn compiler_main() {
         // Modern CLI: options already parsed/validated by std/argparse.
         var target = opts["target"]
         var arch = opts["arch"]
+        // `--target/--arch` are legacy and now support `auto` to mean "runtime host".
+        // If the user explicitly passes `--target auto` / `--arch auto`, treat them as unset.
+        if target == "auto" { target = ""; seen["target"] = false }
+        if arch == "auto" { arch = ""; seen["arch"] = false }
         var platform0 = opts["platform"]
         if platform0 == nil || platform0 == "" { platform0 = oren_env("OREN_PLATFORM") }
         if platform0 != nil && platform0 != "" {
@@ -415,6 +429,12 @@ fn compiler_main() {
                 if seen["arch"] != true { arch = host0["arch"] }
                 if seen["target"] != true { target = host0["target"] }
             }
+        }
+        if target == nil || target == "" || arch == nil || arch == "" {
+            var emsg_det2 = "oren meta: could not determine target platform; pass --platform <arch>-<os> or set OREN_PLATFORM"
+            emit_diag("compile", 2, emsg_det2)
+            print(emsg_det2)
+            oren_exit(2)
         }
         // Default output: keep artifacts under build/targets/<arch>-<os>/<kind>/... for a clean repo layout.
         // (Repo-local outputs make rolling iteration predictable for humans + AI agents.)
@@ -572,9 +592,13 @@ fn compiler_main() {
     if trace_build { print("[build] parsed cc=" + cc) }
     target = opts["target"]
     arch = opts["arch"]
+    // `--target/--arch` are legacy and now support `auto` to mean "runtime host".
+    // If the user explicitly passes `--target auto` / `--arch auto`, treat them as unset.
+    if target == "auto" { target = ""; seen["target"] = false }
+    if arch == "auto" { arch = ""; seen["arch"] = false }
     if trace_build { print("[build] parsed target=" + target + " arch=" + arch) }
     var platform0 = opts["platform"]
-	        if platform0 == nil || platform0 == "" { platform0 = oren_env("OREN_PLATFORM") }
+		        if platform0 == nil || platform0 == "" { platform0 = oren_env("OREN_PLATFORM") }
     if platform0 != nil && platform0 != "" {
         if trace_build { print("[build] parsed platform=" + platform0) }
         var ps0 = parse_platform_spec(platform0)
@@ -594,6 +618,12 @@ fn compiler_main() {
             if seen["arch"] != true { arch = host0["arch"] }
             if seen["target"] != true { target = host0["target"] }
         }
+    }
+    if (target == nil || target == "" || arch == nil || arch == "") {
+        var emsg_det3 = "oren build: could not determine target platform; pass --platform <arch>-<os> or set OREN_PLATFORM"
+        emit_diag("compile", 2, emsg_det3)
+        print(emsg_det3)
+        oren_exit(2)
     }
     if trace_build { print("[build] effective target=" + target + " arch=" + arch) }
     disasm = seen["disasm"] == true

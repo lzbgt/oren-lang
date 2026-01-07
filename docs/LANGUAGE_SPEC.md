@@ -771,6 +771,18 @@ Design direction:
 - `xs` must be a list at runtime (or `nil`).
 - This supports variadic builtins and “apply-style” calls, and is also used by the implementation strategy for user-defined varargs across backends.
 
+#### Runtime reflection helpers (rolling)
+
+For varargs dispatch and debugging/logging, the runtime provides small reflection helpers:
+
+- `oren_type_tag(v)` → int tag matching `lib/runtime.h` `OrenType` enum values.
+- `oren_type_name(v)` → stable string name for that tag.
+
+Native backend note:
+
+- Until native value tagging is fully implemented, numeric immediates (`int`/`bool`/`float`) may be indistinguishable in native mode, so `oren_type_tag` is best-effort for those values.
+  - Track: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
+
 ### Compile-time execution (“comptime”) (design direction)
 
 Oren should treat compile-time evaluation as a first-class concept, but it must stay aligned with the core niche:

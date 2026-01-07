@@ -174,6 +174,38 @@ fn test_string_literals_static() {
     assert_eq(after_roots, before_roots, 73)
 }
 
+fn test_type_tag_varargs() {
+    trace("QI: test_type_tag_varargs")
+
+    fn tags_of(...args) {
+        var out = []
+        for v in args { oren_list_push(out, oren_type_tag(v)) }
+        return out
+    }
+
+    var v_nil = nil
+    var v_int = 123
+    var v_str = "x"
+    var v_list = []
+    var v_map = {"k": 1}
+    var v_buf = oren_i32_buf_new(0)
+
+    var tags = tags_of(v_nil, v_int, v_str, v_list, v_map, v_buf)
+    assert_eq(oren_list_len(tags), 6, 76)
+    assert_eq(tags[0], 0, 77) // nil
+    assert_eq(tags[1], 1, 78) // int (native: also bool/float best-effort)
+    assert_eq(tags[2], 4, 79) // string
+    assert_eq(tags[3], 6, 80) // list
+    assert_eq(tags[4], 7, 81) // map
+    assert_eq(tags[5], 9, 82) // buf (typed buffers are best-effort in native mode)
+
+    assert_streq(oren_type_name(v_nil), "nil", 83)
+    assert_streq(oren_type_name(v_int), "int", 84)
+    assert_streq(oren_type_name(v_str), "string", 85)
+    assert_streq(oren_type_name(v_list), "list", 86)
+    assert_streq(oren_type_name(v_map), "map", 87)
+}
+
 fn test_read_u8_buf_missing_returns_err() {
     trace("QI: test_read_u8_buf_missing_returns_err")
     // Tooling contract: FS helpers must return structured errors (not hard-exit) so compiler caches
@@ -323,6 +355,7 @@ fn main() {
 
     test_core()
     test_string_literals_static()
+    test_type_tag_varargs()
     test_read_u8_buf_missing_returns_err()
     test_read_file_missing_returns_err()
     test_numeric_casts()

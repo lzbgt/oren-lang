@@ -107,17 +107,27 @@ Build and run a program on the **C backend** (portable via host toolchain):
 Build and run a program on the **native backend** (Tier‑1 targets, rolling):
 
 ```bash
-./oren build your_prog.oren --backend native --target macos --arch arm64 -o build/your_prog_native
+./oren build your_prog.oren --backend native -o build/your_prog_native
 ./build/your_prog_native
 ```
 
-Linux native build (arm64 or x64 depending on host/tooling):
+By default, the compiler picks the **runtime host platform** when `--platform` is not provided:
+
+- `arm64-macos`, `arm64-linux`, `x64-windows`, `x64-linux`
+- Override with `--platform <arch>-<os>` or env `OREN_PLATFORM=<arch>-<os>`
+- `--target`/`--arch` are legacy and now accept `auto` (prefer `--platform`)
+
+Cross-compile examples:
 
 ```bash
-./oren build your_prog.oren --backend native --target linux --arch arm64 -o build/your_prog_linux
+# Linux ELF (run it on Linux, or via the Win11+WSL2 workflow in `docs/REMOTE_X64_ENV.md`)
+./oren build your_prog.oren --backend native --platform arm64-linux -o build/your_prog_linux
+
+# Windows PE (run it on Windows)
+./oren build your_prog.oren --backend native --platform x64-windows -o build/your_prog_win.exe
 ```
 
-Note: the resulting binary is a Linux ELF; run it on Linux (or via the Win11+WSL2 remote workflow in `docs/REMOTE_X64_ENV.md`).
+Note: `--platform arm64-linux` / `--platform x64-linux` outputs a Linux ELF; run it on Linux (or via the Win11+WSL2 remote workflow in `docs/REMOTE_X64_ENV.md`).
 
 Build and run **bytecode** on AVM:
 
@@ -573,6 +583,28 @@ Rules (rolling):
 
 - Only one varargs parameter is allowed, and it must be the **last** parameter.
 - The varargs binding is always a **list** (possibly empty).
+
+Runtime type tags (useful for varargs dispatch):
+
+- `oren_type_tag(v)` → int (stable tag numbers; see below)
+- `oren_type_name(v)` → string (stable names for tags; intended for logging and simple branching)
+
+Tag values (stable; matches `lib/runtime.h` `OrenType` enum):
+
+- `0` `nil`
+- `1` `int`
+- `2` `float`
+- `3` `bool`
+- `4` `string`
+- `6` `list`
+- `7` `map`
+- `8` `func`
+- `9..13` typed buffers (`u8_buf`, `i32_buf`, `i64_buf`, `f32_buf`, `f64_buf`)
+
+Rolling note (native backend):
+
+- Until native value tagging is fully implemented, numeric immediates are best-effort:
+  `int`/`bool`/`float` may all report as `int` (tag `1`) in native mode.
 
 Call-site spread (apply-style call):
 

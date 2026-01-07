@@ -281,25 +281,25 @@ run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
 
 if has_target x64-wsl; then
   echo "== remote: self-host compile+run (x64-linux under WSL2) =="
-  out="$(
-    run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
-      "wsl.exe -e bash -lc \"set -euo pipefail; cd '${REMOTE_DIR_WSL}'; chmod +x ./oren_selfhost_x64_linux; ./oren_selfhost_x64_linux build print.oren --backend native --platform x64-linux --no-cache --no-debug -o out_linux; chmod +x ./out_linux; ./out_linux; echo EXIT=\$?\""
-  )"
-  printf '%s\n' "$out"
-  echo "$out" | grep -q "hello from native"
-  echo "$out" | grep -q "EXIT=0"
+	  out="$(
+	    run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
+	      "wsl.exe -e bash -lc \"set -euo pipefail; cd '${REMOTE_DIR_WSL}'; chmod +x ./oren_selfhost_x64_linux; ./oren_selfhost_x64_linux build print.oren --backend native --no-cache --no-debug -o out_linux; chmod +x ./out_linux; ./out_linux; echo EXIT=\$?\""
+	  )"
+	  printf '%s\n' "$out"
+	  echo "$out" | grep -q "hello from native"
+	  echo "$out" | grep -q "EXIT=0"
 fi
 
 if has_target x64-win; then
   echo "== remote: self-host compile+run (x64-windows under cmd.exe) =="
   # Use a conservative timeout wrapper on the local host to avoid hanging forever on remote.
-  out="$(
-    run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
-      "cmd.exe /v:on /c \"cd ${REMOTE_DIR_WIN} && oren_selfhost_x64_windows.exe build print.oren --backend native --platform x64-windows --no-cache --no-debug -o out_win.exe && out_win.exe & echo EXIT=!ERRORLEVEL!\""
-  )"
-  printf '%s\n' "$out"
-  echo "$out" | grep -q "hello from native"
-  echo "$out" | grep -q "EXIT=0"
+	  out="$(
+	    run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
+	      "cmd.exe /v:on /c \"cd ${REMOTE_DIR_WIN} && oren_selfhost_x64_windows.exe build print.oren --backend native --no-cache --no-debug -o out_win.exe && out_win.exe & echo EXIT=!ERRORLEVEL!\""
+	  )"
+	  printf '%s\n' "$out"
+	  echo "$out" | grep -q "hello from native"
+	  echo "$out" | grep -q "EXIT=0"
 fi
 
 echo "OK: x64 self-host compiler gate passed"

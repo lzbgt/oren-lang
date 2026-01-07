@@ -1,6 +1,6 @@
 # Oren Language Feature Matrix (Rolling, AI-Friendly)
 
-**Last updated:** 2026-01-06  
+**Last updated:** 2026-01-07  
 
 This document is a **quick index** for AI agents and maintainers:
 
@@ -75,6 +75,7 @@ Remote x86_64 evidence:
 | Feature | Status | Where (impl) | Evidence / examples |
 |---|---|---|---|
 | Deterministic diagnostics (`OREN_DIAG`) | Rolling | Runtime + emit points (native/C) | Fixtures: `tests/native/fixtures/diag_fail.oren` |
+| Runtime reflection helpers (`oren_type_tag`, `oren_type_name`) | Rolling (native+C; AVM planned) | C runtime: `lib/runtime/040_lists_maps.inc`; Native runtime: `lib/runtime_native/130_printing.oren` | Native quick integration: `tests/native/test_quick_integration_native.oren` (`test_type_tag_varargs`) |
 | Native stack traces (`stack_trace`, `resolve_symbol`) on Tier‑1 x86_64 | Rolling | Runtime: `lib/runtime_native/000_prelude_sys.oren` (`stack_trace`); x64 native: `resolve_symbol` intrinsic over the embedded symtab (`lib/compiler/x64_native_program/043_emit_stack_intrinsics.oren`, reserved by `lib/compiler/x64_native_program/010_data_io.oren` `_data_reserve_symtab`) | Tier‑1 remote fixture: `tests/fixtures/tier1_native_stacktrace_main.oren` (remote x86_64 Tier‑1 gate) |
 | Stack safety (call depth guard) | Rolling | AVM flag; C env; native guards | Docs: `docs/STACK_SAFETY.md`; fixtures: `tests/native/fixtures/call_depth_overflow.oren` |
 | Tail-call optimization | Rolling (subset) | Lowering/codegen passes | Docs: `docs/STACK_SAFETY.md` |

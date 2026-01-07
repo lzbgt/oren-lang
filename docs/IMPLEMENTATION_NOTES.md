@@ -211,3 +211,48 @@ rg -n \"case 13\" lib/avm/avm_native.inc
 
 Shell note (zsh): if you put backticks in an unquoted command string, zsh treats them as command substitution.
 Prefer code fences in docs, or escape backticks when running commands interactively.
+
+---
+
+## 7) Platform selection defaults (host auto-detection)
+
+Rolling policy:
+
+- Prefer `--platform <arch>-<os>` for native backend selection.
+- Fallback: env `OREN_PLATFORM=<arch>-<os>`.
+- If neither is provided, the compiler defaults to the **runtime host platform** (so the same compiler binary can run on macOS/Linux/Windows and "do the right thing" by default).
+
+Implementation:
+
+- Host detection helper: `lib/compiler/compiler/010_cli_helpers.oren` → `detect_host_platform()`
+  - Windows: `OS=Windows_NT` + `PROCESSOR_ARCHITECTURE` (`AMD64`/`ARM64`)
+  - POSIX-ish: `uname -s` / `uname -m`
+- Effective selection is applied in the build pipeline for `build`/`meta`/`dump`:
+  - `lib/compiler/compiler/040_build_pipeline.oren`
+
+Regression gate:
+
+- `scripts/verify_selfhost_x64_compiler.sh` intentionally omits `--platform` when running the x64 compiler binaries on Win11+WSL2, so the gate proves host auto-detection (not just codegen correctness).
+
+---
+
+## 8) Runtime reflection helpers (`oren_type_tag`, `oren_type_name`)
+
+For basic reflection and varargs dispatch, the runtime provides:
+
+- `oren_type_tag(v)` → int tag (matches `lib/runtime.h` `OrenType` enum values)
+- `oren_type_name(v)` → stable string name for that tag (logging/branching convenience)
+
+Implementation:
+
+- C runtime: `lib/runtime/040_lists_maps.inc`
+- Native runtime: `lib/runtime_native/130_printing.oren`
+
+Rolling note (native backend):
+
+- Native values are not fully tagged yet; numeric immediates (`int`/`bool`/`float`) may be indistinguishable in native mode (so `oren_type_tag` can return `1` for multiple numeric kinds).
+- Track the full fix: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
+
+Evidence:
+
+- Native quick integration includes a varargs + reflection smoke: `tests/native/test_quick_integration_native.oren` (`test_type_tag_varargs`).
