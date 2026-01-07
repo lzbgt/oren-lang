@@ -144,7 +144,14 @@ fn run_case() {
     if fd >= 0 { oren_tcp_close(fd) }
 
     var sr = oren_join_timeout(h, 15000)
-    if sr != 0 && rc == 0 { rc = 30 }
+    if sr != 0 {
+        if rc == 0 {
+            rc = 30
+        } else {
+            // On failure, print the server thread result too (bounded debug signal).
+            print("ws_echo_loopback: server_rc=" + oren_int_to_string(sr))
+        }
+    }
 
     oren_tcp_close(listen_fd)
     return rc

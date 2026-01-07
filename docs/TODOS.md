@@ -76,7 +76,7 @@ Rules for this tracker:
 					       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IP-only; no TLS/DNS/keep-alive pooling yet).
 						       - Fixed (2026-01-07): Tier‑1 NET loopback is now regression-gated across `arm64-macos` + `arm64-linux` + `x64-windows` + `x64-linux` (stage1 + stage2) via `./scripts/verify_native_net_matrix.sh`.
 						       - Fixed (2026-01-07): WebSocket v0 (ws:// handshake + masked text frames + loopback echo) implemented and added to the Tier‑1 NET matrix (`tests/native/test_ws_echo_loopback.oren`).
-						       - Active (2026-01-07): Win11 WS echo loopback is occasionally flaky (sporadic `ETIMEDOUT` in `ws.recv_text` header/mask reads under load); treat as a correctness/robustness bug to root-cause (not just “raise timeouts”).
+						       - Fixed (2026-01-07): Win11 WS echo loopback flake eliminated by hardening NET read/write against spurious readiness timeouts (optimistic `recv`/`send` first; retry until deadline instead of returning `ETIMEDOUT` immediately).
 						       - Next: structured HTTP client/server surface (headers map + status + streaming body), then production WebSocket:
 						         - ping/pong/close + close reason codes
 						         - random client key + random masking (portable RNG surface)

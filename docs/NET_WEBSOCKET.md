@@ -56,3 +56,8 @@ The Tier‑1 loopback regression is designed to stay bounded and avoid huge logs
 - `OREN_WS_ECHO_N=<n>`: run the handshake + one text echo **n** times in a single process run of `tests/native/test_ws_echo_loopback.oren` (default: `1`).
   - This is useful for reproducing rare flakes (e.g. WinSock readiness edge cases) without adding verbose tracing.
   - `scripts/verify_native_net_matrix.sh` propagates this env var to the docker container + remote Win11/WSL2 runs when set in the caller environment.
+
+Win11 note:
+
+- WinSock `select()` can occasionally report a timeout even when data becomes readable/writable shortly after (observed during Tier‑1 bring-up).
+- The native NET runtime now treats readiness waits as advisory: it tries `recv`/`send` first and, on a reported timeout, retries until the caller deadline is actually exhausted.

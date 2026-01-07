@@ -75,6 +75,9 @@ Notes:
 
 - These are currently annotated `@cap.requires(domain="NET")` and call `native_capsule_require(CAP_NET, "NET")`,
   because they were introduced as part of the NET substrate.
+- Readiness is treated as **advisory** (not an infallible contract):
+  - All sockets are configured non-blocking.
+  - Higher-level helpers (`oren_tcp_read_into` / `oren_tcp_write_from`) try `recv`/`send` first and tolerate occasional false timeouts from readiness waits by retrying until the caller deadline is exhausted.
 - Linux syscall ABI footgun (native, libc-free):
   - `epoll_event` layout differs by arch (`x86_64` packed 12 bytes vs `arm64` 16 bytes).
   - The native runtime probes this once at startup (`native_runtime_init`) and fills `OREN_EPOLL_EVENT_*`,

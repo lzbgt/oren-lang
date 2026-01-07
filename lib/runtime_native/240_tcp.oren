@@ -400,7 +400,6 @@ fn oren_fd_wait_select_one(fd, want_write, timeout_ms) {
     //   SOCKET fd0   @8
     var fds = malloc(16)
     if fds == 0 { return 0 - 12 } // ENOMEM
-    oren_track_alloc(fds, 16, 0)
     var zi = 0
     while zi < 16 { ptr_set_byte(fds + zi, 0); zi = zi + 1 }
     oren_ptr_set_u32_le(fds + 0, 1)
@@ -411,7 +410,6 @@ fn oren_fd_wait_select_one(fd, want_write, timeout_ms) {
     //   u32 tv_usec @4
     var tv = malloc(16)
     if tv == 0 { free(fds); return 0 - 12 } // ENOMEM
-    oren_track_alloc(tv, 16, 0)
     zi = 0
     while zi < 16 { ptr_set_byte(tv + zi, 0); zi = zi + 1 }
     var sec = timeout_ms / 1000
@@ -912,7 +910,18 @@ fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
         }
 
         var n = oren_fd_wait_readable(fd, rem_ms)
-        if n == 0 { return 0 - 60 } // ETIMEDOUT
+        if n == 0 {
+            // WinSock `select` can be flaky under load on some hosts (sporadic false timeouts).
+            // Before returning ETIMEDOUT, retry `recv` and, if we still have time budget,
+            // continue the loop instead of trusting the timeout result.
+            var r1 = sys_recvfrom(fd, buf, len, 0, 0, 0)
+            if r1 != 0 - 35 && r1 != 0 - 11 { return r1 }
+            if deadline_ns != 0 {
+                var now2 = oren_time_unix_ns()
+                if now2 != 0 && now2 < deadline_ns { continue }
+            }
+            return 0 - 60 // ETIMEDOUT
+        }
         if n < 0 { return n }
         // Wait satisfied; loop back and attempt recv again.
     }
@@ -953,7 +962,15 @@ fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
             }
 
             var n = oren_fd_wait_writable(fd, rem_ms)
-            if n == 0 { return 0 - 60 } // ETIMEDOUT
+            if n == 0 {
+                // Same robustness policy as reads: if the wait reports a timeout but we still
+                // have a deadline budget, retry instead of returning ETIMEDOUT immediately.
+                if deadline_ns != 0 {
+                    var now2 = oren_time_unix_ns()
+                    if now2 != 0 && now2 < deadline_ns { continue }
+                }
+                return 0 - 60 // ETIMEDOUT
+            }
             if n < 0 { return n }
             continue
         }
