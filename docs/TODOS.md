@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-01-07
+**Last updated:** 2026-01-08
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order,
 plus the **regression gates** that must stay green.
@@ -135,9 +135,13 @@ References:
        - Next: structured HTTP client/server surface (headers map + status + streaming body), then production WebSocket:
          - fragmentation + binary frames + streaming recv API
          - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + DNS layer
-     - Native FFI / dynamic linking parity (rolling):
-       - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
-       - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).
+	     - Native FFI / dynamic linking parity (rolling):
+	       - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
+	       - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).
+	     - Conditional compilation for cross-platform stdlib (rolling):
+	       - Done: `@cfg(...)` (canonical `@oren.cfg`) filters declarations by target `--platform` (`os`/`arch`/`platform` selectors).
+	       - Regression: `tests/native/cfg_os_select.oren` is compiled in `scripts/verify_native_x64_compile_only.sh` (stage1 + stage2; x64-linux + x64-windows).
+	       - Implementation note: use byte-wise string equality in compiler passes (see `docs/IMPLEMENTATION_NOTES.md` section 9) so behavior matches in stage1 (C runtime) and stage2 (native runtime).
      - Shared library output parity (native `--lib`/`--shared`):
        - Remaining: x86_64 ELF `.so` and x86_64 Windows `.dll` emission (exports + metadata/header hooks).
      - Concurrency substrate convergence:

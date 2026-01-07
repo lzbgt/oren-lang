@@ -829,6 +829,7 @@ Common builtins:
 - `@abi` for ABI/layout metadata
 - `@pack` for packed “view over bytes” structs (network packet parsing)
 - `@serde(...)` for serialization metadata (json/yaml/cbor)
+- `@cfg(...)` for conditional compilation by target platform (`--platform`) — see `docs/ATTRIBUTES.md`
 
 ## 8) Containers (lists, maps, buffers)
 

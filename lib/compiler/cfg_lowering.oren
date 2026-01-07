@@ -1,0 +1,361 @@
+var CFG_ERRS = nil
+
+fn cfg_error(msg) {
+    if CFG_ERRS == nil { CFG_ERRS = [] }
+    oren_list_push(CFG_ERRS, msg)
+    return nil
+}
+
+fn _is_attr_name(a, name) {
+    if a == nil || name == nil { return false }
+    return a["type"] == "Attr" && a["name"] == name
+}
+
+fn _attr_list(node) {
+    if node == nil { return nil }
+    return node["attrs"]
+}
+
+fn _stmt_attrs(stmt) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Var" {
+        var id = stmt["name"]
+        if id != nil && id["attrs"] != nil { return id["attrs"] }
+        return stmt["attrs"]
+    }
+    if t == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "Function" && e["attrs"] != nil { return e["attrs"] }
+        return stmt["attrs"]
+    }
+    return stmt["attrs"]
+}
+
+fn _attr_token(attr) {
+    if attr == nil { return nil }
+    return attr["token"]
+}
+
+fn _tok_loc(tok) {
+    if tok == nil { return "<unknown>" }
+    var file = tok["file"]
+    if file == nil { file = "<input>" }
+    var line = tok["line"]
+    var col = tok["col"]
+    if line != nil && col != nil {
+        return file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col)
+    }
+    return file
+}
+
+fn _lit_string(v) {
+    if v == nil { return nil }
+    if v["type"] != "String" { return nil }
+    return v["value"]
+}
+
+fn _cfg_str_eq(a, b) {
+    // Stable string equality for compiler passes.
+    // Avoid depending on runtime `==` semantics (stage1 C runtime vs stage2 native runtime).
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _cfg_split_csv(s) {
+    // Minimal CSV splitter (no quoting). Ignores spaces around tokens.
+    var out = []
+    if s == nil { return out }
+    if oren_string_len(s) == 0 { return out }
+    var cur = ""
+    var i = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_byte_at_unchecked(s, i) & 255
+        if ch == 44 { // ','
+            if oren_string_len(cur) != 0 { oren_list_push(out, cur) }
+            cur = ""
+        } else {
+            // Drop ASCII whitespace around tokens.
+            if ch != 32 && ch != 9 && ch != 10 && ch != 13 {
+                // Append the single byte as a 1-char string.
+                cur = cur + oren_string_char_at_unchecked(s, i)
+            }
+        }
+        i = i + 1
+    }
+    if oren_string_len(cur) != 0 { oren_list_push(out, cur) }
+    return out
+}
+
+fn _cfg_any_eq(list, want) {
+    if list == nil || want == nil { return false }
+    var i = 0
+    while i < oren_list_len(list) {
+        if _cfg_str_eq(list[i], want) { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _cfg_parse_platform(s) {
+    // Parse "<arch>-<os>" into {"arch":..., "os":...} or nil.
+    if s == nil { return nil }
+    if oren_string_len(s) == 0 { return nil }
+    var n = oren_string_len(s)
+    var dash = -1
+    var i = 0
+    while i < n {
+        if (oren_string_byte_at_unchecked(s, i) & 255) == 45 { dash = i; break } // '-'
+        i = i + 1
+    }
+    if dash <= 0 { return nil }
+    if dash + 1 >= n { return nil }
+    var arch = oren_string_slice(s, 0, dash)
+    var os = oren_string_slice(s, dash + 1, n)
+    if _cfg_str_eq(arch, "arm64") != true && _cfg_str_eq(arch, "x64") != true { return nil }
+    if _cfg_str_eq(os, "macos") != true && _cfg_str_eq(os, "linux") != true && _cfg_str_eq(os, "windows") != true { return nil }
+    return {"arch": arch, "os": os}
+}
+
+fn _cfg_eval_one(cfg_attr, config, stmt_type) {
+    // Returns true/false on keep decision; emits an error (and returns false) if invalid.
+    if cfg_attr == nil { return true }
+    var tok = _attr_token(cfg_attr)
+    var loc = _tok_loc(tok)
+    var trace = oren_env("OREN_TRACE_CFG") != nil
+
+    if stmt_type == "Import" {
+        cfg_error(loc + ": @cfg is not supported on import yet (stage2 fast import scan cannot respect it); gate declarations inside the module instead")
+        return false
+    }
+
+    var os = nil
+    var arch = nil
+    if config != nil {
+        os = config["target"]
+        arch = config["arch"]
+    }
+    if os == nil || arch == nil { 
+        cfg_error(loc + ": @cfg requires a known target platform (missing config.target/config.arch)")
+        return false
+    }
+    if oren_string_len(os) == 0 || oren_string_len(arch) == 0 {
+        cfg_error(loc + ": @cfg requires a known target platform (missing config.target/config.arch)")
+        return false
+    }
+    var platform = arch + "-" + os
+    if trace {
+        print("[trace] cfg: platform=" + platform)
+    }
+
+    var args = cfg_attr["args"]
+    if args == nil || oren_list_len(args) == 0 {
+        cfg_error(loc + ": @cfg requires at least one argument (e.g. @cfg(os=\"linux\") / @cfg(\"x64-windows\"))")
+        return false
+    }
+
+    var pos = nil
+    var os_v = nil
+    var arch_v = nil
+    var plat_v = nil
+    var not_os_v = nil
+    var not_arch_v = nil
+    var not_plat_v = nil
+    var has_kw = false
+    var i = 0
+    while i < oren_list_len(args) {
+        var a = args[i]
+        if a != nil {
+            var k = a["key"]
+            if k == nil {
+                if pos != nil {
+                    cfg_error(loc + ": @cfg accepts at most one positional argument")
+                    return false
+                }
+                pos = a["value"]
+            } else {
+                has_kw = true
+                if k != "os" && k != "arch" && k != "platform" && k != "not_os" && k != "not_arch" && k != "not_platform" {
+                    cfg_error(loc + ": @cfg unknown key '" + k + "' (supported: os, arch, platform, not_os, not_arch, not_platform)")
+                    return false
+                }
+                if k == "os" {
+                    if os_v != nil { cfg_error(loc + ": @cfg duplicate key 'os'"); return false }
+                    os_v = a["value"]
+                } else if k == "arch" {
+                    if arch_v != nil { cfg_error(loc + ": @cfg duplicate key 'arch'"); return false }
+                    arch_v = a["value"]
+                } else if k == "platform" {
+                    if plat_v != nil { cfg_error(loc + ": @cfg duplicate key 'platform'"); return false }
+                    plat_v = a["value"]
+                } else if k == "not_os" {
+                    if not_os_v != nil { cfg_error(loc + ": @cfg duplicate key 'not_os'"); return false }
+                    not_os_v = a["value"]
+                } else if k == "not_arch" {
+                    if not_arch_v != nil { cfg_error(loc + ": @cfg duplicate key 'not_arch'"); return false }
+                    not_arch_v = a["value"]
+                } else if k == "not_platform" {
+                    if not_plat_v != nil { cfg_error(loc + ": @cfg duplicate key 'not_platform'"); return false }
+                    not_plat_v = a["value"]
+                }
+            }
+        }
+        i = i + 1
+    }
+
+    if pos != nil && has_kw == true {
+        cfg_error(loc + ": @cfg cannot mix positional and keyword arguments")
+        return false
+    }
+
+    // Positional form:
+    // - @cfg("linux") / @cfg("macos") / @cfg("windows")  => OS match
+    // - @cfg("x64") / @cfg("arm64") => arch match
+    // - @cfg("x64-linux") etc => full platform match
+    if pos != nil {
+        var s = _lit_string(pos)
+        if s == nil {
+            cfg_error(loc + ": @cfg positional arg must be a string literal")
+            return false
+        }
+        if trace { print("[trace] cfg: selector=" + s) }
+        if _cfg_str_eq(s, os) { return true }
+        if _cfg_str_eq(s, arch) { return true }
+        if _cfg_str_eq(s, platform) { return true }
+        var ps = _cfg_parse_platform(s)
+        if ps != nil {
+            if _cfg_str_eq(ps["arch"], arch) && _cfg_str_eq(ps["os"], os) { return true }
+            return false
+        }
+        // Unrecognized string: treat as mismatch (but make it actionable).
+        cfg_error(loc + ": @cfg unrecognized selector '" + s + "' (expected: linux|macos|windows|x64|arm64|<arch>-<os>)")
+        return false
+    }
+
+    // Keyword form: AND all provided constraints.
+    var seen_any = false
+
+    if os_v != nil {
+        seen_any = true
+        var os_s = _lit_string(os_v)
+        if os_s == nil { cfg_error(loc + ": @cfg(os=...) expects a string literal"); return false }
+        if trace { print("[trace] cfg: os=" + os_s) }
+        var ok_os = _cfg_any_eq(_cfg_split_csv(os_s), os)
+        if trace {
+            if ok_os == true { print("[trace] cfg: os_match=true") } else { print("[trace] cfg: os_match=false") }
+        }
+        if ok_os != true { return false }
+    }
+
+    if arch_v != nil {
+        seen_any = true
+        var arch_s = _lit_string(arch_v)
+        if arch_s == nil { cfg_error(loc + ": @cfg(arch=...) expects a string literal"); return false }
+        if trace { print("[trace] cfg: arch=" + arch_s) }
+        var ok_arch = _cfg_any_eq(_cfg_split_csv(arch_s), arch)
+        if trace {
+            if ok_arch == true { print("[trace] cfg: arch_match=true") } else { print("[trace] cfg: arch_match=false") }
+        }
+        if ok_arch != true { return false }
+    }
+
+    if plat_v != nil {
+        seen_any = true
+        var plat_s = _lit_string(plat_v)
+        if plat_s == nil { cfg_error(loc + ": @cfg(platform=...) expects a string literal"); return false }
+        if trace { print("[trace] cfg: platform=" + plat_s) }
+        var ok_plat = _cfg_any_eq(_cfg_split_csv(plat_s), platform)
+        if trace {
+            if ok_plat == true { print("[trace] cfg: platform_match=true") } else { print("[trace] cfg: platform_match=false") }
+        }
+        if ok_plat != true { return false }
+    }
+
+    if not_os_v != nil {
+        seen_any = true
+        var s2 = _lit_string(not_os_v)
+        if s2 == nil { cfg_error(loc + ": @cfg(not_os=...) expects a string literal"); return false }
+        if _cfg_any_eq(_cfg_split_csv(s2), os) == true { return false }
+    }
+
+    if not_arch_v != nil {
+        seen_any = true
+        var s3 = _lit_string(not_arch_v)
+        if s3 == nil { cfg_error(loc + ": @cfg(not_arch=...) expects a string literal"); return false }
+        if _cfg_any_eq(_cfg_split_csv(s3), arch) == true { return false }
+    }
+
+    if not_plat_v != nil {
+        seen_any = true
+        var s4 = _lit_string(not_plat_v)
+        if s4 == nil { cfg_error(loc + ": @cfg(not_platform=...) expects a string literal"); return false }
+        if _cfg_any_eq(_cfg_split_csv(s4), platform) == true { return false }
+    }
+
+    if seen_any != true {
+        cfg_error(loc + ": @cfg requires at least one selector key (os/arch/platform) or a positional selector string")
+        return false
+    }
+
+    return true
+}
+
+fn _cfg_stmt_keep(stmt, config) {
+    var attrs = _stmt_attrs(stmt)
+    if attrs == nil { return true }
+    var keep = true
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if _is_attr_name(a, "oren.cfg") {
+            if _cfg_eval_one(a, config, stmt["type"]) != true {
+                keep = false
+            }
+        }
+        i = i + 1
+    }
+    return keep
+}
+
+fn lower_program_in_place(prog, config) {
+    CFG_ERRS = nil
+    if prog == nil { return nil }
+    if config == nil { return nil }
+    var stmts = prog["statements"]
+    if stmts == nil { return nil }
+
+    var out = []
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        if _cfg_stmt_keep(st, config) == true {
+            oren_list_push(out, st)
+        }
+        i = i + 1
+    }
+    prog["statements"] = out
+    if CFG_ERRS != nil { prog["cfg_errors"] = CFG_ERRS }
+    return nil
+}
+
+fn lower_linked_program_in_place(linked) {
+    CFG_ERRS = nil
+    if linked == nil { return nil }
+    var config = linked["config"]
+    if config == nil { return nil }
+
+    var out_prog = {"statements": linked["statements"]}
+    lower_program_in_place(out_prog, config)
+    linked["statements"] = out_prog["statements"]
+    if out_prog["cfg_errors"] != nil { linked["cfg_errors"] = out_prog["cfg_errors"] }
+    return nil
+}

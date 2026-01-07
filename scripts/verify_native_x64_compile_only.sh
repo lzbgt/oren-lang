@@ -31,6 +31,7 @@ mkdir -p build/tmp
 QI_SRC="tests/native/test_quick_integration_native.oren"
 PRINT_SRC="tests/native/print.oren"
 PRINT_NEEDLE="hello from native"
+CFG_OS_SRC="tests/native/cfg_os_select.oren"
 WIN_FFI_K32_SRC="tests/native/ffi_windows_kernel32.oren"
 WIN_FFI_MSVCRT_SRC="tests/native/ffi.oren"
 LINUX_FFI_OK_SRC="tests/native/ffi_linux_strlen_ok.oren"
@@ -149,6 +150,12 @@ build_one ./oren_stage2 x64-linux "$PRINT_SRC" build/tmp/print_stage2_x64_linux
 check_elf_x64 build/tmp/print_stage2_x64_linux
 check_bin_contains build/tmp/print_stage2_x64_linux "$PRINT_NEEDLE"
 
+build_one ./oren x64-linux "$CFG_OS_SRC" build/tmp/cfg_os_stage1_x64_linux
+check_elf_x64 build/tmp/cfg_os_stage1_x64_linux
+
+build_one ./oren_stage2 x64-linux "$CFG_OS_SRC" build/tmp/cfg_os_stage2_x64_linux
+check_elf_x64 build/tmp/cfg_os_stage2_x64_linux
+
 build_one ./oren x64-linux "$LINUX_FFI_OK_SRC" build/tmp/ffi_ok_stage1_x64_linux --link libc.so.6
 check_elf_x64_dyn build/tmp/ffi_ok_stage1_x64_linux
 
@@ -170,6 +177,12 @@ check_bin_contains build/tmp/print_stage1_x64_windows.exe "$PRINT_NEEDLE"
 build_one ./oren_stage2 x64-windows "$PRINT_SRC" build/tmp/print_stage2_x64_windows.exe
 check_pe_x64 build/tmp/print_stage2_x64_windows.exe
 check_bin_contains build/tmp/print_stage2_x64_windows.exe "$PRINT_NEEDLE"
+
+build_one ./oren x64-windows "$CFG_OS_SRC" build/tmp/cfg_os_stage1_x64_windows.exe
+check_pe_x64 build/tmp/cfg_os_stage1_x64_windows.exe
+
+build_one ./oren_stage2 x64-windows "$CFG_OS_SRC" build/tmp/cfg_os_stage2_x64_windows.exe
+check_pe_x64 build/tmp/cfg_os_stage2_x64_windows.exe
 
 build_one ./oren x64-windows "$WIN_FFI_K32_SRC" build/tmp/ffi_k32_stage1_x64_windows.exe
 check_pe_x64 build/tmp/ffi_k32_stage1_x64_windows.exe

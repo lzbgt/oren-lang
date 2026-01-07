@@ -95,6 +95,47 @@ Strict attribute mode is implemented and enforced at parse-time:
 
 This is intended for audited builds and later swarm/consensus workflows.
 
+## 3.2 Conditional compilation (`@cfg` / canonical `@oren.cfg`)
+
+`@cfg(...)` is Oren’s **minimal conditional compilation** mechanism.
+
+It is evaluated at compile time based on the selected target platform:
+
+- `--platform <arch>-<os>` (preferred), or
+- `--target/--arch` (legacy), or
+- env fallback `OREN_PLATFORM=<arch>-<os>`.
+
+If a declaration does not match its `@cfg`, it is **removed from the program** before later compiler passes.
+
+Supported forms (rolling v0):
+
+- Positional (string selector):
+  - `@cfg("x64-windows")`
+  - `@cfg("linux")`
+  - `@cfg("arm64")`
+- Keyword (CSV strings; AND across keys):
+  - `@cfg(os="linux,macos")`
+  - `@cfg(arch="x64")`
+  - `@cfg(platform="arm64-linux")`
+  - Negation keys: `not_os`, `not_arch`, `not_platform`
+
+Notes (important):
+
+- `@cfg` is implemented for **declarations** (`fn`, `struct`, `ffi`, `var`).
+- `@cfg` is **not supported on `import` yet**:
+  - stage2 has a fast lexer-only import scan that cannot respect conditional imports
+  - gate platform-specific declarations *inside* the imported module instead
+
+Example (FFI library name differs per OS):
+
+```oren
+@cfg(os="windows")
+ffi GetTickCount
+
+@cfg(os="linux,macos")
+ffi getpid
+```
+
 ## 3.1 Compiler/runtime internal attributes (reserved)
 
 These are **not** intended for user code. They exist to keep the compiler + Tier‑1 native runtime maintainable while still running whole-program DCE.

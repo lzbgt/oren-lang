@@ -110,6 +110,8 @@ fn new_parser(l) {
             "doc", "deprecated",
             // Capability-governed host effects (enforced only when capsule mode is enabled).
             "cap.requires",
+            // Conditional compilation (compile-time filtering by target arch/os).
+            "oren.cfg",
             // Compiler/runtime internal: pin a function as a DCE root (kept even if unreachable).
             // Used for Tier‑1 native runtime helpers invoked via codegen fixups/entry stubs.
             "oren.keep",
@@ -309,6 +311,7 @@ fn attr_normalize_name(name) {
     // stays untouched to avoid surprising rewrites.
     if name == "pack" { return "oren.packed" }
     if name == "abi" { return "oren.abi" }
+    if name == "cfg" { return "oren.cfg" }
 
     // Serde ergonomics: allow `@json.*` as a frontend alias for `@serde.*`.
     // Canonicalize to serde so tooling + future codegen can share one namespace.

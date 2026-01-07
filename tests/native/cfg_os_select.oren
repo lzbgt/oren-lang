@@ -1,0 +1,23 @@
+// Conditional compilation smoke:
+// Exactly one `cfg_os_name()` definition should exist per target OS.
+
+@cfg(os="macos")
+fn cfg_os_name() {
+    return "macos"
+}
+
+@cfg(os="linux")
+fn cfg_os_name() {
+    return "linux"
+}
+
+@cfg(os="windows")
+fn cfg_os_name() {
+    return "windows"
+}
+
+fn main() {
+    print("cfg os=" + cfg_os_name())
+    exit(0)
+}
+

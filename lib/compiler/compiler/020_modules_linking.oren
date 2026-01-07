@@ -554,7 +554,7 @@ fn _ml_parse_program_for_module_serial(full, config) {
     return {"statements": merged_stmts, "traits": merged_traits}
 }
 
-fn _ml_prepare_module_program_in_place(full, prefix, prog) {
+fn _ml_prepare_module_program_in_place(full, prefix, prog, config) {
     // Apply the same per-module passes as `load_module`, but for already-parsed `prog`:
     // - collect toplevel renames + namespace import aliases
     // - rename in place
@@ -562,6 +562,18 @@ fn _ml_prepare_module_program_in_place(full, prefix, prog) {
     if prog == nil { return {"ok": false, "err": "nil program"} }
     if prog["statements"] == nil || oren_is_list(prog["statements"]) != true {
         return {"ok": false, "err": "invalid program (missing statements)"}
+    }
+
+    // Conditional compilation (rolling): filter out `@cfg(...)`-disabled declarations early
+    // so later passes (rename/serde/type lowering) do not see conflicting duplicates.
+    if config != nil {
+        cfg_lowering.lower_program_in_place(prog, config)
+        if prog["cfg_errors"] != nil && oren_is_list(prog["cfg_errors"]) == true && oren_list_len(prog["cfg_errors"]) > 0 {
+            var first_err = prog["cfg_errors"][0]
+            var msg0 = "cfg filtering failed in " + full
+            if first_err != nil { msg0 = msg0 + ": " + first_err }
+            return {"ok": false, "err": msg0, "errors": prog["cfg_errors"]}
+        }
     }
 
     var pairs = renamer.collect_toplevel_rename_pairs(prog, prefix)
@@ -650,12 +662,12 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
         prog = {"statements": merged_stmts, "traits": merged_traits}
     }
 
-    var prep = _ml_prepare_module_program_in_place(full, prefix, prog)
+    var prep = _ml_prepare_module_program_in_place(full, prefix, prog, config)
     if prep["ok"] != true { return prep }
     return {"ok": true, "prog": prog}
 }
 
-fn _ml_parse_module_bucket(bucket, out_dir, log_path) {
+fn _ml_parse_module_bucket(bucket, out_dir, log_path, config) {
     // Worker: parse + rename + serde_json lowering for a list of modules.
     //
     // bucket items: {"path":full, "prefix":prefix}
@@ -686,7 +698,7 @@ fn _ml_parse_module_bucket(bucket, out_dir, log_path) {
         // (Overwrites the file; deterministic and simple.)
         oren_write_file(log_path, log)
 
-        var rr = _ml_parse_and_prepare_module_result(full, prefix, nil)
+        var rr = _ml_parse_and_prepare_module_result(full, prefix, config)
         if rr["ok"] != true {
             log = log + "FAIL: " + full + "\n"
             if rr["err"] != nil { log = log + rr["err"] + "\n" }
@@ -732,7 +744,7 @@ fn _ml_parse_module_bucket(bucket, out_dir, log_path) {
     return 0
 }
 
-fn _ml_parse_module_bucket_mem(bucket) {
+fn _ml_parse_module_bucket_mem(bucket, config) {
     // Thread-mode worker: parse + rename + serde_json lowering for a list of modules.
     //
     // Contract: returns a structured result so the parent can surface errors deterministically.
@@ -748,7 +760,7 @@ fn _ml_parse_module_bucket_mem(bucket) {
             print("[trace] parse worker module: " + full)
         }
 
-        var rr = _ml_parse_and_prepare_module_result(full, prefix, nil)
+        var rr = _ml_parse_and_prepare_module_result(full, prefix, config)
         if rr["ok"] != true {
             return {"ok": false, "path": full, "err": rr["err"], "errors": rr["errors"]}
         }
@@ -1091,11 +1103,11 @@ fn _ml_parse_discovered_modules_parallel(config) {
         if oren_list_len(buckets[bi]) > 0 {
             if fork_mode {
                 var lp = path_norm(out_dir + "/logs/worker_" + oren_int_to_string(bi) + ".log")
-                var h = spawn _ml_parse_module_bucket(buckets[bi], out_dir, lp)
+                var h = spawn _ml_parse_module_bucket(buckets[bi], out_dir, lp, config)
                 // Keep the bucket alongside the handle so we can diagnose failures.
                 oren_list_push(handles, {"h": h, "bucket": buckets[bi], "log": lp})
             } else {
-                var h2 = spawn _ml_parse_module_bucket_mem(buckets[bi])
+                var h2 = spawn _ml_parse_module_bucket_mem(buckets[bi], config)
                 oren_list_push(handles, {"h": h2, "bucket": buckets[bi]})
             }
         }
@@ -1397,6 +1409,25 @@ fn link_program(entry_path, root_prog, config) {
     var root_prefix = "R_"
     var root_aliases = {}
     var root_imports = []
+
+    // Conditional compilation (rolling):
+    // Filter the root program early so:
+    // - rename/serde passes don't see cfg-disabled duplicates
+    // - codegen doesn't error on duplicate top-level names that are mutually exclusive by cfg
+    if config != nil {
+        cfg_lowering.lower_program_in_place(root_prog, config)
+        if root_prog["cfg_errors"] != nil && oren_is_list(root_prog["cfg_errors"]) == true && oren_list_len(root_prog["cfg_errors"]) > 0 {
+            var first_err0 = root_prog["cfg_errors"][0]
+            emit_diag("compile", 1, first_err0)
+            print("Cfg filtering errors in " + entry_path + ":")
+            var ei0 = 0
+            while ei0 < oren_list_len(root_prog["cfg_errors"]) {
+                print(root_prog["cfg_errors"][ei0])
+                ei0 = ei0 + 1
+            }
+            oren_exit(1)
+        }
+    }
     
     var i = 0
     while i < oren_list_len(root_prog["statements"]) {
@@ -1573,6 +1604,23 @@ fn link_program(entry_path, root_prog, config) {
         "type_ns": type_ns,
         "config": config,
         "module_graph": {"entry": entry_path, "imports": root_imports, "modules": module_summaries}
+    }
+
+    // Whole-program cfg pass (safety belt): ensure any remaining cfg-gated decls are filtered
+    // before subsequent passes. (Per-module preparation already runs cfg, but this keeps the
+    // contract stable if that pipeline evolves.)
+    if trace_passes { print("[trace] pass: cfg") }
+    cfg_lowering.lower_linked_program_in_place(linked)
+    if linked["cfg_errors"] != nil && oren_list_len(linked["cfg_errors"]) > 0 {
+        var first_cfg = linked["cfg_errors"][0]
+        emit_diag("compile", 1, first_cfg)
+        print("Cfg filtering errors:")
+        var cei = 0
+        while cei < oren_list_len(linked["cfg_errors"]) {
+            print(linked["cfg_errors"][cei])
+            cei = cei + 1
+        }
+        oren_exit(1)
     }
 
     // Normalize cross-module type annotation spellings:

@@ -256,3 +256,28 @@ Rolling note (native backend):
 Evidence:
 
 - Native quick integration includes a varargs + reflection smoke: `tests/native/test_quick_integration_native.oren` (`test_type_tag_varargs`).
+
+---
+
+## 9) String equality: avoid `==` in compiler passes (stage1 vs stage2)
+
+Oren currently has **multiple runtimes** that execute compiler/tooling code:
+
+- Stage1 compiler: built via the C backend (C runtime semantics)
+- Stage2 compiler: built via the native backend (native runtime semantics)
+
+In rolling mode, do **not** assume `==` on strings behaves identically across these runtimes.
+In particular, some native-runtime paths rely on **interning / pointer identity** for fast comparisons,
+which can break checks that compare:
+
+- a string built via concatenation/slice (non-interned), with
+- a string coming from config/env/CLI (often interned), or a literal.
+
+Practical rule (compiler-side code):
+
+- Prefer **byte-wise equality** using `oren_string_len` + `oren_string_byte_at_unchecked` in any pass that must behave the same in stage1 and stage2.
+
+Reference implementations:
+
+- Stable helper used in hot compiler code: `lib/compiler/x64_core.oren` → `string_eq_bytes(a,b)`
+- `@cfg(...)` evaluation uses its own byte-wise helper to stay portable: `lib/compiler/cfg_lowering.oren` → `_cfg_str_eq(a,b)`
