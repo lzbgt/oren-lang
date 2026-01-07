@@ -136,6 +136,8 @@ References:
 		         - Regression: `tests/native/test_net_suite.oren` now asserts `sys_setsockopt(... SO_KEEPALIVE ...)` succeeds (covered by `./scripts/verify_native_net_matrix.sh`).
 		       - Done: UDP `recvfrom` can capture the source sockaddr (src ip/port) via `oren_udp_recvfrom_into_with_addr`.
 		         - Regression: `tests/native/test_net_suite.oren` `test_udp_loopback` asserts the source port matches the sender’s bound port (covered by `./scripts/verify_native_net_matrix.sh`).
+		       - Done: TCP `TCP_NODELAY` exposed as `OREN_TCP_NODELAY` + `std:net/tcp.set_nodelay(fd, enable)`.
+		         - Regression: `tests/native/test_net_suite.oren` asserts `sys_setsockopt(level=IPPROTO_TCP, optname=TCP_NODELAY)` succeeds (covered by `./scripts/verify_native_net_matrix.sh`).
 		       - Next: structured HTTP client/server surface (headers map + status + streaming body), then production WebSocket:
 		         - fragmentation + binary frames + streaming recv API
 		         - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + DNS layer

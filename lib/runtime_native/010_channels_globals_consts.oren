@@ -344,6 +344,9 @@ var OREN_SOCK_STREAM = 1
 var OREN_SOCK_DGRAM = 2
 var OREN_IPPROTO_TCP = 6
 var OREN_IPPROTO_UDP = 17
+// TCP-level sockopt IDs (rolling ABI; used with `level=OREN_IPPROTO_TCP`).
+// Values are stable across Darwin/Linux/Windows for the Tier‑1 surface.
+var OREN_TCP_NODELAY = 1
 
 // Oren-level getsockopt/setsockopt constants (rolling ABI).
 // These are translated to OS-specific values in the native syscall lowering layer.

@@ -66,6 +66,21 @@ fn set_keepalive(fd, enable) {
     return rc
 }
 
+fn set_nodelay(fd, enable) {
+    // Enable/disable TCP_NODELAY (disable/enable Nagle).
+    //
+    // This is a portable wrapper over:
+    //   sys_setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(int))
+    //
+    // Return: 0 on success, or -errno on failure.
+    var one = malloc(8)
+    if one == 0 { return 0 - 12 } // ENOMEM
+    if enable == 0 { ptr_set(one, 0) } else { ptr_set(one, 1) }
+    var rc = sys_setsockopt(fd, OREN_IPPROTO_TCP, OREN_TCP_NODELAY, one, 4)
+    free(one)
+    return rc
+}
+
 fn wait_readable(fd, timeout_ms) {
     // Returns:
     // - 1: ready

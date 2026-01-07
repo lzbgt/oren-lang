@@ -309,7 +309,7 @@ fn test_tcp_timeouts() {
 }
 
 fn test_tcp_sockopt_keepalive() {
-    // Validate portable SO_KEEPALIVE translation for syscall-first net.
+    // Validate portable socket option IDs for syscall-first net.
     // This should succeed on all Tier‑1 native targets (macOS/Linux/Windows).
 
     var lfd = oren_tcp_listen_local(0)
@@ -338,6 +338,14 @@ fn test_tcp_sockopt_keepalive() {
     var sroc = sys_setsockopt(cfd2, OREN_SOL_SOCKET, OREN_SO_KEEPALIVE, one, 4)
     free(one)
     if sroc < 0 { fail(0 - sroc) }
+
+    // TCP_NODELAY is a TCP-level sockopt (level=IPPROTO_TCP).
+    var one2 = malloc(8)
+    if one2 == 0 { fail(956) }
+    ptr_set(one2, 1)
+    var nrc = sys_setsockopt(cfd2, OREN_IPPROTO_TCP, OREN_TCP_NODELAY, one2, 4)
+    free(one2)
+    if nrc < 0 { fail(0 - nrc) }
 
     oren_tcp_close(cfd)
     oren_tcp_close(cfd2)

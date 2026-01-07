@@ -218,6 +218,7 @@ fn native_runtime_init(target_os) {
     OREN_SOCK_DGRAM = 2
     OREN_IPPROTO_TCP = 6
     OREN_IPPROTO_UDP = 17
+    OREN_TCP_NODELAY = 1
 
     // Sockopt constants (Oren-level; translated by native syscall lowering).
     OREN_SOL_SOCKET = 1
