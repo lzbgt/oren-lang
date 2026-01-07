@@ -436,7 +436,7 @@ examples-test-inner: oren avm
 	@# 2b/3) Native FFI + dylib export
 	@# - macOS: FFI works (dyld binding + LC_LOAD_DYLIB); dylib export is supported.
 	@# - Windows x64: FFI works via lazy LoadLibraryA/GetProcAddress stubs (covered by native quick integration on remote Win11).
-	@# - Linux: ELF dynamic linking is not implemented in the native backend yet (unresolved imports are stubbed).
+	@# - Linux: FFI works when `--link` is used (ELF dynamic linking + `dlsym` resolver); shared libs are not implemented yet.
 	@if [ "$(UNAME_S)" = "Darwin" ]; then \
 		$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/ffi_test.oren --backend native -o build/ex_ffi_puts $(CODESIGN_ARG) $(GC_ARG); \
 		$(RUN_WITH_TIMEOUT) ./build/ex_ffi_puts >/dev/null; \
@@ -445,6 +445,9 @@ examples-test-inner: oren avm
 		$(RUN_WITH_TIMEOUT) ./oren scan build/libmath.dylib >/dev/null; \
 		$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/ffi_from_libmath.oren --backend native --link build/libmath.dylib -o build/ex_ffi_from_libmath $(CODESIGN_ARG) $(GC_ARG); \
 		$(RUN_WITH_TIMEOUT) ./build/ex_ffi_from_libmath; \
+	elif [ "$(UNAME_S)" = "Linux" ]; then \
+		$(RUN_BUILD_WITH_TIMEOUT) ./oren build examples/ffi_test.oren --backend native --link libc.so.6 -o build/ex_ffi_puts $(CODESIGN_ARG) $(GC_ARG); \
+		$(RUN_WITH_TIMEOUT) ./build/ex_ffi_puts >/dev/null; \
 	else \
 		echo "INFO: skipping macOS dylib/FFI examples on $(UNAME_S)"; \
 	fi
