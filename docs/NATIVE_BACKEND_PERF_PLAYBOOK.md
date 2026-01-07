@@ -95,6 +95,19 @@ docker exec c7e5f7bd9f5c bash -lc 'cd /tmp/hostbins && qemu-x86_64 -g 1234 ./pri
 docker exec -it c7e5f7bd9f5c bash -lc 'cd /tmp/hostbins && gdb-multiarch -q ./print_x64_linux'
 ```
 
+### 2.2.2 x64 self-host compiler “run” gate (remote Win11 + WSL2)
+
+Once basic x64 binaries run, Tier‑1 parity still requires the **compiler binary itself** to run on x86_64:
+
+- `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win`
+
+If the gate fails with an early exit and no diagnostics, treat it as a “tooling contract” issue first:
+
+- The compiler’s build cache probes optional files; missing files must be surfaced as **error maps** (via `oren_err(...)`), not process exit.
+  - A common regression is `oren_read_file(...)` / `oren_read_u8_buf(...)` hard-exiting on ENOENT.
+- For “silent” failures on x64-linux, prefer a bounded syscall trace to find the last OS call:
+  - `qemu-x86_64 -strace ./oren_selfhost_x64_linux ...` (then inspect only the last ~50 lines).
+
 ## 3) What “slow” usually means (native backend)
 
 In practice, “compile one file is slow” is almost always one of:

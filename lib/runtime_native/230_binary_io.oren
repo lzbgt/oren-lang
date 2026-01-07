@@ -10,7 +10,10 @@ fn oren_write_bytes(path, bytes) {
 
     var flags = 1 | OREN_O_CREAT | OREN_O_TRUNC // WRONLY|CREAT|TRUNC (Oren-level flags)
     var fd = sys_open(rpath, flags, 420) // 0644
-    if fd < 0 { exit(260) }
+    if fd < 0 {
+        if owned == 1 { free(rpath) }
+        return oren_err(0 - fd, "write_bytes: sys_open failed")
+    }
 
     var n = 0
     var buf = 0
@@ -21,7 +24,11 @@ fn oren_write_bytes(path, bytes) {
         n = ptr_get(bytes + 0)
         if n > 0 {
             buf = native_buf_data_ptr(bytes)
-            if buf == 0 { sys_close(fd); exit(261) }
+            if buf == 0 {
+                sys_close(fd)
+                if owned == 1 { free(rpath) }
+                return oren_err(4, "write_bytes: u8_buf payload is nil")
+            }
         }
     } else {
         // Legacy path: list<int 0..255>
@@ -29,12 +36,20 @@ fn oren_write_bytes(path, bytes) {
         if n > 0 {
             buf = malloc(n)
             owned_buf = 1
-            if buf == 0 { sys_close(fd); exit(261) }
+            if buf == 0 {
+                sys_close(fd)
+                if owned == 1 { free(rpath) }
+                return oren_err(12, "write_bytes: alloc failed")
+            }
             var i = 0
             while i < n {
                 var v = bytes[i]
-                if v < 0 { sys_close(fd); exit(264) }
-                if v > 255 { sys_close(fd); exit(265) }
+                if v < 0 || v > 255 {
+                    sys_close(fd)
+                    free(buf)
+                    if owned == 1 { free(rpath) }
+                    return oren_err(4, "write_bytes: byte out of range")
+                }
                 ptr_set_byte(buf + i, v)
                 i = i + 1
             }
@@ -46,15 +61,28 @@ fn oren_write_bytes(path, bytes) {
         var off = 0
         while off < n {
             var wn = sys_write(fd, buf + off, n - off)
-            if wn < 0 { sys_close(fd); exit(266) }
-            if wn == 0 { sys_close(fd); exit(267) } // can't make progress
+            if wn < 0 {
+                sys_close(fd)
+                if owned_buf == 1 { free(buf) }
+                if owned == 1 { free(rpath) }
+                return oren_err(0 - wn, "write_bytes: sys_write failed")
+            }
+            if wn == 0 {
+                sys_close(fd)
+                if owned_buf == 1 { free(buf) }
+                if owned == 1 { free(rpath) }
+                return oren_err(5, "write_bytes: sys_write made no progress")
+            }
             off = off + wn
         }
     }
     if owned_buf == 1 { free(buf) }
 
     var crc = sys_close(fd)
-    if crc < 0 { exit(268) }
+    if crc < 0 {
+        if owned == 1 { free(rpath) }
+        return oren_err(0 - crc, "write_bytes: sys_close failed")
+    }
     if owned == 1 { free(rpath) }
     return 0
 }
@@ -67,16 +95,28 @@ fn oren_read_bytes(path) {
     free(pair)
 
     var fd = sys_open(rpath, 0, 0) // O_RDONLY
-    if fd < 0 { exit(262) }
+    if fd < 0 {
+        if owned == 1 { free(rpath) }
+        return oren_err(0 - fd, "read_bytes: sys_open failed")
+    }
 
     var out = oren_new_list(0)
     var buf = malloc(4096)
-    if buf == 0 { exit(263) }
+    if buf == 0 {
+        sys_close(fd)
+        if owned == 1 { free(rpath) }
+        return oren_err(12, "read_bytes: alloc failed")
+    }
 
     while 1 {
         var rn = sys_read(fd, buf, 4096)
         if rn == 0 { break } // EOF
-        if rn < 0 { sys_close(fd); exit(269) } // errno propagated by syscall lowering
+        if rn < 0 {
+            sys_close(fd)
+            free(buf)
+            if owned == 1 { free(rpath) }
+            return oren_err(0 - rn, "read_bytes: sys_read failed")
+        }
         var i = 0
         while i < rn {
             oren_list_push(out, ptr_get_byte(buf + i))
@@ -86,7 +126,10 @@ fn oren_read_bytes(path) {
 
     free(buf)
     var crc = sys_close(fd)
-    if crc < 0 { exit(270) }
+    if crc < 0 {
+        if owned == 1 { free(rpath) }
+        return oren_err(0 - crc, "read_bytes: sys_close failed")
+    }
     if owned == 1 { free(rpath) }
     return out
 }
@@ -190,7 +233,10 @@ fn oren_read_file(path) {
     // This keeps the string representation correct while avoiding typed-buffer plumbing
     // in the compiler hot path.
     //
-    // Failure behavior remains "fail-fast" (rolling native mode).
+    // Failure behavior:
+    // - return an error map (do NOT hard-exit)
+    // This must match the C runtime contract: compiler caches probe optional paths
+    // and treat ENOENT as a normal cache miss.
     var pair = native_capsule_fs_path_resolve_pair(path, 0)
     var rpath = ptr_get(pair + 0)
     var owned = ptr_get(pair + 8)
@@ -202,19 +248,19 @@ fn oren_read_file(path) {
     if src < 0 {
         free(st)
         if owned == 1 { free(rpath) }
-        exit(276)
+        return oren_err(0 - src, "read_file: sys_stat failed")
     }
     var size = oren_stat_get_size(st)
     free(st)
     if size < 0 {
         if owned == 1 { free(rpath) }
-        exit(277)
+        return oren_err(4, "read_file: invalid size")
     }
 
     var fd = sys_open(rpath, 0, 0) // O_RDONLY
     if fd < 0 {
         if owned == 1 { free(rpath) }
-        exit(279)
+        return oren_err(0 - fd, "read_file: sys_open failed")
     }
 
     // Allocate string buffer (+1 for NUL).
@@ -222,7 +268,7 @@ fn oren_read_file(path) {
     if out == 0 {
         sys_close(fd)
         if owned == 1 { free(rpath) }
-        exit(278)
+        return oren_err(12, "read_file: alloc failed")
     }
 
     var off = 0
@@ -233,25 +279,27 @@ fn oren_read_file(path) {
         if rn < 0 {
             sys_close(fd)
             if owned == 1 { free(rpath) }
-            exit(280)
+            free(out)
+            return oren_err(0 - rn, "read_file: sys_read failed")
         }
         if rn == 0 {
             // Unexpected EOF: keep behavior deterministic by failing fast.
             sys_close(fd)
             if owned == 1 { free(rpath) }
-            exit(281)
+            free(out)
+            return oren_err(5, "read_file: unexpected EOF")
         }
         off = off + rn
     }
 
     ptr_set_byte(out + size, 0)
     oren_track_alloc(out, size + 1, 1) // STRING
-
     var crc = sys_close(fd)
     if crc < 0 {
         if owned == 1 { free(rpath) }
-        exit(282)
+        return oren_err(0 - crc, "read_file: sys_close failed")
     }
+
     if owned == 1 { free(rpath) }
     return out
 }
@@ -259,9 +307,9 @@ fn oren_read_file(path) {
 @cap.requires(domain="FS")
 fn oren_write_file(path, content) {
     // Write a string as bytes.
-    // Failure behavior is inherited from `oren_write_bytes` in rolling native mode.
     var bs = oren_bytes_from_string(content)
-    oren_write_bytes(path, bs)
+    var r = oren_write_bytes(path, bs)
+    if oren_is_err(r) { return r }
     return 0
 }
 
@@ -299,21 +347,39 @@ fn oren_readdir(path) {
     free(pair)
 
     var fd = sys_open(rpath, 0, 0) // O_RDONLY
-    if fd < 0 { exit(271) }
+    if fd < 0 {
+        if owned == 1 { free(rpath) }
+        return oren_err(0 - fd, "readdir: sys_open failed")
+    }
 
     var out = oren_new_list(0)
 
     var buf = malloc(4096)
-    if buf == 0 { exit(272) }
+    if buf == 0 {
+        sys_close(fd)
+        if owned == 1 { free(rpath) }
+        return oren_err(12, "readdir: alloc failed")
+    }
 
     var pos = malloc(8)
-    if pos == 0 { exit(273) }
+    if pos == 0 {
+        sys_close(fd)
+        free(buf)
+        if owned == 1 { free(rpath) }
+        return oren_err(12, "readdir: alloc failed")
+    }
     ptr_set(pos, 0)
 
     while 1 {
         var n = sys_getdirentries64(fd, buf, 4096, pos)
         if n == 0 { break }
-        if n < 0 { sys_close(fd); exit(274) }
+        if n < 0 {
+            sys_close(fd)
+            free(pos)
+            free(buf)
+            if owned == 1 { free(rpath) }
+            return oren_err(0 - n, "readdir: sys_getdirentries64 failed")
+        }
 
         var off = 0
         while off < n {
@@ -368,7 +434,13 @@ fn oren_readdir(path) {
 
             if skip != true {
                 var s2 = malloc(name_len + 1)
-                if s2 == 0 { exit(275) }
+                if s2 == 0 {
+                    sys_close(fd)
+                    free(pos)
+                    free(buf)
+                    if owned == 1 { free(rpath) }
+                    return oren_err(12, "readdir: alloc failed")
+                }
                 var j = 0
                 while j < name_len {
                     ptr_set_byte(s2 + j, ptr_get_byte(name_ptr + j))
@@ -386,7 +458,10 @@ fn oren_readdir(path) {
     free(pos)
     free(buf)
     var crc = sys_close(fd)
-    if crc < 0 { exit(276) }
+    if crc < 0 {
+        if owned == 1 { free(rpath) }
+        return oren_err(0 - crc, "readdir: sys_close failed")
+    }
     if owned == 1 { free(rpath) }
     return out
 }

@@ -161,6 +161,14 @@ fn test_read_u8_buf_missing_returns_err() {
     assert_true(oren_is_err(r) != 0, 74)
 }
 
+fn test_read_file_missing_returns_err() {
+    trace("QI: test_read_file_missing_returns_err")
+    // Tooling contract: `oren_read_file` must match the stage1 runtime behavior:
+    // return an error map on failure (not exit), so optional cache probes don't abort the process.
+    var r = oren_read_file("__qi_missing_file_should_not_exist__s.txt")
+    assert_true(oren_is_err(r) != 0, 75)
+}
+
 fn test_numeric_casts() {
     // Unchecked casts (wrap/truncate).
     assert_eq(ints.u8(256 + 5), 5, 100)
@@ -295,6 +303,7 @@ fn main() {
     test_core()
     test_string_literals_static()
     test_read_u8_buf_missing_returns_err()
+    test_read_file_missing_returns_err()
     test_numeric_casts()
     test_float_and_bytes()
     test_json()

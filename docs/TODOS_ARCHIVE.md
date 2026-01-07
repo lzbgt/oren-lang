@@ -5,6 +5,34 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2026-01-07) — x86_64 self-host compiler run gate: runtime FS errors + Windows `sys_stat`
+
+- Symptom (x86_64 hosts, self-host compiler binaries):
+  - **x64-linux (remote WSL2 + qemu):** the self-host compiler could exit early with a non-zero code and no diagnostics.
+    - Root observation: `qemu-x86_64 -strace` showed a failing `stat(...)` on an optional cache-probe file (ENOENT) followed by an immediate `exit_group(...)`.
+  - **x64-windows (remote Win11):** `oren_selfhost_x64_windows.exe --help` worked, but any command that reads files (e.g. `build print.oren`) crashed with `EXIT=-1073741819` (access violation).
+
+- Root causes:
+  - **Native runtime FS contract mismatch (cross-target):**
+    - `lib/runtime_native/230_binary_io.oren` helpers (`oren_read_file`, `oren_read_u8_buf`, etc) historically hard-exited the process on syscall failures (e.g. missing files).
+    - The compiler’s build cache probes optional paths; missing files must be represented as **error maps** (via `oren_err(...)`) so callers can treat ENOENT as a cache miss.
+  - **Windows x64 FS ABI lowering bug (`sys_stat`):**
+    - `sys_stat` is used by `oren_read_file` to size allocations; the Windows implementation was unstable (bad out-buffer writes / volatile-reg clobbers), causing memory corruption and crashes.
+
+- Fixes:
+  - Native runtime (`lib/runtime_native/230_binary_io.oren`):
+    - FS helpers now return `oren_err(...)` instead of `exit(...)` on failures (stat/open/read/write/close), matching the stage1/C runtime contract.
+  - x64 Windows backend (`lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren`):
+    - Implement `sys_stat` using `CreateFileA(...) + GetFileSizeEx(...)` and write the Oren-owned `OrenStatV0` layout.
+    - Reload `st_ptr` after WinAPI calls (Win64 ABI clobbers volatile registers) before writing fields.
+  - Regression coverage:
+    - `tests/native/test_quick_integration_native.oren` adds a gate asserting `oren_read_file(missing)` returns an error map (does not hard-exit).
+
+- Verified:
+  - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win`
+  - Remote Win11: x64-windows compiler can compile+run a tiny native program.
+  - Remote WSL2: x64-linux compiler can compile+run a tiny native program.
+
 ## Archived (2026-01-07) — Native x86_64 runtime: fix alloc-index compare recursion (stack overflow)
 
 - Symptom (x64-linux artifacts built on arm64-macos):

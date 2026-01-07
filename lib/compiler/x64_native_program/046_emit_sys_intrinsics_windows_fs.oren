@@ -116,12 +116,22 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
 
     var capsule = _x64_capsule_enabled(ctx)
 
-    var base = _intr_tmp_push(ctx, 9) // path, st_ptr, pair, win32_attr_buf(6q)
+    // Implementation strategy (rolling):
+    // - Avoid GetFileAttributesExA + output struct writes: it has proven fragile under bring-up.
+    // - Determine existence by opening a handle (CreateFileA).
+    // - For regular files, query size via GetFileSizeEx().
+    //
+    // This is sufficient for the runtime/stdlib/compiler uses today:
+    // - `oren_read_file` needs a deterministic file size to allocate a buffer
+    // - callers avoid platform `struct stat` assumptions and consume OrenStatV0 only
+    //   through `oren_stat_get_*` accessors.
+    var base = _intr_tmp_push(ctx, 4) // path, st_ptr, pair, handle
     if base == nil { return nil }
     var tmp_path = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_st = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_pair = _intr_tmp_off(ctx, locals, base + 2)
-    if tmp_path == nil || tmp_st == nil || tmp_pair == nil { _intr_tmp_pop(ctx, base); return nil }
+    var tmp_handle = _intr_tmp_off(ctx, locals, base + 3)
+    if tmp_path == nil || tmp_st == nil || tmp_pair == nil || tmp_handle == nil { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_st)
@@ -141,85 +151,78 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
         _intr_load_x64(ctx, 1, tmp_path) // rcx = path (direct)
     }
 
-    // GetFileAttributesExA(path, GetFileExInfoStandard=0, &WIN32_FILE_ATTRIBUTE_DATA) -> BOOL
-    //
-    // Use an intrinsic-temp buffer (48 bytes, 8B aligned) to avoid mutating RSP and to
-    // keep nested call-site ABI alignment deterministic.
-    // WIN32_FILE_ATTRIBUTE_DATA layout (documented; 36 bytes) is:
-    //   +0  DWORD dwFileAttributes
-    //   +4  FILETIME ftCreationTime (8)
-    //   +12 FILETIME ftLastAccessTime (8)
-    //   +20 FILETIME ftLastWriteTime (8)
-    //   +28 DWORD nFileSizeHigh
-    //   +32 DWORD nFileSizeLow
-    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0)) // rax = 0
-    var bi = 0
-    while bi < 6 {
-        var offb = _intr_tmp_off(ctx, locals, base + 3 + bi)
-        if offb == nil { _intr_tmp_pop(ctx, base); return nil }
-        _emit_mov_mrbp_r64(ctx, 0 - offb, 0)
-        bi = bi + 1
-    }
-
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0)) // edx = 0 (GetFileExInfoStandard)
-    var off_buf0 = _intr_tmp_off(ctx, locals, base + 3)
-    if off_buf0 == nil { _intr_tmp_pop(ctx, base); return nil }
-    _emit_addr_rbp_minus_off_x64(ctx, 8, off_buf0) // r8 = &buf
-    _emit_call_iat_x64(ctx, "IAT_GetFileAttributesExA")
-
     var labels = {}
     var fixups = []
-    var l_ok = _new_label(ctx, "sys_stat_win_ok")
     var l_done = _new_label(ctx, "sys_stat_win_done")
+    var l_handle_ok = _new_label(ctx, "sys_stat_win_handle_ok")
 
-    // if eax != 0 => ok
-    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
-    _emit_jcc_to_label(ctx, fixups, "ne", l_ok)
+    // Open the path for read to determine existence and file size.
+    //
+    // NOTE (rolling):
+    // - This treats directories as non-files (CreateFileA without BACKUP_SEMANTICS may fail).
+    // - That's sufficient for `oren_read_file` and compiler cache probes.
+    // - If/when directory stat is required, extend this with FILE_FLAG_BACKUP_SEMANTICS.
+    //
+    // CreateFileA(path, GENERIC_READ, share=7, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL)
+    // rcx already holds path pointer.
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 2147483648)) // edx = GENERIC_READ
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 7))          // r8d = share
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 0))          // r9d = NULL (sec attrs)
 
-    // fail: map GetLastError() -> -errno
+    // arg5 creation disposition = OPEN_EXISTING (3)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 3))
+    _emit_mov_mrsp_r64(ctx, 32, 10)
+    // arg6 flags/attrs = FILE_ATTRIBUTE_NORMAL (0x80)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 128))
+    _emit_mov_mrsp_r64(ctx, 40, 10)
+    // arg7 template = NULL
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 0))
+    _emit_mov_mrsp_r64(ctx, 48, 10)
+
+    _emit_call_iat_x64(ctx, "IAT_CreateFileA")
+
+    // if handle == INVALID_HANDLE_VALUE (-1) => fail
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4294967295))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_handle_ok)
     _emit_win32_last_error_to_neg_errno_common_x64(ctx)
     _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_handle_ok)
 
-    _emit_label(ctx, labels, l_ok)
-    // Recompute &WIN32_FILE_ATTRIBUTE_DATA (intrinsic-temp buffer) into r11.
-    var off_buf1 = _intr_tmp_off(ctx, locals, base + 3)
-    if off_buf1 == nil { _intr_tmp_pop(ctx, base); return nil }
-    _emit_addr_rbp_minus_off_x64(ctx, 11, off_buf1)
+    // spill handle so capsule post hooks can observe rc consistently (and so we can close it)
+    _emit_mov_mrbp_r64(ctx, 0 - tmp_handle, 0)
 
     // --- Translate into OrenStatV0 at st_ptr ---
-    // Load st_ptr into r9 (from intrinsic temp spill).
-    _intr_load_x64(ctx, 9, tmp_st)
-
-    // Zero OrenStatV0 (64 bytes) for determinism.
+    _intr_load_x64(ctx, 9, tmp_st)                 // r9 = st_ptr
     bytes_extend(ctx["code"], insn_xor_r64_r64(8, 8)) // r8 = 0
     var zoff = 0
     while zoff < nstat.oren_stat_v0_size_bytes() {
         bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(9, zoff, 8))
         zoff = zoff + 4
     }
-
-    // size = (nFileSizeHigh<<32) | nFileSizeLow
-    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(10, 11, 32)) // r10d = low
-    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(8, 11, 28))  // r8d  = high
-    bytes_extend(ctx["code"], insn_shl_r64_imm8(8, 32))          // r8  <<= 32
-    bytes_extend(ctx["code"], insn_or_r64_r64(8, 10))            // r8   |= low
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(9, 8))           // [st_ptr+0] = size
-
-    // mode: at minimum distinguish directory vs file.
-    bytes_extend(ctx["code"], insn_mov_r32_mr32_disp(10, 11, 0))  // r10d = attrs
-    bytes_extend(ctx["code"], insn_and_r64_imm32(10, 16))        // FILE_ATTRIBUTE_DIRECTORY (0x10)
-    var l_is_dir = _new_label(ctx, "sys_stat_win_is_dir")
-    var l_mode_done = _new_label(ctx, "sys_stat_win_mode_done")
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
-    _emit_jcc_to_label(ctx, fixups, "ne", l_is_dir)
-    // regular file (approx): 0o100644 = 33188
+    // mode: regular file (approx): 0o100644 = 33188
     bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 33188))
-    _emit_jmp_to_label(ctx, fixups, l_mode_done)
-    _emit_label(ctx, labels, l_is_dir)
-    // directory (approx): 0o40755 = 16877
-    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 16877))
-    _emit_label(ctx, labels, l_mode_done)
     bytes_extend(ctx["code"], insn_mov_mr32_r32_disp(9, nstat.oren_stat_v0_off_mode(), 10))
+
+    // LARGE_INTEGER out at [rsp+0x28] (reuse call-area; avoid intrinsic temp pointers)
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(40, 0))
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(44, 0))
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(48, 0))
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_imm32(52, 0))
+
+    // Reload handle from the spilled slot: intermediate helpers may clobber rax.
+    _intr_load_x64(ctx, 1, tmp_handle)                          // rcx = handle
+    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(2, 40))     // rdx = &li
+    _emit_call_iat_x64(ctx, "IAT_GetFileSizeEx")
+
+    // If GetFileSizeEx fails, keep size=0 (rolling, still treat stat as success).
+    // Load size from li.QuadPart (8 bytes at [rsp+0x28]) into r8.
+    _intr_load_x64(ctx, 9, tmp_st) // reload st_ptr (volatile regs are clobbered by WinAPI calls)
+    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(8, 40))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(9, 8)) // [st_ptr+0] = size
+
+    // CloseHandle(handle) (best-effort).
+    _intr_load_x64(ctx, 1, tmp_handle) // rcx = handle
+    _emit_call_iat_x64(ctx, "IAT_CloseHandle")
 
     // rc = 0
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))

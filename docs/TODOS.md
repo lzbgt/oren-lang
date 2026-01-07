@@ -64,18 +64,16 @@ Rules for this tracker:
 	       - keep the in-process “fast path” zero-copy where possible (shared-memory attach instead of returning large graphs through `join`)
 
 1) **Tier‑1 native support parity (arm64-macos + arm64-linux + x64-linux + x64-windows)** (L)
-	   - Keep native semantics aligned across platforms:
-     - callables/closures/varargs + deterministic failure modes (`OREN_DIAG` + stack traces)
-     - container ops (list/map/buf) with identical semantics across arch/OS
-     - concurrency primitives on Windows (no fork/pipe assumptions): `spawn`, `oren_join(_timeout)`, and a path to cooperative cancellation
-		   - Remaining gaps (active):
-		     - x86_64 self-host compiler run gate (Win11 + WSL2):
-		       - Local emit sanity: `make verify-native-x64-compile`
-		       - Remote run gate: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win`
-		       - If the x64-windows compiler still hangs when compiling a tiny file, treat it as a Tier‑1 blocker and diagnose with bounded tracing (`OREN_TRACE_BUILD_SUMMARY=1`, `OREN_TRACE_BUILD_SLOW_MS=0`) before adding logging.
-		     - NET stdlib maturity (production direction):
-		       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IP-only; no TLS/DNS/keep-alive pooling yet).
-		       - Next: structured HTTP client/server surface (headers map + status + streaming body), WebSocket handshake+frames, then HTTP/2 framing on top of the TCP substrate.
+		   - Keep native semantics aligned across platforms:
+	     - callables/closures/varargs + deterministic failure modes (`OREN_DIAG` + stack traces)
+	     - container ops (list/map/buf) with identical semantics across arch/OS
+	     - concurrency primitives on Windows (no fork/pipe assumptions): `spawn`, `oren_join(_timeout)`, and a path to cooperative cancellation
+			   - Fixed (2026-01-07): x86_64 self-host compiler run gate (Win11 + WSL2) now passes; keep this as a hard regression gate:
+			     - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` (details in `docs/TODOS_ARCHIVE.md`)
+			   - Remaining gaps (active):
+			     - NET stdlib maturity (production direction):
+			       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IP-only; no TLS/DNS/keep-alive pooling yet).
+			       - Next: structured HTTP client/server surface (headers map + status + streaming body), WebSocket handshake+frames, then HTTP/2 framing on top of the TCP substrate.
 			     - Fixed (2026-01-04): **arm64-macos stage2 is now bootstrapped via the native backend by default** (`make stage2`).
 			       - Fallback (bring-up): `make stage2 OREN_STAGE2_BACKEND=c`.
 			    - Native FFI / dynamic linking parity (rolling):

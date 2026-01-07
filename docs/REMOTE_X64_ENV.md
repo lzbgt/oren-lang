@@ -29,6 +29,11 @@ to run on x86_64 hosts and compile+run a tiny native program.
 
 This is intentionally **opt-in** because building the compiler for x64 can be slow on cold caches.
 
+Rolling status:
+
+- As of 2026-01-07, the x64 self-host compiler run gate passes again on the remote Win11+WSL2 host.
+  - Root-cause + fix notes live in `docs/TODOS_ARCHIVE.md`.
+
 ```bash
 # Builds x64-linux and x64-windows compiler binaries (native backend),
 # copies them + a minimal runtime source bundle to the remote Win11 machine,
