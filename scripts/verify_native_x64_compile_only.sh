@@ -33,6 +33,7 @@ PRINT_SRC="tests/native/print.oren"
 PRINT_NEEDLE="hello from native"
 WIN_FFI_K32_SRC="tests/native/ffi_windows_kernel32.oren"
 WIN_FFI_MSVCRT_SRC="tests/native/ffi.oren"
+LINUX_FFI_OK_SRC="tests/native/ffi_linux_strlen_ok.oren"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
 
 run_with_timeout() {
@@ -86,6 +87,11 @@ build_one() {
 check_elf_x64() {
   local p="$1"
   file "$p" | grep -qE 'ELF 64-bit.*x86-64'
+}
+
+check_elf_x64_dyn() {
+  local p="$1"
+  file "$p" | grep -qE 'ELF 64-bit.*x86-64' && file "$p" | grep -qi 'dynamically linked'
 }
 
 check_pe_x64() {
@@ -142,6 +148,12 @@ check_bin_contains build/tmp/print_stage1_x64_linux "$PRINT_NEEDLE"
 build_one ./oren_stage2 x64-linux "$PRINT_SRC" build/tmp/print_stage2_x64_linux
 check_elf_x64 build/tmp/print_stage2_x64_linux
 check_bin_contains build/tmp/print_stage2_x64_linux "$PRINT_NEEDLE"
+
+build_one ./oren x64-linux "$LINUX_FFI_OK_SRC" build/tmp/ffi_ok_stage1_x64_linux --link libc.so.6
+check_elf_x64_dyn build/tmp/ffi_ok_stage1_x64_linux
+
+build_one ./oren_stage2 x64-linux "$LINUX_FFI_OK_SRC" build/tmp/ffi_ok_stage2_x64_linux --link libc.so.6
+check_elf_x64_dyn build/tmp/ffi_ok_stage2_x64_linux
 
 build_one ./oren x64-windows "$QI_SRC" build/tmp/qi_stage1_x64_windows.exe
 check_pe_x64 build/tmp/qi_stage1_x64_windows.exe
