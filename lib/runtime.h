@@ -553,6 +553,8 @@ OrenValue oren_sleep_ns(OrenValue ns);
 OrenValue oren_time_now_ns();
 OrenValue oren_time_unix_ns();
 OrenValue oren_time_mono_raw();
+// Fill `len` bytes at `ptr` with OS entropy. Returns 0 on success, or -errno.
+OrenValue oren_getentropy(OrenValue ptr, OrenValue len);
 // Byte-level reads/writes (list<int 0..255>) helpers.
 OrenValue oren_bytes_get_u8(OrenValue bytes, OrenValue index);
 OrenValue oren_bytes_set_u8(OrenValue bytes, OrenValue index, OrenValue value);

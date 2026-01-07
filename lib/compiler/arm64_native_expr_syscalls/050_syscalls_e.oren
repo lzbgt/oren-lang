@@ -3,6 +3,96 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
     var capsule = false
     if ctx != nil && ctx["platform"] != nil && ctx["platform"]["capsule"] == true { capsule = true }
 
+            if fn_name == "sys_getentropy" {
+                // sys_getentropy(buf, len) -> 0_or_neg_errno
+                //
+                // Darwin syscall: getentropy(void *buffer, size_t size) (syscall 500)
+                // Linux: not available as a syscall-first path here; return -ENOSYS and let
+                // `oren_getentropy` fall back to `sys_getrandom`.
+                if ctx["platform"]["os"] == "linux" {
+                    // Return -ENOSYS (38).
+                    push_u32_le(ctx["code"], insn_movn(0, 37)) // -38
+                    return true
+                }
+
+                // buf -> X0 (spill)
+                compile_expr(ctx, args[0])
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                // len -> X0
+                compile_expr(ctx, args[1])
+
+                // pop buf -> X1 (so we can swap into X0)
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // Arrange: X0=buf, X1=len
+                push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // X2=len
+                push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // X0=buf
+                push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // X1=len
+
+                push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_getentropy()))
+                emit_svc_preserve_heap(ctx, abi.darwin_svc_imm())
+
+                // Normalize macOS syscall error (carry set, X0=errno) to X0 = -errno.
+                var br_ok = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
+                var ok_pos = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+                return true
+            }
+
+            if fn_name == "sys_getrandom" {
+                // sys_getrandom(buf, len, flags) -> nbytes or -errno
+                //
+                // Linux arm64 syscall: getrandom (syscall 278)
+                // Darwin: not available; return -ENOSYS.
+                if ctx["platform"]["os"] != "linux" {
+                    // Return -ENOSYS (38).
+                    push_u32_le(ctx["code"], insn_movn(0, 37)) // -38
+                    return true
+                }
+
+                // buf -> X0 (spill)
+                compile_expr(ctx, args[0])
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                // len -> X0 (spill)
+                compile_expr(ctx, args[1])
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                // flags -> X0
+                compile_expr(ctx, args[2])
+
+                // Pop len -> X2
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // Pop buf -> X1
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // Arrange: X0=buf, X1=len, X2=flags (flags currently in X0)
+                push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // X3=flags
+                push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // X0=buf
+                push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // X1=len
+                push_u32_le(ctx["code"], insn_mov_reg(2, 3)) // X2=flags
+
+                push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_getrandom()))
+                emit_svc_preserve_heap(ctx, labi.linux_svc_imm())
+                return true
+            }
+
             if fn_name == "sys_gettimeofday" {
                 // sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) -> 0_or_neg_errno
                 //

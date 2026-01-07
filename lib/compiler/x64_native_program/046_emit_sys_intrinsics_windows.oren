@@ -357,6 +357,156 @@ fn _emit_intrinsic_sys_gettid_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
+fn _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_getentropy expects 2 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_getentropy does not support spread"); return nil }
+
+    // Windows: fill entropy using bcrypt!BCryptGenRandom via LoadLibraryA + GetProcAddress.
+    //
+    // Contract: sys_getentropy(buf, len) returns 0 on success, or -errno.
+    //
+    // Notes:
+    // - We avoid adding a new PE import descriptor by resolving bcrypt dynamically.
+    // - We cache the resolved function pointer in `.data` to keep repeated calls cheap.
+    // - Use BCRYPT_USE_SYSTEM_PREFERRED_RNG (0x2) with hAlgorithm=NULL.
+
+    // Reserve a global slot for the function pointer (per-program).
+    if ctx["win_bcryptgenrandom_slot_enc"] == nil {
+        var off_slot = _data_add_u64(ctx, 0)
+        ctx["win_bcryptgenrandom_slot_enc"] = off_slot + 1
+    }
+    var slot_off = ctx["win_bcryptgenrandom_slot_enc"] - 1
+
+    // Embed strings once (deduped by `_data_add_cstr0`).
+    var off_dll = _data_add_cstr0(ctx, "bcrypt.dll")
+    var off_sym = _data_add_cstr0(ctx, "BCryptGenRandom")
+
+    var base = _intr_tmp_push(ctx, 2) // buf, len
+    if base == nil { return nil }
+    var tmp_buf = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_len = _intr_tmp_off(ctx, locals, base + 1)
+    if tmp_buf == nil || tmp_len == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[0], tmp_buf)
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_len)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    var labels = {}
+    var fixups = []
+    var l_have_fp = _new_label(ctx, "sys_getentropy_have_fp")
+    var l_fail = _new_label(ctx, "sys_getentropy_fail")
+    var l_done = _new_label(ctx, "sys_getentropy_done")
+    var l_ret0 = _new_label(ctx, "sys_getentropy_ret0")
+
+    // if len <= 0 => return 0
+    _intr_load_x64(ctx, 0, tmp_len)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "g", l_have_fp)
+    // return 0
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_have_fp)
+
+    // Validate buf != 0
+    _intr_load_x64(ctx, 0, tmp_buf)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    var l_buf_ok = _new_label(ctx, "sys_getentropy_buf_ok")
+    _emit_jcc_to_label(ctx, fixups, "ne", l_buf_ok)
+    // -14 (EFAULT)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967282))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_buf_ok)
+
+    // Load &slot into r10
+    var lea_slot = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_slot + 3, "data_off": slot_off})
+
+    // r11 = *(u64*)slot
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 10))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ret0) // fp already cached in r11
+
+    // Resolve: LoadLibraryA("bcrypt.dll")
+    // rcx = &"bcrypt.dll"
+    var lea_dll = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(1, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_dll + 3, "data_off": off_dll})
+    // call LoadLibraryA
+    var mov_iat0 = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    _x64_add_rip_data32_fixup(ctx, mov_iat0 + 3, "IAT_LoadLibraryA")
+    bytes_extend(ctx["code"], insn_call_rax())
+    // if rax == 0 => fail
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_fail)
+
+    // Resolve: GetProcAddress(h, "BCryptGenRandom")
+    // rcx = h
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0))
+    // rdx = &"BCryptGenRandom"
+    var lea_sym = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(2, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_sym + 3, "data_off": off_sym})
+    var mov_iat1 = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_GetProcAddress")
+    bytes_extend(ctx["code"], insn_call_rax())
+    // if rax == 0 => fail
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_fail)
+
+    // Cache fp in slot and r11
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11))
+
+    _emit_label(ctx, labels, l_ret0)
+
+    // Call BCryptGenRandom(NULL, buf, (u32)len, 0x2)
+    // rcx = 0
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0))
+    // rdx = buf
+    _intr_load_x64(ctx, 2, tmp_buf)
+    // r8d = len (u32)
+    _intr_load_x64(ctx, 8, tmp_len)
+    // Fail if len > 0xFFFFFFFF (conservative)
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(9, 4294967295))
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(8, 9))
+    var l_len_ok = _new_label(ctx, "sys_getentropy_len_ok")
+    _emit_jcc_to_label(ctx, fixups, "be", l_len_ok) // unsigned <=
+    // -22 (EINVAL)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967274))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_jmp_to_label(ctx, fixups, l_done)
+    _emit_label(ctx, labels, l_len_ok)
+    // r9d = flags (BCRYPT_USE_SYSTEM_PREFERRED_RNG = 2)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 2))
+    // call fp in r11
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], insn_call_rax())
+    // NTSTATUS in eax: 0 => success
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_fail)
+
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_fail)
+    // -5 (EIO)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967291))
+    bytes_extend(ctx["code"], insn_cdqe())
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, fixups)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
 fn _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args) {
     // Prefer ABI-derived detection instead of `ctx["platform"]` so Windows builds remain correct
     // even if the higher-level driver does not thread a platform map into the x64 backend ctx.
@@ -388,6 +538,9 @@ fn _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args) {
         if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
         if nm == "sys_nanosleep" { return _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_gettimeofday" { return _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) }
+        // Entropy
+        if nm == "sys_getentropy" { return _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_getrandom" { _emit_return_enosys_x64(ctx); return nil }
         // NET + wait backend
         if nm == "sys_wsa_startup" { return _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_select" { return _emit_intrinsic_sys_select_windows_x64(ctx, expr, locals, args) }

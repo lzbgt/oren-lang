@@ -1,0 +1,46 @@
+// Crypto-grade random bytes (host / native backend).
+//
+// This module provides a small, protocol-oriented entropy surface:
+// - WebSocket client key and masking
+// - future TLS (HTTPS/WSS) and session IDs
+//
+// Contract (v0):
+// - `fill(ptr, len)` fills `len` bytes at `ptr` and returns 0 on success, or -errno.
+// - `bytes(n)` returns BYTES (u8_buf) of length `n`, or a structured error map.
+//
+// NOTE:
+// - This is a host effect and is not intended for AVM deterministic execution.
+// - Native runtime implementation: `oren_getentropy` (syscall/Win32 backed).
+
+import list "std:list"
+import result "std:result"
+
+fn fill(ptr, len) {
+    if ptr == nil { return 0 - 14 } // EFAULT
+    if len == nil { len = 0 }
+    if len <= 0 { return 0 }
+    return oren_getentropy(ptr, len)
+}
+
+fn bytes(n) {
+    if n == nil { n = 0 }
+    if n < 0 { return oren_err(4, "rand.bytes: n < 0") }
+    if n == 0 { return oren_bytes_pack([]) }
+
+    var p = oren_ptr_alloc(n)
+    if p == 0 { return oren_err(12, "rand.bytes: alloc failed") }
+    var rc = oren_getentropy(p, n)
+    if rc < 0 {
+        oren_ptr_free(p)
+        return result.ok_or_errno(rc, "rand.bytes")
+    }
+
+    var xs = []
+    var i = 0
+    while i < n {
+        list.push(xs, ptr_get_byte(p + i) & 255)
+        i = i + 1
+    }
+    oren_ptr_free(p)
+    return oren_bytes_pack(xs)
+}

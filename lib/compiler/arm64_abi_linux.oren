@@ -33,6 +33,7 @@ fn linux_sys_dup3() { return 24 }
 fn linux_sys_ioctl() { return 29 }
 fn linux_sys_kill() { return 129 }
 fn linux_sys_gettimeofday() { return 169 }
+fn linux_sys_getrandom() { return 278 }
 fn linux_sys_getsockname() { return 204 }
 fn linux_sys_getpeername() { return 205 }
 fn linux_sys_setsockopt() { return 208 }

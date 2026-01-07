@@ -52,6 +52,7 @@ fn linux_sys_wait4() { return 61 }
 fn linux_sys_kill() { return 62 }
 fn linux_sys_gettimeofday() { return 96 }
 fn linux_sys_getcwd() { return 79 }
+fn linux_sys_getrandom() { return 318 }
 fn linux_sys_fcntl() { return 72 }
 fn linux_sys_gettid() { return 186 }
 fn linux_sys_getdents64() { return 217 }

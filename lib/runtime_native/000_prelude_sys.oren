@@ -110,6 +110,16 @@ fn sys_dup3(from, to, flags) { return 0 }
 fn sys_ioctl(fd, req, argp) { return 0 }
 fn sys_kill(pid, signum) { return 0 }
 fn sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) { return 0 }
+// Entropy / randomness (OS-provided; used by NET/TLS and other protocols).
+//
+// Native backend lowering:
+// - Linux: `sys_getrandom(buf, len, flags)` -> getrandom(2) syscall (returns bytes or -errno)
+// - macOS: `sys_getentropy(buf, len)`      -> getentropy(2) syscall (returns 0 or -errno)
+// - Windows: `sys_getentropy(buf, len)`    -> BCryptGenRandom (returns 0 or -errno)
+//
+// NOTE: These are compiler intrinsics (stub bodies must never execute in a correct native binary).
+fn sys_getrandom(buf, len, flags) { return 0 }
+fn sys_getentropy(buf, len) { return 0 }
 fn sys_getcwd(buf, size) { return 0 }
 fn sys_ulock_wait(operation, addr, value, timeout_us) { return 0 }
 fn sys_ulock_wake(operation, addr, wake_value) { return 0 }

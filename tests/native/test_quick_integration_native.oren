@@ -61,6 +61,21 @@ fn worker_sleep_short() {
     return 55
 }
 
+fn test_entropy() {
+    trace("QI: test_entropy")
+    // Smoke: OS entropy surface must exist and be bounded (no hangs).
+    // Contract: oren_getentropy(ptr, len) -> 0 on success, or -errno.
+    var p = oren_ptr_alloc(32)
+    if p == 0 { fail(72) }
+    var rc = oren_getentropy(p, 32)
+    oren_ptr_free(p)
+    if rc != 0 {
+        print("QI: oren_getentropy failed rc=" + oren_int_to_string(rc))
+        fail(73)
+    }
+    return 0
+}
+
 @pack
 struct PV_H {
     v: u8,
@@ -354,6 +369,7 @@ fn main() {
     if oren_getenv("OREN_QI_TRACE") != 0 { g_qi_trace_on = 1 }
 
     test_core()
+    test_entropy()
     test_string_literals_static()
     test_type_tag_varargs()
     test_read_u8_buf_missing_returns_err()

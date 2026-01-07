@@ -10,67 +10,20 @@
 
 import tcp "std:net/tcp"
 import sha1 "std:crypto/sha1"
+import rand "std:crypto/rand"
 import base64 "std:encoding/base64"
 
-// Best-effort RNG state for protocol fields (Sec-WebSocket-Key, client masking).
-//
-// Rolling note:
-// - This is not a cryptographic RNG.
-// - It is intentionally dependency-free (no FS access like /dev/urandom) so NET code stays NET-only.
-// - A future “portable OS RNG” surface should replace this (tracked in `docs/TODOS.md`).
-var g_ws_rng_u32 = 0
-
-fn _ws_rng_next_u32() {
-    // xorshift32 (best-effort)
-    if g_ws_rng_u32 == 0 {
-        var seed = oren_time_unix_ns()
-        if seed == 0 { seed = 2463534242 } // xorshift fallback seed
-        // Fold time into 32-bit space; keep it non-zero.
-        seed = seed % 4294967296
-        if seed == 0 { seed = 2463534242 }
-        g_ws_rng_u32 = seed
-    }
-
-    var x = g_ws_rng_u32
-    x = x ^ ((x << 13) & 4294967295)
-    x = x ^ ((x >> 17) & 4294967295)
-    x = x ^ ((x << 5) & 4294967295)
-    x = x & 4294967295
-    if x == 0 { x = 2463534242 }
-    g_ws_rng_u32 = x
-    return x
-}
-
-fn _ws_random_u8_list(n) {
-    // Returns list<u8> (ints in [0..255]).
-    if n <= 0 { return [] }
-    var out = []
-    var i = 0
-    while i < n {
-        var x = _ws_rng_next_u32()
-        var b0 = x & 255
-        var b1 = (x >> 8) & 255
-        var b2 = (x >> 16) & 255
-        var b3 = (x >> 24) & 255
-        oren_list_push(out, b0)
-        i = i + 1
-        if i >= n { break }
-        oren_list_push(out, b1)
-        i = i + 1
-        if i >= n { break }
-        oren_list_push(out, b2)
-        i = i + 1
-        if i >= n { break }
-        oren_list_push(out, b3)
-        i = i + 1
-    }
-    return out
-}
+// Entropy note (v0.2):
+// - Protocol fields require OS entropy (RFC6455 client key + masking).
+// - We use `std:crypto/rand` (backed by `oren_getentropy`) instead of time-seeded xorshift.
 
 fn _ws_new_client_key_base64() {
     // RFC6455: Sec-WebSocket-Key is base64 of 16 random bytes.
-    var xs = _ws_random_u8_list(16)
-    return base64.encode_bytes(oren_bytes_pack(xs))
+    var b = rand.bytes(16)
+    if oren_is_err(b) {
+        return {"ok": 0, "err": "ws.key: " + oren_err_msg(b)}
+    }
+    return {"ok": 1, "v": base64.encode_bytes(b)}
 }
 
 fn _starts_with(s, prefix) {
@@ -418,9 +371,15 @@ fn connect(url, timeout_ms) {
     }
 
     // Best-effort per-connection key (v0.1).
-    // NOTE: this is not currently cryptographically secure; it is only "not constant".
-    var key = _ws_new_client_key_base64()
-    if key == 0 { key = "dGhlIHNhbXBsZSBub25jZQ==" } // fallback (RFC example nonce)
+    // RFC6455: base64(random(16))
+    var kr = _ws_new_client_key_base64()
+    if kr["ok"] != 1 {
+        tcp.close(fd)
+        free(host)
+        free(path)
+        return {"ok": 0, "err": "ws.connect: " + kr["err"]}
+    }
+    var key = kr["v"]
     var hostport = host + ":" + oren_int_to_string(port)
     var req = "GET " + path + " HTTP/1.1\r\nHost: " + hostport +
               "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: " + key +
@@ -648,16 +607,12 @@ fn _send_frame_raw(fd, opcode, payload_ptr, payload_len, timeout_ms, masked) {
 
     var payload_off = 2 + ext
     if masked == 1 {
-        var m = _ws_rng_next_u32()
-        mask0 = m & 255
-        mask1 = (m >> 8) & 255
-        mask2 = (m >> 16) & 255
-        mask3 = (m >> 24) & 255
-
-        ptr_set_byte(buf + payload_off + 0, mask0)
-        ptr_set_byte(buf + payload_off + 1, mask1)
-        ptr_set_byte(buf + payload_off + 2, mask2)
-        ptr_set_byte(buf + payload_off + 3, mask3)
+        var rc_r = rand.fill(buf + payload_off, 4)
+        if rc_r < 0 { free(buf); return rc_r }
+        mask0 = ptr_get_byte(buf + payload_off + 0) & 255
+        mask1 = ptr_get_byte(buf + payload_off + 1) & 255
+        mask2 = ptr_get_byte(buf + payload_off + 2) & 255
+        mask3 = ptr_get_byte(buf + payload_off + 3) & 255
         payload_off = payload_off + 4
     }
 

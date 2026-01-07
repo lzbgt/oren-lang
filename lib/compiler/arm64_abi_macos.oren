@@ -20,6 +20,7 @@ fn darwin_sys_kill() { return 37 }
 fn darwin_sys_execve() { return 59 }
 fn darwin_sys_fcntl() { return 92 }
 fn darwin_sys_gettimeofday() { return 116 }
+fn darwin_sys_getentropy() { return 500 }
 fn darwin_sys_getpeername() { return 31 }
 fn darwin_sys_getsockname() { return 32 }
 fn darwin_sys_setsockopt() { return 105 }

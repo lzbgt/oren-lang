@@ -1,0 +1,54 @@
+// --- Entropy / randomness (portable surface; native backend) ---
+//
+// This is a low-level “fill bytes” API used by protocols (WebSocket key/masking) and is
+// a prerequisite for production TLS (HTTPS/WSS).
+//
+// Contract (v0):
+// - `oren_getentropy(buf, len)` fills exactly `len` bytes at `buf`.
+// - Returns 0 on success, or -errno on failure.
+// - Uses OS entropy sources (never time-seeded xorshift).
+//
+// Notes:
+// - The syscall-first runtime prefers OS syscalls / Win32 APIs over FS paths like `/dev/urandom`.
+// - This is still a host effect (nondeterministic); in capsule mode it is currently gated by TIME.
+//   (A dedicated RNG domain can be introduced later if needed.)
+
+@cap.requires(domain="TIME")
+fn oren_getentropy(buf, len) {
+    native_capsule_require(CAP_TIME, "TIME")
+    if buf == nil { buf = 0 }
+    if len == nil { len = 0 }
+    if len <= 0 { return 0 }
+    if buf == 0 { return 0 - 14 } // EFAULT
+
+    // Prefer `sys_getentropy` when available (macOS/Windows); fall back to `sys_getrandom` (Linux).
+    // Chunking:
+    // - macOS getentropy has a 256-byte limit per call, so we always chunk to 256 for that path.
+    // - Linux getrandom can return partial reads; loop until filled.
+    var off = 0
+    while off < len {
+        var rem = len - off
+        var chunk = rem
+        if chunk > 256 { chunk = 256 }
+
+        var rc = sys_getentropy(buf + off, chunk)
+        if rc == 0 {
+            off = off + chunk
+            continue
+        }
+        if rc != -38 { // ENOSYS => try getrandom
+            return rc
+        }
+
+        // getrandom(buf, chunk, flags=0) -> bytes read or -errno.
+        var got = sys_getrandom(buf + off, chunk, 0)
+        if got < 0 {
+            // Retry common transient errors (EINTR/EAGAIN) to keep callers simple.
+            if got == -4 || got == -11 { continue }
+            return got
+        }
+        if got == 0 { return 0 - 5 } // EIO (unexpected short read)
+        off = off + got
+    }
+    return 0
+}

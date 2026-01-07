@@ -39,7 +39,7 @@ This is intentionally minimal so we can gate correctness across Tier‑1 first.
   - payload size is capped (currently 1 MiB) as a rolling safety bound
 - Handshake:
   - `Sec-WebSocket-Accept` computed via `SHA1(key + GUID)` then base64
-  - client key + masking are best-effort “not constant” (xorshift32 seeded from time); this is **not yet** a portable OS entropy surface
+  - client key + masking use OS entropy via `std:crypto/rand` (`oren_getentropy`), not time-seeded toy RNG
 
 ## Native runtime caveat: string tracking vs `+`
 

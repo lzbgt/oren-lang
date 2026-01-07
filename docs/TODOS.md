@@ -133,7 +133,6 @@ References:
      - NET stdlib maturity:
        - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IP-only; no TLS/DNS/keep-alive pooling yet).
        - Next: structured HTTP client/server surface (headers map + status + streaming body), then production WebSocket:
-         - define a portable OS entropy/RNG surface (avoid “toy RNG” for protocol masking/keys) and plumb it through NET/stdlib
          - fragmentation + binary frames + streaming recv API
          - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + DNS layer
      - Native FFI / dynamic linking parity (rolling):
@@ -157,9 +156,12 @@ References:
 
 - Fixed (2026-01-07): Tier‑1 NET loopback is now regression-gated across `arm64-macos` + `arm64-linux` + `x64-windows` + `x64-linux` (stage1 + stage2) via `./scripts/verify_native_net_matrix.sh`.
 - Fixed (2026-01-07): WebSocket v0 (ws:// handshake + masked text frames + loopback echo) implemented and added to the Tier‑1 NET matrix (`tests/native/test_ws_echo_loopback.oren`).
-- Fixed (2026-01-07): Win11 WS echo loopback flake eliminated by hardening NET read/write against spurious readiness timeouts (optimistic `recv`/`send` first; retry until deadline instead of returning `ETIMEDOUT` immediately).
+- Fixed (2026-01-07): portable OS entropy surface for protocols:
+  - `oren_getentropy(ptr,len)` (native runtime) backed by `getentropy` (macOS) / `getrandom` (Linux) / `BCryptGenRandom` (Win11)
+  - `std:crypto/rand` used by WebSocket client key + masking (no more time-seeded xorshift in stdlib)
+  - Fixed (2026-01-07): Win11 WS echo loopback flake eliminated by hardening NET read/write against spurious readiness timeouts (optimistic `recv`/`send` first; retry until deadline instead of returning `ETIMEDOUT` immediately).
   - Fixed (2026-01-07): ping/pong/close frames are handled in `ws.recv_text` (auto-pong + ignore pongs), and `ws.send_ping_{client,server}` exists.
-  - Fixed (2026-01-07): client key + masking are no longer constant (best-effort time-seeded xorshift32).
+  - Fixed (2026-01-07): client key + masking use OS entropy (`oren_getentropy`), not time-seeded xorshift.
 
 - Fixed (2026-01-04): **arm64-macos stage2 is now bootstrapped via the native backend by default** (`make stage2`).
   - Fallback (bring-up): `make stage2 OREN_STAGE2_BACKEND=c`.
