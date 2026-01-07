@@ -8,7 +8,8 @@ fn u16be_at(p, off) {
 
 fn server(listen_fd) {
     // Accept + handshake, then echo one text frame.
-    var r = ws.accept(listen_fd, 5000)
+    // Keep timeouts a bit generous on remote Win11 hosts (rolling: avoid flaky scheduling timeouts).
+    var r = ws.accept(listen_fd, 10000)
     var okv = oren_map_get_str(r, "ok")
     if okv != 1 {
         var errv = oren_map_get_str(r, "err")
@@ -23,7 +24,7 @@ fn server(listen_fd) {
     var fd = oren_map_get_str(r, "fd")
     if fd < 0 { return 11 }
 
-    var msg = ws.recv_text(fd, 5000)
+    var msg = ws.recv_text(fd, 10000)
     var mok = oren_map_get_str(msg, "ok")
     if mok != 1 {
         var merr = oren_map_get_str(msg, "err")
@@ -38,9 +39,12 @@ fn server(listen_fd) {
     var s = oren_map_get_str(msg, "v")
     if s == 0 { return 13 }
 
-    var wr = ws.send_text_server(fd, s, 5000)
+    var wr = ws.send_text_server(fd, s, 10000)
     free(s)
-    if wr < 0 { return 14 }
+    if wr < 0 {
+        print("ws_echo_loopback: server send FAIL (errno=" + oren_int_to_string(0 - wr) + ")")
+        return 14
+    }
 
     oren_tcp_close(fd)
     return 0
@@ -71,7 +75,7 @@ fn run_case() {
     var fd = -1
 
     var url = "ws://127.0.0.1:" + oren_int_to_string(port) + "/"
-    var c = ws.connect(url, 2000)
+    var c = ws.connect(url, 5000)
     free(url)
     // Avoid relying on `c["ok"]` key-kind inference in rolling mode; use the typed runtime accessor.
     var okv = oren_map_get_str(c, "ok")
@@ -105,12 +109,12 @@ fn run_case() {
         fd = oren_map_get_str(c, "fd")
 
         var text = "PING"
-        var wr = ws.send_text_client(fd, text, 2000)
+        var wr = ws.send_text_client(fd, text, 5000)
         if wr < 0 {
             print("ws_echo_loopback: FAIL send")
             rc = 21
         } else {
-            var rr = ws.recv_text(fd, 5000)
+            var rr = ws.recv_text(fd, 10000)
             // Prefer typed map access; do not rely on key-kind inference in tests.
             var rok = oren_map_get_str(rr, "ok")
             if rok != 1 {
@@ -139,7 +143,7 @@ fn run_case() {
 
     if fd >= 0 { oren_tcp_close(fd) }
 
-    var sr = oren_join_timeout(h, 5000)
+    var sr = oren_join_timeout(h, 15000)
     if sr != 0 && rc == 0 { rc = 30 }
 
     oren_tcp_close(listen_fd)

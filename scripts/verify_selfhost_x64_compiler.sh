@@ -22,8 +22,11 @@ cd "$ROOT"
 REMOTE_HOST="${OREN_REMOTE_X64_HOST:-lzbgt@pc.work}"
 REMOTE_PROXY="${OREN_REMOTE_X64_PROXY:-ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002}"
 
-REMOTE_DIR_WIN="${OREN_REMOTE_SELFHOST_DIR_WIN:-%USERPROFILE%\\tmp_oren_selfhost}"
-REMOTE_DIR_SSH="${OREN_REMOTE_SELFHOST_DIR_SSH:-/Users/lzbgt/tmp_oren_selfhost}"
+REMOTE_DIR_NAME="${OREN_REMOTE_SELFHOST_DIR_NAME:-tmp_oren_selfhost}"
+# IMPORTANT: for OpenSSH on Windows, scp/sftp path handling is not consistent for POSIX-style
+# absolute paths like `/Users/<name>/...`. Prefer a home-relative path for reliability.
+REMOTE_DIR_SSH="${OREN_REMOTE_SELFHOST_DIR_SSH:-$REMOTE_DIR_NAME}"
+REMOTE_DIR_WIN="${OREN_REMOTE_SELFHOST_DIR_WIN:-%USERPROFILE%\\$REMOTE_DIR_NAME}"
 
 # Timeouts:
 # - compiler build can be slow on cross-target x64 bring-up; keep this generous.
@@ -31,6 +34,7 @@ BUILD_COMPILER_TIMEOUT_SECS="${OREN_SELFHOST_COMPILER_BUILD_TIMEOUT_SECS:-1200}"
 # - running the compiler to compile a tiny file should still be bounded.
 REMOTE_COMPILE_TIMEOUT_SECS="${OREN_SELFHOST_REMOTE_COMPILE_TIMEOUT_SECS:-120}"
 REMOTE_RUN_TIMEOUT_SECS="${OREN_SELFHOST_REMOTE_RUN_TIMEOUT_SECS:-30}"
+SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-3}"
 
 TARGETS_CSV="x64-win,x64-wsl"
 TRACE=0
@@ -165,6 +169,35 @@ mkdir -p build/tmp
 
 parse_jobs="$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)"
 
+remote_user="$REMOTE_HOST"
+if [[ "$REMOTE_HOST" == *"@"* ]]; then
+  remote_user="${REMOTE_HOST%@*}"
+fi
+REMOTE_DIR_WSL="${OREN_REMOTE_SELFHOST_DIR_WSL:-/mnt/c/Users/${remote_user}/${REMOTE_DIR_NAME}}"
+
+scp_put() {
+  local src="$1"
+  local dst="$2"
+
+  local attempt=1
+  while true; do
+    set +e
+    "${SCP[@]}" "$src" "$dst"
+    local rc=$?
+    set -e
+    if [[ "$rc" -eq 0 ]]; then
+      return 0
+    fi
+    if [[ "$attempt" -ge "$SCP_RETRIES" ]]; then
+      echo "ERROR: scp failed after ${attempt}/${SCP_RETRIES} attempts: ${src} -> ${dst} (rc=${rc})" >&2
+      return "$rc"
+    fi
+    echo "WARN: scp failed (attempt ${attempt}/${SCP_RETRIES}) rc=${rc}; retrying..." >&2
+    sleep "$attempt"
+    attempt=$((attempt + 1))
+  done
+}
+
 # Cross-target compiler builds are large and can allocate heavily.
 # Keep them bounded by enabling the cooperative GC trigger and limiting stack scan.
 gc_stack_scan_limit="${OREN_GC_STACK_SCAN_LIMIT_BYTES:-8388608}"
@@ -235,22 +268,22 @@ EOF
 tar -czf "$PKG_TGZ" -C "$PKG_DIR" .
 
 echo "== remote: prepare dir =="
-"${SSH[@]}" 'cmd.exe /c "mkdir %USERPROFILE%\\tmp_oren_selfhost 2>nul & exit /b 0"'
+"${SSH[@]}" "cmd.exe /c \"mkdir ${REMOTE_DIR_WIN} 2>nul & exit /b 0\""
 
 echo "== remote: copy artifacts =="
-"${SCP[@]}" "$COMPILER_LINUX" "$REMOTE_HOST:$REMOTE_DIR_SSH/oren_selfhost_x64_linux"
-"${SCP[@]}" "$COMPILER_WIN" "$REMOTE_HOST:$REMOTE_DIR_SSH/oren_selfhost_x64_windows.exe"
-"${SCP[@]}" "$PKG_TGZ" "$REMOTE_HOST:$REMOTE_DIR_SSH/selfhost_pkg.tgz"
+scp_put "$COMPILER_LINUX" "$REMOTE_HOST:$REMOTE_DIR_SSH/oren_selfhost_x64_linux"
+scp_put "$COMPILER_WIN" "$REMOTE_HOST:$REMOTE_DIR_SSH/oren_selfhost_x64_windows.exe"
+scp_put "$PKG_TGZ" "$REMOTE_HOST:$REMOTE_DIR_SSH/selfhost_pkg.tgz"
 
 echo "== remote: unpack runtime sources (WSL2 tar into /mnt/c) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
-  'wsl.exe -e bash -lc "set -euo pipefail; root=/mnt/c/Users/lzbgt/tmp_oren_selfhost; mkdir -p $root; cd $root; rm -rf lib print.oren; tar -xzf /mnt/c/Users/lzbgt/tmp_oren_selfhost/selfhost_pkg.tgz -C .; echo OK"'
+  "wsl.exe -e bash -lc \"set -euo pipefail; mkdir -p '${REMOTE_DIR_WSL}'; cd '${REMOTE_DIR_WSL}'; rm -rf lib print.oren; tar -xzf '${REMOTE_DIR_WSL}/selfhost_pkg.tgz' -C .; echo OK\""
 
 if has_target x64-wsl; then
   echo "== remote: self-host compile+run (x64-linux under WSL2) =="
   out="$(
     run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
-      'wsl.exe -e bash -lc "set -euo pipefail; root=/mnt/c/Users/lzbgt/tmp_oren_selfhost; cd $root; chmod +x ./oren_selfhost_x64_linux; ./oren_selfhost_x64_linux build print.oren --backend native --platform x64-linux --no-cache --no-debug -o out_linux; chmod +x ./out_linux; ./out_linux; echo EXIT=$?"'
+      "wsl.exe -e bash -lc \"set -euo pipefail; cd '${REMOTE_DIR_WSL}'; chmod +x ./oren_selfhost_x64_linux; ./oren_selfhost_x64_linux build print.oren --backend native --platform x64-linux --no-cache --no-debug -o out_linux; chmod +x ./out_linux; ./out_linux; echo EXIT=\$?\""
   )"
   printf '%s\n' "$out"
   echo "$out" | grep -q "hello from native"
@@ -262,7 +295,7 @@ if has_target x64-win; then
   # Use a conservative timeout wrapper on the local host to avoid hanging forever on remote.
   out="$(
     run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
-      'cmd.exe /v:on /c "cd %USERPROFILE%\\tmp_oren_selfhost && oren_selfhost_x64_windows.exe build print.oren --backend native --platform x64-windows --no-cache --no-debug -o out_win.exe && out_win.exe & echo EXIT=!ERRORLEVEL!"'
+      "cmd.exe /v:on /c \"cd ${REMOTE_DIR_WIN} && oren_selfhost_x64_windows.exe build print.oren --backend native --platform x64-windows --no-cache --no-debug -o out_win.exe && out_win.exe & echo EXIT=!ERRORLEVEL!\""
   )"
   printf '%s\n' "$out"
   echo "$out" | grep -q "hello from native"

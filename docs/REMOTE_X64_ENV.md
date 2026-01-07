@@ -64,6 +64,8 @@ Tuning knobs (env):
 - `OREN_SELFHOST_COMPILER_BUILD_TIMEOUT_SECS` (default `1200`)
 - `OREN_SELFHOST_REMOTE_COMPILE_TIMEOUT_SECS` (default `120`)
 - `OREN_SELFHOST_REMOTE_RUN_TIMEOUT_SECS` (default `30`)
+- `OREN_REMOTE_SELFHOST_DIR_NAME` (default `tmp_oren_selfhost`)
+- `OREN_REMOTE_SCP_RETRIES` (default `3`, used by Tier‑1 scripts to harden flaky proxy uploads)
 
 Common env overrides (match `scripts/verify_native_matrix.sh` defaults):
 
@@ -101,7 +103,7 @@ ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.wo
 Run a compiled Windows PE executable and see its exit code:
 
 ```bash
-ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work 'cmd.exe /v:on /c "C:\\Users\\lzbgt\\tmp_oren\\x64_format_win.exe & echo EXIT=!ERRORLEVEL!"'
+ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work 'cmd.exe /v:on /c "%USERPROFILE%\\tmp_oren\\x64_format_win.exe & echo EXIT=!ERRORLEVEL!"'
 ```
 
 ## Windows toolchain (VS2022 + Windows Kits)
@@ -149,8 +151,9 @@ ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.wo
 Copy artifacts:
 
 ```bash
-scp -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" build/x64_format_win.exe lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_format_win.exe
-scp -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" build/x64_format_linux   lzbgt@pc.work:/Users/lzbgt/tmp_oren/x64_format_linux
+# Prefer a home-relative scp destination (Windows OpenSSH path translation can be inconsistent for `/Users/<name>/...`).
+scp -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" build/x64_format_win.exe lzbgt@pc.work:tmp_oren/x64_format_win.exe
+scp -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" build/x64_format_linux   lzbgt@pc.work:tmp_oren/x64_format_linux
 ```
 
 ## Rolling guidance

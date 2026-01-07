@@ -34,6 +34,7 @@ WS_ECHO_SRC="tests/native/test_ws_echo_loopback.oren"
 
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
+SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-3}"
 
 REMOTE_HOST="${OREN_REMOTE_X64_HOST:-lzbgt@pc.work}"
 REMOTE_PROXY="${OREN_REMOTE_X64_PROXY:-ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002}"
@@ -325,8 +326,27 @@ remote_kill_wsl() {
 remote_upload() {
   local src="$1"
   local dst_name="$2"
-  remote_del "$dst_name"
-  "${scp_base[@]}" "$src" "${REMOTE_HOST}:${remote_unix_root}/${dst_name}"
+  remote_del "$dst_name" >/dev/null 2>&1 || true
+
+  local attempt=1
+  while true; do
+    set +e
+    "${scp_base[@]}" "$src" "${REMOTE_HOST}:${remote_unix_root}/${dst_name}"
+    local rc=$?
+    set -e
+    if [[ "$rc" -eq 0 ]]; then
+      return 0
+    fi
+
+    if [[ "$attempt" -ge "$SCP_RETRIES" ]]; then
+      echo "ERROR: scp failed after ${attempt}/${SCP_RETRIES} attempts: ${src} -> ${dst_name} (rc=${rc})" >&2
+      return "$rc"
+    fi
+
+    echo "WARN: scp failed (attempt ${attempt}/${SCP_RETRIES}) rc=${rc}; retrying..." >&2
+    sleep "$attempt"
+    attempt=$((attempt + 1))
+  done
 }
 
 remote_run_win() {
