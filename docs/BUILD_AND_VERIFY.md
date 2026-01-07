@@ -268,7 +268,7 @@ Current status:
 - **Windows x64 (PE):** uses lazy `LoadLibraryA`/`GetProcAddress` stubs; `--link` adds DLLs to the resolver search list (kernel32 is searched by default).
 - **Linux (ELF):**
   - **x64-linux:** `--link` enables a dynamically-linked ELF, and `ffi` works via a lazy `dlsym` resolver (see `docs/NATIVE_BACKEND.md`).
-  - **arm64-linux:** dynamic linking is not implemented yet; calling an `ffi` symbol panics and `--link` is rejected.
+  - **arm64-linux:** `--link` enables a dynamically-linked ELF, and `ffi` works via a lazy `dlsym` resolver (see `docs/NATIVE_BACKEND.md`).
 
 ### Usage
 Declare the external symbol using the `ffi` keyword, then call it like a regular function.
@@ -302,7 +302,7 @@ The native backend always loads `libSystem` on macOS. To load additional dylibs:
 ./oren build examples/ffi_test.oren --backend native --link /usr/lib/libsqlite3.dylib -o ffi_sqlite
 ```
 
-To link arbitrary libraries portably (or on Linux arm64 today), use the C backend:
+To link arbitrary libraries portably, use the C backend:
 
 1.  **Use the C Backend**: The C backend allows you to pass arbitrary linker flags.
     ```bash
@@ -322,7 +322,7 @@ To link arbitrary libraries portably (or on Linux arm64 today), use the C backen
 
 2.  **Linux Native Backend Support (rolling)**:
     - **x64-linux:** minimal dynamic linking is implemented for `ffi` (via `dlsym`); shared libraries (`--lib`) are still not implemented.
-    - **arm64-linux:** ELF dynamic linking is not implemented yet.
+    - **arm64-linux:** minimal dynamic linking is implemented for `ffi` (via `dlsym`); shared libraries (`--lib`) are still not implemented.
 
 ---
 
