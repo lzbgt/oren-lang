@@ -375,6 +375,7 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 var oren_sol_socket = 1
                 var oren_so_reuseaddr = 2
                 var oren_so_error = 4
+                var oren_so_keepalive = 9
     
                 // Only translate the portable subset when level == OREN_SOL_SOCKET.
                 push_u32_le(ctx["code"], insn_movz(5, oren_sol_socket))
@@ -411,6 +412,17 @@ fn native_syscalls_chunk_040_syscalls_d(ctx, fn_name, args, compile_expr) {
                 emit_load_u64_imm(ctx, 2, os_opt2)
                 var after_opt2 = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_opt2, insn_b_cond((after_opt2 - br_skip_opt2) / 4, 1)) // NE
+
+                // If optname == OREN_SO_KEEPALIVE, translate.
+                push_u32_le(ctx["code"], insn_movz(5, oren_so_keepalive))
+                push_u32_le(ctx["code"], insn_cmp_reg(6, 5)) // compare original optname
+                var br_skip_opt3 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.NE skip
+                var os_opt3 = abi.darwin_so_keepalive()
+                if ctx["platform"]["os"] == "linux" { os_opt3 = labi.linux_so_keepalive() }
+                emit_load_u64_imm(ctx, 2, os_opt3)
+                var after_opt3 = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_skip_opt3, insn_b_cond((after_opt3 - br_skip_opt3) / 4, 1)) // NE
     
                 var after_all = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_skip_all, insn_b_cond((after_all - br_skip_all) / 4, 1)) // NE

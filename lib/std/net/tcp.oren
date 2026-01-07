@@ -49,6 +49,23 @@ fn close(fd) {
     return oren_tcp_close(fd)
 }
 
+fn set_keepalive(fd, enable) {
+    // Enable/disable TCP keepalive on a connected socket.
+    //
+    // This is a portable wrapper over:
+    //   sys_setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(int))
+    //
+    // Return: 0 on success, or -errno on failure.
+    var one = malloc(8)
+    if one == 0 { return 0 - 12 } // ENOMEM
+    // `sys_setsockopt` expects a pointer to an int (4 bytes). We store the value in an 8-byte slot
+    // but still pass optlen=4, matching other runtime uses (e.g. SO_REUSEADDR).
+    if enable == 0 { ptr_set(one, 0) } else { ptr_set(one, 1) }
+    var rc = sys_setsockopt(fd, OREN_SOL_SOCKET, OREN_SO_KEEPALIVE, one, 4)
+    free(one)
+    return rc
+}
+
 fn wait_readable(fd, timeout_ms) {
     // Returns:
     // - 1: ready
@@ -119,6 +136,10 @@ fn read_into_ok(fd, buf, len, timeout_ms) {
 
 fn write_from_ok(fd, buf, len, timeout_ms) {
     return result.ok_or_errno(write_from(fd, buf, len, timeout_ms), "tcp.write_from")
+}
+
+fn set_keepalive_ok(fd, enable) {
+    return result.ok_or_errno(set_keepalive(fd, enable), "tcp.set_keepalive")
 }
 
 fn wait_any_readable_ok(fds, timeout_ms) {

@@ -99,6 +99,7 @@ fn posix_fcntl_f_setfl() { return 4 }
 fn linux_sol_socket() { return 1 }
 fn linux_so_reuseaddr() { return 2 }
 fn linux_so_error() { return 4 }
+fn linux_so_keepalive() { return 9 }
 
 // --- mmap constants (Linux) ---
 // Repo-owned constants used by syscall-first allocator / runtime paths.

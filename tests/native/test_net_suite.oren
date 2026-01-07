@@ -308,6 +308,43 @@ fn test_tcp_timeouts() {
     return 0
 }
 
+fn test_tcp_sockopt_keepalive() {
+    // Validate portable SO_KEEPALIVE translation for syscall-first net.
+    // This should succeed on all Tier‑1 native targets (macOS/Linux/Windows).
+
+    var lfd = oren_tcp_listen_local(0)
+    if lfd < 0 { fail(950) }
+
+    var sa = malloc(32)
+    if sa == 0 { fail(951) }
+    var lenp = malloc(8)
+    if lenp == 0 { fail(952) }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(lfd, sa, lenp)
+    if grc < 0 { fail(0 - grc) }
+    var port = u16be_at(sa, 2)
+    free(sa)
+    free(lenp)
+    if port <= 0 { fail(953) }
+
+    var cfd2 = oren_tcp_connect("127.0.0.1", port, 2000)
+    if cfd2 < 0 { fail(0 - cfd2) }
+    var cfd = oren_tcp_accept(lfd, 2000)
+    if cfd < 0 { fail(954) }
+
+    var one = malloc(8)
+    if one == 0 { fail(955) }
+    ptr_set(one, 1)
+    var sroc = sys_setsockopt(cfd2, OREN_SOL_SOCKET, OREN_SO_KEEPALIVE, one, 4)
+    free(one)
+    if sroc < 0 { fail(0 - sroc) }
+
+    oren_tcp_close(cfd)
+    oren_tcp_close(cfd2)
+    oren_tcp_close(lfd)
+    return 0
+}
+
 fn test_udp_loopback() {
     // Loopback-only UDP smoke test (no external network).
     //
@@ -350,6 +387,7 @@ fn main() {
     test_tcp_sockname_peername()
     test_tcp_send_recv_intrinsics()
     test_tcp_timeouts()
+    test_tcp_sockopt_keepalive()
     test_udp_loopback()
     test_http_helpers()
     print("net suite: OK")

@@ -350,6 +350,9 @@ var OREN_IPPROTO_UDP = 17
 var OREN_SOL_SOCKET = 1
 var OREN_SO_REUSEADDR = 2
 var OREN_SO_ERROR = 4
+// Matches Linux SO_KEEPALIVE (9) so x64-linux syscall intrinsics (pass-through)
+// work without a translation table. Darwin/Windows translate this value.
+var OREN_SO_KEEPALIVE = 9
 
 // Typed buffer tags:
 // `ore_iter_next` needs BUF_TAG_U8 early to support `for x in u8_buf`.

@@ -130,11 +130,13 @@ References:
      - Windows stage0→stage1 bootstrap: `./scripts/verify_stage0_windows_bootstrap.sh`
 
    - Active gaps (keep this list forward-looking; details live in `docs/TODOS_ARCHIVE.md`):
-     - NET stdlib maturity:
-       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IP-only; no TLS/DNS/keep-alive pooling yet).
-       - Next: structured HTTP client/server surface (headers map + status + streaming body), then production WebSocket:
-         - fragmentation + binary frames + streaming recv API
-         - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + DNS layer
+	     - NET stdlib maturity:
+	       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IP-only; no TLS/DNS/keep-alive pooling yet).
+	       - Done: portable `SO_KEEPALIVE` + `std:net/tcp.set_keepalive(fd, enable)` (syscall-first; translated across Darwin/Linux/Windows).
+	         - Regression: `tests/native/test_net_suite.oren` now asserts `sys_setsockopt(... SO_KEEPALIVE ...)` succeeds (covered by `./scripts/verify_native_net_matrix.sh`).
+	       - Next: structured HTTP client/server surface (headers map + status + streaming body), then production WebSocket:
+	         - fragmentation + binary frames + streaming recv API
+	         - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + DNS layer
 	     - Native FFI / dynamic linking parity (rolling):
 	       - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
 	       - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).

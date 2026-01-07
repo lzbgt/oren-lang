@@ -85,6 +85,7 @@ fn darwin_fcntl_f_getpath() { return 50 }
 fn darwin_sol_socket() { return 65535 } // SOL_SOCKET = 0xffff
 fn darwin_so_reuseaddr() { return 4 }
 fn darwin_so_error() { return 4103 } // SO_ERROR = 0x1007
+fn darwin_so_keepalive() { return 8 } // SO_KEEPALIVE = 0x0008
 
 // fcntl(2) command values used by syscall-first helpers.
 // These are POSIX-stable across Darwin/Linux (verified via headers; audit-only).
