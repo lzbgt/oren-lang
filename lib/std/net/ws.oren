@@ -642,14 +642,14 @@ fn recv_text(fd, timeout_ms) {
         var ex = malloc(2)
         if ex == 0 { return {"ok": 0, "err": "ws.recv_text: malloc ext"} }
         rc = _read_exact(fd, ex, 2, timeout_ms)
-        if rc < 0 { free(ex); return {"ok": 0, "err": "ws.recv_text: read ext16 failed"} }
+        if rc < 0 { free(ex); return {"ok": 0, "err": "ws.recv_text: read ext16 failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
         plen = ((ptr_get_byte(ex + 0) & 255) << 8) | (ptr_get_byte(ex + 1) & 255)
         free(ex)
     } else if plen7 == 127 {
         var ex8 = malloc(8)
         if ex8 == 0 { return {"ok": 0, "err": "ws.recv_text: malloc ext"} }
         rc = _read_exact(fd, ex8, 8, timeout_ms)
-        if rc < 0 { free(ex8); return {"ok": 0, "err": "ws.recv_text: read ext64 failed"} }
+        if rc < 0 { free(ex8); return {"ok": 0, "err": "ws.recv_text: read ext64 failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
         // u64 be (best-effort; reject huge sizes)
         plen = 0
         var i = 0
@@ -673,7 +673,7 @@ fn recv_text(fd, timeout_ms) {
         var mk = malloc(4)
         if mk == 0 { return {"ok": 0, "err": "ws.recv_text: malloc mask"} }
         rc = _read_exact(fd, mk, 4, timeout_ms)
-        if rc < 0 { free(mk); return {"ok": 0, "err": "ws.recv_text: read mask failed"} }
+        if rc < 0 { free(mk); return {"ok": 0, "err": "ws.recv_text: read mask failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
         mask0 = ptr_get_byte(mk + 0) & 255
         mask1 = ptr_get_byte(mk + 1) & 255
         mask2 = ptr_get_byte(mk + 2) & 255
@@ -684,7 +684,7 @@ fn recv_text(fd, timeout_ms) {
     var out = malloc(plen + 1)
     if out == 0 { return {"ok": 0, "err": "ws.recv_text: malloc payload"} }
     rc = _read_exact(fd, out, plen, timeout_ms)
-    if rc < 0 { free(out); return {"ok": 0, "err": "ws.recv_text: read payload failed"} }
+    if rc < 0 { free(out); return {"ok": 0, "err": "ws.recv_text: read payload failed (errno=" + oren_int_to_string(0 - rc) + ")"} }
     var i2 = 0
     while masked == 1 && i2 < plen {
         var b = ptr_get_byte(out + i2) & 255

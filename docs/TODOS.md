@@ -73,11 +73,12 @@ Rules for this tracker:
 				     - Remaining gaps (active):
 					     - NET stdlib maturity (production direction):
 					       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IP-only; no TLS/DNS/keep-alive pooling yet).
-					       - Fixed (2026-01-07): Tier‑1 NET loopback is now regression-gated across `arm64-macos` + `arm64-linux` + `x64-windows` + `x64-linux` (stage1 + stage2) via `./scripts/verify_native_net_matrix.sh`.
-					       - Fixed (2026-01-07): WebSocket v0 (ws:// handshake + masked text frames + loopback echo) implemented and added to the Tier‑1 NET matrix (`tests/native/test_ws_echo_loopback.oren`).
-					       - Next: structured HTTP client/server surface (headers map + status + streaming body), then production WebSocket:
-					         - ping/pong/close + close reason codes
-					         - random client key + random masking (portable RNG surface)
+						       - Fixed (2026-01-07): Tier‑1 NET loopback is now regression-gated across `arm64-macos` + `arm64-linux` + `x64-windows` + `x64-linux` (stage1 + stage2) via `./scripts/verify_native_net_matrix.sh`.
+						       - Fixed (2026-01-07): WebSocket v0 (ws:// handshake + masked text frames + loopback echo) implemented and added to the Tier‑1 NET matrix (`tests/native/test_ws_echo_loopback.oren`).
+						       - Active (2026-01-07): Win11 WS echo loopback is occasionally flaky (sporadic `ETIMEDOUT` in `ws.recv_text` header/mask reads under load); treat as a correctness/robustness bug to root-cause (not just “raise timeouts”).
+						       - Next: structured HTTP client/server surface (headers map + status + streaming body), then production WebSocket:
+						         - ping/pong/close + close reason codes
+						         - random client key + random masking (portable RNG surface)
 					         - fragmentation + binary frames + streaming recv API
 					         - then HTTP/2 framing on top of the TCP substrate (then TLS + DNS layers).
 			     - Fixed (2026-01-04): **arm64-macos stage2 is now bootstrapped via the native backend by default** (`make stage2`).
