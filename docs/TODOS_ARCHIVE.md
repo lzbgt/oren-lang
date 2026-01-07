@@ -62,6 +62,29 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `./scripts/verify_native_net_matrix.sh --targets arm64-linux`
   - `./scripts/verify_native_net_matrix.sh --targets x64-wsl,x64-win`
 
+## Archived (2026-01-07) — WebSocket v0 stdlib: ws:// handshake + text echo (Tier‑1 gated)
+
+- Deliverable:
+  - Added a small WebSocket v0 stdlib module: `lib/std/net/ws.oren`
+    - Scope: `ws://` only (no TLS/DNS), IPv4 URL parse, handshake, masked client text frames, unmasked server text frames.
+  - Added minimal dependencies for the RFC6455 handshake:
+    - `lib/std/crypto/sha1.oren` (pure Oren SHA‑1)
+    - `lib/std/encoding/base64.oren` (pure Oren base64 encode)
+  - Added a loopback regression test: `tests/native/test_ws_echo_loopback.oren` (server accepts + echoes `"PING"`).
+  - Extended the Tier‑1 NET matrix gate to include WebSocket:
+    - `scripts/verify_native_net_matrix.sh` now builds+runs the WS echo test for stage1 + stage2 across all Tier‑1 targets.
+
+- Key implementation lesson (native backend correctness):
+  - On the native runtime, string `+` concatenation is **kind‑gated** (`oren_add` only concatenates when both operands are tracked as kind=STRING).
+  - Header parsing initially allocated header slice strings as generic `malloc(...)` buffers, which are not kind=STRING.
+    - Result: expressions like `key + guid` in the handshake could lower to integer add of pointers, producing invalid pointers and occasional `EXC_BAD_ACCESS` crashes.
+  - Fix: allocate header slice outputs as tracked STRING via `malloc_k(..., kind=1)` (see `lib/std/net/ws.oren` `_buf_slice_to_string`).
+
+- Verified:
+  - `./scripts/verify_native_net_matrix.sh --targets local`
+  - `./scripts/verify_native_net_matrix.sh --targets arm64-linux`
+  - `./scripts/verify_native_net_matrix.sh --targets x64-wsl,x64-win`
+
 ## Archived (2026-01-07) — Native x86_64 runtime: fix alloc-index compare recursion (stack overflow)
 
 - Symptom (x64-linux artifacts built on arm64-macos):

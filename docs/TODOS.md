@@ -70,11 +70,16 @@ Rules for this tracker:
 	     - concurrency primitives on Windows (no fork/pipe assumptions): `spawn`, `oren_join(_timeout)`, and a path to cooperative cancellation
 			   - Fixed (2026-01-07): x86_64 self-host compiler run gate (Win11 + WSL2) now passes; keep this as a hard regression gate:
 			     - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` (details in `docs/TODOS_ARCHIVE.md`)
-			   - Remaining gaps (active):
-				     - NET stdlib maturity (production direction):
-				       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IP-only; no TLS/DNS/keep-alive pooling yet).
-				       - Fixed (2026-01-07): Tier‑1 NET loopback is now regression-gated across `arm64-macos` + `arm64-linux` + `x64-windows` + `x64-linux` (stage1 + stage2) via `./scripts/verify_native_net_matrix.sh`.
-				       - Next: structured HTTP client/server surface (headers map + status + streaming body), WebSocket handshake+frames, then HTTP/2 framing on top of the TCP substrate.
+				     - Remaining gaps (active):
+					     - NET stdlib maturity (production direction):
+					       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IP-only; no TLS/DNS/keep-alive pooling yet).
+					       - Fixed (2026-01-07): Tier‑1 NET loopback is now regression-gated across `arm64-macos` + `arm64-linux` + `x64-windows` + `x64-linux` (stage1 + stage2) via `./scripts/verify_native_net_matrix.sh`.
+					       - Fixed (2026-01-07): WebSocket v0 (ws:// handshake + masked text frames + loopback echo) implemented and added to the Tier‑1 NET matrix (`tests/native/test_ws_echo_loopback.oren`).
+					       - Next: structured HTTP client/server surface (headers map + status + streaming body), then production WebSocket:
+					         - ping/pong/close + close reason codes
+					         - random client key + random masking (portable RNG surface)
+					         - fragmentation + binary frames + streaming recv API
+					         - then HTTP/2 framing on top of the TCP substrate (then TLS + DNS layers).
 			     - Fixed (2026-01-04): **arm64-macos stage2 is now bootstrapped via the native backend by default** (`make stage2`).
 			       - Fallback (bring-up): `make stage2 OREN_STAGE2_BACKEND=c`.
 			    - Native FFI / dynamic linking parity (rolling):
