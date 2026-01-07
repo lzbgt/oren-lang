@@ -318,8 +318,8 @@ OrenValue oren_buf_mul_i64_into(OrenValue dst, OrenValue a, OrenValue b) {
     for (uint32_t i = 0; i < od->len; i++) {
         uint64_t ua = load_u64_le(buf_data(ba) + i * 8u);
         uint64_t ub = load_u64_le(buf_data(bb) + i * 8u);
-        __uint128_t prod = ((__uint128_t)ua) * ((__uint128_t)ub);
-        uint64_t up = (uint64_t)prod; // wrap low 64
+        // Unsigned overflow is well-defined in C: multiplication wraps mod 2^64.
+        uint64_t up = ua * ub;
         store_u64_le(buf_data(od) + i * 8u, up);
     }
     return dst;
@@ -486,4 +486,3 @@ OrenValue oren_buf_scale_i32_into(OrenValue dst, OrenValue a, OrenValue scalar) 
     }
     return dst;
 }
-

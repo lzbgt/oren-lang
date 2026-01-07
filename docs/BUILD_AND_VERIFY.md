@@ -8,7 +8,9 @@ Oren is a self-hosted language. The repository contains a "Stage 0" compiler wri
 
 ### Prerequisites
 - **Go 1.20+**: To build the Stage 0 bootstrap compiler.
-- **C Compiler (clang/gcc)**: Required by the C backend (used for self-hosting).
+- **C Compiler**: Required by the C backend (used for stage0 → stage1 bootstrapping).
+  - macOS/Linux: `clang`/`gcc`
+  - Windows x64: Visual Studio 2022 Build Tools (`cl.exe`) is the preferred Tier‑1 bring-up path.
 - **Make**: For build automation.
 
 ### Step 1: Build Stage 0 (Go Bootstrap)
@@ -27,6 +29,22 @@ Use the bootstrap compiler to compile the self-hosted Oren source (`oren.oren`) 
 ./oren_bootstrap build oren.oren
 ```
 *Output:* An executable named `oren`.
+
+Windows notes (x64, rolling):
+
+- Prefer `make stage1` / `make oren` rather than calling the bootstrap directly.
+  - The Makefile passes `--cc` via `OREN_BOOTSTRAP_CC` (defaults to `cl` on Windows hosts).
+- If invoking stage0 directly on Windows, the canonical form is:
+
+```bash
+oren_bootstrap.exe build oren.oren --target windows --cc cl -o oren.exe
+```
+
+- When `--cc cl` is selected, stage0 attempts to auto-configure the MSVC environment by locating
+  VS2022 via `vswhere.exe` and running `VsDevCmd.bat` / `vcvars64.bat` in a child `cmd.exe` session.
+- C-backend outputs run the program entrypoint on a fresh OS thread with a larger stack by default
+  (to avoid stack overflow in self-hosted compiler workloads). Override via:
+  - `OREN_MAIN_STACK_SIZE` (decimal bytes; default: 64 MiB; min: 1 MiB)
 
 ### Step 3: Verify Self-Hosting (Stage 2)
 Use the Stage 1 compiler (`oren`) to compile the Oren source code again. The resulting binary should be identical in function to Stage 1.

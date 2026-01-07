@@ -167,6 +167,39 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `make verify-selfhost-x64` completes successfully (remote Win11 + WSL2).
   - `scripts/verify_native_net_matrix.sh --targets x64-win,x64-wsl` completes successfully.
 
+## Archived (2026-01-07) — Windows stage0 bootstrap: MSVC bring-up + stack-safe C backend main
+
+- Motivation (Tier‑1 intent):
+  - The Go bootstrap compiler (stage0) must be able to build the stage1 compiler on **x64-windows**.
+  - Stage1 (C-backend output) must be runnable on Windows so we can self-host to stage2 and beyond.
+
+- Symptoms (remote Win11 host):
+  - `oren_bootstrap` could not reliably use MSVC `cl.exe` from a plain SSH session without manually launching a Developer Command Prompt.
+  - A freshly built `oren_stage1.exe` could crash immediately with `STATUS_STACK_OVERFLOW` when compiling even a small program, because the stage0 C backend only ran the main body on a “big stack” thread for non-Windows hosts.
+  - Stage0-generated C also used `errno` as a parameter name in the Windows NET intrinsics emitter, which breaks under MSVC where `errno` is a macro.
+
+- Fixes:
+  - Stage0 bootstrap (Go):
+    - `cmd/oren/main.go` now detects `--cc cl` / `clang-cl` and auto-configures MSVC by locating VS2022 via `vswhere.exe` and calling `VsDevCmd.bat` / `vcvars64.bat` before invoking `cl.exe`.
+    - Uses a temporary `.cmd` wrapper for robust quoting (avoids `\\\"...\\\"` path issues).
+  - C runtime portability (Windows/MSVC):
+    - `lib/runtime/010_prelude.inc` implements the minimal pthread subset used by the C runtime on Win32 primitives (SRWLOCK + CONDITION_VARIABLE + TLS + `_beginthreadex`), plus best-effort `clock_gettime` / `nanosleep`.
+    - Atomics are implemented via Win32 interlocked ops (MSVC C mode lacks `<stdatomic.h>`).
+    - RAW alloc/free supports `VirtualAlloc`/`VirtualFree` (large) and `_aligned_malloc` (small).
+  - Stack-safe entrypoint for C backend outputs:
+    - Stage0-generated C now calls `oren_run_main_threaded(...)` from `main(...)` on all platforms, including Windows.
+    - Runtime adds `oren_run_main_threaded` (default 64 MiB; override via `OREN_MAIN_STACK_SIZE`).
+  - MSVC macro collision:
+    - Renamed `errno` parameter to `errnum` in `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net.oren`.
+  - Regression guard:
+    - Added `scripts/verify_stage0_windows_bootstrap.sh` to prove stage0→stage1 bootstrap and a tiny native build+run on Win11 via SSH.
+
+- Verified:
+  - Local macOS: `make stage1`, `make stage2`, `make test`
+  - Remote Win11:
+    - Stage0 builds `oren_stage1.exe` with `--cc cl`
+    - Stage1 builds and runs `tests/native/print.oren` as a native PE (`hello from native`)
+
 ## Archived (2026-01-06) — Native arm64: rtobj debug-info persistence + arm64-linux symbolization gate
 
 - Symptom (arm64-linux debug builds in rtobj mode):

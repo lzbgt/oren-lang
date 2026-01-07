@@ -852,7 +852,11 @@ OrenValue oren_chmod(OrenValue path, OrenValue mode) {
         oren_panic("chmod expects (string, int)");
         return OREN_NIL; // Should not be reached
     }
+#if defined(_WIN32)
+    if (_chmod(path.as.string_val, (int)mode.as.int_val) != 0) {
+#else
     if (chmod(path.as.string_val, (mode_t)mode.as.int_val) != 0) {
+#endif
         char buf[256];
         snprintf(buf, sizeof(buf), "chmod failed for %s", path.as.string_val);
         oren_panic(buf);
@@ -1164,15 +1168,15 @@ void oren_shutdown() {
                 free(n->ptr);
             } else if (n->kind == OREN_ALLOC_RAW_MMAP) {
                 OrenRawHdr* h = ((OrenRawHdr*)n->ptr) - 1;
-                if (h->magic == OREN_RAW_MAGIC && h->backend == 1 && h->total_size > 0) {
-                    (void)munmap((void*)h, (size_t)h->total_size);
+                if (h->magic == OREN_RAW_MAGIC && h->total_size > 0) {
+                    oren_raw_free_hdr(h);
                 } else {
                     free(n->ptr);
                 }
             } else if (n->kind == OREN_ALLOC_RAW) {
                 OrenRawHdr* h = ((OrenRawHdr*)n->ptr) - 1;
-                if (h->magic == OREN_RAW_MAGIC && h->backend == 0 && h->total_size > 0) {
-                    free((void*)h);
+                if (h->magic == OREN_RAW_MAGIC && h->total_size > 0) {
+                    oren_raw_free_hdr(h);
                 } else {
                     free(n->ptr);
                 }
@@ -1255,9 +1259,36 @@ uint64_t oren_alloc_raw_aligned(size_t bytes, size_t align) {
         return 0;
     }
 
-    // Large allocation: prefer mmap so free/GC sweep can return memory to OS.
-    // `mmap` returns page-aligned memory, which satisfies any <= page alignment.
+    // Large allocation: prefer mmap/VirtualAlloc so free/GC sweep can return memory to OS.
+    // This is important for long-running workloads (compiler, HPC) to keep RSS bounded.
     size_t thr = raw_mmap_threshold_cached();
+#if defined(_WIN32)
+    // Win32: use VirtualAlloc for large blocks; use _aligned_malloc otherwise.
+    size_t hdr_size = sizeof(OrenRawHdr); // 64 bytes; keeps payload 64B-aligned
+    size_t total = hdr_size + bytes;
+    if (thr != 0 && bytes >= thr) {
+        base = VirtualAlloc(NULL, total, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+        if (!base) {
+            oren_panic("raw VirtualAlloc failed");
+            return 0;
+        }
+        used_mmap = 1;
+    } else {
+        base = _aligned_malloc(total, align);
+        if (!base) {
+            oren_panic("raw alloc failed");
+            return 0;
+        }
+        used_mmap = 0;
+    }
+    OrenRawHdr* h = (OrenRawHdr*)base;
+    h->magic = OREN_RAW_MAGIC;
+    h->total_size = (uint64_t)total;
+    h->backend = used_mmap ? 1 : 0;
+    p = (uint8_t*)base + hdr_size;
+#else
+    // POSIX: use mmap for large blocks; posix_memalign for smaller ones.
+    // `mmap` returns page-aligned memory, which satisfies any <= page alignment.
     if (thr != 0 && bytes >= thr) {
         size_t hdr_size = sizeof(OrenRawHdr); // 64 bytes; keeps payload 64B-aligned
         size_t total = hdr_size + bytes;
@@ -1286,6 +1317,7 @@ uint64_t oren_alloc_raw_aligned(size_t bytes, size_t align) {
         h->backend = 0;
         p = (uint8_t*)base + hdr_size;
     }
+#endif
     if (!p) {
         oren_panic("raw alloc failed");
         return 0;
@@ -1305,11 +1337,7 @@ void oren_free_raw(uint64_t ptr) {
 
 #ifdef OREN_NO_GC
     if (h->magic == OREN_RAW_MAGIC && h->total_size > 0) {
-        if (h->backend == 1) {
-            (void)munmap((void*)h, (size_t)h->total_size);
-            return;
-        }
-        free((void*)h);
+        oren_raw_free_hdr(h);
         return;
     }
     // Fallback: unknown pointer.
@@ -1322,11 +1350,7 @@ void oren_free_raw(uint64_t ptr) {
     if (n && !n->freed) {
         n->freed = 1;
         if (h->magic == OREN_RAW_MAGIC && h->total_size > 0) {
-            if (h->backend == 1) {
-                (void)munmap((void*)h, (size_t)h->total_size);
-            } else {
-                free((void*)h);
-            }
+            oren_raw_free_hdr(h);
         } else {
             // Corrupt/mismatched header; best-effort fallback.
             free(p);

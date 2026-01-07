@@ -71,6 +71,8 @@ Rules for this tracker:
 			   - Fixed (2026-01-07): x86_64 self-host compiler run gate (Win11 + WSL2) now passes; keep this as a hard regression gate:
 				     - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` (details in `docs/TODOS_ARCHIVE.md`)
 				       - Also proves host auto-detection (remote runs omit `--platform` and rely on runtime host detection / `OREN_PLATFORM` fallback).
+			   - Fixed (2026-01-07): stage0 (Go bootstrap) can build stage1 on **x64-windows** using VS2022 `cl.exe`, and the resulting stage1 binary can run on Windows (stack-safe entrypoint).
+			     - Regression gate: `./scripts/verify_stage0_windows_bootstrap.sh` (details in `docs/TODOS_ARCHIVE.md`).
 					     - Remaining gaps (active):
 					     - NET stdlib maturity (production direction):
 					       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IP-only; no TLS/DNS/keep-alive pooling yet).

@@ -161,14 +161,11 @@ func (t *Transpiler) Transpile(program *ast.Program) (string, error) {
 		mainBody:  rootMainBody,
 	})
 
-		t.emit("#include <stdio.h>")
-		t.emit("#include <stdlib.h>")
-		t.emit("#include <string.h>")
-		t.emit("#if !defined(_WIN32)")
-		t.emit("#include <pthread.h>")
-		t.emit("#endif")
-		t.emit("#include \"runtime.h\"") // Assume runtime.h is in the include path
-		t.emit("")
+	t.emit("#include <stdio.h>")
+	t.emit("#include <stdlib.h>")
+	t.emit("#include <string.h>")
+	t.emit("#include \"runtime.h\"") // Assume runtime.h is in the include path
+	t.emit("")
 
 	// Emit global declarations
 	for _, u := range units {
@@ -230,15 +227,15 @@ func (t *Transpiler) Transpile(program *ast.Program) (string, error) {
 		}
 	}
 
-		// Emit main (stack-safe):
-		// Run the actual Oren entrypoint in a worker OS thread with a larger stack.
-		// This avoids crashing on macOS/Linux default stacks for large recursive workloads
-		// (notably: the self-hosted compiler's native backend codegen).
-		t.emit("static int __oren_main_body(int argc, char **argv) {")
-		t.indent()
-		t.emit("oren_init(argc, argv);") // Initialize runtime with argv
-		mainMark := t.newCTmp("main_mark_")
-		t.emit(fmt.Sprintf("size_t %s = oren_roots_mark();", mainMark))
+	// Emit main (stack-safe):
+	// Run the actual Oren entrypoint in a worker OS thread with a larger stack.
+	// This avoids crashing on macOS/Linux default stacks for large recursive workloads
+	// (notably: the self-hosted compiler's native backend codegen).
+	t.emit("static int __oren_main_body(int argc, char **argv) {")
+	t.indent()
+	t.emit("oren_init(argc, argv);") // Initialize runtime with argv
+	mainMark := t.newCTmp("main_mark_")
+	t.emit(fmt.Sprintf("size_t %s = oren_roots_mark();", mainMark))
 
 	for _, u := range units {
 		for _, g := range u.globals {
@@ -299,64 +296,20 @@ func (t *Transpiler) Transpile(program *ast.Program) (string, error) {
 		t.emit("}")
 	}
 
-		t.emit(fmt.Sprintf("oren_roots_reset(%s);", mainMark))
-		t.emit("oren_shutdown();")
-		t.emit("return 0;")
-		t.unindent()
-		t.emit("}")
-		t.emit("")
-		t.emit("#if !defined(_WIN32)")
-		t.emit("typedef struct { int argc; char **argv; int rc; } __OrenMainArgs;")
-		t.emit("static void* __oren_main_thread_entry(void* p) {")
-		t.indent()
-		t.emit("__OrenMainArgs* a = (__OrenMainArgs*)p;")
-		t.emit("a->rc = __oren_main_body(a->argc, a->argv);")
-		t.emit("return NULL;")
-		t.unindent()
-		t.emit("}")
-		t.emit("#endif")
-		t.emit("")
-		t.emit("int main(int argc, char **argv) {")
-		t.indent()
-		t.emit("#if !defined(_WIN32)")
-		t.emit("__OrenMainArgs a; a.argc = argc; a.argv = argv; a.rc = 1;")
-		t.emit("pthread_t t;")
-		t.emit("pthread_attr_t attr;")
-		t.emit("pthread_attr_init(&attr);")
-		t.emit("size_t stack_size = (size_t)(64u << 20); // 64 MiB default")
-		t.emit("const char* ss = getenv(\"OREN_MAIN_STACK_SIZE\");")
-		t.emit("if (ss && ss[0]) {")
-		t.indent()
-		t.emit("size_t out = 0;")
-		t.emit("for (size_t i = 0; ss[i]; i++) {")
-		t.indent()
-		t.emit("char c = ss[i];")
-		t.emit("if (c < '0' || c > '9') { out = 0; break; }")
-		t.emit("size_t d = (size_t)(c - '0');")
-		t.emit("if (out > (SIZE_MAX - d) / 10) { out = 0; break; }")
-		t.emit("out = out * 10 + d;")
-		t.unindent()
-		t.emit("}")
-		t.emit("if (out != 0u) stack_size = out;")
-		t.unindent()
-		t.emit("}")
-		// Avoid relying on `PTHREAD_STACK_MIN` (not exposed uniformly across platforms/headers).
-		// We only clamp for obvious mistakes; the default is intentionally large.
-		t.emit("if (stack_size < (size_t)(1u << 20)) stack_size = (size_t)(1u << 20);")
-		t.emit("(void)pthread_attr_setstacksize(&attr, stack_size);")
-		t.emit("int rc = pthread_create(&t, &attr, __oren_main_thread_entry, &a);")
-		t.emit("pthread_attr_destroy(&attr);")
-		t.emit("if (rc == 0) { pthread_join(t, NULL); return a.rc; }")
-		t.emit("// Fallback: run on the main thread if thread creation fails.")
-		t.emit("return __oren_main_body(argc, argv);")
-		t.emit("#else")
-		t.emit("return __oren_main_body(argc, argv);")
-		t.emit("#endif")
-		t.unindent()
-		t.emit("}")
+	t.emit(fmt.Sprintf("oren_roots_reset(%s);", mainMark))
+	t.emit("oren_shutdown();")
+	t.emit("return 0;")
+	t.unindent()
+	t.emit("}")
+	t.emit("")
+	t.emit("int main(int argc, char **argv) {")
+	t.indent()
+	t.emit("return oren_run_main_threaded(argc, argv, __oren_main_body);")
+	t.unindent()
+	t.emit("}")
 
-		return strings.Join(t.lines, "\n"), nil
-	}
+	return strings.Join(t.lines, "\n"), nil
+}
 
 func (t *Transpiler) lambdaBaseName(unitPrefix string) string {
 	// Keep these names out of user namespace.

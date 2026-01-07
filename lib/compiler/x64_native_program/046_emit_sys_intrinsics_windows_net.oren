@@ -20,9 +20,9 @@ fn _emit_call_iat_x64(ctx, data_label) {
     return nil
 }
 
-fn _emit_set_rax_neg_errno_x64(ctx, errno) {
+fn _emit_set_rax_neg_errno_x64(ctx, errnum) {
     // rax = -errno
-    var imm = 4294967296 - (errno & 4294967295)
+    var imm = 4294967296 - (errnum & 4294967295)
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, imm))
     bytes_extend(ctx["code"], insn_cdqe())
     return nil

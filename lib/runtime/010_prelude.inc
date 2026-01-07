@@ -1,22 +1,334 @@
-#include <sys/stat.h>
-#include <pthread.h>
 #include <errno.h>
-#include <setjmp.h>
-#include <execinfo.h>
-#include <time.h>
-#include <sys/time.h>
 #include <limits.h>
-#include <sys/mman.h>
+#include <setjmp.h>
 #include <stdint.h>
-#include <stdatomic.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#if !defined(_WIN32)
+#include <sys/stat.h>
+#include <time.h>
+
+#if defined(_WIN32)
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN 1
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX 1
+#endif
+
+#include <malloc.h>
+#include <process.h>
+#include <io.h>
+#include <windows.h>
+
+// MSVC uses `_strdup`; keep callsites portable.
+#ifndef strdup
+#define strdup _strdup
+#endif
+
+#ifndef ETIMEDOUT
+#define ETIMEDOUT 110
+#endif
+
+// MSVC's UCRT provides `struct timespec` in <time.h> (VS2022 Tier‑1).
+// Keep a fallback for non-MSVC toolchains.
+#if !defined(_MSC_VER)
+#ifndef _TIMESPEC_DEFINED
+#define _TIMESPEC_DEFINED 1
+struct timespec {
+    time_t tv_sec;
+    long tv_nsec;
+};
+#endif
+#endif
+
+typedef int clockid_t;
+#ifndef CLOCK_REALTIME
+#define CLOCK_REALTIME 0
+#endif
+#ifndef CLOCK_MONOTONIC
+#define CLOCK_MONOTONIC 1
+#endif
+
+static uint64_t oren_win_time_unix_ns(void) {
+    FILETIME ft;
+    GetSystemTimeAsFileTime(&ft);
+    ULARGE_INTEGER u;
+    u.LowPart = ft.dwLowDateTime;
+    u.HighPart = ft.dwHighDateTime;
+    // FILETIME is 100ns ticks since 1601-01-01 UTC.
+    // Convert to Unix epoch nanoseconds.
+    const uint64_t EPOCH_DIFF_100NS = 116444736000000000ULL;
+    uint64_t t100 = (u.QuadPart >= EPOCH_DIFF_100NS) ? (u.QuadPart - EPOCH_DIFF_100NS) : 0ULL;
+    return t100 * 100ULL;
+}
+
+static uint64_t oren_win_time_mono_ns(void) {
+    static LARGE_INTEGER freq = {0};
+    static int inited = 0;
+    if (!inited) {
+        QueryPerformanceFrequency(&freq);
+        inited = 1;
+    }
+    LARGE_INTEGER c;
+    QueryPerformanceCounter(&c);
+    if (freq.QuadPart <= 0) return 0ULL;
+    // Convert ticks -> ns with integer arithmetic (best-effort).
+    uint64_t t = (uint64_t)c.QuadPart;
+    uint64_t f = (uint64_t)freq.QuadPart;
+    return (t * 1000000000ULL) / f;
+}
+
+static int clock_gettime(clockid_t clk, struct timespec* ts) {
+    if (!ts) return -1;
+    uint64_t ns = 0;
+    if (clk == CLOCK_MONOTONIC) ns = oren_win_time_mono_ns();
+    else ns = oren_win_time_unix_ns();
+    ts->tv_sec = (time_t)(ns / 1000000000ULL);
+    ts->tv_nsec = (long)(ns % 1000000000ULL);
+    return 0;
+}
+
+static int nanosleep(const struct timespec* req, struct timespec* rem) {
+    (void)rem;
+    if (!req) return -1;
+    // Windows `Sleep` is milliseconds. Round up so we don't sleep less than requested.
+    uint64_t ns = 0;
+    if (req->tv_sec > 0) ns += (uint64_t)req->tv_sec * 1000000000ULL;
+    if (req->tv_nsec > 0) ns += (uint64_t)req->tv_nsec;
+    DWORD ms = (DWORD)((ns + 999999ULL) / 1000000ULL);
+    if (ms == 0) return 0;
+    Sleep(ms);
+    return 0;
+}
+
+// --- Minimal pthread shims for MSVC bootstrap builds (Windows) ---
+//
+// The stage0 compiler builds stage1 by emitting C and compiling `lib/runtime.c`.
+// To support a native Windows bring-up (MSVC `cl.exe`), provide the small subset of the
+// pthread API used by the C runtime, implemented on Win32 primitives.
+//
+// NOTE: this is intentionally minimal and may diverge from full pthread semantics.
+// It is sufficient for the repo's current C-backend runtime needs.
+
+typedef SRWLOCK pthread_mutex_t;
+typedef CONDITION_VARIABLE pthread_cond_t;
+typedef INIT_ONCE pthread_once_t;
+typedef DWORD pthread_key_t;
+typedef struct {
+    SIZE_T stack_size;
+} pthread_attr_t;
+typedef struct {
+    HANDLE handle;
+} pthread_t;
+
+#define PTHREAD_MUTEX_INITIALIZER SRWLOCK_INIT
+#define PTHREAD_COND_INITIALIZER CONDITION_VARIABLE_INIT
+#define PTHREAD_ONCE_INIT INIT_ONCE_STATIC_INIT
+#define PTHREAD_STACK_MIN 0u
+
+static int pthread_mutex_init(pthread_mutex_t* mu, void* attr) {
+    (void)attr;
+    if (!mu) return EINVAL;
+    InitializeSRWLock(mu);
+    return 0;
+}
+static int pthread_mutex_destroy(pthread_mutex_t* mu) {
+    (void)mu;
+    return 0;
+}
+static int pthread_mutex_lock(pthread_mutex_t* mu) {
+    if (!mu) return EINVAL;
+    AcquireSRWLockExclusive(mu);
+    return 0;
+}
+static int pthread_mutex_unlock(pthread_mutex_t* mu) {
+    if (!mu) return EINVAL;
+    ReleaseSRWLockExclusive(mu);
+    return 0;
+}
+static int pthread_mutex_trylock(pthread_mutex_t* mu) {
+    if (!mu) return EINVAL;
+    return TryAcquireSRWLockExclusive(mu) ? 0 : 1;
+}
+
+static int pthread_cond_init(pthread_cond_t* cv, void* attr) {
+    (void)attr;
+    if (!cv) return EINVAL;
+    InitializeConditionVariable(cv);
+    return 0;
+}
+static int pthread_cond_destroy(pthread_cond_t* cv) {
+    (void)cv;
+    return 0;
+}
+static int pthread_cond_broadcast(pthread_cond_t* cv) {
+    if (!cv) return EINVAL;
+    WakeAllConditionVariable(cv);
+    return 0;
+}
+static int pthread_cond_wait(pthread_cond_t* cv, pthread_mutex_t* mu) {
+    if (!cv || !mu) return EINVAL;
+    BOOL ok = SleepConditionVariableSRW(cv, mu, INFINITE, 0);
+    return ok ? 0 : EINVAL;
+}
+static int pthread_cond_timedwait(pthread_cond_t* cv, pthread_mutex_t* mu, const struct timespec* abstime) {
+    if (!cv || !mu || !abstime) return EINVAL;
+    uint64_t target_ns = 0;
+    if (abstime->tv_sec > 0) target_ns += (uint64_t)abstime->tv_sec * 1000000000ULL;
+    if (abstime->tv_nsec > 0) target_ns += (uint64_t)abstime->tv_nsec;
+    uint64_t now_ns = oren_win_time_unix_ns();
+    DWORD timeout_ms = 0;
+    if (target_ns > now_ns) {
+        uint64_t diff_ns = target_ns - now_ns;
+        uint64_t ms = (diff_ns + 999999ULL) / 1000000ULL; // ceil
+        timeout_ms = (ms > (uint64_t)0xFFFFFFFFu) ? 0xFFFFFFFFu : (DWORD)ms;
+    }
+    BOOL ok = SleepConditionVariableSRW(cv, mu, timeout_ms, 0);
+    if (ok) return 0;
+    DWORD e = GetLastError();
+    if (e == ERROR_TIMEOUT) return ETIMEDOUT;
+    return EINVAL;
+}
+
+typedef struct {
+    void* (*start)(void*);
+    void* arg;
+} OrenWinThreadStart;
+
+static unsigned __stdcall oren_win_thread_start(void* p) {
+    OrenWinThreadStart* a = (OrenWinThreadStart*)p;
+    void* (*fn)(void*) = a ? a->start : NULL;
+    void* arg = a ? a->arg : NULL;
+    if (a) free(a);
+    if (fn) (void)fn(arg);
+    return 0;
+}
+
+static int pthread_attr_init(pthread_attr_t* attr) {
+    if (!attr) return EINVAL;
+    attr->stack_size = 0;
+    return 0;
+}
+static int pthread_attr_setstacksize(pthread_attr_t* attr, size_t stack_size) {
+    if (!attr) return EINVAL;
+    attr->stack_size = (SIZE_T)stack_size;
+    return 0;
+}
+static int pthread_attr_destroy(pthread_attr_t* attr) {
+    (void)attr;
+    return 0;
+}
+
+static int pthread_create(pthread_t* out, const pthread_attr_t* attr, void* (*start)(void*), void* arg) {
+    if (!out || !start) return EINVAL;
+    OrenWinThreadStart* a = (OrenWinThreadStart*)malloc(sizeof(OrenWinThreadStart));
+    if (!a) return ENOMEM;
+    a->start = start;
+    a->arg = arg;
+    SIZE_T stack_size = attr ? attr->stack_size : 0;
+    unsigned tid = 0;
+    uintptr_t h = _beginthreadex(NULL, (unsigned)stack_size, oren_win_thread_start, a, 0, &tid);
+    if (h == 0) {
+        free(a);
+        return EAGAIN;
+    }
+    out->handle = (HANDLE)h;
+    return 0;
+}
+
+static int pthread_detach(pthread_t t) {
+    if (t.handle) CloseHandle(t.handle);
+    return 0;
+}
+
+static int pthread_join(pthread_t t, void** ret) {
+    (void)ret;
+    if (!t.handle) return EINVAL;
+    (void)WaitForSingleObject(t.handle, INFINITE);
+    CloseHandle(t.handle);
+    return 0;
+}
+
+static int pthread_key_create(pthread_key_t* key, void (*destructor)(void*)) {
+    (void)destructor;
+    if (!key) return EINVAL;
+    DWORD k = TlsAlloc();
+    if (k == TLS_OUT_OF_INDEXES) return EAGAIN;
+    *key = k;
+    return 0;
+}
+static void* pthread_getspecific(pthread_key_t key) { return TlsGetValue(key); }
+static int pthread_setspecific(pthread_key_t key, const void* value) {
+    return TlsSetValue(key, (LPVOID)value) ? 0 : EINVAL;
+}
+
+static BOOL CALLBACK oren_win_once_cb(PINIT_ONCE once, PVOID param, PVOID* ctx) {
+    (void)once;
+    (void)ctx;
+    void (*fn)(void) = (void (*)(void))param;
+    if (fn) fn();
+    return TRUE;
+}
+static int pthread_once(pthread_once_t* once, void (*fn)(void)) {
+    if (!once || !fn) return EINVAL;
+    return InitOnceExecuteOnce(once, oren_win_once_cb, (PVOID)fn, NULL) ? 0 : EINVAL;
+}
+
+// --- Atomics (MSVC C mode does not provide C11 <stdatomic.h>) ---
+typedef volatile LONG OrenAtomicInt;
+typedef volatile LONGLONG OrenAtomicSize;
+
+static inline int oren_atomic_load_int(OrenAtomicInt* p) {
+    return (int)InterlockedCompareExchange((volatile LONG*)p, 0, 0);
+}
+static inline void oren_atomic_store_int(OrenAtomicInt* p, int v) {
+    (void)InterlockedExchange((volatile LONG*)p, (LONG)v);
+}
+static inline size_t oren_atomic_load_size(OrenAtomicSize* p) {
+    return (size_t)InterlockedCompareExchange64((volatile LONGLONG*)p, 0, 0);
+}
+static inline void oren_atomic_store_size(OrenAtomicSize* p, size_t v) {
+    (void)InterlockedExchange64((volatile LONGLONG*)p, (LONGLONG)v);
+}
+static inline size_t oren_atomic_fetch_add_size(OrenAtomicSize* p, size_t v) {
+    LONGLONG add = (LONGLONG)v;
+    LONGLONG prev = InterlockedExchangeAdd64((volatile LONGLONG*)p, add);
+    return (size_t)prev;
+}
+
+#define OREN_ATOMIC_LOAD_INT(p) oren_atomic_load_int((p))
+#define OREN_ATOMIC_STORE_INT(p, v) oren_atomic_store_int((p), (v))
+#define OREN_ATOMIC_LOAD_SIZE(p) oren_atomic_load_size((p))
+#define OREN_ATOMIC_STORE_SIZE(p, v) oren_atomic_store_size((p), (v))
+#define OREN_ATOMIC_FETCH_ADD_SIZE(p, v) oren_atomic_fetch_add_size((p), (v))
+
+#else
+
+#include <execinfo.h>
+#include <pthread.h>
+#include <stdatomic.h>
+#include <sys/mman.h>
+#include <sys/time.h>
 #include <sys/resource.h>
+
+typedef _Atomic int OrenAtomicInt;
+typedef _Atomic size_t OrenAtomicSize;
+
+#define OREN_ATOMIC_LOAD_INT(p) atomic_load_explicit((p), memory_order_relaxed)
+#define OREN_ATOMIC_STORE_INT(p, v) atomic_store_explicit((p), (v), memory_order_relaxed)
+#define OREN_ATOMIC_LOAD_SIZE(p) atomic_load_explicit((p), memory_order_relaxed)
+#define OREN_ATOMIC_STORE_SIZE(p, v) atomic_store_explicit((p), (v), memory_order_relaxed)
+#define OREN_ATOMIC_FETCH_ADD_SIZE(p, v) atomic_fetch_add_explicit((p), (v), memory_order_relaxed)
+
 #endif
 
 // Some platforms name the anonymous-map flag MAP_ANON instead of MAP_ANONYMOUS.
+#if !defined(_WIN32)
 #if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
 #define MAP_ANONYMOUS MAP_ANON
+#endif
 #endif
 
 OrenValue OREN_NIL;
@@ -253,8 +565,8 @@ static int gc_jmpbuf_scan_enabled_cached(void) {
     return cached;
 }
 
-static _Atomic size_t g_gc_allocs_since_collect = 0;
-static _Atomic int g_gc_auto_pending = 0;
+static OrenAtomicSize g_gc_allocs_since_collect = 0;
+static OrenAtomicInt g_gc_auto_pending = 0;
 
 typedef struct {
     uint64_t magic;
@@ -264,6 +576,28 @@ typedef struct {
 } OrenRawHdr;
 
 static const uint64_t OREN_RAW_MAGIC = 0x4f52454e52415730ull; // "ORENRAW0"
+
+static void oren_raw_free_hdr(OrenRawHdr* h) {
+    if (!h) return;
+    if (h->magic != OREN_RAW_MAGIC || h->total_size == 0) {
+        // Unknown/corrupt header; best-effort fallback.
+        free((void*)h);
+        return;
+    }
+#if defined(_WIN32)
+    if (h->backend == 1) {
+        (void)VirtualFree((void*)h, 0, MEM_RELEASE);
+        return;
+    }
+    _aligned_free((void*)h);
+#else
+    if (h->backend == 1) {
+        (void)munmap((void*)h, (size_t)h->total_size);
+        return;
+    }
+    free((void*)h);
+#endif
+}
 
 // Allocation registry acceleration:
 //
@@ -390,8 +724,8 @@ static void oren_alloc_index_remove_locked(void* ptr) {
 }
 static pthread_mutex_t g_collection_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t g_collection_cv = PTHREAD_COND_INITIALIZER;
-static _Atomic int g_gc_requested = 0;
-static _Atomic int g_gc_in_progress = 0;
+static OrenAtomicInt g_gc_requested = 0;
+static OrenAtomicInt g_gc_in_progress = 0;
 static int g_threads_total = 0;
 static int g_threads_waiting = 0;
 static pthread_key_t g_thread_key;
@@ -491,7 +825,7 @@ static void thread_state_key_destructor(void* p) {
     free(st);
 }
 
-static void thread_key_init() {
+static void thread_key_init(void) {
     (void)pthread_key_create(&g_thread_key, thread_state_key_destructor);
 }
 
@@ -544,6 +878,30 @@ static OrenThreadState* oren_thread_state() {
                 st->stack_top = (void*)((char*)stack_addr + stack_size); // high address
             }
             pthread_attr_destroy(&attr);
+        }
+        if (!st->stack_top) {
+            int stack_marker = 0;
+            st->stack_top = (void*)&stack_marker;
+        }
+#elif defined(_WIN32)
+        // Win8+ provides an authoritative stack range API, but keep a dynamic lookup so
+        // this compiles cleanly without requiring a specific SDK define.
+        //
+        // On Win11 (Tier‑1), this should always succeed and keeps GC stack scanning correct.
+        typedef void(WINAPI* GetCurrentThreadStackLimitsFn)(PULONG_PTR, PULONG_PTR);
+        static GetCurrentThreadStackLimitsFn pGetLimits = NULL;
+        static int pGetLimits_inited = 0;
+        if (!pGetLimits_inited) {
+            HMODULE k32 = GetModuleHandleA("kernel32.dll");
+            if (k32) {
+                pGetLimits = (GetCurrentThreadStackLimitsFn)GetProcAddress(k32, "GetCurrentThreadStackLimits");
+            }
+            pGetLimits_inited = 1;
+        }
+        if (pGetLimits) {
+            ULONG_PTR lo = 0, hi = 0;
+            pGetLimits(&lo, &hi);
+            if (hi != 0) st->stack_top = (void*)hi; // high address
         }
         if (!st->stack_top) {
             int stack_marker = 0;
@@ -723,10 +1081,14 @@ void oren_panic(const char* msg) {
     }
     fprintf(stderr, "Runtime Panic: %s\n", msg);
     
+    fprintf(stderr, "Stack Trace:\n");
+#if defined(_WIN32)
+    fprintf(stderr, "  <stack trace not implemented for C runtime on Windows yet>\n");
+#else
     void* callstack[128];
     int frames = backtrace(callstack, 128);
-    fprintf(stderr, "Stack Trace:\n");
     backtrace_symbols_fd(callstack, frames, 2);
+#endif
     exit(1);
 }
 
@@ -743,21 +1105,25 @@ OrenValue oren_fail(OrenValue code, OrenValue msg) {
     }
     oren_diag_emit("fail", ec, s);
     fprintf(stderr, "Runtime Fail: %s\n", s);
+    fprintf(stderr, "Stack Trace:\n");
+#if defined(_WIN32)
+    fprintf(stderr, "  <stack trace not implemented for C runtime on Windows yet>\n");
+#else
     void* callstack[128];
     int frames = backtrace(callstack, 128);
-    fprintf(stderr, "Stack Trace:\n");
     backtrace_symbols_fd(callstack, frames, 2);
+#endif
     exit(ec);
     return OREN_NIL;
 }
 
-static void oren_thread_unregister() {
+static void oren_thread_unregister(void) {
     (void)pthread_once(&g_thread_key_once, thread_key_init);
     OrenThreadState* st = (OrenThreadState*)pthread_getspecific(g_thread_key);
     if (!st) return;
 
     // Cooperate if a collection is in progress.
-    if (atomic_load_explicit(&g_gc_requested, memory_order_relaxed)) {
+    if (OREN_ATOMIC_LOAD_INT(&g_gc_requested)) {
         oren_gc_safepoint();
     }
 
@@ -961,15 +1327,15 @@ static void oren_register_alloc(void* ptr, OrenAllocKind kind) {
     if (!gc_auto_enabled_cached()) return;
     size_t thr = gc_alloc_threshold_cached();
     if (thr == 0u) return;
-    size_t allocs_now = atomic_fetch_add_explicit(&g_gc_allocs_since_collect, 1u, memory_order_relaxed) + 1u;
+    size_t allocs_now = OREN_ATOMIC_FETCH_ADD_SIZE(&g_gc_allocs_since_collect, 1u) + 1u;
     if (allocs_now < thr) return;
-    atomic_store_explicit(&g_gc_allocs_since_collect, 0u, memory_order_relaxed);
+    OREN_ATOMIC_STORE_SIZE(&g_gc_allocs_since_collect, 0u);
 
     // Avoid deadlocks: skip if the collections mutex is already held (or contended).
     // Mark a pending GC request instead; the next `oren_gc_safepoint()` will initiate the collection.
     if (pthread_mutex_trylock(&g_collection_mutex) != 0) return;
-    if (!atomic_load_explicit(&g_gc_in_progress, memory_order_relaxed)) {
-        atomic_store_explicit(&g_gc_auto_pending, 1, memory_order_relaxed);
+    if (!OREN_ATOMIC_LOAD_INT(&g_gc_in_progress)) {
+        OREN_ATOMIC_STORE_INT(&g_gc_auto_pending, 1);
     }
     pthread_mutex_unlock(&g_collection_mutex);
 #endif
@@ -1115,6 +1481,12 @@ static inline void oren_capture_gp_regs_words(uintptr_t* out_words, size_t out_w
         : "r"(out_words)
         : "memory");
 #elif defined(__x86_64__) || defined(_M_X64)
+#if defined(_MSC_VER)
+    // MSVC x64 does not support GNU-style inline asm.
+    // Best-effort: rely on jmp_buf snapshots + explicit roots for conservative GC.
+    (void)out_words;
+    (void)out_words_len;
+#else
     asm volatile(
         "mov %%rax, 0(%0)\n"
         "mov %%rbx, 8(%0)\n"
@@ -1134,6 +1506,7 @@ static inline void oren_capture_gp_regs_words(uintptr_t* out_words, size_t out_w
         :
         : "r"(out_words)
         : "memory");
+#endif
 #else
     (void)out_words;
     (void)out_words_len;
@@ -1148,11 +1521,11 @@ void oren_gc_collect() {
     (void)self;
 
     lock_collections();
-    while (atomic_load_explicit(&g_gc_in_progress, memory_order_relaxed)) {
+    while (OREN_ATOMIC_LOAD_INT(&g_gc_in_progress)) {
         pthread_cond_wait(&g_collection_cv, &g_collection_mutex);
     }
-    atomic_store_explicit(&g_gc_in_progress, 1, memory_order_relaxed);
-    atomic_store_explicit(&g_gc_requested, 1, memory_order_relaxed);
+    OREN_ATOMIC_STORE_INT(&g_gc_in_progress, 1);
+    OREN_ATOMIC_STORE_INT(&g_gc_requested, 1);
     pthread_cond_broadcast(&g_collection_cv);
     while (g_threads_waiting < (g_threads_total - 1)) {
         pthread_cond_wait(&g_collection_cv, &g_collection_mutex);
@@ -1321,8 +1694,8 @@ void oren_gc_collect() {
             } else if (n->kind == OREN_ALLOC_RAW_MMAP) {
                 // munmap-backed raw bytes (header is stored immediately before payload).
                 OrenRawHdr* h = ((OrenRawHdr*)n->ptr) - 1;
-                if (h->magic == OREN_RAW_MAGIC && h->backend == 1 && h->total_size > 0) {
-                    (void)munmap((void*)h, (size_t)h->total_size);
+                if (h->magic == OREN_RAW_MAGIC && h->total_size > 0) {
+                    oren_raw_free_hdr(h);
                 } else {
                     // Fallback to free if something is inconsistent (best-effort).
                     free(n->ptr);
@@ -1330,8 +1703,8 @@ void oren_gc_collect() {
             } else if (n->kind == OREN_ALLOC_RAW) {
                 // aligned raw bytes allocated as base+header via posix_memalign.
                 OrenRawHdr* h = ((OrenRawHdr*)n->ptr) - 1;
-                if (h->magic == OREN_RAW_MAGIC && h->backend == 0 && h->total_size > 0) {
-                    free((void*)h);
+                if (h->magic == OREN_RAW_MAGIC && h->total_size > 0) {
+                    oren_raw_free_hdr(h);
                 } else {
                     free(n->ptr);
                 }
@@ -1351,8 +1724,8 @@ void oren_gc_collect() {
     }
     pthread_mutex_unlock(&g_alloc_mutex);
 
-    atomic_store_explicit(&g_gc_requested, 0, memory_order_relaxed);
-    atomic_store_explicit(&g_gc_in_progress, 0, memory_order_relaxed);
+    OREN_ATOMIC_STORE_INT(&g_gc_requested, 0);
+    OREN_ATOMIC_STORE_INT(&g_gc_in_progress, 0);
     pthread_cond_broadcast(&g_collection_cv);
     unlock_collections();
 }
@@ -1376,8 +1749,8 @@ void oren_gc_safepoint() {
     st->safepoint_tick++;
     uint64_t tick = st->safepoint_tick;
     if ((tick & 255u) != 0u) {
-        if (!atomic_load_explicit(&g_gc_requested, memory_order_relaxed) &&
-            !atomic_load_explicit(&g_gc_auto_pending, memory_order_relaxed)) {
+        if (!OREN_ATOMIC_LOAD_INT(&g_gc_requested) &&
+            !OREN_ATOMIC_LOAD_INT(&g_gc_auto_pending)) {
             return;
         }
     }
@@ -1388,9 +1761,9 @@ void oren_gc_safepoint() {
     // - safe under multi-threading via the stop-the-world protocol in `oren_gc_collect`
     int do_auto = 0;
     lock_collections();
-    if (atomic_load_explicit(&g_gc_auto_pending, memory_order_relaxed) &&
-        !atomic_load_explicit(&g_gc_in_progress, memory_order_relaxed)) {
-        atomic_store_explicit(&g_gc_auto_pending, 0, memory_order_relaxed);
+    if (OREN_ATOMIC_LOAD_INT(&g_gc_auto_pending) &&
+        !OREN_ATOMIC_LOAD_INT(&g_gc_in_progress)) {
+        OREN_ATOMIC_STORE_INT(&g_gc_auto_pending, 0);
         do_auto = 1;
     }
     unlock_collections();
@@ -1409,7 +1782,7 @@ void oren_gc_safepoint() {
 
     // If a collection is requested, snapshot registers so the collector can conservatively
     // find live pointers even when locals are optimized into registers.
-    int req = atomic_load_explicit(&g_gc_requested, memory_order_relaxed);
+    int req = OREN_ATOMIC_LOAD_INT(&g_gc_requested);
     if (req && gc_jmpbuf_scan_enabled_cached()) {
         oren_capture_gp_regs_words(st->gc_regs, sizeof(st->gc_regs) / sizeof(st->gc_regs[0]));
         st->has_gc_regs = 1;
@@ -1418,7 +1791,7 @@ void oren_gc_safepoint() {
     }
 
     lock_collections();
-    if (!atomic_load_explicit(&g_gc_requested, memory_order_relaxed)) {
+    if (!OREN_ATOMIC_LOAD_INT(&g_gc_requested)) {
         unlock_collections();
         return;
     }
@@ -1427,7 +1800,7 @@ void oren_gc_safepoint() {
         g_threads_waiting++;
         pthread_cond_broadcast(&g_collection_cv);
     }
-    while (atomic_load_explicit(&g_gc_requested, memory_order_relaxed)) {
+    while (OREN_ATOMIC_LOAD_INT(&g_gc_requested)) {
         pthread_cond_wait(&g_collection_cv, &g_collection_mutex);
     }
     if (st->at_safepoint) {

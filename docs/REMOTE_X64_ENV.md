@@ -63,6 +63,18 @@ Rolling status:
 ./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
 ```
 
+## Optional: stage0 → stage1 bootstrap on Windows (MSVC)
+
+This repo still relies on the Go bootstrap compiler (stage0) to build the stage1 compiler via the **C backend**.
+To support native Windows bring-up, we also keep a small regression gate that proves:
+
+- stage0 (Go) can build stage1 on **x64-windows** using VS2022 `cl.exe` (auto-configured via `vswhere.exe` + `VsDevCmd.bat` / `vcvars64.bat`)
+- the resulting stage1 executable can run on Windows and compile+run a tiny native program
+
+```bash
+./scripts/verify_stage0_windows_bootstrap.sh
+```
+
 Tuning knobs (env):
 
 - `OREN_SELFHOST_COMPILER_BUILD_TIMEOUT_SECS` (default `1200`)

@@ -54,6 +54,79 @@ func printParserErrors(out io.Writer, errors []string) {
 	}
 }
 
+func isMSVCCompiler(cc string) bool {
+	ccBase := strings.ToLower(filepath.Base(cc))
+	return ccBase == "cl" || ccBase == "cl.exe" || ccBase == "clang-cl" || ccBase == "clang-cl.exe"
+}
+
+func cmdQuote(s string) string {
+	// Minimal quoting for cmd.exe /c strings.
+	// This is not a full Windows command-line roundtripper, but is sufficient for the
+	// bootstrap path (filenames + flags).
+	if s == "" {
+		return "\"\""
+	}
+	// If quotes appear, escape them for cmd by doubling (best-effort).
+	needsQuote := strings.IndexAny(s, " \t") != -1
+	if strings.Contains(s, "\"") {
+		needsQuote = true
+		s = strings.ReplaceAll(s, "\"", "\"\"")
+	}
+	if !needsQuote {
+		return s
+	}
+	return "\"" + s + "\""
+}
+
+func findMSVCDevCmd() (string, error) {
+	// Prefer vswhere.exe in the standard installer location.
+	var candidates []string
+	if pf86 := os.Getenv("ProgramFiles(x86)"); pf86 != "" {
+		candidates = append(candidates, filepath.Join(pf86, "Microsoft Visual Studio", "Installer", "vswhere.exe"))
+	}
+	if pf := os.Getenv("ProgramFiles"); pf != "" {
+		candidates = append(candidates, filepath.Join(pf, "Microsoft Visual Studio", "Installer", "vswhere.exe"))
+	}
+	if p, err := exec.LookPath("vswhere.exe"); err == nil {
+		candidates = append(candidates, p)
+	}
+
+	var vswhere string
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			vswhere = c
+			break
+		}
+	}
+	if vswhere == "" {
+		return "", fmt.Errorf("vswhere.exe not found (install Visual Studio 2022 or set PATH)")
+	}
+
+	out, err := exec.Command(vswhere,
+		"-latest",
+		"-products", "*",
+		"-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+		"-property", "installationPath",
+	).Output()
+	if err != nil {
+		return "", fmt.Errorf("vswhere.exe failed: %w", err)
+	}
+	installPath := strings.TrimSpace(string(out))
+	if installPath == "" {
+		return "", fmt.Errorf("vswhere.exe did not return an installationPath (MSVC toolchain not installed?)")
+	}
+
+	vsDevCmd := filepath.Join(installPath, "Common7", "Tools", "VsDevCmd.bat")
+	if _, err := os.Stat(vsDevCmd); err == nil {
+		return vsDevCmd, nil
+	}
+	vcvars64 := filepath.Join(installPath, "VC", "Auxiliary", "Build", "vcvars64.bat")
+	if _, err := os.Stat(vcvars64); err == nil {
+		return vcvars64, nil
+	}
+	return "", fmt.Errorf("found VS install at %q but could not find VsDevCmd.bat or vcvars64.bat", installPath)
+}
+
 func main() {
 	prog := filepath.Base(os.Args[0])
 	// If args are provided, we should run file or build.
@@ -199,32 +272,104 @@ func main() {
 				return
 			}
 
-			args := []string{"-o", outFilename, cFilename, "lib/runtime.c", "lib/runtime_buf.c", "-Ilib", "-pthread"}
-			if noGC {
-				args = append(args, "-DOREN_NO_GC")
+			isMSVC := isMSVCCompiler(cc)
+
+			var args []string
+			if isMSVC {
+				// MSVC `cl` does compile+link in one step by default.
+				// Keep this minimal and deterministic: stage0 is a bootstrap path.
+				args = []string{"/nologo", "/std:c11", "/Fe:" + outFilename, cFilename, "lib/runtime.c", "lib/runtime_buf.c", "/Ilib"}
+				if noGC {
+					args = append(args, "/DOREN_NO_GC")
+				}
+				if enablePython {
+					// TODO(bootstrap/windows): plumb Python embedding flags for MSVC.
+					fmt.Printf("ERROR: --python is not supported for stage0 builds with MSVC yet\n")
+					os.Exit(2)
+				}
+			} else {
+				args = []string{"-o", outFilename, cFilename, "lib/runtime.c", "lib/runtime_buf.c", "-Ilib", "-pthread"}
+				if noGC {
+					args = append(args, "-DOREN_NO_GC")
+				}
+
+				if enablePython {
+					args = append(args, "-DOREN_ENABLE_PYTHON")
+
+					pyCFlagsCmd := exec.Command("python3-config", "--cflags")
+					pyCFlagsOut, err := pyCFlagsCmd.Output()
+					if err != nil {
+						panic(err)
+					}
+					pyLdFlagsCmd := exec.Command("python3-config", "--embed", "--ldflags")
+					pyLdFlagsOut, err := pyLdFlagsCmd.Output()
+					if err != nil {
+						panic(err)
+					}
+
+					cFlags := strings.Fields(string(pyCFlagsOut))
+					ldFlags := strings.Fields(string(pyLdFlagsOut))
+					args = append(args, cFlags...)
+					args = append(args, ldFlags...)
+				}
 			}
 
-			if enablePython {
-				args = append(args, "-DOREN_ENABLE_PYTHON")
-
-				pyCFlagsCmd := exec.Command("python3-config", "--cflags")
-				pyCFlagsOut, err := pyCFlagsCmd.Output()
+			var cmd *exec.Cmd
+			if isMSVC && runtime.GOOS == "windows" {
+				// `cl.exe` is typically not in PATH unless you're in a VS Developer Prompt.
+				// In rolling mode, `make oren` on Windows should be able to find VS2022 and run `cl`.
+				devCmd, err := findMSVCDevCmd()
 				if err != nil {
-					panic(err)
-				}
-				pyLdFlagsCmd := exec.Command("python3-config", "--embed", "--ldflags")
-				pyLdFlagsOut, err := pyLdFlagsCmd.Output()
-				if err != nil {
-					panic(err)
+					fmt.Printf("ERROR: MSVC toolchain setup failed: %v\n", err)
+					os.Exit(2)
 				}
 
-				cFlags := strings.Fields(string(pyCFlagsOut))
-				ldFlags := strings.Fields(string(pyLdFlagsOut))
-				args = append(args, cFlags...)
-				args = append(args, ldFlags...)
+				// IMPORTANT: avoid embedding quotes in the `cmd.exe /c "<...>"` argument itself.
+				// Go's Windows process spawning escapes embedded quotes with backslashes, and cmd.exe
+				// does not treat `\"` as a quoting mechanism. Use a temporary `.cmd` file instead.
+				wd, err := os.Getwd()
+				if err != nil {
+					fmt.Printf("ERROR: cannot get cwd for MSVC bootstrap: %v\n", err)
+					os.Exit(2)
+				}
+				f, err := os.CreateTemp(wd, "oren_msvc_build_*.cmd")
+				if err != nil {
+					fmt.Printf("ERROR: cannot create MSVC bootstrap script: %v\n", err)
+					os.Exit(2)
+				}
+				scriptPath := f.Name()
+				scriptName := filepath.Base(scriptPath)
+				defer os.Remove(scriptPath)
+
+				var b strings.Builder
+				b.WriteString("@echo off\r\n")
+				b.WriteString("call ")
+				b.WriteString(cmdQuote(devCmd))
+				b.WriteString(" -arch=amd64 -host_arch=amd64 -no_logo\r\n")
+				b.WriteString("if errorlevel 1 exit /b %errorlevel%\r\n")
+				b.WriteString(cmdQuote(cc))
+				for _, a := range args {
+					b.WriteString(" ")
+					b.WriteString(cmdQuote(a))
+				}
+				b.WriteString("\r\n")
+				b.WriteString("exit /b %errorlevel%\r\n")
+
+				if _, err := f.WriteString(b.String()); err != nil {
+					_ = f.Close()
+					fmt.Printf("ERROR: cannot write MSVC bootstrap script: %v\n", err)
+					os.Exit(2)
+				}
+				if err := f.Close(); err != nil {
+					fmt.Printf("ERROR: cannot close MSVC bootstrap script: %v\n", err)
+					os.Exit(2)
+				}
+
+				cmd = exec.Command("cmd.exe", "/d", "/c", scriptName)
+				cmd.Dir = wd
+			} else {
+				cmd = exec.Command(cc, args...)
 			}
-
-			cmd := exec.Command(cc, args...)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			err = cmd.Run()

@@ -709,6 +709,66 @@ static void oren_raise_stack_limit_best_effort(void) {
 }
 #endif
 
+typedef struct {
+    int argc;
+    char **argv;
+    int (*body)(int, char **);
+    int rc;
+} OrenMainThreadArgs;
+
+static void* oren_main_thread_entry(void* p) {
+    OrenMainThreadArgs* a = (OrenMainThreadArgs*)p;
+    int rc = 1;
+    if (a && a->body) rc = a->body(a->argc, a->argv);
+    if (a) a->rc = rc;
+    return NULL;
+}
+
+int oren_run_main_threaded(int argc, char **argv, int (*body)(int, char **)) {
+    // Default: 64 MiB. Conservative across Tier‑1 hosts and avoids stack overflow in
+    // deeply recursive compiler passes during self-hosting (stage1/stage2).
+    size_t stack_size = (size_t)(64u << 20);
+    const char* ss = getenv("OREN_MAIN_STACK_SIZE");
+    if (ss && ss[0]) {
+        // Decimal bytes only (deterministic; no suffixes).
+        size_t out = 0;
+        for (size_t i = 0; ss[i]; i++) {
+            char c = ss[i];
+            if (c < '0' || c > '9') { out = 0; break; }
+            size_t d = (size_t)(c - '0');
+            if (out > (SIZE_MAX - d) / 10) { out = 0; break; }
+            out = out * 10 + d;
+        }
+        if (out != 0u) stack_size = out;
+    }
+    // Avoid relying on `PTHREAD_STACK_MIN` (not exposed uniformly across platforms/headers).
+    // We only clamp for obvious mistakes; the default is intentionally large.
+    if (stack_size < (size_t)(1u << 20)) stack_size = (size_t)(1u << 20);
+    if (stack_size < (size_t)PTHREAD_STACK_MIN) stack_size = (size_t)PTHREAD_STACK_MIN;
+
+    OrenMainThreadArgs a;
+    a.argc = argc;
+    a.argv = argv;
+    a.body = body;
+    a.rc = 1;
+
+    pthread_t t;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    (void)pthread_attr_setstacksize(&attr, stack_size);
+    int rc = pthread_create(&t, &attr, oren_main_thread_entry, &a);
+    pthread_attr_destroy(&attr);
+    if (rc == 0) {
+        pthread_join(t, NULL);
+        return a.rc;
+    }
+
+    // Fallback: run on the calling thread if thread creation fails.
+    // NOTE: on Windows this may still overflow the default 1MiB stack; the primary path is
+    // to create a new OS thread with an explicit stack size.
+    return body ? body(argc, argv) : 1;
+}
+
 void oren_init(int argc, char **argv) {
 #if !defined(_WIN32)
     oren_raise_stack_limit_best_effort();

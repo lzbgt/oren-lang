@@ -18,6 +18,20 @@ CC ?= cc
 CODESIGN_IDENTITY ?= -
 MACOS_SYSTEM_PATH_PREFIX := /usr/bin:/bin:/usr/sbin:/sbin
 MACOS_CODESIGN_BIN := /usr/bin/codesign
+
+# GNU make on Windows can run under MSYS2/Git Bash/Cygwin, in which case `uname`
+# is available but does not return `Linux`/`Darwin`. Detect Windows hosts via the
+# common env + uname prefixes.
+HOST_IS_WINDOWS :=
+ifeq ($(OS),Windows_NT)
+  HOST_IS_WINDOWS := 1
+else ifneq (,$(findstring MINGW,$(UNAME_S)))
+  HOST_IS_WINDOWS := 1
+else ifneq (,$(findstring MSYS,$(UNAME_S)))
+  HOST_IS_WINDOWS := 1
+else ifneq (,$(findstring CYGWIN,$(UNAME_S)))
+  HOST_IS_WINDOWS := 1
+endif
 ifeq ($(UNAME_S),Darwin)
   ifeq ($(strip $(OREN_SKIP_CODESIGN)),1)
     $(error OREN_SKIP_CODESIGN=1 is not supported on macOS; unsigned native outputs may be killed by the OS)
@@ -50,6 +64,15 @@ else ifeq ($(UNAME_S),Linux)
     HOST_PLATFORM := x64-linux
   else ifeq ($(UNAME_M),amd64)
     HOST_PLATFORM := x64-linux
+  endif
+else ifeq ($(HOST_IS_WINDOWS),1)
+  # Rolling intent: x64 Windows is Tier‑1. (arm64 Windows is not supported yet.)
+  ifeq ($(UNAME_M),x86_64)
+    HOST_PLATFORM := x64-windows
+  else ifeq ($(UNAME_M),amd64)
+    HOST_PLATFORM := x64-windows
+  else ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
+    HOST_PLATFORM := x64-windows
   endif
 endif
 
@@ -116,6 +139,19 @@ else ifneq ($(OREN_NO_GC),)
   GC_ARG := --no-gc
 endif
 
+# Stage0 (Go bootstrap) uses the C backend to build stage1.
+# - On Windows hosts, prefer MSVC `cl.exe` for stage1 bring-up (rolling goal).
+OREN_BOOTSTRAP_CC ?=
+ifeq ($(HOST_IS_WINDOWS),1)
+  OREN_BOOTSTRAP_CC ?= cl
+else
+  OREN_BOOTSTRAP_CC ?= $(CC)
+endif
+BOOTSTRAP_CC_ARG :=
+ifneq ($(strip $(OREN_BOOTSTRAP_CC)),)
+  BOOTSTRAP_CC_ARG := --cc $(OREN_BOOTSTRAP_CC)
+endif
+
 # AVM test selection:
 # - Default: curated smoke list for iteration velocity.
 # - Override for full coverage: `make test AVM_TESTS="tests/avm/*.oren"`
@@ -170,9 +206,9 @@ orensign: $(GO_SRC)
 oren: oren_bootstrap $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 	@echo "Building Stage 1 (Oren)..."
 	@if [ "$(UNAME_S)" = "Darwin" ]; then \
-		PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" ./oren_bootstrap build $(OREN_SRC) $(CODESIGN_ARG) $(GC_ARG); \
+		PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" ./oren_bootstrap build $(OREN_SRC) $(BOOTSTRAP_CC_ARG) $(CODESIGN_ARG) $(GC_ARG); \
 	else \
-		./oren_bootstrap build $(OREN_SRC) $(CODESIGN_ARG) $(GC_ARG); \
+		./oren_bootstrap build $(OREN_SRC) $(BOOTSTRAP_CC_ARG) $(CODESIGN_ARG) $(GC_ARG); \
 	fi
 
 #

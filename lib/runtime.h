@@ -129,6 +129,18 @@ void oren_roots_reset(size_t mark);
 void oren_init(int argc, char **argv);
 OrenValue oren_args();
 
+// Run a program's main body in a fresh OS thread with a larger stack.
+//
+// Motivation (rolling):
+// - Self-hosted compiler workloads are deeply recursive and can overflow the default host stack,
+//   especially on Windows where the main thread stack is often ~1 MiB by default.
+// - Stage0 bootstrap emits C that calls this helper from `main(...)` so the generated C backend
+//   binaries are robust across Tier‑1 hosts.
+//
+// Env:
+// - OREN_MAIN_STACK_SIZE: decimal bytes (default: 64 MiB, min: 1 MiB)
+int oren_run_main_threaded(int argc, char **argv, int (*body)(int, char **));
+
 // Threads (C backend only for now)
 typedef OrenValue (*OrenFn0)(void);
 OrenValue oren_spawn0(OrenFn0 fn);
