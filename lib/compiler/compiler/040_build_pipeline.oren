@@ -656,7 +656,11 @@ fn compiler_main() {
     // - For local execution, macOS can reject/kill unsigned binaries.
     // - Default to *ad-hoc signing* (`codesign -s -`) so outputs are runnable.
     // - Developer ID signing is opt-in via `--codesign <identity>` / `OREN_CODESIGN_ID`.
-    var have_codesign = (oren_system("command -v codesign >/dev/null 2>&1") == 0)
+    // Tool availability probes must be host-OS compatible.
+    // - On macOS we use `codesign`; on Windows this check would spam "The system cannot find the path specified."
+    //   because `/dev/null` redirection is not meaningful in cmd.exe.
+    var have_codesign = false
+    if target == "macos" { have_codesign = (oren_system("command -v codesign >/dev/null 2>&1") == 0) }
     codesign_id = opts["codesign"]
     if codesign_id == nil { codesign_id = "" }
     var skip_codesign = oren_env("OREN_SKIP_CODESIGN")
