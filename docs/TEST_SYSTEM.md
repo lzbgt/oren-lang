@@ -67,6 +67,9 @@ When you need confidence that the **native backend** output works across the pra
 	./scripts/verify_native_matrix.sh --targets x64-win-tier1
 	./scripts/verify_native_matrix.sh --targets x64-wsl-tier1
 
+	# Opt-in: loopback-only NET matrix (TCP/UDP + HTTP GET loopback) across Tier‑1 hosts
+	./scripts/verify_native_net_matrix.sh --targets x64-win,x64-wsl
+
 	# Local gate: compile-only for x64-linux + x64-windows (stage1 + stage2)
 	make verify-native-x64-compile
 	```

@@ -20,6 +20,21 @@ If your local host is macOS arm64 (Tier‑1 dev path), the recommended way to va
 ./scripts/verify_native_matrix.sh --targets x64-wsl,x64-win
 ```
 
+## NET loopback matrix (TCP/UDP + HTTP GET loopback)
+
+The Tier‑1 matrix script focuses on a broad native smoke (containers, strings, maps, proc, etc),
+but it does not exercise TCP/UDP/HTTP.
+
+To validate Oren’s **native NET substrate** on real x86_64 hosts (Win11 + WSL2), run:
+
+```bash
+# Builds stage1 + stage2, compiles the NET suites for x64-windows and x64-linux,
+# uploads to the remote Win11 host, then runs:
+#   - tests/native/test_net_suite.oren
+#   - tests/native/test_http_get_loopback.oren
+./scripts/verify_native_net_matrix.sh --targets x64-wsl,x64-win
+```
+
 ## Optional: x64 self-host compiler gate (compiler runs on x86_64)
 
 `verify_native_matrix.sh` focuses on **running native programs** built by the compiler.

@@ -71,9 +71,10 @@ Rules for this tracker:
 			   - Fixed (2026-01-07): x86_64 self-host compiler run gate (Win11 + WSL2) now passes; keep this as a hard regression gate:
 			     - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` (details in `docs/TODOS_ARCHIVE.md`)
 			   - Remaining gaps (active):
-			     - NET stdlib maturity (production direction):
-			       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IP-only; no TLS/DNS/keep-alive pooling yet).
-			       - Next: structured HTTP client/server surface (headers map + status + streaming body), WebSocket handshake+frames, then HTTP/2 framing on top of the TCP substrate.
+				     - NET stdlib maturity (production direction):
+				       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IP-only; no TLS/DNS/keep-alive pooling yet).
+				       - Fixed (2026-01-07): Tier‑1 NET loopback is now regression-gated across `arm64-macos` + `arm64-linux` + `x64-windows` + `x64-linux` (stage1 + stage2) via `./scripts/verify_native_net_matrix.sh`.
+				       - Next: structured HTTP client/server surface (headers map + status + streaming body), WebSocket handshake+frames, then HTTP/2 framing on top of the TCP substrate.
 			     - Fixed (2026-01-04): **arm64-macos stage2 is now bootstrapped via the native backend by default** (`make stage2`).
 			       - Fallback (bring-up): `make stage2 OREN_STAGE2_BACKEND=c`.
 			    - Native FFI / dynamic linking parity (rolling):

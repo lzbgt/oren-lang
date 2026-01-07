@@ -127,7 +127,7 @@ production maturity requires both implementation *and* regression coverage.
     - capsule gating parity for syscall surfaces.
 	  - Rolling evidence (x86_64 Windows):
 	    - TIME substrate is now proved by `tests/native/test_time_suite.oren` on Win11 (sleep + gettimeofday shims).
-	    - NET substrate is now proved by `tests/native/test_net_suite.oren` on Win11 (WinSock + select wait backend + WSAStartup gated in runtime).
+		    - NET substrate is now regression-gated by `scripts/verify_native_net_matrix.sh` (loopback-only TCP/UDP + HTTP GET loopback via `tests/native/test_net_suite.oren` and `tests/native/test_http_get_loopback.oren` on Win11 + WSL2; see `docs/REMOTE_X64_ENV.md`).
 	    - FFI substrate (Tier‑1 Windows, rolling):
 	      - `ffi name` is implemented via lazy `LoadLibraryA`/`GetProcAddress` stubs in the x64 backend.
 	      - Evidence: `tests/native/ffi_windows_kernel32.oren` (remote Win11 gate via `scripts/verify_native_matrix.sh --targets x64-win`).

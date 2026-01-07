@@ -866,27 +866,85 @@ fn oren_tcp_accept(listen_fd, timeout_ms) {
 fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
     if len <= 0 { return 0 }
-    var n = oren_fd_wait_readable(fd, timeout_ms)
-    if n == 0 { return 0 - 60 } // ETIMEDOUT
-    if n < 0 { return n }
-    var r = sys_recvfrom(fd, buf, len, 0, 0, 0)
-    // EAGAIN/EWOULDBLOCK:
-    // - macOS: 35
-    // - Linux: 11
-    if r == 0 - 35 || r == 0 - 11 { return 0 }
-    return r
+
+    // The socket is non-blocking, and readiness waits can be spuriously satisfied
+    // across OSes (or race with close/reset). Treat EAGAIN/EWOULDBLOCK as retry
+    // until the caller timeout elapses.
+    //
+    // IMPORTANT: never return `0` on EAGAIN here.
+    // For TCP stream reads, `0` is the only reliable "EOF/closed" indicator.
+    var deadline_ns = 0
+    if timeout_ms > 0 {
+        var t0 = oren_time_unix_ns()
+        if t0 != 0 {
+            deadline_ns = t0 + timeout_ms * 1000000
+        }
+    }
+
+    while 1 {
+        var rem_ms = timeout_ms
+        if deadline_ns != 0 {
+            var now = oren_time_unix_ns()
+            if now != 0 {
+                var rem_ns = deadline_ns - now
+                if rem_ns <= 0 { return 0 - 60 } // ETIMEDOUT
+                rem_ms = rem_ns / 1000000
+                if rem_ms < 0 { rem_ms = 0 }
+            }
+        }
+
+        var n = oren_fd_wait_readable(fd, rem_ms)
+        if n == 0 { return 0 - 60 } // ETIMEDOUT
+        if n < 0 { return n }
+        var r = sys_recvfrom(fd, buf, len, 0, 0, 0)
+        // EAGAIN/EWOULDBLOCK:
+        // - macOS: 35
+        // - Linux: 11
+        if r == 0 - 35 || r == 0 - 11 { continue }
+        return r
+    }
 }
 
 @cap.requires(domain="NET")
 fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
     if len <= 0 { return 0 }
-    var n = oren_fd_wait_writable(fd, timeout_ms)
-    if n == 0 { return 0 - 60 } // ETIMEDOUT
-    if n < 0 { return n }
-    var w = sys_sendto(fd, buf, len, 0, 0, 0)
-    if w == 0 - 35 || w == 0 - 11 { return 0 }
-    return w
+
+    // `sys_sendto` can return partial writes on stream sockets.
+    // The NET surface in tests + stdlib expects "write len bytes or fail/timed out".
+    //
+    // Keep this bounded by caller-provided timeout (no hangs).
+    var deadline_ns = 0
+    if timeout_ms > 0 {
+        var t0 = oren_time_unix_ns()
+        if t0 != 0 {
+            deadline_ns = t0 + timeout_ms * 1000000
+        }
+    }
+
+    var off = 0
+    while off < len {
+        var rem_ms = timeout_ms
+        if deadline_ns != 0 {
+            var now = oren_time_unix_ns()
+            if now != 0 {
+                var rem_ns = deadline_ns - now
+                if rem_ns <= 0 { return 0 - 60 } // ETIMEDOUT
+                rem_ms = rem_ns / 1000000
+                if rem_ms < 0 { rem_ms = 0 }
+            }
+        }
+
+        var n = oren_fd_wait_writable(fd, rem_ms)
+        if n == 0 { return 0 - 60 } // ETIMEDOUT
+        if n < 0 { return n }
+        var w = sys_sendto(fd, iadd(buf, off), len - off, 0, 0, 0)
+        if w == 0 - 35 || w == 0 - 11 { continue }
+        if w < 0 { return w }
+        if w == 0 { return 0 - 5 } // EIO (avoid infinite loop)
+        off = off + w
+    }
+    return len
 }
 
 @cap.requires(domain="NET")

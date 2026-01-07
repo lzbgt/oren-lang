@@ -13,6 +13,17 @@ fn server(listen_fd, mode) {
     var fd = oren_tcp_accept(listen_fd, 5000)
     if fd < 0 { return 11 }
 
+    // Best-effort: read and ignore the request bytes.
+    //
+    // Some OSes can report ECONNRESET/ECONNABORTED when a server closes a socket while
+    // unread request bytes are still pending. This test focuses on the HTTP client;
+    // make the loopback server behave like a well-formed peer.
+    var req_scratch = malloc(512)
+    if req_scratch != 0 {
+        oren_tcp_read_into(fd, req_scratch, 512, 2000)
+        free(req_scratch)
+    }
+
     var resp = 0
     if mode == 0 {
         resp = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nHELLO"

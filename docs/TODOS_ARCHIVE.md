@@ -33,6 +33,35 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Remote Win11: x64-windows compiler can compile+run a tiny native program.
   - Remote WSL2: x64-linux compiler can compile+run a tiny native program.
 
+## Archived (2026-01-07) — Tier‑1 NET loopback gate: add cross-arch script + harden TCP semantics
+
+- Motivation:
+  - The Tier‑1 native matrix (`scripts/verify_native_matrix.sh`) intentionally focuses on a broad smoke and does not cover TCP/UDP/HTTP.
+  - NET is a high-risk cross-OS surface; we need an explicit, timeout-bounded gate on real x86_64 hardware (Win11 + WSL2).
+
+- Deliverable:
+  - New regression gate: `scripts/verify_native_net_matrix.sh`
+    - Compiles + runs (stage1 + stage2) across:
+      - local `arm64-macos`
+      - docker `arm64-linux` (persistent container)
+      - remote `x64-windows` (Win11 via `cmd.exe`)
+      - remote `x64-linux` (WSL2)
+    - Runs loopback-only suites:
+      - `tests/native/test_net_suite.oren` (TCP/UDP + syscall intrinsics sanity)
+      - `tests/native/test_http_get_loopback.oren` (HTTP/1.1 GET loopback for both Content-Length and chunked bodies)
+
+- Fixes / hardening:
+  - Native runtime TCP/UDP:
+    - `oren_tcp_read_into` and UDP recv now retry on EAGAIN/EWOULDBLOCK until the caller timeout, instead of returning an ambiguous `0`.
+    - `oren_tcp_write_from` now writes the full requested payload (or returns `-ETIMEDOUT` / `-errno`) so small HTTP responses do not truncate under nonblocking sockets.
+  - Windows x64 loopback nuance:
+    - The loopback HTTP server now reads and discards the request bytes before writing the response.
+      - Without this, some stacks can report an abort/reset when the server closes a socket while unread request bytes are pending, and the client can observe a read failure before receiving headers.
+
+- Verified:
+  - `./scripts/verify_native_net_matrix.sh --targets arm64-linux`
+  - `./scripts/verify_native_net_matrix.sh --targets x64-wsl,x64-win`
+
 ## Archived (2026-01-07) — Native x86_64 runtime: fix alloc-index compare recursion (stack overflow)
 
 - Symptom (x64-linux artifacts built on arm64-macos):

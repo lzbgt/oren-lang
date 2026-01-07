@@ -267,12 +267,22 @@ fn get_text(url, timeout_ms) {
     var body_off = 0
     var content_len = -1
     var is_chunked = 0
+    var last_n = 0
 
     while 1 {
         var tmp = malloc(2048)
         if tmp == 0 { break }
         var n = tcp.read_into(fd, tmp, 2048, timeout_ms)
-        if n <= 0 {
+        last_n = n
+        if n == 0 {
+            free(tmp)
+            break
+        }
+        if n < 0 {
+            // Some OSes may report ECONNRESET when the peer closes a socket while
+            // unread request bytes are still in the receive buffer. For the v0
+            // connection-close client, treat this as an EOF-like terminator and
+            // attempt to parse whatever bytes were already received.
             free(tmp)
             break
         }
@@ -382,7 +392,7 @@ fn get_text(url, timeout_ms) {
 
     if header_done == 0 {
         free(buf)
-        return {"ok": 0, "err": "http.get_text: missing header terminator"}
+        return {"ok": 0, "err": "http.get_text: missing header terminator (used=" + oren_int_to_string(used) + " last_n=" + oren_int_to_string(last_n) + ")"}
     }
 
     if body_off > used { body_off = used }
