@@ -859,7 +859,16 @@ fn oren_tcp_accept(listen_fd, timeout_ms) {
     var n = oren_fd_wait_readable(listen_fd, timeout_ms)
     if n == 0 { return 0 - 60 } // ETIMEDOUT
     if n < 0 { return n }
-    return sys_accept(listen_fd, 0, 0)
+    var fd = sys_accept(listen_fd, 0, 0)
+    if fd < 0 { return fd }
+    // Ensure accepted sockets are non-blocking on all OSes.
+    // Some platforms do not reliably inherit O_NONBLOCK from the listening fd.
+    var nb = oren_tcp_set_nonblock(fd)
+    if nb < 0 {
+        sys_close(fd)
+        return nb
+    }
+    return fd
 }
 
 @cap.requires(domain="NET")
@@ -882,6 +891,15 @@ fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
     }
 
     while 1 {
+        // Try the nonblocking recv first. This avoids relying solely on readiness waits:
+        // - reduces syscall overhead when data is already buffered
+        // - hardens against occasional readiness false-negatives (observed flakiness on some WinSock/select paths)
+        var r0 = sys_recvfrom(fd, buf, len, 0, 0, 0)
+        // EAGAIN/EWOULDBLOCK:
+        // - macOS: 35
+        // - Linux/Windows: 11 (Windows WSAEWOULDBLOCK is normalized in syscall lowering)
+        if r0 != 0 - 35 && r0 != 0 - 11 { return r0 }
+
         var rem_ms = timeout_ms
         if deadline_ns != 0 {
             var now = oren_time_unix_ns()
@@ -896,12 +914,7 @@ fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
         var n = oren_fd_wait_readable(fd, rem_ms)
         if n == 0 { return 0 - 60 } // ETIMEDOUT
         if n < 0 { return n }
-        var r = sys_recvfrom(fd, buf, len, 0, 0, 0)
-        // EAGAIN/EWOULDBLOCK:
-        // - macOS: 35
-        // - Linux: 11
-        if r == 0 - 35 || r == 0 - 11 { continue }
-        return r
+        // Wait satisfied; loop back and attempt recv again.
     }
 }
 
@@ -924,25 +937,29 @@ fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
 
     var off = 0
     while off < len {
-        var rem_ms = timeout_ms
-        if deadline_ns != 0 {
-            var now = oren_time_unix_ns()
-            if now != 0 {
-                var rem_ns = deadline_ns - now
-                if rem_ns <= 0 { return 0 - 60 } // ETIMEDOUT
-                rem_ms = rem_ns / 1000000
-                if rem_ms < 0 { rem_ms = 0 }
+        // Try the nonblocking send first (common fast path).
+        var w0 = sys_sendto(fd, iadd(buf, off), len - off, 0, 0, 0)
+        if w0 == 0 - 35 || w0 == 0 - 11 {
+            // Need to wait for writability.
+            var rem_ms = timeout_ms
+            if deadline_ns != 0 {
+                var now = oren_time_unix_ns()
+                if now != 0 {
+                    var rem_ns = deadline_ns - now
+                    if rem_ns <= 0 { return 0 - 60 } // ETIMEDOUT
+                    rem_ms = rem_ns / 1000000
+                    if rem_ms < 0 { rem_ms = 0 }
+                }
             }
-        }
 
-        var n = oren_fd_wait_writable(fd, rem_ms)
-        if n == 0 { return 0 - 60 } // ETIMEDOUT
-        if n < 0 { return n }
-        var w = sys_sendto(fd, iadd(buf, off), len - off, 0, 0, 0)
-        if w == 0 - 35 || w == 0 - 11 { continue }
-        if w < 0 { return w }
-        if w == 0 { return 0 - 5 } // EIO (avoid infinite loop)
-        off = off + w
+            var n = oren_fd_wait_writable(fd, rem_ms)
+            if n == 0 { return 0 - 60 } // ETIMEDOUT
+            if n < 0 { return n }
+            continue
+        }
+        if w0 < 0 { return w0 }
+        if w0 == 0 { return 0 - 5 } // EIO (avoid infinite loop)
+        off = off + w0
     }
     return len
 }

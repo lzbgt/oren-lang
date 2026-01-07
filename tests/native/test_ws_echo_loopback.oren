@@ -111,7 +111,7 @@ fn run_case() {
         var text = "PING"
         var wr = ws.send_text_client(fd, text, 5000)
         if wr < 0 {
-            print("ws_echo_loopback: FAIL send")
+            print("ws_echo_loopback: FAIL send (errno=" + oren_int_to_string(0 - wr) + ")")
             rc = 21
         } else {
             var rr = ws.recv_text(fd, 10000)
@@ -151,8 +151,27 @@ fn run_case() {
 }
 
 fn main() {
-    var rc = run_case()
-    if rc != 0 { exit(rc) }
+    // Optional stress knob for flaky platform bring-up:
+    //   OREN_WS_ECHO_N=<n>  (defaults to 1)
+    //
+    // Keep output bounded: only print one OK line and stop on first failure.
+    var iters = 1
+    var env_n = oren_env("OREN_WS_ECHO_N")
+    if env_n != nil {
+        var n = oren_int_from_string(env_n)
+        if n > 0 { iters = n }
+    }
+
+    var i = 0
+    while i < iters {
+        var rc = run_case()
+        if rc != 0 {
+            print("ws_echo_loopback: FAIL iter=" + oren_int_to_string(i) + " rc=" + oren_int_to_string(rc))
+            exit(rc)
+        }
+        i = i + 1
+    }
+
     print("ws_echo_loopback: OK")
     exit(0)
 }

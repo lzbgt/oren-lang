@@ -53,7 +53,10 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Fixes / hardening:
   - Native runtime TCP/UDP:
     - `oren_tcp_read_into` and UDP recv now retry on EAGAIN/EWOULDBLOCK until the caller timeout, instead of returning an ambiguous `0`.
+      - Also attempts a nonblocking `recv` first (then waits on EAGAIN), so already-buffered data does not pay an extra readiness wait.
     - `oren_tcp_write_from` now writes the full requested payload (or returns `-ETIMEDOUT` / `-errno`) so small HTTP responses do not truncate under nonblocking sockets.
+      - Also attempts a nonblocking `send` first (then waits on EAGAIN), reducing syscall overhead and hardening against occasional readiness false-negatives.
+    - `oren_tcp_accept` now explicitly sets the accepted socket to nonblocking (do not rely on the listen socket’s flag inheritance across OSes).
   - Windows x64 loopback nuance:
     - The loopback HTTP server now reads and discards the request bytes before writing the response.
       - Without this, some stacks can report an abort/reset when the server closes a socket while unread request bytes are pending, and the client can observe a read failure before receiving headers.
@@ -71,8 +74,10 @@ This file preserves the previous long-form rolling TODO list (history + detailed
     - `lib/std/crypto/sha1.oren` (pure Oren SHA‑1)
     - `lib/std/encoding/base64.oren` (pure Oren base64 encode)
   - Added a loopback regression test: `tests/native/test_ws_echo_loopback.oren` (server accepts + echoes `"PING"`).
+    - Optional stress knob: `OREN_WS_ECHO_N=<n>` runs the handshake + echo `n` times in one process run (default `1`).
   - Extended the Tier‑1 NET matrix gate to include WebSocket:
     - `scripts/verify_native_net_matrix.sh` now builds+runs the WS echo test for stage1 + stage2 across all Tier‑1 targets.
+    - When `OREN_WS_ECHO_N` is set in the caller environment, the script propagates it to docker + remote Win11/WSL2 runs.
 
 - Key implementation lesson (native backend correctness):
   - On the native runtime, string `+` concatenation is **kind‑gated** (`oren_add` only concatenates when both operands are tracked as kind=STRING).

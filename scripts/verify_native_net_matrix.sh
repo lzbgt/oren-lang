@@ -35,6 +35,7 @@ WS_ECHO_SRC="tests/native/test_ws_echo_loopback.oren"
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
 SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-3}"
+WS_ECHO_N="${OREN_WS_ECHO_N:-}"
 
 REMOTE_HOST="${OREN_REMOTE_X64_HOST:-lzbgt@pc.work}"
 REMOTE_PROXY="${OREN_REMOTE_X64_PROXY:-ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002}"
@@ -290,7 +291,11 @@ run_in_linux_container() {
   local bin="$1"
   local dst="/tmp/$(basename "$bin")"
   docker cp "$bin" "${LINUX_DOCKER_ID}:${dst}"
-  docker exec -i "$LINUX_DOCKER_ID" bash -lc "chmod +x '$dst' && timeout 20s '$dst'"
+  if [[ -n "$WS_ECHO_N" ]]; then
+    docker exec -i "$LINUX_DOCKER_ID" bash -lc "chmod +x '$dst' && OREN_WS_ECHO_N='$WS_ECHO_N' timeout 20s '$dst'"
+  else
+    docker exec -i "$LINUX_DOCKER_ID" bash -lc "chmod +x '$dst' && timeout 20s '$dst'"
+  fi
 }
 
 remote_user="$REMOTE_HOST"
@@ -352,8 +357,12 @@ remote_upload() {
 remote_run_win() {
   local exe_name="$1"
   remote_kill_win "$exe_name" >/dev/null 2>&1 || true
+  local envp=""
+  if [[ -n "$WS_ECHO_N" ]]; then
+    envp="set OREN_WS_ECHO_N=${WS_ECHO_N} & "
+  fi
   set +e
-  run_with_timeout 40 "${ssh_base[@]}" "cmd.exe /v:on /c \"${remote_win_root}\\\\${exe_name} & set RC=!ERRORLEVEL! & echo EXIT=!RC! & exit /b !RC!\""
+  run_with_timeout 40 "${ssh_base[@]}" "cmd.exe /v:on /c \"${envp}${remote_win_root}\\\\${exe_name} & set RC=!ERRORLEVEL! & echo EXIT=!RC! & exit /b !RC!\""
   local rc=$?
   set -e
   if [[ "$rc" -ne 0 ]]; then
@@ -369,6 +378,9 @@ remote_run_wsl() {
   local envp=""
   if [[ "$TRACE" -ne 0 ]]; then
     envp="OREN_QI_TRACE=1 "
+  fi
+  if [[ -n "$WS_ECHO_N" ]]; then
+    envp+="OREN_WS_ECHO_N=${WS_ECHO_N} "
   fi
   local cmd="file ${full} || true; chmod +x ${full} && ${envp}timeout 20s ${full}; rc="
   cmd+='$?'
