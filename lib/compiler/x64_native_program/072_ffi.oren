@@ -7,7 +7,8 @@
 //
 // Current status:
 // - Windows x64 (PE): supports FFI via lazy LoadLibraryA/GetProcAddress stubs.
-// - Linux x86_64 (ELF): dynamic linking is not implemented yet; calling an `ffi` symbol panics.
+// - Linux x86_64 (ELF): supported when `--link` is used (dynamic ELF + dlsym resolver); without `--link`,
+//   unresolved `ffi` symbols still panic (stable failure mode).
 
 fn _x64_collect_ffi_decls_from_stmt_list(ctx, stmts, role) {
     if ctx == nil { return nil }
@@ -209,6 +210,181 @@ fn _x64_emit_ffi_stub_linux(ctx, nm) {
     return nil
 }
 
+fn _x64_linux_dyn_import_got_off(ctx, sym_name) {
+    // Reserve (or reuse) a GOT slot for an ELF dynamic import.
+    //
+    // The ELF emitter uses `ctx["elf_dyn_imports"]` to build:
+    // - DT_NEEDED (from `--link`)
+    // - DT_STRTAB/DT_SYMTAB
+    // - .rela.dyn with R_X86_64_GLOB_DAT relocations that populate these slots at load time
+    //
+    // Return the byte offset in the appended data blob.
+    if ctx == nil { return nil }
+    if sym_name == nil || sym_name == "" { return nil }
+
+    if ctx["elf_dyn_got_offs_enc"] == nil { ctx["elf_dyn_got_offs_enc"] = {} }
+    var m = ctx["elf_dyn_got_offs_enc"]
+    var existing_enc = m[sym_name]
+    if existing_enc != nil { return existing_enc - 1 }
+
+    var got_off = _data_add_u64(ctx, 0)
+    // Store as off+1 so a real offset 0 doesn't alias native-runtime `nil`.
+    m[sym_name] = got_off + 1
+
+    if ctx["elf_dyn_imports"] == nil { ctx["elf_dyn_imports"] = [] }
+    oren_list_push(ctx["elf_dyn_imports"], {"name": sym_name, "got_off": got_off})
+    return got_off
+}
+
+fn _x64_emit_call_got_rax_linux(ctx, got_off) {
+    // mov rax, [rip+disp32] ; call rax
+    if ctx == nil { return nil }
+    if got_off == nil { return nil }
+    var mov_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_mov_rax", "pos": mov_pos + 3, "data_off": got_off})
+    bytes_extend(ctx["code"], insn_call_rax())
+    return nil
+}
+
+fn _x64_emit_ffi_resolver_linux64(ctx, platform) {
+    // fn __oren_ffi_resolve0(sym_ptr) -> fn_ptr (0 if unresolved)
+    //
+    // ABI: SysV int args in rdi,rsi,rdx,rcx,r8,r9; return in rax.
+    // - sym_ptr is a cstr0 pointer.
+    //
+    // Implementation:
+    // - calls `dlsym(RTLD_DEFAULT, sym_ptr)` via a GOT slot relocated by the ELF dynamic loader.
+    //
+    // Note: This resolver is only emitted when `--link` is used (so the ELF emitter will include
+    // PT_INTERP/PT_DYNAMIC and DT_NEEDED for libdl+libc).
+    var name = "__oren_ffi_resolve0"
+    if ctx == nil { return nil }
+    if ctx["functions"] == nil { ctx["functions"] = {} }
+    if ctx["functions"][name] != nil { return name }
+
+    // Reserve GOT slot for dlsym.
+    var got_dlsym = _x64_linux_dyn_import_got_off(ctx, "dlsym")
+    if got_dlsym == nil {
+        err(ctx, "x64 native v0: internal: failed to reserve GOT slot for dlsym")
+        return nil
+    }
+
+    var start = bytes_len(ctx["code"])
+    ctx["functions"][name] = start
+
+    // SysV: stack is 8 mod 16 at entry; align to 16 before calling dlsym.
+    bytes_extend(ctx["code"], insn_sub_rsp_imm32(8))
+
+    // rsi = sym_ptr (incoming rdi)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(6, 7))
+    // rdi = RTLD_DEFAULT (NULL)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(7, 0)) // edi=0
+
+    _x64_emit_call_got_rax_linux(ctx, got_dlsym)
+
+    bytes_extend(ctx["code"], insn_add_rsp_imm32(8))
+    bytes_extend(ctx["code"], insn_ret())
+    return name
+}
+
+fn _x64_emit_ffi_stub_linux_dyn(ctx, nm, resolver_name) {
+    // Linux x64: lazy resolve `nm` on first call, cache fnptr in `.data`, then tailcall.
+    if ctx == nil { return nil }
+    if nm == nil || nm == "" { return nil }
+    if resolver_name == nil || resolver_name == "" {
+        err(ctx, "x64 native v0: internal: missing ffi resolver name")
+        return nil
+    }
+
+    if ctx["functions"] == nil { ctx["functions"] = {} }
+    if ctx["functions"][nm] != nil { return nil }
+
+    // data: fnptr cell (u64)
+    var cell_off = _data_add_u64(ctx, 0)
+    // data: symbol name string (cstr0)
+    var sym_off = _data_add_cstr0(ctx, nm)
+    // data: error message (cstr0)
+    var msg_off = _data_add_cstr0(ctx, "ffi unresolved: " + nm)
+
+    ctx["functions"][nm] = bytes_len(ctx["code"])
+
+    // lea r10, [&cell]
+    var lea_cell0 = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_cell0 + 3, "data_off": cell_off})
+    // rax = [r10]
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(0, 10))
+
+    var labels = {}
+    var local_fixups = []
+    var l_have = _new_label(ctx, "ffi_have")
+    var l_fail = _new_label(ctx, "ffi_fail")
+
+    // if rax != 0 => tailcall immediately (args still in regs/stack).
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_have)
+
+    // Spill incoming SysV arg regs (rdi,rsi,rdx,rcx,r8,r9) to the stack.
+    // entry rsp is 8 mod 16; sub 56 makes it 0 mod 16.
+    bytes_extend(ctx["code"], insn_sub_rsp_imm32(56))
+    _emit_mov_mrsp_r64(ctx, 0, 7)   // rdi
+    _emit_mov_mrsp_r64(ctx, 8, 6)   // rsi
+    _emit_mov_mrsp_r64(ctx, 16, 2)  // rdx
+    _emit_mov_mrsp_r64(ctx, 24, 1)  // rcx
+    _emit_mov_mrsp_r64(ctx, 32, 8)  // r8
+    _emit_mov_mrsp_r64(ctx, 40, 9)  // r9
+
+    // rdi = &sym_cstr0
+    var lea_sym = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(7, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_sym + 3, "data_off": sym_off})
+
+    var call_res = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_res, "name": resolver_name})
+
+    // if rax == 0 => panic (unresolved)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_fail)
+
+    // Cache fnptr in cell.
+    var lea_cell1 = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_cell1 + 3, "data_off": cell_off})
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 0))
+
+    // Restore arg regs.
+    _emit_mov_r64_mrsp(ctx, 7, 0)
+    _emit_mov_r64_mrsp(ctx, 6, 8)
+    _emit_mov_r64_mrsp(ctx, 2, 16)
+    _emit_mov_r64_mrsp(ctx, 1, 24)
+    _emit_mov_r64_mrsp(ctx, 8, 32)
+    _emit_mov_r64_mrsp(ctx, 9, 40)
+    bytes_extend(ctx["code"], insn_add_rsp_imm32(56))
+
+    _emit_label(ctx, labels, l_have)
+    // Tailcall to target: jmp rax
+    bytes_extend(ctx["code"], insn_jmp_rax())
+
+    _emit_label(ctx, labels, l_fail)
+    // call oren_panic("ffi unresolved: <name>") (does not return)
+    // Stack is still aligned (rsp 0 mod 16).
+    var lea_msg = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(7, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_msg + 3, "data_off": msg_off})
+    var call_panic = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_panic, "name": "oren_panic"})
+    // If panic returns (should not), restore stack and return 0.
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(0, 0))
+    bytes_extend(ctx["code"], insn_add_rsp_imm32(56))
+    bytes_extend(ctx["code"], insn_ret())
+
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
 fn _x64_emit_ffi_stub_win64(ctx, nm, resolver_name) {
     // Windows x64: lazy resolve `nm` on first call, cache fnptr in `.data`, then tailcall.
     if ctx == nil { return nil }
@@ -324,7 +500,25 @@ fn _x64_emit_ffi_stubs(ctx, platform) {
         return nil
     }
 
-    // Linux (and others): stub unresolved imports for now.
+    // Linux x64:
+    // - without `--link`: stub unresolved imports (stable panic-on-call behavior)
+    // - with `--link`: emit a dynamic-link-aware resolver + lazy stubs
+    if os == "linux" {
+        var dyn = platform != nil && platform["link_libs"] != nil && oren_list_len(platform["link_libs"]) != 0
+        if dyn {
+            var resolver_name = _x64_emit_ffi_resolver_linux64(ctx, platform)
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            var i = 0
+            while i < oren_list_len(imports) {
+                _x64_emit_ffi_stub_linux_dyn(ctx, imports[i], resolver_name)
+                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+                i = i + 1
+            }
+            return nil
+        }
+    }
+
+    // Other platforms (and linux without `--link`): stub unresolved imports for now.
     var j = 0
     while j < oren_list_len(imports) {
         _x64_emit_ffi_stub_linux(ctx, imports[j])

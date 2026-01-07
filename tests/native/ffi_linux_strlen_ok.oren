@@ -1,0 +1,11 @@
+// Linux x64 native backend: FFI should work when dynamic linking is enabled via `--link`.
+//
+// This fixture is executed on x64-linux (WSL2) by `scripts/verify_native_matrix.sh`.
+//
+// NOTE:
+// Avoid `puts(...)` as the primary assertion because native `exit(...)` terminates via syscall
+// and can bypass libc stdio flushing when stdout is redirected (as the matrix script does).
+
+ffi strlen
+if strlen("Hello FFI") != 9 { exit(1) }
+exit(0)

@@ -266,7 +266,9 @@ Oren can call external C symbols via `ffi <name>` when using the **native backen
 Current status:
 - **macOS (Mach-O):** uses dyld binding opcodes and GOT stubs; this enables basic FFI against `libSystem` and any dylibs you load via `--link`.
 - **Windows x64 (PE):** uses lazy `LoadLibraryA`/`GetProcAddress` stubs; `--link` adds DLLs to the resolver search list (kernel32 is searched by default).
-- **Linux (ELF):** the ELF emitter does not implement dynamic linking yet; calling an `ffi` symbol panics and `--link` is rejected (FFI is not functional on Linux native builds).
+- **Linux (ELF):**
+  - **x64-linux:** `--link` enables a dynamically-linked ELF, and `ffi` works via a lazy `dlsym` resolver (see `docs/NATIVE_BACKEND.md`).
+  - **arm64-linux:** dynamic linking is not implemented yet; calling an `ffi` symbol panics and `--link` is rejected.
 
 ### Usage
 Declare the external symbol using the `ffi` keyword, then call it like a regular function.
@@ -300,7 +302,7 @@ The native backend always loads `libSystem` on macOS. To load additional dylibs:
 ./oren build examples/ffi_test.oren --backend native --link /usr/lib/libsqlite3.dylib -o ffi_sqlite
 ```
 
-To link arbitrary libraries portably (or on Linux today), use the C backend:
+To link arbitrary libraries portably (or on Linux arm64 today), use the C backend:
 
 1.  **Use the C Backend**: The C backend allows you to pass arbitrary linker flags.
     ```bash
@@ -318,7 +320,9 @@ To link arbitrary libraries portably (or on Linux today), use the C backend:
     cl /Fe:myapp.exe examples/myapp.oren.c lib/runtime.c /Ilib user32.lib kernel32.lib
     ```
 
-2.  **Linux Native Backend Support**: ELF dynamic linking (`DT_NEEDED` / PLT/GOT relocations) is not implemented yet.
+2.  **Linux Native Backend Support (rolling)**:
+    - **x64-linux:** minimal dynamic linking is implemented for `ffi` (via `dlsym`); shared libraries (`--lib`) are still not implemented.
+    - **arm64-linux:** ELF dynamic linking is not implemented yet.
 
 ---
 

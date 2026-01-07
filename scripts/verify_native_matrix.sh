@@ -30,6 +30,7 @@ TIER1_SRC="tests/fixtures/tier1_native_smoke_main.oren"
 TIER1_EXPECT_MARKERS=1
 WIN_FFI_K32_SRC="tests/native/ffi_windows_kernel32.oren"
 LINUX_FFI_PANIC_SRC="tests/native/ffi_linux_unresolved_panics.oren"
+LINUX_FFI_OK_SRC="tests/native/ffi_linux_strlen_ok.oren"
 
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
@@ -289,13 +290,14 @@ build_native_bin_src() {
   local platform="$2"
   local src="$3"
   local out="$4"
+  shift 4
 
   if [[ ! -x "$compiler" ]]; then
     echo "ERROR: missing compiler executable: $compiler (build with: make stage1 stage2)" >&2
     exit 2
   fi
   set +e
-  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$src" --backend native --platform "$platform" --debug -o "$out"
+  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$src" --backend native --platform "$platform" --debug -o "$out" "$@"
   local rc=$?
   set -e
   if [[ "$rc" -ne 0 ]]; then
@@ -502,6 +504,44 @@ remote_run_wsl_expect_fail_contains() {
   return "$rc"
 }
 
+remote_run_wsl_expect_ok_contains() {
+  local bin_name="$1"
+  local needle="$2"
+  local needle2="${3:-}"
+  remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
+  local full="${remote_wsl_root}/${bin_name}"
+  local envp=""
+  if [[ "$TRACE" -ne 0 ]]; then
+    envp="OREN_QI_TRACE=1 "
+  fi
+
+  local out="/tmp/oren_${bin_name}.out"
+  local cmd="file ${full} || true; chmod +x ${full} && rm -f '${out}'; ${envp}timeout 20s ${full} >'${out}' 2>&1; rc="
+  cmd+='$?'
+  cmd+="; cat '${out}'; echo EXIT="
+  cmd+='$rc'
+  cmd+="; if [ "
+  cmd+='$rc'
+  cmd+=" -ne 0 ]; then exit 96; fi; grep -qF '"
+  cmd+="$needle"
+  cmd+="' '${out}' || exit 97; "
+  if [[ -n "$needle2" ]]; then
+    cmd+="grep -qF '"
+    cmd+="$needle2"
+    cmd+="' '${out}' || exit 98; "
+  fi
+  cmd+="exit 0"
+
+  set +e
+  run_with_timeout 30 "${ssh_base[@]}" "wsl.exe -e bash -lc \"${cmd}\""
+  local rc=$?
+  set -e
+  if [[ "$rc" -ne 0 ]]; then
+    remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
+  fi
+  return "$rc"
+}
+
 if has_target arm64-linux; then
   log "== verify: linux/arm64 via docker container id=${LINUX_DOCKER_ID} =="
   docker ps --filter "id=${LINUX_DOCKER_ID}" --format 'id={{.ID}} status={{.Status}}' | grep -q "id=${LINUX_DOCKER_ID}" || {
@@ -563,17 +603,23 @@ if has_target x64-wsl; then
   build_native_bin "./oren_stage2" "x64-linux" "build/tmp/qi_stage2_x64_linux"
   build_native_bin_src "./oren" "x64-linux" "$LINUX_FFI_PANIC_SRC" "build/tmp/ffi_panic_stage1_x64_linux"
   build_native_bin_src "./oren_stage2" "x64-linux" "$LINUX_FFI_PANIC_SRC" "build/tmp/ffi_panic_stage2_x64_linux"
+  build_native_bin_src "./oren" "x64-linux" "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_stage1_x64_linux" --link libc.so.6
+  build_native_bin_src "./oren_stage2" "x64-linux" "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_stage2_x64_linux" --link libc.so.6
 
   remote_upload "build/tmp/qi_stage1_x64_linux" "qi_stage1_x64_linux"
   remote_upload "build/tmp/qi_stage2_x64_linux" "qi_stage2_x64_linux"
   remote_upload "build/tmp/ffi_panic_stage1_x64_linux" "ffi_panic_stage1_x64_linux"
   remote_upload "build/tmp/ffi_panic_stage2_x64_linux" "ffi_panic_stage2_x64_linux"
+  remote_upload "build/tmp/ffi_ok_stage1_x64_linux" "ffi_ok_stage1_x64_linux"
+  remote_upload "build/tmp/ffi_ok_stage2_x64_linux" "ffi_ok_stage2_x64_linux"
 
   log "-- run: WSL2 (x64-linux) --"
   remote_run_wsl "qi_stage1_x64_linux"
   remote_run_wsl "qi_stage2_x64_linux"
   remote_run_wsl_expect_fail_contains "ffi_panic_stage1_x64_linux" "ffi unresolved:" "oren_panic"
   remote_run_wsl_expect_fail_contains "ffi_panic_stage2_x64_linux" "ffi unresolved:" "oren_panic"
+  remote_run_wsl "ffi_ok_stage1_x64_linux"
+  remote_run_wsl "ffi_ok_stage2_x64_linux"
   log "OK: remote WSL2 x64"
 fi
 

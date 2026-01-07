@@ -48,7 +48,276 @@ fn align_up(n, align) {
     return (n + align - 1) / align * align
 }
 
-fn elf_build_prefix_x64(code, code_pad_len, data, entry_off) {
+fn _elf_push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align) {
+    // Emit one Elf64_Phdr (56 bytes) into `p`.
+    push_u32_le(p, p_type)
+    push_u32_le(p, p_flags)
+    push_u64_le(p, p_offset)
+    push_u64_le(p, p_vaddr)
+    push_u64_le(p, p_paddr)
+    push_u64_le(p, p_filesz)
+    push_u64_le(p, p_memsz)
+    push_u64_le(p, p_align)
+    return nil
+}
+
+fn _bytes_align(buf, align) {
+    if buf == nil { return nil }
+    if align == nil || align <= 1 { return nil }
+    while int_mod(bytes_len(buf), align) != 0 { bytes_push(buf, 0) }
+    return nil
+}
+
+fn _bytes_add_str0(buf, s) {
+    // Append a NUL-terminated string to a byte buffer and return its starting offset.
+    if buf == nil { return nil }
+    if s == nil { s = "" }
+    var off = bytes_len(buf)
+    bytes_extend_list(buf, oren_bytes_from_string(s))
+    bytes_push(buf, 0)
+    return off
+}
+
+fn _elf_push_unique(out, seen, s) {
+    if out == nil || seen == nil { return nil }
+    if s == nil || s == "" { return nil }
+    if seen[s] != nil { return nil }
+    seen[s] = true
+    oren_list_push(out, s)
+    return nil
+}
+
+fn _elf_x64_dyn_needed_libs(user_link_libs) {
+    // Linux dynamic executables require an interpreter and a DT_NEEDED list.
+    //
+    // We always include libc + libdl (glibc-compatible); user `--link` adds more.
+    var out = []
+    var seen = {}
+    _elf_push_unique(out, seen, "libdl.so.2")
+    _elf_push_unique(out, seen, "libc.so.6")
+    if user_link_libs != nil {
+        var i = 0
+        while i < oren_list_len(user_link_libs) {
+            _elf_push_unique(out, seen, user_link_libs[i])
+            i = i + 1
+        }
+    }
+    return out
+}
+
+fn _elf_hash_sysv_u32(s) {
+    // SysV ELF hash (DT_HASH).
+    // Reference: <elf.h> / historical SysV ABI.
+    if s == nil { return 0 }
+    var h = 0
+    var i = 0
+    while i < oren_string_len(s) {
+        h = (h * 16) + (oren_string_byte_at_unchecked(s, i) & 255)
+        var g = h & 4026531840 // 0xF0000000
+        if g != 0 {
+            h = h ^ (g / 16777216) // g >> 24
+            h = h & (4294967295 - g) // h &= ~g (within 32-bit)
+        }
+        i = i + 1
+    }
+    return int_mod(h, 4294967296)
+}
+
+fn _elf_x64_append_dyn_metadata(ctx, base, data_file_off, user_link_libs) {
+    // Append the minimal ELF dynamic-link metadata to `ctx["data"]` and return offsets needed
+    // to build PT_INTERP/PT_DYNAMIC program headers.
+    //
+    // Contract (rolling):
+    // - Dynamic linking is only enabled when the user passes `--link` on linux/x64.
+    // - Codegen must reserve GOT slots for required imported symbols and expose them via:
+    //     ctx["elf_dyn_imports"] = [{"name": "...", "got_off": <u64>}, ...]
+    //
+    if ctx == nil { return nil }
+    if ctx["data"] == nil { ctx["data"] = bytes_new() }
+    var data = ctx["data"]
+
+    var imports = ctx["elf_dyn_imports"]
+    if imports == nil { imports = [] }
+
+    // --- PT_INTERP payload ---
+    // Use the conventional x86_64 interpreter path on glibc-based distros.
+    // (WSL2/Ubuntu provides /lib64/ld-linux-x86-64.so.2 as a stable entry point.)
+    var interp = "/lib64/ld-linux-x86-64.so.2"
+    var interp_bytes = oren_bytes_from_string(interp)
+    _bytes_align(data, 1)
+    var interp_off = bytes_len(data)
+    bytes_extend_list(data, interp_bytes)
+    bytes_push(data, 0)
+    var interp_len = oren_list_len(interp_bytes) + 1
+
+    // --- Build dynstr (DT_STRTAB) ---
+    var dynstr = bytes_new()
+    bytes_push(dynstr, 0) // leading NUL
+
+    var needed = _elf_x64_dyn_needed_libs(user_link_libs)
+    var needed_dynstr_offs = {}
+    var i_need = 0
+    while i_need < oren_list_len(needed) {
+        var lib = needed[i_need]
+        needed_dynstr_offs[lib] = _bytes_add_str0(dynstr, lib)
+        i_need = i_need + 1
+    }
+
+    var sym_dynstr_offs = {}
+    var i_imp = 0
+    while i_imp < oren_list_len(imports) {
+        var imp = imports[i_imp]
+        var nm = imp["name"]
+        if nm == nil || nm == "" {
+            print("x64 elf: internal: dyn import missing name")
+            oren_exit(1)
+            return nil
+        }
+        if sym_dynstr_offs[nm] == nil {
+            sym_dynstr_offs[nm] = _bytes_add_str0(dynstr, nm)
+        }
+        i_imp = i_imp + 1
+    }
+
+    // --- Build dynsym (DT_SYMTAB) ---
+    // Elf64_Sym is 24 bytes.
+    var dynsym = bytes_new()
+    // STN_UNDEF (all zeros)
+    push_u64_le(dynsym, 0); push_u64_le(dynsym, 0); push_u64_le(dynsym, 0)
+
+    // Each import becomes one undefined global function symbol entry.
+    // st_info = (STB_GLOBAL<<4) | STT_FUNC = 0x12
+    var i_sym = 0
+    while i_sym < oren_list_len(imports) {
+        var imp2 = imports[i_sym]
+        var nm2 = imp2["name"]
+        var name_off = sym_dynstr_offs[nm2]
+        if name_off == nil { name_off = 0 }
+
+        push_u32_le(dynsym, name_off)
+        bytes_push(dynsym, 18) // st_info
+        bytes_push(dynsym, 0)  // st_other
+        push_u16_le(dynsym, 0) // st_shndx = SHN_UNDEF
+        push_u64_le(dynsym, 0) // st_value
+        push_u64_le(dynsym, 0) // st_size
+        i_sym = i_sym + 1
+    }
+
+    // --- Build .rela.dyn (DT_RELA) ---
+    // Elf64_Rela is 24 bytes.
+    var rela = bytes_new()
+    var rela_type_glob_dat = 6 // R_X86_64_GLOB_DAT (from elf.h)
+    var i_rel = 0
+    while i_rel < oren_list_len(imports) {
+        var imp3 = imports[i_rel]
+        var got_off = imp3["got_off"]
+        if got_off == nil {
+            print("x64 elf: internal: dyn import missing got_off for " + imp3["name"])
+            oren_exit(1)
+            return nil
+        }
+        // dynsym index: 1 + i_rel (STN_UNDEF is 0)
+        var sym_idx = 1 + i_rel
+        var r_offset = base + data_file_off + got_off
+        var r_info = sym_idx * 4294967296 + rela_type_glob_dat
+        push_u64_le(rela, r_offset)
+        push_u64_le(rela, r_info)
+        push_u64_le(rela, 0) // r_addend
+        i_rel = i_rel + 1
+    }
+
+    // --- Build SysV hash (DT_HASH) over dynsym ---
+    // We keep this tiny (1 bucket) because the executable does not export symbols.
+    var hash = bytes_new()
+    var nchain = 1 + oren_list_len(imports)
+    var nbucket = 1
+    push_u32_le(hash, nbucket)
+    push_u32_le(hash, nchain)
+    // buckets[nbucket]
+    push_u32_le(hash, 0)
+    // chains[nchain]
+    var ci = 0
+    while ci < nchain { push_u32_le(hash, 0); ci = ci + 1 }
+
+    // Fill bucket 0 chain with all non-zero symbols in order (deterministic).
+    // This is valid and keeps lookup code simple.
+    var last = 0
+    var si = 1
+    while si < nchain {
+        if last == 0 {
+            // buckets[0] at offset 8 in the hash table
+            set_u32_le(hash, 8, si)
+        } else {
+            // chains array starts at offset: 8 + 4*nbucket
+            var chains_off = 8 + 4 * nbucket
+            set_u32_le(hash, chains_off + 4 * last, si)
+        }
+        last = si
+        si = si + 1
+    }
+
+    // --- Append all dynamic tables into the main `.data` blob ---
+    _bytes_align(data, 8)
+    var hash_off = bytes_len(data)
+    bytes_extend(data, hash)
+
+    _bytes_align(data, 8)
+    var dynstr_off = bytes_len(data)
+    bytes_extend(data, dynstr)
+
+    _bytes_align(data, 8)
+    var dynsym_off = bytes_len(data)
+    bytes_extend(data, dynsym)
+
+    _bytes_align(data, 8)
+    var rela_off = bytes_len(data)
+    bytes_extend(data, rela)
+
+    // --- Build .dynamic (DT_DYNAMIC) ---
+    var dyn = bytes_new()
+    // DT_NEEDED entries (d_val offsets into dynstr)
+    var i_need2 = 0
+    while i_need2 < oren_list_len(needed) {
+        var lib2 = needed[i_need2]
+        var off2 = needed_dynstr_offs[lib2]
+        if off2 == nil { off2 = 0 }
+        push_u64_le(dyn, 1)      // DT_NEEDED
+        push_u64_le(dyn, off2)   // d_val (string table offset)
+        i_need2 = i_need2 + 1
+    }
+
+    var data_addr = base + data_file_off
+    var hash_addr = data_addr + hash_off
+    var dynstr_addr = data_addr + dynstr_off
+    var dynsym_addr = data_addr + dynsym_off
+    var rela_addr = data_addr + rela_off
+
+    // DT_HASH, DT_STRTAB, DT_SYMTAB (pointers)
+    push_u64_le(dyn, 4);  push_u64_le(dyn, hash_addr)   // DT_HASH
+    push_u64_le(dyn, 5);  push_u64_le(dyn, dynstr_addr) // DT_STRTAB
+    push_u64_le(dyn, 6);  push_u64_le(dyn, dynsym_addr) // DT_SYMTAB
+
+    // DT_STRSZ, DT_SYMENT
+    push_u64_le(dyn, 10); push_u64_le(dyn, bytes_len(dynstr)) // DT_STRSZ
+    push_u64_le(dyn, 11); push_u64_le(dyn, 24)               // DT_SYMENT (Elf64_Sym)
+
+    // DT_RELA, DT_RELASZ, DT_RELAENT
+    push_u64_le(dyn, 7);  push_u64_le(dyn, rela_addr)        // DT_RELA
+    push_u64_le(dyn, 8);  push_u64_le(dyn, bytes_len(rela))  // DT_RELASZ
+    push_u64_le(dyn, 9);  push_u64_le(dyn, 24)               // DT_RELAENT (Elf64_Rela)
+
+    // DT_NULL terminator
+    push_u64_le(dyn, 0); push_u64_le(dyn, 0)
+
+    _bytes_align(data, 8)
+    var dynamic_off = bytes_len(data)
+    bytes_extend(data, dyn)
+    var dynamic_len = bytes_len(dyn)
+
+    return {"interp_off": interp_off, "interp_len": interp_len, "dynamic_off": dynamic_off, "dynamic_len": dynamic_len}
+}
+
+fn elf_build_prefix_x64(base, hdr_size, phdrs, entry_off) {
     var p = bytes_new()
 
     // ELF Header (64 bytes)
@@ -63,61 +332,38 @@ fn elf_build_prefix_x64(code, code_pad_len, data, entry_off) {
     push_u16_le(p, 62)  // EM_X86_64
     push_u32_le(p, 1)   // EV_CURRENT
 
-    var base = abi.x64_v0_linux_elf_base_addr()
-    var hdr_size = abi.x64_v0_linux_elf_hdr_size_bytes()
     push_u64_le(p, base + hdr_size + entry_off) // e_entry
     push_u64_le(p, 64)  // e_phoff
     push_u64_le(p, 0)   // e_shoff
     push_u32_le(p, 0)   // e_flags
     push_u16_le(p, 64)  // e_ehsize
     push_u16_le(p, 56)  // e_phentsize
-    push_u16_le(p, 2)   // e_phnum
+    push_u16_le(p, oren_list_len(phdrs))   // e_phnum
     push_u16_le(p, 64)  // e_shentsize
     // We always emit a small section table at the end of the file:
     //  0: NULL, 1: .text, 2: .data, 3: .shstrtab
     push_u16_le(p, 4)   // e_shnum
     push_u16_le(p, 3)   // e_shstrndx
 
-    var page = 4096
-    var text_filesz = hdr_size + bytes_len(code) + code_pad_len
-    // Caller is expected to align the start of data to a page boundary by choosing code_pad_len.
-    if int_mod(text_filesz, page) != 0 {
-        // Fallback: round up so segment offsets stay valid even if caller forgot.
-        text_filesz = align_up(text_filesz, page)
+    // Program headers
+    var i = 0
+    while i < oren_list_len(phdrs) {
+        var ph = phdrs[i]
+        _elf_push_phdr(p,
+                       ph["type"],
+                       ph["flags"],
+                       ph["offset"],
+                       ph["vaddr"],
+                       ph["paddr"],
+                       ph["filesz"],
+                       ph["memsz"],
+                       ph["align"])
+        i = i + 1
     }
-    var data_off = text_filesz
-
-    // Program Header #1: RX (headers + code + padding)
-    push_u32_le(p, 1) // PT_LOAD
-    push_u32_le(p, 5) // PF_R | PF_X
-    push_u64_le(p, 0)       // p_offset
-    push_u64_le(p, base)    // p_vaddr
-    push_u64_le(p, base)    // p_paddr
-    push_u64_le(p, text_filesz) // p_filesz
-    push_u64_le(p, text_filesz) // p_memsz
-    push_u64_le(p, 4096)    // p_align
-
-    // Program Header #2: RW (data blob)
-    push_u32_le(p, 1) // PT_LOAD
-    push_u32_le(p, 6) // PF_R | PF_W
-    push_u64_le(p, data_off)        // p_offset
-    push_u64_le(p, base + data_off) // p_vaddr
-    push_u64_le(p, base + data_off) // p_paddr
-    push_u64_le(p, bytes_len(data)) // p_filesz
-    push_u64_le(p, bytes_len(data)) // p_memsz
-    push_u64_le(p, 4096)    // p_align
-
     return p
 }
 
 fn elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
-    // Rolling status: Linux native dynamic linking (`--link`) is not implemented yet.
-    // Fail fast so users don't get a silently-wrong artifact.
-    if link_libs != nil && oren_list_len(link_libs) != 0 {
-        print("x64 linux native backend: dynamic linking (--link) is not implemented yet")
-        oren_exit(1)
-    }
-
     // Bounded timing summary for diagnosing x64 native build throughput without huge logs.
     // Enable with: OREN_TRACE_X64_EMIT_SUMMARY=1
     var trace_sum = oren_env("OREN_TRACE_X64_EMIT_SUMMARY") != nil
@@ -127,7 +373,20 @@ fn elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_dep
     var t_fix_done = 0
     if trace_sum { t0 = oren_time_now_ns() }
 
-    var ctx = codegen.native_compile_program_x64(linked, {"os": "linux", "arch": "x64", "debug": debug_mode, "no_gc": no_gc, "call_depth_max": call_depth_max, "capsule": capsule, "cap_allow_domains": cap_allow_domains, "link_libs": link_libs})
+    var base = abi.x64_v0_linux_elf_base_addr()
+    var dyn = link_libs != nil && oren_list_len(link_libs) != 0
+
+    // Program header count:
+    // - static v0: 2 PT_LOAD segments (RX + RW)
+    // - dynamic (when `--link` is used): add PT_PHDR, PT_INTERP, PT_DYNAMIC, PT_GNU_STACK
+    var phnum = 2
+    if dyn { phnum = 6 }
+    var hdr_size = 64 + 56 * phnum
+
+    // Provide the derived `.text` base so panic symbolication/debug tables stay accurate
+    // even when we add more program headers for dynamic linking.
+    var platform = {"os": "linux", "arch": "x64", "debug": debug_mode, "no_gc": no_gc, "call_depth_max": call_depth_max, "capsule": capsule, "cap_allow_domains": cap_allow_domains, "link_libs": link_libs, "x64_text_base_addr": base + hdr_size}
+    var ctx = codegen.native_compile_program_x64(linked, platform)
     if ctx == nil { return nil }
     codegen.native_emit_errors_and_exit(ctx)
     if trace_sum { t_compile_done = oren_time_now_ns() }
@@ -143,8 +402,6 @@ fn elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_dep
     //   [ELF hdrs] [code] [pad-to-page] [data]
     //
     // All fixup positions are relative to the start of code.
-    var base = abi.x64_v0_linux_elf_base_addr()
-    var hdr_size = abi.x64_v0_linux_elf_hdr_size_bytes()
     var text_base = base + hdr_size
     var code_len = bytes_len(code)
 
@@ -157,6 +414,16 @@ fn elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_dep
     var pi = 0
     while pi < pad_len { bytes_push(code_pad, 0); pi = pi + 1 }
     var data_base_off = code_len + bytes_len(code_pad)
+
+    // If `--link` is used, append ELF dynamic-link metadata (PT_INTERP/PT_DYNAMIC, DT_NEEDED, relocations).
+    // This must happen after `data_file_off` is known, because relocations store absolute target addresses.
+    var dyn_meta = nil
+    if dyn {
+        dyn_meta = _elf_x64_append_dyn_metadata(ctx, base, data_file_off, link_libs)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+        // Data buffer may have been extended by `_elf_x64_append_dyn_metadata`.
+        data = ctx["data"]
+    }
 
     if trace_sum { t_fix_start = oren_time_now_ns() }
     var i = 0
@@ -200,6 +467,19 @@ fn elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_dep
             if disp3 < 0 { disp3 = 4294967296 + disp3 }
             set_u32_le(code, disp_pos2, disp3)
         }
+        else if f["type"] == "rip_data_mov_rax" {
+            // Patch mov rax, [rip+disp32] where disp32 points into appended data.
+            //
+            // Encoding is 7 bytes: 48 8B 05 <disp32>, so disp field begins at +3 and next RIP is +7.
+            var disp_posm = f["pos"]
+            var data_offm = f["data_off"]
+            var insn_startm = disp_posm - 3
+            var next_ripm = text_base + (insn_startm + 7)
+            var target_addrm = text_base + data_base_off + data_offm
+            var dispm = target_addrm - next_ripm
+            if dispm < 0 { dispm = 4294967296 + dispm }
+            set_u32_le(code, disp_posm, dispm)
+        }
         else if f["type"] == "data_fnobj_code_ptr" {
             // Patch the code_ptr field inside a `{code_ptr, env_ptr}` fnobj record.
             //
@@ -242,7 +522,29 @@ fn elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_dep
     }
     if trace_sum { t_fix_done = oren_time_now_ns() }
 
-    var prefix = elf_build_prefix_x64(code, bytes_len(code_pad), data, ctx["entry_off"])
+    // Build program headers based on the final layout.
+    //
+    // text_filesz is the full size of the RX PT_LOAD, which ends at the start of data.
+    var text_filesz = data_file_off
+    var phdrs = []
+    if dyn {
+        // PT_PHDR (header table itself)
+        oren_list_push(phdrs, {"type": 6, "flags": 4, "offset": 64, "vaddr": base + 64, "paddr": base + 64, "filesz": phnum * 56, "memsz": phnum * 56, "align": 8})
+        // PT_INTERP
+        oren_list_push(phdrs, {"type": 3, "flags": 4, "offset": data_file_off + dyn_meta["interp_off"], "vaddr": base + data_file_off + dyn_meta["interp_off"], "paddr": base + data_file_off + dyn_meta["interp_off"], "filesz": dyn_meta["interp_len"], "memsz": dyn_meta["interp_len"], "align": 1})
+    }
+    // PT_LOAD RX: headers + code + padding
+    oren_list_push(phdrs, {"type": 1, "flags": 5, "offset": 0, "vaddr": base, "paddr": base, "filesz": text_filesz, "memsz": text_filesz, "align": 4096})
+    // PT_LOAD RW: data blob
+    oren_list_push(phdrs, {"type": 1, "flags": 6, "offset": data_file_off, "vaddr": base + data_file_off, "paddr": base + data_file_off, "filesz": bytes_len(data), "memsz": bytes_len(data), "align": 4096})
+    if dyn {
+        // PT_DYNAMIC
+        oren_list_push(phdrs, {"type": 2, "flags": 6, "offset": data_file_off + dyn_meta["dynamic_off"], "vaddr": base + data_file_off + dyn_meta["dynamic_off"], "paddr": base + data_file_off + dyn_meta["dynamic_off"], "filesz": dyn_meta["dynamic_len"], "memsz": dyn_meta["dynamic_len"], "align": 8})
+        // PT_GNU_STACK (RW, no execute)
+        oren_list_push(phdrs, {"type": 1685382481, "flags": 6, "offset": 0, "vaddr": 0, "paddr": 0, "filesz": 0, "memsz": 0, "align": 16})
+    }
+
+    var prefix = elf_build_prefix_x64(base, hdr_size, phdrs, ctx["entry_off"])
     bytes_extend(prefix, code)
     bytes_extend(prefix, code_pad)
     bytes_extend(prefix, data)
@@ -256,8 +558,8 @@ fn elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_dep
     //   [ELF hdrs + PHDRs] [code] [pad] [data] [shstrtab] [SHT]
     //
     // NOTE: section tables are not mapped by PT_LOAD; they are metadata for tools.
-    var base2 = abi.x64_v0_linux_elf_base_addr()
-    var hdr2 = abi.x64_v0_linux_elf_hdr_size_bytes()
+    var base2 = base
+    var hdr2 = hdr_size
     var code_off = hdr2
     var code_addr = base2 + hdr2
     var data_off2 = data_file_off

@@ -136,7 +136,8 @@ References:
          - fragmentation + binary frames + streaming recv API
          - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + DNS layer
      - Native FFI / dynamic linking parity (rolling):
-       - Deliverable: Linux ELF `DT_NEEDED` + PLT/GOT relocations (or an explicit dynamic-loader strategy) so `ffi` becomes real on `x64-linux` and `arm64-linux`.
+       - Done (x64-linux): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (`R_X86_64_GLOB_DAT`) so `ffi` works via a `dlsym` resolver.
+       - Remaining: arm64-linux dynamic ELF + FFI parity (and optionally a fuller PLT/JMPREL story for direct imports later).
      - Shared library output parity (native `--lib`/`--shared`):
        - Remaining: x86_64 ELF `.so` and x86_64 Windows `.dll` emission (exports + metadata/header hooks).
      - Concurrency substrate convergence:
@@ -171,13 +172,15 @@ References:
   - Current reality:
     - **macOS (Mach‑O):** `ffi` works via dyld binding opcodes + `--link` dylibs.
     - **Windows x64 (PE):** `ffi` works via lazy `LoadLibraryA`/`GetProcAddress` stubs; `--link` supplies DLL search names/paths (kernel32 searched by default).
-    - **Linux (ELF):** dynamic linking is not implemented yet; calling an `ffi` symbol panics (FFI not functional yet).
+    - **Linux (ELF):**
+      - **x64-linux:** `--link` enables dynamic linking; `ffi` works via a lazy `dlsym(RTLD_DEFAULT, "...")` resolver (remote WSL2 gate).
+      - **arm64-linux:** dynamic linking is not implemented yet; calling an `ffi` symbol panics.
   - Regression gates (current):
     - Remote Win11: `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_kernel32.oren` (stage1 + stage2).
     - Local sanity: `make verify-native-x64-compile` compiles Windows FFI examples (including `--link msvcrt.dll` propagation checks).
-    - Linux bring-up contract: `scripts/verify_native_matrix.sh --targets arm64-linux` (and `x64-wsl`) runs `tests/native/ffi_linux_unresolved_panics.oren` and asserts:
-      - the program fails with `ffi unresolved:` (until ELF dynamic linking is implemented), and
-      - the debug stack trace includes `oren_panic` (runtime frame symbolization under rtobj cache mode).
+    - Linux contracts (native backends):
+      - Panic (arm64-linux + x64-linux without `--link`): `scripts/verify_native_matrix.sh` runs `tests/native/ffi_linux_unresolved_panics.oren` and asserts `ffi unresolved:` + `oren_panic`.
+      - OK (x64-linux with `--link`): `scripts/verify_native_matrix.sh --targets x64-wsl` runs `tests/native/ffi_linux_strlen_ok.oren` (stage1 + stage2).
 
 - Windows: complete a coherent PROC story (pid/kill/wait semantics or define a cross-OS `sys_spawn` boundary).
   - Fixed (2026-01-04): `oren_system(_timeout)` now works on `x64-windows` (CreateProcessA path).

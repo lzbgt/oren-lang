@@ -127,6 +127,16 @@ fn x64_v0_windows_text_rva() { return 4096 } // 0x1000
 fn x64_v0_windows_text_base_addr() { return x64_v0_windows_pe_image_base() + x64_v0_windows_text_rva() }
 
 fn x64_v0_text_base_addr(platform) {
+    // Rolling override hook:
+    // Some emitters (e.g. dynamic ELF with extra program headers) change the header size,
+    // so the `.text` base is not always `base + (Ehdr + 2*Phdr)`.
+    //
+    // Keep the default constants for the v0 fixed-base emitters, but allow an emitter to
+    // provide a computed base for stack-trace symbolication and debug tables.
+    if platform != nil {
+        var override = platform["x64_text_base_addr"]
+        if override != nil { return override }
+    }
     var os = nil
     if platform != nil { os = platform["os"] }
     if _abi_str_eq(os, "windows") { return x64_v0_windows_text_base_addr() }

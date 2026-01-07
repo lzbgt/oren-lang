@@ -29,7 +29,10 @@ bring-up fixtures are **ABI facts**, not language constraints.
   - **Linux**: ELF 64-bit (`ET_EXEC`) with **two PT_LOAD segments** (W^X):
     - RX: headers + code
     - RW: data blob (mutable globals like call-depth counters, plus string literals / fnobjs / symtab)
-    No dynamic linker integration yet (no `DT_NEEDED` / PLT / GOT relocations in v0).
+
+    Rolling dynamic-link status:
+    - **x64-linux:** when `--link` is used, the ELF emitter produces a dynamically-linked executable with `PT_INTERP` + `PT_DYNAMIC` and a minimal `DT_NEEDED` + `.rela.dyn` relocation set (enough to support `ffi` via a `dlsym` resolver).
+    - **arm64-linux:** `--link` is not implemented yet; `ffi` symbols still panic when called.
   - **Windows (x86_64 bring-up)**: PE32+ with a minimal import table for `kernel32` and a **3-section layout**:
     - `.text` (RX) code
     - `.rdata` (R) import table / constant metadata
@@ -98,7 +101,9 @@ bring-up fixtures are **ABI facts**, not language constraints.
   Rolling guidance:
   - Prefer `+` everywhere.
   - `string_concat(a, b)` exists as a low-level native runtime helper but is treated as an internal primitive; the repo’s curated tests and audits intentionally avoid using it in higher-level code.
-- **Linux FFI/linking:** the ELF emitter does not implement dynamic linking yet; calling an `ffi` symbol panics and `--link` is rejected (no `DT_NEEDED`/PLT/GOT relocation support yet).
+- **Linux FFI/linking (rolling):**
+  - **x64-linux:** `--link` enables dynamic linking; `ffi` is implemented via a lazy `dlsym(RTLD_DEFAULT, "...")` resolver (the ELF emitter emits `DT_NEEDED` and relocates a small GOT slot for `dlsym`).
+  - **arm64-linux:** dynamic linking is not implemented yet; calling an `ffi` symbol panics and `--link` is rejected.
 - **Windows FFI/linking:** no general user import-table mapping yet; `ffi` uses lazy runtime resolution (LoadLibrary/GetProcAddress) instead.
 - **W^X (Linux):**
   - Linux ELF uses **separate PT_LOAD segments**: RX (headers+code) + RW (data blob). No RWX pages.
