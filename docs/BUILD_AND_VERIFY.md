@@ -223,6 +223,9 @@ Cross‑arch Tier‑1 matrix (stage1 + stage2):
 # x86_64 self-host: run the compiler binary on remote Win11 + WSL2 and compile+run a tiny program
 ./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
 
+# Optional: stage0→stage1 bootstrap on native Windows using MSVC cl.exe (VS2022)
+./scripts/verify_stage0_windows_bootstrap.sh
+
 # Local sanity gate: compile-only for x64-linux + x64-windows (stage1 + stage2)
 make verify-native-x64-compile
 ```
@@ -233,6 +236,7 @@ Makefile shortcuts (macOS/arm64 host workflow):
 make verify-native-matrix
 make verify-native-net
 make verify-selfhost-x64
+make verify-stage0-win
 make verify-tier1
 ```
 

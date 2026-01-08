@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-01-07
+**Last updated:** 2026-01-08
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order,
 plus the **regression gates** that must stay green.
@@ -149,8 +149,10 @@ References:
          - HTTP hostname support: `http.get_text_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
          - Regression: `tests/native/test_dns_loopback.oren` (stage1 + stage2; all Tier‑1 via `./scripts/verify_native_net_matrix.sh`).
          - Regression: `tests/native/test_http_get_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
-         - WebSocket hostname support: `ws.connect_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
+       - WebSocket hostname support: `ws.connect_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
          - Regression: `tests/native/test_ws_echo_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
+       - Active: x64-windows WebSocket is still **regression-sensitive**: even “semantics-no-op” changes can re-surface ping/pong timeouts.
+         - Track: `docs/NET_WEBSOCKET.md` (“Regression sensitivity (x64-windows)”).
        - Next: structured HTTP client/server surface (headers map + status + streaming body), then production WebSocket:
          - fragmentation + binary frames + streaming recv API
          - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + system resolver (Windows DNS APIs + AAAA; POSIX `resolv.conf` AAAA support)
@@ -186,7 +188,8 @@ References:
   - `oren_getentropy(ptr,len)` (native runtime) backed by `getentropy` (macOS) / `getrandom` (Linux) / `BCryptGenRandom` (Win11)
   - `std:crypto/rand` used by WebSocket client key + masking (no more time-seeded xorshift in stdlib)
   - Capsule: `oren_getentropy` is gated by `@cap.requires(domain="RNG")` (allow via `--cap-allow-domains RNG` / `OREN_CAP_ALLOW_DOMAINS=...`).
-  - Fixed (2026-01-07): Win11 WS echo loopback flake eliminated by hardening NET read/write against spurious readiness timeouts (optimistic `recv`/`send` first; retry until deadline instead of returning `ETIMEDOUT` immediately).
+  - Fixed (2026-01-07): Win11 WS echo loopback stability was materially improved by hardening NET read/write against spurious readiness timeouts (optimistic `recv`/`send` first; retry until deadline instead of returning `ETIMEDOUT` immediately).
+    - Remaining: the x64-windows path is still regression-sensitive to small binary layout changes; treat `./scripts/verify_native_net_matrix.sh --targets x64-win` as a hard gate (see `docs/NET_WEBSOCKET.md`).
   - Fixed (2026-01-07): ping/pong/close frames are handled in `ws.recv_text` (auto-pong + ignore pongs), and `ws.send_ping_{client,server}` exists.
   - Fixed (2026-01-07): client key + masking use OS entropy (`oren_getentropy`), not time-seeded xorshift.
 

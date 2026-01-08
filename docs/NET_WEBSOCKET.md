@@ -70,3 +70,13 @@ Win11 note:
 
 - WinSock `select()` can occasionally report a timeout even when data becomes readable/writable shortly after (observed during Tier‑1 bring-up).
 - The native NET runtime now treats readiness waits as advisory: it tries `recv`/`send` first and, on a reported timeout, retries until the caller deadline is actually exhausted.
+
+### Regression sensitivity (x64-windows)
+
+Even “semantics‑no‑op” changes (e.g. adding debug‑only branches in the native runtime) can shift the stage1/stage2 binary layout enough to **re‑surface** latent x64‑windows backend/runtime bugs and show up as WebSocket ping/pong timeouts (while TCP/UDP/HTTP still pass).
+
+Practical guidance:
+
+- Treat `./scripts/verify_native_net_matrix.sh --targets x64-win` as a **hard gate** for any runtime/backend work, even if the change “shouldn’t affect NET”.
+- If you suspect a rare flake, reproduce it **without huge logs** by running:
+  - `OREN_WS_ECHO_N=50 ./scripts/verify_native_net_matrix.sh --targets x64-win` (or run `tests/native/test_ws_echo_loopback.oren` directly on Win11/WSL2).

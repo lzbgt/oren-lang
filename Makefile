@@ -1,7 +1,7 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick
 .PHONY: verify-native-x64-compile
-.PHONY: verify-native-matrix verify-native-net verify-selfhost-x64 verify-tier1
+.PHONY: verify-native-matrix verify-native-net verify-selfhost-x64 verify-stage0-win verify-tier1
 .PHONY: bench-native-compile
 .PHONY: perf-guard-native-hit
 .PHONY: rtobj-seed
@@ -381,6 +381,13 @@ verify-selfhost-x64: oren_stage2
 		exit 2; \
 	fi
 	@./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
+
+verify-stage0-win:
+	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
+		echo "ERROR: verify-stage0-win expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
+		exit 2; \
+	fi
+	@./scripts/verify_stage0_windows_bootstrap.sh
 
 verify-tier1: oren_stage2
 	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \

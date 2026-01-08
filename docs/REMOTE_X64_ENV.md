@@ -75,6 +75,12 @@ To support native Windows bring-up, we also keep a small regression gate that pr
 ./scripts/verify_stage0_windows_bootstrap.sh
 ```
 
+Makefile shortcut (arm64 macOS host workflow):
+
+```bash
+make verify-stage0-win
+```
+
 Local Windows note (rolling):
 
 - If you run `make` on a Windows host under MSYS2/Git Bash/Cygwin, the Makefile emits `*.exe` outputs (`oren.exe`, `oren_stage2.exe`) and the local smoke scripts under `scripts/` will also suffix temporary artifacts with `.exe`.
