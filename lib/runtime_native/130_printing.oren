@@ -359,7 +359,11 @@ fn oren_type_tag(v) {
     if oren_is_buf(v) == true {
         // typed buffer tags follow the C enum ordering (u8=9, i32=10, i64=11, f32=12, f64=13)
         if oren_is_u8_buf(v) == true { return 9 }
-        // Best-effort: unknown buffer kind.
+        if oren_is_i32_buf(v) == true { return 10 }
+        if oren_is_i64_buf(v) == true { return 11 }
+        if oren_is_f32_buf(v) == true { return 12 }
+        if oren_is_f64_buf(v) == true { return 13 }
+        // Unknown buffer kind.
         return 9
     }
     // Best-effort: treat all other immediates as ints.

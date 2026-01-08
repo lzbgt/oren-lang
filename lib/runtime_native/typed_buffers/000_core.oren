@@ -54,6 +54,40 @@ fn oren_is_u8_buf(v) {
     return true
 }
 
+// Safe type predicates for typed buffers (native backend).
+// These are used by `oren_type_tag`/`oren_type_name` for basic reflection and varargs dispatch.
+@oren.keep
+fn oren_is_i32_buf(v) {
+    if native_buf_as_node(v) == 0 { return false }
+    if ptr_get(v + 32) != BUF_TAG_I32 { return false }
+    if ptr_get(v + 8) != 4 { return false }
+    return true
+}
+
+@oren.keep
+fn oren_is_i64_buf(v) {
+    if native_buf_as_node(v) == 0 { return false }
+    if ptr_get(v + 32) != BUF_TAG_I64 { return false }
+    if ptr_get(v + 8) != 8 { return false }
+    return true
+}
+
+@oren.keep
+fn oren_is_f32_buf(v) {
+    if native_buf_as_node(v) == 0 { return false }
+    if ptr_get(v + 32) != BUF_TAG_F32 { return false }
+    if ptr_get(v + 8) != 4 { return false }
+    return true
+}
+
+@oren.keep
+fn oren_is_f64_buf(v) {
+    if native_buf_as_node(v) == 0 { return false }
+    if ptr_get(v + 32) != BUF_TAG_F64 { return false }
+    if ptr_get(v + 8) != 8 { return false }
+    return true
+}
+
 fn native_buf_check(buf, tag, elem_size) {
     if buf == 0 { return oren_err(4, "buf: nil") }
     if native_buf_as_node(buf) == 0 { return oren_err(4, "buf: invalid buffer") }

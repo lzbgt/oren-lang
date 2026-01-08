@@ -215,13 +215,14 @@ fn test_type_tag_varargs() {
     assert_eq(tags[2], 4, 79) // string
     assert_eq(tags[3], 6, 80) // list
     assert_eq(tags[4], 7, 81) // map
-    assert_eq(tags[5], 9, 82) // buf (typed buffers are best-effort in native mode)
+    assert_eq(tags[5], 10, 82) // i32_buf
 
     assert_streq(oren_type_name(v_nil), "nil", 83)
     assert_streq(oren_type_name(v_int), "int", 84)
     assert_streq(oren_type_name(v_str), "string", 85)
     assert_streq(oren_type_name(v_list), "list", 86)
     assert_streq(oren_type_name(v_map), "map", 87)
+    assert_streq(oren_type_name(v_buf), "i32_buf", 88)
 }
 
 fn test_read_u8_buf_missing_returns_err() {

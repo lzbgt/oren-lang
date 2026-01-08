@@ -148,11 +148,13 @@ References:
 	         - Done (2026-01-08): stage1 can build stage2 on native Windows (not just run a prebuilt stage2):
 	           - Gate: `./scripts/verify_windows_stage2_from_stage1.sh` (stage0→stage1→stage2; Win11 + VS2022 + `cl.exe`)
 	           - Make shortcut: `make verify-stage2-win`
-         - Intent: `make`, `make test`, `make stage2`, `make verify-native-quick` should work under MSYS2/Git Bash/Cygwin (stage0 still uses MSVC `cl.exe`, auto-configured by stage0; see `docs/REMOTE_X64_ENV.md`).
-		     - NET stdlib maturity:
-		       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP **and HTTPS** (Content-Length + chunked; IPv4-only; no keep-alive pooling yet).
-		         - HTTPS uses `std:net/tls` (OS provider availability is tracked in `docs/NET_TLS.md`).
-		         - Deterministic HTTPS fixture uses `http.get_response_opts(..., {"tls":{...}})` + pinning (see `tests/native/test_https_get_loopback.oren`).
+	         - Intent: `make`, `make test`, `make stage2`, `make verify-native-quick` should work under MSYS2/Git Bash/Cygwin (stage0 still uses MSVC `cl.exe`, auto-configured by stage0; see `docs/REMOTE_X64_ENV.md`).
+	       - Done (2026-01-08): native runtime `oren_type_tag`/`oren_type_name` now distinguishes typed buffers (`u8_buf`, `i32_buf`, `i64_buf`, `f32_buf`, `f64_buf`) for more useful varargs dispatch.
+	         - Regression: `tests/native/test_quick_integration_native.oren` (run by `make test`, QEMU x64-linux gates, and Tier‑1 matrices).
+			     - NET stdlib maturity:
+			       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP **and HTTPS** (Content-Length + chunked; IPv4-only; no keep-alive pooling yet).
+			         - HTTPS uses `std:net/tls` (OS provider availability is tracked in `docs/NET_TLS.md`).
+			         - Deterministic HTTPS fixture uses `http.get_response_opts(..., {"tls":{...}})` + pinning (see `tests/native/test_https_get_loopback.oren`).
 		         - Hostname URLs are supported via DNS A lookup (explicit resolver injection; best-effort system default on POSIX only).
        - Done: portable `SO_KEEPALIVE` + `std:net/tcp.set_keepalive(fd, enable)` (syscall-first; translated across Darwin/Linux/Windows).
          - Regression: `tests/native/test_net_suite.oren` now asserts `sys_setsockopt(... SO_KEEPALIVE ...)` succeeds (covered by `./scripts/verify_native_net_matrix.sh`).
