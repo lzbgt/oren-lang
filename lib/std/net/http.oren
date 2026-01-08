@@ -13,8 +13,8 @@
 // while we iterate toward a full production NET stack (HTTP/2 + WebSocket + TLS + DNS).
 
 import tcp "std:net/tcp"
-import dns "std:net/dns"
 import tls "std:net/tls"
+import hostutil "std:net/host"
 
 fn _trim_right_ws_in_buf(buf, start, end) {
     var i = end
@@ -172,52 +172,8 @@ fn _build_get_request(host, path) {
     return "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\nConnection: close\r\n\r\n"
 }
 
-fn _looks_like_ipv4(host) {
-    // Conservative "is this probably an IPv4 literal?" check.
-    // (We keep it cheap; `tcp.connect` still validates.)
-    if host == nil { return 0 }
-    var n = oren_string_len(host)
-    if n <= 0 || n > 15 { return 0 }
-    var dots = 0
-    var i = 0
-    while i < n {
-        var b = ptr_get_byte(host + i) & 255
-        if b == 46 {
-            dots = dots + 1
-        } else if b < 48 || b > 57 {
-            return 0
-        }
-        i = i + 1
-    }
-    if dots != 3 { return 0 }
-    return 1
-}
-
 fn _resolve_host_ipv4(host, timeout_ms, resolver) {
-    // Returns:
-    // - {"ok":1, "ip": string, "owned":0|1} (owned=1 => caller must free(ip))
-    // - {"ok":0, "err": string}
-    if host == nil { return {"ok": 0, "err": "http: host is nil"} }
-    if _looks_like_ipv4(host) == 1 { return {"ok": 1, "ip": host, "owned": 0} }
-
-    var r0 = 0
-    if resolver != nil {
-        r0 = dns.resolve_a(resolver, host)
-    } else {
-        var dr = dns.default_resolver(timeout_ms)
-        if dr["ok"] != 1 {
-            return {"ok": 0, "err": "http: hostname requires DNS (set OREN_DNS_SERVER or pass resolver): " + dr["err"]}
-        }
-        var rconf = dr["resolver"]
-        r0 = dns.resolve_a(rconf, host)
-        // Avoid leaking env/resolv.conf strings on one-shot resolver usage.
-        dns.resolver_free(rconf)
-    }
-
-    if r0["ok"] != 1 { return {"ok": 0, "err": "http: dns failed: " + r0["err"]} }
-    var ip = r0["ip"]
-    if ip == 0 { return {"ok": 0, "err": "http: dns returned nil ip"} }
-    return {"ok": 1, "ip": ip, "owned": 1}
+    return hostutil.resolve_host_ipv4("http", host, timeout_ms, resolver)
 }
 
 fn _find_header_body_split(buf, used) {

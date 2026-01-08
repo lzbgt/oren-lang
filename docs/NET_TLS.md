@@ -56,10 +56,15 @@ The `state` field is backend-specific (pointer/handle integers), and is not acce
 
 ### 2.2 Client connect / wrap
 
-Proposed functions:
+Functions (rolling v0):
 
 - `tls.connect(host_or_ip, port, timeout_ms, opts)` → `{"ok":1,"conn":map}` or `{"ok":0,"err":string}`
   - Dial TCP + do TLS handshake.
+  - DNS behavior:
+    - if `host_or_ip` looks like an IPv4 literal, no DNS is performed
+    - otherwise, the host is resolved via DNS A query
+      - if `opts["resolver"]` is provided, it is used
+      - else `dns.default_resolver(timeout_ms)` is used internally
 - `tls.wrap_client(fd, server_name, timeout_ms, opts)` → `{"ok":1,"conn":map}` or `{"ok":0,"err":string}`
   - Wrap an already-connected TCP `fd` (useful for proxies).
 
@@ -70,6 +75,8 @@ Proposed functions:
 - `opts["insecure_skip_verify"]`: `1|0` (default: `0`) (implemented on macOS + Linux + Windows providers; see §5)
   - Intended for **offline loopback fixtures** only; callers should pin the peer cert (see §3).
 - `opts["server_name"]`: override SNI/server name when dialing by IP (used by loopback fixtures and proxies)
+  - Note: `tls.connect` does not send IPv4 literals as SNI by default; use `opts["server_name"]` when needed.
+- `opts["resolver"]`: optional DNS resolver config (`dns.resolver(...)`) used by `tls.connect` for hostname lookups.
 - `opts["pin_cert_sha256_hex"]`: optional pinned leaf certificate hash (SHA-256 of DER; hex string)
   - Enforced by `tls.wrap_client` post-handshake (so higher layers don’t duplicate pinning logic).
 

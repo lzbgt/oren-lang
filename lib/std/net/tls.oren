@@ -24,6 +24,49 @@
 
 import tcp "std:net/tcp"
 import sha256 "std:crypto/sha256"
+import hostutil "std:net/host"
+
+fn connect(host_or_ip, port, timeout_ms, opts) {
+    // Dial TCP + do a client TLS handshake.
+    //
+    // Inputs:
+    // - host_or_ip: IPv4 literal (no DNS) or hostname (resolved via DNS A query)
+    // - port: remote port
+    // - timeout_ms: passed to DNS (default resolver) and connect/handshake
+    // - opts: forwarded to wrap_client (supports `server_name`, `alpn`, pinning, etc.)
+    //
+    // DNS:
+    // - If `opts["resolver"]` is provided, it is used as the DNS resolver config.
+    // - Otherwise, `dns.default_resolver(timeout_ms)` is used internally.
+    var resolver = 0
+    if opts != nil && opts != 0 && oren_is_map(opts) == true {
+        resolver = oren_map_get_str(opts, "resolver")
+    }
+
+    var rh = hostutil.resolve_host_ipv4("tls.connect", host_or_ip, timeout_ms, resolver)
+    if rh["ok"] != 1 { return {"ok": 0, "err": rh["err"]} }
+    var ip = rh["ip"]
+    var owned_ip = rh["owned"]
+
+    var fd = tcp.connect(ip, port, timeout_ms)
+    if owned_ip == 1 { free(ip) }
+    if fd < 0 {
+        return {"ok": 0, "err": "tls.connect: connect failed (errno=" + oren_int_to_string(0 - fd) + ")"}
+    }
+
+    // Avoid sending IPv4 literals as SNI by default. For IP dials, callers can pass
+    // `opts["server_name"]` to override SNI to a hostname (common for fixtures and proxies).
+    var server_name = host_or_ip
+    if hostutil.looks_like_ipv4(host_or_ip) == 1 { server_name = 0 }
+
+    var cr = wrap_client(fd, server_name, timeout_ms, opts)
+    if oren_map_get_str(cr, "ok") != 1 {
+        // Best-effort: ensure fd isn't leaked on providers that don't close on failure.
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls.connect: " + oren_map_get_str(cr, "err")}
+    }
+    return cr
+}
 
 fn _pin_peer_cert_if_requested(conn, opts) {
     // Centralized pinning hook for deterministic offline fixtures.

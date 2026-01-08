@@ -14,8 +14,8 @@
 // (HTTP/2, TLS, DNS, streaming APIs) is tracked in `docs/TODOS.md`.
 
 import tcp "std:net/tcp"
-import dns "std:net/dns"
 import tls "std:net/tls"
+import hostutil "std:net/host"
 import sha1 "std:crypto/sha1"
 import rand "std:crypto/rand"
 import base64 "std:encoding/base64"
@@ -174,50 +174,8 @@ fn _parse_ws_url(url) {
     return {"ok": 1, "scheme": scheme, "host": host, "port": port, "path": path}
 }
 
-fn _looks_like_ipv4(host) {
-    // Conservative "is this probably an IPv4 literal?" check.
-    if host == nil { return 0 }
-    var n = oren_string_len(host)
-    if n <= 0 || n > 15 { return 0 }
-    var dots = 0
-    var i = 0
-    while i < n {
-        var b = ptr_get_byte(host + i) & 255
-        if b == 46 {
-            dots = dots + 1
-        } else if b < 48 || b > 57 {
-            return 0
-        }
-        i = i + 1
-    }
-    if dots != 3 { return 0 }
-    return 1
-}
-
 fn _resolve_host_ipv4(host, timeout_ms, resolver) {
-    // Returns:
-    // - {"ok":1, "ip": string, "owned":0|1} (owned=1 => caller must free(ip))
-    // - {"ok":0, "err": string}
-    if host == nil { return {"ok": 0, "err": "ws: host is nil"} }
-    if _looks_like_ipv4(host) == 1 { return {"ok": 1, "ip": host, "owned": 0} }
-
-    var r0 = 0
-    if resolver != nil {
-        r0 = dns.resolve_a(resolver, host)
-    } else {
-        var dr = dns.default_resolver(timeout_ms)
-        if oren_map_get_str(dr, "ok") != 1 {
-            return {"ok": 0, "err": "ws: hostname requires DNS (set OREN_DNS_SERVER or pass resolver): " + oren_map_get_str(dr, "err")}
-        }
-        var rconf = oren_map_get_str(dr, "resolver")
-        r0 = dns.resolve_a(rconf, host)
-        dns.resolver_free(rconf)
-    }
-
-    if oren_map_get_str(r0, "ok") != 1 { return {"ok": 0, "err": "ws: dns failed: " + oren_map_get_str(r0, "err")} }
-    var ip = oren_map_get_str(r0, "ip")
-    if ip == 0 { return {"ok": 0, "err": "ws: dns returned nil ip"} }
-    return {"ok": 1, "ip": ip, "owned": 1}
+    return hostutil.resolve_host_ipv4("ws", host, timeout_ms, resolver)
 }
 
 fn _find_header_body_split(buf, used) {
