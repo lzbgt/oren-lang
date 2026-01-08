@@ -217,23 +217,23 @@ Why this matters:
 
 ## 6) Quick debugging checklist (fast “where is this implemented?”)
 
-Suggested ripgrep pivots:
+Suggested grep/ripgrep pivots (avoid requiring `rg` in minimal environments):
 
 ```bash
 # Where do stdlib stable prefixes come from?
-rg -n \"_stable_std_prefix\\(\" lib/compiler/compiler/020_modules_linking.oren
+grep -n \"_stable_std_prefix\\(\" lib/compiler/compiler/020_modules_linking.oren
 
 # How does alias.member resolve to a symbol string?
-rg -n \"fn resolve_ns_name\" lib/compiler/impl_lowering.oren
+grep -n \"fn resolve_ns_name\" lib/compiler/impl_lowering.oren
 
 # Where are container wrappers inlined?
-rg -n \"Inline stdlib \\\"thin wrappers\\\"\" lib/compiler/impl_lowering.oren
+grep -n \"Inline stdlib \\\"thin wrappers\\\"\" lib/compiler/impl_lowering.oren
 
 # Where do backends inline list ops?
-rg -n \"oren_list_push\" lib/compiler/arm64_native_expr/030_lowering_c.oren lib/compiler/x64_native_program/040_emit_expr.oren
+grep -n \"oren_list_push\" lib/compiler/arm64_native_expr/030_lowering_c.oren lib/compiler/x64_native_program/040_emit_expr.oren
 
 # AVM native id mapping
-rg -n \"case 13\" lib/avm/avm_native.inc
+grep -n \"case 13\" lib/avm/avm_native.inc
 ```
 
 Shell note (zsh): if you put backticks in an unquoted command string, zsh treats them as command substitution.

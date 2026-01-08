@@ -161,7 +161,9 @@ endif
 OREN_BOOTSTRAP_CC ?=
 ifeq ($(strip $(OREN_BOOTSTRAP_CC)),)
   ifeq ($(HOST_IS_WINDOWS),1)
-    OREN_BOOTSTRAP_CC := cl
+    # Prefer explicit `cl.exe` (MSVC) for Windows host bring-up.
+    # Stage0 auto-configures the VS environment via vswhere.exe + VsDevCmd/vcvars when `--cc cl{.exe}` is selected.
+    OREN_BOOTSTRAP_CC := cl.exe
   else
     OREN_BOOTSTRAP_CC := $(CC)
   endif

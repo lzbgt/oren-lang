@@ -160,10 +160,10 @@ runtime_sources_sha256() {
 #   OREN_FORCE_RUNTIME_ASTBIN_SEED=1
 if [[ -d "$seed_dir" && -z "${OREN_FORCE_RUNTIME_ASTBIN_SEED:-}" ]]; then
   os="${platform#*-}"
-  # NOTE: `rg` exits 1 on "no matches", and this script runs with `set -euo pipefail`.
+  # NOTE: `grep` exits 1 on "no matches", and this script runs with `set -euo pipefail`.
   # Treat "no matches" as count=0 (do not abort).
   total="$(
-    (ls -1 "$seed_dir" 2>/dev/null | rg "_os_${os}_pruned3\\.astbin$" || true) | wc -l | tr -d ' '
+    (ls -1 "$seed_dir" 2>/dev/null | grep -E "_os_${os}_pruned3\\.astbin$" || true) | wc -l | tr -d ' '
   )"
 
   # Correctness guard: ensure the seed matches the current runtime sources *and* the chosen seed compiler.
@@ -184,10 +184,10 @@ if [[ -d "$seed_dir" && -z "${OREN_FORCE_RUNTIME_ASTBIN_SEED:-}" ]]; then
     want_compiler_sha="$(sha256_file "$compiler")"
 
     have_runtime_sha="$(
-      rg "^runtime_sources_sha256=" "$meta" | head -n 1 | sed -E 's/^runtime_sources_sha256=//'
+      grep -E "^runtime_sources_sha256=" "$meta" | head -n 1 | sed -E 's/^runtime_sources_sha256=//'
     )"
     have_compiler_sha="$(
-      rg "^compiler_sha256=" "$meta" | head -n 1 | sed -E 's/^compiler_sha256=//'
+      grep -E "^compiler_sha256=" "$meta" | head -n 1 | sed -E 's/^compiler_sha256=//'
     )"
 
     if [[ -n "$want_runtime_sha" && -n "$want_compiler_sha" && "$want_runtime_sha" == "$have_runtime_sha" && "$want_compiler_sha" == "$have_compiler_sha" ]]; then
@@ -210,7 +210,7 @@ extract_cache_path() {
   # Prefer a "wrote" (fresh) line; fall back to "hit" (already present).
   local line
   line="$(
-    printf "%s\n" "$log_text" | rg "cache astbin (wrote|hit) path=" | tail -n 1 || true
+    printf "%s\n" "$log_text" | grep -E "cache astbin (wrote|hit) path=" | tail -n 1 || true
   )"
   if [[ -z "$line" ]]; then
     return 1
@@ -256,7 +256,7 @@ build_one() {
   if [[ -z "$p" ]]; then
     # Fallback (robustness): if tracing isn't available, pick the newest astbin in this isolated dir.
     local base
-    base="$(ls -1t "$cache_one" 2>/dev/null | rg "\\.astbin$" | head -n 1 || true)"
+    base="$(ls -1t "$cache_one" 2>/dev/null | grep -E "\\.astbin$" | head -n 1 || true)"
     if [[ -z "$base" ]]; then
       echo "ERROR: failed to detect runtime astbin cache path for $name (see $log)" >&2
       exit 1

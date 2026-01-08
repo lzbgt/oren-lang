@@ -101,17 +101,17 @@ if [[ "$debug_flag" = "--debug" ]]; then dbg="d1"; fi
 #
 # Important: the seed directory must track backend signature bumps; otherwise `rtobj_try_load_seed_into_cache`
 # will miss and stage2-native will pay a slow cold rtobj build.
-want_bv=""
-case "$backend" in
-  arm64)
-    want_bv="$(rg -n '^var RUNTIME_OBJ_BACKEND_SIG_ARM64 = ' lib/compiler/native_runtime_obj_cache.oren 2>/dev/null | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/' || true)"
-    ;;
-  x64)
-    want_bv="$(rg -n '^var RUNTIME_OBJ_BACKEND_SIG_X64 = ' lib/compiler/native_runtime_obj_cache.oren 2>/dev/null | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/' || true)"
-    ;;
-esac
-if [[ -z "$want_bv" ]]; then
-  echo "ERROR: failed to determine runtime obj backend sig for backend=$backend" >&2
+	want_bv=""
+	case "$backend" in
+	  arm64)
+	    want_bv="$(grep -E '^var RUNTIME_OBJ_BACKEND_SIG_ARM64 = ' lib/compiler/native_runtime_obj_cache.oren 2>/dev/null | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/' || true)"
+	    ;;
+	  x64)
+	    want_bv="$(grep -E '^var RUNTIME_OBJ_BACKEND_SIG_X64 = ' lib/compiler/native_runtime_obj_cache.oren 2>/dev/null | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/' || true)"
+	    ;;
+	esac
+	if [[ -z "$want_bv" ]]; then
+	  echo "ERROR: failed to determine runtime obj backend sig for backend=$backend" >&2
   echo "Hint: check lib/compiler/native_runtime_obj_cache.oren" >&2
   exit 2
 fi
@@ -131,53 +131,53 @@ sanitize_runtime_path() {
   echo "$p" | sed -E 's#[/\\\\:]#_#g'
 }
 
-runtime_hash_from_cache() {
-  # Best-effort: reuse the compiler's persisted runtime hash cache to pick the correct rtobj key.
+	runtime_hash_from_cache() {
+	  # Best-effort: reuse the compiler's persisted runtime hash cache to pick the correct rtobj key.
   #
   # This avoids incorrectly "no-op"ing when the runtime hash changes (e.g. edits to lib/runtime_native.oren),
   # which would leave a stale seed in place and make cross-target verification fall back to a slow rtobj build.
   local base
   base="$(sanitize_runtime_path "$runtime_entry")"
-  local p="${hash_cache_dir}/${base}.hash.txt"
-  if [[ ! -f "$p" ]]; then return 1; fi
-  local line
-  line="$(rg "^hash=" "$p" 2>/dev/null | head -n 1 || true)"
-  [[ -z "$line" ]] && return 1
-  echo "${line#hash=}"
-  return 0
-}
+	  local p="${hash_cache_dir}/${base}.hash.txt"
+	  if [[ ! -f "$p" ]]; then return 1; fi
+	  local line
+	  line="$(grep -E "^hash=" "$p" 2>/dev/null | head -n 1 || true)"
+	  [[ -z "$line" ]] && return 1
+	  echo "${line#hash=}"
+	  return 0
+	}
 
 find_seed_key() {
   local want_rh="${1:-}"
   if [[ ! -d "$seed_dir" ]]; then return 1; fi
   local key
   # Prefer the explicit arch key; fall back to older `_a_unknown_` entries if present.
-  key="$(
-    (
-      ls -1t "$seed_dir" 2>/dev/null | \
-        rg "^s2_b_${backend}_" | \
-        rg "_bv_${want_bv}_" | \
-        rg "_os_${os}_" | \
-        rg "_a_${arch}_" | \
-        rg "_${dbg}_g" | \
-        { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; } | \
-        head -n 1
-    ) || true
-  )"
-  if [[ -z "$key" ]]; then
-    key="$(
-      (
-        ls -1t "$seed_dir" 2>/dev/null | \
-          rg "^s2_b_${backend}_" | \
-          rg "_bv_${want_bv}_" | \
-          rg "_os_${os}_" | \
-          rg "_a_unknown_" | \
-          rg "_${dbg}_g" | \
-          { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; } | \
-          head -n 1
-      ) || true
-    )"
-  fi
+	  key="$(
+	    (
+	      ls -1t "$seed_dir" 2>/dev/null | \
+	        grep -E "^s2_b_${backend}_" | \
+	        grep -F "_bv_${want_bv}_" | \
+	        grep -F "_os_${os}_" | \
+	        grep -F "_a_${arch}_" | \
+	        grep -F "_${dbg}_g" | \
+	        { if [[ -n "$want_rh" ]]; then grep -F "_rh_${want_rh}" || true; else cat; fi; } | \
+	        head -n 1
+	    ) || true
+	  )"
+	  if [[ -z "$key" ]]; then
+	    key="$(
+	      (
+	        ls -1t "$seed_dir" 2>/dev/null | \
+	          grep -E "^s2_b_${backend}_" | \
+	          grep -F "_bv_${want_bv}_" | \
+	          grep -F "_os_${os}_" | \
+	          grep -F "_a_unknown_" | \
+	          grep -F "_${dbg}_g" | \
+	          { if [[ -n "$want_rh" ]]; then grep -F "_rh_${want_rh}" || true; else cat; fi; } | \
+	          head -n 1
+	      ) || true
+	    )"
+	  fi
   if [[ -z "$key" ]]; then return 1; fi
   echo "$key"
   return 0
@@ -188,33 +188,33 @@ find_latest_key() {
   if [[ ! -d "$cache_dir" ]]; then return 1; fi
   # Newest first (mtime order).
   local key
-  key="$(
-    (
-      ls -1t "$cache_dir" 2>/dev/null | \
-        rg "^s2_b_${backend}_" | \
-        rg "_bv_${want_bv}_" | \
-        rg "_os_${os}_" | \
-        rg "_a_${arch}_" | \
-        rg "_${dbg}_g" | \
-        { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; } | \
-        head -n 1
-    ) || true
-  )"
-  if [[ -z "$key" ]]; then
-    # Backward-compatible fallback for older cache entries that used `_a_unknown`.
-    key="$(
-      (
-        ls -1t "$cache_dir" 2>/dev/null | \
-          rg "^s2_b_${backend}_" | \
-          rg "_bv_${want_bv}_" | \
-          rg "_os_${os}_" | \
-          rg "_a_unknown_" | \
-          rg "_${dbg}_g" | \
-          { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; } | \
-          head -n 1
-      ) || true
-    )"
-  fi
+	  key="$(
+	    (
+	      ls -1t "$cache_dir" 2>/dev/null | \
+	        grep -E "^s2_b_${backend}_" | \
+	        grep -F "_bv_${want_bv}_" | \
+	        grep -F "_os_${os}_" | \
+	        grep -F "_a_${arch}_" | \
+	        grep -F "_${dbg}_g" | \
+	        { if [[ -n "$want_rh" ]]; then grep -F "_rh_${want_rh}" || true; else cat; fi; } | \
+	        head -n 1
+	    ) || true
+	  )"
+	  if [[ -z "$key" ]]; then
+	    # Backward-compatible fallback for older cache entries that used `_a_unknown`.
+	    key="$(
+	      (
+	        ls -1t "$cache_dir" 2>/dev/null | \
+	          grep -E "^s2_b_${backend}_" | \
+	          grep -F "_bv_${want_bv}_" | \
+	          grep -F "_os_${os}_" | \
+	          grep -F "_a_unknown_" | \
+	          grep -F "_${dbg}_g" | \
+	          { if [[ -n "$want_rh" ]]; then grep -F "_rh_${want_rh}" || true; else cat; fi; } | \
+	          head -n 1
+	      ) || true
+	    )"
+	  fi
   if [[ -z "$key" ]]; then return 1; fi
   echo "$key"
   return 0
@@ -231,15 +231,15 @@ prune_seed_dir_keep() {
   #
   # Also delete legacy `_a_unknown_` keys once we have an arch-qualified key.
   local names
-  names="$(
-    (
-      ls -1 "$seed_dir" 2>/dev/null | \
-        rg "^s2_b_${backend}_" | \
-        rg "_os_${os}_" | \
-        rg "_${dbg}_g" | \
-        { if [[ -n "$want_rh" ]]; then rg "_rh_${want_rh}" || true; else cat; fi; }
-    ) || true
-  )"
+	  names="$(
+	    (
+	      ls -1 "$seed_dir" 2>/dev/null | \
+	        grep -E "^s2_b_${backend}_" | \
+	        grep -F "_os_${os}_" | \
+	        grep -F "_${dbg}_g" | \
+	        { if [[ -n "$want_rh" ]]; then grep -F "_rh_${want_rh}" || true; else cat; fi; }
+	    ) || true
+	  )"
   [[ -z "$names" ]] && return 0
 
   while IFS= read -r nm; do
