@@ -1,0 +1,29 @@
+import pem "std:crypto/pem"
+import strings "std:strings"
+
+fn _expect(cond, code) {
+    if cond != true { exit(code) }
+    return nil
+}
+
+fn main() {
+    // Base64 of bytes [1,2,3,4] is "AQIDBA==".
+    var s = "-----BEGIN TEST-----\nAQIDBA==\n-----END TEST-----\n"
+    var blocks = pem.decode_blocks(s)
+    _expect(!oren_is_err(blocks), 10)
+    _expect(oren_list_len(blocks) == 1, 11)
+    var b0 = blocks[0]
+    _expect(b0 != nil, 12)
+    _expect(strings.streq(b0["type"], "TEST"), 13)
+    var bs = b0["bytes"]
+    _expect(bs != nil, 14)
+    _expect(oren_buf_len(bs) == 4, 15)
+    var p = native_buf_data_ptr(bs)
+    _expect(p != 0, 16)
+    _expect((ptr_get_byte(p + 0) & 255) == 1, 17)
+    _expect((ptr_get_byte(p + 1) & 255) == 2, 18)
+    _expect((ptr_get_byte(p + 2) & 255) == 3, 19)
+    _expect((ptr_get_byte(p + 3) & 255) == 4, 20)
+    exit(0)
+}
+

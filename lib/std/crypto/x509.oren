@@ -1,0 +1,19 @@
+// X.509 helpers (rolling v0)
+//
+// Goal:
+// - Provide small utilities used by TLS/signing layers without tying them to `std:net`.
+//
+// Non-goals (v0):
+// - full ASN.1 / DER parsing
+// - full certificate chain validation logic
+//
+// API (v0):
+// - `sha256_hex_der(der_bytes)` -> hex string of SHA-256 over DER bytes
+
+import sha256 "std:crypto/sha256"
+
+fn sha256_hex_der(der_bytes) {
+    if der_bytes == nil { return sha256.sha256_hex(oren_u8_buf_new(0)) }
+    return sha256.sha256_hex(der_bytes)
+}
+

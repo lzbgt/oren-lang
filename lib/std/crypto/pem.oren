@@ -1,0 +1,158 @@
+// PEM (Privacy-Enhanced Mail) parsing helpers (rolling v0)
+//
+// Goal:
+// - Provide small, deterministic helpers used by crypto/net layers:
+//   - certificates / keys / PKCS#8 blobs embedded as PEM
+//   - offline fixtures (loopback TLS, signing fixtures)
+//
+// Non-goals (v0):
+// - full PEM header support (e.g. Proc-Type / DEK-Info)
+// - encrypted PEM decryption
+//
+// API (v0):
+// - `decode_blocks(pem_text)` -> list of {"type": string, "bytes": u8_buf} or err
+
+import list "std:list"
+import strings "std:strings"
+import base64 "std:encoding/base64"
+
+fn _is_nl(b) { return (b == 10) || (b == 13) }
+
+fn _is_line_start(s, i) {
+    if i <= 0 { return true }
+    var p = oren_string_byte_at_unchecked(s, i - 1) & 255
+    return _is_nl(p)
+}
+
+fn _starts_with_at(s, pos, lit) {
+    if s == nil || lit == nil { return false }
+    var sl = oren_string_len(s)
+    var ll = oren_string_len(lit)
+    if pos < 0 { return false }
+    if pos + ll > sl { return false }
+    var i = 0
+    while i < ll {
+        if (oren_string_byte_at_unchecked(s, pos + i) & 255) != (oren_string_byte_at_unchecked(lit, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _find_line_end(s, pos) {
+    // Returns first index >= pos that is '\n' or '\r', or n if not found.
+    var n = oren_string_len(s)
+    var i = pos
+    while i < n {
+        var b = oren_string_byte_at_unchecked(s, i) & 255
+        if _is_nl(b) { return i }
+        i = i + 1
+    }
+    return n
+}
+
+fn _skip_line_break(s, pos) {
+    var n = oren_string_len(s)
+    if pos >= n { return n }
+    var b = oren_string_byte_at_unchecked(s, pos) & 255
+    if b == 13 {
+        if pos + 1 < n {
+            var b2 = oren_string_byte_at_unchecked(s, pos + 1) & 255
+            if b2 == 10 { return pos + 2 }
+        }
+        return pos + 1
+    }
+    if b == 10 { return pos + 1 }
+    return pos
+}
+
+fn _find_five_dashes(s, pos, end) {
+    // Find "-----" in [pos..end), return index or -1.
+    var i = pos
+    while i + 5 <= end {
+        var ok = true
+        var j = 0
+        while j < 5 {
+            if (oren_string_byte_at_unchecked(s, i + j) & 255) != 45 { ok = false; break }
+            j = j + 1
+        }
+        if ok { return i }
+        i = i + 1
+    }
+    return -1
+}
+
+fn _line_has_colon(s, start, end) {
+    // Headers are "Key: Value". Reject them in v0 to avoid surprising base64 decode failures.
+    var i = start
+    while i < end {
+        if (oren_string_byte_at_unchecked(s, i) & 255) == 58 { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn decode_blocks(pem_text) {
+    if pem_text == nil { return oren_err(4, "pem.decode_blocks: pem_text is nil") }
+    var n = oren_string_len(pem_text)
+    var i = 0
+    var out = []
+
+    while i < n {
+        if _is_line_start(pem_text, i) == true && _starts_with_at(pem_text, i, "-----BEGIN ") == true {
+            var line_end = _find_line_end(pem_text, i)
+            var type_start = i + oren_string_len("-----BEGIN ")
+            var dash_pos = _find_five_dashes(pem_text, type_start, line_end)
+            if dash_pos < 0 { return oren_err(4, "pem.decode_blocks: malformed BEGIN line") }
+            var block_type = oren_string_slice(pem_text, type_start, dash_pos)
+            if block_type == nil || block_type == "" { return oren_err(4, "pem.decode_blocks: empty block type") }
+
+            // Move to first body line.
+            i = _skip_line_break(pem_text, line_end)
+
+            // Collect base64 payload bytes (ASCII).
+            var b64_bytes = [] // list<u8>
+            var found_end = false
+            while i < n {
+                if _is_line_start(pem_text, i) == true && _starts_with_at(pem_text, i, "-----END ") == true {
+                    var end_line = _find_line_end(pem_text, i)
+                    var end_type_start = i + oren_string_len("-----END ")
+                    var end_dash = _find_five_dashes(pem_text, end_type_start, end_line)
+                    if end_dash < 0 { return oren_err(4, "pem.decode_blocks: malformed END line") }
+                    var end_type = oren_string_slice(pem_text, end_type_start, end_dash)
+                    if strings.streq(end_type, block_type) != true {
+                        return oren_err(4, "pem.decode_blocks: END type mismatch (BEGIN " + block_type + ", END " + end_type + ")")
+                    }
+                    i = _skip_line_break(pem_text, end_line)
+                    found_end = true
+                    break
+                }
+
+                var le = _find_line_end(pem_text, i)
+                if le > i {
+                    if _line_has_colon(pem_text, i, le) == true {
+                        return oren_err(4, "pem.decode_blocks: headers are not supported in v0 (line contains ':')")
+                    }
+                    var k = i
+                    while k < le {
+                        var b = oren_string_byte_at_unchecked(pem_text, k) & 255
+                        if b != 13 { list.push(b64_bytes, b) }
+                        k = k + 1
+                    }
+                }
+                i = _skip_line_break(pem_text, le)
+            }
+
+            if found_end != true { return oren_err(4, "pem.decode_blocks: missing END for type " + block_type) }
+
+            var b64_str = oren_string_from_bytes(b64_bytes)
+            var decoded = base64.decode_bytes(b64_str)
+            if oren_is_err(decoded) { return decoded }
+            oren_list_push(out, {"type": block_type, "bytes": decoded})
+            continue
+        }
+        i = i + 1
+    }
+
+    return out
+}
+

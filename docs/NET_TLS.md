@@ -6,6 +6,11 @@ This doc defines the **stdlib contract** for TLS in Oren and the implementation 
 - `wss://` in `std:net/ws`
 - “secure TCP” primitives in `std:net/tcp` (via a TLS wrapper)
 
+Related crypto modules (shared, not NET-specific):
+
+- `std:crypto/pem` (decode PEM blocks)
+- `std:crypto/x509` (small certificate helpers; rolling v0)
+
 Tier‑1 targets (rolling intent):
 
 - `arm64-macos`

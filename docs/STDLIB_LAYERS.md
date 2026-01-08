@@ -72,6 +72,7 @@ Examples:
 - HTTP/WebSocket libraries on top of `NET`
 - higher-level filesystem path libraries on top of `FS`
 - JSON schema tooling (if not required by the compiler itself)
+- TLS/HTTPS/WSS transport wrappers on top of `NET` + `CRYPTO` providers
 
 **Rules:**
 
@@ -143,3 +144,5 @@ Example calls:
 - `print`: syslib (tooling depends on it)
 - JSON: syslib or stdlib (depends on whether the compiler/AVM need it)
 - HTTP/WebSocket: stdlib (built atop NET)
+- SHA-256 / RNG primitives: syslib (used by NET + AVM determinism)
+- PEM/X.509 helpers: syslib-adjacent (used by TLS, signing fixtures, and tooling)
