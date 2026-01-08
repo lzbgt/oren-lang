@@ -236,6 +236,18 @@ Cross‑arch Tier‑1 matrix (stage1 + stage2):
 make verify-native-x64-compile
 ```
 
+## Local x64-linux execution (QEMU in the Linux container)
+
+For a higher-signal local gate (without remote WSL2), run a small x64-linux runtime smoke under `qemu-x86_64`
+in the persistent Linux container:
+
+```bash
+make verify-x64-linux-qemu
+```
+
+This runs a small curated set of fixtures (stage1 + stage2) to catch x64-linux runtime/codegen regressions
+that compile-only checks cannot detect.
+
 Makefile shortcuts (macOS/arm64 host workflow):
 
 ```bash

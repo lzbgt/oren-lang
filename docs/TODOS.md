@@ -42,6 +42,10 @@ Local x64 sanity (compile-only):
 
 - `make verify-native-x64-compile` (stage1 + stage2 emit x64-linux + x64-windows)
 
+Local x64 sanity (execution under QEMU):
+
+- `make verify-x64-linux-qemu` (stage1 + stage2 emit **and run** x64-linux under `qemu-x86_64` in the persistent Linux container)
+
 References:
 
 - Perf playbook: `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`

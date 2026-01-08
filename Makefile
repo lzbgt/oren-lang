@@ -1,6 +1,7 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick
 .PHONY: verify-native-x64-compile
+.PHONY: verify-x64-linux-qemu
 .PHONY: verify-native-matrix verify-native-net verify-selfhost-x64 verify-stage0-win verify-tier1
 .PHONY: verify-stage2-win
 .PHONY: bench-native-compile
@@ -368,7 +369,12 @@ verify-native-quick: test-native-quick test-native-quick-stage2 test-native-caps
 
 # Compile-only sanity gate for x64 targets (does not run artifacts).
 verify-native-x64-compile: oren_stage2 rtobj-seed-x64 astbin-seed-x64
-		@./scripts/verify_native_x64_compile_only.sh
+			@./scripts/verify_native_x64_compile_only.sh
+
+# Local execution smoke for x64-linux artifacts under QEMU in the persistent Linux container.
+# This is a higher-signal guard than compile-only, but still does not require remote WSL2.
+verify-x64-linux-qemu: oren_stage2
+			@./scripts/verify_x64_linux_qemu_smoke.sh
 
 # Tier‑1 verification shortcuts (macOS/arm64 host workflow).
 #
