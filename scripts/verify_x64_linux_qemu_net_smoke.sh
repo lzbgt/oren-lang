@@ -39,6 +39,7 @@ fi
 
 log "== preflight: container qemu + amd64 loader =="
 docker exec -i "$LINUX_DOCKER_ID" bash -lc 'set -e; command -v qemu-x86_64 >/dev/null; test -e /lib64/ld-linux-x86-64.so.2'
+docker exec -i "$LINUX_DOCKER_ID" bash -lc 'mkdir -p /tmp/hostbins'
 
 mkdir -p build/tmp
 mkdir -p build/logs

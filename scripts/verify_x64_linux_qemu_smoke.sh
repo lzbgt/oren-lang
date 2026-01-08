@@ -41,6 +41,7 @@ fi
 
 log "== preflight: container tools =="
 docker exec -i "$LINUX_DOCKER_ID" bash -lc 'command -v qemu-x86_64 >/dev/null && command -v timeout >/dev/null'
+docker exec -i "$LINUX_DOCKER_ID" bash -lc 'mkdir -p /tmp/hostbins'
 
 mkdir -p build/tmp
 mkdir -p build/logs
@@ -89,4 +90,3 @@ run_one "build/tmp/qi_stage1_x64_linux" "native quick integration OK" "qi_stage1
 run_one "build/tmp/qi_stage2_x64_linux" "native quick integration OK" "qi_stage2_x64_linux"
 
 log "OK: x64-linux QEMU smoke passed (stage1 + stage2)"
-
