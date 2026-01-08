@@ -194,12 +194,16 @@ References:
 			           - Done (2026-01-08): Linux TLS provider bring-up (OpenSSL 3; dynamic `libssl.so.3`/`libcrypto.so.3`)
 			             - Provider: `lib/std/net/tls.oren` (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
 			             - Regression: `./scripts/verify_native_net_matrix.sh --targets arm64-linux,x64-wsl` (stage1 + stage2)
-			             - Note: Linux SNI is deferred (OpenSSL `SSL_set_tlsext_host_name` is a macro; implement via `SSL_ctrl` once headers/constants are locked down).
+			             - Done: Linux/OpenSSL client SNI + ALPN wiring:
+			               - SNI wired via `SSL_ctrl(...SSL_CTRL_SET_TLSEXT_HOSTNAME...)` using constants from Tier‑1 Linux headers (`libssl-dev`).
+			               - ALPN client offer wired via `SSL_set_alpn_protos` (wire-format protocol list).
+			               - Regression: TLS/HTTPS/WSS loopback fixtures now pass `opts["alpn"]=["h2","http/1.1"]` to exercise the code path.
 		           - Done (2026-01-08): Windows x64 TLS provider bring-up (Schannel / SSPI) + enable TLS/HTTPS/WSS loopback fixtures on Win11:
 		             - Provider: `lib/std/net/tls.oren` (impl: `windows_schannel`; `@ffi.dll("secur32.dll")` + `@ffi.dll("crypt32.dll")`)
 		             - Regression: `./scripts/verify_native_net_matrix.sh --targets x64-win` (stage1 + stage2)
 		           - Done (2026-01-08): deterministic pinning is enforced by `std:net/tls.wrap_client` when `opts["pin_cert_sha256_hex"]` is provided (so HTTP/WS do not duplicate pinning logic).
-		           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider) and add ALPN wiring for HTTP/2.
+		           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider).
+		             - HTTP/2 needs a dedicated framing layer + server-side negotiation; ALPN offer plumbing is now in place (Linux/OpenSSL).
 	     - x64 native backend correctness:
 	       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
 	         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)

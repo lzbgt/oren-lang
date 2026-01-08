@@ -146,7 +146,9 @@ fn main_client() {
     // Deterministic offline fixture:
     // - insecure_skip_verify bypasses platform trust stores
     // - pin_cert_sha256_hex is enforced by std:net/tls.wrap_client
-    var cr = tls.wrap_client(fd, "oren.test", 5000, {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex})
+    // Exercise client-side ALPN plumbing as well (TLS provider may ignore it on some OS).
+    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "alpn": ["h2", "http/1.1"]}
+    var cr = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
     var ok = oren_map_get_str(cr, "ok")
     if ok != 1 {
         var es = oren_map_get_str(cr, "err")
@@ -250,7 +252,9 @@ fn main_client() {
     var fd = tcp.connect("127.0.0.1", port, 5000)
     if fd < 0 { exit(8) }
 
-    var cr = tls.wrap_client(fd, "oren.test", 5000, {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex})
+    // Exercise client-side ALPN plumbing as well (TLS provider may ignore it on some OS).
+    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "alpn": ["h2", "http/1.1"]}
+    var cr = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
     var ok = oren_map_get_str(cr, "ok")
     if ok != 1 {
         var es = oren_map_get_str(cr, "err")
@@ -384,7 +388,9 @@ fn main_client() {
         exit(8)
     }
 
-    var cr = tls.wrap_client(fd, "oren.test", 5000, {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex})
+    // Exercise client-side ALPN plumbing as well (TLS provider may ignore it on some OS).
+    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "alpn": ["h2", "http/1.1"]}
+    var cr = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
     var ok = oren_map_get_str(cr, "ok")
     if ok != 1 {
         var es = oren_map_get_str(cr, "err")

@@ -125,8 +125,13 @@ ffi SSL_new
 @cfg(os="linux")
 ffi SSL_free
 @cfg(os="linux")
+ffi SSL_ctrl
+@cfg(os="linux")
 @ffi.ret("i32")
 ffi SSL_set_fd
+@cfg(os="linux")
+@ffi.ret("i32")
+ffi SSL_set_alpn_protos
 @cfg(os="linux")
 @ffi.ret("i32")
 ffi SSL_connect
@@ -224,6 +229,95 @@ fn _ssl_error_want_write() { return 3 }
 fn _ssl_error_zero_return() { return 6 }
 
 @cfg(os="linux")
+fn _openssl_ssl_ctrl_set_tlsext_hostname_cmd() {
+    // From OpenSSL headers (Ubuntu noble libssl-dev):
+    // - /usr/include/openssl/ssl.h: `# define SSL_CTRL_SET_TLSEXT_HOSTNAME 55`
+    return 55
+}
+
+@cfg(os="linux")
+fn _openssl_tlsext_nametype_host_name() {
+    // From OpenSSL headers (Ubuntu noble libssl-dev):
+    // - /usr/include/openssl/tls1.h: `# define TLSEXT_NAMETYPE_host_name 0`
+    return 0
+}
+
+@cfg(os="linux")
+fn _openssl_set_sni_if_requested(ssl, server_name, opts) {
+    // Wire SNI using SSL_ctrl, because SSL_set_tlsext_host_name is a macro (not a linkable symbol).
+    //
+    // Server-name selection (rolling):
+    // - prefer explicit `server_name` argument
+    // - if missing, allow `opts["server_name"]` as an override (useful for already-connected IP sockets / proxies)
+    var sn = server_name
+    if (sn == nil || sn == 0) && opts != nil && opts != 0 && oren_is_map(opts) == true {
+        var sn2 = oren_map_get_str(opts, "server_name")
+        if sn2 != 0 { sn = sn2 }
+    }
+    if sn == nil || sn == 0 { return 0 }
+    if oren_string_len(sn) <= 0 { return 0 }
+    var rc = SSL_ctrl(ssl, _openssl_ssl_ctrl_set_tlsext_hostname_cmd(), _openssl_tlsext_nametype_host_name(), sn)
+    if rc != 1 { return 0 - 5 } // EIO
+    return 0
+}
+
+@cfg(os="linux")
+fn _openssl_set_alpn_if_requested(ssl, opts) {
+    // Client ALPN offer.
+    //
+    // Docs:
+    // - OpenSSL man3 `SSL_CTX_set_alpn_select_cb` (covers SSL_set_alpn_protos):
+    //   project-doc/web/openssl/SSL_CTX_set_alpn_select_cb.html
+    //
+    // Return convention:
+    // - SSL_set_alpn_protos returns 0 on success (reversed convention).
+    if opts == nil || opts == 0 { return 0 }
+    if oren_is_map(opts) != true { return 0 }
+    var ps = oren_map_get_str(opts, "alpn")
+    if ps == 0 { return 0 }
+    if oren_is_list(ps) != true { return 0 - 22 } // EINVAL
+    var n = oren_list_len(ps)
+    if n <= 0 { return 0 }
+
+    // Compute total length and validate elements.
+    var total = 0
+    var i = 0
+    while i < n {
+        var p = ps[i]
+        if p == 0 || oren_is_string(p) != true { return 0 - 22 }
+        var l = oren_string_len(p)
+        if l <= 0 || l > 255 { return 0 - 22 }
+        total = total + 1 + l
+        if total > 1024 { return 0 - 22 } // sanity cap
+        i = i + 1
+    }
+    if total <= 0 { return 0 }
+
+    var buf = malloc(total)
+    if buf == 0 { return 0 - 12 } // ENOMEM
+    var off = 0
+    i = 0
+    while i < n {
+        var p2 = ps[i]
+        var l2 = oren_string_len(p2)
+        ptr_set_byte(buf + off, l2 & 255)
+        off = off + 1
+        var j = 0
+        while j < l2 {
+            ptr_set_byte(buf + off + j, oren_string_byte_at_unchecked(p2, j) & 255)
+            j = j + 1
+        }
+        off = off + l2
+        i = i + 1
+    }
+
+    var rc = SSL_set_alpn_protos(ssl, buf, total)
+    free(buf)
+    if rc != 0 { return 0 - 5 } // EIO
+    return 0
+}
+
+@cfg(os="linux")
 fn _openssl_wait_io(fd, timeout_ms, want) {
     if want == 1 { return tcp.wait_readable(fd, timeout_ms) }
     return tcp.wait_writable(fd, timeout_ms)
@@ -306,11 +400,23 @@ fn _openssl_setup_ctx_client(fd, server_name, opts) {
         return {"ok": 0, "err": "tls: SSL_set_fd failed"}
     }
 
-    // NOTE (OpenSSL SNI; rolling):
-    // `SSL_set_tlsext_host_name` is a macro in OpenSSL and does not exist as a linkable symbol.
-    // We intentionally defer SNI wiring until we vendor or otherwise lock down the OpenSSL headers
-    // (so we can call `SSL_ctrl` with the correct constants). For now, server_name is used for
-    // documentation + future verification hooks; loopback fixtures do not require SNI.
+    // SNI/ALPN (rolling, Linux/OpenSSL):
+    // - SNI is wired via SSL_ctrl(...SSL_CTRL_SET_TLSEXT_HOSTNAME...) using constants from libssl-dev headers.
+    // - ALPN client offer is wired via SSL_set_alpn_protos using protocol-list wire format.
+    var rc_sni = _openssl_set_sni_if_requested(ssl, server_name, opts)
+    if rc_sni < 0 {
+        SSL_free(ssl)
+        SSL_CTX_free(ctx)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: SNI setup failed"}
+    }
+    var rc_alpn = _openssl_set_alpn_if_requested(ssl, opts)
+    if rc_alpn < 0 {
+        SSL_free(ssl)
+        SSL_CTX_free(ctx)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: ALPN setup failed"}
+    }
 
     return {"ok": 1, "ctx": ctx, "ssl": ssl}
 }

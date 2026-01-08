@@ -173,9 +173,18 @@ Implementation notes (Linux):
 - **FFI `int` return lowering is explicit** (compiler-level):
   - Many OpenSSL APIs return `int` (signed 32-bit). Native ABIs do not require the upper 32 bits of the return register to be sign-extended.
   - Oren uses 64-bit value carriers, so the `ffi` declaration must specify the ABI return width, e.g. `@ffi.ret("i32")`, and the native backend sign-extends the return after the call.
-- **SNI is currently not wired** on Linux:
-  - `SSL_set_tlsext_host_name` is a macro in OpenSSL (not a linkable symbol).
-  - Implement SNI later via `SSL_ctrl(...)` once we vendor/lock down the OpenSSL headers/constants.
+- **SNI is wired** on Linux (client):
+  - `SSL_set_tlsext_host_name` is a macro in OpenSSL (not a linkable symbol), so we wire SNI via `SSL_ctrl(...)`.
+  - Oren uses numeric constants taken from the Tier‑1 Linux headers (`libssl-dev`, Ubuntu noble):
+    - `SSL_CTRL_SET_TLSEXT_HOSTNAME = 55` (`/usr/include/openssl/ssl.h`)
+    - `TLSEXT_NAMETYPE_host_name = 0` (`/usr/include/openssl/tls1.h`)
+  - `std:net/tls` chooses the server-name as:
+    - prefer explicit `wrap_client(..., server_name, ...)`
+    - fallback to `opts["server_name"]` if the argument is missing (useful for already-connected sockets / proxies)
+- **ALPN is wired** on Linux (client offer):
+  - `opts["alpn"]` is interpreted as a list of protocol strings (e.g. `["h2","http/1.1"]`).
+  - The OpenSSL provider builds the wire-format protocol list and calls `SSL_set_alpn_protos`.
+  - Note: `SSL_set_alpn_protos` returns **0 on success** (reversed convention); see sources below.
 
 Sources captured for audit/reference:
 
@@ -184,6 +193,8 @@ Sources captured for audit/reference:
 - `project-doc/web/openssl/SSL_get_error.html`
 - `project-doc/web/openssl/PKCS12_parse.html`
 - `project-doc/web/openssl/d2i_X509.html`
+- `project-doc/web/openssl/SSL_CTX_ctrl.html` (covers `SSL_ctrl` return semantics)
+- `project-doc/web/openssl/SSL_CTX_set_alpn_select_cb.html` (covers `SSL_set_alpn_protos` return semantics)
 
 ### 5.2 Windows provider (Schannel / SSPI)
 
