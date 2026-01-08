@@ -8,6 +8,50 @@ fn abi_layout_error(msg) {
     return nil
 }
 
+fn _str_len(s) {
+    if s == nil { return 0 }
+    return oren_string_len(s)
+}
+
+fn _str_ends_with(s, suffix) {
+    if s == nil || suffix == nil { return false }
+    var sl = _str_len(s)
+    var pl = _str_len(suffix)
+    if sl < pl { return false }
+    var i = 0
+    while i < pl {
+        if (oren_string_byte_at_unchecked(s, sl - pl + i) & 255) != (oren_string_byte_at_unchecked(suffix, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _resolve_abi_type_name(want, abi_layouts) {
+    // ABI types are collected after module linking, so their names can be prefixed by the linker.
+    //
+    // To keep `oren_abi_offsetof("Type", ...)` stable across different import styles (e.g. `std:...`
+    // vs relative-path imports in tests), allow resolving a bare name via a unique suffix match.
+    if want == nil || abi_layouts == nil { return nil }
+
+    if abi_layouts[want] != nil { return want }
+
+    var suffix = "_" + want
+    var cand = nil
+    var cand2 = nil
+    for k in abi_layouts {
+        if k != nil && _str_ends_with(k, suffix) {
+            if cand == nil {
+                cand = k
+            } else {
+                cand2 = k
+                break
+            }
+        }
+    }
+    if cand != nil && cand2 == nil { return cand }
+    return nil
+}
+
 
 // ABI layout lowering (rolling).
 //
@@ -392,7 +436,9 @@ fn lower_expr_in_place(expr, abi_layouts) {
                     return expr
                 }
                 var tname = args[0]["value"]
-                var lay = abi_layouts[tname]
+                var tname_res = _resolve_abi_type_name(tname, abi_layouts)
+                var lay = nil
+                if tname_res != nil { lay = abi_layouts[tname_res] }
                 if lay == nil {
                     abi_layout_error(name + ": unknown ABI type: " + tname)
                     return expr
@@ -407,7 +453,9 @@ fn lower_expr_in_place(expr, abi_layouts) {
                 }
                 var tname2 = args[0]["value"]
                 var fname2 = args[1]["value"]
-                var lay2 = abi_layouts[tname2]
+                var tname2_res = _resolve_abi_type_name(tname2, abi_layouts)
+                var lay2 = nil
+                if tname2_res != nil { lay2 = abi_layouts[tname2_res] }
                 if lay2 == nil {
                     abi_layout_error("oren_abi_offsetof: unknown ABI type: " + tname2)
                     return expr

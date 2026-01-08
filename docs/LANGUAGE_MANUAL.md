@@ -984,6 +984,12 @@ oren_abi_sizeof("ABI1")
 oren_abi_offsetof("ABI1", "b")
 ```
 
+Note (multi-module builds):
+
+- After module linking, type names may be linker-prefixed to avoid collisions.
+- The `oren_abi_*` builtins accept **bare source names** (like `"ABI1"`) and the compiler resolves them by a unique suffix match.
+  - If multiple ABI types share the same suffix, pass the fully-qualified linked name (the compiler will report an ambiguity error).
+
 Invalid ABI queries (unknown type/field) are compile-time errors and emit machine-readable `OREN_DIAG` lines (see `tests/native/fixtures/abi_layout_error.oren`).
 
 #### Packed view example (network parsing story)

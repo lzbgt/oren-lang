@@ -219,9 +219,11 @@ fn _win_dns_default_nameserver_ipv4() {
     if rc != 0 { free(buf); return 0 }
 
     // Extract FIXED_INFO.DnsServerList.IpAddress (char[16]) as cstr0.
-    // ABI layout lowering runs after module linking, so stdlib type names are prefixed.
-    var off_list = oren_abi_offsetof("STD_net_dns_WIN_FIXED_INFO", "DnsServerList")
-    var off_ip = oren_abi_offsetof("STD_net_dns_WIN_IP_ADDR_STRING", "IpAddress")
+    //
+    // Note: `@abi` layout lowering runs after module linking, so type names may be linker-prefixed.
+    // The `oren_abi_offsetof` builtin supports resolving bare names via a unique suffix match.
+    var off_list = oren_abi_offsetof("WIN_FIXED_INFO", "DnsServerList")
+    var off_ip = oren_abi_offsetof("WIN_IP_ADDR_STRING", "IpAddress")
     var p = buf + off_list + off_ip
     // Copy out (tracked heap string) before freeing buf.
     var out = oren_string_slice(p, 0, oren_string_len(p))
