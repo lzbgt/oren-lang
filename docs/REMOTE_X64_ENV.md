@@ -99,6 +99,10 @@ Makefile shortcut (arm64 macOS host workflow):
 make verify-stage2-win
 ```
 
+Tuning knobs (env):
+
+- `OREN_STAGE2_BUILD_TIMEOUT_SECS` (default `240`, rolling guard for stage1→stage2 self-host build on Windows)
+
 Local Windows note (rolling):
 
 - If you run `make` on a Windows host under MSYS2/Git Bash/Cygwin, the Makefile emits `*.exe` outputs (`oren.exe`, `oren_stage2.exe`) and the local smoke scripts under `scripts/` will also suffix temporary artifacts with `.exe`.

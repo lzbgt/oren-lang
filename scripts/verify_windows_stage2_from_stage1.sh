@@ -24,8 +24,9 @@ REMOTE_PROXY="${OREN_REMOTE_X64_PROXY:-ProxyCommand=socat - PROXY:hubstack.cn:%h
 REMOTE_DIR="${OREN_REMOTE_STAGE2_BOOTSTRAP_DIR:-tmp_oren/stage2_from_stage1}"
 
 STAGE0_BUILD_TIMEOUT_SECS="${OREN_STAGE0_BUILD_TIMEOUT_SECS:-120}"
-STAGE1_BUILD_TIMEOUT_SECS="${OREN_STAGE1_BUILD_TIMEOUT_SECS:-240}"
-STAGE2_BUILD_TIMEOUT_SECS="${OREN_STAGE2_BUILD_TIMEOUT_SECS:-600}"
+# Rolling performance intent: building stage2 (the compiler) on native Windows must stay bounded.
+# Default timeout keeps regressions actionable; override via env if the remote host changes.
+STAGE2_BUILD_TIMEOUT_SECS="${OREN_STAGE2_BUILD_TIMEOUT_SECS:-240}"
 REMOTE_COMPILE_TIMEOUT_SECS="${OREN_STAGE2_REMOTE_COMPILE_TIMEOUT_SECS:-120}"
 REMOTE_RUN_TIMEOUT_SECS="${OREN_STAGE2_REMOTE_RUN_TIMEOUT_SECS:-30}"
 SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-3}"
@@ -129,4 +130,3 @@ echo "$out" | grep -qF "hello from native"
 echo "$out" | grep -qF "EXIT=0"
 
 log "OK: stage0->stage1->stage2 self-host build works on x64-windows"
-
