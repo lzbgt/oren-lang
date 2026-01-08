@@ -72,10 +72,14 @@ Current example:
 Native-backend string literals are intentionally treated as **static data**, not GC heap objects:
 
 - The code generator de-duplicates string-literal bytes into a `cstr0` pool in the appended data blob.
-- The program entry stub calls `oren_init_static_cstr0_table(table_ptr)` once at startup to register all embedded literals
-  as **static-kind STRING** for safe container ops (maps infer key kind from `oren_find_node(ptr).kind`).
-- The GC mark path (`oren_mark_value`) explicitly skips static-kind strings (size=0) so literals do not inflate GC roots or
-  participate in mark/sweep.
+- The program entry stub calls `oren_init_static_cstr0_table(table_ptr)` once at startup to build a dedicated
+  **literal membership set** (pointer hash set) for the embedded `cstr0` pool.
+  - `oren_find_node(lit_ptr)` returns `0` for string literals (they are not tracked alloc nodes).
+  - Runtime classification uses `native_is_string_ptr(ptr)` / `oren_is_string(ptr)` which recognize:
+    - tracked heap strings (`kind=1`), and
+    - embedded `cstr0` literal pointers (via the membership set).
+- Because literals are not tracked heap allocations, GC conservative scans do not “see” them as heap nodes and do not
+  spend mark work on them.
 
 The quick native integration fixture asserts these properties:
 - `tests/native/test_quick_integration_native.oren` (`test_string_literals_static`).

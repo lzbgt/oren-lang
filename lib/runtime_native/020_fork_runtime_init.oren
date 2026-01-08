@@ -124,6 +124,20 @@ fn native_runtime_init(target_os) {
     // - `g_alloc_index_tomb` must be non-zero and <4096 so it never aliases a valid tracked pointer.
     // - `g_runtime_single_threaded` enables the fast-path in `oren_find_node`/locking for compiler-style
     //   single-threaded workloads (stage2-native).
+    //
+    // IMPORTANT:
+    // Do not assume other globals are zeroed. Explicitly reset the allocation index and cstr0
+    // membership set so early runtime code (and the entry stub) can safely initialize them.
+    g_alloc_index_ptr = 0
+    g_alloc_index_cap = 0
+    g_alloc_index_len = 0
+    g_alloc_index_probe_exhausted = 0
+    g_static_allocs = 0
+    g_cstr0_set_ptr = 0
+    g_cstr0_set_cap = 0
+    g_cstr0_set_len = 0
+    g_cstr0_min_ptr = 0
+    g_cstr0_max_ptr = 0
     g_alloc_index_tomb = 1
     g_runtime_single_threaded = 1
 

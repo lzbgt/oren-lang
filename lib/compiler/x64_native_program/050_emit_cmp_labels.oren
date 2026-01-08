@@ -2,8 +2,8 @@ fn _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, lhs_reg, rhs_reg) {
     // Set CPU flags for `lhs <op> rhs`-style comparisons in conditions.
     //
     // Tier‑1 convergence rule:
-    // - If both operands are tracked STRING (kind=1), lower compare via an inline
-    //   `strcmp`-equivalent and then `cmp rax, 0`.
+    // - If both operands are string pointers (tracked heap STRING or embedded cstr0 literal),
+    //   lower compare via an inline `strcmp`-equivalent and then `cmp rax, 0`.
     // - Otherwise, fall back to raw integer compare (`cmp lhs, rhs`).
     //
     // This keeps condition Jcc mapping identical for ints and strings because both paths
@@ -37,31 +37,32 @@ fn _emit_cmp_r64_r64_maybe_string_x64(ctx, locals, lhs_reg, rhs_reg) {
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4096))
     _emit_jcc_to_label(ctx, fixups, "l", l_int)
 
-    // Check lhs tracked kind == 1 (STRING).
+    // Check lhs is a string pointer (tracked heap string OR embedded cstr0 literal).
+    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
+    if a0_enc == nil {
+        err(ctx, "x64 native v0: missing ABI arg reg for native_is_string_ptr")
+        return nil
+    }
+    var a0 = a0_enc - 1
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_l) // r8 = lhs
-    _emit_find_tracked_node_x64(ctx, 8, 11) // r11 = node or 0
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    if a0 != 8 { bytes_extend(ctx["code"], insn_mov_r64_r64(a0, 8)) }
+    var call_pos_l = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos_l, "name": "native_is_string_ptr"})
+    // RAX = 1/0
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_int)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 1))
-    _emit_jcc_to_label(ctx, fixups, "ne", l_int)
 
-    // Check rhs tracked kind == 1 (STRING).
+    // Check rhs is a string pointer (tracked heap string OR embedded cstr0 literal).
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_r) // r8 = rhs
-    _emit_find_tracked_node_x64(ctx, 8, 11) // r11 = node or 0
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+    if a0 != 8 { bytes_extend(ctx["code"], insn_mov_r64_r64(a0, 8)) }
+    var call_pos_r = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos_r, "name": "native_is_string_ptr"})
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
     _emit_jcc_to_label(ctx, fixups, "e", l_int)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
-    bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
-    bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
-    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 1))
-    _emit_jcc_to_label(ctx, fixups, "ne", l_int)
 
-    // Both are tracked strings.
+    // Both are strings.
     _emit_jmp_to_label(ctx, fixups, l_str)
 
     _emit_label(ctx, labels, l_str)

@@ -11,7 +11,7 @@ fn oren_args() {
         var s = ptr_get(argv + i * 8)
         // Copy argv strings into tracked heap strings so downstream code can reliably:
         // - print them as strings (oren_print checks GC-kind=STRING)
-        // - concatenate them via `+` (native runtime `oren_add` concatenates only tracked strings)
+        // - concatenate them via `+` (native runtime concatenates tracked strings and embedded literals)
         //
         // This also avoids "raw pointer treated as int" issues throughout the self-hosted compiler.
         if s != 0 {

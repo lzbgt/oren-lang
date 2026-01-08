@@ -163,8 +163,12 @@ References:
          - Gate: `OREN_CANON_I32_ABORT=1` (hard-fail; preferred for CI / remote Tier‑1 scripts)
          - Note: Tier‑1 matrix scripts now propagate `OREN_CANON_I32_ABORT` to docker/WSL2/Win11 runs so regressions fail fast.
      - Native runtime GC + literals:
-       - Next: treat string literals as “constant section” data (not GC-tracked heap nodes) and avoid per-literal allocations.
-       - Next: string literal pooling/interning so identical literals share a single instance (per-compilation-unit at minimum; ideally whole-program) to reduce heap churn and GC roots.
+       - Done (2026-01-08): embedded `cstr0` string literals are treated as constant-section data and are **not** tracked as GC alloc nodes.
+         - Runtime builds a dedicated literal membership set at startup (`oren_init_static_cstr0_table`) and recognizes literals via `native_is_string_ptr` / `oren_is_string`.
+         - Runtime map key inference (`oren_map_get`/`oren_map_set`) uses `native_is_string_ptr` so compiler-internal maps can use literal keys without per-literal tracking nodes.
+         - x64 string-aware compares use `native_is_string_ptr` so `if s == "lit"` works without literal tracking.
+         - Regression: `make test`, `./scripts/verify_native_net_matrix.sh`, `./scripts/verify_selfhost_x64_compiler.sh --targets x64-win`.
+       - Done (2026-01-08): string literal pooling/interning is whole-program for native output (`cstr0` pool de-dupes identical literals; pointer identity stable within the binary).
      - Native FFI / dynamic linking parity (rolling):
        - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
        - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).

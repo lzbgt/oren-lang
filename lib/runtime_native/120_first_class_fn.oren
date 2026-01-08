@@ -218,17 +218,12 @@ fn strcmp(s1, s2) {
 
 @oren.keep
 fn oren_add(a, b) {
-    var na = oren_find_node(a)
-    if na != 0 {
-        var nb = oren_find_node(b)
-        if nb != 0 {
-            var ka = ptr_get(iadd(na, 16))
-            var kb = ptr_get(iadd(nb, 16))
-            if ka == 1 { // STRING
-                if kb == 1 {
-                    return string_concat(a, b)
-                }
-            }
+    // Native v0: `+` is overloaded for:
+    // - integers (default)
+    // - strings (C-string concat), including embedded literals (cstr0 pool) and tracked heap strings.
+    if native_is_string_ptr(a) != 0 {
+        if native_is_string_ptr(b) != 0 {
+            return string_concat(a, b)
         }
     }
     return iadd(a, b)

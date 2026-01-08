@@ -422,10 +422,10 @@ String literals in native output are **pooled and embedded** in the binary’s d
 Key properties (rolling contract):
 
 - identical literals should be pointer-deduped in the embedded pool
-- the runtime registers all embedded literals once at startup (`oren_init_static_cstr0_table`)
-- literals are **not GC-managed heap allocations**
-  - they are tracked as **static-kind nodes (size=0)** for classification only (safe container ops)
-  - GC root operations should not “root” them or allocate tracking nodes per use
+- the runtime initializes the embedded literal membership set once at startup (`oren_init_static_cstr0_table`)
+- literals are **not GC-managed heap allocations** and are not tracked as alloc nodes
+  - `oren_find_node(lit_ptr)` returns `0` (no per-literal tracking nodes)
+  - string classification uses `native_is_string_ptr` / `oren_is_string` which recognize `cstr0` literals without GC tracking
 
 This is tested in the native quick integration suite (`tests/native/test_quick_integration_native.oren`).
 

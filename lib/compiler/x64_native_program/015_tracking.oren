@@ -28,10 +28,11 @@ fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
     // Implementation: call the runtime `native_alloc_index_get(ptr)` helper.
     //
     // Why:
-    // - The alloc-index includes both heap alloc nodes AND static-kind nodes (string literals registered
-    //   via `oren_init_static_cstr0_table`).
-    // - Scanning only the heap alloc list misses static nodes and breaks string compares like:
-    //     if cmd == "build" { ... }
+    // - The alloc-index includes heap alloc nodes AND explicit static-kind nodes tracked via
+    //   `oren_track_static` / `oren_ensure_tracked`.
+    // - Embedded cstr0 literals are intentionally *not* tracked as alloc nodes (they are recognized
+    //   via a separate literal membership set), so string-aware operations must not rely on
+    //   `native_alloc_index_get` alone for "is this a string?".
     //
     // Safety:
     // - `native_alloc_index_get` is implemented using only primitive ops (`iadd`, `ptr_get`) and is
@@ -172,8 +173,9 @@ fn _emit_ensure_tracked_ptr_kind_x64(ctx, locals, ptr_reg, kind_imm) {
 
     // Return value:
     // - `oren_ensure_tracked(ptr, kind)` returns the pointer to use.
-    // - For STRING (kind=1), the runtime registers embedded literals as static-kind STRING
-    //   (no heap copy); still, keep using the return value as the authoritative pointer.
+    // - For STRING (kind=1), the runtime will avoid tracking embedded cstr0 literals and will
+    //   instead rely on the startup-built literal membership set.
+    // - Still, keep using the return value as the authoritative pointer.
     // - Return register is RAX; copy it into `ptr_reg` when needed.
     if ptr_reg != 0 {
         bytes_extend(ctx["code"], insn_mov_r64_r64(ptr_reg, 0))

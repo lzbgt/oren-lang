@@ -360,6 +360,11 @@ fn oren_ensure_tracked(ptr, kind) {
     // String literals should not be GC-managed. They already live in the binary's data segment.
     // We only need to classify them as kind=STRING so container ops can safely infer key kinds.
     if kind == 1 {
+        // Embedded cstr0 literals are recognized via the startup-built membership set;
+        // do not allocate tracking metadata nodes for them.
+        if native_cstr0_set_has(ptr) != 0 { return ptr }
+        // Non-cstr0 string pointers (e.g. embedded diagnostic buffers) may still need
+        // static-kind classification so they behave as strings in generic ops.
         oren_track_static(ptr, 1)
         return ptr
     }

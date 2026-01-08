@@ -690,6 +690,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - String literals are treated as **static-kind** (not GC-managed heap allocations).
   - Added a startup init hook `oren_init_static_cstr0_table(table_ptr)` so `oren_find_node(ptr)` can classify literals as kind=STRING without per-use `oren_ensure_tracked` calls.
   - Optimized startup: `oren_init_static_cstr0_table` allocates literal tracking nodes from a single contiguous block (avoids N tiny allocations on large binaries).
+  - Update (2026-01-08): refactored again — literals are no longer tracked as alloc nodes; runtime uses a dedicated `cstr0` membership set + `native_is_string_ptr` for string classification.
 - Native backends:
   - arm64: embedded cstr0 literal pool is now deduped (matches x86_64 behavior).
   - arm64: member/struct field-name keys now use the same pooled cstr0 path (no ad-hoc duplicated cstr emission per access).

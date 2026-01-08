@@ -10,7 +10,7 @@
 // Today, the native backend codegen does **not** require heap-copying literals:
 // - the emitter de-duplicates `"literal"` bytes into a single `cstr0` pool in the appended data blob
 // - the program entry stub calls `oren_init_static_cstr0_table(table_ptr)` once at startup
-//   to register all embedded literals as static-kind STRING (kind=1) for safe container ops
+//   to build the embedded literal membership set (so literals are recognized as strings without GC tracking)
 var g_intern_cstr_cache = 0 // map<int ptr -> string_ptr>
 var g_single_byte_string_cache = 0 // ptr to [256] pointers (untracked; roots keep strings alive)
 
@@ -54,8 +54,8 @@ fn oren_intern_cstr(cstr_ptr) {
     if cstr_ptr == 0 { return 0 }
     if cstr_ptr < 4096 { oren_panic("intern_cstr: pointer too small") }
 
-    // String literals already live in the native binary's data segment and are registered
-    // as static-kind STRING via `oren_init_static_cstr0_table` (entry stub). Do not copy
+    // String literals already live in the native binary's data segment (cstr0 pool) and are
+    // recognized by the runtime via `oren_init_static_cstr0_table` (entry stub). Do not copy
     // them into the GC heap.
     if oren_is_string(cstr_ptr) { return cstr_ptr }
 
@@ -98,11 +98,7 @@ fn oren_string_len(s) {
 // Safe type predicate: must not panic.
 @oren.keep
 fn oren_is_string(v) {
-    if v == 0 { return false }
-    var node = oren_find_node(v)
-    if node == 0 { return false }
-    if ptr_get(iadd(node, 16)) != 1 { return false }
-    return true
+    return native_is_string_ptr(v) != 0
 }
 
 fn oren_string_char_at(s, idx) {

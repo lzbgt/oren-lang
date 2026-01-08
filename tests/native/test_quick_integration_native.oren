@@ -173,20 +173,23 @@ fn test_core() {
 fn test_string_literals_static() {
     trace("QI: test_string_literals_static")
     // GC correctness/perf: embedded string literals must NOT become GC-managed heap allocations.
-    // They live in the binary's data segment and are registered as static-kind STRING at startup.
+    // They live in the binary's data segment and are recognized via the cstr0 literal pool.
     var before = native_mem_live_count()
     var before_roots = native_mem_roots_count()
     // Identical literals should be de-duplicated into the cstr0 pool (pointer identity stable).
     var p1 = "qi_static_lit"
     var p2 = "qi_static_lit"
-    assert_true(p1 == p2, 69)
-    var node = oren_find_node("qi_static_lit")
-    assert_true(node != 0, 70)
-    assert_eq(ptr_get(iadd(node, 16)), 1, 71) // kind=STRING
+    // Pointer identity compare (avoid string-aware `==`).
+    assert_true((p1 - p2) == 0, 69)
+    // Literal pointers are NOT tracked as GC alloc nodes.
+    assert_true(oren_find_node(p1) == 0, 70)
+    // But they must still be recognized as strings for printing/concat/map keys.
+    assert_true(native_is_string_ptr(p1) != 0, 71)
+    assert_true(native_cstr0_set_has(p1) != 0, 72)
     var after = native_mem_live_count()
-    assert_eq(after, before, 72)
+    assert_eq(after, before, 73)
     var after_roots = native_mem_roots_count()
-    assert_eq(after_roots, before_roots, 73)
+    assert_eq(after_roots, before_roots, 74)
 }
 
 fn test_type_tag_varargs() {

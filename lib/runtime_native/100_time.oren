@@ -348,15 +348,29 @@ var g_alloc_index_probe_exhausted = 0
 
 // --- Static kind tracking (native runtime) ---
 //
-// Some pointers are valid "values" in the native runtime model (notably embedded string literals)
-// but must never be treated as GC-managed heap allocations:
-// - they may point into read-only segments
-// - they must not enter the allocator free lists
-// - they should not inflate `global_get_allocs()` scan costs
+// Some pointers are valid "values" in the native runtime model but should not be treated as
+// GC-managed heap allocations (e.g. platform-provided stable pointers or "static" buffers).
 //
-// We still want `oren_find_node(ptr)` to be able to classify them (kind=STRING) so generic
-// container ops like `oren_map_set` can infer key kind safely.
+// Static-kind tracking attaches a lightweight metadata node (40 bytes) to such pointers so
+// `oren_find_node(ptr)` can classify them (kind!=0) without forcing a heap copy.
 var g_static_allocs = 0
+
+// --- Embedded cstr0 literal membership (native runtime) ---
+//
+// The native compiler embeds string literals into a single NUL-terminated byte pool ("cstr0").
+// Those bytes live in the binary's data segment and MUST NOT be tracked as GC allocations:
+// - tracking them as alloc-nodes makes GC conservatively "see" literals as heap pointers,
+//   inflating mark work in compiler workloads
+// - allocating per-literal tracking nodes can be a startup hotspot for large binaries
+//
+// Instead, we build a dedicated open-addressing set of literal start pointers at process entry.
+// This lets runtime code safely answer "is this pointer a string?" without creating alloc nodes.
+var g_cstr0_set_ptr = 0
+var g_cstr0_set_cap = 0
+var g_cstr0_set_len = 0
+// Optional quick reject for pointer-like integers: if outside [min,max], it cannot be a cstr0 literal.
+var g_cstr0_min_ptr = 0
+var g_cstr0_max_ptr = 0
 
 fn native_alloc_index_mmap_table(bytes) {
     // IMPORTANT (Tier‑1 correctness):
@@ -380,6 +394,123 @@ fn native_alloc_index_hash(ptr) {
     // Multiplicative hash (Knuth) for 64-bit keys. Shift away low alignment bits.
     var x = ptr / 16
     return x * 11400714819323198485
+}
+
+fn native_cstr0_set_clear(table_ptr, cap) {
+    if table_ptr == 0 { return 0 }
+    var i = 0
+    while i < cap {
+        ptr_set(iadd(table_ptr, i << 3), 0)
+        i = i + 1
+    }
+    return 0
+}
+
+fn native_cstr0_set_init_min(min_cap) {
+    if g_cstr0_set_cap != 0 { return 0 }
+    var cap = 1024
+    if min_cap != nil && min_cap > cap {
+        // Round up by doubling from a power-of-two seed (mirrors alloc-index init policy).
+        // NOTE: do not try to "power-of-two normalize" by repeatedly doubling a non-power-of-two
+        // value; that never converges.
+        while cap < min_cap { cap = cap * 2 }
+    }
+
+    // Keep mmap size bounded in pathological builds (rolling safety).
+    // cap is entry count (u64 slots), table size is cap*8 bytes.
+    if cap > 4194304 { cap = 4194304 } // 32 MiB table
+
+    var table = native_alloc_index_mmap_table(cap << 3)
+    if table == 0 { return 0 }
+    native_cstr0_set_clear(table, cap)
+    g_cstr0_set_ptr = table
+    g_cstr0_set_cap = cap
+    g_cstr0_set_len = 0
+    g_cstr0_min_ptr = 0
+    g_cstr0_max_ptr = 0
+    return 0
+}
+
+fn native_cstr0_set_put(ptr) {
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    if g_cstr0_set_ptr == 0 || g_cstr0_set_cap == 0 { return 0 }
+    var mask = g_cstr0_set_cap - 1
+    var idx = native_alloc_index_hash(ptr) & mask
+    var rem = g_cstr0_set_cap
+    while true {
+        if rem <= 0 { return 0 }
+        rem = rem - 1
+        var slot = ptr_get(iadd(g_cstr0_set_ptr, idx << 3))
+        if slot == 0 {
+            ptr_set(iadd(g_cstr0_set_ptr, idx << 3), ptr)
+            g_cstr0_set_len = iadd(g_cstr0_set_len, 1)
+            // Track min/max for quick reject.
+            // IMPORTANT: avoid pointer-vs-pointer `<`/`>` here. On x64, comparisons can lower
+            // through string-aware compare which consults `native_is_string_ptr` and can recurse.
+            if g_cstr0_min_ptr == 0 {
+                g_cstr0_min_ptr = ptr
+            } else {
+                if (ptr - g_cstr0_min_ptr) < 0 { g_cstr0_min_ptr = ptr }
+            }
+            if g_cstr0_max_ptr == 0 {
+                g_cstr0_max_ptr = ptr
+            } else {
+                if (ptr - g_cstr0_max_ptr) > 0 { g_cstr0_max_ptr = ptr }
+            }
+            return 0
+        }
+        if slot - ptr == 0 { return 0 }
+        idx = iadd(idx, 1) & mask
+    }
+    return 0
+}
+
+fn native_cstr0_set_has(ptr) {
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    if g_cstr0_set_ptr == 0 || g_cstr0_set_cap == 0 { return 0 }
+    // Quick reject for obvious non-pointers (and most integer values).
+    // IMPORTANT: avoid pointer-vs-pointer `<`/`>` here (see note in `native_cstr0_set_put`).
+    if g_cstr0_min_ptr != 0 {
+        if (ptr - g_cstr0_min_ptr) < 0 { return 0 }
+    }
+    if g_cstr0_max_ptr != 0 {
+        if (ptr - g_cstr0_max_ptr) > 0 { return 0 }
+    }
+
+    var mask = g_cstr0_set_cap - 1
+    var idx = native_alloc_index_hash(ptr) & mask
+    var rem = g_cstr0_set_cap
+    while true {
+        if rem <= 0 { return 0 }
+        rem = rem - 1
+        var slot = ptr_get(iadd(g_cstr0_set_ptr, idx << 3))
+        if slot == 0 { return 0 }
+        if slot - ptr == 0 { return 1 }
+        idx = iadd(idx, 1) & mask
+    }
+    return 0
+}
+
+@oren.keep
+fn native_is_string_ptr(ptr) {
+    // Return 1 iff `ptr` is safe to treat as a C string in native v0:
+    // - tracked heap string allocation (kind=1)
+    // - embedded cstr0 literal start pointer (from the program's data blob)
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+
+    // Fast path: tracked heap string kind.
+    var node = native_alloc_index_get(ptr)
+    if node != 0 {
+        var k = ptr_get(iadd(node, 16))
+        if k == 1 { return 1 }
+    }
+
+    // Fast path: embedded literal membership.
+    if native_cstr0_set_has(ptr) != 0 { return 1 }
+    return 0
 }
 
 fn native_alloc_index_clear(table_ptr, cap) {
@@ -634,7 +765,7 @@ fn native_alloc_index_rebuild_live() {
         cur = ptr_get(iadd(cur, 32))
     }
 
-    // Also include static-kind nodes (e.g. embedded string literals).
+    // Also include static-kind nodes tracked via `oren_track_static`.
     var cur_static = g_static_allocs
     while cur_static != 0 {
         var p1 = ptr_get(cur_static)
@@ -700,12 +831,14 @@ fn oren_track_static(ptr, kind) {
 
 @oren.keep
 fn oren_init_static_cstr0_table(table_ptr) {
-    // Register all embedded string literals (cstr0 pool) as static-kind STRING (kind=1).
+    // Initialize the embedded string literal membership set (cstr0 pool).
     //
     // Rationale:
     // - String literals already live in the native binary's data segment; they are not GC-managed.
-    // - We still need `oren_find_node(ptr)` to classify them as kind=STRING so container ops
-    //   can safely infer key kinds (e.g., map/set) without per-use `oren_ensure_tracked` calls.
+    // - Tracking them as alloc nodes bloats GC conservative scans and can be a startup hotspot
+    //   for large self-hosted binaries.
+    // - Runtime still needs to answer "is this pointer a string?" safely, so we build a
+    //   dedicated pointer set (see `native_is_string_ptr` / `native_cstr0_set_has`).
     //
     // Table layout (u64 slots, little-endian):
     //   [0] table_off  (u64)  -- offset of this table from data base
@@ -719,42 +852,13 @@ fn oren_init_static_cstr0_table(table_ptr) {
     var count = ptr_get(iadd(table_ptr, 8))
     var data_base = table_ptr - table_off
 
-    // Ensure the alloc-index exists so `oren_find_node` remains fast.
-    //
-    // Performance note (self-hosted compiler workloads):
-    // A large native binary (like `oren` itself) can have tens of thousands of unique literals.
-    // If we start from a tiny alloc-index (1024) and insert each literal node, the hash table
-    // will resize repeatedly and reinsert the growing static list many times.
-    //
-    // Pre-sizing the table based on the literal count keeps startup bounded.
+    // Initialize the cstr0 set once. Pre-size based on literal count to keep insertion bounded.
     acquire_lock()
-    if g_alloc_index_cap == 0 {
+    if g_cstr0_set_cap == 0 {
         var need = count * 2
         if need < 1024 { need = 1024 }
-        // Cap the initial table to keep worst-case mmap size bounded:
-        // - cap is entry count (u64 slots), table size is cap*8 bytes
-        // - 4,194,304 entries => 32 MiB table
-        var cap = 1024
-        while cap < need {
-            if cap >= 4194304 { cap = 4194304; break }
-            cap = cap * 2
-        }
-        native_alloc_index_init_min(cap)
-        native_alloc_index_rebuild_live()
-    }
-
-    // Performance (native self-hosted compiler):
-    // Avoid allocating one 40-byte tracking node per string literal (tens of thousands of tiny
-    // allocations can dominate startup). Prefer a single contiguous allocation for all nodes
-    // and slice it into fixed-size records.
-    //
-    // If the bulk allocation fails, fall back to the original per-node allocation path.
-    var bulk_nodes = 0
-    var bulk_i = 0
-    if count > 0 {
-        // bytes = count * 40 = count*(32+8) = (count<<5) + (count<<3)
-        var bytes = iadd(count << 5, count << 3)
-        bulk_nodes = native_malloc_raw_or_mmap(bytes)
+        // Round up to a power-of-two cap, capped for safety.
+        native_cstr0_set_init_min(need)
     }
 
     var i = 0
@@ -765,30 +869,7 @@ fn oren_init_static_cstr0_table(table_ptr) {
         var s_ptr = data_base + off
 
         if s_ptr != 0 && s_ptr >= 4096 {
-            // De-duplicate: only allocate a node if not already present in the index.
-            var hit = native_alloc_index_get(s_ptr)
-            if hit != 0 {
-                // Force kind=STRING for safety (some backends may accidentally track as kind=0).
-                ptr_set(iadd(hit, 16), 1)
-            } else {
-                var node = 0
-                if bulk_nodes != 0 {
-                    // node = bulk_nodes + bulk_i * 40 (use shifts to avoid mul lowering quirks).
-                    node = iadd(bulk_nodes, iadd(bulk_i << 5, bulk_i << 3))
-                    bulk_i = iadd(bulk_i, 1)
-                } else {
-                    node = native_malloc_raw_or_mmap(40)
-                }
-                if node != 0 {
-                    ptr_set(node, s_ptr)
-                    ptr_set(iadd(node, 8), 0)
-                    ptr_set(iadd(node, 16), 1)
-                    ptr_set(iadd(node, 24), 0) // not freed, not marked (meaningless for static nodes)
-                    ptr_set(iadd(node, 32), g_static_allocs)
-                    g_static_allocs = node
-                    native_alloc_index_put_node(node)
-                }
-            }
+            native_cstr0_set_put(s_ptr)
         }
         i = i + 1
     }
@@ -1237,8 +1318,8 @@ fn oren_gc_pin(v) {
     // Unregister previous pinned pointer if it is a tracked heap object.
     //
     // IMPORTANT (native runtime model):
-    // Embedded string literals are tracked as *static-kind* nodes (size=0) so container ops can
-    // classify them as kind=STRING. They are not GC-managed and must NOT be rooted here.
+    // Embedded string literals (cstr0 pool) are NOT tracked as GC heap allocations.
+    // They must not be rooted here; `oren_find_node(lit)` returns 0 for literals.
     if prev != 0 {
         var prev_node = oren_find_node(prev)
         if prev_node != 0 {
@@ -1271,8 +1352,9 @@ fn oren_find_node(ptr) {
 
     // Single-threaded fast path: avoid repeated hash probes for the same ptrs.
     if g_runtime_single_threaded == 1 {
-        if ptr == g_find_cache_ptr0 { return g_find_cache_node0 }
-        if ptr == g_find_cache_ptr1 { return g_find_cache_node1 }
+        // Pointer identity compare MUST be primitive (not string-aware `==`).
+        if ptr - g_find_cache_ptr0 == 0 { return g_find_cache_node0 }
+        if ptr - g_find_cache_ptr1 == 0 { return g_find_cache_node1 }
     }
     acquire_lock()
     var hit = native_alloc_index_get(ptr)
