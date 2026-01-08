@@ -92,6 +92,14 @@ Note:
   - treat readiness waits as advisory
   - retry until deadline expires
 
+### 2.4 Introspection (rolling v0)
+
+- `tls.peer_cert_sha256_hex(conn)` → `{"ok":1,"v":string}` or `{"ok":0,"err":string}`
+  - Returns the **leaf** certificate hash (SHA‑256 of DER) for deterministic pinning in loopback fixtures.
+- `tls.negotiated_alpn(conn)` → `{"ok":1,"v":string|nil}` or `{"ok":0,"err":string}`
+  - Returns the negotiated ALPN protocol (e.g. `"h2"`) if ALPN was negotiated.
+  - Today’s loopback fixtures pass `opts["alpn"]` to exercise **client offer** plumbing, but the server side does not yet select a protocol, so this commonly returns `{"ok":1,"v":nil}`.
+
 ## 3) Testing strategy (offline + deterministic)
 
 TLS needs a loopback server fixture that is consistent across OS.
@@ -168,6 +176,7 @@ As of **2026-01-08 (rolling)**, `std:net/tls` has a Linux provider implemented i
   - `wrap_client`, `wrap_server_pkcs12`
   - `read_into`, `write_from`, `close`
   - `peer_cert_sha256_hex` (leaf certificate SHA-256 of DER; via `SSL_get1_peer_certificate` + `i2d_X509`)
+  - `negotiated_alpn` (best-effort; via `SSL_get0_alpn_selected`)
 - Regression gate:
   - `scripts/verify_native_net_matrix.sh --targets arm64-linux,x64-wsl` runs:
     - `tests/native/test_tls_loopback.oren`
@@ -214,6 +223,7 @@ As of **2026-01-08 (rolling)**, `std:net/tls` has a Windows provider implemented
   - `wrap_client`, `wrap_server_pkcs12`
   - `read_into`, `write_from`, `close`
   - `peer_cert_sha256_hex` (leaf hash via `SECPKG_ATTR_REMOTE_CERT_CONTEXT` + `CERT_SHA256_HASH_PROP_ID`)
+  - `negotiated_alpn` (best-effort; via `SECPKG_ATTR_APPLICATION_PROTOCOL`)
 - Regression gate:
   - `scripts/verify_native_net_matrix.sh --targets x64-win` runs (stage1 + stage2):
     - `tests/native/test_tls_loopback.oren`
@@ -245,6 +255,7 @@ As of **2026-01-09 (rolling)**, `std:net/tls` has a macOS provider implemented i
   - `wrap_client`, `wrap_server_pkcs12`
   - `read_into`, `write_from`, `close`
   - `peer_cert_sha256_hex` (leaf hash via `SSLCopyPeerTrust` + `SecCertificateCopyData`)
+  - `negotiated_alpn` (best-effort; via `SSLCopyALPNProtocols`)
 - Regression gate:
   - `scripts/verify_native_net_matrix.sh --targets arm64-macos` runs:
     - `tests/native/test_tls_loopback.oren`

@@ -52,6 +52,9 @@ ffi SSL_set_fd
 @ffi.ret("i32")
 ffi SSL_set_alpn_protos
 @cfg(os="linux")
+@ffi.ret("void")
+ffi SSL_get0_alpn_selected
+@cfg(os="linux")
 @ffi.ret("i32")
 ffi SSL_connect
 @cfg(os="linux")
@@ -622,4 +625,44 @@ fn peer_cert_sha256_hex(conn) {
     }
     var hex = sha256.sha256_hex(b)
     return {"ok": 1, "v": hex}
+}
+
+@cfg(os="linux")
+fn negotiated_alpn(conn) {
+    // Query the negotiated ALPN protocol (if any).
+    //
+    // OpenSSL API:
+    // - SSL_get0_alpn_selected(ssl, &data, &len)
+    // Returns:
+    // - len=0 if ALPN was not negotiated.
+    if conn == nil { return {"ok": 0, "err": "tls.negotiated_alpn: conn is nil"} }
+    var ssl = conn["ssl"]
+    if ssl == 0 { return {"ok": 0, "err": "tls.negotiated_alpn: ssl is nil"} }
+
+    var pptr = malloc(8)
+    var lptr = malloc(8)
+    if pptr == 0 || lptr == 0 {
+        if pptr != 0 { free(pptr) }
+        if lptr != 0 { free(lptr) }
+        return {"ok": 0, "err": "tls.negotiated_alpn: alloc failed"}
+    }
+    ptr_set(pptr, 0)
+    oren_ptr_set_u32_le(lptr + 0, 0)
+    oren_ptr_set_u32_le(lptr + 4, 0)
+
+    SSL_get0_alpn_selected(ssl, pptr, lptr)
+    var p = ptr_get(pptr)
+    var n = oren_ptr_get_u32_le(lptr)
+    free(pptr)
+    free(lptr)
+    if n <= 0 || p == 0 { return {"ok": 1, "v": 0} }
+
+    var b = oren_u8_buf_new(n)
+    if oren_is_err(b) { return {"ok": 0, "err": "tls.negotiated_alpn: alloc bytes failed"} }
+    var dst = native_buf_data_ptr(b)
+    if dst == 0 { return {"ok": 0, "err": "tls.negotiated_alpn: buf ptr nil"} }
+    oren_memcpy(dst, p, n)
+    var s = oren_string_from_bytes(b)
+    if s == 0 { return {"ok": 0, "err": "tls.negotiated_alpn: string_from_bytes failed"} }
+    return {"ok": 1, "v": s}
 }

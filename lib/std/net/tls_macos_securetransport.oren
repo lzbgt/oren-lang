@@ -26,6 +26,9 @@ ffi SSLSetPeerDomainName
 ffi SSLSetALPNProtocols
 @cfg(os="macos")
 @ffi.ret("i32")
+ffi SSLCopyALPNProtocols
+@cfg(os="macos")
+@ffi.ret("i32")
 ffi SSLHandshake
 @cfg(os="macos")
 @ffi.ret("i32")
@@ -63,6 +66,9 @@ ffi CFDataGetLength
 ffi CFDataGetBytePtr
 @cfg(os="macos")
 ffi CFStringCreateWithCString
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi CFStringGetCString
 @cfg(os="macos")
 ffi CFDictionaryCreate
 @cfg(os="macos")
@@ -848,4 +854,69 @@ fn peer_cert_sha256_hex(conn) {
     CFRelease(data)
     CFRelease(trust)
     return {"ok": 1, "v": hex}
+}
+
+@cfg(os="macos")
+fn negotiated_alpn(conn) {
+    // Query negotiated ALPN (if any).
+    //
+    // SecureTransport API:
+    // - SSLCopyALPNProtocols(context, &protocols)
+    // The docs describe this as “peer ALPN protocols”; in practice this is expected to be
+    // empty/nil if ALPN was not negotiated.
+    if conn == nil { return {"ok": 0, "err": "tls.negotiated_alpn: conn is nil"} }
+    var ctx = conn["ctx"]
+    if ctx == 0 { return {"ok": 0, "err": "tls.negotiated_alpn: ctx is nil"} }
+
+    var out_ptr = malloc(8)
+    if out_ptr == 0 { return {"ok": 0, "err": "tls.negotiated_alpn: alloc failed"} }
+    ptr_set(out_ptr, 0)
+    var rc = SSLCopyALPNProtocols(ctx, out_ptr)
+    if rc != 0 {
+        free(out_ptr)
+        // Best-effort: treat as "not negotiated / not supported".
+        // Some OS/provider combinations appear to return an error when ALPN wasn't negotiated.
+        return {"ok": 1, "v": 0}
+    }
+    var arr = ptr_get(out_ptr)
+    free(out_ptr)
+    if arr == 0 { return {"ok": 1, "v": 0} }
+
+    var n = CFArrayGetCount(arr)
+    if n <= 0 {
+        CFRelease(arr)
+        return {"ok": 1, "v": 0}
+    }
+    var sref = CFArrayGetValueAtIndex(arr, 0)
+    if sref == 0 {
+        CFRelease(arr)
+        return {"ok": 1, "v": 0}
+    }
+
+    // ALPN protocol IDs are short ASCII strings. Keep a bounded buffer.
+    var cap = 256
+    var buf = malloc(cap)
+    if buf == 0 {
+        CFRelease(arr)
+        return {"ok": 0, "err": "tls.negotiated_alpn: alloc failed"}
+    }
+    // Ensure NUL termination even on partial writes.
+    ptr_set_byte(buf + 0, 0)
+    ptr_set_byte(buf + cap - 1, 0)
+
+    var ok = CFStringGetCString(sref, buf, cap, _kCFStringEncodingUTF8())
+    CFRelease(arr)
+    if ok != 1 {
+        free(buf)
+        return {"ok": 0, "err": "tls.negotiated_alpn: CFStringGetCString failed"}
+    }
+    var l = oren_string_len(buf)
+    if l < 0 { l = 0 }
+    if l == 0 {
+        free(buf)
+        return {"ok": 1, "v": 0}
+    }
+    // Track as a STRING allocation for the native runtime GC.
+    oren_track_alloc(buf, l + 1, 1)
+    return {"ok": 1, "v": buf}
 }

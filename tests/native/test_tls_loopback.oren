@@ -162,6 +162,20 @@ fn main_client() {
         exit(10)
     }
 
+    // Negotiated ALPN is expected to be empty today because the loopback TLS server
+    // does not yet implement server-side ALPN selection across providers.
+    var ar = tls.negotiated_alpn(conn)
+    if oren_map_get_str(ar, "ok") != 1 {
+        tls.close(conn)
+        oren_join_timeout(h, 5000)
+        exit(11)
+    }
+    if oren_map_get_str(ar, "v") != 0 {
+        tls.close(conn)
+        oren_join_timeout(h, 5000)
+        exit(12)
+    }
+
     var msg = "PING"
     var wr = tls.write_from(conn, msg, 4, 5000)
     if wr != 4 {
@@ -263,6 +277,12 @@ fn main_client() {
     }
     var conn = oren_map_get_str(cr, "conn")
     if conn == 0 { exit(10) }
+
+    // Negotiated ALPN is expected to be empty today because the loopback TLS server
+    // does not yet implement server-side ALPN selection across providers.
+    var ar = tls.negotiated_alpn(conn)
+    if oren_map_get_str(ar, "ok") != 1 { tls.close(conn); exit(11) }
+    if oren_map_get_str(ar, "v") != 0 { tls.close(conn); exit(12) }
 
     var msg = "PING"
     var wr = tls.write_from(conn, msg, 4, 5000)
@@ -400,6 +420,18 @@ fn main_client() {
     var conn = oren_map_get_str(cr, "conn")
     if conn == 0 {
         exit(10)
+    }
+
+    // Negotiated ALPN is expected to be empty today because the loopback TLS server
+    // does not yet implement server-side ALPN selection across providers.
+    var ar = tls.negotiated_alpn(conn)
+    if oren_map_get_str(ar, "ok") != 1 {
+        tls.close(conn)
+        exit(11)
+    }
+    if oren_map_get_str(ar, "v") != 0 {
+        tls.close(conn)
+        exit(12)
     }
 
     var msg = "PING"

@@ -47,3 +47,6 @@ fn peer_cert_sha256_hex(conn) {
     return tls.peer_cert_sha256_hex(conn)
 }
 
+fn negotiated_alpn(conn) {
+    return tls.negotiated_alpn(conn)
+}

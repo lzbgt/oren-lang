@@ -1148,3 +1148,69 @@ fn peer_cert_sha256_hex(conn) {
     var hex = oren_bytes_to_hex(b)
     return {"ok": 1, "v": hex}
 }
+
+@cfg(os="windows")
+fn negotiated_alpn(conn) {
+    // Query the negotiated ALPN protocol (if any).
+    //
+    // API:
+    // - QueryContextAttributes(SECPKG_ATTR_APPLICATION_PROTOCOL, SecPkgContext_ApplicationProtocol)
+    //
+    // Docs captured under:
+    // - project-doc/web/microsoft/sspi/en-us_windows_win32_api_sspi_ns-sspi-secpkgcontext_applicationprotocol.html
+    // - project-doc/web/microsoft/sspi/en-us_windows_win32_api_sspi_ne-sspi-sec_application_protocol_negotiation_status.html
+    if conn == nil { return {"ok": 0, "err": "tls.negotiated_alpn: conn is nil"} }
+    var hctx = conn["hctx"]
+    if hctx == 0 { return {"ok": 0, "err": "tls.negotiated_alpn: hctx is nil"} }
+
+    // Conservative buffer size for the struct.
+    // Layout (from docs):
+    //   u32 ProtoNegoStatus
+    //   u32 ProtoNegoExt
+    //   u8  ProtocolIdSize
+    //   u8  ProtocolId[MAX_PROTOCOL_ID_SIZE]
+    var ap = malloc(512)
+    if ap == 0 { return {"ok": 0, "err": "tls.negotiated_alpn: alloc failed"} }
+    _win_memzero(ap, 512)
+    var st = QueryContextAttributesA(hctx, 35, ap) // SECPKG_ATTR_APPLICATION_PROTOCOL
+    if st != 0 {
+        free(ap)
+        // Best-effort: treat as "not negotiated / not supported".
+        // Some Schannel versions may not support this attribute, or may fail if ALPN wasn't negotiated.
+        return {"ok": 1, "v": 0}
+    }
+
+    var status = oren_ptr_get_u32_le(ap + 0)
+    var ext = oren_ptr_get_u32_le(ap + 4)
+    var n = ptr_get_byte(ap + 8) & 255
+    // status:
+    // - 0 None, 1 Success, 2 SelectedClientOnly
+    if status == 0 || n <= 0 {
+        free(ap)
+        return {"ok": 1, "v": 0}
+    }
+    // ext:
+    // - 0 None, 1 NPN, 2 ALPN
+    if ext != 2 {
+        free(ap)
+        return {"ok": 1, "v": 0}
+    }
+    if n > 255 { n = 255 }
+
+    var b = oren_u8_buf_new(n)
+    if oren_is_err(b) {
+        free(ap)
+        return {"ok": 0, "err": "tls.negotiated_alpn: alloc bytes failed"}
+    }
+    var dst = native_buf_data_ptr(b)
+    if dst == 0 {
+        free(ap)
+        return {"ok": 0, "err": "tls.negotiated_alpn: buf ptr nil"}
+    }
+    // ProtocolId starts immediately after the size byte.
+    oren_memcpy(dst, ap + 9, n)
+    free(ap)
+    var s = oren_string_from_bytes(b)
+    if s == 0 { return {"ok": 0, "err": "tls.negotiated_alpn: string_from_bytes failed"} }
+    return {"ok": 1, "v": s}
+}

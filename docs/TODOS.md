@@ -198,12 +198,14 @@ References:
 				               - macOS provider: `lib/std/net/tls_macos_securetransport.oren`
 				               - Linux provider: `lib/std/net/tls_linux_openssl.oren`
 				               - Windows provider: `lib/std/net/tls_windows_schannel.oren`
-			           - Done (2026-01-08): wired `https://` into `std:net/http` and `wss://` into `std:net/ws`:
-			             - `tests/native/test_https_get_loopback.oren` (offline deterministic; uses pinning)
-			             - `tests/native/test_wss_echo_loopback.oren` (offline deterministic; uses pinning)
-			           - Done (2026-01-08): Linux TLS provider bring-up (OpenSSL 3; dynamic `libssl.so.3`/`libcrypto.so.3`)
-			             - Provider: `lib/std/net/tls_linux_openssl.oren` (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
-			             - Regression: `./scripts/verify_native_net_matrix.sh --targets arm64-linux,x64-wsl` (stage1 + stage2)
+				           - Done (2026-01-08): wired `https://` into `std:net/http` and `wss://` into `std:net/ws`:
+				             - `tests/native/test_https_get_loopback.oren` (offline deterministic; uses pinning)
+				             - `tests/native/test_wss_echo_loopback.oren` (offline deterministic; uses pinning)
+				           - Done (2026-01-09): `tls.negotiated_alpn(conn)` query helper added (best-effort; returns `{"ok":1,"v":nil}` when ALPN not negotiated).
+				             - Regression: `tests/native/test_tls_loopback.oren` asserts negotiated ALPN is empty for the loopback server (server-side ALPN selection not wired yet).
+				           - Done (2026-01-08): Linux TLS provider bring-up (OpenSSL 3; dynamic `libssl.so.3`/`libcrypto.so.3`)
+				             - Provider: `lib/std/net/tls_linux_openssl.oren` (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
+				             - Regression: `./scripts/verify_native_net_matrix.sh --targets arm64-linux,x64-wsl` (stage1 + stage2)
 			             - Done: Linux/OpenSSL client SNI + ALPN wiring:
 			               - SNI wired via `SSL_ctrl(...SSL_CTRL_SET_TLSEXT_HOSTNAME...)` using constants from Tier‑1 Linux headers (`libssl-dev`).
 			               - ALPN client offer wired via `SSL_set_alpn_protos` (wire-format protocol list).

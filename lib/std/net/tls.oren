@@ -17,6 +17,7 @@
 // - `write_from(conn, ptr, len, timeout_ms)` -> n or -errno
 // - `close(conn)` -> 0 or -errno
 // - `peer_cert_sha256_hex(conn)` -> {"ok":1,"v":string} or {"ok":0,"err":string}
+// - `negotiated_alpn(conn)` -> {"ok":1,"v":string|nil} or {"ok":0,"err":string}
 //
 // Notes:
 // - `conn` owns the underlying TCP fd; `tls.close(conn)` closes the socket.
@@ -132,6 +133,11 @@ fn peer_cert_sha256_hex(conn) {
     return {"ok": 0, "err": "tls.peer_cert_sha256_hex: not implemented (see docs/NET_TLS.md)"}
 }
 
+@cfg(not_os="macos,linux,windows")
+fn negotiated_alpn(conn) {
+    return {"ok": 0, "err": "tls.negotiated_alpn: not implemented (see docs/NET_TLS.md)"}
+}
+
 // --- Provider dispatch (Tier‑1) ---
 //
 // Split provider implementations into separate modules to keep this facade file small and stable.
@@ -175,6 +181,11 @@ fn peer_cert_sha256_hex(conn) {
     return tls_linux.peer_cert_sha256_hex(conn)
 }
 
+@cfg(os="linux")
+fn negotiated_alpn(conn) {
+    return tls_linux.negotiated_alpn(conn)
+}
+
 @cfg(os="windows")
 fn wrap_client(fd, server_name, timeout_ms, opts) {
     var r = tls_win.wrap_client(fd, server_name, timeout_ms, opts)
@@ -213,6 +224,11 @@ fn peer_cert_sha256_hex(conn) {
     return tls_win.peer_cert_sha256_hex(conn)
 }
 
+@cfg(os="windows")
+fn negotiated_alpn(conn) {
+    return tls_win.negotiated_alpn(conn)
+}
+
 @cfg(os="macos")
 fn wrap_client(fd, server_name, timeout_ms, opts) {
     var r = tls_macos.wrap_client(fd, server_name, timeout_ms, opts)
@@ -249,4 +265,9 @@ fn close(conn) {
 @cfg(os="macos")
 fn peer_cert_sha256_hex(conn) {
     return tls_macos.peer_cert_sha256_hex(conn)
+}
+
+@cfg(os="macos")
+fn negotiated_alpn(conn) {
+    return tls_macos.negotiated_alpn(conn)
 }
