@@ -225,6 +225,11 @@ Implementation notes (Windows):
 - **Server handshake must start with input**:
   - `AcceptSecurityContext` is not guaranteed to establish a context handle when called with a zero-length input token.
   - The server handshake loop therefore reads the initial ClientHello bytes before the first `AcceptSecurityContext` call.
+- **ALPN is wired** (client offer):
+  - `opts["alpn"]` is interpreted as a list of protocol strings (e.g. `["h2","http/1.1"]`).
+  - The Schannel provider builds a `SEC_APPLICATION_PROTOCOLS` blob and passes it via a
+    `SecBuffer` of type `SECBUFFER_APPLICATION_PROTOCOLS` into `InitializeSecurityContextA`.
+  - Sources captured: `project-doc/web/microsoft/sspi/` (SecBuffer + SEC_APPLICATION_PROTOCOLS docs).
 - **Schannel `DecryptMessage` buffer semantics**:
   - The plaintext DATA buffer can be a pointer into the encrypted buffer.
   - Copy plaintext out before shifting the EXTRA encrypted tail, and use overlap-safe moves when shifting tails.

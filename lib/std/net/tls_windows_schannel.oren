@@ -271,6 +271,32 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
     var auth = credr["auth"]
     var cred_arr = credr["cred_arr"]
 
+    // Optional: client ALPN offer (RFC 7301).
+    //
+    // Schannel supports supplying an ALPN protocol list to InitializeSecurityContext via an
+    // input SecBuffer of type SECBUFFER_APPLICATION_PROTOCOLS that points to a
+    // SEC_APPLICATION_PROTOCOLS blob.
+    //
+    // Sources captured under:
+    // - project-doc/web/microsoft/sspi/
+    //
+    // Relevant docs:
+    // - SecBuffer + SecBufferType::SECBUFFER_APPLICATION_PROTOCOLS
+    // - SEC_APPLICATION_PROTOCOLS / SEC_APPLICATION_PROTOCOL_LIST
+    // - SEC_APPLICATION_PROTOCOL_NEGOTIATION_EXT (use ALPN)
+    var alpn_buf = 0
+    var alpn_cb = 0
+    var alpn_r = _win_build_alpn_secbuffer_if_requested(opts)
+    if alpn_r["ok"] != 1 {
+        FreeCredentialsHandle(hcred)
+        free(hcred)
+        if auth != 0 { free(auth) }
+        if cred_arr != 0 { free(cred_arr) }
+        return alpn_r
+    }
+    alpn_buf = alpn_r["p"]
+    alpn_cb = alpn_r["cb"]
+
     var hctx = malloc(16)
     if hctx == 0 {
         FreeCredentialsHandle(hcred)
@@ -292,6 +318,7 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
         free(hcred)
         if auth != 0 { free(auth) }
         if cred_arr != 0 { free(cred_arr) }
+        if alpn_buf != 0 { free(alpn_buf) }
         return {"ok": 0, "err": "tls(win): alloc scratch failed"}
     }
     _win_memzero(attrs, 8)
@@ -305,6 +332,7 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
         FreeCredentialsHandle(hcred); free(hcred)
         if auth != 0 { free(auth) }
         if cred_arr != 0 { free(cred_arr) }
+        if alpn_buf != 0 { free(alpn_buf) }
         return {"ok": 0, "err": "tls(win): alloc in_buf failed"}
     }
     var in_used = 0
@@ -330,12 +358,27 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
 
         var in_desc = 0
         var in_bufs = 0
-        if in_used > 0 {
-            in_bufs = _win_secbuf_array_new(2)
+        // Include ALPN only on the first InitializeSecurityContext call (before a context exists).
+        var want_alpn = 0
+        if have_ctx == 0 && alpn_buf != 0 && alpn_cb > 0 { want_alpn = 1 }
+
+        if in_used > 0 || want_alpn != 0 {
+            var in_n = 2
+            if want_alpn != 0 { in_n = 3 }
+            in_bufs = _win_secbuf_array_new(in_n)
             if in_bufs == 0 { free(out_desc); free(out_bufs); break }
-            _win_secbuf_set(in_bufs, 0, in_used, 2, in_buf) // TOKEN
-            _win_secbuf_set(in_bufs, 1, 0, 0, 0)            // EMPTY
-            in_desc = _win_secbufdesc_new(in_bufs, 2)
+            // TOKEN (may be empty on the first call when we only send ALPN).
+            var tok_pv = 0
+            if in_used > 0 { tok_pv = in_buf }
+            _win_secbuf_set(in_bufs, 0, in_used, 2, tok_pv) // TOKEN
+            if want_alpn != 0 {
+                // SECBUFFER_APPLICATION_PROTOCOLS == 18
+                _win_secbuf_set(in_bufs, 1, alpn_cb, 18, alpn_buf)
+                _win_secbuf_set(in_bufs, 2, 0, 0, 0) // EMPTY (used to return EXTRA)
+            } else {
+                _win_secbuf_set(in_bufs, 1, 0, 0, 0) // EMPTY (used to return EXTRA)
+            }
+            in_desc = _win_secbufdesc_new(in_bufs, in_n)
             if in_desc == 0 { free(in_bufs); free(out_desc); free(out_bufs); break }
         }
 
@@ -361,16 +404,23 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
 
         // Preserve EXTRA input if present.
         if in_desc != 0 && in_bufs != 0 {
-            var t1 = _win_secbuf_get_type(in_bufs, 1)
-            if t1 == 5 {
-                var extra_cb = _win_secbuf_get_cb(in_bufs, 1)
-                var extra_pv = _win_secbuf_get_pv(in_bufs, 1)
-                if extra_cb > 0 && extra_pv != 0 {
-                    _win_memmove(in_buf, extra_pv, extra_cb)
-                    in_used = extra_cb
-                } else {
-                    in_used = 0
+            // When input buffers include SECBUFFER_APPLICATION_PROTOCOLS, the buffer index
+            // that receives SECBUFFER_EXTRA is not guaranteed. Scan all input buffers.
+            var extra_cb = 0
+            var extra_pv = 0
+            var j = 0
+            while j < oren_ptr_get_u32_le(in_desc + 4) {
+                var tj = _win_secbuf_get_type(in_bufs, j)
+                if tj == 5 {
+                    extra_cb = _win_secbuf_get_cb(in_bufs, j)
+                    extra_pv = _win_secbuf_get_pv(in_bufs, j)
+                    break
                 }
+                j = j + 1
+            }
+            if extra_cb > 0 && extra_pv != 0 {
+                _win_memmove(in_buf, extra_pv, extra_cb)
+                in_used = extra_cb
             } else {
                 in_used = 0
             }
@@ -386,6 +436,7 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
             free(attrs)
             free(exp)
             free(in_buf)
+            if alpn_buf != 0 { free(alpn_buf) }
             return {"ok": 1, "hcred": hcred, "hctx": hctx, "auth": auth, "cred_arr": cred_arr}
         }
 
@@ -417,7 +468,81 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
     free(hcred)
     if auth != 0 { free(auth) }
     if cred_arr != 0 { free(cred_arr) }
+    if alpn_buf != 0 { free(alpn_buf) }
     return {"ok": 0, "err": "tls(win): client handshake failed (st=" + oren_int_to_string(last_st) + ")"}
+}
+
+@cfg(os="windows")
+fn _win_build_alpn_secbuffer_if_requested(opts) {
+    // Build a SEC_APPLICATION_PROTOCOLS blob for Schannel ALPN offer.
+    //
+    // Docs (saved under project-doc/web/microsoft/sspi/):
+    // - SEC_APPLICATION_PROTOCOLS: ProtocolListsSize + ProtocolLists[]
+    // - SEC_APPLICATION_PROTOCOL_LIST: ProtoNegoExt + ProtocolListSize + ProtocolList[]
+    // - ALPN protocol list encoding: list of 8-bit length-prefixed protocol IDs (RFC 7301)
+    //
+    // Returns:
+    // - {"ok":1,"p":0,"cb":0} when not requested
+    // - {"ok":1,"p":ptr,"cb":int} when built
+    // - {"ok":0,"err":string} on invalid opts
+    if opts == nil || opts == 0 { return {"ok": 1, "p": 0, "cb": 0} }
+    if oren_is_map(opts) != true { return {"ok": 1, "p": 0, "cb": 0} }
+    var ps = oren_map_get_str(opts, "alpn")
+    if ps == 0 { return {"ok": 1, "p": 0, "cb": 0} }
+    if oren_is_list(ps) != true { return {"ok": 0, "err": "tls(win): alpn: opts[\"alpn\"] must be list<string>"} }
+    var n = oren_list_len(ps)
+    if n <= 0 { return {"ok": 1, "p": 0, "cb": 0} }
+
+    // Compute ALPN wire-format size (same as OpenSSL path).
+    var total = 0
+    var i = 0
+    while i < n {
+        var p = ps[i]
+        if p == 0 || oren_is_string(p) != true { return {"ok": 0, "err": "tls(win): alpn: protocol must be string"} }
+        var l = oren_string_len(p)
+        if l <= 0 || l > 255 { return {"ok": 0, "err": "tls(win): alpn: protocol length must be 1..255"} }
+        total = total + 1 + l
+        if total > 1024 { return {"ok": 0, "err": "tls(win): alpn: protocol list too large"} }
+        i = i + 1
+    }
+    if total <= 0 { return {"ok": 1, "p": 0, "cb": 0} }
+
+    // Allocate SEC_APPLICATION_PROTOCOLS with one SEC_APPLICATION_PROTOCOL_LIST.
+    // Layout we build (little-endian):
+    //   u32 ProtocolListsSize
+    //   u32 ProtoNegoExt (ALPN)
+    //   u16 ProtocolListSize
+    //   u8  ProtocolList[ProtocolListSize]
+    //
+    // Note: SEC_APPLICATION_PROTOCOL_NEGOTIATION_EXT enum values are (by C enum order):
+    //   0 = None, 1 = NPN, 2 = ALPN
+    var lists_size = 4 + 2 + total
+    var cb = 4 + lists_size
+    var buf = malloc(cb)
+    if buf == 0 { return {"ok": 0, "err": "tls(win): alpn: alloc failed"} }
+    _win_memzero(buf, cb)
+    oren_ptr_set_u32_le(buf + 0, lists_size)
+    oren_ptr_set_u32_le(buf + 4, 2) // SecApplicationProtocolNegotiationExt_ALPN
+    oren_ptr_set_u16_le(buf + 8, total)
+
+    // Encode the protocol list (RFC 7301 wire format).
+    var off = 10
+    i = 0
+    while i < n {
+        var s = ps[i]
+        var l2 = oren_string_len(s)
+        ptr_set_byte(buf + off, l2 & 255)
+        off = off + 1
+        var j = 0
+        while j < l2 {
+            ptr_set_byte(buf + off + j, oren_string_byte_at_unchecked(s, j) & 255)
+            j = j + 1
+        }
+        off = off + l2
+        i = i + 1
+    }
+
+    return {"ok": 1, "p": buf, "cb": cb}
 }
 
 @cfg(os="windows")
