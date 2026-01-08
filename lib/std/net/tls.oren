@@ -589,72 +589,28 @@ fn peer_cert_sha256_hex(conn) {
 // Constants are derived from the Windows SDK headers (validated on the Tier‑1 Win11 host via a tiny C probe).
 
 @cfg(os="windows")
-@ffi.ret("i32")
 @ffi.dll("secur32.dll")
-ffi AcquireCredentialsHandleA
-
-@cfg(os="windows")
 @ffi.ret("i32")
-@ffi.dll("secur32.dll")
-ffi FreeCredentialsHandle
-
-@cfg(os="windows")
-@ffi.ret("i32")
-@ffi.dll("secur32.dll")
-ffi InitializeSecurityContextA
-
-@cfg(os="windows")
-@ffi.ret("i32")
-@ffi.dll("secur32.dll")
-ffi AcceptSecurityContext
-
-@cfg(os="windows")
-@ffi.ret("i32")
-@ffi.dll("secur32.dll")
-ffi DeleteSecurityContext
-
-@cfg(os="windows")
-@ffi.ret("i32")
-@ffi.dll("secur32.dll")
-ffi FreeContextBuffer
-
-@cfg(os="windows")
-@ffi.ret("i32")
-@ffi.dll("secur32.dll")
-ffi QueryContextAttributesA
-
-@cfg(os="windows")
-@ffi.ret("i32")
-@ffi.dll("secur32.dll")
-ffi EncryptMessage
-
-@cfg(os="windows")
-@ffi.ret("i32")
-@ffi.dll("secur32.dll")
-ffi DecryptMessage
+ffi {
+    AcquireCredentialsHandleA,
+    FreeCredentialsHandle,
+    InitializeSecurityContextA,
+    AcceptSecurityContext,
+    DeleteSecurityContext,
+    FreeContextBuffer,
+    QueryContextAttributesA,
+    EncryptMessage,
+    DecryptMessage
+}
 
 @cfg(os="windows")
 @ffi.dll("crypt32.dll")
-ffi PFXImportCertStore
-
-@cfg(os="windows")
-@ffi.dll("crypt32.dll")
-ffi CertEnumCertificatesInStore
+ffi { PFXImportCertStore, CertEnumCertificatesInStore }
 
 @cfg(os="windows")
 @ffi.ret("i32")
 @ffi.dll("crypt32.dll")
-ffi CertCloseStore
-
-@cfg(os="windows")
-@ffi.ret("i32")
-@ffi.dll("crypt32.dll")
-ffi CertFreeCertificateContext
-
-@cfg(os="windows")
-@ffi.ret("i32")
-@ffi.dll("crypt32.dll")
-ffi CertGetCertificateContextProperty
+ffi { CertCloseStore, CertFreeCertificateContext, CertGetCertificateContextProperty }
 
 @cfg(os="windows")
 fn _win_memzero(p, n) {

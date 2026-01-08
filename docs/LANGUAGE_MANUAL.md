@@ -267,6 +267,10 @@ ffi puts
 ffi puts
 ```
 
+Rolling convenience:
+
+- `ffi { sym1, sym2, ... }` expands to multiple `ffi sym` declarations, inheriting the same attributes.
+
 Notes (rolling):
 
 - `ffi` is a low-level escape hatch intended primarily for native interop and experiments.

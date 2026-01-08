@@ -484,7 +484,52 @@ fn parse_type_decl(p) {
 
 fn parse_ffi(p) {
     var tok = p["cur"]
+    // Supported forms:
+    // - `ffi puts`
+    // - `ffi { puts, printf, ... }` (rolling sugar: expands to multiple FFI decls)
+    //
+    // The group form exists to avoid repeating `@ffi.dll/@ffi.link/@ffi.ret` for many
+    // symbols from the same library.
+    if peek_is(p, token.TOK_LBRACE) {
+        parser_next_token(p) // '{'
+        parser_next_token(p) // first ident or '}'
+
+        var stmts = []
+        if cur_is(p, token.TOK_RBRACE) {
+            parser_add_error(p, "ffi group must contain at least one symbol")
+            return ast.new_stmt_list([])
+        }
+
+        while !cur_is(p, token.TOK_RBRACE) && !cur_is(p, token.TOK_EOF) {
+            if !cur_is(p, token.TOK_IDENT) {
+                parser_add_error(p, "expected ffi symbol name")
+                return ast.new_stmt_list([])
+            }
+            var name = ast.new_identifier(p["cur"])
+            oren_list_push(stmts, ast.new_ffi(tok, name))
+
+            if peek_is(p, token.TOK_COMMA) || peek_is(p, token.TOK_SEMICOLON) {
+                parser_next_token(p) // ',' / ';'
+                parser_next_token(p) // next item or '}'
+                continue
+            }
+
+            if peek_is(p, token.TOK_RBRACE) {
+                parser_next_token(p) // '}'
+                break
+            }
+
+            parser_add_error(p, "expected ',' or '}' after ffi symbol name")
+            return ast.new_stmt_list([])
+        }
+
+        var out = ast.new_stmt_list(stmts)
+        // Distinguish from enum/impl sugar expansion so attrs/doc can apply.
+        out["origin"] = "ffi_group"
+        return out
+    }
+
     if !expect_peek(p, token.TOK_IDENT) { return nil }
-    var name = ast.new_identifier(p["cur"])
-    return ast.new_ffi(tok, name)
+    var name2 = ast.new_identifier(p["cur"])
+    return ast.new_ffi(tok, name2)
 }

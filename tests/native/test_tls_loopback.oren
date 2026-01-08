@@ -60,8 +60,7 @@ fn main() {
     exit(0)
 }
 
-@cfg(os="windows")
-fn server_win(listen_fd, pfx_b64) {
+fn server_impl(listen_fd, pfx_b64) {
     var pkcs12_bytes = base64.decode_bytes(pfx_b64)
     if oren_is_err(pkcs12_bytes) {
         print("tls_loopback: server FAIL base64 decode")
@@ -107,51 +106,14 @@ fn server_win(listen_fd, pfx_b64) {
     return 0
 }
 
+@cfg(os="windows")
+fn server_win(listen_fd, pfx_b64) {
+    return server_impl(listen_fd, pfx_b64)
+}
+
 @cfg(os="macos,linux")
 fn server_main(listen_fd, pfx_b64) {
-    var pkcs12_bytes = base64.decode_bytes(pfx_b64)
-    if oren_is_err(pkcs12_bytes) {
-        print("tls_loopback: server FAIL base64 decode")
-        exit(101)
-    }
-    var n = oren_buf_len(pkcs12_bytes)
-    if oren_is_err(n) || n != fixture.pkcs12_len() {
-        print("tls_loopback: server FAIL pkcs12 len=" + oren_int_to_string(n))
-        exit(102)
-    }
-    if native_buf_data_ptr(pkcs12_bytes) == 0 {
-        print("tls_loopback: server FAIL pkcs12 data ptr nil")
-        exit(103)
-    }
-
-    var fd = tcp.accept(listen_fd, 5000)
-    if fd < 0 { exit(11) }
-
-    var r = tls.wrap_server_pkcs12(fd, 5000, pkcs12_bytes, fixture.passphrase(), nil)
-    var ok = oren_map_get_str(r, "ok")
-    if ok != 1 {
-        var es = oren_map_get_str(r, "err")
-        if es != 0 {
-            print("tls_loopback: server wrap FAIL: " + es)
-        }
-        exit(12)
-    }
-    var conn = oren_map_get_str(r, "conn")
-    if conn == 0 { exit(13) }
-
-    var buf = malloc(16)
-    if buf == 0 { tls.close(conn); exit(14) }
-    var n = tls.read_into(conn, buf, 4, 5000)
-    if n != 4 {
-        free(buf)
-        tls.close(conn)
-        exit(15)
-    }
-    var wr = tls.write_from(conn, buf, 4, 5000)
-    free(buf)
-    tls.close(conn)
-    if wr != 4 { exit(16) }
-    exit(0)
+    exit(server_impl(listen_fd, pfx_b64))
 }
 
 @cfg(os="windows")

@@ -92,6 +92,13 @@ go build -o oren_bootstrap ./cmd/oren
 make stage2
 ```
 
+Rolling note (important):
+
+- Stage1 (`./oren`) and Stage2 (`./oren_stage2`) are **separate binaries**.
+- If you change compiler sources (parser/AST/lowering/backends) and then start using new syntax in stdlib/tests,
+  you must rebuild Stage2 (`make stage2`) before running any workflow that invokes `./oren_stage2`.
+  Otherwise Stage2 may reject the new syntax even if Stage1 accepts it.
+
 Native backend option (syscall-first Mach-O/ELF emitter):
 ```sh
 ./oren build oren.oren --backend native --platform arm64-macos -o build/oren_stage2_native

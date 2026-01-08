@@ -79,6 +79,10 @@ fn main() {
 
 @cfg(os="windows")
 fn server_win(listen_fd, pfx_b64) {
+    return server_impl(listen_fd, pfx_b64)
+}
+
+fn server_impl(listen_fd, pfx_b64) {
     var pkcs12_bytes = base64.decode_bytes(pfx_b64)
     if oren_is_err(pkcs12_bytes) { return 101 }
     var n = oren_buf_len(pkcs12_bytes)
@@ -126,45 +130,7 @@ fn server_win(listen_fd, pfx_b64) {
 
 @cfg(os="macos,linux")
 fn server_main(listen_fd, pfx_b64) {
-    var pkcs12_bytes = base64.decode_bytes(pfx_b64)
-    if oren_is_err(pkcs12_bytes) { exit(101) }
-    var n = oren_buf_len(pkcs12_bytes)
-    if oren_is_err(n) || n != fixture.pkcs12_len() { exit(102) }
-
-    var fd = tcp.accept(listen_fd, 5000)
-    if fd < 0 { exit(11) }
-    var r = tls.wrap_server_pkcs12(fd, 5000, pkcs12_bytes, fixture.passphrase(), nil)
-    if oren_map_get_str(r, "ok") != 1 { exit(12) }
-    var conn = oren_map_get_str(r, "conn")
-    if conn == 0 { exit(13) }
-
-    // Read until the end of the HTTP header (best-effort).
-    var cap = 8192
-    var buf = malloc(cap)
-    if buf == 0 { tls.close(conn); exit(14) }
-    var tmp = malloc(1024)
-    if tmp == 0 { free(buf); tls.close(conn); exit(15) }
-    var used = 0
-    var hdr_end = 0
-    while used < cap && hdr_end == 0 {
-        var rn = tls.read_into(conn, tmp, 1024, 5000)
-        if rn <= 0 { break }
-        if used + rn > cap { break }
-        oren_memcpy(buf + used, tmp, rn)
-        used = used + rn
-        hdr_end = _find_header_end(buf, used)
-    }
-    free(tmp)
-    free(buf)
-
-    // Minimal HTTP response.
-    var body = "HELLO"
-    var resp = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n" + body
-    var wr = tls.write_from(conn, resp, oren_string_len(resp), 5000)
-    free(resp)
-    tls.close(conn)
-    if wr < 0 { exit(16) }
-    exit(0)
+    exit(server_impl(listen_fd, pfx_b64))
 }
 
 @cfg(os="macos,linux")

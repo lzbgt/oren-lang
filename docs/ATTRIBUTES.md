@@ -186,6 +186,21 @@ Notes:
 - The argument must be a single string literal (v0 determinism rule).
   - On other native targets, prefer `@ffi.link("...")` for portability.
 
+#### 3.4.1 FFI group sugar (rolling)
+
+When importing many FFI symbols from the same library, repeating `@ffi.dll(...)` / `@ffi.link(...)` / `@ffi.ret(...)` can be noisy.
+
+Rolling sugar:
+
+```oren
+@cfg(os="windows")
+@ffi.dll("secur32.dll")
+@ffi.ret("i32")
+ffi { AcquireCredentialsHandleA, FreeCredentialsHandle, InitializeSecurityContextA }
+```
+
+This expands to multiple `ffi <name>` declarations, each inheriting the same attributes (and doc comment, if present).
+
 ### 3.5 FFI return typing (`@ffi.ret(...)`) (native backend)
 
 Some foreign functions return narrow integer types at the ABI level (most commonly C `int`, i.e. signed 32-bit).

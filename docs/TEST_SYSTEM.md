@@ -21,6 +21,44 @@ The current approach is **direct compilation + direct execution** using the comp
 Rolling rule: **Oren source should be backend-universal** when the program is within the supported feature set of that backend.
 When a source file is intended to be backend-specific (e.g. AVM domain tests), it should be documented as such in-file.
 
+## Platform portability (and why `@cfg` appears in tests)
+
+Goal: a large fraction of Oren source should be **portable across Tier‑1 OS/arch** (and ideally across backends), and the test suite should reinforce that.
+
+However, some tests (especially `tests/native/*.oren`) necessarily touch **OS-specific primitives**:
+
+- process lifecycle details (how to exit from a worker thread vs the main thread),
+- socket API differences (WinSock vs BSD sockets),
+- platform TLS providers (macOS Security.framework vs Windows Schannel vs Linux OpenSSL),
+- filesystem and path quirks (drive letters, `\` vs `/`),
+- availability of syscalls and ABI details.
+
+In rolling mode, those differences are expected. The practical question is: how do we keep the tests **portable in intent** without writing four entirely separate copies?
+
+### The recommended pattern: “shared core + tiny `@cfg` glue”
+
+Use `@cfg(...)` to keep the majority of the logic shared, and isolate the OS-specific differences into small wrappers.
+
+Why this is safe:
+
+- `@cfg(...)` is evaluated at compile time for the selected `--platform`.
+- When a declaration does not match its `@cfg`, it is **removed from the program** before later compiler passes (so it should not affect typechecking/lowering on other platforms).
+  - Reference: `docs/ATTRIBUTES.md` (“Conditional compilation”).
+
+Example pattern (schematic):
+
+```oren
+fn server_impl() { /* shared logic */ return 0 }
+
+@cfg(os="windows")
+fn main_server() { return server_impl() } // Windows: returning from main is fine.
+
+@cfg(os="linux,macos")
+fn main_server() { exit(server_impl()) }  // POSIX: force deterministic exit.
+```
+
+The TLS/HTTPS/WSS loopback fixtures follow this pattern: core server/client logic is shared, and only the “how do we start/stop the server” glue varies by OS.
+
 ## Fast native verification (macOS/Linux host)
 
 These targets are intended to be runnable without additional tooling:

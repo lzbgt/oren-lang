@@ -223,17 +223,34 @@ fn parse_block(p) {
             var stmt = parse_statement(p)
             if stmt != nil {
                 if stmt["type"] == "StmtList" {
-                    if attrs != nil && oren_list_len(attrs) != 0 {
-                        parser_add_error(p, "attributes may not precede enum/impl sugar expansion in blocks yet")
-                    }
-                    if p["_pending_doc"] != nil {
-                        parser_add_error(p, "doc comments may not precede enum/impl sugar expansion in blocks yet")
-                        p["_pending_doc"] = nil
-                    }
-                    var si = 0
-                    while si < oren_list_len(stmt["stmts"]) {
-                        oren_list_push(block["stmts"], stmt["stmts"][si])
-                        si = si + 1
+                    var origin = stmt["origin"]
+                    if origin == "ffi_group" {
+                        var pending = parser_take_pending_doc(p)
+                        var si = 0
+                        while si < oren_list_len(stmt["stmts"]) {
+                            var s = stmt["stmts"][si]
+                            attach_attrs_to_stmt(p, s, attrs)
+                            if pending != nil {
+                                if s["type"] == "Type" || s["type"] == "Import" || s["type"] == "FFI" || s["type"] == "Var" {
+                                    s["doc"] = pending
+                                }
+                            }
+                            oren_list_push(block["stmts"], s)
+                            si = si + 1
+                        }
+                    } else {
+                        if attrs != nil && oren_list_len(attrs) != 0 {
+                            parser_add_error(p, "attributes may not precede enum/impl sugar expansion in blocks yet")
+                        }
+                        if p["_pending_doc"] != nil {
+                            parser_add_error(p, "doc comments may not precede enum/impl sugar expansion in blocks yet")
+                            p["_pending_doc"] = nil
+                        }
+                        var si2 = 0
+                        while si2 < oren_list_len(stmt["stmts"]) {
+                            oren_list_push(block["stmts"], stmt["stmts"][si2])
+                            si2 = si2 + 1
+                        }
                     }
                 } else {
                     // Attach attrs (metadata-only) if present.

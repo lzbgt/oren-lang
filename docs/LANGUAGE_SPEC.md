@@ -141,7 +141,7 @@ field           = { attr } ident [ ":" type_name ] ;
 trait_stmt      = "trait" ident "{" { "fn" ident "(" [ param_list ] ")" [ ":" type_name ] ";" } "}" ;
 impl_stmt       = "impl" dotted_name "for" type_name "{" { "fn" ident "(" [ param_list ] ")" [ ":" type_name ] block } "}" ;
 enum_stmt       = "enum" ident "{" ident [ "(" [ ident { "," ident } ] ")" ] { "," ident [ "(" [ ident { "," ident } ] ")" ] } [ "," ] "}" ;
-ffi_stmt        = "ffi" ident [ ";" ] ;
+ffi_stmt        = "ffi" ( ident | "{" ident { "," ident } "}" ) [ ";" ] ;
 test_stmt       = "test" string_lit block ;
 spawn_stmt      = "spawn" expression [ ";" ] ;
 expr_stmt       = expression [ ";" ] ;
@@ -1255,6 +1255,10 @@ Intrinsics are part of the “reserved surface” (prefix `oren_`, `sys_`) and m
       - `@ffi.ret("i32")`: ABI signed 32-bit return (sign-extend to i64).
       - `@ffi.ret("u32")`: ABI unsigned 32-bit return (zero-extend to i64).
       - `@ffi.ret("void")`: ABI void return (force return register to 0 for expression contexts).
+
+    Rolling sugar:
+
+      - `ffi { sym1, sym2, ... }`: expand to multiple `ffi sym` declarations, each inheriting the same attributes.
 
 **ARM64-only today (rolling):**
 

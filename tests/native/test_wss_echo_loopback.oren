@@ -61,6 +61,10 @@ fn main() {
 
 @cfg(os="windows")
 fn server_win(listen_fd, pfx_b64) {
+    return server_impl(listen_fd, pfx_b64)
+}
+
+fn server_impl(listen_fd, pfx_b64) {
     var pkcs12_bytes = base64.decode_bytes(pfx_b64)
     if oren_is_err(pkcs12_bytes) { return 101 }
     var n = oren_buf_len(pkcs12_bytes)
@@ -97,30 +101,7 @@ fn server_win(listen_fd, pfx_b64) {
 
 @cfg(os="macos,linux")
 fn server_main(listen_fd, pfx_b64) {
-    var pkcs12_bytes = base64.decode_bytes(pfx_b64)
-    if oren_is_err(pkcs12_bytes) { exit(101) }
-    var n = oren_buf_len(pkcs12_bytes)
-    if oren_is_err(n) || n != fixture.pkcs12_len() { exit(102) }
-
-    var r = ws.accept_tls_pkcs12(listen_fd, 5000, pkcs12_bytes, fixture.passphrase(), nil)
-    if oren_map_get_str(r, "ok") != 1 {
-        var errv = oren_map_get_str(r, "err")
-        if errv != 0 { print("wss_server: accept_tls_pkcs12 FAIL: " + oren_intern_cstr(errv)) }
-        exit(11)
-    }
-    var conn = oren_map_get_str(r, "conn")
-    if conn == 0 { exit(12) }
-
-    var msg = ws.recv_text(conn, 5000)
-    if oren_map_get_str(msg, "ok") != 1 { ws.close(conn); exit(13) }
-    var s = oren_map_get_str(msg, "v")
-    if s == 0 { ws.close(conn); exit(14) }
-
-    var wr = ws.send_text_server(conn, s, 5000)
-    free(s)
-    ws.close(conn)
-    if wr < 0 { exit(15) }
-    exit(0)
+    exit(server_impl(listen_fd, pfx_b64))
 }
 
 @cfg(os="macos,linux")
