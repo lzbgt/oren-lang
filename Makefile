@@ -3,6 +3,7 @@
 .PHONY: verify-native-x64-compile
 .PHONY: verify-x64-linux-qemu
 .PHONY: verify-x64-linux-qemu-net
+.PHONY: verify-x64-linux-qemu-tls
 .PHONY: setup-x64-linux-qemu
 .PHONY: verify-native-matrix verify-native-net verify-selfhost-x64 verify-stage0-win verify-tier1
 .PHONY: verify-stage2-win
@@ -382,6 +383,11 @@ verify-x64-linux-qemu: oren_stage2
 # Requires `make setup-x64-linux-qemu` once to install an amd64 glibc loader in the container.
 verify-x64-linux-qemu-net: oren_stage2
 			@./scripts/verify_x64_linux_qemu_net_smoke.sh
+
+# Local execution smoke for x64-linux TLS/HTTPS/WSS fixtures (loopback-only) under QEMU.
+# Requires `OREN_X64_LINUX_QEMU_INSTALL_OPENSSL=1 make setup-x64-linux-qemu` once to install amd64 OpenSSL.
+verify-x64-linux-qemu-tls: oren_stage2
+			@./scripts/verify_x64_linux_qemu_tls_smoke.sh
 
 # One-time environment setup: install an amd64 glibc loader inside the persistent Linux container
 # so qemu-x86_64 can execute dynamically-linked x64-linux binaries.

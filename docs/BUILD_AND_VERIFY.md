@@ -260,10 +260,18 @@ make setup-x64-linux-qemu
 make verify-x64-linux-qemu-net
 ```
 
-Optional (if you also want to run TLS/HTTPS/WSS x64-linux binaries under QEMU later):
+### Optional: local x64-linux TLS/HTTPS/WSS loopback execution (QEMU)
+
+TLS/HTTPS/WSS fixtures need an OpenSSL runtime in the container (amd64). Install it once:
 
 ```bash
 OREN_X64_LINUX_QEMU_INSTALL_OPENSSL=1 make setup-x64-linux-qemu
+```
+
+Then run the loopback TLS/HTTPS/WSS fixtures (stage1 + stage2) under `qemu-x86_64`:
+
+```bash
+make verify-x64-linux-qemu-tls
 ```
 
 Makefile shortcuts (macOS/arm64 host workflow):
