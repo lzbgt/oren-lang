@@ -45,6 +45,7 @@ Local x64 sanity (compile-only):
 Local x64 sanity (execution under QEMU):
 
 - `make verify-x64-linux-qemu` (stage1 + stage2 emit **and run** x64-linux under `qemu-x86_64` in the persistent Linux container)
+- `make verify-x64-linux-qemu-net` (optional; requires `make setup-x64-linux-qemu` once; runs loopback NET fixtures under `qemu-x86_64` in the persistent Linux container)
 
 References:
 

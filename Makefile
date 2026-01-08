@@ -2,6 +2,8 @@
 .PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick
 .PHONY: verify-native-x64-compile
 .PHONY: verify-x64-linux-qemu
+.PHONY: verify-x64-linux-qemu-net
+.PHONY: setup-x64-linux-qemu
 .PHONY: verify-native-matrix verify-native-net verify-selfhost-x64 verify-stage0-win verify-tier1
 .PHONY: verify-stage2-win
 .PHONY: bench-native-compile
@@ -375,6 +377,16 @@ verify-native-x64-compile: oren_stage2 rtobj-seed-x64 astbin-seed-x64
 # This is a higher-signal guard than compile-only, but still does not require remote WSL2.
 verify-x64-linux-qemu: oren_stage2
 			@./scripts/verify_x64_linux_qemu_smoke.sh
+
+# Local execution smoke for x64-linux NET fixtures (loopback-only) under QEMU.
+# Requires `make setup-x64-linux-qemu` once to install an amd64 glibc loader in the container.
+verify-x64-linux-qemu-net: oren_stage2
+			@./scripts/verify_x64_linux_qemu_net_smoke.sh
+
+# One-time environment setup: install an amd64 glibc loader inside the persistent Linux container
+# so qemu-x86_64 can execute dynamically-linked x64-linux binaries.
+setup-x64-linux-qemu:
+			@./scripts/setup_x64_linux_qemu_sysroot.sh
 
 # Tier‑1 verification shortcuts (macOS/arm64 host workflow).
 #

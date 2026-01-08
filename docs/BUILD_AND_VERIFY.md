@@ -248,6 +248,18 @@ make verify-x64-linux-qemu
 This runs a small curated set of fixtures (stage1 + stage2) to catch x64-linux runtime/codegen regressions
 that compile-only checks cannot detect.
 
+### Optional: local x64-linux NET loopback execution (QEMU)
+
+To also cover the loopback networking surface (TCP/UDP/DNS/HTTP/WS) under QEMU:
+
+```bash
+# One-time setup to install an amd64 glibc loader in the persistent container:
+make setup-x64-linux-qemu
+
+# Then run the NET loopback fixtures (stage1 + stage2):
+make verify-x64-linux-qemu-net
+```
+
 Makefile shortcuts (macOS/arm64 host workflow):
 
 ```bash
