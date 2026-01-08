@@ -222,9 +222,10 @@ References:
 				             - Done (2026-01-09): Windows Schannel server ALPN selection wired:
 				               - `opts["alpn"]` is passed into the first `AcceptSecurityContext` call via `SECBUFFER_APPLICATION_PROTOCOLS`.
 			           - Done (2026-01-08): deterministic pinning is enforced by `std:net/tls.wrap_client` when `opts["pin_cert_sha256_hex"]` is provided (so HTTP/WS do not duplicate pinning logic).
-			           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider).
-			             - HTTP/2 needs a dedicated framing layer + server-side negotiation; ALPN offer plumbing is now in place (Linux/OpenSSL).
-	     - x64 native backend correctness:
+				           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider).
+				             - HTTP/2 needs a dedicated framing layer + server-side negotiation; ALPN offer plumbing is now in place (Linux/OpenSSL).
+				               - Next: implement OpenSSL server-side ALPN selection (`SSL_CTX_set_alpn_select_cb`) once we have a stable native callback bridge (likely needs `@ffi.export` parity beyond macOS, or an explicit callback trampoline feature).
+		     - x64 native backend correctness:
 		       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
 		         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)
 		         - Gate: `OREN_CANON_I32_ABORT=1` (hard-fail; preferred for CI / remote Tier‑1 scripts)
