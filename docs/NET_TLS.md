@@ -228,3 +228,28 @@ Implementation notes (Windows):
 - **Schannel `DecryptMessage` buffer semantics**:
   - The plaintext DATA buffer can be a pointer into the encrypted buffer.
   - Copy plaintext out before shifting the EXTRA encrypted tail, and use overlap-safe moves when shifting tails.
+
+### 5.3 macOS provider (SecureTransport)
+
+As of **2026-01-09 (rolling)**, `std:net/tls` has a macOS provider implemented in `lib/std/net/tls_macos_securetransport.oren` (facade: `lib/std/net/tls.oren`):
+
+- Dynamic linking:
+  - `@ffi.link("/System/Library/Frameworks/Security.framework/.../Security")`
+  - `@ffi.link("/System/Library/Frameworks/CoreFoundation.framework/.../CoreFoundation")`
+- Implemented surface:
+  - `wrap_client`, `wrap_server_pkcs12`
+  - `read_into`, `write_from`, `close`
+  - `peer_cert_sha256_hex` (leaf hash via `SSLCopyPeerTrust` + `SecCertificateCopyData`)
+- Regression gate:
+  - `scripts/verify_native_net_matrix.sh --targets arm64-macos` runs:
+    - `tests/native/test_tls_loopback.oren`
+    - `tests/native/test_https_get_loopback.oren`
+    - `tests/native/test_wss_echo_loopback.oren`
+
+Implementation notes (macOS):
+
+- **SNI is wired** (client):
+  - `wrap_client(..., server_name, ...)` calls `SSLSetPeerDomainName`.
+- **ALPN is wired** (client offer):
+  - `opts["alpn"]` is interpreted as a list of protocol strings (e.g. `["h2","http/1.1"]`).
+  - The SecureTransport provider converts the list into `CFArrayRef` of `CFStringRef` and calls `SSLSetALPNProtocols`.

@@ -187,14 +187,17 @@ References:
 	         - fragmentation + binary frames + streaming recv API
 		         - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + system resolver (Windows DNS APIs + AAAA; POSIX `resolv.conf` AAAA support)
 		           - Design: `docs/NET_TLS.md`
-			           - Done (2026-01-08): macOS TLS provider bring-up + deterministic loopback fixture:
-			             - `std:net/tls` exists with SecureTransport provider (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
-			             - loopback regression: `tests/native/test_tls_loopback.oren` (stage1 + stage2; integrated into `scripts/verify_native_net_matrix.sh`)
-			             - Done: refactored TLS providers into per-OS modules to keep the facade small:
-			               - Facade: `lib/std/net/tls.oren`
-			               - macOS provider: `lib/std/net/tls_macos_securetransport.oren`
-			               - Linux provider: `lib/std/net/tls_linux_openssl.oren`
-			               - Windows provider: `lib/std/net/tls_windows_schannel.oren`
+				           - Done (2026-01-08): macOS TLS provider bring-up + deterministic loopback fixture:
+				             - `std:net/tls` exists with SecureTransport provider (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
+				             - loopback regression: `tests/native/test_tls_loopback.oren` (stage1 + stage2; integrated into `scripts/verify_native_net_matrix.sh`)
+				             - Done (2026-01-09): macOS SecureTransport client ALPN offer wired:
+				               - `opts["alpn"]=["h2","http/1.1"]` becomes a `CFArrayRef` of `CFStringRef` and is passed to `SSLSetALPNProtocols`.
+				               - Regression: TLS/HTTPS/WSS loopback fixtures all pass `opts["alpn"]` (stage1 + stage2; Tier‑1 via `scripts/verify_native_net_matrix.sh`).
+				             - Done: refactored TLS providers into per-OS modules to keep the facade small:
+				               - Facade: `lib/std/net/tls.oren`
+				               - macOS provider: `lib/std/net/tls_macos_securetransport.oren`
+				               - Linux provider: `lib/std/net/tls_linux_openssl.oren`
+				               - Windows provider: `lib/std/net/tls_windows_schannel.oren`
 			           - Done (2026-01-08): wired `https://` into `std:net/http` and `wss://` into `std:net/ws`:
 			             - `tests/native/test_https_get_loopback.oren` (offline deterministic; uses pinning)
 			             - `tests/native/test_wss_echo_loopback.oren` (offline deterministic; uses pinning)

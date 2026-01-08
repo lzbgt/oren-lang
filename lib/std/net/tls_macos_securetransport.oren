@@ -23,6 +23,9 @@ ffi SSLSetConnection
 ffi SSLSetPeerDomainName
 @cfg(os="macos")
 @ffi.ret("i32")
+ffi SSLSetALPNProtocols
+@cfg(os="macos")
+@ffi.ret("i32")
 ffi SSLHandshake
 @cfg(os="macos")
 @ffi.ret("i32")
@@ -305,6 +308,81 @@ fn _cf_array1(v0) {
 }
 
 @cfg(os="macos")
+fn _macos_set_alpn_if_requested(ctx, opts) {
+    // Client ALPN offer (RFC 7301).
+    //
+    // SecureTransport expects:
+    // - SSLSetALPNProtocols(context, CFArrayRef protocols)
+    // - protocols: CFArray of CFStringRef values with ASCII protocol strings, e.g. "http/1.1"
+    //
+    // Header reference:
+    // - macOS SDK SecureTransport.h `SSLSetALPNProtocols`
+    if opts == nil || opts == 0 { return {"ok": 1} }
+    if oren_is_map(opts) != true { return {"ok": 1} }
+    var ps = oren_map_get_str(opts, "alpn")
+    if ps == 0 { return {"ok": 1} }
+    if oren_is_list(ps) != true { return {"ok": 0, "err": "tls: alpn: opts[\"alpn\"] must be list<string>"} }
+    var n = oren_list_len(ps)
+    if n <= 0 { return {"ok": 1} }
+
+    var total = 0
+    var i = 0
+    while i < n {
+        var p = ps[i]
+        if p == 0 || oren_is_string(p) != true { return {"ok": 0, "err": "tls: alpn: protocols must be non-empty strings"} }
+        var l = oren_string_len(p)
+        if l <= 0 || l > 255 { return {"ok": 0, "err": "tls: alpn: protocol length must be 1..255"} }
+        total = total + l
+        if total > 1024 { return {"ok": 0, "err": "tls: alpn: protocol list too large"} }
+        i = i + 1
+    }
+
+    var cb = _dlsym_addr("kCFTypeArrayCallBacks")
+    if cb == 0 { return {"ok": 0, "err": "tls: alpn: missing kCFTypeArrayCallBacks"} }
+
+    var vals = malloc(8 * n)
+    if vals == 0 { return {"ok": 0, "err": "tls: alpn: alloc failed"} }
+
+    // Build CFStringRef array.
+    i = 0
+    while i < n {
+        var s = ps[i]
+        var cs = _cfstring_utf8(s)
+        if cs == 0 {
+            var j = 0
+            while j < i {
+                var old = ptr_get(vals + 8 * j)
+                if old != 0 { CFRelease(old) }
+                j = j + 1
+            }
+            free(vals)
+            return {"ok": 0, "err": "tls: alpn: CFStringCreateWithCString failed"}
+        }
+        ptr_set(vals + 8 * i, cs)
+        i = i + 1
+    }
+
+    var a = CFArrayCreate(0, vals, n, cb)
+
+    // Release our references; CFArray retains via kCFTypeArrayCallBacks.
+    i = 0
+    while i < n {
+        var v = ptr_get(vals + 8 * i)
+        if v != 0 { CFRelease(v) }
+        i = i + 1
+    }
+    free(vals)
+
+    if a == 0 { return {"ok": 0, "err": "tls: alpn: CFArrayCreate failed"} }
+    var rc = SSLSetALPNProtocols(ctx, a)
+    CFRelease(a)
+    if rc != 0 {
+        return {"ok": 0, "err": "tls: SSLSetALPNProtocols failed (rc=" + oren_int_to_string(rc) + ")"}
+    }
+    return {"ok": 1}
+}
+
+@cfg(os="macos")
 fn _macos_import_pkcs12_identity(pkcs12_bytes, passphrase_cstr) {
     // Returns {"ok":1,"identity":SecIdentityRef,"chain":CFArrayRef} or {"ok":0,"err":string}
     //
@@ -514,6 +592,14 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
                     return {"ok": 0, "err": "tls: SSLSetPeerDomainName failed (rc=" + oren_int_to_string(rc2) + ")"}
                 }
             }
+        }
+
+        var alpn_r = _macos_set_alpn_if_requested(ctx, opts)
+        if alpn_r["ok"] != 1 {
+            CFRelease(ctx)
+            free(st)
+            tcp.close(fd)
+            return alpn_r
         }
 
         // Client verification policy (rolling v0):
