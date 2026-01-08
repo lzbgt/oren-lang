@@ -138,9 +138,10 @@ References:
            - Gate: `./scripts/verify_windows_stage2_from_stage1.sh` (stage0→stage1→stage2; Win11 + VS2022 + `cl.exe`)
            - Make shortcut: `make verify-stage2-win`
          - Intent: `make`, `make test`, `make stage2`, `make verify-native-quick` should work under MSYS2/Git Bash/Cygwin (stage0 still uses MSVC `cl.exe`, auto-configured by stage0; see `docs/REMOTE_X64_ENV.md`).
-     - NET stdlib maturity:
-       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IPv4-only; no TLS/keep-alive pooling yet).
-         - Hostname URLs are supported via DNS A lookup (explicit resolver injection; best-effort system default on POSIX only).
+	     - NET stdlib maturity:
+	       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IPv4-only; no TLS/keep-alive pooling yet).
+	         - URL parsing recognizes `https://...` but returns a precise error until TLS lands (see `docs/NET_TLS.md`).
+	         - Hostname URLs are supported via DNS A lookup (explicit resolver injection; best-effort system default on POSIX only).
        - Done: portable `SO_KEEPALIVE` + `std:net/tcp.set_keepalive(fd, enable)` (syscall-first; translated across Darwin/Linux/Windows).
          - Regression: `tests/native/test_net_suite.oren` now asserts `sys_setsockopt(... SO_KEEPALIVE ...)` succeeds (covered by `./scripts/verify_native_net_matrix.sh`).
        - Done: UDP `recvfrom` can capture the source sockaddr (src ip/port) via `oren_udp_recvfrom_into_with_addr`.
@@ -155,8 +156,9 @@ References:
          - HTTP hostname support: `http.get_text_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
          - Regression: `tests/native/test_dns_loopback.oren` (stage1 + stage2; all Tier‑1 via `./scripts/verify_native_net_matrix.sh`).
          - Regression: `tests/native/test_http_get_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
-       - WebSocket hostname support: `ws.connect_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
-         - Regression: `tests/native/test_ws_echo_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
+	       - WebSocket hostname support: `ws.connect_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
+	         - URL parsing recognizes `wss://...` but returns a precise error until TLS lands (see `docs/NET_TLS.md`).
+	         - Regression: `tests/native/test_ws_echo_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
       - Fixed (2026-01-08): x64-windows WebSocket flake (sporadic `ETIMEDOUT` while reading ping/pong/text frames) was traced to **thread-unsafe shared TIME scratch buffers** in `oren_time_unix_ns()` / `oren_time_mono_raw()`.
         - Fix: TIME scratch is now **per-thread** (stored in the thread node) to keep timeout math coherent under `spawn` without introducing hot-path global lock contention (see `docs/NET_WEBSOCKET.md`).
         - Next: avoid O(n) thread-list scans in hot TIME paths by introducing a per-thread fast lookup (TLS-like) for the current thread node.

@@ -48,15 +48,26 @@ fn _starts_with(s, prefix) {
 fn _parse_ws_url(url) {
     // Supported:
     //   ws://<host>[:port][/path]
+    //   wss://<host>[:port][/path]   (parsed, but TLS is not implemented yet)
     //
     // Where <host> can be an IPv4 literal or a hostname (resolved separately).
     //
-    // Returns {ok:1, host:string, port:int, path:string} or {ok:0, err:string}.
+    // Returns {ok:1, scheme:string, host:string, port:int, path:string} or {ok:0, err:string}.
     if url == nil { return {"ok": 0, "err": "url is nil"} }
-    if _starts_with(url, "ws://") == 0 { return {"ok": 0, "err": "only ws:// is supported"} }
+
+    var scheme = 0
+    var pos = 0
+    if _starts_with(url, "ws://") == 1 {
+        scheme = "ws"
+        pos = 5 // len("ws://")
+    } else if _starts_with(url, "wss://") == 1 {
+        scheme = "wss"
+        pos = 6 // len("wss://")
+    } else {
+        return {"ok": 0, "err": "only ws:// and wss:// are supported"}
+    }
 
     var ul = oren_string_len(url)
-    var pos = 5 // len("ws://")
 
     // Find '/' for path start
     var slash = -1
@@ -83,6 +94,7 @@ fn _parse_ws_url(url) {
     if host == 0 { return {"ok": 0, "err": "host slice failed"} }
 
     var port = 80
+    if scheme == "wss" { port = 443 }
     if colon != -1 {
         var port_s = oren_string_slice(url, colon + 1, slash)
         if port_s == 0 {
@@ -115,7 +127,7 @@ fn _parse_ws_url(url) {
         }
     }
 
-    return {"ok": 1, "host": host, "port": port, "path": path}
+    return {"ok": 1, "scheme": scheme, "host": host, "port": port, "path": path}
 }
 
 fn _looks_like_ipv4(host) {
@@ -415,6 +427,12 @@ fn connect_resolver(url, timeout_ms, resolver) {
     if timeout_ms < 0 { timeout_ms = 0 }
     var pu = _parse_ws_url(url)
     if pu["ok"] != 1 { return {"ok": 0, "err": "ws.connect: " + pu["err"]} }
+
+    if pu["scheme"] == "wss" {
+        free(pu["host"])
+        free(pu["path"])
+        return {"ok": 0, "err": "ws.connect: wss:// requires TLS (not implemented yet). Track: docs/NET_TLS.md"}
+    }
 
     var host = pu["host"]
     var port = pu["port"]

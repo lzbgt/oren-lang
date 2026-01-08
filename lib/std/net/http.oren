@@ -83,15 +83,25 @@ fn _starts_with(s, prefix) {
 fn _parse_http_url(url) {
     // Supported:
     //   http://<host>[:port][/path]
+    //   https://<host>[:port][/path]  (parsed, but TLS is not implemented yet)
     //
     // Where <host> can be an IPv4 literal or a hostname (resolved separately).
     //
-    // Returns {ok:1, host:string, port:int, path:string} or {ok:0, err:string}.
+    // Returns {ok:1, scheme:string, host:string, port:int, path:string} or {ok:0, err:string}.
     if url == nil { return {"ok": 0, "err": "url is nil"} }
-    if _starts_with(url, "http://") == 0 { return {"ok": 0, "err": "only http:// is supported"} }
+    var scheme = 0
+    var pos = 0
+    if _starts_with(url, "http://") == 1 {
+        scheme = "http"
+        pos = 7 // len("http://")
+    } else if _starts_with(url, "https://") == 1 {
+        scheme = "https"
+        pos = 8 // len("https://")
+    } else {
+        return {"ok": 0, "err": "only http:// and https:// are supported"}
+    }
 
     var ul = oren_string_len(url)
-    var pos = 7 // len("http://")
 
     // Find '/' for path start
     var slash = -1
@@ -118,6 +128,7 @@ fn _parse_http_url(url) {
     if host == 0 { return {"ok": 0, "err": "host slice failed"} }
 
     var port = 80
+    if scheme == "https" { port = 443 }
     if colon != -1 {
         var port_s = oren_string_slice(url, colon + 1, slash)
         if port_s == 0 {
@@ -148,7 +159,7 @@ fn _parse_http_url(url) {
         }
     }
 
-    return {"ok": 1, "host": host, "port": port, "path": path}
+    return {"ok": 1, "scheme": scheme, "host": host, "port": port, "path": path}
 }
 
 fn _build_get_request(host, path) {
@@ -428,6 +439,12 @@ fn get_response_resolver(url, timeout_ms, resolver) {
 
     var pu = _parse_http_url(url)
     if pu["ok"] != 1 { return {"ok": 0, "err": "http.get_response: " + pu["err"]} }
+
+    if pu["scheme"] == "https" {
+        free(pu["host"])
+        free(pu["path"])
+        return {"ok": 0, "err": "http.get_response: https:// requires TLS (not implemented yet). Track: docs/NET_TLS.md"}
+    }
 
     var host = pu["host"]
     var port = pu["port"]
