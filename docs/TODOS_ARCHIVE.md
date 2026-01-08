@@ -1507,7 +1507,7 @@ Focus statement (to avoid roadmap thrash):
      - added `tests/native/test_net_suite.oren` (TCP loopback + send/recv intrinsics + sockname/peername + HTTP GET loopback)
      - added `tests/native/test_time_suite.oren` (sleep + unix time + monotonic raw)
      - `make test` now runs a curated native list; `make test-native-all` runs the full glob.
-     - `make test` now runs a curated AVM list (see `AVM_TESTS` in `Makefile`); override with `make test AVM_TESTS="tests/avm/*.oren"` for full AVM coverage.
+     - AVM bytecode tests are run via `make test-avm` (see `AVM_TESTS` in `Makefile`); override with `make test-avm AVM_TESTS="tests/avm/*.oren"` for full AVM coverage.
 
 17) **Native stdlib modules (syscall-first; no libc)**
    - Goal: “real code” in `.oren` should import stable modules instead of calling raw `oren_*` helpers directly.

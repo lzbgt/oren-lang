@@ -1,0 +1,21 @@
+// std:ui/style (rolling)
+//
+// v0 style is just a map with deterministic merge semantics:
+// - keys from `override` overwrite `base`
+// - nil args are treated as empty maps
+//
+// This intentionally avoids a CSS cascade in v0.
+
+fn merge(base, override) {
+    if base == nil { base = {} }
+    if override == nil { override = {} }
+    var out = {}
+    for k in base {
+        out[k] = base[k]
+    }
+    for k2 in override {
+        out[k2] = override[k2]
+    }
+    return out
+}
+

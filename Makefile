@@ -201,7 +201,7 @@ endif
 
 # AVM test selection:
 # - Default: curated smoke list for iteration velocity.
-# - Override for full coverage: `make test AVM_TESTS="tests/avm/*.oren"`
+# - Override for full coverage: `make test-avm AVM_TESTS="tests/avm/*.oren"`
 	AVM_TESTS ?= \
 		tests/avm/test_smoke_suite.oren \
 		tests/avm/test_closure_fn_values.oren \
@@ -218,7 +218,8 @@ endif
 		tests/avm/test_vfs_no_host_fs.oren \
 		tests/avm/test_vproc_no_host_proc.oren \
 		tests/avm/test_vnet_no_host_net.oren \
-		tests/avm/test_switch.oren
+		tests/avm/test_switch.oren \
+		tests/avm/test_ui_layout_v0.oren
 
 # Source files
 OREN_SRC := oren.oren
@@ -427,8 +428,60 @@ perf-guard-native-hit: oren_stage2
 # Default "test" is now native-only and quick (no external test runner).
 test: test-native-quick
 
+# AVM test suite (bytecode build + avm run).
+#
+# Note:
+# - Kept separate from default `make test` so native iteration stays extremely fast.
+# - The curated AVM_TESTS list is intentionally small; override it for full coverage.
+test-avm: oren avm
+	@echo "=== AVM Tests (Curated) ==="
+	@mkdir -p build
+	@mkdir -p build/logs
+	@set -e; \
+		for t in $(AVM_TESTS); do \
+			name=$$(basename "$$t" .oren); \
+			obc="build/avm_$${name}.obc"; \
+			log="build/logs/avm_$${name}.log"; \
+			echo "Testing $$name..."; \
+			$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build "$$t" --backend bytecode -o "$$obc" > "$$log" 2>&1 || { echo "--- $$name (build) ---"; cat "$$log"; exit 1; }; \
+			expect_rc=0; expect_err=""; avm_env=""; avm_args="--print-run-json"; post_absent=""; \
+			case "$$name" in \
+				test_budget_gas) expect_rc=1; expect_err="AVM error: code=9"; avm_env="AVM_GAS=20000" ;; \
+				test_budget_timeout) expect_rc=1; expect_err="AVM error: code=5"; avm_args="--timeout-ms 5 --print-run-json" ;; \
+				test_arith_invalid) expect_rc=1; expect_err="AVM error: code=4" ;; \
+				test_vfs_no_host_fs) \
+					avm_args="--deny-by-default --allow-domains 0,1,6 --fs-backend vfs --fs-allow-prefixes build/ --print-run-json"; \
+					post_absent="build/avm_vfs_should_not_write.bin" ;; \
+				test_vproc_no_host_proc) \
+					avm_args="--deny-by-default --allow-domains 0,5,6 --proc-backend vproc --proc-exit-code 0 --print-run-json"; \
+					post_absent="build/avm_vproc_should_not_touch.txt" ;; \
+				test_vnet_no_host_net) \
+					avm_args="--deny-by-default --allow-domains 0,4,6 --net-backend vnet --net-fixtures-hex 41564d4e45543031010000000100000075020000006f6b --print-run-json" ;; \
+				test_vproc_fixtures) \
+					avm_args="--deny-by-default --allow-domains 0,5,6 --proc-backend vproc --proc-exit-code 7 --proc-fixtures-hex 41564d505243303101000000070000006563686f20686900000000 --print-run-json" ;; \
+			esac; \
+			outf="build/logs/avm_$${name}.out"; \
+			set +e; \
+			env $$avm_env $(RUN_WITH_TIMEOUT) ./$(AVM_BIN) $$avm_args "$$obc" > "$$outf" 2>&1; \
+			rc=$$?; \
+			set -e; \
+			cat "$$outf" >> "$$log"; \
+			if [ "$$expect_rc" -eq 0 ]; then \
+				if [ "$$rc" -ne 0 ]; then echo "--- $$name (run) ---"; cat "$$log"; exit 1; fi; \
+				if [ -n "$$post_absent" ]; then \
+					test ! -f "$$post_absent" || { echo "--- $$name (run, host artifact exists) ---"; echo "expected absent: $$post_absent" >> "$$log"; cat "$$log"; exit 1; }; \
+				fi; \
+			else \
+				if [ "$$rc" -eq 0 ]; then echo "--- $$name (run, expected failure) ---"; cat "$$log"; exit 1; fi; \
+				if [ -n "$$expect_err" ]; then \
+					grep -q "$$expect_err" "$$outf" || { echo "--- $$name (run, missing expected error) ---"; cat "$$log"; exit 1; }; \
+				fi; \
+			fi; \
+		done; \
+		echo "AVM tests OK"
+
 test-native-all: oren
-		@echo "=== Native Tests (All) ==="
+			@echo "=== Native Tests (All) ==="
 		@mkdir -p build
 		@mkdir -p build/logs
 		@echo "Native parallelism: set NATIVE_TEST_JOBS=... (default: 4)."

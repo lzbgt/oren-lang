@@ -1,0 +1,130 @@
+// std:ui/core (rolling)
+//
+// UI node representation is intentionally "boring data" (maps/lists/ints/strings)
+// so it stays portable across Oren backends and can be serialized/diffed easily.
+//
+// Node shape (map):
+//   {"t": <string tag>, "k": <string key>, "p": <map props>, "c": <list children>}
+//
+// Conventions (v0):
+// - Keys `t`, `k`, `p`, `c` are reserved and stable.
+// - `k` should be stable across updates; it is used for diffing.
+
+fn node(tag, key, props, children) {
+    if props == nil { props = {} }
+    if children == nil { children = [] }
+    return {"t": tag, "k": key, "p": props, "c": children}
+}
+
+fn tag(n) { return n["t"] }
+fn key(n) { return n["k"] }
+fn props(n) { return n["p"] }
+fn children(n) { return n["c"] }
+
+fn box(key, w, h) {
+    return node("Box", key, {"w": w, "h": h}, [])
+}
+
+fn row(key, children) {
+    return node("Row", key, {}, children)
+}
+
+fn column(key, children) {
+    return node("Column", key, {}, children)
+}
+
+fn stack(key, children) {
+    return node("Stack", key, {}, children)
+}
+
+fn text(key, s, w, h) {
+    // v0: text measurement is not implemented yet; caller supplies w/h.
+    return node("Text", key, {"text": s, "w": w, "h": h}, [])
+}
+
+fn _idx_by_key(cs) {
+    // Return map: key(string) -> index(int)
+    // If duplicate keys exist, the first wins.
+    var m = {}
+    if cs == nil { return m }
+    var i = 0
+    while i < oren_list_len(cs) {
+        var n = cs[i]
+        var k = n["k"]
+        if k != nil && m[k] == nil {
+            m[k] = i
+        }
+        i = i + 1
+    }
+    return m
+}
+
+fn diff(old_node, new_node) {
+    // Minimal structural diff (rolling v0):
+    // - if tags or keys differ: replace subtree
+    // - else: diff children by key, emitting child replace/insert/remove ops
+    //
+    // Patch op shape (list of maps):
+    // - {"op":"replace","path":[...],"node":<new node>}
+    // - {"op":"insert","path":[...],"idx":<int>,"node":<new node>}
+    // - {"op":"remove","path":[...],"idx":<int>}
+    //
+    // This is intentionally small and stable enough for early bring-up and testing.
+    if old_node == nil && new_node == nil { return [] }
+    if old_node == nil { return [{"op": "replace", "path": [], "node": new_node}] }
+    if new_node == nil { return [{"op": "replace", "path": [], "node": new_node}] }
+
+    if old_node["t"] != new_node["t"] || old_node["k"] != new_node["k"] {
+        return [{"op": "replace", "path": [], "node": new_node}]
+    }
+
+    var out = []
+    var old_c = old_node["c"]
+    var new_c = new_node["c"]
+    if old_c == nil { old_c = [] }
+    if new_c == nil { new_c = [] }
+
+    var old_idx = _idx_by_key(old_c)
+    var new_idx = _idx_by_key(new_c)
+
+    // Removals: any old key not present in new.
+    var i = 0
+    while i < oren_list_len(old_c) {
+        var ok = old_c[i]["k"]
+        if ok != nil && new_idx[ok] == nil {
+            oren_list_push(out, {"op": "remove", "path": [ok], "idx": i})
+        }
+        i = i + 1
+    }
+
+    // Inserts + replaces (by key).
+    var j = 0
+    while j < oren_list_len(new_c) {
+        var nn = new_c[j]
+        var nk = nn["k"]
+        if nk == nil {
+            // If the child is unkeyed, treat as replace of the entire subtree.
+            return [{"op": "replace", "path": [], "node": new_node}]
+        }
+        var oi = old_idx[nk]
+        if oi == nil {
+            oren_list_push(out, {"op": "insert", "path": [nk], "idx": j, "node": nn})
+        } else {
+            var sub = diff(old_c[oi], nn)
+            // Prefix child key path.
+            var k = 0
+            while k < oren_list_len(sub) {
+                var op = sub[k]
+                var p = op["path"]
+                if p == nil { p = [] }
+                op["path"] = [nk] + p
+                oren_list_push(out, op)
+                k = k + 1
+            }
+        }
+        j = j + 1
+    }
+
+    return out
+}
+

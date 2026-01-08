@@ -432,6 +432,10 @@ References:
      - Implement `std:ui/layout` v0 (Row/Column/Stack + padding + alignment).
      - Implement `std:ui/style` v0 (style maps + deterministic merge rules).
      - Headless AVM fixtures: diff/layout golden tests (no host windows).
+     - Done (2026-01-09): added `std:ui/{core,layout,style}` v0 skeleton + headless AVM layout smoke:
+       - Modules: `lib/std/ui/core.oren`, `lib/std/ui/layout.oren`, `lib/std/ui/style.oren`
+       - Fixture: `tests/avm/test_ui_layout_v0.oren`
+       - Gate: `make test-avm`
    - Phase 2 (platform shims + bring-up):
      - Build per-OS shim libraries (macOS/Windows/Linux) implementing the UI domain with a v0 software RGBA framebuffer.
      - Add Tier‑1 smoke scripts (opt-in): open window → draw frame → close.

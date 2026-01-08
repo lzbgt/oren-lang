@@ -91,6 +91,21 @@ Note (rolling):
 - `tests/native/*.oren` includes a few **platform-specific** fixtures used by the Tier‑1 scripts (example: `ffi_windows_*`, `ffi_linux_*`).
 - `make test-native-all` skips those by filename prefix so it remains runnable on the current host OS.
 
+## AVM verification (bytecode)
+
+The default `make test` target is intentionally **native-only and very fast**.
+For AVM/bytecode regression coverage, use:
+
+```bash
+make test-avm
+```
+
+Notes:
+
+- `test-avm` compiles each selected `tests/avm/*.oren` into `.obc` and runs it under `./avm`.
+- By default it runs a curated list (`AVM_TESTS` in `Makefile`) for iteration velocity.
+  - Override for full coverage: `make test-avm AVM_TESTS="tests/avm/*.oren"`.
+
 ## Cross-arch native verification (Tier‑1 matrix)
 
 When you need confidence that the **native backend** output works across the practical Tier‑1 matrix

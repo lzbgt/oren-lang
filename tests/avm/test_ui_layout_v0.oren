@@ -1,0 +1,78 @@
+// AVM headless UI test: std:ui layout v0
+//
+// This is intentionally headless (no host window). It tests deterministic layout math.
+
+import ui_core "std:ui/core"
+import ui_layout "std:ui/layout"
+
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn test_column_layout() {
+    var root = ui_core.column("root", [
+        ui_core.box("a", 10, 4),
+        ui_core.box("b", 7, 6),
+        ui_core.box("c", 12, 1)
+    ])
+
+    var bt = ui_layout.layout(root, {"max_w": 1000, "max_h": 1000})
+    assert_eq(bt["t"], "Column")
+    assert_eq(bt["k"], "root")
+    assert_eq(bt["x"], 0)
+    assert_eq(bt["y"], 0)
+    assert_eq(bt["w"], 12) // max width
+    assert_eq(bt["h"], 11) // 4+6+1
+
+    var cs = bt["children"]
+    assert_eq(oren_list_len(cs), 3)
+    assert_eq(cs[0]["k"], "a")
+    assert_eq(cs[0]["x"], 0)
+    assert_eq(cs[0]["y"], 0)
+    assert_eq(cs[0]["w"], 10)
+    assert_eq(cs[0]["h"], 4)
+
+    assert_eq(cs[1]["k"], "b")
+    assert_eq(cs[1]["x"], 0)
+    assert_eq(cs[1]["y"], 4)
+    assert_eq(cs[1]["w"], 7)
+    assert_eq(cs[1]["h"], 6)
+
+    assert_eq(cs[2]["k"], "c")
+    assert_eq(cs[2]["x"], 0)
+    assert_eq(cs[2]["y"], 10)
+    assert_eq(cs[2]["w"], 12)
+    assert_eq(cs[2]["h"], 1)
+}
+
+fn test_row_layout() {
+    var root = ui_core.row("root", [
+        ui_core.box("a", 3, 5),
+        ui_core.box("b", 9, 2),
+        ui_core.box("c", 1, 7)
+    ])
+
+    var bt = ui_layout.layout(root, {"max_w": 1000, "max_h": 1000})
+    assert_eq(bt["t"], "Row")
+    assert_eq(bt["w"], 13) // 3+9+1
+    assert_eq(bt["h"], 7)  // max height
+
+    var cs = bt["children"]
+    assert_eq(cs[0]["x"], 0)
+    assert_eq(cs[1]["x"], 3)
+    assert_eq(cs[2]["x"], 12)
+}
+
+fn main() {
+    test_column_layout()
+    test_row_layout()
+    exit(0)
+}
