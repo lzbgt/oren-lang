@@ -277,6 +277,29 @@ Program termination (rolling):
 - Do not rely on the **return value of `main`** for an exit code; backends do not yet agree on whether it is used.
 - Use `exit(code)` for deterministic, portable termination semantics across all backends.
 
+### Stdlib import resolution (`std:` / `std/`) (toolchain contract)
+
+The `import` statement stores a string module specifier. The compiler resolves that specifier at compile time.
+
+In addition to filesystem-relative imports, the compiler implements a stdlib scheme:
+
+- `std:` scheme form:
+  - `import tcp "std:net/tcp"`
+  - `import base64 "std:encoding/base64"`
+- `std/` path form:
+  - `import tcp "std/net/tcp"`
+
+Resolution rules (current implementation; see `lib/compiler/compiler/010_cli_helpers.oren`):
+
+- `.oren` extension is optional (it is appended when the last path segment has no `.`).
+- The compiler resolves `STDLIB_ROOT` by:
+  1) `OREN_STDLIB_ROOT` (either `.../lib/std` or an install root containing `lib/std`)
+  2) walking up from the importing file directory looking for `lib/std/argparse.oren`
+  3) falling back to `lib/std` relative to the current working directory
+- If stdlib root cannot be resolved, `import "std:..."` / `import "std/..."` is a compile-time error.
+
+This is a compile-time mechanism (there is no runtime module loading in v0).
+
 ### Target platform configuration (toolchain contract; affects `@cfg`)
 
 While the language grammar is platform-neutral, some compile-time behavior depends on the **selected target platform**:
@@ -754,11 +777,14 @@ Backend behavior (rolling):
 - **C backend**: `spawn` uses `pthread_create` and returns a pointer-like handle.
   - `oren_join(handle)` waits and returns the spawned function’s return value.
   - `oren_detach(handle)` / `oren_join_all()` exist in the C runtime (rolling; not yet mirrored in native runtime).
-- **Native backend (Tier‑1 bring-up)**: `spawn` is currently implemented syscall-first as **fork + pipe** on POSIX.
-  - Handle layout (implementation detail): `[pid, read_fd]` stored in a small heap object.
-  - `oren_join(handle)` waits for child termination and reads the return value from the pipe.
-  - Windows does not support `fork`; native `spawn/join` is not Tier‑1 complete on Windows yet.
-    Use PROC primitives (`oren_proc_spawn`, `oren_system`) for Windows process execution in the interim.
+	- **Native backend (Tier‑1, rolling)**:
+	  - **POSIX (macOS/Linux)**: `spawn` is implemented syscall-first as **fork + pipe** today.
+	    - Handle layout (implementation detail): `[pid, read_fd]` stored in a small heap object.
+	    - `oren_join(handle)` waits for child termination and reads the return value from the pipe.
+	  - **Windows x64**: `spawn` is implemented via **CreateThread** (no `fork` on Windows).
+	    - `oren_join(handle)` waits via `WaitForSingleObject` and returns the worker’s result.
+	    - `oren_join_timeout(handle, timeout_ms)` exists and returns `-60` on timeout (rolling contract).
+	  - Note: this is a rolling convergence surface; the long-term direction is a unified thread-based substrate on all native targets (see `docs/CONCURRENCY_MODEL.md`).
 
 #### Channels + `oren_select*` (rolling; AVM + native macOS/Linux)
 

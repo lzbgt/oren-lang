@@ -189,6 +189,55 @@ Notes (rolling):
   - In practice, put `import ...` at **top level** (outside `fn` bodies / blocks).
   - The parser currently accepts `import` inside blocks, but backends treat imports as compile-time only; a block-scoped import is not meaningful and may become a compile error in the future.
 
+### Stdlib import resolution (`std:` / `std/`)
+
+The compiler supports a stable stdlib import scheme so user code does not need repo-relative paths like `../../lib/std/...`.
+
+Supported stdlib specifier forms:
+
+- `std:` scheme:
+  - `import tcp "std:net/tcp"`
+  - `import base64 "std:encoding/base64"`
+- `std/` path form:
+  - `import tcp "std/net/tcp"`
+  - `import base64 "std/encoding/base64"`
+
+Resolution rules (current compiler behavior):
+
+- `.oren` extension is optional (`"std:net/tcp"` resolves to `.../net/tcp.oren`).
+- The compiler finds the stdlib root directory (`STDLIB_ROOT`) in this priority order:
+  1) `OREN_STDLIB_ROOT` environment variable (either `.../lib/std` or an install root containing `lib/std`)
+  2) walk up from the importing file directory looking for `lib/std/argparse.oren`
+  3) fallback: `lib/std` relative to the current working directory
+
+If stdlib root cannot be resolved, `import "std:..."` is a hard compile error.
+
+See also: `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md` (distribution story and future embedding).
+
+### Selected stdlib modules (rolling; evidence-backed)
+
+These stdlib modules exist today and are exercised by regression fixtures:
+
+- CLI/strings:
+  - `std:argparse` (smoke: `tests/native/test_argparse_smoke.oren`)
+  - `std:strings` (used by `std:crypto/pem` smoke)
+- Encoding / crypto helpers:
+  - `std:encoding/base64` (TLS/HTTPS/WSS loopback fixtures)
+  - `std:crypto/pem` (smoke: `tests/native/test_pem_decode_smoke.oren`)
+  - `std:crypto/x509` (minimal helper layer; used by NET/TLS internals)
+- Native NET stack (native backend; rolling Tier‑1 focus):
+  - `std:net/tcp`, `std:net/udp`
+  - `std:net/dns` (loopback fixtures + Windows default resolver smoke: `tests/fixtures/windows_dns_default_resolver_smoke.oren`)
+  - `std:net/http` (structured response API; loopback fixtures)
+  - `std:net/ws` (WebSocket v0; loopback fixtures)
+  - `std:net/tls` (TLS wrapper; used by `https://` and `wss://` loopback fixtures)
+
+For the detailed NET/TLS behavior and design constraints (determinism, pinning, providers), use the dedicated docs:
+
+- `docs/NET_TLS.md`
+- `docs/NET_WEBSOCKET.md`
+- `docs/ASYNC_IO_AND_SELECT.md`
+
 ### FFI symbols (`ffi name`)
 
 Oren supports an `ffi` declaration statement to reference an external symbol:
