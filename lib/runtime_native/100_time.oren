@@ -79,21 +79,33 @@ var g_time_abs_buf = 0  // 8 bytes
 // Wall time in nanoseconds since Unix epoch (best-effort; not monotonic).
 fn oren_time_unix_ns() {
     // struct timeval { tv_sec(u64), tv_usec(u64) } (we use 2x u64 for simplicity)
+    //
+    // Tier‑1 correctness (multithreading):
+    // This helper is used in timeout logic for NET + spawn/join tests. The shared scratch buffers
+    // must be synchronized across OS threads; otherwise concurrent callers can corrupt the
+    // timeval contents and create flakey "timeouts" under load (observed on Win11 x64).
+    acquire_lock()
     if g_time_tv_buf == 0 {
         g_time_tv_buf = native_malloc_raw_or_mmap(16)
-        if g_time_tv_buf == 0 { return 0 }
+        if g_time_tv_buf == 0 {
+            release_lock()
+            return 0
+        }
     }
     var tv = g_time_tv_buf
     ptr_set(tv + 0, 0)
     ptr_set(tv + 8, 0)
     
     var rc = sys_gettimeofday(tv, 0, 0)
-    if rc < 0 {
-        return 0
+    var sec = 0
+    var usec = 0
+    if rc >= 0 {
+        sec = ptr_get(tv + 0)
+        usec = ptr_get(tv + 8)
     }
+    release_lock()
     
-    var sec = ptr_get(tv + 0)
-    var usec = ptr_get(tv + 8)
+    if rc < 0 { return 0 }
     return sec * 1000000000 + usec * 1000
 }
 
@@ -106,13 +118,21 @@ fn oren_time_now_ns() {
 // On Linux, this will be nanoseconds (via clock_gettime64 monotonic in the intrinsic).
 // On macOS, this is mach_absolute_time units (returned by gettimeofday's 3rd out-arg).
 fn oren_time_mono_raw() {
+    // Same synchronization rationale as `oren_time_unix_ns()` (shared scratch buffers).
+    acquire_lock()
     if g_time_tv_buf == 0 {
         g_time_tv_buf = native_malloc_raw_or_mmap(16)
-        if g_time_tv_buf == 0 { return 0 }
+        if g_time_tv_buf == 0 {
+            release_lock()
+            return 0
+        }
     }
     if g_time_abs_buf == 0 {
         g_time_abs_buf = native_malloc_raw_or_mmap(8)
-        if g_time_abs_buf == 0 { return 0 }
+        if g_time_abs_buf == 0 {
+            release_lock()
+            return 0
+        }
     }
     var tv = g_time_tv_buf
     var abs_ptr = g_time_abs_buf
@@ -121,11 +141,13 @@ fn oren_time_mono_raw() {
     ptr_set(abs_ptr, 0)
     
     var rc = sys_gettimeofday(tv, 0, abs_ptr)
-    if rc < 0 {
-        return 0
+    var t = 0
+    if rc >= 0 {
+        t = ptr_get(abs_ptr)
     }
+    release_lock()
     
-    var t = ptr_get(abs_ptr)
+    if rc < 0 { return 0 }
     return t
 }
 

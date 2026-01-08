@@ -97,6 +97,7 @@ fn oren_udp_sendto(fd, ip, port, buf, len, timeout_ms) {
 
     while 1 {
         var w0 = sys_sendto(fd, buf, len, 0, sa, 16)
+        w0 = native_canon_i32_arg(w0)
         // EAGAIN/EWOULDBLOCK:
         // - macOS: 35
         // - Linux: 11
@@ -120,6 +121,7 @@ fn oren_udp_sendto(fd, ip, port, buf, len, timeout_ms) {
         if n == 0 {
             // Same robustness policy as TCP: retry once before trusting a timeout.
             var w1 = sys_sendto(fd, buf, len, 0, sa, 16)
+            w1 = native_canon_i32_arg(w1)
             if w1 != 0 - 35 && w1 != 0 - 11 {
                 free(sa)
                 return w1
@@ -158,6 +160,7 @@ fn oren_udp_recvfrom_into(fd, buf, len, timeout_ms) {
 
     while 1 {
         var r0 = sys_recvfrom(fd, buf, len, 0, 0, 0)
+        r0 = native_canon_i32_arg(r0)
         if r0 != 0 - 35 && r0 != 0 - 11 { return r0 }
 
         var rem_ms = timeout_ms
@@ -174,6 +177,7 @@ fn oren_udp_recvfrom_into(fd, buf, len, timeout_ms) {
         var n = oren_fd_wait_readable(fd, rem_ms)
         if n == 0 {
             var r1 = sys_recvfrom(fd, buf, len, 0, 0, 0)
+            r1 = native_canon_i32_arg(r1)
             if r1 != 0 - 35 && r1 != 0 - 11 { return r1 }
             if deadline_ns != 0 {
                 var now2 = oren_time_unix_ns()
@@ -223,6 +227,7 @@ fn oren_udp_recvfrom_into_with_addr(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
     while 1 {
         ptr_set(sa_lenp, 16)
         var r0 = sys_recvfrom(fd, buf, len, 0, sa_out, sa_lenp)
+        r0 = native_canon_i32_arg(r0)
         if r0 != 0 - 35 && r0 != 0 - 11 { return r0 }
 
         var rem_ms = timeout_ms
@@ -240,6 +245,7 @@ fn oren_udp_recvfrom_into_with_addr(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
         if n == 0 {
             ptr_set(sa_lenp, 16)
             var r1 = sys_recvfrom(fd, buf, len, 0, sa_out, sa_lenp)
+            r1 = native_canon_i32_arg(r1)
             if r1 != 0 - 35 && r1 != 0 - 11 { return r1 }
             if deadline_ns != 0 {
                 var now2 = oren_time_unix_ns()

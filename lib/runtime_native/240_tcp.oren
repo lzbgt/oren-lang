@@ -437,6 +437,9 @@ fn oren_fd_wait_select_one(fd, want_write, timeout_ms) {
     } else {
         rc = sys_select(0, fds, 0, 0, tv)
     }
+    // Win64 ABI returns `int` in EAX and does not sign-extend to 64-bit. Canonicalize so
+    // comparisons like `rc < 0` behave correctly in the native runtime model.
+    rc = native_canon_i32_arg(rc)
     free(fds)
     free(tv)
     if rc > 0 { return 1 }
@@ -670,6 +673,7 @@ fn oren_fd_wait_any_readable(fds, timeout_ms, out_fd_ptr) {
         oren_ptr_set_u32_le(tv + 4, usec)
 
         var rc = sys_select(0, set, 0, 0, tv)
+        rc = native_canon_i32_arg(rc)
         if rc > 0 {
             // select compacts the set to ready fds and updates fd_count.
             var ready = oren_ptr_get_u64_le(set + 8)
@@ -725,6 +729,7 @@ fn oren_fd_wait_any_writable(fds, timeout_ms, out_fd_ptr) {
         oren_ptr_set_u32_le(tv + 4, usec)
 
         var rc = sys_select(0, 0, set, 0, tv)
+        rc = native_canon_i32_arg(rc)
         if rc > 0 {
             var ready = oren_ptr_get_u64_le(set + 8)
             ptr_set(out_fd_ptr, ready)
@@ -914,6 +919,8 @@ fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
         // - reduces syscall overhead when data is already buffered
         // - hardens against occasional readiness false-negatives (observed flakiness on some WinSock/select paths)
         var r0 = sys_recvfrom(fd, buf, len, 0, 0, 0)
+        // Canonicalize 32-bit errno returns (Win64: EAX is zero-extended).
+        r0 = native_canon_i32_arg(r0)
         // EAGAIN/EWOULDBLOCK:
         // - macOS: 35
         // - Linux/Windows: 11 (Windows WSAEWOULDBLOCK is normalized in syscall lowering)
@@ -936,6 +943,7 @@ fn oren_tcp_read_into(fd, buf, len, timeout_ms) {
             // Before returning ETIMEDOUT, retry `recv` and, if we still have time budget,
             // continue the loop instead of trusting the timeout result.
             var r1 = sys_recvfrom(fd, buf, len, 0, 0, 0)
+            r1 = native_canon_i32_arg(r1)
             if r1 != 0 - 35 && r1 != 0 - 11 { return r1 }
             if deadline_ns != 0 {
                 var now2 = oren_time_unix_ns()
@@ -975,7 +983,14 @@ fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
     var off = 0
     while off < len {
         // Try the nonblocking send first (common fast path).
-        var w0 = sys_sendto(fd, iadd(buf, off), len - off, 0, 0, 0)
+        // Rolling correctness guard (Win64 bring-up):
+        // Local-slot spills can leave the high 32 bits of small integers uninitialized on reload.
+        // Canonicalize `off` and `len-off` before pointer arithmetic so we never send from the wrong address.
+        off = native_canon_i32_arg(off)
+        var rem_len = native_canon_i32_arg(len - off)
+        if rem_len <= 0 { break }
+        var w0 = sys_sendto(fd, iadd(buf, off), rem_len, 0, 0, 0)
+        w0 = native_canon_i32_arg(w0)
         if w0 == 0 - 35 || w0 == 0 - 11 {
             // Need to wait for writability.
             var rem_ms = timeout_ms
@@ -1008,7 +1023,7 @@ fn oren_tcp_write_from(fd, buf, len, timeout_ms) {
         }
         if w0 < 0 { return w0 }
         if w0 == 0 { return 0 - 5 } // EIO (avoid infinite loop)
-        off = off + w0
+        off = native_canon_i32_arg(off + w0)
     }
     return len
 }

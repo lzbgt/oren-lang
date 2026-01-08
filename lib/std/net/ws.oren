@@ -588,6 +588,10 @@ fn _read_exact(fd, buf, want, timeout_ms) {
     var off = 0
     var spins = 0
     while off < want {
+        // Rolling correctness guard (Win64 bring-up):
+        // ensure loop indices used for pointer arithmetic are canonical i32 values.
+        off = native_canon_i32_arg(off)
+        want = native_canon_i32_arg(want)
         var rem = timeout_ms
         if deadline != 0 {
             var now = oren_time_unix_ns()
@@ -603,11 +607,12 @@ fn _read_exact(fd, buf, want, timeout_ms) {
             if spins > 64 { return 0 - 60 } // ETIMEDOUT (best-effort)
         }
 
-        var n = tcp.read_into(fd, iadd(buf, off), want - off, rem)
+        var need = native_canon_i32_arg(want - off)
+        var n = tcp.read_into(fd, iadd(buf, off), need, rem)
         if n == 0 { return 0 - 5 } // EIO (EOF)
         if n == 0 - 60 { continue } // ETIMEDOUT
         if n < 0 { return n }
-        off = off + n
+        off = native_canon_i32_arg(off + n)
     }
     return 0
 }
@@ -657,6 +662,7 @@ fn _send_frame_raw(fd, opcode, payload_ptr, payload_len, timeout_ms, masked) {
     var mask_bytes = 0
     if masked == 1 { mask_bytes = 4 }
     var total = 2 + ext + mask_bytes + payload_len
+    total = native_canon_i32_arg(total)
     var buf = malloc(total)
     if buf == 0 { return 0 - 12 } // ENOMEM
 
@@ -701,10 +707,17 @@ fn _send_frame_raw(fd, opcode, payload_ptr, payload_len, timeout_ms, masked) {
         i = i + 1
     }
 
-    var wr = tcp.write_from(fd, buf, total, timeout_ms)
+    // Rolling correctness guard (Win64 bring-up):
+    // copy critical args to fresh locals before calling into the NET runtime so local-slot overlap
+    // bugs in the native backend are less likely to corrupt the send length/pointers.
+    var fd2 = fd
+    var buf2 = buf
+    var total2 = total
+    var tm2 = timeout_ms
+    var wr = tcp.write_from(fd2, buf2, total2, tm2)
     free(buf)
     if wr < 0 { return wr }
-    if wr != total { return 0 - 5 } // EIO
+    if wr != total2 { return 0 - 5 } // EIO
     return 0
 }
 
@@ -827,8 +840,11 @@ fn recv_text(fd, timeout_ms) {
 
         if opcode == 9 {
             // ping => pong + continue
-            _send_frame_raw(fd, 10, out, plen, timeout_ms, out_masked)
+            var prc = _send_frame_raw(fd, 10, out, plen, timeout_ms, out_masked)
             free(out)
+            if prc < 0 {
+                return {"ok": 0, "err": "ws.recv_text: auto-pong failed (errno=" + oren_int_to_string(0 - prc) + ")"}
+            }
             continue
         }
         if opcode == 10 {
@@ -838,8 +854,11 @@ fn recv_text(fd, timeout_ms) {
         }
         if opcode == 8 {
             // close => echo close + return (caller may close the fd)
-            _send_frame_raw(fd, 8, out, plen, timeout_ms, out_masked)
+            var crc = _send_frame_raw(fd, 8, out, plen, timeout_ms, out_masked)
             free(out)
+            if crc < 0 {
+                return {"ok": 0, "err": "ws.recv_text: close send failed (errno=" + oren_int_to_string(0 - crc) + ")"}
+            }
             return {"ok": 0, "err": "ws.recv_text: close"}
         }
         if opcode != 1 {

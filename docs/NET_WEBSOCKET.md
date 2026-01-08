@@ -70,10 +70,14 @@ Win11 note:
 
 - WinSock `select()` can occasionally report a timeout even when data becomes readable/writable shortly after (observed during Tier‑1 bring-up).
 - The native NET runtime now treats readiness waits as advisory: it tries `recv`/`send` first and, on a reported timeout, retries until the caller deadline is actually exhausted.
+- Fixed (2026-01-08): sporadic WS `ETIMEDOUT` flakes under `spawn` were also caused by **TIME scratch buffer races**:
+  - `oren_time_unix_ns()` and `oren_time_mono_raw()` used shared global scratch buffers without synchronization.
+  - Under concurrent use, that could corrupt timeout math (e.g. compute `rem_ms=0` spuriously), making frame reads “timeout” even when the peer had sent data.
+  - The native runtime now synchronizes those scratch buffers with the runtime lock.
 
 ### Regression sensitivity (x64-windows)
 
-Even “semantics‑no‑op” changes (e.g. adding debug‑only branches in the native runtime) can shift the stage1/stage2 binary layout enough to **re‑surface** latent x64‑windows backend/runtime bugs and show up as WebSocket ping/pong timeouts (while TCP/UDP/HTTP still pass).
+Even small “semantics‑no‑op” changes can re-surface latent x64‑windows backend/runtime issues and show up first as WebSocket timeouts (while TCP/UDP/HTTP still pass). One concrete root cause was the TIME scratch buffer race fixed on 2026-01-08 (see note above), but WS remains a high-signal end-to-end fixture.
 
 Practical guidance:
 

@@ -295,13 +295,12 @@ fn run_one(listen_fd, url, resolver) {
     if fd >= 0 { oren_tcp_close(fd) }
 
     var sr = oren_join_timeout(h, 15000)
-    if sr != 0 {
-        if rc == 0 {
-            rc = 30
-        } else {
-            // On failure, print the server thread result too (bounded debug signal).
-            print("ws_echo_loopback: server_rc=" + oren_int_to_string(sr))
-        }
+    if sr != 0 && rc == 0 {
+        rc = 30
+    }
+    // On failure, always print the server thread result too (bounded debug signal).
+    if rc != 0 {
+        print("ws_echo_loopback: server_rc=" + oren_int_to_string(sr))
     }
 
     return rc
