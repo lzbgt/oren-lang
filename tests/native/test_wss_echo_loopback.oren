@@ -53,13 +53,13 @@ fn u16be_at(p, off) {
     return (hi << 8) | lo
 }
 
-@cfg(not_os="macos")
+@cfg(not_os="macos,linux")
 fn main() {
     // WSS/TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/NET_TLS.md.
     exit(0)
 }
 
-@cfg(os="macos")
+@cfg(os="macos,linux")
 fn server_main(listen_fd, pfx_b64) {
     var pkcs12_bytes = base64.decode_bytes(pfx_b64)
     if oren_is_err(pkcs12_bytes) { exit(101) }
@@ -67,7 +67,11 @@ fn server_main(listen_fd, pfx_b64) {
     if oren_is_err(n) || n != fixture.pkcs12_len() { exit(102) }
 
     var r = ws.accept_tls_pkcs12(listen_fd, 5000, pkcs12_bytes, fixture.passphrase(), nil)
-    if oren_map_get_str(r, "ok") != 1 { exit(11) }
+    if oren_map_get_str(r, "ok") != 1 {
+        var errv = oren_map_get_str(r, "err")
+        if errv != 0 { print("wss_server: accept_tls_pkcs12 FAIL: " + oren_intern_cstr(errv)) }
+        exit(11)
+    }
     var conn = oren_map_get_str(r, "conn")
     if conn == 0 { exit(12) }
 
@@ -83,7 +87,7 @@ fn server_main(listen_fd, pfx_b64) {
     exit(0)
 }
 
-@cfg(os="macos")
+@cfg(os="macos,linux")
 fn main_server() {
     var args = oren_args()
     if args == nil || oren_list_len(args) < 3 { exit(60) }
@@ -94,12 +98,92 @@ fn main_server() {
     exit(0)
 }
 
+@cfg(os="linux")
+fn main_client() {
+    var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
+
+    var listen_fd = oren_tcp_listen_local(0)
+    if listen_fd < 0 { exit(3) }
+
+    var sa = malloc(32)
+    if sa == 0 { exit(4) }
+    var lenp = malloc(8)
+    if lenp == 0 { exit(5) }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(listen_fd, sa, lenp)
+    if grc < 0 { exit(6) }
+    var port = u16be_at(sa, 2)
+    free(sa)
+    free(lenp)
+    if port <= 0 { exit(7) }
+
+    var pid = sys_fork()
+    if pid < 0 { exit(75) }
+    if pid == 0 {
+        server_main(listen_fd, fixture.pkcs12_b64())
+        exit(127)
+    }
+
+    var url = "wss://127.0.0.1:" + oren_int_to_string(port) + "/"
+    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test"}
+    var c = ws.connect_resolver_opts(url, 5000, 0, {"tls": tls_opts})
+    free(url)
+    if oren_map_get_str(c, "ok") != 1 {
+        var errv = oren_map_get_str(c, "err")
+        if errv != 0 { print("wss_loopback: FAIL connect: " + oren_intern_cstr(errv)) }
+        // Best-effort: if the server already died, surface its status to avoid opaque EOF failures.
+        var stp = malloc(8)
+        if stp != 0 {
+            ptr_set(stp, 0)
+            var wpid2 = sys_wait4(pid, stp, 1, 0) // WNOHANG
+            if wpid2 == pid { print("wss_loopback: server exit status=" + oren_int_to_string(ptr_get(stp))) }
+            free(stp)
+        }
+        exit(8)
+    }
+    var conn = oren_map_get_str(c, "conn")
+    if conn == 0 { exit(9) }
+
+    var prc = ws.send_ping_client(conn, "hi", 5000)
+    if prc < 0 { ws.close(conn); exit(20) }
+
+    var text = "PING"
+    var wr = ws.send_text_client(conn, text, 5000)
+    if wr < 0 { ws.close(conn); exit(21) }
+
+    var rr = ws.recv_text(conn, 5000)
+    if oren_map_get_str(rr, "ok") != 1 { ws.close(conn); exit(22) }
+    var body = oren_map_get_str(rr, "v")
+    if body == 0 || strcmp(body, "PING") != 0 {
+        if body != 0 { free(body) }
+        ws.close(conn)
+        exit(23)
+    }
+    free(body)
+    ws.close(conn)
+
+    var status_ptr = malloc(8)
+    if status_ptr == 0 { exit(40) }
+    ptr_set(status_ptr, 0)
+    var wpid = sys_wait4(pid, status_ptr, 0, 0)
+    if wpid != pid { exit(41) }
+    var status = ptr_get(status_ptr)
+    free(status_ptr)
+    if status != 0 { exit(42) }
+    tcp.close(listen_fd)
+    exit(0)
+}
+
 @cfg(os="macos")
 fn main_client() {
     var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
 
     var listen_fd = oren_tcp_listen_local(0)
     if listen_fd < 0 { exit(3) }
+
+    var exec_fd = listen_fd
+    var dfd = sys_fcntl(listen_fd, FCNTL_F_DUPFD, 0)
+    if dfd >= 0 { exec_fd = dfd }
 
     var sa = malloc(32)
     if sa == 0 { exit(4) }
@@ -121,7 +205,7 @@ fn main_client() {
 
     var role_cstr = _cstr_lit_server()
     if role_cstr == 0 { exit(72) }
-    var fd_cstr = _cstr_from_string(oren_int_to_string(listen_fd))
+    var fd_cstr = _cstr_from_string(oren_int_to_string(exec_fd))
     if fd_cstr == 0 { exit(73) }
     var argvp = malloc(4 * 8)
     if argvp == 0 { exit(74) }
@@ -141,6 +225,7 @@ fn main_client() {
     free(role_cstr)
 
     tcp.close(listen_fd)
+    if exec_fd != listen_fd { tcp.close(exec_fd) }
 
     var url = "wss://127.0.0.1:" + oren_int_to_string(port) + "/"
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test"}
@@ -183,7 +268,7 @@ fn main_client() {
     exit(0)
 }
 
-@cfg(os="macos")
+@cfg(os="macos,linux")
 fn main() {
     var args = oren_args()
     if args != nil && oren_list_len(args) >= 2 && _str_eq_bytes(args[1], "server") == true {

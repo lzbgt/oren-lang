@@ -54,13 +54,13 @@ fn u16be_at(p, off) {
     return (hi << 8) | lo
 }
 
-@cfg(not_os="macos")
+@cfg(not_os="macos,linux")
 fn main() {
     // TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/NET_TLS.md.
     exit(0)
 }
 
-@cfg(os="macos")
+@cfg(os="macos,linux")
 fn server_main(listen_fd, pfx_b64) {
     var pkcs12_bytes = base64.decode_bytes(pfx_b64)
     if oren_is_err(pkcs12_bytes) {
@@ -107,6 +107,106 @@ fn server_main(listen_fd, pfx_b64) {
     exit(0)
 }
 
+@cfg(os="linux")
+fn main_client() {
+    // Deterministic loopback TLS fixture:
+    // - PKCS#12 contains a self-signed cert for CN/SAN "oren.test" and 127.0.0.1.
+    // - Client pins the leaf certificate SHA-256 (DER).
+
+    var pfx_b64 = fixture.pkcs12_b64()
+    var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
+
+    // Bind ephemeral loopback port.
+    var listen_fd = oren_tcp_listen_local(0)
+    if listen_fd < 0 { exit(3) }
+
+    // getsockname to find the bound port.
+    var sa = malloc(32)
+    if sa == 0 { exit(4) }
+    var lenp = malloc(8)
+    if lenp == 0 { exit(5) }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(listen_fd, sa, lenp)
+    if grc < 0 { exit(6) }
+    var port = u16be_at(sa, 2)
+    free(sa)
+    free(lenp)
+    if port <= 0 { exit(7) }
+
+    var pid = sys_fork()
+    if pid < 0 { exit(75) }
+    if pid == 0 {
+        // Linux correctness: avoid exec; accept+TLS runs fine in the post-fork child.
+        server_main(listen_fd, pfx_b64)
+        exit(127)
+    }
+
+    var fd = tcp.connect("127.0.0.1", port, 5000)
+    if fd < 0 { exit(8) }
+
+    var cr = tls.wrap_client(fd, "oren.test", 5000, {"insecure_skip_verify": 1})
+    var ok = oren_map_get_str(cr, "ok")
+    if ok != 1 {
+        var es = oren_map_get_str(cr, "err")
+        if es != 0 { print("tls_loopback: FAIL client wrap: " + es) }
+        exit(9)
+    }
+    var conn = oren_map_get_str(cr, "conn")
+    if conn == 0 { exit(10) }
+
+    var msg = "PING"
+    var wr = tls.write_from(conn, msg, 4, 5000)
+    if wr != 4 {
+        tls.close(conn)
+        exit(20)
+    }
+    var buf = malloc(16)
+    if buf == 0 {
+        tls.close(conn)
+        exit(21)
+    }
+    var rn = tls.read_into(conn, buf, 4, 5000)
+    if rn != 4 {
+        free(buf)
+        tls.close(conn)
+        exit(22)
+    }
+    if ptr_get_byte(buf + 0) != 80 || ptr_get_byte(buf + 1) != 73 || ptr_get_byte(buf + 2) != 78 || ptr_get_byte(buf + 3) != 71 {
+        free(buf)
+        tls.close(conn)
+        exit(23)
+    }
+    free(buf)
+
+    var hr = tls.peer_cert_sha256_hex(conn)
+    var hok = oren_map_get_str(hr, "ok")
+    if hok != 1 {
+        tls.close(conn)
+        exit(30)
+    }
+    var hv = oren_map_get_str(hr, "v")
+    if hv == 0 || _str_eq_bytes(hv, expected_leaf_sha256_hex) != true {
+        print("tls_loopback: FAIL cert pin mismatch")
+        print("got=" + hv)
+        print("want=" + expected_leaf_sha256_hex)
+        tls.close(conn)
+        exit(31)
+    }
+
+    tls.close(conn)
+    // Wait for the server process to exit; require status==0.
+    var status_ptr = malloc(8)
+    if status_ptr == 0 { exit(40) }
+    ptr_set(status_ptr, 0)
+    var wpid = sys_wait4(pid, status_ptr, 0, 0)
+    if wpid != pid { exit(41) }
+    var status = ptr_get(status_ptr)
+    free(status_ptr)
+    if status != 0 { exit(42) }
+    tcp.close(listen_fd)
+    exit(0)
+}
+
 @cfg(os="macos")
 fn main_client() {
     // Deterministic loopback TLS fixture:
@@ -120,6 +220,10 @@ fn main_client() {
     // Bind ephemeral loopback port.
     var listen_fd = oren_tcp_listen_local(0)
     if listen_fd < 0 { exit(3) }
+
+    var exec_fd = listen_fd
+    var dfd = sys_fcntl(listen_fd, FCNTL_F_DUPFD, 0)
+    if dfd >= 0 { exec_fd = dfd }
 
     // getsockname to find the bound port.
     var sa = malloc(32)
@@ -147,7 +251,7 @@ fn main_client() {
 
     var role_cstr = _cstr_lit_server()
     if role_cstr == 0 { exit(72) }
-    var fd_cstr = _cstr_from_string(oren_int_to_string(listen_fd))
+    var fd_cstr = _cstr_from_string(oren_int_to_string(exec_fd))
     if fd_cstr == 0 { exit(73) }
     var argvp = malloc(4 * 8)
     if argvp == 0 { exit(74) }
@@ -167,6 +271,7 @@ fn main_client() {
     free(role_cstr)
 
     tcp.close(listen_fd)
+    if exec_fd != listen_fd { tcp.close(exec_fd) }
 
     var fd = tcp.connect("127.0.0.1", port, 5000)
     if fd < 0 {
@@ -237,7 +342,7 @@ fn main_client() {
     exit(0)
 }
 
-@cfg(os="macos")
+@cfg(os="macos,linux")
 fn main_server() {
     var args = oren_args()
     if args == nil || oren_list_len(args) < 3 {
@@ -253,7 +358,7 @@ fn main_server() {
     exit(0)
 }
 
-@cfg(os="macos")
+@cfg(os="macos,linux")
 fn main() {
     var args = oren_args()
     if args != nil && oren_list_len(args) >= 2 {

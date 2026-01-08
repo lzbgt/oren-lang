@@ -67,7 +67,7 @@ Proposed functions:
 
 - `opts["alpn"]`: list of strings (e.g. `["h2", "http/1.1"]`) (optional)
 - `opts["verify"]`: `1|0` (default: `1`) (planned; provider-dependent)
-- `opts["insecure_skip_verify"]`: `1|0` (default: `0`) (implemented on macOS provider; see §5)
+- `opts["insecure_skip_verify"]`: `1|0` (default: `0`) (implemented on macOS + Linux providers; see §5)
   - Intended for **offline loopback fixtures** only; callers should pin the peer cert (see §3).
 - `opts["server_name"]`: override SNI/server name when dialing by IP (used by loopback fixtures and proxies)
 - `opts["pin_cert_sha256_hex"]`: optional pinned leaf certificate hash (SHA-256 of DER; hex string)
@@ -144,7 +144,41 @@ Rationale:
   - `std:net/ws` supports `wss://` via `ws.connect_resolver_opts` (uses `tls.wrap_client`).
     - Server helper: `ws.accept_tls_pkcs12` (wraps `tcp.accept` + `tls.wrap_server_pkcs12` + WS handshake).
     - Regression gate: `tests/native/test_wss_echo_loopback.oren`.
-  - Note: TLS provider availability is still OS-dependent; on non-macOS Tier‑1 targets these fixtures compile but exit(0) until providers land.
+  - Note: TLS provider availability is still OS-dependent; on non-macOS and non-Linux targets these fixtures compile but exit(0) until providers land.
 - Still pending (Tier‑1 provider parity):
   - Windows x64: Schannel / SSPI (`secur32.dll`, `crypt32.dll`)
-  - Linux arm64/x64: OpenSSL (`libssl`/`libcrypto`)
+
+### 5.1 Linux provider (OpenSSL)
+
+As of **2026-01-08 (rolling)**, `std:net/tls` has a Linux provider implemented in `lib/std/net/tls.oren`:
+
+- Dynamic linking:
+  - `@ffi.link("libssl.so.3")`
+  - `@ffi.link("libcrypto.so.3")`
+- Implemented surface:
+  - `wrap_client`, `wrap_server_pkcs12`
+  - `read_into`, `write_from`, `close`
+  - `peer_cert_sha256_hex` (leaf certificate SHA-256 of DER; via `SSL_get1_peer_certificate` + `i2d_X509`)
+- Regression gate:
+  - `scripts/verify_native_net_matrix.sh --targets arm64-linux,x64-wsl` runs:
+    - `tests/native/test_tls_loopback.oren`
+    - `tests/native/test_https_get_loopback.oren`
+    - `tests/native/test_wss_echo_loopback.oren`
+
+Implementation notes (Linux):
+
+- **SIGPIPE is ignored** (`signal(SIGPIPE, SIG_IGN)`) so failed socket writes return `-EPIPE` instead of killing the process.
+- **FFI `int` return canonicalization is required** on AArch64 (and is applied in the provider):
+  - OpenSSL returns many values as `int` (signed 32-bit). If the caller reads the 64-bit return register without sign-extension, `-1` becomes `4294967295`, breaking error handling.
+  - The provider canonicalizes OpenSSL `int` results before comparisons and errno mapping.
+- **SNI is currently not wired** on Linux:
+  - `SSL_set_tlsext_host_name` is a macro in OpenSSL (not a linkable symbol).
+  - Implement SNI later via `SSL_ctrl(...)` once we vendor/lock down the OpenSSL headers/constants.
+
+Sources captured for audit/reference:
+
+- `project-doc/web/openssl/SSL_connect.html`
+- `project-doc/web/openssl/SSL_read.html`
+- `project-doc/web/openssl/SSL_get_error.html`
+- `project-doc/web/openssl/PKCS12_parse.html`
+- `project-doc/web/openssl/d2i_X509.html`

@@ -170,22 +170,29 @@ References:
 	           - `http.headers_get(headers, name)` and `http.response_free(resp)` provide minimal ergonomics + ownership.
 	           - Regression: `tests/native/test_http_get_loopback.oren` now asserts status and headers on both Content-Length and chunked cases.
 	         - fragmentation + binary frames + streaming recv API
-	         - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + system resolver (Windows DNS APIs + AAAA; POSIX `resolv.conf` AAAA support)
-	           - Design: `docs/NET_TLS.md`
-	           - Done (2026-01-08): macOS TLS provider bring-up + deterministic loopback fixture:
-	             - `std:net/tls` exists with SecureTransport provider (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
-	             - loopback regression: `tests/native/test_tls_loopback.oren` (stage1 + stage2; integrated into `scripts/verify_native_net_matrix.sh`)
-		           - Done (2026-01-08): wired `https://` into `std:net/http` and `wss://` into `std:net/ws`:
-		             - `tests/native/test_https_get_loopback.oren` (offline deterministic; uses pinning)
-		             - `tests/native/test_wss_echo_loopback.oren` (offline deterministic; uses pinning)
-		           - Next:
-		             - implement Tier‑1 providers: Windows x64 Schannel, Linux arm64/x64 OpenSSL
-		             - integrate pinning/verification options directly into `std:net/tls` (move policy out of HTTP/WS call sites)
-     - x64 native backend correctness:
-       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
-         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)
-         - Gate: `OREN_CANON_I32_ABORT=1` (hard-fail; preferred for CI / remote Tier‑1 scripts)
-         - Note: Tier‑1 matrix scripts now propagate `OREN_CANON_I32_ABORT` to docker/WSL2/Win11 runs so regressions fail fast.
+		         - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + system resolver (Windows DNS APIs + AAAA; POSIX `resolv.conf` AAAA support)
+		           - Design: `docs/NET_TLS.md`
+		           - Done (2026-01-08): macOS TLS provider bring-up + deterministic loopback fixture:
+		             - `std:net/tls` exists with SecureTransport provider (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
+		             - loopback regression: `tests/native/test_tls_loopback.oren` (stage1 + stage2; integrated into `scripts/verify_native_net_matrix.sh`)
+			           - Done (2026-01-08): wired `https://` into `std:net/http` and `wss://` into `std:net/ws`:
+			             - `tests/native/test_https_get_loopback.oren` (offline deterministic; uses pinning)
+			             - `tests/native/test_wss_echo_loopback.oren` (offline deterministic; uses pinning)
+			           - Done (2026-01-08): Linux TLS provider bring-up (OpenSSL 3; dynamic `libssl.so.3`/`libcrypto.so.3`)
+			             - Provider: `lib/std/net/tls.oren` (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
+			             - Regression: `./scripts/verify_native_net_matrix.sh --targets arm64-linux,x64-wsl` (stage1 + stage2)
+			             - Note: Linux SNI is deferred (OpenSSL `SSL_set_tlsext_host_name` is a macro; implement via `SSL_ctrl` once headers/constants are locked down).
+			           - Next:
+			             - implement Tier‑1 provider: Windows x64 Schannel / SSPI (plus `wss://` + `https://` fixtures)
+			             - integrate pinning/verification options directly into `std:net/tls` (move policy out of HTTP/WS call sites)
+	     - x64 native backend correctness:
+	       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
+	         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)
+	         - Gate: `OREN_CANON_I32_ABORT=1` (hard-fail; preferred for CI / remote Tier‑1 scripts)
+	         - Note: Tier‑1 matrix scripts now propagate `OREN_CANON_I32_ABORT` to docker/WSL2/Win11 runs so regressions fail fast.
+	       - Done (2026-01-08): Linux OpenSSL TLS provider canonicalizes `int` (i32) returns before interpreting errors.
+	         - Root cause: some Tier‑1 FFI paths return signed 32-bit values that must be sign-extended to i64 (`-1` otherwise looks like `4294967295`).
+	         - Next: fix native backend FFI return lowering to correctly sign-extend i32 returns on all ABIs (so per-call-site canonicalization isn’t needed).
 	     - Native runtime GC + literals:
        - Done (2026-01-08): embedded `cstr0` string literals are treated as constant-section data and are **not** tracked as GC alloc nodes.
          - Runtime builds a dedicated literal membership set at startup (`oren_init_static_cstr0_table`) and recognizes literals via `native_is_string_ptr` / `oren_is_string`.

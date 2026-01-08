@@ -25,40 +25,530 @@
 import tcp "std:net/tcp"
 import sha256 "std:crypto/sha256"
 
-// --- Default stub (non-macOS) ---
+// --- Default stub (non-macOS, non-Linux) ---
 
-@cfg(not_os="macos")
+@cfg(not_os="macos,linux")
 fn wrap_client(fd, server_name, timeout_ms, opts) {
     if fd == nil { fd = -1 }
     if fd >= 0 { tcp.close(fd) }
     return {"ok": 0, "err": "tls.wrap_client: TLS provider not implemented for this OS yet (see docs/NET_TLS.md)"}
 }
 
-@cfg(not_os="macos")
+@cfg(not_os="macos,linux")
 fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     if fd == nil { fd = -1 }
     if fd >= 0 { tcp.close(fd) }
     return {"ok": 0, "err": "tls.wrap_server: TLS provider not implemented for this OS yet (see docs/NET_TLS.md)"}
 }
 
-@cfg(not_os="macos")
+@cfg(not_os="macos,linux")
 fn read_into(conn, buf, cap, timeout_ms) {
     return 0 - 38 // ENOSYS
 }
 
-@cfg(not_os="macos")
+@cfg(not_os="macos,linux")
 fn write_from(conn, ptr0, len, timeout_ms) {
     return 0 - 38 // ENOSYS
 }
 
-@cfg(not_os="macos")
+@cfg(not_os="macos,linux")
 fn close(conn) {
     return 0 - 38 // ENOSYS
 }
 
-@cfg(not_os="macos")
+@cfg(not_os="macos,linux")
 fn peer_cert_sha256_hex(conn) {
     return {"ok": 0, "err": "tls.peer_cert_sha256_hex: not implemented (see docs/NET_TLS.md)"}
+}
+
+// --- Linux provider (OpenSSL) ---
+//
+// Provider goal (rolling v0):
+// - deterministic offline loopback fixtures (TLS/HTTPS/WSS)
+// - timeout-bounded handshake and IO
+//
+// Link deps:
+// - OpenSSL 3 is the Tier‑1 baseline in our current linux/arm64 container and remote WSL2 host.
+//   Evidence is captured under `project-doc/web/openssl/` (downloaded from openssl.org manpages).
+
+@cfg(os="linux")
+@ffi.link("libssl.so.3")
+@ffi.link("libcrypto.so.3")
+ffi OPENSSL_init_ssl
+
+@cfg(os="linux")
+@ffi.link("libc.so.6")
+ffi signal
+
+@cfg(os="linux")
+ffi TLS_client_method
+@cfg(os="linux")
+ffi TLS_server_method
+@cfg(os="linux")
+ffi SSL_CTX_new
+@cfg(os="linux")
+ffi SSL_CTX_free
+@cfg(os="linux")
+ffi SSL_CTX_set_verify
+@cfg(os="linux")
+ffi SSL_CTX_set_default_verify_paths
+@cfg(os="linux")
+ffi SSL_new
+@cfg(os="linux")
+ffi SSL_free
+@cfg(os="linux")
+ffi SSL_set_fd
+@cfg(os="linux")
+ffi SSL_connect
+@cfg(os="linux")
+ffi SSL_accept
+@cfg(os="linux")
+ffi SSL_get_error
+@cfg(os="linux")
+ffi SSL_read
+@cfg(os="linux")
+ffi SSL_write
+@cfg(os="linux")
+ffi SSL_shutdown
+@cfg(os="linux")
+ffi SSL_get1_peer_certificate
+
+@cfg(os="linux")
+ffi d2i_PKCS12
+@cfg(os="linux")
+ffi PKCS12_parse
+@cfg(os="linux")
+ffi PKCS12_free
+@cfg(os="linux")
+ffi EVP_PKEY_free
+@cfg(os="linux")
+ffi X509_free
+@cfg(os="linux")
+ffi SSL_CTX_use_certificate
+@cfg(os="linux")
+ffi SSL_CTX_use_PrivateKey
+@cfg(os="linux")
+ffi SSL_CTX_check_private_key
+@cfg(os="linux")
+ffi i2d_X509
+
+@cfg(os="linux")
+var _openssl_inited = 0
+
+@cfg(os="linux")
+fn _openssl_init() {
+    if _openssl_inited == 1 { return 0 }
+    // OPENSSL_init_ssl returns 1 on success. It's idempotent.
+    var rc = OPENSSL_init_ssl(0, 0)
+    if rc != 1 { return 0 - 5 } // EIO
+    // Linux correctness: ignore SIGPIPE so failed socket writes return EPIPE instead of killing the process.
+    // Verified SIGPIPE number: 13 (bash: `kill -l PIPE`).
+    signal(13, 1) // SIG_IGN
+    _openssl_inited = 1
+    return 0
+}
+
+@cfg(os="linux")
+fn _openssl_canon_i32(v) {
+    // Many OpenSSL APIs return `int` (signed 32-bit).
+    //
+    // On AArch64, `int` returns live in W0. If the caller reads X0 as an i64 without
+    // sign-extension, negative values show up as large positives:
+    //   -1 => 0x00000000ffffffff == 4294967295
+    //
+    // Canonicalize to a signed i64 that represents an i32.
+    if v > 2147483647 { return v - 4294967296 }
+    return v
+}
+
+@cfg(os="linux")
+fn _ssl_error_want_read() { return 2 }
+@cfg(os="linux")
+fn _ssl_error_want_write() { return 3 }
+@cfg(os="linux")
+fn _ssl_error_zero_return() { return 6 }
+
+@cfg(os="linux")
+fn _openssl_wait_io(fd, timeout_ms, want) {
+    if want == 1 { return tcp.wait_readable(fd, timeout_ms) }
+    return tcp.wait_writable(fd, timeout_ms)
+}
+
+@cfg(os="linux")
+fn _openssl_handshake(ssl, fd, timeout_ms, is_server) {
+    if timeout_ms == nil { timeout_ms = 5000 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+    var t0 = oren_time_unix_ns()
+    var rem_ms = timeout_ms
+
+    while true {
+        var rc = 0
+        if is_server == 1 { rc = SSL_accept(ssl) }
+        else { rc = SSL_connect(ssl) }
+        rc = _openssl_canon_i32(rc)
+
+        if rc == 1 { return 0 }
+
+        var err = SSL_get_error(ssl, rc)
+        err = _openssl_canon_i32(err)
+        if err == _ssl_error_want_read() {
+            var w = _openssl_wait_io(fd, rem_ms, 1)
+            if w == 0 { return 0 - 60 } // ETIMEDOUT
+            if w < 0 { return w }
+        } else if err == _ssl_error_want_write() {
+            var w2 = _openssl_wait_io(fd, rem_ms, 2)
+            if w2 == 0 { return 0 - 60 }
+            if w2 < 0 { return w2 }
+        } else {
+            return 0 - 5 // EIO
+        }
+
+        var now = oren_time_unix_ns()
+        var dt_ms = (now - t0) / 1000000
+        if dt_ms < 0 { dt_ms = 0 }
+        rem_ms = timeout_ms - dt_ms
+        if rem_ms <= 0 { return 0 - 60 }
+    }
+}
+
+@cfg(os="linux")
+fn _openssl_setup_ctx_client(fd, server_name, opts) {
+    if fd < 0 { return {"ok": 0, "err": "tls: fd invalid"} }
+    var init = _openssl_init()
+    if init < 0 { tcp.close(fd); return {"ok": 0, "err": "tls: OPENSSL_init_ssl failed"} }
+
+    var fl = sys_fcntl_getfl(fd)
+    // Oren-level O_NONBLOCK flag (translated by sys_fcntl_setfl on each OS).
+    if fl >= 0 { sys_fcntl_setfl(fd, fl | 1024) }
+
+    var meth = TLS_client_method()
+    if meth == 0 { tcp.close(fd); return {"ok": 0, "err": "tls: TLS_client_method failed"} }
+    var ctx = SSL_CTX_new(meth)
+    if ctx == 0 { tcp.close(fd); return {"ok": 0, "err": "tls: SSL_CTX_new failed"} }
+
+    var insecure = 0
+    if opts != nil && oren_is_map(opts) == true {
+        if oren_map_get_str(opts, "insecure_skip_verify") == 1 { insecure = 1 }
+    }
+    if insecure == 1 {
+        // SSL_VERIFY_NONE = 0
+        SSL_CTX_set_verify(ctx, 0, 0)
+    } else {
+        // SSL_VERIFY_PEER = 1
+        SSL_CTX_set_verify(ctx, 1, 0)
+        SSL_CTX_set_default_verify_paths(ctx)
+    }
+
+    var ssl = SSL_new(ctx)
+    if ssl == 0 {
+        SSL_CTX_free(ctx)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: SSL_new failed"}
+    }
+    var rc_fd = SSL_set_fd(ssl, fd)
+    rc_fd = _openssl_canon_i32(rc_fd)
+    if rc_fd != 1 {
+        SSL_free(ssl)
+        SSL_CTX_free(ctx)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: SSL_set_fd failed"}
+    }
+
+    // NOTE (OpenSSL SNI; rolling):
+    // `SSL_set_tlsext_host_name` is a macro in OpenSSL and does not exist as a linkable symbol.
+    // We intentionally defer SNI wiring until we vendor or otherwise lock down the OpenSSL headers
+    // (so we can call `SSL_ctrl` with the correct constants). For now, server_name is used for
+    // documentation + future verification hooks; loopback fixtures do not require SNI.
+
+    return {"ok": 1, "ctx": ctx, "ssl": ssl}
+}
+
+@cfg(os="linux")
+fn wrap_client(fd, server_name, timeout_ms, opts) {
+    if fd == nil || fd < 0 { return {"ok": 0, "err": "tls.wrap_client: fd invalid"} }
+    var r = _openssl_setup_ctx_client(fd, server_name, opts)
+    if r["ok"] != 1 { return {"ok": 0, "err": r["err"]} }
+    var ctx = r["ctx"]
+    var ssl = r["ssl"]
+    var hs = _openssl_handshake(ssl, fd, timeout_ms, 0)
+    if hs != 0 {
+        SSL_free(ssl)
+        SSL_CTX_free(ctx)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: handshake failed (errno=" + oren_int_to_string(0 - hs) + ")"}
+    }
+    return {"ok": 1, "conn": {"impl": "linux_openssl", "fd": fd, "ctx": ctx, "ssl": ssl}}
+}
+
+@cfg(os="linux")
+fn _openssl_setup_ctx_server_from_pkcs12(fd, pkcs12_bytes, passphrase, opts) {
+    if fd < 0 { return {"ok": 0, "err": "tls: fd invalid"} }
+    if pkcs12_bytes == nil { tcp.close(fd); return {"ok": 0, "err": "tls: pkcs12_bytes is nil"} }
+    if passphrase == nil { passphrase = "" }
+    var init = _openssl_init()
+    if init < 0 { tcp.close(fd); return {"ok": 0, "err": "tls: OPENSSL_init_ssl failed"} }
+
+    var fl = sys_fcntl_getfl(fd)
+    if fl >= 0 { sys_fcntl_setfl(fd, fl | 1024) }
+
+    var n = oren_buf_len(pkcs12_bytes)
+    if oren_is_err(n) || n <= 0 { tcp.close(fd); return {"ok": 0, "err": "tls: pkcs12 len invalid"} }
+    var src = native_buf_data_ptr(pkcs12_bytes)
+    if src == 0 { tcp.close(fd); return {"ok": 0, "err": "tls: pkcs12 data ptr nil"} }
+
+    // Decode DER PKCS#12.
+    var in_ptr = malloc(8)
+    if in_ptr == 0 { tcp.close(fd); return {"ok": 0, "err": "tls: alloc failed"} }
+    ptr_set(in_ptr, src)
+    var p12 = d2i_PKCS12(0, in_ptr, n)
+    free(in_ptr)
+    if p12 == 0 { tcp.close(fd); return {"ok": 0, "err": "tls: d2i_PKCS12 failed"} }
+
+    // Parse identity.
+    var pkey_ptr = malloc(8)
+    var cert_ptr = malloc(8)
+    var ca_ptr = malloc(8)
+    if pkey_ptr == 0 || cert_ptr == 0 || ca_ptr == 0 {
+        if pkey_ptr != 0 { free(pkey_ptr) }
+        if cert_ptr != 0 { free(cert_ptr) }
+        if ca_ptr != 0 { free(ca_ptr) }
+        PKCS12_free(p12)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: alloc failed"}
+    }
+    ptr_set(pkey_ptr, 0)
+    ptr_set(cert_ptr, 0)
+    ptr_set(ca_ptr, 0)
+    var prc = PKCS12_parse(p12, passphrase, pkey_ptr, cert_ptr, ca_ptr)
+    prc = _openssl_canon_i32(prc)
+    PKCS12_free(p12)
+    if prc != 1 {
+        free(pkey_ptr); free(cert_ptr); free(ca_ptr)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: PKCS12_parse failed"}
+    }
+    var pkey = ptr_get(pkey_ptr)
+    var cert = ptr_get(cert_ptr)
+    // ca list ignored in v0.
+    free(pkey_ptr); free(cert_ptr); free(ca_ptr)
+    if pkey == 0 || cert == 0 {
+        if pkey != 0 { EVP_PKEY_free(pkey) }
+        if cert != 0 { X509_free(cert) }
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: PKCS12_parse returned nil key/cert"}
+    }
+
+    var meth = TLS_server_method()
+    if meth == 0 {
+        EVP_PKEY_free(pkey)
+        X509_free(cert)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: TLS_server_method failed"}
+    }
+    var ctx = SSL_CTX_new(meth)
+    if ctx == 0 {
+        EVP_PKEY_free(pkey)
+        X509_free(cert)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: SSL_CTX_new failed"}
+    }
+
+    // Load identity into the ctx.
+    if _openssl_canon_i32(SSL_CTX_use_certificate(ctx, cert)) != 1 {
+        SSL_CTX_free(ctx)
+        EVP_PKEY_free(pkey)
+        X509_free(cert)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: SSL_CTX_use_certificate failed"}
+    }
+    if _openssl_canon_i32(SSL_CTX_use_PrivateKey(ctx, pkey)) != 1 {
+        SSL_CTX_free(ctx)
+        EVP_PKEY_free(pkey)
+        X509_free(cert)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: SSL_CTX_use_PrivateKey failed"}
+    }
+    if _openssl_canon_i32(SSL_CTX_check_private_key(ctx)) != 1 {
+        SSL_CTX_free(ctx)
+        EVP_PKEY_free(pkey)
+        X509_free(cert)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: SSL_CTX_check_private_key failed"}
+    }
+
+    // Free the parsed objects; ctx holds references.
+    EVP_PKEY_free(pkey)
+    X509_free(cert)
+
+    var ssl = SSL_new(ctx)
+    if ssl == 0 {
+        SSL_CTX_free(ctx)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: SSL_new failed"}
+    }
+    if _openssl_canon_i32(SSL_set_fd(ssl, fd)) != 1 {
+        SSL_free(ssl)
+        SSL_CTX_free(ctx)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: SSL_set_fd failed"}
+    }
+
+    return {"ok": 1, "ctx": ctx, "ssl": ssl}
+}
+
+@cfg(os="linux")
+fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
+    if fd == nil || fd < 0 { return {"ok": 0, "err": "tls.wrap_server: fd invalid"} }
+    var r = _openssl_setup_ctx_server_from_pkcs12(fd, pkcs12_bytes, passphrase, opts)
+    if r["ok"] != 1 { return {"ok": 0, "err": r["err"]} }
+    var ctx = r["ctx"]
+    var ssl = r["ssl"]
+    var hs = _openssl_handshake(ssl, fd, timeout_ms, 1)
+    if hs != 0 {
+        SSL_free(ssl)
+        SSL_CTX_free(ctx)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls.wrap_server: handshake failed (errno=" + oren_int_to_string(0 - hs) + ")"}
+    }
+    return {"ok": 1, "conn": {"impl": "linux_openssl", "fd": fd, "ctx": ctx, "ssl": ssl}}
+}
+
+@cfg(os="linux")
+fn read_into(conn, buf, cap, timeout_ms) {
+    if conn == nil { return 0 - 22 } // EINVAL
+    var ssl = conn["ssl"]
+    var fd = conn["fd"]
+    if ssl == 0 || fd == nil || fd < 0 { return 0 - 22 }
+    if timeout_ms == nil { timeout_ms = 5000 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+
+    var t0 = oren_time_unix_ns()
+    var rem_ms = timeout_ms
+    while true {
+        var n = SSL_read(ssl, buf, cap)
+        n = _openssl_canon_i32(n)
+        if n > 0 { return n }
+        if n == 0 { return 0 }
+        var err = SSL_get_error(ssl, n)
+        err = _openssl_canon_i32(err)
+        if err == _ssl_error_want_read() {
+            var w = _openssl_wait_io(fd, rem_ms, 1)
+            if w == 0 { return 0 - 60 }
+            if w < 0 { return w }
+        } else if err == _ssl_error_want_write() {
+            var w2 = _openssl_wait_io(fd, rem_ms, 2)
+            if w2 == 0 { return 0 - 60 }
+            if w2 < 0 { return w2 }
+        } else if err == _ssl_error_zero_return() {
+            return 0
+        } else {
+            return 0 - 5
+        }
+        var now = oren_time_unix_ns()
+        var dt_ms = (now - t0) / 1000000
+        if dt_ms < 0 { dt_ms = 0 }
+        rem_ms = timeout_ms - dt_ms
+        if rem_ms <= 0 { return 0 - 60 }
+    }
+}
+
+@cfg(os="linux")
+fn write_from(conn, ptr0, len, timeout_ms) {
+    if conn == nil { return 0 - 22 } // EINVAL
+    if ptr0 == nil { ptr0 = 0 }
+    if len == nil { len = 0 }
+    if len < 0 { len = 0 }
+    var ssl = conn["ssl"]
+    var fd = conn["fd"]
+    if ssl == 0 || fd == nil || fd < 0 { return 0 - 22 }
+    if timeout_ms == nil { timeout_ms = 5000 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+
+    var t0 = oren_time_unix_ns()
+    var rem_ms = timeout_ms
+    var off = 0
+    while off < len {
+        var n = SSL_write(ssl, ptr0 + off, len - off)
+        n = _openssl_canon_i32(n)
+        if n > 0 {
+            off = off + n
+            continue
+        }
+        var err = SSL_get_error(ssl, n)
+        err = _openssl_canon_i32(err)
+        if err == _ssl_error_want_read() {
+            var w = _openssl_wait_io(fd, rem_ms, 1)
+            if w == 0 { return 0 - 60 }
+            if w < 0 { return w }
+        } else if err == _ssl_error_want_write() {
+            var w2 = _openssl_wait_io(fd, rem_ms, 2)
+            if w2 == 0 { return 0 - 60 }
+            if w2 < 0 { return w2 }
+        } else {
+            return 0 - 5
+        }
+        var now = oren_time_unix_ns()
+        var dt_ms = (now - t0) / 1000000
+        if dt_ms < 0 { dt_ms = 0 }
+        rem_ms = timeout_ms - dt_ms
+        if rem_ms <= 0 { return 0 - 60 }
+    }
+    return off
+}
+
+@cfg(os="linux")
+fn close(conn) {
+    if conn == nil { return 0 }
+    var ssl = conn["ssl"]
+    var ctx = conn["ctx"]
+    var fd = conn["fd"]
+    if ssl != 0 {
+        _openssl_canon_i32(SSL_shutdown(ssl))
+        SSL_free(ssl)
+    }
+    if ctx != 0 { SSL_CTX_free(ctx) }
+    if fd != nil && fd >= 0 { tcp.close(fd) }
+    return 0
+}
+
+@cfg(os="linux")
+fn peer_cert_sha256_hex(conn) {
+    if conn == nil { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: conn is nil"} }
+    var ssl = conn["ssl"]
+    if ssl == 0 { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: ssl is nil"} }
+    var cert = SSL_get1_peer_certificate(ssl)
+    if cert == 0 { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: no leaf cert"} }
+
+    var der_len = _openssl_canon_i32(i2d_X509(cert, 0))
+    if der_len <= 0 {
+        X509_free(cert)
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: i2d_X509 len failed"}
+    }
+
+    var b = oren_u8_buf_new(der_len)
+    if oren_is_err(b) {
+        X509_free(cert)
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: alloc bytes failed"}
+    }
+    var dst = native_buf_data_ptr(b)
+    if dst == 0 {
+        X509_free(cert)
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: bytes data ptr nil"}
+    }
+    var pp = malloc(8)
+    if pp == 0 {
+        X509_free(cert)
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: alloc ptr failed"}
+    }
+    ptr_set(pp, dst)
+    var wrote = _openssl_canon_i32(i2d_X509(cert, pp))
+    free(pp)
+    X509_free(cert)
+    if wrote != der_len {
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: i2d_X509 wrote mismatch"}
+    }
+    var hex = sha256.sha256_hex(b)
+    return {"ok": 1, "v": hex}
 }
 
 // --- macOS provider (SecureTransport) ---

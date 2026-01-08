@@ -71,13 +71,13 @@ fn _find_header_end(buf, used) {
     return 0
 }
 
-@cfg(not_os="macos")
+@cfg(not_os="macos,linux")
 fn main() {
     // HTTPS/TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/NET_TLS.md.
     exit(0)
 }
 
-@cfg(os="macos")
+@cfg(os="macos,linux")
 fn server_main(listen_fd, pfx_b64) {
     var pkcs12_bytes = base64.decode_bytes(pfx_b64)
     if oren_is_err(pkcs12_bytes) { exit(101) }
@@ -120,7 +120,7 @@ fn server_main(listen_fd, pfx_b64) {
     exit(0)
 }
 
-@cfg(os="macos")
+@cfg(os="macos,linux")
 fn main_server() {
     var args = oren_args()
     if args == nil || oren_list_len(args) < 3 { exit(60) }
@@ -131,7 +131,7 @@ fn main_server() {
     exit(0)
 }
 
-@cfg(os="macos")
+@cfg(os="linux")
 fn main_client() {
     var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
 
@@ -152,34 +152,103 @@ fn main_client() {
     free(lenp)
     if port <= 0 { exit(7) }
 
-    // Exec server process (Darwin correctness: avoid post-fork CoreFoundation use).
-    var argvp0 = global_get_argv()
-    if argvp0 == 0 { exit(70) }
-    var self_path = ptr_get(argvp0 + 0)
-    if self_path == 0 { exit(71) }
+    // Linux correctness: the TLS provider is OpenSSL-based and fork-safe; run server in child without exec.
+    // Keep `listen_fd` open in the parent until after the client request to avoid any fork/clone FD-table quirks.
+    var pid = sys_fork()
+    if pid < 0 { exit(75) }
+    if pid == 0 {
+        server_main(listen_fd, fixture.pkcs12_b64())
+        exit(127)
+    }
 
-    var role_cstr = _cstr_lit_server()
-    if role_cstr == 0 { exit(72) }
-    var fd_cstr = _cstr_from_string(oren_int_to_string(listen_fd))
-    if fd_cstr == 0 { exit(73) }
-    var argvp = malloc(4 * 8)
-    if argvp == 0 { exit(74) }
-    ptr_set(argvp + 0, self_path)
-    ptr_set(argvp + 8, role_cstr)
-    ptr_set(argvp + 16, fd_cstr)
-    ptr_set(argvp + 24, 0)
+    var url = "https://127.0.0.1:" + oren_int_to_string(port) + "/"
+    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test"}
+    var rr = http.get_response_opts(url, 5000, {"tls": tls_opts})
+    free(url)
+
+    var okv = oren_map_get_str(rr, "ok")
+    if okv != 1 {
+        var errv = oren_map_get_str(rr, "err")
+        if errv != 0 { print("https_loopback: FAIL: " + oren_intern_cstr(errv)) }
+        exit(8)
+    }
+    if oren_map_get_str(rr, "status") != 200 {
+        http.response_free(rr)
+        exit(9)
+    }
+    var body = oren_map_get_str(rr, "body")
+    if body == 0 || _str_eq_bytes(body, "HELLO") != true {
+        http.response_free(rr)
+        exit(10)
+    }
+    http.response_free(rr)
+
+    var status_ptr = malloc(8)
+    if status_ptr == 0 { exit(40) }
+    ptr_set(status_ptr, 0)
+    var wpid = sys_wait4(pid, status_ptr, 0, 0)
+    if wpid != pid { exit(41) }
+    var status = ptr_get(status_ptr)
+    free(status_ptr)
+    if status != 0 { exit(42) }
+
+    tcp.close(listen_fd)
+    exit(0)
+}
+
+@cfg(os="macos")
+fn main_client() {
+    var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
+
+    // Bind ephemeral loopback port.
+    var listen_fd = oren_tcp_listen_local(0)
+    if listen_fd < 0 { exit(3) }
+
+    // For fork+exec server mode we must ensure the listening fd survives exec.
+    // On some platforms `listen_local` may set CLOEXEC; duplicate it with plain F_DUPFD.
+    var exec_fd = listen_fd
+    var dfd = sys_fcntl(listen_fd, FCNTL_F_DUPFD, 0)
+    if dfd >= 0 { exec_fd = dfd }
+
+    // getsockname to find the bound port.
+    var sa = malloc(32)
+    if sa == 0 { exit(4) }
+    var lenp = malloc(8)
+    if lenp == 0 { exit(5) }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(listen_fd, sa, lenp)
+    if grc < 0 { exit(6) }
+    var port = u16be_at(sa, 2)
+    free(sa)
+    free(lenp)
+    if port <= 0 { exit(7) }
 
     var pid = oren_fork()
     if pid < 0 { exit(75) }
     if pid == 0 {
+        // Darwin correctness: avoid post-fork CoreFoundation/Security; exec a fresh process.
+        var argvp0 = global_get_argv()
+        if argvp0 == 0 { exit(70) }
+        var self_path = ptr_get(argvp0 + 0)
+        if self_path == 0 { exit(71) }
+
+        var role_cstr = _cstr_lit_server()
+        if role_cstr == 0 { exit(72) }
+        var fd_cstr = _cstr_from_string(oren_int_to_string(exec_fd))
+        if fd_cstr == 0 { exit(73) }
+        var argvp = malloc(4 * 8)
+        if argvp == 0 { exit(74) }
+        ptr_set(argvp + 0, self_path)
+        ptr_set(argvp + 8, role_cstr)
+        ptr_set(argvp + 16, fd_cstr)
+        ptr_set(argvp + 24, 0)
+
         sys_execve(self_path, argvp, global_get_envp())
         exit(127)
     }
-    free(argvp)
-    free(fd_cstr)
-    free(role_cstr)
 
     tcp.close(listen_fd)
+    if exec_fd != listen_fd { tcp.close(exec_fd) }
 
     var url = "https://127.0.0.1:" + oren_int_to_string(port) + "/"
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test"}
@@ -214,7 +283,7 @@ fn main_client() {
     exit(0)
 }
 
-@cfg(os="macos")
+@cfg(os="macos,linux")
 fn main() {
     var args = oren_args()
     if args != nil && oren_list_len(args) >= 2 && _str_eq_bytes(args[1], "server") == true {
