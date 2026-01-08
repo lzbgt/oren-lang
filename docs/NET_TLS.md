@@ -112,7 +112,7 @@ TLS is implemented via **OS providers** (FFI) per Tier‑1 OS:
 
 - `arm64-macos`: Security.framework (SecureTransport / TLS APIs)
 - `x64-windows`: SChannel / SSPI (`secur32.dll`, `crypt32.dll`)
-- `arm64-linux` + `x64-linux`: OpenSSL (dynamic, via `@ffi.link("libssl.so...")` / `@ffi.link("libcrypto.so...")`)
+- `arm64-linux` + `x64-linux`: OpenSSL 3 (loaded lazily at runtime via `dlopen(..., RTLD_GLOBAL)`)
 
 Rationale:
 
@@ -153,8 +153,10 @@ Rationale:
 As of **2026-01-08 (rolling)**, `std:net/tls` has a Linux provider implemented in `lib/std/net/tls.oren`:
 
 - Dynamic linking:
-  - `@ffi.link("libssl.so.3")`
-  - `@ffi.link("libcrypto.so.3")`
+  - OpenSSL libraries are **not** added to DT_NEEDED by default.
+  - `std:net/tls` loads `libcrypto.so.3` + `libssl.so.3` lazily via `dlopen(..., RTLD_GLOBAL)` during `_openssl_init()`.
+    - This avoids forcing non-TLS binaries that merely import `std:net/http` / `std:net/ws` to have OpenSSL present at program load time.
+    - If OpenSSL is not present, TLS functions return a structured error instead of the whole binary failing to load.
 - Implemented surface:
   - `wrap_client`, `wrap_server_pkcs12`
   - `read_into`, `write_from`, `close`

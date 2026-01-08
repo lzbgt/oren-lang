@@ -99,13 +99,14 @@ fn peer_cert_sha256_hex(conn) {
 
 @cfg(os="linux")
 @ffi.ret("i32")
-@ffi.link("libssl.so.3")
-@ffi.link("libcrypto.so.3")
 ffi OPENSSL_init_ssl
 
 @cfg(os="linux")
-@ffi.link("libc.so.6")
 ffi signal
+
+@cfg(os="linux")
+@ffi.link("libdl.so.2")
+ffi dlopen
 
 @cfg(os="linux")
 ffi TLS_client_method
@@ -173,10 +174,38 @@ ffi i2d_X509
 
 @cfg(os="linux")
 var _openssl_inited = 0
+@cfg(os="linux")
+var _openssl_libs_loaded = 0
+
+@cfg(os="linux")
+fn _rtld_now() { return 2 }
+@cfg(os="linux")
+fn _rtld_global() { return 256 }
+@cfg(os="linux")
+fn _rtld_flags() { return _rtld_now() | _rtld_global() }
+
+@cfg(os="linux")
+fn _openssl_dlopen_libs() {
+    // Important: use RTLD_GLOBAL so OpenSSL symbols become visible to dlsym(RTLD_DEFAULT,...),
+    // which is how the native backend resolves `ffi` on Linux.
+    if _openssl_libs_loaded == 1 { return 0 }
+    var flags = _rtld_flags()
+    // Order: libcrypto first, then libssl.
+    var h1 = dlopen("libcrypto.so.3", flags)
+    if h1 == 0 { return 0 - 5 } // EIO
+    var h2 = dlopen("libssl.so.3", flags)
+    if h2 == 0 { return 0 - 5 } // EIO
+    _openssl_libs_loaded = 1
+    return 0
+}
 
 @cfg(os="linux")
 fn _openssl_init() {
     if _openssl_inited == 1 { return 0 }
+    // Do not force DT_NEEDED on libssl/libcrypto for binaries that merely import std:net/http/ws.
+    // Instead, load OpenSSL lazily and make it available in RTLD_DEFAULT for subsequent `ffi` calls.
+    var dlrc = _openssl_dlopen_libs()
+    if dlrc < 0 { return dlrc }
     // OPENSSL_init_ssl returns 1 on success. It's idempotent.
     var rc = OPENSSL_init_ssl(0, 0)
     if rc != 1 { return 0 - 5 } // EIO

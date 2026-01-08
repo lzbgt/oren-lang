@@ -80,7 +80,15 @@ log "== setup: apt-get update =="
 docker exec -i "$LINUX_DOCKER_ID" bash -lc 'set -e; export DEBIAN_FRONTEND=noninteractive; apt-get -qq update'
 
 log "== setup: install x86_64 loader + glibc runtime (amd64) =="
-docker exec -i "$LINUX_DOCKER_ID" bash -lc 'set -e; export DEBIAN_FRONTEND=noninteractive; apt-get -qq install -y libc6:amd64 libgcc-s1:amd64 libssl3:amd64'
+docker exec -i "$LINUX_DOCKER_ID" bash -lc 'set -e; export DEBIAN_FRONTEND=noninteractive; apt-get -qq install -y libc6:amd64 libgcc-s1:amd64'
+
+# Optional: install OpenSSL runtime for x86_64 inside the container.
+# With the current Linux TLS provider design, non-TLS programs should not require OpenSSL at load time.
+# Keep this opt-in so the sysroot stays minimal.
+if [ "${OREN_X64_LINUX_QEMU_INSTALL_OPENSSL:-0}" = "1" ]; then
+  log "== setup: install x86_64 OpenSSL runtime (amd64) =="
+  docker exec -i "$LINUX_DOCKER_ID" bash -lc 'set -e; export DEBIAN_FRONTEND=noninteractive; apt-get -qq install -y libssl3:amd64'
+fi
 
 log "== setup: ensure x86_64 ld-linux path exists =="
 docker exec -i "$LINUX_DOCKER_ID" bash -lc '\

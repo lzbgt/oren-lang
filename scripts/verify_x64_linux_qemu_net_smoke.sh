@@ -62,6 +62,11 @@ run_one() {
   local name="$3"
   log "== run: qemu-x86_64 ${name} =="
   docker cp "$bin" "$LINUX_DOCKER_ID:/tmp/hostbins/$name"
+  # Regression guard: loopback NET fixtures should not *require* OpenSSL at load time.
+  # TLS/HTTPS/WSS tests are covered by the Tier‑1 NET matrix on real x64 hosts (WSL2/Win11).
+  # Note: some x64-linux outputs may be fully static (no PT_DYNAMIC). Treat that as OK.
+  docker exec -i "$LINUX_DOCKER_ID" bash -lc "set -e; if readelf -d '/tmp/hostbins/$name' >/tmp/hostbins/${name}.dyn 2>/dev/null; then grep -E 'NEEDED' /tmp/hostbins/${name}.dyn | grep -q 'libssl\\.so' && { echo 'ERROR: unexpected DT_NEEDED libssl for '$name >&2; exit 2; } || true; fi"
+  docker exec -i "$LINUX_DOCKER_ID" bash -lc "set -e; if readelf -d '/tmp/hostbins/$name' >/tmp/hostbins/${name}.dyn 2>/dev/null; then grep -E 'NEEDED' /tmp/hostbins/${name}.dyn | grep -q 'libcrypto\\.so' && { echo 'ERROR: unexpected DT_NEEDED libcrypto for '$name >&2; exit 2; } || true; fi"
   docker exec -i "$LINUX_DOCKER_ID" bash -lc "set -e; cd /tmp/hostbins; chmod +x '$name'; timeout '$RUN_TIMEOUT_SECS' qemu-x86_64 './$name' >'${name}.out' 2>&1"
   out="$(docker exec -i "$LINUX_DOCKER_ID" bash -lc "cd /tmp/hostbins && cat '${name}.out' | tr -d '\\r'")"
   if ! printf '%s\n' "$out" | grep -qF "$want"; then
@@ -97,4 +102,3 @@ run_one "build/tmp/ws_echo_stage1_x64_linux" "ws_echo_loopback: OK" "ws_echo_sta
 run_one "build/tmp/ws_echo_stage2_x64_linux" "ws_echo_loopback: OK" "ws_echo_stage2_x64_linux"
 
 log "OK: x64-linux QEMU NET smoke passed (stage1 + stage2)"
-

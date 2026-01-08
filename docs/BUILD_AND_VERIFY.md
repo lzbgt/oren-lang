@@ -260,6 +260,12 @@ make setup-x64-linux-qemu
 make verify-x64-linux-qemu-net
 ```
 
+Optional (if you also want to run TLS/HTTPS/WSS x64-linux binaries under QEMU later):
+
+```bash
+OREN_X64_LINUX_QEMU_INSTALL_OPENSSL=1 make setup-x64-linux-qemu
+```
+
 Makefile shortcuts (macOS/arm64 host workflow):
 
 ```bash
