@@ -208,15 +208,16 @@ References:
          - x64 string-aware compares use `native_is_string_ptr` so `if s == "lit"` works without literal tracking.
          - Regression: `make test`, `./scripts/verify_native_net_matrix.sh`, `./scripts/verify_selfhost_x64_compiler.sh --targets x64-win`.
        - Done (2026-01-08): string literal pooling/interning is whole-program for native output (`cstr0` pool de-dupes identical literals; pointer identity stable within the binary).
-	     - Native FFI / dynamic linking parity (rolling):
+       - Native FFI / dynamic linking parity (rolling):
        - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
        - Done (2026-01-08): Windows native backend supports `@ffi.dll("name.dll")` to attach a DLL directly to an `ffi` declaration (avoids requiring `--link` for stdlib/platform bindings).
          - Regression: `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_dll.oren`.
-	       - Done (2026-01-08): portable `@ffi.link("...")` attribute (maps to native `--link ...`) so stdlib/platform bindings can declare dynamic deps without Makefile/script flags.
-	         - Regression: `tests/native/ffi_linux_strlen_ok.oren` now uses `@ffi.link("libc.so.6")` and the Tier‑1 matrix no longer passes `--link` explicitly.
-	         - Regression (Windows): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_link.oren`.
+       - Done (2026-01-08): portable `@ffi.link("...")` attribute (maps to native `--link ...`) so stdlib/platform bindings can declare dynamic deps without Makefile/script flags.
+         - Regression: `tests/native/ffi_linux_strlen_ok.oren` now uses `@ffi.link("libc.so.6")` and the Tier‑1 matrix no longer passes `--link` explicitly.
+         - Regression (Windows): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_link.oren`.
+       - Done (2026-01-09): `examples/ffi_test.oren` is now self-contained across OS (`@cfg` + `@ffi.link`/`@ffi.dll`), and `make examples-test` no longer passes ad-hoc `--link libc.so.6` on Linux.
        - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).
-	     - Conditional compilation for cross-platform stdlib (rolling):
+       - Conditional compilation for cross-platform stdlib (rolling):
        - Done: `@cfg(...)` (canonical `@oren.cfg`) filters declarations by target `--platform` (`os`/`arch`/`platform` selectors).
        - Regression: `tests/native/cfg_os_select.oren` is compiled in `scripts/verify_native_x64_compile_only.sh` (stage1 + stage2; x64-linux + x64-windows).
        - Implementation note: use byte-wise string equality in compiler passes (see `docs/IMPLEMENTATION_NOTES.md` section 9) so behavior matches in stage1 (C runtime) and stage2 (native runtime).

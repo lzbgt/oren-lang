@@ -273,17 +273,28 @@ Timeout behavior (rolling):
 Oren can call external C symbols via `ffi <name>` when using the **native backend**.
 
 Current status:
-- **macOS (Mach-O):** uses dyld binding opcodes and GOT stubs; this enables basic FFI against `libSystem` and any dylibs you load via `--link`.
-- **Windows x64 (PE):** uses lazy `LoadLibraryA`/`GetProcAddress` stubs; `--link` adds DLLs to the resolver search list (kernel32 is searched by default).
+- **macOS (Mach-O):** uses dyld binding opcodes and GOT stubs; this enables basic FFI against `libSystem` and any dylibs you load via `--link` / `@ffi.link(...)`.
+- **Windows x64 (PE):** uses lazy `LoadLibraryA`/`GetProcAddress` stubs; `--link` / `@ffi.link(...)` adds DLLs to the resolver search list (kernel32 is searched by default). For convenience, `@ffi.dll("name.dll")` can attach a DLL directly to an `ffi` declaration.
 - **Linux (ELF):**
-  - **x64-linux:** `--link` enables a dynamically-linked ELF, and `ffi` works via a lazy `dlsym` resolver (see `docs/NATIVE_BACKEND.md`).
-  - **arm64-linux:** `--link` enables a dynamically-linked ELF, and `ffi` works via a lazy `dlsym` resolver (see `docs/NATIVE_BACKEND.md`).
+  - **x64-linux:** dynamic linking is enabled when at least one link dependency exists (via `--link` or `@ffi.link(...)`), and `ffi` works via a lazy `dlsym` resolver (see `docs/NATIVE_BACKEND.md`).
+  - **arm64-linux:** same as x64-linux (see `docs/NATIVE_BACKEND.md`).
 
 ### Usage
 Declare the external symbol using the `ffi` keyword, then call it like a regular function.
 
 **Example (`examples/ffi_test.oren`):**
 ```oren
+// Cross-platform FFI example: call C `puts`.
+
+@cfg(os="windows")
+@ffi.dll("msvcrt.dll")
+ffi puts
+
+@cfg(os="linux")
+@ffi.link("libc.so.6")
+ffi puts
+
+@cfg(os="macos")
 ffi puts
 
 fn main() {

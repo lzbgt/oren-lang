@@ -437,9 +437,10 @@ fn oren_fd_wait_select_one(fd, want_write, timeout_ms) {
     } else {
         rc = sys_select(0, fds, 0, 0, tv)
     }
-    // Win64 ABI returns `int` in EAX and does not sign-extend to 64-bit. Canonicalize so
-    // comparisons like `rc < 0` behave correctly in the native runtime model.
-    rc = native_canon_i32_arg(rc)
+    // NOTE (x64 native backend):
+    // `sys_select` is a compiler intrinsic, and the x64 Windows lowering normalizes its
+    // return value to the native i64 carrier model (i32 -> sign-extended i64, errors -> -errno).
+    // Therefore `rc` is already safe for `rc < 0` comparisons here.
     free(fds)
     free(tv)
     if rc > 0 { return 1 }
@@ -673,7 +674,6 @@ fn oren_fd_wait_any_readable(fds, timeout_ms, out_fd_ptr) {
         oren_ptr_set_u32_le(tv + 4, usec)
 
         var rc = sys_select(0, set, 0, 0, tv)
-        rc = native_canon_i32_arg(rc)
         if rc > 0 {
             // select compacts the set to ready fds and updates fd_count.
             var ready = oren_ptr_get_u64_le(set + 8)
@@ -729,7 +729,6 @@ fn oren_fd_wait_any_writable(fds, timeout_ms, out_fd_ptr) {
         oren_ptr_set_u32_le(tv + 4, usec)
 
         var rc = sys_select(0, 0, set, 0, tv)
-        rc = native_canon_i32_arg(rc)
         if rc > 0 {
             var ready = oren_ptr_get_u64_le(set + 8)
             ptr_set(out_fd_ptr, ready)

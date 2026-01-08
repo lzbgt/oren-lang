@@ -535,24 +535,27 @@ examples-test-inner: oren avm
 	@# 2) GC suite (native)
 	@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/gc_test.oren --backend native -o build/ex_gc_native$(EXE_EXT) $(CODESIGN_ARG) $(GC_ARG)
 	@$(RUN_WITH_TIMEOUT) ./build/ex_gc_native$(EXE_EXT)
-	@# 2b/3) Native FFI + dylib export
-	@# - macOS: FFI works (dyld binding + LC_LOAD_DYLIB); dylib export is supported.
-	@# - Windows x64: FFI works via lazy LoadLibraryA/GetProcAddress stubs (covered by native quick integration on remote Win11).
-	@# - Linux: FFI works when `--link` is used (ELF dynamic linking + `dlsym` resolver); shared libs are not implemented yet.
-		@if [ "$(UNAME_S)" = "Darwin" ]; then \
-			$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/ffi_test.oren --backend native -o build/ex_ffi_puts$(EXE_EXT) $(CODESIGN_ARG) $(GC_ARG); \
-			$(RUN_WITH_TIMEOUT) ./build/ex_ffi_puts$(EXE_EXT) >/dev/null; \
-			$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/libmath.oren --backend native --lib -o build/libmath.dylib $(CODESIGN_ARG) $(GC_ARG) --metadata; \
-			test -f build/libmath.h; \
-			$(RUN_WITH_TIMEOUT) ./$(OREN_BIN) scan build/libmath.dylib >/dev/null; \
-			$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/ffi_from_libmath.oren --backend native --link build/libmath.dylib -o build/ex_ffi_from_libmath$(EXE_EXT) $(CODESIGN_ARG) $(GC_ARG); \
-			$(RUN_WITH_TIMEOUT) ./build/ex_ffi_from_libmath$(EXE_EXT); \
-		elif [ "$(UNAME_S)" = "Linux" ]; then \
-			$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/ffi_test.oren --backend native --link libc.so.6 -o build/ex_ffi_puts$(EXE_EXT) $(CODESIGN_ARG) $(GC_ARG); \
-			$(RUN_WITH_TIMEOUT) ./build/ex_ffi_puts$(EXE_EXT) >/dev/null; \
-		else \
-			echo "INFO: skipping macOS dylib/FFI examples on $(UNAME_S)"; \
-		fi
+		@# 2b/3) Native FFI + dylib export
+		@# - macOS: FFI works (dyld binding + LC_LOAD_DYLIB); dylib export is supported.
+		@# - Windows x64: FFI works via lazy LoadLibraryA/GetProcAddress (dll attachment via `@ffi.dll`).
+		@# - Linux: FFI works via ELF dynamic linking + `dlsym` resolver (link deps can be declared via `@ffi.link`).
+			@if [ "$(UNAME_S)" = "Darwin" ]; then \
+				$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/ffi_test.oren --backend native -o build/ex_ffi_puts$(EXE_EXT) $(CODESIGN_ARG) $(GC_ARG); \
+				$(RUN_WITH_TIMEOUT) ./build/ex_ffi_puts$(EXE_EXT) >/dev/null; \
+				$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/libmath.oren --backend native --lib -o build/libmath.dylib $(CODESIGN_ARG) $(GC_ARG) --metadata; \
+				test -f build/libmath.h; \
+				$(RUN_WITH_TIMEOUT) ./$(OREN_BIN) scan build/libmath.dylib >/dev/null; \
+				$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/ffi_from_libmath.oren --backend native --link build/libmath.dylib -o build/ex_ffi_from_libmath$(EXE_EXT) $(CODESIGN_ARG) $(GC_ARG); \
+				$(RUN_WITH_TIMEOUT) ./build/ex_ffi_from_libmath$(EXE_EXT); \
+			elif [ "$(UNAME_S)" = "Linux" ]; then \
+				$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/ffi_test.oren --backend native -o build/ex_ffi_puts$(EXE_EXT) $(CODESIGN_ARG) $(GC_ARG); \
+				$(RUN_WITH_TIMEOUT) ./build/ex_ffi_puts$(EXE_EXT) >/dev/null; \
+			elif [ "$(HOST_IS_WINDOWS)" = "1" ]; then \
+				$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/ffi_test.oren --backend native -o build/ex_ffi_puts$(EXE_EXT) $(CODESIGN_ARG) $(GC_ARG); \
+				$(RUN_WITH_TIMEOUT) ./build/ex_ffi_puts$(EXE_EXT) >/dev/null; \
+			else \
+				echo "INFO: skipping native FFI examples on $(UNAME_S)"; \
+			fi
 		@# 4) Bytecode + AVM
 		@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/hello.oren --backend bytecode -o build/ex_hello.obc
 		@$(RUN_WITH_TIMEOUT) ./$(AVM_BIN) build/ex_hello.obc >/dev/null

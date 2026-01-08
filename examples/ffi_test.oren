@@ -1,6 +1,19 @@
+// Cross-platform FFI example: call C `puts`.
+//
+// Keep linking self-contained via attributes so `make examples-test` works across
+// Tier‑1 hosts without requiring extra Makefile flags.
+
+@cfg(os="windows")
+@ffi.dll("msvcrt.dll")
+ffi puts
+
+@cfg(os="linux")
+@ffi.link("libc.so.6")
+ffi puts
+
+@cfg(os="macos")
 ffi puts
 
 fn main() {
     puts("Hello from C FFI!")
 }
-
