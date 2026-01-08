@@ -79,10 +79,10 @@ fn server_impl(listen_fd, pfx_b64) {
     var fd = tcp.accept(listen_fd, 5000)
     if fd < 0 { return 11 }
 
-    // Server-side ALPN support matrix (rolling):
-    // - macOS SecureTransport: supported (server selects from its supported list)
-    // - Windows Schannel: supported (server selects from its supported list)
-    // - Linux OpenSSL: pending (needs ALPN select callback wiring)
+    // Server-side ALPN matrix (rolling):
+    // - Windows Schannel: server-side selection is wired (fixture asserts negotiated protocol).
+    // - Linux OpenSSL: pending (needs `SSL_CTX_set_alpn_select_cb` callback wiring).
+    // - macOS SecureTransport: ALPN list is configured, but negotiated protocol is not asserted yet (best-effort).
     var srv_opts = {"alpn": ["http/1.1"]}
     var r = tls.wrap_server_pkcs12(fd, 5000, pkcs12_bytes, fixture.passphrase(), srv_opts)
     var ok = oren_map_get_str(r, "ok")
