@@ -225,6 +225,7 @@ These stdlib modules exist today and are exercised by regression fixtures:
   - `std:encoding/base64` (TLS/HTTPS/WSS loopback fixtures)
   - `std:crypto/pem` (smoke: `tests/native/test_pem_decode_smoke.oren`)
   - `std:crypto/x509` (minimal helper layer; used by NET/TLS internals)
+  - `std:crypto/tls` (TLS facade; alias-layer over `std:net/tls` while the TLS crypto-core split is implemented)
 - Native NET stack (native backend; rolling Tier‑1 focus):
   - `std:net/tcp`, `std:net/udp`
   - `std:net/dns` (loopback fixtures + Windows default resolver smoke: `tests/fixtures/windows_dns_default_resolver_smoke.oren`)
