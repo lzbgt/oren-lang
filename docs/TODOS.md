@@ -129,11 +129,12 @@ References:
      - x64 self-host compiler run: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win`
      - Windows stage0→stage1 bootstrap: `./scripts/verify_stage0_windows_bootstrap.sh`
 
-   - Active gaps (keep this list forward-looking; details live in `docs/TODOS_ARCHIVE.md`):
-     - Build system parity (Windows host):
-       - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
-       - Done: Windows-host bootstrap defaults now reliably select MSVC `cl.exe` when `OREN_BOOTSTRAP_CC` is not set (fixes `make test` / `make stage1` under Git Bash/MSYS2).
-       - Intent: `make`, `make test`, `make stage2`, `make verify-native-quick` should work under MSYS2/Git Bash/Cygwin (stage0 still uses MSVC `cl.exe`, auto-configured by stage0; see `docs/REMOTE_X64_ENV.md`).
+     - Active gaps (keep this list forward-looking; details live in `docs/TODOS_ARCHIVE.md`):
+       - Build system parity (Windows host):
+         - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
+         - Done: Windows-host bootstrap defaults now reliably select MSVC `cl.exe` when `OREN_BOOTSTRAP_CC` is not set (fixes `make test` / `make stage1` under Git Bash/MSYS2).
+         - Done (2026-01-08): AVM build uses `AVM_CC` (default: `cc`) so Windows hosts can keep stage0/stage1 bring-up on MSVC `cl.exe` without forcing AVM to use MSVC-flags.
+         - Intent: `make`, `make test`, `make stage2`, `make verify-native-quick` should work under MSYS2/Git Bash/Cygwin (stage0 still uses MSVC `cl.exe`, auto-configured by stage0; see `docs/REMOTE_X64_ENV.md`).
      - NET stdlib maturity:
        - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IPv4-only; no TLS/keep-alive pooling yet).
          - Hostname URLs are supported via DNS A lookup (explicit resolver injection; best-effort system default on POSIX only).

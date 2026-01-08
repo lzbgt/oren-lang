@@ -215,6 +215,23 @@ Why this matters:
 
 ---
 
+### 5.4 Pitfall: pointer relational compares can recurse (x86_64)
+
+Background:
+
+- On the x86_64 native backend, some compare lowerings are **string-aware**:
+  - if both operands are classified as strings (`native_is_string_ptr(...) != 0`), the backend lowers compares via a byte-wise string compare
+  - otherwise it lowers as an integer compare
+
+Pitfall:
+
+- If the runtime uses **pointer relational operators** (`<`, `>`, `<=`, `>=`) as part of string-classification bookkeeping (example: checking whether a pointer is inside the embedded `cstr0` literal pool), the compare lowering can call back into string classification and recurse.
+
+Rolling rule of thumb:
+
+- For address-range checks in the runtime, avoid direct pointer order compares in code paths that can be reached from `native_is_string_ptr`.
+- Prefer arithmetic-with-zero forms that stay in integer space and do not trigger string-aware compare lowering (e.g. `(p - min) < 0`, `(p - max) >= 0`, or explicit helpers that compare integer offsets).
+
 ## 6) Quick debugging checklist (fast “where is this implemented?”)
 
 Suggested grep/ripgrep pivots (avoid requiring `rg` in minimal environments):

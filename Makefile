@@ -101,6 +101,13 @@ endif
 # - Keep this narrow: AVM consensus semantics depend on stable float behavior.
 AVM_CFLAGS ?= -O2
 AVM_DETERMINISM_CFLAGS ?= -fno-fast-math -ffp-contract=off
+# AVM is a portable C program. Keep its toolchain independent from the stage0/stage1
+# bring-up toolchain (which is MSVC on Windows by default).
+#
+# - On Unix-like hosts, `cc` is usually clang/gcc and works out of the box.
+# - On Windows hosts, `cc` may not exist; set `AVM_CC=clang` (MSYS2) or another
+#   gcc/clang-style compiler for AVM only.
+AVM_CC ?= cc
 
 # Test target selection (affects native backend + curated runner).
 # - On macOS hosts, run native backend tests as `--target macos`.
@@ -474,7 +481,17 @@ endif
 $(AVM_BIN): $(AVM_C_SRC) $(AVM_INC) build/avm_root_pubkey.inc
 	@echo "Building AVM..."
 	@mkdir -p build
-	@$(CC) $(AVM_CFLAGS) $(AVM_DETERMINISM_CFLAGS) -I lib/avm -I build -o "$(AVM_BIN)" $(AVM_C_SRC)
+	@if [ "$(HOST_IS_WINDOWS)" = "1" ]; then \
+		ccbase="$$(basename "$(AVM_CC)")"; \
+		case "$$ccbase" in \
+			cl|cl.exe|clang-cl|clang-cl.exe) \
+				echo "ERROR: AVM build expects a gcc/clang-style compiler, not '$$ccbase'."; \
+				echo "       Hint: install MSYS2 clang or llvm-mingw and run: make avm AVM_CC=clang"; \
+				exit 2; \
+			;; \
+		esac; \
+	fi
+	@$(AVM_CC) $(AVM_CFLAGS) $(AVM_DETERMINISM_CFLAGS) -I lib/avm -I build -o "$(AVM_BIN)" $(AVM_C_SRC)
 
 # --- Example Builds ---
 

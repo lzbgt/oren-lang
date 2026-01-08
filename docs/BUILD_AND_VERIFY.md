@@ -414,6 +414,12 @@ If AVM CLI flags change, regenerate the include by running:
 make avm
 ```
 
+Notes (toolchain):
+
+- On macOS/Linux, `make avm` uses `AVM_CC` (default: `cc`) and should work out of the box if a C compiler is installed.
+- On Windows hosts, stage0/stage1 bring-up prefers MSVC `cl.exe`, but **AVM is built with a gcc/clang-style compiler**.
+  - If `make avm` fails due to missing `cc`, install MSYS2 clang (or llvm-mingw) and run: `make avm AVM_CC=clang`.
+
 ### 5.1 Disassemble `.obc`
 
 Build a bytecode artifact:
