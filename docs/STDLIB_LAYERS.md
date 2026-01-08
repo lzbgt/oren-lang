@@ -73,6 +73,9 @@ Examples:
 - higher-level filesystem path libraries on top of `FS`
 - JSON schema tooling (if not required by the compiler itself)
 - TLS/HTTPS/WSS transport wrappers on top of `NET` + `CRYPTO` providers
+  - Current reality (rolling): the implementation is in `std:net/tls` (socket-oriented).
+  - Convenience facade: `std:crypto/tls` exists as an alias-layer over `std:net/tls` so call sites that
+    conceptually want “TLS is crypto” have a stable import path while the deeper split is implemented.
 
 **Rules:**
 

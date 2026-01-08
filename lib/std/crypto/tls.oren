@@ -1,0 +1,49 @@
+// std/crypto/tls (rolling v0)
+//
+// This module is a **crypto-facing facade** over the existing socket-oriented TLS API
+// in `std:net/tls`.
+//
+// Rationale (rolling):
+// - TLS is primarily a crypto protocol (certs, handshake, key schedule, record protection),
+//   but it is exercised through IO.
+// - Today, Oren’s TLS implementation lives under `std:net/tls` because it directly wraps TCP fds.
+// - Long-term, the intended direction is:
+//     - `std:crypto/tls_*` (core handshake + record layer over an abstract IO trait),
+//     - `std:net/tls` (socket integration + convenience dialing; depends on crypto core).
+//
+// Until that split lands, `std:crypto/tls` provides a stable import path for callers that
+// conceptually want “TLS is crypto”, while keeping existing tests and stdlib (HTTP/WS)
+// on the proven `std:net/tls` implementation.
+//
+// API surface is intentionally identical to `std:net/tls` for now.
+
+import tls "std:net/tls"
+
+fn connect(host_or_ip, port, timeout_ms, opts) {
+    return tls.connect(host_or_ip, port, timeout_ms, opts)
+}
+
+fn wrap_client(fd, server_name, timeout_ms, opts) {
+    return tls.wrap_client(fd, server_name, timeout_ms, opts)
+}
+
+fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
+    return tls.wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts)
+}
+
+fn read_into(conn, buf, cap, timeout_ms) {
+    return tls.read_into(conn, buf, cap, timeout_ms)
+}
+
+fn write_from(conn, ptr0, len, timeout_ms) {
+    return tls.write_from(conn, ptr0, len, timeout_ms)
+}
+
+fn close(conn) {
+    return tls.close(conn)
+}
+
+fn peer_cert_sha256_hex(conn) {
+    return tls.peer_cert_sha256_hex(conn)
+}
+

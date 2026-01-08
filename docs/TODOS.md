@@ -437,15 +437,19 @@ References:
      - varargs + reflection convergence:
        - define how varargs elements carry type information so userland (fmt/ffi/serialization) can process heterogeneous lists without heuristic key-kind inference
    - References:
-     - `docs/TYPE_SYSTEM_PLAN.md`
-     - `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
-     - `docs/STDLIB_LAYERS.md`
-		     - Crypto stdlib maturity (rolling):
-		       - Done (2026-01-08): add `std:crypto/pem` v0 helper (`pem.decode_blocks`) so TLS/signing layers don’t need to live under NET.
-		       - Done (2026-01-08): add `std:crypto/x509` v0 helper (`x509.sha256_hex_der`) for small certificate utilities.
-		       - Next: PKCS#12 / PKCS#8 / SPKI helpers (as needed by TLS providers and signing toolchain).
+			     - `docs/TYPE_SYSTEM_PLAN.md`
+			     - `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
+			     - `docs/STDLIB_LAYERS.md`
+			     - Crypto stdlib maturity (rolling):
+			       - Done (2026-01-08): add `std:crypto/pem` v0 helper (`pem.decode_blocks`) so TLS/signing layers don’t need to live under NET.
+			       - Done (2026-01-08): add `std:crypto/x509` v0 helper (`x509.sha256_hex_der`) for small certificate utilities.
+			       - Done (2026-01-09): add `std:crypto/tls` as a facade over `std:net/tls` (alias-layer; same API surface).
+			       - Next: split TLS into a crypto core + net integration:
+			         - `std:crypto/tls_*`: handshake/record layer over an abstract IO trait (no direct fd dependency).
+			         - `std:net/tls`: tcp fd integration + `tls.connect` convenience; depends on crypto core.
+			       - Next: PKCS#12 / PKCS#8 / SPKI helpers (as needed by TLS providers and signing toolchain).
 
-5) **GUI / UI stack (OrenUI): AVM UI + native shell + UI domain** (L)
+	5) **GUI / UI stack (OrenUI): AVM UI + native shell + UI domain** (L)
    - Goal: production-oriented cross-platform GUI without committing Oren’s core runtime to platform frameworks.
    - Design doc: `docs/GUI.md`
    - Recommended architecture (rolling):
