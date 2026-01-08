@@ -2,8 +2,9 @@
 // - validates nested calls used as call arguments are correct
 // - guards against clobbering when arg spilling is not re-entrant
 //
-// Intended to be executed in remote-run mode on Win11 + WSL2:
-//   OREN_REMOTE_RUN=1 ./oretest --target macos
+// Run on real x86_64 hosts (Win11 + WSL2) via:
+//   ./scripts/verify_native_matrix.sh --targets x64-win-tier1 --tier1-src tests/fixtures/x64_nested_call_args_main.oren
+//   ./scripts/verify_native_matrix.sh --targets x64-wsl-tier1 --tier1-src tests/fixtures/x64_nested_call_args_main.oren
 
 fn add2(a, b) { return a + b }
 
@@ -11,4 +12,3 @@ fn main() {
     // add2(3, 7) => 10, but both args are computed via nested calls.
     return add2(add2(1, 2), add2(3, 4))
 }
-

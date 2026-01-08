@@ -2,8 +2,9 @@
 // - validates varargs (`fn f(a, ...rest)`) work on x64 by packing extra call args
 //   into a rest list and calling the real function as `f(a, rest_list)`.
 //
-// Intended to be executed in remote-run mode on Win11 + WSL2:
-//   OREN_REMOTE_RUN=1 ./oretest --target macos
+// Run on real x86_64 hosts (Win11 + WSL2) via:
+//   ./scripts/verify_native_matrix.sh --targets x64-win-tier1 --tier1-src tests/fixtures/x64_varargs_main.oren
+//   ./scripts/verify_native_matrix.sh --targets x64-wsl-tier1 --tier1-src tests/fixtures/x64_varargs_main.oren
 
 fn count(...rest) {
     return oren_list_len(rest)
@@ -28,4 +29,3 @@ fn main() {
 
     return 0
 }
-

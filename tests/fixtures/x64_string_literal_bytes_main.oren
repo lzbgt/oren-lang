@@ -7,8 +7,9 @@
 //   - iadd(ptr, int)
 //   - ptr_get_byte(ptr)
 //
-// Intended to be executed in remote-run mode on Win11 + WSL2:
-//   OREN_REMOTE_RUN=1 ./oretest --target macos
+// Run on real x86_64 hosts (Win11 + WSL2) via:
+//   ./scripts/verify_native_matrix.sh --targets x64-win-tier1 --tier1-src tests/fixtures/x64_string_literal_bytes_main.oren
+//   ./scripts/verify_native_matrix.sh --targets x64-wsl-tier1 --tier1-src tests/fixtures/x64_string_literal_bytes_main.oren
 
 fn main() {
     var s = "abc"
@@ -18,4 +19,3 @@ fn main() {
     if ptr_get_byte(iadd(s, 3)) != 0 { return 4 }  // NUL terminator
     return 0
 }
-

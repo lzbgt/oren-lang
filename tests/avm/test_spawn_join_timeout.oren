@@ -1,6 +1,6 @@
 // AVM regression: join timeout must not hang and must be deterministic when TIME is deterministic.
 //
-// Harness config (oretest special-case):
+// Harness config (legacy special-case):
 // - AVM_DETERMINISTIC=1
 // - AVM_TIME_STEP_NS=1_000_000 (1ms per gas step)
 //

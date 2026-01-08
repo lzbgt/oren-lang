@@ -1,5 +1,5 @@
 fn main() {
-    // This test is exercised by the oretest harness using `--print-state-hash`.
+    // This test is exercised by the legacy harness using `--print-state-hash`.
     // The program must be runnable under both:
     // - host FS backend (writes to host)
     // - VirtualFS backend (writes to VM state)

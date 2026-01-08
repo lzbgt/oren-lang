@@ -158,7 +158,13 @@ References:
          - fragmentation + binary frames + streaming recv API
          - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + system resolver (Windows DNS APIs + AAAA; POSIX `resolv.conf` AAAA support)
      - x64 native backend correctness:
-       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability (debug: `OREN_DEBUG_CANON_I32=1`).
+       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
+         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)
+         - Gate: `OREN_CANON_I32_ABORT=1` (hard-fail; preferred for CI / remote Tier‑1 scripts)
+         - Note: Tier‑1 matrix scripts now propagate `OREN_CANON_I32_ABORT` to docker/WSL2/Win11 runs so regressions fail fast.
+     - Native runtime GC + literals:
+       - Next: treat string literals as “constant section” data (not GC-tracked heap nodes) and avoid per-literal allocations.
+       - Next: string literal pooling/interning so identical literals share a single instance (per-compilation-unit at minimum; ideally whole-program) to reduce heap churn and GC roots.
      - Native FFI / dynamic linking parity (rolling):
        - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
        - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).

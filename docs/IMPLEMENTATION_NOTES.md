@@ -203,6 +203,8 @@ Why this matters:
 
 - The native runtime includes an i32 canonicalization guard (`native_canon_i32_arg` / `native_canon_timeout_ms_arg`) on some syscall-first NET and thread-timeout entrypoints.
 - Debug hook: set `OREN_DEBUG_CANON_I32=1` to emit a single warning when the guard sees a non-canonical i32-ish value (helps catch regressions without dumping huge logs).
+- Hard-fail hook: set `OREN_CANON_I32_ABORT=1` to immediately abort on the first non-canonical i32-ish value (exit code `86`).
+  - This is the preferred mode for CI / remote Tier‑1 gates because it is high-signal and bounded (no log spam).
 
 **Policy:**
 

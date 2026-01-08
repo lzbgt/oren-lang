@@ -2,8 +2,9 @@
 // - validates intrinsic arg evaluation is re-entrant for nested expressions
 //   (no hidden dependence on fixed `$tmp*` spill slots or register liveness)
 //
-// Intended to be executed in remote-run mode on Win11 + WSL2:
-//   OREN_REMOTE_RUN=1 ./oretest --target macos
+// Run on real x86_64 hosts (Win11 + WSL2) via:
+//   ./scripts/verify_native_matrix.sh --targets x64-win-tier1 --tier1-src tests/fixtures/x64_intr_reentrancy_main.oren
+//   ./scripts/verify_native_matrix.sh --targets x64-wsl-tier1 --tier1-src tests/fixtures/x64_intr_reentrancy_main.oren
 
 fn main() {
     // Nested iadd: inner call must not clobber outer spill.
@@ -22,4 +23,3 @@ fn main() {
 
     return 0
 }
-

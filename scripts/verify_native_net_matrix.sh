@@ -75,6 +75,8 @@ Env overrides:
   OREN_NATIVE_BUILD_TIMEOUT_SECS (default: 10) timeout for each `oren build ...` step (rolling hang guard)
   OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
   OREN_REMOTE_X64_PROXY  (default: ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002)
+  OREN_WS_ECHO_N         (optional) run ws echo loop N times (stress)
+  OREN_CANON_I32_ABORT   (optional) set to 1 to hard-fail on non-canonical i32 values on all targets
 EOF
 }
 
@@ -257,12 +259,21 @@ run_local_bin() {
     echo "ERROR: missing binary: $bin" >&2
     exit 2
   fi
+  local canon_abort="${OREN_CANON_I32_ABORT:-}"
   local tbin=""
   tbin="$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || echo "")"
   if [[ -n "$tbin" ]]; then
-    "$tbin" 20s "$bin"
+    if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
+      env OREN_CANON_I32_ABORT=1 "$tbin" 20s "$bin"
+    else
+      "$tbin" 20s "$bin"
+    fi
   else
-    "$bin"
+    if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
+      env OREN_CANON_I32_ABORT=1 "$bin"
+    else
+      "$bin"
+    fi
   fi
 }
 
@@ -299,10 +310,15 @@ run_in_linux_container() {
   local bin="$1"
   local dst="/tmp/$(basename "$bin")"
   docker cp "$bin" "${LINUX_DOCKER_ID}:${dst}"
+  local canon_abort="${OREN_CANON_I32_ABORT:-}"
+  local canon_env=""
+  if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
+    canon_env="OREN_CANON_I32_ABORT=1 "
+  fi
   if [[ -n "$WS_ECHO_N" ]]; then
-    docker exec -i "$LINUX_DOCKER_ID" bash -lc "chmod +x '$dst' && OREN_WS_ECHO_N='$WS_ECHO_N' timeout 20s '$dst'"
+    docker exec -i "$LINUX_DOCKER_ID" bash -lc "chmod +x '$dst' && ${canon_env}OREN_WS_ECHO_N='$WS_ECHO_N' timeout 20s '$dst'"
   else
-    docker exec -i "$LINUX_DOCKER_ID" bash -lc "chmod +x '$dst' && timeout 20s '$dst'"
+    docker exec -i "$LINUX_DOCKER_ID" bash -lc "chmod +x '$dst' && ${canon_env}timeout 20s '$dst'"
   fi
 }
 
@@ -366,8 +382,12 @@ remote_run_win() {
   local exe_name="$1"
   remote_kill_win "$exe_name" >/dev/null 2>&1 || true
   local envp=""
+  local canon_abort="${OREN_CANON_I32_ABORT:-}"
+  if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
+    envp="set OREN_CANON_I32_ABORT=1 & "
+  fi
   if [[ -n "$WS_ECHO_N" ]]; then
-    envp="set OREN_WS_ECHO_N=${WS_ECHO_N} & "
+    envp+="set OREN_WS_ECHO_N=${WS_ECHO_N} & "
   fi
   set +e
   run_with_timeout 40 "${ssh_base[@]}" "cmd.exe /v:on /c \"${envp}${remote_win_root}\\\\${exe_name} & set RC=!ERRORLEVEL! & echo EXIT=!RC! & exit /b !RC!\""
@@ -384,8 +404,12 @@ remote_run_wsl() {
   remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
   local full="${remote_wsl_root}/${bin_name}"
   local envp=""
+  local canon_abort="${OREN_CANON_I32_ABORT:-}"
+  if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
+    envp="OREN_CANON_I32_ABORT=1 "
+  fi
   if [[ "$TRACE" -ne 0 ]]; then
-    envp="OREN_QI_TRACE=1 "
+    envp+="OREN_QI_TRACE=1 "
   fi
   if [[ -n "$WS_ECHO_N" ]]; then
     envp+="OREN_WS_ECHO_N=${WS_ECHO_N} "

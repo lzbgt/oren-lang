@@ -5,8 +5,13 @@
 // - We still need a stable signal that the runtime returns an error value
 //   instead of crashing or hanging when a typed-buffer allocation cannot be satisfied.
 //
-// This test is run by `cmd/oretest` with:
+// Legacy test-harness note (no dedicated runner today):
+// This test used to be run by a separate harness with:
 //   OREN_BUF_PAYLOAD_LIMIT_BYTES=1024
+//
+// Run manually (native backend):
+//   OREN_BUF_PAYLOAD_LIMIT_BYTES=1024 ./oren build tests/modules/test_buffer_payload_limit.oren --backend native -o build/tmp/mod_buffer_payload_limit
+//   OREN_BUF_PAYLOAD_LIMIT_BYTES=1024 ./build/tmp/mod_buffer_payload_limit
 
 import buffer "../../lib/std/buffer.oren"
 
@@ -24,4 +29,3 @@ if oren_err_code(b) != 9 { fail(11) }
 
 print("module buffer_payload_limit OK")
 exit(0)
-

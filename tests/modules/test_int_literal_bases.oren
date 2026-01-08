@@ -2,7 +2,12 @@
 // - allow `_` separators in decimal
 // - allow base prefixes: 0x, 0b, 0o
 //
-// This test runs in the C backend module suite (oretest).
+// Legacy test-harness note (no dedicated runner today):
+// This test used to run under a separate module-suite harness.
+//
+// Run manually (native backend):
+//   ./oren build tests/modules/test_int_literal_bases.oren --backend native -o build/tmp/mod_int_literal_bases
+//   ./build/tmp/mod_int_literal_bases
 
 fn fail(code) {
     print("module int_literal_bases FAIL " + oren_int_to_string(code))

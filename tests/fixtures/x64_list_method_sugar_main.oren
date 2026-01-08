@@ -4,8 +4,9 @@
 //     xs.push(v) -> oren_list_push(xs, v)
 //     xs.get(i)  -> xs[i]
 //
-// Intended to be executed in remote-run mode on Win11 + WSL2:
-//   OREN_REMOTE_RUN=1 ./oretest --target macos
+// Run on real x86_64 hosts (Win11 + WSL2) via:
+//   ./scripts/verify_native_matrix.sh --targets x64-win-tier1 --tier1-src tests/fixtures/x64_list_method_sugar_main.oren
+//   ./scripts/verify_native_matrix.sh --targets x64-wsl-tier1 --tier1-src tests/fixtures/x64_list_method_sugar_main.oren
 
 fn main() {
     var xs = []
@@ -23,4 +24,3 @@ fn main() {
 
     return 0
 }
-

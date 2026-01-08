@@ -56,6 +56,7 @@ Env overrides:
   OREN_SELFHOST_COMPILER_BUILD_TIMEOUT_SECS (default: 1200)
   OREN_SELFHOST_REMOTE_COMPILE_TIMEOUT_SECS (default: 120)
   OREN_SELFHOST_REMOTE_RUN_TIMEOUT_SECS (default: 30)
+  OREN_CANON_I32_ABORT   (optional) set to 1 to hard-fail on non-canonical i32 values in the self-host gate
 EOF
 }
 
@@ -141,6 +142,14 @@ has_target() {
   return 1
 }
 
+canon_abort="${OREN_CANON_I32_ABORT:-}"
+canon_env_wsl=""
+canon_env_cmd=""
+if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
+  canon_env_wsl="OREN_CANON_I32_ABORT=1 "
+  canon_env_cmd="set OREN_CANON_I32_ABORT=1&& "
+fi
+
 run_with_timeout() {
   local secs="$1"
   shift
@@ -209,42 +218,51 @@ echo "== ensure: stage2 compiler (host) =="
 make stage2 >/dev/null
 
 # Build the compiler binaries for x64 targets (this can be slow on cold caches).
+want_wsl=0
+want_win=0
+if has_target x64-wsl; then want_wsl=1; fi
+if has_target x64-win; then want_win=1; fi
+
 COMPILER_LINUX="build/tmp/oren_selfhost_x64_linux"
 COMPILER_WIN="build/tmp/oren_selfhost_x64_windows.exe"
 
-echo "== build: compiler x64-linux (native backend) =="
-run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
-  env \
-    OREN_PARSE_JOBS="$parse_jobs" \
-    OREN_GC_AUTO=1 \
-    OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
-    OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
-    ${TRACE_ENV:+OREN_TRACE_PHASES=1} \
-    ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_PROGRESS=1} \
-    ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_SUMMARY=1} \
-    ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_STRIDE=1000} \
-    ${TRACE_ENV:+OREN_TRACE_X64_SLOW_FN_MS=2000} \
-    ${TRACE_ENV:+OREN_TRACE_RUNTIME_OBJ_CACHE=1} \
-    ${TRACE_ENV:+OREN_TRACE_BUILD_SUMMARY=1} \
-    ${TRACE_ENV:+OREN_TRACE_BUILD_SLOW_MS=0} \
-    ./oren_stage2 build oren.oren --backend native --platform x64-linux --no-debug -o "$COMPILER_LINUX"
+if [[ "$want_wsl" -ne 0 ]]; then
+  echo "== build: compiler x64-linux (native backend) =="
+  run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
+    env \
+      OREN_PARSE_JOBS="$parse_jobs" \
+      OREN_GC_AUTO=1 \
+      OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
+      OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
+      ${TRACE_ENV:+OREN_TRACE_PHASES=1} \
+      ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_PROGRESS=1} \
+      ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_SUMMARY=1} \
+      ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_STRIDE=1000} \
+      ${TRACE_ENV:+OREN_TRACE_X64_SLOW_FN_MS=2000} \
+      ${TRACE_ENV:+OREN_TRACE_RUNTIME_OBJ_CACHE=1} \
+      ${TRACE_ENV:+OREN_TRACE_BUILD_SUMMARY=1} \
+      ${TRACE_ENV:+OREN_TRACE_BUILD_SLOW_MS=0} \
+      ./oren_stage2 build oren.oren --backend native --platform x64-linux --no-debug -o "$COMPILER_LINUX"
+fi
 
-echo "== build: compiler x64-windows (native backend) =="
-run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
-  env \
-    OREN_PARSE_JOBS="$parse_jobs" \
-    OREN_GC_AUTO=1 \
-    OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
-    OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
-    ${TRACE_ENV:+OREN_TRACE_PHASES=1} \
-    ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_PROGRESS=1} \
-    ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_SUMMARY=1} \
-    ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_STRIDE=1000} \
-    ${TRACE_ENV:+OREN_TRACE_X64_SLOW_FN_MS=2000} \
-    ${TRACE_ENV:+OREN_TRACE_RUNTIME_OBJ_CACHE=1} \
-    ${TRACE_ENV:+OREN_TRACE_BUILD_SUMMARY=1} \
-    ${TRACE_ENV:+OREN_TRACE_BUILD_SLOW_MS=0} \
-    ./oren_stage2 build oren.oren --backend native --platform x64-windows --no-debug -o "$COMPILER_WIN"
+if [[ "$want_win" -ne 0 ]]; then
+  echo "== build: compiler x64-windows (native backend) =="
+  run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
+    env \
+      OREN_PARSE_JOBS="$parse_jobs" \
+      OREN_GC_AUTO=1 \
+      OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
+      OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
+      ${TRACE_ENV:+OREN_TRACE_PHASES=1} \
+      ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_PROGRESS=1} \
+      ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_SUMMARY=1} \
+      ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_STRIDE=1000} \
+      ${TRACE_ENV:+OREN_TRACE_X64_SLOW_FN_MS=2000} \
+      ${TRACE_ENV:+OREN_TRACE_RUNTIME_OBJ_CACHE=1} \
+      ${TRACE_ENV:+OREN_TRACE_BUILD_SUMMARY=1} \
+      ${TRACE_ENV:+OREN_TRACE_BUILD_SLOW_MS=0} \
+      ./oren_stage2 build oren.oren --backend native --platform x64-windows --no-debug -o "$COMPILER_WIN"
+fi
 
 # Package a minimal on-disk layout that the compiler expects at runtime:
 # - injected runtime sources live at lib/runtime_native*.oren + lib/runtime_native/**
@@ -271,8 +289,12 @@ echo "== remote: prepare dir =="
 "${SSH[@]}" "cmd.exe /c \"mkdir ${REMOTE_DIR_WIN} 2>nul & exit /b 0\""
 
 echo "== remote: copy artifacts =="
-scp_put "$COMPILER_LINUX" "$REMOTE_HOST:$REMOTE_DIR_SSH/oren_selfhost_x64_linux"
-scp_put "$COMPILER_WIN" "$REMOTE_HOST:$REMOTE_DIR_SSH/oren_selfhost_x64_windows.exe"
+if [[ "$want_wsl" -ne 0 ]]; then
+  scp_put "$COMPILER_LINUX" "$REMOTE_HOST:$REMOTE_DIR_SSH/oren_selfhost_x64_linux"
+fi
+if [[ "$want_win" -ne 0 ]]; then
+  scp_put "$COMPILER_WIN" "$REMOTE_HOST:$REMOTE_DIR_SSH/oren_selfhost_x64_windows.exe"
+fi
 scp_put "$PKG_TGZ" "$REMOTE_HOST:$REMOTE_DIR_SSH/selfhost_pkg.tgz"
 
 echo "== remote: unpack runtime sources (WSL2 tar into /mnt/c) =="
@@ -281,25 +303,25 @@ run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
 
 if has_target x64-wsl; then
   echo "== remote: self-host compile+run (x64-linux under WSL2) =="
-	  out="$(
-	    run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
-	      "wsl.exe -e bash -lc \"set -euo pipefail; cd '${REMOTE_DIR_WSL}'; chmod +x ./oren_selfhost_x64_linux; ./oren_selfhost_x64_linux build print.oren --backend native --no-cache --no-debug -o out_linux; chmod +x ./out_linux; ./out_linux; echo EXIT=\$?\""
-	  )"
-	  printf '%s\n' "$out"
-	  echo "$out" | grep -q "hello from native"
-	  echo "$out" | grep -q "EXIT=0"
+		  out="$(
+		    run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
+		      "wsl.exe -e bash -lc \"set -euo pipefail; cd '${REMOTE_DIR_WSL}'; chmod +x ./oren_selfhost_x64_linux; ${canon_env_wsl}./oren_selfhost_x64_linux build print.oren --backend native --no-cache --no-debug -o out_linux; chmod +x ./out_linux; ${canon_env_wsl}./out_linux; echo EXIT=\$?\""
+		  )"
+		  printf '%s\n' "$out"
+		  echo "$out" | grep -q "hello from native"
+		  echo "$out" | grep -q "EXIT=0"
 fi
 
 if has_target x64-win; then
   echo "== remote: self-host compile+run (x64-windows under cmd.exe) =="
   # Use a conservative timeout wrapper on the local host to avoid hanging forever on remote.
-	  out="$(
-	    run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
-	      "cmd.exe /v:on /c \"cd ${REMOTE_DIR_WIN} && oren_selfhost_x64_windows.exe build print.oren --backend native --no-cache --no-debug -o out_win.exe && out_win.exe & echo EXIT=!ERRORLEVEL!\""
-	  )"
-	  printf '%s\n' "$out"
-	  echo "$out" | grep -q "hello from native"
-	  echo "$out" | grep -q "EXIT=0"
+		  out="$(
+		    run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
+		      "cmd.exe /v:on /c \"cd ${REMOTE_DIR_WIN} && ${canon_env_cmd}oren_selfhost_x64_windows.exe build print.oren --backend native --no-cache --no-debug -o out_win.exe && ${canon_env_cmd}out_win.exe & echo EXIT=!ERRORLEVEL!\""
+		  )"
+		  printf '%s\n' "$out"
+		  echo "$out" | grep -q "hello from native"
+		  echo "$out" | grep -q "EXIT=0"
 fi
 
 echo "OK: x64 self-host compiler gate passed"

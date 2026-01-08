@@ -18,7 +18,8 @@ fn assert_close(a, b, eps, code, msg) {
 }
 
 // Goal: make sure trig does not degrade for large |x| (Payne–Hanek reduction path).
-// This test is intentionally in the --full suite (see cmd/oretest) to keep the fast
+// Legacy test-harness note (no dedicated runner today):
+// This test used to be in a "--full" suite (separate harness) to keep the fast
 // suite integration-first and small.
 
 var TAU = math.tau()
@@ -53,4 +54,3 @@ assert_close(cn, c1, 1e-8, 33, "cos even symmetry failed")
 
 print("module math_trig_huge OK")
 exit(0)
-

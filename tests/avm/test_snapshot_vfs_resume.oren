@@ -1,6 +1,6 @@
 fn main() {
     // Snapshot/resume must preserve VirtualFS contents and backend config.
-    // oretest runs with `--fs-backend vfs` for the first (paused) run; the resume run
+    // Legacy harness runs with `--fs-backend vfs` for the first (paused) run; the resume run
     // does NOT pass `--fs-backend`, so the snapshot must carry the backend kind + data.
 
     var path = "vfs/hello.txt"

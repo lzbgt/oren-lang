@@ -76,6 +76,7 @@ Env overrides:
   OREN_NATIVE_BUILD_TIMEOUT_SECS (default: 10) timeout for each `oren build ...` step (rolling hang guard)
   OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
   OREN_REMOTE_X64_PROXY  (default: ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002)
+  OREN_CANON_I32_ABORT   (optional) set to 1 to hard-fail on non-canonical i32 values on all targets
 
 Notes:
   - This script does NOT start containers; it expects the persistent container to exist and be running.
@@ -316,11 +317,16 @@ build_native_bin() {
 run_in_linux_container() {
   local bin="$1"
   local dst="/tmp/$(basename "$bin")"
+  local canon_abort="${OREN_CANON_I32_ABORT:-}"
+  local canon_env=""
+  if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
+    canon_env="OREN_CANON_I32_ABORT=1 "
+  fi
 
   # Best-effort cleanup of any previous stuck processes/artifacts.
   docker exec -i "$LINUX_DOCKER_ID" bash -lc 'pkill -9 -x qi_stage1_arm64_linux >/dev/null 2>&1 || true; pkill -9 -x qi_stage2_arm64_linux >/dev/null 2>&1 || true; rm -f /tmp/qi_stage* || true' >/dev/null 2>&1 || true
   docker cp "$bin" "${LINUX_DOCKER_ID}:${dst}"
-  docker exec -i "$LINUX_DOCKER_ID" bash -lc "chmod +x '$dst' && '$dst'"
+  docker exec -i "$LINUX_DOCKER_ID" bash -lc "chmod +x '$dst' && ${canon_env}'$dst'"
 }
 
 run_in_linux_container_expect_fail_contains() {
@@ -405,9 +411,14 @@ remote_upload() {
 remote_run_win() {
   local exe_name="$1"
   remote_kill_win "$exe_name" >/dev/null 2>&1 || true
+  local canon_abort="${OREN_CANON_I32_ABORT:-}"
+  local envp=""
+  if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
+    envp="set OREN_CANON_I32_ABORT=1 & "
+  fi
   set +e
   # Preserve the program's exit code (do not let trailing `echo` mask failures).
-  run_with_timeout 30 "${ssh_base[@]}" "cmd.exe /v:on /c \"${remote_win_root}\\\\${exe_name} & set RC=!ERRORLEVEL! & echo EXIT=!RC! & exit /b !RC!\""
+  run_with_timeout 30 "${ssh_base[@]}" "cmd.exe /v:on /c \"${envp}${remote_win_root}\\\\${exe_name} & set RC=!ERRORLEVEL! & echo EXIT=!RC! & exit /b !RC!\""
   local rc=$?
   set -e
   if [[ "$rc" -ne 0 ]]; then
@@ -421,8 +432,12 @@ remote_run_wsl() {
   remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
   # Use WSL-side `timeout` to avoid leaving background processes if the outer ssh is terminated.
   local envp=""
+  local canon_abort="${OREN_CANON_I32_ABORT:-}"
+  if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
+    envp="OREN_CANON_I32_ABORT=1 "
+  fi
   if [[ "$TRACE" -ne 0 ]]; then
-    envp="OREN_QI_TRACE=1 "
+    envp+="OREN_QI_TRACE=1 "
   fi
   local full="${remote_wsl_root}/${bin_name}"
   local want_tier1=0
@@ -471,8 +486,12 @@ remote_run_wsl_expect_fail_contains() {
   remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
   local full="${remote_wsl_root}/${bin_name}"
   local envp=""
+  local canon_abort="${OREN_CANON_I32_ABORT:-}"
+  if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
+    envp="OREN_CANON_I32_ABORT=1 "
+  fi
   if [[ "$TRACE" -ne 0 ]]; then
-    envp="OREN_QI_TRACE=1 "
+    envp+="OREN_QI_TRACE=1 "
   fi
 
   local out="/tmp/oren_${bin_name}.out"
@@ -511,8 +530,12 @@ remote_run_wsl_expect_ok_contains() {
   remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
   local full="${remote_wsl_root}/${bin_name}"
   local envp=""
+  local canon_abort="${OREN_CANON_I32_ABORT:-}"
+  if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
+    envp="OREN_CANON_I32_ABORT=1 "
+  fi
   if [[ "$TRACE" -ne 0 ]]; then
-    envp="OREN_QI_TRACE=1 "
+    envp+="OREN_QI_TRACE=1 "
   fi
 
   local out="/tmp/oren_${bin_name}.out"

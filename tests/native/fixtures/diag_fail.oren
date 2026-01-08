@@ -1,6 +1,6 @@
 // Runtime diagnostic fixture:
 // - exits non-zero
 // - prints a machine-readable OREN_DIAG header
-// Used by cmd/oretest (expected failure).
+// Expected failure diagnostic fixture (used when manually testing `OREN_DIAG` output).
 
 oren_fail(42, "diagnostic fixture")

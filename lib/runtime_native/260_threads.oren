@@ -827,6 +827,8 @@ fn native_fd_set_blocking(fd0) {
 }
 
 var g_native_canon_i32_warned = 0
+var g_native_canon_i32_abort_checked = 0
+var g_native_canon_i32_abort = 0
 
 fn native_canon_i32_arg(v) {
     var lo = v & 4294967295
@@ -838,6 +840,26 @@ fn native_canon_i32_arg(v) {
     // - negative: hi == 0xffffffff and sign == 1
     if hi == 0 && sign == 0 { return v }
     if hi == 4294967295 && sign != 0 { return v }
+
+    // Hard-fail hook: abort immediately on non-canonical i32-ish values.
+    //
+    // This is intentionally env-gated so we can turn it on in CI / remote x64 gates
+    // without spamming logs:
+    //   OREN_CANON_I32_ABORT=1
+    if g_native_canon_i32_abort_checked == 0 {
+        var ab = native_envp_get_value_ptr("OREN_CANON_I32_ABORT")
+        if ab != 0 && ptr_get_byte(ab) != 0 {
+            g_native_canon_i32_abort = 1
+        }
+        g_native_canon_i32_abort_checked = 1
+    }
+    if g_native_canon_i32_abort != 0 {
+        print("FATAL: non-canonical i32 arg (OREN_CANON_I32_ABORT=1): v=" + oren_int_to_string(v) +
+              " lo=" + oren_int_to_string(lo) +
+              " hi=" + oren_int_to_string(hi) +
+              " sign=" + oren_int_to_string(sign))
+        exit(86)
+    }
 
     // Debug hook: emit a single bounded warning if callers pass non-canonical i32-ish
     // arguments (common symptom of partial-width spills or ABI mismatches on x64).

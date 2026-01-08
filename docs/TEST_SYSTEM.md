@@ -95,6 +95,8 @@ Rolling guardrails:
 - The matrix script uses short timeouts to avoid hangs.
 - It does **not** start containers; it expects the existing linux container to be running.
 - Per-build timeout can be tuned via `OREN_NATIVE_BUILD_TIMEOUT_SECS` (default: `10`).
+- x86_64 correctness tripwire: set `OREN_CANON_I32_ABORT=1` to hard-fail on “non-canonical i32” values
+  (a common symptom of partial-width stores / ABI mismatches in the x64 native backend).
 
 ## Quick perf check (compile-one-file)
 

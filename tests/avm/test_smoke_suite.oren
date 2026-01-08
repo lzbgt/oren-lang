@@ -693,7 +693,7 @@ fn test_typed_buffers() {
     }
 
     // 4x4 f64 GEMM microkernel: determinism guard (bitwise compare vs scalar reference).
-    // This is also used by oretest's SIMD determinism guard for AVM when AVM_ENABLE_SIMD=1 (arm64).
+    // This is also used by the legacy SIMD determinism guard for AVM when AVM_ENABLE_SIMD=1 (arm64).
     var nmk64 = 9 // odd to exercise tail
     var g64a = oren_f64_buf_new(4 * nmk64)
     var g64b = oren_f64_buf_new(4 * nmk64)

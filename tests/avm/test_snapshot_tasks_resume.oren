@@ -1,6 +1,6 @@
 // AVM snapshot v1 (rolling): scheduler state (tasks + channels) must be snapshot/restore-able.
 //
-// oretest harness:
+// Legacy harness:
 // - run 1) `./avm --step-limit ... --snapshot-out ...` expects pause (rc=2)
 // - run 2) `./avm --snapshot-in ...` expects success (rc=0)
 

@@ -2,7 +2,7 @@ fn main() {
     // Snapshot/resume must preserve in-memory record logs, otherwise deterministic replay
     // (and nested universes) break across pause/resume.
     //
-    // oretest runs this test in two phases:
+    // Legacy harness runs this test in two phases:
     //   1) --step-limit ... --snapshot-out ... (expects pause)
     //   2) --snapshot-in ... (expects success)
     //

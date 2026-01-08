@@ -2,8 +2,9 @@
 // - exercises syscall-first bump allocator (`malloc`)
 // - exercises pointer load/store intrinsics (`ptr_get`, `ptr_set`, byte variants)
 //
-// This fixture is intended to be run via `OREN_REMOTE_RUN=1 ./oretest` on the
-// Win11+WSL2 x86_64 machine (see docs/REMOTE_X64_ENV.md).
+// Run on real x86_64 hosts (Win11 + WSL2) via:
+//   ./scripts/verify_native_matrix.sh --targets x64-win-tier1 --tier1-src tests/fixtures/x64_malloc_ptr_main.oren
+//   ./scripts/verify_native_matrix.sh --targets x64-wsl-tier1 --tier1-src tests/fixtures/x64_malloc_ptr_main.oren
 
 fn main() {
     // Allocate 16 bytes and treat it as two u64 slots.
@@ -25,4 +26,3 @@ fn main() {
 
     return 0
 }
-
