@@ -120,13 +120,14 @@ if [[ "$rc" -ne 0 ]]; then
   echo "ERROR: stage1->stage2 build failed or timed out (timeout=${STAGE2_BUILD_TIMEOUT_SECS}s); tailing ${stage2_log}:" >&2
   # PowerShell is present on modern Windows; use tail to avoid huge logs.
   ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" \
-    "powershell -NoProfile -Command \"Set-Location -LiteralPath \\\"$env:USERPROFILE\\\\${REMOTE_DIR//\//\\\\}\\\"; if (Test-Path -LiteralPath '${stage2_log}') { Get-Content -LiteralPath '${stage2_log}' -Tail 120 } else { Write-Host 'missing log: ${stage2_log}' }\""
+    "powershell -NoProfile -Command \"Set-Location -LiteralPath '%USERPROFILE%\\\\${REMOTE_DIR//\//\\\\}'; if (Test-Path -LiteralPath '${stage2_log}') { Get-Content -LiteralPath '${stage2_log}' -Tail 120 } else { Write-Host 'missing log: ${stage2_log}' }\""
   exit "$rc"
 fi
 
 # Fail fast on known x64-native backend correctness warnings (even if the compiler exits 0).
+# Use PowerShell to avoid cmd.exe quoting pitfalls around patterns with spaces.
 ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && (findstr /C:\\\"x64 native v0: missing ABI arg reg\\\" /C:\\\"x64 native v0: missing ABI arg regs\\\" ${stage2_log} && exit /b 3) || exit /b 0\""
+  "powershell -NoProfile -Command \"Set-Location -LiteralPath '%USERPROFILE%\\\\${REMOTE_DIR//\//\\\\}'; if (!(Test-Path -LiteralPath '${stage2_log}')) { Write-Host 'missing log: ${stage2_log}'; exit 2 }; if (Select-String -LiteralPath '${stage2_log}' -SimpleMatch -Pattern 'x64 native v0: missing ABI arg reg') { Write-Host 'ERROR: ABI arg-reg warnings found in stage1->stage2 build log'; Select-String -LiteralPath '${stage2_log}' -SimpleMatch -Pattern 'x64 native v0: missing ABI arg reg' | Select-Object -First 20; exit 3 }\""
 
 log "== remote: stage2 builds a tiny native exe (guard: canon i32) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
