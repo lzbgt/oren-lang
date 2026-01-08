@@ -160,7 +160,11 @@ References:
       - Fixed (2026-01-08): x64-windows WebSocket flake (sporadic `ETIMEDOUT` while reading ping/pong/text frames) was traced to **thread-unsafe shared TIME scratch buffers** in `oren_time_unix_ns()` / `oren_time_mono_raw()`.
         - Fix: TIME scratch is now **per-thread** (stored in the thread node) to keep timeout math coherent under `spawn` without introducing hot-path global lock contention (see `docs/NET_WEBSOCKET.md`).
         - Next: avoid O(n) thread-list scans in hot TIME paths by introducing a per-thread fast lookup (TLS-like) for the current thread node.
-       - Next: structured HTTP client/server surface (headers map + status + streaming body), then production WebSocket:
+       - Next: structured HTTP client/server surface (status + headers + streaming body), then production WebSocket:
+         - Done (2026-01-08): `std:net/http` now exposes a structured response API:
+           - `http.get_response(_resolver)` returns `{status, headers, body}` (HTTP/1.1, connection-close, no TLS yet).
+           - `http.headers_get(headers, name)` and `http.response_free(resp)` provide minimal ergonomics + ownership.
+           - Regression: `tests/native/test_http_get_loopback.oren` now asserts status and headers on both Content-Length and chunked cases.
          - fragmentation + binary frames + streaming recv API
          - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + system resolver (Windows DNS APIs + AAAA; POSIX `resolv.conf` AAAA support)
      - x64 native backend correctness:

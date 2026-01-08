@@ -225,6 +225,83 @@ fn run_case(mode) {
     var sr0 = oren_join_timeout(h0, 5000)
     if sr0 != 0 { return 40 }
 
+    // Structured response API: status + headers + body.
+    var h0b = spawn server(listen_fd, mode)
+    var urlb = "http://127.0.0.1:" + oren_int_to_string(port) + "/"
+    var rr = http.get_response(urlb, 2000)
+    free(urlb)
+    if rr["ok"] != 1 {
+        print("http_get_loopback: FAIL get_response: " + rr["err"])
+        oren_join_timeout(h0b, 5000)
+        return 41
+    }
+    if rr["status"] != 200 {
+        print("http_get_loopback: FAIL status != 200")
+        http.response_free(rr)
+        oren_join_timeout(h0b, 5000)
+        return 42
+    }
+    var b0 = rr["body"]
+    if b0 == 0 {
+        http.response_free(rr)
+        oren_join_timeout(h0b, 5000)
+        return 43
+    }
+    if strcmp(b0, "HELLO") != 0 {
+        print("http_get_loopback: FAIL body mismatch (get_response)")
+        print(b0)
+        http.response_free(rr)
+        oren_join_timeout(h0b, 5000)
+        return 44
+    }
+    if mode == 0 {
+        var hv0 = http.headers_get(rr["headers"], "content-length")
+        if hv0 == nil || strcmp(hv0, "5") != 0 {
+            print("http_get_loopback: FAIL missing/invalid content-length")
+            if hv0 != nil { print(hv0) }
+            http.response_free(rr)
+            oren_join_timeout(h0b, 5000)
+            return 45
+        }
+    } else {
+        var hv1 = http.headers_get(rr["headers"], "transfer-encoding")
+        if hv1 == nil {
+            print("http_get_loopback: FAIL missing transfer-encoding")
+            http.response_free(rr)
+            oren_join_timeout(h0b, 5000)
+            return 46
+        }
+        // Minimal check: value contains "chunked" case-insensitive.
+        var s = hv1
+        var sl = oren_string_len(s)
+        var found = 0
+        var ii = 0
+        while ii + 6 < sl {
+            var c0 = (ptr_get_byte(s + ii) & 255)
+            var c1 = (ptr_get_byte(s + ii + 1) & 255)
+            var c2 = (ptr_get_byte(s + ii + 2) & 255)
+            var c3 = (ptr_get_byte(s + ii + 3) & 255)
+            var c4 = (ptr_get_byte(s + ii + 4) & 255)
+            var c5 = (ptr_get_byte(s + ii + 5) & 255)
+            var c6 = (ptr_get_byte(s + ii + 6) & 255)
+            if (c0 | 32) == 99 && (c1 | 32) == 104 && (c2 | 32) == 117 && (c3 | 32) == 110 && (c4 | 32) == 107 && (c5 | 32) == 101 && (c6 | 32) == 100 {
+                found = 1
+                break
+            }
+            ii = ii + 1
+        }
+        if found != 1 {
+            print("http_get_loopback: FAIL transfer-encoding not chunked")
+            print(hv1)
+            http.response_free(rr)
+            oren_join_timeout(h0b, 5000)
+            return 47
+        }
+    }
+    http.response_free(rr)
+    var sr0b = oren_join_timeout(h0b, 5000)
+    if sr0b != 0 { return 48 }
+
     // Hostname path: serve a loopback DNS A record so the test stays offline and deterministic.
     var sfd = udp.bind_local(0)
     if sfd < 0 { return 50 }
@@ -266,6 +343,47 @@ fn run_case(mode) {
     if sr1 != 0 { udp.close(sfd); return 55 }
     var dsr = oren_join_timeout(dh, 5000)
     if dsr != 0 { udp.close(sfd); return 56 }
+
+    // Structured API with explicit resolver (hostname, offline).
+    // The DNS helper handles one query, so spawn a fresh one.
+    var dh2 = spawn dns_server_one_a(sfd, 127, 0, 0, 1)
+    var h2 = spawn server(listen_fd, mode)
+    var url3 = "http://oren.test:" + oren_int_to_string(port) + "/"
+    var res2 = dns.resolver("127.0.0.1", sport, 2000)
+    var rr2 = http.get_response_resolver(url3, 2000, res2)
+    free(url3)
+    dns.resolver_free(res2)
+    if rr2["ok"] != 1 {
+        print("http_get_loopback: FAIL get_response_resolver: " + rr2["err"])
+        oren_join_timeout(h2, 5000)
+        oren_join_timeout(dh2, 5000)
+        udp.close(sfd)
+        return 57
+    }
+    if rr2["status"] != 200 {
+        print("http_get_loopback: FAIL status != 200 (hostname)")
+        http.response_free(rr2)
+        oren_join_timeout(h2, 5000)
+        oren_join_timeout(dh2, 5000)
+        udp.close(sfd)
+        return 58
+    }
+    var b3 = rr2["body"]
+    if b3 == 0 || strcmp(b3, "HELLO") != 0 {
+        print("http_get_loopback: FAIL body mismatch (hostname get_response)")
+        if b3 != 0 { print(b3) }
+        http.response_free(rr2)
+        oren_join_timeout(h2, 5000)
+        oren_join_timeout(dh2, 5000)
+        udp.close(sfd)
+        return 59
+    }
+    http.response_free(rr2)
+    var sr2 = oren_join_timeout(h2, 5000)
+    if sr2 != 0 { oren_join_timeout(dh2, 5000); udp.close(sfd); return 60 }
+    var dsr2 = oren_join_timeout(dh2, 5000)
+    if dsr2 != 0 { udp.close(sfd); return 61 }
+
     udp.close(sfd)
 
     oren_tcp_close(listen_fd)

@@ -14,6 +14,59 @@
 import tcp "std:net/tcp"
 import dns "std:net/dns"
 
+fn _trim_right_ws_in_buf(buf, start, end) {
+    var i = end
+    while i > start {
+        var b = ptr_get_byte(buf + (i - 1)) & 255
+        if b != 32 && b != 9 { break } // space/tab
+        i = i - 1
+    }
+    return i
+}
+
+fn _string_from_buf_range(buf, start, end) {
+    // Copy buf[start:end] into a NUL-terminated string.
+    if buf == 0 { return 0 }
+    var n = end - start
+    if n < 0 { return 0 }
+    var out = malloc(n + 1)
+    if out == 0 { return 0 }
+    if n > 0 { oren_memcpy(out, buf + start, n) }
+    ptr_set_byte(out + n, 0)
+    return out
+}
+
+fn _status_code_from_status_line(buf, line_end) {
+    // Parse "HTTP/1.1 200 OK" => 200
+    // Returns status code >=0, or -1 on failure.
+    if buf == 0 { return -1 }
+    if line_end <= 0 { return -1 }
+    var i = 0
+    // Find first space.
+    while i < line_end {
+        var b = ptr_get_byte(buf + i) & 255
+        if b == 32 { break }
+        i = i + 1
+    }
+    if i >= line_end { return -1 }
+    // Skip spaces.
+    while i < line_end && (ptr_get_byte(buf + i) & 255) == 32 { i = i + 1 }
+    if i >= line_end { return -1 }
+    // Parse digits until space or EOL.
+    var acc = 0
+    var seen = 0
+    while i < line_end {
+        var b2 = ptr_get_byte(buf + i) & 255
+        if b2 == 32 { break }
+        if b2 < 48 || b2 > 57 { return -1 }
+        acc = acc * 10 + (b2 - 48)
+        seen = 1
+        i = i + 1
+    }
+    if seen == 0 { return -1 }
+    return acc
+}
+
 fn _starts_with(s, prefix) {
     if s == nil || prefix == nil { return 0 }
     var sl = oren_string_len(s)
@@ -291,31 +344,100 @@ fn _decode_chunked_into_string(body_ptr, body_len) {
     return 0
 }
 
-fn get_text_resolver(url, timeout_ms, resolver) {
-    // Returns:
-    //   {"ok":1,"v":string} on success
-    //   {"ok":0,"err":string} on failure
+fn headers_get(headers, name) {
+    // Convenience helper: fetch a header value from a `headers` list returned by `get_response*`.
     //
-    // v0 constraints:
-    // - no TLS
-    // - DNS hostname resolution is IPv4-only (A records) and can be supplied explicitly via `resolver`
-    //   to keep tests loopback-only and deterministic.
+    // - `headers` is a list of pairs: [[name:string, value:string], ...]
+    // - Matching is ASCII case-insensitive on `name`.
+    //
+    // Returns header value string pointer, or nil if not found.
+    if headers == nil || name == nil { return nil }
+    var want = name
+    var want_len = oren_string_len(want)
+    var n = oren_list_len(headers)
+    var i = 0
+    while i < n {
+        var pair = headers[i]
+        if pair != nil {
+            var k = pair[0]
+            var v = pair[1]
+            if k != nil && v != nil {
+                var kl = oren_string_len(k)
+                if kl == want_len {
+                    var j = 0
+                    var ok = 1
+                    while j < kl {
+                        var b1 = _ascii_lower(ptr_get_byte(k + j) & 255)
+                        var b2 = _ascii_lower(ptr_get_byte(want + j) & 255)
+                        if b1 != b2 { ok = 0; break }
+                        j = j + 1
+                    }
+                    if ok == 1 { return v }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return nil
+}
+
+fn response_free(resp) {
+    // Free owned allocations inside a response returned by `get_response*`.
+    //
+    // Contract:
+    // - after calling `response_free(resp)`, the caller must not use `resp` (or its nested fields).
+    // - this does not free the response map/list containers (GC-managed); it only frees the owned strings.
+    if resp == nil { return nil }
+    var body = resp["body"]
+    if body != nil && body != 0 { free(body) }
+    var hs = resp["headers"]
+    if hs != nil {
+        var n = oren_list_len(hs)
+        var i = 0
+        while i < n {
+            var pair = hs[i]
+            if pair != nil {
+                var k = pair[0]
+                var v = pair[1]
+                if k != nil && k != 0 { free(k) }
+                if v != nil && v != 0 { free(v) }
+            }
+            i = i + 1
+        }
+    }
+    return nil
+}
+
+fn get_response_resolver(url, timeout_ms, resolver) {
+    // Structured HTTP/1.1 response (v0):
+    //
+    // Returns:
+    //   {"ok":1, "status":int, "headers":[[k,v],...], "body":string}
+    //   {"ok":0, "err":string}
+    //
+    // Notes:
+    // - no TLS yet (http:// only)
     // - connection-close only (no keep-alive pooling yet)
+    // - headers are returned as a list of owned strings (caller may free via `response_free`)
+    //
+    // This is intended as the stable foundation for:
+    // - HTTPS/WSS (TLS layer)
+    // - streaming bodies
+    // - HTTP/2 framing
     if timeout_ms == nil { timeout_ms = 5000 }
 
     var pu = _parse_http_url(url)
-    if pu["ok"] != 1 { return {"ok": 0, "err": "http.get_text: " + pu["err"]} }
+    if pu["ok"] != 1 { return {"ok": 0, "err": "http.get_response: " + pu["err"]} }
 
     var host = pu["host"]
     var port = pu["port"]
     var path = pu["path"]
 
-    // Resolve host if it is not a literal IPv4 string.
     var rh = _resolve_host_ipv4(host, timeout_ms, resolver)
     if rh["ok"] != 1 {
         free(host)
         free(path)
-        return {"ok": 0, "err": "http.get_text: " + rh["err"]}
+        return {"ok": 0, "err": "http.get_response: " + rh["err"]}
     }
     var ip = rh["ip"]
     var owned_ip = rh["owned"]
@@ -325,7 +447,7 @@ fn get_text_resolver(url, timeout_ms, resolver) {
     if fd < 0 {
         free(host)
         free(path)
-        return {"ok": 0, "err": "http.get_text: connect failed (errno=" + oren_int_to_string(0 - fd) + ")"}
+        return {"ok": 0, "err": "http.get_response: connect failed (errno=" + oren_int_to_string(0 - fd) + ")"}
     }
 
     var req = _build_get_request(host, path)
@@ -333,7 +455,7 @@ fn get_text_resolver(url, timeout_ms, resolver) {
     free(path)
     if req == 0 {
         tcp.close(fd)
-        return {"ok": 0, "err": "http.get_text: request build failed"}
+        return {"ok": 0, "err": "http.get_response: request build failed"}
     }
 
     var req_len = oren_string_len(req)
@@ -341,16 +463,18 @@ fn get_text_resolver(url, timeout_ms, resolver) {
     free(req)
     if wr < 0 {
         tcp.close(fd)
-        return {"ok": 0, "err": "http.get_text: write failed (errno=" + oren_int_to_string(0 - wr) + ")"} }
+        return {"ok": 0, "err": "http.get_response: write failed (errno=" + oren_int_to_string(0 - wr) + ")"} }
 
-    // Read full response into a growing buffer, but stop early when Content-Length is satisfied.
     var cap = 8192
     var used = 0
     var buf = malloc(cap)
     if buf == 0 {
         tcp.close(fd)
-        return {"ok": 0, "err": "http.get_text: malloc failed"}
+        return {"ok": 0, "err": "http.get_response: malloc failed"}
     }
+
+    var headers = [] // [[name,value], ...] (owned strings)
+    var status_code = -1
 
     var header_done = 0
     var body_off = 0
@@ -368,10 +492,6 @@ fn get_text_resolver(url, timeout_ms, resolver) {
             break
         }
         if n < 0 {
-            // Some OSes may report ECONNRESET when the peer closes a socket while
-            // unread request bytes are still in the receive buffer. For the v0
-            // connection-close client, treat this as an EOF-like terminator and
-            // attempt to parse whatever bytes were already received.
             free(tmp)
             break
         }
@@ -396,9 +516,6 @@ fn get_text_resolver(url, timeout_ms, resolver) {
             if body_off != 0 {
                 header_done = 1
 
-                // Parse status line + headers we care about (Content-Length / Transfer-Encoding).
-                //
-                // Status line: "HTTP/1.1 200 OK\r\n"
                 var line0_end = -1
                 var i0 = 0
                 while i0 + 1 < body_off {
@@ -408,16 +525,14 @@ fn get_text_resolver(url, timeout_ms, resolver) {
                     }
                     i0 = i0 + 1
                 }
+                if line0_end > 0 { status_code = _status_code_from_status_line(buf, line0_end) }
 
-                // Parse headers line-by-line from after status line until body_off-4.
                 var hpos = 0
                 if line0_end >= 0 { hpos = line0_end + 2 }
                 while hpos + 1 < body_off {
-                    // Empty line => end.
                     if (ptr_get_byte(buf + hpos) & 255) == 13 && (ptr_get_byte(buf + hpos + 1) & 255) == 10 {
                         break
                     }
-                    // Find end of line.
                     var lend = -1
                     var j = hpos
                     while j + 1 < body_off {
@@ -429,7 +544,6 @@ fn get_text_resolver(url, timeout_ms, resolver) {
                     }
                     if lend < 0 { break }
 
-                    // Find ':' separator.
                     var colon = -1
                     var k = hpos
                     while k < lend {
@@ -440,13 +554,21 @@ fn get_text_resolver(url, timeout_ms, resolver) {
                         var name_start = hpos
                         var name_end = colon
                         var val_start = _trim_left_ws_in_buf(buf, colon + 1, lend)
-                        var val_end = lend
+                        var val_end = _trim_right_ws_in_buf(buf, val_start, lend)
+
+                        var name_s = _string_from_buf_range(buf, name_start, name_end)
+                        var val_s = _string_from_buf_range(buf, val_start, val_end)
+                        if name_s != 0 && val_s != 0 {
+                            oren_list_push(headers, [name_s, val_s])
+                        } else {
+                            if name_s != 0 { free(name_s) }
+                            if val_s != 0 { free(val_s) }
+                        }
 
                         if _header_name_eq_ci(buf, name_start, name_end, "content-length") == 1 {
                             var v = _parse_dec_int_in_buf(buf, val_start, val_end)
                             if v >= 0 { content_len = v }
                         } else if _header_name_eq_ci(buf, name_start, name_end, "transfer-encoding") == 1 {
-                            // Minimal: if value contains "chunked" (case-insensitive), treat as chunked.
                             var ti = val_start
                             while ti + 6 < val_end {
                                 var c0 = _ascii_lower(ptr_get_byte(buf + ti) & 255)
@@ -470,7 +592,6 @@ fn get_text_resolver(url, timeout_ms, resolver) {
             }
         }
 
-        // If Content-Length is known and headers are parsed, stop once we have the whole body.
         if header_done == 1 && is_chunked == 0 && content_len >= 0 {
             var need = body_off + content_len
             if used >= need { break }
@@ -481,13 +602,18 @@ fn get_text_resolver(url, timeout_ms, resolver) {
 
     if header_done == 0 {
         free(buf)
-        return {"ok": 0, "err": "http.get_text: missing header terminator (used=" + oren_int_to_string(used) + " last_n=" + oren_int_to_string(last_n) + ")"}
+        response_free({"headers": headers, "body": nil})
+        return {"ok": 0, "err": "http.get_response: missing header terminator (used=" + oren_int_to_string(used) + " last_n=" + oren_int_to_string(last_n) + ")"}
+    }
+    if status_code < 0 {
+        free(buf)
+        response_free({"headers": headers, "body": nil})
+        return {"ok": 0, "err": "http.get_response: failed to parse status line"}
     }
 
     if body_off > used { body_off = used }
     var body_len0 = used - body_off
 
-    // If Content-Length is known, clamp to it.
     var body_len = body_len0
     if is_chunked == 0 && content_len >= 0 {
         body_len = content_len
@@ -498,19 +624,40 @@ fn get_text_resolver(url, timeout_ms, resolver) {
     if is_chunked == 1 {
         var outc = _decode_chunked_into_string(buf + body_off, body_len0)
         free(buf)
-        if outc == 0 { return {"ok": 0, "err": "http.get_text: chunked decode failed"} }
-        return {"ok": 1, "v": outc}
+        if outc == 0 {
+            response_free({"headers": headers, "body": nil})
+            return {"ok": 0, "err": "http.get_response: chunked decode failed"}
+        }
+        return {"ok": 1, "status": status_code, "headers": headers, "body": outc}
     }
 
     var out = malloc(body_len + 1)
     if out == 0 {
         free(buf)
-        return {"ok": 0, "err": "http.get_text: malloc body failed"}
+        response_free({"headers": headers, "body": nil})
+        return {"ok": 0, "err": "http.get_response: malloc body failed"}
     }
     if body_len > 0 { oren_memcpy(out, buf + body_off, body_len) }
     ptr_set_byte(out + body_len, 0)
     free(buf)
-    return {"ok": 1, "v": out}
+    return {"ok": 1, "status": status_code, "headers": headers, "body": out}
+}
+
+fn get_response(url, timeout_ms) {
+    return get_response_resolver(url, timeout_ms, 0)
+}
+
+fn get_text_resolver(url, timeout_ms, resolver) {
+    // Returns:
+    //   {"ok":1,"v":string} on success
+    //   {"ok":0,"err":string} on failure
+    //
+    var rr = get_response_resolver(url, timeout_ms, resolver)
+    if rr["ok"] != 1 { return {"ok": 0, "err": rr["err"]} }
+    var body = rr["body"]
+    // Free headers immediately; return only the body (legacy API).
+    response_free({"headers": rr["headers"], "body": nil})
+    return {"ok": 1, "v": body}
 }
 
 fn get_text(url, timeout_ms) {
