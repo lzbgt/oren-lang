@@ -1,0 +1,90 @@
+// std:ui/ppm (rolling)
+//
+// Minimal PPM (P6) encoder for debugging and golden tests.
+//
+// Why PPM (instead of PNG) for v0:
+// - deterministic and trivial to encode (no CRC/deflate dependencies)
+// - can be opened by many viewers and easily converted
+//
+// Encoding:
+// - Header: "P6\n<w> <h>\n255\n"
+// - Body: binary RGB bytes (alpha ignored; premultiply is not performed)
+
+fn _push_ascii_u8(out, b) {
+    // out is {"buf": u8_buf, "pos": int}
+    var buf = out["buf"]
+    var pos = out["pos"]
+    oren_buf_store_u8(buf, pos, b)
+    out["pos"] = pos + 1
+}
+
+fn _push_ascii_str(out, s) {
+    var n = oren_string_len(s)
+    var i = 0
+    while i < n {
+        var ch = oren_string_slice(s, i, i + 1)
+        // PERF not critical for debug; use bytes_from_string to get ASCII.
+        var bs = oren_bytes_from_string(ch)
+        var b = oren_bytes_get_u8(bs, 0)
+        _push_ascii_u8(out, b)
+        i = i + 1
+    }
+}
+
+fn _digits(n) {
+    // Return decimal string for a non-negative int.
+    // Use built-in int_to_string (stable across backends).
+    return oren_int_to_string(n)
+}
+
+fn encode_rgba(rgba, w, h) {
+    if w < 0 || h < 0 { return oren_err(4, "ppm.encode_rgba: invalid size") }
+    var n = w * h * 4
+    var ln = oren_bytes_len(rgba)
+    if oren_is_err(ln) { return ln }
+    if ln != n { return oren_err(4, "ppm.encode_rgba: rgba length mismatch") }
+
+    // Allocate exact output length: header + w*h*3 (RGB).
+    var ws = _digits(w)
+    var hs = _digits(h)
+    var header_len = 3 + oren_string_len(ws) + 1 + oren_string_len(hs) + 5
+    var out_len = header_len + (w * h * 3)
+    var buf = oren_u8_buf_new(out_len)
+    if oren_is_err(buf) { return buf }
+    var cur = {"buf": buf, "pos": 0}
+
+    // Emit header (ASCII).
+    _push_ascii_str(cur, "P6\n")
+    _push_ascii_str(cur, ws)
+    _push_ascii_str(cur, " ")
+    _push_ascii_str(cur, hs)
+    _push_ascii_str(cur, "\n255\n")
+
+    // Emit binary RGB.
+    var pos = cur["pos"]
+    var i = 0
+    while i < w * h {
+        var r = oren_bytes_get_u8(rgba, i * 4 + 0)
+        var g = oren_bytes_get_u8(rgba, i * 4 + 1)
+        var b = oren_bytes_get_u8(rgba, i * 4 + 2)
+        if oren_is_err(r) || oren_is_err(g) || oren_is_err(b) { return oren_err(4, "ppm.encode_rgba: invalid rgba") }
+        oren_buf_store_u8(buf, pos + 0, r)
+        oren_buf_store_u8(buf, pos + 1, g)
+        oren_buf_store_u8(buf, pos + 2, b)
+        pos = pos + 3
+        i = i + 1
+    }
+    // We allocated exact length; pos should match out_len.
+    return buf
+}
+
+fn write_rgba_ppm(path, rgba, w, h) {
+    // Portable write helper:
+    // - `oren_write_bytes` is list-based in AVM but accepts u8_buf in native runtime.
+    // - To behave consistently, we always write using list<int> form.
+    var b = encode_rgba(rgba, w, h)
+    if oren_is_err(b) { return b }
+    var xs = oren_bytes_unpack(b)
+    if oren_is_err(xs) { return xs }
+    return oren_write_bytes(path, xs)
+}

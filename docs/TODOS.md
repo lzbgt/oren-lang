@@ -444,6 +444,10 @@ References:
        - Module: `lib/std/ui/raster.oren`
        - Fixture: `tests/avm/test_ui_raster_v0.oren`
        - Gate: `make test-avm`
+     - Done (2026-01-09): added `std:ui/ppm` v0 (PPM image encoding helper) + headless AVM byte-level smoke:
+       - Module: `lib/std/ui/ppm.oren`
+       - Fixture: `tests/avm/test_ui_ppm_v0.oren`
+       - Gate: `make test-avm`
    - Phase 2 (platform shims + bring-up):
      - Build per-OS shim libraries (macOS/Windows/Linux) implementing the UI domain with a v0 software RGBA framebuffer.
      - Add Tier‑1 smoke scripts (opt-in): open window → draw frame → close.

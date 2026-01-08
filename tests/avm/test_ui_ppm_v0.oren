@@ -1,0 +1,58 @@
+// AVM headless UI test: std:ui/ppm v0
+//
+// Ensures PPM encoding is deterministic and byte-for-byte stable.
+
+import ppm "std:ui/ppm"
+
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn test_ppm_2x1() {
+    var w = 2
+    var h = 1
+    var rgba = oren_u8_buf_new(w * h * 4)
+    // pixel0: red
+    oren_buf_store_u8(rgba, 0, 255)
+    oren_buf_store_u8(rgba, 1, 0)
+    oren_buf_store_u8(rgba, 2, 0)
+    oren_buf_store_u8(rgba, 3, 255)
+    // pixel1: green
+    oren_buf_store_u8(rgba, 4, 0)
+    oren_buf_store_u8(rgba, 5, 255)
+    oren_buf_store_u8(rgba, 6, 0)
+    oren_buf_store_u8(rgba, 7, 255)
+
+    var out = ppm.encode_rgba(rgba, w, h)
+    assert_eq(oren_bytes_len(out), 17)
+
+    // Header: "P6\n2 1\n255\n"
+    var hdr = [80, 54, 10, 50, 32, 49, 10, 50, 53, 53, 10]
+    var i = 0
+    while i < oren_list_len(hdr) {
+        assert_eq(oren_bytes_get_u8(out, i), hdr[i])
+        i = i + 1
+    }
+
+    // Body: RGBRGB
+    var body = [255, 0, 0, 0, 255, 0]
+    var j = 0
+    while j < oren_list_len(body) {
+        assert_eq(oren_bytes_get_u8(out, 11 + j), body[j])
+        j = j + 1
+    }
+}
+
+fn main() {
+    test_ppm_2x1()
+    exit(0)
+}
+

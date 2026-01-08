@@ -221,7 +221,8 @@ endif
 		tests/avm/test_switch.oren \
 		tests/avm/test_ui_layout_v0.oren \
 		tests/avm/test_ui_render_v0.oren \
-		tests/avm/test_ui_raster_v0.oren
+		tests/avm/test_ui_raster_v0.oren \
+		tests/avm/test_ui_ppm_v0.oren
 
 # Source files
 OREN_SRC := oren.oren

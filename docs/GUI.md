@@ -113,6 +113,48 @@ This avoids committing to CSS parsing or cascade rules prematurely.
 Define a single UI domain (example ID: `9`) with a narrow set of ops.
 The UI core emits commands; the host executes them.
 
+### 3.0 Render command buffer schema (headless contract)
+
+Even before a platform shim exists, Oren needs a stable “render intent” contract so we can:
+
+- regression test UI behavior deterministically (headless),
+- build multiple render backends later (software blit v0, GPU v1),
+- keep the UI core portable across platforms/backends.
+
+Current v0 schema is implemented by:
+
+- `std:ui/render` (`lib/std/ui/render.oren`) — tree → command list
+- `std:ui/raster` (`lib/std/ui/raster.oren`) — command list → RGBA bytes (headless reference)
+
+**Coordinate system (v0):**
+
+- integer pixel coordinates
+- origin `(0,0)` at **top-left**
+- +x right, +y down
+- rectangles are inclusive of `(x,y)` and cover `w*h` pixels
+
+**Command list:**
+
+- a list of maps; each map has an `"op"` string and required fields per op
+- commands are emitted in deterministic order (preorder traversal)
+
+Supported ops today:
+
+- `fill_rect`:
+  - `{"op":"fill_rect","x":int,"y":int,"w":int,"h":int,"color":string}`
+- `text` (marker-only in v0 raster):
+  - `{"op":"text","x":int,"y":int,"text":string,"color":string}`
+
+**Color encoding (v0):**
+
+- `"#RRGGBB"` or `"#RRGGBBAA"` (hex; case-insensitive)
+
+Rolling note:
+
+- `text` rasterization is intentionally not “real font rendering” in v0. The headless rasterizer draws
+  one pixel per character to provide a deterministic test marker. A real platform text renderer belongs
+  in the platform shim (or a later font subsystem).
+
 ### Minimal required ops
 
 **Window**
@@ -242,6 +284,7 @@ Implemented (headless, portable):
 - `std:ui/style` (`lib/std/ui/style.oren`): deterministic style merge (no CSS yet)
 - `std:ui/render` (`lib/std/ui/render.oren`): render → deterministic command buffer (no platform drawing yet)
 - `std:ui/raster` (`lib/std/ui/raster.oren`): deterministic software rasterization into RGBA bytes (headless reference)
+- `std:ui/ppm` (`lib/std/ui/ppm.oren`): minimal PPM encoder for debugging and golden byte tests
 
 Regression gates (headless):
 
@@ -249,6 +292,7 @@ Regression gates (headless):
   - `tests/avm/test_ui_layout_v0.oren`
   - `tests/avm/test_ui_render_v0.oren`
   - `tests/avm/test_ui_raster_v0.oren`
+  - `tests/avm/test_ui_ppm_v0.oren`
 
 ## 7) Roadmap tasks (tracked in `docs/TODOS.md`)
 
