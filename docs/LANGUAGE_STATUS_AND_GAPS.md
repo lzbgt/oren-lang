@@ -150,10 +150,11 @@ production maturity requires both implementation *and* regression coverage.
       - POSIX fork/exec/wait4 do not exist, so the runtime uses `CreateProcessA` via `sys_win_createprocess` for `oren_proc_spawn`/`oren_system`.
       - Proof gate: `scripts/verify_native_matrix.sh --targets x64-win-tier1` runs `tests/fixtures/tier1_native_smoke_main.oren` on Win11+WSL2; the fixture calls `oren_system("echo tier1 smoke proc ok")` and returns non‑zero on failure.
       - Note (concurrency): Windows Tier‑1 `spawn` is lowered to CreateThread and `oren_join(_timeout)` waits via `WaitForSingleObject` (Tier‑1 remote fixture: `tests/fixtures/tier1_native_spawn_join_main.oren`). Still rolling: timeout cancellation uses `TerminateThread` today (needs a cooperative cancellation story later).
-	    - Self-host compiler on x86_64 (rolling):
-	      - Local emit sanity (compile-only): `make verify-native-x64-compile` (builds stage1+stage2 and emits x64-linux + x64-windows artifacts).
-	      - Remote run gate: `scripts/verify_selfhost_x64_compiler.sh` builds x64 compiler binaries and runs them on Win11+WSL2 to compile+run a tiny native program.
-	  - Track: `docs/TODOS.md` (P0.1–P0.3), `docs/NATIVE_BACKEND.md`.
+    - Self-host compiler on x86_64 (rolling):
+      - Local emit sanity (compile-only): `make verify-native-x64-compile` (builds stage1+stage2 and emits x64-linux + x64-windows artifacts).
+      - Native Windows bootstrap gate (stage0 → stage1 → stage2, then compile+run a tiny exe): `scripts/verify_windows_stage2_from_stage1.sh` (`make verify-stage2-win`).
+      - Remote run gate: `scripts/verify_selfhost_x64_compiler.sh` builds x64 compiler binaries and runs them on Win11+WSL2 to compile+run a tiny native program.
+    - Track: `docs/TODOS.md` (P0.1–P0.3), `docs/NATIVE_BACKEND.md`.
 
   - **Async IO + scheduler integration (planned)**
     - Today, NET fd waits are runtime helpers that block OS threads (`lib/runtime_native/240_tcp.oren`).

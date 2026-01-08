@@ -46,7 +46,7 @@ References:
 
 - Perf playbook: `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`
 - Remote x64 workflow: `docs/REMOTE_X64_ENV.md`
-- Language docs baseline (keep in sync with tests): `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md` (last sync: 2026-01-09; includes stdlib import resolution + native Windows spawn/join notes)
+- Language docs baseline (keep in sync with tests): `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md`, `docs/LANGUAGE_FEATURE_MATRIX.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md` (last sync: 2026-01-09; includes stdlib import resolution + native Windows spawn/join + TLS/HTTPS/WSS gating notes)
 
 ## P0 (Now)
 
