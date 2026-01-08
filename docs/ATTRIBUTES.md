@@ -186,7 +186,34 @@ Notes:
 - The argument must be a single string literal (v0 determinism rule).
   - On other native targets, prefer `@ffi.link("...")` for portability.
 
-### 3.5 FFI exports (`@ffi.export`) (native backend; callback interop)
+### 3.5 FFI return typing (`@ffi.ret(...)`) (native backend)
+
+Some foreign functions return narrow integer types at the ABI level (most commonly C `int`, i.e. signed 32-bit).
+Native ABIs do not require the upper 32 bits of the return register to be sign-extended for such functions.
+
+Oren uses 64-bit value carriers, so the native backend needs an explicit hint to lower the return correctly.
+
+Example (Linux):
+
+```oren
+@cfg(os="linux")
+@ffi.link("libc.so.6")
+@ffi.ret("i32")
+ffi atoi
+
+if atoi("-1") != -1 { exit(1) }
+```
+
+Notes (rolling v0):
+
+- The argument must be a single string literal (v0 determinism rule).
+- Currently supported return kinds:
+  - `"i32"`: sign-extend the 32-bit return to a signed 64-bit value.
+- This attribute is currently consumed by:
+  - `arm64-*` native backend
+  - `x64-*` native backend
+
+### 3.6 FFI exports (`@ffi.export`) (native backend; callback interop)
 
 Some OS APIs require **C-style callbacks**, i.e. the library expects a *raw function pointer* to a symbol in the program image.
 

@@ -190,9 +190,10 @@ References:
 	         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)
 	         - Gate: `OREN_CANON_I32_ABORT=1` (hard-fail; preferred for CI / remote Tier‑1 scripts)
 	         - Note: Tier‑1 matrix scripts now propagate `OREN_CANON_I32_ABORT` to docker/WSL2/Win11 runs so regressions fail fast.
-	       - Done (2026-01-08): Linux OpenSSL TLS provider canonicalizes `int` (i32) returns before interpreting errors.
-	         - Root cause: some Tier‑1 FFI paths return signed 32-bit values that must be sign-extended to i64 (`-1` otherwise looks like `4294967295`).
-	         - Next: fix native backend FFI return lowering to correctly sign-extend i32 returns on all ABIs (so per-call-site canonicalization isn’t needed).
+	       - Done (2026-01-08): native backend supports typed FFI returns for C `int` (`@ffi.ret("i32")`) and sign-extends i32 returns to i64 on arm64 + x64.
+	         - Fixes the “-1 becomes 4294967295” class of bugs when the callee returns a 32-bit signed value and the caller reads the full 64-bit return register.
+	         - Stdlib Linux OpenSSL TLS provider now uses `@ffi.ret("i32")` for OpenSSL APIs and does not rely on per-call-site canonicalization.
+	         - Regression: `tests/native/ffi_linux_ret_i32_signext.oren` is executed by `scripts/verify_native_matrix.sh` (arm64-linux + x64-wsl; stage1 + stage2).
 	     - Native runtime GC + literals:
        - Done (2026-01-08): embedded `cstr0` string literals are treated as constant-section data and are **not** tracked as GC alloc nodes.
          - Runtime builds a dedicated literal membership set at startup (`oren_init_static_cstr0_table`) and recognizes literals via `native_is_string_ptr` / `oren_is_string`.

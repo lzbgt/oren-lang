@@ -345,6 +345,13 @@ fn native_expr_chunk_call(ctx, expr) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": fn_name})
 
+    // ABI correctness: some `ffi` symbols return a C `int` (i32) in W0, and the upper 32 bits
+    // of X0 are not required to be sign-extended by the callee. Oren treats values as i64,
+    // so explicitly sign-extend when the `ffi` declaration says the ABI return is i32.
+    if ctx != nil && ctx["ffi_ret_i32"] != nil && ctx["ffi_ret_i32"][fn_name] != nil {
+        push_u32_le(ctx["code"], insn_sxtw(0, 0)) // X0 = sign_extend_i32(W0)
+    }
+
     // Clean up: pop ABI stack args area and the temporary arg-eval slots.
     var cleanup = abi_stack_bytes + nargs * 16
     if cleanup > 0 {

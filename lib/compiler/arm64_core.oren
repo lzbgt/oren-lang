@@ -239,6 +239,14 @@ fn insn_mov_reg(rd, rn) {
     return 2852127712 + (rn * 65536) + rd // 0xAA0003E0 base
 }
 
+fn insn_sxtw(rd, rn) {
+    // SXTW Xrd, Wrn (sign-extend 32-bit -> 64-bit).
+    //
+    // Verified via clang:
+    //   sxtw x0, w0 => 0x93407C00
+    return 2470476800 + (rn * 32) + rd // 0x93407C00 base
+}
+
 fn insn_movn(rd, imm) {
     return 2457862144 + (imm * 32) + rd
 }

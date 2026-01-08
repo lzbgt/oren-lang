@@ -72,6 +72,7 @@ fn peer_cert_sha256_hex(conn) {
 //   Evidence is captured under `project-doc/web/openssl/` (downloaded from openssl.org manpages).
 
 @cfg(os="linux")
+@ffi.ret("i32")
 @ffi.link("libssl.so.3")
 @ffi.link("libcrypto.so.3")
 ffi OPENSSL_init_ssl
@@ -97,18 +98,25 @@ ffi SSL_new
 @cfg(os="linux")
 ffi SSL_free
 @cfg(os="linux")
+@ffi.ret("i32")
 ffi SSL_set_fd
 @cfg(os="linux")
+@ffi.ret("i32")
 ffi SSL_connect
 @cfg(os="linux")
+@ffi.ret("i32")
 ffi SSL_accept
 @cfg(os="linux")
+@ffi.ret("i32")
 ffi SSL_get_error
 @cfg(os="linux")
+@ffi.ret("i32")
 ffi SSL_read
 @cfg(os="linux")
+@ffi.ret("i32")
 ffi SSL_write
 @cfg(os="linux")
+@ffi.ret("i32")
 ffi SSL_shutdown
 @cfg(os="linux")
 ffi SSL_get1_peer_certificate
@@ -116,6 +124,7 @@ ffi SSL_get1_peer_certificate
 @cfg(os="linux")
 ffi d2i_PKCS12
 @cfg(os="linux")
+@ffi.ret("i32")
 ffi PKCS12_parse
 @cfg(os="linux")
 ffi PKCS12_free
@@ -124,12 +133,16 @@ ffi EVP_PKEY_free
 @cfg(os="linux")
 ffi X509_free
 @cfg(os="linux")
+@ffi.ret("i32")
 ffi SSL_CTX_use_certificate
 @cfg(os="linux")
+@ffi.ret("i32")
 ffi SSL_CTX_use_PrivateKey
 @cfg(os="linux")
+@ffi.ret("i32")
 ffi SSL_CTX_check_private_key
 @cfg(os="linux")
+@ffi.ret("i32")
 ffi i2d_X509
 
 @cfg(os="linux")
@@ -146,19 +159,6 @@ fn _openssl_init() {
     signal(13, 1) // SIG_IGN
     _openssl_inited = 1
     return 0
-}
-
-@cfg(os="linux")
-fn _openssl_canon_i32(v) {
-    // Many OpenSSL APIs return `int` (signed 32-bit).
-    //
-    // On AArch64, `int` returns live in W0. If the caller reads X0 as an i64 without
-    // sign-extension, negative values show up as large positives:
-    //   -1 => 0x00000000ffffffff == 4294967295
-    //
-    // Canonicalize to a signed i64 that represents an i32.
-    if v > 2147483647 { return v - 4294967296 }
-    return v
 }
 
 @cfg(os="linux")
@@ -185,12 +185,10 @@ fn _openssl_handshake(ssl, fd, timeout_ms, is_server) {
         var rc = 0
         if is_server == 1 { rc = SSL_accept(ssl) }
         else { rc = SSL_connect(ssl) }
-        rc = _openssl_canon_i32(rc)
 
         if rc == 1 { return 0 }
 
         var err = SSL_get_error(ssl, rc)
-        err = _openssl_canon_i32(err)
         if err == _ssl_error_want_read() {
             var w = _openssl_wait_io(fd, rem_ms, 1)
             if w == 0 { return 0 - 60 } // ETIMEDOUT
@@ -246,7 +244,6 @@ fn _openssl_setup_ctx_client(fd, server_name, opts) {
         return {"ok": 0, "err": "tls: SSL_new failed"}
     }
     var rc_fd = SSL_set_fd(ssl, fd)
-    rc_fd = _openssl_canon_i32(rc_fd)
     if rc_fd != 1 {
         SSL_free(ssl)
         SSL_CTX_free(ctx)
@@ -320,7 +317,6 @@ fn _openssl_setup_ctx_server_from_pkcs12(fd, pkcs12_bytes, passphrase, opts) {
     ptr_set(cert_ptr, 0)
     ptr_set(ca_ptr, 0)
     var prc = PKCS12_parse(p12, passphrase, pkey_ptr, cert_ptr, ca_ptr)
-    prc = _openssl_canon_i32(prc)
     PKCS12_free(p12)
     if prc != 1 {
         free(pkey_ptr); free(cert_ptr); free(ca_ptr)
@@ -354,21 +350,21 @@ fn _openssl_setup_ctx_server_from_pkcs12(fd, pkcs12_bytes, passphrase, opts) {
     }
 
     // Load identity into the ctx.
-    if _openssl_canon_i32(SSL_CTX_use_certificate(ctx, cert)) != 1 {
+    if SSL_CTX_use_certificate(ctx, cert) != 1 {
         SSL_CTX_free(ctx)
         EVP_PKEY_free(pkey)
         X509_free(cert)
         tcp.close(fd)
         return {"ok": 0, "err": "tls: SSL_CTX_use_certificate failed"}
     }
-    if _openssl_canon_i32(SSL_CTX_use_PrivateKey(ctx, pkey)) != 1 {
+    if SSL_CTX_use_PrivateKey(ctx, pkey) != 1 {
         SSL_CTX_free(ctx)
         EVP_PKEY_free(pkey)
         X509_free(cert)
         tcp.close(fd)
         return {"ok": 0, "err": "tls: SSL_CTX_use_PrivateKey failed"}
     }
-    if _openssl_canon_i32(SSL_CTX_check_private_key(ctx)) != 1 {
+    if SSL_CTX_check_private_key(ctx) != 1 {
         SSL_CTX_free(ctx)
         EVP_PKEY_free(pkey)
         X509_free(cert)
@@ -386,7 +382,7 @@ fn _openssl_setup_ctx_server_from_pkcs12(fd, pkcs12_bytes, passphrase, opts) {
         tcp.close(fd)
         return {"ok": 0, "err": "tls: SSL_new failed"}
     }
-    if _openssl_canon_i32(SSL_set_fd(ssl, fd)) != 1 {
+    if SSL_set_fd(ssl, fd) != 1 {
         SSL_free(ssl)
         SSL_CTX_free(ctx)
         tcp.close(fd)
@@ -426,11 +422,9 @@ fn read_into(conn, buf, cap, timeout_ms) {
     var rem_ms = timeout_ms
     while true {
         var n = SSL_read(ssl, buf, cap)
-        n = _openssl_canon_i32(n)
         if n > 0 { return n }
         if n == 0 { return 0 }
         var err = SSL_get_error(ssl, n)
-        err = _openssl_canon_i32(err)
         if err == _ssl_error_want_read() {
             var w = _openssl_wait_io(fd, rem_ms, 1)
             if w == 0 { return 0 - 60 }
@@ -469,13 +463,11 @@ fn write_from(conn, ptr0, len, timeout_ms) {
     var off = 0
     while off < len {
         var n = SSL_write(ssl, ptr0 + off, len - off)
-        n = _openssl_canon_i32(n)
         if n > 0 {
             off = off + n
             continue
         }
         var err = SSL_get_error(ssl, n)
-        err = _openssl_canon_i32(err)
         if err == _ssl_error_want_read() {
             var w = _openssl_wait_io(fd, rem_ms, 1)
             if w == 0 { return 0 - 60 }
@@ -503,7 +495,7 @@ fn close(conn) {
     var ctx = conn["ctx"]
     var fd = conn["fd"]
     if ssl != 0 {
-        _openssl_canon_i32(SSL_shutdown(ssl))
+        SSL_shutdown(ssl)
         SSL_free(ssl)
     }
     if ctx != 0 { SSL_CTX_free(ctx) }
@@ -519,7 +511,7 @@ fn peer_cert_sha256_hex(conn) {
     var cert = SSL_get1_peer_certificate(ssl)
     if cert == 0 { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: no leaf cert"} }
 
-    var der_len = _openssl_canon_i32(i2d_X509(cert, 0))
+    var der_len = i2d_X509(cert, 0)
     if der_len <= 0 {
         X509_free(cert)
         return {"ok": 0, "err": "tls.peer_cert_sha256_hex: i2d_X509 len failed"}
@@ -541,7 +533,7 @@ fn peer_cert_sha256_hex(conn) {
         return {"ok": 0, "err": "tls.peer_cert_sha256_hex: alloc ptr failed"}
     }
     ptr_set(pp, dst)
-    var wrote = _openssl_canon_i32(i2d_X509(cert, pp))
+    var wrote = i2d_X509(cert, pp)
     free(pp)
     X509_free(cert)
     if wrote != der_len {

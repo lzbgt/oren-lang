@@ -67,6 +67,40 @@ fn _x64_collect_ffi_dll_attrs(ctx, st, nm) {
     return nil
 }
 
+fn _x64_collect_ffi_ret_attrs(ctx, st, nm) {
+    if ctx == nil || st == nil { return nil }
+    var attrs = st["attrs"]
+    if attrs == nil { return nil }
+
+    if ctx["ffi_ret_i32"] == nil { ctx["ffi_ret_i32"] = {} }
+
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a == nil || a["type"] != "Attr" { i = i + 1; continue }
+        if !_x64_str_eq_bytes(a["name"], "ffi.ret") { i = i + 1; continue }
+
+        var args = a["args"]
+        if args == nil || oren_list_len(args) != 1 || args[0] == nil {
+            err(ctx, "x64 native v0: @" + "ffi.ret" + " on ffi " + nm + " must have exactly 1 string arg")
+            return nil
+        }
+        var val = _x64_lit_string(args[0]["value"])
+        if val == nil || val == "" {
+            err(ctx, "x64 native v0: @" + "ffi.ret" + " on ffi " + nm + " must be a string literal")
+            return nil
+        }
+        if _x64_str_eq_bytes(val, "i32") {
+            ctx["ffi_ret_i32"][nm] = true
+        } else {
+            err(ctx, "x64 native v0: @" + "ffi.ret" + " on ffi " + nm + " currently supports only \"i32\" (got \"" + val + "\")")
+            return nil
+        }
+        i = i + 1
+    }
+    return nil
+}
+
 fn _x64_collect_ffi_decls_from_stmt_list(ctx, stmts, role) {
     if ctx == nil { return nil }
     if stmts == nil { return nil }
@@ -111,6 +145,7 @@ fn _x64_collect_ffi_decls_from_stmt_list(ctx, stmts, role) {
         declared[nm] = true // reserve the name so globals can't shadow it
         oren_list_push(import_list, nm)
         _x64_collect_ffi_dll_attrs(ctx, st, nm)
+        _x64_collect_ffi_ret_attrs(ctx, st, nm)
         i = i + 1
     }
     return true

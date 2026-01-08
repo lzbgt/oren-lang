@@ -152,6 +152,7 @@ fn native_ns_resolve(ctx, exp) {
 fn insn_ret() { return core.insn_ret() }
 fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
 fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
+fn insn_sxtw(rd, rn) { return core.insn_sxtw(rd, rn) }
 fn insn_movn(rd, imm) { return core.insn_movn(rd, imm) }
 fn insn_svc(imm) { return core.insn_svc(imm) }
 fn insn_add_sp(imm) { return core.insn_add_sp(imm) }

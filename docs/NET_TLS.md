@@ -168,9 +168,9 @@ As of **2026-01-08 (rolling)**, `std:net/tls` has a Linux provider implemented i
 Implementation notes (Linux):
 
 - **SIGPIPE is ignored** (`signal(SIGPIPE, SIG_IGN)`) so failed socket writes return `-EPIPE` instead of killing the process.
-- **FFI `int` return canonicalization is required** on AArch64 (and is applied in the provider):
-  - OpenSSL returns many values as `int` (signed 32-bit). If the caller reads the 64-bit return register without sign-extension, `-1` becomes `4294967295`, breaking error handling.
-  - The provider canonicalizes OpenSSL `int` results before comparisons and errno mapping.
+- **FFI `int` return lowering is explicit** (compiler-level):
+  - Many OpenSSL APIs return `int` (signed 32-bit). Native ABIs do not require the upper 32 bits of the return register to be sign-extended.
+  - Oren uses 64-bit value carriers, so the `ffi` declaration must specify the ABI return width, e.g. `@ffi.ret("i32")`, and the native backend sign-extends the return after the call.
 - **SNI is currently not wired** on Linux:
   - `SSL_set_tlsext_host_name` is a macro in OpenSSL (not a linkable symbol).
   - Implement SNI later via `SSL_ctrl(...)` once we vendor/lock down the OpenSSL headers/constants.

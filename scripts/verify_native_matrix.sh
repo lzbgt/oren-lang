@@ -33,6 +33,7 @@ WIN_FFI_MSVCRT_ATTR_SRC="tests/native/ffi_windows_msvcrt_attr_dll.oren"
 WIN_DNS_DEFAULT_RESOLVER_SMOKE="tests/fixtures/windows_dns_default_resolver_smoke.oren"
 LINUX_FFI_PANIC_SRC="tests/native/ffi_linux_unresolved_panics.oren"
 LINUX_FFI_OK_SRC="tests/native/ffi_linux_strlen_ok.oren"
+LINUX_FFI_I32_SRC="tests/native/ffi_linux_ret_i32_signext.oren"
 
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
@@ -580,12 +581,16 @@ if has_target arm64-linux; then
   build_native_bin_src "./oren_stage2" "arm64-linux" "$LINUX_FFI_PANIC_SRC" "build/tmp/ffi_panic_stage2_arm64_linux"
   build_native_bin_src "./oren" "arm64-linux" "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_stage1_arm64_linux"
   build_native_bin_src "./oren_stage2" "arm64-linux" "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_stage2_arm64_linux"
+  build_native_bin_src "./oren" "arm64-linux" "$LINUX_FFI_I32_SRC" "build/tmp/ffi_i32_stage1_arm64_linux"
+  build_native_bin_src "./oren_stage2" "arm64-linux" "$LINUX_FFI_I32_SRC" "build/tmp/ffi_i32_stage2_arm64_linux"
   run_in_linux_container "build/tmp/qi_stage1_arm64_linux"
   run_in_linux_container "build/tmp/qi_stage2_arm64_linux"
   run_in_linux_container_expect_fail_contains "build/tmp/ffi_panic_stage1_arm64_linux" "ffi unresolved:" "oren_panic"
   run_in_linux_container_expect_fail_contains "build/tmp/ffi_panic_stage2_arm64_linux" "ffi unresolved:" "oren_panic"
   run_in_linux_container "build/tmp/ffi_ok_stage1_arm64_linux"
   run_in_linux_container "build/tmp/ffi_ok_stage2_arm64_linux"
+  run_in_linux_container "build/tmp/ffi_i32_stage1_arm64_linux"
+  run_in_linux_container "build/tmp/ffi_i32_stage2_arm64_linux"
   log "OK: linux/arm64 container"
 fi
 
@@ -646,6 +651,8 @@ if has_target x64-wsl; then
   build_native_bin_src "./oren_stage2" "x64-linux" "$LINUX_FFI_PANIC_SRC" "build/tmp/ffi_panic_stage2_x64_linux"
   build_native_bin_src "./oren" "x64-linux" "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_stage1_x64_linux"
   build_native_bin_src "./oren_stage2" "x64-linux" "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_stage2_x64_linux"
+  build_native_bin_src "./oren" "x64-linux" "$LINUX_FFI_I32_SRC" "build/tmp/ffi_i32_stage1_x64_linux"
+  build_native_bin_src "./oren_stage2" "x64-linux" "$LINUX_FFI_I32_SRC" "build/tmp/ffi_i32_stage2_x64_linux"
 
   remote_upload "build/tmp/qi_stage1_x64_linux" "qi_stage1_x64_linux"
   remote_upload "build/tmp/qi_stage2_x64_linux" "qi_stage2_x64_linux"
@@ -653,6 +660,8 @@ if has_target x64-wsl; then
   remote_upload "build/tmp/ffi_panic_stage2_x64_linux" "ffi_panic_stage2_x64_linux"
   remote_upload "build/tmp/ffi_ok_stage1_x64_linux" "ffi_ok_stage1_x64_linux"
   remote_upload "build/tmp/ffi_ok_stage2_x64_linux" "ffi_ok_stage2_x64_linux"
+  remote_upload "build/tmp/ffi_i32_stage1_x64_linux" "ffi_i32_stage1_x64_linux"
+  remote_upload "build/tmp/ffi_i32_stage2_x64_linux" "ffi_i32_stage2_x64_linux"
 
   log "-- run: WSL2 (x64-linux) --"
   remote_run_wsl "qi_stage1_x64_linux"
@@ -661,6 +670,8 @@ if has_target x64-wsl; then
   remote_run_wsl_expect_fail_contains "ffi_panic_stage2_x64_linux" "ffi unresolved:" "oren_panic"
   remote_run_wsl "ffi_ok_stage1_x64_linux"
   remote_run_wsl "ffi_ok_stage2_x64_linux"
+  remote_run_wsl "ffi_i32_stage1_x64_linux"
+  remote_run_wsl "ffi_i32_stage2_x64_linux"
   log "OK: remote WSL2 x64"
 fi
 

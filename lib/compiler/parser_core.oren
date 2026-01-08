@@ -118,6 +118,9 @@ fn new_parser(l) {
             // - `@ffi.link("libc.so.6") ffi strlen` (portable; matches `--link` behavior)
             "ffi.dll",
             "ffi.link",
+            // Native backend FFI metadata: specify the ABI-level return type for correct lowering.
+            // Example: `@ffi.ret("i32") ffi atoi(s: Str) -> I64` (Oren type can be wider than ABI).
+            "ffi.ret",
             // Compiler/runtime internal: pin a function as a DCE root (kept even if unreachable).
             // Used for Tier‑1 native runtime helpers invoked via codegen fixups/entry stubs.
             "oren.keep",

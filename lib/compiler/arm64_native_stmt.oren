@@ -59,6 +59,61 @@ fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, va
 fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) }
 fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
 
+fn _arm64_str_eq_bytes(a, b) {
+    // Stable string equality for compiler passes.
+    // Avoid depending on runtime `==` semantics (stage1 C runtime vs stage2 native runtime).
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _arm64_lit_string(v) {
+    if v == nil { return nil }
+    if v["type"] != "String" { return nil }
+    return v["value"]
+}
+
+fn _arm64_collect_ffi_ret_attrs(ctx, st, nm) {
+    if ctx == nil || st == nil || nm == nil || nm == "" { return nil }
+    var attrs = st["attrs"]
+    if attrs == nil { return nil }
+    if ctx["ffi_ret_i32"] == nil { ctx["ffi_ret_i32"] = {} }
+
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a == nil || a["type"] != "Attr" { i = i + 1; continue }
+        if !_arm64_str_eq_bytes(a["name"], "ffi.ret") { i = i + 1; continue }
+
+        var args = a["args"]
+        if args == nil || oren_list_len(args) != 1 || args[0] == nil {
+            native_error(ctx, st["token"], "arm64 native v0: @" + "ffi.ret" + " on ffi " + nm + " must have exactly 1 string arg")
+            return nil
+        }
+        var val = _arm64_lit_string(args[0]["value"])
+        if val == nil || val == "" {
+            native_error(ctx, st["token"], "arm64 native v0: @" + "ffi.ret" + " on ffi " + nm + " must be a string literal")
+            return nil
+        }
+        if _arm64_str_eq_bytes(val, "i32") {
+            ctx["ffi_ret_i32"][nm] = true
+        } else {
+            native_error(ctx, st["token"], "arm64 native v0: @" + "ffi.ret" + " on ffi " + nm + " currently supports only \"i32\" (got \"" + val + "\")")
+            return nil
+        }
+        i = i + 1
+    }
+    return nil
+}
+
 fn native_emit_gc_safepoint_throttled(ctx, loop_base_stack, tick_mask) {
     // PERF:
     // Calling `oren_gc_safepoint()` on every loop iteration dominates lexer/parser loops.
@@ -492,6 +547,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
         var name = stmt["name"]["value"]
         ctx["imports"][name] = true
         oren_list_push(ctx["import_list"], name)
+        _arm64_collect_ffi_ret_attrs(ctx, stmt, name)
         return nil
     }
     

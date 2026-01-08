@@ -1,0 +1,18 @@
+// Linux native backend regression: `ffi` i32 returns must be sign-extended to i64.
+//
+// Without sign-extension, negative C `int` returns can show up as large positives:
+//   -1 => 0x00000000ffffffff == 4294967295
+//
+// This fixture is executed on:
+// - arm64-linux (docker) and x64-linux (WSL2) via `scripts/verify_native_matrix.sh`.
+
+@cfg(os="linux")
+@ffi.link("libc.so.6")
+@ffi.ret("i32")
+ffi atoi
+
+var v = atoi("-1")
+if v != -1 { exit(1) }
+var v2 = atoi("-2147483648")
+if v2 != -2147483648 { exit(1) }
+exit(0)

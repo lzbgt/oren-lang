@@ -809,6 +809,12 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         var call_pos2 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_call_rel32(0))
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos2, "name": nm})
+        // ABI correctness: some `ffi` symbols return a C `int` (i32) in EAX, and the upper 32 bits
+        // of RAX are not required to be sign-extended by the callee. Oren treats values as i64,
+        // so explicitly sign-extend when the `ffi` declaration says the ABI return is i32.
+        if is_import == true && ctx != nil && ctx["ffi_ret_i32"] != nil && ctx["ffi_ret_i32"][nm] != nil {
+            bytes_extend(ctx["code"], insn_cdqe()) // RAX = sign_extend_i32(EAX)
+        }
     } else {
         // Should be unreachable: indirect calls return in the branch above.
         err(ctx, "x64 native v0: internal: fell through to non-direct call tail")
