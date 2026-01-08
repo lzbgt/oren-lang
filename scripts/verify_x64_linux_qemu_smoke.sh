@@ -57,6 +57,12 @@ build_one() {
     tail -n 200 "$logf" >&2 || true
     return 1
   fi
+  # Fail fast on known x86_64 backend hazards that may still exit 0 in some rolling states.
+  if grep -Eq 'x64 native v0: missing ABI arg reg|x64 native v0: missing ABI arg regs' "$logf"; then
+    echo "--- build produced x64 ABI arg-reg warning (treat as failure) ---" >&2
+    tail -n 200 "$logf" >&2 || true
+    return 1
+  fi
 }
 
 run_one() {

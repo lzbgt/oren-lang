@@ -27,6 +27,7 @@ need_bin make
 need_bin python3
 
 mkdir -p build/tmp
+mkdir -p build/logs
 
 QI_SRC="tests/native/test_quick_integration_native.oren"
 PRINT_SRC="tests/native/print.oren"
@@ -81,13 +82,27 @@ build_one() {
   shift 4
 
   echo "== build: $compiler -> $platform ==" >&2
+  local ccname
+  ccname="$(basename "$compiler")"
+  local bname
+  bname="$(basename "$src" .oren)"
+  local logf="build/logs/x64_compile_only_${ccname}_${platform}_${bname}.log"
   set +e
-  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$src" --backend native --platform "$platform" --no-cache --no-debug "$@" -o "$out"
+  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$src" --backend native --platform "$platform" --no-cache --no-debug "$@" -o "$out" >"$logf" 2>&1
   local rc=$?
   set -e
   if [[ "$rc" -ne 0 ]]; then
     echo "ERROR: build failed or timed out: compiler=$compiler platform=$platform timeout=${BUILD_TIMEOUT_SECS}s" >&2
+    tail -n 120 "$logf" >&2 || true
+    echo "log: $logf" >&2
     return "$rc"
+  fi
+  # Fail fast on known x86_64 backend hazards that may still exit 0 in some rolling states.
+  if grep -Eq 'x64 native v0: missing ABI arg reg|x64 native v0: missing ABI arg regs' "$logf"; then
+    echo "ERROR: compiler emitted x64 ABI arg-reg warning (treat as failure)" >&2
+    tail -n 120 "$logf" >&2 || true
+    echo "log: $logf" >&2
+    return 2
   fi
 }
 
