@@ -45,7 +45,7 @@ This is intentionally minimal so we can gate correctness across Tier‑1 first.
     - or rely on `dns.default_resolver` (env `OREN_DNS_SERVER`, else system DNS on Windows, else `/etc/resolv.conf` on POSIX)
 - URL: `wss://<host>[:port][/path]`
   - TLS provider availability is OS-dependent; see `docs/NET_TLS.md`
-  - loopback fixtures rely on `opts["tls"]["insecure_skip_verify"]=1` + `opts["tls"]["pin_cert_sha256_hex"]="..."` for deterministic offline behavior
+  - loopback fixtures rely on `opts["tls"]["insecure_skip_verify"]=1` + `opts["tls"]["pin_cert_sha256_hex"]="..."` for deterministic offline behavior (pin enforced by `std:net/tls`)
 - Frames:
   - **text frames only** (opcode=1)
   - no fragmentation support

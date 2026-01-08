@@ -71,7 +71,7 @@ Proposed functions:
   - Intended for **offline loopback fixtures** only; callers should pin the peer cert (see §3).
 - `opts["server_name"]`: override SNI/server name when dialing by IP (used by loopback fixtures and proxies)
 - `opts["pin_cert_sha256_hex"]`: optional pinned leaf certificate hash (SHA-256 of DER; hex string)
-  - Implemented today by higher layers (`std:net/http` / `std:net/ws`) by calling `tls.peer_cert_sha256_hex` post-handshake.
+  - Enforced by `tls.wrap_client` post-handshake (so higher layers don’t duplicate pinning logic).
 
 ### 2.3 IO
 

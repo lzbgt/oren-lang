@@ -25,6 +25,32 @@
 import tcp "std:net/tcp"
 import sha256 "std:crypto/sha256"
 
+fn _pin_peer_cert_if_requested(conn, opts) {
+    // Centralized pinning hook for deterministic offline fixtures.
+    //
+    // If opts contains:
+    //   - opts["pin_cert_sha256_hex"] = "<hex>"
+    // then enforce that the peer leaf certificate hash matches.
+    //
+    // Returns {"ok":1} or {"ok":0,"err":string}.
+    if opts == nil || opts == 0 { return {"ok": 1} }
+    if oren_is_map(opts) != true { return {"ok": 1} }
+    var want_pin = oren_map_get_str(opts, "pin_cert_sha256_hex")
+    if want_pin == 0 { return {"ok": 1} }
+
+    var pr = peer_cert_sha256_hex(conn)
+    if oren_map_get_str(pr, "ok") != 1 {
+        return {"ok": 0, "err": "tls pin: " + oren_map_get_str(pr, "err")}
+    }
+    var got_pin = oren_map_get_str(pr, "v")
+    if got_pin == 0 || strcmp(got_pin, want_pin) != 0 {
+        if got_pin != 0 { free(got_pin) }
+        return {"ok": 0, "err": "tls pin mismatch"}
+    }
+    free(got_pin)
+    return {"ok": 1}
+}
+
 // --- Default stub (non-macOS, non-Linux) ---
 
 @cfg(not_os="macos,linux")
@@ -274,7 +300,13 @@ fn wrap_client(fd, server_name, timeout_ms, opts) {
         tcp.close(fd)
         return {"ok": 0, "err": "tls: handshake failed (errno=" + oren_int_to_string(0 - hs) + ")"}
     }
-    return {"ok": 1, "conn": {"impl": "linux_openssl", "fd": fd, "ctx": ctx, "ssl": ssl}}
+    var conn = {"impl": "linux_openssl", "fd": fd, "ctx": ctx, "ssl": ssl}
+    var pinr = _pin_peer_cert_if_requested(conn, opts)
+    if pinr["ok"] != 1 {
+        close(conn)
+        return {"ok": 0, "err": pinr["err"]}
+    }
+    return {"ok": 1, "conn": conn}
 }
 
 @cfg(os="linux")
@@ -1078,6 +1110,11 @@ fn wrap_client(fd, server_name, timeout_ms, opts) {
     if hs != 0 {
         close(conn)
         return {"ok": 0, "err": "tls: handshake failed (rc=" + oren_int_to_string(hs) + ")"}
+    }
+    var pinr = _pin_peer_cert_if_requested(conn, opts)
+    if pinr["ok"] != 1 {
+        close(conn)
+        return {"ok": 0, "err": pinr["err"]}
     }
     return {"ok": 1, "conn": conn}
 }

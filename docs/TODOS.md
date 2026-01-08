@@ -183,9 +183,10 @@ References:
 			             - Provider: `lib/std/net/tls.oren` (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
 			             - Regression: `./scripts/verify_native_net_matrix.sh --targets arm64-linux,x64-wsl` (stage1 + stage2)
 			             - Note: Linux SNI is deferred (OpenSSL `SSL_set_tlsext_host_name` is a macro; implement via `SSL_ctrl` once headers/constants are locked down).
-			           - Next:
-			             - implement Tier‑1 provider: Windows x64 Schannel / SSPI (plus `wss://` + `https://` fixtures)
-			             - integrate pinning/verification options directly into `std:net/tls` (move policy out of HTTP/WS call sites)
+		           - Next:
+		             - implement Tier‑1 provider: Windows x64 Schannel / SSPI (plus `wss://` + `https://` fixtures)
+		             - Done (2026-01-09): deterministic pinning is enforced by `std:net/tls.wrap_client` when `opts["pin_cert_sha256_hex"]` is provided (so HTTP/WS do not duplicate pinning logic).
+		             - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider) and add ALPN wiring for HTTP/2.
 	     - x64 native backend correctness:
 	       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
 	         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)

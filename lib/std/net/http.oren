@@ -1,12 +1,13 @@
 // HTTP stdlib (native backend, rolling).
 //
 // Current scope (rolling, syscall-first):
-// - HTTP/1.1 over plain TCP (no TLS yet)
+// - HTTP/1.1 over TCP
 // - IPv4 literal URLs (no DNS needed)
 // - Hostname URLs via DNS A lookup:
 //   - either pass an explicit resolver config (`http.get_text_resolver`)
 //   - or rely on `dns.default_resolver` (env `OREN_DNS_SERVER`, else `/etc/resolv.conf` on POSIX)
 // - Content-Length and Transfer-Encoding: chunked bodies
+// - https:// via `std:net/tls` when a TLS provider exists for the target OS (see docs/NET_TLS.md)
 //
 // The goal is to provide a stable module path for native Oren libraries to build on
 // while we iterate toward a full production NET stack (HTTP/2 + WebSocket + TLS + DNS).
@@ -84,7 +85,7 @@ fn _starts_with(s, prefix) {
 fn _parse_http_url(url) {
     // Supported:
     //   http://<host>[:port][/path]
-    //   https://<host>[:port][/path]  (parsed, but TLS is not implemented yet)
+    //   https://<host>[:port][/path]  (TLS provider availability is OS-dependent; see docs/NET_TLS.md)
     //
     // Where <host> can be an IPv4 literal or a hostname (resolved separately).
     //
@@ -491,26 +492,8 @@ fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
             return {"ok": 0, "err": "http.get_response: tls.wrap_client returned nil conn"}
         }
 
-        // Optional deterministic pinning (useful for loopback fixtures).
-        if tls_opts != 0 && oren_is_map(tls_opts) == true {
-                var want_pin = oren_map_get_str(tls_opts, "pin_cert_sha256_hex")
-            if want_pin != 0 {
-                var pr = tls.peer_cert_sha256_hex(tls_conn)
-                if oren_map_get_str(pr, "ok") != 1 {
-                    tls.close(tls_conn)
-                    free(host)
-                    free(path)
-                    return {"ok": 0, "err": "http.get_response: tls pin: " + oren_map_get_str(pr, "err")}
-                }
-                var got_pin = oren_map_get_str(pr, "v")
-                if got_pin == 0 || strcmp(got_pin, want_pin) != 0 {
-                    tls.close(tls_conn)
-                    free(host)
-                    free(path)
-                    return {"ok": 0, "err": "http.get_response: tls pin mismatch"}
-                }
-            }
-        }
+        // NOTE: deterministic pinning is enforced by `std:net/tls` itself when
+        // `tls_opts["pin_cert_sha256_hex"]` is provided (see docs/NET_TLS.md).
     }
 
     var req = _build_get_request(host, path)

@@ -63,21 +63,6 @@ fn _io_close(conn) {
     return 0
 }
 
-fn _tls_pin_if_requested(conn, tls_opts) {
-    if tls_opts == nil || tls_opts == 0 { return {"ok": 1} }
-    if oren_is_map(tls_opts) != true { return {"ok": 1} }
-    var want_pin = oren_map_get_str(tls_opts, "pin_cert_sha256_hex")
-    if want_pin == 0 { return {"ok": 1} }
-    var c = conn["conn"]
-    var pr = tls.peer_cert_sha256_hex(c)
-    if oren_map_get_str(pr, "ok") != 1 { return {"ok": 0, "err": "tls pin: " + oren_map_get_str(pr, "err")} }
-    var got_pin = oren_map_get_str(pr, "v")
-    if got_pin == 0 || strcmp(got_pin, want_pin) != 0 {
-        return {"ok": 0, "err": "tls pin mismatch"}
-    }
-    return {"ok": 1}
-}
-
 // Entropy note (v0.2):
 // - Protocol fields require OS entropy (RFC6455 client key + masking).
 // - We use `std:crypto/rand` (backed by `oren_getentropy`) instead of time-seeded xorshift.
@@ -107,7 +92,7 @@ fn _starts_with(s, prefix) {
 fn _parse_ws_url(url) {
     // Supported:
     //   ws://<host>[:port][/path]
-    //   wss://<host>[:port][/path]   (parsed, but TLS is not implemented yet)
+    //   wss://<host>[:port][/path]   (TLS provider availability is OS-dependent; see docs/NET_TLS.md)
     //
     // Where <host> can be an IPv4 literal or a hostname (resolved separately).
     //
@@ -545,14 +530,6 @@ fn connect_resolver_opts(url, timeout_ms, resolver, opts) {
             return {"ok": 0, "err": "ws.connect: tls.wrap_client returned nil conn"}
         }
         conn = _conn_tls(tls_conn)
-
-        var pinr = _tls_pin_if_requested(conn, tls_opts)
-        if oren_map_get_str(pinr, "ok") != 1 {
-            _io_close(conn)
-            free(host)
-            free(path)
-            return {"ok": 0, "err": "ws.connect: " + oren_map_get_str(pinr, "err")}
-        }
     }
 
     // Best-effort per-connection key (v0.1).
