@@ -158,6 +158,108 @@ fn _find_nameserver_ipv4_in_resolv_conf(s) {
     return 0
 }
 
+// --- Windows system resolver (IPv4) ---
+//
+// On Windows, `/etc/resolv.conf` does not exist. For hostname URLs we want a best-effort
+// default resolver without requiring `OREN_DNS_SERVER` to be set.
+//
+// Strategy (rolling):
+// - Query the configured IPv4 DNS server via `GetNetworkParams` (iphlpapi).
+// - Return the first IPv4 nameserver string (like "192.168.1.1") as a malloc'd cstr0.
+//
+// Notes:
+// - This keeps the rest of the DNS client deterministic: `dns.query_a` still speaks UDP to an explicit server.
+// - This avoids calling external tools (`ipconfig`) and avoids parsing localized text.
+
+@cfg(os="windows")
+@ffi.dll("iphlpapi.dll")
+ffi GetNetworkParams
+
+@cfg(os="windows")
+@abi
+struct WIN_IP_ADDR_STRING {
+    Next: *u8,
+    IpAddress: u8[16],
+    IpMask: u8[16],
+    Context: u32,
+}
+
+@cfg(os="windows")
+@abi
+struct WIN_FIXED_INFO {
+    HostName: u8[132],
+    DomainName: u8[132],
+    CurrentDnsServer: *u8,
+    DnsServerList: WIN_IP_ADDR_STRING,
+    NodeType: u32,
+    ScopeId: u8[260],
+    EnableRouting: u32,
+    EnableProxy: u32,
+    EnableDns: u32,
+}
+
+@cfg(os="windows")
+fn _win_dns_default_nameserver_ipv4() {
+    // Returns malloc'd IPv4 string or 0.
+    // ERROR_BUFFER_OVERFLOW = 111, NO_ERROR = 0.
+    var lenp = malloc(8)
+    if lenp == 0 { return 0 }
+    oren_ptr_set_u32_le(lenp, 0)
+
+    var rc = GetNetworkParams(0, lenp)
+    var need = oren_ptr_get_u32_le(lenp)
+    if rc != 111 && rc != 0 { free(lenp); return 0 }
+    if need <= 0 || need > 1048576 { free(lenp); return 0 } // 1 MiB sanity cap
+
+    var buf = malloc(need)
+    if buf == 0 { free(lenp); return 0 }
+    oren_ptr_set_u32_le(lenp, need)
+    rc = GetNetworkParams(buf, lenp)
+    free(lenp)
+    if rc != 0 { free(buf); return 0 }
+
+    // Extract FIXED_INFO.DnsServerList.IpAddress (char[16]) as cstr0.
+    // ABI layout lowering runs after module linking, so stdlib type names are prefixed.
+    var off_list = oren_abi_offsetof("STD_net_dns_WIN_FIXED_INFO", "DnsServerList")
+    var off_ip = oren_abi_offsetof("STD_net_dns_WIN_IP_ADDR_STRING", "IpAddress")
+    var p = buf + off_list + off_ip
+    // Copy out (tracked heap string) before freeing buf.
+    var out = oren_string_slice(p, 0, oren_string_len(p))
+    free(buf)
+    return out
+}
+
+@cfg(os="windows")
+fn default_resolver(timeout_ms) {
+    // Best-effort resolver selection for hostname URLs (Windows).
+    //
+    // Source order:
+    // 1) `OREN_DNS_SERVER` env var (value is an IPv4 string)
+    // 2) Windows system config via iphlpapi `GetNetworkParams` (first IPv4 DNS server)
+    //
+    // Returns:
+    // - {"ok":1, "resolver": <map>, "src": "env"|"windows"} on success
+    // - {"ok":0, "err": "..."} on failure
+    if timeout_ms == nil { timeout_ms = 2000 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+
+    var env_ip = oren_env("OREN_DNS_SERVER")
+    if env_ip != 0 {
+        var r = resolver(env_ip, 53, timeout_ms)
+        r["server_ip_owned"] = 1
+        return {"ok": 1, "resolver": r, "src": "env"}
+    }
+
+    var ip = _win_dns_default_nameserver_ipv4()
+    if ip == 0 {
+        return {"ok": 0, "err": "dns.default_resolver: missing OREN_DNS_SERVER and cannot read Windows system resolver"}
+    }
+    var r2 = resolver(ip, 53, timeout_ms)
+    r2["server_ip_owned"] = 1
+    return {"ok": 1, "resolver": r2, "src": "windows"}
+}
+
+@cfg(not_os="windows")
 fn default_resolver(timeout_ms) {
     // Best-effort resolver selection for hostname URLs.
     //

@@ -48,6 +48,11 @@ For broader native coverage:
 make test-native-all
 ```
 
+Note (rolling):
+
+- `tests/native/*.oren` includes a few **platform-specific** fixtures used by the Tier‑1 scripts (example: `ffi_windows_*`, `ffi_linux_*`).
+- `make test-native-all` skips those by filename prefix so it remains runnable on the current host OS.
+
 ## Cross-arch native verification (Tier‑1 matrix)
 
 When you need confidence that the **native backend** output works across the practical Tier‑1 matrix

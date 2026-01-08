@@ -149,7 +149,9 @@ References:
        - Done: TCP `TCP_NODELAY` exposed as `OREN_TCP_NODELAY` + `std:net/tcp.set_nodelay(fd, enable)`.
          - Regression: `tests/native/test_net_suite.oren` asserts `sys_setsockopt(level=IPPROTO_TCP, optname=TCP_NODELAY)` succeeds (covered by `./scripts/verify_native_net_matrix.sh`).
        - Done: DNS v0 loopback A-query client (`std:net/dns.query_a`) + best-effort default resolver selection on POSIX.
-         - Default resolver selection: `dns.default_resolver` reads `OREN_DNS_SERVER`, else parses `/etc/resolv.conf` (IPv4 only; no Windows resolver yet).
+        - Default resolver selection: `dns.default_resolver` reads `OREN_DNS_SERVER`, else:
+          - Windows: queries system DNS via iphlpapi `GetNetworkParams` (IPv4 only; first nameserver)
+          - POSIX: parses `/etc/resolv.conf` (IPv4 only; first `nameserver`)
          - HTTP hostname support: `http.get_text_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
          - Regression: `tests/native/test_dns_loopback.oren` (stage1 + stage2; all Tier‑1 via `./scripts/verify_native_net_matrix.sh`).
          - Regression: `tests/native/test_http_get_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).

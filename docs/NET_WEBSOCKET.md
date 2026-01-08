@@ -37,7 +37,7 @@ This is intentionally minimal so we can gate correctness across Tier‑1 first.
   - IPv4 literal hosts work without DNS
   - hostname hosts resolve via DNS A:
     - pass an explicit resolver config (`ws.connect_resolver`)
-    - or rely on `dns.default_resolver` (env `OREN_DNS_SERVER`, else `/etc/resolv.conf` on POSIX)
+    - or rely on `dns.default_resolver` (env `OREN_DNS_SERVER`, else system DNS on Windows, else `/etc/resolv.conf` on POSIX)
   - no TLS (`wss://`) yet
 - Frames:
   - **text frames only** (opcode=1)

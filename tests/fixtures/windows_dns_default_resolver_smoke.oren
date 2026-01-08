@@ -1,0 +1,37 @@
+// Fixture: Windows system DNS default resolver (no network).
+//
+// This is intentionally *not* part of `make test-native-all` because it is Windows-only.
+// It is used by Tier‑1 scripts to ensure hostname support can work without requiring
+// `OREN_DNS_SERVER` to be set manually.
+
+import dns "std:net/dns"
+
+var dr = dns.default_resolver(2000)
+if dr == nil || dr["ok"] != 1 {
+    print("dns_default_resolver_smoke: FAIL " + dr["err"])
+    exit(1)
+}
+
+var r = dr["resolver"]
+if r == nil {
+    print("dns_default_resolver_smoke: FAIL missing resolver map")
+    exit(2)
+}
+var ip = r["server_ip"]
+if ip == nil || oren_string_len(ip) < 7 {
+    print("dns_default_resolver_smoke: FAIL bad ip")
+    exit(3)
+}
+// Cheap shape check: must contain at least one dot.
+var has_dot = 0
+var i = 0
+while i < oren_string_len(ip) {
+    if (ptr_get_byte(ip + i) & 255) == 46 { has_dot = 1; break } // '.'
+    i = i + 1
+}
+if has_dot == 0 {
+    print("dns_default_resolver_smoke: FAIL no dot in ip")
+    exit(4)
+}
+exit(0)
+
