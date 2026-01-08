@@ -22,6 +22,107 @@ fn _build_parse_nonneg_dec_or_neg1(s) {
     return v
 }
 
+fn _build_str_eq_bytes(a, b) {
+    // Stable string equality for compiler passes.
+    // Avoid depending on runtime `==` semantics (stage1 C runtime vs stage2 native runtime).
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _build_lit_string(v) {
+    if v == nil { return nil }
+    if v["type"] != "String" { return nil }
+    return v["value"]
+}
+
+fn _build_collect_ffi_link_libs_from_ffi_stmt(st, out, seen) {
+    if st == nil || out == nil || seen == nil { return nil }
+    if st["type"] != "FFI" { return nil }
+    var attrs = st["attrs"]
+    if attrs == nil { return nil }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a == nil || a["type"] != "Attr" { i = i + 1; continue }
+        var nm = a["name"]
+        if nm == nil { i = i + 1; continue }
+        // `@ffi.link("...")` (portable) and `@ffi.dll("...")` (Windows shorthand) both map to `--link`.
+        if !_build_str_eq_bytes(nm, "ffi.link") && !_build_str_eq_bytes(nm, "ffi.dll") { i = i + 1; continue }
+        var args = a["args"]
+        if args == nil || oren_list_len(args) != 1 || args[0] == nil { i = i + 1; continue }
+        var val = _build_lit_string(args[0]["value"])
+        if val == nil || val == "" { i = i + 1; continue }
+        if seen[val] == nil {
+            seen[val] = true
+            oren_list_push(out, val)
+        }
+        i = i + 1
+    }
+    return nil
+}
+
+fn _build_collect_ffi_link_libs(linked) {
+    // Collect implicit native link deps declared on `ffi` statements.
+    //
+    // This keeps stdlib/platform bindings self-contained and is a prerequisite for production
+    // NET/TLS layers (HTTPS/WSS) without manual `--link` flags.
+    //
+    // Supported attrs (rolling):
+    // - `@ffi.link("...")` (portable; preferred)
+    // - `@ffi.dll("...")` (Windows x64 convenience; treated as `--link` too)
+    //
+    // Return: list<string> (unique, in first-seen order), or [].
+    var out = []
+    if linked == nil { return out }
+    var stmts = linked["statements"]
+    if stmts == nil { return out }
+    var seen = {}
+    var i = 0
+    while i < oren_list_len(stmts) {
+        _build_collect_ffi_link_libs_from_ffi_stmt(stmts[i], out, seen)
+        i = i + 1
+    }
+    return out
+}
+
+fn _build_merge_link_libs(user_link_libs, implicit_link_libs) {
+    // Preserve user ordering first, then add implicit deps (deduped).
+    var out = []
+    var seen = {}
+    if user_link_libs != nil {
+        var i = 0
+        while i < oren_list_len(user_link_libs) {
+            var s = user_link_libs[i]
+            if s != nil && s != "" && seen[s] == nil {
+                seen[s] = true
+                oren_list_push(out, s)
+            }
+            i = i + 1
+        }
+    }
+    if implicit_link_libs != nil {
+        var j = 0
+        while j < oren_list_len(implicit_link_libs) {
+            var s2 = implicit_link_libs[j]
+            if s2 != nil && s2 != "" && seen[s2] == nil {
+                seen[s2] = true
+                oren_list_push(out, s2)
+            }
+            j = j + 1
+        }
+    }
+    return out
+}
+
 fn compiler_main() {
     // Modern CLI parsing (click-style):
     // - supports `--opt=value` and interspersed options/args
@@ -1112,6 +1213,14 @@ fn compiler_main() {
             oren_gc_collect()
         }
         var export_names = []
+
+        // Allow `ffi` declarations to attach required dynamic libs (portable `@ffi.link`).
+        // This keeps stdlib/platform bindings self-contained and avoids requiring users/scripts
+        // to pass `--link` explicitly for common OS bindings.
+        var implicit_link_libs = _build_collect_ffi_link_libs(linked)
+        if implicit_link_libs != nil && oren_list_len(implicit_link_libs) != 0 {
+            link_libs = _build_merge_link_libs(link_libs, implicit_link_libs)
+        }
         
         if is_shared_lib {
             var header_path = default_output_path(out_path) + ".h"

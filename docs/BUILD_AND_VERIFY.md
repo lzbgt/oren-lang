@@ -291,6 +291,12 @@ fn main() {
 }
 ```
 
+Portable linking note (stdlib-style):
+
+- You can attach link dependencies directly to an `ffi` declaration:
+  - `@ffi.link("...")` (maps to native `--link ...`)
+  - `@ffi.dll("...")` (Windows-only convenience; prefer `@ffi.link` for cross-platform code)
+
 ### Compilation
 When you build this with `--backend native`, the compiler generates:
 1.  **Binding Info**: Bytecode in `__LINKEDIT` instructing the dynamic linker (`dyld`) to bind the symbol `_puts` to a Global Offset Table (GOT) entry.

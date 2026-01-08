@@ -206,6 +206,7 @@ Notes (rolling):
     - **macOS** supports binding against `libSystem` for `ffi` calls (see `docs/NATIVE_BACKEND.md`).
     - **Windows x64** supports `ffi` via lazy `LoadLibraryA`/`GetProcAddress` stubs.
       - `--link` adds DLLs to the resolver search list (see `docs/NATIVE_BACKEND.md`).
+      - `@ffi.link("name.dll")` can attach a DLL name/path directly to an `ffi` declaration (portable form).
       - `@ffi.dll("name.dll")` can also attach a DLL directly to an `ffi` declaration (useful for stdlib).
     - **Linux x64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/NATIVE_BACKEND.md`).
     - **Linux arm64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/NATIVE_BACKEND.md`).

@@ -183,6 +183,8 @@ References:
        - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
        - Done (2026-01-08): Windows native backend supports `@ffi.dll("name.dll")` to attach a DLL directly to an `ffi` declaration (avoids requiring `--link` for stdlib/platform bindings).
          - Regression: `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_dll.oren`.
+       - Done (2026-01-08): portable `@ffi.link("...")` attribute (maps to native `--link ...`) so stdlib/platform bindings can declare dynamic deps without Makefile/script flags.
+         - Regression: `tests/native/ffi_linux_strlen_ok.oren` now uses `@ffi.link("libc.so.6")` and the Tier‑1 matrix no longer passes `--link` explicitly.
        - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).
      - Conditional compilation for cross-platform stdlib (rolling):
        - Done: `@cfg(...)` (canonical `@oren.cfg`) filters declarations by target `--platform` (`os`/`arch`/`platform` selectors).

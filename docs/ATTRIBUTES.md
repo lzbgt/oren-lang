@@ -136,7 +136,29 @@ ffi GetTickCount
 ffi getpid
 ```
 
-### 3.3 FFI library attachment (`@ffi.dll(...)`) (Windows native backend)
+### 3.3 FFI link dependencies (`@ffi.link(...)`) (native backend)
+
+The native backend supports dynamic linking for FFI in a platform-specific way:
+
+- **macOS (Mach-O):** additional dylibs are loaded via `LC_LOAD_DYLIB`.
+- **Linux (ELF):** dynamic linking is enabled when at least one `--link` library exists; `ffi` is then resolved via a lazy `dlsym` resolver.
+- **Windows (PE):** `ffi` is resolved via lazy `LoadLibraryA` + `GetProcAddress`; `--link` supplies DLL search names/paths.
+
+For stdlib and portable libraries, it’s often undesirable to require every consumer to pass `--link`.
+To support this, an `ffi` declaration may attach an explicit link dependency:
+
+```oren
+@cfg(os="linux")
+@ffi.link("libc.so.6")
+ffi strlen
+```
+
+Notes:
+
+- The argument must be a single string literal (v0 determinism rule).
+- `@ffi.link("...")` is treated as if the user passed `--link ...` on the command line.
+
+### 3.4 FFI library attachment (`@ffi.dll(...)`) (Windows native backend)
 
 On Windows, `ffi` symbols are resolved lazily via `LoadLibraryA` + `GetProcAddress`.
 
@@ -162,6 +184,7 @@ Notes:
 
 - This attribute is currently consumed only by the **x64-windows native backend**.
 - The argument must be a single string literal (v0 determinism rule).
+  - On other native targets, prefer `@ffi.link("...")` for portability.
 
 ## 3.1 Compiler/runtime internal attributes (reserved)
 

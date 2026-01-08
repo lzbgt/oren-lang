@@ -578,8 +578,8 @@ if has_target arm64-linux; then
   build_native_bin "./oren_stage2" "arm64-linux" "build/tmp/qi_stage2_arm64_linux"
   build_native_bin_src "./oren" "arm64-linux" "$LINUX_FFI_PANIC_SRC" "build/tmp/ffi_panic_stage1_arm64_linux"
   build_native_bin_src "./oren_stage2" "arm64-linux" "$LINUX_FFI_PANIC_SRC" "build/tmp/ffi_panic_stage2_arm64_linux"
-  build_native_bin_src "./oren" "arm64-linux" "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_stage1_arm64_linux" --link libc.so.6
-  build_native_bin_src "./oren_stage2" "arm64-linux" "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_stage2_arm64_linux" --link libc.so.6
+  build_native_bin_src "./oren" "arm64-linux" "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_stage1_arm64_linux"
+  build_native_bin_src "./oren_stage2" "arm64-linux" "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_stage2_arm64_linux"
   run_in_linux_container "build/tmp/qi_stage1_arm64_linux"
   run_in_linux_container "build/tmp/qi_stage2_arm64_linux"
   run_in_linux_container_expect_fail_contains "build/tmp/ffi_panic_stage1_arm64_linux" "ffi unresolved:" "oren_panic"
@@ -644,8 +644,8 @@ if has_target x64-wsl; then
   build_native_bin "./oren_stage2" "x64-linux" "build/tmp/qi_stage2_x64_linux"
   build_native_bin_src "./oren" "x64-linux" "$LINUX_FFI_PANIC_SRC" "build/tmp/ffi_panic_stage1_x64_linux"
   build_native_bin_src "./oren_stage2" "x64-linux" "$LINUX_FFI_PANIC_SRC" "build/tmp/ffi_panic_stage2_x64_linux"
-  build_native_bin_src "./oren" "x64-linux" "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_stage1_x64_linux" --link libc.so.6
-  build_native_bin_src "./oren_stage2" "x64-linux" "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_stage2_x64_linux" --link libc.so.6
+  build_native_bin_src "./oren" "x64-linux" "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_stage1_x64_linux"
+  build_native_bin_src "./oren_stage2" "x64-linux" "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_stage2_x64_linux"
 
   remote_upload "build/tmp/qi_stage1_x64_linux" "qi_stage1_x64_linux"
   remote_upload "build/tmp/qi_stage2_x64_linux" "qi_stage2_x64_linux"
