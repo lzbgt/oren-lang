@@ -136,6 +136,8 @@ Rationale:
     - SecureTransport has two distinct IO APIs:
       - IO callbacks (`SSLSetIOFuncs`) use 3-arg `SSLReadFunc`/`SSLWriteFunc` signatures
       - application IO (`SSLRead`/`SSLWrite`) use 4 args (`data`, `dataLength`, `processed*`)
+    - SecureTransport APIs return `OSStatus` (signed 32-bit). `ffi` declarations that return `OSStatus`
+      are annotated with `@ffi.ret("i32")` so the native backend sign-extends return values correctly.
 - Regression gate:
   - `tests/native/test_tls_loopback.oren` is integrated into `scripts/verify_native_net_matrix.sh` (stage1 + stage2; local loopback).
 - Higher-level integrations (rolling):

@@ -195,9 +195,9 @@ References:
 	         - Stdlib Linux OpenSSL TLS provider now uses `@ffi.ret("i32")` for OpenSSL APIs and does not rely on per-call-site canonicalization.
 	         - Regression (Linux): `tests/native/ffi_linux_ret_i32_signext.oren` is executed by `scripts/verify_native_matrix.sh` (arm64-linux + x64-wsl; stage1 + stage2).
 	         - Regression (Windows): `tests/native/ffi_windows_ret_i32_signext.oren` is executed by `scripts/verify_native_matrix.sh --targets x64-win` (stage1 + stage2).
-	         - Next (FFI type surface):
-	           - add `@ffi.ret("u32")`, `@ffi.ret("void")`, and a narrow set of pointer/usize return kinds for syscall-first stdlib bindings.
-	           - migrate remaining per-module i32 canonicalizers (example: macOS SecureTransport `OSStatus`) to `@ffi.ret("i32")` so correctness lives in the backend, not in each provider.
+		         - Next (FFI type surface):
+		           - add `@ffi.ret("u32")`, `@ffi.ret("void")`, and a narrow set of pointer/usize return kinds for syscall-first stdlib bindings.
+		           - Done (2026-01-08): migrated macOS SecureTransport `OSStatus` returns to `@ffi.ret("i32")` (removed per-call `_osstatus_canon_i32` canonicalization in `std:net/tls`).
 	     - Native runtime GC + literals:
        - Done (2026-01-08): embedded `cstr0` string literals are treated as constant-section data and are **not** tracked as GC alloc nodes.
          - Runtime builds a dedicated literal membership set at startup (`oren_init_static_cstr0_table`) and recognizes literals via `native_is_string_ptr` / `oren_is_string`.
@@ -209,8 +209,9 @@ References:
        - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
        - Done (2026-01-08): Windows native backend supports `@ffi.dll("name.dll")` to attach a DLL directly to an `ffi` declaration (avoids requiring `--link` for stdlib/platform bindings).
          - Regression: `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_dll.oren`.
-       - Done (2026-01-08): portable `@ffi.link("...")` attribute (maps to native `--link ...`) so stdlib/platform bindings can declare dynamic deps without Makefile/script flags.
-         - Regression: `tests/native/ffi_linux_strlen_ok.oren` now uses `@ffi.link("libc.so.6")` and the Tier‑1 matrix no longer passes `--link` explicitly.
+	       - Done (2026-01-08): portable `@ffi.link("...")` attribute (maps to native `--link ...`) so stdlib/platform bindings can declare dynamic deps without Makefile/script flags.
+	         - Regression: `tests/native/ffi_linux_strlen_ok.oren` now uses `@ffi.link("libc.so.6")` and the Tier‑1 matrix no longer passes `--link` explicitly.
+	         - Regression (Windows): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_link.oren`.
        - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).
 	     - Conditional compilation for cross-platform stdlib (rolling):
        - Done: `@cfg(...)` (canonical `@oren.cfg`) filters declarations by target `--platform` (`os`/`arch`/`platform` selectors).

@@ -1,0 +1,16 @@
+// Windows-only native FFI smoke: per-symbol DLL via `@ffi.link("...")` (portable form).
+//
+// This verifies that:
+// - `@ffi.link("...")` is treated as if the user passed `--link ...`,
+// - Windows x64 FFI resolver searches those DLLs without requiring explicit `--link`,
+// - a program can call a symbol from a non-kernel32 DLL via this portable attribute.
+//
+// It is compiled+run only for x64-windows via `scripts/verify_native_matrix.sh`.
+
+@ffi.link("msvcrt.dll")
+ffi puts
+
+var rc = puts("hello from msvcrt (via ffi.link)")
+if rc < 0 { exit(1) }
+exit(0)
+

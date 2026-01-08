@@ -550,28 +550,39 @@ fn peer_cert_sha256_hex(conn) {
 @ffi.link("/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation")
 ffi SSLCreateContext
 @cfg(os="macos")
+@ffi.ret("i32")
 ffi SSLSetIOFuncs
 @cfg(os="macos")
+@ffi.ret("i32")
 ffi SSLSetConnection
 @cfg(os="macos")
+@ffi.ret("i32")
 ffi SSLSetPeerDomainName
 @cfg(os="macos")
+@ffi.ret("i32")
 ffi SSLHandshake
 @cfg(os="macos")
+@ffi.ret("i32")
 ffi SSLRead
 @cfg(os="macos")
+@ffi.ret("i32")
 ffi SSLWrite
 @cfg(os="macos")
+@ffi.ret("i32")
 ffi SSLClose
 @cfg(os="macos")
+@ffi.ret("i32")
 ffi SSLSetCertificate
 @cfg(os="macos")
+@ffi.ret("i32")
 ffi SSLSetEnableCertVerify
 
 @cfg(os="macos")
+@ffi.ret("i32")
 ffi SecPKCS12Import
 
 @cfg(os="macos")
+@ffi.ret("i32")
 ffi SSLCopyPeerTrust
 @cfg(os="macos")
 ffi SecTrustGetCertificateAtIndex
@@ -611,18 +622,6 @@ fn _errSSLClosedGraceful() { return 0 - 9805 }
 fn _errSSLClosedAbort() { return 0 - 9806 }
 
 @cfg(os="macos")
-fn _osstatus_canon_i32(v) {
-    // Security/SecureTransport return OSStatus (signed 32-bit).
-    //
-    // The Tier‑1 FFI return path uses the raw 64-bit register value. If the callee returns
-    // a negative OSStatus and it is not sign-extended, we observe a large positive number:
-    //   -9803 (errSSLWouldBlock) => 2^32 - 9803 == 4294957493
-    //
-    // Canonicalize to an i64 that represents a signed i32.
-    if v > 2147483647 { return v - 4294967296 }
-    return v
-}
-
 // SSLProtocolSide enum (SecureTransport.h): server=0, client=1.
 @cfg(os="macos")
 fn _kSSLServerSide() { return 0 }
@@ -887,7 +886,6 @@ fn _macos_import_pkcs12_identity(pkcs12_bytes, passphrase_cstr) {
     }
     ptr_set(out_items_ptr, 0)
     var rc = SecPKCS12Import(data, opts, out_items_ptr)
-    rc = _osstatus_canon_i32(rc)
     CFRelease(opts)
     CFRelease(pass_str)
     CFRelease(data)
@@ -935,7 +933,6 @@ fn _macos_handshake(ssl_ctx, st, timeout_ms) {
     var rem_ms = timeout_ms
     while true {
         var rc = SSLHandshake(ssl_ctx)
-        rc = _osstatus_canon_i32(rc)
         if rc == 0 { return 0 }
         if rc != _errSSLWouldBlock() {
             return rc
@@ -1022,7 +1019,6 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
     }
 
     var rc = SSLSetIOFuncs(ctx, read_cb, write_cb)
-    rc = _osstatus_canon_i32(rc)
     if rc != 0 {
         CFRelease(ctx)
         free(st)
@@ -1030,7 +1026,6 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
         return {"ok": 0, "err": "tls: SSLSetIOFuncs failed (rc=" + oren_int_to_string(rc) + ")"}
     }
     rc = SSLSetConnection(ctx, st)
-    rc = _osstatus_canon_i32(rc)
     if rc != 0 {
         CFRelease(ctx)
         free(st)
@@ -1043,7 +1038,6 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
             var sn_len = oren_string_len(server_name)
             if sn_len > 0 {
                 var rc2 = SSLSetPeerDomainName(ctx, server_name, sn_len)
-                rc2 = _osstatus_canon_i32(rc2)
                 if rc2 != 0 {
                     CFRelease(ctx)
                     free(st)
@@ -1062,7 +1056,6 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
         }
         if insecure == 1 {
             var rc3 = SSLSetEnableCertVerify(ctx, 0)
-            rc3 = _osstatus_canon_i32(rc3)
             if rc3 != 0 {
                 CFRelease(ctx)
                 free(st)
@@ -1121,7 +1114,6 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     }
 
     var rc = SSLSetCertificate(conn["ctx"], certs)
-    rc = _osstatus_canon_i32(rc)
     CFRelease(certs)
     if rc != 0 {
         close(conn)
@@ -1166,7 +1158,6 @@ fn read_into(conn, buf, cap, timeout_ms) {
         if n_ptr == 0 { return 0 - 12 } // ENOMEM
         ptr_set(n_ptr, 0)
         var rc = SSLRead(ctx, buf, cap, n_ptr)
-        rc = _osstatus_canon_i32(rc)
         var n = ptr_get(n_ptr)
         free(n_ptr)
 
@@ -1209,7 +1200,6 @@ fn write_from(conn, ptr0, len, timeout_ms) {
         if n_ptr == 0 { return 0 - 12 } // ENOMEM
         ptr_set(n_ptr, 0)
         var rc = SSLWrite(ctx, ptr0 + off, len - off, n_ptr)
-        rc = _osstatus_canon_i32(rc)
         var n = ptr_get(n_ptr)
         free(n_ptr)
         if rc == 0 {
@@ -1261,7 +1251,6 @@ fn peer_cert_sha256_hex(conn) {
     if trust_ptr == 0 { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: alloc failed"} }
     ptr_set(trust_ptr, 0)
     var rc = SSLCopyPeerTrust(ctx, trust_ptr)
-    rc = _osstatus_canon_i32(rc)
     if rc != 0 {
         free(trust_ptr)
         return {"ok": 0, "err": "tls.peer_cert_sha256_hex: SSLCopyPeerTrust failed (rc=" + oren_int_to_string(rc) + ")"}
