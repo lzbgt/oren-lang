@@ -1,0 +1,1025 @@
+// std/net/tls_windows_schannel (rolling)
+//
+// Windows TLS provider for std:net/tls using Schannel/SSPI.
+// This file is factored out of std:net/tls to keep provider code isolated.
+
+import tcp "std:net/tcp"
+import sha256 "std:crypto/sha256"
+
+// --- Windows provider (Schannel / SSPI) ---
+//
+// Provider goal (rolling v0):
+// - deterministic offline loopback fixtures (TLS/HTTPS/WSS) on Tier‑1 x64-windows
+// - timeout-bounded handshake and IO, layered on the existing `std:net/tcp` readiness model
+//
+// Implementation notes:
+// - We use SSPI Schannel with stream semantics (`ISC_REQ_STREAM` / `ASC_REQ_STREAM`).
+// - We request token buffers via `ISC_REQ_ALLOCATE_MEMORY` / `ASC_REQ_ALLOCATE_MEMORY` and free them with `FreeContextBuffer`.
+// - For deterministic fixtures we support `opts["insecure_skip_verify"]=1` by enabling manual cert validation in SCHANNEL_CRED.
+//
+// Constants are derived from the Windows SDK headers (validated on the Tier‑1 Win11 host via a tiny C probe).
+
+@cfg(os="windows")
+@ffi.dll("secur32.dll")
+@ffi.ret("i32")
+ffi {
+    AcquireCredentialsHandleA,
+    FreeCredentialsHandle,
+    InitializeSecurityContextA,
+    AcceptSecurityContext,
+    DeleteSecurityContext,
+    FreeContextBuffer,
+    QueryContextAttributesA,
+    EncryptMessage,
+    DecryptMessage
+}
+
+@cfg(os="windows")
+@ffi.dll("crypt32.dll")
+ffi { PFXImportCertStore, CertEnumCertificatesInStore }
+
+@cfg(os="windows")
+@ffi.ret("i32")
+@ffi.dll("crypt32.dll")
+ffi { CertCloseStore, CertFreeCertificateContext, CertGetCertificateContextProperty }
+
+@cfg(os="windows")
+fn _win_memzero(p, n) {
+    if p == 0 { return 0 }
+    var i = 0
+    while i < n {
+        ptr_set_byte(p + i, 0)
+        i = i + 1
+    }
+    return 0
+}
+
+@cfg(os="windows")
+fn _win_memmove(dst, src, n) {
+    // Overlap-safe byte copy (memmove semantics).
+    if dst == 0 || src == 0 { return 0 }
+    if n == nil { n = 0 }
+    if n <= 0 { return 0 }
+    if dst == src { return 0 }
+    if src > dst {
+        var i = 0
+        while i < n {
+            ptr_set_byte(dst + i, ptr_get_byte(src + i))
+            i = i + 1
+        }
+        return 0
+    }
+    // src < dst: copy backwards.
+    var j = n - 1
+    while j >= 0 {
+        ptr_set_byte(dst + j, ptr_get_byte(src + j))
+        if j == 0 { break }
+        j = j - 1
+    }
+    return 0
+}
+
+@cfg(os="windows")
+fn _win_wstr_from_ascii(s) {
+    // Allocates a UTF‑16LE NUL-terminated string from an ASCII/UTF‑8 input.
+    // Rolling: fixture passphrases are ASCII; this helper is "good enough" for now.
+    if s == nil || s == 0 { return 0 }
+    var n = oren_string_len(s)
+    if n < 0 { n = 0 }
+    // 2 bytes per u16, plus NUL.
+    var p = malloc((n + 1) * 2)
+    if p == 0 { return 0 }
+    var i = 0
+    while i < n {
+        var b = oren_string_byte_at_unchecked(s, i) & 255
+        ptr_set_byte(p + i * 2 + 0, b)
+        ptr_set_byte(p + i * 2 + 1, 0)
+        i = i + 1
+    }
+    ptr_set_byte(p + n * 2 + 0, 0)
+    ptr_set_byte(p + n * 2 + 1, 0)
+    return p
+}
+
+@cfg(os="windows")
+fn _win_secbuf_array_new(n) {
+    // SecBuffer is 16 bytes on Win64 (validated via SDK probe).
+    var p = malloc(n * 16)
+    if p == 0 { return 0 }
+    _win_memzero(p, n * 16)
+    return p
+}
+
+@cfg(os="windows")
+fn _win_secbuf_set(bufs, idx, cb, typ, pv) {
+    var off = bufs + idx * 16
+    oren_ptr_set_u32_le(off + 0, cb)
+    oren_ptr_set_u32_le(off + 4, typ)
+    ptr_set(off + 8, pv)
+    return 0
+}
+
+@cfg(os="windows")
+fn _win_secbuf_get_cb(bufs, idx) { return oren_ptr_get_u32_le(bufs + idx * 16 + 0) }
+@cfg(os="windows")
+fn _win_secbuf_get_type(bufs, idx) { return oren_ptr_get_u32_le(bufs + idx * 16 + 4) }
+@cfg(os="windows")
+fn _win_secbuf_get_pv(bufs, idx) { return ptr_get(bufs + idx * 16 + 8) }
+
+@cfg(os="windows")
+fn _win_secbufdesc_new(bufs, n) {
+    // SecBufferDesc is 16 bytes on Win64.
+    var d = malloc(16)
+    if d == 0 { return 0 }
+    _win_memzero(d, 16)
+    oren_ptr_set_u32_le(d + 0, 0) // ulVersion = SECBUFFER_VERSION (0)
+    oren_ptr_set_u32_le(d + 4, n)
+    ptr_set(d + 8, bufs)
+    return d
+}
+
+@cfg(os="windows")
+fn _win_schannel_cred_new(is_server, cert_ctx, opts) {
+    // SCHANNEL_CRED is 80 bytes on Win64.
+    var p = malloc(80)
+    if p == 0 { return 0 }
+    _win_memzero(p, 80)
+
+    // Layout (Win64; validated by sizeof==80):
+    //   0: dwVersion (u32)
+    //   4: cCreds (u32)
+    //   8: paCred (ptr)
+    //  16: hRootStore (ptr)
+    //  24: cMappers (u32)
+    //  32: aphMappers (ptr)
+    //  40: cSupportedAlgs (u32)
+    //  48: palgSupportedAlgs (ptr)
+    //  56: grbitEnabledProtocols (u32)
+    //  60: dwMinimumCipherStrength (u32)
+    //  64: dwMaximumCipherStrength (u32)
+    //  68: dwSessionLifespan (u32)
+    //  72: dwFlags (u32)
+    //  76: dwCredFormat (u32)
+    oren_ptr_set_u32_le(p + 0, 4) // SCHANNEL_CRED_VERSION
+
+    if is_server != 0 {
+        // Provide the server certificate.
+        var arr = malloc(8)
+        if arr == 0 { free(p); return 0 }
+        ptr_set(arr + 0, cert_ctx)
+        oren_ptr_set_u32_le(p + 4, 1) // cCreds
+        ptr_set(p + 8, arr)           // paCred
+        // Keep `arr` alive by storing it in the cred map wrapper (caller frees).
+    } else {
+        // Client verification policy (rolling v0):
+        // - default: let Schannel validate
+        // - insecure_skip_verify=1: manual validation so deterministic fixtures can rely on pinning.
+        var insecure = 0
+        if opts != nil && oren_is_map(opts) == true {
+            if oren_map_get_str(opts, "insecure_skip_verify") == 1 { insecure = 1 }
+        }
+        if insecure != 0 {
+            oren_ptr_set_u32_le(p + 72, 0x00000008) // SCH_CRED_MANUAL_CRED_VALIDATION
+        }
+    }
+
+    return p
+}
+
+@cfg(os="windows")
+fn _win_acquire_cred(is_server, cert_ctx, opts) {
+    var hcred = malloc(16)
+    if hcred == 0 { return {"ok": 0, "err": "tls(win): alloc CredHandle failed"} }
+    _win_memzero(hcred, 16)
+    var exp = malloc(8)
+    if exp == 0 { free(hcred); return {"ok": 0, "err": "tls(win): alloc TimeStamp failed"} }
+    _win_memzero(exp, 8)
+
+    var auth = 0
+    var cred_arr = 0
+    if is_server != 0 {
+        auth = _win_schannel_cred_new(1, cert_ctx, opts)
+        if auth == 0 { free(exp); free(hcred); return {"ok": 0, "err": "tls(win): alloc SCHANNEL_CRED failed"} }
+        cred_arr = ptr_get(auth + 8) // paCred (we allocated a 1-element array)
+    } else {
+        auth = _win_schannel_cred_new(0, 0, opts)
+        if auth == 0 { free(exp); free(hcred); return {"ok": 0, "err": "tls(win): alloc SCHANNEL_CRED failed"} }
+    }
+
+    var use = 2 // SECPKG_CRED_OUTBOUND
+    if is_server != 0 { use = 1 } // SECPKG_CRED_INBOUND
+
+    var pkg = "Microsoft Unified Security Protocol Provider"
+    var st = AcquireCredentialsHandleA(0, pkg, use, 0, auth, 0, 0, hcred, exp)
+    free(exp)
+    if st != 0 {
+        free(auth)
+        if cred_arr != 0 { free(cred_arr) }
+        free(hcred)
+        return {"ok": 0, "err": "tls(win): AcquireCredentialsHandleA failed (st=" + oren_int_to_string(st) + ")"}
+    }
+    // NOTE (Schannel lifetime, rolling):
+    // Some environments appear sensitive to the lifetime of the SCHANNEL_CRED/paCred memory passed into
+    // AcquireCredentialsHandle. Keep it alive for the lifetime of the credential handle; free it in tls.close.
+    return {"ok": 1, "hcred": hcred, "auth": auth, "cred_arr": cred_arr}
+}
+
+@cfg(os="windows")
+fn _win_import_pfx_store(pkcs12_bytes, passphrase) {
+    if pkcs12_bytes == nil { return {"ok": 0, "err": "tls(win): pkcs12_bytes is nil"} }
+    if passphrase == nil { passphrase = "" }
+
+    var n = oren_buf_len(pkcs12_bytes)
+    if oren_is_err(n) || n <= 0 { return {"ok": 0, "err": "tls(win): pkcs12 len invalid"} }
+    var src = native_buf_data_ptr(pkcs12_bytes)
+    if src == 0 { return {"ok": 0, "err": "tls(win): pkcs12 data ptr nil"} }
+
+    // CRYPT_DATA_BLOB is 16 bytes on Win64: cbData (u32) + pad + pbData (ptr).
+    var blob = malloc(16)
+    if blob == 0 { return {"ok": 0, "err": "tls(win): alloc blob failed"} }
+    _win_memzero(blob, 16)
+    oren_ptr_set_u32_le(blob + 0, n)
+    ptr_set(blob + 8, src)
+
+    var wpass = _win_wstr_from_ascii(passphrase)
+    if wpass == 0 {
+        free(blob)
+        return {"ok": 0, "err": "tls(win): alloc passphrase failed"}
+    }
+
+    var store = PFXImportCertStore(blob, wpass, 0)
+    free(wpass)
+    free(blob)
+    if store == 0 {
+        return {"ok": 0, "err": "tls(win): PFXImportCertStore failed"}
+    }
+    return {"ok": 1, "store": store}
+}
+
+@cfg(os="windows")
+fn _win_cert_first_in_store(store) {
+    var cert = CertEnumCertificatesInStore(store, 0)
+    if cert == 0 { return {"ok": 0, "err": "tls(win): no cert in store"} }
+    return {"ok": 1, "cert": cert}
+}
+
+@cfg(os="windows")
+fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
+    var credr = _win_acquire_cred(0, 0, opts)
+    if credr["ok"] != 1 { return credr }
+    var hcred = credr["hcred"]
+    var auth = credr["auth"]
+    var cred_arr = credr["cred_arr"]
+
+    var hctx = malloc(16)
+    if hctx == 0 {
+        FreeCredentialsHandle(hcred)
+        free(hcred)
+        if auth != 0 { free(auth) }
+        if cred_arr != 0 { free(cred_arr) }
+        return {"ok": 0, "err": "tls(win): alloc CtxtHandle failed"}
+    }
+    _win_memzero(hctx, 16)
+
+    var attrs = malloc(8)
+    var exp = malloc(8)
+    if attrs == 0 || exp == 0 {
+        if attrs != 0 { free(attrs) }
+        if exp != 0 { free(exp) }
+        DeleteSecurityContext(hctx)
+        free(hctx)
+        FreeCredentialsHandle(hcred)
+        free(hcred)
+        if auth != 0 { free(auth) }
+        if cred_arr != 0 { free(cred_arr) }
+        return {"ok": 0, "err": "tls(win): alloc scratch failed"}
+    }
+    _win_memzero(attrs, 8)
+    _win_memzero(exp, 8)
+
+    var in_cap = 65536
+    var in_buf = malloc(in_cap)
+    if in_buf == 0 {
+        free(attrs); free(exp)
+        free(hctx)
+        FreeCredentialsHandle(hcred); free(hcred)
+        if auth != 0 { free(auth) }
+        if cred_arr != 0 { free(cred_arr) }
+        return {"ok": 0, "err": "tls(win): alloc in_buf failed"}
+    }
+    var in_used = 0
+
+    var req = 0
+    req = req | 8      // ISC_REQ_SEQUENCE_DETECT
+    req = req | 4      // ISC_REQ_REPLAY_DETECT
+    req = req | 16     // ISC_REQ_CONFIDENTIALITY
+    req = req | 256    // ISC_REQ_ALLOCATE_MEMORY
+    req = req | 32768  // ISC_REQ_STREAM
+
+    var t0 = oren_time_unix_ns()
+
+    var have_ctx = 0
+    var hs_ok = 0
+    var last_st = 0
+    while 1 {
+        var out_bufs = _win_secbuf_array_new(1)
+        if out_bufs == 0 { break }
+        _win_secbuf_set(out_bufs, 0, 0, 2, 0) // TOKEN
+        var out_desc = _win_secbufdesc_new(out_bufs, 1)
+        if out_desc == 0 { free(out_bufs); break }
+
+        var in_desc = 0
+        var in_bufs = 0
+        if in_used > 0 {
+            in_bufs = _win_secbuf_array_new(2)
+            if in_bufs == 0 { free(out_desc); free(out_bufs); break }
+            _win_secbuf_set(in_bufs, 0, in_used, 2, in_buf) // TOKEN
+            _win_secbuf_set(in_bufs, 1, 0, 0, 0)            // EMPTY
+            in_desc = _win_secbufdesc_new(in_bufs, 2)
+            if in_desc == 0 { free(in_bufs); free(out_desc); free(out_bufs); break }
+        }
+
+        var target = server_name
+        if target == nil || target == 0 { target = "" }
+        var ctx_in = 0
+        if have_ctx != 0 { ctx_in = hctx }
+        var st = InitializeSecurityContextA(hcred, ctx_in, target, req, 0, 16, in_desc, 0, hctx, out_desc, attrs, exp)
+        last_st = st
+
+        // Send any output token.
+        var out_cb = _win_secbuf_get_cb(out_bufs, 0)
+        var out_pv = _win_secbuf_get_pv(out_bufs, 0)
+        if out_cb > 0 && out_pv != 0 {
+            var wr = tcp.write_from(fd, out_pv, out_cb, timeout_ms)
+            FreeContextBuffer(out_pv)
+            if wr < 0 || wr != out_cb {
+                if in_desc != 0 { free(in_desc); free(in_bufs) }
+                free(out_desc); free(out_bufs)
+                st = -1
+            }
+        }
+
+        // Preserve EXTRA input if present.
+        if in_desc != 0 && in_bufs != 0 {
+            var t1 = _win_secbuf_get_type(in_bufs, 1)
+            if t1 == 5 {
+                var extra_cb = _win_secbuf_get_cb(in_bufs, 1)
+                var extra_pv = _win_secbuf_get_pv(in_bufs, 1)
+                if extra_cb > 0 && extra_pv != 0 {
+                    _win_memmove(in_buf, extra_pv, extra_cb)
+                    in_used = extra_cb
+                } else {
+                    in_used = 0
+                }
+            } else {
+                in_used = 0
+            }
+            free(in_desc)
+            free(in_bufs)
+        }
+
+        free(out_desc)
+        free(out_bufs)
+
+        if have_ctx == 0 && (st == 0 || st == 590610) { have_ctx = 1 }
+        if st == 0 {
+            free(attrs)
+            free(exp)
+            free(in_buf)
+            return {"ok": 1, "hcred": hcred, "hctx": hctx, "auth": auth, "cred_arr": cred_arr}
+        }
+
+        if st != 590610 && st != (0 - 2146893032) {
+            // Not CONTINUE_NEEDED or INCOMPLETE_MESSAGE.
+            break
+        }
+
+        // Need more input: read from socket.
+        var now = oren_time_unix_ns()
+        var dt_ms = (now - t0) / 1000000
+        if dt_ms < 0 { dt_ms = 0 }
+        var rem_ms = timeout_ms - dt_ms
+        if timeout_ms < 0 { rem_ms = timeout_ms }
+        if timeout_ms >= 0 && rem_ms <= 0 { break }
+        if rem_ms < 0 { rem_ms = 0 }
+
+        var rn = tcp.read_into(fd, in_buf + in_used, in_cap - in_used, rem_ms)
+        if rn <= 0 { break }
+        in_used = in_used + rn
+    }
+
+    free(attrs)
+    free(exp)
+    free(in_buf)
+    DeleteSecurityContext(hctx)
+    free(hctx)
+    FreeCredentialsHandle(hcred)
+    free(hcred)
+    if auth != 0 { free(auth) }
+    if cred_arr != 0 { free(cred_arr) }
+    return {"ok": 0, "err": "tls(win): client handshake failed (st=" + oren_int_to_string(last_st) + ")"}
+}
+
+@cfg(os="windows")
+fn _win_query_stream_sizes(hctx) {
+    var sz = malloc(20)
+    if sz == 0 { return {"ok": 0, "err": "tls(win): alloc stream sizes failed"} }
+    _win_memzero(sz, 20)
+    var st = QueryContextAttributesA(hctx, 4, sz) // SECPKG_ATTR_STREAM_SIZES
+    if st != 0 {
+        free(sz)
+        return {"ok": 0, "err": "tls(win): QueryContextAttributes(STREAM_SIZES) failed (st=" + oren_int_to_string(st) + ")"}
+    }
+    var hdr = oren_ptr_get_u32_le(sz + 0)
+    var trl = oren_ptr_get_u32_le(sz + 4)
+    var maxm = oren_ptr_get_u32_le(sz + 8)
+    free(sz)
+    return {"ok": 1, "hdr": hdr, "trl": trl, "max": maxm}
+}
+
+@cfg(os="windows")
+fn wrap_client(fd, server_name, timeout_ms, opts) {
+    if fd == nil || fd < 0 { return {"ok": 0, "err": "tls.wrap_client: fd invalid"} }
+    if timeout_ms == nil { timeout_ms = 5000 }
+
+    var hs = _win_handshake_client(fd, server_name, timeout_ms, opts)
+    if hs["ok"] != 1 {
+        tcp.close(fd)
+        return {"ok": 0, "err": hs["err"]}
+    }
+    var hcred = hs["hcred"]
+    var hctx = hs["hctx"]
+    var auth = hs["auth"]
+    var cred_arr = hs["cred_arr"]
+
+    var sz = _win_query_stream_sizes(hctx)
+    if sz["ok"] != 1 {
+        DeleteSecurityContext(hctx); free(hctx)
+        FreeCredentialsHandle(hcred); free(hcred)
+        if auth != 0 { free(auth) }
+        if cred_arr != 0 { free(cred_arr) }
+        tcp.close(fd)
+        return {"ok": 0, "err": sz["err"]}
+    }
+
+    var conn = {
+        "impl": "windows_schannel",
+        "fd": fd,
+        "hcred": hcred,
+        "hctx": hctx,
+        "sch_cred": auth,
+        "sch_cred_arr": cred_arr,
+        "hdr": sz["hdr"],
+        "trl": sz["trl"],
+        "max": sz["max"],
+        "enc_buf": 0,
+        "enc_used": 0,
+        "plain_buf": 0,
+        "plain_used": 0,
+        "plain_off": 0
+    }
+
+    return {"ok": 1, "conn": conn}
+}
+
+@cfg(os="windows")
+fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
+    if fd == nil || fd < 0 { return {"ok": 0, "err": "tls.wrap_server: fd invalid"} }
+    if timeout_ms == nil { timeout_ms = 5000 }
+    if passphrase == nil { passphrase = "" }
+
+    var imp = _win_import_pfx_store(pkcs12_bytes, passphrase)
+    if imp["ok"] != 1 {
+        tcp.close(fd)
+        return {"ok": 0, "err": imp["err"]}
+    }
+    var store = imp["store"]
+
+    var cr = _win_cert_first_in_store(store)
+    if cr["ok"] != 1 {
+        CertCloseStore(store, 0)
+        tcp.close(fd)
+        return {"ok": 0, "err": cr["err"]}
+    }
+    var cert = cr["cert"]
+
+    var credr = _win_acquire_cred(1, cert, opts)
+    if credr["ok"] != 1 {
+        CertFreeCertificateContext(cert)
+        CertCloseStore(store, 0)
+        tcp.close(fd)
+        return {"ok": 0, "err": credr["err"]}
+    }
+    var hcred = credr["hcred"]
+    var auth = credr["auth"]
+    var cred_arr = credr["cred_arr"]
+
+    var hctx = malloc(16)
+    if hctx == 0 {
+        FreeCredentialsHandle(hcred); free(hcred)
+        if auth != 0 { free(auth) }
+        if cred_arr != 0 { free(cred_arr) }
+        CertFreeCertificateContext(cert)
+        CertCloseStore(store, 0)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls(win): alloc CtxtHandle failed"}
+    }
+    _win_memzero(hctx, 16)
+
+    var attrs = malloc(8)
+    var exp = malloc(8)
+    if attrs == 0 || exp == 0 {
+        if attrs != 0 { free(attrs) }
+        if exp != 0 { free(exp) }
+        free(hctx)
+        FreeCredentialsHandle(hcred); free(hcred)
+        if auth != 0 { free(auth) }
+        if cred_arr != 0 { free(cred_arr) }
+        CertFreeCertificateContext(cert)
+        CertCloseStore(store, 0)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls(win): alloc scratch failed"}
+    }
+    _win_memzero(attrs, 8)
+    _win_memzero(exp, 8)
+
+    var in_cap = 65536
+    var in_buf = malloc(in_cap)
+    if in_buf == 0 {
+        free(attrs); free(exp)
+        free(hctx)
+        FreeCredentialsHandle(hcred); free(hcred)
+        if auth != 0 { free(auth) }
+        if cred_arr != 0 { free(cred_arr) }
+        CertFreeCertificateContext(cert)
+        CertCloseStore(store, 0)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls(win): alloc in_buf failed"}
+    }
+    var in_used = 0
+
+    var req = 0
+    req = req | 8       // ASC_REQ_SEQUENCE_DETECT
+    req = req | 4       // ASC_REQ_REPLAY_DETECT
+    req = req | 16      // ASC_REQ_CONFIDENTIALITY
+    req = req | 256     // ASC_REQ_ALLOCATE_MEMORY
+    req = req | 65536   // ASC_REQ_STREAM
+
+    var t0 = oren_time_unix_ns()
+    var have_ctx = 0
+    var hs_ok = 0
+    var last_st = 0
+
+    while 1 {
+        // Server requires an initial ClientHello token. Avoid calling AcceptSecurityContext
+        // with a zero-length input on the first iteration, as some stacks return
+        // SEC_E_INCOMPLETE_MESSAGE without establishing a context handle.
+        if have_ctx == 0 && in_used == 0 {
+            var now0 = oren_time_unix_ns()
+            var dt0_ms = (now0 - t0) / 1000000
+            if dt0_ms < 0 { dt0_ms = 0 }
+            var rem0_ms = timeout_ms - dt0_ms
+            if timeout_ms < 0 { rem0_ms = timeout_ms }
+            if timeout_ms >= 0 && rem0_ms <= 0 { break }
+            if rem0_ms < 0 { rem0_ms = 0 }
+            var rn0 = tcp.read_into(fd, in_buf, in_cap, rem0_ms)
+            if rn0 <= 0 { break }
+            in_used = rn0
+        }
+
+        var out_bufs = _win_secbuf_array_new(1)
+        if out_bufs == 0 { break }
+        _win_secbuf_set(out_bufs, 0, 0, 2, 0) // TOKEN
+        var out_desc = _win_secbufdesc_new(out_bufs, 1)
+        if out_desc == 0 { free(out_bufs); break }
+
+        // Input: 2 buffers so Schannel can report EXTRA.
+        var in_bufs = _win_secbuf_array_new(2)
+        if in_bufs == 0 { free(out_desc); free(out_bufs); break }
+        _win_secbuf_set(in_bufs, 0, in_used, 2, in_buf) // TOKEN
+        _win_secbuf_set(in_bufs, 1, 0, 0, 0)            // EMPTY
+        var in_desc = _win_secbufdesc_new(in_bufs, 2)
+        if in_desc == 0 { free(in_bufs); free(out_desc); free(out_bufs); break }
+
+        var ctx_in = 0
+        if have_ctx != 0 { ctx_in = hctx }
+
+        var st = AcceptSecurityContext(hcred, ctx_in, in_desc, req, 16, hctx, out_desc, attrs, exp)
+        last_st = st
+
+        // Send output token (if any).
+        var out_cb = _win_secbuf_get_cb(out_bufs, 0)
+        var out_pv = _win_secbuf_get_pv(out_bufs, 0)
+        if out_cb > 0 && out_pv != 0 {
+            var wr = tcp.write_from(fd, out_pv, out_cb, timeout_ms)
+            FreeContextBuffer(out_pv)
+            if wr < 0 || wr != out_cb {
+                st = -1
+            }
+        }
+
+        // Preserve EXTRA input if present.
+        var t1 = _win_secbuf_get_type(in_bufs, 1)
+        if t1 == 5 {
+            var extra_cb = _win_secbuf_get_cb(in_bufs, 1)
+            var extra_pv = _win_secbuf_get_pv(in_bufs, 1)
+            if extra_cb > 0 && extra_pv != 0 {
+                _win_memmove(in_buf, extra_pv, extra_cb)
+                in_used = extra_cb
+            } else {
+                in_used = 0
+            }
+        } else {
+            in_used = 0
+        }
+
+        free(in_desc)
+        free(in_bufs)
+        free(out_desc)
+        free(out_bufs)
+
+        if have_ctx == 0 && (st == 0 || st == 590610) { have_ctx = 1 }
+
+        if st == 0 { hs_ok = 1; break }
+
+        if st != 590610 && st != (0 - 2146893032) {
+            // Not CONTINUE_NEEDED or INCOMPLETE_MESSAGE.
+            break
+        }
+
+        // Need more input.
+        var now = oren_time_unix_ns()
+        var dt_ms = (now - t0) / 1000000
+        if dt_ms < 0 { dt_ms = 0 }
+        var rem_ms = timeout_ms - dt_ms
+        if timeout_ms < 0 { rem_ms = timeout_ms }
+        if timeout_ms >= 0 && rem_ms <= 0 { st = -1; break }
+        if rem_ms < 0 { rem_ms = 0 }
+
+        var rn = tcp.read_into(fd, in_buf + in_used, in_cap - in_used, rem_ms)
+        if rn <= 0 { break }
+        in_used = in_used + rn
+    }
+
+    if hs_ok == 0 {
+        free(attrs)
+        free(exp)
+        free(in_buf)
+        DeleteSecurityContext(hctx); free(hctx)
+        FreeCredentialsHandle(hcred); free(hcred)
+        if auth != 0 { free(auth) }
+        if cred_arr != 0 { free(cred_arr) }
+        CertFreeCertificateContext(cert)
+        CertCloseStore(store, 0)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls(win): server handshake failed (st=" + oren_int_to_string(last_st) + ")"}
+    }
+
+    free(attrs)
+    free(exp)
+    free(in_buf)
+
+    // Query stream sizes.
+    var sz = _win_query_stream_sizes(hctx)
+    if sz["ok"] != 1 {
+        DeleteSecurityContext(hctx); free(hctx)
+        FreeCredentialsHandle(hcred); free(hcred)
+        if auth != 0 { free(auth) }
+        if cred_arr != 0 { free(cred_arr) }
+        CertFreeCertificateContext(cert)
+        CertCloseStore(store, 0)
+        tcp.close(fd)
+        return {"ok": 0, "err": sz["err"]}
+    }
+
+    var conn = {
+        "impl": "windows_schannel",
+        "fd": fd,
+        "hcred": hcred,
+        "hctx": hctx,
+        "sch_cred": auth,
+        "sch_cred_arr": cred_arr,
+        "hdr": sz["hdr"],
+        "trl": sz["trl"],
+        "max": sz["max"],
+        "enc_buf": 0,
+        "enc_used": 0,
+        "plain_buf": 0,
+        "plain_used": 0,
+        "plain_off": 0,
+        "pfx_store": store,
+        "pfx_cert": cert
+    }
+
+    return {"ok": 1, "conn": conn}
+}
+
+@cfg(os="windows")
+fn read_into(conn, buf, cap, timeout_ms) {
+    if conn == nil { return 0 - 22 } // EINVAL
+    if cap == nil { cap = 0 }
+    if cap <= 0 { return 0 }
+    if timeout_ms == nil { timeout_ms = 5000 }
+
+    // Serve pending plaintext first.
+    var plain = conn["plain_buf"]
+    var plain_used = conn["plain_used"]
+    var plain_off = conn["plain_off"]
+    if plain != 0 && plain_used > plain_off {
+        var avail = plain_used - plain_off
+        var take = avail
+        if take > cap { take = cap }
+        oren_memcpy(buf, plain + plain_off, take)
+        plain_off = plain_off + take
+        conn["plain_off"] = plain_off
+        if plain_off >= plain_used {
+            free(plain)
+            conn["plain_buf"] = 0
+            conn["plain_used"] = 0
+            conn["plain_off"] = 0
+        }
+        return take
+    }
+
+    var fd = conn["fd"]
+    var hctx = conn["hctx"]
+    if fd == nil || fd < 0 || hctx == 0 { return 0 - 22 }
+
+    var enc = conn["enc_buf"]
+    var enc_used = conn["enc_used"]
+    var enc_cap = 65536
+    if enc == 0 {
+        enc = malloc(enc_cap)
+        if enc == 0 { return 0 - 12 } // ENOMEM
+        conn["enc_buf"] = enc
+        conn["enc_used"] = 0
+        enc_used = 0
+    }
+
+    // Ensure we have some encrypted data.
+    if enc_used == 0 {
+        var rn0 = tcp.read_into(fd, enc, enc_cap, timeout_ms)
+        if rn0 <= 0 { return rn0 }
+        conn["enc_used"] = rn0
+        enc_used = rn0
+    }
+
+    while 1 {
+        var bufs = _win_secbuf_array_new(4)
+        if bufs == 0 { return 0 - 12 }
+        _win_secbuf_set(bufs, 0, enc_used, 1, enc) // DATA
+        _win_secbuf_set(bufs, 1, 0, 0, 0)          // EMPTY
+        _win_secbuf_set(bufs, 2, 0, 0, 0)          // EMPTY
+        _win_secbuf_set(bufs, 3, 0, 0, 0)          // EMPTY
+        var desc = _win_secbufdesc_new(bufs, 4)
+        if desc == 0 { free(bufs); return 0 - 12 }
+
+        var st = DecryptMessage(hctx, desc, 0, 0)
+
+        // Extract decrypted DATA and any EXTRA encrypted tail.
+        var data_p = 0
+        var data_n = 0
+        var extra_p = 0
+        var extra_n = 0
+        var i = 0
+        while i < 4 {
+            var t = _win_secbuf_get_type(bufs, i)
+            if t == 1 {
+                var cb = _win_secbuf_get_cb(bufs, i)
+                var pv = _win_secbuf_get_pv(bufs, i)
+                if cb > 0 && pv != 0 {
+                    data_p = pv
+                    data_n = cb
+                }
+            } else if t == 5 {
+                var cb2 = _win_secbuf_get_cb(bufs, i)
+                var pv2 = _win_secbuf_get_pv(bufs, i)
+                if cb2 > 0 && pv2 != 0 {
+                    extra_p = pv2
+                    extra_n = cb2
+                }
+            }
+            i = i + 1
+        }
+
+        free(desc)
+        free(bufs)
+
+        if st == (0 - 2146893032) {
+            // INCOMPLETE_MESSAGE: read more encrypted bytes.
+            if enc_used >= enc_cap {
+                // Grow buffer.
+                var new_cap = enc_cap * 2
+                var nb = malloc(new_cap)
+                if nb == 0 { return 0 - 12 }
+                oren_memcpy(nb, enc, enc_used)
+                free(enc)
+                enc = nb
+                enc_cap = new_cap
+                conn["enc_buf"] = enc
+            }
+            var rn = tcp.read_into(fd, enc + enc_used, enc_cap - enc_used, timeout_ms)
+            if rn <= 0 { return rn }
+            enc_used = enc_used + rn
+            conn["enc_used"] = enc_used
+            continue
+        }
+
+        if st != 0 {
+            // Graceful close-notify is surfaced as CONTEXT_EXPIRED on Schannel.
+            if st == 590615 {
+                conn["enc_used"] = 0
+                return 0
+            }
+            // Treat other statuses as IO error for now (rolling).
+            conn["enc_used"] = 0
+            return 0 - 5
+        }
+
+        // Copy plaintext out *before* shifting enc_buf for EXTRA.
+        // Schannel's DATA buffer is often a pointer into `enc_buf`, so moving
+        // the EXTRA tail first can corrupt the plaintext we intend to return.
+        if data_n <= 0 || data_p == 0 {
+            // No plaintext produced.
+            if extra_n > 0 && extra_p != 0 {
+                _win_memmove(enc, extra_p, extra_n)
+                conn["enc_used"] = extra_n
+                enc_used = extra_n
+            } else {
+                conn["enc_used"] = 0
+                enc_used = 0
+            }
+            return 0
+        }
+
+        plain = malloc(data_n)
+        if plain == 0 { return 0 - 12 }
+        oren_memcpy(plain, data_p, data_n)
+
+        // Preserve EXTRA encrypted bytes for next call.
+        if extra_n > 0 && extra_p != 0 {
+            _win_memmove(enc, extra_p, extra_n)
+            conn["enc_used"] = extra_n
+            enc_used = extra_n
+        } else {
+            conn["enc_used"] = 0
+            enc_used = 0
+        }
+
+        conn["plain_buf"] = plain
+        conn["plain_used"] = data_n
+        conn["plain_off"] = 0
+
+        // Serve from the now-populated plaintext buffer.
+        plain_used = data_n
+        plain_off = 0
+        var take = plain_used
+        if take > cap { take = cap }
+        oren_memcpy(buf, plain, take)
+        conn["plain_off"] = take
+        if take >= plain_used {
+            free(plain)
+            conn["plain_buf"] = 0
+            conn["plain_used"] = 0
+            conn["plain_off"] = 0
+        }
+        return take
+    }
+}
+
+@cfg(os="windows")
+fn write_from(conn, ptr0, len, timeout_ms) {
+    if conn == nil { return 0 - 22 } // EINVAL
+    if timeout_ms == nil { timeout_ms = 5000 }
+    if len == nil { len = 0 }
+    if len <= 0 { return 0 }
+    var fd = conn["fd"]
+    var hctx = conn["hctx"]
+    if fd == nil || fd < 0 || hctx == 0 { return 0 - 22 }
+
+    var hdr = conn["hdr"]
+    var trl = conn["trl"]
+    var maxm = conn["max"]
+    if hdr < 0 || trl < 0 || maxm <= 0 { return 0 - 22 }
+
+    var off = 0
+    while off < len {
+        var chunk = len - off
+        if chunk > maxm { chunk = maxm }
+        var total = hdr + chunk + trl
+        var out = malloc(total)
+        if out == 0 { return 0 - 12 } // ENOMEM
+
+        // Copy plaintext into the data region.
+        if chunk > 0 { oren_memcpy(out + hdr, ptr0 + off, chunk) }
+
+        var bufs = _win_secbuf_array_new(4)
+        if bufs == 0 { free(out); return 0 - 12 }
+        _win_secbuf_set(bufs, 0, hdr, 7, out)               // STREAM_HEADER
+        _win_secbuf_set(bufs, 1, chunk, 1, out + hdr)        // DATA
+        _win_secbuf_set(bufs, 2, trl, 6, out + hdr + chunk)  // STREAM_TRAILER
+        _win_secbuf_set(bufs, 3, 0, 0, 0)                    // EMPTY
+        var desc = _win_secbufdesc_new(bufs, 4)
+        if desc == 0 { free(bufs); free(out); return 0 - 12 }
+
+        var st = EncryptMessage(hctx, 0, desc, 0)
+        if st != 0 {
+            free(desc); free(bufs); free(out)
+            return 0 - 5
+        }
+
+        var hcb = _win_secbuf_get_cb(bufs, 0)
+        var dcb = _win_secbuf_get_cb(bufs, 1)
+        var tcb = _win_secbuf_get_cb(bufs, 2)
+        var to_send = hcb + dcb + tcb
+
+        free(desc)
+        free(bufs)
+
+        var wr = tcp.write_from(fd, out, to_send, timeout_ms)
+        free(out)
+        if wr < 0 { return wr }
+        if wr != to_send { return 0 - 5 }
+        off = off + chunk
+    }
+    return off
+}
+
+@cfg(os="windows")
+fn close(conn) {
+    if conn == nil { return 0 }
+    var fd = conn["fd"]
+    var hctx = conn["hctx"]
+    var hcred = conn["hcred"]
+    var sch_cred = conn["sch_cred"]
+    var sch_cred_arr = conn["sch_cred_arr"]
+    var eb = conn["enc_buf"]
+    var pb = conn["plain_buf"]
+    var store = conn["pfx_store"]
+    var cert = conn["pfx_cert"]
+    if eb != 0 { free(eb) }
+    if pb != 0 { free(pb) }
+    if hctx != 0 {
+        DeleteSecurityContext(hctx)
+        free(hctx)
+    }
+    if hcred != 0 {
+        FreeCredentialsHandle(hcred)
+        free(hcred)
+    }
+    if sch_cred != 0 { free(sch_cred) }
+    if sch_cred_arr != 0 { free(sch_cred_arr) }
+    if cert != 0 { CertFreeCertificateContext(cert) }
+    if store != 0 { CertCloseStore(store, 0) }
+    if fd != nil && fd >= 0 { tcp.close(fd) }
+    return 0
+}
+
+@cfg(os="windows")
+fn peer_cert_sha256_hex(conn) {
+    if conn == nil { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: conn is nil"} }
+    var hctx = conn["hctx"]
+    if hctx == 0 { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: ctx is nil"} }
+
+    // QueryContextAttributes(SECPKG_ATTR_REMOTE_CERT_CONTEXT) -> PCCERT_CONTEXT.
+    var certp = malloc(8)
+    if certp == 0 { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: alloc failed"} }
+    ptr_set(certp, 0)
+    var st = QueryContextAttributesA(hctx, 83, certp)
+    if st != 0 {
+        free(certp)
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: QueryContextAttributes failed (st=" + oren_int_to_string(st) + ")"}
+    }
+    var cert = ptr_get(certp)
+    free(certp)
+    if cert == 0 { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: no leaf cert"} }
+
+    var b = oren_u8_buf_new(32)
+    if oren_is_err(b) {
+        CertFreeCertificateContext(cert)
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: alloc failed"}
+    }
+    var dst = native_buf_data_ptr(b)
+    if dst == 0 {
+        CertFreeCertificateContext(cert)
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: bytes data ptr nil"}
+    }
+    var lenp = malloc(8)
+    if lenp == 0 {
+        CertFreeCertificateContext(cert)
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: alloc failed"}
+    }
+    _win_memzero(lenp, 8)
+    oren_ptr_set_u32_le(lenp + 0, 32)
+
+    var ok = CertGetCertificateContextProperty(cert, 107, dst, lenp) // CERT_SHA256_HASH_PROP_ID
+    var got = oren_ptr_get_u32_le(lenp + 0)
+    free(lenp)
+    CertFreeCertificateContext(cert)
+    if ok == 0 || got != 32 {
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: CERT_SHA256_HASH_PROP_ID failed"}
+    }
+
+    var hex = oren_bytes_to_hex(b)
+    return {"ok": 1, "v": hex}
+}

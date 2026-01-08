@@ -157,7 +157,7 @@ Rationale:
 
 ### 5.1 Linux provider (OpenSSL)
 
-As of **2026-01-08 (rolling)**, `std:net/tls` has a Linux provider implemented in `lib/std/net/tls.oren`:
+As of **2026-01-08 (rolling)**, `std:net/tls` has a Linux provider implemented in `lib/std/net/tls_linux_openssl.oren` (facade: `lib/std/net/tls.oren`):
 
 - Dynamic linking:
   - OpenSSL libraries are **not** added to DT_NEEDED by default.
@@ -205,7 +205,7 @@ Sources captured for audit/reference:
 
 ### 5.2 Windows provider (Schannel / SSPI)
 
-As of **2026-01-08 (rolling)**, `std:net/tls` has a Windows provider implemented in `lib/std/net/tls.oren`:
+As of **2026-01-08 (rolling)**, `std:net/tls` has a Windows provider implemented in `lib/std/net/tls_windows_schannel.oren` (facade: `lib/std/net/tls.oren`):
 
 - Dynamic linking:
   - `@ffi.dll("secur32.dll")` (SSPI)

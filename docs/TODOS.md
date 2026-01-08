@@ -176,9 +176,9 @@ References:
 			         - Regression (TLS loopback): `tests/native/test_wss_echo_loopback.oren` (stage1 + stage2; integrated into `./scripts/verify_native_net_matrix.sh`).
 		       - Done: shared host/DNS helper module for std:net:
 		         - `std:net/host.looks_like_ipv4` and `std:net/host.resolve_host_ipv4` dedupe host resolution logic used by `std:net/http`, `std:net/ws`, and `std:net/tls`.
-       - Fixed (2026-01-08): x64-windows WSS loopback failures (timeouts / corrupted WS frame headers under TLS) were traced to **Schannel `DecryptMessage` buffer semantics** in `std:net/tls`:
+       - Fixed (2026-01-08): x64-windows WSS loopback failures (timeouts / corrupted WS frame headers under TLS) were traced to **Schannel `DecryptMessage` buffer semantics** in `std:net/tls` (provider: `lib/std/net/tls_windows_schannel.oren`):
          - The plaintext DATA buffer can be a pointer into the encrypted buffer.
-         - Fix: copy plaintext out before shifting the EXTRA encrypted tail, and use overlap-safe moves when shifting tails (`lib/std/net/tls.oren`).
+	         - Fix: copy plaintext out before shifting the EXTRA encrypted tail, and use overlap-safe moves when shifting tails (`lib/std/net/tls_windows_schannel.oren`).
 	       - Next: structured HTTP client/server surface (status + headers + streaming body), then production WebSocket:
 	         - Done (2026-01-08): `std:net/http` now exposes a structured response API:
 		           - `http.get_response(_resolver)` returns `{status, headers, body}` (HTTP/1.1, connection-close).
@@ -187,21 +187,26 @@ References:
 	         - fragmentation + binary frames + streaming recv API
 		         - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + system resolver (Windows DNS APIs + AAAA; POSIX `resolv.conf` AAAA support)
 		           - Design: `docs/NET_TLS.md`
-		           - Done (2026-01-08): macOS TLS provider bring-up + deterministic loopback fixture:
-		             - `std:net/tls` exists with SecureTransport provider (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
-		             - loopback regression: `tests/native/test_tls_loopback.oren` (stage1 + stage2; integrated into `scripts/verify_native_net_matrix.sh`)
+			           - Done (2026-01-08): macOS TLS provider bring-up + deterministic loopback fixture:
+			             - `std:net/tls` exists with SecureTransport provider (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
+			             - loopback regression: `tests/native/test_tls_loopback.oren` (stage1 + stage2; integrated into `scripts/verify_native_net_matrix.sh`)
+			             - Done: refactored TLS providers into per-OS modules to keep the facade small:
+			               - Facade: `lib/std/net/tls.oren`
+			               - macOS provider: `lib/std/net/tls_macos_securetransport.oren`
+			               - Linux provider: `lib/std/net/tls_linux_openssl.oren`
+			               - Windows provider: `lib/std/net/tls_windows_schannel.oren`
 			           - Done (2026-01-08): wired `https://` into `std:net/http` and `wss://` into `std:net/ws`:
 			             - `tests/native/test_https_get_loopback.oren` (offline deterministic; uses pinning)
 			             - `tests/native/test_wss_echo_loopback.oren` (offline deterministic; uses pinning)
 			           - Done (2026-01-08): Linux TLS provider bring-up (OpenSSL 3; dynamic `libssl.so.3`/`libcrypto.so.3`)
-			             - Provider: `lib/std/net/tls.oren` (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
+			             - Provider: `lib/std/net/tls_linux_openssl.oren` (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
 			             - Regression: `./scripts/verify_native_net_matrix.sh --targets arm64-linux,x64-wsl` (stage1 + stage2)
 			             - Done: Linux/OpenSSL client SNI + ALPN wiring:
 			               - SNI wired via `SSL_ctrl(...SSL_CTRL_SET_TLSEXT_HOSTNAME...)` using constants from Tier‑1 Linux headers (`libssl-dev`).
 			               - ALPN client offer wired via `SSL_set_alpn_protos` (wire-format protocol list).
 			               - Regression: TLS/HTTPS/WSS loopback fixtures now pass `opts["alpn"]=["h2","http/1.1"]` to exercise the code path.
 		           - Done (2026-01-08): Windows x64 TLS provider bring-up (Schannel / SSPI) + enable TLS/HTTPS/WSS loopback fixtures on Win11:
-		             - Provider: `lib/std/net/tls.oren` (impl: `windows_schannel`; `@ffi.dll("secur32.dll")` + `@ffi.dll("crypt32.dll")`)
+			             - Provider: `lib/std/net/tls_windows_schannel.oren` (impl: `windows_schannel`; `@ffi.dll("secur32.dll")` + `@ffi.dll("crypt32.dll")`)
 		             - Regression: `./scripts/verify_native_net_matrix.sh --targets x64-win` (stage1 + stage2)
 		           - Done (2026-01-08): deterministic pinning is enforced by `std:net/tls.wrap_client` when `opts["pin_cert_sha256_hex"]` is provided (so HTTP/WS do not duplicate pinning logic).
 		           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider).
@@ -237,7 +242,7 @@ References:
        - Done (2026-01-08): portable `@ffi.link("...")` attribute (maps to native `--link ...`) so stdlib/platform bindings can declare dynamic deps without Makefile/script flags.
          - Regression: `tests/native/ffi_linux_strlen_ok.oren` now uses `@ffi.link("libc.so.6")` and the Tier‑1 matrix no longer passes `--link` explicitly.
        - Done (2026-01-08): `ffi { a, b, c }` group sugar (reduces repetition when importing many symbols from one DLL/DSO).
-         - Used by `std:net/tls` Windows Schannel bindings (`lib/std/net/tls.oren`).
+         - Used by `std:net/tls` Windows Schannel bindings (`lib/std/net/tls_windows_schannel.oren`).
          - Regression (Windows): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_link.oren`.
        - Done (2026-01-08): `examples/ffi_test.oren` is now self-contained across OS (`@cfg` + `@ffi.link`/`@ffi.dll`), and `make examples-test` no longer passes ad-hoc `--link libc.so.6` on Linux.
        - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).

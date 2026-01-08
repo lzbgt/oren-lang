@@ -1,0 +1,765 @@
+// std/net/tls_macos_securetransport (rolling)
+//
+// macOS TLS provider for std:net/tls using SecureTransport (Security.framework).
+// This file is factored out of std:net/tls to keep provider code isolated.
+
+import tcp "std:net/tcp"
+import sha256 "std:crypto/sha256"
+
+// --- macOS provider (SecureTransport) ---
+
+@cfg(os="macos")
+@ffi.link("/System/Library/Frameworks/Security.framework/Versions/A/Security")
+@ffi.link("/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation")
+ffi SSLCreateContext
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi SSLSetIOFuncs
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi SSLSetConnection
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi SSLSetPeerDomainName
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi SSLHandshake
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi SSLRead
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi SSLWrite
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi SSLClose
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi SSLSetCertificate
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi SSLSetEnableCertVerify
+
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi SecPKCS12Import
+
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi SSLCopyPeerTrust
+@cfg(os="macos")
+ffi SecTrustGetCertificateAtIndex
+@cfg(os="macos")
+ffi SecCertificateCopyData
+
+@cfg(os="macos")
+ffi CFDataCreate
+@cfg(os="macos")
+ffi CFDataGetLength
+@cfg(os="macos")
+ffi CFDataGetBytePtr
+@cfg(os="macos")
+ffi CFStringCreateWithCString
+@cfg(os="macos")
+ffi CFDictionaryCreate
+@cfg(os="macos")
+ffi CFDictionaryGetValue
+@cfg(os="macos")
+ffi CFArrayCreate
+@cfg(os="macos")
+ffi CFArrayGetCount
+@cfg(os="macos")
+ffi CFArrayGetValueAtIndex
+@cfg(os="macos")
+ffi CFRelease
+
+@cfg(os="macos")
+ffi dlsym
+
+// SecureTransport constants (from macOS SDK headers).
+@cfg(os="macos")
+fn _errSSLWouldBlock() { return 0 - 9803 }
+@cfg(os="macos")
+fn _errSSLClosedGraceful() { return 0 - 9805 }
+@cfg(os="macos")
+fn _errSSLClosedAbort() { return 0 - 9806 }
+
+@cfg(os="macos")
+// SSLProtocolSide enum (SecureTransport.h): server=0, client=1.
+@cfg(os="macos")
+fn _kSSLServerSide() { return 0 }
+@cfg(os="macos")
+fn _kSSLClientSide() { return 1 }
+// SSLConnectionType: stream=0.
+@cfg(os="macos")
+fn _kSSLStreamType() { return 0 }
+
+// CFStringEncoding: UTF-8 = 0x08000100 (CoreFoundation).
+@cfg(os="macos")
+fn _kCFStringEncodingUTF8() { return 134217984 } // 0x08000100
+
+// Oren-level O_NONBLOCK bit (stable across runtimes).
+@cfg(os="macos")
+fn _OREN_O_NONBLOCK() { return 1024 }
+
+// dlsym handle: RTLD_DEFAULT on macOS is (void*)-2.
+@cfg(os="macos")
+fn _RTLD_DEFAULT() { return 0 - 2 }
+
+// Connection state layout (malloc; owned by tls conn):
+//   [0] fd (i64)
+//   [8] want (i64) 0=none 1=read 2=write
+@cfg(os="macos")
+fn _conn_state_new(fd) {
+    var st = malloc(16)
+    if st == 0 { return 0 }
+    ptr_set(st + 0, fd)
+    ptr_set(st + 8, 0)
+    return st
+}
+
+@cfg(os="macos")
+fn _conn_state_fd(st) { return ptr_get(st + 0) }
+
+@cfg(os="macos")
+fn _conn_state_set_want(st, w) { ptr_set(st + 8, w); return 0 }
+
+@cfg(os="macos")
+fn _conn_state_want(st) { return ptr_get(st + 8) }
+
+// SecureTransport IO callbacks.
+//
+// Signatures from SecureTransport.h:
+//   OSStatus (*SSLReadFunc)(SSLConnectionRef connection, void *data, size_t *dataLength)
+//   OSStatus (*SSLWriteFunc)(SSLConnectionRef connection, const void *data, size_t *dataLength)
+//
+// Note: these must be kept (referenced by pointer from C).
+@cfg(os="macos")
+@oren.keep
+@ffi.export
+fn __oren_tls_macos_read(conn_ref, data, data_len_ptr) {
+    if conn_ref == 0 { return _errSSLClosedAbort() }
+    var st = conn_ref
+    _conn_state_set_want(st, 1)
+    var fd = _conn_state_fd(st)
+    var want = ptr_get(data_len_ptr)
+    if want < 0 { want = 0 }
+
+    var n = sys_read(fd, data, want)
+    if n > 0 {
+        ptr_set(data_len_ptr, n)
+        _conn_state_set_want(st, 0)
+        return 0
+    }
+    if n == 0 {
+        ptr_set(data_len_ptr, 0)
+        return _errSSLClosedGraceful()
+    }
+    var errno = 0 - n
+    // macOS EAGAIN/EWOULDBLOCK == 35
+    if errno == 35 {
+        ptr_set(data_len_ptr, 0)
+        return _errSSLWouldBlock()
+    }
+    ptr_set(data_len_ptr, 0)
+    return _errSSLClosedAbort()
+}
+
+@cfg(os="macos")
+@oren.keep
+@ffi.export
+fn __oren_tls_macos_write(conn_ref, data, data_len_ptr) {
+    if conn_ref == 0 { return _errSSLClosedAbort() }
+    var st = conn_ref
+    _conn_state_set_want(st, 2)
+    var fd = _conn_state_fd(st)
+    var want = ptr_get(data_len_ptr)
+    if want < 0 { want = 0 }
+
+    var n = sys_write(fd, data, want)
+    if n >= 0 {
+        ptr_set(data_len_ptr, n)
+        _conn_state_set_want(st, 0)
+        return 0
+    }
+    var errno = 0 - n
+    // macOS EAGAIN/EWOULDBLOCK == 35
+    if errno == 35 {
+        ptr_set(data_len_ptr, 0)
+        return _errSSLWouldBlock()
+    }
+    ptr_set(data_len_ptr, 0)
+    return _errSSLClosedAbort()
+}
+
+@cfg(os="macos")
+fn _dlsym_ptr(name) {
+    // Returns the resolved pointer value for a data symbol that is itself a pointer.
+    // For `extern const CFStringRef k...`, `dlsym` yields a pointer-to-(CFStringRef).
+    var addr = dlsym(_RTLD_DEFAULT(), name)
+    if addr == 0 { return 0 }
+    return ptr_get(addr)
+}
+
+@cfg(os="macos")
+fn _dlsym_addr(name) {
+    // Returns the address for a data symbol (struct constants like kCFType*CallBacks).
+    return dlsym(_RTLD_DEFAULT(), name)
+}
+
+@cfg(os="macos")
+fn _cfstring_utf8(cstr) {
+    if cstr == 0 { return 0 }
+    return CFStringCreateWithCString(0, cstr, _kCFStringEncodingUTF8())
+}
+
+@cfg(os="macos")
+fn _cfdata_from_bytes(bytes) {
+    var n = 0
+    if oren_is_u8_buf(bytes) {
+        n = oren_buf_len(bytes)
+        if oren_is_err(n) { return 0 }
+    } else {
+        n = oren_bytes_len(bytes)
+        if oren_is_err(n) { return 0 }
+    }
+    if n == 0 { return CFDataCreate(0, 0, 0) }
+    var p = 0
+    if oren_is_u8_buf(bytes) {
+        p = native_buf_data_ptr(bytes)
+    } else {
+        // list<int> fallback
+        var tmp = oren_u8_buf_from_bytes_slice(bytes, 0, n)
+        if oren_is_err(tmp) { return 0 }
+        p = native_buf_data_ptr(tmp)
+        bytes = tmp
+    }
+    if p == 0 { return 0 }
+    return CFDataCreate(0, p, n)
+}
+
+@cfg(os="macos")
+fn _cf_dict1(k0, v0) {
+    // CFDictionaryCreate with kCFTypeDictionaryKey/ValueCallBacks.
+    var keys = malloc(8)
+    var vals = malloc(8)
+    if keys == 0 || vals == 0 {
+        if keys != 0 { free(keys) }
+        if vals != 0 { free(vals) }
+        return 0
+    }
+    ptr_set(keys, k0)
+    ptr_set(vals, v0)
+    var key_cb = _dlsym_addr("kCFTypeDictionaryKeyCallBacks")
+    var val_cb = _dlsym_addr("kCFTypeDictionaryValueCallBacks")
+    if key_cb == 0 || val_cb == 0 {
+        free(keys)
+        free(vals)
+        return 0
+    }
+    var d = CFDictionaryCreate(0, keys, vals, 1, key_cb, val_cb)
+    free(keys)
+    free(vals)
+    return d
+}
+
+@cfg(os="macos")
+fn _cf_dict2(k0, v0, k1, v1) {
+    var keys = malloc(16)
+    var vals = malloc(16)
+    if keys == 0 || vals == 0 {
+        if keys != 0 { free(keys) }
+        if vals != 0 { free(vals) }
+        return 0
+    }
+    ptr_set(keys + 0, k0)
+    ptr_set(keys + 8, k1)
+    ptr_set(vals + 0, v0)
+    ptr_set(vals + 8, v1)
+    var key_cb = _dlsym_addr("kCFTypeDictionaryKeyCallBacks")
+    var val_cb = _dlsym_addr("kCFTypeDictionaryValueCallBacks")
+    if key_cb == 0 || val_cb == 0 {
+        free(keys)
+        free(vals)
+        return 0
+    }
+    var d = CFDictionaryCreate(0, keys, vals, 2, key_cb, val_cb)
+    free(keys)
+    free(vals)
+    return d
+}
+
+@cfg(os="macos")
+fn _cf_array1(v0) {
+    var vals = malloc(8)
+    if vals == 0 { return 0 }
+    ptr_set(vals, v0)
+    var cb = _dlsym_addr("kCFTypeArrayCallBacks")
+    if cb == 0 {
+        free(vals)
+        return 0
+    }
+    var a = CFArrayCreate(0, vals, 1, cb)
+    free(vals)
+    return a
+}
+
+@cfg(os="macos")
+fn _macos_import_pkcs12_identity(pkcs12_bytes, passphrase_cstr) {
+    // Returns {"ok":1,"identity":SecIdentityRef,"chain":CFArrayRef} or {"ok":0,"err":string}
+    //
+    // Uses SecPKCS12Import and requests in-memory import when available.
+    var data = _cfdata_from_bytes(pkcs12_bytes)
+    if data == 0 { return {"ok": 0, "err": "tls: pkcs12: CFDataCreate failed"} }
+
+    var key_pass = _dlsym_ptr("kSecImportExportPassphrase")
+    if key_pass == 0 {
+        CFRelease(data)
+        return {"ok": 0, "err": "tls: pkcs12: missing kSecImportExportPassphrase"}
+    }
+
+    var pass_str = _cfstring_utf8(passphrase_cstr)
+    if pass_str == 0 {
+        CFRelease(data)
+        return {"ok": 0, "err": "tls: pkcs12: CFStringCreate failed"}
+    }
+
+    // Optional: request memory-only import (macOS 15+).
+    var key_mem = _dlsym_ptr("kSecImportToMemoryOnly")
+    var cf_true = _dlsym_ptr("kCFBooleanTrue")
+
+    var opts = 0
+    if key_mem != 0 && cf_true != 0 {
+        opts = _cf_dict2(key_pass, pass_str, key_mem, cf_true)
+    } else {
+        opts = _cf_dict1(key_pass, pass_str)
+    }
+    if opts == 0 {
+        CFRelease(pass_str)
+        CFRelease(data)
+        return {"ok": 0, "err": "tls: pkcs12: CFDictionaryCreate failed"}
+    }
+
+    var out_items_ptr = malloc(8)
+    if out_items_ptr == 0 {
+        CFRelease(opts)
+        CFRelease(pass_str)
+        CFRelease(data)
+        return {"ok": 0, "err": "tls: pkcs12: alloc failed"}
+    }
+    ptr_set(out_items_ptr, 0)
+    var rc = SecPKCS12Import(data, opts, out_items_ptr)
+    CFRelease(opts)
+    CFRelease(pass_str)
+    CFRelease(data)
+    if rc != 0 {
+        free(out_items_ptr)
+        return {"ok": 0, "err": "tls: pkcs12: SecPKCS12Import failed (rc=" + oren_int_to_string(rc) + ")"}
+    }
+    var items = ptr_get(out_items_ptr)
+    free(out_items_ptr)
+    if items == 0 { return {"ok": 0, "err": "tls: pkcs12: items is nil"} }
+
+    var n = CFArrayGetCount(items)
+    if n <= 0 {
+        CFRelease(items)
+        return {"ok": 0, "err": "tls: pkcs12: items empty"}
+    }
+    var dict0 = CFArrayGetValueAtIndex(items, 0)
+    if dict0 == 0 {
+        CFRelease(items)
+        return {"ok": 0, "err": "tls: pkcs12: item dict missing"}
+    }
+
+    var key_ident = _dlsym_ptr("kSecImportItemIdentity")
+    var key_chain = _dlsym_ptr("kSecImportItemCertChain")
+    if key_ident == 0 || key_chain == 0 {
+        CFRelease(items)
+        return {"ok": 0, "err": "tls: pkcs12: missing import item keys"}
+    }
+    var ident = CFDictionaryGetValue(dict0, key_ident)
+    var chain = CFDictionaryGetValue(dict0, key_chain)
+    if ident == 0 || chain == 0 {
+        CFRelease(items)
+        return {"ok": 0, "err": "tls: pkcs12: missing identity/chain"}
+    }
+
+    // Caller uses ident/chain while items is alive. Retain by keeping items too.
+    return {"ok": 1, "items": items, "identity": ident, "chain": chain}
+}
+
+@cfg(os="macos")
+fn _macos_handshake(ssl_ctx, st, timeout_ms) {
+    if timeout_ms == nil { timeout_ms = 5000 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+    var t0 = oren_time_unix_ns()
+    var rem_ms = timeout_ms
+    while true {
+        var rc = SSLHandshake(ssl_ctx)
+        if rc == 0 { return 0 }
+        if rc != _errSSLWouldBlock() {
+            return rc
+        }
+        var want = _conn_state_want(st)
+        if want == 1 {
+            var w = tcp.wait_readable(_conn_state_fd(st), rem_ms)
+            if w <= 0 { return _errSSLConnectionRefused_from_wait(w) }
+        } else {
+            var w2 = tcp.wait_writable(_conn_state_fd(st), rem_ms)
+            if w2 <= 0 { return _errSSLConnectionRefused_from_wait(w2) }
+        }
+        var now = oren_time_unix_ns()
+        var dt_ms = (now - t0) / 1000000
+        if dt_ms < 0 { dt_ms = 0 }
+        rem_ms = timeout_ms - dt_ms
+        if rem_ms <= 0 { return 0 - 60 } // ETIMEDOUT
+    }
+}
+
+@cfg(os="macos")
+fn _errSSLConnectionRefused_from_wait(w) {
+    // tcp.wait_* returns:
+    // - 1 ready
+    // - 0 timeout
+    // - <0 errno
+    if w == 0 { return 0 - 60 } // ETIMEDOUT
+    // Any other failure: treat as closed abort.
+    return _errSSLClosedAbort()
+}
+
+@cfg(os="macos")
+fn _macos_new_ctx(is_server) {
+    var side = _kSSLClientSide()
+    if is_server != 0 { side = _kSSLServerSide() }
+    return SSLCreateContext(0, side, _kSSLStreamType())
+}
+
+@cfg(os="macos")
+fn _macos_setup_ctx(fd, is_server, server_name, opts) {
+    var st = _conn_state_new(fd)
+    if st == 0 {
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: alloc failed"}
+    }
+
+    // Force nonblocking so SecureTransport returns errSSLWouldBlock and we can enforce timeouts.
+    var fl = sys_fcntl_getfl(fd)
+    if fl >= 0 {
+        sys_fcntl_setfl(fd, fl | _OREN_O_NONBLOCK())
+    }
+
+    var ctx = _macos_new_ctx(is_server)
+    if ctx == 0 {
+        free(st)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: SSLCreateContext failed"}
+    }
+
+    // SecureTransport expects raw C function pointers for IO callbacks.
+    //
+    // Oren functions are not C-callable when passed as first-class values (they lower to `{code_ptr, env_ptr}`),
+    // so we export these callbacks as real symbols and resolve their addresses via dlsym.
+    // IMPORTANT:
+    // - Module linking prefixes top-level function symbols.
+    // - For stdlib imports via `std:...`, the prefix is derived from the module path, e.g.:
+    //   `std:net/tls_macos_securetransport` => `STD_net_tls_macos_securetransport_`.
+    // - `@ffi.export` exports the *mangled* linked name, so we must dlsym that exact symbol.
+    //
+    // Keep small fallbacks for non-stdlib-relative imports used by some repo-local tests.
+    var read_cb = dlsym(_RTLD_DEFAULT(), "STD_net_tls_macos_securetransport___oren_tls_macos_read")
+    var write_cb = dlsym(_RTLD_DEFAULT(), "STD_net_tls_macos_securetransport___oren_tls_macos_write")
+    // Back-compat for older in-repo layouts (when these callbacks lived in std:net/tls).
+    if read_cb == 0 { read_cb = dlsym(_RTLD_DEFAULT(), "STD_net_tls___oren_tls_macos_read") }
+    if write_cb == 0 { write_cb = dlsym(_RTLD_DEFAULT(), "STD_net_tls___oren_tls_macos_write") }
+    if read_cb == 0 { read_cb = dlsym(_RTLD_DEFAULT(), "__oren_tls_macos_read") }
+    if write_cb == 0 { write_cb = dlsym(_RTLD_DEFAULT(), "__oren_tls_macos_write") }
+    // dlsym naming can vary; keep a small fallback for leading '_'.
+    if read_cb == 0 { read_cb = dlsym(_RTLD_DEFAULT(), "_STD_net_tls_macos_securetransport___oren_tls_macos_read") }
+    if write_cb == 0 { write_cb = dlsym(_RTLD_DEFAULT(), "_STD_net_tls_macos_securetransport___oren_tls_macos_write") }
+    if read_cb == 0 { read_cb = dlsym(_RTLD_DEFAULT(), "_STD_net_tls___oren_tls_macos_read") }
+    if write_cb == 0 { write_cb = dlsym(_RTLD_DEFAULT(), "_STD_net_tls___oren_tls_macos_write") }
+    if read_cb == 0 { read_cb = dlsym(_RTLD_DEFAULT(), "___oren_tls_macos_read") }
+    if write_cb == 0 { write_cb = dlsym(_RTLD_DEFAULT(), "___oren_tls_macos_write") }
+    if read_cb == 0 || write_cb == 0 {
+        CFRelease(ctx)
+        free(st)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: missing exported SecureTransport IO callback symbols (need @ffi.export)"}
+    }
+
+    var rc = SSLSetIOFuncs(ctx, read_cb, write_cb)
+    if rc != 0 {
+        CFRelease(ctx)
+        free(st)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: SSLSetIOFuncs failed (rc=" + oren_int_to_string(rc) + ")"}
+    }
+    rc = SSLSetConnection(ctx, st)
+    if rc != 0 {
+        CFRelease(ctx)
+        free(st)
+        tcp.close(fd)
+        return {"ok": 0, "err": "tls: SSLSetConnection failed (rc=" + oren_int_to_string(rc) + ")"}
+    }
+
+    if is_server == 0 {
+        if server_name != nil && server_name != 0 {
+            var sn_len = oren_string_len(server_name)
+            if sn_len > 0 {
+                var rc2 = SSLSetPeerDomainName(ctx, server_name, sn_len)
+                if rc2 != 0 {
+                    CFRelease(ctx)
+                    free(st)
+                    tcp.close(fd)
+                    return {"ok": 0, "err": "tls: SSLSetPeerDomainName failed (rc=" + oren_int_to_string(rc2) + ")"}
+                }
+            }
+        }
+
+        // Client verification policy (rolling v0):
+        // - default: use platform verification (HTTPS-style)
+        // - opt-in: allow insecure skip-verify for loopback fixtures, with caller-side pinning.
+        var insecure = 0
+        if opts != nil && oren_is_map(opts) == true {
+            if oren_map_get_str(opts, "insecure_skip_verify") == 1 { insecure = 1 }
+        }
+        if insecure == 1 {
+            var rc3 = SSLSetEnableCertVerify(ctx, 0)
+            if rc3 != 0 {
+                CFRelease(ctx)
+                free(st)
+                tcp.close(fd)
+                return {"ok": 0, "err": "tls: SSLSetEnableCertVerify failed (rc=" + oren_int_to_string(rc3) + ")"}
+            }
+        }
+    }
+
+    return {"ok": 1, "conn": {"impl": "macos_securetransport", "fd": fd, "ctx": ctx, "st": st}}
+}
+
+@cfg(os="macos")
+fn wrap_client(fd, server_name, timeout_ms, opts) {
+    if fd == nil || fd < 0 { return {"ok": 0, "err": "tls.wrap_client: fd invalid"} }
+    var r = _macos_setup_ctx(fd, 0, server_name, opts)
+    if r["ok"] != 1 { return r }
+    var conn = r["conn"]
+    var hs = _macos_handshake(conn["ctx"], conn["st"], timeout_ms)
+    if hs != 0 {
+        close(conn)
+        return {"ok": 0, "err": "tls: handshake failed (rc=" + oren_int_to_string(hs) + ")"}
+    }
+    return {"ok": 1, "conn": conn}
+}
+
+@cfg(os="macos")
+fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
+    if fd == nil || fd < 0 { return {"ok": 0, "err": "tls.wrap_server: fd invalid"} }
+    if pkcs12_bytes == nil { tcp.close(fd); return {"ok": 0, "err": "tls.wrap_server: pkcs12_bytes is nil"} }
+    if passphrase == nil { passphrase = "" }
+
+    var imp = _macos_import_pkcs12_identity(pkcs12_bytes, passphrase)
+    if imp["ok"] != 1 {
+        tcp.close(fd)
+        return {"ok": 0, "err": imp["err"]}
+    }
+    var items = imp["items"]
+    var ident = imp["identity"]
+    var chain = imp["chain"]
+
+    var r = _macos_setup_ctx(fd, 1, 0, opts)
+    if r["ok"] != 1 {
+        CFRelease(items)
+        return r
+    }
+    var conn = r["conn"]
+
+    // Build cert array: [identity] + chain certificates (if present).
+    // SecureTransport expects a CFArray with identity first.
+    var certs = _cf_array1(ident)
+    if certs == 0 {
+        close(conn)
+        CFRelease(items)
+        return {"ok": 0, "err": "tls.wrap_server: CFArrayCreate failed"}
+    }
+
+    var rc = SSLSetCertificate(conn["ctx"], certs)
+    CFRelease(certs)
+    if rc != 0 {
+        close(conn)
+        CFRelease(items)
+        return {"ok": 0, "err": "tls.wrap_server: SSLSetCertificate failed (rc=" + oren_int_to_string(rc) + ")"}
+    }
+
+    var hs = _macos_handshake(conn["ctx"], conn["st"], timeout_ms)
+    if hs != 0 {
+        close(conn)
+        CFRelease(items)
+        return {"ok": 0, "err": "tls.wrap_server: handshake failed (rc=" + oren_int_to_string(hs) + ")"}
+    }
+
+    // Keep the imported items alive for the life of the connection (owns identity/chain).
+    conn["p12_items"] = items
+    conn["p12_chain"] = chain
+    return {"ok": 1, "conn": conn}
+}
+
+@cfg(os="macos")
+fn _macos_wait_io(conn, timeout_ms, want) {
+    var fd = conn["fd"]
+    if want == 1 { return tcp.wait_readable(fd, timeout_ms) }
+    return tcp.wait_writable(fd, timeout_ms)
+}
+
+@cfg(os="macos")
+fn read_into(conn, buf, cap, timeout_ms) {
+    if conn == nil { return 0 - 22 } // EINVAL
+    var ctx = conn["ctx"]
+    var st = conn["st"]
+    if ctx == 0 || st == 0 { return 0 - 22 }
+    if timeout_ms == nil { timeout_ms = 5000 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+
+    var t0 = oren_time_unix_ns()
+    var rem_ms = timeout_ms
+    while true {
+        _conn_state_set_want(st, 0)
+        var n_ptr = malloc(8)
+        if n_ptr == 0 { return 0 - 12 } // ENOMEM
+        ptr_set(n_ptr, 0)
+        var rc = SSLRead(ctx, buf, cap, n_ptr)
+        var n = ptr_get(n_ptr)
+        free(n_ptr)
+
+        if rc == 0 { return n }
+        if rc == _errSSLWouldBlock() {
+            var want = _conn_state_want(st)
+            if want == 0 { want = 1 }
+            var w = _macos_wait_io(conn, rem_ms, want)
+            if w == 0 { return 0 - 60 } // ETIMEDOUT
+            if w < 0 { return w }
+        } else if rc == _errSSLClosedGraceful() {
+            return 0
+        } else {
+            return 0 - 5 // EIO
+        }
+
+        var now = oren_time_unix_ns()
+        var dt_ms = (now - t0) / 1000000
+        if dt_ms < 0 { dt_ms = 0 }
+        rem_ms = timeout_ms - dt_ms
+        if rem_ms <= 0 { return 0 - 60 }
+    }
+}
+
+@cfg(os="macos")
+fn write_from(conn, ptr0, len, timeout_ms) {
+    if conn == nil { return 0 - 22 } // EINVAL
+    var ctx = conn["ctx"]
+    var st = conn["st"]
+    if ctx == 0 || st == 0 { return 0 - 22 }
+    if timeout_ms == nil { timeout_ms = 5000 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+
+    var t0 = oren_time_unix_ns()
+    var rem_ms = timeout_ms
+    var off = 0
+    while off < len {
+        _conn_state_set_want(st, 0)
+        var n_ptr = malloc(8)
+        if n_ptr == 0 { return 0 - 12 } // ENOMEM
+        ptr_set(n_ptr, 0)
+        var rc = SSLWrite(ctx, ptr0 + off, len - off, n_ptr)
+        var n = ptr_get(n_ptr)
+        free(n_ptr)
+        if rc == 0 {
+            off = off + n
+            continue
+        }
+        if rc == _errSSLWouldBlock() {
+            var want = _conn_state_want(st)
+            if want == 0 { want = 2 }
+            var w = _macos_wait_io(conn, rem_ms, want)
+            if w == 0 { return 0 - 60 } // ETIMEDOUT
+            if w < 0 { return w }
+        } else {
+            return 0 - 5 // EIO
+        }
+        var now = oren_time_unix_ns()
+        var dt_ms = (now - t0) / 1000000
+        if dt_ms < 0 { dt_ms = 0 }
+        rem_ms = timeout_ms - dt_ms
+        if rem_ms <= 0 { return 0 - 60 }
+    }
+    return off
+}
+
+@cfg(os="macos")
+fn close(conn) {
+    if conn == nil { return 0 }
+    var fd = conn["fd"]
+    var ctx = conn["ctx"]
+    var st = conn["st"]
+    var items = conn["p12_items"]
+    if ctx != 0 {
+        SSLClose(ctx)
+        CFRelease(ctx)
+    }
+    if st != 0 { free(st) }
+    if items != 0 { CFRelease(items) }
+    if fd != nil && fd >= 0 { tcp.close(fd) }
+    return 0
+}
+
+@cfg(os="macos")
+fn peer_cert_sha256_hex(conn) {
+    if conn == nil { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: conn is nil"} }
+    var ctx = conn["ctx"]
+    if ctx == 0 { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: ctx is nil"} }
+
+    var trust_ptr = malloc(8)
+    if trust_ptr == 0 { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: alloc failed"} }
+    ptr_set(trust_ptr, 0)
+    var rc = SSLCopyPeerTrust(ctx, trust_ptr)
+    if rc != 0 {
+        free(trust_ptr)
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: SSLCopyPeerTrust failed (rc=" + oren_int_to_string(rc) + ")"}
+    }
+    var trust = ptr_get(trust_ptr)
+    free(trust_ptr)
+    if trust == 0 { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: trust is nil"} }
+
+    var cert = SecTrustGetCertificateAtIndex(trust, 0)
+    if cert == 0 {
+        CFRelease(trust)
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: no leaf cert"}
+    }
+
+    var data = SecCertificateCopyData(cert)
+    if data == 0 {
+        CFRelease(trust)
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: SecCertificateCopyData failed"}
+    }
+    var n = CFDataGetLength(data)
+    var p = CFDataGetBytePtr(data)
+    if n < 0 || (n != 0 && p == 0) {
+        CFRelease(data)
+        CFRelease(trust)
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: CFData invalid"}
+    }
+
+    var b = oren_u8_buf_new(n)
+    if oren_is_err(b) {
+        CFRelease(data)
+        CFRelease(trust)
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: alloc bytes failed"}
+    }
+    if n > 0 {
+        var dst = native_buf_data_ptr(b)
+        oren_memcpy(dst, p, n)
+    }
+
+    var hex = sha256.sha256_hex(b)
+    CFRelease(data)
+    CFRelease(trust)
+    return {"ok": 1, "v": hex}
+}
