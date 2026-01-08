@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-01-09
+**Last updated:** 2026-01-08
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order,
 plus the **regression gates** that must stay green.
@@ -46,7 +46,7 @@ References:
 
 - Perf playbook: `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`
 - Remote x64 workflow: `docs/REMOTE_X64_ENV.md`
-- Language docs baseline (keep in sync with tests): `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md`, `docs/LANGUAGE_FEATURE_MATRIX.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md` (last sync: 2026-01-09; includes stdlib import resolution + native Windows spawn/join + TLS/HTTPS/WSS gating notes)
+- Language docs baseline (keep in sync with tests): `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md`, `docs/LANGUAGE_FEATURE_MATRIX.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md` (last sync: 2026-01-08; includes stdlib import resolution + native Windows spawn/join + TLS/HTTPS/WSS status notes)
 
 ## P0 (Now)
 
@@ -162,9 +162,9 @@ References:
 		         - `wss://` is supported via `ws.connect_resolver_opts(url, timeout_ms, resolver, {"tls":{...}})` (see `docs/NET_TLS.md`).
 		         - Regression: `tests/native/test_ws_echo_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
 		         - Regression (TLS loopback): `tests/native/test_wss_echo_loopback.oren` (stage1 + stage2; integrated into `./scripts/verify_native_net_matrix.sh`).
-	       - Fixed (2026-01-08): x64-windows WebSocket flake (sporadic `ETIMEDOUT` while reading ping/pong/text frames) was traced to **thread-unsafe shared TIME scratch buffers** in `oren_time_unix_ns()` / `oren_time_mono_raw()`.
-	         - Fix: TIME scratch is now **per-thread** (stored in the thread node) to keep timeout math coherent under `spawn` without introducing hot-path global lock contention (see `docs/NET_WEBSOCKET.md`).
-	         - Next: avoid O(n) thread-list scans in hot TIME paths by introducing a per-thread fast lookup (TLS-like) for the current thread node.
+       - Fixed (2026-01-08): x64-windows WSS loopback failures (timeouts / corrupted WS frame headers under TLS) were traced to **Schannel `DecryptMessage` buffer semantics** in `std:net/tls`:
+         - The plaintext DATA buffer can be a pointer into the encrypted buffer.
+         - Fix: copy plaintext out before shifting the EXTRA encrypted tail, and use overlap-safe moves when shifting tails (`lib/std/net/tls.oren`).
 	       - Next: structured HTTP client/server surface (status + headers + streaming body), then production WebSocket:
 	         - Done (2026-01-08): `std:net/http` now exposes a structured response API:
 		           - `http.get_response(_resolver)` returns `{status, headers, body}` (HTTP/1.1, connection-close).
@@ -183,10 +183,11 @@ References:
 			             - Provider: `lib/std/net/tls.oren` (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
 			             - Regression: `./scripts/verify_native_net_matrix.sh --targets arm64-linux,x64-wsl` (stage1 + stage2)
 			             - Note: Linux SNI is deferred (OpenSSL `SSL_set_tlsext_host_name` is a macro; implement via `SSL_ctrl` once headers/constants are locked down).
-		           - Next:
-		             - implement Tier‑1 provider: Windows x64 Schannel / SSPI (plus `wss://` + `https://` fixtures)
-		             - Done (2026-01-09): deterministic pinning is enforced by `std:net/tls.wrap_client` when `opts["pin_cert_sha256_hex"]` is provided (so HTTP/WS do not duplicate pinning logic).
-		             - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider) and add ALPN wiring for HTTP/2.
+		           - Done (2026-01-08): Windows x64 TLS provider bring-up (Schannel / SSPI) + enable TLS/HTTPS/WSS loopback fixtures on Win11:
+		             - Provider: `lib/std/net/tls.oren` (impl: `windows_schannel`; `@ffi.dll("secur32.dll")` + `@ffi.dll("crypt32.dll")`)
+		             - Regression: `./scripts/verify_native_net_matrix.sh --targets x64-win` (stage1 + stage2)
+		           - Done (2026-01-08): deterministic pinning is enforced by `std:net/tls.wrap_client` when `opts["pin_cert_sha256_hex"]` is provided (so HTTP/WS do not duplicate pinning logic).
+		           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider) and add ALPN wiring for HTTP/2.
 	     - x64 native backend correctness:
 	       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
 	         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)
@@ -217,7 +218,7 @@ References:
        - Done (2026-01-08): portable `@ffi.link("...")` attribute (maps to native `--link ...`) so stdlib/platform bindings can declare dynamic deps without Makefile/script flags.
          - Regression: `tests/native/ffi_linux_strlen_ok.oren` now uses `@ffi.link("libc.so.6")` and the Tier‑1 matrix no longer passes `--link` explicitly.
          - Regression (Windows): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_link.oren`.
-       - Done (2026-01-09): `examples/ffi_test.oren` is now self-contained across OS (`@cfg` + `@ffi.link`/`@ffi.dll`), and `make examples-test` no longer passes ad-hoc `--link libc.so.6` on Linux.
+       - Done (2026-01-08): `examples/ffi_test.oren` is now self-contained across OS (`@cfg` + `@ffi.link`/`@ffi.dll`), and `make examples-test` no longer passes ad-hoc `--link libc.so.6` on Linux.
        - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).
        - Conditional compilation for cross-platform stdlib (rolling):
        - Done: `@cfg(...)` (canonical `@oren.cfg`) filters declarations by target `--platform` (`os`/`arch`/`platform` selectors).
@@ -247,8 +248,9 @@ References:
   - `std:crypto/rand` used by WebSocket client key + masking (no more time-seeded xorshift in stdlib)
   - Capsule: `oren_getentropy` is gated by `@cap.requires(domain="RNG")` (allow via `--cap-allow-domains RNG` / `OREN_CAP_ALLOW_DOMAINS=...`).
   - Fixed (2026-01-07): Win11 WS echo loopback stability was materially improved by hardening NET read/write against spurious readiness timeouts (optimistic `recv`/`send` first; retry until deadline instead of returning `ETIMEDOUT` immediately).
-  - Fixed (2026-01-08): Win11 WS echo loopback flake root cause was TIME scratch buffer races under `spawn`; TIME now uses per-thread scratch buffers (thread node).
-    - Keep as a gate anyway: `./scripts/verify_native_net_matrix.sh --targets x64-win` (WS remains a sensitive end-to-end NET+TIME+THREADS regression).
+  - Fixed (2026-01-08): Win11 WSS loopback failures (timeouts / corrupted WS frames under TLS) were traced to Schannel `DecryptMessage` buffer semantics in `std:net/tls`:
+    - Copy plaintext out before shifting EXTRA encrypted tails, and use overlap-safe moves when shifting tails.
+    - Keep as a gate anyway: `./scripts/verify_native_net_matrix.sh --targets x64-win` (NET+TLS+THREADS is a sensitive end-to-end regression surface).
   - Fixed (2026-01-07): ping/pong/close frames are handled in `ws.recv_text` (auto-pong + ignore pongs), and `ws.send_ping_{client,server}` exists.
   - Fixed (2026-01-07): client key + masking use OS entropy (`oren_getentropy`), not time-seeded xorshift.
 

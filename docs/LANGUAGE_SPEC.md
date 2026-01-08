@@ -1,6 +1,6 @@
 # Oren Language Specification (Draft)
 
-**Last updated:** 2026-01-09
+**Last updated:** 2026-01-08
 
 This document describes the **current Oren language** as accepted by the Stage1 compiler (`./oren`) and required for self-hosting (`oren.oren`).
 It includes both:

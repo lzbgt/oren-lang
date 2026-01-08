@@ -101,9 +101,9 @@ This doc answers: “what’s real today?” and “what’s missing to reach th
 - **TCP/UDP + HTTP + WebSocket loopback suites**
   - Evidence: `tests/native/test_net_suite.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren`
   - Tier‑1 reality: these are included in the remote x86_64 net verification gate (`scripts/verify_native_net_matrix.sh`).
-- **TLS/HTTPS/WSS loopback on macOS + Linux**
+- **TLS/HTTPS/WSS loopback on macOS + Linux + Windows**
   - Evidence: `tests/native/test_tls_loopback.oren`, `tests/native/test_https_get_loopback.oren`, `tests/native/test_wss_echo_loopback.oren`
-  - Rolling note: these fixtures are currently gated away from Windows (TLS provider + root trust story on Windows is still in progress).
+  - Tier‑1 gate: `scripts/verify_native_net_matrix.sh` runs these fixtures on Win11 + WSL2 + local macOS + linux/arm64 container.
 - **PEM decode helpers (crypto plumbing)**
   - Evidence: `tests/native/test_pem_decode_smoke.oren` (imports `std:crypto/pem`)
 
@@ -142,7 +142,7 @@ production maturity requires both implementation *and* regression coverage.
       - RNG substrate is now proved by `tests/native/test_quick_integration_native.oren` (asserts `oren_getentropy` works).
       - NET substrate is now regression-gated by `scripts/verify_native_net_matrix.sh`:
         - Loopback-only TCP/UDP + HTTP GET + WebSocket echo are covered on Win11 + WSL2 via `tests/native/test_net_suite.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren` (see `docs/REMOTE_X64_ENV.md`).
-        - TLS/HTTPS/WSS are currently gated away from Windows and are only proved on macOS/Linux (`tests/native/test_tls_loopback.oren`, `tests/native/test_https_get_loopback.oren`, `tests/native/test_wss_echo_loopback.oren`).
+        - TLS/HTTPS/WSS are now proved on Win11 + WSL2 + macOS + Linux via `scripts/verify_native_net_matrix.sh` (fixtures: `tests/native/test_tls_loopback.oren`, `tests/native/test_https_get_loopback.oren`, `tests/native/test_wss_echo_loopback.oren`).
     - FFI substrate (Tier‑1 Windows, rolling):
       - `ffi name` is implemented via lazy `LoadLibraryA`/`GetProcAddress` stubs in the x64 backend.
       - Evidence: `tests/native/ffi_windows_kernel32.oren` (remote Win11 gate via `scripts/verify_native_matrix.sh --targets x64-win`).

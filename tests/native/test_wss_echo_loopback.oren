@@ -53,10 +53,46 @@ fn u16be_at(p, off) {
     return (hi << 8) | lo
 }
 
-@cfg(not_os="macos,linux")
+@cfg(not_os="macos,linux,windows")
 fn main() {
     // WSS/TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/NET_TLS.md.
     exit(0)
+}
+
+@cfg(os="windows")
+fn server_win(listen_fd, pfx_b64) {
+    var pkcs12_bytes = base64.decode_bytes(pfx_b64)
+    if oren_is_err(pkcs12_bytes) { return 101 }
+    var n = oren_buf_len(pkcs12_bytes)
+    if oren_is_err(n) || n != fixture.pkcs12_len() { return 102 }
+
+    var r = ws.accept_tls_pkcs12(listen_fd, 5000, pkcs12_bytes, fixture.passphrase(), nil)
+    if oren_map_get_str(r, "ok") != 1 {
+        var errv = oren_map_get_str(r, "err")
+        if errv != 0 { print("wss_server: accept_tls_pkcs12 FAIL: " + oren_intern_cstr(errv)) }
+        return 11
+    }
+    var conn = oren_map_get_str(r, "conn")
+    if conn == 0 { return 12 }
+
+    var msg = ws.recv_text(conn, 5000)
+    if oren_map_get_str(msg, "ok") != 1 {
+        var errv2 = oren_map_get_str(msg, "err")
+        if errv2 != 0 { print("wss_server: recv_text FAIL: " + oren_intern_cstr(errv2)) }
+        ws.close(conn)
+        return 13
+    }
+    var s = oren_map_get_str(msg, "v")
+    if s == 0 { ws.close(conn); return 14 }
+
+    var wr = ws.send_text_server(conn, s, 5000)
+    free(s)
+    ws.close(conn)
+    if wr < 0 {
+        print("wss_server: send_text_server FAIL (rc=" + oren_int_to_string(wr) + ")")
+        return 15
+    }
+    return 0
 }
 
 @cfg(os="macos,linux")
@@ -268,6 +304,85 @@ fn main_client() {
     exit(0)
 }
 
+@cfg(os="windows")
+fn main_client() {
+    var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
+
+    var listen_fd = oren_tcp_listen_local(0)
+    if listen_fd < 0 { exit(3) }
+
+    var sa = malloc(32)
+    if sa == 0 { exit(4) }
+    var lenp = malloc(8)
+    if lenp == 0 { exit(5) }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(listen_fd, sa, lenp)
+    if grc < 0 { exit(6) }
+    var port = u16be_at(sa, 2)
+    free(sa)
+    free(lenp)
+    if port <= 0 { exit(7) }
+
+    var h = spawn server_win(listen_fd, fixture.pkcs12_b64())
+
+    var url = "wss://127.0.0.1:" + oren_int_to_string(port) + "/"
+    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test"}
+    var c = ws.connect_resolver_opts(url, 5000, 0, {"tls": tls_opts})
+    free(url)
+    if oren_map_get_str(c, "ok") != 1 {
+        var errv = oren_map_get_str(c, "err")
+        if errv != 0 { print("wss_loopback: FAIL connect: " + oren_intern_cstr(errv)) }
+        oren_join_timeout(h, 5000)
+        exit(8)
+    }
+    var conn = oren_map_get_str(c, "conn")
+    if conn == 0 {
+        oren_join_timeout(h, 5000)
+        exit(9)
+    }
+
+    var prc = ws.send_ping_client(conn, "hi", 5000)
+    if prc < 0 {
+        print("wss_loopback: FAIL ping (rc=" + oren_int_to_string(prc) + ")")
+        ws.close(conn)
+        oren_join_timeout(h, 5000)
+        exit(20)
+    }
+
+    var text = "PING"
+    var wr = ws.send_text_client(conn, text, 5000)
+    if wr < 0 {
+        print("wss_loopback: FAIL send_text (rc=" + oren_int_to_string(wr) + ")")
+        ws.close(conn)
+        oren_join_timeout(h, 5000)
+        exit(21)
+    }
+
+    var rr = ws.recv_text(conn, 5000)
+    if oren_map_get_str(rr, "ok") != 1 {
+        var errv2 = oren_map_get_str(rr, "err")
+        if errv2 != 0 { print("wss_loopback: FAIL recv_text: " + oren_intern_cstr(errv2)) }
+        ws.close(conn)
+        oren_join_timeout(h, 5000)
+        exit(22)
+    }
+    var body = oren_map_get_str(rr, "v")
+    if body == 0 || strcmp(body, "PING") != 0 {
+        if body != 0 { print("wss_loopback: FAIL body mismatch: " + body) }
+        if body != 0 { free(body) }
+        ws.close(conn)
+        oren_join_timeout(h, 5000)
+        exit(23)
+    }
+    free(body)
+    ws.close(conn)
+
+    var sr = oren_join_timeout(h, 5000)
+    if sr != 0 { exit(42) }
+    tcp.close(listen_fd)
+    exit(0)
+}
+
 @cfg(os="macos,linux")
 fn main() {
     var args = oren_args()
@@ -276,3 +391,6 @@ fn main() {
     }
     return main_client()
 }
+
+@cfg(os="windows")
+fn main() { return main_client() }

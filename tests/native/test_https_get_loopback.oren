@@ -71,10 +71,57 @@ fn _find_header_end(buf, used) {
     return 0
 }
 
-@cfg(not_os="macos,linux")
+@cfg(not_os="macos,linux,windows")
 fn main() {
     // HTTPS/TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/NET_TLS.md.
     exit(0)
+}
+
+@cfg(os="windows")
+fn server_win(listen_fd, pfx_b64) {
+    var pkcs12_bytes = base64.decode_bytes(pfx_b64)
+    if oren_is_err(pkcs12_bytes) { return 101 }
+    var n = oren_buf_len(pkcs12_bytes)
+    if oren_is_err(n) || n != fixture.pkcs12_len() { return 102 }
+
+    var fd = tcp.accept(listen_fd, 5000)
+    if fd < 0 { return 11 }
+    var r = tls.wrap_server_pkcs12(fd, 5000, pkcs12_bytes, fixture.passphrase(), nil)
+    if oren_map_get_str(r, "ok") != 1 {
+        var errv = oren_map_get_str(r, "err")
+        if errv != 0 { print("https_loopback: server wrap FAIL: " + oren_intern_cstr(errv)) }
+        return 12
+    }
+    var conn = oren_map_get_str(r, "conn")
+    if conn == 0 { return 13 }
+
+    // Read until the end of the HTTP header (best-effort).
+    var cap = 8192
+    var buf = malloc(cap)
+    if buf == 0 { tls.close(conn); return 14 }
+    var tmp = malloc(1024)
+    if tmp == 0 { free(buf); tls.close(conn); return 15 }
+    var used = 0
+    var hdr_end = 0
+    while used < cap && hdr_end == 0 {
+        var rn = tls.read_into(conn, tmp, 1024, 5000)
+        if rn <= 0 { break }
+        if used + rn > cap { break }
+        oren_memcpy(buf + used, tmp, rn)
+        used = used + rn
+        hdr_end = _find_header_end(buf, used)
+    }
+    free(tmp)
+    free(buf)
+
+    // Minimal HTTP response.
+    var body = "HELLO"
+    var resp = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n" + body
+    var wr = tls.write_from(conn, resp, oren_string_len(resp), 5000)
+    free(resp)
+    tls.close(conn)
+    if wr < 0 { return 16 }
+    return 0
 }
 
 @cfg(os="macos,linux")
@@ -283,6 +330,61 @@ fn main_client() {
     exit(0)
 }
 
+@cfg(os="windows")
+fn main_client() {
+    var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
+
+    // Bind ephemeral loopback port.
+    var listen_fd = oren_tcp_listen_local(0)
+    if listen_fd < 0 { exit(3) }
+
+    // getsockname to find the bound port.
+    var sa = malloc(32)
+    if sa == 0 { exit(4) }
+    var lenp = malloc(8)
+    if lenp == 0 { exit(5) }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(listen_fd, sa, lenp)
+    if grc < 0 { exit(6) }
+    var port = u16be_at(sa, 2)
+    free(sa)
+    free(lenp)
+    if port <= 0 { exit(7) }
+
+    // Windows spawn is thread-based; run the HTTPS server inline without fork/exec.
+    var h = spawn server_win(listen_fd, fixture.pkcs12_b64())
+
+    var url = "https://127.0.0.1:" + oren_int_to_string(port) + "/"
+    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test"}
+    var rr = http.get_response_opts(url, 5000, {"tls": tls_opts})
+    free(url)
+
+    var okv = oren_map_get_str(rr, "ok")
+    if okv != 1 {
+        var errv = oren_map_get_str(rr, "err")
+        if errv != 0 { print("https_loopback: FAIL: " + oren_intern_cstr(errv)) }
+        oren_join_timeout(h, 5000)
+        exit(8)
+    }
+    if oren_map_get_str(rr, "status") != 200 {
+        http.response_free(rr)
+        oren_join_timeout(h, 5000)
+        exit(9)
+    }
+    var body = oren_map_get_str(rr, "body")
+    if body == 0 || _str_eq_bytes(body, "HELLO") != true {
+        http.response_free(rr)
+        oren_join_timeout(h, 5000)
+        exit(10)
+    }
+    http.response_free(rr)
+
+    var sr = oren_join_timeout(h, 5000)
+    if sr != 0 { exit(42) }
+    tcp.close(listen_fd)
+    exit(0)
+}
+
 @cfg(os="macos,linux")
 fn main() {
     var args = oren_args()
@@ -291,3 +393,6 @@ fn main() {
     }
     return main_client()
 }
+
+@cfg(os="windows")
+fn main() { return main_client() }

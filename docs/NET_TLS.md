@@ -67,7 +67,7 @@ Proposed functions:
 
 - `opts["alpn"]`: list of strings (e.g. `["h2", "http/1.1"]`) (optional)
 - `opts["verify"]`: `1|0` (default: `1`) (planned; provider-dependent)
-- `opts["insecure_skip_verify"]`: `1|0` (default: `0`) (implemented on macOS + Linux providers; see §5)
+- `opts["insecure_skip_verify"]`: `1|0` (default: `0`) (implemented on macOS + Linux + Windows providers; see §5)
   - Intended for **offline loopback fixtures** only; callers should pin the peer cert (see §3).
 - `opts["server_name"]`: override SNI/server name when dialing by IP (used by loopback fixtures and proxies)
 - `opts["pin_cert_sha256_hex"]`: optional pinned leaf certificate hash (SHA-256 of DER; hex string)
@@ -146,9 +146,7 @@ Rationale:
   - `std:net/ws` supports `wss://` via `ws.connect_resolver_opts` (uses `tls.wrap_client`).
     - Server helper: `ws.accept_tls_pkcs12` (wraps `tcp.accept` + `tls.wrap_server_pkcs12` + WS handshake).
     - Regression gate: `tests/native/test_wss_echo_loopback.oren`.
-  - Note: TLS provider availability is still OS-dependent; on non-macOS and non-Linux targets these fixtures compile but exit(0) until providers land.
-- Still pending (Tier‑1 provider parity):
-  - Windows x64: Schannel / SSPI (`secur32.dll`, `crypt32.dll`)
+- Note: TLS provider availability is still OS-dependent; on non-macOS/non-Linux/non-Windows targets these fixtures compile but exit(0) until providers land.
 
 ### 5.1 Linux provider (OpenSSL)
 
@@ -184,3 +182,29 @@ Sources captured for audit/reference:
 - `project-doc/web/openssl/SSL_get_error.html`
 - `project-doc/web/openssl/PKCS12_parse.html`
 - `project-doc/web/openssl/d2i_X509.html`
+
+### 5.2 Windows provider (Schannel / SSPI)
+
+As of **2026-01-08 (rolling)**, `std:net/tls` has a Windows provider implemented in `lib/std/net/tls.oren`:
+
+- Dynamic linking:
+  - `@ffi.dll("secur32.dll")` (SSPI)
+  - `@ffi.dll("crypt32.dll")` (PFX import + cert hash)
+- Implemented surface:
+  - `wrap_client`, `wrap_server_pkcs12`
+  - `read_into`, `write_from`, `close`
+  - `peer_cert_sha256_hex` (leaf hash via `SECPKG_ATTR_REMOTE_CERT_CONTEXT` + `CERT_SHA256_HASH_PROP_ID`)
+- Regression gate:
+  - `scripts/verify_native_net_matrix.sh --targets x64-win` runs (stage1 + stage2):
+    - `tests/native/test_tls_loopback.oren`
+    - `tests/native/test_https_get_loopback.oren`
+    - `tests/native/test_wss_echo_loopback.oren`
+
+Implementation notes (Windows):
+
+- **Server handshake must start with input**:
+  - `AcceptSecurityContext` is not guaranteed to establish a context handle when called with a zero-length input token.
+  - The server handshake loop therefore reads the initial ClientHello bytes before the first `AcceptSecurityContext` call.
+- **Schannel `DecryptMessage` buffer semantics**:
+  - The plaintext DATA buffer can be a pointer into the encrypted buffer.
+  - Copy plaintext out before shifting the EXTRA encrypted tail, and use overlap-safe moves when shifting tails.
