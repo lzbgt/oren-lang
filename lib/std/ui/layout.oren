@@ -10,7 +10,7 @@
 // - "Stack": children overlaid at (0,0)
 //
 // Layout output is a "box tree" (map):
-//   {"t":<tag>, "k":<key>, "x":<int>, "y":<int>, "w":<int>, "h":<int>, "children":[...]}
+//   {"t":<tag>, "k":<key>, "p":<props map>, "x":<int>, "y":<int>, "w":<int>, "h":<int>, "children":[...]}
 
 fn _i(v) {
     if v == nil { return 0 }
@@ -23,9 +23,10 @@ fn _leaf_size(n) {
     return {"w": _i(p["w"]), "h": _i(p["h"])}
 }
 
-fn _box(tag, key, x, y, w, h, children_boxes) {
+fn _box(tag, key, props, x, y, w, h, children_boxes) {
+    if props == nil { props = {} }
     if children_boxes == nil { children_boxes = [] }
-    return {"t": tag, "k": key, "x": x, "y": y, "w": w, "h": h, "children": children_boxes}
+    return {"t": tag, "k": key, "p": props, "x": x, "y": y, "w": w, "h": h, "children": children_boxes}
 }
 
 fn layout(root, constraints) {
@@ -35,16 +36,18 @@ fn layout(root, constraints) {
 }
 
 fn _layout_at(n, x0, y0) {
-    if n == nil { return _box("Nil", "nil", x0, y0, 0, 0, []) }
+    if n == nil { return _box("Nil", "nil", {}, x0, y0, 0, 0, []) }
 
     var tag = n["t"]
     var key = n["k"]
+    var p = n["p"]
+    if p == nil { p = {} }
     var cs = n["c"]
     if cs == nil { cs = [] }
 
     if tag == "Box" || tag == "Text" {
         var sz = _leaf_size(n)
-        return _box(tag, key, x0, y0, sz["w"], sz["h"], [])
+        return _box(tag, key, p, x0, y0, sz["w"], sz["h"], [])
     }
 
     if tag == "Row" {
@@ -63,7 +66,7 @@ fn _layout_at(n, x0, y0) {
             if ch > hmax { hmax = ch }
             i = i + 1
         }
-        return _box(tag, key, x0, y0, wsum, hmax, out_children)
+        return _box(tag, key, p, x0, y0, wsum, hmax, out_children)
     }
 
     if tag == "Column" {
@@ -82,7 +85,7 @@ fn _layout_at(n, x0, y0) {
             if cw2 > wmax { wmax = cw2 }
             j = j + 1
         }
-        return _box(tag, key, x0, y0, wmax, hsum, out_children2)
+        return _box(tag, key, p, x0, y0, wmax, hsum, out_children2)
     }
 
     if tag == "Stack" {
@@ -99,7 +102,7 @@ fn _layout_at(n, x0, y0) {
             if ch3 > hmax2 { hmax2 = ch3 }
             k = k + 1
         }
-        return _box(tag, key, x0, y0, wmax2, hmax2, out_children3)
+        return _box(tag, key, p, x0, y0, wmax2, hmax2, out_children3)
     }
 
     // Unknown tag: treat as zero-sized container, still layout children at origin.
@@ -109,6 +112,5 @@ fn _layout_at(n, x0, y0) {
         oren_list_push(out_children4, _layout_at(cs[m], x0, y0))
         m = m + 1
     }
-    return _box(tag, key, x0, y0, 0, 0, out_children4)
+    return _box(tag, key, p, x0, y0, 0, 0, out_children4)
 }
-

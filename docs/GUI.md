@@ -233,6 +233,21 @@ These should run under AVM without host windows.
 
 These are still valuable but should not be the only correctness story.
 
+## 6.1) Current implementation status (v0)
+
+Implemented (headless, portable):
+
+- `std:ui/core` (`lib/std/ui/core.oren`): node constructors + minimal keyed `diff()`
+- `std:ui/layout` (`lib/std/ui/layout.oren`): deterministic layout v0 (`Row`/`Column`/`Stack`, fixed-size leaves)
+- `std:ui/style` (`lib/std/ui/style.oren`): deterministic style merge (no CSS yet)
+- `std:ui/render` (`lib/std/ui/render.oren`): render → deterministic command buffer (no platform drawing yet)
+
+Regression gates (headless):
+
+- `make test-avm`
+  - `tests/avm/test_ui_layout_v0.oren`
+  - `tests/avm/test_ui_render_v0.oren`
+
 ## 7) Roadmap tasks (tracked in `docs/TODOS.md`)
 
 This document defines the intended design; implementation tasks are tracked in `docs/TODOS.md`.
@@ -243,4 +258,3 @@ The recommended progression is:
 3) software framebuffer renderer v0 (cross-platform shim per OS)
 4) text measurement/shaping + font loading (incremental; can be stubbed initially)
 5) richer widgets and accessibility (later)
-

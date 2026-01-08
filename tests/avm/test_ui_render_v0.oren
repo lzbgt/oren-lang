@@ -1,0 +1,68 @@
+// AVM headless UI test: std:ui render v0 command buffer.
+//
+// This remains fully headless and checks only deterministic command shapes.
+
+import ui_layout "std:ui/layout"
+import ui_render "std:ui/render"
+
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_true(x) {
+    if x { return 0 }
+    fail()
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn test_simple_render() {
+    // Root is a Column with:
+    // - Box a (red)
+    // - Text b (green)
+    var root = {
+        "t": "Column",
+        "k": "root",
+        "p": {},
+        "c": [
+            {"t": "Box", "k": "a", "p": {"w": 10, "h": 4, "bg": "#ff0000"}, "c": []},
+            {"t": "Text", "k": "b", "p": {"w": 3, "h": 1, "text": "hi", "color": "#00ff00"}, "c": []}
+        ]
+    }
+
+    // Sanity: layout must propagate props so render can see bg/text.
+    var bt = ui_layout.layout(root, {})
+    assert_eq(bt["t"], "Column")
+    assert_true(bt["children"][0]["p"]["bg"] == "#ff0000")
+    assert_true(bt["children"][1]["p"]["text"] == "hi")
+
+    var cmds = ui_render.render(root, nil)
+    assert_eq(oren_list_len(cmds), 2)
+
+    // 0: box fill
+    assert_eq(cmds[0]["op"], "fill_rect")
+    assert_eq(cmds[0]["x"], 0)
+    assert_eq(cmds[0]["y"], 0)
+    assert_eq(cmds[0]["w"], 10)
+    assert_eq(cmds[0]["h"], 4)
+    assert_eq(cmds[0]["color"], "#ff0000")
+
+    // 1: text draw (placed below the box in a Column)
+    assert_eq(cmds[1]["op"], "text")
+    assert_eq(cmds[1]["x"], 0)
+    assert_eq(cmds[1]["y"], 4)
+    assert_eq(cmds[1]["text"], "hi")
+    assert_eq(cmds[1]["color"], "#00ff00")
+}
+
+fn main() {
+    test_simple_render()
+    exit(0)
+}
+

@@ -1,0 +1,74 @@
+// std:ui/render (rolling)
+//
+// Render the `std:ui` node tree into a deterministic "render command buffer".
+// This is intentionally headless and platform-neutral; a future UI domain shim
+// can interpret these commands and draw them (software framebuffer v0; GPU v1).
+//
+// Commands (v0):
+// - {"op":"fill_rect","x":int,"y":int,"w":int,"h":int,"color":string}
+// - {"op":"text","x":int,"y":int,"text":string,"color":string}
+//
+// Colors are currently represented as strings (e.g. "#RRGGBB") so the shape is
+// backend-neutral and easy to serialize.
+
+import ui_layout "std:ui/layout"
+
+fn _get(m, k, defv) {
+    if m == nil { return defv }
+    var v = m[k]
+    if v == nil { return defv }
+    return v
+}
+
+fn render(root, opts) {
+    // opts is reserved for future control:
+    // - max_w/max_h constraints
+    // - clear_color
+    if opts == nil { opts = {} }
+    var bt = ui_layout.layout(root, opts)
+    var out = []
+
+    var clear = opts["clear_color"]
+    if clear != nil {
+        oren_list_push(out, {"op": "fill_rect", "x": 0, "y": 0, "w": bt["w"], "h": bt["h"], "color": clear})
+    }
+
+    _emit_box(bt, out)
+    return out
+}
+
+fn _emit_box(b, out) {
+    if b == nil { return 0 }
+    var tag = b["t"]
+    var p = b["p"]
+    if p == nil { p = {} }
+
+    if tag == "Box" {
+        var bg = p["bg"]
+        if bg != nil {
+            oren_list_push(out, {
+                "op": "fill_rect",
+                "x": b["x"],
+                "y": b["y"],
+                "w": b["w"],
+                "h": b["h"],
+                "color": bg
+            })
+        }
+        // No children for Box in v0, but be tolerant.
+    } else if tag == "Text" {
+        var s = _get(p, "text", "")
+        var color = _get(p, "color", "#000000")
+        oren_list_push(out, {"op": "text", "x": b["x"], "y": b["y"], "text": s, "color": color})
+    }
+
+    var cs = b["children"]
+    if cs == nil { cs = [] }
+    var i = 0
+    while i < oren_list_len(cs) {
+        _emit_box(cs[i], out)
+        i = i + 1
+    }
+    return 0
+}
+
