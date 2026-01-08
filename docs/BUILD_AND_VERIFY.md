@@ -43,6 +43,9 @@ oren_bootstrap.exe build oren.oren --target windows --cc cl -o oren.exe
 
 - When `--cc cl` is selected, stage0 attempts to auto-configure the MSVC environment by locating
   VS2022 via `vswhere.exe` and running `VsDevCmd.bat` / `vcvars64.bat` in a child `cmd.exe` session.
+  - If your Windows environment is non-standard (custom VS install paths, CI images, minimal shells), you can override:
+    - `OREN_MSVC_VSWHERE=<full\\path\\to\\vswhere.exe>` (skip default probing)
+    - `OREN_MSVC_INSTALL_PATH=<full\\path\\to\\Visual Studio\\...>` (skip `vswhere.exe` entirely)
 - C-backend outputs run the program entrypoint on a fresh OS thread with a larger stack by default
   (to avoid stack overflow in self-hosted compiler workloads). Override via:
   - `OREN_MAIN_STACK_SIZE` (decimal bytes; default: 64 MiB; min: 1 MiB)

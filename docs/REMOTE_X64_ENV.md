@@ -71,6 +71,11 @@ To support native Windows bring-up, we also keep a small regression gate that pr
 - stage0 (Go) can build stage1 on **x64-windows** using VS2022 `cl.exe` (auto-configured via `vswhere.exe` + `VsDevCmd.bat` / `vcvars64.bat`)
 - the resulting stage1 executable can run on Windows and compile+run a tiny native program
 
+Notes (MSVC bootstrap overrides):
+
+- `OREN_MSVC_VSWHERE=<path>` can pin the `vswhere.exe` location if it isn't in a standard install directory / PATH.
+- `OREN_MSVC_INSTALL_PATH=<path>` can bypass `vswhere.exe` entirely (useful for custom CI images).
+
 ```bash
 ./scripts/verify_stage0_windows_bootstrap.sh
 ```

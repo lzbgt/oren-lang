@@ -83,9 +83,35 @@ type msvcDevCmd struct {
 	args []string
 }
 
+func msvcDevCmdFromInstallPath(installPath string) (msvcDevCmd, error) {
+	vsDevCmd := filepath.Join(installPath, "Common7", "Tools", "VsDevCmd.bat")
+	if _, err := os.Stat(vsDevCmd); err == nil {
+		return msvcDevCmd{
+			path: vsDevCmd,
+			// VsDevCmd supports selecting host + target arch.
+			args: []string{"-arch=amd64", "-host_arch=amd64", "-no_logo"},
+		}, nil
+	}
+	vcvars64 := filepath.Join(installPath, "VC", "Auxiliary", "Build", "vcvars64.bat")
+	if _, err := os.Stat(vcvars64); err == nil {
+		// vcvars64 sets up a 64-bit target environment and does not accept VsDevCmd-style args.
+		return msvcDevCmd{path: vcvars64}, nil
+	}
+	return msvcDevCmd{}, fmt.Errorf("found VS install at %q but could not find VsDevCmd.bat or vcvars64.bat", installPath)
+}
+
 func findMSVCDevCmd() (msvcDevCmd, error) {
+	// Escape hatch: allow pinning the VS installation path directly, so bootstrap works
+	// even if vswhere.exe is missing/unreachable in the environment.
+	if installPath := strings.TrimSpace(os.Getenv("OREN_MSVC_INSTALL_PATH")); installPath != "" {
+		return msvcDevCmdFromInstallPath(installPath)
+	}
+
 	// Prefer vswhere.exe in the standard installer location.
 	var candidates []string
+	if v := strings.TrimSpace(os.Getenv("OREN_MSVC_VSWHERE")); v != "" {
+		candidates = append(candidates, v)
+	}
 	if pf86 := os.Getenv("ProgramFiles(x86)"); pf86 != "" {
 		candidates = append(candidates, filepath.Join(pf86, "Microsoft Visual Studio", "Installer", "vswhere.exe"))
 	}
@@ -104,7 +130,7 @@ func findMSVCDevCmd() (msvcDevCmd, error) {
 		}
 	}
 	if vswhere == "" {
-		return msvcDevCmd{}, fmt.Errorf("vswhere.exe not found (install Visual Studio 2022 or set PATH)")
+		return msvcDevCmd{}, fmt.Errorf("vswhere.exe not found (install Visual Studio 2022 Build Tools / VS2022, or set PATH; override with OREN_MSVC_VSWHERE or OREN_MSVC_INSTALL_PATH)")
 	}
 
 	out, err := exec.Command(vswhere,
@@ -121,20 +147,7 @@ func findMSVCDevCmd() (msvcDevCmd, error) {
 		return msvcDevCmd{}, fmt.Errorf("vswhere.exe did not return an installationPath (MSVC toolchain not installed?)")
 	}
 
-	vsDevCmd := filepath.Join(installPath, "Common7", "Tools", "VsDevCmd.bat")
-	if _, err := os.Stat(vsDevCmd); err == nil {
-		return msvcDevCmd{
-			path: vsDevCmd,
-			// VsDevCmd supports selecting host + target arch.
-			args: []string{"-arch=amd64", "-host_arch=amd64", "-no_logo"},
-		}, nil
-	}
-	vcvars64 := filepath.Join(installPath, "VC", "Auxiliary", "Build", "vcvars64.bat")
-	if _, err := os.Stat(vcvars64); err == nil {
-		// vcvars64 sets up a 64-bit target environment and does not accept VsDevCmd-style args.
-		return msvcDevCmd{path: vcvars64}, nil
-	}
-	return msvcDevCmd{}, fmt.Errorf("found VS install at %q but could not find VsDevCmd.bat or vcvars64.bat", installPath)
+	return msvcDevCmdFromInstallPath(installPath)
 }
 
 func main() {

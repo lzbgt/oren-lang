@@ -131,13 +131,16 @@ References:
      - Windows stage0→stage1 bootstrap: `./scripts/verify_stage0_windows_bootstrap.sh`
 
      - Active gaps (keep this list forward-looking; details live in `docs/TODOS_ARCHIVE.md`):
-       - Build system parity (Windows host):
-         - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
-         - Done: Windows-host bootstrap defaults now reliably select MSVC `cl.exe` when `OREN_BOOTSTRAP_CC` is not set (fixes `make test` / `make stage1` under Git Bash/MSYS2).
-         - Done (2026-01-08): AVM build uses `AVM_CC` (default: `cc`) so Windows hosts can keep stage0/stage1 bring-up on MSVC `cl.exe` without forcing AVM to use MSVC-flags.
-         - Done (2026-01-08): stage1 can build stage2 on native Windows (not just run a prebuilt stage2):
-           - Gate: `./scripts/verify_windows_stage2_from_stage1.sh` (stage0→stage1→stage2; Win11 + VS2022 + `cl.exe`)
-           - Make shortcut: `make verify-stage2-win`
+	       - Build system parity (Windows host):
+	         - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
+	         - Done: Windows-host bootstrap defaults now reliably select MSVC `cl.exe` when `OREN_BOOTSTRAP_CC` is not set (fixes `make test` / `make stage1` under Git Bash/MSYS2).
+	         - Done (2026-01-08): stage0 MSVC bootstrap now supports escape-hatch overrides for nonstandard Windows environments:
+	           - `OREN_MSVC_VSWHERE=<path>` (pin `vswhere.exe`)
+	           - `OREN_MSVC_INSTALL_PATH=<path>` (bypass `vswhere.exe` entirely)
+	         - Done (2026-01-08): AVM build uses `AVM_CC` (default: `cc`) so Windows hosts can keep stage0/stage1 bring-up on MSVC `cl.exe` without forcing AVM to use MSVC-flags.
+	         - Done (2026-01-08): stage1 can build stage2 on native Windows (not just run a prebuilt stage2):
+	           - Gate: `./scripts/verify_windows_stage2_from_stage1.sh` (stage0→stage1→stage2; Win11 + VS2022 + `cl.exe`)
+	           - Make shortcut: `make verify-stage2-win`
          - Intent: `make`, `make test`, `make stage2`, `make verify-native-quick` should work under MSYS2/Git Bash/Cygwin (stage0 still uses MSVC `cl.exe`, auto-configured by stage0; see `docs/REMOTE_X64_ENV.md`).
 		     - NET stdlib maturity:
 		       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP **and HTTPS** (Content-Length + chunked; IPv4-only; no keep-alive pooling yet).
