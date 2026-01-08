@@ -198,6 +198,26 @@ ffi puts
 puts("Hello FFI")
 ```
 
+Recommended cross-platform form (native backend):
+
+```oren
+// Cross-platform C FFI example: call `puts`.
+//
+// On Linux, declare the libc dependency explicitly so the native backend emits a dynamic ELF.
+// On Windows, attach the DLL used for symbol resolution.
+
+@cfg(os="windows")
+@ffi.dll("msvcrt.dll")
+ffi puts
+
+@cfg(os="linux")
+@ffi.link("libc.so.6")
+ffi puts
+
+@cfg(os="macos")
+ffi puts
+```
+
 Notes (rolling):
 
 - `ffi` is a low-level escape hatch intended primarily for native interop and experiments.
@@ -214,6 +234,38 @@ Notes (rolling):
     - **Linux arm64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/NATIVE_BACKEND.md`).
   - C backend:
     - Oren does not have a stabilized “typed C FFI” surface yet, but you can still link extra C by compiling the emitted C yourself (see `docs/C_BACKEND.md`).
+
+### Conditional compilation (`@cfg(...)`)
+
+Oren supports a **minimal conditional compilation** attribute:
+
+- source form: `@cfg(...)`
+- canonical form (what metadata uses): `@oren.cfg(...)`
+
+`@cfg` is evaluated at compile time based on the selected target platform:
+
+- `--platform <arch>-<os>` (preferred), or
+- env fallback `OREN_PLATFORM=<arch>-<os>`
+
+If the target platform is unknown/missing, `@cfg(...)` is a compile-time error.
+
+Supported selector forms (rolling v0):
+
+- Positional string selector:
+  - `@cfg("linux")` / `@cfg("macos")` / `@cfg("windows")`
+  - `@cfg("x64")` / `@cfg("arm64")`
+  - `@cfg("x64-windows")` / `@cfg("arm64-linux")`
+- Keyword selectors (CSV strings; AND across keys):
+  - `@cfg(os="linux,macos")`
+  - `@cfg(arch="x64")`
+  - `@cfg(platform="arm64-linux")`
+  - Negation keys: `not_os`, `not_arch`, `not_platform`
+
+Important limitations (current implementation):
+
+- `@cfg` is implemented for **declarations** (`fn`, `struct`, `ffi`, `var`).
+- `@cfg` is **not supported on `import` yet** (the stage2 fast import scan cannot respect conditional imports).
+  - Gate declarations *inside* the imported module instead.
 
 ## 2) Values and literals
 

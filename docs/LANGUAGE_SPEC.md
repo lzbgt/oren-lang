@@ -1,6 +1,6 @@
 # Oren Language Specification (Draft)
 
-**Last updated:** 2025-12-28
+**Last updated:** 2026-01-09
 
 This document describes the **current Oren language** as accepted by the Stage1 compiler (`./oren`) and required for self-hosting (`oren.oren`).
 It includes both:
@@ -277,6 +277,58 @@ Program termination (rolling):
 - Do not rely on the **return value of `main`** for an exit code; backends do not yet agree on whether it is used.
 - Use `exit(code)` for deterministic, portable termination semantics across all backends.
 
+### Target platform configuration (toolchain contract; affects `@cfg`)
+
+While the language grammar is platform-neutral, some compile-time behavior depends on the **selected target platform**:
+
+- native backend codegen selection (`arm64-*` vs `x64-*`)
+- conditional compilation via `@cfg(...)` / `@oren.cfg(...)`
+
+The compiler chooses the platform using this priority order:
+
+1) CLI: `--platform <arch>-<os>` (preferred)
+2) Env fallback: `OREN_PLATFORM=<arch>-<os>`
+3) If neither is provided: host auto-detection (Windows uses env; POSIX uses `uname`)
+
+Rolling Tier‑1 platforms (current project intent / regression focus):
+
+- `arm64-macos`, `arm64-linux`, `x64-linux`, `x64-windows`
+
+### Conditional compilation (`@cfg(...)` / canonical `@oren.cfg`)
+
+`@cfg` is a compiler directive attribute used for **minimal conditional compilation**.
+
+Status: **Rolling (implemented)**.
+
+Semantics:
+
+- `@cfg(...)` is evaluated at compile time using the selected target platform (see above).
+- If a declaration does not match its `@cfg`, it is **removed** from the program before later passes and before codegen.
+- If the target platform is unknown/missing, using `@cfg` is a compile-time error.
+
+Supported attachment sites (rolling v0):
+
+- Declarations: `fn`, `struct`, `ffi`, `var`
+- Not supported yet: `import`
+  - Reason: stage2 has a lexer-only fast import scan that cannot respect conditional imports.
+  - Workaround: keep imports stable and gate platform-specific declarations *inside* imported modules.
+
+Selector forms (rolling v0):
+
+- Positional selector string (exactly one positional arg):
+  - OS match: `@cfg("linux")` / `@cfg("macos")` / `@cfg("windows")`
+  - Arch match: `@cfg("x64")` / `@cfg("arm64")`
+  - Platform match: `@cfg("x64-windows")`, `@cfg("arm64-linux")`, etc.
+- Keyword selectors (CSV strings; AND across keys):
+  - `@cfg(os="linux,macos")`
+  - `@cfg(arch="x64")`
+  - `@cfg(platform="arm64-linux")`
+  - Negation keys: `not_os`, `not_arch`, `not_platform`
+
+Note on naming:
+
+- The compiler canonicalizes `@cfg` to `@oren.cfg` in metadata.
+
 ### Notes on current (rolling) type annotations
 
 Oren is still in rolling mode without a full static type checker, but the parser already supports
@@ -390,7 +442,7 @@ struct User {
 3) **Reserved namespaces**
    - Compiler/tool-reserved: `oren.*`, `avm.*`, `cap.*`, `ffi.*`, `codegen.*`, `trace.*`
 
-4) **Ergonomic aliases (surface syntax)**
+  4) **Ergonomic aliases (surface syntax)**
    - For readability, the compiler accepts a small set of short aliases and canonicalizes
      them before strict-mode validation and before emitting metadata.
    - Canonical form is what gets embedded into `.obc` metadata / `--metadata` JSON.
@@ -398,6 +450,8 @@ struct User {
      - `@pack` → `@oren.packed`
      - `@abi` → `@oren.abi`
      - `@json.*` → `@serde.*` (serde namespace is canonical for tooling + future codegen)
+
+     - `@cfg` → `@oren.cfg` (conditional compilation directive)
 
 #### Stdlib impact: JSON serde (rolling plan)
 
