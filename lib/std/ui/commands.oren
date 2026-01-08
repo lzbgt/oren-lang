@@ -1,0 +1,97 @@
+// std:ui/commands (rolling)
+//
+// Validation and normalization helpers for the render command buffer schema.
+//
+// This module exists so:
+// - headless rasterizer and future platform shims can share a single validator
+// - tests can assert that emitters produce valid command buffers
+//
+// See `docs/GUI.md` for the current v0 schema.
+
+fn _is_int(v) {
+    // Backends differ in how they signal "wrong type" for intrinsics.
+    // We keep this conservative and non-crashy by using `oren_int_to_string`:
+    // - valid ints should produce a non-nil string
+    // - non-ints commonly produce `nil` (or an err)
+    if v == nil { return false }
+    var s = oren_int_to_string(v)
+    if s == nil { return false }
+    return oren_is_err(s) == 0
+}
+
+fn _is_string(v) {
+    if v == nil { return false }
+    // Compare length: string_len errors on non-string.
+    var n = oren_string_len(v)
+    return oren_is_err(n) == 0
+}
+
+fn _hex_ok(s) {
+    // Accept "#RRGGBB" or "#RRGGBBAA" (case-insensitive).
+    if _is_string(s) == false { return false }
+    var n = oren_string_len(s)
+    if n != 7 && n != 9 { return false }
+    if oren_string_slice(s, 0, 1) != "#" { return false }
+    var tail = oren_string_slice(s, 1, n)
+    var b = oren_bytes_from_hex(tail)
+    if oren_is_err(b) { return false }
+    var bl = oren_bytes_len(b)
+    if oren_is_err(bl) { return false }
+    return bl == 3 || bl == 4
+}
+
+fn validate(cmds, w, h, opts) {
+    // Returns:
+    // - 0 on success
+    // - err on failure
+    //
+    // opts (rolling):
+    // - strict_bounds: bool (default false) — reject ops that extend outside the framebuffer.
+    if opts == nil { opts = {} }
+    var strict = opts["strict_bounds"]
+    if strict == nil { strict = false }
+    strict = strict != 0
+
+    if _is_int(w) == false || _is_int(h) == false { return oren_err(4, "ui.validate: invalid framebuffer size") }
+    if w < 0 || h < 0 { return oren_err(4, "ui.validate: negative framebuffer size") }
+
+    if cmds == nil { return 0 }
+    // Lists are the only stable "sequence" container across backends right now.
+    // In some backends `oren_list_len(non_list)` yields nil rather than an error.
+    var _n = oren_list_len(cmds)
+    if _n == nil || oren_is_err(_n) != 0 { return oren_err(4, "ui.validate: cmds must be list") }
+
+    var i = 0
+    while i < oren_list_len(cmds) {
+        var c = cmds[i]
+        if c == nil { return oren_err(4, "ui.validate: cmd is nil") }
+        // Command is expected to be a map-like value (indexing by string keys).
+        var op = c["op"]
+        if _is_string(op) == false { return oren_err(4, "ui.validate: cmd missing op") }
+
+        if op == "fill_rect" {
+            var x = c["x"]; var y = c["y"]; var rw = c["w"]; var rh = c["h"]; var col = c["color"]
+            if _is_int(x) == false || _is_int(y) == false || _is_int(rw) == false || _is_int(rh) == false { return oren_err(4, "ui.validate: fill_rect expects int x,y,w,h") }
+            if rw < 0 || rh < 0 { return oren_err(4, "ui.validate: fill_rect negative size") }
+            if _hex_ok(col) == false { return oren_err(4, "ui.validate: fill_rect invalid color") }
+            if strict {
+                if x < 0 || y < 0 || x + rw > w || y + rh > h { return oren_err(4, "ui.validate: fill_rect out of bounds") }
+            }
+        } else if op == "text" {
+            var x2 = c["x"]; var y2 = c["y"]; var s = c["text"]; var col2 = c["color"]
+            if _is_int(x2) == false || _is_int(y2) == false { return oren_err(4, "ui.validate: text expects int x,y") }
+            if _is_string(s) == false { return oren_err(4, "ui.validate: text expects string text") }
+            if _hex_ok(col2) == false { return oren_err(4, "ui.validate: text invalid color") }
+            if strict {
+                var ln = oren_string_len(s)
+                if y2 < 0 || y2 >= h || x2 < 0 || x2 + ln > w { return oren_err(4, "ui.validate: text out of bounds") }
+            }
+        } else {
+            return oren_err(4, "ui.validate: unknown op")
+        }
+
+        i = i + 1
+    }
+
+    return 0
+}

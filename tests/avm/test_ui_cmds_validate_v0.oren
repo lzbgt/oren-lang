@@ -1,0 +1,48 @@
+// AVM headless UI test: std:ui/commands.validate v0
+
+import ui_core "std:ui/core"
+import ui_layout "std:ui/layout"
+import ui_render "std:ui/render"
+import ui_cmds "std:ui/commands"
+
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_true(x) {
+    if x { return 0 }
+    fail()
+}
+
+fn test_validate_ok() {
+    var root = ui_core.column("root", [
+        ui_core.box("a", 10, 4),
+        ui_core.text("b", "hi", 3, 1)
+    ])
+    // Set props directly for the test.
+    root["c"][0]["p"]["bg"] = "#ff0000"
+    root["c"][1]["p"]["color"] = "#00ff00"
+
+    var bt = ui_layout.layout(root, {})
+    var w = bt["w"]
+    var h = bt["h"]
+    var cmds = ui_render.render(root, nil)
+    var r = ui_cmds.validate(cmds, w, h, {"strict_bounds": true})
+    assert_true(oren_is_err(r) == 0)
+}
+
+fn test_validate_bad_color() {
+    var cmds = [{"op": "fill_rect", "x": 0, "y": 0, "w": 1, "h": 1, "color": "red"}]
+    var r = ui_cmds.validate(cmds, 2, 2, {"strict_bounds": true})
+    assert_true(oren_is_err(r) != 0)
+}
+
+fn main() {
+    test_validate_ok()
+    test_validate_bad_color()
+    exit(0)
+}
+

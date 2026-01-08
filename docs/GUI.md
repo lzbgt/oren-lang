@@ -149,6 +149,12 @@ Supported ops today:
 
 - `"#RRGGBB"` or `"#RRGGBBAA"` (hex; case-insensitive)
 
+**Validation (recommended):**
+
+- `std:ui/commands.validate(cmds, w, h, opts)` validates a command buffer against the schema.
+- `std:ui/raster.rasterize(...)` validates by default; disable with `opts["validate"]=0`.
+- `opts["strict_bounds"]=1` rejects out-of-frame ops (useful in tests); default is permissive clipping.
+
 Rolling note:
 
 - `text` rasterization is intentionally not “real font rendering” in v0. The headless rasterizer draws
