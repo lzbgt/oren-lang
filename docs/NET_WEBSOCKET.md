@@ -73,7 +73,7 @@ Win11 note:
 - Fixed (2026-01-08): sporadic WS `ETIMEDOUT` flakes under `spawn` were also caused by **TIME scratch buffer races**:
   - `oren_time_unix_ns()` and `oren_time_mono_raw()` used shared global scratch buffers without synchronization.
   - Under concurrent use, that could corrupt timeout math (e.g. compute `rem_ms=0` spuriously), making frame reads “timeout” even when the peer had sent data.
-  - The native runtime now synchronizes those scratch buffers with the runtime lock.
+  - The native runtime now keeps TIME scratch buffers **per-thread** (stored in the thread node), with a locked global fallback for early/unknown-thread paths.
 
 ### Regression sensitivity (x64-windows)
 

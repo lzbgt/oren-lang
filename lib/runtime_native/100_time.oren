@@ -73,26 +73,82 @@ fn oren_kill(pid, signum) {
 // - reduces allocator churn in compiler workloads
 // - avoids crashes if `free()` / reuse lists are still rolling on some platforms
 // - keeps `oren_time_now_ns()` safe to call from tracing/profiling paths
-var g_time_tv_buf = 0   // 16 bytes
-var g_time_abs_buf = 0  // 8 bytes
+//
+// NOTE (Tier‑1 correctness):
+// In multi-threaded native programs (Windows `spawn`), TIME must not use shared mutable scratch
+// without synchronization. The fast path uses per-thread scratch stored in the thread node.
+// These globals are kept as a single-thread fallback (and as an emergency fallback if a
+// thread node is not discoverable).
+var g_time_tv_buf = 0   // 16 bytes (single-thread fallback)
+var g_time_abs_buf = 0  // 8 bytes  (single-thread fallback)
+
+fn native_time_current_thread_node_or0() {
+    // Best-effort "which thread am I on?" heuristic shared with call-depth + GC stack scanning.
+    //
+    // Returns a Thread Node pointer or 0 if unknown/not registered yet.
+    if oren_globals() == 0 { return 0 }
+    var sp = get_sp()
+    var node = global_get_threads()
+    var max_scan = 8388608 // 8MB
+    while node != 0 {
+        var top = ptr_get(node)
+        if sp < top {
+            var diff = top - sp
+            if diff < max_scan { return node }
+        }
+        node = ptr_get(iadd(node, 16))
+    }
+    return 0
+}
+
+fn native_time_thread_tv_buf(node) {
+    // Per-thread `struct timeval` scratch (16 bytes).
+    // Stored at node+32.
+    if node == 0 { return 0 }
+    var tv = ptr_get(iadd(node, 32))
+    if tv != 0 { return tv }
+    var p = sys_mmap_private_anon(16)
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    ptr_set(iadd(node, 32), p)
+    return p
+}
+
+fn native_time_thread_abs_buf(node) {
+    // Per-thread monotonic scratch (8 bytes).
+    // Stored at node+40.
+    if node == 0 { return 0 }
+    var abs_ptr = ptr_get(iadd(node, 40))
+    if abs_ptr != 0 { return abs_ptr }
+    var p = sys_mmap_private_anon(8)
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    ptr_set(iadd(node, 40), p)
+    return p
+}
 
 // Wall time in nanoseconds since Unix epoch (best-effort; not monotonic).
 fn oren_time_unix_ns() {
     // struct timeval { tv_sec(u64), tv_usec(u64) } (we use 2x u64 for simplicity)
-    //
-    // Tier‑1 correctness (multithreading):
-    // This helper is used in timeout logic for NET + spawn/join tests. The shared scratch buffers
-    // must be synchronized across OS threads; otherwise concurrent callers can corrupt the
-    // timeval contents and create flakey "timeouts" under load (observed on Win11 x64).
-    acquire_lock()
-    if g_time_tv_buf == 0 {
-        g_time_tv_buf = native_malloc_raw_or_mmap(16)
+    var tv = 0
+    if g_runtime_single_threaded == 1 {
+        // Single-thread fast path: globals are safe and avoid thread-node scanning.
         if g_time_tv_buf == 0 {
+            g_time_tv_buf = native_malloc_raw_or_mmap(16)
+            if g_time_tv_buf == 0 { return 0 }
+        }
+        tv = g_time_tv_buf
+    } else {
+        // Multi-thread: use per-thread scratch stored in the thread node.
+        var node = native_time_current_thread_node_or0()
+        tv = native_time_thread_tv_buf(node)
+        if tv == 0 {
+            // Fallback: serialized global scratch (rare; keeps behavior deterministic).
+            acquire_lock()
+            if g_time_tv_buf == 0 { g_time_tv_buf = native_malloc_raw_or_mmap(16) }
+            tv = g_time_tv_buf
             release_lock()
-            return 0
+            if tv == 0 { return 0 }
         }
     }
-    var tv = g_time_tv_buf
     ptr_set(tv + 0, 0)
     ptr_set(tv + 8, 0)
     
@@ -103,7 +159,6 @@ fn oren_time_unix_ns() {
         sec = ptr_get(tv + 0)
         usec = ptr_get(tv + 8)
     }
-    release_lock()
     
     if rc < 0 { return 0 }
     return sec * 1000000000 + usec * 1000
@@ -118,24 +173,34 @@ fn oren_time_now_ns() {
 // On Linux, this will be nanoseconds (via clock_gettime64 monotonic in the intrinsic).
 // On macOS, this is mach_absolute_time units (returned by gettimeofday's 3rd out-arg).
 fn oren_time_mono_raw() {
-    // Same synchronization rationale as `oren_time_unix_ns()` (shared scratch buffers).
-    acquire_lock()
-    if g_time_tv_buf == 0 {
-        g_time_tv_buf = native_malloc_raw_or_mmap(16)
+    var tv = 0
+    var abs_ptr = 0
+    if g_runtime_single_threaded == 1 {
         if g_time_tv_buf == 0 {
-            release_lock()
-            return 0
+            g_time_tv_buf = native_malloc_raw_or_mmap(16)
+            if g_time_tv_buf == 0 { return 0 }
         }
-    }
-    if g_time_abs_buf == 0 {
-        g_time_abs_buf = native_malloc_raw_or_mmap(8)
         if g_time_abs_buf == 0 {
+            g_time_abs_buf = native_malloc_raw_or_mmap(8)
+            if g_time_abs_buf == 0 { return 0 }
+        }
+        tv = g_time_tv_buf
+        abs_ptr = g_time_abs_buf
+    } else {
+        var node = native_time_current_thread_node_or0()
+        tv = native_time_thread_tv_buf(node)
+        abs_ptr = native_time_thread_abs_buf(node)
+        if tv == 0 || abs_ptr == 0 {
+            // Emergency fallback: shared scratch under lock.
+            acquire_lock()
+            if g_time_tv_buf == 0 { g_time_tv_buf = native_malloc_raw_or_mmap(16) }
+            if g_time_abs_buf == 0 { g_time_abs_buf = native_malloc_raw_or_mmap(8) }
+            tv = g_time_tv_buf
+            abs_ptr = g_time_abs_buf
             release_lock()
-            return 0
+            if tv == 0 || abs_ptr == 0 { return 0 }
         }
     }
-    var tv = g_time_tv_buf
-    var abs_ptr = g_time_abs_buf
     ptr_set(tv + 0, 0)
     ptr_set(tv + 8, 0)
     ptr_set(abs_ptr, 0)
@@ -145,7 +210,6 @@ fn oren_time_mono_raw() {
     if rc >= 0 {
         t = ptr_get(abs_ptr)
     }
-    release_lock()
     
     if rc < 0 { return 0 }
     return t
@@ -162,14 +226,18 @@ fn oren_register_thread(top) {
     //   8: saved_sp
     //   16: next
     //   24: call_depth (stack safety)
+    //   32: time_tv_buf (TIME scratch; 16 bytes)
+    //   40: time_abs_buf (TIME scratch; 8 bytes)
     //
-	    // Size: 32 bytes
+	    // Size: 48 bytes
 	    // Runtime metadata: use malloc_raw so GC never reclaims thread nodes.
-	    var node = native_malloc_raw_or_mmap(32)
+	    var node = native_malloc_raw_or_mmap(48)
 	    if node != 0 {
 	        ptr_set(node, top)
 	        ptr_set(iadd(node, 8), 0) // saved_sp
 	        ptr_set(iadd(node, 24), 0) // call_depth
+	        ptr_set(iadd(node, 32), 0) // time_tv_buf
+	        ptr_set(iadd(node, 40), 0) // time_abs_buf
 	        
         // Link
         acquire_lock()

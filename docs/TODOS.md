@@ -152,8 +152,8 @@ References:
        - WebSocket hostname support: `ws.connect_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
          - Regression: `tests/native/test_ws_echo_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
       - Fixed (2026-01-08): x64-windows WebSocket flake (sporadic `ETIMEDOUT` while reading ping/pong/text frames) was traced to **thread-unsafe shared TIME scratch buffers** in `oren_time_unix_ns()` / `oren_time_mono_raw()`.
-        - Fix: synchronize the TIME scratch buffers with the runtime lock so timeout math stays coherent under `spawn` (see `docs/NET_WEBSOCKET.md`).
-        - Next: move TIME scratch to per-thread storage to avoid lock contention in production multi-threaded programs.
+        - Fix: TIME scratch is now **per-thread** (stored in the thread node) to keep timeout math coherent under `spawn` without introducing hot-path global lock contention (see `docs/NET_WEBSOCKET.md`).
+        - Next: avoid O(n) thread-list scans in hot TIME paths by introducing a per-thread fast lookup (TLS-like) for the current thread node.
        - Next: structured HTTP client/server surface (headers map + status + streaming body), then production WebSocket:
          - fragmentation + binary frames + streaming recv API
          - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + system resolver (Windows DNS APIs + AAAA; POSIX `resolv.conf` AAAA support)
@@ -190,7 +190,7 @@ References:
   - `std:crypto/rand` used by WebSocket client key + masking (no more time-seeded xorshift in stdlib)
   - Capsule: `oren_getentropy` is gated by `@cap.requires(domain="RNG")` (allow via `--cap-allow-domains RNG` / `OREN_CAP_ALLOW_DOMAINS=...`).
   - Fixed (2026-01-07): Win11 WS echo loopback stability was materially improved by hardening NET read/write against spurious readiness timeouts (optimistic `recv`/`send` first; retry until deadline instead of returning `ETIMEDOUT` immediately).
-  - Fixed (2026-01-08): Win11 WS echo loopback flake root cause was TIME scratch buffer races under `spawn`; TIME now synchronizes its shared scratch buffers.
+  - Fixed (2026-01-08): Win11 WS echo loopback flake root cause was TIME scratch buffer races under `spawn`; TIME now uses per-thread scratch buffers (thread node).
     - Keep as a gate anyway: `./scripts/verify_native_net_matrix.sh --targets x64-win` (WS remains a sensitive end-to-end NET+TIME+THREADS regression).
   - Fixed (2026-01-07): ping/pong/close frames are handled in `ws.recv_text` (auto-pong + ignore pongs), and `ws.send_ping_{client,server}` exists.
   - Fixed (2026-01-07): client key + masking use OS entropy (`oren_getentropy`), not time-seeded xorshift.
