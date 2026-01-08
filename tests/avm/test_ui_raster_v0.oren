@@ -1,0 +1,92 @@
+// AVM headless UI test: std:ui raster v0
+//
+// This verifies pixel output deterministically without any OS GUI.
+
+import ui_layout "std:ui/layout"
+import ui_render "std:ui/render"
+import ui_raster "std:ui/raster"
+
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_true(x) {
+    if x { return 0 }
+    fail()
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn _px(buf, w, x, y, chan) {
+    // chan: 0=r,1=g,2=b,3=a
+    return oren_bytes_get_u8(buf, (y * w + x) * 4 + chan)
+}
+
+fn test_raster_simple() {
+    // Same shape as the render test:
+    // - red box 10x4 at top
+    // - green "hi" text at y=4 (2 pixels)
+    var root = {
+        "t": "Column",
+        "k": "root",
+        "p": {},
+        "c": [
+            {"t": "Box", "k": "a", "p": {"w": 10, "h": 4, "bg": "#ff0000"}, "c": []},
+            {"t": "Text", "k": "b", "p": {"w": 3, "h": 1, "text": "hi", "color": "#00ff00"}, "c": []}
+        ]
+    }
+
+    var bt = ui_layout.layout(root, {})
+    var w = bt["w"]
+    var h = bt["h"]
+    assert_eq(w, 10)
+    assert_eq(h, 5)
+
+    var cmds = ui_render.render(root, nil)
+    assert_eq(oren_list_len(cmds), 2)
+
+    var buf = ui_raster.rasterize(cmds, w, h, nil)
+    assert_true(oren_is_err(buf) == 0)
+    assert_eq(oren_bytes_len(buf), w * h * 4)
+
+    // (0,0) is inside red box.
+    assert_eq(_px(buf, w, 0, 0, 0), 255)
+    assert_eq(_px(buf, w, 0, 0, 1), 0)
+    assert_eq(_px(buf, w, 0, 0, 2), 0)
+    assert_eq(_px(buf, w, 0, 0, 3), 255)
+
+    // (9,3) is bottom-right of the 10x4 red box.
+    assert_eq(_px(buf, w, 9, 3, 0), 255)
+    assert_eq(_px(buf, w, 9, 3, 1), 0)
+    assert_eq(_px(buf, w, 9, 3, 2), 0)
+    assert_eq(_px(buf, w, 9, 3, 3), 255)
+
+    // (0,4) and (1,4) are text markers (green).
+    assert_eq(_px(buf, w, 0, 4, 0), 0)
+    assert_eq(_px(buf, w, 0, 4, 1), 255)
+    assert_eq(_px(buf, w, 0, 4, 2), 0)
+    assert_eq(_px(buf, w, 0, 4, 3), 255)
+
+    assert_eq(_px(buf, w, 1, 4, 0), 0)
+    assert_eq(_px(buf, w, 1, 4, 1), 255)
+    assert_eq(_px(buf, w, 1, 4, 2), 0)
+    assert_eq(_px(buf, w, 1, 4, 3), 255)
+
+    // (2,4) is outside the "hi" marker (transparent).
+    assert_eq(_px(buf, w, 2, 4, 0), 0)
+    assert_eq(_px(buf, w, 2, 4, 1), 0)
+    assert_eq(_px(buf, w, 2, 4, 2), 0)
+    assert_eq(_px(buf, w, 2, 4, 3), 0)
+}
+
+fn main() {
+    test_raster_simple()
+    exit(0)
+}
+

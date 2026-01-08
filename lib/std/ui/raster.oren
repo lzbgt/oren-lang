@@ -1,0 +1,137 @@
+// std:ui/raster (rolling)
+//
+// Deterministic software rasterizer for `std:ui/render` command buffers.
+//
+// This is intentionally minimal and headless: it produces a flat RGBA byte buffer.
+// The purpose is:
+// - enable pixel-level golden tests (without any OS GUI),
+// - provide a reference implementation for future platform shims.
+//
+// Output format:
+// - BYTES (u8_buf) length = w * h * 4
+// - row-major, top-to-bottom
+// - pixel order: R, G, B, A (8-bit each)
+//
+// Supported ops (v0):
+// - {"op":"fill_rect","x":int,"y":int,"w":int,"h":int,"color":"#RRGGBB"|"#RRGGBBAA"}
+// - {"op":"text","x":int,"y":int,"text":string,"color":"#RRGGBB"|"#RRGGBBAA"}
+//   - v0 rasterizes "text" as a simple 1px-high run of pixels (one per character),
+//     purely as a deterministic marker for tests.
+
+fn _hex_nibble(b) {
+    // b is ASCII code unit
+    if b >= 48 && b <= 57 { return b - 48 } // '0'..'9'
+    if b >= 97 && b <= 102 { return b - 87 } // 'a'..'f'
+    if b >= 65 && b <= 70 { return b - 55 } // 'A'..'F'
+    return -1
+}
+
+fn _parse_color_hex(s) {
+    // Returns map {"ok":1,"r":..,"g":..,"b":..,"a":..} or {"ok":0,"err":...}
+    if s == nil { return {"ok": 0, "err": "color is nil"} }
+    var n = oren_string_len(s)
+    if n != 7 && n != 9 { return {"ok": 0, "err": "color must be #RRGGBB or #RRGGBBAA"} }
+    if oren_string_slice(s, 0, 1) != "#" { return {"ok": 0, "err": "color must start with #"} }
+
+    // Use std bytes helpers so this works under AVM bytecode too.
+    var hex = oren_string_slice(s, 1, n)
+    var bb = oren_bytes_from_hex(hex)
+    if oren_is_err(bb) { return {"ok": 0, "err": "invalid hex digits"} }
+    var bl = oren_bytes_len(bb)
+    if oren_is_err(bl) { return {"ok": 0, "err": "invalid bytes"} }
+    if bl != 3 && bl != 4 { return {"ok": 0, "err": "color hex must decode to 3 or 4 bytes"} }
+
+    var r = oren_bytes_get_u8(bb, 0)
+    var g = oren_bytes_get_u8(bb, 1)
+    var b = oren_bytes_get_u8(bb, 2)
+    if oren_is_err(r) || oren_is_err(g) || oren_is_err(b) { return {"ok": 0, "err": "invalid bytes"} }
+    var a = 255
+    if bl == 4 {
+        a = oren_bytes_get_u8(bb, 3)
+        if oren_is_err(a) { return {"ok": 0, "err": "invalid alpha byte"} }
+    }
+    return {"ok": 1, "r": r, "g": g, "b": b, "a": a}
+}
+
+fn _set_px_rgba(buf, w, h, x, y, r, g, b, a) {
+    if x < 0 || y < 0 || x >= w || y >= h { return 0 }
+    var idx = (y * w + x) * 4
+    oren_buf_store_u8(buf, idx + 0, r)
+    oren_buf_store_u8(buf, idx + 1, g)
+    oren_buf_store_u8(buf, idx + 2, b)
+    oren_buf_store_u8(buf, idx + 3, a)
+    return 0
+}
+
+fn rasterize(cmds, w, h, opts) {
+    if opts == nil { opts = {} }
+    if w < 0 || h < 0 { return oren_err(4, "rasterize: invalid size") }
+    var n = w * h * 4
+    var buf = oren_u8_buf_new(n)
+    if oren_is_err(buf) { return buf }
+
+    // Clear to transparent black by default.
+    var i = 0
+    while i < n {
+        oren_buf_store_u8(buf, i, 0)
+        i = i + 1
+    }
+
+    var bg = opts["clear_color"]
+    if bg != nil {
+        var c0 = _parse_color_hex(bg)
+        if c0["ok"] != 1 { return oren_err(4, "rasterize: invalid clear_color") }
+        var y = 0
+        while y < h {
+            var x = 0
+            while x < w {
+                _set_px_rgba(buf, w, h, x, y, c0["r"], c0["g"], c0["b"], c0["a"])
+                x = x + 1
+            }
+            y = y + 1
+        }
+    }
+
+    if cmds == nil { return buf }
+
+    var ci = 0
+    while ci < oren_list_len(cmds) {
+        var opm = cmds[ci]
+        var op = opm["op"]
+        if op == "fill_rect" {
+            var c = _parse_color_hex(opm["color"])
+            if c["ok"] != 1 { return oren_err(4, "rasterize: invalid fill_rect color") }
+            var rx = opm["x"]
+            var ry = opm["y"]
+            var rw = opm["w"]
+            var rh = opm["h"]
+            if rw == nil || rh == nil { return oren_err(4, "rasterize: fill_rect missing size") }
+            var yy = 0
+            while yy < rh {
+                var xx = 0
+                while xx < rw {
+                    _set_px_rgba(buf, w, h, rx + xx, ry + yy, c["r"], c["g"], c["b"], c["a"])
+                    xx = xx + 1
+                }
+                yy = yy + 1
+            }
+        } else if op == "text" {
+            // Deterministic marker: draw 1 pixel per character in the string at y.
+            var c2 = _parse_color_hex(opm["color"])
+            if c2["ok"] != 1 { return oren_err(4, "rasterize: invalid text color") }
+            var tx = opm["x"]
+            var ty = opm["y"]
+            var s = opm["text"]
+            if s == nil { s = "" }
+            var ln = oren_string_len(s)
+            var j = 0
+            while j < ln {
+                _set_px_rgba(buf, w, h, tx + j, ty, c2["r"], c2["g"], c2["b"], c2["a"])
+                j = j + 1
+            }
+        }
+        ci = ci + 1
+    }
+
+    return buf
+}
