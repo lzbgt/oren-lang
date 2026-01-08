@@ -33,7 +33,7 @@ Use the bootstrap compiler to compile the self-hosted Oren source (`oren.oren`) 
 Windows notes (x64, rolling):
 
 - Prefer `make stage1` / `make oren` rather than calling the bootstrap directly.
-  - The Makefile passes `--cc` via `OREN_BOOTSTRAP_CC` (defaults to `cl` on Windows hosts).
+  - The Makefile passes `--cc` via `OREN_BOOTSTRAP_CC` (defaults to `cl.exe` on Windows hosts).
   - The Makefile also passes an explicit `--target` via `OREN_BOOTSTRAP_TARGET` (defaults to the host OS) so stage0 behavior is predictable on non-macOS hosts.
 - If invoking stage0 directly on Windows, the canonical form is:
 

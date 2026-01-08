@@ -193,7 +193,8 @@ References:
 	       - Done (2026-01-08): native backend supports typed FFI returns for C `int` (`@ffi.ret("i32")`) and sign-extends i32 returns to i64 on arm64 + x64.
 	         - Fixes the “-1 becomes 4294967295” class of bugs when the callee returns a 32-bit signed value and the caller reads the full 64-bit return register.
 	         - Stdlib Linux OpenSSL TLS provider now uses `@ffi.ret("i32")` for OpenSSL APIs and does not rely on per-call-site canonicalization.
-	         - Regression: `tests/native/ffi_linux_ret_i32_signext.oren` is executed by `scripts/verify_native_matrix.sh` (arm64-linux + x64-wsl; stage1 + stage2).
+	         - Regression (Linux): `tests/native/ffi_linux_ret_i32_signext.oren` is executed by `scripts/verify_native_matrix.sh` (arm64-linux + x64-wsl; stage1 + stage2).
+	         - Regression (Windows): `tests/native/ffi_windows_ret_i32_signext.oren` is executed by `scripts/verify_native_matrix.sh --targets x64-win` (stage1 + stage2).
 	     - Native runtime GC + literals:
        - Done (2026-01-08): embedded `cstr0` string literals are treated as constant-section data and are **not** tracked as GC alloc nodes.
          - Runtime builds a dedicated literal membership set at startup (`oren_init_static_cstr0_table`) and recognizes literals via `native_is_string_ptr` / `oren_is_string`.

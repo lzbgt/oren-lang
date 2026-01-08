@@ -1,0 +1,17 @@
+// Windows native backend regression: `ffi` i32 returns must be sign-extended to i64.
+//
+// Without sign-extension, negative C `int` returns can show up as large positives:
+//   -1 => 0x00000000ffffffff == 4294967295
+//
+// This fixture is executed on x64-windows by `scripts/verify_native_matrix.sh`.
+
+@ffi.dll("msvcrt.dll")
+@ffi.ret("i32")
+ffi atoi
+
+var v = atoi("-1")
+if v != -1 { exit(1) }
+var v2 = atoi("-2147483648")
+if v2 != -2147483648 { exit(1) }
+exit(0)
+
