@@ -186,6 +186,28 @@ Notes:
 - The argument must be a single string literal (v0 determinism rule).
   - On other native targets, prefer `@ffi.link("...")` for portability.
 
+### 3.5 FFI exports (`@ffi.export`) (native backend; callback interop)
+
+Some OS APIs require **C-style callbacks**, i.e. the library expects a *raw function pointer* to a symbol in the program image.
+
+To support this in a controlled way, a top-level function may be marked as exported:
+
+```oren
+@cfg(os="macos")
+@ffi.export
+fn my_callback(arg0, arg1) {
+    // ...
+}
+```
+
+Notes (rolling):
+
+- This is currently consumed only by the **arm64-macos native backend**.
+  - On other targets, it is ignored (no export table is generated yet).
+- The exported symbol name is the *linked* top-level name (module-prefixed).
+  - For stdlib modules imported as `std:...`, the module prefix is stable.
+- This attribute is primarily used internally by stdlib providers (e.g. `std:net/tls` SecureTransport IO callbacks via `dlsym(RTLD_DEFAULT, ...)`).
+
 ## 3.1 Compiler/runtime internal attributes (reserved)
 
 These are **not** intended for user code. They exist to keep the compiler + Tier‑1 native runtime maintainable while still running whole-program DCE.

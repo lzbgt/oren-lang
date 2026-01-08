@@ -34,6 +34,7 @@ NET_SUITE_SRC="tests/native/test_net_suite.oren"
 DNS_LOOPBACK_SRC="tests/native/test_dns_loopback.oren"
 HTTP_LOOPBACK_SRC="tests/native/test_http_get_loopback.oren"
 WS_ECHO_SRC="tests/native/test_ws_echo_loopback.oren"
+TLS_LOOPBACK_SRC="tests/native/test_tls_loopback.oren"
 
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
@@ -53,6 +54,7 @@ Runs (loopback-only; no external network):
   - tests/native/test_dns_loopback.oren
   - tests/native/test_http_get_loopback.oren
   - tests/native/test_ws_echo_loopback.oren
+  - tests/native/test_tls_loopback.oren
 
 Targets (comma-separated):
   all         (default)
@@ -288,6 +290,8 @@ if has_target local; then
   build_native_bin_src "./oren_stage2" "arm64-macos" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage2_arm64_macos"
   build_native_bin_src "./oren" "arm64-macos" "$WS_ECHO_SRC" "build/tmp/ws_stage1_arm64_macos"
   build_native_bin_src "./oren_stage2" "arm64-macos" "$WS_ECHO_SRC" "build/tmp/ws_stage2_arm64_macos"
+  build_native_bin_src "./oren" "arm64-macos" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage1_arm64_macos"
+  build_native_bin_src "./oren_stage2" "arm64-macos" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage2_arm64_macos"
 
   run_local_bin "build/tmp/net_stage1_arm64_macos"
   run_local_bin "build/tmp/net_stage2_arm64_macos"
@@ -297,6 +301,8 @@ if has_target local; then
   run_local_bin "build/tmp/http_stage2_arm64_macos"
   run_local_bin "build/tmp/ws_stage1_arm64_macos"
   run_local_bin "build/tmp/ws_stage2_arm64_macos"
+  run_local_bin "build/tmp/tls_stage1_arm64_macos"
+  run_local_bin "build/tmp/tls_stage2_arm64_macos"
 
   log "OK: local arm64-macos"
 fi
@@ -445,6 +451,8 @@ if has_target arm64-linux; then
   build_native_bin_src "./oren_stage2" "arm64-linux" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage2_arm64_linux"
   build_native_bin_src "./oren" "arm64-linux" "$WS_ECHO_SRC" "build/tmp/ws_stage1_arm64_linux"
   build_native_bin_src "./oren_stage2" "arm64-linux" "$WS_ECHO_SRC" "build/tmp/ws_stage2_arm64_linux"
+  build_native_bin_src "./oren" "arm64-linux" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage1_arm64_linux"
+  build_native_bin_src "./oren_stage2" "arm64-linux" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage2_arm64_linux"
 
   run_in_linux_container "build/tmp/net_stage1_arm64_linux"
   run_in_linux_container "build/tmp/net_stage2_arm64_linux"
@@ -454,6 +462,8 @@ if has_target arm64-linux; then
   run_in_linux_container "build/tmp/http_stage2_arm64_linux"
   run_in_linux_container "build/tmp/ws_stage1_arm64_linux"
   run_in_linux_container "build/tmp/ws_stage2_arm64_linux"
+  run_in_linux_container "build/tmp/tls_stage1_arm64_linux"
+  run_in_linux_container "build/tmp/tls_stage2_arm64_linux"
 
   log "OK: linux/arm64 container"
 fi
@@ -472,6 +482,8 @@ if has_target x64-win; then
   build_native_bin_src "./oren_stage2" "x64-windows" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage2_x64_windows.exe"
   build_native_bin_src "./oren" "x64-windows" "$WS_ECHO_SRC" "build/tmp/ws_stage1_x64_windows.exe"
   build_native_bin_src "./oren_stage2" "x64-windows" "$WS_ECHO_SRC" "build/tmp/ws_stage2_x64_windows.exe"
+  build_native_bin_src "./oren" "x64-windows" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage1_x64_windows.exe"
+  build_native_bin_src "./oren_stage2" "x64-windows" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage2_x64_windows.exe"
 
   remote_upload "build/tmp/net_stage1_x64_windows.exe" "net_stage1_x64_windows.exe"
   remote_upload "build/tmp/net_stage2_x64_windows.exe" "net_stage2_x64_windows.exe"
@@ -481,6 +493,8 @@ if has_target x64-win; then
   remote_upload "build/tmp/http_stage2_x64_windows.exe" "http_stage2_x64_windows.exe"
   remote_upload "build/tmp/ws_stage1_x64_windows.exe" "ws_stage1_x64_windows.exe"
   remote_upload "build/tmp/ws_stage2_x64_windows.exe" "ws_stage2_x64_windows.exe"
+  remote_upload "build/tmp/tls_stage1_x64_windows.exe" "tls_stage1_x64_windows.exe"
+  remote_upload "build/tmp/tls_stage2_x64_windows.exe" "tls_stage2_x64_windows.exe"
 
   log "-- run: Win11 (x64-windows) --"
   remote_run_win "net_stage1_x64_windows.exe"
@@ -491,6 +505,8 @@ if has_target x64-win; then
   remote_run_win "http_stage2_x64_windows.exe"
   remote_run_win "ws_stage1_x64_windows.exe"
   remote_run_win "ws_stage2_x64_windows.exe"
+  remote_run_win "tls_stage1_x64_windows.exe"
+  remote_run_win "tls_stage2_x64_windows.exe"
   log "OK: remote Win11 x64"
 fi
 
@@ -503,6 +519,8 @@ if has_target x64-wsl; then
   build_native_bin_src "./oren_stage2" "x64-linux" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage2_x64_linux"
   build_native_bin_src "./oren" "x64-linux" "$WS_ECHO_SRC" "build/tmp/ws_stage1_x64_linux"
   build_native_bin_src "./oren_stage2" "x64-linux" "$WS_ECHO_SRC" "build/tmp/ws_stage2_x64_linux"
+  build_native_bin_src "./oren" "x64-linux" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage1_x64_linux"
+  build_native_bin_src "./oren_stage2" "x64-linux" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage2_x64_linux"
 
   remote_upload "build/tmp/net_stage1_x64_linux" "net_stage1_x64_linux"
   remote_upload "build/tmp/net_stage2_x64_linux" "net_stage2_x64_linux"
@@ -512,6 +530,8 @@ if has_target x64-wsl; then
   remote_upload "build/tmp/http_stage2_x64_linux" "http_stage2_x64_linux"
   remote_upload "build/tmp/ws_stage1_x64_linux" "ws_stage1_x64_linux"
   remote_upload "build/tmp/ws_stage2_x64_linux" "ws_stage2_x64_linux"
+  remote_upload "build/tmp/tls_stage1_x64_linux" "tls_stage1_x64_linux"
+  remote_upload "build/tmp/tls_stage2_x64_linux" "tls_stage2_x64_linux"
 
   log "-- run: WSL2 (x64-linux) --"
   remote_run_wsl "net_stage1_x64_linux"
@@ -522,6 +542,8 @@ if has_target x64-wsl; then
   remote_run_wsl "http_stage2_x64_linux"
   remote_run_wsl "ws_stage1_x64_linux"
   remote_run_wsl "ws_stage2_x64_linux"
+  remote_run_wsl "tls_stage1_x64_linux"
+  remote_run_wsl "tls_stage2_x64_linux"
   log "OK: remote WSL2 x64"
 fi
 

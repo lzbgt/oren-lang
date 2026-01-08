@@ -123,6 +123,57 @@ fn _build_merge_link_libs(user_link_libs, implicit_link_libs) {
     return out
 }
 
+fn _build_collect_ffi_export_names_from_stmt(st, out, seen) {
+    // Collect symbol export requests from top-level functions marked `@ffi.export`.
+    //
+    // This is primarily used to support C-style callback APIs on platforms where the
+    // OS library expects raw function pointers (e.g. macOS SecureTransport's IO funcs).
+    if st == nil || out == nil || seen == nil { return nil }
+
+    var fn_node = nil
+    if st["type"] == "Function" {
+        fn_node = st
+    } else if st["type"] == "ExprStmt" {
+        var expr = st["expr"]
+        if expr != nil && expr["type"] == "Function" { fn_node = expr }
+    }
+    if fn_node == nil { return nil }
+
+    var attrs = fn_node["attrs"]
+    if attrs == nil { return nil }
+    var fn_name = fn_node["name"]
+    if fn_name == nil || fn_name == "" { return nil }
+
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a == nil || a["type"] != "Attr" { i = i + 1; continue }
+        if !_build_str_eq_bytes(a["name"], "ffi.export") { i = i + 1; continue }
+        if seen[fn_name] == nil {
+            seen[fn_name] = true
+            oren_list_push(out, fn_name)
+        }
+        // `@ffi.export` is boolean; ignore args.
+        return nil
+    }
+    return nil
+}
+
+fn _build_collect_ffi_export_names(linked) {
+    // Return: list<string> of unique top-level function names marked `@ffi.export`.
+    var out = []
+    if linked == nil { return out }
+    var stmts = linked["statements"]
+    if stmts == nil { return out }
+    var seen = {}
+    var i = 0
+    while i < oren_list_len(stmts) {
+        _build_collect_ffi_export_names_from_stmt(stmts[i], out, seen)
+        i = i + 1
+    }
+    return out
+}
+
 fn compiler_main() {
     // Modern CLI parsing (click-style):
     // - supports `--opt=value` and interspersed options/args
@@ -1220,6 +1271,22 @@ fn compiler_main() {
         var implicit_link_libs = _build_collect_ffi_link_libs(linked)
         if implicit_link_libs != nil && oren_list_len(implicit_link_libs) != 0 {
             link_libs = _build_merge_link_libs(link_libs, implicit_link_libs)
+        }
+
+        // macOS native: allow opt-in export of user/runtime symbols even for executables.
+        // This enables dlsym(RTLD_DEFAULT, "...") to obtain raw function pointers for
+        // C callback APIs in stdlib (e.g. SecureTransport IO callbacks).
+        if is_shared_lib != true {
+            if target == "macos" && (arch == nil || arch == "arm64") {
+                var exp2 = _build_collect_ffi_export_names(linked)
+                if exp2 != nil && oren_list_len(exp2) != 0 {
+                    var ei2 = 0
+                    while ei2 < oren_list_len(exp2) {
+                        oren_list_push(export_names, exp2[ei2])
+                        ei2 = ei2 + 1
+                    }
+                }
+            }
         }
         
         if is_shared_lib {

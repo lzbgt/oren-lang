@@ -1,0 +1,272 @@
+import tcp "std:net/tcp"
+import tls "std:net/tls"
+import base64 "std:encoding/base64"
+
+fn _cstr_from_string(s) {
+    if s == nil { s = "" }
+    var n = oren_string_len(s)
+    if n < 0 { n = 0 }
+    // Keep argv args small and safe.
+    if n > 128 { n = 128 }
+    var p = malloc(n + 1)
+    if p == 0 { return 0 }
+    var i = 0
+    while i < n {
+        ptr_set_byte(p + i, oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
+    ptr_set_byte(p + n, 0)
+    return p
+}
+
+fn _str_eq_bytes(a, b) {
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _cstr_lit_server() {
+    // "server\0"
+    var p = malloc(7)
+    if p == 0 { return 0 }
+    ptr_set_byte(p + 0, 115)
+    ptr_set_byte(p + 1, 101)
+    ptr_set_byte(p + 2, 114)
+    ptr_set_byte(p + 3, 118)
+    ptr_set_byte(p + 4, 101)
+    ptr_set_byte(p + 5, 114)
+    ptr_set_byte(p + 6, 0)
+    return p
+}
+
+@cfg(os="macos")
+fn _fixture_pkcs12_b64() {
+    return "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"
+}
+
+@cfg(os="macos")
+fn _fixture_leaf_sha256_hex() {
+    return "c24c5f71bfc800afa108fe44d110b13365e139769f31661e75b37cfcb1b4bb7a"
+}
+
+fn u16be_at(p, off) {
+    var hi = ptr_get_byte(p + off) & 255
+    var lo = ptr_get_byte(p + off + 1) & 255
+    return (hi << 8) | lo
+}
+
+@cfg(not_os="macos")
+fn main() {
+    // TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/NET_TLS.md.
+    exit(0)
+}
+
+@cfg(os="macos")
+fn server_main(listen_fd, pfx_b64) {
+    var pkcs12_bytes = base64.decode_bytes(pfx_b64)
+    if oren_is_err(pkcs12_bytes) {
+        print("tls_loopback: server FAIL base64 decode")
+        exit(101)
+    }
+    var n = oren_buf_len(pkcs12_bytes)
+    if oren_is_err(n) || n != 2587 {
+        print("tls_loopback: server FAIL pkcs12 len=" + oren_int_to_string(n))
+        exit(102)
+    }
+    if native_buf_data_ptr(pkcs12_bytes) == 0 {
+        print("tls_loopback: server FAIL pkcs12 data ptr nil")
+        exit(103)
+    }
+
+    var fd = tcp.accept(listen_fd, 5000)
+    if fd < 0 { exit(11) }
+
+    var r = tls.wrap_server_pkcs12(fd, 5000, pkcs12_bytes, "orenpass", nil)
+    var ok = oren_map_get_str(r, "ok")
+    if ok != 1 {
+        var es = oren_map_get_str(r, "err")
+        if es != 0 {
+            print("tls_loopback: server wrap FAIL: " + es)
+        }
+        exit(12)
+    }
+    var conn = oren_map_get_str(r, "conn")
+    if conn == 0 { exit(13) }
+
+    var buf = malloc(16)
+    if buf == 0 { tls.close(conn); exit(14) }
+    var n = tls.read_into(conn, buf, 4, 5000)
+    if n != 4 {
+        free(buf)
+        tls.close(conn)
+        exit(15)
+    }
+    var wr = tls.write_from(conn, buf, 4, 5000)
+    free(buf)
+    tls.close(conn)
+    if wr != 4 { exit(16) }
+    exit(0)
+}
+
+@cfg(os="macos")
+fn main_client() {
+    // Deterministic loopback TLS fixture:
+    // - PKCS#12 contains a self-signed cert for CN/SAN "oren.test" and 127.0.0.1.
+    // - Client pins the leaf certificate SHA-256 (DER).
+
+    var pfx_b64 = _fixture_pkcs12_b64()
+
+    var expected_leaf_sha256_hex = _fixture_leaf_sha256_hex()
+
+    // Bind ephemeral loopback port.
+    var listen_fd = oren_tcp_listen_local(0)
+    if listen_fd < 0 { exit(3) }
+
+    // getsockname to find the bound port.
+    var sa = malloc(32)
+    if sa == 0 { exit(4) }
+    var lenp = malloc(8)
+    if lenp == 0 { exit(5) }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(listen_fd, sa, lenp)
+    if grc < 0 { exit(6) }
+    var port = u16be_at(sa, 2)
+    free(sa)
+    free(lenp)
+    if port <= 0 { exit(7) }
+
+    // IMPORTANT (Darwin correctness):
+    // `spawn` in the syscall-first native runtime is fork-based; calling CoreFoundation/Security
+    // APIs in a post-fork child (without exec) can break due to inherited libSystem/libmalloc state.
+    //
+    // For TLS bring-up we exec a fresh copy of the current binary in "server" mode so the server
+    // runs with a clean libSystem state.
+    var argvp0 = global_get_argv()
+    if argvp0 == 0 { exit(70) }
+    var self_path = ptr_get(argvp0 + 0)
+    if self_path == 0 { exit(71) }
+
+    var role_cstr = _cstr_lit_server()
+    if role_cstr == 0 { exit(72) }
+    var fd_cstr = _cstr_from_string(oren_int_to_string(listen_fd))
+    if fd_cstr == 0 { exit(73) }
+    var argvp = malloc(4 * 8)
+    if argvp == 0 { exit(74) }
+    ptr_set(argvp + 0, self_path)
+    ptr_set(argvp + 8, role_cstr)
+    ptr_set(argvp + 16, fd_cstr)
+    ptr_set(argvp + 24, 0)
+
+    var pid = oren_fork()
+    if pid < 0 { exit(75) }
+    if pid == 0 {
+        sys_execve(self_path, argvp, global_get_envp())
+        exit(127)
+    }
+    free(argvp)
+    free(fd_cstr)
+    free(role_cstr)
+
+    tcp.close(listen_fd)
+
+    var fd = tcp.connect("127.0.0.1", port, 5000)
+    if fd < 0 {
+        exit(8)
+    }
+
+    var cr = tls.wrap_client(fd, "oren.test", 5000, {"insecure_skip_verify": 1})
+    var ok = oren_map_get_str(cr, "ok")
+    if ok != 1 {
+        var es = oren_map_get_str(cr, "err")
+        if es != 0 { print("tls_loopback: FAIL client wrap: " + es) }
+        exit(9)
+    }
+    var conn = oren_map_get_str(cr, "conn")
+    if conn == 0 {
+        exit(10)
+    }
+
+    var msg = "PING"
+    var wr = tls.write_from(conn, msg, 4, 5000)
+    if wr != 4 {
+        tls.close(conn)
+        exit(20)
+    }
+    var buf = malloc(16)
+    if buf == 0 {
+        tls.close(conn)
+        exit(21)
+    }
+    var rn = tls.read_into(conn, buf, 4, 5000)
+    if rn != 4 {
+        free(buf)
+        tls.close(conn)
+        exit(22)
+    }
+    if ptr_get_byte(buf + 0) != 80 || ptr_get_byte(buf + 1) != 73 || ptr_get_byte(buf + 2) != 78 || ptr_get_byte(buf + 3) != 71 {
+        free(buf)
+        tls.close(conn)
+        exit(23)
+    }
+    free(buf)
+
+    var hr = tls.peer_cert_sha256_hex(conn)
+    var hok = oren_map_get_str(hr, "ok")
+    if hok != 1 {
+        tls.close(conn)
+        exit(30)
+    }
+    var hv = oren_map_get_str(hr, "v")
+    if hv == 0 || _str_eq_bytes(hv, expected_leaf_sha256_hex) != true {
+        print("tls_loopback: FAIL cert pin mismatch")
+        print("got=" + hv)
+        print("want=" + expected_leaf_sha256_hex)
+        tls.close(conn)
+        exit(31)
+    }
+
+    tls.close(conn)
+    // Wait for the server process to exit; require status==0.
+    var status_ptr = malloc(8)
+    if status_ptr == 0 { exit(40) }
+    ptr_set(status_ptr, 0)
+    var wpid = sys_wait4(pid, status_ptr, 0, 0)
+    if wpid != pid { exit(41) }
+    var status = ptr_get(status_ptr)
+    free(status_ptr)
+    if status != 0 { exit(42) }
+    exit(0)
+}
+
+@cfg(os="macos")
+fn main_server() {
+    var args = oren_args()
+    if args == nil || oren_list_len(args) < 3 {
+        print("tls_loopback: server usage: <bin> server <listen_fd>")
+        exit(60)
+    }
+    if _str_eq_bytes(args[1], "server") != true { exit(61) }
+    var listen_fd = oren_int_from_string(args[2])
+    if listen_fd < 0 { exit(62) }
+
+    var pfx_b64 = _fixture_pkcs12_b64()
+    server_main(listen_fd, pfx_b64)
+    exit(0)
+}
+
+@cfg(os="macos")
+fn main() {
+    var args = oren_args()
+    if args != nil && oren_list_len(args) >= 2 {
+        if _str_eq_bytes(args[1], "server") == true { return main_server() }
+    }
+    return main_client()
+}

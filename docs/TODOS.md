@@ -170,10 +170,13 @@ References:
 	         - fragmentation + binary frames + streaming recv API
 	         - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + system resolver (Windows DNS APIs + AAAA; POSIX `resolv.conf` AAAA support)
 	           - Design: `docs/NET_TLS.md`
-	           - Deliverables:
-	             - `std:net/tls` module (client connect + wrap + read/write + close)
-	             - offline deterministic loopback TLS fixture (pinned cert/SPKI hash; no CA store dependence)
+	           - Done (2026-01-08): macOS TLS provider bring-up + deterministic loopback fixture:
+	             - `std:net/tls` exists with SecureTransport provider (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
+	             - loopback regression: `tests/native/test_tls_loopback.oren` (stage1 + stage2; integrated into `scripts/verify_native_net_matrix.sh`)
+	           - Next:
 	             - wire `https://` into `std:net/http` and `wss://` into `std:net/ws`
+	             - implement Tier‑1 providers: Windows x64 Schannel, Linux arm64/x64 OpenSSL
+	             - integrate pinning/verification options into `std:net/tls` (move policy out of fixtures)
      - x64 native backend correctness:
        - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
          - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)

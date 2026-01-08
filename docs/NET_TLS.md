@@ -61,8 +61,10 @@ Proposed functions:
 `opts` (rolling v0):
 
 - `opts["alpn"]`: list of strings (e.g. `["h2", "http/1.1"]`) (optional)
-- `opts["verify"]`: `1|0` (default: `1`)
-- `opts["pin_sha256"]`: optional pinned SPKI/cert hash for deterministic tests (see §3)
+- `opts["verify"]`: `1|0` (default: `1`) (planned; provider-dependent)
+- `opts["insecure_skip_verify"]`: `1|0` (default: `0`) (implemented on macOS provider; see §5)
+  - Intended for **offline loopback fixtures** only; callers should pin the peer cert (see §3).
+- `opts["pin_sha256"]`: optional pinned SPKI/cert hash for deterministic tests (planned; see §3)
 
 ### 2.3 IO
 
@@ -91,6 +93,12 @@ Planned approach:
 
 This avoids relying on host CA stores (which vary by OS and are not deterministic in tests).
 
+Implementation note (macOS provider bring-up):
+
+- Oren’s syscall-first native runtime currently implements language-level `spawn` as **fork-based** (process boundary).
+- Apple Security/CoreFoundation APIs are not guaranteed to be safe when called in a post-fork child without `exec`.
+- The Tier‑1 TLS loopback fixture therefore uses a **fork+exec** server mode (single binary with `server` argv) instead of `spawn`.
+
 ## 4) Implementation plan (providers)
 
 TLS is implemented via **OS providers** (FFI) per Tier‑1 OS:
@@ -106,6 +114,25 @@ Rationale:
 
 ## 5) Current status
 
-- `std:net/http` parses `https://` but returns a precise error (TLS not implemented yet).
-- `std:net/ws` parses `wss://` but returns a precise error (TLS not implemented yet).
-- `@ffi.link` exists so stdlib can attach link deps without Makefile/script flags.
+- `std:net/tls` exists (rolling v0):
+  - macOS provider (SecureTransport) is implemented for:
+    - `tls.wrap_client`
+    - `tls.wrap_server_pkcs12`
+    - `tls.read_into` / `tls.write_from` / `tls.close`
+    - `tls.peer_cert_sha256_hex` (leaf certificate SHA-256 of DER)
+  - Client verification behavior:
+    - default: platform verification (may reject loopback self-signed fixtures)
+    - `opts["insecure_skip_verify"]=1`: disables platform verification so deterministic fixtures can rely on pinning
+  - macOS provider requires a small toolchain bridge:
+    - SecureTransport IO callbacks must be passed as **raw function pointers**
+    - Oren marks these callbacks with `@ffi.export` and resolves them via `dlsym(RTLD_DEFAULT, ...)`
+    - SecureTransport has two distinct IO APIs:
+      - IO callbacks (`SSLSetIOFuncs`) use 3-arg `SSLReadFunc`/`SSLWriteFunc` signatures
+      - application IO (`SSLRead`/`SSLWrite`) use 4 args (`data`, `dataLength`, `processed*`)
+- Regression gate:
+  - `tests/native/test_tls_loopback.oren` is integrated into `scripts/verify_native_net_matrix.sh` (stage1 + stage2; local loopback).
+- Still pending:
+  - wire `https://` into `std:net/http` and `wss://` into `std:net/ws`
+  - provider implementations for Tier‑1:
+    - Windows x64: Schannel / SSPI
+    - Linux arm64/x64: OpenSSL

@@ -863,7 +863,9 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_add_imm(4, 4, 4))
                 push_u32_le(ctx["code"], insn_ldrsw(17, 3, 0))
                 push_u32_le(ctx["code"], insn_add_imm(3, 3, 4))
-                push_u32_le(ctx["code"], insn_ldrsw(18, 2, 0))
+                // Darwin AArch64 reserves X18 as a platform register (thread/TLS).
+                // Never clobber it in generated code or FFI into system frameworks (malloc/CF) can break.
+                push_u32_le(ctx["code"], insn_ldrsw(22, 2, 0))
                 push_u32_le(ctx["code"], insn_add_imm(2, 2, 4))
                 push_u32_le(ctx["code"], insn_ldrsw(19, 1, 0))
                 push_u32_le(ctx["code"], insn_add_imm(1, 1, 4))
@@ -884,7 +886,7 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                     while cc2 < 4 {
                         var b_reg = 15
                         if cc2 == 1 { b_reg = 17 }
-                        if cc2 == 2 { b_reg = 18 }
+                        if cc2 == 2 { b_reg = 22 }
                         if cc2 == 3 { b_reg = 19 }
                         push_u32_le(ctx["code"], insn_ldr_ptr(21, 16))     // load current out
                         push_u32_le(ctx["code"], insn_mul(20, a_reg, b_reg))

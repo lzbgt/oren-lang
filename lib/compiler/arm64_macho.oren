@@ -663,7 +663,7 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     }
     if trace_emit { print("[emit] macho arm64: stubs+symtab for imports done") }
 
-    if is_shared {
+    if is_shared || (exports != nil && oren_list_len(exports) != 0) {
         var i_exp = 0
         while i_exp < oren_list_len(exports) {
             var f_name = exports[i_exp]
@@ -671,11 +671,13 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             
             var name_idx_exp = bytes_len(strtab)
             bytes_push(strtab, 95) // '_'
-            var name_bytes_exp = oren_bytes_from_string(f_name)
+            // Avoid `oren_bytes_from_string` (allocates list<int>) in hot emitter paths.
             var k3 = 0
-            while k3 < oren_list_len(name_bytes_exp) {
-                 bytes_push(strtab, name_bytes_exp[k3])
-                 k3 = k3 + 1
+            var n3 = 0
+            if f_name != nil { n3 = oren_string_len(f_name) }
+            while k3 < n3 {
+                bytes_push(strtab, oren_string_byte_at_unchecked(f_name, k3) & 255)
+                k3 = k3 + 1
             }
             bytes_push(strtab, 0)
             
