@@ -34,7 +34,7 @@ Local (fast):
 Cross-arch matrix (execution on real hosts):
 
 - `./scripts/verify_native_matrix.sh` (native quick across local + docker + remote x64)
-- `./scripts/verify_native_net_matrix.sh` (TCP/UDP/HTTP loopback + WebSocket; stage1 + stage2; all Tier‑1)
+- `./scripts/verify_native_net_matrix.sh` (TCP/UDP/DNS/HTTP/HTTPS/WS/WSS/TLS loopback; stage1 + stage2; all Tier‑1)
 - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` (compiler runs on x64 hosts and compiles+runs a tiny program)
 - `./scripts/verify_stage0_windows_bootstrap.sh` (stage0→stage1 via MSVC on Win11; stage1 builds+runs a tiny native program)
 
@@ -138,10 +138,11 @@ References:
            - Gate: `./scripts/verify_windows_stage2_from_stage1.sh` (stage0→stage1→stage2; Win11 + VS2022 + `cl.exe`)
            - Make shortcut: `make verify-stage2-win`
          - Intent: `make`, `make test`, `make stage2`, `make verify-native-quick` should work under MSYS2/Git Bash/Cygwin (stage0 still uses MSVC `cl.exe`, auto-configured by stage0; see `docs/REMOTE_X64_ENV.md`).
-	     - NET stdlib maturity:
-	       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP (Content-Length + chunked; IPv4-only; no TLS/keep-alive pooling yet).
-	         - URL parsing recognizes `https://...` but returns a precise error until TLS lands (see `docs/NET_TLS.md`).
-	         - Hostname URLs are supported via DNS A lookup (explicit resolver injection; best-effort system default on POSIX only).
+		     - NET stdlib maturity:
+		       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP **and HTTPS** (Content-Length + chunked; IPv4-only; no keep-alive pooling yet).
+		         - HTTPS uses `std:net/tls` (OS provider availability is tracked in `docs/NET_TLS.md`).
+		         - Deterministic HTTPS fixture uses `http.get_response_opts(..., {"tls":{...}})` + pinning (see `tests/native/test_https_get_loopback.oren`).
+		         - Hostname URLs are supported via DNS A lookup (explicit resolver injection; best-effort system default on POSIX only).
        - Done: portable `SO_KEEPALIVE` + `std:net/tcp.set_keepalive(fd, enable)` (syscall-first; translated across Darwin/Linux/Windows).
          - Regression: `tests/native/test_net_suite.oren` now asserts `sys_setsockopt(... SO_KEEPALIVE ...)` succeeds (covered by `./scripts/verify_native_net_matrix.sh`).
        - Done: UDP `recvfrom` can capture the source sockaddr (src ip/port) via `oren_udp_recvfrom_into_with_addr`.
@@ -157,14 +158,15 @@ References:
 	         - Regression: `tests/native/test_dns_loopback.oren` (stage1 + stage2; all Tier‑1 via `./scripts/verify_native_net_matrix.sh`).
 	         - Regression: `tests/native/test_http_get_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
 	       - WebSocket hostname support: `ws.connect_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
-	         - URL parsing recognizes `wss://...` but returns a precise error until TLS lands (see `docs/NET_TLS.md`).
-	         - Regression: `tests/native/test_ws_echo_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
+		         - `wss://` is supported via `ws.connect_resolver_opts(url, timeout_ms, resolver, {"tls":{...}})` (see `docs/NET_TLS.md`).
+		         - Regression: `tests/native/test_ws_echo_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
+		         - Regression (TLS loopback): `tests/native/test_wss_echo_loopback.oren` (stage1 + stage2; integrated into `./scripts/verify_native_net_matrix.sh`).
 	       - Fixed (2026-01-08): x64-windows WebSocket flake (sporadic `ETIMEDOUT` while reading ping/pong/text frames) was traced to **thread-unsafe shared TIME scratch buffers** in `oren_time_unix_ns()` / `oren_time_mono_raw()`.
 	         - Fix: TIME scratch is now **per-thread** (stored in the thread node) to keep timeout math coherent under `spawn` without introducing hot-path global lock contention (see `docs/NET_WEBSOCKET.md`).
 	         - Next: avoid O(n) thread-list scans in hot TIME paths by introducing a per-thread fast lookup (TLS-like) for the current thread node.
 	       - Next: structured HTTP client/server surface (status + headers + streaming body), then production WebSocket:
 	         - Done (2026-01-08): `std:net/http` now exposes a structured response API:
-	           - `http.get_response(_resolver)` returns `{status, headers, body}` (HTTP/1.1, connection-close, no TLS yet).
+		           - `http.get_response(_resolver)` returns `{status, headers, body}` (HTTP/1.1, connection-close).
 	           - `http.headers_get(headers, name)` and `http.response_free(resp)` provide minimal ergonomics + ownership.
 	           - Regression: `tests/native/test_http_get_loopback.oren` now asserts status and headers on both Content-Length and chunked cases.
 	         - fragmentation + binary frames + streaming recv API
@@ -173,10 +175,12 @@ References:
 	           - Done (2026-01-08): macOS TLS provider bring-up + deterministic loopback fixture:
 	             - `std:net/tls` exists with SecureTransport provider (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
 	             - loopback regression: `tests/native/test_tls_loopback.oren` (stage1 + stage2; integrated into `scripts/verify_native_net_matrix.sh`)
-	           - Next:
-	             - wire `https://` into `std:net/http` and `wss://` into `std:net/ws`
-	             - implement Tier‑1 providers: Windows x64 Schannel, Linux arm64/x64 OpenSSL
-	             - integrate pinning/verification options into `std:net/tls` (move policy out of fixtures)
+		           - Done (2026-01-08): wired `https://` into `std:net/http` and `wss://` into `std:net/ws`:
+		             - `tests/native/test_https_get_loopback.oren` (offline deterministic; uses pinning)
+		             - `tests/native/test_wss_echo_loopback.oren` (offline deterministic; uses pinning)
+		           - Next:
+		             - implement Tier‑1 providers: Windows x64 Schannel, Linux arm64/x64 OpenSSL
+		             - integrate pinning/verification options directly into `std:net/tls` (move policy out of HTTP/WS call sites)
      - x64 native backend correctness:
        - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
          - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)

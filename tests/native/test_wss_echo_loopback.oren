@@ -1,0 +1,193 @@
+import ws "../../lib/std/net/ws.oren"
+import tcp "std:net/tcp"
+import base64 "std:encoding/base64"
+import fixture "./fixture_tls_p12.oren"
+
+fn _cstr_from_string(s) {
+    if s == nil { s = "" }
+    var n = oren_string_len(s)
+    if n < 0 { n = 0 }
+    if n > 128 { n = 128 }
+    var p = malloc(n + 1)
+    if p == 0 { return 0 }
+    var i = 0
+    while i < n {
+        ptr_set_byte(p + i, oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
+    ptr_set_byte(p + n, 0)
+    return p
+}
+
+fn _str_eq_bytes(a, b) {
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _cstr_lit_server() {
+    // "server\0"
+    var p = malloc(7)
+    if p == 0 { return 0 }
+    ptr_set_byte(p + 0, 115)
+    ptr_set_byte(p + 1, 101)
+    ptr_set_byte(p + 2, 114)
+    ptr_set_byte(p + 3, 118)
+    ptr_set_byte(p + 4, 101)
+    ptr_set_byte(p + 5, 114)
+    ptr_set_byte(p + 6, 0)
+    return p
+}
+
+fn u16be_at(p, off) {
+    var hi = ptr_get_byte(p + off) & 255
+    var lo = ptr_get_byte(p + off + 1) & 255
+    return (hi << 8) | lo
+}
+
+@cfg(not_os="macos")
+fn main() {
+    // WSS/TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/NET_TLS.md.
+    exit(0)
+}
+
+@cfg(os="macos")
+fn server_main(listen_fd, pfx_b64) {
+    var pkcs12_bytes = base64.decode_bytes(pfx_b64)
+    if oren_is_err(pkcs12_bytes) { exit(101) }
+    var n = oren_buf_len(pkcs12_bytes)
+    if oren_is_err(n) || n != fixture.pkcs12_len() { exit(102) }
+
+    var r = ws.accept_tls_pkcs12(listen_fd, 5000, pkcs12_bytes, fixture.passphrase(), nil)
+    if oren_map_get_str(r, "ok") != 1 { exit(11) }
+    var conn = oren_map_get_str(r, "conn")
+    if conn == 0 { exit(12) }
+
+    var msg = ws.recv_text(conn, 5000)
+    if oren_map_get_str(msg, "ok") != 1 { ws.close(conn); exit(13) }
+    var s = oren_map_get_str(msg, "v")
+    if s == 0 { ws.close(conn); exit(14) }
+
+    var wr = ws.send_text_server(conn, s, 5000)
+    free(s)
+    ws.close(conn)
+    if wr < 0 { exit(15) }
+    exit(0)
+}
+
+@cfg(os="macos")
+fn main_server() {
+    var args = oren_args()
+    if args == nil || oren_list_len(args) < 3 { exit(60) }
+    if _str_eq_bytes(args[1], "server") != true { exit(61) }
+    var listen_fd = oren_int_from_string(args[2])
+    if listen_fd < 0 { exit(62) }
+    server_main(listen_fd, fixture.pkcs12_b64())
+    exit(0)
+}
+
+@cfg(os="macos")
+fn main_client() {
+    var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
+
+    var listen_fd = oren_tcp_listen_local(0)
+    if listen_fd < 0 { exit(3) }
+
+    var sa = malloc(32)
+    if sa == 0 { exit(4) }
+    var lenp = malloc(8)
+    if lenp == 0 { exit(5) }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(listen_fd, sa, lenp)
+    if grc < 0 { exit(6) }
+    var port = u16be_at(sa, 2)
+    free(sa)
+    free(lenp)
+    if port <= 0 { exit(7) }
+
+    // Exec server process (Darwin correctness: avoid post-fork CoreFoundation use).
+    var argvp0 = global_get_argv()
+    if argvp0 == 0 { exit(70) }
+    var self_path = ptr_get(argvp0 + 0)
+    if self_path == 0 { exit(71) }
+
+    var role_cstr = _cstr_lit_server()
+    if role_cstr == 0 { exit(72) }
+    var fd_cstr = _cstr_from_string(oren_int_to_string(listen_fd))
+    if fd_cstr == 0 { exit(73) }
+    var argvp = malloc(4 * 8)
+    if argvp == 0 { exit(74) }
+    ptr_set(argvp + 0, self_path)
+    ptr_set(argvp + 8, role_cstr)
+    ptr_set(argvp + 16, fd_cstr)
+    ptr_set(argvp + 24, 0)
+
+    var pid = oren_fork()
+    if pid < 0 { exit(75) }
+    if pid == 0 {
+        sys_execve(self_path, argvp, global_get_envp())
+        exit(127)
+    }
+    free(argvp)
+    free(fd_cstr)
+    free(role_cstr)
+
+    tcp.close(listen_fd)
+
+    var url = "wss://127.0.0.1:" + oren_int_to_string(port) + "/"
+    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test"}
+    var c = ws.connect_resolver_opts(url, 5000, 0, {"tls": tls_opts})
+    free(url)
+    if oren_map_get_str(c, "ok") != 1 {
+        var errv = oren_map_get_str(c, "err")
+        if errv != 0 { print("wss_loopback: FAIL connect: " + oren_intern_cstr(errv)) }
+        exit(8)
+    }
+    var conn = oren_map_get_str(c, "conn")
+    if conn == 0 { exit(9) }
+
+    var prc = ws.send_ping_client(conn, "hi", 5000)
+    if prc < 0 { ws.close(conn); exit(20) }
+
+    var text = "PING"
+    var wr = ws.send_text_client(conn, text, 5000)
+    if wr < 0 { ws.close(conn); exit(21) }
+
+    var rr = ws.recv_text(conn, 5000)
+    if oren_map_get_str(rr, "ok") != 1 { ws.close(conn); exit(22) }
+    var body = oren_map_get_str(rr, "v")
+    if body == 0 || strcmp(body, "PING") != 0 {
+        if body != 0 { free(body) }
+        ws.close(conn)
+        exit(23)
+    }
+    free(body)
+    ws.close(conn)
+
+    var status_ptr = malloc(8)
+    if status_ptr == 0 { exit(40) }
+    ptr_set(status_ptr, 0)
+    var wpid = sys_wait4(pid, status_ptr, 0, 0)
+    if wpid != pid { exit(41) }
+    var status = ptr_get(status_ptr)
+    free(status_ptr)
+    if status != 0 { exit(42) }
+    exit(0)
+}
+
+@cfg(os="macos")
+fn main() {
+    var args = oren_args()
+    if args != nil && oren_list_len(args) >= 2 && _str_eq_bytes(args[1], "server") == true {
+        return main_server()
+    }
+    return main_client()
+}

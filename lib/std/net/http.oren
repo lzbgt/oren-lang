@@ -13,6 +13,7 @@
 
 import tcp "std:net/tcp"
 import dns "std:net/dns"
+import tls "std:net/tls"
 
 fn _trim_right_ws_in_buf(buf, start, end) {
     var i = end
@@ -419,7 +420,7 @@ fn response_free(resp) {
     return nil
 }
 
-fn get_response_resolver(url, timeout_ms, resolver) {
+fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
     // Structured HTTP/1.1 response (v0):
     //
     // Returns:
@@ -427,7 +428,7 @@ fn get_response_resolver(url, timeout_ms, resolver) {
     //   {"ok":0, "err":string}
     //
     // Notes:
-    // - no TLS yet (http:// only)
+    // - supports http:// and https:// (TLS provider availability is OS-dependent; see docs/NET_TLS.md)
     // - connection-close only (no keep-alive pooling yet)
     // - headers are returned as a list of owned strings (caller may free via `response_free`)
     //
@@ -440,12 +441,8 @@ fn get_response_resolver(url, timeout_ms, resolver) {
     var pu = _parse_http_url(url)
     if pu["ok"] != 1 { return {"ok": 0, "err": "http.get_response: " + pu["err"]} }
 
-    if pu["scheme"] == "https" {
-        free(pu["host"])
-        free(pu["path"])
-        return {"ok": 0, "err": "http.get_response: https:// requires TLS (not implemented yet). Track: docs/NET_TLS.md"}
-    }
-
+    var is_tls = 0
+    if pu["scheme"] == "https" { is_tls = 1 }
     var host = pu["host"]
     var port = pu["port"]
     var path = pu["path"]
@@ -467,19 +464,70 @@ fn get_response_resolver(url, timeout_ms, resolver) {
         return {"ok": 0, "err": "http.get_response: connect failed (errno=" + oren_int_to_string(0 - fd) + ")"}
     }
 
+    var tls_conn = 0
+    if is_tls == 1 {
+        var tls_opts = 0
+        if opts != nil && oren_is_map(opts) == true {
+            tls_opts = oren_map_get_str(opts, "tls")
+        }
+        var server_name = host
+        if tls_opts != 0 && oren_is_map(tls_opts) == true {
+            var sn = oren_map_get_str(tls_opts, "server_name")
+            if sn != 0 { server_name = sn }
+        }
+        var cr = tls.wrap_client(fd, server_name, timeout_ms, tls_opts)
+        if oren_map_get_str(cr, "ok") != 1 {
+            // Best-effort: ensure fd isn't leaked on providers that don't close on failure.
+            tcp.close(fd)
+            free(host)
+            free(path)
+            return {"ok": 0, "err": "http.get_response: " + oren_map_get_str(cr, "err")}
+        }
+        tls_conn = oren_map_get_str(cr, "conn")
+        if tls_conn == 0 {
+            tcp.close(fd)
+            free(host)
+            free(path)
+            return {"ok": 0, "err": "http.get_response: tls.wrap_client returned nil conn"}
+        }
+
+        // Optional deterministic pinning (useful for loopback fixtures).
+        if tls_opts != 0 && oren_is_map(tls_opts) == true {
+                var want_pin = oren_map_get_str(tls_opts, "pin_cert_sha256_hex")
+            if want_pin != 0 {
+                var pr = tls.peer_cert_sha256_hex(tls_conn)
+                if oren_map_get_str(pr, "ok") != 1 {
+                    tls.close(tls_conn)
+                    free(host)
+                    free(path)
+                    return {"ok": 0, "err": "http.get_response: tls pin: " + oren_map_get_str(pr, "err")}
+                }
+                var got_pin = oren_map_get_str(pr, "v")
+                if got_pin == 0 || strcmp(got_pin, want_pin) != 0 {
+                    tls.close(tls_conn)
+                    free(host)
+                    free(path)
+                    return {"ok": 0, "err": "http.get_response: tls pin mismatch"}
+                }
+            }
+        }
+    }
+
     var req = _build_get_request(host, path)
     free(host)
     free(path)
     if req == 0 {
-        tcp.close(fd)
+        if is_tls == 1 { tls.close(tls_conn) } else { tcp.close(fd) }
         return {"ok": 0, "err": "http.get_response: request build failed"}
     }
 
     var req_len = oren_string_len(req)
-    var wr = tcp.write_from(fd, req, req_len, timeout_ms)
+    var wr = 0
+    if is_tls == 1 { wr = tls.write_from(tls_conn, req, req_len, timeout_ms) }
+    else { wr = tcp.write_from(fd, req, req_len, timeout_ms) }
     free(req)
     if wr < 0 {
-        tcp.close(fd)
+        if is_tls == 1 { tls.close(tls_conn) } else { tcp.close(fd) }
         return {"ok": 0, "err": "http.get_response: write failed (errno=" + oren_int_to_string(0 - wr) + ")"} }
 
     var cap = 8192
@@ -502,7 +550,9 @@ fn get_response_resolver(url, timeout_ms, resolver) {
     while 1 {
         var tmp = malloc(2048)
         if tmp == 0 { break }
-        var n = tcp.read_into(fd, tmp, 2048, timeout_ms)
+        var n = 0
+        if is_tls == 1 { n = tls.read_into(tls_conn, tmp, 2048, timeout_ms) }
+        else { n = tcp.read_into(fd, tmp, 2048, timeout_ms) }
         last_n = n
         if n == 0 {
             free(tmp)
@@ -615,7 +665,7 @@ fn get_response_resolver(url, timeout_ms, resolver) {
         }
     }
 
-    tcp.close(fd)
+    if is_tls == 1 { tls.close(tls_conn) } else { tcp.close(fd) }
 
     if header_done == 0 {
         free(buf)
@@ -660,8 +710,16 @@ fn get_response_resolver(url, timeout_ms, resolver) {
     return {"ok": 1, "status": status_code, "headers": headers, "body": out}
 }
 
+fn get_response_resolver(url, timeout_ms, resolver) {
+    return get_response_resolver_opts(url, timeout_ms, resolver, 0)
+}
+
+fn get_response_opts(url, timeout_ms, opts) {
+    return get_response_resolver_opts(url, timeout_ms, 0, opts)
+}
+
 fn get_response(url, timeout_ms) {
-    return get_response_resolver(url, timeout_ms, 0)
+    return get_response_resolver_opts(url, timeout_ms, 0, 0)
 }
 
 fn get_text_resolver(url, timeout_ms, resolver) {
@@ -669,7 +727,7 @@ fn get_text_resolver(url, timeout_ms, resolver) {
     //   {"ok":1,"v":string} on success
     //   {"ok":0,"err":string} on failure
     //
-    var rr = get_response_resolver(url, timeout_ms, resolver)
+    var rr = get_response_resolver_opts(url, timeout_ms, resolver, 0)
     if rr["ok"] != 1 { return {"ok": 0, "err": rr["err"]} }
     var body = rr["body"]
     // Free headers immediately; return only the body (legacy API).

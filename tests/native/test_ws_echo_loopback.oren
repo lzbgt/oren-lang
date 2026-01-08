@@ -161,10 +161,10 @@ fn server(listen_fd) {
         }
         return 10
     }
-    var fd = oren_map_get_str(r, "fd")
-    if fd < 0 { return 11 }
+    var conn = oren_map_get_str(r, "conn")
+    if conn == 0 { return 11 }
 
-    var msg = ws.recv_text(fd, 10000)
+    var msg = ws.recv_text(conn, 10000)
     var mok = oren_map_get_str(msg, "ok")
     if mok != 1 {
         var merr = oren_map_get_str(msg, "err")
@@ -179,14 +179,14 @@ fn server(listen_fd) {
     var s = oren_map_get_str(msg, "v")
     if s == 0 { return 13 }
 
-    var wr = ws.send_text_server(fd, s, 10000)
+    var wr = ws.send_text_server(conn, s, 10000)
     free(s)
     if wr < 0 {
         print("ws_echo_loopback: server send FAIL (errno=" + oren_int_to_string(0 - wr) + ")")
         return 14
     }
 
-    oren_tcp_close(fd)
+    ws.close(conn)
     return 0
 }
 
@@ -224,7 +224,7 @@ fn run_one(listen_fd, url, resolver) {
 
     // Keep a single exit path so we always join the server thread.
     var rc = 0
-    var fd = -1
+    var conn = 0
 
     var c = 0
     if resolver != nil {
@@ -239,7 +239,7 @@ fn run_one(listen_fd, url, resolver) {
         _print_connect_fail(c, okv)
         rc = 20
     } else {
-        fd = oren_map_get_str(c, "fd")
+        conn = oren_map_get_str(c, "conn")
 
         // Exercise ping/pong handling (Tier‑1): send ping before the text echo.
         //
@@ -250,7 +250,7 @@ fn run_one(listen_fd, url, resolver) {
         if do_ping == 1 {
             // Server `ws.recv_text` should auto-respond with pong and continue waiting for text.
             // Client `ws.recv_text` should ignore pong and continue waiting for the echoed text.
-            var prc = ws.send_ping_client(fd, "hi", 5000)
+            var prc = ws.send_ping_client(conn, "hi", 5000)
             if prc < 0 {
                 print("ws_echo_loopback: FAIL ping (errno=" + oren_int_to_string(0 - prc) + ")")
                 rc = 21
@@ -259,12 +259,12 @@ fn run_one(listen_fd, url, resolver) {
 
         if rc == 0 {
             var text = "PING"
-            var wr = ws.send_text_client(fd, text, 5000)
+            var wr = ws.send_text_client(conn, text, 5000)
             if wr < 0 {
                 print("ws_echo_loopback: FAIL send (errno=" + oren_int_to_string(0 - wr) + ")")
                 rc = 21
             } else {
-                var rr = ws.recv_text(fd, 10000)
+                var rr = ws.recv_text(conn, 10000)
                 // Prefer typed map access; do not rely on key-kind inference in tests.
                 var rok = oren_map_get_str(rr, "ok")
                 if rok != 1 {
@@ -292,7 +292,7 @@ fn run_one(listen_fd, url, resolver) {
         }
     }
 
-    if fd >= 0 { oren_tcp_close(fd) }
+    if conn != 0 { ws.close(conn) }
 
     var sr = oren_join_timeout(h, 15000)
     if sr != 0 && rc == 0 {

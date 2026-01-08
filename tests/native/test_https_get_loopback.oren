@@ -1,0 +1,224 @@
+import http "../../lib/std/net/http.oren"
+import tcp "std:net/tcp"
+import tls "std:net/tls"
+import base64 "std:encoding/base64"
+import fixture "./fixture_tls_p12.oren"
+
+fn _cstr_from_string(s) {
+    if s == nil { s = "" }
+    var n = oren_string_len(s)
+    if n < 0 { n = 0 }
+    if n > 128 { n = 128 }
+    var p = malloc(n + 1)
+    if p == 0 { return 0 }
+    var i = 0
+    while i < n {
+        ptr_set_byte(p + i, oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
+    ptr_set_byte(p + n, 0)
+    return p
+}
+
+fn _str_eq_bytes(a, b) {
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _cstr_lit_server() {
+    // "server\0"
+    var p = malloc(7)
+    if p == 0 { return 0 }
+    ptr_set_byte(p + 0, 115)
+    ptr_set_byte(p + 1, 101)
+    ptr_set_byte(p + 2, 114)
+    ptr_set_byte(p + 3, 118)
+    ptr_set_byte(p + 4, 101)
+    ptr_set_byte(p + 5, 114)
+    ptr_set_byte(p + 6, 0)
+    return p
+}
+
+fn u16be_at(p, off) {
+    var hi = ptr_get_byte(p + off) & 255
+    var lo = ptr_get_byte(p + off + 1) & 255
+    return (hi << 8) | lo
+}
+
+fn _find_header_end(buf, used) {
+    // Return index after "\r\n\r\n", or 0 if not found.
+    if buf == 0 { return 0 }
+    if used < 4 { return 0 }
+    var i = 0
+    while i + 3 < used {
+        if (ptr_get_byte(buf + i) & 255) == 13 &&
+           (ptr_get_byte(buf + i + 1) & 255) == 10 &&
+           (ptr_get_byte(buf + i + 2) & 255) == 13 &&
+           (ptr_get_byte(buf + i + 3) & 255) == 10 {
+            return i + 4
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+@cfg(not_os="macos")
+fn main() {
+    // HTTPS/TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/NET_TLS.md.
+    exit(0)
+}
+
+@cfg(os="macos")
+fn server_main(listen_fd, pfx_b64) {
+    var pkcs12_bytes = base64.decode_bytes(pfx_b64)
+    if oren_is_err(pkcs12_bytes) { exit(101) }
+    var n = oren_buf_len(pkcs12_bytes)
+    if oren_is_err(n) || n != fixture.pkcs12_len() { exit(102) }
+
+    var fd = tcp.accept(listen_fd, 5000)
+    if fd < 0 { exit(11) }
+    var r = tls.wrap_server_pkcs12(fd, 5000, pkcs12_bytes, fixture.passphrase(), nil)
+    if oren_map_get_str(r, "ok") != 1 { exit(12) }
+    var conn = oren_map_get_str(r, "conn")
+    if conn == 0 { exit(13) }
+
+    // Read until the end of the HTTP header (best-effort).
+    var cap = 8192
+    var buf = malloc(cap)
+    if buf == 0 { tls.close(conn); exit(14) }
+    var tmp = malloc(1024)
+    if tmp == 0 { free(buf); tls.close(conn); exit(15) }
+    var used = 0
+    var hdr_end = 0
+    while used < cap && hdr_end == 0 {
+        var rn = tls.read_into(conn, tmp, 1024, 5000)
+        if rn <= 0 { break }
+        if used + rn > cap { break }
+        oren_memcpy(buf + used, tmp, rn)
+        used = used + rn
+        hdr_end = _find_header_end(buf, used)
+    }
+    free(tmp)
+    free(buf)
+
+    // Minimal HTTP response.
+    var body = "HELLO"
+    var resp = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n" + body
+    var wr = tls.write_from(conn, resp, oren_string_len(resp), 5000)
+    free(resp)
+    tls.close(conn)
+    if wr < 0 { exit(16) }
+    exit(0)
+}
+
+@cfg(os="macos")
+fn main_server() {
+    var args = oren_args()
+    if args == nil || oren_list_len(args) < 3 { exit(60) }
+    if _str_eq_bytes(args[1], "server") != true { exit(61) }
+    var listen_fd = oren_int_from_string(args[2])
+    if listen_fd < 0 { exit(62) }
+    server_main(listen_fd, fixture.pkcs12_b64())
+    exit(0)
+}
+
+@cfg(os="macos")
+fn main_client() {
+    var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
+
+    // Bind ephemeral loopback port.
+    var listen_fd = oren_tcp_listen_local(0)
+    if listen_fd < 0 { exit(3) }
+
+    // getsockname to find the bound port.
+    var sa = malloc(32)
+    if sa == 0 { exit(4) }
+    var lenp = malloc(8)
+    if lenp == 0 { exit(5) }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(listen_fd, sa, lenp)
+    if grc < 0 { exit(6) }
+    var port = u16be_at(sa, 2)
+    free(sa)
+    free(lenp)
+    if port <= 0 { exit(7) }
+
+    // Exec server process (Darwin correctness: avoid post-fork CoreFoundation use).
+    var argvp0 = global_get_argv()
+    if argvp0 == 0 { exit(70) }
+    var self_path = ptr_get(argvp0 + 0)
+    if self_path == 0 { exit(71) }
+
+    var role_cstr = _cstr_lit_server()
+    if role_cstr == 0 { exit(72) }
+    var fd_cstr = _cstr_from_string(oren_int_to_string(listen_fd))
+    if fd_cstr == 0 { exit(73) }
+    var argvp = malloc(4 * 8)
+    if argvp == 0 { exit(74) }
+    ptr_set(argvp + 0, self_path)
+    ptr_set(argvp + 8, role_cstr)
+    ptr_set(argvp + 16, fd_cstr)
+    ptr_set(argvp + 24, 0)
+
+    var pid = oren_fork()
+    if pid < 0 { exit(75) }
+    if pid == 0 {
+        sys_execve(self_path, argvp, global_get_envp())
+        exit(127)
+    }
+    free(argvp)
+    free(fd_cstr)
+    free(role_cstr)
+
+    tcp.close(listen_fd)
+
+    var url = "https://127.0.0.1:" + oren_int_to_string(port) + "/"
+    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test"}
+    var rr = http.get_response_opts(url, 5000, {"tls": tls_opts})
+    free(url)
+
+    var okv = oren_map_get_str(rr, "ok")
+    if okv != 1 {
+        var errv = oren_map_get_str(rr, "err")
+        if errv != 0 { print("https_loopback: FAIL: " + oren_intern_cstr(errv)) }
+        exit(8)
+    }
+    if oren_map_get_str(rr, "status") != 200 {
+        http.response_free(rr)
+        exit(9)
+    }
+    var body = oren_map_get_str(rr, "body")
+    if body == 0 || _str_eq_bytes(body, "HELLO") != true {
+        http.response_free(rr)
+        exit(10)
+    }
+    http.response_free(rr)
+
+    var status_ptr = malloc(8)
+    if status_ptr == 0 { exit(40) }
+    ptr_set(status_ptr, 0)
+    var wpid = sys_wait4(pid, status_ptr, 0, 0)
+    if wpid != pid { exit(41) }
+    var status = ptr_get(status_ptr)
+    free(status_ptr)
+    if status != 0 { exit(42) }
+    exit(0)
+}
+
+@cfg(os="macos")
+fn main() {
+    var args = oren_args()
+    if args != nil && oren_list_len(args) >= 2 && _str_eq_bytes(args[1], "server") == true {
+        return main_server()
+    }
+    return main_client()
+}

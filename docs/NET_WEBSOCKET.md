@@ -15,18 +15,23 @@ This doc tracks the current “v0” WebSocket support in Oren’s stdlib, imple
 
 All functions are timeout‑bounded to avoid hangs.
 
-- `ws.connect(url, timeout_ms)` → `{"ok":1,"fd":int}` or `{"ok":0,"err":string}`
-- `ws.connect_resolver(url, timeout_ms, resolver)` → `{"ok":1,"fd":int}` or `{"ok":0,"err":string}`
+- `ws.connect(url, timeout_ms)` → `{"ok":1,"conn":map}` or `{"ok":0,"err":string}`
+- `ws.connect_resolver(url, timeout_ms, resolver)` → `{"ok":1,"conn":map}` or `{"ok":0,"err":string}`
+- `ws.connect_resolver_opts(url, timeout_ms, resolver, opts)` → `{"ok":1,"conn":map}` or `{"ok":0,"err":string}`
+  - `opts["tls"]` is passed to `tls.wrap_client` for `wss://` URLs (see `docs/NET_TLS.md`).
   - `resolver` is a config map returned by `std:net/dns.resolver(server_ip, server_port, timeout_ms)`
   - Use this to keep hostname behavior deterministic in tests (loopback DNS server), or to avoid relying on `/etc/resolv.conf`.
-- `ws.accept(listen_fd, timeout_ms)` → `{"ok":1,"fd":int}` or `{"ok":0,"err":string}`
-- `ws.send_text_client(fd, text, timeout_ms)` → `0` on success, or `-errno`
+- `ws.accept(listen_fd, timeout_ms)` → `{"ok":1,"conn":map}` or `{"ok":0,"err":string}`
+- `ws.accept_tls_pkcs12(listen_fd, timeout_ms, pkcs12_bytes, passphrase, tls_opts)` → `{"ok":1,"conn":map}` or `{"ok":0,"err":string}`
+  - Rolling helper for loopback fixtures and basic WSS servers; wraps `tcp.accept` + `tls.wrap_server_pkcs12` + the WS handshake.
+- `ws.close(conn)` → `0` (closes underlying TCP/TLS connection)
+- `ws.send_text_client(conn, text, timeout_ms)` → `0` on success, or `-errno`
   - Client frames are **masked** (required by RFC6455).
-- `ws.send_text_server(fd, text, timeout_ms)` → `0` on success, or `-errno`
+- `ws.send_text_server(conn, text, timeout_ms)` → `0` on success, or `-errno`
   - Server frames are **unmasked**.
-- `ws.send_ping_client(fd, payload, timeout_ms)` → `0` on success, or `-errno`
-- `ws.send_ping_server(fd, payload, timeout_ms)` → `0` on success, or `-errno`
-- `ws.recv_text(fd, timeout_ms)` → `{"ok":1,"v":string}` or `{"ok":0,"err":string}`
+- `ws.send_ping_client(conn, payload, timeout_ms)` → `0` on success, or `-errno`
+- `ws.send_ping_server(conn, payload, timeout_ms)` → `0` on success, or `-errno`
+- `ws.recv_text(conn, timeout_ms)` → `{"ok":1,"v":string}` or `{"ok":0,"err":string}`
   - v0.1 behavior: internally handles **ping/pong/close** frames (auto-pong + ignore pongs).
 
 ## Scope / limitations (v0)
@@ -38,7 +43,9 @@ This is intentionally minimal so we can gate correctness across Tier‑1 first.
   - hostname hosts resolve via DNS A:
     - pass an explicit resolver config (`ws.connect_resolver`)
     - or rely on `dns.default_resolver` (env `OREN_DNS_SERVER`, else system DNS on Windows, else `/etc/resolv.conf` on POSIX)
-  - no TLS (`wss://`) yet
+- URL: `wss://<host>[:port][/path]`
+  - TLS provider availability is OS-dependent; see `docs/NET_TLS.md`
+  - loopback fixtures rely on `opts["tls"]["insecure_skip_verify"]=1` + `opts["tls"]["pin_cert_sha256_hex"]="..."` for deterministic offline behavior
 - Frames:
   - **text frames only** (opcode=1)
   - no fragmentation support

@@ -1,4 +1,4 @@
-# TLS / HTTPS / WSS (stdlib, native backend) — plan (rolling)
+# TLS / HTTPS / WSS (stdlib, native backend) — rolling
 
 This doc defines the **stdlib contract** for TLS in Oren and the implementation strategy needed to support:
 
@@ -42,7 +42,7 @@ See:
 - `docs/TODOS.md` (native FFI parity)
 - `docs/NATIVE_BACKEND.md` (native dynamic linking model)
 
-## 2) Proposed stdlib API (`std:net/tls`)
+## 2) Stdlib API (`std:net/tls`)
 
 Goal: a **small, syscall-first shaped** API that can wrap a TCP socket and provide a stable surface for HTTPS/WSS.
 
@@ -69,7 +69,9 @@ Proposed functions:
 - `opts["verify"]`: `1|0` (default: `1`) (planned; provider-dependent)
 - `opts["insecure_skip_verify"]`: `1|0` (default: `0`) (implemented on macOS provider; see §5)
   - Intended for **offline loopback fixtures** only; callers should pin the peer cert (see §3).
-- `opts["pin_sha256"]`: optional pinned SPKI/cert hash for deterministic tests (planned; see §3)
+- `opts["server_name"]`: override SNI/server name when dialing by IP (used by loopback fixtures and proxies)
+- `opts["pin_cert_sha256_hex"]`: optional pinned leaf certificate hash (SHA-256 of DER; hex string)
+  - Implemented today by higher layers (`std:net/http` / `std:net/ws`) by calling `tls.peer_cert_sha256_hex` post-handshake.
 
 ### 2.3 IO
 
@@ -136,8 +138,13 @@ Rationale:
       - application IO (`SSLRead`/`SSLWrite`) use 4 args (`data`, `dataLength`, `processed*`)
 - Regression gate:
   - `tests/native/test_tls_loopback.oren` is integrated into `scripts/verify_native_net_matrix.sh` (stage1 + stage2; local loopback).
-- Still pending:
-  - wire `https://` into `std:net/http` and `wss://` into `std:net/ws`
-  - provider implementations for Tier‑1:
-    - Windows x64: Schannel / SSPI
-    - Linux arm64/x64: OpenSSL
+- Higher-level integrations (rolling):
+  - `std:net/http` supports `https://` via `http.get_response_resolver_opts` / `http.get_response_opts` (uses `tls.wrap_client`).
+    - Regression gate: `tests/native/test_https_get_loopback.oren` (loopback-only; deterministic; uses pinning).
+  - `std:net/ws` supports `wss://` via `ws.connect_resolver_opts` (uses `tls.wrap_client`).
+    - Server helper: `ws.accept_tls_pkcs12` (wraps `tcp.accept` + `tls.wrap_server_pkcs12` + WS handshake).
+    - Regression gate: `tests/native/test_wss_echo_loopback.oren`.
+  - Note: TLS provider availability is still OS-dependent; on non-macOS Tier‑1 targets these fixtures compile but exit(0) until providers land.
+- Still pending (Tier‑1 provider parity):
+  - Windows x64: Schannel / SSPI (`secur32.dll`, `crypt32.dll`)
+  - Linux arm64/x64: OpenSSL (`libssl`/`libcrypto`)
