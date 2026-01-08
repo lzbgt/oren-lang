@@ -195,6 +195,9 @@ References:
 	         - Stdlib Linux OpenSSL TLS provider now uses `@ffi.ret("i32")` for OpenSSL APIs and does not rely on per-call-site canonicalization.
 	         - Regression (Linux): `tests/native/ffi_linux_ret_i32_signext.oren` is executed by `scripts/verify_native_matrix.sh` (arm64-linux + x64-wsl; stage1 + stage2).
 	         - Regression (Windows): `tests/native/ffi_windows_ret_i32_signext.oren` is executed by `scripts/verify_native_matrix.sh --targets x64-win` (stage1 + stage2).
+	         - Next (FFI type surface):
+	           - add `@ffi.ret("u32")`, `@ffi.ret("void")`, and a narrow set of pointer/usize return kinds for syscall-first stdlib bindings.
+	           - migrate remaining per-module i32 canonicalizers (example: macOS SecureTransport `OSStatus`) to `@ffi.ret("i32")` so correctness lives in the backend, not in each provider.
 	     - Native runtime GC + literals:
        - Done (2026-01-08): embedded `cstr0` string literals are treated as constant-section data and are **not** tracked as GC alloc nodes.
          - Runtime builds a dedicated literal membership set at startup (`oren_init_static_cstr0_table`) and recognizes literals via `native_is_string_ptr` / `oren_is_string`.
