@@ -81,6 +81,24 @@ Makefile shortcut (arm64 macOS host workflow):
 make verify-stage0-win
 ```
 
+## Optional: stage1 builds stage2 on native Windows (self-host build)
+
+To fully close the Windows native-backend parity gap, we also keep an opt-in gate that proves:
+
+- stage0 builds stage1 on Windows (MSVC `cl.exe`)
+- stage1 builds stage2 on Windows (native backend)
+- stage2 compiles+runs a tiny native program on Windows (with `OREN_CANON_I32_ABORT=1` guard enabled)
+
+```bash
+./scripts/verify_windows_stage2_from_stage1.sh
+```
+
+Makefile shortcut (arm64 macOS host workflow):
+
+```bash
+make verify-stage2-win
+```
+
 Local Windows note (rolling):
 
 - If you run `make` on a Windows host under MSYS2/Git Bash/Cygwin, the Makefile emits `*.exe` outputs (`oren.exe`, `oren_stage2.exe`) and the local smoke scripts under `scripts/` will also suffix temporary artifacts with `.exe`.

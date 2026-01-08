@@ -226,6 +226,9 @@ Cross‑arch Tier‑1 matrix (stage1 + stage2):
 # Optional: stage0→stage1 bootstrap on native Windows using MSVC cl.exe (VS2022)
 ./scripts/verify_stage0_windows_bootstrap.sh
 
+# Optional: stage0→stage1→stage2 self-host build on native Windows (stage1 builds stage2 via native backend)
+./scripts/verify_windows_stage2_from_stage1.sh
+
 # Local sanity gate: compile-only for x64-linux + x64-windows (stage1 + stage2)
 make verify-native-x64-compile
 ```
@@ -237,6 +240,7 @@ make verify-native-matrix
 make verify-native-net
 make verify-selfhost-x64
 make verify-stage0-win
+make verify-stage2-win
 make verify-tier1
 ```
 

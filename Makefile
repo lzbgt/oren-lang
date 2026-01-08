@@ -2,6 +2,7 @@
 .PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick
 .PHONY: verify-native-x64-compile
 .PHONY: verify-native-matrix verify-native-net verify-selfhost-x64 verify-stage0-win verify-tier1
+.PHONY: verify-stage2-win
 .PHONY: bench-native-compile
 .PHONY: perf-guard-native-hit
 .PHONY: rtobj-seed
@@ -397,6 +398,14 @@ verify-stage0-win:
 		exit 2; \
 	fi
 	@./scripts/verify_stage0_windows_bootstrap.sh
+
+# Optional: prove native Windows can build stage2 (stage0 -> stage1 -> stage2) and run a tiny program.
+verify-stage2-win:
+	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
+		echo "ERROR: verify-stage2-win expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
+		exit 2; \
+	fi
+	@./scripts/verify_windows_stage2_from_stage1.sh
 
 verify-tier1: oren_stage2
 	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
