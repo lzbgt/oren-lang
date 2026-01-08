@@ -109,9 +109,24 @@ run_with_timeout "$STAGE0_BUILD_TIMEOUT_SECS" \
   "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && ..\\\\oren_bootstrap_win.exe build oren.oren --target windows --cc cl -o oren_stage1.exe\""
 
 log "== remote: stage1 builds stage2 (native backend; x64-windows PE) =="
+stage2_log="stage1_build_stage2.log"
+set +e
 run_with_timeout "$STAGE2_BUILD_TIMEOUT_SECS" \
   ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && oren_stage1.exe build oren.oren --backend native --platform x64-windows --no-debug -o oren_stage2.exe\""
+  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && (oren_stage1.exe build oren.oren --backend native --platform x64-windows --no-debug -o oren_stage2.exe > ${stage2_log} 2>&1)\""
+rc=$?
+set -e
+if [[ "$rc" -ne 0 ]]; then
+  echo "ERROR: stage1->stage2 build failed or timed out (timeout=${STAGE2_BUILD_TIMEOUT_SECS}s); tailing ${stage2_log}:" >&2
+  # PowerShell is present on modern Windows; use tail to avoid huge logs.
+  ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" \
+    "powershell -NoProfile -Command \"Set-Location -LiteralPath \\\"$env:USERPROFILE\\\\${REMOTE_DIR//\//\\\\}\\\"; if (Test-Path -LiteralPath '${stage2_log}') { Get-Content -LiteralPath '${stage2_log}' -Tail 120 } else { Write-Host 'missing log: ${stage2_log}' }\""
+  exit "$rc"
+fi
+
+# Fail fast on known x64-native backend correctness warnings (even if the compiler exits 0).
+ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" \
+  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && (findstr /C:\\\"x64 native v0: missing ABI arg reg\\\" /C:\\\"x64 native v0: missing ABI arg regs\\\" ${stage2_log} && exit /b 3) || exit /b 0\""
 
 log "== remote: stage2 builds a tiny native exe (guard: canon i32) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \

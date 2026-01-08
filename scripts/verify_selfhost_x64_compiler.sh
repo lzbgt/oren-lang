@@ -214,6 +214,8 @@ gc_stack_scan_limit="${OREN_GC_STACK_SCAN_LIMIT_BYTES:-8388608}"
 # GC thrash and make the build look "hung". Use a larger default than the tiny-file gates.
 gc_alloc_threshold="${OREN_SELFHOST_GC_ALLOC_THRESHOLD:-20000000}"
 
+abi_warn_patterns='x64 native v0: missing ABI arg reg|x64 native v0: missing ABI arg regs'
+
 echo "== ensure: stage2 compiler (host) =="
 make stage2 >/dev/null
 
@@ -225,43 +227,96 @@ if has_target x64-win; then want_win=1; fi
 
 COMPILER_LINUX="build/tmp/oren_selfhost_x64_linux"
 COMPILER_WIN="build/tmp/oren_selfhost_x64_windows.exe"
+mkdir -p build/logs
 
 if [[ "$want_wsl" -ne 0 ]]; then
   echo "== build: compiler x64-linux (native backend) =="
-  run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
-    env \
-      OREN_PARSE_JOBS="$parse_jobs" \
-      OREN_GC_AUTO=1 \
-      OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
-      OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
-      ${TRACE_ENV:+OREN_TRACE_PHASES=1} \
-      ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_PROGRESS=1} \
-      ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_SUMMARY=1} \
-      ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_STRIDE=1000} \
-      ${TRACE_ENV:+OREN_TRACE_X64_SLOW_FN_MS=2000} \
-      ${TRACE_ENV:+OREN_TRACE_RUNTIME_OBJ_CACHE=1} \
-      ${TRACE_ENV:+OREN_TRACE_BUILD_SUMMARY=1} \
-      ${TRACE_ENV:+OREN_TRACE_BUILD_SLOW_MS=0} \
-      ./oren_stage2 build oren.oren --backend native --platform x64-linux --no-debug -o "$COMPILER_LINUX"
+  logf_linux="build/logs/selfhost_build_compiler_x64_linux.log"
+  if [[ "$TRACE" -eq 1 ]]; then
+    run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
+      env \
+        OREN_PARSE_JOBS="$parse_jobs" \
+        OREN_GC_AUTO=1 \
+        OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
+        OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
+        ${TRACE_ENV:+OREN_TRACE_PHASES=1} \
+        ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_PROGRESS=1} \
+        ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_SUMMARY=1} \
+        ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_STRIDE=1000} \
+        ${TRACE_ENV:+OREN_TRACE_X64_SLOW_FN_MS=2000} \
+        ${TRACE_ENV:+OREN_TRACE_RUNTIME_OBJ_CACHE=1} \
+        ${TRACE_ENV:+OREN_TRACE_BUILD_SUMMARY=1} \
+        ${TRACE_ENV:+OREN_TRACE_BUILD_SLOW_MS=0} \
+        ./oren_stage2 build oren.oren --backend native --platform x64-linux --no-debug -o "$COMPILER_LINUX"
+  else
+    set +e
+    run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
+      env \
+        OREN_PARSE_JOBS="$parse_jobs" \
+        OREN_GC_AUTO=1 \
+        OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
+        OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
+        ./oren_stage2 build oren.oren --backend native --platform x64-linux --no-debug -o "$COMPILER_LINUX" >"$logf_linux" 2>&1
+    rc=$?
+    set -e
+    if [[ "$rc" -ne 0 ]]; then
+      echo "ERROR: compiler build failed or timed out (x64-linux); tailing log: $logf_linux" >&2
+      tail -n 120 "$logf_linux" 2>/dev/null || true
+      exit "$rc"
+    fi
+  fi
+
+  if [[ -f "$logf_linux" ]] && grep -Eq "$abi_warn_patterns" "$logf_linux"; then
+    echo "ERROR: ABI arg-reg warnings found while building compiler (x64-linux)" >&2
+    grep -nE "$abi_warn_patterns" "$logf_linux" | head -n 40 >&2 || true
+    echo "log=$logf_linux" >&2
+    exit 1
+  fi
 fi
 
 if [[ "$want_win" -ne 0 ]]; then
   echo "== build: compiler x64-windows (native backend) =="
-  run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
-    env \
-      OREN_PARSE_JOBS="$parse_jobs" \
-      OREN_GC_AUTO=1 \
-      OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
-      OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
-      ${TRACE_ENV:+OREN_TRACE_PHASES=1} \
-      ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_PROGRESS=1} \
-      ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_SUMMARY=1} \
-      ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_STRIDE=1000} \
-      ${TRACE_ENV:+OREN_TRACE_X64_SLOW_FN_MS=2000} \
-      ${TRACE_ENV:+OREN_TRACE_RUNTIME_OBJ_CACHE=1} \
-      ${TRACE_ENV:+OREN_TRACE_BUILD_SUMMARY=1} \
-      ${TRACE_ENV:+OREN_TRACE_BUILD_SLOW_MS=0} \
-      ./oren_stage2 build oren.oren --backend native --platform x64-windows --no-debug -o "$COMPILER_WIN"
+  logf_win="build/logs/selfhost_build_compiler_x64_windows.log"
+  if [[ "$TRACE" -eq 1 ]]; then
+    run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
+      env \
+        OREN_PARSE_JOBS="$parse_jobs" \
+        OREN_GC_AUTO=1 \
+        OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
+        OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
+        ${TRACE_ENV:+OREN_TRACE_PHASES=1} \
+        ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_PROGRESS=1} \
+        ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_SUMMARY=1} \
+        ${TRACE_ENV:+OREN_TRACE_X64_COMPILE_STRIDE=1000} \
+        ${TRACE_ENV:+OREN_TRACE_X64_SLOW_FN_MS=2000} \
+        ${TRACE_ENV:+OREN_TRACE_RUNTIME_OBJ_CACHE=1} \
+        ${TRACE_ENV:+OREN_TRACE_BUILD_SUMMARY=1} \
+        ${TRACE_ENV:+OREN_TRACE_BUILD_SLOW_MS=0} \
+        ./oren_stage2 build oren.oren --backend native --platform x64-windows --no-debug -o "$COMPILER_WIN"
+  else
+    set +e
+    run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
+      env \
+        OREN_PARSE_JOBS="$parse_jobs" \
+        OREN_GC_AUTO=1 \
+        OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
+        OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
+        ./oren_stage2 build oren.oren --backend native --platform x64-windows --no-debug -o "$COMPILER_WIN" >"$logf_win" 2>&1
+    rc=$?
+    set -e
+    if [[ "$rc" -ne 0 ]]; then
+      echo "ERROR: compiler build failed or timed out (x64-windows); tailing log: $logf_win" >&2
+      tail -n 120 "$logf_win" 2>/dev/null || true
+      exit "$rc"
+    fi
+  fi
+
+  if [[ -f "$logf_win" ]] && grep -Eq "$abi_warn_patterns" "$logf_win"; then
+    echo "ERROR: ABI arg-reg warnings found while building compiler (x64-windows)" >&2
+    grep -nE "$abi_warn_patterns" "$logf_win" | head -n 40 >&2 || true
+    echo "log=$logf_win" >&2
+    exit 1
+  fi
 fi
 
 # Package a minimal on-disk layout that the compiler expects at runtime:
@@ -308,6 +363,11 @@ if has_target x64-wsl; then
 		      "wsl.exe -e bash -lc \"set -euo pipefail; cd '${REMOTE_DIR_WSL}'; chmod +x ./oren_selfhost_x64_linux; ${canon_env_wsl}./oren_selfhost_x64_linux build print.oren --backend native --no-cache --no-debug -o out_linux; chmod +x ./out_linux; ${canon_env_wsl}./out_linux; echo EXIT=\$?\""
 		  )"
 		  printf '%s\n' "$out"
+		  if echo "$out" | grep -Eq "$abi_warn_patterns"; then
+		    echo "ERROR: ABI arg-reg warnings emitted during WSL2 self-host compile" >&2
+		    echo "$out" | grep -E "$abi_warn_patterns" | head -n 40 >&2 || true
+		    exit 1
+		  fi
 		  echo "$out" | grep -q "hello from native"
 		  echo "$out" | grep -q "EXIT=0"
 fi
@@ -320,6 +380,11 @@ if has_target x64-win; then
 		      "cmd.exe /v:on /c \"cd ${REMOTE_DIR_WIN} && ${canon_env_cmd}oren_selfhost_x64_windows.exe build print.oren --backend native --no-cache --no-debug -o out_win.exe && ${canon_env_cmd}out_win.exe & echo EXIT=!ERRORLEVEL!\""
 		  )"
 		  printf '%s\n' "$out"
+		  if echo "$out" | tr -d '\r' | grep -Eq "$abi_warn_patterns"; then
+		    echo "ERROR: ABI arg-reg warnings emitted during Windows self-host compile" >&2
+		    echo "$out" | tr -d '\r' | grep -E "$abi_warn_patterns" | head -n 40 >&2 || true
+		    exit 1
+		  fi
 		  echo "$out" | grep -q "hello from native"
 		  echo "$out" | grep -q "EXIT=0"
 fi

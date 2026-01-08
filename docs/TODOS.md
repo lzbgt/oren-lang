@@ -205,10 +205,11 @@ References:
 		           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider).
 		             - HTTP/2 needs a dedicated framing layer + server-side negotiation; ALPN offer plumbing is now in place (Linux/OpenSSL).
 	     - x64 native backend correctness:
-	       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
-	         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)
-	         - Gate: `OREN_CANON_I32_ABORT=1` (hard-fail; preferred for CI / remote Tier‑1 scripts)
-	         - Note: Tier‑1 matrix scripts now propagate `OREN_CANON_I32_ABORT` to docker/WSL2/Win11 runs so regressions fail fast.
+		       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
+		         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)
+		         - Gate: `OREN_CANON_I32_ABORT=1` (hard-fail; preferred for CI / remote Tier‑1 scripts)
+		         - Note: Tier‑1 matrix scripts now propagate `OREN_CANON_I32_ABORT` to docker/WSL2/Win11 runs so regressions fail fast.
+		         - Done: Tier‑1 scripts now also hard-fail if the compiler emits `x64 native v0: missing ABI arg reg(s)` warnings (even if exit code is 0), to avoid silent correctness regressions.
 	       - Done (2026-01-08): native backend supports typed FFI returns for C `int` (`@ffi.ret("i32")`) and sign-extends i32 returns to i64 on arm64 + x64.
 	         - Fixes the “-1 becomes 4294967295” class of bugs when the callee returns a 32-bit signed value and the caller reads the full 64-bit return register.
 	         - Stdlib Linux OpenSSL TLS provider now uses `@ffi.ret("i32")` for OpenSSL APIs and does not rely on per-call-site canonicalization.

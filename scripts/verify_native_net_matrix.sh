@@ -239,6 +239,8 @@ fi
 
 mkdir -p build/tmp
 
+abi_warn_patterns='x64 native v0: missing ABI arg reg|x64 native v0: missing ABI arg regs'
+
 build_native_bin_src() {
   local compiler="$1"
   local platform="$2"
@@ -249,14 +251,36 @@ build_native_bin_src() {
     echo "ERROR: missing compiler executable: $compiler (build with: make stage1 stage2)" >&2
     exit 2
   fi
+
+  mkdir -p build/logs
+  local compiler_id
+  compiler_id="$(basename "$compiler")"
+  local src_id
+  src_id="$(basename "$src")"
+  src_id="${src_id%.oren}"
+  local out_id
+  out_id="$(basename "$out")"
+  local logf="build/logs/net_matrix_build_${compiler_id}_${platform}_${src_id}_${out_id}.log"
+
   set +e
-  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$src" --backend native --platform "$platform" --debug -o "$out"
+  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$src" --backend native --platform "$platform" --debug -o "$out" >"$logf" 2>&1
   local rc=$?
   set -e
   if [[ "$rc" -ne 0 ]]; then
     echo "ERROR: build failed or timed out: compiler=$compiler platform=$platform src=$src timeout=${BUILD_TIMEOUT_SECS}s" >&2
+    tail -n 80 "$logf" 2>/dev/null || true
     exit "$rc"
   fi
+
+  # Fail fast on known x64-native backend correctness warnings, even if the compiler exits 0.
+  if grep -Eq "$abi_warn_patterns" "$logf"; then
+    echo "ERROR: ABI arg-reg warnings found in build log (compiler=$compiler platform=$platform src=$src)" >&2
+    grep -nE "$abi_warn_patterns" "$logf" | head -n 40 >&2 || true
+    echo "log=$logf" >&2
+    exit 1
+  fi
+
+  log "Build successful: $out"
 }
 
 run_local_bin() {
