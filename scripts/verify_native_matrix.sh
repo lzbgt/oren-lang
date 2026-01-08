@@ -357,7 +357,7 @@ remote_win_root="C:\\Users\\${remote_user}\\tmp_oren"
 remote_wsl_root="/mnt/c/Users/${remote_user}/tmp_oren"
 
 ssh_base=(ssh -o "$REMOTE_PROXY" "$REMOTE_HOST")
-scp_base=(scp -o "$REMOTE_PROXY")
+scp_base=(scp -q -o "$REMOTE_PROXY")
 
 remote_mkdir() {
   # Ensure the Windows user profile staging directory exists. (This also backs the WSL /mnt/c path.)

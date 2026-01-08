@@ -172,7 +172,7 @@ run_with_timeout() {
 }
 
 SSH=(ssh -o "$REMOTE_PROXY" "$REMOTE_HOST")
-SCP=(scp -o "$REMOTE_PROXY")
+SCP=(scp -q -o "$REMOTE_PROXY")
 
 mkdir -p build/tmp
 

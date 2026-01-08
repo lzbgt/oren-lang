@@ -75,7 +75,7 @@ scp_retry() {
   local dst="$2"
   local i=1
   while true; do
-    if scp -o "$REMOTE_PROXY" "$src" "$dst"; then
+    if scp -q -o "$REMOTE_PROXY" "$src" "$dst"; then
       return 0
     fi
     if [[ "$i" -ge "$SCP_RETRIES" ]]; then

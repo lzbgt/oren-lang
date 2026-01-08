@@ -149,26 +149,31 @@ References:
        - Done: UDP `sendto`/`recvfrom` treat readiness waits as advisory (retry send/recv on timeout), mirroring the TCP robustness policy (helps avoid sporadic WinSock select false timeouts).
        - Done: TCP `TCP_NODELAY` exposed as `OREN_TCP_NODELAY` + `std:net/tcp.set_nodelay(fd, enable)`.
          - Regression: `tests/native/test_net_suite.oren` asserts `sys_setsockopt(level=IPPROTO_TCP, optname=TCP_NODELAY)` succeeds (covered by `./scripts/verify_native_net_matrix.sh`).
-       - Done: DNS v0 loopback A-query client (`std:net/dns.query_a`) + best-effort default resolver selection on POSIX.
-        - Default resolver selection: `dns.default_resolver` reads `OREN_DNS_SERVER`, else:
-          - Windows: queries system DNS via iphlpapi `GetNetworkParams` (IPv4 only; first nameserver)
-          - POSIX: parses `/etc/resolv.conf` (IPv4 only; first `nameserver`)
-         - HTTP hostname support: `http.get_text_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
-         - Regression: `tests/native/test_dns_loopback.oren` (stage1 + stage2; all Tier‑1 via `./scripts/verify_native_net_matrix.sh`).
-         - Regression: `tests/native/test_http_get_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
+	       - Done: DNS v0 loopback A-query client (`std:net/dns.query_a`) + best-effort default resolver selection on POSIX.
+	         - Default resolver selection: `dns.default_resolver` reads `OREN_DNS_SERVER`, else:
+	           - Windows: queries system DNS via iphlpapi `GetNetworkParams` (IPv4 only; first nameserver)
+	           - POSIX: parses `/etc/resolv.conf` (IPv4 only; first `nameserver`)
+	         - HTTP hostname support: `http.get_text_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
+	         - Regression: `tests/native/test_dns_loopback.oren` (stage1 + stage2; all Tier‑1 via `./scripts/verify_native_net_matrix.sh`).
+	         - Regression: `tests/native/test_http_get_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
 	       - WebSocket hostname support: `ws.connect_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
 	         - URL parsing recognizes `wss://...` but returns a precise error until TLS lands (see `docs/NET_TLS.md`).
 	         - Regression: `tests/native/test_ws_echo_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
-      - Fixed (2026-01-08): x64-windows WebSocket flake (sporadic `ETIMEDOUT` while reading ping/pong/text frames) was traced to **thread-unsafe shared TIME scratch buffers** in `oren_time_unix_ns()` / `oren_time_mono_raw()`.
-        - Fix: TIME scratch is now **per-thread** (stored in the thread node) to keep timeout math coherent under `spawn` without introducing hot-path global lock contention (see `docs/NET_WEBSOCKET.md`).
-        - Next: avoid O(n) thread-list scans in hot TIME paths by introducing a per-thread fast lookup (TLS-like) for the current thread node.
-       - Next: structured HTTP client/server surface (status + headers + streaming body), then production WebSocket:
-         - Done (2026-01-08): `std:net/http` now exposes a structured response API:
-           - `http.get_response(_resolver)` returns `{status, headers, body}` (HTTP/1.1, connection-close, no TLS yet).
-           - `http.headers_get(headers, name)` and `http.response_free(resp)` provide minimal ergonomics + ownership.
-           - Regression: `tests/native/test_http_get_loopback.oren` now asserts status and headers on both Content-Length and chunked cases.
-         - fragmentation + binary frames + streaming recv API
-         - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + system resolver (Windows DNS APIs + AAAA; POSIX `resolv.conf` AAAA support)
+	       - Fixed (2026-01-08): x64-windows WebSocket flake (sporadic `ETIMEDOUT` while reading ping/pong/text frames) was traced to **thread-unsafe shared TIME scratch buffers** in `oren_time_unix_ns()` / `oren_time_mono_raw()`.
+	         - Fix: TIME scratch is now **per-thread** (stored in the thread node) to keep timeout math coherent under `spawn` without introducing hot-path global lock contention (see `docs/NET_WEBSOCKET.md`).
+	         - Next: avoid O(n) thread-list scans in hot TIME paths by introducing a per-thread fast lookup (TLS-like) for the current thread node.
+	       - Next: structured HTTP client/server surface (status + headers + streaming body), then production WebSocket:
+	         - Done (2026-01-08): `std:net/http` now exposes a structured response API:
+	           - `http.get_response(_resolver)` returns `{status, headers, body}` (HTTP/1.1, connection-close, no TLS yet).
+	           - `http.headers_get(headers, name)` and `http.response_free(resp)` provide minimal ergonomics + ownership.
+	           - Regression: `tests/native/test_http_get_loopback.oren` now asserts status and headers on both Content-Length and chunked cases.
+	         - fragmentation + binary frames + streaming recv API
+	         - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + system resolver (Windows DNS APIs + AAAA; POSIX `resolv.conf` AAAA support)
+	           - Design: `docs/NET_TLS.md`
+	           - Deliverables:
+	             - `std:net/tls` module (client connect + wrap + read/write + close)
+	             - offline deterministic loopback TLS fixture (pinned cert/SPKI hash; no CA store dependence)
+	             - wire `https://` into `std:net/http` and `wss://` into `std:net/ws`
      - x64 native backend correctness:
        - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
          - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)
@@ -372,6 +377,8 @@ References:
        - reflective APIs for field layout / method tables / generic instantiations (as designed)
      - redesign the native value representation (reduce “64-byte OrenValue” storage inefficiency):
        - unify with the native tagged-value plan and remove key-kind inference fragility as a side-effect
+     - varargs + reflection convergence:
+       - define how varargs elements carry type information so userland (fmt/ffi/serialization) can process heterogeneous lists without heuristic key-kind inference
    - References:
      - `docs/TYPE_SYSTEM_PLAN.md`
      - `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`

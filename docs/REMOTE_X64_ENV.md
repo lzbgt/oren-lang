@@ -47,7 +47,7 @@ This is intentionally **opt-in** because building the compiler for x64 can be sl
 
 Rolling status:
 
-- As of 2026-01-07, the x64 self-host compiler run gate passes again on the remote Win11+WSL2 host.
+- As of 2026-01-08, the x64 self-host compiler run gate passes again on the remote Win11+WSL2 host.
   - Root-cause + fix notes live in `docs/TODOS_ARCHIVE.md`.
 
 ```bash
