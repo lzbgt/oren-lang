@@ -10,6 +10,63 @@
 // - Linux x86_64 (ELF): supported when `--link` is used (dynamic ELF + dlsym resolver); without `--link`,
 //   unresolved `ffi` symbols still panic (stable failure mode).
 
+fn _x64_str_eq_bytes(a, b) {
+    // Stable string equality for compiler passes.
+    // Avoid depending on runtime `==` semantics (stage1 C runtime vs stage2 native runtime).
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _x64_lit_string(v) {
+    if v == nil { return nil }
+    if v["type"] != "String" { return nil }
+    return v["value"]
+}
+
+fn _x64_collect_ffi_dll_attrs(ctx, st, nm) {
+    if ctx == nil || st == nil { return nil }
+    var attrs = st["attrs"]
+    if attrs == nil { return nil }
+
+    if ctx["ffi_dlls_seen"] == nil { ctx["ffi_dlls_seen"] = {} }
+    if ctx["ffi_dlls"] == nil { ctx["ffi_dlls"] = [] }
+    var seen = ctx["ffi_dlls_seen"]
+    var out = ctx["ffi_dlls"]
+
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a == nil || a["type"] != "Attr" { i = i + 1; continue }
+        if !_x64_str_eq_bytes(a["name"], "ffi.dll") { i = i + 1; continue }
+
+        var args = a["args"]
+        if args == nil || oren_list_len(args) != 1 || args[0] == nil {
+            err(ctx, "x64 native v0: @" + "ffi.dll" + " on ffi " + nm + " must have exactly 1 string arg")
+            return nil
+        }
+        var val = _x64_lit_string(args[0]["value"])
+        if val == nil || val == "" {
+            err(ctx, "x64 native v0: @" + "ffi.dll" + " on ffi " + nm + " must be a string literal")
+            return nil
+        }
+        if seen[val] == nil {
+            seen[val] = true
+            oren_list_push(out, val)
+        }
+        i = i + 1
+    }
+    return nil
+}
+
 fn _x64_collect_ffi_decls_from_stmt_list(ctx, stmts, role) {
     if ctx == nil { return nil }
     if stmts == nil { return nil }
@@ -53,6 +110,7 @@ fn _x64_collect_ffi_decls_from_stmt_list(ctx, stmts, role) {
         imports[nm] = true
         declared[nm] = true // reserve the name so globals can't shadow it
         oren_list_push(import_list, nm)
+        _x64_collect_ffi_dll_attrs(ctx, st, nm)
         i = i + 1
     }
     return true
@@ -77,9 +135,10 @@ fn _x64_ffi_push_unique(out, seen, s) {
     return nil
 }
 
-fn _x64_ffi_windows_dlls(platform) {
+fn _x64_ffi_windows_dlls(ctx, platform) {
     // Order (rolling):
     // - user `--link` DLLs first
+    // - then any per-FFI `@ffi.dll("...")` declarations
     // - then a built-in kernel32 fallback so `ffi GetCurrentThreadId` works without `--link`
     var out = []
     var seen = {}
@@ -90,6 +149,15 @@ fn _x64_ffi_windows_dlls(platform) {
         while i < oren_list_len(xs) {
             _x64_ffi_push_unique(out, seen, xs[i])
             i = i + 1
+        }
+    }
+
+    if ctx != nil && ctx["ffi_dlls"] != nil {
+        var ys = ctx["ffi_dlls"]
+        var j = 0
+        while j < oren_list_len(ys) {
+            _x64_ffi_push_unique(out, seen, ys[j])
+            j = j + 1
         }
     }
 
@@ -488,7 +556,7 @@ fn _x64_emit_ffi_stubs(ctx, platform) {
     if platform != nil { os = platform["os"] }
 
     if os == "windows" {
-        var dlls = _x64_ffi_windows_dlls(platform)
+        var dlls = _x64_ffi_windows_dlls(ctx, platform)
         var resolver_name = _x64_emit_ffi_resolver_win64(ctx, platform, dlls)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         var i = 0

@@ -175,6 +175,8 @@ References:
        - Done (2026-01-08): string literal pooling/interning is whole-program for native output (`cstr0` pool de-dupes identical literals; pointer identity stable within the binary).
      - Native FFI / dynamic linking parity (rolling):
        - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
+       - Done (2026-01-08): Windows native backend supports `@ffi.dll("name.dll")` to attach a DLL directly to an `ffi` declaration (avoids requiring `--link` for stdlib/platform bindings).
+         - Regression: `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_dll.oren`.
        - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).
      - Conditional compilation for cross-platform stdlib (rolling):
        - Done: `@cfg(...)` (canonical `@oren.cfg`) filters declarations by target `--platform` (`os`/`arch`/`platform` selectors).

@@ -136,6 +136,33 @@ ffi GetTickCount
 ffi getpid
 ```
 
+### 3.3 FFI library attachment (`@ffi.dll(...)`) (Windows native backend)
+
+On Windows, `ffi` symbols are resolved lazily via `LoadLibraryA` + `GetProcAddress`.
+
+By default, the resolver searches:
+
+- any DLLs passed via `--link ...`, then
+- a built-in fallback `kernel32.dll`
+
+For stdlib code (and portable libraries), it’s often undesirable to require every consumer to pass `--link`.
+To support this, an `ffi` declaration may attach an explicit DLL name:
+
+```oren
+@cfg(os="windows")
+@ffi.dll("msvcrt.dll")
+ffi puts
+
+fn main() {
+    puts("hello")
+}
+```
+
+Notes:
+
+- This attribute is currently consumed only by the **x64-windows native backend**.
+- The argument must be a single string literal (v0 determinism rule).
+
 ## 3.1 Compiler/runtime internal attributes (reserved)
 
 These are **not** intended for user code. They exist to keep the compiler + Tier‑1 native runtime maintainable while still running whole-program DCE.

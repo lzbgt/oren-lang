@@ -274,6 +274,8 @@ fn is_ident_like_token(tt) {
 fn is_attr_name_token(tt) {
     if is_ident_like_token(tt) { return true }
     if tt == TOK_DEFAULT { return true }
+    // Allow `@ffi.*` attribute namespaces without making `ffi` a general identifier.
+    if tt == TOK_FFI { return true }
     return false
 }
 

@@ -112,6 +112,9 @@ fn new_parser(l) {
             "cap.requires",
             // Conditional compilation (compile-time filtering by target arch/os).
             "oren.cfg",
+            // Native backend FFI metadata: attach a platform-specific library to an `ffi` decl.
+            // Example: `@ffi.dll("msvcrt.dll") ffi puts`
+            "ffi.dll",
             // Compiler/runtime internal: pin a function as a DCE root (kept even if unreachable).
             // Used for Tier‑1 native runtime helpers invoked via codegen fixups/entry stubs.
             "oren.keep",

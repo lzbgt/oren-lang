@@ -1,0 +1,16 @@
+// Windows-only native FFI smoke: per-symbol DLL via `@ffi.dll("...")`.
+//
+// This verifies that:
+// - the parser keeps reserved attrs (`ffi.*`) in strict mode,
+// - the x64-windows native backend includes `@ffi.dll(...)` in the resolver DLL search list,
+// - a program can call a symbol from a non-kernel32 DLL without passing `--link`.
+//
+// It is compiled+run only for x64-windows via `scripts/verify_native_matrix.sh`.
+
+@ffi.dll("msvcrt.dll")
+ffi puts
+
+var rc = puts("hello from msvcrt")
+if rc < 0 { exit(1) }
+exit(0)
+
