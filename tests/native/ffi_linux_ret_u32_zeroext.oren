@@ -1,0 +1,21 @@
+// Linux-only native FFI: typed u32 returns via `@ffi.ret("u32")`.
+//
+// Goal:
+// - Some C APIs return 32-bit unsigned values (u32). Oren treats values as i64, so the
+//   native backend must ensure the return register is zero-extended from the low 32 bits.
+//
+// Deterministic value:
+// - inet_addr("255.255.255.255") returns 0xFFFFFFFF (INADDR_NONE, u32).
+//   (Note: this is also the documented error sentinel, but that is fine for our purposes:
+//   we only care about the ABI return-width behavior.)
+//
+// This fixture is compiled+run by Tier‑1 scripts on Linux targets.
+
+@ffi.link("libc.so.6")
+@ffi.ret("u32")
+ffi inet_addr
+
+var v = inet_addr("255.255.255.255")
+if v != 4294967295 { exit(1) }
+exit(0)
+

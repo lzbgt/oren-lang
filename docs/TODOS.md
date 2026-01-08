@@ -196,7 +196,10 @@ References:
 	         - Regression (Linux): `tests/native/ffi_linux_ret_i32_signext.oren` is executed by `scripts/verify_native_matrix.sh` (arm64-linux + x64-wsl; stage1 + stage2).
 	         - Regression (Windows): `tests/native/ffi_windows_ret_i32_signext.oren` is executed by `scripts/verify_native_matrix.sh --targets x64-win` (stage1 + stage2).
 		         - Next (FFI type surface):
-		           - add `@ffi.ret("u32")`, `@ffi.ret("void")`, and a narrow set of pointer/usize return kinds for syscall-first stdlib bindings.
+		           - Done (2026-01-08): added `@ffi.ret("u32")` and `@ffi.ret("void")` (native backend: arm64 + x64).
+		             - Regression (Linux): `tests/native/ffi_linux_ret_u32_zeroext.oren`, `tests/native/ffi_linux_ret_void_zero.oren` (arm64-linux + x64-wsl via `scripts/verify_native_matrix.sh`).
+		             - Regression (Windows): `tests/native/ffi_windows_ret_u32_zeroext.oren`, `tests/native/ffi_windows_ret_void_zero.oren` (x64-win via `scripts/verify_native_matrix.sh`).
+		           - Next: add a narrow set of pointer/usize return kinds for syscall-first stdlib bindings (and a stable story for `size_t`).
 		           - Done (2026-01-08): migrated macOS SecureTransport `OSStatus` returns to `@ffi.ret("i32")` (removed per-call `_osstatus_canon_i32` canonicalization in `std:net/tls`).
 	     - Native runtime GC + literals:
        - Done (2026-01-08): embedded `cstr0` string literals are treated as constant-section data and are **not** tracked as GC alloc nodes.

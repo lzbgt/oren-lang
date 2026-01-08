@@ -73,6 +73,8 @@ fn _x64_collect_ffi_ret_attrs(ctx, st, nm) {
     if attrs == nil { return nil }
 
     if ctx["ffi_ret_i32"] == nil { ctx["ffi_ret_i32"] = {} }
+    if ctx["ffi_ret_u32"] == nil { ctx["ffi_ret_u32"] = {} }
+    if ctx["ffi_ret_void"] == nil { ctx["ffi_ret_void"] = {} }
 
     var i = 0
     while i < oren_list_len(attrs) {
@@ -90,10 +92,19 @@ fn _x64_collect_ffi_ret_attrs(ctx, st, nm) {
             err(ctx, "x64 native v0: @" + "ffi.ret" + " on ffi " + nm + " must be a string literal")
             return nil
         }
+        // Accept exactly one return-kind attribute per symbol.
+        if ctx["ffi_ret_i32"][nm] != nil || ctx["ffi_ret_u32"][nm] != nil || ctx["ffi_ret_void"][nm] != nil {
+            err(ctx, "x64 native v0: @" + "ffi.ret" + " on ffi " + nm + " is duplicated (only one kind allowed)")
+            return nil
+        }
         if _x64_str_eq_bytes(val, "i32") {
             ctx["ffi_ret_i32"][nm] = true
+        } else if _x64_str_eq_bytes(val, "u32") {
+            ctx["ffi_ret_u32"][nm] = true
+        } else if _x64_str_eq_bytes(val, "void") {
+            ctx["ffi_ret_void"][nm] = true
         } else {
-            err(ctx, "x64 native v0: @" + "ffi.ret" + " on ffi " + nm + " currently supports only \"i32\" (got \"" + val + "\")")
+            err(ctx, "x64 native v0: @" + "ffi.ret" + " on ffi " + nm + " supports \"i32\", \"u32\", or \"void\" (got \"" + val + "\")")
             return nil
         }
         i = i + 1

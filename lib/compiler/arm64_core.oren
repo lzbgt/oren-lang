@@ -247,6 +247,14 @@ fn insn_sxtw(rd, rn) {
     return 2470476800 + (rn * 32) + rd // 0x93407C00 base
 }
 
+fn insn_uxtw(rd, rn) {
+    // UXTW Xrd, Wrn (zero-extend 32-bit -> 64-bit).
+    //
+    // Verified via clang:
+    //   uxtw x0, w0 => 0xD3407C00 (alias: ubfx x0, x0, #0, #32)
+    return 3544218624 + (rn * 32) + rd // 0xD3407C00 base
+}
+
 fn insn_movn(rd, imm) {
     return 2457862144 + (imm * 32) + rd
 }

@@ -33,8 +33,14 @@ PRINT_SRC="tests/native/print.oren"
 PRINT_NEEDLE="hello from native"
 CFG_OS_SRC="tests/native/cfg_os_select.oren"
 WIN_FFI_K32_SRC="tests/native/ffi_windows_kernel32.oren"
-WIN_FFI_MSVCRT_SRC="tests/native/ffi.oren"
+WIN_FFI_MSVCRT_LINK_ATTR_SRC="tests/native/ffi_windows_msvcrt_attr_link.oren"
+WIN_FFI_I32_SRC="tests/native/ffi_windows_ret_i32_signext.oren"
+WIN_FFI_U32_SRC="tests/native/ffi_windows_ret_u32_zeroext.oren"
+WIN_FFI_VOID_SRC="tests/native/ffi_windows_ret_void_zero.oren"
 LINUX_FFI_OK_SRC="tests/native/ffi_linux_strlen_ok.oren"
+LINUX_FFI_I32_SRC="tests/native/ffi_linux_ret_i32_signext.oren"
+LINUX_FFI_U32_SRC="tests/native/ffi_linux_ret_u32_zeroext.oren"
+LINUX_FFI_VOID_SRC="tests/native/ffi_linux_ret_void_zero.oren"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
 
 run_with_timeout() {
@@ -156,11 +162,29 @@ check_elf_x64 build/tmp/cfg_os_stage1_x64_linux
 build_one ./oren_stage2 x64-linux "$CFG_OS_SRC" build/tmp/cfg_os_stage2_x64_linux
 check_elf_x64 build/tmp/cfg_os_stage2_x64_linux
 
-build_one ./oren x64-linux "$LINUX_FFI_OK_SRC" build/tmp/ffi_ok_stage1_x64_linux --link libc.so.6
+build_one ./oren x64-linux "$LINUX_FFI_OK_SRC" build/tmp/ffi_ok_stage1_x64_linux
 check_elf_x64_dyn build/tmp/ffi_ok_stage1_x64_linux
 
-build_one ./oren_stage2 x64-linux "$LINUX_FFI_OK_SRC" build/tmp/ffi_ok_stage2_x64_linux --link libc.so.6
+build_one ./oren_stage2 x64-linux "$LINUX_FFI_OK_SRC" build/tmp/ffi_ok_stage2_x64_linux
 check_elf_x64_dyn build/tmp/ffi_ok_stage2_x64_linux
+
+build_one ./oren x64-linux "$LINUX_FFI_I32_SRC" build/tmp/ffi_i32_stage1_x64_linux
+check_elf_x64_dyn build/tmp/ffi_i32_stage1_x64_linux
+
+build_one ./oren_stage2 x64-linux "$LINUX_FFI_I32_SRC" build/tmp/ffi_i32_stage2_x64_linux
+check_elf_x64_dyn build/tmp/ffi_i32_stage2_x64_linux
+
+build_one ./oren x64-linux "$LINUX_FFI_U32_SRC" build/tmp/ffi_u32_stage1_x64_linux
+check_elf_x64_dyn build/tmp/ffi_u32_stage1_x64_linux
+
+build_one ./oren_stage2 x64-linux "$LINUX_FFI_U32_SRC" build/tmp/ffi_u32_stage2_x64_linux
+check_elf_x64_dyn build/tmp/ffi_u32_stage2_x64_linux
+
+build_one ./oren x64-linux "$LINUX_FFI_VOID_SRC" build/tmp/ffi_void_stage1_x64_linux
+check_elf_x64_dyn build/tmp/ffi_void_stage1_x64_linux
+
+build_one ./oren_stage2 x64-linux "$LINUX_FFI_VOID_SRC" build/tmp/ffi_void_stage2_x64_linux
+check_elf_x64_dyn build/tmp/ffi_void_stage2_x64_linux
 
 build_one ./oren x64-windows "$QI_SRC" build/tmp/qi_stage1_x64_windows.exe
 check_pe_x64 build/tmp/qi_stage1_x64_windows.exe
@@ -190,12 +214,30 @@ check_pe_x64 build/tmp/ffi_k32_stage1_x64_windows.exe
 build_one ./oren_stage2 x64-windows "$WIN_FFI_K32_SRC" build/tmp/ffi_k32_stage2_x64_windows.exe
 check_pe_x64 build/tmp/ffi_k32_stage2_x64_windows.exe
 
-build_one ./oren x64-windows "$WIN_FFI_MSVCRT_SRC" build/tmp/ffi_msvcrt_stage1_x64_windows.exe --link msvcrt.dll
-check_pe_x64 build/tmp/ffi_msvcrt_stage1_x64_windows.exe
-check_bin_contains build/tmp/ffi_msvcrt_stage1_x64_windows.exe "msvcrt.dll"
+build_one ./oren x64-windows "$WIN_FFI_MSVCRT_LINK_ATTR_SRC" build/tmp/ffi_msvcrt_link_attr_stage1_x64_windows.exe
+check_pe_x64 build/tmp/ffi_msvcrt_link_attr_stage1_x64_windows.exe
+check_bin_contains build/tmp/ffi_msvcrt_link_attr_stage1_x64_windows.exe "msvcrt.dll"
 
-build_one ./oren_stage2 x64-windows "$WIN_FFI_MSVCRT_SRC" build/tmp/ffi_msvcrt_stage2_x64_windows.exe --link msvcrt.dll
-check_pe_x64 build/tmp/ffi_msvcrt_stage2_x64_windows.exe
-check_bin_contains build/tmp/ffi_msvcrt_stage2_x64_windows.exe "msvcrt.dll"
+build_one ./oren_stage2 x64-windows "$WIN_FFI_MSVCRT_LINK_ATTR_SRC" build/tmp/ffi_msvcrt_link_attr_stage2_x64_windows.exe
+check_pe_x64 build/tmp/ffi_msvcrt_link_attr_stage2_x64_windows.exe
+check_bin_contains build/tmp/ffi_msvcrt_link_attr_stage2_x64_windows.exe "msvcrt.dll"
+
+build_one ./oren x64-windows "$WIN_FFI_I32_SRC" build/tmp/ffi_i32_stage1_x64_windows.exe
+check_pe_x64 build/tmp/ffi_i32_stage1_x64_windows.exe
+
+build_one ./oren_stage2 x64-windows "$WIN_FFI_I32_SRC" build/tmp/ffi_i32_stage2_x64_windows.exe
+check_pe_x64 build/tmp/ffi_i32_stage2_x64_windows.exe
+
+build_one ./oren x64-windows "$WIN_FFI_U32_SRC" build/tmp/ffi_u32_stage1_x64_windows.exe
+check_pe_x64 build/tmp/ffi_u32_stage1_x64_windows.exe
+
+build_one ./oren_stage2 x64-windows "$WIN_FFI_U32_SRC" build/tmp/ffi_u32_stage2_x64_windows.exe
+check_pe_x64 build/tmp/ffi_u32_stage2_x64_windows.exe
+
+build_one ./oren x64-windows "$WIN_FFI_VOID_SRC" build/tmp/ffi_void_stage1_x64_windows.exe
+check_pe_x64 build/tmp/ffi_void_stage1_x64_windows.exe
+
+build_one ./oren_stage2 x64-windows "$WIN_FFI_VOID_SRC" build/tmp/ffi_void_stage2_x64_windows.exe
+check_pe_x64 build/tmp/ffi_void_stage2_x64_windows.exe
 
 echo "OK: x64 compile-only verification passed" >&2

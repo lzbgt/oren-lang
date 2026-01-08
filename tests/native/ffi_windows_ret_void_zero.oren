@@ -1,0 +1,21 @@
+// Windows-only native FFI: typed void returns via `@ffi.ret("void")`.
+//
+// Goal:
+// - Some FFI declarations are intentionally declared "void" even if the underlying ABI
+//   function returns something (because callers do not want/need the return value).
+// - Oren expressions still carry an i64 value, so the native backend must force the
+//   return register to 0 when the ABI return kind is declared void.
+//
+// Deterministic check:
+// - strlen("oren") is non-zero, so this proves the backend overrides the return register.
+//
+// Compiled+run only for x64-windows via Tier‑1 scripts.
+
+@ffi.link("msvcrt.dll")
+@ffi.ret("void")
+ffi strlen
+
+var v = strlen("oren")
+if v != 0 { exit(1) }
+exit(0)
+

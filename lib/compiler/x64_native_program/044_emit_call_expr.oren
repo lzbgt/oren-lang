@@ -809,11 +809,21 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         var call_pos2 = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_call_rel32(0))
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos2, "name": nm})
-        // ABI correctness: some `ffi` symbols return a C `int` (i32) in EAX, and the upper 32 bits
-        // of RAX are not required to be sign-extended by the callee. Oren treats values as i64,
-        // so explicitly sign-extend when the `ffi` declaration says the ABI return is i32.
-        if is_import == true && ctx != nil && ctx["ffi_ret_i32"] != nil && ctx["ffi_ret_i32"][nm] != nil {
-            bytes_extend(ctx["code"], insn_cdqe()) // RAX = sign_extend_i32(EAX)
+        // ABI correctness: some `ffi` symbols return 32-bit or void values.
+        //
+        // Oren treats values as i64, so normalize the return register to the declared ABI kind:
+        // - i32: sign-extend EAX -> RAX
+        // - u32: zero-extend EAX -> RAX
+        // - void: force RAX=0
+        if is_import == true && ctx != nil {
+            if ctx["ffi_ret_i32"] != nil && ctx["ffi_ret_i32"][nm] != nil {
+                bytes_extend(ctx["code"], insn_cdqe()) // RAX = sign_extend_i32(EAX)
+            } else if ctx["ffi_ret_u32"] != nil && ctx["ffi_ret_u32"][nm] != nil {
+                bytes_extend(ctx["code"], insn_mov_r32_r32(0, 0)) // EAX = EAX (zero-extend to RAX)
+            } else if ctx["ffi_ret_void"] != nil && ctx["ffi_ret_void"][nm] != nil {
+                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0)) // RAX = 0
+                bytes_extend(ctx["code"], insn_cdqe())
+            }
         }
     } else {
         // Should be unreachable: indirect calls return in the branch above.

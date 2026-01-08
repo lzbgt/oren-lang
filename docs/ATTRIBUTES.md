@@ -209,6 +209,8 @@ Notes (rolling v0):
 - The argument must be a single string literal (v0 determinism rule).
 - Currently supported return kinds:
   - `"i32"`: sign-extend the 32-bit return to a signed 64-bit value.
+  - `"u32"`: zero-extend the 32-bit return to an unsigned 64-bit value (0..4294967295).
+  - `"void"`: treat as no return value; force the return register to `0` for expression contexts.
 - This attribute is currently consumed by:
   - `arm64-*` native backend
   - `x64-*` native backend

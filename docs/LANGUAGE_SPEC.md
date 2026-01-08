@@ -1167,12 +1167,14 @@ Intrinsics are part of the “reserved surface” (prefix `oren_`, `sys_`) and m
   - `malloc(size)`: Allocate raw memory (pages).
   - `ptr_get(ptr)`, `ptr_set(ptr, val)`: Read/Write 64-bit word.
   - `ptr_get_byte(ptr)`, `ptr_set_byte(ptr, val)`: Read/Write 8-bit byte.
-- **FFI:**
-  - `ffi symbol` statement declares an external symbol (e.g., `ffi puts`).
-  - Native backend may attach compile-time FFI metadata via attributes on the `ffi` declaration:
-    - `@ffi.link("...")`: declare a dynamic library dependency (portable; maps to `--link ...`).
-    - `@ffi.dll("name.dll")`: Windows convenience form for attaching a DLL to a single symbol.
-    - `@ffi.ret("i32")`: declare an ABI-level signed 32-bit return so the backend can sign-extend to i64.
+  - **FFI:**
+    - `ffi symbol` statement declares an external symbol (e.g., `ffi puts`).
+    - Native backend may attach compile-time FFI metadata via attributes on the `ffi` declaration:
+      - `@ffi.link("...")`: declare a dynamic library dependency (portable; maps to `--link ...`).
+      - `@ffi.dll("name.dll")`: Windows convenience form for attaching a DLL to a single symbol.
+      - `@ffi.ret("i32")`: ABI signed 32-bit return (sign-extend to i64).
+      - `@ffi.ret("u32")`: ABI unsigned 32-bit return (zero-extend to i64).
+      - `@ffi.ret("void")`: ABI void return (force return register to 0 for expression contexts).
 
 **ARM64-only today (rolling):**
 

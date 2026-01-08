@@ -1,0 +1,22 @@
+// Windows-only native FFI: typed u32 returns via `@ffi.ret("u32")`.
+//
+// Goal:
+// - Some Win32 APIs (and WinSock helpers) return 32-bit unsigned values. Oren treats
+//   values as i64, so the native backend must ensure the return register is zero-extended
+//   from the low 32 bits when declared as u32.
+//
+// Deterministic value:
+// - inet_addr("255.255.255.255") returns 0xFFFFFFFF (INADDR_NONE, u32).
+//   (This is also the documented error sentinel, but that is sufficient: we only care
+//   about ABI return-width behavior.)
+//
+// Compiled+run only for x64-windows via Tier‑1 scripts.
+
+@ffi.link("ws2_32.dll")
+@ffi.ret("u32")
+ffi inet_addr
+
+var v = inet_addr("255.255.255.255")
+if v != 4294967295 { exit(1) }
+exit(0)
+
