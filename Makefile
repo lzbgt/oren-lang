@@ -440,16 +440,14 @@ test-native-all: oren
 			xargs -0 -n 1 -P "$$jobs" sh -c '\
 				set -e; \
 				t="$$1"; \
-				name=$$(basename "$$t" .oren); \
-				log="build/logs/native_all_$${name}.log"; \
-				echo "Testing $$name..."; \
-				# Platform-specific tests live alongside portable ones, but `make test-native-all` is intended to be runnable on the host OS. \
-				# Skip target-specific fixtures by filename prefix (used by Tier‑1 scripts). \
-				if [ "$(OREN_TEST_TARGET)" != "windows" ]; then \
-					case "$$name" in ffi_windows_*) echo "SKIP: $$name (windows-only)"; exit 0 ;; esac; \
-				fi; \
-				if [ "$(OREN_TEST_TARGET)" != "linux" ]; then \
-					case "$$name" in ffi_linux_*) echo "SKIP: $$name (linux-only)"; exit 0 ;; esac; \
+					name=$$(basename "$$t" .oren); \
+					log="build/logs/native_all_$${name}.log"; \
+					echo "Testing $$name..."; \
+					if [ "$(OREN_TEST_TARGET)" != "windows" ]; then \
+						case "$$name" in ffi_windows_*) echo "SKIP: $$name (windows-only)"; exit 0 ;; esac; \
+					fi; \
+					if [ "$(OREN_TEST_TARGET)" != "linux" ]; then \
+						case "$$name" in ffi_linux_*) echo "SKIP: $$name (linux-only)"; exit 0 ;; esac; \
 				fi; \
 				if [ "$$name" = "linux_hello" ]; then \
 						$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build "$$t" --backend native --debug -o "build/$$name" --target linux $(CODESIGN_ARG) $(GC_ARG) > "$$log" 2>&1 || { echo "--- $$name (build) ---"; cat "$$log"; exit 1; }; \
