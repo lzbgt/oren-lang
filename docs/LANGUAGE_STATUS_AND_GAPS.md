@@ -96,6 +96,17 @@ This doc answers: “what’s real today?” and “what’s missing to reach th
   - Select over channels: `lib/runtime_native/245_select.oren` (macOS kqueue, Linux epoll)
   - Evidence: `tests/native/test_integration_suite.oren` (`test_select_primitives`)
 
+### Networking + crypto (stdlib; rolling)
+
+- **TCP/UDP + HTTP + WebSocket loopback suites**
+  - Evidence: `tests/native/test_net_suite.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren`
+  - Tier‑1 reality: these are included in the remote x86_64 net verification gate (`scripts/verify_native_net_matrix.sh`).
+- **TLS/HTTPS/WSS loopback on macOS + Linux**
+  - Evidence: `tests/native/test_tls_loopback.oren`, `tests/native/test_https_get_loopback.oren`, `tests/native/test_wss_echo_loopback.oren`
+  - Rolling note: these fixtures are currently gated away from Windows (TLS provider + root trust story on Windows is still in progress).
+- **PEM decode helpers (crypto plumbing)**
+  - Evidence: `tests/native/test_pem_decode_smoke.oren` (imports `std:crypto/pem`)
+
 ## What’s Still Missing for Production Maturity (Gap List)
 
 This section is intentionally phrased as “missing or not yet proved by tests”, because
@@ -129,7 +140,9 @@ production maturity requires both implementation *and* regression coverage.
     - Rolling evidence (x86_64 Windows):
       - TIME substrate is now proved by `tests/native/test_time_suite.oren` on Win11 (sleep + gettimeofday shims).
       - RNG substrate is now proved by `tests/native/test_quick_integration_native.oren` (asserts `oren_getentropy` works).
-      - NET substrate is now regression-gated by `scripts/verify_native_net_matrix.sh` (loopback-only TCP/UDP + HTTP GET loopback + WebSocket echo via `tests/native/test_net_suite.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren` on Win11 + WSL2; see `docs/REMOTE_X64_ENV.md`).
+      - NET substrate is now regression-gated by `scripts/verify_native_net_matrix.sh`:
+        - Loopback-only TCP/UDP + HTTP GET + WebSocket echo are covered on Win11 + WSL2 via `tests/native/test_net_suite.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren` (see `docs/REMOTE_X64_ENV.md`).
+        - TLS/HTTPS/WSS are currently gated away from Windows and are only proved on macOS/Linux (`tests/native/test_tls_loopback.oren`, `tests/native/test_https_get_loopback.oren`, `tests/native/test_wss_echo_loopback.oren`).
     - FFI substrate (Tier‑1 Windows, rolling):
       - `ffi name` is implemented via lazy `LoadLibraryA`/`GetProcAddress` stubs in the x64 backend.
       - Evidence: `tests/native/ffi_windows_kernel32.oren` (remote Win11 gate via `scripts/verify_native_matrix.sh --targets x64-win`).
