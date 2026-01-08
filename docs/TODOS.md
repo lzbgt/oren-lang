@@ -413,7 +413,29 @@ References:
      - `docs/TYPE_SYSTEM_PLAN.md`
      - `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
      - `docs/STDLIB_LAYERS.md`
-	     - Crypto stdlib maturity (rolling):
-	       - Done (2026-01-08): add `std:crypto/pem` v0 helper (`pem.decode_blocks`) so TLS/signing layers don’t need to live under NET.
-	       - Done (2026-01-08): add `std:crypto/x509` v0 helper (`x509.sha256_hex_der`) for small certificate utilities.
-	       - Next: PKCS#12 / PKCS#8 / SPKI helpers (as needed by TLS providers and signing toolchain).
+		     - Crypto stdlib maturity (rolling):
+		       - Done (2026-01-08): add `std:crypto/pem` v0 helper (`pem.decode_blocks`) so TLS/signing layers don’t need to live under NET.
+		       - Done (2026-01-08): add `std:crypto/x509` v0 helper (`x509.sha256_hex_der`) for small certificate utilities.
+		       - Next: PKCS#12 / PKCS#8 / SPKI helpers (as needed by TLS providers and signing toolchain).
+
+5) **GUI / UI stack (OrenUI): AVM UI + native shell + UI domain** (L)
+   - Goal: production-oriented cross-platform GUI without committing Oren’s core runtime to platform frameworks.
+   - Design doc: `docs/GUI.md`
+   - Recommended architecture (rolling):
+     - UI logic as `.obc` (AVM) for portability + deterministic testing.
+     - Thin native shell provides platform window/event/render and exposes a UI capability domain (`CALL_NATIVE2`).
+   - Phase 0 (design + contracts):
+     - Define UI domain ID + op table; specify input event and render command buffer shapes.
+     - Define a portable node tree representation + diff contract (`std:ui/core`).
+   - Phase 1 (portable core):
+     - Implement `std:ui/core` (Node, keying rules, diff/patch).
+     - Implement `std:ui/layout` v0 (Row/Column/Stack + padding + alignment).
+     - Implement `std:ui/style` v0 (style maps + deterministic merge rules).
+     - Headless AVM fixtures: diff/layout golden tests (no host windows).
+   - Phase 2 (platform shims + bring-up):
+     - Build per-OS shim libraries (macOS/Windows/Linux) implementing the UI domain with a v0 software RGBA framebuffer.
+     - Add Tier‑1 smoke scripts (opt-in): open window → draw frame → close.
+   - Declarative UI formats (optional; do not block v0):
+     - Prefer YAML/JSON first (`std:yaml` / `std:json` exist today).
+     - Add `std:encoding/xml` only if we need XML ecosystem compatibility or strict schemas.
+     - Add CSS subset only after style/layout v0 is stable (avoid full CSS cascade early).
