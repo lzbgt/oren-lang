@@ -315,7 +315,7 @@ fn _cf_array1(v0) {
 
 @cfg(os="macos")
 fn _macos_set_alpn_if_requested(ctx, opts) {
-    // Client ALPN offer (RFC 7301).
+    // ALPN configuration (RFC 7301).
     //
     // SecureTransport expects:
     // - SSLSetALPNProtocols(context, CFArrayRef protocols)
@@ -586,6 +586,15 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
         return {"ok": 0, "err": "tls: SSLSetConnection failed (rc=" + oren_int_to_string(rc) + ")"}
     }
 
+    // Optional: ALPN (client offer and/or server supported protocols).
+    var alpn_r = _macos_set_alpn_if_requested(ctx, opts)
+    if alpn_r["ok"] != 1 {
+        CFRelease(ctx)
+        free(st)
+        tcp.close(fd)
+        return alpn_r
+    }
+
     if is_server == 0 {
         if server_name != nil && server_name != 0 {
             var sn_len = oren_string_len(server_name)
@@ -598,14 +607,6 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
                     return {"ok": 0, "err": "tls: SSLSetPeerDomainName failed (rc=" + oren_int_to_string(rc2) + ")"}
                 }
             }
-        }
-
-        var alpn_r = _macos_set_alpn_if_requested(ctx, opts)
-        if alpn_r["ok"] != 1 {
-            CFRelease(ctx)
-            free(st)
-            tcp.close(fd)
-            return alpn_r
         }
 
         // Client verification policy (rolling v0):
@@ -680,6 +681,15 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
         close(conn)
         CFRelease(items)
         return {"ok": 0, "err": "tls.wrap_server: SSLSetCertificate failed (rc=" + oren_int_to_string(rc) + ")"}
+    }
+
+    // SecureTransport note (rolling): apply ALPN after setting the certificate as well.
+    // Some stacks appear to reset handshake configuration during SSLSetCertificate.
+    var alpn_r = _macos_set_alpn_if_requested(conn["ctx"], opts)
+    if alpn_r["ok"] != 1 {
+        close(conn)
+        CFRelease(items)
+        return alpn_r
     }
 
     var hs = _macos_handshake(conn["ctx"], conn["st"], timeout_ms)

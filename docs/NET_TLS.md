@@ -98,7 +98,10 @@ Note:
   - Returns the **leaf** certificate hash (SHA‑256 of DER) for deterministic pinning in loopback fixtures.
 - `tls.negotiated_alpn(conn)` → `{"ok":1,"v":string|nil}` or `{"ok":0,"err":string}`
   - Returns the negotiated ALPN protocol (e.g. `"h2"`) if ALPN was negotiated.
-  - Today’s loopback fixtures pass `opts["alpn"]` to exercise **client offer** plumbing, but the server side does not yet select a protocol, so this commonly returns `{"ok":1,"v":nil}`.
+  - Loopback fixtures pass `opts["alpn"]` to exercise ALPN plumbing. Current behavior is provider-dependent:
+    - Windows (Schannel): server-side ALPN selection is wired; loopback asserts `"http/1.1"` is negotiated.
+    - Linux (OpenSSL): client offer is wired, but server selection is pending (needs ALPN select callback); loopback expects `nil`.
+    - macOS (SecureTransport): treated as best-effort; loopback does not assert a negotiated protocol yet.
 
 ## 3) Testing strategy (offline + deterministic)
 
@@ -201,6 +204,9 @@ Implementation notes (Linux):
   - `opts["alpn"]` is interpreted as a list of protocol strings (e.g. `["h2","http/1.1"]`).
   - The OpenSSL provider builds the wire-format protocol list and calls `SSL_set_alpn_protos`.
   - Note: `SSL_set_alpn_protos` returns **0 on success** (reversed convention); see sources below.
+  - Server-side selection is pending:
+    - OpenSSL requires `SSL_CTX_set_alpn_select_cb` (a callback) to select a protocol and send it in ServerHello.
+    - This depends on a stable native callback export mechanism (`@ffi.export` parity beyond macOS) or another callback bridge.
 
 Sources captured for audit/reference:
 
@@ -240,6 +246,9 @@ Implementation notes (Windows):
   - The Schannel provider builds a `SEC_APPLICATION_PROTOCOLS` blob and passes it via a
     `SecBuffer` of type `SECBUFFER_APPLICATION_PROTOCOLS` into `InitializeSecurityContextA`.
   - Sources captured: `project-doc/web/microsoft/sspi/` (SecBuffer + SEC_APPLICATION_PROTOCOLS docs).
+  - Server-side ALPN selection is wired as well:
+    - The same `SECBUFFER_APPLICATION_PROTOCOLS` buffer is supplied on the first `AcceptSecurityContext` call.
+    - When ALPN is present, Schannel does not guarantee which input buffer slot receives `SECBUFFER_EXTRA`, so the implementation scans all input buffers for EXTRA.
 - **Schannel `DecryptMessage` buffer semantics**:
   - The plaintext DATA buffer can be a pointer into the encrypted buffer.
   - Copy plaintext out before shifting the EXTRA encrypted tail, and use overlap-safe moves when shifting tails.
@@ -268,4 +277,5 @@ Implementation notes (macOS):
   - `wrap_client(..., server_name, ...)` calls `SSLSetPeerDomainName`.
 - **ALPN is wired** (client offer):
   - `opts["alpn"]` is interpreted as a list of protocol strings (e.g. `["h2","http/1.1"]`).
-  - The SecureTransport provider converts the list into `CFArrayRef` of `CFStringRef` and calls `SSLSetALPNProtocols`.
+  - The SecureTransport provider converts the list into `CFArrayRef` of `CFStringRef` and calls `SSLSetALPNProtocols` (client + server contexts).
+  - `tls.negotiated_alpn` remains best-effort on SecureTransport; the loopback fixture currently does not assert a negotiated protocol on macOS.

@@ -202,7 +202,10 @@ References:
 				             - `tests/native/test_https_get_loopback.oren` (offline deterministic; uses pinning)
 				             - `tests/native/test_wss_echo_loopback.oren` (offline deterministic; uses pinning)
 				           - Done (2026-01-09): `tls.negotiated_alpn(conn)` query helper added (best-effort; returns `{"ok":1,"v":nil}` when ALPN not negotiated).
-				             - Regression: `tests/native/test_tls_loopback.oren` asserts negotiated ALPN is empty for the loopback server (server-side ALPN selection not wired yet).
+				             - Regression: `tests/native/test_tls_loopback.oren` now exercises server ALPN wiring where possible:
+				               - Windows/Schannel: asserts negotiated ALPN is `"http/1.1"` (server selection is wired).
+				               - Linux/OpenSSL: asserts negotiated ALPN is empty (server selection pending; needs ALPN select callback).
+				               - macOS/SecureTransport: does not assert negotiated ALPN yet (treated as best-effort).
 				           - Done (2026-01-08): Linux TLS provider bring-up (OpenSSL 3; dynamic `libssl.so.3`/`libcrypto.so.3`)
 				             - Provider: `lib/std/net/tls_linux_openssl.oren` (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
 				             - Regression: `./scripts/verify_native_net_matrix.sh --targets arm64-linux,x64-wsl` (stage1 + stage2)
@@ -214,8 +217,10 @@ References:
 				             - Provider: `lib/std/net/tls_windows_schannel.oren` (impl: `windows_schannel`; `@ffi.dll("secur32.dll")` + `@ffi.dll("crypt32.dll")`)
 			             - Regression: `./scripts/verify_native_net_matrix.sh --targets x64-win` (stage1 + stage2)
 			             - Done (2026-01-09): Windows Schannel client ALPN offer wired:
-			               - `opts["alpn"]` is passed into `InitializeSecurityContextA` via `SECBUFFER_APPLICATION_PROTOCOLS` and a `SEC_APPLICATION_PROTOCOLS` blob.
-			               - Regression: TLS/HTTPS/WSS loopback fixtures all pass `opts["alpn"]` (stage1 + stage2; Tier‑1 via `scripts/verify_native_net_matrix.sh`).
+				               - `opts["alpn"]` is passed into `InitializeSecurityContextA` via `SECBUFFER_APPLICATION_PROTOCOLS` and a `SEC_APPLICATION_PROTOCOLS` blob.
+				               - Regression: TLS/HTTPS/WSS loopback fixtures all pass `opts["alpn"]` (stage1 + stage2; Tier‑1 via `scripts/verify_native_net_matrix.sh`).
+				             - Done (2026-01-09): Windows Schannel server ALPN selection wired:
+				               - `opts["alpn"]` is passed into the first `AcceptSecurityContext` call via `SECBUFFER_APPLICATION_PROTOCOLS`.
 			           - Done (2026-01-08): deterministic pinning is enforced by `std:net/tls.wrap_client` when `opts["pin_cert_sha256_hex"]` is provided (so HTTP/WS do not duplicate pinning logic).
 			           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider).
 			             - HTTP/2 needs a dedicated framing layer + server-side negotiation; ALPN offer plumbing is now in place (Linux/OpenSSL).
