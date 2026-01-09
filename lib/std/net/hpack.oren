@@ -9,8 +9,7 @@
 // - Dynamic table maintenance (RFC 7541 §2.3)
 //
 // Not yet implemented (planned, tracked in docs/TODOS.md):
-// - Huffman-coded strings (RFC 7541 Appendix B / §5.2)
-// - Header block encoding (beyond small helpers)
+// - Header block encoding (beyond small helpers) (in progress)
 // - Full HTTP/2 HEADERS/CONTINUATION stream integration
 //
 // References (vendored for exact wording/examples):
@@ -708,4 +707,248 @@ fn decode_header_block(table, header_block_bytes) {
     }
 
     return {"ok": 1, "headers": headers, "table": table}
+}
+
+// --- Encoding (rolling) ---
+
+fn _str_eq_bytes(a, b) {
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _index_exact(table, name, value) {
+    // Returns HPACK index (1-based) for an exact (name,value) match in static or dynamic tables, or 0.
+    var i = 0
+    while i < _STATIC_LEN {
+        if _str_eq_bytes(_STATIC_NAMES[i], name) && _str_eq_bytes(_STATIC_VALUES[i], value) { return i + 1 }
+        i = i + 1
+    }
+    var es = oren_map_get_str(table, "entries")
+    if es == nil { return 0 }
+    var n = list.len(es)
+    var dyn = 1
+    var j = n - 1
+    while j >= 0 {
+        var e = es[j]
+        if _str_eq_bytes(oren_map_get_str(e, "name"), name) && _str_eq_bytes(oren_map_get_str(e, "value"), value) {
+            return _STATIC_LEN + dyn
+        }
+        dyn = dyn + 1
+        j = j - 1
+    }
+    return 0
+}
+
+fn _index_name_only(table, name) {
+    // Returns HPACK index (1-based) for a name match in static/dynamic tables, or 0.
+    var i = 0
+    while i < _STATIC_LEN {
+        if _str_eq_bytes(_STATIC_NAMES[i], name) { return i + 1 }
+        i = i + 1
+    }
+    var es = oren_map_get_str(table, "entries")
+    if es == nil { return 0 }
+    var n = list.len(es)
+    var dyn = 1
+    var j = n - 1
+    while j >= 0 {
+        var e = es[j]
+        if _str_eq_bytes(oren_map_get_str(e, "name"), name) { return _STATIC_LEN + dyn }
+        dyn = dyn + 1
+        j = j - 1
+    }
+    return 0
+}
+
+fn _encode_int_into(out, first_flags, prefix_bits, v) {
+    // RFC 7541 §5.1.
+    if v < 0 { v = 0 }
+    var max = (1 << prefix_bits) - 1
+    if v < max {
+        list.push(out, (first_flags | v) & 255)
+        return nil
+    }
+    list.push(out, (first_flags | max) & 255)
+    v = v - max
+    while v >= 128 {
+        list.push(out, ((v % 128) + 128) & 255)
+        v = v / 128
+    }
+    list.push(out, v & 255)
+    return nil
+}
+
+fn _huff_encode_bytes_from_string(s) {
+    // Encode a UTF-8 string as raw bytes (byte-at-unchecked) using HPACK static Huffman (RFC 7541 Appendix B).
+    //
+    // Returns a u8_buf.
+    if s == nil { s = "" }
+    var n = oren_string_len(s)
+    if n <= 0 { return oren_u8_buf_new(0) }
+
+    var out = [] // list<u8>
+    var acc = 0
+    var acc_bits = 0
+
+    var i = 0
+    while i < n {
+        var sym = oren_string_byte_at_unchecked(s, i) & 255
+        var code = _HUFF_CODE_LSB[sym]
+        var bits = _HUFF_BITS[sym]
+        // Append `bits` bits from MSB to LSB of the len-bit window.
+        acc = (acc << bits) | code
+        acc_bits = acc_bits + bits
+        while acc_bits >= 8 {
+            var shift = acc_bits - 8
+            var b = (acc >> shift) & 255
+            list.push(out, b)
+            acc = acc & ((1 << shift) - 1)
+            acc_bits = shift
+        }
+        i = i + 1
+    }
+
+    if acc_bits > 0 {
+        // Pad with 1 bits to next octet boundary (EOS prefix).
+        var pad = 8 - acc_bits
+        acc = (acc << pad) | ((1 << pad) - 1)
+        list.push(out, acc & 255)
+    }
+
+    return oren_bytes_pack(out)
+}
+
+fn _encode_string_into(out, s, use_huffman) {
+    // RFC 7541 §5.2.
+    if s == nil { s = "" }
+    if use_huffman == nil { use_huffman = 0 }
+
+    if use_huffman != 0 {
+        var hb = _huff_encode_bytes_from_string(s)
+        if oren_is_err(hb) { return hb }
+        var hn = oren_buf_len(hb)
+        if oren_is_err(hn) { return hn }
+        _encode_int_into(out, 128, 7, hn)
+        if hn > 0 {
+            var p = native_buf_data_ptr(hb)
+            if p == 0 { return oren_err(4, "hpack.encode_string: bytes ptr nil") }
+            var i = 0
+            while i < hn {
+                list.push(out, ptr_get_byte(p + i) & 255)
+                i = i + 1
+            }
+        }
+        return nil
+    }
+
+    var n = oren_string_len(s)
+    _encode_int_into(out, 0, 7, n)
+    var i2 = 0
+    while i2 < n {
+        list.push(out, oren_string_byte_at_unchecked(s, i2) & 255)
+        i2 = i2 + 1
+    }
+    return nil
+}
+
+fn encode_header_block(table, headers, opts) {
+    // Encode a header list to an HPACK header block (RFC 7541).
+    //
+    // `table` is mutated (dynamic table) if incremental indexing is used.
+    //
+    // `headers`: list of {"name":string,"value":string, "index":"inc"|"no"|"never"} maps.
+    // `opts`:
+    // - opts["huffman"] = 1 to Huffman-encode string literals (default: 1)
+    // - opts["table_max"] = int to emit a dynamic table size update before the headers (optional)
+    //
+    // Returns:
+    // - {"ok":1,"b":u8_buf,"table":table}
+    // - {"ok":0,"err":string}
+    if table == nil { table = table_new(4096) }
+    if headers == nil { headers = [] }
+    if opts == nil { opts = {} }
+
+    var use_huffman = oren_map_get_str(opts, "huffman")
+    if use_huffman == nil { use_huffman = 1 }
+
+    var out = [] // list<u8>
+
+    var tmax = oren_map_get_str(opts, "table_max")
+    if tmax != nil {
+        // Dynamic Table Size Update (001xxxxx), prefix=5.
+        _encode_int_into(out, 32, 5, tmax)
+        table["max"] = tmax
+        _table_evict_to_fit(table)
+    }
+
+    var i = 0
+    while i < list.len(headers) {
+        var h = headers[i]
+        var name = oren_map_get_str(h, "name")
+        var value = oren_map_get_str(h, "value")
+        if name == nil { name = "" }
+        if value == nil { value = "" }
+
+        // Prefer indexed representation when we can.
+        var idx = _index_exact(table, name, value)
+        if idx > 0 {
+            _encode_int_into(out, 128, 7, idx)
+            i = i + 1
+            continue
+        }
+
+        var mode = oren_map_get_str(h, "index")
+        if mode == nil { mode = "inc" }
+
+        // Choose name index if possible; otherwise literal name.
+        var name_idx = _index_name_only(table, name)
+
+        if _str_eq_bytes(mode, "inc") {
+            // Literal Header Field with Incremental Indexing (01xxxxxx), prefix=6.
+            _encode_int_into(out, 64, 6, name_idx)
+            if name_idx == 0 {
+                var rc0 = _encode_string_into(out, name, use_huffman)
+                if oren_is_err(rc0) { return {"ok": 0, "err": "hpack.encode_header_block: name encode failed"} }
+            }
+            var rc1 = _encode_string_into(out, value, use_huffman)
+            if oren_is_err(rc1) { return {"ok": 0, "err": "hpack.encode_header_block: value encode failed"} }
+            _table_add(table, name, value)
+            i = i + 1
+            continue
+        }
+
+        if _str_eq_bytes(mode, "never") {
+            // Literal Header Field Never Indexed (0001xxxx), prefix=4.
+            _encode_int_into(out, 16, 4, name_idx)
+            if name_idx == 0 {
+                var rc2 = _encode_string_into(out, name, use_huffman)
+                if oren_is_err(rc2) { return {"ok": 0, "err": "hpack.encode_header_block: name encode failed"} }
+            }
+            var rc3 = _encode_string_into(out, value, use_huffman)
+            if oren_is_err(rc3) { return {"ok": 0, "err": "hpack.encode_header_block: value encode failed"} }
+            i = i + 1
+            continue
+        }
+
+        // Default: without indexing (0000xxxx), prefix=4.
+        _encode_int_into(out, 0, 4, name_idx)
+        if name_idx == 0 {
+            var rc4 = _encode_string_into(out, name, use_huffman)
+            if oren_is_err(rc4) { return {"ok": 0, "err": "hpack.encode_header_block: name encode failed"} }
+        }
+        var rc5 = _encode_string_into(out, value, use_huffman)
+        if oren_is_err(rc5) { return {"ok": 0, "err": "hpack.encode_header_block: value encode failed"} }
+        i = i + 1
+    }
+
+    return {"ok": 1, "b": oren_bytes_pack(out), "table": table}
 }

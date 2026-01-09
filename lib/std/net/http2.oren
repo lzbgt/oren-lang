@@ -29,6 +29,10 @@ var FRAME_CONTINUATION = 9
 
 // Flags (per-frame; shared ones)
 var FLAG_ACK = 1
+var FLAG_END_STREAM = 1
+var FLAG_END_HEADERS = 4
+var FLAG_PADDED = 8
+var FLAG_PRIORITY = 32
 
 // Client connection preface (exact bytes).
 var CLIENT_PREFACE = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
@@ -107,4 +111,3 @@ fn parse_frame_header(ptr0) {
     var stream_id = sid_raw & 2147483647
     return {"ok": 1, "len": length, "type": typ, "flags": flags, "stream": stream_id}
 }
-

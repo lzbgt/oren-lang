@@ -1,0 +1,54 @@
+// HPACK (RFC 7541) encode regression (rolling)
+//
+// Proves our encoder can reproduce RFC 7541 Appendix C.4.1 "First Request"
+// encoded bytes exactly (Huffman literal for www.example.com).
+//
+// Reference:
+// - `project-doc/web/rfc/rfc7541.txt` (Appendix C.4.1)
+
+import hpack "std:net/hpack"
+
+fn _str_eq_bytes(a, b) {
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _fail(msg) {
+    if msg != nil { print("hpack_encode_rfc: FAIL: " + msg) }
+    exit(1)
+}
+
+fn main() {
+    // Expected hex (RFC 7541 C.4.1):
+    // 8286 8441 8c f1e3 c2e5 f23a 6ba0 ab90 f4ff
+    var expected = "828684418cf1e3c2e5f23a6ba0ab90f4ff"
+
+    var t = hpack.table_new(4096)
+    var headers = [
+        {"name": ":method", "value": "GET"},
+        {"name": ":scheme", "value": "http"},
+        {"name": ":path", "value": "/"},
+        // Needs to be literal-with-indexing using name index 1, huffman-encoded value.
+        {"name": ":authority", "value": "www.example.com", "index": "inc"}
+    ]
+    var r = hpack.encode_header_block(t, headers, {"huffman": 1})
+    if r["ok"] != 1 { _fail("encode_header_block failed") }
+    var b = r["b"]
+    var got = oren_bytes_to_hex(b)
+    if _str_eq_bytes(got, expected) != true {
+        print("expected=" + expected)
+        print("got     =" + got)
+        _fail("hex mismatch")
+    }
+    exit(0)
+}
+

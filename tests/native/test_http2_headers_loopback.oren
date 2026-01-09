@@ -1,0 +1,603 @@
+// HTTP/2 HEADERS + HPACK loopback over TLS (rolling).
+//
+// Purpose:
+// - Exercise the full “HTTP/2 control plane” IO path on Tier‑1:
+//   - TLS ALPN "h2"
+//   - client connection preface + SETTINGS
+//   - HEADERS carrying an HPACK header block (incl Huffman)
+//   - server response HEADERS + DATA + END_STREAM
+//
+// Scope (still intentionally small):
+// - single stream (id=1)
+// - no flow control / no WINDOW_UPDATE handling
+// - no PRIORITY / PADDED
+// - no HPACK dynamic table size updates beyond the default
+
+import tcp "std:net/tcp"
+import tls "std:net/tls"
+import base64 "std:encoding/base64"
+import h2 "std:net/http2"
+import hpack "std:net/hpack"
+import list "std:list"
+import fixture "./fixture_tls_p12.oren"
+
+fn _cstr_from_string(s) {
+    if s == nil { s = "" }
+    var n = oren_string_len(s)
+    if n < 0 { n = 0 }
+    if n > 128 { n = 128 }
+    var p = malloc(n + 1)
+    if p == 0 { return 0 }
+    var i = 0
+    while i < n {
+        ptr_set_byte(p + i, oren_string_byte_at_unchecked(s, i) & 255)
+        i = i + 1
+    }
+    ptr_set_byte(p + n, 0)
+    return p
+}
+
+fn _str_eq_bytes(a, b) {
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _cstr_lit_server() {
+    // "server\0"
+    var p = malloc(7)
+    if p == 0 { return 0 }
+    ptr_set_byte(p + 0, 115)
+    ptr_set_byte(p + 1, 101)
+    ptr_set_byte(p + 2, 114)
+    ptr_set_byte(p + 3, 118)
+    ptr_set_byte(p + 4, 101)
+    ptr_set_byte(p + 5, 114)
+    ptr_set_byte(p + 6, 0)
+    return p
+}
+
+fn u16be_at(ptr0, off) {
+    var a = ptr_get_byte(ptr0 + off) & 255
+    var b = ptr_get_byte(ptr0 + off + 1) & 255
+    return a * 256 + b
+}
+
+fn _read_exact(conn, buf, need, timeout_ms) {
+    if need < 0 { return 0 - 22 }
+    var off = 0
+    while off < need {
+        var n = tls.read_into(conn, buf + off, need - off, timeout_ms)
+        if n < 0 { return n }
+        if n == 0 { return 0 - 104 }
+        off = off + n
+    }
+    return 0
+}
+
+fn _write_all_ptr(conn, ptr0, n, timeout_ms) {
+    if n < 0 { return 0 - 22 }
+    var off = 0
+    while off < n {
+        var w = tls.write_from(conn, ptr0 + off, n - off, timeout_ms)
+        if w < 0 { return w }
+        if w == 0 { return 0 - 104 }
+        off = off + w
+    }
+    return 0
+}
+
+fn _write_all_str(conn, s, n, timeout_ms) {
+    return _write_all_ptr(conn, s, n, timeout_ms)
+}
+
+fn _write_all_bytes(conn, b, timeout_ms) {
+    if b == nil { return 0 }
+    var n = oren_buf_len(b)
+    if oren_is_err(n) { return 0 - 22 }
+    if n == 0 { return 0 }
+    var p = native_buf_data_ptr(b)
+    if p == 0 { return 0 - 22 }
+    return _write_all_ptr(conn, p, n, timeout_ms)
+}
+
+@cfg(os="windows,linux")
+fn _must_be_h2(proto) {
+    if proto == nil { return 0 }
+    if _str_eq_bytes(proto, "h2") != true { return 0 - 1 }
+    return 0
+}
+
+@cfg(os="macos")
+fn _must_be_h2(proto) {
+    if proto == nil { return 0 }
+    if _str_eq_bytes(proto, "h2") != true { return 0 - 1 }
+    return 0
+}
+
+fn _read_frame(conn, timeout_ms) {
+    var hdr = malloc(16)
+    if hdr == 0 { return {"ok": 0, "err": "alloc hdr"} }
+    var rr = _read_exact(conn, hdr, 9, timeout_ms)
+    if rr != 0 { free(hdr); return {"ok": 0, "err": "read header"} }
+    var fh = h2.parse_frame_header(hdr)
+    if fh["ok"] != 1 { free(hdr); return {"ok": 0, "err": "parse header"} }
+    var n = fh["len"]
+    var payload = oren_u8_buf_new(n)
+    if oren_is_err(payload) { free(hdr); return {"ok": 0, "err": "alloc payload"} }
+    if n > 0 {
+        var p = native_buf_data_ptr(payload)
+        if p == 0 { free(hdr); return {"ok": 0, "err": "payload ptr"} }
+        rr = _read_exact(conn, p, n, timeout_ms)
+        if rr != 0 { free(hdr); return {"ok": 0, "err": "read payload"} }
+    }
+    free(hdr)
+    return {"ok": 1, "type": fh["type"], "flags": fh["flags"], "stream": fh["stream"], "payload": payload}
+}
+
+fn _send_frame(conn, typ, flags, stream_id, payload_bytes, timeout_ms) {
+    var hdr = malloc(16)
+    if hdr == 0 { return 0 - 12 }
+    var n = 0
+    var p = 0
+    if payload_bytes != nil {
+        n = oren_buf_len(payload_bytes)
+        if oren_is_err(n) { free(hdr); return 0 - 22 }
+        if n > 0 {
+            p = native_buf_data_ptr(payload_bytes)
+            if p == 0 { free(hdr); return 0 - 22 }
+        }
+    }
+    var rc = h2.write_frame_header(hdr, n, typ, flags, stream_id)
+    if rc != 0 { free(hdr); return rc }
+    var wr = _write_all_ptr(conn, hdr, 9, timeout_ms)
+    if wr != 0 { free(hdr); return wr }
+    if n > 0 {
+        wr = _write_all_ptr(conn, p, n, timeout_ms)
+        if wr != 0 { free(hdr); return wr }
+    }
+    free(hdr)
+    return 0
+}
+
+fn _expect_headers_list(hs, expect) {
+    if list.len(hs) != list.len(expect) { return 0 - 1 }
+    var i = 0
+    while i < list.len(expect) {
+        var g = hs[i]
+        var e = expect[i]
+        if _str_eq_bytes(g["name"], e["name"]) != true { return 0 - 2 }
+        if _str_eq_bytes(g["value"], e["value"]) != true { return 0 - 3 }
+        i = i + 1
+    }
+    return 0
+}
+
+fn server_impl(listen_fd, pfx_b64) {
+    var fd = tcp.accept(listen_fd, 5000)
+    if fd < 0 { return 11 }
+
+    var pkcs12_bytes = base64.decode_bytes(pfx_b64)
+    if oren_is_err(pkcs12_bytes) { return 101 }
+
+    var srv_opts = {"alpn": ["h2", "http/1.1"]}
+    var r = tls.wrap_server_pkcs12(fd, 5000, pkcs12_bytes, fixture.passphrase(), srv_opts)
+    if oren_map_get_str(r, "ok") != 1 { return 12 }
+    var conn = oren_map_get_str(r, "conn")
+    if conn == 0 { return 13 }
+
+    var al = tls.negotiated_alpn(conn)
+    if oren_map_get_str(al, "ok") == 1 {
+        var v = oren_map_get_str(al, "v")
+        var rc0 = _must_be_h2(v)
+        if v != nil { free(v) }
+        if rc0 != 0 { tls.close(conn); return 14 }
+    }
+
+    // Preface.
+    var pre = malloc(h2.CLIENT_PREFACE_LEN)
+    if pre == 0 { tls.close(conn); return 15 }
+    var rr0 = _read_exact(conn, pre, h2.CLIENT_PREFACE_LEN, 5000)
+    if rr0 != 0 { free(pre); tls.close(conn); return 16 }
+    free(pre)
+
+    // SETTINGS (client).
+    var fr = _read_frame(conn, 5000)
+    if fr["ok"] != 1 { tls.close(conn); return 17 }
+    if fr["type"] != h2.FRAME_SETTINGS { tls.close(conn); return 18 }
+    if fr["stream"] != 0 { tls.close(conn); return 19 }
+    // Respond with server SETTINGS (empty).
+    var wr0 = _send_frame(conn, h2.FRAME_SETTINGS, 0, 0, oren_u8_buf_new(0), 5000)
+    if wr0 != 0 { tls.close(conn); return 20 }
+
+    // HEADERS (request) on stream 1.
+    fr = _read_frame(conn, 5000)
+    if fr["ok"] != 1 { tls.close(conn); return 21 }
+    if fr["type"] != h2.FRAME_HEADERS { tls.close(conn); return 22 }
+    if fr["stream"] != 1 { tls.close(conn); return 23 }
+    if (fr["flags"] & h2.FLAG_PADDED) != 0 { tls.close(conn); return 24 }
+    if (fr["flags"] & h2.FLAG_PRIORITY) != 0 { tls.close(conn); return 25 }
+    // Require END_HEADERS for this v0 loopback (keep it bounded).
+    if (fr["flags"] & h2.FLAG_END_HEADERS) == 0 { tls.close(conn); return 26 }
+
+    var tbl = hpack.table_new(4096)
+    var dr = hpack.decode_header_block(tbl, fr["payload"])
+    if dr["ok"] != 1 { tls.close(conn); return 27 }
+    var hs = dr["headers"]
+    var exp = [
+        {"name": ":method", "value": "GET"},
+        {"name": ":scheme", "value": "https"},
+        {"name": ":path", "value": "/"},
+        {"name": ":authority", "value": "oren.test"}
+    ]
+    var okh = _expect_headers_list(hs, exp)
+    if okh != 0 { tls.close(conn); return 28 }
+
+    // Response HEADERS + DATA "ok".
+    var rt = hpack.table_new(4096)
+    var hr = hpack.encode_header_block(rt, [
+        {"name": ":status", "value": "200"},
+        {"name": "content-length", "value": "2", "index": "no"}
+    ], {"huffman": 1})
+    if hr["ok"] != 1 { tls.close(conn); return 29 }
+    var hflags = h2.FLAG_END_HEADERS
+    wr0 = _send_frame(conn, h2.FRAME_HEADERS, hflags, 1, hr["b"], 5000)
+    if wr0 != 0 { tls.close(conn); return 30 }
+
+    var data = oren_bytes_pack([111, 107]) // "ok"
+    wr0 = _send_frame(conn, h2.FRAME_DATA, h2.FLAG_END_STREAM, 1, data, 5000)
+    if wr0 != 0 { tls.close(conn); return 31 }
+
+    tls.close(conn)
+    return 0
+}
+
+@cfg(os="windows")
+fn server_win(listen_fd, pfx_b64) {
+    return server_impl(listen_fd, pfx_b64)
+}
+
+@cfg(os="macos,linux")
+fn server_main(listen_fd, pfx_b64) {
+    exit(server_impl(listen_fd, pfx_b64))
+}
+
+@cfg(not_os="macos,linux,windows")
+fn main() { exit(0) }
+
+@cfg(os="windows")
+fn main_client() {
+    var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
+    var listen_fd = tcp.listen_local(0)
+    if listen_fd < 0 { exit(3) }
+
+    var sa = malloc(32)
+    if sa == 0 { exit(4) }
+    var lenp = malloc(8)
+    if lenp == 0 { exit(5) }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(listen_fd, sa, lenp)
+    if grc < 0 { exit(6) }
+    var port = u16be_at(sa, 2)
+    free(lenp)
+    free(sa)
+
+    var h = spawn server_win(listen_fd, fixture.pkcs12_b64())
+
+    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
+    var cr = tls.connect("127.0.0.1", port, 5000, tls_opts)
+    if oren_map_get_str(cr, "ok") != 1 { exit(7) }
+    var conn = oren_map_get_str(cr, "conn")
+    if conn == 0 { exit(8) }
+
+    var al = tls.negotiated_alpn(conn)
+    if oren_map_get_str(al, "ok") == 1 {
+        var v = oren_map_get_str(al, "v")
+        var rc0 = _must_be_h2(v)
+        if v != nil { free(v) }
+        if rc0 != 0 { tls.close(conn); exit(9) }
+    }
+
+    // Preface + SETTINGS.
+    var wr0 = _write_all_str(conn, h2.CLIENT_PREFACE, h2.CLIENT_PREFACE_LEN, 5000)
+    if wr0 != 0 { tls.close(conn); exit(10) }
+    var hdr = malloc(16)
+    if hdr == 0 { tls.close(conn); exit(11) }
+    var rc1 = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, 0, 0)
+    if rc1 != 0 { free(hdr); tls.close(conn); exit(12) }
+    wr0 = _write_all_ptr(conn, hdr, 9, 5000)
+    free(hdr)
+    if wr0 != 0 { tls.close(conn); exit(13) }
+
+    // Read server SETTINGS.
+    var fr = _read_frame(conn, 5000)
+    if fr["ok"] != 1 { tls.close(conn); exit(14) }
+    if fr["type"] != h2.FRAME_SETTINGS { tls.close(conn); exit(15) }
+
+    // Send HEADERS request (END_HEADERS|END_STREAM).
+    var t = hpack.table_new(4096)
+    var er = hpack.encode_header_block(t, [
+        {"name": ":method", "value": "GET"},
+        {"name": ":scheme", "value": "https"},
+        {"name": ":path", "value": "/"},
+        {"name": ":authority", "value": "oren.test", "index": "inc"}
+    ], {"huffman": 1})
+    if er["ok"] != 1 { tls.close(conn); exit(16) }
+    wr0 = _send_frame(conn, h2.FRAME_HEADERS, h2.FLAG_END_HEADERS | h2.FLAG_END_STREAM, 1, er["b"], 5000)
+    if wr0 != 0 { tls.close(conn); exit(17) }
+
+    // Read response HEADERS.
+    fr = _read_frame(conn, 5000)
+    if fr["ok"] != 1 { tls.close(conn); exit(18) }
+    if fr["type"] != h2.FRAME_HEADERS { tls.close(conn); exit(19) }
+    var rt = hpack.table_new(4096)
+    var dr = hpack.decode_header_block(rt, fr["payload"])
+    if dr["ok"] != 1 { tls.close(conn); exit(20) }
+    var hs = dr["headers"]
+    if list.len(hs) < 1 { tls.close(conn); exit(21) }
+    if _str_eq_bytes(hs[0]["name"], ":status") != true { tls.close(conn); exit(22) }
+    if _str_eq_bytes(hs[0]["value"], "200") != true { tls.close(conn); exit(23) }
+
+    // Read DATA "ok" with END_STREAM.
+    fr = _read_frame(conn, 5000)
+    if fr["ok"] != 1 { tls.close(conn); exit(24) }
+    if fr["type"] != h2.FRAME_DATA { tls.close(conn); exit(25) }
+    if (fr["flags"] & h2.FLAG_END_STREAM) == 0 { tls.close(conn); exit(26) }
+    var pb = fr["payload"]
+    if oren_buf_len(pb) != 2 { tls.close(conn); exit(27) }
+    var pp = native_buf_data_ptr(pb)
+    if pp == 0 { tls.close(conn); exit(28) }
+    if (ptr_get_byte(pp) & 255) != 111 { tls.close(conn); exit(29) }
+    if (ptr_get_byte(pp + 1) & 255) != 107 { tls.close(conn); exit(30) }
+
+    tls.close(conn)
+    var sr = oren_join_timeout(h, 5000)
+    tcp.close(listen_fd)
+    if sr != 0 { exit(31) }
+    exit(0)
+}
+
+@cfg(os="windows")
+fn main() { return main_client() }
+
+@cfg(os="linux")
+fn main_client() {
+    var pfx_b64 = fixture.pkcs12_b64()
+    var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
+
+    var listen_fd = oren_tcp_listen_local(0)
+    if listen_fd < 0 { exit(3) }
+
+    var sa = malloc(32)
+    if sa == 0 { exit(4) }
+    var lenp = malloc(8)
+    if lenp == 0 { exit(5) }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(listen_fd, sa, lenp)
+    if grc < 0 { exit(6) }
+    var port = u16be_at(sa, 2)
+    free(sa)
+    free(lenp)
+    if port <= 0 { exit(7) }
+
+    var pid = sys_fork()
+    if pid < 0 { exit(75) }
+    if pid == 0 {
+        server_main(listen_fd, pfx_b64)
+        exit(127)
+    }
+
+    var fd = tcp.connect("127.0.0.1", port, 5000)
+    if fd < 0 { exit(8) }
+    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
+    var cr = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
+    if oren_map_get_str(cr, "ok") != 1 { exit(9) }
+    var conn = oren_map_get_str(cr, "conn")
+    if conn == 0 { exit(10) }
+
+    var al = tls.negotiated_alpn(conn)
+    if oren_map_get_str(al, "ok") == 1 {
+        var v = oren_map_get_str(al, "v")
+        var rc0 = _must_be_h2(v)
+        if v != nil { free(v) }
+        if rc0 != 0 { tls.close(conn); exit(11) }
+    }
+
+    var wr0 = _write_all_str(conn, h2.CLIENT_PREFACE, h2.CLIENT_PREFACE_LEN, 5000)
+    if wr0 != 0 { tls.close(conn); exit(12) }
+    var hdr = malloc(16)
+    if hdr == 0 { tls.close(conn); exit(13) }
+    var rc1 = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, 0, 0)
+    if rc1 != 0 { free(hdr); tls.close(conn); exit(14) }
+    wr0 = _write_all_ptr(conn, hdr, 9, 5000)
+    free(hdr)
+    if wr0 != 0 { tls.close(conn); exit(15) }
+
+    var fr = _read_frame(conn, 5000)
+    if fr["ok"] != 1 { tls.close(conn); exit(16) }
+    if fr["type"] != h2.FRAME_SETTINGS { tls.close(conn); exit(17) }
+
+    var t = hpack.table_new(4096)
+    var er = hpack.encode_header_block(t, [
+        {"name": ":method", "value": "GET"},
+        {"name": ":scheme", "value": "https"},
+        {"name": ":path", "value": "/"},
+        {"name": ":authority", "value": "oren.test", "index": "inc"}
+    ], {"huffman": 1})
+    if er["ok"] != 1 { tls.close(conn); exit(18) }
+    wr0 = _send_frame(conn, h2.FRAME_HEADERS, h2.FLAG_END_HEADERS | h2.FLAG_END_STREAM, 1, er["b"], 5000)
+    if wr0 != 0 { tls.close(conn); exit(19) }
+
+    fr = _read_frame(conn, 5000)
+    if fr["ok"] != 1 { tls.close(conn); exit(20) }
+    if fr["type"] != h2.FRAME_HEADERS { tls.close(conn); exit(21) }
+    var rt = hpack.table_new(4096)
+    var dr = hpack.decode_header_block(rt, fr["payload"])
+    if dr["ok"] != 1 { tls.close(conn); exit(22) }
+    var hs = dr["headers"]
+    if list.len(hs) < 1 { tls.close(conn); exit(23) }
+    if _str_eq_bytes(hs[0]["name"], ":status") != true { tls.close(conn); exit(24) }
+    if _str_eq_bytes(hs[0]["value"], "200") != true { tls.close(conn); exit(25) }
+
+    fr = _read_frame(conn, 5000)
+    if fr["ok"] != 1 { tls.close(conn); exit(26) }
+    if fr["type"] != h2.FRAME_DATA { tls.close(conn); exit(27) }
+    if (fr["flags"] & h2.FLAG_END_STREAM) == 0 { tls.close(conn); exit(28) }
+    var pb = fr["payload"]
+    if oren_buf_len(pb) != 2 { tls.close(conn); exit(29) }
+    var pp = native_buf_data_ptr(pb)
+    if pp == 0 { tls.close(conn); exit(30) }
+    if (ptr_get_byte(pp) & 255) != 111 { tls.close(conn); exit(31) }
+    if (ptr_get_byte(pp + 1) & 255) != 107 { tls.close(conn); exit(32) }
+
+    tls.close(conn)
+
+    var status_ptr = malloc(8)
+    if status_ptr == 0 { exit(33) }
+    ptr_set(status_ptr, 0)
+    var wpid = sys_wait4(pid, status_ptr, 0, 0)
+    if wpid != pid { free(status_ptr); exit(34) }
+    var status = ptr_get(status_ptr)
+    free(status_ptr)
+    tcp.close(listen_fd)
+    if status != 0 { exit(35) }
+    exit(0)
+}
+
+@cfg(os="macos")
+fn main_client() {
+    var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
+
+    var listen_fd = oren_tcp_listen_local(0)
+    if listen_fd < 0 { exit(3) }
+
+    var exec_fd = listen_fd
+    var dfd = sys_fcntl(listen_fd, FCNTL_F_DUPFD, 0)
+    if dfd >= 0 { exec_fd = dfd }
+
+    var sa = malloc(32)
+    if sa == 0 { exit(4) }
+    var lenp = malloc(8)
+    if lenp == 0 { exit(5) }
+    ptr_set(lenp, 32)
+    var grc = sys_getsockname(listen_fd, sa, lenp)
+    if grc < 0 { exit(6) }
+    var port = u16be_at(sa, 2)
+    free(sa)
+    free(lenp)
+    if port <= 0 { exit(7) }
+
+    var pid = sys_fork()
+    if pid < 0 { exit(75) }
+    if pid == 0 {
+        var path = _cstr_from_string(oren_args()[0])
+        var arg0 = _cstr_from_string(oren_args()[0])
+        var arg1 = _cstr_lit_server()
+        var arg2 = _cstr_from_string(oren_int_to_string(exec_fd))
+        var argv = malloc(32)
+        if argv != 0 {
+            ptr_set(argv + 0, arg0)
+            ptr_set(argv + 8, arg1)
+            ptr_set(argv + 16, arg2)
+            ptr_set(argv + 24, 0)
+            sys_execve(path, argv, 0)
+        }
+        exit(127)
+    }
+
+    var fd = tcp.connect("127.0.0.1", port, 5000)
+    if fd < 0 { exit(8) }
+    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
+    var cr = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
+    if oren_map_get_str(cr, "ok") != 1 { exit(9) }
+    var conn = oren_map_get_str(cr, "conn")
+    if conn == 0 { exit(10) }
+
+    var al = tls.negotiated_alpn(conn)
+    if oren_map_get_str(al, "ok") == 1 {
+        var v = oren_map_get_str(al, "v")
+        var rc0 = _must_be_h2(v)
+        if v != nil { free(v) }
+        if rc0 != 0 { tls.close(conn); exit(11) }
+    }
+
+    var wr0 = _write_all_str(conn, h2.CLIENT_PREFACE, h2.CLIENT_PREFACE_LEN, 5000)
+    if wr0 != 0 { tls.close(conn); exit(12) }
+    var hdr = malloc(16)
+    if hdr == 0 { tls.close(conn); exit(13) }
+    var rc1 = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, 0, 0)
+    if rc1 != 0 { free(hdr); tls.close(conn); exit(14) }
+    wr0 = _write_all_ptr(conn, hdr, 9, 5000)
+    free(hdr)
+    if wr0 != 0 { tls.close(conn); exit(15) }
+
+    var fr = _read_frame(conn, 5000)
+    if fr["ok"] != 1 { tls.close(conn); exit(16) }
+    if fr["type"] != h2.FRAME_SETTINGS { tls.close(conn); exit(17) }
+
+    var t = hpack.table_new(4096)
+    var er = hpack.encode_header_block(t, [
+        {"name": ":method", "value": "GET"},
+        {"name": ":scheme", "value": "https"},
+        {"name": ":path", "value": "/"},
+        {"name": ":authority", "value": "oren.test", "index": "inc"}
+    ], {"huffman": 1})
+    if er["ok"] != 1 { tls.close(conn); exit(18) }
+    wr0 = _send_frame(conn, h2.FRAME_HEADERS, h2.FLAG_END_HEADERS | h2.FLAG_END_STREAM, 1, er["b"], 5000)
+    if wr0 != 0 { tls.close(conn); exit(19) }
+
+    fr = _read_frame(conn, 5000)
+    if fr["ok"] != 1 { tls.close(conn); exit(20) }
+    if fr["type"] != h2.FRAME_HEADERS { tls.close(conn); exit(21) }
+    var rt = hpack.table_new(4096)
+    var dr = hpack.decode_header_block(rt, fr["payload"])
+    if dr["ok"] != 1 { tls.close(conn); exit(22) }
+    var hs = dr["headers"]
+    if list.len(hs) < 1 { tls.close(conn); exit(23) }
+    if _str_eq_bytes(hs[0]["name"], ":status") != true { tls.close(conn); exit(24) }
+    if _str_eq_bytes(hs[0]["value"], "200") != true { tls.close(conn); exit(25) }
+
+    fr = _read_frame(conn, 5000)
+    if fr["ok"] != 1 { tls.close(conn); exit(26) }
+    if fr["type"] != h2.FRAME_DATA { tls.close(conn); exit(27) }
+    if (fr["flags"] & h2.FLAG_END_STREAM) == 0 { tls.close(conn); exit(28) }
+    var pb = fr["payload"]
+    if oren_buf_len(pb) != 2 { tls.close(conn); exit(29) }
+    var pp = native_buf_data_ptr(pb)
+    if pp == 0 { tls.close(conn); exit(30) }
+    if (ptr_get_byte(pp) & 255) != 111 { tls.close(conn); exit(31) }
+    if (ptr_get_byte(pp + 1) & 255) != 107 { tls.close(conn); exit(32) }
+
+    tls.close(conn)
+
+    var status_ptr = malloc(8)
+    if status_ptr == 0 { exit(33) }
+    ptr_set(status_ptr, 0)
+    var wpid = sys_wait4(pid, status_ptr, 0, 0)
+    if wpid != pid { free(status_ptr); exit(34) }
+    var status = ptr_get(status_ptr)
+    free(status_ptr)
+    tcp.close(listen_fd)
+    if status != 0 { exit(35) }
+    exit(0)
+}
+
+@cfg(os="macos,linux")
+fn main() {
+    // For macOS, support fork+exec server mode (SecureTransport constraint).
+    if oren_list_len(oren_args()) >= 2 && _str_eq_bytes(oren_args()[1], "server") {
+        if oren_list_len(oren_args()) < 3 { exit(2) }
+        var fd = oren_int_from_string(oren_args()[2])
+        server_main(fd, fixture.pkcs12_b64())
+        exit(127)
+    }
+    return main_client()
+}

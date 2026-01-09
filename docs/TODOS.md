@@ -234,7 +234,11 @@ References:
 					               - In progress (2026-01-09): HPACK bring-up (decode v0):
 					                 - Core: `std:net/hpack` (`lib/std/net/hpack.oren`) with RFC 7541 static table + dynamic table maintenance + header-block decode (includes Huffman string decoding; header encoding still missing).
 					                 - Smoke: `tests/native/test_hpack_smoke.oren` (RFC 7541 Appendix C.2 hex examples; local gate; add to Tier‑1 net matrix once HEADERS is wired).
-					               - Next: HPACK header block encoding (at least enough to emit request headers for loopback) + larger RFC Appendix C fixtures, then HTTP/2 HEADERS/CONTINUATION + stream state machine + multiplexing on top of the now-negotiable `h2` ALPN (see `docs/LANGUAGE_FEATURE_MATRIX.md`).
+					               - Done (2026-01-09): HPACK header block encoding bring-up (incl Huffman) + HTTP/2 HEADERS+DATA loopback:
+					                 - HPACK core now supports header block encode/decode + Huffman encode/decode (`std:net/hpack`, `lib/std/net/hpack.oren`).
+					                 - Encoder regression: `tests/native/test_hpack_encode_rfc_c41.oren` (reproduces RFC 7541 Appendix C.4.1 bytes exactly).
+					                 - HTTP/2 request/response loopback: `tests/native/test_http2_headers_loopback.oren` (HEADERS + DATA, single stream, over TLS ALPN `h2`; stage1 + stage2; Tier‑1 via `scripts/verify_native_net_matrix.sh`).
+					               - Next: support CONTINUATION (split header blocks) + SETTINGS ACK + basic stream state + flow control scaffolding, then real HTTP/2 client API on top of `std:net/tls` (see `docs/LANGUAGE_FEATURE_MATRIX.md`).
 		     - x64 native backend correctness:
 		       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
 		         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)
