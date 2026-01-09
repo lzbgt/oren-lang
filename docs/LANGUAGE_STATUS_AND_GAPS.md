@@ -104,6 +104,11 @@ This doc answers: “what’s real today?” and “what’s missing to reach th
 - **TLS/HTTPS/WSS loopback on macOS + Linux + Windows**
   - Evidence: `tests/native/test_tls_loopback.oren`, `tests/native/test_https_get_loopback.oren`, `tests/native/test_wss_echo_loopback.oren`
   - Tier‑1 gate: `scripts/verify_native_net_matrix.sh` runs these fixtures on Win11 + WSL2 + local macOS + linux/arm64 container.
+- **HTTP/2 bring-up (framing-only; ALPN `h2`)**
+  - Scope today: connection preface + frame header encoding/decoding + minimal control frames (no HPACK/HEADERS yet).
+  - Stdlib: `lib/std/net/http2.oren`
+  - Evidence: `tests/native/test_http2_preface_loopback.oren` (preface + SETTINGS + PING/ACK over TLS)
+  - Tier‑1 gate: `scripts/verify_native_net_matrix.sh` runs the loopback fixture on macOS + Linux + Windows (stage1 + stage2).
 - **PEM decode helpers (crypto plumbing)**
   - Evidence: `tests/native/test_pem_decode_smoke.oren` (imports `std:crypto/pem`)
 
