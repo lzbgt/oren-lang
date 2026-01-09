@@ -239,6 +239,7 @@ These stdlib modules exist today and are exercised by regression fixtures:
 For the detailed NET/TLS behavior and design constraints (determinism, pinning, providers), use the dedicated docs:
 
 - `docs/NET_TLS.md`
+- `docs/NET_HTTP2.md`
 - `docs/NET_WEBSOCKET.md`
 - `docs/ASYNC_IO_AND_SELECT.md`
 
