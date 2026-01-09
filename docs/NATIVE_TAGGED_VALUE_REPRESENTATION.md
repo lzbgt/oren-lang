@@ -40,6 +40,15 @@ The language semantics require:
 So the native backend must not depend on “is it < 4096?” or “does it look like a pointer?”.
 Even “compiler-inferred key kind” is only a stopgap — production requires a principled tagged value model.
 
+**Concrete semantic hazard observed in rolling (native backend):**
+
+- Without explicit value tags, the native backend can observe `nil/false/0` aliasing in compare paths:
+  - `0 == nil` and `0 == false` historically evaluated true in native mode.
+  - This is not only a “literal compare” problem: values flowing through maps/fields/params can still alias:
+    - `var m={"x":0}; var v=m["x"]; if v==nil { ... }` can still take the `== nil` branch.
+- Mitigation (2026-01-09): the optimizer folds type-mismatched `==`/`!=` on literals and folds `id == nil` when `id` is trivially proven non-nil (quick-integration gated).
+  - This reduces accidental hazards, but it is **not** a substitute for a real tagged value representation.
+
 ## 1) Design goals (production constraints)
 
 Non‑negotiable goals:

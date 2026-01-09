@@ -490,6 +490,8 @@ References:
 		         - `0 == nil` historically evaluated true in native mode (so `== nil` checks on numeric values were unsafe).
 		           - Mitigated (2026-01-09): optimizer folds type-mismatched `==`/`!=` on literals and folds `id == nil` for locals proven non-nil; quick integration gate covers `0/nil/false` parity.
 		           - Remaining: full tagged value model still needed for unknown dynamic-type comparisons (see `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`).
+		             - Repro (still broken as of 2026-01-09): values flowing through maps/fields/params can still alias `nil/false/0`:
+		               - `var m={"x":0}; var v=m["x"]; if v==nil { ... }` currently takes the `== nil` branch in native mode.
 	     - varargs + reflection convergence:
 	       - define how varargs elements carry type information so userland (fmt/ffi/serialization) can process heterogeneous lists without heuristic key-kind inference
 	   - References:

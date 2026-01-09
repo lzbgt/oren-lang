@@ -106,6 +106,7 @@ Remaining work:
 
 - Full semantic parity still requires the tagged value model described in `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`,
   so comparisons involving values of unknown dynamic type remain a native-backend “rolling” area.
+  - Example (still broken in native mode): `var v = m["x"]` where the stored value is `0`; `if v == nil { ... }` can still take the `== nil` branch.
   Track in `docs/TODOS.md` / `docs/LANGUAGE_STATUS_AND_GAPS.md`.
 
 ## How To Verify
