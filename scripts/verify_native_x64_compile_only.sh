@@ -38,6 +38,7 @@ WIN_FFI_MSVCRT_LINK_ATTR_SRC="tests/native/ffi_windows_msvcrt_attr_link.oren"
 WIN_FFI_I32_SRC="tests/native/ffi_windows_ret_i32_signext.oren"
 WIN_FFI_U32_SRC="tests/native/ffi_windows_ret_u32_zeroext.oren"
 WIN_FFI_VOID_SRC="tests/native/ffi_windows_ret_void_zero.oren"
+WIN_FFI_EXPORT_GETPROC_SRC="tests/native/ffi_windows_export_getprocaddress.oren"
 LINUX_FFI_OK_SRC="tests/native/ffi_linux_strlen_ok.oren"
 LINUX_FFI_I32_SRC="tests/native/ffi_linux_ret_i32_signext.oren"
 LINUX_FFI_U32_SRC="tests/native/ffi_linux_ret_u32_zeroext.oren"
@@ -108,17 +109,19 @@ build_one() {
 
 check_elf_x64() {
   local p="$1"
-  file "$p" | grep -qE 'ELF 64-bit.*x86-64'
+  # Avoid `grep -q` under `set -o pipefail` (upstream can SIGPIPE and fail the pipeline).
+  file "$p" | grep -E 'ELF 64-bit.*x86-64' >/dev/null
 }
 
 check_elf_x64_dyn() {
   local p="$1"
-  file "$p" | grep -qE 'ELF 64-bit.*x86-64' && file "$p" | grep -qi 'dynamically linked'
+  file "$p" | grep -E 'ELF 64-bit.*x86-64' >/dev/null
+  file "$p" | grep -i 'dynamically linked' >/dev/null
 }
 
 check_pe_x64() {
   local p="$1"
-  file "$p" | grep -qE 'PE32\+'
+  file "$p" | grep -F 'PE32+' >/dev/null
 }
 
 check_pe_x64_entry_disp8_zero_sane() {
@@ -153,7 +156,7 @@ check_bin_contains() {
   local p="$1"
   local needle="$2"
   if command -v strings >/dev/null 2>&1; then
-    strings -a "$p" | grep -qiF "$needle"
+    strings -a "$p" | grep -iF "$needle" >/dev/null
   fi
 }
 
@@ -254,5 +257,13 @@ check_pe_x64 build/tmp/ffi_void_stage1_x64_windows.exe
 
 build_one ./oren_stage2 x64-windows "$WIN_FFI_VOID_SRC" build/tmp/ffi_void_stage2_x64_windows.exe
 check_pe_x64 build/tmp/ffi_void_stage2_x64_windows.exe
+
+build_one ./oren x64-windows "$WIN_FFI_EXPORT_GETPROC_SRC" build/tmp/ffi_export_stage1_x64_windows.exe
+check_pe_x64 build/tmp/ffi_export_stage1_x64_windows.exe
+check_bin_contains build/tmp/ffi_export_stage1_x64_windows.exe "oren_test_export_cb"
+
+build_one ./oren_stage2 x64-windows "$WIN_FFI_EXPORT_GETPROC_SRC" build/tmp/ffi_export_stage2_x64_windows.exe
+check_pe_x64 build/tmp/ffi_export_stage2_x64_windows.exe
+check_bin_contains build/tmp/ffi_export_stage2_x64_windows.exe "oren_test_export_cb"
 
 echo "OK: x64 compile-only verification passed" >&2

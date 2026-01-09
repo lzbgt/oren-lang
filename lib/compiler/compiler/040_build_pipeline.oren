@@ -1295,6 +1295,17 @@ fn compiler_main() {
                         ei3 = ei3 + 1
                     }
                 }
+            } else if target == "windows" {
+                // Windows x64 can export function symbols from executables via the PE export table.
+                // This enables `GetProcAddress(GetModuleHandle(NULL), "...")` for callback-style interop.
+                var exp4 = _build_collect_ffi_export_names(linked)
+                if exp4 != nil && oren_list_len(exp4) != 0 {
+                    var ei4 = 0
+                    while ei4 < oren_list_len(exp4) {
+                        oren_list_push(export_names, exp4[ei4])
+                        ei4 = ei4 + 1
+                    }
+                }
             }
         }
         
@@ -1412,23 +1423,26 @@ fn compiler_main() {
 		                    t_emit1 = oren_time_now_ns()
 		                    print("[build] native emit start (x64) target=" + target)
 		                }
-		                if is_shared_lib || (target != "linux" && oren_list_len(export_names) != 0) {
-		                    print("native backend (x64): shared libraries/exports are not implemented yet")
-		                    var req = "--export"
-		                    if is_shared_lib { req = "--lib/--shared" }
-		                    print("  requested: " + req)
-		                    print("  TODO: implement x64 ELF .so and x64 Windows .dll export tables")
-		                    oren_exit(1)
-		                }
-		                if target == "linux" {
-		                    x64_elf.elf_emit_program_x64(out_path, linked, link_libs, export_names, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
-		                } else {
-		                    if target == "windows" {
-		                        x64_pe.pe_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
-	                    } else {
-	                        print("native backend (x64) unsupported target: " + target)
-                        oren_exit(1)
-                    }
+			                if is_shared_lib {
+			                    print("native backend (x64): shared libraries are not implemented yet")
+			                    print("  requested: --lib/--shared")
+			                    print("  TODO: implement x64 ELF .so and x64 Windows .dll outputs")
+			                    oren_exit(1)
+			                }
+			                if target != "linux" && target != "windows" && oren_list_len(export_names) != 0 {
+			                    print("native backend (x64): exports are not implemented for target: " + target)
+			                    print("  requested: --export / @ffi.export")
+			                    oren_exit(1)
+			                }
+			                if target == "linux" {
+			                    x64_elf.elf_emit_program_x64(out_path, linked, link_libs, export_names, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
+			                } else {
+			                    if target == "windows" {
+			                        x64_pe.pe_emit_program_x64(out_path, linked, link_libs, export_names, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
+		                    } else {
+		                        print("native backend (x64) unsupported target: " + target)
+	                        oren_exit(1)
+	                    }
                 }
                 if trace_build {
                     var dt_emit1 = oren_time_now_ns() - t_emit1

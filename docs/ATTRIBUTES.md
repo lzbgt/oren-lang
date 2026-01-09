@@ -250,7 +250,7 @@ Notes (rolling):
   - **arm64-macos native backend** (Mach-O): exports the symbol so `dlsym(RTLD_DEFAULT, ...)` can locate callback entry points.
   - **arm64-linux native backend** (ELF, dynamic executables): exports the symbol into the ELF dynamic symbol table for `dlsym(RTLD_DEFAULT, ...)`.
   - **x64-linux native backend** (ELF, dynamic executables): same as arm64-linux.
-  - On other targets (notably x64-windows), it is currently ignored (no export table is generated yet).
+  - **x64-windows native backend** (PE, executables): emits a PE Export Directory so `GetProcAddress(GetModuleHandle(NULL), ...)` can locate callback symbols.
 - The exported symbol name is the *linked* top-level name (module-prefixed).
   - For stdlib modules imported as `std:...`, the module prefix is stable.
 - This attribute is primarily used internally by stdlib providers (e.g. `std:net/tls` SecureTransport IO callbacks via `dlsym(RTLD_DEFAULT, ...)`).

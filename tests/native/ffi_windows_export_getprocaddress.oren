@@ -1,0 +1,26 @@
+// Windows-only native export smoke: `@ffi.export` for PE executables.
+//
+// This verifies that the x64-windows native backend can emit a PE Export Directory
+// for **executables** so `GetProcAddress(GetModuleHandle(NULL), "...")` can locate
+// exported callback functions.
+//
+// It is compiled+run only for x64-windows via `scripts/verify_native_matrix.sh`.
+
+@oren.keep
+@ffi.export
+fn oren_test_export_cb(x) {
+    // trivial function; we only validate that its symbol is exported
+    return x + 1
+}
+
+ffi GetModuleHandleA
+ffi GetProcAddress
+
+var h = GetModuleHandleA(0)
+if h == 0 { exit(1) }
+
+var p = GetProcAddress(h, "oren_test_export_cb")
+if p == 0 { exit(2) }
+
+exit(0)
+

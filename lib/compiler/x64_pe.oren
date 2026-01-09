@@ -61,7 +61,67 @@ fn push_ascii_z(buf, s) {
     return nil
 }
 
-fn pe_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
+fn _pe_path_basename(p) {
+    if p == nil { return "oren.exe" }
+    var n = oren_string_len(p)
+    var last = -1
+    var i = 0
+    while i < n {
+        var c = oren_string_byte_at_unchecked(p, i) & 255
+        // '/' or '\\'
+        if c == 47 || c == 92 { last = i }
+        i = i + 1
+    }
+    var start = last + 1
+    if start < 0 { start = 0 }
+    if start >= n { return p }
+    return oren_string_slice(p, start, n)
+}
+
+fn _pe_str_lt_bytes(a, b) {
+    if a == nil && b == nil { return false }
+    if a == nil { return true }
+    if b == nil { return false }
+    var i = 0
+    while 1 {
+        var ca = oren_string_byte_at_unchecked(a, i) & 255
+        var cb = oren_string_byte_at_unchecked(b, i) & 255
+        if ca == 0 && cb == 0 { return false }
+        if ca == 0 { return true }
+        if cb == 0 { return false }
+        if ca < cb { return true }
+        if ca > cb { return false }
+        i = i + 1
+        if i > 512 { return false } // bound
+    }
+}
+
+fn _pe_sort_export_names(names) {
+    // Stable, bounded insertion sort by ASCII bytes (case-sensitive).
+    // PE export name tables are expected to be sorted for GetProcAddress lookups.
+    var out = []
+    if names == nil { return out }
+    var seen = {}
+    var i = 0
+    while i < oren_list_len(names) {
+        var s = names[i]
+        if s != nil && s != "" && seen[s] == nil {
+            seen[s] = true
+            oren_list_push(out, s)
+            var k = oren_list_len(out) - 1
+            while k > 0 && _pe_str_lt_bytes(out[k], out[k - 1]) {
+                var tmp = out[k - 1]
+                out[k - 1] = out[k]
+                out[k] = tmp
+                k = k - 1
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn pe_emit_program_x64(out_path, linked, link_libs, export_names, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
     // Bounded timing summary for diagnosing x64 Windows build throughput without huge logs.
     // Enable with: OREN_TRACE_X64_EMIT_SUMMARY=1
     var trace_sum = oren_env("OREN_TRACE_X64_EMIT_SUMMARY") != nil
@@ -266,8 +326,9 @@ fn pe_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_dept
     var text_rva = abi.x64_v0_windows_text_rva()
     var text_vsize = bytes_len(code)
     var rdata_rva = text_rva + align_up(text_vsize, sect_align)
-    // `.data` follows `.rdata` (SectAlign pages). `.rdata` contains only the import table.
-    var data_rva = rdata_rva + align_up(bytes_len(rdata), sect_align)
+    // `.data` follows `.rdata` (SectAlign pages).
+    // `.rdata` contains the import table (+ optional export table when `@ffi.export` is used).
+    var data_rva = 0
 
     // Patch thunk entries with RVA to hint/name.
     i0 = 0
@@ -322,6 +383,92 @@ fn pe_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_dept
 
     var import_dir_rva = rdata_rva + off_import_desc
     var import_dir_size = 80
+
+    // ---- Optional PE export table (executables) ----
+    //
+    // This allows `GetProcAddress(GetModuleHandle(NULL), "name")` to locate top-level
+    // functions marked `@ffi.export` (used by callback-style interop).
+    //
+    // NOTE: This emitter does not currently support producing `.dll` outputs; this is
+    // only for exporting symbols from the main executable image.
+    var export_dir_rva = 0
+    var export_dir_size = 0
+    if export_names != nil && oren_list_len(export_names) != 0 {
+        var exps = _pe_sort_export_names(export_names)
+        var n_exp = oren_list_len(exps)
+        if n_exp != 0 {
+            // Align to 4 for export tables.
+            while int_mod(bytes_len(rdata), 4) != 0 { bytes_push(rdata, 0) }
+
+            var off_exp_dir = bytes_len(rdata)
+            // IMAGE_EXPORT_DIRECTORY (40 bytes)
+            push_u8_n(rdata, 0, 40)
+            while int_mod(bytes_len(rdata), 4) != 0 { bytes_push(rdata, 0) }
+
+            var off_eat = bytes_len(rdata)
+            var ei = 0
+            while ei < n_exp {
+                var nm = exps[ei]
+                var fn_off = functions[nm]
+                if fn_off == nil {
+                    print("x64 pe: @ffi.export requested for missing function: " + nm)
+                    print("  hint: add @oren.keep to prevent whole-program DCE from removing it")
+                    oren_exit(1)
+                }
+                // Export Address Table uses RVAs.
+                push_u32_le(rdata, text_rva + fn_off)
+                ei = ei + 1
+            }
+
+            var off_name_ptrs = bytes_len(rdata)
+            ei = 0
+            while ei < n_exp { push_u32_le(rdata, 0); ei = ei + 1 }
+
+            var off_ordinals = bytes_len(rdata)
+            ei = 0
+            while ei < n_exp { push_u16_le(rdata, ei); ei = ei + 1 }
+            while int_mod(bytes_len(rdata), 4) != 0 { bytes_push(rdata, 0) }
+
+            var off_mod_name = bytes_len(rdata)
+            push_ascii_z(rdata, _pe_path_basename(out_path))
+
+            // Export name strings (and patch name pointer table).
+            ei = 0
+            while ei < n_exp {
+                var off_nm = bytes_len(rdata)
+                push_ascii_z(rdata, exps[ei])
+                set_u32_le(rdata, off_name_ptrs + ei * 4, rdata_rva + off_nm)
+                ei = ei + 1
+            }
+
+            // Patch IMAGE_EXPORT_DIRECTORY fields.
+            // Layout:
+            //   0  Characteristics (u32)
+            //   4  TimeDateStamp (u32)
+            //   8  MajorVersion (u16)
+            //   10 MinorVersion (u16)
+            //   12 Name (u32 RVA)
+            //   16 Base (u32)
+            //   20 NumberOfFunctions (u32)
+            //   24 NumberOfNames (u32)
+            //   28 AddressOfFunctions (u32 RVA)
+            //   32 AddressOfNames (u32 RVA)
+            //   36 AddressOfNameOrdinals (u32 RVA)
+            set_u32_le(rdata, off_exp_dir + 12, rdata_rva + off_mod_name)
+            set_u32_le(rdata, off_exp_dir + 16, 1)
+            set_u32_le(rdata, off_exp_dir + 20, n_exp)
+            set_u32_le(rdata, off_exp_dir + 24, n_exp)
+            set_u32_le(rdata, off_exp_dir + 28, rdata_rva + off_eat)
+            set_u32_le(rdata, off_exp_dir + 32, rdata_rva + off_name_ptrs)
+            set_u32_le(rdata, off_exp_dir + 36, rdata_rva + off_ordinals)
+
+            export_dir_rva = rdata_rva + off_exp_dir
+            export_dir_size = bytes_len(rdata) - off_exp_dir
+        }
+    }
+
+    // Now that `.rdata` is final, compute `.data` RVA.
+    data_rva = rdata_rva + align_up(bytes_len(rdata), sect_align)
     if trace_sum { t_rdata_done = oren_time_now_ns() }
 
     // ---- Build `.data` (user data blob) ----
@@ -617,7 +764,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_dept
     // DataDirectory[16] (each 8 bytes: RVA + Size)
     // 0 Export, 1 Import, others zero.
     // Export
-    push_u32_le(out, 0); push_u32_le(out, 0)
+    push_u32_le(out, export_dir_rva); push_u32_le(out, export_dir_size)
     // Import
     push_u32_le(out, import_dir_rva); push_u32_le(out, import_dir_size)
     // Remaining 14 directories

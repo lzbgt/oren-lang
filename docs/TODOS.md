@@ -266,7 +266,8 @@ References:
          - Regression (Windows): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_link.oren`.
        - Done (2026-01-08): `examples/ffi_test.oren` is now self-contained across OS (`@cfg` + `@ffi.link`/`@ffi.dll`), and `make examples-test` no longer passes ad-hoc `--link libc.so.6` on Linux.
 	       - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).
-	         - Next: add `@ffi.export` support to x64-windows PE (at least for executables) so callback-style interop can be portable across Tier‑1.
+	         - Done (2026-01-09): x64-windows native backend supports `@ffi.export` for executables (PE Export Directory) so `GetProcAddress(GetModuleHandle(NULL), ...)` can locate callback symbols.
+	           - Regression: `tests/native/ffi_windows_export_getprocaddress.oren` (run by `scripts/verify_native_matrix.sh --targets x64-win`; stage1 + stage2).
        - Conditional compilation for cross-platform stdlib (rolling):
        - Done: `@cfg(...)` (canonical `@oren.cfg`) filters declarations by target `--platform` (`os`/`arch`/`platform` selectors).
        - Regression: `tests/native/cfg_os_select.oren` is compiled in `scripts/verify_native_x64_compile_only.sh` (stage1 + stage2; x64-linux + x64-windows).
