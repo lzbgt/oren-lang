@@ -490,11 +490,12 @@ References:
 	         - `0 == nil` currently evaluates true in native mode (so `== nil` checks on numeric values are unsafe).
 	     - varargs + reflection convergence:
 	       - define how varargs elements carry type information so userland (fmt/ffi/serialization) can process heterogeneous lists without heuristic key-kind inference
-   - References:
-			     - `docs/TYPE_SYSTEM_PLAN.md`
-			     - `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
-			     - `docs/STDLIB_LAYERS.md`
-			     - Crypto stdlib maturity (rolling):
+	   - References:
+				     - Reflection plan (rolling): `docs/REFLECTION_V1.md`
+				     - `docs/TYPE_SYSTEM_PLAN.md`
+				     - `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
+				     - `docs/STDLIB_LAYERS.md`
+				     - Crypto stdlib maturity (rolling):
 			       - Done (2026-01-08): add `std:crypto/pem` v0 helper (`pem.decode_blocks`) so TLS/signing layers don’t need to live under NET.
 			       - Done (2026-01-08): add `std:crypto/x509` v0 helper (`x509.sha256_hex_der`) for small certificate utilities.
 			       - Done (2026-01-09): add `std:crypto/tls` as a facade over `std:net/tls` (alias-layer; same API surface).

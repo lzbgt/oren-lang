@@ -11,6 +11,33 @@ To test it on real x86_64 machines, we use a remote Win11 host with WSL2 enabled
   - if neither is provided, the compiler defaults to the **runtime host platform** (Windows uses env vars; POSIX uses `uname`).
   - `--target`/`--arch` are legacy (still supported).
 
+## Keeping the remote checkout + binaries in sync (common pitfall)
+
+The Tier‑1 scripts in `scripts/` do **not** require a working compiler checkout on the remote Win11 host:
+they compile artifacts locally and upload binaries to the remote machine for execution.
+
+However, when debugging by **logging into the remote machine** and running `oren.exe` / `oren_stage2.exe` directly
+from a repo clone (example path: `E:\\work\\oren-lang`), it is easy to hit a mismatch:
+
+- the remote repo is behind `origin/master`, and/or
+- the remote `oren_stage2.exe` was built from older sources (pulling new commits does **not** rebuild the binary).
+
+Symptom class (example):
+
+- `x64 pe: failed to write: build/targets/x64-windows/native/...`
+- `write_bytes: sys_open failed`
+
+If you see this kind of failure, first do the “sync + rebuild” sequence:
+
+```bat
+cd /d E:\work\oren-lang
+git fetch --all --prune
+git reset --hard origin/master
+make stage2
+```
+
+Then re-run the failing `oren_stage2.exe build ...` invocation.
+
 ## Preferred workflow: use the repo’s x64 matrix script (stage1 + stage2)
 
 If your local host is macOS arm64 (Tier‑1 dev path), the recommended way to validate x86_64 targets is:
