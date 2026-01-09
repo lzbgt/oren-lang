@@ -1,0 +1,34 @@
+// FFI group sugar: per-item attributes inside `ffi { ... }`.
+//
+// Purpose:
+// - Keep `ffi { ... }` ergonomic when symbols from the same library have different ABI return kinds.
+// - Regression coverage for the parser + native backend attribute collection.
+//
+// Note: this file is primarily used by the compile-only x64 gate (`scripts/verify_native_x64_compile_only.sh`).
+
+@cfg(os="windows")
+@ffi.dll("msvcrt.dll")
+ffi {
+    @ffi.ret("i32") atoi,
+    puts
+}
+
+@cfg(os="linux")
+@ffi.link("libc.so.6")
+ffi {
+    @ffi.ret("i32") atoi,
+    puts
+}
+
+@cfg(os="windows,linux")
+fn main() {
+    // Use the imported symbols so the compiler must emit call stubs and link metadata.
+    var n = atoi("123")
+    if n != 123 { return 2 }
+    puts("ffi_group_item_attrs: OK")
+    return 0
+}
+
+@cfg(not_os="windows,linux")
+fn main() { return 0 }
+

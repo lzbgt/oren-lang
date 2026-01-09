@@ -285,6 +285,8 @@ ffi { puts, strlen }
 Rolling convenience:
 
 - `ffi { sym1, sym2, ... }` expands to multiple `ffi sym` declarations, inheriting the same attributes.
+- Per-item attributes are allowed inside the group and are merged with the outer attributes:
+  - `@ffi.link("libc.so.6") ffi { @ffi.ret("i32") atoi, puts }`
 
 Notes (rolling):
 
@@ -316,6 +318,14 @@ Oren supports a **minimal conditional compilation** attribute:
 - env fallback `OREN_PLATFORM=<arch>-<os>`
 
 If the target platform is unknown/missing, `@cfg(...)` is a compile-time error.
+
+Why `@cfg` exists (and when to use it):
+
+- Prefer writing platform-independent code by depending on stdlib abstractions (`std:net/tcp`, `std:net/tls`, etc.).
+- Use `@cfg` when the source must bind to platform-specific surfaces that stdlib cannot fully hide, for example:
+  - FFI library names / frameworks (`@ffi.dll("...")` on Windows vs `@ffi.link("...")` on Linux/macOS),
+  - platform-specific constants/struct layouts at syscall boundaries,
+  - host build/packaging details (e.g. Windows `.exe` naming in scripts).
 
 Supported selector forms (rolling v0):
 
@@ -731,6 +741,7 @@ Rolling note (native backend):
 
 - Until native value tagging is fully implemented, numeric immediates are best-effort:
   `int`/`bool`/`float` may all report as `int` (tag `1`) in native mode.
+- Beyond `oren_type_tag` / `oren_type_name`, full runtime reflection (fields/layout/type metadata) is not yet implemented and is tracked as a larger refactor in `docs/TODOS.md`.
 
 Call-site spread (apply-style call):
 

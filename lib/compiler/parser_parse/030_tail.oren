@@ -487,6 +487,7 @@ fn parse_ffi(p) {
     // Supported forms:
     // - `ffi puts`
     // - `ffi { puts, printf, ... }` (rolling sugar: expands to multiple FFI decls)
+    // - `ffi { @ffi.ret("i32") atoi, @ffi.ret("void") free, puts }` (per-item attrs)
     //
     // The group form exists to avoid repeating `@ffi.dll/@ffi.link/@ffi.ret` for many
     // symbols from the same library.
@@ -501,12 +502,16 @@ fn parse_ffi(p) {
         }
 
         while !cur_is(p, token.TOK_RBRACE) && !cur_is(p, token.TOK_EOF) {
+            // Allow per-item attrs: `{ @ffi.ret("i32") atoi, puts }`
+            var item_attrs = parse_attr_list(p)
             if !cur_is(p, token.TOK_IDENT) {
                 parser_add_error(p, "expected ffi symbol name")
                 return ast.new_stmt_list([])
             }
             var name = ast.new_identifier(p["cur"])
-            oren_list_push(stmts, ast.new_ffi(tok, name))
+            var st = ast.new_ffi(tok, name)
+            if item_attrs != nil && oren_list_len(item_attrs) > 0 { st["attrs"] = item_attrs }
+            oren_list_push(stmts, st)
 
             if peek_is(p, token.TOK_COMMA) || peek_is(p, token.TOK_SEMICOLON) {
                 parser_next_token(p) // ',' / ';'

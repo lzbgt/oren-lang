@@ -199,7 +199,19 @@ Rolling sugar:
 ffi { AcquireCredentialsHandleA, FreeCredentialsHandle, InitializeSecurityContextA }
 ```
 
-This expands to multiple `ffi <name>` declarations, each inheriting the same attributes (and doc comment, if present).
+This expands to multiple `ffi <name>` declarations, each inheriting the same outer attributes (and doc comment, if present).
+
+Per-item attributes are also allowed inside the group, and are merged with the outer attributes:
+
+```oren
+@cfg(os="linux")
+@ffi.link("libc.so.6")
+ffi {
+    @ffi.ret("i32") atoi,
+    @ffi.ret("void") free,
+    puts
+}
+```
 
 ### 3.5 FFI return typing (`@ffi.ret(...)`) (native backend)
 

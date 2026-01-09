@@ -43,6 +43,7 @@ LINUX_FFI_OK_SRC="tests/native/ffi_linux_strlen_ok.oren"
 LINUX_FFI_I32_SRC="tests/native/ffi_linux_ret_i32_signext.oren"
 LINUX_FFI_U32_SRC="tests/native/ffi_linux_ret_u32_zeroext.oren"
 LINUX_FFI_VOID_SRC="tests/native/ffi_linux_ret_void_zero.oren"
+FFI_GROUP_ITEM_ATTRS_SRC="tests/native/ffi_group_item_attrs.oren"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
 
 run_with_timeout() {
@@ -204,6 +205,12 @@ check_elf_x64_dyn build/tmp/ffi_void_stage1_x64_linux
 build_one ./oren_stage2 x64-linux "$LINUX_FFI_VOID_SRC" build/tmp/ffi_void_stage2_x64_linux
 check_elf_x64_dyn build/tmp/ffi_void_stage2_x64_linux
 
+build_one ./oren x64-linux "$FFI_GROUP_ITEM_ATTRS_SRC" build/tmp/ffi_group_item_attrs_stage1_x64_linux
+check_elf_x64_dyn build/tmp/ffi_group_item_attrs_stage1_x64_linux
+
+build_one ./oren_stage2 x64-linux "$FFI_GROUP_ITEM_ATTRS_SRC" build/tmp/ffi_group_item_attrs_stage2_x64_linux
+check_elf_x64_dyn build/tmp/ffi_group_item_attrs_stage2_x64_linux
+
 build_one ./oren x64-windows "$QI_SRC" build/tmp/qi_stage1_x64_windows.exe
 check_pe_x64 build/tmp/qi_stage1_x64_windows.exe
 check_pe_x64_entry_disp8_zero_sane build/tmp/qi_stage1_x64_windows.exe
@@ -257,6 +264,12 @@ check_pe_x64 build/tmp/ffi_void_stage1_x64_windows.exe
 
 build_one ./oren_stage2 x64-windows "$WIN_FFI_VOID_SRC" build/tmp/ffi_void_stage2_x64_windows.exe
 check_pe_x64 build/tmp/ffi_void_stage2_x64_windows.exe
+
+build_one ./oren x64-windows "$FFI_GROUP_ITEM_ATTRS_SRC" build/tmp/ffi_group_item_attrs_stage1_x64_windows.exe
+check_pe_x64 build/tmp/ffi_group_item_attrs_stage1_x64_windows.exe
+
+build_one ./oren_stage2 x64-windows "$FFI_GROUP_ITEM_ATTRS_SRC" build/tmp/ffi_group_item_attrs_stage2_x64_windows.exe
+check_pe_x64 build/tmp/ffi_group_item_attrs_stage2_x64_windows.exe
 
 build_one ./oren x64-windows "$WIN_FFI_EXPORT_GETPROC_SRC" build/tmp/ffi_export_stage1_x64_windows.exe
 check_pe_x64 build/tmp/ffi_export_stage1_x64_windows.exe

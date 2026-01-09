@@ -258,28 +258,41 @@ fn parse_attr_literal(p) {
     return nil
 }
 
+fn _merge_attrs(existing, incoming) {
+    // Merge two attribute lists without requiring callers to clone.
+    // Ordering: keep any existing attrs first, then append incoming.
+    if incoming == nil || oren_list_len(incoming) == 0 { return existing }
+    if existing == nil || oren_list_len(existing) == 0 { return incoming }
+    var i = 0
+    while i < oren_list_len(incoming) {
+        oren_list_push(existing, incoming[i])
+        i = i + 1
+    }
+    return existing
+}
+
 fn attach_attrs_to_stmt(p, stmt, attrs) {
     if attrs == nil { return nil }
     if oren_list_len(attrs) == 0 { return nil }
 
     // Allowed targets (M1): declarations + local/global vars.
     if stmt["type"] == "Type" || stmt["type"] == "Import" || stmt["type"] == "FFI" {
-        stmt["attrs"] = attrs
+        stmt["attrs"] = _merge_attrs(stmt["attrs"], attrs)
         return nil
     }
     if stmt["type"] == "Var" {
         // Prefer storing attrs on the identifier node (consistent with fields/params).
         if stmt["name"] != nil && stmt["name"]["type"] == "Identifier" {
-            stmt["name"]["attrs"] = attrs
+            stmt["name"]["attrs"] = _merge_attrs(stmt["name"]["attrs"], attrs)
         } else {
-            stmt["attrs"] = attrs
+            stmt["attrs"] = _merge_attrs(stmt["attrs"], attrs)
         }
         return nil
     }
     if stmt["type"] == "ExprStmt" {
         var exp = stmt["expr"]
         if exp != nil && exp["type"] == "Function" {
-            exp["attrs"] = attrs
+            exp["attrs"] = _merge_attrs(exp["attrs"], attrs)
             return nil
         }
     }
