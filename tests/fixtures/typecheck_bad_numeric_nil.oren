@@ -1,0 +1,17 @@
+// Expected to fail under: `./oren build ... --typecheck`
+//
+// Rationale:
+// - In the native backend, `nil` is a singleton pointer and numeric values are raw scalars.
+// - Comparing a statically-known numeric to `nil` is almost always a bug.
+// - The `--typecheck` pass should reject this pattern so it can’t silently ship.
+
+fn main() {
+    var x: i64 = 1
+    if x == nil { print("unreachable") }
+    if nil != x { print("unreachable2") }
+
+    var y: f64 = 0.5
+    if y == nil { print("unreachable3") }
+
+    exit(0)
+}
