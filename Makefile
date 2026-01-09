@@ -509,49 +509,80 @@ test-avm: oren avm
 		echo "AVM tests OK"
 
 test-native-all: oren
-			@echo "=== Native Tests (All) ==="
-		@mkdir -p build
-		@mkdir -p build/logs
-		@echo "Native parallelism: set NATIVE_TEST_JOBS=... (default: 4)."
-	@set -e; \
-		jobs="$(strip $(NATIVE_TEST_JOBS))"; \
-		if [ "$$jobs" = "" ]; then jobs=4; fi; \
-		if [ "$$jobs" -lt 1 ]; then jobs=1; fi; \
-		find tests/native -maxdepth 1 -name '*.oren' -print0 | \
-			xargs -0 -n 1 -P "$$jobs" sh -c '\
-				set -e; \
-				t="$$1"; \
+				@echo "=== Native Tests (All) ==="
+			@mkdir -p build
+			@mkdir -p build/logs
+			@echo "Native parallelism: set NATIVE_TEST_JOBS=... (default: 4)."
+		@set -e; \
+			jobs="$(strip $(NATIVE_TEST_JOBS))"; \
+			if [ "$$jobs" = "" ]; then jobs=4; fi; \
+			if [ "$$jobs" -lt 1 ]; then jobs=1; fi; \
+			set +e; \
+			find tests/native -maxdepth 1 -name '*.oren' -print0 | \
+				xargs -0 -n 1 -P "$$jobs" sh -c '\
+					set -e; \
+					t="$$1"; \
 					name=$$(basename "$$t" .oren); \
 					log="build/logs/native_all_$${name}.log"; \
+					: > "$$log"; \
 					echo "Testing $$name..."; \
 					if [ "$(OREN_TEST_TARGET)" != "windows" ]; then \
-						case "$$name" in ffi_windows_*) echo "SKIP: $$name (windows-only)"; exit 0 ;; esac; \
+						case "$$name" in ffi_windows_*) echo "SKIP: $$name (windows-only)"; echo "STATUS: skip (windows-only)" >> "$$log"; exit 0 ;; esac; \
 					fi; \
 					if [ "$(OREN_TEST_TARGET)" != "linux" ]; then \
-						case "$$name" in ffi_linux_*) echo "SKIP: $$name (linux-only)"; exit 0 ;; esac; \
-				fi; \
-				if [ "$$name" = "linux_hello" ]; then \
-						$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build "$$t" --backend native --debug -o "build/$$name" --target linux $(CODESIGN_ARG) $(GC_ARG) > "$$log" 2>&1 || { echo "--- $$name (build) ---"; cat "$$log"; exit 1; }; \
-						file "build/$$name" | grep -q "ELF" || { echo "FAIL: $$name (No ELF)" | tee -a "$$log"; exit 1; }; \
+						case "$$name" in ffi_linux_*) echo "SKIP: $$name (linux-only)"; echo "STATUS: skip (linux-only)" >> "$$log"; exit 0 ;; esac; \
+					fi; \
+					if [ "$$name" = "linux_hello" ]; then \
+						$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build "$$t" --backend native --debug -o "build/$$name" --target linux $(CODESIGN_ARG) $(GC_ARG) >> "$$log" 2>&1 || { echo "STATUS: fail (build)" >> "$$log"; echo "--- $$name (build) ---"; tail -n 200 "$$log"; exit 1; }; \
+						file "build/$$name" | grep -q "ELF" || { echo "STATUS: fail (not ELF)" >> "$$log"; echo "FAIL: $$name (No ELF)" | tee -a "$$log"; exit 1; }; \
 					elif [ "$$name" = "test_debug_panic" ]; then \
-					$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build "$$t" --backend native --debug -o "build/$$name" $(CODESIGN_ARG) $(GC_ARG) > "$$log" 2>&1 || { echo "--- $$name (build) ---"; cat "$$log"; exit 1; }; \
-					outf="build/$$name.out"; \
-					set +e; $(RUN_WITH_TIMEOUT) "./build/$$name" > "$$outf" 2>&1; rc=$$?; set -e; \
-					if [ $$rc -eq 0 ]; then \
-					echo "FAIL: $$name (Expected panic)" | tee -a "$$log"; cat "$$outf"; exit 1; \
-				elif [ $$rc -eq 124 ]; then \
-					echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)" | tee -a "$$log"; cat "$$outf"; exit 1; \
-				fi; \
-				grep -q "Runtime Panic" "$$outf" || { echo "FAIL: $$name (Missing panic header)" | tee -a "$$log"; cat "$$outf"; exit 1; }; \
-				grep -q "__top_level__" "$$outf" || { echo "FAIL: $$name (Missing __top_level__ in stack trace)" | tee -a "$$log"; cat "$$outf"; exit 1; }; \
-				! grep -q "__oren_fnwrap_crash_me (pc=" "$$outf" || { echo "FAIL: $$name (Host frame mis-labeled as program symbol)" | tee -a "$$log"; cat "$$outf"; exit 1; }; \
-				elif [ "$$name" = "test_no_gc_mode" ]; then \
-					$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build "$$t" --backend native --debug --no-gc -o "build/$$name" $(CODESIGN_ARG) > "$$log" 2>&1 || { echo "--- $$name (build) ---"; cat "$$log"; exit 1; }; \
-					$(RUN_WITH_TIMEOUT) "./build/$$name" >> "$$log" 2>&1 || { echo "--- $$name (run) ---"; cat "$$log"; exit 1; }; \
-				else \
-					$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build "$$t" --backend native --debug -o "build/$$name" $(CODESIGN_ARG) $(GC_ARG) > "$$log" 2>&1 || { echo "--- $$name (build) ---"; cat "$$log"; exit 1; }; \
-					$(RUN_WITH_TIMEOUT) "./build/$$name" >> "$$log" 2>&1 || { echo "--- $$name (run) ---"; cat "$$log"; exit 1; }; \
-				fi' sh
+						$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build "$$t" --backend native --debug -o "build/$$name" $(CODESIGN_ARG) $(GC_ARG) >> "$$log" 2>&1 || { echo "STATUS: fail (build)" >> "$$log"; echo "--- $$name (build) ---"; tail -n 200 "$$log"; exit 1; }; \
+						outf="build/$$name.out"; \
+						set +e; $(RUN_WITH_TIMEOUT) "./build/$$name" > "$$outf" 2>&1; rc=$$?; set -e; \
+						cat "$$outf" >> "$$log"; \
+						if [ "$$rc" -eq 0 ]; then \
+							echo "STATUS: fail (expected panic)" >> "$$log"; \
+							echo "FAIL: $$name (Expected panic)" | tee -a "$$log"; \
+							exit 1; \
+						elif [ "$$rc" -eq 124 ]; then \
+							echo "STATUS: fail (timeout)" >> "$$log"; \
+							echo "FAIL: $$name (Timed out after $(TEST_TIMEOUT_SECS)s)" | tee -a "$$log"; \
+							exit 1; \
+						fi; \
+						grep -q "Runtime Panic" "$$outf" || { echo "STATUS: fail (missing panic header)" >> "$$log"; echo "FAIL: $$name (Missing panic header)" | tee -a "$$log"; exit 1; }; \
+						grep -q "__top_level__" "$$outf" || { echo "STATUS: fail (missing __top_level__)" >> "$$log"; echo "FAIL: $$name (Missing __top_level__ in stack trace)" | tee -a "$$log"; exit 1; }; \
+						! grep -q "__oren_fnwrap_crash_me (pc=" "$$outf" || { echo "STATUS: fail (host frame mislabeled)" >> "$$log"; echo "FAIL: $$name (Host frame mis-labeled as program symbol)" | tee -a "$$log"; exit 1; }; \
+					elif [ "$$name" = "test_no_gc_mode" ]; then \
+						$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build "$$t" --backend native --debug --no-gc -o "build/$$name" $(CODESIGN_ARG) >> "$$log" 2>&1 || { echo "STATUS: fail (build)" >> "$$log"; echo "--- $$name (build) ---"; tail -n 200 "$$log"; exit 1; }; \
+						$(RUN_WITH_TIMEOUT) "./build/$$name" >> "$$log" 2>&1 || { echo "STATUS: fail (run)" >> "$$log"; echo "--- $$name (run) ---"; tail -n 200 "$$log"; exit 1; }; \
+					else \
+						$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build "$$t" --backend native --debug -o "build/$$name" $(CODESIGN_ARG) $(GC_ARG) >> "$$log" 2>&1 || { echo "STATUS: fail (build)" >> "$$log"; echo "--- $$name (build) ---"; tail -n 200 "$$log"; exit 1; }; \
+						$(RUN_WITH_TIMEOUT) "./build/$$name" >> "$$log" 2>&1 || { echo "STATUS: fail (run)" >> "$$log"; echo "--- $$name (run) ---"; tail -n 200 "$$log"; exit 1; }; \
+					fi; \
+					echo "STATUS: pass" >> "$$log"' sh; \
+			xargs_rc="$$?"; \
+			set -e; \
+			if [ "$$xargs_rc" -ne 0 ]; then \
+				echo "=== Native Tests (All) FAILED ==="; \
+				echo "Hint: failing logs are under build/logs/native_all_*.log"; \
+				for t in tests/native/*.oren; do \
+					name=$$(basename "$$t" .oren); \
+					if [ "$(OREN_TEST_TARGET)" != "windows" ]; then \
+						case "$$name" in ffi_windows_*) continue ;; esac; \
+					fi; \
+					if [ "$(OREN_TEST_TARGET)" != "linux" ]; then \
+						case "$$name" in ffi_linux_*) continue ;; esac; \
+					fi; \
+					log="build/logs/native_all_$${name}.log"; \
+					grep -q "^STATUS: pass$$" "$$log" 2>/dev/null || { \
+						echo "--- $$name (log tail) ---"; \
+						test -f "$$log" && tail -n 120 "$$log" || echo "(missing log: $$log)"; \
+						echo ""; \
+					}; \
+				done; \
+				exit "$$xargs_rc"; \
+			fi; \
+			echo "Native tests OK"
 
 # Full Verification: Clean -> Bootstrap -> Stage 1 -> Stage 2 -> Validation
 verify: clean oren_stage2

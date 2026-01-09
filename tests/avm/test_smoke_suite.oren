@@ -172,18 +172,18 @@ fn test_int_casts() {
 
 fn test_int_casts_checked() {
     var ok = ints.try_u8(255)
-    assert_true(oren_is_err(ok) == 0)
+    assert_true(oren_is_err(ok) == false)
     assert_eq(ok, 255)
 
     var bad = ints.try_u8(256)
-    assert_true(oren_is_err(bad) != 0)
+    assert_true(oren_is_err(bad) == true)
     assert_eq(oren_err_code(bad), 4)
 
     var uok = ints.try_u64(ints.MAX_I64)
-    assert_true(oren_is_err(uok) == 0)
+    assert_true(oren_is_err(uok) == false)
 
     var ubad = ints.try_u64(ints.MAX_I64 + 1)
-    assert_true(oren_is_err(ubad) != 0)
+    assert_true(oren_is_err(ubad) == true)
 }
 
 fn test_type_annotations_sugar() {
@@ -268,7 +268,7 @@ fn test_float_ops() {
 
 fn test_typed_buffers() {
     var b32 = oren_i32_buf_new(4)
-    assert_true(oren_is_err(b32) == 0)
+    assert_true(oren_is_err(b32) == false)
     assert_eq(oren_buf_len(b32), 4)
     oren_buf_store_i32(b32, 0, -1)
     oren_buf_store_i32(b32, 1, 0)
@@ -276,24 +276,24 @@ fn test_typed_buffers() {
     oren_buf_store_i32(b32, 3, 123456)
     assert_eq(oren_buf_load_i32(b32, 0), -1)
     assert_eq(oren_buf_load_i32(b32, 3), 123456)
-    assert_true(oren_is_err(oren_buf_load_i32(b32, 4)) != 0)
+    assert_true(oren_is_err(oren_buf_load_i32(b32, 4)) == true)
 
     var b64 = oren_i64_buf_new(2)
-    assert_true(oren_is_err(b64) == 0)
+    assert_true(oren_is_err(b64) == false)
     oren_buf_store_i64(b64, 0, 4294967296) // 2^32
     oren_buf_store_i64(b64, 1, -7)
     assert_eq(oren_buf_load_i64(b64, 0), 4294967296)
     assert_eq(oren_buf_load_i64(b64, 1), -7)
 
     var f32b = oren_f32_buf_new(2)
-    assert_true(oren_is_err(f32b) == 0)
+    assert_true(oren_is_err(f32b) == false)
     oren_buf_store_f32(f32b, 0, 1.5)
     oren_buf_store_f32(f32b, 1, 0.25)
     assert_eq(oren_buf_load_f32(f32b, 0), 1.5)
     assert_eq(oren_buf_load_f32(f32b, 1), 0.25)
 
     var f64b = oren_f64_buf_new(2)
-    assert_true(oren_is_err(f64b) == 0)
+    assert_true(oren_is_err(f64b) == false)
     oren_buf_store_f64(f64b, 0, 2.5)
     oren_buf_store_f64(f64b, 1, -0.5)
     assert_eq(oren_buf_load_f64(f64b, 0), 2.5)

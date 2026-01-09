@@ -204,6 +204,80 @@ fn _emit_malloc_size_in_rax(ctx, locals) {
 // x64 no longer carries bespoke list/map intrinsics in the compiler; container ops are
 // implemented by the injected native runtime (shared with arm64) to keep one semantics set.
 
+fn _x64_rt_resolve_g_storage_name(ctx) {
+    // Resolve the runtime's `g_storage` global symbol name once and cache it in ctx.
+    // We use a suffix match because module linking prefixes global names.
+    if ctx == nil { return nil }
+    if ctx["rt_g_storage_name"] != nil { return ctx["rt_g_storage_name"] }
+    if ctx["globals"] == nil { return nil }
+    var match = nil
+    var match_count = 0
+    for k in ctx["globals"] {
+        // ends_with(k, "g_storage")
+        var klen = oren_string_len(k)
+        var suf = "g_storage"
+        var slen = oren_string_len(suf)
+        if klen >= slen {
+            var ok = true
+            var j = 0
+            while j < slen {
+                if oren_string_char_at(k, klen - slen + j) != oren_string_char_at(suf, j) { ok = false; break }
+                j = j + 1
+            }
+            if ok {
+                match = k
+                match_count = match_count + 1
+                if match_count > 1 { break }
+            }
+        }
+    }
+    if match_count == 1 {
+        ctx["rt_g_storage_name"] = match
+        return match
+    }
+    return nil
+}
+
+fn _x64_emit_load_g_storage_ptr_to_reg(ctx, dst_reg) {
+    // dst_reg = g_storage (pointer to runtime globals storage).
+    var gname = _x64_rt_resolve_g_storage_name(ctx)
+    if gname == nil || ctx == nil || ctx["globals"] == nil || ctx["globals"][gname] == nil {
+        err(ctx, "x64 native v0: missing runtime global g_storage")
+        return nil
+    }
+    var goff = ctx["globals"][gname] - 1
+    var lea_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(dst_reg, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": goff})
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(dst_reg, dst_reg))
+    return nil
+}
+
+fn _x64_emit_load_value_singleton(ctx, dst_reg, off) {
+    // Load a runtime value singleton (nil/false/true) into dst_reg.
+    // Uses R10 as a scratch base register.
+    _x64_emit_load_g_storage_ptr_to_reg(ctx, 10)
+    bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(dst_reg, 10, off))
+    return nil
+}
+
+fn _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, falsey_label) {
+    // Branch to `falsey_label` if RAX is falsey by language truthiness rules:
+    // - `nil` is falsey
+    // - `false` is falsey
+    // - everything else is truthy (including int 0)
+    //
+    // Uses R10/R11 as scratch.
+    _x64_emit_load_g_storage_ptr_to_reg(ctx, 10)
+    bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(11, 10, 368)) // r11 = nil
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 11))
+    _emit_jcc_to_label(ctx, local_fixups, "e", falsey_label)
+    bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(11, 10, 376)) // r11 = false
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 11))
+    _emit_jcc_to_label(ctx, local_fixups, "e", falsey_label)
+    return nil
+}
+
 fn _emit_eval_int_to_rax(ctx, expr, locals) {
     // Evaluate a tiny integer expression into RAX (64-bit register).
     // Values are stored/propagated through 64-bit registers and stack slots.
@@ -237,18 +311,112 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         return nil
     }
     if t == "Boolean" {
-        // Map boolean literal to i32 0/1, then sign-extend to rax.
-        var v = expr["value"]
-        var imm = 0
-        if v { imm = 1 }
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, imm))
-        bytes_extend(ctx["code"], insn_cdqe())
+        // Native backend: bool values are represented by runtime singletons stored in globals storage.
+        //
+        // This preserves:
+        // - type-strict equality (`0 != false`)
+        // - truthiness rules (only `nil` and `false` are falsey; `0` is truthy)
+        //
+        // Load:
+        //   rax = g_storage
+        //   rax = *(u64*)(rax + OFF_VALUE_TRUE/FALSE)
+        var gname = nil
+        if ctx != nil && ctx["rt_g_storage_name"] != nil { gname = ctx["rt_g_storage_name"] }
+        if gname == nil {
+            var match = nil
+            var match_count = 0
+            if ctx != nil && ctx["globals"] != nil {
+                for k in ctx["globals"] {
+                    // ends_with(k, "g_storage")
+                    var klen = oren_string_len(k)
+                    var suf = "g_storage"
+                    var slen = oren_string_len(suf)
+                    if klen >= slen {
+                        var ok = true
+                        var j = 0
+                        while j < slen {
+                            if oren_string_char_at(k, klen - slen + j) != oren_string_char_at(suf, j) { ok = false; break }
+                            j = j + 1
+                        }
+                        if ok {
+                            match = k
+                            match_count = match_count + 1
+                            if match_count > 1 { break }
+                        }
+                    }
+                }
+            }
+            if match_count == 1 {
+                gname = match
+                if ctx != nil { ctx["rt_g_storage_name"] = match }
+            }
+        }
+        if gname == nil || ctx == nil || ctx["globals"] == nil || ctx["globals"][gname] == nil {
+            err(ctx, "x64 native v0: missing runtime global g_storage (needed for bool singletons)")
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+            bytes_extend(ctx["code"], insn_cdqe())
+            return nil
+        }
+        var goff = ctx["globals"][gname] - 1
+        // r10 = &global_slot ; rax = *(u64*)r10
+        var lea_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": goff})
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(0, 10))
+
+        var off = 376
+        if expr["value"] { off = 384 }
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(0, 0, off))
         return nil
     }
     if t == "Nil" {
-        // Nil is represented as 0 in the "int as i64 carrier" model.
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-        bytes_extend(ctx["code"], insn_cdqe())
+        // Native backend: `nil` is a runtime singleton stored in globals storage (not raw 0).
+        //
+        // Load:
+        //   rax = g_storage
+        //   rax = *(u64*)(rax + OFF_VALUE_NIL)
+        var gname2 = nil
+        if ctx != nil && ctx["rt_g_storage_name"] != nil { gname2 = ctx["rt_g_storage_name"] }
+        if gname2 == nil {
+            var match2 = nil
+            var match_count2 = 0
+            if ctx != nil && ctx["globals"] != nil {
+                for k2 in ctx["globals"] {
+                    var klen2 = oren_string_len(k2)
+                    var suf2 = "g_storage"
+                    var slen2 = oren_string_len(suf2)
+                    if klen2 >= slen2 {
+                        var ok2 = true
+                        var j2 = 0
+                        while j2 < slen2 {
+                            if oren_string_char_at(k2, klen2 - slen2 + j2) != oren_string_char_at(suf2, j2) { ok2 = false; break }
+                            j2 = j2 + 1
+                        }
+                        if ok2 {
+                            match2 = k2
+                            match_count2 = match_count2 + 1
+                            if match_count2 > 1 { break }
+                        }
+                    }
+                }
+            }
+            if match_count2 == 1 {
+                gname2 = match2
+                if ctx != nil { ctx["rt_g_storage_name"] = match2 }
+            }
+        }
+        if gname2 == nil || ctx == nil || ctx["globals"] == nil || ctx["globals"][gname2] == nil {
+            err(ctx, "x64 native v0: missing runtime global g_storage (needed for nil singleton)")
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+            bytes_extend(ctx["code"], insn_cdqe())
+            return nil
+        }
+        var goff2 = ctx["globals"][gname2] - 1
+        var lea_pos2 = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+        oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos2 + 3, "data_off": goff2})
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(0, 0, 368))
         return nil
     }
     if t == "String" {
@@ -903,41 +1071,67 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         // dedicated call-lowering chunk for reviewability.
         return _emit_generic_call_expr_v0(ctx, expr, locals, nm, args)
     }
-    if t == "Prefix" {
-        var op = expr["op"]
-        var r = expr["right"]
-        if r == nil { err(ctx, "x64 native v0: prefix missing operand"); return nil }
-        if op == "!" {
-            // Boolean-not in expression context: result is 0/1 in RAX.
-            //
-            // - for compare operand: reuse cmp lowering and setcc based on "false"
-            // - otherwise: compare operand to 0 and set if equal
-            if _cond_is_cmp_infix(r) != nil {
-                // Float compares require IEEE-aware lowering (ucomisd + unordered handling).
-                if _x64_expr_is_floaty(ctx, r["left"]) || _x64_expr_is_floaty(ctx, r["right"]) {
-                    _emit_float_cmp_to_bool_x64(ctx, r["op"], r["left"], r["right"], locals)
-                    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-                    // Invert the boolean (0/1).
-                    bytes_extend(ctx["code"], insn_xor_r64_imm32(0, 1))
-                    return nil
-                }
-                _emit_cmp_from_cond(ctx, r, locals)
-                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-                var cc0 = _cond_false_cc(r["op"])
-                if cc0 == nil { err(ctx, "x64 native v0: unsupported compare op for !"); return nil }
-                bytes_extend(ctx["code"], insn_setcc_al(cc0))
-                bytes_extend(ctx["code"], insn_cdqe())
-                return nil
-            }
-            _emit_eval_int_to_rax(ctx, r, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-            bytes_extend(ctx["code"], insn_setcc_al("e"))
-            bytes_extend(ctx["code"], insn_cdqe())
-            return nil
-        }
+	    if t == "Prefix" {
+	        var op = expr["op"]
+	        var r = expr["right"]
+	        if r == nil { err(ctx, "x64 native v0: prefix missing operand"); return nil }
+	        if op == "!" {
+	            // Boolean-not in expression context: result is a BOOL runtime singleton in RAX.
+	            //
+	            // Semantics: language truthiness (only `nil` and `false` are falsey).
+	            // This is intentionally different from `oren_bool_norm` which uses numeric semantics.
+	            var labels = {}
+	            var local_fixups = []
+	            var l_true = _new_label(ctx, "not_true")
+	            var l_done = _new_label(ctx, "not_done")
+	            if _cond_is_cmp_infix(r) != nil {
+	                // Float compares require IEEE-aware lowering (ucomisd + unordered handling).
+	                if _x64_expr_is_floaty(ctx, r["left"]) || _x64_expr_is_floaty(ctx, r["right"]) {
+	                    _emit_float_cmp_to_bool_x64(ctx, r["op"], r["left"], r["right"], locals)
+	                    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+	                    // Invert the boolean (0/1).
+	                    bytes_extend(ctx["code"], insn_xor_r64_imm32(0, 1))
+	                    // Map 0/1 => false/true singleton.
+	                    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+	                    _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)
+	                    _x64_emit_load_value_singleton(ctx, 0, 376) // false
+	                    _emit_jmp_to_label(ctx, local_fixups, l_done)
+	                    _emit_label(ctx, labels, l_true)
+	                    _x64_emit_load_value_singleton(ctx, 0, 384) // true
+	                    _emit_label(ctx, labels, l_done)
+	                    _patch_local_fixups(ctx, labels, local_fixups)
+	                    return nil
+	                }
+	                _emit_cmp_from_cond(ctx, r, locals)
+	                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+	                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+	                var cc0 = _cond_false_cc(r["op"])
+	                if cc0 == nil { err(ctx, "x64 native v0: unsupported compare op for !"); return nil }
+	                bytes_extend(ctx["code"], insn_setcc_al(cc0))
+	                bytes_extend(ctx["code"], insn_cdqe())
+	                // Map 0/1 => false/true singleton.
+	                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+	                _emit_jcc_to_label(ctx, local_fixups, "ne", l_true)
+	                _x64_emit_load_value_singleton(ctx, 0, 376) // false
+	                _emit_jmp_to_label(ctx, local_fixups, l_done)
+	                _emit_label(ctx, labels, l_true)
+	                _x64_emit_load_value_singleton(ctx, 0, 384) // true
+	                _emit_label(ctx, labels, l_done)
+	                _patch_local_fixups(ctx, labels, local_fixups)
+	                return nil
+	            }
+	            _emit_eval_int_to_rax(ctx, r, locals)
+	            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+	            // If operand is falsey => result true else false.
+	            _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, l_true)
+	            _x64_emit_load_value_singleton(ctx, 0, 376) // false
+	            _emit_jmp_to_label(ctx, local_fixups, l_done)
+	            _emit_label(ctx, labels, l_true)
+	            _x64_emit_load_value_singleton(ctx, 0, 384) // true
+	            _emit_label(ctx, labels, l_done)
+	            _patch_local_fixups(ctx, labels, local_fixups)
+	            return nil
+	        }
         _emit_eval_int_to_rax(ctx, r, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         if op == "-" {
@@ -974,76 +1168,94 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             var handled = _emit_infix_add_or_string_concat_x64(ctx, expr, locals)
             if handled == 1 { return nil }
         }
-        if op == "&&" || op == "||" {
-            // Short-circuit boolean operators.
-            //
-            // Semantics: truthiness, but result is normalized to 0/1 in RAX.
-            //
-            // NOTE: we patch the local Jcc/Jmp fixups immediately within this expression
-            // lowering, so callers don't need to plumb label/fixup state.
-            var labels = {}
-            var local_fixups = []
-            var l_short = _new_label(ctx, "sc_l")
-            var end = _new_label(ctx, "sc_end")
+	        if op == "&&" || op == "||" {
+	            // Short-circuit boolean operators (expression context).
+	            //
+	            // Semantics:
+	            // - evaluate operands using language truthiness rules
+	            // - return BOOL runtime singleton (true/false)
+	            //
+	            // NOTE: we patch the local Jcc/Jmp fixups immediately within this expression lowering.
+	            var labels = {}
+	            var local_fixups = []
+	            var l_rhs = _new_label(ctx, "sc_rhs")
+	            var l_false = _new_label(ctx, "sc_false")
+	            var end = _new_label(ctx, "sc_end")
 
-            _emit_eval_int_to_rax(ctx, l, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+	            _emit_eval_int_to_rax(ctx, l, locals)
+	            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
-            if op == "&&" {
-                // if lhs == 0 => result 0, skip rhs
-                _emit_jcc_to_label(ctx, local_fixups, "e", l_short)
+	            if op == "&&" {
+	                // If lhs is falsey => false, else evaluate rhs and return truthiness(rhs).
+	                _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, l_false)
+	                _emit_eval_int_to_rax(ctx, r, locals)
+	                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+	                _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, l_false)
+	                _x64_emit_load_value_singleton(ctx, 0, 384) // true
+	                _emit_jmp_to_label(ctx, local_fixups, end)
 
-                _emit_eval_int_to_rax(ctx, r, locals)
-                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-                bytes_extend(ctx["code"], insn_setcc_al("ne"))
-                bytes_extend(ctx["code"], insn_cdqe())
-                _emit_jmp_to_label(ctx, local_fixups, end)
+	                _emit_label(ctx, labels, l_false)
+	                _x64_emit_load_value_singleton(ctx, 0, 376) // false
+	                _emit_label(ctx, labels, end)
+	                _patch_local_fixups(ctx, labels, local_fixups)
+	                return nil
+	            }
 
-                _emit_label(ctx, labels, l_short)
-                bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-                bytes_extend(ctx["code"], insn_cdqe())
-                _emit_label(ctx, labels, end)
-                _patch_local_fixups(ctx, labels, local_fixups)
-                return nil
-            }
+	            // op == "||"
+	            // If lhs is falsey => eval rhs, else true.
+	            _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, l_rhs)
+	            _x64_emit_load_value_singleton(ctx, 0, 384) // true
+	            _emit_jmp_to_label(ctx, local_fixups, end)
 
-            // op == "||"
-            // if lhs != 0 => result 1, skip rhs
-            _emit_jcc_to_label(ctx, local_fixups, "ne", l_short)
+	            _emit_label(ctx, labels, l_rhs)
+	            _emit_eval_int_to_rax(ctx, r, locals)
+	            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+	            _x64_emit_jcc_if_rax_falsey(ctx, local_fixups, l_false)
+	            _x64_emit_load_value_singleton(ctx, 0, 384) // true
+	            _emit_jmp_to_label(ctx, local_fixups, end)
 
-            _emit_eval_int_to_rax(ctx, r, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-            bytes_extend(ctx["code"], insn_setcc_al("ne"))
-            bytes_extend(ctx["code"], insn_cdqe())
-            _emit_jmp_to_label(ctx, local_fixups, end)
-
-            _emit_label(ctx, labels, l_short)
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))
-            bytes_extend(ctx["code"], insn_cdqe())
-            _emit_label(ctx, labels, end)
-            _patch_local_fixups(ctx, labels, local_fixups)
-            return nil
-        }
-        if _cond_is_cmp_infix(expr) != nil {
-            // Compare-expression lowering: result is 0/1 in RAX (bool-as-int).
-            if _x64_expr_is_floaty(ctx, l) || _x64_expr_is_floaty(ctx, r) {
-                _emit_float_cmp_to_bool_x64(ctx, op, l, r, locals)
-                return nil
-            }
-            _emit_cmp_from_cond(ctx, expr, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-            var cc1 = _cond_true_cc(op)
-            if cc1 == nil { err(ctx, "x64 native v0: unsupported compare op"); return nil }
-            bytes_extend(ctx["code"], insn_setcc_al(cc1))
-            bytes_extend(ctx["code"], insn_cdqe())
-            return nil
-        }
+	            _emit_label(ctx, labels, l_false)
+	            _x64_emit_load_value_singleton(ctx, 0, 376) // false
+	            _emit_label(ctx, labels, end)
+	            _patch_local_fixups(ctx, labels, local_fixups)
+	            return nil
+	        }
+	        if _cond_is_cmp_infix(expr) != nil {
+	            if _x64_expr_is_floaty(ctx, l) || _x64_expr_is_floaty(ctx, r) {
+	                _emit_float_cmp_to_bool_x64(ctx, op, l, r, locals)
+	                // Map 0/1 => false/true singleton.
+	                var labels2 = {}
+	                var local_fixups2 = []
+	                var l_true2 = _new_label(ctx, "cmp_true")
+	                var l_done2 = _new_label(ctx, "cmp_done")
+	                bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+	                _emit_jcc_to_label(ctx, local_fixups2, "ne", l_true2)
+	                _x64_emit_load_value_singleton(ctx, 0, 376) // false
+	                _emit_jmp_to_label(ctx, local_fixups2, l_done2)
+	                _emit_label(ctx, labels2, l_true2)
+	                _x64_emit_load_value_singleton(ctx, 0, 384) // true
+	                _emit_label(ctx, labels2, l_done2)
+	                _patch_local_fixups(ctx, labels2, local_fixups2)
+	                return nil
+	            }
+	            _emit_cmp_from_cond(ctx, expr, locals)
+	            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+	            var cc1 = _cond_true_cc(op)
+	            if cc1 == nil { err(ctx, "x64 native v0: unsupported compare op"); return nil }
+	            // Map cmp flags => false/true singleton.
+	            var labels3 = {}
+	            var local_fixups3 = []
+	            var l_true3 = _new_label(ctx, "cmp_true")
+	            var l_done3 = _new_label(ctx, "cmp_done")
+	            _emit_jcc_to_label(ctx, local_fixups3, cc1, l_true3)
+	            _x64_emit_load_value_singleton(ctx, 0, 376) // false
+	            _emit_jmp_to_label(ctx, local_fixups3, l_done3)
+	            _emit_label(ctx, labels3, l_true3)
+	            _x64_emit_load_value_singleton(ctx, 0, 384) // true
+	            _emit_label(ctx, labels3, l_done3)
+	            _patch_local_fixups(ctx, labels3, local_fixups3)
+	            return nil
+	        }
 
         if op == "%" {
             // Deterministic modulo semantics are implemented in the injected runtime helper `oren_mod`.

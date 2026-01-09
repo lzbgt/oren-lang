@@ -32,12 +32,14 @@ fn insn_add_reg(rd, rn, rm) { return core.insn_add_reg(rd, rn, rm) }
 fn insn_and_reg(rd, rn, rm) { return core.insn_and_reg(rd, rn, rm) }
 fn insn_b(off) { return core.insn_b(off) }
 fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
-fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
-fn insn_ldp_post() { return core.insn_ldp_post() }
-fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
-fn insn_ldur_reg(rt, rn, offset) { return core.insn_ldur_reg(rt, rn, offset) }
-fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }
-fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
+	fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
+	fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
+	fn insn_ldr_ptr_off(rd, rn, offset) { return core.insn_ldr_ptr_off(rd, rn, offset) }
+	fn insn_ldp_post() { return core.insn_ldp_post() }
+	fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
+	fn insn_ldur_reg(rt, rn, offset) { return core.insn_ldur_reg(rt, rn, offset) }
+	fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }
+	fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
 fn insn_mov_sp_fp() { return core.insn_mov_sp_fp() }
 fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
 fn insn_mul(rd, rn, rm) { return core.insn_mul(rd, rn, rm) }
@@ -55,9 +57,99 @@ fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, 
 fn emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) { return core.emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) }
 fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, val) }
 
-// Delegate expression compilation to the expr module.
-fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) }
-fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
+	// Delegate expression compilation to the expr module.
+	fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) }
+	fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
+
+	fn _arm64_rt_resolve_g_storage_name(ctx) {
+	    // Resolve the runtime's `g_storage` global symbol name once and cache it in ctx.
+	    // We use a suffix match because module linking prefixes global names.
+	    if ctx == nil { return nil }
+	    var gname = ctx["rt_g_storage_name"]
+	    if gname != nil { return gname }
+	    if ctx["globals"] == nil { return nil }
+	    var match = nil
+	    var match_count = 0
+	    for k in ctx["globals"] {
+	        // ends_with(k, "g_storage")
+	        var klen = oren_string_len(k)
+	        var slen = 9
+	        if klen >= slen {
+	            var ok = true
+	            var j = 0
+	            while j < slen {
+	                if oren_string_char_at(k, klen - slen + j) != oren_string_char_at("g_storage", j) { ok = false; break }
+	                j = j + 1
+	            }
+	            if ok {
+	                match = k
+	                match_count = match_count + 1
+	                if match_count > 1 { break }
+	            }
+	        }
+	    }
+	    if match_count == 1 {
+	        ctx["rt_g_storage_name"] = match
+	        return match
+	    }
+	    return nil
+	}
+
+	fn _arm64_emit_load_g_storage_ptr(ctx, tok, dst_reg) {
+	    // dst_reg = g_storage (pointer to runtime globals storage).
+	    var gname = _arm64_rt_resolve_g_storage_name(ctx)
+	    if gname == nil || ctx == nil || ctx["globals"] == nil || ctx["globals"][gname] == nil {
+	        native_error(ctx, tok, "native backend: missing runtime global g_storage")
+	        push_u32_le(ctx["code"], insn_movz(dst_reg, 0))
+	        return nil
+	    }
+	    var goff = ctx["globals"][gname] - 1
+	    var adr_pos = bytes_len(ctx["code"])
+	    push_u32_le(ctx["code"], 0)
+	    push_u32_le(ctx["code"], 0)
+	    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": goff, "reg": dst_reg})
+	    push_u32_le(ctx["code"], insn_ldr_ptr(dst_reg, dst_reg))
+	    return nil
+	}
+
+	fn _arm64_emit_truthy_norm_in_x0(ctx, tok) {
+	    // Normalize the value in X0 to a raw 0/1 truthiness bit (stored in X0),
+	    // using language truthiness rules:
+	    // - `nil` is falsey
+	    // - `false` is falsey
+	    // - everything else is truthy (including int 0)
+	    //
+	    // This helper is used in statement conditions (if/while/for) where the
+	    // exact input value is not needed after branching.
+	    //
+	    // Scratch regs: X9..X11.
+	    _arm64_emit_load_g_storage_ptr(ctx, tok, 9) // X9 = g_storage
+	    push_u32_le(ctx["code"], insn_ldr_ptr_off(10, 9, 368)) // X10 = nil singleton
+	    push_u32_le(ctx["code"], insn_ldr_ptr_off(11, 9, 376)) // X11 = false singleton
+
+	    push_u32_le(ctx["code"], insn_cmp_reg(0, 10))
+	    var br_false0 = bytes_len(ctx["code"])
+	    push_u32_le(ctx["code"], 0)
+
+	    push_u32_le(ctx["code"], insn_cmp_reg(0, 11))
+	    var br_false1 = bytes_len(ctx["code"])
+	    push_u32_le(ctx["code"], 0)
+
+	    // truthy => X0 = 1
+	    push_u32_le(ctx["code"], insn_movz(0, 1))
+	    var br_done = bytes_len(ctx["code"])
+	    push_u32_le(ctx["code"], 0)
+
+	    // falsey => X0 = 0
+	    var false_pos = bytes_len(ctx["code"])
+	    push_u32_le(ctx["code"], insn_movz(0, 0))
+
+	    var done_pos = bytes_len(ctx["code"])
+	    set_u32_le(ctx["code"], br_false0, insn_b_cond((false_pos - br_false0) / 4, 0)) // EQ
+	    set_u32_le(ctx["code"], br_false1, insn_b_cond((false_pos - br_false1) / 4, 0)) // EQ
+	    set_u32_le(ctx["code"], br_done, insn_b((done_pos - br_done) / 4))
+	    return nil
+	}
 
 fn _arm64_str_eq_bytes(a, b) {
     // Stable string equality for compiler passes.
@@ -459,7 +551,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
         return nil
     }
     
-    if stmt["type"] == "For" {
+	    if stmt["type"] == "For" {
         // Native `for`:
         // - init runs once
         // - cond checked before each iteration (nil => true)
@@ -483,15 +575,16 @@ fn native_compile_stmt_inner(ctx, stmt) {
         var loop = {"prev": prev_loop, "base_stack": loop_base_stack, "start_pos": start_pos, "continue_pos": nil, "break_jumps": [], "continue_jumps": []}
         ctx["loop_ctx"] = loop
 
-        // Condition (nil => true)
-        if stmt["cond"] != nil {
-            native_compile_expr(ctx, stmt["cond"])
-        } else {
-            push_u32_le(ctx["code"], insn_movz(0, 1))
-        }
-        push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
-        var jump_end_pos = bytes_len(ctx["code"])
-        push_u32_le(ctx["code"], 0)
+	        // Condition (nil => true)
+	        if stmt["cond"] != nil {
+	            native_compile_expr(ctx, stmt["cond"])
+	        } else {
+	            push_u32_le(ctx["code"], insn_movz(0, 1))
+	        }
+	        _arm64_emit_truthy_norm_in_x0(ctx, stmt["token"])
+	        push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+	        var jump_end_pos = bytes_len(ctx["code"])
+	        push_u32_le(ctx["code"], 0)
 
         // GC safepoint on loop entry (parity with C backend), throttled for performance.
         // Call once per 256 iterations by default.
@@ -719,7 +812,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
         return nil
     }
     
-    if stmt["type"] == "While" {
+	    if stmt["type"] == "While" {
         // GC tick local for throttling safepoints (u64 at SP+0 when at loop base).
         push_u32_le(ctx["code"], insn_sub_sp(16))
         ctx["stack_size"] = ctx["stack_size"] + 16
@@ -733,9 +826,10 @@ fn native_compile_stmt_inner(ctx, stmt) {
         var loop = {"prev": prev_loop, "base_stack": loop_base_stack, "start_pos": start_pos, "continue_pos": start_pos, "break_jumps": [], "continue_jumps": []}
         ctx["loop_ctx"] = loop
         
-        native_compile_expr(ctx, stmt["cond"])
-        
-        push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+	        native_compile_expr(ctx, stmt["cond"])
+	        _arm64_emit_truthy_norm_in_x0(ctx, stmt["token"])
+	        
+	        push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
         
         var jump_end_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0) 
@@ -791,12 +885,13 @@ fn native_compile_stmt_inner(ctx, stmt) {
     if stmt["type"] == "ExprStmt" {
         var expr = stmt["expr"]
         
-        if expr["type"] == "If" {
+	        if expr["type"] == "If" {
             var base_stack = ctx["stack_size"]
             
-            native_compile_expr(ctx, expr["cond"])
-            
-            push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+	            native_compile_expr(ctx, expr["cond"])
+	            _arm64_emit_truthy_norm_in_x0(ctx, expr["token"])
+	            
+	            push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
             
             var jump_else_pos = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0) 

@@ -31,13 +31,13 @@ fn test_validate_ok() {
     var h = bt["h"]
     var cmds = ui_render.render(root, nil)
     var r = ui_cmds.validate(cmds, w, h, {"strict_bounds": true})
-    assert_true(oren_is_err(r) == 0)
+    assert_true(oren_is_err(r) == false)
 }
 
 fn test_validate_bad_color() {
     var cmds = [{"op": "fill_rect", "x": 0, "y": 0, "w": 1, "h": 1, "color": "red"}]
     var r = ui_cmds.validate(cmds, 2, 2, {"strict_bounds": true})
-    assert_true(oren_is_err(r) != 0)
+    assert_true(oren_is_err(r) == true)
 }
 
 fn main() {
@@ -45,4 +45,3 @@ fn main() {
     test_validate_bad_color()
     exit(0)
 }
-

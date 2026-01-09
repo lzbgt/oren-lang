@@ -529,7 +529,13 @@ fn native_alloc_index_init_min(min_cap) {
     var cap = 1024
     if min_cap != nil && min_cap > cap { cap = min_cap }
     // Ensure power-of-two cap (keep it simple: round up by doubling).
-    while cap & (cap - 1) != 0 { cap = cap * 2 }
+    //
+    // IMPORTANT:
+    // Parenthesize the bit-test so it parses as:
+    //   (cap & (cap - 1)) != 0
+    // rather than:
+    //   cap & ((cap - 1) != 0)
+    while (cap & (cap - 1)) != 0 { cap = cap * 2 }
     var table = native_alloc_index_mmap_table(cap * 8)
     if table == 0 { return 0 }
     native_alloc_index_clear(table, cap)

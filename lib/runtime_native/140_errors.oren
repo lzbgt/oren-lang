@@ -16,24 +16,25 @@ fn oren_is_err(v) {
     // Safe for arbitrary ints:
     // - integers can be >= 4096 (e.g. 16909060), so we must NOT probe memory
     //   at `v+24` unless `v` is a tracked heap pointer.
-    if v == 0 { return 0 }
+    if v == 0 { return false }
     var node = oren_find_node(v)
-    if node == 0 { return 0 }
+    if node == 0 { return false }
     // Prevent false positives: strings/lists/bufs are also tracked heap pointers, but do not
     // share the map header layout. Only maps (kind=3) can be structured errors.
-    if ptr_get(iadd(node, 16)) != 3 { return 0 }
-    if ptr_get(v + 24) != map_magic() { return 0 }
+    if ptr_get(iadd(node, 16)) != 3 { return false }
+    if ptr_get(v + 24) != map_magic() { return false }
     var marker = oren_map_get_str(v, "__err")
-    if marker == 0 { return 0 }
-    return 1
+    // Missing key returns `nil` under the native backend (singleton pointer), not integer 0.
+    if marker == nil { return false }
+    return true
 }
 
 fn oren_err_code(v) {
-    if oren_is_err(v) == 0 { return -1 }
+    if oren_is_err(v) != true { return -1 }
     return oren_map_get_str(v, "code")
 }
 
 fn oren_err_msg(v) {
-    if oren_is_err(v) == 0 { return 0 }
+    if oren_is_err(v) != true { return nil }
     return oren_map_get_str(v, "msg")
 }

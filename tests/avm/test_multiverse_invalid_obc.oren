@@ -16,11 +16,11 @@ fn main() {
     //
     // Feed clearly-invalid `.obc` bytes to the AVM domain call.
     var bad = oren_bytes_from_hex("00ff0102")
-    assert_true(oren_is_err(bad) == 0)
+    assert_true(oren_is_err(bad) == false)
 
     var cfg = {"deterministic": true, "gas_limit": 100000}
     var r = oren_avm_run_obc_bytes(bad, cfg)
-    assert_true(oren_is_err(r) != 0)
+    assert_true(oren_is_err(r) == true)
 
     var msg = oren_err_msg(r)
     assert_true(msg != nil)
@@ -29,4 +29,3 @@ fn main() {
 }
 
 main()
-

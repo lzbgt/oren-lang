@@ -51,7 +51,7 @@ fn oren_intern_cstr(cstr_ptr) {
     //
     // Input:  cstr_ptr: raw pointer to NUL-terminated bytes (must be readable)
     // Output: heap pointer to a tracked string allocation (kind=STRING)
-    if cstr_ptr == 0 { return 0 }
+    if cstr_ptr == 0 || native_value_is_nil(cstr_ptr) { return native_value_nil() }
     if cstr_ptr < 4096 { oren_panic("intern_cstr: pointer too small") }
 
     // String literals already live in the native binary's data segment (cstr0 pool) and are
@@ -87,7 +87,7 @@ fn oren_intern_cstr(cstr_ptr) {
 }
 
 fn oren_string_len(s) {
-    if s == 0 { return 0 }
+    if s == 0 || native_value_is_nil(s) { return 0 }
     var i = 0
     while ptr_get_byte(iadd(s, i)) != 0 {
         i = iadd(i, 1)
@@ -102,7 +102,7 @@ fn oren_is_string(v) {
 }
 
 fn oren_string_char_at(s, idx) {
-    if s == 0 { oren_panic("char_at expects string") }
+    if s == 0 || native_value_is_nil(s) { oren_panic("char_at expects string") }
     var len = oren_string_len(s)
     if idx < 0 || idx >= len {
         oren_panic("char_at index out of range")
@@ -113,7 +113,7 @@ fn oren_string_char_at(s, idx) {
 fn oren_string_char_at_unchecked(s, idx) {
     // Tooling fast path: caller guarantees bounds by checking against a known length.
     // Avoids an O(n) `oren_string_len` per character, which is catastrophic for lexing.
-    if s == 0 { oren_panic("char_at_unchecked expects string") }
+    if s == 0 || native_value_is_nil(s) { oren_panic("char_at_unchecked expects string") }
     if idx < 0 { oren_panic("char_at_unchecked index out of range") }
     return _oren_string_from_single_byte(ptr_get_byte(iadd(s, idx)))
 }
@@ -121,13 +121,13 @@ fn oren_string_char_at_unchecked(s, idx) {
 fn oren_string_byte_at_unchecked(s, idx) {
     // Tooling fast path: return the raw byte (0..255) at `idx` without bounds checks.
     // Caller guarantees bounds by checking against a known string length.
-    if s == 0 { oren_panic("string_byte_at_unchecked expects string") }
+    if s == 0 || native_value_is_nil(s) { oren_panic("string_byte_at_unchecked expects string") }
     if idx < 0 { oren_panic("string_byte_at_unchecked index out of range") }
     return ptr_get_byte(iadd(s, idx)) & 255
 }
 
 fn oren_string_char_code_at(s, idx) {
-    if s == 0 { oren_panic("char_code_at expects string") }
+    if s == 0 || native_value_is_nil(s) { oren_panic("char_code_at expects string") }
     var len = oren_string_len(s)
     if idx < 0 || idx >= len {
         oren_panic("char_code_at index out of range")
@@ -162,7 +162,7 @@ fn oren_string_to_float_bits(s) {
     // Notes:
     // - This is a pragmatic parser for compiler use. It prioritizes determinism and
     //   coverage of typical source literals over extreme edge-case performance.
-    if s == 0 { oren_panic("string_to_float_bits expects string") }
+    if s == 0 || native_value_is_nil(s) { oren_panic("string_to_float_bits expects string") }
 
     // Skip leading whitespace (best-effort).
     var i = 0
@@ -344,7 +344,7 @@ fn oren_string_to_float_bits(s) {
 // Slice a C-string into a newly allocated, NUL-terminated string.
 // Semantics match the C-backend helper: out-of-range clamps, empty slice returns "".
 fn oren_string_slice(s, start, end) {
-    if s == 0 { return 0 }
+    if s == 0 || native_value_is_nil(s) { return native_value_nil() }
     var len = oren_string_len(s)
     var i = start
     var j = end
@@ -381,7 +381,7 @@ fn oren_string_slice(s, start, end) {
 // This avoids the O(n) `oren_string_len` scan that makes some compiler-side string
 // processing (include expansion) accidentally O(n^2).
 fn oren_string_slice_unchecked(s, start, end) {
-    if s == 0 { return 0 }
+    if s == 0 || native_value_is_nil(s) { return native_value_nil() }
     var i = start
     var j = end
     if i < 0 { i = 0 }
@@ -408,7 +408,7 @@ fn oren_string_slice_unchecked(s, start, end) {
 // Parse a non-negative decimal integer from a C-string (best-effort).
 // Returns -1 on invalid input.
 fn oren_int_from_string(s) {
-    if s == 0 { return -1 }
+    if s == 0 || native_value_is_nil(s) { return -1 }
     var i = 0
     var v = 0
     var any = 0

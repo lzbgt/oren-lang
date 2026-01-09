@@ -1222,7 +1222,7 @@ fn negotiated_alpn(conn) {
         free(ap)
         // Best-effort: treat as "not negotiated / not supported".
         // Some Schannel versions may not support this attribute, or may fail if ALPN wasn't negotiated.
-        return {"ok": 1, "v": 0}
+        return {"ok": 1, "v": nil}
     }
 
     var status = oren_ptr_get_u32_le(ap + 0)
@@ -1232,13 +1232,13 @@ fn negotiated_alpn(conn) {
     // - 0 None, 1 Success, 2 SelectedClientOnly
     if status == 0 || n <= 0 {
         free(ap)
-        return {"ok": 1, "v": 0}
+        return {"ok": 1, "v": nil}
     }
     // ext:
     // - 0 None, 1 NPN, 2 ALPN
     if ext != 2 {
         free(ap)
-        return {"ok": 1, "v": 0}
+        return {"ok": 1, "v": nil}
     }
     if n > 255 { n = 255 }
 

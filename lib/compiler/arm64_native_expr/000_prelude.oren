@@ -229,6 +229,7 @@ fn insn_ldr_q(vt, rn) { return core.insn_ldr_q(vt, rn) }
 fn insn_str_q(vt, rn) { return core.insn_str_q(vt, rn) }
 fn insn_str_q_off(vt, rn, offset) { return core.insn_str_q_off(vt, rn, offset) }
 fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
+fn insn_ldr_ptr_off(rd, rn, offset) { return core.insn_ldr_ptr_off(rd, rn, offset) }
 fn insn_str_ptr(rd, rn) { return core.insn_str_ptr(rd, rn) }
 fn insn_ldr_w(rt, rn, offset) { return core.insn_ldr_w(rt, rn, offset) }
 fn insn_str_w(rt, rn, offset) { return core.insn_str_w(rt, rn, offset) }

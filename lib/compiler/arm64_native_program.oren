@@ -35,6 +35,7 @@ fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
 fn insn_add_reg(rd, rn, rm) { return core.insn_add_reg(rd, rn, rm) }
 fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
 fn insn_ldr_ptr(rt, rn) { return core.insn_ldr_ptr(rt, rn) }
+fn insn_ldr_ptr_off(rt, rn, offset) { return core.insn_ldr_ptr_off(rt, rn, offset) }
 fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
 fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }
 fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
@@ -43,6 +44,7 @@ fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
 fn insn_mul(rd, rn, rm) { return core.insn_mul(rd, rn, rm) }
 fn insn_stp_pre() { return core.insn_stp_pre() }
 fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
+fn insn_str_ptr(rt, rn) { return core.insn_str_ptr(rt, rn) }
 fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
 fn insn_sub_reg(rd, rn, rm) { return core.insn_sub_reg(rd, rn, rm) }
 fn insn_svc(imm) { return core.insn_svc(imm) }
@@ -171,6 +173,26 @@ fn _arm64_new_ctx(linked, platform) {
     var z = 0
     while z < 8 { bytes_push(ctx["data"], 0); z = z + 1 }
     ctx["cstr0_table_slot_enc"] = cstr_slot_off + 1
+
+    // Tier‑1 bootstrap: reserve a stable slot for the runtime's `g_storage` global and a
+    // small boot globals storage blob used before `native_runtime_init` runs.
+    //
+    // IMPORTANT:
+    // - This must be part of the runtime object `.data` prefix so offsets match across cache hits.
+    // - The entry stub writes:
+    //     g_storage = &boot_globals_storage
+    //     boot_globals_storage[value_nil/false/true] = distinct pointers within the blob
+    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var g_storage_slot_off = bytes_len(ctx["data"])
+    z = 0
+    while z < 8 { bytes_push(ctx["data"], 0); z = z + 1 }
+    if ctx["globals"] != nil { ctx["globals"]["g_storage"] = g_storage_slot_off + 1 }
+
+    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var boot_off = bytes_len(ctx["data"])
+    z = 0
+    while z < 512 { bytes_push(ctx["data"], 0); z = z + 1 }
+    ctx["boot_globals_storage_off_enc"] = boot_off + 1
 
     return ctx
 }
@@ -809,17 +831,26 @@ fn _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts) {
     var user_decls = split["user_decls"]
     var user_vars = split["user_vars"]
     var user_exec = split["user_exec"]
+    var user_ordered = split["user_ordered"]
     if runtime_decls == nil { runtime_decls = [] }
     if runtime_vars == nil { runtime_vars = [] }
     if user_decls == nil { user_decls = [] }
     if user_vars == nil { user_vars = [] }
     if user_exec == nil { user_exec = [] }
+    if user_ordered == nil { user_ordered = [] }
 
     // Allocate runtime globals (zero-initialized; runtime init owns their values).
     var i = 0
     while i < oren_list_len(runtime_vars) {
         var st = runtime_vars[i]
         if st != nil {
+            // `g_storage` is reserved in the native entry stub `.data` prefix (Tier‑1 bootstrap).
+            var nm_pre = nil
+            if st["name"] != nil { nm_pre = st["name"]["value"] }
+            if nm_pre == "g_storage" && ctx["globals"] != nil && ctx["globals"][nm_pre] != nil {
+                i = i + 1
+                continue
+            }
             _arm64_alloc_global_slot(ctx, st["name"], st["value"], true)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         }
@@ -837,14 +868,23 @@ fn _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts) {
         i = i + 1
     }
 
-    var init_stmts = nt.user_global_init_assign_stmts(user_vars)
-
-    // Synthesize: `fn __top_level__() { <init_stmts>; <other_stmts>; return 0 }`
+    // Synthesize: `fn __top_level__() { <stmts in source order>; return 0 }`
+    //
+    // IMPORTANT:
+    // Preserve source order across `var` initializers and executable top-level statements.
+    // We rewrite `var x = expr` into a global-slot assignment at the same position.
     var top_stmts = []
     var j = 0
-    while j < oren_list_len(init_stmts) { oren_list_push(top_stmts, init_stmts[j]); j = j + 1 }
-    j = 0
-    while j < oren_list_len(user_exec) { oren_list_push(top_stmts, user_exec[j]); j = j + 1 }
+    while j < oren_list_len(user_ordered) {
+        var stx = user_ordered[j]
+        if stx != nil && stx["type"] == "Var" {
+            // Execute global initializer in-order.
+            oren_list_push(top_stmts, {"type": "Assign", "token": stx["token"], "name": stx["name"], "value": stx["value"]})
+        } else {
+            oren_list_push(top_stmts, stx)
+        }
+        j = j + 1
+    }
     oren_list_push(top_stmts, {"type": "Return", "token": nil, "value": {"type": "Integer", "value": "0"}})
 
     var top_fn = {"type": "Function", "token": nil, "name": "__top_level__", "params": [], "body": {"type": "Block", "stmts": top_stmts}}
@@ -924,6 +964,51 @@ fn native_compile_program_arm64(linked, platform) {
     // Init Heap Globals (X28=ptr, X27=limit) to 0 before any runtime calls.
     push_u32_le(ctx["code"], insn_movz(28, 0))
     push_u32_le(ctx["code"], insn_movz(27, 0))
+
+    // Tier‑1 bootstrap: initialize the runtime globals storage pointer (`g_storage`) and the
+    // nil/bool singleton slots before calling into `native_runtime_init`.
+    //
+    // This prevents early segfaults in boolean operations that load `value_false` / `value_true`
+    // from globals storage during runtime init.
+    if ctx["globals"] == nil || ctx["globals"]["g_storage"] == nil {
+        oren_list_push(ctx["errors"], "arm64 native: missing reserved global slot g_storage (Tier-1 bootstrap)")
+        return nil
+    }
+    if ctx["boot_globals_storage_off_enc"] == nil {
+        oren_list_push(ctx["errors"], "arm64 native: missing boot globals storage offset (Tier-1 bootstrap)")
+        return nil
+    }
+    var g_storage_off = ctx["globals"]["g_storage"] - 1
+    var boot_off = ctx["boot_globals_storage_off_enc"] - 1
+    // X0 = &g_storage_slot
+    var adr_gs_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_gs_pos, "data_off": g_storage_off})
+    // X2 = &g_storage_slot
+    push_u32_le(ctx["code"], insn_mov_reg(2, 0))
+    // X0 = &boot_globals_storage
+    var adr_boot_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_boot_pos, "data_off": boot_off})
+    // X1 = boot_base
+    push_u32_le(ctx["code"], insn_mov_reg(1, 0))
+    // *(g_storage_slot) = boot_base
+    push_u32_le(ctx["code"], insn_str_ptr(1, 2))
+    // Initialize singleton slots inside the boot storage:
+    // - *(boot + 368) = boot + 392   (nil)
+    // - *(boot + 376) = boot + 400   (false)
+    // - *(boot + 384) = boot + 408   (true)
+    push_u32_le(ctx["code"], insn_add_imm(3, 1, 392)) // X3 = value ptr
+    push_u32_le(ctx["code"], insn_add_imm(4, 1, 368)) // X4 = slot addr
+    push_u32_le(ctx["code"], insn_str_ptr(3, 4))
+    push_u32_le(ctx["code"], insn_add_imm(3, 3, 8))
+    push_u32_le(ctx["code"], insn_add_imm(4, 4, 8))
+    push_u32_le(ctx["code"], insn_str_ptr(3, 4))
+    push_u32_le(ctx["code"], insn_add_imm(3, 3, 8))
+    push_u32_le(ctx["code"], insn_add_imm(4, 4, 8))
+    push_u32_le(ctx["code"], insn_str_ptr(3, 4))
     
     // Init Runtime
     // The runtime needs to know which OS ABI this binary targets. Do not probe host

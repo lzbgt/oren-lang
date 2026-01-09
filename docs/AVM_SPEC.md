@@ -143,7 +143,7 @@ Source of truth (rolling): `lib/avm/avm_native.inc` `avm_call_native(...)`.
 17. oren_write_bytes
 18. oren_read_bytes
 19. oren_err(code, msg)
-20. oren_is_err(v)
+20. oren_is_err(v) -> bool
 21. oren_err_code(v)
 22. oren_err_msg(v)
 23. oren_set_result(v)

@@ -599,7 +599,49 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     var fixups = ctx["fixups"]
     var functions = ctx["functions"]
     
-    var imports = ctx["import_list"]
+    // IMPORTANT (Tier‑1 robustness):
+    // Some compilation paths can temporarily classify forward‑referenced Oren functions as "imports".
+    // If we emit an import stub for a symbol that is actually defined in this image, we'll overwrite
+    // its entry in `ctx["functions"]` and silently call the stub (catastrophic miscompile).
+    //
+    // Resolve that ambiguity here by filtering imports: true imports are only those that are not
+    // declared/defined as Oren functions in this program.
+    var imports_raw = ctx["import_list"]
+    if imports_raw == nil { imports_raw = [] }
+    var imports = []
+    var import_collide_count = 0
+    var import_collide_sample = []
+    var ii_imp = 0
+    while ii_imp < oren_list_len(imports_raw) {
+        var nm = imports_raw[ii_imp]
+        var is_local = false
+        if nm != nil {
+            if ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
+                is_local = true
+            } else if functions != nil && functions[nm] != nil {
+                is_local = true
+            }
+        }
+        if is_local {
+            import_collide_count = import_collide_count + 1
+            if oren_list_len(import_collide_sample) < 8 { oren_list_push(import_collide_sample, nm) }
+        } else {
+            oren_list_push(imports, nm)
+        }
+        ii_imp = ii_imp + 1
+    }
+    ctx["import_list"] = imports
+    var trace_imports = oren_env("OREN_TRACE_NATIVE_IMPORTS") != nil
+    if (trace_emit || trace_imports) && import_collide_count > 0 {
+        var sample_s = ""
+        var si = 0
+        while si < oren_list_len(import_collide_sample) {
+            if si > 0 { sample_s = sample_s + "," }
+            sample_s = sample_s + import_collide_sample[si]
+            si = si + 1
+        }
+        print("[emit] macho arm64: filtered " + oren_int_to_string(import_collide_count) + " import(s) that collide with local function symbols (sample=" + sample_s + ")")
+    }
     if trace_emit { print("[emit] macho arm64: imports=" + oren_int_to_string(oren_list_len(imports)) + " fixups=" + oren_int_to_string(oren_list_len(fixups))) }
     
     // FFI Tables
@@ -627,7 +669,8 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     while i_imp < oren_list_len(imports) {
         var name = imports[i_imp]
         var stub_pos = bytes_len(code)
-        functions[name] = stub_pos 
+        // `imports` is filtered above, but keep a defensive check anyway.
+        if functions[name] == nil { functions[name] = stub_pos }
         
         // Stub: ADRP X16, <got>@PAGE; ADD X16, X16, <got>@PAGEOFF; LDR X16, [X16]; BR X16
         push_u32_le(code, 0) // Placeholder for ADRP
@@ -768,8 +811,10 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
             var target_page = target_addr - int_mod(target_addr, 4096)
             var delta_pages = (target_page - pc_page) / 4096
             var page_off = int_mod(target_addr, 4096)
-            set_u32_le(code, pos, insn_adrp(0, delta_pages))
-            set_u32_le(code, pos + 4, insn_add_imm(0, 0, page_off))
+            var reg = fix["reg"]
+            if reg == nil { reg = 0 }
+            set_u32_le(code, pos, insn_adrp(reg, delta_pages))
+            set_u32_le(code, pos + 4, insn_add_imm(reg, reg, page_off))
         }
 
         if fix["type"] == "adr_code" {

@@ -66,6 +66,7 @@ fn split_tier1_runtime_user(ctx, err_prefix, runtime_stmts, user_stmts, declared
     var user_decls = []
     var user_vars = []
     var user_exec = []
+    var user_ordered = []
 
     // Track global var names across runtime+user to detect duplicates deterministically.
     var seen_vars = {}
@@ -150,12 +151,17 @@ fn split_tier1_runtime_user(ctx, err_prefix, runtime_stmts, user_stmts, declared
             }
             seen_vars[nm2] = true
             oren_list_push(user_vars, st2)
+            // Preserve user top-level statement order so `var` initializers can interleave
+            // with other executable top-level statements deterministically.
+            // (Backends rewrite `Var` into global-slot assignments inside __top_level__.)
+            oren_list_push(user_ordered, st2)
             i = i + 1
             continue
         }
 
         // Any other top-level statement is executed in __top_level__.
         oren_list_push(user_exec, st2)
+        oren_list_push(user_ordered, st2)
         i = i + 1
     }
 
@@ -164,7 +170,8 @@ fn split_tier1_runtime_user(ctx, err_prefix, runtime_stmts, user_stmts, declared
         "runtime_vars": runtime_vars,
         "user_decls": user_decls,
         "user_vars": user_vars,
-        "user_exec": user_exec
+        "user_exec": user_exec,
+        "user_ordered": user_ordered
     }
 }
 

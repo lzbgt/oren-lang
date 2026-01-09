@@ -437,18 +437,95 @@ fn native_expr_chunk_noncall(ctx, expr) {
     
 
         if expr["type"] == "Boolean" {
-            if expr["value"] == true {
-                push_u32_le(ctx["code"], insn_movz(0, 1))
-            } else {
-                push_u32_le(ctx["code"], insn_movz(0, 0))
+            // Native backend: bool values are represented by runtime singletons stored in globals.
+            // This preserves type-strict semantics (`0 != false`) and truthiness rules (`0` is truthy).
+            var gname = ctx["rt_g_storage_name"]
+            if gname == nil {
+                var match = nil
+                var match_count = 0
+                if ctx != nil && ctx["globals"] != nil {
+                    for k in ctx["globals"] {
+                        // ends_with(k, "g_storage")
+                        var klen = oren_string_len(k)
+                        var slen = 9
+                        if klen >= slen {
+                            var ok = true
+                            var j = 0
+                            while j < slen {
+                                if oren_string_char_at(k, klen - slen + j) != oren_string_char_at("g_storage", j) { ok = false; break }
+                                j = j + 1
+                            }
+                            if ok {
+                                match = k
+                                match_count = match_count + 1
+                                if match_count > 1 { break }
+                            }
+                        }
+                    }
+                }
+                if match_count == 1 { gname = match; ctx["rt_g_storage_name"] = match }
             }
+            if gname == nil || ctx["globals"] == nil || ctx["globals"][gname] == nil {
+                native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for bool singletons)")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return true
+            }
+            var goff = ctx["globals"][gname] - 1
+            // X0 = g_storage (globals base pointer for runtime metadata)
+            var adr_pos = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": goff})
+            push_u32_le(ctx["code"], insn_ldr_ptr(0, 0))
+
+            // X0 = *(g_storage + off)
+            var off = 376
+            if expr["value"] == true { off = 384 }
+            push_u32_le(ctx["code"], insn_ldr_ptr_off(0, 0, off))
             return true
         }
     
 
         if expr["type"] == "Nil" {
-            // Rolling native v0: represent nil as 0 (falsey).
-            push_u32_le(ctx["code"], insn_movz(0, 0))
+            // Native backend: `nil` is a runtime singleton stored in globals (not raw 0).
+            // This preserves type-strict equality and avoids `0 == nil` hazards.
+            var gname2 = ctx["rt_g_storage_name"]
+            if gname2 == nil {
+                var match2 = nil
+                var match_count2 = 0
+                if ctx != nil && ctx["globals"] != nil {
+                    for k2 in ctx["globals"] {
+                        var klen2 = oren_string_len(k2)
+                        var slen2 = 9
+                        if klen2 >= slen2 {
+                            var ok2 = true
+                            var j2 = 0
+                            while j2 < slen2 {
+                                if oren_string_char_at(k2, klen2 - slen2 + j2) != oren_string_char_at("g_storage", j2) { ok2 = false; break }
+                                j2 = j2 + 1
+                            }
+                            if ok2 {
+                                match2 = k2
+                                match_count2 = match_count2 + 1
+                                if match_count2 > 1 { break }
+                            }
+                        }
+                    }
+                }
+                if match_count2 == 1 { gname2 = match2; ctx["rt_g_storage_name"] = match2 }
+            }
+            if gname2 == nil || ctx["globals"] == nil || ctx["globals"][gname2] == nil {
+                native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for nil singleton)")
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return true
+            }
+            var goff2 = ctx["globals"][gname2] - 1
+            var adr_pos2 = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos2, "data_off": goff2})
+            push_u32_le(ctx["code"], insn_ldr_ptr(0, 0))
+            push_u32_le(ctx["code"], insn_ldr_ptr_off(0, 0, 368))
             return true
         }
     
@@ -564,7 +641,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
             return true
         }
 
-        if expr["type"] == "Prefix" {
+	        if expr["type"] == "Prefix" {
             if expr["op"] == "-" {
                 if native_expr_is_floaty(ctx, expr["right"]) {
                     // Float negation: flip IEEE-754 sign bit.
@@ -578,13 +655,75 @@ fn native_expr_chunk_noncall(ctx, expr) {
                 push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // SUB X0, XZR, X0
                 return true
             }
-            if expr["op"] == "!" {
-                // Logical not: treat 0 as false, non-zero as true.
-                native_compile_expr(ctx, expr["right"])
-                push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
-                push_u32_le(ctx["code"], insn_cset(0, 0)) // EQ
-                return true
-            }
+	            if expr["op"] == "!" {
+	                // Logical not: `!x` returns BOOL (runtime singleton) based on language truthiness.
+	                // Falsey: `nil` and `false`. Everything else is truthy (including int 0).
+	                native_compile_expr(ctx, expr["right"]) // X0 = operand
+
+	                // Load runtime singletons into scratch regs.
+	                // Scratch: X9..X12.
+	                var gname_not = ctx["rt_g_storage_name"]
+	                if gname_not == nil {
+	                    var match_not = nil
+	                    var match_count_not = 0
+	                    if ctx != nil && ctx["globals"] != nil {
+	                        for k_not in ctx["globals"] {
+	                            var klen_not = oren_string_len(k_not)
+	                            var slen_not = 9
+	                            if klen_not >= slen_not {
+	                                var ok_not = true
+	                                var j_not = 0
+	                                while j_not < slen_not {
+	                                    if oren_string_char_at(k_not, klen_not - slen_not + j_not) != oren_string_char_at("g_storage", j_not) { ok_not = false; break }
+	                                    j_not = j_not + 1
+	                                }
+	                                if ok_not {
+	                                    match_not = k_not
+	                                    match_count_not = match_count_not + 1
+	                                    if match_count_not > 1 { break }
+	                                }
+	                            }
+	                        }
+	                    }
+	                    if match_count_not == 1 { gname_not = match_not; ctx["rt_g_storage_name"] = match_not }
+	                }
+	                if gname_not == nil || ctx["globals"] == nil || ctx["globals"][gname_not] == nil {
+	                    native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for ! truthiness)")
+	                    push_u32_le(ctx["code"], insn_movz(0, 0))
+	                    return true
+	                }
+	                var goff_not = ctx["globals"][gname_not] - 1
+	                var adr_pos_not = bytes_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0)
+	                push_u32_le(ctx["code"], 0)
+	                oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos_not, "data_off": goff_not, "reg": 9})
+	                push_u32_le(ctx["code"], insn_ldr_ptr(9, 9))           // X9 = g_storage
+	                push_u32_le(ctx["code"], insn_ldr_ptr_off(10, 9, 368)) // X10 = nil
+	                push_u32_le(ctx["code"], insn_ldr_ptr_off(11, 9, 376)) // X11 = false
+	                push_u32_le(ctx["code"], insn_ldr_ptr_off(12, 9, 384)) // X12 = true
+
+	                // if x==nil || x==false => !x = true else false
+	                push_u32_le(ctx["code"], insn_cmp_reg(0, 10))
+	                var br_true_not0 = bytes_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0)
+	                push_u32_le(ctx["code"], insn_cmp_reg(0, 11))
+	                var br_true_not1 = bytes_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0)
+
+	                // truthy => false
+	                push_u32_le(ctx["code"], insn_mov_reg(0, 11))
+	                var br_done_not = bytes_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0)
+
+	                var true_pos_not = bytes_len(ctx["code"])
+	                push_u32_le(ctx["code"], insn_mov_reg(0, 12))
+	                var done_pos_not = bytes_len(ctx["code"])
+
+	                set_u32_le(ctx["code"], br_true_not0, insn_b_cond((true_pos_not - br_true_not0) / 4, 0)) // EQ
+	                set_u32_le(ctx["code"], br_true_not1, insn_b_cond((true_pos_not - br_true_not1) / 4, 0)) // EQ
+	                set_u32_le(ctx["code"], br_done_not, insn_b((done_pos_not - br_done_not) / 4))
+	                return true
+	            }
             if expr["op"] == "~" {
                 // Bitwise not: x ^ -1
                 native_compile_expr(ctx, expr["right"])
@@ -774,7 +913,56 @@ fn native_expr_chunk_noncall(ctx, expr) {
                     if op == ">"  { fcond = 12 }
                     if op == "<=" { fcond = 13 }
                     if op == ">=" { fcond = 10 }
-                    push_u32_le(ctx["code"], insn_cset(0, fcond))
+                    // Return a real boolean value (native runtime singleton), not raw 0/1.
+                    // This keeps `&&/||/if` semantics consistent with `docs/LANGUAGE_SPEC.md`.
+                    var gname_cmp0 = ctx["rt_g_storage_name"]
+                    if gname_cmp0 == nil {
+                        var match_cmp0 = nil
+                        var match_count_cmp0 = 0
+                        if ctx != nil && ctx["globals"] != nil {
+                            for kk0 in ctx["globals"] {
+                                var kklen0 = oren_string_len(kk0)
+                                var slen0 = 9
+                                if kklen0 >= slen0 {
+                                    var okk0 = true
+                                    var jj0 = 0
+                                    while jj0 < slen0 {
+                                        if oren_string_char_at(kk0, kklen0 - slen0 + jj0) != oren_string_char_at("g_storage", jj0) { okk0 = false; break }
+                                        jj0 = jj0 + 1
+                                    }
+                                    if okk0 {
+                                        match_cmp0 = kk0
+                                        match_count_cmp0 = match_count_cmp0 + 1
+                                        if match_count_cmp0 > 1 { break }
+                                    }
+                                }
+                            }
+                        }
+                        if match_count_cmp0 == 1 { gname_cmp0 = match_cmp0; ctx["rt_g_storage_name"] = match_cmp0 }
+                    }
+                    if gname_cmp0 == nil || ctx["globals"] == nil || ctx["globals"][gname_cmp0] == nil {
+                        native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for bool results)")
+                        push_u32_le(ctx["code"], insn_movz(0, 0))
+                        return true
+                    }
+                    var goff_cmp0 = ctx["globals"][gname_cmp0] - 1
+                    var adr_pos_cmp0 = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos_cmp0, "data_off": goff_cmp0})
+                    push_u32_le(ctx["code"], insn_ldr_ptr(0, 0)) // X0 = g_storage
+                    push_u32_le(ctx["code"], insn_ldr_ptr_off(1, 0, 376)) // X1 = false
+                    push_u32_le(ctx["code"], insn_ldr_ptr_off(2, 0, 384)) // X2 = true
+                    var br_true0 = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B.<cond> true
+                    push_u32_le(ctx["code"], insn_mov_reg(0, 1))
+                    var br_end0 = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B end
+                    var true_pos0 = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_true0, insn_b_cond((true_pos0 - br_true0) / 4, fcond))
+                    push_u32_le(ctx["code"], insn_mov_reg(0, 2))
+                    var end_pos0 = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_end0, insn_b((end_pos0 - br_end0) / 4))
                     return true
                 }
     
@@ -872,7 +1060,55 @@ fn native_expr_chunk_noncall(ctx, expr) {
                     if op == ">"  { scond = 12 }
                     if op == "<=" { scond = 13 }
                     if op == ">=" { scond = 10 }
-                    push_u32_le(ctx["code"], insn_cset(0, scond))
+                    // Convert cond flags to runtime boolean singleton.
+                    var gname_cmp1 = ctx["rt_g_storage_name"]
+                    if gname_cmp1 == nil {
+                        var match_cmp1 = nil
+                        var match_count_cmp1 = 0
+                        if ctx != nil && ctx["globals"] != nil {
+                            for kk1 in ctx["globals"] {
+                                var kklen1 = oren_string_len(kk1)
+                                var slen1 = 9
+                                if kklen1 >= slen1 {
+                                    var okk1 = true
+                                    var jj1 = 0
+                                    while jj1 < slen1 {
+                                        if oren_string_char_at(kk1, kklen1 - slen1 + jj1) != oren_string_char_at("g_storage", jj1) { okk1 = false; break }
+                                        jj1 = jj1 + 1
+                                    }
+                                    if okk1 {
+                                        match_cmp1 = kk1
+                                        match_count_cmp1 = match_count_cmp1 + 1
+                                        if match_count_cmp1 > 1 { break }
+                                    }
+                                }
+                            }
+                        }
+                        if match_count_cmp1 == 1 { gname_cmp1 = match_cmp1; ctx["rt_g_storage_name"] = match_cmp1 }
+                    }
+                    if gname_cmp1 == nil || ctx["globals"] == nil || ctx["globals"][gname_cmp1] == nil {
+                        native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for bool results)")
+                        push_u32_le(ctx["code"], insn_movz(0, 0))
+                        return true
+                    }
+                    var goff_cmp1 = ctx["globals"][gname_cmp1] - 1
+                    var adr_pos_cmp1 = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos_cmp1, "data_off": goff_cmp1})
+                    push_u32_le(ctx["code"], insn_ldr_ptr(0, 0)) // X0 = g_storage
+                    push_u32_le(ctx["code"], insn_ldr_ptr_off(1, 0, 376)) // X1 = false
+                    push_u32_le(ctx["code"], insn_ldr_ptr_off(2, 0, 384)) // X2 = true
+                    var br_true1 = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    push_u32_le(ctx["code"], insn_mov_reg(0, 1))
+                    var br_end1 = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    var true_pos1 = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_true1, insn_b_cond((true_pos1 - br_true1) / 4, scond))
+                    push_u32_le(ctx["code"], insn_mov_reg(0, 2))
+                    var end_pos1 = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_end1, insn_b((end_pos1 - br_end1) / 4))
 
                     var br_end = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0) // B end
@@ -882,7 +1118,55 @@ fn native_expr_chunk_noncall(ctx, expr) {
                     set_u32_le(ctx["code"], br_lt_left, insn_b_cond((int_pos - br_lt_left) / 4, 11)) // LT
                     set_u32_le(ctx["code"], br_lt_right, insn_b_cond((int_pos - br_lt_right) / 4, 11)) // LT
                     push_u32_le(ctx["code"], insn_cmp_reg(1, 0))
-                    push_u32_le(ctx["code"], insn_cset(0, cond_code))
+                    // Convert flags to runtime boolean singleton.
+                    var gname_cmp2 = ctx["rt_g_storage_name"]
+                    if gname_cmp2 == nil {
+                        var match_cmp2 = nil
+                        var match_count_cmp2 = 0
+                        if ctx != nil && ctx["globals"] != nil {
+                            for kk2 in ctx["globals"] {
+                                var kklen2 = oren_string_len(kk2)
+                                var slen2 = 9
+                                if kklen2 >= slen2 {
+                                    var okk2 = true
+                                    var jj2 = 0
+                                    while jj2 < slen2 {
+                                        if oren_string_char_at(kk2, kklen2 - slen2 + jj2) != oren_string_char_at("g_storage", jj2) { okk2 = false; break }
+                                        jj2 = jj2 + 1
+                                    }
+                                    if okk2 {
+                                        match_cmp2 = kk2
+                                        match_count_cmp2 = match_count_cmp2 + 1
+                                        if match_count_cmp2 > 1 { break }
+                                    }
+                                }
+                            }
+                        }
+                        if match_count_cmp2 == 1 { gname_cmp2 = match_cmp2; ctx["rt_g_storage_name"] = match_cmp2 }
+                    }
+                    if gname_cmp2 == nil || ctx["globals"] == nil || ctx["globals"][gname_cmp2] == nil {
+                        native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for bool results)")
+                        push_u32_le(ctx["code"], insn_movz(0, 0))
+                        return true
+                    }
+                    var goff_cmp2 = ctx["globals"][gname_cmp2] - 1
+                    var adr_pos_cmp2 = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos_cmp2, "data_off": goff_cmp2})
+                    push_u32_le(ctx["code"], insn_ldr_ptr(0, 0)) // X0 = g_storage
+                    push_u32_le(ctx["code"], insn_ldr_ptr_off(1, 0, 376)) // X1 = false
+                    push_u32_le(ctx["code"], insn_ldr_ptr_off(2, 0, 384)) // X2 = true
+                    var br_true2 = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    push_u32_le(ctx["code"], insn_mov_reg(0, 1))
+                    var br_end2 = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    var true_pos2 = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_true2, insn_b_cond((true_pos2 - br_true2) / 4, cond_code))
+                    push_u32_le(ctx["code"], insn_mov_reg(0, 2))
+                    var end_pos2 = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_end2, insn_b((end_pos2 - br_end2) / 4))
 
                     var end_pos = bytes_len(ctx["code"])
                     set_u32_le(ctx["code"], br_end, insn_b((end_pos - br_end) / 4))
@@ -892,63 +1176,209 @@ fn native_expr_chunk_noncall(ctx, expr) {
                 // CMP X1, X0
                 push_u32_le(ctx["code"], insn_cmp_reg(1, 0))
                 
-                // CSET X0, cond
-                push_u32_le(ctx["code"], insn_cset(0, cond_code))
+                // Convert cond flags to runtime boolean singleton (not raw 0/1).
+                var gname_cmp3 = ctx["rt_g_storage_name"]
+                if gname_cmp3 == nil {
+                    var match_cmp3 = nil
+                    var match_count_cmp3 = 0
+                    if ctx != nil && ctx["globals"] != nil {
+                        for kk3 in ctx["globals"] {
+                            var kklen3 = oren_string_len(kk3)
+                            var slen3 = 9
+                            if kklen3 >= slen3 {
+                                var okk3 = true
+                                var jj3 = 0
+                                while jj3 < slen3 {
+                                    if oren_string_char_at(kk3, kklen3 - slen3 + jj3) != oren_string_char_at("g_storage", jj3) { okk3 = false; break }
+                                    jj3 = jj3 + 1
+                                }
+                                if okk3 {
+                                    match_cmp3 = kk3
+                                    match_count_cmp3 = match_count_cmp3 + 1
+                                    if match_count_cmp3 > 1 { break }
+                                }
+                            }
+                        }
+                    }
+                    if match_count_cmp3 == 1 { gname_cmp3 = match_cmp3; ctx["rt_g_storage_name"] = match_cmp3 }
+                }
+                if gname_cmp3 == nil || ctx["globals"] == nil || ctx["globals"][gname_cmp3] == nil {
+                    native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for bool results)")
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    return true
+                }
+                var goff_cmp3 = ctx["globals"][gname_cmp3] - 1
+                var adr_pos_cmp3 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos_cmp3, "data_off": goff_cmp3})
+                push_u32_le(ctx["code"], insn_ldr_ptr(0, 0)) // X0 = g_storage
+                push_u32_le(ctx["code"], insn_ldr_ptr_off(1, 0, 376)) // X1 = false
+                push_u32_le(ctx["code"], insn_ldr_ptr_off(2, 0, 384)) // X2 = true
+                var br_true3 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], insn_mov_reg(0, 1))
+                var br_end3 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                var true_pos3 = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_true3, insn_b_cond((true_pos3 - br_true3) / 4, cond_code))
+                push_u32_le(ctx["code"], insn_mov_reg(0, 2))
+                var end_pos3 = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_end3, insn_b((end_pos3 - br_end3) / 4))
                 return true
             }
             
-            if op == "&&" || op == "||" {
-                // Short-circuit boolean ops (0 is false, non-zero is true), result is 0/1.
-                //
-                // &&:
-                //   if left == 0 -> 0
-                //   else -> (right != 0)
-                //
-                // ||:
-                //   if left != 0 -> 1
-                //   else -> (right != 0)
-    
-                native_compile_expr(ctx, expr["left"])
-                push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
-    
-                if op == "&&" {
-                    var jump_false_pos = bytes_len(ctx["code"])
-                    push_u32_le(ctx["code"], 0) // B.EQ false
-    
-                    native_compile_expr(ctx, expr["right"])
-                    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
-                    push_u32_le(ctx["code"], insn_cset(0, 1)) // NE
-    
-                    var jump_end_pos = bytes_len(ctx["code"])
-                    push_u32_le(ctx["code"], 0) // B end
-    
-                    var false_target = bytes_len(ctx["code"])
-                    push_u32_le(ctx["code"], insn_movz(0, 0))
-    
-                    var end_target = bytes_len(ctx["code"])
-                    set_u32_le(ctx["code"], jump_false_pos, insn_b_cond((false_target - jump_false_pos) / 4, 0)) // EQ
-                    set_u32_le(ctx["code"], jump_end_pos, insn_b((end_target - jump_end_pos) / 4))
-                    return true
-                } else {
-                    var jump_true_pos = bytes_len(ctx["code"])
-                    push_u32_le(ctx["code"], 0) // B.NE true
-    
-                    native_compile_expr(ctx, expr["right"])
-                    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
-                    push_u32_le(ctx["code"], insn_cset(0, 1)) // NE
-    
-                    var jump_end_pos2 = bytes_len(ctx["code"])
-                    push_u32_le(ctx["code"], 0) // B end
-    
-                    var true_target = bytes_len(ctx["code"])
-                    push_u32_le(ctx["code"], insn_movz(0, 1))
-    
-                    var end_target2 = bytes_len(ctx["code"])
-                    set_u32_le(ctx["code"], jump_true_pos, insn_b_cond((true_target - jump_true_pos) / 4, 1)) // NE
-                    set_u32_le(ctx["code"], jump_end_pos2, insn_b((end_target2 - jump_end_pos2) / 4))
-                    return true
-                }
-            }
+	            if op == "&&" || op == "||" {
+	                // Short-circuit boolean ops with language truthiness semantics, result is BOOL singleton.
+	                // - falsey: `nil` and `false`
+	                // - truthy: everything else (including int 0)
+
+	                // Evaluate left.
+	                native_compile_expr(ctx, expr["left"]) // X0 = left
+
+	                // Load runtime singletons into scratch regs for falsey checks.
+	                // Scratch: X9..X12.
+	                var gname_sc = ctx["rt_g_storage_name"]
+	                if gname_sc == nil {
+	                    var match_sc = nil
+	                    var match_count_sc = 0
+	                    if ctx != nil && ctx["globals"] != nil {
+	                        for k_sc in ctx["globals"] {
+	                            var klen_sc = oren_string_len(k_sc)
+	                            var slen_sc = 9
+	                            if klen_sc >= slen_sc {
+	                                var ok_sc = true
+	                                var j_sc = 0
+	                                while j_sc < slen_sc {
+	                                    if oren_string_char_at(k_sc, klen_sc - slen_sc + j_sc) != oren_string_char_at("g_storage", j_sc) { ok_sc = false; break }
+	                                    j_sc = j_sc + 1
+	                                }
+	                                if ok_sc {
+	                                    match_sc = k_sc
+	                                    match_count_sc = match_count_sc + 1
+	                                    if match_count_sc > 1 { break }
+	                                }
+	                            }
+	                        }
+	                    }
+	                    if match_count_sc == 1 { gname_sc = match_sc; ctx["rt_g_storage_name"] = match_sc }
+	                }
+	                if gname_sc == nil || ctx["globals"] == nil || ctx["globals"][gname_sc] == nil {
+	                    native_error(ctx, expr["token"], "native backend: missing runtime global g_storage (needed for &&/|| truthiness)")
+	                    push_u32_le(ctx["code"], insn_movz(0, 0))
+	                    return true
+	                }
+	                var goff_sc = ctx["globals"][gname_sc] - 1
+	                var adr_pos_sc = bytes_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0)
+	                push_u32_le(ctx["code"], 0)
+	                oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos_sc, "data_off": goff_sc, "reg": 9})
+	                push_u32_le(ctx["code"], insn_ldr_ptr(9, 9))           // X9 = g_storage
+	                push_u32_le(ctx["code"], insn_ldr_ptr_off(10, 9, 368)) // X10 = nil
+	                push_u32_le(ctx["code"], insn_ldr_ptr_off(11, 9, 376)) // X11 = false
+	                push_u32_le(ctx["code"], insn_ldr_ptr_off(12, 9, 384)) // X12 = true
+
+	                if op == "&&" {
+	                    // If left is falsey => false.
+	                    push_u32_le(ctx["code"], insn_cmp_reg(0, 10))
+	                    var br_false_sc0 = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+	                    push_u32_le(ctx["code"], insn_cmp_reg(0, 11))
+	                    var br_false_sc1 = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+
+	                    // Evaluate right.
+	                    native_compile_expr(ctx, expr["right"]) // X0 = right
+
+	                    // Re-load falsey singletons (right evaluation may clobber scratch regs).
+	                    var adr_pos_sc2 = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+	                    push_u32_le(ctx["code"], 0)
+	                    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos_sc2, "data_off": goff_sc, "reg": 9})
+	                    push_u32_le(ctx["code"], insn_ldr_ptr(9, 9))
+	                    push_u32_le(ctx["code"], insn_ldr_ptr_off(10, 9, 368))
+	                    push_u32_le(ctx["code"], insn_ldr_ptr_off(11, 9, 376))
+	                    push_u32_le(ctx["code"], insn_ldr_ptr_off(12, 9, 384))
+
+	                    // If right is falsey => false, else true.
+	                    push_u32_le(ctx["code"], insn_cmp_reg(0, 10))
+	                    var br_false_sc2 = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+	                    push_u32_le(ctx["code"], insn_cmp_reg(0, 11))
+	                    var br_false_sc3 = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+
+	                    // true
+	                    push_u32_le(ctx["code"], insn_mov_reg(0, 12))
+	                    var br_done_sc = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+
+	                    var false_pos_sc = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], insn_mov_reg(0, 11))
+	                    var done_pos_sc = bytes_len(ctx["code"])
+
+	                    set_u32_le(ctx["code"], br_false_sc0, insn_b_cond((false_pos_sc - br_false_sc0) / 4, 0)) // EQ
+	                    set_u32_le(ctx["code"], br_false_sc1, insn_b_cond((false_pos_sc - br_false_sc1) / 4, 0)) // EQ
+	                    set_u32_le(ctx["code"], br_false_sc2, insn_b_cond((false_pos_sc - br_false_sc2) / 4, 0)) // EQ
+	                    set_u32_le(ctx["code"], br_false_sc3, insn_b_cond((false_pos_sc - br_false_sc3) / 4, 0)) // EQ
+	                    set_u32_le(ctx["code"], br_done_sc, insn_b((done_pos_sc - br_done_sc) / 4))
+	                    return true
+	                } else {
+	                    // op == "||"
+	                    // If left is truthy => true, else evaluate right and return truthiness(right).
+	                    push_u32_le(ctx["code"], insn_cmp_reg(0, 10))
+	                    var br_eval_rhs0 = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+	                    push_u32_le(ctx["code"], insn_cmp_reg(0, 11))
+	                    var br_eval_rhs1 = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+
+	                    // left truthy => true
+	                    push_u32_le(ctx["code"], insn_mov_reg(0, 12))
+	                    var br_done_or = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+
+	                    // rhs path
+	                    var rhs_pos = bytes_len(ctx["code"])
+	                    // Patch both falsey branches to rhs_pos.
+	                    set_u32_le(ctx["code"], br_eval_rhs0, insn_b_cond((rhs_pos - br_eval_rhs0) / 4, 0)) // EQ
+	                    set_u32_le(ctx["code"], br_eval_rhs1, insn_b_cond((rhs_pos - br_eval_rhs1) / 4, 0)) // EQ
+
+	                    native_compile_expr(ctx, expr["right"]) // X0 = right
+
+	                    // Re-load singletons (rhs evaluation may clobber).
+	                    var adr_pos_or2 = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+	                    push_u32_le(ctx["code"], 0)
+	                    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos_or2, "data_off": goff_sc, "reg": 9})
+	                    push_u32_le(ctx["code"], insn_ldr_ptr(9, 9))
+	                    push_u32_le(ctx["code"], insn_ldr_ptr_off(10, 9, 368))
+	                    push_u32_le(ctx["code"], insn_ldr_ptr_off(11, 9, 376))
+	                    push_u32_le(ctx["code"], insn_ldr_ptr_off(12, 9, 384))
+
+	                    push_u32_le(ctx["code"], insn_cmp_reg(0, 10))
+	                    var br_false_or0 = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+	                    push_u32_le(ctx["code"], insn_cmp_reg(0, 11))
+	                    var br_false_or1 = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+
+	                    // rhs truthy => true
+	                    push_u32_le(ctx["code"], insn_mov_reg(0, 12))
+	                    var br_done_or2 = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], 0)
+
+	                    var false_pos_or = bytes_len(ctx["code"])
+	                    push_u32_le(ctx["code"], insn_mov_reg(0, 11))
+	                    var done_pos_or = bytes_len(ctx["code"])
+
+	                    set_u32_le(ctx["code"], br_false_or0, insn_b_cond((false_pos_or - br_false_or0) / 4, 0)) // EQ
+	                    set_u32_le(ctx["code"], br_false_or1, insn_b_cond((false_pos_or - br_false_or1) / 4, 0)) // EQ
+	                    set_u32_le(ctx["code"], br_done_or, insn_b((done_pos_or - br_done_or) / 4))
+	                    set_u32_le(ctx["code"], br_done_or2, insn_b((done_pos_or - br_done_or2) / 4))
+	                    return true
+	                }
+	            }
             
             native_error(ctx, expr["token"], "native backend: unsupported operator " + op)
             push_u32_le(ctx["code"], insn_movz(0, 0))

@@ -81,6 +81,6 @@ fn oren_env(name) {
     //
     // `oren_getenv` remains a low-level "view into envp" helper.
     var v = oren_getenv(name)
-    if v == 0 { return 0 }
+    if v == 0 { return nil }
     return oren_string_slice(v, 0, oren_string_len(v))
 }

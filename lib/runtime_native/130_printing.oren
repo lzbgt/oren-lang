@@ -352,7 +352,9 @@ fn oren_type_tag(v) {
     // Mirror lib/runtime.h OrenType enum values:
     //   0 nil, 1 int, 2 float, 3 bool, 4 string, 5 py_obj, 6 list, 7 map, 8 func,
     //   9..13 typed buffers.
-    if v == 0 { return 0 } // nil (native uses 0)
+    // Rolling v0 native runtime uses distinct non-zero singleton pointers for `nil/false/true`.
+    // Integer 0 is a valid int and is truthy, so we must test against `nil` explicitly here.
+    if v == nil { return 0 }
     if oren_is_string(v) == true { return 4 }
     if oren_is_list(v) == true { return 6 }
     if oren_is_map(v) == true { return 7 }
@@ -1051,15 +1053,15 @@ fn oren_map_ensure_sorted(m) {
 }
 
 fn _oren_map_get_kind(m, k, k_kind) {
-    if m == 0 { return 0 }
+    if m == 0 { return native_value_nil() }
     var node = oren_find_node(m)
-    if node == 0 { return 0 }
-    if ptr_get(iadd(node, 16)) != 3 { return 0 }
-    if ptr_get(iadd(m, 24)) != map_magic() { return 0 }
+    if node == 0 { return native_value_nil() }
+    if ptr_get(iadd(node, 16)) != 3 { return native_value_nil() }
+    if ptr_get(iadd(m, 24)) != map_magic() { return native_value_nil() }
 
     if k_kind != 0 && k_kind != 1 { oren_panic("map_get: invalid key kind") }
     if k_kind == 1 {
-        if k == 0 { return 0 }
+        if k == 0 { return native_value_nil() }
         _oren_assert_string_ptr(k)
     }
 
@@ -1067,7 +1069,7 @@ fn _oren_map_get_kind(m, k, k_kind) {
     var buf = ptr_get(iadd(m, 16))
 
     // Tiny maps: linear scan is faster than maintaining a hash table (AST nodes).
-    if count <= 0 || buf == 0 { return 0 }
+    if count <= 0 || buf == 0 { return native_value_nil() }
     var tab = ptr_get(iadd(m, 40))
     var cap = ptr_get(iadd(m, 48))
     if tab == 0 || cap == 0 {
@@ -1086,7 +1088,7 @@ fn _oren_map_get_kind(m, k, k_kind) {
             }
             i0 = iadd(i0, 1)
         }
-        return 0
+        return native_value_nil()
     }
 
     // Hash mode: O(1) average lookups.
@@ -1097,7 +1099,7 @@ fn _oren_map_get_kind(m, k, k_kind) {
         if rem <= 0 { break }
         rem = rem - 1
         var slot = ptr_get(iadd(tab, idx << 3))
-        if slot == _map_hash_empty() { return 0 }
+        if slot == _map_hash_empty() { return native_value_nil() }
         if slot != _map_hash_tomb() {
             var ei = slot - 2
             if ei >= 0 && ei < count {
@@ -1136,7 +1138,7 @@ fn _oren_map_get_kind(m, k, k_kind) {
         }
         i = iadd(i, 1)
     }
-    return 0
+    return native_value_nil()
 }
 
 @oren.keep
@@ -1158,7 +1160,7 @@ fn oren_map_get(m, k) {
     var node = oren_find_node(k)
     if node == 0 { return _oren_map_get_kind(m, k, 0) }
     oren_panic("map_get: unsupported key type (need int or string)")
-    return 0
+    return native_value_nil()
 }
 
 fn oren_map_len(m) {
@@ -1171,15 +1173,15 @@ fn oren_map_len(m) {
 }
 
 fn oren_map_key_at(m, idx) {
-    if m == 0 { return 0 }
+    if m == 0 { return native_value_nil() }
     var node = oren_find_node(m)
-    if node == 0 { return 0 }
-    if ptr_get(iadd(node, 16)) != 3 { return 0 }
-    if ptr_get(iadd(m, 24)) != map_magic() { return 0 }
+    if node == 0 { return native_value_nil() }
+    if ptr_get(iadd(node, 16)) != 3 { return native_value_nil() }
+    if ptr_get(iadd(m, 24)) != map_magic() { return native_value_nil() }
     oren_map_ensure_sorted(m)
     var count = ptr_get(iadd(m, 0))
-    if idx < 0 { return 0 }
-    if idx >= count { return 0 }
+    if idx < 0 { return native_value_nil() }
+    if idx >= count { return native_value_nil() }
     var buf = ptr_get(iadd(m, 16))
     return ptr_get(iadd(buf, idx * 24))
 }

@@ -840,6 +840,15 @@ fn insn_ldr_ptr(rd, rn) {
     return 4181721088 + (rn * 32) + rd
 }
 
+fn insn_ldr_ptr_off(rd, rn, offset) {
+    // LDR Xd, [Xn, #imm12<<3] (unsigned offset encoding, scaled by 8)
+    // Verified via clang:
+    //   ldr x0, [x1]      => 0xF9400020
+    //   ldr x3, [x4,#24]  => 0xF9400C83
+    // Base: 0xF9400000
+    return 4181721088 + ((offset / 8) * 1024) + (rn * 32) + rd
+}
+
 fn insn_str_ptr(rd, rn) {
     // STR Xt, [Xn] with imm = 0 (unsigned offset encoding)
     // Verified via clang:

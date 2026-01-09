@@ -25,7 +25,16 @@ import astbin "astbin.oren"
 // Schema v2 switches the cache key input to a fast 63-bit FNV-1a-style fingerprint (two lanes)
 // so repeated builds can find cached runtime objects without spending seconds hashing the runtime.
 var RUNTIME_OBJ_SCHEMA = 2
-var RUNTIME_OBJ_DATA_PREFIX_LEN = 8 // cstr0 table slot reserved by native entry stubs
+// Native entry stub `.data` prefix (must be identical across:
+// - main program compilation
+// - runtime object compilation
+// - runtime object cache load/apply)
+//
+// Layout (rolling, Tier‑1 bootstrap):
+// - 0..7:   cstr0 table slot (u64 offset)
+// - 8..15:  g_storage global slot (u64 pointer to globals storage)
+// - 16..527: boot globals storage blob (512 bytes; holds nil/bool singleton slots)
+var RUNTIME_OBJ_DATA_PREFIX_LEN = 528
 
 // Backend signature for the compiled runtime object cache key.
 //
@@ -38,8 +47,8 @@ var RUNTIME_OBJ_DATA_PREFIX_LEN = 8 // cstr0 table slot reserved by native entry
 // Rolling contract:
 // - Bump the relevant backend sig whenever a change can affect emitted code/data bytes.
 // - This is intentionally cheap (string constant) so cache hits stay fast.
-var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_3"
-var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_8"
+var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_4"
+var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_9"
 
 fn rtobj_backend_sig(backend) {
     if backend == "arm64" { return RUNTIME_OBJ_BACKEND_SIG_ARM64 }

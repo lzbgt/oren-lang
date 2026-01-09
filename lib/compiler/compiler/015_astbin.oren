@@ -652,7 +652,7 @@ fn _astbin_g_read_value_v2(pool, pool_len) {
     if tag == 6 {
         var n2 = _astbin_g_read_uvarint()
         var mp = oren_map_new_cap(n2)
-        if oren_is_err(mp) { _astbin_fail("map_new_cap failed", g_astbin_g_off) }
+        if oren_is_err(mp) { _astbin_fail("map_new_cap failed n=" + oren_int_to_string(n2), g_astbin_g_off) }
         var i2 = 0
         while i2 < n2 {
             var k_kind = 0
@@ -716,7 +716,7 @@ fn _astbin_read_value(bytes, data_ptr, off_ref, is_u8_buf) {
     if tag == 6 {
         var n2 = _astbin_read_uvarint(bytes, data_ptr, off_ref, is_u8_buf)
         var mp = oren_map_new_cap(n2)
-        if oren_is_err(mp) { _astbin_fail("map_new_cap failed", off_ref[0]) }
+        if oren_is_err(mp) { _astbin_fail("map_new_cap failed n=" + oren_int_to_string(n2), off_ref[0]) }
         var i2 = 0
         while i2 < n2 {
             // Keys are restricted to int|string; decode kind directly (no runtime checks).
@@ -804,7 +804,7 @@ fn _astbin_read_value_v2(pool, pool_len, bytes, data_ptr, off_ref, is_u8_buf) {
     if tag == 6 {
         var n2 = _astbin_read_uvarint(bytes, data_ptr, off_ref, is_u8_buf)
         var mp = oren_map_new_cap(n2)
-        if oren_is_err(mp) { _astbin_fail("map_new_cap failed", off_ref[0]) }
+        if oren_is_err(mp) { _astbin_fail("map_new_cap failed n=" + oren_int_to_string(n2), off_ref[0]) }
         var i2 = 0
         while i2 < n2 {
             var k_kind = 0

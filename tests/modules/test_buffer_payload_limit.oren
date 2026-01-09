@@ -22,7 +22,7 @@ fn fail(code) {
 
 // 1024 i32 -> 4096 bytes payload, must exceed limit and return an error.
 var b: []i32 = buffer.i32_new(1024)
-if oren_is_err(b) == 0 { fail(10) }
+if oren_is_err(b) == false { fail(10) }
 
 // Ensure error code is budget (OREN_ERR_BUDGET=9).
 if oren_err_code(b) != 9 { fail(11) }

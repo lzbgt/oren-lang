@@ -827,7 +827,7 @@ fn negotiated_alpn(conn) {
     var n = oren_ptr_get_u32_le(lptr)
     free(pptr)
     free(lptr)
-    if n <= 0 || p == 0 { return {"ok": 1, "v": 0} }
+    if n <= 0 || p == 0 { return {"ok": 1, "v": nil} }
 
     var b = oren_u8_buf_new(n)
     if oren_is_err(b) { return {"ok": 0, "err": "tls.negotiated_alpn: alloc bytes failed"} }

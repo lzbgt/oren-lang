@@ -327,8 +327,8 @@ fn oren_iter_next(container, idx, out_pair) {
 fn oren_string_eq(a, b) {
     // Fast path: avoid a separate length pass.
     // Semantics (rolling): treat nil as not-equal (even nil==nil is false here).
-    if a == 0 { return false }
-    if b == 0 { return false }
+    if a == 0 || native_value_is_nil(a) { return false }
+    if b == 0 || native_value_is_nil(b) { return false }
     return strcmp(a, b) == 0
 }
 
@@ -337,7 +337,7 @@ fn oren_bytes_from_string_ptr(s_ptr) {
     //
     // PERF (native backend + compiler workloads):
     // Avoid calling `oren_list_push` per byte; allocate an exact-sized list and fill its backing buffer.
-    if s_ptr == 0 { return oren_new_list(0) }
+    if s_ptr == 0 || native_value_is_nil(s_ptr) { return oren_new_list(0) }
     var len = oren_string_len(s_ptr)
     var lst = oren_new_list(len)
     var buf = ptr_get(lst + 16)
@@ -393,9 +393,9 @@ fn oren_string_from_bytes(bytes) {
 
     // Generic path: u8_buf (and future byte containers) route through the slice helper.
     var total = oren_bytes_len(bytes)
-    if oren_is_err(total) == 1 { return 0 }
+    if oren_is_err(total) { return 0 }
     var out2 = oren_string_from_bytes_slice(bytes, 0, total)
-    if oren_is_err(out2) == 1 { return 0 }
+    if oren_is_err(out2) { return 0 }
     return out2
 }
 

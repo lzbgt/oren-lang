@@ -1168,6 +1168,9 @@ var total_len = oren_bytes_get_u16_be(pkt, 2)
 Error behavior (portable rule):
 
 - On invalid arguments (wrong type, out-of-bounds, byte out of range), these helpers return a **structured error object** (`oren_err(OREN_ERR_INVALID_ARG, "...")`), not UB.
+- Use `oren_is_err(v) -> bool` to test for this in a backend-portable way:
+  - `if oren_is_err(x) { ... }`
+  - Do **not** treat numeric `0/1` as booleans: in Oren, `0` is truthy; only `nil` and `false` are falsey.
 
 Future direction (syntax sugar; no rewrite required):
 

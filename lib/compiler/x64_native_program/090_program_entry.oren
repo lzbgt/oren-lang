@@ -386,6 +386,17 @@ fn _x64_new_ctx(linked, platform) {
     var cstr_slot_off = _data_add_u64(ctx, 0)
     ctx["cstr0_table_slot_enc"] = cstr_slot_off + 1
 
+    // Tier‑1 bootstrap: reserve a stable slot for the runtime's `g_storage` global and a small
+    // boot globals storage blob used before `native_runtime_init` runs.
+    //
+    // Layout is defined by `rtobj.RUNTIME_OBJ_DATA_PREFIX_LEN` and must match across:
+    // - main program compilation
+    // - runtime object compilation/cache
+    var g_storage_slot_off = _data_add_u64(ctx, 0)
+    if ctx["globals"] != nil { ctx["globals"]["g_storage"] = g_storage_slot_off + 1 }
+    var boot_off = _data_add_zeros(ctx, 512)
+    ctx["boot_globals_storage_off_enc"] = boot_off + 1
+
     // Bounded debug knob (bring-up):
     // Enable narrow tracing inside list/hash literal lowering without paying an env lookup per literal.
     //   OREN_TRACE_X64_ARRAY_LIT=1 ./oren_stage2 build ... --platform x64-linux --no-cache
@@ -746,6 +757,8 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
         if st != nil {
             var nm = st["name"]["value"]
             if nm == nil || nm == "" { err(ctx, "x64 native rtobj: runtime global var missing name"); return nil }
+            // `g_storage` is reserved in the native entry stub `.data` prefix (Tier‑1 bootstrap).
+            if nm == "g_storage" && ctx["globals"] != nil && ctx["globals"][nm] != nil { vi = vi + 1; continue }
             if ctx["globals"] != nil && ctx["globals"][nm] != nil {
                 err(ctx, "x64 native rtobj: duplicate global var " + nm)
                 return nil
@@ -1527,6 +1540,39 @@ fn native_compile_program_x64(linked, platform) {
     // - 3: windows
     var target_os_id = 2
     if platform != nil && platform["os"] == "windows" { target_os_id = 3 }
+
+    // Tier‑1 bootstrap: initialize the runtime globals storage pointer (`g_storage`) and the
+    // nil/bool singleton slots before calling into `native_runtime_init`.
+    if ctx["globals"] == nil || ctx["globals"]["g_storage"] == nil {
+        err(ctx, "x64 native v0: missing reserved global slot g_storage (Tier-1 bootstrap)")
+        return nil
+    }
+    if ctx["boot_globals_storage_off_enc"] == nil {
+        err(ctx, "x64 native v0: missing boot globals storage offset (Tier-1 bootstrap)")
+        return nil
+    }
+    var g_storage_off = ctx["globals"]["g_storage"] - 1
+    var boot_off = ctx["boot_globals_storage_off_enc"] - 1
+
+    // r10 = &g_storage_slot
+    var lea_gs_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(10, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_gs_pos + 3, "data_off": g_storage_off})
+    // r11 = &boot_globals_storage
+    var lea_boot_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(11, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_boot_pos + 3, "data_off": boot_off})
+    // *(g_storage_slot) = boot_base
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11))
+    // Initialize singleton slots inside the boot storage.
+    // r12 = boot + 392
+    bytes_extend(ctx["code"], insn_mov_r64_r64(12, 11))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(12, 392))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(11, 368, 12))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(12, 8))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(11, 376, 12))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(12, 8))
+    bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(11, 384, 12))
 
     // Capture argc/argv/envp from the original SysV entry stack (Linux only).
     // We store them in the entry scratch region so subsequent calls cannot clobber them.

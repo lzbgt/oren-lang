@@ -113,7 +113,14 @@ fn native_init_epoll_event_layout_linux() {
 fn native_runtime_init(target_os) {
     // The native backend is still rolling and does not reliably run global initializers
     // before entering the runtime. Ensure globals used by early allocation are safe.
-    g_storage = 0
+    // IMPORTANT (Tier‑1 native backends):
+    // `g_storage` must already be initialized by the entry stub before any Oren code executes.
+    //
+    // Reason: the native backend represents `nil/false/true` as runtime singletons stored in
+    // globals storage, and boolean operations (including those used inside `native_runtime_init`)
+    // depend on those singletons being available.
+    //
+    // Do not clear `g_storage` here.
 
     // --- Critical runtime globals (must not rely on global initializers) ---
     //
@@ -203,6 +210,9 @@ fn native_runtime_init(target_os) {
     GLOBAL_OFF_BUF_PAYLOAD_LIMIT = 296
     GLOBAL_OFF_CALL_DEPTH = 304
     GLOBAL_OFF_CALL_DEPTH_MAX = 312
+    GLOBAL_OFF_VALUE_NIL = 368
+    GLOBAL_OFF_VALUE_FALSE = 376
+    GLOBAL_OFF_VALUE_TRUE = 384
     GLOBAL_SLOTS_RESERVED = 56
 
     // IMPORTANT: do not rely on global initializers for these constants.
@@ -276,22 +286,22 @@ fn native_runtime_init(target_os) {
     OREN_EPOLLOUT = 4
     native_init_epoll_event_layout_linux()
 
-    // Reserve room for current globals + some growth slack (rolling ABI).
+    // Globals storage is owned by the entry stub (Tier‑1 bootstrap).
+    // Keep the value singletons as stable, distinct addresses inside the storage arena.
     //
-    // IMPORTANT: allocate globals storage with a raw allocator so it is NOT tracked by GC.
-    // This is runtime metadata and must never be reclaimed by mark/sweep.
-    //
-    // Rolling robustness: use `native_malloc_raw_or_mmap` (mmap fallback) so bring-up on new
-    // targets cannot crash the process if `malloc_raw` returns an invalid pointer.
-    g_storage = native_malloc_raw_or_mmap(GLOBAL_SLOTS_RESERVED * GLOBAL_SLOT_BYTES)
-    if g_storage == 0 { exit(301) }
-    
-    // Zero it
-    var i = 0
-    while i < GLOBAL_SLOTS_RESERVED {
-        ptr_set(iadd(g_storage, i * GLOBAL_SLOT_BYTES), 0)
-        i = i + 1
-    }
+    // Contract:
+    // - these pointers are NOT tracked heap allocations
+    // - their contents are irrelevant; only pointer identity matters
+    var v_nil = iadd(g_storage, 392)
+    var v_false = iadd(g_storage, 400)
+    var v_true = iadd(g_storage, 408)
+    global_set_value_nil(v_nil)
+    global_set_value_false(v_false)
+    global_set_value_true(v_true)
+    // Root the slots (not the values) so mark phase can load+mark them deterministically.
+    native_gc_register_root(iadd(g_storage, 368))
+    native_gc_register_root(iadd(g_storage, 376))
+    native_gc_register_root(iadd(g_storage, 384))
 
     // Defaults for allocator policy (rolling):
     // - threshold: 1 MiB (matches C runtime)

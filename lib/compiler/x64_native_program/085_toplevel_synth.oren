@@ -21,9 +21,11 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     var runtime_vars = split["runtime_vars"]
     var user_vars = split["user_vars"]
     var user_exec = split["user_exec"]
+    var user_ordered = split["user_ordered"]
     if runtime_vars == nil { runtime_vars = [] }
     if user_vars == nil { user_vars = [] }
     if user_exec == nil { user_exec = [] }
+    if user_ordered == nil { user_ordered = [] }
 
     // Allocate runtime global slots (always zero-initialized; runtime init owns their values).
     var i = 0
@@ -31,6 +33,8 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
         var st = runtime_vars[i]
         if st != nil {
             var nm = st["name"]["value"]
+            // `g_storage` is reserved in the native entry stub `.data` prefix (Tier‑1 bootstrap).
+            if nm == "g_storage" && ctx["globals"] != nil && ctx["globals"][nm] != nil { i = i + 1; continue }
             if ctx["globals"] != nil && ctx["globals"][nm] != nil {
                 err(ctx, "x64 native v0: duplicate global var " + nm)
                 return nil
@@ -61,16 +65,20 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
         i = i + 1
     }
 
-    var init_stmts = nt.user_global_init_assign_stmts(user_vars)
-
     // Top-level exec order:
-    // - user global initializers
-    // - other user top-level statements (expr/assign/control flow)
+    // Preserve source order across `var` initializers and other executable top-level statements.
+    // Rewrite `var x = expr` into global-slot assignments at the same position.
     var top_stmts = []
     var j = 0
-    while j < oren_list_len(init_stmts) { oren_list_push(top_stmts, init_stmts[j]); j = j + 1 }
-    j = 0
-    while j < oren_list_len(user_exec) { oren_list_push(top_stmts, user_exec[j]); j = j + 1 }
+    while j < oren_list_len(user_ordered) {
+        var stx = user_ordered[j]
+        if stx != nil && stx["type"] == "Var" {
+            oren_list_push(top_stmts, {"type": "Assign", "token": stx["token"], "name": stx["name"], "value": stx["value"]})
+        } else {
+            oren_list_push(top_stmts, stx)
+        }
+        j = j + 1
+    }
     return {"top_level_fn": _x64_synth_top_level_fn(top_stmts)}
 }
 
@@ -149,4 +157,3 @@ fn _x64_synth_top_level_fn(stmts) {
         "body": {"type": "Block", "stmts": out_stmts},
     }
 }
-

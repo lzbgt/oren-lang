@@ -314,7 +314,7 @@ fn _cf_array1(v0) {
 }
 
 @cfg(os="macos")
-fn _macos_set_alpn_if_requested(ctx, opts) {
+fn _macos_set_alpn_if_requested(ctx, opts, is_server) {
     // ALPN configuration (RFC 7301).
     //
     // SecureTransport expects:
@@ -330,10 +330,29 @@ fn _macos_set_alpn_if_requested(ctx, opts) {
     if oren_is_list(ps) != true { return {"ok": 0, "err": "tls: alpn: opts[\"alpn\"] must be list<string>"} }
     var n = oren_list_len(ps)
     if n <= 0 { return {"ok": 1} }
+    // SecureTransport note (rolling):
+    // On macOS server contexts, multi-protocol ALPN negotiation is unreliable/underspecified in
+    // SecureTransport (deprecated). Empirically, offering more than one protocol can result in
+    // confusing "negotiated" reporting and/or unexpected selection order.
+    //
+    // Rolling policy:
+    // - Client: offer the full protocol list (RFC 7301 intent).
+    // - Server: advertise only the first (most-preferred) protocol for determinism.
+    //
+    // This keeps Tier‑1 HTTP/2 loopback fixtures deterministic while we evaluate a modern
+    // TLS provider on macOS.
+    var use_n = n
+    if is_server == nil { is_server = 0 }
+    if is_server != 0 && use_n > 1 { use_n = 1 }
+    if oren_env("OREN_TRACE_TLS_ALPN") != nil {
+        var p0 = ps[0]
+        if p0 == nil { p0 = "" }
+        print("[tls_macos] set_alpn is_server=" + oren_int_to_string(is_server) + " want_n=" + oren_int_to_string(n) + " use_n=" + oren_int_to_string(use_n) + " first=" + p0)
+    }
 
     var total = 0
     var i = 0
-    while i < n {
+    while i < use_n {
         var p = ps[i]
         if p == 0 || oren_is_string(p) != true { return {"ok": 0, "err": "tls: alpn: protocols must be non-empty strings"} }
         var l = oren_string_len(p)
@@ -346,12 +365,12 @@ fn _macos_set_alpn_if_requested(ctx, opts) {
     var cb = _dlsym_addr("kCFTypeArrayCallBacks")
     if cb == 0 { return {"ok": 0, "err": "tls: alpn: missing kCFTypeArrayCallBacks"} }
 
-    var vals = malloc(8 * n)
+    var vals = malloc(8 * use_n)
     if vals == 0 { return {"ok": 0, "err": "tls: alpn: alloc failed"} }
 
     // Build CFStringRef array.
     i = 0
-    while i < n {
+    while i < use_n {
         var s = ps[i]
         var cs = _cfstring_utf8(s)
         if cs == 0 {
@@ -368,11 +387,11 @@ fn _macos_set_alpn_if_requested(ctx, opts) {
         i = i + 1
     }
 
-    var a = CFArrayCreate(0, vals, n, cb)
+    var a = CFArrayCreate(0, vals, use_n, cb)
 
     // Release our references; CFArray retains via kCFTypeArrayCallBacks.
     i = 0
-    while i < n {
+    while i < use_n {
         var v = ptr_get(vals + 8 * i)
         if v != 0 { CFRelease(v) }
         i = i + 1
@@ -587,7 +606,7 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
     }
 
     // Optional: ALPN (client offer and/or server supported protocols).
-    var alpn_r = _macos_set_alpn_if_requested(ctx, opts)
+    var alpn_r = _macos_set_alpn_if_requested(ctx, opts, is_server)
     if alpn_r["ok"] != 1 {
         CFRelease(ctx)
         free(st)
@@ -685,7 +704,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
 
     // SecureTransport note (rolling): apply ALPN after setting the certificate as well.
     // Some stacks appear to reset handshake configuration during SSLSetCertificate.
-    var alpn_r = _macos_set_alpn_if_requested(conn["ctx"], opts)
+    var alpn_r = _macos_set_alpn_if_requested(conn["ctx"], opts, 1)
     if alpn_r["ok"] != 1 {
         close(conn)
         CFRelease(items)
@@ -886,21 +905,32 @@ fn negotiated_alpn(conn) {
         free(out_ptr)
         // Best-effort: treat as "not negotiated / not supported".
         // Some OS/provider combinations appear to return an error when ALPN wasn't negotiated.
-        return {"ok": 1, "v": 0}
+        return {"ok": 1, "v": nil}
     }
     var arr = ptr_get(out_ptr)
     free(out_ptr)
-    if arr == 0 { return {"ok": 1, "v": 0} }
+    if arr == 0 { return {"ok": 1, "v": nil} }
 
     var n = CFArrayGetCount(arr)
+    if oren_env("OREN_TRACE_TLS_ALPN") != nil {
+        print("[tls_macos] copy_alpn count=" + oren_int_to_string(n))
+    }
     if n <= 0 {
         CFRelease(arr)
-        return {"ok": 1, "v": 0}
+        return {"ok": 1, "v": nil}
+    }
+    // SecureTransport note (rolling):
+    // `SSLCopyALPNProtocols` returns the peer protocol list, not a stable "selected protocol" signal.
+    // When the peer advertises more than one protocol (e.g. ["h2","http/1.1"]), we cannot reliably
+    // determine which one was actually selected, so treat it as "unknown" (nil).
+    if n != 1 {
+        CFRelease(arr)
+        return {"ok": 1, "v": nil}
     }
     var sref = CFArrayGetValueAtIndex(arr, 0)
     if sref == 0 {
         CFRelease(arr)
-        return {"ok": 1, "v": 0}
+        return {"ok": 1, "v": nil}
     }
 
     // ALPN protocol IDs are short ASCII strings. Keep a bounded buffer.
@@ -920,11 +950,14 @@ fn negotiated_alpn(conn) {
         free(buf)
         return {"ok": 0, "err": "tls.negotiated_alpn: CFStringGetCString failed"}
     }
+    if oren_env("OREN_TRACE_TLS_ALPN") != nil {
+        print("[tls_macos] negotiated_alpn raw=" + buf)
+    }
     var l = oren_string_len(buf)
     if l < 0 { l = 0 }
     if l == 0 {
         free(buf)
-        return {"ok": 1, "v": 0}
+        return {"ok": 1, "v": nil}
     }
     // Track as a STRING allocation for the native runtime GC.
     oren_track_alloc(buf, l + 1, 1)

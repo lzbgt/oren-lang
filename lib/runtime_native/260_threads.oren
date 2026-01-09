@@ -957,7 +957,7 @@ fn oren_join_timeout(handle, timeout_ms) {
 
     // timeout_ms == 0: non-blocking probe.
     if t == 0 {
-        if oren_is_done(h) == 0 { return 0 - 60 }
+        if oren_is_done(h) == false { return 0 - 60 }
         return oren_join_posix(h)
     }
 
@@ -968,23 +968,23 @@ fn oren_join_timeout(handle, timeout_ms) {
     // Implement timeout based on wall-clock time instead of assuming 1ms sleeps are accurate.
     var start_ns = oren_time_unix_ns()
     if start_ns == 0 {
-        // Fallback: no clock available; use the old ms-loop.
-        var i = 0
-        while i < t {
-            if oren_is_done(h) != 0 {
-                if dbg_on {
-                    var got_dbg = ptr_get(iadd(h, 16))
-                    print("join_timeout debug: done i=" + oren_int_to_string(i) + " got=" + oren_int_to_string(got_dbg))
+            // Fallback: no clock available; use the old ms-loop.
+            var i = 0
+            while i < t {
+                if oren_is_done(h) {
+                    if dbg_on {
+                        var got_dbg = ptr_get(iadd(h, 16))
+                        print("join_timeout debug: done i=" + oren_int_to_string(i) + " got=" + oren_int_to_string(got_dbg))
+                    }
+                    return oren_join_posix(h)
                 }
-                return oren_join_posix(h)
+                oren_sleep_ms(1)
+                i = i + 1
             }
-            oren_sleep_ms(1)
-            i = i + 1
-        }
     } else {
         var deadline = start_ns + t * 1000000
         while 1 {
-            if oren_is_done(h) != 0 {
+            if oren_is_done(h) {
                 if dbg_on {
                     var got_dbg2 = ptr_get(iadd(h, 16))
                     print("join_timeout debug: done got=" + oren_int_to_string(got_dbg2))
@@ -1159,7 +1159,7 @@ fn oren_join_timeout_posix(handle, timeout_ms) {
 
     var remaining = timeout_ms
     while remaining > 0 {
-        if oren_is_done(handle) != 0 {
+        if oren_is_done(handle) {
             return oren_join_posix(handle)
         }
         oren_sleep_ms(1)

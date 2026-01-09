@@ -96,6 +96,8 @@ fn test_core() {
     assert_true(true, 11)
     assert_true(!false, 12)
     assert_eq((1 | 2), 3, 13)
+    assert_eq((255 & 7), 7, 131)
+    assert_eq((10 & 255), 10, 132)
     assert_eq((5 ^ 1), 4, 14)
     assert_eq((1 << 5), 32, 15)
     assert_eq((32 >> 5), 1, 16)
@@ -103,6 +105,19 @@ fn test_core() {
     assert_eq(-7 / 3, -2, 18)
     assert_eq(7 / -3, -2, 19)
     assert_eq(-7 / -3, 2, 20)
+    
+    // Pointer byte stores/loads must work (critical for typed buffers, hashing, IO).
+    var p0 = oren_ptr_alloc(16)
+    if p0 == 0 { fail(133) }
+    ptr_set_byte(p0 + 0, 123)
+    ptr_set_byte(p0 + 1, 45)
+    var w0 = ptr_get(p0)
+    assert_eq(w0 & 255, 123, 134)
+    assert_eq((w0 >> 8) & 255, 45, 135)
+    oren_ptr_free(p0)
+
+    // Multi-arg calling convention (native ABI) sanity.
+    assert_eq(add3(1, 2, 3), 6, 136)
 
     // Type-strict equality parity (critical):
     // - `nil` must be distinct from numeric zero
@@ -122,6 +137,19 @@ fn test_core() {
     if false == nil { fail(1008) }
     if nil != nil { fail(1009) }
 
+    // Truthiness parity (docs/LANGUAGE_SPEC.md):
+    // - falsey: `nil`, `false`
+    // - truthy: everything else (including int 0)
+    if 0 { } else { fail(1010) }
+    if nil { fail(1011) }
+    if false { fail(1012) }
+    if !0 { fail(1013) }
+    if !nil { } else { fail(1014) }
+    assert_true((0 && nil) == false, 1015)
+    assert_true((0 || nil) == true, 1016)
+    assert_true((nil || 0) == true, 1017)
+    assert_true((nil && 0) == false, 1018)
+
     trace("QI: test_core lists")
     // Lists + for-in + break/continue.
     var xs = [1, 2, 3, 4]
@@ -140,12 +168,72 @@ fn test_core() {
     // - strided view: [buf, off, len, stride]
     //
     // `for x in view` must iterate underlying buffer values, not the metadata list.
+
+    // Sanity: `oren_is_err` must treat integer 0 as "not an error".
+    // Many runtime helpers return 0 on success (e.g. native_buf_check).
+    var ie0 = oren_is_err(0)
+    if ie0 {
+        print("QI: BUG: oren_is_err(0) returned true")
+        fail(3190)
+    }
     var b = oren_i32_buf_new(6)
+    if oren_is_err(b) {
+        print("QI: oren_i32_buf_new failed")
+        fail(3200)
+    }
+    var chk0 = native_buf_check(b, BUF_TAG_I32, 4)
+    if chk0 != 0 {
+        print("QI: BUG: native_buf_check(b) returned err=" + oren_int_to_string(chk0))
+        fail(3191)
+    }
+    if oren_is_err(chk0) {
+        print("QI: BUG: oren_is_err(native_buf_check_ok)=1")
+        fail(3192)
+    }
     var bi = 0
     while bi < 6 {
-        oren_buf_store_i32(b, bi, (bi + 1) * 10) // 10,20,30,40,50,60
+        var st = oren_buf_store_i32(b, bi, (bi + 1) * 10) // 10,20,30,40,50,60
+        if oren_is_err(st) {
+            print("QI: oren_buf_store_i32 failed idx=" + oren_int_to_string(bi))
+            fail(3201)
+        }
+        if g_qi_trace_on != 0 && bi == 0 {
+            print("QI: store_i32 ret=" + oren_int_to_string(st) + " buf=" + oren_int_to_string(b))
+        }
+        if st != b { fail(3204) }
         bi = bi + 1
     }
+    // Sanity: typed-buffer stores/loads must work before testing the view iterator protocol.
+    if g_qi_trace_on != 0 {
+        var dp = oren_buf_data_ptr_unchecked(b)
+        print("QI: buf hdr len=" + oren_int_to_string(ptr_get(b + 0)))
+        print("QI: buf hdr elem_size=" + oren_int_to_string(ptr_get(b + 8)))
+        print("QI: buf hdr magic=" + oren_int_to_string(ptr_get(b + 24)))
+        print("QI: buf hdr tag=" + oren_int_to_string(ptr_get(b + 32)) + " BUF_TAG_I32=" + oren_int_to_string(BUF_TAG_I32))
+        print("QI: buf hdr data=" + oren_int_to_string(ptr_get(b + 16)))
+        print("QI: buf hdr data_ptr=" + oren_int_to_string(ptr_get(b + 40)))
+        print("QI: buf payload ptr=" + oren_int_to_string(dp))
+        if dp != 0 {
+            fn dump4(off) {
+                return oren_int_to_string(ptr_get_byte(dp + off + 0) & 255) + "," +
+                    oren_int_to_string(ptr_get_byte(dp + off + 1) & 255) + "," +
+                    oren_int_to_string(ptr_get_byte(dp + off + 2) & 255) + "," +
+                    oren_int_to_string(ptr_get_byte(dp + off + 3) & 255)
+            }
+            print("QI: buf bytes @0..3   = " + dump4(0))
+            print("QI: buf bytes @4..7   = " + dump4(4))
+            print("QI: buf bytes @8..11  = " + dump4(8))
+            print("QI: buf bytes @12..15 = " + dump4(12))
+            print("QI: buf bytes @16..19 = " + dump4(16))
+            print("QI: buf bytes @20..23 = " + dump4(20))
+            print("QI: buf u64 @0  = " + oren_int_to_string(ptr_get(dp + 0)))
+            print("QI: buf u64 @8  = " + oren_int_to_string(ptr_get(dp + 8)))
+            print("QI: buf u64 @16 = " + oren_int_to_string(ptr_get(dp + 16)))
+        }
+    }
+    var r2 = oren_buf_load_i32(b, 2)
+    if oren_is_err(r2) { fail(3202) }
+    assert_eq(r2, 30, 3203)
     var view = [b, 2, 3] // 30,40,50
     var s2 = 0
     for x2 in view { s2 = s2 + x2 }
@@ -163,6 +251,15 @@ fn test_core() {
     assert_eq(oren_list_len(ks), 2, 40)
     assert_streq(ks[0], "a", 41)
     assert_streq(ks[1], "b", 42)
+
+    // Map lookup semantics:
+    // - present key yields the stored value (even if it is numeric zero)
+    // - missing key yields `nil`
+    var m2 = {"x": 0}
+    var v0 = m2["x"]
+    assert_eq(v0, 0, 46)
+    if v0 == nil { fail(1020) }
+    assert_true(m2["missing"] == nil, 1021)
 
     trace("QI: test_core strings")
     // String operations (portable).
@@ -248,7 +345,7 @@ fn test_read_u8_buf_missing_returns_err() {
     // Tooling contract: FS helpers must return structured errors (not hard-exit) so compiler caches
     // can probe optional files and treat ENOENT as a normal miss.
     var r = oren_read_u8_buf("__qi_missing_file_should_not_exist__u8.bin")
-    assert_true(oren_is_err(r) != 0, 74)
+    assert_true(oren_is_err(r), 74)
 }
 
 fn test_read_file_missing_returns_err() {
@@ -256,7 +353,7 @@ fn test_read_file_missing_returns_err() {
     // Tooling contract: `oren_read_file` must match the stage1 runtime behavior:
     // return an error map on failure (not exit), so optional cache probes don't abort the process.
     var r = oren_read_file("__qi_missing_file_should_not_exist__s.txt")
-    assert_true(oren_is_err(r) != 0, 75)
+    assert_true(oren_is_err(r), 75)
 }
 
 fn test_numeric_casts() {
@@ -297,7 +394,7 @@ fn test_float_and_bytes() {
     // bytes hex helpers + iteration.
     var hx = "00ff1020"
     var bb = oren_bytes_from_hex(hx)
-    assert_true(oren_is_err(bb) == 0, 220)
+    assert_true(oren_is_err(bb) == false, 220)
     assert_eq(oren_bytes_len(bb), 4, 221)
     assert_streq(oren_bytes_to_hex(bb), hx, 222)
     var sum = 0

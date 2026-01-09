@@ -16,14 +16,14 @@ fn _is_int(v) {
     if v == nil { return false }
     var s = oren_int_to_string(v)
     if s == nil { return false }
-    return oren_is_err(s) == 0
+    return oren_is_err(s) == false
 }
 
 fn _is_string(v) {
     if v == nil { return false }
     // Compare length: string_len errors on non-string.
     var n = oren_string_len(v)
-    return oren_is_err(n) == 0
+    return oren_is_err(n) == false
 }
 
 fn _hex_ok(s) {
@@ -59,7 +59,7 @@ fn validate(cmds, w, h, opts) {
     // Lists are the only stable "sequence" container across backends right now.
     // In some backends `oren_list_len(non_list)` yields nil rather than an error.
     var _n = oren_list_len(cmds)
-    if _n == nil || oren_is_err(_n) != 0 { return oren_err(4, "ui.validate: cmds must be list") }
+    if _n == nil || oren_is_err(_n) { return oren_err(4, "ui.validate: cmds must be list") }
 
     var i = 0
     while i < oren_list_len(cmds) {

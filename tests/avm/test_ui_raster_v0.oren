@@ -52,7 +52,7 @@ fn test_raster_simple() {
     assert_eq(oren_list_len(cmds), 2)
 
     var buf = ui_raster.rasterize(cmds, w, h, nil)
-    assert_true(oren_is_err(buf) == 0)
+    assert_true(oren_is_err(buf) == false)
     assert_eq(oren_bytes_len(buf), w * h * 4)
 
     // (0,0) is inside red box.
@@ -89,4 +89,3 @@ fn main() {
     test_raster_simple()
     exit(0)
 }
-

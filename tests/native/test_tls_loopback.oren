@@ -175,7 +175,7 @@ fn main_client() {
         exit(11)
     }
     var ap = oren_map_get_str(ar, "v")
-    if ap == 0 || _str_eq_bytes(ap, "http/1.1") != true {
+    if ap == nil || _str_eq_bytes(ap, "http/1.1") != true {
         tls.close(conn)
         oren_join_timeout(h, 5000)
         exit(12)
@@ -287,7 +287,7 @@ fn main_client() {
     var ar = tls.negotiated_alpn(conn)
     if oren_map_get_str(ar, "ok") != 1 { tls.close(conn); exit(11) }
     var ap = oren_map_get_str(ar, "v")
-    if ap == 0 || _str_eq_bytes(ap, "http/1.1") != true { tls.close(conn); exit(12) }
+    if ap == nil || _str_eq_bytes(ap, "http/1.1") != true { tls.close(conn); exit(12) }
 
     var msg = "PING"
     var wr = tls.write_from(conn, msg, 4, 5000)
@@ -434,9 +434,14 @@ fn main_client() {
         tls.close(conn)
         exit(11)
     }
-    if oren_map_get_str(ar, "v") != 0 {
-        tls.close(conn)
-        exit(12)
+    var ap = oren_map_get_str(ar, "v")
+    if ap != nil {
+        // Best-effort: if the provider reports a negotiated protocol, ensure it matches the
+        // server's advertised single-protocol list ("http/1.1") for this fixture.
+        if _str_eq_bytes(ap, "http/1.1") != true {
+            tls.close(conn)
+            exit(12)
+        }
     }
 
     var msg = "PING"

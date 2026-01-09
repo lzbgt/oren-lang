@@ -93,6 +93,9 @@ fn oren_pipe() {
 //   344:net_fd_caps_map_len (live entries) (rolling)
 //   352:net_fd_caps_lock (spinlock; 0|1) (rolling)
 //   360:result_value (rolling; `oren_set_result` / `oren_get_result`)
+//   368:value_nil   (native backend: `nil` singleton value)
+//   376:value_false (native backend: `false` singleton value)
+//   384:value_true  (native backend: `true` singleton value)
 var g_storage = 0
 
 fn oren_globals() {
@@ -149,6 +152,9 @@ var GLOBAL_OFF_NET_FD_CAPS_MAP_VALS_PTR = 328
 var GLOBAL_OFF_NET_FD_CAPS_MAP_CAP = 336
 var GLOBAL_OFF_NET_FD_CAPS_MAP_LEN = 344
 var GLOBAL_OFF_NET_FD_CAPS_LOCK = 352
+var GLOBAL_OFF_VALUE_NIL = 368
+var GLOBAL_OFF_VALUE_FALSE = 376
+var GLOBAL_OFF_VALUE_TRUE = 384
 
 // Reserve extra room for rolling ABI growth.
 var GLOBAL_SLOTS_RESERVED = 56
@@ -212,6 +218,55 @@ fn global_set_call_depth_max(v) { ptr_set(iadd(oren_globals(), 312), v) }
 
 fn global_get_result_value() { return ptr_get(iadd(oren_globals(), 360)) }
 fn global_set_result_value(v) { ptr_set(iadd(oren_globals(), 360), v) }
+
+fn global_get_value_nil() {
+    var g = oren_globals()
+    if g == 0 { return 0 }
+    return ptr_get(iadd(g, 368))
+}
+fn global_set_value_nil(v) { ptr_set(iadd(oren_globals(), 368), v) }
+fn global_get_value_false() {
+    var g = oren_globals()
+    if g == 0 { return 0 }
+    return ptr_get(iadd(g, 376))
+}
+fn global_set_value_false(v) { ptr_set(iadd(oren_globals(), 376), v) }
+fn global_get_value_true() {
+    var g = oren_globals()
+    if g == 0 { return 0 }
+    return ptr_get(iadd(g, 384))
+}
+fn global_set_value_true(v) { ptr_set(iadd(oren_globals(), 384), v) }
+
+// Native backend value helpers (Tier‑1):
+// `nil`, `false`, `true` are runtime singletons under the native backend.
+// These helpers keep runtime code from accidentally treating raw 0 as `nil`.
+fn native_value_nil() { return global_get_value_nil() }
+fn native_value_false() { return global_get_value_false() }
+fn native_value_true() { return global_get_value_true() }
+
+fn native_value_is_nil(v) {
+    var vn = native_value_nil()
+    if vn == 0 { return false }
+    return v == vn
+}
+
+fn native_value_is_false(v) {
+    var vf = native_value_false()
+    if vf == 0 { return false }
+    return v == vf
+}
+
+fn native_value_is_true(v) {
+    var vt = native_value_true()
+    if vt == 0 { return false }
+    return v == vt
+}
+
+fn native_value_is_falsey(v) {
+    if native_value_is_nil(v) { return true }
+    return native_value_is_false(v)
+}
 
 fn native_simd_enabled() { return global_get_enable_simd() }
 

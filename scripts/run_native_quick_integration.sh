@@ -78,3 +78,21 @@ run_with_timeout "$build_timeout_secs" "$compiler" build "$test_src" \
 run_with_timeout "$run_timeout_secs" "$out" >>"$log" 2>&1
 
 tail -n 5 "$log"
+
+echo "== typecheck smoke (numeric vs nil) =="
+tc_src="tests/fixtures/typecheck_bad_numeric_nil.oren"
+tc_log="build/logs/${compiler_base}_typecheck_smoke.log"
+tc_out="build/tmp/${compiler_base}_typecheck_smoke.obc"
+rm -f "$tc_log" "$tc_out" 2>/dev/null || true
+
+set +e
+"$compiler" build "$tc_src" --backend bytecode --typecheck -o "$tc_out" >"$tc_log" 2>&1
+rc=$?
+set -e
+
+if [[ "$rc" -eq 0 ]]; then
+  echo "FAIL: typecheck smoke expected failure but build succeeded"
+  tail -n 80 "$tc_log"
+  exit 1
+fi
+tail -n 5 "$tc_log"

@@ -256,9 +256,12 @@ fn test_time_proc() {
     //   whose path is provided by the test runner via `OREN_TEST_SLEEP_BIN`.
     //
     // Expect: returns -ETIMEDOUT (we use BSD's 60 as the v0 convention).
-    var bin = oren_getenv("OREN_TEST_SLEEP_BIN")
-    if bin == 0 { fail(123) }
-    var rc = oren_proc_spawn(bin, [bin], 20)
+    // Use this integration binary itself as the sleep fixture so the suite remains hermetic.
+    var argvp = global_get_argv()
+    if argvp == 0 { fail(123) }
+    var self = ptr_get(argvp)
+    if self == 0 { fail(123) }
+    var rc = oren_proc_spawn(self, [self, "--fixture-sleep-ms", "1000"], 20)
     assert_eq(rc, 0 - 60, 124)
 }
 
@@ -323,14 +326,14 @@ fn test_select_primitives() {
 fn test_err_predicate_and_bytes_safety() {
     // Regression: `oren_is_err` and byte helpers must not probe memory when given large ints.
     // These were a real source of native segfaults during rolling refactors.
-    assert_eq(oren_is_err(16909060), 0, 160) // 0x01020304 is NOT a pointer.
+    assert_true(oren_is_err(16909060) == false, 160) // 0x01020304 is NOT a pointer.
 
     var e0 = oren_bytes_get_u8(16909060, 0)
-    assert_true(oren_is_err(e0) != 0, 161)
+    assert_true(oren_is_err(e0) == true, 161)
 
     var xs = [1, 2]
     var e1 = oren_bytes_get_u8(xs, 10)
-    assert_true(oren_is_err(e1) != 0, 162)
+    assert_true(oren_is_err(e1) == true, 162)
 
     var ok = oren_bytes_get_u8(xs, 1)
     assert_eq(ok, 2, 163)
@@ -365,18 +368,18 @@ fn test_env_execve_getenv() {
         // use `oren_env` to copy values into tracked heap strings first.
         var sleep_bin = oren_env("OREN_TEST_SLEEP_BIN")
         var check_bin = oren_env("OREN_TEST_ENV_CHECK_BIN")
-        var env2 = 0
-        var env3 = 0
-        if sleep_bin != 0 { env2 = "OREN_TEST_SLEEP_BIN=" + sleep_bin }
-        if check_bin != 0 { env3 = "OREN_TEST_ENV_CHECK_BIN=" + check_bin }
+        var env2 = nil
+        var env3 = nil
+        if sleep_bin != nil { env2 = "OREN_TEST_SLEEP_BIN=" + sleep_bin }
+        if check_bin != nil { env3 = "OREN_TEST_ENV_CHECK_BIN=" + check_bin }
 
         var envp = malloc(40) // up to 4 pointers + NULL
         if envp == 0 { fail(142) }
         var ei = 0
         ptr_set(envp + ei * 8, env0); ei = ei + 1
         ptr_set(envp + ei * 8, env1); ei = ei + 1
-        if env2 != 0 { ptr_set(envp + ei * 8, env2); ei = ei + 1 }
-        if env3 != 0 { ptr_set(envp + ei * 8, env3); ei = ei + 1 }
+        if env2 != nil { ptr_set(envp + ei * 8, env2); ei = ei + 1 }
+        if env3 != nil { ptr_set(envp + ei * 8, env3); ei = ei + 1 }
         ptr_set(envp + ei * 8, 0)
 
         sys_execve(path, argvp, envp)
@@ -389,9 +392,12 @@ fn test_env_execve_getenv() {
     assert_streq(val, "1", 145)
 
     // Validate subprocess env inheritance without relying on a shell or host tools.
-    var check = oren_getenv("OREN_TEST_ENV_CHECK_BIN")
-    if check == 0 { fail(146) }
-    var st = oren_proc_spawn(check, [check], 1000000)
+    // Use this integration binary itself as the env-check fixture.
+    var argvp2 = global_get_argv()
+    if argvp2 == 0 { fail(146) }
+    var self2 = ptr_get(argvp2)
+    if self2 == 0 { fail(146) }
+    var st = oren_proc_spawn(self2, [self2, "--fixture-env-check"], 1000000)
     if st != 0 { fail(147) }
 }
 
@@ -428,7 +434,7 @@ fn test_bytes_endian_and_pack_view() {
 
     // Zero-copy path: u8_buf should also act as a byte container for pack_view and endian helpers.
     var pktb = oren_u8_buf_new(12)
-    assert_true(oren_is_err(pktb) == 0, 226)
+    assert_true(oren_is_err(pktb) == false, 226)
     var i = 0
     while i < 12 {
         oren_buf_store_u8(pktb, i, pkt[i])
@@ -449,7 +455,7 @@ fn test_bytes_endian_and_pack_view() {
     assert_eq(pack_view("PV_H", out, 0).dst, 134744072, 225)
 
     var outb = oren_u8_buf_new(12)
-    assert_true(oren_is_err(outb) == 0, 231)
+    assert_true(oren_is_err(outb) == false, 231)
     pack_view("PV_H", outb, 0).v = 69
     pack_view("PV_H", outb, 0).len = 84
     pack_view("PV_H", outb, 0).dst = 134744072
@@ -459,20 +465,20 @@ fn test_bytes_endian_and_pack_view() {
 fn test_bytes_hex_pack_unpack_u8_buf() {
     // Native bytes helpers should operate on u8_buf (preferred) and still provide portable APIs.
     var b = oren_bytes_from_hex("00ff1020")
-    assert_true(oren_is_err(b) == 0, 240)
+    assert_true(oren_is_err(b) == false, 240)
     assert_eq(oren_bytes_len(b), 4, 241)
 
     var hx = oren_bytes_to_hex(b)
     assert_streq(hx, "00ff1020", 242)
 
     var xs = oren_bytes_unpack(b)
-    assert_true(oren_is_err(xs) == 0, 243)
+    assert_true(oren_is_err(xs) == false, 243)
     assert_eq(oren_list_len(xs), 4, 244)
     assert_eq(xs[1], 255, 245)
     xs[2] = 171
 
     var b2 = oren_bytes_pack(xs)
-    assert_true(oren_is_err(b2) == 0, 246)
+    assert_true(oren_is_err(b2) == false, 246)
     assert_streq(oren_bytes_to_hex(b2), "00ffab20", 247)
 
     // `for x in bytes` must work for the preferred u8_buf representation too.
@@ -500,16 +506,16 @@ fn test_numeric_casts() {
 
     // Checked casts.
     var ok = ints.try_u8(255)
-    assert_true(oren_is_err(ok) == 0, 330)
+    assert_true(oren_is_err(ok) == false, 330)
     assert_eq(ok, 255, 331)
     var bad = ints.try_u8(256)
-    assert_true(oren_is_err(bad) != 0, 332)
+    assert_true(oren_is_err(bad) == true, 332)
     assert_eq(oren_err_code(bad), 4, 333)
 
     var uok = ints.try_u64(ints.MAX_I64)
-    assert_true(oren_is_err(uok) == 0, 334)
+    assert_true(oren_is_err(uok) == false, 334)
     var ubad = ints.try_u64(ints.MAX_I64 + 1)
-    assert_true(oren_is_err(ubad) != 0, 335)
+    assert_true(oren_is_err(ubad) == true, 335)
 }
 
 fn test_float_ops() {
@@ -549,86 +555,86 @@ fn test_typed_buffers_native() {
     // Keep this as one integration-style test to avoid growing the native suite.
 
     var a = oren_i32_buf_new(3)
-    assert_true(oren_is_err(a) == 0, 450)
+    assert_true(oren_is_err(a) == false, 450)
     oren_buf_fill_i32(a, 2)
     assert_eq(oren_buf_load_i32(a, 1), 2, 451)
 
     var b = oren_i32_buf_new(3)
-    assert_true(oren_is_err(b) == 0, 452)
+    assert_true(oren_is_err(b) == false, 452)
     oren_buf_fill_i32(b, 5)
 
     var c = oren_buf_add_i32(a, b)
-    assert_true(oren_is_err(c) == 0, 453)
+    assert_true(oren_is_err(c) == false, 453)
     assert_eq(oren_buf_load_i32(c, 2), 7, 454)
 
     // Also cover the in-place/into forms (these map to SIMD kernels in native runtime).
     var c2 = oren_i32_buf_new(3)
-    assert_true(oren_is_err(c2) == 0, 458)
+    assert_true(oren_is_err(c2) == false, 458)
     var rc_add_into = oren_buf_add_i32_into(c2, a, b)
-    assert_true(oren_is_err(rc_add_into) == 0, 459)
+    assert_true(oren_is_err(rc_add_into) == false, 459)
     assert_eq(oren_buf_load_i32(c2, 2), 7, 460)
 
     var m0 = oren_buf_mul_i32(a, b)
-    assert_true(oren_is_err(m0) == 0, 461)
+    assert_true(oren_is_err(m0) == false, 461)
     assert_eq(oren_buf_load_i32(m0, 0), 10, 462) // 2*5
     assert_eq(oren_buf_load_i32(m0, 2), 10, 463)
 
     var m1 = oren_i32_buf_new(3)
-    assert_true(oren_is_err(m1) == 0, 464)
+    assert_true(oren_is_err(m1) == false, 464)
     var rc_mul_into = oren_buf_mul_i32_into(m1, a, b)
-    assert_true(oren_is_err(rc_mul_into) == 0, 465)
+    assert_true(oren_is_err(rc_mul_into) == false, 465)
     assert_eq(oren_buf_load_i32(m1, 1), 10, 466)
 
     var sc = oren_i32_buf_new(3)
-    assert_true(oren_is_err(sc) == 0, 467)
+    assert_true(oren_is_err(sc) == false, 467)
     var rc_scale = oren_buf_scale_i32_into(sc, a, 3)
-    assert_true(oren_is_err(rc_scale) == 0, 468)
+    assert_true(oren_is_err(rc_scale) == false, 468)
     assert_eq(oren_buf_load_i32(sc, 0), 6, 469)
     assert_eq(oren_buf_load_i32(sc, 2), 6, 470)
 
     // axpy: out = alpha*x + y
     var ax = oren_i32_buf_new(3)
-    assert_true(oren_is_err(ax) == 0, 471)
+    assert_true(oren_is_err(ax) == false, 471)
     var rc_ax = oren_buf_axpy_i32_into(ax, 2, a, b)
-    assert_true(oren_is_err(rc_ax) == 0, 472)
+    assert_true(oren_is_err(rc_ax) == false, 472)
     assert_eq(oren_buf_load_i32(ax, 0), 9, 473) // 2*2 + 5
     assert_eq(oren_buf_load_i32(ax, 2), 9, 474)
 
     assert_eq(oren_buf_dot_i32(a, b), 30, 455) // 3 * (2*5)
     var dot_out = oren_i64_buf_new(1)
-    assert_true(oren_is_err(dot_out) == 0, 456)
+    assert_true(oren_is_err(dot_out) == false, 456)
     oren_buf_dot_i32_into(dot_out, a, b)
     assert_eq(oren_buf_load_i64(dot_out, 0), 30, 457)
 
     var fa = oren_f32_buf_new(3)
     var fb = oren_f32_buf_new(3)
-    assert_true(oren_is_err(fa) == 0, 460)
-    assert_true(oren_is_err(fb) == 0, 461)
+    assert_true(oren_is_err(fa) == false, 460)
+    assert_true(oren_is_err(fb) == false, 461)
     oren_buf_fill_f32(fa, 1.5)
     oren_buf_fill_f32(fb, 2.0)
 
     var fc = oren_buf_add_f32(fa, fb)
-    assert_true(oren_is_err(fc) == 0, 462)
+    assert_true(oren_is_err(fc) == false, 462)
     assert_eq(oren_buf_load_f32(fc, 0), 3.5, 463)
     assert_eq(oren_buf_dot_f32(fa, fb), 9.0, 464)
 
     // f32 axpy: out = alpha*x + y (exact values; deterministic).
     var fdst = oren_f32_buf_new(3)
-    assert_true(oren_is_err(fdst) == 0, 467)
+    assert_true(oren_is_err(fdst) == false, 467)
     var rc_ax_f = oren_buf_axpy_f32_into(fdst, 2.0, fa, fb) // 2*1.5 + 2.0 = 5.0
-    assert_true(oren_is_err(rc_ax_f) == 0, 468)
+    assert_true(oren_is_err(rc_ax_f) == false, 468)
     assert_eq(oren_buf_load_f32(fdst, 0), 5.0, 469)
 
     var fy2 = oren_f32_buf_new(3)
-    assert_true(oren_is_err(fy2) == 0, 470)
+    assert_true(oren_is_err(fy2) == false, 470)
     oren_buf_fill_f32(fy2, 2.0)
     var rc_ax_f2 = oren_buf_axpy_f32_in_place(2.0, fa, fy2)
-    assert_true(oren_is_err(rc_ax_f2) == 0, 471)
+    assert_true(oren_is_err(rc_ax_f2) == false, 471)
     assert_eq(oren_buf_load_f32(fy2, 2), 5.0, 472)
 
     // f32 rounding boundary: 16777217 (2^24+1) rounds to 16777216 in float32.
     var fr = oren_f32_buf_new(1)
-    assert_true(oren_is_err(fr) == 0, 465)
+    assert_true(oren_is_err(fr) == false, 465)
     oren_buf_store_f32(fr, 0, 16777217.0)
     assert_eq(oren_buf_load_f32(fr, 0), 16777216.0, 466)
 }
@@ -676,16 +682,16 @@ fn test_u8_buf_syscall_io() {
     var w = oren_list_get(ch, 1)
 
     var out = oren_u8_buf_new(2)
-    assert_true(oren_is_err(out) == 0, 940)
-    assert_true(oren_is_err(oren_buf_store_u8(out, 0, 65)) == 0, 941) // 'A'
-    assert_true(oren_is_err(oren_buf_store_u8(out, 1, 66)) == 0, 942) // 'B'
+    assert_true(oren_is_err(out) == false, 940)
+    assert_true(oren_is_err(oren_buf_store_u8(out, 0, 65)) == false, 941) // 'A'
+    assert_true(oren_is_err(oren_buf_store_u8(out, 1, 66)) == false, 942) // 'B'
 
     var wn = sys_write_u8_buf(w, out, 0, 2)
     assert_eq(wn, 2, 943)
     sys_close(w)
 
     var inp = oren_u8_buf_new(2)
-    assert_true(oren_is_err(inp) == 0, 944)
+    assert_true(oren_is_err(inp) == false, 944)
     var rn = sys_read_u8_buf(r, inp, 0, 2)
     assert_eq(rn, 2, 945)
     sys_close(r)
@@ -707,7 +713,7 @@ fn test_u8_buf_wrap_ptr_zero_copy() {
     }
 
     var b = oren_u8_buf_wrap_ptr(p, 12)
-    assert_true(oren_is_err(b) == 0, 961)
+    assert_true(oren_is_err(b) == false, 961)
     assert_eq(pack_view("PV_H", b, 0).dst, 134744072, 962)
 
     // bytes helpers should work on wrapped buffers too.
@@ -1305,6 +1311,29 @@ fn test_sockaddr_packers() {
 }
 
 fn main() {
+    // Fixture dispatch: some integration tests spawn this same binary as a helper.
+    // Keep these modes tiny and deterministic so the suite is hermetic (no dependency on /bin/sh,
+    // /usr/bin/sleep, etc.).
+    var args = oren_args()
+    if args != 0 && oren_list_len(args) >= 2 {
+        var mode = args[1]
+        if mode == "--fixture-env-check" {
+            var v = oren_getenv("OREN_TEST_ENV")
+            if v == 0 { exit(2) }
+            if v != "1" { exit(3) }
+            exit(0)
+        }
+        if mode == "--fixture-sleep-ms" {
+            var ms = 1000
+            if oren_list_len(args) >= 3 {
+                var n = oren_int_from_string(args[2])
+                if n >= 0 { ms = n }
+            }
+            oren_sleep_ms(ms)
+            exit(0)
+        }
+    }
+
     // Ensure a local scratch directory exists.
     //
     // The integration suite is sometimes executed from ad-hoc working directories

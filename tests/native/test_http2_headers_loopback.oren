@@ -324,7 +324,6 @@ fn server_impl(listen_fd, pfx_b64) {
     if oren_map_get_str(al, "ok") == 1 {
         var v = oren_map_get_str(al, "v")
         var rc0 = _must_be_h2(v)
-        if v != nil { free(v) }
         if rc0 != 0 { tls.close(conn); return 14 }
     }
 
@@ -444,7 +443,6 @@ fn main_client() {
     if oren_map_get_str(al, "ok") == 1 {
         var v = oren_map_get_str(al, "v")
         var rc0 = _must_be_h2(v)
-        if v != nil { free(v) }
         if rc0 != 0 { tls.close(conn); exit(9) }
     }
 
@@ -500,7 +498,6 @@ fn main_client() {
     if oren_map_get_str(al, "ok") == 1 {
         var v = oren_map_get_str(al, "v")
         var rc0 = _must_be_h2(v)
-        if v != nil { free(v) }
         if rc0 != 0 { tls.close(conn); exit(11) }
     }
 
@@ -574,7 +571,6 @@ fn main_client() {
     if oren_map_get_str(al, "ok") == 1 {
         var v = oren_map_get_str(al, "v")
         var rc0 = _must_be_h2(v)
-        if v != nil { free(v) }
         if rc0 != 0 { tls.close(conn); exit(11) }
     }
 

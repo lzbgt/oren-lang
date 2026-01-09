@@ -1,11 +1,13 @@
-var a = 10
-var b = 20
-var c = 10
+fn main() {
+    var a = 10
+    var b = 20
+    var c = 10
 
-var r1 = (a < b) // 1
-var r2 = (a > b) // 0
-var r3 = (a == c) // 1
-var r4 = (a != b) // 1
-
-var total = r1 + r2 + r3 + r4
-if total == 3 { exit(0) } else { exit(1) }
+    // Comparisons yield bool values (not 0/1 ints). Count trues explicitly.
+    var total = 0
+    if a < b { total = total + 1 }
+    if a > b { total = total + 1 }
+    if a == c { total = total + 1 }
+    if a != b { total = total + 1 }
+    if total == 3 { exit(0) } else { exit(1) }
+}

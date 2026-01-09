@@ -133,7 +133,27 @@ fn native_expr_chunk_call(ctx, expr) {
     
             var fn_name = fn_expr["value"]
             // If the identifier is a local/global, it's a variable call => treat as indirect call.
-            if ctx["locals"][fn_name] != nil || ctx["globals"][fn_name] != nil {
+            //
+            // IMPORTANT (Tier‑1 native + injected runtime):
+            // Some compilation paths populate `ctx["globals"]` with entries that share names with
+            // real functions (e.g. injected runtime/library helpers). In that case we must still
+            // treat `name(args...)` as a direct symbol call when `name` is a known function.
+            //
+            // Use `ctx["func_arity"]` as the authoritative "is this a declared function symbol?"
+            // map, and only treat globals as variable-calls when there is no function symbol.
+            var is_fn = false
+            if ctx != nil {
+                if ctx["func_arity"] != nil && ctx["func_arity"][fn_name] != nil {
+                    is_fn = true
+                } else if ctx["declared_functions"] != nil && ctx["declared_functions"][fn_name] != nil {
+                    is_fn = true
+                } else if ctx["functions"] != nil && ctx["functions"][fn_name] != nil {
+                    // Runtime-object cache (and some compilation modes) seed `ctx["functions"]` with
+                    // already-emitted function entry points. Treat those names as direct-callable.
+                    is_fn = true
+                }
+            }
+            if ctx["locals"][fn_name] != nil || (ctx["globals"][fn_name] != nil && is_fn != true) {
                 // args_list = oren_new_list(0)
                 push_u32_le(ctx["code"], insn_movz(0, 0))
                 var bl_new_list_ind2 = bytes_len(ctx["code"])

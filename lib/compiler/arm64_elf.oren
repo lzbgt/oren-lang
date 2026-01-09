@@ -730,8 +730,45 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
     // Rolling contract (Tier-1 safety):
     // - without `--link`: calling an `ffi` symbol panics with a stable message
     // - with `--link`: emit a dynamic-link-aware resolver + lazy stubs (dlsym-based)
-    var imports = ctx["import_list"]
-    if imports == nil { imports = [] }
+    // IMPORTANT (Tier‑1 robustness):
+    // If an Oren function is mistakenly classified as an import, emitting an import stub will
+    // overwrite its real entry in `ctx["functions"]`, causing silent miscompiles.
+    // Filter imports here so only true unresolved `ffi` symbols get stubs.
+    var imports_raw = ctx["import_list"]
+    if imports_raw == nil { imports_raw = [] }
+    var imports = []
+    var import_collide_count = 0
+    var import_collide_sample = []
+    var ii_imp = 0
+    while ii_imp < oren_list_len(imports_raw) {
+        var nm = imports_raw[ii_imp]
+        var is_local = false
+        if nm != nil {
+            if ctx["func_arity"] != nil && ctx["func_arity"][nm] != nil {
+                is_local = true
+            } else if functions != nil && functions[nm] != nil {
+                is_local = true
+            }
+        }
+        if is_local {
+            import_collide_count = import_collide_count + 1
+            if oren_list_len(import_collide_sample) < 8 { oren_list_push(import_collide_sample, nm) }
+        } else {
+            oren_list_push(imports, nm)
+        }
+        ii_imp = ii_imp + 1
+    }
+    ctx["import_list"] = imports
+    if oren_env("OREN_TRACE_NATIVE_IMPORTS") != nil && import_collide_count > 0 {
+        var sample_s = ""
+        var si = 0
+        while si < oren_list_len(import_collide_sample) {
+            if si > 0 { sample_s = sample_s + "," }
+            sample_s = sample_s + import_collide_sample[si]
+            si = si + 1
+        }
+        print("[emit] elf arm64: filtered " + oren_int_to_string(import_collide_count) + " import(s) that collide with local function symbols (sample=" + sample_s + ")")
+    }
 
     if dyn && oren_list_len(imports) > 0 {
         var resolver_name = _arm64_emit_ffi_resolver_linux(ctx, debug_mode)
