@@ -18,6 +18,7 @@ import tls "std:net/tls"
 import base64 "std:encoding/base64"
 import h2 "std:net/http2"
 import hpack "std:net/hpack"
+import h2c "std:net/http2_client"
 import list "std:list"
 import fixture "./fixture_tls_p12.oren"
 
@@ -280,6 +281,32 @@ fn _expect_headers_list(hs, expect) {
     return 0
 }
 
+fn _expect_body_ok(body) {
+    if body == nil { return 0 - 1 }
+    if oren_buf_len(body) != 2 { return 0 - 2 }
+    var p = native_buf_data_ptr(body)
+    if p == 0 { return 0 - 3 }
+    if (ptr_get_byte(p + 0) & 255) != 111 { return 0 - 4 } // 'o'
+    if (ptr_get_byte(p + 1) & 255) != 107 { return 0 - 5 } // 'k'
+    return 0
+}
+
+fn _client_roundtrip(conn) {
+    // Use stdlib HTTP/2 client facade to avoid re-embedding frame logic in tests.
+    var nr = h2c.new(conn, 5000, {"settings": [[h2.SETTINGS_ENABLE_PUSH, 0]]})
+    if nr["ok"] != 1 { return 0 - 11 }
+    var c = nr["c"]
+    var rr = h2c.request(c, [
+        {"name": ":method", "value": "GET"},
+        {"name": ":scheme", "value": "https"},
+        {"name": ":path", "value": "/"},
+        {"name": ":authority", "value": "oren.test", "index": "inc"}
+    ], nil, {"split_headers_at": 8})
+    if rr["ok"] != 1 { return 0 - 12 }
+    if rr["status"] != 200 { return 0 - 13 }
+    return _expect_body_ok(rr["body"])
+}
+
 fn server_impl(listen_fd, pfx_b64) {
     var fd = tcp.accept(listen_fd, 5000)
     if fd < 0 { return 11 }
@@ -421,69 +448,8 @@ fn main_client() {
         if rc0 != 0 { tls.close(conn); exit(9) }
     }
 
-    // Preface + SETTINGS.
-    var wr0 = _write_all_str(conn, h2.CLIENT_PREFACE, h2.CLIENT_PREFACE_LEN, 5000)
-    if wr0 != 0 { tls.close(conn); exit(10) }
-    var hdr = malloc(16)
-    if hdr == 0 { tls.close(conn); exit(11) }
-    var payload = h2.settings_payload_from_list([[h2.SETTINGS_ENABLE_PUSH, 0]])
-    if oren_is_err(payload) { free(hdr); tls.close(conn); exit(110) }
-    var plen = oren_buf_len(payload)
-    if oren_is_err(plen) { free(hdr); tls.close(conn); exit(111) }
-    var rc1 = h2.write_frame_header(hdr, plen, h2.FRAME_SETTINGS, 0, 0)
-    if rc1 != 0 { free(hdr); tls.close(conn); exit(12) }
-    wr0 = _write_all_ptr(conn, hdr, 9, 5000)
-    if wr0 == 0 { wr0 = _write_all_bytes(conn, payload, 5000) }
-    free(hdr)
-    if wr0 != 0 { tls.close(conn); exit(13) }
-
-    // Read server SETTINGS + ACK, then ACK server SETTINGS.
-    var fr = _read_frame(conn, 5000)
-    if fr["ok"] != 1 { tls.close(conn); exit(14) }
-    if fr["type"] != h2.FRAME_SETTINGS { tls.close(conn); exit(15) }
-    var fr2 = _read_frame(conn, 5000)
-    if fr2["ok"] != 1 { tls.close(conn); exit(151) }
-    if fr2["type"] != h2.FRAME_SETTINGS || fr2["flags"] != h2.FLAG_ACK || fr2["stream"] != 0 { tls.close(conn); exit(152) }
-    var wr_ack = _send_frame(conn, h2.FRAME_SETTINGS, h2.FLAG_ACK, 0, oren_u8_buf_new(0), 5000)
-    if wr_ack != 0 { tls.close(conn); exit(153) }
-
-    // Send HEADERS request (END_STREAM). Force CONTINUATION by splitting header block.
-    var t = hpack.table_new(4096)
-    var er = hpack.encode_header_block(t, [
-        {"name": ":method", "value": "GET"},
-        {"name": ":scheme", "value": "https"},
-        {"name": ":path", "value": "/"},
-        {"name": ":authority", "value": "oren.test", "index": "inc"}
-    ], {"huffman": 1})
-    if er["ok"] != 1 { tls.close(conn); exit(16) }
-    wr0 = _send_headers_fragmented(conn, 1, h2.FLAG_END_STREAM, er["b"], 8, 5000)
-    if wr0 != 0 { tls.close(conn); exit(17) }
-
-    // Read response HEADERS.
-    fr = _read_frame(conn, 5000)
-    if fr["ok"] != 1 { tls.close(conn); exit(18) }
-    if fr["type"] != h2.FRAME_HEADERS { tls.close(conn); exit(19) }
-    var hb = _read_header_block(conn, fr, 5000)
-    if hb["ok"] != 1 { tls.close(conn); exit(191) }
-    var rt = hpack.table_new(4096)
-    var dr = hpack.decode_header_block(rt, hb["b"])
-    if dr["ok"] != 1 { tls.close(conn); exit(20) }
-    var hs = dr["headers"]
-    if list.len(hs) < 1 { tls.close(conn); exit(21) }
-    if _str_eq_bytes(hs[0]["name"], ":status") != true { tls.close(conn); exit(22) }
-    if _str_eq_bytes(hs[0]["value"], "200") != true { tls.close(conn); exit(23) }
-
-    // Read DATA "ok" with END_STREAM.
-    fr = _read_frame(conn, 5000)
-    if fr["ok"] != 1 { tls.close(conn); exit(24) }
-    if fr["type"] != h2.FRAME_DATA { tls.close(conn); exit(25) }
-    if (fr["flags"] & h2.FLAG_END_STREAM) == 0 { tls.close(conn); exit(26) }
-    var pb = fr["payload"]
-    if oren_buf_len(pb) != 2 { tls.close(conn); exit(27) }
-    var pp = native_buf_data_ptr(pb)
-    if pp == 0 { tls.close(conn); exit(28) }
-    if (ptr_get_byte(pp) & 255) != 111 { tls.close(conn); exit(29) }
-    if (ptr_get_byte(pp + 1) & 255) != 107 { tls.close(conn); exit(30) }
+    var rc_roundtrip = _client_roundtrip(conn)
+    if rc_roundtrip != 0 { tls.close(conn); exit(10) }
 
     tls.close(conn)
     var sr = oren_join_timeout(h, 5000)
@@ -538,64 +504,8 @@ fn main_client() {
         if rc0 != 0 { tls.close(conn); exit(11) }
     }
 
-    var wr0 = _write_all_str(conn, h2.CLIENT_PREFACE, h2.CLIENT_PREFACE_LEN, 5000)
-    if wr0 != 0 { tls.close(conn); exit(12) }
-    var hdr = malloc(16)
-    if hdr == 0 { tls.close(conn); exit(13) }
-    var payload = h2.settings_payload_from_list([[h2.SETTINGS_ENABLE_PUSH, 0]])
-    if oren_is_err(payload) { free(hdr); tls.close(conn); exit(130) }
-    var plen = oren_buf_len(payload)
-    if oren_is_err(plen) { free(hdr); tls.close(conn); exit(131) }
-    var rc1 = h2.write_frame_header(hdr, plen, h2.FRAME_SETTINGS, 0, 0)
-    if rc1 != 0 { free(hdr); tls.close(conn); exit(14) }
-    wr0 = _write_all_ptr(conn, hdr, 9, 5000)
-    if wr0 == 0 { wr0 = _write_all_bytes(conn, payload, 5000) }
-    free(hdr)
-    if wr0 != 0 { tls.close(conn); exit(15) }
-
-    var fr = _read_frame(conn, 5000)
-    if fr["ok"] != 1 { tls.close(conn); exit(16) }
-    if fr["type"] != h2.FRAME_SETTINGS { tls.close(conn); exit(17) }
-    var fr2 = _read_frame(conn, 5000)
-    if fr2["ok"] != 1 { tls.close(conn); exit(171) }
-    if fr2["type"] != h2.FRAME_SETTINGS || fr2["flags"] != h2.FLAG_ACK || fr2["stream"] != 0 { tls.close(conn); exit(172) }
-    var wr_ack = _send_frame(conn, h2.FRAME_SETTINGS, h2.FLAG_ACK, 0, oren_u8_buf_new(0), 5000)
-    if wr_ack != 0 { tls.close(conn); exit(173) }
-
-    var t = hpack.table_new(4096)
-    var er = hpack.encode_header_block(t, [
-        {"name": ":method", "value": "GET"},
-        {"name": ":scheme", "value": "https"},
-        {"name": ":path", "value": "/"},
-        {"name": ":authority", "value": "oren.test", "index": "inc"}
-    ], {"huffman": 1})
-    if er["ok"] != 1 { tls.close(conn); exit(18) }
-    wr0 = _send_headers_fragmented(conn, 1, h2.FLAG_END_STREAM, er["b"], 8, 5000)
-    if wr0 != 0 { tls.close(conn); exit(19) }
-
-    fr = _read_frame(conn, 5000)
-    if fr["ok"] != 1 { tls.close(conn); exit(20) }
-    if fr["type"] != h2.FRAME_HEADERS { tls.close(conn); exit(21) }
-    var rt = hpack.table_new(4096)
-    var hb = _read_header_block(conn, fr, 5000)
-    if hb["ok"] != 1 { tls.close(conn); exit(211) }
-    var dr = hpack.decode_header_block(rt, hb["b"])
-    if dr["ok"] != 1 { tls.close(conn); exit(22) }
-    var hs = dr["headers"]
-    if list.len(hs) < 1 { tls.close(conn); exit(23) }
-    if _str_eq_bytes(hs[0]["name"], ":status") != true { tls.close(conn); exit(24) }
-    if _str_eq_bytes(hs[0]["value"], "200") != true { tls.close(conn); exit(25) }
-
-    fr = _read_frame(conn, 5000)
-    if fr["ok"] != 1 { tls.close(conn); exit(26) }
-    if fr["type"] != h2.FRAME_DATA { tls.close(conn); exit(27) }
-    if (fr["flags"] & h2.FLAG_END_STREAM) == 0 { tls.close(conn); exit(28) }
-    var pb = fr["payload"]
-    if oren_buf_len(pb) != 2 { tls.close(conn); exit(29) }
-    var pp = native_buf_data_ptr(pb)
-    if pp == 0 { tls.close(conn); exit(30) }
-    if (ptr_get_byte(pp) & 255) != 111 { tls.close(conn); exit(31) }
-    if (ptr_get_byte(pp + 1) & 255) != 107 { tls.close(conn); exit(32) }
+    var rc_roundtrip = _client_roundtrip(conn)
+    if rc_roundtrip != 0 { tls.close(conn); exit(12) }
 
     tls.close(conn)
 
@@ -668,64 +578,8 @@ fn main_client() {
         if rc0 != 0 { tls.close(conn); exit(11) }
     }
 
-    var wr0 = _write_all_str(conn, h2.CLIENT_PREFACE, h2.CLIENT_PREFACE_LEN, 5000)
-    if wr0 != 0 { tls.close(conn); exit(12) }
-    var hdr = malloc(16)
-    if hdr == 0 { tls.close(conn); exit(13) }
-    var payload = h2.settings_payload_from_list([[h2.SETTINGS_ENABLE_PUSH, 0]])
-    if oren_is_err(payload) { free(hdr); tls.close(conn); exit(130) }
-    var plen = oren_buf_len(payload)
-    if oren_is_err(plen) { free(hdr); tls.close(conn); exit(131) }
-    var rc1 = h2.write_frame_header(hdr, plen, h2.FRAME_SETTINGS, 0, 0)
-    if rc1 != 0 { free(hdr); tls.close(conn); exit(14) }
-    wr0 = _write_all_ptr(conn, hdr, 9, 5000)
-    if wr0 == 0 { wr0 = _write_all_bytes(conn, payload, 5000) }
-    free(hdr)
-    if wr0 != 0 { tls.close(conn); exit(15) }
-
-    var fr = _read_frame(conn, 5000)
-    if fr["ok"] != 1 { tls.close(conn); exit(16) }
-    if fr["type"] != h2.FRAME_SETTINGS { tls.close(conn); exit(17) }
-    var fr2 = _read_frame(conn, 5000)
-    if fr2["ok"] != 1 { tls.close(conn); exit(171) }
-    if fr2["type"] != h2.FRAME_SETTINGS || fr2["flags"] != h2.FLAG_ACK || fr2["stream"] != 0 { tls.close(conn); exit(172) }
-    var wr_ack = _send_frame(conn, h2.FRAME_SETTINGS, h2.FLAG_ACK, 0, oren_u8_buf_new(0), 5000)
-    if wr_ack != 0 { tls.close(conn); exit(173) }
-
-    var t = hpack.table_new(4096)
-    var er = hpack.encode_header_block(t, [
-        {"name": ":method", "value": "GET"},
-        {"name": ":scheme", "value": "https"},
-        {"name": ":path", "value": "/"},
-        {"name": ":authority", "value": "oren.test", "index": "inc"}
-    ], {"huffman": 1})
-    if er["ok"] != 1 { tls.close(conn); exit(18) }
-    wr0 = _send_headers_fragmented(conn, 1, h2.FLAG_END_STREAM, er["b"], 8, 5000)
-    if wr0 != 0 { tls.close(conn); exit(19) }
-
-    fr = _read_frame(conn, 5000)
-    if fr["ok"] != 1 { tls.close(conn); exit(20) }
-    if fr["type"] != h2.FRAME_HEADERS { tls.close(conn); exit(21) }
-    var rt = hpack.table_new(4096)
-    var hb = _read_header_block(conn, fr, 5000)
-    if hb["ok"] != 1 { tls.close(conn); exit(211) }
-    var dr = hpack.decode_header_block(rt, hb["b"])
-    if dr["ok"] != 1 { tls.close(conn); exit(22) }
-    var hs = dr["headers"]
-    if list.len(hs) < 1 { tls.close(conn); exit(23) }
-    if _str_eq_bytes(hs[0]["name"], ":status") != true { tls.close(conn); exit(24) }
-    if _str_eq_bytes(hs[0]["value"], "200") != true { tls.close(conn); exit(25) }
-
-    fr = _read_frame(conn, 5000)
-    if fr["ok"] != 1 { tls.close(conn); exit(26) }
-    if fr["type"] != h2.FRAME_DATA { tls.close(conn); exit(27) }
-    if (fr["flags"] & h2.FLAG_END_STREAM) == 0 { tls.close(conn); exit(28) }
-    var pb = fr["payload"]
-    if oren_buf_len(pb) != 2 { tls.close(conn); exit(29) }
-    var pp = native_buf_data_ptr(pb)
-    if pp == 0 { tls.close(conn); exit(30) }
-    if (ptr_get_byte(pp) & 255) != 111 { tls.close(conn); exit(31) }
-    if (ptr_get_byte(pp + 1) & 255) != 107 { tls.close(conn); exit(32) }
+    var rc_roundtrip = _client_roundtrip(conn)
+    if rc_roundtrip != 0 { tls.close(conn); exit(12) }
 
     tls.close(conn)
 

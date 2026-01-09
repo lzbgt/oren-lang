@@ -107,6 +107,7 @@ This doc answers: “what’s real today?” and “what’s missing to reach th
 - **HTTP/2 bring-up (framing-only; ALPN `h2`)**
   - Scope today: connection preface + frame header encoding/decoding + minimal control frames (SETTINGS/ACK, PING/ACK) + SETTINGS payload codec + HPACK encode/decode v0.
   - Stdlib: `lib/std/net/http2.oren`
+  - Minimal client facade: `lib/std/net/http2_client.oren` (handshake + single-stream request/response; exercised by the loopback fixture)
   - HPACK core: `lib/std/net/hpack.oren` (RFC 7541 static+dynamic tables; Huffman encode/decode; header block encode/decode)
   - Evidence: `tests/native/test_http2_preface_loopback.oren` (preface + SETTINGS/ACK + PING/ACK over TLS)
   - HPACK smoke: `tests/native/test_hpack_smoke.oren` (RFC 7541 Appendix C.2 + C.4.1; includes Huffman decode)

@@ -243,10 +243,15 @@ References:
 						                   - SETTINGS payload semantics helpers (validate values like ENABLE_PUSH; table size; etc.)
 						                   - WINDOW_UPDATE payload encode/decode + stream/window bookkeeping
 						                   - GOAWAY/RST_STREAM encode/decode (basic error handling path)
-						                 - Implement a minimal `std:net/http2_client` on top of `std:net/tls`:
-						                   - `connect_h2(url, tls_opts, timeout)` handshake (preface + SETTINGS/ACK)
-						                   - `request(headers, body?)` (single-stream first; then multiplex)
-						                   - integrate with HPACK (`std:net/hpack`)
+						                 - Done (2026-01-09): minimal `std:net/http2_client` on top of `std:net/tls` + `std:net/http2` + `std:net/hpack`:
+						                   - Module: `lib/std/net/http2_client.oren`
+						                   - Exposes `http2_client.new(conn, timeout_ms, opts)` + `http2_client.request(c, headers, body?, opts)` (single stream)
+						                   - Used by the Tier‑1 loopback fixture client path: `tests/native/test_http2_headers_loopback.oren`
+						                   - Explicitly avoids `== nil` numeric checks (native backend currently treats `0 == nil`; see P0 semantic parity items below)
+						                 - Next: evolve `std:net/http2_client` into a real client:
+						                   - URL/authority handling + connect helper (`connect_h2(host, port, tls_opts, timeout)`; keep parsing separate from net)
+						                   - Multiplexed streams + per-stream state machine
+						                   - Flow control (WINDOW_UPDATE) + basic SETTINGS application/ACK policy
 						                 - Add regression fixtures for flow control + stream muxing (keep Tier‑1 gates bounded).
 		     - x64 native backend correctness:
 		       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
