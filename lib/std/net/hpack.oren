@@ -1,0 +1,425 @@
+// std/net/hpack (rolling)
+//
+// HPACK (RFC 7541) is the header compression format used by HTTP/2.
+//
+// Scope (v0 bring-up):
+// - Deterministic integer decoding/encoding (RFC 7541 §5.1)
+// - Deterministic string literal decoding (RFC 7541 §5.2)
+// - Header block decoding for the common representations (RFC 7541 §6)
+// - Dynamic table maintenance (RFC 7541 §2.3)
+//
+// Not yet implemented (planned, tracked in docs/TODOS.md):
+// - Huffman-coded strings (RFC 7541 Appendix B / §5.2)
+// - Header block encoding (beyond small helpers)
+// - Full HTTP/2 HEADERS/CONTINUATION stream integration
+//
+// References (vendored for exact wording/examples):
+// - `project-doc/web/rfc/rfc7541.txt` (HPACK)
+// - `project-doc/web/rfc/rfc7540.txt` (HTTP/2)
+
+import list "std:list"
+
+// Static table (RFC 7541 Appendix A).
+// Indexes are 1-based in the spec; we store them 0-based in these lists.
+var _STATIC_NAMES = [
+    ":authority",
+    ":method",
+    ":method",
+    ":path",
+    ":path",
+    ":scheme",
+    ":scheme",
+    ":status",
+    ":status",
+    ":status",
+    ":status",
+    ":status",
+    ":status",
+    ":status",
+    "accept-charset",
+    "accept-encoding",
+    "accept-language",
+    "accept-ranges",
+    "accept",
+    "access-control-allow-origin",
+    "age",
+    "allow",
+    "authorization",
+    "cache-control",
+    "content-disposition",
+    "content-encoding",
+    "content-language",
+    "content-length",
+    "content-location",
+    "content-range",
+    "content-type",
+    "cookie",
+    "date",
+    "etag",
+    "expect",
+    "expires",
+    "from",
+    "host",
+    "if-match",
+    "if-modified-since",
+    "if-none-match",
+    "if-range",
+    "if-unmodified-since",
+    "last-modified",
+    "link",
+    "location",
+    "max-forwards",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "range",
+    "referer",
+    "refresh",
+    "retry-after",
+    "server",
+    "set-cookie",
+    "strict-transport-security",
+    "transfer-encoding",
+    "user-agent",
+    "vary",
+    "via",
+    "www-authenticate"
+]
+
+var _STATIC_VALUES = [
+    "",
+    "GET",
+    "POST",
+    "/",
+    "/index.html",
+    "http",
+    "https",
+    "200",
+    "204",
+    "206",
+    "304",
+    "400",
+    "404",
+    "500",
+    "",
+    "gzip, deflate",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+]
+
+var _STATIC_LEN = 61
+
+fn _static_get(idx) {
+    // idx is 1-based.
+    if idx == nil { return {"ok": 0, "err": "hpack.static_get: idx is nil"} }
+    if idx < 1 || idx > _STATIC_LEN { return {"ok": 0, "err": "hpack.static_get: idx out of range"} }
+    var i = idx - 1
+    return {"ok": 1, "name": _STATIC_NAMES[i], "value": _STATIC_VALUES[i]}
+}
+
+fn table_new(max_size) {
+    // Create a new dynamic table.
+    if max_size == nil { max_size = 4096 }
+    if max_size < 0 { max_size = 0 }
+    return {"max": max_size, "size": 0, "entries": []}
+}
+
+fn _entry_size(name, value) {
+    // RFC 7541 §4.1: 32 + name_len + value_len
+    if name == nil { name = "" }
+    if value == nil { value = "" }
+    return 32 + oren_string_len(name) + oren_string_len(value)
+}
+
+fn _table_len(t) {
+    return list.len(oren_map_get_str(t, "entries"))
+}
+
+fn _table_get_entry(t, entry_index_1based) {
+    // Dynamic table entry lookup by HPACK dynamic index (1 is most recent).
+    var es = oren_map_get_str(t, "entries")
+    var n = list.len(es)
+    if entry_index_1based < 1 || entry_index_1based > n { return {"ok": 0, "err": "hpack.table_get_entry: idx out of range"} }
+    // We store entries in insertion order; most recent is at end.
+    var ix = n - entry_index_1based
+    return {"ok": 1, "e": es[ix]}
+}
+
+fn _table_evict_to_fit(t) {
+    // Evict oldest entries until size <= max.
+    // Oldest entries are at the front of the entries list.
+    var max = oren_map_get_str(t, "max")
+    var size = oren_map_get_str(t, "size")
+    var es = oren_map_get_str(t, "entries")
+    if max == nil { max = 0 }
+    if size == nil { size = 0 }
+    if es == nil { es = [] }
+
+    if max <= 0 {
+        t["entries"] = []
+        t["size"] = 0
+        return nil
+    }
+    while size > max {
+        var n = list.len(es)
+        if n <= 0 { break }
+        var oldest = es[0]
+        var on = oren_map_get_str(oldest, "name")
+        var ov = oren_map_get_str(oldest, "value")
+        size = size - _entry_size(on, ov)
+        // Drop the first element by rebuilding (v0; bounded).
+        var ns = []
+        var i = 1
+        while i < n {
+            list.push(ns, es[i])
+            i = i + 1
+        }
+        es = ns
+    }
+    t["entries"] = es
+    t["size"] = size
+    return nil
+}
+
+fn _table_add(t, name, value) {
+    var max = oren_map_get_str(t, "max")
+    if max == nil { max = 0 }
+
+    var s = _entry_size(name, value)
+    if s > max {
+        // If a new entry is larger than the maximum size, the table is emptied.
+        t["entries"] = []
+        t["size"] = 0
+        return nil
+    }
+
+    var es = oren_map_get_str(t, "entries")
+    if es == nil { es = [] }
+    list.push(es, {"name": name, "value": value})
+    t["entries"] = es
+    t["size"] = oren_map_get_str(t, "size") + s
+    _table_evict_to_fit(t)
+    return nil
+}
+
+fn _lookup_indexed(t, idx) {
+    // Resolve an indexed header field representation (static + dynamic).
+    if idx >= 1 && idx <= _STATIC_LEN {
+        return _static_get(idx)
+    }
+    var dyn = idx - _STATIC_LEN
+    if dyn < 1 { return {"ok": 0, "err": "hpack.lookup_indexed: invalid index"} }
+    var er = _table_get_entry(t, dyn)
+    if er["ok"] != 1 { return er }
+    var e = er["e"]
+    return {"ok": 1, "name": oren_map_get_str(e, "name"), "value": oren_map_get_str(e, "value")}
+}
+
+fn _lookup_name_only(t, idx) {
+    // Resolve a name reference (static + dynamic), ignoring the stored value.
+    var r = _lookup_indexed(t, idx)
+    if r["ok"] != 1 { return r }
+    return {"ok": 1, "name": r["name"]}
+}
+
+fn _decode_int(ptr0, off, n, prefix_bits) {
+    // RFC 7541 §5.1.
+    if ptr0 == 0 { return {"ok": 0, "err": "hpack.decode_int: nil ptr"} }
+    if off < 0 || off >= n { return {"ok": 0, "err": "hpack.decode_int: out of range"} }
+    if prefix_bits < 1 || prefix_bits > 8 { return {"ok": 0, "err": "hpack.decode_int: bad prefix"} }
+
+    var first = ptr_get_byte(ptr0 + off) & 255
+    var mask = (1 << prefix_bits) - 1
+    var value = first & mask
+    off = off + 1
+    if value < mask {
+        return {"ok": 1, "v": value, "off": off}
+    }
+
+    // Value uses continuation bytes.
+    var m = 0
+    while true {
+        if off >= n { return {"ok": 0, "err": "hpack.decode_int: truncated"} }
+        var b = ptr_get_byte(ptr0 + off) & 255
+        off = off + 1
+        value = value + ((b & 127) << m)
+        if (b & 128) == 0 { break }
+        m = m + 7
+        if m > 56 { return {"ok": 0, "err": "hpack.decode_int: overflow"} }
+    }
+    return {"ok": 1, "v": value, "off": off}
+}
+
+fn _decode_string(ptr0, off, n) {
+    // RFC 7541 §5.2.
+    if ptr0 == 0 { return {"ok": 0, "err": "hpack.decode_string: nil ptr"} }
+    if off < 0 || off >= n { return {"ok": 0, "err": "hpack.decode_string: out of range"} }
+    var first = ptr_get_byte(ptr0 + off) & 255
+    var huffman = (first & 128) != 0
+    var r = _decode_int(ptr0, off, n, 7)
+    if r["ok"] != 1 { return r }
+    off = r["off"]
+    var slen = r["v"]
+    if slen < 0 { return {"ok": 0, "err": "hpack.decode_string: negative length"} }
+    if (off + slen) > n { return {"ok": 0, "err": "hpack.decode_string: truncated"} }
+    if huffman {
+        return {"ok": 0, "err": "hpack.decode_string: huffman not implemented (v0)"}
+    }
+    var b = oren_u8_buf_new(slen)
+    if oren_is_err(b) { return b }
+    if slen > 0 {
+        var dst = native_buf_data_ptr(b)
+        if dst == 0 { return {"ok": 0, "err": "hpack.decode_string: bytes ptr nil"} }
+        var i = 0
+        while i < slen {
+            ptr_set_byte(dst + i, ptr_get_byte(ptr0 + off + i) & 255)
+            i = i + 1
+        }
+    }
+    var s = oren_string_from_bytes(b)
+    return {"ok": 1, "s": s, "off": off + slen}
+}
+
+fn decode_header_block(table, header_block_bytes) {
+    // Decode a full HPACK header block into a list of {name,value} maps.
+    //
+    // `table` is mutated (dynamic table).
+    //
+    // Returns:
+    // - {"ok":1,"headers":[...],"table":table}
+    // - {"ok":0,"err":string}
+    if table == nil { table = table_new(4096) }
+    if header_block_bytes == nil { header_block_bytes = oren_u8_buf_new(0) }
+
+    var n = oren_buf_len(header_block_bytes)
+    if oren_is_err(n) { return {"ok": 0, "err": "hpack.decode_header_block: bad bytes"} }
+    var ptr0 = native_buf_data_ptr(header_block_bytes)
+    if n > 0 && ptr0 == 0 { return {"ok": 0, "err": "hpack.decode_header_block: bytes ptr nil"} }
+
+    var headers = []
+    var off = 0
+    while off < n {
+        var b0 = ptr_get_byte(ptr0 + off) & 255
+
+        // Indexed Header Field Representation (1xxxxxxx)
+        if (b0 & 128) != 0 {
+            var r = _decode_int(ptr0, off, n, 7)
+            if r["ok"] != 1 { return r }
+            off = r["off"]
+            var idx = r["v"]
+            if idx <= 0 { return {"ok": 0, "err": "hpack: indexed idx <= 0"} }
+            var hr = _lookup_indexed(table, idx)
+            if hr["ok"] != 1 { return hr }
+            list.push(headers, {"name": hr["name"], "value": hr["value"]})
+            continue
+        }
+
+        // Literal Header Field with Incremental Indexing (01xxxxxx)
+        if (b0 & 64) != 0 {
+            var r2 = _decode_int(ptr0, off, n, 6)
+            if r2["ok"] != 1 { return r2 }
+            off = r2["off"]
+            var name_idx = r2["v"]
+            var name = nil
+            if name_idx == 0 {
+                var sr = _decode_string(ptr0, off, n)
+                if sr["ok"] != 1 { return sr }
+                name = sr["s"]
+                off = sr["off"]
+            } else {
+                var nr = _lookup_name_only(table, name_idx)
+                if nr["ok"] != 1 { return nr }
+                name = nr["name"]
+            }
+            var vr = _decode_string(ptr0, off, n)
+            if vr["ok"] != 1 { return vr }
+            off = vr["off"]
+            var value = vr["s"]
+            list.push(headers, {"name": name, "value": value})
+            _table_add(table, name, value)
+            continue
+        }
+
+        // Dynamic Table Size Update (001xxxxx)
+        if (b0 & 32) != 0 {
+            var r3 = _decode_int(ptr0, off, n, 5)
+            if r3["ok"] != 1 { return r3 }
+            off = r3["off"]
+            var newmax = r3["v"]
+            if newmax < 0 { return {"ok": 0, "err": "hpack: table size negative"} }
+            table["max"] = newmax
+            _table_evict_to_fit(table)
+            continue
+        }
+
+        // Literal without indexing (0000xxxx) or never indexed (0001xxxx).
+        // Consume name index (prefix=4), but need to advance over the first byte too.
+        var r4 = _decode_int(ptr0, off, n, 4)
+        if r4["ok"] != 1 { return r4 }
+        off = r4["off"]
+        var name_idx2 = r4["v"]
+
+        var name2 = nil
+        if name_idx2 == 0 {
+            var sr2 = _decode_string(ptr0, off, n)
+            if sr2["ok"] != 1 { return sr2 }
+            name2 = sr2["s"]
+            off = sr2["off"]
+        } else {
+            var nr2 = _lookup_name_only(table, name_idx2)
+            if nr2["ok"] != 1 { return nr2 }
+            name2 = nr2["name"]
+        }
+        var vr2 = _decode_string(ptr0, off, n)
+        if vr2["ok"] != 1 { return vr2 }
+        off = vr2["off"]
+        var value2 = vr2["s"]
+        list.push(headers, {"name": name2, "value": value2})
+
+        // Neither without-indexing nor never-indexed updates the dynamic table.
+    }
+
+    return {"ok": 1, "headers": headers, "table": table}
+}

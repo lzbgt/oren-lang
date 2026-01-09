@@ -1,0 +1,87 @@
+// HPACK (RFC 7541) decode smoke (rolling)
+//
+// This test intentionally uses **RFC-provided hex examples** (no Huffman) to ensure:
+// - integer decoding is correct
+// - string literal decoding is correct (huffman=0)
+// - header field representations decode correctly (indexed name / literal value)
+// - dynamic table insertion works for "literal with incremental indexing"
+//
+// Reference (vendored):
+// - `project-doc/web/rfc/rfc7541.txt` (Appendix C.2 examples)
+
+import hpack "std:net/hpack"
+import list "std:list"
+
+fn _str_eq_bytes(a, b) {
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _must(cond, msg) {
+    if cond != true {
+        if msg != nil { print("hpack_smoke: FAIL: " + msg) }
+        exit(1)
+    }
+    return nil
+}
+
+fn _decode_hex_into(table, hex) {
+    var bb = oren_bytes_from_hex(hex)
+    if oren_is_err(bb) {
+        print("hpack_smoke: FAIL: bytes_from_hex: " + hex)
+        exit(2)
+    }
+    var r = hpack.decode_header_block(table, bb)
+    if r["ok"] != 1 {
+        var es = r["err"]
+        if es == nil { es = "(nil err)" }
+        print("hpack_smoke: FAIL: decode_header_block: " + es)
+        exit(3)
+    }
+    return r
+}
+
+fn _expect_one_header(r, name, value) {
+    var hs = r["headers"]
+    _must(list.len(hs) == 1, "expected exactly 1 header")
+    var h = hs[0]
+    _must(_str_eq_bytes(h["name"], name), "header name mismatch")
+    _must(_str_eq_bytes(h["value"], value), "header value mismatch")
+    return nil
+}
+
+fn main() {
+    // C.2.1 Literal Header Field with Indexing
+    // custom-key: custom-header
+    var t1 = hpack.table_new(4096)
+    var r1 = _decode_hex_into(t1, "400a637573746f6d2d6b65790d637573746f6d2d686561646572")
+    _expect_one_header(r1, "custom-key", "custom-header")
+    _must(r1["table"]["size"] == 55, "dynamic table size should be 55 (32+10+13)")
+    _must(list.len(r1["table"]["entries"]) == 1, "dynamic table should have 1 entry")
+
+    // C.2.2 Literal Header Field without Indexing
+    // :path: /sample/path
+    var t2 = hpack.table_new(4096)
+    var r2 = _decode_hex_into(t2, "040c2f73616d706c652f70617468")
+    _expect_one_header(r2, ":path", "/sample/path")
+    _must(r2["table"]["size"] == 0, "dynamic table should remain empty")
+
+    // C.2.3 Literal Header Field Never Indexed
+    // password: secret
+    var t3 = hpack.table_new(4096)
+    var r3 = _decode_hex_into(t3, "100870617373776f726406736563726574")
+    _expect_one_header(r3, "password", "secret")
+    _must(r3["table"]["size"] == 0, "dynamic table should remain empty")
+
+    exit(0)
+}
+

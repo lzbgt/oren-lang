@@ -231,7 +231,10 @@ References:
 					               - Done (2026-01-09): HTTP/2 framing core bring-up (preface + frame header encode/decode) and a TLS loopback framing regression:
 					                 - Core: `std:net/http2` (`lib/std/net/http2.oren`)
 					                 - Regression: `tests/native/test_http2_preface_loopback.oren` (preface + SETTINGS + PING/ACK; stage1 + stage2; all Tier‑1 via `scripts/verify_native_net_matrix.sh`)
-					               - Next: HPACK (static table + literal encodings), then HEADERS/stream state machine + multiplexing on top of the now-negotiable `h2` ALPN (see `docs/LANGUAGE_FEATURE_MATRIX.md`).
+					               - In progress (2026-01-09): HPACK bring-up (decode v0; no Huffman yet):
+					                 - Core: `std:net/hpack` (`lib/std/net/hpack.oren`) with RFC 7541 static table + dynamic table maintenance + header-block decode (no Huffman strings yet).
+					                 - Smoke: `tests/native/test_hpack_smoke.oren` (RFC 7541 Appendix C.2 hex examples; local gate; add to Tier‑1 net matrix once HEADERS is wired).
+					               - Next: HPACK Huffman strings + header block encoding, then HTTP/2 HEADERS/CONTINUATION + stream state machine + multiplexing on top of the now-negotiable `h2` ALPN (see `docs/LANGUAGE_FEATURE_MATRIX.md`).
 		     - x64 native backend correctness:
 		       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
 		         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)
