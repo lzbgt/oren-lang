@@ -230,6 +230,7 @@ These stdlib modules exist today and are exercised by regression fixtures:
   - `std:net/tcp`, `std:net/udp`
   - `std:net/dns` (loopback fixtures + Windows default resolver smoke: `tests/fixtures/windows_dns_default_resolver_smoke.oren`)
   - `std:net/http` (structured response API; loopback fixtures)
+  - `std:net/http2` (rolling: framing core only; exercised by `tests/native/test_http2_preface_loopback.oren` via `scripts/verify_native_net_matrix.sh`)
   - `std:net/ws` (WebSocket v0; loopback fixtures)
   - `std:net/tls` (TLS wrapper; used by `https://` and `wss://` loopback fixtures)
 

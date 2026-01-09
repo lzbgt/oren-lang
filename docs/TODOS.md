@@ -53,7 +53,7 @@ References:
 
 - Perf playbook: `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`
 - Remote x64 workflow: `docs/REMOTE_X64_ENV.md`
-- Language docs baseline (keep in sync with tests): `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md`, `docs/LANGUAGE_FEATURE_MATRIX.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md` (last sync: 2026-01-08; includes stdlib import resolution + native Windows spawn/join + TLS/HTTPS/WSS status notes)
+- Language docs baseline (keep in sync with tests): `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md`, `docs/LANGUAGE_FEATURE_MATRIX.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md` (last sync: 2026-01-09; includes stdlib import resolution + native Windows spawn/join + TLS/HTTPS/WSS notes + HTTP/2 framing bring-up status)
 
 ## P0 (Now)
 
@@ -228,7 +228,10 @@ References:
 			           - Done (2026-01-08): deterministic pinning is enforced by `std:net/tls.wrap_client` when `opts["pin_cert_sha256_hex"]` is provided (so HTTP/WS do not duplicate pinning logic).
 					           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider).
 					             - HTTP/2 needs a dedicated framing layer + server-side negotiation; ALPN offer plumbing is now in place (Linux/OpenSSL).
-					               - Next: implement HTTP/2 framing + HPACK + stream multiplexing on top of the now-negotiable `h2` ALPN (see `docs/LANGUAGE_FEATURE_MATRIX.md`).
+					               - Done (2026-01-09): HTTP/2 framing core bring-up (preface + frame header encode/decode) and a TLS loopback framing regression:
+					                 - Core: `std:net/http2` (`lib/std/net/http2.oren`)
+					                 - Regression: `tests/native/test_http2_preface_loopback.oren` (preface + SETTINGS + PING/ACK; stage1 + stage2; all Tier‑1 via `scripts/verify_native_net_matrix.sh`)
+					               - Next: HPACK (static table + literal encodings), then HEADERS/stream state machine + multiplexing on top of the now-negotiable `h2` ALPN (see `docs/LANGUAGE_FEATURE_MATRIX.md`).
 		     - x64 native backend correctness:
 		       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
 		         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)

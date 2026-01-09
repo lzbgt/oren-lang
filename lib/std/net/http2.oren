@@ -1,0 +1,110 @@
+// std/net/http2 (rolling)
+//
+// Goal:
+// - Provide a small, deterministic HTTP/2 core to build on top of `std:net/tls`.
+// - Start with **framing** (RFC 7540) primitives:
+//   - client connection preface (bytes)
+//   - frame header encode/decode
+//
+// This module intentionally does NOT implement:
+// - HPACK (header compression)
+// - stream state machine
+// - flow control
+//
+// Those will be layered later once this framing core is stable and tested across Tier‑1.
+
+// --- Constants (RFC 7540) ---
+
+// Frame types
+var FRAME_DATA = 0
+var FRAME_HEADERS = 1
+var FRAME_PRIORITY = 2
+var FRAME_RST_STREAM = 3
+var FRAME_SETTINGS = 4
+var FRAME_PUSH_PROMISE = 5
+var FRAME_PING = 6
+var FRAME_GOAWAY = 7
+var FRAME_WINDOW_UPDATE = 8
+var FRAME_CONTINUATION = 9
+
+// Flags (per-frame; shared ones)
+var FLAG_ACK = 1
+
+// Client connection preface (exact bytes).
+var CLIENT_PREFACE = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+var CLIENT_PREFACE_LEN = 24
+
+fn _u24_be_write(ptr0, off, v) {
+    // Writes v as big-endian 24-bit (v mod 2^24).
+    //
+    // Caller must ensure ptr0 is a valid writable pointer.
+    if v < 0 { v = 0 }
+    if v >= 16777216 { v = v % 16777216 }
+    ptr_set_byte(ptr0 + off + 0, (v >> 16) & 255)
+    ptr_set_byte(ptr0 + off + 1, (v >> 8) & 255)
+    ptr_set_byte(ptr0 + off + 2, v & 255)
+    return nil
+}
+
+fn _u24_be_read(ptr0, off) {
+    var b0 = ptr_get_byte(ptr0 + off + 0) & 255
+    var b1 = ptr_get_byte(ptr0 + off + 1) & 255
+    var b2 = ptr_get_byte(ptr0 + off + 2) & 255
+    return (b0 << 16) | (b1 << 8) | b2
+}
+
+fn _u32_be_read(ptr0, off) {
+    var b0 = ptr_get_byte(ptr0 + off + 0) & 255
+    var b1 = ptr_get_byte(ptr0 + off + 1) & 255
+    var b2 = ptr_get_byte(ptr0 + off + 2) & 255
+    var b3 = ptr_get_byte(ptr0 + off + 3) & 255
+    return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
+}
+
+fn _u32_be_write(ptr0, off, v) {
+    if v < 0 { v = 0 }
+    ptr_set_byte(ptr0 + off + 0, (v >> 24) & 255)
+    ptr_set_byte(ptr0 + off + 1, (v >> 16) & 255)
+    ptr_set_byte(ptr0 + off + 2, (v >> 8) & 255)
+    ptr_set_byte(ptr0 + off + 3, v & 255)
+    return nil
+}
+
+fn write_frame_header(ptr0, length, typ, flags, stream_id) {
+    // Encode an HTTP/2 frame header (9 bytes) into ptr0[0..9).
+    //
+    // - length: 24-bit unsigned
+    // - typ: 8-bit
+    // - flags: 8-bit
+    // - stream_id: 31-bit (highest bit reserved, must be 0)
+    if ptr0 == 0 { return 0 - 22 } // EINVAL
+    if length < 0 || length > 16777215 { return 0 - 22 }
+    if typ < 0 || typ > 255 { return 0 - 22 }
+    if flags < 0 || flags > 255 { return 0 - 22 }
+    if stream_id == nil { stream_id = 0 }
+    if stream_id < 0 { return 0 - 22 }
+    if stream_id > 2147483647 { return 0 - 22 }
+
+    _u24_be_write(ptr0, 0, length)
+    ptr_set_byte(ptr0 + 3, typ & 255)
+    ptr_set_byte(ptr0 + 4, flags & 255)
+    // Stream identifier is 31 bits, big-endian u32 with reserved bit cleared.
+    _u32_be_write(ptr0, 5, stream_id & 2147483647)
+    return 0
+}
+
+fn parse_frame_header(ptr0) {
+    // Decode an HTTP/2 frame header (9 bytes) from ptr0[0..9).
+    //
+    // Returns:
+    // - {"ok":1,"len":int,"type":int,"flags":int,"stream":int}
+    // - {"ok":0,"err":string}
+    if ptr0 == 0 { return {"ok": 0, "err": "http2.parse_frame_header: nil ptr"} }
+    var length = _u24_be_read(ptr0, 0)
+    var typ = ptr_get_byte(ptr0 + 3) & 255
+    var flags = ptr_get_byte(ptr0 + 4) & 255
+    var sid_raw = _u32_be_read(ptr0, 5)
+    var stream_id = sid_raw & 2147483647
+    return {"ok": 1, "len": length, "type": typ, "flags": flags, "stream": stream_id}
+}
+
