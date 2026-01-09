@@ -162,13 +162,26 @@ fn server_impl(listen_fd, pfx_b64) {
     if rr0 != 0 { free(hdr); tls.close(conn); return 19 }
     var fh = h2.parse_frame_header(hdr)
     if fh["ok"] != 1 { free(hdr); tls.close(conn); return 20 }
-    if fh["type"] != h2.FRAME_SETTINGS || fh["len"] != 0 || fh["stream"] != 0 { free(hdr); tls.close(conn); return 21 }
+    if fh["type"] != h2.FRAME_SETTINGS || fh["len"] != 0 || fh["stream"] != 0 || fh["flags"] != 0 { free(hdr); tls.close(conn); return 21 }
 
     // Send server SETTINGS (empty).
     var w0 = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, 0, 0)
     if w0 != 0 { free(hdr); tls.close(conn); return 22 }
     var wr0 = _write_all(conn, hdr, 9, 5000)
     if wr0 != 0 { free(hdr); tls.close(conn); return 23 }
+
+    // ACK client SETTINGS.
+    w0 = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, h2.FLAG_ACK, 0)
+    if w0 != 0 { free(hdr); tls.close(conn); return 230 }
+    wr0 = _write_all(conn, hdr, 9, 5000)
+    if wr0 != 0 { free(hdr); tls.close(conn); return 231 }
+
+    // Read ACK for server SETTINGS.
+    rr0 = _read_exact(conn, hdr, 9, 5000)
+    if rr0 != 0 { free(hdr); tls.close(conn); return 232 }
+    fh = h2.parse_frame_header(hdr)
+    if fh["ok"] != 1 { free(hdr); tls.close(conn); return 233 }
+    if fh["type"] != h2.FRAME_SETTINGS || fh["len"] != 0 || fh["stream"] != 0 || fh["flags"] != h2.FLAG_ACK { free(hdr); tls.close(conn); return 234 }
 
     // Read client PING.
     rr0 = _read_exact(conn, hdr, 9, 5000)
@@ -277,6 +290,19 @@ fn main_client() {
     if fh["ok"] != 1 { free(hdr); tls.close(conn); exit(15) }
     if fh["type"] != h2.FRAME_SETTINGS || fh["len"] != 0 || fh["stream"] != 0 { free(hdr); tls.close(conn); exit(16) }
 
+    // Read server ACK for client SETTINGS.
+    rr0 = _read_exact(conn, hdr, 9, 5000)
+    if rr0 != 0 { free(hdr); tls.close(conn); exit(160) }
+    fh = h2.parse_frame_header(hdr)
+    if fh["ok"] != 1 { free(hdr); tls.close(conn); exit(161) }
+    if fh["type"] != h2.FRAME_SETTINGS || fh["len"] != 0 || fh["stream"] != 0 || fh["flags"] != h2.FLAG_ACK { free(hdr); tls.close(conn); exit(162) }
+
+    // ACK server SETTINGS.
+    w0 = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, h2.FLAG_ACK, 0)
+    if w0 != 0 { free(hdr); tls.close(conn); exit(163) }
+    wr0 = _write_all(conn, hdr, 9, 5000)
+    if wr0 != 0 { free(hdr); tls.close(conn); exit(164) }
+
     // Send PING (8 bytes) and expect ACK.
     var ping = "12345678"
     w0 = h2.write_frame_header(hdr, 8, h2.FRAME_PING, 0, 0)
@@ -378,6 +404,19 @@ fn main_client() {
     var fh = h2.parse_frame_header(hdr)
     if fh["ok"] != 1 { free(hdr); tls.close(conn); exit(17) }
     if fh["type"] != h2.FRAME_SETTINGS || fh["len"] != 0 || fh["stream"] != 0 { free(hdr); tls.close(conn); exit(18) }
+
+    // Read server ACK for client SETTINGS.
+    rr0 = _read_exact(conn, hdr, 9, 5000)
+    if rr0 != 0 { free(hdr); tls.close(conn); exit(160) }
+    fh = h2.parse_frame_header(hdr)
+    if fh["ok"] != 1 { free(hdr); tls.close(conn); exit(161) }
+    if fh["type"] != h2.FRAME_SETTINGS || fh["len"] != 0 || fh["stream"] != 0 || fh["flags"] != h2.FLAG_ACK { free(hdr); tls.close(conn); exit(162) }
+
+    // ACK server SETTINGS.
+    w0 = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, h2.FLAG_ACK, 0)
+    if w0 != 0 { free(hdr); tls.close(conn); exit(163) }
+    var wr_ack = _write_all(conn, hdr, 9, 5000)
+    if wr_ack != 0 { free(hdr); tls.close(conn); exit(164) }
 
     var ping = "12345678"
     w0 = h2.write_frame_header(hdr, 8, h2.FRAME_PING, 0, 0)
@@ -492,6 +531,19 @@ fn main_client() {
     var fh = h2.parse_frame_header(hdr)
     if fh["ok"] != 1 { free(hdr); tls.close(conn); exit(17) }
     if fh["type"] != h2.FRAME_SETTINGS || fh["len"] != 0 || fh["stream"] != 0 { free(hdr); tls.close(conn); exit(18) }
+
+    // Read server ACK for client SETTINGS.
+    rr0 = _read_exact(conn, hdr, 9, 5000)
+    if rr0 != 0 { free(hdr); tls.close(conn); exit(160) }
+    fh = h2.parse_frame_header(hdr)
+    if fh["ok"] != 1 { free(hdr); tls.close(conn); exit(161) }
+    if fh["type"] != h2.FRAME_SETTINGS || fh["len"] != 0 || fh["stream"] != 0 || fh["flags"] != h2.FLAG_ACK { free(hdr); tls.close(conn); exit(162) }
+
+    // ACK server SETTINGS.
+    w0 = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, h2.FLAG_ACK, 0)
+    if w0 != 0 { free(hdr); tls.close(conn); exit(163) }
+    var wr_ack = _write_all(conn, hdr, 9, 5000)
+    if wr_ack != 0 { free(hdr); tls.close(conn); exit(164) }
 
     var ping = "12345678"
     w0 = h2.write_frame_header(hdr, 8, h2.FRAME_PING, 0, 0)
