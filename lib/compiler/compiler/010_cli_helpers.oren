@@ -163,11 +163,17 @@ fn enforce_svc_emit_policy(file, allowed_svc_emits) {
 
 fn dirname(path) {
     if path == nil { return "." }
+    var is_win = (oren_env("OS") == "Windows_NT")
     var n = oren_string_len(path)
     var i = n - 1
     while i >= 0 {
-        if oren_string_char_at_unchecked(path, i) == "/" {
-            if i == 0 { return "/" }
+        var ch = oren_string_char_at_unchecked(path, i)
+        if ch == "/" || (is_win && ch == "\\") {
+            // Windows drive root: "C:\foo" => "C:\".
+            if is_win && i == 2 && oren_string_len(path) >= 3 && oren_string_char_at_unchecked(path, 1) == ":" {
+                return oren_string_slice(path, 0, 3)
+            }
+            if i == 0 { return ch }
             return oren_string_slice(path, 0, i)
         }
         i = i - 1

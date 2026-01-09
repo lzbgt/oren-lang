@@ -379,7 +379,12 @@ fn compiler_main() {
             idx = idx + 1
         }
         
-        oren_system("rm -f " + shell_quote(nm_out))
+        if oren_env("OS") == "Windows_NT" {
+            var p_del = _path_to_windows_sep(nm_out)
+            oren_system("del /f /q \"" + p_del + "\" >nul 2>nul")
+        } else {
+            oren_system("rm -f " + shell_quote(nm_out))
+        }
         return nil
     }
 
@@ -778,6 +783,16 @@ fn compiler_main() {
         oren_exit(2)
     }
     if trace_build { print("[build] effective target=" + target + " arch=" + arch) }
+
+    // Windows host policy (rolling):
+    // - default `--cc` should prefer MSVC `cl.exe` so `oren build --backend c` works
+    //   from a plain shell (the compiler will attempt to auto-configure VS env).
+    if target == "windows" && seen["cc"] != true {
+        if cc == nil || cc == "" || cc == "cc" {
+            cc = "cl.exe"
+            if trace_build { print("[build] windows default cc=cl.exe") }
+        }
+    }
     disasm = seen["disasm"] == true
     // Debug info policy (native backend):
     // - default: enabled for native builds (production ergonomics: readable stack traces)
@@ -1564,16 +1579,144 @@ fn compiler_main() {
         return nil
     }
 
-    var cmd = cc + " -o " + shell_quote(out_path) + " " + shell_quote(c_path) + " lib/runtime.c lib/runtime_buf.c -Ilib -pthread"
-    var k_lib = 0
-    while k_lib < oren_list_len(link_libs) {
-        cmd = cmd + " " + shell_quote(link_libs[k_lib])
-        k_lib = k_lib + 1
+    var cmd = ""
+    var msvc_script_path = ""
+    if target == "windows" {
+        // Prefer MSVC cl.exe for Tier‑1 Windows.
+        // For non-MSVC compilers (clang/gcc under MSYS2), callers can pass `--cc` explicitly.
+        var cc_base = basename(cc)
+        var is_msvc = (cc_base == "cl" || cc_base == "cl.exe" || cc_base == "clang-cl" || cc_base == "clang-cl.exe")
+
+        if is_msvc {
+            if enable_python {
+                print("ERROR: --python is not supported for C backend builds with MSVC yet")
+                oren_exit(2)
+            }
+
+            // `cl.exe` is typically not in PATH unless you're in a VS Developer Prompt.
+            // Like stage0 (Go bootstrap), emit a temporary `.cmd` wrapper that:
+            // - finds VS via vswhere.exe (or OREN_MSVC_INSTALL_PATH)
+            // - calls VsDevCmd.bat / vcvars64.bat
+            // - invokes cl.exe with a minimal deterministic arg set
+            //
+            // Escape hatches:
+            // - OREN_MSVC_INSTALL_PATH (pin VS install root)
+            // - OREN_MSVC_VSWHERE (pin vswhere.exe path)
+            var t = oren_time_now_ns()
+            var script = "oren_msvc_build_" + oren_int_to_string(t) + ".cmd"
+            var sp = _path_to_windows_sep(script)
+            msvc_script_path = sp
+            var out_win = _path_to_windows_sep(out_path)
+            var c_win = _path_to_windows_sep(c_path)
+
+            var parts = []
+            oren_list_push(parts, "@echo off\r\n")
+            oren_list_push(parts, "setlocal\r\n")
+            oren_list_push(parts, "set VSCMD_SKIP_SENDTELEMETRY=1\r\n")
+
+            // Allow direct override: bypass discovery completely.
+            // NOTE: avoid cmd.exe "delayed expansion" pitfalls by keeping this logic mostly linear
+            // (no variable set+use inside a single parenthesized block).
+            oren_list_push(parts, "set \"OREN_DEVCMD=%OREN_MSVC_DEV_CMD%\"\r\n")
+            oren_list_push(parts, "if not \"%OREN_DEVCMD%\"==\"\" goto OREN_HAVE_DEVCMD\r\n")
+
+            // Locate a VS install root that contains the MSVC tools.
+            // Priority: explicit install path -> common probes -> vswhere.exe.
+            oren_list_push(parts, "set \"OREN_VSINSTALL=%OREN_MSVC_INSTALL_PATH%\"\r\n")
+            oren_list_push(parts, "if not \"%OREN_VSINSTALL%\"==\"\" goto OREN_HAVE_VSINSTALL\r\n")
+
+            // Probes for VS2022.
+            oren_list_push(parts, "if exist \"%ProgramFiles%\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\Tools\\VsDevCmd.bat\" set \"OREN_VSINSTALL=%ProgramFiles%\\Microsoft Visual Studio\\2022\\BuildTools\"\r\n")
+            oren_list_push(parts, "if not \"%OREN_VSINSTALL%\"==\"\" goto OREN_HAVE_VSINSTALL\r\n")
+            oren_list_push(parts, "if exist \"%ProgramFiles%\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\VsDevCmd.bat\" set \"OREN_VSINSTALL=%ProgramFiles%\\Microsoft Visual Studio\\2022\\Community\"\r\n")
+            oren_list_push(parts, "if not \"%OREN_VSINSTALL%\"==\"\" goto OREN_HAVE_VSINSTALL\r\n")
+            oren_list_push(parts, "if exist \"%ProgramFiles%\\Microsoft Visual Studio\\2022\\Professional\\Common7\\Tools\\VsDevCmd.bat\" set \"OREN_VSINSTALL=%ProgramFiles%\\Microsoft Visual Studio\\2022\\Professional\"\r\n")
+            oren_list_push(parts, "if not \"%OREN_VSINSTALL%\"==\"\" goto OREN_HAVE_VSINSTALL\r\n")
+            oren_list_push(parts, "if exist \"%ProgramFiles%\\Microsoft Visual Studio\\2022\\Enterprise\\Common7\\Tools\\VsDevCmd.bat\" set \"OREN_VSINSTALL=%ProgramFiles%\\Microsoft Visual Studio\\2022\\Enterprise\"\r\n")
+            oren_list_push(parts, "if not \"%OREN_VSINSTALL%\"==\"\" goto OREN_HAVE_VSINSTALL\r\n")
+
+            // vswhere fallback (works for both VS2022 and older installations).
+            oren_list_push(parts, "set \"OREN_VSWHERE=%OREN_MSVC_VSWHERE%\"\r\n")
+            oren_list_push(parts, "if \"%OREN_VSWHERE%\"==\"\" set \"OREN_VSWHERE=%ProgramFiles(x86)%\\Microsoft Visual Studio\\Installer\\vswhere.exe\"\r\n")
+            oren_list_push(parts, "if \"%OREN_VSWHERE%\"==\"\" set \"OREN_VSWHERE=%ProgramFiles%\\Microsoft Visual Studio\\Installer\\vswhere.exe\"\r\n")
+            oren_list_push(parts, "if exist \"%OREN_VSWHERE%\" for /f \"usebackq delims=\" %%i in (`\"%OREN_VSWHERE%\" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set \"OREN_VSINSTALL=%%i\"\r\n")
+            oren_list_push(parts, "if \"%OREN_VSINSTALL%\"==\"\" (\r\n")
+            oren_list_push(parts, "  echo ERROR: could not locate VS installationPath. Install Visual Studio / Build Tools, or set OREN_MSVC_INSTALL_PATH/OREN_MSVC_DEV_CMD.\r\n")
+            oren_list_push(parts, "  exit /b 2\r\n")
+            oren_list_push(parts, ")\r\n")
+
+            oren_list_push(parts, ":OREN_HAVE_VSINSTALL\r\n")
+            // Select developer-env bootstrap script from VS installation.
+            oren_list_push(parts, "if exist \"%OREN_VSINSTALL%\\Common7\\Tools\\VsDevCmd.bat\" set \"OREN_DEVCMD=%OREN_VSINSTALL%\\Common7\\Tools\\VsDevCmd.bat\"\r\n")
+            oren_list_push(parts, "if \"%OREN_DEVCMD%\"==\"\" if exist \"%OREN_VSINSTALL%\\VC\\Auxiliary\\Build\\vcvars64.bat\" set \"OREN_DEVCMD=%OREN_VSINSTALL%\\VC\\Auxiliary\\Build\\vcvars64.bat\"\r\n")
+            oren_list_push(parts, "if \"%OREN_DEVCMD%\"==\"\" (\r\n")
+            oren_list_push(parts, "  echo ERROR: found VS at %OREN_VSINSTALL% but could not find VsDevCmd.bat or vcvars64.bat.\r\n")
+            oren_list_push(parts, "  exit /b 2\r\n")
+            oren_list_push(parts, ")\r\n")
+
+            oren_list_push(parts, ":OREN_HAVE_DEVCMD\r\n")
+            oren_list_push(parts, "for %%F in (\"%OREN_DEVCMD%\") do set \"OREN_DEVCMD_BASE=%%~nxF\"\r\n")
+            oren_list_push(parts, "if /i \"%OREN_DEVCMD_BASE%\"==\"vcvars64.bat\" (\r\n")
+            oren_list_push(parts, "  call \"%OREN_DEVCMD%\" >nul\r\n")
+            oren_list_push(parts, ") else (\r\n")
+            oren_list_push(parts, "  call \"%OREN_DEVCMD%\" -arch=amd64 -host_arch=amd64 -no_logo >nul\r\n")
+            oren_list_push(parts, ")\r\n")
+            oren_list_push(parts, "if errorlevel 1 exit /b %errorlevel%\r\n")
+
+            // cl args.
+            var cl_args = ["/nologo", "/std:c11", "/Fe:" + out_win, c_win, "lib\\runtime.c", "lib\\runtime_buf.c", "/Ilib"]
+            if no_gc { oren_list_push(cl_args, "/DOREN_NO_GC") }
+            var j_lib = 0
+            while j_lib < oren_list_len(link_libs) {
+                // Best-effort: pass as-is (can be .lib path or object file).
+                oren_list_push(cl_args, _path_to_windows_sep(link_libs[j_lib]))
+                j_lib = j_lib + 1
+            }
+            oren_list_push(parts, cmd_quote(cc))
+            var j = 0
+            while j < oren_list_len(cl_args) {
+                oren_list_push(parts, " ")
+                oren_list_push(parts, cmd_quote(cl_args[j]))
+                j = j + 1
+            }
+            oren_list_push(parts, "\r\n")
+            oren_list_push(parts, "exit /b %errorlevel%\r\n")
+
+            var script_src = oren_string_join(parts)
+            var ws = oren_write_file(sp, script_src)
+            if oren_is_err(ws) {
+                print("ERROR: failed to write MSVC wrapper script: " + script)
+                var em = oren_err_msg(ws)
+                if em != nil { print(em) }
+                oren_exit(1)
+            }
+            cmd = "cmd.exe /d /c " + cmd_quote(sp)
+        } else {
+            // gcc/clang-style compiler on Windows (MSYS2). Keep the existing flag shape.
+            cmd = cc + " -o " + shell_quote(out_path) + " " + shell_quote(c_path) + " lib/runtime.c lib/runtime_buf.c -Ilib"
+            var k_lib = 0
+            while k_lib < oren_list_len(link_libs) {
+                cmd = cmd + " " + shell_quote(link_libs[k_lib])
+                k_lib = k_lib + 1
+            }
+            if no_gc { cmd = cmd + " -DOREN_NO_GC" }
+            if enable_python {
+                cmd = cmd + " -DOREN_ENABLE_PYTHON $(python3-config --cflags) $(python3-config --embed --ldflags)"
+            }
+        }
+    } else {
+        cmd = cc + " -o " + shell_quote(out_path) + " " + shell_quote(c_path) + " lib/runtime.c lib/runtime_buf.c -Ilib -pthread"
+        var k_lib = 0
+        while k_lib < oren_list_len(link_libs) {
+            cmd = cmd + " " + shell_quote(link_libs[k_lib])
+            k_lib = k_lib + 1
+        }
+        if no_gc { cmd = cmd + " -DOREN_NO_GC" }
+        if enable_python {
+            cmd = cmd + " -DOREN_ENABLE_PYTHON $(python3-config --cflags) $(python3-config --embed --ldflags)"
+        }
     }
-    if no_gc { cmd = cmd + " -DOREN_NO_GC" }
-    if enable_python {
-        cmd = cmd + " -DOREN_ENABLE_PYTHON $(python3-config --cflags) $(python3-config --embed --ldflags)"
-    }
+
     var res = oren_system(cmd)
     if res != 0 {
         print("Build failed")
@@ -1581,7 +1724,13 @@ fn compiler_main() {
     }
     // On success, remove intermediate C output to keep builds clean.
     // (If you want the emitted C, use `--emit-c` / `oren emit-c`).
-    oren_system("rm -f " + shell_quote(c_path))
+    if oren_env("OS") == "Windows_NT" {
+        var p_del = _path_to_windows_sep(c_path)
+        oren_system("del /f /q \"" + p_del + "\" >nul 2>nul")
+        if msvc_script_path != "" { oren_system("del /f /q \"" + msvc_script_path + "\" >nul 2>nul") }
+    } else {
+        oren_system("rm -f " + shell_quote(c_path))
+    }
     if target == "macos" {
         if codesign_id != "" {
             var cs_cmd2 = "codesign -s " + shell_quote(codesign_id) + " --force " + shell_quote(out_path)

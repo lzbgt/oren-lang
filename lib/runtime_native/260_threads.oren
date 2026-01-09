@@ -695,15 +695,42 @@ fn oren_system_timeout(cmd, timeout_ms) {
 
     if cmd == 0 { return -1 }
     if g_target_os == 3 {
-        // Windows: use cmd.exe /C <cmd>
+        // Windows: implement `system()` via cmd.exe `/C <cmd>`.
+        //
+        // IMPORTANT (correctness):
+        // Do NOT route through `oren_proc_spawn(comspec, [comspec,"/C",cmd], ...)`.
+        //
+        // `oren_proc_spawn` builds a CreateProcessA command line by applying MSVC/CRT
+        // quoting rules to each argv entry. That is correct for most programs, but `cmd.exe`
+        // frequently re-parses the *raw command line* (not the already-tokenized argv),
+        // and the CRT-style escaping (notably backslash-escaped quotes `\"`) breaks
+        // shell features such as:
+        // - quoted paths: mkdir "a b"
+        // - redirection:  >nul 2>nul
+        //
+        // For `system()` we want shell semantics: pass the command string through to cmd.exe
+        // without re-escaping it.
         //
         // Rolling robustness:
-        // Prefer a stable absolute path over relying on entry-stub env capture on Windows.
-        // In some remote/SSH configurations the environment block conversion is still rolling,
-        // and using COMSPEC can produce non-deterministic results.
+        // Prefer a stable absolute path over relying on COMSPEC from env capture (remote/SSH can vary).
         var comspec = "C:\\Windows\\System32\\cmd.exe"
-        var args = [comspec, "/C", cmd]
-        return oren_proc_spawn(comspec, args, timeout_ms)
+        var cmdline = comspec + " /C " + cmd
+        var envblock = native_windows_envblock_for_proc_child()
+        // envblock may be 0 (inherit env), which is valid.
+
+        if _win_proc_debug_enabled() {
+            print("WIN_PROC_DEBUG app=" + comspec)
+            _win_proc_debug_dump_cstr("WIN_PROC_DEBUG cmdline_", cmdline, 160)
+            print("WIN_PROC_DEBUG envblock_ptr=" + oren_int_to_string(envblock) + " timeout_ms=" + oren_int_to_string(timeout_ms))
+        }
+
+        var rc = sys_win_createprocess(comspec, cmdline, envblock, timeout_ms)
+        if _win_proc_debug_enabled() {
+            print("WIN_PROC_DEBUG sys_win_createprocess rc=" + oren_int_to_string(rc))
+        }
+        free(cmdline)
+        if envblock != 0 { free(envblock) }
+        return rc
     }
 
     // POSIX (macOS/Linux): `system` requires a shell. In minimal/container environments

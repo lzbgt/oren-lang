@@ -138,16 +138,23 @@ References:
      - Windows stage0→stage1 bootstrap: `./scripts/verify_stage0_windows_bootstrap.sh`
 
      - Active gaps (keep this list forward-looking; details live in `docs/TODOS_ARCHIVE.md`):
-	       - Build system parity (Windows host):
-	         - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
-	         - Done: Windows-host bootstrap defaults now reliably select MSVC `cl.exe` when `OREN_BOOTSTRAP_CC` is not set (fixes `make test` / `make stage1` under Git Bash/MSYS2).
-	         - Done (2026-01-08): stage0 MSVC bootstrap now supports escape-hatch overrides for nonstandard Windows environments:
-	           - `OREN_MSVC_VSWHERE=<path>` (pin `vswhere.exe`)
-	           - `OREN_MSVC_INSTALL_PATH=<path>` (bypass `vswhere.exe` entirely)
-	         - Done (2026-01-08): AVM build uses `AVM_CC` (default: `cc`) so Windows hosts can keep stage0/stage1 bring-up on MSVC `cl.exe` without forcing AVM to use MSVC-flags.
-		         - Done (2026-01-08): stage1 can build stage2 on native Windows (not just run a prebuilt stage2):
-		           - Gate: `./scripts/verify_windows_stage2_from_stage1.sh` (stage0→stage1→stage2; Win11 + VS2022 + `cl.exe`)
-		           - Make shortcut: `make verify-stage2-win`
+		       - Build system parity (Windows host):
+		         - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
+		         - Done: Windows-host bootstrap defaults now reliably select MSVC `cl.exe` when `OREN_BOOTSTRAP_CC` is not set (fixes `make test` / `make stage1` under Git Bash/MSYS2).
+		         - Done (2026-01-08): stage0 MSVC bootstrap now supports escape-hatch overrides for nonstandard Windows environments:
+		           - `OREN_MSVC_VSWHERE=<path>` (pin `vswhere.exe`)
+		           - `OREN_MSVC_INSTALL_PATH=<path>` (bypass `vswhere.exe` entirely)
+		         - Done (2026-01-09): self-hosted compilers (`oren.exe`, `oren_stage2.exe`) also default C-backend `--cc` to `cl.exe` on Windows hosts and auto-configure MSVC via a temporary `.cmd` wrapper (vswhere → VsDevCmd/vcvars → cl).
+		         - Done (2026-01-09): Windows path separator handling is normalized for default build outputs (so `oren_stage2` can emit `build/targets/x64-windows/native/<basename>` even when sources are invoked with backslash paths like `examples\\myapp.oren`).
+		         - Done (2026-01-09): Windows native runtime `oren_system_timeout` preserves cmd.exe shell semantics (no CRT-style re-escaping of the command string), fixing `ensure_dir(...)` and other `oren_system("... >nul 2>nul")` call sites on x64-windows.
+		         - Done (2026-01-09): MSVC wrapper `.cmd` emitted by the self-hosted compiler avoids cmd.exe block-expansion pitfalls and can locate VS2022 via:
+		           - direct probes (Program Files VS2022 editions) and
+		           - vswhere fallback (when installed),
+		           keeping `oren build --backend c` usable on native Win11 hosts.
+		         - Done (2026-01-08): AVM build uses `AVM_CC` (default: `cc`) so Windows hosts can keep stage0/stage1 bring-up on MSVC `cl.exe` without forcing AVM to use MSVC-flags.
+			         - Done (2026-01-08): stage1 can build stage2 on native Windows (not just run a prebuilt stage2):
+			           - Gate: `./scripts/verify_windows_stage2_from_stage1.sh` (stage0→stage1→stage2; Win11 + VS2022 + `cl.exe`)
+			           - Make shortcut: `make verify-stage2-win`
 		           - Verified (2026-01-09): `make verify-stage2-win` passes on the Tier‑1 Win11 host (stage0→stage1→stage2 + compile+run).
 		         - Intent: `make`, `make test`, `make stage2`, `make verify-native-quick` should work under MSYS2/Git Bash/Cygwin (stage0 still uses MSVC `cl.exe`, auto-configured by stage0; see `docs/REMOTE_X64_ENV.md`).
 		         - Note: scripts avoid requiring external `rg`/ripgrep on minimal environments (remote Win11/WSL2, containers); they use `grep`/`findstr` and keep logs bounded (details in `docs/TEST_SYSTEM.md`).

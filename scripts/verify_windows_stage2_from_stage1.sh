@@ -90,11 +90,12 @@ scp_retry() {
 log "== build: stage0 bootstrap (windows/amd64) =="
 GOOS=windows GOARCH=amd64 go build -o build/tmp/oren_bootstrap_win.exe ./cmd/oren
 
-log "== bundle: minimal sources for stage2 build =="
-tar -czf build/tmp/stage2_src_bundle.tgz \
-  oren.oren \
-  lib \
-  tests/native/print.oren
+	log "== bundle: minimal sources for stage2 build =="
+	tar -czf build/tmp/stage2_src_bundle.tgz \
+	  oren.oren \
+	  lib \
+	  examples/myapp.oren \
+	  tests/native/print.oren
 
 log "== remote: upload stage0 + bundle =="
 scp_retry build/tmp/oren_bootstrap_win.exe "${REMOTE_HOST}:tmp_oren/oren_bootstrap_win.exe"
@@ -133,6 +134,27 @@ log "== remote: stage2 builds a tiny native exe (guard: canon i32) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
   ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" \
   "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build tests\\\\native\\\\print.oren --backend native --no-cache --no-debug -o print_stage2_native.exe\""
+
+log "== remote: stage2 builds a nested-path native exe (default -o path; backslash-safe) =="
+run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
+  ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" \
+  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\myapp.oren --backend native --platform x64-windows --no-cache --no-debug\""
+
+log "== remote: stage2 builds a tiny C-backend exe (default --cc; MSVC cl.exe bring-up) =="
+run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
+  ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" \
+  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && oren_stage2.exe build examples\\\\myapp.oren --backend c --no-cache -o myapp_c_stage2.exe\""
+
+log "== remote: run the produced C-backend exe =="
+out_c="$(
+  run_with_timeout "$REMOTE_RUN_TIMEOUT_SECS" \
+    ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" \
+    "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && myapp_c_stage2.exe & echo EXIT=!ERRORLEVEL!\""
+)"
+out_c="$(printf '%s' "$out_c" | tr -d '\r')"
+printf '%s\n' "$out_c"
+echo "$out_c" | grep -qF "hello from myapp"
+echo "$out_c" | grep -qF "EXIT=0"
 
 log "== remote: run the produced exe =="
 out="$(

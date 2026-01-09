@@ -15,6 +15,103 @@
 //   use higher-level helpers (e.g. oren_exists) until an Oren-defined cross-platform Stat
 //   layout is introduced.
 
+// --- Windows path normalization (Tier‑1 parity) ---
+//
+// Oren source code and compiler internals are allowed to use portable '/' separators,
+// even on Windows. Win32 APIs are more permissive than many assume, but in practice we
+// have seen bring-up regressions where CreateFileA/DeleteFileA/etc reject '/'.
+//
+// Normalize at the syscall intrinsic boundary to keep:
+// - the language / stdlib path semantics portable
+// - the native backend robust on x64-windows
+//
+// Implementation: copy NUL-terminated C string to a stack scratch buffer and replace
+// '/' (47) with '\\' (92). The scratch buffer lives only across the single WinAPI call.
+var WIN64_PATH_BUF_BYTES = 2048
+var WIN64_PATH_SCRATCH_ONE = 2112  // 64 + 2048 (shadow+slack + one buffer)
+var WIN64_PATH_SCRATCH_TWO = 4160  // 64 + 4096 (shadow+slack + two buffers)
+
+fn _emit_win64_path_norm_begin_x64(ctx, scratch_bytes) {
+    // Reserve a private call-area + scratch space for a single WinAPI call.
+    // Must be 16B-aligned so the called WinAPI sees a properly aligned RSP.
+    bytes_extend(ctx["code"], insn_sub_rsp_imm32(scratch_bytes))
+    return nil
+}
+
+fn _emit_win64_path_norm_end_x64(ctx, scratch_bytes) {
+    bytes_extend(ctx["code"], insn_add_rsp_imm32(scratch_bytes))
+    return nil
+}
+
+fn _emit_win64_path_norm_reg_to_buf_x64(ctx, src_reg, buf_add) {
+    // Input:  src_reg holds a pointer to a NUL-terminated path cstr.
+    // Output: src_reg updated to point at normalized buffer in scratch.
+    //
+    // Scratch contract:
+    // - Caller must have reserved at least WIN64_PATH_SCRATCH_ONE bytes via
+    //   `_emit_win64_path_norm_begin_x64`.
+    // - Buffer #1 is at [rsp+64 .. rsp+64+WIN64_PATH_BUF_BYTES).
+    // - Buffer #2 is at [rsp+64+WIN64_PATH_BUF_BYTES .. +2*WIN64_PATH_BUF_BYTES) (if allocated).
+    //
+    // Uses/clobbers: r8, r9, r10, r11, eax.
+    //
+    // r10 = dst_start
+    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(10, 64))
+    if buf_add != 0 { bytes_extend(ctx["code"], insn_add_r64_imm32(10, buf_add)) }
+    // r9 = dst_cursor
+    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 10))
+    // r11 = src_cursor
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, src_reg))
+    // r8 = remaining (leave room for NUL)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, WIN64_PATH_BUF_BYTES - 1))
+
+    var labels = {}
+    var fixups = []
+    var l_loop = _new_label(ctx, "win_path_norm_loop")
+    var l_store = _new_label(ctx, "win_path_norm_store")
+    var l_done = _new_label(ctx, "win_path_norm_done")
+    var l_trunc = _new_label(ctx, "win_path_norm_trunc")
+
+    _emit_label(ctx, labels, l_loop)
+    // eax = *src_cursor
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 11))
+    // if eax == 0 => done
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_done)
+    // if remaining == 0 => trunc (write NUL and finish)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
+    _emit_jcc_to_label(ctx, fixups, "e", l_trunc)
+
+    // if eax == '/' => eax = '\\'
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 47))
+    _emit_jcc_to_label(ctx, fixups, "ne", l_store)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 92))
+
+    _emit_label(ctx, labels, l_store)
+    // *dst_cursor = al
+    bytes_extend(ctx["code"], insn_mov_mr8_al(9))
+    // src_cursor++ ; dst_cursor++ ; remaining--
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 1))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(9, 1))
+    bytes_extend(ctx["code"], insn_sub_r64_imm32(8, 1))
+    _emit_jmp_to_label(ctx, fixups, l_loop)
+
+    _emit_label(ctx, labels, l_trunc)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_mov_mr8_al(9))
+    _emit_jmp_to_label(ctx, fixups, l_done)
+
+    _emit_label(ctx, labels, l_done)
+    // Always NUL-terminate (idempotent if already written by trunc branch).
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_mov_mr8_al(9))
+    // src_reg = dst_start (r10)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(src_reg, 10))
+
+    _patch_local_fixups(ctx, labels, fixups)
+    return nil
+}
+
 fn _emit_win32_get_last_error_x64(ctx) {
     // eax = GetLastError()
     _emit_call_iat_x64(ctx, "IAT_GetLastError")
@@ -165,6 +262,8 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     //
     // CreateFileA(path, GENERIC_READ, share=7, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL)
     // rcx already holds path pointer.
+    _emit_win64_path_norm_begin_x64(ctx, WIN64_PATH_SCRATCH_ONE)
+    _emit_win64_path_norm_reg_to_buf_x64(ctx, 1, 0) // rcx
     bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 2147483648)) // edx = GENERIC_READ
     bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 7))          // r8d = share
     bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 0))          // r9d = NULL (sec attrs)
@@ -180,6 +279,7 @@ fn _emit_intrinsic_sys_stat_windows_x64(ctx, nm, expr, locals, args) {
     _emit_mov_mrsp_r64(ctx, 48, 10)
 
     _emit_call_iat_x64(ctx, "IAT_CreateFileA")
+    _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
 
     // if handle == INVALID_HANDLE_VALUE (-1) => fail
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4294967295))
@@ -408,8 +508,11 @@ fn _emit_intrinsic_sys_unlink_or_rmdir_windows_x64(ctx, nm, expr, locals, args) 
     }
 
     // DeleteFileA / RemoveDirectoryA -> BOOL
+    _emit_win64_path_norm_begin_x64(ctx, WIN64_PATH_SCRATCH_ONE)
+    _emit_win64_path_norm_reg_to_buf_x64(ctx, 1, 0) // rcx
     if nm == "sys_unlink" { _emit_call_iat_x64(ctx, "IAT_DeleteFileA") }
     else { _emit_call_iat_x64(ctx, "IAT_RemoveDirectoryA") }
+    _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
 
     var labels = {}
     var fixups = []
@@ -478,11 +581,14 @@ fn _emit_intrinsic_sys_rename_windows_x64(ctx, expr, locals, args) {
         _intr_load_x64(ctx, 2, tmp_to)   // rdx = to
     }
 
+    // MoveFileExA(existing, new, flags) -> BOOL
+    _emit_win64_path_norm_begin_x64(ctx, WIN64_PATH_SCRATCH_TWO)
+    _emit_win64_path_norm_reg_to_buf_x64(ctx, 1, 0)                    // rcx = from
+    _emit_win64_path_norm_reg_to_buf_x64(ctx, 2, WIN64_PATH_BUF_BYTES)  // rdx = to
     // flags = MOVEFILE_REPLACE_EXISTING (1)
     bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 1)) // r8d
-
-    // MoveFileExA(existing, new, flags) -> BOOL
     _emit_call_iat_x64(ctx, "IAT_MoveFileExA")
+    _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_TWO)
 
     var labels = {}
     var fixups = []
@@ -547,8 +653,11 @@ fn _emit_intrinsic_sys_mkdir_or_chmod_windows_x64(ctx, nm, expr, locals, args) {
 
     if nm == "sys_mkdir" {
         // CreateDirectoryA(path, NULL) -> BOOL
+        _emit_win64_path_norm_begin_x64(ctx, WIN64_PATH_SCRATCH_ONE)
+        _emit_win64_path_norm_reg_to_buf_x64(ctx, 1, 0) // rcx
         bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0)) // rdx = NULL
         _emit_call_iat_x64(ctx, "IAT_CreateDirectoryA")
+        _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
     } else {
         // sys_chmod on Windows (rolling):
         //

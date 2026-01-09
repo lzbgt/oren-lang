@@ -244,6 +244,11 @@ fn _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args) {
         _intr_load_x64(ctx, 1, tmp_path) // rcx = path
     }
 
+    // Normalize portable '/' separators to Win32 '\\' for the CreateFileA boundary.
+    // Keep the normalization scratch strictly around the single WinAPI call.
+    _emit_win64_path_norm_begin_x64(ctx, WIN64_PATH_SCRATCH_ONE)
+    _emit_win64_path_norm_reg_to_buf_x64(ctx, 1, 0) // rcx
+
     // rdx = desired_access (GENERIC_*)
     // - access bits: flags & 3 => 0=RDONLY,1=WRONLY,2=RDWR
     _intr_load_x64(ctx, 10, tmp_flags) // r10 = flags
@@ -330,6 +335,7 @@ fn _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args) {
 
     // CreateFileA(path, access, share, NULL, creation, attrs, NULL) -> HANDLE (rax) or -1
     _emit_call_iat_x64(ctx, "IAT_CreateFileA")
+    _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
 
     // post: native_capsule_sys_open_post(pair, rc) -> rc
     if capsule {

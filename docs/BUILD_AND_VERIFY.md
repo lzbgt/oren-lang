@@ -46,6 +46,22 @@ oren_bootstrap.exe build oren.oren --target windows --cc cl -o oren.exe
   - If your Windows environment is non-standard (custom VS install paths, CI images, minimal shells), you can override:
     - `OREN_MSVC_VSWHERE=<full\\path\\to\\vswhere.exe>` (skip default probing)
     - `OREN_MSVC_INSTALL_PATH=<full\\path\\to\\Visual Studio\\...>` (skip `vswhere.exe` entirely)
+
+- Rolling (2026-01-09+): the self-hosted compilers (`oren.exe`, `oren_stage2.exe`) also use the same MSVC auto-configuration path
+  when building **C backend** outputs on Windows:
+  - Windows default: if `--cc` is not specified, C-backend builds default to `cl.exe` (instead of `cc`).
+  - When `--cc` is `cl`/`cl.exe`/`clang-cl`, the compiler emits a temporary `.cmd` wrapper that:
+    - resolves VS via `vswhere.exe` (or `OREN_MSVC_INSTALL_PATH`),
+    - calls `VsDevCmd.bat` / `vcvars64.bat`,
+    - invokes `cl.exe` with a minimal `/std:c11` compile+link arg set.
+  - Optional override: `OREN_MSVC_DEV_CMD=<full\\path\\to\\VsDevCmd.bat|vcvars64.bat>` (force the devcmd script directly).
+
+Windows native backend notes (x64, rolling; 2026-01-09+):
+
+- Native backend filesystem syscalls on Windows normalize portable `'/'` separators to Win32 `'\\'` at the intrinsic boundary
+  (CreateFileA/DeleteFileA/MoveFileExA/CreateDirectoryA), so compiler/runtime code can keep using POSIX-style paths.
+- `oren_system(...)` on Windows executes `cmd.exe /C <cmd>` and must preserve *shell* semantics (quoting + redirection).
+  The native runtime therefore passes the command string through to `cmd.exe` without CRT-style argv re-escaping (needed for `>nul 2>nul`).
 - C-backend outputs run the program entrypoint on a fresh OS thread with a larger stack by default
   (to avoid stack overflow in self-hosted compiler workloads). Override via:
   - `OREN_MAIN_STACK_SIZE` (decimal bytes; default: 64 MiB; min: 1 MiB)

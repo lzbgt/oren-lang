@@ -357,13 +357,43 @@ fn run_shell_capture(timeout_bin, timeout_secs, cmd, log_path) {
 fn basename(path) {
     if path == nil { return "" }
     var i = oren_string_len(path) - 1
+    var is_win = (oren_env("OS") == "Windows_NT")
     while i >= 0 {
-        if oren_string_char_at(path, i) == "/" {
+        var ch = oren_string_char_at(path, i)
+        if ch == "/" || (is_win && ch == "\\") {
             return oren_string_slice(path, i + 1, oren_string_len(path))
         }
         i = i - 1
     }
     return path
+}
+
+fn cmd_quote(s) {
+    // Minimal quoting for cmd.exe script emission (bootstrap/tooling).
+    // - wrap when spaces/tabs exist
+    // - escape embedded quotes by doubling
+    if s == nil { return "\"\"" }
+    if s == "" { return "\"\"" }
+    var needs = false
+    var i = 0
+    while i < oren_string_len(s) {
+        var c = oren_string_char_at_unchecked(s, i)
+        if c == " " || c == "\t" { needs = true }
+        if c == "\"" { needs = true }
+        i = i + 1
+    }
+    if needs != true { return s }
+    // Build with doubled quotes.
+    var parts = ["\""]
+    i = 0
+    while i < oren_string_len(s) {
+        var c2 = oren_string_char_at_unchecked(s, i)
+        if c2 == "\"" { oren_list_push(parts, "\"\"") }
+        else { oren_list_push(parts, c2) }
+        i = i + 1
+    }
+    oren_list_push(parts, "\"")
+    return oren_string_join(parts)
 }
 
 fn strip_suffix(s, suffix) {
