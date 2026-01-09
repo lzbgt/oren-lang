@@ -59,6 +59,21 @@ fn _expect_one_header(r, name, value) {
     return nil
 }
 
+fn _expect_headers(r, hs_expect) {
+    // hs_expect: list of {name,value}
+    var hs = r["headers"]
+    _must(list.len(hs) == list.len(hs_expect), "header list length mismatch")
+    var i = 0
+    while i < list.len(hs_expect) {
+        var got = hs[i]
+        var exp = hs_expect[i]
+        _must(_str_eq_bytes(got["name"], exp["name"]), "header name mismatch at idx " + oren_int_to_string(i))
+        _must(_str_eq_bytes(got["value"], exp["value"]), "header value mismatch at idx " + oren_int_to_string(i))
+        i = i + 1
+    }
+    return nil
+}
+
 fn main() {
     // C.2.1 Literal Header Field with Indexing
     // custom-key: custom-header
@@ -82,6 +97,24 @@ fn main() {
     _expect_one_header(r3, "password", "secret")
     _must(r3["table"]["size"] == 0, "dynamic table should remain empty")
 
+    // C.4.1 First Request (with Huffman coding)
+    // :method: GET
+    // :scheme: http
+    // :path: /
+    // :authority: www.example.com
+    //
+    // Hex dump:
+    // 8286 8441 8cf1 e3c2 e5f2 3a6b a0ab 90f4 ff
+    var t4 = hpack.table_new(4096)
+    var r4 = _decode_hex_into(t4, "828684418cf1e3c2e5f23a6ba0ab90f4ff")
+    _expect_headers(r4, [
+        {"name": ":method", "value": "GET"},
+        {"name": ":scheme", "value": "http"},
+        {"name": ":path", "value": "/"},
+        {"name": ":authority", "value": "www.example.com"}
+    ])
+    _must(r4["table"]["size"] == 57, "dynamic table size should be 57 (32+10+15)")
+    _must(list.len(r4["table"]["entries"]) == 1, "dynamic table should have 1 entry")
+
     exit(0)
 }
-

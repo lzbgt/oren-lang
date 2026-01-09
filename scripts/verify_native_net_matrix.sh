@@ -38,6 +38,7 @@ WS_ECHO_SRC="tests/native/test_ws_echo_loopback.oren"
 WSS_ECHO_SRC="tests/native/test_wss_echo_loopback.oren"
 TLS_LOOPBACK_SRC="tests/native/test_tls_loopback.oren"
 HTTP2_PREFACE_LOOPBACK_SRC="tests/native/test_http2_preface_loopback.oren"
+HPACK_SMOKE_SRC="tests/native/test_hpack_smoke.oren"
 
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
@@ -61,6 +62,7 @@ Runs (loopback-only; no external network):
   - tests/native/test_wss_echo_loopback.oren
   - tests/native/test_tls_loopback.oren
   - tests/native/test_http2_preface_loopback.oren
+  - tests/native/test_hpack_smoke.oren
 
 Targets (comma-separated):
   all         (default)
@@ -328,6 +330,8 @@ if has_target local; then
   build_native_bin_src "./oren_stage2" "arm64-macos" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage2_arm64_macos"
   build_native_bin_src "./oren" "arm64-macos" "$HTTP2_PREFACE_LOOPBACK_SRC" "build/tmp/http2_stage1_arm64_macos"
   build_native_bin_src "./oren_stage2" "arm64-macos" "$HTTP2_PREFACE_LOOPBACK_SRC" "build/tmp/http2_stage2_arm64_macos"
+  build_native_bin_src "./oren" "arm64-macos" "$HPACK_SMOKE_SRC" "build/tmp/hpack_stage1_arm64_macos"
+  build_native_bin_src "./oren_stage2" "arm64-macos" "$HPACK_SMOKE_SRC" "build/tmp/hpack_stage2_arm64_macos"
 
   run_local_bin "build/tmp/net_stage1_arm64_macos"
   run_local_bin "build/tmp/net_stage2_arm64_macos"
@@ -345,6 +349,8 @@ if has_target local; then
   run_local_bin "build/tmp/tls_stage2_arm64_macos"
   run_local_bin "build/tmp/http2_stage1_arm64_macos"
   run_local_bin "build/tmp/http2_stage2_arm64_macos"
+  run_local_bin "build/tmp/hpack_stage1_arm64_macos"
+  run_local_bin "build/tmp/hpack_stage2_arm64_macos"
 
   log "OK: local arm64-macos"
 fi
@@ -501,6 +507,8 @@ if has_target arm64-linux; then
   build_native_bin_src "./oren_stage2" "arm64-linux" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage2_arm64_linux"
   build_native_bin_src "./oren" "arm64-linux" "$HTTP2_PREFACE_LOOPBACK_SRC" "build/tmp/http2_stage1_arm64_linux"
   build_native_bin_src "./oren_stage2" "arm64-linux" "$HTTP2_PREFACE_LOOPBACK_SRC" "build/tmp/http2_stage2_arm64_linux"
+  build_native_bin_src "./oren" "arm64-linux" "$HPACK_SMOKE_SRC" "build/tmp/hpack_stage1_arm64_linux"
+  build_native_bin_src "./oren_stage2" "arm64-linux" "$HPACK_SMOKE_SRC" "build/tmp/hpack_stage2_arm64_linux"
 
   run_in_linux_container "build/tmp/net_stage1_arm64_linux"
   run_in_linux_container "build/tmp/net_stage2_arm64_linux"
@@ -518,6 +526,8 @@ if has_target arm64-linux; then
   run_in_linux_container "build/tmp/tls_stage2_arm64_linux"
   run_in_linux_container "build/tmp/http2_stage1_arm64_linux"
   run_in_linux_container "build/tmp/http2_stage2_arm64_linux"
+  run_in_linux_container "build/tmp/hpack_stage1_arm64_linux"
+  run_in_linux_container "build/tmp/hpack_stage2_arm64_linux"
 
   log "OK: linux/arm64 container"
 fi
@@ -544,6 +554,8 @@ if has_target x64-win; then
   build_native_bin_src "./oren_stage2" "x64-windows" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage2_x64_windows.exe"
   build_native_bin_src "./oren" "x64-windows" "$HTTP2_PREFACE_LOOPBACK_SRC" "build/tmp/http2_stage1_x64_windows.exe"
   build_native_bin_src "./oren_stage2" "x64-windows" "$HTTP2_PREFACE_LOOPBACK_SRC" "build/tmp/http2_stage2_x64_windows.exe"
+  build_native_bin_src "./oren" "x64-windows" "$HPACK_SMOKE_SRC" "build/tmp/hpack_stage1_x64_windows.exe"
+  build_native_bin_src "./oren_stage2" "x64-windows" "$HPACK_SMOKE_SRC" "build/tmp/hpack_stage2_x64_windows.exe"
 
   remote_upload "build/tmp/net_stage1_x64_windows.exe" "net_stage1_x64_windows.exe"
   remote_upload "build/tmp/net_stage2_x64_windows.exe" "net_stage2_x64_windows.exe"
@@ -561,6 +573,8 @@ if has_target x64-win; then
   remote_upload "build/tmp/tls_stage2_x64_windows.exe" "tls_stage2_x64_windows.exe"
   remote_upload "build/tmp/http2_stage1_x64_windows.exe" "http2_stage1_x64_windows.exe"
   remote_upload "build/tmp/http2_stage2_x64_windows.exe" "http2_stage2_x64_windows.exe"
+  remote_upload "build/tmp/hpack_stage1_x64_windows.exe" "hpack_stage1_x64_windows.exe"
+  remote_upload "build/tmp/hpack_stage2_x64_windows.exe" "hpack_stage2_x64_windows.exe"
 
   log "-- run: Win11 (x64-windows) --"
   remote_run_win "net_stage1_x64_windows.exe"
@@ -579,6 +593,8 @@ if has_target x64-win; then
   remote_run_win "tls_stage2_x64_windows.exe"
   remote_run_win "http2_stage1_x64_windows.exe"
   remote_run_win "http2_stage2_x64_windows.exe"
+  remote_run_win "hpack_stage1_x64_windows.exe"
+  remote_run_win "hpack_stage2_x64_windows.exe"
   log "OK: remote Win11 x64"
 fi
 
@@ -599,6 +615,8 @@ if has_target x64-wsl; then
   build_native_bin_src "./oren_stage2" "x64-linux" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage2_x64_linux"
   build_native_bin_src "./oren" "x64-linux" "$HTTP2_PREFACE_LOOPBACK_SRC" "build/tmp/http2_stage1_x64_linux"
   build_native_bin_src "./oren_stage2" "x64-linux" "$HTTP2_PREFACE_LOOPBACK_SRC" "build/tmp/http2_stage2_x64_linux"
+  build_native_bin_src "./oren" "x64-linux" "$HPACK_SMOKE_SRC" "build/tmp/hpack_stage1_x64_linux"
+  build_native_bin_src "./oren_stage2" "x64-linux" "$HPACK_SMOKE_SRC" "build/tmp/hpack_stage2_x64_linux"
 
   remote_upload "build/tmp/net_stage1_x64_linux" "net_stage1_x64_linux"
   remote_upload "build/tmp/net_stage2_x64_linux" "net_stage2_x64_linux"
@@ -616,6 +634,8 @@ if has_target x64-wsl; then
   remote_upload "build/tmp/tls_stage2_x64_linux" "tls_stage2_x64_linux"
   remote_upload "build/tmp/http2_stage1_x64_linux" "http2_stage1_x64_linux"
   remote_upload "build/tmp/http2_stage2_x64_linux" "http2_stage2_x64_linux"
+  remote_upload "build/tmp/hpack_stage1_x64_linux" "hpack_stage1_x64_linux"
+  remote_upload "build/tmp/hpack_stage2_x64_linux" "hpack_stage2_x64_linux"
 
   log "-- run: WSL2 (x64-linux) --"
   remote_run_wsl "net_stage1_x64_linux"
@@ -634,6 +654,8 @@ if has_target x64-wsl; then
   remote_run_wsl "tls_stage2_x64_linux"
   remote_run_wsl "http2_stage1_x64_linux"
   remote_run_wsl "http2_stage2_x64_linux"
+  remote_run_wsl "hpack_stage1_x64_linux"
+  remote_run_wsl "hpack_stage2_x64_linux"
   log "OK: remote WSL2 x64"
 fi
 
