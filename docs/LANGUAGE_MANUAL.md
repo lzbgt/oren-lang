@@ -741,6 +741,7 @@ Rolling note (native backend):
 
 - Until native value tagging is fully implemented, numeric immediates are best-effort:
   `int`/`bool`/`float` may all report as `int` (tag `1`) in native mode.
+- Current sharp edge (native backend only; C backend does not have this issue): `nil` and integer `0` are currently indistinguishable, so `0 == nil` evaluates true in native mode. Avoid `== nil` checks on numeric values until the value representation is refactored to be tagged.
 - Beyond `oren_type_tag` / `oren_type_name`, full runtime reflection (fields/layout/type metadata) is not yet implemented and is tracked as a larger refactor in `docs/TODOS.md`.
 
 Call-site spread (apply-style call):

@@ -313,7 +313,12 @@ fn server_impl(listen_fd, pfx_b64) {
     if fr["ok"] != 1 { tls.close(conn); return 17 }
     if fr["type"] != h2.FRAME_SETTINGS { tls.close(conn); return 18 }
     if fr["stream"] != 0 { tls.close(conn); return 19 }
-    if fr["flags"] != 0 || oren_buf_len(fr["payload"]) != 0 { tls.close(conn); return 19 }
+    if fr["flags"] != 0 { tls.close(conn); return 19 }
+    // Expect a small deterministic SETTINGS payload from the client.
+    var sp = h2.parse_settings_payload(fr["payload"])
+    if sp["ok"] != 1 { tls.close(conn); return 190 }
+    var sm = sp["settings"]
+    if oren_map_get_int(sm, h2.SETTINGS_ENABLE_PUSH) != 0 { tls.close(conn); return 191 }
 
     // Respond with server SETTINGS (empty), then ACK client SETTINGS.
     var wr0 = _send_frame(conn, h2.FRAME_SETTINGS, 0, 0, oren_u8_buf_new(0), 5000)
@@ -421,9 +426,14 @@ fn main_client() {
     if wr0 != 0 { tls.close(conn); exit(10) }
     var hdr = malloc(16)
     if hdr == 0 { tls.close(conn); exit(11) }
-    var rc1 = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, 0, 0)
+    var payload = h2.settings_payload_from_list([[h2.SETTINGS_ENABLE_PUSH, 0]])
+    if oren_is_err(payload) { free(hdr); tls.close(conn); exit(110) }
+    var plen = oren_buf_len(payload)
+    if oren_is_err(plen) { free(hdr); tls.close(conn); exit(111) }
+    var rc1 = h2.write_frame_header(hdr, plen, h2.FRAME_SETTINGS, 0, 0)
     if rc1 != 0 { free(hdr); tls.close(conn); exit(12) }
     wr0 = _write_all_ptr(conn, hdr, 9, 5000)
+    if wr0 == 0 { wr0 = _write_all_bytes(conn, payload, 5000) }
     free(hdr)
     if wr0 != 0 { tls.close(conn); exit(13) }
 
@@ -532,9 +542,14 @@ fn main_client() {
     if wr0 != 0 { tls.close(conn); exit(12) }
     var hdr = malloc(16)
     if hdr == 0 { tls.close(conn); exit(13) }
-    var rc1 = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, 0, 0)
+    var payload = h2.settings_payload_from_list([[h2.SETTINGS_ENABLE_PUSH, 0]])
+    if oren_is_err(payload) { free(hdr); tls.close(conn); exit(130) }
+    var plen = oren_buf_len(payload)
+    if oren_is_err(plen) { free(hdr); tls.close(conn); exit(131) }
+    var rc1 = h2.write_frame_header(hdr, plen, h2.FRAME_SETTINGS, 0, 0)
     if rc1 != 0 { free(hdr); tls.close(conn); exit(14) }
     wr0 = _write_all_ptr(conn, hdr, 9, 5000)
+    if wr0 == 0 { wr0 = _write_all_bytes(conn, payload, 5000) }
     free(hdr)
     if wr0 != 0 { tls.close(conn); exit(15) }
 
@@ -657,9 +672,14 @@ fn main_client() {
     if wr0 != 0 { tls.close(conn); exit(12) }
     var hdr = malloc(16)
     if hdr == 0 { tls.close(conn); exit(13) }
-    var rc1 = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, 0, 0)
+    var payload = h2.settings_payload_from_list([[h2.SETTINGS_ENABLE_PUSH, 0]])
+    if oren_is_err(payload) { free(hdr); tls.close(conn); exit(130) }
+    var plen = oren_buf_len(payload)
+    if oren_is_err(plen) { free(hdr); tls.close(conn); exit(131) }
+    var rc1 = h2.write_frame_header(hdr, plen, h2.FRAME_SETTINGS, 0, 0)
     if rc1 != 0 { free(hdr); tls.close(conn); exit(14) }
     wr0 = _write_all_ptr(conn, hdr, 9, 5000)
+    if wr0 == 0 { wr0 = _write_all_bytes(conn, payload, 5000) }
     free(hdr)
     if wr0 != 0 { tls.close(conn); exit(15) }
 

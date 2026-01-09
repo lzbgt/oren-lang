@@ -229,18 +229,25 @@ References:
 				               - `opts["alpn"]` is passed into the first `AcceptSecurityContext` call via `SECBUFFER_APPLICATION_PROTOCOLS`.
 			           - Done (2026-01-08): deterministic pinning is enforced by `std:net/tls.wrap_client` when `opts["pin_cert_sha256_hex"]` is provided (so HTTP/WS do not duplicate pinning logic).
 					           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider).
-					             - HTTP/2 needs a dedicated framing layer + server-side negotiation; ALPN offer plumbing is now in place (Linux/OpenSSL).
-					               - Done (2026-01-09): HTTP/2 framing core bring-up (preface + frame header encode/decode) and a TLS loopback framing regression:
-					                 - Core: `std:net/http2` (`lib/std/net/http2.oren`)
-					                 - Regression: `tests/native/test_http2_preface_loopback.oren` (preface + SETTINGS + PING/ACK; stage1 + stage2; all Tier‑1 via `scripts/verify_native_net_matrix.sh`)
-					               - In progress (2026-01-09): HPACK bring-up (decode v0):
-					                 - Core: `std:net/hpack` (`lib/std/net/hpack.oren`) with RFC 7541 static table + dynamic table maintenance + header-block decode (includes Huffman string decoding; header encoding still missing).
-					                 - Smoke: `tests/native/test_hpack_smoke.oren` (RFC 7541 Appendix C.2 hex examples; local gate; add to Tier‑1 net matrix once HEADERS is wired).
-					               - Done (2026-01-09): HPACK header block encoding bring-up (incl Huffman) + HTTP/2 HEADERS+DATA loopback:
-					                 - HPACK core now supports header block encode/decode + Huffman encode/decode (`std:net/hpack`, `lib/std/net/hpack.oren`).
-					                 - Encoder regression: `tests/native/test_hpack_encode_rfc_c41.oren` (reproduces RFC 7541 Appendix C.4.1 bytes exactly).
-					                 - HTTP/2 request/response loopback: `tests/native/test_http2_headers_loopback.oren` (HEADERS + DATA, single stream, over TLS ALPN `h2`; stage1 + stage2; Tier‑1 via `scripts/verify_native_net_matrix.sh`).
-					               - Next: support CONTINUATION (split header blocks) + SETTINGS ACK + basic stream state + flow control scaffolding, then real HTTP/2 client API on top of `std:net/tls` (see `docs/LANGUAGE_FEATURE_MATRIX.md`).
+						             - HTTP/2 needs a dedicated framing layer + server-side negotiation; ALPN offer plumbing is now in place (Linux/OpenSSL).
+						               - Done (2026-01-09): HTTP/2 framing core bring-up (preface + frame header encode/decode) and a TLS loopback framing regression:
+						                 - Core: `std:net/http2` (`lib/std/net/http2.oren`)
+						                 - Regression: `tests/native/test_http2_preface_loopback.oren` (preface + SETTINGS/ACK + PING/ACK; stage1 + stage2; all Tier‑1 via `scripts/verify_native_net_matrix.sh`)
+						               - Done (2026-01-09): HPACK bring-up (encode+decode v0; incl Huffman) + HTTP/2 HEADERS+DATA loopback:
+						                 - HPACK core now supports header block encode/decode + Huffman encode/decode (`std:net/hpack`, `lib/std/net/hpack.oren`).
+						                 - Encoder regression: `tests/native/test_hpack_encode_rfc_c41.oren` (reproduces RFC 7541 Appendix C.4.1 bytes exactly).
+						                 - HTTP/2 request/response loopback: `tests/native/test_http2_headers_loopback.oren` (HEADERS + CONTINUATION + DATA, single stream, over TLS ALPN `h2`; includes SETTINGS/ACK and SETTINGS payload decode; stage1 + stage2; Tier‑1 via `scripts/verify_native_net_matrix.sh`).
+						               - Done (2026-01-09): CONTINUATION coverage + SETTINGS ACK handshake coverage in loopback fixtures.
+						               - Next (HTTP/2 maturity):
+						                 - Expand `std:net/http2` beyond header encode/decode:
+						                   - SETTINGS payload semantics helpers (validate values like ENABLE_PUSH; table size; etc.)
+						                   - WINDOW_UPDATE payload encode/decode + stream/window bookkeeping
+						                   - GOAWAY/RST_STREAM encode/decode (basic error handling path)
+						                 - Implement a minimal `std:net/http2_client` on top of `std:net/tls`:
+						                   - `connect_h2(url, tls_opts, timeout)` handshake (preface + SETTINGS/ACK)
+						                   - `request(headers, body?)` (single-stream first; then multiplex)
+						                   - integrate with HPACK (`std:net/hpack`)
+						                 - Add regression fixtures for flow control + stream muxing (keep Tier‑1 gates bounded).
 		     - x64 native backend correctness:
 		       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
 		         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)
@@ -465,10 +472,12 @@ References:
      - make types first-class and reflective:
        - stable “type object” representation
        - reflective APIs for field layout / method tables / generic instantiations (as designed)
-     - redesign the native value representation (reduce “64-byte OrenValue” storage inefficiency):
-       - unify with the native tagged-value plan and remove key-kind inference fragility as a side-effect
-     - varargs + reflection convergence:
-       - define how varargs elements carry type information so userland (fmt/ffi/serialization) can process heterogeneous lists without heuristic key-kind inference
+	     - redesign the native value representation (reduce “64-byte OrenValue” storage inefficiency):
+	       - unify with the native tagged-value plan and remove key-kind inference fragility as a side-effect
+	       - fix semantic parity bugs caused by untagged immediates in native mode (C backend does not have these issues):
+	         - `0 == nil` currently evaluates true in native mode (so `== nil` checks on numeric values are unsafe).
+	     - varargs + reflection convergence:
+	       - define how varargs elements carry type information so userland (fmt/ffi/serialization) can process heterogeneous lists without heuristic key-kind inference
    - References:
 			     - `docs/TYPE_SYSTEM_PLAN.md`
 			     - `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`

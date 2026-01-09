@@ -34,9 +34,31 @@ var FLAG_END_HEADERS = 4
 var FLAG_PADDED = 8
 var FLAG_PRIORITY = 32
 
+// SETTINGS identifiers (RFC 7540 §6.5.2)
+var SETTINGS_HEADER_TABLE_SIZE = 1
+var SETTINGS_ENABLE_PUSH = 2
+var SETTINGS_MAX_CONCURRENT_STREAMS = 3
+var SETTINGS_INITIAL_WINDOW_SIZE = 4
+var SETTINGS_MAX_FRAME_SIZE = 5
+var SETTINGS_MAX_HEADER_LIST_SIZE = 6
+
 // Client connection preface (exact bytes).
 var CLIENT_PREFACE = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 var CLIENT_PREFACE_LEN = 24
+
+fn _u16_be_read(ptr0, off) {
+    var b0 = ptr_get_byte(ptr0 + off + 0) & 255
+    var b1 = ptr_get_byte(ptr0 + off + 1) & 255
+    return (b0 << 8) | b1
+}
+
+fn _u16_be_write(ptr0, off, v) {
+    if v < 0 { v = 0 }
+    if v > 65535 { v = v % 65536 }
+    ptr_set_byte(ptr0 + off + 0, (v >> 8) & 255)
+    ptr_set_byte(ptr0 + off + 1, v & 255)
+    return nil
+}
 
 fn _u24_be_write(ptr0, off, v) {
     // Writes v as big-endian 24-bit (v mod 2^24).
@@ -110,4 +132,58 @@ fn parse_frame_header(ptr0) {
     var sid_raw = _u32_be_read(ptr0, 5)
     var stream_id = sid_raw & 2147483647
     return {"ok": 1, "len": length, "type": typ, "flags": flags, "stream": stream_id}
+}
+
+// --- SETTINGS payload helpers (RFC 7540 §6.5) ---
+
+fn settings_payload_from_list(pairs) {
+    // Encode a SETTINGS payload from a list of pairs `[[id, value], ...]`.
+    //
+    // This is deterministic (list order) and avoids depending on map iteration order.
+    if pairs == nil { pairs = [] }
+    var n = oren_list_len(pairs)
+    if n < 0 { n = 0 }
+    var out = oren_u8_buf_new(n * 6)
+    if oren_is_err(out) { return out }
+    var p = native_buf_data_ptr(out)
+    if p == 0 && (n * 6) > 0 { return oren_err(4, "http2.settings_payload_from_list: nil ptr") }
+    var i = 0
+    while i < n {
+        var it = pairs[i]
+        if it == nil || oren_list_len(it) < 2 { return oren_err(4, "http2.settings_payload_from_list: expects [id, value] pairs") }
+        var id = it[0]
+        var val = it[1]
+        if id < 0 || id > 65535 { return oren_err(4, "http2.settings_payload_from_list: id out of range") }
+        if val < 0 { return oren_err(4, "http2.settings_payload_from_list: value out of range") }
+        // Values are 32-bit unsigned in the wire format (we store as Oren int).
+        if val > 4294967295 { return oren_err(4, "http2.settings_payload_from_list: value out of range") }
+        _u16_be_write(p, i * 6 + 0, id)
+        _u32_be_write(p, i * 6 + 2, val)
+        i = i + 1
+    }
+    return out
+}
+
+fn parse_settings_payload(payload_bytes) {
+    // Decode a SETTINGS payload into a map<int,int>.
+    //
+    // Returns:
+    // - {"ok":1,"settings":map}
+    // - {"ok":0,"err":string}
+    if payload_bytes == nil { payload_bytes = oren_u8_buf_new(0) }
+    var n = oren_buf_len(payload_bytes)
+    if oren_is_err(n) { return {"ok": 0, "err": "http2.parse_settings_payload: bad payload"} }
+    if n % 6 != 0 { return {"ok": 0, "err": "http2.parse_settings_payload: length must be multiple of 6"} }
+    var p = native_buf_data_ptr(payload_bytes)
+    if p == 0 && n > 0 { return {"ok": 0, "err": "http2.parse_settings_payload: nil ptr"} }
+    var m = {}
+    var i = 0
+    while i < n {
+        var id = _u16_be_read(p, i)
+        var val = _u32_be_read(p, i + 2)
+        // "last wins" for duplicates (simplest contract).
+        oren_map_set_int(m, id, val)
+        i = i + 6
+    }
+    return {"ok": 1, "settings": m}
 }

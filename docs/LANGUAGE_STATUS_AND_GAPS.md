@@ -105,13 +105,13 @@ This doc answers: “what’s real today?” and “what’s missing to reach th
   - Evidence: `tests/native/test_tls_loopback.oren`, `tests/native/test_https_get_loopback.oren`, `tests/native/test_wss_echo_loopback.oren`
   - Tier‑1 gate: `scripts/verify_native_net_matrix.sh` runs these fixtures on Win11 + WSL2 + local macOS + linux/arm64 container.
 - **HTTP/2 bring-up (framing-only; ALPN `h2`)**
-  - Scope today: connection preface + frame header encoding/decoding + minimal control frames + HPACK encode/decode v0.
+  - Scope today: connection preface + frame header encoding/decoding + minimal control frames (SETTINGS/ACK, PING/ACK) + SETTINGS payload codec + HPACK encode/decode v0.
   - Stdlib: `lib/std/net/http2.oren`
   - HPACK core: `lib/std/net/hpack.oren` (RFC 7541 static+dynamic tables; Huffman encode/decode; header block encode/decode)
   - Evidence: `tests/native/test_http2_preface_loopback.oren` (preface + SETTINGS/ACK + PING/ACK over TLS)
   - HPACK smoke: `tests/native/test_hpack_smoke.oren` (RFC 7541 Appendix C.2 + C.4.1; includes Huffman decode)
   - HPACK encoder regression: `tests/native/test_hpack_encode_rfc_c41.oren` (reproduces RFC 7541 Appendix C.4.1 exact bytes)
-  - HTTP/2 request/response loopback: `tests/native/test_http2_headers_loopback.oren` (HEADERS + CONTINUATION + DATA over TLS; single stream; includes SETTINGS/ACK)
+  - HTTP/2 request/response loopback: `tests/native/test_http2_headers_loopback.oren` (HEADERS + CONTINUATION + DATA over TLS; single stream; includes SETTINGS payload + SETTINGS/ACK)
   - Tier‑1 gate: `scripts/verify_native_net_matrix.sh` runs the loopback fixture on macOS + Linux + Windows (stage1 + stage2).
 - **PEM decode helpers (crypto plumbing)**
   - Evidence: `tests/native/test_pem_decode_smoke.oren` (imports `std:crypto/pem`)

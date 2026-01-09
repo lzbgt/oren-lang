@@ -863,6 +863,7 @@ Native backend note:
 
 - Until native value tagging is fully implemented, numeric immediates (`int`/`bool`/`float`) may be indistinguishable in native mode, so `oren_type_tag` is best-effort for those values.
   - Track: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
+  - Current sharp edge (native backend only; C backend does not have this issue): `nil` and integer `0` are currently indistinguishable, so `0 == nil` evaluates true in native mode. Avoid `== nil` checks on numeric values until the value representation is refactored to be tagged.
 
 ### Compile-time execution (“comptime”) (design direction)
 
