@@ -268,6 +268,18 @@ ffi puts
 ffi puts
 ```
 
+Grouping convenience (recommended when importing multiple symbols from the same library):
+
+```oren
+@cfg(os="windows")
+@ffi.dll("msvcrt.dll")
+ffi { puts, strlen }
+
+@cfg(os="linux")
+@ffi.link("libc.so.6")
+ffi { puts, strlen }
+```
+
 Rolling convenience:
 
 - `ffi { sym1, sym2, ... }` expands to multiple `ffi sym` declarations, inheriting the same attributes.

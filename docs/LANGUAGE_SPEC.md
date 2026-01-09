@@ -1255,6 +1255,7 @@ Intrinsics are part of the “reserved surface” (prefix `oren_`, `sys_`) and m
       - `@ffi.ret("i32")`: ABI signed 32-bit return (sign-extend to i64).
       - `@ffi.ret("u32")`: ABI unsigned 32-bit return (zero-extend to i64).
       - `@ffi.ret("void")`: ABI void return (force return register to 0 for expression contexts).
+      - `@ffi.export`: export a top-level function symbol for callback-style interop (native backend only; see `docs/ATTRIBUTES.md` for platform status and requirements like `@oren.keep`).
 
     Rolling sugar:
 

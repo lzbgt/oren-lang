@@ -436,6 +436,9 @@ If you touch compiler hot paths (astbin decode, native emit, runtime injection),
 1) Run:
    - `make verify-native-quick`
    - `./scripts/verify_native_x64_compile_only.sh`
+   - If the change touches FFI / networking / TLS providers, also run:
+     - `./scripts/verify_native_net_matrix.sh`
+     - `./scripts/verify_windows_stage2_from_stage1.sh` (catches Win-only stage1→stage2 regressions)
 2) Run the bounded perf check:
    - `OREN_NATIVE_BUILD_TIMEOUT_SECS=60 ./scripts/bench_native_compile_one_file.sh --no-debug`
 3) If you see “rtobj miss” > 10s, re-run with tracing and identify the dominant bucket:
