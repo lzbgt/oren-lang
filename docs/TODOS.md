@@ -254,7 +254,7 @@ References:
 						                   - Module: `lib/std/net/http2_client.oren`
 						                   - Exposes `http2_client.new(conn, timeout_ms, opts)` + `http2_client.request(c, headers, body?, opts)` (single stream)
 						                   - Used by the Tier‑1 loopback fixture client path: `tests/native/test_http2_headers_loopback.oren`
-						                   - Explicitly avoids `== nil` numeric checks (native backend currently treats `0 == nil`; see P0 semantic parity items below)
+							                   - Avoids `== nil` numeric checks on values of unknown dynamic type (native backend historically aliased `0/nil/false` in compare paths; mitigated for literal/local comparisons but full tagged values are still pending — see P0 semantic parity items below)
 						                 - Next: evolve `std:net/http2_client` into a real client:
 						                   - URL/authority handling + connect helper (`connect_h2(host, port, tls_opts, timeout)`; keep parsing separate from net)
 						                   - Multiplexed streams + per-stream state machine
@@ -484,10 +484,12 @@ References:
      - make types first-class and reflective:
        - stable “type object” representation
        - reflective APIs for field layout / method tables / generic instantiations (as designed)
-	     - redesign the native value representation (reduce “64-byte OrenValue” storage inefficiency):
-	       - unify with the native tagged-value plan and remove key-kind inference fragility as a side-effect
-	       - fix semantic parity bugs caused by untagged immediates in native mode (C backend does not have these issues):
-	         - `0 == nil` currently evaluates true in native mode (so `== nil` checks on numeric values are unsafe).
+		     - redesign the native value representation (reduce “64-byte OrenValue” storage inefficiency):
+		       - unify with the native tagged-value plan and remove key-kind inference fragility as a side-effect
+		       - fix semantic parity bugs caused by untagged immediates in native mode (C backend does not have these issues):
+		         - `0 == nil` historically evaluated true in native mode (so `== nil` checks on numeric values were unsafe).
+		           - Mitigated (2026-01-09): optimizer folds type-mismatched `==`/`!=` on literals and folds `id == nil` for locals proven non-nil; quick integration gate covers `0/nil/false` parity.
+		           - Remaining: full tagged value model still needed for unknown dynamic-type comparisons (see `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`).
 	     - varargs + reflection convergence:
 	       - define how varargs elements carry type information so userland (fmt/ffi/serialization) can process heterogeneous lists without heuristic key-kind inference
 	   - References:

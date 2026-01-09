@@ -85,20 +85,28 @@ Non-goals (v0):
 - Flow control / WINDOW_UPDATE
 - Server push
 
-## Known Semantics Hazard (Native Backend)
+## Native Backend Semantics Note (Rolling)
 
-The native backend currently has a semantic mismatch versus the C backend:
+Oren’s language semantics require **type-strict equality** (`nil` distinct from `false`, `int` distinct from `nil`, etc).
 
-- **`0 == nil` evaluates true** in some cases in native codegen/runtime representation.
+Historically, the native backend used an untagged “i64 carrier” value model, which caused a real hazard:
 
-Protocol code frequently uses integer `0` values that are *valid and meaningful* (e.g. SETTINGS values like `ENABLE_PUSH=0`), so treating `0` as “absent/nil” is incorrect.
+- **`0 == nil` could evaluate true** (and similarly `0 == false`), because `nil/false/0` shared the same raw representation in some compare paths.
 
-Practical guidance (until the tagged value model lands):
+This is especially dangerous in protocol code because integer `0` values are valid and meaningful
+(example: HTTP/2 SETTINGS like `ENABLE_PUSH=0`).
 
-- Do **not** write `if x == nil { ... }` when `x` is numeric.
-- Prefer numeric checks like `if x <= 0 { ... }` or explicit sentinel values that cannot be confused with `0`.
+Mitigation status (2026-01-09, rolling):
 
-This is a core semantic parity task tracked in `docs/TODOS.md` / `docs/LANGUAGE_STATUS_AND_GAPS.md`.
+- The compiler optimizer now folds **type-mismatched `==`/`!=`** on literals (e.g. `0 == nil` → `false`).
+- It also folds `id == nil` / `id != nil` when `id` is a local that is trivially proven non-nil (e.g. `var x = 0; if x == nil { ... }` → `false`).
+- Regression gate: `make test` (quick integration includes explicit `0/nil/false` parity asserts).
+
+Remaining work:
+
+- Full semantic parity still requires the tagged value model described in `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`,
+  so comparisons involving values of unknown dynamic type remain a native-backend “rolling” area.
+  Track in `docs/TODOS.md` / `docs/LANGUAGE_STATUS_AND_GAPS.md`.
 
 ## How To Verify
 
@@ -115,4 +123,3 @@ Notes:
 
 - The NET matrix script has a rolling hang guard: `OREN_NATIVE_BUILD_TIMEOUT_SECS` (default `10`) per `oren build ...` step.
 - Avoid adding fixtures that generate huge logs; prefer concise loopbacks with deterministic asserts.
-

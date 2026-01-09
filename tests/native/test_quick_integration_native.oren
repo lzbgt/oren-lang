@@ -104,6 +104,24 @@ fn test_core() {
     assert_eq(7 / -3, -2, 19)
     assert_eq(-7 / -3, 2, 20)
 
+    // Type-strict equality parity (critical):
+    // - `nil` must be distinct from numeric zero
+    // - `false` must be distinct from numeric zero
+    // - `nil` must be distinct from `false`
+    //
+    // These are required by `docs/LANGUAGE_SPEC.md` (“type-strict equality”) and are a known
+    // native-backend hazard when values are treated as raw untagged i64 carriers.
+    if 0 == nil { fail(1001) }
+    if nil == 0 { fail(1002) }
+    var z0 = 0
+    if z0 == nil { fail(1003) }
+    if nil == z0 { fail(1004) }
+    if 0 == false { fail(1005) }
+    if false == 0 { fail(1006) }
+    if nil == false { fail(1007) }
+    if false == nil { fail(1008) }
+    if nil != nil { fail(1009) }
+
     trace("QI: test_core lists")
     // Lists + for-in + break/continue.
     var xs = [1, 2, 3, 4]

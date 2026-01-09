@@ -361,8 +361,9 @@ If you see compiler-side errors like `missing intrinsic temp slot $tmp_intr...`,
 
 Rolling rule (stage2-native robustness):
 
-- The native runtime currently represents `nil` as `0` (and `false` is also `0`), so `0` is *not a safe sentinel* for “missing/absent” in compiler-side structures.
-- If a compiler helper uses a pattern like `if x == nil { ... }`, and some caller legitimately sets `x = 0`, it can silently skip work.
+- The native backend has historically used an untagged “i64 carrier” model where `nil/false/0` can alias in compare paths, so `0` is *not a safe sentinel* for “missing/absent” in compiler-side structures.
+  - Mitigation (2026-01-09): the optimizer folds type-mismatched `==`/`!=` on literals and folds `id == nil` for locals proven non-nil, but this does **not** make `0` a safe “optional” sentinel in general (values flowing through maps/fields/params still carry the raw value).
+- If a helper uses a pattern like `if x == nil { ... }` or `if x != nil { ... }`, and some caller legitimately sets `x = 0`, it can still skip or take work incorrectly in native mode.
 
 Two concrete pitfalls we’ve hit in the x86_64 backend:
 

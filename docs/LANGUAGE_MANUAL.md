@@ -743,7 +743,10 @@ Rolling note (native backend):
 
 - Until native value tagging is fully implemented, numeric immediates are best-effort:
   `int`/`bool`/`float` may all report as `int` (tag `1`) in native mode.
-- Current sharp edge (native backend only; C backend does not have this issue): `nil` and integer `0` are currently indistinguishable, so `0 == nil` evaluates true in native mode. Avoid `== nil` checks on numeric values until the value representation is refactored to be tagged.
+- Historically, the native backend used an untagged “i64 carrier” value model, which could cause type-unsafe equality:
+  - `0 == nil` (and `0 == false`) could evaluate true in native mode.
+  - Mitigation (2026-01-09): the compiler optimizer folds type-mismatched `==`/`!=` on literals, and folds `id == nil` / `id != nil` for locals trivially proven non-nil (regression-gated in quick integration).
+  - Remaining: comparisons involving values of unknown dynamic type (e.g. map lookups, function parameters, FFI returns) can still observe native-mode aliasing until full tagged values land (`docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`). Do not use `0` as an “optional” sentinel, and avoid `== nil` checks on numeric values from unknown sources.
 - Beyond `oren_type_tag` / `oren_type_name`, full runtime reflection (fields/layout/type metadata) is not yet implemented and is tracked as a larger refactor in `docs/TODOS.md`.
 
 Call-site spread (apply-style call):
