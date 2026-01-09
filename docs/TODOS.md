@@ -145,10 +145,12 @@ References:
 	           - `OREN_MSVC_VSWHERE=<path>` (pin `vswhere.exe`)
 	           - `OREN_MSVC_INSTALL_PATH=<path>` (bypass `vswhere.exe` entirely)
 	         - Done (2026-01-08): AVM build uses `AVM_CC` (default: `cc`) so Windows hosts can keep stage0/stage1 bring-up on MSVC `cl.exe` without forcing AVM to use MSVC-flags.
-	         - Done (2026-01-08): stage1 can build stage2 on native Windows (not just run a prebuilt stage2):
-	           - Gate: `./scripts/verify_windows_stage2_from_stage1.sh` (stage0→stage1→stage2; Win11 + VS2022 + `cl.exe`)
-	           - Make shortcut: `make verify-stage2-win`
-	         - Intent: `make`, `make test`, `make stage2`, `make verify-native-quick` should work under MSYS2/Git Bash/Cygwin (stage0 still uses MSVC `cl.exe`, auto-configured by stage0; see `docs/REMOTE_X64_ENV.md`).
+		         - Done (2026-01-08): stage1 can build stage2 on native Windows (not just run a prebuilt stage2):
+		           - Gate: `./scripts/verify_windows_stage2_from_stage1.sh` (stage0→stage1→stage2; Win11 + VS2022 + `cl.exe`)
+		           - Make shortcut: `make verify-stage2-win`
+		           - Verified (2026-01-09): `make verify-stage2-win` passes on the Tier‑1 Win11 host (stage0→stage1→stage2 + compile+run).
+		         - Intent: `make`, `make test`, `make stage2`, `make verify-native-quick` should work under MSYS2/Git Bash/Cygwin (stage0 still uses MSVC `cl.exe`, auto-configured by stage0; see `docs/REMOTE_X64_ENV.md`).
+		         - Note: scripts avoid requiring external `rg`/ripgrep on minimal environments (remote Win11/WSL2, containers); they use `grep`/`findstr` and keep logs bounded (details in `docs/TEST_SYSTEM.md`).
 	       - Done (2026-01-08): native runtime `oren_type_tag`/`oren_type_name` now distinguishes typed buffers (`u8_buf`, `i32_buf`, `i64_buf`, `f32_buf`, `f64_buf`) for more useful varargs dispatch.
 	         - Regression: `tests/native/test_quick_integration_native.oren` (run by `make test`, QEMU x64-linux gates, and Tier‑1 matrices).
 			     - NET stdlib maturity:
