@@ -1273,9 +1273,9 @@ fn compiler_main() {
             link_libs = _build_merge_link_libs(link_libs, implicit_link_libs)
         }
 
-        // macOS native: allow opt-in export of user/runtime symbols even for executables.
+        // Native: allow opt-in export of user/runtime symbols even for executables.
         // This enables dlsym(RTLD_DEFAULT, "...") to obtain raw function pointers for
-        // C callback APIs in stdlib (e.g. SecureTransport IO callbacks).
+        // C callback APIs in stdlib (e.g. SecureTransport IO callbacks, OpenSSL ALPN selection).
         if is_shared_lib != true {
             if target == "macos" && (arch == nil || arch == "arm64") {
                 var exp2 = _build_collect_ffi_export_names(linked)
@@ -1284,6 +1284,15 @@ fn compiler_main() {
                     while ei2 < oren_list_len(exp2) {
                         oren_list_push(export_names, exp2[ei2])
                         ei2 = ei2 + 1
+                    }
+                }
+            } else if target == "linux" {
+                var exp3 = _build_collect_ffi_export_names(linked)
+                if exp3 != nil && oren_list_len(exp3) != 0 {
+                    var ei3 = 0
+                    while ei3 < oren_list_len(exp3) {
+                        oren_list_push(export_names, exp3[ei3])
+                        ei3 = ei3 + 1
                     }
                 }
             }
@@ -1396,28 +1405,28 @@ fn compiler_main() {
                 print("[build] native emit done +" + oren_int_to_string(dt_emit / 1000000) + "ms")
             }
             if trace_build_summary { t_sum_emit_done = oren_time_now_ns() }
-	        } else {
-	            if arch == "x64" || arch == "x86_64" || arch == "amd64" {
-	                var t_emit1 = 0
-	                if trace_build {
-	                    t_emit1 = oren_time_now_ns()
-	                    print("[build] native emit start (x64) target=" + target)
-	                }
-	                if is_shared_lib || oren_list_len(export_names) != 0 {
-	                    print("native backend (x64): shared libraries/exports are not implemented yet")
-	                    var req = "--export"
-	                    if is_shared_lib { req = "--lib/--shared" }
-	                    print("  requested: " + req)
-	                    print("  TODO: implement x64 ELF .so and x64 Windows .dll export tables")
-	                    oren_exit(1)
-	                }
-	                if target == "linux" {
-	                    x64_elf.elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
-	                } else {
-	                    if target == "windows" {
-	                        x64_pe.pe_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
-                    } else {
-                        print("native backend (x64) unsupported target: " + target)
+		        } else {
+		            if arch == "x64" || arch == "x86_64" || arch == "amd64" {
+		                var t_emit1 = 0
+		                if trace_build {
+		                    t_emit1 = oren_time_now_ns()
+		                    print("[build] native emit start (x64) target=" + target)
+		                }
+		                if is_shared_lib || (target != "linux" && oren_list_len(export_names) != 0) {
+		                    print("native backend (x64): shared libraries/exports are not implemented yet")
+		                    var req = "--export"
+		                    if is_shared_lib { req = "--lib/--shared" }
+		                    print("  requested: " + req)
+		                    print("  TODO: implement x64 ELF .so and x64 Windows .dll export tables")
+		                    oren_exit(1)
+		                }
+		                if target == "linux" {
+		                    x64_elf.elf_emit_program_x64(out_path, linked, link_libs, export_names, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
+		                } else {
+		                    if target == "windows" {
+		                        x64_pe.pe_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
+	                    } else {
+	                        print("native backend (x64) unsupported target: " + target)
                         oren_exit(1)
                     }
                 }

@@ -100,7 +100,7 @@ Note:
   - Returns the negotiated ALPN protocol (e.g. `"h2"`) if ALPN was negotiated.
   - Loopback fixtures pass `opts["alpn"]` to exercise ALPN plumbing. Current behavior is provider-dependent:
     - Windows (Schannel): server-side ALPN selection is wired; loopback asserts `"http/1.1"` is negotiated.
-    - Linux (OpenSSL): client offer is wired, but server selection is pending (needs ALPN select callback); loopback expects `nil`.
+    - Linux (OpenSSL): server-side ALPN selection is wired; loopback asserts `"http/1.1"` is negotiated.
     - macOS (SecureTransport): treated as best-effort; loopback does not assert a negotiated protocol yet.
 
 ## 3) Testing strategy (offline + deterministic)
@@ -204,9 +204,9 @@ Implementation notes (Linux):
   - `opts["alpn"]` is interpreted as a list of protocol strings (e.g. `["h2","http/1.1"]`).
   - The OpenSSL provider builds the wire-format protocol list and calls `SSL_set_alpn_protos`.
   - Note: `SSL_set_alpn_protos` returns **0 on success** (reversed convention); see sources below.
-  - Server-side selection is pending:
-    - OpenSSL requires `SSL_CTX_set_alpn_select_cb` (a callback) to select a protocol and send it in ServerHello.
-    - This depends on a stable native callback export mechanism (`@ffi.export` parity beyond macOS) or another callback bridge.
+  - Server-side selection is wired as well:
+    - The provider uses `SSL_CTX_set_alpn_select_cb` to select the first server-preferred protocol that appears in the client offer.
+    - This relies on `@ffi.export` being supported for Linux native executables (ELF) so the callback symbol is visible to `dlsym(RTLD_DEFAULT, ...)`.
 
 Sources captured for audit/reference:
 

@@ -123,7 +123,7 @@ fn _elf_hash_sysv_u32(s) {
     return int_mod(h, 4294967296)
 }
 
-fn _elf_x64_append_dyn_metadata(ctx, base, data_file_off, user_link_libs) {
+fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_libs, exports) {
     // Append the minimal ELF dynamic-link metadata to `ctx["data"]` and return offsets needed
     // to build PT_INTERP/PT_DYNAMIC program headers.
     //
@@ -138,6 +138,10 @@ fn _elf_x64_append_dyn_metadata(ctx, base, data_file_off, user_link_libs) {
 
     var imports = ctx["elf_dyn_imports"]
     if imports == nil { imports = [] }
+
+    var functions = ctx["functions"]
+    if functions == nil { functions = {} }
+    if exports == nil { exports = [] }
 
     // --- PT_INTERP payload ---
     // Use the conventional x86_64 interpreter path on glibc-based distros.
@@ -178,6 +182,15 @@ fn _elf_x64_append_dyn_metadata(ctx, base, data_file_off, user_link_libs) {
         }
         i_imp = i_imp + 1
     }
+    var i_exp = 0
+    while i_exp < oren_list_len(exports) {
+        var nm3 = exports[i_exp]
+        if nm3 == nil || nm3 == "" { i_exp = i_exp + 1; continue }
+        if sym_dynstr_offs[nm3] == nil {
+            sym_dynstr_offs[nm3] = _bytes_add_str0(dynstr, nm3)
+        }
+        i_exp = i_exp + 1
+    }
 
     // --- Build dynsym (DT_SYMTAB) ---
     // Elf64_Sym is 24 bytes.
@@ -200,6 +213,35 @@ fn _elf_x64_append_dyn_metadata(ctx, base, data_file_off, user_link_libs) {
         push_u16_le(dynsym, 0) // st_shndx = SHN_UNDEF
         push_u64_le(dynsym, 0) // st_value
         push_u64_le(dynsym, 0) // st_size
+        i_sym = i_sym + 1
+    }
+
+    // Exports: defined global function symbols. These enable dlsym(RTLD_DEFAULT, "...") to obtain
+    // raw function pointers for callback-style interop (e.g. OpenSSL ALPN select callbacks).
+    //
+    // NOTE: This is only emitted in the dynamic executable mode (`--link` on linux/x64), where
+    // the program already has a DT_HASH + dynsym/dynstr tables.
+    //
+    // Section indices (our fixed section table): 1 = .text
+    i_sym = 0
+    while i_sym < oren_list_len(exports) {
+        var enm = exports[i_sym]
+        if enm == nil || enm == "" { i_sym = i_sym + 1; continue }
+        var fn_off = functions[enm]
+        if fn_off == nil {
+            print("x64 elf: internal: export name not found in functions: " + enm)
+            oren_exit(1)
+            return nil
+        }
+        var name_off2 = sym_dynstr_offs[enm]
+        if name_off2 == nil { name_off2 = 0 }
+
+        push_u32_le(dynsym, name_off2)
+        bytes_push(dynsym, 18) // st_info
+        bytes_push(dynsym, 0)  // st_other
+        push_u16_le(dynsym, 1) // st_shndx = .text
+        push_u64_le(dynsym, text_base + fn_off) // st_value (virtual address)
+        push_u64_le(dynsym, 0) // st_size (unknown)
         i_sym = i_sym + 1
     }
 
@@ -227,9 +269,10 @@ fn _elf_x64_append_dyn_metadata(ctx, base, data_file_off, user_link_libs) {
     }
 
     // --- Build SysV hash (DT_HASH) over dynsym ---
-    // We keep this tiny (1 bucket) because the executable does not export symbols.
+    // We keep this tiny (1 bucket) for simplicity/determinism. With nbucket=1, all symbols land
+    // in bucket 0 and lookups become linear scan (acceptable for our small dynsym).
     var hash = bytes_new()
-    var nchain = 1 + oren_list_len(imports)
+    var nchain = 1 + oren_list_len(imports) + oren_list_len(exports)
     var nbucket = 1
     push_u32_le(hash, nbucket)
     push_u32_le(hash, nchain)
@@ -240,7 +283,7 @@ fn _elf_x64_append_dyn_metadata(ctx, base, data_file_off, user_link_libs) {
     while ci < nchain { push_u32_le(hash, 0); ci = ci + 1 }
 
     // Fill bucket 0 chain with all non-zero symbols in order (deterministic).
-    // This is valid and keeps lookup code simple.
+    // This is valid (linear chain) and keeps lookup code simple.
     var last = 0
     var si = 1
     while si < nchain {
@@ -363,7 +406,7 @@ fn elf_build_prefix_x64(base, hdr_size, phdrs, entry_off) {
     return p
 }
 
-fn elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
+fn elf_emit_program_x64(out_path, linked, link_libs, exports, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
     // Bounded timing summary for diagnosing x64 native build throughput without huge logs.
     // Enable with: OREN_TRACE_X64_EMIT_SUMMARY=1
     var trace_sum = oren_env("OREN_TRACE_X64_EMIT_SUMMARY") != nil
@@ -375,6 +418,10 @@ fn elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_dep
 
     var base = abi.x64_v0_linux_elf_base_addr()
     var dyn = link_libs != nil && oren_list_len(link_libs) != 0
+    if exports != nil && oren_list_len(exports) != 0 && dyn != true {
+        print("native backend (x64-linux): @ffi.export requires dynamic linking (use @ffi.link(\"libdl.so.2\") or --link)")
+        oren_exit(1)
+    }
 
     // Program header count:
     // - static v0: 2 PT_LOAD segments (RX + RW)
@@ -419,7 +466,8 @@ fn elf_emit_program_x64(out_path, linked, link_libs, debug_mode, no_gc, call_dep
     // This must happen after `data_file_off` is known, because relocations store absolute target addresses.
     var dyn_meta = nil
     if dyn {
-        dyn_meta = _elf_x64_append_dyn_metadata(ctx, base, data_file_off, link_libs)
+        if exports == nil { exports = [] }
+        dyn_meta = _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, link_libs, exports)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         // Data buffer may have been extended by `_elf_x64_append_dyn_metadata`.
         data = ctx["data"]

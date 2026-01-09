@@ -28,6 +28,10 @@ ffi signal
 ffi dlopen
 
 @cfg(os="linux")
+@ffi.link("libdl.so.2")
+ffi dlsym
+
+@cfg(os="linux")
 ffi TLS_client_method
 @cfg(os="linux")
 ffi TLS_server_method
@@ -35,6 +39,9 @@ ffi TLS_server_method
 ffi SSL_CTX_new
 @cfg(os="linux")
 ffi SSL_CTX_free
+@cfg(os="linux")
+@ffi.ret("void")
+ffi SSL_CTX_set_alpn_select_cb
 @cfg(os="linux")
 ffi SSL_CTX_set_verify
 @cfg(os="linux")
@@ -110,6 +117,14 @@ fn _rtld_now() { return 2 }
 fn _rtld_global() { return 256 }
 @cfg(os="linux")
 fn _rtld_flags() { return _rtld_now() | _rtld_global() }
+
+@cfg(os="linux")
+fn _RTLD_DEFAULT() { return 0 }
+
+@cfg(os="linux")
+fn _ssl_tlsext_err_ok() { return 0 } // SSL_TLSEXT_ERR_OK
+@cfg(os="linux")
+fn _ssl_tlsext_err_noack() { return 3 } // SSL_TLSEXT_ERR_NOACK
 
 @cfg(os="linux")
 fn _openssl_dlopen_libs() {
@@ -237,6 +252,145 @@ fn _openssl_set_alpn_if_requested(ssl, opts) {
     free(buf)
     if rc != 0 { return 0 - 5 } // EIO
     return 0
+}
+
+// OpenSSL server-side ALPN selection callback.
+//
+// Signature from /usr/include/openssl/ssl.h (OpenSSL 3):
+//   typedef int (*SSL_CTX_alpn_select_cb_func)(SSL *ssl,
+//     const unsigned char **out, unsigned char *outlen,
+//     const unsigned char *in, unsigned int inlen, void *arg);
+//
+// `arg` points to a small heap block we allocate in `_openssl_set_server_alpn_select_if_requested`:
+//   u32 len (little-endian)
+//   u8  protos[len] (wire-format protocol list, RFC 7301)
+//
+// Important: keep this function alive even if it is only referenced via dlsym.
+@cfg(os="linux")
+@oren.keep
+@ffi.export
+fn __oren_tls_openssl_alpn_select_cb(ssl, out_pp, outlen_p, in_p, inlen, arg) {
+    if out_pp == 0 || outlen_p == 0 { return _ssl_tlsext_err_noack() }
+    if in_p == 0 || inlen == 0 { return _ssl_tlsext_err_noack() }
+    if arg == 0 { return _ssl_tlsext_err_noack() }
+
+    var s_len = oren_ptr_get_u32_le(arg)
+    if s_len <= 0 || s_len > 1024 { return _ssl_tlsext_err_noack() }
+    var s_p = arg + 4
+
+    // Prefer server order: pick the first server protocol that appears in the client list.
+    var s_off = 0
+    while s_off < s_len {
+        var sl = ptr_get_byte(s_p + s_off) & 255
+        if sl <= 0 { return _ssl_tlsext_err_noack() }
+        if s_off + 1 + sl > s_len { return _ssl_tlsext_err_noack() }
+        var sp = s_p + s_off + 1
+
+        // Scan client list for an equal protocol.
+        var c_off = 0
+        while c_off < inlen {
+            var cl = ptr_get_byte(in_p + c_off) & 255
+            if cl <= 0 { break }
+            if c_off + 1 + cl > inlen { break }
+            if cl == sl {
+                var j = 0
+                var same = 1
+                while j < sl {
+                    if (ptr_get_byte(in_p + c_off + 1 + j) & 255) != (ptr_get_byte(sp + j) & 255) {
+                        same = 0
+                        break
+                    }
+                    j = j + 1
+                }
+                if same == 1 {
+                    ptr_set(out_pp, sp)
+                    ptr_set_byte(outlen_p, sl & 255)
+                    return _ssl_tlsext_err_ok()
+                }
+            }
+            c_off = c_off + 1 + cl
+        }
+
+        s_off = s_off + 1 + sl
+    }
+
+    // No overlap: leave ALPN unselected (do not fail the handshake).
+    return _ssl_tlsext_err_noack()
+}
+
+@cfg(os="linux")
+fn _openssl_resolve_self_export(name) {
+    if name == nil || name == "" { return 0 }
+    return dlsym(_RTLD_DEFAULT(), name)
+}
+
+@cfg(os="linux")
+fn _openssl_set_server_alpn_select_if_requested(ctx, opts) {
+    // Server-side ALPN selection (RFC 7301) via SSL_CTX_set_alpn_select_cb.
+    //
+    // We interpret `opts["alpn"]` as the server's preferred protocol list (wire-format encoded),
+    // and select the first overlapping protocol with the client offer.
+    //
+    // Returns:
+    // - {"ok":1,"arg":0} when not requested
+    // - {"ok":1,"arg":ptr} when configured (caller owns and must free the returned ptr)
+    // - {"ok":0,"err":string} on failure
+    if ctx == 0 { return {"ok": 0, "err": "tls: ALPN setup failed"} }
+    if opts == nil || opts == 0 { return {"ok": 1, "arg": 0} }
+    if oren_is_map(opts) != true { return {"ok": 1, "arg": 0} }
+    var ps = oren_map_get_str(opts, "alpn")
+    if ps == 0 { return {"ok": 1, "arg": 0} }
+    if oren_is_list(ps) != true { return {"ok": 0, "err": "tls: alpn: opts[\"alpn\"] must be list<string>"} }
+    var n = oren_list_len(ps)
+    if n <= 0 { return {"ok": 1, "arg": 0} }
+
+    // Encode protocol list (wire-format, RFC 7301).
+    var total = 0
+    var i = 0
+    while i < n {
+        var p = ps[i]
+        if p == 0 || oren_is_string(p) != true { return {"ok": 0, "err": "tls: alpn: protocols must be strings"} }
+        var l = oren_string_len(p)
+        if l <= 0 || l > 255 { return {"ok": 0, "err": "tls: alpn: protocol length must be 1..255"} }
+        total = total + 1 + l
+        if total > 1024 { return {"ok": 0, "err": "tls: alpn: protocol list too large"} }
+        i = i + 1
+    }
+    if total <= 0 { return {"ok": 1, "arg": 0} }
+
+    // Allocate arg block: u32 len + bytes.
+    var arg = malloc(4 + total)
+    if arg == 0 { return {"ok": 0, "err": "tls: alpn: alloc failed"} }
+    oren_ptr_set_u32_le(arg, total)
+    var off = 0
+    i = 0
+    while i < n {
+        var s = ps[i]
+        var l2 = oren_string_len(s)
+        ptr_set_byte(arg + 4 + off, l2 & 255)
+        off = off + 1
+        var j = 0
+        while j < l2 {
+            ptr_set_byte(arg + 4 + off + j, oren_string_byte_at_unchecked(s, j) & 255)
+            j = j + 1
+        }
+        off = off + l2
+        i = i + 1
+    }
+
+    // Resolve the exported callback symbol from the main program image.
+    // The native backend exports the *linked* name; prefer that, with small fallbacks.
+    var cb = _openssl_resolve_self_export("STD_net_tls_linux_openssl___oren_tls_openssl_alpn_select_cb")
+    if cb == 0 { cb = _openssl_resolve_self_export("_STD_net_tls_linux_openssl___oren_tls_openssl_alpn_select_cb") }
+    if cb == 0 { cb = _openssl_resolve_self_export("__oren_tls_openssl_alpn_select_cb") }
+    if cb == 0 { cb = _openssl_resolve_self_export("_oren_tls_openssl_alpn_select_cb") }
+    if cb == 0 {
+        free(arg)
+        return {"ok": 0, "err": "tls: missing exported OpenSSL ALPN select callback symbol (need @ffi.export + native backend export support)"}
+    }
+
+    SSL_CTX_set_alpn_select_cb(ctx, cb, arg)
+    return {"ok": 1, "arg": arg}
 }
 
 @cfg(os="linux")
@@ -460,20 +614,32 @@ fn _openssl_setup_ctx_server_from_pkcs12(fd, pkcs12_bytes, passphrase, opts) {
     EVP_PKEY_free(pkey)
     X509_free(cert)
 
+    // Optional: server ALPN selection callback (RFC 7301).
+    var alpn_arg = 0
+    var alpn_r = _openssl_set_server_alpn_select_if_requested(ctx, opts)
+    if alpn_r["ok"] != 1 {
+        SSL_CTX_free(ctx)
+        tcp.close(fd)
+        return {"ok": 0, "err": alpn_r["err"]}
+    }
+    alpn_arg = alpn_r["arg"]
+
     var ssl = SSL_new(ctx)
     if ssl == 0 {
+        if alpn_arg != 0 { free(alpn_arg) }
         SSL_CTX_free(ctx)
         tcp.close(fd)
         return {"ok": 0, "err": "tls: SSL_new failed"}
     }
     if SSL_set_fd(ssl, fd) != 1 {
         SSL_free(ssl)
+        if alpn_arg != 0 { free(alpn_arg) }
         SSL_CTX_free(ctx)
         tcp.close(fd)
         return {"ok": 0, "err": "tls: SSL_set_fd failed"}
     }
 
-    return {"ok": 1, "ctx": ctx, "ssl": ssl}
+    return {"ok": 1, "ctx": ctx, "ssl": ssl, "alpn_arg": alpn_arg}
 }
 
 @cfg(os="linux")
@@ -483,14 +649,17 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     if r["ok"] != 1 { return {"ok": 0, "err": r["err"]} }
     var ctx = r["ctx"]
     var ssl = r["ssl"]
+    var alpn_arg = r["alpn_arg"]
+    if alpn_arg == nil { alpn_arg = 0 }
     var hs = _openssl_handshake(ssl, fd, timeout_ms, 1)
     if hs != 0 {
         SSL_free(ssl)
+        if alpn_arg != 0 { free(alpn_arg) }
         SSL_CTX_free(ctx)
         tcp.close(fd)
         return {"ok": 0, "err": "tls.wrap_server: handshake failed (errno=" + oren_int_to_string(0 - hs) + ")"}
     }
-    return {"ok": 1, "conn": {"impl": "linux_openssl", "fd": fd, "ctx": ctx, "ssl": ssl}}
+    return {"ok": 1, "conn": {"impl": "linux_openssl", "fd": fd, "ctx": ctx, "ssl": ssl, "alpn_arg": alpn_arg}}
 }
 
 @cfg(os="linux")
@@ -578,11 +747,14 @@ fn close(conn) {
     var ssl = conn["ssl"]
     var ctx = conn["ctx"]
     var fd = conn["fd"]
+    var alpn_arg = conn["alpn_arg"]
+    if alpn_arg == nil { alpn_arg = 0 }
     if ssl != 0 {
         SSL_shutdown(ssl)
         SSL_free(ssl)
     }
     if ctx != 0 { SSL_CTX_free(ctx) }
+    if alpn_arg != 0 { free(alpn_arg) }
     if fd != nil && fd >= 0 { tcp.close(fd) }
     return 0
 }

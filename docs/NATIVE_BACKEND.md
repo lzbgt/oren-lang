@@ -129,6 +129,7 @@ make verify # Run full self-hosting test
   Notes (rolling):
   - This is implemented for **arm64-macos (Mach-O)** today.
   - x86_64 native backends currently reject `--lib/--shared` (ELF `.so` / PE `.dll` export tables are not implemented yet).
+  - However, **Linux executables** (arm64-linux + x64-linux) can still export selected symbols for callback interop via `@ffi.export` (see `docs/ATTRIBUTES.md`), even though shared-library output is not implemented.
 - **Linking**: Link external dynamic libraries using `--link <lib>` or `-l <lib>`.
   ```bash
   ./oren build app.oren --backend native --link /usr/lib/libsqlite3.dylib

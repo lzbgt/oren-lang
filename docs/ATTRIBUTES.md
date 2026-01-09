@@ -246,8 +246,11 @@ fn my_callback(arg0, arg1) {
 
 Notes (rolling):
 
-- This is currently consumed only by the **arm64-macos native backend**.
-  - On other targets, it is ignored (no export table is generated yet).
+- This is currently consumed by:
+  - **arm64-macos native backend** (Mach-O): exports the symbol so `dlsym(RTLD_DEFAULT, ...)` can locate callback entry points.
+  - **arm64-linux native backend** (ELF, dynamic executables): exports the symbol into the ELF dynamic symbol table for `dlsym(RTLD_DEFAULT, ...)`.
+  - **x64-linux native backend** (ELF, dynamic executables): same as arm64-linux.
+  - On other targets (notably x64-windows), it is currently ignored (no export table is generated yet).
 - The exported symbol name is the *linked* top-level name (module-prefixed).
   - For stdlib modules imported as `std:...`, the module prefix is stable.
 - This attribute is primarily used internally by stdlib providers (e.g. `std:net/tls` SecureTransport IO callbacks via `dlsym(RTLD_DEFAULT, ...)`).

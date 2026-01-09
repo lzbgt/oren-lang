@@ -181,7 +181,7 @@ fn _elf_arm64_dyn_needed_libs(user_link_libs) {
     return out
 }
 
-fn _elf_arm64_append_dyn_metadata(ctx, base, data_file_off, user_link_libs) {
+fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_libs, exports) {
     // Append the minimal ELF dynamic-link metadata to `ctx["data"]` and return offsets needed
     // to build PT_INTERP/PT_DYNAMIC program headers.
     if ctx == nil { return nil }
@@ -213,6 +213,10 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, data_file_off, user_link_libs) {
 
     var imports = ctx["elf_dyn_imports"]
     if imports == nil { imports = [] }
+
+    var functions = ctx["functions"]
+    if functions == nil { functions = {} }
+    if exports == nil { exports = [] }
     var sym_dynstr_offs = {}
     var i_imp = 0
     while i_imp < oren_list_len(imports) {
@@ -228,6 +232,15 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, data_file_off, user_link_libs) {
             sym_dynstr_offs[nm] = _bytes_add_str0(dynstr, nm)
         }
         i_imp = i_imp + 1
+    }
+    var i_exp = 0
+    while i_exp < oren_list_len(exports) {
+        var nm3 = exports[i_exp]
+        if nm3 == nil || nm3 == "" { i_exp = i_exp + 1; continue }
+        if sym_dynstr_offs[nm3] == nil {
+            sym_dynstr_offs[nm3] = _bytes_add_str0(dynstr, nm3)
+        }
+        i_exp = i_exp + 1
     }
 
     // --- Build dynsym (DT_SYMTAB) ---
@@ -251,6 +264,33 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, data_file_off, user_link_libs) {
         push_u16_le(dynsym, 0) // st_shndx = SHN_UNDEF
         push_u64_le(dynsym, 0) // st_value
         push_u64_le(dynsym, 0) // st_size
+        i_sym = i_sym + 1
+    }
+
+    // Exports: defined global function symbols. These enable dlsym(RTLD_DEFAULT, "...") to obtain
+    // raw function pointers for callback-style interop (e.g. OpenSSL ALPN select callbacks).
+    //
+    // Section indices (our fixed section table): 1 = .text
+    i_sym = 0
+    while i_sym < oren_list_len(exports) {
+        var enm = exports[i_sym]
+        if enm == nil || enm == "" { i_sym = i_sym + 1; continue }
+        var fn_off = functions[enm]
+        if fn_off == nil {
+            var e2 = "native backend (arm64-linux): internal: export name not found in functions: " + enm
+            print("OREN_DIAG kind=codegen code=1 msg=" + elf_diag_escape(e2))
+            print(e2)
+            oren_exit(1)
+        }
+        var name_off2 = sym_dynstr_offs[enm]
+        if name_off2 == nil { name_off2 = 0 }
+
+        push_u32_le(dynsym, name_off2)
+        bytes_push(dynsym, 18) // st_info
+        bytes_push(dynsym, 0)  // st_other
+        push_u16_le(dynsym, 1) // st_shndx = .text
+        push_u64_le(dynsym, text_base + fn_off) // st_value (virtual address)
+        push_u64_le(dynsym, 0) // st_size (unknown)
         i_sym = i_sym + 1
     }
 
@@ -281,7 +321,7 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, data_file_off, user_link_libs) {
     // --- Build SysV hash (DT_HASH) over dynsym ---
     // Keep this tiny (1 bucket). With nbucket=1, all symbols land in bucket 0.
     var hash = bytes_new()
-    var nchain = 1 + oren_list_len(imports)
+    var nchain = 1 + oren_list_len(imports) + oren_list_len(exports)
     var nbucket = 1
     push_u32_le(hash, nbucket)
     push_u32_le(hash, nchain)
@@ -664,12 +704,12 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
         print("  requested: --lib/--shared (and possibly --export)")
         oren_exit(1)
     }
-    if exports != nil && oren_list_len(exports) != 0 {
-        print("native backend (arm64-linux): --export is not implemented yet")
-        oren_exit(1)
-    }
 
     var dyn = libs != nil && oren_list_len(libs) != 0
+    if exports != nil && oren_list_len(exports) != 0 && dyn != true {
+        print("native backend (arm64-linux): @ffi.export requires dynamic linking (use @ffi.link(\"libdl.so.2\") or --link)")
+        oren_exit(1)
+    }
     var phnum = 2
     if dyn { phnum = 6 }
     // Ehdr (64) + Phdrs (56 each)
@@ -801,7 +841,8 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
     // This must happen after `data_file_off` is known, because relocations store absolute target addresses.
     var dyn_meta = nil
     if dyn {
-        dyn_meta = _elf_arm64_append_dyn_metadata(ctx, base, data_file_off, libs)
+        var text_base = base + hdr_size
+        dyn_meta = _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, libs, exports)
         // data buffer may have been extended by `_elf_arm64_append_dyn_metadata`.
         data = ctx["data"]
     }

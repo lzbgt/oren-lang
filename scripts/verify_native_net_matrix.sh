@@ -210,14 +210,14 @@ run_with_timeout() {
 }
 
 need_stage1_and_stage2() {
-  if [[ ! -x ./oren ]]; then
-    log "== ensure: stage1 compiler (./oren) =="
-    make stage1
-  fi
-  if [[ ! -x ./oren_stage2 ]]; then
-    log "== ensure: stage2 compiler (./oren_stage2) =="
-    make stage2
-  fi
+  # Rolling correctness: keep stage1/stage2 in sync with the repo source.
+  #
+  # Relying on "file exists" can leave a stale `./oren_stage2` after compiler changes,
+  # which makes Tier‑1 gates silently test old behavior (or fail with confusing symptoms).
+  log "== ensure: stage1 compiler (./oren) =="
+  make stage1
+  log "== ensure: stage2 compiler (./oren_stage2) =="
+  make stage2
 }
 
 if has_target stage0; then

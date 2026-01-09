@@ -204,15 +204,19 @@ References:
 				           - Done (2026-01-09): `tls.negotiated_alpn(conn)` query helper added (best-effort; returns `{"ok":1,"v":nil}` when ALPN not negotiated).
 				             - Regression: `tests/native/test_tls_loopback.oren` now exercises server ALPN wiring where possible:
 				               - Windows/Schannel: asserts negotiated ALPN is `"http/1.1"` (server selection is wired).
-				               - Linux/OpenSSL: asserts negotiated ALPN is empty (server selection pending; needs ALPN select callback).
+				               - Linux/OpenSSL: asserts negotiated ALPN is `"http/1.1"` (server selection is wired via `SSL_CTX_set_alpn_select_cb`).
 				               - macOS/SecureTransport: does not assert negotiated ALPN yet (treated as best-effort).
 				           - Done (2026-01-08): Linux TLS provider bring-up (OpenSSL 3; dynamic `libssl.so.3`/`libcrypto.so.3`)
 				             - Provider: `lib/std/net/tls_linux_openssl.oren` (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
 				             - Regression: `./scripts/verify_native_net_matrix.sh --targets arm64-linux,x64-wsl` (stage1 + stage2)
-			             - Done: Linux/OpenSSL client SNI + ALPN wiring:
-			               - SNI wired via `SSL_ctrl(...SSL_CTRL_SET_TLSEXT_HOSTNAME...)` using constants from Tier‑1 Linux headers (`libssl-dev`).
-			               - ALPN client offer wired via `SSL_set_alpn_protos` (wire-format protocol list).
-			               - Regression: TLS/HTTPS/WSS loopback fixtures now pass `opts["alpn"]=["h2","http/1.1"]` to exercise the code path.
+				             - Done: Linux/OpenSSL client SNI + ALPN wiring:
+				               - SNI wired via `SSL_ctrl(...SSL_CTRL_SET_TLSEXT_HOSTNAME...)` using constants from Tier‑1 Linux headers (`libssl-dev`).
+				               - ALPN client offer wired via `SSL_set_alpn_protos` (wire-format protocol list).
+				               - Regression: TLS/HTTPS/WSS loopback fixtures now pass `opts["alpn"]=["h2","http/1.1"]` to exercise the code path.
+				             - Done (2026-01-09): Linux/OpenSSL server ALPN selection wired:
+				               - Uses `SSL_CTX_set_alpn_select_cb` to select the first server-preferred protocol that overlaps the client offer.
+				               - Implemented via an exported callback symbol (`@ffi.export`) resolved by `dlsym(RTLD_DEFAULT, ...)`.
+				               - Requires Linux native backend ELF export support for executables (arm64-linux + x64-linux).
 			           - Done (2026-01-08): Windows x64 TLS provider bring-up (Schannel / SSPI) + enable TLS/HTTPS/WSS loopback fixtures on Win11:
 				             - Provider: `lib/std/net/tls_windows_schannel.oren` (impl: `windows_schannel`; `@ffi.dll("secur32.dll")` + `@ffi.dll("crypt32.dll")`)
 			             - Regression: `./scripts/verify_native_net_matrix.sh --targets x64-win` (stage1 + stage2)
@@ -222,9 +226,9 @@ References:
 				             - Done (2026-01-09): Windows Schannel server ALPN selection wired:
 				               - `opts["alpn"]` is passed into the first `AcceptSecurityContext` call via `SECBUFFER_APPLICATION_PROTOCOLS`.
 			           - Done (2026-01-08): deterministic pinning is enforced by `std:net/tls.wrap_client` when `opts["pin_cert_sha256_hex"]` is provided (so HTTP/WS do not duplicate pinning logic).
-				           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider).
-				             - HTTP/2 needs a dedicated framing layer + server-side negotiation; ALPN offer plumbing is now in place (Linux/OpenSSL).
-				               - Next: implement OpenSSL server-side ALPN selection (`SSL_CTX_set_alpn_select_cb`) once we have a stable native callback bridge (likely needs `@ffi.export` parity beyond macOS, or an explicit callback trampoline feature).
+					           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider).
+					             - HTTP/2 needs a dedicated framing layer + server-side negotiation; ALPN offer plumbing is now in place (Linux/OpenSSL).
+					               - Next: implement HTTP/2 framing + HPACK + stream multiplexing on top of the now-negotiable `h2` ALPN (see `docs/LANGUAGE_FEATURE_MATRIX.md`).
 		     - x64 native backend correctness:
 		       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
 		         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)
@@ -249,17 +253,20 @@ References:
          - x64 string-aware compares use `native_is_string_ptr` so `if s == "lit"` works without literal tracking.
          - Regression: `make test`, `./scripts/verify_native_net_matrix.sh`, `./scripts/verify_selfhost_x64_compiler.sh --targets x64-win`.
        - Done (2026-01-08): string literal pooling/interning is whole-program for native output (`cstr0` pool de-dupes identical literals; pointer identity stable within the binary).
-       - Native FFI / dynamic linking parity (rolling):
-       - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
-       - Done (2026-01-08): Windows native backend supports `@ffi.dll("name.dll")` to attach a DLL directly to an `ffi` declaration (avoids requiring `--link` for stdlib/platform bindings).
-         - Regression: `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_dll.oren`.
+	       - Native FFI / dynamic linking parity (rolling):
+	       - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
+	       - Done (2026-01-09): Linux native backend supports `@ffi.export` for executables (ELF dynsym) so `dlsym(RTLD_DEFAULT, ...)` can locate callback symbols.
+	         - Used by `std:net/tls` Linux/OpenSSL provider for server-side ALPN selection (`SSL_CTX_set_alpn_select_cb`).
+	       - Done (2026-01-08): Windows native backend supports `@ffi.dll("name.dll")` to attach a DLL directly to an `ffi` declaration (avoids requiring `--link` for stdlib/platform bindings).
+	         - Regression: `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_dll.oren`.
        - Done (2026-01-08): portable `@ffi.link("...")` attribute (maps to native `--link ...`) so stdlib/platform bindings can declare dynamic deps without Makefile/script flags.
          - Regression: `tests/native/ffi_linux_strlen_ok.oren` now uses `@ffi.link("libc.so.6")` and the Tier‑1 matrix no longer passes `--link` explicitly.
        - Done (2026-01-08): `ffi { a, b, c }` group sugar (reduces repetition when importing many symbols from one DLL/DSO).
          - Used by `std:net/tls` Windows Schannel bindings (`lib/std/net/tls_windows_schannel.oren`).
          - Regression (Windows): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_link.oren`.
        - Done (2026-01-08): `examples/ffi_test.oren` is now self-contained across OS (`@cfg` + `@ffi.link`/`@ffi.dll`), and `make examples-test` no longer passes ad-hoc `--link libc.so.6` on Linux.
-       - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).
+	       - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).
+	         - Next: add `@ffi.export` support to x64-windows PE (at least for executables) so callback-style interop can be portable across Tier‑1.
        - Conditional compilation for cross-platform stdlib (rolling):
        - Done: `@cfg(...)` (canonical `@oren.cfg`) filters declarations by target `--platform` (`os`/`arch`/`platform` selectors).
        - Regression: `tests/native/cfg_os_select.oren` is compiled in `scripts/verify_native_x64_compile_only.sh` (stage1 + stage2; x64-linux + x64-windows).

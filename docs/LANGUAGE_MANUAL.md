@@ -283,7 +283,7 @@ Notes (rolling):
       - `@ffi.link("...")` can attach a dynamic library directly to an `ffi` declaration (portable form; maps to `--link`).
       - `@ffi.dll("name.dll")` can also attach a DLL directly to an `ffi` declaration (Windows convenience; useful for stdlib).
       - `@ffi.ret("i32"|"u32"|"void")` can declare ABI return width/kind for some C-style APIs (signed int, unsigned u32, or void) so the native backend can normalize the return register to Oren’s i64 value model.
-      - `@ffi.export` can export a top-level function symbol for callback-style interop (currently: arm64-macos only; see `docs/ATTRIBUTES.md`).
+      - `@ffi.export` can export a top-level function symbol for callback-style interop (currently: arm64-macos + linux/arm64 + linux/x64 native; see `docs/ATTRIBUTES.md`).
     - **Linux x64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/NATIVE_BACKEND.md`).
     - **Linux arm64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/NATIVE_BACKEND.md`).
   - C backend:
