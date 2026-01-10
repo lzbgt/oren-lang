@@ -423,7 +423,8 @@ verify-native-matrix-skip-remote: oren_stage2
 		echo "ERROR: verify-native-matrix-skip-remote expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
 		exit 2; \
 	fi
-	@./scripts/verify_native_matrix.sh --skip-remote
+	@# When remote Win11/WSL2 is unavailable, still keep x64-linux runtime coverage via qemu-x86_64 in the linux container.
+	@./scripts/verify_native_matrix.sh --skip-remote --targets local,arm64-linux,x64-linux-qemu
 
 verify-native-net: oren_stage2
 	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \

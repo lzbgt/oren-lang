@@ -71,6 +71,7 @@ Targets (comma-separated):
   stage2      build ./oren_stage2
   local       run local native quick (stage1+stage2)
   arm64-linux run linux/arm64 in docker container
+  x64-linux-qemu  run x64-linux under qemu-x86_64 in the linux container (no remote required)
   x64-win     run x64-windows on remote Win11
   x64-wsl     run x64-linux under remote WSL2
   x64-win-tier1  (opt-in) run Tier‑1 native smoke fixture on remote Win11
@@ -203,6 +204,7 @@ normalize_target() {
     starge2) echo stage2 ;;
     win|windows|x64-windows) echo x64-win ;;
     wsl|x64-linux|linux-x64) echo x64-wsl ;;
+    qemu|x64-qemu|x64-linux-qemu) echo x64-linux-qemu ;;
     win-tier1|windows-tier1|x64-windows-tier1) echo x64-win-tier1 ;;
     wsl-tier1|x64-linux-tier1|linux-x64-tier1) echo x64-wsl-tier1 ;;
     *) echo "$t" ;;
@@ -245,7 +247,7 @@ if [[ "$LOCAL_ONLY" -eq 0 ]]; then
   # Only require tools for the targets we are actually going to execute.
   # (Common workflows like `--targets local` or `--targets arm64-linux` should not
   # fail just because remote x64 prerequisites aren't installed.)
-  if has_target arm64-linux; then
+  if has_target arm64-linux || has_target x64-linux-qemu; then
     need_bin docker
   fi
   if [[ "$SKIP_REMOTE" -eq 0 ]] && ( has_target x64-win || has_target x64-wsl || has_target x64-win-tier1 || has_target x64-wsl-tier1 ); then
@@ -326,7 +328,7 @@ if has_target stage2; then
 fi
 
 # For any verification target (local/docker/remote), ensure stage1+stage2 compilers exist.
-if has_target local || has_target arm64-linux || has_target x64-win || has_target x64-wsl; then
+if has_target local || has_target arm64-linux || has_target x64-linux-qemu || has_target x64-win || has_target x64-wsl; then
   need_stage1_and_stage2
 fi
 
@@ -715,6 +717,16 @@ if has_target arm64-linux; then
   run_in_linux_container "build/tmp/ffi_void_stage1_arm64_linux"
   run_in_linux_container "build/tmp/ffi_void_stage2_arm64_linux"
   log "OK: linux/arm64 container"
+fi
+
+if has_target x64-linux-qemu; then
+  log "== verify: x64-linux runtime smoke under qemu-x86_64 (linux container) =="
+  # This gate is intentionally separate from remote WSL2:
+  # - it catches runtime/codegen issues that compile-only checks miss
+  # - it stays usable even when remote Win11/WSL2 is unreachable
+  #
+  # Requires `make setup-x64-linux-qemu` once to install the amd64 loader in the container.
+  ./scripts/verify_x64_linux_qemu_smoke.sh
 fi
 
 if has_target x64-win || has_target x64-wsl || has_target x64-win-tier1 || has_target x64-wsl-tier1; then

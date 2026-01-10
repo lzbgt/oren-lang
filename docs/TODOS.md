@@ -565,6 +565,7 @@ References:
   - Impact: `x64-windows` / `x64-linux` NET and self-host gates can’t run even when the code is correct.
   - Mitigation:
     - Prefer `make verify-native-net-skip-remote` for quick local confidence (arm64-macos + arm64-linux container).
+    - Prefer `make verify-native-matrix-skip-remote` for the native backend quick matrix **without remote**, which now also includes an `x64-linux` runtime smoke under QEMU (`x64-linux-qemu`) in the persistent Linux container.
     - When the remote is reachable, re-run:
       - `make verify-native-net` (includes x64-win + x64-wsl)
       - `make verify-selfhost-x64`
