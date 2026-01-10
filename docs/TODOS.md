@@ -562,10 +562,12 @@ References:
 			       - fix semantic parity bugs caused by untagged immediates in native mode (C backend does not have these issues):
 				         - Fixed (2026-01-10): native backend now uses runtime singleton values for `nil/false/true` (not raw `0/1`), so `0` stays distinct from `nil/false` in common value flows (including map lookups).
 						           - Mitigated (2026-01-09): optimizer folds type-mismatched `==`/`!=` on literals and folds `id == nil` for locals proven non-nil; quick integration gate covers `0/nil/false` parity.
-							             - Added (2026-01-09): `make test` runs a `--typecheck` smoke that must fail on `numeric == nil` to prevent silent reintroduction of this hazard.
-								             - Strengthened (2026-01-10): the always-on `nil_compare_guard` now also rejects `id == nil` when the identifier is later proven scalar by best-effort scan (e.g. `i64(id)`), so this footgun is blocked even without `--typecheck` (including in top-level code via synthesized `__top_level__`).
-								             - Open: extend the best-effort scan to also treat basic arithmetic/bitwise use (e.g. `id + 1`) as “scalar-likely” once the compiler codebase is fully migrated away from `scalar == nil` patterns (or when full tagged values land), so more real-world footguns are rejected by default.
-							             - Done (2026-01-10): stdlib migrated optional numeric defaults away from `if x == nil { x = 0 }` to tag-based checks (`if oren_type_tag(x) == 0 { x = 0 }`) so core libraries don’t depend on scalar `== nil` semantics.
+								             - Added (2026-01-09): `make test` runs a `--typecheck` smoke that must fail on `numeric == nil` to prevent silent reintroduction of this hazard.
+									             - Strengthened (2026-01-10): the always-on `nil_compare_guard` now also rejects `id == nil` when the identifier is later proven scalar by best-effort scan (e.g. `i64(id)`), so this footgun is blocked even without `--typecheck` (including in top-level code via synthesized `__top_level__`).
+									             - Strengthened (2026-01-10): the always-on `nil_compare_guard` also treats calls to functions with explicit scalar return annotations (e.g. `fn f(): i64`) as proven scalars, rejecting `f() == nil`.
+									               - Regression: `tests/fixtures/nil_guard_bad_annotated_call_nil_compare.oren` (run by `make test`).
+									             - Open: extend the best-effort scan to also treat basic arithmetic/bitwise use (e.g. `id + 1`) as “scalar-likely” once the compiler codebase is fully migrated away from `scalar == nil` patterns (or when full tagged values land), so more real-world footguns are rejected by default.
+								             - Done (2026-01-10): stdlib migrated optional numeric defaults away from `if x == nil { x = 0 }` to tag-based checks (`if oren_type_tag(x) == 0 { x = 0 }`) so core libraries don’t depend on scalar `== nil` semantics.
 							           - Remaining: full tagged value model still needed (notably robust `int` vs `float` tagging and deterministic reflection) — see `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`.
 	     - varargs + reflection convergence:
 	       - define how varargs elements carry type information so userland (fmt/ffi/serialization) can process heterogeneous lists without heuristic key-kind inference
