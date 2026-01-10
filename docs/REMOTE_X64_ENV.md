@@ -289,4 +289,4 @@ Notes:
 - This script is bounded (does not print the whole file).
 - It stages a copy under `%USERPROFILE%\tmp_oren\remote_fetch\` on the remote host, then downloads it.
 - If ssh/proxy is broken, it fails fast and prints the path to the bounded probe logs under `build/logs/`.
-- If the proxy can’t resolve `pc.work`, pass a reachable `--host user@IP` (or override `--proxy` for a direct SSH connection).
+- If the proxy can’t resolve `pc.work`, pass a reachable `--host user@IP` (and optionally `--no-proxy` if you have direct SSH access).
