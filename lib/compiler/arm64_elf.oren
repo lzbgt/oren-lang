@@ -57,6 +57,8 @@ fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
 fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
 fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
 fn insn_str_ptr(rd, rn) { return core.insn_str_ptr(rd, rn) }
+fn insn_ldr_q(vt, rn) { return core.insn_ldr_q(vt, rn) }
+fn insn_str_q_off(vt, rn, offset) { return core.insn_str_q_off(vt, rn, offset) }
 
 fn native_compile_program_arm64(linked, platform) { return codegen.native_compile_program_arm64(linked, platform) }
 fn native_emit_errors_and_exit(ctx) { return codegen.native_emit_errors_and_exit(ctx) }
@@ -181,22 +183,40 @@ fn _elf_arm64_dyn_needed_libs(user_link_libs) {
     return out
 }
 
-fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_libs, exports) {
+fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_libs, exports, export_wrappers, is_shared_lib, init_entry_off) {
     // Append the minimal ELF dynamic-link metadata to `ctx["data"]` and return offsets needed
     // to build PT_INTERP/PT_DYNAMIC program headers.
     if ctx == nil { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
     var data = ctx["data"]
 
-    // --- PT_INTERP payload ---
-    // Use the conventional aarch64 interpreter path on glibc-based distros.
-    var interp = "/lib/ld-linux-aarch64.so.1"
-    var interp_bytes = oren_bytes_from_string(interp)
-    _bytes_align(data, 1)
-    var interp_off = bytes_len(data)
-    bytes_extend_list(data, interp_bytes)
-    bytes_push(data, 0)
-    var interp_len = oren_list_len(interp_bytes) + 1
+    // --- PT_INTERP payload (dynamic executables only) ---
+    var interp_off = nil
+    var interp_len = nil
+    if is_shared_lib != true {
+        // Use the conventional aarch64 interpreter path on glibc-based distros.
+        var interp = "/lib/ld-linux-aarch64.so.1"
+        var interp_bytes = oren_bytes_from_string(interp)
+        _bytes_align(data, 1)
+        interp_off = bytes_len(data)
+        bytes_extend_list(data, interp_bytes)
+        bytes_push(data, 0)
+        interp_len = oren_list_len(interp_bytes) + 1
+    }
+
+    // --- .init_array (shared libraries) ---
+    // Run the compiled entry stub once at load time so:
+    // - runtime init runs
+    // - __top_level__ runs (global initializers)
+    // - heap spill slots are populated for exported ABI wrappers
+    var init_array_off = nil
+    if is_shared_lib == true {
+        if init_entry_off == nil { init_entry_off = 0 }
+        _bytes_align(data, 8)
+        init_array_off = bytes_len(data)
+        // placeholder u64; filled by R_AARCH64_RELATIVE relocation (RELA addend)
+        push_u64_le(data, 0)
+    }
 
     // --- Build dynstr (DT_STRTAB) ---
     var dynstr = bytes_new()
@@ -267,15 +287,21 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
         i_sym = i_sym + 1
     }
 
-    // Exports: defined global function symbols. These enable dlsym(RTLD_DEFAULT, "...") to obtain
-    // raw function pointers for callback-style interop (e.g. OpenSSL ALPN select callbacks).
+    // Exports: defined global function symbols. These enable:
+    // - dynamic executables: dlsym(RTLD_DEFAULT, "...") to obtain raw function pointers (callback APIs)
+    // - shared libraries: dlsym(handle, "...") to call exported Oren functions from C
     //
     // Section indices (our fixed section table): 1 = .text
     i_sym = 0
     while i_sym < oren_list_len(exports) {
         var enm = exports[i_sym]
         if enm == nil || enm == "" { i_sym = i_sym + 1; continue }
-        var fn_off = functions[enm]
+        var fn_off = nil
+        if export_wrappers != nil && export_wrappers[enm] != nil {
+            fn_off = export_wrappers[enm]
+        } else {
+            fn_off = functions[enm]
+        }
         if fn_off == nil {
             var e2 = "native backend (arm64-linux): internal: export name not found in functions: " + enm
             print("OREN_DIAG kind=codegen code=1 msg=" + elf_diag_escape(e2))
@@ -297,6 +323,17 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
     // --- Build .rela.dyn (DT_RELA) ---
     // Elf64_Rela is 24 bytes.
     var rela = bytes_new()
+    var rela_type_relative = 1027 // R_AARCH64_RELATIVE (from elf.h)
+    if is_shared_lib == true && init_array_off != nil {
+        // Relocate `.init_array[0]` to point to the entry stub.
+        var r_offset0 = base + data_file_off + init_array_off
+        var r_info0 = 0 * 4294967296 + rela_type_relative
+        var add0 = text_base + init_entry_off
+        push_u64_le(rela, r_offset0)
+        push_u64_le(rela, r_info0)
+        push_u64_le(rela, add0)
+    }
+
     var rela_type_glob_dat = 1025 // R_AARCH64_GLOB_DAT (from elf.h)
     var i_rel = 0
     while i_rel < oren_list_len(imports) {
@@ -397,6 +434,14 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
     push_u64_le(dyn, 8);  push_u64_le(dyn, bytes_len(rela))  // DT_RELASZ
     push_u64_le(dyn, 9);  push_u64_le(dyn, 24)               // DT_RELAENT (Elf64_Rela)
 
+    // Shared lib init array tags.
+    // DT_INIT_ARRAY (25), DT_INIT_ARRAYSZ (27)
+    if is_shared_lib == true && init_array_off != nil {
+        var init_array_addr = data_addr + init_array_off
+        push_u64_le(dyn, 25); push_u64_le(dyn, init_array_addr)
+        push_u64_le(dyn, 27); push_u64_le(dyn, 8)
+    }
+
     // DT_NULL terminator
     push_u64_le(dyn, 0); push_u64_le(dyn, 0)
 
@@ -405,10 +450,10 @@ fn _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link
     bytes_extend(data, dyn)
     var dynamic_len = bytes_len(dyn)
 
-    return {"interp_off": interp_off, "interp_len": interp_len, "dynamic_off": dynamic_off, "dynamic_len": dynamic_len}
+    return {"interp_off": interp_off, "interp_len": interp_len, "dynamic_off": dynamic_off, "dynamic_len": dynamic_len, "init_array_off": init_array_off}
 }
 
-fn elf_build_prefix_arm64(base, hdr_size, phdrs, entry_off) {
+fn elf_build_prefix_arm64(base, hdr_size, phdrs, entry_off, is_shared_lib) {
     var p = bytes_new()
     
     // ELF Header (64 bytes)
@@ -419,11 +464,19 @@ fn elf_build_prefix_arm64(base, hdr_size, phdrs, entry_off) {
     bytes_push(p, 0); // OS ABI: System V
     push_u64_le(p, 0) // Padding
     
-    push_u16_le(p, 2)   // Type: EXEC
+    if is_shared_lib == true {
+        push_u16_le(p, 3)   // Type: DYN
+    } else {
+        push_u16_le(p, 2)   // Type: EXEC
+    }
     push_u16_le(p, 183) // Machine: AArch64
     push_u32_le(p, 1) // Version
 
-    push_u64_le(p, base + hdr_size + entry_off) // Entry point
+    if is_shared_lib == true {
+        push_u64_le(p, 0) // e_entry (unused for shared libs; init via DT_INIT_ARRAY)
+    } else {
+        push_u64_le(p, base + hdr_size + entry_off) // Entry point
+    }
     push_u64_le(p, 64) // Phdr offset
     push_u64_le(p, 0) // Shdr offset
     push_u32_le(p, 0) // Flags
@@ -458,6 +511,128 @@ fn _data_add_u64(data, val) {
     var off = bytes_len(data)
     push_u64_le(data, val)
     return off
+}
+
+fn _elf_emit_export_wrappers_arm64(code, fixups, functions, exports, heap_limit_slot_off, heap_ptr_slot_off) {
+    // Emit AArch64 (AAPCS64) ABI-safe wrappers for exported functions.
+    //
+    // Goal (Tier‑1 rolling):
+    // - preserve AAPCS callee-saved registers for external callers
+    // - load/store the native heap registers (X27=limit, X28=ptr) via spill slots
+    // - call the internal Oren function body by address (bl fixup)
+    //
+    // NOTE: This is a rolling bridge while the arm64 backend still uses persistent heap regs.
+    var out = {}
+    if exports == nil || code == nil { return out }
+    if fixups == nil || functions == nil { return out }
+
+    // Frame layout (bytes, from SP after allocation):
+    // - x19..x30: 12 regs * 8 = 96 bytes at offsets [0..88]
+    // - q8..q15: 8 regs * 16 = 128 bytes at offsets [96..223]
+    // Total: 224 (16B-aligned)
+    var frame = 224
+    var q_base = 96
+
+    var i = 0
+    while i < oren_list_len(exports) {
+        var nm = exports[i]
+        if nm == nil || nm == "" { i = i + 1; continue }
+        if functions[nm] == nil {
+            var e = "native backend (arm64-linux): internal: export wrapper target not found: " + nm
+            print("OREN_DIAG kind=codegen code=1 msg=" + elf_diag_escape(e))
+            print(e)
+            oren_exit(1)
+        }
+
+        var wrapper_off = bytes_len(code)
+        out[nm] = wrapper_off
+
+        // Allocate frame.
+        push_u32_le(code, insn_sub_sp(frame))
+
+        // Save integer callee-saved + frame/return regs.
+        push_u32_le(code, insn_str_reg_sp(19, 0))
+        push_u32_le(code, insn_str_reg_sp(20, 8))
+        push_u32_le(code, insn_str_reg_sp(21, 16))
+        push_u32_le(code, insn_str_reg_sp(22, 24))
+        push_u32_le(code, insn_str_reg_sp(23, 32))
+        push_u32_le(code, insn_str_reg_sp(24, 40))
+        push_u32_le(code, insn_str_reg_sp(25, 48))
+        push_u32_le(code, insn_str_reg_sp(26, 56))
+        push_u32_le(code, insn_str_reg_sp(27, 64))
+        push_u32_le(code, insn_str_reg_sp(28, 72))
+        push_u32_le(code, insn_str_reg_sp(29, 80))
+        push_u32_le(code, insn_str_reg_sp(30, 88))
+
+        // Save FP/SIMD callee-saved regs: Q8-Q15.
+        var vi = 8
+        while vi <= 15 {
+            var off = q_base + (vi - 8) * 16
+            push_u32_le(code, insn_str_q_off(vi, 31, off))
+            vi = vi + 1
+        }
+
+        // Load heap registers from spill slots.
+        var adr_hl = bytes_len(code)
+        push_u32_le(code, 0)
+        push_u32_le(code, 0)
+        oren_list_push(fixups, {"type": "adr_data", "pos": adr_hl, "data_off": heap_limit_slot_off, "reg": 16})
+        push_u32_le(code, insn_ldr_ptr(27, 16))
+
+        var adr_hp = bytes_len(code)
+        push_u32_le(code, 0)
+        push_u32_le(code, 0)
+        oren_list_push(fixups, {"type": "adr_data", "pos": adr_hp, "data_off": heap_ptr_slot_off, "reg": 17})
+        push_u32_le(code, insn_ldr_ptr(28, 17))
+
+        // Call internal function body.
+        var bl_pos = bytes_len(code)
+        push_u32_le(code, 0)
+        oren_list_push(fixups, {"type": "bl", "pos": bl_pos, "name": nm})
+
+        // Persist updated heap regs back to spill slots.
+        var adr_hl2 = bytes_len(code)
+        push_u32_le(code, 0)
+        push_u32_le(code, 0)
+        oren_list_push(fixups, {"type": "adr_data", "pos": adr_hl2, "data_off": heap_limit_slot_off, "reg": 16})
+        push_u32_le(code, insn_str_ptr(27, 16))
+
+        var adr_hp2 = bytes_len(code)
+        push_u32_le(code, 0)
+        push_u32_le(code, 0)
+        oren_list_push(fixups, {"type": "adr_data", "pos": adr_hp2, "data_off": heap_ptr_slot_off, "reg": 17})
+        push_u32_le(code, insn_str_ptr(28, 17))
+
+        // Restore Q8-Q15.
+        vi = 8
+        while vi <= 15 {
+            var off2 = q_base + (vi - 8) * 16
+            push_u32_le(code, insn_add_imm(16, 31, off2))
+            push_u32_le(code, insn_ldr_q(vi, 16))
+            vi = vi + 1
+        }
+
+        // Restore X19-X30.
+        push_u32_le(code, insn_ldr_reg_sp(19, 0))
+        push_u32_le(code, insn_ldr_reg_sp(20, 8))
+        push_u32_le(code, insn_ldr_reg_sp(21, 16))
+        push_u32_le(code, insn_ldr_reg_sp(22, 24))
+        push_u32_le(code, insn_ldr_reg_sp(23, 32))
+        push_u32_le(code, insn_ldr_reg_sp(24, 40))
+        push_u32_le(code, insn_ldr_reg_sp(25, 48))
+        push_u32_le(code, insn_ldr_reg_sp(26, 56))
+        push_u32_le(code, insn_ldr_reg_sp(27, 64))
+        push_u32_le(code, insn_ldr_reg_sp(28, 72))
+        push_u32_le(code, insn_ldr_reg_sp(29, 80))
+        push_u32_le(code, insn_ldr_reg_sp(30, 88))
+
+        // Pop frame and return.
+        push_u32_le(code, insn_add_sp(frame))
+        push_u32_le(code, insn_ret())
+
+        i = i + 1
+    }
+    return out
 }
 
 fn _data_add_cstr0(data, s) {
@@ -693,30 +868,33 @@ fn _arm64_emit_ffi_stub_linux_dyn(ctx, nm, resolver_name, debug_mode) {
 }
 
 fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode, no_gc, capsule, cap_allow_domains) {
-    // Rolling status:
-    // - Linux native dynamic linking (`--link`) is implemented for arm64 as a minimal ELF dynamic
-    //   executable + `dlsym`-based FFI resolver (see docs/NATIVE_BACKEND.md).
-    // - Linux shared library output (`--lib` / `--export`) is not implemented yet.
-    //
-    // Fail fast so users don't get a silently-wrong artifact.
+    var dyn = false
     if is_shared == true {
-        print("native backend (arm64-linux): shared libraries are not implemented yet")
-        print("  requested: --lib/--shared (and possibly --export)")
-        oren_exit(1)
+        // Shared libs always require dynamic metadata: dynsym/dynstr + relocations + init array.
+        dyn = true
+    } else {
+        dyn = libs != nil && oren_list_len(libs) != 0
+        if exports != nil && oren_list_len(exports) != 0 && dyn != true {
+            print("native backend (arm64-linux): @ffi.export requires dynamic linking (use @ffi.link(\"libdl.so.2\") or --link)")
+            oren_exit(1)
+        }
     }
 
-    var dyn = libs != nil && oren_list_len(libs) != 0
-    if exports != nil && oren_list_len(exports) != 0 && dyn != true {
-        print("native backend (arm64-linux): @ffi.export requires dynamic linking (use @ffi.link(\"libdl.so.2\") or --link)")
-        oren_exit(1)
-    }
+    // Program header count:
+    // - static exec: 2 PT_LOAD segments (RX + RW)
+    // - dynamic exec (when `--link` is used): add PT_PHDR, PT_INTERP, PT_DYNAMIC, PT_GNU_STACK
+    // - shared lib (`--lib`): add PT_PHDR, PT_DYNAMIC, PT_GNU_STACK (no PT_INTERP)
     var phnum = 2
-    if dyn { phnum = 6 }
+    if dyn {
+        if is_shared == true { phnum = 5 } else { phnum = 6 }
+    }
+
     // Ehdr (64) + Phdrs (56 each)
-    var base = 4194304 // 0x400000
+    var base = 4194304 // 0x400000 (ET_EXEC)
+    if is_shared == true { base = 0 }
     var hdr_size = 64 + 56 * phnum
 
-    var ctx = native_compile_program_arm64(linked, {"os": "linux", "arch": "arm64", "debug": debug_mode, "no_gc": no_gc, "capsule": capsule, "cap_allow_domains": cap_allow_domains, "link_libs": libs})
+    var ctx = native_compile_program_arm64(linked, {"os": "linux", "arch": "arm64", "debug": debug_mode, "no_gc": no_gc, "capsule": capsule, "cap_allow_domains": cap_allow_domains, "link_libs": libs, "shared_lib": is_shared == true})
     if ctx == nil { return nil }
     native_emit_errors_and_exit(ctx)
     
@@ -879,7 +1057,18 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
     var dyn_meta = nil
     if dyn {
         var text_base = base + hdr_size
-        dyn_meta = _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, libs, exports)
+        // Shared lib exports: emit ABI wrappers and point dynsym entries at wrappers.
+        var export_wrappers = {}
+        if is_shared == true {
+            var heap_limit_slot_off_enc = ctx["heap_limit_slot_enc"]
+            var heap_ptr_slot_off_enc = ctx["heap_ptr_slot_enc"]
+            if heap_limit_slot_off_enc == nil || heap_ptr_slot_off_enc == nil {
+                print("native backend (arm64-linux): missing heap spill slots in ctx (heap_limit_slot_enc/heap_ptr_slot_enc)")
+                oren_exit(1)
+            }
+            export_wrappers = _elf_emit_export_wrappers_arm64(code, fixups, functions, exports, heap_limit_slot_off_enc - 1, heap_ptr_slot_off_enc - 1)
+        }
+        dyn_meta = _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, libs, exports, export_wrappers, is_shared == true, 0)
         // data buffer may have been extended by `_elf_arm64_append_dyn_metadata`.
         data = ctx["data"]
     }
@@ -955,8 +1144,10 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
     if dyn {
         // PT_PHDR (header table itself)
         oren_list_push(phdrs, {"type": 6, "flags": 4, "offset": 64, "vaddr": base + 64, "paddr": base + 64, "filesz": phnum * 56, "memsz": phnum * 56, "align": 8})
-        // PT_INTERP
-        oren_list_push(phdrs, {"type": 3, "flags": 4, "offset": data_file_off + dyn_meta["interp_off"], "vaddr": base + data_file_off + dyn_meta["interp_off"], "paddr": base + data_file_off + dyn_meta["interp_off"], "filesz": dyn_meta["interp_len"], "memsz": dyn_meta["interp_len"], "align": 1})
+        // PT_INTERP (dynamic executables only)
+        if is_shared != true {
+            oren_list_push(phdrs, {"type": 3, "flags": 4, "offset": data_file_off + dyn_meta["interp_off"], "vaddr": base + data_file_off + dyn_meta["interp_off"], "paddr": base + data_file_off + dyn_meta["interp_off"], "filesz": dyn_meta["interp_len"], "memsz": dyn_meta["interp_len"], "align": 1})
+        }
     }
     // PT_LOAD RX: headers + code + padding
     oren_list_push(phdrs, {"type": 1, "flags": 5, "offset": 0, "vaddr": base, "paddr": base, "filesz": text_filesz, "memsz": text_filesz, "align": 4096})
@@ -969,7 +1160,7 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
         oren_list_push(phdrs, {"type": 1685382481, "flags": 6, "offset": 0, "vaddr": 0, "paddr": 0, "filesz": 0, "memsz": 0, "align": 16})
     }
 
-    var prefix = elf_build_prefix_arm64(base, hdr_size, phdrs, entry_off)
+    var prefix = elf_build_prefix_arm64(base, hdr_size, phdrs, entry_off, is_shared == true)
     bytes_extend(prefix, code)
     bytes_extend(prefix, code_pad)
     bytes_extend(prefix, data)

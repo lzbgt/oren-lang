@@ -87,6 +87,5 @@ When something is not green, record the *smallest actionable next step* and the 
 
 - x64-windows: stage2 native backend still needs continuous “compile + run” proof on a real Windows host
   (not just compile-only from macOS). Primary gate: `make verify-stage2-win` (remote).
-- arm64-linux: native shared-library emission (`--lib` → ELF `.so`) is not implemented yet (compile-time error today).
 - Remote reliability: keep remote log capture bounded and reproducible; use
   `scripts/fetch_remote_file.sh --analyze` + `scripts/analyze_stage2_failure_log.sh` for triage.

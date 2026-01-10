@@ -43,11 +43,15 @@ fn insn_movk(reg, imm16, shift_idx) { return core.insn_movk(reg, imm16, shift_id
 fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
 fn insn_mul(rd, rn, rm) { return core.insn_mul(rd, rn, rm) }
 fn insn_stp_pre() { return core.insn_stp_pre() }
+fn insn_stp_pair_pre(rt, rt2, rn, offset) { return core.insn_stp_pair_pre(rt, rt2, rn, offset) }
+fn insn_ldp_post() { return core.insn_ldp_post() }
+fn insn_ldp_pair_post(rt, rt2, rn, offset) { return core.insn_ldp_pair_post(rt, rt2, rn, offset) }
 fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
 fn insn_str_ptr(rt, rn) { return core.insn_str_ptr(rt, rn) }
 fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
 fn insn_sub_reg(rd, rn, rm) { return core.insn_sub_reg(rd, rn, rm) }
 fn insn_svc(imm) { return core.insn_svc(imm) }
+fn insn_ret() { return core.insn_ret() }
 fn emit_load_u64_imm(ctx, reg, val) { return core.emit_load_u64_imm(ctx, reg, val) }
 
 // Delegate statement compilation to the stmt module.
@@ -989,6 +993,7 @@ fn native_compile_program_arm64(linked, platform) {
     // - Always call `__top_level__` first
     // - Call `main` only if the user defines it
     var has_main = _arm64_linked_has_toplevel_fn_named(linked, "main")
+    var is_shared = platform != nil && platform["shared_lib"] == true
     if trace {
         if has_main { print("[arm64] has_main=true") } else { print("[arm64] has_main=false") }
     }
@@ -1014,19 +1019,41 @@ fn native_compile_program_arm64(linked, platform) {
     //
     // For both OSes we derive:
     //   envp = argv + (argc + 1) * 8
-    if ctx["platform"]["os"] == "linux" {
+    if ctx["platform"]["os"] == "linux" && is_shared != true {
         // X0 = *(SP), X1 = SP + 8  (argv)
         push_u32_le(ctx["code"], insn_ldr_ptr(0, 31))
         push_u32_le(ctx["code"], insn_add_imm(1, 31, 8))
     }
-    push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = argc
-    push_u32_le(ctx["code"], insn_mov_reg(20, 1)) // X20 = argv
+    if is_shared {
+        // Shared library constructor entry (Tier‑1 rolling):
+        // - called by the dynamic loader, not as an ELF entrypoint
+        // - no argc/argv/envp ABI; default to argc=0, argv=nil, envp=nil
+        //
+        // Also preserve AAPCS callee-saved regs across this constructor so the loader
+        // does not observe clobbered state.
+        //
+        // Save X19-X28 (pairs) before any calls. (We also save FP/LR below.)
+        push_u32_le(ctx["code"], insn_stp_pair_pre(19, 20, 31, -16))
+        push_u32_le(ctx["code"], insn_stp_pair_pre(21, 22, 31, -16))
+        push_u32_le(ctx["code"], insn_stp_pair_pre(23, 24, 31, -16))
+        push_u32_le(ctx["code"], insn_stp_pair_pre(25, 26, 31, -16))
+        push_u32_le(ctx["code"], insn_stp_pair_pre(27, 28, 31, -16))
+
+        push_u32_le(ctx["code"], insn_movz(0, 0))
+        push_u32_le(ctx["code"], insn_movz(1, 0))
+    }
+    push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = argc (0 for shared libs)
+    push_u32_le(ctx["code"], insn_mov_reg(20, 1)) // X20 = argv (nil for shared libs)
 
     // envp = argv + (argc + 1) * 8
-    push_u32_le(ctx["code"], insn_add_imm(2, 19, 1)) // X2 = argc + 1
-    push_u32_le(ctx["code"], insn_movz(3, 8))        // X3 = 8
-    push_u32_le(ctx["code"], insn_mul(2, 2, 3))      // X2 = (argc+1)*8
-    push_u32_le(ctx["code"], insn_add_reg(21, 20, 2)) // X21 = envp
+    if is_shared {
+        push_u32_le(ctx["code"], insn_movz(21, 0)) // X21 = envp (nil)
+    } else {
+        push_u32_le(ctx["code"], insn_add_imm(2, 19, 1)) // X2 = argc + 1
+        push_u32_le(ctx["code"], insn_movz(3, 8))        // X3 = 8
+        push_u32_le(ctx["code"], insn_mul(2, 2, 3))      // X2 = (argc+1)*8
+        push_u32_le(ctx["code"], insn_add_reg(21, 20, 2)) // X21 = envp
+    }
 
     push_u32_le(ctx["code"], insn_stp_pre())
     push_u32_le(ctx["code"], insn_mov_fp_sp())
@@ -1220,24 +1247,63 @@ fn native_compile_program_arm64(linked, platform) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_top, "name": "__top_level__"})
 
-    // Run user main if present; otherwise exit with 0.
-    if has_main {
-        var main_fix = bytes_len(ctx["code"])
+    if is_shared {
+        // Shared library constructor: do NOT call `main`, do NOT exit the process.
+        // Instead, persist heap state for exported ABI wrappers and return to the loader.
+        //
+        // Store heap regs (X27=limit, X28=ptr) into the reserved `.data` spill slots.
+        var heap_limit_slot_off_enc = ctx["heap_limit_slot_enc"]
+        var heap_ptr_slot_off_enc = ctx["heap_ptr_slot_enc"]
+        if heap_limit_slot_off_enc == nil || heap_ptr_slot_off_enc == nil {
+            oren_list_push(ctx["errors"], "arm64 native: missing heap spill slots (heap_limit_slot_enc/heap_ptr_slot_enc) for shared library build")
+            return nil
+        }
+        var heap_limit_slot_off = heap_limit_slot_off_enc - 1
+        var heap_ptr_slot_off = heap_ptr_slot_off_enc - 1
+
+        // X16 = &heap_limit_slot; *X16 = X27
+        var adr_hl_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["fixups"], {"type": "bl", "pos": main_fix, "name": "main"})
-        // Preserve exit code across shutdown
-        push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = ret
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_hl_pos, "data_off": heap_limit_slot_off, "reg": 16})
+        push_u32_le(ctx["code"], insn_str_ptr(27, 16))
+
+        // X17 = &heap_ptr_slot; *X17 = X28
+        var adr_hp_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_hp_pos, "data_off": heap_ptr_slot_off, "reg": 17})
+        push_u32_le(ctx["code"], insn_str_ptr(28, 17))
+
+        // Tear down our normal entry-stub frame and return.
+        push_u32_le(ctx["code"], insn_ldp_post())
+        // Restore X27-X28 .. X19-X20 (reverse order).
+        push_u32_le(ctx["code"], insn_ldp_pair_post(27, 28, 31, 16))
+        push_u32_le(ctx["code"], insn_ldp_pair_post(25, 26, 31, 16))
+        push_u32_le(ctx["code"], insn_ldp_pair_post(23, 24, 31, 16))
+        push_u32_le(ctx["code"], insn_ldp_pair_post(21, 22, 31, 16))
+        push_u32_le(ctx["code"], insn_ldp_pair_post(19, 20, 31, 16))
+        push_u32_le(ctx["code"], insn_ret())
     } else {
-        push_u32_le(ctx["code"], insn_movz(19, 0)) // X19 = 0
+        // Run user main if present; otherwise exit with 0.
+        if has_main {
+            var main_fix = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": main_fix, "name": "main"})
+            // Preserve exit code across shutdown
+            push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = ret
+        } else {
+            push_u32_le(ctx["code"], insn_movz(19, 0)) // X19 = 0
+        }
+        var shutdown_fix = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": shutdown_fix, "name": "native_gc_shutdown"})
+        push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // restore X0
+        // exit(X0)
+        push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
+        push_u32_le(ctx["code"], insn_svc(svc_imm))
+        // Should not return
     }
-    var shutdown_fix = bytes_len(ctx["code"])
-    push_u32_le(ctx["code"], 0)
-    oren_list_push(ctx["fixups"], {"type": "bl", "pos": shutdown_fix, "name": "native_gc_shutdown"})
-    push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // restore X0
-    // exit(X0)
-    push_u32_le(ctx["code"], insn_movz(sys_reg, sys_exit))
-    push_u32_le(ctx["code"], insn_svc(svc_imm))
-    // Should not return
 
     // Record the end of the entry stub so debug symbolization can label it
     // without overlapping the injected runtime function ranges.

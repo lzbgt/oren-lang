@@ -133,8 +133,7 @@ make verify # Run full self-hosting test
     - **arm64-macos (Mach-O)**: `.dylib`
     - **x64-linux (ELF)**: `.so` (ET_DYN + `.init_array` + metadata/header)
     - **x64-windows (PE)**: `.dll` (native DllMain entrypoint + export table + generated C header)
-  - Remaining parity work:
-    - **arm64-linux (ELF)**: `.so` output (exports + metadata/header hooks)
+    - **arm64-linux (ELF)**: `.so` (ET_DYN + `.init_array` + metadata/header; no section header)
   - Linux notes:
     - **x64-linux `.so`** uses `.init_array` to run the compiled entry stub at load time (runtime init + `__top_level__`), and uses RELA `R_X86_64_RELATIVE` relocations for internal function pointers embedded in `.data`.
     - **Linux executables** (arm64-linux + x64-linux) can export selected symbols for callback interop via `@ffi.export` (see `docs/ATTRIBUTES.md`).

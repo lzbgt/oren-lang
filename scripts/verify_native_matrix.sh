@@ -41,6 +41,7 @@ LINUX_FFI_OK_SRC="tests/native/ffi_linux_strlen_ok.oren"
 LINUX_FFI_I32_SRC="tests/native/ffi_linux_ret_i32_signext.oren"
 LINUX_FFI_U32_SRC="tests/native/ffi_linux_ret_u32_zeroext.oren"
 LINUX_FFI_VOID_SRC="tests/native/ffi_linux_ret_void_zero.oren"
+LIBMATH_SRC="examples/libmath.oren"
 
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
@@ -690,6 +691,13 @@ if has_target arm64-linux; then
   build_native_bin_src "./oren_stage2" "arm64-linux" "$LINUX_FFI_U32_SRC" "build/tmp/ffi_u32_stage2_arm64_linux"
   build_native_bin_src "./oren" "arm64-linux" "$LINUX_FFI_VOID_SRC" "build/tmp/ffi_void_stage1_arm64_linux"
   build_native_bin_src "./oren_stage2" "arm64-linux" "$LINUX_FFI_VOID_SRC" "build/tmp/ffi_void_stage2_arm64_linux"
+  # Shared library output: `.so` + generated header.
+  build_native_bin_src "./oren" "arm64-linux" "$LIBMATH_SRC" "build/tmp/libmath_stage1_arm64_linux.so" --lib
+  build_native_bin_src "./oren_stage2" "arm64-linux" "$LIBMATH_SRC" "build/tmp/libmath_stage2_arm64_linux.so" --lib
+  file "build/tmp/libmath_stage1_arm64_linux.so" | grep -Ei 'ELF 64-bit.*(shared object.*(ARM aarch64|aarch64)|(ARM aarch64|aarch64).*shared object)' >/dev/null
+  file "build/tmp/libmath_stage2_arm64_linux.so" | grep -Ei 'ELF 64-bit.*(shared object.*(ARM aarch64|aarch64)|(ARM aarch64|aarch64).*shared object)' >/dev/null
+  test -f "build/tmp/libmath_stage1_arm64_linux.h"
+  test -f "build/tmp/libmath_stage2_arm64_linux.h"
   run_in_linux_container "build/tmp/qi_stage1_arm64_linux"
   run_in_linux_container "build/tmp/qi_stage2_arm64_linux"
   run_in_linux_container_expect_fail_contains "build/tmp/ffi_panic_stage1_arm64_linux" "ffi unresolved:" "oren_panic"
