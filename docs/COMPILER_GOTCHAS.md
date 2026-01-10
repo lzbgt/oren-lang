@@ -81,6 +81,9 @@ Rolling rules:
 - If you change x64 native codegen that can affect emitted runtime code/data bytes, bump `RUNTIME_OBJ_BACKEND_SIG_X64` in `lib/compiler/native_runtime_obj_cache.oren`.
 - For debugging, you can force a clean comparison between “rtobj hit” and “no rtobj” builds by setting `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`.
 - Diagnostic hygiene: x64 native codegen errors are deduplicated by message (still fatal) to avoid huge logs from repeated sites; if you see one, treat it as a real correctness failure and fix it at the source.
+- Regression gates:
+  - Fast: `make verify-native-x64-compile` (small fixtures, compile-only, ~10s per build timeout)
+  - Higher-signal: `make verify-native-x64-selfhost-compile` (compiles `oren.oren` for x64 targets; compile-only)
 
 ## Native value semantics: never rely on `scalar == nil`
 

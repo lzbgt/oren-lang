@@ -2,6 +2,7 @@
 .PHONY: examples-cross-compile-smoke
 .PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick
 .PHONY: verify-native-x64-compile
+.PHONY: verify-native-x64-selfhost-compile
 .PHONY: verify-x64-linux-qemu
 .PHONY: verify-x64-linux-qemu-net
 .PHONY: verify-x64-linux-qemu-tls
@@ -384,6 +385,14 @@ verify-native-quick: test-native-quick test-native-quick-stage2 test-native-caps
 # Compile-only sanity gate for x64 targets (does not run artifacts).
 verify-native-x64-compile: oren_stage2 rtobj-seed-x64 astbin-seed-x64
 			@./scripts/verify_native_x64_compile_only.sh
+
+# Higher-signal compile-only gate: compile the *full compiler program* (`oren.oren`)
+# for x64-linux and/or x64-windows and validate artifact kinds.
+#
+# This is intentionally not part of `make test` (it can be slower than the small-fixture suite).
+# Tune timeout with: OREN_SELFHOST_BUILD_TIMEOUT_SECS=...
+verify-native-x64-selfhost-compile: oren_stage2
+			@./scripts/verify_native_x64_selfhost_compile_only.sh
 
 # Local execution smoke for x64-linux artifacts under QEMU in the persistent Linux container.
 # This is a higher-signal guard than compile-only, but still does not require remote WSL2.
