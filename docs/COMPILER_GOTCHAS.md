@@ -72,6 +72,15 @@ Rolling rules:
 - If you change rtobj fixup encoding/decoding, bump the arm64 rtobj backend signature in `lib/compiler/native_runtime_obj_cache.oren` so stale cache entries are not reused.
 - Keep a fast regression check: `./scripts/bench_native_compile_one_file.sh --no-debug` should show a working miss→hit sequence (isolated rtobj dir; seed disabled).
 
+## x64: stale rtobj can mask (or preserve) codegen bugs
+
+The x64 runtime-object cache stores precompiled runtime machine code. If x64 codegen changes in a way that affects runtime correctness, but the x64 rtobj backend signature is not bumped, old cached runtime machine code can keep a fixed bug “alive” (or reintroduce it) even though the source was corrected.
+
+Rolling rules:
+
+- If you change x64 native codegen that can affect emitted runtime code/data bytes, bump `RUNTIME_OBJ_BACKEND_SIG_X64` in `lib/compiler/native_runtime_obj_cache.oren`.
+- For debugging, you can force a clean comparison between “rtobj hit” and “no rtobj” builds by setting `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`.
+
 ## Native value semantics: never rely on `scalar == nil`
 
 Rolling invariant (until `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md` lands):
