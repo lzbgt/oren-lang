@@ -1,0 +1,14 @@
+// macOS dlfcn/libSystem bindings (rolling).
+//
+// Goal:
+// - Provide `dlsym` in a stable `std:ffi/*` boundary module for macOS providers.
+//
+// Notes:
+// - On macOS, `dlsym` is available via libSystem; we rely on the platform's default
+//   loader/link behavior (no explicit `@ffi.link` required in practice).
+// - This module is intentionally macOS-only.
+
+@cfg(os="macos")
+ffi {
+    dlsym
+}

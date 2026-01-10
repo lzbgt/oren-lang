@@ -419,6 +419,7 @@ References:
     - Added (2026-01-11): `std:ffi/secur32` and `std:ffi/crypt32` centralize Schannel/SSPI + cert-store FFI. `std:net/tls_windows_schannel` imports these wrappers instead of declaring FFI locally.
     - Added (2026-01-11): `std:ffi/iphlpapi` centralizes `GetNetworkParams` (used by `std:net/dns` default resolver selection on Windows).
     - Added (2026-01-11): `std:ffi/libdl` centralizes `dlopen/dlsym` (used by `std:net/tls_linux_openssl` to lazily load OpenSSL without forcing DT_NEEDED on TLS users).
+    - Added (2026-01-11): `std:ffi/macos_security`, `std:ffi/macos_corefoundation`, and `std:ffi/macos_dlfcn` centralize macOS TLS provider framework + dlsym bindings (`std:net/tls_macos_securetransport`).
     - Regression (remote Win11): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/test_std_ffi_kernel32_smoke.oren` (stage1 + stage2).
     - Regression (local x64 compile-only): `scripts/verify_native_x64_compile_only.sh --targets x64-win` builds the same fixture (stage1 + stage2).
 
@@ -558,10 +559,11 @@ References:
 			       - fix semantic parity bugs caused by untagged immediates in native mode (C backend does not have these issues):
 				         - Fixed (2026-01-10): native backend now uses runtime singleton values for `nil/false/true` (not raw `0/1`), so `0` stays distinct from `nil/false` in common value flows (including map lookups).
 						           - Mitigated (2026-01-09): optimizer folds type-mismatched `==`/`!=` on literals and folds `id == nil` for locals proven non-nil; quick integration gate covers `0/nil/false` parity.
-						             - Added (2026-01-09): `make test` runs a `--typecheck` smoke that must fail on `numeric == nil` to prevent silent reintroduction of this hazard.
-							             - Strengthened (2026-01-10): the always-on `nil_compare_guard` now also rejects `id == nil` when the identifier is later proven scalar by best-effort scan (e.g. `i64(id)`), so this footgun is blocked even without `--typecheck` (including in top-level code via synthesized `__top_level__`).
-						             - Done (2026-01-10): stdlib migrated optional numeric defaults away from `if x == nil { x = 0 }` to tag-based checks (`if oren_type_tag(x) == 0 { x = 0 }`) so core libraries don’t depend on scalar `== nil` semantics.
-						           - Remaining: full tagged value model still needed (notably robust `int` vs `float` tagging and deterministic reflection) — see `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`.
+							             - Added (2026-01-09): `make test` runs a `--typecheck` smoke that must fail on `numeric == nil` to prevent silent reintroduction of this hazard.
+								             - Strengthened (2026-01-10): the always-on `nil_compare_guard` now also rejects `id == nil` when the identifier is later proven scalar by best-effort scan (e.g. `i64(id)`), so this footgun is blocked even without `--typecheck` (including in top-level code via synthesized `__top_level__`).
+								             - Open: extend the best-effort scan to also treat basic arithmetic/bitwise use (e.g. `id + 1`) as “scalar-likely” once the compiler codebase is fully migrated away from `scalar == nil` patterns (or when full tagged values land), so more real-world footguns are rejected by default.
+							             - Done (2026-01-10): stdlib migrated optional numeric defaults away from `if x == nil { x = 0 }` to tag-based checks (`if oren_type_tag(x) == 0 { x = 0 }`) so core libraries don’t depend on scalar `== nil` semantics.
+							           - Remaining: full tagged value model still needed (notably robust `int` vs `float` tagging and deterministic reflection) — see `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`.
 	     - varargs + reflection convergence:
 	       - define how varargs elements carry type information so userland (fmt/ffi/serialization) can process heterogeneous lists without heuristic key-kind inference
 	   - References:

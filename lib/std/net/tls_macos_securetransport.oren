@@ -6,84 +6,11 @@
 import tcp "std:net/tcp"
 import sha256 "std:crypto/sha256"
 
+import sec "std:ffi/macos_security"
+import cf "std:ffi/macos_corefoundation"
+import dl "std:ffi/macos_dlfcn"
+
 // --- macOS provider (SecureTransport) ---
-
-@cfg(os="macos")
-@ffi.link("/System/Library/Frameworks/Security.framework/Versions/A/Security")
-@ffi.link("/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation")
-ffi SSLCreateContext
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi SSLSetIOFuncs
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi SSLSetConnection
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi SSLSetPeerDomainName
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi SSLSetALPNProtocols
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi SSLCopyALPNProtocols
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi SSLHandshake
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi SSLRead
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi SSLWrite
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi SSLClose
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi SSLSetCertificate
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi SSLSetEnableCertVerify
-
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi SecPKCS12Import
-
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi SSLCopyPeerTrust
-@cfg(os="macos")
-ffi SecTrustGetCertificateAtIndex
-@cfg(os="macos")
-ffi SecCertificateCopyData
-
-@cfg(os="macos")
-ffi CFDataCreate
-@cfg(os="macos")
-ffi CFDataGetLength
-@cfg(os="macos")
-ffi CFDataGetBytePtr
-@cfg(os="macos")
-ffi CFStringCreateWithCString
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi CFStringGetCString
-@cfg(os="macos")
-ffi CFDictionaryCreate
-@cfg(os="macos")
-ffi CFDictionaryGetValue
-@cfg(os="macos")
-ffi CFArrayCreate
-@cfg(os="macos")
-ffi CFArrayGetCount
-@cfg(os="macos")
-ffi CFArrayGetValueAtIndex
-@cfg(os="macos")
-ffi CFRelease
-
-@cfg(os="macos")
-ffi dlsym
 
 // SecureTransport constants (from macOS SDK headers).
 @cfg(os="macos")
@@ -111,7 +38,7 @@ fn _kCFStringEncodingUTF8() { return 134217984 } // 0x08000100
 @cfg(os="macos")
 fn _OREN_O_NONBLOCK() { return 1024 }
 
-// dlsym handle: RTLD_DEFAULT on macOS is (void*)-2.
+// dl.dlsym handle: RTLD_DEFAULT on macOS is (void*)-2.
 @cfg(os="macos")
 fn _RTLD_DEFAULT() { return 0 - 2 }
 
@@ -204,8 +131,8 @@ fn __oren_tls_macos_write(conn_ref, data, data_len_ptr) {
 @cfg(os="macos")
 fn _dlsym_ptr(name) {
     // Returns the resolved pointer value for a data symbol that is itself a pointer.
-    // For `extern const CFStringRef k...`, `dlsym` yields a pointer-to-(CFStringRef).
-    var addr = dlsym(_RTLD_DEFAULT(), name)
+    // For `extern const CFStringRef k...`, `dl.dlsym` yields a pointer-to-(CFStringRef).
+    var addr = dl.dlsym(_RTLD_DEFAULT(), name)
     if addr == 0 { return 0 }
     return ptr_get(addr)
 }
@@ -213,13 +140,13 @@ fn _dlsym_ptr(name) {
 @cfg(os="macos")
 fn _dlsym_addr(name) {
     // Returns the address for a data symbol (struct constants like kCFType*CallBacks).
-    return dlsym(_RTLD_DEFAULT(), name)
+    return dl.dlsym(_RTLD_DEFAULT(), name)
 }
 
 @cfg(os="macos")
 fn _cfstring_utf8(cstr) {
     if cstr == 0 { return 0 }
-    return CFStringCreateWithCString(0, cstr, _kCFStringEncodingUTF8())
+    return cf.CFStringCreateWithCString(0, cstr, _kCFStringEncodingUTF8())
 }
 
 @cfg(os="macos")
@@ -232,7 +159,7 @@ fn _cfdata_from_bytes(bytes) {
         n = oren_bytes_len(bytes)
         if oren_is_err(n) { return 0 }
     }
-    if n == 0 { return CFDataCreate(0, 0, 0) }
+    if n == 0 { return cf.CFDataCreate(0, 0, 0) }
     var p = 0
     if oren_is_u8_buf(bytes) {
         p = native_buf_data_ptr(bytes)
@@ -244,12 +171,12 @@ fn _cfdata_from_bytes(bytes) {
         bytes = tmp
     }
     if p == 0 { return 0 }
-    return CFDataCreate(0, p, n)
+    return cf.CFDataCreate(0, p, n)
 }
 
 @cfg(os="macos")
 fn _cf_dict1(k0, v0) {
-    // CFDictionaryCreate with kCFTypeDictionaryKey/ValueCallBacks.
+    // cf.CFDictionaryCreate with kCFTypeDictionaryKey/ValueCallBacks.
     var keys = malloc(8)
     var vals = malloc(8)
     if keys == 0 || vals == 0 {
@@ -266,7 +193,7 @@ fn _cf_dict1(k0, v0) {
         free(vals)
         return 0
     }
-    var d = CFDictionaryCreate(0, keys, vals, 1, key_cb, val_cb)
+    var d = cf.CFDictionaryCreate(0, keys, vals, 1, key_cb, val_cb)
     free(keys)
     free(vals)
     return d
@@ -292,7 +219,7 @@ fn _cf_dict2(k0, v0, k1, v1) {
         free(vals)
         return 0
     }
-    var d = CFDictionaryCreate(0, keys, vals, 2, key_cb, val_cb)
+    var d = cf.CFDictionaryCreate(0, keys, vals, 2, key_cb, val_cb)
     free(keys)
     free(vals)
     return d
@@ -308,7 +235,7 @@ fn _cf_array1(v0) {
         free(vals)
         return 0
     }
-    var a = CFArrayCreate(0, vals, 1, cb)
+    var a = cf.CFArrayCreate(0, vals, 1, cb)
     free(vals)
     return a
 }
@@ -318,11 +245,11 @@ fn _macos_set_alpn_if_requested(ctx, opts, is_server) {
     // ALPN configuration (RFC 7301).
     //
     // SecureTransport expects:
-    // - SSLSetALPNProtocols(context, CFArrayRef protocols)
+    // - sec.SSLSetALPNProtocols(context, CFArrayRef protocols)
     // - protocols: CFArray of CFStringRef values with ASCII protocol strings, e.g. "http/1.1"
     //
     // Header reference:
-    // - macOS SDK SecureTransport.h `SSLSetALPNProtocols`
+    // - macOS SDK SecureTransport.h `sec.SSLSetALPNProtocols`
     if opts == nil || opts == 0 { return {"ok": 1} }
     if oren_is_map(opts) != true { return {"ok": 1} }
     var ps = oren_map_get_str(opts, "alpn")
@@ -377,32 +304,32 @@ fn _macos_set_alpn_if_requested(ctx, opts, is_server) {
             var j = 0
             while j < i {
                 var old = ptr_get(vals + 8 * j)
-                if old != 0 { CFRelease(old) }
+                if old != 0 { cf.CFRelease(old) }
                 j = j + 1
             }
             free(vals)
-            return {"ok": 0, "err": "tls: alpn: CFStringCreateWithCString failed"}
+            return {"ok": 0, "err": "tls: alpn: cf.CFStringCreateWithCString failed"}
         }
         ptr_set(vals + 8 * i, cs)
         i = i + 1
     }
 
-    var a = CFArrayCreate(0, vals, use_n, cb)
+    var a = cf.CFArrayCreate(0, vals, use_n, cb)
 
     // Release our references; CFArray retains via kCFTypeArrayCallBacks.
     i = 0
     while i < use_n {
         var v = ptr_get(vals + 8 * i)
-        if v != 0 { CFRelease(v) }
+        if v != 0 { cf.CFRelease(v) }
         i = i + 1
     }
     free(vals)
 
-    if a == 0 { return {"ok": 0, "err": "tls: alpn: CFArrayCreate failed"} }
-    var rc = SSLSetALPNProtocols(ctx, a)
-    CFRelease(a)
+    if a == 0 { return {"ok": 0, "err": "tls: alpn: cf.CFArrayCreate failed"} }
+    var rc = sec.SSLSetALPNProtocols(ctx, a)
+    cf.CFRelease(a)
     if rc != 0 {
-        return {"ok": 0, "err": "tls: SSLSetALPNProtocols failed (rc=" + oren_int_to_string(rc) + ")"}
+        return {"ok": 0, "err": "tls: sec.SSLSetALPNProtocols failed (rc=" + oren_int_to_string(rc) + ")"}
     }
     return {"ok": 1}
 }
@@ -411,19 +338,19 @@ fn _macos_set_alpn_if_requested(ctx, opts, is_server) {
 fn _macos_import_pkcs12_identity(pkcs12_bytes, passphrase_cstr) {
     // Returns {"ok":1,"identity":SecIdentityRef,"chain":CFArrayRef} or {"ok":0,"err":string}
     //
-    // Uses SecPKCS12Import and requests in-memory import when available.
+    // Uses sec.SecPKCS12Import and requests in-memory import when available.
     var data = _cfdata_from_bytes(pkcs12_bytes)
-    if data == 0 { return {"ok": 0, "err": "tls: pkcs12: CFDataCreate failed"} }
+    if data == 0 { return {"ok": 0, "err": "tls: pkcs12: cf.CFDataCreate failed"} }
 
     var key_pass = _dlsym_ptr("kSecImportExportPassphrase")
     if key_pass == 0 {
-        CFRelease(data)
+        cf.CFRelease(data)
         return {"ok": 0, "err": "tls: pkcs12: missing kSecImportExportPassphrase"}
     }
 
     var pass_str = _cfstring_utf8(passphrase_cstr)
     if pass_str == 0 {
-        CFRelease(data)
+        cf.CFRelease(data)
         return {"ok": 0, "err": "tls: pkcs12: CFStringCreate failed"}
     }
 
@@ -438,52 +365,52 @@ fn _macos_import_pkcs12_identity(pkcs12_bytes, passphrase_cstr) {
         opts = _cf_dict1(key_pass, pass_str)
     }
     if opts == 0 {
-        CFRelease(pass_str)
-        CFRelease(data)
-        return {"ok": 0, "err": "tls: pkcs12: CFDictionaryCreate failed"}
+        cf.CFRelease(pass_str)
+        cf.CFRelease(data)
+        return {"ok": 0, "err": "tls: pkcs12: cf.CFDictionaryCreate failed"}
     }
 
     var out_items_ptr = malloc(8)
     if out_items_ptr == 0 {
-        CFRelease(opts)
-        CFRelease(pass_str)
-        CFRelease(data)
+        cf.CFRelease(opts)
+        cf.CFRelease(pass_str)
+        cf.CFRelease(data)
         return {"ok": 0, "err": "tls: pkcs12: alloc failed"}
     }
     ptr_set(out_items_ptr, 0)
-    var rc = SecPKCS12Import(data, opts, out_items_ptr)
-    CFRelease(opts)
-    CFRelease(pass_str)
-    CFRelease(data)
+    var rc = sec.SecPKCS12Import(data, opts, out_items_ptr)
+    cf.CFRelease(opts)
+    cf.CFRelease(pass_str)
+    cf.CFRelease(data)
     if rc != 0 {
         free(out_items_ptr)
-        return {"ok": 0, "err": "tls: pkcs12: SecPKCS12Import failed (rc=" + oren_int_to_string(rc) + ")"}
+        return {"ok": 0, "err": "tls: pkcs12: sec.SecPKCS12Import failed (rc=" + oren_int_to_string(rc) + ")"}
     }
     var items = ptr_get(out_items_ptr)
     free(out_items_ptr)
     if items == 0 { return {"ok": 0, "err": "tls: pkcs12: items is nil"} }
 
-    var n = CFArrayGetCount(items)
+    var n = cf.CFArrayGetCount(items)
     if n <= 0 {
-        CFRelease(items)
+        cf.CFRelease(items)
         return {"ok": 0, "err": "tls: pkcs12: items empty"}
     }
-    var dict0 = CFArrayGetValueAtIndex(items, 0)
+    var dict0 = cf.CFArrayGetValueAtIndex(items, 0)
     if dict0 == 0 {
-        CFRelease(items)
+        cf.CFRelease(items)
         return {"ok": 0, "err": "tls: pkcs12: item dict missing"}
     }
 
     var key_ident = _dlsym_ptr("kSecImportItemIdentity")
     var key_chain = _dlsym_ptr("kSecImportItemCertChain")
     if key_ident == 0 || key_chain == 0 {
-        CFRelease(items)
+        cf.CFRelease(items)
         return {"ok": 0, "err": "tls: pkcs12: missing import item keys"}
     }
-    var ident = CFDictionaryGetValue(dict0, key_ident)
-    var chain = CFDictionaryGetValue(dict0, key_chain)
+    var ident = cf.CFDictionaryGetValue(dict0, key_ident)
+    var chain = cf.CFDictionaryGetValue(dict0, key_chain)
     if ident == 0 || chain == 0 {
-        CFRelease(items)
+        cf.CFRelease(items)
         return {"ok": 0, "err": "tls: pkcs12: missing identity/chain"}
     }
 
@@ -498,7 +425,7 @@ fn _macos_handshake(ssl_ctx, st, timeout_ms) {
     var t0 = oren_time_unix_ns()
     var rem_ms = timeout_ms
     while true {
-        var rc = SSLHandshake(ssl_ctx)
+        var rc = sec.SSLHandshake(ssl_ctx)
         if rc == 0 { return 0 }
         if rc != _errSSLWouldBlock() {
             return rc
@@ -534,7 +461,7 @@ fn _errSSLConnectionRefused_from_wait(w) {
 fn _macos_new_ctx(is_server) {
     var side = _kSSLClientSide()
     if is_server != 0 { side = _kSSLServerSide() }
-    return SSLCreateContext(0, side, _kSSLStreamType())
+    return sec.SSLCreateContext(0, side, _kSSLStreamType())
 }
 
 @cfg(os="macos")
@@ -555,60 +482,60 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
     if ctx == 0 {
         free(st)
         tcp.close(fd)
-        return {"ok": 0, "err": "tls: SSLCreateContext failed"}
+        return {"ok": 0, "err": "tls: sec.SSLCreateContext failed"}
     }
 
     // SecureTransport expects raw C function pointers for IO callbacks.
     //
     // Oren functions are not C-callable when passed as first-class values (they lower to `{code_ptr, env_ptr}`),
-    // so we export these callbacks as real symbols and resolve their addresses via dlsym.
+    // so we export these callbacks as real symbols and resolve their addresses via dl.dlsym.
     // IMPORTANT:
     // - Module linking prefixes top-level function symbols.
     // - For stdlib imports via `std:...`, the prefix is derived from the module path, e.g.:
     //   `std:net/tls_macos_securetransport` => `STD_net_tls_macos_securetransport_`.
-    // - `@ffi.export` exports the *mangled* linked name, so we must dlsym that exact symbol.
+    // - `@ffi.export` exports the *mangled* linked name, so we must dl.dlsym that exact symbol.
     //
     // Keep small fallbacks for non-stdlib-relative imports used by some repo-local tests.
-    var read_cb = dlsym(_RTLD_DEFAULT(), "STD_net_tls_macos_securetransport___oren_tls_macos_read")
-    var write_cb = dlsym(_RTLD_DEFAULT(), "STD_net_tls_macos_securetransport___oren_tls_macos_write")
+    var read_cb = dl.dlsym(_RTLD_DEFAULT(), "STD_net_tls_macos_securetransport___oren_tls_macos_read")
+    var write_cb = dl.dlsym(_RTLD_DEFAULT(), "STD_net_tls_macos_securetransport___oren_tls_macos_write")
     // Back-compat for older in-repo layouts (when these callbacks lived in std:net/tls).
-    if read_cb == 0 { read_cb = dlsym(_RTLD_DEFAULT(), "STD_net_tls___oren_tls_macos_read") }
-    if write_cb == 0 { write_cb = dlsym(_RTLD_DEFAULT(), "STD_net_tls___oren_tls_macos_write") }
-    if read_cb == 0 { read_cb = dlsym(_RTLD_DEFAULT(), "__oren_tls_macos_read") }
-    if write_cb == 0 { write_cb = dlsym(_RTLD_DEFAULT(), "__oren_tls_macos_write") }
-    // dlsym naming can vary; keep a small fallback for leading '_'.
-    if read_cb == 0 { read_cb = dlsym(_RTLD_DEFAULT(), "_STD_net_tls_macos_securetransport___oren_tls_macos_read") }
-    if write_cb == 0 { write_cb = dlsym(_RTLD_DEFAULT(), "_STD_net_tls_macos_securetransport___oren_tls_macos_write") }
-    if read_cb == 0 { read_cb = dlsym(_RTLD_DEFAULT(), "_STD_net_tls___oren_tls_macos_read") }
-    if write_cb == 0 { write_cb = dlsym(_RTLD_DEFAULT(), "_STD_net_tls___oren_tls_macos_write") }
-    if read_cb == 0 { read_cb = dlsym(_RTLD_DEFAULT(), "___oren_tls_macos_read") }
-    if write_cb == 0 { write_cb = dlsym(_RTLD_DEFAULT(), "___oren_tls_macos_write") }
+    if read_cb == 0 { read_cb = dl.dlsym(_RTLD_DEFAULT(), "STD_net_tls___oren_tls_macos_read") }
+    if write_cb == 0 { write_cb = dl.dlsym(_RTLD_DEFAULT(), "STD_net_tls___oren_tls_macos_write") }
+    if read_cb == 0 { read_cb = dl.dlsym(_RTLD_DEFAULT(), "__oren_tls_macos_read") }
+    if write_cb == 0 { write_cb = dl.dlsym(_RTLD_DEFAULT(), "__oren_tls_macos_write") }
+    // dl.dlsym naming can vary; keep a small fallback for leading '_'.
+    if read_cb == 0 { read_cb = dl.dlsym(_RTLD_DEFAULT(), "_STD_net_tls_macos_securetransport___oren_tls_macos_read") }
+    if write_cb == 0 { write_cb = dl.dlsym(_RTLD_DEFAULT(), "_STD_net_tls_macos_securetransport___oren_tls_macos_write") }
+    if read_cb == 0 { read_cb = dl.dlsym(_RTLD_DEFAULT(), "_STD_net_tls___oren_tls_macos_read") }
+    if write_cb == 0 { write_cb = dl.dlsym(_RTLD_DEFAULT(), "_STD_net_tls___oren_tls_macos_write") }
+    if read_cb == 0 { read_cb = dl.dlsym(_RTLD_DEFAULT(), "___oren_tls_macos_read") }
+    if write_cb == 0 { write_cb = dl.dlsym(_RTLD_DEFAULT(), "___oren_tls_macos_write") }
     if read_cb == 0 || write_cb == 0 {
-        CFRelease(ctx)
+        cf.CFRelease(ctx)
         free(st)
         tcp.close(fd)
         return {"ok": 0, "err": "tls: missing exported SecureTransport IO callback symbols (need @ffi.export)"}
     }
 
-    var rc = SSLSetIOFuncs(ctx, read_cb, write_cb)
+    var rc = sec.SSLSetIOFuncs(ctx, read_cb, write_cb)
     if rc != 0 {
-        CFRelease(ctx)
+        cf.CFRelease(ctx)
         free(st)
         tcp.close(fd)
-        return {"ok": 0, "err": "tls: SSLSetIOFuncs failed (rc=" + oren_int_to_string(rc) + ")"}
+        return {"ok": 0, "err": "tls: sec.SSLSetIOFuncs failed (rc=" + oren_int_to_string(rc) + ")"}
     }
-    rc = SSLSetConnection(ctx, st)
+    rc = sec.SSLSetConnection(ctx, st)
     if rc != 0 {
-        CFRelease(ctx)
+        cf.CFRelease(ctx)
         free(st)
         tcp.close(fd)
-        return {"ok": 0, "err": "tls: SSLSetConnection failed (rc=" + oren_int_to_string(rc) + ")"}
+        return {"ok": 0, "err": "tls: sec.SSLSetConnection failed (rc=" + oren_int_to_string(rc) + ")"}
     }
 
     // Optional: ALPN (client offer and/or server supported protocols).
     var alpn_r = _macos_set_alpn_if_requested(ctx, opts, is_server)
     if alpn_r["ok"] != 1 {
-        CFRelease(ctx)
+        cf.CFRelease(ctx)
         free(st)
         tcp.close(fd)
         return alpn_r
@@ -618,12 +545,12 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
         if server_name != nil && server_name != 0 {
             var sn_len = oren_string_len(server_name)
             if sn_len > 0 {
-                var rc2 = SSLSetPeerDomainName(ctx, server_name, sn_len)
+                var rc2 = sec.SSLSetPeerDomainName(ctx, server_name, sn_len)
                 if rc2 != 0 {
-                    CFRelease(ctx)
+                    cf.CFRelease(ctx)
                     free(st)
                     tcp.close(fd)
-                    return {"ok": 0, "err": "tls: SSLSetPeerDomainName failed (rc=" + oren_int_to_string(rc2) + ")"}
+                    return {"ok": 0, "err": "tls: sec.SSLSetPeerDomainName failed (rc=" + oren_int_to_string(rc2) + ")"}
                 }
             }
         }
@@ -636,12 +563,12 @@ fn _macos_setup_ctx(fd, is_server, server_name, opts) {
             if oren_map_get_str(opts, "insecure_skip_verify") == 1 { insecure = 1 }
         }
         if insecure == 1 {
-            var rc3 = SSLSetEnableCertVerify(ctx, 0)
+            var rc3 = sec.SSLSetEnableCertVerify(ctx, 0)
             if rc3 != 0 {
-                CFRelease(ctx)
+                cf.CFRelease(ctx)
                 free(st)
                 tcp.close(fd)
-                return {"ok": 0, "err": "tls: SSLSetEnableCertVerify failed (rc=" + oren_int_to_string(rc3) + ")"}
+                return {"ok": 0, "err": "tls: sec.SSLSetEnableCertVerify failed (rc=" + oren_int_to_string(rc3) + ")"}
             }
         }
     }
@@ -680,7 +607,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
 
     var r = _macos_setup_ctx(fd, 1, 0, opts)
     if r["ok"] != 1 {
-        CFRelease(items)
+        cf.CFRelease(items)
         return r
     }
     var conn = r["conn"]
@@ -690,31 +617,31 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     var certs = _cf_array1(ident)
     if certs == 0 {
         close(conn)
-        CFRelease(items)
-        return {"ok": 0, "err": "tls.wrap_server: CFArrayCreate failed"}
+        cf.CFRelease(items)
+        return {"ok": 0, "err": "tls.wrap_server: cf.CFArrayCreate failed"}
     }
 
-    var rc = SSLSetCertificate(conn["ctx"], certs)
-    CFRelease(certs)
+    var rc = sec.SSLSetCertificate(conn["ctx"], certs)
+    cf.CFRelease(certs)
     if rc != 0 {
         close(conn)
-        CFRelease(items)
-        return {"ok": 0, "err": "tls.wrap_server: SSLSetCertificate failed (rc=" + oren_int_to_string(rc) + ")"}
+        cf.CFRelease(items)
+        return {"ok": 0, "err": "tls.wrap_server: sec.SSLSetCertificate failed (rc=" + oren_int_to_string(rc) + ")"}
     }
 
     // SecureTransport note (rolling): apply ALPN after setting the certificate as well.
-    // Some stacks appear to reset handshake configuration during SSLSetCertificate.
+    // Some stacks appear to reset handshake configuration during sec.SSLSetCertificate.
     var alpn_r = _macos_set_alpn_if_requested(conn["ctx"], opts, 1)
     if alpn_r["ok"] != 1 {
         close(conn)
-        CFRelease(items)
+        cf.CFRelease(items)
         return alpn_r
     }
 
     var hs = _macos_handshake(conn["ctx"], conn["st"], timeout_ms)
     if hs != 0 {
         close(conn)
-        CFRelease(items)
+        cf.CFRelease(items)
         return {"ok": 0, "err": "tls.wrap_server: handshake failed (rc=" + oren_int_to_string(hs) + ")"}
     }
 
@@ -747,7 +674,7 @@ fn read_into(conn, buf, cap, timeout_ms) {
         var n_ptr = malloc(8)
         if n_ptr == 0 { return 0 - 12 } // ENOMEM
         ptr_set(n_ptr, 0)
-        var rc = SSLRead(ctx, buf, cap, n_ptr)
+        var rc = sec.SSLRead(ctx, buf, cap, n_ptr)
         var n = ptr_get(n_ptr)
         free(n_ptr)
 
@@ -789,7 +716,7 @@ fn write_from(conn, ptr0, len, timeout_ms) {
         var n_ptr = malloc(8)
         if n_ptr == 0 { return 0 - 12 } // ENOMEM
         ptr_set(n_ptr, 0)
-        var rc = SSLWrite(ctx, ptr0 + off, len - off, n_ptr)
+        var rc = sec.SSLWrite(ctx, ptr0 + off, len - off, n_ptr)
         var n = ptr_get(n_ptr)
         free(n_ptr)
         if rc == 0 {
@@ -822,11 +749,11 @@ fn close(conn) {
     var st = conn["st"]
     var items = conn["p12_items"]
     if ctx != 0 {
-        SSLClose(ctx)
-        CFRelease(ctx)
+        sec.SSLClose(ctx)
+        cf.CFRelease(ctx)
     }
     if st != 0 { free(st) }
-    if items != 0 { CFRelease(items) }
+    if items != 0 { cf.CFRelease(items) }
     if fd != nil && fd >= 0 { tcp.close(fd) }
     return 0
 }
@@ -840,38 +767,38 @@ fn peer_cert_sha256_hex(conn) {
     var trust_ptr = malloc(8)
     if trust_ptr == 0 { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: alloc failed"} }
     ptr_set(trust_ptr, 0)
-    var rc = SSLCopyPeerTrust(ctx, trust_ptr)
+    var rc = sec.SSLCopyPeerTrust(ctx, trust_ptr)
     if rc != 0 {
         free(trust_ptr)
-        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: SSLCopyPeerTrust failed (rc=" + oren_int_to_string(rc) + ")"}
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: sec.SSLCopyPeerTrust failed (rc=" + oren_int_to_string(rc) + ")"}
     }
     var trust = ptr_get(trust_ptr)
     free(trust_ptr)
     if trust == 0 { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: trust is nil"} }
 
-    var cert = SecTrustGetCertificateAtIndex(trust, 0)
+    var cert = sec.SecTrustGetCertificateAtIndex(trust, 0)
     if cert == 0 {
-        CFRelease(trust)
+        cf.CFRelease(trust)
         return {"ok": 0, "err": "tls.peer_cert_sha256_hex: no leaf cert"}
     }
 
-    var data = SecCertificateCopyData(cert)
+    var data = sec.SecCertificateCopyData(cert)
     if data == 0 {
-        CFRelease(trust)
-        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: SecCertificateCopyData failed"}
+        cf.CFRelease(trust)
+        return {"ok": 0, "err": "tls.peer_cert_sha256_hex: sec.SecCertificateCopyData failed"}
     }
-    var n = CFDataGetLength(data)
-    var p = CFDataGetBytePtr(data)
+    var n = cf.CFDataGetLength(data)
+    var p = cf.CFDataGetBytePtr(data)
     if n < 0 || (n != 0 && p == 0) {
-        CFRelease(data)
-        CFRelease(trust)
+        cf.CFRelease(data)
+        cf.CFRelease(trust)
         return {"ok": 0, "err": "tls.peer_cert_sha256_hex: CFData invalid"}
     }
 
     var b = oren_u8_buf_new(n)
     if oren_is_err(b) {
-        CFRelease(data)
-        CFRelease(trust)
+        cf.CFRelease(data)
+        cf.CFRelease(trust)
         return {"ok": 0, "err": "tls.peer_cert_sha256_hex: alloc bytes failed"}
     }
     if n > 0 {
@@ -880,8 +807,8 @@ fn peer_cert_sha256_hex(conn) {
     }
 
     var hex = sha256.sha256_hex(b)
-    CFRelease(data)
-    CFRelease(trust)
+    cf.CFRelease(data)
+    cf.CFRelease(trust)
     return {"ok": 1, "v": hex}
 }
 
@@ -890,7 +817,7 @@ fn negotiated_alpn(conn) {
     // Query negotiated ALPN (if any).
     //
     // SecureTransport API:
-    // - SSLCopyALPNProtocols(context, &protocols)
+    // - sec.SSLCopyALPNProtocols(context, &protocols)
     // The docs describe this as “peer ALPN protocols”; in practice this is expected to be
     // empty/nil if ALPN was not negotiated.
     if conn == nil { return {"ok": 0, "err": "tls.negotiated_alpn: conn is nil"} }
@@ -900,7 +827,7 @@ fn negotiated_alpn(conn) {
     var out_ptr = malloc(8)
     if out_ptr == 0 { return {"ok": 0, "err": "tls.negotiated_alpn: alloc failed"} }
     ptr_set(out_ptr, 0)
-    var rc = SSLCopyALPNProtocols(ctx, out_ptr)
+    var rc = sec.SSLCopyALPNProtocols(ctx, out_ptr)
     if rc != 0 {
         free(out_ptr)
         // Best-effort: treat as "not negotiated / not supported".
@@ -911,25 +838,25 @@ fn negotiated_alpn(conn) {
     free(out_ptr)
     if arr == 0 { return {"ok": 1, "v": nil} }
 
-    var n = CFArrayGetCount(arr)
+    var n = cf.CFArrayGetCount(arr)
     if oren_env("OREN_TRACE_TLS_ALPN") != nil {
         print("[tls_macos] copy_alpn count=" + oren_int_to_string(n))
     }
     if n <= 0 {
-        CFRelease(arr)
+        cf.CFRelease(arr)
         return {"ok": 1, "v": nil}
     }
     // SecureTransport note (rolling):
-    // `SSLCopyALPNProtocols` returns the peer protocol list, not a stable "selected protocol" signal.
+    // `sec.SSLCopyALPNProtocols` returns the peer protocol list, not a stable "selected protocol" signal.
     // When the peer advertises more than one protocol (e.g. ["h2","http/1.1"]), we cannot reliably
     // determine which one was actually selected, so treat it as "unknown" (nil).
     if n != 1 {
-        CFRelease(arr)
+        cf.CFRelease(arr)
         return {"ok": 1, "v": nil}
     }
-    var sref = CFArrayGetValueAtIndex(arr, 0)
+    var sref = cf.CFArrayGetValueAtIndex(arr, 0)
     if sref == 0 {
-        CFRelease(arr)
+        cf.CFRelease(arr)
         return {"ok": 1, "v": nil}
     }
 
@@ -937,18 +864,18 @@ fn negotiated_alpn(conn) {
     var cap = 256
     var buf = malloc(cap)
     if buf == 0 {
-        CFRelease(arr)
+        cf.CFRelease(arr)
         return {"ok": 0, "err": "tls.negotiated_alpn: alloc failed"}
     }
     // Ensure NUL termination even on partial writes.
     ptr_set_byte(buf + 0, 0)
     ptr_set_byte(buf + cap - 1, 0)
 
-    var ok = CFStringGetCString(sref, buf, cap, _kCFStringEncodingUTF8())
-    CFRelease(arr)
+    var ok = cf.CFStringGetCString(sref, buf, cap, _kCFStringEncodingUTF8())
+    cf.CFRelease(arr)
     if ok != 1 {
         free(buf)
-        return {"ok": 0, "err": "tls.negotiated_alpn: CFStringGetCString failed"}
+        return {"ok": 0, "err": "tls.negotiated_alpn: cf.CFStringGetCString failed"}
     }
     if oren_env("OREN_TRACE_TLS_ALPN") != nil {
         print("[tls_macos] negotiated_alpn raw=" + buf)

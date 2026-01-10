@@ -83,6 +83,9 @@ Examples in-tree (non-exhaustive):
   - `std:ffi/iphlpapi` (network config; used by `std:net/dns` default resolver selection)
 - Linux:
   - `std:ffi/libdl` (dynamic loader; used by `std:net/tls_linux_openssl`)
+- macOS:
+  - `std:ffi/macos_security` + `std:ffi/macos_corefoundation` (framework wrappers; used by `std:net/tls_macos_securetransport`)
+  - `std:ffi/macos_dlfcn` (dlsym; used by `std:net/tls_macos_securetransport` exported callback resolver)
 
 Policy (rolling):
 

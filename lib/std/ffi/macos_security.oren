@@ -1,0 +1,33 @@
+// macOS Security.framework FFI bindings (rolling).
+//
+// Goal:
+// - Keep framework attachment and symbol declarations centralized under `std:ffi/*`.
+// - Allow higher-level stdlib modules (TLS provider) to avoid repeating `@ffi.link` and raw `ffi` decls.
+//
+// Notes:
+// - This module is intentionally macOS-only.
+// - Most SecureTransport / Security.framework functions return `OSStatus` (signed 32-bit).
+//   Use `@ffi.ret("i32")` so native backends keep the error codes intact.
+
+@cfg(os="macos")
+@ffi.link("/System/Library/Frameworks/Security.framework/Versions/A/Security")
+ffi {
+    SSLCreateContext,
+    @ffi.ret("i32") SSLSetIOFuncs,
+    @ffi.ret("i32") SSLSetConnection,
+    @ffi.ret("i32") SSLSetPeerDomainName,
+    @ffi.ret("i32") SSLSetALPNProtocols,
+    @ffi.ret("i32") SSLCopyALPNProtocols,
+    @ffi.ret("i32") SSLHandshake,
+    @ffi.ret("i32") SSLRead,
+    @ffi.ret("i32") SSLWrite,
+    @ffi.ret("i32") SSLClose,
+    @ffi.ret("i32") SSLSetCertificate,
+    @ffi.ret("i32") SSLSetEnableCertVerify,
+
+    @ffi.ret("i32") SecPKCS12Import,
+    @ffi.ret("i32") SSLCopyPeerTrust,
+
+    SecTrustGetCertificateAtIndex,
+    SecCertificateCopyData
+}

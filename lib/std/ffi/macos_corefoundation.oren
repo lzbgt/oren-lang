@@ -1,0 +1,28 @@
+// macOS CoreFoundation.framework FFI bindings (rolling).
+//
+// Goal:
+// - Keep framework attachment and symbol declarations centralized under `std:ffi/*`.
+// - Used by the SecureTransport TLS provider for CFArray/CFData/CFString plumbing.
+//
+// Notes:
+// - This module is intentionally macOS-only.
+
+@cfg(os="macos")
+@ffi.link("/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation")
+ffi {
+    CFDataCreate,
+    CFDataGetLength,
+    CFDataGetBytePtr,
+
+    CFStringCreateWithCString,
+    @ffi.ret("i32") CFStringGetCString,
+
+    CFDictionaryCreate,
+    CFDictionaryGetValue,
+
+    CFArrayCreate,
+    CFArrayGetCount,
+    CFArrayGetValueAtIndex,
+
+    CFRelease
+}
