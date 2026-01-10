@@ -1,0 +1,16 @@
+// Linux dynamic loader bindings (libdl) (rolling).
+//
+// Goal:
+// - Centralize the `libdl.so.2` attachment and common POSIX dlfcn symbols.
+// - Used by Linux TLS provider (`std:net/tls_linux_openssl`) to lazily load OpenSSL at runtime.
+//
+// Notes:
+// - These functions return pointers or ints in the C ABI. Oren's `ffi` defaults to i64 return,
+//   which is sufficient for pointer returns on Tier‑1 x64/arm64 Linux.
+// - We still attach the link dependency explicitly so the native backend emits a dynamic ELF and
+//   enables `dlsym`-based resolution paths consistently.
+
+@cfg(os="linux")
+@ffi.link("libdl.so.2")
+ffi { dlopen, dlsym, dlclose, dlerror }
+

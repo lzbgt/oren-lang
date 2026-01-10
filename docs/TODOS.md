@@ -418,6 +418,7 @@ References:
       - Added (2026-01-11): also exposes `GetLastError` and `SetLastError` to validate `u32` + `void` ABI return kinds through a module-exported wrapper.
     - Added (2026-01-11): `std:ffi/secur32` and `std:ffi/crypt32` centralize Schannel/SSPI + cert-store FFI. `std:net/tls_windows_schannel` imports these wrappers instead of declaring FFI locally.
     - Added (2026-01-11): `std:ffi/iphlpapi` centralizes `GetNetworkParams` (used by `std:net/dns` default resolver selection on Windows).
+    - Added (2026-01-11): `std:ffi/libdl` centralizes `dlopen/dlsym` (used by `std:net/tls_linux_openssl` to lazily load OpenSSL without forcing DT_NEEDED on TLS users).
     - Regression (remote Win11): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/test_std_ffi_kernel32_smoke.oren` (stage1 + stage2).
     - Regression (local x64 compile-only): `scripts/verify_native_x64_compile_only.sh --targets x64-win` builds the same fixture (stage1 + stage2).
 

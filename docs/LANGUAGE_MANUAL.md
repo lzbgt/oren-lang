@@ -326,6 +326,7 @@ Stdlib convenience wrappers (rolling):
   - Win32 basics: `std:ffi/kernel32`
   - Win32 network config (used by `std:net/dns`): `std:ffi/iphlpapi`
   - Win32 TLS plumbing (used by `std:net/tls_windows_schannel`): `std:ffi/secur32`, `std:ffi/crypt32`
+  - Linux dynamic loader (used by `std:net/tls_linux_openssl`): `std:ffi/libdl`
 
 Rolling convenience:
 

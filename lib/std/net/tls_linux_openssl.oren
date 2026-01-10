@@ -5,6 +5,7 @@
 
 import tcp "std:net/tcp"
 import sha256 "std:crypto/sha256"
+import dl "std:ffi/libdl"
 
 // --- Linux provider (OpenSSL) ---
 //
@@ -22,14 +23,6 @@ ffi OPENSSL_init_ssl
 
 @cfg(os="linux")
 ffi signal
-
-@cfg(os="linux")
-@ffi.link("libdl.so.2")
-ffi dlopen
-
-@cfg(os="linux")
-@ffi.link("libdl.so.2")
-ffi dlsym
 
 @cfg(os="linux")
 ffi TLS_client_method
@@ -133,9 +126,9 @@ fn _openssl_dlopen_libs() {
     if _openssl_libs_loaded == 1 { return 0 }
     var flags = _rtld_flags()
     // Order: libcrypto first, then libssl.
-    var h1 = dlopen("libcrypto.so.3", flags)
+    var h1 = dl.dlopen("libcrypto.so.3", flags)
     if h1 == 0 { return 0 - 5 } // EIO
-    var h2 = dlopen("libssl.so.3", flags)
+    var h2 = dl.dlopen("libssl.so.3", flags)
     if h2 == 0 { return 0 - 5 } // EIO
     _openssl_libs_loaded = 1
     return 0
@@ -321,7 +314,7 @@ fn __oren_tls_openssl_alpn_select_cb(ssl, out_pp, outlen_p, in_p, inlen, arg) {
 @cfg(os="linux")
 fn _openssl_resolve_self_export(name) {
     if name == nil || name == "" { return 0 }
-    return dlsym(_RTLD_DEFAULT(), name)
+    return dl.dlsym(_RTLD_DEFAULT(), name)
 }
 
 @cfg(os="linux")
