@@ -290,3 +290,12 @@ Notes:
 - It stages a copy under `%USERPROFILE%\tmp_oren\remote_fetch\` on the remote host, then downloads it.
 - If ssh/proxy is broken, it fails fast and prints the path to the bounded probe logs under `build/logs/`.
 - If the proxy can’t resolve `pc.work`, pass a reachable `--host user@IP` (and optionally `--no-proxy` if you have direct SSH access).
+
+Helper (bounded analysis after fetch):
+
+```bash
+./scripts/analyze_stage2_failure_log.sh project-doc/remote/.../s2_build_failure.log
+```
+
+- Prints a short tail plus a few greps for `OREN_DIAG`, crashes, known x64 ABI warnings, and timing breadcrumbs.
+- Designed to avoid dumping thousands of lines.

@@ -11,10 +11,10 @@ Tier‑1 targets (current policy):
 
 Last verification (fact):
 
-- 2026-01-11: `make verify-native-net-skip-remote` passed on:
+- 2026-01-10: `make verify-native-net-skip-remote` passed on:
   - `arm64-macos` (local)
   - `arm64-linux` (docker container `c7e5f7bd9f5c`)
-- 2026-01-11: `make verify-x64-linux-qemu-tls` passed on:
+- 2026-01-10: `make verify-x64-linux-qemu-tls` passed on:
   - `x64-linux` under QEMU in docker container `c7e5f7bd9f5c` (stage1 + stage2; includes HTTP/2 + HPACK loopback/smokes)
 - `x64-linux` / `x64-windows` runs require the remote Win11+WSL2 host; see `docs/REMOTE_X64_ENV.md` if the proxy/hostname is unavailable.
 
@@ -98,7 +98,7 @@ Non-goals (v0):
 
 Oren’s language semantics require **type-strict equality** (`nil` distinct from `false`, `int` distinct from `nil`, etc).
 
-Current rolling status (2026-01-11):
+Current rolling status (2026-01-10):
 
 - Native mode uses **runtime singleton values** for `nil`, `false`, and `true` (they are distinct non-zero values stored in runtime globals).
   - This ensures `0` (int zero) stays distinct from `nil`/`false` in the common case, which matters for protocols where `0` is meaningful (e.g. SETTINGS values like `ENABLE_PUSH=0`).

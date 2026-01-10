@@ -543,12 +543,10 @@ References:
 			       - Done (2026-01-08): add `std:crypto/pem` v0 helper (`pem.decode_blocks`) so TLS/signing layers don’t need to live under NET.
 			       - Done (2026-01-08): add `std:crypto/x509` v0 helper (`x509.sha256_hex_der`) for small certificate utilities.
 			       - Done (2026-01-09): add `std:crypto/tls` as a facade over `std:net/tls` (alias-layer; same API surface).
-			       - Next: split TLS into a crypto core + net integration:
-			         - `std:crypto/tls_*`: handshake/record layer over an abstract IO trait (no direct fd dependency).
-			         - `std:net/tls`: tcp fd integration + `tls.connect` convenience; depends on crypto core.
-			       - Next: PKCS#12 / PKCS#8 / SPKI helpers (as needed by TLS providers and signing toolchain).
-
-5) **GUI / UI stack (OrenUI): AVM UI + native shell + UI domain** (L)
+				       - Next: split TLS into a crypto core + net integration:
+				         - `std:crypto/tls_*`: handshake/record layer over an abstract IO trait (no direct fd dependency).
+				         - `std:net/tls`: tcp fd integration + `tls.connect` convenience; depends on crypto core.
+				       - Next: PKCS#12 / PKCS#8 / SPKI helpers (as needed by TLS providers and signing toolchain).
 
 ## Tier‑1 parity / verification blockers (rolling)
 
@@ -561,6 +559,9 @@ References:
       - `make verify-selfhost-x64`
     - Even when the remote is unreachable, keep x86_64 *buildability* guarded by `make verify-native-x64-compile` (compiles x64-linux + x64-windows outputs for stage1+stage2, including NET/TLS/HTTP2/HPACK module resolution via `tests/fixtures/x64_compile_only_net_tls_http2_smoke.oren`).
     - To fetch remote logs without copy/paste, use `scripts/fetch_remote_file.sh` and pass `--host user@IP` if the proxy cannot resolve `pc.work` (or pass `--no-proxy` if you have direct SSH access; see `docs/REMOTE_X64_ENV.md`).
+    - After fetching, use `scripts/analyze_stage2_failure_log.sh` to extract high-signal errors/warnings without dumping large logs.
+
+5) **GUI / UI stack (OrenUI): AVM UI + native shell + UI domain** (L)
    - Goal: production-oriented cross-platform GUI without committing Oren’s core runtime to platform frameworks.
    - Design doc: `docs/GUI.md`
    - Recommended architecture (rolling):
