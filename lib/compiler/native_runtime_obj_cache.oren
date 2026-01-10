@@ -50,7 +50,7 @@ var RUNTIME_OBJ_DATA_PREFIX_LEN = 544
 // - Bump the relevant backend sig whenever a change can affect emitted code/data bytes.
 // - This is intentionally cheap (string constant) so cache hits stay fast.
 var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_6"
-var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_10"
+var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_11"
 
 fn rtobj_backend_sig(backend) {
     if backend == "arm64" { return RUNTIME_OBJ_BACKEND_SIG_ARM64 }
