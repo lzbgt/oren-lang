@@ -5,7 +5,7 @@
 .PHONY: verify-x64-linux-qemu-net
 .PHONY: verify-x64-linux-qemu-tls
 .PHONY: setup-x64-linux-qemu
-.PHONY: verify-native-matrix verify-native-net verify-selfhost-x64 verify-stage0-win verify-tier1
+.PHONY: verify-native-matrix verify-native-matrix-skip-remote verify-native-net verify-native-net-skip-remote verify-selfhost-x64 verify-stage0-win verify-tier1
 .PHONY: verify-stage2-win
 .PHONY: bench-native-compile
 .PHONY: perf-guard-native-hit
@@ -407,12 +407,26 @@ verify-native-matrix: oren_stage2
 	fi
 	@./scripts/verify_native_matrix.sh
 
+verify-native-matrix-skip-remote: oren_stage2
+	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
+		echo "ERROR: verify-native-matrix-skip-remote expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
+		exit 2; \
+	fi
+	@./scripts/verify_native_matrix.sh --skip-remote
+
 verify-native-net: oren_stage2
 	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
 		echo "ERROR: verify-native-net expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
 		exit 2; \
 	fi
 	@./scripts/verify_native_net_matrix.sh
+
+verify-native-net-skip-remote: oren_stage2
+	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
+		echo "ERROR: verify-native-net-skip-remote expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
+		exit 2; \
+	fi
+	@./scripts/verify_native_net_matrix.sh --skip-remote
 
 verify-selfhost-x64: oren_stage2
 	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \

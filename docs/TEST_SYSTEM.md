@@ -156,7 +156,9 @@ Makefile shortcuts (macOS/arm64 host workflow):
 
 ```bash
 make verify-native-matrix
+make verify-native-matrix-skip-remote
 make verify-native-net
+make verify-native-net-skip-remote
 make verify-selfhost-x64
 make verify-stage0-win
 make verify-tier1
