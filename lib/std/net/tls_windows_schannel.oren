@@ -165,12 +165,13 @@ ffi {
 
 @cfg(os="windows")
 @ffi.dll("crypt32.dll")
-ffi { PFXImportCertStore, CertEnumCertificatesInStore }
-
-@cfg(os="windows")
-@ffi.ret("i32")
-@ffi.dll("crypt32.dll")
-ffi { CertCloseStore, CertFreeCertificateContext, CertGetCertificateContextProperty }
+ffi {
+    PFXImportCertStore,
+    CertEnumCertificatesInStore,
+    @ffi.ret("i32") CertCloseStore,
+    @ffi.ret("i32") CertFreeCertificateContext,
+    @ffi.ret("i32") CertGetCertificateContextProperty
+}
 
 @cfg(os="windows")
 fn _win_memzero(p, n) {

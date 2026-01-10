@@ -213,6 +213,19 @@ ffi {
 }
 ```
 
+A practical example is Windows APIs where one DLL exports a mix of pointer-returning functions and `BOOL`/`SECURITY_STATUS` style `i32` functions:
+
+```oren
+@cfg(os="windows")
+@ffi.dll("crypt32.dll")
+ffi {
+    PFXImportCertStore,
+    CertEnumCertificatesInStore,
+    @ffi.ret("i32") CertCloseStore,
+    @ffi.ret("i32") CertFreeCertificateContext
+}
+```
+
 ### 3.5 FFI return typing (`@ffi.ret(...)`) (native backend)
 
 Some foreign functions return narrow integer types at the ABI level (most commonly C `int`, i.e. signed 32-bit).
