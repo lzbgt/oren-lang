@@ -29,7 +29,7 @@ Legend:
 Local (fast):
 
 - `make test` (native quick integration smoke; fast default)
-  - Includes a tiny `--typecheck` smoke fixture that must fail (guards against `numeric == nil` hazards).
+  - Includes tiny `--typecheck` smoke fixtures that must fail (guards against `scalar == nil` hazards like `numeric == nil` / `bool == nil`).
 - `make verify-native-quick` (stage1 + stage2 native smoke)
 
 Cross-arch matrix (execution on real hosts):

@@ -47,7 +47,7 @@ need_bin scp
 need_bin socat
 need_bin tar
 
-mkdir -p build/tmp
+mkdir -p build/tmp build/logs
 
 run_with_timeout() {
   local secs="$1"
@@ -86,6 +86,34 @@ scp_retry() {
     sleep 1
   done
 }
+
+remote_preflight() {
+  local logf="build/logs/stage2_windows_from_stage1_remote_probe.log"
+  log "== remote: ssh probe =="
+  set +e
+  run_with_timeout 15 ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" "cmd.exe /c \"echo OREN_REMOTE_OK\"" >"$logf" 2>&1
+  local rc=$?
+  set -e
+  if [[ "$rc" -ne 0 ]]; then
+    echo "ERROR: cannot reach remote Win11 host via ssh (rc=$rc host=$REMOTE_HOST)" >&2
+    tail -n 80 "$logf" 2>/dev/null >&2 || true
+    if grep -Eq 'socat\\[[0-9]+\\] W CONNECT .*:22: Not Found' "$logf" 2>/dev/null; then
+      echo "HINT: ProxyCommand could not resolve the hostname. Try setting:" >&2
+      echo "  OREN_REMOTE_X64_HOST=<user@IP>" >&2
+      echo "or override OREN_REMOTE_X64_PROXY to a direct SSH connection (no proxy)." >&2
+    fi
+    echo "log=$logf" >&2
+    exit 2
+  fi
+  if ! grep -q "OREN_REMOTE_OK" "$logf" 2>/dev/null; then
+    echo "ERROR: remote ssh probe did not return expected marker (host=$REMOTE_HOST)" >&2
+    tail -n 80 "$logf" 2>/dev/null >&2 || true
+    echo "log=$logf" >&2
+    exit 2
+  fi
+}
+
+remote_preflight
 
 log "== build: stage0 bootstrap (windows/amd64) =="
 GOOS=windows GOARCH=amd64 go build -o build/tmp/oren_bootstrap_win.exe ./cmd/oren

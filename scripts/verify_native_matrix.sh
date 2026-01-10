@@ -367,6 +367,35 @@ remote_wsl_root="/mnt/c/Users/${remote_user}/tmp_oren"
 ssh_base=(ssh -o "$REMOTE_PROXY" "$REMOTE_HOST")
 scp_base=(scp -q -o "$REMOTE_PROXY")
 
+remote_preflight() {
+  mkdir -p build/logs
+  local logf="build/logs/native_matrix_remote_probe.log"
+
+  log "== remote: ssh probe =="
+  set +e
+  run_with_timeout 15 "${ssh_base[@]}" "cmd.exe /c \"echo OREN_REMOTE_OK\"" >"$logf" 2>&1
+  local rc=$?
+  set -e
+
+  if [[ "$rc" -ne 0 ]]; then
+    echo "ERROR: cannot reach remote x64 host via ssh (rc=$rc host=$REMOTE_HOST)" >&2
+    tail -n 80 "$logf" 2>/dev/null >&2 || true
+    if grep -Eq 'socat\\[[0-9]+\\] W CONNECT .*:22: Not Found' "$logf" 2>/dev/null; then
+      echo "HINT: ProxyCommand could not resolve the hostname. Try setting:" >&2
+      echo "  OREN_REMOTE_X64_HOST=<user@IP>" >&2
+      echo "or override OREN_REMOTE_X64_PROXY to a direct SSH connection (no proxy)." >&2
+    fi
+    echo "log=$logf" >&2
+    exit 2
+  fi
+  if ! grep -q "OREN_REMOTE_OK" "$logf" 2>/dev/null; then
+    echo "ERROR: remote ssh probe did not return expected marker (host=$REMOTE_HOST)" >&2
+    tail -n 80 "$logf" 2>/dev/null >&2 || true
+    echo "log=$logf" >&2
+    exit 2
+  fi
+}
+
 remote_mkdir() {
   # Ensure the Windows user profile staging directory exists. (This also backs the WSL /mnt/c path.)
   "${ssh_base[@]}" 'cmd.exe /c "if not exist %USERPROFILE%\\tmp_oren mkdir %USERPROFILE%\\tmp_oren"'
@@ -611,6 +640,7 @@ fi
 
 if has_target x64-win || has_target x64-wsl || has_target x64-win-tier1 || has_target x64-wsl-tier1; then
   log "== verify: remote x64 Windows + WSL2 via ${REMOTE_HOST} =="
+  remote_preflight
   remote_mkdir
 fi
 

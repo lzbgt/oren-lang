@@ -251,6 +251,8 @@ This indicates the HTTP proxy at `hubstack.cn:6002` is not currently able to pro
 
 What to do:
 
+- The Tier‑1 scripts now run a fast SSH preflight before doing large cross-target builds. If it fails, check the bounded probe log under:
+  - `build/logs/*remote_probe*.log`
 - Re-try later (this has been observed as intermittent).
 - Verify `socat` is installed and that the command is exactly:
   - `ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work ...`

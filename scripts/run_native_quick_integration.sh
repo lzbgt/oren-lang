@@ -96,3 +96,21 @@ if [[ "$rc" -eq 0 ]]; then
   exit 1
 fi
 tail -n 5 "$tc_log"
+
+echo "== typecheck smoke (bool vs nil) =="
+tc2_src="tests/fixtures/typecheck_bad_bool_nil.oren"
+tc2_log="build/logs/${compiler_base}_typecheck_smoke_bool_nil.log"
+tc2_out="build/tmp/${compiler_base}_typecheck_smoke_bool_nil.obc"
+rm -f "$tc2_log" "$tc2_out" 2>/dev/null || true
+
+set +e
+"$compiler" build "$tc2_src" --backend bytecode --typecheck -o "$tc2_out" >"$tc2_log" 2>&1
+rc=$?
+set -e
+
+if [[ "$rc" -eq 0 ]]; then
+  echo "FAIL: typecheck smoke (bool vs nil) expected failure but build succeeded"
+  tail -n 80 "$tc2_log"
+  exit 1
+fi
+tail -n 5 "$tc2_log"

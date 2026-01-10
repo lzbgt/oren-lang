@@ -270,8 +270,8 @@ fn _typecheck_expr(errors, expr, env, sigs) {
         _typecheck_expr(errors, expr["right"], env, sigs)
 
         // Semantic parity guard (native backend hazard):
-        // Numeric values are never `nil`. Comparing a statically-known numeric to `nil` is almost
-        // always a bug (common when users treat `0` as an optional sentinel).
+        // Statically-known scalar values (bool/int/float) are never `nil`. Comparing them to `nil`
+        // is almost always a bug (common when users treat `0`/`false` as “optional sentinels”).
         //
         // Note: Oren truthiness treats `0` as truthy; `nil` and `false` are the only falsey values.
         // This check is intentionally conservative and only triggers when we can prove the
@@ -280,8 +280,8 @@ fn _typecheck_expr(errors, expr, env, sigs) {
         if op == "==" || op == "!=" {
             var lc = _cat(expr["left"], env)
             var rc = _cat(expr["right"], env)
-            if (lc == "nil" && (rc == "int" || rc == "float")) || (rc == "nil" && (lc == "int" || lc == "float")) {
-                _err(errors, expr["token"], "invalid comparison: numeric value compared to nil")
+            if (lc == "nil" && (rc == "bool" || rc == "int" || rc == "float")) || (rc == "nil" && (lc == "bool" || lc == "int" || lc == "float")) {
+                _err(errors, expr["token"], "invalid comparison: non-nil scalar compared to nil (bool/int/float)")
             }
         }
         return nil

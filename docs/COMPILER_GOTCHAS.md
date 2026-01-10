@@ -61,3 +61,13 @@ Rolling rules:
 
 - If you change rtobj fixup encoding/decoding, bump the arm64 rtobj backend signature in `lib/compiler/native_runtime_obj_cache.oren` so stale cache entries are not reused.
 - Keep a fast regression check: `./scripts/bench_native_compile_one_file.sh --no-debug` should show a working miss→hit sequence (isolated rtobj dir; seed disabled).
+
+## Native value semantics: never rely on `scalar == nil`
+
+Rolling invariant (until `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md` lands):
+
+- The native backend historically used an untagged “i64 carrier” value model where `nil/false/0` could alias in some compare paths.
+- The optimizer mitigates common accidents (`0 == nil`, `false == nil`, and some trivially-provable locals), but values flowing through maps/fields/params can still observe the raw carrier.
+- Guardrail for annotated code: `--typecheck` rejects `bool/int/float == nil` comparisons.
+  - Regression fixtures: `tests/fixtures/typecheck_bad_numeric_nil.oren`, `tests/fixtures/typecheck_bad_bool_nil.oren`
+  - Fast gate: `make test` (runs the `--typecheck` smoke inside `scripts/run_native_quick_integration.sh`)

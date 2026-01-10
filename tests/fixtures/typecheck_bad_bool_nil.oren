@@ -1,0 +1,14 @@
+// Expected to fail under: `./oren build ... --typecheck`
+//
+// Rationale:
+// - Statically-typed `bool` values are never `nil`.
+// - In the native backend rolling history, `nil/false/0` could alias in compare paths.
+// - The `--typecheck` pass should reject `bool == nil` so it can’t silently ship.
+
+fn main() {
+    var b: bool = false
+    if b == nil { print("unreachable") }
+    if nil != b { print("unreachable2") }
+    exit(0)
+}
+
