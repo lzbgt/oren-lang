@@ -1385,6 +1385,22 @@ This means “spawned code” is not fully uniform across OS yet. In particular:
 - On POSIX v0, a spawned worker does **not** share address space with the parent (it is a child process).
 - On Windows, a spawned worker **does** share address space (it is a thread), so calling `exit(...)` inside the worker would terminate the whole process.
 
+Practical guidance (portable style, rolling):
+
+- **Do not call `exit(...)` inside a spawned worker** if you want the program to be portable across OS.
+  - Prefer returning a status code and collecting it via `oren_join(...)` / `oren_join_timeout(...)`.
+- If the worker must run under both models (process on POSIX, thread on Windows), keep the “business logic” shared and isolate the platform glue:
+
+```oren
+fn server_impl() { /* shared logic */ return 0 }
+
+@cfg(os="windows")
+fn server_worker() { return server_impl() } // thread: return status
+
+@cfg(os="macos,linux")
+fn server_worker() { exit(server_impl()) }  // child process: exit status
+```
+
 This is why some Tier‑1 fixtures use small `@cfg(os=...)` wrappers around worker entrypoints (example: `tests/native/test_tls_loopback.oren` uses a Windows-only worker that returns a status code instead of calling `exit`).
 
 Concurrency in AVM differs from native mode; see:

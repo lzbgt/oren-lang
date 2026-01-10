@@ -369,6 +369,7 @@ References:
 		        - Added (2026-01-10): `make examples-cross-compile-smoke` compiles `examples/libmath.oren --lib` for `arm64-linux` + `x64-linux` + `x64-windows` and validates via generated header + `oren scan` + `file` kind checks.
 	     - Concurrency substrate convergence:
        - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory sync, plus a GC/safepoint model that remains correct once true threads exist.
+         - Follow-up (portability ergonomics): once `spawn` is unified, prune most `@cfg(os=...)` glue from Tier‑1 loopback fixtures so protocol-level tests are truly “one logic path”.
 	     - Windows PROC story:
        - Keep the cross-OS PROC surface coherent (pid/kill/wait semantics or define a cross-OS `sys_spawn` boundary).
 
