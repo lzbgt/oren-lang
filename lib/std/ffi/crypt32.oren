@@ -1,0 +1,20 @@
+// Windows cert store / PKCS#12 helpers via crypt32.dll (rolling).
+//
+// Goal:
+// - Centralize `crypt32.dll` attachment for certificate store operations used by TLS providers.
+// - Keep Windows-only FFI declarations out of cross-platform modules (prefer stdlib wrappers).
+//
+// Notes:
+// - This module is intentionally Windows-only. Decls are guarded by `@cfg(os="windows")`.
+// - Some functions return BOOL; we normalize those with `@ffi.ret("i32")` (Win32 BOOL is i32).
+
+@cfg(os="windows")
+@ffi.dll("crypt32.dll")
+ffi {
+    PFXImportCertStore,
+    CertEnumCertificatesInStore,
+    @ffi.ret("i32") CertCloseStore,
+    @ffi.ret("i32") CertFreeCertificateContext,
+    @ffi.ret("i32") CertGetCertificateContextProperty
+}
+

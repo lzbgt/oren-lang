@@ -319,6 +319,13 @@ Notes (rolling):
 - The compiler may internally **prefix/rename** the declared symbol to keep modules separate (example internal label: `STD_ffi_libc_strlen`).
 - The **external** symbol lookup name remains the source identifier (`strlen`), so `dlsym/GetProcAddress/dyld` binds the expected C ABI symbol even when the internal label is namespaced.
 
+Stdlib convenience wrappers (rolling):
+
+- Prefer `std:ffi/*` wrapper modules when a platform requires library-name or ABI return-kind details:
+  - cross-platform libc: `std:ffi/libc`
+  - Win32 basics: `std:ffi/kernel32`
+  - Win32 TLS plumbing (used by `std:net/tls_windows_schannel`): `std:ffi/secur32`, `std:ffi/crypt32`
+
 Rolling convenience:
 
 - `ffi { sym1, sym2, ... }` expands to multiple `ffi sym` declarations, inheriting the same attributes.

@@ -1,0 +1,28 @@
+// Windows SSPI / Schannel surface via secur32.dll (rolling).
+//
+// Goal:
+// - Centralize the `secur32.dll` attachment and the ABI return-kind normalization for SSPI calls.
+// - Allow higher-level providers (e.g. `std:net/tls_windows_schannel`) to import these symbols
+//   without repeating `ffi` declarations, keeping Windows-only FFI blocks isolated.
+//
+// Notes:
+// - This module is intentionally Windows-only. Importing it is still safe on non-Windows
+//   because the declarations are gated behind `@cfg(os="windows")`.
+// - All functions below return SECURITY_STATUS (i32). Use `@ffi.ret("i32")` so the native backend
+//   sign-extends into Oren’s i64 value model.
+
+@cfg(os="windows")
+@ffi.dll("secur32.dll")
+@ffi.ret("i32")
+ffi {
+    AcquireCredentialsHandleA,
+    FreeCredentialsHandle,
+    InitializeSecurityContextA,
+    AcceptSecurityContext,
+    DeleteSecurityContext,
+    FreeContextBuffer,
+    QueryContextAttributesA,
+    EncryptMessage,
+    DecryptMessage
+}
+

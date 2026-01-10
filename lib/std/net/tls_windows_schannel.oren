@@ -5,6 +5,8 @@
 
 import tcp "std:net/tcp"
 import sha256 "std:crypto/sha256"
+import sspi "std:ffi/secur32"
+import c32 "std:ffi/crypt32"
 
 // Schannel lifetime note (Win11 x64, rolling):
 //
@@ -104,7 +106,7 @@ fn _win_server_init_pkcs12_cached(pkcs12_bytes, passphrase, opts) {
 
     var cr = _win_cert_first_in_store(store)
     if cr["ok"] != 1 {
-        CertCloseStore(store, 0)
+        c32.CertCloseStore(store, 0)
         free(key)
         return cr
     }
@@ -112,8 +114,8 @@ fn _win_server_init_pkcs12_cached(pkcs12_bytes, passphrase, opts) {
 
     var credr = _win_acquire_cred_uncached(1, cert, opts)
     if credr["ok"] != 1 {
-        CertFreeCertificateContext(cert)
-        CertCloseStore(store, 0)
+        c32.CertFreeCertificateContext(cert)
+        c32.CertCloseStore(store, 0)
         free(key)
         return credr
     }
@@ -148,30 +150,9 @@ fn _win_get_server_hcred_cached(pkcs12_bytes, passphrase, opts) {
 //
 // Constants are derived from the Windows SDK headers (validated on the Tier‑1 Win11 host via a tiny C probe).
 
-@cfg(os="windows")
-@ffi.dll("secur32.dll")
-@ffi.ret("i32")
-ffi {
-    AcquireCredentialsHandleA,
-    FreeCredentialsHandle,
-    InitializeSecurityContextA,
-    AcceptSecurityContext,
-    DeleteSecurityContext,
-    FreeContextBuffer,
-    QueryContextAttributesA,
-    EncryptMessage,
-    DecryptMessage
-}
-
-@cfg(os="windows")
-@ffi.dll("crypt32.dll")
-ffi {
-    PFXImportCertStore,
-    CertEnumCertificatesInStore,
-    @ffi.ret("i32") CertCloseStore,
-    @ffi.ret("i32") CertFreeCertificateContext,
-    @ffi.ret("i32") CertGetCertificateContextProperty
-}
+// Windows-only FFI is centralized in stdlib wrappers:
+// - `std:ffi/secur32` for SSPI / Schannel
+// - `std:ffi/crypt32` for PKCS#12 import + cert store queries
 
 @cfg(os="windows")
 fn _win_memzero(p, n) {
@@ -340,7 +321,7 @@ fn _win_acquire_cred_uncached(is_server, cert_ctx, opts) {
     if is_server != 0 { use = 1 } // SECPKG_CRED_INBOUND
 
     var pkg = "Microsoft Unified Security Protocol Provider"
-    var st = AcquireCredentialsHandleA(0, pkg, use, 0, auth, 0, 0, hcred, exp)
+    var st = sspi.AcquireCredentialsHandleA(0, pkg, use, 0, auth, 0, 0, hcred, exp)
     free(exp)
     if st != 0 {
         free(auth)
@@ -377,7 +358,7 @@ fn _win_import_pfx_store(pkcs12_bytes, passphrase) {
         return {"ok": 0, "err": "tls(win): alloc passphrase failed"}
     }
 
-    var store = PFXImportCertStore(blob, wpass, 0)
+    var store = c32.PFXImportCertStore(blob, wpass, 0)
     free(wpass)
     free(blob)
     if store == 0 {
@@ -388,7 +369,7 @@ fn _win_import_pfx_store(pkcs12_bytes, passphrase) {
 
 @cfg(os="windows")
 fn _win_cert_first_in_store(store) {
-    var cert = CertEnumCertificatesInStore(store, 0)
+    var cert = c32.CertEnumCertificatesInStore(store, 0)
     if cert == 0 { return {"ok": 0, "err": "tls(win): no cert in store"} }
     return {"ok": 1, "cert": cert}
 }
@@ -434,7 +415,7 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
     if attrs == 0 || exp == 0 {
         if attrs != 0 { free(attrs) }
         if exp != 0 { free(exp) }
-        DeleteSecurityContext(hctx)
+        sspi.DeleteSecurityContext(hctx)
         free(hctx)
         if alpn_buf != 0 { free(alpn_buf) }
         return {"ok": 0, "err": "tls(win): alloc scratch failed"}
@@ -501,7 +482,7 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
         if target == nil || target == 0 { target = "" }
         var ctx_in = 0
         if have_ctx != 0 { ctx_in = hctx }
-        var st = InitializeSecurityContextA(hcred, ctx_in, target, req, 0, 16, in_desc, 0, hctx, out_desc, attrs, exp)
+        var st = sspi.InitializeSecurityContextA(hcred, ctx_in, target, req, 0, 16, in_desc, 0, hctx, out_desc, attrs, exp)
         last_st = st
 
         // Send any output token.
@@ -509,7 +490,7 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
         var out_pv = _win_secbuf_get_pv(out_bufs, 0)
         if out_cb > 0 && out_pv != 0 {
             var wr = tcp.write_from(fd, out_pv, out_cb, timeout_ms)
-            FreeContextBuffer(out_pv)
+            sspi.FreeContextBuffer(out_pv)
             if wr < 0 || wr != out_cb {
                 if in_desc != 0 { free(in_desc); free(in_bufs) }
                 free(out_desc); free(out_bufs)
@@ -577,7 +558,7 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
     free(attrs)
     free(exp)
     free(in_buf)
-    DeleteSecurityContext(hctx)
+    sspi.DeleteSecurityContext(hctx)
     free(hctx)
     if alpn_buf != 0 { free(alpn_buf) }
     return {"ok": 0, "err": "tls(win): client handshake failed (st=" + oren_int_to_string(last_st) + ")"}
@@ -661,7 +642,7 @@ fn _win_query_stream_sizes(hctx) {
     var sz = malloc(20)
     if sz == 0 { return {"ok": 0, "err": "tls(win): alloc stream sizes failed"} }
     _win_memzero(sz, 20)
-    var st = QueryContextAttributesA(hctx, 4, sz) // SECPKG_ATTR_STREAM_SIZES
+    var st = sspi.QueryContextAttributesA(hctx, 4, sz) // SECPKG_ATTR_STREAM_SIZES
     if st != 0 {
         free(sz)
         return {"ok": 0, "err": "tls(win): QueryContextAttributes(STREAM_SIZES) failed (st=" + oren_int_to_string(st) + ")"}
@@ -690,8 +671,8 @@ fn wrap_client(fd, server_name, timeout_ms, opts) {
 
     var sz = _win_query_stream_sizes(hctx)
     if sz["ok"] != 1 {
-        DeleteSecurityContext(hctx); free(hctx)
-        if cred_cached == 0 && hcred != 0 { FreeCredentialsHandle(hcred); free(hcred) }
+        sspi.DeleteSecurityContext(hctx); free(hctx)
+        if cred_cached == 0 && hcred != 0 { sspi.FreeCredentialsHandle(hcred); free(hcred) }
         tcp.close(fd)
         return {"ok": 0, "err": sz["err"]}
     }
@@ -837,7 +818,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
         var ctx_in = 0
         if have_ctx != 0 { ctx_in = hctx }
 
-        var st = AcceptSecurityContext(hcred, ctx_in, in_desc, req, 16, hctx, out_desc, attrs, exp)
+        var st = sspi.AcceptSecurityContext(hcred, ctx_in, in_desc, req, 16, hctx, out_desc, attrs, exp)
         last_st = st
 
         // Send output token (if any).
@@ -845,7 +826,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
         var out_pv = _win_secbuf_get_pv(out_bufs, 0)
         if out_cb > 0 && out_pv != 0 {
             var wr = tcp.write_from(fd, out_pv, out_cb, timeout_ms)
-            FreeContextBuffer(out_pv)
+            sspi.FreeContextBuffer(out_pv)
             if wr < 0 || wr != out_cb {
                 st = -1
             }
@@ -906,7 +887,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
         free(exp)
         free(in_buf)
         if alpn_buf != 0 { free(alpn_buf) }
-        DeleteSecurityContext(hctx); free(hctx)
+        sspi.DeleteSecurityContext(hctx); free(hctx)
         tcp.close(fd)
         return {"ok": 0, "err": "tls(win): server handshake failed (st=" + oren_int_to_string(last_st) + ")"}
     }
@@ -919,7 +900,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     // Query stream sizes.
     var sz = _win_query_stream_sizes(hctx)
     if sz["ok"] != 1 {
-        DeleteSecurityContext(hctx); free(hctx)
+        sspi.DeleteSecurityContext(hctx); free(hctx)
         tcp.close(fd)
         return {"ok": 0, "err": sz["err"]}
     }
@@ -1007,7 +988,7 @@ fn read_into(conn, buf, cap, timeout_ms) {
         var desc = _win_secbufdesc_new(bufs, 4)
         if desc == 0 { free(bufs); return 0 - 12 }
 
-        var st = DecryptMessage(hctx, desc, 0, 0)
+        var st = sspi.DecryptMessage(hctx, desc, 0, 0)
 
         // Extract decrypted DATA and any EXTRA encrypted tail.
         var data_p = 0
@@ -1155,7 +1136,7 @@ fn write_from(conn, ptr0, len, timeout_ms) {
         var desc = _win_secbufdesc_new(bufs, 4)
         if desc == 0 { free(bufs); free(out); return 0 - 12 }
 
-        var st = EncryptMessage(hctx, 0, desc, 0)
+        var st = sspi.EncryptMessage(hctx, 0, desc, 0)
         if st != 0 {
             free(desc); free(bufs); free(out)
             return 0 - 5
@@ -1195,17 +1176,17 @@ fn close(conn) {
     if eb != 0 { free(eb) }
     if pb != 0 { free(pb) }
     if hctx != 0 {
-        DeleteSecurityContext(hctx)
+        sspi.DeleteSecurityContext(hctx)
         free(hctx)
     }
     if cred_cached == 0 && hcred != 0 {
-        FreeCredentialsHandle(hcred)
+        sspi.FreeCredentialsHandle(hcred)
         free(hcred)
     }
     if cred_cached == 0 && sch_cred != 0 { free(sch_cred) }
     if cred_cached == 0 && sch_cred_arr != 0 { free(sch_cred_arr) }
-    if cred_cached == 0 && cert != 0 { CertFreeCertificateContext(cert) }
-    if cred_cached == 0 && store != 0 { CertCloseStore(store, 0) }
+    if cred_cached == 0 && cert != 0 { c32.CertFreeCertificateContext(cert) }
+    if cred_cached == 0 && store != 0 { c32.CertCloseStore(store, 0) }
     if fd != nil && fd >= 0 { tcp.close(fd) }
     return 0
 }
@@ -1218,7 +1199,7 @@ fn win_cleanup() {
 
     // Client caches.
     if g_tls_win_client_hcred_insecure0 != 0 {
-        FreeCredentialsHandle(g_tls_win_client_hcred_insecure0)
+        sspi.FreeCredentialsHandle(g_tls_win_client_hcred_insecure0)
         free(g_tls_win_client_hcred_insecure0)
         g_tls_win_client_hcred_insecure0 = 0
     }
@@ -1228,7 +1209,7 @@ fn win_cleanup() {
         g_tls_win_client_auth_insecure0 = 0
     }
     if g_tls_win_client_hcred_insecure1 != 0 {
-        FreeCredentialsHandle(g_tls_win_client_hcred_insecure1)
+        sspi.FreeCredentialsHandle(g_tls_win_client_hcred_insecure1)
         free(g_tls_win_client_hcred_insecure1)
         g_tls_win_client_hcred_insecure1 = 0
     }
@@ -1240,7 +1221,7 @@ fn win_cleanup() {
 
     // Server cache.
     if g_tls_win_server_hcred != 0 {
-        FreeCredentialsHandle(g_tls_win_server_hcred)
+        sspi.FreeCredentialsHandle(g_tls_win_server_hcred)
         free(g_tls_win_server_hcred)
         g_tls_win_server_hcred = 0
     }
@@ -1255,11 +1236,11 @@ fn win_cleanup() {
         g_tls_win_server_cred_arr = 0
     }
     if g_tls_win_server_cert != 0 {
-        CertFreeCertificateContext(g_tls_win_server_cert)
+        c32.CertFreeCertificateContext(g_tls_win_server_cert)
         g_tls_win_server_cert = 0
     }
     if g_tls_win_server_store != 0 {
-        CertCloseStore(g_tls_win_server_store, 0)
+        c32.CertCloseStore(g_tls_win_server_store, 0)
         g_tls_win_server_store = 0
     }
     if g_tls_win_server_cache_key != 0 {
@@ -1280,7 +1261,7 @@ fn peer_cert_sha256_hex(conn) {
     var certp = malloc(8)
     if certp == 0 { return {"ok": 0, "err": "tls.peer_cert_sha256_hex: alloc failed"} }
     ptr_set(certp, 0)
-    var st = QueryContextAttributesA(hctx, 83, certp)
+    var st = sspi.QueryContextAttributesA(hctx, 83, certp)
     if st != 0 {
         free(certp)
         return {"ok": 0, "err": "tls.peer_cert_sha256_hex: QueryContextAttributes failed (st=" + oren_int_to_string(st) + ")"}
@@ -1291,26 +1272,26 @@ fn peer_cert_sha256_hex(conn) {
 
     var b = oren_u8_buf_new(32)
     if oren_is_err(b) {
-        CertFreeCertificateContext(cert)
+        c32.CertFreeCertificateContext(cert)
         return {"ok": 0, "err": "tls.peer_cert_sha256_hex: alloc failed"}
     }
     var dst = native_buf_data_ptr(b)
     if dst == 0 {
-        CertFreeCertificateContext(cert)
+        c32.CertFreeCertificateContext(cert)
         return {"ok": 0, "err": "tls.peer_cert_sha256_hex: bytes data ptr nil"}
     }
     var lenp = malloc(8)
     if lenp == 0 {
-        CertFreeCertificateContext(cert)
+        c32.CertFreeCertificateContext(cert)
         return {"ok": 0, "err": "tls.peer_cert_sha256_hex: alloc failed"}
     }
     _win_memzero(lenp, 8)
     oren_ptr_set_u32_le(lenp + 0, 32)
 
-    var ok = CertGetCertificateContextProperty(cert, 107, dst, lenp) // CERT_SHA256_HASH_PROP_ID
+    var ok = c32.CertGetCertificateContextProperty(cert, 107, dst, lenp) // CERT_SHA256_HASH_PROP_ID
     var got = oren_ptr_get_u32_le(lenp + 0)
     free(lenp)
-    CertFreeCertificateContext(cert)
+    c32.CertFreeCertificateContext(cert)
     if ok == 0 || got != 32 {
         return {"ok": 0, "err": "tls.peer_cert_sha256_hex: CERT_SHA256_HASH_PROP_ID failed"}
     }
@@ -1342,7 +1323,7 @@ fn negotiated_alpn(conn) {
     var ap = malloc(512)
     if ap == 0 { return {"ok": 0, "err": "tls.negotiated_alpn: alloc failed"} }
     _win_memzero(ap, 512)
-    var st = QueryContextAttributesA(hctx, 35, ap) // SECPKG_ATTR_APPLICATION_PROTOCOL
+    var st = sspi.QueryContextAttributesA(hctx, 35, ap) // SECPKG_ATTR_APPLICATION_PROTOCOL
     if st != 0 {
         free(ap)
         // Best-effort: treat as "not negotiated / not supported".
