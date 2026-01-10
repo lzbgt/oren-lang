@@ -129,6 +129,9 @@ When you need confidence that the **native backend** output works across the pra
 # Full matrix: local + linux/arm64 container + remote x64 Win11 + remote x64 WSL2
 ./scripts/verify_native_matrix.sh
 
+# Dev convenience: keep local + docker arm64-linux, but skip remote Win11/WSL2 (explicit opt-in)
+./scripts/verify_native_matrix.sh --skip-remote
+
 # Opt-in: run the larger Tier‑1 native smoke fixture on remote x64 hosts
 ./scripts/verify_native_matrix.sh --targets x64-win-tier1
 ./scripts/verify_native_matrix.sh --targets x64-wsl-tier1
