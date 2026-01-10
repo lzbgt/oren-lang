@@ -183,12 +183,12 @@ ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" \
 log "== remote: stage2 builds a tiny native exe (guard: canon i32) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
   ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build tests\\\\native\\\\print.oren --backend native --no-cache --no-debug -o print_stage2_native.exe\""
+  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build tests\\\\native\\\\print.oren --backend native --no-cache --no-debug -o print_stage2_native.exe\""
 
 log "== remote: stage2 builds a nested-path native exe (default -o path; backslash-safe) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
   ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\myapp.oren --backend native --platform x64-windows --no-cache --no-debug\""
+  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\myapp.oren --backend native --platform x64-windows --no-cache --no-debug\""
 
 log "== remote: stage2 builds a tiny C-backend exe (default --cc; MSVC cl.exe bring-up) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
