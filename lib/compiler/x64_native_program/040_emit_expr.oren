@@ -639,8 +639,22 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         // Tier‑1 parity: allow calling a function-valued expression directly.
         // (arm64 supports this; x64 converges via the uniform callable ABI in `044_emit_call_expr.oren`).
         if fn_expr["type"] != "Identifier" {
-            _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_expr, args, expr["spread"])
-            return nil
+            // Namespace member call fast-path: `mod.fn(args...)` should lower as a direct call to the
+            // resolved flattened symbol name, not as an indirect call through the callable ABI.
+            //
+            // This is required for `ffi` declarations that are module-exported (after renaming),
+            // because x64 native v0 does not have an arity signature for `ffi` and therefore cannot
+            // treat them as first-class function *values*.
+            if fn_expr["type"] == "Member" {
+                var nsr = _x64_ns_resolve(ctx, fn_expr)
+                if nsr != nil && nsr["is_ns"] != true && nsr["name"] != nil && nsr["name"] != "" {
+                    fn_expr = {"type": "Identifier", "value": nsr["name"]}
+                }
+            }
+            if fn_expr["type"] != "Identifier" {
+                _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_expr, args, expr["spread"])
+                return nil
+            }
         }
 
         var nm = fn_expr["value"]

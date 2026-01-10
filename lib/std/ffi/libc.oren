@@ -1,0 +1,28 @@
+// Portable libc FFI bindings (rolling).
+//
+// Goal:
+// - Avoid duplicating `@cfg` + `@ffi.link`/`@ffi.dll` boilerplate in application code.
+// - Keep the platform-specific library attachment at the boundary (the stdlib module),
+//   while call sites remain platform-neutral: `import libc "std:ffi/libc"`.
+//
+// Notes:
+// - On Linux, attaching a link dependency is required so the native backend emits a dynamic ELF and
+//   enables the `dlsym` resolver for `ffi`.
+// - On Windows, the native backend resolves `ffi` symbols lazily via LoadLibrary/GetProcAddress.
+// - On macOS, many libc-like symbols are provided by libSystem and can be used without explicit linking.
+//
+// Exposed surface (v0):
+// - `puts(s)`  -> i32 (sign-extended to i64 by @ffi.ret("i32"))
+// - `strlen(s)` -> i64 (size_t; 64-bit on Tier‑1)
+
+@cfg(os="windows")
+@ffi.dll("msvcrt.dll")
+ffi { @ffi.ret("i32") puts, strlen }
+
+@cfg(os="linux")
+@ffi.link("libc.so.6")
+ffi { @ffi.ret("i32") puts, strlen }
+
+@cfg(os="macos")
+ffi { @ffi.ret("i32") puts, strlen }
+

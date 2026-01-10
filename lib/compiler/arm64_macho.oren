@@ -661,13 +661,25 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
     codegen.bytes_extend_zeros(data, oren_list_len(imports) * 8)
     if trace_emit { print("[emit] macho arm64: GOT placeholder done") }
 
-    var bind_opcodes = macho_build_bind_opcodes(imports, got_offset)
+    // dyld binding must use the *external* symbol names, not the internal module-prefixed labels.
+    var bind_names = []
+    var bi = 0
+    while bi < oren_list_len(imports) {
+        var nm = imports[bi]
+        var bn = nm
+        if ctx["ffi_link_names"] != nil && ctx["ffi_link_names"][nm] != nil { bn = ctx["ffi_link_names"][nm] }
+        oren_list_push(bind_names, bn)
+        bi = bi + 1
+    }
+
+    var bind_opcodes = macho_build_bind_opcodes(bind_names, got_offset)
     var bind_size = bytes_len(bind_opcodes)
     if trace_emit { print("[emit] macho arm64: bind opcodes size=" + oren_int_to_string(bind_size)) }
 
     var i_imp = 0
     while i_imp < oren_list_len(imports) {
         var name = imports[i_imp]
+        var bind_name = bind_names[i_imp]
         var stub_pos = bytes_len(code)
         // `imports` is filtered above, but keep a defensive check anyway.
         if functions[name] == nil { functions[name] = stub_pos }
@@ -687,9 +699,9 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
         // Avoid `oren_bytes_from_string` (allocates list<int>) in hot emitter paths.
         var k2 = 0
         var n2 = 0
-        if name != nil { n2 = oren_string_len(name) }
+        if bind_name != nil { n2 = oren_string_len(bind_name) }
         while k2 < n2 {
-            bytes_push(strtab, oren_string_byte_at_unchecked(name, k2) & 255)
+            bytes_push(strtab, oren_string_byte_at_unchecked(bind_name, k2) & 255)
             k2 = k2 + 1
         }
         bytes_push(strtab, 0)

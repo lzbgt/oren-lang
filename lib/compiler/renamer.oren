@@ -94,6 +94,14 @@ fn collect_toplevel_rename_pairs(prog, prefix) {
             var name4 = stmt["name"]["value"]
             pairs[name4] = prefix + name4
         }
+        if stmt["type"] == "FFI" {
+            // Allow `ffi foo` decls to be exported as module members:
+            // `import m "..." ; m.foo(...)`
+            //
+            // IMPORTANT: `stmt["link_name"]` (external symbol name) must NOT be renamed here.
+            var name5 = stmt["name"]["value"]
+            pairs[name5] = prefix + name5
+        }
         i = i + 1
     }
     return pairs
@@ -278,6 +286,16 @@ fn rename_stmt(stmt, pairs, stack, at_top_level) {
                 }
                 fi = fi + 1
             }
+        }
+        return nil
+    }
+    if stmt["type"] == "FFI" {
+        // Rename the internal stub/function label so module member access works.
+        // Do not rewrite `stmt["link_name"]` (external symbol lookup name).
+        if at_top_level && stmt["name"] != nil {
+            var old = stmt["name"]["value"]
+            var new_name = rename_lookup(pairs, old)
+            if new_name != "" { stmt["name"]["value"] = new_name }
         }
         return nil
     }

@@ -649,6 +649,10 @@ fn native_compile_stmt_inner(ctx, stmt) {
     
     if stmt["type"] == "FFI" {
         var name = stmt["name"]["value"]
+        if ctx["ffi_link_names"] == nil { ctx["ffi_link_names"] = {} }
+        var sym = stmt["link_name"]
+        if sym == nil || sym == "" { sym = name }
+        ctx["ffi_link_names"][name] = sym
         ctx["imports"][name] = true
         oren_list_push(ctx["import_list"], name)
         _arm64_collect_ffi_ret_attrs(ctx, stmt, name)

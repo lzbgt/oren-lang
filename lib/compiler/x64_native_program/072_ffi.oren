@@ -32,6 +32,24 @@ fn _x64_lit_string(v) {
     return v["value"]
 }
 
+fn _x64_ffi_link_name(ctx, nm) {
+    // External symbol name used for resolution (dlsym/GetProcAddress).
+    if ctx != nil && ctx["ffi_link_names"] != nil {
+        var v = ctx["ffi_link_names"][nm]
+        if v != nil && v != "" { return v }
+    }
+    return nm
+}
+
+fn _x64_ffi_panic_msg(ctx, nm) {
+    // Prefer the external symbol name in diagnostics; include the internal label when it differs.
+    var sym = _x64_ffi_link_name(ctx, nm)
+    if sym != nil && sym != "" && sym != nm {
+        return "ffi unresolved: " + sym + " (as " + nm + ")"
+    }
+    return "ffi unresolved: " + nm
+}
+
 fn _x64_collect_ffi_dll_attrs(ctx, st, nm) {
     if ctx == nil || st == nil { return nil }
     var attrs = st["attrs"]
@@ -120,6 +138,8 @@ fn _x64_collect_ffi_decls_from_stmt_list(ctx, stmts, role) {
     if ctx["import_list"] == nil { ctx["import_list"] = [] }
     var imports = ctx["imports"]
     var import_list = ctx["import_list"]
+    if ctx["ffi_link_names"] == nil { ctx["ffi_link_names"] = {} }
+    var ffi_link_names = ctx["ffi_link_names"]
 
     var declared = ctx["declared_functions"]
     if declared == nil { declared = {}; ctx["declared_functions"] = declared }
@@ -151,6 +171,11 @@ fn _x64_collect_ffi_decls_from_stmt_list(ctx, stmts, role) {
             err(ctx, "x64 native v0: duplicate top-level name " + nm)
             return nil
         }
+
+        // External symbol lookup name (stable across module renaming).
+        var sym = st["link_name"]
+        if sym == nil || sym == "" { sym = nm }
+        ffi_link_names[nm] = sym
 
         imports[nm] = true
         declared[nm] = true // reserve the name so globals can't shadow it
@@ -305,7 +330,7 @@ fn _x64_emit_ffi_stub_linux(ctx, nm) {
     if ctx["functions"][nm] != nil { return nil }
 
     // data: error message (cstr0)
-    var msg_off = _data_add_cstr0(ctx, "ffi unresolved: " + nm)
+    var msg_off = _data_add_cstr0(ctx, _x64_ffi_panic_msg(ctx, nm))
 
     ctx["functions"][nm] = bytes_len(ctx["code"])
     // Ensure 16-byte alignment before calling a SysV function (rsp is 8 mod 16 at entry).
@@ -414,12 +439,13 @@ fn _x64_emit_ffi_stub_linux_dyn(ctx, nm, resolver_name) {
     if ctx["functions"] == nil { ctx["functions"] = {} }
     if ctx["functions"][nm] != nil { return nil }
 
+    var sym = _x64_ffi_link_name(ctx, nm)
     // data: fnptr cell (u64)
     var cell_off = _data_add_u64(ctx, 0)
     // data: symbol name string (cstr0)
-    var sym_off = _data_add_cstr0(ctx, nm)
+    var sym_off = _data_add_cstr0(ctx, sym)
     // data: error message (cstr0)
-    var msg_off = _data_add_cstr0(ctx, "ffi unresolved: " + nm)
+    var msg_off = _data_add_cstr0(ctx, _x64_ffi_panic_msg(ctx, nm))
 
     ctx["functions"][nm] = bytes_len(ctx["code"])
 
@@ -511,12 +537,13 @@ fn _x64_emit_ffi_stub_win64(ctx, nm, resolver_name) {
     if ctx["functions"] == nil { ctx["functions"] = {} }
     if ctx["functions"][nm] != nil { return nil }
 
+    var sym = _x64_ffi_link_name(ctx, nm)
     // data: fnptr cell (u64)
     var cell_off = _data_add_u64(ctx, 0)
     // data: symbol name string (cstr0)
-    var sym_off = _data_add_cstr0(ctx, nm)
+    var sym_off = _data_add_cstr0(ctx, sym)
     // data: error message (cstr0)
-    var msg_off = _data_add_cstr0(ctx, "ffi unresolved: " + nm)
+    var msg_off = _data_add_cstr0(ctx, _x64_ffi_panic_msg(ctx, nm))
 
     ctx["functions"][nm] = bytes_len(ctx["code"])
 

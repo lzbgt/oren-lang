@@ -284,6 +284,23 @@ ffi { puts, strlen }
 ffi { puts, strlen }
 ```
 
+Module-exported FFI bindings (recommended for stdlib wrappers):
+
+```oren
+import libc "std:ffi/libc"
+
+fn main() {
+    var n = libc.strlen("oren")
+    if n != 4 { exit(1) }
+    exit(0)
+}
+```
+
+Notes (rolling):
+
+- The compiler may internally **prefix/rename** the declared symbol to keep modules separate (example internal label: `STD_ffi_libc_strlen`).
+- The **external** symbol lookup name remains the source identifier (`strlen`), so `dlsym/GetProcAddress/dyld` binds the expected C ABI symbol even when the internal label is namespaced.
+
 Rolling convenience:
 
 - `ffi { sym1, sym2, ... }` expands to multiple `ffi sym` declarations, inheriting the same attributes.

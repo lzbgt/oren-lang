@@ -1266,6 +1266,7 @@ Intrinsics are part of the “reserved surface” (prefix `oren_`, `sys_`) and m
   - `ptr_get_byte(ptr)`, `ptr_set_byte(ptr, val)`: Read/Write 8-bit byte.
   - **FFI:**
     - `ffi symbol` statement declares an external symbol (e.g., `ffi puts`).
+    - The compiler may rename the **internal** symbol label for module namespacing, but the **external** lookup name remains the source identifier (used for dyld binds / `dlsym` / `GetProcAddress`).
     - Native backend may attach compile-time FFI metadata via attributes on the `ffi` declaration:
       - `@ffi.link("...")`: declare a dynamic library dependency (portable; maps to `--link ...`).
       - `@ffi.dll("name.dll")`: Windows convenience form for attaching a DLL to a single symbol.

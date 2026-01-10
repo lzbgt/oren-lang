@@ -337,6 +337,9 @@ References:
          - Regression (Windows): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_link.oren`.
          - Done (2026-01-09): per-item attributes inside `ffi { ... }` (merge with outer attrs), so mixed return-kinds don’t require separate declarations.
            - Regression: `tests/native/ffi_group_item_attrs.oren` is compiled by `scripts/verify_native_x64_compile_only.sh` (stage1 + stage2; x64-linux + x64-windows).
+       - Done (2026-01-11): `ffi` declarations are module-exportable (stdlib wrappers can expose platform-specific bindings behind a stable API).
+         - Implementation: preserve an external symbol `link_name` while allowing module prefixing of the internal label.
+         - Regression: `tests/native/test_std_ffi_libc_smoke.oren` is exercised by `scripts/verify_native_matrix.sh` (arm64-linux + x64-win + x64-wsl; stage1 + stage2) and by `make verify-x64-linux-qemu`.
        - Done (2026-01-08): `examples/ffi_test.oren` is now self-contained across OS (`@cfg` + `@ffi.link`/`@ffi.dll`), and `make examples-test` no longer passes ad-hoc `--link libc.so.6` on Linux.
 	       - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).
 	         - Done (2026-01-09): x64-windows native backend supports `@ffi.export` for executables (PE Export Directory) so `GetProcAddress(GetModuleHandle(NULL), ...)` can locate callback symbols.

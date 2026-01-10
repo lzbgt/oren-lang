@@ -161,3 +161,22 @@ Why:
 Regression:
 
 - `make verify-x64-linux-qemu` runs `examples/libmath.oren --lib` + `examples/ffi_from_libmath.oren` under `qemu-x86_64` in the persistent Linux container.
+
+## 9) FFI bindings must remain module-exportable (internal name ≠ external symbol)
+
+Invariant:
+
+- A module may declare `ffi foo`, and callers may access it as a module member:
+  - `import m "std:ffi/libc"` then `m.strlen("oren")`
+- Module namespacing/prefixing may rewrite the **internal** function label (e.g. `STD_ffi_libc_strlen`),
+  but the **external** symbol name used for loader lookup must remain the source identifier (`strlen`).
+
+Why:
+
+- Without this split, module prefixing breaks FFI (call sites reference the prefixed label, but the resolver/binder searches for the prefixed external symbol which does not exist).
+- Stdlib needs this to hide `@cfg` + `@ffi.link/@ffi.dll` boilerplate behind a stable API surface.
+
+Regression:
+
+- `scripts/verify_native_matrix.sh` executes `tests/native/test_std_ffi_libc_smoke.oren` on Tier‑1 targets (stage1 + stage2).
+- `make verify-x64-linux-qemu` also builds/runs the same fixture under `qemu-x86_64` (local, no remote required).

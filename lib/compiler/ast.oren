@@ -26,7 +26,18 @@ fn new_member(tok, left, prop) { return {"type": "Member", "token": tok, "left":
 fn new_array(tok, elements) { return {"type": "Array", "token": tok, "elements": elements} }
 fn new_index(tok, left, idx) { return {"type": "Index", "token": tok, "left": left, "index": idx} }
 fn new_hash(tok, pairs) { return {"type": "Hash", "token": tok, "pairs": pairs} }
-fn new_ffi(tok, name) { return {"type": "FFI", "token": tok, "name": name} }
+fn new_ffi(tok, name) {
+    // `ffi foo` declares an external symbol.
+    //
+    // Rolling v0: module prefixing/renaming may rewrite `name.value` to an internal unique symbol,
+    // but the external symbol lookup name should remain stable across renaming.
+    //
+    // `link_name` is the external symbol name used for loader lookup (dlsym/GetProcAddress/dyld binds).
+    // Default to the source identifier at construction time.
+    var link_name = nil
+    if name != nil && name["type"] == "Identifier" { link_name = name["value"] }
+    return {"type": "FFI", "token": tok, "name": name, "link_name": link_name}
+}
 fn new_import(tok, name, path) { return {"type": "Import", "token": tok, "name": name, "path": path} }
 fn new_type(tok, name, fields) { return {"type": "Type", "token": tok, "name": name, "fields": fields} }
 fn new_spawn(tok, call) { return {"type": "Spawn", "token": tok, "call": call} }

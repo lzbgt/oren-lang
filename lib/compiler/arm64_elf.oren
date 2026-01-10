@@ -748,12 +748,19 @@ fn _arm64_emit_ffi_stub_linux_dyn(ctx, nm, resolver_name, debug_mode) {
     var fixups = ctx["fixups"]
     var functions = ctx["functions"]
 
+    var sym = nm
+    if ctx["ffi_link_names"] != nil && ctx["ffi_link_names"][nm] != nil {
+        sym = ctx["ffi_link_names"][nm]
+    }
+    var msg = "ffi unresolved: " + sym
+    if sym != nm { msg = msg + " (as " + nm + ")" }
+
     // data: fnptr cell (u64)
     var cell_off = _data_add_u64(data, 0)
     // data: symbol name string (cstr0)
-    var sym_off = _data_add_cstr0(data, nm)
+    var sym_off = _data_add_cstr0(data, sym)
     // data: error message (cstr0)
-    var msg_off = _data_add_cstr0(data, "ffi unresolved: " + nm)
+    var msg_off = _data_add_cstr0(data, msg)
 
     var stub_pos = bytes_len(code)
     functions[nm] = stub_pos
@@ -962,8 +969,11 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
             var stub_pos = bytes_len(code)
             functions[name] = stub_pos
 
-            // data: "ffi unresolved: <name>\0"
-            var msg_off = _data_add_cstr0(data, "ffi unresolved: " + name)
+            var sym2 = name
+            if ctx["ffi_link_names"] != nil && ctx["ffi_link_names"][name] != nil { sym2 = ctx["ffi_link_names"][name] }
+            var msg2 = "ffi unresolved: " + sym2
+            if sym2 != name { msg2 = msg2 + " (as " + name + ")" }
+            var msg_off = _data_add_cstr0(data, msg2)
 
             // x0 = &msg (cstr0)
             var adr_pos = bytes_len(code)

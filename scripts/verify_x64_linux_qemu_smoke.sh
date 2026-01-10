@@ -75,17 +75,20 @@ run_one() {
   docker cp "$bin" "$LINUX_DOCKER_ID:/tmp/hostbins/$name"
   docker exec -i "$LINUX_DOCKER_ID" bash -lc "set -e; cd /tmp/hostbins; chmod +x '$name'; timeout '$RUN_TIMEOUT_SECS' qemu-x86_64 './$name' >'${name}.out' 2>&1 || exit \$?"
   out="$(docker exec -i "$LINUX_DOCKER_ID" bash -lc "cd /tmp/hostbins && cat '${name}.out' | tr -d '\\r'")"
-  if ! printf '%s\n' "$out" | grep -qF "$want"; then
-    echo "--- run failed: ${name} ---" >&2
-    echo "expected substring: $want" >&2
-    echo "--- output ---" >&2
-    printf '%s\n' "$out" >&2
-    return 1
+  if [[ -n "$want" ]]; then
+    if ! printf '%s\n' "$out" | grep -qF "$want"; then
+      echo "--- run failed: ${name} ---" >&2
+      echo "expected substring: $want" >&2
+      echo "--- output ---" >&2
+      printf '%s\n' "$out" >&2
+      return 1
+    fi
   fi
 }
 
 PRINT_SRC="tests/native/print.oren"
 QI_SRC="tests/native/test_quick_integration_native.oren"
+STD_FFI_LIBC_SMOKE_SRC="tests/native/test_std_ffi_libc_smoke.oren"
 LIBMATH_SRC="examples/libmath.oren"
 FFI_FROM_LIBMATH_SRC="examples/ffi_from_libmath.oren"
 
@@ -93,6 +96,8 @@ build_one "./oren" "$PRINT_SRC" "build/tmp/print_stage1_x64_linux" "build/logs/x
 build_one "./oren_stage2" "$PRINT_SRC" "build/tmp/print_stage2_x64_linux" "build/logs/x64_linux_print_stage2.log"
 build_one "./oren" "$QI_SRC" "build/tmp/qi_stage1_x64_linux" "build/logs/x64_linux_qi_stage1.log"
 build_one "./oren_stage2" "$QI_SRC" "build/tmp/qi_stage2_x64_linux" "build/logs/x64_linux_qi_stage2.log"
+build_one "./oren" "$STD_FFI_LIBC_SMOKE_SRC" "build/tmp/std_ffi_libc_smoke_stage1_x64_linux" "build/logs/x64_linux_std_ffi_libc_smoke_stage1.log"
+build_one "./oren_stage2" "$STD_FFI_LIBC_SMOKE_SRC" "build/tmp/std_ffi_libc_smoke_stage2_x64_linux" "build/logs/x64_linux_std_ffi_libc_smoke_stage2.log"
 
 # Shared library + FFI resolution smoke (high-signal for x64-linux native backend):
 # - stage1/stage2 emit a `.so` and a binary that calls into it via `ffi`.
@@ -106,6 +111,8 @@ run_one "build/tmp/print_stage1_x64_linux" "hello from native" "print_stage1_x64
 run_one "build/tmp/print_stage2_x64_linux" "hello from native" "print_stage2_x64_linux"
 run_one "build/tmp/qi_stage1_x64_linux" "native quick integration OK" "qi_stage1_x64_linux"
 run_one "build/tmp/qi_stage2_x64_linux" "native quick integration OK" "qi_stage2_x64_linux"
+run_one "build/tmp/std_ffi_libc_smoke_stage1_x64_linux" "" "std_ffi_libc_smoke_stage1_x64_linux"
+run_one "build/tmp/std_ffi_libc_smoke_stage2_x64_linux" "" "std_ffi_libc_smoke_stage2_x64_linux"
 
 # Copy the `.so` alongside the executable (the embedded `--link` uses a relative `./...so` path).
 docker cp "build/tmp/libmath_stage1_x64_linux.so" "$LINUX_DOCKER_ID:/tmp/hostbins/libmath_stage1_x64_linux.so"

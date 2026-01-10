@@ -1,0 +1,11 @@
+import libc "std:ffi/libc"
+
+fn main() {
+    // Keep this fixture deterministic and tiny:
+    // - do not depend on stdout formatting
+    // - verify only that binding+call works and returns the correct value
+    var n = libc.strlen("oren")
+    if n != 4 { exit(1) }
+    exit(0)
+}
+
