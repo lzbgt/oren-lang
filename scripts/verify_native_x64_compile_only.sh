@@ -9,10 +9,32 @@ set -euo pipefail
 #   - x64-windows PE32+
 # - Does not attempt to run the artifacts (requires remote/WSL); this is a local sanity gate.
 #
-# This script intentionally stays quiet and bounded. If a build fails, it prints the failing command.
+# Default output is bounded. Use `--trace` to print each build step.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/verify_native_x64_compile_only.sh [--targets <csv>] [--trace]
+
+Targets (comma-separated):
+  all (default)
+  x64-linux   (alias: x64-wsl)
+  x64-win     (alias: x64-windows)
+  stage1
+  stage2
+
+Examples:
+  ./scripts/verify_native_x64_compile_only.sh
+  ./scripts/verify_native_x64_compile_only.sh --targets x64-win
+  ./scripts/verify_native_x64_compile_only.sh --targets x64-wsl,stage2
+  ./scripts/verify_native_x64_compile_only.sh --trace
+
+Env:
+  OREN_NATIVE_BUILD_TIMEOUT_SECS (default: 10)
+EOF
+}
 
 need_bin() {
   local b="$1"
@@ -29,22 +51,101 @@ need_bin python3
 mkdir -p build/tmp
 mkdir -p build/logs
 
+TARGETS_CSV="all"
+TRACE=0
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --trace)
+      TRACE=1
+      shift
+      ;;
+    --targets)
+      TARGETS_CSV="${2:-}"
+      if [[ -z "$TARGETS_CSV" ]]; then
+        echo "ERROR: --targets requires a value" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    *)
+      echo "ERROR: unknown arg: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+normalize_target() {
+  local t="$1"
+  t="${t#"${t%%[![:space:]]*}"}"
+  t="${t%"${t##*[![:space:]]}"}"
+  case "$t" in
+    all) echo all ;;
+    linux|x64-linux|x64-wsl|wsl) echo x64-linux ;;
+    win|windows|x64-win|x64-windows) echo x64-win ;;
+    stage1|s1) echo stage1 ;;
+    stage2|s2) echo stage2 ;;
+    *) echo "$t" ;;
+  esac
+}
+
+WANT_LINUX=1
+WANT_WIN=1
+WANT_STAGE1=1
+WANT_STAGE2=1
+if [[ "$TARGETS_CSV" != "all" ]]; then
+  WANT_LINUX=0
+  WANT_WIN=0
+  WANT_STAGE1=0
+  WANT_STAGE2=0
+  IFS=',' read -r -a _parts <<<"$TARGETS_CSV"
+  for p in "${_parts[@]}"; do
+    p="$(normalize_target "$p")"
+    case "$p" in
+      x64-linux) WANT_LINUX=1 ;;
+      x64-win) WANT_WIN=1 ;;
+      stage1) WANT_STAGE1=1 ;;
+      stage2) WANT_STAGE2=1 ;;
+      *) echo "ERROR: unknown target selector: $p" >&2; usage >&2; exit 2 ;;
+    esac
+  done
+  # If caller only selected stage(s), default platforms to both.
+  if [[ "$WANT_LINUX" -eq 0 && "$WANT_WIN" -eq 0 ]]; then
+    WANT_LINUX=1
+    WANT_WIN=1
+  fi
+  # If caller only selected platforms, default compilers to both.
+  if [[ "$WANT_STAGE1" -eq 0 && "$WANT_STAGE2" -eq 0 ]]; then
+    WANT_STAGE1=1
+    WANT_STAGE2=1
+  fi
+fi
+
+BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
+
 QI_SRC="tests/native/test_quick_integration_native.oren"
 PRINT_SRC="tests/native/print.oren"
 PRINT_NEEDLE="hello from native"
 CFG_OS_SRC="tests/native/cfg_os_select.oren"
+
 WIN_FFI_K32_SRC="tests/native/ffi_windows_kernel32.oren"
 WIN_FFI_MSVCRT_LINK_ATTR_SRC="tests/native/ffi_windows_msvcrt_attr_link.oren"
 WIN_FFI_I32_SRC="tests/native/ffi_windows_ret_i32_signext.oren"
 WIN_FFI_U32_SRC="tests/native/ffi_windows_ret_u32_zeroext.oren"
 WIN_FFI_VOID_SRC="tests/native/ffi_windows_ret_void_zero.oren"
 WIN_FFI_EXPORT_GETPROC_SRC="tests/native/ffi_windows_export_getprocaddress.oren"
+
 LINUX_FFI_OK_SRC="tests/native/ffi_linux_strlen_ok.oren"
 LINUX_FFI_I32_SRC="tests/native/ffi_linux_ret_i32_signext.oren"
 LINUX_FFI_U32_SRC="tests/native/ffi_linux_ret_u32_zeroext.oren"
 LINUX_FFI_VOID_SRC="tests/native/ffi_linux_ret_void_zero.oren"
+
 FFI_GROUP_ITEM_ATTRS_SRC="tests/native/ffi_group_item_attrs.oren"
-BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
 
 run_with_timeout() {
   local secs="$1"
@@ -83,14 +184,20 @@ build_one() {
   local out="$4"
   shift 4
 
-  echo "== build: $compiler -> $platform ==" >&2
+  if [[ "$TRACE" -eq 1 ]]; then
+    echo "== build: compiler=$compiler platform=$platform src=$src out=$out ==" >&2
+  fi
+
   local ccname
   ccname="$(basename "$compiler")"
   local bname
   bname="$(basename "$src" .oren)"
   local logf="build/logs/x64_compile_only_${ccname}_${platform}_${bname}.log"
+
   set +e
-  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$src" --backend native --platform "$platform" --no-cache --no-debug "$@" -o "$out" >"$logf" 2>&1
+  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$src" \
+    --backend native --platform "$platform" --no-cache --no-debug "$@" -o "$out" \
+    >"$logf" 2>&1
   local rc=$?
   set -e
   if [[ "$rc" -ne 0 ]]; then
@@ -110,7 +217,6 @@ build_one() {
 
 check_elf_x64() {
   local p="$1"
-  # Avoid `grep -q` under `set -o pipefail` (upstream can SIGPIPE and fail the pipeline).
   file "$p" | grep -E 'ELF 64-bit.*x86-64' >/dev/null
 }
 
@@ -131,8 +237,6 @@ check_pe_x64_entry_disp8_zero_sane() {
   # When an "optional byte" is represented as `0`, native-backend `nil==0` can cause
   # the displacement byte to be omitted, shifting the instruction stream and producing
   # a binary that crashes immediately at process entry on Windows.
-  #
-  # We check for the presence of the correct bytes and the absence of the known-bad pattern.
   local p="$1"
   python3 - <<'PY' "$p"
 import sys
@@ -161,122 +265,94 @@ check_bin_contains() {
   fi
 }
 
-build_one ./oren x64-linux "$QI_SRC" build/tmp/qi_stage1_x64_linux
-check_elf_x64 build/tmp/qi_stage1_x64_linux
+run_suite_x64_linux() {
+  local compiler="$1"
+  local tag="$2"
 
-build_one ./oren_stage2 x64-linux "$QI_SRC" build/tmp/qi_stage2_x64_linux
-check_elf_x64 build/tmp/qi_stage2_x64_linux
+  build_one "$compiler" x64-linux "$QI_SRC" "build/tmp/qi_${tag}_x64_linux"
+  check_elf_x64 "build/tmp/qi_${tag}_x64_linux"
 
-build_one ./oren x64-linux "$PRINT_SRC" build/tmp/print_stage1_x64_linux
-check_elf_x64 build/tmp/print_stage1_x64_linux
-check_bin_contains build/tmp/print_stage1_x64_linux "$PRINT_NEEDLE"
+  build_one "$compiler" x64-linux "$PRINT_SRC" "build/tmp/print_${tag}_x64_linux"
+  check_elf_x64 "build/tmp/print_${tag}_x64_linux"
+  check_bin_contains "build/tmp/print_${tag}_x64_linux" "$PRINT_NEEDLE"
 
-build_one ./oren_stage2 x64-linux "$PRINT_SRC" build/tmp/print_stage2_x64_linux
-check_elf_x64 build/tmp/print_stage2_x64_linux
-check_bin_contains build/tmp/print_stage2_x64_linux "$PRINT_NEEDLE"
+  build_one "$compiler" x64-linux "$CFG_OS_SRC" "build/tmp/cfg_os_${tag}_x64_linux"
+  check_elf_x64 "build/tmp/cfg_os_${tag}_x64_linux"
 
-build_one ./oren x64-linux "$CFG_OS_SRC" build/tmp/cfg_os_stage1_x64_linux
-check_elf_x64 build/tmp/cfg_os_stage1_x64_linux
+  build_one "$compiler" x64-linux "$LINUX_FFI_OK_SRC" "build/tmp/ffi_ok_${tag}_x64_linux"
+  check_elf_x64_dyn "build/tmp/ffi_ok_${tag}_x64_linux"
 
-build_one ./oren_stage2 x64-linux "$CFG_OS_SRC" build/tmp/cfg_os_stage2_x64_linux
-check_elf_x64 build/tmp/cfg_os_stage2_x64_linux
+  build_one "$compiler" x64-linux "$LINUX_FFI_I32_SRC" "build/tmp/ffi_i32_${tag}_x64_linux"
+  check_elf_x64_dyn "build/tmp/ffi_i32_${tag}_x64_linux"
 
-build_one ./oren x64-linux "$LINUX_FFI_OK_SRC" build/tmp/ffi_ok_stage1_x64_linux
-check_elf_x64_dyn build/tmp/ffi_ok_stage1_x64_linux
+  build_one "$compiler" x64-linux "$LINUX_FFI_U32_SRC" "build/tmp/ffi_u32_${tag}_x64_linux"
+  check_elf_x64_dyn "build/tmp/ffi_u32_${tag}_x64_linux"
 
-build_one ./oren_stage2 x64-linux "$LINUX_FFI_OK_SRC" build/tmp/ffi_ok_stage2_x64_linux
-check_elf_x64_dyn build/tmp/ffi_ok_stage2_x64_linux
+  build_one "$compiler" x64-linux "$LINUX_FFI_VOID_SRC" "build/tmp/ffi_void_${tag}_x64_linux"
+  check_elf_x64_dyn "build/tmp/ffi_void_${tag}_x64_linux"
 
-build_one ./oren x64-linux "$LINUX_FFI_I32_SRC" build/tmp/ffi_i32_stage1_x64_linux
-check_elf_x64_dyn build/tmp/ffi_i32_stage1_x64_linux
+  build_one "$compiler" x64-linux "$FFI_GROUP_ITEM_ATTRS_SRC" "build/tmp/ffi_group_item_attrs_${tag}_x64_linux"
+  check_elf_x64_dyn "build/tmp/ffi_group_item_attrs_${tag}_x64_linux"
+}
 
-build_one ./oren_stage2 x64-linux "$LINUX_FFI_I32_SRC" build/tmp/ffi_i32_stage2_x64_linux
-check_elf_x64_dyn build/tmp/ffi_i32_stage2_x64_linux
+run_suite_x64_win() {
+  local compiler="$1"
+  local tag="$2"
 
-build_one ./oren x64-linux "$LINUX_FFI_U32_SRC" build/tmp/ffi_u32_stage1_x64_linux
-check_elf_x64_dyn build/tmp/ffi_u32_stage1_x64_linux
+  build_one "$compiler" x64-windows "$QI_SRC" "build/tmp/qi_${tag}_x64_windows.exe"
+  check_pe_x64 "build/tmp/qi_${tag}_x64_windows.exe"
+  check_pe_x64_entry_disp8_zero_sane "build/tmp/qi_${tag}_x64_windows.exe"
 
-build_one ./oren_stage2 x64-linux "$LINUX_FFI_U32_SRC" build/tmp/ffi_u32_stage2_x64_linux
-check_elf_x64_dyn build/tmp/ffi_u32_stage2_x64_linux
+  build_one "$compiler" x64-windows "$PRINT_SRC" "build/tmp/print_${tag}_x64_windows.exe"
+  check_pe_x64 "build/tmp/print_${tag}_x64_windows.exe"
+  check_bin_contains "build/tmp/print_${tag}_x64_windows.exe" "$PRINT_NEEDLE"
 
-build_one ./oren x64-linux "$LINUX_FFI_VOID_SRC" build/tmp/ffi_void_stage1_x64_linux
-check_elf_x64_dyn build/tmp/ffi_void_stage1_x64_linux
+  build_one "$compiler" x64-windows "$CFG_OS_SRC" "build/tmp/cfg_os_${tag}_x64_windows.exe"
+  check_pe_x64 "build/tmp/cfg_os_${tag}_x64_windows.exe"
 
-build_one ./oren_stage2 x64-linux "$LINUX_FFI_VOID_SRC" build/tmp/ffi_void_stage2_x64_linux
-check_elf_x64_dyn build/tmp/ffi_void_stage2_x64_linux
+  build_one "$compiler" x64-windows "$WIN_FFI_K32_SRC" "build/tmp/ffi_k32_${tag}_x64_windows.exe"
+  check_pe_x64 "build/tmp/ffi_k32_${tag}_x64_windows.exe"
 
-build_one ./oren x64-linux "$FFI_GROUP_ITEM_ATTRS_SRC" build/tmp/ffi_group_item_attrs_stage1_x64_linux
-check_elf_x64_dyn build/tmp/ffi_group_item_attrs_stage1_x64_linux
+  build_one "$compiler" x64-windows "$WIN_FFI_MSVCRT_LINK_ATTR_SRC" "build/tmp/ffi_msvcrt_link_attr_${tag}_x64_windows.exe"
+  check_pe_x64 "build/tmp/ffi_msvcrt_link_attr_${tag}_x64_windows.exe"
+  check_bin_contains "build/tmp/ffi_msvcrt_link_attr_${tag}_x64_windows.exe" "msvcrt.dll"
 
-build_one ./oren_stage2 x64-linux "$FFI_GROUP_ITEM_ATTRS_SRC" build/tmp/ffi_group_item_attrs_stage2_x64_linux
-check_elf_x64_dyn build/tmp/ffi_group_item_attrs_stage2_x64_linux
+  build_one "$compiler" x64-windows "$WIN_FFI_I32_SRC" "build/tmp/ffi_i32_${tag}_x64_windows.exe"
+  check_pe_x64 "build/tmp/ffi_i32_${tag}_x64_windows.exe"
 
-build_one ./oren x64-windows "$QI_SRC" build/tmp/qi_stage1_x64_windows.exe
-check_pe_x64 build/tmp/qi_stage1_x64_windows.exe
-check_pe_x64_entry_disp8_zero_sane build/tmp/qi_stage1_x64_windows.exe
+  build_one "$compiler" x64-windows "$WIN_FFI_U32_SRC" "build/tmp/ffi_u32_${tag}_x64_windows.exe"
+  check_pe_x64 "build/tmp/ffi_u32_${tag}_x64_windows.exe"
 
-build_one ./oren_stage2 x64-windows "$QI_SRC" build/tmp/qi_stage2_x64_windows.exe
-check_pe_x64 build/tmp/qi_stage2_x64_windows.exe
-check_pe_x64_entry_disp8_zero_sane build/tmp/qi_stage2_x64_windows.exe
+  build_one "$compiler" x64-windows "$WIN_FFI_VOID_SRC" "build/tmp/ffi_void_${tag}_x64_windows.exe"
+  check_pe_x64 "build/tmp/ffi_void_${tag}_x64_windows.exe"
 
-build_one ./oren x64-windows "$PRINT_SRC" build/tmp/print_stage1_x64_windows.exe
-check_pe_x64 build/tmp/print_stage1_x64_windows.exe
-check_bin_contains build/tmp/print_stage1_x64_windows.exe "$PRINT_NEEDLE"
+  build_one "$compiler" x64-windows "$FFI_GROUP_ITEM_ATTRS_SRC" "build/tmp/ffi_group_item_attrs_${tag}_x64_windows.exe"
+  check_pe_x64 "build/tmp/ffi_group_item_attrs_${tag}_x64_windows.exe"
 
-build_one ./oren_stage2 x64-windows "$PRINT_SRC" build/tmp/print_stage2_x64_windows.exe
-check_pe_x64 build/tmp/print_stage2_x64_windows.exe
-check_bin_contains build/tmp/print_stage2_x64_windows.exe "$PRINT_NEEDLE"
+  build_one "$compiler" x64-windows "$WIN_FFI_EXPORT_GETPROC_SRC" "build/tmp/ffi_export_${tag}_x64_windows.exe"
+  check_pe_x64 "build/tmp/ffi_export_${tag}_x64_windows.exe"
+  check_bin_contains "build/tmp/ffi_export_${tag}_x64_windows.exe" "oren_test_export_cb"
+}
 
-build_one ./oren x64-windows "$CFG_OS_SRC" build/tmp/cfg_os_stage1_x64_windows.exe
-check_pe_x64 build/tmp/cfg_os_stage1_x64_windows.exe
+echo -n "== x64 compile-only: platforms=" >&2
+if [[ "$WANT_LINUX" -eq 1 ]]; then echo -n "x64-linux " >&2; fi
+if [[ "$WANT_WIN" -eq 1 ]]; then echo -n "x64-win " >&2; fi
+echo -n "compilers=" >&2
+if [[ "$WANT_STAGE1" -eq 1 ]]; then echo -n "stage1 " >&2; fi
+if [[ "$WANT_STAGE2" -eq 1 ]]; then echo -n "stage2 " >&2; fi
+echo "timeout=${BUILD_TIMEOUT_SECS}s ==" >&2
 
-build_one ./oren_stage2 x64-windows "$CFG_OS_SRC" build/tmp/cfg_os_stage2_x64_windows.exe
-check_pe_x64 build/tmp/cfg_os_stage2_x64_windows.exe
+if [[ "$WANT_LINUX" -eq 1 ]]; then
+  echo "== suite: x64-linux ==" >&2
+  if [[ "$WANT_STAGE1" -eq 1 ]]; then run_suite_x64_linux ./oren stage1; fi
+  if [[ "$WANT_STAGE2" -eq 1 ]]; then run_suite_x64_linux ./oren_stage2 stage2; fi
+fi
 
-build_one ./oren x64-windows "$WIN_FFI_K32_SRC" build/tmp/ffi_k32_stage1_x64_windows.exe
-check_pe_x64 build/tmp/ffi_k32_stage1_x64_windows.exe
-
-build_one ./oren_stage2 x64-windows "$WIN_FFI_K32_SRC" build/tmp/ffi_k32_stage2_x64_windows.exe
-check_pe_x64 build/tmp/ffi_k32_stage2_x64_windows.exe
-
-build_one ./oren x64-windows "$WIN_FFI_MSVCRT_LINK_ATTR_SRC" build/tmp/ffi_msvcrt_link_attr_stage1_x64_windows.exe
-check_pe_x64 build/tmp/ffi_msvcrt_link_attr_stage1_x64_windows.exe
-check_bin_contains build/tmp/ffi_msvcrt_link_attr_stage1_x64_windows.exe "msvcrt.dll"
-
-build_one ./oren_stage2 x64-windows "$WIN_FFI_MSVCRT_LINK_ATTR_SRC" build/tmp/ffi_msvcrt_link_attr_stage2_x64_windows.exe
-check_pe_x64 build/tmp/ffi_msvcrt_link_attr_stage2_x64_windows.exe
-check_bin_contains build/tmp/ffi_msvcrt_link_attr_stage2_x64_windows.exe "msvcrt.dll"
-
-build_one ./oren x64-windows "$WIN_FFI_I32_SRC" build/tmp/ffi_i32_stage1_x64_windows.exe
-check_pe_x64 build/tmp/ffi_i32_stage1_x64_windows.exe
-
-build_one ./oren_stage2 x64-windows "$WIN_FFI_I32_SRC" build/tmp/ffi_i32_stage2_x64_windows.exe
-check_pe_x64 build/tmp/ffi_i32_stage2_x64_windows.exe
-
-build_one ./oren x64-windows "$WIN_FFI_U32_SRC" build/tmp/ffi_u32_stage1_x64_windows.exe
-check_pe_x64 build/tmp/ffi_u32_stage1_x64_windows.exe
-
-build_one ./oren_stage2 x64-windows "$WIN_FFI_U32_SRC" build/tmp/ffi_u32_stage2_x64_windows.exe
-check_pe_x64 build/tmp/ffi_u32_stage2_x64_windows.exe
-
-build_one ./oren x64-windows "$WIN_FFI_VOID_SRC" build/tmp/ffi_void_stage1_x64_windows.exe
-check_pe_x64 build/tmp/ffi_void_stage1_x64_windows.exe
-
-build_one ./oren_stage2 x64-windows "$WIN_FFI_VOID_SRC" build/tmp/ffi_void_stage2_x64_windows.exe
-check_pe_x64 build/tmp/ffi_void_stage2_x64_windows.exe
-
-build_one ./oren x64-windows "$FFI_GROUP_ITEM_ATTRS_SRC" build/tmp/ffi_group_item_attrs_stage1_x64_windows.exe
-check_pe_x64 build/tmp/ffi_group_item_attrs_stage1_x64_windows.exe
-
-build_one ./oren_stage2 x64-windows "$FFI_GROUP_ITEM_ATTRS_SRC" build/tmp/ffi_group_item_attrs_stage2_x64_windows.exe
-check_pe_x64 build/tmp/ffi_group_item_attrs_stage2_x64_windows.exe
-
-build_one ./oren x64-windows "$WIN_FFI_EXPORT_GETPROC_SRC" build/tmp/ffi_export_stage1_x64_windows.exe
-check_pe_x64 build/tmp/ffi_export_stage1_x64_windows.exe
-check_bin_contains build/tmp/ffi_export_stage1_x64_windows.exe "oren_test_export_cb"
-
-build_one ./oren_stage2 x64-windows "$WIN_FFI_EXPORT_GETPROC_SRC" build/tmp/ffi_export_stage2_x64_windows.exe
-check_pe_x64 build/tmp/ffi_export_stage2_x64_windows.exe
-check_bin_contains build/tmp/ffi_export_stage2_x64_windows.exe "oren_test_export_cb"
+if [[ "$WANT_WIN" -eq 1 ]]; then
+  echo "== suite: x64-windows (compile-only) ==" >&2
+  if [[ "$WANT_STAGE1" -eq 1 ]]; then run_suite_x64_win ./oren stage1; fi
+  if [[ "$WANT_STAGE2" -eq 1 ]]; then run_suite_x64_win ./oren_stage2 stage2; fi
+fi
 
 echo "OK: x64 compile-only verification passed" >&2
+
