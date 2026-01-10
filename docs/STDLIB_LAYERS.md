@@ -54,6 +54,10 @@ Examples (current / expected direction):
 - `std/json` (portable explicit `JsonValue`; tolerant decode for config text)
 - `std/yaml` (deterministic subset; tolerant decode for common config text)
 - `std/cbor` (deterministic subset + CBOR Sequences streaming helpers)
+- `std/ffi/*` (OS/library boundary wrappers for native providers)
+  - Purpose: centralize `@cfg` + `@ffi.link`/`@ffi.dll` + ABI return-kind details in one place.
+  - Used by: OS-specific provider implementations (TLS, DNS, etc).
+  - Not intended for general application logic; prefer higher-level stdlib APIs (`std:net/*`, `std:crypto/*`).
 
 **Rules:**
 
@@ -62,6 +66,28 @@ Examples (current / expected direction):
 - Syslib must remain usable by both:
   - native backend (syscall-first substrate)
   - AVM backend (virtualized domains)
+
+### `std:ffi/*` boundary modules (rolling)
+
+Oren’s stdlib includes a small set of `std:ffi/*` wrapper modules that exist specifically to:
+
+- keep platform-specific library names and ABI quirks out of higher-level code,
+- avoid scattering raw `ffi` declarations across many files,
+- make Tier‑1 portability gates higher-signal (a wrapper module becomes the single place to fix).
+
+Examples in-tree (non-exhaustive):
+
+- Windows:
+  - `std:ffi/kernel32` (basic Win32 calls)
+  - `std:ffi/secur32` + `std:ffi/crypt32` (Schannel/SSPI + cert store; used by `std:net/tls_windows_schannel`)
+  - `std:ffi/iphlpapi` (network config; used by `std:net/dns` default resolver selection)
+- Linux:
+  - `std:ffi/libdl` (dynamic loader; used by `std:net/tls_linux_openssl`)
+
+Policy (rolling):
+
+- `std:ffi/*` modules may use `@cfg`, `@ffi.link`, `@ffi.dll`, and `@ffi.ret(...)`.
+- Higher-level modules should import the wrapper instead of repeating FFI declarations.
 
 ## 3) Layer 2 — Shipped Stdlib (source modules)
 

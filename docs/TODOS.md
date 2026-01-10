@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-01-10
+**Last updated:** 2026-01-11
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order,
 plus the **regression gates** that must stay green.
