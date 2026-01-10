@@ -17,19 +17,19 @@ fn _collect_locals_from_ops(ctx, ops, locals, local_next) {
                 }
             } else if op["op"] == "if" {
                 local_next = _collect_locals_from_ops(ctx, op["then"], locals, local_next)
-                if local_next == nil { return nil }
+                if local_next < 0 { return -1 }
                 local_next = _collect_locals_from_ops(ctx, op["else"], locals, local_next)
-                if local_next == nil { return nil }
+                if local_next < 0 { return -1 }
             } else if op["op"] == "while" {
                 local_next = _collect_locals_from_ops(ctx, op["body"], locals, local_next)
-                if local_next == nil { return nil }
+                if local_next < 0 { return -1 }
             } else if op["op"] == "for" {
                 local_next = _collect_locals_from_ops(ctx, op["init"], locals, local_next)
-                if local_next == nil { return nil }
+                if local_next < 0 { return -1 }
                 local_next = _collect_locals_from_ops(ctx, op["post"], locals, local_next)
-                if local_next == nil { return nil }
+                if local_next < 0 { return -1 }
                 local_next = _collect_locals_from_ops(ctx, op["body"], locals, local_next)
-                if local_next == nil { return nil }
+                if local_next < 0 { return -1 }
             }
         }
         i = i + 1
@@ -60,8 +60,8 @@ fn _linetab_record_tok(ctx, tok) {
     var loc = " @" + file + ":" + line_s + " "
 
     if ctx["linetab_loc_offs"] == nil { ctx["linetab_loc_offs"] = {} }
-    // Store offsets as `off+1` so a real offset of 0 is not indistinguishable from `nil`
-    // when the compiler runs under the native runtime (where `nil` is 0).
+    // Store offsets as `off+1` so a real offset of 0 never risks being interpreted as "missing"
+    // in rolling runtimes/containers where an explicit 0 payload can be lossy.
     var loc_off_enc = ctx["linetab_loc_offs"][loc]
     var loc_off = nil
     if loc_off_enc != nil { loc_off = loc_off_enc - 1 }
@@ -115,8 +115,20 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
         }
         _linetab_record_tok(ctx, op["tok"])
         if op["op"] == "var_i32" {
-            var off = locals[op["name"]]
-            if off == nil { err(ctx, "x64 native v0: missing local slot"); return nil }
+            var name = op["name"]
+            var off = locals[name]
+            if off == nil {
+                var fnm = "?"
+                if ctx != nil && ctx["cur_fn_name"] != nil { fnm = ctx["cur_fn_name"] }
+                var nm_s = "?"
+                if name != nil {
+                    if oren_is_string(name) == true { nm_s = name }
+                    else if oren_type_tag(name) == 1 { nm_s = "<int " + oren_int_to_string(name) + ">" }
+                    else { nm_s = "<non-string>" }
+                }
+                err(ctx, "x64 native v0: missing local slot fn=" + fnm + " name=" + nm_s + " locals_len=" + oren_int_to_string(oren_map_len(locals)))
+                return nil
+            }
             _expr_int_check(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             if ctx["locals_floaty"] != nil {

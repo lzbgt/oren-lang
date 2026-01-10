@@ -95,7 +95,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     }
 
     local_next = _collect_locals_from_ops(ctx, ops, locals, local_next)
-    if local_next == nil { return nil }
+    if local_next < 0 { return nil }
     if trace_this {
         var dt0 = (oren_time_now_ns() - t_stage) / 1000000
         print("[x64_fn] collect_locals done ms=" + oren_int_to_string(dt0))

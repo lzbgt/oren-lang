@@ -32,14 +32,14 @@ fn _data_add_cstr0(ctx, s) {
     // Deduping:
     // - For correctness it's not required (native string comparisons use strcmp-style logic),
     //   but it reduces binary size and makes pointer identity stable for repeated literals.
-    if ctx == nil { return nil }
+    if ctx == nil { return 0 }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
     if ctx["cstr0_offs"] == nil { ctx["cstr0_offs"] = {} }
     if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
 
     // In native mode, some call sites use raw 0 as a "null string pointer" sentinel.
-    // Treat it the same as `nil` here so string-y emitters don't crash during cross-target builds.
-    if s == nil || s == 0 { s = "" }
+    // Treat it as an empty string here so string-y emitters don't crash during cross-target builds.
+    if s == 0 { s = "" }
     // Defensive: a corrupted/invalid AST (usually from a bad astbin cache) can surface a non-string
     // value here. Avoid panicking inside `oren_string_len` (hard crash) and instead report a
     // compiler error so callers can fall back or advise `oren clean`.
@@ -47,7 +47,7 @@ fn _data_add_cstr0(ctx, s) {
         var tn = "<?>"
         var tt = nil
         var val_extra = ""
-        if s != nil {
+        if s != 0 {
             tn = oren_type_name(s)
             tt = oren_type_tag(s)
             // When the native runtime returns 0 for "missing" (common map APIs),
@@ -60,12 +60,14 @@ fn _data_add_cstr0(ctx, s) {
         var fn_extra = ""
         if ctx != nil && ctx["cur_fn_name"] != nil { fn_extra = " cur_fn=" + ctx["cur_fn_name"] }
         err(ctx, "x64 native v0: _data_add_cstr0 expects string, got " + tn + extra + val_extra + fn_extra)
-        return nil
+        return 0
     }
-    // Store offsets as `off+1` so a real offset of 0 is not indistinguishable from `nil`
-    // when the compiler runs under the native runtime (where `nil` is 0).
-    var existing_enc = ctx["cstr0_offs"][s]
-    if existing_enc != nil { return existing_enc - 1 }
+    // Dedup lookup:
+    // `oren_map_get*` returns the `nil` singleton for missing keys (not raw 0).
+    // Avoid using `0` as the only sentinel here; detect "present" using `oren_type_tag`.
+    var existing_enc = nil
+    if ctx["cstr0_offs"] != nil { existing_enc = ctx["cstr0_offs"][s] }
+    if oren_type_tag(existing_enc) == 1 && existing_enc != 0 { return existing_enc - 1 }
 
     while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
     var off = bytes_len(ctx["data"])
@@ -513,8 +515,8 @@ fn _data_finalize_dbginfo_table(ctx, platform) {
         if i + 1 < oren_list_len(entries) {
             end_off = entries[i + 1]["off"]
         }
-        if end_off == nil { end_off = code_len }
-        if start_off == nil { start_off = 0 }
+        // Offsets are always integers (0 is valid). Avoid `== nil` checks here because
+        // native runtime uses 0 as the `nil` sentinel.
         if end_off < start_off { end_off = start_off }
 
         // start/end absolute PCs.

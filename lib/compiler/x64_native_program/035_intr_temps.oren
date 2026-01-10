@@ -19,7 +19,8 @@ fn _x64_tmp_intr_name(ctx, idx) {
     // If each call does `"$tmp_intr" + int_to_string(idx)`, we allocate lots of tiny strings.
     //
     // Cache the names on `ctx` so they are re-used across functions and across rtobj builds.
-    if idx == nil { return "$tmp_intr" }
+    // Intrinsic temp indices are integers; keep the API scalar-only (avoid relying on `x == nil`).
+    if idx <= 0 { return "$tmp_intr" }
     if ctx == nil { return "$tmp_intr" + oren_int_to_string(idx) }
     var intr = ctx["__x64_tmp_intr_names"]
     if intr == nil {
@@ -71,9 +72,10 @@ fn _intr_tmp_pop(ctx, base) {
 }
 
 fn _intr_tmp_off(ctx, locals, idx) {
-    if idx == nil {
-        err(ctx, "x64 native v0: intrinsic temp idx is nil")
-        return nil
+    // Intrinsic temp indices are 1-based (0 is reserved).
+    if idx <= 0 {
+        err(ctx, "x64 native v0: intrinsic temp idx is missing/invalid")
+        return 0
     }
 
     // Fast path: per-function intrinsic-temp pool base offset.
@@ -83,13 +85,13 @@ fn _intr_tmp_off(ctx, locals, idx) {
     //
     // Use only `iadd` here so stage1 (C runtime) doesn't pay the cost of generic `*`/`<<`.
     if ctx != nil && ctx["intr_tmp_base_off"] != nil {
-        if idx < 0 { err(ctx, "x64 native v0: intrinsic temp idx < 0"); return nil }
+        if idx < 0 { err(ctx, "x64 native v0: intrinsic temp idx < 0"); return 0 }
         var lim = 0
         if ctx["intr_tmp_limit"] != nil { lim = ctx["intr_tmp_limit"] }
         if lim != 0 && idx >= lim {
             err(ctx, "x64 native v0: intrinsic temp idx out of range (idx=" + oren_int_to_string(idx) +
                      " lim=" + oren_int_to_string(lim) + ")")
-            return nil
+            return 0
         }
         var base = ctx["intr_tmp_base_off"]
         var scale = iadd(idx, idx)   // *2
@@ -106,9 +108,13 @@ fn _intr_tmp_off(ctx, locals, idx) {
     var nm = _x64_tmp_intr_name(ctx, idx)
     var off = nil
     if locals != nil { off = locals[nm] }
-    if off == nil {
+    // Native-runtime robustness:
+    // - `locals[nm]` can produce 0 for a missing key today (nil carrier).
+    // - Real stack offsets are never 0 in this backend (start at 8), so `off == nil` is a safe
+    //   missing check here even in the current untagged mode.
+    if off == nil || off == 0 {
         err(ctx, "x64 native v0: missing intrinsic temp slot " + nm)
-        return nil
+        return 0
     }
     return off
 }

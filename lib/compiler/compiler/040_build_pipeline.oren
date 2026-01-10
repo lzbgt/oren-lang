@@ -812,7 +812,19 @@ fn compiler_main() {
         print(emsg)
         oren_exit(2)
     }
-    call_depth_max = opts["call-depth-max"]
+    // Call depth budget (shared contract across backends):
+    // - default (unset): 8192
+    // - 0: unlimited (disable deterministic call-depth abort)
+    // - negative: treated as default (8192)
+    //
+    // IMPORTANT (native runtime semantics):
+    // Avoid reading an unset option out of `opts` because missing keys can surface as `0`
+    // (native `nil` sentinel), which would incorrectly mean "unlimited". Only override the
+    // default if the flag was explicitly provided.
+    if seen["call-depth-max"] == true {
+        call_depth_max = opts["call-depth-max"]
+        if call_depth_max < 0 { call_depth_max = 8192 }
+    }
     analyze = seen["analyze"] == true
     emit_meta = seen["metadata"] == true
     is_shared_lib = seen["lib"] == true || seen["shared"] == true
@@ -910,21 +922,36 @@ fn compiler_main() {
 	        } else {
 	            var dir = "build/targets/" + arch + "-" + target + "/" + backend
 	            out_path = dir + "/" + stem
-	            // Windows UX: default output extensions for native/c artifacts.
-	            //
-	            // Rolling note: cmd.exe does not treat extensionless PE files as runnable commands
-	            // via relative paths. Also, shared library outputs must end in `.dll` by convention.
-	            if target == "windows" {
-	                var want_ext = ".exe"
-	                if backend == "native" && is_shared_lib { want_ext = ".dll" }
-	                var n2 = oren_string_len(out_path)
-	                if n2 < oren_string_len(want_ext) || oren_string_slice(out_path, n2 - oren_string_len(want_ext), n2) != want_ext {
-	                    out_path = out_path + want_ext
-	                }
-	            }
-	        }
-	    }
-	    if trace_build { print("[build] out_path=" + out_path) }
+		            // Default output extensions (native backend; rolling UX).
+		            //
+		            // Notes:
+		            // - Windows: cmd.exe does not treat extensionless PE files as runnable commands via relative paths.
+		            // - Shared libs should use conventional extensions per target so users don't need to remember them.
+		            if target == "windows" {
+		                var want_ext = ".exe"
+		                if backend == "native" && is_shared_lib { want_ext = ".dll" }
+		                var n2 = oren_string_len(out_path)
+		                if n2 < oren_string_len(want_ext) || oren_string_slice(out_path, n2 - oren_string_len(want_ext), n2) != want_ext {
+		                    out_path = out_path + want_ext
+		                }
+		            } else if backend == "native" && is_shared_lib {
+		                if target == "linux" {
+		                    var want_ext2 = ".so"
+		                    var n3 = oren_string_len(out_path)
+		                    if n3 < oren_string_len(want_ext2) || oren_string_slice(out_path, n3 - oren_string_len(want_ext2), n3) != want_ext2 {
+		                        out_path = out_path + want_ext2
+		                    }
+		                } else if target == "macos" {
+		                    var want_ext3 = ".dylib"
+		                    var n4 = oren_string_len(out_path)
+		                    if n4 < oren_string_len(want_ext3) || oren_string_slice(out_path, n4 - oren_string_len(want_ext3), n4) != want_ext3 {
+		                        out_path = out_path + want_ext3
+		                    }
+		                }
+		            }
+		        }
+		    }
+		    if trace_build { print("[build] out_path=" + out_path) }
 
     if deterministic {
         // Deterministic mode: avoid post-processing that can inject non-reproducible data.
@@ -1036,12 +1063,7 @@ fn compiler_main() {
         }
     }
 
-    // Normalize call depth budget (shared contract across backends):
-    // - nil => default (8192)
-    // - negative => default (8192)
-    // - 0 => unlimited (disable deterministic call-depth abort)
-    if call_depth_max == nil { call_depth_max = 8192 }
-    else if call_depth_max < 0 { call_depth_max = 8192 }
+    // `call_depth_max` already normalized above (see `--call-depth-max` parsing).
 
     if backend != "c" && backend != "native" && backend != "bytecode" {
         emit_diag("compile", 2, "Unknown backend: " + backend)
@@ -1467,23 +1489,17 @@ fn compiler_main() {
 			                    t_emit1 = oren_time_now_ns()
 			                    print("[build] native emit start (x64) target=" + target)
 			                }
-				                if is_shared_lib && target != "windows" {
-				                    print("native backend (x64): shared libraries are not implemented yet")
-				                    print("  requested: --lib/--shared")
-				                    print("  TODO: implement x64 ELF .so outputs")
-				                    oren_exit(1)
-				                }
-				                if target != "linux" && target != "windows" && oren_list_len(export_names) != 0 {
-				                    print("native backend (x64): exports are not implemented for target: " + target)
-				                    print("  requested: --export / @ffi.export")
-				                    oren_exit(1)
-				                }
-				                if target == "linux" {
-				                    x64_elf.elf_emit_program_x64(out_path, linked, link_libs, export_names, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
-				                } else {
-				                    if target == "windows" {
-				                        x64_pe.pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
-			                    } else {
+					                if target != "linux" && target != "windows" && oren_list_len(export_names) != 0 {
+					                    print("native backend (x64): exports are not implemented for target: " + target)
+					                    print("  requested: --export / @ffi.export")
+					                    oren_exit(1)
+					                }
+					                if target == "linux" {
+					                    x64_elf.elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
+					                } else {
+					                    if target == "windows" {
+					                        x64_pe.pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
+				                    } else {
 			                        print("native backend (x64) unsupported target: " + target)
 		                        oren_exit(1)
 		                    }

@@ -827,7 +827,6 @@ fn macho_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mo
                 oren_exit(1)
             }
             var reg = fix["reg"]
-            if reg == nil { reg = 0 }
             var target_addr = text_base + header_size + target2
             var pc2 = text_base + header_size + pos
             var pc_page2 = pc2 - int_mod(pc2, 4096)

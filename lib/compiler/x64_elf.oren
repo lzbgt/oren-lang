@@ -1,11 +1,14 @@
 // ELF emitter for x86_64 (Linux).
 //
-// v0: minimal ET_EXEC with two PT_LOAD segments:
-// - RX: headers + code (+ padding)
-// - RW: data blob
+// Rolling v0:
+// - ET_EXEC: fixed-base executable at 0x400000 (no relocations)
+// - ET_DYN: shared library `.so` with minimal dynamic metadata + RELA relocations
+//   - uses `.init_array` to run the compiled entry stub once at load time
+//   - uses R_X86_64_RELATIVE relocations for internal function pointers embedded in `.data`
 
 import codegen "codegen_x64.oren"
 import abi "native_abi.oren"
+import x64 "x64_core.oren"
 
 fn bytes_new() { return codegen.bytes_new() }
 fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
@@ -46,6 +49,11 @@ fn set_u64_le(buf, offset, n) {
 
 fn align_up(n, align) {
     return (n + align - 1) / align * align
+}
+
+fn _elf_decode_data_off(enc) {
+    if enc == nil { return nil }
+    return enc - 1
 }
 
 fn _elf_push_phdr(p, p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align) {
@@ -105,6 +113,127 @@ fn _elf_x64_dyn_needed_libs(user_link_libs) {
     return out
 }
 
+fn _elf_str_lt_bytes(a, b) {
+    // Bounded bytewise compare (case-sensitive) for deterministic ordering.
+    if a == nil && b == nil { return false }
+    if a == nil { return true }
+    if b == nil { return false }
+    var i = 0
+    while 1 {
+        var ca = oren_string_byte_at_unchecked(a, i) & 255
+        var cb = oren_string_byte_at_unchecked(b, i) & 255
+        if ca == 0 && cb == 0 { return false }
+        if ca == 0 { return true }
+        if cb == 0 { return false }
+        if ca < cb { return true }
+        if ca > cb { return false }
+        i = i + 1
+        if i > 512 { return false }
+    }
+}
+
+fn _elf_sort_export_names(names) {
+    // Stable, bounded insertion sort by ASCII bytes (determinism).
+    var out = []
+    if names == nil { return out }
+    var seen = {}
+    var i = 0
+    while i < oren_list_len(names) {
+        var s = names[i]
+        if s != nil && s != "" && seen[s] == nil {
+            seen[s] = true
+            oren_list_push(out, s)
+            var k = oren_list_len(out) - 1
+            while k > 0 && _elf_str_lt_bytes(out[k], out[k - 1]) {
+                var tmp = out[k - 1]
+                out[k - 1] = out[k]
+                out[k] = tmp
+                k = k - 1
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _elf_emit_export_wrappers_x64(code, fixups, functions, export_names, heap_limit_off, heap_ptr_off) {
+    // Export ABI bridge (Tier‑1):
+    //
+    // x64 native uses r14/r15 as global heap registers across intra-Oren calls. That violates
+    // the SysV ABI at external boundaries (C callers expect r14/r15 preserved). Emit a small
+    // wrapper per exported symbol that:
+    // - saves caller r14/r15,
+    // - loads heap state from `.data` spill slots into r14/r15,
+    // - calls the internal function by name,
+    // - stores updated heap regs back to `.data`,
+    // - restores caller r14/r15 and returns.
+    //
+    // The wrapper keeps the same call ABI for arguments/return (registers untouched).
+    if export_names == nil || oren_list_len(export_names) == 0 { return {} }
+    if heap_limit_off == nil || heap_ptr_off == nil {
+        print("x64 elf: missing heap spill slots in ctx (heap_limit_slot_enc/heap_ptr_slot_enc)")
+        oren_exit(1)
+    }
+
+    var exps = _elf_sort_export_names(export_names)
+    var out = {}
+    var n = oren_list_len(exps)
+    var i = 0
+    while i < n {
+        var nm = exps[i]
+        if nm == nil || nm == "" { i = i + 1; continue }
+        if functions[nm] == nil {
+            print("x64 elf: export requested for missing function: " + nm)
+            print("  hint: add @oren.keep to prevent whole-program DCE from removing it")
+            oren_exit(1)
+        }
+
+        var wrapper_off = bytes_len(code)
+        out[nm] = wrapper_off
+
+        // SysV ABI: function entry has RSP 8 mod 16; align to 16 before nested calls.
+        bytes_extend(code, x64.insn_push_r64(15))
+        bytes_extend(code, x64.insn_push_r64(14))
+        bytes_extend(code, x64.insn_sub_rsp_imm8(8))
+
+        // r11 = &heap_limit_slot; r14 = *r11
+        var lea_hl = bytes_len(code)
+        bytes_extend(code, x64.insn_lea_r64_rip_disp32(11, 0))
+        oren_list_push(fixups, {"type": "rip_data_lea", "pos": lea_hl + 3, "data_off": heap_limit_off})
+        bytes_extend(code, x64.insn_mov_r64_mr64(14, 11))
+
+        // r11 = &heap_ptr_slot; r15 = *r11
+        var lea_hp = bytes_len(code)
+        bytes_extend(code, x64.insn_lea_r64_rip_disp32(11, 0))
+        oren_list_push(fixups, {"type": "rip_data_lea", "pos": lea_hp + 3, "data_off": heap_ptr_off})
+        bytes_extend(code, x64.insn_mov_r64_mr64(15, 11))
+
+        // call internal function
+        var call_pos = bytes_len(code)
+        bytes_extend(code, x64.insn_call_rel32(0))
+        oren_list_push(fixups, {"type": "call_rel32", "pos": call_pos, "name": nm})
+
+        // Store updated heap regs back to slots.
+        lea_hl = bytes_len(code)
+        bytes_extend(code, x64.insn_lea_r64_rip_disp32(11, 0))
+        oren_list_push(fixups, {"type": "rip_data_lea", "pos": lea_hl + 3, "data_off": heap_limit_off})
+        bytes_extend(code, x64.insn_mov_mr64_r64(11, 14))
+
+        lea_hp = bytes_len(code)
+        bytes_extend(code, x64.insn_lea_r64_rip_disp32(11, 0))
+        oren_list_push(fixups, {"type": "rip_data_lea", "pos": lea_hp + 3, "data_off": heap_ptr_off})
+        bytes_extend(code, x64.insn_mov_mr64_r64(11, 15))
+
+        bytes_extend(code, x64.insn_add_rsp_imm8(8))
+        bytes_extend(code, x64.insn_pop_r64(14))
+        bytes_extend(code, x64.insn_pop_r64(15))
+        bytes_extend(code, x64.insn_ret())
+
+        i = i + 1
+    }
+    return out
+}
+
 fn _elf_hash_sysv_u32(s) {
     // SysV ELF hash (DT_HASH).
     // Reference: <elf.h> / historical SysV ABI.
@@ -123,7 +252,7 @@ fn _elf_hash_sysv_u32(s) {
     return int_mod(h, 4294967296)
 }
 
-fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_libs, exports) {
+fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_libs, exports, export_wrappers, is_shared_lib, init_entry_off) {
     // Append the minimal ELF dynamic-link metadata to `ctx["data"]` and return offsets needed
     // to build PT_INTERP/PT_DYNAMIC program headers.
     //
@@ -143,16 +272,34 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
     if functions == nil { functions = {} }
     if exports == nil { exports = [] }
 
-    // --- PT_INTERP payload ---
-    // Use the conventional x86_64 interpreter path on glibc-based distros.
-    // (WSL2/Ubuntu provides /lib64/ld-linux-x86-64.so.2 as a stable entry point.)
-    var interp = "/lib64/ld-linux-x86-64.so.2"
-    var interp_bytes = oren_bytes_from_string(interp)
-    _bytes_align(data, 1)
-    var interp_off = bytes_len(data)
-    bytes_extend_list(data, interp_bytes)
-    bytes_push(data, 0)
-    var interp_len = oren_list_len(interp_bytes) + 1
+    // --- PT_INTERP payload (dynamic executables only) ---
+    var interp_off = nil
+    var interp_len = nil
+    if is_shared_lib != true {
+        // Use the conventional x86_64 interpreter path on glibc-based distros.
+        // (WSL2/Ubuntu provides /lib64/ld-linux-x86-64.so.2 as a stable entry point.)
+        var interp = "/lib64/ld-linux-x86-64.so.2"
+        var interp_bytes = oren_bytes_from_string(interp)
+        _bytes_align(data, 1)
+        interp_off = bytes_len(data)
+        bytes_extend_list(data, interp_bytes)
+        bytes_push(data, 0)
+        interp_len = oren_list_len(interp_bytes) + 1
+    }
+
+    // --- .init_array (shared libraries) ---
+    // Run the compiled entry stub once at load time so:
+    // - runtime init runs
+    // - __top_level__ runs (global initializers)
+    // - heap spill slots are populated for exported ABI wrappers
+    var init_array_off = nil
+    if is_shared_lib == true {
+        if init_entry_off == nil { init_entry_off = 0 }
+        _bytes_align(data, 8)
+        init_array_off = bytes_len(data)
+        // placeholder u64; filled by R_X86_64_RELATIVE relocation (RELA addend)
+        push_u64_le(data, 0)
+    }
 
     // --- Build dynstr (DT_STRTAB) ---
     var dynstr = bytes_new()
@@ -216,7 +363,9 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
         i_sym = i_sym + 1
     }
 
-    // Exports: defined global function symbols. These enable dlsym(RTLD_DEFAULT, "...") to obtain
+    // Exports: defined global function symbols. These enable:
+    // - dynamic executables: dlsym(RTLD_DEFAULT, "...") to obtain raw function pointers (callback APIs)
+    // - shared libraries: dlsym(handle, "...") to call exported Oren functions from C
     // raw function pointers for callback-style interop (e.g. OpenSSL ALPN select callbacks).
     //
     // NOTE: This is only emitted in the dynamic executable mode (`--link` on linux/x64), where
@@ -227,7 +376,12 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
     while i_sym < oren_list_len(exports) {
         var enm = exports[i_sym]
         if enm == nil || enm == "" { i_sym = i_sym + 1; continue }
-        var fn_off = functions[enm]
+        var fn_off = nil
+        if export_wrappers != nil && export_wrappers[enm] != nil {
+            fn_off = export_wrappers[enm]
+        } else {
+            fn_off = functions[enm]
+        }
         if fn_off == nil {
             print("x64 elf: internal: export name not found in functions: " + enm)
             oren_exit(1)
@@ -248,6 +402,51 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
     // --- Build .rela.dyn (DT_RELA) ---
     // Elf64_Rela is 24 bytes.
     var rela = bytes_new()
+
+    // Shared library relocations: internal function pointers embedded in `.data`.
+    // Emit them first so `.rela.dyn` is deterministic across host toolchains.
+    var rela_type_relative = 8 // R_X86_64_RELATIVE (from elf.h)
+    if is_shared_lib == true {
+        // Relocate `.init_array[0]` to point to the entry stub.
+        if init_array_off != nil {
+            var r_offset0 = base + data_file_off + init_array_off
+            var r_info0 = 0 * 4294967296 + rela_type_relative
+            var add0 = text_base + init_entry_off
+            push_u64_le(rela, r_offset0)
+            push_u64_le(rela, r_info0)
+            push_u64_le(rela, add0)
+        }
+
+        // Relocate fnobj code_ptr fields (emitted by x64_native_program as absolute pointers in ET_EXEC mode).
+        var fx = ctx["fixups"]
+        if fx == nil { fx = [] }
+        var fi = 0
+        while fi < oren_list_len(fx) {
+            var f0 = fx[fi]
+            if f0 != nil && f0["type"] == "data_fnobj_code_ptr" {
+                var nm0 = f0["name"]
+                var fn_off0 = nil
+                if nm0 != nil && functions != nil { fn_off0 = functions[nm0] }
+                if fn_off0 == nil {
+                    print("x64 elf: internal: relocation requested for missing function: " + nm0)
+                    oren_exit(1)
+                }
+                var data_off0 = f0["data_off"]
+                if data_off0 == nil {
+                    print("x64 elf: internal: relocation missing data_off for " + nm0)
+                    oren_exit(1)
+                }
+                var r_offset1 = base + data_file_off + data_off0
+                var r_info1 = 0 * 4294967296 + rela_type_relative
+                var add1 = text_base + fn_off0
+                push_u64_le(rela, r_offset1)
+                push_u64_le(rela, r_info1)
+                push_u64_le(rela, add1)
+            }
+            fi = fi + 1
+        }
+    }
+
     var rela_type_glob_dat = 6 // R_X86_64_GLOB_DAT (from elf.h)
     var i_rel = 0
     while i_rel < oren_list_len(imports) {
@@ -349,6 +548,14 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
     push_u64_le(dyn, 8);  push_u64_le(dyn, bytes_len(rela))  // DT_RELASZ
     push_u64_le(dyn, 9);  push_u64_le(dyn, 24)               // DT_RELAENT (Elf64_Rela)
 
+    // Shared lib init array tags.
+    // DT_INIT_ARRAY (25), DT_INIT_ARRAYSZ (27)
+    if is_shared_lib == true && init_array_off != nil {
+        var init_array_addr = data_addr + init_array_off
+        push_u64_le(dyn, 25); push_u64_le(dyn, init_array_addr)
+        push_u64_le(dyn, 27); push_u64_le(dyn, 8)
+    }
+
     // DT_NULL terminator
     push_u64_le(dyn, 0); push_u64_le(dyn, 0)
 
@@ -357,10 +564,10 @@ fn _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, user_link_l
     bytes_extend(data, dyn)
     var dynamic_len = bytes_len(dyn)
 
-    return {"interp_off": interp_off, "interp_len": interp_len, "dynamic_off": dynamic_off, "dynamic_len": dynamic_len}
+    return {"interp_off": interp_off, "interp_len": interp_len, "dynamic_off": dynamic_off, "dynamic_len": dynamic_len, "init_array_off": init_array_off}
 }
 
-fn elf_build_prefix_x64(base, hdr_size, phdrs, entry_off) {
+fn elf_build_prefix_x64(base, hdr_size, phdrs, entry_off, is_shared_lib) {
     var p = bytes_new()
 
     // ELF Header (64 bytes)
@@ -371,11 +578,19 @@ fn elf_build_prefix_x64(base, hdr_size, phdrs, entry_off) {
     bytes_push(p, 0) // System V
     push_u64_le(p, 0) // padding (EI_PAD) + rest
 
-    push_u16_le(p, 2)   // ET_EXEC
+    if is_shared_lib == true {
+        push_u16_le(p, 3)   // ET_DYN
+    } else {
+        push_u16_le(p, 2)   // ET_EXEC
+    }
     push_u16_le(p, 62)  // EM_X86_64
     push_u32_le(p, 1)   // EV_CURRENT
 
-    push_u64_le(p, base + hdr_size + entry_off) // e_entry
+    if is_shared_lib == true {
+        push_u64_le(p, 0) // e_entry (unused for shared libs)
+    } else {
+        push_u64_le(p, base + hdr_size + entry_off) // e_entry
+    }
     push_u64_le(p, 64)  // e_phoff
     push_u64_le(p, 0)   // e_shoff
     push_u32_le(p, 0)   // e_flags
@@ -406,7 +621,7 @@ fn elf_build_prefix_x64(base, hdr_size, phdrs, entry_off) {
     return p
 }
 
-fn elf_emit_program_x64(out_path, linked, link_libs, exports, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
+fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
     // Bounded timing summary for diagnosing x64 native build throughput without huge logs.
     // Enable with: OREN_TRACE_X64_EMIT_SUMMARY=1
     var trace_sum = oren_env("OREN_TRACE_X64_EMIT_SUMMARY") != nil
@@ -416,23 +631,34 @@ fn elf_emit_program_x64(out_path, linked, link_libs, exports, debug_mode, no_gc,
     var t_fix_done = 0
     if trace_sum { t0 = oren_time_now_ns() }
 
-    var base = abi.x64_v0_linux_elf_base_addr()
-    var dyn = link_libs != nil && oren_list_len(link_libs) != 0
-    if exports != nil && oren_list_len(exports) != 0 && dyn != true {
-        print("native backend (x64-linux): @ffi.export requires dynamic linking (use @ffi.link(\"libdl.so.2\") or --link)")
-        oren_exit(1)
+    var dyn = false
+    if is_shared_lib == true {
+        // Shared libs always require dynamic metadata: dynsym/dynstr + relocations + init array.
+        dyn = true
+    } else {
+        dyn = link_libs != nil && oren_list_len(link_libs) != 0
+        if exports != nil && oren_list_len(exports) != 0 && dyn != true {
+            print("native backend (x64-linux): @ffi.export requires dynamic linking (use @ffi.link(\"libdl.so.2\") or --link)")
+            oren_exit(1)
+        }
     }
 
+    var base = abi.x64_v0_linux_elf_base_addr()
+    if is_shared_lib == true { base = 0 }
+
     // Program header count:
-    // - static v0: 2 PT_LOAD segments (RX + RW)
-    // - dynamic (when `--link` is used): add PT_PHDR, PT_INTERP, PT_DYNAMIC, PT_GNU_STACK
+    // - static exec: 2 PT_LOAD segments (RX + RW)
+    // - dynamic exec (when `--link` is used): add PT_PHDR, PT_INTERP, PT_DYNAMIC, PT_GNU_STACK
+    // - shared lib (`--lib`): add PT_PHDR, PT_DYNAMIC, PT_GNU_STACK (no PT_INTERP)
     var phnum = 2
-    if dyn { phnum = 6 }
+    if dyn {
+        if is_shared_lib == true { phnum = 5 } else { phnum = 6 }
+    }
     var hdr_size = 64 + 56 * phnum
 
     // Provide the derived `.text` base so panic symbolication/debug tables stay accurate
     // even when we add more program headers for dynamic linking.
-    var platform = {"os": "linux", "arch": "x64", "debug": debug_mode, "no_gc": no_gc, "call_depth_max": call_depth_max, "capsule": capsule, "cap_allow_domains": cap_allow_domains, "link_libs": link_libs, "x64_text_base_addr": base + hdr_size}
+    var platform = {"os": "linux", "arch": "x64", "debug": debug_mode, "no_gc": no_gc, "call_depth_max": call_depth_max, "capsule": capsule, "cap_allow_domains": cap_allow_domains, "link_libs": link_libs, "x64_text_base_addr": base + hdr_size, "shared_lib": is_shared_lib == true}
     var ctx = codegen.native_compile_program_x64(linked, platform)
     if ctx == nil { return nil }
     codegen.native_emit_errors_and_exit(ctx)
@@ -442,6 +668,36 @@ fn elf_emit_program_x64(out_path, linked, link_libs, exports, debug_mode, no_gc,
     var data = ctx["data"]
     var fixups = ctx["fixups"]
     var functions = ctx["functions"]
+
+    // Debug aid (opt-in): validate fixup record shapes before patching so stage1 (C runtime)
+    // reports a precise error instead of panicking on `nil` arithmetic.
+    var validate_fixups = oren_env("OREN_TRACE_X64_ELF_VALIDATE") != nil
+    if validate_fixups {
+        var nfx = 0
+        if fixups != nil { nfx = oren_list_len(fixups) }
+        print("[x64_elf] validate_fixups=1 fixups_n=" + oren_int_to_string(nfx))
+        var j0 = 0
+        while fixups != nil && j0 < nfx && j0 < 25 {
+            var fj = fixups[j0]
+            var t = "?"
+            if fj != nil && fj["type"] != nil { t = fj["type"] }
+            var pt = oren_type_tag(nil)
+            var dt = oren_type_tag(nil)
+            if fj != nil { pt = oren_type_tag(fj["pos"]); dt = oren_type_tag(fj["data_off"]) }
+            print("[x64_elf] fx[" + oren_int_to_string(j0) + "] type=" + t +
+                  " pos_tag=" + oren_int_to_string(pt) +
+                  " data_off_tag=" + oren_int_to_string(dt))
+            j0 = j0 + 1
+        }
+    }
+
+    // Shared lib exports: emit ABI wrappers for exported names, and point dynsym entries at wrappers.
+    var export_wrappers = {}
+    if is_shared_lib == true {
+        var heap_limit_off = _elf_decode_data_off(ctx["heap_limit_slot_enc"])
+        var heap_ptr_off = _elf_decode_data_off(ctx["heap_ptr_slot_enc"])
+        export_wrappers = _elf_emit_export_wrappers_x64(code, fixups, functions, exports, heap_limit_off, heap_ptr_off)
+    }
 
     // Apply fixups.
     //
@@ -467,7 +723,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, exports, debug_mode, no_gc,
     var dyn_meta = nil
     if dyn {
         if exports == nil { exports = [] }
-        dyn_meta = _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, link_libs, exports)
+        dyn_meta = _elf_x64_append_dyn_metadata(ctx, base, text_base, data_file_off, link_libs, exports, export_wrappers, is_shared_lib, ctx["entry_off"])
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
         // Data buffer may have been extended by `_elf_x64_append_dyn_metadata`.
         data = ctx["data"]
@@ -477,6 +733,44 @@ fn elf_emit_program_x64(out_path, linked, link_libs, exports, debug_mode, no_gc,
     var i = 0
     while i < oren_list_len(fixups) {
         var f = fixups[i]
+        if validate_fixups {
+            var ft = f["type"]
+            if ft == "call_rel32" {
+                if oren_type_tag(f["pos"]) != 1 || f["name"] == nil {
+                    print("x64 elf: invalid fixup(call_rel32) pos/name")
+                    oren_exit(1)
+                }
+            } else if ft == "rip_data_lea_rsi" || ft == "rip_data_lea" || ft == "rip_data_mov_rax" {
+                var pt = oren_type_tag(f["pos"])
+                var dt = oren_type_tag(f["data_off"])
+                // `data_off` can be 0 for the first bytes in the data blob. Some rolling runtime/map
+                // implementations still lose an explicit 0 payload and surface it as `nil` (tag=0).
+                // Treat dt==0 as valid and decode later.
+                if pt != 1 || (dt != 1 && dt != 0) {
+                    var posv = -1
+                    if pt == 1 { posv = f["pos"] }
+                    print("x64 elf: invalid fixup(" + ft + ") pos_tag=" + oren_int_to_string(pt) +
+                          " data_off_tag=" + oren_int_to_string(dt) +
+                          " idx=" + oren_int_to_string(i) +
+                          " pos=" + oren_int_to_string(posv))
+                    // Extra context: print the fixup map keys to spot missing fields.
+                    if f != nil {
+                        var ks = ""
+                        for kk in f {
+                            if ks != "" { ks = ks + "," }
+                            ks = ks + kk
+                        }
+                        if ks != "" { print("x64 elf: invalid fixup keys=" + ks) }
+                    }
+                    oren_exit(1)
+                }
+            } else if ft == "rip_code_lea" || ft == "rip_code_call" {
+                if oren_type_tag(f["pos"]) != 1 || f["name"] == nil {
+                    print("x64 elf: invalid fixup(" + ft + ") pos/name")
+                    oren_exit(1)
+                }
+            }
+        }
         if f["type"] == "call_rel32" {
             var name = f["name"]
             var target = functions[name]
@@ -496,6 +790,9 @@ fn elf_emit_program_x64(out_path, linked, link_libs, exports, debug_mode, no_gc,
             // f["pos"] points to disp32 field within the instruction.
             var disp_pos = f["pos"]
             var data_off = f["data_off"]
+            // `data_off` can legitimately be 0. Some runtime map implementations still treat a stored
+            // integer 0 as indistinguishable from `nil`, so decode `nil` as 0 here for robustness.
+            if oren_type_tag(data_off) == 0 { data_off = 0 }
             var insn_start = disp_pos - 3
             var next_rip = text_base + (insn_start + 7)
             var target_addr = text_base + data_base_off + data_off
@@ -508,6 +805,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, exports, debug_mode, no_gc,
             // (Same patch math as rip_data_lea_rsi; the disp field is the same.)
             var disp_pos2 = f["pos"]
             var data_off2 = f["data_off"]
+            if oren_type_tag(data_off2) == 0 { data_off2 = 0 }
             var insn_start2 = disp_pos2 - 3
             var next_rip2 = text_base + (insn_start2 + 7)
             var target_addr2 = text_base + data_base_off + data_off2
@@ -521,6 +819,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, exports, debug_mode, no_gc,
             // Encoding is 7 bytes: 48 8B 05 <disp32>, so disp field begins at +3 and next RIP is +7.
             var disp_posm = f["pos"]
             var data_offm = f["data_off"]
+            if oren_type_tag(data_offm) == 0 { data_offm = 0 }
             var insn_startm = disp_posm - 3
             var next_ripm = text_base + (insn_startm + 7)
             var target_addrm = text_base + data_base_off + data_offm
@@ -531,8 +830,9 @@ fn elf_emit_program_x64(out_path, linked, link_libs, exports, debug_mode, no_gc,
         else if f["type"] == "data_fnobj_code_ptr" {
             // Patch the code_ptr field inside a `{code_ptr, env_ptr}` fnobj record.
             //
-            // NOTE: We store the absolute virtual address. This is safe for this v0 ELF emitter
-            // because we emit a fixed-base ET_EXEC without relocations (base=0x400000).
+            // NOTE:
+            // - ET_EXEC: store the absolute virtual address (fixed base).
+            // - ET_DYN (.so): store 0 and rely on a R_X86_64_RELATIVE relocation emitted in `.rela.dyn`.
             var name2 = f["name"]
             var target_off2 = functions[name2]
             if target_off2 == nil {
@@ -540,9 +840,14 @@ fn elf_emit_program_x64(out_path, linked, link_libs, exports, debug_mode, no_gc,
                 oren_exit(1)
             }
             var data_off3 = f["data_off"]
-            var addr = text_base + target_off2
+            if oren_type_tag(data_off3) == 0 { data_off3 = 0 }
             // Patch within the data segment payload (not including the file padding).
-            set_u64_le(data, data_off3, addr)
+            if is_shared_lib == true {
+                set_u64_le(data, data_off3, 0)
+            } else {
+                var addr = text_base + target_off2
+                set_u64_le(data, data_off3, addr)
+            }
         }
         else if f["type"] == "rip_code_lea" {
             // Patch lea r64, [rip+disp32] where disp32 points to a function entry in .text.
@@ -578,8 +883,10 @@ fn elf_emit_program_x64(out_path, linked, link_libs, exports, debug_mode, no_gc,
     if dyn {
         // PT_PHDR (header table itself)
         oren_list_push(phdrs, {"type": 6, "flags": 4, "offset": 64, "vaddr": base + 64, "paddr": base + 64, "filesz": phnum * 56, "memsz": phnum * 56, "align": 8})
-        // PT_INTERP
-        oren_list_push(phdrs, {"type": 3, "flags": 4, "offset": data_file_off + dyn_meta["interp_off"], "vaddr": base + data_file_off + dyn_meta["interp_off"], "paddr": base + data_file_off + dyn_meta["interp_off"], "filesz": dyn_meta["interp_len"], "memsz": dyn_meta["interp_len"], "align": 1})
+        if is_shared_lib != true {
+            // PT_INTERP (executables only)
+            oren_list_push(phdrs, {"type": 3, "flags": 4, "offset": data_file_off + dyn_meta["interp_off"], "vaddr": base + data_file_off + dyn_meta["interp_off"], "paddr": base + data_file_off + dyn_meta["interp_off"], "filesz": dyn_meta["interp_len"], "memsz": dyn_meta["interp_len"], "align": 1})
+        }
     }
     // PT_LOAD RX: headers + code + padding
     oren_list_push(phdrs, {"type": 1, "flags": 5, "offset": 0, "vaddr": base, "paddr": base, "filesz": text_filesz, "memsz": text_filesz, "align": 4096})
@@ -592,7 +899,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, exports, debug_mode, no_gc,
         oren_list_push(phdrs, {"type": 1685382481, "flags": 6, "offset": 0, "vaddr": 0, "paddr": 0, "filesz": 0, "memsz": 0, "align": 16})
     }
 
-    var prefix = elf_build_prefix_x64(base, hdr_size, phdrs, ctx["entry_off"])
+    var prefix = elf_build_prefix_x64(base, hdr_size, phdrs, ctx["entry_off"], is_shared_lib)
     bytes_extend(prefix, code)
     bytes_extend(prefix, code_pad)
     bytes_extend(prefix, data)

@@ -110,7 +110,8 @@ References:
     - keeping capsule enforcement implementation out of the non-capsule runtime rtobj (`lib/runtime_native/035_capsule_stubs.oren`)
     - simplifying runtime decl hotspots to reduce stage2-native decl compile work (`oren_iter_next`, `oren_bytes_from_string_ptr`, `oren_int_to_string`), plus using `iadd`/shifts in byte loops to avoid slow generic `+`/`*` lowering (details in `docs/TODOS_ARCHIVE.md`)
       - Recent (2026-01-05): x64 intrinsic temp spill slots are now addressed via compiler-internal `IntrTmp{idx}` nodes + a per-function base-offset reservation (`ctx["intr_tmp_base_off"]`), eliminating `$tmp_intrN` identifier strings and per-function locals-map inserts in stage2-native rtobj builds.
-      - Fixed (2026-01-06): x64 intrinsic-temp spill allocator now reserves slot 0 (1-based indices) to avoid stage2-native `nil==0` collisions that could silently skip call/arg lowering (e.g. “print disappears” / missing string literals); regression gate added to `scripts/verify_native_x64_compile_only.sh` (details in `docs/TODOS_ARCHIVE.md`).
+      - Fixed (2026-01-06): x64 intrinsic-temp spill allocator now reserves slot 0 (1-based indices) to avoid “missing/zero” ambiguity in rolling native builds; regression gate lives in `scripts/verify_native_x64_compile_only.sh` (details in `docs/TODOS_ARCHIVE.md`).
+      - Fixed (2026-01-10): x64 embedded string-literal dedupe was incorrect when map lookups returned the `nil` singleton for missing keys (causing literals to “disappear” from emitted binaries). The cstr0 pool now correctly distinguishes “missing” from payload 0, and x64 ELF fixup patching tolerates `data_off==0` round-tripping as `nil` in some container representations.
     - Recent (2026-01-04): native runtime `oren_string_from_bytes` restored a fast list-backed-buffer copy path (keeps lexer/tooling bounded); u8_buf continues to use the slice helper fast memcpy path.
     - Note (regression prevention): compiler-side helpers must remain portable across stage1 (C runtime) and stage2 (native runtime); avoid using `ptr_*` byte loads on “string” values unless explicitly guarded.
     - Next: continue shrinking the rtobj decl bucket by refactoring remaining large native-runtime helpers (recent top decls include `oren_string_from_bytes` and `oren_net_get`; prefer direct buffer access and `iadd`/shift arithmetic in loops).
@@ -339,9 +340,11 @@ References:
        - Done: `@cfg(...)` (canonical `@oren.cfg`) filters declarations by target `--platform` (`os`/`arch`/`platform` selectors).
        - Regression: `tests/native/cfg_os_select.oren` is compiled in `scripts/verify_native_x64_compile_only.sh` (stage1 + stage2; x64-linux + x64-windows).
        - Implementation note: use byte-wise string equality in compiler passes (see `docs/IMPLEMENTATION_NOTES.md` section 9) so behavior matches in stage1 (C runtime) and stage2 (native runtime).
-		     - Shared library output parity (native `--lib`/`--shared`):
-	       - Done (2026-01-10): x86_64 Windows `.dll` emission for native `--lib` (PE DLL characteristics + DllMain entry + export wrappers + header generation).
-	       - Remaining: x86_64 ELF `.so` emission (exports + metadata/header hooks).
+	    - Shared library output parity (native `--lib`/`--shared`):
+	      - Done (2026-01-10): x86_64 Windows `.dll` emission for native `--lib` (PE DLL characteristics + DllMain entry + export wrappers + header generation).
+	      - Done (2026-01-10): x86_64 Linux `.so` emission for native `--lib` (ET_DYN + `.init_array` + RELA relocations + export wrappers + header generation).
+	        - Regression: `scripts/verify_native_x64_compile_only.sh` now also builds `examples/libmath.oren --lib` as `.so` for stage1 + stage2.
+	        - Stability note: x64 ELF fixup patching treats a `data_off` payload that round-trips as `nil` as `0` (valid first-byte offset), keeping stage1 (C runtime) and stage2 (native runtime) cross-target builds consistent.
 	     - Concurrency substrate convergence:
        - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory sync, plus a GC/safepoint model that remains correct once true threads exist.
 	     - Windows PROC story:

@@ -88,3 +88,9 @@ Concrete rule (treat as a correctness bug in rolling native builds):
   - Example footgun: `var x = cfg["timeout_ms"]; if x == nil { x = 1000 }`
   - If `cfg["timeout_ms"]` can be `0`, this pattern can still behave incorrectly in native mode when the value flows through a dynamic container.
   - Prefer explicit “optional” shapes instead (e.g. return `{"ok":1,"v":...}` / `{"ok":0}`), or keep the value as `nil`/non-`nil` reference types and avoid using `0`/`false` as “missing” sentinels.
+
+Practical compiler-internal corollary (x64 emitters):
+
+- If you store a **byte offset** (where `0` is a valid payload) inside a map/dict (e.g. fixup records, offset caches), you must protect `0` from “missing” ambiguity.
+  - Preferred: store `off+1` and decode via `off = enc-1`.
+  - If a legacy structure already stores `off` directly, decoding must treat a `nil` payload as `0` (because some rolling container implementations still lose an explicit 0 payload).

@@ -146,6 +146,7 @@ LINUX_FFI_U32_SRC="tests/native/ffi_linux_ret_u32_zeroext.oren"
 LINUX_FFI_VOID_SRC="tests/native/ffi_linux_ret_void_zero.oren"
 
 FFI_GROUP_ITEM_ATTRS_SRC="tests/native/ffi_group_item_attrs.oren"
+LIBMATH_SRC="examples/libmath.oren"
 
 run_with_timeout() {
   local secs="$1"
@@ -226,6 +227,12 @@ check_elf_x64_dyn() {
   file "$p" | grep -i 'dynamically linked' >/dev/null
 }
 
+check_elf_x64_so() {
+  local p="$1"
+  file "$p" | grep -E 'ELF 64-bit.*x86-64' >/dev/null
+  file "$p" | grep -i 'shared object' >/dev/null
+}
+
 check_pe_x64() {
   local p="$1"
   file "$p" | grep -F 'PE32+' >/dev/null
@@ -293,6 +300,11 @@ run_suite_x64_linux() {
 
   build_one "$compiler" x64-linux "$FFI_GROUP_ITEM_ATTRS_SRC" "build/tmp/ffi_group_item_attrs_${tag}_x64_linux"
   check_elf_x64_dyn "build/tmp/ffi_group_item_attrs_${tag}_x64_linux"
+
+  # Shared library output: `.so` + generated header.
+  build_one "$compiler" x64-linux "$LIBMATH_SRC" "build/tmp/libmath_${tag}_x64_linux.so" --lib
+  check_elf_x64_so "build/tmp/libmath_${tag}_x64_linux.so"
+  test -f "build/tmp/libmath_${tag}_x64_linux.h"
 }
 
 run_suite_x64_win() {
@@ -355,4 +367,3 @@ if [[ "$WANT_WIN" -eq 1 ]]; then
 fi
 
 echo "OK: x64 compile-only verification passed" >&2
-

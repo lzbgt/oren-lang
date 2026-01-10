@@ -107,7 +107,6 @@ fn _ml_parse_jobs() {
         // Keep this portable across backends: use compiler-side int literal parsing.
         // `optimizer.parse_int` is defined in `optimizer.oren` and imported by the compiler prelude.
         n = optimizer.parse_int(v)
-        if n == nil { n = 0 }
     }
     if n <= 0 { n = 1 }
     // Keep a conservative cap to avoid forking dozens of parser processes in CI.

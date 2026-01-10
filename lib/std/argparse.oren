@@ -21,14 +21,15 @@ fn _lower_ascii(s) {
         var c = oren_string_char_at(s, i)
         // Map via hardcoded string index (ASCII-only, deterministic).
         // This avoids relying on any locale/casefolding behavior.
-        var idx = nil
+        // Use -1 as "not found" sentinel (0 is a valid index and also the native `nil` value).
+        var idx = -1
         var alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         var j = 0
         while j < 26 {
             if oren_string_char_at(alpha, j) == c { idx = j; j = 26 }
             else { j = j + 1 }
         }
-        if idx != nil { out = out + oren_string_char_at("abcdefghijklmnopqrstuvwxyz", idx) }
+        if idx >= 0 { out = out + oren_string_char_at("abcdefghijklmnopqrstuvwxyz", idx) }
         else { out = out + c }
         i = i + 1
     }
@@ -143,7 +144,7 @@ fn _to_int(s) {
     var n = 0
     while i < oren_string_len(s) {
         var c = oren_string_slice(s, i, i + 1)
-        var d = nil
+        var d = -1
         if c == "0" { d = 0 }
         else {
             if c == "1" { d = 1 }
@@ -172,7 +173,7 @@ fn _to_int(s) {
                 }
             }
         }
-        if d == nil { return nil }
+        if d < 0 { return nil }
         n = n * 10 + d
         i = i + 1
     }
@@ -290,10 +291,10 @@ fn cmd_flag_count_env(cmd, long_name, short_name, help, env_name) {
 
 fn cmd_option(cmd, long_name, short_name, kind, default_value, help) {
     // kind: "string" | "int"
-    var kind_code = nil
+    var kind_code = 0
     if kind == "string" { kind_code = 2 }
     if kind == "int" { kind_code = 3 }
-    if kind_code == nil { kind_code = 2 }
+    if kind_code == 0 { kind_code = 2 }
     // [kind, long, short, help, default, required, multiple]
     var opt = [kind_code, long_name, short_name, help, default_value, false, false]
     list.push(cmd["options"], opt)
@@ -301,10 +302,10 @@ fn cmd_option(cmd, long_name, short_name, kind, default_value, help) {
 }
 
 fn cmd_option_env(cmd, long_name, short_name, kind, default_value, help, env_name) {
-    var kind_code = nil
+    var kind_code = 0
     if kind == "string" { kind_code = 2 }
     if kind == "int" { kind_code = 3 }
-    if kind_code == nil { kind_code = 2 }
+    if kind_code == 0 { kind_code = 2 }
     var opt = [kind_code, long_name, short_name, help, default_value, false, false, env_name]
     list.push(cmd["options"], opt)
     return nil
@@ -314,10 +315,10 @@ fn cmd_option_required(cmd, long_name, short_name, kind, help) {
     // Required option (must be present in argv).
     //
     // kind: "string" | "int"
-    var kind_code = nil
+    var kind_code = 0
     if kind == "string" { kind_code = 2 }
     if kind == "int" { kind_code = 3 }
-    if kind_code == nil { kind_code = 2 }
+    if kind_code == 0 { kind_code = 2 }
     // default is nil; required flag is true.
     var opt = [kind_code, long_name, short_name, help, nil, true, false]
     list.push(cmd["options"], opt)
@@ -325,10 +326,10 @@ fn cmd_option_required(cmd, long_name, short_name, kind, help) {
 }
 
 fn cmd_option_required_env(cmd, long_name, short_name, kind, help, env_name) {
-    var kind_code = nil
+    var kind_code = 0
     if kind == "string" { kind_code = 2 }
     if kind == "int" { kind_code = 3 }
-    if kind_code == nil { kind_code = 2 }
+    if kind_code == 0 { kind_code = 2 }
     var opt = [kind_code, long_name, short_name, help, nil, true, false, env_name]
     list.push(cmd["options"], opt)
     return nil
@@ -337,20 +338,20 @@ fn cmd_option_required_env(cmd, long_name, short_name, kind, help, env_name) {
 fn cmd_option_multi(cmd, long_name, short_name, kind, help) {
     // Repeatable option; collects values into a list.
     // Default is [].
-    var kind_code = nil
+    var kind_code = 0
     if kind == "string" { kind_code = 2 }
     if kind == "int" { kind_code = 3 }
-    if kind_code == nil { kind_code = 2 }
+    if kind_code == 0 { kind_code = 2 }
     var opt = [kind_code, long_name, short_name, help, [], false, true]
     list.push(cmd["options"], opt)
     return nil
 }
 
 fn cmd_option_multi_env(cmd, long_name, short_name, kind, help, env_name) {
-    var kind_code = nil
+    var kind_code = 0
     if kind == "string" { kind_code = 2 }
     if kind == "int" { kind_code = 3 }
-    if kind_code == nil { kind_code = 2 }
+    if kind_code == 0 { kind_code = 2 }
     var opt = [kind_code, long_name, short_name, help, [], false, true, env_name]
     list.push(cmd["options"], opt)
     return nil
