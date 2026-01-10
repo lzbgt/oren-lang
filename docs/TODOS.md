@@ -44,6 +44,7 @@ Cross-arch matrix (execution on real hosts):
 Local x64 sanity (compile-only):
 
 - `make verify-native-x64-compile` (stage1 + stage2 emit x64-linux + x64-windows)
+- `make examples-cross-compile-smoke` (stage2 `--lib` emit for arm64-linux + x64-linux + x64-windows; validates header-based `oren scan`, artifact kind, and PE export table)
 
 Local x64 sanity (execution under QEMU):
 
