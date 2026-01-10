@@ -55,6 +55,9 @@ oren_bootstrap.exe build oren.oren --target windows --cc cl -o oren.exe
     - calls `VsDevCmd.bat` / `vcvars64.bat`,
     - invokes `cl.exe` with a minimal `/std:c11` compile+link arg set.
   - Optional override: `OREN_MSVC_DEV_CMD=<full\\path\\to\\VsDevCmd.bat|vcvars64.bat>` (force the devcmd script directly).
+  - Cross-compile note (rolling): building **C backend** outputs that target `windows` from a non-Windows host is not a first-class path.
+    - If you are not on Windows and you pass `--platform x64-windows --backend c`, you must also pass an explicit `--cc` that is a Windows cross toolchain (e.g. MinGW) to opt in intentionally.
+    - The default Windows `cl.exe` auto-detection only applies when the compiler is running on a Windows host.
 
 Windows native backend notes (x64, rolling; 2026-01-09+):
 

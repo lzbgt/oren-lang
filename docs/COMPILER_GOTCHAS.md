@@ -81,3 +81,10 @@ Rolling invariant (until `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md` lands):
 - Guardrail for annotated code: `--typecheck` rejects `bool/int/float == nil` comparisons.
   - Regression fixtures: `tests/fixtures/typecheck_bad_numeric_nil.oren`, `tests/fixtures/typecheck_bad_bool_nil.oren`
   - Fast gate: `make test` (runs the `--typecheck` smoke inside `scripts/run_native_quick_integration.sh`)
+
+Concrete rule (treat as a correctness bug in rolling native builds):
+
+- Do **not** write `if x == nil { ... }` when `x` is numeric/bool (or you *expect* it to be).
+  - Example footgun: `var x = cfg["timeout_ms"]; if x == nil { x = 1000 }`
+  - If `cfg["timeout_ms"]` can be `0`, this pattern can still behave incorrectly in native mode when the value flows through a dynamic container.
+  - Prefer explicit “optional” shapes instead (e.g. return `{"ok":1,"v":...}` / `{"ok":0}`), or keep the value as `nil`/non-`nil` reference types and avoid using `0`/`false` as “missing” sentinels.

@@ -787,7 +787,12 @@ fn compiler_main() {
     // Windows host policy (rolling):
     // - default `--cc` should prefer MSVC `cl.exe` so `oren build --backend c` works
     //   from a plain shell (the compiler will attempt to auto-configure VS env).
-    if target == "windows" && seen["cc"] != true {
+    //
+    // IMPORTANT:
+    // - this policy is for *Windows hosts*. Do not set `--cc=cl.exe` by default when
+    //   cross-compiling to Windows from a non-Windows host.
+    var host_is_windows = (oren_env("OS") == "Windows_NT")
+    if host_is_windows && target == "windows" && seen["cc"] != true {
         if cc == nil || cc == "" || cc == "cc" {
             cc = "cl.exe"
             if trace_build { print("[build] windows default cc=cl.exe") }
@@ -875,6 +880,18 @@ fn compiler_main() {
         arch = "avm64"
     }
     if trace_build { print("[build] opts backend=" + backend + " target=" + target + " arch=" + arch) }
+
+    // Cross-compile guard (C backend, rolling):
+    // - Stage0->stage1 bootstrap uses the C backend; it is expected to run *on the host OS*.
+    // - For Tier‑1 Windows, the intended default C toolchain is MSVC (cl.exe).
+    // - Cross-compiling C backend outputs to Windows from non-Windows hosts is not a first-class path.
+    //   Require an explicit `--cc` so callers opt into a cross toolchain (e.g. MinGW) intentionally.
+    if backend == "c" && target == "windows" && host_is_windows != true && seen["cc"] != true {
+        var emsg_ccw = "oren build: C backend targeting windows from a non-Windows host requires explicit --cc (e.g. a MinGW cross compiler). On Windows hosts, omit --cc to use MSVC cl.exe auto-detection."
+        emit_diag("compile", 2, emsg_ccw)
+        print(emsg_ccw)
+        oren_exit(2)
+    }
 
     // Default output path:
     // - `build/targets/<arch>-<os>/<backend>/<basename>` for native/c
@@ -1598,6 +1615,10 @@ fn compiler_main() {
         var is_msvc = (cc_base == "cl" || cc_base == "cl.exe" || cc_base == "clang-cl" || cc_base == "clang-cl.exe")
 
         if is_msvc {
+            if host_is_windows != true {
+                print("ERROR: C backend with MSVC (cl.exe) requires a Windows host. For cross-compiling, pass an explicit cross compiler via --cc.")
+                oren_exit(2)
+            }
             if enable_python {
                 print("ERROR: --python is not supported for C backend builds with MSVC yet")
                 oren_exit(2)
