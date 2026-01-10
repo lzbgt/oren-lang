@@ -320,6 +320,7 @@ References:
          - Regression: `make test`, `./scripts/verify_native_net_matrix.sh`, `./scripts/verify_selfhost_x64_compiler.sh --targets x64-win`.
        - Done (2026-01-10): iterable-map protocol tags (`__iter` like `"range"` / `"list_slice"`) are matched by **string bytes** (guarded by `oren_is_string`), not by pointer identity.
          - Regression: `make test` (native quick integration exercises `{"__iter": "ra"+"nge", ...}`).
+         - Done (2026-01-10): `oren_string_eq(a,b)` is safe on non-strings (guards with `oren_is_string` before calling `strcmp`).
        - Done (2026-01-08): string literal pooling/interning is whole-program for native output (`cstr0` pool de-dupes identical literals; pointer identity stable within the binary).
          - Doc note: `docs/LANGUAGE_MANUAL.md` “Strings” section now calls out the pooling + GC behavior (so users don’t assume literals allocate).
 	       - Native FFI / dynamic linking parity (rolling):

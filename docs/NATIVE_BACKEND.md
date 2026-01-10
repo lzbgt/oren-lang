@@ -2,6 +2,8 @@
 
 The native backend emits machine code directly for:
 
+For “do not regress” invariants (and the regression gates that enforce them), see `docs/NATIVE_BACKEND_GUARDRAILS.md`.
+
 - **ARM64** (primary): macOS (Mach-O) and Linux (ELF)
 - **x86_64** (Tier 1; rolling evolution): Linux (ELF) and Windows (PE32+)
 
