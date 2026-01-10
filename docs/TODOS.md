@@ -205,13 +205,14 @@ References:
 	           - POSIX: parses `/etc/resolv.conf` (IPv4 only; first `nameserver`)
 	         - HTTP hostname support: `http.get_text_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
 	         - Regression: `tests/native/test_dns_loopback.oren` (stage1 + stage2; all Tier‑1 via `./scripts/verify_native_net_matrix.sh`).
-	         - Regression: `tests/native/test_http_get_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
-		       - WebSocket hostname support: `ws.connect_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
-			         - `wss://` is supported via `ws.connect_resolver_opts(url, timeout_ms, resolver, {"tls":{...}})` (see `docs/NET_TLS.md`).
-			         - Regression: `tests/native/test_ws_echo_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
-			         - Regression (TLS loopback): `tests/native/test_wss_echo_loopback.oren` (stage1 + stage2; integrated into `./scripts/verify_native_net_matrix.sh`).
-		       - Done: shared host/DNS helper module for std:net:
-		         - `std:net/host.looks_like_ipv4` and `std:net/host.resolve_host_ipv4` dedupe host resolution logic used by `std:net/http`, `std:net/ws`, and `std:net/tls`.
+		         - Regression: `tests/native/test_http_get_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
+			       - WebSocket hostname support: `ws.connect_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
+				         - `wss://` is supported via `ws.connect_resolver_opts(url, timeout_ms, resolver, {"tls":{...}})` (see `docs/NET_TLS.md`).
+				         - Regression: `tests/native/test_ws_echo_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
+				         - Done: Tier‑1 NET fixtures now use `import x "std:net/..."` (not `../../lib/std/net/...`) so the stdlib module resolver is exercised on all Tier‑1 platforms.
+				         - Regression (TLS loopback): `tests/native/test_wss_echo_loopback.oren` (stage1 + stage2; integrated into `./scripts/verify_native_net_matrix.sh`).
+			       - Done: shared host/DNS helper module for std:net:
+			         - `std:net/host.looks_like_ipv4` and `std:net/host.resolve_host_ipv4` dedupe host resolution logic used by `std:net/http`, `std:net/ws`, and `std:net/tls`.
        - Fixed (2026-01-08): x64-windows WSS loopback failures (timeouts / corrupted WS frame headers under TLS) were traced to **Schannel `DecryptMessage` buffer semantics** in `std:net/tls` (provider: `lib/std/net/tls_windows_schannel.oren`):
          - The plaintext DATA buffer can be a pointer into the encrypted buffer.
 	         - Fix: copy plaintext out before shifting the EXTRA encrypted tail, and use overlap-safe moves when shifting tails (`lib/std/net/tls_windows_schannel.oren`).

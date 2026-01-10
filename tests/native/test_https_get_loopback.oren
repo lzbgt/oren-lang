@@ -1,4 +1,4 @@
-import http "../../lib/std/net/http.oren"
+import http "std:net/http"
 import tcp "std:net/tcp"
 import tls "std:net/tls"
 import base64 "std:encoding/base64"

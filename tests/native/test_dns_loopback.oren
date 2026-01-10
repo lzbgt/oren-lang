@@ -1,5 +1,5 @@
-import dns "../../lib/std/net/dns.oren"
-import udp "../../lib/std/net/udp.oren"
+import dns "std:net/dns"
+import udp "std:net/udp"
 
 fn u16be_at(p, off) {
     var hi = ptr_get_byte(p + off) & 255
@@ -178,4 +178,3 @@ fn main() {
 }
 
 // NOTE: `fn main()` is invoked automatically by the runtime entrypoint.
-

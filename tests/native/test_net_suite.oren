@@ -1,5 +1,5 @@
-import http "../../lib/std/net/http.oren"
-import udp "../../lib/std/net/udp.oren"
+import http "std:net/http"
+import udp "std:net/udp"
 
 fn fill5(buf, a, b, c, d, e) {
     ptr_set_byte(buf + 0, a)

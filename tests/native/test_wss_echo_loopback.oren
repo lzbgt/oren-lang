@@ -1,4 +1,4 @@
-import ws "../../lib/std/net/ws.oren"
+import ws "std:net/ws"
 import tcp "std:net/tcp"
 import base64 "std:encoding/base64"
 import fixture "./fixture_tls_p12.oren"

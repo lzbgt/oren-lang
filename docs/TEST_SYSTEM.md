@@ -21,6 +21,12 @@ The current approach is **direct compilation + direct execution** using the comp
 Rolling rule: **Oren source should be backend-universal** when the program is within the supported feature set of that backend.
 When a source file is intended to be backend-specific (e.g. AVM domain tests), it should be documented as such in-file.
 
+Import hygiene (rolling):
+
+- Prefer `import x "std:..."` in tests (e.g. `import http "std:net/http"`).
+  - This exercises the stdlib module resolver directly and prevents drift where tests accidentally depend on repo-relative paths that real user code would not use.
+- Repo-relative imports are still valid when you are intentionally importing a local fixture module (example: `import fixture "./fixture_tls_p12.oren"`).
+
 ## Platform portability (and why `@cfg` appears in tests)
 
 Goal: a large fraction of Oren source should be **portable across Tier‑1 OS/arch** (and ideally across backends), and the test suite should reinforce that.
