@@ -158,7 +158,7 @@ References:
 		         - Regression gate: `make verify-stage2-win` (stage0→stage1→stage2 + compile+run).
 			         - Verified (2026-01-10): `make verify-stage2-win` / `scripts/verify_windows_stage2_from_stage1.sh` passes again, including the nested-path backslash input (`examples\\myapp.oren`), even when `OS` env is intentionally unset on the remote session (regression guard).
 			         - Note: scripts run a fast SSH preflight (with connect timeouts + a single retry for transient proxy flake) and emit bounded probe logs under `build/logs/*remote_probe*.log` when proxy/hostname resolution breaks.
-			         - Done (2026-01-11): `scripts/analyze_stage2_failure_log.sh` no longer uses backticks in `echo` (avoid accidental command substitution; prints literal guidance + optional local SHA safely).
+			         - Done (2026-01-10): `scripts/analyze_stage2_failure_log.sh` no longer uses backticks in `echo` (avoid accidental command substitution; prints literal guidance + optional local SHA safely).
 				       - Build system parity (Windows host):
 					         - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
 				         - Done (2026-01-10): `oren build` default output naming for `--platform x64-windows` now appends `.exe` when `-o/--out` is omitted.
@@ -338,7 +338,7 @@ References:
          - Regression (Windows): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_link.oren`.
          - Done (2026-01-09): per-item attributes inside `ffi { ... }` (merge with outer attrs), so mixed return-kinds don’t require separate declarations.
            - Regression: `tests/native/ffi_group_item_attrs.oren` is compiled by `scripts/verify_native_x64_compile_only.sh` (stage1 + stage2; x64-linux + x64-windows).
-       - Done (2026-01-11): `ffi` declarations are module-exportable (stdlib wrappers can expose platform-specific bindings behind a stable API).
+       - Done (2026-01-10): `ffi` declarations are module-exportable (stdlib wrappers can expose platform-specific bindings behind a stable API).
          - Implementation: preserve an external symbol `link_name` while allowing module prefixing of the internal label.
          - Regression: `tests/native/test_std_ffi_libc_smoke.oren` is exercised by `scripts/verify_native_matrix.sh` (arm64-linux + x64-win + x64-wsl; stage1 + stage2) and by `make verify-x64-linux-qemu`.
        - Done (2026-01-08): `examples/ffi_test.oren` is now self-contained across OS (`@cfg` + `@ffi.link`/`@ffi.dll`), and `make examples-test` no longer passes ad-hoc `--link libc.so.6` on Linux.
@@ -352,7 +352,7 @@ References:
 	    - Shared library output parity (native `--lib`/`--shared`):
 	      - Done (2026-01-10): x86_64 Windows `.dll` emission for native `--lib` (PE DLL characteristics + DllMain entry + export wrappers + header generation).
 	      - Done (2026-01-10): x86_64 Linux `.so` emission for native `--lib` (ET_DYN + `.init_array` + RELA relocations + export wrappers + header generation).
-		      - Done (2026-01-11): arm64-linux ELF `.so` emission for native `--lib` (ET_DYN + `.init_array` + RELA `R_AARCH64_RELATIVE`, plus AAPCS64-safe export wrappers that restore Q8-Q15).
+		      - Done (2026-01-10): arm64-linux ELF `.so` emission for native `--lib` (ET_DYN + `.init_array` + RELA `R_AARCH64_RELATIVE`, plus AAPCS64-safe export wrappers that restore Q8-Q15).
 		        - Regression: `scripts/verify_native_x64_compile_only.sh` builds `examples/libmath.oren --lib` as `.so` (x64-linux) and `.dll` (x64-windows) for stage1 + stage2, and validates the artifact kinds (`.dll` must be a PE DLL, not a PE EXE).
 		        - Regression (arm64-linux): `scripts/verify_native_matrix.sh --targets arm64-linux` builds `examples/libmath.oren --lib` as `.so` (stage1 + stage2) and checks the ELF kind + generated header.
 		        - Stability note: x64 ELF fixup patching treats a `data_off` payload that round-trips as `nil` as `0` (valid first-byte offset), keeping stage1 (C runtime) and stage2 (native runtime) cross-target builds consistent.
@@ -361,7 +361,7 @@ References:
 		          - Use `file` kind checks (`ELF ... shared object`, `PE32+ ... (DLL)`).
 		          - Use `./oren scan <lib>` to sanity-check the exported API:
 		            - For Oren `--lib` outputs, `scan` prefers parsing the generated header next to the library (`foo.{dylib,so,dll}` → `foo.h`), so it works cross-platform even when `nm` cannot read the binary format.
-		        - Added (2026-01-11): `make examples-cross-compile-smoke` compiles `examples/libmath.oren --lib` for `arm64-linux` + `x64-linux` + `x64-windows` and validates via generated header + `oren scan` + `file` kind checks.
+		        - Added (2026-01-10): `make examples-cross-compile-smoke` compiles `examples/libmath.oren --lib` for `arm64-linux` + `x64-linux` + `x64-windows` and validates via generated header + `oren scan` + `file` kind checks.
 	     - Concurrency substrate convergence:
        - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory sync, plus a GC/safepoint model that remains correct once true threads exist.
 	     - Windows PROC story:

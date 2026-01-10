@@ -1,6 +1,6 @@
 # IR and Compiler Internals (Rolling, AI-Friendly)
 
-**Last updated:** 2025-12-30  
+**Last updated:** 2026-01-10  
 
 This document is an **implementation map** for AI agents and maintainers:
 
@@ -96,6 +96,36 @@ Implementation:
 - the injected native runtime references syscall stubs (`sys_*`) that must be correctly lowered by the backend.
 
 The CLI entry and dispatch live under `lib/compiler/compiler/**` (including `040_build_pipeline.oren`).
+
+### Native FFI: internal name vs external symbol (module-exportability invariant)
+
+Native backends support FFI declarations via `ffi name` (plus optional `@ffi.link(...)` / `@ffi.dll(...)` and `@ffi.ret(...)` attributes).
+
+Rolling constraint that matters for stdlib and portability:
+
+- Oren’s module system **prefixes** top-level symbols to avoid collisions (example: `STD_ffi_libc_strlen`).
+- But the OS dynamic loader / resolver (`dlsym`, `GetProcAddress`, Mach‑O binds) must look up the **original external symbol** (example: `"strlen"`).
+
+To make FFI declarations module-exportable, the compiler stores both names on `FFI` AST nodes:
+
+- `name.value`: the **internal** symbol name after renaming (what call sites refer to)
+- `link_name`: the **external** symbol name used for resolution (stable; not renamed)
+
+This enables the stdlib to provide platform-neutral wrappers like:
+
+- `lib/std/ffi/libc.oren` (platform-gated library attachment, call sites stay `libc.strlen(...)`)
+- `tests/native/test_std_ffi_libc_smoke.oren` (regression fixture)
+
+If you touch module renaming / namespace resolution / FFI lowering, keep this invariant and re-run:
+
+- `make verify-x64-linux-qemu` (covers x64-linux + the libc smoke)
+
+Implementation pointers:
+
+- AST node shape: `lib/compiler/ast.oren` (`FFI` now has `link_name`)
+- Renaming: `lib/compiler/renamer.oren` (renames `FFI.name`, never touches `link_name`)
+- x64 backend: `lib/compiler/x64_native_program/072_ffi.oren` + call emission in `lib/compiler/x64_native_program/040_emit_expr.oren`
+- arm64 backend: `lib/compiler/arm64_native_stmt.oren` + platform object writers (`lib/compiler/arm64_macho.oren`, `lib/compiler/arm64_elf.oren`)
 
 ## 3) Current “IR”: AST and LinkedProgram shapes
 
