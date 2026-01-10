@@ -59,6 +59,14 @@ fn main_server() { exit(server_impl()) }  // POSIX: force deterministic exit.
 
 The TLS/HTTPS/WSS loopback fixtures follow this pattern: core server/client logic is shared, and only the “how do we start/stop the server” glue varies by OS.
 
+Concrete examples from current fixtures (why the glue is necessary):
+
+- Windows: `spawn` is thread-based. A loopback server can run in-process on a worker thread, and the client can `join` it.
+- macOS: the TLS provider is built on Apple Security/CoreFoundation APIs. Calling those APIs in a post-`fork()` child without `exec` is not guaranteed to be safe, so the TLS loopback server uses a **fork+exec** pattern (single binary invoked with a `server` argv) instead of a pure in-process thread/server model.
+- Linux: uses a normal `spawn` server path for loopback fixtures (process boundary via the current native runtime model), but still shares the same protocol-level assertions (pinning, echo, ALPN wiring where supported).
+
+The goal is: same test intent (protocol behavior) across Tier‑1 targets, with only the minimum OS glue necessary to make that intent deterministic.
+
 ## Fast native verification (macOS/Linux host)
 
 These targets are intended to be runnable without additional tooling:
@@ -127,6 +135,9 @@ When you need confidence that the **native backend** output works across the pra
 
 # Loopback NET matrix (TCP/UDP + HTTP GET loopback + WebSocket echo) across Tier‑1 hosts
 ./scripts/verify_native_net_matrix.sh
+
+# Dev convenience: run local + docker arm64-linux, but skip remote Win11/WSL2 (explicit opt-in)
+./scripts/verify_native_net_matrix.sh --targets local,arm64-linux --skip-remote
 
 # x86_64 self-host: the compiler binary itself runs on Win11 + WSL2 and can compile+run a tiny program
 ./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win

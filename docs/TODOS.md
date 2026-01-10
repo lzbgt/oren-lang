@@ -36,6 +36,7 @@ Cross-arch matrix (execution on real hosts):
 
 - `./scripts/verify_native_matrix.sh` (native quick across local + docker + remote x64)
 - `./scripts/verify_native_net_matrix.sh` (TCP/UDP/DNS/HTTP/HTTPS/WS/WSS/TLS loopback; stage1 + stage2; all Tier‑1)
+  - Dev convenience: `--skip-remote` runs local + docker, but skips remote Win11/WSL2 explicitly when the remote host is temporarily unreachable.
 - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` (compiler runs on x64 hosts and compiles+runs a tiny program)
 - `./scripts/verify_stage0_windows_bootstrap.sh` (stage0→stage1 via MSVC on Win11; stage1 builds+runs a tiny native program)
 

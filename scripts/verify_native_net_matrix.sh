@@ -53,6 +53,7 @@ usage() {
   cat <<'EOF'
 Usage: scripts/verify_native_net_matrix.sh [--targets <csv>] [--local-only]
        scripts/verify_native_net_matrix.sh [--targets <csv>] [--trace]
+       scripts/verify_native_net_matrix.sh [--targets <csv>] [--skip-remote]
 
 Runs (loopback-only; no external network):
   - tests/native/test_net_suite.oren
@@ -81,6 +82,7 @@ Examples:
   ./scripts/verify_native_net_matrix.sh --targets local
   ./scripts/verify_native_net_matrix.sh --targets arm64-linux
   ./scripts/verify_native_net_matrix.sh --targets x64-win,x64-wsl
+  ./scripts/verify_native_net_matrix.sh --targets local,arm64-linux --skip-remote
 
 Env overrides:
   OREN_LINUX_DOCKER_ID   (default: c7e5f7bd9f5c)
@@ -93,6 +95,7 @@ EOF
 }
 
 LOCAL_ONLY=0
+SKIP_REMOTE=0
 TARGETS_CSV="all"
 TRACE=0
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
@@ -104,6 +107,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --local-only)
       LOCAL_ONLY=1
+      shift
+      ;;
+    --skip-remote)
+      SKIP_REMOTE=1
       shift
       ;;
     --trace)
@@ -187,10 +194,19 @@ if [[ "$LOCAL_ONLY" -eq 0 ]]; then
   if has_target arm64-linux; then
     need_bin docker
   fi
-  if has_target x64-win || has_target x64-wsl; then
+  if [[ "$SKIP_REMOTE" -eq 0 ]] && ( has_target x64-win || has_target x64-wsl ); then
     need_bin ssh
     need_bin scp
     need_bin socat
+  fi
+fi
+
+if [[ "$SKIP_REMOTE" -ne 0 && "$TARGETS_CSV" != "all" ]]; then
+  # Explicit remote target selection + skip-remote is contradictory; force callers to be clear.
+  if has_target x64-win || has_target x64-wsl; then
+    echo "ERROR: --skip-remote cannot be used when --targets explicitly includes x64-win or x64-wsl" >&2
+    echo "Hint: use --targets local,arm64-linux (no remote), or omit --skip-remote to run remote verification." >&2
+    exit 2
   fi
 fi
 
@@ -585,13 +601,17 @@ if has_target arm64-linux; then
   log "OK: linux/arm64 container"
 fi
 
-if has_target x64-win || has_target x64-wsl; then
+if [[ "$SKIP_REMOTE" -ne 0 ]]; then
+  if [[ "$TARGETS_CSV" == "all" ]]; then
+    log "SKIP: remote x64 Windows/WSL2 disabled by --skip-remote"
+  fi
+elif has_target x64-win || has_target x64-wsl; then
   log "== verify: remote x64 Windows + WSL2 via ${REMOTE_HOST} =="
   remote_preflight
   remote_mkdir
 fi
 
-if has_target x64-win; then
+if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-win; then
   build_native_bin_src "./oren" "x64-windows" "$NET_SUITE_SRC" "build/tmp/net_stage1_x64_windows.exe"
   build_native_bin_src "./oren_stage2" "x64-windows" "$NET_SUITE_SRC" "build/tmp/net_stage2_x64_windows.exe"
   build_native_bin_src "./oren" "x64-windows" "$DNS_LOOPBACK_SRC" "build/tmp/dns_stage1_x64_windows.exe"
@@ -658,7 +678,7 @@ if has_target x64-win; then
   log "OK: remote Win11 x64"
 fi
 
-if has_target x64-wsl; then
+if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-wsl; then
   build_native_bin_src "./oren" "x64-linux" "$NET_SUITE_SRC" "build/tmp/net_stage1_x64_linux"
   build_native_bin_src "./oren_stage2" "x64-linux" "$NET_SUITE_SRC" "build/tmp/net_stage2_x64_linux"
   build_native_bin_src "./oren" "x64-linux" "$DNS_LOOPBACK_SRC" "build/tmp/dns_stage1_x64_linux"
