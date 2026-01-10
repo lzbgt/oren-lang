@@ -411,8 +411,8 @@ To link arbitrary libraries portably, use the C backend:
     ```
 
 2.  **Linux Native Backend Support (rolling)**:
-    - **x64-linux:** minimal dynamic linking is implemented for `ffi` (via `dlsym`); shared libraries (`--lib`) are still not implemented.
-    - **arm64-linux:** minimal dynamic linking is implemented for `ffi` (via `dlsym`); shared libraries (`--lib`) are still not implemented.
+    - **x64-linux:** dynamic linking is implemented for `ffi` (via `dlsym`), and native shared libraries are implemented (`--lib` → ELF `.so`).
+    - **arm64-linux:** dynamic linking is implemented for `ffi` (via `dlsym`); native shared libraries (`--lib`) are **not** implemented yet.
 
 ---
 

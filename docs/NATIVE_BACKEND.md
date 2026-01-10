@@ -131,6 +131,7 @@ make verify # Run full self-hosting test
   Notes (rolling):
   - This is implemented for:
     - **arm64-macos (Mach-O)**: `.dylib`
+    - **x64-linux (ELF)**: `.so` (ET_DYN + `.init_array` + metadata/header)
     - **x64-windows (PE)**: `.dll` (native DllMain entrypoint + export table + generated C header)
   - Remaining parity work:
     - **arm64-linux (ELF)**: `.so` output (exports + metadata/header hooks)
