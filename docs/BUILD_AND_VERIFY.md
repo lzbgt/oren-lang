@@ -255,9 +255,14 @@ Cross‑arch Tier‑1 matrix (stage1 + stage2):
 # Optional: stage0→stage1→stage2 self-host build on native Windows (stage1 builds stage2 via native backend)
 ./scripts/verify_windows_stage2_from_stage1.sh
 
-# Local sanity gate: compile-only for x64-linux + x64-windows (stage1 + stage2)
-make verify-native-x64-compile
-```
+	# Local sanity gate: compile-only for x64-linux + x64-windows (stage1 + stage2)
+	make verify-native-x64-compile
+
+	# Compile-only shared-library emission on all Tier‑1 targets (no foreign execution):
+	# - builds `examples/libmath.oren --lib` for arm64-linux + x64-linux + x64-windows
+	# - validates the generated header, `oren scan` output, and `file` kind checks
+	make examples-cross-compile-smoke
+	```
 
 ## Local x64-linux execution (QEMU in the Linux container)
 

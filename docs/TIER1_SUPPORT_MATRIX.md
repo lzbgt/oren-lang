@@ -56,6 +56,7 @@ The Makefile and `scripts/` define the *supported* verification entrypoints. Pre
   - This compile-only gate also covers native shared-library emission (`--lib`):
     - `x64-linux`: ELF `.so` + generated header
     - `x64-windows`: PE `.dll` + generated header
+- Compile-only shared-lib emission across all Tier‑1 targets (no foreign execution): `make examples-cross-compile-smoke`
 - Execute x64-linux artifacts (QEMU): `make verify-x64-linux-qemu`
 - Execute x64-linux NET fixtures (QEMU): `make verify-x64-linux-qemu-net`
 - Execute x64-linux TLS fixtures (QEMU): `make verify-x64-linux-qemu-tls`

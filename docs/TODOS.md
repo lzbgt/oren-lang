@@ -352,9 +352,11 @@ References:
 		        - Regression (arm64-linux): `scripts/verify_native_matrix.sh --targets arm64-linux` builds `examples/libmath.oren --lib` as `.so` (stage1 + stage2) and checks the ELF kind + generated header.
 		        - Stability note: x64 ELF fixup patching treats a `data_off` payload that round-trips as `nil` as `0` (valid first-byte offset), keeping stage1 (C runtime) and stage2 (native runtime) cross-target builds consistent.
 		      - Next: `make examples-test` should exercise shared-lib output beyond macOS:
-		        - Compile-only on non-host targets is OK (use `./oren scan` to validate `.so`/`.dll` metadata without executing foreign binaries).
-		        - Added (2026-01-11): `make examples-cross-compile-smoke` compiles `examples/libmath.oren --lib` for `arm64-linux` + `x64-linux` + `x64-windows` and validates via `scan` + `file` (no foreign execution).
-		        - Note: `oren scan` is primarily for scanning C libraries; for Oren `--lib` regression checks prefer validating the generated header (must include exported functions like `add`/`mul`) plus `file` kind checks.
+		        - Compile-only on non-host targets is OK (no foreign execution required).
+		          - Use `file` kind checks (`ELF ... shared object`, `PE32+ ... (DLL)`).
+		          - Use `./oren scan <lib>` to sanity-check the exported API:
+		            - For Oren `--lib` outputs, `scan` prefers parsing the generated header next to the library (`foo.{dylib,so,dll}` → `foo.h`), so it works cross-platform even when `nm` cannot read the binary format.
+		        - Added (2026-01-11): `make examples-cross-compile-smoke` compiles `examples/libmath.oren --lib` for `arm64-linux` + `x64-linux` + `x64-windows` and validates via generated header + `oren scan` + `file` kind checks.
 	     - Concurrency substrate convergence:
        - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory sync, plus a GC/safepoint model that remains correct once true threads exist.
 	     - Windows PROC story:
