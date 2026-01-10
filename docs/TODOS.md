@@ -137,14 +137,19 @@ References:
      - native matrix: `./scripts/verify_native_matrix.sh`
      - NET loopback matrix: `./scripts/verify_native_net_matrix.sh`
      - x64 self-host compiler run: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win`
-     - Windows stage0→stage1 bootstrap: `./scripts/verify_stage0_windows_bootstrap.sh`
+	     - Windows stage0→stage1 bootstrap: `./scripts/verify_stage0_windows_bootstrap.sh`
 
-     - Active gaps (keep this list forward-looking; details live in `docs/TODOS_ARCHIVE.md`):
-		       - Build system parity (Windows host):
-		         - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
-		         - Done: Windows-host bootstrap defaults now reliably select MSVC `cl.exe` when `OREN_BOOTSTRAP_CC` is not set (fixes `make test` / `make stage1` under Git Bash/MSYS2).
-		         - Done (2026-01-08): stage0 MSVC bootstrap now supports escape-hatch overrides for nonstandard Windows environments:
-		           - `OREN_MSVC_VSWHERE=<path>` (pin `vswhere.exe`)
+	     - Active gaps (keep this list forward-looking; details live in `docs/TODOS_ARCHIVE.md`):
+	       - Investigation (x64-windows): stage2 self-host build can still fail/hang on the remote Win11 host (especially via SSH proxy).
+	         - Repro gate: `make verify-stage2-win` (runs `./scripts/verify_windows_stage2_from_stage1.sh`).
+	         - Capture the full remote log into the repo before debugging:
+	           - `./scripts/fetch_remote_file.sh --win-path 'E:\work\oren-lang\s2_build_failure.log'`
+	         - Note: scripts now run a fast SSH preflight and emit bounded probe logs under `build/logs/*remote_probe*.log` when proxy/hostname resolution breaks.
+			       - Build system parity (Windows host):
+			         - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
+			         - Done: Windows-host bootstrap defaults now reliably select MSVC `cl.exe` when `OREN_BOOTSTRAP_CC` is not set (fixes `make test` / `make stage1` under Git Bash/MSYS2).
+			         - Done (2026-01-08): stage0 MSVC bootstrap now supports escape-hatch overrides for nonstandard Windows environments:
+			           - `OREN_MSVC_VSWHERE=<path>` (pin `vswhere.exe`)
 		           - `OREN_MSVC_INSTALL_PATH=<path>` (bypass `vswhere.exe` entirely)
 		         - Done (2026-01-09): self-hosted compilers (`oren.exe`, `oren_stage2.exe`) also default C-backend `--cc` to `cl.exe` on Windows hosts and auto-configure MSVC via a temporary `.cmd` wrapper (vswhere → VsDevCmd/vcvars → cl).
 		         - Done (2026-01-09): Windows path separator handling is normalized for default build outputs (so `oren_stage2` can emit `build/targets/x64-windows/native/<basename>` even when sources are invoked with backslash paths like `examples\\myapp.oren`).

@@ -257,3 +257,18 @@ What to do:
 - Verify `socat` is installed and that the command is exactly:
   - `ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work ...`
 - If the proxy stays unavailable, use a different reachable x86_64 host (or disable the proxy and connect directly).
+
+## Fetching remote logs into the repo (recommended)
+
+When a remote gate fails (stage2 hang, ABI warning spam, etc.), avoid pasting large logs into chat.
+Instead, fetch the full original log into the repo under `project-doc/remote/`:
+
+```bash
+./scripts/fetch_remote_file.sh --win-path 'E:\work\oren-lang\s2_build_failure.log'
+```
+
+Notes:
+
+- This script is bounded (does not print the whole file).
+- It stages a copy under `%USERPROFILE%\tmp_oren\remote_fetch\` on the remote host, then downloads it.
+- If ssh/proxy is broken, it fails fast and prints the path to the bounded probe logs under `build/logs/`.
