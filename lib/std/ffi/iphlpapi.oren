@@ -1,0 +1,14 @@
+// Windows IP Helper API bindings via iphlpapi.dll (rolling).
+//
+// Goal:
+// - Centralize the platform DLL attachment for Windows network configuration queries.
+// - Used by `std:net/dns` to locate the default IPv4 resolver without shelling out.
+//
+// Notes:
+// - `GetNetworkParams` returns DWORD (u32): NO_ERROR (0) or Win32 error code.
+// - Use `@ffi.ret("u32")` so the native backend zero-extends into Oren’s i64 value model.
+
+@cfg(os="windows")
+@ffi.dll("iphlpapi.dll")
+ffi { @ffi.ret("u32") GetNetworkParams }
+

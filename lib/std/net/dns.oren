@@ -171,9 +171,11 @@ fn _find_nameserver_ipv4_in_resolv_conf(s) {
 // - This keeps the rest of the DNS client deterministic: `dns.query_a` still speaks UDP to an explicit server.
 // - This avoids calling external tools (`ipconfig`) and avoids parsing localized text.
 
+import iphlp "std:ffi/iphlpapi"
+
 @cfg(os="windows")
-@ffi.dll("iphlpapi.dll")
-ffi GetNetworkParams
+// FFI is centralized in `std:ffi/iphlpapi`.
+// Note: `GetNetworkParams` returns a u32 Win32 error code.
 
 @cfg(os="windows")
 @abi
@@ -206,7 +208,7 @@ fn _win_dns_default_nameserver_ipv4() {
     if lenp == 0 { return 0 }
     oren_ptr_set_u32_le(lenp, 0)
 
-    var rc = GetNetworkParams(0, lenp)
+    var rc = iphlp.GetNetworkParams(0, lenp)
     var need = oren_ptr_get_u32_le(lenp)
     if rc != 111 && rc != 0 { free(lenp); return 0 }
     if need <= 0 || need > 1048576 { free(lenp); return 0 } // 1 MiB sanity cap
@@ -214,7 +216,7 @@ fn _win_dns_default_nameserver_ipv4() {
     var buf = malloc(need)
     if buf == 0 { free(lenp); return 0 }
     oren_ptr_set_u32_le(lenp, need)
-    rc = GetNetworkParams(buf, lenp)
+    rc = iphlp.GetNetworkParams(buf, lenp)
     free(lenp)
     if rc != 0 { free(buf); return 0 }
 

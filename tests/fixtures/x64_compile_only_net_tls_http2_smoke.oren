@@ -15,6 +15,7 @@
 // - We still want a fast local regression guard that these modules remain buildable on x86_64.
 
 import tcp "std:net/tcp"
+import dns "std:net/dns"
 import tls "std:net/tls"
 import h2 "std:net/http2"
 import hpack "std:net/hpack"
@@ -30,6 +31,11 @@ fn main() {
     if 0 == 1 {
         // TCP symbol reference (link surface).
         var fd = tcp.connect("127.0.0.1", 443, 1)
+
+        // DNS default resolver (Win11 uses iphlpapi; POSIX uses /etc/resolv.conf).
+        // This stays in a dead branch so the compile-only gate can typecheck the surface
+        // without requiring host filesystem state.
+        var _dr = dns.default_resolver(1)
 
         // TLS symbol reference (type surface).
         var cr = tls.wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
