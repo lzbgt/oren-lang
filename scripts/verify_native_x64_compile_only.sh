@@ -132,6 +132,7 @@ QI_SRC="tests/native/test_quick_integration_native.oren"
 PRINT_SRC="tests/native/print.oren"
 PRINT_NEEDLE="hello from native"
 CFG_OS_SRC="tests/native/cfg_os_select.oren"
+NET_TLS_HTTP2_SMOKE_SRC="tests/fixtures/x64_compile_only_net_tls_http2_smoke.oren"
 
 WIN_FFI_K32_SRC="tests/native/ffi_windows_kernel32.oren"
 WIN_FFI_MSVCRT_LINK_ATTR_SRC="tests/native/ffi_windows_msvcrt_attr_link.oren"
@@ -279,6 +280,9 @@ run_suite_x64_linux() {
   build_one "$compiler" x64-linux "$QI_SRC" "build/tmp/qi_${tag}_x64_linux"
   check_elf_x64 "build/tmp/qi_${tag}_x64_linux"
 
+  build_one "$compiler" x64-linux "$NET_TLS_HTTP2_SMOKE_SRC" "build/tmp/net_tls_http2_smoke_${tag}_x64_linux"
+  check_elf_x64 "build/tmp/net_tls_http2_smoke_${tag}_x64_linux"
+
   build_one "$compiler" x64-linux "$PRINT_SRC" "build/tmp/print_${tag}_x64_linux"
   check_elf_x64 "build/tmp/print_${tag}_x64_linux"
   check_bin_contains "build/tmp/print_${tag}_x64_linux" "$PRINT_NEEDLE"
@@ -314,6 +318,9 @@ run_suite_x64_win() {
   build_one "$compiler" x64-windows "$QI_SRC" "build/tmp/qi_${tag}_x64_windows.exe"
   check_pe_x64 "build/tmp/qi_${tag}_x64_windows.exe"
   check_pe_x64_entry_disp8_zero_sane "build/tmp/qi_${tag}_x64_windows.exe"
+
+  build_one "$compiler" x64-windows "$NET_TLS_HTTP2_SMOKE_SRC" "build/tmp/net_tls_http2_smoke_${tag}_x64_windows.exe"
+  check_pe_x64 "build/tmp/net_tls_http2_smoke_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$PRINT_SRC" "build/tmp/print_${tag}_x64_windows.exe"
   check_pe_x64 "build/tmp/print_${tag}_x64_windows.exe"

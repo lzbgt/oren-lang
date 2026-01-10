@@ -1,0 +1,62 @@
+// x64 compile-only smoke for the native NET/TLS/HTTP2 stack.
+//
+// Purpose:
+// - Provide a single source file that forces module resolution + typechecking of:
+//   - std:net/tls
+//   - std:net/http2
+//   - std:net/hpack
+//   - std:net/http2_client
+//
+// This fixture is intentionally *not* executed by the x64 compile-only gate; it only
+// needs to compile for x64-linux and x64-windows under both stage1 and stage2.
+//
+// Why:
+// - Remote Win11/WSL2 execution can be intermittently blocked by connectivity.
+// - We still want a fast local regression guard that these modules remain buildable on x86_64.
+
+import tcp "std:net/tcp"
+import tls "std:net/tls"
+import h2 "std:net/http2"
+import hpack "std:net/hpack"
+import h2c "std:net/http2_client"
+
+fn main() {
+    // Keep runtime behavior trivial. The x64 compile-only gate does not run this program.
+    //
+    // We still reference a representative set of symbols in a dead branch so:
+    // - the parser resolves imports,
+    // - typechecking covers key APIs,
+    // - codegen has to include these modules in the compilation unit.
+    if 0 == 1 {
+        // TCP symbol reference (link surface).
+        var fd = tcp.connect("127.0.0.1", 443, 1)
+
+        // TLS symbol reference (type surface).
+        var cr = tls.wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
+        var ok = oren_map_get_str(cr, "ok")
+        if ok == 1 {
+            var conn = oren_map_get_str(cr, "conn")
+            var _al = tls.negotiated_alpn(conn)
+            // Client wrapper surface (http2_client).
+            var _c = h2c.new(conn, 1, {"settings": [[h2.SETTINGS_ENABLE_PUSH, 0]]})
+        }
+
+        // HTTP/2 framing surface.
+        var hdr = malloc(16)
+        var _fh = h2.parse_frame_header(hdr)
+        var _wr = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, 0, 0)
+        var _pref = h2.CLIENT_PREFACE
+        var _plen = h2.CLIENT_PREFACE_LEN
+
+        // HPACK encode/decode surface.
+        var t = hpack.table_new(4096)
+        var hb = hpack.encode_header_block(t, [
+            {"name": ":method", "value": "GET"},
+            {"name": ":path", "value": "/"}
+        ], {"huffman": 0})
+        var _dr = hpack.decode_header_block(t, hb)
+
+        // (http2_client symbols referenced above)
+    }
+    exit(0)
+}

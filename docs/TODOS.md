@@ -557,6 +557,7 @@ References:
     - When the remote is reachable, re-run:
       - `make verify-native-net` (includes x64-win + x64-wsl)
       - `make verify-selfhost-x64`
+    - Even when the remote is unreachable, keep x86_64 *buildability* guarded by `make verify-native-x64-compile` (compiles x64-linux + x64-windows outputs for stage1+stage2, including NET/TLS/HTTP2/HPACK module resolution via `tests/fixtures/x64_compile_only_net_tls_http2_smoke.oren`).
     - To fetch remote logs without copy/paste, use `scripts/fetch_remote_file.sh` and pass `--host user@IP` if the proxy cannot resolve `pc.work` (or pass `--no-proxy` if you have direct SSH access; see `docs/REMOTE_X64_ENV.md`).
    - Goal: production-oriented cross-platform GUI without committing Oren’s core runtime to platform frameworks.
    - Design doc: `docs/GUI.md`
