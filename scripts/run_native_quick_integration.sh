@@ -115,6 +115,24 @@ if [[ "$rc" -eq 0 ]]; then
 fi
 tail -n 5 "$ng_log"
 
+echo "== nil-compare guard smoke (late scalar use, top-level) =="
+ng2_src="tests/fixtures/nil_guard_bad_late_scalar_nil_compare_top_level.oren"
+ng2_log="build/logs/${compiler_base}_nil_guard_smoke_top_level.log"
+ng2_out="build/tmp/${compiler_base}_nil_guard_smoke_top_level.obc"
+rm -f "$ng2_log" "$ng2_out" 2>/dev/null || true
+
+set +e
+"$compiler" build "$ng2_src" --backend bytecode -o "$ng2_out" >"$ng2_log" 2>&1
+rc=$?
+set -e
+
+if [[ "$rc" -eq 0 ]]; then
+  echo "FAIL: nil-compare guard smoke (top-level) expected failure but build succeeded"
+  tail -n 80 "$ng2_log"
+  exit 1
+fi
+tail -n 5 "$ng2_log"
+
 echo "== typecheck smoke (bool vs nil) =="
 tc2_src="tests/fixtures/typecheck_bad_bool_nil.oren"
 tc2_log="build/logs/${compiler_base}_typecheck_smoke_bool_nil.log"

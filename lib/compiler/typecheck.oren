@@ -841,10 +841,18 @@ fn nil_scalar_compare_guard_linked_program_in_place(linked) {
     if linked == nil { return linked }
     var errors = []
     var env = {}
+    // Best-effort "later scalar use" pass for top-level code too.
+    // (Nested functions are handled by the per-function analysis in _nil_guard_expr.)
+    var top_scalar_likely = {}
     var stmts = linked["statements"]
     var i = 0
     while i < oren_list_len(stmts) {
-        _nil_guard_stmt(errors, stmts[i], env, nil)
+        _nil_guard_collect_scalar_likely_stmt(top_scalar_likely, stmts[i])
+        i = i + 1
+    }
+    i = 0
+    while i < oren_list_len(stmts) {
+        _nil_guard_stmt(errors, stmts[i], env, top_scalar_likely)
         i = i + 1
     }
     linked["nil_compare_errors"] = errors
