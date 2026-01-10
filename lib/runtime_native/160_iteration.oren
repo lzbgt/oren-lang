@@ -329,6 +329,11 @@ fn oren_string_eq(a, b) {
     // Semantics (rolling): treat nil as not-equal (even nil==nil is false here).
     if a == 0 || native_value_is_nil(a) { return false }
     if b == 0 || native_value_is_nil(b) { return false }
+    // Safety (native backend):
+    // Values are not tagged at runtime; never call `strcmp` on non-strings.
+    // `native_is_string_ptr` is a safe predicate (tracked STRING or embedded cstr0 literal).
+    if oren_is_string(a) != true { return false }
+    if oren_is_string(b) != true { return false }
     return strcmp(a, b) == 0
 }
 

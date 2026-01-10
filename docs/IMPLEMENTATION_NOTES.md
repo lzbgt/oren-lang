@@ -311,7 +311,7 @@ Oren currently has **multiple runtimes** that execute compiler/tooling code:
 - Stage2 compiler: built via the native backend (native runtime semantics)
 
 In rolling mode, do **not** assume `==` on strings behaves identically across these runtimes.
-In particular, some native-runtime paths rely on **interning / pointer identity** for fast comparisons,
+In particular, some native-runtime paths historically relied on **interning / pointer identity** as a fast path,
 which can break checks that compare:
 
 - a string built via concatenation/slice (non-interned), with
@@ -320,6 +320,11 @@ which can break checks that compare:
 Practical rule (compiler-side code):
 
 - Prefer **byte-wise equality** using `oren_string_len` + `oren_string_byte_at_unchecked` in any pass that must behave the same in stage1 and stage2.
+
+Native runtime note:
+
+- Runtime protocol tags (e.g. iterable-map `__iter`) are now matched by string bytes, guarded by `oren_is_string(...)`,
+  so correctness does not depend on literal pointer identity.
 
 Reference implementations:
 

@@ -244,8 +244,11 @@ Backends implement this in `oren_iter_next` so `for x in list.slice_view(...) { 
 the underlying list elements, not metadata.
 
 Important native-backend constraint:
-- The marker `"list_slice"` must be a **string literal** so the native runtime can safely do
-  pointer equality on `__iter` values without calling `strcmp` on untagged integers.
+- Native values are not fully tagged yet, so the runtime must not call `strcmp` on non-strings.
+- The correct rule is therefore:
+  - only interpret `__iter` when it is a valid string value (`oren_is_string(__iter)`), and
+  - compare tags by string bytes (`strcmp`) rather than relying on pointer identity.
+  - Pointer equality against a literal is an optional fast path, not a semantic requirement.
 
 ---
 
