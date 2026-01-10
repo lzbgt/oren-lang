@@ -14,6 +14,7 @@ If you change an invariant, update this file *and* the gate.
 - Local fast gate (arm64-macos): `make test`
 - Local + container (no remote required): `make verify-native-net-skip-remote`
 - Cross-target buildability (no remote required): `make verify-native-x64-compile`
+- Local x64-linux runtime (no remote required): `make verify-x64-linux-qemu`
 - Full Tier‑1 matrix (requires remote Win11/WSL2): `make verify-tier1`
 
 ## 1) Never call string ops on untagged non-strings
@@ -121,3 +122,42 @@ Regression:
 
 - `make test` should stay fast by default (and the scripts should always have bounded output).
 
+## 7) x64-windows: validate exports via PE Export Directory (not string search)
+
+Invariant:
+
+- When the native backend is expected to export symbols on **x64-windows** (both):
+  - `--lib` outputs (`.dll` exports like `add`, `mul`), and
+  - `@ffi.export` callback-style exports on `.exe`,
+  the symbol names must appear in the **PE Export Directory**.
+
+Why:
+
+- A byte/string search is not proof of export correctness:
+  - the name could appear in debug strings, metadata, or pooled literals,
+  - while the export table is missing or malformed.
+- Real consumers (`GetProcAddress`) consult the export table, not random bytes.
+
+Regression:
+
+- `make verify-native-x64-compile` (compile-only gate)
+  - Uses `scripts/pe_exports_check.py` to parse the PE export directory (no external deps).
+- `make examples-cross-compile-smoke` (compile-only `--lib` API sanity)
+
+## 8) x64-linux: shared library + FFI resolution must run under QEMU
+
+Invariant:
+
+- On **x64-linux**, the native backend must be able to:
+  - emit a shared library via `--lib` (`.so`), and
+  - emit an executable that links/resolves symbols from that `.so` via `--link`,
+  and the result must run correctly (not just compile).
+
+Why:
+
+- “Compile-only” checks miss runtime/linker/FFI resolution failures (e.g. missing export table, wrong resolver behavior, wrong calling convention).
+- This is a high-signal parity gate for the x64 backend without requiring a remote WSL2 host.
+
+Regression:
+
+- `make verify-x64-linux-qemu` runs `examples/libmath.oren --lib` + `examples/ffi_from_libmath.oren` under `qemu-x86_64` in the persistent Linux container.

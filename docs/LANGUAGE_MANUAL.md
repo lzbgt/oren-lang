@@ -1329,6 +1329,18 @@ var r2 = oren_join_timeout(t, 20)
 
 See `tests/modules/test_spawn_join_timeout.oren` and `tests/native/test_spawn_join_timeout.oren`.
 
+Important portability note (native backend, rolling):
+
+- On **macOS/Linux**, native `spawn` is currently implemented as **fork + pipe** (process-based).
+- On **Windows x64**, native `spawn` is currently implemented as **CreateThread** (thread-based).
+
+This means “spawned code” is not fully uniform across OS yet. In particular:
+
+- On POSIX v0, a spawned worker does **not** share address space with the parent (it is a child process).
+- On Windows, a spawned worker **does** share address space (it is a thread), so calling `exit(...)` inside the worker would terminate the whole process.
+
+This is why some Tier‑1 fixtures use small `@cfg(os=...)` wrappers around worker entrypoints (example: `tests/native/test_tls_loopback.oren` uses a Windows-only worker that returns a status code instead of calling `exit`).
+
 Concurrency in AVM differs from native mode; see:
 
 - `docs/CONCURRENCY_MODEL.md`
