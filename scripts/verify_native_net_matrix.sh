@@ -54,6 +54,7 @@ usage() {
 Usage: scripts/verify_native_net_matrix.sh [--targets <csv>] [--local-only]
        scripts/verify_native_net_matrix.sh [--targets <csv>] [--trace]
        scripts/verify_native_net_matrix.sh [--targets <csv>] [--skip-remote]
+       scripts/verify_native_net_matrix.sh [--host <user@host>] [--proxy <ssh_opt>] [--no-proxy]
 
 Runs (loopback-only; no external network):
   - tests/native/test_net_suite.oren
@@ -105,6 +106,22 @@ fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --host)
+      REMOTE_HOST="${2:-}"
+      if [[ -z "$REMOTE_HOST" ]]; then
+        echo "ERROR: --host requires a value (example: user@203.0.113.10)" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    --proxy)
+      REMOTE_PROXY="${2:-}"
+      shift 2
+      ;;
+    --no-proxy)
+      REMOTE_PROXY=""
+      shift
+      ;;
     --local-only)
       LOCAL_ONLY=1
       shift
@@ -197,7 +214,11 @@ if [[ "$LOCAL_ONLY" -eq 0 ]]; then
   if [[ "$SKIP_REMOTE" -eq 0 ]] && ( has_target x64-win || has_target x64-wsl ); then
     need_bin ssh
     need_bin scp
-    need_bin socat
+    need_bin tar
+    need_bin grep
+    if [[ -n "$REMOTE_PROXY" ]] && [[ "$REMOTE_PROXY" == *socat* ]]; then
+      need_bin socat
+    fi
   fi
 fi
 
@@ -412,8 +433,15 @@ remote_unix_root="tmp_oren"
 remote_win_root="C:\\Users\\${remote_user}\\tmp_oren"
 remote_wsl_root="/mnt/c/Users/${remote_user}/tmp_oren"
 
-ssh_base=(ssh -o "$REMOTE_PROXY" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 "$REMOTE_HOST")
-scp_base=(scp -q -o "$REMOTE_PROXY" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2)
+ssh_opt_proxy=()
+scp_opt_proxy=()
+if [[ -n "$REMOTE_PROXY" ]]; then
+  ssh_opt_proxy=(-o "$REMOTE_PROXY")
+  scp_opt_proxy=(-o "$REMOTE_PROXY")
+fi
+
+ssh_base=(ssh "${ssh_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 "$REMOTE_HOST")
+scp_base=(scp -q "${scp_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2)
 
 remote_preflight() {
   mkdir -p build/logs

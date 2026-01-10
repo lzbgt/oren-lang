@@ -30,7 +30,7 @@ TRACE=0
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/fetch_remote_file.sh --win-path <ABS_WINDOWS_PATH> [--out-name <name>] [--out-dir <dir>] [--host <user@host>] [--proxy <ssh_opt>] [--trace]
+  scripts/fetch_remote_file.sh --win-path <ABS_WINDOWS_PATH> [--out-name <name>] [--out-dir <dir>] [--host <user@host>] [--proxy <ssh_opt>] [--no-proxy] [--trace]
 
 Examples:
   ./scripts/fetch_remote_file.sh --win-path 'E:\work\oren-lang\s2_build_failure.log'
@@ -70,6 +70,10 @@ while [[ $# -gt 0 ]]; do
       REMOTE_PROXY="${2:-}"
       shift 2
       ;;
+    --no-proxy)
+      REMOTE_PROXY=""
+      shift
+      ;;
     --trace)
       TRACE=1
       shift
@@ -102,8 +106,10 @@ need_bin() {
 
 need_bin ssh
 need_bin scp
-need_bin socat
 need_bin grep
+if [[ -n "$REMOTE_PROXY" ]] && [[ "$REMOTE_PROXY" == *socat* ]]; then
+  need_bin socat
+fi
 
 if [[ "$TRACE" -ne 0 ]]; then
   set -x
@@ -132,8 +138,15 @@ run_with_timeout() {
   return "$rc"
 }
 
-ssh_base=(ssh -o "$REMOTE_PROXY" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 "$REMOTE_HOST")
-scp_base=(scp -q -o "$REMOTE_PROXY" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2)
+ssh_opt_proxy=()
+scp_opt_proxy=()
+if [[ -n "$REMOTE_PROXY" ]]; then
+  ssh_opt_proxy=(-o "$REMOTE_PROXY")
+  scp_opt_proxy=(-o "$REMOTE_PROXY")
+fi
+
+ssh_base=(ssh "${ssh_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 "$REMOTE_HOST")
+scp_base=(scp -q "${scp_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2)
 
 remote_preflight() {
   local logf="build/logs/fetch_remote_probe.log"

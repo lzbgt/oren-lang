@@ -42,7 +42,7 @@ TRACE_ENV=""
 
 usage() {
   cat <<'EOF'
-Usage: scripts/verify_selfhost_x64_compiler.sh [--targets <csv>] [--trace]
+Usage: scripts/verify_selfhost_x64_compiler.sh [--targets <csv>] [--trace] [--host <user@host>] [--proxy <ssh_opt>] [--no-proxy]
 
 Targets (comma-separated):
   x64-win   run the x64-windows compiler on remote Win11 (cmd.exe)
@@ -67,6 +67,22 @@ fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --host)
+      REMOTE_HOST="${2:-}"
+      if [[ -z "$REMOTE_HOST" ]]; then
+        echo "ERROR: --host requires a value (example: user@203.0.113.10)" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    --proxy)
+      REMOTE_PROXY="${2:-}"
+      shift 2
+      ;;
+    --no-proxy)
+      REMOTE_PROXY=""
+      shift
+      ;;
     --targets)
       TARGETS_CSV="${2:-}"
       if [[ -z "$TARGETS_CSV" ]]; then
@@ -98,9 +114,11 @@ need_bin() {
 need_bin make
 need_bin ssh
 need_bin scp
-need_bin socat
 need_bin tar
 need_bin grep
+if [[ -n "$REMOTE_PROXY" ]] && [[ "$REMOTE_PROXY" == *socat* ]]; then
+  need_bin socat
+fi
 
 if [[ "$TRACE" -eq 1 ]]; then
   set -x
@@ -112,6 +130,13 @@ host_arch="$(uname -m)"
 if [[ "$host_os" != "Darwin" || "$host_arch" != "arm64" ]]; then
   echo "ERROR: this script currently assumes a macOS arm64 host; got OS=$host_os arch=$host_arch" >&2
   exit 2
+fi
+
+ssh_opt_proxy=()
+scp_opt_proxy=()
+if [[ -n "$REMOTE_PROXY" ]]; then
+  ssh_opt_proxy=(-o "$REMOTE_PROXY")
+  scp_opt_proxy=(-o "$REMOTE_PROXY")
 fi
 
 normalize_target() {
@@ -177,8 +202,8 @@ run_with_timeout() {
   return "$rc"
 }
 
-SSH=(ssh -o "$REMOTE_PROXY" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 "$REMOTE_HOST")
-SCP=(scp -q -o "$REMOTE_PROXY" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2)
+SSH=(ssh "${ssh_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 "$REMOTE_HOST")
+SCP=(scp -q "${scp_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2)
 
 mkdir -p build/tmp
 

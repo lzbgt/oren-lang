@@ -557,7 +557,7 @@ References:
     - When the remote is reachable, re-run:
       - `make verify-native-net` (includes x64-win + x64-wsl)
       - `make verify-selfhost-x64`
-    - To fetch remote logs without copy/paste, use `scripts/fetch_remote_file.sh` and pass `--host user@IP` if the proxy cannot resolve `pc.work` (see `docs/REMOTE_X64_ENV.md`).
+    - To fetch remote logs without copy/paste, use `scripts/fetch_remote_file.sh` and pass `--host user@IP` if the proxy cannot resolve `pc.work` (or pass `--no-proxy` if you have direct SSH access; see `docs/REMOTE_X64_ENV.md`).
    - Goal: production-oriented cross-platform GUI without committing Oren’s core runtime to platform frameworks.
    - Design doc: `docs/GUI.md`
    - Recommended architecture (rolling):

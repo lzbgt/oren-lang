@@ -48,6 +48,17 @@ If your local host is macOS arm64 (Tier‑1 dev path), the recommended way to va
 ./scripts/verify_native_matrix.sh --targets x64-wsl,x64-win
 ```
 
+Host/proxy overrides (rolling ergonomics):
+
+```bash
+# If the default hostname (pc.work) is not resolvable from your current network,
+# override the host explicitly (IP or resolvable DNS).
+./scripts/verify_native_matrix.sh --targets x64-wsl,x64-win --host 'lzbgt@203.0.113.10'
+
+# If you have direct SSH access (no ProxyCommand), disable the proxy (socat not required).
+./scripts/verify_native_matrix.sh --targets x64-wsl,x64-win --host 'lzbgt@203.0.113.10' --no-proxy
+```
+
 ## NET loopback matrix (TCP/UDP + HTTP GET loopback)
 
 The Tier‑1 matrix script focuses on a broad native smoke (containers, strings, maps, proc, etc),
@@ -155,7 +166,7 @@ Common env overrides (match `scripts/verify_native_matrix.sh` defaults):
 
 ## Prerequisites (local machine)
 
-- `socat` available in `PATH` (required for `ProxyCommand`).
+- `socat` available in `PATH` (required only when using a `ProxyCommand` that includes `socat`).
   - macOS (Homebrew): `brew install socat`
   - Linux: `apt-get install socat` / `dnf install socat` / etc.
 
@@ -173,6 +184,12 @@ Notes:
 - Keys/certs are already provisioned (no password prompt expected).
 - If you see a proxy error like `socat ... CONNECT <host>:22: Not Found`, the proxy cannot resolve the hostname you passed.
   - Fix: set `OREN_REMOTE_X64_HOST` to an IP address (or a resolvable DNS name), or override `OREN_REMOTE_X64_PROXY` to connect directly (no proxy).
+
+Direct SSH (no proxy) example:
+
+```bash
+ssh lzbgt@203.0.113.10
+```
 
 ## Run commands on Windows (cmd.exe)
 

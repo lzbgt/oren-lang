@@ -25,6 +25,49 @@ SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-3}"
 
 log() { printf '%s\n' "$*"; }
 
+usage() {
+  cat <<'EOF'
+Usage:
+  scripts/verify_stage0_windows_bootstrap.sh [--host <user@host>] [--proxy <ssh_opt>] [--no-proxy]
+
+Env overrides:
+  OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
+  OREN_REMOTE_X64_PROXY  (default: ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002)
+  OREN_REMOTE_STAGE0_BOOTSTRAP_DIR (default: tmp_oren/stage0_bootstrap)
+EOF
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --host)
+      REMOTE_HOST="${2:-}"
+      if [[ -z "$REMOTE_HOST" ]]; then
+        echo "ERROR: --host requires a value (example: user@203.0.113.10)" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    --proxy)
+      REMOTE_PROXY="${2:-}"
+      shift 2
+      ;;
+    --no-proxy)
+      REMOTE_PROXY=""
+      shift
+      ;;
+    *)
+      echo "ERROR: unknown arg: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
 need_bin() {
   local b="$1"
   if ! command -v "$b" >/dev/null 2>&1; then
@@ -36,10 +79,23 @@ need_bin() {
 need_bin go
 need_bin ssh
 need_bin scp
-need_bin socat
 need_bin tar
+need_bin grep
+if [[ -n "$REMOTE_PROXY" ]] && [[ "$REMOTE_PROXY" == *socat* ]]; then
+  need_bin socat
+fi
 
 mkdir -p build/tmp build/logs
+
+ssh_opt_proxy=()
+scp_opt_proxy=()
+if [[ -n "$REMOTE_PROXY" ]]; then
+  ssh_opt_proxy=(-o "$REMOTE_PROXY")
+  scp_opt_proxy=(-o "$REMOTE_PROXY")
+fi
+
+SSH=(ssh "${ssh_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 "$REMOTE_HOST")
+SCP=(scp -q "${scp_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2)
 
 run_with_timeout() {
   local secs="$1"
@@ -73,13 +129,7 @@ scp_retry() {
   local dst="$2"
   local i=1
   while true; do
-    if scp -q \
-      -o "$REMOTE_PROXY" \
-      -o BatchMode=yes \
-      -o ConnectTimeout=10 \
-      -o ServerAliveInterval=5 \
-      -o ServerAliveCountMax=2 \
-      "$src" "$dst"; then
+    if "${SCP[@]}" "$src" "$dst"; then
       return 0
     fi
     if [[ "$i" -ge "$SCP_RETRIES" ]]; then
@@ -98,13 +148,7 @@ remote_preflight() {
   while true; do
     : >"$logf"
     set +e
-    run_with_timeout 15 ssh \
-      -o "$REMOTE_PROXY" \
-      -o BatchMode=yes \
-      -o ConnectTimeout=10 \
-      -o ServerAliveInterval=5 \
-      -o ServerAliveCountMax=2 \
-      "$REMOTE_HOST" "cmd.exe /c \"echo OREN_REMOTE_OK\"" >"$logf" 2>&1
+    run_with_timeout 15 "${SSH[@]}" "cmd.exe /c \"echo OREN_REMOTE_OK\"" >"$logf" 2>&1
     local rc=$?
     set -e
 
@@ -146,17 +190,17 @@ scp_retry build/tmp/oren_bootstrap_win.exe "${REMOTE_HOST}:tmp_oren/oren_bootstr
 scp_retry build/tmp/stage0_src_bundle.tgz "${REMOTE_HOST}:tmp_oren/stage0_src_bundle.tgz"
 
 log "== remote: extract bundle =="
-ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\tmp_oren && (if exist ${REMOTE_DIR#tmp_oren/} rmdir /s /q ${REMOTE_DIR#tmp_oren/}) && mkdir ${REMOTE_DIR#tmp_oren/} && tar -xzf stage0_src_bundle.tgz -C ${REMOTE_DIR#tmp_oren/}\""
+"${SSH[@]}" "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\tmp_oren && (if exist ${REMOTE_DIR#tmp_oren/} rmdir /s /q ${REMOTE_DIR#tmp_oren/}) && mkdir ${REMOTE_DIR#tmp_oren/} && tar -xzf stage0_src_bundle.tgz -C ${REMOTE_DIR#tmp_oren/}\""
 
 log "== remote: stage0 builds stage1 (MSVC cl.exe) =="
-run_with_timeout "$STAGE0_BUILD_TIMEOUT_SECS" ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && ..\\\\oren_bootstrap_win.exe build oren.oren --target windows --cc cl -o oren_stage1.exe\""
+run_with_timeout "$STAGE0_BUILD_TIMEOUT_SECS" "${SSH[@]}" "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && ..\\\\oren_bootstrap_win.exe build oren.oren --target windows --cc cl -o oren_stage1.exe\""
 
 log "== remote: stage1 builds a tiny native exe =="
-run_with_timeout "$STAGE1_BUILD_TIMEOUT_SECS" ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && oren_stage1.exe build tests\\\\native\\\\print.oren --backend native --no-cache --no-debug -o print_stage1_native.exe\""
+run_with_timeout "$STAGE1_BUILD_TIMEOUT_SECS" "${SSH[@]}" "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && oren_stage1.exe build tests\\\\native\\\\print.oren --backend native --no-cache --no-debug -o print_stage1_native.exe\""
 
 log "== remote: run the produced exe =="
 out="$(
-  run_with_timeout "$REMOTE_RUN_TIMEOUT_SECS" ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" "cmd.exe /v:on /c \"%USERPROFILE%\\\\${REMOTE_DIR//\//\\\\}\\\\print_stage1_native.exe\""
+  run_with_timeout "$REMOTE_RUN_TIMEOUT_SECS" "${SSH[@]}" "cmd.exe /v:on /c \"%USERPROFILE%\\\\${REMOTE_DIR//\//\\\\}\\\\print_stage1_native.exe\""
 )"
 out="$(printf '%s' "$out" | tr -d '\r')"
 printf '%s\n' "$out"
