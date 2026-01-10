@@ -30,6 +30,13 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Verified:
   - `make verify-stage2-win` (stage0→stage1 via MSVC + stage1→stage2 via native backend + stage2 builds+runs tiny native + C-backend program).
 
+- Follow-up (2026-01-10): another Win11 failure mode for the same command was traced to **path parsing**, not directory creation:
+  - The error log showed: `x64 pe: failed to write: build/targets/x64-windows/native/examples\myapp` (`write_bytes: sys_open failed`).
+  - Root cause: `basename`/`dirname` treated `\` as a path separator only when `OS=Windows_NT` was set; some SSH/PowerShell environments did not provide that env var, so `examples\myapp` leaked into the output filename.
+  - Fix: path helpers now treat both `/` and `\` as separators unconditionally.
+  - Evidence: `project-doc/remote/20260110_075154/s2_build_failure.log`
+  - Verified: `make verify-stage2-win` passes on the Tier‑1 Win11 host.
+
 ## Archived (2026-01-07) — x86_64 self-host compiler run gate: runtime FS errors + Windows `sys_stat`
 
 - Symptom (x86_64 hosts, self-host compiler binaries):
