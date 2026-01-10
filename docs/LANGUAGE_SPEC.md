@@ -718,6 +718,9 @@ Implementation note (current compiler):
     - v0 supports a minimal, portable “data iterable” protocol: an **iterable map** with the marker key `__iter`.
     - Backends may recognize these objects inside `oren_iter_next` to implement stream-like iteration
       without adding new VM value kinds.
+    - Safety rule (native backend): because values are not tagged at runtime, implementations must not call
+      string functions (e.g. `strcmp`) on non-strings. In practice, the runtime treats `__iter` as a tag only
+      when it is a valid string value (and compares tags by string bytes, not pointer identity).
     - Initial supported adaptor: `range` (stdlib helper `lib/std/iter.oren`):
       - `iter.range(n)` yields `0..(n-1)`
       - `iter.range3(start, end, step)` yields `start, start+step, ...` while:

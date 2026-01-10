@@ -168,6 +168,25 @@ fn test_core() {
     }
     assert_eq(s, 1 + 3 + 4, 31)
 
+    trace("QI: test_core iterable-map protocol")
+    // Iterable map protocol safety + robustness (native backend):
+    // - Runtime must not call strcmp on non-strings.
+    // - Do not rely on literal pointer equality: a user can construct an equal string that
+    //   is not the same pointer as the cstr0 literal.
+    //
+    // Regression: "__iter" set to a heap string "range" must behave like the stdlib protocol.
+    var it = "ra" + "nge" // heap string, not necessarily pointer-equal to the literal "range"
+    assert_true(oren_is_string(it), 3210)
+    assert_streq(it, "range", 3211)
+    var m_it = {"__iter": it, "start": 0, "end": 4, "step": 1}
+    var ys = []
+    for v in m_it { oren_list_push(ys, v) }
+    assert_eq(oren_list_len(ys), 4, 3212)
+    assert_eq(ys[0], 0, 3213)
+    assert_eq(ys[1], 1, 3214)
+    assert_eq(ys[2], 2, 3215)
+    assert_eq(ys[3], 3, 3216)
+
     trace("QI: test_core typed buffer views")
     // Typed-buffer view iteration (std/buffer protocol):
     // - slice view:   [buf, off, len]

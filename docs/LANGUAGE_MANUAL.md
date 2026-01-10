@@ -1053,6 +1053,8 @@ Rolling semantics:
 - Slice views are **not** general-purpose “lists” (they are iterable objects).
 - The view reflects the underlying list values at iteration time (no copy).
 - Malformed views iterate as an empty sequence (deterministic; avoids crashes).
+  - In the native backend, the iterable-map marker (`__iter`) is only interpreted when it is a valid string value
+    (guarded by `oren_is_string`), and tags are compared by string bytes (not pointer identity).
 
 ### Maps (dynamic)
 

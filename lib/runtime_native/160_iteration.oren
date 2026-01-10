@@ -177,9 +177,9 @@ fn oren_iter_next(container, idx, out_pair) {
                     var it = oren_map_get_str(container, "__iter")
                     // Important native backend safety note:
                     // - Values are not tagged at runtime, so we must not call `strcmp` on an integer.
-                    // - The stdlib `range(...)` helper uses a string literal "range", so pointer equality
-                    //   is sufficient and avoids crashing on non-string values.
-                    if it == "range" {
+                    // - Do not rely on pointer equality of string literals across modules/rtobj caches.
+                    //   Prefer string-bytes equality, guarded by `oren_is_string(...)`.
+                    if it == "range" || (it != 0 && oren_is_string(it) && oren_string_eq(it, "range")) {
                         var start = oren_map_get_str(container, "start")
                         var end = oren_map_get_str(container, "end")
                         var step = oren_map_get_str(container, "step")
@@ -203,7 +203,7 @@ fn oren_iter_next(container, idx, out_pair) {
                         // - Only accept if `base` is a tracked list.
                         // - Treat malformed values as empty iteration (do not crash).
                         // - Use subtraction bounds checks to avoid overflow on `off + len`.
-                        if it == "list_slice" {
+                        if it == "list_slice" || (it != 0 && oren_is_string(it) && oren_string_eq(it, "list_slice")) {
                             var base = oren_map_get_str(container, "base")
                             var off2 = oren_map_get_str(container, "off")
                             var n2 = oren_map_get_str(container, "len")
