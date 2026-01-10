@@ -10,8 +10,13 @@
 // - This module is intentionally Windows-only. Use `@cfg(os="windows")` at call sites.
 // - Return kind: GetCurrentThreadId() returns DWORD (u32). Use `@ffi.ret("u32")` so the
 //   native backend zero-extends it into Oren's i64 value model.
+// - Some Win32 APIs are void-returning (e.g. SetLastError). Use `@ffi.ret("void")` so the
+//   native backend forces the return register to 0 (Oren expressions are always i64-valued).
 
 @cfg(os="windows")
 @ffi.dll("kernel32.dll")
-ffi { @ffi.ret("u32") GetCurrentThreadId }
-
+ffi {
+    @ffi.ret("u32") GetCurrentThreadId,
+    @ffi.ret("u32") GetLastError,
+    @ffi.ret("void") SetLastError
+}

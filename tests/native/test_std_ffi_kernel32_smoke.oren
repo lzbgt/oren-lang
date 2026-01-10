@@ -11,9 +11,17 @@ import k32 "std:ffi/kernel32"
 fn main() {
     var tid = k32.GetCurrentThreadId()
     if tid == 0 { exit(1) }
+
+    // Also validate:
+    // - u32 return normalization (zero-extend into i64)
+    // - void return normalization (force return register to 0)
+    // - argument passing into a Win32 API
+    var v0 = k32.SetLastError(123)
+    if v0 != 0 { exit(2) }
+    var e = k32.GetLastError()
+    if e != 123 { exit(3) }
     exit(0)
 }
 
 @cfg(not_os="windows")
 fn main() { exit(0) }
-

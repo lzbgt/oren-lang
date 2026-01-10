@@ -305,6 +305,11 @@ import k32 "std:ffi/kernel32"
 fn main() {
     var tid = k32.GetCurrentThreadId()
     if tid == 0 { exit(1) }
+
+    // Win32 error slot round-trip (also exercises `@ffi.ret("void")`).
+    var v0 = k32.SetLastError(123)
+    if v0 != 0 { exit(2) }
+    if k32.GetLastError() != 123 { exit(3) }
     exit(0)
 }
 ```

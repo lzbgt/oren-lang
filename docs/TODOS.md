@@ -415,6 +415,7 @@ References:
   - Stdlib wrappers (rolling ergonomics):
     - `std:ffi/libc` centralizes the cross-OS `puts/strlen` boilerplate (`@cfg` + `@ffi.link`/`@ffi.dll`).
     - `std:ffi/kernel32` centralizes Windows-only bindings like `GetCurrentThreadId`.
+      - Added (2026-01-11): also exposes `GetLastError` and `SetLastError` to validate `u32` + `void` ABI return kinds through a module-exported wrapper.
     - Regression (remote Win11): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/test_std_ffi_kernel32_smoke.oren` (stage1 + stage2).
     - Regression (local x64 compile-only): `scripts/verify_native_x64_compile_only.sh --targets x64-win` builds the same fixture (stage1 + stage2).
 
