@@ -11,9 +11,11 @@ Tier‑1 targets (current policy):
 
 Last verification (fact):
 
-- 2026-01-10: `make verify-native-net-skip-remote` passed on:
+- 2026-01-11: `make verify-native-net-skip-remote` passed on:
   - `arm64-macos` (local)
   - `arm64-linux` (docker container `c7e5f7bd9f5c`)
+- 2026-01-11: `make verify-x64-linux-qemu-tls` passed on:
+  - `x64-linux` under QEMU in docker container `c7e5f7bd9f5c` (stage1 + stage2; includes HTTP/2 + HPACK loopback/smokes)
 - `x64-linux` / `x64-windows` runs require the remote Win11+WSL2 host; see `docs/REMOTE_X64_ENV.md` if the proxy/hostname is unavailable.
 
 ## Modules
