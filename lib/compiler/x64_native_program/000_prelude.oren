@@ -148,8 +148,22 @@ fn insn_cvtsd2ss_xmm_xmm(xmm_dst, xmm_src) { return core.insn_cvtsd2ss_xmm_xmm(x
 fn insn_cvtss2sd_xmm_xmm(xmm_dst, xmm_src) { return core.insn_cvtss2sd_xmm_xmm(xmm_dst, xmm_src) }
 
 fn err(ctx, msg) {
+    // Keep diagnostics bounded: some codegen errors can trigger repeatedly in a single build,
+    // and printing every occurrence can produce huge logs (and slow down CI/dev loops).
+    //
+    // We still preserve signal by:
+    // - storing each distinct message once in ctx["errors"]
+    // - counting repeats in ctx["_err_counts"] (for optional future reporting)
     if ctx["errors"] == nil { ctx["errors"] = [] }
-    oren_list_push(ctx["errors"], msg)
+    if ctx["_err_counts"] == nil { ctx["_err_counts"] = {} }
+    if msg == nil { msg = "" }
+    if ctx["_err_counts"][msg] == nil {
+        ctx["_err_counts"][msg] = 1
+        oren_list_push(ctx["errors"], msg)
+        return nil
+    }
+    ctx["_err_counts"][msg] = ctx["_err_counts"][msg] + 1
+    return nil
 }
 
 fn _x64_trim_trailing_underscores(s) {
