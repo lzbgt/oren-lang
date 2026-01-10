@@ -59,11 +59,6 @@ fn main() {
     exit(0)
 }
 
-@cfg(os="windows")
-fn server_win(listen_fd, pfx_b64) {
-    return server_impl(listen_fd, pfx_b64)
-}
-
 fn server_impl(listen_fd, pfx_b64) {
     var pkcs12_bytes = base64.decode_bytes(pfx_b64)
     if oren_is_err(pkcs12_bytes) { return 101 }
@@ -99,9 +94,11 @@ fn server_impl(listen_fd, pfx_b64) {
     return 0
 }
 
-@cfg(os="macos,linux")
+@cfg(os="macos,linux,windows")
 fn server_main(listen_fd, pfx_b64) {
-    exit(server_impl(listen_fd, pfx_b64))
+    // Portable spawn entrypoint: return value is carried to the joiner across OS.
+    // Do not call `exit(...)` here (Windows spawn is thread-based).
+    return server_impl(listen_fd, pfx_b64)
 }
 
 @cfg(os="macos,linux")
@@ -111,8 +108,7 @@ fn main_server() {
     if _str_eq_bytes(args[1], "server") != true { exit(61) }
     var listen_fd = oren_int_from_string(args[2])
     if listen_fd < 0 { exit(62) }
-    server_main(listen_fd, fixture.pkcs12_b64())
-    exit(0)
+    exit(server_main(listen_fd, fixture.pkcs12_b64()))
 }
 
 @cfg(os="linux")
@@ -137,8 +133,7 @@ fn main_client() {
     var pid = sys_fork()
     if pid < 0 { exit(75) }
     if pid == 0 {
-        server_main(listen_fd, fixture.pkcs12_b64())
-        exit(127)
+        exit(server_main(listen_fd, fixture.pkcs12_b64()))
     }
 
     var url = "wss://127.0.0.1:" + oren_int_to_string(port) + "/"
@@ -306,7 +301,7 @@ fn main_client() {
     free(lenp)
     if port <= 0 { exit(7) }
 
-    var h = spawn server_win(listen_fd, fixture.pkcs12_b64())
+    var h = spawn server_main(listen_fd, fixture.pkcs12_b64())
 
     var url = "wss://127.0.0.1:" + oren_int_to_string(port) + "/"
     // Exercise ALPN client offer plumbing (provider may ignore it). WSS is HTTP/1.1 upgrade on this fixture.

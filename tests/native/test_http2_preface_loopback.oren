@@ -207,14 +207,11 @@ fn server_impl(listen_fd, pfx_b64) {
     return 0
 }
 
-@cfg(os="windows")
-fn server_win(listen_fd, pfx_b64) {
-    return server_impl(listen_fd, pfx_b64)
-}
-
-@cfg(os="macos,linux")
+@cfg(os="macos,linux,windows")
 fn server_main(listen_fd, pfx_b64) {
-    exit(server_impl(listen_fd, pfx_b64))
+    // Portable spawn entrypoint: return value is carried to the joiner across OS.
+    // Do not call `exit(...)` here (Windows spawn is thread-based).
+    return server_impl(listen_fd, pfx_b64)
 }
 
 @cfg(not_os="macos,linux,windows")
@@ -243,8 +240,8 @@ fn main_client() {
     free(lenp)
     free(sa)
 
-    // Windows spawn is thread-based; run the TLS server inline without fork/exec.
-    var h = spawn server_win(listen_fd, fixture.pkcs12_b64())
+    // Windows spawn is thread-based; use a return-code worker.
+    var h = spawn server_main(listen_fd, fixture.pkcs12_b64())
 
     // Client: request h2 and pin the deterministic cert.
     var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
@@ -367,8 +364,7 @@ fn main_client() {
     if pid < 0 { exit(75) }
     if pid == 0 {
         // Linux correctness: accept+TLS runs fine in the post-fork child.
-        server_main(listen_fd, pfx_b64)
-        exit(127)
+        exit(server_main(listen_fd, pfx_b64))
     }
 
     var fd = tcp.connect("127.0.0.1", port, 5000)
@@ -590,8 +586,7 @@ fn main_server() {
     var listen_fd = oren_int_from_string(args[2])
     if listen_fd < 0 { exit(62) }
     var pfx_b64 = fixture.pkcs12_b64()
-    server_main(listen_fd, pfx_b64)
-    exit(0)
+    exit(server_main(listen_fd, pfx_b64))
 }
 
 @cfg(os="macos,linux")
