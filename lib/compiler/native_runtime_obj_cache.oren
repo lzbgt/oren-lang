@@ -524,12 +524,24 @@ fn _path_to_windows_sep(s) {
     return out
 }
 
+fn _host_is_windows() {
+    // Robust host detection for compiler/tooling helpers used across stage1 (C backend) and stage2 (native).
+    // Do not rely solely on `OS=Windows_NT` since some environments (SSH/PowerShell) may omit it.
+    if oren_env("OS") == "Windows_NT" { return true }
+    if oren_env("SystemRoot") != nil { return true }
+    if oren_env("WINDIR") != nil { return true }
+    if oren_env("COMSPEC") != nil { return true }
+    if oren_env("PATHEXT") != nil { return true }
+    if oren_env("PROCESSOR_ARCHITECTURE") != nil { return true }
+    return false
+}
+
 fn _ensure_dir(path) {
     if path == nil || path == "" { return nil }
     // Cross-platform: do not rely on `mkdir -p` on Windows (cmd.exe does not support it).
     var mk_path = path
     var cmd = ""
-    if oren_env("OS") == "Windows_NT" {
+    if _host_is_windows() {
         mk_path = _path_to_windows_sep(mk_path)
         cmd = "mkdir \"" + mk_path + "\" >nul 2>nul"
     } else {

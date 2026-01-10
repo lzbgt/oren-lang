@@ -386,38 +386,45 @@ remote_unix_root="tmp_oren"
 remote_win_root="C:\\Users\\${remote_user}\\tmp_oren"
 remote_wsl_root="/mnt/c/Users/${remote_user}/tmp_oren"
 
-ssh_base=(ssh -o "$REMOTE_PROXY" "$REMOTE_HOST")
-scp_base=(scp -q -o "$REMOTE_PROXY")
+ssh_base=(ssh -o "$REMOTE_PROXY" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 "$REMOTE_HOST")
+scp_base=(scp -q -o "$REMOTE_PROXY" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2)
 
 remote_preflight() {
   mkdir -p build/logs
   local logf="build/logs/native_matrix_remote_probe.log"
 
   log "== remote: ssh probe =="
-  set +e
-  run_with_timeout 15 "${ssh_base[@]}" "cmd.exe /c \"echo OREN_REMOTE_OK\"" >"$logf" 2>&1
-  local rc=$?
-  set -e
+  local attempt=1
+  while true; do
+    : >"$logf"
+    set +e
+    run_with_timeout 15 "${ssh_base[@]}" "cmd.exe /c \"echo OREN_REMOTE_OK\"" >"$logf" 2>&1
+    local rc=$?
+    set -e
 
-  if [[ "$rc" -ne 0 ]]; then
-    echo "ERROR: cannot reach remote x64 host via ssh (rc=$rc host=$REMOTE_HOST)" >&2
-    tail -n 80 "$logf" 2>/dev/null >&2 || true
-    if grep -Eq 'socat\\[[0-9]+\\] W CONNECT .*:22: Not Found' "$logf" 2>/dev/null; then
-      echo "HINT: ProxyCommand could not resolve the hostname. Try setting:" >&2
-      echo "  OREN_REMOTE_X64_HOST=<user@IP>" >&2
-      echo "or override OREN_REMOTE_X64_PROXY to a direct SSH connection (no proxy)." >&2
+    if [[ "$rc" -eq 0 ]] && grep -q "OREN_REMOTE_OK" "$logf" 2>/dev/null; then
+      log "OK: remote ssh probe"
+      return 0
     fi
-    echo "log=$logf" >&2
-    exit 2
-  fi
-  if ! grep -q "OREN_REMOTE_OK" "$logf" 2>/dev/null; then
-    echo "ERROR: remote ssh probe did not return expected marker (host=$REMOTE_HOST)" >&2
-    tail -n 80 "$logf" 2>/dev/null >&2 || true
-    echo "log=$logf" >&2
-    exit 2
-  fi
-  log "OK: remote ssh probe"
-  return 0
+
+    # Flaky proxy/ssh can hang long enough to hit the outer timeout (rc=143 from SIGTERM).
+    # Retry once so the whole matrix isn't blocked by a single transient.
+    if [[ "$attempt" -ge 2 ]]; then
+      echo "ERROR: cannot reach remote x64 host via ssh (rc=$rc host=$REMOTE_HOST)" >&2
+      tail -n 80 "$logf" 2>/dev/null >&2 || true
+      if grep -Eq 'socat\\[[0-9]+\\] W CONNECT .*:22: Not Found' "$logf" 2>/dev/null; then
+        echo "HINT: ProxyCommand could not resolve the hostname. Try setting:" >&2
+        echo "  OREN_REMOTE_X64_HOST=<user@IP>" >&2
+        echo "or override OREN_REMOTE_X64_PROXY to a direct SSH connection (no proxy)." >&2
+      fi
+      echo "log=$logf" >&2
+      exit 2
+    fi
+
+    echo "WARN: remote ssh probe failed (attempt ${attempt} rc=${rc}); retrying..." >&2
+    sleep "$attempt"
+    attempt=$((attempt + 1))
+  done
 }
 
 remote_mkdir() {
