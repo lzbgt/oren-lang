@@ -144,6 +144,13 @@ To fully close the Windows native-backend parity gap, we also keep an opt-in gat
 ./scripts/verify_windows_stage2_from_stage1.sh
 ```
 
+Log capture (rolling):
+
+- On failure, the script prints only a tail of the remote build log to keep output bounded.
+- It also attempts to download the **full** remote stage1→stage2 build log into:
+  - `project-doc/remote/<timestamp>/stage1_build_stage2.log`
+  - This is best-effort (SSH/SCP path semantics can vary across Win11 OpenSSH environments).
+
 Makefile shortcut (arm64 macOS host workflow):
 
 ```bash

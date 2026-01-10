@@ -33,6 +33,27 @@ SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-3}"
 
 log() { printf '%s\n' "$*"; }
 
+now_stamp() {
+  date +"%Y%m%d_%H%M%S"
+}
+
+capture_remote_log_best_effort() {
+  # Best-effort download of a remote log into project-doc for later inspection.
+  # Keep stdout quiet; never fail the main gate because of log capture.
+  local remote_rel="$1"
+  local base
+  base="$(basename "$remote_rel")"
+  local out_dir="project-doc/remote/$(now_stamp)"
+  mkdir -p "$out_dir" 2>/dev/null || true
+  set +e
+  "${SCP[@]}" "${REMOTE_HOST}:${remote_rel}" "${out_dir}/${base}" >/dev/null 2>&1
+  local rc=$?
+  set -e
+  if [[ "$rc" -eq 0 ]]; then
+    echo "Captured remote log: ${out_dir}/${base}" >&2
+  fi
+}
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -226,11 +247,15 @@ rc=$?
 set -e
 if [[ "$rc" -ne 0 ]]; then
   echo "ERROR: stage1->stage2 build failed or timed out (timeout=${STAGE2_BUILD_TIMEOUT_SECS}s); tailing ${stage2_log}:" >&2
+  capture_remote_log_best_effort "${REMOTE_DIR}/${stage2_log}"
   # PowerShell is present on modern Windows; use tail to avoid huge logs.
   "${SSH[@]}" \
     "powershell -NoProfile -Command \"Set-Location -LiteralPath '%USERPROFILE%\\\\${REMOTE_DIR//\//\\\\}'; if (Test-Path -LiteralPath '${stage2_log}') { Get-Content -LiteralPath '${stage2_log}' -Tail 120 } else { Write-Host 'missing log: ${stage2_log}' }\""
   exit "$rc"
 fi
+
+# Capture the full stage1->stage2 build log for traceability (best-effort, bounded output).
+capture_remote_log_best_effort "${REMOTE_DIR}/${stage2_log}"
 
 # Fail fast on known x64-native backend correctness warnings (even if the compiler exits 0).
 # Use PowerShell to avoid cmd.exe quoting pitfalls around patterns with spaces.
