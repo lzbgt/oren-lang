@@ -731,17 +731,20 @@ examples-cross-compile-smoke: oren_stage2
 	@# arm64-linux shared object (.so)
 	@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_STAGE2_BIN) build examples/libmath.oren --backend native --platform arm64-linux --lib --no-debug -o build/tmp/libmath_stage2_arm64_linux.so --metadata $(GC_ARG)
 	@test -f build/tmp/libmath_stage2_arm64_linux.h
-	@./$(OREN_STAGE2_BIN) scan build/tmp/libmath_stage2_arm64_linux.so >/dev/null
+	@grep -F 'extern int64_t add(int64_t arg0, int64_t arg1);' build/tmp/libmath_stage2_arm64_linux.h >/dev/null
+	@grep -F 'extern int64_t mul(int64_t arg0, int64_t arg1);' build/tmp/libmath_stage2_arm64_linux.h >/dev/null
 	@file build/tmp/libmath_stage2_arm64_linux.so | grep -Ei 'ELF 64-bit.*(shared object.*(ARM aarch64|aarch64)|(ARM aarch64|aarch64).*shared object)' >/dev/null
 	@# x64-linux shared object (.so)
 	@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_STAGE2_BIN) build examples/libmath.oren --backend native --platform x64-linux --lib --no-debug -o build/tmp/libmath_stage2_x64_linux.so --metadata $(GC_ARG)
 	@test -f build/tmp/libmath_stage2_x64_linux.h
-	@./$(OREN_STAGE2_BIN) scan build/tmp/libmath_stage2_x64_linux.so >/dev/null
+	@grep -F 'extern int64_t add(int64_t arg0, int64_t arg1);' build/tmp/libmath_stage2_x64_linux.h >/dev/null
+	@grep -F 'extern int64_t mul(int64_t arg0, int64_t arg1);' build/tmp/libmath_stage2_x64_linux.h >/dev/null
 	@file build/tmp/libmath_stage2_x64_linux.so | grep -Ei 'ELF 64-bit.*(shared object.*x86-64|x86-64.*shared object)' >/dev/null
 	@# x64-windows DLL (.dll)
 	@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_STAGE2_BIN) build examples/libmath.oren --backend native --platform x64-windows --lib --no-debug -o build/tmp/libmath_stage2_x64_windows.dll --metadata $(GC_ARG)
 	@test -f build/tmp/libmath_stage2_x64_windows.h
-	@./$(OREN_STAGE2_BIN) scan build/tmp/libmath_stage2_x64_windows.dll >/dev/null
+	@grep -F 'extern int64_t add(int64_t arg0, int64_t arg1);' build/tmp/libmath_stage2_x64_windows.h >/dev/null
+	@grep -F 'extern int64_t mul(int64_t arg0, int64_t arg1);' build/tmp/libmath_stage2_x64_windows.h >/dev/null
 	@file build/tmp/libmath_stage2_x64_windows.dll | grep -F 'PE32+ executable (DLL)' >/dev/null
 	@echo "examples-cross-compile-smoke OK"
 

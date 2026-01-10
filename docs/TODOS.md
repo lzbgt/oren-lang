@@ -354,6 +354,7 @@ References:
 		      - Next: `make examples-test` should exercise shared-lib output beyond macOS:
 		        - Compile-only on non-host targets is OK (use `./oren scan` to validate `.so`/`.dll` metadata without executing foreign binaries).
 		        - Added (2026-01-11): `make examples-cross-compile-smoke` compiles `examples/libmath.oren --lib` for `arm64-linux` + `x64-linux` + `x64-windows` and validates via `scan` + `file` (no foreign execution).
+		        - Note: `oren scan` is primarily for scanning C libraries; for Oren `--lib` regression checks prefer validating the generated header (must include exported functions like `add`/`mul`) plus `file` kind checks.
 	     - Concurrency substrate convergence:
        - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory sync, plus a GC/safepoint model that remains correct once true threads exist.
 	     - Windows PROC story:

@@ -328,6 +328,8 @@ run_suite_x64_linux() {
   build_one "$compiler" x64-linux "$LIBMATH_SRC" "build/tmp/libmath_${tag}_x64_linux.so" --lib
   check_elf_x64_so "build/tmp/libmath_${tag}_x64_linux.so"
   test -f "build/tmp/libmath_${tag}_x64_linux.h"
+  grep -F 'extern int64_t add(int64_t arg0, int64_t arg1);' "build/tmp/libmath_${tag}_x64_linux.h" >/dev/null
+  grep -F 'extern int64_t mul(int64_t arg0, int64_t arg1);' "build/tmp/libmath_${tag}_x64_linux.h" >/dev/null
 }
 
 run_suite_x64_win() {
@@ -375,6 +377,8 @@ run_suite_x64_win() {
   build_one "$compiler" x64-windows "$LIBMATH_SRC" "build/tmp/libmath_${tag}_x64_windows.dll" --lib
   check_pe_x64_dll "build/tmp/libmath_${tag}_x64_windows.dll"
   test -f "build/tmp/libmath_${tag}_x64_windows.h"
+  grep -F 'extern int64_t add(int64_t arg0, int64_t arg1);' "build/tmp/libmath_${tag}_x64_windows.h" >/dev/null
+  grep -F 'extern int64_t mul(int64_t arg0, int64_t arg1);' "build/tmp/libmath_${tag}_x64_windows.h" >/dev/null
 }
 
 echo -n "== x64 compile-only: platforms=" >&2

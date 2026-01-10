@@ -698,6 +698,10 @@ if has_target arm64-linux; then
   file "build/tmp/libmath_stage2_arm64_linux.so" | grep -Ei 'ELF 64-bit.*(shared object.*(ARM aarch64|aarch64)|(ARM aarch64|aarch64).*shared object)' >/dev/null
   test -f "build/tmp/libmath_stage1_arm64_linux.h"
   test -f "build/tmp/libmath_stage2_arm64_linux.h"
+  grep -F 'extern int64_t add(int64_t arg0, int64_t arg1);' "build/tmp/libmath_stage1_arm64_linux.h" >/dev/null
+  grep -F 'extern int64_t mul(int64_t arg0, int64_t arg1);' "build/tmp/libmath_stage1_arm64_linux.h" >/dev/null
+  grep -F 'extern int64_t add(int64_t arg0, int64_t arg1);' "build/tmp/libmath_stage2_arm64_linux.h" >/dev/null
+  grep -F 'extern int64_t mul(int64_t arg0, int64_t arg1);' "build/tmp/libmath_stage2_arm64_linux.h" >/dev/null
   run_in_linux_container "build/tmp/qi_stage1_arm64_linux"
   run_in_linux_container "build/tmp/qi_stage2_arm64_linux"
   run_in_linux_container_expect_fail_contains "build/tmp/ffi_panic_stage1_arm64_linux" "ffi unresolved:" "oren_panic"
