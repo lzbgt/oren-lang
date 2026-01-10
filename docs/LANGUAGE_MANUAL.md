@@ -756,7 +756,7 @@ Rolling note (native backend):
 - `oren_type_tag` / `oren_type_name` are still best-effort until full tagged values land:
   - `nil` and `bool` are reliably distinguishable (tags `0` and `3`).
   - Numeric immediates are still a rolling area: `int`/`float` may be indistinguishable in some native-mode paths (so both may report tag `1`).
-- Guardrail (2026-01-10): the compiler rejects `bool/int/float == nil` comparisons when the scalar side is statically known (literals, casts, or locally-proven scalars).
+- Guardrail (2026-01-10): the compiler rejects `bool/int/float == nil` comparisons when the scalar side is statically known (literals, casts, or locally-proven scalars), and also when a value is later proven scalar by best-effort scan (e.g. `i64(x)` after `if x == nil { ... }`).
   - This is a correctness feature: scalars are not “optionals”; treat missing values explicitly (e.g. `{"ok":1,"v":...}` / `{"ok":0}`), or use a tag-based check on truly dynamic values:
     - `if oren_type_tag(x) == 0 { ... }`
 - Beyond `oren_type_tag` / `oren_type_name`, full runtime reflection (fields/layout/type metadata) is not yet implemented and is tracked as a larger refactor in `docs/TODOS.md`.

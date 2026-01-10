@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-01-11
+**Last updated:** 2026-01-10
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order,
 plus the **regression gates** that must stay green.
@@ -100,7 +100,7 @@ References:
     - Fixed (2026-01-06): build cache key now hashes the effective injected native runtime entry (full vs core), so switching `OREN_NATIVE_RUNTIME_PROFILE` cannot reuse cached artifacts built with a different runtime (details in `docs/TODOS_ARCHIVE.md`).
   - Fixed (2026-01-10): runtime astbin cache decode now sanity-checks decoded bundles and treats corrupted/stale blobs as cache misses (prevents stage2-native crashes in x64 emit/helpers when cache contents are invalid).
   - Fixed (2026-01-10): x64 native emitter is defensive about string-literal nodes (treats raw `0` as “null string pointer” sentinel, and reports a compiler error when a corrupted AST supplies a non-string literal value).
-  - Verified (2026-01-11): local x64-linux execution sanity under QEMU now passes:
+  - Verified (2026-01-10): local x64-linux execution sanity under QEMU now passes:
     - `make verify-x64-linux-qemu`
     - `make verify-x64-linux-qemu-net`
     - `make verify-x64-linux-qemu-tls`
@@ -526,11 +526,12 @@ References:
 		     - redesign the native value representation (reduce “64-byte OrenValue” storage inefficiency):
 		       - unify with the native tagged-value plan and remove key-kind inference fragility as a side-effect
 			       - fix semantic parity bugs caused by untagged immediates in native mode (C backend does not have these issues):
-			         - Fixed (2026-01-11): native backend now uses runtime singleton values for `nil/false/true` (not raw `0/1`), so `0` stays distinct from `nil/false` in common value flows (including map lookups).
-					           - Mitigated (2026-01-09): optimizer folds type-mismatched `==`/`!=` on literals and folds `id == nil` for locals proven non-nil; quick integration gate covers `0/nil/false` parity.
-					             - Added (2026-01-09): `make test` runs a `--typecheck` smoke that must fail on `numeric == nil` to prevent silent reintroduction of this hazard.
-					             - Done (2026-01-10): stdlib migrated optional numeric defaults away from `if x == nil { x = 0 }` to tag-based checks (`if oren_type_tag(x) == 0 { x = 0 }`) so core libraries don’t depend on scalar `== nil` semantics.
-					           - Remaining: full tagged value model still needed (notably robust `int` vs `float` tagging and deterministic reflection) — see `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`.
+				         - Fixed (2026-01-10): native backend now uses runtime singleton values for `nil/false/true` (not raw `0/1`), so `0` stays distinct from `nil/false` in common value flows (including map lookups).
+						           - Mitigated (2026-01-09): optimizer folds type-mismatched `==`/`!=` on literals and folds `id == nil` for locals proven non-nil; quick integration gate covers `0/nil/false` parity.
+						             - Added (2026-01-09): `make test` runs a `--typecheck` smoke that must fail on `numeric == nil` to prevent silent reintroduction of this hazard.
+						             - Strengthened (2026-01-10): the always-on `nil_compare_guard` now also rejects `id == nil` when the identifier is later proven scalar by best-effort scan (e.g. `i64(id)`), so this footgun is blocked even without `--typecheck`.
+						             - Done (2026-01-10): stdlib migrated optional numeric defaults away from `if x == nil { x = 0 }` to tag-based checks (`if oren_type_tag(x) == 0 { x = 0 }`) so core libraries don’t depend on scalar `== nil` semantics.
+						           - Remaining: full tagged value model still needed (notably robust `int` vs `float` tagging and deterministic reflection) — see `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`.
 	     - varargs + reflection convergence:
 	       - define how varargs elements carry type information so userland (fmt/ffi/serialization) can process heterogeneous lists without heuristic key-kind inference
 	   - References:
