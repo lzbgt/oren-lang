@@ -422,6 +422,7 @@ References:
     - Added (2026-01-11): `std:ffi/macos_security`, `std:ffi/macos_corefoundation`, and `std:ffi/macos_dlfcn` centralize macOS TLS provider framework + dlsym bindings (`std:net/tls_macos_securetransport`).
     - Regression (remote Win11): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/test_std_ffi_kernel32_smoke.oren` (stage1 + stage2).
     - Regression (local x64 compile-only): `scripts/verify_native_x64_compile_only.sh --targets x64-win` builds the same fixture (stage1 + stage2).
+      - Also compiles the integrated NET surface smoke (`tests/fixtures/x64_compile_only_net_tls_http2_smoke.oren`) to keep TLS/HTTP/HTTP2/WSS buildable on x64 even when the remote host is unreachable.
 
 - Windows: complete a coherent PROC story (pid/kill/wait semantics or define a cross-OS `sys_spawn` boundary).
   - Fixed (2026-01-04): `oren_system(_timeout)` now works on `x64-windows` (CreateProcessA path).

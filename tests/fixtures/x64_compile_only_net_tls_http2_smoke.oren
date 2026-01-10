@@ -3,9 +3,11 @@
 // Purpose:
 // - Provide a single source file that forces module resolution + typechecking of:
 //   - std:net/tls
+//   - std:net/http
 //   - std:net/http2
 //   - std:net/hpack
 //   - std:net/http2_client
+//   - std:net/ws
 //
 // This fixture is intentionally *not* executed by the x64 compile-only gate; it only
 // needs to compile for x64-linux and x64-windows under both stage1 and stage2.
@@ -17,9 +19,11 @@
 import tcp "std:net/tcp"
 import dns "std:net/dns"
 import tls "std:net/tls"
+import http "std:net/http"
 import h2 "std:net/http2"
 import hpack "std:net/hpack"
 import h2c "std:net/http2_client"
+import ws "std:net/ws"
 
 fn main() {
     // Keep runtime behavior trivial. The x64 compile-only gate does not run this program.
@@ -43,6 +47,14 @@ fn main() {
         if ok == 1 {
             var conn = oren_map_get_str(cr, "conn")
             var _al = tls.negotiated_alpn(conn)
+            // HTTP/1.1 surface (TLS-backed GET response helper).
+            // Note: we do not actually dial; this is just a type/symbol coverage hook.
+            var _rr = http.get_response_opts("https://127.0.0.1/", 1, {"tls": {"insecure_skip_verify": 1}})
+            http.response_free(_rr)
+
+            // WSS surface (WebSocket over TLS).
+            var _wr = ws.connect_resolver_opts("wss://127.0.0.1/", 1, 0, {"tls": {"insecure_skip_verify": 1}})
+
             // Client wrapper surface (http2_client).
             var _c = h2c.new(conn, 1, {"settings": [[h2.SETTINGS_ENABLE_PUSH, 0]]})
         }
