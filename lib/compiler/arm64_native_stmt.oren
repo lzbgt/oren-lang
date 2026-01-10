@@ -725,8 +725,9 @@ fn native_compile_stmt_inner(ctx, stmt) {
 	            i = i + 1
 	        }
 
-	        // m = oren_new_map(n_fields)
-        push_u32_le(ctx["code"], insn_movz(0, n_fields))
+        // m = oren_new_map(n_fields + 1)
+        // Reserve one extra slot for `__oren_type` (basic reflection / stable type naming).
+        push_u32_le(ctx["code"], insn_movz(0, n_fields + 1))
         var bl_new_map = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_new_map, "name": "oren_new_map"})
@@ -735,6 +736,30 @@ fn native_compile_stmt_inner(ctx, stmt) {
         push_u32_le(ctx["code"], insn_sub_sp(16))
         push_u32_le(ctx["code"], insn_str_x0_sp(0))
         ctx["stack_size"] = ctx["stack_size"] + 16
+
+        // Tag type constructor maps with a stable type name:
+        //   User(id, name) => {"__oren_type":"User","id":id,"name":name}
+        //
+        // This is a rolling "reflection v0" affordance: it makes `oren_type_name(User(...))`
+        // return "User" instead of "map" without requiring a full reflective type system yet.
+        var m_sp_off_tag = ctx["stack_size"] - map_ptr_off - 16
+        emit_ldr_reg_sp_any(ctx, 0, m_sp_off_tag) // X0 = m
+
+        var key_off_tag = exprm.native_data_add_cstr0(ctx, "__oren_type")
+        var adr_key_tag = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_key_tag, "data_off": key_off_tag, "reg": 1}) // X1 = "__oren_type"
+
+        var val_off_tag = exprm.native_data_add_cstr0(ctx, name)
+        var adr_val_tag = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_val_tag, "data_off": val_off_tag, "reg": 2}) // X2 = "User"
+
+        var bl_set_tag = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_set_tag, "name": "oren_map_set_str"})
 
         // For each field: oren_map_set_str(m, "field", value)
         i = 0

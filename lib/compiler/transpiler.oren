@@ -303,18 +303,18 @@ fn transpile_type_ctor(t, type_decl) {
     emit(t, type_ctor_sig(type_decl) + " {")
     indent_more(t)
     var n = oren_list_len(type_decl["fields"])
-    if n == 0 {
-        emit(t, "return oren_new_map(0);")
-    } else {
-        var args = ""
-        var i = 0
-        while i < n {
-            if i > 0 { args = args + ", " }
-            args = args + "oren_string_const(" + CH_QUOTE + c_escape_string(type_decl["fields"][i]["value"]) + CH_QUOTE + "), " + type_decl["fields"][i]["value"]
-            i = i + 1
-        }
-        emit(t, "return oren_new_map_from_pairs(" + int_str(n) + ", (OrenValue[]){" + args + "});")
+    // Rolling reflection v0:
+    // Tag type ctor maps with a stable type name for basic reflection helpers.
+    //   User(id, name) => {"__oren_type":"User","id":id,"name":name}
+    var args = ""
+    args = args + "oren_string_const(\"__oren_type\"), oren_string_const(\"" + c_escape_string(type_decl["name"]["value"]) + "\")"
+    var i = 0
+    while i < n {
+        args = args + ", "
+        args = args + "oren_string_const(" + CH_QUOTE + c_escape_string(type_decl["fields"][i]["value"]) + CH_QUOTE + "), " + type_decl["fields"][i]["value"]
+        i = i + 1
     }
+    emit(t, "return oren_new_map_from_pairs(" + int_str(n + 1) + ", (OrenValue[]){" + args + "});")
     indent_less(t)
     emit(t, "}")
 

@@ -347,15 +347,17 @@ fn test_type_tag_varargs() {
     var v_list = []
     var v_map = {"k": 1}
     var v_buf = oren_i32_buf_new(0)
+    var v_struct = F32Box(1.0)
 
-    var tags = tags_of(v_nil, v_int, v_str, v_list, v_map, v_buf)
-    assert_eq(oren_list_len(tags), 6, 76)
+    var tags = tags_of(v_nil, v_int, v_str, v_list, v_map, v_buf, v_struct)
+    assert_eq(oren_list_len(tags), 7, 76)
     assert_eq(tags[0], 0, 77) // nil
     assert_eq(tags[1], 1, 78) // int (native: also bool/float best-effort)
     assert_eq(tags[2], 4, 79) // string
     assert_eq(tags[3], 6, 80) // list
     assert_eq(tags[4], 7, 81) // map
     assert_eq(tags[5], 10, 82) // i32_buf
+    assert_eq(tags[6], 7, 89) // struct is map-shaped in rolling v0
 
     assert_streq(oren_type_name(v_nil), "nil", 83)
     assert_streq(oren_type_name(v_int), "int", 84)
@@ -363,6 +365,7 @@ fn test_type_tag_varargs() {
     assert_streq(oren_type_name(v_list), "list", 86)
     assert_streq(oren_type_name(v_map), "map", 87)
     assert_streq(oren_type_name(v_buf), "i32_buf", 88)
+    assert_streq(oren_type_name(v_struct), "F32Box", 90)
 }
 
 fn test_read_u8_buf_missing_returns_err() {

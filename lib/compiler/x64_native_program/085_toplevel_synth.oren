@@ -110,6 +110,9 @@ fn _x64_extract_type_constructors_v0(ctx, linked) {
         var pairs = []
         var n_fields = 0
         if fields != nil { n_fields = oren_list_len(fields) }
+        // Rolling reflection v0: tag type ctor maps with a stable type name.
+        //   User(id, name) => {"__oren_type":"User","id":id,"name":name}
+        oren_list_push(pairs, {"key": callable.node_string("__oren_type"), "value": callable.node_string(nm)})
         var j = 0
         while j < n_fields {
             var f = fields[j]

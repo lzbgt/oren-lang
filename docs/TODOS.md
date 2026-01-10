@@ -187,8 +187,11 @@ References:
 			         - Intent: `make`, `make test`, `make stage2`, `make verify-native-quick` should work under MSYS2/Git Bash/Cygwin (stage0 still uses MSVC `cl.exe`, auto-configured by stage0; see `docs/REMOTE_X64_ENV.md`).
 			         - Note: scripts avoid requiring external `rg`/ripgrep on minimal environments (remote Win11/WSL2, containers); they use `grep`/`findstr` and keep logs bounded (details in `docs/TEST_SYSTEM.md`).
 			         - Done (2026-01-10): `scripts/verify_native_x64_compile_only.sh` now has a stable CLI (`--help`, `--targets`, `--trace`) and stays quiet/bounded by default (useful when remote Tier‑1 hosts are temporarily unreachable).
-	       - Done (2026-01-08): native runtime `oren_type_tag`/`oren_type_name` now distinguishes typed buffers (`u8_buf`, `i32_buf`, `i64_buf`, `f32_buf`, `f64_buf`) for more useful varargs dispatch.
-	         - Regression: `tests/native/test_quick_integration_native.oren` (run by `make test`, QEMU x64-linux gates, and Tier‑1 matrices).
+       - Done (2026-01-08): native runtime `oren_type_tag`/`oren_type_name` now distinguishes typed buffers (`u8_buf`, `i32_buf`, `i64_buf`, `f32_buf`, `f64_buf`) for more useful varargs dispatch.
+         - Regression: `tests/native/test_quick_integration_native.oren` (run by `make test`, QEMU x64-linux gates, and Tier‑1 matrices).
+       - Done (2026-01-10): rolling reflection v0 for structs: type constructor values are map-shaped but tagged with `{"__oren_type":"TypeName", ...}` so `oren_type_name(TypeName(...))` returns `"TypeName"` instead of `"map"`.
+         - Parser guard: user code cannot declare a struct field named `__oren_type` (reserved).
+         - Regression: `tests/native/test_quick_integration_native.oren` (`test_type_tag_varargs` asserts `"F32Box"`).
 			     - NET stdlib maturity:
 			       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP **and HTTPS** (Content-Length + chunked; IPv4-only; no keep-alive pooling yet).
 			         - HTTPS uses `std:net/tls` (OS provider availability is tracked in `docs/NET_TLS.md`).

@@ -629,6 +629,10 @@ fn bytecode_compile_expr(ctx, expr) {
                 var args0 = expr["args"]
                 var targc = oren_list_len(tfields)
 
+                // Rolling reflection v0: tag type constructor maps with a stable type name.
+                // Bytecode represents types as map-shaped values, so we reserve a special key:
+                //   {"__oren_type":"User","field":value,...}
+
                 // Call-site spread in type constructors:
                 //   Node(a, b, xs...)  where xs is list of remaining positional args.
                 //
@@ -641,7 +645,10 @@ fn bytecode_compile_expr(ctx, expr) {
                         return nil
                     }
 
-                    // keys_list = ["field0","field1",...]
+                    // keys_list = ["__oren_type","field0","field1",...]
+                    var key_tag_idx = add_constant(ctx, {"type": "String", "value": "__oren_type"})
+                    emit_byte(ctx, AVM_PUSH_CONST)
+                    emit_u16(ctx, key_tag_idx)
                     var ki = 0
                     while ki < targc {
                         var key_idx = add_constant(ctx, {"type": "String", "value": tfields[ki]})
@@ -650,9 +657,12 @@ fn bytecode_compile_expr(ctx, expr) {
                         ki = ki + 1
                     }
                     emit_byte(ctx, AVM_NEW_LIST)
-                    emit_u16(ctx, targc)
+                    emit_u16(ctx, targc + 1)
 
-                    // fixed args
+                    // fixed args (prefix with type name for __oren_type)
+                    var type_name_idx = add_constant(ctx, {"type": "String", "value": name})
+                    emit_byte(ctx, AVM_PUSH_CONST)
+                    emit_u16(ctx, type_name_idx)
                     var ai0 = 0
                     while ai0 < fixed {
                         bytecode_compile_expr(ctx, args0[ai0])
@@ -661,7 +671,7 @@ fn bytecode_compile_expr(ctx, expr) {
                     // spread list
                     bytecode_compile_expr(ctx, expr["spread"])
                     emit_byte(ctx, AVM_TYPE_CTOR_MAP_SPREAD)
-                    emit_u16(ctx, fixed)
+                    emit_u16(ctx, fixed + 1)
                     return nil
                 }
 
@@ -669,6 +679,13 @@ fn bytecode_compile_expr(ctx, expr) {
                     bytecode_error(ctx, "bytecode backend: type constructor arity mismatch for " + name)
                     return nil
                 }
+                // __oren_type first (so map creation is single-pass; avoids needing DUP for SET_INDEX).
+                var type_key_idx = add_constant(ctx, {"type": "String", "value": "__oren_type"})
+                emit_byte(ctx, AVM_PUSH_CONST)
+                emit_u16(ctx, type_key_idx)
+                var type_val_idx = add_constant(ctx, {"type": "String", "value": name})
+                emit_byte(ctx, AVM_PUSH_CONST)
+                emit_u16(ctx, type_val_idx)
                 var ai0 = 0
                 while ai0 < oren_list_len(args0) {
                     // key
@@ -680,7 +697,7 @@ fn bytecode_compile_expr(ctx, expr) {
                     ai0 = ai0 + 1
                 }
                 emit_byte(ctx, AVM_NEW_MAP)
-                emit_u16(ctx, targc)
+                emit_u16(ctx, targc + 1)
                 return nil
             }
         }

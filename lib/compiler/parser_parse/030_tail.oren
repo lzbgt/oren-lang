@@ -445,6 +445,10 @@ fn parse_type_decl(p) {
                 return nil
             }
             var fid = ast.new_identifier(p["cur"])
+            if fid["value"] == "__oren_type" {
+                parser_add_error(p, "type field name '__oren_type' is reserved (used by reflection helpers)")
+                return nil
+            }
             if fattrs != nil && oren_list_len(fattrs) > 0 { fid["attrs"] = fattrs }
 
             // Optional explicit type annotation (rolling, used by packed-byte views).

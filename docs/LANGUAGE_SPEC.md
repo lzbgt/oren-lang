@@ -873,6 +873,7 @@ Native backend note:
 - Until native value tagging is fully implemented, numeric immediates (`int`/`float`) may still be indistinguishable in some native-mode paths, so `oren_type_tag` is best-effort for those values.
   - Track: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
   - Rolling implementation detail: `nil`, `false`, and `true` are **runtime singleton values** in native mode (not raw `0/1`), so `0` (int zero) remains distinct from `nil`/`false` in the common case.
+  - Rolling reflection v0 for structs: user-defined `struct` values are map-shaped today, but constructors tag them with `{"__oren_type":"TypeName", ...}`, so `oren_type_name(TypeName(...))` returns `"TypeName"` instead of `"map"`.
   - Guardrail (2026-01-10): the compiler rejects `bool/int/float == nil` comparisons when the scalar side is statically known (literals, casts, or locally-proven scalars), and also when a value is later proven scalar by best-effort scan (e.g. `i64(x)` after `if x == nil { ... }`).
     - This is intentional: scalars are not “optionals”; model missing values explicitly (`{"ok":1,"v":...}` / `{"ok":0}`) or use a tag-based check on truly dynamic values:
       - `if oren_type_tag(x) == 0 { ... }`

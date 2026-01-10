@@ -2033,7 +2033,13 @@ OrenValue oren_type_name(OrenValue v) {
         case OREN_TYPE_STRING: return oren_string_const("string");
         case OREN_TYPE_PY_OBJ: return oren_string_const("py_obj");
         case OREN_TYPE_LIST: return oren_string_const("list");
-        case OREN_TYPE_MAP: return oren_string_const("map");
+        case OREN_TYPE_MAP: {
+            // Rolling reflection v0: type constructor values are map-shaped and tagged with:
+            //   {"__oren_type":"User", ...}
+            OrenValue tn = oren_map_get_str(v, oren_string_const("__oren_type"));
+            if (tn.type == OREN_TYPE_STRING) return tn;
+            return oren_string_const("map");
+        }
         case OREN_TYPE_FUNC: return oren_string_const("func");
         case OREN_TYPE_U8_BUF: return oren_string_const("u8_buf");
         case OREN_TYPE_I32_BUF: return oren_string_const("i32_buf");

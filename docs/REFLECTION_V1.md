@@ -17,6 +17,27 @@ Reflection v1 is the plan to turn that metadata into a **stable, queryable runti
 
 This doc is a design plan; it is not claiming the full surface is implemented yet.
 
+## 0.5) Current rolling v0 (implemented)
+
+As an immediate, low-risk step toward reflection v1, the compiler now tags struct/type-constructor values
+with a reserved map key (2026-01-10):
+
+- Struct values are still **map-shaped** in v0 across backends (native, C backend, AVM bytecode):
+  - `struct User { id, name }`
+  - `User(1, "a")` lowers to: `{"__oren_type":"User","id":1,"name":"a"}`
+- The reserved key is **`"__oren_type"`**.
+  - User code may not declare a field named `__oren_type` (parser rejects it).
+- `oren_type_name(v)` (native + C backend) checks for `__oren_type` when `v` is a map:
+  - returns `"User"` for `User(...)`
+  - still returns `"map"` for ordinary map literals without the tag.
+
+This is intentionally **not** the final reflection design:
+
+- it does not provide a stable `TypeId`
+- it does not expose fields/attributes at runtime
+- it is a pragmatic v0 affordance to make varargs/logging safer and more informative while the full
+  type system and tagged value model are still converging.
+
 ## 0) Non-goals (keep scope bounded)
 
 - No compile-time macros / arbitrary code execution in the compiler.
@@ -190,4 +211,3 @@ This is needed for safe “memcpy style” FFI tooling, but it must not leak int
 - Value representation refactor targets: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
 - Type-system stabilization targets: `docs/TYPE_SYSTEM_PLAN.md`
 - Stdlibrary layering (crypto/net split): `docs/STDLIB_LAYERS.md`
-
