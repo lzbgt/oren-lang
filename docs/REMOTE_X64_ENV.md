@@ -171,6 +171,8 @@ Notes:
 
 - The remote host is Win11 (SSH provided by the environment) and also has WSL2 available.
 - Keys/certs are already provisioned (no password prompt expected).
+- If you see a proxy error like `socat ... CONNECT <host>:22: Not Found`, the proxy cannot resolve the hostname you passed.
+  - Fix: set `OREN_REMOTE_X64_HOST` to an IP address (or a resolvable DNS name), or override `OREN_REMOTE_X64_PROXY` to connect directly (no proxy).
 
 ## Run commands on Windows (cmd.exe)
 

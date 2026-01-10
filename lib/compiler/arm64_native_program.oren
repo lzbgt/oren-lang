@@ -349,6 +349,8 @@ fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
                 var f1 = {"type": f0["type"], "pos": base_code + pos, "name": f0["name"]}
                 if data_off != nil { f1["data_off"] = data_off }
                 if f0["data_label"] != nil { f1["data_label"] = f0["data_label"] }
+                var reg = _rtobj_decode_int_enc(f0["reg"])
+                if reg != nil { f1["reg"] = reg }
                 oren_list_push(ctx["fixups"], f1)
             }
             fi = fi + 1
@@ -401,6 +403,9 @@ fn _arm64_rtobj_encode_fixups(fixups) {
             if f0["name"] != nil { f1["name"] = f0["name"] }
             if f0["data_label"] != nil { f1["data_label"] = f0["data_label"] }
             if f0["data_off"] != nil { f1["data_off"] = (f0["data_off"] + 1) }
+            // Preserve destination register for ADRP/ADD fixups.
+            // Store as +1 to avoid 0-as-nil when decoding under the native runtime.
+            if f0["reg"] != nil { f1["reg"] = (f0["reg"] + 1) }
             oren_list_push(out, f1)
         }
         i = i + 1
@@ -428,6 +433,37 @@ fn _arm64_rtobj_encode_debug_funcs(funcs) {
         i = i + 1
     }
     return out
+}
+
+fn _arm64_rtobj_trace_fail(ctx, stage) {
+    // Bounded diagnostics for rtobj bring-up/perf investigations.
+    // Opt-in via `OREN_TRACE_RUNTIME_OBJ_CACHE=1` (same knob as generic rtobj tracing).
+    if oren_env("OREN_TRACE_RUNTIME_OBJ_CACHE") == nil { return nil }
+    var st = stage
+    if st == nil { st = "<unknown>" }
+    print("[arm64_rtobj] FAIL stage=" + st)
+    if ctx == nil {
+        print("[arm64_rtobj] FAIL ctx=nil")
+        return nil
+    }
+    var errs = ctx["errors"]
+    if errs == nil {
+        print("[arm64_rtobj] FAIL errors=nil")
+        return nil
+    }
+    var n = oren_list_len(errs)
+    print("[arm64_rtobj] FAIL errors_n=" + oren_int_to_string(n))
+    var i = 0
+    var keep = 12
+    while i < n && i < keep {
+        var e = errs[i]
+        if e != nil { print("[arm64_rtobj] err[" + oren_int_to_string(i) + "] " + e) }
+        i = i + 1
+    }
+    if n > keep {
+        print("[arm64_rtobj] ... " + oren_int_to_string(n - keep) + " more")
+    }
+    return nil
 }
 
 fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
@@ -471,14 +507,20 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
 
     // Parse/astbin-load the runtime source (shared helper in runtime bundle module).
     var prog = bundle.load_and_parse_runtime_native_for_platform(ctx, runtime_path, platform)
-    if prog == nil { return nil }
+    if prog == nil {
+        _arm64_rtobj_trace_fail(ctx, "load_and_parse_runtime_native_for_platform")
+        return nil
+    }
     if trace_sum { t_parse_done = oren_time_now_ns() }
     var stmts = prog["statements"]
     if stmts == nil { stmts = [] }
 
     // Function metadata is required for lambda capture analysis and for fnwrap synthesis.
     coreir.collect_top_level_functions(ctx, {"statements": stmts}, "arm64 native rtobj")
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _arm64_rtobj_trace_fail(ctx, "collect_top_level_functions")
+        return nil
+    }
     if trace_sum { t_meta_done = oren_time_now_ns() }
 
     // Normalize nested `fn name(...)` to lambdas+vars for Tier‑1 parity.
@@ -495,7 +537,10 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     // Split runtime decls/vars using the shared Tier‑1 rules, but do not synthesize __top_level__.
     var declared = ctx["declared_functions"]
     var split = nt.split_tier1_runtime_user(ctx, "arm64 native rtobj", stmts, [], declared)
-    if split == nil { return nil }
+    if split == nil {
+        _arm64_rtobj_trace_fail(ctx, "split_tier1_runtime_user")
+        return nil
+    }
     var runtime_decls = split["runtime_decls"]
     var runtime_vars = split["runtime_vars"]
     if runtime_decls == nil { runtime_decls = [] }
@@ -507,8 +552,20 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     while vi < oren_list_len(runtime_vars) {
         var st = runtime_vars[vi]
         if st != nil {
+            // `g_storage` is reserved in the native entry stub `.data` prefix (Tier‑1 bootstrap).
+            // The injected runtime declares it as a normal `var`, so skip allocating a duplicate slot
+            // when building a standalone runtime object.
+            var nm_pre = nil
+            if st["name"] != nil { nm_pre = st["name"]["value"] }
+            if nm_pre == "g_storage" && ctx["globals"] != nil && ctx["globals"][nm_pre] != nil {
+                vi = vi + 1
+                continue
+            }
             _arm64_alloc_global_slot(ctx, st["name"], st["value"], true)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+                _arm64_rtobj_trace_fail(ctx, "alloc_global_slot")
+                return nil
+            }
         }
         vi = vi + 1
     }
@@ -568,7 +625,10 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
         }
         i = i + 1
     }
-    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+        _arm64_rtobj_trace_fail(ctx, "compile_runtime_decls")
+        return nil
+    }
     if trace_sum { t_decls_done = oren_time_now_ns() }
 
     if trace_decls && top_decls != nil {
@@ -740,7 +800,10 @@ fn _arm64_try_load_or_build_runtime_obj(ctx, platform, runtime_path) {
 
     if trace { print("[rtobj] miss backend=arm64 key=" + key + " (building)") }
     var built = _arm64_build_runtime_obj(platform, runtime_path, rh, bsig)
-    if built == nil { return false }
+    if built == nil {
+        if trace { print("[rtobj] build failed backend=arm64 (falling back)") }
+        return false
+    }
 
     // Persist to cache.
     var meta = built["meta"]

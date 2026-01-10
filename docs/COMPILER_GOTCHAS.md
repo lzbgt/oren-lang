@@ -45,3 +45,19 @@ Prefer linear `if ...`/`goto` flow, or use delayed expansion (`!VAR!`) carefully
 
 Implementation reference: `lib/compiler/compiler/040_build_pipeline.oren` (Windows `--backend c` MSVC path).
 
+## arm64: rtobj fixups must preserve `reg` (or you can crash at startup)
+
+The arm64 runtime-object cache (rtobj) stores precompiled runtime machine code plus a list of relocation fixups.
+
+Non-obvious invariant:
+
+- For `adr_data` fixups (ADRP+ADD), the destination register matters.
+  - Some hot runtime helpers load `g_storage` into scratch registers like `x9`.
+  - If the rtobj meta drops `reg`, the final fixup applier defaults to `x0` and the emitted code can end up as:
+    - `adrp x0, ...; add x0, x0, ...; ldr x9, [x9]`
+    - which dereferences an uninitialized register and typically crashes at startup (`EXC_BAD_ACCESS`, often at `0x1000`).
+
+Rolling rules:
+
+- If you change rtobj fixup encoding/decoding, bump the arm64 rtobj backend signature in `lib/compiler/native_runtime_obj_cache.oren` so stale cache entries are not reused.
+- Keep a fast regression check: `./scripts/bench_native_compile_one_file.sh --no-debug` should show a working miss→hit sequence (isolated rtobj dir; seed disabled).

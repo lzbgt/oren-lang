@@ -186,6 +186,10 @@ Rolling rule:
 - Any validation of rtobj meta against the cache key must be **runtime-agnostic**.
   - Avoid relying on subtle runtime differences like “string equality” semantics or substring allocation behavior.
   - Prefer byte-wise key parsing and byte-wise string comparisons in the rtobj cache module when correctness matters.
+ - rtobj fixups must preserve enough information to be relocatable safely.
+   - Example hazard: arm64 `adr_data` fixups that target a non-`x0` register (e.g. `x9` scratch) must carry the destination register through the rtobj meta.
+     - If the reg is dropped, the final fixup applier defaults to `x0` and the resulting runtime code can dereference an uninitialized register (common symptom: startup `EXC_BAD_ACCESS` at address `0x1000`).
+   - Rolling rule: if you change rtobj meta encoding/decoding, bump the rtobj backend signature so stale cache entries are not reused.
 
 If this regresses, it typically shows up as:
 
@@ -454,9 +458,9 @@ If you touch compiler hot paths (astbin decode, native emit, runtime injection),
    - runtime decl compilation
    - emit/fixups
 
-Healthy reference (arm64-macos stage2, rolling as of 2026-01-04; isolated rtobj dir, seed disabled):
-- runtime astbin v2 decode: ~`1.3s` (`pool_n=2571`)
-- rtobj miss compile-one-file: ~`15s` (still being pushed toward `<10s`)
+Healthy reference (arm64-macos stage2, rolling as of 2026-01-10; isolated rtobj dir, seed disabled):
+- rtobj miss compile-one-file: ~`3.4s`
+- rtobj hit compile-one-file: ~`0.5s`
 
 If the slow path is “expected” (cold cache), consider whether we should:
 
