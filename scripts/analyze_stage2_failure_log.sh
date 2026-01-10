@@ -131,7 +131,16 @@ bounded_grep "phase timings" "\\[phase\\]|\\[trace\\] pass:|rtobj|astbin"
 echo "== next actions (suggested) =="
 echo "- If this is a remote Win11/WSL2 log, also capture:"
 echo "  - remote host + OS build"
-echo "  - compiler SHA (`git rev-parse HEAD`) on both sides"
+echo "  - compiler SHA (run: git rev-parse HEAD) on both sides"
+local_sha=""
+if command -v git >/dev/null 2>&1; then
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    local_sha="$(git rev-parse HEAD 2>/dev/null || true)"
+  fi
+fi
+if [[ -n "$local_sha" ]]; then
+  echo "  - local repo SHA: $local_sha"
+fi
 echo "  - the exact failing command line"
-echo "- If you see `x64 native v0: missing ABI arg reg`, treat it as a backend bug (not a flaky test)."
+echo "- If you see 'x64 native v0: missing ABI arg reg', treat it as a backend bug (not a flaky test)."
 echo "- If the log is huge, rerun with smaller output: --max 30 --tail 80"
