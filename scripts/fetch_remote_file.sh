@@ -126,6 +126,10 @@ mkdir -p build/logs
 run_with_timeout() {
   local secs="$1"
   shift
+  local had_errexit=0
+  case "$-" in
+    *e*) had_errexit=1 ;;
+  esac
   set +e
   "$@" &
   local pid=$!
@@ -140,7 +144,9 @@ run_with_timeout() {
   local rc=$?
   kill "$killer" 2>/dev/null || true
   wait "$killer" 2>/dev/null || true
-  set -e
+  if [[ "$had_errexit" -eq 1 ]]; then
+    set -e
+  fi
   return "$rc"
 }
 
@@ -164,16 +170,22 @@ remote_preflight() {
     run_with_timeout 15 "${ssh_base[@]}" "cmd.exe /c \"echo OREN_REMOTE_OK\"" >"$logf" 2>&1
     local rc=$?
     set -e
-    if [[ "$rc" -eq 0 ]] && grep -q "OREN_REMOTE_OK" "$logf" 2>/dev/null; then
-      return 0
+    if [[ "$rc" -eq 0 ]]; then
+      if grep -q "OREN_REMOTE_OK" "$logf" 2>/dev/null; then
+        return 0
+      fi
     fi
     if [[ "$attempt" -ge 2 ]]; then
       echo "ERROR: cannot reach remote host via ssh (rc=$rc host=$REMOTE_HOST)" >&2
-      tail -n 80 "$logf" 2>/dev/null >&2 || true
+      tail -n 80 "$logf" >&2 2>/dev/null || true
       if grep -Eq 'socat\\[[0-9]+\\] W CONNECT .*:22: Not Found' "$logf" 2>/dev/null; then
         echo "HINT: ProxyCommand could not resolve the hostname. Try setting:" >&2
         echo "  OREN_REMOTE_X64_HOST=<user@IP>" >&2
         echo "or override OREN_REMOTE_X64_PROXY to a direct SSH connection (no proxy)." >&2
+      fi
+      if [[ "$REMOTE_HOST" == *"pc.work"* ]]; then
+        echo "HINT: If 'pc.work' is not resolvable from this network, set:" >&2
+        echo "  OREN_REMOTE_X64_HOST=<user@IP>" >&2
       fi
       echo "log=$logf" >&2
       exit 2
@@ -216,7 +228,7 @@ rc=$?
 set -e
 if [[ "$rc" -ne 0 ]]; then
   echo "ERROR: remote stage (copy) failed rc=$rc (win-path=$WIN_PATH)" >&2
-  tail -n 120 "$stage_log" 2>/dev/null >&2 || true
+  tail -n 120 "$stage_log" >&2 2>/dev/null || true
   echo "log=$stage_log" >&2
   exit "$rc"
 fi
@@ -224,7 +236,7 @@ fi
 marker="$(tr -d '\r' <"$stage_log" | tail -n 5 | grep -E 'FETCH_OK:' | tail -n 1 || true)"
 if [[ -z "$marker" ]]; then
   echo "ERROR: remote stage did not return FETCH_OK marker (win-path=$WIN_PATH)" >&2
-  tail -n 120 "$stage_log" 2>/dev/null >&2 || true
+  tail -n 120 "$stage_log" >&2 2>/dev/null || true
   echo "log=$stage_log" >&2
   exit 2
 fi
@@ -253,7 +265,7 @@ rc=$?
 set -e
 if [[ "$rc" -ne 0 ]]; then
   echo "ERROR: scp download failed rc=$rc" >&2
-  tail -n 120 build/logs/fetch_remote_scp.log 2>/dev/null >&2 || true
+  tail -n 120 build/logs/fetch_remote_scp.log >&2 2>/dev/null || true
   exit "$rc"
 fi
 

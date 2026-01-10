@@ -252,16 +252,22 @@ remote_preflight() {
     run_with_timeout 15 "${SSH[@]}" "cmd.exe /c \"echo OREN_REMOTE_OK\"" >"$logf" 2>&1
     local rc=$?
     set -e
-    if [[ "$rc" -eq 0 ]] && grep -q "OREN_REMOTE_OK" "$logf" 2>/dev/null; then
-      return 0
+    if [[ "$rc" -eq 0 ]]; then
+      if grep -q "OREN_REMOTE_OK" "$logf" 2>/dev/null; then
+        return 0
+      fi
     fi
     if [[ "$attempt" -ge 2 ]]; then
       echo "ERROR: cannot reach remote x64 host via ssh (rc=$rc host=$REMOTE_HOST)" >&2
-      tail -n 80 "$logf" 2>/dev/null >&2 || true
+      tail -n 80 "$logf" >&2 2>/dev/null || true
       if grep -Eq 'socat\\[[0-9]+\\] W CONNECT .*:22: Not Found' "$logf" 2>/dev/null; then
         echo "HINT: ProxyCommand could not resolve the hostname. Try setting:" >&2
         echo "  OREN_REMOTE_X64_HOST=<user@IP>" >&2
         echo "or override OREN_REMOTE_X64_PROXY to a direct SSH connection (no proxy)." >&2
+      fi
+      if [[ "$REMOTE_HOST" == *"pc.work"* ]]; then
+        echo "HINT: If 'pc.work' is not resolvable from this network, set:" >&2
+        echo "  OREN_REMOTE_X64_HOST=<user@IP>" >&2
       fi
       echo "log=$logf" >&2
       exit 2
