@@ -560,6 +560,7 @@ References:
     - Even when the remote is unreachable, keep x86_64 *buildability* guarded by `make verify-native-x64-compile` (compiles x64-linux + x64-windows outputs for stage1+stage2, including NET/TLS/HTTP2/HPACK module resolution via `tests/fixtures/x64_compile_only_net_tls_http2_smoke.oren`).
     - To fetch remote logs without copy/paste, use `scripts/fetch_remote_file.sh` and pass `--host user@IP` if the proxy cannot resolve `pc.work` (or pass `--no-proxy` if you have direct SSH access; see `docs/REMOTE_X64_ENV.md`).
     - After fetching, use `scripts/analyze_stage2_failure_log.sh` to extract high-signal errors/warnings without dumping large logs.
+      - Convenience: `scripts/fetch_remote_file.sh` supports `--analyze` to run the analyzer automatically after download.
 
 5) **GUI / UI stack (OrenUI): AVM UI + native shell + UI domain** (L)
    - Goal: production-oriented cross-platform GUI without committing Oren’s core runtime to platform frameworks.

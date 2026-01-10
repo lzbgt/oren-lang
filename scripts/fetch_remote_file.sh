@@ -26,16 +26,18 @@ WIN_PATH=""
 OUT_DIR=""
 OUT_NAME=""
 TRACE=0
+ANALYZE=0
 
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/fetch_remote_file.sh --win-path <ABS_WINDOWS_PATH> [--out-name <name>] [--out-dir <dir>] [--host <user@host>] [--proxy <ssh_opt>] [--no-proxy] [--trace]
+  scripts/fetch_remote_file.sh --win-path <ABS_WINDOWS_PATH> [--out-name <name>] [--out-dir <dir>] [--host <user@host>] [--proxy <ssh_opt>] [--no-proxy] [--analyze] [--trace]
 
 Examples:
   ./scripts/fetch_remote_file.sh --win-path 'E:\work\oren-lang\s2_build_failure.log'
   ./scripts/fetch_remote_file.sh --win-path 'C:\Users\lzbgt\tmp_oren\stage2_from_stage1\stage1_build_stage2.log' --out-name stage1_build_stage2.log
   ./scripts/fetch_remote_file.sh --win-path 'E:\work\oren-lang\s2_build_failure.log' --host 'lzbgt@203.0.113.10'
+  ./scripts/fetch_remote_file.sh --win-path 'E:\work\oren-lang\s2_build_failure.log' --host 'lzbgt@203.0.113.10' --no-proxy --analyze
 
 Env overrides:
   OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
@@ -72,6 +74,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-proxy)
       REMOTE_PROXY=""
+      shift
+      ;;
+    --analyze)
+      ANALYZE=1
       shift
       ;;
     --trace)
@@ -252,3 +258,13 @@ if [[ "$rc" -ne 0 ]]; then
 fi
 
 echo "OK: saved ${local_dst}"
+
+if [[ "$ANALYZE" -ne 0 ]]; then
+  analyzer="./scripts/analyze_stage2_failure_log.sh"
+  if [[ -x "$analyzer" ]]; then
+    echo "== analyze: ${analyzer} ${local_dst} ==" >&2
+    "$analyzer" "$local_dst" || true
+  else
+    echo "WARN: --analyze requested but analyzer not found/executable: ${analyzer}" >&2
+  fi
+fi
