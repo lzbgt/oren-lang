@@ -1,0 +1,17 @@
+// Windows kernel32 FFI bindings (rolling).
+//
+// Goal:
+// - Keep the platform-specific DLL attachment in one place.
+// - Allow call sites to stay clean:
+//     import k32 "std:ffi/kernel32"
+//     var tid = k32.GetCurrentThreadId()
+//
+// Notes:
+// - This module is intentionally Windows-only. Use `@cfg(os="windows")` at call sites.
+// - Return kind: GetCurrentThreadId() returns DWORD (u32). Use `@ffi.ret("u32")` so the
+//   native backend zero-extends it into Oren's i64 value model.
+
+@cfg(os="windows")
+@ffi.dll("kernel32.dll")
+ffi { @ffi.ret("u32") GetCurrentThreadId }
+

@@ -296,6 +296,19 @@ fn main() {
 }
 ```
 
+Windows-only stdlib wrapper example:
+
+```oren
+import k32 "std:ffi/kernel32"
+
+@cfg(os="windows")
+fn main() {
+    var tid = k32.GetCurrentThreadId()
+    if tid == 0 { exit(1) }
+    exit(0)
+}
+```
+
 Notes (rolling):
 
 - The compiler may internally **prefix/rename** the declared symbol to keep modules separate (example internal label: `STD_ffi_libc_strlen`).

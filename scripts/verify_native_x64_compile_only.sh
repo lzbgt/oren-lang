@@ -135,6 +135,7 @@ CFG_OS_SRC="tests/native/cfg_os_select.oren"
 NET_TLS_HTTP2_SMOKE_SRC="tests/fixtures/x64_compile_only_net_tls_http2_smoke.oren"
 
 WIN_FFI_K32_SRC="tests/native/ffi_windows_kernel32.oren"
+STD_FFI_K32_SMOKE_SRC="tests/native/test_std_ffi_kernel32_smoke.oren"
 WIN_FFI_MSVCRT_LINK_ATTR_SRC="tests/native/ffi_windows_msvcrt_attr_link.oren"
 WIN_FFI_I32_SRC="tests/native/ffi_windows_ret_i32_signext.oren"
 WIN_FFI_U32_SRC="tests/native/ffi_windows_ret_u32_zeroext.oren"
@@ -367,6 +368,9 @@ run_suite_x64_win() {
 
   build_one "$compiler" x64-windows "$WIN_FFI_K32_SRC" "build/tmp/ffi_k32_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/ffi_k32_${tag}_x64_windows.exe"
+
+  build_one "$compiler" x64-windows "$STD_FFI_K32_SMOKE_SRC" "build/tmp/std_ffi_k32_smoke_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/std_ffi_k32_smoke_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$WIN_FFI_MSVCRT_LINK_ATTR_SRC" "build/tmp/ffi_msvcrt_link_attr_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/ffi_msvcrt_link_attr_${tag}_x64_windows.exe"

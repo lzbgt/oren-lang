@@ -1,0 +1,19 @@
+// std:ffi/kernel32 smoke (x64-windows).
+//
+// This is a Tier‑1 portability test:
+// - It verifies that stdlib FFI wrappers remain module-exportable and usable from call sites.
+// - It is built+run on real Windows by `scripts/verify_native_matrix.sh` (when remote Win11 is enabled),
+//   and is also built by the local x64 compile-only gate (`scripts/verify_native_x64_compile_only.sh`).
+
+import k32 "std:ffi/kernel32"
+
+@cfg(os="windows")
+fn main() {
+    var tid = k32.GetCurrentThreadId()
+    if tid == 0 { exit(1) }
+    exit(0)
+}
+
+@cfg(not_os="windows")
+fn main() { exit(0) }
+

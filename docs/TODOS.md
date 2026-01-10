@@ -412,6 +412,11 @@ References:
       - Panic (arm64-linux + x64-linux without `--link`): `scripts/verify_native_matrix.sh` runs `tests/native/ffi_linux_unresolved_panics.oren` and asserts `ffi unresolved:` + `oren_panic`.
       - OK (arm64-linux with `--link`): `scripts/verify_native_matrix.sh --targets arm64-linux` runs `tests/native/ffi_linux_strlen_ok.oren` (stage1 + stage2; docker container).
       - OK (x64-linux with `--link`): `scripts/verify_native_matrix.sh --targets x64-wsl` runs `tests/native/ffi_linux_strlen_ok.oren` (stage1 + stage2; remote WSL2).
+  - Stdlib wrappers (rolling ergonomics):
+    - `std:ffi/libc` centralizes the cross-OS `puts/strlen` boilerplate (`@cfg` + `@ffi.link`/`@ffi.dll`).
+    - `std:ffi/kernel32` centralizes Windows-only bindings like `GetCurrentThreadId`.
+    - Regression (remote Win11): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/test_std_ffi_kernel32_smoke.oren` (stage1 + stage2).
+    - Regression (local x64 compile-only): `scripts/verify_native_x64_compile_only.sh --targets x64-win` builds the same fixture (stage1 + stage2).
 
 - Windows: complete a coherent PROC story (pid/kill/wait semantics or define a cross-OS `sys_spawn` boundary).
   - Fixed (2026-01-04): `oren_system(_timeout)` now works on `x64-windows` (CreateProcessA path).
