@@ -49,6 +49,7 @@ Local x64 sanity (execution under QEMU):
 - `make verify-x64-linux-qemu-net` (optional; requires `make setup-x64-linux-qemu` once; runs loopback NET fixtures under `qemu-x86_64` in the persistent Linux container)
 - `make verify-x64-linux-qemu-tls` (optional; requires `OREN_X64_LINUX_QEMU_INSTALL_OPENSSL=1 make setup-x64-linux-qemu` once; runs loopback TLS/HTTPS/WSS fixtures under `qemu-x86_64` in the persistent Linux container)
 - All x64 sanity gates are expected to **fail fast** if the compiler emits known backend hazards (e.g. `x64 native v0: missing ABI arg reg(s)`), even if an individual build step would otherwise exit 0.
+  - Note: if the persistent container is stopped, restore it with `docker start c7e5f7bd9f5c` (do not create a replacement).
 
 References:
 
@@ -97,6 +98,10 @@ References:
     - Fixed (2026-01-06): build cache key now hashes the effective injected native runtime entry (full vs core), so switching `OREN_NATIVE_RUNTIME_PROFILE` cannot reuse cached artifacts built with a different runtime (details in `docs/TODOS_ARCHIVE.md`).
   - Fixed (2026-01-10): runtime astbin cache decode now sanity-checks decoded bundles and treats corrupted/stale blobs as cache misses (prevents stage2-native crashes in x64 emit/helpers when cache contents are invalid).
   - Fixed (2026-01-10): x64 native emitter is defensive about string-literal nodes (treats raw `0` as “null string pointer” sentinel, and reports a compiler error when a corrupted AST supplies a non-string literal value).
+  - Verified (2026-01-10): local x64-linux execution sanity under QEMU now passes:
+    - `make verify-x64-linux-qemu`
+    - `make verify-x64-linux-qemu-net`
+    - `make verify-x64-linux-qemu-tls`
 
   - Recent (2026-01-04): x86_64 cross-target cold miss is still expensive when the rtobj seed is disabled, but it is materially improved by:
     - eliminating per-instruction allocations in the x64 encoder (`lib/compiler/x64_core.oren`)

@@ -83,6 +83,9 @@ When bringing up x86_64 runtime behavior from an arm64-macos dev host, you can r
   -o build/tmp/print_x64_linux
 
 # Copy + run under qemu inside the already-running toolchain container.
+#
+# If the container is currently stopped (Exited), restore it with:
+#   docker start c7e5f7bd9f5c
 docker cp build/tmp/print_x64_linux c7e5f7bd9f5c:/tmp/hostbins/
 docker exec c7e5f7bd9f5c bash -lc 'cd /tmp/hostbins && chmod +x print_x64_linux && qemu-x86_64 ./print_x64_linux'
 ```
