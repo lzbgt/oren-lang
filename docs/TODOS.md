@@ -149,12 +149,13 @@ References:
 	     - Windows stage0→stage1 bootstrap: `./scripts/verify_stage0_windows_bootstrap.sh`
 
 	     - Active gaps (keep this list forward-looking; details live in `docs/TODOS_ARCHIVE.md`):
-	       - Fixed (2026-01-10): x64-windows stage2 self-host build could fail to write PE output when input paths used `\` (e.g. `examples\myapp.oren`).
-	         - Root cause: `basename`/`dirname` treated `\` as a separator only when `OS=Windows_NT` was set; some Win11/SSH environments did not provide that env var.
-	         - Fix: path helpers now treat both `/` and `\` as separators unconditionally.
-	         - Evidence (full captured remote log): `project-doc/remote/20260110_075154/s2_build_failure.log`
-	         - Verified: `make verify-stage2-win` now passes (stage0→stage1→stage2 + compile+run).
-	         - Note: scripts run a fast SSH preflight and emit bounded probe logs under `build/logs/*remote_probe*.log` when proxy/hostname resolution breaks.
+		       - Fixed (2026-01-10): x64-windows stage2 self-host build could fail to write PE output when input paths used `\` (e.g. `examples\myapp.oren`).
+		         - Root cause: `basename`/`dirname` treated `\` as a separator only when `OS=Windows_NT` was set; some Win11/SSH environments did not provide that env var.
+		         - Fix: path helpers now treat both `/` and `\` as separators unconditionally, and Windows-host detection no longer relies solely on `OS=Windows_NT` for critical build tooling decisions.
+		         - Evidence (full captured remote log): `project-doc/remote/20260110_131230/s2_build_failure.log`
+		         - Regression gate: `make verify-stage2-win` (stage0→stage1→stage2 + compile+run).
+		         - Verified (2026-01-10): `make verify-stage2-win` / `scripts/verify_windows_stage2_from_stage1.sh` passes again, including the nested-path backslash input (`examples\\myapp.oren`).
+		         - Note: scripts run a fast SSH preflight and emit bounded probe logs under `build/logs/*remote_probe*.log` when proxy/hostname resolution breaks.
 			       - Build system parity (Windows host):
 				         - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
 				         - Done (2026-01-10): `oren build` default output naming for `--platform x64-windows` now appends `.exe` when `-o/--out` is omitted.

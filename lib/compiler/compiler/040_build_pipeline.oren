@@ -379,7 +379,7 @@ fn compiler_main() {
             idx = idx + 1
         }
         
-        if oren_env("OS") == "Windows_NT" {
+        if host_is_windows() {
             var p_del = _path_to_windows_sep(nm_out)
             oren_system("del /f /q \"" + p_del + "\" >nul 2>nul")
         } else {
@@ -791,8 +791,8 @@ fn compiler_main() {
     // IMPORTANT:
     // - this policy is for *Windows hosts*. Do not set `--cc=cl.exe` by default when
     //   cross-compiling to Windows from a non-Windows host.
-    var host_is_windows = (oren_env("OS") == "Windows_NT")
-    if host_is_windows && target == "windows" && seen["cc"] != true {
+    var host_win = host_is_windows()
+    if host_win && target == "windows" && seen["cc"] != true {
         if cc == nil || cc == "" || cc == "cc" {
             cc = "cl.exe"
             if trace_build { print("[build] windows default cc=cl.exe") }
@@ -886,7 +886,7 @@ fn compiler_main() {
     // - For Tier‑1 Windows, the intended default C toolchain is MSVC (cl.exe).
     // - Cross-compiling C backend outputs to Windows from non-Windows hosts is not a first-class path.
     //   Require an explicit `--cc` so callers opt into a cross toolchain (e.g. MinGW) intentionally.
-    if backend == "c" && target == "windows" && host_is_windows != true && seen["cc"] != true {
+    if backend == "c" && target == "windows" && host_win != true && seen["cc"] != true {
         var emsg_ccw = "oren build: C backend targeting windows from a non-Windows host requires explicit --cc (e.g. a MinGW cross compiler). On Windows hosts, omit --cc to use MSVC cl.exe auto-detection."
         emit_diag("compile", 2, emsg_ccw)
         print(emsg_ccw)
@@ -1615,7 +1615,7 @@ fn compiler_main() {
         var is_msvc = (cc_base == "cl" || cc_base == "cl.exe" || cc_base == "clang-cl" || cc_base == "clang-cl.exe")
 
         if is_msvc {
-            if host_is_windows != true {
+            if host_win != true {
                 print("ERROR: C backend with MSVC (cl.exe) requires a Windows host. For cross-compiling, pass an explicit cross compiler via --cc.")
                 oren_exit(2)
             }
@@ -1755,7 +1755,7 @@ fn compiler_main() {
     }
     // On success, remove intermediate C output to keep builds clean.
     // (If you want the emitted C, use `--emit-c` / `oren emit-c`).
-    if oren_env("OS") == "Windows_NT" {
+    if host_is_windows() {
         var p_del = _path_to_windows_sep(c_path)
         oren_system("del /f /q \"" + p_del + "\" >nul 2>nul")
         if msvc_script_path != "" { oren_system("del /f /q \"" + msvc_script_path + "\" >nul 2>nul") }

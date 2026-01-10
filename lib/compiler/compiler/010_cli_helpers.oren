@@ -25,8 +25,8 @@ fn detect_host_platform() {
     // can run on multiple hosts (macOS, Linux, Windows) and should default to its *runtime* host.
 
     // Windows hint (system() uses cmd.exe; uname may be absent).
-    var os_env = oren_env("OS")
-    if os_env == "Windows_NT" {
+    // Use a robust helper so this works under SSH/PowerShell/minimal envs too.
+    if host_is_windows() {
         var arch_env = oren_env("PROCESSOR_ARCHITECTURE")
         var arch = "x64"
         if arch_env == "ARM64" { arch = "arm64" }

@@ -201,6 +201,32 @@ fn _path_to_windows_sep(s) {
     return out
 }
 
+fn host_is_windows() {
+    // Robust host detection for compiler/tooling.
+    //
+    // Rationale:
+    // - On Windows hosts (especially via SSH, PowerShell, MSYS2, etc.), `OS=Windows_NT` is common
+    //   but not guaranteed to be present in every execution environment.
+    // - Some core toolchain behaviors must be host-correct even when `OS` is missing:
+    //   - mkdir behavior (`mkdir -p` does not exist in cmd.exe)
+    //   - default toolchain selection for C backend bring-up (MSVC `cl.exe` on Windows)
+    //
+    // Keep this conservative: rely on multiple Windows-specific env vars, not just `OS`.
+    var os_env = oren_env("OS")
+    if os_env == "Windows_NT" { return true }
+    var sysroot = oren_env("SystemRoot")
+    if sysroot != nil && sysroot != "" { return true }
+    var windir = oren_env("WINDIR")
+    if windir != nil && windir != "" { return true }
+    var comspec = oren_env("COMSPEC")
+    if comspec != nil && comspec != "" { return true }
+    var pathext = oren_env("PATHEXT")
+    if pathext != nil && pathext != "" { return true }
+    var arch = oren_env("PROCESSOR_ARCHITECTURE")
+    if arch != nil && arch != "" { return true }
+    return false
+}
+
 fn _hex_digit(n) {
     // n in [0,15]
     return oren_string_char_at("0123456789abcdef", n)
@@ -317,7 +343,7 @@ fn ensure_dir(path) {
     // - Best-effort create the directory (including parents).
     // - No-op for empty paths.
     if path == nil || path == "" { return nil }
-    if oren_env("OS") == "Windows_NT" {
+    if host_is_windows() {
         // Silence "already exists" noise to keep rolling logs bounded.
         var mk_path = _path_to_windows_sep(path)
         oren_system("mkdir \"" + mk_path + "\" >nul 2>nul")
