@@ -214,6 +214,11 @@ struct F32Box {
     x: f32
 }
 
+struct Pair2 {
+    a: i32,
+    b: i32
+}
+
 @pack
 struct H {
     v: u8,
@@ -264,6 +269,16 @@ fn test_float_ops() {
     // f32 rounding (via type annotations) must be deterministic.
     // 16777217 (2^24+1) rounds to 16777216 in IEEE-754 float32.
     assert_eq(F32Box(16777217.0).x, 16777216.0)
+
+    // Rolling reflection v0: type constructors are map-shaped but tagged with __oren_type.
+    // This must work in AVM bytecode too (including call-site spread lowering).
+    var b0 = F32Box(1.0)
+    assert_eq(b0["__oren_type"], "F32Box")
+    var xs = [2]
+    var p = Pair2(1, xs...)
+    assert_eq(p["__oren_type"], "Pair2")
+    assert_eq(p.a, 1)
+    assert_eq(p.b, 2)
 }
 
 fn test_typed_buffers() {
