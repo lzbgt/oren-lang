@@ -183,6 +183,7 @@ Compiles directly to machine code (Mach-O / ELF / PE). Fast and dependency-free 
 ```bash
 # If you omit `-o/--out`, artifacts default under:
 #   build/targets/<arch>-<os>/<backend>/<basename>          (native/c)
+#   build/targets/<arch>-windows/<backend>/<basename>.exe   (native/c, Windows target)
 #   build/targets/avm/bytecode/<basename>.obc               (bytecode, platform-neutral intent)
 #
 # Build for macOS arm64 (primary development path today)

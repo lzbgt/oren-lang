@@ -149,7 +149,10 @@ References:
 	         - Verified: `make verify-stage2-win` now passes (stage0→stage1→stage2 + compile+run).
 	         - Note: scripts run a fast SSH preflight and emit bounded probe logs under `build/logs/*remote_probe*.log` when proxy/hostname resolution breaks.
 			       - Build system parity (Windows host):
-			         - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
+				         - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
+				         - Done (2026-01-10): `oren build` default output naming for `--platform x64-windows` now appends `.exe` when `-o/--out` is omitted.
+				           - Rationale: cmd.exe does not treat extensionless PE files as runnable commands via relative paths (users observe confusing “not recognized” even when compilation succeeded).
+				           - Regression: `scripts/verify_selfhost_x64_compiler.sh --targets x64-win` now also compiles `examples\\print.oren` without `-o` and runs the default output.
 			         - Done: Windows-host bootstrap defaults now reliably select MSVC `cl.exe` when `OREN_BOOTSTRAP_CC` is not set (fixes `make test` / `make stage1` under Git Bash/MSYS2).
 			         - Done (2026-01-08): stage0 MSVC bootstrap now supports escape-hatch overrides for nonstandard Windows environments:
 			           - `OREN_MSVC_VSWHERE=<path>` (pin `vswhere.exe`)

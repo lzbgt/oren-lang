@@ -893,6 +893,16 @@ fn compiler_main() {
         } else {
             var dir = "build/targets/" + arch + "-" + target + "/" + backend
             out_path = dir + "/" + stem
+            // Windows UX: emit runnable `.exe` outputs by default for native/c artifacts.
+            // Rolling note: cmd.exe does not treat extensionless PE files as runnable commands
+            // via relative paths, so without `.exe` users observe confusing "not recognized"
+            // errors even when the compiler succeeded.
+            if target == "windows" {
+                var n2 = oren_string_len(out_path)
+                if n2 < 4 || oren_string_slice(out_path, n2 - 4, n2) != ".exe" {
+                    out_path = out_path + ".exe"
+                }
+            }
         }
     }
     if trace_build { print("[build] out_path=" + out_path) }

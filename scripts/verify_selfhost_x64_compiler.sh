@@ -366,6 +366,7 @@ PKG_DIR="build/tmp/selfhost_pkg"
 PKG_TGZ="build/tmp/selfhost_pkg.tgz"
 rm -rf "$PKG_DIR" "$PKG_TGZ" 2>/dev/null || true
 mkdir -p "$PKG_DIR/lib"
+mkdir -p "$PKG_DIR/examples"
 
 cp -f lib/runtime_native.oren "$PKG_DIR/lib/runtime_native.oren"
 cp -f lib/runtime_native_core.oren "$PKG_DIR/lib/runtime_native_core.oren"
@@ -377,6 +378,12 @@ cat >"$PKG_DIR/print.oren" <<'EOF'
 print("hello from native")
 exit(0)
 EOF
+
+# Also place the same file under a subdirectory so the Windows self-host gate can
+# compile it using a backslash path (e.g. `examples\print.oren`). This specifically
+# defends against regressions where output naming fails to treat `\` as a separator
+# in `basename`/`default_output_path` processing.
+cp -f "$PKG_DIR/print.oren" "$PKG_DIR/examples/print.oren"
 
 tar -czf "$PKG_TGZ" -C "$PKG_DIR" .
 
@@ -427,6 +434,20 @@ if has_target x64-win; then
 		  fi
 		  echo "$out" | grep -q "hello from native"
 		  echo "$out" | grep -q "EXIT=0"
+
+  echo "== remote: self-host compile+run (x64-windows backslash path; default out) =="
+		  out2="$(
+		    run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
+		      "cmd.exe /v:on /c \"cd ${REMOTE_DIR_WIN} && ${canon_env_cmd}oren_selfhost_x64_windows.exe build examples\\\\print.oren --backend native --no-cache --no-debug && ${canon_env_cmd}build\\\\targets\\\\x64-windows\\\\native\\\\print.exe & echo EXIT=!ERRORLEVEL!\""
+		  )"
+		  printf '%s\n' "$out2"
+		  if echo "$out2" | tr -d '\r' | grep -Eq "$abi_warn_patterns"; then
+		    echo "ERROR: ABI arg-reg warnings emitted during Windows self-host compile (backslash-path gate)" >&2
+		    echo "$out2" | tr -d '\r' | grep -E "$abi_warn_patterns" | head -n 40 >&2 || true
+		    exit 1
+		  fi
+		  echo "$out2" | grep -q "hello from native"
+		  echo "$out2" | grep -q "EXIT=0"
 fi
 
 echo "OK: x64 self-host compiler gate passed"
