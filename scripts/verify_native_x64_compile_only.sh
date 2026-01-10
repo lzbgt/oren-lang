@@ -284,6 +284,21 @@ if data.find(good) == -1:
 PY
 }
 
+check_pe_exports_contains() {
+  local p="$1"
+  shift
+  local script="scripts/pe_exports_check.py"
+  if [[ ! -f "$script" ]]; then
+    echo "ERROR: missing pe export checker: $script" >&2
+    return 2
+  fi
+  local args=()
+  for sym in "$@"; do
+    args+=("--contains" "$sym")
+  done
+  python3 "$script" "$p" "${args[@]}"
+}
+
 check_bin_contains() {
   local p="$1"
   local needle="$2"
@@ -371,7 +386,7 @@ run_suite_x64_win() {
 
   build_one "$compiler" x64-windows "$WIN_FFI_EXPORT_GETPROC_SRC" "build/tmp/ffi_export_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/ffi_export_${tag}_x64_windows.exe"
-  check_bin_contains "build/tmp/ffi_export_${tag}_x64_windows.exe" "oren_test_export_cb"
+  check_pe_exports_contains "build/tmp/ffi_export_${tag}_x64_windows.exe" "oren_test_export_cb"
 
   # Shared library output: `.dll` + generated header.
   build_one "$compiler" x64-windows "$LIBMATH_SRC" "build/tmp/libmath_${tag}_x64_windows.dll" --lib
@@ -379,6 +394,7 @@ run_suite_x64_win() {
   test -f "build/tmp/libmath_${tag}_x64_windows.h"
   grep -F 'extern int64_t add(int64_t arg0, int64_t arg1);' "build/tmp/libmath_${tag}_x64_windows.h" >/dev/null
   grep -F 'extern int64_t mul(int64_t arg0, int64_t arg1);' "build/tmp/libmath_${tag}_x64_windows.h" >/dev/null
+  check_pe_exports_contains "build/tmp/libmath_${tag}_x64_windows.dll" "add" "mul"
 }
 
 echo -n "== x64 compile-only: platforms=" >&2
