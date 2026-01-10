@@ -347,7 +347,7 @@ References:
 	    - Shared library output parity (native `--lib`/`--shared`):
 	      - Done (2026-01-10): x86_64 Windows `.dll` emission for native `--lib` (PE DLL characteristics + DllMain entry + export wrappers + header generation).
 	      - Done (2026-01-10): x86_64 Linux `.so` emission for native `--lib` (ET_DYN + `.init_array` + RELA relocations + export wrappers + header generation).
-	        - Regression: `scripts/verify_native_x64_compile_only.sh` now also builds `examples/libmath.oren --lib` as `.so` for stage1 + stage2.
+		        - Regression: `scripts/verify_native_x64_compile_only.sh` builds `examples/libmath.oren --lib` as `.so` (x64-linux) and `.dll` (x64-windows) for stage1 + stage2.
 	        - Stability note: x64 ELF fixup patching treats a `data_off` payload that round-trips as `nil` as `0` (valid first-byte offset), keeping stage1 (C runtime) and stage2 (native runtime) cross-target builds consistent.
 	     - Concurrency substrate convergence:
        - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory sync, plus a GC/safepoint model that remains correct once true threads exist.

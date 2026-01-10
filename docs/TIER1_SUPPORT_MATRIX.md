@@ -53,6 +53,9 @@ The Makefile and `scripts/` define the *supported* verification entrypoints. Pre
 - Build stage1 + stage2 (native backend): `make stage2`
 - Fast stage1 + stage2 smoke (native): `make verify-native-quick`
 - Compile-only cross x64 targets (native backend): `make verify-native-x64-compile`
+  - This compile-only gate also covers native shared-library emission (`--lib`):
+    - `x64-linux`: ELF `.so` + generated header
+    - `x64-windows`: PE `.dll` + generated header
 - Execute x64-linux artifacts (QEMU): `make verify-x64-linux-qemu`
 - Execute x64-linux NET fixtures (QEMU): `make verify-x64-linux-qemu-net`
 - Execute x64-linux TLS fixtures (QEMU): `make verify-x64-linux-qemu-tls`
@@ -84,5 +87,6 @@ When something is not green, record the *smallest actionable next step* and the 
 
 - x64-windows: stage2 native backend still needs continuous “compile + run” proof on a real Windows host
   (not just compile-only from macOS). Primary gate: `make verify-stage2-win` (remote).
+- arm64-linux: native shared-library emission (`--lib` → ELF `.so`) is not implemented yet (compile-time error today).
 - Remote reliability: keep remote log capture bounded and reproducible; use
   `scripts/fetch_remote_file.sh --analyze` + `scripts/analyze_stage2_failure_log.sh` for triage.
