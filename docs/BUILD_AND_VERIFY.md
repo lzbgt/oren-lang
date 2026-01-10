@@ -35,6 +35,7 @@ Windows notes (x64, rolling):
 - Prefer `make stage1` / `make oren` rather than calling the bootstrap directly.
   - The Makefile passes `--cc` via `OREN_BOOTSTRAP_CC` (defaults to `cl.exe` on Windows hosts).
   - The Makefile also passes an explicit `--target` via `OREN_BOOTSTRAP_TARGET` (defaults to the host OS) so stage0 behavior is predictable on non-macOS hosts.
+  - Rolling note: Windows host detection in the Makefile does not rely solely on `OS=Windows_NT` or `uname` output; it also treats `SystemRoot`/`WINDIR`/`COMSPEC`/`PATHEXT`/`PROCESSOR_ARCHITECTURE` as Windows host hints (useful in minimal shells / CI / some SSH environments).
 - If invoking stage0 directly on Windows, the canonical form is:
 
 ```bash

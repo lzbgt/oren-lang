@@ -17,8 +17,8 @@
 all: oren
 
 # Platform settings
-UNAME_S := $(shell uname -s)
-UNAME_M := $(shell uname -m)
+UNAME_S := $(shell uname -s 2>/dev/null || echo "")
+UNAME_M := $(shell uname -m 2>/dev/null || echo "")
 CC ?= cc
 CODESIGN_IDENTITY ?= -
 MACOS_SYSTEM_PATH_PREFIX := /usr/bin:/bin:/usr/sbin:/sbin
@@ -29,6 +29,16 @@ MACOS_CODESIGN_BIN := /usr/bin/codesign
 # common env + uname prefixes.
 HOST_IS_WINDOWS :=
 ifeq ($(OS),Windows_NT)
+  HOST_IS_WINDOWS := 1
+else ifneq ($(SystemRoot),)
+  HOST_IS_WINDOWS := 1
+else ifneq ($(WINDIR),)
+  HOST_IS_WINDOWS := 1
+else ifneq ($(COMSPEC),)
+  HOST_IS_WINDOWS := 1
+else ifneq ($(PATHEXT),)
+  HOST_IS_WINDOWS := 1
+else ifneq ($(PROCESSOR_ARCHITECTURE),)
   HOST_IS_WINDOWS := 1
 else ifneq (,$(findstring MINGW,$(UNAME_S)))
   HOST_IS_WINDOWS := 1
