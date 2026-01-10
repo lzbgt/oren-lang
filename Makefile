@@ -1,4 +1,5 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
+.PHONY: examples-cross-compile-smoke
 .PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick
 .PHONY: verify-native-x64-compile
 .PHONY: verify-x64-linux-qemu
@@ -713,7 +714,36 @@ examples-test-inner: oren avm
 		@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/avm_fixtures/multiverse_child_net.oren --backend bytecode -o build/ex_multiverse_child_net.obc
 		@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_BIN) build examples/avm_multiverse_net_demo.oren --backend bytecode -o build/ex_avm_multiverse_net_demo.obc
 		@$(RUN_WITH_TIMEOUT) ./$(AVM_BIN) --deny-by-default --allow-domains "0,1,4,6,8" --fs-allow-prefixes "build/" --fs-backend host build/ex_avm_multiverse_net_demo.obc >/dev/null
-	@echo "Examples OK"
+		@echo "Examples OK"
+
+# Compile-only example smoke for non-host platforms (rolling).
+#
+# Goal:
+# - Keep Makefile aware of Tier‑1 discrepancies by exercising shared-library output on all Tier‑1 targets,
+#   even when the host cannot execute the produced binaries.
+# - Use `./oren_stage2 scan` as a format+metadata sanity check without running foreign artifacts.
+#
+# Notes:
+# - This is compile-only and safe to run on arm64-macos hosts.
+# - It is not part of `make test` (keep iteration fast); run explicitly or wire into higher-signal gates.
+examples-cross-compile-smoke: oren_stage2
+	@mkdir -p build/tmp
+	@# arm64-linux shared object (.so)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_STAGE2_BIN) build examples/libmath.oren --backend native --platform arm64-linux --lib --no-debug -o build/tmp/libmath_stage2_arm64_linux.so --metadata $(GC_ARG)
+	@test -f build/tmp/libmath_stage2_arm64_linux.h
+	@./$(OREN_STAGE2_BIN) scan build/tmp/libmath_stage2_arm64_linux.so >/dev/null
+	@file build/tmp/libmath_stage2_arm64_linux.so | grep -Ei 'ELF 64-bit.*(shared object.*(ARM aarch64|aarch64)|(ARM aarch64|aarch64).*shared object)' >/dev/null
+	@# x64-linux shared object (.so)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_STAGE2_BIN) build examples/libmath.oren --backend native --platform x64-linux --lib --no-debug -o build/tmp/libmath_stage2_x64_linux.so --metadata $(GC_ARG)
+	@test -f build/tmp/libmath_stage2_x64_linux.h
+	@./$(OREN_STAGE2_BIN) scan build/tmp/libmath_stage2_x64_linux.so >/dev/null
+	@file build/tmp/libmath_stage2_x64_linux.so | grep -Ei 'ELF 64-bit.*(shared object.*x86-64|x86-64.*shared object)' >/dev/null
+	@# x64-windows DLL (.dll)
+	@$(RUN_BUILD_WITH_TIMEOUT) ./$(OREN_STAGE2_BIN) build examples/libmath.oren --backend native --platform x64-windows --lib --no-debug -o build/tmp/libmath_stage2_x64_windows.dll --metadata $(GC_ARG)
+	@test -f build/tmp/libmath_stage2_x64_windows.h
+	@./$(OREN_STAGE2_BIN) scan build/tmp/libmath_stage2_x64_windows.dll >/dev/null
+	@file build/tmp/libmath_stage2_x64_windows.dll | grep -F 'PE32+ executable (DLL)' >/dev/null
+	@echo "examples-cross-compile-smoke OK"
 
 # Verify `.obc` portability across AVM hosts (rolling).
 # This is an integration-style gate and may use Docker + remote Win11+WSL2.
