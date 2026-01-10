@@ -52,6 +52,14 @@ Host/proxy overrides (rolling ergonomics):
 
 ```bash
 # If the default hostname (pc.work) is not resolvable from your current network,
+# set the host to a reachable IP or DNS name.
+export OREN_REMOTE_X64_HOST='lzbgt@203.0.113.10'
+
+# If you have direct SSH access (no ProxyCommand), disable the proxy.
+# (Most scripts also accept `--no-proxy` explicitly.)
+export OREN_REMOTE_X64_PROXY=''
+
+# If the default hostname (pc.work) is not resolvable from your current network,
 # override the host explicitly (IP or resolvable DNS).
 ./scripts/verify_native_matrix.sh --targets x64-wsl,x64-win --host 'lzbgt@203.0.113.10'
 
