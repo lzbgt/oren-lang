@@ -702,7 +702,6 @@ clean:
 	@echo "Cleaning workspace..."
 	rm -rf build/ *.dSYM verify_full.sh run_tests.sh
 	rm -f "$(BOOTSTRAP_BIN)" "$(OREN_BIN)" "$(OREN_STAGE2_BIN)" "oren_stage3$(EXE_EXT)" "$(AVM_BIN)" "$(OREDOC_BIN)" "$(ORENSIGN_BIN)"
-	rm -f oretest
 	rm -f *.oren.c *.obc *.otool *.dylib *.so
 	@# Remove local test binaries (keep .oren sources)
 	@find tests/native -maxdepth 1 -type f ! -name '*.oren' -delete 2>/dev/null || true

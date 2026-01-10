@@ -50,3 +50,8 @@ fn peer_cert_sha256_hex(conn) {
 fn negotiated_alpn(conn) {
     return tls.negotiated_alpn(conn)
 }
+
+fn win_cleanup() {
+    // Mirrors `std:net/tls.win_cleanup` for callers that treat TLS as a crypto concern.
+    return tls.win_cleanup()
+}

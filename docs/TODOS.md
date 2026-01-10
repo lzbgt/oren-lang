@@ -252,13 +252,13 @@ References:
 					               - Regression: TLS/HTTPS/WSS loopback fixtures all pass `opts["alpn"]` (stage1 + stage2; Tier‑1 via `scripts/verify_native_net_matrix.sh`).
 					             - Done (2026-01-09): Windows Schannel server ALPN selection wired:
 					               - `opts["alpn"]` is passed into the first `AcceptSecurityContext` call via `SECBUFFER_APPLICATION_PROTOCOLS`.
-				             - Fixed (2026-01-10): Win11 x64 Schannel credential lifetime crash (observed as `EXIT=-1073741819`) on HTTPS/WSS/HTTP/2 long paths:
-				               - Root cause: freeing the `SCHANNEL_CRED`/`paCred` memory passed into `AcquireCredentialsHandleA` after a connection closes can crash under some environments.
-				               - Fix: cache Schannel credentials per-process and keep the `SCHANNEL_CRED` memory alive for the lifetime of the process; `tls.close` skips freeing cached creds.
-				               - Follow-ups (rolling):
-				                 - add `tls.win_cleanup()` for long-lived processes that want an explicit shutdown free,
-				                 - include passphrase in the server-cred cache key (current fixtures use a constant),
-				                 - support multiple server creds/certs (current cache is single-entry by PKCS12 hash).
+					             - Fixed (2026-01-10): Win11 x64 Schannel credential lifetime crash (observed as `EXIT=-1073741819`) on HTTPS/WSS/HTTP/2 long paths:
+					               - Root cause: freeing the `SCHANNEL_CRED`/`paCred` memory passed into `AcquireCredentialsHandleA` after a connection closes can crash under some environments.
+					               - Fix: cache Schannel credentials per-process and keep the `SCHANNEL_CRED` memory alive for the lifetime of the process; `tls.close` skips freeing cached creds.
+					               - Follow-ups (rolling):
+					                 - Done (2026-01-10): add `tls.win_cleanup()` / `crypto.tls.win_cleanup()` for long-lived processes that want an explicit shutdown free (unsafe while active TLS conns exist).
+					                 - Done (2026-01-10): include passphrase in the server-cred cache key (cache key is `sha256(pkcs12_bytes) + ":" + sha256(passphrase_bytes)`).
+					                 - Next: support multiple server creds/certs (current cache is single-entry; rolling treats server TLS as one-cert-per-process for stability).
 				           - Done (2026-01-08): deterministic pinning is enforced by `std:net/tls.wrap_client` when `opts["pin_cert_sha256_hex"]` is provided (so HTTP/WS do not duplicate pinning logic).
 						           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider).
 						             - HTTP/2 needs a dedicated framing layer + server-side negotiation; ALPN offer plumbing is now in place (Linux/OpenSSL).

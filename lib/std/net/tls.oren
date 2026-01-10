@@ -16,6 +16,7 @@
 // - `read_into(conn, buf, cap, timeout_ms)` -> n or -errno
 // - `write_from(conn, ptr, len, timeout_ms)` -> n or -errno
 // - `close(conn)` -> 0 or -errno
+// - `win_cleanup()` -> 0 (no-op on non-Windows; releases cached Schannel creds on Windows)
 // - `peer_cert_sha256_hex(conn)` -> {"ok":1,"v":string} or {"ok":0,"err":string}
 // - `negotiated_alpn(conn)` -> {"ok":1,"v":string|nil} or {"ok":0,"err":string}
 //
@@ -95,6 +96,19 @@ fn _pin_peer_cert_if_requested(conn, opts) {
     }
     free(got_pin)
     return {"ok": 1}
+}
+
+// --- Provider lifecycle helpers (rolling) ---
+
+@cfg(os="windows")
+fn win_cleanup() {
+    // Best-effort: allow test harnesses / long-running processes to release cached Schannel creds.
+    return tls_win.win_cleanup()
+}
+
+@cfg(not_os="windows")
+fn win_cleanup() {
+    return 0
 }
 
 // --- Default stub (Tier‑1 providers missing) ---

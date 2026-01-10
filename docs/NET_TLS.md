@@ -85,6 +85,9 @@ Functions (rolling v0):
 - `tls.read_into(conn, buf, cap, timeout_ms)` → `n` or `-errno`
 - `tls.write_from(conn, ptr, len, timeout_ms)` → `n` or `-errno`
 - `tls.close(conn)` → `0` or `-errno`
+- `tls.win_cleanup()` → `0` (rolling)
+  - No-op on non-Windows.
+  - On Windows/Schannel: releases cached credential material; intended for shutdown / test harness cleanup.
 
 Note:
 
@@ -242,9 +245,13 @@ Implementation notes (Windows):
   - Some Win11 x64 environments are sensitive to the lifetime of the `SCHANNEL_CRED` (and its `paCred` array)
     passed into `AcquireCredentialsHandleA`, even after `FreeCredentialsHandle` returns.
   - To keep TLS/HTTPS/WSS stable across long code paths, the provider caches Schannel credentials per-process and
-    keeps the `SCHANNEL_CRED` memory alive for the lifetime of the process (client: `insecure_skip_verify` 0/1;
-    server: PKCS12 SHA256).
-  - TODO: expose an explicit `tls.win_cleanup()` for long-lived processes that want to free cached credentials.
+    keeps the `SCHANNEL_CRED` memory alive for the lifetime of the process:
+    - client: cached by `insecure_skip_verify` (0/1)
+    - server: cached by `(pkcs12_bytes, passphrase)` (hash key is `sha256(pkcs12_bytes) + ":" + sha256(passphrase_bytes)`)
+  - `tls.win_cleanup()` exists (rolling):
+    - Releases cached Schannel credential material (client + server).
+    - Must only be called when no active TLS connections exist (intended for shutdown / test harness cleanup).
+    - Rolling caveat: server credentials are treated as “one certificate per process”; the provider does not replace cached server credentials in-process.
 - **Server handshake must start with input**:
   - `AcceptSecurityContext` is not guaranteed to establish a context handle when called with a zero-length input token.
   - The server handshake loop therefore reads the initial ClientHello bytes before the first `AcceptSecurityContext` call.
