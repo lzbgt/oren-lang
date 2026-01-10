@@ -34,6 +34,16 @@ Implementation reference:
 - `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren`
 - `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren`
 
+## Windows: do not rely on `OS=Windows_NT` for path parsing
+
+In rolling mode, scripts and shells can execute the compiler in environments where `OS=Windows_NT`
+is missing or overridden (PowerShell/SSH sessions, minimal envs, etc.).
+
+Hard rule:
+
+- Path helper functions used for output naming (`basename`, `dirname`) must treat both `/` and `\\`
+  as separators, regardless of `OS` env var presence.
+
 ## Windows: MSVC wrapper batch scripts and variable expansion
 
 When generating `.cmd` wrappers for MSVC (`VsDevCmd.bat` / `vcvars64.bat`), avoid this pitfall:

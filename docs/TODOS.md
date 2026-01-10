@@ -144,6 +144,8 @@ References:
 	         - Repro gate: `make verify-stage2-win` (runs `./scripts/verify_windows_stage2_from_stage1.sh`).
 	         - Capture the full remote log into the repo before debugging:
 	           - `./scripts/fetch_remote_file.sh --win-path 'E:\work\oren-lang\s2_build_failure.log'`
+	         - Known failure mode (from captured log): `x64 pe: failed to write ... examples\myapp` when the compiler treats `\` as part of the basename.
+	           - Fix direction: path basename/dirname must treat both `/` and `\` as separators even if `OS=Windows_NT` env var is missing.
 	         - Note: scripts now run a fast SSH preflight and emit bounded probe logs under `build/logs/*remote_probe*.log` when proxy/hostname resolution breaks.
 			       - Build system parity (Windows host):
 			         - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.

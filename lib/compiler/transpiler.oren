@@ -1307,8 +1307,9 @@ fn transpile_for_header_stmt(t, stmt) {
 fn dirname(path) {
     var i = oren_string_len(path) - 1
     while i >= 0 {
-        if oren_string_char_at(path, i) == "/" {
-            if i == 0 { return "/" }
+        var ch = oren_string_char_at(path, i)
+        if ch == "/" || ch == "\\" {
+            if i == 0 { return ch }
             return oren_string_slice(path, 0, i)
         }
         i = i - 1

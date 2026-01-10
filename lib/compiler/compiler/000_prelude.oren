@@ -357,10 +357,13 @@ fn run_shell_capture(timeout_bin, timeout_secs, cmd, log_path) {
 fn basename(path) {
     if path == nil { return "" }
     var i = oren_string_len(path) - 1
-    var is_win = (oren_env("OS") == "Windows_NT")
     while i >= 0 {
         var ch = oren_string_char_at(path, i)
-        if ch == "/" || (is_win && ch == "\\") {
+        // Treat both separators as path separators unconditionally.
+        // Rationale: on Windows hosts, the `OS=Windows_NT` env var is not guaranteed to be present
+        // (e.g. PowerShell, SSH sessions, or minimal environments). Output naming must still be
+        // robust when inputs use backslashes (e.g. `examples\myapp.oren`).
+        if ch == "/" || ch == "\\" {
             return oren_string_slice(path, i + 1, oren_string_len(path))
         }
         i = i - 1
