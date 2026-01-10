@@ -417,14 +417,14 @@ References:
   - Stdlib wrappers (rolling ergonomics):
     - `std:ffi/libc` centralizes the cross-OS `puts/strlen` boilerplate (`@cfg` + `@ffi.link`/`@ffi.dll`).
     - `std:ffi/kernel32` centralizes Windows-only bindings like `GetCurrentThreadId`.
-      - Added (2026-01-11): also exposes `GetLastError` and `SetLastError` to validate `u32` + `void` ABI return kinds through a module-exported wrapper.
-    - Added (2026-01-11): `std:ffi/secur32` and `std:ffi/crypt32` centralize Schannel/SSPI + cert-store FFI. `std:net/tls_windows_schannel` imports these wrappers instead of declaring FFI locally.
-    - Added (2026-01-11): `std:ffi/iphlpapi` centralizes `GetNetworkParams` (used by `std:net/dns` default resolver selection on Windows).
-    - Added (2026-01-11): `std:ffi/libdl` centralizes `dlopen/dlsym` (used by `std:net/tls_linux_openssl` to lazily load OpenSSL without forcing DT_NEEDED on TLS users).
-    - Added (2026-01-11): `std:ffi/macos_security`, `std:ffi/macos_corefoundation`, and `std:ffi/macos_dlfcn` centralize macOS TLS provider framework + dlsym bindings (`std:net/tls_macos_securetransport`).
+      - Added (2026-01-10): also exposes `GetLastError` and `SetLastError` to validate `u32` + `void` ABI return kinds through a module-exported wrapper.
+    - Added (2026-01-10): `std:ffi/secur32` and `std:ffi/crypt32` centralize Schannel/SSPI + cert-store FFI. `std:net/tls_windows_schannel` imports these wrappers instead of declaring FFI locally.
+    - Added (2026-01-10): `std:ffi/iphlpapi` centralizes `GetNetworkParams` (used by `std:net/dns` default resolver selection on Windows).
+    - Added (2026-01-10): `std:ffi/libdl` centralizes `dlopen/dlsym` (used by `std:net/tls_linux_openssl` to lazily load OpenSSL without forcing DT_NEEDED on TLS users).
+    - Added (2026-01-10): `std:ffi/macos_security`, `std:ffi/macos_corefoundation`, and `std:ffi/macos_dlfcn` centralize macOS TLS provider framework + dlsym bindings (`std:net/tls_macos_securetransport`).
     - Regression (remote Win11): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/test_std_ffi_kernel32_smoke.oren` (stage1 + stage2).
     - Regression (local x64 compile-only): `scripts/verify_native_x64_compile_only.sh --targets x64-win` builds the same fixture (stage1 + stage2).
-      - Also compiles the integrated NET surface smoke (`tests/fixtures/x64_compile_only_net_tls_http2_smoke.oren`) to keep TLS/HTTP/HTTP2/WSS buildable on x64 even when the remote host is unreachable.
+      - Also compiles the integrated NET surface smoke (`tests/fixtures/x64_compile_only_net_tls_http2_smoke.oren`) to keep TLS/HTTP/HTTP2/WSS + `std:crypto` facades buildable on x64 even when the remote host is unreachable.
 
 - Windows: complete a coherent PROC story (pid/kill/wait semantics or define a cross-OS `sys_spawn` boundary).
   - Fixed (2026-01-04): `oren_system(_timeout)` now works on `x64-windows` (CreateProcessA path).

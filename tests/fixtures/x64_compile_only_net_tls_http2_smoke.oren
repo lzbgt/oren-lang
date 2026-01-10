@@ -19,11 +19,14 @@
 import tcp "std:net/tcp"
 import dns "std:net/dns"
 import tls "std:net/tls"
+import ctls "std:crypto/tls"
 import http "std:net/http"
 import h2 "std:net/http2"
 import hpack "std:net/hpack"
 import h2c "std:net/http2_client"
 import ws "std:net/ws"
+import rand "std:crypto/rand"
+import pem "std:crypto/pem"
 
 fn main() {
     // Keep runtime behavior trivial. The x64 compile-only gate does not run this program.
@@ -47,6 +50,9 @@ fn main() {
         if ok == 1 {
             var conn = oren_map_get_str(cr, "conn")
             var _al = tls.negotiated_alpn(conn)
+            // Crypto-facing TLS facade path (should remain a stable import; currently an alias layer).
+            var _cr2 = ctls.wrap_client(fd, "oren.test", 1, {"insecure_skip_verify": 1, "alpn": ["h2", "http/1.1"]})
+
             // HTTP/1.1 surface (TLS-backed GET response helper).
             // Note: we do not actually dial; this is just a type/symbol coverage hook.
             var _rr = http.get_response_opts("https://127.0.0.1/", 1, {"tls": {"insecure_skip_verify": 1}})
@@ -73,6 +79,10 @@ fn main() {
             {"name": ":path", "value": "/"}
         ], {"huffman": 0})
         var _dr = hpack.decode_header_block(t, hb)
+
+        // Crypto helpers (host effects) - keep these behind a dead branch; we only want buildability.
+        var _rb = rand.bytes(16)
+        var _pem = pem.decode_blocks("-----BEGIN CERTIFICATE-----\\nZm9v\\n-----END CERTIFICATE-----\\n")
 
         // (http2_client symbols referenced above)
     }
