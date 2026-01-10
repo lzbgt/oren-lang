@@ -147,6 +147,10 @@ make verify # Run full self-hosting test
   ```bash
   ./oren scan /usr/lib/libSystem.B.dylib
   ```
+  Notes (rolling):
+  - `oren scan` prefers parsing an adjacent generated header when scanning an **Oren-produced** native `--lib` artifact.
+    - Example: `build/libmath.dylib` → `build/libmath.h`
+    - This keeps `scan` useful cross-platform even when the host `nm` cannot read foreign formats (PE/ELF on macOS) or when the shared object is stripped.
 
 ## Internal Architecture
 - **Single-Pass Compilation**: Code is emitted sequentially.

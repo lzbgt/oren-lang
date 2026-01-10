@@ -312,6 +312,100 @@ fn compiler_main() {
         ensure_dir("build/tmp")
         var nm_out = "build/tmp/scan_tmp.txt"
 
+        // Preferred (rolling): if this library was produced by Oren's `--lib` output,
+        // there is a generated C header next to it. Prefer parsing the header so this
+        // command works cross-platform (macOS `nm` cannot read PE/ELF, and stripped
+        // shared objects may not expose text symbols).
+        //
+        // Example:
+        //   ./oren build examples/libmath.oren --backend native --lib -o build/libmath.dylib --metadata
+        // produces:
+        //   build/libmath.dylib
+        //   build/libmath.h
+        // Find the last '.' in the path (extension separator). Keep this local: not all
+        // runtimes expose a "last_index_of" helper.
+        var dot_idx = nil
+        var _lib_len = oren_string_len(lib)
+        var _p = _lib_len - 1
+        while _p >= 0 {
+            if oren_string_char_at(lib, _p) == "." {
+                dot_idx = _p
+                _p = -1
+            } else {
+                _p = _p - 1
+            }
+        }
+        var hdr_guess = nil
+        if dot_idx != nil && dot_idx > 0 {
+            hdr_guess = oren_string_slice(lib, 0, dot_idx) + ".h"
+        } else {
+            hdr_guess = lib + ".h"
+        }
+        var hdr = oren_read_file(hdr_guess)
+        if !oren_is_err(hdr) {
+            // Very small parser: extract `extern <ret> <name>(...);` symbols.
+            // Keep output deterministic and bounded (no dumping entire header).
+            print("# API Documentation for " + lib)
+            print("")
+            print("| Symbol | Address | Type |")
+            print("|---|---|---|")
+
+            var s = hdr
+            var n = oren_string_len(s)
+            var i = 0
+            while i < n {
+                // Find "extern " occurrences.
+                var found = false
+                if i + 7 <= n {
+                    if oren_string_slice(s, i, i + 7) == "extern " {
+                        found = true
+                    }
+                }
+                if !found {
+                    i = i + 1
+                    continue
+                }
+
+                // Parse: extern <ret> <name>(
+                // Skip "extern ".
+                var j = i + 7
+                // Skip return type token(s): consume until we hit a space followed by an identifier token.
+                // Heuristic: scan forward for '(' and back up to extract name.
+                var k = j
+                while k < n && oren_string_char_at(s, k) != "(" {
+                    k = k + 1
+                }
+                if k >= n {
+                    break
+                }
+                // Walk backwards from '(' to find the function name token (letters/digits/_).
+                var end = k
+                var start = end - 1
+                while start >= 0 {
+                    var ch = oren_string_char_at(s, start)
+                    var ok = false
+                    if ch == "_" { ok = true }
+                    else if ch >= "a" && ch <= "z" { ok = true }
+                    else if ch >= "A" && ch <= "Z" { ok = true }
+                    else if ch >= "0" && ch <= "9" { ok = true }
+                    if !ok { start = start + 1; break }
+                    start = start - 1
+                }
+                if start < 0 { start = 0 }
+                // Ensure we extracted something and it's not the return type.
+                var name = oren_string_slice(s, start, end)
+                if name != nil && name != "" {
+                    // Filter out common header noise like `extern "C"`.
+                    if name != "C" {
+                        print("| " + name + " | - | Function |")
+                    }
+                }
+
+                i = k + 1
+            }
+            return nil
+        }
+
         // Host-aware nm flags:
         // - macOS: `nm -gU` (external, no undefineds; underscores in symbols)
         // - Linux: `nm -gD` (dynamic symbols from shared objects)
