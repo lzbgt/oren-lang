@@ -58,7 +58,8 @@ References:
 
 - Perf playbook: `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`
 - Remote x64 workflow: `docs/REMOTE_X64_ENV.md`
-- Language docs baseline (keep in sync with tests): `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md`, `docs/LANGUAGE_FEATURE_MATRIX.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md` (last sync: 2026-01-09; includes stdlib import resolution + native Windows spawn/join + TLS/HTTPS/WSS notes + HTTP/2 framing bring-up status)
+- Language docs baseline (keep in sync with tests): `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md`, `docs/LANGUAGE_FEATURE_MATRIX.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md` (last sync: 2026-01-10; includes stdlib import resolution + native Windows spawn/join + TLS/HTTPS/WSS notes + HTTP/2 framing bring-up status)
+  - Updated (2026-01-10): language docs now also document rolling reflection v0 (`__oren_type` tagging on struct values) and the `scalar == nil` guardrail.
 
 ## P0 (Now)
 
@@ -159,6 +160,7 @@ References:
 			         - Verified (2026-01-10): `make verify-stage2-win` / `scripts/verify_windows_stage2_from_stage1.sh` passes again, including the nested-path backslash input (`examples\\myapp.oren`), even when `OS` env is intentionally unset on the remote session (regression guard).
 			         - Note: scripts run a fast SSH preflight (with connect timeouts + a single retry for transient proxy flake) and emit bounded probe logs under `build/logs/*remote_probe*.log` when proxy/hostname resolution breaks.
 			         - Done (2026-01-10): `scripts/analyze_stage2_failure_log.sh` no longer uses backticks in `echo` (avoid accidental command substitution; prints literal guidance + optional local SHA safely).
+			         - Done (2026-01-10): `scripts/verify_windows_stage2_from_stage1.sh` attempts to download the full stage1→stage2 build log into `project-doc/remote/<timestamp>/stage1_build_stage2.log` (best-effort; keeps console output bounded by default).
 				       - Build system parity (Windows host):
 					         - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
 				         - Done (2026-01-10): `oren build` default output naming for `--platform x64-windows` now appends `.exe` when `-o/--out` is omitted.
