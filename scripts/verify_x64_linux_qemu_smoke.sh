@@ -51,8 +51,10 @@ build_one() {
   local src="$2"
   local out="$3"
   local logf="$4"
+  shift 4
   log "== build: ${compiler} -> x64-linux: $(basename "$src") =="
-  if ! timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$src" --backend native --platform x64-linux --no-cache --no-debug -o "$out" >"$logf" 2>&1; then
+  # NOTE: keep extra args *before* `-o`. Some rolling CLI parsing paths treat late flags as positional.
+  if ! timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$src" --backend native --platform x64-linux --no-cache --no-debug "$@" -o "$out" >"$logf" 2>&1; then
     echo "--- build failed: $out ---" >&2
     tail -n 200 "$logf" >&2 || true
     return 1
@@ -84,15 +86,31 @@ run_one() {
 
 PRINT_SRC="tests/native/print.oren"
 QI_SRC="tests/native/test_quick_integration_native.oren"
+LIBMATH_SRC="examples/libmath.oren"
+FFI_FROM_LIBMATH_SRC="examples/ffi_from_libmath.oren"
 
 build_one "./oren" "$PRINT_SRC" "build/tmp/print_stage1_x64_linux" "build/logs/x64_linux_print_stage1.log"
 build_one "./oren_stage2" "$PRINT_SRC" "build/tmp/print_stage2_x64_linux" "build/logs/x64_linux_print_stage2.log"
 build_one "./oren" "$QI_SRC" "build/tmp/qi_stage1_x64_linux" "build/logs/x64_linux_qi_stage1.log"
 build_one "./oren_stage2" "$QI_SRC" "build/tmp/qi_stage2_x64_linux" "build/logs/x64_linux_qi_stage2.log"
 
+# Shared library + FFI resolution smoke (high-signal for x64-linux native backend):
+# - stage1/stage2 emit a `.so` and a binary that calls into it via `ffi`.
+# - run under qemu-x86_64 so we exercise real Linux syscalls + dynamic loader behavior.
+build_one "./oren" "$LIBMATH_SRC" "build/tmp/libmath_stage1_x64_linux.so" "build/logs/x64_linux_libmath_stage1.log" --lib
+build_one "./oren_stage2" "$LIBMATH_SRC" "build/tmp/libmath_stage2_x64_linux.so" "build/logs/x64_linux_libmath_stage2.log" --lib
+build_one "./oren" "$FFI_FROM_LIBMATH_SRC" "build/tmp/ffi_from_libmath_stage1_x64_linux" "build/logs/x64_linux_ffi_from_libmath_stage1.log" --link "./libmath_stage1_x64_linux.so"
+build_one "./oren_stage2" "$FFI_FROM_LIBMATH_SRC" "build/tmp/ffi_from_libmath_stage2_x64_linux" "build/logs/x64_linux_ffi_from_libmath_stage2.log" --link "./libmath_stage2_x64_linux.so"
+
 run_one "build/tmp/print_stage1_x64_linux" "hello from native" "print_stage1_x64_linux"
 run_one "build/tmp/print_stage2_x64_linux" "hello from native" "print_stage2_x64_linux"
 run_one "build/tmp/qi_stage1_x64_linux" "native quick integration OK" "qi_stage1_x64_linux"
 run_one "build/tmp/qi_stage2_x64_linux" "native quick integration OK" "qi_stage2_x64_linux"
+
+# Copy the `.so` alongside the executable (the embedded `--link` uses a relative `./...so` path).
+docker cp "build/tmp/libmath_stage1_x64_linux.so" "$LINUX_DOCKER_ID:/tmp/hostbins/libmath_stage1_x64_linux.so"
+docker cp "build/tmp/libmath_stage2_x64_linux.so" "$LINUX_DOCKER_ID:/tmp/hostbins/libmath_stage2_x64_linux.so"
+run_one "build/tmp/ffi_from_libmath_stage1_x64_linux" "ffi_from_libmath: OK" "ffi_from_libmath_stage1_x64_linux"
+run_one "build/tmp/ffi_from_libmath_stage2_x64_linux" "ffi_from_libmath: OK" "ffi_from_libmath_stage2_x64_linux"
 
 log "OK: x64-linux QEMU smoke passed (stage1 + stage2)"
