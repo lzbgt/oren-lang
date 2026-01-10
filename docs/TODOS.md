@@ -526,9 +526,10 @@ References:
 		       - unify with the native tagged-value plan and remove key-kind inference fragility as a side-effect
 		       - fix semantic parity bugs caused by untagged immediates in native mode (C backend does not have these issues):
 		         - `0 == nil` historically evaluated true in native mode (so `== nil` checks on numeric values were unsafe).
-			           - Mitigated (2026-01-09): optimizer folds type-mismatched `==`/`!=` on literals and folds `id == nil` for locals proven non-nil; quick integration gate covers `0/nil/false` parity.
-			             - Added (2026-01-09): `make test` runs a `--typecheck` smoke that must fail on `numeric == nil` to prevent silent reintroduction of this pattern.
-			           - Remaining: full tagged value model still needed for unknown dynamic-type comparisons (see `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`).
+				           - Mitigated (2026-01-09): optimizer folds type-mismatched `==`/`!=` on literals and folds `id == nil` for locals proven non-nil; quick integration gate covers `0/nil/false` parity.
+				             - Added (2026-01-09): `make test` runs a `--typecheck` smoke that must fail on `numeric == nil` to prevent silent reintroduction of this hazard.
+				             - Done (2026-01-10): stdlib migrated optional numeric defaults away from `if x == nil { x = 0 }` to tag-based checks (`if oren_type_tag(x) == 0 { x = 0 }`) so core libraries don’t depend on scalar `== nil` semantics.
+				           - Remaining: full tagged value model still needed for unknown dynamic-type comparisons (see `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`).
 		             - Repro (still broken as of 2026-01-09): values flowing through maps/fields/params can still alias `nil/false/0`:
 		               - `var m={"x":0}; var v=m["x"]; if v==nil { ... }` currently takes the `== nil` branch in native mode.
 	     - varargs + reflection convergence:

@@ -30,11 +30,12 @@ TRACE=0
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/fetch_remote_file.sh --win-path <ABS_WINDOWS_PATH> [--out-name <name>] [--out-dir <dir>] [--trace]
+  scripts/fetch_remote_file.sh --win-path <ABS_WINDOWS_PATH> [--out-name <name>] [--out-dir <dir>] [--host <user@host>] [--proxy <ssh_opt>] [--trace]
 
 Examples:
   ./scripts/fetch_remote_file.sh --win-path 'E:\work\oren-lang\s2_build_failure.log'
   ./scripts/fetch_remote_file.sh --win-path 'C:\Users\lzbgt\tmp_oren\stage2_from_stage1\stage1_build_stage2.log' --out-name stage1_build_stage2.log
+  ./scripts/fetch_remote_file.sh --win-path 'E:\work\oren-lang\s2_build_failure.log' --host 'lzbgt@203.0.113.10'
 
 Env overrides:
   OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
@@ -59,6 +60,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --out-name)
       OUT_NAME="${2:-}"
+      shift 2
+      ;;
+    --host)
+      REMOTE_HOST="${2:-}"
+      shift 2
+      ;;
+    --proxy)
+      REMOTE_PROXY="${2:-}"
       shift 2
       ;;
     --trace)

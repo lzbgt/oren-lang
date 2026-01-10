@@ -13,5 +13,13 @@ fn main() {
     var y: f64 = 0.5
     if y == nil { print("unreachable3") }
 
+    // Also reject the common "config/default" footgun:
+    // `t` is inferred as unknown at the compare site, but later used in a numeric context.
+    var cfg = {"timeout_ms": 0}
+    var t = cfg["timeout_ms"]
+    if t == nil { print("missing_timeout") }
+    var u = i64(t) + 1
+    if u == nil { print("unreachable4") }
+
     exit(0)
 }

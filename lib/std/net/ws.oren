@@ -735,8 +735,8 @@ fn _send_frame_raw(conn, opcode, payload_ptr, payload_len, timeout_ms, masked) {
     //
     // payload_ptr may be 0 when payload_len==0.
     if timeout_ms == nil { timeout_ms = 5000 }
-    if payload_ptr == nil { payload_ptr = 0 }
-    if payload_len == nil { payload_len = 0 }
+    if oren_type_tag(payload_ptr) == 0 { payload_ptr = 0 }
+    if oren_type_tag(payload_len) == 0 { payload_len = 0 }
     if payload_len < 0 { payload_len = 0 }
     if payload_len > 0 && payload_ptr == 0 { return 0 - 22 } // EINVAL
 

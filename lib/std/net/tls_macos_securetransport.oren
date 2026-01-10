@@ -342,7 +342,7 @@ fn _macos_set_alpn_if_requested(ctx, opts, is_server) {
     // This keeps Tier‑1 HTTP/2 loopback fixtures deterministic while we evaluate a modern
     // TLS provider on macOS.
     var use_n = n
-    if is_server == nil { is_server = 0 }
+    if oren_type_tag(is_server) == 0 { is_server = 0 }
     if is_server != 0 && use_n > 1 { use_n = 1 }
     if oren_env("OREN_TRACE_TLS_ALPN") != nil {
         var p0 = ps[0]

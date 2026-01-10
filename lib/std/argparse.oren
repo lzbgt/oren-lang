@@ -890,7 +890,7 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
             if kind == 4 {
                 // Counted flag: increment.
                 var curc = oren_map_get_str(res["opts"], key)
-                if curc == nil { curc = 0 }
+                if oren_type_tag(curc) == 0 { curc = 0 }
                 _set_opt_value(res, key, opt, curc + 1)
             } else {
                 _set_opt_value(res, key, opt, true)
@@ -991,7 +991,7 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
     // Bool flags: allow -abc chaining (tail is remaining letters).
     if kind0 == 4 {
         var curc0 = oren_map_get_str(res["opts"], key0)
-        if curc0 == nil { curc0 = 0 }
+        if oren_type_tag(curc0) == 0 { curc0 = 0 }
         _set_opt_value(res, key0, opt0, curc0 + 1)
     } else {
         _set_opt_value(res, key0, opt0, true)
@@ -1029,7 +1029,7 @@ fn _parse_one_option(cmd, p, cmd_name, argv, i, res) {
         }
         if kk == 4 {
             var curci = oren_map_get_str(res["opts"], k)
-            if curci == nil { curci = 0 }
+            if oren_type_tag(curci) == 0 { curci = 0 }
             _set_opt_value(res, k, o, curci + 1)
         } else {
             _set_opt_value(res, k, o, true)

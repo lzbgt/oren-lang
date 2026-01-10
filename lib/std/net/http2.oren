@@ -107,7 +107,7 @@ fn write_frame_header(ptr0, length, typ, flags, stream_id) {
     if length < 0 || length > 16777215 { return 0 - 22 }
     if typ < 0 || typ > 255 { return 0 - 22 }
     if flags < 0 || flags > 255 { return 0 - 22 }
-    if stream_id == nil { stream_id = 0 }
+    if oren_type_tag(stream_id) == 0 { stream_id = 0 }
     if stream_id < 0 { return 0 - 22 }
     if stream_id > 2147483647 { return 0 - 22 }
 

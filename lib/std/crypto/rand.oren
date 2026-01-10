@@ -17,13 +17,13 @@ import result "std:result"
 
 fn fill(ptr, len) {
     if ptr == nil { return 0 - 14 } // EFAULT
-    if len == nil { len = 0 }
+    if oren_type_tag(len) == 0 { len = 0 }
     if len <= 0 { return 0 }
     return oren_getentropy(ptr, len)
 }
 
 fn bytes(n) {
-    if n == nil { n = 0 }
+    if oren_type_tag(n) == 0 { n = 0 }
     if n < 0 { return oren_err(4, "rand.bytes: n < 0") }
     if n == 0 { return oren_bytes_pack([]) }
 

@@ -379,7 +379,7 @@ fn decode(bs) {
 
 fn decode_next(bs, pos) {
     // Returns {"ok":1,"v":CborValue,"pos":newpos} or {"ok":0,"err":...,"pos":...}.
-    if pos == nil { pos = 0 }
+    if oren_type_tag(pos) == 0 { pos = 0 }
     return _decode_value(bs, pos)
 }
 

@@ -474,8 +474,8 @@ fn _table_evict_to_fit(t) {
     var max = oren_map_get_str(t, "max")
     var size = oren_map_get_str(t, "size")
     var es = oren_map_get_str(t, "entries")
-    if max == nil { max = 0 }
-    if size == nil { size = 0 }
+    if oren_type_tag(max) == 0 { max = 0 }
+    if oren_type_tag(size) == 0 { size = 0 }
     if es == nil { es = [] }
 
     if max <= 0 {
@@ -506,7 +506,7 @@ fn _table_evict_to_fit(t) {
 
 fn _table_add(t, name, value) {
     var max = oren_map_get_str(t, "max")
-    if max == nil { max = 0 }
+    if oren_type_tag(max) == 0 { max = 0 }
 
     var s = _entry_size(name, value)
     if s > max {
@@ -830,7 +830,7 @@ fn _huff_encode_bytes_from_string(s) {
 fn _encode_string_into(out, s, use_huffman) {
     // RFC 7541 §5.2.
     if s == nil { s = "" }
-    if use_huffman == nil { use_huffman = 0 }
+    if oren_type_tag(use_huffman) == 0 { use_huffman = 0 }
 
     if use_huffman != 0 {
         var hb = _huff_encode_bytes_from_string(s)

@@ -869,6 +869,8 @@ Native backend note:
     - Guardrail (2026-01-10): the compiler rejects `bool/int/float == nil` comparisons when the scalar side is statically known (literals, casts, or locally-proven scalars).
     - Remaining: comparisons involving values of unknown dynamic type (map lookups, function parameters, etc.) are still a native-backend “rolling” area until tagged values land.
       - Do **not** write `if x == nil { ... }` when `x` is numeric/bool (or you expect it to be); the compiler only rejects the cases it can prove statically.
+      - If you intentionally accept `nil` as “missing” for a numeric/bool parameter (optional arg style), prefer a tag-based check:
+        - `if oren_type_tag(x) == 0 { x = 0 }` (safe across backends; avoids `x == nil` on scalars)
       - Avoid using `0` as an “optional/missing” sentinel and avoid `== nil` checks on scalar values (numeric/bool) from unknown sources until `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md` is implemented.
 
 ### Compile-time execution (“comptime”) (design direction)

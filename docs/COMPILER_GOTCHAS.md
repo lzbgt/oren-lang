@@ -87,6 +87,8 @@ Concrete rule (treat as a correctness bug in rolling native builds):
 - Do **not** write `if x == nil { ... }` when `x` is numeric/bool (or you *expect* it to be).
   - Example footgun: `var x = cfg["timeout_ms"]; if x == nil { x = 1000 }`
   - If `cfg["timeout_ms"]` can be `0`, this pattern can still behave incorrectly in native mode when the value flows through a dynamic container.
+  - If you intentionally accept `nil` as “missing” for a numeric/bool parameter (optional arg style), prefer a tag-based check:
+    - `if oren_type_tag(x) == 0 { x = 0 }` (safe across backends; avoids `x == nil` on scalars)
   - Prefer explicit “optional” shapes instead (e.g. return `{"ok":1,"v":...}` / `{"ok":0}`), or keep the value as `nil`/non-`nil` reference types and avoid using `0`/`false` as “missing” sentinels.
 
 Practical compiler-internal corollary (x64 emitters):

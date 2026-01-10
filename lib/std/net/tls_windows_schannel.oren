@@ -188,7 +188,7 @@ fn _win_memzero(p, n) {
 fn _win_memmove(dst, src, n) {
     // Overlap-safe byte copy (memmove semantics).
     if dst == 0 || src == 0 { return 0 }
-    if n == nil { n = 0 }
+    if oren_type_tag(n) == 0 { n = 0 }
     if n <= 0 { return 0 }
     if dst == src { return 0 }
     if src > dst {
@@ -686,7 +686,7 @@ fn wrap_client(fd, server_name, timeout_ms, opts) {
     var hcred = hs["hcred"]
     var hctx = hs["hctx"]
     var cred_cached = hs["cred_cached"]
-    if cred_cached == nil { cred_cached = 0 }
+    if oren_type_tag(cred_cached) == 0 { cred_cached = 0 }
 
     var sz = _win_query_stream_sizes(hctx)
     if sz["ok"] != 1 {
@@ -950,7 +950,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
 @cfg(os="windows")
 fn read_into(conn, buf, cap, timeout_ms) {
     if conn == nil { return 0 - 22 } // EINVAL
-    if cap == nil { cap = 0 }
+    if oren_type_tag(cap) == 0 { cap = 0 }
     if cap <= 0 { return 0 }
     if timeout_ms == nil { timeout_ms = 5000 }
 
@@ -1124,7 +1124,7 @@ fn read_into(conn, buf, cap, timeout_ms) {
 fn write_from(conn, ptr0, len, timeout_ms) {
     if conn == nil { return 0 - 22 } // EINVAL
     if timeout_ms == nil { timeout_ms = 5000 }
-    if len == nil { len = 0 }
+    if oren_type_tag(len) == 0 { len = 0 }
     if len <= 0 { return 0 }
     var fd = conn["fd"]
     var hctx = conn["hctx"]
@@ -1187,7 +1187,7 @@ fn close(conn) {
     var sch_cred = conn["sch_cred"]
     var sch_cred_arr = conn["sch_cred_arr"]
     var cred_cached = conn["cred_cached"]
-    if cred_cached == nil { cred_cached = 0 }
+    if oren_type_tag(cred_cached) == 0 { cred_cached = 0 }
     var eb = conn["enc_buf"]
     var pb = conn["plain_buf"]
     var store = conn["pfx_store"]

@@ -31,8 +31,8 @@ fn slice_copy(xs, off, n) {
     //
     // Errors are returned as Err maps (not panics) so callers can keep servers/HPC jobs alive.
     if xs == nil { return oren_err(4, "list.slice_copy: xs is nil") }
-    if off == nil { off = 0 }
-    if n == nil { n = 0 }
+    if oren_type_tag(off) == 0 { off = 0 }
+    if oren_type_tag(n) == 0 { n = 0 }
     if off < 0 { return oren_err(4, "list.slice_copy: off < 0") }
     if n < 0 { return oren_err(4, "list.slice_copy: n < 0") }
     var total = oren_list_len(xs)
@@ -59,8 +59,8 @@ fn slice_view(xs, off, n) {
     // Notes:
     // - The marker value **must** be a string literal in native mode so the runtime can use pointer equality safely.
     // - Malformed views iterate as an empty sequence (deterministic, avoids crashes).
-    if off == nil { off = 0 }
-    if n == nil { n = 0 }
+    if oren_type_tag(off) == 0 { off = 0 }
+    if oren_type_tag(n) == 0 { n = 0 }
     return {"__iter": "list_slice", "base": xs, "off": off, "len": n}
 }
 

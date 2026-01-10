@@ -650,7 +650,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     var ctx = r["ctx"]
     var ssl = r["ssl"]
     var alpn_arg = r["alpn_arg"]
-    if alpn_arg == nil { alpn_arg = 0 }
+    if oren_type_tag(alpn_arg) == 0 { alpn_arg = 0 }
     var hs = _openssl_handshake(ssl, fd, timeout_ms, 1)
     if hs != 0 {
         SSL_free(ssl)
@@ -702,8 +702,8 @@ fn read_into(conn, buf, cap, timeout_ms) {
 @cfg(os="linux")
 fn write_from(conn, ptr0, len, timeout_ms) {
     if conn == nil { return 0 - 22 } // EINVAL
-    if ptr0 == nil { ptr0 = 0 }
-    if len == nil { len = 0 }
+    if oren_type_tag(ptr0) == 0 { ptr0 = 0 }
+    if oren_type_tag(len) == 0 { len = 0 }
     if len < 0 { len = 0 }
     var ssl = conn["ssl"]
     var fd = conn["fd"]
@@ -748,7 +748,7 @@ fn close(conn) {
     var ctx = conn["ctx"]
     var fd = conn["fd"]
     var alpn_arg = conn["alpn_arg"]
-    if alpn_arg == nil { alpn_arg = 0 }
+    if oren_type_tag(alpn_arg) == 0 { alpn_arg = 0 }
     if ssl != 0 {
         SSL_shutdown(ssl)
         SSL_free(ssl)
