@@ -2,6 +2,8 @@
 
 This guide documents the complete process of building the Oren compiler from source (bootstrapping), using it to build applications, and validating Tier‑1 targets in rolling mode (including remote x86_64 workflows where needed).
 
+For a concise “what is Tier‑1 and how do I prove it” index, see `docs/TIER1_SUPPORT_MATRIX.md`.
+
 ## 1. Bootstrapping Oren (Stage 0 to Self-Hosting)
 
 Oren is a self-hosted language. The repository contains a "Stage 0" compiler written in Go, which is used to compile the "Stage 1" compiler (written in Oren). Stage 1 can then compile itself to produce Stage 2, proving self-hosting capability.
