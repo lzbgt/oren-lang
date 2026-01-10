@@ -460,6 +460,14 @@ Notes:
 - Legacy code sometimes uses `string_concat(a, b)` directly; prefer `a + b` in modern Oren so
   backends can choose the optimal lowering.
 
+- Native backend implementation note (performance/GC):
+  - String literals like `"hello"` are **pooled** in the native output: identical literals are de-duplicated into a single constant byte pool, and their pointers are stable within the binary.
+  - These embedded literals live in the binary’s constant/data segment and are **not tracked as GC heap allocations** (they are “static”).
+  - Dynamically created strings (concatenation, slicing, parsing) still allocate and are GC-managed as usual.
+  - References:
+    - `docs/RUNTIME_NATIVE_LAYOUT.md` (literal pool + runtime init)
+    - `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md` (why this matters for hot paths)
+
 ## 3) Variables and assignment
 
 Declare with `var`:

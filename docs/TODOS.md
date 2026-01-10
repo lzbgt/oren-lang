@@ -314,6 +314,7 @@ References:
          - x64 string-aware compares use `native_is_string_ptr` so `if s == "lit"` works without literal tracking.
          - Regression: `make test`, `./scripts/verify_native_net_matrix.sh`, `./scripts/verify_selfhost_x64_compiler.sh --targets x64-win`.
        - Done (2026-01-08): string literal pooling/interning is whole-program for native output (`cstr0` pool de-dupes identical literals; pointer identity stable within the binary).
+         - Doc note: `docs/LANGUAGE_MANUAL.md` “Strings” section now calls out the pooling + GC behavior (so users don’t assume literals allocate).
 	       - Native FFI / dynamic linking parity (rolling):
 	       - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
 	       - Done (2026-01-09): Linux native backend supports `@ffi.export` for executables (ELF dynsym) so `dlsym(RTLD_DEFAULT, ...)` can locate callback symbols.
