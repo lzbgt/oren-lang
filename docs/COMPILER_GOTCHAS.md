@@ -104,3 +104,27 @@ Practical compiler-internal corollary (x64 emitters):
 - If you store a **byte offset** (where `0` is a valid payload) inside a map/dict (e.g. fixup records, offset caches), you must protect `0` from “missing” ambiguity.
   - Preferred: store `off+1` and decode via `off = enc-1`.
   - This is still a good habit even with singleton `nil`: it avoids “value vs missing” ambiguity and keeps code robust during rolling refactors.
+
+## Native strings: embedded literal pool must not hit GC tracking
+
+The self-hosted compiler contains **many** string literals. In native mode, tracking each literal as a heap object (or even creating per-literal metadata nodes) can become a real startup and GC hotspot.
+
+Rolling invariants:
+
+- Native codegen de-duplicates `"literal"` bytes into a single NUL-terminated pool (`cstr0`) embedded in the binary data blob.
+- The native entry stub calls `oren_init_static_cstr0_table(...)` once at startup to build a membership set for the literal start pointers.
+  - This makes `native_is_string_ptr(...)` safe and fast **without** heap-copying literals.
+- String literals must **not** be treated as GC-managed heap allocations:
+  - Do not root them (`native_gc_register_root`) and do not “intern” them into heap strings.
+  - When you need an owned, tracked string, copy into a heap string explicitly (example helper: `oren_intern_cstr`).
+
+Implementation references:
+
+- cstr0 membership set + init: `lib/runtime_native/100_time.oren` (`oren_init_static_cstr0_table`, `native_cstr0_set_has`)
+- string helpers + intern cache: `lib/runtime_native/150_strings.oren`
+- safety guard for tracking: `lib/runtime_native/110_mem_diag.oren` (`oren_ensure_tracked`, string kind branch)
+
+Engineering note (self-hosting hygiene):
+
+- Avoid adding new dependencies on external host tools (e.g. `rg`/ripgrep) inside the compiler runtime path.
+  - If you need pattern matching for compiler tooling, prefer Oren stdlib modules (regex/tokenization) so the compiler remains self-contained on Tier‑1 targets.

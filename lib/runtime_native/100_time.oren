@@ -1452,8 +1452,9 @@ fn oren_mark_value(val) {
     var node = oren_find_node(val)
     if node != 0 {
         var kind = ptr_get(iadd(node, 16))
-        // String literals are tracked as static-kind nodes (size=0) for classification only.
-        // They are not GC-managed and should not participate in mark/sweep.
+        // Static-kind strings (size=0) are classification-only pointers:
+        // - They are not GC-managed and must not participate in mark/sweep.
+        // - Embedded cstr0 literals are typically *not tracked at all* (recognized via `native_cstr0_set_has`).
         if kind == 1 {
             if ptr_get(iadd(node, 8)) == 0 { return 0 }
         }
