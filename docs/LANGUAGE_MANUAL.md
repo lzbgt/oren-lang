@@ -330,6 +330,9 @@ Why `@cfg` exists (and when to use it):
   - FFI library names / frameworks (`@ffi.dll("...")` on Windows vs `@ffi.link("...")` on Linux/macOS),
   - platform-specific constants/struct layouts at syscall boundaries,
   - host build/packaging details (e.g. Windows `.exe` naming in scripts).
+- In tests/stdlib, `@cfg` is allowed as a **boundary tool**:
+  - It should gate small platform-specific declarations (FFI library names, syscall structs), while the *public* API being tested stays stable (`std:net/*`, `std:crypto/*`, etc.).
+  - If you see `@cfg` sprinkled through application logic, treat it as a signal that a missing stdlib abstraction should be added (rolling goal: keep `@cfg` rare).
 
 Supported selector forms (rolling v0):
 
