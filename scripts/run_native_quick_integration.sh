@@ -133,6 +133,24 @@ if [[ "$rc" -eq 0 ]]; then
 fi
 tail -n 5 "$ng2_log"
 
+echo "== nil-compare guard smoke (annotated call result) =="
+ng3_src="tests/fixtures/nil_guard_bad_annotated_call_nil_compare.oren"
+ng3_log="build/logs/${compiler_base}_nil_guard_smoke_annotated_call.log"
+ng3_out="build/tmp/${compiler_base}_nil_guard_smoke_annotated_call.obc"
+rm -f "$ng3_log" "$ng3_out" 2>/dev/null || true
+
+set +e
+"$compiler" build "$ng3_src" --backend bytecode -o "$ng3_out" >"$ng3_log" 2>&1
+rc=$?
+set -e
+
+if [[ "$rc" -eq 0 ]]; then
+  echo "FAIL: nil-compare guard smoke (annotated call) expected failure but build succeeded"
+  tail -n 80 "$ng3_log"
+  exit 1
+fi
+tail -n 5 "$ng3_log"
+
 echo "== typecheck smoke (bool vs nil) =="
 tc2_src="tests/fixtures/typecheck_bad_bool_nil.oren"
 tc2_log="build/logs/${compiler_base}_typecheck_smoke_bool_nil.log"

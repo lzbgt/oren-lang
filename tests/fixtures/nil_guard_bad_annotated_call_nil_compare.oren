@@ -1,0 +1,20 @@
+// Expected to fail under: `./oren build ...`
+//
+// Rationale:
+// - The nil-compare guard is always-on (even without `--typecheck`).
+// - If a function’s return type is explicitly annotated as a scalar (bool/int/float),
+//   comparing its return value to `nil` is a bug: scalars are never `nil`.
+//
+// This fixture ensures the always-on guard uses local function signatures (best-effort)
+// and does not only rely on literals/casts.
+
+fn f_int(): i64 { return 0 }
+fn f_float(): f64 { return 0.5 }
+fn f_bool(): bool { return true }
+
+fn main() {
+    if f_int() == nil { print("unreachable_int") }
+    if nil != f_float() { print("unreachable_float") }
+    if f_bool() == nil { print("unreachable_bool") }
+    exit(0)
+}

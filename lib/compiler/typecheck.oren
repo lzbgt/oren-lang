@@ -163,6 +163,30 @@ fn _cat(expr, env) {
     return "unknown"
 }
 
+fn _cat_with_sigs(expr, env, sigs) {
+    // Conservative "static category" classifier with function-signature awareness.
+    //
+    // This is used by always-on guardrails (e.g. nil-vs-scalar compares) where we want to
+    // catch more obvious mistakes without enabling the full `--typecheck` pipeline.
+    //
+    // Returns: int|float|string|bool|nil|list|map|unknown
+    var k = _cat(expr, env)
+    if k != "unknown" { return k }
+    if expr == nil { return "unknown" }
+    if sigs == nil { return "unknown" }
+    if expr["type"] != "Call" { return "unknown" }
+
+    var fn_expr = expr["fn"]
+    if fn_expr == nil || fn_expr["type"] != "Identifier" { return "unknown" }
+
+    var sig = sigs[fn_expr["value"]]
+    if sig == nil { return "unknown" }
+
+    var ret = sig["ret"]
+    if ret == "int" || ret == "float" || ret == "bool" || ret == "string" { return ret }
+    return "unknown"
+}
+
 fn _nil_guard_mark_scalar_likely(scalar_likely, expr) {
     if scalar_likely == nil || expr == nil { return nil }
     if expr["type"] == "Identifier" && expr["value"] != nil {
@@ -656,17 +680,17 @@ fn typecheck_linked_program_in_place(linked) {
     return linked
 }
 
-fn _nil_guard_expr(errors, expr, env, scalar_likely) {
+fn _nil_guard_expr(errors, expr, env, scalar_likely, sigs) {
     if expr == nil { return nil }
     var t = expr["type"]
-    if t == "Prefix" { return _nil_guard_expr(errors, expr["right"], env, scalar_likely) }
+    if t == "Prefix" { return _nil_guard_expr(errors, expr["right"], env, scalar_likely, sigs) }
     if t == "Infix" {
-        _nil_guard_expr(errors, expr["left"], env, scalar_likely)
-        _nil_guard_expr(errors, expr["right"], env, scalar_likely)
+        _nil_guard_expr(errors, expr["left"], env, scalar_likely, sigs)
+        _nil_guard_expr(errors, expr["right"], env, scalar_likely, sigs)
         var op = expr["op"]
         if op == "==" || op == "!=" {
-            var lc = _cat(expr["left"], env)
-            var rc = _cat(expr["right"], env)
+            var lc = _cat_with_sigs(expr["left"], env, sigs)
+            var rc = _cat_with_sigs(expr["right"], env, sigs)
             // Heuristic strengthening:
             // If the compared-to-nil expression is an identifier that is later used in a scalar
             // context (numeric/bool ops or explicit casts), treat it as scalar-likely even if the
@@ -684,16 +708,16 @@ fn _nil_guard_expr(errors, expr, env, scalar_likely) {
         return nil
     }
     if t == "If" {
-        _nil_guard_expr(errors, expr["cond"], env, scalar_likely)
-        _nil_guard_stmt(errors, expr["consq"], env, scalar_likely)
-        if expr["alt"] != nil { _nil_guard_stmt(errors, expr["alt"], env, scalar_likely) }
+        _nil_guard_expr(errors, expr["cond"], env, scalar_likely, sigs)
+        _nil_guard_stmt(errors, expr["consq"], env, scalar_likely, sigs)
+        if expr["alt"] != nil { _nil_guard_stmt(errors, expr["alt"], env, scalar_likely, sigs) }
         return nil
     }
     if t == "Array" {
         var xs = expr["elements"]
         var i = 0
         while i < oren_list_len(xs) {
-            _nil_guard_expr(errors, xs[i], env, scalar_likely)
+            _nil_guard_expr(errors, xs[i], env, scalar_likely, sigs)
             i = i + 1
         }
         return nil
@@ -702,31 +726,31 @@ fn _nil_guard_expr(errors, expr, env, scalar_likely) {
         var ps = expr["pairs"]
         var i2 = 0
         while i2 < oren_list_len(ps) {
-            _nil_guard_expr(errors, ps[i2]["key"], env, scalar_likely)
-            _nil_guard_expr(errors, ps[i2]["value"], env, scalar_likely)
+            _nil_guard_expr(errors, ps[i2]["key"], env, scalar_likely, sigs)
+            _nil_guard_expr(errors, ps[i2]["value"], env, scalar_likely, sigs)
             i2 = i2 + 1
         }
         return nil
     }
     if t == "Index" {
-        _nil_guard_expr(errors, expr["left"], env, scalar_likely)
-        _nil_guard_expr(errors, expr["index"], env, scalar_likely)
+        _nil_guard_expr(errors, expr["left"], env, scalar_likely, sigs)
+        _nil_guard_expr(errors, expr["index"], env, scalar_likely, sigs)
         return nil
     }
     if t == "Member" {
-        _nil_guard_expr(errors, expr["left"], env, scalar_likely)
+        _nil_guard_expr(errors, expr["left"], env, scalar_likely, sigs)
         return nil
     }
-    if t == "SpawnExpr" { return _nil_guard_expr(errors, expr["call"], env, scalar_likely) }
+    if t == "SpawnExpr" { return _nil_guard_expr(errors, expr["call"], env, scalar_likely, sigs) }
     if t == "Call" {
-        _nil_guard_expr(errors, expr["fn"], env, scalar_likely)
+        _nil_guard_expr(errors, expr["fn"], env, scalar_likely, sigs)
         var args = expr["args"]
         var i3 = 0
         while i3 < oren_list_len(args) {
-            _nil_guard_expr(errors, args[i3], env, scalar_likely)
+            _nil_guard_expr(errors, args[i3], env, scalar_likely, sigs)
             i3 = i3 + 1
         }
-        if expr["spread"] != nil { _nil_guard_expr(errors, expr["spread"], env, scalar_likely) }
+        if expr["spread"] != nil { _nil_guard_expr(errors, expr["spread"], env, scalar_likely, sigs) }
         return nil
     }
     if t == "Function" {
@@ -743,13 +767,13 @@ fn _nil_guard_expr(errors, expr, env, scalar_likely) {
         }
         var fn_scalar_likely = {}
         _nil_guard_collect_scalar_likely_stmt(fn_scalar_likely, expr["body"])
-        _nil_guard_stmt(errors, expr["body"], fn_env, fn_scalar_likely)
+        _nil_guard_stmt(errors, expr["body"], fn_env, fn_scalar_likely, sigs)
         return nil
     }
     return nil
 }
 
-fn _nil_guard_stmt(errors, stmt, env, scalar_likely) {
+fn _nil_guard_stmt(errors, stmt, env, scalar_likely, sigs) {
     if stmt == nil { return nil }
     var t = stmt["type"]
     if t == "Block" || t == "StmtList" {
@@ -758,7 +782,7 @@ fn _nil_guard_stmt(errors, stmt, env, scalar_likely) {
         if xs == nil { return nil }
         var i = 0
         while i < oren_list_len(xs) {
-            _nil_guard_stmt(errors, xs[i], env, scalar_likely)
+            _nil_guard_stmt(errors, xs[i], env, scalar_likely, sigs)
             i = i + 1
         }
         return nil
@@ -770,60 +794,60 @@ fn _nil_guard_stmt(errors, stmt, env, scalar_likely) {
                 var kc = _ann_to_cat(nm["ann_type"])
                 if kc == "int" || kc == "float" || kc == "bool" { env[nm["value"]] = kc }
             } else {
-                var kc2 = _cat(stmt["value"], env)
+                var kc2 = _cat_with_sigs(stmt["value"], env, sigs)
                 if kc2 == "int" || kc2 == "float" || kc2 == "bool" { env[nm["value"]] = kc2 }
             }
         }
-        _nil_guard_expr(errors, stmt["value"], env, scalar_likely)
+        _nil_guard_expr(errors, stmt["value"], env, scalar_likely, sigs)
         return nil
     }
     if t == "Assign" {
-        _nil_guard_expr(errors, stmt["value"], env, scalar_likely)
+        _nil_guard_expr(errors, stmt["value"], env, scalar_likely, sigs)
         var anm = stmt["name"]
         if anm != nil && anm["type"] == "Identifier" && anm["value"] != nil {
-            var kc3 = _cat(stmt["value"], env)
+            var kc3 = _cat_with_sigs(stmt["value"], env, sigs)
             if kc3 == "int" || kc3 == "float" || kc3 == "bool" { env[anm["value"]] = kc3 }
         }
         return nil
     }
     if t == "Set" {
-        _nil_guard_expr(errors, stmt["left"], env, scalar_likely)
-        _nil_guard_expr(errors, stmt["value"], env, scalar_likely)
+        _nil_guard_expr(errors, stmt["left"], env, scalar_likely, sigs)
+        _nil_guard_expr(errors, stmt["value"], env, scalar_likely, sigs)
         return nil
     }
-    if t == "Return" { return _nil_guard_expr(errors, stmt["value"], env, scalar_likely) }
-    if t == "ExprStmt" { return _nil_guard_expr(errors, stmt["expr"], env, scalar_likely) }
+    if t == "Return" { return _nil_guard_expr(errors, stmt["value"], env, scalar_likely, sigs) }
+    if t == "ExprStmt" { return _nil_guard_expr(errors, stmt["expr"], env, scalar_likely, sigs) }
     if t == "While" {
-        _nil_guard_expr(errors, stmt["cond"], env, scalar_likely)
-        return _nil_guard_stmt(errors, stmt["body"], env, scalar_likely)
+        _nil_guard_expr(errors, stmt["cond"], env, scalar_likely, sigs)
+        return _nil_guard_stmt(errors, stmt["body"], env, scalar_likely, sigs)
     }
     if t == "For" {
-        if stmt["init"] != nil { _nil_guard_stmt(errors, stmt["init"], env, scalar_likely) }
-        if stmt["cond"] != nil { _nil_guard_expr(errors, stmt["cond"], env, scalar_likely) }
-        if stmt["post"] != nil { _nil_guard_stmt(errors, stmt["post"], env, scalar_likely) }
-        return _nil_guard_stmt(errors, stmt["body"], env, scalar_likely)
+        if stmt["init"] != nil { _nil_guard_stmt(errors, stmt["init"], env, scalar_likely, sigs) }
+        if stmt["cond"] != nil { _nil_guard_expr(errors, stmt["cond"], env, scalar_likely, sigs) }
+        if stmt["post"] != nil { _nil_guard_stmt(errors, stmt["post"], env, scalar_likely, sigs) }
+        return _nil_guard_stmt(errors, stmt["body"], env, scalar_likely, sigs)
     }
-    if t == "Spawn" { return _nil_guard_expr(errors, stmt["call"], env, scalar_likely) }
+    if t == "Spawn" { return _nil_guard_expr(errors, stmt["call"], env, scalar_likely, sigs) }
     if t == "Switch" {
-        _nil_guard_expr(errors, stmt["value"], env, scalar_likely)
+        _nil_guard_expr(errors, stmt["value"], env, scalar_likely, sigs)
         var cases = stmt["cases"]
         var ci = 0
         while ci < oren_list_len(cases) {
             var vals = cases[ci]["values"]
             var vi = 0
             while vi < oren_list_len(vals) {
-                _nil_guard_expr(errors, vals[vi], env, scalar_likely)
+                _nil_guard_expr(errors, vals[vi], env, scalar_likely, sigs)
                 vi = vi + 1
             }
-            _nil_guard_stmt(errors, cases[ci]["body"], env, scalar_likely)
+            _nil_guard_stmt(errors, cases[ci]["body"], env, scalar_likely, sigs)
             ci = ci + 1
         }
-        if stmt["default"] != nil { _nil_guard_stmt(errors, stmt["default"], env, scalar_likely) }
+        if stmt["default"] != nil { _nil_guard_stmt(errors, stmt["default"], env, scalar_likely, sigs) }
         return nil
     }
     if t == "Function" {
         // In some contexts functions can appear as statements.
-        return _nil_guard_expr(errors, stmt, env, scalar_likely)
+        return _nil_guard_expr(errors, stmt, env, scalar_likely, sigs)
     }
     return nil
 }
@@ -841,18 +865,22 @@ fn nil_scalar_compare_guard_linked_program_in_place(linked) {
     if linked == nil { return linked }
     var errors = []
     var env = {}
+    // Collect function signatures (best-effort) so we can treat annotated call results
+    // as proven scalars for nil-compare purposes.
+    var sigs = {}
     // Best-effort "later scalar use" pass for top-level code too.
     // (Nested functions are handled by the per-function analysis in _nil_guard_expr.)
     var top_scalar_likely = {}
     var stmts = linked["statements"]
     var i = 0
     while i < oren_list_len(stmts) {
+        _collect_fn_sigs_in_stmt(stmts[i], sigs)
         _nil_guard_collect_scalar_likely_stmt(top_scalar_likely, stmts[i])
         i = i + 1
     }
     i = 0
     while i < oren_list_len(stmts) {
-        _nil_guard_stmt(errors, stmts[i], env, top_scalar_likely)
+        _nil_guard_stmt(errors, stmts[i], env, top_scalar_likely, sigs)
         i = i + 1
     }
     linked["nil_compare_errors"] = errors
