@@ -548,7 +548,18 @@ References:
 			         - `std:net/tls`: tcp fd integration + `tls.connect` convenience; depends on crypto core.
 			       - Next: PKCS#12 / PKCS#8 / SPKI helpers (as needed by TLS providers and signing toolchain).
 
-	5) **GUI / UI stack (OrenUI): AVM UI + native shell + UI domain** (L)
+5) **GUI / UI stack (OrenUI): AVM UI + native shell + UI domain** (L)
+
+## Tier‑1 parity / verification blockers (rolling)
+
+- Remote x64 Win11/WSL2 access can intermittently fail via the default proxy hostname (`pc.work`).
+  - Impact: `x64-windows` / `x64-linux` NET and self-host gates can’t run even when the code is correct.
+  - Mitigation:
+    - Prefer `make verify-native-net-skip-remote` for quick local confidence (arm64-macos + arm64-linux container).
+    - When the remote is reachable, re-run:
+      - `make verify-native-net` (includes x64-win + x64-wsl)
+      - `make verify-selfhost-x64`
+    - To fetch remote logs without copy/paste, use `scripts/fetch_remote_file.sh` and pass `--host user@IP` if the proxy cannot resolve `pc.work` (see `docs/REMOTE_X64_ENV.md`).
    - Goal: production-oriented cross-platform GUI without committing Oren’s core runtime to platform frameworks.
    - Design doc: `docs/GUI.md`
    - Recommended architecture (rolling):

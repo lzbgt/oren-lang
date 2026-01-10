@@ -11,6 +11,13 @@ This doc tracks the current “v0” WebSocket support in Oren’s stdlib, imple
   - `x64-windows` (remote Win11)
   - `x64-linux` (remote WSL2)
 
+Last verification (fact):
+
+- 2026-01-10: `make verify-native-net-skip-remote` passed on:
+  - `arm64-macos` (local)
+  - `arm64-linux` (docker container `c7e5f7bd9f5c`)
+- `x64-linux` / `x64-windows` runs require the remote Win11+WSL2 host; see `docs/REMOTE_X64_ENV.md` if the proxy/hostname is unavailable.
+
 ## API (v0)
 
 All functions are timeout‑bounded to avoid hangs.
