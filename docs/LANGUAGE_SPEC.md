@@ -861,17 +861,12 @@ For varargs dispatch and debugging/logging, the runtime provides small reflectio
 
 Native backend note:
 
-- Until native value tagging is fully implemented, numeric immediates (`int`/`bool`/`float`) may be indistinguishable in native mode, so `oren_type_tag` is best-effort for those values.
+- Until native value tagging is fully implemented, numeric immediates (`int`/`float`) may still be indistinguishable in some native-mode paths, so `oren_type_tag` is best-effort for those values.
   - Track: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
-  - Historically, the native backend could observe type-unsafe equality due to an untagged “i64 carrier” model (native-only; the C backend does not have this issue):
-    - `0 == nil` (and `0 == false`) could evaluate true in some compare paths.
-    - Mitigation (2026-01-09): the compiler optimizer folds type-mismatched `==`/`!=` on literals, and folds `id == nil` / `id != nil` for locals trivially proven non-nil (regression-gated in quick integration).
-    - Guardrail (2026-01-10): the compiler rejects `bool/int/float == nil` comparisons when the scalar side is statically known (literals, casts, or locally-proven scalars).
-    - Remaining: comparisons involving values of unknown dynamic type (map lookups, function parameters, etc.) are still a native-backend “rolling” area until tagged values land.
-      - Do **not** write `if x == nil { ... }` when `x` is numeric/bool (or you expect it to be); the compiler only rejects the cases it can prove statically.
-      - If you intentionally accept `nil` as “missing” for a numeric/bool parameter (optional arg style), prefer a tag-based check:
-        - `if oren_type_tag(x) == 0 { x = 0 }` (safe across backends; avoids `x == nil` on scalars)
-      - Avoid using `0` as an “optional/missing” sentinel and avoid `== nil` checks on scalar values (numeric/bool) from unknown sources until `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md` is implemented.
+  - Rolling implementation detail: `nil`, `false`, and `true` are **runtime singleton values** in native mode (not raw `0/1`), so `0` (int zero) remains distinct from `nil`/`false` in the common case.
+  - Guardrail (2026-01-10): the compiler rejects `bool/int/float == nil` comparisons when the scalar side is statically known (literals, casts, or locally-proven scalars).
+    - This is intentional: scalars are not “optionals”; model missing values explicitly (`{"ok":1,"v":...}` / `{"ok":0}`) or use a tag-based check on truly dynamic values:
+      - `if oren_type_tag(x) == 0 { ... }`
 
 ### Compile-time execution (“comptime”) (design direction)
 

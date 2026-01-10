@@ -18,7 +18,9 @@ This document is **design guidance** for converging the **native backend** (arm6
    - The VM needs a tag for determinism and serialization.
 
 3) **Native backend** (today):
-   - values are mostly treated as **untagged `i64` carriers** in registers/stack.
+   - values are still mostly treated as **untagged `i64` carriers** in registers/stack.
+   - rolling mitigation already landed for the most dangerous falsey collisions:
+     - `nil`, `false`, and `true` are represented as **runtime singleton values** (distinct non-zero pointers stored in the runtime globals storage).
    - heap objects (lists/maps) are recognized via **magic words** at fixed offsets (e.g. `'LIST'`, `'MAP\0'` in x64 bring‑up).
    - **Rolling status (arm64 + x86_64):** maps still need to distinguish key kinds (`int` vs `string`) because the native runtime stores a `key_kind` per entry.
      - Current interim strategy avoids “magic numeric range” semantics by using **tracked-allocation metadata**:
@@ -40,14 +42,12 @@ The language semantics require:
 So the native backend must not depend on “is it < 4096?” or “does it look like a pointer?”.
 Even “compiler-inferred key kind” is only a stopgap — production requires a principled tagged value model.
 
-**Concrete semantic hazard observed in rolling (native backend):**
+**Concrete semantic hazards observed in rolling (native backend):**
 
-- Without explicit value tags, the native backend can observe `nil/false/0` aliasing in compare paths:
-  - `0 == nil` and `0 == false` historically evaluated true in native mode.
-  - This is not only a “literal compare” problem: values flowing through maps/fields/params can still alias:
-    - `var m={"x":0}; var v=m["x"]; if v==nil { ... }` can still take the `== nil` branch.
-- Mitigation (2026-01-09): the optimizer folds type-mismatched `==`/`!=` on literals and folds `id == nil` when `id` is trivially proven non-nil (quick-integration gated).
-  - This reduces accidental hazards, but it is **not** a substitute for a real tagged value representation.
+- The native backend is not yet a fully tagged value machine.
+  - Some numeric immediates (notably `int` vs `float`) can still be indistinguishable in native-mode reflection paths (`oren_type_tag` is best-effort there).
+- Even with singleton `nil/false/true`, a raw “i64 carrier” model can still collide if user code intentionally constructs scalars equal to those singleton addresses (e.g. via unsafe pointer/FFI surfaces).
+  - This is one reason full tagged values remain a hard requirement for production semantics and security hardening.
 
 ## 1) Design goals (production constraints)
 

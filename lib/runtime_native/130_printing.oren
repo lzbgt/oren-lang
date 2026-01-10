@@ -346,15 +346,16 @@ fn _map_hash_rebuild_for(m, want_entries) {
 fn _map_hash_rebuild(m) { return _map_hash_rebuild_for(m, nil) }
 
 // Debug/interop helper: return runtime type tag compatible with the C backend enum values.
-// This is best-effort for native mode: ints/bools share the same immediate representation.
+// Best-effort for native mode: ints/floats may still be indistinguishable until full tagged values land.
 @oren.keep
 fn oren_type_tag(v) {
     // Mirror lib/runtime.h OrenType enum values:
     //   0 nil, 1 int, 2 float, 3 bool, 4 string, 5 py_obj, 6 list, 7 map, 8 func,
     //   9..13 typed buffers.
-    // Rolling v0 native runtime uses distinct non-zero singleton pointers for `nil/false/true`.
-    // Integer 0 is a valid int and is truthy, so we must test against `nil` explicitly here.
-    if v == nil { return 0 }
+    // Rolling v0 native runtime uses distinct singleton values for `nil/false/true` stored in globals.
+    // Integer 0 is a valid int and is truthy, so we must *not* treat raw 0 as nil.
+    if native_value_is_nil(v) { return 0 }
+    if native_value_is_false(v) || native_value_is_true(v) { return 3 }
     if oren_is_string(v) == true { return 4 }
     if oren_is_list(v) == true { return 6 }
     if oren_is_map(v) == true { return 7 }
@@ -376,7 +377,7 @@ fn oren_type_tag(v) {
 // Intended for logging and basic reflection in user code (e.g. varargs dispatch).
 //
 // Note: native backend tagging is still rolling; this reflects the best-effort tag returned by
-// `oren_type_tag` (ints/bools/floats may all report "int" today).
+// `oren_type_tag` (ints/floats may still report "int" today).
 @oren.keep
 fn oren_type_name(v) {
     var t = oren_type_tag(v)

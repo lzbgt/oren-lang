@@ -96,25 +96,15 @@ Non-goals (v0):
 
 Oren’s language semantics require **type-strict equality** (`nil` distinct from `false`, `int` distinct from `nil`, etc).
 
-Historically, the native backend used an untagged “i64 carrier” value model, which caused a real hazard:
+Current rolling status (2026-01-11):
 
-- **`0 == nil` could evaluate true** (and similarly `0 == false`), because `nil/false/0` shared the same raw representation in some compare paths.
-
-This is especially dangerous in protocol code because integer `0` values are valid and meaningful
-(example: HTTP/2 SETTINGS like `ENABLE_PUSH=0`).
-
-Mitigation status (2026-01-09, rolling):
-
-- The compiler optimizer now folds **type-mismatched `==`/`!=`** on literals (e.g. `0 == nil` → `false`).
-- It also folds `id == nil` / `id != nil` when `id` is a local that is trivially proven non-nil (e.g. `var x = 0; if x == nil { ... }` → `false`).
-- Regression gate: `make test` (quick integration includes explicit `0/nil/false` parity asserts).
+- Native mode uses **runtime singleton values** for `nil`, `false`, and `true` (they are distinct non-zero values stored in runtime globals).
+  - This ensures `0` (int zero) stays distinct from `nil`/`false` in the common case, which matters for protocols where `0` is meaningful (e.g. SETTINGS values like `ENABLE_PUSH=0`).
+- The compiler also includes a correctness guardrail: it rejects `bool/int/float == nil` comparisons when the scalar side is statically known.
 
 Remaining work:
 
-- Full semantic parity still requires the tagged value model described in `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`,
-  so comparisons involving values of unknown dynamic type remain a native-backend “rolling” area.
-  - Example (still broken in native mode): `var v = m["x"]` where the stored value is `0`; `if v == nil { ... }` can still take the `== nil` branch.
-  Track in `docs/TODOS.md` / `docs/LANGUAGE_STATUS_AND_GAPS.md`.
+- Full semantic parity still requires the tagged value model described in `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md` (notably: robust `int` vs `float` tagging in native mode).
 
 ## How To Verify
 

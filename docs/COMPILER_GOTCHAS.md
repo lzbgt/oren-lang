@@ -85,8 +85,8 @@ Rolling rules:
 
 Rolling invariant (until `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md` lands):
 
-- The native backend historically used an untagged “i64 carrier” value model where `nil/false/0` could alias in some compare paths.
-- The optimizer mitigates common accidents (`0 == nil`, `false == nil`, and some trivially-provable locals), but values flowing through maps/fields/params can still observe the raw carrier.
+- The native backend is still rolling toward a fully tagged value model; do not treat scalars as “optionals” via `nil`.
+- Native mode now uses **runtime singleton values** for `nil/false/true` (distinct non-zero pointers stored in globals), which removes the worst historical `0/nil/false` aliasing footguns.
 - Guardrail (2026-01-10): the compiler rejects `bool/int/float == nil` comparisons when the scalar side is statically known (literals, casts, or locally-proven scalars).
   - Regression fixtures: `tests/fixtures/typecheck_bad_numeric_nil.oren`, `tests/fixtures/typecheck_bad_bool_nil.oren`
   - Fast gate: `make test`
@@ -95,13 +95,12 @@ Concrete rule (treat as a correctness bug in rolling native builds):
 
 - Do **not** write `if x == nil { ... }` when `x` is numeric/bool (or you *expect* it to be).
   - Example footgun: `var x = cfg["timeout_ms"]; if x == nil { x = 1000 }`
-  - If `cfg["timeout_ms"]` can be `0`, this pattern can still behave incorrectly in native mode when the value flows through a dynamic container.
-  - If you intentionally accept `nil` as “missing” for a numeric/bool parameter (optional arg style), prefer a tag-based check:
-    - `if oren_type_tag(x) == 0 { x = 0 }` (safe across backends; avoids `x == nil` on scalars)
+  - If you intentionally accept `nil` as “missing” for a numeric/bool parameter (optional arg style), prefer a tag-based check on truly dynamic values:
+    - `if oren_type_tag(x) == 0 { x = 0 }`
   - Prefer explicit “optional” shapes instead (e.g. return `{"ok":1,"v":...}` / `{"ok":0}`), or keep the value as `nil`/non-`nil` reference types and avoid using `0`/`false` as “missing” sentinels.
 
 Practical compiler-internal corollary (x64 emitters):
 
 - If you store a **byte offset** (where `0` is a valid payload) inside a map/dict (e.g. fixup records, offset caches), you must protect `0` from “missing” ambiguity.
   - Preferred: store `off+1` and decode via `off = enc-1`.
-  - If a legacy structure already stores `off` directly, decoding must treat a `nil` payload as `0` (because some rolling container implementations still lose an explicit 0 payload).
+  - This is still a good habit even with singleton `nil`: it avoids “value vs missing” ambiguity and keeps code robust during rolling refactors.
