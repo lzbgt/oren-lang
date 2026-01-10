@@ -348,8 +348,8 @@ fn compiler_main() {
             // and stays deterministic even when the shared object is stripped.
             print("# API Documentation for " + lib)
             print("")
-            print("| Symbol | Address | Type |")
-            print("|---|---|---|")
+            print("| Symbol | Address | Type | Signature |")
+            print("|---|---|---|---|")
 
             var s = hdr
             var n = oren_string_len(s)
@@ -418,6 +418,20 @@ fn compiler_main() {
                             continue
                         }
 
+                        // Signature for display: strip leading `extern ` and trailing `;`.
+                        var sig = oren_string_slice(line, 7, ll - 1)
+                        // Trim spaces after removing ';'.
+                        var sig_len = oren_string_len(sig)
+                        while sig_len > 0 {
+                            var c0 = oren_string_char_at(sig, sig_len - 1)
+                            if c0 == " " || c0 == "\t" {
+                                sig = oren_string_slice(sig, 0, sig_len - 1)
+                                sig_len = sig_len - 1
+                            } else {
+                                sig_len = 0
+                            }
+                        }
+
                         // Extract the function name token: last identifier before '('.
                         var p = open - 1
                         while p >= 0 {
@@ -447,7 +461,7 @@ fn compiler_main() {
                                 // Keep output stable and avoid duplicates.
                                 if seen[name] != true {
                                     seen[name] = true
-                                    print("| " + name + " | - | Function |")
+                                    print("| " + name + " | - | Function | " + sig + " |")
                                 }
                             }
                         }
@@ -484,8 +498,8 @@ fn compiler_main() {
         
         print("# API Documentation for " + lib)
         print("")
-        print("| Symbol | Address | Type |")
-        print("|---|---|---|")
+        print("| Symbol | Address | Type | Signature |")
+        print("|---|---|---|---|")
         
         // Parse lines: address T symbol
         var line_start = 0
@@ -517,7 +531,7 @@ fn compiler_main() {
                     if oren_string_char_at(sym, 0) == "_" {
                         sym = oren_string_slice(sym, 1, oren_string_len(sym))
                     }
-                    print("| " + sym + " | " + addr + " | Function |")
+                    print("| " + sym + " | " + addr + " | Function | - |")
                 }
                 
                 line_start = idx + 1
