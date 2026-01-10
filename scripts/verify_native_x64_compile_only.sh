@@ -245,6 +245,19 @@ check_pe_x64() {
   file "$p" | grep -F 'PE32+' >/dev/null
 }
 
+check_pe_x64_exe() {
+  local p="$1"
+  check_pe_x64 "$p"
+  file "$p" | grep -F '(DLL)' >/dev/null && return 2
+  return 0
+}
+
+check_pe_x64_dll() {
+  local p="$1"
+  check_pe_x64 "$p"
+  file "$p" | grep -F '(DLL)' >/dev/null
+}
+
 check_pe_x64_entry_disp8_zero_sane() {
   # Regression guard (native backend semantics):
   # x86_64 encoding requires a disp8=0 byte for [rbp] / [r13] addressing.
@@ -322,45 +335,45 @@ run_suite_x64_win() {
   local tag="$2"
 
   build_one "$compiler" x64-windows "$QI_SRC" "build/tmp/qi_${tag}_x64_windows.exe"
-  check_pe_x64 "build/tmp/qi_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/qi_${tag}_x64_windows.exe"
   check_pe_x64_entry_disp8_zero_sane "build/tmp/qi_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$NET_TLS_HTTP2_SMOKE_SRC" "build/tmp/net_tls_http2_smoke_${tag}_x64_windows.exe"
-  check_pe_x64 "build/tmp/net_tls_http2_smoke_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/net_tls_http2_smoke_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$PRINT_SRC" "build/tmp/print_${tag}_x64_windows.exe"
-  check_pe_x64 "build/tmp/print_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/print_${tag}_x64_windows.exe"
   check_bin_contains "build/tmp/print_${tag}_x64_windows.exe" "$PRINT_NEEDLE"
 
   build_one "$compiler" x64-windows "$CFG_OS_SRC" "build/tmp/cfg_os_${tag}_x64_windows.exe"
-  check_pe_x64 "build/tmp/cfg_os_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/cfg_os_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$WIN_FFI_K32_SRC" "build/tmp/ffi_k32_${tag}_x64_windows.exe"
-  check_pe_x64 "build/tmp/ffi_k32_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/ffi_k32_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$WIN_FFI_MSVCRT_LINK_ATTR_SRC" "build/tmp/ffi_msvcrt_link_attr_${tag}_x64_windows.exe"
-  check_pe_x64 "build/tmp/ffi_msvcrt_link_attr_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/ffi_msvcrt_link_attr_${tag}_x64_windows.exe"
   check_bin_contains "build/tmp/ffi_msvcrt_link_attr_${tag}_x64_windows.exe" "msvcrt.dll"
 
   build_one "$compiler" x64-windows "$WIN_FFI_I32_SRC" "build/tmp/ffi_i32_${tag}_x64_windows.exe"
-  check_pe_x64 "build/tmp/ffi_i32_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/ffi_i32_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$WIN_FFI_U32_SRC" "build/tmp/ffi_u32_${tag}_x64_windows.exe"
-  check_pe_x64 "build/tmp/ffi_u32_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/ffi_u32_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$WIN_FFI_VOID_SRC" "build/tmp/ffi_void_${tag}_x64_windows.exe"
-  check_pe_x64 "build/tmp/ffi_void_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/ffi_void_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$FFI_GROUP_ITEM_ATTRS_SRC" "build/tmp/ffi_group_item_attrs_${tag}_x64_windows.exe"
-  check_pe_x64 "build/tmp/ffi_group_item_attrs_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/ffi_group_item_attrs_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$WIN_FFI_EXPORT_GETPROC_SRC" "build/tmp/ffi_export_${tag}_x64_windows.exe"
-  check_pe_x64 "build/tmp/ffi_export_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/ffi_export_${tag}_x64_windows.exe"
   check_bin_contains "build/tmp/ffi_export_${tag}_x64_windows.exe" "oren_test_export_cb"
 
   # Shared library output: `.dll` + generated header.
   build_one "$compiler" x64-windows "$LIBMATH_SRC" "build/tmp/libmath_${tag}_x64_windows.dll" --lib
-  check_pe_x64 "build/tmp/libmath_${tag}_x64_windows.dll"
+  check_pe_x64_dll "build/tmp/libmath_${tag}_x64_windows.dll"
   test -f "build/tmp/libmath_${tag}_x64_windows.h"
 }
 
