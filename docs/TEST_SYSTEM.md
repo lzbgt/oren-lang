@@ -60,7 +60,7 @@ fn server_impl() { /* shared logic */ return 0 }
 fn main_server() { return server_impl() } // Windows: returning from main is fine.
 
 @cfg(os="linux,macos")
-fn main_server() { exit(server_impl()) }  // POSIX: force deterministic exit.
+fn main_server() { return server_impl() } // POSIX: return value becomes main exit status.
 ```
 
 The TLS/HTTPS/WSS loopback fixtures follow this pattern: core server/client logic is shared, and only the “how do we start/stop the server” glue varies by OS.

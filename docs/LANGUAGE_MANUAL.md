@@ -1389,19 +1389,15 @@ Practical guidance (portable style, rolling):
 
 - **Do not call `exit(...)` inside a spawned worker** if you want the program to be portable across OS.
   - Prefer returning a status code and collecting it via `oren_join(...)` / `oren_join_timeout(...)`.
-- If the worker must run under both models (process on POSIX, thread on Windows), keep the “business logic” shared and isolate the platform glue:
+- In rolling v0, the spawned callable’s **return value** is the portable contract (it is carried to the joiner via a pipe on POSIX, and via a shared result slot on Windows). Prefer that over process exit codes.
 
 ```oren
 fn server_impl() { /* shared logic */ return 0 }
 
-@cfg(os="windows")
-fn server_worker() { return server_impl() } // thread: return status
-
-@cfg(os="macos,linux")
-fn server_worker() { exit(server_impl()) }  // child process: exit status
+fn server_worker() { return server_impl() } // portable: return status, join collects it
 ```
 
-This is why some Tier‑1 fixtures use small `@cfg(os=...)` wrappers around worker entrypoints (example: `tests/native/test_tls_loopback.oren` uses a Windows-only worker that returns a status code instead of calling `exit`).
+Some Tier‑1 fixtures still use small `@cfg(os=...)` glue for other OS differences (notably macOS fork-safety around Security/CoreFoundation, where loopback TLS servers use a fork+exec pattern), but the spawned worker itself should not call `exit(...)`.
 
 Concurrency in AVM differs from native mode; see:
 

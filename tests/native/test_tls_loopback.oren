@@ -111,14 +111,15 @@ fn server_impl(listen_fd, pfx_b64) {
     return 0
 }
 
-@cfg(os="windows")
-fn server_win(listen_fd, pfx_b64) {
-    return server_impl(listen_fd, pfx_b64)
-}
-
-@cfg(os="macos,linux")
+@cfg(os="macos,linux,windows")
 fn server_main(listen_fd, pfx_b64) {
-    exit(server_impl(listen_fd, pfx_b64))
+    // Portable spawn entrypoint:
+    // - The fork-based spawn runtimes (C backend and native POSIX path) capture the return value
+    //   and terminate the worker process after writing it to the join pipe.
+    // - The Windows spawn runtime (thread-based) stores the return value for `oren_join`.
+    //
+    // Do NOT call `exit(...)` here; that would terminate the whole process under Windows.
+    return server_impl(listen_fd, pfx_b64)
 }
 
 @cfg(os="windows")
@@ -142,8 +143,8 @@ fn main_client() {
     free(lenp)
     if port <= 0 { exit(7) }
 
-    // Windows spawn is thread-based; run the TLS server inline without fork/exec.
-    var h = spawn server_win(listen_fd, fixture.pkcs12_b64())
+    // Windows spawn is thread-based (CreateThread); use a return-code worker.
+    var h = spawn server_main(listen_fd, fixture.pkcs12_b64())
 
     var fd = tcp.connect("127.0.0.1", port, 5000)
     if fd < 0 { exit(8) }
@@ -264,8 +265,7 @@ fn main_client() {
     if pid < 0 { exit(75) }
     if pid == 0 {
         // Linux correctness: avoid exec; accept+TLS runs fine in the post-fork child.
-        server_main(listen_fd, pfx_b64)
-        exit(127)
+        exit(server_main(listen_fd, pfx_b64))
     }
 
     var fd = tcp.connect("127.0.0.1", port, 5000)
@@ -508,8 +508,7 @@ fn main_server() {
     if listen_fd < 0 { exit(62) }
 
     var pfx_b64 = fixture.pkcs12_b64()
-    server_main(listen_fd, pfx_b64)
-    exit(0)
+    exit(server_main(listen_fd, pfx_b64))
 }
 
 @cfg(os="macos,linux")
