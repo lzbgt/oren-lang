@@ -24,7 +24,7 @@ from a repo clone (example path: `E:\\work\\oren-lang`), it is easy to hit a mis
 
 Symptom class (example):
 
-- `x64 pe: failed to write: build/targets/x64-windows/native/...`
+- `x64 pe: failed to write: build/targets/x64-windows/native/...` (older logs may omit `.exe`; current default outputs on Windows targets include `.exe`)
 - `write_bytes: sys_open failed`
 
 If you see this kind of failure, first do the “sync + rebuild” sequence:

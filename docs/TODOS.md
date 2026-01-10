@@ -158,7 +158,7 @@ References:
 			           - `OREN_MSVC_VSWHERE=<path>` (pin `vswhere.exe`)
 		           - `OREN_MSVC_INSTALL_PATH=<path>` (bypass `vswhere.exe` entirely)
 		         - Done (2026-01-09): self-hosted compilers (`oren.exe`, `oren_stage2.exe`) also default C-backend `--cc` to `cl.exe` on Windows hosts and auto-configure MSVC via a temporary `.cmd` wrapper (vswhere → VsDevCmd/vcvars → cl).
-		         - Done (2026-01-09): Windows path separator handling is normalized for default build outputs (so `oren_stage2` can emit `build/targets/x64-windows/native/<basename>` even when sources are invoked with backslash paths like `examples\\myapp.oren`).
+			         - Done (2026-01-09): Windows path separator handling is normalized for default build outputs (so `oren_stage2` can emit `build/targets/x64-windows/native/<basename>.exe` even when sources are invoked with backslash paths like `examples\\myapp.oren`).
 		         - Done (2026-01-09): Windows native runtime `oren_system_timeout` preserves cmd.exe shell semantics (no CRT-style re-escaping of the command string), fixing `ensure_dir(...)` and other `oren_system("... >nul 2>nul")` call sites on x64-windows.
 		         - Done (2026-01-09): MSVC wrapper `.cmd` emitted by the self-hosted compiler avoids cmd.exe block-expansion pitfalls and can locate VS2022 via:
 		           - direct probes (Program Files VS2022 editions) and
