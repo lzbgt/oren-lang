@@ -194,6 +194,23 @@ fn _arm64_new_ctx(linked, platform) {
     while z < 512 { bytes_push(ctx["data"], 0); z = z + 1 }
     ctx["boot_globals_storage_off_enc"] = boot_off + 1
 
+    // Tier‑1 export/FFI ABI bridge: reserve persistent heap spill slots.
+    //
+    // arm64 native uses dedicated heap registers (mirrors x64's r14/r15 design). Export wrappers
+    // will eventually use these spill slots to preserve platform ABI non-volatiles at external
+    // boundaries (e.g. `.dylib` / future `.so`), while keeping heap state persistent across calls.
+    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var heap_limit_slot_off = bytes_len(ctx["data"])
+    z = 0
+    while z < 8 { bytes_push(ctx["data"], 0); z = z + 1 }
+    ctx["heap_limit_slot_enc"] = heap_limit_slot_off + 1
+
+    while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
+    var heap_ptr_slot_off = bytes_len(ctx["data"])
+    z = 0
+    while z < 8 { bytes_push(ctx["data"], 0); z = z + 1 }
+    ctx["heap_ptr_slot_enc"] = heap_ptr_slot_off + 1
+
     return ctx
 }
 

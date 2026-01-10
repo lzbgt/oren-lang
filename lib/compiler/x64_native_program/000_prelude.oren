@@ -55,6 +55,8 @@ fn insn_ret() { return core.insn_ret() }
 fn insn_syscall() { return core.insn_syscall() }
 fn insn_push_rbp() { return core.insn_push_rbp() }
 fn insn_pop_rbp() { return core.insn_pop_rbp() }
+fn insn_push_r64(reg) { return core.insn_push_r64(reg) }
+fn insn_pop_r64(reg) { return core.insn_pop_r64(reg) }
 fn insn_mov_rbp_rsp() { return core.insn_mov_rbp_rsp() }
 fn insn_mov_r64_imm64(reg, imm) { return core.insn_mov_r64_imm64(reg, imm) }
 fn insn_mov_r32_imm32(reg, imm) { return core.insn_mov_r32_imm32(reg, imm) }

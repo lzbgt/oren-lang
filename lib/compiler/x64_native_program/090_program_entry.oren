@@ -397,6 +397,17 @@ fn _x64_new_ctx(linked, platform) {
     var boot_off = _data_add_zeros(ctx, 512)
     ctx["boot_globals_storage_off_enc"] = boot_off + 1
 
+    // Tier‑1 export/FFI ABI bridge: reserve persistent heap register spill slots.
+    //
+    // x64 native uses r14/r15 as global bump allocator registers for intra-Oren calls.
+    // That is intentionally incompatible with the platform ABIs at external boundaries
+    // (C callers expect r14/r15 preserved). Export wrappers and DLL entrypoints use these
+    // slots to persist heap state across calls while still restoring caller registers.
+    var heap_limit_slot_off = _data_add_u64(ctx, 0)
+    var heap_ptr_slot_off = _data_add_u64(ctx, 0)
+    ctx["heap_limit_slot_enc"] = heap_limit_slot_off + 1
+    ctx["heap_ptr_slot_enc"] = heap_ptr_slot_off + 1
+
     // Bounded debug knob (bring-up):
     // Enable narrow tracing inside list/hash literal lowering without paying an env lookup per literal.
     //   OREN_TRACE_X64_ARRAY_LIT=1 ./oren_stage2 build ... --platform x64-linux --no-cache
@@ -1469,14 +1480,48 @@ fn native_compile_program_x64(linked, platform) {
     // using envp (`native_runtime_call_depth_apply_env()`), so we do not parse env in the
     // entry stub.
     //
-    // Save original RSP before aligning; needed later for argc/argv/envp capture on Linux.
-    if platform == nil || platform["os"] != "windows" {
-        bytes_extend(ctx["code"], insn_mov_r64_r64(13, 4)) // r13 = rsp (orig)
-    }
+    var is_win = platform != nil && platform["os"] == "windows"
+    var is_dll = is_win && platform["shared_lib"] == true
 
-    // Align stack to 16B boundary early so both SysV and Win64 calls stay well-formed as we grow
-    // the x64 backend surface. After this point we must treat the stack as ABI-owned.
-    bytes_extend(ctx["code"], insn_and_rsp_imm8(240)) // 0xF0 == -16
+    // Windows DLL entrypoint (DllMain) must behave like a normal Win64 ABI function:
+    // - preserve non-volatile regs
+    // - return BOOL in EAX
+    // - do not clobber the call return address (so do NOT `and rsp, -16`)
+    //
+    // We only initialize on DLL_PROCESS_ATTACH (fdwReason==1, passed in EDX).
+    var dll_labels = nil
+    var dll_fixups = nil
+    if is_dll {
+        dll_labels = {}
+        dll_fixups = []
+        var l_dll_attach = _new_label(ctx, "dll_attach")
+        // if (edx != 1) return TRUE;
+        bytes_extend(ctx["code"], insn_cmp_r32_imm32(2, 1)) // cmp edx, 1
+        _emit_jcc_to_label(ctx, dll_fixups, "e", l_dll_attach)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1)) // eax = TRUE
+        bytes_extend(ctx["code"], insn_ret())
+        _emit_label(ctx, dll_labels, l_dll_attach)
+
+        // Preserve Win64 non-volatile regs. Our internal ABI excludes r14/r15 because they
+        // are heap registers; external callers must still see them preserved.
+        bytes_extend(ctx["code"], insn_push_r64(3))  // rbx
+        bytes_extend(ctx["code"], insn_push_r64(5))  // rbp
+        bytes_extend(ctx["code"], insn_push_r64(7))  // rdi
+        bytes_extend(ctx["code"], insn_push_r64(6))  // rsi
+        bytes_extend(ctx["code"], insn_push_r64(12)) // r12
+        bytes_extend(ctx["code"], insn_push_r64(13)) // r13
+        bytes_extend(ctx["code"], insn_push_r64(14)) // r14
+        bytes_extend(ctx["code"], insn_push_r64(15)) // r15
+    } else {
+        // Save original RSP before aligning; needed later for argc/argv/envp capture on Linux.
+        if platform == nil || platform["os"] != "windows" {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(13, 4)) // r13 = rsp (orig)
+        }
+
+        // Align stack to 16B boundary early so both SysV and Win64 calls stay well-formed as we grow
+        // the x64 backend surface. After this point we must treat the stack as ABI-owned.
+        bytes_extend(ctx["code"], insn_and_rsp_imm8(240)) // 0xF0 == -16
+    }
 
     // call main
     //
@@ -1489,20 +1534,32 @@ fn native_compile_program_x64(linked, platform) {
     var entry_shadow = abi.caller_shadow_bytes(ctx["abi"])
     // Reserve stack-arg slots for WinAPI calls in the entry stub (WideCharToMultiByte uses 8 args).
     var entry_stack_args = 0
-    if platform != nil && platform["os"] == "windows" { entry_stack_args = 32 }
+    if platform != nil && platform["os"] == "windows" && is_dll != true { entry_stack_args = 32 }
+    // DllMain entry has RSP 8 mod 16 (return address pushed); do not smash RSP with `and`.
+    // Add an explicit 8-byte pad so nested calls are 16B-aligned.
+    var entry_align_pad = 0
+    if is_dll { entry_align_pad = 8 }
     // Also reserve a small scratch region for entry-level values (argc/argv/envp).
     // Place scratch above the stack-arg area so calls with >4 args don't clobber it.
     // Windows note: we also keep a saved copy of the Win32 env block pointer so we can
     // free it after converting to a POSIX-style envp array.
     var entry_scratch = 48
-    var entry_total = entry_shadow + entry_stack_args + entry_scratch
+    var entry_total = entry_shadow + entry_stack_args + entry_scratch + entry_align_pad
     if entry_total > 0 { bytes_extend(ctx["code"], insn_sub_rsp_imm32(entry_total)) }
-    var scratch_base = entry_shadow + entry_stack_args
+    var scratch_base = entry_shadow + entry_stack_args + entry_align_pad
 
     if platform != nil && platform["os"] == "windows"  {
         if trace_entry { _emit_windows_write_cstr(ctx, "ENTRY: win begin") }
-        _emit_entry_build_args_windows_x64(ctx, scratch_base)
-        if trace_entry { _emit_windows_write_cstr(ctx, "ENTRY: win args ok") }
+        if is_dll != true {
+            _emit_entry_build_args_windows_x64(ctx, scratch_base)
+            if trace_entry { _emit_windows_write_cstr(ctx, "ENTRY: win args ok") }
+        } else {
+            // DllMain: no argc/argv ABI. Default to argc=0, argv=nil.
+            bytes_extend(ctx["code"], insn_mov_r64_imm64(0, 0)) // rax=0
+            _emit_mov_mrsp_r64(ctx, scratch_base + 0, 0)  // argc
+            _emit_mov_mrsp_r64(ctx, scratch_base + 8, 0)  // argv
+            if trace_entry { _emit_windows_write_cstr(ctx, "ENTRY: win args skip (dll)") }
+        }
         _emit_entry_capture_envblock_windows_x64(ctx, scratch_base)
         if trace_entry { _emit_windows_write_cstr(ctx, "ENTRY: win envblock ok") }
     }
@@ -1803,7 +1860,7 @@ fn native_compile_program_x64(linked, platform) {
         _emit_windows_write_cstr(ctx, "ENTRY: top_level ok")
     }
 
-    if has_main {
+    if is_dll != true && has_main {
         var call_pos = bytes_len(ctx["code"])
         // placeholder rel32=0
         bytes_extend(ctx["code"], insn_call_rel32(0))
@@ -1811,21 +1868,61 @@ fn native_compile_program_x64(linked, platform) {
     }
 
     if platform != nil && platform["os"] == "windows" {
-        // Windows x64: ExitProcess(ret)
-        //
-        // - rcx = u32 exit code
-        // - call [IAT ExitProcess]
-        bytes_extend(ctx["code"], insn_mov_r32_r32(1, 0)) // mov ecx, eax
+        if is_dll {
+            // DllMain return path:
+            // - persist heap registers to `.data` spill slots for export wrappers
+            // - restore callee-saved regs and return TRUE
+            var heap_limit_off = _rtobj_decode_int_enc(ctx["heap_limit_slot_enc"])
+            var heap_ptr_off = _rtobj_decode_int_enc(ctx["heap_ptr_slot_enc"])
+            if heap_limit_off == nil || heap_ptr_off == nil {
+                err(ctx, "x64 native: missing heap spill slots for DLL entry (heap_limit_slot_enc/heap_ptr_slot_enc)")
+                return ctx
+            }
 
-        var mov_iat_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0)) // patch disp32 to IAT slot
-        _x64_add_rip_data32_fixup(ctx, mov_iat_pos + 3, "IAT_ExitProcess")
-        bytes_extend(ctx["code"], insn_call_rax())
-        // Should not return; if it does, just ret.
-        if entry_total > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(entry_total)) }
-        bytes_extend(ctx["code"], insn_ret())
-        // Record entrypoint offset (start of code).
-        ctx["entry_off"] = 0
+            var lea_hl = bytes_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(11, 0))
+            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_hl + 3, "data_off": heap_limit_off})
+            bytes_extend(ctx["code"], insn_mov_mr64_r64(11, 14))
+
+            var lea_hp = bytes_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(11, 0))
+            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_hp + 3, "data_off": heap_ptr_off})
+            bytes_extend(ctx["code"], insn_mov_mr64_r64(11, 15))
+
+            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1)) // eax=TRUE
+            if entry_total > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(entry_total)) }
+            // Restore non-volatile regs in reverse order.
+            bytes_extend(ctx["code"], insn_pop_r64(15))
+            bytes_extend(ctx["code"], insn_pop_r64(14))
+            bytes_extend(ctx["code"], insn_pop_r64(13))
+            bytes_extend(ctx["code"], insn_pop_r64(12))
+            bytes_extend(ctx["code"], insn_pop_r64(6))
+            bytes_extend(ctx["code"], insn_pop_r64(7))
+            bytes_extend(ctx["code"], insn_pop_r64(5))
+            bytes_extend(ctx["code"], insn_pop_r64(3))
+            bytes_extend(ctx["code"], insn_ret())
+
+            if dll_labels != nil && dll_fixups != nil {
+                _patch_local_fixups(ctx, dll_labels, dll_fixups)
+            }
+            ctx["entry_off"] = 0
+        } else {
+            // Windows x64 executable entry: ExitProcess(ret)
+            //
+            // - rcx = u32 exit code
+            // - call [IAT ExitProcess]
+            bytes_extend(ctx["code"], insn_mov_r32_r32(1, 0)) // mov ecx, eax
+
+            var mov_iat_pos = bytes_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0)) // patch disp32 to IAT slot
+            _x64_add_rip_data32_fixup(ctx, mov_iat_pos + 3, "IAT_ExitProcess")
+            bytes_extend(ctx["code"], insn_call_rax())
+            // Should not return; if it does, just ret.
+            if entry_total > 0 { bytes_extend(ctx["code"], insn_add_rsp_imm32(entry_total)) }
+            bytes_extend(ctx["code"], insn_ret())
+            // Record entrypoint offset (start of code).
+            ctx["entry_off"] = 0
+        }
     } else {
         // Linux x86_64: exit_group(main_ret) via syscall (process-wide)
         // rdi = rax

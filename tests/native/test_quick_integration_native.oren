@@ -124,18 +124,24 @@ fn test_core() {
     // - `false` must be distinct from numeric zero
     // - `nil` must be distinct from `false`
     //
-    // These are required by `docs/LANGUAGE_SPEC.md` (“type-strict equality”) and are a known
-    // native-backend hazard when values are treated as raw untagged i64 carriers.
-    if 0 == nil { fail(1001) }
-    if nil == 0 { fail(1002) }
-    var z0 = 0
-    if z0 == nil { fail(1003) }
-    if nil == z0 { fail(1004) }
+    // NOTE (rolling):
+    // The compiler rejects provably-scalar `== nil` comparisons as a correctness guardrail.
+    // Exercise the equality behavior through unknown-typed values (map flows) so the test
+    // still probes the native backend hazard surface until full tagged values land.
+    var m0 = {"z": 0, "f": false, "n": nil}
+    var z0 = m0["z"]
+    var f0 = m0["f"]
+    var n0 = m0["n"]
+
+    if z0 == nil { fail(1001) }
+    if nil == z0 { fail(1002) }
+    if z0 == false { fail(1003) }
+    if false == z0 { fail(1004) }
     if 0 == false { fail(1005) }
     if false == 0 { fail(1006) }
-    if nil == false { fail(1007) }
-    if false == nil { fail(1008) }
-    if nil != nil { fail(1009) }
+    if n0 == false { fail(1007) }
+    if false == n0 { fail(1008) }
+    if n0 != nil { fail(1009) }
 
     // Truthiness parity (docs/LANGUAGE_SPEC.md):
     // - falsey: `nil`, `false`

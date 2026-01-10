@@ -1685,6 +1685,27 @@ fn link_program(entry_path, root_prog, config) {
         print("[phase] pass packview +" + oren_int_to_string(dt5b / 1000000) + "ms")
     }
 
+    // Always-on parity guard (native backend hazard):
+    // - Comparing provably-scalar values (bool/int/float) to `nil` is almost always a bug.
+    // - The native runtime uses a sentinel representation for `nil`, so treating `== nil` as
+    //   “missing” can silently misbehave (especially when `0`/`false` are valid values).
+    //
+    // This guard is conservative (best-effort inference) and is intentionally always enabled,
+    // even when the full gradual-typing pass is disabled.
+    if trace_passes { print("[trace] pass: nil_compare_guard") }
+    typecheck.nil_scalar_compare_guard_linked_program_in_place(linked)
+    if linked["nil_compare_errors"] != nil && oren_list_len(linked["nil_compare_errors"]) > 0 {
+        var first_err0 = linked["nil_compare_errors"][0]
+        emit_diag("compile", 1, first_err0)
+        print("Nil-compare guard errors:")
+        var ei_ng = 0
+        while ei_ng < oren_list_len(linked["nil_compare_errors"]) {
+            print(linked["nil_compare_errors"][ei_ng])
+            ei_ng = ei_ng + 1
+        }
+        oren_exit(1)
+    }
+
     // Optional: typecheck pass (gradual typing).
     //
     // Run this before normalization casts are inserted so diagnostics point at user code

@@ -127,10 +127,14 @@ make verify # Run full self-hosting test
   ./oren build mylib.oren --backend native --lib -o mylib.dylib
   ```
   Notes (rolling):
-  - This is implemented for **arm64-macos (Mach-O)** today.
-  - x86_64 native backends currently reject `--lib/--shared` (ELF `.so` / PE `.dll` export tables are not implemented yet).
+  - This is implemented for:
+    - **arm64-macos (Mach-O)**: `.dylib`
+    - **x64-windows (PE)**: `.dll` (native DllMain entrypoint + export table + generated C header)
+  - Remaining parity work:
+    - **arm64-linux + x64-linux (ELF)**: `.so` output (exports + metadata/header hooks)
   - However, **Linux executables** (arm64-linux + x64-linux) can still export selected symbols for callback interop via `@ffi.export` (see `docs/ATTRIBUTES.md`), even though shared-library output is not implemented.
   - **Windows x64 executables** can also export selected symbols via `@ffi.export` (PE Export Directory) so `GetProcAddress(GetModuleHandle(NULL), ...)` can locate callback entry points.
+  - ABI note (x64 native): exported symbols are routed through small wrappers that preserve the platform ABI’s non-volatile registers while still allowing Oren’s internal heap registers to remain persistent.
 - **Linking**: Link external dynamic libraries using `--link <lib>` or `-l <lib>`.
   ```bash
   ./oren build app.oren --backend native --link /usr/lib/libsqlite3.dylib

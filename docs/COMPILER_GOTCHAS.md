@@ -78,9 +78,9 @@ Rolling invariant (until `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md` lands):
 
 - The native backend historically used an untagged “i64 carrier” value model where `nil/false/0` could alias in some compare paths.
 - The optimizer mitigates common accidents (`0 == nil`, `false == nil`, and some trivially-provable locals), but values flowing through maps/fields/params can still observe the raw carrier.
-- Guardrail for annotated code: `--typecheck` rejects `bool/int/float == nil` comparisons.
+- Guardrail (2026-01-10): the compiler rejects `bool/int/float == nil` comparisons when the scalar side is statically known (literals, casts, or locally-proven scalars).
   - Regression fixtures: `tests/fixtures/typecheck_bad_numeric_nil.oren`, `tests/fixtures/typecheck_bad_bool_nil.oren`
-  - Fast gate: `make test` (runs the `--typecheck` smoke inside `scripts/run_native_quick_integration.sh`)
+  - Fast gate: `make test`
 
 Concrete rule (treat as a correctness bug in rolling native builds):
 

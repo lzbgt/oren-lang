@@ -144,6 +144,7 @@ GOOS=windows GOARCH=amd64 go build -o build/tmp/oren_bootstrap_win.exe ./cmd/ore
 	tar -czf build/tmp/stage2_src_bundle.tgz \
 	  oren.oren \
 	  lib \
+	  examples/libmath.oren \
 	  examples/myapp.oren \
 	  tests/native/print.oren
 
@@ -189,6 +190,11 @@ log "== remote: stage2 builds a nested-path native exe (default -o path; backsla
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
   ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" \
   "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\myapp.oren --backend native --platform x64-windows --no-cache --no-debug\""
+
+log "== remote: stage2 builds a tiny native DLL (--lib; x64-windows) =="
+run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
+  ssh -o "$REMOTE_PROXY" "$REMOTE_HOST" \
+  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\libmath.oren --backend native --platform x64-windows --lib --no-cache --no-debug -o libmath.dll && if not exist libmath.dll exit /b 2 && if not exist libmath.h exit /b 3\""
 
 log "== remote: stage2 builds a tiny C-backend exe (default --cc; MSVC cl.exe bring-up) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \

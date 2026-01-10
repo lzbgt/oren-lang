@@ -756,9 +756,9 @@ Rolling note (native backend):
 - Historically, the native backend used an untagged “i64 carrier” value model, which could cause type-unsafe equality:
   - `0 == nil` (and `0 == false`) could evaluate true in native mode.
   - Mitigation (2026-01-09): the compiler optimizer folds type-mismatched `==`/`!=` on literals, and folds `id == nil` / `id != nil` for locals trivially proven non-nil (regression-gated in quick integration).
-  - Guardrail (rolling): `./oren --typecheck` rejects `bool/int/float == nil` comparisons when the scalar side is statically known (literals, casts, or annotated locals). `make test` includes smoke fixtures to prevent regressions.
+  - Guardrail (2026-01-10): the compiler rejects `bool/int/float == nil` comparisons when the scalar side is statically known (literals, casts, or locally-proven scalars).
   - Remaining: comparisons involving values of unknown dynamic type (e.g. map lookups, function parameters, FFI returns) can still observe native-mode aliasing until full tagged values land (`docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`).
-    - Do **not** write `if x == nil { ... }` when `x` is numeric/bool (or you expect it to be).
+    - Do **not** write `if x == nil { ... }` when `x` is numeric/bool (or you expect it to be); the compiler only rejects the cases it can prove statically.
     - Do not use `0` as an “optional/missing” sentinel in native mode unless you fully control the value flow and types.
 - Beyond `oren_type_tag` / `oren_type_name`, full runtime reflection (fields/layout/type metadata) is not yet implemented and is tracked as a larger refactor in `docs/TODOS.md`.
 

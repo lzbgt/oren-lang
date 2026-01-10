@@ -34,7 +34,9 @@ var RUNTIME_OBJ_SCHEMA = 2
 // - 0..7:   cstr0 table slot (u64 offset)
 // - 8..15:  g_storage global slot (u64 pointer to globals storage)
 // - 16..527: boot globals storage blob (512 bytes; holds nil/bool singleton slots)
-var RUNTIME_OBJ_DATA_PREFIX_LEN = 528
+// - 528..535: heap_limit spill slot (u64; ABI bridge for exported functions)
+// - 536..543: heap_ptr spill slot (u64; ABI bridge for exported functions)
+var RUNTIME_OBJ_DATA_PREFIX_LEN = 544
 
 // Backend signature for the compiled runtime object cache key.
 //
@@ -47,8 +49,8 @@ var RUNTIME_OBJ_DATA_PREFIX_LEN = 528
 // Rolling contract:
 // - Bump the relevant backend sig whenever a change can affect emitted code/data bytes.
 // - This is intentionally cheap (string constant) so cache hits stay fast.
-var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_5"
-var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_9"
+var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_6"
+var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_10"
 
 fn rtobj_backend_sig(backend) {
     if backend == "arm64" { return RUNTIME_OBJ_BACKEND_SIG_ARM64 }

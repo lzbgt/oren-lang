@@ -907,22 +907,24 @@ fn compiler_main() {
         var stem = basename(default_output_path(path))
         if backend == "bytecode" {
             out_path = "build/targets/avm/bytecode/" + stem + ".obc"
-        } else {
-            var dir = "build/targets/" + arch + "-" + target + "/" + backend
-            out_path = dir + "/" + stem
-            // Windows UX: emit runnable `.exe` outputs by default for native/c artifacts.
-            // Rolling note: cmd.exe does not treat extensionless PE files as runnable commands
-            // via relative paths, so without `.exe` users observe confusing "not recognized"
-            // errors even when the compiler succeeded.
-            if target == "windows" {
-                var n2 = oren_string_len(out_path)
-                if n2 < 4 || oren_string_slice(out_path, n2 - 4, n2) != ".exe" {
-                    out_path = out_path + ".exe"
-                }
-            }
-        }
-    }
-    if trace_build { print("[build] out_path=" + out_path) }
+	        } else {
+	            var dir = "build/targets/" + arch + "-" + target + "/" + backend
+	            out_path = dir + "/" + stem
+	            // Windows UX: default output extensions for native/c artifacts.
+	            //
+	            // Rolling note: cmd.exe does not treat extensionless PE files as runnable commands
+	            // via relative paths. Also, shared library outputs must end in `.dll` by convention.
+	            if target == "windows" {
+	                var want_ext = ".exe"
+	                if backend == "native" && is_shared_lib { want_ext = ".dll" }
+	                var n2 = oren_string_len(out_path)
+	                if n2 < oren_string_len(want_ext) || oren_string_slice(out_path, n2 - oren_string_len(want_ext), n2) != want_ext {
+	                    out_path = out_path + want_ext
+	                }
+	            }
+	        }
+	    }
+	    if trace_build { print("[build] out_path=" + out_path) }
 
     if deterministic {
         // Deterministic mode: avoid post-processing that can inject non-reproducible data.
@@ -1461,31 +1463,31 @@ fn compiler_main() {
 		        } else {
 		            if arch == "x64" || arch == "x86_64" || arch == "amd64" {
 		                var t_emit1 = 0
-		                if trace_build {
-		                    t_emit1 = oren_time_now_ns()
-		                    print("[build] native emit start (x64) target=" + target)
-		                }
-			                if is_shared_lib {
-			                    print("native backend (x64): shared libraries are not implemented yet")
-			                    print("  requested: --lib/--shared")
-			                    print("  TODO: implement x64 ELF .so and x64 Windows .dll outputs")
-			                    oren_exit(1)
+			                if trace_build {
+			                    t_emit1 = oren_time_now_ns()
+			                    print("[build] native emit start (x64) target=" + target)
 			                }
-			                if target != "linux" && target != "windows" && oren_list_len(export_names) != 0 {
-			                    print("native backend (x64): exports are not implemented for target: " + target)
-			                    print("  requested: --export / @ffi.export")
-			                    oren_exit(1)
-			                }
-			                if target == "linux" {
-			                    x64_elf.elf_emit_program_x64(out_path, linked, link_libs, export_names, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
-			                } else {
-			                    if target == "windows" {
-			                        x64_pe.pe_emit_program_x64(out_path, linked, link_libs, export_names, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
-		                    } else {
-		                        print("native backend (x64) unsupported target: " + target)
-	                        oren_exit(1)
-	                    }
-                }
+				                if is_shared_lib && target != "windows" {
+				                    print("native backend (x64): shared libraries are not implemented yet")
+				                    print("  requested: --lib/--shared")
+				                    print("  TODO: implement x64 ELF .so outputs")
+				                    oren_exit(1)
+				                }
+				                if target != "linux" && target != "windows" && oren_list_len(export_names) != 0 {
+				                    print("native backend (x64): exports are not implemented for target: " + target)
+				                    print("  requested: --export / @ffi.export")
+				                    oren_exit(1)
+				                }
+				                if target == "linux" {
+				                    x64_elf.elf_emit_program_x64(out_path, linked, link_libs, export_names, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
+				                } else {
+				                    if target == "windows" {
+				                        x64_pe.pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode, no_gc, call_depth_max, CAPSULE, CAP_ALLOW_DOMAINS)
+			                    } else {
+			                        print("native backend (x64) unsupported target: " + target)
+		                        oren_exit(1)
+		                    }
+	                }
                 if trace_build {
                     var dt_emit1 = oren_time_now_ns() - t_emit1
                     print("[build] native emit done +" + oren_int_to_string(dt_emit1 / 1000000) + "ms")

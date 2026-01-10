@@ -15,6 +15,7 @@
 
 import codegen "codegen_x64.oren"
 import abi "native_abi.oren"
+import x64 "x64_core.oren"
 
 fn bytes_new() { return codegen.bytes_new() }
 fn bytes_push(b, v) { return codegen.bytes_push(b, v) }
@@ -35,6 +36,92 @@ fn set_u64_le(buf, offset, n) {
 
 fn align_up(n, align) {
     return (n + align - 1) / align * align
+}
+
+fn _pe_decode_data_off(enc) {
+    if enc == nil { return nil }
+    return enc - 1
+}
+
+fn _pe_emit_export_wrappers_x64(code, fixups, functions, export_names, heap_limit_off, heap_ptr_off) {
+    // Export ABI bridge (Tier‑1):
+    //
+    // x64 native uses r14/r15 as global heap registers across intra-Oren calls. That violates
+    // platform ABIs at external boundaries (C callers expect r14/r15 preserved). Emit a small
+    // wrapper per exported symbol that:
+    // - saves caller r14/r15,
+    // - loads heap state from `.data` spill slots into r14/r15,
+    // - calls the internal function by name,
+    // - stores updated heap regs back to `.data`,
+    // - restores caller r14/r15 and returns.
+    //
+    // The wrapper keeps the same call ABI for arguments/return (registers untouched).
+    if export_names == nil || oren_list_len(export_names) == 0 { return {} }
+    if heap_limit_off == nil || heap_ptr_off == nil {
+        print("x64 pe: missing heap spill slots in ctx (heap_limit_slot_enc/heap_ptr_slot_enc)")
+        oren_exit(1)
+    }
+
+    var exps = _pe_sort_export_names(export_names)
+    var out = {}
+    var n = oren_list_len(exps)
+    var i = 0
+    while i < n {
+        var nm = exps[i]
+        if nm == nil || nm == "" { i = i + 1; continue }
+        // Validate internal symbol exists (avoid emitting dead wrappers).
+        if functions[nm] == nil {
+            print("x64 pe: @ffi.export requested for missing function: " + nm)
+            print("  hint: add @oren.keep to prevent whole-program DCE from removing it")
+            oren_exit(1)
+        }
+
+        var wrapper_off = bytes_len(code)
+        out[nm] = wrapper_off
+
+        // Prologue: save heap regs and align for nested calls.
+        bytes_extend(code, x64.insn_push_r64(15))
+        bytes_extend(code, x64.insn_push_r64(14))
+        // 32B shadow + 8B align (Win64): keep RSP 16B-aligned before call.
+        bytes_extend(code, x64.insn_sub_rsp_imm8(40))
+
+        // r11 = &heap_limit_slot; r14 = *r11
+        var lea_hl = bytes_len(code)
+        bytes_extend(code, x64.insn_lea_r64_rip_disp32(11, 0))
+        oren_list_push(fixups, {"type": "rip_data_lea", "pos": lea_hl + 3, "data_off": heap_limit_off})
+        bytes_extend(code, x64.insn_mov_r64_mr64(14, 11))
+
+        // r11 = &heap_ptr_slot; r15 = *r11
+        var lea_hp = bytes_len(code)
+        bytes_extend(code, x64.insn_lea_r64_rip_disp32(11, 0))
+        oren_list_push(fixups, {"type": "rip_data_lea", "pos": lea_hp + 3, "data_off": heap_ptr_off})
+        bytes_extend(code, x64.insn_mov_r64_mr64(15, 11))
+
+        // call internal function (same argument registers/stack layout)
+        var call_pos = bytes_len(code)
+        bytes_extend(code, x64.insn_call_rel32(0))
+        oren_list_push(fixups, {"type": "call_rel32", "pos": call_pos, "name": nm})
+
+        // Store updated heap regs back to slots.
+        lea_hl = bytes_len(code)
+        bytes_extend(code, x64.insn_lea_r64_rip_disp32(11, 0))
+        oren_list_push(fixups, {"type": "rip_data_lea", "pos": lea_hl + 3, "data_off": heap_limit_off})
+        bytes_extend(code, x64.insn_mov_mr64_r64(11, 14))
+
+        lea_hp = bytes_len(code)
+        bytes_extend(code, x64.insn_lea_r64_rip_disp32(11, 0))
+        oren_list_push(fixups, {"type": "rip_data_lea", "pos": lea_hp + 3, "data_off": heap_ptr_off})
+        bytes_extend(code, x64.insn_mov_mr64_r64(11, 15))
+
+        // Epilogue: restore stack + heap regs and return.
+        bytes_extend(code, x64.insn_add_rsp_imm8(40))
+        bytes_extend(code, x64.insn_pop_r64(14))
+        bytes_extend(code, x64.insn_pop_r64(15))
+        bytes_extend(code, x64.insn_ret())
+
+        i = i + 1
+    }
+    return out
 }
 
 fn push_u16_le(buf, n) {
@@ -121,7 +208,7 @@ fn _pe_sort_export_names(names) {
     return out
 }
 
-fn pe_emit_program_x64(out_path, linked, link_libs, export_names, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
+fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode, no_gc, call_depth_max, capsule, cap_allow_domains) {
     // Bounded timing summary for diagnosing x64 Windows build throughput without huge logs.
     // Enable with: OREN_TRACE_X64_EMIT_SUMMARY=1
     var trace_sum = oren_env("OREN_TRACE_X64_EMIT_SUMMARY") != nil
@@ -132,7 +219,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, export_names, debug_mode, no
     var t_write_done = 0
     if trace_sum { t0 = oren_time_now_ns() }
 
-    var ctx = codegen.native_compile_program_x64(linked, {"os": "windows", "arch": "x64", "debug": debug_mode, "no_gc": no_gc, "call_depth_max": call_depth_max, "capsule": capsule, "cap_allow_domains": cap_allow_domains, "link_libs": link_libs})
+    var ctx = codegen.native_compile_program_x64(linked, {"os": "windows", "arch": "x64", "debug": debug_mode, "no_gc": no_gc, "call_depth_max": call_depth_max, "capsule": capsule, "cap_allow_domains": cap_allow_domains, "link_libs": link_libs, "shared_lib": is_shared_lib == true})
     if ctx == nil { return nil }
     codegen.native_emit_errors_and_exit(ctx)
     if trace_sum { t_compile_done = oren_time_now_ns() }
@@ -141,6 +228,11 @@ fn pe_emit_program_x64(out_path, linked, link_libs, export_names, debug_mode, no
     var user_data = ctx["data"]
     var fixups = ctx["fixups"]
     var functions = ctx["functions"]
+
+    // Export wrappers (Tier‑1 ABI bridge): use heap spill slots reserved by the code generator.
+    var heap_limit_off = _pe_decode_data_off(ctx["heap_limit_slot_enc"])
+    var heap_ptr_off = _pe_decode_data_off(ctx["heap_ptr_slot_enc"])
+    var export_wrappers = _pe_emit_export_wrappers_x64(code, fixups, functions, export_names, heap_limit_off, heap_ptr_off)
 
     // ---- Build .rdata (import table) ----
     //
@@ -384,13 +476,11 @@ fn pe_emit_program_x64(out_path, linked, link_libs, export_names, debug_mode, no
     var import_dir_rva = rdata_rva + off_import_desc
     var import_dir_size = 80
 
-    // ---- Optional PE export table (executables) ----
+    // ---- Optional PE export table (executables + DLLs) ----
     //
     // This allows `GetProcAddress(GetModuleHandle(NULL), "name")` to locate top-level
     // functions marked `@ffi.export` (used by callback-style interop).
     //
-    // NOTE: This emitter does not currently support producing `.dll` outputs; this is
-    // only for exporting symbols from the main executable image.
     var export_dir_rva = 0
     var export_dir_size = 0
     if export_names != nil && oren_list_len(export_names) != 0 {
@@ -409,7 +499,8 @@ fn pe_emit_program_x64(out_path, linked, link_libs, export_names, debug_mode, no
             var ei = 0
             while ei < n_exp {
                 var nm = exps[ei]
-                var fn_off = functions[nm]
+                var fn_off = export_wrappers[nm]
+                if fn_off == nil { fn_off = functions[nm] }
                 if fn_off == nil {
                     print("x64 pe: @ffi.export requested for missing function: " + nm)
                     print("  hint: add @oren.keep to prevent whole-program DCE from removing it")
@@ -720,7 +811,10 @@ fn pe_emit_program_x64(out_path, linked, link_libs, export_names, debug_mode, no
     push_u32_le(out, 0) // PtrToSymbolTable
     push_u32_le(out, 0) // NumberOfSymbols
     push_u16_le(out, 240) // SizeOfOptionalHeader
-    push_u16_le(out, 34)  // Characteristics: EXECUTABLE | LARGE_ADDRESS_AWARE
+    var coff_chars = 34 // EXECUTABLE | LARGE_ADDRESS_AWARE
+    // Mark output as a DLL when emitting a shared library.
+    if is_shared_lib == true { coff_chars = coff_chars + 8192 } // IMAGE_FILE_DLL (0x2000)
+    push_u16_le(out, coff_chars)
 
     // ---- Optional header (PE32+, 240 bytes) ----
     var opt_start = bytes_len(out)

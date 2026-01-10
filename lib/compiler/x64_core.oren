@@ -190,6 +190,24 @@ fn insn_push_rbp() { var out = _insn_pool_get(); bytes_push(out, 85); return out
 fn insn_pop_rbp() { var out = _insn_pool_get(); bytes_push(out, 93); return out }  // 5D
 fn insn_mov_rbp_rsp() { var out = _insn_pool_get(); bytes_push(out, 72); bytes_push(out, 137); bytes_push(out, 229); return out } // 48 89 E5
 
+fn insn_push_r64(reg) {
+    // push r64 => (REX.B)? + (50 + (reg&7))
+    if reg < 0 || reg > 15 { return nil }
+    var out = _insn_pool_get()
+    if reg >= 8 { bytes_push(out, 65) } // 41 (REX.B)
+    bytes_push(out, 80 + int_mod(reg, 8))
+    return out
+}
+
+fn insn_pop_r64(reg) {
+    // pop r64 => (REX.B)? + (58 + (reg&7))
+    if reg < 0 || reg > 15 { return nil }
+    var out = _insn_pool_get()
+    if reg >= 8 { bytes_push(out, 65) } // 41 (REX.B)
+    bytes_push(out, 88 + int_mod(reg, 8))
+    return out
+}
+
 fn insn_mov_r64_imm64(reg, imm_u64) {
     // movabs r64, imm64  => REX.W + (B8+reg) + imm64
     // v0: reg in 0..15 (RAX..R15).

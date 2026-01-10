@@ -403,12 +403,23 @@ fn _typecheck_stmt(errors, stmt, env, sigs, ret_cat) {
         var nm = stmt["name"]
         if nm != nil && nm["ann_type"] != nil {
             env[nm["value"]] = _ann_to_cat(nm["ann_type"])
+        } else if nm != nil && nm["value"] != nil {
+            // Best-effort local inference: propagate obvious scalar categories from the initializer.
+            // This enables early detection of `if x == nil` hazards when `x` is known numeric/bool.
+            var kc = _cat(stmt["value"], env)
+            if kc == "int" || kc == "float" || kc == "bool" { env[nm["value"]] = kc }
         }
         _typecheck_expr(errors, stmt["value"], env, sigs)
         return nil
     }
     if t == "Assign" {
         _typecheck_expr(errors, stmt["value"], env, sigs)
+        // Best-effort: if this is a simple identifier assignment, update the category map.
+        var anm = stmt["name"]
+        if anm != nil && anm["type"] == "Identifier" && anm["value"] != nil {
+            var kc2 = _cat(stmt["value"], env)
+            if kc2 == "int" || kc2 == "float" || kc2 == "bool" { env[anm["value"]] = kc2 }
+        }
         return nil
     }
     if t == "Set" {
@@ -500,5 +511,188 @@ fn typecheck_linked_program_in_place(linked) {
     }
 
     linked["typecheck_errors"] = errors
+    return linked
+}
+
+fn _nil_guard_expr(errors, expr, env) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Prefix" { return _nil_guard_expr(errors, expr["right"], env) }
+    if t == "Infix" {
+        _nil_guard_expr(errors, expr["left"], env)
+        _nil_guard_expr(errors, expr["right"], env)
+        var op = expr["op"]
+        if op == "==" || op == "!=" {
+            var lc = _cat(expr["left"], env)
+            var rc = _cat(expr["right"], env)
+            if (lc == "nil" && (rc == "bool" || rc == "int" || rc == "float")) || (rc == "nil" && (lc == "bool" || lc == "int" || lc == "float")) {
+                _err(errors, expr["token"], "invalid comparison: non-nil scalar compared to nil (bool/int/float)")
+            }
+        }
+        return nil
+    }
+    if t == "If" {
+        _nil_guard_expr(errors, expr["cond"], env)
+        _nil_guard_stmt(errors, expr["consq"], env)
+        if expr["alt"] != nil { _nil_guard_stmt(errors, expr["alt"], env) }
+        return nil
+    }
+    if t == "Array" {
+        var xs = expr["elements"]
+        var i = 0
+        while i < oren_list_len(xs) {
+            _nil_guard_expr(errors, xs[i], env)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        var i2 = 0
+        while i2 < oren_list_len(ps) {
+            _nil_guard_expr(errors, ps[i2]["key"], env)
+            _nil_guard_expr(errors, ps[i2]["value"], env)
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    if t == "Index" {
+        _nil_guard_expr(errors, expr["left"], env)
+        _nil_guard_expr(errors, expr["index"], env)
+        return nil
+    }
+    if t == "Member" {
+        _nil_guard_expr(errors, expr["left"], env)
+        return nil
+    }
+    if t == "SpawnExpr" { return _nil_guard_expr(errors, expr["call"], env) }
+    if t == "Call" {
+        _nil_guard_expr(errors, expr["fn"], env)
+        var args = expr["args"]
+        var i3 = 0
+        while i3 < oren_list_len(args) {
+            _nil_guard_expr(errors, args[i3], env)
+            i3 = i3 + 1
+        }
+        if expr["spread"] != nil { _nil_guard_expr(errors, expr["spread"], env) }
+        return nil
+    }
+    if t == "Function" {
+        // Nested function: check its body with a fresh env seeded by annotated params.
+        var fn_env = {}
+        var params = expr["params"]
+        var pi = 0
+        while pi < oren_list_len(params) {
+            var pid = params[pi]
+            if pid != nil && pid["ann_type"] != nil {
+                fn_env[pid["value"]] = _ann_to_cat(pid["ann_type"])
+            }
+            pi = pi + 1
+        }
+        _nil_guard_stmt(errors, expr["body"], fn_env)
+        return nil
+    }
+    return nil
+}
+
+fn _nil_guard_stmt(errors, stmt, env) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Block" || t == "StmtList" {
+        var xs = stmt["stmts"]
+        if xs == nil { xs = stmt["statements"] }
+        if xs == nil { return nil }
+        var i = 0
+        while i < oren_list_len(xs) {
+            _nil_guard_stmt(errors, xs[i], env)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Var" {
+        var nm = stmt["name"]
+        if nm != nil && nm["value"] != nil {
+            if nm["ann_type"] != nil {
+                var kc = _ann_to_cat(nm["ann_type"])
+                if kc == "int" || kc == "float" || kc == "bool" { env[nm["value"]] = kc }
+            } else {
+                var kc2 = _cat(stmt["value"], env)
+                if kc2 == "int" || kc2 == "float" || kc2 == "bool" { env[nm["value"]] = kc2 }
+            }
+        }
+        _nil_guard_expr(errors, stmt["value"], env)
+        return nil
+    }
+    if t == "Assign" {
+        _nil_guard_expr(errors, stmt["value"], env)
+        var anm = stmt["name"]
+        if anm != nil && anm["type"] == "Identifier" && anm["value"] != nil {
+            var kc3 = _cat(stmt["value"], env)
+            if kc3 == "int" || kc3 == "float" || kc3 == "bool" { env[anm["value"]] = kc3 }
+        }
+        return nil
+    }
+    if t == "Set" {
+        _nil_guard_expr(errors, stmt["left"], env)
+        _nil_guard_expr(errors, stmt["value"], env)
+        return nil
+    }
+    if t == "Return" { return _nil_guard_expr(errors, stmt["value"], env) }
+    if t == "ExprStmt" { return _nil_guard_expr(errors, stmt["expr"], env) }
+    if t == "While" {
+        _nil_guard_expr(errors, stmt["cond"], env)
+        return _nil_guard_stmt(errors, stmt["body"], env)
+    }
+    if t == "For" {
+        if stmt["init"] != nil { _nil_guard_stmt(errors, stmt["init"], env) }
+        if stmt["cond"] != nil { _nil_guard_expr(errors, stmt["cond"], env) }
+        if stmt["post"] != nil { _nil_guard_stmt(errors, stmt["post"], env) }
+        return _nil_guard_stmt(errors, stmt["body"], env)
+    }
+    if t == "Spawn" { return _nil_guard_expr(errors, stmt["call"], env) }
+    if t == "Switch" {
+        _nil_guard_expr(errors, stmt["value"], env)
+        var cases = stmt["cases"]
+        var ci = 0
+        while ci < oren_list_len(cases) {
+            var vals = cases[ci]["values"]
+            var vi = 0
+            while vi < oren_list_len(vals) {
+                _nil_guard_expr(errors, vals[vi], env)
+                vi = vi + 1
+            }
+            _nil_guard_stmt(errors, cases[ci]["body"], env)
+            ci = ci + 1
+        }
+        if stmt["default"] != nil { _nil_guard_stmt(errors, stmt["default"], env) }
+        return nil
+    }
+    if t == "Function" {
+        // In some contexts functions can appear as statements.
+        return _nil_guard_expr(errors, stmt, env)
+    }
+    return nil
+}
+
+// Always-on parity guard (Tier‑1 native hazard):
+//
+// Even when full typecheck is disabled, we want to fail fast on one high-impact footgun:
+// comparing provably-scalar values (bool/int/float) to `nil`. On native backends, `nil` is a
+// sentinel value and `0`/`false` are valid scalar values; treating `== nil` as “missing” is
+// almost always wrong.
+//
+// This guard is intentionally conservative: it only errors when the scalar side can be proven
+// via literals, casts, or local best-effort env propagation (var/assign of known scalars).
+fn nil_scalar_compare_guard_linked_program_in_place(linked) {
+    if linked == nil { return linked }
+    var errors = []
+    var env = {}
+    var stmts = linked["statements"]
+    var i = 0
+    while i < oren_list_len(stmts) {
+        _nil_guard_stmt(errors, stmts[i], env)
+        i = i + 1
+    }
+    linked["nil_compare_errors"] = errors
     return linked
 }
