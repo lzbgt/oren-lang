@@ -150,6 +150,7 @@ remote_preflight() {
     echo "log=$logf" >&2
     exit 2
   fi
+  return 0
 }
 
 ps_quote() {
@@ -226,4 +227,3 @@ if [[ "$rc" -ne 0 ]]; then
 fi
 
 echo "OK: saved ${local_dst}"
-

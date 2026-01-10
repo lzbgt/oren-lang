@@ -233,6 +233,10 @@ fi
 run_with_timeout() {
   local secs="$1"
   shift
+  local had_errexit=0
+  case "$-" in
+    *e*) had_errexit=1 ;;
+  esac
   set +e
   "$@" &
   local pid=$!
@@ -247,7 +251,9 @@ run_with_timeout() {
   local rc=$?
   kill "$killer" 2>/dev/null || true
   wait "$killer" 2>/dev/null || true
-  set -e
+  if [[ "$had_errexit" -eq 1 ]]; then
+    set -e
+  fi
   return "$rc"
 }
 
@@ -394,11 +400,15 @@ remote_preflight() {
     echo "log=$logf" >&2
     exit 2
   fi
+  log "OK: remote ssh probe"
+  return 0
 }
 
 remote_mkdir() {
   # Ensure the Windows user profile staging directory exists. (This also backs the WSL /mnt/c path.)
-  "${ssh_base[@]}" 'cmd.exe /c "if not exist %USERPROFILE%\\tmp_oren mkdir %USERPROFILE%\\tmp_oren"'
+  # IMPORTANT: `cmd.exe` can inherit a non-zero ERRORLEVEL under some ssh server setups.
+  # Force success to avoid "false failures" when the directory already exists.
+  "${ssh_base[@]}" 'cmd.exe /c "if not exist %USERPROFILE%\\tmp_oren mkdir %USERPROFILE%\\tmp_oren 2>nul & exit /b 0"'
 }
 
 remote_del() {

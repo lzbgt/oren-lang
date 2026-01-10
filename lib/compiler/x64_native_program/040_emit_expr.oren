@@ -423,8 +423,24 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         // Native strings are raw pointers to NUL-terminated bytes.
         // Store literal bytes in the appended data blob and load its address via RIP-relative LEA.
         var s = expr["value"]
+        // Rolling robustness (stage2-native):
+        // Some runtime/map implementations return `0` for a missing key rather than `nil`.
+        // For a String AST node, prefer the token literal when `value` isn't a real string.
+        if s == nil || oren_is_string(s) != true {
+            var tok = expr["token"]
+            if tok != nil {
+                var lit = tok["literal"]
+                if lit != nil && oren_is_string(lit) == true {
+                    s = lit
+                }
+            }
+        }
+        if s == nil { s = "" }
         var off = _data_add_cstr0(ctx, s)
-        // `off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
+        // `off` can legitimately be 0; `_data_add_cstr0` is ctx-local and must not treat 0 as failure.
+        // However, it can return nil if the AST is corrupted (non-string literal value). Bail out early
+        // to avoid emitting broken fixups.
+        if off == nil { return nil }
         var lea_pos = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0)) // lea rax, [rip+disp32]
         oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})

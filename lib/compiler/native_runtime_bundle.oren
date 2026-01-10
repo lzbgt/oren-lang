@@ -198,6 +198,69 @@ fn _rt_bundle_validate_runtime_prog(ctx, runtime_prog, runtime_path) {
     return true
 }
 
+fn _rt_bundle_cache_sanity_ok(v) {
+    // Best-effort structural sanity check for decoded astbin runtime bundles.
+    //
+    // Goal:
+    // - Treat corrupted/stale cache blobs as a cache miss so the compiler can fall back to
+    //   seed caches or to parsing the runtime source.
+    // - Avoid hard crashes later in backend codegen (e.g. `string_len expects string`).
+    //
+    // This intentionally does NOT record errors into ctx; it is only used to decide whether a
+    // decoded cache entry is safe to accept.
+    var budget = [4000000] // guard against cycles / pathological blobs
+    return _rt_bundle_cache_sanity_ok_rec(v, budget)
+}
+
+fn _rt_bundle_cache_sanity_ok_rec(v, budget_ref) {
+    // Returns true if `v` looks structurally safe, false otherwise.
+    if budget_ref == nil { return false }
+    var budget = budget_ref[0]
+    if budget == nil || budget <= 0 { return false }
+    budget_ref[0] = budget - 1
+
+    if v == nil || v == true || v == false { return true }
+    if oren_is_string(v) == true { return true }
+    if oren_is_u8_buf(v) == true { return true }
+
+    if oren_is_list(v) == true {
+        var i = 0
+        while i < oren_list_len(v) {
+            if _rt_bundle_cache_sanity_ok_rec(v[i], budget_ref) != true { return false }
+            i = i + 1
+        }
+        return true
+    }
+    if oren_is_map(v) == true {
+        // AST invariant checks for the most crash-prone nodes.
+        var t = v["type"]
+        if t != nil && oren_is_string(t) != true { return false }
+        if t == "String" {
+            var sv = v["value"]
+            if sv == nil { return false }
+            if oren_is_string(sv) != true { return false }
+        } else if t == "Identifier" {
+            var iv = v["value"]
+            if iv == nil { return false }
+            if oren_is_string(iv) != true { return false }
+        }
+
+        // Recurse through entries (generic).
+        var idx = 0
+        var pair = [nil, nil]
+        while 1 {
+            var ok = oren_iter_next_entry(v, idx, pair)
+            if ok == 0 { break }
+            var val = pair[1]
+            if _rt_bundle_cache_sanity_ok_rec(val, budget_ref) != true { return false }
+            idx = idx + 1
+        }
+        return true
+    }
+    // int/float/other immediates are OK as leaves.
+    return true
+}
+
 fn _rt_bundle_cache_enabled() {
     var v = oren_env("OREN_NATIVE_RUNTIME_ASTBIN_CACHE")
     if v == nil || v == "" { return true }
@@ -823,6 +886,12 @@ fn _load_and_parse_runtime_native_impl(ctx, runtime_path, platform) {
             var prog_hit = astbin.astbin_decode(bs_hit)
             if prog_hit != nil {
                 _bundle_tag_stmt_list(prog_hit["statements"], true)
+                if _rt_bundle_cache_sanity_ok(prog_hit) != true {
+                    if trace { print("[rt_bundle] cache astbin miss (sanity check failed), falling back") }
+                    prog_hit = nil
+                }
+            }
+            if prog_hit != nil {
                 var os_id2 = _rt_bundle_platform_os_id(platform)
                 var already_pruned = false
                 if os_id2 != 0 && prog_hit["__oren_pruned_target_os_id"] == os_id2 && prog_hit["__oren_pruned_target_os_kind"] == "g_target_os" {

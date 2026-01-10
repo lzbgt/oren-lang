@@ -37,7 +37,31 @@ fn _data_add_cstr0(ctx, s) {
     if ctx["cstr0_offs"] == nil { ctx["cstr0_offs"] = {} }
     if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
 
-    if s == nil { s = "" }
+    // In native mode, some call sites use raw 0 as a "null string pointer" sentinel.
+    // Treat it the same as `nil` here so string-y emitters don't crash during cross-target builds.
+    if s == nil || s == 0 { s = "" }
+    // Defensive: a corrupted/invalid AST (usually from a bad astbin cache) can surface a non-string
+    // value here. Avoid panicking inside `oren_string_len` (hard crash) and instead report a
+    // compiler error so callers can fall back or advise `oren clean`.
+    if oren_is_string(s) != true {
+        var tn = "<?>"
+        var tt = nil
+        var val_extra = ""
+        if s != nil {
+            tn = oren_type_name(s)
+            tt = oren_type_tag(s)
+            // When the native runtime returns 0 for "missing" (common map APIs),
+            // a missing key can surface as an `int 0` here. Include the raw value
+            // to make debugging cache/AST corruption less guessy.
+            if tt == 1 { val_extra = " val=" + oren_int_to_string(s) }
+        }
+        var extra = ""
+        if tt != nil { extra = " tag=" + oren_int_to_string(tt) }
+        var fn_extra = ""
+        if ctx != nil && ctx["cur_fn_name"] != nil { fn_extra = " cur_fn=" + ctx["cur_fn_name"] }
+        err(ctx, "x64 native v0: _data_add_cstr0 expects string, got " + tn + extra + val_extra + fn_extra)
+        return nil
+    }
     // Store offsets as `off+1` so a real offset of 0 is not indistinguishable from `nil`
     // when the compiler runs under the native runtime (where `nil` is 0).
     var existing_enc = ctx["cstr0_offs"][s]

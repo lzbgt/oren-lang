@@ -95,6 +95,8 @@ References:
   - New (2026-01-05): introduced a smaller “core” native runtime entry (`lib/runtime_native_core.oren`) selectable via `OREN_NATIVE_RUNTIME_PROFILE=core` so cold rtobj misses can be bounded for typical programs without removing the full runtime surface (default remains `lib/runtime_native.oren`).
     - Seed support: `scripts/build_runtime_astbin_seed.sh` now seeds full+core+capsule runtime astbins; `scripts/build_rtobj_seed.sh` supports `--runtime-profile` (or env `OREN_NATIVE_RUNTIME_PROFILE`) without pruning other profiles' seeds.
     - Fixed (2026-01-06): build cache key now hashes the effective injected native runtime entry (full vs core), so switching `OREN_NATIVE_RUNTIME_PROFILE` cannot reuse cached artifacts built with a different runtime (details in `docs/TODOS_ARCHIVE.md`).
+  - Fixed (2026-01-10): runtime astbin cache decode now sanity-checks decoded bundles and treats corrupted/stale blobs as cache misses (prevents stage2-native crashes in x64 emit/helpers when cache contents are invalid).
+  - Fixed (2026-01-10): x64 native emitter is defensive about string-literal nodes (treats raw `0` as “null string pointer” sentinel, and reports a compiler error when a corrupted AST supplies a non-string literal value).
 
   - Recent (2026-01-04): x86_64 cross-target cold miss is still expensive when the rtobj seed is disabled, but it is materially improved by:
     - eliminating per-instruction allocations in the x64 encoder (`lib/compiler/x64_core.oren`)
@@ -234,16 +236,23 @@ References:
 				               - Uses `SSL_CTX_set_alpn_select_cb` to select the first server-preferred protocol that overlaps the client offer.
 				               - Implemented via an exported callback symbol (`@ffi.export`) resolved by `dlsym(RTLD_DEFAULT, ...)`.
 				               - Requires Linux native backend ELF export support for executables (arm64-linux + x64-linux).
-			           - Done (2026-01-08): Windows x64 TLS provider bring-up (Schannel / SSPI) + enable TLS/HTTPS/WSS loopback fixtures on Win11:
-				             - Provider: `lib/std/net/tls_windows_schannel.oren` (impl: `windows_schannel`; `@ffi.dll("secur32.dll")` + `@ffi.dll("crypt32.dll")`)
-			             - Regression: `./scripts/verify_native_net_matrix.sh --targets x64-win` (stage1 + stage2)
-			             - Done (2026-01-09): Windows Schannel client ALPN offer wired:
-				               - `opts["alpn"]` is passed into `InitializeSecurityContextA` via `SECBUFFER_APPLICATION_PROTOCOLS` and a `SEC_APPLICATION_PROTOCOLS` blob.
-				               - Regression: TLS/HTTPS/WSS loopback fixtures all pass `opts["alpn"]` (stage1 + stage2; Tier‑1 via `scripts/verify_native_net_matrix.sh`).
-				             - Done (2026-01-09): Windows Schannel server ALPN selection wired:
-				               - `opts["alpn"]` is passed into the first `AcceptSecurityContext` call via `SECBUFFER_APPLICATION_PROTOCOLS`.
-			           - Done (2026-01-08): deterministic pinning is enforced by `std:net/tls.wrap_client` when `opts["pin_cert_sha256_hex"]` is provided (so HTTP/WS do not duplicate pinning logic).
-					           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider).
+				           - Done (2026-01-08): Windows x64 TLS provider bring-up (Schannel / SSPI) + enable TLS/HTTPS/WSS loopback fixtures on Win11:
+					             - Provider: `lib/std/net/tls_windows_schannel.oren` (impl: `windows_schannel`; `@ffi.dll("secur32.dll")` + `@ffi.dll("crypt32.dll")`)
+				             - Regression: `./scripts/verify_native_net_matrix.sh --targets x64-win` (stage1 + stage2)
+				             - Done (2026-01-09): Windows Schannel client ALPN offer wired:
+					               - `opts["alpn"]` is passed into `InitializeSecurityContextA` via `SECBUFFER_APPLICATION_PROTOCOLS` and a `SEC_APPLICATION_PROTOCOLS` blob.
+					               - Regression: TLS/HTTPS/WSS loopback fixtures all pass `opts["alpn"]` (stage1 + stage2; Tier‑1 via `scripts/verify_native_net_matrix.sh`).
+					             - Done (2026-01-09): Windows Schannel server ALPN selection wired:
+					               - `opts["alpn"]` is passed into the first `AcceptSecurityContext` call via `SECBUFFER_APPLICATION_PROTOCOLS`.
+				             - Fixed (2026-01-10): Win11 x64 Schannel credential lifetime crash (observed as `EXIT=-1073741819`) on HTTPS/WSS/HTTP/2 long paths:
+				               - Root cause: freeing the `SCHANNEL_CRED`/`paCred` memory passed into `AcquireCredentialsHandleA` after a connection closes can crash under some environments.
+				               - Fix: cache Schannel credentials per-process and keep the `SCHANNEL_CRED` memory alive for the lifetime of the process; `tls.close` skips freeing cached creds.
+				               - Follow-ups (rolling):
+				                 - add `tls.win_cleanup()` for long-lived processes that want an explicit shutdown free,
+				                 - include passphrase in the server-cred cache key (current fixtures use a constant),
+				                 - support multiple server creds/certs (current cache is single-entry by PKCS12 hash).
+				           - Done (2026-01-08): deterministic pinning is enforced by `std:net/tls.wrap_client` when `opts["pin_cert_sha256_hex"]` is provided (so HTTP/WS do not duplicate pinning logic).
+						           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider).
 						             - HTTP/2 needs a dedicated framing layer + server-side negotiation; ALPN offer plumbing is now in place (Linux/OpenSSL).
 						               - Done (2026-01-09): HTTP/2 framing core bring-up (preface + frame header encode/decode) and a TLS loopback framing regression:
 						                 - Core: `std:net/http2` (`lib/std/net/http2.oren`)

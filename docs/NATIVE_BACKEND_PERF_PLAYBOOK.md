@@ -143,6 +143,12 @@ Rolling policy:
 - If you see runtime OS pruning happening on an astbin cache hit (`OREN_TRACE_RUNTIME_OS_PRUNE=1`),
   treat it as a stale/unpruned cache file. The compiler will attempt a best-effort rewrite, which can
   be expensive once. After rewrite, runtime astbin decode should be materially faster.
+- Cache robustness (rolling):
+  - The runtime astbin cache decode path performs a best-effort structural sanity check on decoded blobs.
+    If the decoded program looks corrupted/stale (common symptom: later crashes like “string_len expects string”),
+    the compiler treats it as a cache miss and falls back to seeds or runtime source parsing.
+  - If you see repeated “miss (sanity check failed)” behavior, clear caches with `./oren clean` (or delete
+    `build/cache/native_runtime_astbin/` if you’re iterating on compiler internals).
 
 Seed (rolling, optional):
 

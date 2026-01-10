@@ -47,6 +47,11 @@ fn _linetab_record_tok(ctx, tok) {
     var file = tok["file"]
     var line = tok["line"]
     if file == nil || line == nil { return nil }
+    // Defensive: in rolling mode, some generated/decoded tokens may not carry a string file path.
+    // Debug line tables are best-effort; skip entries we can't stringify safely rather than
+    // crashing during cross-target builds.
+    if oren_is_string(file) != true { return nil }
+    if oren_type_tag(line) != 1 { return nil }
     if ctx["linetab_entries"] == nil || ctx["linetab_cap"] == nil { return nil }
     if oren_list_len(ctx["linetab_entries"]) >= ctx["linetab_cap"] { return nil }
 

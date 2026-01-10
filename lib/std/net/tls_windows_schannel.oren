@@ -6,6 +6,104 @@
 import tcp "std:net/tcp"
 import sha256 "std:crypto/sha256"
 
+// Schannel lifetime note (Win11 x64, rolling):
+//
+// Some environments appear sensitive to freeing the SCHANNEL_CRED (and its paCred array)
+// passed into AcquireCredentialsHandleA, even after FreeCredentialsHandle returns.
+//
+// To keep TLS/HTTPS/WSS stable across long code paths, we cache Schannel credentials
+// per-process and keep the SCHANNEL_CRED memory alive for the lifetime of the process.
+// This also avoids per-connection AcquireCredentialsHandleA overhead.
+//
+// TODO: add an explicit `tls.win_cleanup()` API for long-running processes that want to
+// release cached credentials at shutdown.
+
+var g_tls_win_client_hcred_insecure0 = 0
+var g_tls_win_client_auth_insecure0 = 0
+var g_tls_win_client_hcred_insecure1 = 0
+var g_tls_win_client_auth_insecure1 = 0
+
+var g_tls_win_server_pkcs12_hash = 0
+var g_tls_win_server_store = 0
+var g_tls_win_server_cert = 0
+var g_tls_win_server_hcred = 0
+var g_tls_win_server_auth = 0
+var g_tls_win_server_cred_arr = 0
+
+fn _win_insecure_flag(opts) {
+    if opts != nil && oren_is_map(opts) == true {
+        if oren_map_get_str(opts, "insecure_skip_verify") == 1 { return 1 }
+    }
+    return 0
+}
+
+fn _win_get_client_cred_cached(opts) {
+    var insecure = _win_insecure_flag(opts)
+    if insecure == 0 && g_tls_win_client_hcred_insecure0 != 0 {
+        return {"ok": 1, "hcred": g_tls_win_client_hcred_insecure0}
+    }
+    if insecure != 0 && g_tls_win_client_hcred_insecure1 != 0 {
+        return {"ok": 1, "hcred": g_tls_win_client_hcred_insecure1}
+    }
+
+    var r = _win_acquire_cred_uncached(0, 0, opts)
+    if r["ok"] != 1 { return r }
+
+    if insecure == 0 {
+        g_tls_win_client_hcred_insecure0 = r["hcred"]
+        g_tls_win_client_auth_insecure0 = r["auth"]
+    } else {
+        g_tls_win_client_hcred_insecure1 = r["hcred"]
+        g_tls_win_client_auth_insecure1 = r["auth"]
+    }
+    return {"ok": 1, "hcred": r["hcred"]}
+}
+
+fn _win_server_init_pkcs12_cached(pkcs12_bytes, passphrase, opts) {
+    // Cache server credentials by PKCS12 hash (rolling: ignores passphrase in the key; fixtures use a constant).
+    var h = sha256.sha256_hex(pkcs12_bytes)
+    if h == 0 { return {"ok": 0, "err": "tls(win): server cache: sha256_hex failed"} }
+    if g_tls_win_server_pkcs12_hash != 0 && strcmp(g_tls_win_server_pkcs12_hash, h) == 0 && g_tls_win_server_hcred != 0 {
+        free(h)
+        return {"ok": 1}
+    }
+
+    // New material: keep it alive for the lifetime of the process (rolling).
+    g_tls_win_server_pkcs12_hash = h
+
+    var imp = _win_import_pfx_store(pkcs12_bytes, passphrase)
+    if imp["ok"] != 1 { return imp }
+    var store = imp["store"]
+
+    var cr = _win_cert_first_in_store(store)
+    if cr["ok"] != 1 {
+        CertCloseStore(store, 0)
+        return cr
+    }
+    var cert = cr["cert"]
+
+    var credr = _win_acquire_cred_uncached(1, cert, opts)
+    if credr["ok"] != 1 {
+        CertFreeCertificateContext(cert)
+        CertCloseStore(store, 0)
+        return credr
+    }
+
+    g_tls_win_server_store = store
+    g_tls_win_server_cert = cert
+    g_tls_win_server_hcred = credr["hcred"]
+    g_tls_win_server_auth = credr["auth"]
+    g_tls_win_server_cred_arr = credr["cred_arr"]
+    return {"ok": 1}
+}
+
+fn _win_get_server_hcred_cached(pkcs12_bytes, passphrase, opts) {
+    var r = _win_server_init_pkcs12_cached(pkcs12_bytes, passphrase, opts)
+    if r["ok"] != 1 { return r }
+    if g_tls_win_server_hcred == 0 { return {"ok": 0, "err": "tls(win): server cache: missing hcred"} }
+    return {"ok": 1, "hcred": g_tls_win_server_hcred}
+}
+
 // --- Windows provider (Schannel / SSPI) ---
 //
 // Provider goal (rolling v0):
@@ -187,7 +285,7 @@ fn _win_schannel_cred_new(is_server, cert_ctx, opts) {
 }
 
 @cfg(os="windows")
-fn _win_acquire_cred(is_server, cert_ctx, opts) {
+fn _win_acquire_cred_uncached(is_server, cert_ctx, opts) {
     var hcred = malloc(16)
     if hcred == 0 { return {"ok": 0, "err": "tls(win): alloc CredHandle failed"} }
     _win_memzero(hcred, 16)
@@ -265,11 +363,10 @@ fn _win_cert_first_in_store(store) {
 
 @cfg(os="windows")
 fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
-    var credr = _win_acquire_cred(0, 0, opts)
+    var credr = _win_get_client_cred_cached(opts)
     if credr["ok"] != 1 { return credr }
     var hcred = credr["hcred"]
-    var auth = credr["auth"]
-    var cred_arr = credr["cred_arr"]
+    var cred_cached = 1
 
     // Optional: client ALPN offer (RFC 7301).
     //
@@ -288,10 +385,6 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
     var alpn_cb = 0
     var alpn_r = _win_build_alpn_secbuffer_if_requested(opts)
     if alpn_r["ok"] != 1 {
-        FreeCredentialsHandle(hcred)
-        free(hcred)
-        if auth != 0 { free(auth) }
-        if cred_arr != 0 { free(cred_arr) }
         return alpn_r
     }
     alpn_buf = alpn_r["p"]
@@ -299,10 +392,7 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
 
     var hctx = malloc(16)
     if hctx == 0 {
-        FreeCredentialsHandle(hcred)
-        free(hcred)
-        if auth != 0 { free(auth) }
-        if cred_arr != 0 { free(cred_arr) }
+        if alpn_buf != 0 { free(alpn_buf) }
         return {"ok": 0, "err": "tls(win): alloc CtxtHandle failed"}
     }
     _win_memzero(hctx, 16)
@@ -314,10 +404,6 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
         if exp != 0 { free(exp) }
         DeleteSecurityContext(hctx)
         free(hctx)
-        FreeCredentialsHandle(hcred)
-        free(hcred)
-        if auth != 0 { free(auth) }
-        if cred_arr != 0 { free(cred_arr) }
         if alpn_buf != 0 { free(alpn_buf) }
         return {"ok": 0, "err": "tls(win): alloc scratch failed"}
     }
@@ -329,9 +415,6 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
     if in_buf == 0 {
         free(attrs); free(exp)
         free(hctx)
-        FreeCredentialsHandle(hcred); free(hcred)
-        if auth != 0 { free(auth) }
-        if cred_arr != 0 { free(cred_arr) }
         if alpn_buf != 0 { free(alpn_buf) }
         return {"ok": 0, "err": "tls(win): alloc in_buf failed"}
     }
@@ -437,7 +520,7 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
             free(exp)
             free(in_buf)
             if alpn_buf != 0 { free(alpn_buf) }
-            return {"ok": 1, "hcred": hcred, "hctx": hctx, "auth": auth, "cred_arr": cred_arr}
+            return {"ok": 1, "hcred": hcred, "hctx": hctx, "cred_cached": cred_cached}
         }
 
         if st != 590610 && st != (0 - 2146893032) {
@@ -464,10 +547,6 @@ fn _win_handshake_client(fd, server_name, timeout_ms, opts) {
     free(in_buf)
     DeleteSecurityContext(hctx)
     free(hctx)
-    FreeCredentialsHandle(hcred)
-    free(hcred)
-    if auth != 0 { free(auth) }
-    if cred_arr != 0 { free(cred_arr) }
     if alpn_buf != 0 { free(alpn_buf) }
     return {"ok": 0, "err": "tls(win): client handshake failed (st=" + oren_int_to_string(last_st) + ")"}
 }
@@ -574,15 +653,13 @@ fn wrap_client(fd, server_name, timeout_ms, opts) {
     }
     var hcred = hs["hcred"]
     var hctx = hs["hctx"]
-    var auth = hs["auth"]
-    var cred_arr = hs["cred_arr"]
+    var cred_cached = hs["cred_cached"]
+    if cred_cached == nil { cred_cached = 0 }
 
     var sz = _win_query_stream_sizes(hctx)
     if sz["ok"] != 1 {
         DeleteSecurityContext(hctx); free(hctx)
-        FreeCredentialsHandle(hcred); free(hcred)
-        if auth != 0 { free(auth) }
-        if cred_arr != 0 { free(cred_arr) }
+        if cred_cached == 0 && hcred != 0 { FreeCredentialsHandle(hcred); free(hcred) }
         tcp.close(fd)
         return {"ok": 0, "err": sz["err"]}
     }
@@ -592,8 +669,9 @@ fn wrap_client(fd, server_name, timeout_ms, opts) {
         "fd": fd,
         "hcred": hcred,
         "hctx": hctx,
-        "sch_cred": auth,
-        "sch_cred_arr": cred_arr,
+        "cred_cached": cred_cached,
+        "sch_cred": 0,
+        "sch_cred_arr": 0,
         "hdr": sz["hdr"],
         "trl": sz["trl"],
         "max": sz["max"],
@@ -613,31 +691,13 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     if timeout_ms == nil { timeout_ms = 5000 }
     if passphrase == nil { passphrase = "" }
 
-    var imp = _win_import_pfx_store(pkcs12_bytes, passphrase)
-    if imp["ok"] != 1 {
-        tcp.close(fd)
-        return {"ok": 0, "err": imp["err"]}
-    }
-    var store = imp["store"]
-
-    var cr = _win_cert_first_in_store(store)
-    if cr["ok"] != 1 {
-        CertCloseStore(store, 0)
-        tcp.close(fd)
-        return {"ok": 0, "err": cr["err"]}
-    }
-    var cert = cr["cert"]
-
-    var credr = _win_acquire_cred(1, cert, opts)
+    var credr = _win_get_server_hcred_cached(pkcs12_bytes, passphrase, opts)
     if credr["ok"] != 1 {
-        CertFreeCertificateContext(cert)
-        CertCloseStore(store, 0)
         tcp.close(fd)
         return {"ok": 0, "err": credr["err"]}
     }
     var hcred = credr["hcred"]
-    var auth = credr["auth"]
-    var cred_arr = credr["cred_arr"]
+    var cred_cached = 1
 
     // Optional: server ALPN supported protocol list (RFC 7301).
     // This is supplied to Schannel via an input SECBUFFER_APPLICATION_PROTOCOLS buffer on the first
@@ -646,11 +706,6 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     var alpn_cb = 0
     var alpn_r = _win_build_alpn_secbuffer_if_requested(opts)
     if alpn_r["ok"] != 1 {
-        FreeCredentialsHandle(hcred); free(hcred)
-        if auth != 0 { free(auth) }
-        if cred_arr != 0 { free(cred_arr) }
-        CertFreeCertificateContext(cert)
-        CertCloseStore(store, 0)
         tcp.close(fd)
         return alpn_r
     }
@@ -659,12 +714,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
 
     var hctx = malloc(16)
     if hctx == 0 {
-        FreeCredentialsHandle(hcred); free(hcred)
-        if auth != 0 { free(auth) }
-        if cred_arr != 0 { free(cred_arr) }
         if alpn_buf != 0 { free(alpn_buf) }
-        CertFreeCertificateContext(cert)
-        CertCloseStore(store, 0)
         tcp.close(fd)
         return {"ok": 0, "err": "tls(win): alloc CtxtHandle failed"}
     }
@@ -676,12 +726,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
         if attrs != 0 { free(attrs) }
         if exp != 0 { free(exp) }
         free(hctx)
-        FreeCredentialsHandle(hcred); free(hcred)
-        if auth != 0 { free(auth) }
-        if cred_arr != 0 { free(cred_arr) }
         if alpn_buf != 0 { free(alpn_buf) }
-        CertFreeCertificateContext(cert)
-        CertCloseStore(store, 0)
         tcp.close(fd)
         return {"ok": 0, "err": "tls(win): alloc scratch failed"}
     }
@@ -693,12 +738,7 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     if in_buf == 0 {
         free(attrs); free(exp)
         free(hctx)
-        FreeCredentialsHandle(hcred); free(hcred)
-        if auth != 0 { free(auth) }
-        if cred_arr != 0 { free(cred_arr) }
         if alpn_buf != 0 { free(alpn_buf) }
-        CertFreeCertificateContext(cert)
-        CertCloseStore(store, 0)
         tcp.close(fd)
         return {"ok": 0, "err": "tls(win): alloc in_buf failed"}
     }
@@ -835,11 +875,6 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
         free(in_buf)
         if alpn_buf != 0 { free(alpn_buf) }
         DeleteSecurityContext(hctx); free(hctx)
-        FreeCredentialsHandle(hcred); free(hcred)
-        if auth != 0 { free(auth) }
-        if cred_arr != 0 { free(cred_arr) }
-        CertFreeCertificateContext(cert)
-        CertCloseStore(store, 0)
         tcp.close(fd)
         return {"ok": 0, "err": "tls(win): server handshake failed (st=" + oren_int_to_string(last_st) + ")"}
     }
@@ -853,11 +888,6 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     var sz = _win_query_stream_sizes(hctx)
     if sz["ok"] != 1 {
         DeleteSecurityContext(hctx); free(hctx)
-        FreeCredentialsHandle(hcred); free(hcred)
-        if auth != 0 { free(auth) }
-        if cred_arr != 0 { free(cred_arr) }
-        CertFreeCertificateContext(cert)
-        CertCloseStore(store, 0)
         tcp.close(fd)
         return {"ok": 0, "err": sz["err"]}
     }
@@ -867,8 +897,9 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
         "fd": fd,
         "hcred": hcred,
         "hctx": hctx,
-        "sch_cred": auth,
-        "sch_cred_arr": cred_arr,
+        "cred_cached": cred_cached,
+        "sch_cred": 0,
+        "sch_cred_arr": 0,
         "hdr": sz["hdr"],
         "trl": sz["trl"],
         "max": sz["max"],
@@ -877,8 +908,8 @@ fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
         "plain_buf": 0,
         "plain_used": 0,
         "plain_off": 0,
-        "pfx_store": store,
-        "pfx_cert": cert
+        "pfx_store": 0,
+        "pfx_cert": 0
     }
 
     return {"ok": 1, "conn": conn}
@@ -1123,6 +1154,8 @@ fn close(conn) {
     var hcred = conn["hcred"]
     var sch_cred = conn["sch_cred"]
     var sch_cred_arr = conn["sch_cred_arr"]
+    var cred_cached = conn["cred_cached"]
+    if cred_cached == nil { cred_cached = 0 }
     var eb = conn["enc_buf"]
     var pb = conn["plain_buf"]
     var store = conn["pfx_store"]
@@ -1133,14 +1166,14 @@ fn close(conn) {
         DeleteSecurityContext(hctx)
         free(hctx)
     }
-    if hcred != 0 {
+    if cred_cached == 0 && hcred != 0 {
         FreeCredentialsHandle(hcred)
         free(hcred)
     }
-    if sch_cred != 0 { free(sch_cred) }
-    if sch_cred_arr != 0 { free(sch_cred_arr) }
-    if cert != 0 { CertFreeCertificateContext(cert) }
-    if store != 0 { CertCloseStore(store, 0) }
+    if cred_cached == 0 && sch_cred != 0 { free(sch_cred) }
+    if cred_cached == 0 && sch_cred_arr != 0 { free(sch_cred_arr) }
+    if cred_cached == 0 && cert != 0 { CertFreeCertificateContext(cert) }
+    if cred_cached == 0 && store != 0 { CertCloseStore(store, 0) }
     if fd != nil && fd >= 0 { tcp.close(fd) }
     return 0
 }

@@ -220,7 +220,7 @@ Sources captured for audit/reference:
 
 ### 5.2 Windows provider (Schannel / SSPI)
 
-As of **2026-01-08 (rolling)**, `std:net/tls` has a Windows provider implemented in `lib/std/net/tls_windows_schannel.oren` (facade: `lib/std/net/tls.oren`):
+As of **2026-01-10 (rolling)**, `std:net/tls` has a Windows provider implemented in `lib/std/net/tls_windows_schannel.oren` (facade: `lib/std/net/tls.oren`):
 
 - Dynamic linking:
   - `@ffi.dll("secur32.dll")` (SSPI)
@@ -238,6 +238,13 @@ As of **2026-01-08 (rolling)**, `std:net/tls` has a Windows provider implemented
 
 Implementation notes (Windows):
 
+- **Credential lifetime is process-cached (rolling)**:
+  - Some Win11 x64 environments are sensitive to the lifetime of the `SCHANNEL_CRED` (and its `paCred` array)
+    passed into `AcquireCredentialsHandleA`, even after `FreeCredentialsHandle` returns.
+  - To keep TLS/HTTPS/WSS stable across long code paths, the provider caches Schannel credentials per-process and
+    keeps the `SCHANNEL_CRED` memory alive for the lifetime of the process (client: `insecure_skip_verify` 0/1;
+    server: PKCS12 SHA256).
+  - TODO: expose an explicit `tls.win_cleanup()` for long-lived processes that want to free cached credentials.
 - **Server handshake must start with input**:
   - `AcceptSecurityContext` is not guaranteed to establish a context handle when called with a zero-length input token.
   - The server handshake loop therefore reads the initial ClientHello bytes before the first `AcceptSecurityContext` call.
