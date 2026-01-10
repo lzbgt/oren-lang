@@ -394,6 +394,9 @@ Regression gates:
 
 - `./scripts/verify_native_x64_compile_only.sh` checks:
   - Windows PE prologue bytes include the required `disp8=0` byte (and rejects the known-bad omission pattern)
+  - Windows PE Export Directory contains expected exported symbol names (for `--lib` DLL outputs and `@ffi.export` on EXE)
+    - Rationale: `strings`/byte searches are insufficient; exports must be present in the PE export table.
+    - Implementation: `scripts/pe_exports_check.py` (no external deps; parses PE32+ export directory)
   - stage1 + stage2 compilation of `tests/native/print.oren` embeds `hello from native` into the output binary for `x64-linux` and `x64-windows` (guard against call/arg evaluation regressions).
 
 ### 4.8 x86_64 self-host compiler builds: avoid per-call string allocation in hot paths

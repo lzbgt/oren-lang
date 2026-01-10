@@ -754,6 +754,7 @@ examples-cross-compile-smoke: oren_stage2
 	@./$(OREN_STAGE2_BIN) scan build/tmp/libmath_stage2_x64_windows.dll | grep -F '| add |' >/dev/null
 	@./$(OREN_STAGE2_BIN) scan build/tmp/libmath_stage2_x64_windows.dll | grep -F '| mul |' >/dev/null
 	@file build/tmp/libmath_stage2_x64_windows.dll | grep -F 'PE32+ executable (DLL)' >/dev/null
+	@python3 scripts/pe_exports_check.py build/tmp/libmath_stage2_x64_windows.dll --contains add --contains mul
 	@echo "examples-cross-compile-smoke OK"
 
 # Verify `.obc` portability across AVM hosts (rolling).
