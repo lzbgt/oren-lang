@@ -14,6 +14,9 @@ Last verification (fact):
 - 2026-01-11: `make verify-native-net-skip-remote` passed (stage1 + stage2), covering:
   - `arm64-macos` (local)
   - `arm64-linux` (docker container `c7e5f7bd9f5c`)
+- 2026-01-12: `make verify-native-net` passed on remote x64 hosts (stage1 + stage2), covering:
+  - `x64-windows` (remote Win11)
+  - `x64-linux` (remote WSL2)
 
 Notes (rolling):
 

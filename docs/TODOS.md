@@ -137,6 +137,10 @@ References:
 
    - `docs/NET_TLS.md`, `docs/NET_HTTP2.md`, `docs/NET_WEBSOCKET.md`
 
+   Status (fact):
+
+   - 2026-01-12: `./scripts/verify_native_net_matrix.sh --targets x64-win,x64-wsl` passed (stage1 + stage2)
+
 5) **Crypto library layering (separate from NET)** (M)
 
    Goal: `std:crypto/*` becomes the stable home for:
@@ -156,6 +160,11 @@ References:
 
    - `./scripts/verify_stage0_windows_bootstrap.sh`
    - `./scripts/verify_windows_stage2_from_stage1.sh`
+
+   Status (fact):
+
+   - 2026-01-12: `make verify-stage0-win` passed (remote Win11, stage0→stage1 via MSVC `cl.exe`)
+   - 2026-01-12: `make verify-stage2-win` passed (remote Win11, stage0→stage1→stage2 native + C-backend smoke using default `--cc`)
 
 7) **GUI: platform shims for Tier‑1 (RGBA blit v0)** (L)
 
