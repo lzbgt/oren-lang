@@ -1,6 +1,6 @@
 # GUI / UI Design for Oren (Rolling)
 
-**Status:** Design + headless core implemented; bring-up shims exist for macOS + Windows (rolling)  
+**Status:** Design + headless core implemented; bring-up shims exist for macOS + Windows + Linux/X11 (rolling)  
 **Last updated:** 2026-01-12
 
 This document proposes a **production-oriented** GUI story for Oren that is consistent with:
@@ -15,6 +15,7 @@ Bring-up gates (headful, opt-in):
 
 - macOS: `make verify-ui-smoke-macos`
 - Windows: `make verify-ui-smoke-windows`
+- Linux/X11: `make verify-ui-smoke-linux` (requires X11 dev + GUI session)
 
 ## 0) Goals and constraints
 

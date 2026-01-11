@@ -1,6 +1,6 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: examples-cross-compile-smoke
-.PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick verify-ui-smoke-macos verify-ui-smoke-windows
+.PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux
 .PHONY: verify-native-x64-compile
 .PHONY: verify-native-x64-selfhost-compile
 .PHONY: verify-x64-linux-qemu
@@ -395,6 +395,10 @@ verify-ui-smoke-macos: oren
 # Requires a Windows GUI session + MSVC Developer Prompt (cl.exe/link.exe available).
 verify-ui-smoke-windows: oren_stage2
 	@./scripts/verify_ui_smoke_windows.sh ./$(OREN_STAGE2_BIN)
+
+# Linux GUI bring-up smoke (headful; X11; opt-in).
+verify-ui-smoke-linux: oren_stage2
+	@./scripts/verify_ui_smoke_linux.sh ./$(OREN_STAGE2_BIN)
 
 # Build the Win32 OrenUI shim DLL (headful runtime; build is safe in CI).
 # Notes:

@@ -1,6 +1,6 @@
 # GUI Platform Shims (OrenUI) — v0 Bring-up Plan
 
-**Status:** macOS Cocoa shim exists; Windows shim bring-up exists; Linux shim not started  
+**Status:** macOS Cocoa shim exists; Windows shim bring-up exists; Linux/X11 shim bring-up exists  
 **Last updated:** 2026-01-12
 
 This document turns `docs/GUI.md` into an actionable engineering plan for **Tier‑1 platform shims**.
@@ -20,10 +20,14 @@ Tier‑1 OS/arch intent (today): `arm64-macos`, `arm64-linux`, `x64-linux`, `x64
 - In-tree shim header: `native/orenui/orenui.h`
 - macOS shim implementation exists: `native/orenui/cocoa/orenui_cocoa.m`
 - Windows shim bring-up exists: `native/orenui/win32/orenui_win32.c` (v0 skeleton; window + present + pump)
+- Linux/X11 shim bring-up exists: `native/orenui/x11/orenui_x11.c` (v0 skeleton; window + present + pump)
 - Smoke gate (macOS-only; requires GUI session): `scripts/verify_ui_smoke_macos.sh` (wired via `make verify-ui-smoke-macos`)
 - Smoke gate (Windows; requires GUI session + VS Developer Prompt): `scripts/verify_ui_smoke_windows.sh` (wired via `make verify-ui-smoke-windows`)
-- Missing today:
-  - Linux shim (`arm64-linux`, `x64-linux`) — X11 (RGBA blit) as the first bring-up target
+- Smoke gate (Linux; requires X11 GUI session + dev libs): `scripts/verify_ui_smoke_linux.sh` (wired via `make verify-ui-smoke-linux`)
+- Missing today (still true):
+  - stable input/event schema (v0 currently only supports close/pump reliably)
+  - DPI/scale reporting beyond “best-effort scale=1”
+  - Wayland support (future; X11 is the v0 target)
 
 ## 1) What the v0 shim must do (and what it must not)
 
