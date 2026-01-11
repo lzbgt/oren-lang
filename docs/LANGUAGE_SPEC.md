@@ -1,6 +1,6 @@
 # Oren Language Specification (Draft)
 
-**Last updated:** 2026-01-08
+**Last updated:** 2026-01-11
 
 This document describes the **current Oren language** as accepted by the Stage1 compiler (`./oren`) and required for self-hosting (`oren.oren`).
 It includes both:
@@ -879,6 +879,7 @@ Native backend note:
     - This is intentional: scalars are not “optionals”; model missing values explicitly (`{"ok":1,"v":...}` / `{"ok":0}`) or use a tag-based check on truly dynamic values:
       - `if oren_type_tag(x) == 0 { ... }`
     - This guard is **always-on** (it does not require `--typecheck`). Diagnostics are tagged as `nil-compare guard: ...` so regressions are easy to spot.
+    - Tooling note: `--typecheck` is an `oren build` option that enables an additional opt-in validation pass for annotated code (casts and annotated call/return boundaries). It is not required for the nil-compare guard.
 
 ### Compile-time execution (“comptime”) (design direction)
 

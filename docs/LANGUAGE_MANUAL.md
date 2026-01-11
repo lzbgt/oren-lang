@@ -95,6 +95,35 @@ The Stage1 compiler (`./oren`) is intended to behave like a modern tool (Python 
 
 See `docs/CLI_COMPLETION.md` for activation instructions.
 
+### 0.1.1) `--typecheck` mode (rolling, opt-in)
+
+`oren build` supports an opt-in typecheck pass:
+
+```bash
+# Fail fast on type errors in annotated code (still builds on success).
+./oren build your_prog.oren --backend bytecode --typecheck -o build/your_prog.obc
+```
+
+What `--typecheck` is for (today):
+
+- A correctness gate for code that uses **type annotations** (function params/returns, typed short var decls, and cast-like boundaries).
+- Catching obvious mistakes early without a full static type system yet.
+
+What it checks (v0, conservative):
+
+- Invalid casts (example: `f32("x")`).
+- Invalid `as` casts (the parser lowers `x as T` into cast sugar calls; `--typecheck` validates the obvious-bad cases).
+- Call/return mismatches when the function signature is annotated and the value is statically known (literals and simple arithmetic).
+
+What it is *not* (yet):
+
+- Full inference/unification/generics constraints.
+- Proof of container element types (list/map contents are usually `unknown` to the v0 checker).
+
+Important: some safety guardrails are **always-on** and do not require `--typecheck`:
+
+- The compiler rejects `bool/int/float == nil` comparisons (`nil-compare guard:` diagnostics). See `docs/COMPILER_GOTCHAS.md`.
+
 ### 0.2) Quickstart: build + run (all backends)
 
 Build and run a program on the **C backend** (portable via host toolchain):

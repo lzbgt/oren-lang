@@ -72,8 +72,8 @@ References:
 
 - Perf playbook: `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`
 - Remote x64 workflow: `docs/REMOTE_X64_ENV.md`
-- Language docs baseline (keep in sync with tests): `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md`, `docs/LANGUAGE_FEATURE_MATRIX.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md` (last sync: 2026-01-10; includes stdlib import resolution + native Windows spawn/join + TLS/HTTPS/WSS notes + HTTP/2 framing bring-up status)
-  - Updated (2026-01-10): language docs now also document rolling reflection v0 (`__oren_type` tagging on struct values) and the `scalar == nil` guardrail.
+- Language docs baseline (keep in sync with tests): `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md`, `docs/LANGUAGE_FEATURE_MATRIX.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md` (last sync: 2026-01-11; includes stdlib import resolution + native Windows spawn/join + TLS/HTTPS/WSS notes + HTTP/2 framing bring-up status)
+  - Updated (2026-01-11): language docs now also document the opt-in `oren build --typecheck` mode (casts + annotated call/return validation), in addition to rolling reflection v0 (`__oren_type`) and the `scalar == nil` guardrail.
 
 ## P0 (Now)
 
