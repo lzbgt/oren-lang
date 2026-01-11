@@ -111,6 +111,7 @@ References:
    - finish the tagged-value plan: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
    - stabilize reflection APIs: `docs/REFLECTION_V1.md`
    - define how varargs elements carry type info so userland (fmt/ffi/serde) is robust
+   - nil-vs-scalar parity: either land tagged values (preferred) or make the nil-compare guard flow-aware enough to catch `x + 1` patterns without flagging intentional nil-coalescing in core code
 
    Gate:
 
