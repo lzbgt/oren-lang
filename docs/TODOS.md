@@ -613,11 +613,12 @@ References:
       - `scripts/import_stage2_failure_log.sh --src <path/to/log> --analyze`
     - After fetching, use `scripts/analyze_stage2_failure_log.sh` to extract high-signal errors/warnings without dumping large logs.
       - Convenience: `scripts/fetch_remote_file.sh` supports `--analyze` to run the analyzer automatically after download.
-    - Outstanding (needs remote access / log import):
-      - Fetch and analyze the reported stage2 failure log from the Windows host:
-        - Remote path: `E:\\work\\oren-lang\\s2_build_failure.log`
-        - Local destination: `project-doc/remote_logs/` (via `scripts/fetch_remote_file.sh --win-path ... --out ... --analyze`)
-      - Once the log is in-repo, turn the top 1–3 issues into a local regression gate (compile-only if needed).
+	    - Outstanding (needs remote access / log import):
+	      - Fetch and analyze the reported stage2 failure log from the Windows host:
+	        - Remote path: `E:\\work\\oren-lang\\s2_build_failure.log`
+	        - Local destination: `project-doc/remote_logs/` (via `scripts/fetch_remote_file.sh --win-path ... --out ... --analyze`)
+	        - Note (fact, 2026-01-11): proxy SSH via the default `OREN_REMOTE_X64_PROXY` failed with `socat ... CONNECT pc.work:22: Not Found`, so fetching requires overriding `OREN_REMOTE_X64_HOST` to a reachable IP/DNS (or using `--no-proxy` with direct SSH).
+	      - Once the log is in-repo, turn the top 1–3 issues into a local regression gate (compile-only if needed).
 
 5) **GUI / UI stack (OrenUI): AVM UI + native shell + UI domain** (L)
    - Goal: production-oriented cross-platform GUI without committing Oren’s core runtime to platform frameworks.
