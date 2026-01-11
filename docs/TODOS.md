@@ -91,13 +91,14 @@ References:
 
    Goal: “same program, same result” across Tier‑1, not “macOS only”.
 
-	   Parity surfaces:
-	
-	   - value semantics (`nil/false/true` vs numeric), comparisons, list/map behavior
-	   - eliminate legacy “nil==0” / 0-sentinel assumptions (0 is a valid int and is truthy; `nil/false/true` are runtime singletons)
-	     - Fixed: x64 ModRM disp8 emission no longer uses a “disp8+1” encoding (see `lib/compiler/x64_core.oren`); `disp8=0` is now a real byte value with `nil` meaning “absent”.
-	   - FFI ABI correctness (sign/zero extension, void return, ptr-sized returns)
-	   - NET/TLS end-to-end behavior (timeouts, buffering, determinism knobs)
+   Parity surfaces:
+
+   - value semantics (`nil/false/true` vs numeric), comparisons, list/map behavior
+   - eliminate legacy “nil==0” / 0-sentinel assumptions (0 is a valid int and is truthy; `nil/false/true` are runtime singletons)
+     - Fixed: x64 ModRM disp8 emission no longer uses a “disp8+1” encoding (see `lib/compiler/x64_core.oren`); `disp8=0` is now a real byte value with `nil` meaning “absent”.
+     - Fixed: `std:net/dns.default_resolver` no longer treats missing `OREN_DNS_SERVER` as “present” under native singleton-`nil` semantics (checks `env_ip != nil && env_ip != 0 && env_ip != ""`); Tier‑1 Win11 fixture `tests/fixtures/windows_dns_default_resolver_smoke.oren` now passes.
+   - FFI ABI correctness (sign/zero extension, void return, ptr-sized returns)
+   - NET/TLS end-to-end behavior (timeouts, buffering, determinism knobs)
 
    Gates:
 
@@ -114,6 +115,7 @@ References:
    - finish the tagged-value plan: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
    - stabilize reflection APIs: `docs/REFLECTION_V1.md`
    - define how varargs elements carry type info so userland (fmt/ffi/serde) is robust
+   - audit “optional string/env” checks across stdlib/compiler: avoid `v != 0` presence tests (under singleton-`nil`, `nil != 0` is true); standardize on `v != nil && v != 0 && v != ""` or a helper
    - nil-vs-scalar parity: either land tagged values (preferred) or make the nil-compare guard flow-aware enough to catch `x + 1` patterns without flagging intentional nil-coalescing in core code
 
    Gate:

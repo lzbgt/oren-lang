@@ -19,7 +19,12 @@ if r == nil {
 }
 var ip = r["server_ip"]
 if ip == nil || oren_string_len(ip) < 7 {
-    print("dns_default_resolver_smoke: FAIL bad ip")
+    var src = dr["src"]
+    var l = 0
+    if ip != nil { l = oren_string_len(ip) }
+    var ip_text = "(nil)"
+    if ip != nil { ip_text = ip }
+    print("dns_default_resolver_smoke: FAIL bad ip (src=" + src + " len=" + oren_int_to_string(l) + " ip=" + ip_text + ")")
     exit(3)
 }
 // Cheap shape check: must contain at least one dot.
@@ -34,4 +39,3 @@ if has_dot == 0 {
     exit(4)
 }
 exit(0)
-

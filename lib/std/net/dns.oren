@@ -64,8 +64,8 @@ fn resolver_free(res) {
     if res == nil { return 0 }
     if res["server_ip_owned"] == 1 {
         var ip = res["server_ip"]
-        if ip != 0 { free(ip) }
-        res["server_ip"] = 0
+        if ip != nil && ip != 0 { free(ip) }
+        res["server_ip"] = nil
         res["server_ip_owned"] = 0
     }
     return 0
@@ -220,17 +220,70 @@ fn _win_dns_default_nameserver_ipv4() {
     free(lenp)
     if rc != 0 { free(buf); return 0 }
 
-    // Extract FIXED_INFO.DnsServerList.IpAddress (char[16]) as cstr0.
+    // Extract an IPv4 nameserver from FIXED_INFO.
     //
     // Note: `@abi` layout lowering runs after module linking, so type names may be linker-prefixed.
     // The `oren_abi_offsetof` builtin supports resolving bare names via a unique suffix match.
+    //
+    // Implementation notes:
+    // - `DnsServerList` is an IP_ADDR_STRING node embedded in FIXED_INFO. It can be an empty/zero
+    //   entry; the real server may be in the linked list.
+    // - `CurrentDnsServer` points at the currently-used node within that list; prefer it when present.
+    // - IP_ADDR_STRING.IpAddress is a fixed `char[16]` buffer; do not scan past 16 bytes even if the
+    //   content is malformed (avoid reading beyond `buf`).
+    fn _cstr0_len_max(p, max_n) {
+        if p == 0 { return 0 }
+        if max_n <= 0 { return 0 }
+        var i = 0
+        while i < max_n {
+            if (ptr_get_byte(p + i) & 255) == 0 { return i }
+            i = i + 1
+        }
+        return max_n
+    }
+    fn _looks_like_ipv4_cstr0(p, max_n) {
+        // Cheap IPv4 literal check:
+        // - must contain at least one dot
+        // - only digits + dots (no spaces)
+        var n = _cstr0_len_max(p, max_n)
+        if n < 7 || n > 15 { return false }
+        var has_dot = 0
+        var i = 0
+        while i < n {
+            var b = ptr_get_byte(p + i) & 255
+            if b == 46 { has_dot = 1 } // '.'
+            else if b >= 48 && b <= 57 { /* digit */ }
+            else { return false }
+            i = i + 1
+        }
+        return has_dot == 1
+    }
     var off_list = oren_abi_offsetof("WIN_FIXED_INFO", "DnsServerList")
+    var off_cur = oren_abi_offsetof("WIN_FIXED_INFO", "CurrentDnsServer")
+    var off_next = oren_abi_offsetof("WIN_IP_ADDR_STRING", "Next")
     var off_ip = oren_abi_offsetof("WIN_IP_ADDR_STRING", "IpAddress")
-    var p = buf + off_list + off_ip
-    // Copy out (tracked heap string) before freeing buf.
-    var out = oren_string_slice(p, 0, oren_string_len(p))
+
+    var node = buf + off_list
+    var cur = ptr_get(buf + off_cur)
+    if cur != 0 { node = cur }
+
+    var tries = 0
+    while node != 0 && tries < 16 {
+        var ip_ptr = node + off_ip
+        if _looks_like_ipv4_cstr0(ip_ptr, 16) {
+            var n = _cstr0_len_max(ip_ptr, 16)
+            var out = oren_string_slice(ip_ptr, 0, n)
+            free(buf)
+            return out
+        }
+        var next = ptr_get(node + off_next)
+        if next == 0 { break }
+        node = next
+        tries = tries + 1
+    }
+
     free(buf)
-    return out
+    return 0
 }
 
 @cfg(os="windows")
@@ -248,7 +301,7 @@ fn default_resolver(timeout_ms) {
     if timeout_ms < 0 { timeout_ms = 0 }
 
     var env_ip = oren_env("OREN_DNS_SERVER")
-    if env_ip != 0 {
+    if env_ip != nil && env_ip != 0 && env_ip != "" {
         var r = resolver(env_ip, 53, timeout_ms)
         r["server_ip_owned"] = 1
         return {"ok": 1, "resolver": r, "src": "env"}
@@ -278,7 +331,7 @@ fn default_resolver(timeout_ms) {
     if timeout_ms < 0 { timeout_ms = 0 }
 
     var env_ip = oren_env("OREN_DNS_SERVER")
-    if env_ip != 0 {
+    if env_ip != nil && env_ip != 0 && env_ip != "" {
         var r = resolver(env_ip, 53, timeout_ms)
         r["server_ip_owned"] = 1
         return {"ok": 1, "resolver": r, "src": "env"}
