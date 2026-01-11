@@ -47,6 +47,9 @@ static void orenui__ensure_app(void) {
 
 @interface OrenUICocoaWindowState : NSObject <NSWindowDelegate> {
   pthread_mutex_t _rgbaMu;
+  int _ev_r;
+  int _ev_w;
+  int64_t _ev_q[64][5];
 }
 @property(nonatomic, strong) NSWindow* window;
 @property(nonatomic, strong) NSView* view;
@@ -59,6 +62,8 @@ static void orenui__ensure_app(void) {
 @property(nonatomic, assign) int32_t h;
 @property(nonatomic, assign) int32_t stride;
 @property(nonatomic, assign) size_t cap;
+- (void)evPushType:(int64_t)ty a0:(int64_t)a0 a1:(int64_t)a1 a2:(int64_t)a2 a3:(int64_t)a3;
+- (int)evPopOut:(int64_t*)out5;
 @end
 
 @implementation OrenUICocoaWindowState
@@ -76,6 +81,8 @@ static void orenui__ensure_app(void) {
     _closeReported = NO;
     _lastReportedW = 0;
     _lastReportedH = 0;
+    _ev_r = 0;
+    _ev_w = 0;
   }
   return self;
 }
@@ -93,6 +100,33 @@ static void orenui__ensure_app(void) {
   (void)notification;
   self.shouldClose = YES;
 }
+
+- (void)evPushType:(int64_t)ty a0:(int64_t)a0 a1:(int64_t)a1 a2:(int64_t)a2 a3:(int64_t)a3 {
+  int next_w = (_ev_w + 1) % 64;
+  if (next_w == _ev_r) {
+    return;
+  }
+  _ev_q[_ev_w][0] = ty;
+  _ev_q[_ev_w][1] = a0;
+  _ev_q[_ev_w][2] = a1;
+  _ev_q[_ev_w][3] = a2;
+  _ev_q[_ev_w][4] = a3;
+  _ev_w = next_w;
+}
+
+- (int)evPopOut:(int64_t*)out5 {
+  if (!out5) {
+    return 0;
+  }
+  if (_ev_r == _ev_w) {
+    return 0;
+  }
+  for (int i = 0; i < 5; i++) {
+    out5[i] = _ev_q[_ev_r][i];
+  }
+  _ev_r = (_ev_r + 1) % 64;
+  return 1;
+}
 @end
 
 @interface OrenUICocoaRGBAView : NSView
@@ -100,6 +134,96 @@ static void orenui__ensure_app(void) {
 @end
 
 @implementation OrenUICocoaRGBAView
+- (BOOL)acceptsFirstResponder {
+  return YES;
+}
+
+- (void)updateTrackingAreas {
+  [super updateTrackingAreas];
+  for (NSTrackingArea* ta in [self trackingAreas]) {
+    [self removeTrackingArea:ta];
+  }
+  NSTrackingAreaOptions opts = NSTrackingMouseMoved | NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect;
+  NSTrackingArea* area = [[NSTrackingArea alloc] initWithRect:self.bounds options:opts owner:self userInfo:nil];
+  [self addTrackingArea:area];
+}
+
+static int64_t orenui__mods_from_event(NSEvent* ev) {
+  NSEventModifierFlags f = [ev modifierFlags];
+  int64_t mods = 0;
+  if (f & NSEventModifierFlagShift) mods |= 1;
+  if (f & NSEventModifierFlagControl) mods |= 2;
+  if (f & NSEventModifierFlagOption) mods |= 4;
+  if (f & NSEventModifierFlagCommand) mods |= 8;
+  return mods;
+}
+
+- (void)mouseMoved:(NSEvent*)event {
+  OrenUICocoaWindowState* st = self.state;
+  if (!st) return;
+  NSPoint p = [self convertPoint:[event locationInWindow] fromView:nil];
+  int64_t mods = orenui__mods_from_event(event);
+  [st evPushType:ORENUI_EV_MOUSE_MOVE a0:(int64_t)(p.x + 0.5) a1:(int64_t)(p.y + 0.5) a2:mods a3:0];
+}
+
+- (void)mouseDown:(NSEvent*)event {
+  OrenUICocoaWindowState* st = self.state;
+  if (!st) return;
+  NSPoint p = [self convertPoint:[event locationInWindow] fromView:nil];
+  int64_t mods = orenui__mods_from_event(event);
+  [st evPushType:ORENUI_EV_MOUSE_DOWN a0:1 a1:(int64_t)(p.x + 0.5) a2:(int64_t)(p.y + 0.5) a3:mods];
+}
+
+- (void)mouseUp:(NSEvent*)event {
+  OrenUICocoaWindowState* st = self.state;
+  if (!st) return;
+  NSPoint p = [self convertPoint:[event locationInWindow] fromView:nil];
+  int64_t mods = orenui__mods_from_event(event);
+  [st evPushType:ORENUI_EV_MOUSE_UP a0:1 a1:(int64_t)(p.x + 0.5) a2:(int64_t)(p.y + 0.5) a3:mods];
+}
+
+- (void)rightMouseDown:(NSEvent*)event {
+  OrenUICocoaWindowState* st = self.state;
+  if (!st) return;
+  NSPoint p = [self convertPoint:[event locationInWindow] fromView:nil];
+  int64_t mods = orenui__mods_from_event(event);
+  [st evPushType:ORENUI_EV_MOUSE_DOWN a0:3 a1:(int64_t)(p.x + 0.5) a2:(int64_t)(p.y + 0.5) a3:mods];
+}
+
+- (void)rightMouseUp:(NSEvent*)event {
+  OrenUICocoaWindowState* st = self.state;
+  if (!st) return;
+  NSPoint p = [self convertPoint:[event locationInWindow] fromView:nil];
+  int64_t mods = orenui__mods_from_event(event);
+  [st evPushType:ORENUI_EV_MOUSE_UP a0:3 a1:(int64_t)(p.x + 0.5) a2:(int64_t)(p.y + 0.5) a3:mods];
+}
+
+- (void)keyDown:(NSEvent*)event {
+  OrenUICocoaWindowState* st = self.state;
+  if (!st) return;
+  int64_t mods = orenui__mods_from_event(event);
+  // Raw keyCode is hardware-dependent; keep as platform-raw for v0.
+  int64_t key = (int64_t)[event keyCode];
+  [st evPushType:ORENUI_EV_KEY_DOWN a0:key a1:mods a2:0 a3:0];
+
+  NSString* s = [event characters];
+  if (s && [s length] > 0) {
+    unichar c0 = [s characterAtIndex:0];
+    // Best-effort: UTF-16 code unit, no surrogate pairing in v0.
+    if (c0 != 0) {
+      [st evPushType:ORENUI_EV_TEXT a0:(int64_t)c0 a1:mods a2:0 a3:0];
+    }
+  }
+}
+
+- (void)keyUp:(NSEvent*)event {
+  OrenUICocoaWindowState* st = self.state;
+  if (!st) return;
+  int64_t mods = orenui__mods_from_event(event);
+  int64_t key = (int64_t)[event keyCode];
+  [st evPushType:ORENUI_EV_KEY_UP a0:key a1:mods a2:0 a3:0];
+}
+
 - (BOOL)isFlipped {
   // Match Oren's UI coordinate system (0,0 at top-left).
   return YES;
@@ -239,6 +363,7 @@ int32_t orenui_open_window(const char* title_utf8, int32_t w, int32_t h) {
   [win setTitle:title];
   [win setDelegate:st];
   [win setContentView:view];
+  [win makeFirstResponder:view];
   [win makeKeyAndOrderFront:nil];
   [NSApp activateIgnoringOtherApps:YES];
 
@@ -384,10 +509,18 @@ int32_t orenui_poll_event(int32_t win_id, int32_t timeout_ms, int64_t out5_i64_p
     return -4;
   }
 
+  int64_t* out = (int64_t*)(uintptr_t)out5_i64_ptr;
+
+  // First: any already-queued input events.
+  if ([st evPopOut:out]) {
+    return 1;
+  }
+
   // Pump once to ingest pending OS events, bounded by timeout.
   (void)orenui_pump(win_id, timeout_ms);
-
-  int64_t* out = (int64_t*)(uintptr_t)out5_i64_ptr;
+  if ([st evPopOut:out]) {
+    return 1;
+  }
 
   if (st.shouldClose && !st.closeReported) {
     st.closeReported = YES;

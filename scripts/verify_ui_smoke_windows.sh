@@ -77,7 +77,7 @@ rm -f "$log" "$shim_out" "$app_out" 2>/dev/null || true
 echo "== build shim dll (cl.exe) =="
 run_with_timeout "$build_timeout_secs" cl.exe \
   /nologo /O2 /MT /W3 /EHsc /LD \
-  /DWIN32_LEAN_AND_MEAN /D_CRT_SECURE_NO_WARNINGS \
+  /DWIN32_LEAN_AND_MEAN /D_CRT_SECURE_NO_WARNINGS /DORENUI_EXPORTS \
   "$shim_src" \
   user32.lib gdi32.lib \
   /link /nologo /OUT:"$shim_out" \
@@ -98,4 +98,3 @@ run_with_timeout "$run_timeout_secs" "$app_out" >>"$log" 2>&1
 
 tail -n 40 "$log"
 echo "verify_ui_smoke_windows OK"
-

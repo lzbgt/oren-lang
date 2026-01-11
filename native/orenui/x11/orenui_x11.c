@@ -149,6 +149,57 @@ static void orenui__pump_once(OrenUIX11State* st) {
         }
         break;
       }
+      case MotionNotify: {
+        int32_t x = (int32_t)ev.xmotion.x;
+        int32_t y = (int32_t)ev.xmotion.y;
+        // Mods best-effort (Shift/Control/Alt via Mod1).
+        int64_t mods = 0;
+        if (ev.xmotion.state & ShiftMask) mods |= 1;
+        if (ev.xmotion.state & ControlMask) mods |= 2;
+        if (ev.xmotion.state & Mod1Mask) mods |= 4;
+        orenui__ev_push(st, ORENUI_EV_MOUSE_MOVE, (int64_t)x, (int64_t)y, mods, 0);
+        break;
+      }
+      case ButtonPress:
+      case ButtonRelease: {
+        int32_t x = (int32_t)ev.xbutton.x;
+        int32_t y = (int32_t)ev.xbutton.y;
+        int64_t mods = 0;
+        if (ev.xbutton.state & ShiftMask) mods |= 1;
+        if (ev.xbutton.state & ControlMask) mods |= 2;
+        if (ev.xbutton.state & Mod1Mask) mods |= 4;
+        int64_t btn = (int64_t)ev.xbutton.button; // X11: 1=left,2=middle,3=right
+        if (btn >= 1 && btn <= 3) {
+          orenui__ev_push(st, (ev.type == ButtonPress) ? ORENUI_EV_MOUSE_DOWN : ORENUI_EV_MOUSE_UP, btn, (int64_t)x, (int64_t)y, mods);
+        }
+        break;
+      }
+      case KeyPress:
+      case KeyRelease: {
+        int64_t mods = 0;
+        if (ev.xkey.state & ShiftMask) mods |= 1;
+        if (ev.xkey.state & ControlMask) mods |= 2;
+        if (ev.xkey.state & Mod1Mask) mods |= 4;
+
+        // Raw keycode (platform-specific).
+        int64_t key = (int64_t)ev.xkey.keycode;
+        orenui__ev_push(st, (ev.type == KeyPress) ? ORENUI_EV_KEY_DOWN : ORENUI_EV_KEY_UP, key, mods, 0, 0);
+
+        // Best-effort text event for KeyPress (ASCII-ish).
+        if (ev.type == KeyPress) {
+          char buf[16];
+          KeySym ks = 0;
+          int n = XLookupString(&ev.xkey, buf, (int)sizeof(buf), &ks, NULL);
+          if (n > 0) {
+            // Treat first byte as a codepoint in Latin-1 range (v0 simplification).
+            uint8_t b0 = (uint8_t)buf[0];
+            if (b0 >= 32) {
+              orenui__ev_push(st, ORENUI_EV_TEXT, (int64_t)b0, mods, 0, 0);
+            }
+          }
+        }
+        break;
+      }
       case ConfigureNotify: {
         // Window resized.
         int32_t nw = (int32_t)ev.xconfigure.width;

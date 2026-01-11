@@ -24,11 +24,23 @@
 extern "C" {
 #endif
 
+#if defined(_WIN32) || defined(__CYGWIN__)
+  #if defined(ORENUI_EXPORTS)
+    #define ORENUI_API __declspec(dllexport)
+  #else
+    // This header is used primarily for dynamic-FFI loading, not link-time imports.
+    // Keep the default empty to avoid requiring import libs on consumers.
+    #define ORENUI_API
+  #endif
+#else
+  #define ORENUI_API
+#endif
+
 // Open a window. Returns a positive window id on success, negative on error.
-int32_t orenui_open_window(const char* title_utf8, int32_t w, int32_t h);
+ORENUI_API int32_t orenui_open_window(const char* title_utf8, int32_t w, int32_t h);
 
 // Close the window. It is valid to call this multiple times.
-void orenui_close_window(int32_t win_id);
+ORENUI_API void orenui_close_window(int32_t win_id);
 
 // Present an RGBA framebuffer into the window.
 //
@@ -38,14 +50,14 @@ void orenui_close_window(int32_t win_id);
 // Return:
 // - 0 on success
 // - negative on error
-int32_t orenui_present_rgba(int32_t win_id, int32_t w, int32_t h, int64_t rgba_ptr, int32_t stride);
+ORENUI_API int32_t orenui_present_rgba(int32_t win_id, int32_t w, int32_t h, int64_t rgba_ptr, int32_t stride);
 
 // Pump the platform event queue once (or for up to timeout_ms).
 //
 // Return:
 // - 1 if the window is closing / should exit
 // - 0 otherwise
-int32_t orenui_pump(int32_t win_id, int32_t timeout_ms);
+ORENUI_API int32_t orenui_pump(int32_t win_id, int32_t timeout_ms);
 
 // Poll one event from the platform queue (v0).
 //
@@ -60,7 +72,7 @@ int32_t orenui_pump(int32_t win_id, int32_t timeout_ms);
 // - 1 if an event was written to out[]
 // - 0 if no event is available (within timeout_ms)
 // - negative on error
-int32_t orenui_poll_event(int32_t win_id, int32_t timeout_ms, int64_t out5_i64_ptr);
+ORENUI_API int32_t orenui_poll_event(int32_t win_id, int32_t timeout_ms, int64_t out5_i64_ptr);
 
 // v0 event tags (rolling; minimal set only).
 // Payload layout:
@@ -68,6 +80,19 @@ int32_t orenui_poll_event(int32_t win_id, int32_t timeout_ms, int64_t out5_i64_p
 // - RESIZE: out[1] = w (i64), out[2] = h (i64)
 #define ORENUI_EV_CLOSE  1
 #define ORENUI_EV_RESIZE 2
+
+// Input events (v0; best-effort, platform raw codes).
+//
+// - MOUSE_MOVE: out[1]=x, out[2]=y, out[3]=mods
+// - MOUSE_DOWN/UP: out[1]=btn (1=left,2=middle,3=right), out[2]=x, out[3]=y, out[4]=mods
+// - KEY_DOWN/UP: out[1]=key (platform raw), out[2]=mods
+// - TEXT: out[1]=unicode codepoint (best-effort), out[2]=mods
+#define ORENUI_EV_MOUSE_MOVE 3
+#define ORENUI_EV_MOUSE_DOWN 4
+#define ORENUI_EV_MOUSE_UP   5
+#define ORENUI_EV_KEY_DOWN   6
+#define ORENUI_EV_KEY_UP     7
+#define ORENUI_EV_TEXT       8
 
 #if defined(__cplusplus)
 } // extern "C"

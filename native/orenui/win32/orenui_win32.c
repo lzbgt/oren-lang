@@ -22,6 +22,25 @@
 
 #include "../orenui.h"
 
+static int64_t orenui__mods_from_wparam(WPARAM wparam) {
+  int64_t mods = 0;
+  if (wparam & MK_SHIFT) mods |= 1;
+  if (wparam & MK_CONTROL) mods |= 2;
+  // Alt is not represented in MK_* flags; approximate via key state.
+  if (GetKeyState(VK_MENU) & 0x8000) mods |= 4;
+  return mods;
+}
+
+static int64_t orenui__mods_from_key_state(void) {
+  int64_t mods = 0;
+  if (GetKeyState(VK_SHIFT) & 0x8000) mods |= 1;
+  if (GetKeyState(VK_CONTROL) & 0x8000) mods |= 2;
+  if (GetKeyState(VK_MENU) & 0x8000) mods |= 4;
+  if (GetKeyState(VK_LWIN) & 0x8000) mods |= 8;
+  if (GetKeyState(VK_RWIN) & 0x8000) mods |= 8;
+  return mods;
+}
+
 typedef struct OrenUIWin32State {
   int32_t id;
   HWND hwnd;
@@ -188,6 +207,72 @@ static LRESULT CALLBACK orenui__wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPAR
         int32_t ch = (int32_t)((lparam >> 16) & 0xFFFF);
         if (cw > 0 && ch > 0) {
           orenui__ev_push(st, ORENUI_EV_RESIZE, (int64_t)cw, (int64_t)ch, 0, 0);
+        }
+      }
+      break;
+    }
+    case WM_MOUSEMOVE: {
+      if (st) {
+        int32_t x = (int32_t)(GET_X_LPARAM(lparam));
+        int32_t y = (int32_t)(GET_Y_LPARAM(lparam));
+        int64_t mods = orenui__mods_from_wparam(wparam);
+        orenui__ev_push(st, ORENUI_EV_MOUSE_MOVE, (int64_t)x, (int64_t)y, mods, 0);
+      }
+      break;
+    }
+    case WM_LBUTTONDOWN:
+    case WM_MBUTTONDOWN:
+    case WM_RBUTTONDOWN: {
+      if (st) {
+        int32_t x = (int32_t)(GET_X_LPARAM(lparam));
+        int32_t y = (int32_t)(GET_Y_LPARAM(lparam));
+        int64_t mods = orenui__mods_from_wparam(wparam);
+        int64_t btn = 1;
+        if (msg == WM_MBUTTONDOWN) btn = 2;
+        if (msg == WM_RBUTTONDOWN) btn = 3;
+        orenui__ev_push(st, ORENUI_EV_MOUSE_DOWN, btn, (int64_t)x, (int64_t)y, mods);
+      }
+      break;
+    }
+    case WM_LBUTTONUP:
+    case WM_MBUTTONUP:
+    case WM_RBUTTONUP: {
+      if (st) {
+        int32_t x = (int32_t)(GET_X_LPARAM(lparam));
+        int32_t y = (int32_t)(GET_Y_LPARAM(lparam));
+        int64_t mods = orenui__mods_from_wparam(wparam);
+        int64_t btn = 1;
+        if (msg == WM_MBUTTONUP) btn = 2;
+        if (msg == WM_RBUTTONUP) btn = 3;
+        orenui__ev_push(st, ORENUI_EV_MOUSE_UP, btn, (int64_t)x, (int64_t)y, mods);
+      }
+      break;
+    }
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN: {
+      if (st) {
+        int64_t key = (int64_t)(wparam & 0xFFFF);
+        int64_t mods = orenui__mods_from_key_state();
+        orenui__ev_push(st, ORENUI_EV_KEY_DOWN, key, mods, 0, 0);
+      }
+      break;
+    }
+    case WM_KEYUP:
+    case WM_SYSKEYUP: {
+      if (st) {
+        int64_t key = (int64_t)(wparam & 0xFFFF);
+        int64_t mods = orenui__mods_from_key_state();
+        orenui__ev_push(st, ORENUI_EV_KEY_UP, key, mods, 0, 0);
+      }
+      break;
+    }
+    case WM_CHAR: {
+      if (st) {
+        // Best-effort: UTF-16 code unit. Surrogate pairs are not handled in v0.
+        int64_t cp = (int64_t)(wparam & 0xFFFF);
+        int64_t mods = orenui__mods_from_key_state();
+        if (cp != 0) {
+          orenui__ev_push(st, ORENUI_EV_TEXT, cp, mods, 0, 0);
         }
       }
       break;

@@ -184,7 +184,7 @@ References:
 	   Next steps (actionable):
 
 	   - finalize `native/orenui/orenui.h` v0 ABI (window + poll_event + present_rgba)
-	     - Status: `orenui_poll_event` exists on macOS/Windows/Linux shims (v0 events: close + resize)
+	     - Status: `orenui_poll_event` exists on macOS/Windows/Linux shims (v0 events: close + resize + basic input)
 	   - implement `native/orenui/win32/*` (Win32 + GDI/DIBSection blit) + keep a bounded headful smoke script green
 	     - Started: `native/orenui/win32/orenui_win32.c` (skeleton; expects a GUI session)
 	     - Added: `scripts/verify_ui_smoke_windows.sh` (`make verify-ui-smoke-windows`)

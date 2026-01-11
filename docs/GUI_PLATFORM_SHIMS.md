@@ -82,6 +82,27 @@ Repo fact (today):
 - Events are returned via an `int64[5]` out buffer (`orenui_poll_event(..., out5_i64_ptr)`), because
   Oren FFI is currently most reliable for scalar args + raw pointers.
 
+Event payloads (v0, implemented):
+
+- `ORENUI_EV_CLOSE`:
+  - `out[0]=1`, rest `0`
+- `ORENUI_EV_RESIZE`:
+  - `out[0]=2`, `out[1]=w`, `out[2]=h`
+- `ORENUI_EV_MOUSE_MOVE`:
+  - `out[0]=3`, `out[1]=x`, `out[2]=y`, `out[3]=mods`
+- `ORENUI_EV_MOUSE_DOWN` / `ORENUI_EV_MOUSE_UP`:
+  - `out[0]=4/5`, `out[1]=btn (1=left,2=middle,3=right)`, `out[2]=x`, `out[3]=y`, `out[4]=mods`
+- `ORENUI_EV_KEY_DOWN` / `ORENUI_EV_KEY_UP`:
+  - `out[0]=6/7`, `out[1]=key (platform raw)`, `out[2]=mods`
+- `ORENUI_EV_TEXT`:
+  - `out[0]=8`, `out[1]=codepoint (best-effort)`, `out[2]=mods`
+
+Notes:
+
+- `mods` is a bitmask (v0): `1=shift`, `2=ctrl`, `4=alt`, `8=super` (best-effort across OSes).
+- Key codes are currently platform-raw; a stable cross-platform key enum is a future layer.
+- Unicode text is best-effort in v0; full IME and surrogate pairing are future work.
+
 Pros:
 - Easy to bind from Oren native backend.
 - Easy to implement in C/C++/ObjC across platforms.

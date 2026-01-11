@@ -408,7 +408,7 @@ build-orenui-win32:
 ifeq ($(HOST_IS_WINDOWS),1)
 	@mkdir -p build/tmp
 	@echo "== build: orenui_win32.dll (Win32/GDI) =="
-	@cmd.exe /v:on /c "setlocal && where cl.exe >nul 2>nul && where link.exe >nul 2>nul || (echo ERROR: MSVC tools not found in PATH. Start a VS Developer Prompt or ensure VsDevCmd/vcvars is configured. & exit /b 2) && cl.exe /nologo /O2 /LD native\\orenui\\win32\\orenui_win32.c /I native\\orenui user32.lib gdi32.lib /link /OUT:build\\tmp\\orenui_win32.dll"
+	@cmd.exe /v:on /c "setlocal && where cl.exe >nul 2>nul && where link.exe >nul 2>nul || (echo ERROR: MSVC tools not found in PATH. Start a VS Developer Prompt or ensure VsDevCmd/vcvars is configured. & exit /b 2) && cl.exe /nologo /O2 /LD /DORENUI_EXPORTS native\\orenui\\win32\\orenui_win32.c /I native\\orenui user32.lib gdi32.lib /link /OUT:build\\tmp\\orenui_win32.dll"
 else
 	@echo "ERROR: build-orenui-win32 requires a Windows host (HOST_IS_WINDOWS=1)."
 	@exit 2
