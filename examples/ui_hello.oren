@@ -1,0 +1,92 @@
+// OrenUI bring-up demo (macOS first)
+//
+// This is intentionally tiny:
+// - portable UI core: `std:ui/*` renders a deterministic command buffer and rasterizes into RGBA bytes.
+// - platform shim: `orenui_*` provides window + blit + event pump.
+//
+// Build/run via:
+//   ./scripts/verify_ui_smoke_macos.sh
+
+import ui_core "std:ui/core"
+import ui_render "std:ui/render"
+import ui_raster "std:ui/raster"
+
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi orenui_open_window
+
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi orenui_present_rgba
+
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi orenui_pump
+
+@cfg(os="macos")
+@ffi.ret("void")
+ffi orenui_close_window
+
+fn _make_tree(w, h) {
+    var bg = ui_core.node("Box", "bg", {"w": w, "h": h, "bg": "#202020"}, [])
+
+    var t = ui_core.node("Text", "t", {
+        "text": "OrenUI v0 (macOS bring-up)",
+        "w": w - 20,
+        "h": 1,
+        "color": "#00ff66"
+    }, [])
+
+    // A padded column so text starts away from the (0,0) corner.
+    var overlay = ui_core.node("Column", "overlay", {"pad": 10, "gap": 1}, [t])
+
+    return ui_core.node("Stack", "root", {"pad": 0}, [bg, overlay])
+}
+
+fn main() {
+    // Keep the smoke small and fast: UI correctness is validated by headless tests,
+    // this is only "can we open a window and blit a few frames".
+    var w = 240
+    var h = 80
+    var win = orenui_open_window("OrenUI v0", w, h)
+    if win <= 0 {
+        print("ui_hello: failed to open window, win_id=" + oren_int_to_string(win))
+        return 1
+    }
+
+    // Precompute one headless frame. This keeps the smoke stable even if the
+    // GC/allocator is under active refactor: we want to validate the shim ABI
+    // and the window+present wiring, not stress the allocator.
+    var tree = _make_tree(w, h)
+    var cmds = ui_render.render(tree, nil)
+    var rgba = ui_raster.rasterize(cmds, w, h, {"validate": 1})
+    if oren_is_err(rgba) {
+        print("ui_hello: rasterize failed")
+        orenui_close_window(win)
+        return 1
+    }
+    var rgba_ptr = oren_buf_data_ptr_unchecked(rgba)
+    var stride = w * 4
+
+    var max_frames = 60
+    var frame = 0
+    while frame < max_frames {
+        // Pump is currently a no-op on macOS bring-up (see `native/orenui/cocoa`).
+        // We still call it to keep the API shape stable.
+        var closing = orenui_pump(win, 0)
+        if closing != 0 { break }
+
+        var pr = orenui_present_rgba(win, w, h, rgba_ptr, stride)
+        if pr != 0 {
+            print("ui_hello: present failed, code=" + oren_int_to_string(pr))
+            break
+        }
+
+        // ~60fps-ish (best-effort; this is a smoke, not a perf benchmark).
+        oren_sleep_ms(16)
+        frame = frame + 1
+    }
+
+    orenui_close_window(win)
+    return 0
+}

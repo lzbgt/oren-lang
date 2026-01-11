@@ -152,6 +152,13 @@ Use Cocoa for windowing, CoreGraphics for software blit.
 - DPI:
   - `backingScaleFactor` on the window/screen
 
+Bring-up hazard (observed):
+
+- If the host program is not a traditional Cocoa `main()` that calls `-[NSApplication run]`,
+  “per-call” `@autoreleasepool { ... }` blocks inside a shim can crash under repeated use.
+  Prefer a single long-lived pool owned by the shell (or reintroduce pools only after the
+  run loop ownership model is settled).
+
 ---
 
 ## 5) Where Dear ImGui fits (and where it does not)
@@ -189,4 +196,3 @@ So the recommended default is:
 4) Documentation updates:
    - `docs/GUI.md` links to this file.
    - `docs/TODOS.md` lists the exact deliverables and priorities.
-

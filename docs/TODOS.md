@@ -682,15 +682,22 @@ References:
          - `orenui_win32` (x64-windows): Win32 window + input pump + RGBA blit (GDI).
          - `orenui_x11` (arm64-linux + x64-linux): X11 window + input pump + RGBA blit (XPutImage; XShm later).
          - `orenui_cocoa` (arm64-macos): Cocoa window + input pump + RGBA blit (CoreGraphics; Metal later).
+           - Started (2026-01-11): initial shim lives in `native/orenui/cocoa/orenui_cocoa.m` with a bounded smoke:
+             - Script: `scripts/verify_ui_smoke_macos.sh`
+             - Make target: `make verify-ui-smoke-macos`
+           - Note (2026-01-11): per-call `@autoreleasepool { ... }` inside the shim caused repeatable crashes
+             (`objc_autoreleasePoolPop` -> `objc_release(0x20)`); v0 keeps the shim free of per-call pools.
+             Next: define a correct lifetime model (single long-lived pool owned by the shell, or a safe pump loop).
        - ABI decision (v0):
          - Prefer a C ABI returning typed structs (`OrenUIEvent`, `OrenUIFrameInfo`) over JSON/strings.
      - Add a native demo app:
        - `examples/ui_hello.oren`: uses `std:ui/*` to render a frame and shows it via the shim.
+         - Done (2026-01-11): `examples/ui_hello.oren` (macOS bring-up; built and run by `scripts/verify_ui_smoke_macos.sh`).
      - Add Tier‑1 smoke scripts (opt-in, bounded):
        - open window → draw ~60 frames → close (hard timeout; no huge logs).
      - Optional devtools path (do not block v0):
        - Integrate Dear ImGui as a *shell/overlay* once at least one platform shim exists.
-       - Keep `std:ui` as the stable retained-mode app API; ImGui is tooling and/or a temporary shell shortcut.
+        - Keep `std:ui` as the stable retained-mode app API; ImGui is tooling and/or a temporary shell shortcut.
    - Declarative UI formats (optional; do not block v0):
      - Prefer YAML/JSON first (`std:yaml` / `std:json` exist today).
      - Add `std:encoding/xml` only if we need XML ecosystem compatibility or strict schemas.

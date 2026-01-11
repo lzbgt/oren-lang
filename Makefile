@@ -1,6 +1,6 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: examples-cross-compile-smoke
-.PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick
+.PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick verify-ui-smoke-macos
 .PHONY: verify-native-x64-compile
 .PHONY: verify-native-x64-selfhost-compile
 .PHONY: verify-x64-linux-qemu
@@ -383,6 +383,11 @@ test-native-capsule-smoke-stage2: oren_stage2 astbin-seed
 # Convenience target: verify stage1 then stage2 on the native quick integration test.
 verify-native-quick: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2
 	@echo "verify-native-quick OK"
+
+# GUI bring-up smoke (headful, opt-in).
+# This is intentionally NOT part of `make test` or `make verify` because it requires a GUI session.
+verify-ui-smoke-macos: oren
+	@./scripts/verify_ui_smoke_macos.sh ./$(OREN_BIN)
 
 # Compile-only sanity gate for x64 targets (does not run artifacts).
 verify-native-x64-compile: oren_stage2 rtobj-seed-x64 astbin-seed-x64
