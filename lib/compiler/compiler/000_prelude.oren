@@ -465,8 +465,11 @@ fn file_exists(path) {
     // Use a small `oren_system` probe:
     // - POSIX: `test -f ...`
     // - Windows: `if exist ...`
-    var os_env = oren_env("OS")
-    if os_env == "Windows_NT" {
+    //
+    // IMPORTANT:
+    // Do not rely on `OS=Windows_NT` being present; some Windows environments (SSH/PowerShell)
+    // may omit it. Use `host_is_windows()` for a robust signal.
+    if host_is_windows() {
         var p = _path_to_windows_sep(path)
         var cmd = "if exist \"" + p + "\" (exit /b 0) else (exit /b 1)"
         return oren_system(cmd) == 0
