@@ -2,731 +2,203 @@
 
 **Last updated:** 2026-01-11
 
-This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order,
-plus the **regression gates** that must stay green.
+This repo is in rolling mode. This file tracks the **highest-leverage work remaining** to evolve Oren
+into a modern, efficient, production-ready language and toolchain, while keeping iteration fast.
 
-Long-form notes and completed items live in `docs/TODOS_ARCHIVE.md`.
+Long-form history and detailed “what we fixed last week” write-ups live in:
+
+- `docs/TODOS_ARCHIVE.md`
 
 ## How to use this tracker
 
-- **Pick work:** start at **P0 (Now)** and take the first unfinished item that unblocks Tier‑1
-  parity/perf.
-- **When an item is “done enough” (rolling):**
-  - put the detailed write-up in `docs/TODOS_ARCHIVE.md`
-  - keep a short “baseline status” note + the regression gate here
-- **Don’t fight the size:** this file can be ~300 lines if needed, but use `<details>` blocks to keep
-  the default view scan-friendly.
+- Start at **P0 (Now)** and take the first unfinished item that blocks Tier‑1 parity/perf.
+- Keep this file **short and actionable**:
+  - “What is the next deliverable?”
+  - “What is the regression gate?”
+  - “Where is the design doc / implementation?”
+- When a task is “done enough” (rolling):
+  - move the deep narrative to `docs/TODOS_ARCHIVE.md`
+  - keep only a short status note + the gate here
 
 Legend:
 
 - Priority: **P0 (Now)** > **P1 (Soon)**
-- Size tags: **(S/M/L)** = expected engineering scope (not difficulty)
-- Tier‑1 host/targets intent: `arm64-macos`, `arm64-linux`, `x64-windows`, `x64-linux` (WSL2 counts as
-  the Tier‑1 x64-linux execution host today)
+- Size tags: **(S/M/L)** = expected scope (not difficulty)
+- Tier‑1 targets intent: `arm64-macos`, `arm64-linux`, `x64-windows`, `x64-linux`
+  - x64-linux execution is currently validated via the Win11+WSL2 host (`docs/REMOTE_X64_ENV.md`)
+
+## “Maturity” definition (rolling, measurable)
+
+Oren is “maturing” when the following are reliably true:
+
+- **Buildability:** stage0→stage1→stage2 works on each Tier‑1 host OS/arch with minimal manual setup.
+- **Native parity:** native backend semantics match across Tier‑1 (not “macOS only works”).
+- **Performance budgets:** “compile one file” stays bounded (hit + cold miss).
+- **Docs fidelity:** manuals/spec match real behavior (fixtures are the living spec).
+- **Stdlib quality:** NET/TLS/HTTP/WS are correct and bounded under loopback tests, and crypto is layered
+  under `std:crypto/*` (not trapped as NET-only helpers).
 
 ## Regression gates (run first when touching compiler/runtime)
 
 Local (fast):
 
 - `make test` (native quick integration smoke; fast default)
-  - Includes tiny `--typecheck` smoke fixtures that must fail (guards against `scalar == nil` hazards like `numeric == nil` / `bool == nil`).
+  - Includes “must fail” fixtures (e.g. `scalar == nil` hazards).
 - `make verify-native-quick` (stage1 + stage2 native smoke)
 
-Cross-arch matrix (execution on real hosts):
+Tier‑1 cross-arch (execution on real hosts):
 
-- `./scripts/verify_native_matrix.sh` (native quick across local + docker + remote x64)
-  - Dev convenience: `--skip-remote` runs local + docker, but skips remote Win11/WSL2 explicitly when the remote host is temporarily unreachable.
-- `./scripts/verify_native_net_matrix.sh` (TCP/UDP/DNS/HTTP/HTTPS/WS/WSS/TLS loopback; stage1 + stage2; all Tier‑1)
-  - Dev convenience: `--skip-remote` runs local + docker, but skips remote Win11/WSL2 explicitly when the remote host is temporarily unreachable.
-- `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` (compiler runs on x64 hosts and compiles+runs a tiny program)
-- `./scripts/verify_stage0_windows_bootstrap.sh` (stage0->stage1 via MSVC on Win11; stage1 builds+runs a tiny native program)
-  - Rolling (2026-01-11): the Makefile `verify-*` shortcuts no longer hardcode an arm64-macos host; they just call the scripts, and the scripts enforce prerequisites based on selected targets.
+- `./scripts/verify_native_matrix.sh` (native quick across local + container + remote x64)
+  - `--skip-remote` is allowed when remote Win11/WSL2 is unreachable (explicitly skips).
+- `./scripts/verify_native_net_matrix.sh` (TCP/UDP/DNS/HTTP/HTTPS/WS/WSS/TLS + HTTP/2/HPACK loopback; stage1 + stage2; all Tier‑1)
+- `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` (compiler runs on x64 hosts and compiles+runs a tiny native program)
+- `./scripts/verify_stage0_windows_bootstrap.sh` (stage0→stage1 via MSVC on Win11; stage1 builds+runs a tiny native program)
 
-Local x64 sanity (compile-only):
+Local x64 (compile-only confidence, even if remote is down):
 
 - `make verify-native-x64-compile` (stage1 + stage2 emit x64-linux + x64-windows)
-  - Note: this builds `tests/native/test_quick_integration_native.oren` for x64 targets, so it also compile-validates the headless `std:ui` core (tree → render → raster) without needing x64 execution.
-- `make verify-native-x64-selfhost-compile` (stage2 compiles the full compiler program `oren.oren` for x64-linux + x64-windows; compile-only but higher-signal)
-- `make examples-cross-compile-smoke` (stage2 `--lib` emit for arm64-linux + x64-linux + x64-windows; validates header-based `oren scan`, artifact kind, and PE export table)
-
-Local x64 sanity (execution under QEMU):
-
-- `make verify-x64-linux-qemu` (stage1 + stage2 emit **and run** x64-linux under `qemu-x86_64` in the persistent Linux container; includes shared-lib `--lib` + `ffi` from a local `.so`)
-- `make verify-x64-linux-qemu-net` (optional; requires `make setup-x64-linux-qemu` once; runs loopback NET fixtures under `qemu-x86_64` in the persistent Linux container)
-- `make verify-x64-linux-qemu-tls` (optional; requires `OREN_X64_LINUX_QEMU_INSTALL_OPENSSL=1 make setup-x64-linux-qemu` once; runs loopback TLS/HTTPS/WSS plus HTTP/2/HPACK smokes under `qemu-x86_64` in the persistent Linux container)
-  - Last verified (fact): 2026-01-11 (stage1 + stage2; container `c7e5f7bd9f5c`)
-  - Verified again (fact): 2026-01-11 (this host; after recent Makefile/script refactors)
-- All x64 sanity gates are expected to **fail fast** if the compiler emits known backend hazards (e.g. `x64 native v0: missing ABI arg reg(s)`), even if an individual build step would otherwise exit 0.
-  - Note: if the persistent container is stopped, restore it with `docker start c7e5f7bd9f5c` (do not create a replacement).
-
-Verified (fact, 2026-01-11):
-
-- `make verify-native-net` passed end-to-end (local arm64-macos + docker arm64-linux + remote Win11 + remote WSL2).
-  - Confirms: TCP/UDP/DNS/HTTP/HTTPS/WS/WSS/TLS + HTTP/2/HPACK loopback fixtures run on Tier‑1.
-  - Notes (rolling):
-    - `scripts/verify_native_net_matrix.sh` forces `OREN_PARSE_FORK_PARALLEL=1` (compiler-only) so stage2-native builds of large stdlib graphs (TLS/HTTP/2) stay bounded.
-    - Cross-building `x64-windows` artifacts from an arm64-macos host is close to the 10s hang guard for the largest fixture (`test_http2_headers_loopback.oren`), so the script currently uses a **12s** per-build guard for `--platform x64-windows` only (still a hang guard, but fewer false positives).
-      - The long pole is still `emit_ms` (PE/COFF toolchain), but `link_ms` has been pulled down via persistent module caching (see `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`).
+- `make verify-native-x64-selfhost-compile` (stage2 compiles `oren.oren` for x64-linux + x64-windows; compile-only but higher-signal)
 
 References:
 
 - Perf playbook: `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`
 - Remote x64 workflow: `docs/REMOTE_X64_ENV.md`
-- Language docs baseline (keep in sync with tests): `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md`, `docs/LANGUAGE_FEATURE_MATRIX.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md` (last sync: 2026-01-11; includes stdlib import resolution + native Windows spawn/join + TLS/HTTPS/WSS notes + HTTP/2 framing bring-up status)
-  - Updated (2026-01-11): language docs now also document the opt-in `oren build --typecheck` mode (casts + annotated call/return validation), in addition to rolling reflection v0 (`__oren_type`) and the `scalar == nil` guardrail.
+- Language docs baseline: `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md`, `docs/LANGUAGE_FEATURE_MATRIX.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md`
+  - Last sync (fact): 2026-01-11
 
 ## P0 (Now)
 
-0) **Toolchain resource bounds (self-hosting + tests)** (L)
+1) **Keep native backend bounded + predictable (perf + stability)** (L)
 
-   - Keep these paths reliable and bounded:
-     - `make verify-native-quick` (stage1 + stage2 native smoke)
-     - `make test-native-all` (native suite; stage1)
-     - `make verify` (stage1 -> stage2 self-hosting gate)
+   Budgets (primary dev host; rolling hard expectations):
 
-   - Hard gates (non-negotiable for rolling):
-     - Stage2/Stage3 self-host compiler build stays **< 3 minutes** wall time (primary dev host).
-     - Stage2 native backend “compile one file” (rtobj hit; non-capsule) stays **< 4s** wall time.
-     - Debug builds used by Tier‑1 fixtures stay **< 10s** per `oren build ... --backend native --debug` step (default script timeout).
-     - RSS stays **< 300 MB** for the compilation process.
+   - stage2-native “compile one file” **rtobj hit** (non-capsule): **< 4s**
+   - stage2-native “compile one file” **cold** (empty caches): target **< 10s**
+   - stage2 self-host compiler build: **< 3 minutes**
 
-   - High-leverage direction (avoid “parameter tuning”):
-     - avoid O(n²) string/collection patterns in compiler-side tooling (include expansion, C backend transpiler, whole-program passes)
-     - deterministic parallel compilation pipeline (module graph scheduling + cache hits)
-     - eliminate global/shared mutable state that prevents safe parallelism (or centralize it behind explicit concurrency primitives)
-     - reduce compiler heap churn by moving hot internal data away from pointer-heavy `map/list` graphs:
-       - prefer typed buffers (`u8_buf`) + compact encodings for AST/IR/module artifacts (e.g. `astbin` / CBOR-like) when crossing worker boundaries or caching
-       - keep the in-process “fast path” zero-copy where possible (shared-memory attach instead of returning large graphs through `join`)
+   Gates:
 
-   - Active focus (current perf gap):
-     - stage2-native rtobj-miss (cold) path is still too slow due to runtime bundle decode + runtime decl compilation
-     - target: **< 10s** cold “compile one file” when caches are empty (see `docs/TODOS_ARCHIVE.md` for current measurements + profiling knobs)
-     - New (2026-01-11): stage2-native `link_program(...)` can dominate builds of large stdlib graphs (TLS/HTTP/2) unless fork-parallel module parsing is enabled (`OREN_PARSE_FORK_PARALLEL=1`).
-       - Goal: make “parallel parse in fork-mode” safe and fast enough to become a default when `OREN_PARSE_JOBS>1`, so scripts don’t need to force it.
-       - Regression gate: `./scripts/verify_native_net_matrix.sh` (see `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md` for phase timing).
-     - Updated (2026-01-11): `x64-windows` cross-build of `tests/native/test_http2_headers_loopback.oren` is now ~`9.5–10.0s` on arm64-macos once the persistent module cache is warm (still dominated by `emit_ms`).
-       - Cold (cache-empty, `OREN_NO_CACHE=1`): still ~`12s` (tracked; primary remaining gap is PE/COFF emit).
-       - Goal: keep the “warm cache” case safely under the **10s** default hang-guard so Tier‑1 scripts can converge back toward a uniform timeout.
-       - Regression gate: `make verify-native-net` (remote Win11 execution).
-     - Status (2026-01-11): `make rtobj-seed-x64` works again on this host (both `x64-linux` and `x64-windows` seeds present).
-       - If it regresses: check rtobj cache key matching (`_os_linux_` / `_a_x64_` filters) and runtime-hash cache (`build/cache/native_runtime_hash`).
+   - `make test`
+   - `./scripts/verify_native_net_matrix.sh` (large-graph compile + run)
 
-<details>
-<summary>P0.0 context: recent performance work + measurements</summary>
+   High-leverage direction:
 
-- Recent completions are tracked in `docs/TODOS_ARCHIVE.md` (keep this list focused on what’s next).
+   - shrink the injected runtime surface compiled on cold misses (rtobj layering / reachability)
+   - keep module parsing parallelism safe by default (fork-mode parallel parse without huge logs)
 
-- New (2026-01-06): x86_64 cross-target self-host compiler builds are now bounded (no multi-minute stalls in single backend helper functions); details in `docs/TODOS_ARCHIVE.md`.
+2) **Tier‑1 native parity: correctness across arch/OS** (L)
 
-- Fixed (2026-01-11): `make verify-selfhost-x64` (Win11/WSL2) segfault regression traced to native x64 call-depth hooks being inserted into injected runtime module sources (`lib/runtime_native/**`), amplifying stack usage on 8MiB default stacks.
-  - Fix: x64 backend no longer instruments `lib/runtime_native/**` with call-depth hooks, and `oren_call_depth_enter/exit` now have a single-thread fast path (keep hook stack/register pressure low for compiler workloads).
-  - Verified (fact): `make verify-selfhost-x64` passes again (WSL2 + cmd.exe).
+   Goal: “same program, same result” across Tier‑1, not “macOS only”.
 
-- Updated (2026-01-10): stage2-native `./scripts/bench_native_compile_one_file.sh --no-debug` on `arm64-macos` (isolated rtobj dir; seed disabled) is now ~`3.4s` miss / ~`0.5s` hit.
-  - Prior ~`15s` measurements were from a rolling regression where arm64 rtobj build fell back (runtime `g_storage` conflict + rtobj fixup `reg` dropped in meta, causing startup crashes); this is now fixed and the low-level breakdown moved to `docs/TODOS_ARCHIVE.md`.
-- New (2026-01-05): introduced a smaller “core” native runtime entry (`lib/runtime_native_core.oren`) selectable via `OREN_NATIVE_RUNTIME_PROFILE=core` so cold rtobj misses can be bounded for typical programs.
-  - Updated (2026-01-11): default profile is now **auto** — the compiler prefers **core** for programs that don’t import `std:net/*`, and escalates to the **full** runtime when networking modules are present.
-    - Seed support: `scripts/build_runtime_astbin_seed.sh` now seeds full+core+capsule runtime astbins; `scripts/build_rtobj_seed.sh` supports `--runtime-profile` (or env `OREN_NATIVE_RUNTIME_PROFILE`) without pruning other profiles' seeds.
-    - Fixed (2026-01-06): build cache key now hashes the effective injected native runtime entry (full vs core), so switching `OREN_NATIVE_RUNTIME_PROFILE` cannot reuse cached artifacts built with a different runtime (details in `docs/TODOS_ARCHIVE.md`).
-  - Fixed (2026-01-10): runtime astbin cache decode now sanity-checks decoded bundles and treats corrupted/stale blobs as cache misses (prevents stage2-native crashes in x64 emit/helpers when cache contents are invalid).
-  - Fixed (2026-01-10): x64 native emitter is defensive about string-literal nodes (treats raw `0` as “null string pointer” sentinel, and reports a compiler error when a corrupted AST supplies a non-string literal value).
-  - Verified (2026-01-10): local x64-linux execution sanity under QEMU now passes:
-    - `make verify-x64-linux-qemu`
-    - `make verify-x64-linux-qemu-net`
-    - `make verify-x64-linux-qemu-tls`
+   Parity surfaces:
 
-  - Recent (2026-01-04): x86_64 cross-target cold miss is still expensive when the rtobj seed is disabled, but it is materially improved by:
-    - eliminating per-instruction allocations in the x64 encoder (`lib/compiler/x64_core.oren`)
-    - keeping capsule enforcement implementation out of the non-capsule runtime rtobj (`lib/runtime_native/035_capsule_stubs.oren`)
-    - simplifying runtime decl hotspots to reduce stage2-native decl compile work (`oren_iter_next`, `oren_bytes_from_string_ptr`, `oren_int_to_string`), plus using `iadd`/shifts in byte loops to avoid slow generic `+`/`*` lowering (details in `docs/TODOS_ARCHIVE.md`)
-      - Recent (2026-01-05): x64 intrinsic temp spill slots are now addressed via compiler-internal `IntrTmp{idx}` nodes + a per-function base-offset reservation (`ctx["intr_tmp_base_off"]`), eliminating `$tmp_intrN` identifier strings and per-function locals-map inserts in stage2-native rtobj builds.
-      - Fixed (2026-01-06): x64 intrinsic-temp spill allocator now reserves slot 0 (1-based indices) to avoid “missing/zero” ambiguity in rolling native builds; regression gate lives in `scripts/verify_native_x64_compile_only.sh` (details in `docs/TODOS_ARCHIVE.md`).
-      - Fixed (2026-01-10): x64 embedded string-literal dedupe was incorrect when map lookups returned the `nil` singleton for missing keys (causing literals to “disappear” from emitted binaries). The cstr0 pool now correctly distinguishes “missing” from payload 0, and x64 ELF fixup patching tolerates `data_off==0` round-tripping as `nil` in some container representations.
-    - Recent (2026-01-04): native runtime `oren_string_from_bytes` restored a fast list-backed-buffer copy path (keeps lexer/tooling bounded); u8_buf continues to use the slice helper fast memcpy path.
-    - Note (regression prevention): compiler-side helpers must remain portable across stage1 (C runtime) and stage2 (native runtime); avoid using `ptr_*` byte loads on “string” values unless explicitly guarded.
-    - Next: continue shrinking the rtobj decl bucket by refactoring remaining large native-runtime helpers (recent top decls include `oren_string_from_bytes` and `oren_net_get`; prefer direct buffer access and `iadd`/shift arithmetic in loops).
-    - stage2 `--platform x64-linux` true miss (isolated rtobj dir; `OREN_NATIVE_RUNTIME_OBJ_SEED_DIR=0`, astbin seed enabled): rtobj `total_ms` ~`17–18s` (`parse_ms` ~`1.8s`, `decls_ms` ~`14.0s`), with `OREN_TRACE_X64_RT_OBJ_SUMMARY=1`.
-    - same build with rtobj seed enabled (empty cache dir; seed-hit): ~`5.3s` total (see `make rtobj-seed-x64`).
+   - value semantics (`nil/false/true` vs numeric), comparisons, list/map behavior
+   - FFI ABI correctness (sign/zero extension, void return, ptr-sized returns)
+   - NET/TLS end-to-end behavior (timeouts, buffering, determinism knobs)
 
-  - Capsule note (resolved): stage2-native “cold parse” of `lib/runtime_native_capsule.oren` can be tens of seconds if the runtime astbin cache is empty; this is now mitigated by the runtime-astbin seed (`make astbin-seed`, `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR`) so cold capsule builds can stay under the default 10s timeout in typical dev setups.
+   Gates:
 
-  - Current miss breakdown (arm64-macos; stage2; `OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1`, seed disabled):
-    - runtime astbin decode/parse: ~`2.1s` total (astbin v2 decode ~`1.3s`)
-    - runtime decl compile: ~`7.0s`
-    - finalize: ~`1.4s`
-    - rtobj meta encode (astbin v2): ~`1.1s`
-    - rtobj build+apply total: ~`12.8–13.0s` (overall compile-one-file miss: ~`15.2–15.3s`)
+   - `./scripts/verify_native_matrix.sh`
+   - `./scripts/verify_native_net_matrix.sh`
+   - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win`
 
-  - Decl bucket drill-down (arm64-macos; stage2; `OREN_TRACE_ARM64_RT_OBJ_TOP_DECLS=1`):
-    - The decl bucket is mostly real per-decl compilation work (sum of decl compile times ~= decls_ms).
-    - Current “top decls” include (approx): `_oren_map_set_kind_unchecked` (~`839ms`), `native_capsule_proc_match_token` (~`386ms`), `oren_avm_run_obc_bytes` (~`224ms`), `native_capsule_fs_mount_resolve` (~`221ms`), `oren_sha256_range` (~`143ms`).
-    - High-leverage direction: reduce what the compiler needs to inject/compile (tooling/runtime layering or a DCE/reachability model for rtobj), so cold rtobj builds don’t compile large AVM/HPC/capsule surfaces unnecessarily.
+3) **Native value representation + reflection-first type system** (L)
 
-  - Recent (2026-01-04): default `lib/runtime_native.oren` no longer includes the syscall-hook-only capsule modules (`050_capsule_fs_hooks`, `070_capsule_net_hooks`), reducing runtime decl count (rtobj `decls_n`) in non-capsule builds; capsule builds use `lib/runtime_native_capsule.oren`.
+   Problem: the native value model is not fully tagged; “dynamic” flows historically produced hazards.
 
-</details>
+   Deliverables (design → implementation):
 
-1) **Tier‑1 native support parity (`arm64-macos`, `arm64-linux`, `x64-linux`, `x64-windows`)** (L)
+   - finish the tagged-value plan: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
+   - stabilize reflection APIs: `docs/REFLECTION_V1.md`
+   - define how varargs elements carry type info so userland (fmt/ffi/serde) is robust
 
-   - Keep native semantics aligned across platforms:
-     - callables/closures/varargs + deterministic failure modes (`OREN_DIAG` + stack traces)
-     - container ops (list/map/buf) with identical semantics across arch/OS
-     - concurrency primitives on Windows (no fork assumptions): `spawn`, `oren_join(_timeout)`, and a path to cooperative cancellation
+   Gate:
 
-   - Regression gates:
-     - native matrix: `./scripts/verify_native_matrix.sh`
-     - NET loopback matrix: `./scripts/verify_native_net_matrix.sh`
-     - x64 self-host compiler run: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win`
-		     - Windows stage0->stage1 bootstrap: `./scripts/verify_stage0_windows_bootstrap.sh`
+   - `make test` (nil-compare guard is always-on; diagnostics tagged `nil-compare guard:`)
 
-	     - Active gaps (keep this list forward-looking; details live in `docs/TODOS_ARCHIVE.md`):
-			       - Fixed (2026-01-10): x64-windows stage2 self-host build could fail to write PE output when input paths used `\` (e.g. `examples\myapp.oren`).
-			         - Root cause: `basename`/`dirname` treated `\` as a separator only when `OS=Windows_NT` was set; some Win11/SSH environments did not provide that env var.
-			         - Fix: path helpers now treat both `/` and `\` as separators unconditionally, and Windows-host detection no longer relies solely on `OS=Windows_NT` for critical build tooling decisions.
-		         - Hardened (2026-01-11): the compiler CLI normalizes `\` -> `/` for input paths early in the build pipeline, so `examples\\myapp.oren` works on non-Windows hosts too and can't leak into default output naming.
-				         - Hardened (2026-01-11): the build pipeline also normalizes `-o/--out` paths (`\` -> `/`) before directory creation and backend writes, preventing mixed-separator output paths from causing `sys_open` failures (especially on remote Win11 shells and cross-OS scripts).
-				         - Regression (2026-01-11): `make test` now includes a small smoke that passes a backslash-heavy `-o` path on POSIX and asserts the normalized on-disk output exists (prevents reintroducing mixed-separator output artifacts).
-				         - Hardened (2026-01-11): compiler tooling `file_exists(...)` now uses `host_is_windows()` instead of `OS=Windows_NT` so existence probes work even when `OS` is unset on Win11/SSH.
-			         - Evidence (full captured remote log): `project-doc/remote/20260110_131230/s2_build_failure.log`
-				         - Regression gate: `make verify-stage2-win` (stage0->stage1->stage2 + compile+run).
-				         - Verified (2026-01-10): `make verify-stage2-win` / `scripts/verify_windows_stage2_from_stage1.sh` passes again, including the nested-path backslash input (`examples\\myapp.oren`), even when `OS` env is intentionally unset on the remote session (regression guard).
-				         - Strengthened (2026-01-11): the same gate now also unsets `OS` for the Windows C-backend smoke (`--backend c`) so toolchain helpers like `file_exists(...)` are exercised under the “OS missing” condition too.
-				         - Note: scripts run a fast SSH preflight (with connect timeouts + a single retry for transient proxy flake) and emit bounded probe logs under `build/logs/*remote_probe*.log` when proxy/hostname resolution breaks.
-			         - Done (2026-01-10): `scripts/analyze_stage2_failure_log.sh` no longer uses backticks in `echo` (avoid accidental command substitution; prints literal guidance + optional local SHA safely).
-				         - Done (2026-01-10): `scripts/verify_windows_stage2_from_stage1.sh` attempts to download the full stage1->stage2 build log into `project-doc/remote/<timestamp>/stage1_build_stage2.log` (best-effort; keeps console output bounded by default).
-				       - Build system parity (Windows host):
-					         - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
-				         - Done (2026-01-10): `oren build` default output naming for `--platform x64-windows` now appends `.exe` when `-o/--out` is omitted.
-				           - Rationale: cmd.exe does not treat extensionless PE files as runnable commands via relative paths (users observe confusing “not recognized” even when compilation succeeded).
-				           - Regression: `scripts/verify_selfhost_x64_compiler.sh --targets x64-win` now also compiles `examples\\print.oren` without `-o` and runs the default output.
-			         - Done: Windows-host bootstrap defaults now reliably select MSVC `cl.exe` when `OREN_BOOTSTRAP_CC` is not set (fixes `make test` / `make stage1` under Git Bash/MSYS2).
-			         - Done (2026-01-08): stage0 MSVC bootstrap now supports escape-hatch overrides for nonstandard Windows environments:
-			           - `OREN_MSVC_VSWHERE=<path>` (pin `vswhere.exe`)
-			           - `OREN_MSVC_INSTALL_PATH=<path>` (bypass `vswhere.exe` entirely)
-				         - Done (2026-01-09): self-hosted compilers (`oren.exe`, `oren_stage2.exe`) also default C-backend `--cc` to `cl.exe` on Windows hosts and auto-configure MSVC via a temporary `.cmd` wrapper (vswhere → VsDevCmd/vcvars → cl).
-				         - Done (2026-01-10): C-backend Windows `cl.exe` auto-detection is **host-scoped** (Windows hosts only).
-				           - When targeting `--platform x64-windows` from a non-Windows host, the compiler requires explicit `--cc` (opt-in to a cross toolchain like MinGW) instead of defaulting to `cl.exe`.
-				         - Done (2026-01-10): Makefile Windows host detection is robust even when `OS=Windows_NT` or `uname` output is missing (e.g. minimal shells / SSH / CI).
-				           - Detection now matches the compiler policy: it treats `SystemRoot`/`WINDIR`/`COMSPEC`/`PATHEXT`/`PROCESSOR_ARCHITECTURE` as Windows host hints (in addition to `uname` prefixes like `MINGW*`/`MSYS*`/`CYGWIN*`).
-					         - Done (2026-01-09): Windows path separator handling is normalized for default build outputs (so `oren_stage2` can emit `build/targets/x64-windows/native/<basename>.exe` even when sources are invoked with backslash paths like `examples\\myapp.oren`).
-			         - Done (2026-01-09): Windows native runtime `oren_system_timeout` preserves cmd.exe shell semantics (no CRT-style re-escaping of the command string), fixing `ensure_dir(...)` and other `oren_system("... >nul 2>nul")` call sites on x64-windows.
-		         - Done (2026-01-09): MSVC wrapper `.cmd` emitted by the self-hosted compiler avoids cmd.exe block-expansion pitfalls and can locate VS2022 via:
-		           - direct probes (Program Files VS2022 editions) and
-		           - vswhere fallback (when installed),
-		           keeping `oren build --backend c` usable on native Win11 hosts.
-		         - Done (2026-01-08): AVM build uses `AVM_CC` (default: `cc`) so Windows hosts can keep stage0/stage1 bring-up on MSVC `cl.exe` without forcing AVM to use MSVC-flags.
-			         - Done (2026-01-08): stage1 can build stage2 on native Windows (not just run a prebuilt stage2):
-				           - Gate: `./scripts/verify_windows_stage2_from_stage1.sh` (stage0->stage1->stage2; Win11 + VS2022 + `cl.exe`)
-			           - Make shortcut: `make verify-stage2-win`
-			           - Verified (2026-01-09): `make verify-stage2-win` passes on the Tier‑1 Win11 host (stage0->stage1->stage2 + compile+run).
-			         - Intent: `make`, `make test`, `make stage2`, `make verify-native-quick` should work under MSYS2/Git Bash/Cygwin (stage0 still uses MSVC `cl.exe`, auto-configured by stage0; see `docs/REMOTE_X64_ENV.md`).
-			         - Note: scripts avoid requiring external `rg`/ripgrep on minimal environments (remote Win11/WSL2, containers); they use `grep`/`findstr` and keep logs bounded (details in `docs/TEST_SYSTEM.md`).
-			         - Done (2026-01-10): `scripts/verify_native_x64_compile_only.sh` now has a stable CLI (`--help`, `--targets`, `--trace`) and stays quiet/bounded by default (useful when remote Tier‑1 hosts are temporarily unreachable).
-       - Done (2026-01-08): native runtime `oren_type_tag`/`oren_type_name` now distinguishes typed buffers (`u8_buf`, `i32_buf`, `i64_buf`, `f32_buf`, `f64_buf`) for more useful varargs dispatch.
-         - Regression: `tests/native/test_quick_integration_native.oren` (run by `make test`, QEMU x64-linux gates, and Tier‑1 matrices).
-       - Done (2026-01-10): rolling reflection v0 for structs: type constructor values are map-shaped but tagged with `{"__oren_type":"TypeName", ...}` so `oren_type_name(TypeName(...))` returns `"TypeName"` instead of `"map"`.
-         - Parser guard: user code cannot declare a struct field named `__oren_type` (reserved).
-         - Regression: `tests/native/test_quick_integration_native.oren` (`test_type_tag_varargs` asserts `"F32Box"`).
-			     - NET stdlib maturity:
-			       - Current: `lib/std/net/http.oren` supports HTTP/1.1 GET over TCP **and HTTPS** (Content-Length + chunked; IPv4-only; no keep-alive pooling yet).
-			         - HTTPS uses `std:net/tls` (OS provider availability is tracked in `docs/NET_TLS.md`).
-			         - Deterministic HTTPS fixture uses `http.get_response_opts(..., {"tls":{...}})` + pinning (see `tests/native/test_https_get_loopback.oren`).
-		         - Hostname URLs are supported via DNS A lookup (explicit resolver injection; best-effort system default on POSIX only).
-       - Done: portable `SO_KEEPALIVE` + `std:net/tcp.set_keepalive(fd, enable)` (syscall-first; translated across Darwin/Linux/Windows).
-         - Regression: `tests/native/test_net_suite.oren` now asserts `sys_setsockopt(... SO_KEEPALIVE ...)` succeeds (covered by `./scripts/verify_native_net_matrix.sh`).
-       - Done: UDP `recvfrom` can capture the source sockaddr (src ip/port) via `oren_udp_recvfrom_into_with_addr`.
-         - Regression: `tests/native/test_net_suite.oren` `test_udp_loopback` asserts the source port matches the sender’s bound port (covered by `./scripts/verify_native_net_matrix.sh`).
-       - Done: UDP `sendto`/`recvfrom` treat readiness waits as advisory (retry send/recv on timeout), mirroring the TCP robustness policy (helps avoid sporadic WinSock select false timeouts).
-       - Done: TCP `TCP_NODELAY` exposed as `OREN_TCP_NODELAY` + `std:net/tcp.set_nodelay(fd, enable)`.
-         - Regression: `tests/native/test_net_suite.oren` asserts `sys_setsockopt(level=IPPROTO_TCP, optname=TCP_NODELAY)` succeeds (covered by `./scripts/verify_native_net_matrix.sh`).
-	       - Done: DNS v0 loopback A-query client (`std:net/dns.query_a`) + best-effort default resolver selection on POSIX.
-	         - Default resolver selection: `dns.default_resolver` reads `OREN_DNS_SERVER`, else:
-	           - Windows: queries system DNS via iphlpapi `GetNetworkParams` (IPv4 only; first nameserver)
-	           - POSIX: parses `/etc/resolv.conf` (IPv4 only; first `nameserver`)
-	         - HTTP hostname support: `http.get_text_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
-	         - Regression: `tests/native/test_dns_loopback.oren` (stage1 + stage2; all Tier‑1 via `./scripts/verify_native_net_matrix.sh`).
-		         - Regression: `tests/native/test_http_get_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
-			       - WebSocket hostname support: `ws.connect_resolver(url, timeout_ms, resolver)` accepts an explicit `dns.resolver(...)` config (offline/deterministic tests).
-				         - `wss://` is supported via `ws.connect_resolver_opts(url, timeout_ms, resolver, {"tls":{...}})` (see `docs/NET_TLS.md`).
-				         - Regression: `tests/native/test_ws_echo_loopback.oren` now also covers hostname URLs via a loopback DNS server (stage1 + stage2; all Tier‑1).
-				         - Done: Tier‑1 NET fixtures now use `import x "std:net/..."` (not `../../lib/std/net/...`) so the stdlib module resolver is exercised on all Tier‑1 platforms.
-				         - Regression (TLS loopback): `tests/native/test_wss_echo_loopback.oren` (stage1 + stage2; integrated into `./scripts/verify_native_net_matrix.sh`).
-			       - Done: shared host/DNS helper module for std:net:
-			         - `std:net/host.looks_like_ipv4` and `std:net/host.resolve_host_ipv4` dedupe host resolution logic used by `std:net/http`, `std:net/ws`, and `std:net/tls`.
-       - Fixed (2026-01-08): x64-windows WSS loopback failures (timeouts / corrupted WS frame headers under TLS) were traced to **Schannel `DecryptMessage` buffer semantics** in `std:net/tls` (provider: `lib/std/net/tls_windows_schannel.oren`):
-         - The plaintext DATA buffer can be a pointer into the encrypted buffer.
-	         - Fix: copy plaintext out before shifting the EXTRA encrypted tail, and use overlap-safe moves when shifting tails (`lib/std/net/tls_windows_schannel.oren`).
-	       - Next: structured HTTP client/server surface (status + headers + streaming body), then production WebSocket:
-	         - Done (2026-01-08): `std:net/http` now exposes a structured response API:
-		           - `http.get_response(_resolver)` returns `{status, headers, body}` (HTTP/1.1, connection-close).
-	           - `http.headers_get(headers, name)` and `http.response_free(resp)` provide minimal ergonomics + ownership.
-	           - Regression: `tests/native/test_http_get_loopback.oren` now asserts status and headers on both Content-Length and chunked cases.
-	         - fragmentation + binary frames + streaming recv API
-		         - TLS in stdlib (HTTPS + WSS) + then HTTP/2 framing + system resolver (Windows DNS APIs + AAAA; POSIX `resolv.conf` AAAA support)
-		           - Design: `docs/NET_TLS.md`
-				           - Done (2026-01-08): macOS TLS provider bring-up + deterministic loopback fixture:
-				             - `std:net/tls` exists with SecureTransport provider (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
-				             - loopback regression: `tests/native/test_tls_loopback.oren` (stage1 + stage2; integrated into `scripts/verify_native_net_matrix.sh`)
-				             - Done (2026-01-09): macOS SecureTransport client ALPN offer wired:
-				               - `opts["alpn"]=["h2","http/1.1"]` becomes a `CFArrayRef` of `CFStringRef` and is passed to `SSLSetALPNProtocols`.
-				               - Regression: TLS/HTTPS/WSS loopback fixtures all pass `opts["alpn"]` (stage1 + stage2; Tier‑1 via `scripts/verify_native_net_matrix.sh`).
-				             - Done: refactored TLS providers into per-OS modules to keep the facade small:
-				               - Facade: `lib/std/net/tls.oren`
-				               - macOS provider: `lib/std/net/tls_macos_securetransport.oren`
-				               - Linux provider: `lib/std/net/tls_linux_openssl.oren`
-				               - Windows provider: `lib/std/net/tls_windows_schannel.oren`
-				           - Done (2026-01-08): wired `https://` into `std:net/http` and `wss://` into `std:net/ws`:
-				             - `tests/native/test_https_get_loopback.oren` (offline deterministic; uses pinning)
-				             - `tests/native/test_wss_echo_loopback.oren` (offline deterministic; uses pinning)
-				           - Done (2026-01-09): `tls.negotiated_alpn(conn)` query helper added (best-effort; returns `{"ok":1,"v":nil}` when ALPN not negotiated).
-				             - Regression: `tests/native/test_tls_loopback.oren` now exercises server ALPN wiring where possible:
-				               - Windows/Schannel: asserts negotiated ALPN is `"http/1.1"` (server selection is wired).
-				               - Linux/OpenSSL: asserts negotiated ALPN is `"http/1.1"` (server selection is wired via `SSL_CTX_set_alpn_select_cb`).
-				               - macOS/SecureTransport: does not assert negotiated ALPN yet (treated as best-effort).
-				           - Done (2026-01-08): Linux TLS provider bring-up (OpenSSL 3; dynamic `libssl.so.3`/`libcrypto.so.3`)
-				             - Provider: `lib/std/net/tls_linux_openssl.oren` (`wrap_client`, `wrap_server_pkcs12`, `read_into`, `write_from`, `close`, `peer_cert_sha256_hex`)
-				             - Regression: `./scripts/verify_native_net_matrix.sh --targets arm64-linux,x64-wsl` (stage1 + stage2)
-				             - Done: Linux/OpenSSL client SNI + ALPN wiring:
-				               - SNI wired via `SSL_ctrl(...SSL_CTRL_SET_TLSEXT_HOSTNAME...)` using constants from Tier‑1 Linux headers (`libssl-dev`).
-				               - ALPN client offer wired via `SSL_set_alpn_protos` (wire-format protocol list).
-				               - Regression: TLS/HTTPS/WSS loopback fixtures now pass `opts["alpn"]=["h2","http/1.1"]` to exercise the code path.
-				             - Done (2026-01-09): Linux/OpenSSL server ALPN selection wired:
-				               - Uses `SSL_CTX_set_alpn_select_cb` to select the first server-preferred protocol that overlaps the client offer.
-				               - Implemented via an exported callback symbol (`@ffi.export`) resolved by `dlsym(RTLD_DEFAULT, ...)`.
-				               - Requires Linux native backend ELF export support for executables (arm64-linux + x64-linux).
-				           - Done (2026-01-08): Windows x64 TLS provider bring-up (Schannel / SSPI) + enable TLS/HTTPS/WSS loopback fixtures on Win11:
-					             - Provider: `lib/std/net/tls_windows_schannel.oren` (impl: `windows_schannel`; `@ffi.dll("secur32.dll")` + `@ffi.dll("crypt32.dll")`)
-				             - Regression: `./scripts/verify_native_net_matrix.sh --targets x64-win` (stage1 + stage2)
-				             - Done (2026-01-09): Windows Schannel client ALPN offer wired:
-					               - `opts["alpn"]` is passed into `InitializeSecurityContextA` via `SECBUFFER_APPLICATION_PROTOCOLS` and a `SEC_APPLICATION_PROTOCOLS` blob.
-					               - Regression: TLS/HTTPS/WSS loopback fixtures all pass `opts["alpn"]` (stage1 + stage2; Tier‑1 via `scripts/verify_native_net_matrix.sh`).
-					             - Done (2026-01-09): Windows Schannel server ALPN selection wired:
-					               - `opts["alpn"]` is passed into the first `AcceptSecurityContext` call via `SECBUFFER_APPLICATION_PROTOCOLS`.
-					             - Fixed (2026-01-10): Win11 x64 Schannel credential lifetime crash (observed as `EXIT=-1073741819`) on HTTPS/WSS/HTTP/2 long paths:
-					               - Root cause: freeing the `SCHANNEL_CRED`/`paCred` memory passed into `AcquireCredentialsHandleA` after a connection closes can crash under some environments.
-					               - Fix: cache Schannel credentials per-process and keep the `SCHANNEL_CRED` memory alive for the lifetime of the process; `tls.close` skips freeing cached creds.
-					               - Follow-ups (rolling):
-					                 - Done (2026-01-10): add `tls.win_cleanup()` / `crypto.tls.win_cleanup()` for long-lived processes that want an explicit shutdown free (unsafe while active TLS conns exist).
-					                 - Done (2026-01-10): include passphrase in the server-cred cache key (cache key is `sha256(pkcs12_bytes) + ":" + sha256(passphrase_bytes)`).
-					                 - Next: support multiple server creds/certs (current cache is single-entry; rolling treats server TLS as one-cert-per-process for stability).
-				           - Done (2026-01-08): deterministic pinning is enforced by `std:net/tls.wrap_client` when `opts["pin_cert_sha256_hex"]` is provided (so HTTP/WS do not duplicate pinning logic).
-						           - Next: move remaining client verification policy into `std:net/tls` (`verify` toggle + CA/trust story per provider).
-						             - HTTP/2 needs a dedicated framing layer + server-side negotiation; ALPN offer plumbing is now in place (Linux/OpenSSL).
-						               - Done (2026-01-09): HTTP/2 framing core bring-up (preface + frame header encode/decode) and a TLS loopback framing regression:
-						                 - Core: `std:net/http2` (`lib/std/net/http2.oren`)
-						                 - Regression: `tests/native/test_http2_preface_loopback.oren` (preface + SETTINGS/ACK + PING/ACK; stage1 + stage2; all Tier‑1 via `scripts/verify_native_net_matrix.sh`)
-						               - Done (2026-01-09): HPACK bring-up (encode+decode v0; incl Huffman) + HTTP/2 HEADERS+DATA loopback:
-						                 - HPACK core now supports header block encode/decode + Huffman encode/decode (`std:net/hpack`, `lib/std/net/hpack.oren`).
-						                 - Encoder regression: `tests/native/test_hpack_encode_rfc_c41.oren` (reproduces RFC 7541 Appendix C.4.1 bytes exactly).
-						                 - HTTP/2 request/response loopback: `tests/native/test_http2_headers_loopback.oren` (HEADERS + CONTINUATION + DATA, single stream, over TLS ALPN `h2`; includes SETTINGS/ACK and SETTINGS payload decode; stage1 + stage2; Tier‑1 via `scripts/verify_native_net_matrix.sh`).
-						               - Done (2026-01-09): CONTINUATION coverage + SETTINGS ACK handshake coverage in loopback fixtures.
-						               - Next (HTTP/2 maturity):
-						                 - Expand `std:net/http2` beyond header encode/decode:
-						                   - SETTINGS payload semantics helpers (validate values like ENABLE_PUSH; table size; etc.)
-						                   - WINDOW_UPDATE payload encode/decode + stream/window bookkeeping
-						                   - GOAWAY/RST_STREAM encode/decode (basic error handling path)
-						                 - Done (2026-01-09): minimal `std:net/http2_client` on top of `std:net/tls` + `std:net/http2` + `std:net/hpack`:
-						                   - Module: `lib/std/net/http2_client.oren`
-						                   - Exposes `http2_client.new(conn, timeout_ms, opts)` + `http2_client.request(c, headers, body?, opts)` (single stream)
-						                   - Used by the Tier‑1 loopback fixture client path: `tests/native/test_http2_headers_loopback.oren`
-							                   - Avoids `== nil` numeric checks on values of unknown dynamic type (native backend historically aliased `0/nil/false` in compare paths; mitigated for literal/local comparisons but full tagged values are still pending — see P0 semantic parity items below)
-						                 - Next: evolve `std:net/http2_client` into a real client:
-						                   - URL/authority handling + connect helper (`connect_h2(host, port, tls_opts, timeout)`; keep parsing separate from net)
-						                   - Multiplexed streams + per-stream state machine
-						                   - Flow control (WINDOW_UPDATE) + basic SETTINGS application/ACK policy
-						                 - Add regression fixtures for flow control + stream muxing (keep Tier‑1 gates bounded).
-		     - x64 native backend correctness:
-		       - Next: eliminate “high 32-bit garbage” on x86_64 so runtime guards like `native_canon_i32_arg` are no longer needed for stability.
-		         - Debug: `OREN_DEBUG_CANON_I32=1` (prints one warning when first seen)
-		         - Gate: `OREN_CANON_I32_ABORT=1` (hard-fail; preferred for CI / remote Tier‑1 scripts)
-		         - Note: Tier‑1 matrix scripts now propagate `OREN_CANON_I32_ABORT` to docker/WSL2/Win11 runs so regressions fail fast.
-		         - Done: Tier‑1 scripts now also hard-fail if the compiler emits `x64 native v0: missing ABI arg reg(s)` warnings (even if exit code is 0), to avoid silent correctness regressions.
-	       - Done (2026-01-08): native backend supports typed FFI returns for C `int` (`@ffi.ret("i32")`) and sign-extends i32 returns to i64 on arm64 + x64.
-	         - Fixes the “-1 becomes 4294967295” class of bugs when the callee returns a 32-bit signed value and the caller reads the full 64-bit return register.
-	         - Stdlib Linux OpenSSL TLS provider now uses `@ffi.ret("i32")` for OpenSSL APIs and does not rely on per-call-site canonicalization.
-	         - Regression (Linux): `tests/native/ffi_linux_ret_i32_signext.oren` is executed by `scripts/verify_native_matrix.sh` (arm64-linux + x64-wsl; stage1 + stage2).
-	         - Regression (Windows): `tests/native/ffi_windows_ret_i32_signext.oren` is executed by `scripts/verify_native_matrix.sh --targets x64-win` (stage1 + stage2).
-		         - Next (FFI type surface):
-		           - Done (2026-01-08): added `@ffi.ret("u32")` and `@ffi.ret("void")` (native backend: arm64 + x64).
-		             - Regression (Linux): `tests/native/ffi_linux_ret_u32_zeroext.oren`, `tests/native/ffi_linux_ret_void_zero.oren` (arm64-linux + x64-wsl via `scripts/verify_native_matrix.sh`).
-		             - Regression (Windows): `tests/native/ffi_windows_ret_u32_zeroext.oren`, `tests/native/ffi_windows_ret_void_zero.oren` (x64-win via `scripts/verify_native_matrix.sh`).
-		           - Next: add a narrow set of pointer/usize return kinds for syscall-first stdlib bindings (and a stable story for `size_t`).
-		           - Done (2026-01-08): migrated macOS SecureTransport `OSStatus` returns to `@ffi.ret("i32")` (removed per-call `_osstatus_canon_i32` canonicalization in `std:net/tls`).
-	     - Native runtime GC + literals:
-       - Done (2026-01-08): embedded `cstr0` string literals are treated as constant-section data and are **not** tracked as GC alloc nodes.
-         - Runtime builds a dedicated literal membership set at startup (`oren_init_static_cstr0_table`) and recognizes literals via `native_is_string_ptr` / `oren_is_string`.
-         - Runtime map key inference (`oren_map_get`/`oren_map_set`) uses `native_is_string_ptr` so compiler-internal maps can use literal keys without per-literal tracking nodes.
-         - x64 string-aware compares use `native_is_string_ptr` so `if s == "lit"` works without literal tracking.
-         - Done (2026-01-11): added runtime guardrails so `oren_track_alloc` / `oren_track_static` treat cstr0 literals as a no-op (never create tracking nodes pointing into static data).
-           - Regression: `make test` asserts cstr0 pooling (`lit0-lit1==0`) and that `oren_find_node(lit)==0` for a literal in `tests/native/test_quick_integration_native.oren`.
-         - Regression: `make test`, `./scripts/verify_native_net_matrix.sh`, `./scripts/verify_selfhost_x64_compiler.sh --targets x64-win`.
-       - Done (2026-01-10): iterable-map protocol tags (`__iter` like `"range"` / `"list_slice"`) are matched by **string bytes** (guarded by `oren_is_string`), not by pointer identity.
-         - Regression: `make test` (native quick integration exercises `{"__iter": "ra"+"nge", ...}`).
-         - Done (2026-01-10): `oren_string_eq(a,b)` is safe on non-strings (guards with `oren_is_string` before calling `strcmp`).
-       - Done (2026-01-08): string literal pooling/interning is whole-program for native output (`cstr0` pool de-dupes identical literals; pointer identity stable within the binary).
-         - Doc note: `docs/LANGUAGE_MANUAL.md` “Strings” section now calls out the pooling + GC behavior (so users don’t assume literals allocate).
-	       - Native FFI / dynamic linking parity (rolling):
-	       - Done (linux x64 + arm64): dynamic ELF (`PT_INTERP` + `PT_DYNAMIC`) + `DT_NEEDED` + minimal `.rela.dyn` (GLOB_DAT-style relocations) so `ffi` works via a `dlsym` resolver.
-	       - Done (2026-01-09): Linux native backend supports `@ffi.export` for executables (ELF dynsym) so `dlsym(RTLD_DEFAULT, ...)` can locate callback symbols.
-	         - Used by `std:net/tls` Linux/OpenSSL provider for server-side ALPN selection (`SSL_CTX_set_alpn_select_cb`).
-	       - Done (2026-01-08): Windows native backend supports `@ffi.dll("name.dll")` to attach a DLL directly to an `ffi` declaration (avoids requiring `--link` for stdlib/platform bindings).
-	         - Regression: `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_dll.oren`.
-       - Done (2026-01-08): portable `@ffi.link("...")` attribute (maps to native `--link ...`) so stdlib/platform bindings can declare dynamic deps without Makefile/script flags.
-         - Regression: `tests/native/ffi_linux_strlen_ok.oren` now uses `@ffi.link("libc.so.6")` and the Tier‑1 matrix no longer passes `--link` explicitly.
-       - Done (2026-01-08): `ffi { a, b, c }` group sugar (reduces repetition when importing many symbols from one DLL/DSO).
-         - Used by `std:net/tls` Windows Schannel bindings (`lib/std/net/tls_windows_schannel.oren`).
-         - Regression (Windows): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_msvcrt_attr_link.oren`.
-         - Done (2026-01-09): per-item attributes inside `ffi { ... }` (merge with outer attrs), so mixed return-kinds don’t require separate declarations.
-           - Regression: `tests/native/ffi_group_item_attrs.oren` is compiled by `scripts/verify_native_x64_compile_only.sh` (stage1 + stage2; x64-linux + x64-windows).
-       - Done (2026-01-10): `ffi` declarations are module-exportable (stdlib wrappers can expose platform-specific bindings behind a stable API).
-         - Implementation: preserve an external symbol `link_name` while allowing module prefixing of the internal label.
-         - Regression: `tests/native/test_std_ffi_libc_smoke.oren` is exercised by `scripts/verify_native_matrix.sh` (arm64-linux + x64-win + x64-wsl; stage1 + stage2) and by `make verify-x64-linux-qemu`.
-       - Done (2026-01-08): `examples/ffi_test.oren` is now self-contained across OS (`@cfg` + `@ffi.link`/`@ffi.dll`), and `make examples-test` no longer passes ad-hoc `--link libc.so.6` on Linux.
-	       - Next: fuller ELF PLT/JMPREL story for direct imports (optional), and shared library output parity (`--lib` / `.so` / `.dll`).
-	         - Done (2026-01-09): x64-windows native backend supports `@ffi.export` for executables (PE Export Directory) so `GetProcAddress(GetModuleHandle(NULL), ...)` can locate callback symbols.
-	           - Regression: `tests/native/ffi_windows_export_getprocaddress.oren` (run by `scripts/verify_native_matrix.sh --targets x64-win`; stage1 + stage2).
-       - Conditional compilation for cross-platform stdlib (rolling):
-       - Done: `@cfg(...)` (canonical `@oren.cfg`) filters declarations by target `--platform` (`os`/`arch`/`platform` selectors).
-       - Regression: `tests/native/cfg_os_select.oren` is compiled in `scripts/verify_native_x64_compile_only.sh` (stage1 + stage2; x64-linux + x64-windows).
-       - Implementation note: use byte-wise string equality in compiler passes (see `docs/IMPLEMENTATION_NOTES.md` section 9) so behavior matches in stage1 (C runtime) and stage2 (native runtime).
-	    - Shared library output parity (native `--lib`/`--shared`):
-	      - Done (2026-01-10): x86_64 Windows `.dll` emission for native `--lib` (PE DLL characteristics + DllMain entry + export wrappers + header generation).
-	      - Done (2026-01-10): x86_64 Linux `.so` emission for native `--lib` (ET_DYN + `.init_array` + RELA relocations + export wrappers + header generation).
-		      - Done (2026-01-10): arm64-linux ELF `.so` emission for native `--lib` (ET_DYN + `.init_array` + RELA `R_AARCH64_RELATIVE`, plus AAPCS64-safe export wrappers that restore Q8-Q15).
-		        - Regression: `scripts/verify_native_x64_compile_only.sh` builds `examples/libmath.oren --lib` as `.so` (x64-linux) and `.dll` (x64-windows) for stage1 + stage2, and validates the artifact kinds (`.dll` must be a PE DLL, not a PE EXE).
-		        - Regression (arm64-linux): `scripts/verify_native_matrix.sh --targets arm64-linux` builds `examples/libmath.oren --lib` as `.so` (stage1 + stage2) and checks the ELF kind + generated header.
-		        - Stability note: x64 ELF fixup patching treats a `data_off` payload that round-trips as `nil` as `0` (valid first-byte offset), keeping stage1 (C runtime) and stage2 (native runtime) cross-target builds consistent.
-		      - Next: `make examples-test` should exercise shared-lib output beyond macOS:
-		        - Compile-only on non-host targets is OK (no foreign execution required).
-		          - Use `file` kind checks (`ELF ... shared object`, `PE32+ ... (DLL)`).
-		          - Use `./oren scan <lib>` to sanity-check the exported API:
-		            - For Oren `--lib` outputs, `scan` prefers parsing the generated header next to the library (`foo.{dylib,so,dll}` → `foo.h`), so it works cross-platform even when `nm` cannot read the binary format.
-		        - Added (2026-01-10): `make examples-cross-compile-smoke` compiles `examples/libmath.oren --lib` for `arm64-linux` + `x64-linux` + `x64-windows` and validates via generated header + `oren scan` + `file` kind checks.
-	     - Concurrency substrate convergence:
-       - POSIX: replace fork-based `spawn` substrate with real OS threads + shared-memory sync, plus a GC/safepoint model that remains correct once true threads exist.
-         - Follow-up (portability ergonomics): once `spawn` is unified, prune most `@cfg(os=...)` glue from Tier‑1 loopback fixtures so protocol-level tests are truly “one logic path”.
-	     - Windows PROC story:
-       - Keep the cross-OS PROC surface coherent (pid/kill/wait semantics or define a cross-OS `sys_spawn` boundary).
+4) **Stdlib NET/TLS/HTTP/WS maturity (not toy protocols)** (L)
 
-<details>
-<summary>P0.1 context: recent Tier‑1 bring-up fixes (baseline notes)</summary>
+   Goal: a production-grade loopback-verified stack:
 
-- Fixed (2026-01-07): x86_64 self-host compiler run gate (Win11 + WSL2) now passes; keep this as a hard regression gate:
-  - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` (details in `docs/TODOS_ARCHIVE.md`)
-  - Also proves host auto-detection (remote runs omit `--platform` and rely on runtime host detection / `OREN_PLATFORM` fallback).
+   - TCP/UDP correctness + bounded timeouts
+   - TLS providers per OS (working today) + clearer trust/verify story
+   - HTTP/1.1: structured response + streaming body
+   - WebSocket: fragmentation + binary frames + streaming recv API
+   - HTTP/2: flow control + multi-stream mux + GOAWAY/RST_STREAM basics
 
-- Fixed (2026-01-07): stage0 (Go bootstrap) can build stage1 on **x64-windows** using VS2022 `cl.exe`, and the resulting stage1 binary can run on Windows (stack-safe entrypoint).
-  - Regression gate: `./scripts/verify_stage0_windows_bootstrap.sh` (details in `docs/TODOS_ARCHIVE.md`).
+   Gate:
 
-- Fixed (2026-01-07): Tier‑1 NET loopback is now regression-gated across `arm64-macos` + `arm64-linux` + `x64-windows` + `x64-linux` (stage1 + stage2) via `./scripts/verify_native_net_matrix.sh`.
-- Fixed (2026-01-07): WebSocket v0 (ws:// handshake + masked text frames + loopback echo) implemented and added to the Tier‑1 NET matrix (`tests/native/test_ws_echo_loopback.oren`).
-- Fixed (2026-01-07): portable OS entropy surface for protocols:
-  - `oren_getentropy(ptr,len)` (native runtime) backed by `getentropy` (macOS) / `getrandom` (Linux) / `BCryptGenRandom` (Win11)
-  - `std:crypto/rand` used by WebSocket client key + masking (no more time-seeded xorshift in stdlib)
-  - Capsule: `oren_getentropy` is gated by `@cap.requires(domain="RNG")` (allow via `--cap-allow-domains RNG` / `OREN_CAP_ALLOW_DOMAINS=...`).
-  - Fixed (2026-01-07): Win11 WS echo loopback stability was materially improved by hardening NET read/write against spurious readiness timeouts (optimistic `recv`/`send` first; retry until deadline instead of returning `ETIMEDOUT` immediately).
-  - Fixed (2026-01-08): Win11 WSS loopback failures (timeouts / corrupted WS frames under TLS) were traced to Schannel `DecryptMessage` buffer semantics in `std:net/tls`:
-    - Copy plaintext out before shifting EXTRA encrypted tails, and use overlap-safe moves when shifting tails.
-    - Keep as a gate anyway: `./scripts/verify_native_net_matrix.sh --targets x64-win` (NET+TLS+THREADS is a sensitive end-to-end regression surface).
-  - Fixed (2026-01-07): ping/pong/close frames are handled in `ws.recv_text` (auto-pong + ignore pongs), and `ws.send_ping_{client,server}` exists.
-  - Fixed (2026-01-07): client key + masking use OS entropy (`oren_getentropy`), not time-seeded xorshift.
+   - `./scripts/verify_native_net_matrix.sh`
 
-- Fixed (2026-01-04): **arm64-macos stage2 is now bootstrapped via the native backend by default** (`make stage2`).
-  - Fallback (bring-up): `make stage2 OREN_STAGE2_BACKEND=c`.
+   Doc roots:
 
-- Native FFI / dynamic linking parity (rolling):
-  - Current reality:
-    - **macOS (Mach‑O):** `ffi` works via dyld binding opcodes + `--link` dylibs.
-    - **Windows x64 (PE):** `ffi` works via lazy `LoadLibraryA`/`GetProcAddress` stubs; `--link` supplies DLL search names/paths (kernel32 searched by default).
-    - **Linux (ELF):**
-      - **x64-linux:** `--link` enables dynamic linking; `ffi` works via a lazy `dlsym(RTLD_DEFAULT, "...")` resolver (remote WSL2 gate).
-      - **arm64-linux:** `--link` enables dynamic linking; `ffi` works via a lazy `dlsym(RTLD_DEFAULT, "...")` resolver (docker linux/arm64 gate).
-  - Regression gates (current):
-    - Remote Win11: `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/ffi_windows_kernel32.oren` (stage1 + stage2).
-    - Local sanity: `make verify-native-x64-compile` compiles Windows FFI examples (including `--link msvcrt.dll` propagation checks).
-    - Linux contracts (native backends):
-      - Panic (arm64-linux + x64-linux without `--link`): `scripts/verify_native_matrix.sh` runs `tests/native/ffi_linux_unresolved_panics.oren` and asserts `ffi unresolved:` + `oren_panic`.
-      - OK (arm64-linux with `--link`): `scripts/verify_native_matrix.sh --targets arm64-linux` runs `tests/native/ffi_linux_strlen_ok.oren` (stage1 + stage2; docker container).
-      - OK (x64-linux with `--link`): `scripts/verify_native_matrix.sh --targets x64-wsl` runs `tests/native/ffi_linux_strlen_ok.oren` (stage1 + stage2; remote WSL2).
-  - Stdlib wrappers (rolling ergonomics):
-    - `std:ffi/libc` centralizes the cross-OS `puts/strlen` boilerplate (`@cfg` + `@ffi.link`/`@ffi.dll`).
-    - `std:ffi/kernel32` centralizes Windows-only bindings like `GetCurrentThreadId`.
-      - Added (2026-01-10): also exposes `GetLastError` and `SetLastError` to validate `u32` + `void` ABI return kinds through a module-exported wrapper.
-    - Added (2026-01-10): `std:ffi/secur32` and `std:ffi/crypt32` centralize Schannel/SSPI + cert-store FFI. `std:net/tls_windows_schannel` imports these wrappers instead of declaring FFI locally.
-    - Added (2026-01-10): `std:ffi/iphlpapi` centralizes `GetNetworkParams` (used by `std:net/dns` default resolver selection on Windows).
-    - Added (2026-01-10): `std:ffi/libdl` centralizes `dlopen/dlsym` (used by `std:net/tls_linux_openssl` to lazily load OpenSSL without forcing DT_NEEDED on TLS users).
-    - Added (2026-01-10): `std:ffi/macos_security`, `std:ffi/macos_corefoundation`, and `std:ffi/macos_dlfcn` centralize macOS TLS provider framework + dlsym bindings (`std:net/tls_macos_securetransport`).
-    - Regression (remote Win11): `scripts/verify_native_matrix.sh --targets x64-win` runs `tests/native/test_std_ffi_kernel32_smoke.oren` (stage1 + stage2).
-    - Regression (local x64 compile-only): `scripts/verify_native_x64_compile_only.sh --targets x64-win` builds the same fixture (stage1 + stage2).
-      - Also compiles the integrated NET surface smoke (`tests/fixtures/x64_compile_only_net_tls_http2_smoke.oren`) to keep TLS/HTTP/HTTP2/WSS + `std:crypto` facades buildable on x64 even when the remote host is unreachable.
+   - `docs/NET_TLS.md`, `docs/NET_HTTP2.md`, `docs/NET_WEBSOCKET.md`
 
-- Windows: complete a coherent PROC story (pid/kill/wait semantics or define a cross-OS `sys_spawn` boundary).
-  - Fixed (2026-01-04): `oren_system(_timeout)` now works on `x64-windows` (CreateProcessA path).
-    - Tier‑1 fixture no longer soft-skips Windows.
-    - Native quick integration now includes a Windows-only `oren_system_timeout(...)` smoke to prevent regressions.
-    - Runtime object cache key now includes a backend signature so codegen changes invalidate cached runtime machine code.
+5) **Crypto library layering (separate from NET)** (M)
 
-- Recent cross-arch hardening (details in `docs/TODOS_ARCHIVE.md`):
-  - x86_64 stack traces resolve symbols under rtobj cache mode on Win11 (Tier‑1).
-  - arm64 debug stack traces symbolize runtime frames under rtobj cache mode.
-  - x86_64 varargs+spread no longer recurse inside `__oren_fnwrap_*` (Win11 Tier‑1).
-  - x86_64-linux WSL2 `oren_select` hang fixed via `epoll_event` ABI probing.
-  - native runtime `for x in view` yields typed-buffer view elements (slice/stride/matrix protocol).
-  - matrix scripts retry remote `scp` uploads (proxy flake hardening).
+   Goal: `std:crypto/*` becomes the stable home for:
 
-</details>
+   - PEM/DER parsing helpers, X.509 helpers, TLS facade/core layering
 
-2) **Determinism + replay (native + AVM)** (L)
-   - MANTIS requires deterministic replay and traceability (`mantis.md` “Observability & reproducibility”).
-   - AVM has deterministic TIME/RNG + record/replay fixtures today; native needs an equivalent “deterministic mode” story:
-     - record/replay boundary for effectful ops (FS/NET/PROC/ENV/TIME/RNG)
-     - deterministic scheduling option (ties into structured concurrency)
-   - Reference goal doc: `OREN_MANTIS_STDLIB_GOALS.md`
+   Next steps:
 
-3) **Native value tagging (remove “key kind inference” fragility)** (L)
-   - Goal: maps do not require explicit key kind in the language model; the runtime can safely decide based on tagged values.
-   - Keep tightening interim safety rules:
-     - container ops must never dereference untracked values
-     - key-kind inference must not rely on numeric-range heuristics
-   - Deliverable: a native value representation that can distinguish:
-     - immediates (ints/bools/nil) vs pointers
-     - string/list/map/buf payload kinds
-   - References:
-     - `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
-     - `docs/DESIGN_CONTAINER_OPS.md`
+   - split TLS into a crypto core (`std:crypto/tls_*`) + net integration (`std:net/tls`)
+   - define CA/trust story per provider (Windows SChannel / macOS SecureTransport / Linux OpenSSL)
 
-4) **Backend architecture unification (CoreIR boundary)** (L)
-   - Make one canonical CoreIR own semantics (eval order, short-circuit, varargs packing, closure ABI).
-   - Backends become thin adapters (ABI + emit).
-   - Rolling progress: extracted native stmt→ops lowering + expr validation to a shared module (`lib/compiler/native_ops_v0.oren`) to reduce backend drift and prep for deeper unification.
-   - References:
-     - `docs/BACKEND_ARCHITECTURE.md`
-     - `docs/IR_AND_COMPILER_INTERNALS.md`
+6) **Windows host developer experience (“make works” under MSYS2/Git Bash)** (M)
 
-5) **Container ops as operations (no hot-path stdlib overhead)** (M)
-   - Ensure `xs[i]`, `xs[i]=v`, `len`, `push` lower to intrinsics where appropriate.
-   - Make map/list/buf iteration semantics deterministic across backends (add a unified iterator protocol so `for x in buf` works identically on arm64/x86_64 and across native/C/AVM).
-   - References:
-     - `docs/DESIGN_CONTAINER_OPS.md`
-     - `docs/STDLIB_LAYERS.md`
+   Goal: `make stage1`, `make stage2`, `make test` work on native Windows hosts with VS2022 installed.
 
-6) **AVM in AVM + compiler-in-AVM (deterministic toolchain in a capsule)** (M)
-   - Make `.oren → .obc` compilation runnable inside AVM with budgets and locked capability surfaces.
-   - References:
-     - `docs/AVM_MULTIVERSE.md`
-     - `docs/AVM_SPEC_V1.md`
-     - `docs/SELF_HOSTING.md`
+   Gate:
 
-7) **Stdlib distribution + module resolution (native + AVM)** (M)
-   - One coherent story for end users:
-     - `import ... "std:foo"` resolution
-     - source vs precompiled stdlib bundles
-     - AVM consuming the same stdlib without host-FS assumptions
-   - References:
-     - `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md`
-     - `docs/OBC_MODULE_LINKING.md`
+   - `./scripts/verify_stage0_windows_bootstrap.sh`
+   - `./scripts/verify_windows_stage2_from_stage1.sh`
 
-8) **HPC/SIMD parity (arm64 NEON today; x86_64 SSE2/AVX next)** (M)
-   - Keep determinism contract: scalar is authoritative; SIMD must be bit-identical for covered kernels.
-   - Expand x86_64 SIMD coverage once x64 native reaches semantic parity.
-   - References:
-     - `docs/HPC_SERVER_PLAN.md`
-     - `docs/AVM_NEON_MAPPING_PLAN.md`
+7) **GUI: platform shims for Tier‑1 (RGBA blit v0)** (L)
 
-9) **Tooling (modern compiler UX; self-hosting behind gates)** (M)
-   - Keep Go bootstrap canonical until Oren-native tooling meets reliability/perf gates.
-   - Track Oren-native tools as gated milestones: `fmt`, `test`, `pkg`, `lsp`.
-   - References:
-     - `docs/TEST_SYSTEM.md`
-     - `docs/CLI_COMPLETION.md`
-     - `docs/SELF_HOSTING.md`
+   Keep `std:ui/*` as the portable retained-mode API; bring up thin platform shells.
 
-10) **Tests & iteration speed (integration-first; backend/arch neutral by default)** (S)
-   - Keep `make test` (native quick smoke) iteration-fast and deterministic.
-   - Prefer a small number of high-signal integration suites + fixtures as living spec.
-   - Cross-arch: `./scripts/verify_native_matrix.sh` has opt-in Tier‑1 fixture targets (`x64-win-tier1`, `x64-wsl-tier1`) in addition to the fast quick-integration matrix.
-   - Perf regression playbook (native backend): `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`
-   - Lightweight tripwire (rtobj hit): `make perf-guard-native-hit` (or `./scripts/perf_guard_native_compile_one_file_hit.sh`)
-   - Keep tests hermetic: avoid relying on host shells or external utilities (prefer helper binaries built from Oren sources + explicit `oren_proc_spawn`).
-   - Keep tests OS-neutral: avoid asserting platform `struct stat` layouts; prefer Oren-owned stable ABIs (e.g. OrenStatV0 via `oren_stat_alloc()`).
-   - Make test tooling robust in minimal environments too: avoid relying on host shells/utilities in test programs.
-   - Reference: `docs/TEST_SYSTEM.md`
+   Docs:
+
+   - `docs/GUI.md`, `docs/GUI_PLATFORM_SHIMS.md`
+   - Optional Dear ImGui shell/overlay: `docs/GUI_IMGUI_SHELL.md` (devtools + bring-up accelerator, not the app UI API)
+
+8) **FFI ergonomics + ABI surface completion** (M)
+
+   Goal: real-world Win32/libc/OpenSSL bindings are not painful.
+
+   Next:
+
+   - add ptr-sized / `usize` return kinds and a stable story for `size_t`
+   - consider “quoted external symbol” syntax only if we encounter real APIs that are not identifier-compatible
 
 ## P1 (Soon)
 
 1) **Signed `.obc` + root trust (multiverse updates / “app store”)** (M)
-   - Formalize cert chain constraints and root pubkey distribution/rotation.
-   - Keep private keys out of repo (`../oren-ca/`).
-   - References:
-     - `docs/APPSTORE_ROOTCA_AND_UPDATES.md`
-     - `docs/CERT_CHAIN_FORMAT.md`
+
+   References:
+
+   - `docs/APPSTORE_ROOTCA_AND_UPDATES.md`
+   - `docs/CERT_CHAIN_FORMAT.md`
 
 2) **Stackless recursion beyond TCO (heap call frames)** (L)
-   - For non-tail recursion that cannot be optimized by TCO, provide a deterministic heap-frame model (AVM-like).
-   - Reference: `docs/STACK_SAFETY.md`
 
-3) **Native scheduler + netpoller (IO readiness → channels + select)** (L)
-   - Keep `select` channel-based at the language surface; fd readiness integrates by producing channel events.
-   - Already exists (today, in code/tests): `oren_select` / `oren_select_recv` runtime APIs (native + AVM), plus fd readiness waits (`oren_fd_wait_{readable,writable}` etc).
-     - Not done yet: language-level `select { ... }` syntax, and a native green-thread scheduler/netpoller that wakes channels instead of blocking the whole process/thread.
-   - Bring native closer to AVM semantics:
-     - mature channels beyond pipe-based bring-up
-     - deterministic fairness rules where practical (round-robin cursor)
-     - structured cancellation/timeouts
-   - OS backends (planned):
-     - macOS: kqueue/kevent + ulock parking
-     - Linux: epoll (or io_uring later) + futex-like parking
-     - Windows: IOCP for sockets (WinSock `select` is not sufficient for general async IO); unify with PROC/FS strategy
-   - References:
-     - `docs/CONCURRENCY_MODEL.md`
-     - `docs/NATIVE_GMP_SCHEDULER.md`
-     - `docs/ASYNC_IO_AND_SELECT.md`
+   Reference:
 
-4) **Portable core + reflective types + value repr refactor** (L)
-   - Goal (rolling, allowed to break compatibility): make Oren’s internal “unsafe core” small, fast, and portable, and make types first-class with reflection as a primary design constraint.
-   - Deliverables (design → implementation):
-     - define a portable core runtime layer for unsafe primitives:
-       - string buf / array buf (contiguous, amortized growth, explicit capacity)
-       - IO ops surface (file + fd + basic NET) with explicit error codes
-     - make types first-class and reflective:
-       - stable “type object” representation
-       - reflective APIs for field layout / method tables / generic instantiations (as designed)
-		     - redesign the native value representation (reduce “64-byte OrenValue” storage inefficiency):
-		       - unify with the native tagged-value plan and remove key-kind inference fragility as a side-effect
-			       - fix semantic parity bugs caused by untagged immediates in native mode (C backend does not have these issues):
-				         - Fixed (2026-01-10): native backend now uses runtime singleton values for `nil/false/true` (not raw `0/1`), so `0` stays distinct from `nil/false` in common value flows (including map lookups).
-						           - Mitigated (2026-01-09): optimizer folds type-mismatched `==`/`!=` on literals and folds `id == nil` for locals proven non-nil; quick integration gate covers `0/nil/false` parity.
-								             - Added (2026-01-09): `make test` runs a `--typecheck` smoke that must fail on `numeric == nil` to prevent silent reintroduction of this hazard.
-									             - Strengthened (2026-01-10): the always-on `nil_compare_guard` now also rejects `id == nil` when the identifier is later proven scalar by best-effort scan (e.g. `i64(id)`), so this footgun is blocked even without `--typecheck` (including in top-level code via synthesized `__top_level__`).
-									             - Strengthened (2026-01-10): the always-on `nil_compare_guard` also treats calls to functions with explicit scalar return annotations (e.g. `fn f(): i64`) as proven scalars, rejecting `f() == nil`.
-									               - Regression: `tests/fixtures/nil_guard_bad_annotated_call_nil_compare.oren` (run by `make test`).
-										             - Updated (2026-01-11): the best-effort scan now treats bitwise/shift/mod usage (e.g. `id & 255`, `id >> 1`, `id % 10`) as “scalar-likely”, rejecting `id == nil` even when `id` originates from an unknown-typed container flow (map/list/etc).
-										               - Open: extend further to unambiguous arithmetic cases (careful: `+` is also string concat in v0), or rely on full tagged values once they land.
-								             - Done (2026-01-10): stdlib migrated optional numeric defaults away from `if x == nil { x = 0 }` to tag-based checks (`if oren_type_tag(x) == 0 { x = 0 }`) so core libraries don’t depend on scalar `== nil` semantics.
-							           - Remaining: full tagged value model still needed (notably robust `int` vs `float` tagging and deterministic reflection) — see `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`.
-	     - varargs + reflection convergence:
-	       - define how varargs elements carry type information so userland (fmt/ffi/serialization) can process heterogeneous lists without heuristic key-kind inference
-	   - References:
-				     - Reflection plan (rolling): `docs/REFLECTION_V1.md`
-				     - `docs/TYPE_SYSTEM_PLAN.md`
-				     - `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
-				     - `docs/STDLIB_LAYERS.md`
-				     - Crypto stdlib maturity (rolling):
-			       - Done (2026-01-08): add `std:crypto/pem` v0 helper (`pem.decode_blocks`) so TLS/signing layers don’t need to live under NET.
-			       - Done (2026-01-08): add `std:crypto/x509` v0 helper (`x509.sha256_hex_der`) for small certificate utilities.
-			       - Done (2026-01-09): add `std:crypto/tls` as a facade over `std:net/tls` (alias-layer; same API surface).
-				       - Next: split TLS into a crypto core + net integration:
-				         - `std:crypto/tls_*`: handshake/record layer over an abstract IO trait (no direct fd dependency).
-				         - `std:net/tls`: tcp fd integration + `tls.connect` convenience; depends on crypto core.
-				       - Next: PKCS#12 / PKCS#8 / SPKI helpers (as needed by TLS providers and signing toolchain).
+   - `docs/STACK_SAFETY.md`
 
-## Tier‑1 parity / verification blockers (rolling)
+3) **Native scheduler + netpoller (true async IO + channels/select)** (L)
 
-- Remote x64 Win11/WSL2 access can intermittently fail via the default proxy hostname (`pc.work`).
-  - Impact: `x64-windows` / `x64-linux` NET and self-host gates can’t run even when the code is correct.
+   References:
+
+   - `docs/CONCURRENCY_MODEL.md`
+   - `docs/NATIVE_GMP_SCHEDULER.md`
+   - `docs/ASYNC_IO_AND_SELECT.md`
+
+## Tier‑1 verification blockers (operational)
+
+- Remote Win11/WSL2 access can intermittently fail via the default proxy hostname (`pc.work`).
   - Mitigation:
-    - Prefer `make verify-native-net-skip-remote` for quick local confidence (arm64-macos + arm64-linux container).
-    - Prefer `make verify-native-matrix-skip-remote` for the native backend quick matrix **without remote**, which also includes an `x64-linux` runtime smoke under QEMU (`x64-linux-qemu`) in the persistent Linux container.
-    - Keep offline x64-windows correctness checks strong even when remote execution is down:
-      - `scripts/verify_native_x64_compile_only.sh` validates the PE Export Directory (not just strings) via `scripts/pe_exports_check.py`.
-    - Even when the remote is unreachable, keep x86_64 *buildability* guarded by `make verify-native-x64-compile` (compiles x64-linux + x64-windows outputs for stage1+stage2, including NET/TLS/HTTP2/HPACK module resolution via `tests/fixtures/x64_compile_only_net_tls_http2_smoke.oren`).
-    - To fetch remote logs without copy/paste, use `scripts/fetch_remote_file.sh` and pass `--host user@IP` if the proxy cannot resolve `pc.work` (or pass `--no-proxy` if you have direct SSH access; see `docs/REMOTE_X64_ENV.md`).
-    - If SSH/proxy is down but you can transfer the log by other means (RDP / cloud / SMB), import it locally:
-      - `scripts/import_stage2_failure_log.sh --src <path/to/log> --analyze`
-    - After fetching, use `scripts/analyze_stage2_failure_log.sh` to extract high-signal errors/warnings without dumping large logs.
-      - Convenience: `scripts/fetch_remote_file.sh` supports `--analyze` to run the analyzer automatically after download.
-
-  - Status update (fact, 2026-01-11): remote connectivity recovered and Tier‑1 x64 execution gates are green again:
-    - `make verify-stage0-win`
-    - `make verify-stage2-win`
-    - `make verify-selfhost-x64`
-    - `make verify-native-net`
-    - Fetched `E:\\work\\oren-lang\\s2_build_failure.log` → `project-doc/remote/20260111_093151/s2_build_failure.log` and confirmed it was an output-path write failure (`...examples\\myapp` with `sys_open failed`), which is consistent with the path separator regressions fixed earlier.
-
-5) **GUI / UI stack (OrenUI): AVM UI + native shell + UI domain** (L)
-   - Goal: production-oriented cross-platform GUI without committing Oren’s core runtime to platform frameworks.
-   - Design doc: `docs/GUI.md`
-   - Recommended architecture (rolling):
-     - UI logic as `.obc` (AVM) for portability + deterministic testing.
-     - Thin native shell provides platform window/event/render and exposes a UI capability domain (`CALL_NATIVE2`).
-   - Phase 0 (design + contracts):
-     - Define UI domain ID + op table; specify input event and render command buffer shapes.
-     - Define a portable node tree representation + diff contract (`std:ui/core`).
-   - Phase 1 (portable core):
-     - Implement `std:ui/core` (Node, keying rules, diff/patch).
-       - Done (2026-01-11): `std:ui/core.diff` now emits actionable patches and `std:ui/core.apply_patch` applies them:
-         - Ops: `replace`, `set_props`, `insert`, `remove` (key-path based)
-         - Fixture: `tests/avm/test_ui_patch_v0.oren`
-         - Gate: `make test-avm`
-     - Done (2026-01-11): `std:ui/layout` now supports Row/Column/Stack + padding + gap + basic alignment.
-       - Regression: `tests/avm/test_ui_layout_v0.oren` includes padding/gap/alignment assertions.
-     - Implement `std:ui/style` v0 (style maps + deterministic merge rules).
-     - Headless AVM fixtures: diff/layout golden tests (no host windows).
-     - Done (2026-01-09): added `std:ui/{core,layout,style}` v0 skeleton + headless AVM layout smoke:
-       - Modules: `lib/std/ui/core.oren`, `lib/std/ui/layout.oren`, `lib/std/ui/style.oren`
-       - Fixture: `tests/avm/test_ui_layout_v0.oren`
-       - Gate: `make test-avm`
-     - Done (2026-01-09): added `std:ui/render` v0 (deterministic render command buffer) + headless AVM render smoke:
-       - Module: `lib/std/ui/render.oren`
-       - Fixture: `tests/avm/test_ui_render_v0.oren`
-       - Gate: `make test-avm`
-     - Done (2026-01-09): added `std:ui/raster` v0 (deterministic software rasterizer) + headless AVM pixel smoke:
-       - Module: `lib/std/ui/raster.oren`
-       - Fixture: `tests/avm/test_ui_raster_v0.oren`
-       - Gate: `make test-avm`
-     - Done (2026-01-09): added `std:ui/ppm` v0 (PPM image encoding helper) + headless AVM byte-level smoke:
-       - Module: `lib/std/ui/ppm.oren`
-       - Fixture: `tests/avm/test_ui_ppm_v0.oren`
-       - Gate: `make test-avm`
-     - Done (2026-01-09): added `std:ui/commands.validate` v0 + wired raster validation by default:
-       - Module: `lib/std/ui/commands.oren`
-       - Fixture: `tests/avm/test_ui_cmds_validate_v0.oren`
-       - Gate: `make test-avm`
-     - Done (2026-01-11): added `std:ui/color` v0 (shared hex color parse/validate) and refactored raster + validator to use it:
-       - Module: `lib/std/ui/color.oren`
-       - Fixture: `tests/avm/test_ui_color_v0.oren`
-       - Gate: `make test-avm`
-     - Done (2026-01-11): `make test` (native quick integration) now includes a headless UI smoke:
-       - Fixture: `tests/native/test_quick_integration_native.oren` (`test_ui_headless`)
-       - Covers: tree → render command buffer → raster RGBA bytes (+ pixel assertions)
-   - Phase 2 (platform shims + bring-up):
-     - Actionable plan: `docs/GUI_PLATFORM_SHIMS.md` (v0 RGBA blit shims, minimal ABI).
-     - Build per‑OS shim libraries (macOS/Windows/Linux) implementing the UI domain with a v0 software RGBA framebuffer.
-       - Deliverables (v0):
-         - `orenui_win32` (x64-windows): Win32 window + input pump + RGBA blit (GDI).
-         - `orenui_x11` (arm64-linux + x64-linux): X11 window + input pump + RGBA blit (XPutImage; XShm later).
-         - `orenui_cocoa` (arm64-macos): Cocoa window + input pump + RGBA blit (CoreGraphics; Metal later).
-           - Started (2026-01-11): initial shim lives in `native/orenui/cocoa/orenui_cocoa.m` with a bounded smoke:
-             - Script: `scripts/verify_ui_smoke_macos.sh`
-             - Make target: `make verify-ui-smoke-macos`
-           - Note (2026-01-11): per-call `@autoreleasepool { ... }` inside the shim caused repeatable crashes
-             (`objc_autoreleasePoolPop` -> `objc_release(0x20)`); v0 keeps the shim free of per-call pools.
-             Next: define a correct lifetime model (single long-lived pool owned by the shell, or a safe pump loop).
-       - ABI decision (v0):
-         - Prefer a C ABI returning typed structs (`OrenUIEvent`, `OrenUIFrameInfo`) over JSON/strings.
-     - Add a native demo app:
-       - `examples/ui_hello.oren`: uses `std:ui/*` to render a frame and shows it via the shim.
-         - Done (2026-01-11): `examples/ui_hello.oren` (macOS bring-up; built and run by `scripts/verify_ui_smoke_macos.sh`).
-     - Add Tier‑1 smoke scripts (opt-in, bounded):
-       - open window → draw ~60 frames → close (hard timeout; no huge logs).
-	     - Optional devtools path (do not block v0):
-	       - Integrate Dear ImGui as a *shell/overlay* once at least one platform shim exists.
-	        - Keep `std:ui` as the stable retained-mode app API; ImGui is tooling and/or a temporary shell shortcut.
-	        - Notes + design: `docs/GUI_IMGUI_SHELL.md`
-   - Declarative UI formats (optional; do not block v0):
-     - Prefer YAML/JSON first (`std:yaml` / `std:json` exist today).
-     - Add `std:encoding/xml` only if we need XML ecosystem compatibility or strict schemas.
-     - Add CSS subset only after style/layout v0 is stable (avoid full CSS cascade early).
-
-6) **FFI ergonomics + correctness** (M)
-   - Goal: keep `ffi` usable for real-world Win32/Linux APIs without being painful.
-   - Done (2026-01-11): `ffi { ... }` group form exists (parser sugar), supports per-item attrs (e.g. per-symbol `@ffi.ret(...)`).
-   - Done (2026-01-11): group-level default `@ffi.ret("...")` now works as an ergonomic default with per-item override:
-     - Example: `@ffi.link("libc.so.6") @ffi.ret("i32") ffi { atoi, puts, @ffi.ret("void") srand }`
-     - Regression: `tests/native/ffi_group_default_ret.oren` (also covered by x64 compile-only gate)
-   - Done (2026-01-11): FFI aliasing (`as`) so internal names don’t have to match external symbols:
-     - Single: `ffi puts as c_puts`
-     - Group: `ffi { puts as c_puts, atoi as c_atoi }`
-     - Regression: `tests/native/ffi_alias_symbols.oren` (run by `make test-native-all`, compiled by `scripts/verify_native_x64_compile_only.sh`)
-   - Next:
-     - If we hit APIs where the external symbol is not a valid Oren identifier, consider a quoted form (e.g. `ffi { "GetProcAddress" as GetProcAddress }`), but keep it opt-in.
+    - Use `--skip-remote` for quick local confidence and keep local x64 compile-only gates strong.
+    - Fetch remote logs without copy/paste using `scripts/fetch_remote_file.sh` (see `docs/REMOTE_X64_ENV.md`).
+    - Analyze large logs with `scripts/analyze_stage2_failure_log.sh` (bounded output).
