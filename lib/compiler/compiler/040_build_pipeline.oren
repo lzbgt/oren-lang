@@ -1114,8 +1114,16 @@ fn compiler_main() {
 		                }
 		            }
 		        }
-		    }
-		    if trace_build { print("[build] out_path=" + out_path) }
+			    }
+			    if trace_build { print("[build] out_path=" + out_path) }
+
+    // Cross-OS robustness:
+    // - Treat '\' as a path separator for outputs too, even when running on POSIX.
+    // - Windows APIs accept forward slashes for most paths, so using '/' internally is safe.
+    //
+    // This prevents mixed-separator paths like `.../native/examples\myapp.exe` from
+    // confusing directory creation and file opens (a common remote Win11 bring-up hazard).
+    out_path = _path_to_posix_sep(out_path)
 
     if deterministic {
         // Deterministic mode: avoid post-processing that can inject non-reproducible data.

@@ -158,8 +158,9 @@ References:
 			       - Fixed (2026-01-10): x64-windows stage2 self-host build could fail to write PE output when input paths used `\` (e.g. `examples\myapp.oren`).
 			         - Root cause: `basename`/`dirname` treated `\` as a separator only when `OS=Windows_NT` was set; some Win11/SSH environments did not provide that env var.
 			         - Fix: path helpers now treat both `/` and `\` as separators unconditionally, and Windows-host detection no longer relies solely on `OS=Windows_NT` for critical build tooling decisions.
-			         - Hardened (2026-01-11): the compiler CLI normalizes `\` → `/` for input paths early in the build pipeline, so `examples\\myapp.oren` works on non-Windows hosts too and can’t leak into default output naming.
-			         - Hardened (2026-01-11): compiler tooling `file_exists(...)` now uses `host_is_windows()` instead of `OS=Windows_NT` so existence probes work even when `OS` is unset on Win11/SSH.
+		         - Hardened (2026-01-11): the compiler CLI normalizes `\` -> `/` for input paths early in the build pipeline, so `examples\\myapp.oren` works on non-Windows hosts too and can't leak into default output naming.
+		         - Hardened (2026-01-11): the build pipeline also normalizes `-o/--out` paths (`\` -> `/`) before directory creation and backend writes, preventing mixed-separator output paths from causing `sys_open` failures (especially on remote Win11 shells and cross-OS scripts).
+		         - Hardened (2026-01-11): compiler tooling `file_exists(...)` now uses `host_is_windows()` instead of `OS=Windows_NT` so existence probes work even when `OS` is unset on Win11/SSH.
 			         - Evidence (full captured remote log): `project-doc/remote/20260110_131230/s2_build_failure.log`
 			         - Regression gate: `make verify-stage2-win` (stage0→stage1→stage2 + compile+run).
 				         - Verified (2026-01-10): `make verify-stage2-win` / `scripts/verify_windows_stage2_from_stage1.sh` passes again, including the nested-path backslash input (`examples\\myapp.oren`), even when `OS` env is intentionally unset on the remote session (regression guard).
