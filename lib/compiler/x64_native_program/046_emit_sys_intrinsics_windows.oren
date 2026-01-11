@@ -333,8 +333,21 @@ fn _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args) {
     bytes_extend(ctx["code"], insn_cdqe())
     _emit_mov_mrsp_r64(ctx, 48, 10)
 
-    // CreateFileA(path, access, share, NULL, creation, attrs, NULL) -> HANDLE (rax) or -1
+    // CreateFileA(path, access, share, NULL, creation, attrs, NULL) -> HANDLE (rax) or INVALID_HANDLE_VALUE(-1).
     _emit_call_iat_x64(ctx, "IAT_CreateFileA")
+
+    // On failure, translate Win32 GetLastError() to a POSIX-like -errno so higher-level
+    // helpers (e.g. `oren_write_bytes`) can surface actionable error codes (ENOENT/EACCES/...).
+    //
+    // This keeps the runtime convention consistent across platforms:
+    //   success => >=0 (HANDLE)
+    //   failure => -errno
+    var l_open_ok = _new_label(ctx, "sys_open_win_ok")
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4294967295)) // rax == -1 ?
+    _emit_jcc_to_label(ctx, fixups, "ne", l_open_ok)
+    _emit_win32_last_error_to_neg_errno_common_x64(ctx)
+    _emit_label(ctx, labels, l_open_ok)
+
     _emit_win64_path_norm_end_x64(ctx, WIN64_PATH_SCRATCH_ONE)
 
     // post: native_capsule_sys_open_post(pair, rc) -> rc

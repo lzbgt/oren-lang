@@ -97,7 +97,9 @@ References:
    - eliminate legacy “nil==0” / 0-sentinel assumptions (0 is a valid int and is truthy; `nil/false/true` are runtime singletons)
      - Fixed: x64 ModRM disp8 emission no longer uses a “disp8+1” encoding (see `lib/compiler/x64_core.oren`); `disp8=0` is now a real byte value with `nil` meaning “absent”.
      - Fixed: `std:net/dns.default_resolver` no longer treats missing `OREN_DNS_SERVER` as “present” under native singleton-`nil` semantics (checks `env_ip != nil && env_ip != 0 && env_ip != ""`); Tier‑1 Win11 fixture `tests/fixtures/windows_dns_default_resolver_smoke.oren` now passes.
-     - TODO: eliminate mixed path separators in Windows output paths (avoid `.../examples\\myapp`), which can surface as `write_bytes: sys_open failed` in older stage2 logs (triage log: `project-doc/remote/latest/s2_build_failure.log`).
+     - Fixed: mixed `\\` vs `/` in default output paths is eliminated by normalizing `path` and `out_path` via `_path_to_posix_sep(...)` in the build pipeline.
+       - Guarded by `make test` path-separator smokes (backslash input + backslash `-o` output).
+       - If you still see `.../examples\\myapp` in a log, you are almost certainly running an older `oren_stage2.exe` on the remote host; see `docs/REMOTE_X64_ENV.md`.
    - FFI ABI correctness (sign/zero extension, void return, ptr-sized returns)
    - NET/TLS end-to-end behavior (timeouts, buffering, determinism knobs)
 

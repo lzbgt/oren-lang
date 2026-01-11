@@ -26,6 +26,8 @@ Symptom class (example):
 
 - `x64 pe: failed to write: build/targets/x64-windows/native/...` (older logs may omit `.exe`; current default outputs on Windows targets include `.exe`)
 - `write_bytes: sys_open failed`
+  - On current `origin/master`, Windows `sys_open` maps `GetLastError()` to a POSIX-like `-errno`,
+    so the compiler should also print a meaningful `write error code=<n>` (e.g. `2` for ENOENT, `13` for EACCES).
 
 If you see this kind of failure, first do the “sync + rebuild” sequence:
 

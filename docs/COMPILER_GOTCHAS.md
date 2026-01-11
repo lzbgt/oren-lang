@@ -34,6 +34,12 @@ Implementation reference:
 - `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren`
 - `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_fs.oren`
 
+Return convention note (important for actionable diagnostics):
+
+- `sys_open(path, flags, mode)` returns:
+  - **success**: a Win32 `HANDLE` value in `rax` (treated as a “fd-like” integer by the runtime)
+  - **failure**: **`-errno`**, mapped from Win32 `GetLastError()` (not just `-1`)
+
 ## Windows: do not rely on `OS=Windows_NT` for path parsing
 
 In rolling mode, scripts and shells can execute the compiler in environments where `OS=Windows_NT`
