@@ -96,6 +96,7 @@ Rolling invariant (until `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md` lands):
   - later proven scalar by best-effort scan (e.g. `var t = cfg["x"]; if t == nil { ... }; i64(t)`).
   - Regression fixtures: `tests/fixtures/typecheck_bad_numeric_nil.oren`, `tests/fixtures/typecheck_bad_bool_nil.oren`, `tests/fixtures/nil_guard_bad_late_scalar_nil_compare.oren`, `tests/fixtures/nil_guard_bad_late_scalar_nil_compare_top_level.oren`, `tests/fixtures/nil_guard_bad_annotated_call_nil_compare.oren`
   - Fast gate: `make test`
+  - Diagnostic: failures are tagged as `nil-compare guard:` (this is always-on; it does not require `--typecheck`).
 
 Concrete rule (treat as a correctness bug in rolling native builds):
 

@@ -30,10 +30,15 @@ fn _tok_loc(tok) {
     return file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col)
 }
 
-fn _err(errors, tok, msg) {
+fn _err_with_tag(errors, tok, tag, msg) {
     var loc = _tok_loc(tok)
-    oren_list_push(errors, loc + ": typecheck: " + msg)
+    if tag == nil || tag == "" { tag = "typecheck" }
+    oren_list_push(errors, loc + ": " + tag + ": " + msg)
     return nil
+}
+
+fn _err(errors, tok, msg) {
+    return _err_with_tag(errors, tok, "typecheck", msg)
 }
 
 fn _ann_to_cat(ann) {
@@ -702,7 +707,7 @@ fn _nil_guard_expr(errors, expr, env, scalar_likely, sigs) {
                 if scalar_likely != nil && scalar_likely[expr["right"]["value"]] == true { rc = "int" }
             }
             if (lc == "nil" && (rc == "bool" || rc == "int" || rc == "float")) || (rc == "nil" && (lc == "bool" || lc == "int" || lc == "float")) {
-                _err(errors, expr["token"], "invalid comparison: scalar compared to nil (bool/int/float). Compare to 0/false explicitly, or use a typed API that returns nil only for non-scalars.")
+                _err_with_tag(errors, expr["token"], "nil-compare guard", "invalid comparison: scalar compared to nil (bool/int/float). Compare to 0/false explicitly, or use a typed API that returns nil only for non-scalars.")
             }
         }
         return nil
