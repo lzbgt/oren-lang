@@ -602,6 +602,11 @@ References:
     - To fetch remote logs without copy/paste, use `scripts/fetch_remote_file.sh` and pass `--host user@IP` if the proxy cannot resolve `pc.work` (or pass `--no-proxy` if you have direct SSH access; see `docs/REMOTE_X64_ENV.md`).
     - After fetching, use `scripts/analyze_stage2_failure_log.sh` to extract high-signal errors/warnings without dumping large logs.
       - Convenience: `scripts/fetch_remote_file.sh` supports `--analyze` to run the analyzer automatically after download.
+    - Outstanding (needs remote access / log import):
+      - Fetch and analyze the reported stage2 failure log from the Windows host:
+        - Remote path: `E:\\work\\oren-lang\\s2_build_failure.log`
+        - Local destination: `project-doc/remote_logs/` (via `scripts/fetch_remote_file.sh --win-path ... --out ... --analyze`)
+      - Once the log is in-repo, turn the top 1–3 issues into a local regression gate (compile-only if needed).
 
 5) **GUI / UI stack (OrenUI): AVM UI + native shell + UI domain** (L)
    - Goal: production-oriented cross-platform GUI without committing Oren’s core runtime to platform frameworks.
