@@ -51,6 +51,9 @@ static void orenui__ensure_app(void) {
 @property(nonatomic, strong) NSWindow* window;
 @property(nonatomic, strong) NSView* view;
 @property(nonatomic, assign) BOOL shouldClose;
+@property(nonatomic, assign) BOOL closeReported;
+@property(nonatomic, assign) int32_t lastReportedW;
+@property(nonatomic, assign) int32_t lastReportedH;
 @property(nonatomic, assign) uint8_t* rgba;
 @property(nonatomic, assign) int32_t w;
 @property(nonatomic, assign) int32_t h;
@@ -69,6 +72,10 @@ static void orenui__ensure_app(void) {
     pthread_mutex_init(&_rgbaMu, NULL);
     _rgba = NULL;
     _cap = 0;
+    _shouldClose = NO;
+    _closeReported = NO;
+    _lastReportedW = 0;
+    _lastReportedH = 0;
   }
   return self;
 }
@@ -216,6 +223,9 @@ int32_t orenui_open_window(const char* title_utf8, int32_t w, int32_t h) {
   OrenUICocoaWindowState* st = [[OrenUICocoaWindowState alloc] init];
   st.window = win;
   st.shouldClose = NO;
+  st.closeReported = NO;
+  st.lastReportedW = w;
+  st.lastReportedH = h;
   st.rgba = NULL;
   st.cap = 0;
   st.w = w;
@@ -358,4 +368,52 @@ int32_t orenui_pump(int32_t win_id, int32_t timeout_ms) {
   // for smoke scripts: present -> pump -> draw).
   [st.view displayIfNeeded];
   return st.shouldClose ? 1 : 0;
+}
+
+int32_t orenui_poll_event(int32_t win_id, int32_t timeout_ms, int64_t out5_i64_ptr) {
+  if (!orenui__require_main_thread()) {
+    return -16;
+  }
+  if (out5_i64_ptr == 0) {
+    return -4;
+  }
+  orenui__ensure_app();
+
+  OrenUICocoaWindowState* st = orenui__get(win_id);
+  if (!st || !st.window || !st.view) {
+    return -4;
+  }
+
+  // Pump once to ingest pending OS events, bounded by timeout.
+  (void)orenui_pump(win_id, timeout_ms);
+
+  int64_t* out = (int64_t*)(uintptr_t)out5_i64_ptr;
+
+  if (st.shouldClose && !st.closeReported) {
+    st.closeReported = YES;
+    out[0] = ORENUI_EV_CLOSE;
+    out[1] = 0;
+    out[2] = 0;
+    out[3] = 0;
+    out[4] = 0;
+    return 1;
+  }
+
+  // Best-effort resize report (content view size).
+  NSRect b = [st.view bounds];
+  int32_t cw = (int32_t)(b.size.width + 0.5);
+  int32_t ch = (int32_t)(b.size.height + 0.5);
+  if (cw > 0 && ch > 0 && (cw != st.lastReportedW || ch != st.lastReportedH)) {
+    st.lastReportedW = cw;
+    st.lastReportedH = ch;
+    out[0] = ORENUI_EV_RESIZE;
+    out[1] = (int64_t)cw;
+    out[2] = (int64_t)ch;
+    out[3] = 0;
+    out[4] = 0;
+    return 1;
+  }
+
+  // No event (v0 only reports close/resize).
+  return 0;
 }

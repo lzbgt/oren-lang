@@ -184,6 +184,7 @@ References:
 	   Next steps (actionable):
 
 	   - finalize `native/orenui/orenui.h` v0 ABI (window + poll_event + present_rgba)
+	     - Status: `orenui_poll_event` exists on macOS/Windows/Linux shims (v0 events: close + resize)
 	   - implement `native/orenui/win32/*` (Win32 + GDI/DIBSection blit) + keep a bounded headful smoke script green
 	     - Started: `native/orenui/win32/orenui_win32.c` (skeleton; expects a GUI session)
 	     - Added: `scripts/verify_ui_smoke_windows.sh` (`make verify-ui-smoke-windows`)
@@ -191,6 +192,7 @@ References:
 	     - Started: `native/orenui/x11/orenui_x11.c` (skeleton; requires X11)
 	     - Added: `scripts/verify_ui_smoke_linux.sh` (`make verify-ui-smoke-linux`)
 	   - keep `examples/ui_hello.oren` portable across shims (today: macOS + Windows via `@cfg(os=...)`)
+	     - Next: extend events beyond close/resize (mouse/keyboard/text) and add a small Oren-side decoder helper.
 
 8) **FFI ergonomics + ABI surface completion** (M)
 

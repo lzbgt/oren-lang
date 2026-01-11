@@ -36,12 +36,17 @@ typedef struct OrenUIX11State {
 
   pthread_t owner;
   int32_t should_close;
+  int close_reported;
 
   uint8_t* pixels;  // packed pixels suitable for XPutImage (see present_rgba)
   int32_t w;
   int32_t h;
   int32_t stride;
   size_t cap;
+
+  int ev_r;
+  int ev_w;
+  int64_t ev_q[64][5];
 } OrenUIX11State;
 
 static OrenUIX11State* g_states[64];
@@ -98,6 +103,37 @@ static int orenui__require_owner(OrenUIX11State* st) {
   return pthread_equal(st->owner, pthread_self()) ? 1 : 0;
 }
 
+static void orenui__ev_push(OrenUIX11State* st, int64_t ty, int64_t a0, int64_t a1, int64_t a2, int64_t a3) {
+  if (!st) {
+    return;
+  }
+  int next_w = (st->ev_w + 1) % 64;
+  if (next_w == st->ev_r) {
+    return;
+  }
+  st->ev_q[st->ev_w][0] = ty;
+  st->ev_q[st->ev_w][1] = a0;
+  st->ev_q[st->ev_w][2] = a1;
+  st->ev_q[st->ev_w][3] = a2;
+  st->ev_q[st->ev_w][4] = a3;
+  st->ev_w = next_w;
+}
+
+static int orenui__ev_pop(OrenUIX11State* st, int64_t out5_i64_ptr) {
+  if (!st || out5_i64_ptr == 0) {
+    return 0;
+  }
+  if (st->ev_r == st->ev_w) {
+    return 0;
+  }
+  int64_t* out = (int64_t*)(uintptr_t)out5_i64_ptr;
+  for (int i = 0; i < 5; i++) {
+    out[i] = st->ev_q[st->ev_r][i];
+  }
+  st->ev_r = (st->ev_r + 1) % 64;
+  return 1;
+}
+
 static void orenui__pump_once(OrenUIX11State* st) {
   if (!st || !st->dpy) {
     return;
@@ -109,11 +145,22 @@ static void orenui__pump_once(OrenUIX11State* st) {
       case ClientMessage: {
         if ((Atom)ev.xclient.data.l[0] == st->wm_delete) {
           st->should_close = 1;
+          orenui__ev_push(st, ORENUI_EV_CLOSE, 0, 0, 0, 0);
+        }
+        break;
+      }
+      case ConfigureNotify: {
+        // Window resized.
+        int32_t nw = (int32_t)ev.xconfigure.width;
+        int32_t nh = (int32_t)ev.xconfigure.height;
+        if (nw > 0 && nh > 0) {
+          orenui__ev_push(st, ORENUI_EV_RESIZE, (int64_t)nw, (int64_t)nh, 0, 0);
         }
         break;
       }
       case DestroyNotify: {
         st->should_close = 1;
+        orenui__ev_push(st, ORENUI_EV_CLOSE, 0, 0, 0, 0);
         break;
       }
       default:
@@ -174,11 +221,14 @@ int32_t orenui_open_window(const char* title_utf8, int32_t w, int32_t h) {
   st->id = g_next_id++;
   st->owner = pthread_self();
   st->should_close = 0;
+  st->close_reported = 0;
   st->pixels = NULL;
   st->cap = 0;
   st->w = w;
   st->h = h;
   st->stride = w * 4;
+  st->ev_r = 0;
+  st->ev_w = 0;
 
   if (!orenui__slot_put(st)) {
     free(st);
@@ -386,4 +436,42 @@ int32_t orenui_pump(int32_t win_id, int32_t timeout_ms) {
   }
   orenui__pump_once(st);
   return st->should_close ? 1 : 0;
+}
+
+int32_t orenui_poll_event(int32_t win_id, int32_t timeout_ms, int64_t out5_i64_ptr) {
+  OrenUIX11State* st = orenui__get(win_id);
+  if (!st || !st->dpy) {
+    return -4;
+  }
+  if (!orenui__require_owner(st)) {
+    return -16;
+  }
+  if (out5_i64_ptr == 0) {
+    return -4;
+  }
+
+  if (orenui__ev_pop(st, out5_i64_ptr)) {
+    return 1;
+  }
+
+  if (XPending(st->dpy) == 0) {
+    orenui__wait_events(st, timeout_ms);
+  }
+  orenui__pump_once(st);
+  if (orenui__ev_pop(st, out5_i64_ptr)) {
+    return 1;
+  }
+
+  if (st->should_close && !st->close_reported) {
+    st->close_reported = 1;
+    int64_t* out = (int64_t*)(uintptr_t)out5_i64_ptr;
+    out[0] = ORENUI_EV_CLOSE;
+    out[1] = 0;
+    out[2] = 0;
+    out[3] = 0;
+    out[4] = 0;
+    return 1;
+  }
+
+  return 0;
 }

@@ -47,7 +47,28 @@ int32_t orenui_present_rgba(int32_t win_id, int32_t w, int32_t h, int64_t rgba_p
 // - 0 otherwise
 int32_t orenui_pump(int32_t win_id, int32_t timeout_ms);
 
+// Poll one event from the platform queue (v0).
+//
+// This is the preferred API for portable shells: it makes the “event loop contract”
+// explicit, instead of overloading `pump()` with meaning.
+//
+// `out5_i64_ptr` points to 5 int64 slots written by the shim:
+//   out[0] = event type (see ORENUI_EV_*)
+//   out[1]..out[4] = event payload (type-specific)
+//
+// Return:
+// - 1 if an event was written to out[]
+// - 0 if no event is available (within timeout_ms)
+// - negative on error
+int32_t orenui_poll_event(int32_t win_id, int32_t timeout_ms, int64_t out5_i64_ptr);
+
+// v0 event tags (rolling; minimal set only).
+// Payload layout:
+// - CLOSE:  out[1..4] = 0
+// - RESIZE: out[1] = w (i64), out[2] = h (i64)
+#define ORENUI_EV_CLOSE  1
+#define ORENUI_EV_RESIZE 2
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-

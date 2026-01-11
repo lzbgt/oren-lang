@@ -20,11 +20,19 @@ ffi orenui_open_window
 @ffi.ret("i32")
 ffi orenui_open_window
 
+@cfg(os="linux")
+@ffi.ret("i32")
+ffi orenui_open_window
+
 @cfg(os="macos")
 @ffi.ret("i32")
 ffi orenui_present_rgba
 
 @cfg(os="windows")
+@ffi.ret("i32")
+ffi orenui_present_rgba
+
+@cfg(os="linux")
 @ffi.ret("i32")
 ffi orenui_present_rgba
 
@@ -35,12 +43,28 @@ ffi orenui_pump
 @cfg(os="windows")
 @ffi.ret("i32")
 ffi orenui_pump
+
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi orenui_poll_event
+
+@cfg(os="windows")
+@ffi.ret("i32")
+ffi orenui_poll_event
+
+@cfg(os="linux")
+@ffi.ret("i32")
+ffi orenui_poll_event
 
 @cfg(os="macos")
 @ffi.ret("void")
 ffi orenui_close_window
 
 @cfg(os="windows")
+@ffi.ret("void")
+ffi orenui_close_window
+
+@cfg(os="linux")
 @ffi.ret("void")
 ffi orenui_close_window
 
@@ -90,14 +114,21 @@ fn main() {
     }
     var rgba_ptr = oren_buf_data_ptr_unchecked(rgba)
     var stride = w * 4
+    var ev = oren_i64_buf_new(5)
+    var evp = oren_buf_data_ptr_unchecked(ev)
 
     var max_frames = 60
     var frame = 0
     while frame < max_frames {
-        // Pump is currently a no-op on macOS bring-up (see `native/orenui/cocoa`).
-        // We still call it to keep the API shape stable.
-        var closing = orenui_pump(win, 0)
-        if closing != 0 { break }
+        // Poll events (v0: close + resize). This is the stable contract we want
+        // to keep across all platform shims.
+        var got = orenui_poll_event(win, 0, evp)
+        if got == 1 {
+            var ty = oren_buf_load_i64(ev, 0)
+            if ty == 1 { // ORENUI_EV_CLOSE
+                break
+            }
+        }
 
         var pr = orenui_present_rgba(win, w, h, rgba_ptr, stride)
         if pr != 0 {

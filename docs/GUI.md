@@ -193,12 +193,11 @@ Rolling note:
 **Events**
 
 - `poll_event(win_id, timeout_ms) -> event | nil`
-  - Event maps (examples):
-    - `{"t":"mouse_move","x":123,"y":456,"mods":0}`
-    - `{"t":"mouse_down","btn":1,"x":...,"y":...}`
-    - `{"t":"key_down","key":...,"codepoint":...}`
-    - `{"t":"resize","w":...,"h":...,"scale":...}`
-    - `{"t":"close"}`
+  - Repo v0 shim ABI returns events via a flat out buffer (`int64[5]`), not a map:
+    - `orenui_poll_event(win_id, timeout_ms, out5_i64_ptr) -> 0/1/<0`
+    - `out[0] = type`, `out[1..4] = payload` (see `native/orenui/orenui.h`)
+  - A higher-level Oren wrapper (future) should convert the flat event into the “event map” form
+    used by `std:ui/*` for portability and testability.
 
 **Rendering**
 

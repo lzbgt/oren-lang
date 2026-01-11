@@ -72,9 +72,15 @@ Oren has multiple execution modes. The shim boundary must be usable from:
 
 There are two viable ABI strategies.
 
-### Option A (preferred): C ABI + typed structs (fastest + safest)
+### Option A (preferred): C ABI + flat POD (no structs in v0)
 
-Expose a tiny `extern "C"` ABI with plain POD structs.
+Expose a tiny `extern "C"` ABI with plain integer arguments.
+
+Repo fact (today):
+
+- The in-tree v0 ABI in `native/orenui/orenui.h` intentionally avoids `struct`/`union` parameters.
+- Events are returned via an `int64[5]` out buffer (`orenui_poll_event(..., out5_i64_ptr)`), because
+  Oren FFI is currently most reliable for scalar args + raw pointers.
 
 Pros:
 - Easy to bind from Oren native backend.
@@ -96,16 +102,14 @@ Cons:
   - `int32_t orenui_present_rgba(int32_t win_id, int32_t w, int32_t h, const uint8_t* rgba, int32_t stride);`
 
 - Events:
-  - `int32_t orenui_poll_event(int32_t win_id, int32_t timeout_ms, struct OrenUIEvent* out);`
+  - **Implemented (repo):** `int32_t orenui_poll_event(int32_t win_id, int32_t timeout_ms, int64_t out5_i64_ptr);`
     - returns: `0 = none`, `1 = event`, `<0 = error`
+    - `out[0] = type`, `out[1..4] = payload` (see `native/orenui/orenui.h`)
 
-Where:
+Future (v1+):
 
-- `OrenUIFrameInfo` contains: `{w,h,scale_x1000}` or `{w,h,scale_num,scale_den}`.
-- `OrenUIEvent` is a tagged union:
-  - `type = MOUSE_MOVE | MOUSE_DOWN | MOUSE_UP | KEY_DOWN | KEY_UP | TEXT | RESIZE | CLOSE`
-  - `mods` bitmask (shift/ctrl/alt/super)
-  - payload fields depend on type.
+- We can switch to explicit `struct OrenUIEvent` / `struct OrenUIFrameInfo` once Oren FFI has a stable
+  “struct by pointer” story.
 
 ### Option B: C ABI returning “event maps” (slower, but closer to Oren values)
 
