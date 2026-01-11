@@ -59,6 +59,11 @@ Local x64 sanity (execution under QEMU):
 - All x64 sanity gates are expected to **fail fast** if the compiler emits known backend hazards (e.g. `x64 native v0: missing ABI arg reg(s)`), even if an individual build step would otherwise exit 0.
   - Note: if the persistent container is stopped, restore it with `docker start c7e5f7bd9f5c` (do not create a replacement).
 
+Verified (fact, 2026-01-11):
+
+- `make verify-native-net` passed end-to-end (local arm64-macos + docker arm64-linux + remote Win11 + remote WSL2).
+  - Confirms: TCP/UDP/DNS/HTTP/HTTPS/WS/WSS/TLS + HTTP/2/HPACK loopback fixtures run on Tier‑1.
+
 References:
 
 - Perf playbook: `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`
@@ -601,25 +606,23 @@ References:
 - Remote x64 Win11/WSL2 access can intermittently fail via the default proxy hostname (`pc.work`).
   - Impact: `x64-windows` / `x64-linux` NET and self-host gates can’t run even when the code is correct.
   - Mitigation:
-    - Prefer `make verify-native-net-skip-remote` for quick local confidence (arm64-macos + arm64-linux container). Last verified (fact): 2026-01-11.
-    - Prefer `make verify-native-matrix-skip-remote` for the native backend quick matrix **without remote**, which now also includes an `x64-linux` runtime smoke under QEMU (`x64-linux-qemu`) in the persistent Linux container.
-    - When the remote is reachable, re-run:
-      - `make verify-native-net` (includes x64-win + x64-wsl)
-      - `make verify-selfhost-x64`
+    - Prefer `make verify-native-net-skip-remote` for quick local confidence (arm64-macos + arm64-linux container).
+    - Prefer `make verify-native-matrix-skip-remote` for the native backend quick matrix **without remote**, which also includes an `x64-linux` runtime smoke under QEMU (`x64-linux-qemu`) in the persistent Linux container.
     - Keep offline x64-windows correctness checks strong even when remote execution is down:
-      - `scripts/verify_native_x64_compile_only.sh` now validates the PE Export Directory (not just strings) via `scripts/pe_exports_check.py`.
+      - `scripts/verify_native_x64_compile_only.sh` validates the PE Export Directory (not just strings) via `scripts/pe_exports_check.py`.
     - Even when the remote is unreachable, keep x86_64 *buildability* guarded by `make verify-native-x64-compile` (compiles x64-linux + x64-windows outputs for stage1+stage2, including NET/TLS/HTTP2/HPACK module resolution via `tests/fixtures/x64_compile_only_net_tls_http2_smoke.oren`).
     - To fetch remote logs without copy/paste, use `scripts/fetch_remote_file.sh` and pass `--host user@IP` if the proxy cannot resolve `pc.work` (or pass `--no-proxy` if you have direct SSH access; see `docs/REMOTE_X64_ENV.md`).
     - If SSH/proxy is down but you can transfer the log by other means (RDP / cloud / SMB), import it locally:
       - `scripts/import_stage2_failure_log.sh --src <path/to/log> --analyze`
     - After fetching, use `scripts/analyze_stage2_failure_log.sh` to extract high-signal errors/warnings without dumping large logs.
       - Convenience: `scripts/fetch_remote_file.sh` supports `--analyze` to run the analyzer automatically after download.
-	    - Outstanding (needs remote access / log import):
-	      - Fetch and analyze the reported stage2 failure log from the Windows host:
-	        - Remote path: `E:\\work\\oren-lang\\s2_build_failure.log`
-	        - Local destination: `project-doc/remote_logs/` (via `scripts/fetch_remote_file.sh --win-path ... --out ... --analyze`)
-	        - Note (fact, 2026-01-11): proxy SSH via the default `OREN_REMOTE_X64_PROXY` failed with `socat ... CONNECT pc.work:22: Not Found`, so fetching requires overriding `OREN_REMOTE_X64_HOST` to a reachable IP/DNS (or using `--no-proxy` with direct SSH).
-	      - Once the log is in-repo, turn the top 1–3 issues into a local regression gate (compile-only if needed).
+
+  - Status update (fact, 2026-01-11): remote connectivity recovered and Tier‑1 x64 execution gates are green again:
+    - `make verify-stage0-win`
+    - `make verify-stage2-win`
+    - `make verify-selfhost-x64`
+    - `make verify-native-net`
+    - Fetched `E:\\work\\oren-lang\\s2_build_failure.log` → `project-doc/remote/20260111_093151/s2_build_failure.log` and confirmed it was an output-path write failure (`...examples\\myapp` with `sys_open failed`), which is consistent with the path separator regressions fixed earlier.
 
 5) **GUI / UI stack (OrenUI): AVM UI + native shell + UI domain** (L)
    - Goal: production-oriented cross-platform GUI without committing Oren’s core runtime to platform frameworks.

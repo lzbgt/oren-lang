@@ -290,6 +290,32 @@ These should run under AVM without host windows.
 
 These are still valuable but should not be the only correctness story.
 
+### Optional bring-up shell: Dear ImGui (integration candidate)
+
+Dear ImGui is a widely used, “bloat-free” immediate-mode C++ UI library with many platform/render backends.
+For Oren, the most promising use is **not** “replace the planned portable UI core with ImGui”, but:
+
+- use ImGui as a **cross-platform shell layer** (window + input pump + GPU backend)
+- keep Oren’s **portable UI core** (`std:ui/*`) as the source of truth (tree/layout/diff/render/raster)
+
+Concretely, a minimal bring-up path is:
+
+1) Oren UI core renders into an RGBA framebuffer (already implemented: `std:ui/raster`)
+2) A tiny native shell uploads the buffer as a texture and displays it each frame
+3) Input events are translated into the Oren event schema and fed back into the VM/UI core
+
+This is attractive because it reduces the “platform shim” surface area early:
+
+- we don’t need to commit to Metal vs D3D vs Vulkan immediately (ImGui backends already exist)
+- we can bring up “window + present” quickly while preserving deterministic headless testing
+
+Tradeoffs (why this stays optional):
+
+- ImGui is immediate-mode: great for tools/debug UIs, but it is not a declarative retained-mode widget system.
+- The long-run production API for Oren apps should still be the stable, portable `std:ui` model, not a C++-FFI-heavy surface.
+
+Upstream reference material (downloaded into this repo for auditing): `project-doc/web/github.com/ocornut/imgui/`.
+
 ## 6.1) Current implementation status (v0)
 
 Implemented (headless, portable):
