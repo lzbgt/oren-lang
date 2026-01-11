@@ -676,8 +676,21 @@ References:
        - Fixture: `tests/native/test_quick_integration_native.oren` (`test_ui_headless`)
        - Covers: tree → render command buffer → raster RGBA bytes (+ pixel assertions)
    - Phase 2 (platform shims + bring-up):
-     - Build per-OS shim libraries (macOS/Windows/Linux) implementing the UI domain with a v0 software RGBA framebuffer.
-     - Add Tier‑1 smoke scripts (opt-in): open window → draw frame → close.
+     - Actionable plan: `docs/GUI_PLATFORM_SHIMS.md` (v0 RGBA blit shims, minimal ABI).
+     - Build per‑OS shim libraries (macOS/Windows/Linux) implementing the UI domain with a v0 software RGBA framebuffer.
+       - Deliverables (v0):
+         - `orenui_win32` (x64-windows): Win32 window + input pump + RGBA blit (GDI).
+         - `orenui_x11` (arm64-linux + x64-linux): X11 window + input pump + RGBA blit (XPutImage; XShm later).
+         - `orenui_cocoa` (arm64-macos): Cocoa window + input pump + RGBA blit (CoreGraphics; Metal later).
+       - ABI decision (v0):
+         - Prefer a C ABI returning typed structs (`OrenUIEvent`, `OrenUIFrameInfo`) over JSON/strings.
+     - Add a native demo app:
+       - `examples/ui_hello.oren`: uses `std:ui/*` to render a frame and shows it via the shim.
+     - Add Tier‑1 smoke scripts (opt-in, bounded):
+       - open window → draw ~60 frames → close (hard timeout; no huge logs).
+     - Optional devtools path (do not block v0):
+       - Integrate Dear ImGui as a *shell/overlay* once at least one platform shim exists.
+       - Keep `std:ui` as the stable retained-mode app API; ImGui is tooling and/or a temporary shell shortcut.
    - Declarative UI formats (optional; do not block v0):
      - Prefer YAML/JSON first (`std:yaml` / `std:json` exist today).
      - Add `std:encoding/xml` only if we need XML ecosystem compatibility or strict schemas.

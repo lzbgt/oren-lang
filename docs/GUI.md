@@ -218,6 +218,10 @@ Oren’s native backend should interact with this shim via FFI:
 
 This keeps the core repo syscall-first while acknowledging that GUI requires platform frameworks.
 
+For an actionable v0 bring-up plan (RGBA framebuffer shims per OS, minimal ABI), see:
+
+- `docs/GUI_PLATFORM_SHIMS.md`
+
 ## 4) Packaging model
 
 Recommended app structure:
