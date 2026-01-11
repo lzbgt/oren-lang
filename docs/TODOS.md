@@ -84,6 +84,7 @@ References:
    High-leverage direction:
 
    - shrink the injected runtime surface compiled on cold misses (rtobj layering / reachability)
+   - keep rtobj seed tooling aligned with the compiler’s default runtime-profile heuristic (`auto` ⇒ core unless `std:net/*`); seed `full` explicitly for NET/TLS-heavy bring-up
    - keep module parsing parallelism safe by default (fork-mode parallel parse without huge logs)
 
 2) **Tier‑1 native parity: correctness across arch/OS** (L)

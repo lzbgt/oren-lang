@@ -32,7 +32,8 @@ Options:
   --platform <spec>   target platform (e.g. arm64-macos, x64-linux). Default: auto-detect host.
   --compiler <path>   compiler binary (default: ./oren_stage2)
   --runtime-profile <full|core|minimal>
-                     select the non-capsule runtime profile to seed (default: env OREN_NATIVE_RUNTIME_PROFILE, else "full")
+                     select the non-capsule runtime profile to seed (default: env OREN_NATIVE_RUNTIME_PROFILE, else "auto")
+                     - "auto": match compiler default heuristic (core unless std:net/* is present)
   --debug             generate seed for debug runtime objects
   --no-debug          generate seed for non-debug runtime objects (default)
   --force             rebuild seed even if already present
@@ -42,7 +43,7 @@ Env:
   OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR   source rtobj cache dir (default: build/cache/native_runtime_obj)
   OREN_NATIVE_RUNTIME_OBJ_SEED_DIR    destination seed dir (default: build/cache/native_runtime_obj_seed)
   OREN_FORCE_RUNTIME_OBJ_SEED         if set, do not take the fast no-op path
-  OREN_NATIVE_RUNTIME_PROFILE         runtime profile override ("core"/"minimal" => lib/runtime_native_core.oren)
+  OREN_NATIVE_RUNTIME_PROFILE         runtime profile override ("auto"/"core"/"minimal"/"full")
 EOF
 }
 
@@ -117,9 +118,16 @@ if [[ "$debug_flag" = "--debug" ]]; then dbg="d1"; fi
 fi
 
 # Runtime entry file used for hashing/keys (non-capsule only; capsule uses a different entry file).
-runtime_entry="lib/runtime_native.oren"
+#
+# IMPORTANT (matches compiler defaults):
+# - When OREN_NATIVE_RUNTIME_PROFILE is unset/empty, the compiler uses a heuristic:
+#   it prefers the smaller "core" runtime unless std:net/* is present.
+# - This seed generator cannot cheaply know the program's import graph, so the
+#   default is "auto" and we seed the "core" runtime entry.
+runtime_entry="lib/runtime_native_core.oren"
 case "${runtime_profile:-}" in
-  ""|"full") runtime_entry="lib/runtime_native.oren" ;;
+  ""|"auto") runtime_entry="lib/runtime_native_core.oren" ;;
+  full) runtime_entry="lib/runtime_native.oren" ;;
   core|minimal) runtime_entry="lib/runtime_native_core.oren" ;;
   *) echo "ERROR: unsupported --runtime-profile: ${runtime_profile}" >&2; exit 2 ;;
 esac
@@ -271,7 +279,7 @@ copy_key_to_seed() {
   cp -R "$cache_dir/$key" "$seed_dir/"
   echo "OK: rtobj seed updated"
   echo "platform=$platform backend=$backend"
-  echo "runtime_profile=${runtime_profile:-full} runtime_entry=$runtime_entry"
+  echo "runtime_profile=${runtime_profile:-auto} runtime_entry=$runtime_entry"
   echo "cache_dir=$cache_dir"
   echo "seed_dir=$seed_dir"
   echo "key=$key"
@@ -291,7 +299,7 @@ if [[ -z "$force" && -n "$want_rh" ]]; then
     prune_seed_dir_keep "$key" "$want_rh"
     echo "OK: rtobj seed already present (no-op)" >&2
     echo "platform=$platform backend=$backend debug=$debug_flag" >&2
-    echo "runtime_profile=${runtime_profile:-full} runtime_entry=$runtime_entry" >&2
+    echo "runtime_profile=${runtime_profile:-auto} runtime_entry=$runtime_entry" >&2
     echo "seed_dir=$seed_dir" >&2
     echo "key=$key" >&2
     exit 0
@@ -316,19 +324,19 @@ fi
 mkdir -p build/tmp
 
 # Populate cache dir (do not isolate; we want it under $cache_dir).
-if [[ -n "${runtime_profile:-}" && "${runtime_profile:-}" != "full" ]]; then
-  OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$cache_dir" \
-  OREN_NATIVE_RUNTIME_PROFILE="$runtime_profile" \
-    "$compiler" build examples/hello.oren --backend native --platform "$platform" "$debug_flag" --no-cache -o build/tmp/rtobj_seed_probe >/dev/null
-else
-  OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$cache_dir" \
-    "$compiler" build examples/hello.oren --backend native --platform "$platform" "$debug_flag" --no-cache -o build/tmp/rtobj_seed_probe >/dev/null
-fi
+#
+# NOTE:
+# - When runtime_profile is unset/empty, we explicitly set "auto" so the behavior
+#   is deterministic for this seed probe.
+rp="${runtime_profile:-auto}"
+OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$cache_dir" \
+OREN_NATIVE_RUNTIME_PROFILE="$rp" \
+  "$compiler" build examples/hello.oren --backend native --platform "$platform" "$debug_flag" --no-cache -o build/tmp/rtobj_seed_probe >/dev/null
 
 want_rh="$(runtime_hash_from_cache || true)"
 if [[ -z "$want_rh" ]]; then
   echo "ERROR: runtime hash cache still missing after build; cannot safely select a seed key" >&2
-  echo "runtime_profile=${runtime_profile:-full} runtime_entry=$runtime_entry" >&2
+  echo "runtime_profile=${runtime_profile:-auto} runtime_entry=$runtime_entry" >&2
   exit 1
 fi
 
