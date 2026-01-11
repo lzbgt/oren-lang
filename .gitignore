@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 build/
 *.dSYM/
+/project-doc/remote/
+/project-doc/remote_logs/
 /oren
 /oren_stage2
 /oren_stage2_dbg

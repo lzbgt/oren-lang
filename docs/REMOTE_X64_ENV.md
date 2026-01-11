@@ -311,6 +311,13 @@ Notes:
 ./scripts/fetch_remote_file.sh --win-path 'E:\work\oren-lang\s2_build_failure.log' --analyze
 ```
 
+If ssh/proxy is unavailable but you can transfer the log by other means (RDP copy, cloud drive, SMB, etc.),
+import it locally (also stores the full original content) and run the same bounded analyzer:
+
+```bash
+./scripts/import_stage2_failure_log.sh --src /path/to/s2_build_failure.log --analyze
+```
+
 Helper (bounded analysis after fetch):
 
 ```bash

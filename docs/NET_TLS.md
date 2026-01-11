@@ -178,6 +178,14 @@ Rationale:
     - Regression gate: `tests/native/test_wss_echo_loopback.oren`.
 - Note: TLS provider availability is still OS-dependent; on non-macOS/non-Linux/non-Windows targets these fixtures compile but exit(0) until providers land.
 
+Why the loopback TLS fixture uses `@cfg(...)`:
+
+- `tests/native/test_tls_loopback.oren` is **one source file** intended to validate the same TLS contract on Tier‑1 OS targets (macOS, Linux, Windows).
+- A small amount of `@cfg(os=...)` glue is required because the spawn/runtime boundary differs:
+  - On Windows, the spawn runtime is thread-based; spawned workers must **return** an exit code and must not call `exit(...)` (that would terminate the whole process).
+  - On POSIX targets, spawn/fork-based helpers can use process-exit semantics, but the fixture still keeps the worker portable by returning a code.
+- The *behavior under test* stays the same across OS (loopback TLS handshake + read/write echo + pinning); `@cfg` exists only to select the appropriate entrypoints and OS-specific plumbing.
+
 ### 5.1 Linux provider (OpenSSL)
 
 As of **2026-01-08 (rolling)**, `std:net/tls` has a Linux provider implemented in `lib/std/net/tls_linux_openssl.oren` (facade: `lib/std/net/tls.oren`):
