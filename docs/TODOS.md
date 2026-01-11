@@ -44,6 +44,7 @@ Cross-arch matrix (execution on real hosts):
 Local x64 sanity (compile-only):
 
 - `make verify-native-x64-compile` (stage1 + stage2 emit x64-linux + x64-windows)
+  - Note: this builds `tests/native/test_quick_integration_native.oren` for x64 targets, so it also compile-validates the headless `std:ui` core (tree → render → raster) without needing x64 execution.
 - `make verify-native-x64-selfhost-compile` (stage2 compiles the full compiler program `oren.oren` for x64-linux + x64-windows; compile-only but higher-signal)
 - `make examples-cross-compile-smoke` (stage2 `--lib` emit for arm64-linux + x64-linux + x64-windows; validates header-based `oren scan`, artifact kind, and PE export table)
 
