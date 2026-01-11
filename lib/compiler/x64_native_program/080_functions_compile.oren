@@ -318,6 +318,14 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     var ffile0 = nil
     if tok0 != nil { ffile0 = tok0["file"] }
     if ffile0 == "lib/runtime_native.oren" { call_depth_enabled = false }
+    // Also exclude the per-module native runtime sources (the include tree).
+    // These files are part of the injected runtime and must not be call-depth instrumented:
+    // - avoids recursion hazards (runtime helpers call each other heavily during bootstrap)
+    // - avoids large extra stack usage in early init on small default stacks (8MB on many Linuxes/WSL2)
+    if ffile0 != nil {
+        if core.string_has_prefix_bytes(ffile0, "lib/runtime_native/") { call_depth_enabled = false }
+    }
+    if ffile0 == "lib/runtime_native_core.oren" { call_depth_enabled = false }
     if ffile0 == "lib/runtime_native_capsule.oren" { call_depth_enabled = false }
     if ffile0 != nil && oren_string_len(ffile0) >= 7 {
         if core.string_has_prefix_bytes(ffile0, "<native:") { call_depth_enabled = false }

@@ -45,18 +45,45 @@ fn native_runtime_call_depth_apply_env() {
 @oren.keep
 fn oren_call_depth_enter() {
     // Keep this leaf-like and allocation-free.
-    if g_panicking == 1 { return 0 }
+    //
     // IMPORTANT:
     // Do not call helpers like `oren_globals()` or `global_get_*` here.
     // The native backend inserts `oren_call_depth_enter()` into *all* functions,
     // including those helpers; calling them here would recurse indefinitely.
+    if g_panicking == 1 { return 0 }
     var g = g_storage
     if g == 0 { return 0 }
 
-    // Unlimited mode: skip tracking entirely (no overhead; no deterministic abort).
+    // Unlimited mode: skip tracking entirely (no deterministic abort).
     var max0 = ptr_get(iadd(g, 312))
     if max0 == 0 { return 0 }
 
+    // Fast path: compiler-style single-threaded workloads.
+    // This avoids scanning thread nodes and keeps stack/register pressure low.
+    if g_runtime_single_threaded == 1 {
+        var d_ptr = iadd(g, 304)
+        var d0 = ptr_get(d_ptr)
+        if d0 < 0 { d0 = 0; ptr_set(d_ptr, 0) }
+        if d0 > 100000000 { d0 = 0; ptr_set(d_ptr, 0) }
+        var d = iadd(d0, 1)
+        ptr_set(d_ptr, d)
+
+        var max = max0
+        if max < 0 { max = 8192 }
+        if max > 100000000 { max = 8192 }
+        if d > max {
+            // Disable call-depth checks (and runtime locks) while panicking so diagnostics can print.
+            g_panicking = 1
+            oren_panic("call depth exceeded")
+        }
+        return 0
+    }
+
+    // Slow path: attempt per-thread call-depth tracking via SP heuristics.
+    return native_call_depth_enter_slow(g, max0)
+}
+
+fn native_call_depth_enter_slow(g, max0) {
     // Prefer per-thread call-depth tracking (production direction).
     // Find current thread node based on SP heuristics (same as GC stack scanning).
     var sp = get_sp()
@@ -90,7 +117,6 @@ fn oren_call_depth_enter() {
     }
 
     // Fallback: if a thread node is not registered yet, track process-global depth.
-    // This keeps behavior deterministic in rolling bootstrap stages.
     var d_ptr = iadd(g, 304)
     var d0g = ptr_get(d_ptr)
     if d0g < 0 { d0g = 0; ptr_set(d_ptr, 0) }
@@ -101,9 +127,7 @@ fn oren_call_depth_enter() {
     var max = max0
     if max < 0 { max = 8192 }
     if max > 100000000 { max = 8192 }
-
     if d2 > max {
-        // Disable call-depth checks (and runtime locks) while panicking so diagnostics can print.
         g_panicking = 1
         oren_panic("call depth exceeded")
     }
@@ -120,6 +144,18 @@ fn oren_call_depth_exit() {
     // Unlimited mode: we skipped increments; skip decrements too.
     if ptr_get(iadd(g, 312)) == 0 { return 0 }
 
+    // Fast path: single-threaded workloads (process-global depth only).
+    if g_runtime_single_threaded == 1 {
+        var d_ptr = iadd(g, 304)
+        var d0 = ptr_get(d_ptr)
+        if d0 > 0 { ptr_set(d_ptr, iadd(d0, -1)) }
+        return 0
+    }
+
+    return native_call_depth_exit_slow(g)
+}
+
+fn native_call_depth_exit_slow(g) {
     // Prefer per-thread call-depth tracking.
     var sp = get_sp()
     var node = ptr_get(iadd(g, 32)) // threads

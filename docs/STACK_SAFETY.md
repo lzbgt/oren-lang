@@ -41,31 +41,19 @@ Today, both backends have a **deterministic recursion guard** (rolling):
   - configured via env: `OREN_CALL_DEPTH_MAX` (default 8192; `0` disables the guard)
   - validated by `tests/native/fixtures/call_depth_overflow.oren` (compile+run under both backends)
 
-- **Native backend (arm64 today)**
+- **Native backend (arm64 + x86_64)**
   - compiler inserts `oren_call_depth_enter()` on user-function entry and `oren_call_depth_exit()` on return
-    (native runtime helpers are intentionally excluded to keep bootstrap stable)
+    (injected native runtime sources are intentionally excluded to keep bootstrap stable and low-overhead)
   - configured via env: `OREN_CALL_DEPTH_MAX` (default 8192; `0` disables the guard)
   - validated by the same fixture under `--backend native`
   - call depth is tracked per-thread via the registered native thread nodes (rolling v0:
     thread selection is based on the same SP-vs-top heuristic used by the GC stack scanner)
 
-### x86_64 native bring-up (Tier‑1 direction)
+Practical note:
 
-The x86_64 native backend is still in bring-up and does **not** inject the full native runtime yet.
-
-However, it now has a minimal deterministic recursion guard (rolling):
-
-- compiler inserts a call-depth enter/exit sequence into every compiled function
-- state is kept in the x64 “data blob” (counter + max), and `oren_panic("call depth exceeded")`
-  is used as the deterministic failure mode
-
-Current limitations (tracked in `docs/TODOS.md`):
-
-- the call-depth max is configurable at **compile time** via `oren build --call-depth-max <n>` (default 8192)
-  - runtime can also override via `OREN_CALL_DEPTH_MAX=<n>` (Linux ELF + Windows PE entry stubs)
-  - `OREN_CALL_DEPTH_MAX=0` disables the deterministic guard (unlimited)
-- the data blob must be writable for the counter; Linux ELF maps it RW in a dedicated segment, and Windows PE
-  maps it into a dedicated `.data` section (RO/RW separation is still evolving as the runtime injection surface grows)
+- Many Tier‑1 Linux environments (including WSL2) have a default `ulimit -s` of **8 MiB**.
+  The call-depth hooks must stay extremely lightweight, and the compiler must never instrument
+  the injected runtime itself with those hooks (or it can cause stack blowups during bootstrap).
 
 ## What “Stack Safe” Means for Oren
 

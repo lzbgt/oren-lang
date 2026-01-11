@@ -105,6 +105,10 @@ References:
 
 - New (2026-01-06): x86_64 cross-target self-host compiler builds are now bounded (no multi-minute stalls in single backend helper functions); details in `docs/TODOS_ARCHIVE.md`.
 
+- Fixed (2026-01-11): `make verify-selfhost-x64` (Win11/WSL2) segfault regression traced to native x64 call-depth hooks being inserted into injected runtime module sources (`lib/runtime_native/**`), amplifying stack usage on 8MiB default stacks.
+  - Fix: x64 backend no longer instruments `lib/runtime_native/**` with call-depth hooks, and `oren_call_depth_enter/exit` now have a single-thread fast path (keep hook stack/register pressure low for compiler workloads).
+  - Verified (fact): `make verify-selfhost-x64` passes again (WSL2 + cmd.exe).
+
 - Updated (2026-01-10): stage2-native `./scripts/bench_native_compile_one_file.sh --no-debug` on `arm64-macos` (isolated rtobj dir; seed disabled) is now ~`3.4s` miss / ~`0.5s` hit.
   - Prior ~`15s` measurements were from a rolling regression where arm64 rtobj build fell back (runtime `g_storage` conflict + rtobj fixup `reg` dropped in meta, causing startup crashes); this is now fixed and the low-level breakdown moved to `docs/TODOS_ARCHIVE.md`.
 - New (2026-01-05): introduced a smaller “core” native runtime entry (`lib/runtime_native_core.oren`) selectable via `OREN_NATIVE_RUNTIME_PROFILE=core` so cold rtobj misses can be bounded for typical programs.
