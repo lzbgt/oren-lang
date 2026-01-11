@@ -22,13 +22,44 @@ set -euo pipefail
 #   tests/native/test_ws_echo_loopback.oren
 #
 # Targets:
-# - arm64-macos (runs locally)
+# - host platform (runs locally)
 # - arm64-linux (runs in the persistent container)
 # - x64-linux (runs under remote WSL2)
 # - x64-windows (runs on remote Win11)
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+
+detect_host_platform() {
+  local uname_s uname_m os_key arch_key
+  uname_s="$(uname -s 2>/dev/null || echo "")"
+  uname_m="$(uname -m 2>/dev/null || echo "")"
+  os_key=""
+  case "$uname_s" in
+    Darwin) os_key="macos" ;;
+    Linux) os_key="linux" ;;
+    MINGW*|MSYS*|CYGWIN*) os_key="windows" ;;
+    *) os_key="" ;;
+  esac
+  arch_key=""
+  case "$uname_m" in
+    arm64|aarch64) arch_key="arm64" ;;
+    x86_64|amd64) arch_key="x64" ;;
+    *) arch_key="" ;;
+  esac
+  if [[ -n "$os_key" && -n "$arch_key" ]]; then
+    echo "${arch_key}-${os_key}"
+    return 0
+  fi
+  return 1
+}
+
+LOCAL_PLATFORM="$(detect_host_platform 2>/dev/null || true)"
+LOCAL_TAG="${LOCAL_PLATFORM//-/_}"
+LOCAL_EXE_EXT=""
+if [[ "$LOCAL_PLATFORM" == *"-windows" ]]; then
+  LOCAL_EXE_EXT=".exe"
+fi
 
 NET_SUITE_SRC="tests/native/test_net_suite.oren"
 DNS_LOOPBACK_SRC="tests/native/test_dns_loopback.oren"
@@ -73,7 +104,7 @@ Targets (comma-separated):
   stage0      build ./oren_bootstrap
   stage1      build ./oren
   stage2      build ./oren_stage2
-  local       run local arm64-macos (stage1 + stage2)
+  local       run local host platform (stage1 + stage2)
   arm64-linux run linux/arm64 in docker container
   x64-win     run x64-windows on remote Win11
   x64-wsl     run x64-linux under remote WSL2
@@ -357,51 +388,56 @@ run_local_bin() {
 }
 
 if has_target local; then
-  log "== verify: local arm64-macos (stage1 + stage2) =="
+  if [[ -z "$LOCAL_PLATFORM" ]]; then
+    echo "ERROR: could not detect host platform for --targets local (uname -s / uname -m unsupported?)" >&2
+    exit 2
+  fi
 
-  build_native_bin_src "./oren" "arm64-macos" "$NET_SUITE_SRC" "build/tmp/net_stage1_arm64_macos"
-  build_native_bin_src "./oren_stage2" "arm64-macos" "$NET_SUITE_SRC" "build/tmp/net_stage2_arm64_macos"
-  build_native_bin_src "./oren" "arm64-macos" "$DNS_LOOPBACK_SRC" "build/tmp/dns_stage1_arm64_macos"
-  build_native_bin_src "./oren_stage2" "arm64-macos" "$DNS_LOOPBACK_SRC" "build/tmp/dns_stage2_arm64_macos"
-  build_native_bin_src "./oren" "arm64-macos" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage1_arm64_macos"
-  build_native_bin_src "./oren_stage2" "arm64-macos" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage2_arm64_macos"
-  build_native_bin_src "./oren" "arm64-macos" "$HTTPS_LOOPBACK_SRC" "build/tmp/https_stage1_arm64_macos"
-  build_native_bin_src "./oren_stage2" "arm64-macos" "$HTTPS_LOOPBACK_SRC" "build/tmp/https_stage2_arm64_macos"
-  build_native_bin_src "./oren" "arm64-macos" "$WS_ECHO_SRC" "build/tmp/ws_stage1_arm64_macos"
-  build_native_bin_src "./oren_stage2" "arm64-macos" "$WS_ECHO_SRC" "build/tmp/ws_stage2_arm64_macos"
-  build_native_bin_src "./oren" "arm64-macos" "$WSS_ECHO_SRC" "build/tmp/wss_stage1_arm64_macos"
-  build_native_bin_src "./oren_stage2" "arm64-macos" "$WSS_ECHO_SRC" "build/tmp/wss_stage2_arm64_macos"
-  build_native_bin_src "./oren" "arm64-macos" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage1_arm64_macos"
-  build_native_bin_src "./oren_stage2" "arm64-macos" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage2_arm64_macos"
-  build_native_bin_src "./oren" "arm64-macos" "$HTTP2_PREFACE_LOOPBACK_SRC" "build/tmp/http2_stage1_arm64_macos"
-  build_native_bin_src "./oren_stage2" "arm64-macos" "$HTTP2_PREFACE_LOOPBACK_SRC" "build/tmp/http2_stage2_arm64_macos"
-  build_native_bin_src "./oren" "arm64-macos" "$HPACK_SMOKE_SRC" "build/tmp/hpack_stage1_arm64_macos"
-  build_native_bin_src "./oren_stage2" "arm64-macos" "$HPACK_SMOKE_SRC" "build/tmp/hpack_stage2_arm64_macos"
-  build_native_bin_src "./oren" "arm64-macos" "$HTTP2_HEADERS_LOOPBACK_SRC" "build/tmp/http2_headers_stage1_arm64_macos"
-  build_native_bin_src "./oren_stage2" "arm64-macos" "$HTTP2_HEADERS_LOOPBACK_SRC" "build/tmp/http2_headers_stage2_arm64_macos"
+  log "== verify: local ${LOCAL_PLATFORM} (stage1 + stage2) =="
 
-  run_local_bin "build/tmp/net_stage1_arm64_macos"
-  run_local_bin "build/tmp/net_stage2_arm64_macos"
-  run_local_bin "build/tmp/dns_stage1_arm64_macos"
-  run_local_bin "build/tmp/dns_stage2_arm64_macos"
-  run_local_bin "build/tmp/http_stage1_arm64_macos"
-  run_local_bin "build/tmp/http_stage2_arm64_macos"
-  run_local_bin "build/tmp/https_stage1_arm64_macos"
-  run_local_bin "build/tmp/https_stage2_arm64_macos"
-  run_local_bin "build/tmp/ws_stage1_arm64_macos"
-  run_local_bin "build/tmp/ws_stage2_arm64_macos"
-  run_local_bin "build/tmp/wss_stage1_arm64_macos"
-  run_local_bin "build/tmp/wss_stage2_arm64_macos"
-  run_local_bin "build/tmp/tls_stage1_arm64_macos"
-  run_local_bin "build/tmp/tls_stage2_arm64_macos"
-  run_local_bin "build/tmp/http2_stage1_arm64_macos"
-  run_local_bin "build/tmp/http2_stage2_arm64_macos"
-  run_local_bin "build/tmp/hpack_stage1_arm64_macos"
-  run_local_bin "build/tmp/hpack_stage2_arm64_macos"
-  run_local_bin "build/tmp/http2_headers_stage1_arm64_macos"
-  run_local_bin "build/tmp/http2_headers_stage2_arm64_macos"
+  build_native_bin_src "./oren" "$LOCAL_PLATFORM" "$NET_SUITE_SRC" "build/tmp/net_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren_stage2" "$LOCAL_PLATFORM" "$NET_SUITE_SRC" "build/tmp/net_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren" "$LOCAL_PLATFORM" "$DNS_LOOPBACK_SRC" "build/tmp/dns_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren_stage2" "$LOCAL_PLATFORM" "$DNS_LOOPBACK_SRC" "build/tmp/dns_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren" "$LOCAL_PLATFORM" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren_stage2" "$LOCAL_PLATFORM" "$HTTP_LOOPBACK_SRC" "build/tmp/http_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren" "$LOCAL_PLATFORM" "$HTTPS_LOOPBACK_SRC" "build/tmp/https_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren_stage2" "$LOCAL_PLATFORM" "$HTTPS_LOOPBACK_SRC" "build/tmp/https_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren" "$LOCAL_PLATFORM" "$WS_ECHO_SRC" "build/tmp/ws_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren_stage2" "$LOCAL_PLATFORM" "$WS_ECHO_SRC" "build/tmp/ws_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren" "$LOCAL_PLATFORM" "$WSS_ECHO_SRC" "build/tmp/wss_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren_stage2" "$LOCAL_PLATFORM" "$WSS_ECHO_SRC" "build/tmp/wss_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren" "$LOCAL_PLATFORM" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren_stage2" "$LOCAL_PLATFORM" "$TLS_LOOPBACK_SRC" "build/tmp/tls_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren" "$LOCAL_PLATFORM" "$HTTP2_PREFACE_LOOPBACK_SRC" "build/tmp/http2_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren_stage2" "$LOCAL_PLATFORM" "$HTTP2_PREFACE_LOOPBACK_SRC" "build/tmp/http2_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren" "$LOCAL_PLATFORM" "$HPACK_SMOKE_SRC" "build/tmp/hpack_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren_stage2" "$LOCAL_PLATFORM" "$HPACK_SMOKE_SRC" "build/tmp/hpack_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren" "$LOCAL_PLATFORM" "$HTTP2_HEADERS_LOOPBACK_SRC" "build/tmp/http2_headers_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  build_native_bin_src "./oren_stage2" "$LOCAL_PLATFORM" "$HTTP2_HEADERS_LOOPBACK_SRC" "build/tmp/http2_headers_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
 
-  log "OK: local arm64-macos"
+  run_local_bin "build/tmp/net_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/net_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/dns_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/dns_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/http_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/http_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/https_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/https_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/ws_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/ws_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/wss_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/wss_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/tls_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/tls_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/http2_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/http2_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/hpack_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/hpack_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/http2_headers_stage1_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+  run_local_bin "build/tmp/http2_headers_stage2_${LOCAL_TAG}${LOCAL_EXE_EXT}"
+
+  log "OK: local ${LOCAL_PLATFORM}"
 fi
 
 if [[ "$LOCAL_ONLY" -ne 0 ]]; then
