@@ -10,7 +10,13 @@ Given `hello.oren`, both the stage0 (`oren_bootstrap`) and the self-hosted compi
    - the generated `hello.oren.c`
    - `lib/runtime.c`
 
-The default compiler driver is `cc`, but you can override it with `--cc` (or `$CC` in stage0).
+The default compiler driver is:
+
+- macOS/Linux: `cc` (typically `clang`/`gcc`)
+- Windows hosts (x64, rolling): if `--cc` is omitted, the compiler defaults to **MSVC `cl.exe`** and will
+  attempt to auto-configure the VS environment (via `vswhere.exe` + `VsDevCmd.bat` / `vcvars64.bat`).
+
+You can override it with `--cc` (and stage0 also accepts `$CC`).
 
 ## Output Files
 - `hello.oren.c`: generated C source (use `--emit-c` to stop here)
