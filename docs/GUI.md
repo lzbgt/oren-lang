@@ -36,7 +36,10 @@ Bring-up gates (headful, opt-in):
 
 ## 0.1) About `ui-idea.md`
 
-Some earlier discussions referenced a `ui-idea.md` scratch file. That file does not exist in this repo today.
+Some earlier discussions referenced a `ui-idea.md` scratch file.
+
+To avoid stale pointers, `ui-idea.md` now exists as a **short redirect** to the current design docs.
+
 Treat this document (`docs/GUI.md`) and the shim plan (`docs/GUI_PLATFORM_SHIMS.md`) as the current source of truth.
 
 ## 1) Recommended architecture: UI bytecode + native shell + UI capability domain

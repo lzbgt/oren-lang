@@ -181,6 +181,7 @@ References:
 
 	   - `docs/GUI.md`, `docs/GUI_PLATFORM_SHIMS.md`
 	   - Optional Dear ImGui shell/overlay: `docs/GUI_IMGUI_SHELL.md` (devtools + bring-up accelerator, not the app UI API)
+	   - Historical pointer: `ui-idea.md` (redirect to the above; avoids stale references)
 
 	   Next steps (actionable):
 
@@ -195,7 +196,8 @@ References:
 	     - Added: `scripts/verify_ui_smoke_linux.sh` (`make verify-ui-smoke-linux`)
 	   - keep `examples/ui_hello.oren` portable across shims
 	     - Status: `examples/ui_hello.oren` uses `std:ui/host` (no per-OS FFI blocks in the example)
-	     - Next: stabilize key/text input semantics (unified key codes, UTF-8 text) above the platform raw events.
+	     - Next: stabilize key/text input semantics (unified key codes, UTF‑8 text, IME/compose strategy) above the platform raw events.
+	     - Next: add clipboard + DPI scale plumbing to the shim ABI (still v0-friendly; required for real apps).
 
 8) **FFI ergonomics + ABI surface completion** (M)
 
