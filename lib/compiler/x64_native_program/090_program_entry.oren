@@ -58,7 +58,10 @@ fn _x64_should_use_full_native_runtime_profile(linked) {
     // Any module under `lib/std/net/` needs the full runtime profile today because std:net calls
     // runtime primitives (`oren_tcp_*`, `oren_udp_*`, `oren_select_*`, `oren_net_get`).
     var entry = g["entry"]
-    if _x64_str_contains_bytes(entry, "/lib/std/net/") || _x64_str_contains_bytes(entry, "\\lib\\std\\net\\") { return true }
+    if _x64_str_contains_bytes(entry, "/lib/std/net/") ||
+       _x64_str_contains_bytes(entry, "lib/std/net/") ||
+       _x64_str_contains_bytes(entry, "\\lib\\std\\net\\") ||
+       _x64_str_contains_bytes(entry, "lib\\std\\net\\") { return true }
 
     var mods = g["modules"]
     if mods == nil { return false }
@@ -67,7 +70,10 @@ fn _x64_should_use_full_native_runtime_profile(linked) {
         var m = mods[i]
         if m != nil {
             var p = m["path"]
-            if _x64_str_contains_bytes(p, "/lib/std/net/") || _x64_str_contains_bytes(p, "\\lib\\std\\net\\") { return true }
+            if _x64_str_contains_bytes(p, "/lib/std/net/") ||
+               _x64_str_contains_bytes(p, "lib/std/net/") ||
+               _x64_str_contains_bytes(p, "\\lib\\std\\net\\") ||
+               _x64_str_contains_bytes(p, "lib\\std\\net\\") { return true }
         }
         i = i + 1
     }

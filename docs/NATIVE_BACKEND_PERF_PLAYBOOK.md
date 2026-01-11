@@ -62,6 +62,46 @@ OREN_NATIVE_BUILD_TIMEOUT_SECS=60 \
 		  ./scripts/bench_native_compile_one_file.sh --no-debug
 ```
 
+### 2.1.1 Bounded phase timing: `read_ms/parse_ms/link_ms/emit_ms`
+
+When a build is “slow”, the first question is: **which phase is slow**?
+
+Use the build-summary tracer (it prints a single line per build):
+
+```bash
+OREN_TRACE_BUILD_SUMMARY=1 OREN_TRACE_BUILD_SLOW_MS=0 \
+  ./oren_stage2 build tests/native/test_http2_headers_loopback.oren \
+  --backend native --platform arm64-macos --no-debug -o build/tmp/http2_headers
+```
+
+Interpretation (rolling):
+
+- `read_ms`: reading the entry source + trivial scaffolding
+- `parse_ms`: parsing the entry file itself (not the full module closure)
+- `link_ms`: `link_program(...)` (module discovery + import scanning + module parsing + type passes)
+- `emit_ms`: backend emission (native assembler/linker + artifact write)
+- `codesign_ms`: macOS codesign (usually tiny unless keys/cert prompts misbehave)
+
+If `link_ms` dominates and you are using the **native runtime** (stage2 backend), keep in mind:
+
+- Native runtime `spawn` is fork-based today, so “parse workers” cannot return pointer-heavy ASTs.
+- By default, the compiler disables fork-parallel module parsing because the ASTBIN bounce is I/O-heavy.
+- For large stdlib graphs (TLS/HTTP/2/HPACK), **forcing fork-parallel parsing** is often still a net win.
+
+Enable it explicitly:
+
+```bash
+OREN_PARSE_JOBS=8 OREN_PARSE_FORK_PARALLEL=1 \
+  OREN_TRACE_BUILD_SUMMARY=1 OREN_TRACE_BUILD_SLOW_MS=0 \
+  ./oren_stage2 build tests/native/test_http2_headers_loopback.oren \
+  --backend native --platform arm64-macos --no-debug -o build/tmp/http2_headers
+```
+
+Notes:
+
+- This uses `build/tmp/parse_modules/` as a deterministic temp directory for worker-produced ASTBIN blobs.
+- On Windows hosts, the compiler forces parse jobs to `1` because `spawn` is thread-based and the runtime GC is not thread-safe yet for parallel parsing.
+
 Notes on the tracers:
 
 - `OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1` prints a **single-line breakdown** of the rtobj build (parse/decode, decl compile, finalize, counts/bytes).

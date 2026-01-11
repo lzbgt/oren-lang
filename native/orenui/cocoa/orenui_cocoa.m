@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 #include "../orenui.h"
 
@@ -44,7 +45,9 @@ static void orenui__ensure_app(void) {
   });
 }
 
-@interface OrenUICocoaWindowState : NSObject <NSWindowDelegate>
+@interface OrenUICocoaWindowState : NSObject <NSWindowDelegate> {
+  pthread_mutex_t _rgbaMu;
+}
 @property(nonatomic, strong) NSWindow* window;
 @property(nonatomic, strong) NSView* view;
 @property(nonatomic, assign) BOOL shouldClose;
@@ -56,6 +59,29 @@ static void orenui__ensure_app(void) {
 @end
 
 @implementation OrenUICocoaWindowState
+- (pthread_mutex_t*)rgbaMuPtr {
+  return &_rgbaMu;
+}
+
+- (instancetype)init {
+  self = [super init];
+  if (self) {
+    pthread_mutex_init(&_rgbaMu, NULL);
+    _rgba = NULL;
+    _cap = 0;
+  }
+  return self;
+}
+
+- (void)dealloc {
+  if (_rgba) {
+    free(_rgba);
+    _rgba = NULL;
+    _cap = 0;
+  }
+  pthread_mutex_destroy(&_rgbaMu);
+}
+
 - (void)windowWillClose:(NSNotification*)notification {
   (void)notification;
   self.shouldClose = YES;
@@ -76,19 +102,70 @@ static void orenui__ensure_app(void) {
   (void)dirtyRect;
 
   OrenUICocoaWindowState* st = self.state;
-  if (!st || !st.rgba || st.w <= 0 || st.h <= 0 || st.stride <= 0) {
+  if (!st) {
     return;
   }
 
-  // Bring-up stability guard:
-  // On some systems, CoreGraphics image creation/drawing from a rapidly-updated
-  // buffer can crash when the app isn't running a full Cocoa run loop owned by
-  // `-[NSApplication run]`. Until the event/present loop is fully stabilized,
-  // keep draw a no-op (we still validate the ABI and the blit path wiring).
-  //
-  // Once the shim has a proper run loop integration, re-enable the CoreGraphics
-  // draw path (see `docs/GUI_PLATFORM_SHIMS.md` for the intended design).
-  return;
+  pthread_mutex_lock([st rgbaMuPtr]);
+  if (!st.rgba || st.w <= 0 || st.h <= 0 || st.stride <= 0) {
+    pthread_mutex_unlock([st rgbaMuPtr]);
+    return;
+  }
+  const int32_t w = st.w;
+  const int32_t h = st.h;
+  const int32_t stride = st.stride;
+  const size_t len = (size_t)h * (size_t)stride;
+  uint8_t* bytes = st.rgba;
+
+  CGContextRef ctx = [[NSGraphicsContext currentContext] CGContext];
+  if (!ctx) {
+    pthread_mutex_unlock([st rgbaMuPtr]);
+    return;
+  }
+
+  CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+  if (!cs) {
+    pthread_mutex_unlock([st rgbaMuPtr]);
+    return;
+  }
+
+  // We store BGRA premultiplied-first (little-endian), matching the common macOS
+  // bitmap layout for CoreGraphics.
+  const CGBitmapInfo bi = (CGBitmapInfo)(kCGBitmapByteOrder32Little | kCGImageAlphaPremultipliedFirst);
+  CGDataProviderRef prov = CGDataProviderCreateWithData(NULL, bytes, len, NULL);
+  if (!prov) {
+    CGColorSpaceRelease(cs);
+    pthread_mutex_unlock([st rgbaMuPtr]);
+    return;
+  }
+  CGImageRef img = CGImageCreate((size_t)w,
+                                (size_t)h,
+                                8,
+                                32,
+                                (size_t)stride,
+                                cs,
+                                bi,
+                                prov,
+                                NULL,
+                                false,
+                                kCGRenderingIntentDefault);
+  if (!img) {
+    CGDataProviderRelease(prov);
+    CGColorSpaceRelease(cs);
+    pthread_mutex_unlock([st rgbaMuPtr]);
+    return;
+  }
+
+  // `isFlipped` makes our view coordinate system top-left origin, which matches how
+  // `std:ui/raster` addresses pixels. With a flipped NSView, CGContextDrawImage uses
+  // that coordinate system directly (no extra Y-flip needed).
+  CGContextSetInterpolationQuality(ctx, kCGInterpolationNone);
+  CGContextDrawImage(ctx, CGRectMake(0, 0, (CGFloat)w, (CGFloat)h), img);
+
+  CGImageRelease(img);
+  CGDataProviderRelease(prov);
+  CGColorSpaceRelease(cs);
+  pthread_mutex_unlock([st rgbaMuPtr]);
 }
 @end
 
@@ -109,7 +186,15 @@ static void orenui__drop(int32_t win_id) {
   [g_windows removeObjectForKey:@(win_id)];
 }
 
+static bool orenui__require_main_thread(void) {
+  // AppKit is not thread-safe; keep the v0 shim strict to avoid heisenbugs/crashes.
+  return [NSThread isMainThread] ? true : false;
+}
+
 int32_t orenui_open_window(const char* title_utf8, int32_t w, int32_t h) {
+  if (!orenui__require_main_thread()) {
+    return -16;
+  }
   orenui__ensure_app();
 
   if (w <= 0 || h <= 0) {
@@ -156,6 +241,9 @@ int32_t orenui_open_window(const char* title_utf8, int32_t w, int32_t h) {
 }
 
 void orenui_close_window(int32_t win_id) {
+  if (!orenui__require_main_thread()) {
+    return;
+  }
   OrenUICocoaWindowState* st = orenui__get(win_id);
   if (!st) {
     return;
@@ -163,15 +251,14 @@ void orenui_close_window(int32_t win_id) {
   if (st.window) {
     [st.window close];
   }
-  if (st.rgba) {
-    free(st.rgba);
-    st.rgba = NULL;
-    st.cap = 0;
-  }
+  // `st` owns its rgba buffer and frees it in -dealloc; keep close idempotent.
   orenui__drop(win_id);
 }
 
 int32_t orenui_present_rgba(int32_t win_id, int32_t w, int32_t h, int64_t rgba_ptr, int32_t stride) {
+  if (!orenui__require_main_thread()) {
+    return -16;
+  }
   OrenUICocoaWindowState* st = orenui__get(win_id);
   if (!st || !st.window || !st.view) {
     return -4;
@@ -184,9 +271,13 @@ int32_t orenui_present_rgba(int32_t win_id, int32_t w, int32_t h, int64_t rgba_p
   if (need == 0) {
     return -4;
   }
+
+  // Protect the backing buffer from concurrent reads in drawRect.
+  pthread_mutex_lock([st rgbaMuPtr]);
   if (!st.rgba || st.cap < need) {
     uint8_t* p = (uint8_t*)realloc(st.rgba, need);
     if (!p) {
+      pthread_mutex_unlock([st rgbaMuPtr]);
       return -8;
     }
     st.rgba = p;
@@ -219,16 +310,17 @@ int32_t orenui_present_rgba(int32_t win_id, int32_t w, int32_t h, int64_t rgba_p
   st.w = w;
   st.h = h;
   st.stride = stride;
+  pthread_mutex_unlock([st rgbaMuPtr]);
 
-  // v0 bring-up note:
-  // We deliberately avoid triggering AppKit redraws here. A correct redraw path
-  // requires a properly owned Cocoa run loop. The current smoke validates the
-  // ABI wiring (window open + repeated RGBA blit calls) without relying on
-  // AppKit repaint timing.
+  // Trigger a redraw; actual painting happens in drawRect on the same thread.
+  [st.view setNeedsDisplay:YES];
   return 0;
 }
 
 int32_t orenui_pump(int32_t win_id, int32_t timeout_ms) {
+  if (!orenui__require_main_thread()) {
+    return 1;
+  }
   orenui__ensure_app();
 
   OrenUICocoaWindowState* st = orenui__get(win_id);
@@ -240,7 +332,30 @@ int32_t orenui_pump(int32_t win_id, int32_t timeout_ms) {
     return 1;
   }
 
-  // v0 bring-up: keep `pump` as a no-op, returning only the close state.
-  (void)timeout_ms;
+  NSDate* until = [NSDate dateWithTimeIntervalSinceNow:0];
+  if (timeout_ms > 0) {
+    until = [NSDate dateWithTimeIntervalSinceNow:(double)timeout_ms / 1000.0];
+  }
+
+  for (;;) {
+    NSEvent* ev = [NSApp nextEventMatchingMask:NSEventMaskAny
+                                    untilDate:until
+                                       inMode:NSDefaultRunLoopMode
+                                      dequeue:YES];
+    if (!ev) {
+      break;
+    }
+    [NSApp sendEvent:ev];
+    [NSApp updateWindows];
+    if (st.shouldClose) {
+      break;
+    }
+    // After the first event, switch to poll mode so we don't block after handling input.
+    until = [NSDate dateWithTimeIntervalSinceNow:0];
+  }
+
+  // Ensure pending draws are performed within the pump boundary (keeps v0 deterministic enough
+  // for smoke scripts: present -> pump -> draw).
+  [st.view displayIfNeeded];
   return st.shouldClose ? 1 : 0;
 }

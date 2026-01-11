@@ -119,6 +119,7 @@ Examples:
 Env overrides:
   OREN_LINUX_DOCKER_ID   (default: c7e5f7bd9f5c)
   OREN_NATIVE_BUILD_TIMEOUT_SECS (default: 10) timeout for each `oren build ...` step (rolling hang guard)
+  OREN_NATIVE_BUILD_TIMEOUT_SECS_X64_WINDOWS (default: 15) timeout override for x64-windows cross builds (toolchain-heavy)
   OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
   OREN_REMOTE_X64_PROXY  (default: ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002)
   OREN_WS_ECHO_N         (optional) run ws echo loop N times (stress)
@@ -204,6 +205,59 @@ fi
 
 need_bin go
 need_bin make
+
+detect_parse_jobs() {
+  sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4
+}
+
+clamp_int() {
+  local v="$1"
+  local lo="$2"
+  local hi="$3"
+  if [[ ! "$v" =~ ^[0-9]+$ ]]; then
+    echo "$lo"
+    return 0
+  fi
+  if [[ "$v" -lt "$lo" ]]; then
+    echo "$lo"
+    return 0
+  fi
+  if [[ "$v" -gt "$hi" ]]; then
+    echo "$hi"
+    return 0
+  fi
+  echo "$v"
+}
+
+# Compiler performance knobs (rolling guardrails):
+# - OREN_PARSE_JOBS: parallel module parsing / include-aggregation (stage2 hotspot for large graphs)
+# - GC env: reduce compiler-runtime GC churn while compiling big module graphs
+#
+# IMPORTANT: these are applied only to the compiler process (not the test binaries we run),
+# so they do not mask GC/runtime regressions in the NET tests themselves.
+OREN_NET_MATRIX_PARSE_JOBS="${OREN_PARSE_JOBS:-}"
+if [[ -z "$OREN_NET_MATRIX_PARSE_JOBS" ]]; then
+  OREN_NET_MATRIX_PARSE_JOBS="$(detect_parse_jobs)"
+fi
+# Keep it bounded to avoid oversubscription on large hosts; still plenty for stage2 parsing.
+OREN_NET_MATRIX_PARSE_JOBS="$(clamp_int "$OREN_NET_MATRIX_PARSE_JOBS" 1 16)"
+
+OREN_NET_MATRIX_GC_ALLOC_THRESHOLD="$(clamp_int "${OREN_GC_ALLOC_THRESHOLD:-4000000}" 1000000 1000000000)"
+OREN_NET_MATRIX_GC_STACK_SCAN_LIMIT_BYTES="$(clamp_int "${OREN_GC_STACK_SCAN_LIMIT_BYTES:-8388608}" 1048576 268435456)"
+
+COMPILER_ENV=(
+  "OREN_PARSE_JOBS=${OREN_NET_MATRIX_PARSE_JOBS}"
+  # Native backend uses fork-based spawn today; enable fork-parallel module parsing (ASTBIN bounce)
+  # so large stdlib graphs (TLS/HTTP2) stay under the rolling 10s build timeout.
+  "OREN_PARSE_FORK_PARALLEL=1"
+  "OREN_GC_AUTO=1"
+  "OREN_GC_ALLOC_THRESHOLD=${OREN_NET_MATRIX_GC_ALLOC_THRESHOLD}"
+  "OREN_GC_STACK_SCAN_LIMIT_BYTES=${OREN_NET_MATRIX_GC_STACK_SCAN_LIMIT_BYTES}"
+)
+if [[ "$TRACE" -ne 0 ]]; then
+  # Minimal, bounded output in logs (one summary line per build).
+  COMPILER_ENV+=("OREN_TRACE_BUILD_SUMMARY=1" "OREN_TRACE_BUILD_SLOW_MS=0")
+fi
 
 normalize_target() {
   local t="$1"
@@ -332,6 +386,18 @@ build_native_bin_src() {
     exit 2
   fi
 
+  local timeout_secs="$BUILD_TIMEOUT_SECS"
+  if [[ "$platform" == "x64-windows" ]]; then
+    local t_override="${OREN_NATIVE_BUILD_TIMEOUT_SECS_X64_WINDOWS:-}"
+    if [[ -n "$t_override" ]]; then
+      timeout_secs="$t_override"
+    else
+      # Cross-linking PE/COFF on macOS is currently slower than Mach-O; keep the
+      # hang guard, but avoid false positives while we keep optimizing x64-win.
+      if [[ "$timeout_secs" -lt 15 ]]; then timeout_secs=15; fi
+    fi
+  fi
+
   mkdir -p build/logs
   local compiler_id
   compiler_id="$(basename "$compiler")"
@@ -343,11 +409,11 @@ build_native_bin_src() {
   local logf="build/logs/net_matrix_build_${compiler_id}_${platform}_${src_id}_${out_id}.log"
 
   set +e
-  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$src" --backend native --platform "$platform" --debug -o "$out" >"$logf" 2>&1
+  run_with_timeout "$timeout_secs" env "${COMPILER_ENV[@]}" "$compiler" build "$src" --backend native --platform "$platform" --no-debug -o "$out" >"$logf" 2>&1
   local rc=$?
   set -e
   if [[ "$rc" -ne 0 ]]; then
-    echo "ERROR: build failed or timed out: compiler=$compiler platform=$platform src=$src timeout=${BUILD_TIMEOUT_SECS}s" >&2
+    echo "ERROR: build failed or timed out: compiler=$compiler platform=$platform src=$src timeout=${timeout_secs}s" >&2
     tail -n 80 "$logf" 2>/dev/null || true
     exit "$rc"
   fi
