@@ -1,5 +1,7 @@
 # Dear ImGui as an optional shell/overlay for Oren UI (rolling)
 
+**Last updated:** 2026-01-12
+
 Oren’s planned UI stack is **retained-mode**, deterministic, and portable at the `std:ui/*` level.
 Dear ImGui is **immediate-mode** and is not a long-term replacement for Oren’s app UI API.
 
@@ -38,6 +40,17 @@ This ensures:
 - no requirement that user apps depend on ImGui
 - we can drop/replace the shell without breaking `std:ui`
 
+## Why ImGui is a good fit for Oren’s “no-bloat” philosophy
+
+Concrete properties (fact):
+
+- **Small surface area:** immediate-mode API, minimal state model.
+- **Mature cross-platform backend ecosystem:** upstream maintains multiple platform/render backends.
+- **License:** MIT (see `project-doc/web/github.com/ocornut/imgui/20260111/LICENSE.txt`).
+
+This aligns with Oren’s rolling goal: get a reliable window+input+present loop on Tier‑1, then iterate
+without locking the language to a single framework.
+
 ## Backend audit (sources in-repo)
 
 Upstream reference materials are stored (verbatim) under:
@@ -64,6 +77,12 @@ For Oren, the primary requirement is not “GPU rendering quality” at v0 — i
 
 ImGui can help, but only after the v0 “software RGBA blit shim” path is stable (so we have a fallback that does not depend on third-party event loops or renderers).
 
+Practical constraint (fact):
+
+- The repo’s Tier‑1 x64 Linux environment is currently validated via **WSL2** for CI-like bring-up.
+  WSL2 is not a reliable GUI target by default. Treat Linux GUI as a *real Linux desktop session* target,
+  not as part of the remote WSL2 smoke gates.
+
 ## Next actions (non-blocking)
 
 - Keep bringing up `native/orenui/*` per-platform shims (RGBA present + input pump).
@@ -72,3 +91,13 @@ ImGui can help, but only after the v0 “software RGBA blit shim” path is stab
   - show Oren UI debug state (frame timings, command buffer stats)
 - Defer any “use ImGui to render Oren UI widgets” until Oren’s retained-mode UI API is stable.
 
+### Suggested backend choices (Tier‑1 oriented; not commitments)
+
+These are *implementation shortcuts* for the optional shell only:
+
+- **Windows x64:** Win32 window + D3D11 renderer backend (common in upstream ImGui examples).
+- **macOS arm64:** Cocoa window + Metal backend (native; avoid OpenGL as a primary path).
+- **Linux x64:** X11 window + OpenGL backend (widest reach; Wayland can come later).
+
+The retained-mode Oren UI core should remain renderer-agnostic and should continue to emit a command
+buffer that can be executed by any of the platform shells.

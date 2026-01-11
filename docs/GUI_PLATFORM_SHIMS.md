@@ -1,7 +1,7 @@
 # GUI Platform Shims (OrenUI) — v0 Bring-up Plan
 
-**Status:** Design-only (no shims in-tree yet)  
-**Last updated:** 2026-01-11
+**Status:** macOS Cocoa shim exists; Windows/Linux shims not started  
+**Last updated:** 2026-01-12
 
 This document turns `docs/GUI.md` into an actionable engineering plan for **Tier‑1 platform shims**.
 The guiding principle is:
@@ -14,6 +14,15 @@ The guiding principle is:
 Tier‑1 OS/arch intent (today): `arm64-macos`, `arm64-linux`, `x64-linux`, `x64-windows`.
 
 ---
+
+## 0) Current repo state (fact)
+
+- In-tree shim header: `native/orenui/orenui.h`
+- macOS shim implementation exists: `native/orenui/cocoa/orenui_cocoa.m`
+- Smoke gate (macOS-only; requires GUI session): `scripts/verify_ui_smoke_macos.sh` (wired via `make verify-ui-smoke-macos`)
+- Missing today:
+  - Windows shim (`x64-windows`) — Win32 + GDI (RGBA blit)
+  - Linux shim (`arm64-linux`, `x64-linux`) — X11 (RGBA blit) as the first bring-up target
 
 ## 1) What the v0 shim must do (and what it must not)
 
@@ -185,14 +194,18 @@ So the recommended default is:
 
 ## 6) Concrete v0 deliverables (what to build next)
 
-1) A shim library per OS:
-   - `orenui_win32` (Win32/GDI)
-   - `orenui_x11` (X11)
-   - `orenui_cocoa` (Cocoa/CoreGraphics)
-2) A native Oren sample app:
-   - `examples/ui_hello.oren` that opens a window and draws a `std:ui` frame.
-3) A Tier‑1 smoke test script per OS:
-   - open window → draw 60 frames → close (timeout bounded).
-4) Documentation updates:
-   - `docs/GUI.md` links to this file.
-   - `docs/TODOS.md` lists the exact deliverables and priorities.
+1) **Finalize the shim ABI** (`native/orenui/orenui.h`):
+   - lock a minimal set of v0 calls (open/close/poll/begin_frame/present_rgba)
+   - lock the `OrenUIEvent` tagged union layout
+2) **macOS (`arm64-macos`)**:
+   - keep iterating `native/orenui/cocoa/orenui_cocoa.m` until the v0 ABI is fully implemented
+   - keep `scripts/verify_ui_smoke_macos.sh` green (headful; opt-in)
+3) **Windows (`x64-windows`)**:
+   - add `native/orenui/win32/*` implementing the same ABI using Win32 + GDI (RGBA blit)
+   - add `scripts/verify_ui_smoke_windows.sh` that builds the shim and runs a bounded “open window → present N frames → close” test
+4) **Linux (`x64-linux`, `arm64-linux`)**:
+   - add `native/orenui/x11/*` implementing the same ABI using Xlib + XPutImage (v0)
+   - add a headful `scripts/verify_ui_smoke_linux.sh` (note: WSL2 is not a reliable GUI target by default)
+5) **Oren-side integration**:
+   - add `std:ui/host` bindings (FFI) that call the shim, convert `OrenUIEvent` into the map form used by `std:ui/*`
+   - add `examples/ui_hello.oren` that opens a window and draws a `std:ui` frame

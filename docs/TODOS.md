@@ -174,12 +174,19 @@ References:
 
 7) **GUI: platform shims for Tier‑1 (RGBA blit v0)** (L)
 
-   Keep `std:ui/*` as the portable retained-mode API; bring up thin platform shells.
+	   Keep `std:ui/*` as the portable retained-mode API; bring up thin platform shells.
 
-   Docs:
+	   Docs:
 
-   - `docs/GUI.md`, `docs/GUI_PLATFORM_SHIMS.md`
-   - Optional Dear ImGui shell/overlay: `docs/GUI_IMGUI_SHELL.md` (devtools + bring-up accelerator, not the app UI API)
+	   - `docs/GUI.md`, `docs/GUI_PLATFORM_SHIMS.md`
+	   - Optional Dear ImGui shell/overlay: `docs/GUI_IMGUI_SHELL.md` (devtools + bring-up accelerator, not the app UI API)
+
+	   Next steps (actionable):
+
+	   - finalize `native/orenui/orenui.h` v0 ABI (window + poll_event + present_rgba)
+	   - implement `native/orenui/win32/*` (Win32 + GDI/DIBSection blit) + add a bounded headful smoke script
+	   - implement `native/orenui/x11/*` (X11 + XPutImage blit) + add a bounded headful smoke script
+	   - add `examples/ui_hello.oren` (portable `std:ui/*` render+raster driving the shim)
 
 8) **FFI ergonomics + ABI surface completion** (M)
 

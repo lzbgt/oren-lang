@@ -1,7 +1,7 @@
 # GUI / UI Design for Oren (Rolling)
 
 **Status:** Design + headless core implemented (rolling; platform shims not started)  
-**Last updated:** 2026-01-11
+**Last updated:** 2026-01-12
 
 This document proposes a **production-oriented** GUI story for Oren that is consistent with:
 
@@ -27,6 +27,11 @@ Tier‑1 OS/arch intent (today): `arm64-macos`, `arm64-linux`, `x64-linux`, `x64
 - Full HTML layout engine.
 - A “toy” GUI that ignores input, text, DPI, etc.
 - “GUI purely via syscalls”. Real GUI requires platform APIs; we should encapsulate them cleanly.
+
+## 0.1) About `ui-idea.md`
+
+Some earlier discussions referenced a `ui-idea.md` scratch file. That file does not exist in this repo today.
+Treat this document (`docs/GUI.md`) and the shim plan (`docs/GUI_PLATFORM_SHIMS.md`) as the current source of truth.
 
 ## 1) Recommended architecture: UI bytecode + native shell + UI capability domain
 
