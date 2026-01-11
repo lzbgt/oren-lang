@@ -9,6 +9,7 @@
 .PHONY: setup-x64-linux-qemu
 .PHONY: verify-native-matrix verify-native-matrix-skip-remote verify-native-net verify-native-net-skip-remote verify-selfhost-x64 verify-stage0-win verify-tier1
 .PHONY: verify-stage2-win
+.PHONY: build-orenui-win32
 .PHONY: bench-native-compile
 .PHONY: perf-guard-native-hit
 .PHONY: rtobj-seed
@@ -389,6 +390,20 @@ verify-native-quick: test-native-quick test-native-quick-stage2 test-native-caps
 # This is intentionally NOT part of `make test` or `make verify` because it requires a GUI session.
 verify-ui-smoke-macos: oren
 	@./scripts/verify_ui_smoke_macos.sh ./$(OREN_BIN)
+
+# Build the Win32 OrenUI shim DLL (headful runtime; build is safe in CI).
+# Notes:
+# - Requires a Windows host and MSVC toolchain availability (`cl.exe` + `link.exe`).
+# - This is not part of `make test`/`make verify` since it does not run anything.
+build-orenui-win32:
+ifeq ($(HOST_IS_WINDOWS),1)
+	@mkdir -p build/tmp
+	@echo "== build: orenui_win32.dll (Win32/GDI) =="
+	@cmd.exe /v:on /c "setlocal && where cl.exe >nul 2>nul && where link.exe >nul 2>nul || (echo ERROR: MSVC tools not found in PATH. Start a VS Developer Prompt or ensure VsDevCmd/vcvars is configured. & exit /b 2) && cl.exe /nologo /O2 /LD native\\orenui\\win32\\orenui_win32.c /I native\\orenui user32.lib gdi32.lib /link /OUT:build\\tmp\\orenui_win32.dll"
+else
+	@echo "ERROR: build-orenui-win32 requires a Windows host (HOST_IS_WINDOWS=1)."
+	@exit 2
+endif
 
 # Compile-only sanity gate for x64 targets (does not run artifacts).
 verify-native-x64-compile: oren_stage2 rtobj-seed-x64 astbin-seed-x64

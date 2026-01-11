@@ -185,6 +185,7 @@ References:
 
 	   - finalize `native/orenui/orenui.h` v0 ABI (window + poll_event + present_rgba)
 	   - implement `native/orenui/win32/*` (Win32 + GDI/DIBSection blit) + add a bounded headful smoke script
+	     - Started: `native/orenui/win32/orenui_win32.c` (skeleton; expects a GUI session)
 	   - implement `native/orenui/x11/*` (X11 + XPutImage blit) + add a bounded headful smoke script
 	   - add `examples/ui_hello.oren` (portable `std:ui/*` render+raster driving the shim)
 

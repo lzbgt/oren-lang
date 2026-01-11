@@ -19,9 +19,9 @@ Tier‑1 OS/arch intent (today): `arm64-macos`, `arm64-linux`, `x64-linux`, `x64
 
 - In-tree shim header: `native/orenui/orenui.h`
 - macOS shim implementation exists: `native/orenui/cocoa/orenui_cocoa.m`
+- Windows shim skeleton exists: `native/orenui/win32/orenui_win32.c` (bring-up; no smoke gate yet)
 - Smoke gate (macOS-only; requires GUI session): `scripts/verify_ui_smoke_macos.sh` (wired via `make verify-ui-smoke-macos`)
 - Missing today:
-  - Windows shim (`x64-windows`) — Win32 + GDI (RGBA blit)
   - Linux shim (`arm64-linux`, `x64-linux`) — X11 (RGBA blit) as the first bring-up target
 
 ## 1) What the v0 shim must do (and what it must not)
