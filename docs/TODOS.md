@@ -203,6 +203,10 @@ References:
 
    Goal: real-world Win32/libc/OpenSSL bindings are not painful.
 
+   Status (fact):
+
+   - 2026-01-12: added `ffi("lib") { ... }` sugar (lowers to portable `@ffi.link("lib")`), guarded by `scripts/verify_native_x64_compile_only.sh` via `tests/native/ffi_group_link_sugar.oren`.
+
    Next:
 
    - add ptr-sized / `usize` return kinds and a stable story for `size_t`

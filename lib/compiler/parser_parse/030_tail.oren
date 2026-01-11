@@ -491,12 +491,33 @@ fn parse_ffi(p) {
     // Supported forms:
     // - `ffi puts`
     // - `ffi puts as c_puts` (alias: internal name differs from external symbol)
+    // - `ffi("libc.so.6") puts` (rolling sugar; expands to `@ffi.link("...") ffi puts`)
+    // - `ffi("libc.so.6") { puts, printf, ... }` (rolling sugar; expands to `@ffi.link("...") ffi { ... }`)
     // - `ffi { puts, printf, ... }` (rolling sugar: expands to multiple FFI decls)
     // - `ffi { @ffi.ret("i32") atoi, @ffi.ret("void") free, puts }` (per-item attrs)
     // - `ffi { puts as c_puts, atoi as c_atoi }` (alias inside group)
     //
     // The group form exists to avoid repeating `@ffi.dll/@ffi.link/@ffi.ret` for many
     // symbols from the same library.
+    //
+    // The `ffi("...")` sugar exists to avoid repeating the attribute prefix in simple
+    // fixtures and quick bindings. It always lowers to `@ffi.link("...")` (portable form).
+    var group_link_attr = nil
+    if peek_is(p, token.TOK_LPAREN) {
+        parser_next_token(p) // '('
+        if !expect_peek(p, token.TOK_STRING) {
+            parser_add_error(p, "ffi(...) expects a string literal library name")
+            return ast.new_stmt_list([])
+        }
+        var lib_tok = p["cur"]
+        var lib_str = ast.new_string(lib_tok)
+        if !expect_peek(p, token.TOK_RPAREN) {
+            parser_add_error(p, "expected ')' after ffi(\"...\")")
+            return ast.new_stmt_list([])
+        }
+        group_link_attr = {"type": "Attr", "token": tok, "name": "ffi.link", "args": [{"key": nil, "value": lib_str}]}
+    }
+
     if peek_is(p, token.TOK_LBRACE) {
         parser_next_token(p) // '{'
         parser_next_token(p) // first ident or '}'
@@ -528,6 +549,7 @@ fn parse_ffi(p) {
             var st = ast.new_ffi(tok, name)
             st["link_name"] = link_name
             if item_attrs != nil && oren_list_len(item_attrs) > 0 { st["attrs"] = item_attrs }
+            if group_link_attr != nil { st["attrs"] = _merge_attrs(st["attrs"], [group_link_attr]) }
             oren_list_push(stmts, st)
 
             if peek_is(p, token.TOK_COMMA) || peek_is(p, token.TOK_SEMICOLON) {
@@ -562,5 +584,6 @@ fn parse_ffi(p) {
     }
     var st2 = ast.new_ffi(tok, name2)
     st2["link_name"] = link_name2
+    if group_link_attr != nil { st2["attrs"] = _merge_attrs(st2["attrs"], [group_link_attr]) }
     return st2
 }

@@ -389,6 +389,15 @@ Notes (rolling):
   - C backend:
     - Oren does not have a stabilized “typed C FFI” surface yet, but you can still link extra C by compiling the emitted C yourself (see `docs/C_BACKEND.md`).
 
+FFI sugar (rolling ergonomics):
+
+- You can attach a library to a single `ffi` declaration (or a whole `ffi { ... }` group) using the attribute form:
+  - `@ffi.link("libc.so.6") ffi { puts, atoi }`
+  - `@ffi.dll("msvcrt.dll") ffi { puts, atoi }` (Windows convenience)
+- There is also a small sugar form which lowers to the portable `@ffi.link(...)`:
+  - `ffi("libc.so.6") { puts, atoi }`
+  - `ffi("msvcrt.dll") puts` (works on Windows because `@ffi.link("msvcrt.dll")` is supported too)
+
 ### Conditional compilation (`@cfg(...)`)
 
 Oren supports a **minimal conditional compilation** attribute:

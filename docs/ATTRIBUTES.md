@@ -142,6 +142,14 @@ ffi GetTickCount
 ffi getpid
 ```
 
+Related FFI ergonomics (rolling):
+
+- The attribute form is the primary mechanism to attach a library/DLL:
+  - `@ffi.link("libc.so.6") ffi { puts, atoi }`
+  - `@ffi.dll("msvcrt.dll") ffi { puts, atoi }` (Windows convenience)
+- The parser also supports a small sugar that lowers to the portable `@ffi.link(...)`:
+  - `ffi("libc.so.6") { puts, atoi }`
+
 ### 3.3 FFI link dependencies (`@ffi.link(...)`) (native backend)
 
 The native backend supports dynamic linking for FFI in a platform-specific way:

@@ -1,0 +1,32 @@
+// FFI group sugar: `ffi("...") { ... }` (rolling ergonomics).
+//
+// Motivation:
+// - Group form (`ffi { ... }`) already avoids repeating `ffi foo` many times.
+// - Attributes already allow binding a whole group to one library:
+//     @ffi.link("libc.so.6") ffi { puts, atoi }
+// - This fixture validates an additional sugar:
+//     ffi("libc.so.6") { puts, atoi }
+//   which lowers to the portable form `@ffi.link("...")`.
+//
+// Tier‑1 intent: should compile on all platforms; should run on Tier‑1 native hosts.
+
+@cfg(os="windows")
+@ffi.ret("i32")
+ffi("msvcrt.dll") { puts as c_puts, atoi as c_atoi }
+
+@cfg(os="linux")
+@ffi.ret("i32")
+ffi("libc.so.6") { puts as c_puts, atoi as c_atoi }
+
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi("libSystem.B.dylib") { puts as c_puts, atoi as c_atoi }
+
+fn main() {
+    var rc = c_puts("ffi_group_link_sugar: OK")
+    if rc < 0 { exit(1) }
+    var v = c_atoi("123")
+    if v != 123 { exit(2) }
+    exit(0)
+}
+
