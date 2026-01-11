@@ -310,7 +310,7 @@ Then run the loopback TLS/HTTPS/WSS fixtures (stage1 + stage2) under `qemu-x86_6
 make verify-x64-linux-qemu-tls
 ```
 
-Makefile shortcuts (macOS/arm64 host workflow):
+Makefile shortcuts (rolling):
 
 ```bash
 make verify-native-matrix

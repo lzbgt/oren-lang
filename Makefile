@@ -416,68 +416,36 @@ verify-x64-linux-qemu-tls: oren_stage2
 setup-x64-linux-qemu:
 			@./scripts/setup_x64_linux_qemu_sysroot.sh
 
-# Tier‑1 verification shortcuts (macOS/arm64 host workflow).
+# Tier‑1 verification shortcuts (rolling).
 #
 # These targets wrap the purpose-built scripts under `scripts/`:
 # - `verify-native-matrix`: stage1 + stage2 native quick integration across Tier‑1 targets
 # - `verify-native-net`: loopback NET matrix across Tier‑1 targets (TCP/UDP + HTTP + WebSocket)
 # - `verify-selfhost-x64`: run the compiler itself on remote x86_64 (Win11 + WSL2)
 verify-native-matrix: oren_stage2
-	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
-		echo "ERROR: verify-native-matrix expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
-		exit 2; \
-	fi
 	@./scripts/verify_native_matrix.sh
 
 verify-native-matrix-skip-remote: oren_stage2
-	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
-		echo "ERROR: verify-native-matrix-skip-remote expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
-		exit 2; \
-	fi
 	@# When remote Win11/WSL2 is unavailable, still keep x64-linux runtime coverage via qemu-x86_64 in the linux container.
 	@./scripts/verify_native_matrix.sh --skip-remote --targets local,arm64-linux,x64-linux-qemu
 
 verify-native-net: oren_stage2
-	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
-		echo "ERROR: verify-native-net expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
-		exit 2; \
-	fi
 	@./scripts/verify_native_net_matrix.sh
 
 verify-native-net-skip-remote: oren_stage2
-	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
-		echo "ERROR: verify-native-net-skip-remote expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
-		exit 2; \
-	fi
 	@./scripts/verify_native_net_matrix.sh --skip-remote
 
 verify-selfhost-x64: oren_stage2
-	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
-		echo "ERROR: verify-selfhost-x64 expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
-		exit 2; \
-	fi
 	@./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
 
 verify-stage0-win:
-	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
-		echo "ERROR: verify-stage0-win expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
-		exit 2; \
-	fi
 	@./scripts/verify_stage0_windows_bootstrap.sh
 
 # Optional: prove native Windows can build stage2 (stage0 -> stage1 -> stage2) and run a tiny program.
 verify-stage2-win:
-	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
-		echo "ERROR: verify-stage2-win expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
-		exit 2; \
-	fi
 	@./scripts/verify_windows_stage2_from_stage1.sh
 
 verify-tier1: oren_stage2
-	@if [ "$(UNAME_S)" != "Darwin" ] || [ "$(UNAME_M)" != "arm64" ]; then \
-		echo "ERROR: verify-tier1 expects an arm64 macOS host (got $(UNAME_S)/$(UNAME_M))"; \
-		exit 2; \
-	fi
 	@./scripts/verify_native_matrix.sh --targets stage0,stage1,stage2,local,arm64-linux,x64-win,x64-wsl,x64-win-tier1,x64-wsl-tier1
 	@./scripts/verify_native_net_matrix.sh
 	@echo "verify-tier1 OK"

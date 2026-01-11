@@ -17,7 +17,7 @@ set -euo pipefail
 # - stage2 (self-hosted): ./oren_stage2
 #
 # Then it compiles that test to:
-# - arm64-macos (runs locally)
+# - host platform (runs locally)
 # - arm64-linux (runs in the persistent container)
 # - x64-linux (runs under remote WSL2)
 # - x64-windows (runs on remote Win11)
@@ -61,7 +61,7 @@ Usage: scripts/verify_native_matrix.sh [--targets <csv>] [--local-only]
        scripts/verify_native_matrix.sh [--host <user@host>] [--proxy <ssh_opt>] [--no-proxy]
 
 Runs:
-  1) local arm64-macos (stage1 + stage2)
+  1) local host platform (stage1 + stage2)
   2) linux/arm64 in existing docker container (stage1 + stage2 compiled artifacts)
   3) remote windows/x64 on Win11 (stage1 + stage2 compiled artifacts)
   4) remote linux/x64 under WSL2 (stage1 + stage2 compiled artifacts)
@@ -71,7 +71,7 @@ Targets (comma-separated):
   stage0      build ./oren_bootstrap
   stage1      build ./oren
   stage2      build ./oren_stage2
-  local       run local native quick (stage1+stage2)
+  local       run local native quick (stage1+stage2; host platform)
   arm64-linux run linux/arm64 in docker container
   x64-linux-qemu  run x64-linux under qemu-x86_64 in the linux container (no remote required)
   x64-win     run x64-windows on remote Win11
@@ -335,7 +335,7 @@ if has_target local || has_target arm64-linux || has_target x64-linux-qemu || ha
 fi
 
 if has_target local; then
-  log "== verify: local arm64-macos (stage1 + stage2) =="
+  log "== verify: local host platform (stage1 + stage2) =="
   make verify-native-quick
 fi
 

@@ -158,7 +158,7 @@ When you need confidence that the **native backend** output works across the pra
 make verify-native-x64-compile
 ```
 
-Makefile shortcuts (macOS/arm64 host workflow):
+Makefile shortcuts (rolling):
 
 ```bash
 make verify-native-matrix

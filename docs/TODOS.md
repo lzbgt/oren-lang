@@ -40,6 +40,7 @@ Cross-arch matrix (execution on real hosts):
   - Dev convenience: `--skip-remote` runs local + docker, but skips remote Win11/WSL2 explicitly when the remote host is temporarily unreachable.
 - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` (compiler runs on x64 hosts and compiles+runs a tiny program)
 - `./scripts/verify_stage0_windows_bootstrap.sh` (stage0->stage1 via MSVC on Win11; stage1 builds+runs a tiny native program)
+  - Rolling (2026-01-11): the Makefile `verify-*` shortcuts no longer hardcode an arm64-macos host; they just call the scripts, and the scripts enforce prerequisites based on selected targets.
 
 Local x64 sanity (compile-only):
 
