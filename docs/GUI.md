@@ -306,11 +306,11 @@ Regression gates (headless):
 
 - `make test-avm`
   - `tests/avm/test_ui_layout_v0.oren`
- - `tests/avm/test_ui_render_v0.oren`
- - `tests/avm/test_ui_raster_v0.oren`
- - `tests/avm/test_ui_ppm_v0.oren`
- - `tests/avm/test_ui_patch_v0.oren`
- - `tests/avm/test_ui_color_v0.oren`
+  - `tests/avm/test_ui_render_v0.oren`
+  - `tests/avm/test_ui_raster_v0.oren`
+  - `tests/avm/test_ui_ppm_v0.oren`
+  - `tests/avm/test_ui_patch_v0.oren`
+  - `tests/avm/test_ui_color_v0.oren`
 
 ## 7) Roadmap tasks (tracked in `docs/TODOS.md`)
 
