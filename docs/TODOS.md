@@ -55,6 +55,7 @@ Local x64 sanity (execution under QEMU):
 - `make verify-x64-linux-qemu-net` (optional; requires `make setup-x64-linux-qemu` once; runs loopback NET fixtures under `qemu-x86_64` in the persistent Linux container)
 - `make verify-x64-linux-qemu-tls` (optional; requires `OREN_X64_LINUX_QEMU_INSTALL_OPENSSL=1 make setup-x64-linux-qemu` once; runs loopback TLS/HTTPS/WSS plus HTTP/2/HPACK smokes under `qemu-x86_64` in the persistent Linux container)
   - Last verified (fact): 2026-01-11 (stage1 + stage2; container `c7e5f7bd9f5c`)
+  - Verified again (fact): 2026-01-11 (this host; after recent Makefile/script refactors)
 - All x64 sanity gates are expected to **fail fast** if the compiler emits known backend hazards (e.g. `x64 native v0: missing ABI arg reg(s)`), even if an individual build step would otherwise exit 0.
   - Note: if the persistent container is stopped, restore it with `docker start c7e5f7bd9f5c` (do not create a replacement).
 
