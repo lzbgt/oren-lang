@@ -71,6 +71,17 @@ These scripts are the intended long-run gate for Tier‑1 parity:
 
 See `docs/REMOTE_X64_ENV.md` for how the remote Windows + WSL2 hosts are configured and how logs are fetched.
 
+### Remote connectivity (fact-based)
+
+Some networks/proxies do not resolve the default remote hostname (`pc.work`). When remote access is unavailable,
+prefer keeping local gates green (`make verify-native-x64-compile`, QEMU x64-linux), and collect logs when
+the host becomes reachable again.
+
+Remote override knobs:
+
+- `OREN_REMOTE_X64_HOST=<user@IP>` (recommended when `pc.work` is not resolvable)
+- `OREN_REMOTE_X64_PROXY=` (empty to disable the proxy if you have direct SSH access)
+
 ## Windows toolchain policy (MSVC bring-up)
 
 For Tier‑1 Windows, the intended C toolchain is **MSVC (VS2022) `cl.exe`**.
@@ -90,3 +101,10 @@ When something is not green, record the *smallest actionable next step* and the 
   (not just compile-only from macOS). Primary gate: `make verify-stage2-win` (remote).
 - Remote reliability: keep remote log capture bounded and reproducible; use
   `scripts/fetch_remote_file.sh --analyze` + `scripts/analyze_stage2_failure_log.sh` for triage.
+  - If the build appears to hang, enable bounded parse progress for include-aggregators:
+    - `OREN_REMOTE_PROGRESS=1 make verify-stage2-win` (rate-limited; avoids huge logs).
+
+## Cross-platform path robustness
+
+- Oren accepts Windows-style `\` separators in CLI paths across hosts (macOS/Linux/Windows). This is a
+  correctness requirement because remote Win11 logs/scripts often contain backslash paths.
