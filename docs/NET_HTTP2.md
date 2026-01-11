@@ -11,12 +11,12 @@ Tier‑1 targets (current policy):
 
 Last verification (fact):
 
-- 2026-01-11: local loopback NET matrix passed on `arm64-macos` (stage1 + stage2):
-  - `./scripts/verify_native_net_matrix.sh --targets local --local-only`
+- 2026-01-11: `make verify-native-net-skip-remote` passed (stage1 + stage2), covering:
+  - `arm64-macos` (local)
+  - `arm64-linux` (docker container `c7e5f7bd9f5c`)
 
 Notes (rolling):
 
-- Tier‑1 cross-arch checks (`arm64-linux` container, `x64-linux` under QEMU, remote `x64-linux` WSL2, remote `x64-windows`) are validated by the full matrix script, but were **not** re-run as part of the above local verification.
 - When the remote Win11/WSL2 host is reachable, use `make verify-native-net` (or `--skip-remote` when unavailable).
 
 Additional verification (fact):
