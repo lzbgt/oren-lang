@@ -10,6 +10,7 @@ These are rolling “red line” bounds used to catch fundamental regressions ea
 
 - **Stage2 native backend: compile-one-file (rtobj hit)** must stay **< 4s** wall time.
   - Measured with: `./scripts/bench_native_compile_one_file.sh` (second run is the hit).
+  - Regression tripwire (recommended): `./scripts/perf_guard_native_compile_one_file_hit.sh`
 - **Tier‑1 debug builds** used by fixtures should stay **< 10s** per `oren build ... --backend native --debug` step.
   - Default bounded timeout is enforced by the verification scripts (`OREN_NATIVE_BUILD_TIMEOUT_SECS`, default `10`).
 - **Self-host compiler build** (`make stage2` / `make verify`) must stay **< 3 minutes** wall time on the primary dev host.
@@ -218,6 +219,40 @@ If call lowering tries to pack varargs again inside a wrapper, you can get:
 
 - infinite recursion through the callable ABI (often reported as `call depth exceeded`), or
 - subtle arg shape corruption (nested rest lists).
+
+### 4.0.4 Embedded string literals must stay untracked (cstr0 pool)
+
+Native backend model (rolling):
+
+- String literals (e.g. `"hello"`) are emitted into a single constant/data-section byte pool (`cstr0`).
+- Those pointers are valid “string values” but they are **not GC-managed heap allocations**.
+- The runtime recognizes literal pointers via a startup-built membership set:
+  - `oren_init_static_cstr0_table` populates the set
+  - `native_is_string_ptr` / `oren_is_string` consult it
+
+Why this matters for performance:
+
+- If literals become tracked as alloc nodes, GC conservative scans start treating “every literal pointer” as an object:
+  - mark work explodes (compiler workloads have many literal keys),
+  - startup costs can spike (tracking metadata nodes per literal),
+  - and regressions can manifest as “compile one file took seconds/minutes”.
+
+Guardrails + regressions:
+
+- The runtime treats attempts to track cstr0 literals as a no-op:
+  - `oren_track_alloc(lit, ..., kind=STRING)` must not create a node
+  - `oren_track_static(lit, kind=STRING)` must not create a node
+- `make test` includes a regression that asserts:
+  - identical literals are pointer-equal (`lit0 - lit1 == 0`),
+  - and `oren_find_node(lit) == 0` (no tracking metadata for literals).
+
+If you see a perf regression around GC/marking:
+
+- First, re-run the bounded compile-one-file check:
+  - `./scripts/bench_native_compile_one_file.sh --no-debug`
+  - `./scripts/perf_guard_native_compile_one_file_hit.sh`
+- Then, treat “literals being tracked” as a prime suspect and confirm the invariant via the quick integration binary
+  (it prints bounded failure logs on mismatch).
 
 Rolling guardrail (implementation):
 
