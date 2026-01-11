@@ -210,6 +210,17 @@ fn _nil_guard_collect_scalar_likely_expr(scalar_likely, expr) {
     if t == "Infix" {
         _nil_guard_collect_scalar_likely_expr(scalar_likely, expr["left"])
         _nil_guard_collect_scalar_likely_expr(scalar_likely, expr["right"])
+        // Heuristic: treat certain operators as "scalar-only" so we can reject `id == nil`
+        // footguns even when `id` originates from an unknown-typed container (map/list/etc).
+        //
+        // Keep this conservative:
+        // - Do NOT mark `+` because it can be string concatenation.
+        // - Prefer ops that are unambiguously numeric/bitwise in v0.
+        var op = expr["op"]
+        if op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>" || op == "%" {
+            _nil_guard_mark_scalar_likely(scalar_likely, expr["left"])
+            _nil_guard_mark_scalar_likely(scalar_likely, expr["right"])
+        }
         return nil
     }
     if t == "If" {
@@ -698,8 +709,8 @@ fn _nil_guard_expr(errors, expr, env, scalar_likely, sigs) {
             var rc = _cat_with_sigs(expr["right"], env, sigs)
             // Heuristic strengthening:
             // If the compared-to-nil expression is an identifier that is later used in a scalar
-            // context (numeric/bool ops or explicit casts), treat it as scalar-likely even if the
-            // local env cannot prove it at the compare site.
+            // context (bitwise/shift/mod ops or explicit casts), treat it as scalar-likely even if
+            // the local env cannot prove it at the compare site.
             if lc == "unknown" && expr["left"] != nil && expr["left"]["type"] == "Identifier" && expr["left"]["value"] != nil {
                 if scalar_likely != nil && scalar_likely[expr["left"]["value"]] == true { lc = "int" }
             }

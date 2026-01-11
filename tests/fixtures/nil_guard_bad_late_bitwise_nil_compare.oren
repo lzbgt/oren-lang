@@ -1,0 +1,18 @@
+// Expected to fail under: `./oren build ...`
+//
+// Rationale:
+// - The nil-compare guard is always-on (even without `--typecheck`).
+// - A common footgun is treating `== nil` as “missing” and then using the value
+//   as a scalar later (native backend historically aliased `0`/`nil` in some paths).
+//
+// This fixture is intentionally minimal: it has *no* statically-known scalar==nil
+// comparisons (so a purely local/cast-only guard would miss it), but the variable
+// is later used in a bitwise op (`&`) and must still be rejected.
+fn main() {
+    var cfg = {"timeout_ms": 0}
+    var t = cfg["timeout_ms"]
+    if t == nil { exit(0) }
+    var u = t & 255
+    if u >= 0 { exit(0) }
+    exit(1)
+}

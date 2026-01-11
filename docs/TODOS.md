@@ -587,7 +587,8 @@ References:
 									             - Strengthened (2026-01-10): the always-on `nil_compare_guard` now also rejects `id == nil` when the identifier is later proven scalar by best-effort scan (e.g. `i64(id)`), so this footgun is blocked even without `--typecheck` (including in top-level code via synthesized `__top_level__`).
 									             - Strengthened (2026-01-10): the always-on `nil_compare_guard` also treats calls to functions with explicit scalar return annotations (e.g. `fn f(): i64`) as proven scalars, rejecting `f() == nil`.
 									               - Regression: `tests/fixtures/nil_guard_bad_annotated_call_nil_compare.oren` (run by `make test`).
-									             - Open: extend the best-effort scan to also treat basic arithmetic/bitwise use (e.g. `id + 1`) as “scalar-likely” once the compiler codebase is fully migrated away from `scalar == nil` patterns (or when full tagged values land), so more real-world footguns are rejected by default.
+										             - Updated (2026-01-11): the best-effort scan now treats bitwise/shift/mod usage (e.g. `id & 255`, `id >> 1`, `id % 10`) as “scalar-likely”, rejecting `id == nil` even when `id` originates from an unknown-typed container flow (map/list/etc).
+										               - Open: extend further to unambiguous arithmetic cases (careful: `+` is also string concat in v0), or rely on full tagged values once they land.
 								             - Done (2026-01-10): stdlib migrated optional numeric defaults away from `if x == nil { x = 0 }` to tag-based checks (`if oren_type_tag(x) == 0 { x = 0 }`) so core libraries don’t depend on scalar `== nil` semantics.
 							           - Remaining: full tagged value model still needed (notably robust `int` vs `float` tagging and deterministic reflection) — see `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`.
 	     - varargs + reflection convergence:
@@ -695,9 +696,10 @@ References:
          - Done (2026-01-11): `examples/ui_hello.oren` (macOS bring-up; built and run by `scripts/verify_ui_smoke_macos.sh`).
      - Add Tier‑1 smoke scripts (opt-in, bounded):
        - open window → draw ~60 frames → close (hard timeout; no huge logs).
-     - Optional devtools path (do not block v0):
-       - Integrate Dear ImGui as a *shell/overlay* once at least one platform shim exists.
-        - Keep `std:ui` as the stable retained-mode app API; ImGui is tooling and/or a temporary shell shortcut.
+	     - Optional devtools path (do not block v0):
+	       - Integrate Dear ImGui as a *shell/overlay* once at least one platform shim exists.
+	        - Keep `std:ui` as the stable retained-mode app API; ImGui is tooling and/or a temporary shell shortcut.
+	        - Notes + design: `docs/GUI_IMGUI_SHELL.md`
    - Declarative UI formats (optional; do not block v0):
      - Prefer YAML/JSON first (`std:yaml` / `std:json` exist today).
      - Add `std:encoding/xml` only if we need XML ecosystem compatibility or strict schemas.

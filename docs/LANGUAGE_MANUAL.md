@@ -811,7 +811,7 @@ Rolling note (native backend):
   - `nil` and `bool` are reliably distinguishable (tags `0` and `3`).
   - Numeric immediates are still a rolling area: `int`/`float` may be indistinguishable in some native-mode paths (so both may report tag `1`).
 - Rolling reflection v0 for structs: user-defined `struct` values are map-shaped today, but constructors tag them with `{"__oren_type":"TypeName", ...}`, so `oren_type_name(TypeName(...))` returns `"TypeName"` instead of `"map"`.
-- Guardrail (2026-01-10): the compiler rejects `bool/int/float == nil` comparisons when the scalar side is statically known (literals, casts, locally-proven scalars, or calls to functions with explicit scalar return annotations), and also when a value is later proven scalar by best-effort scan (e.g. `i64(x)` after `if x == nil { ... }`).
+- Guardrail (2026-01-10): the compiler rejects `bool/int/float == nil` comparisons when the scalar side is statically known (literals, casts, locally-proven scalars, or calls to functions with explicit scalar return annotations), and also when a value is later proven scalar by best-effort scan (e.g. `i64(x)` or `x & 255` after `if x == nil { ... }`).
   - This is a correctness feature: scalars are not “optionals”; treat missing values explicitly (e.g. `{"ok":1,"v":...}` / `{"ok":0}`), or use a tag-based check on truly dynamic values:
     - `if oren_type_tag(x) == 0 { ... }`
   - This guard is **always-on** (it does not require `--typecheck`). Diagnostics are tagged as `nil-compare guard: ...` so regressions are easy to spot in CI logs.

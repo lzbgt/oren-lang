@@ -875,7 +875,7 @@ Native backend note:
     - Track: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
     - Rolling implementation detail: `nil`, `false`, and `true` are **runtime singleton values** in native mode (not raw `0/1`), so `0` (int zero) remains distinct from `nil`/`false` in the common case.
     - Rolling reflection v0 for structs: user-defined `struct` values are map-shaped today, but constructors tag them with `{"__oren_type":"TypeName", ...}`, so `oren_type_name(TypeName(...))` returns `"TypeName"` instead of `"map"`.
-  - Guardrail (2026-01-10): the compiler rejects `bool/int/float == nil` comparisons when the scalar side is statically known (literals, casts, locally-proven scalars, or calls to functions with explicit scalar return annotations), and also when a value is later proven scalar by best-effort scan (e.g. `i64(x)` after `if x == nil { ... }`).
+  - Guardrail (2026-01-10): the compiler rejects `bool/int/float == nil` comparisons when the scalar side is statically known (literals, casts, locally-proven scalars, or calls to functions with explicit scalar return annotations), and also when a value is later proven scalar by best-effort scan (e.g. `i64(x)` or `x & 255` after `if x == nil { ... }`).
     - This is intentional: scalars are not “optionals”; model missing values explicitly (`{"ok":1,"v":...}` / `{"ok":0}`) or use a tag-based check on truly dynamic values:
       - `if oren_type_tag(x) == 0 { ... }`
     - This guard is **always-on** (it does not require `--typecheck`). Diagnostics are tagged as `nil-compare guard: ...` so regressions are easy to spot.

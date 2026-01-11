@@ -182,10 +182,16 @@ func main() {
 			}
 			filename := os.Args[2]
 
-			cc := os.Getenv("CC")
-			if cc == "" {
-				cc = "cc"
-			}
+				cc := os.Getenv("CC")
+				if cc == "" {
+					// Rolling Tier‑1 policy: on Windows hosts, prefer MSVC `cl.exe` by default so
+					// stage0 bootstrap works from a plain shell (auto-configured via vswhere + VsDevCmd/vcvars).
+					if runtime.GOOS == "windows" {
+						cc = "cl.exe"
+					} else {
+						cc = "cc"
+					}
+				}
 			codesignID := os.Getenv("OREN_CODESIGN_ID")
 			noGC := os.Getenv("OREN_NO_GC") != ""
 			notarize := false

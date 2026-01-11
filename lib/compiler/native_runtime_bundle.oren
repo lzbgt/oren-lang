@@ -50,7 +50,8 @@ fn _rt_bundle_bytes_to_hex(bs) {
     var i = 0
     while i < oren_list_len(bs) {
         var b = bs[i]
-        if b == nil { b = 0 }
+        // Do not rely on `scalar == nil` semantics (native parity hazard).
+        if oren_type_tag(b) == 0 { b = 0 }
         if b < 0 { b = 0 }
         if b > 255 { b = b & 255 }
         out = out + _rt_bundle_hex_digit(b / 16) + _rt_bundle_hex_digit(b & 15)
