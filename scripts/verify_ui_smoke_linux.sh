@@ -78,7 +78,7 @@ rm -f "$log" "$shim_out" "$app_out" 2>/dev/null || true
 
 echo "== build shim so =="
 run_with_timeout "$build_timeout_secs" cc \
-  -O2 -fPIC -shared \
+  -O2 -fPIC -shared -pthread \
   "$shim_src" \
   -I native/orenui \
   $(pkg-config --cflags x11) \
@@ -107,4 +107,3 @@ run_with_timeout "$run_timeout_secs" "$app_out" >>"$log" 2>&1
 
 tail -n 40 "$log"
 echo "verify_ui_smoke_linux OK"
-
