@@ -707,7 +707,7 @@ fn _nil_guard_expr(errors, expr, env, scalar_likely, sigs) {
                 if scalar_likely != nil && scalar_likely[expr["right"]["value"]] == true { rc = "int" }
             }
             if (lc == "nil" && (rc == "bool" || rc == "int" || rc == "float")) || (rc == "nil" && (lc == "bool" || lc == "int" || lc == "float")) {
-                _err_with_tag(errors, expr["token"], "nil-compare guard", "invalid comparison: scalar compared to nil (bool/int/float). Compare to 0/false explicitly, or use a typed API that returns nil only for non-scalars.")
+                _err_with_tag(errors, expr["token"], "nil-compare guard", "invalid comparison: scalar compared to nil (bool/int/float). Scalars are never nil; model “missing” explicitly, or (for truly dynamic values) gate via oren_type_tag(x) == 0.")
             }
         }
         return nil

@@ -814,6 +814,7 @@ Rolling note (native backend):
 - Guardrail (2026-01-10): the compiler rejects `bool/int/float == nil` comparisons when the scalar side is statically known (literals, casts, locally-proven scalars, or calls to functions with explicit scalar return annotations), and also when a value is later proven scalar by best-effort scan (e.g. `i64(x)` after `if x == nil { ... }`).
   - This is a correctness feature: scalars are not “optionals”; treat missing values explicitly (e.g. `{"ok":1,"v":...}` / `{"ok":0}`), or use a tag-based check on truly dynamic values:
     - `if oren_type_tag(x) == 0 { ... }`
+  - This guard is **always-on** (it does not require `--typecheck`). Diagnostics are tagged as `nil-compare guard: ...` so regressions are easy to spot in CI logs.
 - Beyond `oren_type_tag` / `oren_type_name`, full runtime reflection (fields/layout/type metadata) is not yet implemented and is tracked as a larger refactor in `docs/TODOS.md`.
 
 Call-site spread (apply-style call):

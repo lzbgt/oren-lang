@@ -48,7 +48,11 @@ For a target `<arch>-<os>`, the Tier‑1 goal is:
 
 The Makefile and `scripts/` define the *supported* verification entrypoints. Prefer these over ad-hoc commands.
 
-### Local (arm64-macos host)
+### Local (host)
+
+The primary development host is `arm64-macos`, but the Makefile verification entrypoints are intentionally
+host-agnostic (they delegate to `scripts/` which enforce prerequisites and/or select the right execution mode).
+When a command is host-specific (e.g. “remote Windows”), it is called out explicitly.
 
 - Build stage1 + stage2 (native backend): `make stage2`
 - Fast stage1 + stage2 smoke (native): `make verify-native-quick`
