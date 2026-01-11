@@ -603,6 +603,8 @@ References:
       - `scripts/verify_native_x64_compile_only.sh` now validates the PE Export Directory (not just strings) via `scripts/pe_exports_check.py`.
     - Even when the remote is unreachable, keep x86_64 *buildability* guarded by `make verify-native-x64-compile` (compiles x64-linux + x64-windows outputs for stage1+stage2, including NET/TLS/HTTP2/HPACK module resolution via `tests/fixtures/x64_compile_only_net_tls_http2_smoke.oren`).
     - To fetch remote logs without copy/paste, use `scripts/fetch_remote_file.sh` and pass `--host user@IP` if the proxy cannot resolve `pc.work` (or pass `--no-proxy` if you have direct SSH access; see `docs/REMOTE_X64_ENV.md`).
+    - If SSH/proxy is down but you can transfer the log by other means (RDP / cloud / SMB), import it locally:
+      - `scripts/import_stage2_failure_log.sh --src <path/to/log> --analyze`
     - After fetching, use `scripts/analyze_stage2_failure_log.sh` to extract high-signal errors/warnings without dumping large logs.
       - Convenience: `scripts/fetch_remote_file.sh` supports `--analyze` to run the analyzer automatically after download.
     - Outstanding (needs remote access / log import):
