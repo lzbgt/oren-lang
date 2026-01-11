@@ -1,4 +1,4 @@
-# Self-Hosting (Stage0 → Stage1 → Stage2)
+# Self-Hosting (Stage0 -> Stage1 -> Stage2)
 
 Oren is a self-hosted language:
 

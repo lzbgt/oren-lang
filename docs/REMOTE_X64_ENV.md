@@ -109,7 +109,7 @@ Rolling status:
 ./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
 ```
 
-## Optional: stage0 → stage1 bootstrap on Windows (MSVC)
+## Optional: stage0 -> stage1 bootstrap on Windows (MSVC)
 
 This repo still relies on the Go bootstrap compiler (stage0) to build the stage1 compiler via the **C backend**.
 To support native Windows bring-up, we also keep a small regression gate that proves:
@@ -147,7 +147,7 @@ To fully close the Windows native-backend parity gap, we also keep an opt-in gat
 Log capture (rolling):
 
 - On failure, the script prints only a tail of the remote build log to keep output bounded.
-- It also attempts to download the **full** remote stage1→stage2 build log into:
+- It also attempts to download the **full** remote stage1->stage2 build log into:
   - `project-doc/remote/<timestamp>/stage1_build_stage2.log`
 
 - It also captures a small **Windows environment snapshot** (best-effort) into:
@@ -164,7 +164,7 @@ make verify-stage2-win
 
 Tuning knobs (env):
 
-- `OREN_STAGE2_BUILD_TIMEOUT_SECS` (default `240`, rolling guard for stage1→stage2 self-host build on Windows)
+- `OREN_STAGE2_BUILD_TIMEOUT_SECS` (default `240`, rolling guard for stage1->stage2 self-host build on Windows)
 
 Local Windows note (rolling):
 
@@ -329,15 +329,15 @@ Helper (bounded analysis after fetch):
 ./scripts/analyze_stage2_failure_log.sh project-doc/remote/.../s2_build_failure.log
 ```
 
-- Prints a short tail plus a few greps for `OREN_DIAG`, crashes, known x64 ABI warnings, and timing breadcrumbs.
+- Prints a short tail plus a few greps for `OREN_DIAG`, crashes, known x64 ABI warnings, output write failures, and timing breadcrumbs.
 - Designed to avoid dumping thousands of lines.
 
 ### Optional: bounded include-aggregator progress (hang triage)
 
-If a remote stage1→stage2 build looks stuck with no useful output, enable a **rate-limited**
+If a remote stage1->stage2 build looks stuck with no useful output, enable a **rate-limited**
 progress log for include‑aggregator parsing. This helps distinguish “stuck in parsing” from “stuck later”.
 
 - Remote Windows bootstrap gate:
   - `OREN_REMOTE_PROGRESS=1 make verify-stage2-win`
 - Under the hood, this sets:
-  - `OREN_PARSE_PROGRESS=1` on the remote host for the stage1→stage2 build step only.
+  - `OREN_PARSE_PROGRESS=1` on the remote host for the stage1->stage2 build step only.

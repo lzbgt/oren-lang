@@ -28,7 +28,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
     - MSVC wrapper `.cmd` generation avoids cmd.exe block-expansion pitfalls and probes VS2022 install paths (vswhere fallback) so `oren build --backend c` works on Win11 hosts.
 
 - Verified:
-  - `make verify-stage2-win` (stage0→stage1 via MSVC + stage1→stage2 via native backend + stage2 builds+runs tiny native + C-backend program).
+  - `make verify-stage2-win` (stage0->stage1 via MSVC + stage1->stage2 via native backend + stage2 builds+runs tiny native + C-backend program).
 
 - Follow-up (2026-01-10): another Win11 failure mode for the same command was traced to **path parsing**, not directory creation:
   - The error log showed: `x64 pe: failed to write: build/targets/x64-windows/native/examples\myapp` (`write_bytes: sys_open failed`).
@@ -224,7 +224,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - MSVC macro collision:
     - Renamed `errno` parameter to `errnum` in `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net.oren`.
   - Regression guard:
-    - Added `scripts/verify_stage0_windows_bootstrap.sh` to prove stage0→stage1 bootstrap and a tiny native build+run on Win11 via SSH.
+    - Added `scripts/verify_stage0_windows_bootstrap.sh` to prove stage0->stage1 bootstrap and a tiny native build+run on Win11 via SSH.
 
 - Verified:
   - Local macOS: `make stage1`, `make stage2`, `make test`

@@ -39,7 +39,7 @@ Cross-arch matrix (execution on real hosts):
 - `./scripts/verify_native_net_matrix.sh` (TCP/UDP/DNS/HTTP/HTTPS/WS/WSS/TLS loopback; stage1 + stage2; all Tier‑1)
   - Dev convenience: `--skip-remote` runs local + docker, but skips remote Win11/WSL2 explicitly when the remote host is temporarily unreachable.
 - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` (compiler runs on x64 hosts and compiles+runs a tiny program)
-- `./scripts/verify_stage0_windows_bootstrap.sh` (stage0→stage1 via MSVC on Win11; stage1 builds+runs a tiny native program)
+- `./scripts/verify_stage0_windows_bootstrap.sh` (stage0->stage1 via MSVC on Win11; stage1 builds+runs a tiny native program)
 
 Local x64 sanity (compile-only):
 
@@ -71,7 +71,7 @@ References:
    - Keep these paths reliable and bounded:
      - `make verify-native-quick` (stage1 + stage2 native smoke)
      - `make test-native-all` (native suite; stage1)
-     - `make verify` (stage1 → stage2 self-hosting gate)
+     - `make verify` (stage1 -> stage2 self-hosting gate)
 
    - Hard gates (non-negotiable for rolling):
      - Stage2/Stage3 self-host compiler build stays **< 3 minutes** wall time (primary dev host).
@@ -152,7 +152,7 @@ References:
      - native matrix: `./scripts/verify_native_matrix.sh`
      - NET loopback matrix: `./scripts/verify_native_net_matrix.sh`
      - x64 self-host compiler run: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win`
-	     - Windows stage0→stage1 bootstrap: `./scripts/verify_stage0_windows_bootstrap.sh`
+		     - Windows stage0->stage1 bootstrap: `./scripts/verify_stage0_windows_bootstrap.sh`
 
 	     - Active gaps (keep this list forward-looking; details live in `docs/TODOS_ARCHIVE.md`):
 			       - Fixed (2026-01-10): x64-windows stage2 self-host build could fail to write PE output when input paths used `\` (e.g. `examples\myapp.oren`).
@@ -163,12 +163,12 @@ References:
 				         - Regression (2026-01-11): `make test` now includes a small smoke that passes a backslash-heavy `-o` path on POSIX and asserts the normalized on-disk output exists (prevents reintroducing mixed-separator output artifacts).
 				         - Hardened (2026-01-11): compiler tooling `file_exists(...)` now uses `host_is_windows()` instead of `OS=Windows_NT` so existence probes work even when `OS` is unset on Win11/SSH.
 			         - Evidence (full captured remote log): `project-doc/remote/20260110_131230/s2_build_failure.log`
-			         - Regression gate: `make verify-stage2-win` (stage0→stage1→stage2 + compile+run).
+				         - Regression gate: `make verify-stage2-win` (stage0->stage1->stage2 + compile+run).
 				         - Verified (2026-01-10): `make verify-stage2-win` / `scripts/verify_windows_stage2_from_stage1.sh` passes again, including the nested-path backslash input (`examples\\myapp.oren`), even when `OS` env is intentionally unset on the remote session (regression guard).
 				         - Strengthened (2026-01-11): the same gate now also unsets `OS` for the Windows C-backend smoke (`--backend c`) so toolchain helpers like `file_exists(...)` are exercised under the “OS missing” condition too.
 				         - Note: scripts run a fast SSH preflight (with connect timeouts + a single retry for transient proxy flake) and emit bounded probe logs under `build/logs/*remote_probe*.log` when proxy/hostname resolution breaks.
 			         - Done (2026-01-10): `scripts/analyze_stage2_failure_log.sh` no longer uses backticks in `echo` (avoid accidental command substitution; prints literal guidance + optional local SHA safely).
-			         - Done (2026-01-10): `scripts/verify_windows_stage2_from_stage1.sh` attempts to download the full stage1→stage2 build log into `project-doc/remote/<timestamp>/stage1_build_stage2.log` (best-effort; keeps console output bounded by default).
+				         - Done (2026-01-10): `scripts/verify_windows_stage2_from_stage1.sh` attempts to download the full stage1->stage2 build log into `project-doc/remote/<timestamp>/stage1_build_stage2.log` (best-effort; keeps console output bounded by default).
 				       - Build system parity (Windows host):
 					         - Done: Makefile now emits `.exe` outputs on Windows (`oren.exe`, `oren_stage2.exe`, `avm.exe`) and the local smoke/seed scripts under `scripts/` recognize Windows (`MINGW*`/`MSYS*`/`CYGWIN*`) and suffix temporary artifacts with `.exe`.
 				         - Done (2026-01-10): `oren build` default output naming for `--platform x64-windows` now appends `.exe` when `-o/--out` is omitted.
@@ -191,9 +191,9 @@ References:
 		           keeping `oren build --backend c` usable on native Win11 hosts.
 		         - Done (2026-01-08): AVM build uses `AVM_CC` (default: `cc`) so Windows hosts can keep stage0/stage1 bring-up on MSVC `cl.exe` without forcing AVM to use MSVC-flags.
 			         - Done (2026-01-08): stage1 can build stage2 on native Windows (not just run a prebuilt stage2):
-			           - Gate: `./scripts/verify_windows_stage2_from_stage1.sh` (stage0→stage1→stage2; Win11 + VS2022 + `cl.exe`)
+				           - Gate: `./scripts/verify_windows_stage2_from_stage1.sh` (stage0->stage1->stage2; Win11 + VS2022 + `cl.exe`)
 			           - Make shortcut: `make verify-stage2-win`
-		           - Verified (2026-01-09): `make verify-stage2-win` passes on the Tier‑1 Win11 host (stage0→stage1→stage2 + compile+run).
+			           - Verified (2026-01-09): `make verify-stage2-win` passes on the Tier‑1 Win11 host (stage0->stage1->stage2 + compile+run).
 			         - Intent: `make`, `make test`, `make stage2`, `make verify-native-quick` should work under MSYS2/Git Bash/Cygwin (stage0 still uses MSVC `cl.exe`, auto-configured by stage0; see `docs/REMOTE_X64_ENV.md`).
 			         - Note: scripts avoid requiring external `rg`/ripgrep on minimal environments (remote Win11/WSL2, containers); they use `grep`/`findstr` and keep logs bounded (details in `docs/TEST_SYSTEM.md`).
 			         - Done (2026-01-10): `scripts/verify_native_x64_compile_only.sh` now has a stable CLI (`--help`, `--targets`, `--trace`) and stays quiet/bounded by default (useful when remote Tier‑1 hosts are temporarily unreachable).

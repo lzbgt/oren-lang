@@ -151,7 +151,7 @@ When you need confidence that the **native backend** output works across the pra
 # x86_64 self-host: the compiler binary itself runs on Win11 + WSL2 and can compile+run a tiny program
 ./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
 
-# Optional: stage0→stage1 bootstrap on native Windows using MSVC cl.exe (VS2022)
+# Optional: stage0->stage1 bootstrap on native Windows using MSVC cl.exe (VS2022)
 ./scripts/verify_stage0_windows_bootstrap.sh
 
 # Local gate: compile-only for x64-linux + x64-windows (stage1 + stage2)

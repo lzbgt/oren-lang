@@ -10,7 +10,7 @@ Oren is a self-hosted language. The repository contains a "Stage 0" compiler wri
 
 ### Prerequisites
 - **Go 1.20+**: To build the Stage 0 bootstrap compiler.
-- **C Compiler**: Required by the C backend (used for stage0 → stage1 bootstrapping).
+- **C Compiler**: Required by the C backend (used for stage0 -> stage1 bootstrapping).
   - macOS/Linux: `clang`/`gcc`
   - Windows x64: Visual Studio 2022 Build Tools (`cl.exe`) is the preferred Tier‑1 bring-up path.
 - **Make**: For build automation.
@@ -249,10 +249,10 @@ Cross‑arch Tier‑1 matrix (stage1 + stage2):
 # x86_64 self-host: run the compiler binary on remote Win11 + WSL2 and compile+run a tiny program
 ./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
 
-# Optional: stage0→stage1 bootstrap on native Windows using MSVC cl.exe (VS2022)
+# Optional: stage0->stage1 bootstrap on native Windows using MSVC cl.exe (VS2022)
 ./scripts/verify_stage0_windows_bootstrap.sh
 
-# Optional: stage0→stage1→stage2 self-host build on native Windows (stage1 builds stage2 via native backend)
+# Optional: stage0->stage1->stage2 self-host build on native Windows (stage1 builds stage2 via native backend)
 ./scripts/verify_windows_stage2_from_stage1.sh
 
 # Notes:
