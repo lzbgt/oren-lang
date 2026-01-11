@@ -787,6 +787,16 @@ fn _ml_parse_program_for_module(full, config) {
     }
 
     var jobs = _ml_parse_jobs()
+    // Optional progress prints (bounded, for remote hang triage).
+    // Enabled via env so normal builds stay quiet:
+    //   OREN_PARSE_PROGRESS=1
+    var want_progress = (oren_env("OREN_PARSE_PROGRESS") != nil)
+    var next_progress_ns = 0
+    if want_progress {
+        // Print immediately on entry, then rate-limit to ~1Hz.
+        next_progress_ns = oren_time_now_ns()
+        print("[progress] include-agg: " + full + " includes=" + oren_int_to_string(oren_list_len(includes)) + " jobs=" + oren_int_to_string(jobs))
+    }
     if oren_env("OREN_TRACE_PASSES") != nil {
         print("[trace] include-agg: " + full + " includes=" + oren_int_to_string(oren_list_len(includes)) + " jobs=" + oren_int_to_string(jobs))
     }
@@ -798,6 +808,16 @@ fn _ml_parse_program_for_module(full, config) {
         var ii = 0
         while ii < oren_list_len(includes) {
             var inc_full = includes[ii]
+            if want_progress {
+                // Rate-limit to avoid huge logs: check time only every 64 includes.
+                if _imod(ii, 64) == 0 {
+                    var now_ns = oren_time_now_ns()
+                    if now_ns >= next_progress_ns {
+                        print("[progress] include-agg: " + full + " parsed=" + oren_int_to_string(ii) + "/" + oren_int_to_string(oren_list_len(includes)))
+                        next_progress_ns = now_ns + 1000000000
+                    }
+                }
+            }
             var rr2 = expand_includes_file_result(inc_full, [])
             if rr2["ok"] != true {
                 print("Failed to read file: " + inc_full)
@@ -819,6 +839,9 @@ fn _ml_parse_program_for_module(full, config) {
                 }
             }
             ii = ii + 1
+        }
+        if want_progress {
+            print("[progress] include-agg: " + full + " parsed=" + oren_int_to_string(oren_list_len(includes)) + "/" + oren_int_to_string(oren_list_len(includes)))
         }
         return {"statements": merged_stmts, "traits": merged_traits}
     }

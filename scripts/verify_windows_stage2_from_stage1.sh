@@ -30,6 +30,7 @@ STAGE2_BUILD_TIMEOUT_SECS="${OREN_STAGE2_BUILD_TIMEOUT_SECS:-240}"
 REMOTE_COMPILE_TIMEOUT_SECS="${OREN_STAGE2_REMOTE_COMPILE_TIMEOUT_SECS:-120}"
 REMOTE_RUN_TIMEOUT_SECS="${OREN_STAGE2_REMOTE_RUN_TIMEOUT_SECS:-30}"
 SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-3}"
+REMOTE_PROGRESS="${OREN_REMOTE_PROGRESS:-0}"
 
 log() { printf '%s\n' "$*"; }
 
@@ -239,10 +240,15 @@ run_with_timeout "$STAGE0_BUILD_TIMEOUT_SECS" \
 
 log "== remote: stage1 builds stage2 (native backend; x64-windows PE) =="
 stage2_log="stage1_build_stage2.log"
+progress_env=""
+if [[ "$REMOTE_PROGRESS" == "1" ]]; then
+  # Enable bounded include-aggregator progress prints for hang triage.
+  progress_env="set OREN_PARSE_PROGRESS=1&& "
+fi
 set +e
 run_with_timeout "$STAGE2_BUILD_TIMEOUT_SECS" \
   "${SSH[@]}" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && (oren_stage1.exe build oren.oren --backend native --platform x64-windows --no-debug -o oren_stage2.exe > ${stage2_log} 2>&1)\""
+  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && (${progress_env}oren_stage1.exe build oren.oren --backend native --platform x64-windows --no-debug -o oren_stage2.exe > ${stage2_log} 2>&1)\""
 rc=$?
 set -e
 if [[ "$rc" -ne 0 ]]; then

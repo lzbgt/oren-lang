@@ -326,3 +326,13 @@ Helper (bounded analysis after fetch):
 
 - Prints a short tail plus a few greps for `OREN_DIAG`, crashes, known x64 ABI warnings, and timing breadcrumbs.
 - Designed to avoid dumping thousands of lines.
+
+### Optional: bounded include-aggregator progress (hang triage)
+
+If a remote stage1→stage2 build looks stuck with no useful output, enable a **rate-limited**
+progress log for include‑aggregator parsing. This helps distinguish “stuck in parsing” from “stuck later”.
+
+- Remote Windows bootstrap gate:
+  - `OREN_REMOTE_PROGRESS=1 make verify-stage2-win`
+- Under the hood, this sets:
+  - `OREN_PARSE_PROGRESS=1` on the remote host for the stage1→stage2 build step only.
