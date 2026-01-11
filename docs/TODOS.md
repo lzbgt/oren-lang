@@ -661,3 +661,12 @@ References:
      - Prefer YAML/JSON first (`std:yaml` / `std:json` exist today).
      - Add `std:encoding/xml` only if we need XML ecosystem compatibility or strict schemas.
      - Add CSS subset only after style/layout v0 is stable (avoid full CSS cascade early).
+
+6) **FFI ergonomics + correctness** (M)
+   - Goal: keep `ffi` usable for real-world Win32/Linux APIs without being painful.
+   - Done (2026-01-11): `ffi { ... }` group form exists (parser sugar), supports per-item attrs (e.g. per-symbol `@ffi.ret(...)`).
+   - Done (2026-01-11): group-level default `@ffi.ret("...")` now works as an ergonomic default with per-item override:
+     - Example: `@ffi.link("libc.so.6") @ffi.ret("i32") ffi { atoi, puts, @ffi.ret("void") srand }`
+     - Regression: `tests/native/ffi_group_default_ret.oren` (also covered by x64 compile-only gate)
+   - Next:
+     - Consider allowing explicit external symbol rename for FFI (e.g. `ffi { getpid as _getpid }` or `ffi { sym="..." }`) once needed by real APIs.

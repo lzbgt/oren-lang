@@ -1,0 +1,40 @@
+// FFI group sugar: group-level default `@ffi.ret(...)` with per-item override.
+//
+// Purpose:
+// - Make `ffi { ... }` ergonomic when most symbols share an ABI return kind.
+// - Allow rare exceptions (e.g. `free` is `void`) to override without causing duplicate-ret errors.
+//
+// This file is used by compile-only gates and may also run on Linux/Windows in the native matrix.
+
+@cfg(os="windows")
+@ffi.dll("msvcrt.dll")
+@ffi.ret("i32")
+ffi {
+    // Inherit group default: int
+    atoi,
+    puts,
+    // Override: void
+    @ffi.ret("void") srand
+}
+
+@cfg(os="linux")
+@ffi.link("libc.so.6")
+@ffi.ret("i32")
+ffi {
+    atoi,
+    puts,
+    @ffi.ret("void") srand
+}
+
+@cfg(os="windows,linux")
+fn main() {
+    var n = atoi("123")
+    if n != 123 { return 2 }
+    puts("ffi_group_default_ret: OK")
+    // srand returns void; this is a safe "do nothing" call to exercise void-return plumbing.
+    srand(0)
+    return 0
+}
+
+@cfg(not_os="windows,linux")
+fn main() { return 0 }

@@ -334,8 +334,10 @@ Rolling convenience:
 - `ffi { sym1, sym2, ... }` expands to multiple `ffi sym` declarations, inheriting the same attributes.
 - Per-item attributes are allowed inside the group and are merged with the outer attributes:
   - `@ffi.link("libc.so.6") ffi { @ffi.ret("i32") atoi, puts }`
-  - This is especially useful when many symbols come from the same library but have different ABI return kinds, e.g. on Windows:
-    - `@ffi.dll("crypt32.dll") ffi { PFXImportCertStore, @ffi.ret("i32") CertCloseStore, ... }`
+  - This is especially useful when many symbols come from the same library but have different ABI return kinds.
+- `@ffi.ret("...")` may also appear **before** the group as a default return kind:
+  - `@ffi.link("libc.so.6") @ffi.ret("i32") ffi { atoi, puts, @ffi.ret("void") srand }`
+  - Per-item `@ffi.ret("...")` overrides the group default (so you can set `i32` once and override rare `void`/`u32` cases).
 
 Notes (rolling):
 

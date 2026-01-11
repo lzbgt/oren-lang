@@ -226,10 +226,22 @@ fn parse_block(p) {
                     var origin = stmt["origin"]
                     if origin == "ffi_group" {
                         var pending = parser_take_pending_doc(p)
+                        // Keep `@ffi.ret("...") ffi { ... }` ergonomic by treating it as a default.
+                        // If an item already has `@ffi.ret("...")`, do not also attach the group-level ret.
+                        var group_ret_n = _attrs_count_name(attrs, "ffi.ret")
+                        if group_ret_n > 1 {
+                            parser_add_error(p, "ffi group: at most one @ffi.ret(...) may precede `ffi { ... }`")
+                        }
                         var si = 0
                         while si < oren_list_len(stmt["stmts"]) {
                             var s = stmt["stmts"][si]
-                            attach_attrs_to_stmt(p, s, attrs)
+                            var use_attrs = attrs
+                            if group_ret_n == 1 && s != nil && s["type"] == "FFI" {
+                                if _attrs_has_name(s["attrs"], "ffi.ret") {
+                                    use_attrs = _attrs_filter_out_name(attrs, "ffi.ret")
+                                }
+                            }
+                            attach_attrs_to_stmt(p, s, use_attrs)
                             if pending != nil {
                                 if s["type"] == "Type" || s["type"] == "Import" || s["type"] == "FFI" || s["type"] == "Var" {
                                     s["doc"] = pending

@@ -1279,7 +1279,8 @@ Intrinsics are part of the “reserved surface” (prefix `oren_`, `sys_`) and m
     Rolling sugar:
 
       - `ffi { sym1, sym2, ... }`: expand to multiple `ffi sym` declarations, each inheriting the same outer attributes.
-      - `ffi { @ffi.ret("i32") atoi, @ffi.ret("void") free, puts }`: per-item attrs inside the group (merged with outer attrs).
+      - `ffi { @ffi.ret("i32") atoi, @ffi.ret("void") srand, puts }`: per-item attrs inside the group (merged with outer attrs).
+      - `@ffi.ret("i32") ffi { atoi, puts, @ffi.ret("void") srand }`: group default return-kind, with per-item override (avoid duplication).
 
 **ARM64-only today (rolling):**
 
