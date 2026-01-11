@@ -9,6 +9,11 @@ This repo is intentionally in **rolling ABI** mode. The testing constraint is:
 The current approach is **direct compilation + direct execution** using the compiler binaries
 (`./oren` and `./oren_stage2`) rather than a separate repo test runner.
 
+Rolling note:
+
+- There is no external “`oretest`” runner in this repo anymore; the supported entrypoints are the Makefile targets
+  (`make test`, `make verify-*`) and the scripts under `scripts/`.
+
 ## What “tests” mean in this repo
 
 `tests/` contains multiple categories:
@@ -98,6 +103,13 @@ For broader native coverage:
 
 ```bash
 make test-native-all
+```
+
+Perf tripwire (rolling):
+
+```bash
+# Ensure “compile one file” rtobj-hit stays under the configured threshold.
+make perf-guard-native-hit
 ```
 
 Note (rolling):

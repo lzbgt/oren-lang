@@ -324,6 +324,7 @@ make verify-tier1
 Notes (host assumptions, rolling):
 
 - `scripts/verify_native_matrix.sh` is written for the primary dev workflow: **arm64 macOS host** + persistent Linux container + remote Win11/WSL2 for x86_64 execution.
+  - The entrypoint is host-agnostic (Makefile → script), but the *default workflow* still assumes those prerequisites.
 - If you are not on arm64 macOS, prefer:
   - `make verify-native-quick` (host-native smoke)
   - `make verify-native-x64-compile` (x86_64 compile-only sanity)
@@ -333,6 +334,13 @@ Rolling hang guard:
 
 - `scripts/verify_native_matrix.sh` and the x64 compile-only gate apply a per-build timeout
   (`OREN_NATIVE_BUILD_TIMEOUT_SECS`, default `10`) to keep regressions actionable.
+
+Rolling perf guard (recommended before merging hot-path changes):
+
+```bash
+# Ensure stage2-native compile-one-file (rtobj hit) stays under threshold.
+make perf-guard-native-hit
+```
 
 Environment knobs:
 
