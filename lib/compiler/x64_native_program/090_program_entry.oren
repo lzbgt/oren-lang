@@ -23,6 +23,57 @@ fn x64_env_str_eq(a, b) {
     return true
 }
 
+fn _x64_str_contains_bytes(hay, needle) {
+    // Byte-based substring search for ASCII-ish strings (paths, env vars).
+    // Returns true if `needle` occurs in `hay`.
+    if hay == nil || needle == nil { return false }
+    var n = oren_string_len(hay)
+    var m = oren_string_len(needle)
+    if m == 0 { return true }
+    if m > n { return false }
+    var i = 0
+    while i <= (n - m) {
+        var j = 0
+        while j < m {
+            if (oren_string_byte_at_unchecked(hay, i + j) & 255) != (oren_string_byte_at_unchecked(needle, j) & 255) { break }
+            j = j + 1
+        }
+        if j == m { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _x64_should_use_full_native_runtime_profile(linked) {
+    // Default runtime injection profile heuristic (rolling, perf-oriented):
+    // - Prefer the smaller core profile for typical programs to keep cold rtobj misses bounded.
+    // - Escalate to the full profile when program dependencies imply runtime networking is needed.
+    //
+    // NOTE: This intentionally uses the module graph (import closure), not deep AST scanning,
+    // to keep the decision fast and deterministic.
+    if linked == nil { return true } // safe default
+    var g = linked["module_graph"]
+    if g == nil { return true } // safe default
+
+    // Any module under `lib/std/net/` needs the full runtime profile today because std:net calls
+    // runtime primitives (`oren_tcp_*`, `oren_udp_*`, `oren_select_*`, `oren_net_get`).
+    var entry = g["entry"]
+    if _x64_str_contains_bytes(entry, "/lib/std/net/") || _x64_str_contains_bytes(entry, "\\lib\\std\\net\\") { return true }
+
+    var mods = g["modules"]
+    if mods == nil { return false }
+    var i = 0
+    while i < oren_list_len(mods) {
+        var m = mods[i]
+        if m != nil {
+            var p = m["path"]
+            if _x64_str_contains_bytes(p, "/lib/std/net/") || _x64_str_contains_bytes(p, "\\lib\\std\\net\\") { return true }
+        }
+        i = i + 1
+    }
+    return false
+}
+
 fn _emit_parse_u64_decimal_from_cstr_ptr_x64(ctx, start_ptr_reg, dst_reg, labels, local_fixups) {
     // Parse decimal digits at *(char*)start_ptr_reg into dst_reg (u64).
     //
@@ -1131,11 +1182,21 @@ fn native_compile_program_x64(linked, platform) {
         // Optional: smaller injected runtime profile to keep cold rtobj builds bounded.
         //
         // Values (rolling):
-        // - unset / "full": default full runtime (`lib/runtime_native.oren`)
+        // - unset / "auto": default heuristic (prefers core; escalates to full for std:net)
+        // - "full": force full runtime (`lib/runtime_native.oren`)
         // - "core" / "minimal": reduced runtime (`lib/runtime_native_core.oren`)
         var prof = oren_env("OREN_NATIVE_RUNTIME_PROFILE")
-        if x64_env_str_eq(prof, "core") || x64_env_str_eq(prof, "minimal") {
+        if x64_env_str_eq(prof, "full") {
+            runtime_path = "lib/runtime_native.oren"
+        } else if x64_env_str_eq(prof, "core") || x64_env_str_eq(prof, "minimal") {
             runtime_path = "lib/runtime_native_core.oren"
+        } else {
+            // Default-on heuristic:
+            // - core unless the program imports `std:net/*` (which requires runtime networking primitives).
+            runtime_path = "lib/runtime_native_core.oren"
+            if x64_env_str_eq(prof, "auto") || prof == nil || prof == "" {
+                if _x64_should_use_full_native_runtime_profile(linked) { runtime_path = "lib/runtime_native.oren" }
+            }
         }
     }
     var linked2 = linked

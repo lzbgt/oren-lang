@@ -9,10 +9,10 @@
 // - Include order remains semantically significant for the runtime.
 // - This profile intentionally excludes heavier subsystems:
 //   - typed numeric buffers (HPC/SIMD surfaces)
-//   - TCP/UDP/select networking surfaces
+//   - TCP/UDP networking surfaces
 //   - AVM bridge
 //   - `oren_net_get` helper (depends on TCP surface)
-//   - SHA-256 helpers (used by AVM/tooling; kept in full runtime)
+//   - AVM-only helpers (kept in full runtime)
 //
 // Edit the runtime sources under `lib/runtime_native/*.oren`.
 
@@ -24,6 +24,8 @@
 // @include "runtime_native/035_capsule_stubs.oren"
 // @include "runtime_native/090_env.oren"
 // @include "runtime_native/100_time.oren"
+// Entropy is part of the “typical program” surface (crypto, randomness, UUIDs).
+// @include "runtime_native/102_entropy.oren"
 // @include "runtime_native/105_call_depth.oren"
 // @include "runtime_native/110_mem_diag.oren"
 // @include "runtime_native/120_first_class_fn.oren"
@@ -33,6 +35,8 @@
 // @include "runtime_native/160_iteration.oren"
 // @include "runtime_native/170_lists.oren"
 // @include "runtime_native/180_bytes_helpers.oren"
+// SHA-256 is used by tooling (cache keys, bundling) and is part of the “typical program” surface.
+// @include "runtime_native/185_sha256.oren"
 // @include "runtime_native/190_byte_order.oren"
 // Core typed buffers: keep u8_buf IO without HPC kernels.
 // @include "runtime_native/200_typed_buffers_core.oren"
@@ -40,6 +44,8 @@
 // @include "runtime_native/215_stat.oren"
 // @include "runtime_native/220_path_helpers.oren"
 // @include "runtime_native/230_binary_io.oren"
+// Select (pipe-based channels) is part of the “typical program” concurrency surface.
+// @include "runtime_native/245_select.oren"
 // Threads include allocator internals (`free`) used by almost everything.
 // @include "runtime_native/260_threads.oren"
 // @include "runtime_native/265_result.oren"

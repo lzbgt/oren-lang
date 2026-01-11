@@ -107,7 +107,8 @@ References:
 
 - Updated (2026-01-10): stage2-native `./scripts/bench_native_compile_one_file.sh --no-debug` on `arm64-macos` (isolated rtobj dir; seed disabled) is now ~`3.4s` miss / ~`0.5s` hit.
   - Prior ~`15s` measurements were from a rolling regression where arm64 rtobj build fell back (runtime `g_storage` conflict + rtobj fixup `reg` dropped in meta, causing startup crashes); this is now fixed and the low-level breakdown moved to `docs/TODOS_ARCHIVE.md`.
-  - New (2026-01-05): introduced a smaller “core” native runtime entry (`lib/runtime_native_core.oren`) selectable via `OREN_NATIVE_RUNTIME_PROFILE=core` so cold rtobj misses can be bounded for typical programs without removing the full runtime surface (default remains `lib/runtime_native.oren`).
+- New (2026-01-05): introduced a smaller “core” native runtime entry (`lib/runtime_native_core.oren`) selectable via `OREN_NATIVE_RUNTIME_PROFILE=core` so cold rtobj misses can be bounded for typical programs.
+  - Updated (2026-01-11): default profile is now **auto** — the compiler prefers **core** for programs that don’t import `std:net/*`, and escalates to the **full** runtime when networking modules are present.
     - Seed support: `scripts/build_runtime_astbin_seed.sh` now seeds full+core+capsule runtime astbins; `scripts/build_rtobj_seed.sh` supports `--runtime-profile` (or env `OREN_NATIVE_RUNTIME_PROFILE`) without pruning other profiles' seeds.
     - Fixed (2026-01-06): build cache key now hashes the effective injected native runtime entry (full vs core), so switching `OREN_NATIVE_RUNTIME_PROFILE` cannot reuse cached artifacts built with a different runtime (details in `docs/TODOS_ARCHIVE.md`).
   - Fixed (2026-01-10): runtime astbin cache decode now sanity-checks decoded bundles and treats corrupted/stale blobs as cache misses (prevents stage2-native crashes in x64 emit/helpers when cache contents are invalid).

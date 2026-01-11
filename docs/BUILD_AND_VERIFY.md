@@ -134,9 +134,11 @@ Troubleshooting overrides (force a specific input, bypassing default behavior):
 
 Runtime profile (rolling, perf-oriented):
 
-- `OREN_NATIVE_RUNTIME_PROFILE=core` (or `minimal`) uses a reduced runtime entry file (`lib/runtime_native_core.oren`)
-  for non-capsule builds, intended to keep **cold rtobj misses bounded** on stage2-native compilers.
-- Default (unset / `full`) keeps the full runtime (`lib/runtime_native.oren`).
+- Default (unset / `auto`): the compiler selects the injected runtime profile automatically:
+  - **core** for typical programs (smaller runtime; bounded cold rtobj misses)
+  - **full** when the program imports `std:net/*` (needs runtime TCP/UDP/etc primitives)
+- `OREN_NATIVE_RUNTIME_PROFILE=core` (or `minimal`) forces the reduced runtime entry file (`lib/runtime_native_core.oren`).
+- `OREN_NATIVE_RUNTIME_PROFILE=full` forces the full runtime (`lib/runtime_native.oren`).
 - Seed tooling: `make astbin-seed` now also generates a seed astbin for the core runtime profile (in addition to full + capsule).
 
 Stage0 bootstrap constraint (keep stage1 buildable):

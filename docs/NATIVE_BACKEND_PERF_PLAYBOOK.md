@@ -46,6 +46,9 @@ OREN_NATIVE_RUNTIME_PROFILE=core \
   ./scripts/bench_native_compile_one_file.sh --no-debug
 ```
 
+Note (rolling default): when `OREN_NATIVE_RUNTIME_PROFILE` is unset (or `auto`), the compiler already prefers the
+core runtime for programs that do not import `std:net/*`, and escalates to the full runtime for networking programs.
+
 Optional bounded tracing:
 
 ```bash
