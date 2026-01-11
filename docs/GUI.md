@@ -294,20 +294,23 @@ These are still valuable but should not be the only correctness story.
 
 Implemented (headless, portable):
 
-- `std:ui/core` (`lib/std/ui/core.oren`): node constructors + minimal keyed `diff()`
+- `std:ui/core` (`lib/std/ui/core.oren`): node constructors + keyed `diff()` + `apply_patch()` (actionable patches)
 - `std:ui/layout` (`lib/std/ui/layout.oren`): deterministic layout v0 (`Row`/`Column`/`Stack`, fixed-size leaves)
 - `std:ui/style` (`lib/std/ui/style.oren`): deterministic style merge (no CSS yet)
 - `std:ui/render` (`lib/std/ui/render.oren`): render → deterministic command buffer (no platform drawing yet)
 - `std:ui/raster` (`lib/std/ui/raster.oren`): deterministic software rasterization into RGBA bytes (headless reference)
 - `std:ui/ppm` (`lib/std/ui/ppm.oren`): minimal PPM encoder for debugging and golden byte tests
+- `std:ui/color` (`lib/std/ui/color.oren`): shared hex color parsing/validation (`#RRGGBB` / `#RRGGBBAA`)
 
 Regression gates (headless):
 
 - `make test-avm`
   - `tests/avm/test_ui_layout_v0.oren`
-  - `tests/avm/test_ui_render_v0.oren`
-  - `tests/avm/test_ui_raster_v0.oren`
-  - `tests/avm/test_ui_ppm_v0.oren`
+ - `tests/avm/test_ui_render_v0.oren`
+ - `tests/avm/test_ui_raster_v0.oren`
+ - `tests/avm/test_ui_ppm_v0.oren`
+ - `tests/avm/test_ui_patch_v0.oren`
+ - `tests/avm/test_ui_color_v0.oren`
 
 ## 7) Roadmap tasks (tracked in `docs/TODOS.md`)
 

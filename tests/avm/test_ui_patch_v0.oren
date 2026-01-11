@@ -1,0 +1,71 @@
+// AVM headless UI test: std:ui diff + patch-apply v0
+//
+// Goal: `ui_core.diff(old,new)` should produce an actionable patch that
+// `ui_core.apply_patch(old, ops)` can apply to yield `new`.
+
+import ui_core "std:ui/core"
+
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn test_props_set_patch() {
+    var old = ui_core.box("a", 1, 1)
+    old["p"]["bg"] = "#ff0000"
+
+    var new = ui_core.box("a", 1, 1)
+    new["p"]["bg"] = "#00ff00"
+
+    var ops = ui_core.diff(old, new)
+    var patched = ui_core.apply_patch(ui_core.clone_node(old), ops)
+    assert_eq(patched, new)
+}
+
+fn test_insert_remove_nested() {
+    var inner_old = ui_core.column("inner", [
+        ui_core.box("x", 1, 1)
+    ])
+    var old = ui_core.column("root", [
+        ui_core.box("a", 2, 2),
+        inner_old,
+        ui_core.box("b", 3, 3)
+    ])
+
+    var inner_new = ui_core.column("inner", [
+        ui_core.box("y", 1, 1)
+    ])
+    var new = ui_core.column("root", [
+        // remove "a"
+        inner_new,          // nested change (x -> y)
+        ui_core.box("c", 4, 4), // insert "c"
+        ui_core.box("b", 3, 3)
+    ])
+
+    var ops = ui_core.diff(old, new)
+    var patched = ui_core.apply_patch(ui_core.clone_node(old), ops)
+    assert_eq(patched, new)
+}
+
+fn test_replace_root_tag_change() {
+    var old = ui_core.box("a", 1, 1)
+    var new = ui_core.column("a", [ui_core.box("b", 2, 2)])
+    var ops = ui_core.diff(old, new)
+    var patched = ui_core.apply_patch(ui_core.clone_node(old), ops)
+    assert_eq(patched, new)
+}
+
+fn main() {
+    test_props_set_patch()
+    test_insert_remove_nested()
+    test_replace_root_tag_change()
+    exit(0)
+}
+

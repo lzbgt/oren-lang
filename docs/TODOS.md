@@ -614,6 +614,10 @@ References:
      - Define a portable node tree representation + diff contract (`std:ui/core`).
    - Phase 1 (portable core):
      - Implement `std:ui/core` (Node, keying rules, diff/patch).
+       - Done (2026-01-11): `std:ui/core.diff` now emits actionable patches and `std:ui/core.apply_patch` applies them:
+         - Ops: `replace`, `set_props`, `insert`, `remove` (key-path based)
+         - Fixture: `tests/avm/test_ui_patch_v0.oren`
+         - Gate: `make test-avm`
      - Done (2026-01-11): `std:ui/layout` now supports Row/Column/Stack + padding + gap + basic alignment.
        - Regression: `tests/avm/test_ui_layout_v0.oren` includes padding/gap/alignment assertions.
      - Implement `std:ui/style` v0 (style maps + deterministic merge rules).
@@ -637,6 +641,10 @@ References:
      - Done (2026-01-09): added `std:ui/commands.validate` v0 + wired raster validation by default:
        - Module: `lib/std/ui/commands.oren`
        - Fixture: `tests/avm/test_ui_cmds_validate_v0.oren`
+       - Gate: `make test-avm`
+     - Done (2026-01-11): added `std:ui/color` v0 (shared hex color parse/validate) and refactored raster + validator to use it:
+       - Module: `lib/std/ui/color.oren`
+       - Fixture: `tests/avm/test_ui_color_v0.oren`
        - Gate: `make test-avm`
      - Done (2026-01-11): `make test` (native quick integration) now includes a headless UI smoke:
        - Fixture: `tests/native/test_quick_integration_native.oren` (`test_ui_headless`)

@@ -1,0 +1,53 @@
+// AVM headless UI test: std:ui/color v0
+
+import ui_color "std:ui/color"
+
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_true(x) {
+    if x { return 0 }
+    fail()
+}
+
+fn assert_eq(a, b) {
+    if a == b { return 0 }
+    fail()
+}
+
+fn test_parse_hex_rgb() {
+    var r = ui_color.parse_hex("#010203")
+    assert_eq(r["ok"], 1)
+    assert_eq(r["r"], 1)
+    assert_eq(r["g"], 2)
+    assert_eq(r["b"], 3)
+    assert_eq(r["a"], 255)
+}
+
+fn test_parse_hex_rgba() {
+    var r = ui_color.parse_hex("#0a0b0c0d")
+    assert_eq(r["ok"], 1)
+    assert_eq(r["r"], 10)
+    assert_eq(r["g"], 11)
+    assert_eq(r["b"], 12)
+    assert_eq(r["a"], 13)
+}
+
+fn test_is_hex() {
+    assert_true(ui_color.is_hex("#ffffff"))
+    assert_true(ui_color.is_hex("#ffffffff"))
+    assert_true(ui_color.is_hex("red") == false)
+    assert_true(ui_color.is_hex("#12") == false)
+}
+
+fn main() {
+    test_parse_hex_rgb()
+    test_parse_hex_rgba()
+    test_is_hex()
+    exit(0)
+}
+

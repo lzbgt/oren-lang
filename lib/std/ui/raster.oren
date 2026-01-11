@@ -19,41 +19,7 @@
 //     purely as a deterministic marker for tests.
 
 import ui_cmds "std:ui/commands"
-
-fn _hex_nibble(b) {
-    // b is ASCII code unit
-    if b >= 48 && b <= 57 { return b - 48 } // '0'..'9'
-    if b >= 97 && b <= 102 { return b - 87 } // 'a'..'f'
-    if b >= 65 && b <= 70 { return b - 55 } // 'A'..'F'
-    return -1
-}
-
-fn _parse_color_hex(s) {
-    // Returns map {"ok":1,"r":..,"g":..,"b":..,"a":..} or {"ok":0,"err":...}
-    if s == nil { return {"ok": 0, "err": "color is nil"} }
-    var n = oren_string_len(s)
-    if n != 7 && n != 9 { return {"ok": 0, "err": "color must be #RRGGBB or #RRGGBBAA"} }
-    if oren_string_slice(s, 0, 1) != "#" { return {"ok": 0, "err": "color must start with #"} }
-
-    // Use std bytes helpers so this works under AVM bytecode too.
-    var hex = oren_string_slice(s, 1, n)
-    var bb = oren_bytes_from_hex(hex)
-    if oren_is_err(bb) { return {"ok": 0, "err": "invalid hex digits"} }
-    var bl = oren_bytes_len(bb)
-    if oren_is_err(bl) { return {"ok": 0, "err": "invalid bytes"} }
-    if bl != 3 && bl != 4 { return {"ok": 0, "err": "color hex must decode to 3 or 4 bytes"} }
-
-    var r = oren_bytes_get_u8(bb, 0)
-    var g = oren_bytes_get_u8(bb, 1)
-    var b = oren_bytes_get_u8(bb, 2)
-    if oren_is_err(r) || oren_is_err(g) || oren_is_err(b) { return {"ok": 0, "err": "invalid bytes"} }
-    var a = 255
-    if bl == 4 {
-        a = oren_bytes_get_u8(bb, 3)
-        if oren_is_err(a) { return {"ok": 0, "err": "invalid alpha byte"} }
-    }
-    return {"ok": 1, "r": r, "g": g, "b": b, "a": a}
-}
+import ui_color "std:ui/color"
 
 fn _set_px_rgba(buf, w, h, x, y, r, g, b, a) {
     if x < 0 || y < 0 || x >= w || y >= h { return 0 }
@@ -91,7 +57,7 @@ fn rasterize(cmds, w, h, opts) {
 
     var bg = opts["clear_color"]
     if bg != nil {
-        var c0 = _parse_color_hex(bg)
+        var c0 = ui_color.parse_hex(bg)
         if c0["ok"] != 1 { return oren_err(4, "rasterize: invalid clear_color") }
         var y = 0
         while y < h {
@@ -111,7 +77,7 @@ fn rasterize(cmds, w, h, opts) {
         var opm = cmds[ci]
         var op = opm["op"]
         if op == "fill_rect" {
-            var c = _parse_color_hex(opm["color"])
+            var c = ui_color.parse_hex(opm["color"])
             if c["ok"] != 1 { return oren_err(4, "rasterize: invalid fill_rect color") }
             var rx = opm["x"]
             var ry = opm["y"]
@@ -129,7 +95,7 @@ fn rasterize(cmds, w, h, opts) {
             }
         } else if op == "text" {
             // Deterministic marker: draw 1 pixel per character in the string at y.
-            var c2 = _parse_color_hex(opm["color"])
+            var c2 = ui_color.parse_hex(opm["color"])
             if c2["ok"] != 1 { return oren_err(4, "rasterize: invalid text color") }
             var tx = opm["x"]
             var ty = opm["y"]

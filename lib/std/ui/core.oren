@@ -60,16 +60,21 @@ fn _idx_by_key(cs) {
 }
 
 fn diff(old_node, new_node) {
-    // Minimal structural diff (rolling v0):
-    // - if tags or keys differ: replace subtree
-    // - else: diff children by key, emitting child replace/insert/remove ops
+    // Minimal diff that produces an *actionable* patch for `apply_patch`.
+    //
+    // Path conventions:
+    // - `path` is a list of *keys* from the root to a node.
+    // - `[]` means "the root node".
     //
     // Patch op shape (list of maps):
-    // - {"op":"replace","path":[...],"node":<new node>}
-    // - {"op":"insert","path":[...],"idx":<int>,"node":<new node>}
-    // - {"op":"remove","path":[...],"idx":<int>}
+    // - {"op":"replace","path":[...],"node":<node|nil>}         // replace node at `path`
+    // - {"op":"set_props","path":[...],"props":<map|nil>}       // replace node["p"]
+    // - {"op":"insert","path":[parent...],"idx":<int>,"node":<node>} // insert into parent children at idx
+    // - {"op":"remove","path":[parent...],"key":<string>}       // remove child by key from parent
     //
-    // This is intentionally small and stable enough for early bring-up and testing.
+    // Notes:
+    // - For now we treat props as atomic and emit `set_props` when they differ.
+    // - Children are diffed by key; unkeyed children force a subtree `replace`.
     if old_node == nil && new_node == nil { return [] }
     if old_node == nil { return [{"op": "replace", "path": [], "node": new_node}] }
     if new_node == nil { return [{"op": "replace", "path": [], "node": new_node}] }
@@ -79,6 +84,14 @@ fn diff(old_node, new_node) {
     }
 
     var out = []
+
+    // Props: treat as atomic for v0.
+    var op0 = old_node["p"]
+    var np0 = new_node["p"]
+    if op0 != np0 {
+        oren_list_push(out, {"op": "set_props", "path": [], "props": np0})
+    }
+
     var old_c = old_node["c"]
     var new_c = new_node["c"]
     if old_c == nil { old_c = [] }
@@ -92,7 +105,7 @@ fn diff(old_node, new_node) {
     while i < oren_list_len(old_c) {
         var ok = old_c[i]["k"]
         if ok != nil && new_idx[ok] == nil {
-            oren_list_push(out, {"op": "remove", "path": [ok], "idx": i})
+            oren_list_push(out, {"op": "remove", "path": [], "key": ok})
         }
         i = i + 1
     }
@@ -108,7 +121,7 @@ fn diff(old_node, new_node) {
         }
         var oi = old_idx[nk]
         if oi == nil {
-            oren_list_push(out, {"op": "insert", "path": [nk], "idx": j, "node": nn})
+            oren_list_push(out, {"op": "insert", "path": [], "idx": j, "node": nn})
         } else {
             var sub = diff(old_c[oi], nn)
             // Prefix child key path.
@@ -128,3 +141,179 @@ fn diff(old_node, new_node) {
     return out
 }
 
+fn _clone_map_shallow(m) {
+    if m == nil { return nil }
+    var out = {}
+    for k in m {
+        out[k] = m[k]
+    }
+    return out
+}
+
+fn clone_node(n) {
+    // Clone UI node recursively.
+    // Props map is cloned shallowly (values are reused).
+    if n == nil { return nil }
+    var tag = n["t"]
+    var key = n["k"]
+    var p = _clone_map_shallow(n["p"])
+    var cs = n["c"]
+    if cs == nil { cs = [] }
+    var out_children = []
+    var i = 0
+    while i < oren_list_len(cs) {
+        oren_list_push(out_children, clone_node(cs[i]))
+        i = i + 1
+    }
+    return {"t": tag, "k": key, "p": p, "c": out_children}
+}
+
+fn _find_child_index_by_key(cs, k) {
+    if cs == nil || k == nil { return nil }
+    var i = 0
+    while i < oren_list_len(cs) {
+        var n = cs[i]
+        if n != nil && n["k"] == k { return i }
+        i = i + 1
+    }
+    return nil
+}
+
+fn _get_node_at_path(root, path) {
+    if root == nil { return nil }
+    if path == nil { return root }
+    var cur = root
+    var i = 0
+    while i < oren_list_len(path) {
+        var k = path[i]
+        var cs = cur["c"]
+        if cs == nil { return nil }
+        var idx = _find_child_index_by_key(cs, k)
+        if idx == nil { return nil }
+        cur = cs[idx]
+        i = i + 1
+    }
+    return cur
+}
+
+fn _list_insert_at(xs, idx, v) {
+    if xs == nil { xs = [] }
+    var n = oren_list_len(xs)
+    if idx == nil { idx = n }
+    if idx < 0 { idx = 0 }
+    if idx > n { idx = n }
+    var out = []
+    var i = 0
+    while i < n {
+        if i == idx { oren_list_push(out, v) }
+        oren_list_push(out, xs[i])
+        i = i + 1
+    }
+    if idx == n { oren_list_push(out, v) }
+    return out
+}
+
+fn _list_remove_key(xs, k) {
+    if xs == nil { return [] }
+    var out = []
+    var i = 0
+    while i < oren_list_len(xs) {
+        var n = xs[i]
+        if n == nil || n["k"] != k {
+            oren_list_push(out, n)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _path_parent(path) {
+    // Returns {"parent":<list prefix>, "leaf":<last>} for non-empty path; {"parent":[], "leaf":nil} for empty.
+    if path == nil || oren_list_len(path) == 0 { return {"parent": [], "leaf": nil} }
+    var n = oren_list_len(path)
+    var out = []
+    var i = 0
+    while i < n - 1 {
+        oren_list_push(out, path[i])
+        i = i + 1
+    }
+    return {"parent": out, "leaf": path[n - 1]}
+}
+
+fn apply_patch(root, ops) {
+    // Apply ops to `root` and return the updated tree.
+    //
+    // This is intentionally tolerant (rolling):
+    // - missing paths are ignored (best-effort)
+    // - replace at missing path becomes insert-at-end under the parent
+    //
+    // Note: this may mutate nodes reachable from `root`. Use `clone_node` first if you need persistence.
+    if ops == nil { return root }
+    var out_root = root
+    var i = 0
+    while i < oren_list_len(ops) {
+        var opm = ops[i]
+        if opm == nil { i = i + 1; continue }
+        var op = opm["op"]
+        var path = opm["path"]
+        if path == nil { path = [] }
+
+        if op == "replace" {
+            if oren_list_len(path) == 0 {
+                out_root = opm["node"]
+            } else {
+                var pp = _path_parent(path)
+                var parent_path = pp["parent"]
+                var leaf_key = pp["leaf"]
+                var parent = _get_node_at_path(out_root, parent_path)
+                if parent != nil {
+                    var cs = parent["c"]
+                    if cs == nil { cs = [] }
+                    var idx = _find_child_index_by_key(cs, leaf_key)
+                    if idx == nil {
+                        // Insert at end.
+                        parent["c"] = _list_insert_at(cs, oren_list_len(cs), opm["node"])
+                    } else {
+                        cs[idx] = opm["node"]
+                        parent["c"] = cs
+                    }
+                }
+            }
+        } else if op == "set_props" {
+            var n = _get_node_at_path(out_root, path)
+            if n != nil {
+                n["p"] = opm["props"]
+            }
+        } else if op == "insert" {
+            var parent2 = _get_node_at_path(out_root, path)
+            if parent2 != nil {
+                var cs2 = parent2["c"]
+                if cs2 == nil { cs2 = [] }
+                // If a node with the same key already exists, treat as replace.
+                var nk = opm["node"]
+                var k2 = nil
+                if nk != nil { k2 = nk["k"] }
+                if k2 != nil {
+                    var existing = _find_child_index_by_key(cs2, k2)
+                    if existing != nil {
+                        cs2[existing] = nk
+                        parent2["c"] = cs2
+                    } else {
+                        parent2["c"] = _list_insert_at(cs2, opm["idx"], nk)
+                    }
+                } else {
+                    parent2["c"] = _list_insert_at(cs2, opm["idx"], nk)
+                }
+            }
+        } else if op == "remove" {
+            var parent3 = _get_node_at_path(out_root, path)
+            if parent3 != nil {
+                var cs3 = parent3["c"]
+                parent3["c"] = _list_remove_key(cs3, opm["key"])
+            }
+        }
+
+        i = i + 1
+    }
+    return out_root
+}

@@ -1,0 +1,48 @@
+// std:ui/color (rolling)
+//
+// Small, backend-neutral color helpers for `std:ui`.
+//
+// v0 supported formats:
+// - "#RRGGBB"
+// - "#RRGGBBAA"
+//
+// This module is intentionally tiny so it can be reused by:
+// - command-buffer validators (`std:ui/commands`)
+// - deterministic headless rasterizer (`std:ui/raster`)
+// - future platform shims (Skia/CoreGraphics/D2D/etc)
+
+fn parse_hex(s) {
+    // Returns:
+    // - {"ok":1,"r":u8,"g":u8,"b":u8,"a":u8}
+    // - {"ok":0,"err":string}
+    if s == nil { return {"ok": 0, "err": "color is nil"} }
+    var n = oren_string_len(s)
+    if oren_is_err(n) { return {"ok": 0, "err": "color must be string"} }
+    if n != 7 && n != 9 { return {"ok": 0, "err": "color must be #RRGGBB or #RRGGBBAA"} }
+    if oren_string_slice(s, 0, 1) != "#" { return {"ok": 0, "err": "color must start with #"} }
+
+    // Use std bytes helpers so this works under AVM bytecode too.
+    var hex = oren_string_slice(s, 1, n)
+    var bb = oren_bytes_from_hex(hex)
+    if oren_is_err(bb) { return {"ok": 0, "err": "invalid hex digits"} }
+    var bl = oren_bytes_len(bb)
+    if oren_is_err(bl) { return {"ok": 0, "err": "invalid bytes"} }
+    if bl != 3 && bl != 4 { return {"ok": 0, "err": "color hex must decode to 3 or 4 bytes"} }
+
+    var r = oren_bytes_get_u8(bb, 0)
+    var g = oren_bytes_get_u8(bb, 1)
+    var b = oren_bytes_get_u8(bb, 2)
+    if oren_is_err(r) || oren_is_err(g) || oren_is_err(b) { return {"ok": 0, "err": "invalid bytes"} }
+    var a = 255
+    if bl == 4 {
+        a = oren_bytes_get_u8(bb, 3)
+        if oren_is_err(a) { return {"ok": 0, "err": "invalid alpha byte"} }
+    }
+    return {"ok": 1, "r": r, "g": g, "b": b, "a": a}
+}
+
+fn is_hex(s) {
+    var r = parse_hex(s)
+    return r["ok"] == 1
+}
+

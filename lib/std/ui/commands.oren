@@ -8,6 +8,8 @@
 //
 // See `docs/GUI.md` for the current v0 schema.
 
+import ui_color "std:ui/color"
+
 fn _is_int(v) {
     // Backends differ in how they signal "wrong type" for intrinsics.
     // We keep this conservative and non-crashy by using `oren_int_to_string`:
@@ -27,17 +29,8 @@ fn _is_string(v) {
 }
 
 fn _hex_ok(s) {
-    // Accept "#RRGGBB" or "#RRGGBBAA" (case-insensitive).
-    if _is_string(s) == false { return false }
-    var n = oren_string_len(s)
-    if n != 7 && n != 9 { return false }
-    if oren_string_slice(s, 0, 1) != "#" { return false }
-    var tail = oren_string_slice(s, 1, n)
-    var b = oren_bytes_from_hex(tail)
-    if oren_is_err(b) { return false }
-    var bl = oren_bytes_len(b)
-    if oren_is_err(bl) { return false }
-    return bl == 3 || bl == 4
+    // Accept "#RRGGBB" or "#RRGGBBAA" (case-insensitive hex).
+    return ui_color.is_hex(s)
 }
 
 fn validate(cmds, w, h, opts) {

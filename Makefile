@@ -235,7 +235,9 @@ endif
 		tests/avm/test_vproc_no_host_proc.oren \
 		tests/avm/test_vnet_no_host_net.oren \
 		tests/avm/test_switch.oren \
+		tests/avm/test_ui_color_v0.oren \
 		tests/avm/test_ui_layout_v0.oren \
+		tests/avm/test_ui_patch_v0.oren \
 		tests/avm/test_ui_render_v0.oren \
 		tests/avm/test_ui_raster_v0.oren \
 		tests/avm/test_ui_ppm_v0.oren \
