@@ -255,6 +255,11 @@ Cross‑arch Tier‑1 matrix (stage1 + stage2):
 # Optional: stage0→stage1→stage2 self-host build on native Windows (stage1 builds stage2 via native backend)
 ./scripts/verify_windows_stage2_from_stage1.sh
 
+# Notes:
+# - When this gate fails, it stores bounded diagnostics under:
+#   - `project-doc/remote/<timestamp>/stage1_build_stage2.log` (full remote build log, best-effort download)
+#   - `project-doc/remote/<timestamp>/stage2_windows_env.log` (small environment snapshot: cl.exe/link.exe/vswhere.exe presence)
+
 		# Local sanity gate: compile-only for x64-linux + x64-windows (stage1 + stage2)
 		make verify-native-x64-compile
 

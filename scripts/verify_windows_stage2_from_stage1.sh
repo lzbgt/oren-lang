@@ -38,20 +38,22 @@ now_stamp() {
   date +"%Y%m%d_%H%M%S"
 }
 
+RUN_TS="$(now_stamp)"
+OUT_DIR="project-doc/remote/${RUN_TS}"
+mkdir -p "$OUT_DIR" 2>/dev/null || true
+
 capture_remote_log_best_effort() {
   # Best-effort download of a remote log into project-doc for later inspection.
   # Keep stdout quiet; never fail the main gate because of log capture.
   local remote_rel="$1"
   local base
   base="$(basename "$remote_rel")"
-  local out_dir="project-doc/remote/$(now_stamp)"
-  mkdir -p "$out_dir" 2>/dev/null || true
   set +e
-  "${SCP[@]}" "${REMOTE_HOST}:${remote_rel}" "${out_dir}/${base}" >/dev/null 2>&1
+  scp_retry "${REMOTE_HOST}:${remote_rel}" "${OUT_DIR}/${base}" >/dev/null 2>&1
   local rc=$?
   set -e
   if [[ "$rc" -eq 0 ]]; then
-    echo "Captured remote log: ${out_dir}/${base}" >&2
+    echo "Captured remote log: ${OUT_DIR}/${base}" >&2
   fi
 }
 
@@ -214,6 +216,34 @@ remote_preflight() {
 }
 
 remote_preflight
+
+log "== remote: environment snapshot (best-effort; bounded) =="
+{
+  echo "local_sha=$(git rev-parse HEAD 2>/dev/null || true)"
+  set +e
+  run_with_timeout 20 "${SSH[@]}" "cmd.exe /v:on /c \"\
+echo === win env === & \
+echo OS=%OS% & \
+ver & \
+echo PROCESSOR_ARCHITECTURE=%PROCESSOR_ARCHITECTURE% & \
+echo PROCESSOR_ARCHITEW6432=%PROCESSOR_ARCHITEW6432% & \
+echo USERPROFILE=%USERPROFILE% & \
+echo COMSPEC=%COMSPEC% & \
+echo PATHEXT=%PATHEXT% & \
+where cl.exe >nul 2>nul && where cl.exe || echo NOTE: cl.exe not found in PATH & \
+where link.exe >nul 2>nul && where link.exe || echo NOTE: link.exe not found in PATH & \
+where vswhere.exe >nul 2>nul && where vswhere.exe || echo NOTE: vswhere.exe not found in PATH & \
+if exist \\\"%ProgramFiles(x86)%\\\\Microsoft Visual Studio\\\\Installer\\\\vswhere.exe\\\" echo VSWHERE_STD_PF86=%ProgramFiles(x86)%\\\\Microsoft Visual Studio\\\\Installer\\\\vswhere.exe & \
+if exist \\\"%ProgramFiles%\\\\Microsoft Visual Studio\\\\Installer\\\\vswhere.exe\\\" echo VSWHERE_STD_PF=%ProgramFiles%\\\\Microsoft Visual Studio\\\\Installer\\\\vswhere.exe & \
+where powershell.exe >nul 2>nul && where powershell.exe || echo NOTE: powershell.exe not found in PATH & \
+where tar.exe >nul 2>nul && where tar.exe || echo NOTE: tar.exe not found in PATH\""
+  rc=$?
+  set -e
+  echo "remote_env_rc=$rc"
+} >"build/logs/stage2_windows_env_${RUN_TS}.log" 2>&1 || true
+
+cp -f "build/logs/stage2_windows_env_${RUN_TS}.log" "${OUT_DIR}/stage2_windows_env.log" 2>/dev/null || true
+log "Captured local log: ${OUT_DIR}/stage2_windows_env.log"
 
 log "== build: stage0 bootstrap (windows/amd64) =="
 GOOS=windows GOARCH=amd64 go build -o build/tmp/oren_bootstrap_win.exe ./cmd/oren

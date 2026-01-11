@@ -149,6 +149,11 @@ Log capture (rolling):
 - On failure, the script prints only a tail of the remote build log to keep output bounded.
 - It also attempts to download the **full** remote stage1→stage2 build log into:
   - `project-doc/remote/<timestamp>/stage1_build_stage2.log`
+
+- It also captures a small **Windows environment snapshot** (best-effort) into:
+  - `project-doc/remote/<timestamp>/stage2_windows_env.log`
+  - This is intentionally bounded and helps diagnose “not in PATH” issues (`cl.exe`, `link.exe`, `vswhere.exe`)
+    when the remote host is not a full VS Developer Prompt environment.
   - This is best-effort (SSH/SCP path semantics can vary across Win11 OpenSSH environments).
 
 Makefile shortcut (arm64 macOS host workflow):
