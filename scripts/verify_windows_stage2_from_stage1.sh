@@ -286,7 +286,7 @@ run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
 log "== remote: stage2 builds a tiny C-backend exe (default --cc; MSVC cl.exe bring-up) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
   "${SSH[@]}" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && oren_stage2.exe build examples\\\\myapp.oren --backend c --no-cache -o myapp_c_stage2.exe\""
+  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& oren_stage2.exe build examples\\\\myapp.oren --backend c --no-cache -o myapp_c_stage2.exe\""
 
 log "== remote: run the produced C-backend exe =="
 out_c="$(

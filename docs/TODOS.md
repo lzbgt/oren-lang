@@ -163,6 +163,7 @@ References:
 			         - Evidence (full captured remote log): `project-doc/remote/20260110_131230/s2_build_failure.log`
 			         - Regression gate: `make verify-stage2-win` (stage0→stage1→stage2 + compile+run).
 				         - Verified (2026-01-10): `make verify-stage2-win` / `scripts/verify_windows_stage2_from_stage1.sh` passes again, including the nested-path backslash input (`examples\\myapp.oren`), even when `OS` env is intentionally unset on the remote session (regression guard).
+				         - Strengthened (2026-01-11): the same gate now also unsets `OS` for the Windows C-backend smoke (`--backend c`) so toolchain helpers like `file_exists(...)` are exercised under the “OS missing” condition too.
 				         - Note: scripts run a fast SSH preflight (with connect timeouts + a single retry for transient proxy flake) and emit bounded probe logs under `build/logs/*remote_probe*.log` when proxy/hostname resolution breaks.
 			         - Done (2026-01-10): `scripts/analyze_stage2_failure_log.sh` no longer uses backticks in `echo` (avoid accidental command substitution; prints literal guidance + optional local SHA safely).
 			         - Done (2026-01-10): `scripts/verify_windows_stage2_from_stage1.sh` attempts to download the full stage1→stage2 build log into `project-doc/remote/<timestamp>/stage1_build_stage2.log` (best-effort; keeps console output bounded by default).
