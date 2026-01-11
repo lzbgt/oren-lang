@@ -56,6 +56,7 @@ When a command is host-specific (e.g. “remote Windows”), it is called out ex
 
 - Build stage1 + stage2 (native backend): `make stage2`
 - Fast stage1 + stage2 smoke (native): `make verify-native-quick`
+- Perf tripwire (rtobj-hit compile-one-file bound): `make perf-guard-native-hit`
 - Compile-only cross x64 targets (native backend): `make verify-native-x64-compile`
   - This compile-only gate also covers native shared-library emission (`--lib`):
     - `x64-linux`: ELF `.so` + generated header
