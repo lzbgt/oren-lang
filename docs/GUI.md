@@ -196,8 +196,9 @@ Rolling note:
   - Repo v0 shim ABI returns events via a flat out buffer (`int64[5]`), not a map:
     - `orenui_poll_event(win_id, timeout_ms, out5_i64_ptr) -> 0/1/<0`
     - `out[0] = type`, `out[1..4] = payload` (see `native/orenui/orenui.h`)
-  - A higher-level Oren wrapper (future) should convert the flat event into the “event map” form
-    used by `std:ui/*` for portability and testability.
+  - A higher-level Oren wrapper exists: `std:ui/host`
+    - `std:ui/host.poll_event(win_id, timeout_ms, ev_buf)` converts the flat `int64[5]` payload into an
+      event map (`{"t": "...", ...}`), which is the recommended form for portability and testability.
 
 **Rendering**
 

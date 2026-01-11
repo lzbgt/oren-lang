@@ -238,5 +238,5 @@ So the recommended default is:
    - add `native/orenui/x11/*` implementing the same ABI using Xlib + XPutImage (v0)
    - add a headful `scripts/verify_ui_smoke_linux.sh` (note: WSL2 is not a reliable GUI target by default)
 5) **Oren-side integration**:
-   - add `std:ui/host` bindings (FFI) that call the shim, convert `OrenUIEvent` into the map form used by `std:ui/*`
-   - add `examples/ui_hello.oren` that opens a window and draws a `std:ui` frame
+   - done: `std:ui/host` bindings exist (`lib/std/ui/host.oren`) and convert the flat `int64[5]` payload into an event map
+   - done: `examples/ui_hello.oren` opens a window and draws a `std:ui` frame (and now uses `std:ui/host`)

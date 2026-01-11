@@ -1,0 +1,201 @@
+// std:ui/host (rolling)
+//
+// Thin stdlib wrapper for the platform GUI shim ABI (`native/orenui/orenui.h`).
+//
+// Goals:
+// - Keep the platform shim ABI "flat C" and stable (ints + raw pointers).
+// - Provide a small, portable Oren layer that:
+//   - allocates the `int64[5]` out buffer once
+//   - decodes shim events into ergonomic Oren maps (string-tagged)
+//
+// Non-goals (v0):
+// - Not a retained-mode widget library.
+// - Not a GPU API.
+// - Not a cross-platform font system.
+//
+// Linking model:
+// - This module intentionally does NOT hardcode `@ffi.link("...")`.
+// - Callers should pass `--link <path-to-shim>` (see `scripts/verify_ui_smoke_*.sh`),
+//   or add per-symbol `@ffi.link(...)` at the callsite if shipping a fixed shared library name.
+//
+// Event decoding:
+// - The shim returns events via an `int64[5]` out buffer:
+//     out[0]=type, out[1..4]=payload
+// - This module converts that into an "event map" form:
+//     {"t": <string>, ...payload...}
+// - Unknown events are preserved as:
+//     {"t":"unknown","ty":<int>,"a0":...,"a1":...,"a2":...,"a3":...}
+//
+// NOTE:
+// - The v0 shim exposes platform raw key codes (`key`) and best-effort text codepoints.
+//   Higher-level mapping (key enums, text input method, etc) is a follow-up task.
+
+import result "std:result"
+
+// --- FFI surface (shim ABI) ---
+
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi orenui_open_window
+
+@cfg(os="windows")
+@ffi.ret("i32")
+ffi orenui_open_window
+
+@cfg(os="linux")
+@ffi.ret("i32")
+ffi orenui_open_window
+
+@cfg(os="macos")
+@ffi.ret("void")
+ffi orenui_close_window
+
+@cfg(os="windows")
+@ffi.ret("void")
+ffi orenui_close_window
+
+@cfg(os="linux")
+@ffi.ret("void")
+ffi orenui_close_window
+
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi orenui_present_rgba
+
+@cfg(os="windows")
+@ffi.ret("i32")
+ffi orenui_present_rgba
+
+@cfg(os="linux")
+@ffi.ret("i32")
+ffi orenui_present_rgba
+
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi orenui_pump
+
+@cfg(os="windows")
+@ffi.ret("i32")
+ffi orenui_pump
+
+@cfg(os="linux")
+@ffi.ret("i32")
+ffi orenui_pump
+
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi orenui_poll_event
+
+@cfg(os="windows")
+@ffi.ret("i32")
+ffi orenui_poll_event
+
+@cfg(os="linux")
+@ffi.ret("i32")
+ffi orenui_poll_event
+
+// --- Public helpers ---
+
+fn open_window(title_utf8, w, h) {
+    // Returns:
+    // - win_id (>0) on success
+    // - negative on error (shim-defined; typically -errno)
+    return orenui_open_window(title_utf8, w, h)
+}
+
+fn close_window(win_id) {
+    orenui_close_window(win_id)
+    return nil
+}
+
+fn present_rgba_ptr(win_id, w, h, rgba_ptr, stride) {
+    // Present a raw RGBA pointer.
+    // Returns 0 on success, or negative on error.
+    return orenui_present_rgba(win_id, w, h, rgba_ptr, stride)
+}
+
+fn present_rgba(win_id, w, h, rgba_u8_buf) {
+    // Present a `u8_buf` with `w*h*4` bytes.
+    var rgba_ptr = oren_buf_data_ptr_unchecked(rgba_u8_buf)
+    var stride = w * 4
+    return orenui_present_rgba(win_id, w, h, rgba_ptr, stride)
+}
+
+fn pump(win_id, timeout_ms) {
+    // Return:
+    // - 1 if the window is closing / should exit
+    // - 0 otherwise
+    // - negative on error
+    var t = timeout_ms
+    if t == nil { t = 0 }
+    if t < 0 { t = 0 }
+    return orenui_pump(win_id, t)
+}
+
+fn new_event_buf() {
+    // Allocate the `int64[5]` out buffer used by `poll_event`.
+    return oren_i64_buf_new(5)
+}
+
+fn decode_event(ev_i64_buf) {
+    // Decode an event from the out buffer without calling into the shim.
+    // Caller responsibility: `ev_i64_buf` must be an i64 buffer of length >= 5.
+    var ty = oren_buf_load_i64(ev_i64_buf, 0)
+    var a0 = oren_buf_load_i64(ev_i64_buf, 1)
+    var a1 = oren_buf_load_i64(ev_i64_buf, 2)
+    var a2 = oren_buf_load_i64(ev_i64_buf, 3)
+    var a3 = oren_buf_load_i64(ev_i64_buf, 4)
+
+    if ty == 1 { // ORENUI_EV_CLOSE
+        return {"t": "close"}
+    }
+    if ty == 2 { // ORENUI_EV_RESIZE
+        return {"t": "resize", "w": a0, "h": a1}
+    }
+    if ty == 3 { // ORENUI_EV_MOUSE_MOVE
+        return {"t": "mouse_move", "x": a0, "y": a1, "mods": a2}
+    }
+    if ty == 4 { // ORENUI_EV_MOUSE_DOWN
+        return {"t": "mouse_down", "btn": a0, "x": a1, "y": a2, "mods": a3}
+    }
+    if ty == 5 { // ORENUI_EV_MOUSE_UP
+        return {"t": "mouse_up", "btn": a0, "x": a1, "y": a2, "mods": a3}
+    }
+    if ty == 6 { // ORENUI_EV_KEY_DOWN
+        return {"t": "key_down", "key": a0, "mods": a1}
+    }
+    if ty == 7 { // ORENUI_EV_KEY_UP
+        return {"t": "key_up", "key": a0, "mods": a1}
+    }
+    if ty == 8 { // ORENUI_EV_TEXT
+        return {"t": "text", "codepoint": a0, "mods": a1}
+    }
+
+    return {"t": "unknown", "ty": ty, "a0": a0, "a1": a1, "a2": a2, "a3": a3}
+}
+
+fn poll_event_into(win_id, timeout_ms, ev_i64_buf) {
+    // Low-level wrapper: writes into `ev_i64_buf` and returns the shim rc:
+    // - 1: event written
+    // - 0: timeout / no event
+    // - <0: error
+    var t = timeout_ms
+    if t == nil { t = 0 }
+    if t < 0 { t = 0 }
+    var ev_ptr = oren_buf_data_ptr_unchecked(ev_i64_buf)
+    return orenui_poll_event(win_id, t, ev_ptr)
+}
+
+fn poll_event(win_id, timeout_ms, ev_i64_buf) {
+    // High-level wrapper:
+    // - returns `nil` if no event is available within `timeout_ms`
+    // - returns event map on success
+    // - returns structured error map on failure
+    var buf = ev_i64_buf
+    if buf == nil { buf = new_event_buf() }
+    var rc = poll_event_into(win_id, timeout_ms, buf)
+    if rc == 0 { return nil }
+    if rc < 0 { return result.ok_or_errno(rc, "orenui_poll_event") }
+    return decode_event(buf)
+}
+

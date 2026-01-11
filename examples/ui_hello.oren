@@ -11,62 +11,7 @@
 import ui_core "std:ui/core"
 import ui_render "std:ui/render"
 import ui_raster "std:ui/raster"
-
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi orenui_open_window
-
-@cfg(os="windows")
-@ffi.ret("i32")
-ffi orenui_open_window
-
-@cfg(os="linux")
-@ffi.ret("i32")
-ffi orenui_open_window
-
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi orenui_present_rgba
-
-@cfg(os="windows")
-@ffi.ret("i32")
-ffi orenui_present_rgba
-
-@cfg(os="linux")
-@ffi.ret("i32")
-ffi orenui_present_rgba
-
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi orenui_pump
-
-@cfg(os="windows")
-@ffi.ret("i32")
-ffi orenui_pump
-
-@cfg(os="macos")
-@ffi.ret("i32")
-ffi orenui_poll_event
-
-@cfg(os="windows")
-@ffi.ret("i32")
-ffi orenui_poll_event
-
-@cfg(os="linux")
-@ffi.ret("i32")
-ffi orenui_poll_event
-
-@cfg(os="macos")
-@ffi.ret("void")
-ffi orenui_close_window
-
-@cfg(os="windows")
-@ffi.ret("void")
-ffi orenui_close_window
-
-@cfg(os="linux")
-@ffi.ret("void")
-ffi orenui_close_window
+import ui_host "std:ui/host"
 
 fn _make_tree(w, h) {
     var bg = ui_core.node("Box", "bg", {"w": w, "h": h, "bg": "#202020"}, [])
@@ -95,7 +40,7 @@ fn main() {
     // this is only "can we open a window and blit a few frames".
     var w = 240
     var h = 80
-    var win = orenui_open_window("OrenUI v0", w, h)
+    var win = ui_host.open_window("OrenUI v0", w, h)
     if win <= 0 {
         print("ui_hello: failed to open window, win_id=" + oren_int_to_string(win))
         return 1
@@ -109,28 +54,30 @@ fn main() {
     var rgba = ui_raster.rasterize(cmds, w, h, {"validate": 1})
     if oren_is_err(rgba) {
         print("ui_hello: rasterize failed")
-        orenui_close_window(win)
+        ui_host.close_window(win)
         return 1
     }
     var rgba_ptr = oren_buf_data_ptr_unchecked(rgba)
     var stride = w * 4
-    var ev = oren_i64_buf_new(5)
-    var evp = oren_buf_data_ptr_unchecked(ev)
+    var ev = ui_host.new_event_buf()
 
     var max_frames = 60
     var frame = 0
     while frame < max_frames {
         // Poll events (v0: close + resize). This is the stable contract we want
         // to keep across all platform shims.
-        var got = orenui_poll_event(win, 0, evp)
-        if got == 1 {
-            var ty = oren_buf_load_i64(ev, 0)
-            if ty == 1 { // ORENUI_EV_CLOSE
+        var e = ui_host.poll_event(win, 0, ev)
+        if e != nil {
+            if oren_is_err(e) {
+                print("ui_hello: poll_event failed: " + oren_err_msg(e))
+                break
+            }
+            if e["t"] == "close" {
                 break
             }
         }
 
-        var pr = orenui_present_rgba(win, w, h, rgba_ptr, stride)
+        var pr = ui_host.present_rgba_ptr(win, w, h, rgba_ptr, stride)
         if pr != 0 {
             print("ui_hello: present failed, code=" + oren_int_to_string(pr))
             break
@@ -141,6 +88,6 @@ fn main() {
         frame = frame + 1
     }
 
-    orenui_close_window(win)
+    ui_host.close_window(win)
     return 0
 }
