@@ -22,7 +22,8 @@ Tier‑1 OS/arch intent (today): `arm64-macos`, `arm64-linux`, `x64-linux`, `x64
 - Windows shim bring-up exists: `native/orenui/win32/orenui_win32.c` (v0 skeleton; window + present + pump)
 - Linux/X11 shim bring-up exists: `native/orenui/x11/orenui_x11.c` (v0 skeleton; window + present + pump)
 - Smoke gate (macOS-only; requires GUI session): `scripts/verify_ui_smoke_macos.sh` (wired via `make verify-ui-smoke-macos`)
-- Smoke gate (Windows; requires GUI session + VS Developer Prompt): `scripts/verify_ui_smoke_windows.sh` (wired via `make verify-ui-smoke-windows`)
+- Smoke gate (Windows; requires GUI session): `scripts/verify_ui_smoke_windows.sh` (wired via `make verify-ui-smoke-windows`)
+  - MSVC environment is auto-configured via `scripts/win_msvc_cmd.cmd` (no VS Developer Prompt required).
 - Smoke gate (Linux; requires X11 GUI session + dev libs): `scripts/verify_ui_smoke_linux.sh` (wired via `make verify-ui-smoke-linux`)
   - build detail: links with `-pthread` + `libX11` (some distros still require explicit pthread linkage)
 - Missing today (still true):

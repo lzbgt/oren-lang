@@ -392,7 +392,7 @@ verify-ui-smoke-macos: oren
 	@./scripts/verify_ui_smoke_macos.sh ./$(OREN_BIN)
 
 # Windows GUI bring-up smoke (headful, opt-in).
-# Requires a Windows GUI session + MSVC Developer Prompt (cl.exe/link.exe available).
+# Requires a Windows GUI session.
 verify-ui-smoke-windows: oren_stage2
 	@./scripts/verify_ui_smoke_windows.sh ./$(OREN_STAGE2_BIN)
 
@@ -402,13 +402,14 @@ verify-ui-smoke-linux: oren_stage2
 
 # Build the Win32 OrenUI shim DLL (headful runtime; build is safe in CI).
 # Notes:
-# - Requires a Windows host and MSVC toolchain availability (`cl.exe` + `link.exe`).
+# - Requires a Windows host.
+# - Auto-configures VS2022 MSVC environment via `scripts/win_msvc_cmd.cmd`.
 # - This is not part of `make test`/`make verify` since it does not run anything.
 build-orenui-win32:
 ifeq ($(HOST_IS_WINDOWS),1)
 	@mkdir -p build/tmp
 	@echo "== build: orenui_win32.dll (Win32/GDI) =="
-	@cmd.exe /v:on /c "setlocal && where cl.exe >nul 2>nul && where link.exe >nul 2>nul || (echo ERROR: MSVC tools not found in PATH. Start a VS Developer Prompt or ensure VsDevCmd/vcvars is configured. & exit /b 2) && cl.exe /nologo /O2 /LD /DORENUI_EXPORTS native\\orenui\\win32\\orenui_win32.c /I native\\orenui user32.lib gdi32.lib /link /OUT:build\\tmp\\orenui_win32.dll"
+	@cmd.exe /v:on /c "setlocal && call scripts\\win_msvc_cmd.cmd cl.exe /nologo /O2 /LD /DORENUI_EXPORTS native\\orenui\\win32\\orenui_win32.c /I native\\orenui user32.lib gdi32.lib /link /OUT:build\\tmp\\orenui_win32.dll"
 else
 	@echo "ERROR: build-orenui-win32 requires a Windows host (HOST_IS_WINDOWS=1)."
 	@exit 2

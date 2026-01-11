@@ -313,10 +313,10 @@ run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
   "${SSH[@]}" \
   "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\libmath.oren --backend native --platform x64-windows --lib --no-cache --no-debug -o libmath.dll && if not exist libmath.dll exit /b 2 && if not exist libmath.h exit /b 3\""
 
-log "== remote: stage2 builds a tiny C-backend exe (default --cc; MSVC cl.exe bring-up) =="
+log "== remote: stage2 builds a tiny C-backend exe (force --cc cl.exe; prefer MSVC on Windows) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
   "${SSH[@]}" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& oren_stage2.exe build examples\\\\myapp.oren --backend c --no-cache -o myapp_c_stage2.exe\""
+  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& oren_stage2.exe build examples\\\\myapp.oren --backend c --cc cl.exe --no-cache -o myapp_c_stage2.exe\""
 
 log "== remote: run the produced C-backend exe =="
 out_c="$(

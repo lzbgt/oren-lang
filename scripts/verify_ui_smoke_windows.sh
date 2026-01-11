@@ -12,7 +12,8 @@ set -euo pipefail
 #
 # NOTE:
 # - This requires a GUI session.
-# - It requires running inside a VS Developer Prompt (so `cl.exe` / `link.exe` are on PATH).
+# - It does NOT require a VS Developer Prompt:
+#   - it auto-configures a VS2022 MSVC environment via `scripts/win_msvc_cmd.cmd`.
 # - It is not part of `make test` (headful).
 
 timeout_bin="$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || echo "")"
@@ -45,12 +46,10 @@ if ! is_windows_host; then
   exit 0
 fi
 
-if ! command -v cl.exe >/dev/null 2>&1; then
-  echo "verify_ui_smoke_windows: skip (missing cl.exe; run from 'x64 Native Tools Command Prompt for VS')" >&2
-  exit 0
-fi
-if ! command -v link.exe >/dev/null 2>&1; then
-  echo "verify_ui_smoke_windows: skip (missing link.exe; run from 'x64 Native Tools Command Prompt for VS')" >&2
+msvc_cmd_posix="scripts/win_msvc_cmd.cmd"
+msvc_cmd_cmd="scripts\\win_msvc_cmd.cmd"
+if [[ ! -f "$msvc_cmd_posix" ]]; then
+  echo "verify_ui_smoke_windows: skip (missing $msvc_cmd_posix)" >&2
   exit 0
 fi
 
@@ -75,12 +74,13 @@ echo "log=$log"
 rm -f "$log" "$shim_out" "$app_out" 2>/dev/null || true
 
 echo "== build shim dll (cl.exe) =="
-run_with_timeout "$build_timeout_secs" cl.exe \
-  /nologo /O2 /MT /W3 /EHsc /LD \
-  /DWIN32_LEAN_AND_MEAN /D_CRT_SECURE_NO_WARNINGS /DORENUI_EXPORTS \
-  "$shim_src" \
-  user32.lib gdi32.lib \
-  /link /nologo /OUT:"$shim_out" \
+run_with_timeout "$build_timeout_secs" cmd.exe /v:on /c \
+  "call ${msvc_cmd_cmd} cl.exe ^
+    /nologo /O2 /MT /W3 /EHsc /LD ^
+    /DWIN32_LEAN_AND_MEAN /D_CRT_SECURE_NO_WARNINGS /DORENUI_EXPORTS ^
+    ${shim_src} ^
+    user32.lib gdi32.lib ^
+    /link /nologo /OUT:${shim_out}" \
   >"$log" 2>&1
 
 test -f "$shim_out" || { echo "FAIL: shim dll not produced: $shim_out" >&2; tail -n 120 "$log" >&2; exit 1; }

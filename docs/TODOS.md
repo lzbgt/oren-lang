@@ -188,6 +188,7 @@ References:
 	   - implement `native/orenui/win32/*` (Win32 + GDI/DIBSection blit) + keep a bounded headful smoke script green
 	     - Status: `native/orenui/win32/orenui_win32.c` implements v0 window + RGBA blit + poll_event (close/resize + basic input)
 	     - Added: `scripts/verify_ui_smoke_windows.sh` (`make verify-ui-smoke-windows`)
+	       - Uses `scripts/win_msvc_cmd.cmd` so it does not require a VS Developer Prompt.
 	   - implement `native/orenui/x11/*` (X11 + XPutImage blit) + keep a bounded headful smoke script green
 	     - Status: `native/orenui/x11/orenui_x11.c` implements v0 window + RGBA blit + poll_event (close/resize + basic input)
 	     - Added: `scripts/verify_ui_smoke_linux.sh` (`make verify-ui-smoke-linux`)
