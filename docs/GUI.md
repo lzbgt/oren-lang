@@ -98,7 +98,7 @@ without changing the model.
 Start with a small layout model that composes:
 
 - `Row`, `Column`, `Stack`
-- fixed sizes + padding/margin
+- fixed sizes + padding
 - simple alignment
 - scroll container (later)
 
@@ -107,6 +107,15 @@ Styles are maps:
 - `{"font_size":16, "color":"#RRGGBB", "bg":"#RRGGBB", "padding":8, ...}`
 
 This avoids committing to CSS parsing or cascade rules prematurely.
+
+Rolling v0 implementation note:
+
+- `std:ui/layout` supports:
+  - padding: `pad` / `pad_x` / `pad_y` / `pad_{l,r,t,b}`
+  - gap: `gap` (Row/Column)
+  - alignment:
+    - Row: `align_y` ("start"/"center"/"end")
+    - Column: `align_x` ("start"/"center"/"end")
 
 ## 3) Host bridge: UI capability domain API (v0)
 

@@ -614,7 +614,8 @@ References:
      - Define a portable node tree representation + diff contract (`std:ui/core`).
    - Phase 1 (portable core):
      - Implement `std:ui/core` (Node, keying rules, diff/patch).
-     - Implement `std:ui/layout` v0 (Row/Column/Stack + padding + alignment).
+     - Done (2026-01-11): `std:ui/layout` now supports Row/Column/Stack + padding + gap + basic alignment.
+       - Regression: `tests/avm/test_ui_layout_v0.oren` includes padding/gap/alignment assertions.
      - Implement `std:ui/style` v0 (style maps + deterministic merge rules).
      - Headless AVM fixtures: diff/layout golden tests (no host windows).
      - Done (2026-01-09): added `std:ui/{core,layout,style}` v0 skeleton + headless AVM layout smoke:

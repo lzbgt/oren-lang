@@ -9,12 +9,56 @@
 // - "Column": children laid out top-to-bottom
 // - "Stack": children overlaid at (0,0)
 //
+// Supported props (v0, rolling):
+// - padding:
+//   - pad (applies to all sides)
+//   - pad_x / pad_y
+//   - pad_l / pad_r / pad_t / pad_b
+// - gap:
+//   - gap (int pixels between children in Row/Column)
+// - alignment (within the content box, excluding padding):
+//   - Row: align_y = "start" | "center" | "end"
+//   - Column: align_x = "start" | "center" | "end"
+//
 // Layout output is a "box tree" (map):
 //   {"t":<tag>, "k":<key>, "p":<props map>, "x":<int>, "y":<int>, "w":<int>, "h":<int>, "children":[...]}
 
 fn _i(v) {
     if v == nil { return 0 }
     return v
+}
+
+fn _is_str(v) {
+    if v == nil { return false }
+    var n = oren_string_len(v)
+    return oren_is_err(n) == false
+}
+
+fn _pad_vals(p) {
+    // Returns map {l,r,t,b} (ints).
+    if p == nil { p = {} }
+    var pad = _i(p["pad"])
+    var pad_x = p["pad_x"]
+    var pad_y = p["pad_y"]
+    if pad_x == nil { pad_x = pad }
+    if pad_y == nil { pad_y = pad }
+    pad_x = _i(pad_x)
+    pad_y = _i(pad_y)
+    var l = p["pad_l"]; if l == nil { l = pad_x }
+    var r = p["pad_r"]; if r == nil { r = pad_x }
+    var t = p["pad_t"]; if t == nil { t = pad_y }
+    var b = p["pad_b"]; if b == nil { b = pad_y }
+    return {"l": _i(l), "r": _i(r), "t": _i(t), "b": _i(b)}
+}
+
+fn _align_off(axis_align, avail, child) {
+    // Return offset within [0, avail-child]. Inputs are ints.
+    if avail <= child { return 0 }
+    if axis_align == nil { return 0 }
+    if _is_str(axis_align) != true { return 0 }
+    if axis_align == "center" { return (avail - child) / 2 }
+    if axis_align == "end" { return avail - child }
+    return 0 // start/default
 }
 
 fn _leaf_size(n) {
@@ -44,6 +88,8 @@ fn _layout_at(n, x0, y0) {
     if p == nil { p = {} }
     var cs = n["c"]
     if cs == nil { cs = [] }
+    var pad = _pad_vals(p)
+    var pad_l = pad["l"]; var pad_r = pad["r"]; var pad_t = pad["t"]; var pad_b = pad["b"]
 
     if tag == "Box" || tag == "Text" {
         var sz = _leaf_size(n)
@@ -51,41 +97,70 @@ fn _layout_at(n, x0, y0) {
     }
 
     if tag == "Row" {
+        var gap = _i(p["gap"])
         var out_children = []
-        var x = x0
         var wsum = 0
         var hmax = 0
         var i = 0
         while i < oren_list_len(cs) {
-            var cb = _layout_at(cs[i], x, y0)
-            oren_list_push(out_children, cb)
-            var cw = cb["w"]
-            var ch = cb["h"]
-            x = x + cw
-            wsum = wsum + cw
-            if ch > hmax { hmax = ch }
+            var cb0 = _layout_at(cs[i], 0, 0)
+            oren_list_push(out_children, cb0)
+            wsum = wsum + cb0["w"]
+            if cb0["h"] > hmax { hmax = cb0["h"] }
             i = i + 1
         }
-        return _box(tag, key, p, x0, y0, wsum, hmax, out_children)
+        if oren_list_len(out_children) > 1 { wsum = wsum + gap * (oren_list_len(out_children) - 1) }
+        var content_w = wsum
+        var content_h = hmax
+        var total_w = pad_l + pad_r + content_w
+        var total_h = pad_t + pad_b + content_h
+
+        // Second pass: position children with gap + alignment.
+        var align_y = p["align_y"]
+        var x = x0 + pad_l
+        var j = 0
+        while j < oren_list_len(out_children) {
+            var cb = out_children[j]
+            cb["x"] = x
+            cb["y"] = y0 + pad_t + _align_off(align_y, content_h, cb["h"])
+            x = x + cb["w"]
+            if j != oren_list_len(out_children) - 1 { x = x + gap }
+            j = j + 1
+        }
+        return _box(tag, key, p, x0, y0, total_w, total_h, out_children)
     }
 
     if tag == "Column" {
+        var gap2 = _i(p["gap"])
         var out_children2 = []
-        var y = y0
         var hsum = 0
         var wmax = 0
         var j = 0
         while j < oren_list_len(cs) {
-            var cb2 = _layout_at(cs[j], x0, y)
-            oren_list_push(out_children2, cb2)
-            var cw2 = cb2["w"]
-            var ch2 = cb2["h"]
-            y = y + ch2
-            hsum = hsum + ch2
-            if cw2 > wmax { wmax = cw2 }
+            var cb20 = _layout_at(cs[j], 0, 0)
+            oren_list_push(out_children2, cb20)
+            hsum = hsum + cb20["h"]
+            if cb20["w"] > wmax { wmax = cb20["w"] }
             j = j + 1
         }
-        return _box(tag, key, p, x0, y0, wmax, hsum, out_children2)
+        if oren_list_len(out_children2) > 1 { hsum = hsum + gap2 * (oren_list_len(out_children2) - 1) }
+        var content_w2 = wmax
+        var content_h2 = hsum
+        var total_w2 = pad_l + pad_r + content_w2
+        var total_h2 = pad_t + pad_b + content_h2
+
+        var align_x = p["align_x"]
+        var y = y0 + pad_t
+        var j2 = 0
+        while j2 < oren_list_len(out_children2) {
+            var cb2 = out_children2[j2]
+            cb2["x"] = x0 + pad_l + _align_off(align_x, content_w2, cb2["w"])
+            cb2["y"] = y
+            y = y + cb2["h"]
+            if j2 != oren_list_len(out_children2) - 1 { y = y + gap2 }
+            j2 = j2 + 1
+        }
+        return _box(tag, key, p, x0, y0, total_w2, total_h2, out_children2)
     }
 
     if tag == "Stack" {
@@ -94,23 +169,42 @@ fn _layout_at(n, x0, y0) {
         var hmax2 = 0
         var k = 0
         while k < oren_list_len(cs) {
-            var cb3 = _layout_at(cs[k], x0, y0)
-            oren_list_push(out_children3, cb3)
-            var cw3 = cb3["w"]
-            var ch3 = cb3["h"]
-            if cw3 > wmax2 { wmax2 = cw3 }
-            if ch3 > hmax2 { hmax2 = ch3 }
+            var cb30 = _layout_at(cs[k], 0, 0)
+            oren_list_push(out_children3, cb30)
+            if cb30["w"] > wmax2 { wmax2 = cb30["w"] }
+            if cb30["h"] > hmax2 { hmax2 = cb30["h"] }
             k = k + 1
         }
-        return _box(tag, key, p, x0, y0, wmax2, hmax2, out_children3)
+        var total_w3 = pad_l + pad_r + wmax2
+        var total_h3 = pad_t + pad_b + hmax2
+        var k2 = 0
+        while k2 < oren_list_len(out_children3) {
+            out_children3[k2]["x"] = x0 + pad_l
+            out_children3[k2]["y"] = y0 + pad_t
+            k2 = k2 + 1
+        }
+        return _box(tag, key, p, x0, y0, total_w3, total_h3, out_children3)
     }
 
     // Unknown tag: treat as zero-sized container, still layout children at origin.
     var out_children4 = []
+    var wmax4 = 0
+    var hmax4 = 0
     var m = 0
     while m < oren_list_len(cs) {
-        oren_list_push(out_children4, _layout_at(cs[m], x0, y0))
+        var cb40 = _layout_at(cs[m], 0, 0)
+        oren_list_push(out_children4, cb40)
+        if cb40["w"] > wmax4 { wmax4 = cb40["w"] }
+        if cb40["h"] > hmax4 { hmax4 = cb40["h"] }
         m = m + 1
     }
-    return _box(tag, key, p, x0, y0, 0, 0, out_children4)
+    var total_w4 = pad_l + pad_r + wmax4
+    var total_h4 = pad_t + pad_b + hmax4
+    var m2 = 0
+    while m2 < oren_list_len(out_children4) {
+        out_children4[m2]["x"] = x0 + pad_l
+        out_children4[m2]["y"] = y0 + pad_t
+        m2 = m2 + 1
+    }
+    return _box(tag, key, p, x0, y0, total_w4, total_h4, out_children4)
 }

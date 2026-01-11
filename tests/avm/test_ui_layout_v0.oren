@@ -71,8 +71,59 @@ fn test_row_layout() {
     assert_eq(cs[2]["x"], 12)
 }
 
+fn test_row_padding_gap_align() {
+    // Row content box is padded and children are vertically aligned within the content height.
+    var a = ui_core.box("a", 3, 2)
+    var b = ui_core.box("b", 1, 4)
+    var root = ui_core.row("root", [a, b])
+    root["p"]["pad"] = 2
+    root["p"]["gap"] = 1
+    root["p"]["align_y"] = "center"
+
+    var bt = ui_layout.layout(root, {"max_w": 1000, "max_h": 1000})
+    assert_eq(bt["t"], "Row")
+    assert_eq(bt["w"], 9) // pad(2+2) + (3+1+1)
+    assert_eq(bt["h"], 8) // pad(2+2) + max(2,4)
+
+    var cs = bt["children"]
+    assert_eq(oren_list_len(cs), 2)
+    // x positions: start at pad_l=2, gap=1
+    assert_eq(cs[0]["x"], 2)
+    assert_eq(cs[1]["x"], 6) // 2 + 3 + 1
+    // y positions: pad_t=2; content_h=4; a is centered (offset 1), b is offset 0
+    assert_eq(cs[0]["y"], 3)
+    assert_eq(cs[1]["y"], 2)
+}
+
+fn test_column_padding_gap_align() {
+    // Column content box is padded and children are horizontally aligned within the content width.
+    var a = ui_core.box("a", 2, 1)
+    var b = ui_core.box("b", 4, 2)
+    var root = ui_core.column("root", [a, b])
+    root["p"]["pad_x"] = 1
+    root["p"]["pad_y"] = 2
+    root["p"]["gap"] = 1
+    root["p"]["align_x"] = "end"
+
+    var bt = ui_layout.layout(root, {"max_w": 1000, "max_h": 1000})
+    assert_eq(bt["t"], "Column")
+    assert_eq(bt["w"], 6) // pad_x(1+1) + max(2,4)
+    assert_eq(bt["h"], 6) // pad_y(2+2) + (1 + gap + 2)
+
+    var cs = bt["children"]
+    assert_eq(oren_list_len(cs), 2)
+    // y positions: start at pad_t=2, gap=1
+    assert_eq(cs[0]["y"], 2)
+    assert_eq(cs[1]["y"], 4) // 2 + 1 + 1
+    // x positions: pad_l=1; content_w=4; end align -> offset (4-w)
+    assert_eq(cs[0]["x"], 3) // 1 + (4-2)
+    assert_eq(cs[1]["x"], 1) // 1 + (4-4)
+}
+
 fn main() {
     test_column_layout()
     test_row_layout()
+    test_row_padding_gap_align()
+    test_column_padding_gap_align()
     exit(0)
 }
