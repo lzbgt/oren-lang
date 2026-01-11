@@ -13,14 +13,25 @@ import ui_render "std:ui/render"
 import ui_raster "std:ui/raster"
 import ui_host "std:ui/host"
 
+@cfg(os="macos")
+fn _ui_title() {
+    return "OrenUI v0 (macOS bring-up)"
+}
+
+@cfg(os="windows")
+fn _ui_title() {
+    return "OrenUI v0 (Windows bring-up)"
+}
+
+@cfg(os="linux")
+fn _ui_title() {
+    return "OrenUI v0 (Linux bring-up)"
+}
+
 fn _make_tree(w, h) {
     var bg = ui_core.node("Box", "bg", {"w": w, "h": h, "bg": "#202020"}, [])
 
-    var title = "OrenUI v0"
-    @cfg(os="macos")
-    title = "OrenUI v0 (macOS bring-up)"
-    @cfg(os="windows")
-    title = "OrenUI v0 (Windows bring-up)"
+    var title = _ui_title()
 
     var t = ui_core.node("Text", "t", {
         "text": title,

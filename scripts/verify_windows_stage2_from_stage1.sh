@@ -248,13 +248,17 @@ log "Captured local log: ${OUT_DIR}/stage2_windows_env.log"
 log "== build: stage0 bootstrap (windows/amd64) =="
 GOOS=windows GOARCH=amd64 go build -o build/tmp/oren_bootstrap_win.exe ./cmd/oren
 
-	log "== bundle: minimal sources for stage2 build =="
-	tar -czf build/tmp/stage2_src_bundle.tgz \
-	  oren.oren \
-	  lib \
-	  examples/libmath.oren \
-	  examples/myapp.oren \
-	  tests/native/print.oren
+		log "== bundle: minimal sources for stage2 build =="
+		tar -czf build/tmp/stage2_src_bundle.tgz \
+		  oren.oren \
+		  lib \
+		  examples/libmath.oren \
+		  examples/myapp.oren \
+		  examples/ui_hello.oren \
+		  tests/native/print.oren \
+		  native/orenui/orenui.h \
+		  native/orenui/win32/orenui_win32.c \
+		  scripts/win_msvc_cmd.cmd
 
 log "== remote: upload stage0 + bundle =="
 scp_retry build/tmp/oren_bootstrap_win.exe "${REMOTE_HOST}:tmp_oren/oren_bootstrap_win.exe"
@@ -312,6 +316,16 @@ log "== remote: stage2 builds a tiny native DLL (--lib; x64-windows) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
   "${SSH[@]}" \
   "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\libmath.oren --backend native --platform x64-windows --lib --no-cache --no-debug -o libmath.dll && if not exist libmath.dll exit /b 2 && if not exist libmath.h exit /b 3\""
+
+log "== remote: build Win32 OrenUI shim DLL (MSVC via scripts\\\\win_msvc_cmd.cmd) =="
+run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
+  "${SSH[@]}" \
+  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& call scripts\\\\win_msvc_cmd.cmd cl.exe /nologo /O2 /LD /DORENUI_EXPORTS native\\\\orenui\\\\win32\\\\orenui_win32.c /I native\\\\orenui user32.lib gdi32.lib /link /OUT:orenui_win32.dll && if not exist orenui_win32.dll exit /b 2\""
+
+log "== remote: stage2 compiles ui_hello (native; links shim dll; no run) =="
+run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
+  "${SSH[@]}" \
+  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\ui_hello.oren --backend native --platform x64-windows --no-cache --no-debug --link orenui_win32.dll -o ui_hello_stage2_native.exe && if not exist ui_hello_stage2_native.exe exit /b 2\""
 
 log "== remote: stage2 builds a tiny C-backend exe (force --cc cl.exe; prefer MSVC on Windows) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \

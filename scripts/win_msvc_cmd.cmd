@@ -66,10 +66,9 @@ if /i "%OREN_DEVCMD_BASE%"=="vcvars64.bat" (
 )
 if errorlevel 1 exit /b %errorlevel%
 
-set "OREN_CMD=%~1"
-shift /1
-
-rem Execute the requested command in the configured env.
-%OREN_CMD% %*
+rem Execute the requested command line in the configured env.
+rem
+rem Important: do NOT attempt to reconstruct arguments after SHIFT; `%*` handling is subtle in cmd.
+rem Instead, run the full command line directly in a child cmd.exe.
+cmd.exe /d /c %*
 exit /b %errorlevel%
-
