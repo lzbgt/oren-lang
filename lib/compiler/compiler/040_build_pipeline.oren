@@ -837,7 +837,11 @@ fn compiler_main() {
         print("unknown command: " + cmd_name)
         oren_exit(2)
     }
-    var path = pos[0]
+    // Normalize path separators early so Windows-style CLI invocations work across hosts:
+    // - remote Win11 scripts may call `examples\\myapp.oren`
+    // - on non-Windows hosts, '\' would otherwise be treated as a literal filename character
+    //   and also leak into default output naming.
+    var path = _path_to_posix_sep(pos[0])
     var out_path = "" // computed after parsing target/arch/backend
     var emit_c = false
     var enable_python = false

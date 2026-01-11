@@ -79,6 +79,22 @@ run_with_timeout "$run_timeout_secs" "$out" >>"$log" 2>&1
 
 tail -n 5 "$log"
 
+if [[ "$os_key" != "windows" ]]; then
+  # Cross-platform CLI robustness smoke:
+  # Accept Windows-style `\` separators even on POSIX hosts so scripts/logs are portable.
+  #
+  # This is compile-only (fast) and intentionally does not run the binary.
+  echo "== path separator smoke (backslash input) =="
+  bs_src='examples\myapp.oren'
+  bs_out="build/tmp/${compiler_base}_backslash_path_smoke"
+  bs_log="build/logs/${compiler_base}_backslash_path_smoke.log"
+  rm -f "$bs_out" "$bs_log" 2>/dev/null || true
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$bs_src" \
+    --backend native --platform "$platform" --no-debug -o "$bs_out" >"$bs_log" 2>&1
+  test -f "$bs_out" || { echo "FAIL: backslash path smoke did not produce output: $bs_out" >&2; tail -n 80 "$bs_log" >&2; exit 1; }
+  echo "OK: backslash path smoke"
+fi
+
 echo "== typecheck smoke (numeric vs nil) =="
 tc_src="tests/fixtures/typecheck_bad_numeric_nil.oren"
 tc_log="build/logs/${compiler_base}_typecheck_smoke.log"

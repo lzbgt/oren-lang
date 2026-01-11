@@ -201,6 +201,25 @@ fn _path_to_windows_sep(s) {
     return out
 }
 
+fn _path_to_posix_sep(s) {
+    // Normalize path separators for cross-OS robustness:
+    // - Treat '\' as a path separator even on non-Windows hosts.
+    // - This makes CLI invocations like `examples\\myapp.oren` behave consistently across shells/OSes
+    //   (and avoids accidental nested-path output creation like `build/.../examples\\myapp`).
+    //
+    // NOTE: Windows APIs accept forward slashes for most file paths, so this is safe on Windows too.
+    if s == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at(s, i)
+        if ch == "\\" { out = out + "/" }
+        else { out = out + ch }
+        i = i + 1
+    }
+    return out
+}
+
 fn host_is_windows() {
     // Robust host detection for compiler/tooling.
     //

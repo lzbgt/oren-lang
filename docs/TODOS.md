@@ -155,13 +155,14 @@ References:
 	     - Windows stage0→stage1 bootstrap: `./scripts/verify_stage0_windows_bootstrap.sh`
 
 	     - Active gaps (keep this list forward-looking; details live in `docs/TODOS_ARCHIVE.md`):
-		       - Fixed (2026-01-10): x64-windows stage2 self-host build could fail to write PE output when input paths used `\` (e.g. `examples\myapp.oren`).
-		         - Root cause: `basename`/`dirname` treated `\` as a separator only when `OS=Windows_NT` was set; some Win11/SSH environments did not provide that env var.
-		         - Fix: path helpers now treat both `/` and `\` as separators unconditionally, and Windows-host detection no longer relies solely on `OS=Windows_NT` for critical build tooling decisions.
-		         - Evidence (full captured remote log): `project-doc/remote/20260110_131230/s2_build_failure.log`
-		         - Regression gate: `make verify-stage2-win` (stage0→stage1→stage2 + compile+run).
-			         - Verified (2026-01-10): `make verify-stage2-win` / `scripts/verify_windows_stage2_from_stage1.sh` passes again, including the nested-path backslash input (`examples\\myapp.oren`), even when `OS` env is intentionally unset on the remote session (regression guard).
-			         - Note: scripts run a fast SSH preflight (with connect timeouts + a single retry for transient proxy flake) and emit bounded probe logs under `build/logs/*remote_probe*.log` when proxy/hostname resolution breaks.
+			       - Fixed (2026-01-10): x64-windows stage2 self-host build could fail to write PE output when input paths used `\` (e.g. `examples\myapp.oren`).
+			         - Root cause: `basename`/`dirname` treated `\` as a separator only when `OS=Windows_NT` was set; some Win11/SSH environments did not provide that env var.
+			         - Fix: path helpers now treat both `/` and `\` as separators unconditionally, and Windows-host detection no longer relies solely on `OS=Windows_NT` for critical build tooling decisions.
+			         - Hardened (2026-01-11): the compiler CLI normalizes `\` → `/` for input paths early in the build pipeline, so `examples\\myapp.oren` works on non-Windows hosts too and can’t leak into default output naming.
+			         - Evidence (full captured remote log): `project-doc/remote/20260110_131230/s2_build_failure.log`
+			         - Regression gate: `make verify-stage2-win` (stage0→stage1→stage2 + compile+run).
+				         - Verified (2026-01-10): `make verify-stage2-win` / `scripts/verify_windows_stage2_from_stage1.sh` passes again, including the nested-path backslash input (`examples\\myapp.oren`), even when `OS` env is intentionally unset on the remote session (regression guard).
+				         - Note: scripts run a fast SSH preflight (with connect timeouts + a single retry for transient proxy flake) and emit bounded probe logs under `build/logs/*remote_probe*.log` when proxy/hostname resolution breaks.
 			         - Done (2026-01-10): `scripts/analyze_stage2_failure_log.sh` no longer uses backticks in `echo` (avoid accidental command substitution; prints literal guidance + optional local SHA safely).
 			         - Done (2026-01-10): `scripts/verify_windows_stage2_from_stage1.sh` attempts to download the full stage1→stage2 build log into `project-doc/remote/<timestamp>/stage1_build_stage2.log` (best-effort; keeps console output bounded by default).
 				       - Build system parity (Windows host):
