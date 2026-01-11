@@ -7,8 +7,10 @@
 //     {"buf": u8_buf(cap), "len": used_bytes+1, "cap": capacity_bytes}
 //
 // Store length as `len+1` (native backend self-hosting):
-// - `0` is `nil`, so `len==0` would be indistinguishable from a missing field.
-// - `1` means length 0.
+// - In the native backend, small integers are untagged immediates; `0` is a valid int payload.
+// - Many low-level/native helper paths also use raw `0` as a null-pointer / "missing" sentinel.
+//   Keeping `len` non-zero avoids accidental conflation when plumbing this value through pointer-ish code.
+// - `1` means logical length 0.
 
 fn bytes_new() {
     var cap = 256

@@ -182,8 +182,9 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
     var pool_cap = 65536
     var off_pool = _data_add_zeros(ctx, pool_cap)
     // Offsets can legitimately be 0 (the first bytes in the data blob). Under the native
-    // runtime stopgap value model, 0 is indistinguishable from `nil`, so never treat 0 as
-    // failure here. `_data_add_zeros` only returns nil when `ctx` is nil or nbytes<=0.
+    // backend, we often store offsets as `off+1` so missing can be represented as `nil`.
+    // Never treat an offset of 0 as failure here: `_data_add_zeros` only returns `nil` when
+    // `ctx` is nil or `nbytes<=0`.
 
     var labels = {}
     var local_fixups = []
@@ -438,8 +439,8 @@ fn _x64_new_ctx(linked, platform) {
 
     // Reserve a `.data` slot holding the cstr0-literal table offset (u64).
     //
-    // Store as offset+1 so a real offset of 0 is not indistinguishable from `nil`
-    // when the compiler runs under the native runtime (where `nil` is 0).
+    // Store as offset+1 so offset 0 is representable while still using `nil` as the
+    // sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
     var cstr_slot_off = _data_add_u64(ctx, 0)
     ctx["cstr0_table_slot_enc"] = cstr_slot_off + 1
 
@@ -719,7 +720,7 @@ fn _x64_rtobj_apply_code_to_ctx(ctx) {
                         //
                         // Safety:
                         // - `base_code + pos` is never 0 (entry stub is emitted first), so `pos` remains
-                        //   representable even under the native runtime's `nil==0` model.
+                        //   representable even if some metadata encodings treat 0 as a sentinel.
                         f0["pos"] = base_code + pos
                         if data_off != nil { f0["data_off"] = data_off }
                         oren_list_push(ctx["fixups"], f0)
@@ -783,8 +784,8 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
 
     var trace = rtobj.rtobj_trace_enabled()
 
-    // Avoid storing any real 0 function offsets in maps during the build.
-    // (0 is `nil` in the native runtime value model.)
+    // Avoid having any real function start at code offset 0.
+    // Some metadata encodings are 1-based and decoded via `enc-1`.
     bytes_push(ctx["code"], 144) // 0x90 (NOP)
 
     var prog = bundle.load_and_parse_runtime_native_for_platform(ctx, runtime_path, platform)
@@ -1396,7 +1397,7 @@ fn native_compile_program_x64(linked, platform) {
     // - compute a PIE-safe pointer using the same `data_base` derivation as the cstr0 table.
     if platform != nil && platform["debug"] == true {
         var dbg_slot_off = _data_add_u64(ctx, 0)
-        // Store as offset+1 so 0 is not indistinguishable from `nil` in stage2-native.
+        // Store as offset+1 so offset 0 is representable while still using `nil` as missing.
         ctx["dbginfo_table_slot_enc"] = dbg_slot_off + 1
     }
 

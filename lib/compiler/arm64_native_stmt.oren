@@ -459,8 +459,8 @@ fn native_compile_stmt_inner(ctx, stmt) {
             if ctx["locals_list_stringy"] != nil { prev_list_stringy = ctx["locals_list_stringy"][name] }
             scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_stringy, prev_list_stringy)
 
-            // Store as offset+1 so a real offset of 0 is not indistinguishable from `nil`
-            // when the compiler runs under the native runtime (where `nil` is 0).
+            // Store as offset+1 so a real offset of 0 is representable while still using `nil`
+            // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
             ctx["locals"][name] = ctx["stack_size"] + 1
             if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty2 }
             if ctx["locals_stringy"] != nil { ctx["locals_stringy"][name] = is_stringy2 }
@@ -470,8 +470,8 @@ fn native_compile_stmt_inner(ctx, stmt) {
             var data_off = bytes_len(ctx["data"])
             var k = 0
             while k < 8 { bytes_push(ctx["data"], 0); k = k + 1 }
-            // Store as offset+1 so a real offset of 0 is not indistinguishable from `nil`
-            // when the compiler runs under the native runtime (where `nil` is 0).
+            // Store as offset+1 so a real offset of 0 is representable while still using `nil`
+            // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
             ctx["globals"][name] = data_off + 1
             if ctx["globals_floaty"] != nil { ctx["globals_floaty"][name] = is_floaty2 }
             if ctx["globals_stringy"] != nil { ctx["globals_stringy"][name] = is_stringy2 }
@@ -674,10 +674,11 @@ fn native_compile_stmt_inner(ctx, stmt) {
 	            }
 	            ctx["declared_functions"][name] = true
 	        }
-	        if ctx["func_arity"] != nil {
-	            // Store as arity+1 so 0 is not indistinguishable from `nil` when running stage2-native.
-	            ctx["func_arity"][name] = n_fields + 1
-	        }
+        if ctx["func_arity"] != nil {
+            // Store as arity+1 so an arity of 0 is representable while still using `nil` as
+            // the sentinel for "missing" (call sites decode with `enc-1`).
+            ctx["func_arity"][name] = n_fields + 1
+        }
 	        if ctx["func_decl_order"] != nil {
 	            oren_list_push(ctx["func_decl_order"], name)
 	        }

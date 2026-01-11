@@ -584,7 +584,8 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     //
     // PERF:
     // Build a label->offset map once to avoid a large if/else chain for each fixup.
-    // Encode offsets as (off+1) so offset 0 is distinguishable from a missing key (nil==0).
+    // Encode offsets as (off+1) so offset 0 is representable while still using `nil` as the
+    // sentinel for "missing key" (call sites decode with `enc-1`).
     var iat_offs = {}
     // KERNEL32.dll IAT slots (order matches kernel32_funcs above)
     iat_offs["IAT_ExitProcess"] = off_iat_k32 + 0 + 1

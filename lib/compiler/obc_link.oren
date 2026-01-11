@@ -269,8 +269,9 @@ fn _emit_constant(out, c) {
         oren_list_push(out, 8)
         var b = c["value"]
         var blen = 0
-        // Treat 0 as "no bytes" (native runtime uses 0 for nil).
-        if b != 0 { blen = oren_list_len(b) }
+        // `Bytes` constants are encoded as a length-prefixed byte list.
+        // Defensive: treat raw 0 (null pointer) and `nil` as empty.
+        if b != 0 && oren_type_tag(b) != 0 { blen = oren_list_len(b) }
         _push_u32_le(out, blen)
         var i = 0
         while i < blen {

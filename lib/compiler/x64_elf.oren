@@ -791,7 +791,7 @@ fn elf_emit_program_x64(out_path, linked, link_libs, is_shared_lib, exports, deb
             var disp_pos = f["pos"]
             var data_off = f["data_off"]
             // `data_off` can legitimately be 0. Some runtime map implementations still treat a stored
-            // integer 0 as indistinguishable from `nil`, so decode `nil` as 0 here for robustness.
+            // integer offset as optional metadata; normalize `nil` to 0 for robustness.
             if oren_type_tag(data_off) == 0 { data_off = 0 }
             var insn_start = disp_pos - 3
             var next_rip = text_base + (insn_start + 7)

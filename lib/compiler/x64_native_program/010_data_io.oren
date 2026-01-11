@@ -148,8 +148,8 @@ fn _data_add_fnobj(ctx, fn_name) {
     if ctx == nil { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
     if ctx["fnobj_offs"] == nil { ctx["fnobj_offs"] = {} }
-    // Store offsets as `off+1` so a real offset of 0 is not indistinguishable from `nil`
-    // when the compiler runs under the native runtime (where `nil` is 0).
+    // Store offsets as `off+1` so a real offset of 0 is representable while still using `nil`
+    // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
     var existing_enc = ctx["fnobj_offs"][fn_name]
     if existing_enc != nil { return existing_enc - 1 }
 
@@ -246,8 +246,8 @@ fn _data_reserve_symtab(ctx, sym_names) {
     var i = 0
     while i < total { bytes_push(ctx["data"], 0); i = i + 1 }
 
-    // Store offsets as `off+1` so a real offset of 0 is not indistinguishable from `nil`
-    // when the compiler runs under the native runtime (where `nil` is 0).
+    // Store offsets as `off+1` so offset 0 is representable while still using `nil` as the
+    // sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
     ctx["symtab_off"] = symtab_off + 1
     ctx["symtab_count"] = count
     ctx["symtab_names"] = sym_names
@@ -257,8 +257,8 @@ fn _data_reserve_symtab(ctx, sym_names) {
 fn _data_finalize_symtab(ctx) {
     // Fill the reserved symtab region (see `_data_reserve_symtab`).
     if ctx == nil { return nil }
-    // Offsets can legitimately be 0; store/read as `off+1` to avoid `nil` collisions
-    // when the compiler runs under the native runtime (where `nil` is 0).
+    // Offsets can legitimately be 0; store/read as `off+1` so offset 0 is representable while
+    // still using `nil` as the sentinel for "missing" (call sites decode with `enc-1`).
     var symtab_off_enc = ctx["symtab_off"]
     var sym_names = ctx["symtab_names"]
     if symtab_off_enc == nil || sym_names == nil { return nil }
@@ -515,8 +515,8 @@ fn _data_finalize_dbginfo_table(ctx, platform) {
         if i + 1 < oren_list_len(entries) {
             end_off = entries[i + 1]["off"]
         }
-        // Offsets are always integers (0 is valid). Avoid `== nil` checks here because
-        // native runtime uses 0 as the `nil` sentinel.
+        // Offsets are always integers (0 is valid). Treat missing offsets as a bug upstream
+        // (do not use `== nil` on numeric offsets).
         if end_off < start_off { end_off = start_off }
 
         // start/end absolute PCs.

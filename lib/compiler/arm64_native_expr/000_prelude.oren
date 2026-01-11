@@ -90,8 +90,8 @@ fn native_data_add_cstr0(ctx, s) {
     if ctx["cstr0_list"] == nil { ctx["cstr0_list"] = [] }
 
     if s == nil { s = "" }
-    // Store offsets as `off+1` so a real offset of 0 is not indistinguishable from `nil`
-    // when the compiler runs under the native runtime (where `nil` is 0).
+    // Store offsets as `off+1` so a real offset of 0 is representable while still using `nil`
+    // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
     var existing_enc = ctx["cstr0_offs"][s]
     if existing_enc != nil { return existing_enc - 1 }
 

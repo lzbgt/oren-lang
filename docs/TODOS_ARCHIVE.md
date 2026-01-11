@@ -257,7 +257,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Some binaries compiled by `./oren_stage2 --backend native` were missing expected work (e.g. a simple `print("hello from native")` could be compiled into a binary that did not embed the string literal at all).
   - This looked like “call args don’t evaluate” / “print disappears”, and was extremely costly to debug remotely.
 - Root cause (native runtime semantics vs compiler-side sentinels):
-  - The native runtime currently represents `nil` as `0` (and `false` is also `0`), so using `0` as a “missing/absent” sentinel is unsafe.
+  - An older native-backend bring-up used `0`-sentinel patterns in some compiler-side metadata paths, so using raw `0` as a “missing/absent” sentinel was unsafe.
   - Two concrete cases in the x86_64 backend:
     - **Intrinsic temp spill allocator:** `_intr_tmp_push` could return base index `0`; downstream code treated `base==nil` as “no spill region” and silently skipped lowering work when `base==0` aliased `nil`.
     - **x86_64 disp8 encoding:** `[rbp]` / `[r13]` addressing requires `disp8=0`; when an “optional disp8 byte” was represented as `0`, code that tested `!= nil` could omit the byte, shifting the instruction stream and producing a PE that crashes at entry.
@@ -340,7 +340,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - `./oren_stage2 build ... --backend bytecode` could fail with internal errors like:
     - `missing local slot for xs`
 - Root cause (native runtime semantics vs compiler-side sentinels):
-  - In the current native runtime, `nil` collapses to `0` (and `false` is also `0`), so using a raw `0` value as “present” in a map lookup is unsafe.
+  - Under a prior stopgap value/sentinel model, a legitimate numeric `0` could be misinterpreted as “missing” when presence checks relied on `== nil`/`!= nil` patterns.
   - The bytecode backend stored local/global indices starting at `0` in `map<string->int>`, then used `== nil`/`!= nil` checks to detect presence.
   - On stage2, a legitimate index `0` could be misinterpreted as “missing”.
 - Fix (bytecode codegen):
@@ -683,7 +683,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 ## Archived (2026-01-03) — Native: stage2-native correctness + hot-path fixes (rtobj + debug)
 
 - Correctness (native runtime + compiler):
-  - Fixed a native runtime iteration bug where `oren_iter_next_entry(m, idx, out_pair)` treated `idx==0` as “nil” (native v0 represents `nil` as integer 0).
+  - Fixed a native runtime iteration bug where `oren_iter_next_entry(m, idx, out_pair)` treated `idx==0` as “nil” under an older stopgap value/sentinel model.
     - Impact: map iteration starting at index 0 returned “no entries”, which broke runtime-object metadata application (e.g. merging `meta["globals"]`), leading to missing runtime globals like `g_target_os`.
 - Throughput (stage2-native compiler):
   - Runtime object cache selection now uses a fast non-cryptographic fingerprint (schema v2) instead of SHA-256 of the full expanded runtime source, avoiding multi-second hashing in native self-host workloads.

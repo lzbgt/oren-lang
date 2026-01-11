@@ -470,9 +470,13 @@ If you see compiler-side errors like `missing intrinsic temp slot $tmp_intr...`,
 
 Rolling rule (stage2-native robustness):
 
-- The native backend has historically used an untagged “i64 carrier” model where `nil/false/0` can alias in compare paths, so `0` is *not a safe sentinel* for “missing/absent” in compiler-side structures.
-  - Mitigation (2026-01-09): the optimizer folds type-mismatched `==`/`!=` on literals and folds `id == nil` for locals proven non-nil, but this does **not** make `0` a safe “optional” sentinel in general (values flowing through maps/fields/params still carry the raw value).
-- If a helper uses a pattern like `if x == nil { ... }` or `if x != nil { ... }`, and some caller legitimately sets `x = 0`, it can still skip or take work incorrectly in native mode.
+- The native backend is an untagged “i64 carrier” model for many values (pointers + immediates).
+  `0` is a valid integer payload **and** the raw null-pointer value used by many low-level/native APIs.
+  Therefore `0` is *not a safe sentinel* for “missing/absent” in compiler-side structures.
+- Prefer:
+  - `nil` as the missing/absent sentinel for metadata in maps/dicts, or
+  - `n+1` encodings when call sites decode via `enc-1` and need to represent a real 0 value.
+- Avoid writing `x == nil` when `x` is numeric: it is almost always a bug that should be expressed as a type/tag check.
 - Related footgun: **do not encode booleans as `0/1` ints.**
   - In Oren, `0` is truthy; only `nil` and `false` are falsey.
   - Predicate helpers must return `false`/`true` (e.g. `oren_is_err(v) -> bool`, `oren_is_done(handle) -> bool`), and callers must not write `== 0` / `!= 0` checks against boolean results.
@@ -481,8 +485,8 @@ Two concrete pitfalls we’ve hit in the x86_64 backend:
 
 - **x86_64 ModRM/SIB encoding requires `disp8=0` bytes.**
   - `[rbp]` / `[r13]` addressing needs `mod=01` + `disp8=0`.
-  - If an encoder returns `{ "disp8": 0 }` as an “optional byte”, and later code checks `if disp8 != nil`, the byte can be omitted (because `0` aliases `nil`), shifting the instruction stream and producing a binary that crashes at entry.
-  - Fix pattern: encode `disp8` as `disp8+1` in the returned dict, and decode at emission time (`enc["disp8"] - 1`).
+  - Fix pattern: represent optional numeric fields as `n+1` so `0` can be reserved for "absent",
+    and decode at emission time (`enc["disp8"] - 1`).
 - **Intrinsic temp spill allocator must not return base index `0`.**
   - Use 1-based indices (reserve slot 0) so `base==0` never aliases “no base”.
 

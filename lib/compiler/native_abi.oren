@@ -45,17 +45,14 @@ fn int_arg_reg(abi, arg_index) {
     if regs == nil { return nil }
     if arg_index < 0 || arg_index >= oren_list_len(regs) { return nil }
     // IMPORTANT (native backend compatibility):
-    // Native runtime uses `0` as the "nil" sentinel, so callers must never use `== nil`
-    // checks on values where 0 is a valid payload (e.g. register number X0).
+    // Backend register numbering is 0-based (e.g. X0/RDI => 0), but many call sites decode via
+    // `enc - 1` after first checking `enc != nil`.
     //
-    // To avoid nil/0 ambiguity, return register numbers encoded as `reg+1`:
-    // - 0 means "missing"
+    // To represent reg 0 without ambiguity, return register numbers encoded as `reg+1`:
+    // - `nil` means "missing/unsupported"
     // - 1..N map to real regs 0..N-1
     //
-    // Note: on arm64, the first int arg reg is X0 (reg 0). Under the native runtime's
-    // stopgap value model, list element 0 is indistinguishable from `nil` when read back,
-    // so `regs[0]` may appear as `nil` even though the ABI list contains `0`.
-    // Treat that as reg 0 and continue with the encoding.
+    // Note: do not use truthiness to test "present": in Oren, all ints (including 0) are truthy.
     var reg = regs[arg_index]
     if reg == nil { reg = 0 }
     return reg + 1

@@ -577,11 +577,9 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     }
 
     // IMPORTANT (native backend self-hosting):
-    // When the compiler runs under the native runtime, `nil` is represented as 0.
-    // That makes it unsafe to store a real offset 0 in maps (it becomes indistinguishable
-    // from "missing"). The main program compiler always emits a non-empty entry stub,
-    // so function offsets are never 0, but a standalone runtime object would otherwise
-    // start at offset 0.
+    // Avoid having the runtime object start at code offset 0.
+    // Several compiler metadata encodings are 1-based and decoded via `enc-1`, and some
+    // older caches also used 0 as a placeholder/sentinel.
     //
     // Emit a single NOP so the first runtime function has a non-zero offset.
     push_u32_le(ctx["code"], 3573751839) // 0xD503201F (AArch64 NOP)
@@ -939,8 +937,8 @@ fn _arm64_alloc_global_slot(ctx, name_node, init_expr, from_runtime) {
     var data_off = bytes_len(ctx["data"])
     var k = 0
     while k < 8 { bytes_push(ctx["data"], 0); k = k + 1 }
-    // Store as offset+1 so a real offset of 0 is not indistinguishable from `nil`
-    // when the compiler runs under the native runtime (where `nil` is 0).
+    // Store as offset+1 so a real offset of 0 is representable while still using `nil`
+    // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
     ctx["globals"][nm] = data_off + 1
 
     var is_floaty = exprm.native_expr_is_floaty(ctx, init_expr)

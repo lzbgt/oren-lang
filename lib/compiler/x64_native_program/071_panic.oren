@@ -299,8 +299,8 @@ fn _emit_resolve_symbol_ptr_and_off_best_effort(ctx, addr_reg, out_ptr_reg, out_
     // - out_off_reg = u64 offset within function (0 if unknown)
     //
     // Clobbers: rax, rbx, r8, r9, r10, r11
-    // `ctx["symtab_off"]` is stored as `off+1` (so a real offset 0 is representable
-    // under the native runtime, where `nil` is 0).
+    // `ctx["symtab_off"]` is stored as `off+1` so offset 0 is representable while still
+    // using `nil` as the sentinel for "missing" (call sites decode with `enc-1`).
     var symtab_off_enc = ctx["symtab_off"]
     var symtab_off = nil
     if symtab_off_enc != nil { symtab_off = symtab_off_enc - 1 }

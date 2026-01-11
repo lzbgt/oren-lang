@@ -21,7 +21,7 @@ fn _lower_ascii(s) {
         var c = oren_string_char_at(s, i)
         // Map via hardcoded string index (ASCII-only, deterministic).
         // This avoids relying on any locale/casefolding behavior.
-        // Use -1 as "not found" sentinel (0 is a valid index and also the native `nil` value).
+        // Use -1 as "not found" sentinel (0 is a valid index).
         var idx = -1
         var alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         var j = 0

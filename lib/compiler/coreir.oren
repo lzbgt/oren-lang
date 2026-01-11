@@ -91,13 +91,10 @@ fn collect_top_level_functions(ctx, linked, err_prefix) {
 
             // Record arity and optional varargs fixed count (last param is `...rest`).
             //
-            // IMPORTANT (native-runtime compatibility):
-            // When the compiler runs under the native runtime, `nil` is represented as 0.
-            // Many compiler maps use `m[k] == nil` to mean "missing", so storing a real 0
-            // payload (e.g. arity 0) becomes ambiguous.
-            //
-            // To keep stage2-native functional without a full tagged value model yet,
-            // store small integer payloads as `n+1` (so 0 is reserved for "missing").
+            // IMPORTANT (compiler metadata encoding):
+            // Several compiler maps store small integer payloads as `n+1` so:
+            // - `nil` can remain the sentinel for "missing", and
+            // - call sites can decode with `enc-1` without needing special cases for 0.
             ctx["func_arity"][name] = pc + 1
             if pc > 0 {
                 var last = params[pc - 1]

@@ -7,8 +7,8 @@ fn bytecode_compile_function(ctx, stmt) {
     emit_i32(ctx, 0)
     
     var start_pc = oren_list_len(ctx["code"])
-    // Map values that can be 0 must avoid nil/0 ambiguity in the native runtime.
-    // Store 1-based and decode at use sites.
+    // Map values that can be 0 are stored 1-based so 0 is representable while still using `nil`
+    // as the sentinel for "missing" (decode at use sites via `enc-1`).
     ctx["functions"][name] = start_pc + 1
     
     var old_locals = ctx["locals"]
@@ -26,7 +26,7 @@ fn bytecode_compile_function(ctx, stmt) {
         var cmap = {}
         var ci = 0
         while ci < oren_list_len(caps) {
-            // Store 1-based (0 is ambiguous with nil in the native runtime bring-up model).
+            // Store 1-based so 0 is representable while still using `nil` as missing.
             cmap[caps[ci]] = ci + 1
             ci = ci + 1
         }
@@ -37,7 +37,7 @@ fn bytecode_compile_function(ctx, stmt) {
     var i = 0
     while i < oren_list_len(params) {
         var pname = params[i]["value"]
-        // Store 1-based (0 is ambiguous with nil in the native runtime bring-up model).
+        // Store 1-based so 0 is representable while still using `nil` as missing.
         ctx["locals"][pname] = ctx["local_count"] + 1
         ctx["local_count"] = ctx["local_count"] + 1
         i = i + 1

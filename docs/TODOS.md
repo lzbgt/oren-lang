@@ -90,11 +90,12 @@ References:
 
    Goal: “same program, same result” across Tier‑1, not “macOS only”.
 
-   Parity surfaces:
-
-   - value semantics (`nil/false/true` vs numeric), comparisons, list/map behavior
-   - FFI ABI correctness (sign/zero extension, void return, ptr-sized returns)
-   - NET/TLS end-to-end behavior (timeouts, buffering, determinism knobs)
+	   Parity surfaces:
+	
+	   - value semantics (`nil/false/true` vs numeric), comparisons, list/map behavior
+	   - eliminate legacy “nil==0” / 0-sentinel assumptions (0 is a valid int and is truthy; `nil/false/true` are runtime singletons)
+	   - FFI ABI correctness (sign/zero extension, void return, ptr-sized returns)
+	   - NET/TLS end-to-end behavior (timeouts, buffering, determinism knobs)
 
    Gates:
 

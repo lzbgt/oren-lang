@@ -27,7 +27,7 @@ fn err(ctx, msg) {
 // ---- begin extracted code (x64 native v0) ----
 fn _cond_check(ctx, cond) {
     // Supported cond forms (rolling v0):
-    // - Any int-ish expression, using language truthiness semantics (0 is false).
+    // - Any int-ish expression, using language truthiness semantics (only `nil` and `false` are falsey; int 0 is truthy).
     // - Comparison infix: == != < <= > >= (keeps "cmp+Jcc" lowering compact).
     if cond == nil { err(ctx, "x64 native v0: missing condition"); return nil }
 
@@ -267,19 +267,22 @@ fn _x64_print_lower_to_runtime_ops(ctx, ops, tok, call_expr) {
 
 fn _cond_false_cc_for_cond(cond) {
     // After `_emit_cmp_from_cond`, flags are:
-    // - comparison: based on `cmp lhs, rhs`
-    // - truthy expr: based on `cmp expr, 0`
+    // - integer comparison: based on `cmp lhs, rhs`
+    // (General truthiness is handled elsewhere via `nil/false` singleton checks; ints are always truthy.)
     if _cond_is_cmp_infix(cond) != nil { return _cond_false_cc(cond["op"]) }
     if cond != nil && cond["type"] == "Prefix" && cond["op"] == "!" {
-        // !x is false when x is truthy (x != 0)
+        // `!(lhs op rhs)` is false when `(lhs op rhs)` is true.
         var inner = cond["right"]
         if _cond_is_cmp_infix(inner) != nil {
             // !(lhs op rhs) is false when (lhs op rhs) is true.
             return _cond_true_cc(inner["op"])
         }
+        // Legacy fallback: `!x` is false when x != 0.
+        // Note: Tier‑1 native lowering handles general `!x` via `nil/false` singleton checks,
+        // so this branch should be unreachable (kept for rolling compatibility).
         return "ne"
     }
-    // expr is false when expr == 0
+    // Unreachable for current x64-native condition lowering; keep a safe default.
     return "e"
 }
 

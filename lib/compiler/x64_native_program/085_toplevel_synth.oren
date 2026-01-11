@@ -40,8 +40,8 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
                 return nil
             }
             var off0 = _data_add_u64(ctx, 0)
-            // Store as offset+1 so a real offset of 0 is not indistinguishable from `nil`
-            // when the compiler runs under the native runtime (where `nil` is 0).
+            // Store as offset+1 so a real offset of 0 is representable while still using `nil`
+            // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
             ctx["globals"][nm] = off0 + 1
         }
         i = i + 1
@@ -58,8 +58,8 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
                 return nil
             }
             var off2 = _data_add_u64(ctx, 0)
-            // Store as offset+1 so a real offset of 0 is not indistinguishable from `nil`
-            // when the compiler runs under the native runtime (where `nil` is 0).
+            // Store as offset+1 so a real offset of 0 is representable while still using `nil`
+            // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
             ctx["globals"][nm2] = off2 + 1
         }
         i = i + 1

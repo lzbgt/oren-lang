@@ -18,7 +18,7 @@ fn bytecode_collect_locals_stmt(ctx, stmt) {
     if stmt["type"] == "Var" {
         var name = stmt["name"]["value"]
         if ctx["locals"][name] == nil {
-            // Store 1-based (0 is ambiguous with nil in the native runtime bring-up model).
+            // Store 1-based so 0 is representable while still using `nil` as missing.
             ctx["locals"][name] = ctx["local_count"] + 1
             ctx["local_count"] = ctx["local_count"] + 1
         }
@@ -138,7 +138,7 @@ fn bytecode_compile_stmt(ctx, stmt) {
         var name = stmt["name"]["value"]
         if ctx["in_function"] != true {
             var idx = ctx["global_count"]
-            // Store 1-based (0 is ambiguous with nil in the native runtime bring-up model).
+            // Store 1-based so 0 is representable while still using `nil` as missing.
             ctx["globals"][name] = idx + 1
             ctx["global_count"] = idx + 1
             emit_byte(ctx, AVM_STORE_GLOBAL)
