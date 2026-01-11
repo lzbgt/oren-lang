@@ -1,6 +1,6 @@
 # GUI Platform Shims (OrenUI) — v0 Bring-up Plan
 
-**Status:** macOS Cocoa shim exists; Windows/Linux shims not started  
+**Status:** macOS Cocoa shim exists; Windows shim bring-up exists; Linux shim not started  
 **Last updated:** 2026-01-12
 
 This document turns `docs/GUI.md` into an actionable engineering plan for **Tier‑1 platform shims**.
@@ -19,8 +19,9 @@ Tier‑1 OS/arch intent (today): `arm64-macos`, `arm64-linux`, `x64-linux`, `x64
 
 - In-tree shim header: `native/orenui/orenui.h`
 - macOS shim implementation exists: `native/orenui/cocoa/orenui_cocoa.m`
-- Windows shim skeleton exists: `native/orenui/win32/orenui_win32.c` (bring-up; no smoke gate yet)
+- Windows shim bring-up exists: `native/orenui/win32/orenui_win32.c` (v0 skeleton; window + present + pump)
 - Smoke gate (macOS-only; requires GUI session): `scripts/verify_ui_smoke_macos.sh` (wired via `make verify-ui-smoke-macos`)
+- Smoke gate (Windows; requires GUI session + VS Developer Prompt): `scripts/verify_ui_smoke_windows.sh` (wired via `make verify-ui-smoke-windows`)
 - Missing today:
   - Linux shim (`arm64-linux`, `x64-linux`) — X11 (RGBA blit) as the first bring-up target
 
@@ -202,7 +203,7 @@ So the recommended default is:
    - keep `scripts/verify_ui_smoke_macos.sh` green (headful; opt-in)
 3) **Windows (`x64-windows`)**:
    - add `native/orenui/win32/*` implementing the same ABI using Win32 + GDI (RGBA blit)
-   - add `scripts/verify_ui_smoke_windows.sh` that builds the shim and runs a bounded “open window → present N frames → close” test
+   - done: `scripts/verify_ui_smoke_windows.sh` builds the shim and runs a bounded “open window → present N frames → close” test
 4) **Linux (`x64-linux`, `arm64-linux`)**:
    - add `native/orenui/x11/*` implementing the same ABI using Xlib + XPutImage (v0)
    - add a headful `scripts/verify_ui_smoke_linux.sh` (note: WSL2 is not a reliable GUI target by default)

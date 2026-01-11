@@ -1,4 +1,4 @@
-// OrenUI bring-up demo (macOS first)
+// OrenUI bring-up demo (platform shims: macOS + Windows)
 //
 // This is intentionally tiny:
 // - portable UI core: `std:ui/*` renders a deterministic command buffer and rasterizes into RGBA bytes.
@@ -6,6 +6,7 @@
 //
 // Build/run via:
 //   ./scripts/verify_ui_smoke_macos.sh
+//   ./scripts/verify_ui_smoke_windows.sh
 
 import ui_core "std:ui/core"
 import ui_render "std:ui/render"
@@ -15,7 +16,15 @@ import ui_raster "std:ui/raster"
 @ffi.ret("i32")
 ffi orenui_open_window
 
+@cfg(os="windows")
+@ffi.ret("i32")
+ffi orenui_open_window
+
 @cfg(os="macos")
+@ffi.ret("i32")
+ffi orenui_present_rgba
+
+@cfg(os="windows")
 @ffi.ret("i32")
 ffi orenui_present_rgba
 
@@ -23,15 +32,29 @@ ffi orenui_present_rgba
 @ffi.ret("i32")
 ffi orenui_pump
 
+@cfg(os="windows")
+@ffi.ret("i32")
+ffi orenui_pump
+
 @cfg(os="macos")
+@ffi.ret("void")
+ffi orenui_close_window
+
+@cfg(os="windows")
 @ffi.ret("void")
 ffi orenui_close_window
 
 fn _make_tree(w, h) {
     var bg = ui_core.node("Box", "bg", {"w": w, "h": h, "bg": "#202020"}, [])
 
+    var title = "OrenUI v0"
+    @cfg(os="macos")
+    title = "OrenUI v0 (macOS bring-up)"
+    @cfg(os="windows")
+    title = "OrenUI v0 (Windows bring-up)"
+
     var t = ui_core.node("Text", "t", {
-        "text": "OrenUI v0 (macOS bring-up)",
+        "text": title,
         "w": w - 20,
         "h": 1,
         "color": "#00ff66"

@@ -1,6 +1,6 @@
 # GUI / UI Design for Oren (Rolling)
 
-**Status:** Design + headless core implemented (rolling; platform shims not started)  
+**Status:** Design + headless core implemented; bring-up shims exist for macOS + Windows (rolling)  
 **Last updated:** 2026-01-12
 
 This document proposes a **production-oriented** GUI story for Oren that is consistent with:
@@ -10,6 +10,11 @@ This document proposes a **production-oriented** GUI story for Oren that is cons
 - Rolling constraints: fast iteration, deterministic tooling, and cross-platform targets.
 
 Tier‑1 OS/arch intent (today): `arm64-macos`, `arm64-linux`, `x64-linux`, `x64-windows`.
+
+Bring-up gates (headful, opt-in):
+
+- macOS: `make verify-ui-smoke-macos`
+- Windows: `make verify-ui-smoke-windows`
 
 ## 0) Goals and constraints
 
