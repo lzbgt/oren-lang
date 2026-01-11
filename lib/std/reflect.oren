@@ -1,0 +1,44 @@
+// std:reflect (rolling v0)
+//
+// This module provides a small, portable reflection surface suitable for:
+// - varargs processing (rest lists)
+// - generic logging/debug printing
+// - boundary checks in stdlib (avoid calling string ops on non-strings in native mode)
+//
+// This is intentionally minimal and does NOT attempt to expose full type metadata yet.
+// Full reflection v1 is tracked in `docs/REFLECTION_V1.md` and depends on the tagged value plan
+// (`docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`).
+
+// Stable tag numbers (matches `lib/runtime.h` OrenType enum values).
+// Note: native backend is still rolling toward fully tagged values; `tag(v)` is best-effort there
+// for numeric immediates (`int` vs `float`). Non-numeric kinds are reliable.
+var TAG_NIL = 0
+var TAG_INT = 1
+var TAG_FLOAT = 2
+var TAG_BOOL = 3
+var TAG_STRING = 4
+var TAG_PY_OBJ = 5
+var TAG_LIST = 6
+var TAG_MAP = 7
+var TAG_FUNC = 8
+
+// Typed buffers (HPC buffers, not boxed lists).
+var TAG_U8_BUF = 9
+var TAG_I32_BUF = 10
+var TAG_I64_BUF = 11
+var TAG_F32_BUF = 12
+var TAG_F64_BUF = 13
+
+fn tag(v) { return oren_type_tag(v) }
+fn name(v) { return oren_type_name(v) }
+
+fn is_nil(v) { return tag(v) == TAG_NIL }
+fn is_bool(v) { return tag(v) == TAG_BOOL }
+fn is_string(v) { return tag(v) == TAG_STRING }
+fn is_list(v) { return tag(v) == TAG_LIST }
+fn is_map(v) { return tag(v) == TAG_MAP }
+fn is_buf(v) {
+    var t = tag(v)
+    return t >= TAG_U8_BUF && t <= TAG_F64_BUF
+}
+

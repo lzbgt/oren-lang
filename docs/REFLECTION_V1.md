@@ -31,6 +31,12 @@ with a reserved map key (2026-01-10):
   - returns `"User"` for `User(...)`
   - still returns `"map"` for ordinary map literals without the tag.
 
+In addition, the stdlib now exposes a minimal wrapper module:
+
+- `lib/std/reflect.oren` (`std:reflect` in spirit; import path is still rolling)
+  - `tag(v)` / `name(v)` wrappers (call through to `oren_type_tag` / `oren_type_name`)
+  - stable tag constants (`TAG_NIL`, `TAG_STRING`, `TAG_LIST`, …) matching `lib/runtime.h` `OrenType`
+
 This is intentionally **not** the final reflection design:
 
 - it does not provide a stable `TypeId`

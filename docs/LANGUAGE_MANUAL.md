@@ -839,6 +839,7 @@ Runtime type tags (useful for varargs dispatch):
 
 - `oren_type_tag(v)` → int (stable tag numbers; see below)
 - `oren_type_name(v)` → string (stable names for tags; intended for logging and simple branching)
+- `lib/std/reflect.oren` provides `tag(v)` / `name(v)` wrappers and stable tag constants, so user code does not need to hardcode numeric tags.
 
 Tag values (stable; matches `lib/runtime.h` `OrenType` enum):
 

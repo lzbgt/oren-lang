@@ -1,5 +1,6 @@
 import json "../../lib/std/json.oren"
 import ints "../../lib/std/ints.oren"
+import reflect "../../lib/std/reflect.oren"
 import ui_core "../../lib/std/ui/core.oren"
 import ui_render "../../lib/std/ui/render.oren"
 import ui_raster "../../lib/std/ui/raster.oren"
@@ -358,6 +359,16 @@ fn test_type_tag_varargs() {
         return out
     }
 
+    // std:reflect constants must match the runtime contract.
+    assert_eq(reflect.TAG_NIL, 0, 970)
+    assert_eq(reflect.TAG_INT, 1, 971)
+    assert_eq(reflect.TAG_FLOAT, 2, 972)
+    assert_eq(reflect.TAG_BOOL, 3, 973)
+    assert_eq(reflect.TAG_STRING, 4, 974)
+    assert_eq(reflect.TAG_LIST, 6, 975)
+    assert_eq(reflect.TAG_MAP, 7, 976)
+    assert_eq(reflect.TAG_I32_BUF, 10, 977)
+
     var v_nil = nil
     var v_int = 123
     var v_str = "x"
@@ -383,6 +394,10 @@ fn test_type_tag_varargs() {
     assert_streq(oren_type_name(v_map), "map", 87)
     assert_streq(oren_type_name(v_buf), "i32_buf", 88)
     assert_streq(oren_type_name(v_struct), "F32Box", 90)
+
+    // std:reflect wrappers must match the raw runtime helpers.
+    assert_eq(reflect.tag(v_nil), 0, 978)
+    assert_streq(reflect.name(v_struct), "F32Box", 979)
 }
 
 fn test_read_u8_buf_missing_returns_err() {

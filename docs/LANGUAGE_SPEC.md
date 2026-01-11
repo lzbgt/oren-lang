@@ -880,6 +880,10 @@ For varargs dispatch and debugging/logging, the runtime provides small reflectio
 - `oren_type_tag(v)` → int tag matching `lib/runtime.h` `OrenType` enum values.
 - `oren_type_name(v)` → stable string name for that tag.
 
+Stdlib wrapper (rolling):
+
+- `lib/std/reflect.oren` provides `tag(v)` / `name(v)` wrappers and stable `TAG_*` constants.
+
 Native backend note:
 
   - Until native value tagging is fully implemented, numeric immediates (`int`/`float`) may still be indistinguishable in some native-mode paths, so `oren_type_tag` is best-effort for those values.
