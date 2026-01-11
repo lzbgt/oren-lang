@@ -213,10 +213,10 @@ fn _nil_guard_collect_scalar_likely_expr(scalar_likely, expr) {
         // Heuristic: treat certain operators as "scalar-only" so we can reject `id == nil`
         // footguns even when `id` originates from an unknown-typed container (map/list/etc).
         //
+        var op = expr["op"]
         // Keep this conservative:
         // - Do NOT mark `+` because it can be string concatenation.
         // - Prefer ops that are unambiguously numeric/bitwise in v0.
-        var op = expr["op"]
         if op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>" || op == "%" {
             _nil_guard_mark_scalar_likely(scalar_likely, expr["left"])
             _nil_guard_mark_scalar_likely(scalar_likely, expr["right"])

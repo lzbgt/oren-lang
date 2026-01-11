@@ -105,6 +105,8 @@ Concrete rule (treat as a correctness bug in rolling native builds):
   - If you intentionally accept `nil` as “missing” for a numeric/bool parameter (optional arg style), prefer a tag-based check on truly dynamic values:
     - `if oren_type_tag(x) == 0 { x = 0 }`
   - Prefer explicit “optional” shapes instead (e.g. return `{"ok":1,"v":...}` / `{"ok":0}`), or keep the value as `nil`/non-`nil` reference types and avoid using `0`/`false` as “missing” sentinels.
+  - Known limitation (rolling): the guard’s “later proven scalar” inference intentionally stays conservative; it does **not** currently treat plain arithmetic like `x + 1` as proof of scalar-ness because that would flag many common nil-coalescing patterns in core compiler code.
+    - If you want a compile-time tripwire on a dynamic value, use an explicit cast in the scalar path (e.g. `i64(x)` / `f64(x)`) so the guard can treat it as scalar-likely.
 
 Practical compiler-internal corollary (x64 emitters):
 

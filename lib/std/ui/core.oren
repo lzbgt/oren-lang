@@ -199,7 +199,9 @@ fn _get_node_at_path(root, path) {
 fn _list_insert_at(xs, idx, v) {
     if xs == nil { xs = [] }
     var n = oren_list_len(xs)
-    if idx == nil { idx = n }
+    // Guardrail: avoid `idx == nil` when `idx` is later treated as numeric.
+    // Use a tag check so the code stays portable across Tier‑1 backends.
+    if oren_type_tag(idx) == 0 { idx = n }
     if idx < 0 { idx = 0 }
     if idx > n { idx = n }
     var out = []
