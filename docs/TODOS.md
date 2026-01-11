@@ -673,5 +673,9 @@ References:
    - Done (2026-01-11): group-level default `@ffi.ret("...")` now works as an ergonomic default with per-item override:
      - Example: `@ffi.link("libc.so.6") @ffi.ret("i32") ffi { atoi, puts, @ffi.ret("void") srand }`
      - Regression: `tests/native/ffi_group_default_ret.oren` (also covered by x64 compile-only gate)
+   - Done (2026-01-11): FFI aliasing (`as`) so internal names don’t have to match external symbols:
+     - Single: `ffi puts as c_puts`
+     - Group: `ffi { puts as c_puts, atoi as c_atoi }`
+     - Regression: `tests/native/ffi_alias_symbols.oren` (run by `make test-native-all`, compiled by `scripts/verify_native_x64_compile_only.sh`)
    - Next:
-     - Consider allowing explicit external symbol rename for FFI (e.g. `ffi { getpid as _getpid }` or `ffi { sym="..." }`) once needed by real APIs.
+     - If we hit APIs where the external symbol is not a valid Oren identifier, consider a quoted form (e.g. `ffi { "GetProcAddress" as GetProcAddress }`), but keep it opt-in.

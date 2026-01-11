@@ -338,6 +338,10 @@ Rolling convenience:
 - `@ffi.ret("...")` may also appear **before** the group as a default return kind:
   - `@ffi.link("libc.so.6") @ffi.ret("i32") ffi { atoi, puts, @ffi.ret("void") srand }`
   - Per-item `@ffi.ret("...")` overrides the group default (so you can set `i32` once and override rare `void`/`u32` cases).
+- You can also alias an `ffi` declaration when the **Oren identifier** should differ from the **external symbol name**:
+  - `ffi puts as c_puts`
+  - `@ffi.link("libc.so.6") ffi { puts as c_puts, strlen as c_strlen }`
+  - The left name is the external symbol (`dlsym` / `GetProcAddress`), the right name is the internal identifier you call.
 
 Notes (rolling):
 

@@ -1,0 +1,37 @@
+// FFI aliasing (rolling ergonomics):
+//
+// Allow importing multiple symbols from the same library without polluting the
+// global namespace or colliding with Oren functions.
+//
+// Syntax under test:
+//   ffi puts as c_puts
+//   ffi { puts as c_puts, atoi as c_atoi }
+//
+// This fixture is intended to be compiled (and optionally run) across targets.
+
+@cfg(os="windows")
+@ffi.dll("msvcrt.dll")
+@ffi.ret("i32")
+ffi { puts as c_puts, atoi as c_atoi }
+
+@cfg(os="linux")
+@ffi.link("libc.so.6")
+@ffi.ret("i32")
+ffi { puts as c_puts, atoi as c_atoi }
+
+@cfg(os="macos")
+@ffi.link("libSystem.B.dylib")
+@ffi.ret("i32")
+ffi { puts as c_puts, atoi as c_atoi }
+
+fn main() {
+    // Calls should bind to the *alias* names, while linking/resolution uses the
+    // *external* symbol names ("puts"/"atoi").
+    var rc = c_puts("ffi_alias_symbols: OK")
+    // msvcrt/libc puts returns non-negative on success.
+    if rc < 0 { exit(1) }
+
+    var v = c_atoi("123")
+    if v != 123 { exit(1) }
+    exit(0)
+}

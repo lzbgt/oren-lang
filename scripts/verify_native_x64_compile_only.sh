@@ -149,6 +149,7 @@ LINUX_FFI_VOID_SRC="tests/native/ffi_linux_ret_void_zero.oren"
 
 FFI_GROUP_ITEM_ATTRS_SRC="tests/native/ffi_group_item_attrs.oren"
 FFI_GROUP_DEFAULT_RET_SRC="tests/native/ffi_group_default_ret.oren"
+FFI_ALIAS_SYMBOLS_SRC="tests/native/ffi_alias_symbols.oren"
 LIBMATH_SRC="examples/libmath.oren"
 
 run_with_timeout() {
@@ -344,6 +345,9 @@ run_suite_x64_linux() {
   build_one "$compiler" x64-linux "$FFI_GROUP_DEFAULT_RET_SRC" "build/tmp/ffi_group_default_ret_${tag}_x64_linux"
   check_elf_x64_dyn "build/tmp/ffi_group_default_ret_${tag}_x64_linux"
 
+  build_one "$compiler" x64-linux "$FFI_ALIAS_SYMBOLS_SRC" "build/tmp/ffi_alias_symbols_${tag}_x64_linux"
+  check_elf_x64_dyn "build/tmp/ffi_alias_symbols_${tag}_x64_linux"
+
   # Shared library output: `.so` + generated header.
   build_one "$compiler" x64-linux "$LIBMATH_SRC" "build/tmp/libmath_${tag}_x64_linux.so" --lib
   check_elf_x64_so "build/tmp/libmath_${tag}_x64_linux.so"
@@ -394,6 +398,9 @@ run_suite_x64_win() {
 
   build_one "$compiler" x64-windows "$FFI_GROUP_DEFAULT_RET_SRC" "build/tmp/ffi_group_default_ret_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/ffi_group_default_ret_${tag}_x64_windows.exe"
+
+  build_one "$compiler" x64-windows "$FFI_ALIAS_SYMBOLS_SRC" "build/tmp/ffi_alias_symbols_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/ffi_alias_symbols_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$WIN_FFI_EXPORT_GETPROC_SRC" "build/tmp/ffi_export_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/ffi_export_${tag}_x64_windows.exe"

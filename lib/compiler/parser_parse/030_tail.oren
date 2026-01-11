@@ -490,8 +490,10 @@ fn parse_ffi(p) {
     var tok = p["cur"]
     // Supported forms:
     // - `ffi puts`
+    // - `ffi puts as c_puts` (alias: internal name differs from external symbol)
     // - `ffi { puts, printf, ... }` (rolling sugar: expands to multiple FFI decls)
     // - `ffi { @ffi.ret("i32") atoi, @ffi.ret("void") free, puts }` (per-item attrs)
+    // - `ffi { puts as c_puts, atoi as c_atoi }` (alias inside group)
     //
     // The group form exists to avoid repeating `@ffi.dll/@ffi.link/@ffi.ret` for many
     // symbols from the same library.
@@ -512,8 +514,19 @@ fn parse_ffi(p) {
                 parser_add_error(p, "expected ffi symbol name")
                 return ast.new_stmt_list([])
             }
-            var name = ast.new_identifier(p["cur"])
+            var ext_name = ast.new_identifier(p["cur"])
+            var link_name = ext_name["value"]
+            var name = ext_name
+            if peek_is(p, token.TOK_AS) {
+                parser_next_token(p) // 'as'
+                if !expect_peek(p, token.TOK_IDENT) {
+                    parser_add_error(p, "expected ffi alias name after `as`")
+                    return ast.new_stmt_list([])
+                }
+                name = ast.new_identifier(p["cur"])
+            }
             var st = ast.new_ffi(tok, name)
+            st["link_name"] = link_name
             if item_attrs != nil && oren_list_len(item_attrs) > 0 { st["attrs"] = item_attrs }
             oren_list_push(stmts, st)
 
@@ -539,6 +552,15 @@ fn parse_ffi(p) {
     }
 
     if !expect_peek(p, token.TOK_IDENT) { return nil }
-    var name2 = ast.new_identifier(p["cur"])
-    return ast.new_ffi(tok, name2)
+    var ext_name2 = ast.new_identifier(p["cur"])
+    var link_name2 = ext_name2["value"]
+    var name2 = ext_name2
+    if peek_is(p, token.TOK_AS) {
+        parser_next_token(p) // 'as'
+        if !expect_peek(p, token.TOK_IDENT) { return nil }
+        name2 = ast.new_identifier(p["cur"])
+    }
+    var st2 = ast.new_ffi(tok, name2)
+    st2["link_name"] = link_name2
+    return st2
 }
