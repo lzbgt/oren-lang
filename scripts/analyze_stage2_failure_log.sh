@@ -122,6 +122,13 @@ bounded_grep "hard failures" "SIG(SEGV|ABRT)|segmentation fault|stack trace|\\bp
 # Known x64 bring-up hazard the repo treats as a hard gate.
 bounded_grep "x64 ABI arg-reg warnings" "x64 native v0: missing ABI arg reg"
 
+# Common Windows/x64 failure mode when paths contain mixed separators or invalid output dirs.
+bounded_grep "output write failures" "x64 pe: failed to write|write_bytes: sys_open failed|\\bsys_open failed\\b"
+
+# Path separator clues (useful when the log comes from remote Win11 shells, proxy uploads, or cross-OS scripts).
+# Note: the patterns intentionally match literal backslashes in logs (grep ERE needs `\\`).
+bounded_grep "path separator clues" "examples\\\\|build\\\\targets|\\.oren\\\\|\\.exe\\\\"
+
 # Timeout hints (build steps and runtime steps).
 bounded_grep "timeouts" "timed out|timeout|ETIMEDOUT"
 
@@ -143,4 +150,8 @@ if [[ -n "$local_sha" ]]; then
 fi
 echo "  - the exact failing command line"
 echo "- If you see 'x64 native v0: missing ABI arg reg', treat it as a backend bug (not a flaky test)."
+echo "- If you see 'x64 pe: failed to write' or 'write_bytes: sys_open failed', suspect path/output issues:"
+echo "  - mixed path separators (\\ vs /) leaking into the output path"
+echo "  - output directory not created (or created under a different normalized path)"
+echo "  - on remote Win11, also inspect: project-doc/remote/<timestamp>/stage2_windows_env.log"
 echo "- If the log is huge, rerun with smaller output: --max 30 --tail 80"
