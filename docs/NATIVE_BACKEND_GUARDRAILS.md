@@ -62,6 +62,9 @@ Invariant:
 - They must not be tracked as GC allocations (no alloc nodes).
 - The runtime builds a **literal membership set** at entry (`oren_init_static_cstr0_table`) so `oren_is_string`
   can recognize literal pointers safely.
+- Even if compiler/codegen mistakenly attempts to track a literal, the runtime must treat it as a no-op:
+  - `oren_track_alloc(lit, ..., kind=STRING)` must not create a node.
+  - `oren_track_static(lit, kind=STRING)` must not create a node.
 
 Why:
 
