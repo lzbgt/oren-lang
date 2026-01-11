@@ -33,6 +33,7 @@ Examples:
 
 Env:
   OREN_NATIVE_BUILD_TIMEOUT_SECS (default: 10)
+  OREN_NATIVE_BUILD_TIMEOUT_SECS_NET_TLS_HTTP2 (default: 15) timeout override for the large NET/TLS/HTTP2 compile-only smoke fixture
 EOF
 }
 
@@ -128,6 +129,20 @@ fi
 
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
 
+# Compiler-only performance knobs (rolling hang guard):
+# - Stage2 native backend uses fork-based spawn on macOS/Linux today; module parsing can be
+#   parallelized via ASTBIN worker bounce (`OREN_PARSE_FORK_PARALLEL=1`).
+# - This also enables the persistent module ASTBIN cache to populate (workers already have
+#   ASTBIN bytes), which keeps large stdlib graphs bounded across multiple `oren build` invocations.
+X64_PARSE_JOBS="${OREN_PARSE_JOBS:-8}"
+if [[ "$X64_PARSE_JOBS" -lt 1 ]]; then X64_PARSE_JOBS=1; fi
+if [[ "$X64_PARSE_JOBS" -gt 16 ]]; then X64_PARSE_JOBS=16; fi
+
+COMPILER_ENV=(
+  "OREN_PARSE_JOBS=${X64_PARSE_JOBS}"
+  "OREN_PARSE_FORK_PARALLEL=1"
+)
+
 QI_SRC="tests/native/test_quick_integration_native.oren"
 PRINT_SRC="tests/native/print.oren"
 PRINT_NEEDLE="hello from native"
@@ -205,14 +220,28 @@ build_one() {
   bname="$(basename "$src" .oren)"
   local logf="build/logs/x64_compile_only_${ccname}_${platform}_${bname}.log"
 
+  # Rolling hang guard:
+  # Most fixtures should stay <10s, but the NET/TLS/HTTP2 compile-only smoke intentionally
+  # forces a very large stdlib closure (and we run with `--no-cache`), so allow a slightly
+  # larger guard to avoid false positives while still detecting true hangs.
+  local timeout_secs="$BUILD_TIMEOUT_SECS"
+  if [[ "$src" == "$NET_TLS_HTTP2_SMOKE_SRC" ]]; then
+    local t_override="${OREN_NATIVE_BUILD_TIMEOUT_SECS_NET_TLS_HTTP2:-}"
+    if [[ -n "$t_override" ]]; then
+      timeout_secs="$t_override"
+    else
+      if [[ "$timeout_secs" -lt 15 ]]; then timeout_secs=15; fi
+    fi
+  fi
+
   set +e
-  run_with_timeout "$BUILD_TIMEOUT_SECS" "$compiler" build "$src" \
+  run_with_timeout "$timeout_secs" env "${COMPILER_ENV[@]}" "$compiler" build "$src" \
     --backend native --platform "$platform" --no-cache --no-debug "$@" -o "$out" \
     >"$logf" 2>&1
   local rc=$?
   set -e
   if [[ "$rc" -ne 0 ]]; then
-    echo "ERROR: build failed or timed out: compiler=$compiler platform=$platform timeout=${BUILD_TIMEOUT_SECS}s" >&2
+    echo "ERROR: build failed or timed out: compiler=$compiler platform=$platform timeout=${timeout_secs}s" >&2
     tail -n 120 "$logf" >&2 || true
     echo "log: $logf" >&2
     return "$rc"

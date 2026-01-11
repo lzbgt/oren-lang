@@ -62,6 +62,29 @@ fn _stable_std_prefix(path) {
     return out + "_"
 }
 
+fn _ml_stable_module_prefix_from_full(full) {
+    // Stable prefix to make module prefixing deterministic across different entrypoints
+    // and across separate compiler processes.
+    //
+    // Why:
+    // - The native backend uses fork-based spawn today; module parsing happens in worker
+    //   processes and is bounced via ASTBIN files (expensive).
+    // - A persistent module cache can only be reused across different entrypoints if the
+    //   prefix for a given module is stable (otherwise cached ASTBIN contains mismatched
+    //   renamed identifiers).
+    //
+    // Contract:
+    // - Must start with a letter/underscore so it is a valid identifier prefix.
+    // - Must be short to keep generated symbols reasonable.
+    if full == nil { return "M0_" }
+    var h = _sha256_hex_string(full)
+    if h == nil { return "M0_" }
+    var take = 16
+    if oren_string_len(h) < take { take = oren_string_len(h) }
+    var short_hex = oren_string_slice(h, 0, take)
+    return "M" + short_hex + "_"
+}
+
 // Determine whether language-level `spawn` runs in shared memory (threads) or crosses a
 // process boundary (fork).
 //
@@ -112,6 +135,149 @@ fn _ml_parse_jobs() {
     // Keep a conservative cap to avoid forking dozens of parser processes in CI.
     if n > 32 { n = 32 }
     return n
+}
+
+// Persistent module ASTBIN cache (rolling).
+//
+// Goal:
+// - When a dev/test script invokes the compiler many times in separate processes
+//   (Tier‑1 matrices, NET matrix), avoid repeatedly parsing the same stdlib modules.
+//
+// Design:
+// - Cache stores *post-prepare* module programs (after cfg/rename/serde_json lowering),
+//   keyed by:
+//     - compiler signature (argv[0] path + size + mtime_ns)
+//     - config platform tuple (os/arch/platform)
+//     - module path + prefix (stable)
+//     - expanded source fingerprint (after @include expansion)
+// - Cache is best-effort: decode failures fall back to parsing.
+//
+// Safety notes:
+// - We only write the cache when fork-parallel parsing is enabled (workers already astbin-encode),
+//   so we avoid adding additional encode work to the serial/thread parse paths.
+var _ML_MODCACHE_COMPILER_SIG = nil
+var _ML_MODCACHE_TRACE_CNT = 0
+
+fn _ml_modcache_enabled() {
+    // Enabled by default; disable with:
+    //   OREN_MODULE_ASTBIN_CACHE=0
+    var v = oren_env("OREN_MODULE_ASTBIN_CACHE")
+    if v != nil && v != "" && (v == "0" || v == "false") { return false }
+    return true
+}
+
+fn _ml_modcache_trace_workers() {
+    // Avoid huge logs by default in fork-parallel mode (many worker processes).
+    //
+    // Enable worker logging explicitly with:
+    //   OREN_TRACE_MODULE_ASTBIN_CACHE=workers
+    var v = oren_env("OREN_TRACE_MODULE_ASTBIN_CACHE")
+    if v == nil { return false }
+    return v == "workers"
+}
+
+fn _ml_modcache_trace_enabled() {
+    // Default trace mode is "parent only" to keep output bounded.
+    // In fork-parallel mode, workers can be very chatty; see _ml_modcache_trace_workers().
+    if oren_env("OREN_TRACE_MODULE_ASTBIN_CACHE") == nil { return false }
+    if oren_env("OREN_PARSE_FORK_PARALLEL") != nil { return _ml_modcache_trace_workers() }
+    return true
+}
+
+fn _ml_mask63(x) { return x & 9223372036854775807 }
+
+fn _ml_fnv1a63_string(s, basis) {
+    if s == nil { return 0 }
+    var h = _ml_mask63(basis)
+    var prime = 1099511628211
+    var n = oren_string_len(s)
+    var i = 0
+    while i < n {
+        var b = oren_string_byte_at_unchecked(s, i) & 255
+        h = _ml_mask63(h ^ b)
+        h = _ml_mask63(h * prime)
+        i = i + 1
+    }
+    return h
+}
+
+fn _ml_fingerprint2_string(s) {
+    var h1 = _ml_fnv1a63_string(s, 1469598103934665603)
+    var h2 = _ml_fnv1a63_string(s, 1099511628211)
+    return "v2_" + oren_int_to_string(h1) + "_" + oren_int_to_string(h2)
+}
+
+fn _ml_sanitize_path_component(s) {
+    if s == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at_unchecked(s, i)
+        var ok = false
+        if ch != "" {
+            var b = oren_string_char_code_at(ch, 0)
+            if b >= 48 && b <= 57 { ok = true } // 0..9
+            if b >= 65 && b <= 90 { ok = true }  // A..Z
+            if b >= 97 && b <= 122 { ok = true } // a..z
+        }
+        if ch == "_" || ch == "-" { ok = true }
+        if ok { out = out + ch } else { out = out + "_" }
+        i = i + 1
+    }
+    return out
+}
+
+fn _ml_modcache_compiler_sig() {
+    if _ML_MODCACHE_COMPILER_SIG != nil { return _ML_MODCACHE_COMPILER_SIG }
+    var sig = "unknown"
+    var args = oren_args()
+    if args != nil && oren_list_len(args) > 0 {
+        var exe = args[0]
+        if exe != nil && exe != "" && file_exists(exe) {
+            var meta = oren_file_stat_size_mtime_ns(exe)
+            if !oren_is_err(meta) && meta != nil && oren_is_list(meta) == true && oren_list_len(meta) >= 2 {
+                var sz = meta[0]
+                var mt = meta[1]
+                sig = "exe_" + _ml_fingerprint2_string(exe) + "_sz" + oren_int_to_string(sz) + "_mt" + oren_int_to_string(mt)
+            } else {
+                sig = "exe_" + _ml_fingerprint2_string(exe)
+            }
+        }
+    }
+    _ML_MODCACHE_COMPILER_SIG = _ml_sanitize_path_component(sig)
+    return _ML_MODCACHE_COMPILER_SIG
+}
+
+fn _ml_modcache_base_dir() {
+    // Reuse repo-local default for predictability; allow overriding via OREN_CACHE_DIR.
+    var base = oren_env("OREN_CACHE_DIR")
+    if base == nil || base == "" { base = "build/cache" }
+    return path_norm(base + "/module_astbin")
+}
+
+fn _ml_modcache_path_for_module(full, prefix, src_fp, config) {
+    if full == nil { return nil }
+    if config == nil { return nil }
+    if src_fp == nil || src_fp == "" { return nil }
+    // Normalize module path so the cache key remains stable across:
+    // - absolute vs relative module discovery
+    // - redundant "."/".." segments
+    //
+    // NOTE: use `path_norm()` (pure lexical normalization) rather than a runtime intrinsic
+    // so stage1 (C backend) can build this compiler code.
+    var full_key = path_norm(full)
+    var os = config["os"]
+    var arch = config["arch"]
+    var plat = config["platform"]
+    if os == nil { os = config["target"] }
+    if arch == nil { arch = "" }
+    if plat == nil {
+        if os != nil && arch != nil && os != "" && arch != "" { plat = arch + "-" + os } else { plat = "unknown" }
+    }
+    var comp_sig = _ml_modcache_compiler_sig()
+    var key = _ml_sanitize_path_component(plat) + "_" + _ml_fingerprint2_string(full_key) + "_" + _ml_fingerprint2_string(prefix) + "_" + src_fp
+    var dir = _ml_modcache_base_dir() + "/" + comp_sig
+    return path_norm(dir + "/" + key + ".astbin")
 }
 
 fn _ml_line_is_only_comment_or_ws(line) {
@@ -613,6 +779,7 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
     if prefix == nil { prefix = "" }
 
     var prog = nil
+    var cache_path = nil
     var includes = _ml_include_list_if_aggregator(full)
     if includes == nil {
         var rr = expand_includes_file_result(full, [])
@@ -622,6 +789,25 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
             return {"ok": false, "err": msg}
         }
         var src = rr["src"]
+        var src_fp = _ml_fingerprint2_string(src)
+        if _ml_modcache_enabled() == true {
+            cache_path = _ml_modcache_path_for_module(full, prefix, src_fp, config)
+            if cache_path != nil {
+                var bs_hit = oren_read_u8_buf(cache_path)
+                if !oren_is_err(bs_hit) {
+                    var prog_hit = astbin_decode(bs_hit)
+                    if prog_hit != nil && prog_hit["statements"] != nil && oren_is_list(prog_hit["statements"]) == true {
+                        if _ml_modcache_trace_enabled() == true && _ML_MODCACHE_TRACE_CNT < 5 {
+                            _ML_MODCACHE_TRACE_CNT = _ML_MODCACHE_TRACE_CNT + 1
+                            print("[modcache] hit " + cache_path)
+                        }
+                        // Return both the decoded program and the original ASTBIN bytes so fork-parallel
+                        // workers can avoid re-encoding work (a major win for large stdlib graphs).
+                        return {"ok": true, "prog": prog_hit, "astbin": bs_hit, "cache_path": cache_path, "cache_hit": true}
+                    }
+                }
+            }
+        }
         var pr = _ml_parse_program_from_src_result(full, src)
         if pr["ok"] != true { return pr }
         prog = pr["prog"]
@@ -663,7 +849,9 @@ fn _ml_parse_and_prepare_module_result(full, prefix, config) {
 
     var prep = _ml_prepare_module_program_in_place(full, prefix, prog, config)
     if prep["ok"] != true { return prep }
-    return {"ok": true, "prog": prog}
+    // Note: cache write happens in parse workers (when fork-parallel is enabled) to avoid
+    // extra astbin encoding work in the serial/thread parse paths.
+    return {"ok": true, "prog": prog, "cache_path": cache_path}
 }
 
 fn _ml_parse_module_bucket(bucket, out_dir, log_path, config) {
@@ -712,16 +900,23 @@ fn _ml_parse_module_bucket(bucket, out_dir, log_path, config) {
             return 1
         }
         var prog = rr["prog"]
+        var cache_path = rr["cache_path"]
         log = log + "  ok: parsed\n"
         log = log + "  ok: renamed\n"
         log = log + "  ok: serde_json\n"
         oren_write_file(log_path, log)
 
-        log = log + "  step: astbin_encode\n"
-        oren_write_file(log_path, log)
-        var bs = astbin_encode(prog)
-        log = log + "  ok: astbin_encode\n"
-        oren_write_file(log_path, log)
+        var bs = rr["astbin"]
+        if bs == nil {
+            log = log + "  step: astbin_encode\n"
+            oren_write_file(log_path, log)
+            bs = astbin_encode(prog)
+            log = log + "  ok: astbin_encode\n"
+            oren_write_file(log_path, log)
+        } else {
+            log = log + "  ok: astbin_cache_hit\n"
+            oren_write_file(log_path, log)
+        }
         var out_path = path_norm(out_dir + "/" + _sha256_hex_string(full) + ".astbin")
         var tmp = out_path + ".tmp"
         var w = oren_write_bytes(tmp, bs)
@@ -735,6 +930,27 @@ fn _ml_parse_module_bucket(bucket, out_dir, log_path, config) {
         oren_rename(tmp, out_path)
         log = log + "  ok: wrote astbin\n"
         oren_write_file(log_path, log)
+
+        // Best-effort: persist a stable module cache copy (for reuse across separate compiler processes).
+        if cache_path != nil && _ml_modcache_enabled() == true {
+            ensure_dir(dirname(cache_path))
+            var tmpc = cache_path + ".tmp"
+            var wc = oren_write_bytes(tmpc, bs)
+            if !oren_is_err(wc) {
+                oren_rename(tmpc, cache_path)
+            }
+            if _ml_modcache_trace_enabled() == true && _ML_MODCACHE_TRACE_CNT < 5 {
+                _ML_MODCACHE_TRACE_CNT = _ML_MODCACHE_TRACE_CNT + 1
+                print("[modcache] wrote " + cache_path)
+            }
+        } else {
+            if _ml_modcache_trace_enabled() == true && _ML_MODCACHE_TRACE_CNT < 5 {
+                _ML_MODCACHE_TRACE_CNT = _ML_MODCACHE_TRACE_CNT + 1
+                var cp = cache_path
+                if cp == nil { cp = "nil" }
+                print("[modcache] skip full=" + full + " cache_path=" + cp)
+            }
+        }
         bi = bi + 1
     }
 
@@ -975,7 +1191,7 @@ fn discover_module(base, path, config) {
         return mod
     }
 
-    var prefix = new_module_prefix()
+    var prefix = _ml_stable_module_prefix_from_full(full)
     if is_std { prefix = _stable_std_prefix(path) }
     var mod2 = {"prefix": prefix, "path": full, "program": nil, "aliases": {}, "imports": [], "added": false}
     MODULES[full] = mod2
@@ -1323,7 +1539,7 @@ fn load_module(base, path, config) {
         oren_exit(1)
     }
 
-    var prefix = new_module_prefix()
+    var prefix = _ml_stable_module_prefix_from_full(full)
     if is_std { prefix = _stable_std_prefix(path) }
     var mod = {"prefix": prefix, "path": full, "program": prog, "aliases": {}, "imports": [], "added": false}
     MODULES[full] = mod

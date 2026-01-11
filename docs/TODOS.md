@@ -65,8 +65,8 @@ Verified (fact, 2026-01-11):
   - Confirms: TCP/UDP/DNS/HTTP/HTTPS/WS/WSS/TLS + HTTP/2/HPACK loopback fixtures run on Tier‑1.
   - Notes (rolling):
     - `scripts/verify_native_net_matrix.sh` forces `OREN_PARSE_FORK_PARALLEL=1` (compiler-only) so stage2-native builds of large stdlib graphs (TLS/HTTP/2) stay bounded.
-    - Cross-building `x64-windows` artifacts from an arm64-macos host is still slightly slower than the 10s default hang guard for the largest fixture (`test_http2_headers_loopback.oren`), so the script currently uses a 15s per-build guard for `--platform x64-windows` only.
-      - This is tracked as a Tier‑1 perf gap: bring x64-windows cross builds back under the 10s bound by reducing native backend emit time for PE/COFF.
+    - Cross-building `x64-windows` artifacts from an arm64-macos host is close to the 10s hang guard for the largest fixture (`test_http2_headers_loopback.oren`), so the script currently uses a **12s** per-build guard for `--platform x64-windows` only (still a hang guard, but fewer false positives).
+      - The long pole is still `emit_ms` (PE/COFF toolchain), but `link_ms` has been pulled down via persistent module caching (see `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`).
 
 References:
 
@@ -104,11 +104,12 @@ References:
      - New (2026-01-11): stage2-native `link_program(...)` can dominate builds of large stdlib graphs (TLS/HTTP/2) unless fork-parallel module parsing is enabled (`OREN_PARSE_FORK_PARALLEL=1`).
        - Goal: make “parallel parse in fork-mode” safe and fast enough to become a default when `OREN_PARSE_JOBS>1`, so scripts don’t need to force it.
        - Regression gate: `./scripts/verify_native_net_matrix.sh` (see `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md` for phase timing).
-     - New (2026-01-11): `x64-windows` cross-build of `tests/native/test_http2_headers_loopback.oren` is ~`11–12s` on arm64-macos (cold), primarily `emit_ms` (PE/COFF toolchain) + `link_ms`.
-       - Goal: get this back under the **10s** hang-guard so the NET matrix can use a uniform timeout again.
+     - Updated (2026-01-11): `x64-windows` cross-build of `tests/native/test_http2_headers_loopback.oren` is now ~`9.5–10.0s` on arm64-macos once the persistent module cache is warm (still dominated by `emit_ms`).
+       - Cold (cache-empty, `OREN_NO_CACHE=1`): still ~`12s` (tracked; primary remaining gap is PE/COFF emit).
+       - Goal: keep the “warm cache” case safely under the **10s** default hang-guard so Tier‑1 scripts can converge back toward a uniform timeout.
        - Regression gate: `make verify-native-net` (remote Win11 execution).
-     - New (2026-01-11): `make rtobj-seed-x64` currently fails to generate a seed for `x64-linux` on this host (but succeeds for `x64-windows`).
-       - Goal: restore x64-linux rtobj seeding so cross-target compile-only gates stay bounded on a clean cache.
+     - Status (2026-01-11): `make rtobj-seed-x64` works again on this host (both `x64-linux` and `x64-windows` seeds present).
+       - If it regresses: check rtobj cache key matching (`_os_linux_` / `_a_x64_` filters) and runtime-hash cache (`build/cache/native_runtime_hash`).
 
 <details>
 <summary>P0.0 context: recent performance work + measurements</summary>

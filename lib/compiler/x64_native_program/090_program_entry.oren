@@ -2221,10 +2221,13 @@ fn native_compile_program_x64(linked, platform) {
         t_finalize_done = oren_time_now_ns()
         var os = "unknown"
         var dbg = 0
+        var used_rtobj_i = 0
         if platform != nil {
             if platform["os"] != nil { os = platform["os"] }
             if platform["debug"] == true { dbg = 1 }
         }
+        // Avoid passing bool-like values to `oren_int_to_string` (native value-model hazard).
+        if used_rtobj == true { used_rtobj_i = 1 }
         var total_ms = (t_finalize_done - t0) / 1000000
         var rtobj_ms = (t_rtobj_done - t0) / 1000000
         var entry_ms = (t_entry_done - t_rtobj_done) / 1000000
@@ -2240,7 +2243,7 @@ fn native_compile_program_x64(linked, platform) {
         if ctx["fixups"] != nil { fx_n = oren_list_len(ctx["fixups"]) }
         print("[x64_compile] os=" + os +
             " dbg=" + oren_int_to_string(dbg) +
-            " used_rtobj=" + oren_int_to_string(used_rtobj == true) +
+            " used_rtobj=" + oren_int_to_string(used_rtobj_i) +
             " total_ms=" + oren_int_to_string(total_ms) +
             " rtobj_ms=" + oren_int_to_string(rtobj_ms) +
             " entry_ms=" + oren_int_to_string(entry_ms) +

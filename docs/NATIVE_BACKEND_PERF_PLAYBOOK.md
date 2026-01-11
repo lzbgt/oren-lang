@@ -102,6 +102,24 @@ Notes:
 - This uses `build/tmp/parse_modules/` as a deterministic temp directory for worker-produced ASTBIN blobs.
 - On Windows hosts, the compiler forces parse jobs to `1` because `spawn` is thread-based and the runtime GC is not thread-safe yet for parallel parsing.
 
+### 2.1.2 Persistent module ASTBIN cache (cross-invocation speed)
+
+The NET and Tier‑1 verification scripts invoke the compiler **many times** (separate processes),
+often compiling overlapping stdlib graphs (TLS/HTTP/2/HPACK). Re-parsing those modules every time
+is wasted work.
+
+Stage2 now includes a **persistent module ASTBIN cache**:
+
+- Cache is stored under `build/cache/module_astbin/<compiler_sig>/...` by default.
+- It is enabled by default; disable with `OREN_MODULE_ASTBIN_CACHE=0`.
+- It is keyed by module path + expanded source fingerprint + platform (so cross-target builds do not collide).
+- Module prefixes are **stable per module path**, so cached ASTBIN blobs can be reused across different entrypoints.
+
+For debugging (bounded output):
+
+- `OREN_TRACE_MODULE_ASTBIN_CACHE=1` prints up to ~5 cache events in **non-fork** parsing mode.
+- `OREN_TRACE_MODULE_ASTBIN_CACHE=workers` allows worker-side prints (use only when isolating a cache bug).
+
 Notes on the tracers:
 
 - `OREN_TRACE_ARM64_RT_OBJ_SUMMARY=1` prints a **single-line breakdown** of the rtobj build (parse/decode, decl compile, finalize, counts/bytes).

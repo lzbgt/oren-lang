@@ -394,7 +394,11 @@ build_native_bin_src() {
     else
       # Cross-linking PE/COFF on macOS is currently slower than Mach-O; keep the
       # hang guard, but avoid false positives while we keep optimizing x64-win.
-      if [[ "$timeout_secs" -lt 15 ]]; then timeout_secs=15; fi
+      #
+      # NOTE: stage2 now has a persistent module ASTBIN cache, and module prefixes are
+      # stable across entrypoints, so large stdlib graphs (TLS/HTTP2/HPACK) should stay
+      # close to the rolling 10s target even on x64-windows cross builds.
+      if [[ "$timeout_secs" -lt 12 ]]; then timeout_secs=12; fi
     fi
   fi
 

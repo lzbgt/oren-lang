@@ -347,7 +347,8 @@ rtobj-seed: oren_stage2
 		fi
 
 # Generate/update rtobj seed for cross x64 targets (best-effort).
-# This keeps `make verify-native-x64-compile` bounded even on a clean cache.
+# This keeps `make verify-native-x64-compile` bounded even on a clean cache
+# (the NET/TLS/HTTP2 smoke is intentionally large; see `scripts/verify_native_x64_compile_only.sh` for its timeout guard).
 rtobj-seed-x64: oren_stage2
 		@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true
 		@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true
