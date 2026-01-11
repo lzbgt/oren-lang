@@ -111,8 +111,8 @@ Concrete rule (treat as a correctness bug in rolling native builds):
 Practical compiler-internal corollary (x64 emitters):
 
 - If you store a **byte offset** (where `0` is a valid payload) inside a map/dict (e.g. fixup records, offset caches), you must protect `0` from “missing” ambiguity.
-  - Preferred: store `off+1` and decode via `off = enc-1`.
-  - This is still a good habit even with singleton `nil`: it avoids “value vs missing” ambiguity and keeps code robust during rolling refactors.
+  - Current preferred: store the raw `u8` value `0..255`, and use `nil` for “absent”.
+  - The legacy “`off+1`” pattern existed only when `nil` was effectively `0` in some rolling-native paths; treat any remaining uses as tech-debt to unwind (example: x64 disp8 encoding).
 
 ## Native strings: embedded literal pool must not hit GC tracking
 

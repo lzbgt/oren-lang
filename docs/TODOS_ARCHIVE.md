@@ -263,7 +263,9 @@ This file preserves the previous long-form rolling TODO list (history + detailed
     - **x86_64 disp8 encoding:** `[rbp]` / `[r13]` addressing requires `disp8=0`; when an “optional disp8 byte” was represented as `0`, code that tested `!= nil` could omit the byte, shifting the instruction stream and producing a PE that crashes at entry.
 - Fix (x86_64 backend):
   - Reserve slot `0` in the intrinsic temp allocator and use 1-based indices (`base >= 1`) so `base==0` never aliases “absent”.
-  - Encode optional `disp8` bytes as `disp8+1` in encoder return dicts, and decode at emission time (`enc["disp8"] - 1`).
+  - Ensure optional `disp8` emission can represent the real byte value `0`.
+    - Historical fix (early bring-up): encode optional `disp8` bytes as `disp8+1` in encoder return dicts, and decode at emission time (`enc["disp8"] - 1`).
+    - Current fix (once native `nil` is a real singleton, not `0`): store the raw `disp8` byte `0..255` and use `nil` to mean “absent” (see `lib/compiler/x64_core.oren`).
 - Regression gates:
   - `scripts/verify_native_x64_compile_only.sh` now also compiles `tests/native/print.oren` with stage1 `./oren` and stage2 `./oren_stage2` for `x64-linux` and `x64-windows` and asserts the output binary contains `hello from native`.
   - The same script checks for the presence of the required Windows PE entry prologue bytes (rejects the known-bad disp8 omission pattern).

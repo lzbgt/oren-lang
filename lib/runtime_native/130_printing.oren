@@ -496,8 +496,8 @@ fn _oren_map_check(m) {
 @oren.keep
 fn oren_iter_next_entry(m, idx, out_pair) {
     // Native runtime note:
-    // In native v0, `nil` is represented as integer 0, so we must NOT treat `idx==0`
-    // as "missing". Callers pass `idx=0` to access the first entry.
+    // `idx` is a numeric index (0..count-1). Callers pass `idx=0` to access the first entry;
+    // do not treat zero as "missing". (In Oren semantics, `nil` is distinct from numeric 0.)
     if idx < 0 { return 0 }
     if out_pair == 0 { oren_panic("iter_next_entry expects out_pair list") }
     // out_pair must be a list with capacity >= 2.

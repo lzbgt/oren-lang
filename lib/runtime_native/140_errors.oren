@@ -2,8 +2,10 @@
 // Convention matches C/AVM:
 //   error = map {"__err": true, "code": int, "msg": string}
 //
-// NOTE: in native v0, `nil/false/0` collapse to 0 in some contexts. This convention
-// uses a tagged map pointer (map_magic) so `oren_is_err` can discriminate reliably.
+// NOTE (native v0 representation):
+// Values are not fully tagged at runtime, so `oren_is_err` must be safe for arbitrary integers.
+// This convention uses a tagged map pointer (map_magic) so `oren_is_err` can discriminate reliably
+// without probing memory at untracked/non-pointer values.
 fn oren_err(code, msg) {
     var m = oren_new_map(8)
     oren_map_set_str(m, "__err", 1)

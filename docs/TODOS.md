@@ -95,6 +95,7 @@ References:
 	
 	   - value semantics (`nil/false/true` vs numeric), comparisons, list/map behavior
 	   - eliminate legacy “nil==0” / 0-sentinel assumptions (0 is a valid int and is truthy; `nil/false/true` are runtime singletons)
+	     - Fixed: x64 ModRM disp8 emission no longer uses a “disp8+1” encoding (see `lib/compiler/x64_core.oren`); `disp8=0` is now a real byte value with `nil` meaning “absent”.
 	   - FFI ABI correctness (sign/zero extension, void return, ptr-sized returns)
 	   - NET/TLS end-to-end behavior (timeouts, buffering, determinism knobs)
 
