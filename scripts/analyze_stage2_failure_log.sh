@@ -114,7 +114,7 @@ tail -n "$tail_lines" "$log_path" || true
 echo ""
 
 # High-signal error formats used by the compiler.
-bounded_grep "OREN_DIAG" "OREN_DIAG|\\btypecheck:\\b|\\bNil-compare guard errors:\\b"
+bounded_grep "OREN_DIAG" "OREN_DIAG|\\btypecheck:\\b|\\bnil-compare guard:\\b|\\bNil-compare guard errors:\\b"
 
 # Common failure indicators across shells/platforms.
 bounded_grep "hard failures" "SIG(SEGV|ABRT)|segmentation fault|stack trace|\\bpanic\\b|\\bASSERT\\b|\\babort\\b|\\bfatal\\b|\\bFAIL\\b|\\bERROR\\b"
