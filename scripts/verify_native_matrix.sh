@@ -47,7 +47,7 @@ LIBMATH_SRC="examples/libmath.oren"
 
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
-SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-3}"
+SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-6}"
 
 REMOTE_HOST="${OREN_REMOTE_X64_HOST:-lzbgt@pc.work}"
 REMOTE_PROXY="${OREN_REMOTE_X64_PROXY:-ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002}"
@@ -420,7 +420,14 @@ if [[ -n "$REMOTE_PROXY" ]]; then
 fi
 
 ssh_base=(ssh "${ssh_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 "$REMOTE_HOST")
-scp_base=(scp -q "${scp_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2)
+# OpenSSH scp defaults to SFTP mode on modern clients; Windows OpenSSH servers can be flaky under
+# proxying/SSH jump setups. Allow forcing legacy scp protocol for reliability.
+scp_legacy="${OREN_SCP_LEGACY:-1}"
+scp_legacy_opt=()
+if [[ -n "$scp_legacy" && "$scp_legacy" != "0" ]]; then
+  scp_legacy_opt=(-O)
+fi
+scp_base=(scp -q -C "${scp_legacy_opt[@]}" "${scp_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2)
 
 remote_preflight() {
   mkdir -p build/logs

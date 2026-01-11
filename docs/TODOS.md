@@ -119,15 +119,15 @@ References:
 	   - stabilize reflection APIs: `docs/REFLECTION_V1.md`
    - define how varargs elements carry type info so userland (fmt/ffi/serde) is robust
    - audit “optional string/env” checks across stdlib/compiler: avoid `v != 0` presence tests (under singleton-`nil`, `nil != 0` is true); standardize on `v != nil && v != 0 && v != ""` or a helper
-   - nil-vs-scalar parity: either land tagged values (preferred) or make the nil-compare guard flow-aware enough to catch `x + 1` patterns without flagging intentional nil-coalescing in core code
+	   - nil-vs-scalar parity: either land tagged values (preferred) or make the nil-compare guard flow-aware enough to catch `x + 1` patterns without flagging intentional nil-coalescing in core code
 
 	   Gate:
 
 	   - `make test` (nil-compare guard is always-on; diagnostics tagged `nil-compare guard:`)
 
-	   Status (fact):
+		   Status (fact):
 
-	   - 2026-01-12: added `lib/std/reflect.oren` (minimal reflection wrappers + stable tag constants) and wired it into the native quick integration smoke.
+		   - 2026-01-12: added `lib/std/reflect.oren` (minimal reflection wrappers + stable tag constants) and wired it into the native quick integration smoke.
 
 4) **Stdlib NET/TLS/HTTP/WS maturity (not toy protocols)** (L)
 

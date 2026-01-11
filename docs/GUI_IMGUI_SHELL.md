@@ -44,9 +44,15 @@ This ensures:
 
 Concrete properties (fact):
 
-- **Small surface area:** immediate-mode API, minimal state model.
+- **Bloat-free core + no external deps:** the core is designed to be self-contained and renderer-agnostic (see `project-doc/web/github.com/ocornut/imgui/20260111/docs_README.md`).
+- **Decoupled rendering:** it outputs draw lists / vertex buffers that you render in your own pipeline (no “framework lock-in”).
+- **Small surface area:** immediate-mode API with a minimal “state synchronization” mental model.
 - **Mature cross-platform backend ecosystem:** upstream maintains multiple platform/render backends.
 - **License:** MIT (see `project-doc/web/github.com/ocornut/imgui/20260111/LICENSE.txt`).
+
+Known limitations (fact; important for Oren UI long-term):
+
+- The upstream project explicitly targets programmer tools (not “full end-user UI”), and does not aim to solve full i18n text shaping (e.g. complex script shaping) or accessibility out of the box. This matches why we keep it as an optional shell, not as `std:ui`.
 
 This aligns with Oren’s rolling goal: get a reliable window+input+present loop on Tier‑1, then iterate
 without locking the language to a single framework.

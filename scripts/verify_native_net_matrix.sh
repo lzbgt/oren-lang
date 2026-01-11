@@ -74,7 +74,7 @@ HTTP2_HEADERS_LOOPBACK_SRC="tests/native/test_http2_headers_loopback.oren"
 
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
-SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-3}"
+SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-6}"
 WS_ECHO_N="${OREN_WS_ECHO_N:-}"
 
 REMOTE_HOST="${OREN_REMOTE_X64_HOST:-lzbgt@pc.work}"
@@ -547,7 +547,14 @@ if [[ -n "$REMOTE_PROXY" ]]; then
 fi
 
 ssh_base=(ssh "${ssh_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 "$REMOTE_HOST")
-scp_base=(scp -q "${scp_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2)
+# OpenSSH scp defaults to SFTP mode on modern clients; Windows OpenSSH servers can be flaky under
+# proxying/SSH jump setups. Allow forcing legacy scp protocol for reliability.
+scp_legacy="${OREN_SCP_LEGACY:-1}"
+scp_legacy_opt=()
+if [[ -n "$scp_legacy" && "$scp_legacy" != "0" ]]; then
+  scp_legacy_opt=(-O)
+fi
+scp_base=(scp -q -C "${scp_legacy_opt[@]}" "${scp_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2)
 
 remote_preflight() {
   mkdir -p build/logs
@@ -558,7 +565,7 @@ remote_preflight() {
   while true; do
     : >"$logf"
     set +e
-    run_with_timeout 15 "${ssh_base[@]}" "cmd.exe /c \"echo OREN_REMOTE_OK\"" >"$logf" 2>&1
+    run_with_timeout 25 "${ssh_base[@]}" "cmd.exe /c \"echo OREN_REMOTE_OK\"" >"$logf" 2>&1
     local rc=$?
     set -e
 
@@ -569,7 +576,7 @@ remote_preflight() {
       fi
     fi
 
-    if [[ "$attempt" -ge 2 ]]; then
+    if [[ "$attempt" -ge 5 ]]; then
       echo "ERROR: cannot reach remote x64 host via ssh (rc=$rc host=$REMOTE_HOST)" >&2
       tail -n 80 "$logf" >&2 2>/dev/null || true
       if grep -Eq 'socat\\[[0-9]+\\] W CONNECT .*:22: Not Found' "$logf" 2>/dev/null; then
@@ -600,6 +607,35 @@ remote_mkdir() {
 remote_del() {
   local name="$1"
   "${ssh_base[@]}" "cmd.exe /c \"del /f /q %USERPROFILE%\\\\tmp_oren\\\\${name} 2>nul\""
+}
+
+remote_ssh_retry() {
+  local cmd="$1"
+  local attempt=1
+  local max_attempts=5
+  while true; do
+    set +e
+    run_with_timeout 40 "${ssh_base[@]}" "$cmd"
+    local rc=$?
+    set -e
+    if [[ "$rc" -eq 0 ]]; then
+      return 0
+    fi
+    if [[ "$rc" -eq 255 || "$rc" -eq 143 ]]; then
+      if [[ "$attempt" -ge "$max_attempts" ]]; then
+        echo "ERROR: remote ssh command failed after ${attempt}/${max_attempts} attempts (rc=${rc})" >&2
+        echo "cmd=${cmd}" >&2
+        return "$rc"
+      fi
+      echo "WARN: remote ssh command transient failure (rc=${rc}) attempt ${attempt}/${max_attempts}; retrying..." >&2
+      sleep "$attempt"
+      attempt=$((attempt + 1))
+      continue
+    fi
+    echo "ERROR: remote ssh command failed (rc=${rc})" >&2
+    echo "cmd=${cmd}" >&2
+    return "$rc"
+  done
 }
 
 remote_kill_win() {
@@ -640,58 +676,91 @@ remote_upload() {
 
 remote_run_win() {
   local exe_name="$1"
-  log ">> win: run ${exe_name}"
-  remote_kill_win "$exe_name" >/dev/null 2>&1 || true
-  local envp=""
-  local canon_abort="${OREN_CANON_I32_ABORT:-}"
-  if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
-    envp="set OREN_CANON_I32_ABORT=1 & "
-  fi
-  if [[ -n "$WS_ECHO_N" ]]; then
-    envp+="set OREN_WS_ECHO_N=${WS_ECHO_N} & "
-  fi
-  set +e
-  run_with_timeout 40 "${ssh_base[@]}" "cmd.exe /v:on /c \"${envp}${remote_win_root}\\\\${exe_name} & set RC=!ERRORLEVEL! & echo EXIT=!RC! & exit /b !RC!\""
-  local rc=$?
-  set -e
-  if [[ "$rc" -ne 0 ]]; then
+  local attempt=1
+  local max_attempts=3
+  while true; do
+    log ">> win: run ${exe_name} (attempt ${attempt}/${max_attempts})"
+    remote_kill_win "$exe_name" >/dev/null 2>&1 || true
+    local envp=""
+    local canon_abort="${OREN_CANON_I32_ABORT:-}"
+    if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
+      envp="set OREN_CANON_I32_ABORT=1 & "
+    fi
+    if [[ -n "$WS_ECHO_N" ]]; then
+      envp+="set OREN_WS_ECHO_N=${WS_ECHO_N} & "
+    fi
+    set +e
+    run_with_timeout 40 "${ssh_base[@]}" "cmd.exe /v:on /c \"${envp}${remote_win_root}\\\\${exe_name} & set RC=!ERRORLEVEL! & echo EXIT=!RC! & exit /b !RC!\""
+    local rc=$?
+    set -e
+    if [[ "$rc" -eq 0 ]]; then
+      return 0
+    fi
+    # Retry only when ssh/proxy is flaky (rc=255) or the outer timeout tripped (rc=143).
+    if [[ "$rc" -eq 255 || "$rc" -eq 143 ]]; then
+      log "WARN: win run transient ssh failure (rc=${rc}) for ${exe_name}; retrying..."
+      remote_kill_win "$exe_name" >/dev/null 2>&1 || true
+      if [[ "$attempt" -ge "$max_attempts" ]]; then
+        log "!! win: ${exe_name} failed after ${attempt}/${max_attempts} attempts (ssh wrapper rc=${rc})"
+        return "$rc"
+      fi
+      sleep "$attempt"
+      attempt=$((attempt + 1))
+      continue
+    fi
     log "!! win: ${exe_name} failed (ssh wrapper rc=${rc})"
     remote_kill_win "$exe_name" >/dev/null 2>&1 || true
-  fi
-  return "$rc"
+    return "$rc"
+  done
 }
 
 remote_run_wsl() {
   local bin_name="$1"
-  log ">> wsl: run ${bin_name}"
-  remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
-  local full="${remote_wsl_root}/${bin_name}"
-  local envp=""
-  local canon_abort="${OREN_CANON_I32_ABORT:-}"
-  if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
-    envp="OREN_CANON_I32_ABORT=1 "
-  fi
-  if [[ "$TRACE" -ne 0 ]]; then
-    envp+="OREN_QI_TRACE=1 "
-  fi
-  if [[ -n "$WS_ECHO_N" ]]; then
-    envp+="OREN_WS_ECHO_N=${WS_ECHO_N} "
-  fi
-  local cmd="file ${full} || true; chmod +x ${full} && ${envp}timeout 20s ${full}; rc="
-  cmd+='$?'
-  cmd+="; echo EXIT="
-  cmd+='$rc'
-  cmd+="; exit "
-  cmd+='$rc'
-  set +e
-  run_with_timeout 40 "${ssh_base[@]}" "wsl.exe -e bash -lc \"${cmd}\""
-  local rc=$?
-  set -e
-  if [[ "$rc" -ne 0 ]]; then
+  local attempt=1
+  local max_attempts=3
+  while true; do
+    log ">> wsl: run ${bin_name} (attempt ${attempt}/${max_attempts})"
+    remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
+    local full="${remote_wsl_root}/${bin_name}"
+    local envp=""
+    local canon_abort="${OREN_CANON_I32_ABORT:-}"
+    if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
+      envp="OREN_CANON_I32_ABORT=1 "
+    fi
+    if [[ "$TRACE" -ne 0 ]]; then
+      envp+="OREN_QI_TRACE=1 "
+    fi
+    if [[ -n "$WS_ECHO_N" ]]; then
+      envp+="OREN_WS_ECHO_N=${WS_ECHO_N} "
+    fi
+    local cmd="file ${full} || true; chmod +x ${full} && ${envp}timeout 20s ${full}; rc="
+    cmd+='$?'
+    cmd+="; echo EXIT="
+    cmd+='$rc'
+    cmd+="; exit "
+    cmd+='$rc'
+    set +e
+    run_with_timeout 40 "${ssh_base[@]}" "wsl.exe -e bash -lc \"${cmd}\""
+    local rc=$?
+    set -e
+    if [[ "$rc" -eq 0 ]]; then
+      return 0
+    fi
+    if [[ "$rc" -eq 255 || "$rc" -eq 143 ]]; then
+      log "WARN: wsl run transient ssh failure (rc=${rc}) for ${bin_name}; retrying..."
+      remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
+      if [[ "$attempt" -ge "$max_attempts" ]]; then
+        log "!! wsl: ${bin_name} failed after ${attempt}/${max_attempts} attempts (ssh wrapper rc=${rc})"
+        return "$rc"
+      fi
+      sleep "$attempt"
+      attempt=$((attempt + 1))
+      continue
+    fi
     log "!! wsl: ${bin_name} failed (ssh wrapper rc=${rc})"
     remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
-  fi
-  return "$rc"
+    return "$rc"
+  done
 }
 
 if has_target arm64-linux; then
@@ -778,26 +847,23 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-win; then
   build_native_bin_src "./oren" "x64-windows" "$HTTP2_HEADERS_LOOPBACK_SRC" "build/tmp/http2_headers_stage1_x64_windows.exe"
   build_native_bin_src "./oren_stage2" "x64-windows" "$HTTP2_HEADERS_LOOPBACK_SRC" "build/tmp/http2_headers_stage2_x64_windows.exe"
 
-  remote_upload "build/tmp/net_stage1_x64_windows.exe" "net_stage1_x64_windows.exe"
-  remote_upload "build/tmp/net_stage2_x64_windows.exe" "net_stage2_x64_windows.exe"
-  remote_upload "build/tmp/dns_stage1_x64_windows.exe" "dns_stage1_x64_windows.exe"
-  remote_upload "build/tmp/dns_stage2_x64_windows.exe" "dns_stage2_x64_windows.exe"
-  remote_upload "build/tmp/http_stage1_x64_windows.exe" "http_stage1_x64_windows.exe"
-  remote_upload "build/tmp/http_stage2_x64_windows.exe" "http_stage2_x64_windows.exe"
-  remote_upload "build/tmp/https_stage1_x64_windows.exe" "https_stage1_x64_windows.exe"
-  remote_upload "build/tmp/https_stage2_x64_windows.exe" "https_stage2_x64_windows.exe"
-  remote_upload "build/tmp/ws_stage1_x64_windows.exe" "ws_stage1_x64_windows.exe"
-  remote_upload "build/tmp/ws_stage2_x64_windows.exe" "ws_stage2_x64_windows.exe"
-  remote_upload "build/tmp/wss_stage1_x64_windows.exe" "wss_stage1_x64_windows.exe"
-  remote_upload "build/tmp/wss_stage2_x64_windows.exe" "wss_stage2_x64_windows.exe"
-  remote_upload "build/tmp/tls_stage1_x64_windows.exe" "tls_stage1_x64_windows.exe"
-  remote_upload "build/tmp/tls_stage2_x64_windows.exe" "tls_stage2_x64_windows.exe"
-  remote_upload "build/tmp/http2_stage1_x64_windows.exe" "http2_stage1_x64_windows.exe"
-  remote_upload "build/tmp/http2_stage2_x64_windows.exe" "http2_stage2_x64_windows.exe"
-  remote_upload "build/tmp/hpack_stage1_x64_windows.exe" "hpack_stage1_x64_windows.exe"
-  remote_upload "build/tmp/hpack_stage2_x64_windows.exe" "hpack_stage2_x64_windows.exe"
-  remote_upload "build/tmp/http2_headers_stage1_x64_windows.exe" "http2_headers_stage1_x64_windows.exe"
-  remote_upload "build/tmp/http2_headers_stage2_x64_windows.exe" "http2_headers_stage2_x64_windows.exe"
+  # Uploading 20+ artifacts via ProxyCommand can be flaky. Bundle into one tarball and extract on the remote host.
+  win_tar_local="build/tmp/native_net_x64_win.tar"
+  win_tar_remote="native_net_x64_win.tar"
+  rm -f "$win_tar_local" 2>/dev/null || true
+  tar -cf "$win_tar_local" -C build/tmp \
+    net_stage1_x64_windows.exe net_stage2_x64_windows.exe \
+    dns_stage1_x64_windows.exe dns_stage2_x64_windows.exe \
+    http_stage1_x64_windows.exe http_stage2_x64_windows.exe \
+    https_stage1_x64_windows.exe https_stage2_x64_windows.exe \
+    ws_stage1_x64_windows.exe ws_stage2_x64_windows.exe \
+    wss_stage1_x64_windows.exe wss_stage2_x64_windows.exe \
+    tls_stage1_x64_windows.exe tls_stage2_x64_windows.exe \
+    http2_stage1_x64_windows.exe http2_stage2_x64_windows.exe \
+    hpack_stage1_x64_windows.exe hpack_stage2_x64_windows.exe \
+    http2_headers_stage1_x64_windows.exe http2_headers_stage2_x64_windows.exe
+  remote_upload "$win_tar_local" "$win_tar_remote"
+  remote_ssh_retry "cmd.exe /c \"tar -xf %USERPROFILE%\\\\tmp_oren\\\\${win_tar_remote} -C %USERPROFILE%\\\\tmp_oren\""
 
   log "-- run: Win11 (x64-windows) --"
   remote_run_win "net_stage1_x64_windows.exe"
@@ -845,26 +911,23 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-wsl; then
   build_native_bin_src "./oren" "x64-linux" "$HTTP2_HEADERS_LOOPBACK_SRC" "build/tmp/http2_headers_stage1_x64_linux"
   build_native_bin_src "./oren_stage2" "x64-linux" "$HTTP2_HEADERS_LOOPBACK_SRC" "build/tmp/http2_headers_stage2_x64_linux"
 
-  remote_upload "build/tmp/net_stage1_x64_linux" "net_stage1_x64_linux"
-  remote_upload "build/tmp/net_stage2_x64_linux" "net_stage2_x64_linux"
-  remote_upload "build/tmp/dns_stage1_x64_linux" "dns_stage1_x64_linux"
-  remote_upload "build/tmp/dns_stage2_x64_linux" "dns_stage2_x64_linux"
-  remote_upload "build/tmp/http_stage1_x64_linux" "http_stage1_x64_linux"
-  remote_upload "build/tmp/http_stage2_x64_linux" "http_stage2_x64_linux"
-  remote_upload "build/tmp/https_stage1_x64_linux" "https_stage1_x64_linux"
-  remote_upload "build/tmp/https_stage2_x64_linux" "https_stage2_x64_linux"
-  remote_upload "build/tmp/ws_stage1_x64_linux" "ws_stage1_x64_linux"
-  remote_upload "build/tmp/ws_stage2_x64_linux" "ws_stage2_x64_linux"
-  remote_upload "build/tmp/wss_stage1_x64_linux" "wss_stage1_x64_linux"
-  remote_upload "build/tmp/wss_stage2_x64_linux" "wss_stage2_x64_linux"
-  remote_upload "build/tmp/tls_stage1_x64_linux" "tls_stage1_x64_linux"
-  remote_upload "build/tmp/tls_stage2_x64_linux" "tls_stage2_x64_linux"
-  remote_upload "build/tmp/http2_stage1_x64_linux" "http2_stage1_x64_linux"
-  remote_upload "build/tmp/http2_stage2_x64_linux" "http2_stage2_x64_linux"
-  remote_upload "build/tmp/hpack_stage1_x64_linux" "hpack_stage1_x64_linux"
-  remote_upload "build/tmp/hpack_stage2_x64_linux" "hpack_stage2_x64_linux"
-  remote_upload "build/tmp/http2_headers_stage1_x64_linux" "http2_headers_stage1_x64_linux"
-  remote_upload "build/tmp/http2_headers_stage2_x64_linux" "http2_headers_stage2_x64_linux"
+  # Same bundling strategy for WSL2 artifacts (keeps the remote gate reliable over ProxyCommand).
+  wsl_tar_local="build/tmp/native_net_x64_wsl.tar"
+  wsl_tar_remote="native_net_x64_wsl.tar"
+  rm -f "$wsl_tar_local" 2>/dev/null || true
+  tar -cf "$wsl_tar_local" -C build/tmp \
+    net_stage1_x64_linux net_stage2_x64_linux \
+    dns_stage1_x64_linux dns_stage2_x64_linux \
+    http_stage1_x64_linux http_stage2_x64_linux \
+    https_stage1_x64_linux https_stage2_x64_linux \
+    ws_stage1_x64_linux ws_stage2_x64_linux \
+    wss_stage1_x64_linux wss_stage2_x64_linux \
+    tls_stage1_x64_linux tls_stage2_x64_linux \
+    http2_stage1_x64_linux http2_stage2_x64_linux \
+    hpack_stage1_x64_linux hpack_stage2_x64_linux \
+    http2_headers_stage1_x64_linux http2_headers_stage2_x64_linux
+  remote_upload "$wsl_tar_local" "$wsl_tar_remote"
+  remote_ssh_retry "wsl.exe -e bash -lc \"tar -xf '${remote_wsl_root}/${wsl_tar_remote}' -C '${remote_wsl_root}' && chmod +x '${remote_wsl_root}'/*_x64_linux\""
 
   log "-- run: WSL2 (x64-linux) --"
   remote_run_wsl "net_stage1_x64_linux"

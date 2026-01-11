@@ -158,7 +158,14 @@ if [[ -n "$REMOTE_PROXY" ]]; then
 fi
 
 ssh_base=(ssh "${ssh_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 "$REMOTE_HOST")
-scp_base=(scp -q "${scp_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2)
+# OpenSSH scp defaults to SFTP mode on modern clients; Windows OpenSSH servers can be flaky under
+# proxying/SSH jump setups. Allow forcing legacy scp protocol for reliability.
+scp_legacy="${OREN_SCP_LEGACY:-1}"
+scp_legacy_opt=()
+if [[ -n "$scp_legacy" && "$scp_legacy" != "0" ]]; then
+  scp_legacy_opt=(-O)
+fi
+scp_base=(scp -q -C "${scp_legacy_opt[@]}" "${scp_opt_proxy[@]}" -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2)
 
 remote_preflight() {
   local logf="build/logs/fetch_remote_probe.log"
