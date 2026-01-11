@@ -19,6 +19,16 @@ Notes (rolling):
 - Tier‑1 cross-arch checks (`arm64-linux` container, `x64-linux` under QEMU, remote `x64-linux` WSL2, remote `x64-windows`) are validated by the full matrix script, but were **not** re-run as part of the above local verification.
 - When the remote Win11/WSL2 host is reachable, use `make verify-native-net` (or `--skip-remote` when unavailable).
 
+Additional verification (fact):
+
+- 2026-01-11: `make verify-x64-linux-qemu-tls` passed (stage1 + stage2 under QEMU in container `c7e5f7bd9f5c`), including:
+  - TLS loopback
+  - HTTPS loopback
+  - WSS loopback
+  - HTTP/2 preface loopback
+  - HPACK smoke
+  - HTTP/2 headers loopback
+
 ## Modules
 
 Oren splits HTTP/2 into small layers:
