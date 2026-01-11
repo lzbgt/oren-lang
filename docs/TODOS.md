@@ -327,6 +327,8 @@ References:
          - Runtime builds a dedicated literal membership set at startup (`oren_init_static_cstr0_table`) and recognizes literals via `native_is_string_ptr` / `oren_is_string`.
          - Runtime map key inference (`oren_map_get`/`oren_map_set`) uses `native_is_string_ptr` so compiler-internal maps can use literal keys without per-literal tracking nodes.
          - x64 string-aware compares use `native_is_string_ptr` so `if s == "lit"` works without literal tracking.
+         - Done (2026-01-11): added runtime guardrails so `oren_track_alloc` / `oren_track_static` treat cstr0 literals as a no-op (never create tracking nodes pointing into static data).
+           - Regression: `make test` asserts cstr0 pooling (`lit0-lit1==0`) and that `oren_find_node(lit)==0` for a literal in `tests/native/test_quick_integration_native.oren`.
          - Regression: `make test`, `./scripts/verify_native_net_matrix.sh`, `./scripts/verify_selfhost_x64_compiler.sh --targets x64-win`.
        - Done (2026-01-10): iterable-map protocol tags (`__iter` like `"range"` / `"list_slice"`) are matched by **string bytes** (guarded by `oren_is_string`), not by pointer identity.
          - Regression: `make test` (native quick integration exercises `{"__iter": "ra"+"nge", ...}`).

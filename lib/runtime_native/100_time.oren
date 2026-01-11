@@ -803,6 +803,12 @@ fn oren_track_static(ptr, kind) {
     if oren_globals() == 0 { return ptr }
     if ptr == 0 { return 0 }
     if ptr < 4096 { return ptr }
+
+    // Guardrail: never attach static-kind tracking nodes to embedded cstr0 literals.
+    // Those pointers are already recognized via `native_cstr0_set_has` and should remain untracked.
+    if kind == 1 && g_cstr0_set_cap != 0 {
+        if native_cstr0_set_has(ptr) != 0 { return ptr }
+    }
     acquire_lock()
 
     // Ensure the alloc-index exists so `oren_find_node` can classify this pointer fast.
@@ -1132,6 +1138,17 @@ fn oren_track_alloc(ptr, size, kind) {
     // treat 50000 as a list pointer and dereference arbitrary memory. Filter this here.
     if ptr == 0 { return 0 }
     if ptr < 4096 { return ptr }
+
+    // IMPORTANT (native runtime model):
+    // Embedded string literals (cstr0 pool) live in the binary's data segment and must not be
+    // tracked as GC-managed allocations or even as static-kind nodes. The runtime recognizes
+    // them via the startup-built cstr0 membership set (`oren_init_static_cstr0_table`).
+    //
+    // Guardrail: if compiler/codegen accidentally calls `oren_track_alloc(literal, ...)`,
+    // treat it as a no-op so we never create tracking nodes pointing into static data.
+    if kind == 1 && g_cstr0_set_cap != 0 {
+        if native_cstr0_set_has(ptr) != 0 { return ptr }
+    }
     acquire_lock()
 
     // Ensure the alloc-index exists before we rely on it for de-duplication.

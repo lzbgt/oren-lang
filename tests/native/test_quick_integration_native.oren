@@ -160,6 +160,19 @@ fn test_core() {
     assert_true((nil || 0) == true, 1017)
     assert_true((nil && 0) == false, 1018)
 
+    trace("QI: test_core string literal pooling")
+    // Critical perf/correctness invariant (native backend):
+    // - string literals are deduped into a single cstr0 pool
+    // - literals are recognized as strings via `oren_init_static_cstr0_table`
+    // - literals must NOT be tracked as GC heap allocations
+    //
+    // These checks are intentionally pointer-identity based (do not use `==` for strings).
+    var lit0 = "qi_literal_pool_test"
+    var lit1 = "qi_literal_pool_test"
+    if (lit0 - lit1) != 0 { fail(3100) }
+    assert_true(oren_is_string(lit0), 3101)
+    if oren_find_node(lit0) != 0 { fail(3102) }
+
     trace("QI: test_core lists")
     // Lists + for-in + break/continue.
     var xs = [1, 2, 3, 4]
