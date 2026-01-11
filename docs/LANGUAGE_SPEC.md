@@ -340,9 +340,14 @@ Non-normative guidance (rolling):
 Supported attachment sites (rolling v0):
 
 - Declarations: `fn`, `struct`, `ffi`, `var`
+- Not supported: statements / expressions (there is no statement-level conditional compilation in v0)
 - Not supported yet: `import`
   - Reason: stage2 has a lexer-only fast import scan that cannot respect conditional imports.
   - Workaround: keep imports stable and gate platform-specific declarations *inside* imported modules.
+
+Constraint (rolling, practical):
+
+- When `@cfg` is used to define multiple platform variants of the same declaration name, the variants must be mutually exclusive; otherwise multiple variants can survive filtering and produce duplicate definitions.
 
 Selector forms (rolling v0):
 

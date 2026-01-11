@@ -122,6 +122,12 @@ Supported forms (rolling v0):
 Notes (important):
 
 - `@cfg` is implemented for **declarations** (`fn`, `struct`, `ffi`, `var`).
+- `@cfg` is **not** a general “preprocessor”:
+  - it does **not** apply to statements inside a function body
+  - it does **not** apply to arbitrary expressions
+- When using `@cfg` to provide platform variants (e.g. per‑OS implementations of the same `fn`), the variants must be **mutually exclusive**.
+  - Otherwise multiple copies of the same declaration can survive the filter and cause duplicate symbol / duplicate definition errors.
+  - A common pattern is to provide an explicit fallback via negation selectors such as `@cfg(not_os="windows,macos,linux")`.
 - `@cfg` is **not supported on `import` yet**:
   - stage2 has a fast lexer-only import scan that cannot respect conditional imports
   - gate platform-specific declarations *inside* the imported module instead

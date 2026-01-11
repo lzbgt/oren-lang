@@ -28,6 +28,11 @@ fn _ui_title() {
     return "OrenUI v0 (Linux bring-up)"
 }
 
+@cfg(not_os="windows,macos,linux")
+fn _ui_title() {
+    return "OrenUI v0"
+}
+
 fn _make_tree(w, h) {
     var bg = ui_core.node("Box", "bg", {"w": w, "h": h, "bg": "#202020"}, [])
 

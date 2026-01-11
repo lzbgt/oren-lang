@@ -429,8 +429,19 @@ Supported selector forms (rolling v0):
 Important limitations (current implementation):
 
 - `@cfg` is implemented for **declarations** (`fn`, `struct`, `ffi`, `var`).
+- `@cfg` is **not** supported on statements or expressions inside a function body.
+- If you use `@cfg` to provide multiple platform variants of the same declaration name, the variants must be **mutually exclusive** (otherwise you can get duplicate definitions).
 - `@cfg` is **not supported on `import` yet** (the stage2 fast import scan cannot respect conditional imports).
   - Gate declarations *inside* the imported module instead.
+
+Example (safe per‑OS declaration variants with a fallback):
+
+```oren
+@cfg(os="windows") fn title() { return "hello (win)" }
+@cfg(os="linux")   fn title() { return "hello (linux)" }
+@cfg(os="macos")   fn title() { return "hello (macos)" }
+@cfg(not_os="windows,linux,macos") fn title() { return "hello" }
+```
 
 ## 2) Values and literals
 

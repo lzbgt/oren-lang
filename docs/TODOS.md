@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-01-11
+**Last updated:** 2026-01-12
 
 This repo is in rolling mode. This file tracks the **highest-leverage work remaining** to evolve Oren
 into a modern, efficient, production-ready language and toolchain, while keeping iteration fast.
@@ -169,10 +169,9 @@ References:
 
    Status (fact):
 
-   - 2026-01-12: `make verify-stage0-win` passed (remote Win11, stage0→stage1 via MSVC `cl.exe`)
-	   - 2026-01-12: `make verify-stage2-win` passed (remote Win11, stage0→stage1→stage2 native + C-backend smoke using default `--cc`)
-	     - Follow-up guard: `scripts/verify_windows_stage2_from_stage1.sh` also compiles `examples/ui_hello.oren` and builds the Win32 OrenUI shim DLL via `scripts/win_msvc_cmd.cmd` (no GUI run; compile/link guard only).
-	     - 2026-01-12: `scripts/verify_windows_stage2_from_stage1.sh` also compiles `examples/ui_hello.oren` and builds the Win32 OrenUI shim DLL via `scripts/win_msvc_cmd.cmd` (no GUI run; compile/link guard only).
+	   - 2026-01-12: `make verify-stage0-win` passed (remote Win11, stage0→stage1 via MSVC `cl.exe`)
+		   - 2026-01-12: `make verify-stage2-win` passed (remote Win11, stage0→stage1→stage2 native + C-backend smoke using default `--cc`)
+		     - Follow-up guard: `scripts/verify_windows_stage2_from_stage1.sh` also compiles `examples/ui_hello.oren` and builds the Win32 OrenUI shim DLL via `scripts/win_msvc_cmd.cmd` (no GUI run; compile/link guard only).
 
 7) **GUI: platform shims for Tier‑1 (RGBA blit v0)** (L)
 
