@@ -1,5 +1,9 @@
 import json "../../lib/std/json.oren"
 import ints "../../lib/std/ints.oren"
+import ui_core "../../lib/std/ui/core.oren"
+import ui_render "../../lib/std/ui/render.oren"
+import ui_raster "../../lib/std/ui/raster.oren"
+import ui_cmds "../../lib/std/ui/commands.oren"
 
 // Quick, self-contained native backend integration smoke.
 //
@@ -445,6 +449,51 @@ fn test_json() {
     assert_streq(out, "{\"a\":1,\"b\":2,\"s\":\"x\\\\n\\\"y\"}", 301)
 }
 
+fn test_ui_headless() {
+    // Headless UI core (portable, deterministic):
+    // - tree -> layout -> render command buffer -> raster RGBA bytes
+    //
+    // This intentionally avoids any OS windowing. It should work on all native targets.
+    trace("QI: test_ui_headless")
+
+    var b = ui_core.box("b", 2, 2)
+    b["p"]["bg"] = "#ff0000ff" // solid red
+    var t = ui_core.text("t", "hi", 2, 1)
+    t["p"]["color"] = "#00ff00ff" // solid green
+    var root = ui_core.column("root", [b, t])
+
+    var opts = {"clear_color": "#00000000"} // transparent black
+    var cmds = ui_render.render(root, opts)
+    assert_eq(oren_list_len(cmds), 3, 310) // clear + fill_rect + text marker
+
+    // Layout result for this tree is 2x3; validate/rasterize in strict mode.
+    var w = 2
+    var h = 3
+    var vr = ui_cmds.validate(cmds, w, h, {"strict_bounds": 1})
+    assert_true(vr == 0, 311)
+
+    var img = ui_raster.rasterize(cmds, w, h, {"strict_bounds": 1})
+    assert_true(oren_is_err(img) == false, 312)
+
+    var n = oren_buf_len(img)
+    assert_true(oren_is_err(n) == false, 313)
+    assert_eq(n, w * h * 4, 314)
+
+    // Pixel checks:
+    // - box at (0,0) size 2x2 is red
+    // - text at y=2 draws 1 green pixel per character at x=0..len-1
+    assert_eq(oren_buf_load_u8(img, 0), 255, 315) // (0,0) R
+    assert_eq(oren_buf_load_u8(img, 1), 0, 316)   // (0,0) G
+    assert_eq(oren_buf_load_u8(img, 2), 0, 317)   // (0,0) B
+    assert_eq(oren_buf_load_u8(img, 3), 255, 318) // (0,0) A
+
+    var idx_t0 = (2 * w + 0) * 4
+    assert_eq(oren_buf_load_u8(img, idx_t0 + 0), 0, 319)   // (0,2) R
+    assert_eq(oren_buf_load_u8(img, idx_t0 + 1), 255, 320) // (0,2) G
+    assert_eq(oren_buf_load_u8(img, idx_t0 + 2), 0, 321)   // (0,2) B
+    assert_eq(oren_buf_load_u8(img, idx_t0 + 3), 255, 322) // (0,2) A
+}
+
 fn test_spawn_join() {
     // `timeout_ms == 0` is a non-blocking probe:
     // - if not finished, returns ETIMEDOUT but must NOT cancel/kill the spawned worker
@@ -524,6 +573,7 @@ fn main() {
     test_numeric_casts()
     test_float_and_bytes()
     test_json()
+    test_ui_headless()
     test_spawn_join()
     test_proc_system_windows()
     test_select()

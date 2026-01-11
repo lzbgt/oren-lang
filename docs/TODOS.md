@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-01-10
+**Last updated:** 2026-01-11
 
 This repo is in rolling mode. This file tracks the **highest-priority active work** in execution order,
 plus the **regression gates** that must stay green.
@@ -636,6 +636,9 @@ References:
        - Module: `lib/std/ui/commands.oren`
        - Fixture: `tests/avm/test_ui_cmds_validate_v0.oren`
        - Gate: `make test-avm`
+     - Done (2026-01-11): `make test` (native quick integration) now includes a headless UI smoke:
+       - Fixture: `tests/native/test_quick_integration_native.oren` (`test_ui_headless`)
+       - Covers: tree → render command buffer → raster RGBA bytes (+ pixel assertions)
    - Phase 2 (platform shims + bring-up):
      - Build per-OS shim libraries (macOS/Windows/Linux) implementing the UI domain with a v0 software RGBA framebuffer.
      - Add Tier‑1 smoke scripts (opt-in): open window → draw frame → close.

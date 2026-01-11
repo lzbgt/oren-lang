@@ -180,6 +180,25 @@ Rolling guardrails:
 - x86_64 correctness tripwire: set `OREN_CANON_I32_ABORT=1` to hard-fail on “non-canonical i32” values
   (a common symptom of partial-width stores / ABI mismatches in the x64 native backend).
 
+## Why some fixtures use `@cfg(...)`
+
+Oren’s goal is that most Tier‑1 fixtures are **platform-neutral** and exercise the same logic on
+`arm64-macos`, `arm64-linux`, `x64-windows`, and `x64-linux`.
+
+However, a small amount of `@cfg(os=...)` glue is still sometimes necessary at the **platform boundary**:
+
+- FFI library naming / attachment (`@ffi.link("...")` vs `@ffi.dll("...")`).
+- OS-specific process semantics (e.g. TLS loopback servers may use `fork+exec` on macOS to avoid
+  fork-unsafety around Security/CoreFoundation; see `docs/NET_TLS.md`).
+- Temporary bring-up gaps (e.g. native `select` over pipe-based channels is not supported on Windows yet;
+  the quick integration suite skips that test on Windows).
+
+Rule of thumb (rolling):
+
+- Keep the *core test logic* shared; put `@cfg` only around the smallest OS-specific hook needed.
+- Avoid `exit(...)` inside spawned workers; return values are the portable join contract (see
+  `docs/LANGUAGE_MANUAL.md` spawn notes).
+
 ## Quick perf check (compile-one-file)
 
 When investigating “why did `oren build` take >10s?” regressions, use the bounded benchmark helper:

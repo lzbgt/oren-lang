@@ -117,6 +117,13 @@ This doc answers: “what’s real today?” and “what’s missing to reach th
 - **PEM decode helpers (crypto plumbing)**
   - Evidence: `tests/native/test_pem_decode_smoke.oren` (imports `std:crypto/pem`)
 
+### UI core (headless; rolling)
+
+- **Deterministic UI tree/layout/render/raster core (no OS windows)**
+  - Modules: `lib/std/ui/{core,layout,style,render,raster,commands,ppm}.oren`
+  - Evidence (AVM): `tests/avm/test_ui_*_v0.oren` fixtures (layout, render, raster, ppm, commands.validate)
+  - Evidence (native quick smoke): `tests/native/test_quick_integration_native.oren` (`test_ui_headless`)
+
 ## What’s Still Missing for Production Maturity (Gap List)
 
 This section is intentionally phrased as “missing or not yet proved by tests”, because

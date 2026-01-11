@@ -1,7 +1,7 @@
 # GUI / UI Design for Oren (Rolling)
 
-**Status:** Design doc (rolling; implementation not started)  
-**Last updated:** 2026-01-09
+**Status:** Design + headless core implemented (rolling; platform shims not started)  
+**Last updated:** 2026-01-11
 
 This document proposes a **production-oriented** GUI story for Oren that is consistent with:
 
@@ -121,7 +121,7 @@ Even before a platform shim exists, Oren needs a stable “render intent” cont
 - build multiple render backends later (software blit v0, GPU v1),
 - keep the UI core portable across platforms/backends.
 
-Current v0 schema is implemented by:
+Current v0 schema is implemented (and regression-tested in AVM) by:
 
 - `std:ui/render` (`lib/std/ui/render.oren`) — tree → command list
 - `std:ui/raster` (`lib/std/ui/raster.oren`) — command list → RGBA bytes (headless reference)
