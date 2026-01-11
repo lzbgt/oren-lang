@@ -93,6 +93,22 @@ if [[ "$os_key" != "windows" ]]; then
     --backend native --platform "$platform" --no-debug -o "$bs_out" >"$bs_log" 2>&1
   test -f "$bs_out" || { echo "FAIL: backslash path smoke did not produce output: $bs_out" >&2; tail -n 80 "$bs_log" >&2; exit 1; }
   echo "OK: backslash path smoke"
+
+  # Output-path separator smoke:
+  # Ensure `-o` paths that contain backslashes do not create mixed-separator artifacts like:
+  #   build/.../native/examples\myapp.exe
+  # (a known x64-windows bring-up hazard under remote Win11 shells).
+  #
+  # We pass a backslash-heavy output path, but validate the normalized on-disk path.
+  echo "== path separator smoke (backslash -o output) =="
+  bs_out2='build\tmp\'"${compiler_base}"'_backslash_out_smoke'
+  bs_out2_norm="${bs_out2//\\//}"
+  bs_log2="build/logs/${compiler_base}_backslash_out_smoke.log"
+  rm -f "$bs_out2_norm" "$bs_log2" 2>/dev/null || true
+  run_with_timeout "$build_timeout_secs" "$compiler" build "$bs_src" \
+    --backend native --platform "$platform" --no-debug -o "$bs_out2" >"$bs_log2" 2>&1
+  test -f "$bs_out2_norm" || { echo "FAIL: backslash -o smoke did not produce output: $bs_out2_norm (from -o $bs_out2)" >&2; tail -n 80 "$bs_log2" >&2; exit 1; }
+  echo "OK: backslash -o smoke"
 fi
 
 echo "== typecheck smoke (numeric vs nil) =="
