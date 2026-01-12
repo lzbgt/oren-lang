@@ -133,6 +133,20 @@ Build and run a program on the **C backend** (portable via host toolchain):
 ./build/your_prog_c
 ```
 
+Toolchain selection (C backend, rolling):
+
+- Default C compiler is `cc` on POSIX hosts.
+- On **Windows hosts**, if `--cc` is not provided, the compiler defaults to **MSVC** `cl.exe` and attempts to auto-configure the VS environment (vswhere + VsDevCmd/vcvars) so a Developer Prompt is not required.
+  - Escape hatches: `OREN_MSVC_INSTALL_PATH` (pin VS install root), `OREN_MSVC_VSWHERE` (pin `vswhere.exe` path).
+  - Note: `--python` is not supported when using MSVC `cl.exe` in the rolling C-backend path (you must use a gcc/clang-style compiler via `--cc` if you need Python embedding today).
+- For **cross-compiling** a C-backend Windows artifact from a non-Windows host, you must pass an explicit cross compiler via `--cc` (the compiler will not auto-pick `cl.exe` off-host).
+
+You can also emit the generated C without compiling it:
+
+```bash
+./oren emit-c your_prog.oren -o build/your_prog_c   # alias for: build --backend c --emit-c
+```
+
 Build and run a program on the **native backend** (Tier‑1 targets, rolling):
 
 ```bash

@@ -279,6 +279,16 @@ Program termination (rolling):
 - Do not rely on the **return value of `main`** for an exit code; backends do not yet agree on whether it is used.
 - Use `exit(code)` for deterministic, portable termination semantics across all backends.
 
+### C backend host toolchain selection (tooling contract; `--cc`)
+
+The C backend produces a `.c` file and then invokes a host C toolchain to compile+link it.
+
+- Toolchain selection is controlled by `oren build ... --backend c --cc <compiler>`.
+- Default `--cc` behavior (rolling):
+  - On POSIX hosts, default is `cc`.
+  - On Windows hosts, default is MSVC `cl.exe` (and the compiler attempts to auto-configure a VS environment via `vswhere.exe` + `VsDevCmd.bat`/`vcvars64.bat` so a VS Developer Prompt is not required).
+  - Cross-compiling a Windows C-backend artifact from a non-Windows host is not a first-class path; require an explicit `--cc` (e.g. MinGW cross compiler) to opt in.
+
 ### Stdlib import resolution (`std:` / `std/`) (toolchain contract)
 
 The `import` statement stores a string module specifier. The compiler resolves that specifier at compile time.
