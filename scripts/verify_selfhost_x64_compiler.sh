@@ -429,6 +429,42 @@ print("hello from native")
 exit(0)
 EOF
 
+# Prove that the native runtime filesystem helpers behave correctly on x64 hosts:
+# - `oren_mkdir_p` handles the "already exists" path (`-EEXIST`) as success for directories
+# - `sys_stat` can correctly report directories (mode indicates dir)
+cat >"$PKG_DIR/fs_dir_gate.oren" <<'EOF'
+@cap.requires(domain="FS")
+fn is_dir_via_fn(path) {
+    var st = oren_stat_alloc()
+    var rc = sys_stat(path, st)
+    if rc < 0 {
+        free(st)
+        return false
+    }
+    var mode = oren_stat_get_mode(st)
+    free(st)
+    var ft = mode & 61440 // 0170000
+    if ft == 16384 { return true } // 0040000
+    return false
+}
+
+fn main() {
+    var p = "build/tmp/tier1_fs_dir_gate"
+    var rc1 = oren_mkdir_p(p)
+    var rc2 = oren_mkdir_p(p)
+    if rc1 < 0 || rc2 < 0 {
+        print("mkdir_p rc1=" + oren_int_to_string(rc1) + " rc2=" + oren_int_to_string(rc2))
+        exit(41)
+    }
+    if is_dir_via_fn(p) != true {
+        print("is_dir_via_fn=false")
+        exit(42)
+    }
+    print("tier1 fs dir gate ok")
+    exit(0)
+}
+EOF
+
 # Also place the same file under a subdirectory so the Windows self-host gate can
 # compile it using a backslash path (e.g. `examples\print.oren`). This specifically
 # defends against regressions where output naming fails to treat `\` as a separator
@@ -451,7 +487,7 @@ scp_put "$PKG_TGZ" "$REMOTE_HOST:$REMOTE_DIR_SSH/selfhost_pkg.tgz"
 
 echo "== remote: unpack runtime sources (WSL2 tar into /mnt/c) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
-  "wsl.exe -e bash -lc \"set -euo pipefail; mkdir -p '${REMOTE_DIR_WSL}'; cd '${REMOTE_DIR_WSL}'; rm -rf lib print.oren; tar -xzf '${REMOTE_DIR_WSL}/selfhost_pkg.tgz' -C .; echo OK\""
+  "wsl.exe -e bash -lc \"set -euo pipefail; mkdir -p '${REMOTE_DIR_WSL}'; cd '${REMOTE_DIR_WSL}'; rm -rf lib print.oren fs_dir_gate.oren; tar -xzf '${REMOTE_DIR_WSL}/selfhost_pkg.tgz' -C .; echo OK\""
 
 if has_target x64-wsl; then
   echo "== remote: self-host compile+run (x64-linux under WSL2) =="
@@ -467,6 +503,15 @@ if has_target x64-wsl; then
 		  fi
 		  echo "$out" | grep -q "hello from native"
 		  echo "$out" | grep -q "EXIT=0"
+
+		  echo "== remote: self-host fs dir gate (x64-linux under WSL2) =="
+		  out_fs="$(
+		    run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
+		      "wsl.exe -e bash -lc \"set -euo pipefail; cd '${REMOTE_DIR_WSL}'; chmod +x ./oren_selfhost_x64_linux; ${canon_env_wsl}./oren_selfhost_x64_linux build fs_dir_gate.oren --backend native --no-cache --no-debug -o out_fs_linux; chmod +x ./out_fs_linux; ${canon_env_wsl}./out_fs_linux; echo EXIT=\$?\""
+		  )"
+		  printf '%s\n' "$out_fs"
+		  echo "$out_fs" | grep -q "tier1 fs dir gate ok"
+		  echo "$out_fs" | grep -q "EXIT=0"
 fi
 
 if has_target x64-win; then
@@ -498,6 +543,15 @@ if has_target x64-win; then
 		  fi
 		  echo "$out2" | grep -q "hello from native"
 		  echo "$out2" | grep -q "EXIT=0"
+
+  echo "== remote: self-host fs dir gate (x64-windows under cmd.exe) =="
+		  out_fs="$(
+		    run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" "${SSH[@]}" \
+		      "cmd.exe /v:on /c \"cd ${REMOTE_DIR_WIN} && ${canon_env_cmd}oren_selfhost_x64_windows.exe build fs_dir_gate.oren --backend native --no-cache --no-debug -o out_fs_win.exe && ${canon_env_cmd}out_fs_win.exe & echo EXIT=!ERRORLEVEL!\""
+		  )"
+		  printf '%s\n' "$out_fs"
+		  echo "$out_fs" | grep -q "tier1 fs dir gate ok"
+		  echo "$out_fs" | grep -q "EXIT=0"
 fi
 
 echo "OK: x64 self-host compiler gate passed"
