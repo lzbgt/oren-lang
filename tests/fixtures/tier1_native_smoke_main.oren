@@ -518,6 +518,31 @@ fn main() {
     if bool_norm_val(0) != 0 { return 64 }
     if bool_norm_val(2) != 1 { return 65 }
 
+    // Truthiness guardrail (Tier‑1 parity):
+    // - only `nil` and `false` are falsey
+    // - numeric `0` is truthy
+    var truth_seen = 0
+    var truth_x0 = 0
+    if truth_x0 { truth_seen = 1 } else { truth_seen = 2 }
+    if truth_seen != 1 {
+        print("tier1 truthiness: int 0 should be truthy")
+        return 67
+    }
+    var truth_xnil = nil
+    truth_seen = 0
+    if truth_xnil { truth_seen = 1 } else { truth_seen = 2 }
+    if truth_seen != 2 {
+        print("tier1 truthiness: nil should be falsey")
+        return 68
+    }
+    var truth_xfalse = false
+    truth_seen = 0
+    if truth_xfalse { truth_seen = 1 } else { truth_seen = 2 }
+    if truth_seen != 2 {
+        print("tier1 truthiness: false should be falsey")
+        return 69
+    }
+
     // Short-circuit sanity (must not evaluate RHS when unnecessary).
     // Tier‑1: boolean short-circuiting should prevent evaluating RHS when LHS is `false`.
     // Do not use numeric `0` here: under native backend, booleans are runtime singletons (`false`/`true`),
