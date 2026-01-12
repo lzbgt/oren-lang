@@ -200,16 +200,6 @@ fn _nil_guard_mark_scalar_likely(scalar_likely, expr) {
     return nil
 }
 
-fn _nil_guard_mark_scalar_likely_if_maybe_nil(scalar_likely, maybe_nil, expr) {
-    if scalar_likely == nil || maybe_nil == nil || expr == nil { return nil }
-    if expr["type"] == "Identifier" && expr["value"] != nil {
-        if maybe_nil[expr["value"]] == true {
-            scalar_likely[expr["value"]] = true
-        }
-    }
-    return nil
-}
-
 fn _nil_guard_is_numeric_literal(expr) {
     // Best-effort: treat a numeric literal as strong evidence of scalar arithmetic.
     // This is intentionally narrow to avoid misclassifying string concatenation.
@@ -242,14 +232,14 @@ fn _nil_guard_collect_scalar_likely_expr(scalar_likely, maybe_nil, expr) {
         //   (However, `x + 1` / `x + 1.0` is strong evidence of numeric arithmetic.)
         // - Prefer ops that are unambiguously numeric/bitwise in v0.
         if op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>" || op == "%" {
-            _nil_guard_mark_scalar_likely_if_maybe_nil(scalar_likely, maybe_nil, expr["left"])
-            _nil_guard_mark_scalar_likely_if_maybe_nil(scalar_likely, maybe_nil, expr["right"])
+            _nil_guard_mark_scalar_likely(scalar_likely, expr["left"])
+            _nil_guard_mark_scalar_likely(scalar_likely, expr["right"])
         } else if op == "+" || op == "-" || op == "*" || op == "/" {
             // Allow a narrow arithmetic evidence path:
             // - Mark only when the expression includes a numeric literal, which is unlikely to be string concat.
             // - Example: `if x == nil { ... }` then later `x + 1` should be rejected.
-            if _nil_guard_is_numeric_literal(expr["left"]) { _nil_guard_mark_scalar_likely_if_maybe_nil(scalar_likely, maybe_nil, expr["right"]) }
-            if _nil_guard_is_numeric_literal(expr["right"]) { _nil_guard_mark_scalar_likely_if_maybe_nil(scalar_likely, maybe_nil, expr["left"]) }
+            if _nil_guard_is_numeric_literal(expr["left"]) { _nil_guard_mark_scalar_likely(scalar_likely, expr["right"]) }
+            if _nil_guard_is_numeric_literal(expr["right"]) { _nil_guard_mark_scalar_likely(scalar_likely, expr["left"]) }
         }
         return nil
     }
@@ -294,7 +284,7 @@ fn _nil_guard_collect_scalar_likely_expr(scalar_likely, maybe_nil, expr) {
         var args = expr["args"]
         if fn_expr != nil && fn_expr["type"] == "Identifier" && _is_cast_target_name(fn_expr["value"]) {
             if args != nil && oren_list_len(args) >= 1 {
-                _nil_guard_mark_scalar_likely_if_maybe_nil(scalar_likely, maybe_nil, args[0])
+                _nil_guard_mark_scalar_likely(scalar_likely, args[0])
             }
         }
         _nil_guard_collect_scalar_likely_expr(scalar_likely, maybe_nil, fn_expr)

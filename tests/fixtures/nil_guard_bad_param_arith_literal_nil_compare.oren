@@ -1,0 +1,19 @@
+// Expected to fail under: `./oren build ...`
+//
+// Rationale:
+// - The nil-compare guard is always-on (even without `--typecheck`).
+// - A common footgun is treating `== nil` as “missing” and then using the value
+//   in numeric arithmetic.
+//
+// This fixture covers the non-index case: a function parameter is compared to `nil`,
+// then later used as numeric arithmetic (`x + 1`) with a numeric literal.
+fn bump(x) {
+    if x == nil { exit(0) }
+    var y = x + 1
+    if y > 0 { exit(0) }
+    exit(1)
+}
+
+fn main() {
+    bump(0)
+}

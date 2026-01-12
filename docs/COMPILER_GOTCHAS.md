@@ -115,7 +115,7 @@ Rolling invariant (until `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md` lands):
 - Guardrail (2026-01-10): the compiler rejects `bool/int/float == nil` comparisons when the scalar side is:
   - statically known (literals, casts, or locally-proven scalars), **or**
   - later proven scalar by best-effort scan (e.g. `var t = cfg["x"]; if t == nil { ... }; i64(t)`, or `t & 255`).
-  - Regression fixtures: `tests/fixtures/typecheck_bad_numeric_nil.oren`, `tests/fixtures/typecheck_bad_bool_nil.oren`, `tests/fixtures/nil_guard_bad_late_scalar_nil_compare.oren`, `tests/fixtures/nil_guard_bad_late_bitwise_nil_compare.oren`, `tests/fixtures/nil_guard_bad_late_scalar_nil_compare_top_level.oren`, `tests/fixtures/nil_guard_bad_annotated_call_nil_compare.oren`
+  - Regression fixtures: `tests/fixtures/typecheck_bad_numeric_nil.oren`, `tests/fixtures/typecheck_bad_bool_nil.oren`, `tests/fixtures/nil_guard_bad_late_scalar_nil_compare.oren`, `tests/fixtures/nil_guard_bad_late_bitwise_nil_compare.oren`, `tests/fixtures/nil_guard_bad_late_scalar_nil_compare_top_level.oren`, `tests/fixtures/nil_guard_bad_annotated_call_nil_compare.oren`, `tests/fixtures/nil_guard_bad_param_arith_literal_nil_compare.oren`
   - Fast gate: `make test`
   - Diagnostic: failures are tagged as `nil-compare guard:` (this is always-on; it does not require `--typecheck`).
 
@@ -131,9 +131,9 @@ Concrete rule (treat as a correctness bug in rolling native builds):
     - Under singleton-`nil` semantics, a missing env var can return `nil`, and `nil != 0` is true.
     - Preferred: `v != nil && v != 0 && v != ""` (or a small helper that treats `nil/0/""` as “missing”).
   - Guard detail (rolling): the guard’s “later proven scalar” inference is intentionally conservative.
-    - It **does** treat arithmetic-with-literal patterns (e.g. `x + 1`, `x * 2`, `x - 1`, `x / 10`) as scalar evidence **only** when `x` is sourced from a “maybe-nil” dynamic source (currently: direct `Index` reads like `cfg["timeout_ms"]`).
+    - It **does** treat arithmetic-with-literal patterns (e.g. `x + 1`, `x * 2`, `x - 1`, `x / 10`) as scalar evidence (covers common dynamic config reads like `cfg["timeout_ms"]`, and also plain locals/params).
       - This catches the common bug pattern: `var t = cfg["timeout_ms"]; if t == nil { ... }; var u = t + 1` (where `t` is clearly being used as numeric later).
-      - Regression fixture: `tests/fixtures/nil_guard_bad_late_arith_literal_nil_compare.oren`
+      - Regression fixtures: `tests/fixtures/nil_guard_bad_late_arith_literal_nil_compare.oren`, `tests/fixtures/nil_guard_bad_param_arith_literal_nil_compare.oren`
     - For general dynamic values, prefer an explicit cast in the scalar path (e.g. `i64(x)` / `f64(x)`) so the guard can treat it as scalar-likely without over-flagging intentional nil-coalescing idioms in core code.
 
 Practical compiler-internal corollary (x64 emitters):
