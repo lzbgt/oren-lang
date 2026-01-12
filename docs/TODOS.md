@@ -107,10 +107,13 @@ References:
 			     - C backend runtime: `oren_unlink`, `oren_rmdir`, `oren_rm_rf` (0 / -errno; `rm -rf` ignores missing path)
 			     - native runtime: `oren_unlink`, `oren_rmdir`, `oren_rm_rf` (implemented via `sys_unlink/sys_rmdir/sys_lstat` + `oren_readdir`)
 			     - compiler tooling: no `oren_system("rm ...")` / `oren_system("del ...")` under `lib/compiler/compiler/*`
-		   - 2026-01-12: removed compiler dependency on shell `test -f` / `if exist` probes for `file_exists(...)`:
-		     - runtime: `oren_is_file(path)` (C + native) so stage1 tooling can check existence without shelling out
-		   - 2026-01-12: verified x64 native selfhost compile-only gate still passes after the runtime FS-helper refactor:
-		     - `make verify-native-x64-selfhost-compile` (targets: x64-linux, x64-windows)
+			   - 2026-01-12: removed compiler dependency on shell `test -f` / `if exist` probes for `file_exists(...)`:
+			     - runtime: `oren_is_file(path)` (C + native) so stage1 tooling can check existence without shelling out
+			   - 2026-01-13: added a hard guardrail to keep the compiler/runtime free of `rg`/ripgrep dependencies:
+			     - `scripts/guard_no_external_rg_dependency.sh` scans `lib/**/*.oren` and fails if it finds any `oren_system(... rg ...)`-style shell-outs.
+			     - Wired into default `make test` via `test-native-quick` in `Makefile`.
+			   - 2026-01-12: verified x64 native selfhost compile-only gate still passes after the runtime FS-helper refactor:
+			     - `make verify-native-x64-selfhost-compile` (targets: x64-linux, x64-windows)
 	   - 2026-01-12: `scripts/verify_native_x64_compile_only.sh` now pre-seeds native runtime ASTBIN + rtobj (core+full) before running tight per-build timeouts, so the “cold after runtime change” case stays bounded.
 	   - 2026-01-12: began splitting the >2k-line x64 Linux syscall intrinsic emitter into smaller modules; moved the NET/epoll blocks into `lib/compiler/x64_native_program/046_emit_sys_intrinsics_linux_net.oren` so hot-path compilation of `_emit_intrinsic_sys_linux_x64` stays bounded.
 	   - 2026-01-12: introduced an x64-focused compiler entry (`oren_x64.oren` → `lib/compiler/compiler_x64.oren`) that swaps arm64 native backends for small stubs, so x64 self-host builds do not spend time compiling arm64 code.

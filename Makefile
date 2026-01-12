@@ -372,7 +372,8 @@ astbin-seed-x64: oren
 
 # Fast native smoke (stage1): build+run one self-contained integration test.
 test-native-quick: oren
-		@./scripts/run_native_quick_integration.sh "./$(OREN_BIN)"
+			@./scripts/guard_no_external_rg_dependency.sh
+			@./scripts/run_native_quick_integration.sh "./$(OREN_BIN)"
 
 # Fast native smoke (stage2): use stage2 compiler to build+run the same test.
 test-native-quick-stage2: oren_stage2
