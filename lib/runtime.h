@@ -646,6 +646,15 @@ OrenValue oren_system(OrenValue cmd);
 OrenValue oren_exit(OrenValue code);
 OrenValue oren_chmod(OrenValue path, OrenValue mode);
 OrenValue oren_rename(OrenValue from, OrenValue to);
+// Recursive directory creation.
+//
+// Return convention (syscall-like):
+// - 0 on success
+// - negative errno on failure
+//
+// This is used by compiler tooling and other bootstrap paths that must work
+// without shelling out to `mkdir -p` (especially on Windows).
+OrenValue oren_mkdir_p(OrenValue path);
 
 void oren_print(OrenValue v);
 void oren_print_multi(int count, ...);

@@ -333,23 +333,19 @@ fn _write_artifact_manifest(kind, path, sha256_hex, target, arch, deterministic,
 fn ensure_dir(path) {
     // Cross-platform `mkdir -p` helper for compiler tooling.
     //
-    // Constraints (rolling):
-    // - Stage 1 is built via the C backend (Go bootstrap transpiler), so we must not
-    //   depend on syscall-first intrinsics like `sys_mkdir` here.
-    // - Windows cmd.exe does not support `mkdir -p`, so we must special-case it.
+    // Rolling constraint: Stage 1 is built via the C backend, so compiler tooling must
+    // not rely on shelling out to `mkdir` (Windows cmd.exe parity) nor on native-only
+    // intrinsics like `sys_mkdir`.
     //
-    // Contract:
-    // - Best-effort create the directory (including parents).
-    // - No-op for empty paths.
+    // `oren_mkdir_p` is a runtime call implemented for both:
+    // - C backend runtime (`lib/runtime/*.inc`)
+    // - native runtime (`lib/runtime_native/*`)
     if path == nil || path == "" { return nil }
-    if host_is_windows() {
-        // Silence "already exists" noise to keep rolling logs bounded.
-        var mk_path = _path_to_windows_sep(path)
-        oren_system("mkdir \"" + mk_path + "\" >nul 2>nul")
-        return nil
+    var rc = oren_mkdir_p(path)
+    if rc < 0 {
+        print("ERROR: ensure_dir failed: " + path + " (rc=" + oren_int_to_string(rc) + ")")
+        oren_exit(1)
     }
-    // POSIX: `mkdir -p` is reliable and quiet when the directory already exists.
-    oren_system("mkdir -p \"" + path + "\"")
     return nil
 }
 

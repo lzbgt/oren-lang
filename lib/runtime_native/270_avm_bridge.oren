@@ -265,8 +265,8 @@ fn oren_avm_run_obc_bytes(child_obc_bytes, cfg) {
     // NOTE: Caller must ensure `./avm` exists and is executable.
     // In repo workflows, `make avm` provides it.
 
-    // Ensure build/ exists (ignore EEXIST).
-    sys_mkdir("build", 493) // 0755
+    // Ensure build/ exists (mkdir -p).
+    oren_mkdir_p("build")
 
     var obc_path = "build/native_child_tmp.obc"
     var out_path = "build/native_avm_out.txt"

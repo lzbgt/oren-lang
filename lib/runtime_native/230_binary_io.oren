@@ -322,6 +322,110 @@ fn oren_chmod(path, mode) {
     return sys_chmod(path, mode)
 }
 
+fn _oren_path_is_sep(ch) {
+    if ch == 47 { return true } // '/'
+    if ch == 92 { return true } // '\\'
+    return false
+}
+
+fn _oren_mode_is_dir(mode) {
+    // POSIX file type mask (0170000) and directory bit (0040000).
+    //
+    // `sys_stat` writes a stable OrenStatV0 ABI where `mode` is a u32 with POSIX-like bits.
+    // This keeps `mkdir -p` semantics correct (EEXIST only ignored for directories).
+    var ft = mode & 61440 // 0170000
+    if ft == 16384 { return true } // 0040000
+    return false
+}
+
+@cap.requires(domain="FS")
+fn _oren_is_dir(path) {
+    if path == 0 { return false }
+    if ptr_get_byte(path) == 0 { return false }
+    var st = oren_stat_alloc()
+    var rc = sys_stat(path, st)
+    if rc < 0 {
+        free(st)
+        return false
+    }
+    var mode = oren_stat_get_mode(st)
+    free(st)
+    return _oren_mode_is_dir(mode)
+}
+
+@cap.requires(domain="FS")
+fn oren_mkdir_p(path) {
+    // Recursive directory creation.
+    //
+    // Return convention (syscall-like):
+    // - 0 on success
+    // - negative errno on failure
+    if path == 0 { return 0 }
+    if ptr_get_byte(path) == 0 { return 0 }
+
+    var n = oren_string_len(path)
+    if n <= 0 { return 0 }
+
+    var buf = malloc(n + 1)
+    if buf == 0 { return 0 - 12 } // -ENOMEM
+    var i = 0
+    while i < n {
+        ptr_set_byte(buf + i, ptr_get_byte(path + i))
+        i = i + 1
+    }
+    ptr_set_byte(buf + n, 0)
+
+    var mode = 493 // 0755
+
+    i = 0
+    while i < n {
+        var ch = ptr_get_byte(buf + i)
+        if _oren_path_is_sep(ch) {
+            if i != 0 {
+                // Skip repeated separators to avoid empty segments.
+                var prev = ptr_get_byte(buf + (i - 1))
+                if _oren_path_is_sep(prev) != true {
+                    // Skip drive prefix "C:\" on Windows-style paths.
+                    if i == 2 && ptr_get_byte(buf + 1) == 58 {
+                        // no-op
+                    } else {
+                        ptr_set_byte(buf + i, 0)
+                        var rc = sys_mkdir(buf, mode)
+                        if rc < 0 {
+                            if rc == 0 - 17 { // -EEXIST
+                                if _oren_is_dir(buf) != true {
+                                    free(buf)
+                                    return rc
+                                }
+                            } else {
+                                free(buf)
+                                return rc
+                            }
+                        }
+                        ptr_set_byte(buf + i, ch)
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+
+    var rc2 = sys_mkdir(buf, mode)
+    if rc2 < 0 {
+        if rc2 == 0 - 17 {
+            if _oren_is_dir(buf) != true {
+                free(buf)
+                return rc2
+            }
+        } else {
+            free(buf)
+            return rc2
+        }
+    }
+    free(buf)
+    return 0
+}
+
 @cap.requires(domain="FS")
 fn oren_rename(from, to) {
     // Rename a filesystem entry.

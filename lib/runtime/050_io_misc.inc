@@ -162,6 +162,162 @@ OrenValue oren_rename(OrenValue from, OrenValue to) {
     return oren_int(0);
 }
 
+#if defined(_WIN32)
+static int oren_win_is_dir_path(const char* path) {
+    if (!path || !path[0]) return 0;
+    DWORD attrs = GetFileAttributesA(path);
+    if (attrs == INVALID_FILE_ATTRIBUTES) return 0;
+    return (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0;
+}
+
+static int oren_win_mkdir_one(const char* path) {
+    if (!path || !path[0]) return -EINVAL;
+    if (CreateDirectoryA(path, NULL)) return 0;
+    DWORD e = GetLastError();
+    if (e == ERROR_ALREADY_EXISTS) {
+        if (oren_win_is_dir_path(path)) return 0;
+        return -EEXIST;
+    }
+    if (e == ERROR_PATH_NOT_FOUND) return -ENOENT;
+    if (e == ERROR_ACCESS_DENIED) return -EACCES;
+    return -EIO;
+}
+
+static size_t oren_win_mkdirp_min_prefix(const char* path) {
+    if (!path) return 0;
+    // UNC prefix: \\server\share\
+    if (path[0] == '\\' && path[1] == '\\') {
+        const char* p = path + 2;
+        while (*p && *p != '\\') p++;
+        if (!*p) return (size_t)strlen(path);
+        p++; // after server '\'
+        while (*p && *p != '\\') p++;
+        if (!*p) return (size_t)strlen(path);
+        // Include trailing '\' so mkdir starts after the share root.
+        return (size_t)(p - path + 1);
+    }
+    // Drive prefix: C:\...
+    char c0 = path[0];
+    if ((c0 >= 'A' && c0 <= 'Z') || (c0 >= 'a' && c0 <= 'z')) {
+        if (path[1] == ':') {
+            if (path[2] == '\\') return 3;
+            return 2;
+        }
+    }
+    return 0;
+}
+#endif
+
+#if !defined(_WIN32)
+static int oren_is_dir_path(const char* path) {
+    if (!path || !path[0]) return 0;
+    struct stat st;
+    if (stat(path, &st) != 0) return 0;
+    return (st.st_mode & S_IFDIR) != 0;
+}
+#endif
+
+// Recursive directory creation.
+//
+// Return convention (syscall-like):
+// - 0 on success
+// - negative errno on failure
+OrenValue oren_mkdir_p(OrenValue path) {
+    if (path.type != OREN_TYPE_STRING) {
+        return oren_int(-EINVAL);
+    }
+
+    const char* s = path.as.string_val;
+    if (!s || !s[0]) {
+        return oren_int(0);
+    }
+
+    char* buf = strdup(s);
+    if (!buf) {
+        return oren_int(-ENOMEM);
+    }
+
+    size_t len = strlen(buf);
+
+#if defined(_WIN32)
+    // Normalize separators to '\'.
+    for (size_t i = 0; i < len; i++) {
+        if (buf[i] == '/') buf[i] = '\\';
+    }
+    size_t min_prefix = oren_win_mkdirp_min_prefix(buf);
+#endif
+
+    for (size_t i = 0; i < len; i++) {
+#if defined(_WIN32)
+        int is_sep = (buf[i] == '\\');
+#else
+        int is_sep = (buf[i] == '/');
+#endif
+        if (!is_sep) continue;
+        if (i == 0) continue;
+        // Skip repeated separators (avoid empty segments).
+        if (i > 0) {
+#if defined(_WIN32)
+            if (buf[i - 1] == '\\') continue;
+#else
+            if (buf[i - 1] == '/') continue;
+#endif
+        }
+#if defined(_WIN32)
+        if (i < min_prefix) continue;
+#endif
+
+        char saved = buf[i];
+        buf[i] = '\0';
+
+#if defined(_WIN32)
+        int rc = oren_win_mkdir_one(buf);
+        if (rc != 0) {
+            free(buf);
+            return oren_int(rc);
+        }
+#else
+        if (mkdir(buf, 0755) != 0) {
+            if (errno == EEXIST) {
+                if (!oren_is_dir_path(buf)) {
+                    free(buf);
+                    return oren_int(-EEXIST);
+                }
+            } else {
+                int e = errno;
+                free(buf);
+                return oren_int(-e);
+            }
+        }
+#endif
+
+        buf[i] = saved;
+    }
+
+#if defined(_WIN32)
+    {
+        int rc = oren_win_mkdir_one(buf);
+        free(buf);
+        return oren_int(rc);
+    }
+#else
+    if (mkdir(buf, 0755) != 0) {
+        if (errno == EEXIST) {
+            if (!oren_is_dir_path(buf)) {
+                free(buf);
+                return oren_int(-EEXIST);
+            }
+        } else {
+            int e = errno;
+            free(buf);
+            return oren_int(-e);
+        }
+    }
+    free(buf);
+    return oren_int(0);
+#endif
+}
+
 OrenValue oren_read_bytes(OrenValue path) {
     if (path.type != OREN_TYPE_STRING) {
         oren_panic("read_bytes expects string path");
