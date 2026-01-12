@@ -83,11 +83,15 @@ References:
    - `make test`
    - `./scripts/verify_native_net_matrix.sh` (large-graph compile + run)
 
-   High-leverage direction:
+	   High-leverage direction:
 
-   - shrink the injected runtime surface compiled on cold misses (rtobj layering / reachability)
-   - keep rtobj seed tooling aligned with the compiler’s default runtime-profile heuristic (`auto` ⇒ core unless `std:net/*`); seed `full` explicitly for NET/TLS-heavy bring-up
-   - keep module parsing parallelism safe by default (fork-mode parallel parse without huge logs)
+	   - shrink the injected runtime surface compiled on cold misses (rtobj layering / reachability)
+	   - keep rtobj seed tooling aligned with the compiler’s default runtime-profile heuristic (`auto` ⇒ core unless `std:net/*`); seed `full` explicitly for NET/TLS-heavy bring-up
+	   - keep module parsing parallelism safe by default (fork-mode parallel parse without huge logs)
+	   - reduce compiler dependency on shell commands for filesystem ops in core tooling where possible:
+	     - Goal: make “compiler-in-capsule” and minimal environments more reliable (especially on Windows hosts where POSIX shims vary).
+	     - Direction: provide a small syscall-first filesystem helper surface usable by both native and C backend runtimes (avoid `oren_system("mkdir -p ...")` for core operations).
+	     - Keep it bounded: implement only what the compiler needs (mkdir -p, rm -f, exists, rename).
 
    Status (fact):
 

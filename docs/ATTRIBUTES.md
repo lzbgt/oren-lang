@@ -152,6 +152,11 @@ Related FFI ergonomics (rolling):
 - The parser also supports a small sugar that lowers to the portable `@ffi.link(...)`:
   - `ffi("libc.so.6") { puts, atoi }`
 
+Guideline (rolling):
+
+- Prefer keeping `@cfg` as a narrow boundary tool (OS-specific APIs, syscall ABI differences).
+- If you find yourself using `@cfg` only to select different libc names, prefer `@ffi.libc` (portable) instead.
+
 ### 3.3 FFI link dependencies (`@ffi.link(...)`) (native backend)
 
 The native backend supports dynamic linking for FFI in a platform-specific way:

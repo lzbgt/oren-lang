@@ -455,12 +455,19 @@ Why `@cfg` exists (and when to use it):
 
 - Prefer writing platform-independent code by depending on stdlib abstractions (`std:net/tcp`, `std:net/tls`, etc.).
 - Use `@cfg` when the source must bind to platform-specific surfaces that stdlib cannot fully hide, for example:
-  - FFI library names / frameworks (`@ffi.dll("...")` on Windows vs `@ffi.link("...")` on Linux/macOS),
+  - OS-specific APIs / syscalls that genuinely do not exist across platforms (Win32 vs POSIX),
+  - platform-specific constants/struct layouts at syscall boundaries,
+  - platform-specific dynamic link library names **when there is no portable alias**.
   - platform-specific constants/struct layouts at syscall boundaries,
   - host build/packaging details (e.g. Windows `.exe` naming in scripts).
 - In tests/stdlib, `@cfg` is allowed as a **boundary tool**:
   - It should gate small platform-specific declarations (FFI library names, syscall structs), while the *public* API being tested stays stable (`std:net/*`, `std:crypto/*`, etc.).
   - If you see `@cfg` sprinkled through application logic, treat it as a signal that a missing stdlib abstraction should be added (rolling goal: keep `@cfg` rare).
+
+Rolling note (FFI ergonomics):
+
+- For the platform C library, prefer `@ffi.libc` instead of per‑OS `@cfg` blocks.
+  - This removes the common “Linux uses `libc.so.6`, macOS uses `libSystem.B.dylib`, Windows uses `msvcrt.dll`” boilerplate.
 
 Supported selector forms (rolling v0):
 
