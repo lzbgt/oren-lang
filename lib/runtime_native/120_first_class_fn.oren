@@ -18,6 +18,19 @@ fn oren_func(code_ptr, env_ptr) {
     return obj
 }
 
+// Safe type predicate: must not panic.
+//
+// Notes:
+// - Function objects are tracked allocations with kind=6 (see `oren_func`).
+// - There is no magic footer today; rely on `oren_find_node` to avoid treating arbitrary integers as pointers.
+@oren.keep
+fn oren_is_func(v) {
+    if v == 0 || native_value_is_nil(v) { return false }
+    var node = oren_find_node(v)
+    if node == 0 { return false }
+    return ptr_get(iadd(node, 16)) == 6
+}
+
 // Spawn a callable object with an args list.
 //
 // This is the syscall-first native analogue of the C backend's spawn-callable helper.

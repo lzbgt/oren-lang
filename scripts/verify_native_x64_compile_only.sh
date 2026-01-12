@@ -204,6 +204,55 @@ if [[ ! -x ./oren_stage2 ]]; then
   make stage2
 fi
 
+ensure_runtime_astbin_seed() {
+  # Keep x64 compile-only runs bounded on cold caches.
+  #
+  # Stage2-native parsing/expansion of the native runtime bundle can be very slow on the first run
+  # (especially with capsule/cfg pruning + astbin encode). The runtime bundle has a built-in "seed"
+  # directory mechanism that allows a faster compiler (stage1) to pre-warm astbin blobs and then
+  # copy them into the active cache dir on demand.
+  #
+  # We seed per-OS (linux/windows) to keep x64 backend smoke fixtures under the tight timeout guard.
+  local platform="$1"
+  local seed_log="build/logs/runtime_astbin_seed_${platform}.log"
+
+  if [[ ! -x ./scripts/build_runtime_astbin_seed.sh ]]; then
+    echo "ERROR: missing runtime astbin seed helper: scripts/build_runtime_astbin_seed.sh" >&2
+    return 2
+  fi
+
+  # Use stage1 by default for seeding (faster on cold parse); stage2 will consume the seed.
+  # Suppress output by default; the seed helper itself is chatty with tracing enabled.
+  if [[ "$TRACE" -eq 1 ]]; then
+    echo "== seed: native runtime astbin (platform=$platform) ==" >&2
+    ./scripts/build_runtime_astbin_seed.sh --platform "$platform" --compiler ./oren 2>&1 | tee "$seed_log"
+    return "${PIPESTATUS[0]}"
+  fi
+
+  ./scripts/build_runtime_astbin_seed.sh --platform "$platform" --compiler ./oren >"$seed_log" 2>&1
+}
+
+ensure_runtime_obj_seed() {
+  # Keep first-run stage2-native builds bounded by ensuring the rtobj seed exists for the
+  # runtime profiles used by this suite.
+  local platform="$1"
+  local runtime_profile="$2" # core|full|minimal|auto
+  local seed_log="build/logs/runtime_obj_seed_${platform}_${runtime_profile}.log"
+
+  if [[ ! -x ./scripts/build_rtobj_seed.sh ]]; then
+    echo "ERROR: missing runtime obj seed helper: scripts/build_rtobj_seed.sh" >&2
+    return 2
+  fi
+
+  if [[ "$TRACE" -eq 1 ]]; then
+    echo "== seed: runtime obj (platform=$platform profile=$runtime_profile) ==" >&2
+    ./scripts/build_rtobj_seed.sh --platform "$platform" --runtime-profile "$runtime_profile" --compiler ./oren_stage2 --no-debug 2>&1 | tee "$seed_log"
+    return "${PIPESTATUS[0]}"
+  fi
+
+  ./scripts/build_rtobj_seed.sh --platform "$platform" --runtime-profile "$runtime_profile" --compiler ./oren_stage2 --no-debug >"$seed_log" 2>&1
+}
+
 build_one() {
   local compiler="$1"
   local platform="$2"
@@ -458,6 +507,45 @@ echo -n "compilers=" >&2
 if [[ "$WANT_STAGE1" -eq 1 ]]; then echo -n "stage1 " >&2; fi
 if [[ "$WANT_STAGE2" -eq 1 ]]; then echo -n "stage2 " >&2; fi
 echo "timeout=${BUILD_TIMEOUT_SECS}s ==" >&2
+
+if [[ "$WANT_LINUX" -eq 1 ]]; then
+  ensure_runtime_astbin_seed x64-linux || {
+    echo "ERROR: runtime astbin seed failed for x64-linux (see build/logs/runtime_astbin_seed_x64-linux.log)" >&2
+    tail -n 120 build/logs/runtime_astbin_seed_x64-linux.log >&2 || true
+    exit 2
+  }
+  # Seed both profiles because this suite compiles both:
+  # - core: quick fixtures
+  # - full: std:net smoke fixture
+  ensure_runtime_obj_seed x64-linux core || {
+    echo "ERROR: runtime obj seed failed for x64-linux/core (see build/logs/runtime_obj_seed_x64-linux_core.log)" >&2
+    tail -n 120 build/logs/runtime_obj_seed_x64-linux_core.log >&2 || true
+    exit 2
+  }
+  ensure_runtime_obj_seed x64-linux full || {
+    echo "ERROR: runtime obj seed failed for x64-linux/full (see build/logs/runtime_obj_seed_x64-linux_full.log)" >&2
+    tail -n 120 build/logs/runtime_obj_seed_x64-linux_full.log >&2 || true
+    exit 2
+  }
+fi
+
+if [[ "$WANT_WIN" -eq 1 ]]; then
+  ensure_runtime_astbin_seed x64-windows || {
+    echo "ERROR: runtime astbin seed failed for x64-windows (see build/logs/runtime_astbin_seed_x64-windows.log)" >&2
+    tail -n 120 build/logs/runtime_astbin_seed_x64-windows.log >&2 || true
+    exit 2
+  }
+  ensure_runtime_obj_seed x64-windows core || {
+    echo "ERROR: runtime obj seed failed for x64-windows/core (see build/logs/runtime_obj_seed_x64-windows_core.log)" >&2
+    tail -n 120 build/logs/runtime_obj_seed_x64-windows_core.log >&2 || true
+    exit 2
+  }
+  ensure_runtime_obj_seed x64-windows full || {
+    echo "ERROR: runtime obj seed failed for x64-windows/full (see build/logs/runtime_obj_seed_x64-windows_full.log)" >&2
+    tail -n 120 build/logs/runtime_obj_seed_x64-windows_full.log >&2 || true
+    exit 2
+  }
+fi
 
 if [[ "$WANT_LINUX" -eq 1 ]]; then
   echo "== suite: x64-linux ==" >&2

@@ -279,7 +279,8 @@ echo "work_dir=$work_dir" >&2
 echo "seed_dir=$seed_dir" >&2
 
 # Full non-capsule runtime (lib/runtime_native.oren).
-build_one "native" "" "tests/native/test_quick_integration_native.oren"
+# Force the profile so this remains correct even when the compiler default heuristic prefers "core".
+build_one "native_full" "full" "tests/native/test_quick_integration_native.oren"
 
 # Core non-capsule runtime (lib/runtime_native_core.oren).
 build_one "native_core" "core" "examples/hello.oren"

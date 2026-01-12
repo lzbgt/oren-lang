@@ -35,7 +35,8 @@ In addition, the stdlib now exposes a minimal wrapper module:
 
 - `lib/std/reflect.oren` (`std:reflect` in spirit; import path is still rolling)
   - `tag(v)` / `name(v)` wrappers (call through to `oren_type_tag` / `oren_type_name`)
-  - stable tag constants (`TAG_NIL`, `TAG_STRING`, `TAG_LIST`, …) matching `lib/runtime.h` `OrenType`
+  - stable tag constants (`TAG_NIL`, `TAG_STRING`, `TAG_LIST`, `TAG_FUNC`, …) matching `lib/runtime.h` `OrenType`
+    - 2026-01-12: native backend now tags first-class function values as `TAG_FUNC` (guarded by `tests/native/test_quick_integration_native.oren`).
 
 This is intentionally **not** the final reflection design:
 

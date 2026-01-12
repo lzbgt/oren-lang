@@ -81,13 +81,17 @@ References:
    - `make test`
    - `./scripts/verify_native_net_matrix.sh` (large-graph compile + run)
 
-   High-leverage direction:
+	   High-leverage direction:
 
-   - shrink the injected runtime surface compiled on cold misses (rtobj layering / reachability)
-   - keep rtobj seed tooling aligned with the compiler’s default runtime-profile heuristic (`auto` ⇒ core unless `std:net/*`); seed `full` explicitly for NET/TLS-heavy bring-up
-   - keep module parsing parallelism safe by default (fork-mode parallel parse without huge logs)
+	   - shrink the injected runtime surface compiled on cold misses (rtobj layering / reachability)
+	   - keep rtobj seed tooling aligned with the compiler’s default runtime-profile heuristic (`auto` ⇒ core unless `std:net/*`); seed `full` explicitly for NET/TLS-heavy bring-up
+	   - keep module parsing parallelism safe by default (fork-mode parallel parse without huge logs)
 
-2) **Tier‑1 native parity: correctness across arch/OS** (L)
+	   Status (fact):
+
+	   - 2026-01-12: `scripts/verify_native_x64_compile_only.sh` now pre-seeds native runtime ASTBIN + rtobj (core+full) before running tight per-build timeouts, so the “cold after runtime change” case stays bounded.
+
+	2) **Tier‑1 native parity: correctness across arch/OS** (L)
 
    Goal: “same program, same result” across Tier‑1, not “macOS only”.
 

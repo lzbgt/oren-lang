@@ -359,6 +359,7 @@ fn oren_type_tag(v) {
     if oren_is_string(v) == true { return 4 }
     if oren_is_list(v) == true { return 6 }
     if oren_is_map(v) == true { return 7 }
+    if oren_is_func(v) == true { return 8 }
     if oren_is_buf(v) == true {
         // typed buffer tags follow the C enum ordering (u8=9, i32=10, i64=11, f32=12, f64=13)
         if oren_is_u8_buf(v) == true { return 9 }
