@@ -487,23 +487,56 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
                 // X3 = timeout_us
                 push_u32_le(ctx["code"], insn_mov_reg(3, 4))
     
-                // syscall: sys_ulock_wait (515)
-                // Note: this is macOS-specific; Linux should implement futex instead.
+                // NOTE (portability):
+                // The native runtime uses sys_ulock_wait/wake as a portable "wait-on-address" primitive
+                // for internal locks:
+                // - macOS: ulock syscall (515)
+                // - Linux: futex syscall (see linux mapping below)
                 var svc_imm = abi.darwin_svc_imm()
                 var sys_reg = abi.darwin_syscall_reg()
                 if ctx["platform"]["os"] == "linux" {
-                    // Not implemented for native linux yet (syscall-first plan: futex).
-                    // Return -1.
-                    push_u32_le(ctx["code"], insn_movn(0, 0))
+                    // Linux mapping: futex(FUTEX_WAIT_PRIVATE).
+                    // futex(uaddr, FUTEX_WAIT|PRIVATE, val, timeout=NULL, uaddr2=NULL, val3=0)
+                    svc_imm = labi.linux_svc_imm()
+                    sys_reg = labi.linux_syscall_reg()
+
+                    // Shuffle into futex args:
+                    // - X0 = uaddr (addr)
+                    // - X1 = FUTEX_WAIT_PRIVATE (128)
+                    // - X2 = val (value)
+                    // - X3 = timeout = NULL (timeout_us ignored today; runtime uses 0 => forever)
+                    // - X4 = uaddr2 = NULL
+                    // - X5 = val3 = 0
+                    push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // X0 = addr
+                    push_u32_le(ctx["code"], insn_movz(1, 128))  // X1 = FUTEX_WAIT_PRIVATE
+                    push_u32_le(ctx["code"], insn_movz(3, 0))    // X3 = NULL
+                    push_u32_le(ctx["code"], insn_movz(4, 0))    // X4 = NULL
+                    push_u32_le(ctx["code"], insn_movz(5, 0))    // X5 = 0
+
+                    push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_futex()))
+                    emit_svc_preserve_heap(ctx, svc_imm)
+
+                    // Normalize: rc>=0 => 0, else keep -errno.
+                    push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // CMP X0, XZR
+                    var br_ok = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B.GE ok
+                    // Negative => keep X0=-errno
+                    var br_end = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B end
+                    var ok_pos = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    var end_pos = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 10)) // GE
+                    set_u32_le(ctx["code"], br_end, insn_b((end_pos - br_end) / 4))
                     return true
                 }
                 push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_ulock_wait()))
                 emit_svc_preserve_heap(ctx, svc_imm)
                 if ctx["platform"]["os"] != "linux" {
-                    // Normalize macOS syscall error (carry set, X0=errno) to X0=-1.
+                    // Normalize macOS syscall error (carry set, X0=errno) to X0=-errno.
                     var br_ok = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0) // B.CC ok
-                    push_u32_le(ctx["code"], insn_movn(0, 0)) // X0=-1
+                    push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0=-errno
                     var ok_pos = bytes_len(ctx["code"])
                     set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
                 }
@@ -539,16 +572,47 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
                 var svc_imm = abi.darwin_svc_imm()
                 var sys_reg = abi.darwin_syscall_reg()
                 if ctx["platform"]["os"] == "linux" {
-                    push_u32_le(ctx["code"], insn_movn(0, 0))
+                    // Linux mapping: futex(FUTEX_WAKE_PRIVATE).
+                    // futex(uaddr, FUTEX_WAKE|PRIVATE, wake_all, timeout=NULL, uaddr2=NULL, val3=0)
+                    svc_imm = labi.linux_svc_imm()
+                    sys_reg = labi.linux_syscall_reg()
+
+                    // Shuffle into futex args:
+                    // - X0 = uaddr (addr)
+                    // - X1 = FUTEX_WAKE_PRIVATE (129)
+                    // - X2 = INT_MAX (wake all)
+                    // - X3..X5 = 0
+                    push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // X0 = addr
+                    push_u32_le(ctx["code"], insn_movz(1, 129))  // X1 = FUTEX_WAKE_PRIVATE
+                    push_u32_le(ctx["code"], insn_movz(2, 65535)) // lower 16 of INT_MAX
+                    push_u32_le(ctx["code"], insn_movk(2, 32767, 16)) // INT_MAX upper bits (0x7fffffff)
+                    push_u32_le(ctx["code"], insn_movz(3, 0))
+                    push_u32_le(ctx["code"], insn_movz(4, 0))
+                    push_u32_le(ctx["code"], insn_movz(5, 0))
+
+                    push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_futex()))
+                    emit_svc_preserve_heap(ctx, svc_imm)
+
+                    // Normalize: rc>=0 => 0, else keep -errno.
+                    push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // CMP X0, XZR
+                    var br_ok = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B.GE ok
+                    var br_end = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B end
+                    var ok_pos = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    var end_pos = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 10)) // GE
+                    set_u32_le(ctx["code"], br_end, insn_b((end_pos - br_end) / 4))
                     return true
                 }
                 push_u32_le(ctx["code"], insn_movz(sys_reg, abi.darwin_sys_ulock_wake()))
                 emit_svc_preserve_heap(ctx, svc_imm)
                 if ctx["platform"]["os"] != "linux" {
-                    // Normalize macOS syscall error to X0=-1.
+                    // Normalize macOS syscall error to X0=-errno.
                     var br_ok = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0) // B.CC ok
-                    push_u32_le(ctx["code"], insn_movn(0, 0)) // X0=-1
+                    push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0=-errno
                     var ok_pos = bytes_len(ctx["code"])
                     set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
                 }

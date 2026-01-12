@@ -530,6 +530,97 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         return nil
     }
 
+    if nm == "sys_ulock_wait" {
+        // NOTE (portability): despite the Darwin-y name, the native runtime uses sys_ulock_wait/wake
+        // as a portable "wait-on-address" primitive for internal locks.
+        //
+        // Linux mapping: futex(FUTEX_WAIT_PRIVATE).
+        if args == nil || oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_ulock_wait expects 4 args"); return nil }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_ulock_wait does not support spread"); return nil }
+
+        // args: (operation, addr, value, timeout_us)
+        // We currently implement only the lock use-case:
+        // - operation=UL_COMPARE_AND_WAIT (1)
+        // - timeout_us=0 (forever)
+        var base_ulw = _intr_tmp_push(ctx, 3) // addr, value, timeout_us
+        if base_ulw == nil { return nil }
+        var tmp_addr = _intr_tmp_off(ctx, locals, base_ulw + 0)
+        var tmp_val = _intr_tmp_off(ctx, locals, base_ulw + 1)
+        var tmp_to = _intr_tmp_off(ctx, locals, base_ulw + 2)
+        if tmp_addr == nil || tmp_val == nil || tmp_to == nil { _intr_tmp_pop(ctx, base_ulw); return nil }
+
+        _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
+        _intr_eval_spill_x64(ctx, locals, args[2], tmp_val)
+        _intr_eval_spill_x64(ctx, locals, args[3], tmp_to)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_ulw); return nil }
+
+        // futex(uaddr, FUTEX_WAIT|PRIVATE, val, timeout=NULL, uaddr2=NULL, val3=0)
+        _intr_load_x64(ctx, 7, tmp_addr) // rdi = uaddr
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(6, 128)) // esi = FUTEX_WAIT_PRIVATE
+        _intr_load_x64(ctx, 2, tmp_val)  // rdx = val
+        bytes_extend(ctx["code"], insn_xor_r64_r64(10, 10)) // r10 = timeout = NULL (timeout_us ignored today)
+        bytes_extend(ctx["code"], insn_xor_r64_r64(8, 8))   // r8 = uaddr2 = NULL
+        bytes_extend(ctx["code"], insn_xor_r64_r64(9, 9))   // r9 = val3 = 0
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_futex()))
+        bytes_extend(ctx["code"], insn_syscall())
+
+        // Normalize: non-negative => 0, negative => -errno.
+        var labels_ulw = {}
+        var fixups_ulw = []
+        var l_ulw_ok = _new_label(ctx, "ulw_ok")
+        var l_ulw_done = _new_label(ctx, "ulw_done")
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        _emit_jcc_to_label(ctx, fixups_ulw, "ge", l_ulw_ok)
+        _emit_jmp_to_label(ctx, fixups_ulw, l_ulw_done)
+        _emit_label(ctx, labels_ulw, l_ulw_ok)
+        bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0))
+        _emit_label(ctx, labels_ulw, l_ulw_done)
+        _patch_local_fixups(ctx, labels_ulw, fixups_ulw)
+
+        _intr_tmp_pop(ctx, base_ulw)
+        return nil
+    }
+
+    if nm == "sys_ulock_wake" {
+        // Linux mapping: futex(FUTEX_WAKE_PRIVATE).
+        if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_ulock_wake expects 3 args"); return nil }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_ulock_wake does not support spread"); return nil }
+
+        // args: (operation, addr, wake_value)
+        // Runtime lock uses wake-all; normalize to wake-all (INT_MAX).
+        var base_ulk = _intr_tmp_push(ctx, 1) // addr
+        if base_ulk == nil { return nil }
+        var tmp_addr2 = _intr_tmp_off(ctx, locals, base_ulk + 0)
+        if tmp_addr2 == nil { _intr_tmp_pop(ctx, base_ulk); return nil }
+        _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr2)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_ulk); return nil }
+
+        _intr_load_x64(ctx, 7, tmp_addr2) // rdi=uaddr
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(6, 129)) // esi = FUTEX_WAKE_PRIVATE
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 2147483647)) // edx = INT_MAX (wake all)
+        bytes_extend(ctx["code"], insn_xor_r64_r64(10, 10)) // r10 = timeout = NULL
+        bytes_extend(ctx["code"], insn_xor_r64_r64(8, 8))   // r8 = uaddr2 = NULL
+        bytes_extend(ctx["code"], insn_xor_r64_r64(9, 9))   // r9 = val3 = 0
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_futex()))
+        bytes_extend(ctx["code"], insn_syscall())
+
+        // Normalize: non-negative => 0, negative => -errno.
+        var labels_ulk = {}
+        var fixups_ulk = []
+        var l_ulk_ok = _new_label(ctx, "ulk_ok")
+        var l_ulk_done = _new_label(ctx, "ulk_done")
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        _emit_jcc_to_label(ctx, fixups_ulk, "ge", l_ulk_ok)
+        _emit_jmp_to_label(ctx, fixups_ulk, l_ulk_done)
+        _emit_label(ctx, labels_ulk, l_ulk_ok)
+        bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0))
+        _emit_label(ctx, labels_ulk, l_ulk_done)
+        _patch_local_fixups(ctx, labels_ulk, fixups_ulk)
+
+        _intr_tmp_pop(ctx, base_ulk)
+        return nil
+    }
+
     if args == nil { args = [] }
     var capsule = _x64_capsule_enabled(ctx)
 

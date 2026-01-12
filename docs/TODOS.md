@@ -125,6 +125,12 @@ References:
    Status (fact):
 
    - 2026-01-12: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` passed (compiler runs on Win11 + WSL2 and compiles+runs a tiny native program on both).
+   - 2026-01-12: fixed the native runtime lock blocking primitive on Tier‑1:
+     - `sys_ulock_wait/sys_ulock_wake` are now treated as a portable "wait-on-address" primitive:
+       - Linux: `futex(FUTEX_WAIT_PRIVATE/FUTEX_WAKE_PRIVATE)`
+       - Windows: `WaitOnAddress/WakeByAddressAll` imported from `KERNELBASE.dll` (kernel32 import can fail with `STATUS_ENTRYPOINT_NOT_FOUND` on Win11).
+     - Added a direct ulock handshake to `tests/fixtures/tier1_native_spawn_join_main.oren` (remote x64 gate).
+     - Verified end-to-end with `./scripts/verify_stage0_windows_bootstrap.sh` and `./scripts/verify_windows_stage2_from_stage1.sh`.
 
 3) **Native value representation + reflection-first type system** (L)
 

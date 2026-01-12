@@ -61,6 +61,19 @@ Prefer linear `if ...`/`goto` flow, or use delayed expansion (`!VAR!`) carefully
 
 Implementation reference: `lib/compiler/compiler/040_build_pipeline.oren` (Windows `--backend c` MSVC path).
 
+## Windows: `WaitOnAddress` is in `KERNELBASE.dll` (not `KERNEL32.dll`)
+
+The native runtime uses `sys_ulock_wait/sys_ulock_wake` as a portable “wait-on-address” primitive
+for its global lock (it parks after bounded spinning).
+
+Non-obvious Windows ABI detail (observed on Win11 `10.0.26220.x`):
+
+- `WaitOnAddress` / `WakeByAddressAll` can be missing as exports from `KERNEL32.dll`.
+- If an exe imports them from `KERNEL32.dll`, process startup can fail with `0xC0000139` (`STATUS_ENTRYPOINT_NOT_FOUND`).
+- Import them from `KERNELBASE.dll` (or resolve dynamically via `GetProcAddress` on `kernelbase.dll`).
+
+Implementation reference: `lib/compiler/x64_pe.oren` (PE import table) + `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren` (lowering).
+
 ## arm64: rtobj fixups must preserve `reg` (or you can crash at startup)
 
 The arm64 runtime-object cache (rtobj) stores precompiled runtime machine code plus a list of relocation fixups.

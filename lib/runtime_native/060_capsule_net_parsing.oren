@@ -163,7 +163,7 @@ fn native_capsule_net_fdmap_lock_acquire() {
     // Spinlock for capsule fd-kind map updates.
     //
     // We keep this separate from the allocator lock:
-    // - it must work on Linux + Windows (sys_ulock_wait is Darwin-only)
+    // - it must work on Linux + Windows (avoid depending on the runtime's blocking lock primitives)
     // - the fd-kind map is used on syscall boundaries where taking the allocator lock
     //   could introduce unexpected recursion/cycles.
     if oren_globals() == 0 { return 0 }

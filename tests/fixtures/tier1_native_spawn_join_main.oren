@@ -15,6 +15,16 @@ fn worker_sleep_long() {
     return 123
 }
 
+fn worker_ulock_signal(p) {
+    // Give the main thread a moment to enter sys_ulock_wait in the common case.
+    // This is intentionally best-effort (race-safe): sys_ulock_wait may return -EAGAIN if
+    // the value changed before it started waiting.
+    oren_sleep_ms(50)
+    ptr_set(p, 2)
+    sys_ulock_wake(257, p, 0)
+    return 0
+}
+
 fn main() {
     // Spawn a lambda with capture-by-value.
     var base = 10
@@ -34,7 +44,21 @@ fn main() {
     var r3 = oren_join_timeout(h3, 20)
     if r3 != 0 - 60 { return 12 }
 
+    // Runtime correctness: sys_ulock_wait/sys_ulock_wake must be a portable "wait-on-address"
+    // primitive on Tier‑1 x64 targets (Windows+WSL2).
+    //
+    // This specifically guards the native runtime global lock implementation, which parks
+    // after spinning.
+    var p = malloc(8)
+    if p == 0 { return 13 }
+    ptr_set(p, 1)
+    var h4 = spawn worker_ulock_signal(p)
+    var r4 = sys_ulock_wait(1, p, 1, 0)
+    if r4 != 0 && r4 != 0 - 11 { return 14 } // 11=EAGAIN
+    var r4j = oren_join(h4)
+    if r4j != 0 { return 15 }
+    if ptr_get(p) != 2 { return 16 }
+
     print("tier1 spawn join ok")
     return 0
 }
-

@@ -26,6 +26,7 @@ fn linux_sys_dup2() { return 33 }
 fn linux_sys_dup3() { return 292 }
 fn linux_sys_nanosleep() { return 35 }
 fn linux_sys_sched_yield() { return 24 }
+fn linux_sys_futex() { return 202 }
 fn linux_sys_socket() { return 41 }
 fn linux_sys_connect() { return 42 }
 fn linux_sys_accept() { return 43 }

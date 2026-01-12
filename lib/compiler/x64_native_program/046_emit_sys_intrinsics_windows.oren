@@ -80,6 +80,117 @@ fn _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
+fn _emit_intrinsic_sys_ulock_wait_windows_x64(ctx, expr, locals, args) {
+    // Portable "wait-on-address" primitive used by the injected runtime lock.
+    //
+    // Name is historical (Darwin ulock), but on Windows we map it to:
+    //   KERNEL32!WaitOnAddress(addr, &compare, 8, timeout_ms)
+    //
+    // Contract:
+    // - returns 0 on success (including "woke up"),
+    // - returns -ETIMEDOUT on timeout,
+    // - returns -EIO on unexpected failure.
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_ulock_wait expects 4 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_ulock_wait does not support spread"); return nil }
+
+    // args: (operation, addr, value, timeout_us)
+    // We ignore `operation` today (runtime lock uses UL_COMPARE_AND_WAIT=1).
+    var base = _intr_tmp_push(ctx, 3) // addr, value, timeout_us
+    if base == nil { return nil }
+    var tmp_addr = _intr_tmp_off(ctx, locals, base + 0)
+    var tmp_val = _intr_tmp_off(ctx, locals, base + 1)
+    var tmp_to = _intr_tmp_off(ctx, locals, base + 2)
+    if tmp_addr == nil || tmp_val == nil || tmp_to == nil { _intr_tmp_pop(ctx, base); return nil }
+
+    _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
+    _intr_eval_spill_x64(ctx, locals, args[2], tmp_val)
+    _intr_eval_spill_x64(ctx, locals, args[3], tmp_to)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // r9 = timeout_ms
+    // - timeout_us <= 0: INFINITE (0xFFFFFFFF)
+    // - timeout_us > 0: ceil(timeout_us / 1000)
+    _intr_load_x64(ctx, 0, tmp_to) // rax = timeout_us (i64)
+    var labels = {}
+    var fixups = []
+    var l_infinite = _new_label(ctx, "ulock_infinite")
+    var l_after_to = _new_label(ctx, "ulock_after_to")
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups, "le", l_infinite)
+    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 999))
+    bytes_extend(ctx["code"], insn_cqo())
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 1000)) // r10 = 1000
+    bytes_extend(ctx["code"], insn_idiv_r64(10)) // rax = ceil(timeout_us/1000)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0)) // r9 = timeout_ms
+    _emit_jmp_to_label(ctx, fixups, l_after_to)
+    _emit_label(ctx, labels, l_infinite)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 4294967295)) // INFINITE
+    _emit_label(ctx, labels, l_after_to)
+    _patch_local_fixups(ctx, labels, fixups)
+
+    // rcx = addr
+    _intr_load_x64(ctx, 1, tmp_addr)
+
+    // rdx = &compare (store compare value into the reserved outgoing call area at [rsp+32..39])
+    _intr_load_x64(ctx, 0, tmp_val) // rax = compare (u64)
+    bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(32, 0)) // [rsp+32] = rax
+    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(2, 32))  // rdx = &compare
+
+    // r8 = AddressSize = 8
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 8))
+
+    _emit_call_iat_x64(ctx, "IAT_WaitOnAddress")
+    // BOOL in eax (0 => failure)
+
+    var labels2 = {}
+    var fixups2 = []
+    var l_ok = _new_label(ctx, "ulock_ok")
+    var l_fail = _new_label(ctx, "ulock_fail")
+    var l_timeout = _new_label(ctx, "ulock_timeout")
+    var l_done = _new_label(ctx, "ulock_done")
+
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    _emit_jcc_to_label(ctx, fixups2, "ne", l_ok)
+
+    // Failure: GetLastError() and map ERROR_TIMEOUT => -ETIMEDOUT, else -EIO.
+    _emit_call_iat_x64(ctx, "IAT_GetLastError")
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 1460)) // ERROR_TIMEOUT
+    _emit_jcc_to_label(ctx, fixups2, "e", l_timeout)
+    _emit_jmp_to_label(ctx, fixups2, l_fail)
+
+    _emit_label(ctx, labels2, l_ok)
+    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0))
+    _emit_jmp_to_label(ctx, fixups2, l_done)
+
+    _emit_label(ctx, labels2, l_timeout)
+    _emit_set_rax_neg_errno_x64(ctx, 60) // -ETIMEDOUT
+    _emit_jmp_to_label(ctx, fixups2, l_done)
+
+    _emit_label(ctx, labels2, l_fail)
+    _emit_set_rax_neg_errno_x64(ctx, 5) // -EIO
+    _emit_label(ctx, labels2, l_done)
+    _patch_local_fixups(ctx, labels2, fixups2)
+
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_intrinsic_sys_ulock_wake_windows_x64(ctx, expr, locals, args) {
+    // Portable "wake-by-address" primitive (paired with sys_ulock_wait).
+    if ctx == nil { return nil }
+    if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_ulock_wake expects 3 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_ulock_wake does not support spread"); return nil }
+
+    // args: (operation, addr, wake_value) ; runtime lock uses wake-all (operation=257).
+    _emit_eval_int_to_rax(ctx, args[1], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0)) // rcx = addr
+    _emit_call_iat_x64(ctx, "IAT_WakeByAddressAll")
+    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0))
+    return nil
+}
+
 fn _emit_intrinsic_sys_sched_yield_windows_x64(ctx, expr, locals, args) {
     if ctx == nil { return nil }
     if args != nil && oren_list_len(args) != 0 { err(ctx, "x64 native v0: sys_sched_yield expects 0 args"); return nil }
@@ -580,6 +691,8 @@ fn _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args) {
         if nm == "sys_gettid" { return _emit_intrinsic_sys_gettid_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
         if nm == "sys_nanosleep" { return _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_ulock_wait" { return _emit_intrinsic_sys_ulock_wait_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_ulock_wake" { return _emit_intrinsic_sys_ulock_wake_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_sched_yield" { return _emit_intrinsic_sys_sched_yield_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_gettimeofday" { return _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) }
         // Entropy

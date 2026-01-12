@@ -1,7 +1,7 @@
 # Syscall-First Native Runtime Plan (No C Shims)
 
 **Status:** Active plan (documented for later reference)  
-**Last updated:** 2025-12-17  
+**Last updated:** 2026-01-12  
 **Repo:** `compiler-mini` (Oren)
 
 ## 0. Summary (What We Are Doing)
@@ -17,7 +17,7 @@ The plan avoids future “rip-and-replace” by:
 
 This is aligned with the “correct architecture first” constraint: **no temporary C shims** that would later be rewritten out.
 
-## 1. Current Reality (As of 2025-12-16)
+## 1. Current Reality (As of 2026-01-12)
 
 - Native backend injects `lib/runtime_native.oren` into programs (non-capsule).
   - Capsule builds use `lib/runtime_native_capsule.oren`.
@@ -28,6 +28,14 @@ This is aligned with the “correct architecture first” constraint: **no tempo
 - TIME is now syscall-first (no libc): `sys_nanosleep(ns)` is implemented as a native-backend intrinsic:
   - macOS: sleeps via `kqueue + kevent(timeout)`
   - Linux: sleeps via `__NR_nanosleep`
+
+- **Parking primitive is now real on Tier‑1** (rolling name: `sys_ulock_wait` / `sys_ulock_wake`):
+  - macOS: Darwin ulock syscalls (`sys_ulock_wait` / `sys_ulock_wake`)
+  - Linux: `futex(FUTEX_WAIT_PRIVATE)` / `futex(FUTEX_WAKE_PRIVATE)`
+  - Windows x64: `WaitOnAddress` / `WakeByAddressAll` imported from **`KERNELBASE.dll`**
+    - Importing these from `KERNEL32.dll` can fail at process start with `STATUS_ENTRYPOINT_NOT_FOUND`
+      on modern Windows builds (observed on Win11 `10.0.26220.x`).
+  - Regression guard: `tests/fixtures/tier1_native_spawn_join_main.oren` includes a direct ulock wait/wake handshake.
 
 - FS is now progressively syscall-first with capsule enforcement at the raw `sys_*` boundary (no bypass):
   - `sys_open`, `sys_unlink`, `sys_rename`, `sys_mkdir`, `sys_access`, `sys_rmdir`, `sys_stat`, `sys_lstat`, `sys_fstat`, `sys_getdirentries64`
@@ -156,6 +164,9 @@ Similarly, selected `sys_getsockopt/sys_setsockopt` parameters use Oren-level ID
 
 Linux implementation maps to `futex(FUTEX_WAIT/FUTEX_WAKE)`.
 macOS implementation maps to `ulock_wait/ulock_wake` (or equivalent Darwin primitive).
+
+**Reality check (rolling):** the current injected runtime uses `sys_ulock_wait/sys_ulock_wake` as the
+portable "wait-on-address" primitive; the `sys_park/sys_wake` naming is the long-term architecture.
 
 ### Time
 

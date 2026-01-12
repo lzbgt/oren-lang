@@ -248,8 +248,8 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     var rdata = bytes_new()
 
     var off_import_desc = bytes_len(rdata)
-    // 4 descriptors * 20 bytes: kernel32 + ws2_32 + shell32 + null
-    push_u8_n(rdata, 0, 80)
+    // 5 descriptors * 20 bytes: kernel32 + kernelbase + ws2_32 + shell32 + null
+    push_u8_n(rdata, 0, 100)
 
     var kernel32_funcs = [
         "ExitProcess",
@@ -304,6 +304,14 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
         "LoadLibraryA",
         "GetProcAddress"
     ]
+    // Wait-on-address primitive (Tier‑1 Windows): used by the native runtime lock implementation.
+    //
+    // NOTE: on modern Windows builds these entrypoints live in KERNELBASE.dll (not KERNEL32.dll).
+    // Importing them from KERNEL32.dll can cause STATUS_ENTRYPOINT_NOT_FOUND at process start.
+    var kernelbase_funcs = [
+        "WaitOnAddress",
+        "WakeByAddressAll"
+    ]
     // WinSock NET substrate (WS2_32.dll).
     // Keep this list minimal and explicit so the IAT label mapping below stays auditable.
     var ws2_32_funcs = [
@@ -327,6 +335,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     ]
     var shell32_funcs = ["CommandLineToArgvW"]
     var n_k32 = oren_list_len(kernel32_funcs)
+    var n_kb = oren_list_len(kernelbase_funcs)
     var n_ws2 = oren_list_len(ws2_32_funcs)
     var n_s32 = oren_list_len(shell32_funcs)
 
@@ -336,6 +345,12 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     // ILT(KERNEL32): imports + null entry
     var i0 = 0
     while i0 < n_k32 + 1 { push_u64_le(rdata, 0); i0 = i0 + 1 }
+
+    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    var off_ilt_kb = bytes_len(rdata)
+    // ILT(KERNELBASE): imports + null entry
+    i0 = 0
+    while i0 < n_kb + 1 { push_u64_le(rdata, 0); i0 = i0 + 1 }
 
     while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
     var off_ilt_ws2 = bytes_len(rdata)
@@ -354,6 +369,12 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     // IAT(KERNEL32): imports + null entry
     var i1 = 0
     while i1 < n_k32 + 1 { push_u64_le(rdata, 0); i1 = i1 + 1 }
+
+    while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
+    var off_iat_kb = bytes_len(rdata)
+    // IAT(KERNELBASE): imports + null entry
+    i1 = 0
+    while i1 < n_kb + 1 { push_u64_le(rdata, 0); i1 = i1 + 1 }
 
     while int_mod(bytes_len(rdata), 8) != 0 { bytes_push(rdata, 0) }
     var off_iat_ws2 = bytes_len(rdata)
@@ -379,6 +400,15 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
         i0 = i0 + 1
     }
     i0 = 0
+    while i0 < n_kb {
+        var nm_kb = kernelbase_funcs[i0]
+        hn_offs[nm_kb] = bytes_len(rdata)
+        push_u16_le(rdata, 0)
+        push_ascii_z(rdata, nm_kb)
+        if int_mod(bytes_len(rdata), 2) != 0 { bytes_push(rdata, 0) }
+        i0 = i0 + 1
+    }
+    i0 = 0
     while i0 < n_ws2 {
         var nmw = ws2_32_funcs[i0]
         hn_offs[nmw] = bytes_len(rdata)
@@ -399,6 +429,8 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
 
     var off_dll_k32 = bytes_len(rdata)
     push_ascii_z(rdata, "KERNEL32.dll")
+    var off_dll_kb = bytes_len(rdata)
+    push_ascii_z(rdata, "KERNELBASE.dll")
     var off_dll_ws2 = bytes_len(rdata)
     push_ascii_z(rdata, "WS2_32.dll")
     var off_dll_s32 = bytes_len(rdata)
@@ -432,6 +464,14 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
         i0 = i0 + 1
     }
     i0 = 0
+    while i0 < n_kb {
+        var nm3_kb = kernelbase_funcs[i0]
+        var hn_rva_kb = rdata_rva + hn_offs[nm3_kb]
+        set_u32_le(rdata, off_ilt_kb + i0 * 8, hn_rva_kb)
+        set_u32_le(rdata, off_iat_kb + i0 * 8, hn_rva_kb)
+        i0 = i0 + 1
+    }
+    i0 = 0
     while i0 < n_ws2 {
         var nmw2 = ws2_32_funcs[i0]
         var hn_rva_w = rdata_rva + hn_offs[nmw2]
@@ -461,20 +501,26 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     set_u32_le(rdata, off_import_desc + 12, dll_k32_rva)
     set_u32_le(rdata, off_import_desc + 16, rdata_rva + off_iat_k32)
 
+    // second descriptor (+20): KERNELBASE.dll
+    var dll_kb_rva = rdata_rva + off_dll_kb
+    set_u32_le(rdata, off_import_desc + 20 + 0, rdata_rva + off_ilt_kb)
+    set_u32_le(rdata, off_import_desc + 20 + 12, dll_kb_rva)
+    set_u32_le(rdata, off_import_desc + 20 + 16, rdata_rva + off_iat_kb)
+
     var dll_ws2_rva = rdata_rva + off_dll_ws2
-    // second descriptor (+20): WS2_32.dll
-    set_u32_le(rdata, off_import_desc + 20 + 0, rdata_rva + off_ilt_ws2)
-    set_u32_le(rdata, off_import_desc + 20 + 12, dll_ws2_rva)
-    set_u32_le(rdata, off_import_desc + 20 + 16, rdata_rva + off_iat_ws2)
+    // third descriptor (+40): WS2_32.dll
+    set_u32_le(rdata, off_import_desc + 40 + 0, rdata_rva + off_ilt_ws2)
+    set_u32_le(rdata, off_import_desc + 40 + 12, dll_ws2_rva)
+    set_u32_le(rdata, off_import_desc + 40 + 16, rdata_rva + off_iat_ws2)
 
     var dll_s32_rva = rdata_rva + off_dll_s32
-    // third descriptor (+40): SHELL32.dll
-    set_u32_le(rdata, off_import_desc + 40 + 0, rdata_rva + off_ilt_s32)
-    set_u32_le(rdata, off_import_desc + 40 + 12, dll_s32_rva)
-    set_u32_le(rdata, off_import_desc + 40 + 16, rdata_rva + off_iat_s32)
+    // fourth descriptor (+60): SHELL32.dll
+    set_u32_le(rdata, off_import_desc + 60 + 0, rdata_rva + off_ilt_s32)
+    set_u32_le(rdata, off_import_desc + 60 + 12, dll_s32_rva)
+    set_u32_le(rdata, off_import_desc + 60 + 16, rdata_rva + off_iat_s32)
 
     var import_dir_rva = rdata_rva + off_import_desc
-    var import_dir_size = 80
+    var import_dir_size = 100
 
     // ---- Optional PE export table (executables + DLLs) ----
     //
@@ -623,6 +669,9 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     iat_offs["IAT_VirtualFree"] = off_iat_k32 + 256 + 1
     iat_offs["IAT_LoadLibraryA"] = off_iat_k32 + 264 + 1
     iat_offs["IAT_GetProcAddress"] = off_iat_k32 + 272 + 1
+    // KERNELBASE.dll IAT slots (order matches kernelbase_funcs above)
+    iat_offs["IAT_WaitOnAddress"] = off_iat_kb + 0 + 1
+    iat_offs["IAT_WakeByAddressAll"] = off_iat_kb + 8 + 1
     // WS2_32.dll IAT slots (order matches ws2_32_funcs above)
     iat_offs["IAT_WSAStartup"] = off_iat_ws2 + 0 + 1
     iat_offs["IAT_WSAGetLastError"] = off_iat_ws2 + 8 + 1
