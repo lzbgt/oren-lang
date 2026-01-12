@@ -52,6 +52,7 @@ oren_bootstrap.exe build oren.oren --target windows --cc cl -o oren.exe
   - If your Windows environment is non-standard (custom VS install paths, CI images, minimal shells), you can override:
     - `OREN_MSVC_VSWHERE=<full\\path\\to\\vswhere.exe>` (skip default probing)
     - `OREN_MSVC_INSTALL_PATH=<full\\path\\to\\Visual Studio\\...>` (skip `vswhere.exe` entirely)
+    - `OREN_MSVC_DEV_CMD=<full\\path\\to\\VsDevCmd.bat|vcvars64.bat>` (force the devcmd script directly)
 
 - Rolling (2026-01-09+): the self-hosted compilers (`oren.exe`, `oren_stage2.exe`) also use the same MSVC auto-configuration path
   when building **C backend** outputs on Windows:

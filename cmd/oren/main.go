@@ -100,7 +100,37 @@ func msvcDevCmdFromInstallPath(installPath string) (msvcDevCmd, error) {
 	return msvcDevCmd{}, fmt.Errorf("found VS install at %q but could not find VsDevCmd.bat or vcvars64.bat", installPath)
 }
 
+func msvcDevCmdFromExplicitPath(p string) (msvcDevCmd, error) {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return msvcDevCmd{}, fmt.Errorf("empty MSVC devcmd path")
+	}
+	if _, err := os.Stat(p); err != nil {
+		return msvcDevCmd{}, fmt.Errorf("MSVC devcmd path not found: %q (%v)", p, err)
+	}
+	base := strings.ToLower(filepath.Base(p))
+	// VsDevCmd supports selecting host + target arch.
+	if base == "vsdevcmd.bat" {
+		return msvcDevCmd{
+			path: p,
+			args: []string{"-arch=amd64", "-host_arch=amd64", "-no_logo"},
+		}, nil
+	}
+	// vcvars64 sets up a 64-bit target environment and does not accept VsDevCmd-style args.
+	if base == "vcvars64.bat" {
+		return msvcDevCmd{path: p}, nil
+	}
+	// Accept other batch files too (best-effort).
+	return msvcDevCmd{path: p}, nil
+}
+
 func findMSVCDevCmd() (msvcDevCmd, error) {
+	// Escape hatch: force the exact devcmd script path directly.
+	// This is useful for custom VS install paths and CI images.
+	if devCmd := strings.TrimSpace(os.Getenv("OREN_MSVC_DEV_CMD")); devCmd != "" {
+		return msvcDevCmdFromExplicitPath(devCmd)
+	}
+
 	// Escape hatch: allow pinning the VS installation path directly, so bootstrap works
 	// even if vswhere.exe is missing/unreachable in the environment.
 	if installPath := strings.TrimSpace(os.Getenv("OREN_MSVC_INSTALL_PATH")); installPath != "" {
