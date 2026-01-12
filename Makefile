@@ -419,8 +419,9 @@ endif
 verify-native-x64-compile: oren_stage2 rtobj-seed-x64 astbin-seed-x64
 			@./scripts/verify_native_x64_compile_only.sh
 
-# Higher-signal compile-only gate: compile the *full compiler program* (`oren.oren`)
-# for x64-linux and/or x64-windows and validate artifact kinds.
+# Higher-signal compile-only gate: compile the compiler program for x64 targets and validate artifact kinds.
+# - Default source: `oren_x64.oren` (x64-focused; avoids compiling arm64 native backends into x64 artifacts)
+# - Override: `OREN_SELFHOST_SRC=oren.oren make verify-native-x64-selfhost-compile`
 #
 # This is intentionally not part of `make test` (it can be slower than the small-fixture suite).
 # Tune timeout with: OREN_SELFHOST_BUILD_TIMEOUT_SECS=...

@@ -53,6 +53,8 @@ Env overrides:
   OREN_REMOTE_X64_PROXY
   OREN_REMOTE_SELFHOST_DIR_WIN   (default: %USERPROFILE%\\tmp_oren_selfhost)
   OREN_REMOTE_SELFHOST_DIR_SSH   (default: /Users/lzbgt/tmp_oren_selfhost)
+  OREN_SELFHOST_SRC (default: oren_x64.oren) override the compiler source built for x64
+    - set to `oren.oren` to force the full multi-target compiler graph
   OREN_SELFHOST_COMPILER_BUILD_TIMEOUT_SECS (default: 1200)
   OREN_SELFHOST_REMOTE_COMPILE_TIMEOUT_SECS (default: 120)
   OREN_SELFHOST_REMOTE_RUN_TIMEOUT_SECS (default: 30)

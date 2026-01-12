@@ -5,7 +5,7 @@ set -euo pipefail
 #
 # Purpose (rolling):
 # - When remote Win11/WSL2 execution is unavailable, still keep a *high-signal* check
-#   that the full compiler program (`oren.oren`) can be compiled for:
+#   that the compiler program can be compiled for:
 #     - x64-linux (ELF)
 #     - x64-windows (PE32+)
 # - This is heavier than the small-fixture x64 compile-only suite; it is not part of `make test`.
@@ -16,6 +16,8 @@ set -euo pipefail
 #
 # Env:
 #   OREN_SELFHOST_BUILD_TIMEOUT_SECS (default: 240)
+#   OREN_SELFHOST_SRC (default: oren_x64.oren) override self-host compiler source
+#     - set to `oren.oren` to force the full multi-target compiler graph
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -37,6 +39,11 @@ Examples:
   ./scripts/verify_native_x64_selfhost_compile_only.sh
   ./scripts/verify_native_x64_selfhost_compile_only.sh --targets x64-win
   OREN_SELFHOST_BUILD_TIMEOUT_SECS=480 ./scripts/verify_native_x64_selfhost_compile_only.sh --trace
+
+Env:
+  OREN_SELFHOST_BUILD_TIMEOUT_SECS (default: 240)
+  OREN_SELFHOST_SRC (default: oren_x64.oren)
+    - set to `oren.oren` to force the full multi-target compiler graph
 EOF
 }
 

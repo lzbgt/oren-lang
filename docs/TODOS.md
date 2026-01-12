@@ -57,7 +57,9 @@ Tier‑1 cross-arch (execution on real hosts):
 Local x64 (compile-only confidence, even if remote is down):
 
 - `make verify-native-x64-compile` (stage1 + stage2 emit x64-linux + x64-windows)
-- `make verify-native-x64-selfhost-compile` (stage2 compiles `oren.oren` for x64-linux + x64-windows; compile-only but higher-signal)
+- `make verify-native-x64-selfhost-compile` (stage2 compiles the compiler program for x64-linux + x64-windows; compile-only but higher-signal)
+  - Default source: `oren_x64.oren` (x64-focused; avoids compiling arm64 native backends into x64 artifacts)
+  - Override: `OREN_SELFHOST_SRC=oren.oren make verify-native-x64-selfhost-compile`
 
 References:
 
@@ -81,24 +83,24 @@ References:
    - `make test`
    - `./scripts/verify_native_net_matrix.sh` (large-graph compile + run)
 
-	   High-leverage direction:
+   High-leverage direction:
 
-	   - shrink the injected runtime surface compiled on cold misses (rtobj layering / reachability)
-	   - keep rtobj seed tooling aligned with the compiler’s default runtime-profile heuristic (`auto` ⇒ core unless `std:net/*`); seed `full` explicitly for NET/TLS-heavy bring-up
-	   - keep module parsing parallelism safe by default (fork-mode parallel parse without huge logs)
+   - shrink the injected runtime surface compiled on cold misses (rtobj layering / reachability)
+   - keep rtobj seed tooling aligned with the compiler’s default runtime-profile heuristic (`auto` ⇒ core unless `std:net/*`); seed `full` explicitly for NET/TLS-heavy bring-up
+   - keep module parsing parallelism safe by default (fork-mode parallel parse without huge logs)
 
-	   Status (fact):
+   Status (fact):
 
-	   - 2026-01-12: `scripts/verify_native_x64_compile_only.sh` now pre-seeds native runtime ASTBIN + rtobj (core+full) before running tight per-build timeouts, so the “cold after runtime change” case stays bounded.
-	   - 2026-01-12: began splitting the >2k-line x64 Linux syscall intrinsic emitter into smaller modules; moved the NET/epoll blocks into `lib/compiler/x64_native_program/046_emit_sys_intrinsics_linux_net.oren` so hot-path compilation of `_emit_intrinsic_sys_linux_x64` stays bounded.
-	   - 2026-01-12: introduced an x64-focused compiler entry (`oren_x64.oren` → `lib/compiler/compiler_x64.oren`) that swaps arm64 native backends for small stubs, so x64 self-host builds do not spend time compiling arm64 code.
-	     - Fact (arm64-macos host → x64-linux target, `--no-cache`): `./oren_stage2 build oren_x64.oren --backend native --platform x64-linux --no-debug`
-	       - total ~180s (`[build] summary total_ms=180390`)
-	       - link (parse+passes) ~103s (`link_ms=102635`)
-	       - x64 emit+link ~78s (`emit_ms=77747`)
-	     - This keeps `scripts/verify_native_x64_selfhost_compile_only.sh` under the default 240s timeout (it now defaults to `oren_x64.oren`; override via `OREN_SELFHOST_SRC=oren.oren`).
+   - 2026-01-12: `scripts/verify_native_x64_compile_only.sh` now pre-seeds native runtime ASTBIN + rtobj (core+full) before running tight per-build timeouts, so the “cold after runtime change” case stays bounded.
+   - 2026-01-12: began splitting the >2k-line x64 Linux syscall intrinsic emitter into smaller modules; moved the NET/epoll blocks into `lib/compiler/x64_native_program/046_emit_sys_intrinsics_linux_net.oren` so hot-path compilation of `_emit_intrinsic_sys_linux_x64` stays bounded.
+   - 2026-01-12: introduced an x64-focused compiler entry (`oren_x64.oren` → `lib/compiler/compiler_x64.oren`) that swaps arm64 native backends for small stubs, so x64 self-host builds do not spend time compiling arm64 code.
+     - Fact (arm64-macos host → x64-linux target, `--no-cache`): `./oren_stage2 build oren_x64.oren --backend native --platform x64-linux --no-debug`
+       - total ~180s (`[build] summary total_ms=180390`)
+       - link (parse+passes) ~103s (`link_ms=102635`)
+       - x64 emit+link ~78s (`emit_ms=77747`)
+     - This keeps `scripts/verify_native_x64_selfhost_compile_only.sh` under the default 240s timeout (it now defaults to `oren_x64.oren`; override via `OREN_SELFHOST_SRC=oren.oren`).
 
-	2) **Tier‑1 native parity: correctness across arch/OS** (L)
+2) **Tier‑1 native parity: correctness across arch/OS** (L)
 
    Goal: “same program, same result” across Tier‑1, not “macOS only”.
 
@@ -131,19 +133,19 @@ References:
    Deliverables (design → implementation):
 
    - finish the tagged-value plan: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
-	   - stabilize reflection APIs: `docs/REFLECTION_V1.md`
+   - stabilize reflection APIs: `docs/REFLECTION_V1.md`
    - define how varargs elements carry type info so userland (fmt/ffi/serde) is robust
    - audit “optional string/env” checks across stdlib/compiler: avoid `v != 0` presence tests (under singleton-`nil`, `nil != 0` is true); standardize on `v != nil && v != 0 && v != ""` or a helper
-	   - nil-vs-scalar parity: either land tagged values (preferred) or keep evolving the nil-compare guard so it catches common “dynamic config value used as scalar later” patterns (e.g. `cfg["timeout_ms"]` followed by `x + 1`) without over-flagging intentional nil-coalescing idioms in core code
+   - nil-vs-scalar parity: either land tagged values (preferred) or keep evolving the nil-compare guard so it catches common “dynamic config value used as scalar later” patterns (e.g. `cfg["timeout_ms"]` followed by `x + 1`) without over-flagging intentional nil-coalescing idioms in core code
 
-	   Gate:
+   Gate:
 
-	   - `make test` (nil-compare guard is always-on; diagnostics tagged `nil-compare guard:`)
+   - `make test` (nil-compare guard is always-on; diagnostics tagged `nil-compare guard:`)
 
-			   Status (fact):
+   Status (fact):
 
-			   - 2026-01-12: added `lib/std/reflect.oren` (minimal reflection wrappers + stable tag constants) and wired it into the native quick integration smoke.
-			   - 2026-01-12: nil-compare guard now treats arithmetic-with-numeric-literal as scalar evidence when the value is sourced from a “maybe-nil” index read (fixture: `tests/fixtures/nil_guard_bad_late_arith_literal_nil_compare.oren`).
+   - 2026-01-12: added `lib/std/reflect.oren` (minimal reflection wrappers + stable tag constants) and wired it into the native quick integration smoke.
+   - 2026-01-12: nil-compare guard now treats arithmetic-with-numeric-literal as scalar evidence when the value is sourced from a “maybe-nil” index read (fixture: `tests/fixtures/nil_guard_bad_late_arith_literal_nil_compare.oren`).
 
 4) **Stdlib NET/TLS/HTTP/WS maturity (not toy protocols)** (L)
 
@@ -189,36 +191,37 @@ References:
 
    Status (fact):
 
-	   - 2026-01-12: `make verify-stage0-win` passed (remote Win11, stage0→stage1 via MSVC `cl.exe`)
-		   - 2026-01-12: `make verify-stage2-win` passed (remote Win11, stage0→stage1→stage2 native + C-backend smoke using default `--cc`)
-	     - Follow-up guard: `scripts/verify_windows_stage2_from_stage1.sh` also compiles `examples/ui_hello.oren` and builds the Win32 OrenUI shim DLL via `scripts/win_msvc_cmd.cmd` (no GUI run; compile/link guard only).
-	     - 2026-01-12: `scripts/verify_windows_stage2_from_stage1.sh` now also proves the C backend works with **default `--cc`** on Windows (auto-picks MSVC `cl.exe`; does not require a Unix-like `cc`).
+   - 2026-01-12: `make verify-stage0-win` passed (remote Win11, stage0→stage1 via MSVC `cl.exe`)
+   - 2026-01-12: `make verify-stage2-win` passed (remote Win11, stage0→stage1→stage2 native + C-backend smoke using default `--cc`)
+     - Follow-up guard: `scripts/verify_windows_stage2_from_stage1.sh` also compiles `examples/ui_hello.oren` and builds the Win32 OrenUI shim DLL via `scripts/win_msvc_cmd.cmd` (no GUI run; compile/link guard only).
+     - 2026-01-12: `scripts/verify_windows_stage2_from_stage1.sh` now also proves the C backend works with **default `--cc`** on Windows (auto-picks MSVC `cl.exe`; does not require a Unix-like `cc`).
 
 7) **GUI: platform shims for Tier‑1 (RGBA blit v0)** (L)
 
-	   Keep `std:ui/*` as the portable retained-mode API; bring up thin platform shells.
+   Keep `std:ui/*` as the portable retained-mode API; bring up thin platform shells.
 
-	   Docs:
+   Docs:
 
-	   - `docs/GUI.md`, `docs/GUI_PLATFORM_SHIMS.md`
-	   - Optional Dear ImGui shell/overlay: `docs/GUI_IMGUI_SHELL.md` (devtools + bring-up accelerator, not the app UI API)
-	   - Historical pointer: `ui-idea.md` (redirect to the above; avoids stale references)
+   - `docs/GUI.md`, `docs/GUI_PLATFORM_SHIMS.md`
+   - Optional Dear ImGui shell/overlay: `docs/GUI_IMGUI_SHELL.md` (devtools + bring-up accelerator, not the app UI API)
+     - Upstream reference snapshots (verbatim) live under `project-doc/web/github.com/ocornut/imgui/` (do not rely on memory/folklore).
+   - Historical pointer: `ui-idea.md` (redirect to the above; avoids stale references)
 
-	   Next steps (actionable):
+   Next steps (actionable):
 
-	   - finalize `native/orenui/orenui.h` v0 ABI (window + poll_event + present_rgba)
-	     - Status: `orenui_poll_event` exists on macOS/Windows/Linux shims (v0 events: close + resize + basic input)
-	   - implement `native/orenui/win32/*` (Win32 + GDI/DIBSection blit) + keep a bounded headful smoke script green
-	     - Status: `native/orenui/win32/orenui_win32.c` implements v0 window + RGBA blit + poll_event (close/resize + basic input)
-	     - Added: `scripts/verify_ui_smoke_windows.sh` (`make verify-ui-smoke-windows`)
-	       - Uses `scripts/win_msvc_cmd.cmd` so it does not require a VS Developer Prompt.
-	   - implement `native/orenui/x11/*` (X11 + XPutImage blit) + keep a bounded headful smoke script green
-	     - Status: `native/orenui/x11/orenui_x11.c` implements v0 window + RGBA blit + poll_event (close/resize + basic input)
-	     - Added: `scripts/verify_ui_smoke_linux.sh` (`make verify-ui-smoke-linux`)
-	   - keep `examples/ui_hello.oren` portable across shims
-	     - Status: `examples/ui_hello.oren` uses `std:ui/host` (no per-OS FFI blocks in the example)
-	     - Next: stabilize key/text input semantics (unified key codes, UTF‑8 text, IME/compose strategy) above the platform raw events.
-	     - Next: add clipboard + DPI scale plumbing to the shim ABI (still v0-friendly; required for real apps).
+   - finalize `native/orenui/orenui.h` v0 ABI (window + poll_event + present_rgba)
+     - Status: `orenui_poll_event` exists on macOS/Windows/Linux shims (v0 events: close + resize + basic input)
+   - implement `native/orenui/win32/*` (Win32 + GDI/DIBSection blit) + keep a bounded headful smoke script green
+     - Status: `native/orenui/win32/orenui_win32.c` implements v0 window + RGBA blit + poll_event (close/resize + basic input)
+     - Added: `scripts/verify_ui_smoke_windows.sh` (`make verify-ui-smoke-windows`)
+       - Uses `scripts/win_msvc_cmd.cmd` so it does not require a VS Developer Prompt.
+   - implement `native/orenui/x11/*` (X11 + XPutImage blit) + keep a bounded headful smoke script green
+     - Status: `native/orenui/x11/orenui_x11.c` implements v0 window + RGBA blit + poll_event (close/resize + basic input)
+     - Added: `scripts/verify_ui_smoke_linux.sh` (`make verify-ui-smoke-linux`)
+   - keep `examples/ui_hello.oren` portable across shims
+     - Status: `examples/ui_hello.oren` uses `std:ui/host` (no per-OS FFI blocks in the example)
+     - Next: stabilize key/text input semantics (unified key codes, UTF‑8 text, IME/compose strategy) above the platform raw events.
+     - Next: add clipboard + DPI scale plumbing to the shim ABI (still v0-friendly; required for real apps).
 
 8) **FFI ergonomics + ABI surface completion** (M)
 
