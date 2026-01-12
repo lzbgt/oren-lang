@@ -310,7 +310,18 @@ run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
 log "== remote: stage2 builds a nested-path native exe (default -o path; backslash-safe) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
   "${SSH[@]}" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\myapp.oren --backend native --platform x64-windows --no-cache --no-debug\""
+  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\myapp.oren --backend native --platform x64-windows --no-cache --no-debug && if not exist build\\\\targets\\\\x64-windows\\\\native\\\\myapp.exe exit /b 2\""
+
+log "== remote: run the produced default-output native exe =="
+out_myapp="$(
+  run_with_timeout "$REMOTE_RUN_TIMEOUT_SECS" \
+    "${SSH[@]}" \
+    "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OREN_CANON_I32_ABORT=1&& build\\\\targets\\\\x64-windows\\\\native\\\\myapp.exe & echo EXIT=!ERRORLEVEL!\""
+)"
+out_myapp="$(printf '%s' "$out_myapp" | tr -d '\r')"
+printf '%s\n' "$out_myapp"
+echo "$out_myapp" | grep -qF "hello from myapp"
+echo "$out_myapp" | grep -qF "EXIT=0"
 
 log "== remote: stage2 builds a tiny native DLL (--lib; x64-windows) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \

@@ -185,7 +185,7 @@ static int oren_win_mkdir_one(const char* path) {
 
 static size_t oren_win_mkdirp_min_prefix(const char* path) {
     if (!path) return 0;
-    // UNC prefix: \\server\share\
+    // UNC prefix: \\server\share\ (UNC root)
     if (path[0] == '\\' && path[1] == '\\') {
         const char* p = path + 2;
         while (*p && *p != '\\') p++;

@@ -244,7 +244,11 @@ References:
    - 2026-01-12: `make verify-stage2-win` passed (remote Win11, stage0→stage1→stage2 native + C-backend smoke using default `--cc`)
      - Follow-up guard: `scripts/verify_windows_stage2_from_stage1.sh` also compiles `examples/ui_hello.oren` and builds the Win32 OrenUI shim DLL via `scripts/win_msvc_cmd.cmd` (no GUI run; compile/link guard only).
      - 2026-01-12: `scripts/verify_windows_stage2_from_stage1.sh` now also proves the C backend works with **default `--cc`** on Windows (auto-picks MSVC `cl.exe`; does not require a Unix-like `cc`).
-   - 2026-01-13: `scripts/verify_windows_stage2_from_stage1.sh` passed (remote Win11; stage0→stage1→stage2, plus UI shim compile/link guard).
+   - 2026-01-13: fixed an MSVC-only C parser hazard where a `// ... \` comment line-continuation broke stage0→stage1 bootstrap:
+     - Root cause: `lib/runtime/050_io_misc.inc` had a comment `// UNC prefix: \\server\share\` ending in a backslash; MSVC treats `\\\n` as a line continuation even in `//` comments (C4010), corrupting subsequent C tokens.
+     - Fix: comment no longer ends with `\`.
+   - 2026-01-13: `scripts/verify_windows_stage2_from_stage1.sh` passed (remote Win11; stage0→stage1→stage2):
+     - Now also asserts default output path is created and runnable when the source path is provided with backslashes (`examples\\myapp.oren` → `build\\targets\\x64-windows\\native\\myapp.exe`).
    - 2026-01-13: `scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl` passed (remote WSL2; x64-linux compiler runs and compiles+executes a tiny native program).
    - 2026-01-12: `scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` passed (remote Win11 + WSL2; stage2 compiler runs and compiles+runs a tiny native program on both).
 

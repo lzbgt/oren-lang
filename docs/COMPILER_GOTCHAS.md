@@ -61,6 +61,21 @@ Prefer linear `if ...`/`goto` flow, or use delayed expansion (`!VAR!`) carefully
 
 Implementation reference: `lib/compiler/compiler/040_build_pipeline.oren` (Windows `--backend c` MSVC path).
 
+## Windows: MSVC treats `// ... \` as a line continuation (C4010)
+
+MSVC can treat a trailing backslash at the end of a `//` comment line as a **line continuation**.
+This can accidentally comment-out / corrupt the next line and produce confusing errors like
+“undeclared identifier” or “syntax error” far away from the real cause.
+
+Hard rule:
+
+- Do **not** end a `//` comment line with `\` in any C runtime sources (`lib/runtime*.c`, `lib/runtime/*.inc`, etc.).
+  If you need to show a UNC path, ensure the comment ends with a non-`\` character (example: `... (UNC root)`).
+
+Regression incident:
+
+- `lib/runtime/050_io_misc.inc` had `// UNC prefix: \\server\share\` (ended with `\`), which broke stage0→stage1 bootstrap on Win11/MSVC.
+
 ## Windows: `WaitOnAddress` is in `KERNELBASE.dll` (not `KERNEL32.dll`)
 
 The native runtime uses `sys_ulock_wait/sys_ulock_wake` as a portable “wait-on-address” primitive
