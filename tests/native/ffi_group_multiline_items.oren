@@ -1,0 +1,38 @@
+// FFI group ergonomics: allow multiline item lists without commas.
+//
+// Motivation:
+// - The existing `ffi { a, b, c }` form works, but large real-world bindings are more readable
+//   as one-symbol-per-line blocks (diff-friendly, avoids trailing-comma debates).
+// - This fixture ensures `ffi { ... }` accepts implicit separators between items (whitespace/newlines)
+//   while keeping the existing comma/semicolon forms valid.
+//
+// Note: for Tier‑1 bring-up, this is primarily a compile-only gate on x64-linux/x64-windows.
+
+@cfg(os="windows")
+@ffi.dll("msvcrt.dll")
+@ffi.ret("i32")
+ffi {
+    atoi
+    puts as c_puts
+}
+
+@cfg(os="linux")
+@ffi.link("libc.so.6")
+@ffi.ret("i32")
+ffi {
+    atoi
+    puts as c_puts
+}
+
+@cfg(os="windows,linux")
+fn main() {
+    // Ensure the compiler must lower call stubs for both the external name and alias.
+    var n = atoi("123")
+    if n != 123 { return 2 }
+    c_puts("ffi_group_multiline_items: OK")
+    return 0
+}
+
+@cfg(not_os="windows,linux")
+fn main() { return 0 }
+

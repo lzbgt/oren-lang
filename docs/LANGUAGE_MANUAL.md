@@ -320,11 +320,17 @@ Grouping convenience (recommended when importing multiple symbols from the same 
 ```oren
 @cfg(os="windows")
 @ffi.dll("msvcrt.dll")
-ffi { puts, strlen }
+ffi {
+    puts
+    strlen
+}
 
 @cfg(os="linux")
 @ffi.link("libc.so.6")
-ffi { puts, strlen }
+ffi {
+    puts
+    strlen
+}
 ```
 
 Module-exported FFI bindings (recommended for stdlib wrappers):
@@ -375,6 +381,7 @@ Stdlib convenience wrappers (rolling):
 Rolling convenience:
 
 - `ffi { sym1, sym2, ... }` expands to multiple `ffi sym` declarations, inheriting the same attributes.
+  - In rolling v0, commas/semicolons between group items are optional: `ffi { sym1 sym2 }` (one-per-line) is also accepted.
 - Per-item attributes are allowed inside the group and are merged with the outer attributes:
   - `@ffi.link("libc.so.6") ffi { @ffi.ret("i32") atoi, puts }`
   - This is especially useful when many symbols come from the same library but have different ABI return kinds.

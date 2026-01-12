@@ -558,6 +558,22 @@ fn parse_ffi(p) {
                 continue
             }
 
+            // Rolling ergonomics: allow multiline/grouped imports without commas.
+            //
+            // Example:
+            //   ffi {
+            //     atoi
+            //     puts
+            //   }
+            //
+            // This keeps fixtures and real-world bindings readable (diff-friendly) and avoids
+            // forcing a trailing comma style choice. Outside `ffi { ... }`, the language remains
+            // explicit about statement boundaries (no implicit semicolon insertion).
+            if peek_is(p, token.TOK_IDENT) || peek_is(p, token.TOK_AT) {
+                parser_next_token(p) // next item start
+                continue
+            }
+
             if peek_is(p, token.TOK_RBRACE) {
                 parser_next_token(p) // '}'
                 break
