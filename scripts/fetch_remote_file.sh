@@ -240,7 +240,7 @@ if [[ "$rc" -ne 0 ]]; then
   exit "$rc"
 fi
 
-marker="$(tr -d '\r' <"$stage_log" | tail -n 5 | grep -E 'FETCH_OK:' | tail -n 1 || true)"
+marker="$(tr -d '\r' <"$stage_log" | grep -E 'FETCH_OK:' | tail -n 1 || true)"
 if [[ -z "$marker" ]]; then
   echo "ERROR: remote stage did not return FETCH_OK marker (win-path=$WIN_PATH)" >&2
   tail -n 120 "$stage_log" >&2 2>/dev/null || true

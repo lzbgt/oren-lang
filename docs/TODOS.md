@@ -245,10 +245,14 @@ References:
 
    - 2026-01-12: added `ffi("lib") { ... }` sugar (lowers to portable `@ffi.link("lib")`), guarded by `scripts/verify_native_x64_compile_only.sh` via `tests/native/ffi_group_link_sugar.oren`.
    - 2026-01-13: `ffi { ... }` now allows multiline items without commas/semicolons (implicit separators between `@attr`/`ident` items), guarded by `scripts/verify_native_x64_compile_only.sh` via `tests/native/ffi_group_multiline_items.oren`.
+   - 2026-01-13: accepted `@ffi.ret("ptr")` / `@ffi.ret("usize")` as ABI metadata for pointer-sized returns (Tier‑1 is 64-bit today), guarded by `scripts/verify_native_x64_compile_only.sh` via `tests/native/ffi_ret_ptr_usize.oren`.
 
    Next:
 
-   - add ptr-sized / `usize` return kinds and a stable story for `size_t`
+   - improve the “import many functions from one library” ergonomics without hiding ABI details:
+     - keep `ffi("lib") { ... }` as the canonical grouping form
+     - consider a small optional helper for the common “same dll, same calling convention, mostly ptr/usize” cases
+   - add a clearer `size_t` story to the manual/spec (when to use `usize`, and how to express ptr-sized ABI returns)
    - consider “quoted external symbol” syntax only if we encounter real APIs that are not identifier-compatible
 
 9) **Native scheduler + netpoller (true async IO + channels/select)** (L)
@@ -293,3 +297,4 @@ References:
     - Analyze large logs with `scripts/analyze_stage2_failure_log.sh` (bounded output).
     - If a fetched log is only a few lines and shows `x64 pe: failed to write ... examples\\...`:
       - it usually indicates an older compiler that did not normalize backslash paths early; re-run `scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` to confirm the current gate is green.
+    - Note: `scripts/fetch_remote_file.sh --trace` is safe to use when debugging proxy/ssh issues (it now scans the full stage log for the `FETCH_OK:` marker instead of assuming it appears in the last few lines).
