@@ -8,6 +8,11 @@
 #include <sys/stat.h>
 #include <time.h>
 
+#if !defined(_WIN32)
+#include <dirent.h>
+#include <unistd.h>
+#endif
+
 #if defined(_WIN32)
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -21,6 +26,7 @@
 #include <process.h>
 #include <io.h>
 #include <windows.h>
+#include <direct.h>
 
 // MSVC uses `_strdup`; keep callsites portable.
 #ifndef strdup

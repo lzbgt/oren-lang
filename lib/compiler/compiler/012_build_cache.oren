@@ -1283,8 +1283,12 @@ fn cache_store_artifact(cache_dir, key, bytes) {
 
 fn cache_clean_dir(cache_dir) {
     if cache_dir == nil || cache_dir == "" { cache_dir = _cache_default_dir() }
-    // Use shell for now (dev tooling).
-    oren_system("rm -rf " + shell_quote(cache_dir))
+    // Best-effort: cache failures must not fail the build.
+    var rc = oren_rm_rf(cache_dir)
+    if rc < 0 {
+        print("WARN: cache clean failed (rc=" + oren_int_to_string(rc) + "): " + cache_dir)
+        return nil
+    }
     print("Cleaned cache dir: " + cache_dir)
     return nil
 }

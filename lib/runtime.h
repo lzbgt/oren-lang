@@ -655,6 +655,14 @@ OrenValue oren_rename(OrenValue from, OrenValue to);
 // This is used by compiler tooling and other bootstrap paths that must work
 // without shelling out to `mkdir -p` (especially on Windows).
 OrenValue oren_mkdir_p(OrenValue path);
+OrenValue oren_unlink(OrenValue path);
+OrenValue oren_rmdir(OrenValue path);
+// Recursive delete (rm -rf semantics).
+//
+// Return convention (syscall-like):
+// - 0 on success (including when the path does not exist)
+// - negative errno on failure
+OrenValue oren_rm_rf(OrenValue path);
 
 void oren_print(OrenValue v);
 void oren_print_multi(int count, ...);

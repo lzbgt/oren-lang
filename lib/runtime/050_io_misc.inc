@@ -318,6 +318,243 @@ OrenValue oren_mkdir_p(OrenValue path) {
 #endif
 }
 
+static char* oren_path_strdup_norm_win(const char* s) {
+    if (!s) return NULL;
+    char* buf = strdup(s);
+    if (!buf) return NULL;
+    for (char* p = buf; *p; p++) {
+        if (*p == '/') *p = '\\';
+    }
+    return buf;
+}
+
+OrenValue oren_unlink(OrenValue path) {
+    if (path.type != OREN_TYPE_STRING) {
+        return oren_int(-EINVAL);
+    }
+    const char* s = path.as.string_val;
+    if (!s || !s[0]) return oren_int(0);
+#if defined(_WIN32)
+    char* p = oren_path_strdup_norm_win(s);
+    if (!p) return oren_int(-ENOMEM);
+    int rc = _unlink(p);
+    int e = errno;
+    free(p);
+    if (rc == 0) return oren_int(0);
+    if (e == ENOENT) return oren_int(0);
+    return oren_int(-e);
+#else
+    if (unlink(s) != 0) {
+        if (errno == ENOENT) return oren_int(0);
+        return oren_int(-errno);
+    }
+    return oren_int(0);
+#endif
+}
+
+OrenValue oren_rmdir(OrenValue path) {
+    if (path.type != OREN_TYPE_STRING) {
+        return oren_int(-EINVAL);
+    }
+    const char* s = path.as.string_val;
+    if (!s || !s[0]) return oren_int(0);
+#if defined(_WIN32)
+    char* p = oren_path_strdup_norm_win(s);
+    if (!p) return oren_int(-ENOMEM);
+    int rc = _rmdir(p);
+    int e = errno;
+    free(p);
+    if (rc == 0) return oren_int(0);
+    if (e == ENOENT) return oren_int(0);
+    return oren_int(-e);
+#else
+    if (rmdir(s) != 0) {
+        if (errno == ENOENT) return oren_int(0);
+        return oren_int(-errno);
+    }
+    return oren_int(0);
+#endif
+}
+
+#if defined(_WIN32)
+static char* oren_win_join_path(const char* a, const char* b) {
+    if (!a || !b) return NULL;
+    size_t la = strlen(a);
+    size_t lb = strlen(b);
+    int need_sep = 1;
+    if (la > 0) {
+        char last = a[la - 1];
+        if (last == '\\' || last == '/') need_sep = 0;
+    }
+    size_t n = la + (need_sep ? 1u : 0u) + lb + 1u;
+    char* out = (char*)malloc(n);
+    if (!out) return NULL;
+    memcpy(out, a, la);
+    size_t off = la;
+    if (need_sep) out[off++] = '\\';
+    memcpy(out + off, b, lb);
+    out[off + lb] = '\0';
+    // Normalize.
+    for (char* p = out; *p; p++) {
+        if (*p == '/') *p = '\\';
+    }
+    return out;
+}
+
+static int oren_win_rm_rf_cstr(const char* path);
+
+static int oren_win_rm_rf_dir(const char* path) {
+    // Enumerate children.
+    size_t lp = strlen(path);
+    size_t pat_len = lp + 3;
+    char* pat = (char*)malloc(pat_len);
+    if (!pat) return -ENOMEM;
+    memcpy(pat, path, lp);
+    size_t off = lp;
+    if (off > 0 && pat[off - 1] != '\\' && pat[off - 1] != '/') {
+        pat[off++] = '\\';
+    }
+    pat[off++] = '*';
+    pat[off] = '\0';
+    for (char* q = pat; *q; q++) if (*q == '/') *q = '\\';
+
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA(pat, &fd);
+    free(pat);
+    if (h == INVALID_HANDLE_VALUE) {
+        DWORD e = GetLastError();
+        if (e == ERROR_FILE_NOT_FOUND || e == ERROR_PATH_NOT_FOUND) {
+            // Directory does not exist or is empty after deletion races.
+        } else {
+            return -EIO;
+        }
+    } else {
+        for (;;) {
+            const char* name = fd.cFileName;
+            if (!(name[0] == '.' && name[1] == '\0') && !(name[0] == '.' && name[1] == '.' && name[2] == '\0')) {
+                char* child = oren_win_join_path(path, name);
+                if (!child) {
+                    FindClose(h);
+                    return -ENOMEM;
+                }
+                int rc = oren_win_rm_rf_cstr(child);
+                free(child);
+                if (rc != 0) {
+                    FindClose(h);
+                    return rc;
+                }
+            }
+            if (!FindNextFileA(h, &fd)) break;
+        }
+        FindClose(h);
+    }
+
+    // Remove directory itself.
+    if (_rmdir(path) != 0) {
+        if (errno == ENOENT) return 0;
+        return -errno;
+    }
+    return 0;
+}
+
+static int oren_win_rm_rf_cstr(const char* path) {
+    if (!path || !path[0]) return 0;
+    char* p = oren_path_strdup_norm_win(path);
+    if (!p) return -ENOMEM;
+    DWORD attrs = GetFileAttributesA(p);
+    if (attrs == INVALID_FILE_ATTRIBUTES) {
+        DWORD e = GetLastError();
+        free(p);
+        if (e == ERROR_FILE_NOT_FOUND || e == ERROR_PATH_NOT_FOUND) return 0;
+        return -EIO;
+    }
+    if (attrs & FILE_ATTRIBUTE_DIRECTORY) {
+        int rc = oren_win_rm_rf_dir(p);
+        free(p);
+        return rc;
+    }
+    // File.
+    if (_unlink(p) != 0) {
+        if (errno == ENOENT) {
+            free(p);
+            return 0;
+        }
+        int e = errno;
+        free(p);
+        return -e;
+    }
+    free(p);
+    return 0;
+}
+#endif
+
+#if !defined(_WIN32)
+static int oren_posix_rm_rf_cstr(const char* path) {
+    if (!path || !path[0]) return 0;
+    struct stat st;
+    if (lstat(path, &st) != 0) {
+        if (errno == ENOENT) return 0;
+        return -errno;
+    }
+    if ((st.st_mode & S_IFDIR) != 0) {
+        DIR* d = opendir(path);
+        if (!d) {
+            if (errno == ENOENT) return 0;
+            return -errno;
+        }
+        struct dirent* ent;
+        while ((ent = readdir(d)) != NULL) {
+            const char* name = ent->d_name;
+            if (name[0] == '.' && name[1] == '\0') continue;
+            if (name[0] == '.' && name[1] == '.' && name[2] == '\0') continue;
+            size_t lp = strlen(path);
+            size_t ln = strlen(name);
+            size_t n = lp + 1 + ln + 1;
+            char* child = (char*)malloc(n);
+            if (!child) {
+                closedir(d);
+                return -ENOMEM;
+            }
+            memcpy(child, path, lp);
+            child[lp] = '/';
+            memcpy(child + lp + 1, name, ln);
+            child[lp + 1 + ln] = '\0';
+            int rc = oren_posix_rm_rf_cstr(child);
+            free(child);
+            if (rc != 0) {
+                closedir(d);
+                return rc;
+            }
+        }
+        closedir(d);
+        if (rmdir(path) != 0) {
+            if (errno == ENOENT) return 0;
+            return -errno;
+        }
+        return 0;
+    }
+    // File or symlink.
+    if (unlink(path) != 0) {
+        if (errno == ENOENT) return 0;
+        return -errno;
+    }
+    return 0;
+}
+#endif
+
+OrenValue oren_rm_rf(OrenValue path) {
+    if (path.type != OREN_TYPE_STRING) {
+        return oren_int(-EINVAL);
+    }
+    const char* s = path.as.string_val;
+    if (!s || !s[0]) return oren_int(0);
+#if defined(_WIN32)
+    return oren_int(oren_win_rm_rf_cstr(s));
+#else
+    return oren_int(oren_posix_rm_rf_cstr(s));
+#endif
+}
+
 OrenValue oren_read_bytes(OrenValue path) {
     if (path.type != OREN_TYPE_STRING) {
         oren_panic("read_bytes expects string path");

@@ -338,6 +338,15 @@ fn _oren_mode_is_dir(mode) {
     return false
 }
 
+fn _oren_norm_sep_for_target(ch) {
+    // Normalize path separators for the target OS.
+    // Windows: prefer '\\' for syscalls.
+    if g_target_os == 3 {
+        if ch == 47 { return 92 } // '/' -> '\\'
+    }
+    return ch
+}
+
 @cap.requires(domain="FS")
 fn _oren_is_dir(path) {
     if path == 0 { return false }
@@ -370,7 +379,8 @@ fn oren_mkdir_p(path) {
     if buf == 0 { return 0 - 12 } // -ENOMEM
     var i = 0
     while i < n {
-        ptr_set_byte(buf + i, ptr_get_byte(path + i))
+        var ch = ptr_get_byte(path + i)
+        ptr_set_byte(buf + i, _oren_norm_sep_for_target(ch))
         i = i + 1
     }
     ptr_set_byte(buf + n, 0)
@@ -424,6 +434,134 @@ fn oren_mkdir_p(path) {
     }
     free(buf)
     return 0
+}
+
+@cap.requires(domain="FS")
+fn oren_unlink(path) {
+    // rm -f semantics for files:
+    // - 0 on success
+    // - 0 if path does not exist
+    // - negative errno otherwise
+    if path == 0 { return 0 }
+    if ptr_get_byte(path) == 0 { return 0 }
+    var rc = sys_unlink(path)
+    if rc < 0 {
+        if rc == 0 - 2 { return 0 } // -ENOENT
+        return rc
+    }
+    return 0
+}
+
+@cap.requires(domain="FS")
+fn oren_rmdir(path) {
+    // Best-effort directory removal:
+    // - 0 on success
+    // - 0 if path does not exist
+    // - negative errno otherwise
+    if path == 0 { return 0 }
+    if ptr_get_byte(path) == 0 { return 0 }
+    var rc = sys_rmdir(path)
+    if rc < 0 {
+        if rc == 0 - 2 { return 0 } // -ENOENT
+        return rc
+    }
+    return 0
+}
+
+fn _oren_path_join(a, b) {
+    if a == 0 || b == 0 { return 0 }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la <= 0 { return b }
+    if lb <= 0 { return a }
+
+    var last = ptr_get_byte(a + (la - 1))
+    var need_sep = true
+    if _oren_path_is_sep(last) { need_sep = false }
+
+    var sep = 47 // '/'
+    if g_target_os == 3 { sep = 92 } // '\\'
+
+    var extra = 0
+    if need_sep { extra = 1 }
+    var out = malloc(la + extra + lb + 1)
+    if out == 0 { exit(302) }
+    var i = 0
+    while i < la {
+        ptr_set_byte(out + i, _oren_norm_sep_for_target(ptr_get_byte(a + i)))
+        i = i + 1
+    }
+    var off = la
+    if need_sep {
+        ptr_set_byte(out + off, sep)
+        off = off + 1
+    }
+    var j = 0
+    while j < lb {
+        ptr_set_byte(out + off + j, _oren_norm_sep_for_target(ptr_get_byte(b + j)))
+        j = j + 1
+    }
+    ptr_set_byte(out + off + lb, 0)
+    oren_track_alloc(out, la + extra + lb + 1, 1) // STRING
+    return out
+}
+
+fn _oren_lstat_mode(path) {
+    var st = oren_stat_alloc()
+    var rc = sys_lstat(path, st)
+    if rc < 0 {
+        free(st)
+        return [rc, 0]
+    }
+    var mode = oren_stat_get_mode(st)
+    free(st)
+    return [0, mode]
+}
+
+@cap.requires(domain="FS")
+fn oren_rm_rf(path) {
+    // Recursive delete (rm -rf semantics).
+    // - 0 on success (including missing paths)
+    // - negative errno on failure
+    if path == 0 { return 0 }
+    if ptr_get_byte(path) == 0 { return 0 }
+
+    var pair = _oren_lstat_mode(path)
+    var rc = pair[0]
+    var mode = pair[1]
+    if rc < 0 {
+        if rc == 0 - 2 { return 0 } // -ENOENT
+        return rc
+    }
+
+    if _oren_mode_is_dir(mode) == true {
+        var ents = oren_readdir(path)
+        if oren_is_err(ents) {
+            var code = oren_err_code(ents)
+            if code == 2 { return 0 } // missing
+            return 0 - code
+        }
+        var n = oren_list_len(ents)
+        var i = 0
+        while i < n {
+            var name = ents[i]
+            // Skip '.' and '..' defensively.
+            if name != "." && name != ".." {
+                var child = _oren_path_join(path, name)
+                var rr = oren_rm_rf(child)
+                if rr < 0 { return rr }
+            }
+            i = i + 1
+        }
+        var rd = sys_rmdir(path)
+        if rd < 0 {
+            if rd == 0 - 2 { return 0 }
+            return rd
+        }
+        return 0
+    }
+
+    return oren_unlink(path)
 }
 
 @cap.requires(domain="FS")
