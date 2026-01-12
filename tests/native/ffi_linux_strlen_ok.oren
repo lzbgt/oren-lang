@@ -8,6 +8,7 @@
 
 @cfg(os="linux")
 @ffi.link("libc.so.6")
+@ffi.ret("usize")
 ffi strlen
 if strlen("Hello FFI") != 9 { exit(1) }
 exit(0)

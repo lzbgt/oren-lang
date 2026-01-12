@@ -265,6 +265,8 @@ Notes (rolling v0):
   - `"i32"`: sign-extend the 32-bit return to a signed 64-bit value.
   - `"u32"`: zero-extend the 32-bit return to an unsigned 64-bit value (0..4294967295).
   - `"void"`: treat as no return value; force the return register to `0` for expression contexts.
+  - `"ptr"`: pointer-sized return. On Tier‑1 (arm64/x64) this is 64-bit, so it does not require normalization today; it is still accepted as ABI metadata.
+  - `"usize"`: `size_t`/`usize` return. On Tier‑1 (arm64/x64) this is 64-bit, so it does not require normalization today; it is still accepted as ABI metadata.
 - This attribute is currently consumed by:
   - `arm64-*` native backend
   - `x64-*` native backend
