@@ -103,6 +103,8 @@ References:
 		     - C backend runtime: `oren_unlink`, `oren_rmdir`, `oren_rm_rf` (0 / -errno; `rm -rf` ignores missing path)
 		     - native runtime: `oren_unlink`, `oren_rmdir`, `oren_rm_rf` (implemented via `sys_unlink/sys_rmdir/sys_lstat` + `oren_readdir`)
 		     - compiler tooling: no `oren_system("rm ...")` / `oren_system("del ...")` under `lib/compiler/compiler/*`
+		   - 2026-01-12: removed compiler dependency on shell `test -f` / `if exist` probes for `file_exists(...)`:
+		     - runtime: `oren_is_file(path)` (C + native) so stage1 tooling can check existence without shelling out
 		   - 2026-01-12: verified x64 native selfhost compile-only gate still passes after the runtime FS-helper refactor:
 		     - `make verify-native-x64-selfhost-compile` (targets: x64-linux, x64-windows)
 	   - 2026-01-12: `scripts/verify_native_x64_compile_only.sh` now pre-seeds native runtime ASTBIN + rtobj (core+full) before running tight per-build timeouts, so the “cold after runtime change” case stays bounded.

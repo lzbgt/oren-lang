@@ -655,6 +655,17 @@ OrenValue oren_rename(OrenValue from, OrenValue to);
 // This is used by compiler tooling and other bootstrap paths that must work
 // without shelling out to `mkdir -p` (especially on Windows).
 OrenValue oren_mkdir_p(OrenValue path);
+// Existence predicates (filesystem).
+//
+// Return convention:
+// - returns a bool value (`true`/`false`)
+// - never returns an error map
+//
+// These helpers are intentionally small so stage1 tooling can avoid shell probes like:
+//   - POSIX: `test -f ...`
+//   - Windows: `if exist ...`
+OrenValue oren_exists(OrenValue path);
+OrenValue oren_is_file(OrenValue path);
 OrenValue oren_unlink(OrenValue path);
 OrenValue oren_rmdir(OrenValue path);
 // Recursive delete (rm -rf semantics).

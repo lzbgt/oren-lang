@@ -338,6 +338,13 @@ fn _oren_mode_is_dir(mode) {
     return false
 }
 
+fn _oren_mode_is_reg(mode) {
+    // POSIX regular file: 0100000 (32768) under 0170000 mask.
+    var ft = mode & 61440 // 0170000
+    if ft == 32768 { return true } // 0100000
+    return false
+}
+
 fn _oren_norm_sep_for_target(ch) {
     // Normalize path separators for the target OS.
     // Windows: prefer '\\' for syscalls.
@@ -345,6 +352,31 @@ fn _oren_norm_sep_for_target(ch) {
         if ch == 47 { return 92 } // '/' -> '\\'
     }
     return ch
+}
+
+@cap.requires(domain="FS")
+fn oren_is_file(path) {
+    // Returns true if the path exists and is a regular file, else false.
+    // Uses sys_stat to follow symlinks (matches `test -f` behavior).
+    if path == 0 { return false }
+    if ptr_get_byte(path) == 0 { return false }
+
+    var pair = native_capsule_fs_path_resolve_pair(path, 0)
+    var rpath = ptr_get(pair + 0)
+    var owned = ptr_get(pair + 8)
+    free(pair)
+
+    var st = oren_stat_alloc()
+    var rc = sys_stat(rpath, st)
+    if rc < 0 {
+        free(st)
+        if owned == 1 { free(rpath) }
+        return false
+    }
+    var mode = oren_stat_get_mode(st)
+    free(st)
+    if owned == 1 { free(rpath) }
+    return _oren_mode_is_reg(mode)
 }
 
 @cap.requires(domain="FS")

@@ -435,22 +435,12 @@ fn strip_suffix(s, suffix) {
 fn file_exists(path) {
     if path == nil || path == "" { return false }
     // Stage0 bootstrap + native runtime parity:
-    // - We cannot rely on syscall-first `sys_stat` here (stage1 is built via the C backend).
-    // - We also must not read the file just to check existence (can be large/binary).
+    // - stage1 is built via the C backend, so we cannot use native-only `sys_stat`.
+    // - avoid shell probes (`test -f`, `if exist`) to keep Windows parity and enable
+    //   compiler-in-capsule/minimal environments.
     //
-    // Use a small `oren_system` probe:
-    // - POSIX: `test -f ...`
-    // - Windows: `if exist ...`
-    //
-    // IMPORTANT:
-    // Do not rely on `OS=Windows_NT` being present; some Windows environments (SSH/PowerShell)
-    // may omit it. Use `host_is_windows()` for a robust signal.
-    if host_is_windows() {
-        var p = _path_to_windows_sep(path)
-        var cmd = "if exist \"" + p + "\" (exit /b 0) else (exit /b 1)"
-        return oren_system(cmd) == 0
-    }
-    return oren_system("test -f \"" + path + "\"") == 0
+    // `oren_is_file` is implemented in both the C runtime and native runtime.
+    return oren_is_file(path) == true
 }
 
 fn string_contains(hay, needle) {

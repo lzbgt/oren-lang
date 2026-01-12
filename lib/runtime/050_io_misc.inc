@@ -377,6 +377,58 @@ OrenValue oren_rmdir(OrenValue path) {
 }
 
 #if defined(_WIN32)
+static int oren_win_path_exists_cstr(const char* path) {
+    DWORD attrs = GetFileAttributesA(path);
+    return attrs != INVALID_FILE_ATTRIBUTES;
+}
+
+static int oren_win_is_file_cstr(const char* path) {
+    DWORD attrs = GetFileAttributesA(path);
+    if (attrs == INVALID_FILE_ATTRIBUTES) return 0;
+    return (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0;
+}
+#endif
+
+OrenValue oren_exists(OrenValue path) {
+    if (path.type != OREN_TYPE_STRING) {
+        return OREN_FALSE;
+    }
+    const char* s = path.as.string_val;
+    if (!s || !s[0]) return OREN_FALSE;
+#if defined(_WIN32)
+    char* p = oren_path_strdup_norm_win(s);
+    if (!p) return OREN_FALSE;
+    int ok = oren_win_path_exists_cstr(p);
+    free(p);
+    return ok ? OREN_TRUE : OREN_FALSE;
+#else
+    struct stat st;
+    if (stat(s, &st) != 0) return OREN_FALSE;
+    return OREN_TRUE;
+#endif
+}
+
+OrenValue oren_is_file(OrenValue path) {
+    if (path.type != OREN_TYPE_STRING) {
+        return OREN_FALSE;
+    }
+    const char* s = path.as.string_val;
+    if (!s || !s[0]) return OREN_FALSE;
+#if defined(_WIN32)
+    char* p = oren_path_strdup_norm_win(s);
+    if (!p) return OREN_FALSE;
+    int ok = oren_win_is_file_cstr(p);
+    free(p);
+    return ok ? OREN_TRUE : OREN_FALSE;
+#else
+    struct stat st;
+    if (stat(s, &st) != 0) return OREN_FALSE;
+    if ((st.st_mode & S_IFREG) != 0) return OREN_TRUE;
+    return OREN_FALSE;
+#endif
+}
+
+#if defined(_WIN32)
 static char* oren_win_join_path(const char* a, const char* b) {
     if (!a || !b) return NULL;
     size_t la = strlen(a);
