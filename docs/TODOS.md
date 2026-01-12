@@ -151,6 +151,7 @@ References:
    Status (fact):
 
    - 2026-01-12: added `lib/std/reflect.oren` (minimal reflection wrappers + stable tag constants) and wired it into the native quick integration smoke.
+   - 2026-01-12: expanded the native quick integration reflection+varargs gate (`tests/native/test_quick_integration_native.oren`) to cover `bool` + `func`, and to be forward-compatible with eventual float tagging (`int` vs `float` best-effort today).
    - 2026-01-12: nil-compare guard now treats arithmetic-with-numeric-literal as scalar evidence when the value is sourced from a “maybe-nil” index read (fixture: `tests/fixtures/nil_guard_bad_late_arith_literal_nil_compare.oren`).
 
 4) **Stdlib NET/TLS/HTTP/WS maturity (not toy protocols)** (L)
