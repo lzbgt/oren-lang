@@ -156,6 +156,7 @@ fn sys_epoll_create1(flags) { return 0 }
 fn sys_epoll_ctl(epfd, op, fd, event_ptr) { return 0 }
 fn sys_epoll_pwait(epfd, events_ptr, maxevents, timeout_ms, sigmask_ptr, sigsetsize) { return 0 }
 fn sys_nanosleep(ns) { return 0 }
+fn sys_sched_yield() { return 0 }
 
 fn oren_exit(code) {
     // Process exit (portable entry point used by user code and runtime).

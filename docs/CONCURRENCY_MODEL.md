@@ -7,7 +7,7 @@ This doc describes:
 
 Oren is rolling; compatibility is not the priority. Accuracy is.
 
-**Last updated:** 2026-01-02
+**Last updated:** 2026-01-12
 
 ## 1) Core primitives (current reality)
 
@@ -33,6 +33,22 @@ Source of truth:
 
 - POSIX fork+pipe join handle: `lib/runtime_native/120_first_class_fn.oren`, `lib/runtime_native/260_threads.oren`
 - Windows CreateThread path: `lib/runtime_native/120_first_class_fn.oren`, `lib/runtime_native/260_threads.oren`
+
+### 1.1 `oren_yield()` (today: best-effort OS yield hint; not a greenlet scheduler)
+
+`oren_yield()` exists as a small portability helper. It is **not** yet a native greenlet scheduler
+yield point (because the native runtime does not have greenlet scheduling yet).
+
+Current behavior (native runtime, rolling):
+
+- **Linux:** `oren_yield()` calls `sched_yield(2)` via syscall-first `sys_sched_yield()`.
+- **Windows:** `oren_yield()` calls `Sleep(0)` via `sys_sched_yield()` shim.
+- **macOS:** currently a no-op (returns 0). A future native scheduler will provide a stronger yield.
+
+Source of truth:
+
+- `lib/runtime_native/262_yield.oren`
+- Linux syscall numbers are repo-owned in `docs/refs/linux_*` and wired via `lib/compiler/*_abi_linux.oren`.
 
 ### 2. Channels + `oren_select` (today: data-driven, backend-shared)
 

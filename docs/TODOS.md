@@ -241,6 +241,13 @@ References:
    Rationale: Oren needs a correct, production-grade concurrency story (green tasks / M:N scheduling)
    before the stdlib NET stack can be fully non-blocking and before `select`/async I/O can be robust.
 
+   Status (fact):
+
+   - 2026-01-12: added `oren_yield()` (best-effort OS yield hint today) backed by syscall-first `sys_sched_yield()`.
+     - Linux: `sched_yield(2)` via `linux_sys_sched_yield` lowering in native backends.
+     - Windows: `Sleep(0)` via `sys_sched_yield` shim in the x64 native backend.
+     - Source of truth: `lib/runtime_native/262_yield.oren`, `docs/CONCURRENCY_MODEL.md`.
+
    References:
 
    - `docs/CONCURRENCY_MODEL.md`

@@ -1714,6 +1714,18 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         return nil
     }
 
+    if nm == "sys_sched_yield" {
+        if args != nil && oren_list_len(args) != 0 { err(ctx, "x64 native v0: sys_sched_yield expects 0 args"); return nil }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_sched_yield does not support spread"); return nil }
+
+        // pre: native_capsule_sys_sched_yield_pre()
+        if capsule { _emit_call_rel32_named_x64(ctx, "native_capsule_sys_sched_yield_pre") }
+
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_sched_yield()))
+        bytes_extend(ctx["code"], insn_syscall())
+        return nil
+    }
+
     if nm == "sys_nanosleep" {
         if oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_nanosleep expects 1 arg"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_nanosleep does not support spread"); return nil }

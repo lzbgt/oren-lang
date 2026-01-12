@@ -48,4 +48,6 @@
 // @include "runtime_native/245_select.oren"
 // Threads include allocator internals (`free`) used by almost everything.
 // @include "runtime_native/260_threads.oren"
+// Yield is a small portability helper (OS-thread yield today; greenlet yield later).
+// @include "runtime_native/262_yield.oren"
 // @include "runtime_native/265_result.oren"

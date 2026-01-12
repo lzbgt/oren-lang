@@ -1,0 +1,22 @@
+// --- Yield (native runtime; rolling) ---
+//
+// This file defines a minimal `oren_yield()` surface that matches the AVM intent:
+// “yield to other runnable work”.
+//
+// Native runtime reality today:
+// - macOS/Linux: language `spawn` is fork+pipe (process-based), so there is no shared scheduler.
+// - Windows: language `spawn` is CreateThread (shared memory), so OS-thread yield is meaningful.
+//
+// This function is a **best-effort OS yield hint**:
+// - Linux: calls sched_yield(2) via syscall-first `sys_sched_yield()`.
+// - Windows: calls Sleep(0) via `sys_sched_yield()` shim.
+// - macOS: currently a no-op (returns 0); a future native greenlet scheduler will provide a
+//   stronger yield contract.
+//
+// Contract:
+// - returns 0 on success; may return -errno on failed syscall paths.
+@oren.keep
+fn oren_yield() {
+    return sys_sched_yield()
+}
+

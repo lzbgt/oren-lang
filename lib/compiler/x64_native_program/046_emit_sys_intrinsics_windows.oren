@@ -80,6 +80,30 @@ fn _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) {
     return nil
 }
 
+fn _emit_intrinsic_sys_sched_yield_windows_x64(ctx, expr, locals, args) {
+    if ctx == nil { return nil }
+    if args != nil && oren_list_len(args) != 0 { err(ctx, "x64 native v0: sys_sched_yield expects 0 args"); return nil }
+    if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_sched_yield does not support spread"); return nil }
+
+    // Windows: yield current thread timeslice via KERNEL32!Sleep(0).
+    // Contract: returns 0 on success, or -errno.
+    var capsule = _x64_capsule_enabled(ctx)
+    if capsule {
+        _emit_call_rel32_named_x64(ctx, "native_capsule_sys_sched_yield_pre")
+    }
+
+    // Sleep(0)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 0)) // mov ecx, 0 (Win64 ABI arg0)
+    var mov_iat = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    _x64_add_rip_data32_fixup(ctx, mov_iat + 3, "IAT_Sleep")
+    bytes_extend(ctx["code"], insn_call_rax())
+
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    return nil
+}
+
 fn _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) {
     if ctx == nil { return nil }
     if args == nil || oren_list_len(args) != 3 { err(ctx, "x64 native v0: sys_gettimeofday expects 3 args"); return nil }
@@ -556,6 +580,7 @@ fn _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args) {
         if nm == "sys_gettid" { return _emit_intrinsic_sys_gettid_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
         if nm == "sys_nanosleep" { return _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_sched_yield" { return _emit_intrinsic_sys_sched_yield_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_gettimeofday" { return _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) }
         // Entropy
         if nm == "sys_getentropy" { return _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args) }

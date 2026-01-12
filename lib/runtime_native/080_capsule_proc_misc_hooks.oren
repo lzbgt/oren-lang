@@ -298,6 +298,15 @@ fn native_capsule_sys_nanosleep_pre(ns) {
     return ns
 }
 
+fn native_capsule_sys_sched_yield_pre() {
+    // Yield is a scheduling hint. In capsule mode, treat it as an effect that requires
+    // at least one “host progress” capability.
+    //
+    // Rolling rule: allow if either PROC or TIME is enrolled.
+    native_capsule_require_any(CAP_PROC | CAP_TIME, "PROC,TIME")
+    return 0
+}
+
 fn native_capsule_sys_kqueue_pre() {
     // Enforce enrollment on raw sys_kqueue (no bypass).
     //

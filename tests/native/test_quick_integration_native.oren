@@ -110,6 +110,15 @@ fn test_core() {
     assert_eq(-7 / 3, -2, 18)
     assert_eq(7 / -3, -2, 19)
     assert_eq(-7 / -3, 2, 20)
+
+    trace("QI: test_core yield")
+    // Yield is a best-effort OS scheduling hint today (future: native greenlet scheduler).
+    // It must be callable and bounded on all Tier‑1 platforms.
+    var yrc = oren_yield()
+    if yrc != 0 {
+        print("QI: oren_yield failed rc=" + oren_int_to_string(yrc))
+        fail(137)
+    }
     
     // Pointer byte stores/loads must work (critical for typed buffers, hashing, IO).
     var p0 = oren_ptr_alloc(16)

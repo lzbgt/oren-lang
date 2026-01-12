@@ -560,7 +560,37 @@ fn native_syscalls_chunk_020_syscalls_b(ctx, fn_name, args, compile_expr) {
                 ctx["stack_size"] = ctx["stack_size"] - 32
                 return true
             }
-    
+
+            if fn_name == "sys_sched_yield" {
+                // sys_sched_yield() -> 0_or_neg_errno
+                //
+                // Linux: sched_yield syscall (unblocks other runnable threads).
+                // Non-Linux: treat as a no-op (returns 0). A future native greenlet scheduler
+                // will provide a stronger yield contract.
+                var svc_imm = abi.darwin_svc_imm()
+                var sys_reg = abi.darwin_syscall_reg()
+                if ctx["platform"]["os"] == "linux" {
+                    svc_imm = labi.linux_svc_imm()
+                    sys_reg = labi.linux_syscall_reg()
+                }
+
+                // pre: native_capsule_sys_sched_yield_pre()
+                if capsule {
+                    var bl_y_pre = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_y_pre, "name": "native_capsule_sys_sched_yield_pre"})
+                }
+
+                if ctx["platform"]["os"] == "linux" {
+                    push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_sched_yield()))
+                    emit_svc_preserve_heap(ctx, svc_imm)
+                } else {
+                    // No-op on macOS in this backend (returns 0).
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                }
+                return true
+            }
+
 
             if fn_name == "sys_getdirentries64" {
                 // sys_getdirentries64(fd, buf, bufsize, pos_ptr) -> nbytes or negative errno
