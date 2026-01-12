@@ -534,9 +534,27 @@ remote_run_win() {
   if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
     envp="set OREN_CANON_I32_ABORT=1 & "
   fi
+  local want_tier1=0
+  if [[ "$exe_name" == tier1_* ]]; then
+    want_tier1=1
+  fi
   set +e
   # Preserve the program's exit code (do not let trailing `echo` mask failures).
-  run_with_timeout 30 "${ssh_base[@]}" "cmd.exe /v:on /c \"${envp}${remote_win_root}\\\\${exe_name} & set RC=!ERRORLEVEL! & echo EXIT=!RC! & exit /b !RC!\""
+  #
+  # Additionally, Tier‑1 fixtures must print key markers; otherwise we treat it as a failure
+  # even if the process exits 0 (prevents silent early-exit false positives).
+  local cmd=""
+  if [[ "$want_tier1" -ne 0 ]]; then
+    cmd="${envp}set OUT=%TEMP%\\\\oren_${exe_name}.out & del /f /q !OUT! >NUL 2>&1 & ${remote_win_root}\\\\${exe_name} > !OUT! 2>&1 & set RC=!ERRORLEVEL! & type !OUT! & echo EXIT=!RC!"
+    if [[ "$TIER1_EXPECT_MARKERS" -ne 0 ]]; then
+      cmd+=" & if !RC! EQU 0 (findstr /C:\"tier1 spawn join ok\" !OUT! >NUL || exit /b 97)"
+      cmd+=" & if !RC! EQU 0 (findstr /C:\"tier1 proc ok\" !OUT! >NUL || exit /b 98)"
+    fi
+    cmd+=" & exit /b !RC!"
+  else
+    cmd="${envp}${remote_win_root}\\\\${exe_name} & set RC=!ERRORLEVEL! & echo EXIT=!RC! & exit /b !RC!"
+  fi
+  run_with_timeout 30 "${ssh_base[@]}" "cmd.exe /v:on /c \"${cmd}\""
   local rc=$?
   set -e
   if [[ "$rc" -ne 0 ]]; then
