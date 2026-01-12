@@ -209,9 +209,9 @@ fn _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args) {
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsa_startup does not support spread"); return nil }
 
     var base = _intr_tmp_push(ctx, 1) // wsadata_ptr
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_ws = _intr_tmp_off(ctx, locals, base + 0)
-    if tmp_ws == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_ws) == 0 { _intr_tmp_pop(ctx, base); return nil }
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_ws)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
@@ -244,13 +244,13 @@ fn _emit_intrinsic_sys_select_windows_x64(ctx, expr, locals, args) {
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_select does not support spread"); return nil }
 
     var base = _intr_tmp_push(ctx, 5) // nfds, readfds, writefds, exceptfds, tv
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_nfds = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_r = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_w = _intr_tmp_off(ctx, locals, base + 2)
     var tmp_e = _intr_tmp_off(ctx, locals, base + 3)
     var tmp_tv = _intr_tmp_off(ctx, locals, base + 4)
-    if tmp_nfds == nil || tmp_r == nil || tmp_w == nil || tmp_e == nil || tmp_tv == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_nfds) == 0 || oren_type_tag(tmp_r) == 0 || oren_type_tag(tmp_w) == 0 || oren_type_tag(tmp_e) == 0 || oren_type_tag(tmp_tv) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_nfds)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_r)
@@ -293,11 +293,11 @@ fn _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 3) // domain,type,proto
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_dom = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_type = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_proto = _intr_tmp_off(ctx, locals, base + 2)
-    if tmp_dom == nil || tmp_type == nil || tmp_proto == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_dom) == 0 || oren_type_tag(tmp_type) == 0 || oren_type_tag(tmp_proto) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_dom)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_type)
@@ -348,11 +348,11 @@ fn _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 3) // fd, addr, len
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_addr = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
-    if tmp_fd == nil || tmp_addr == nil || tmp_len == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
@@ -405,11 +405,11 @@ fn _emit_intrinsic_sys_bind_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 3) // fd, addr, len
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_addr = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
-    if tmp_fd == nil || tmp_addr == nil || tmp_len == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
@@ -458,10 +458,10 @@ fn _emit_intrinsic_sys_listen_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 2) // fd, backlog
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_backlog = _intr_tmp_off(ctx, locals, base + 1)
-    if tmp_fd == nil || tmp_backlog == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_backlog) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_backlog)
@@ -505,11 +505,11 @@ fn _emit_intrinsic_sys_accept_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 3) // fd, addr, lenptr
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_addr = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_lenp = _intr_tmp_off(ctx, locals, base + 2)
-    if tmp_fd == nil || tmp_addr == nil || tmp_lenp == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_lenp) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
@@ -558,11 +558,11 @@ fn _emit_intrinsic_sys_getsockname_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 3) // fd, addr, lenp
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_addr = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_lenp = _intr_tmp_off(ctx, locals, base + 2)
-    if tmp_fd == nil || tmp_addr == nil || tmp_lenp == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_lenp) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
@@ -605,11 +605,11 @@ fn _emit_intrinsic_sys_getpeername_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 3) // fd, addr, lenp
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_addr = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_lenp = _intr_tmp_off(ctx, locals, base + 2)
-    if tmp_fd == nil || tmp_addr == nil || tmp_lenp == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_lenp) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
@@ -652,13 +652,13 @@ fn _emit_intrinsic_sys_setsockopt_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 5) // fd, level, opt, val, len
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_lvl = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_opt = _intr_tmp_off(ctx, locals, base + 2)
     var tmp_val = _intr_tmp_off(ctx, locals, base + 3)
     var tmp_len = _intr_tmp_off(ctx, locals, base + 4)
-    if tmp_fd == nil || tmp_lvl == nil || tmp_opt == nil || tmp_val == nil || tmp_len == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_lvl) == 0 || oren_type_tag(tmp_opt) == 0 || oren_type_tag(tmp_val) == 0 || oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_lvl)
@@ -747,13 +747,13 @@ fn _emit_intrinsic_sys_getsockopt_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 5) // fd, level, opt, val, lenp
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_lvl = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_opt = _intr_tmp_off(ctx, locals, base + 2)
     var tmp_val = _intr_tmp_off(ctx, locals, base + 3)
     var tmp_lenp = _intr_tmp_off(ctx, locals, base + 4)
-    if tmp_fd == nil || tmp_lvl == nil || tmp_opt == nil || tmp_val == nil || tmp_lenp == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_lvl) == 0 || oren_type_tag(tmp_opt) == 0 || oren_type_tag(tmp_val) == 0 || oren_type_tag(tmp_lenp) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_lvl)
@@ -845,10 +845,10 @@ fn _emit_intrinsic_sys_shutdown_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 2) // fd, how
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_how = _intr_tmp_off(ctx, locals, base + 1)
-    if tmp_fd == nil || tmp_how == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_how) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_how)
@@ -888,14 +888,14 @@ fn _emit_intrinsic_sys_sendto_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 6) // fd,buf,len,flags,to,tolen
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_buf = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
     var tmp_flags = _intr_tmp_off(ctx, locals, base + 3)
     var tmp_to = _intr_tmp_off(ctx, locals, base + 4)
     var tmp_tolen = _intr_tmp_off(ctx, locals, base + 5)
-    if tmp_fd == nil || tmp_buf == nil || tmp_len == nil || tmp_flags == nil || tmp_to == nil || tmp_tolen == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_buf) == 0 || oren_type_tag(tmp_len) == 0 || oren_type_tag(tmp_flags) == 0 || oren_type_tag(tmp_to) == 0 || oren_type_tag(tmp_tolen) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_buf)
@@ -953,14 +953,14 @@ fn _emit_intrinsic_sys_recvfrom_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 6) // fd,buf,len,flags,from,fromlen
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_buf = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_len = _intr_tmp_off(ctx, locals, base + 2)
     var tmp_flags = _intr_tmp_off(ctx, locals, base + 3)
     var tmp_from = _intr_tmp_off(ctx, locals, base + 4)
     var tmp_fromlen = _intr_tmp_off(ctx, locals, base + 5)
-    if tmp_fd == nil || tmp_buf == nil || tmp_len == nil || tmp_flags == nil || tmp_from == nil || tmp_fromlen == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_buf) == 0 || oren_type_tag(tmp_len) == 0 || oren_type_tag(tmp_flags) == 0 || oren_type_tag(tmp_from) == 0 || oren_type_tag(tmp_fromlen) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_buf)
@@ -1017,9 +1017,9 @@ fn _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 1) // fd
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
-    if tmp_fd == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_fd) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _emit_eval_int_to_rax(ctx, args[0], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
@@ -1090,9 +1090,9 @@ fn _emit_intrinsic_sys_fcntl_getfl_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 1) // fd
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
-    if tmp_fd == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_fd) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _emit_eval_int_to_rax(ctx, args[0], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
@@ -1129,10 +1129,10 @@ fn _emit_intrinsic_sys_fcntl_setfl_windows_x64(ctx, expr, locals, args) {
     var capsule = _x64_capsule_enabled(ctx)
 
     var base = _intr_tmp_push(ctx, 2) // fd, oren_flags
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_fd = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_flags = _intr_tmp_off(ctx, locals, base + 1)
-    if tmp_fd == nil || tmp_flags == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_flags) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_flags)

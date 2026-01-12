@@ -247,13 +247,13 @@ fn bytecode_compile_expr(ctx, expr) {
                 var prop = expr["prop"]["value"]
                 var name = alias + prop
                 var glob = ctx["globals"][name]
-                if glob != nil {
+                if oren_type_tag(glob) != 0 {
                     emit_byte(ctx, AVM_LOAD_GLOBAL)
                     emit_u16(ctx, glob - 1)
                     return nil
                 }
                 var faddr = ctx["functions"][name]
-                if faddr != nil {
+                if oren_type_tag(faddr) != 0 {
                     emit_byte(ctx, AVM_PUSH_FUNC32)
                     emit_u32(ctx, faddr - 1)
                     return nil
@@ -383,27 +383,27 @@ fn bytecode_compile_expr(ctx, expr) {
     if expr["type"] == "Identifier" {
         var name = expr["value"]
         var loc = ctx["locals"][name]
-        if loc != nil {
+        if oren_type_tag(loc) != 0 {
             emit_load_local(ctx, loc - 1)
             return nil
         }
         var caps = ctx["env_captures"]
         if caps != nil {
             var cidx = caps[name]
-            if cidx != nil {
+            if oren_type_tag(cidx) != 0 {
                 emit_byte(ctx, AVM_LOAD_ENV)
                 emit_byte(ctx, cidx - 1)
                 return nil
             }
         }
         var glob = ctx["globals"][name]
-        if glob != nil {
+        if oren_type_tag(glob) != 0 {
             emit_byte(ctx, AVM_LOAD_GLOBAL)
             emit_u16(ctx, glob - 1)
             return nil
         }
         var faddr = ctx["functions"][name]
-        if faddr != nil {
+        if oren_type_tag(faddr) != 0 {
             emit_byte(ctx, AVM_PUSH_FUNC32)
             emit_u32(ctx, faddr - 1)
             return nil

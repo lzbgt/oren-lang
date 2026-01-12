@@ -289,7 +289,7 @@ fn _data_finalize_symtab(ctx) {
             off_enc = 1
         } else if ctx["functions"] != nil {
             var off0 = ctx["functions"][nm]
-            if off0 != nil { off_enc = off0 + 1 }
+            if oren_type_tag(off0) != 0 { off_enc = off0 + 1 }
         }
         if off_enc == 0 {
             err(ctx, "x64 native v0: symtab missing function offset for " + nm)
@@ -362,7 +362,7 @@ fn _data_reserve_linetab(ctx, cap_entries) {
     //
     // The table is filled later by `_data_finalize_linetab`, after compilation.
     if ctx == nil { return nil }
-    if cap_entries == nil || cap_entries <= 0 { return nil }
+    if oren_type_tag(cap_entries) == 0 || cap_entries <= 0 { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
 
     // 8-byte align for u64 reads.

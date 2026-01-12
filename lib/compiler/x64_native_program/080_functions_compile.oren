@@ -148,7 +148,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // - calling a local/global variable that shadows a function name (`locals > globals > functions`)
     // - calling a non-identifier callee expression (first-class callables)
     var max_intr = _max_intr_tmp_in_ops(ctx, ops, locals)
-    if max_intr == nil { max_intr = 0 }
+    if oren_type_tag(max_intr) == 0 { max_intr = 0 }
     var intr_lim = max_intr + 8
     if intr_lim < 16 { intr_lim = 16 }
     // Rolling safety ceiling: if a function needs an extreme amount of temp spilling,
@@ -286,7 +286,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         // Params 0..regc-1 come from ABI registers. Additional params come from the caller stack.
         if i < regc {
             var reg_enc = abi.int_arg_reg(ctx["abi"], i)
-            if reg_enc == nil { err(ctx, "x64 native v0: unsupported param index"); return nil }
+            if oren_type_tag(reg_enc) == 0 { err(ctx, "x64 native v0: unsupported param index"); return nil }
             var reg = reg_enc - 1
             // Spill the full register width so function pointers can be passed/called.
             _emit_mov_mrbp_r64(ctx, 0 - off, reg)
@@ -365,7 +365,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         // The runtime hook returns 0 in RAX; without preserving, every function would
         // accidentally return 0.
         var off_ret = locals["$tmp0"]
-        if off_ret == nil { err(ctx, "x64 native v0: missing $tmp0 spill slot"); return nil }
+        if oren_type_tag(off_ret) == 0 { err(ctx, "x64 native v0: missing $tmp0 spill slot"); return nil }
         _emit_mov_mrbp_r64(ctx, 0 - off_ret, 0) // [tmp] = rax
         var pos_exit = bytes_len(ctx["code"])
         bytes_extend(ctx["code"], insn_call_rel32(0))

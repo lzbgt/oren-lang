@@ -55,10 +55,10 @@ fn _emit_infix_add_or_string_concat_x64(ctx, expr, locals) {
 
     // Evaluate LTR, then dispatch in the injected runtime.
     var base = _intr_tmp_push(ctx, 2)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_a = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_b = _intr_tmp_off(ctx, locals, base + 1)
-    if tmp_a == nil || tmp_b == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_a) == 0 || oren_type_tag(tmp_b) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _emit_eval_int_to_rax(ctx, expr["left"], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
@@ -70,7 +70,7 @@ fn _emit_infix_add_or_string_concat_x64(ctx, expr, locals) {
 
     var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
     var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
-    if a0_enc == nil || a1_enc == nil {
+    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 {
         err(ctx, "x64 native v0: missing ABI arg regs for oren_add")
         _intr_tmp_pop(ctx, base)
         return nil

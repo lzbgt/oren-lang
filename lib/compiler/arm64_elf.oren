@@ -1072,12 +1072,12 @@ fn elf_emit_program_arm64(out_path, linked, libs, is_shared, exports, debug_mode
         // Shared lib exports: emit ABI wrappers and point dynsym entries at wrappers.
         var export_wrappers = {}
         if is_shared == true {
-            var heap_limit_slot_off_enc = ctx["heap_limit_slot_enc"]
-            var heap_ptr_slot_off_enc = ctx["heap_ptr_slot_enc"]
-            if heap_limit_slot_off_enc == nil || heap_ptr_slot_off_enc == nil {
-                print("native backend (arm64-linux): missing heap spill slots in ctx (heap_limit_slot_enc/heap_ptr_slot_enc)")
-                oren_exit(1)
-            }
+	            var heap_limit_slot_off_enc = ctx["heap_limit_slot_enc"]
+	            var heap_ptr_slot_off_enc = ctx["heap_ptr_slot_enc"]
+	            if oren_type_tag(heap_limit_slot_off_enc) == 0 || oren_type_tag(heap_ptr_slot_off_enc) == 0 {
+	                print("native backend (arm64-linux): missing heap spill slots in ctx (heap_limit_slot_enc/heap_ptr_slot_enc)")
+	                oren_exit(1)
+	            }
             export_wrappers = _elf_emit_export_wrappers_arm64(code, fixups, functions, exports, heap_limit_slot_off_enc - 1, heap_ptr_slot_off_enc - 1)
         }
         dyn_meta = _elf_arm64_append_dyn_metadata(ctx, base, text_base, data_file_off, libs, exports, export_wrappers, is_shared == true, 0)

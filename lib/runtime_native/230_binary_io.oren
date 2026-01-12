@@ -432,10 +432,30 @@ fn oren_mkdir_p(path) {
                         // no-op
                     } else {
                         ptr_set_byte(buf + i, 0)
-                        var rc = sys_mkdir(buf, mode)
+                        // mkdir -p should treat the current directory "." as a no-op segment.
+                        // This matters on Windows, where attempting to sys_mkdir(".") can return
+                        // -EEXIST but sys_stat(".") may not reliably report as a directory in our
+                        // minimal FS bridge, causing spurious failures in compiler tooling.
+                        var rc = 0
+                        if ptr_get_byte(buf) != 46 || ptr_get_byte(buf + 1) != 0 {
+                            rc = sys_mkdir(buf, mode)
+                        }
                         if rc < 0 {
                             if rc == 0 - 17 { // -EEXIST
-                                if _oren_is_dir(buf) != true {
+                                // Do not call `_oren_is_dir` here: on x64-windows the native backend
+                                // has had correctness issues around some bool-returning function calls,
+                                // which can make `_oren_is_dir(...)` spuriously return false even when
+                                // `sys_stat` reports a directory. Inline the stat+mode check instead.
+                                var stx = oren_stat_alloc()
+                                var srx = sys_stat(buf, stx)
+                                if srx < 0 {
+                                    free(stx)
+                                    free(buf)
+                                    return rc
+                                }
+                                var modex = oren_stat_get_mode(stx)
+                                free(stx)
+                                if _oren_mode_is_dir(modex) != true {
                                     free(buf)
                                     return rc
                                 }
@@ -452,10 +472,23 @@ fn oren_mkdir_p(path) {
         i = i + 1
     }
 
-    var rc2 = sys_mkdir(buf, mode)
+    var rc2 = 0
+    if ptr_get_byte(buf) != 46 || ptr_get_byte(buf + 1) != 0 {
+        rc2 = sys_mkdir(buf, mode)
+    }
     if rc2 < 0 {
         if rc2 == 0 - 17 {
-            if _oren_is_dir(buf) != true {
+            // Same as above: inline stat+mode check instead of calling `_oren_is_dir`.
+            var st2 = oren_stat_alloc()
+            var sr2 = sys_stat(buf, st2)
+            if sr2 < 0 {
+                free(st2)
+                free(buf)
+                return rc2
+            }
+            var mode2 = oren_stat_get_mode(st2)
+            free(st2)
+            if _oren_mode_is_dir(mode2) != true {
                 free(buf)
                 return rc2
             }

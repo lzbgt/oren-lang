@@ -32,20 +32,20 @@ fn _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) {
 
     // Spill args so we can freely use registers.
     var base = _intr_tmp_push(ctx, 4)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
 
     var tmp_app = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_cmd = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_env = _intr_tmp_off(ctx, locals, base + 2)
     var tmp_to = _intr_tmp_off(ctx, locals, base + 3)
-    if tmp_app == nil || tmp_cmd == nil || tmp_env == nil || tmp_to == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_app) == 0 || oren_type_tag(tmp_cmd) == 0 || oren_type_tag(tmp_env) == 0 || oren_type_tag(tmp_to) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // Win64 ABI call-area invariants:
     // sys_win_createprocess uses stack args (CreateProcessA has 6 stack args) and keeps its
     // scratch structs in the per-function outgoing call area so we don't rely on large
     // RBP-relative frames / stack probing behavior.
     var call_area = ctx["cur_call_area_bytes"]
-    if call_area == nil { err(ctx, "x64 native v0: missing cur_call_area_bytes"); _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(call_area) == 0 { err(ctx, "x64 native v0: missing cur_call_area_bytes"); _intr_tmp_pop(ctx, base); return nil }
 
     // Call-area layout (RSP-relative, before the `call` instruction):
     // - [rsp+0x00..0x1F]  32B Win64 shadow space (callee homes rcx/rdx/r8/r9 here)

@@ -145,7 +145,7 @@ fn bytecode_compile_stmt(ctx, stmt) {
             emit_u16(ctx, idx)
         } else {
             var idx1 = ctx["locals"][name]
-            if idx1 == nil {
+            if oren_type_tag(idx1) == 0 {
                 // Should not happen: we pre-collect locals in bytecode_compile_function.
             bytecode_error(ctx, "bytecode backend: internal error, missing local slot for " + name)
             return nil
@@ -162,7 +162,7 @@ fn bytecode_compile_stmt(ctx, stmt) {
             var caps = ctx["env_captures"]
             if caps != nil {
                 var cidx = caps[target["value"]]
-                if cidx != nil {
+                if oren_type_tag(cidx) != 0 {
             bytecode_error(ctx, "bytecode backend: cannot assign to captured var '" + target["value"] + "' (capture-by-value)")
             return nil
                 }
@@ -170,12 +170,12 @@ fn bytecode_compile_stmt(ctx, stmt) {
             bytecode_compile_expr(ctx, stmt["value"])
             var name = target["value"]
             var loc1 = ctx["locals"][name]
-            if loc1 != nil {
+            if oren_type_tag(loc1) != 0 {
                 emit_store_local(ctx, loc1 - 1)
                 return nil
             }
             var glob1 = ctx["globals"][name]
-            if glob1 != nil {
+            if oren_type_tag(glob1) != 0 {
                 emit_byte(ctx, AVM_STORE_GLOBAL)
                 emit_u16(ctx, glob1 - 1)
                 return nil

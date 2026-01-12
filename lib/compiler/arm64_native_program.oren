@@ -279,7 +279,7 @@ fn _arm64_new_ctx(linked, platform) {
 }
 
 fn _rtobj_decode_int_enc(x_enc) {
-    if x_enc == nil { return nil }
+    if oren_type_tag(x_enc) == 0 { return nil }
     return x_enc - 1
 }
 
@@ -1318,7 +1318,7 @@ fn native_compile_program_arm64(linked, platform) {
         // Store heap regs (X27=limit, X28=ptr) into the reserved `.data` spill slots.
         var heap_limit_slot_off_enc = ctx["heap_limit_slot_enc"]
         var heap_ptr_slot_off_enc = ctx["heap_ptr_slot_enc"]
-        if heap_limit_slot_off_enc == nil || heap_ptr_slot_off_enc == nil {
+        if oren_type_tag(heap_limit_slot_off_enc) == 0 || oren_type_tag(heap_ptr_slot_off_enc) == 0 {
             oren_list_push(ctx["errors"], "arm64 native: missing heap spill slots (heap_limit_slot_enc/heap_ptr_slot_enc) for shared library build")
             return nil
         }

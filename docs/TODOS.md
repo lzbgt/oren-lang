@@ -93,16 +93,20 @@ References:
 		     - Direction: provide a small syscall-first filesystem helper surface usable by both native and C backend runtimes (avoid `oren_system("mkdir -p ...")` for core operations).
 		     - Keep it bounded: implement only what the compiler needs (mkdir -p, rm -f, rm -rf, exists, rename).
 
-	   Status (fact):
+		   Status (fact):
 
-		   - 2026-01-12: eliminated compiler dependency on shell `mkdir` for core tooling by adding `oren_mkdir_p`:
-		     - C backend runtime: `lib/runtime/050_io_misc.inc` (`oren_mkdir_p` returns 0 / -errno)
-		     - native runtime: `lib/runtime_native/230_binary_io.oren` (`oren_mkdir_p` implemented via `sys_mkdir` + `sys_stat` dir check)
-		     - compiler tooling: `ensure_dir(...)` now calls `oren_mkdir_p` (no `oren_system("mkdir ...")`)
-		   - 2026-01-12: removed compiler dependency on shell `rm` / Windows `del` for core tooling:
-		     - C backend runtime: `oren_unlink`, `oren_rmdir`, `oren_rm_rf` (0 / -errno; `rm -rf` ignores missing path)
-		     - native runtime: `oren_unlink`, `oren_rmdir`, `oren_rm_rf` (implemented via `sys_unlink/sys_rmdir/sys_lstat` + `oren_readdir`)
-		     - compiler tooling: no `oren_system("rm ...")` / `oren_system("del ...")` under `lib/compiler/compiler/*`
+			   - 2026-01-12: eliminated compiler dependency on shell `mkdir` for core tooling by adding `oren_mkdir_p`:
+			     - C backend runtime: `lib/runtime/050_io_misc.inc` (`oren_mkdir_p` returns 0 / -errno)
+			     - native runtime: `lib/runtime_native/230_binary_io.oren` (`oren_mkdir_p` implemented via `sys_mkdir` + `sys_stat` dir check)
+			     - compiler tooling: `ensure_dir(...)` now calls `oren_mkdir_p` (no `oren_system("mkdir ...")`)
+			   - 2026-01-13: fixed a Windows correctness edge-case in native `oren_mkdir_p` (`-EEXIST` on existing directory):
+			     - Root cause: in x64-windows bring-up, calling `_oren_is_dir(path) -> bool` could return a spurious `false` even when `sys_stat` reports a directory.
+			     - Fix: `oren_mkdir_p` now inlines `sys_stat` + mode check for the `-EEXIST` path (avoids relying on `_oren_is_dir` in the compiler/tooling hot path).
+			     - Verified: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` (includes the Windows backslash-path compile+run gate).
+			   - 2026-01-12: removed compiler dependency on shell `rm` / Windows `del` for core tooling:
+			     - C backend runtime: `oren_unlink`, `oren_rmdir`, `oren_rm_rf` (0 / -errno; `rm -rf` ignores missing path)
+			     - native runtime: `oren_unlink`, `oren_rmdir`, `oren_rm_rf` (implemented via `sys_unlink/sys_rmdir/sys_lstat` + `oren_readdir`)
+			     - compiler tooling: no `oren_system("rm ...")` / `oren_system("del ...")` under `lib/compiler/compiler/*`
 		   - 2026-01-12: removed compiler dependency on shell `test -f` / `if exist` probes for `file_exists(...)`:
 		     - runtime: `oren_is_file(path)` (C + native) so stage1 tooling can check existence without shelling out
 		   - 2026-01-12: verified x64 native selfhost compile-only gate still passes after the runtime FS-helper refactor:

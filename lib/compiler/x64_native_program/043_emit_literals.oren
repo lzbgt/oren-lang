@@ -41,7 +41,7 @@ fn _emit_array_literal_expr(ctx, expr, locals) {
     if els == nil { els = [] }
 
     var depth_enc0 = _lit_enter(ctx)
-    if depth_enc0 == nil { return nil }
+    if oren_type_tag(depth_enc0) == 0 { return nil }
     var d0 = depth_enc0 - 1
 
     // PERF (stage2-native compiler):
@@ -123,7 +123,7 @@ fn _emit_hash_literal_expr(ctx, expr, locals) {
     if pairs == nil { pairs = [] }
 
     var depth_enc0 = _lit_enter(ctx)
-    if depth_enc0 == nil { return nil }
+    if oren_type_tag(depth_enc0) == 0 { return nil }
     var d0 = depth_enc0 - 1
 
     // PERF (stage2-native compiler):

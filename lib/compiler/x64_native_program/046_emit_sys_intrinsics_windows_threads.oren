@@ -27,10 +27,10 @@ fn _emit_intrinsic_sys_win_createthread_windows_x64(ctx, expr, locals, args) {
 
     // Spill args (start, arg_ptr)
     var base = _intr_tmp_push(ctx, 2)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_start = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_arg = _intr_tmp_off(ctx, locals, base + 1)
-    if tmp_start == nil || tmp_arg == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_start) == 0 || oren_type_tag(tmp_arg) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_start)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_arg)
@@ -74,10 +74,10 @@ fn _emit_intrinsic_sys_win_wait_single_object_windows_x64(ctx, expr, locals, arg
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_win_wait_single_object does not support spread"); return nil }
 
     var base = _intr_tmp_push(ctx, 2) // handle, timeout
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_h = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_to = _intr_tmp_off(ctx, locals, base + 1)
-    if tmp_h == nil || tmp_to == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_h) == 0 || oren_type_tag(tmp_to) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_h)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_to)
@@ -150,10 +150,10 @@ fn _emit_intrinsic_sys_win_terminate_thread_windows_x64(ctx, expr, locals, args)
     if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_win_terminate_thread does not support spread"); return nil }
 
     var base = _intr_tmp_push(ctx, 2) // handle, exit_code
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_h = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_code = _intr_tmp_off(ctx, locals, base + 1)
-    if tmp_h == nil || tmp_code == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_h) == 0 || oren_type_tag(tmp_code) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_h)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_code)
@@ -191,9 +191,9 @@ fn _emit_intrinsic_sys_win_close_handle_windows_x64(ctx, expr, locals, args) {
 
     // CloseHandle(handle)
     var base = _intr_tmp_push(ctx, 1)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_h = _intr_tmp_off(ctx, locals, base + 0)
-    if tmp_h == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_h) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_h)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }

@@ -422,7 +422,7 @@ fn patch_u16(ctx, idx, n) {
 }
 
 fn emit_load_local(ctx, idx) {
-    if idx == nil { return nil }
+    if oren_type_tag(idx) == 0 { return nil }
     if idx >= 0 && idx < 256 {
         emit_byte(ctx, AVM_LOAD_LOCAL)
         emit_byte(ctx, idx)
@@ -438,7 +438,7 @@ fn emit_load_local(ctx, idx) {
 }
 
 fn emit_store_local(ctx, idx) {
-    if idx == nil { return nil }
+    if oren_type_tag(idx) == 0 { return nil }
     if idx >= 0 && idx < 256 {
         emit_byte(ctx, AVM_STORE_LOCAL)
         emit_byte(ctx, idx)

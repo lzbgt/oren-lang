@@ -47,7 +47,7 @@ fn _emit_intrinsic_stack_helpers_x64(ctx, nm, expr, locals, args) {
         // using `nil` as the sentinel for "missing" (call sites decode with `enc-1`).
         var symtab_off_enc = ctx["symtab_off"]
         var symtab_off = nil
-        if symtab_off_enc != nil { symtab_off = symtab_off_enc - 1 }
+        if oren_type_tag(symtab_off_enc) != 0 { symtab_off = symtab_off_enc - 1 }
         var unk_off = _data_add_cstr0(ctx, "???")
         // `unk_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
         var lea_unk = bytes_len(ctx["code"])
@@ -56,7 +56,7 @@ fn _emit_intrinsic_stack_helpers_x64(ctx, nm, expr, locals, args) {
 
         // If symtab is missing (shouldn't happen in Tier‑1 builds), keep "???".
         // Still run the tracking step below so downstream string ops remain safe.
-        if symtab_off_enc == nil {
+        if oren_type_tag(symtab_off_enc) == 0 {
             if locals != nil { _emit_ensure_tracked_ptr_kind_x64(ctx, locals, 0, 1) }
             return 1
         }

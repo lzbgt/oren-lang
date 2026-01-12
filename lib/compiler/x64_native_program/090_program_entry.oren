@@ -388,7 +388,7 @@ fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
 }
 
 fn _rtobj_decode_int_enc(x_enc) {
-    if x_enc == nil { return nil }
+    if oren_type_tag(x_enc) == 0 { return nil }
     return x_enc - 1
 }
 
@@ -546,7 +546,7 @@ fn _x64_rtobj_encode_rip_data32_fixups(m) {
             var i = 0
             while i < oren_list_len(xs) {
                 var p = xs[i]
-                if p != nil { oren_list_push(enc, p + 1) }
+                if oren_type_tag(p) != 0 { oren_list_push(enc, p + 1) }
                 i = i + 1
             }
             out[k] = enc
@@ -905,14 +905,14 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
 
         var ar0 = nil
         if ctx["func_arity"] != nil {
-            var ar0_enc = ctx["func_arity"][nm0]
-            if ar0_enc != nil { ar0 = ar0_enc - 1 }
-        }
-        var vf0 = nil
-        if ctx["func_varargs_fixed"] != nil {
-            var vf0_enc = ctx["func_varargs_fixed"][nm0]
-            if vf0_enc != nil { vf0 = vf0_enc - 1 }
-        }
+        var ar0_enc = ctx["func_arity"][nm0]
+        if oren_type_tag(ar0_enc) != 0 { ar0 = ar0_enc - 1 }
+    }
+    var vf0 = nil
+    if ctx["func_varargs_fixed"] != nil {
+        var vf0_enc = ctx["func_varargs_fixed"][nm0]
+        if oren_type_tag(vf0_enc) != 0 { vf0 = vf0_enc - 1 }
+    }
         if ar0 != nil {
             var stw = callable.synth_fnwrap(nm0, ar0, vf0)
             if stw != nil && stw["type"] == "ExprStmt" && stw["expr"] != nil && stw["expr"]["type"] == "Function" {
@@ -2243,12 +2243,12 @@ fn native_compile_program_x64(linked, platform) {
             if ctx["functions"][wname2] == nil {
                 var ar_enc2 = nil
                 if ctx["func_arity"] != nil { ar_enc2 = ctx["func_arity"][fname2] }
-                if ar_enc2 != nil {
+                if oren_type_tag(ar_enc2) != 0 {
                     var ar2 = ar_enc2 - 1
                     var vf2 = nil
                     if ctx["func_varargs_fixed"] != nil {
                         var vf_enc2 = ctx["func_varargs_fixed"][fname2]
-                        if vf_enc2 != nil { vf2 = vf_enc2 - 1 }
+                        if oren_type_tag(vf_enc2) != 0 { vf2 = vf_enc2 - 1 }
                     }
                     var st2 = callable.synth_fnwrap(fname2, ar2, vf2)
                     if st2 != nil && st2["type"] == "ExprStmt" && st2["expr"] != nil && st2["expr"]["type"] == "Function" {

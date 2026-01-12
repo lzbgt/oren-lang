@@ -9,11 +9,11 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_socket does not support spread"); return true }
 
         var base26 = _intr_tmp_push(ctx, 3) // domain, type, proto
-        if base26 == nil { return true }
+        if oren_type_tag(base26) == 0 { return true }
         var tmp_dom = _intr_tmp_off(ctx, locals, base26 + 0)
         var tmp_type = _intr_tmp_off(ctx, locals, base26 + 1)
         var tmp_proto = _intr_tmp_off(ctx, locals, base26 + 2)
-        if tmp_dom == nil || tmp_type == nil || tmp_proto == nil { _intr_tmp_pop(ctx, base26); return true }
+        if oren_type_tag(tmp_dom) == 0 || oren_type_tag(tmp_type) == 0 || oren_type_tag(tmp_proto) == 0 { _intr_tmp_pop(ctx, base26); return true }
 
         _intr_eval_spill_x64(ctx, locals, args[0], tmp_dom)
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_type)
@@ -52,11 +52,11 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
 
         var base27 = _intr_tmp_push(ctx, 3) // fd, addr, addrlen(_ptr)
-        if base27 == nil { return true }
+        if oren_type_tag(base27) == 0 { return true }
         var tmp_fd = _intr_tmp_off(ctx, locals, base27 + 0)
         var tmp_addr = _intr_tmp_off(ctx, locals, base27 + 1)
         var tmp_len = _intr_tmp_off(ctx, locals, base27 + 2)
-        if tmp_fd == nil || tmp_addr == nil || tmp_len == nil { _intr_tmp_pop(ctx, base27); return true }
+        if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base27); return true }
 
         _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
@@ -142,10 +142,10 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
 
         var base28 = _intr_tmp_push(ctx, 2) // fd, arg
-        if base28 == nil { return true }
+        if oren_type_tag(base28) == 0 { return true }
         var tmp_fd = _intr_tmp_off(ctx, locals, base28 + 0)
         var tmp_arg = _intr_tmp_off(ctx, locals, base28 + 1)
-        if tmp_fd == nil || tmp_arg == nil { _intr_tmp_pop(ctx, base28); return true }
+        if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_arg) == 0 { _intr_tmp_pop(ctx, base28); return true }
 
         _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_arg)
@@ -191,11 +191,11 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_accept does not support spread"); return true }
 
         var base29 = _intr_tmp_push(ctx, 3) // fd, addr, addrlen_ptr
-        if base29 == nil { return true }
+        if oren_type_tag(base29) == 0 { return true }
         var tmp_fd = _intr_tmp_off(ctx, locals, base29 + 0)
         var tmp_addr = _intr_tmp_off(ctx, locals, base29 + 1)
         var tmp_lenp = _intr_tmp_off(ctx, locals, base29 + 2)
-        if tmp_fd == nil || tmp_addr == nil || tmp_lenp == nil { _intr_tmp_pop(ctx, base29); return true }
+        if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_lenp) == 0 { _intr_tmp_pop(ctx, base29); return true }
 
         _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
@@ -233,13 +233,13 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
 
         var base30 = _intr_tmp_push(ctx, 5)
-        if base30 == nil { return true }
+        if oren_type_tag(base30) == 0 { return true }
         var tmp_fd = _intr_tmp_off(ctx, locals, base30 + 0)
         var tmp_level = _intr_tmp_off(ctx, locals, base30 + 1)
         var tmp_opt = _intr_tmp_off(ctx, locals, base30 + 2)
         var tmp_val = _intr_tmp_off(ctx, locals, base30 + 3)
         var tmp_lenp = _intr_tmp_off(ctx, locals, base30 + 4)
-        if tmp_fd == nil || tmp_level == nil || tmp_opt == nil || tmp_val == nil || tmp_lenp == nil { _intr_tmp_pop(ctx, base30); return true }
+        if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_level) == 0 || oren_type_tag(tmp_opt) == 0 || oren_type_tag(tmp_val) == 0 || oren_type_tag(tmp_lenp) == 0 { _intr_tmp_pop(ctx, base30); return true }
 
         _intr_eval_spill_x64(ctx, locals, args[0], tmp_fd)
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_level)
@@ -289,14 +289,14 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: " + nm + " does not support spread"); return true }
 
         var base31 = _intr_tmp_push(ctx, 6)
-        if base31 == nil { return true }
+        if oren_type_tag(base31) == 0 { return true }
         var o0 = _intr_tmp_off(ctx, locals, base31 + 0)
         var o1 = _intr_tmp_off(ctx, locals, base31 + 1)
         var o2 = _intr_tmp_off(ctx, locals, base31 + 2)
         var o3 = _intr_tmp_off(ctx, locals, base31 + 3)
         var o4 = _intr_tmp_off(ctx, locals, base31 + 4)
         var o5 = _intr_tmp_off(ctx, locals, base31 + 5)
-        if o0 == nil || o1 == nil || o2 == nil || o3 == nil || o4 == nil || o5 == nil { _intr_tmp_pop(ctx, base31); return true }
+        if oren_type_tag(o0) == 0 || oren_type_tag(o1) == 0 || oren_type_tag(o2) == 0 || oren_type_tag(o3) == 0 || oren_type_tag(o4) == 0 || oren_type_tag(o5) == 0 { _intr_tmp_pop(ctx, base31); return true }
 
         _intr_eval_spill_x64(ctx, locals, args[0], o0)
         _intr_eval_spill_x64(ctx, locals, args[1], o1)
@@ -351,9 +351,9 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_epoll_create1 does not support spread"); return true }
 
         var base32 = _intr_tmp_push(ctx, 1)
-        if base32 == nil { return true }
+        if oren_type_tag(base32) == 0 { return true }
         var tmp_flags = _intr_tmp_off(ctx, locals, base32 + 0)
-        if tmp_flags == nil { _intr_tmp_pop(ctx, base32); return true }
+        if oren_type_tag(tmp_flags) == 0 { _intr_tmp_pop(ctx, base32); return true }
         _intr_eval_spill_x64(ctx, locals, args[0], tmp_flags)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base32); return true }
 
@@ -383,12 +383,12 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_epoll_ctl does not support spread"); return true }
 
         var base33 = _intr_tmp_push(ctx, 4)
-        if base33 == nil { return true }
+        if oren_type_tag(base33) == 0 { return true }
         var a0 = _intr_tmp_off(ctx, locals, base33 + 0)
         var a1 = _intr_tmp_off(ctx, locals, base33 + 1)
         var a2 = _intr_tmp_off(ctx, locals, base33 + 2)
         var a3 = _intr_tmp_off(ctx, locals, base33 + 3)
-        if a0 == nil || a1 == nil || a2 == nil || a3 == nil { _intr_tmp_pop(ctx, base33); return true }
+        if oren_type_tag(a0) == 0 || oren_type_tag(a1) == 0 || oren_type_tag(a2) == 0 || oren_type_tag(a3) == 0 { _intr_tmp_pop(ctx, base33); return true }
 
         _intr_eval_spill_x64(ctx, locals, args[0], a0)
         _intr_eval_spill_x64(ctx, locals, args[1], a1)
@@ -419,14 +419,14 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_epoll_pwait does not support spread"); return true }
 
         var base34 = _intr_tmp_push(ctx, 6)
-        if base34 == nil { return true }
+        if oren_type_tag(base34) == 0 { return true }
         var b0 = _intr_tmp_off(ctx, locals, base34 + 0)
         var b1 = _intr_tmp_off(ctx, locals, base34 + 1)
         var b2 = _intr_tmp_off(ctx, locals, base34 + 2)
         var b3 = _intr_tmp_off(ctx, locals, base34 + 3)
         var b4 = _intr_tmp_off(ctx, locals, base34 + 4)
         var b5 = _intr_tmp_off(ctx, locals, base34 + 5)
-        if b0 == nil || b1 == nil || b2 == nil || b3 == nil || b4 == nil || b5 == nil { _intr_tmp_pop(ctx, base34); return true }
+        if oren_type_tag(b0) == 0 || oren_type_tag(b1) == 0 || oren_type_tag(b2) == 0 || oren_type_tag(b3) == 0 || oren_type_tag(b4) == 0 || oren_type_tag(b5) == 0 { _intr_tmp_pop(ctx, base34); return true }
 
         _intr_eval_spill_x64(ctx, locals, args[0], b0)
         _intr_eval_spill_x64(ctx, locals, args[1], b1)
@@ -468,4 +468,3 @@ fn _emit_intrinsic_sys_linux_net_x64(ctx, nm, expr, locals, args, capsule) {
 
     return false
 }
-

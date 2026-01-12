@@ -6,9 +6,9 @@ fn _emit_intrinsic_atomic_add_x64(ctx, expr, locals) {
 
     // Must not keep `ptr` only in a register across nested expression evaluation.
     var base = _intr_tmp_push(ctx, 1)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
-    if tmp_ptr == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_ptr) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _emit_eval_int_to_rax(ctx, args[0], locals) // ptr -> rax
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
@@ -33,10 +33,10 @@ fn _emit_intrinsic_atomic_cas_x64(ctx, expr, locals) {
 
     // We need to preserve ptr and expected across evaluation of `new`.
     var base = _intr_tmp_push(ctx, 2)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_exp = _intr_tmp_off(ctx, locals, base + 1)
-    if tmp_ptr == nil || tmp_exp == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_ptr) == 0 || oren_type_tag(tmp_exp) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _emit_eval_int_to_rax(ctx, args[0], locals) // ptr -> rax
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
@@ -57,4 +57,3 @@ fn _emit_intrinsic_atomic_cas_x64(ctx, expr, locals) {
     _intr_tmp_pop(ctx, base)
     return nil
 }
-

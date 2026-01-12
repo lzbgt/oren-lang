@@ -701,11 +701,11 @@ fn _expr_int_check(ctx, expr, locals) {
 
         // Direct calls enforce arity; indirect calls (callable value in a local/param) are permitted
         // in v0 bring-up without static arity tracking.
-        var arity = nil
-        if nm != nil && ctx["func_arity"] != nil {
-            var arity_enc = ctx["func_arity"][nm]
-            if arity_enc != nil { arity = arity_enc - 1 }
-        }
+	        var arity = nil
+	        if nm != nil && ctx["func_arity"] != nil {
+	            var arity_enc = ctx["func_arity"][nm]
+	            if oren_type_tag(arity_enc) != 0 { arity = arity_enc - 1 }
+	        }
         // NOTE (rolling): without name resolution, a call target `nm` may be either:
         // - a direct call to a named function, or
         // - an indirect call through a local/global var that shadows that name.
@@ -723,11 +723,11 @@ fn _expr_int_check(ctx, expr, locals) {
             var declared = ctx["declared_functions"]
             if declared != nil && declared[nm] == nil { err(ctx, "x64 native v0: undefined function " + nm); return nil }
 
-            var vf = nil
-            if ctx["func_varargs_fixed"] != nil {
-                var vf_enc = ctx["func_varargs_fixed"][nm]
-                if vf_enc != nil { vf = vf_enc - 1 }
-            }
+	            var vf = nil
+	            if ctx["func_varargs_fixed"] != nil {
+	                var vf_enc = ctx["func_varargs_fixed"][nm]
+	                if oren_type_tag(vf_enc) != 0 { vf = vf_enc - 1 }
+	            }
             if spread != nil {
                 // Rolling: spread is supported for named calls.
                 //

@@ -587,21 +587,21 @@ fn native_expr_chunk_noncall(ctx, expr) {
 	            }
 	            
 		            // Check locals
-		            var off_enc = ctx["locals"][name]
-		            if off_enc != nil {
-		                var off = off_enc - 1
-		                var current_sp_off = ctx["stack_size"] - off - 16
-		                emit_ldr_reg_sp_any(ctx, 0, current_sp_off)
-		                return true
-		            }
+			            var off_enc = ctx["locals"][name]
+			            if oren_type_tag(off_enc) != 0 {
+			                var off = off_enc - 1
+			                var current_sp_off = ctx["stack_size"] - off - 16
+			                emit_ldr_reg_sp_any(ctx, 0, current_sp_off)
+			                return true
+			            }
     
 	            // Check globals
-	            var global_off_enc = ctx["globals"][name]
-	            if global_off_enc != nil {
-	                var global_off = global_off_enc - 1
-	                var adr_pos = bytes_len(ctx["code"])
-	                push_u32_le(ctx["code"], 0)
-	                push_u32_le(ctx["code"], 0)
+		            var global_off_enc = ctx["globals"][name]
+		            if oren_type_tag(global_off_enc) != 0 {
+		                var global_off = global_off_enc - 1
+		                var adr_pos = bytes_len(ctx["code"])
+		                push_u32_le(ctx["code"], 0)
+		                push_u32_le(ctx["code"], 0)
 	                oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": global_off})
                 // X0 has address. LDR X0, [X0]
                 push_u32_le(ctx["code"], insn_ldr_ptr(0, 0))

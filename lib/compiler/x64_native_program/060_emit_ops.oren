@@ -120,7 +120,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
         if op["op"] == "var_i32" {
             var name = op["name"]
             var off = locals[name]
-            if off == nil {
+            if oren_type_tag(off) == 0 {
                 var fnm = "?"
                 if ctx != nil && ctx["cur_fn_name"] != nil { fnm = ctx["cur_fn_name"] }
                 var nm_s = "?"
@@ -150,14 +150,14 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
-            if off2 != nil {
+            if oren_type_tag(off2) != 0 {
                 _emit_mov_mrbp_r64(ctx, 0 - off2, 0)
             } else {
                 // Global assignment (top-level `var` in data blob).
                 var name = op["name"]
                 var goff_enc = nil
                 if ctx["globals"] != nil { goff_enc = ctx["globals"][name] }
-                if goff_enc == nil { err(ctx, "x64 native v0: assign unknown var " + name); return nil }
+                if oren_type_tag(goff_enc) == 0 { err(ctx, "x64 native v0: assign unknown var " + name); return nil }
                 var goff = goff_enc - 1
 
                 // r10 = &global_slot ; *(u64*)r10 = rax

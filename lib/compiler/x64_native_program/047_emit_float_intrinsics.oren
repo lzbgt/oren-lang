@@ -60,10 +60,10 @@ fn _emit_float64_binop_x64(ctx, op, left_expr, right_expr, locals) {
     if left_expr == nil || right_expr == nil { err(ctx, "x64 native v0: float binop missing operands"); return nil }
 
     var base = _intr_tmp_push(ctx, 2)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_a = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_b = _intr_tmp_off(ctx, locals, base + 1)
-    if tmp_a == nil || tmp_b == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_a) == 0 || oren_type_tag(tmp_b) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // Evaluate LTR.
     _emit_eval_int_to_rax(ctx, left_expr, locals)
@@ -159,10 +159,10 @@ fn _emit_float_cmp_to_bool_x64(ctx, op, left_expr, right_expr, locals) {
     if left_expr == nil || right_expr == nil { err(ctx, "x64 native v0: float cmp missing operands"); return nil }
 
     var base = _intr_tmp_push(ctx, 2)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_a = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_b = _intr_tmp_off(ctx, locals, base + 1)
-    if tmp_a == nil || tmp_b == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_a) == 0 || oren_type_tag(tmp_b) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // Evaluate LTR.
     _emit_eval_int_to_rax(ctx, left_expr, locals)

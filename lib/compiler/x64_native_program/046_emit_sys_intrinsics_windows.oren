@@ -19,9 +19,9 @@ fn _emit_intrinsic_sys_nanosleep_windows_x64(ctx, expr, locals, args) {
     // - ns <= 0 => return 0
     // - ms = ceil(ns / 1_000_000), clamp to 0xFFFFFFFF (Sleep max)
     var base = _intr_tmp_push(ctx, 1) // ns
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_ns = _intr_tmp_off(ctx, locals, base + 0)
-    if tmp_ns == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_ns) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_ns)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
@@ -97,11 +97,11 @@ fn _emit_intrinsic_sys_ulock_wait_windows_x64(ctx, expr, locals, args) {
     // args: (operation, addr, value, timeout_us)
     // We ignore `operation` today (runtime lock uses UL_COMPARE_AND_WAIT=1).
     var base = _intr_tmp_push(ctx, 3) // addr, value, timeout_us
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_addr = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_val = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_to = _intr_tmp_off(ctx, locals, base + 2)
-    if tmp_addr == nil || tmp_val == nil || tmp_to == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_val) == 0 || oren_type_tag(tmp_to) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_addr)
     _intr_eval_spill_x64(ctx, locals, args[2], tmp_val)
@@ -234,11 +234,11 @@ fn _emit_intrinsic_sys_gettimeofday_windows_x64(ctx, expr, locals, args) {
     //
     // Returns 0 on success; negative errno on obvious invalid pointers.
     var base = _intr_tmp_push(ctx, 3) // tv, tz, abs
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_tv = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_tz = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_abs = _intr_tmp_off(ctx, locals, base + 2)
-    if tmp_tv == nil || tmp_tz == nil || tmp_abs == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_tv) == 0 || oren_type_tag(tmp_tz) == 0 || oren_type_tag(tmp_abs) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_tv)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_tz)
@@ -350,12 +350,12 @@ fn _emit_intrinsic_sys_open_windows_x64(ctx, expr, locals, args) {
     // - sys_close on Windows tries closesocket() first, then falls back to CloseHandle(),
     //   so returning a HANDLE here keeps semantics unified for IO and NET.
     var base = _intr_tmp_push(ctx, 4) // path, flags, mode, pair
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_path = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_flags = _intr_tmp_off(ctx, locals, base + 1)
     var tmp_mode = _intr_tmp_off(ctx, locals, base + 2)
     var tmp_pair = _intr_tmp_off(ctx, locals, base + 3)
-    if tmp_path == nil || tmp_flags == nil || tmp_mode == nil || tmp_pair == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_path) == 0 || oren_type_tag(tmp_flags) == 0 || oren_type_tag(tmp_mode) == 0 || oren_type_tag(tmp_pair) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_path)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_flags)
@@ -537,10 +537,10 @@ fn _emit_intrinsic_sys_getentropy_windows_x64(ctx, expr, locals, args) {
     var off_sym = _data_add_cstr0(ctx, "BCryptGenRandom")
 
     var base = _intr_tmp_push(ctx, 2) // buf, len
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var tmp_buf = _intr_tmp_off(ctx, locals, base + 0)
     var tmp_len = _intr_tmp_off(ctx, locals, base + 1)
-    if tmp_buf == nil || tmp_len == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_buf) == 0 || oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_eval_spill_x64(ctx, locals, args[0], tmp_buf)
     _intr_eval_spill_x64(ctx, locals, args[1], tmp_len)

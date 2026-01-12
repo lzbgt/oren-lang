@@ -61,7 +61,7 @@ fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
 
     _emit_label(ctx, labels, l_call)
     var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
-    if a0_enc == nil {
+    if oren_type_tag(a0_enc) == 0 {
         err(ctx, "x64 native v0: missing ABI arg reg for native_alloc_index_get")
         return nil
     }
@@ -98,7 +98,7 @@ fn _emit_track_alloc_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
     var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
     var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
     var a2_enc = abi.int_arg_reg(ctx["abi"], 2)
-    if a0_enc == nil || a1_enc == nil || a2_enc == nil {
+    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 || oren_type_tag(a2_enc) == 0 {
         err(ctx, "x64 native v0: missing ABI arg regs for oren_track_alloc")
         return nil
     }
@@ -108,11 +108,11 @@ fn _emit_track_alloc_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
 
     // Spill the args we need to keep stable across the call.
     var base = _intr_tmp_push(ctx, 3)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var off_ptr = _intr_tmp_off(ctx, locals, base + 0)
     var off_size = _intr_tmp_off(ctx, locals, base + 1)
     var off_kind = _intr_tmp_off(ctx, locals, base + 2)
-    if off_ptr == nil || off_size == nil || off_kind == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(off_ptr) == 0 || oren_type_tag(off_size) == 0 || oren_type_tag(off_kind) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _emit_mov_mrbp_r64(ctx, 0 - off_ptr, ptr_reg)
     _emit_mov_mrbp_r64(ctx, 0 - off_size, size_reg)
@@ -150,7 +150,7 @@ fn _emit_ensure_tracked_ptr_kind_x64(ctx, locals, ptr_reg, kind_imm) {
 
     var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
     var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
-    if a0_enc == nil || a1_enc == nil {
+    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 {
         err(ctx, "x64 native v0: missing ABI arg regs for oren_ensure_tracked")
         return nil
     }
@@ -158,9 +158,9 @@ fn _emit_ensure_tracked_ptr_kind_x64(ctx, locals, ptr_reg, kind_imm) {
     var a1 = a1_enc - 1
 
     var base = _intr_tmp_push(ctx, 1)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var off_ptr = _intr_tmp_off(ctx, locals, base + 0)
-    if off_ptr == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(off_ptr) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _emit_mov_mrbp_r64(ctx, 0 - off_ptr, ptr_reg)
 

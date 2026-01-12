@@ -473,16 +473,16 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 	        var caps = expr["captures"]
 	        if caps == nil { caps = [] }
 
-	        // Spill slots: env ptr.
-	        var base = _intr_tmp_push(ctx, 1)
-	        if base == nil { return nil }
-	        var slot_env = base
-	        var tmp_env = _intr_tmp_off(ctx, locals, slot_env)
-	        if tmp_env == nil {
-	            _intr_tmp_pop(ctx, base)
-	            err(ctx, "x64 native v0: missing spill slot for lambda literal env")
-	            return nil
-	        }
+		        // Spill slots: env ptr.
+		        var base = _intr_tmp_push(ctx, 1)
+		        if oren_type_tag(base) == 0 { return nil }
+		        var slot_env = base
+		        var tmp_env = _intr_tmp_off(ctx, locals, slot_env)
+		        if oren_type_tag(tmp_env) == 0 {
+		            _intr_tmp_pop(ctx, base)
+		            err(ctx, "x64 native v0: missing spill slot for lambda literal env")
+		            return nil
+		        }
 
 	        // env_ptr = 0 or a list of captures (capture-by-value, deterministic order)
 	        if oren_list_len(caps) == 0 {
@@ -506,14 +506,14 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 	            }
 	        }
 
-	        // Call `oren_func(code_ptr, env_ptr)` to create a tracked function object (kind=6).
-	        var code_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
-	        var env_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
-	        if code_reg_enc == nil || env_reg_enc == nil {
-	            _intr_tmp_pop(ctx, base)
-	            err(ctx, "x64 native v0: missing ABI arg regs for oren_func")
-	            return nil
-	        }
+		        // Call `oren_func(code_ptr, env_ptr)` to create a tracked function object (kind=6).
+		        var code_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
+		        var env_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
+		        if oren_type_tag(code_reg_enc) == 0 || oren_type_tag(env_reg_enc) == 0 {
+		            _intr_tmp_pop(ctx, base)
+		            err(ctx, "x64 native v0: missing ABI arg regs for oren_func")
+		            return nil
+		        }
 	        var code_reg = code_reg_enc - 1
 	        var env_reg = env_reg_enc - 1
 
@@ -620,13 +620,13 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 	            // Tier‑1 convergence: function values are runtime function objects (kind=6) so:
 	            // - `std:reflect.tag/name` can discriminate funcs safely
 	            // - spawned/indirect calls share a single callable ABI across arm64/x64
-	            if ctx != nil && ctx["runtime_injected"] == true {
-	                var code_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
-	                var env_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
-	                if code_reg_enc == nil || env_reg_enc == nil {
-	                    err(ctx, "x64 native v0: missing ABI arg regs for oren_func")
-	                    return nil
-	                }
+		            if ctx != nil && ctx["runtime_injected"] == true {
+		                var code_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
+		                var env_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
+		                if oren_type_tag(code_reg_enc) == 0 || oren_type_tag(env_reg_enc) == 0 {
+		                    err(ctx, "x64 native v0: missing ABI arg regs for oren_func")
+		                    return nil
+		                }
 	                var code_reg = code_reg_enc - 1
 	                var env_reg = env_reg_enc - 1
 
@@ -642,13 +642,13 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 	                return nil
 	            }
 
-	            // Fallback (bring-up): if native runtime is not injected, use an untracked static fnobj record.
-	            var fnobj_off = _data_add_fnobj(ctx, wname)
-	            if fnobj_off == nil { err(ctx, "x64 native v0: failed to allocate fnobj"); return nil }
-	            var lea_pos2 = bytes_len(ctx["code"])
-	            bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
-	            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos2 + 3, "data_off": fnobj_off})
-	            return nil
+		            // Fallback (bring-up): if native runtime is not injected, use an untracked static fnobj record.
+		            var fnobj_off = _data_add_fnobj(ctx, wname)
+		            if oren_type_tag(fnobj_off) == 0 { err(ctx, "x64 native v0: failed to allocate fnobj"); return nil }
+		            var lea_pos2 = bytes_len(ctx["code"])
+		            bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
+		            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos2 + 3, "data_off": fnobj_off})
+		            return nil
 		        }
 
         err(ctx, "x64 native v0: unknown var " + name)
@@ -909,17 +909,17 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             _patch_local_fixups(ctx, labels, local_fixups)
             return nil
         }
-        if nm == "iadd" {
-            if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: iadd expects 2 args"); return nil }
-            // iadd(a, b) => (a + b) in RAX
-            // Must be re-entrant: nested `iadd` calls must not clobber the outer LHS spill.
-            var base = _intr_tmp_push(ctx, 1)
-            if base == nil { return nil }
-            var tmp_off_iadd = _intr_tmp_off(ctx, locals, base + 0)
-            if tmp_off_iadd == nil {
-                _intr_tmp_pop(ctx, base)
-                return nil
-            }
+	        if nm == "iadd" {
+	            if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: iadd expects 2 args"); return nil }
+	            // iadd(a, b) => (a + b) in RAX
+	            // Must be re-entrant: nested `iadd` calls must not clobber the outer LHS spill.
+	            var base = _intr_tmp_push(ctx, 1)
+	            if oren_type_tag(base) == 0 { return nil }
+	            var tmp_off_iadd = _intr_tmp_off(ctx, locals, base + 0)
+	            if oren_type_tag(tmp_off_iadd) == 0 {
+	                _intr_tmp_pop(ctx, base)
+	                return nil
+	            }
             _emit_eval_int_to_rax(ctx, args[0], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
             _emit_mov_mrbp_r64(ctx, 0 - tmp_off_iadd, 0)
@@ -939,14 +939,14 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_mov_rax_mrax())
             return nil
         }
-        if nm == "ptr_set" {
+	        if nm == "ptr_set" {
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: ptr_set expects 2 args"); return nil }
-            // ptr_set(ptr, val) => store qword and return val
-            // Must not keep `ptr` only in a register across nested expression evaluation.
-            var base = _intr_tmp_push(ctx, 1)
-            if base == nil { return nil }
-            var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
-            if tmp_ptr == nil { _intr_tmp_pop(ctx, base); return nil }
+	            // ptr_set(ptr, val) => store qword and return val
+	            // Must not keep `ptr` only in a register across nested expression evaluation.
+	            var base = _intr_tmp_push(ctx, 1)
+	            if oren_type_tag(base) == 0 { return nil }
+	            var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
+	            if oren_type_tag(tmp_ptr) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
             _emit_eval_int_to_rax(ctx, args[0], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
@@ -968,13 +968,13 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 0))
             return nil
         }
-        if nm == "ptr_set_byte" {
+	        if nm == "ptr_set_byte" {
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: ptr_set_byte expects 2 args"); return nil }
-            // Must not keep `ptr` only in a register across nested expression evaluation.
-            var base = _intr_tmp_push(ctx, 1)
-            if base == nil { return nil }
-            var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
-            if tmp_ptr == nil { _intr_tmp_pop(ctx, base); return nil }
+	            // Must not keep `ptr` only in a register across nested expression evaluation.
+	            var base = _intr_tmp_push(ctx, 1)
+	            if oren_type_tag(base) == 0 { return nil }
+	            var tmp_ptr = _intr_tmp_off(ctx, locals, base + 0)
+	            if oren_type_tag(tmp_ptr) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
             _emit_eval_int_to_rax(ctx, args[0], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
@@ -991,7 +991,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             return nil
         }
 
-        if nm == "oren_buf_load_u8_unchecked" {
+	        if nm == "oren_buf_load_u8_unchecked" {
             // Tooling hot path (stage2-native compiler):
             // Inline `oren_buf_load_u8_unchecked(buf, idx)` to avoid per-byte function call overhead
             // during astbin decode.
@@ -1001,10 +1001,10 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // - load byte at data_ptr+idx and return it as int (0..255)
             if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: oren_buf_load_u8_unchecked expects 2 args"); return nil }
 
-            var base = _intr_tmp_push(ctx, 1)
-            if base == nil { return nil }
-            var tmp_buf = _intr_tmp_off(ctx, locals, base + 0)
-            if tmp_buf == nil { _intr_tmp_pop(ctx, base); return nil }
+	            var base = _intr_tmp_push(ctx, 1)
+	            if oren_type_tag(base) == 0 { return nil }
+	            var tmp_buf = _intr_tmp_off(ctx, locals, base + 0)
+	            if oren_type_tag(tmp_buf) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
             _emit_eval_int_to_rax(ctx, args[0], locals) // buf -> rax
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
@@ -1045,22 +1045,22 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             // - requests are rounded up to 16 bytes
             var base = nil
             var tmp_kind = nil
-            if nm == "malloc_k" {
-                // Preserve kind across the allocator slow path (clobbers R10/R11/RCX).
-                base = _intr_tmp_push(ctx, 1)
-                if base == nil { return nil }
-                tmp_kind = _intr_tmp_off(ctx, locals, base + 0)
-                if tmp_kind == nil { _intr_tmp_pop(ctx, base); return nil }
-                _emit_eval_int_to_rax(ctx, args[1], locals) // kind -> rax
-                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-                _emit_mov_mrbp_r64(ctx, 0 - tmp_kind, 0)
-            }
+	            if nm == "malloc_k" {
+	                // Preserve kind across the allocator slow path (clobbers R10/R11/RCX).
+	                base = _intr_tmp_push(ctx, 1)
+	                if oren_type_tag(base) == 0 { return nil }
+	                tmp_kind = _intr_tmp_off(ctx, locals, base + 0)
+	                if oren_type_tag(tmp_kind) == 0 { _intr_tmp_pop(ctx, base); return nil }
+	                _emit_eval_int_to_rax(ctx, args[1], locals) // kind -> rax
+	                if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+	                _emit_mov_mrbp_r64(ctx, 0 - tmp_kind, 0)
+	            }
 
-            _emit_eval_int_to_rax(ctx, args[0], locals) // size -> rax
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
-                if base != nil { _intr_tmp_pop(ctx, base) }
-                return nil
-            }
+	            _emit_eval_int_to_rax(ctx, args[0], locals) // size -> rax
+	            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
+	                if oren_type_tag(base) != 0 { _intr_tmp_pop(ctx, base) }
+	                return nil
+	            }
 
             _emit_malloc_size_in_rax(ctx, locals)
 
@@ -1072,9 +1072,9 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             //   and "raw bytes" that must not be scanned).
             //
             // x64 native v0 tracks `malloc` allocations by default (via injected runtime tracking).
-            if nm == "malloc" {
-                var tmp0 = locals["$tmp0"]
-                if tmp0 == nil { err(ctx, "x64 native v0: missing $tmp0 slot for malloc tracking"); return nil }
+	            if nm == "malloc" {
+	                var tmp0 = locals["$tmp0"]
+	                if oren_type_tag(tmp0) == 0 { err(ctx, "x64 native v0: missing $tmp0 slot for malloc tracking"); return nil }
                 // r12 = ptr ; r13 = aligned_size ; r10 = kind(0)
                 bytes_extend(ctx["code"], insn_mov_r64_r64(12, 0))
                 _emit_mov_r64_mrbp(ctx, 13, 0 - tmp0) // tmp0 holds the aligned allocation size
@@ -1082,9 +1082,9 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 _emit_track_alloc_x64(ctx, locals, 12, 13, 10)
                 bytes_extend(ctx["code"], insn_mov_r64_r64(0, 12))
             }
-            if nm == "malloc_k" {
-                var tmp0b = locals["$tmp0"]
-                if tmp0b == nil { err(ctx, "x64 native v0: missing $tmp0 slot for malloc_k tracking"); _intr_tmp_pop(ctx, base); return nil }
+	            if nm == "malloc_k" {
+	                var tmp0b = locals["$tmp0"]
+	                if oren_type_tag(tmp0b) == 0 { err(ctx, "x64 native v0: missing $tmp0 slot for malloc_k tracking"); _intr_tmp_pop(ctx, base); return nil }
                 // r12 = ptr ; r13 = aligned_size ; r10 = kind
                 bytes_extend(ctx["code"], insn_mov_r64_r64(12, 0))
                 _emit_mov_r64_mrbp(ctx, 13, 0 - tmp0b)
@@ -1316,7 +1316,7 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 	            return nil
 	        }
 
-        if op == "%" {
+	        if op == "%" {
             // Deterministic modulo semantics are implemented in the injected runtime helper `oren_mod`.
             // This keeps x86_64 aligned with arm64 and matches the AVM MOD contract.
             if ctx == nil || ctx["runtime_injected"] != true {
@@ -1324,12 +1324,12 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 return nil
             }
 
-            // Evaluate LTR into spill slots, then call oren_mod(a, b).
-            var base_mod = _intr_tmp_push(ctx, 2)
-            if base_mod == nil { return nil }
-            var tmp_a = _intr_tmp_off(ctx, locals, base_mod + 0)
-            var tmp_b = _intr_tmp_off(ctx, locals, base_mod + 1)
-            if tmp_a == nil || tmp_b == nil { _intr_tmp_pop(ctx, base_mod); return nil }
+	            // Evaluate LTR into spill slots, then call oren_mod(a, b).
+	            var base_mod = _intr_tmp_push(ctx, 2)
+	            if oren_type_tag(base_mod) == 0 { return nil }
+	            var tmp_a = _intr_tmp_off(ctx, locals, base_mod + 0)
+	            var tmp_b = _intr_tmp_off(ctx, locals, base_mod + 1)
+	            if oren_type_tag(tmp_a) == 0 || oren_type_tag(tmp_b) == 0 { _intr_tmp_pop(ctx, base_mod); return nil }
 
             _emit_eval_int_to_rax(ctx, l, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_mod); return nil }
@@ -1339,9 +1339,9 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_mod); return nil }
             _emit_mov_mrbp_r64(ctx, 0 - tmp_b, 0)
 
-            var a0m_enc = abi.int_arg_reg(ctx["abi"], 0)
-            var a1m_enc = abi.int_arg_reg(ctx["abi"], 1)
-            if a0m_enc == nil || a1m_enc == nil { err(ctx, "x64 native v0: missing ABI arg regs for oren_mod"); _intr_tmp_pop(ctx, base_mod); return nil }
+	            var a0m_enc = abi.int_arg_reg(ctx["abi"], 0)
+	            var a1m_enc = abi.int_arg_reg(ctx["abi"], 1)
+	            if oren_type_tag(a0m_enc) == 0 || oren_type_tag(a1m_enc) == 0 { err(ctx, "x64 native v0: missing ABI arg regs for oren_mod"); _intr_tmp_pop(ctx, base_mod); return nil }
             var a0m = a0m_enc - 1
             var a1m = a1m_enc - 1
             _emit_mov_r64_mrbp(ctx, a0m, 0 - tmp_a)
@@ -1354,16 +1354,16 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             return nil
         }
 
-        if op == "/" {
+	        if op == "/" {
             // Integer division (trunc toward zero, like x86 idiv).
             //
             // idiv uses RDX:RAX as the dividend and overwrites both; divisor is r/m64.
             // We keep divisor in RCX and preserve dividend in $tmp_div across RHS evaluation.
-            _emit_eval_int_to_rax(ctx, l, locals)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            var tmp_offd = locals["$tmp_div"]
-            if tmp_offd == nil { err(ctx, "x64 native v0: missing temp slot for div"); return nil }
-            _emit_mov_mrbp_r64(ctx, 0 - tmp_offd, 0) // [tmp] = dividend (rax)
+	            _emit_eval_int_to_rax(ctx, l, locals)
+	            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+	            var tmp_offd = locals["$tmp_div"]
+	            if oren_type_tag(tmp_offd) == 0 { err(ctx, "x64 native v0: missing temp slot for div"); return nil }
+	            _emit_mov_mrbp_r64(ctx, 0 - tmp_offd, 0) // [tmp] = dividend (rax)
 
             // Evaluate divisor into RAX, then move to RCX.
             _emit_eval_int_to_rax(ctx, r, locals)
@@ -1443,9 +1443,9 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 return nil
             }
 
-            // General RHS expression: spill lhs, eval RHS into RAX, move to RCX, restore lhs, shift.
-            var tmp_offs = locals["$tmp_shift"]
-            if tmp_offs == nil { err(ctx, "x64 native v0: missing temp slot for shift"); return nil }
+	            // General RHS expression: spill lhs, eval RHS into RAX, move to RCX, restore lhs, shift.
+	            var tmp_offs = locals["$tmp_shift"]
+	            if oren_type_tag(tmp_offs) == 0 { err(ctx, "x64 native v0: missing temp slot for shift"); return nil }
             _emit_mov_mrbp_r64(ctx, 0 - tmp_offs, 0) // [tmp] = lhs
             _emit_eval_int_to_rax(ctx, r, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
@@ -1503,12 +1503,12 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
             // General RHS expression: spill lhs, eval RHS into RAX, move to RDX, restore lhs, op.
             //
-            // IMPORTANT: use the intrinsic temp pool, not `$tmp0`, because RHS may include `Index`
-            // which needs its own spills and would clobber `$tmp0` (miscompile).
-            var baseb = _intr_tmp_push(ctx, 1)
-            if baseb == nil { return nil }
-            var tmp_offb = _intr_tmp_off(ctx, locals, baseb + 0)
-            if tmp_offb == nil { _intr_tmp_pop(ctx, baseb); return nil }
+	            // IMPORTANT: use the intrinsic temp pool, not `$tmp0`, because RHS may include `Index`
+	            // which needs its own spills and would clobber `$tmp0` (miscompile).
+	            var baseb = _intr_tmp_push(ctx, 1)
+	            if oren_type_tag(baseb) == 0 { return nil }
+	            var tmp_offb = _intr_tmp_off(ctx, locals, baseb + 0)
+	            if oren_type_tag(tmp_offb) == 0 { _intr_tmp_pop(ctx, baseb); return nil }
             _emit_mov_mrbp_r64(ctx, 0 - tmp_offb, 0) // [tmp] = lhs
             _emit_eval_int_to_rax(ctx, r, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, baseb); return nil }
@@ -1551,10 +1551,10 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         //
         // IMPORTANT: use the intrinsic temp pool, not `$tmp0`, because RHS may include `Index`
         // which needs its own spills and would clobber `$tmp0` (miscompile).
-        var base4 = _intr_tmp_push(ctx, 1)
-        if base4 == nil { return nil }
-        var tmp_off4 = _intr_tmp_off(ctx, locals, base4 + 0)
-        if tmp_off4 == nil { _intr_tmp_pop(ctx, base4); return nil }
+	        var base4 = _intr_tmp_push(ctx, 1)
+	        if oren_type_tag(base4) == 0 { return nil }
+	        var tmp_off4 = _intr_tmp_off(ctx, locals, base4 + 0)
+	        if oren_type_tag(tmp_off4) == 0 { _intr_tmp_pop(ctx, base4); return nil }
         _emit_mov_mrbp_r64(ctx, 0 - tmp_off4, 0) // [tmp] = lhs
         _emit_eval_int_to_rax(ctx, r, locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base4); return nil }

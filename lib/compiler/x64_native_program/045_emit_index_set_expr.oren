@@ -18,7 +18,7 @@ fn _emit_call_rel32_3args_x64(ctx, locals, sym, arg0_off, arg1_off, arg2_off) {
     var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
     var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
     var a2_enc = abi.int_arg_reg(ctx["abi"], 2)
-    if a0_enc == nil || a1_enc == nil || a2_enc == nil {
+    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 || oren_type_tag(a2_enc) == 0 {
         err(ctx, "x64 native v0: missing ABI arg regs for call3 " + sym)
         return nil
     }
@@ -61,11 +61,11 @@ fn _emit_index_set_intrinsic_v0_x64(ctx, expr, locals) {
     // - index
     // - value
     var base0 = _intr_tmp_push(ctx, 3)
-    if base0 == nil { return nil }
+    if oren_type_tag(base0) == 0 { return nil }
     var off_cont = _intr_tmp_off(ctx, locals, base0 + 0)
     var off_idx = _intr_tmp_off(ctx, locals, base0 + 1)
     var off_val = _intr_tmp_off(ctx, locals, base0 + 2)
-    if off_cont == nil || off_idx == nil || off_val == nil {
+    if oren_type_tag(off_cont) == 0 || oren_type_tag(off_idx) == 0 || oren_type_tag(off_val) == 0 {
         _intr_tmp_pop(ctx, base0)
         return nil
     }

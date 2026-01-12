@@ -116,7 +116,11 @@ For Tier‑1 Windows, the intended C toolchain is **MSVC (VS2022) `cl.exe`**.
 When something is not green, record the *smallest actionable next step* and the verification that must be made green.
 
 - x64-windows: stage2 native backend still needs continuous “compile + run” proof on a real Windows host
-  (not just compile-only from macOS). Primary gate: `make verify-stage2-win` (remote).
+  (not just compile-only from macOS).
+  - Primary gates:
+    - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-win` (compiler runs on Win11 and compiles+runs a tiny native program)
+    - `./scripts/verify_windows_stage2_from_stage1.sh` (stage0→stage1→stage2 on Win11)
+  - Last known green (fact): 2026-01-13 (see `docs/TODOS.md`).
 - Remote reliability: keep remote log capture bounded and reproducible; use
   `scripts/fetch_remote_file.sh --analyze` + `scripts/analyze_stage2_failure_log.sh` for triage.
   - If the build appears to hang, enable bounded parse progress for include-aggregators:

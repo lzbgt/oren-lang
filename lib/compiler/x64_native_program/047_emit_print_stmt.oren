@@ -26,14 +26,14 @@ fn _emit_print_stmt_str_x64(ctx, locals, str_expr) {
     // Prepare intr temp slots and call the `sys_write` intrinsic to keep
     // Linux/Windows behavior unified (syscall vs WinAPI).
     var base = _intr_tmp_push(ctx, 3)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var slot_fd = base
     var slot_ptr = iadd(base, 1)
     var slot_len = iadd(base, 2)
     var tmp_fd = _intr_tmp_off(ctx, locals, slot_fd)
     var tmp_ptr = _intr_tmp_off(ctx, locals, slot_ptr)
     var tmp_len = _intr_tmp_off(ctx, locals, slot_len)
-    if tmp_fd == nil || tmp_ptr == nil || tmp_len == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(tmp_fd) == 0 || oren_type_tag(tmp_ptr) == 0 || oren_type_tag(tmp_len) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // fd=1
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 1))

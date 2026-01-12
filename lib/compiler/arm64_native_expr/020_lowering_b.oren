@@ -336,11 +336,11 @@ fn native_expr_chunk_call(ctx, expr) {
     if reg_arg_count > regc { reg_arg_count = regc }
 			    var r = 0
 			    while r < reg_arg_count {
-			        var dst_reg = callabi.int_arg_reg(call_abi, r)
-			        if dst_reg == nil {
-			            // Rolling robustness:
-			            // Avoid spamming diagnostics for ABI issues (self-hosted compiler can emit many calls).
-			            // Fall back to AAPCS64 consecutive arg regs (X0..).
+				        var dst_reg = callabi.int_arg_reg(call_abi, r)
+				        if oren_type_tag(dst_reg) == 0 {
+				            // Rolling robustness:
+				            // Avoid spamming diagnostics for ABI issues (self-hosted compiler can emit many calls).
+				            // Fall back to AAPCS64 consecutive arg regs (X0..).
 			            //
 			            // If you need to diagnose ABI tables, enable:
 			            //   OREN_TRACE_NATIVE_ABI=1

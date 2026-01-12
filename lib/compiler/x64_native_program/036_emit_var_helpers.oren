@@ -13,7 +13,7 @@ fn _emit_load_var_to_reg_x64(ctx, locals, name, dst_reg) {
 
     if locals != nil {
         var off = locals[name]
-        if off != nil {
+        if oren_type_tag(off) != 0 {
             _emit_mov_r64_mrbp(ctx, dst_reg, 0 - off)
             return 1
         }
@@ -21,7 +21,7 @@ fn _emit_load_var_to_reg_x64(ctx, locals, name, dst_reg) {
 
     var goff_enc = nil
     if ctx["globals"] != nil { goff_enc = ctx["globals"][name] }
-    if goff_enc != nil {
+    if oren_type_tag(goff_enc) != 0 {
         var goff = goff_enc - 1
         // r10 = &global_slot ; dst_reg = *(u64*)r10
         var lea_pos0 = bytes_len(ctx["code"])

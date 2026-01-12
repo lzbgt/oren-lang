@@ -52,7 +52,7 @@ fn align_up(n, align) {
 }
 
 fn _elf_decode_data_off(enc) {
-    if enc == nil { return nil }
+    if oren_type_tag(enc) == 0 { return nil }
     return enc - 1
 }
 

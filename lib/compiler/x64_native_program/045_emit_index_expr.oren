@@ -6,7 +6,7 @@
 fn _emit_call_rel32_2args_x64(ctx, locals, sym, arg0_off, arg1_off) {
     var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
     var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
-    if a0_enc == nil || a1_enc == nil {
+    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 {
         err(ctx, "x64 native v0: missing ABI arg regs for call2 " + sym)
         return nil
     }
@@ -47,10 +47,10 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
     // - container and idx subexpressions may themselves contain Index/Call nodes that need spills
     // - using a fixed `$tmp0` slot here breaks expressions like `xs[ys[0]]`
     var base0 = _intr_tmp_push(ctx, 2)
-    if base0 == nil { return nil }
+    if oren_type_tag(base0) == 0 { return nil }
     var tmp0 = _intr_tmp_off(ctx, locals, base0 + 0)      // container
     var tmp_idx = _intr_tmp_off(ctx, locals, base0 + 1)   // index/key
-    if tmp0 == nil || tmp_idx == nil { _intr_tmp_pop(ctx, base0); return nil }
+    if oren_type_tag(tmp0) == 0 || oren_type_tag(tmp_idx) == 0 { _intr_tmp_pop(ctx, base0); return nil }
 
     // Eval container -> rax; spill
     _emit_eval_int_to_rax(ctx, left, locals)

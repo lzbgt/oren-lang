@@ -29,9 +29,9 @@ fn _emit_list_len_intrinsic_v0_x64(ctx, expr, locals) {
     }
 
     var base = _intr_tmp_push(ctx, 1)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var off_list = _intr_tmp_off(ctx, locals, base + 0)
-    if off_list == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(off_list) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     // LTR eval: list -> spill
     _emit_eval_int_to_rax(ctx, args[0], locals)
@@ -121,10 +121,10 @@ fn _emit_list_push_intrinsic_v0_x64(ctx, expr, locals) {
 
     // LTR eval: list, then value.
     var base = _intr_tmp_push(ctx, 2)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
     var off_list = _intr_tmp_off(ctx, locals, base + 0)
     var off_val = _intr_tmp_off(ctx, locals, base + 1)
-    if off_list == nil || off_val == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(off_list) == 0 || oren_type_tag(off_val) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _emit_eval_int_to_rax(ctx, args[0], locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }

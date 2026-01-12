@@ -19,9 +19,9 @@ fn _emit_intrinsic_oren_call_obj_list_x64(ctx, locals, fn_obj_expr, args_list_ex
     }
 
     var spill = _intr_tmp_push(ctx, 1)
-    if spill == nil { return nil }
+    if oren_type_tag(spill) == 0 { return nil }
     var fn_off = _intr_tmp_off(ctx, locals, spill)
-    if fn_off == nil { _intr_tmp_pop(ctx, spill); return nil }
+    if oren_type_tag(fn_off) == 0 { _intr_tmp_pop(ctx, spill); return nil }
 
     // Spill fn_obj.
     _emit_eval_int_to_rax(ctx, fn_obj_expr, locals)
@@ -34,7 +34,7 @@ fn _emit_intrinsic_oren_call_obj_list_x64(ctx, locals, fn_obj_expr, args_list_ex
 
     var env_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
     var args_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
-    if env_reg_enc == nil || args_reg_enc == nil {
+    if oren_type_tag(env_reg_enc) == 0 || oren_type_tag(args_reg_enc) == 0 {
         _intr_tmp_pop(ctx, spill)
         err(ctx, "x64 native v0: missing ABI arg regs for oren_call_obj_list")
         return nil
@@ -93,7 +93,7 @@ fn _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, fn_obj_expr, arg
     // - fn_obj:        base + argc + 2
     var spill_n = argc + 3
     var base = _intr_tmp_push(ctx, spill_n)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
 
     // Spill explicit args (evaluate once; preserve LTR semantics).
     var i = 0
@@ -101,7 +101,7 @@ fn _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, fn_obj_expr, arg
         _emit_eval_int_to_rax(ctx, args[i], locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
         var off = _intr_tmp_off(ctx, locals, iadd(base, i))
-        if off == nil { _intr_tmp_pop(ctx, base); return nil }
+        if oren_type_tag(off) == 0 { _intr_tmp_pop(ctx, base); return nil }
         _emit_mov_mrbp_r64(ctx, 0 - off, 0)
         i = iadd(i, 1)
     }
@@ -112,7 +112,7 @@ fn _emit_call_spread_via_runtime_helper_fnexpr_x64(ctx, locals, fn_obj_expr, arg
     var fixed_off = _intr_tmp_off(ctx, locals, fixed_slot)
     var spread_off = _intr_tmp_off(ctx, locals, spread_slot)
     var fn_off = _intr_tmp_off(ctx, locals, fn_slot)
-    if fixed_off == nil || spread_off == nil || fn_off == nil {
+    if oren_type_tag(fixed_off) == 0 || oren_type_tag(spread_off) == 0 || oren_type_tag(fn_off) == 0 {
         _intr_tmp_pop(ctx, base)
         err(ctx, "x64 native v0: missing spill slots for spread call")
         return nil
@@ -186,7 +186,7 @@ fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
     // - callee fnobj:  base + argc + 1
     var spill_n = argc + 2
     var base = _intr_tmp_push(ctx, spill_n)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
 
     // Spill explicit args (evaluate once; preserve LTR semantics).
     var i = 0
@@ -194,20 +194,20 @@ fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
         _emit_eval_int_to_rax(ctx, args[i], locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
         var off = _intr_tmp_off(ctx, locals, iadd(base, i))
-        if off == nil { _intr_tmp_pop(ctx, base); return nil }
+        if oren_type_tag(off) == 0 { _intr_tmp_pop(ctx, base); return nil }
         _emit_mov_mrbp_r64(ctx, 0 - off, 0)
         i = iadd(i, 1)
     }
 
     var args_slot = iadd(base, argc)
     var args_off = _intr_tmp_off(ctx, locals, args_slot)
-    if args_off == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(args_off) == 0 { _intr_tmp_pop(ctx, base); return nil }
     var args_tmp = {"type": "IntrTmp", "idx": args_slot}
 
     // Spill callee fnobj value (can be an arbitrary expression).
     var callee_slot = iadd(args_slot, 1)
     var callee_off = _intr_tmp_off(ctx, locals, callee_slot)
-    if callee_off == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(callee_off) == 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_eval_int_to_rax(ctx, fn_obj_expr, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - callee_off, 0)
@@ -230,7 +230,7 @@ fn _emit_indirect_call_via_fnobj_x64(ctx, locals, fn_obj_expr, args, spread) {
     // Load wrapper args and call wrapper(env_ptr, args_list).
     var env_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
     var args_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
-    if env_reg_enc == nil || args_reg_enc == nil {
+    if oren_type_tag(env_reg_enc) == 0 || oren_type_tag(args_reg_enc) == 0 {
         _intr_tmp_pop(ctx, base)
         err(ctx, "x64 native v0: missing ABI arg regs for indirect call")
         return nil
@@ -314,7 +314,7 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
     if is_windows { win_extra = 4 } // result_ptr, arg_ptr, handle_ptr, start_ptr
     spill_n = spill_n + win_extra
     var base = _intr_tmp_push(ctx, spill_n)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
 
     // Spill explicit args.
     var i = 0
@@ -322,14 +322,14 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
         _emit_eval_int_to_rax(ctx, args[i], locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
         var off = _intr_tmp_off(ctx, locals, iadd(base, i))
-        if off == nil { _intr_tmp_pop(ctx, base); return nil }
+        if oren_type_tag(off) == 0 { _intr_tmp_pop(ctx, base); return nil }
         _emit_mov_mrbp_r64(ctx, 0 - off, 0)
         i = iadd(i, 1)
     }
 
     var args_slot = iadd(base, argc)
     var args_off = _intr_tmp_off(ctx, locals, args_slot)
-    if args_off == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(args_off) == 0 { _intr_tmp_pop(ctx, base); return nil }
     var args_tmp = {"type": "IntrTmp", "idx": args_slot}
 
     // Build args_list.
@@ -357,7 +357,7 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
         var idx_off = _intr_tmp_off(ctx, locals, idx_slot)
         var len_off = _intr_tmp_off(ctx, locals, len_slot)
         var elem_off = _intr_tmp_off(ctx, locals, elem_slot)
-        if spread_off == nil || idx_off == nil || len_off == nil || elem_off == nil {
+        if oren_type_tag(spread_off) == 0 || oren_type_tag(idx_off) == 0 || oren_type_tag(len_off) == 0 || oren_type_tag(elem_off) == 0 {
             _intr_tmp_pop(ctx, base)
             err(ctx, "x64 native v0: missing spill slots for SpawnExpr spread")
             return nil
@@ -428,7 +428,7 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
     var fn_slot = iadd(args_slot, 1)
     if has_spread { fn_slot = iadd(args_slot, 5) }
     var fn_off = _intr_tmp_off(ctx, locals, fn_slot)
-    if fn_off == nil { _intr_tmp_pop(ctx, base); return nil }
+    if oren_type_tag(fn_off) == 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_eval_int_to_rax(ctx, fn_expr, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
     _emit_mov_mrbp_r64(ctx, 0 - fn_off, 0)
@@ -461,7 +461,7 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
         var off_arg = _intr_tmp_off(ctx, locals, slot_arg)
         var off_handle = _intr_tmp_off(ctx, locals, slot_handle)
         var off_start = _intr_tmp_off(ctx, locals, slot_start)
-        if off_res == nil || off_arg == nil || off_handle == nil || off_start == nil {
+        if oren_type_tag(off_res) == 0 || oren_type_tag(off_arg) == 0 || oren_type_tag(off_handle) == 0 || oren_type_tag(off_start) == 0 {
             _intr_tmp_pop(ctx, base)
             err(ctx, "x64 native v0: missing spill slots for SpawnExpr windows")
             return nil
@@ -555,14 +555,14 @@ fn _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args) {
     // - fn_obj:        base + argc + 1
     var spill_n = argc + 2
     var base = _intr_tmp_push(ctx, spill_n)
-    if base == nil { return nil }
+    if oren_type_tag(base) == 0 { return nil }
 
     var i = 0
     while i < argc {
         _emit_eval_int_to_rax(ctx, args[i], locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
         var off = _intr_tmp_off(ctx, locals, iadd(base, i))
-        if off == nil { _intr_tmp_pop(ctx, base); return nil }
+        if oren_type_tag(off) == 0 { _intr_tmp_pop(ctx, base); return nil }
         _emit_mov_mrbp_r64(ctx, 0 - off, 0)
         i = iadd(i, 1)
     }
@@ -571,7 +571,7 @@ fn _emit_varargs_named_call_via_fnobj_x64(ctx, locals, nm, args) {
     var fn_slot = iadd(args_slot, 1)
     var args_off = _intr_tmp_off(ctx, locals, args_slot)
     var fn_off = _intr_tmp_off(ctx, locals, fn_slot)
-    if args_off == nil || fn_off == nil {
+    if oren_type_tag(args_off) == 0 || oren_type_tag(fn_off) == 0 {
         _intr_tmp_pop(ctx, base)
         err(ctx, "x64 native v0: missing spill slots for varargs call")
         return nil
@@ -662,7 +662,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     var varargs_fixed = nil
     if ctx["func_varargs_fixed"] != nil {
         var vf_enc = ctx["func_varargs_fixed"][nm]
-        if vf_enc != nil { varargs_fixed = vf_enc - 1 }
+        if oren_type_tag(vf_enc) != 0 { varargs_fixed = vf_enc - 1 }
     }
     var is_varargs_named = (is_direct == true && varargs_fixed != nil)
     // Wrapper functions (`__oren_fnwrap_<name>`) already receive a pre-packed `rest_list` and
@@ -707,7 +707,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     // Rolling: stack args are supported; arg count is bounded only by call-area capacity.
     if is_direct == true && is_import != true {
         var arity2_enc = ctx["func_arity"][nm]
-        if arity2_enc == nil { err(ctx, "x64 native v0: missing arity for function " + nm); return nil }
+        if oren_type_tag(arity2_enc) == 0 { err(ctx, "x64 native v0: missing arity for function " + nm); return nil }
         var arity2 = arity2_enc - 1
         if is_varargs_named {
             var fixed = varargs_fixed
@@ -731,13 +731,13 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
     var spill_n2 = argc
     if is_varargs_named { spill_n2 = argc + 1 } // +1 for the packed rest_list
     var base2 = _intr_tmp_push(ctx, spill_n2)
-    if base2 == nil { return nil }
+    if oren_type_tag(base2) == 0 { return nil }
     var i2 = 0
     while i2 < argc {
         _emit_eval_int_to_rax(ctx, args[i2], locals)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
         var tmp_off = _intr_tmp_off(ctx, locals, iadd(base2, i2))
-        if tmp_off == nil { _intr_tmp_pop(ctx, base2); return nil }
+        if oren_type_tag(tmp_off) == 0 { _intr_tmp_pop(ctx, base2); return nil }
         // Spill the full 64-bit value (keeps function pointer args intact).
         _emit_mov_mrbp_r64(ctx, 0 - tmp_off, 0)
         i2 = iadd(i2, 1)
@@ -750,7 +750,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         // rest_list lives in the extra spill slot at base2+argc
         var rest_idx = iadd(base2, argc)
         var rest_off = _intr_tmp_off(ctx, locals, rest_idx)
-        if rest_off == nil { _intr_tmp_pop(ctx, base2); return nil }
+        if oren_type_tag(rest_off) == 0 { _intr_tmp_pop(ctx, base2); return nil }
 
         // rest_list = oren_new_list(0)
         _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
@@ -782,11 +782,11 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
             src_idx2 = iadd(base2, argc)
         }
         var tmp_off2 = _intr_tmp_off(ctx, locals, src_idx2)
-        if tmp_off2 == nil { _intr_tmp_pop(ctx, base2); return nil }
+        if oren_type_tag(tmp_off2) == 0 { _intr_tmp_pop(ctx, base2); return nil }
 
         if i3 < regc2 {
             var reg2_enc = abi.int_arg_reg(ctx["abi"], i3)
-            if reg2_enc == nil { _intr_tmp_pop(ctx, base2); err(ctx, "x64 native v0: unsupported call arg index"); return nil }
+            if oren_type_tag(reg2_enc) == 0 { _intr_tmp_pop(ctx, base2); err(ctx, "x64 native v0: unsupported call arg index"); return nil }
             var reg2 = reg2_enc - 1
             _emit_mov_r64_mrbp(ctx, reg2, 0 - tmp_off2)
         } else {
@@ -794,7 +794,7 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base2); return nil }
             var stack_disp2 = shadow2 + slot2 * (i3 - regc2)
             var call_area2 = ctx["cur_call_area_bytes"]
-            if call_area2 == nil { call_area2 = 0 }
+            if oren_type_tag(call_area2) == 0 { call_area2 = 0 }
             if stack_disp2 + slot2 > call_area2 {
                 _intr_tmp_pop(ctx, base2)
                 err(ctx, "x64 native v0: outgoing stack args exceed reserved call area (need " + oren_int_to_string(stack_disp2+slot2) + ", have " + oren_int_to_string(call_area2) + ")")
