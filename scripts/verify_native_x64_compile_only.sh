@@ -168,6 +168,7 @@ FFI_ALIAS_SYMBOLS_SRC="tests/native/ffi_alias_symbols.oren"
 FFI_GROUP_LINK_SUGAR_SRC="tests/native/ffi_group_link_sugar.oren"
 FFI_GROUP_MULTILINE_ITEMS_SRC="tests/native/ffi_group_multiline_items.oren"
 FFI_RET_PTR_USIZE_SRC="tests/native/ffi_ret_ptr_usize.oren"
+FFI_LIBC_PORTABLE_SRC="tests/native/ffi_libc_portable.oren"
 LIBMATH_SRC="examples/libmath.oren"
 
 run_with_timeout() {
@@ -438,6 +439,9 @@ run_suite_x64_linux() {
   build_one "$compiler" x64-linux "$FFI_GROUP_LINK_SUGAR_SRC" "build/tmp/ffi_group_link_sugar_${tag}_x64_linux"
   check_elf_x64_dyn "build/tmp/ffi_group_link_sugar_${tag}_x64_linux"
 
+  build_one "$compiler" x64-linux "$FFI_LIBC_PORTABLE_SRC" "build/tmp/ffi_libc_portable_${tag}_x64_linux"
+  check_elf_x64_dyn "build/tmp/ffi_libc_portable_${tag}_x64_linux"
+
   # Shared library output: `.so` + generated header.
   build_one "$compiler" x64-linux "$LIBMATH_SRC" "build/tmp/libmath_${tag}_x64_linux.so" --lib
   check_elf_x64_so "build/tmp/libmath_${tag}_x64_linux.so"
@@ -500,6 +504,10 @@ run_suite_x64_win() {
 
   build_one "$compiler" x64-windows "$FFI_GROUP_LINK_SUGAR_SRC" "build/tmp/ffi_group_link_sugar_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/ffi_group_link_sugar_${tag}_x64_windows.exe"
+
+  build_one "$compiler" x64-windows "$FFI_LIBC_PORTABLE_SRC" "build/tmp/ffi_libc_portable_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/ffi_libc_portable_${tag}_x64_windows.exe"
+  check_bin_contains "build/tmp/ffi_libc_portable_${tag}_x64_windows.exe" "msvcrt.dll"
 
   build_one "$compiler" x64-windows "$WIN_FFI_EXPORT_GETPROC_SRC" "build/tmp/ffi_export_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/ffi_export_${tag}_x64_windows.exe"

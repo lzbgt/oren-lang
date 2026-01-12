@@ -246,6 +246,8 @@ References:
    - 2026-01-12: added `ffi("lib") { ... }` sugar (lowers to portable `@ffi.link("lib")`), guarded by `scripts/verify_native_x64_compile_only.sh` via `tests/native/ffi_group_link_sugar.oren`.
    - 2026-01-13: `ffi { ... }` now allows multiline items without commas/semicolons (implicit separators between `@attr`/`ident` items), guarded by `scripts/verify_native_x64_compile_only.sh` via `tests/native/ffi_group_multiline_items.oren`.
    - 2026-01-13: accepted `@ffi.ret("ptr")` / `@ffi.ret("usize")` as ABI metadata for pointer-sized returns (Tier‑1 is 64-bit today), guarded by `scripts/verify_native_x64_compile_only.sh` via `tests/native/ffi_ret_ptr_usize.oren`.
+   - 2026-01-12: added `@ffi.libc` as a portable “system libc” alias (maps to the correct library name per target OS), so simple libc bindings do not need per‑OS `@cfg` blocks.
+     - Guard: `scripts/verify_native_x64_compile_only.sh` via `tests/native/ffi_libc_portable.oren` (stage1 + stage2, x64-linux + x64-windows).
 
    Next:
 

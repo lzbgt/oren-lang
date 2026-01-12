@@ -1,0 +1,24 @@
+// Portable libc attachment: `@ffi.libc` (rolling ergonomics).
+//
+// Motivation:
+// - Importing libc-like functions across Tier‑1 OSes currently requires per-OS cfg blocks
+//   (msvcrt.dll vs libc.so.6 vs libSystem.B.dylib).
+// - `@ffi.libc` is a compiler-level alias that maps to the correct system C library name for
+//   the selected `--platform` target (or host OS when `--platform` is omitted).
+//
+// Tier‑1 intent: should compile and run on arm64-macos, arm64-linux, x64-linux, x64-windows.
+//
+// NOTE: ABI return kind is explicitly set to keep x64/arm64 lowering consistent.
+
+@ffi.libc
+@ffi.ret("i32")
+ffi { puts as c_puts, atoi as c_atoi }
+
+fn main() {
+    var rc = c_puts("ffi_libc_portable: OK")
+    if rc < 0 { return 1 }
+    var v = c_atoi("123")
+    if v != 123 { return 2 }
+    return 0
+}
+

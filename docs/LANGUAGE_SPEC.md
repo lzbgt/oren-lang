@@ -1299,6 +1299,7 @@ Intrinsics are part of the “reserved surface” (prefix `oren_`, `sys_`) and m
     - Native backend may attach compile-time FFI metadata via attributes on the `ffi` declaration:
       - `@ffi.link("...")`: declare a dynamic library dependency (portable; maps to `--link ...`).
       - `@ffi.dll("name.dll")`: Windows convenience form for attaching a DLL to a single symbol.
+      - `@ffi.libc`: portable alias for the platform C library (Tier‑1 maps to `msvcrt.dll` / `libc.so.6` / `libSystem.B.dylib`).
       - `@ffi.ret("i32")`: ABI signed 32-bit return (sign-extend to i64).
       - `@ffi.ret("u32")`: ABI unsigned 32-bit return (zero-extend to i64).
       - `@ffi.ret("void")`: ABI void return (force return register to 0 for expression contexts).

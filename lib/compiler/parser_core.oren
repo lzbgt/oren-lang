@@ -118,6 +118,9 @@ fn new_parser(l) {
             // - `@ffi.link("libc.so.6") ffi strlen` (portable; matches `--link` behavior)
             "ffi.dll",
             "ffi.link",
+            // Native backend FFI metadata: portable system library aliases.
+            // Example: `@ffi.libc ffi { puts, atoi }` (maps to libc on Linux, libSystem on macOS, msvcrt on Windows).
+            "ffi.libc",
             // Native backend FFI metadata: specify the ABI-level return type for correct lowering.
             // Example: `@ffi.ret("i32") ffi atoi(s: Str) -> I64` (Oren type can be wider than ABI).
             "ffi.ret",

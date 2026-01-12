@@ -44,7 +44,24 @@ fn _build_lit_string(v) {
     return v["value"]
 }
 
-fn _build_collect_ffi_link_libs_from_ffi_stmt(st, out, seen) {
+fn _build_resolve_ffi_libc(target) {
+    // Resolve the platform C library for the given target OS (rolling convenience).
+    //
+    // Goal: reduce per-OS cfg boilerplate in FFI-heavy code where the only difference is the
+    // library/framework name.
+    //
+    // Tier‑1 intent:
+    // - windows: msvcrt.dll
+    // - linux:   libc.so.6
+    // - macos:   libSystem.B.dylib
+    if target == nil { return nil }
+    if _build_str_eq_bytes(target, "windows") { return "msvcrt.dll" }
+    if _build_str_eq_bytes(target, "linux") { return "libc.so.6" }
+    if _build_str_eq_bytes(target, "macos") { return "libSystem.B.dylib" }
+    return nil
+}
+
+fn _build_collect_ffi_link_libs_from_ffi_stmt(st, target, out, seen) {
     if st == nil || out == nil || seen == nil { return nil }
     if st["type"] != "FFI" { return nil }
     var attrs = st["attrs"]
@@ -56,6 +73,16 @@ fn _build_collect_ffi_link_libs_from_ffi_stmt(st, out, seen) {
         var nm = a["name"]
         if nm == nil { i = i + 1; continue }
         // `@ffi.link("...")` (portable) and `@ffi.dll("...")` (Windows shorthand) both map to `--link`.
+        // Also accept `@ffi.libc` as a portable alias for the platform C library.
+        if _build_str_eq_bytes(nm, "ffi.libc") {
+            var libc = _build_resolve_ffi_libc(target)
+            if libc != nil && libc != "" && seen[libc] == nil {
+                seen[libc] = true
+                oren_list_push(out, libc)
+            }
+            i = i + 1
+            continue
+        }
         if !_build_str_eq_bytes(nm, "ffi.link") && !_build_str_eq_bytes(nm, "ffi.dll") { i = i + 1; continue }
         var args = a["args"]
         if args == nil || oren_list_len(args) != 1 || args[0] == nil { i = i + 1; continue }
@@ -70,7 +97,7 @@ fn _build_collect_ffi_link_libs_from_ffi_stmt(st, out, seen) {
     return nil
 }
 
-fn _build_collect_ffi_link_libs(linked) {
+fn _build_collect_ffi_link_libs(linked, target) {
     // Collect implicit native link deps declared on `ffi` statements.
     //
     // This keeps stdlib/platform bindings self-contained and is a prerequisite for production
@@ -79,6 +106,7 @@ fn _build_collect_ffi_link_libs(linked) {
     // Supported attrs (rolling):
     // - `@ffi.link("...")` (portable; preferred)
     // - `@ffi.dll("...")` (Windows x64 convenience; treated as `--link` too)
+    // - `@ffi.libc` (portable alias for the target's C library)
     //
     // Return: list<string> (unique, in first-seen order), or [].
     var out = []
@@ -88,7 +116,7 @@ fn _build_collect_ffi_link_libs(linked) {
     var seen = {}
     var i = 0
     while i < oren_list_len(stmts) {
-        _build_collect_ffi_link_libs_from_ffi_stmt(stmts[i], out, seen)
+        _build_collect_ffi_link_libs_from_ffi_stmt(stmts[i], target, out, seen)
         i = i + 1
     }
     return out
@@ -1506,7 +1534,7 @@ fn compiler_main() {
         // Allow `ffi` declarations to attach required dynamic libs (portable `@ffi.link`).
         // This keeps stdlib/platform bindings self-contained and avoids requiring users/scripts
         // to pass `--link` explicitly for common OS bindings.
-        var implicit_link_libs = _build_collect_ffi_link_libs(linked)
+        var implicit_link_libs = _build_collect_ffi_link_libs(linked, target)
         if implicit_link_libs != nil && oren_list_len(implicit_link_libs) != 0 {
             link_libs = _build_merge_link_libs(link_libs, implicit_link_libs)
         }

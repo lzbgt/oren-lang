@@ -315,6 +315,20 @@ ffi puts
 ffi puts
 ```
 
+Portable shortcut (rolling): libc alias
+
+```oren
+// Same intent as above, but without per-OS library name boilerplate.
+//
+// `@ffi.libc` resolves to the platform C library name for the selected `--platform` target:
+// - Windows: msvcrt.dll
+// - Linux:   libc.so.6
+// - macOS:   libSystem.B.dylib
+@ffi.libc
+@ffi.ret("i32")
+ffi { puts as c_puts, atoi as c_atoi }
+```
+
 Grouping convenience (recommended when importing multiple symbols from the same library):
 
 ```oren

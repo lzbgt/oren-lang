@@ -147,6 +147,8 @@ Related FFI ergonomics (rolling):
 - The attribute form is the primary mechanism to attach a library/DLL:
   - `@ffi.link("libc.so.6") ffi { puts, atoi }`
   - `@ffi.dll("msvcrt.dll") ffi { puts, atoi }` (Windows convenience)
+- A small portable alias exists for the platform C library (reduces `@cfg` boilerplate):
+  - `@ffi.libc @ffi.ret("i32") ffi { puts, atoi }` (Tier‑1 maps to msvcrt/libc/libSystem)
 - The parser also supports a small sugar that lowers to the portable `@ffi.link(...)`:
   - `ffi("libc.so.6") { puts, atoi }`
 
@@ -171,6 +173,29 @@ Notes:
 
 - The argument must be a single string literal (v0 determinism rule).
 - `@ffi.link("...")` is treated as if the user passed `--link ...` on the command line.
+
+### 3.3.1 Portable libc alias (`@ffi.libc`) (rolling)
+
+When the only cross-platform difference is the **C library name** (Windows vs Linux vs macOS),
+the repo supports a compiler-level alias:
+
+```oren
+@ffi.libc
+@ffi.ret("i32")
+ffi { puts, atoi }
+```
+
+Tier‑1 mapping (rolling):
+
+- Windows: `msvcrt.dll`
+- Linux: `libc.so.6`
+- macOS: `libSystem.B.dylib`
+
+Notes:
+
+- This is intentionally narrow (only libc) to keep resolution deterministic and auditable.
+- For other libraries (OpenSSL, Win32 DLLs, macOS frameworks), keep using `@ffi.link("...")` / `@ffi.dll("...")`
+  or prefer `std:ffi/*` wrapper modules.
 
 ### 3.4 FFI library attachment (`@ffi.dll(...)`) (Windows native backend)
 
