@@ -21,6 +21,7 @@
 // @include "x64_native_program/045_emit_list_intrinsics.oren"
 // @include "x64_native_program/046_emit_string_helpers.oren"
 // @include "x64_native_program/046_emit_sys_intrinsics_windows_mmap.oren"
+// @include "x64_native_program/046_emit_sys_intrinsics_linux_net.oren"
 // @include "x64_native_program/046_emit_sys_intrinsics.oren"
 // @include "x64_native_program/046_emit_sys_intrinsics_windows_fs.oren"
 // @include "x64_native_program/046_emit_sys_intrinsics_windows.oren"

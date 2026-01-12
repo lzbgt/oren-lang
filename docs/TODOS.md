@@ -90,6 +90,7 @@ References:
 	   Status (fact):
 
 	   - 2026-01-12: `scripts/verify_native_x64_compile_only.sh` now pre-seeds native runtime ASTBIN + rtobj (core+full) before running tight per-build timeouts, so the “cold after runtime change” case stays bounded.
+	   - 2026-01-12: began splitting the >2k-line x64 Linux syscall intrinsic emitter into smaller modules; moved the NET/epoll blocks into `lib/compiler/x64_native_program/046_emit_sys_intrinsics_linux_net.oren` so hot-path compilation of `_emit_intrinsic_sys_linux_x64` stays bounded.
 
 	2) **Tier‑1 native parity: correctness across arch/OS** (L)
 
@@ -112,6 +113,10 @@ References:
    - `./scripts/verify_native_matrix.sh`
    - `./scripts/verify_native_net_matrix.sh`
    - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win`
+
+   Status (fact):
+
+   - 2026-01-12: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` passed (compiler runs on Win11 + WSL2 and compiles+runs a tiny native program on both).
 
 3) **Native value representation + reflection-first type system** (L)
 
