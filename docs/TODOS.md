@@ -167,7 +167,7 @@ References:
 
    Status (fact):
 
-   - 2026-01-12: `./scripts/verify_native_net_matrix.sh --targets x64-win,x64-wsl` passed (stage1 + stage2)
+   - 2026-01-12: `./scripts/verify_native_net_matrix.sh --targets all` passed (stage1 + stage2; local + linux/arm64 container + remote Win11 + remote WSL2)
 
 5) **Crypto library layering (separate from NET)** (M)
 
