@@ -447,46 +447,49 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         // `oren_init_static_cstr0_table` (entry stub), so per-use tracking is unnecessary here.
         return nil
     }
-	    if t == "Function" {
-        // Lambda literal (anonymous function) in expression position.
-        //
-        // Representation:
-        // - returns a pointer to a heap-allocated `{code_ptr, env_ptr}` fnobj record
-        // - `code_ptr` points to the synthesized wrapper `__oren_lambda_N`
-        // - `env_ptr` is either 0 (no captures) or a list of captured values (capture-by-value)
-        var name = expr["name"]
-        if name != "" { err(ctx, "x64 native v0: function decl not allowed in expression position"); return nil }
+		    if t == "Function" {
+	        // Lambda literal (anonymous function) in expression position.
+	        //
+	        // Representation:
+	        // - returns a pointer to a runtime function object (kind=6) created by `oren_func(code_ptr, env_ptr)`
+	        // - `code_ptr` points to the synthesized wrapper `__oren_lambda_N`
+	        // - `env_ptr` is either 0 (no captures) or a list of captured values (capture-by-value)
+	        var name = expr["name"]
+	        if name != "" { err(ctx, "x64 native v0: function decl not allowed in expression position"); return nil }
+	        if ctx == nil || ctx["runtime_injected"] != true {
+	            // Lambda literals rely on runtime helpers (list/alloc + callable ABI).
+	            err(ctx, "x64 native v0: lambda literals require injected native runtime")
+	            return nil
+	        }
 
-        // Ensure lambda has a stable name + capture list.
-        if expr["lambda_name"] == nil {
-            // Fallback: if collection was skipped, synthesize metadata here.
-            expr["lambda_name"] = callable.lambda_gensym(ctx)
-            expr["captures"] = callable.lambda_free_vars(ctx, expr)
-            oren_list_push(ctx["lambda_defs"], {"name": expr["lambda_name"], "fun": expr, "captures": expr["captures"]})
-        }
-        var lname = expr["lambda_name"]
-        var caps = expr["captures"]
-        if caps == nil { caps = [] }
+	        // Ensure lambda has a stable name + capture list.
+	        if expr["lambda_name"] == nil {
+	            // Fallback: if collection was skipped, synthesize metadata here.
+	            expr["lambda_name"] = callable.lambda_gensym(ctx)
+	            expr["captures"] = callable.lambda_free_vars(ctx, expr)
+	            oren_list_push(ctx["lambda_defs"], {"name": expr["lambda_name"], "fun": expr, "captures": expr["captures"]})
+	        }
+	        var lname = expr["lambda_name"]
+	        var caps = expr["captures"]
+	        if caps == nil { caps = [] }
 
-        // Spill slots: fnobj ptr, env ptr, tmp code ptr.
-        var base = _intr_tmp_push(ctx, 2)
-        if base == nil { return nil }
-        var slot_fnobj = base
-        var slot_env = iadd(base, 1)
-        var tmp_fnobj = _intr_tmp_off(ctx, locals, slot_fnobj)
-        var tmp_env = _intr_tmp_off(ctx, locals, slot_env)
-        if tmp_fnobj == nil || tmp_env == nil {
-            _intr_tmp_pop(ctx, base)
-            err(ctx, "x64 native v0: missing spill slots for lambda literal")
-            return nil
-        }
+	        // Spill slots: env ptr.
+	        var base = _intr_tmp_push(ctx, 1)
+	        if base == nil { return nil }
+	        var slot_env = base
+	        var tmp_env = _intr_tmp_off(ctx, locals, slot_env)
+	        if tmp_env == nil {
+	            _intr_tmp_pop(ctx, base)
+	            err(ctx, "x64 native v0: missing spill slot for lambda literal env")
+	            return nil
+	        }
 
-        // env_ptr = 0 or a list of captures (capture-by-value, deterministic order)
-        if oren_list_len(caps) == 0 {
-            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-            bytes_extend(ctx["code"], insn_cdqe())
-            _emit_mov_mrbp_r64(ctx, 0 - tmp_env, 0)
-        } else {
+	        // env_ptr = 0 or a list of captures (capture-by-value, deterministic order)
+	        if oren_list_len(caps) == 0 {
+	            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+	            bytes_extend(ctx["code"], insn_cdqe())
+	            _emit_mov_mrbp_r64(ctx, 0 - tmp_env, 0)
+	        } else {
             // env = oren_new_list(0)
             _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_new_list"}, "args": [{"type": "Integer", "value": "0"}]}, locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
@@ -499,36 +502,34 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                 var cname = caps[i]
                 _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_list_push"}, "args": [env_tmp, {"type": "Identifier", "value": cname}]}, locals)
                 if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-                i = iadd(i, 1)
-            }
-        }
+	                i = iadd(i, 1)
+	            }
+	        }
 
-        // fnobj = malloc_raw(16)
-        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "malloc_raw"}, "args": [{"type": "Integer", "value": "16"}]}, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-        _emit_mov_mrbp_r64(ctx, 0 - tmp_fnobj, 0)
+	        // Call `oren_func(code_ptr, env_ptr)` to create a tracked function object (kind=6).
+	        var code_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
+	        var env_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
+	        if code_reg_enc == nil || env_reg_enc == nil {
+	            _intr_tmp_pop(ctx, base)
+	            err(ctx, "x64 native v0: missing ABI arg regs for oren_func")
+	            return nil
+	        }
+	        var code_reg = code_reg_enc - 1
+	        var env_reg = env_reg_enc - 1
 
-        // code_ptr = &__oren_lambda_N
-        //
-        // lea r11, [rip+disp32]  (patched to function entry)
-        var lea_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(11, 0))
-        oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": lname})
+	        // env_reg = env_ptr
+	        _emit_mov_r64_mrbp(ctx, env_reg, 0 - tmp_env)
 
-        // Store code_ptr at [fnobj+0]
-        _emit_mov_r64_mrbp(ctx, 10, 0 - tmp_fnobj) // r10 = fnobj
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11))
+	        // code_reg = &__oren_lambda_N
+	        var lea_pos = bytes_len(ctx["code"])
+	        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(code_reg, 0))
+	        oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": lname})
 
-        // Store env_ptr at [fnobj+8]
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
-        _emit_mov_r64_mrbp(ctx, 12, 0 - tmp_env) // r12 = env ptr
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 12))
-
-        // Return fnobj pointer in RAX.
-        _emit_mov_r64_mrbp(ctx, 0, 0 - tmp_fnobj)
-        _intr_tmp_pop(ctx, base)
-	        return nil
-	    }
+	        // rax = oren_func(code_ptr, env_ptr)
+	        _emit_call_rel32_named_x64(ctx, "oren_func")
+	        _intr_tmp_pop(ctx, base)
+		        return nil
+		    }
 		    if t == "IntrTmp" {
 		        // Compiler-internal expr node: intrinsic temp slot reference.
 		        // Stored as an integer idx into the per-function intrinsic temp pool.
@@ -610,20 +611,45 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 	                }
 	            }
 	        }
-        if ctx["func_arity"] != nil && ctx["func_arity"][fn_name] != nil {
-            // Track which named-function wrappers are actually referenced as values.
-            // This keeps wrapper synthesis bounded for rtobj builds and reduces x64 cold-build time.
-            if ctx["fnwrap_needed"] != nil { ctx["fnwrap_needed"][fn_name] = 1 }
-            var wname = "__oren_fnwrap_" + fn_name
-            var fnobj_off = _data_add_fnobj(ctx, wname)
-            if fnobj_off == nil { err(ctx, "x64 native v0: failed to allocate fnobj"); return nil }
+	        if ctx["func_arity"] != nil && ctx["func_arity"][fn_name] != nil {
+	            // Track which named-function wrappers are actually referenced as values.
+	            // This keeps wrapper synthesis bounded for rtobj builds and reduces x64 cold-build time.
+	            if ctx["fnwrap_needed"] != nil { ctx["fnwrap_needed"][fn_name] = 1 }
+	            var wname = "__oren_fnwrap_" + fn_name
 
-            var lea_pos = bytes_len(ctx["code"])
+	            // Tier‑1 convergence: function values are runtime function objects (kind=6) so:
+	            // - `std:reflect.tag/name` can discriminate funcs safely
+	            // - spawned/indirect calls share a single callable ABI across arm64/x64
+	            if ctx != nil && ctx["runtime_injected"] == true {
+	                var code_reg_enc = abi.int_arg_reg(ctx["abi"], 0)
+	                var env_reg_enc = abi.int_arg_reg(ctx["abi"], 1)
+	                if code_reg_enc == nil || env_reg_enc == nil {
+	                    err(ctx, "x64 native v0: missing ABI arg regs for oren_func")
+	                    return nil
+	                }
+	                var code_reg = code_reg_enc - 1
+	                var env_reg = env_reg_enc - 1
+
+	                // env_ptr = 0 (no closures for named functions in rolling v0)
+	                bytes_extend(ctx["code"], insn_mov_r32_imm32(env_reg, 0))
+
+	                // code_ptr = &__oren_fnwrap_<name>
+	                var lea_pos = bytes_len(ctx["code"])
+	                bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(code_reg, 0))
+	                oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": wname})
+
+	                _emit_call_rel32_named_x64(ctx, "oren_func")
+	                return nil
+	            }
+
+	            // Fallback (bring-up): if native runtime is not injected, use an untracked static fnobj record.
+	            var fnobj_off = _data_add_fnobj(ctx, wname)
+	            if fnobj_off == nil { err(ctx, "x64 native v0: failed to allocate fnobj"); return nil }
+	            var lea_pos2 = bytes_len(ctx["code"])
 	            bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
-	            // Patch disp32 to point at the fnobj data record.
-	            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": fnobj_off})
+	            oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos2 + 3, "data_off": fnobj_off})
 	            return nil
-	        }
+		        }
 
         err(ctx, "x64 native v0: unknown var " + name)
         return nil

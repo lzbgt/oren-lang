@@ -1307,6 +1307,9 @@ fn native_compile_program_x64(linked, platform) {
         if user_stmts == nil { user_stmts = [] }
     } else {
         // Runtime already compiled into ctx; user statements come from the original program.
+        // Mark as injected so lowering selects Tier‑1 shared runtime paths (parity with arm64 and
+        // with the non-rtobj injection path).
+        ctx["runtime_injected"] = true
         user_stmts = nil
         if linked != nil { user_stmts = linked["statements"] }
         if user_stmts == nil { user_stmts = [] }
