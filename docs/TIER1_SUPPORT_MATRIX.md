@@ -24,6 +24,12 @@ Oren can emit three “families” of artifacts:
 - **C backend**: C code + host C toolchain (used by stage0 bootstrap; also supported as a backend).
 - **AVM bytecode**: portable `.obc` intended to be platform-neutral (still treated as rolling until fully proven).
 
+FFI portability note (rolling):
+
+- When importing from the platform C library, prefer `@ffi.libc` (portable alias) instead of per‑OS library names.
+  - Tier‑1 mapping: Windows=`msvcrt.dll`, Linux=`libc.so.6`, macOS=`libSystem.B.dylib`.
+  - See: `docs/ATTRIBUTES.md` (`@ffi.libc`) and fixture `tests/native/ffi_libc_portable.oren`.
+
 ## Stage pipeline (self-host)
 
 Definitions:
@@ -76,6 +82,13 @@ These scripts are the intended long-run gate for Tier‑1 parity:
 
 See `docs/REMOTE_X64_ENV.md` for how the remote Windows + WSL2 hosts are configured and how logs are fetched.
 
+HTTP/2 note (rolling but verified):
+
+- HTTP/2 is implemented as a deterministic framing + HPACK bring-up layer and is verified by the NET matrix
+  (ALPN `h2`, preface, SETTINGS/ACK, PING/ACK, HEADERS/CONTINUATION/DATA loopback).
+  - Source: `lib/std/net/http2.oren`, `lib/std/net/hpack.oren`
+  - Evidence: `tests/native/test_http2_*_loopback.oren` (see `docs/LANGUAGE_STATUS_AND_GAPS.md`)
+
 ### Remote connectivity (fact-based)
 
 Some networks/proxies do not resolve the default remote hostname (`pc.work`). When remote access is unavailable,
@@ -113,3 +126,4 @@ When something is not green, record the *smallest actionable next step* and the 
 
 - Oren accepts Windows-style `\` separators in CLI paths across hosts (macOS/Linux/Windows). This is a
   correctness requirement because remote Win11 logs/scripts often contain backslash paths.
+  - Gate: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` includes a Windows backslash-path compile+run step.
