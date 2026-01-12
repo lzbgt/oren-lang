@@ -68,7 +68,9 @@ fn oren_intern_cstr(cstr_ptr) {
     }
 
     var cached = oren_map_get_int(g_intern_cstr_cache, cstr_ptr)
-    if cached != 0 { return cached }
+    // Map miss sentinel: the native runtime returns `native_value_nil()` on miss (not `0`).
+    // Treat both `0` and `nil` as cache-miss.
+    if cached != 0 && native_value_is_nil(cached) != true { return cached }
 
     var n = oren_string_len(cstr_ptr)
     var out = malloc_k(iadd(n, 1), 1)

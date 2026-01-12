@@ -147,6 +147,11 @@ References:
        - Windows: `WaitOnAddress/WakeByAddressAll` imported from `KERNELBASE.dll` (kernel32 import can fail with `STATUS_ENTRYPOINT_NOT_FOUND` on Win11).
      - Added a direct ulock handshake to `tests/fixtures/tier1_native_spawn_join_main.oren` (remote x64 gate).
      - Verified end-to-end with `./scripts/verify_stage0_windows_bootstrap.sh` and `./scripts/verify_windows_stage2_from_stage1.sh`.
+   - 2026-01-12: fixed `oren_intern_cstr` cache behavior under the native runtime on x86_64:
+     - Root cause: `native_value_is_nil(...)` returns `true/false` **singletons**, not numeric `0/1`, so comparing it to `0` breaks cache-hit detection.
+     - `oren_intern_cstr` now treats map misses as `nil` and checks `native_value_is_nil(cached) != true` before returning cached values.
+     - Tier‑1 fixture now uses `false` (not numeric `0`) for the boolean short-circuit guard (`false && boom()`), matching the language spec (`0` is truthy).
+     - Verified end-to-end via `./scripts/verify_native_matrix.sh --targets x64-win-tier1,x64-wsl-tier1` (stage1 + stage2; Win11 + WSL2).
 
 3) **Native value representation + reflection-first type system** (L)
 
@@ -164,11 +169,11 @@ References:
 
    - `make test` (nil-compare guard is always-on; diagnostics tagged `nil-compare guard:`)
 
-	   Status (fact):
+   Status (fact):
 
-	   - 2026-01-12: added `lib/std/reflect.oren` (minimal reflection wrappers + stable tag constants) and wired it into the native quick integration smoke.
-	   - 2026-01-12: expanded the native quick integration reflection+varargs gate (`tests/native/test_quick_integration_native.oren`) to cover `bool` + `func`, and to be forward-compatible with eventual float tagging (`int` vs `float` best-effort today).
-	   - 2026-01-12: fixed x64 native “function values” parity so `reflect.tag(add)` is stable under stage2:
+   - 2026-01-12: added `lib/std/reflect.oren` (minimal reflection wrappers + stable tag constants) and wired it into the native quick integration smoke.
+   - 2026-01-12: expanded the native quick integration reflection+varargs gate (`tests/native/test_quick_integration_native.oren`) to cover `bool` + `func`, and to be forward-compatible with eventual float tagging (`int` vs `float` best-effort today).
+   - 2026-01-12: fixed x64 native “function values” parity so `reflect.tag(add)` is stable under stage2:
 	     - x64 now materializes first-class function values via `oren_func(code_ptr, env_ptr)` (tracked kind=6), matching arm64.
 	     - rtobj (cached injected runtime) path now marks `ctx["runtime_injected"]=true`, so Tier‑1 lowering paths are consistently selected.
 	     - Guarded by `./scripts/verify_native_matrix.sh --targets x64-win,x64-wsl` (stage1 + stage2).

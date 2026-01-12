@@ -109,8 +109,10 @@ fn main() {
     var argv_dbg = global_get_argv()
     print("tier1 smoke: raw argc=" + oren_int_to_string(argc_dbg))
     print("tier1 smoke: raw argv=" + oren_int_to_string(argv_dbg))
+    var argv0_ptr = 0
     if argv_dbg != 0 {
         var p0 = ptr_get(argv_dbg + 0)
+        argv0_ptr = p0
         print("tier1 smoke: argv0 ptr=" + oren_int_to_string(p0))
         if p0 != 0 {
             var b0 = ptr_get_byte(p0 + 0) & 255
@@ -196,29 +198,88 @@ fn main() {
 
     // --- Runtime tracking APIs (arm64/x64 unified via injected runtime) ---
     //
-    // String literals are embedded data pointers; native backends must mark them as tracked
-    // (kind=STRING) so key-kind inference and string-aware compares are safe.
-    var node0 = oren_find_node("trk_literal")
-    if node0 == 0 { return 920 }
-    var kind0 = ptr_get(node0 + 16)
-    if kind0 != 1 { return 921 }
+    // String literals are embedded cstr0 pointers and are intentionally NOT tracked as heap allocations
+    // (GC + tracking metadata would be a major startup/GC cost for compiler workloads).
+    //
+    // Instead, the runtime must recognize them via the startup-built cstr0 membership set:
+    // `native_is_string_ptr(lit)` returns true even when `oren_find_node(lit)` is 0.
+    if native_is_string_ptr("trk_literal") == 0 { return 920 }
+    if oren_find_node("trk_literal") != 0 { return 921 }
 
     // Small integers must never be treated as heap pointers by the tracking model.
     if oren_find_node(1) != 0 { return 922 }
     if oren_find_node(4095) != 0 { return 923 }
 
-    // `oren_intern_cstr` copies an unowned C-string into a tracked heap string.
-    var intern0 = oren_intern_cstr("trk_literal")
+    // `oren_intern_cstr` copies an unowned/untracked C-string into a tracked heap string.
+    //
+    // IMPORTANT:
+    // Passing a cstr0 literal directly returns the literal pointer unchanged (no heap copy),
+    // so we use argv0 (platform-provided bytes) as a representative unowned C-string pointer.
+    if argv0_ptr == 0 { return 924 }
+    var intern0 = oren_intern_cstr(argv0_ptr)
     if intern0 == 0 { return 924 }
-    // Do not assert pointer identity here: `==` on strings is content-based (Tier‑1).
-    if oren_string_eq(intern0, "trk_literal") == false { return 925 }
+    if native_is_string_ptr(intern0) == 0 {
+        // Diagnostic breadcrumbs (Tier‑1 x64 windows bring-up):
+        // Keep output bounded and only emit on failure.
+        print("tier1 trk: intern0 not string ptr=" + oren_int_to_string(intern0))
+        // Runtime globals live in injected runtime; they are in the global namespace in native v0.
+        print("tier1 trk: alloc_index_cap=" + oren_int_to_string(g_alloc_index_cap))
+        var dbg_node0 = oren_find_node(intern0)
+        print("tier1 trk: find_node=" + oren_int_to_string(dbg_node0))
+        if dbg_node0 != 0 {
+            print("tier1 trk: kind=" + oren_int_to_string(ptr_get(dbg_node0 + 16)))
+        }
+        // Check whether the alloc list contains a node for this ptr (index insert vs list insert).
+        var cur0 = global_get_allocs()
+        var hit0 = 0
+        var steps0 = 0
+        while cur0 != 0 && steps0 < 64 {
+            if ptr_get(cur0) - intern0 == 0 { hit0 = 1; break }
+            cur0 = ptr_get(cur0 + 32)
+            steps0 = steps0 + 1
+        }
+        print("tier1 trk: alloc_list_hit=" + oren_int_to_string(hit0) + " steps=" + oren_int_to_string(steps0))
+        // Sample a few alloc nodes to see what *is* tracked (bounded).
+        var cur1 = global_get_allocs()
+        var j0 = 0
+        while cur1 != 0 && j0 < 6 {
+            var p0 = ptr_get(cur1)
+            var k0 = ptr_get(cur1 + 16)
+            print("tier1 trk: alloc[" + oren_int_to_string(j0) + "] ptr=" + oren_int_to_string(p0) + " kind=" + oren_int_to_string(k0))
+            cur1 = ptr_get(cur1 + 32)
+            j0 = j0 + 1
+        }
+        return 925
+    }
     var node1 = oren_find_node(intern0)
-    if node1 == 0 { return 926 }
+    if node1 == 0 {
+        print("tier1 trk: intern0 missing node ptr=" + oren_int_to_string(intern0))
+        print("tier1 trk: alloc_index_cap=" + oren_int_to_string(g_alloc_index_cap))
+        return 926
+    }
     var kind1 = ptr_get(node1 + 16)
     if kind1 != 1 { return 927 }
-    // Re-run to ensure the helper remains deterministic and safe (idempotent on content).
-    var intern1 = oren_intern_cstr("trk_literal")
-    if oren_string_eq(intern1, "trk_literal") == false { return 928 }
+    // Re-run to ensure the helper remains deterministic and safe (idempotent on pointer identity).
+    var intern1 = oren_intern_cstr(argv0_ptr)
+    if (intern1 - intern0) != 0 {
+        // Diagnostic breadcrumbs (Tier‑1): cache stability regression.
+        // Keep output bounded; only emit on failure.
+        print("tier1 trk: intern mismatch argv0_ptr=" + oren_int_to_string(argv0_ptr))
+        print("tier1 trk: intern0=" + oren_int_to_string(intern0))
+        print("tier1 trk: intern1=" + oren_int_to_string(intern1))
+        print("tier1 trk: argv0 is_string=" + oren_int_to_string(native_is_string_ptr(argv0_ptr)))
+        print("tier1 trk: intern1 is_string=" + oren_int_to_string(native_is_string_ptr(intern1)))
+        print("tier1 trk: intern1 node=" + oren_int_to_string(oren_find_node(intern1)))
+        // Directly query the cache map to see whether it contains the entry.
+        print("tier1 trk: cache_map=" + oren_int_to_string(g_intern_cstr_cache))
+        if g_intern_cstr_cache != 0 {
+            print("tier1 trk: cache_len=" + oren_int_to_string(oren_map_len(g_intern_cstr_cache)))
+            var cached_dbg = oren_map_get_int(g_intern_cstr_cache, argv0_ptr)
+            print("tier1 trk: cache_get=" + oren_int_to_string(cached_dbg))
+            print("tier1 trk: cache_get_is_nil=" + oren_int_to_string(native_value_is_nil(cached_dbg)))
+        }
+        return 928
+    }
 
     // --- String ops (extra coverage; keep fast) ---
     if oren_string_len("abc") != 3 { return 930 }
@@ -458,7 +519,10 @@ fn main() {
     if bool_norm_val(2) != 1 { return 65 }
 
     // Short-circuit sanity (must not evaluate RHS when unnecessary).
-    if 0 && boom() != 0 { return 70 }
+    // Tier‑1: boolean short-circuiting should prevent evaluating RHS when LHS is `false`.
+    // Do not use numeric `0` here: under native backend, booleans are runtime singletons (`false`/`true`),
+    // and only `nil`/`false` are falsey (numeric 0 is truthy).
+    if false && boom() != 0 { return 70 }
 
     // Tier‑1: language-level spawn/join must work on Windows (thread-based) and Linux (POSIX).
     // Spawn a lambda with capture-by-value.

@@ -142,6 +142,23 @@ Practical compiler-internal corollary (x64 emitters):
   - Current preferred: store the raw `u8` value `0..255`, and use `nil` for “absent”.
   - The legacy “`off+1`” pattern existed only when `nil` was effectively `0` in some rolling-native paths; treat any remaining uses as tech-debt to unwind (example: x64 disp8 encoding).
 
+### Native runtime booleans are singleton values (not `0/1`)
+
+Under the **native backend runtime** (rolling), `nil`, `false`, and `true` are represented as **runtime singletons** stored in the runtime globals block (distinct, non-zero values).
+
+This has a direct consequence for runtime helper APIs:
+
+- `native_value_is_nil(x)` returns the **boolean singleton** `true` or `false`, not numeric `1/0`.
+- Therefore:
+  - ✅ `if native_value_is_nil(x) { ... }` is correct
+  - ✅ `if native_value_is_nil(x) != true { ... }` is correct
+  - ❌ `if native_value_is_nil(x) == 0 { ... }` is **always wrong** (both `true` and `false` are non-zero)
+
+Similarly, many “miss” sentinels in the native runtime are `nil`, not `0`:
+
+- `oren_map_get_int(m, k)` returns `nil` on miss (not `0`) in the native runtime.
+  - Treat both `0` and `nil` as “missing” unless the API promises otherwise.
+
 ## Native strings: embedded literal pool must not hit GC tracking
 
 The self-hosted compiler contains **many** string literals. In native mode, tracking each literal as a heap object (or even creating per-literal metadata nodes) can become a real startup and GC hotspot.
