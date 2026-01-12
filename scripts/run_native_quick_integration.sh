@@ -147,6 +147,24 @@ if [[ "$rc" -eq 0 ]]; then
 fi
 tail -n 5 "$ng_log"
 
+echo "== nil-compare guard smoke (late scalar use: arithmetic literal) =="
+ng1_src="tests/fixtures/nil_guard_bad_late_arith_literal_nil_compare.oren"
+ng1_log="build/logs/${compiler_base}_nil_guard_smoke_arith_literal.log"
+ng1_out="build/tmp/${compiler_base}_nil_guard_smoke_arith_literal.obc"
+rm -f "$ng1_log" "$ng1_out" 2>/dev/null || true
+
+set +e
+"$compiler" build "$ng1_src" --backend bytecode -o "$ng1_out" >"$ng1_log" 2>&1
+rc=$?
+set -e
+
+if [[ "$rc" -eq 0 ]]; then
+  echo "FAIL: nil-compare guard smoke (arith literal) expected failure but build succeeded"
+  tail -n 80 "$ng1_log"
+  exit 1
+fi
+tail -n 5 "$ng1_log"
+
 echo "== nil-compare guard smoke (late bitwise use) =="
 ngb_src="tests/fixtures/nil_guard_bad_late_bitwise_nil_compare.oren"
 ngb_log="build/logs/${compiler_base}_nil_guard_smoke_bitwise.log"

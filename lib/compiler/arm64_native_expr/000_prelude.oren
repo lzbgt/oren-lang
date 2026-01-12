@@ -93,7 +93,9 @@ fn native_data_add_cstr0(ctx, s) {
     // Store offsets as `off+1` so a real offset of 0 is representable while still using `nil`
     // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
     var existing_enc = ctx["cstr0_offs"][s]
-    if existing_enc != nil { return existing_enc - 1 }
+    if oren_type_tag(existing_enc) == 1 {
+        if existing_enc > 0 { return existing_enc - 1 }
+    }
 
     while int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
     var off = bytes_len(ctx["data"])

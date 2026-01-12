@@ -42,6 +42,25 @@ To avoid stale pointers, `ui-idea.md` now exists as a **short redirect** to the 
 
 Treat this document (`docs/GUI.md`) and the shim plan (`docs/GUI_PLATFORM_SHIMS.md`) as the current source of truth.
 
+## 0.2) Where Dear ImGui fits (and where it doesn't)
+
+Oren’s long-term UI API should remain **retained-mode** and portable (`std:ui/*`), with deterministic headless tests.
+
+Dear ImGui (immediate-mode) is still highly relevant to Oren, but in a *non-conflicting* role:
+
+- as an **optional devtools overlay / inspector** (best fit),
+- or as an **optional bring-up shell** on platforms where its upstream backends are mature,
+  without turning ImGui into the *application UI API*.
+
+Design note (fact-based):
+
+- ImGui’s upstream docs emphasize “bloat-free”, portable, backend-oriented integration and explicitly
+  position the library toward programmer tools rather than full end-user UI.
+- This matches Oren’s rolling need for reliable “window + input + present” loops on Tier‑1, while still
+  keeping Oren’s UI semantics in `std:ui`.
+
+See `docs/GUI_IMGUI_SHELL.md` for the concrete integration shape and the in-repo upstream snapshots.
+
 ## 1) Recommended architecture: UI bytecode + native shell + UI capability domain
 
 Oren’s best leverage is not “build a monolithic widget toolkit in native Oren first”.

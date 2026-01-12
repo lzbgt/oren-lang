@@ -78,7 +78,8 @@ fn _emit_malloc_size_in_rax(ctx, locals) {
     var platform = ctx["platform"]
     if locals == nil { err(ctx, "x64 native v0: malloc intrinsic requires locals context"); return nil }
     var tmp0 = locals["$tmp0"]
-    if tmp0 == nil { err(ctx, "x64 native v0: missing $tmp0 slot for malloc"); return nil }
+    if oren_type_tag(tmp0) != 1 { tmp0 = 0 }
+    if tmp0 <= 0 { err(ctx, "x64 native v0: missing $tmp0 slot for malloc"); return nil }
     var labels = {}
     var local_fixups = []
     var l_ret0 = _new_label(ctx, "malloc_ret0")

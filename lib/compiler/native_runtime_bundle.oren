@@ -229,7 +229,7 @@ fn _rt_bundle_cache_sanity_ok_rec(v, budget_ref) {
     // Returns true if `v` looks structurally safe, false otherwise.
     if budget_ref == nil { return false }
     var budget = budget_ref[0]
-    if budget == nil || budget <= 0 { return false }
+    if budget <= 0 { return false }
     budget_ref[0] = budget - 1
 
     if v == nil || v == true || v == false { return true }

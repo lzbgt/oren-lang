@@ -119,15 +119,16 @@ References:
 	   - stabilize reflection APIs: `docs/REFLECTION_V1.md`
    - define how varargs elements carry type info so userland (fmt/ffi/serde) is robust
    - audit “optional string/env” checks across stdlib/compiler: avoid `v != 0` presence tests (under singleton-`nil`, `nil != 0` is true); standardize on `v != nil && v != 0 && v != ""` or a helper
-	   - nil-vs-scalar parity: either land tagged values (preferred) or make the nil-compare guard flow-aware enough to catch `x + 1` patterns without flagging intentional nil-coalescing in core code
+	   - nil-vs-scalar parity: either land tagged values (preferred) or keep evolving the nil-compare guard so it catches common “dynamic config value used as scalar later” patterns (e.g. `cfg["timeout_ms"]` followed by `x + 1`) without over-flagging intentional nil-coalescing idioms in core code
 
 	   Gate:
 
 	   - `make test` (nil-compare guard is always-on; diagnostics tagged `nil-compare guard:`)
 
-		   Status (fact):
+			   Status (fact):
 
-		   - 2026-01-12: added `lib/std/reflect.oren` (minimal reflection wrappers + stable tag constants) and wired it into the native quick integration smoke.
+			   - 2026-01-12: added `lib/std/reflect.oren` (minimal reflection wrappers + stable tag constants) and wired it into the native quick integration smoke.
+			   - 2026-01-12: nil-compare guard now treats arithmetic-with-numeric-literal as scalar evidence when the value is sourced from a “maybe-nil” index read (fixture: `tests/fixtures/nil_guard_bad_late_arith_literal_nil_compare.oren`).
 
 4) **Stdlib NET/TLS/HTTP/WS maturity (not toy protocols)** (L)
 
@@ -175,7 +176,8 @@ References:
 
 	   - 2026-01-12: `make verify-stage0-win` passed (remote Win11, stage0→stage1 via MSVC `cl.exe`)
 		   - 2026-01-12: `make verify-stage2-win` passed (remote Win11, stage0→stage1→stage2 native + C-backend smoke using default `--cc`)
-		     - Follow-up guard: `scripts/verify_windows_stage2_from_stage1.sh` also compiles `examples/ui_hello.oren` and builds the Win32 OrenUI shim DLL via `scripts/win_msvc_cmd.cmd` (no GUI run; compile/link guard only).
+	     - Follow-up guard: `scripts/verify_windows_stage2_from_stage1.sh` also compiles `examples/ui_hello.oren` and builds the Win32 OrenUI shim DLL via `scripts/win_msvc_cmd.cmd` (no GUI run; compile/link guard only).
+	     - TODO (gap to close): make the default “C backend compile” path on Windows prefer **MSVC `cl.exe`** (auto-detected via stage0 bootstrap logic), so `make test` and common dev flows do not depend on a Unix-like `cc` being installed on Windows.
 
 7) **GUI: platform shims for Tier‑1 (RGBA blit v0)** (L)
 

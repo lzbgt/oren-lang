@@ -54,14 +54,13 @@ fn int_arg_reg(abi, arg_index) {
     //
     // Note: do not use truthiness to test "present": in Oren, all ints (including 0) are truthy.
     var reg = regs[arg_index]
-    if reg == nil { reg = 0 }
     return reg + 1
 }
 
 fn caller_shadow_bytes(abi) {
     if abi == nil { return 0 }
     var n = abi["caller_shadow_bytes"]
-    if n == nil { return 0 }
+    if n <= 0 { return 0 }
     return n
 }
 
@@ -70,21 +69,21 @@ fn callee_call_area_bytes(abi) {
     // For Win64 we reserve >= 32B shadow plus scratch for stack args used by syscalls/FFI.
     if abi == nil { return 0 }
     var n = abi["callee_call_area_bytes"]
-    if n == nil { return 0 }
+    if n <= 0 { return 0 }
     return n
 }
 
 fn stack_arg_slot_bytes(abi) {
     if abi == nil { return 8 }
     var n = abi["stack_arg_slot_bytes"]
-    if n == nil { return 8 }
+    if n <= 0 { return 8 }
     return n
 }
 
 fn stack_align_bytes(abi) {
     if abi == nil { return 16 }
     var n = abi["stack_align_bytes"]
-    if n == nil { return 16 }
+    if n <= 0 { return 16 }
     return n
 }
 

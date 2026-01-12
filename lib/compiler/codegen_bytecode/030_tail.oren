@@ -402,11 +402,13 @@ fn bytecode_compile_program(linked, config) {
     
     // Entry: call main() if present.
     var main_addr = ctx["functions"]["main"]
-    if main_addr != nil {
-        emit_byte(ctx, AVM_CALL32)
-        emit_u32(ctx, main_addr - 1)
-        emit_byte(ctx, 0) // nargs
-        emit_byte(ctx, AVM_POP) // ignore return value
+    if oren_type_tag(main_addr) == 1 {
+        if main_addr > 0 {
+            emit_byte(ctx, AVM_CALL32)
+            emit_u32(ctx, main_addr - 1)
+            emit_byte(ctx, 0) // nargs
+            emit_byte(ctx, AVM_POP) // ignore return value
+        }
     }
     
     emit_byte(ctx, AVM_HALT)
@@ -418,9 +420,14 @@ fn bytecode_compile_program(linked, config) {
         var name = fix["name"]
         var pos = fix["pos"]
         var addr = ctx["functions"][name]
-        if addr != nil {
-            patch_u32(ctx, pos, addr - 1)
-        } else {
+        var patched = false
+        if oren_type_tag(addr) == 1 {
+            if addr > 0 {
+                patch_u32(ctx, pos, addr - 1)
+                patched = true
+            }
+        }
+        if patched != true {
             if ctx["allow_undef"] == true {
                 // Leave placeholder 0 and record relocation for a later linker pass.
                 oren_list_push(ctx["relocs"], {"name": name, "pos": pos, "kind": 0})
@@ -438,9 +445,14 @@ fn bytecode_compile_program(linked, config) {
         var name2 = fix2["name"]
         var pos2 = fix2["pos"]
         var addr2 = ctx["functions"][name2]
-        if addr2 != nil {
-            patch_u32(ctx, pos2, addr2 - 1)
-        } else {
+        var patched2 = false
+        if oren_type_tag(addr2) == 1 {
+            if addr2 > 0 {
+                patch_u32(ctx, pos2, addr2 - 1)
+                patched2 = true
+            }
+        }
+        if patched2 != true {
             if ctx["allow_undef"] == true {
                 // Leave placeholder 0 and record relocation for a later linker pass.
                 oren_list_push(ctx["relocs"], {"name": name2, "pos": pos2, "kind": 1})

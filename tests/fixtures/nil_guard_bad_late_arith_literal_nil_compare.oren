@@ -1,0 +1,18 @@
+// Expected to fail under: `./oren build ...`
+//
+// Rationale:
+// - The nil-compare guard is always-on (even without `--typecheck`).
+// - A common footgun is treating `== nil` as “missing” and then using the value
+//   in numeric arithmetic.
+//
+// This fixture specifically covers the `x + 1` pattern *without* an explicit cast,
+// so the guard must treat a numeric literal as strong evidence of scalar use.
+fn main() {
+    var cfg = {"timeout_ms": 0}
+    var t = cfg["timeout_ms"]
+    if t == nil { exit(0) }
+    var u = t + 1
+    if u > 0 { exit(0) }
+    exit(1)
+}
+

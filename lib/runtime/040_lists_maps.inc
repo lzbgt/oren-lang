@@ -1525,6 +1525,19 @@ OrenValue oren_gt(OrenValue a, OrenValue b) {
     if (a.type == OREN_TYPE_STRING && b.type == OREN_TYPE_STRING) {
         return oren_bool(strcmp(a.as.string_val, b.as.string_val) > 0);
     }
+    if (getenv("OREN_TRACE_GT_MISMATCH")) {
+        fprintf(stderr, "[trace] gt mismatch a.type=%d b.type=%d\n", a.type, b.type);
+#if defined(__GNUC__) || defined(__clang__)
+        void* ra0 = __builtin_return_address(0);
+        fprintf(stderr, "[trace] gt mismatch ra0=%p\n", ra0);
+#endif
+        if (a.type == OREN_TYPE_INT) fprintf(stderr, "[trace] a.int=%lld\n", (long long)a.as.int_val);
+        if (b.type == OREN_TYPE_INT) fprintf(stderr, "[trace] b.int=%lld\n", (long long)b.as.int_val);
+        if (a.type == OREN_TYPE_FLOAT) fprintf(stderr, "[trace] a.float=%f\n", a.as.float_val);
+        if (b.type == OREN_TYPE_FLOAT) fprintf(stderr, "[trace] b.float=%f\n", b.as.float_val);
+        if (a.type == OREN_TYPE_STRING) fprintf(stderr, "[trace] a.str=%.120s\n", a.as.string_val ? a.as.string_val : "<null>");
+        if (b.type == OREN_TYPE_STRING) fprintf(stderr, "[trace] b.str=%.120s\n", b.as.string_val ? b.as.string_val : "<null>");
+    }
     oren_panic("Type mismatch in gt");
     return OREN_NIL; // Should not be reached
 }

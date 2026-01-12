@@ -146,7 +146,6 @@ fn cmd_ok(cmd) {
 fn normalize_rc(rc) {
     // Normalize the return value of oren_system() to a conventional exit code.
     // Many C runtimes encode exit status as (code << 8).
-    if rc == nil { return 1 }
     if rc < 0 { return rc }
     if rc >= 256 { return rc / 256 }
     return rc
@@ -257,7 +256,6 @@ fn _bytes_to_hex(bs) {
     var i = 0
     while i < oren_list_len(bs) {
         var b = bs[i]
-        if b == nil { b = 0 }
         if b < 0 { b = 0 }
         if b > 255 { b = _imod(b, 256) }
         out = out + _hex_digit(b / 16) + _hex_digit(_imod(b, 16))

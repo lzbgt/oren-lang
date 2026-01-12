@@ -104,7 +104,7 @@ fn _data_finalize_cstr0_table(ctx) {
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
 
     var slot_enc = ctx["cstr0_table_slot_enc"]
-    if slot_enc == nil {
+    if slot_enc <= 0 {
         // If the backend didn't reserve a slot, do nothing (rolling safety).
         return nil
     }
@@ -151,7 +151,9 @@ fn _data_add_fnobj(ctx, fn_name) {
     // Store offsets as `off+1` so a real offset of 0 is representable while still using `nil`
     // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
     var existing_enc = ctx["fnobj_offs"][fn_name]
-    if existing_enc != nil { return existing_enc - 1 }
+    if oren_type_tag(existing_enc) == 1 {
+        if existing_enc > 0 { return existing_enc - 1 }
+    }
 
     while core.int_mod(bytes_len(ctx["data"]), 8) != 0 { bytes_push(ctx["data"], 0) }
     var off = bytes_len(ctx["data"])
@@ -261,7 +263,9 @@ fn _data_finalize_symtab(ctx) {
     // still using `nil` as the sentinel for "missing" (call sites decode with `enc-1`).
     var symtab_off_enc = ctx["symtab_off"]
     var sym_names = ctx["symtab_names"]
-    if symtab_off_enc == nil || sym_names == nil { return nil }
+    if oren_type_tag(symtab_off_enc) != 1 { return nil }
+    if symtab_off_enc <= 0 { return nil }
+    if sym_names == nil { return nil }
     var symtab_off = symtab_off_enc - 1
 
     var count = oren_list_len(sym_names)
@@ -384,7 +388,11 @@ fn _data_finalize_linetab(ctx) {
     var linetab_off = ctx["linetab_off"]
     var cap_entries = ctx["linetab_cap"]
     var entries_in = ctx["linetab_entries"]
-    if linetab_off == nil || cap_entries == nil || cap_entries <= 0 || entries_in == nil { return nil }
+    if oren_type_tag(linetab_off) != 1 { return nil }
+    if linetab_off <= 0 { return nil }
+    if oren_type_tag(cap_entries) != 1 { return nil }
+    if cap_entries <= 0 { return nil }
+    if entries_in == nil { return nil }
 
     // Header patched after we know how many entries we wrote.
     set_u32_le(ctx["data"], linetab_off + 0, 0)
@@ -459,7 +467,8 @@ fn _data_finalize_dbginfo_table(ctx, platform) {
     if ctx == nil { return nil }
     if platform == nil || platform["debug"] != true { return nil }
     var slot_enc = ctx["dbginfo_table_slot_enc"]
-    if slot_enc == nil { return nil }
+    if oren_type_tag(slot_enc) != 1 { return nil }
+    if slot_enc <= 0 { return nil }
     if ctx["data"] == nil { ctx["data"] = bytes_new() }
 
     var fns = ctx["functions"]

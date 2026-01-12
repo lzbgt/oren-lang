@@ -657,7 +657,9 @@ fn _arm64_linux_dyn_import_got_off(ctx, sym_name) {
     if ctx["elf_dyn_got_offs_enc"] == nil { ctx["elf_dyn_got_offs_enc"] = {} }
     var m = ctx["elf_dyn_got_offs_enc"]
     var existing_enc = m[sym_name]
-    if existing_enc != nil { return existing_enc - 1 }
+    if oren_type_tag(existing_enc) == 1 {
+        if existing_enc > 0 { return existing_enc - 1 }
+    }
 
     var got_off = _data_add_u64(ctx["data"], 0)
     // Store as off+1 so offset 0 doesn't alias native-runtime `nil`.

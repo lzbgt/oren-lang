@@ -20,9 +20,11 @@ fn bytes_new() {
 }
 
 fn _bytes_len_raw(b) {
-    var enc = nil
+    // `len` is stored as (logical_len + 1), so valid values are always >= 1.
+    // Treat 0 (which can come from missing keys / nil-ish values) as "empty".
+    var enc = 0
     if b != nil { enc = b["len"] }
-    if enc == nil { return 0 }
+    if enc <= 0 { return 0 }
     return enc - 1
 }
 
@@ -82,9 +84,9 @@ fn bytes_push(b, v) {
 }
 
 fn bytes_extend(b, other) {
-    var other_enc = nil
+    var other_enc = 0
     if other != nil { other_enc = other["len"] }
-    if other_enc == nil { oren_fail(1, "bytes_extend: expected bytes builder") }
+    if other_enc <= 0 { oren_fail(1, "bytes_extend: expected bytes builder") }
     var n = other_enc - 1
     var used = _bytes_len_raw(b)
     _bytes_ensure_capacity(b, used + n)
@@ -100,7 +102,7 @@ fn bytes_extend(b, other) {
 
 fn bytes_extend_zeros(b, n) {
     // Extend the builder by `n` zero bytes without per-byte bounds/type checks.
-    if n == nil || n <= 0 { return nil }
+    if n <= 0 { return nil }
     var used = _bytes_len_raw(b)
     _bytes_ensure_capacity(b, used + n)
     var dstp = oren_buf_data_ptr_unchecked(b["buf"])

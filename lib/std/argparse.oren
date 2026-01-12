@@ -383,7 +383,6 @@ fn _find_opt(cmd, tok) {
 }
 
 fn _abs_int(x) {
-    if x == nil { return 0 }
     if x < 0 { return -x }
     return x
 }
@@ -400,13 +399,18 @@ fn _min3(a, b, c) {
 fn _edit_distance_limited(a, b, maxd) {
     // Levenshtein distance with an optional cutoff (maxd).
     // Returns maxd+1 when distance is definitely > maxd.
+    //
+    // NOTE (native backend parity):
+    // Do not use `maxd == nil` as "no cutoff" because `nil` can alias `0` in some value paths.
+    // Use a negative maxd to disable the cutoff.
     if a == nil { a = "" }
     if b == nil { b = "" }
     var al = oren_string_len(a)
     var bl = oren_string_len(b)
     if al == 0 { return bl }
     if bl == 0 { return al }
-    if maxd != nil && _abs_int(al - bl) > maxd { return maxd + 1 }
+    var use_cutoff = maxd >= 0
+    if use_cutoff && _abs_int(al - bl) > maxd { return maxd + 1 }
 
     // prev row: 0..bl
     var prev = []
@@ -432,7 +436,7 @@ fn _edit_distance_limited(a, b, maxd) {
             if v < min_row { min_row = v }
             j = j + 1
         }
-        if maxd != nil && min_row > maxd { return maxd + 1 }
+        if use_cutoff && min_row > maxd { return maxd + 1 }
         prev = cur
         i = i + 1
     }

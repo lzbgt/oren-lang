@@ -63,16 +63,19 @@ fn _linetab_record_tok(ctx, tok) {
     // Store offsets as `off+1` so a real offset of 0 never risks being interpreted as "missing"
     // in rolling runtimes/containers where an explicit 0 payload can be lossy.
     var loc_off_enc = ctx["linetab_loc_offs"][loc]
+    if oren_type_tag(loc_off_enc) != 1 { loc_off_enc = 0 }
     var loc_off = nil
-    if loc_off_enc != nil { loc_off = loc_off_enc - 1 }
-    if loc_off_enc == nil {
+    if loc_off_enc > 0 { loc_off = loc_off_enc - 1 }
+    if loc_off_enc <= 0 {
         loc_off = _data_add_cstr0(ctx, loc)
         // `loc_off` can legitimately be 0; `_data_add_cstr0` is ctx-local and cannot fail here.
         ctx["linetab_loc_offs"][loc] = loc_off + 1
     }
 
     // Note: `linetab_last_loc_off` stores the encoded offset for the same native-runtime reason.
-    if ctx["linetab_last_loc_off"] != nil && ctx["linetab_last_loc_off"] == loc_off + 1 {
+    var last_loc_enc = ctx["linetab_last_loc_off"]
+    if oren_type_tag(last_loc_enc) != 1 { last_loc_enc = 0 }
+    if last_loc_enc > 0 && last_loc_enc == loc_off + 1 {
         return nil
     }
 

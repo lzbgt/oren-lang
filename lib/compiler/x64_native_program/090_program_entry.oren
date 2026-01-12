@@ -486,7 +486,8 @@ fn _x64_rtobj_encode_offsets_map_int(m) {
         if ok == 0 { break }
         var k = pair[0]
         var v = pair[1]
-        if k != nil && v != nil {
+        // `v` must be an int; skip missing entries (nil) without relying on `v == nil` checks.
+        if k != nil && oren_type_tag(v) == 1 {
             out[k] = v + 1
         }
         idx = idx + 1
@@ -500,7 +501,8 @@ fn _x64_rtobj_encode_offsets_list_int(xs) {
     var i = 0
     while i < oren_list_len(xs) {
         var v = xs[i]
-        if v != nil { oren_list_push(out, v + 1) }
+        // Encode as `v+1` so a real offset of 0 is representable; skip non-ints (nil).
+        if oren_type_tag(v) == 1 { oren_list_push(out, v + 1) }
         i = i + 1
     }
     return out
@@ -1766,7 +1768,8 @@ fn native_compile_program_x64(linked, platform) {
     // - data_base = slot_addr - slot_off
     // - table_ptr = data_base + table_off
     var slot_off_enc = ctx["cstr0_table_slot_enc"]
-    if slot_off_enc != nil {
+    if oren_type_tag(slot_off_enc) == 1 {
+      if slot_off_enc > 0 {
         var slot_off = slot_off_enc - 1
         // r10 = slot_addr
         var lea_slot_pos = bytes_len(ctx["code"])
@@ -1791,6 +1794,7 @@ fn native_compile_program_x64(linked, platform) {
         if trace_entry && platform != nil && platform["os"] == "windows" {
             _emit_windows_write_cstr(ctx, "ENTRY: cstr0_table ok")
         }
+      }
     }
 
     // Register embedded debug-info table in debug builds (Tier‑1 debuggability).
@@ -1798,7 +1802,8 @@ fn native_compile_program_x64(linked, platform) {
     // This enables runtime `oren_resolve_symbol(pc)` to resolve program PCs precisely without
     // depending on the coarser symtab-based `resolve_symbol(pc)` intrinsic.
     var dbg_slot_off_enc = ctx["dbginfo_table_slot_enc"]
-    if dbg_slot_off_enc != nil {
+    if oren_type_tag(dbg_slot_off_enc) == 1 {
+      if dbg_slot_off_enc > 0 {
         var dbg_slot_off = dbg_slot_off_enc - 1
         // slot_addr = &data[dbg_slot_off]
         var lea_dbg_slot_pos = bytes_len(ctx["code"])
@@ -1838,6 +1843,7 @@ fn native_compile_program_x64(linked, platform) {
 
         _emit_label(ctx, labels_dbg, l_skip_dbg)
         _patch_local_fixups(ctx, labels_dbg, fixups_dbg)
+      }
     }
 
     // native_runtime_set_args(argc, argv)

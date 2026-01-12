@@ -369,7 +369,8 @@ fn parser_add_error(p, msg) {
     if file == nil { file = "<input>" }
     var line = tok["line"]
     var col = tok["col"]
-    if line != nil && col != nil {
+    // `line`/`col` are 1-based when present. Treat 0 as "unknown/unset".
+    if line > 0 && col > 0 {
         oren_list_push(p["errors"], file + ":" + oren_int_to_string(line) + ":" + oren_int_to_string(col) + ": " + msg)
         return nil
     }

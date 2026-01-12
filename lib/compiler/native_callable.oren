@@ -32,7 +32,8 @@ fn func_decl_add(ctx, fn_name, arity) {
     if _str_starts_with(fn_name, "__oren_lambda_") { return nil }
 
     var existing_enc = ctx["func_arity"][fn_name]
-    if existing_enc == nil {
+    // Stored as arity+1 so 0 can be treated as "missing".
+    if existing_enc <= 0 {
         ctx["func_arity"][fn_name] = arity + 1
         oren_list_push(ctx["func_decl_order"], fn_name)
     } else {
@@ -305,7 +306,6 @@ fn lambda_gensym(ctx) {
     if ctx["_lambda_defs_seen"] == nil { ctx["_lambda_defs_seen"] = {} }
 
     var n = ctx["lambda_counter"]
-    if n == nil { n = 0 }
     while true {
         var name = "__oren_lambda_" + oren_int_to_string(n)
         if ctx["_lambda_defs_seen"][name] == nil {

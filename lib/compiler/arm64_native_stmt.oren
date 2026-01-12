@@ -260,7 +260,7 @@ fn native_compile_stmt(ctx, stmt) {
     if ctx == nil { return nil }
     if stmt == nil { return nil }
     var depth = ctx["stmt_depth"]
-    if depth == nil { depth = 0 }
+    if oren_type_tag(depth) != 1 { depth = 0 }
     depth = depth + 1
     ctx["stmt_depth"] = depth
     if depth > 2048 {

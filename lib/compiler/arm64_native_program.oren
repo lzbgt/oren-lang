@@ -453,9 +453,8 @@ fn _arm64_rtobj_encode_offsets_map_int(m) {
         if ok == 0 { break }
         var k = pair[0]
         var v = pair[1]
-        if k != nil && v != nil {
-            out[k] = v + 1
-        }
+        // `v` must be an int; skip missing entries (nil) without relying on `v == nil` checks.
+        if k != nil && oren_type_tag(v) == 1 { out[k] = v + 1 }
         idx = idx + 1
     }
     return out
@@ -467,7 +466,8 @@ fn _arm64_rtobj_encode_offsets_list_int(xs) {
     var i = 0
     while i < oren_list_len(xs) {
         var v = xs[i]
-        if v != nil { oren_list_push(out, v + 1) }
+        // Encode as `v+1` so a real offset of 0 is representable; skip non-ints (nil).
+        if oren_type_tag(v) == 1 { oren_list_push(out, v + 1) }
         i = i + 1
     }
     return out
@@ -480,13 +480,19 @@ fn _arm64_rtobj_encode_fixups(fixups) {
     while i < oren_list_len(fixups) {
         var f0 = fixups[i]
         if f0 != nil {
-            var f1 = {"type": f0["type"], "pos": (f0["pos"] + 1)}
+            // Only encode fixups that have an integer `pos`.
+            // Avoid `pos + 1` on missing values (nil) under the C runtime.
+            var pos = f0["pos"]
+            if oren_type_tag(pos) != 1 { i = i + 1; continue }
+            var f1 = {"type": f0["type"], "pos": (pos + 1)}
             if f0["name"] != nil { f1["name"] = f0["name"] }
             if f0["data_label"] != nil { f1["data_label"] = f0["data_label"] }
-            if f0["data_off"] != nil { f1["data_off"] = (f0["data_off"] + 1) }
+            var data_off = f0["data_off"]
+            if oren_type_tag(data_off) == 1 { f1["data_off"] = (data_off + 1) }
             // Preserve destination register for ADRP/ADD fixups.
             // Store as +1 to avoid 0-as-nil when decoding under the native runtime.
-            if f0["reg"] != nil { f1["reg"] = (f0["reg"] + 1) }
+            var reg = f0["reg"]
+            if oren_type_tag(reg) == 1 { f1["reg"] = (reg + 1) }
             oren_list_push(out, f1)
         }
         i = i + 1
@@ -507,7 +513,7 @@ fn _arm64_rtobj_encode_debug_funcs(funcs) {
             var nm = f0["name"]
             var st = f0["start"]
             var en = f0["end"]
-            if nm != nil && st != nil && en != nil {
+            if nm != nil && oren_type_tag(st) == 1 && oren_type_tag(en) == 1 {
                 oren_list_push(out, {"name": nm, "start_enc": st + 1, "end_enc": en + 1})
             }
         }
@@ -734,11 +740,11 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
         var fname = ctx["func_decl_order"][wi]
         if need == nil || need[fname] == nil { wi = wi + 1; continue }
         var arity_enc = ctx["func_arity"][fname]
-        if arity_enc != nil {
+        if arity_enc > 0 {
             var arity = arity_enc - 1
             var vf = nil
             var vf_enc = ctx["func_varargs_fixed"][fname]
-            if vf_enc != nil { vf = vf_enc - 1 }
+            if vf_enc > 0 { vf = vf_enc - 1 }
             var wname = "__oren_fnwrap_" + fname
             if ctx["functions"][wname] == nil {
                 native_compile_stmt(ctx, callable.synth_fnwrap(fname, arity, vf))
@@ -1201,7 +1207,7 @@ fn native_compile_program_arm64(linked, platform) {
     //   table_ptr = data_base + table_off
     // Then call `oren_init_static_cstr0_table(table_ptr)` once.
     var slot_off_enc = ctx["cstr0_table_slot_enc"]
-    if slot_off_enc != nil {
+    if slot_off_enc > 0 {
         var slot_off = slot_off_enc - 1
         var adr_slot_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
@@ -1555,11 +1561,16 @@ fn native_compile_program_arm64(linked, platform) {
         if need == nil || need[fname] == nil { wi = wi + 1; continue }
         n_wrap = n_wrap + 1
         var arity_enc = ctx["func_arity"][fname]
-        if arity_enc != nil {
-            var arity = arity_enc - 1
+        var arity = nil
+        if oren_type_tag(arity_enc) == 1 {
+            if arity_enc > 0 { arity = arity_enc - 1 }
+        }
+        if arity != nil {
             var vf = nil
             var vf_enc = ctx["func_varargs_fixed"][fname]
-            if vf_enc != nil { vf = vf_enc - 1 }
+            if oren_type_tag(vf_enc) == 1 {
+                if vf_enc > 0 { vf = vf_enc - 1 }
+            }
             var wname = "__oren_fnwrap_" + fname
             if ctx["functions"][wname] == nil {
                 native_compile_stmt(ctx, callable.synth_fnwrap(fname, arity, vf))
@@ -1737,7 +1748,7 @@ fn native_compile_program_arm64(linked, platform) {
     // - injected runtime literals
     // - backend-emitted literal cstrs (diagnostics, etc)
     var slot_enc2 = ctx["cstr0_table_slot_enc"]
-    if slot_enc2 != nil {
+    if slot_enc2 > 0 {
         var slot_off2 = slot_enc2 - 1
         var offs = ctx["cstr0_list"]
         if offs == nil { offs = [] }

@@ -281,7 +281,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         var p2 = params[i]
         var pnm2 = p2["value"]
         var off = locals[pnm2]
-        if off == nil { err(ctx, "x64 native v0: missing param slot"); return nil }
+        if off <= 0 { err(ctx, "x64 native v0: missing param slot"); return nil }
 
         // Params 0..regc-1 come from ABI registers. Additional params come from the caller stack.
         if i < regc {

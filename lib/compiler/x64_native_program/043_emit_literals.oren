@@ -52,7 +52,8 @@ fn _emit_array_literal_expr(ctx, expr, locals) {
         hn = oren_list_get(ctx["__x64_tmp_lit_list_hdr_names"], d0)
     }
     var tmp_hdr = locals[hn]
-    if tmp_hdr == nil {
+    if oren_type_tag(tmp_hdr) != 1 { tmp_hdr = 0 }
+    if tmp_hdr <= 0 {
         _lit_exit(ctx, depth_enc0)
         err(ctx, "x64 native v0: missing literal spill slots for array literal")
         return nil
@@ -132,7 +133,8 @@ fn _emit_hash_literal_expr(ctx, expr, locals) {
         hn = oren_list_get(ctx["__x64_tmp_lit_map_hdr_names"], d0)
     }
     var tmp_hdr = locals[hn]
-    if tmp_hdr == nil {
+    if oren_type_tag(tmp_hdr) != 1 { tmp_hdr = 0 }
+    if tmp_hdr <= 0 {
         _lit_exit(ctx, depth_enc0)
         err(ctx, "x64 native v0: missing literal spill slots for hash literal")
         return nil

@@ -44,6 +44,21 @@ OrenValue oren_add(OrenValue a, OrenValue b) {
          val.as.string_val = new_s;
          return val;
     }
+    if (getenv("OREN_TRACE_ADD_MISMATCH")) {
+        fprintf(stderr, "[trace] add mismatch a.type=%d b.type=%d\n", a.type, b.type);
+#if defined(__GNUC__) || defined(__clang__)
+        // Useful for mapping back to a call-site during compiler bring-up.
+        // MSVC does not support `__builtin_return_address`.
+        void* ra0 = __builtin_return_address(0);
+        fprintf(stderr, "[trace] add mismatch ra0=%p\n", ra0);
+#endif
+        if (a.type == OREN_TYPE_INT) fprintf(stderr, "[trace] a.int=%lld\n", (long long)a.as.int_val);
+        if (b.type == OREN_TYPE_INT) fprintf(stderr, "[trace] b.int=%lld\n", (long long)b.as.int_val);
+        if (a.type == OREN_TYPE_FLOAT) fprintf(stderr, "[trace] a.float=%f\n", a.as.float_val);
+        if (b.type == OREN_TYPE_FLOAT) fprintf(stderr, "[trace] b.float=%f\n", b.as.float_val);
+        if (a.type == OREN_TYPE_STRING) fprintf(stderr, "[trace] a.str=%.120s\n", a.as.string_val ? a.as.string_val : "<null>");
+        if (b.type == OREN_TYPE_STRING) fprintf(stderr, "[trace] b.str=%.120s\n", b.as.string_val ? b.as.string_val : "<null>");
+    }
     oren_panic("Type mismatch in add");
     return OREN_NIL;
 }
