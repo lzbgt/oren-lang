@@ -177,7 +177,7 @@ References:
 	   - 2026-01-12: `make verify-stage0-win` passed (remote Win11, stage0→stage1 via MSVC `cl.exe`)
 		   - 2026-01-12: `make verify-stage2-win` passed (remote Win11, stage0→stage1→stage2 native + C-backend smoke using default `--cc`)
 	     - Follow-up guard: `scripts/verify_windows_stage2_from_stage1.sh` also compiles `examples/ui_hello.oren` and builds the Win32 OrenUI shim DLL via `scripts/win_msvc_cmd.cmd` (no GUI run; compile/link guard only).
-	     - TODO (gap to close): make the default “C backend compile” path on Windows prefer **MSVC `cl.exe`** (auto-detected via stage0 bootstrap logic), so `make test` and common dev flows do not depend on a Unix-like `cc` being installed on Windows.
+	     - 2026-01-12: `scripts/verify_windows_stage2_from_stage1.sh` now also proves the C backend works with **default `--cc`** on Windows (auto-picks MSVC `cl.exe`; does not require a Unix-like `cc`).
 
 7) **GUI: platform shims for Tier‑1 (RGBA blit v0)** (L)
 

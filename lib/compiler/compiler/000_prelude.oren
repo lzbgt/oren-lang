@@ -242,6 +242,16 @@ fn host_is_windows() {
     if pathext != nil && pathext != "" { return true }
     var arch = oren_env("PROCESSOR_ARCHITECTURE")
     if arch != nil && arch != "" { return true }
+    // MSYS2 / Git Bash / MinGW environments can run without the usual Windows env vars
+    // in some invocations, but they still represent a Windows host.
+    //
+    // Treat these as hints only; they should not appear on real Linux/macOS hosts.
+    var msys = oren_env("MSYSTEM")
+    if msys != nil && msys != "" { return true }
+    var mingw_prefix = oren_env("MINGW_PREFIX")
+    if mingw_prefix != nil && mingw_prefix != "" { return true }
+    var msystem_chost = oren_env("MINGW_CHOST")
+    if msystem_chost != nil && msystem_chost != "" { return true }
     return false
 }
 
