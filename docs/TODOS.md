@@ -174,6 +174,7 @@ References:
    Status (fact):
 
    - 2026-01-12: `./scripts/verify_native_net_matrix.sh --targets all` passed (stage1 + stage2; local + linux/arm64 container + remote Win11 + remote WSL2)
+     - Covers TCP/UDP + DNS + HTTP/1.1 + WS, plus TLS/HTTPS/WSS and HTTP/2 (preface + HPACK + headers loopback).
 
 5) **Crypto library layering (separate from NET)** (M)
 
