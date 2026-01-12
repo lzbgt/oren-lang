@@ -1,0 +1,13 @@
+// Lightweight stub for x64-only compiler builds.
+//
+// Purpose:
+// - Avoid compiling the full arm64 Mach-O backend into x64 self-hosted compiler binaries.
+// - Keep the driver surface area intact: the build pipeline can still refer to `arm64_macho.*`
+//   but will fail fast if used for an arm64 target.
+
+fn macho_emit_program_arm64(out_path, linked, link_libs, is_shared_lib, export_names, debug_mode, no_gc, capsule, cap_allow_domains) {
+    print("native backend (arm64-macos) is not available in this compiler build")
+    print("  hint: build a full compiler (oren.oren) or use an arm64 toolchain host")
+    oren_exit(1)
+}
+

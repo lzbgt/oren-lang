@@ -268,7 +268,9 @@ Cross‑arch Tier‑1 matrix (stage1 + stage2):
 		# Local sanity gate: compile-only for x64-linux + x64-windows (stage1 + stage2)
 		make verify-native-x64-compile
 
-		# Higher-signal local gate: compile the full compiler program (`oren.oren`) for x64 targets (compile-only)
+		# Higher-signal local gate: compile the compiler program for x64 targets (compile-only)
+		# - defaults to `oren_x64.oren` (x64-focused; avoids compiling arm64 native backends into x64 artifacts)
+		# - override with `OREN_SELFHOST_SRC=oren.oren` to force the full multi-target compiler graph
 		make verify-native-x64-selfhost-compile
 
 	# Compile-only shared-library emission on all Tier‑1 targets (no foreign execution):

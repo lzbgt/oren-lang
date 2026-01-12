@@ -1121,6 +1121,63 @@ fn _x64_symtab_push_unique(sym_seen, sym_names, nm) {
     return nil
 }
 
+fn _x64_slow_fn_top_push(top, top_n, ms, nm) {
+    // Keep a bounded descending list of slow function compiles.
+    //
+    // Intended for diagnosing x64 codegen hot spots without huge logs.
+    // Enable via:
+    //   OREN_TRACE_X64_TOP_SLOW_FNS=1
+    // Optional:
+    //   OREN_TRACE_X64_TOP_SLOW_FNS_N=20
+    //
+    // `top` shape: list<map{ms:int, name:string}>
+    if top == nil || top_n <= 0 { return nil }
+    if nm == nil || nm == "" { nm = "?" }
+
+    var entry = {"ms": ms, "name": nm}
+    var n = oren_list_len(top)
+
+    // If the list is already full and this sample is not slower than the current slowest,
+    // skip immediately to keep overhead bounded.
+    if n >= top_n {
+        var last = top[n - 1]
+        var last_ms = -1
+        if last != nil && last["ms"] != nil { last_ms = last["ms"] }
+        if ms <= last_ms { return nil }
+    }
+
+    // Find insertion point in descending order.
+    var i = 0
+    while i < n {
+        var cur = top[i]
+        var cur_ms = -1
+        if cur != nil && cur["ms"] != nil { cur_ms = cur["ms"] }
+        if ms > cur_ms { break }
+        i = i + 1
+    }
+
+    if n < top_n {
+        // Grow by one, then shift tail right and insert.
+        oren_list_push(top, nil)
+        var j = oren_list_len(top) - 1
+        while j > i {
+            top[j] = top[j - 1]
+            j = j - 1
+        }
+        top[i] = entry
+        return nil
+    }
+
+    // List is full: shift in-place and overwrite the last element.
+    var j2 = n - 1
+    while j2 > i {
+        top[j2] = top[j2 - 1]
+        j2 = j2 - 1
+    }
+    if i < n { top[i] = entry }
+    return nil
+}
+
 fn native_compile_program_x64(linked, platform) {
     // Tier‑1: x86_64 always injects the native runtime (same bundle as arm64).
     //
@@ -1183,6 +1240,21 @@ fn native_compile_program_x64(linked, platform) {
     var t_panic_done = 0
     var t_finalize_done = 0
     if trace_sum { t0 = oren_time_now_ns() }
+
+    // Optional bounded slow-fn tracking (diagnostic):
+    // - enables a per-function compile timer in the main loop (adds overhead)
+    // - keeps only the top N slowest functions and prints after the loop
+    var trace_top_slow = oren_env("OREN_TRACE_X64_TOP_SLOW_FNS") != nil
+    var top_slow_n = 20
+    var top_slow_min_ms = 50
+    if trace_top_slow {
+        top_slow_n = core.parse_int_decimal(oren_env("OREN_TRACE_X64_TOP_SLOW_FNS_N"), top_slow_n)
+        top_slow_min_ms = core.parse_int_decimal(oren_env("OREN_TRACE_X64_TOP_SLOW_FNS_MIN_MS"), top_slow_min_ms)
+        if top_slow_n < 1 { top_slow_n = 1 }
+        if top_slow_n > 100 { top_slow_n = 100 } // bound
+        if top_slow_min_ms < 0 { top_slow_min_ms = 0 }
+    }
+    var top_slow = []
 
     var runtime_path = "lib/runtime_native.oren"
     if platform != nil && platform["capsule"] == true {
@@ -2100,16 +2172,33 @@ fn native_compile_program_x64(linked, platform) {
             print("[x64_compile] fns " + oren_int_to_string(i1) + "/" + oren_int_to_string(fns_n) + " next=" + nm1)
         }
         var t_fn = 0
-        if trace_prog { t_fn = oren_time_now_ns() }
+        if trace_prog || trace_top_slow { t_fn = oren_time_now_ns() }
         _compile_function_v0(ctx, fns[i1], platform)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
         if trace_prog && prog_slow_fn_ms > 0 {
             var dt_ms = (oren_time_now_ns() - t_fn) / 1000000
             if dt_ms > prog_slow_fn_ms { print("[x64_compile] slow_fn ms=" + oren_int_to_string(dt_ms) + " name=" + nm1) }
+        } else if trace_top_slow {
+            var dt_ms2 = (oren_time_now_ns() - t_fn) / 1000000
+            if dt_ms2 >= top_slow_min_ms {
+                _x64_slow_fn_top_push(top_slow, top_slow_n, dt_ms2, nm1)
+            }
         }
         i1 = i1 + 1
     }
     if trace_sum { t_fns_done = oren_time_now_ns() }
+    if trace_top_slow {
+        var k = 0
+        while k < oren_list_len(top_slow) {
+            var it = top_slow[k]
+            if it != nil {
+                print("[x64_compile] top_slow_fn[" + oren_int_to_string(k) +
+                      "] ms=" + oren_int_to_string(it["ms"]) +
+                      " name=" + it["name"])
+            }
+            k = k + 1
+        }
+    }
 
     // Compile synthesized wrappers after user functions (order does not affect fixups, but
     // keeping them grouped makes debugging easier).

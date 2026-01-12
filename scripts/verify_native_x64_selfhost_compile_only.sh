@@ -165,7 +165,44 @@ if [[ ! -x ./oren_stage2 ]]; then
   make stage2
 fi
 
-SRC="oren.oren"
+# Default to the x64-focused compiler source (avoids compiling arm64 backends into x64 artifacts).
+#
+# Override to force the full compiler program:
+#   OREN_SELFHOST_SRC=oren.oren ./scripts/verify_native_x64_selfhost_compile_only.sh
+SRC="${OREN_SELFHOST_SRC:-oren_x64.oren}"
+if [[ ! -f "$SRC" ]]; then
+  echo "WARN: missing selfhost source '$SRC'; falling back to oren.oren" >&2
+  SRC="oren.oren"
+fi
+
+ensure_runtime_astbin_seed() {
+  local platform="$1"
+  local seed_log="build/logs/runtime_astbin_seed_${platform}.log"
+
+  if [[ ! -x ./scripts/build_runtime_astbin_seed.sh ]]; then
+    echo "ERROR: missing runtime astbin seed helper: scripts/build_runtime_astbin_seed.sh" >&2
+    return 2
+  fi
+  if [[ ! -x ./oren ]]; then
+    echo "== ensure: stage1 compiler (./oren) for astbin seeding ==" >&2
+    make stage1 >/dev/null
+  fi
+
+  ./scripts/build_runtime_astbin_seed.sh --platform "$platform" --compiler ./oren >"$seed_log" 2>&1
+}
+
+ensure_runtime_obj_seed() {
+  local platform="$1"
+  local runtime_profile="$2" # auto|core|full|minimal
+  local seed_log="build/logs/runtime_obj_seed_${platform}_${runtime_profile}.log"
+
+  if [[ ! -x ./scripts/build_rtobj_seed.sh ]]; then
+    echo "ERROR: missing runtime obj seed helper: scripts/build_rtobj_seed.sh" >&2
+    return 2
+  fi
+
+  ./scripts/build_rtobj_seed.sh --platform "$platform" --runtime-profile "$runtime_profile" --compiler ./oren_stage2 --no-debug >"$seed_log" 2>&1
+}
 
 build_one() {
   local platform="$1"
@@ -190,6 +227,7 @@ build_one() {
     OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
     OREN_TRACE_PHASES=1 \
     OREN_TRACE_BUILD_SUMMARY=1 \
+    OREN_TRACE_RUNTIME_OBJ_CACHE=1 \
     ./oren_stage2 build "$SRC" \
     --backend native --platform "$platform" --no-debug $cache_arg -o "$out" \
     >"$logf" 2>&1
@@ -226,11 +264,35 @@ fi
 echo "timeout=${BUILD_TIMEOUT_SECS}s ==" >&2
 
 if [[ "$WANT_LINUX" -eq 1 ]]; then
+  ensure_runtime_astbin_seed x64-linux || {
+    echo "ERROR: runtime astbin seed failed for x64-linux (see build/logs/runtime_astbin_seed_x64-linux.log)" >&2
+    exit 2
+  }
+  ensure_runtime_obj_seed x64-linux auto || {
+    echo "ERROR: runtime obj seed failed for x64-linux/auto (see build/logs/runtime_obj_seed_x64-linux_auto.log)" >&2
+    exit 2
+  }
+  ensure_runtime_obj_seed x64-linux full || {
+    echo "ERROR: runtime obj seed failed for x64-linux/full (see build/logs/runtime_obj_seed_x64-linux_full.log)" >&2
+    exit 2
+  }
   build_one x64-linux "build/tmp/oren_selfhost_x64_linux"
   check_elf_x64 "build/tmp/oren_selfhost_x64_linux"
 fi
 
 if [[ "$WANT_WIN" -eq 1 ]]; then
+  ensure_runtime_astbin_seed x64-windows || {
+    echo "ERROR: runtime astbin seed failed for x64-windows (see build/logs/runtime_astbin_seed_x64-windows.log)" >&2
+    exit 2
+  }
+  ensure_runtime_obj_seed x64-windows auto || {
+    echo "ERROR: runtime obj seed failed for x64-windows/auto (see build/logs/runtime_obj_seed_x64-windows_auto.log)" >&2
+    exit 2
+  }
+  ensure_runtime_obj_seed x64-windows full || {
+    echo "ERROR: runtime obj seed failed for x64-windows/full (see build/logs/runtime_obj_seed_x64-windows_full.log)" >&2
+    exit 2
+  }
   build_one x64-windows "build/tmp/oren_selfhost_x64_windows.exe"
   check_pe_x64_exe "build/tmp/oren_selfhost_x64_windows.exe"
 fi

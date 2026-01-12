@@ -91,7 +91,12 @@ References:
 
 	   - 2026-01-12: `scripts/verify_native_x64_compile_only.sh` now pre-seeds native runtime ASTBIN + rtobj (core+full) before running tight per-build timeouts, so the “cold after runtime change” case stays bounded.
 	   - 2026-01-12: began splitting the >2k-line x64 Linux syscall intrinsic emitter into smaller modules; moved the NET/epoll blocks into `lib/compiler/x64_native_program/046_emit_sys_intrinsics_linux_net.oren` so hot-path compilation of `_emit_intrinsic_sys_linux_x64` stays bounded.
-	   - 2026-01-12: `scripts/verify_native_x64_selfhost_compile_only.sh --targets x64-linux` still times out at 240s on `oren.oren` with `--no-cache` (phase trace shows `link parse` ~79s + `optimizer` ~116s; remaining x64 emit+link is still a primary bottleneck).
+	   - 2026-01-12: introduced an x64-focused compiler entry (`oren_x64.oren` → `lib/compiler/compiler_x64.oren`) that swaps arm64 native backends for small stubs, so x64 self-host builds do not spend time compiling arm64 code.
+	     - Fact (arm64-macos host → x64-linux target, `--no-cache`): `./oren_stage2 build oren_x64.oren --backend native --platform x64-linux --no-debug`
+	       - total ~180s (`[build] summary total_ms=180390`)
+	       - link (parse+passes) ~103s (`link_ms=102635`)
+	       - x64 emit+link ~78s (`emit_ms=77747`)
+	     - This keeps `scripts/verify_native_x64_selfhost_compile_only.sh` under the default 240s timeout (it now defaults to `oren_x64.oren`; override via `OREN_SELFHOST_SRC=oren.oren`).
 
 	2) **Tier‑1 native parity: correctness across arch/OS** (L)
 

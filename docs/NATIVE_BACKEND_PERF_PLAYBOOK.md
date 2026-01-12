@@ -506,8 +506,9 @@ Regression gates:
 Symptom:
 
 - Cross-target builds of the compiler itself can look “hung” when building x86_64 compiler binaries:
-  - `./oren_stage2 build oren.oren --backend native --platform x64-linux ...`
-  - `./oren_stage2 build oren.oren --backend native --platform x64-windows ...`
+  - Preferred (x64-focused compiler graph): `./oren_stage2 build oren_x64.oren --backend native --platform x64-linux ...`
+  - Full compiler graph (includes arm64 backends): `./oren_stage2 build oren.oren --backend native --platform x64-linux ...`
+  - Windows target: `./oren_stage2 build oren_x64.oren --backend native --platform x64-windows ...`
 - The usual failure mode is **one pathological function** dominating codegen time.
   - This can appear as “stuck at 100% CPU” with no output for minutes.
 
@@ -518,6 +519,9 @@ Diagnosis (bounded; do not dump the world):
   - `OREN_TRACE_X64_COMPILE_STRIDE=1000` (print every 1000 functions)
   - `OREN_TRACE_X64_COMPILE_FOCUS_FROM=<i> OREN_TRACE_X64_COMPILE_FOCUS_TO=<j>` (only print a narrow range; useful when you already know the bad region)
   - `OREN_TRACE_X64_SLOW_FN_MS=2000` (prints `slow_fn` lines)
+  - `OREN_TRACE_X64_TOP_SLOW_FNS=1` (prints a bounded “top N slowest functions” list after codegen)
+    - `OREN_TRACE_X64_TOP_SLOW_FNS_N=20` (default: 20)
+    - `OREN_TRACE_X64_TOP_SLOW_FNS_MIN_MS=50` (default: 50)
 - For one known-hot function, add a per-function breakdown:
   - `OREN_TRACE_X64_FN=<exact function name>`
   - Optional deep emit tracing (still bounded): `OREN_TRACE_X64_FN_EMIT_OPS=1` with `OREN_TRACE_X64_EMIT_OPS_STRIDE=<n>`

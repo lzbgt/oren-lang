@@ -278,6 +278,16 @@ remote_preflight() {
   done
 }
 
+# Default to the x64-focused compiler source (avoids compiling arm64 backends into x64 artifacts).
+#
+# Override to force the full compiler program:
+#   OREN_SELFHOST_SRC=oren.oren ./scripts/verify_selfhost_x64_compiler.sh
+SELFHOST_SRC="${OREN_SELFHOST_SRC:-oren_x64.oren}"
+if [[ ! -f "$SELFHOST_SRC" ]]; then
+  echo "WARN: missing selfhost source '$SELFHOST_SRC'; falling back to oren.oren" >&2
+  SELFHOST_SRC="oren.oren"
+fi
+
 # Fail fast on remote connectivity before spending minutes building cross-target compiler binaries.
 remote_preflight
 
@@ -322,7 +332,7 @@ if [[ "$want_wsl" -ne 0 ]]; then
         ${TRACE_ENV:+OREN_TRACE_RUNTIME_OBJ_CACHE=1} \
         ${TRACE_ENV:+OREN_TRACE_BUILD_SUMMARY=1} \
         ${TRACE_ENV:+OREN_TRACE_BUILD_SLOW_MS=0} \
-        ./oren_stage2 build oren.oren --backend native --platform x64-linux --no-debug -o "$COMPILER_LINUX"
+        ./oren_stage2 build "$SELFHOST_SRC" --backend native --platform x64-linux --no-debug -o "$COMPILER_LINUX"
   else
     set +e
     run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
@@ -332,7 +342,7 @@ if [[ "$want_wsl" -ne 0 ]]; then
         OREN_GC_AUTO=1 \
         OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
         OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
-        ./oren_stage2 build oren.oren --backend native --platform x64-linux --no-debug -o "$COMPILER_LINUX" >"$logf_linux" 2>&1
+        ./oren_stage2 build "$SELFHOST_SRC" --backend native --platform x64-linux --no-debug -o "$COMPILER_LINUX" >"$logf_linux" 2>&1
     rc=$?
     set -e
     if [[ "$rc" -ne 0 ]]; then
@@ -369,7 +379,7 @@ if [[ "$want_win" -ne 0 ]]; then
         ${TRACE_ENV:+OREN_TRACE_RUNTIME_OBJ_CACHE=1} \
         ${TRACE_ENV:+OREN_TRACE_BUILD_SUMMARY=1} \
         ${TRACE_ENV:+OREN_TRACE_BUILD_SLOW_MS=0} \
-        ./oren_stage2 build oren.oren --backend native --platform x64-windows --no-debug -o "$COMPILER_WIN"
+        ./oren_stage2 build "$SELFHOST_SRC" --backend native --platform x64-windows --no-debug -o "$COMPILER_WIN"
   else
     set +e
     run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
@@ -379,7 +389,7 @@ if [[ "$want_win" -ne 0 ]]; then
         OREN_GC_AUTO=1 \
         OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
         OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
-        ./oren_stage2 build oren.oren --backend native --platform x64-windows --no-debug -o "$COMPILER_WIN" >"$logf_win" 2>&1
+        ./oren_stage2 build "$SELFHOST_SRC" --backend native --platform x64-windows --no-debug -o "$COMPILER_WIN" >"$logf_win" 2>&1
     rc=$?
     set -e
     if [[ "$rc" -ne 0 ]]; then

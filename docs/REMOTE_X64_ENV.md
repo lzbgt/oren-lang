@@ -109,6 +109,10 @@ Rolling status:
 # Important: the remote `oren_selfhost_*` invocations intentionally omit `--platform` so this gate also
 # proves the compiler’s host auto-detection works correctly on WSL2 and native Windows.
 ./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
+
+# Note: this gate defaults to building `oren_x64.oren` (x64-focused compiler source) so the build stays bounded.
+# Override to force the full compiler graph:
+#   OREN_SELFHOST_SRC=oren.oren ./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
 ```
 
 ## Optional: stage0 -> stage1 bootstrap on Windows (MSVC)

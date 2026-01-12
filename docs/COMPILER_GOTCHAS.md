@@ -89,7 +89,9 @@ Rolling rules:
 - Diagnostic hygiene: x64 native codegen errors are deduplicated by message (still fatal) to avoid huge logs from repeated sites; if you see one, treat it as a real correctness failure and fix it at the source.
 - Regression gates:
   - Fast: `make verify-native-x64-compile` (small fixtures, compile-only, ~10s per build timeout)
-  - Higher-signal: `make verify-native-x64-selfhost-compile` (compiles `oren.oren` for x64 targets; compile-only)
+  - Higher-signal: `make verify-native-x64-selfhost-compile` (compiles the compiler program for x64 targets; compile-only)
+    - Defaults to `oren_x64.oren` (x64-focused; avoids compiling arm64 native backends into x64 artifacts)
+    - Override: `OREN_SELFHOST_SRC=oren.oren make verify-native-x64-selfhost-compile`
 
 ## Native value semantics: never rely on `scalar == nil`
 
