@@ -91,6 +91,7 @@ References:
 
 	   - 2026-01-12: `scripts/verify_native_x64_compile_only.sh` now pre-seeds native runtime ASTBIN + rtobj (core+full) before running tight per-build timeouts, so the “cold after runtime change” case stays bounded.
 	   - 2026-01-12: began splitting the >2k-line x64 Linux syscall intrinsic emitter into smaller modules; moved the NET/epoll blocks into `lib/compiler/x64_native_program/046_emit_sys_intrinsics_linux_net.oren` so hot-path compilation of `_emit_intrinsic_sys_linux_x64` stays bounded.
+	   - 2026-01-12: `scripts/verify_native_x64_selfhost_compile_only.sh --targets x64-linux` still times out at 240s on `oren.oren` with `--no-cache` (phase trace shows `link parse` ~79s + `optimizer` ~116s; remaining x64 emit+link is still a primary bottleneck).
 
 	2) **Tier‑1 native parity: correctness across arch/OS** (L)
 

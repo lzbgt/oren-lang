@@ -310,6 +310,7 @@ if [[ "$want_wsl" -ne 0 ]]; then
     run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
       env \
         OREN_PARSE_JOBS="$parse_jobs" \
+        OREN_PARSE_FORK_PARALLEL=1 \
         OREN_GC_AUTO=1 \
         OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
         OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
@@ -327,6 +328,7 @@ if [[ "$want_wsl" -ne 0 ]]; then
     run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
       env \
         OREN_PARSE_JOBS="$parse_jobs" \
+        OREN_PARSE_FORK_PARALLEL=1 \
         OREN_GC_AUTO=1 \
         OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
         OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
@@ -355,6 +357,7 @@ if [[ "$want_win" -ne 0 ]]; then
     run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
       env \
         OREN_PARSE_JOBS="$parse_jobs" \
+        OREN_PARSE_FORK_PARALLEL=1 \
         OREN_GC_AUTO=1 \
         OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
         OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
@@ -372,6 +375,7 @@ if [[ "$want_win" -ne 0 ]]; then
     run_with_timeout "$BUILD_COMPILER_TIMEOUT_SECS" \
       env \
         OREN_PARSE_JOBS="$parse_jobs" \
+        OREN_PARSE_FORK_PARALLEL=1 \
         OREN_GC_AUTO=1 \
         OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
         OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \

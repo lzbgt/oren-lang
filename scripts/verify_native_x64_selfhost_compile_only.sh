@@ -119,6 +119,20 @@ fi
 
 BUILD_TIMEOUT_SECS="${OREN_SELFHOST_BUILD_TIMEOUT_SECS:-240}"
 
+# Compiler-only performance knobs (rolling hang guard):
+# - Stage2-native parsing/expansion of the compiler graph can be very slow on a cold cache.
+# - Fork-parallel module parse keeps the self-host gate bounded without changing semantics.
+PARSE_JOBS="${OREN_PARSE_JOBS:-8}"
+if [[ "$PARSE_JOBS" -lt 1 ]]; then PARSE_JOBS=1; fi
+if [[ "$PARSE_JOBS" -gt 16 ]]; then PARSE_JOBS=16; fi
+
+# Cross-target compiler builds are large and can allocate heavily.
+# Keep them bounded by enabling the cooperative GC trigger and limiting stack scan.
+gc_stack_scan_limit="${OREN_GC_STACK_SCAN_LIMIT_BYTES:-8388608}"
+# For the self-host compiler build (oren.oren), a too-small GC threshold can cause severe
+# GC thrash and make the build look "hung". Use a larger default than tiny-file gates.
+gc_alloc_threshold="${OREN_SELFHOST_GC_ALLOC_THRESHOLD:-20000000}"
+
 run_with_timeout() {
   local secs="$1"
   shift
@@ -168,7 +182,15 @@ build_one() {
 
   local logf="build/logs/x64_selfhost_compile_only_${platform}.log"
   set +e
-  run_with_timeout "$BUILD_TIMEOUT_SECS" ./oren_stage2 build "$SRC" \
+  run_with_timeout "$BUILD_TIMEOUT_SECS" env \
+    OREN_PARSE_JOBS="$PARSE_JOBS" \
+    OREN_PARSE_FORK_PARALLEL=1 \
+    OREN_GC_AUTO=1 \
+    OREN_GC_ALLOC_THRESHOLD="$gc_alloc_threshold" \
+    OREN_GC_STACK_SCAN_LIMIT_BYTES="$gc_stack_scan_limit" \
+    OREN_TRACE_PHASES=1 \
+    OREN_TRACE_BUILD_SUMMARY=1 \
+    ./oren_stage2 build "$SRC" \
     --backend native --platform "$platform" --no-debug $cache_arg -o "$out" \
     >"$logf" 2>&1
   local rc=$?
@@ -214,4 +236,3 @@ if [[ "$WANT_WIN" -eq 1 ]]; then
 fi
 
 echo "OK: x64 selfhost compile-only verification passed" >&2
-
