@@ -236,6 +236,17 @@ References:
    - add ptr-sized / `usize` return kinds and a stable story for `size_t`
    - consider “quoted external symbol” syntax only if we encounter real APIs that are not identifier-compatible
 
+9) **Native scheduler + netpoller (true async IO + channels/select)** (L)
+
+   Rationale: Oren needs a correct, production-grade concurrency story (green tasks / M:N scheduling)
+   before the stdlib NET stack can be fully non-blocking and before `select`/async I/O can be robust.
+
+   References:
+
+   - `docs/CONCURRENCY_MODEL.md`
+   - `docs/NATIVE_GMP_SCHEDULER.md`
+   - `docs/ASYNC_IO_AND_SELECT.md`
+
 ## P1 (Soon)
 
 1) **Signed `.obc` + root trust (multiverse updates / “app store”)** (M)
@@ -251,14 +262,6 @@ References:
 
    - `docs/STACK_SAFETY.md`
 
-3) **Native scheduler + netpoller (true async IO + channels/select)** (L)
-
-   References:
-
-   - `docs/CONCURRENCY_MODEL.md`
-   - `docs/NATIVE_GMP_SCHEDULER.md`
-   - `docs/ASYNC_IO_AND_SELECT.md`
-
 ## Tier‑1 verification blockers (operational)
 
 - Remote Win11/WSL2 access can intermittently fail via the default proxy hostname (`pc.work`).
@@ -266,3 +269,5 @@ References:
     - Use `--skip-remote` for quick local confidence and keep local x64 compile-only gates strong.
     - Fetch remote logs without copy/paste using `scripts/fetch_remote_file.sh` (see `docs/REMOTE_X64_ENV.md`).
     - Analyze large logs with `scripts/analyze_stage2_failure_log.sh` (bounded output).
+    - If a fetched log is only a few lines and shows `x64 pe: failed to write ... examples\\...`:
+      - it usually indicates an older compiler that did not normalize backslash paths early; re-run `scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` to confirm the current gate is green.

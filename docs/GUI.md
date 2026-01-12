@@ -150,6 +150,29 @@ Rolling v0 implementation note:
     - Row: `align_y` ("start"/"center"/"end")
     - Column: `align_x` ("start"/"center"/"end")
 
+### Markup formats (XML / CSS?) — do we need them?
+
+We do **not** need XML (or full CSS) to ship a production-quality GUI.
+
+Fact-based constraints:
+
+- Oren already has a strong *code as configuration* story: UI trees can be created as maps/lists in Oren
+  code, and this works in all three execution modes (`native`, `c`, `bytecode`).
+- Introducing an XML/CSS layer too early tends to create:
+  - a second semantics surface (parser, escaping rules, tooling formats),
+  - a cascade/layout complexity cliff (CSS compliance is not a v0 goal),
+  - and more portability obligations (all parsers must behave identically across Tier‑1 and AVM).
+
+Recommended direction (rolling):
+
+1) **Primary authoring format:** Oren code (`Node` maps + helper constructors).
+2) **Tooling/serialization formats:** add small “data interchange” options for editor tooling:
+   - JSON (already aligned with the map/list/value model),
+   - optional YAML/TOML only if we have a clear need.
+3) **XML/HTML/CSS:** treat as optional ecosystem experiments, not as core UI dependencies.
+   - If we later want a declarative markup, prefer a minimal schema that lowers to the node-map form,
+     keeping `std:ui` as the semantic source of truth.
+
 ## 3) Host bridge: UI capability domain API (v0)
 
 Define a single UI domain (example ID: `9`) with a narrow set of ops.
