@@ -381,6 +381,9 @@ Addendum: `ffi("...")` sugar (rolling, parser-only)
 - The parser accepts `ffi("lib") <sym>` and `ffi("lib") { ... }` as sugar for attaching a dynamic library to one or more `ffi` declarations.
 - Semantics: `ffi("lib") ...` lowers as if the user wrote `@ffi.link("lib") ffi ...` (portable form).
 - This does not introduce a new attribute; it is a syntax convenience for fixtures and quick bindings.
+  - Note: group items accept the same rolling separators as `ffi { ... }`:
+    - commas/semicolons are optional
+    - one-symbol-per-line blocks are valid (implicit separators between items)
 
 ### Notes on current (rolling) type annotations
 

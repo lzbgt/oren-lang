@@ -166,6 +166,7 @@ FFI_GROUP_ITEM_ATTRS_SRC="tests/native/ffi_group_item_attrs.oren"
 FFI_GROUP_DEFAULT_RET_SRC="tests/native/ffi_group_default_ret.oren"
 FFI_ALIAS_SYMBOLS_SRC="tests/native/ffi_alias_symbols.oren"
 FFI_GROUP_LINK_SUGAR_SRC="tests/native/ffi_group_link_sugar.oren"
+FFI_GROUP_LINK_SUGAR_MULTILINE_SRC="tests/native/ffi_group_link_sugar_multiline.oren"
 FFI_GROUP_MULTILINE_ITEMS_SRC="tests/native/ffi_group_multiline_items.oren"
 FFI_RET_PTR_USIZE_SRC="tests/native/ffi_ret_ptr_usize.oren"
 FFI_LIBC_PORTABLE_SRC="tests/native/ffi_libc_portable.oren"
@@ -439,6 +440,9 @@ run_suite_x64_linux() {
   build_one "$compiler" x64-linux "$FFI_GROUP_LINK_SUGAR_SRC" "build/tmp/ffi_group_link_sugar_${tag}_x64_linux"
   check_elf_x64_dyn "build/tmp/ffi_group_link_sugar_${tag}_x64_linux"
 
+  build_one "$compiler" x64-linux "$FFI_GROUP_LINK_SUGAR_MULTILINE_SRC" "build/tmp/ffi_group_link_sugar_multiline_${tag}_x64_linux"
+  check_elf_x64_dyn "build/tmp/ffi_group_link_sugar_multiline_${tag}_x64_linux"
+
   build_one "$compiler" x64-linux "$FFI_LIBC_PORTABLE_SRC" "build/tmp/ffi_libc_portable_${tag}_x64_linux"
   check_elf_x64_dyn "build/tmp/ffi_libc_portable_${tag}_x64_linux"
 
@@ -504,6 +508,9 @@ run_suite_x64_win() {
 
   build_one "$compiler" x64-windows "$FFI_GROUP_LINK_SUGAR_SRC" "build/tmp/ffi_group_link_sugar_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/ffi_group_link_sugar_${tag}_x64_windows.exe"
+
+  build_one "$compiler" x64-windows "$FFI_GROUP_LINK_SUGAR_MULTILINE_SRC" "build/tmp/ffi_group_link_sugar_multiline_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/ffi_group_link_sugar_multiline_${tag}_x64_windows.exe"
 
   build_one "$compiler" x64-windows "$FFI_LIBC_PORTABLE_SRC" "build/tmp/ffi_libc_portable_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/ffi_libc_portable_${tag}_x64_windows.exe"

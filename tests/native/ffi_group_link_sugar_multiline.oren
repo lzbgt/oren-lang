@@ -1,0 +1,39 @@
+// FFI group sugar: allow multiline item lists in `ffi("...") { ... }` blocks.
+//
+// Motivation:
+// - The group sugar `ffi("lib") { ... }` is convenient for quick bindings and small fixtures.
+// - For real bindings, one-symbol-per-line is diff-friendly and avoids trailing-comma debates.
+//
+// This fixture ensures the `ffi("...") { ... }` sugar accepts implicit separators (newlines/whitespace)
+// between items, consistent with the plain `ffi { ... }` group form.
+//
+// Tier‑1 intent: compile-only gate on x64-linux/x64-windows; may also run on native Tier‑1 hosts.
+
+@cfg(os="windows")
+@ffi.ret("i32")
+ffi("msvcrt.dll") {
+    puts as c_puts
+    atoi as c_atoi
+}
+
+@cfg(os="linux")
+@ffi.ret("i32")
+ffi("libc.so.6") {
+    puts as c_puts
+    atoi as c_atoi
+}
+
+@cfg(os="macos")
+@ffi.ret("i32")
+ffi("libSystem.B.dylib") {
+    puts as c_puts
+    atoi as c_atoi
+}
+
+fn main() {
+    var rc = c_puts("ffi_group_link_sugar_multiline: OK")
+    if rc < 0 { return 1 }
+    if c_atoi("123") != 123 { return 2 }
+    return 0
+}
+

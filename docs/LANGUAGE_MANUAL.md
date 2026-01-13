@@ -438,7 +438,9 @@ FFI sugar (rolling ergonomics):
   - `@ffi.dll("msvcrt.dll") ffi { puts, atoi }` (Windows convenience)
 - There is also a small sugar form which lowers to the portable `@ffi.link(...)`:
   - `ffi("libc.so.6") { puts, atoi }`
-  - `ffi("msvcrt.dll") puts` (works on Windows because `@ffi.link("msvcrt.dll")` is supported too)
+  - `ffi("msvcrt.dll") { puts as c_puts, atoi as c_atoi }` (Windows: `@ffi.link("msvcrt.dll")` is supported too)
+  - Multiline item lists are allowed (diff-friendly):
+    - `ffi("msvcrt.dll") { puts as c_puts atoi as c_atoi }`
 
 ### Conditional compilation (`@cfg(...)`)
 
