@@ -93,7 +93,7 @@ References:
 		     - Direction: provide a small syscall-first filesystem helper surface usable by both native and C backend runtimes (avoid `oren_system("mkdir -p ...")` for core operations).
 		     - Keep it bounded: implement only what the compiler needs (mkdir -p, rm -f, rm -rf, exists, rename).
 
-		   Status (fact):
+	   Status (fact):
 
 			   - 2026-01-12: eliminated compiler dependency on shell `mkdir` for core tooling by adding `oren_mkdir_p`:
 			     - C backend runtime: `lib/runtime/050_io_misc.inc` (`oren_mkdir_p` returns 0 / -errno)
@@ -147,10 +147,11 @@ References:
 
    Status (fact):
 
-   - 2026-01-12: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` passed (compiler runs on Win11 + WSL2 and compiles+runs a tiny native program on both).
-   - 2026-01-13: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` extended with a filesystem directory gate (`fs_dir_gate.oren`) and remains green:
-     - proves `oren_mkdir_p` handles the `-EEXIST` case correctly for directories
-     - proves `sys_stat` reports directory mode correctly on both WSL2 (x64-linux) and Win11 (x64-windows)
+	   - 2026-01-12: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` passed (compiler runs on Win11 + WSL2 and compiles+runs a tiny native program on both).
+	   - 2026-01-13: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` extended with a filesystem directory gate (`fs_dir_gate.oren`) and remains green:
+	     - proves `oren_mkdir_p` handles the `-EEXIST` case correctly for directories
+	     - proves `sys_stat` reports directory mode correctly on both WSL2 (x64-linux) and Win11 (x64-windows)
+	   - 2026-01-13: `./scripts/verify_native_matrix.sh --targets x64-win-tier1,x64-wsl-tier1` passed (remote Win11 + remote WSL2; stage1 + stage2).
    - 2026-01-12: fixed the native runtime lock blocking primitive on Tier‑1:
      - `sys_ulock_wait/sys_ulock_wake` are now treated as a portable "wait-on-address" primitive:
        - Linux: `futex(FUTEX_WAIT_PRIVATE/FUTEX_WAKE_PRIVATE)`
@@ -185,7 +186,7 @@ References:
 
    - `make test` (nil-compare guard is always-on; diagnostics tagged `nil-compare guard:`)
 
-   Status (fact):
+	   Status (fact):
 
    - 2026-01-12: added `lib/std/reflect.oren` (minimal reflection wrappers + stable tag constants) and wired it into the native quick integration smoke.
    - 2026-01-12: expanded the native quick integration reflection+varargs gate (`tests/native/test_quick_integration_native.oren`) to cover `bool` + `func`, and to be forward-compatible with eventual float tagging (`int` vs `float` best-effort today).
@@ -215,8 +216,9 @@ References:
 
    Status (fact):
 
-   - 2026-01-12: `./scripts/verify_native_net_matrix.sh --targets all` passed (stage1 + stage2; local + linux/arm64 container + remote Win11 + remote WSL2)
-     - Covers TCP/UDP + DNS + HTTP/1.1 + WS, plus TLS/HTTPS/WSS and HTTP/2 (preface + HPACK + headers loopback).
+	   - 2026-01-12: `./scripts/verify_native_net_matrix.sh --targets all` passed (stage1 + stage2; local + linux/arm64 container + remote Win11 + remote WSL2)
+	     - Covers TCP/UDP + DNS + HTTP/1.1 + WS, plus TLS/HTTPS/WSS and HTTP/2 (preface + HPACK + headers loopback).
+	   - 2026-01-13: `./scripts/verify_native_net_matrix.sh --targets x64-win-tier1,x64-wsl-tier1` passed (remote Win11 + remote WSL2; stage1 + stage2).
 
 5) **Crypto library layering (separate from NET)** (M)
 
