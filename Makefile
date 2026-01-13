@@ -511,7 +511,7 @@ perf-guard-native-hit: oren_stage2
 		@./scripts/perf_guard_native_compile_one_file_hit.sh
 
 # Default "test" is now native-only and quick (no external test runner).
-test: test-native-quick
+test: verify-native-quick
 
 # AVM test suite (bytecode build + avm run).
 #

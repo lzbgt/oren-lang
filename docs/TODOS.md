@@ -42,9 +42,9 @@ Oren is “maturing” when the following are reliably true:
 
 Local (fast):
 
-- `make test` (native quick integration smoke; fast default)
-  - Includes “must fail” fixtures (e.g. `scalar == nil` hazards).
-- `make verify-native-quick` (stage1 + stage2 native smoke)
+- `make test` (fast native smoke; stage1 + stage2 quick integration + capsule)
+  - Includes “must fail” fixtures (e.g. `scalar == nil` hazards, reserved `__oren_type`).
+- `make verify-native-quick` (alias of `make test`; stage1 + stage2 + capsule)
 
 Tier‑1 cross-arch (execution on real hosts):
 
@@ -110,8 +110,8 @@ References:
 			   - 2026-01-12: removed compiler dependency on shell `test -f` / `if exist` probes for `file_exists(...)`:
 			     - runtime: `oren_is_file(path)` (C + native) so stage1 tooling can check existence without shelling out
 			   - 2026-01-13: added a hard guardrail to keep the compiler/runtime free of `rg`/ripgrep dependencies:
-			     - `scripts/guard_no_external_rg_dependency.sh` scans `lib/**/*.oren` and fails if it finds any `oren_system(... rg ...)`-style shell-outs.
-			     - Wired into default `make test` via `test-native-quick` in `Makefile`.
+				     - `scripts/guard_no_external_rg_dependency.sh` scans `lib/**/*.oren` and fails if it finds any `oren_system(... rg ...)`-style shell-outs.
+				     - Wired into default `make test` (native quick integration smoke).
 			   - 2026-01-12: verified x64 native selfhost compile-only gate still passes after the runtime FS-helper refactor:
 			     - `make verify-native-x64-selfhost-compile` (targets: x64-linux, x64-windows)
 	   - 2026-01-12: `scripts/verify_native_x64_compile_only.sh` now pre-seeds native runtime ASTBIN + rtobj (core+full) before running tight per-build timeouts, so the “cold after runtime change” case stays bounded.

@@ -86,8 +86,8 @@ These targets are intended to be runnable without additional tooling:
 # Build stage1 compiler
 make stage1
 
-# Fast, single-file native integration smoke (stage1)
-make test-native-quick
+# Default fast gate: stage1 + stage2 + capsule (native-only)
+make test
 
 # Build stage2 compiler
 make stage2
@@ -95,7 +95,7 @@ make stage2
 # Fast, single-file native integration smoke (stage2)
 make test-native-quick-stage2
 
-# Convenience: stage1 + stage2
+# Convenience alias (same as `make test`)
 make verify-native-quick
 ```
 
@@ -119,7 +119,7 @@ Note (rolling):
 
 ## AVM verification (bytecode)
 
-The default `make test` target is intentionally **native-only and very fast**.
+The default `make test` target is intentionally **native-only and bounded**.
 For AVM/bytecode regression coverage, use:
 
 ```bash
