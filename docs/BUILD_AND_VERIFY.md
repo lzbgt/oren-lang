@@ -88,6 +88,8 @@ Notes (rolling, important):
 - `make stage2` is the repo-supported entrypoint because the bootstrap backend can vary by host architecture.
   - Default (2026-01-04+): Stage 2 is bootstrapped via the **native backend** on Tier‑1 hosts (including macOS arm64).
   - If you need the legacy C-backend bootstrap for bring-up, use: `make stage2 OREN_STAGE2_BACKEND=c`.
+    - On Windows hosts, the Makefile defaults the stage2 C-backend toolchain to MSVC `cl.exe` (because `cc` often does not exist).
+      - Override: `make stage2 OREN_STAGE2_BACKEND=c OREN_STAGE2_CC=clang` (or another gcc/clang-style toolchain in MSYS2).
 - This does **not** mean Stage 2 “doesn’t have the C backend”: Stage 2 is built from the same compiler sources and supports `--backend {c|native|bytecode}` (check `./oren_stage2 --help`).
 
 ---

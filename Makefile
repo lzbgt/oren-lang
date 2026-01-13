@@ -306,27 +306,45 @@ $(OREN_BIN): $(BOOTSTRAP_BIN) $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
 # - If you need the old C-backend bootstrap for bring-up, use:
 #     make stage2 OREN_STAGE2_BACKEND=c
 OREN_STAGE2_BACKEND ?= native
+
+# Stage2 C-backend toolchain selection (Windows host UX).
+#
+# When building stage2 via the C backend on a Windows host, `cc` often does not exist.
+# The compiler can auto-default to MSVC in many cases, but Makefile should keep the
+# "make stage2 OREN_STAGE2_BACKEND=c" path explicit and robust by default.
+OREN_STAGE2_CC ?=
+ifeq ($(strip $(OREN_STAGE2_CC)),)
+  ifeq ($(HOST_IS_WINDOWS),1)
+    OREN_STAGE2_CC := cl.exe
+  endif
+endif
+STAGE2_CC_ARG :=
+ifeq ($(OREN_STAGE2_BACKEND),c)
+  ifneq ($(strip $(OREN_STAGE2_CC)),)
+    STAGE2_CC_ARG := --cc $(OREN_STAGE2_CC)
+  endif
+endif
 ifeq ($(HOST_IS_WINDOWS),1)
 oren_stage2: $(OREN_STAGE2_BIN)
 endif
 
 $(OREN_STAGE2_BIN): $(OREN_BIN) $(OREN_SRC) $(OREN_OREN_SRC) $(OREN_RUNTIME_INC)
-			@echo "Building Stage 2 (Self-Hosted)..."
-		@if [ "$(UNAME_S)" = "Darwin" ]; then \
-					arch=$$(uname -m); \
-						if [ "$$arch" = "arm64" ] || [ "$$arch" = "aarch64" ]; then \
-							PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./$(OREN_BIN) build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug -o $(OREN_STAGE2_BIN) $(CODESIGN_ARG) $(GC_ARG)'; \
-						else \
-							PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./$(OREN_BIN) build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug -o $(OREN_STAGE2_BIN) $(CODESIGN_ARG) $(GC_ARG)'; \
-						fi; \
-					else \
-							arch=$$(uname -m); \
+				@echo "Building Stage 2 (Self-Hosted)..."
+			@if [ "$(UNAME_S)" = "Darwin" ]; then \
+						arch=$$(uname -m); \
 							if [ "$$arch" = "arm64" ] || [ "$$arch" = "aarch64" ]; then \
-								OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./$(OREN_BIN) build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug -o $(OREN_STAGE2_BIN) $(CODESIGN_ARG) $(GC_ARG)'; \
+								PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./$(OREN_BIN) build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug $(STAGE2_CC_ARG) -o $(OREN_STAGE2_BIN) $(CODESIGN_ARG) $(GC_ARG)'; \
 							else \
-								OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./$(OREN_BIN) build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug -o $(OREN_STAGE2_BIN) $(CODESIGN_ARG) $(GC_ARG)'; \
+								PATH="$(MACOS_SYSTEM_PATH_PREFIX):$$PATH" OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./$(OREN_BIN) build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug $(STAGE2_CC_ARG) -o $(OREN_STAGE2_BIN) $(CODESIGN_ARG) $(GC_ARG)'; \
 							fi; \
-						fi
+						else \
+								arch=$$(uname -m); \
+								if [ "$$arch" = "arm64" ] || [ "$$arch" = "aarch64" ]; then \
+									OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./$(OREN_BIN) build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug $(STAGE2_CC_ARG) -o $(OREN_STAGE2_BIN) $(CODESIGN_ARG) $(GC_ARG)'; \
+								else \
+									OREN_PARSE_JOBS="$(OREN_PARSE_JOBS)" OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=4000000 OREN_GC_RAW_PTR_SCAN=0 OREN_GC_STACK_SCAN_LIMIT_BYTES="$(OREN_GC_STACK_SCAN_LIMIT_BYTES)" sh -c 'trap "kill 0" TERM INT HUP QUIT; exec ./$(OREN_BIN) build $(OREN_SRC) --backend $(OREN_STAGE2_BACKEND) $(HOST_PLATFORM_ARG) --no-debug $(STAGE2_CC_ARG) -o $(OREN_STAGE2_BIN) $(CODESIGN_ARG) $(GC_ARG)'; \
+								fi; \
+							fi
 
 # Aliases
 bootstrap: oren_bootstrap

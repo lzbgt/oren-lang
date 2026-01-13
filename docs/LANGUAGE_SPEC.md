@@ -346,6 +346,7 @@ Non-normative guidance (rolling):
 - Prefer platform-independent APIs in stdlib. `@cfg` exists for *boundary bindings* that cannot be fully abstracted (FFI library names, syscall layouts, per-OS constants).
 - In tests, `@cfg` is acceptable when it gates tiny platform-specific declarations, but the behavior under test should remain consistent across Tier‑1 platforms whenever possible.
 - If broad algorithmic code needs heavy `@cfg`, treat it as a design smell and consider lifting the platform differences into a dedicated stdlib module.
+- See `docs/PORTABILITY_GUIDE.md` for concrete “keep `@cfg` at the boundary” patterns.
 
 Supported attachment sites (rolling v0):
 

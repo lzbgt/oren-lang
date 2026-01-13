@@ -246,12 +246,14 @@ References:
 
    Status (fact):
 
-   - 2026-01-12: `make verify-stage0-win` passed (remote Win11, stage0→stage1 via MSVC `cl.exe`)
-   - 2026-01-12: `make verify-stage2-win` passed (remote Win11, stage0→stage1→stage2 native + C-backend smoke using default `--cc`)
-     - Follow-up guard: `scripts/verify_windows_stage2_from_stage1.sh` also compiles `examples/ui_hello.oren` and builds the Win32 OrenUI shim DLL via `scripts/win_msvc_cmd.cmd` (no GUI run; compile/link guard only).
-     - 2026-01-12: `scripts/verify_windows_stage2_from_stage1.sh` now also proves the C backend works with **default `--cc`** on Windows (auto-picks MSVC `cl.exe`; does not require a Unix-like `cc`).
-	   - 2026-01-13: fixed an MSVC-only C parser hazard where a `// ... \` comment line-continuation broke stage0→stage1 bootstrap:
-	     - Root cause: `lib/runtime/050_io_misc.inc` had a comment `// UNC prefix: \\server\share\` ending in a backslash; MSVC treats `\\\n` as a line continuation even in `//` comments (C4010), corrupting subsequent C tokens.
+	   - 2026-01-12: `make verify-stage0-win` passed (remote Win11, stage0→stage1 via MSVC `cl.exe`)
+	   - 2026-01-12: `make verify-stage2-win` passed (remote Win11, stage0→stage1→stage2 native + C-backend smoke using default `--cc`)
+	     - Follow-up guard: `scripts/verify_windows_stage2_from_stage1.sh` also compiles `examples/ui_hello.oren` and builds the Win32 OrenUI shim DLL via `scripts/win_msvc_cmd.cmd` (no GUI run; compile/link guard only).
+	     - 2026-01-12: `scripts/verify_windows_stage2_from_stage1.sh` now also proves the C backend works with **default `--cc`** on Windows (auto-picks MSVC `cl.exe`; does not require a Unix-like `cc`).
+	   - 2026-01-13: `make stage2 OREN_STAGE2_BACKEND=c` is now robust on Windows hosts by default:
+	     - Makefile defaults `OREN_STAGE2_CC=cl.exe` when using the stage2 C-backend bootstrap path (override via `OREN_STAGE2_CC=...`).
+		   - 2026-01-13: fixed an MSVC-only C parser hazard where a `// ... \` comment line-continuation broke stage0→stage1 bootstrap:
+		     - Root cause: `lib/runtime/050_io_misc.inc` had a comment `// UNC prefix: \\server\share\` ending in a backslash; MSVC treats `\\\n` as a line continuation even in `//` comments (C4010), corrupting subsequent C tokens.
 	     - Fix: comment no longer ends with `\`.
 	     - Guardrail (2026-01-13): `scripts/guard_no_msvc_comment_line_continuation.sh` is wired into `make test` to prevent recurrence.
 	   - 2026-01-13: `scripts/verify_windows_stage2_from_stage1.sh` passed (remote Win11; stage0→stage1→stage2):

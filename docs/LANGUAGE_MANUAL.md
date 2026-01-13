@@ -461,11 +461,14 @@ Why `@cfg` exists (and when to use it):
   - OS-specific APIs / syscalls that genuinely do not exist across platforms (Win32 vs POSIX),
   - platform-specific constants/struct layouts at syscall boundaries,
   - platform-specific dynamic link library names **when there is no portable alias**.
-  - platform-specific constants/struct layouts at syscall boundaries,
   - host build/packaging details (e.g. Windows `.exe` naming in scripts).
 - In tests/stdlib, `@cfg` is allowed as a **boundary tool**:
   - It should gate small platform-specific declarations (FFI library names, syscall structs), while the *public* API being tested stays stable (`std:net/*`, `std:crypto/*`, etc.).
   - If you see `@cfg` sprinkled through application logic, treat it as a signal that a missing stdlib abstraction should be added (rolling goal: keep `@cfg` rare).
+
+Portability guide (recommended reading):
+
+- `docs/PORTABILITY_GUIDE.md` explains the “keep `@cfg` at the boundary” rule and gives concrete patterns for tests and stdlib.
 
 Rolling note (FFI ergonomics):
 
