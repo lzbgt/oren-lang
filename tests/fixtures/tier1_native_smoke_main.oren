@@ -1,3 +1,5 @@
+import reflect "../../lib/std/reflect.oren"
+
 // Tier‑1 native smoke / living spec (rolling).
 //
 // This fixture is intentionally integration-first:
@@ -196,6 +198,43 @@ fn main() {
     if p0["a"] != 1 { return 914 }
     if p0["b"] != 2 { return 915 }
 
+    // --- Reflection v0 contract (Tier‑1) ---
+    //
+    // `oren_type_tag`/`oren_type_name` are the foundation for varargs processing and
+    // safe generic code. For native v0, numeric immediates may still be best-effort
+    // (`int` vs `float`), but non-numeric kinds must be stable across all Tier‑1 targets.
+    var rv_nil = nil
+    var rv_bool = true
+    var rv_int = 123
+    var rv_str = "tier1_ref_str"
+    var rv_func = inc
+    var rv_list = []
+    var rv_map = {"k": 1}
+    var rv_u8 = oren_u8_buf_new(0)
+
+    if reflect.tag(rv_nil) != reflect.TAG_NIL { return 960 }
+    if reflect.tag(rv_bool) != reflect.TAG_BOOL { return 961 }
+    if reflect.tag(rv_int) != reflect.TAG_INT { return 962 }
+    if reflect.tag(rv_str) != reflect.TAG_STRING { return 963 }
+    if reflect.tag(rv_func) != reflect.TAG_FUNC { return 964 }
+    if reflect.tag(rv_list) != reflect.TAG_LIST { return 965 }
+    if reflect.tag(rv_map) != reflect.TAG_MAP { return 966 }
+    if reflect.tag(rv_u8) != reflect.TAG_U8_BUF { return 967 }
+
+    if oren_string_eq(reflect.name(rv_nil), "nil") == false { return 968 }
+    if oren_string_eq(reflect.name(rv_bool), "bool") == false { return 969 }
+    if oren_string_eq(reflect.name(rv_int), "int") == false { return 970 }
+    if oren_string_eq(reflect.name(rv_str), "string") == false { return 971 }
+    if oren_string_eq(reflect.name(rv_func), "func") == false { return 972 }
+    if oren_string_eq(reflect.name(rv_list), "list") == false { return 973 }
+    if oren_string_eq(reflect.name(rv_map), "map") == false { return 974 }
+    if oren_string_eq(reflect.name(rv_u8), "u8_buf") == false { return 975 }
+
+    // Rolling v0: structs are map-shaped (tag==map), but must expose a stable type name
+    // via `__oren_type` so user code can dispatch on it.
+    if reflect.tag(u0) != reflect.TAG_MAP { return 976 }
+    if oren_string_eq(reflect.name(u0), "User") == false { return 977 }
+
     // --- Runtime tracking APIs (arm64/x64 unified via injected runtime) ---
     //
     // String literals are embedded cstr0 pointers and are intentionally NOT tracked as heap allocations
@@ -203,6 +242,13 @@ fn main() {
     //
     // Instead, the runtime must recognize them via the startup-built cstr0 membership set:
     // `native_is_string_ptr(lit)` returns true even when `oren_find_node(lit)` is 0.
+    var litp0 = "trk_literal_pool"
+    var litp1 = "trk_literal_pool"
+    // Pointer identity compare (avoid string-aware `==`).
+    if (litp0 - litp1) != 0 {
+        print("tier1 trk: cstr0 pool did not dedupe identical literals")
+        return 919
+    }
     if native_is_string_ptr("trk_literal") == 0 { return 920 }
     if oren_find_node("trk_literal") != 0 { return 921 }
 

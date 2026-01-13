@@ -37,6 +37,9 @@ In addition, the stdlib now exposes a minimal wrapper module:
   - `tag(v)` / `name(v)` wrappers (call through to `oren_type_tag` / `oren_type_name`)
   - stable tag constants (`TAG_NIL`, `TAG_STRING`, `TAG_LIST`, `TAG_FUNC`, …) matching `lib/runtime.h` `OrenType`
     - 2026-01-12: native backend now tags first-class function values as `TAG_FUNC` (guarded by `tests/native/test_quick_integration_native.oren`).
+    - 2026-01-13: Tier‑1 native smoke now asserts the non-numeric tag/name contract under real x64 hosts:
+      - `tests/fixtures/tier1_native_smoke_main.oren` checks `tag/name` for `nil/bool/int/string/func/list/map/u8_buf`
+      - also checks that struct values expose a stable type name via `__oren_type` (even though structs remain map-shaped in v0)
 
 This is intentionally **not** the final reflection design:
 
