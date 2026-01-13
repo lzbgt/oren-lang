@@ -201,6 +201,8 @@ References:
 	   - 2026-01-13: added a compile-fail fixture to lock the reserved `__oren_type` struct key contract:
 	     - `tests/fixtures/typecheck_bad_reserved_struct_field_oren_type.oren` must fail to parse/typecheck
 	     - enforced by `scripts/run_native_quick_integration.sh` (so it runs under `make test` / Tier‑1 quick smokes)
+	   - 2026-01-13: reduced log noise for the reserved `__oren_type` diagnostic:
+	     - parser now error-recovers to the closing `}` for this case, avoiding cascading “no prefix parse fn” errors.
 	   - 2026-01-12: nil-compare guard now treats arithmetic-with-numeric-literal as scalar evidence (covers index reads + locals/params) (fixtures: `tests/fixtures/nil_guard_bad_late_arith_literal_nil_compare.oren`, `tests/fixtures/nil_guard_bad_param_arith_literal_nil_compare.oren`).
 
 4) **Stdlib NET/TLS/HTTP/WS maturity (not toy protocols)** (L)

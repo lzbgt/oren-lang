@@ -447,7 +447,15 @@ fn parse_type_decl(p) {
             var fid = ast.new_identifier(p["cur"])
             if fid["value"] == "__oren_type" {
                 parser_add_error(p, "type field name '__oren_type' is reserved (used by reflection helpers)")
-                return nil
+                // Error recovery (rolling):
+                // This is a hard parse error, but returning nil here often causes a cascade
+                // of secondary "no prefix parse fn" errors at the call site because the
+                // parser is left mid-declaration. Skip to `}` so logs stay minimal.
+                while !cur_is(p, token.TOK_RBRACE) && !cur_is(p, token.TOK_EOF) {
+                    parser_next_token(p)
+                }
+                if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
+                return ast.new_type(tok, name, fields)
             }
             if fattrs != nil && oren_list_len(fattrs) > 0 { fid["attrs"] = fattrs }
 
