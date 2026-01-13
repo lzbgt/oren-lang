@@ -1,0 +1,18 @@
+// Expected to fail under: `./oren build ...`
+//
+// Rationale:
+// - Rolling reflection v0 uses a reserved struct tag key: `"__oren_type"`.
+// - User-defined structs are currently map-shaped and tagged with that key.
+// - Allowing user code to declare a field named `__oren_type` would collide with
+//   the runtime tag, causing confusing reflection and ABI behavior.
+//
+// The parser should reject any user struct field named `__oren_type`.
+
+// Use the minimal constructor-field syntax so the parser error stays focused
+// (no cascading “unknown token” noise).
+struct Bad { __oren_type }
+
+fn main() {
+    // no-op
+    exit(0)
+}

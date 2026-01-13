@@ -198,6 +198,9 @@ References:
 	     - `tests/fixtures/tier1_native_smoke_main.oren` checks `reflect.tag/name` for `nil/bool/int/string/func/list/map/u8_buf`
 	     - also checks that struct values expose a stable name via `__oren_type` (even though structs remain map-shaped in v0)
 	     - and checks that identical string literals are deduplicated in the cstr0 pool (pointer identity stable; literals are not GC-tracked)
+	   - 2026-01-13: added a compile-fail fixture to lock the reserved `__oren_type` struct key contract:
+	     - `tests/fixtures/typecheck_bad_reserved_struct_field_oren_type.oren` must fail to parse/typecheck
+	     - enforced by `scripts/run_native_quick_integration.sh` (so it runs under `make test` / Tier‑1 quick smokes)
 	   - 2026-01-12: nil-compare guard now treats arithmetic-with-numeric-literal as scalar evidence (covers index reads + locals/params) (fixtures: `tests/fixtures/nil_guard_bad_late_arith_literal_nil_compare.oren`, `tests/fixtures/nil_guard_bad_param_arith_literal_nil_compare.oren`).
 
 4) **Stdlib NET/TLS/HTTP/WS maturity (not toy protocols)** (L)

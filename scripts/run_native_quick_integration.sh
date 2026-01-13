@@ -254,3 +254,21 @@ if [[ "$rc" -eq 0 ]]; then
   exit 1
 fi
 tail -n 5 "$tc2_log"
+
+echo "== parser smoke (reserved struct field __oren_type) =="
+rs_src="tests/fixtures/typecheck_bad_reserved_struct_field_oren_type.oren"
+rs_log="build/logs/${compiler_base}_parser_smoke_reserved_oren_type_field.log"
+rs_out="build/tmp/${compiler_base}_parser_smoke_reserved_oren_type_field.obc"
+rm -f "$rs_log" "$rs_out" 2>/dev/null || true
+
+set +e
+"$compiler" build "$rs_src" --backend bytecode --typecheck -o "$rs_out" >"$rs_log" 2>&1
+rc=$?
+set -e
+
+if [[ "$rc" -eq 0 ]]; then
+  echo "FAIL: parser smoke (reserved __oren_type) expected failure but build succeeded"
+  tail -n 80 "$rs_log"
+  exit 1
+fi
+tail -n 5 "$rs_log"
