@@ -13,8 +13,11 @@ This document outlines the design philosophy of Oren by comparing it to Zig, hig
 
 ### 2. Zero-Dependency Native Toolchain
 *   **Zig:** Relies on LLVM for release builds (massive dependency, slower compile times).
-*   **Oren:** Uses a custom, hand-written native backend targeting Mach-O and ELF directly.
-    *   **Benefit:** Instant edit-run cycles and a tiny compiler binary (~500KB vs Zig's ~100MB+), ideal for bootstrapping and distribution.
+*   **Oren:** Uses custom backends:
+    *   **Native backend** (Tier‑1 targets; rolling): emits platform binaries (Mach-O/ELF/PE).
+    *   **C backend**: portable path that emits C and builds via the host toolchain (`cc` / MSVC `cl.exe`).
+    *   **AVM bytecode**: emits portable `.obc` artifacts for the AVM virtual machine.
+    *   **Benefit:** fast edit-run cycles and a small self-hosting path that does not require LLVM for Tier‑1 bring-up.
 
 ### 3. Native SIMD as a Primitive
 *   **Zig:** Abstract SIMD via `@Vector`.
@@ -32,13 +35,15 @@ This document outlines the design philosophy of Oren by comparing it to Zig, hig
 
 ### 1. Runtime Performance (The "Naive Backend" Cost)
 *   **Zig:** LLVM backend produces world-class, optimized machine code.
-*   **Oren:** Current native backend is a "Stack Machine" (pushes/pops to stack constantly) with no register allocator.
-    *   **Impact:** Oren code is currently significantly slower (2x-10x) than optimized Zig/C.
+*   **Oren (rolling):** Native backend is still evolving (not LLVM-class yet).
+    *   **Impact:** performance can still lag mature optimizing compilers (Zig/Clang), especially for numeric-heavy hot loops, and is an active optimization area.
 
 ### 2. Platform Limitations
 *   **Zig:** Targets virtually every CPU and OS (x86, ARM, RISC-V, WASM, Windows).
-*   **Oren:** Currently targets **ARM64 only** (macOS Apple Silicon and Linux ARM).
-    *   **Impact:** Unusable on standard Windows/Intel desktops today.
+*   **Oren (rolling):** Tier‑1 intent is:
+    *   `arm64-macos`, `arm64-linux`, `x64-windows`, `x64-linux`
+    *   See `docs/TIER1_SUPPORT_MATRIX.md` for the current fact-based status and gates.
+    *   **Impact:** still smaller platform surface than Zig, but no longer “ARM64 only” in rolling mode.
 
 ### 3. Safety & Type Maturity
 *   **Zig:** Strong spatial safety and robust compile-time checks.
@@ -52,4 +57,4 @@ This document outlines the design philosophy of Oren by comparing it to Zig, hig
 ### 5. Tooling Maturity
 *   **Zig:** Robust build system, package manager, cross-compiler.
 *   **Oren:** Bare-bones compiler.
-    *   **Impact:** Users must currently implement basic I/O and networking from scratch; no debugger (DWARF) support.
+    *   **Impact:** debugger story is still rolling, but basic I/O + networking (including TLS/HTTP2 loopback gates) exists in stdlib and is actively verified; see `docs/TODOS.md` and `scripts/verify_native_net_matrix.sh` for the current scope.

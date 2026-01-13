@@ -123,6 +123,9 @@ What it is *not* (yet):
 Important: some safety guardrails are **always-on** and do not require `--typecheck`:
 
 - The compiler rejects `bool/int/float == nil` comparisons (`nil-compare guard:` diagnostics). See `docs/COMPILER_GOTCHAS.md`.
+  - Key rule: **scalars are never nil**. Comparing a numeric/bool value to `nil` is always a bug (even if the value originated from a dynamic source).
+  - Safe pattern for “optional config”: compare the **dynamic** value to `nil`, then cast:
+    - `var t = cfg["timeout_ms"]; var timeout_ms = 1000; if t != nil { timeout_ms = i64(t) }`
 
 ### 0.2) Quickstart: build + run (all backends)
 
