@@ -1,6 +1,6 @@
 # Dear ImGui as an optional shell/overlay for Oren UI (rolling)
 
-**Last updated:** 2026-01-12
+**Last updated:** 2026-01-13
 
 Oren’s planned UI stack is **retained-mode**, deterministic, and portable at the `std:ui/*` level.
 Dear ImGui is **immediate-mode** and is not a long-term replacement for Oren’s app UI API.
@@ -44,11 +44,11 @@ This ensures:
 
 Concrete properties (fact):
 
-- **Bloat-free core + no external deps:** the core is designed to be self-contained and renderer-agnostic (see `project-doc/web/github.com/ocornut/imgui/20260111/docs_README.md`).
+- **Bloat-free core + no external deps:** the core is designed to be self-contained and renderer-agnostic (see `project-doc/web/github.com/ocornut/imgui/20260113/docs_README.md`).
 - **Decoupled rendering:** it outputs draw lists / vertex buffers that you render in your own pipeline (no “framework lock-in”).
 - **Small surface area:** immediate-mode API with a minimal “state synchronization” mental model.
 - **Mature cross-platform backend ecosystem:** upstream maintains multiple platform/render backends.
-- **License:** MIT (see `project-doc/web/github.com/ocornut/imgui/20260111/LICENSE.txt`).
+- **License:** MIT (see `project-doc/web/github.com/ocornut/imgui/20260113/LICENSE.txt`).
 
 Known limitations (fact; important for Oren UI long-term):
 
@@ -61,9 +61,10 @@ without locking the language to a single framework.
 
 Upstream reference materials are stored (verbatim) under:
 
-- `project-doc/web/github.com/ocornut/imgui/20260111/docs_BACKENDS.md`
-- `project-doc/web/github.com/ocornut/imgui/20260111/docs_README.md`
-- `project-doc/web/github.com/ocornut/imgui/20260111/docs_FAQ.md`
+- `project-doc/web/github.com/ocornut/imgui/20260113/docs_BACKENDS.md`
+- `project-doc/web/github.com/ocornut/imgui/20260113/docs_README.md`
+- `project-doc/web/github.com/ocornut/imgui/20260113/docs_FAQ.md`
+- `project-doc/web/github.com/ocornut/imgui/20260113/root_index.json` / `docs_index.json` (full GitHub API directory snapshots)
 
 When selecting a “shell shortcut” backend for Tier‑1, treat these as input, not as design authority.
 

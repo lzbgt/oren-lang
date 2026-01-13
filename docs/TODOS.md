@@ -265,10 +265,11 @@ References:
 
    Docs:
 
-   - `docs/GUI.md`, `docs/GUI_PLATFORM_SHIMS.md`
-   - Optional Dear ImGui shell/overlay: `docs/GUI_IMGUI_SHELL.md` (devtools + bring-up accelerator, not the app UI API)
-     - Upstream reference snapshots (verbatim) live under `project-doc/web/github.com/ocornut/imgui/` (do not rely on memory/folklore).
-   - Historical pointer: `ui-idea.md` (redirect to the above; avoids stale references)
+	   - `docs/GUI.md`, `docs/GUI_PLATFORM_SHIMS.md`
+	   - Optional Dear ImGui shell/overlay: `docs/GUI_IMGUI_SHELL.md` (devtools + bring-up accelerator, not the app UI API)
+	     - Upstream reference snapshots (verbatim) live under `project-doc/web/github.com/ocornut/imgui/` (do not rely on memory/folklore).
+	     - Latest snapshot (fact): `project-doc/web/github.com/ocornut/imgui/20260113/`
+	   - Historical pointer: `ui-idea.md` (redirect to the above; avoids stale references)
 
    Next steps (actionable):
 
