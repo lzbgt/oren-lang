@@ -462,6 +462,11 @@ var g_net_wsa_inited = 0
 // - 3: Windows
 var g_target_os = 0
 
+// Darwin syscall-first OS thread substrate registration state (rolling):
+// - 0: not registered (do not call bsdthread_create from the runtime)
+// - 1: registered with runtime-owned threadstart/wqthread stubs
+var g_darwin_bsdthread_registered = 0
+
 // Rolling select fairness cursor (native runtime):
 // - Used by `oren_select` / `oren_select_recv` to avoid always picking case 0 when multiple are ready.
 // - In AVM this cursor is per-task; in native runtime (no scheduler yet) we keep a single global cursor.

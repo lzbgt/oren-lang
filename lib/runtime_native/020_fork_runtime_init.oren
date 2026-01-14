@@ -406,19 +406,79 @@ fn native_runtime_threading_init(threadstart, wqthread) {
     // Syscall-first thread substrate registration for Darwin.
     //
     // IMPORTANT:
-    // - This uses the kernel syscall ABI (xnu syscalls.master), *not* libpthread's historical
-    //   `__bsdthread_register` wrapper ABI.
-    // - For v0 bring-up, pass zeros for optional knobs; we only require that the kernel stores our
-    //   threadstart/wqthread pointers so future `bsdthread_create` starts threads in our runtime.
+    // - This uses the kernel syscall ABI (xnu `bsd_kern_syscalls.master`, syscall 366), not
+    //   libpthread's `__bsdthread_register` wrapper ABI.
+    // - Different macOS releases / kernel pthread substrates accept different "shapes" of the
+    //   register call. For syscall-first bring-up, we try a small set of compatible parameterizations
+    //   and treat failure as "threading unavailable" rather than killing the whole process.
     //
     // Signature:
     //   sys_bsdthread_register(threadstart, wqthread, flags, stack_addr_hint, targetconc_ptr, dispatchqueue_offset, tsd_offset)
-    var rv = sys_bsdthread_register(threadstart, wqthread, 0, 0, 0, 0, 0)
-    // For syscall-first spawn to work, the process must be registered.
-    // If registration fails, bsdthread_create will start threads with the system's default
-    // threadstart (libsystem_pthread), which expects a full pthread runtime and will crash.
-    // sys_bsdthread_register returns -errno on failure.
-    if rv < 0 { exit(0 - rv) }
+    //
+    // Kernel references:
+    // - xnu: `bsd_kern_syscalls.master` entry 366
+    // - xnu: `bsd_pthread_pthread_shims.c` forwards to pthread substrate (register / register2)
+    // - libpthread OSS: `kern/kern_internal.h` + `kern/kern_support.c` show the "registration blob"
+    //   contract used by the legacy register path.
+
+    var pthread_size_guess = 16384
+    var reg_size = 56
+
+    // Place TSD after our small OrenDarwinThread header (64 bytes), aligned.
+    var tsd_off = 256
+
+    // Build a packed `_pthread_registration_data` blob (56 bytes).
+    // Layout (bytes):
+    //   0:  u64 version
+    //   8:  u64 dispatch_queue_offset
+    //   16: u64 main_qos (out)
+    //   24: u32 tsd_offset
+    //   28: u32 return_to_kernel_offset
+    //   32: u32 mach_thread_self_offset
+    //   36: u64 stack_addr_hint (out; unaligned in packed struct)
+    //   44: u32 mutex_default_policy (out)
+    //   48: u32 joinable_offset_bits
+    //   52: u32 wq_quantum_expiry_offset
+    var reg = native_malloc_raw_or_mmap(reg_size)
+    if reg == 0 { exit(944) }
+    ptr_set(reg + 0, reg_size)     // version
+    ptr_set(reg + 8, 0)            // dispatch_queue_offset (unused by syscall-first runtime today)
+    ptr_set(reg + 16, 0)           // main_qos (copy-out)
+    oren_ptr_set_u32_le(reg + 24, tsd_off)
+    oren_ptr_set_u32_le(reg + 28, 0)
+    oren_ptr_set_u32_le(reg + 32, 0)
+    ptr_set(reg + 36, 0)           // stack_addr_hint (copy-out)
+    oren_ptr_set_u32_le(reg + 44, 0)
+    oren_ptr_set_u32_le(reg + 48, 0)
+    oren_ptr_set_u32_le(reg + 52, 0)
+
+    // Attempt 1: "register2-like" calling convention (no init blob in args).
+    //
+    // We pass:
+    // - flags: pthsize (libpthread uses 16KiB PTHREAD_SIZE)
+    // - stack_addr_hint: 0 (kernel chooses)
+    // - targetconc_ptr: pointer to i32 (kernel may copy-out recommended concurrency / features)
+    // - dispatchqueue_offset: 0 (we do not integrate libdispatch/workqueue yet)
+    // - tsd_offset: where the kernel should base its TSD within our per-thread pthread object
+    var conc_ptr = native_malloc_raw_or_mmap(8)
+    if conc_ptr != 0 { ptr_set(conc_ptr, 0) }
+    var rv = sys_bsdthread_register(threadstart, wqthread, pthread_size_guess, 0, conc_ptr, 0, tsd_off)
+
+    // Attempt 2: legacy init-blob calling convention (matches libpthread's legacy kernel path).
+    // The syscall arguments are repurposed as:
+    // - flags: pthsize
+    // - stack_addr_hint: pthread_init_data pointer
+    // - targetconc_ptr: pthread_init_data_size (value, not a pointer)
+    // - dispatchqueue_offset: ignored when init_data is non-zero; provided for completeness
+    // - tsd_offset: ignored by legacy path (the blob's tsd_offset is used instead)
+    if rv == -22 {
+        rv = sys_bsdthread_register(threadstart, wqthread, pthread_size_guess, reg, reg_size, 0, 0)
+    }
+
+    // Best-effort policy:
+    // - If we cannot register, don't kill the process: leave threading disabled and let tests/programs run.
+    // - When registration succeeds, enable the OS-thread API (oren_darwin_os_thread_*).
+    if rv >= 0 { g_darwin_bsdthread_registered = 1 }
     return rv
 }
 

@@ -1246,6 +1246,33 @@ fn native_compile_program_arm64(linked, platform) {
         oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_cstr, "name": "oren_init_static_cstr0_table"})
     }
 
+    // macOS syscall-first OS-thread substrate (Darwin bsdthread).
+    //
+    // Register runtime-owned thread entry stubs at process init so future `bsdthread_create`
+    // starts threads inside the Oren runtime (no libpthread dependency).
+    //
+    // NOTE:
+    // - Keep this before restoring argc/argv/envp (we don't preserve callee-saved regs yet).
+    // - Skip for shared-library builds for now: a dylib constructor running inside an arbitrary
+    //   host process must not mutate the process-wide threadstart hooks (rolling safety).
+    if ctx["platform"]["os"] == "macos" && is_shared != true {
+        // X0 = &__oren_darwin_thread_start
+        var adr_ts_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "adr_code", "pos": adr_ts_pos, "name": "__oren_darwin_thread_start", "reg": 0})
+
+        // X1 = &__oren_darwin_start_wqthread
+        var adr_wq_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "adr_code", "pos": adr_wq_pos, "name": "__oren_darwin_start_wqthread", "reg": 1})
+
+        var bl_thr_init = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_thr_init, "name": "native_runtime_threading_init"})
+    }
+
     // Restore argc/argv/envp saved across native_runtime_init.
     push_u32_le(ctx["code"], insn_ldr_reg_sp(19, 0))
     push_u32_le(ctx["code"], insn_ldr_reg_sp(20, 8))

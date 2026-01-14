@@ -26,6 +26,7 @@
 // @include "runtime_native/105_call_depth.oren"
 // @include "runtime_native/110_mem_diag.oren"
 // @include "runtime_native/263_green_tasks.oren"
+// @include "runtime_native/264_darwin_os_threads.oren"
 // @include "runtime_native/120_first_class_fn.oren"
 // @include "runtime_native/130_printing.oren"
 // @include "runtime_native/140_errors.oren"

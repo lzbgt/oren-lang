@@ -1,0 +1,182 @@
+// --- Darwin OS threads (syscall-first bsdthread; macOS arm64) ---
+//
+// This module provides:
+// - runtime-owned `bsdthread_register` entry stubs (threadstart + wqthread)
+// - a minimal OS-thread spawn/join primitive used to bootstrap Stage N2 (GMP, M:N)
+//
+// Design goals (rolling):
+// - No libpthread dependency (syscall-first).
+// - Keep the ABI kernel-shaped and explicit (see `docs/NATIVE_GMP_SCHEDULER.md`).
+// - Keep the initial implementation small and testable; scheduler/GMP comes later.
+
+// OrenDarwinThread layout (raw allocation; not GC-managed).
+//
+// Placed at the *top* of the per-thread stack mapping (mirrors libpthread’s layout choice),
+// so the kernel can use the passed `stack` pointer and we can keep per-thread metadata
+// adjacent to the stack for early bring-up.
+//
+// Offsets are 8-byte slots (u64).
+fn _darwin_thr_off_freeaddr() { return 0 }     // base address to free
+fn _darwin_thr_off_freesize() { return 8 }    // byte size to free
+fn _darwin_thr_off_done() { return 16 }       // 0 while running; 1 when done
+fn _darwin_thr_off_result() { return 24 }     // result value (u64)
+fn _darwin_thr_off_fn_obj() { return 32 }     // Oren function object (kind=6)
+fn _darwin_thr_off_args_list() { return 40 }  // args list
+fn _darwin_thr_off_keepaddr() { return 48 }   // remaining mapped page base (for joiner cleanup)
+fn _darwin_thr_off_keepsize() { return 56 }   // remaining mapped page size
+fn _darwin_thr_bytes() { return 64 }
+
+fn _darwin_thr_stack_bytes_default() {
+    // Rolling default: 1 MiB per OS thread stack.
+    // (GMP will later use smaller per-G stacks; Ms need a real OS stack.)
+    return 1048576
+}
+
+fn _darwin_thr_new_stack_and_struct(stack_bytes) {
+    // Allocate one contiguous region:
+    //   [ stack bytes ... ][ keep-page (contains OrenDarwinThread struct) ]
+    //
+    // On macOS/arm64 the VM page size is commonly 16 KiB; keep the "pthread/self" struct
+    // on its own page so the exiting thread can hand the stack portion to
+    // `bsdthread_terminate` while the joiner can still safely read the result and free
+    // the remaining page.
+    if stack_bytes <= 0 { stack_bytes = _darwin_thr_stack_bytes_default() }
+    var page = 16384
+    var total = stack_bytes + page
+    var base = sys_mmap_private_anon(total)
+    if base == 0 || base == -1 || base < 4096 { return 0 }
+    var self = base + stack_bytes
+    // Initialize header fields used by the threadstart stub.
+    ptr_set(self + _darwin_thr_off_freeaddr(), base)
+    ptr_set(self + _darwin_thr_off_freesize(), stack_bytes)
+    ptr_set(self + _darwin_thr_off_done(), 0)
+    ptr_set(self + _darwin_thr_off_result(), 0)
+    ptr_set(self + _darwin_thr_off_fn_obj(), 0)
+    ptr_set(self + _darwin_thr_off_args_list(), 0)
+    ptr_set(self + _darwin_thr_off_keepaddr(), self)
+    ptr_set(self + _darwin_thr_off_keepsize(), page)
+    return self
+}
+
+// --- Runtime-owned bsdthread entry stubs ---
+//
+// NOTE: The kernel jumps directly to `threadstart` and `wqthread` pointers registered via
+// `bsdthread_register(366)`. These must never return.
+
+@oren.keep
+fn __oren_darwin_thread_start(self, kport, fun, arg, stacksize, flags) {
+    // `fun/arg/stacksize/flags` are passed by the kernel according to the bsdthread ABI.
+    // In the syscall-first runtime we use `self` (the `pthread` pointer passed to bsdthread_create)
+    // as our per-thread metadata object and ignore `fun/arg` for v0.
+    //
+    // If the kernel calls this, we are already in a new OS thread.
+    // Register it so allocator/GC can discover the stack conservatively.
+    oren_register_thread(get_sp())
+
+    if self == 0 {
+        // Fail-fast: without `self` we can't locate stack freeaddr/freesize or join state.
+        exit(941)
+    }
+
+    // Run the stored Oren function object.
+    var fn_obj = ptr_get(self + _darwin_thr_off_fn_obj())
+    var args_list = ptr_get(self + _darwin_thr_off_args_list())
+    var ret = 0
+    if fn_obj != 0 {
+        ret = oren_call_obj_list(fn_obj, args_list)
+    }
+    ptr_set(self + _darwin_thr_off_result(), ret)
+    ptr_set(self + _darwin_thr_off_done(), 1)
+    // Wake any joiners waiting on `done`.
+    // operation=UL_COMPARE_AND_WAIT|ULF_WAKE_ALL = 1|0x100 = 257
+    sys_ulock_wake(257, self + _darwin_thr_off_done(), 0)
+
+    // Terminate the OS thread and release its stack mapping.
+    // stackaddr/freesize mirror libpthread’s bsdthread_terminate usage.
+    var freeaddr = ptr_get(self + _darwin_thr_off_freeaddr())
+    var freesize = ptr_get(self + _darwin_thr_off_freesize())
+    sys_bsdthread_terminate(freeaddr, freesize, kport, 0)
+    // Should not return.
+    while 1 { sys_sched_yield() }
+    return 0
+}
+
+@oren.keep
+fn __oren_darwin_start_wqthread(self, kport, a2, a3, a4, a5) {
+    // Workqueue threads are not part of the syscall-first runtime plan yet.
+    //
+    // If this stub is invoked, something requested a workqueue thread in this process.
+    // Crash fast so we discover the dependency and can implement the correct integration.
+    //
+    // NOTE: returning here is UB; the kernel expects this to never return.
+    // Keep args referenced to avoid any rolling-mode "unused local" edge cases.
+    if self == -1 || kport == -1 || a2 == -1 || a3 == -1 || a4 == -1 || a5 == -1 { exit(943) }
+    exit(942)
+    while 1 { sys_sched_yield() }
+    return 0
+}
+
+// --- Minimal spawn/join surface (Darwin only) ---
+//
+// This is intentionally not wired into `spawn` yet. It is a substrate used by the
+// upcoming Stage N2 GMP scheduler and by targeted tests.
+
+@oren.keep
+fn oren_darwin_os_thread_spawn_call_list(fn_obj, args_list) {
+    if g_target_os != 1 { return 0 }
+    if g_darwin_bsdthread_registered != 1 { return 0 }
+    if fn_obj == 0 { return 0 }
+    if oren_is_func(fn_obj) != true { return 0 }
+
+    var self = _darwin_thr_new_stack_and_struct(_darwin_thr_stack_bytes_default())
+    if self == 0 { return 0 }
+
+    ptr_set(self + _darwin_thr_off_fn_obj(), fn_obj)
+    ptr_set(self + _darwin_thr_off_args_list(), args_list)
+
+    // Spawn an OS thread using bsdthread_create.
+    //
+    // We pass:
+    // - stack = self (top of stack mapping, matches libpthread behavior)
+    // - pthread = self (kernel passes this back as the first arg to threadstart)
+    //
+    // `func/func_arg` are ignored by our threadstart stub for v0, but must be non-zero
+    // to avoid kernel-side validation surprises.
+    var rv = sys_bsdthread_create(__oren_darwin_thread_start, 0, self, self, 0)
+    if rv == -1 || rv < 0 {
+        // Failed; free mapping.
+        var base = ptr_get(self + _darwin_thr_off_freeaddr())
+        var stack_bytes = ptr_get(self + _darwin_thr_off_freesize())
+        var keepaddr = ptr_get(self + _darwin_thr_off_keepaddr())
+        var keepsize = ptr_get(self + _darwin_thr_off_keepsize())
+        sys_munmap(base, stack_bytes + keepsize)
+        return 0
+    }
+    return self
+}
+
+@oren.keep
+fn oren_darwin_os_thread_is_done(handle) {
+    if handle == 0 { return false }
+    if ptr_get(handle + _darwin_thr_off_done()) != 0 { return true }
+    return false
+}
+
+@oren.keep
+fn oren_darwin_os_thread_join(handle) {
+    if handle == 0 { return 0 }
+    // Wait forever for now (targeted substrate; timeout support can be layered later).
+    while ptr_get(handle + _darwin_thr_off_done()) == 0 {
+        // Wait while the value is still 0.
+        sys_ulock_wait(1, handle + _darwin_thr_off_done(), 0, 0)
+    }
+    var ret = ptr_get(handle + _darwin_thr_off_result())
+    // Joiner cleanup: the thread has already released the stack portion via bsdthread_terminate.
+    // Free the remaining "self page" holding the thread metadata.
+    var keepaddr = ptr_get(handle + _darwin_thr_off_keepaddr())
+    var keepsize = ptr_get(handle + _darwin_thr_off_keepsize())
+    if keepaddr != 0 && keepsize > 0 {
+        sys_munmap(keepaddr, keepsize)
+    }
+    return ret
+}
