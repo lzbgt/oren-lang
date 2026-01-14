@@ -158,6 +158,16 @@ fn sys_epoll_pwait(epfd, events_ptr, maxevents, timeout_ms, sigmask_ptr, sigsets
 fn sys_nanosleep(ns) { return 0 }
 fn sys_sched_yield() { return 0 }
 
+// --- Coroutine / scheduler intrinsics (native backend; rolling) ---
+//
+// These are compiler intrinsics for the native backend(s). The stub bodies exist so:
+// - the runtime source parses/links under non-native backends
+// - the self-host compiler can typecheck the runtime in rolling mode
+//
+// They must never execute in a correctly built native binary.
+fn oren_ctx_init(ctx_ptr, sp, pc) { return 0 }
+fn oren_ctx_switch(old_ctx_ptr, new_ctx_ptr) { return 0 }
+
 fn oren_exit(code) {
     // Process exit (portable entry point used by user code and runtime).
     //

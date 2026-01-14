@@ -434,6 +434,7 @@ fn insn_udiv(rd, rn, rm) { return core.insn_udiv(rd, rn, rm) }
 fn insn_sdiv(rd, rn, rm) { return core.insn_sdiv(rd, rn, rm) }
 fn insn_movk(reg, imm16, shift_idx) { return core.insn_movk(reg, imm16, shift_idx) }
 fn insn_adr(reg, imm) { return core.insn_adr(reg, imm) }
+fn insn_br(rn) { return core.insn_br(rn) }
 
 fn native_emit_panic(ctx, msg) {
     // Emit a runtime panic with a stable message string literal.

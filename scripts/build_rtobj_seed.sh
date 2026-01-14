@@ -23,6 +23,7 @@ compiler="./oren_stage2"
 debug_flag="--no-debug"
 force="${OREN_FORCE_RUNTIME_OBJ_SEED:-}"
 runtime_profile="${OREN_NATIVE_RUNTIME_PROFILE:-}"
+capsule="0"
 
 usage() {
   cat <<'EOF'
@@ -31,6 +32,7 @@ Usage: scripts/build_rtobj_seed.sh [options]
 Options:
   --platform <spec>   target platform (e.g. arm64-macos, x64-linux). Default: auto-detect host.
   --compiler <path>   compiler binary (default: ./oren_stage2)
+  --capsule           seed the capsule runtime entry (lib/runtime_native_capsule.oren)
   --runtime-profile <full|core|minimal>
                      select the non-capsule runtime profile to seed (default: env OREN_NATIVE_RUNTIME_PROFILE, else "auto")
                      - "auto": match compiler default heuristic (core unless std:net/* is present)
@@ -44,6 +46,8 @@ Env:
   OREN_NATIVE_RUNTIME_OBJ_SEED_DIR    destination seed dir (default: build/cache/native_runtime_obj_seed)
   OREN_FORCE_RUNTIME_OBJ_SEED         if set, do not take the fast no-op path
   OREN_NATIVE_RUNTIME_PROFILE         runtime profile override ("auto"/"core"/"minimal"/"full")
+  OREN_NATIVE_RUNTIME_OBJ_CACHE_CAPSULE
+                                      opt-out for capsule rtobj caching (set to 0/false)
 EOF
 }
 
@@ -51,6 +55,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --platform) platform="${2:-}"; shift 2 ;;
     --compiler) compiler="${2:-}"; shift 2 ;;
+    --capsule) capsule="1"; shift ;;
     --runtime-profile) runtime_profile="${2:-}"; shift 2 ;;
     --debug) debug_flag="--debug"; shift ;;
     --no-debug) debug_flag="--no-debug"; shift ;;
@@ -125,12 +130,16 @@ fi
 # - This seed generator cannot cheaply know the program's import graph, so the
 #   default is "auto" and we seed the "core" runtime entry.
 runtime_entry="lib/runtime_native_core.oren"
-case "${runtime_profile:-}" in
-  ""|"auto") runtime_entry="lib/runtime_native_core.oren" ;;
-  full) runtime_entry="lib/runtime_native.oren" ;;
-  core|minimal) runtime_entry="lib/runtime_native_core.oren" ;;
-  *) echo "ERROR: unsupported --runtime-profile: ${runtime_profile}" >&2; exit 2 ;;
-esac
+if [[ "$capsule" = "1" ]]; then
+  runtime_entry="lib/runtime_native_capsule.oren"
+else
+  case "${runtime_profile:-}" in
+    ""|"auto") runtime_entry="lib/runtime_native_core.oren" ;;
+    full) runtime_entry="lib/runtime_native.oren" ;;
+    core|minimal) runtime_entry="lib/runtime_native_core.oren" ;;
+    *) echo "ERROR: unsupported --runtime-profile: ${runtime_profile}" >&2; exit 2 ;;
+  esac
+fi
 
 hash_cache_dir="${OREN_NATIVE_RUNTIME_HASH_CACHE_DIR:-build/cache/native_runtime_hash}"
 
@@ -329,9 +338,15 @@ mkdir -p build/tmp
 # - When runtime_profile is unset/empty, we explicitly set "auto" so the behavior
 #   is deterministic for this seed probe.
 rp="${runtime_profile:-auto}"
+capsule_flag=""
+if [[ "$capsule" = "1" ]]; then
+  capsule_flag="--capsule"
+fi
 OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR="$cache_dir" \
 OREN_NATIVE_RUNTIME_PROFILE="$rp" \
-  "$compiler" build examples/hello.oren --backend native --platform "$platform" "$debug_flag" --no-cache -o build/tmp/rtobj_seed_probe >/dev/null
+  "$compiler" build examples/hello.oren --backend native --platform "$platform" \
+  $capsule_flag \
+  "$debug_flag" --no-cache -o build/tmp/rtobj_seed_probe >/dev/null
 
 want_rh="$(runtime_hash_from_cache || true)"
 if [[ -z "$want_rh" ]]; then

@@ -109,15 +109,125 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 return true
             }
 
-            if fn_name == "get_sp" {
-                push_u32_le(ctx["code"], insn_add_imm(0, 31, 0)) // MOV X0, SP (X31) -> ADD X0, SP, #0
-                return true
-            }
+	            if fn_name == "get_sp" {
+	                push_u32_le(ctx["code"], insn_add_imm(0, 31, 0)) // MOV X0, SP (X31) -> ADD X0, SP, #0
+	                return true
+	            }
 
-		            if fn_name == "malloc" || fn_name == "malloc_raw" || fn_name == "malloc_k" {
-		                var want_args = 1
-		                if fn_name == "malloc_k" { want_args = 2 }
-		                if args == nil || oren_list_len(args) != want_args {
+	            // --- Coroutine / scheduler intrinsics (native backend; rolling) ---
+	            //
+	            // These are intentionally implemented as compiler intrinsics (inlined at call sites)
+	            // so they do not depend on libc or a stable external assembly object.
+	            //
+	            // Context layout (bytes, u64 slots) for AArch64:
+	            //   0..72:  x19..x28 (10 regs)
+	            //   80:     x29 (FP)
+	            //   88:     x30 (LR)
+	            //   96:     SP  (saved stack pointer)
+	            //   104:    PC  (resume address; branch target)
+	            if fn_name == "oren_ctx_init" {
+	                var args = expr["args"]
+	                if args == nil || oren_list_len(args) != 3 {
+	                    native_error(ctx, expr["token"], "native backend: oren_ctx_init expects 3 arguments")
+	                    push_u32_le(ctx["code"], insn_movz(0, 0))
+	                    return true
+	                }
+
+	                // ctx_ptr -> X9
+	                native_compile_expr(ctx, args[0])
+	                push_u32_le(ctx["code"], insn_mov_reg(9, 0))
+	                // sp -> X10
+	                native_compile_expr(ctx, args[1])
+	                push_u32_le(ctx["code"], insn_mov_reg(10, 0))
+	                // pc -> X11
+	                native_compile_expr(ctx, args[2])
+	                push_u32_le(ctx["code"], insn_mov_reg(11, 0))
+
+	                // ctx[sp] = sp
+	                push_u32_le(ctx["code"], insn_add_imm(12, 9, 96))
+	                push_u32_le(ctx["code"], insn_str_ptr(10, 12))
+	                // ctx[pc] = pc
+	                push_u32_le(ctx["code"], insn_add_imm(12, 9, 104))
+	                push_u32_le(ctx["code"], insn_str_ptr(11, 12))
+
+	                // Return 0
+	                push_u32_le(ctx["code"], insn_movz(0, 0))
+	                return true
+	            }
+
+	            if fn_name == "oren_ctx_switch" {
+	                var args = expr["args"]
+	                if args == nil || oren_list_len(args) != 2 {
+	                    native_error(ctx, expr["token"], "native backend: oren_ctx_switch expects 2 arguments")
+	                    push_u32_le(ctx["code"], insn_movz(0, 0))
+	                    return true
+	                }
+
+	                // old_ctx_ptr -> X9
+	                native_compile_expr(ctx, args[0])
+	                push_u32_le(ctx["code"], insn_mov_reg(9, 0))
+	                // new_ctx_ptr -> X10
+	                native_compile_expr(ctx, args[1])
+	                push_u32_le(ctx["code"], insn_mov_reg(10, 0))
+
+	                // Save callee-saved registers into old_ctx.
+	                //
+	                // Store sequence uses a scratch address register (X11) because we only have STR [Xn] with 0 offset helper.
+	                var off = 0
+	                var r = 19
+	                while r <= 28 {
+	                    off = (r - 19) * 8
+	                    push_u32_le(ctx["code"], insn_add_imm(11, 9, off))
+	                    push_u32_le(ctx["code"], insn_str_ptr(r, 11))
+	                    r = r + 1
+	                }
+	                // x29, x30
+	                push_u32_le(ctx["code"], insn_add_imm(11, 9, 80))
+	                push_u32_le(ctx["code"], insn_str_ptr(29, 11))
+	                push_u32_le(ctx["code"], insn_add_imm(11, 9, 88))
+	                push_u32_le(ctx["code"], insn_str_ptr(30, 11))
+
+	                // Save current SP into old_ctx[sp].
+	                push_u32_le(ctx["code"], insn_add_imm(12, 31, 0)) // X12 = SP
+	                push_u32_le(ctx["code"], insn_add_imm(11, 9, 96))
+	                push_u32_le(ctx["code"], insn_str_ptr(12, 11))
+
+	                // Save resume PC into old_ctx[pc]. We encode the address of the local resume label.
+	                var adr_pos = bytes_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0) // patched to ADR X12, #imm
+	                push_u32_le(ctx["code"], insn_add_imm(11, 9, 104))
+	                push_u32_le(ctx["code"], insn_str_ptr(12, 11))
+
+	                // Restore callee-saved registers from new_ctx.
+	                r = 19
+	                while r <= 28 {
+	                    off = (r - 19) * 8
+	                    push_u32_le(ctx["code"], insn_ldr_ptr_off(r, 10, off))
+	                    r = r + 1
+	                }
+	                push_u32_le(ctx["code"], insn_ldr_ptr_off(29, 10, 80))
+	                push_u32_le(ctx["code"], insn_ldr_ptr_off(30, 10, 88))
+
+	                // Restore SP.
+	                push_u32_le(ctx["code"], insn_ldr_ptr_off(12, 10, 96))
+	                push_u32_le(ctx["code"], insn_add_imm(31, 12, 0)) // SP = X12
+
+	                // Jump to new PC.
+	                push_u32_le(ctx["code"], insn_ldr_ptr_off(12, 10, 104))
+	                push_u32_le(ctx["code"], insn_br(12))
+
+	                // Resume label: execution continues here when switched back into this context.
+	                var resume_pos = bytes_len(ctx["code"])
+	                set_u32_le(ctx["code"], adr_pos, insn_adr(12, resume_pos - adr_pos))
+	                // Return value (best-effort): 0
+	                push_u32_le(ctx["code"], insn_movz(0, 0))
+	                return true
+	            }
+
+			            if fn_name == "malloc" || fn_name == "malloc_raw" || fn_name == "malloc_k" {
+			                var want_args = 1
+			                if fn_name == "malloc_k" { want_args = 2 }
+			                if args == nil || oren_list_len(args) != want_args {
 	                    native_error(ctx, expr["token"], "native backend: " + fn_name + " expects " + oren_int_to_string(want_args) + " argument(s)")
 	                    push_u32_le(ctx["code"], insn_movz(0, 0))
 	                    return true

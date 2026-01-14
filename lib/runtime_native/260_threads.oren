@@ -926,6 +926,13 @@ fn oren_join_timeout(handle, timeout_ms) {
     t = native_canon_timeout_ms_arg(t)
 
     if h == 0 { return 0 }
+
+    // Native green tasks (Stage N1): treat a green-task pointer as a join handle.
+    // This keeps the public `join/join_timeout/is_done` surface stable while moving
+    // POSIX away from fork+pipe.
+    if oren_green_is_g(h) {
+        return oren_green_join_timeout(h, t)
+    }
     // Keep the dispatcher tiny: the native backend still has edge cases when compiling very large
     // injected runtime functions. Split OS-specific logic so `oren_join` remains stable on Tier‑1.
     if g_target_os == 3 {
@@ -1177,6 +1184,9 @@ fn oren_join_timeout_posix(handle, timeout_ms) {
 @oren.keep
 fn oren_join(handle) {
     if handle == 0 { return 0 }
+    if oren_green_is_g(handle) {
+        return oren_green_join_timeout(handle, -1)
+    }
     if g_target_os == 3 {
         return oren_join_timeout_win(handle, -1)
     }
@@ -1190,6 +1200,10 @@ fn oren_join(handle) {
 @oren.keep
 fn oren_is_done(handle) {
     if handle == 0 { return false }
+
+    if oren_green_is_g(handle) {
+        return oren_green_is_done(handle)
+    }
 
     // Windows Tier‑1 (CreateThread): probe via WaitForSingleObject(0).
     if g_target_os == 3 {

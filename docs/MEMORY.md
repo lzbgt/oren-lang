@@ -1,6 +1,6 @@
 # Memory Model
 
-**Last updated:** 2026-01-02
+**Last updated:** 2026-01-14
 
 Oren’s native backend is **syscall-first** and **libc-free**. Memory management is designed so long-running programs do not grow memory unboundedly (no “leak by design”), while still supporting a deterministic/manual lane.
 
@@ -31,10 +31,20 @@ This doc is rolling: it records what the code does today and the constraints tha
 
 ### Native backend (important nuance)
 
-Today, the native backend does not yet have a “shared-memory tasks runtime” on POSIX:
+Today, the native backend supports a **shared-address-space** concurrency substrate on POSIX via
+**green tasks** (single OS thread, cooperative scheduling):
 
-- `spawn` on macOS/Linux is **fork-based** (process isolation), so “thread safety” is not the same problem as “data races”.
-- Any in-process locks (including GC bookkeeping locks) do **not** synchronize between parent/child processes after `fork`.
+- Default (rolling): `spawn` on macOS/Linux prefers **in-process green tasks** (shared heap, no `fork`).
+  - Escape hatch: set `OREN_NO_GREEN=1` to force the legacy **fork+pipe** path.
+- In green-task mode, all tasks share one heap in one process:
+  - this avoids the “locks don’t synchronize after fork” trap
+  - it is required groundwork for a real OS-thread scheduler and a thread-safe GC story
+
+Important remaining nuance:
+
+- Green tasks today are **N:1** (one OS thread), so they do not introduce parallel data races yet.
+- The runtime is still evolving toward **true OS threads** + **M:N scheduling**; once multiple OS threads
+  exist, GC, allocator metadata, and shared runtime structures must be made concurrency-correct.
 
 This is one reason OS-thread + scheduler work (and a coherent thread-safe GC model) is considered P0 for scaling compilation and agentic workloads.
 

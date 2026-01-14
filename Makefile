@@ -361,6 +361,7 @@ stage2: oren_stage2 rtobj-seed astbin-seed
 rtobj-seed: oren_stage2
 		@if [ -n "$(HOST_PLATFORM)" ]; then \
 			./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true; \
+			./scripts/build_rtobj_seed.sh --platform "$(HOST_PLATFORM)" --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug --force || true; \
 		else \
 			echo "NOTE: host platform unknown; skipping rtobj seed"; \
 		fi
@@ -371,6 +372,8 @@ rtobj-seed: oren_stage2
 rtobj-seed-x64: oren_stage2
 		@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true
 		@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --no-debug || true
+		@./scripts/build_rtobj_seed.sh --platform x64-linux --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug --force || true
+		@./scripts/build_rtobj_seed.sh --platform x64-windows --compiler "./$(OREN_STAGE2_BIN)" --capsule --no-debug --force || true
 
 # Generate/update runtime astbin seed for the host platform (best-effort).
 astbin-seed: oren
@@ -399,7 +402,7 @@ test-native-quick-stage2: oren_stage2
 		@./scripts/run_native_quick_integration.sh "./$(OREN_STAGE2_BIN)"
 
 # Capsule smoke (stage2): build+run a minimal pure-compute capsule fixture.
-test-native-capsule-smoke-stage2: oren_stage2 astbin-seed
+test-native-capsule-smoke-stage2: oren_stage2 rtobj-seed astbin-seed
 		@./scripts/run_native_capsule_smoke.sh "./$(OREN_STAGE2_BIN)"
 
 # Convenience target: verify stage1 then stage2 on the native quick integration test.

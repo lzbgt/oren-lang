@@ -4,7 +4,9 @@
 **Scope:** native backend runtime (AArch64), not AVM bytecode scheduling  
 **Non-goals (for now):** JIT, cross-language ABI stability, “perfect” determinism under OS threads
 
-This document defines how Oren’s **native backend** can evolve from today’s bootstrap `spawn` (macOS: `fork + pipe`) into a production-grade **N:M** (a.k.a. **G-M-P**) greenlet runtime **without relying on libc/pthreads shims**.
+This document defines how Oren’s **native backend** evolves from the early bootstrap `spawn`
+(historically macOS/Linux: `fork + pipe`) into a production-grade **N:M** (a.k.a. **G-M-P**) greenlet
+runtime **without relying on libc/pthreads shims**.
 
 Related:
 
@@ -61,11 +63,17 @@ So:
 
 ## 3) Staged plan (no huge rewrite)
 
-### Stage N0 (today): `spawn` is process-based on macOS
+### Stage N0 (historical baseline): process-based `spawn` (fork+pipe) on POSIX
 
-Current bootstrap behavior (macOS native):
+Historical bootstrap behavior (macOS/Linux native):
 
 - `spawn` implemented as `fork + pipe` (process-based) to avoid relying on libpthread’s `bsdthread_*` APIs.
+
+Current (rolling) behavior:
+
+- `spawn` on macOS/Linux now **prefers in-process green tasks** (Stage N1) and falls back to fork+pipe
+  when green tasks are disabled/unavailable.
+  - Escape hatch: `OREN_NO_GREEN=1` forces fork+pipe for bring-up/debugging.
 
 Pros:
 
@@ -116,6 +124,13 @@ This stage gives:
 - cancellable/timeout-capable IO (essential for agent systems)
 - minimal architectural debt (the `G`/scheduler model remains the same in N:M)
 
+Status (fact, code):
+
+- Green task runtime is implemented in `lib/runtime_native/263_green_tasks.oren`.
+- `spawn` prefers green tasks on POSIX via `oren_green_spawn` (`lib/runtime_native/120_first_class_fn.oren`).
+- Context switch intrinsics are defined as native backend intrinsics (`oren_ctx_init`, `oren_ctx_switch` in
+  `lib/runtime_native/000_prelude_sys.oren`).
+
 ### Stage N2: N:M GMP (multiple OS threads, multiple Ps)
 
 Goal:
@@ -128,6 +143,13 @@ Key additions:
    - Implement OS thread creation via kernel interfaces directly (no libpthread).
    - macOS note: this requires the `bsdthread_*` syscall boundary (or another kernel-exposed thread API) and correct thread-local storage setup.
    - Keep the boundary narrow: a single `sys_thread_create(entry, arg)` + `sys_thread_self()` + minimal TLS init.
+
+Status (rolling groundwork):
+
+- Darwin `bsdthread_register/create/terminate` syscalls are started in the arm64 native backend lowering
+  (see `lib/compiler/arm64_native_expr_syscalls/070_tail.oren` + `lib/compiler/arm64_abi_macos.oren`).
+- The runtime does **not** yet install its own `bsdthread_register` threadstart stub at process init, so
+  true syscall-first OS-thread creation is not yet enabled on macOS.
 
 2) **Parking/unparking**
    - When an `M` has no work, it must block efficiently without busy looping.
@@ -197,4 +219,3 @@ AVM multiverse enables:
 - portable snapshots
 
 Both are mandatory long-term, but they solve different operational tiers.
-

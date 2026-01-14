@@ -657,7 +657,7 @@ fn _win_query_stream_sizes(hctx) {
 @cfg(os="windows")
 fn wrap_client(fd, server_name, timeout_ms, opts) {
     if fd == nil || fd < 0 { return {"ok": 0, "err": "tls.wrap_client: fd invalid"} }
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
 
     var hs = _win_handshake_client(fd, server_name, timeout_ms, opts)
     if hs["ok"] != 1 {
@@ -701,7 +701,7 @@ fn wrap_client(fd, server_name, timeout_ms, opts) {
 @cfg(os="windows")
 fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     if fd == nil || fd < 0 { return {"ok": 0, "err": "tls.wrap_server: fd invalid"} }
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
     if passphrase == nil { passphrase = "" }
 
     var credr = _win_get_server_hcred_cached(pkcs12_bytes, passphrase, opts)
@@ -933,7 +933,7 @@ fn read_into(conn, buf, cap, timeout_ms) {
     if conn == nil { return 0 - 22 } // EINVAL
     if oren_type_tag(cap) == 0 { cap = 0 }
     if cap <= 0 { return 0 }
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
 
     // Serve pending plaintext first.
     var plain = conn["plain_buf"]
@@ -1104,7 +1104,7 @@ fn read_into(conn, buf, cap, timeout_ms) {
 @cfg(os="windows")
 fn write_from(conn, ptr0, len, timeout_ms) {
     if conn == nil { return 0 - 22 } // EINVAL
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
     if oren_type_tag(len) == 0 { len = 0 }
     if len <= 0 { return 0 }
     var fd = conn["fd"]

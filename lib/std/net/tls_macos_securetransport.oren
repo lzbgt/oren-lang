@@ -420,7 +420,7 @@ fn _macos_import_pkcs12_identity(pkcs12_bytes, passphrase_cstr) {
 
 @cfg(os="macos")
 fn _macos_handshake(ssl_ctx, st, timeout_ms) {
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
     if timeout_ms < 0 { timeout_ms = 0 }
     var t0 = oren_time_unix_ns()
     var rem_ms = timeout_ms
@@ -664,7 +664,7 @@ fn read_into(conn, buf, cap, timeout_ms) {
     var ctx = conn["ctx"]
     var st = conn["st"]
     if ctx == 0 || st == 0 { return 0 - 22 }
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
     if timeout_ms < 0 { timeout_ms = 0 }
 
     var t0 = oren_time_unix_ns()
@@ -705,7 +705,7 @@ fn write_from(conn, ptr0, len, timeout_ms) {
     var ctx = conn["ctx"]
     var st = conn["st"]
     if ctx == 0 || st == 0 { return 0 - 22 }
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
     if timeout_ms < 0 { timeout_ms = 0 }
 
     var t0 = oren_time_unix_ns()

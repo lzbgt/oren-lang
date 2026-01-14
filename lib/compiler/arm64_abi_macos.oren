@@ -37,9 +37,13 @@ fn darwin_sys_listen() { return 106 }
 fn darwin_sys_sendto() { return 133 }
 fn darwin_sys_recvfrom() { return 29 }
 fn darwin_sys_fork() { return 2 }
-fn darwin_sys_kqueue() { return 362 }
-fn darwin_sys_kevent() { return 363 }
-fn darwin_sys_bsdthread_register() { return 366 }
+    fn darwin_sys_kqueue() { return 362 }
+    fn darwin_sys_kevent() { return 363 }
+    // Darwin bsdthread syscalls (syscall-first OS threads; no libpthread dependency).
+    // Verified against `docs/refs/darwin_xnu_syscalls.master`.
+    fn darwin_sys_bsdthread_create() { return 360 }
+    fn darwin_sys_bsdthread_terminate() { return 361 }
+    fn darwin_sys_bsdthread_register() { return 366 }
 fn darwin_sys_unlink() { return 10 }
 fn darwin_sys_access() { return 33 }
 fn darwin_sys_rename() { return 128 }

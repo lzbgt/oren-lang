@@ -270,6 +270,18 @@ fn native_capsule_sys_bsdthread_register_pre() {
     return 0
 }
 
+fn native_capsule_sys_bsdthread_create_pre() {
+    // bsdthread_create spawns an OS thread; treat it as PROC-domain in capsule mode.
+    native_capsule_require(CAP_PROC, "PROC")
+    return 0
+}
+
+fn native_capsule_sys_bsdthread_terminate_pre() {
+    // bsdthread_terminate tears down the current OS thread; treat it as PROC-domain in capsule mode.
+    native_capsule_require(CAP_PROC, "PROC")
+    return 0
+}
+
 fn native_capsule_sys_fork_pre() {
     // PROC is required for fork in capsule mode.
     native_capsule_require(CAP_PROC, "PROC")

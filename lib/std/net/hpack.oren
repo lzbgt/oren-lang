@@ -434,7 +434,7 @@ fn _huff_decode_bytes(ptr0, off, slen) {
 
 fn _static_get(idx) {
     // idx is 1-based.
-    if idx == nil { return {"ok": 0, "err": "hpack.static_get: idx is nil"} }
+    if oren_type_tag(idx) == 0 { return {"ok": 0, "err": "hpack.static_get: idx is nil"} }
     if idx < 1 || idx > _STATIC_LEN { return {"ok": 0, "err": "hpack.static_get: idx out of range"} }
     var i = idx - 1
     return {"ok": 1, "name": _STATIC_NAMES[i], "value": _STATIC_VALUES[i]}
@@ -442,7 +442,7 @@ fn _static_get(idx) {
 
 fn table_new(max_size) {
     // Create a new dynamic table.
-    if max_size == nil { max_size = 4096 }
+    if oren_type_tag(max_size) == 0 { max_size = 4096 }
     if max_size < 0 { max_size = 0 }
     return {"max": max_size, "size": 0, "entries": []}
 }

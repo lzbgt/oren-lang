@@ -41,6 +41,16 @@ fn oren_is_func(v) {
 //   [24] result_buf (u64) - inline 8-byte result buffer (filled by is_done/join)
 @oren.keep
 fn oren_spawn_call_list(fn_obj, args_list) {
+    // Preferred path (Stage N1 native concurrency):
+    // If the in-process green-task runtime is enabled, `spawn` becomes lightweight and shares memory
+    // (required for correct future GC/concurrency behavior).
+    //
+    // Escape hatch: set `OREN_NO_GREEN=1` to force legacy POSIX fork+pipe behavior.
+    if g_target_os != 3 {
+        var g = oren_green_spawn(fn_obj, args_list)
+        if g != 0 { return g }
+    }
+
     var pipe_buf = malloc(16)
     if pipe_buf == 0 { exit(321) }
     var rv = sys_pipe(pipe_buf)

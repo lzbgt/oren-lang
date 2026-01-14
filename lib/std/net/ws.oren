@@ -255,9 +255,9 @@ fn _read_http_header_into_buf(conn, timeout_ms, max_bytes) {
     // Returns:
     //   {"ok":1,"buf":ptr,"used":int,"body_off":int} on success
     //   {"ok":0,"err":string} on failure
-    if max_bytes == nil { max_bytes = 8192 }
+    if oren_type_tag(max_bytes) == 0 { max_bytes = 8192 }
     if max_bytes < 256 { max_bytes = 256 }
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
     if timeout_ms < 0 { timeout_ms = 0 }
 
     var cap = max_bytes
@@ -432,7 +432,7 @@ fn connect_resolver_opts(url, timeout_ms, resolver, opts) {
     //
     // Options (rolling):
     // - opts["tls"] is passed through to `tls.wrap_client` for wss:// URLs.
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
     if timeout_ms < 0 { timeout_ms = 0 }
     var pu = _parse_ws_url(url)
     if oren_map_get_str(pu, "ok") != 1 { return {"ok": 0, "err": "ws.connect: " + oren_map_get_str(pu, "err")} }
@@ -612,7 +612,7 @@ fn _server_handshake(conn, timeout_ms) {
 
 fn accept(listen_fd, timeout_ms) {
     // Server accept + handshake. Returns {"ok":1,"conn":map} or {"ok":0,"err":string}.
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
     if timeout_ms < 0 { timeout_ms = 0 }
     var fd = tcp.accept(listen_fd, timeout_ms)
     if fd < 0 {
@@ -630,7 +630,7 @@ fn accept(listen_fd, timeout_ms) {
 fn accept_tls_pkcs12(listen_fd, timeout_ms, pkcs12_bytes, passphrase, tls_opts) {
     // TLS server accept + handshake for wss:// loopback fixtures and basic servers.
     // Returns {"ok":1,"conn":map} or {"ok":0,"err":string}.
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
     if timeout_ms < 0 { timeout_ms = 0 }
     var fd = tcp.accept(listen_fd, timeout_ms)
     if fd < 0 {
@@ -664,7 +664,7 @@ fn _read_exact(conn, buf, want, timeout_ms) {
     // Returns 0 on success, or -errno.
     if want <= 0 { return 0 }
     if buf == 0 { return 0 - 22 } // EINVAL
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
 
     var deadline = 0
     if timeout_ms > 0 {
@@ -734,7 +734,7 @@ fn _send_frame_raw(conn, opcode, payload_ptr, payload_len, timeout_ms, masked) {
     // Low-level “build a single frame and write it”. Used by text/ping/pong/close.
     //
     // payload_ptr may be 0 when payload_len==0.
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
     if oren_type_tag(payload_ptr) == 0 { payload_ptr = 0 }
     if oren_type_tag(payload_len) == 0 { payload_len = 0 }
     if payload_len < 0 { payload_len = 0 }
@@ -810,7 +810,7 @@ fn _send_frame_raw(conn, opcode, payload_ptr, payload_len, timeout_ms, masked) {
 
 fn _send_frame_str(conn, opcode, text, timeout_ms, masked) {
     if text == nil { text = "" }
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
     return _send_frame_raw(conn, opcode, text, oren_string_len(text), timeout_ms, masked)
 }
 
@@ -838,7 +838,7 @@ fn send_ping_server(conn, payload, timeout_ms) {
 
 fn recv_text(conn, timeout_ms) {
     // Returns {"ok":1,"v":string} or {"ok":0,"err":string}.
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
 
     // Ping/pong and close are handled internally and do not escape to callers:
     // - ping => auto-pong + continue

@@ -228,16 +228,22 @@ fn oren_register_thread(top) {
     //   24: call_depth (stack safety)
     //   32: time_tv_buf (TIME scratch; 16 bytes)
     //   40: time_abs_buf (TIME scratch; 8 bytes)
+    //   48: flags (bitmask; rolling)
     //
-	    // Size: 48 bytes
+	    // Size: 56 bytes
+	    //
+	    // Flags (bitmask):
+	    // - bit0: OS thread node (vs. a green-stack node registered for GC scanning)
+	    var THREAD_NODE_FLAG_OS_THREAD = 1
 	    // Runtime metadata: use malloc_raw so GC never reclaims thread nodes.
-	    var node = native_malloc_raw_or_mmap(48)
+	    var node = native_malloc_raw_or_mmap(56)
 	    if node != 0 {
 	        ptr_set(node, top)
 	        ptr_set(iadd(node, 8), 0) // saved_sp
 	        ptr_set(iadd(node, 24), 0) // call_depth
 	        ptr_set(iadd(node, 32), 0) // time_tv_buf
 	        ptr_set(iadd(node, 40), 0) // time_abs_buf
+	        ptr_set(iadd(node, 48), THREAD_NODE_FLAG_OS_THREAD)
 	        
         // Link
         acquire_lock()
@@ -245,12 +251,71 @@ fn oren_register_thread(top) {
         var prev_head = global_get_threads()
         ptr_set(iadd(node, 16), prev_head)
         global_set_threads(node)
-        // If we ever register more than one thread, disable the single-thread fast path.
-        if prev_head != 0 { g_runtime_single_threaded = 0 }
+        // If we ever register more than one OS thread, disable the single-thread fast path.
+        //
+        // NOTE: green stacks (Stage N1 scheduler) also register nodes so GC can scan them,
+        // but they do not imply concurrent OS execution.
+        var cur = prev_head
+        while cur != 0 {
+            if (ptr_get(iadd(cur, 48)) & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+                g_runtime_single_threaded = 0
+                break
+            }
+            cur = ptr_get(iadd(cur, 16))
+        }
 
         release_lock()
     }
     return node
+}
+
+// Register a non-OS stack node for GC scanning (native green tasks Stage N1).
+//
+// This must NOT disable the "single-thread" fast paths: green tasks share a single OS thread
+// and run cooperatively, so using global scratch without locks remains safe.
+@oren.keep
+fn oren_register_stack(top) {
+    if oren_globals() == 0 { return 0 }
+    // Same node layout as `oren_register_thread`, but flags=0.
+    var node = native_malloc_raw_or_mmap(56)
+    if node == 0 { return 0 }
+    ptr_set(node, top)
+    ptr_set(iadd(node, 8), 0) // saved_sp
+    ptr_set(iadd(node, 24), 0) // call_depth (unused for stacks today)
+    ptr_set(iadd(node, 32), 0) // time_tv_buf (unused)
+    ptr_set(iadd(node, 40), 0) // time_abs_buf (unused)
+    ptr_set(iadd(node, 48), 0) // flags
+
+    acquire_lock()
+    var prev_head = global_get_threads()
+    ptr_set(iadd(node, 16), prev_head)
+    global_set_threads(node)
+    release_lock()
+    return node
+}
+
+@oren.keep
+fn oren_unregister_stack(node) {
+    if node == 0 { return 0 }
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var prev = 0
+    var cur = global_get_threads()
+    while cur != 0 {
+        if cur == node {
+            var next = ptr_get(iadd(cur, 16))
+            if prev == 0 {
+                global_set_threads(next)
+            } else {
+                ptr_set(iadd(prev, 16), next)
+            }
+            break
+        }
+        prev = cur
+        cur = ptr_get(iadd(cur, 16))
+    }
+    release_lock()
+    return 0
 }
 
 fn get_sp() { return 0 } // Intrinsic
@@ -320,12 +385,20 @@ fn native_runtime_init_gc_mode(default_enabled) {
 fn native_gc_single_threaded() {
     if oren_globals() == 0 { return true }
     acquire_lock()
-    var head = global_get_threads()
-    var ok = true
-    if head != 0 {
-        var next = ptr_get(iadd(head, 16))
-        if next != 0 { ok = false }
+    // Treat this as "single OS thread" (not "single stack node"), so green stacks
+    // registered for GC scanning do not disable auto-GC / safepoints.
+    var THREAD_NODE_FLAG_OS_THREAD = 1
+    var count = 0
+    var cur = global_get_threads()
+    while cur != 0 {
+        if (ptr_get(iadd(cur, 48)) & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+            count = count + 1
+            if count > 1 { break }
+        }
+        cur = ptr_get(iadd(cur, 16))
     }
+    var ok = true
+    if count > 1 { ok = false }
     release_lock()
     return ok
 }

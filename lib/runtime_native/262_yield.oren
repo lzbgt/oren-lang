@@ -17,6 +17,10 @@
 // - returns 0 on success; may return -errno on failed syscall paths.
 @oren.keep
 fn oren_yield() {
+    // If we are running inside a native green task, yield to the scheduler (in-process).
+    // Otherwise, fall back to the OS yield hint.
+    if oren_green_current_g_or0() != 0 {
+        return oren_green_yield()
+    }
     return sys_sched_yield()
 }
-

@@ -325,6 +325,27 @@ References:
      - Linux: `sched_yield(2)` via `linux_sys_sched_yield` lowering in native backends.
      - Windows: `Sleep(0)` via `sys_sched_yield` shim in the x64 native backend.
      - Source of truth: `lib/runtime_native/262_yield.oren`, `docs/CONCURRENCY_MODEL.md`.
+   - 2026-01-14: Stage N1 green tasks (N:1) landed and are now the default `spawn` path on macOS/Linux.
+     - Runtime: `lib/runtime_native/263_green_tasks.oren` (cooperative scheduler + per-G stack + `sleep` integration).
+     - Surface: `spawn f(args...)` routes to `oren_green_spawn(...)` unless `OREN_NO_GREEN=1` is set (fallback is legacy POSIX fork+pipe).
+     - Motivation: shared heap/GC/locks in one address space is required before true OS-thread + M:N work can be correct.
+   - 2026-01-14: fixed Tier‑1 x64 compile-only NET/TLS/HTTP2 suite breakage caused by numeric `== nil` patterns in `std:net/*`.
+     - Rationale: the nil-compare guard is always-on; stdlib must not model “optional int” by comparing numeric scalars to `nil`.
+     - Fix: replace numeric `x == nil` checks with `oren_type_tag(x) == 0` defaults in `lib/std/net/*`.
+     - Guard: `make verify-native-x64-compile` (stage1 + stage2 emit x64-linux + x64-windows).
+
+   Next steps (actionable, highest leverage first):
+
+   - Stage N2 groundwork: syscall-first OS threads (no libpthread) on Tier‑1
+     - macOS arm64: finish the `bsdthread_register` story and define the runtime-owned threadstart stub:
+       - implement/install threadstart stub at process init (call `native_runtime_threading_init(...)` early)
+       - wire `sys_bsdthread_create/terminate` to a runtime `oren_os_thread_spawn(...)` primitive
+     - Linux x64/arm64: design a narrow `sys_thread_create` abstraction (likely `clone` with `CLONE_VM|CLONE_FS|...`) + safe stack/TLS init
+     - Windows x64: unify existing CreateThread-based `spawn` with the same scheduler-facing `M` abstraction (keep WaitForSingleObject join)
+   - Parking/unparking primitive for idle `M` (required to avoid spin):
+     - macOS: ulock-based park/wake for `P` (pairs with `sys_ulock_wait/sys_ulock_wake`)
+     - Linux: futex-based park/wake
+   - GC + safepoint plan for N:M (stop-the-world first, correct before fast)
 
    References:
 

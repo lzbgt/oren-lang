@@ -28,9 +28,9 @@ fn resolver(server_ip, server_port, timeout_ms) {
     // - server_ip (string)
     // - server_port (int)
     // - timeout_ms (int)
-    if timeout_ms == nil { timeout_ms = 2000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 2000 }
     if timeout_ms < 0 { timeout_ms = 0 }
-    if server_port == nil || server_port <= 0 || server_port > 65535 {
+    if oren_type_tag(server_port) == 0 || server_port <= 0 || server_port > 65535 {
         server_port = 53
     }
     return {
@@ -297,7 +297,7 @@ fn default_resolver(timeout_ms) {
     // Returns:
     // - {"ok":1, "resolver": <map>, "src": "env"|"windows"} on success
     // - {"ok":0, "err": "..."} on failure
-    if timeout_ms == nil { timeout_ms = 2000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 2000 }
     if timeout_ms < 0 { timeout_ms = 0 }
 
     var env_ip = oren_env("OREN_DNS_SERVER")
@@ -327,7 +327,7 @@ fn default_resolver(timeout_ms) {
     // Returns:
     // - {"ok":1, "resolver": <map>, "src": "env"|"resolv.conf"} on success
     // - {"ok":0, "err": "..."} on failure
-    if timeout_ms == nil { timeout_ms = 2000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 2000 }
     if timeout_ms < 0 { timeout_ms = 0 }
 
     var env_ip = oren_env("OREN_DNS_SERVER")
@@ -380,7 +380,7 @@ fn _write_qname(buf, cap, off, name) {
     if n <= 0 { return {"ok": 0, "err": "dns.qname: empty name"} }
 
     // Reject names that would obviously encode to an empty label (leading dot).
-    if (ptr_get_byte(name + 0) & 255) == 46 { // '.'
+    if (ptr_get_byte(iadd(name, 0)) & 255) == 46 { // '.'
         return {"ok": 0, "err": "dns.qname: leading dot"}
     }
 
@@ -390,7 +390,7 @@ fn _write_qname(buf, cap, off, name) {
     // Iterate to n inclusive by treating i==n as '.' terminator.
     while i <= n {
         var b = 46
-        if i < n { b = ptr_get_byte(name + i) & 255 }
+        if i < n { b = ptr_get_byte(iadd(name, i)) & 255 }
         if b == 46 { // '.'
             var label_len = i - label_start
             if label_len == 0 {
@@ -404,7 +404,7 @@ fn _write_qname(buf, cap, off, name) {
             out = out + 1
             var j = 0
             while j < label_len {
-                ptr_set_byte(buf + out + j, ptr_get_byte(name + label_start + j))
+                ptr_set_byte(buf + out + j, ptr_get_byte(iadd(name, label_start + j)))
                 j = j + 1
             }
             out = out + label_len
@@ -554,10 +554,10 @@ fn query_a(name, server_ip, server_port, timeout_ms) {
     // - `dns.query_a` always takes a server explicitly. Use `dns.default_resolver` if you want a best-effort
     //   system resolver selection (env `OREN_DNS_SERVER`, else `/etc/resolv.conf` on POSIX).
     // - Uses an ephemeral UDP socket per query (simplest correct behavior for now).
-    if timeout_ms == nil { timeout_ms = 2000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 2000 }
     if timeout_ms < 0 { timeout_ms = 0 }
     if server_ip == nil { return {"ok": 0, "err": "dns.query_a: server_ip is nil"} }
-    if server_port == nil || server_port <= 0 || server_port > 65535 {
+    if oren_type_tag(server_port) == 0 || server_port <= 0 || server_port > 65535 {
         return {"ok": 0, "err": "dns.query_a: invalid server_port"}
     }
 

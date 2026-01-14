@@ -9,8 +9,16 @@
 // - Caching a backend-specific "runtime object" makes "compile one file" not pay the full
 //   runtime cost on every invocation.
 //
-// Safety:
-// - Disabled for capsule builds by default (until the cache is within the capsule boundary).
+// Safety / policy (rolling):
+// - The rtobj cache stores compiled machine code for the injected runtime.
+// - This is a build-time throughput feature; the cache lives on the host filesystem.
+// - Capsule builds still run *compiled binaries* under capsule restrictions; using an rtobj
+//   cache at compile time does not weaken the runtime capsule boundary.
+//
+// Historically this was disabled for capsule builds by default. That made the Tier‑1 capsule
+// smoke test pay a full "compile runtime decls" cold path and regularly exceed the default
+// 10s build timeout. Enable rtobj for capsule builds by default and keep an explicit opt-out
+// knob for experiments.
 
 import rtinj "native_runtime_inject.oren"
 import astbin "astbin.oren"
@@ -66,14 +74,14 @@ fn _is_false(v) {
 }
 
 fn rtobj_cache_enabled(platform) {
-    // Disabled for capsule builds by default (until the cache is within the capsule boundary).
-    // Can be enabled explicitly for dev perf experiments:
-    //   OREN_NATIVE_RUNTIME_OBJ_CACHE_CAPSULE=1
+    // Capsule builds:
+    // - Default-on (Tier‑1 throughput): avoids slow cold runtime compilation paths.
+    // - Opt-out via:
+    //     OREN_NATIVE_RUNTIME_OBJ_CACHE_CAPSULE=0   (or "false")
     if platform != nil && platform["capsule"] == true {
         var vcap = oren_env("OREN_NATIVE_RUNTIME_OBJ_CACHE_CAPSULE")
-        if vcap == nil || vcap == "" { return false }
         if _is_false(vcap) { return false }
-        // otherwise: allow
+        // otherwise: allow (including unset/empty)
     }
     var v = oren_env("OREN_NATIVE_RUNTIME_OBJ_CACHE")
     if _is_false(v) { return false }

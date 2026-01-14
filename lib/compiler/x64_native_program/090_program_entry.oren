@@ -766,7 +766,10 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     // Bounded tracing (perf guardrails; avoid huge logs):
     // - OREN_TRACE_X64_RT_OBJ_SUMMARY=1: single-line phase breakdown
     // - OREN_TRACE_X64_RT_OBJ_TOP_DECLS=1: keep only slowest N decls by compile time
-    var trace_sum = oren_env("OREN_TRACE_X64_RT_OBJ_SUMMARY") != nil
+    // Env toggles must treat "" as unset too (stage1 C-backend env compatibility).
+    var trace_sum = false
+    var v_sum = oren_env("OREN_TRACE_X64_RT_OBJ_SUMMARY")
+    if v_sum != nil && v_sum != "" { trace_sum = true }
     var t0 = 0
     var t_parse_done = 0
     var t_meta_done = 0
@@ -843,7 +846,9 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     if trace_sum { t_globals_done = oren_time_now_ns() }
 
     // Compile runtime named functions.
-    var trace_decls = oren_env("OREN_TRACE_X64_RT_OBJ_TOP_DECLS") != nil
+    var trace_decls = false
+    var v_decls = oren_env("OREN_TRACE_X64_RT_OBJ_TOP_DECLS")
+    if v_decls != nil && v_decls != "" { trace_decls = true }
     var top_decls = nil
     var top_keep = 12
     var sum_decl_ns = 0
@@ -871,7 +876,13 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
                 oren_list_push(top_decls, ent)
             } else {
                 var min_idx = 0
-                var min_ns = top_decls[0]["ns"]
+                var min_ns = 0
+                if top_decls[0] != nil && top_decls[0]["ns"] != nil {
+                    min_ns = top_decls[0]["ns"]
+                } else {
+                    // Defensive: should not happen, but avoid panicking in trace mode.
+                    min_ns = dt_decl
+                }
                 var j0 = 1
                 while j0 < oren_list_len(top_decls) {
                     var e0 = top_decls[j0]

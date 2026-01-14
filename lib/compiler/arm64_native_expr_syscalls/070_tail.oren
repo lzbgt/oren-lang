@@ -1,7 +1,124 @@
 // Chunked out of native_compile_syscall_call for include coherence.
-fn native_syscalls_chunk_070_tail(ctx, fn_name, args, compile_expr) {
-    var capsule = false
-    if ctx != nil && ctx["platform"] != nil && ctx["platform"]["capsule"] == true { capsule = true }
+    fn native_syscalls_chunk_070_tail(ctx, fn_name, args, compile_expr) {
+        var capsule = false
+        if ctx != nil && ctx["platform"] != nil && ctx["platform"]["capsule"] == true { capsule = true }
+
+            if fn_name == "sys_bsdthread_create" {
+                // sys_bsdthread_create(func, func_arg, stack, pthread, flags)
+                // Darwin syscall: bsdthread_create (360)
+                // This is macOS-specific; Linux should implement clone/futex-based threads instead.
+                compile_expr(ctx, args[0]) // func -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                compile_expr(ctx, args[1]) // func_arg -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                compile_expr(ctx, args[2]) // stack -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                // pre: native_capsule_sys_bsdthread_create_pre()
+                if capsule {
+                    var bl_pre = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre, "name": "native_capsule_sys_bsdthread_create_pre"})
+                }
+
+                compile_expr(ctx, args[3]) // pthread -> X0
+                push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // save in X3
+
+                compile_expr(ctx, args[4]) // flags -> X0
+                push_u32_le(ctx["code"], insn_mov_reg(4, 0)) // save in X4
+
+                // Pop stack -> X2
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // Pop func_arg -> X1
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // Pop func -> X0
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                if ctx["platform"]["os"] == "linux" {
+                    push_u32_le(ctx["code"], insn_movn(0, 0))
+                    return true
+                }
+
+                push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_bsdthread_create()))
+                emit_svc_preserve_heap(ctx, abi.darwin_svc_imm())
+
+                // Normalize macOS syscall error (carry set, X0=errno) to X0=-errno.
+                var br_ok = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
+                var ok_pos = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+                return true
+            }
+
+            if fn_name == "sys_bsdthread_terminate" {
+                // sys_bsdthread_terminate(stackaddr, freesize, port, sema_or_ulock)
+                // Darwin syscall: bsdthread_terminate (361)
+                compile_expr(ctx, args[0]) // stackaddr -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                compile_expr(ctx, args[1]) // freesize -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                // pre: native_capsule_sys_bsdthread_terminate_pre()
+                if capsule {
+                    var bl_pre2 = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pre2, "name": "native_capsule_sys_bsdthread_terminate_pre"})
+                }
+
+                compile_expr(ctx, args[2]) // port -> X0
+                push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // save in X2
+
+                compile_expr(ctx, args[3]) // sema_or_ulock -> X0
+                push_u32_le(ctx["code"], insn_mov_reg(3, 0)) // save in X3
+
+                // Pop freesize -> X1
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // Pop stackaddr -> X0
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                if ctx["platform"]["os"] == "linux" {
+                    push_u32_le(ctx["code"], insn_movn(0, 0))
+                    return true
+                }
+
+                push_u32_le(ctx["code"], insn_movz(abi.darwin_syscall_reg(), abi.darwin_sys_bsdthread_terminate()))
+                emit_svc_preserve_heap(ctx, abi.darwin_svc_imm())
+
+                // Normalize macOS syscall error (carry set, X0=errno) to X0=-errno.
+                var br_ok2 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.CC ok
+                push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
+                var ok_pos2 = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_ok2, insn_b_cond((ok_pos2 - br_ok2) / 4, 3)) // CC
+                return true
+            }
 
             if fn_name == "sys_bsdthread_register" {
                 // sys_bsdthread_register(threadstart, wqthread, pthsize, pthread_init_data, pthread_init_data_size, dispatchqueue_offset, tsd_offset)

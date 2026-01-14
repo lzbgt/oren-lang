@@ -560,7 +560,10 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     // - meta (Oren map; ints encoded as +1 where needed)
     // - code_u8 (u8_buf)
     // - data_tail_u8 (u8_buf)  // after the shared prefix slot
-    var trace_sum = oren_env("OREN_TRACE_ARM64_RT_OBJ_SUMMARY") != nil
+    // Env toggles must treat "" as unset too (stage1 C-backend env compatibility).
+    var trace_sum = false
+    var v_sum = oren_env("OREN_TRACE_ARM64_RT_OBJ_SUMMARY")
+    if v_sum != nil && v_sum != "" { trace_sum = true }
     var t0 = 0
     var t_parse_done = 0
     var t_meta_done = 0
@@ -657,7 +660,9 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     if trace_sum { t_globals_done = oren_time_now_ns() }
 
     // Compile runtime declarations (functions/types/ffi).
-    var trace_decls = oren_env("OREN_TRACE_ARM64_RT_OBJ_TOP_DECLS") != nil
+    var trace_decls = false
+    var v_decls = oren_env("OREN_TRACE_ARM64_RT_OBJ_TOP_DECLS")
+    if v_decls != nil && v_decls != "" { trace_decls = true }
     var top_decls = nil
     var top_keep = 12
     var sum_decl_ns = 0
@@ -693,7 +698,13 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
             } else {
                 // Replace the current minimum if this decl is slower.
                 var min_idx = 0
-                var min_ns = top_decls[0]["ns"]
+                var min_ns = 0
+                if top_decls[0] != nil && top_decls[0]["ns"] != nil {
+                    min_ns = top_decls[0]["ns"]
+                } else {
+                    // Defensive: should not happen, but avoid panicking in trace mode.
+                    min_ns = dt_decl
+                }
                 var j = 1
                 while j < oren_list_len(top_decls) {
                     var e0 = top_decls[j]
@@ -739,12 +750,19 @@ fn _arm64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
     while wi < oren_list_len(ctx["func_decl_order"]) {
         var fname = ctx["func_decl_order"][wi]
         if need == nil || need[fname] == nil { wi = wi + 1; continue }
-        var arity_enc = ctx["func_arity"][fname]
-        if arity_enc > 0 {
-            var arity = arity_enc - 1
-            var vf = nil
+        // `func_arity`/`func_varargs_fixed` are encoded as +1 (0 means missing). Be defensive:
+        // stage1 (C backend) can represent "missing" as nil/"" in rolling mode.
+        var arity = nil
+        if ctx["func_arity"] != nil {
+            var arity_enc = ctx["func_arity"][fname]
+            if oren_type_tag(arity_enc) != 0 { arity = arity_enc - 1 }
+        }
+        var vf = nil
+        if ctx["func_varargs_fixed"] != nil {
             var vf_enc = ctx["func_varargs_fixed"][fname]
-            if vf_enc > 0 { vf = vf_enc - 1 }
+            if oren_type_tag(vf_enc) != 0 { vf = vf_enc - 1 }
+        }
+        if arity != nil {
             var wname = "__oren_fnwrap_" + fname
             if ctx["functions"][wname] == nil {
                 native_compile_stmt(ctx, callable.synth_fnwrap(fname, arity, vf))

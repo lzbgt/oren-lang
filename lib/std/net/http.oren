@@ -393,7 +393,7 @@ fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
     // - HTTPS/WSS (TLS layer)
     // - streaming bodies
     // - HTTP/2 framing
-    if timeout_ms == nil { timeout_ms = 5000 }
+    if oren_type_tag(timeout_ms) == 0 { timeout_ms = 5000 }
 
     var pu = _parse_http_url(url)
     if pu["ok"] != 1 { return {"ok": 0, "err": "http.get_response: " + pu["err"]} }
