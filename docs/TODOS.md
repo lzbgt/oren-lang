@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-01-13
+**Last updated:** 2026-01-14
 
 This repo is in rolling mode. This file tracks the **highest-leverage work remaining** to evolve Oren
 into a modern, efficient, production-ready language and toolchain, while keeping iteration fast.
@@ -114,7 +114,11 @@ References:
 				     - Wired into default `make test` (native quick integration smoke).
 			   - 2026-01-12: verified x64 native selfhost compile-only gate still passes after the runtime FS-helper refactor:
 			     - `make verify-native-x64-selfhost-compile` (targets: x64-linux, x64-windows)
-	   - 2026-01-12: `scripts/verify_native_x64_compile_only.sh` now pre-seeds native runtime ASTBIN + rtobj (core+full) before running tight per-build timeouts, so the “cold after runtime change” case stays bounded.
+		   - 2026-01-12: `scripts/verify_native_x64_compile_only.sh` now pre-seeds native runtime ASTBIN + rtobj (core+full) before running tight per-build timeouts, so the “cold after runtime change” case stays bounded.
+		   - 2026-01-14: fixed an arm64-macos native OS-thread bring-up crash that could be *masked or preserved* by stale rtobj cache entries:
+		     - Symptom: `tests/native/test_darwin_os_thread_spawn_join.oren` crashes (SIGBUS) on stage2-native builds when runtime thread registration is enabled and rtobj cache hits.
+		     - Root cause: native call-depth hooks recursed via an instrumented slow-path helper when multithreading flips `g_runtime_single_threaded` to 0; stale rtobj cache entries kept the buggy runtime machine code alive even after compiler fixes.
+		     - Fix: ensure call-depth slow-path helpers are never instrumented + bump rtobj backend signatures (`arm64_v0_8`, `x64_v0_13`) to invalidate old cached runtime objects.
 	   - 2026-01-12: began splitting the >2k-line x64 Linux syscall intrinsic emitter into smaller modules; moved the NET/epoll blocks into `lib/compiler/x64_native_program/046_emit_sys_intrinsics_linux_net.oren` so hot-path compilation of `_emit_intrinsic_sys_linux_x64` stays bounded.
 	   - 2026-01-12: introduced an x64-focused compiler entry (`oren_x64.oren` → `lib/compiler/compiler_x64.oren`) that swaps arm64 native backends for small stubs, so x64 self-host builds do not spend time compiling arm64 code.
 	     - Fact (arm64-macos host → x64-linux target, `--no-cache`): `./oren_stage2 build oren_x64.oren --backend native --platform x64-linux --no-debug`

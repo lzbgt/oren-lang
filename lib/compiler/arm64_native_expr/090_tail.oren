@@ -109,15 +109,50 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 return true
             }
 
-	            if fn_name == "get_sp" {
-	                push_u32_le(ctx["code"], insn_add_imm(0, 31, 0)) // MOV X0, SP (X31) -> ADD X0, SP, #0
-	                return true
-	            }
+		            if fn_name == "get_sp" {
+		                push_u32_le(ctx["code"], insn_add_imm(0, 31, 0)) // MOV X0, SP (X31) -> ADD X0, SP, #0
+		                return true
+		            }
 
-	            // --- Coroutine / scheduler intrinsics (native backend; rolling) ---
-	            //
-	            // These are intentionally implemented as compiler intrinsics (inlined at call sites)
-	            // so they do not depend on libc or a stable external assembly object.
+		            // --- Raw code address intrinsic (native backend; rolling) ---
+		            //
+		            // `oren_code_addr(fn_ident)` returns the raw code address of a top-level function.
+		            // This is intended for OS/library APIs that require a C-style function pointer
+		            // (e.g. pthread_create start routine) without going through dlsym().
+		            //
+		            // Contract (v0):
+		            // - exactly 1 argument
+		            // - argument must be an Identifier expression naming a top-level function
+		            if fn_name == "oren_code_addr" {
+		                var args = expr["args"]
+		                if args == nil || oren_list_len(args) != 1 {
+		                    native_error(ctx, expr["token"], "native backend: oren_code_addr expects 1 argument")
+		                    push_u32_le(ctx["code"], insn_movz(0, 0))
+		                    return true
+		                }
+		                var a0 = args[0]
+		                if a0 == nil || a0["type"] != "Identifier" {
+		                    native_error(ctx, expr["token"], "native backend: oren_code_addr expects an Identifier argument")
+		                    push_u32_le(ctx["code"], insn_movz(0, 0))
+		                    return true
+		                }
+		                var nm = a0["value"]
+		                if nm == nil || nm == "" {
+		                    native_error(ctx, expr["token"], "native backend: oren_code_addr missing function name")
+		                    push_u32_le(ctx["code"], insn_movz(0, 0))
+		                    return true
+		                }
+		                var adr_pos = bytes_len(ctx["code"])
+		                push_u32_le(ctx["code"], 0)
+		                push_u32_le(ctx["code"], 0)
+		                oren_list_push(ctx["fixups"], {"type": "adr_code", "pos": adr_pos, "name": nm, "reg": 0})
+		                return true
+		            }
+
+		            // --- Coroutine / scheduler intrinsics (native backend; rolling) ---
+		            //
+		            // These are intentionally implemented as compiler intrinsics (inlined at call sites)
+		            // so they do not depend on libc or a stable external assembly object.
 	            //
 	            // Context layout (bytes, u64 slots) for AArch64:
 	            //   0..72:  x19..x28 (10 regs)

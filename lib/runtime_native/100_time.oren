@@ -245,26 +245,32 @@ fn oren_register_thread(top) {
 	        ptr_set(iadd(node, 40), 0) // time_abs_buf
 	        ptr_set(iadd(node, 48), THREAD_NODE_FLAG_OS_THREAD)
 	        
-        // Link
-        acquire_lock()
+	        // Publish the node (lock-free):
+        // - `oren_register_thread` can run very early in OS-thread bring-up, before we can
+        //   rely on any higher-level thread-id / lock substrate.
+        // - Use CAS on the global thread-list head to avoid races.
+	        var threads_ptr = iadd(oren_globals(), 32) // GLOBAL_OFF_THREADS
+	        while 1 {
+	            var prev_head = ptr_get(threads_ptr)
+	            ptr_set(iadd(node, 16), prev_head)
+	            // atomic_cas returns the *old* value. Success iff old == expected.
+	            if atomic_cas(threads_ptr, prev_head, node) == prev_head { break }
+	        }
 
-        var prev_head = global_get_threads()
-        ptr_set(iadd(node, 16), prev_head)
-        global_set_threads(node)
-        // If we ever register more than one OS thread, disable the single-thread fast path.
+	        // Update OS-thread count and single-thread fast path.
         //
-        // NOTE: green stacks (Stage N1 scheduler) also register nodes so GC can scan them,
-        // but they do not imply concurrent OS execution.
-        var cur = prev_head
-        while cur != 0 {
-            if (ptr_get(iadd(cur, 48)) & THREAD_NODE_FLAG_OS_THREAD) != 0 {
-                g_runtime_single_threaded = 0
-                break
-            }
-            cur = ptr_get(iadd(cur, 16))
-        }
-
-        release_lock()
+        // This intentionally tracks only OS threads (not green stacks), so green-task mode
+        // can preserve the single-thread fast path.
+	        var count_ptr = iadd(oren_globals(), 416) // GLOBAL_OFF_OS_THREAD_COUNT (rolling)
+	        while 1 {
+	            var old = ptr_get(count_ptr)
+	            var new = iadd(old, 1)
+	            // atomic_cas returns the *old* value. Success iff old == expected.
+	            if atomic_cas(count_ptr, old, new) == old {
+	                if old != 0 { g_runtime_single_threaded = 0 }
+	                break
+	            }
+	        }
     }
     return node
 }

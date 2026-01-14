@@ -54,6 +54,10 @@ Practical note:
 - Many Tier‑1 Linux environments (including WSL2) have a default `ulimit -s` of **8 MiB**.
   The call-depth hooks must stay extremely lightweight, and the compiler must never instrument
   the injected runtime itself with those hooks (or it can cause stack blowups during bootstrap).
+- If you change native call-depth instrumentation rules (or other native codegen that affects the
+  injected runtime), you must bump the rtobj backend signature in
+  `lib/compiler/native_runtime_obj_cache.oren` so stale cached runtime objects are not reused.
+  For debugging you can also force a “no rtobj” build by setting `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`.
 
 ## What “Stack Safe” Means for Oren
 

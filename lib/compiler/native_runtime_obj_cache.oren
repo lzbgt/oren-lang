@@ -57,8 +57,18 @@ var RUNTIME_OBJ_DATA_PREFIX_LEN = 544
 // Rolling contract:
 // - Bump the relevant backend sig whenever a change can affect emitted code/data bytes.
 // - This is intentionally cheap (string constant) so cache hits stay fast.
-var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_6"
-var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_11"
+// Backend signature for runtime-object cache keys.
+//
+// Bump this whenever native codegen changes in a way that affects the emitted
+// runtime object code, otherwise stale rtobj cache entries can keep old
+// semantics even after recompiling the compiler.
+//
+// 2026-01: v0_8
+// - Fix call-depth instrumentation gating so runtime slow-path helpers are never
+//   instrumented (prevents infinite recursion/stack overflow when multithreading
+//   flips `g_runtime_single_threaded` to 0).
+var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_8"
+var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_13"
 
 fn rtobj_backend_sig(backend) {
     if backend == "arm64" { return RUNTIME_OBJ_BACKEND_SIG_ARM64 }

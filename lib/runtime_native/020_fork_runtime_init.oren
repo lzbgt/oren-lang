@@ -421,11 +421,18 @@ fn native_runtime_threading_init(threadstart, wqthread) {
     // - libpthread OSS: `kern/kern_internal.h` + `kern/kern_support.c` show the "registration blob"
     //   contract used by the legacy register path.
 
+    // libpthread’s LP64 pthread_t size is rounded to a page (commonly 16 KiB on arm64 macOS).
+    // For syscall-first bring-up we match that baseline.
     var pthread_size_guess = 16384
     var reg_size = 56
 
-    // Place TSD after our small OrenDarwinThread header (64 bytes), aligned.
-    var tsd_off = 256
+    // Critical: macOS arm64 assumes a fixed `pthread_t` -> TSD base relationship for fast paths.
+    // Apple OSS libpthread documents this as:
+    // - `_PTHREAD_STRUCT_DIRECT_TSD_OFFSET` = 224 on LP64
+    // - `offsetof(struct pthread_s, tsd) == 224` (LP64)
+    //
+    // If the kernel pthread substrate rejects non-standard offsets, registration will fail with EINVAL.
+    var tsd_off = 224
 
     // Build a packed `_pthread_registration_data` blob (56 bytes).
     // Layout (bytes):
@@ -441,44 +448,48 @@ fn native_runtime_threading_init(threadstart, wqthread) {
     //   52: u32 wq_quantum_expiry_offset
     var reg = native_malloc_raw_or_mmap(reg_size)
     if reg == 0 { exit(944) }
-    ptr_set(reg + 0, reg_size)     // version
-    ptr_set(reg + 8, 0)            // dispatch_queue_offset (unused by syscall-first runtime today)
-    ptr_set(reg + 16, 0)           // main_qos (copy-out)
+    oren_ptr_set_u64_le(reg + 0, reg_size) // version == sizeof(struct _pthread_registration_data)
+    // libpthread sets dispatch_queue_offset = __PTK_LIBDISPATCH_KEY0 * sizeof(void *) = 20*8 = 160.
+    // Keep it in-range even when libdispatch isn't used by syscall-first binaries.
+    oren_ptr_set_u64_le(reg + 8, 160)
+    oren_ptr_set_u64_le(reg + 16, 0) // main_qos (copy-out)
     oren_ptr_set_u32_le(reg + 24, tsd_off)
-    oren_ptr_set_u32_le(reg + 28, 0)
-    oren_ptr_set_u32_le(reg + 32, 0)
-    ptr_set(reg + 36, 0)           // stack_addr_hint (copy-out)
-    oren_ptr_set_u32_le(reg + 44, 0)
-    oren_ptr_set_u32_le(reg + 48, 0)
-    oren_ptr_set_u32_le(reg + 52, 0)
-
-    // Attempt 1: "register2-like" calling convention (no init blob in args).
+    // `return_to_kernel_offset` and `mach_thread_self_offset` are TSD-base-relative byte offsets.
+    // Apple OSS `tsd_private.h` documents the low TSD slots used by libsystem:
+    //   __TSD_MACH_THREAD_SELF  (slot 3)  => 3*8 = 24 bytes
+    //   __TSD_RETURN_TO_KERNEL (slot 5)  => 5*8 = 40 bytes
     //
-    // We pass:
-    // - flags: pthsize (libpthread uses 16KiB PTHREAD_SIZE)
-    // - stack_addr_hint: 0 (kernel chooses)
-    // - targetconc_ptr: pointer to i32 (kernel may copy-out recommended concurrency / features)
-    // - dispatchqueue_offset: 0 (we do not integrate libdispatch/workqueue yet)
-    // - tsd_offset: where the kernel should base its TSD within our per-thread pthread object
-    var conc_ptr = native_malloc_raw_or_mmap(8)
-    if conc_ptr != 0 { ptr_set(conc_ptr, 0) }
-    var rv = sys_bsdthread_register(threadstart, wqthread, pthread_size_guess, 0, conc_ptr, 0, tsd_off)
+    // These are required for the kernel to copy out the thread port into TSD for libpthread fast paths.
+    oren_ptr_set_u32_le(reg + 28, 40)
+    oren_ptr_set_u32_le(reg + 32, 24)
+    // stack_addr_hint (copy-out) lives at an unaligned offset in the packed struct; write bytes.
+    oren_ptr_set_u64_le(reg + 36, 0)
+    oren_ptr_set_u32_le(reg + 44, 0)
+    // libpthread uses `CHAR_BIT * (offsetof(struct pthread_s, tl_policy) + 1)`; LP64 tl_policy offset is 48.
+    // => 8 * (48 + 1) = 392. Keep this plausible for kernel-side joinability bookkeeping.
+    oren_ptr_set_u32_le(reg + 48, 392)
+    // libpthread sets wq_quantum_expiry_offset = __PTK_LIBDISPATCH_KEY10 * sizeof(void *) = 120*8 = 960.
+    oren_ptr_set_u32_le(reg + 52, 960)
 
-    // Attempt 2: legacy init-blob calling convention (matches libpthread's legacy kernel path).
-    // The syscall arguments are repurposed as:
-    // - flags: pthsize
-    // - stack_addr_hint: pthread_init_data pointer
+    // NOTE: in the current Darwin pthread kernel substrate, the registration syscall follows the
+    // legacy "init-blob" contract (see Apple OSS `kern/kern_support.c::_bsdthread_register`).
+    //
+    // Syscall arguments are interpreted as:
+    // - flags: pthsize (PTHREAD_SIZE)
+    // - stack_addr_hint: pthread_init_data pointer (copy-in/out struct)
     // - targetconc_ptr: pthread_init_data_size (value, not a pointer)
-    // - dispatchqueue_offset: ignored when init_data is non-zero; provided for completeness
-    // - tsd_offset: ignored by legacy path (the blob's tsd_offset is used instead)
-    if rv == -22 {
-        rv = sys_bsdthread_register(threadstart, wqthread, pthread_size_guess, reg, reg_size, 0, 0)
-    }
+    // - dispatchqueue_offset: used if pthread_init_data == 0, otherwise ignored (we pass it for completeness)
+    // - tsd_offset: ignored by legacy path (the blob's `tsd_offset` is used instead)
+    var rv = sys_bsdthread_register(threadstart, wqthread, pthread_size_guess, reg, reg_size, 160, 0)
 
     // Best-effort policy:
     // - If we cannot register, don't kill the process: leave threading disabled and let tests/programs run.
     // - When registration succeeds, enable the OS-thread API (oren_darwin_os_thread_*).
-    if rv >= 0 { g_darwin_bsdthread_registered = 1 }
+    g_darwin_bsdthread_register_last_rv = rv
+    // Kernel returns:
+    // - >0: supported feature bits (success)
+    // - -EINVAL (-22): already registered (common when dyld/libsystem already installed pthread substrate)
+    if rv > 0 || rv == -22 { g_darwin_bsdthread_registered = 1 }
     return rv
 }
 

@@ -369,8 +369,14 @@ fn _bundle_roots_base() {
 }
 
 fn _bundle_roots_arm64_extra(platform) {
-    // `@oren.keep` is used for arm64 entry-stub helpers; no extra roots required.
-    return []
+    // Entry stubs can call runtime helpers via fixups (no AST call edge),
+    // so post-injection whole-program DCE would otherwise drop them.
+    var roots = []
+    if platform != nil && platform["os"] == "macos" {
+        // arm64 macOS entry stub calls this (non-shared builds).
+        oren_list_push(roots, "native_runtime_threading_init")
+    }
+    return roots
 }
 
 fn _bundle_roots_x64_extra(platform) {
@@ -445,6 +451,16 @@ fn _bundle_tag_stmt_list(stmts, is_runtime) {
         var st = stmts[i]
         if st != nil {
             st["__oren_from_runtime"] = is_runtime
+            // Many runtime files wrap top-level declarations as `ExprStmt(expr=Function)`
+            // (historical parser/normalization behavior). Propagate the tag to the
+            // nested Function node too so downstream passes (codegen, call-depth gating,
+            // platform pruning) can reliably detect "this is runtime code".
+            if st["type"] == "ExprStmt" {
+                var e = st["expr"]
+                if e != nil && e["type"] == "Function" {
+                    e["__oren_from_runtime"] = is_runtime
+                }
+            }
         }
         i = i + 1
     }

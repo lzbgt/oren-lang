@@ -1,4 +1,6 @@
-// Darwin OS-thread smoke: syscall-first `bsdthread_register` + `bsdthread_create` substrate.
+// Darwin OS-thread smoke:
+// - prefer syscall-first `bsdthread_register` + `bsdthread_create` when possible
+// - fall back to libpthread (`pthread_create`/`pthread_join`) when dyld already registered
 //
 // This is a targeted regression test for Stage N2 groundwork:
 // - entry stub registers runtime-owned bsdthread entrypoints
@@ -17,19 +19,18 @@ fn main() {
         print("skip: darwin os-thread test (not macos)")
         exit(0)
     }
-    if g_darwin_bsdthread_registered != 1 {
-        // Rolling: keep this as a skip rather than a failure because
-        // `bsdthread_register` bring-up is kernel/ABI sensitive and may be
-        // temporarily disabled by the runtime when registration fails.
-        print("skip: darwin os-thread test (bsdthread_register not active)")
-        exit(0)
+
+    var trace = oren_env("OREN_TRACE_DARWIN_THREADS")
+    if trace != nil && trace != "" {
+        print("darwin os-thread: bsdthread_register rv=" + oren_int_to_string(g_darwin_bsdthread_register_last_rv) +
+              " registered=" + oren_int_to_string(g_darwin_bsdthread_registered))
     }
 
     var fn_obj = worker
     var args = oren_new_list(0)
     var h = oren_darwin_os_thread_spawn_call_list(fn_obj, args)
     if h == 0 {
-        print("darwin os-thread: spawn failed")
+        print("fail: darwin os-thread spawn failed (bsdthread_register rv=" + oren_int_to_string(g_darwin_bsdthread_register_last_rv) + ")")
         exit(3)
     }
     var ret = oren_darwin_os_thread_join(h)

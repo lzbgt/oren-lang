@@ -596,6 +596,42 @@ fn _x64_rtobj_apply_data_and_meta_to_ctx(ctx, meta) {
         }
     }
 
+    // Merge runtime imports/FFI link names so emitters can resolve runtime external calls.
+    var imp_rt = meta["import_list"]
+    if imp_rt != nil {
+        if ctx["imports"] == nil { ctx["imports"] = {} }
+        if ctx["import_list"] == nil { ctx["import_list"] = [] }
+        var ii = 0
+        while ii < oren_list_len(imp_rt) {
+            var nm = imp_rt[ii]
+            if nm != nil && nm != "" && ctx["imports"][nm] == nil {
+                ctx["imports"][nm] = true
+                oren_list_push(ctx["import_list"], nm)
+            }
+            ii = ii + 1
+        }
+    }
+    var ln = meta["ffi_link_names"]
+    if ln != nil {
+        if ctx["ffi_link_names"] == nil { ctx["ffi_link_names"] = {} }
+        var idxl = 0
+        var pairl = [nil, nil]
+        while 1 {
+            var okl = oren_iter_next_entry(ln, idxl, pairl)
+            if okl == 0 { break }
+            var k = pairl[0]
+            var v = pairl[1]
+            if k != nil && v != nil {
+                if ctx["ffi_link_names"][k] != nil && ctx["ffi_link_names"][k] != v {
+                    err(ctx, "x64 native v0: runtime obj ffi_link_names conflict " + k)
+                } else {
+                    ctx["ffi_link_names"][k] = v
+                }
+            }
+            idxl = idxl + 1
+        }
+    }
+
     // Merge runtime cstr0 dedup map (string -> off+1).
     //
     // PERF (stage2-native, x64 emit):
@@ -1030,6 +1066,9 @@ fn _x64_build_runtime_obj(platform, runtime_path, runtime_hash, backend_sig) {
         "fixups_enc": _x64_rtobj_encode_fixups(ctx["fixups"]),
         "rip_data32_fixups_enc": _x64_rtobj_encode_rip_data32_fixups(ctx["rip_data32_fixups"]),
         "globals": ctx["globals"],
+        // Carry runtime imports/FFI name remaps so rtobj-mode emitters can resolve external symbols.
+        "import_list": ctx["import_list"],
+        "ffi_link_names": ctx["ffi_link_names"],
         // PERF (stage2-native hot path):
         // Do not persist the full runtime `cstr0_offs` dedup map in rtobj meta by default.
         // It is large (all runtime string literals) and decoding it can dominate “compile one file”

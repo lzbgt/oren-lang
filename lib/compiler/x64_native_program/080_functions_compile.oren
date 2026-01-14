@@ -317,6 +317,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     var tok0 = fn_node["token"]
     var ffile0 = nil
     if tok0 != nil { ffile0 = tok0["file"] }
+    if fn_node["__oren_from_runtime"] == true { call_depth_enabled = false }
     if ffile0 == "lib/runtime_native.oren" { call_depth_enabled = false }
     // Also exclude the per-module native runtime sources (the include tree).
     // These files are part of the injected runtime and must not be call-depth instrumented:
@@ -332,6 +333,11 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     }
     if name == "oren_call_depth_enter" { call_depth_enabled = false }
     if name == "oren_call_depth_exit" { call_depth_enabled = false }
+    // Never instrument the slow-path helpers either, otherwise:
+    //   enter() -> native_call_depth_enter_slow() -> enter() -> ...
+    // once multithreading disables the single-thread fast-path.
+    if name == "native_call_depth_enter_slow" { call_depth_enabled = false }
+    if name == "native_call_depth_exit_slow" { call_depth_enabled = false }
     if call_depth_enabled == true {
         // Call runtime hook (no args).
         var pos_enter = bytes_len(ctx["code"])

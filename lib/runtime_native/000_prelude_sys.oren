@@ -177,6 +177,17 @@ fn sys_sched_yield() { return 0 }
 fn oren_ctx_init(ctx_ptr, sp, pc) { return 0 }
 fn oren_ctx_switch(old_ctx_ptr, new_ctx_ptr) { return 0 }
 
+// Compile-time function address (native backend intrinsic; rolling).
+//
+// This returns the *raw code address* of a named top-level function so it can be passed
+// to OS APIs that require a C-style callback function pointer (e.g. pthread_create start routine).
+//
+// Notes:
+// - The native backends lower this at the call site; this stub must never execute in a
+//   correctly built native binary.
+// - The argument is expected to be an Identifier expression (not a string literal).
+fn oren_code_addr(fn_ident) { return 0 }
+
 fn oren_exit(code) {
     // Process exit (portable entry point used by user code and runtime).
     //

@@ -8,6 +8,32 @@
 	    //
 	    // These are treated as compiler intrinsics even if not declared as source-level
 	    // functions, so injected native runtime code can call them directly.
+	    if nm == "oren_code_addr" {
+	        // Return the raw code address of a top-level function name.
+	        // Intended for callback-style OS/library APIs without going through dlsym().
+	        if args == nil || oren_list_len(args) != 1 {
+	            err(ctx, "x64 native v0: oren_code_addr expects 1 arg")
+	            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+	            return 1
+	        }
+	        var a0 = args[0]
+	        if a0 == nil || a0["type"] != "Identifier" {
+	            err(ctx, "x64 native v0: oren_code_addr expects an Identifier arg")
+	            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+	            return 1
+	        }
+	        var name = a0["value"]
+	        if name == nil || name == "" {
+	            err(ctx, "x64 native v0: oren_code_addr missing function name")
+	            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+	            return 1
+	        }
+	        // rax = &name
+	        var lea_pos = bytes_len(ctx["code"])
+	        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(0, 0))
+	        oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": name})
+	        return 1
+	    }
 	    if nm == "get_fp" {
         // Return current frame pointer (RBP) as a raw u64.
         bytes_extend(ctx["code"], insn_mov_r64_r64(0, 5)) // rax = rbp

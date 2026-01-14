@@ -96,6 +96,7 @@ fn oren_pipe() {
 //   368:value_nil   (native backend: `nil` singleton value)
 //   376:value_false (native backend: `false` singleton value)
 //   384:value_true  (native backend: `true` singleton value)
+//   416:os_thread_count (u64; number of registered OS threads; rolling)
 var g_storage = 0
 
 fn oren_globals() {
@@ -215,6 +216,9 @@ fn global_set_call_depth(v) { ptr_set(iadd(oren_globals(), 304), v) }
 
 fn global_get_call_depth_max() { return ptr_get(iadd(oren_globals(), 312)) }
 fn global_set_call_depth_max(v) { ptr_set(iadd(oren_globals(), 312), v) }
+
+fn global_get_os_thread_count() { return ptr_get(iadd(oren_globals(), 416)) }
+fn global_set_os_thread_count(v) { ptr_set(iadd(oren_globals(), 416), v) }
 
 fn global_get_result_value() { return ptr_get(iadd(oren_globals(), 360)) }
 fn global_set_result_value(v) { ptr_set(iadd(oren_globals(), 360), v) }
@@ -466,6 +470,9 @@ var g_target_os = 0
 // - 0: not registered (do not call bsdthread_create from the runtime)
 // - 1: registered with runtime-owned threadstart/wqthread stubs
 var g_darwin_bsdthread_registered = 0
+// Best-effort debugging aid: last return value from `bsdthread_register` bring-up.
+// 0 means "success" (as per syscall convention); negative values are -errno.
+var g_darwin_bsdthread_register_last_rv = 0
 
 // Rolling select fairness cursor (native runtime):
 // - Used by `oren_select` / `oren_select_recv` to avoid always picking case 0 when multiple are ready.
