@@ -125,7 +125,16 @@ fn sys_ulock_wait(operation, addr, value, timeout_us) { return 0 }
 fn sys_ulock_wake(operation, addr, wake_value) { return 0 }
 fn sys_bsdthread_create(func, func_arg, stack, pthread, flags) { return 0 }
 fn sys_bsdthread_terminate(stackaddr, freesize, port, sema_or_ulock) { return 0 }
-fn sys_bsdthread_register(threadstart, wqthread, pthsize, pthread_init_data, pthread_init_data_size, dispatchqueue_offset, tsd_offset) { return 0 }
+// Darwin bsdthread per-process registration.
+//
+// Syscall signature (xnu `bsd/kern/syscalls.master`, syscall 366):
+//   bsdthread_register(threadstart, wqthread, flags, stack_addr_hint, targetconc_ptr, dispatchqueue_offset, tsd_offset)
+//
+// Notes:
+// - This is a raw syscall boundary, not the historical `__bsdthread_register` libsyscall wrapper
+//   used by libpthread (which has an older ABI surface).
+// - Call sites are lowered directly by the native backend; this stub must never execute.
+fn sys_bsdthread_register(threadstart, wqthread, flags, stack_addr_hint, targetconc_ptr, dispatchqueue_offset, tsd_offset) { return 0 }
 fn sys_exit(code) { return 0 }
 
 // --- TCP/IP (syscall-first; macOS arm64 first) ---

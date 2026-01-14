@@ -121,7 +121,7 @@
             }
 
             if fn_name == "sys_bsdthread_register" {
-                // sys_bsdthread_register(threadstart, wqthread, pthsize, pthread_init_data, pthread_init_data_size, dispatchqueue_offset, tsd_offset)
+                // sys_bsdthread_register(threadstart, wqthread, flags, stack_addr_hint, targetconc_ptr, dispatchqueue_offset, tsd_offset)
                 // Darwin syscall: bsdthread_register (366)
                 // This is macOS-specific; Linux should implement clone/futex-based threads instead.
                 compile_expr(ctx, args[0]) // threadstart -> X0
@@ -134,17 +134,17 @@
                 push_u32_le(ctx["code"], insn_str_x0_sp(0))
                 ctx["stack_size"] = ctx["stack_size"] + 16
     
-                compile_expr(ctx, args[2]) // pthsize -> X0
+                compile_expr(ctx, args[2]) // flags -> X0
                 push_u32_le(ctx["code"], insn_sub_sp(16))
                 push_u32_le(ctx["code"], insn_str_x0_sp(0))
                 ctx["stack_size"] = ctx["stack_size"] + 16
     
-                compile_expr(ctx, args[3]) // pthread_init_data -> X0
+                compile_expr(ctx, args[3]) // stack_addr_hint -> X0
                 push_u32_le(ctx["code"], insn_sub_sp(16))
                 push_u32_le(ctx["code"], insn_str_x0_sp(0))
                 ctx["stack_size"] = ctx["stack_size"] + 16
     
-                compile_expr(ctx, args[4]) // pthread_init_data_size -> X0
+                compile_expr(ctx, args[4]) // targetconc_ptr -> X0
                 push_u32_le(ctx["code"], insn_sub_sp(16))
                 push_u32_le(ctx["code"], insn_str_x0_sp(0))
                 ctx["stack_size"] = ctx["stack_size"] + 16
@@ -169,17 +169,17 @@
                 push_u32_le(ctx["code"], insn_add_sp(16))
                 ctx["stack_size"] = ctx["stack_size"] - 16
     
-                // Pop init_data_size -> X4
+                // Pop targetconc_ptr -> X4
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 0))
                 push_u32_le(ctx["code"], insn_add_sp(16))
                 ctx["stack_size"] = ctx["stack_size"] - 16
     
-                // Pop init_data -> X3
+                // Pop stack_addr_hint -> X3
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))
                 push_u32_le(ctx["code"], insn_add_sp(16))
                 ctx["stack_size"] = ctx["stack_size"] - 16
     
-                // Pop pthsize -> X2
+                // Pop flags -> X2
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 0))
                 push_u32_le(ctx["code"], insn_add_sp(16))
                 ctx["stack_size"] = ctx["stack_size"] - 16

@@ -403,14 +403,17 @@ fn native_runtime_init(target_os) {
 //
 // Args are code pointers to the native backend's thread entry stubs.
 fn native_runtime_threading_init(threadstart, wqthread) {
-    // Some Darwin kernels validate pthsize for bsdthread_register; use 16KB (page-sized) like libpthread.
-    var pthsize = 16384
-
-    // NOTE: Modern Darwin bsdthread_register has multiple historical ABIs.
-    // Passing a pthread init-data struct can trigger EINVAL on some kernels.
-    // For v0 syscall-first spawn, we register only threadstart/wqthread + pthsize
-    // and omit init-data / workqueue settings.
-    var rv = sys_bsdthread_register(threadstart, wqthread, pthsize, 0, 0, 0, 0)
+    // Syscall-first thread substrate registration for Darwin.
+    //
+    // IMPORTANT:
+    // - This uses the kernel syscall ABI (xnu syscalls.master), *not* libpthread's historical
+    //   `__bsdthread_register` wrapper ABI.
+    // - For v0 bring-up, pass zeros for optional knobs; we only require that the kernel stores our
+    //   threadstart/wqthread pointers so future `bsdthread_create` starts threads in our runtime.
+    //
+    // Signature:
+    //   sys_bsdthread_register(threadstart, wqthread, flags, stack_addr_hint, targetconc_ptr, dispatchqueue_offset, tsd_offset)
+    var rv = sys_bsdthread_register(threadstart, wqthread, 0, 0, 0, 0, 0)
     // For syscall-first spawn to work, the process must be registered.
     // If registration fails, bsdthread_create will start threads with the system's default
     // threadstart (libsystem_pthread), which expects a full pthread runtime and will crash.
