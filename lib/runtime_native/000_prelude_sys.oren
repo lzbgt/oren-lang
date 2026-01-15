@@ -98,7 +98,29 @@ fn sys_win_terminate_thread(handle, exit_code) { return 0 }
 fn sys_win_close_handle(handle) { return 0 }
 fn sys_mmap_private_anon(len) { return 0 }
 fn sys_munmap(addr, len) { return 0 }
-fn sys_clone(flags, stack) { return 0 }
+// Linux clone(2) (syscall-first; no libpthread).
+//
+// Signature matches the kernel ABI:
+//   clone(flags, child_stack, ptid, ctid, tls) -> tid (parent) / 0 (child) / -errno
+//
+// Notes:
+// - `ctid` is used for CLONE_CHILD_SETTID / CLONE_CHILD_CLEARTID (thread join via futex).
+// - `ptid` / `tls` are optional for v0 bring-up; callers may pass 0.
+fn sys_clone(flags, stack, ptid, ctid, tls) { return 0 }
+// Linux syscall-first OS thread create (clone wrapper; v0).
+//
+// This is a compiler intrinsic (lowered by the native backends) that:
+// - creates a new OS thread via clone(2) (no libpthread),
+// - runs `start_addr(arg_ptr)` inside the child,
+// - terminates the child thread with `sys_exit(0)` (must never return to the caller frame).
+//
+// Signature:
+//   sys_thread_create(start_addr, arg_ptr, stack_top, ctid_ptr) -> tid (parent) or -errno
+//
+// Notes:
+// - `stack_top` must point to writable stack memory (typically an mmap-backed stack mapping end).
+// - `ctid_ptr` must point to a writable 4-byte slot for CLONE_CHILD_SETTID/CLEARTID.
+fn sys_thread_create(start_addr, arg_ptr, stack_top, ctid_ptr) { return 0 }
 fn sys_gettid() { return 0 }
 fn sys_fcntl(fd, cmd, arg) { return 0 }
 fn sys_fcntl_getfl(fd) { return 0 }

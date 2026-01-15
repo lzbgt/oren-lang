@@ -1077,6 +1077,8 @@ fn _x64_is_syscall_intrinsic_name(nm) {
     // VM / threads / fcntl / fd ops
     if nm == "sys_mmap_private_anon" || nm == "sys_munmap" { return true }
     if nm == "sys_clone" || nm == "sys_gettid" { return true }
+    // Linux-only clone wrapper (compiler intrinsic; child never returns to caller frame).
+    if nm == "sys_thread_create" { return true }
     if nm == "sys_fcntl" || nm == "sys_fcntl_getfl" || nm == "sys_fcntl_setfl" || nm == "sys_fcntl_getpath" { return true }
     if nm == "sys_dup" || nm == "sys_dup2" || nm == "sys_dup3" { return true }
     if nm == "sys_ioctl" { return true }

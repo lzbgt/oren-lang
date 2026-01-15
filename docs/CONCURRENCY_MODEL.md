@@ -7,7 +7,7 @@ This doc describes:
 
 Oren is rolling; compatibility is not the priority. Accuracy is.
 
-**Last updated:** 2026-01-12
+**Last updated:** 2026-01-15
 
 ## 1) Core primitives (current reality)
 
@@ -15,14 +15,21 @@ Oren is rolling; compatibility is not the priority. Accuracy is.
 
 `spawn` exists in the language surface today, but it is **not yet** a unified “lightweight task” abstraction.
 
-Current native backend behavior:
+Current native backend behavior (rolling, fact):
 
-- **macOS/Linux (POSIX v0):** `spawn` is implemented as **fork + pipe** (process-based).
-  - The child computes the return value, writes 8 bytes to the pipe, and exits.
-  - The parent joins by reading those 8 bytes and reaping the child.
-  - This is syscall-first and libc-free, but it is **not** threads and there is **no shared memory**.
+- **macOS/Linux (POSIX v0 → Stage N1):** `spawn` prefers **in-process green tasks** (**N:1**, one OS thread).
+  - This is shared-address-space concurrency (required groundwork for any coherent GC/locks story).
+  - Escape hatch: set `OREN_NO_GREEN=1` to force the legacy **fork + pipe** fallback.
+  - Fork+pipe semantics (fallback):
+    - the child computes the return value, writes 8 bytes to the pipe, and exits
+    - the parent joins by reading those 8 bytes and reaping the child
 - **Windows x64 Tier‑1:** `spawn` is implemented as **CreateThread** (OS threads).
   - The join handle wraps a thread HANDLE and a result pointer.
+
+Additional substrate (not wired into `spawn` yet):
+
+- **Linux syscall-first OS threads:** a minimal clone(2) wrapper + CLONE_CHILD_CLEARTID join exists as Stage N2 groundwork
+  (see `lib/runtime_native/266_linux_os_threads.oren`). This will be used by the upcoming N:M scheduler, not by v0 `spawn`.
 
 Implications:
 
@@ -34,16 +41,20 @@ Source of truth:
 - POSIX fork+pipe join handle: `lib/runtime_native/120_first_class_fn.oren`, `lib/runtime_native/260_threads.oren`
 - Windows CreateThread path: `lib/runtime_native/120_first_class_fn.oren`, `lib/runtime_native/260_threads.oren`
 
-### 1.1 `oren_yield()` (today: best-effort OS yield hint; not a greenlet scheduler)
+### 1.1 `oren_yield()` (rolling: green-yield when available; OS yield otherwise)
 
-`oren_yield()` exists as a small portability helper. It is **not** yet a native greenlet scheduler
-yield point (because the native runtime does not have greenlet scheduling yet).
+`oren_yield()` is the best-effort “yield” surface used by both:
+
+- the Stage N1 green-task runtime (as a cooperative scheduler yield), and
+- non-green paths (as a best-effort OS yield hint).
 
 Current behavior (native runtime, rolling):
 
-- **Linux:** `oren_yield()` calls `sched_yield(2)` via syscall-first `sys_sched_yield()`.
-- **Windows:** `oren_yield()` calls `Sleep(0)` via `sys_sched_yield()` shim.
-- **macOS:** currently a no-op (returns 0). A future native scheduler will provide a stronger yield.
+- If green tasks are enabled: `oren_yield()` routes to `oren_green_yield()` (scheduler yield).
+- Otherwise:
+  - **Linux:** calls `sched_yield(2)` via syscall-first `sys_sched_yield()`.
+  - **Windows:** calls `Sleep(0)` via `sys_sched_yield()` shim.
+  - **macOS:** currently a best-effort `sys_sched_yield()` (no-op on older bring-up paths).
 
 Source of truth:
 

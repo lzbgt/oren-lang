@@ -1,0 +1,88 @@
+// Linux OS-thread substrate smoke (x64-linux + arm64-linux).
+//
+// This test intentionally avoids the higher-level runtime `spawn` / callable ABI.
+//
+// Why:
+// - Stage N2 OS-thread bring-up must be correct at the syscall boundary first (clone + futex join).
+// - Calling into the full runtime (GC, allocator metadata, call-depth tracking) will be layered on
+//   later, once there is a coherent stop-the-world / safepoint protocol.
+//
+// What it verifies:
+// - `sys_thread_create(start_addr, arg_ptr, stack_top, ctid_ptr)` works on Linux.
+// - CLONE_CHILD_CLEARTID + futex wait via `sys_ulock_wait` can join with a bounded timeout.
+//
+// On non-Linux targets, this test is a no-op.
+
+fn _off_result() { return 0 }   // u64
+fn _off_ctid() { return 16 }    // i32 (futex slot; must be 4-byte aligned)
+
+@oren.keep
+fn __linux_thread_entry(meta) {
+    if meta == 0 { return 0 }
+    // Allocation-free marker so the parent can observe thread execution.
+    ptr_set(meta + _off_result(), 7)
+    return 0
+}
+
+fn main() {
+    if g_target_os != 2 {
+        print("skip: linux os threads (target_os=" + oren_int_to_string(g_target_os) + ")")
+        return 0
+    }
+
+    var meta_bytes = 16384
+    var meta = sys_mmap_private_anon(meta_bytes)
+    if meta == 0 || meta == -1 || meta < 4096 { exit(1) }
+    ptr_set(meta + _off_result(), 0)
+    oren_ptr_set_i32_le(meta + _off_ctid(), 0)
+
+    var stack_bytes = 1048576
+    var stack_base = sys_mmap_private_anon(stack_bytes)
+    if stack_base == 0 || stack_base == -1 || stack_base < 4096 {
+        sys_munmap(meta, meta_bytes)
+        exit(2)
+    }
+    var stack_top = stack_base + stack_bytes
+
+    var start = oren_code_addr(__linux_thread_entry)
+    if start == 0 {
+        sys_munmap(stack_base, stack_bytes)
+        sys_munmap(meta, meta_bytes)
+        exit(3)
+    }
+
+    var ctid_ptr = meta + _off_ctid()
+    var tid = sys_thread_create(start, meta, stack_top, ctid_ptr)
+    if tid <= 0 {
+        print("FAIL: sys_thread_create rc=" + oren_int_to_string(tid))
+        sys_munmap(stack_base, stack_bytes)
+        sys_munmap(meta, meta_bytes)
+        exit(4)
+    }
+
+    // Join with bounded timeout (10s).
+    var timeout_us = 10000000
+    while true {
+        var cur = oren_ptr_get_i32_le(ctid_ptr)
+        if cur == 0 { break }
+        var rc = sys_ulock_wait(1, ctid_ptr, cur, timeout_us)
+        if rc == -60 {
+            print("FAIL: join timeout")
+            sys_munmap(stack_base, stack_bytes)
+            sys_munmap(meta, meta_bytes)
+            exit(5)
+        }
+        // EAGAIN/EINTR/spurious => retry.
+    }
+
+    var ret = ptr_get(meta + _off_result())
+    sys_munmap(stack_base, stack_bytes)
+    sys_munmap(meta, meta_bytes)
+
+    if ret != 7 {
+        print("FAIL: unexpected ret=" + oren_int_to_string(ret))
+        exit(6)
+    }
+    print("ok: linux os thread smoke")
+    return 0
+}

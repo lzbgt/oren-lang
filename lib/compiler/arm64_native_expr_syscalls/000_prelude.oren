@@ -49,11 +49,12 @@ fn insn_lslv(rd, rn, rm) { return core.insn_lslv(rd, rn, rm) }
 fn insn_lsrv(rd, rn, rm) { return core.insn_lsrv(rd, rn, rm) }
 fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
 fn insn_cset(rd, cond) { return core.insn_cset(rd, cond) }
-fn insn_b(off) { return core.insn_b(off) }
-fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
-fn insn_bl(off) { return core.insn_bl(off) }
-fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
-fn insn_sub_reg(rd, rn, rm) { return core.insn_sub_reg(rd, rn, rm) }
+	fn insn_b(off) { return core.insn_b(off) }
+	fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
+	fn insn_bl(off) { return core.insn_bl(off) }
+	fn insn_blr(rn) { return core.insn_blr(rn) }
+	fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
+	fn insn_sub_reg(rd, rn, rm) { return core.insn_sub_reg(rd, rn, rm) }
 fn insn_stp_pre() { return core.insn_stp_pre() }
 fn insn_ldp_post() { return core.insn_ldp_post() }
 fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }

@@ -6,15 +6,18 @@
 @oren.keep
 fn oren_func(code_ptr, env_ptr) {
     if code_ptr == 0 { return 0 }
-    var obj = malloc(16)
+    // IMPORTANT (native runtime model):
+    // Function objects must be tracked allocations with kind=6 so:
+    // - `oren_is_func` can classify them cheaply via `oren_find_node`
+    // - GC can traverse the closure environment pointer at +8
+    //
+    // Do not rely on "malloc then patch kind" because some runtime paths intentionally keep
+    // small raw allocations untracked (for cstr0 pools, argv/envp, etc).
+    var obj = malloc_k(16, 6)
     if obj == 0 { exit(320) }
+    if obj == -1 { exit(320) }
     ptr_set(obj, code_ptr)
     ptr_set(iadd(obj, 8), env_ptr)
-    // Update kind to 6 (FUNC) so GC can traverse env_ptr.
-    var node = oren_find_node(obj)
-    if node != 0 {
-        ptr_set(iadd(node, 16), 6)
-    }
     return obj
 }
 

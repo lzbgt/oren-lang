@@ -46,6 +46,11 @@ Important remaining nuance:
 - The runtime is still evolving toward **true OS threads** + **M:N scheduling**; once multiple OS threads
   exist, GC, allocator metadata, and shared runtime structures must be made concurrency-correct.
 
+Rolling status (fact):
+
+- Linux now has a **syscall-first OS-thread substrate** (clone wrapper + futex join) as groundwork for Stage N2,
+  but it is **not** the default `spawn` path yet (see `lib/runtime_native/266_linux_os_threads.oren` and `docs/NATIVE_GMP_SCHEDULER.md`).
+
 This is one reason OS-thread + scheduler work (and a coherent thread-safe GC model) is considered P0 for scaling compilation and agentic workloads.
 
 ## Limitations & next steps

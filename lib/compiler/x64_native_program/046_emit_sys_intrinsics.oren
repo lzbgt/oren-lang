@@ -554,15 +554,49 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _intr_eval_spill_x64(ctx, locals, args[3], tmp_to)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_ulw); return nil }
 
-        // futex(uaddr, FUTEX_WAIT|PRIVATE, val, timeout=NULL, uaddr2=NULL, val3=0)
+        // futex(uaddr, FUTEX_WAIT|PRIVATE, val, timeout, uaddr2=NULL, val3=0)
         _intr_load_x64(ctx, 7, tmp_addr) // rdi = uaddr
         bytes_extend(ctx["code"], insn_mov_r32_imm32(6, 128)) // esi = FUTEX_WAIT_PRIVATE
+
+        // timeout:
+        // - timeout_us==0 => timeout=NULL (wait forever)
+        // - else => build a stack timespec and pass pointer (relative timeout)
+        //
+        // NOTE: Linux futex(2) expects `struct timespec { long tv_sec; long tv_nsec; }`.
+        // We allocate 16 bytes on the stack unconditionally and pass NULL when timeout_us==0.
+        _intr_load_x64(ctx, 1, tmp_to) // rcx = timeout_us
+        bytes_extend(ctx["code"], insn_sub_rsp_imm8(16))
+        var labels_to = {}
+        var fixups_to = []
+        var l_no_to = _new_label(ctx, "ulw_no_timeout")
+        var l_to_done = _new_label(ctx, "ulw_timeout_done")
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
+        _emit_jcc_to_label(ctx, fixups_to, "e", l_no_to)
+
+        // rax = timeout_us; rdx = 0; rcx = 1_000_000; idiv rcx => rax=sec, rdx=rem_us
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 1))
+        bytes_extend(ctx["code"], insn_xor_r64_r64(2, 2))
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 1000000))
+        bytes_extend(ctx["code"], insn_idiv_r64(1))
+        // [rsp+0] = tv_sec
+        bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(0, 0))
+        // tv_nsec = rem_us * 1000
+        bytes_extend(ctx["code"], insn_imul_r64_imm32(2, 1000))
+        bytes_extend(ctx["code"], insn_mov_mrsp_disp8_r64(8, 2))
+        // r10 = &timespec
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 4))
+        _emit_jmp_to_label(ctx, fixups_to, l_to_done)
+        _emit_label(ctx, labels_to, l_no_to)
+        bytes_extend(ctx["code"], insn_xor_r64_r64(10, 10)) // r10 = NULL
+        _emit_label(ctx, labels_to, l_to_done)
+        _patch_local_fixups(ctx, labels_to, fixups_to)
+
         _intr_load_x64(ctx, 2, tmp_val)  // rdx = val
-        bytes_extend(ctx["code"], insn_xor_r64_r64(10, 10)) // r10 = timeout = NULL (timeout_us ignored today)
         bytes_extend(ctx["code"], insn_xor_r64_r64(8, 8))   // r8 = uaddr2 = NULL
         bytes_extend(ctx["code"], insn_xor_r64_r64(9, 9))   // r9 = val3 = 0
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_futex()))
         bytes_extend(ctx["code"], insn_syscall())
+        bytes_extend(ctx["code"], insn_add_rsp_imm8(16))
 
         // Normalize: non-negative => 0, negative => -errno.
         var labels_ulw = {}
@@ -1429,17 +1463,26 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
     }
 
     if nm == "sys_clone" {
-        if oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_clone expects 2 args"); return nil }
+        if oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_clone expects 5 args"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_clone does not support spread"); return nil }
 
-        var base15 = _intr_tmp_push(ctx, 2) // flags, stack
+        var base15 = _intr_tmp_push(ctx, 5) // flags, stack, ptid, ctid, tls
         if oren_type_tag(base15) == 0 { return nil }
         var tmp_flags = _intr_tmp_off(ctx, locals, base15 + 0)
         var tmp_stack = _intr_tmp_off(ctx, locals, base15 + 1)
-        if oren_type_tag(tmp_flags) == 0 || oren_type_tag(tmp_stack) == 0 { _intr_tmp_pop(ctx, base15); return nil }
+        var tmp_ptid = _intr_tmp_off(ctx, locals, base15 + 2)
+        var tmp_ctid = _intr_tmp_off(ctx, locals, base15 + 3)
+        var tmp_tls = _intr_tmp_off(ctx, locals, base15 + 4)
+        if oren_type_tag(tmp_flags) == 0 || oren_type_tag(tmp_stack) == 0 || oren_type_tag(tmp_ptid) == 0 || oren_type_tag(tmp_ctid) == 0 || oren_type_tag(tmp_tls) == 0 {
+            _intr_tmp_pop(ctx, base15)
+            return nil
+        }
 
         _intr_eval_spill_x64(ctx, locals, args[0], tmp_flags)
         _intr_eval_spill_x64(ctx, locals, args[1], tmp_stack)
+        _intr_eval_spill_x64(ctx, locals, args[2], tmp_ptid)
+        _intr_eval_spill_x64(ctx, locals, args[3], tmp_ctid)
+        _intr_eval_spill_x64(ctx, locals, args[4], tmp_tls)
         if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base15); return nil }
 
         // pre: native_capsule_sys_clone_pre()
@@ -1449,13 +1492,111 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
 
         _intr_load_x64(ctx, 7, tmp_flags) // rdi = flags
         _intr_load_x64(ctx, 6, tmp_stack) // rsi = stack
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0))  // rdx = ptid=0
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 0)) // r10 = ctid=0
-        bytes_extend(ctx["code"], insn_mov_r32_imm32(8, 0))  // r8 = tls=0
+        _intr_load_x64(ctx, 2, tmp_ptid)  // rdx = ptid
+        _intr_load_x64(ctx, 10, tmp_ctid) // r10 = ctid
+        _intr_load_x64(ctx, 8, tmp_tls)   // r8 = tls
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_clone()))
         bytes_extend(ctx["code"], insn_syscall())
 
         _intr_tmp_pop(ctx, base15)
+        return nil
+    }
+    
+    if nm == "sys_thread_create" {
+        // Linux-only syscall-first OS thread create (clone wrapper).
+        // Signature: sys_thread_create(start_addr, arg_ptr, stack_top, ctid_ptr) -> tid or -errno.
+        if oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_thread_create expects 4 args"); return nil }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_thread_create does not support spread"); return nil }
+
+        var base_tc = _intr_tmp_push(ctx, 4) // start_addr, arg_ptr, stack_top, ctid_ptr
+        if oren_type_tag(base_tc) == 0 { return nil }
+        var tmp_start = _intr_tmp_off(ctx, locals, base_tc + 0)
+        var tmp_arg = _intr_tmp_off(ctx, locals, base_tc + 1)
+        var tmp_stack_top = _intr_tmp_off(ctx, locals, base_tc + 2)
+        var tmp_ctid = _intr_tmp_off(ctx, locals, base_tc + 3)
+        if oren_type_tag(tmp_start) == 0 || oren_type_tag(tmp_arg) == 0 || oren_type_tag(tmp_stack_top) == 0 || oren_type_tag(tmp_ctid) == 0 {
+            _intr_tmp_pop(ctx, base_tc)
+            return nil
+        }
+
+        _intr_eval_spill_x64(ctx, locals, args[0], tmp_start)
+        _intr_eval_spill_x64(ctx, locals, args[1], tmp_arg)
+        _intr_eval_spill_x64(ctx, locals, args[2], tmp_stack_top)
+        _intr_eval_spill_x64(ctx, locals, args[3], tmp_ctid)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base_tc); return nil }
+
+        // Only lower this intrinsic for non-Windows targets.
+        //
+        // IMPORTANT: do not infer the target OS from ABI details (shadow space, arg regs, ...):
+        // we generate Linux syscalls here, and some rolling build paths may temporarily select
+        // a Windows-ish ABI shape while still targeting ELF/Linux.
+        var platform_tc = ctx["platform"]
+        if platform_tc != nil && platform_tc["os"] == "windows" {
+            _emit_return_enosys_x64(ctx)
+            _intr_tmp_pop(ctx, base_tc)
+            return nil
+        }
+
+        // pre: native_capsule_sys_clone_pre()
+        // (sys_thread_create is a clone wrapper; reuse the same capsule hook.)
+        if capsule {
+            _emit_call_rel32_named_x64(ctx, "native_capsule_sys_clone_pre")
+        }
+
+        // Linux clone(2) flags for a real OS thread in the same address space:
+        //   CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD | CLONE_SYSVSEM |
+        //   CLONE_PARENT_SETTID | CLONE_CHILD_CLEARTID | CLONE_CHILD_SETTID
+        //
+        // Constants verified against:
+        //   project-doc/web/linux/include_uapi_linux_sched.h
+        var flags = 0x01350F00
+
+        // Preserve the start routine and argument across the clone syscall in callee-saved regs.
+        //
+        // Rationale:
+        // - `syscall` clobbers RCX/R11 (per the x86_64 ABI), but preserves other GPRs.
+        // - Using registers avoids relying on "write start/arg onto child stack" encodings, which
+        //   are easy to get subtly wrong with REX prefixes and can crash immediately in the child.
+        _intr_load_x64(ctx, 12, tmp_start) // r12 = start_addr
+        _intr_load_x64(ctx, 13, tmp_arg)   // r13 = arg_ptr
+
+        // Set child's SP to stack_top aligned down to 16 so that *before* `call`,
+        // RSP is 16-byte aligned (SysV ABI). After `call` pushes a return address,
+        // the callee sees the standard RSP%16==8 at function entry.
+        _intr_load_x64(ctx, 6, tmp_stack_top) // rsi = stack_top
+        // NOTE: `insn_and_r64_imm32` takes an *unsigned* u32 immediate. Use 0xFFFFFFF0 for -16.
+        // See similar usage in `x64_native_program/040_emit_expr.oren`.
+        bytes_extend(ctx["code"], insn_and_r64_imm32(6, 4294967280)) // align down to 16
+
+        // clone(flags, child_stack, ptid, ctid, tls)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(7, flags)) // edi = flags
+        _intr_load_x64(ctx, 2, tmp_ctid)  // rdx = ptid (reuse ctid_ptr for parent_tid)
+        _intr_load_x64(ctx, 10, tmp_ctid) // r10 = ctid_ptr
+        bytes_extend(ctx["code"], insn_xor_r64_r64(8, 8)) // r8 = tls = 0
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_clone()))
+        bytes_extend(ctx["code"], insn_syscall())
+
+        // If child: run start(arg) and then sys_exit(0). Never return to caller frame.
+        var labels_tc = {}
+        var fixups_tc = []
+        var l_tc_done = _new_label(ctx, "tc_done")
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        _emit_jcc_to_label(ctx, fixups_tc, "ne", l_tc_done)
+
+        // Child path: call start_addr(arg_ptr)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 13)) // rdi = r13 (arg_ptr)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 12)) // rax = r12 (start_addr)
+        bytes_extend(ctx["code"], insn_call_rax())
+
+        // sys_exit(0)
+        bytes_extend(ctx["code"], insn_xor_r64_r64(7, 7)) // rdi = 0
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_exit()))
+        bytes_extend(ctx["code"], insn_syscall())
+
+        _emit_label(ctx, labels_tc, l_tc_done)
+        _patch_local_fixups(ctx, labels_tc, fixups_tc)
+
+        _intr_tmp_pop(ctx, base_tc)
         return nil
     }
 

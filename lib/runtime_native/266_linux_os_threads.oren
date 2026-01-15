@@ -1,0 +1,152 @@
+// --- Linux OS threads (syscall-first; clone + futex via ulock) ---
+//
+// This module provides a minimal OS-thread spawn/join substrate for Stage N2 (GMP, M:N).
+//
+// IMPORTANT (rolling):
+// - This is intentionally *not* wired into the language-level `spawn` yet.
+// - The default `spawn` on Linux remains green tasks (N:1) to avoid data races until the
+//   allocator + GC + shared runtime structures have a coherent N:M safepoint plan.
+//
+// Design:
+// - Thread creation uses `sys_thread_create(...)`, a compiler intrinsic that wraps clone(2)
+//   safely (child never returns to the caller frame).
+// - Thread join uses CLONE_CHILD_CLEARTID + futex wait via the existing portable
+//   `sys_ulock_wait/sys_ulock_wake` interface (Linux lowering is futex).
+//
+// References:
+// - docs/MEMORY.md (why OS threads are P0 for scaling)
+// - docs/NATIVE_GMP_SCHEDULER.md (Stage N2 plan)
+// - project-doc/web/linux/include_uapi_linux_sched.h (CLONE_* constants)
+
+// Debug: last OS-thread spawn error (rolling, best-effort).
+// - 0 => no error
+// - <0 => -errno returned by sys_thread_create / syscalls
+// - -1 => generic failure (precondition/mmap/start_addr)
+var g_linux_os_thread_last_err = 0
+
+fn _linux_thr_off_stack_base() { return 0 }    // u64
+fn _linux_thr_off_stack_size() { return 8 }    // u64
+fn _linux_thr_off_result() { return 16 }       // u64
+fn _linux_thr_off_fn_obj() { return 24 }       // u64 (kind=6 FUNC)
+fn _linux_thr_off_args_list() { return 32 }    // u64
+fn _linux_thr_off_tid() { return 40 }          // u64 (best-effort debug)
+fn _linux_thr_off_ctid_i32() { return 48 }     // i32 (futex / CLONE_CHILD_CLEARTID slot)
+fn _linux_thr_bytes() { return 64 }
+
+fn _linux_thr_meta_bytes() {
+    // Page-aligned mapping so futex/ulock waits are valid.
+    return 16384
+}
+
+fn _linux_thr_stack_bytes_default() {
+    // Rolling default: 1 MiB per OS thread stack.
+    // (GMP will later use smaller per-G stacks; Ms need a real OS stack.)
+    return 1048576
+}
+
+@oren.keep
+fn __oren_linux_os_thread_entry(meta) {
+    if meta == 0 { return 0 }
+
+    // Register this OS thread with the runtime so allocator/GC can discover its stack
+    // conservatively when true OS-thread scheduling is enabled.
+    //
+    // Debug escape hatch for bring-up.
+    var no_reg = native_envp_get_value_ptr("OREN_NO_THREAD_REGISTER")
+    if no_reg == 0 || ptr_get_byte(no_reg) == 0 {
+        oren_register_thread(get_sp())
+    }
+
+    var fn_obj = ptr_get(meta + _linux_thr_off_fn_obj())
+    var args_list = ptr_get(meta + _linux_thr_off_args_list())
+    var ret = 0
+    if fn_obj != 0 {
+        ret = oren_call_obj_list(fn_obj, args_list)
+    }
+    ptr_set(meta + _linux_thr_off_result(), ret)
+    return 0
+}
+
+fn oren_linux_os_thread_spawn_call_list(fn_obj, args_list) {
+    if g_target_os != 2 { return 0 }
+    g_linux_os_thread_last_err = 0
+    if fn_obj == 0 { g_linux_os_thread_last_err = -1; return 0 }
+    if oren_is_func(fn_obj) != true { g_linux_os_thread_last_err = -1; return 0 }
+
+    var meta_bytes = _linux_thr_meta_bytes()
+    var meta = sys_mmap_private_anon(meta_bytes)
+    if meta == 0 || meta == -1 || meta < 4096 { g_linux_os_thread_last_err = -1; return 0 }
+
+    var stack_bytes = _linux_thr_stack_bytes_default()
+    var stack_base = sys_mmap_private_anon(stack_bytes)
+    if stack_base == 0 || stack_base == -1 || stack_base < 4096 {
+        sys_munmap(meta, meta_bytes)
+        g_linux_os_thread_last_err = -1
+        return 0
+    }
+    var stack_top = stack_base + stack_bytes
+
+    // Initialize metadata (raw, not GC-managed).
+    ptr_set(meta + _linux_thr_off_stack_base(), stack_base)
+    ptr_set(meta + _linux_thr_off_stack_size(), stack_bytes)
+    ptr_set(meta + _linux_thr_off_result(), 0)
+    ptr_set(meta + _linux_thr_off_fn_obj(), fn_obj)
+    ptr_set(meta + _linux_thr_off_args_list(), args_list)
+    ptr_set(meta + _linux_thr_off_tid(), 0)
+    oren_ptr_set_i32_le(meta + _linux_thr_off_ctid_i32(), 0)
+
+    var start_addr = oren_code_addr(__oren_linux_os_thread_entry)
+    if start_addr == 0 {
+        sys_munmap(stack_base, stack_bytes)
+        sys_munmap(meta, meta_bytes)
+        g_linux_os_thread_last_err = -1
+        return 0
+    }
+
+    // ctid_ptr is an i32 slot used by CLONE_*TID flags (futex wait-on-address).
+    var ctid_ptr = meta + _linux_thr_off_ctid_i32()
+    var tid = sys_thread_create(start_addr, meta, stack_top, ctid_ptr)
+    if tid <= 0 {
+        g_linux_os_thread_last_err = tid
+        sys_munmap(stack_base, stack_bytes)
+        sys_munmap(meta, meta_bytes)
+        return 0
+    }
+    ptr_set(meta + _linux_thr_off_tid(), tid)
+    return meta
+}
+
+fn oren_linux_os_thread_is_done(handle) {
+    if g_target_os != 2 { return false }
+    if handle == 0 { return true }
+    var ctid = oren_ptr_get_i32_le(handle + _linux_thr_off_ctid_i32())
+    return ctid == 0
+}
+
+fn oren_linux_os_thread_join_timeout(handle, timeout_us) {
+    if g_target_os != 2 { return 0 }
+    if handle == 0 { return 0 }
+
+    var ctid_ptr = handle + _linux_thr_off_ctid_i32()
+    while true {
+        var ctid = oren_ptr_get_i32_le(ctid_ptr)
+        if ctid == 0 { break }
+        // Wait while *ctid_ptr == ctid. Kernel clears ctid to 0 and wakes waiters on thread exit.
+        //
+        // operation=UL_COMPARE_AND_WAIT (1)
+        var rc = sys_ulock_wait(1, ctid_ptr, ctid, timeout_us)
+        if rc == -60 { return -60 } // ETIMEDOUT
+        // EAGAIN / EINTR / spurious wake => retry.
+    }
+
+    var ret = ptr_get(handle + _linux_thr_off_result())
+
+    // Release resources owned by the joiner (parent).
+    var stack_base = ptr_get(handle + _linux_thr_off_stack_base())
+    var stack_size = ptr_get(handle + _linux_thr_off_stack_size())
+    if stack_base != 0 && stack_size > 0 {
+        sys_munmap(stack_base, stack_size)
+    }
+    sys_munmap(handle, _linux_thr_meta_bytes())
+    return ret
+}

@@ -337,6 +337,15 @@ References:
      - Rationale: the nil-compare guard is always-on; stdlib must not model “optional int” by comparing numeric scalars to `nil`.
      - Fix: replace numeric `x == nil` checks with `oren_type_tag(x) == 0` defaults in `lib/std/net/*`.
      - Guard: `make verify-native-x64-compile` (stage1 + stage2 emit x64-linux + x64-windows).
+	   - 2026-01-15: Linux syscall-first OS-thread substrate (clone wrapper + futex join) landed.
+	     - Compiler: add `sys_thread_create(start_addr, arg_ptr, stack_top, ctid_ptr)` intrinsic lowered to clone(2) with a safe child trampoline
+	       (child never returns to the caller stack frame).
+	     - Compiler (x64-linux): fix stack alignment masking in the clone trampoline: `insn_and_r64_imm32` takes an unsigned u32 immediate,
+	       so the “align down to 16” mask must be `0xFFFFFFF0` (`4294967280`), not `-16` (otherwise child_stack can collapse to 0).
+	     - Compiler: extend `sys_clone(flags, stack, ptid, ctid, tls)` to the full 5-arg Linux syscall ABI (required for CLONE_*TID).
+	     - Runtime: `lib/runtime_native/266_linux_os_threads.oren` (spawn/join substrate for Stage N2; not wired into language `spawn` yet).
+	     - Runtime: `sys_ulock_wait` Linux lowering now supports `timeout_us` by passing a relative futex timespec (prevents infinite hangs).
+	     - Guard: `make test` includes `tests/native/test_linux_os_thread_smoke.oren` (skips on non-Linux).
 
    Next steps (actionable, highest leverage first):
 
@@ -344,7 +353,10 @@ References:
      - macOS arm64: finish the `bsdthread_register` story and define the runtime-owned threadstart stub:
        - implement/install threadstart stub at process init (call `native_runtime_threading_init(...)` early)
        - wire `sys_bsdthread_create/terminate` to a runtime `oren_os_thread_spawn(...)` primitive
-     - Linux x64/arm64: design a narrow `sys_thread_create` abstraction (likely `clone` with `CLONE_VM|CLONE_FS|...`) + safe stack/TLS init
+     - Linux x64/arm64: extend the syscall-first OS-thread substrate toward production:
+       - add TLS story (`CLONE_SETTLS`) once runtime uses/needs a real thread pointer
+       - unify the Linux `M` abstraction with Windows/Darwin (shared scheduler-facing shape)
+       - add a regression gate that proves join cannot hang indefinitely (timeout path)
      - Windows x64: unify existing CreateThread-based `spawn` with the same scheduler-facing `M` abstraction (keep WaitForSingleObject join)
    - Parking/unparking primitive for idle `M` (required to avoid spin):
      - macOS: ulock-based park/wake for `P` (pairs with `sys_ulock_wait/sys_ulock_wake`)

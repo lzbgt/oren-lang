@@ -496,7 +496,7 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
                 var sys_reg = abi.darwin_syscall_reg()
                 if ctx["platform"]["os"] == "linux" {
                     // Linux mapping: futex(FUTEX_WAIT_PRIVATE).
-                    // futex(uaddr, FUTEX_WAIT|PRIVATE, val, timeout=NULL, uaddr2=NULL, val3=0)
+                    // futex(uaddr, FUTEX_WAIT|PRIVATE, val, timeout, uaddr2=NULL, val3=0)
                     svc_imm = labi.linux_svc_imm()
                     sys_reg = labi.linux_syscall_reg()
 
@@ -504,17 +504,58 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
                     // - X0 = uaddr (addr)
                     // - X1 = FUTEX_WAIT_PRIVATE (128)
                     // - X2 = val (value)
-                    // - X3 = timeout = NULL (timeout_us ignored today; runtime uses 0 => forever)
+                    // - X3 = timeout = NULL (timeout_us==0) or &timespec (timeout_us!=0)
                     // - X4 = uaddr2 = NULL
                     // - X5 = val3 = 0
                     push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // X0 = addr
                     push_u32_le(ctx["code"], insn_movz(1, 128))  // X1 = FUTEX_WAIT_PRIVATE
-                    push_u32_le(ctx["code"], insn_movz(3, 0))    // X3 = NULL
+
+                    // timeout_us -> futex timespec (relative)
+                    // Reserve 16 bytes on the stack for:
+                    //   struct timespec { u64 tv_sec; u64 tv_nsec; }
+                    // and pass NULL when timeout_us==0.
+                    push_u32_le(ctx["code"], insn_mov_reg(6, 3)) // X6 = timeout_us
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+
+                    // if timeout_us == 0: X3 = NULL
+                    push_u32_le(ctx["code"], insn_cmp_reg(6, 31)) // CMP X6, XZR
+                    var br_have_to = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B.NE have_timeout
+                    push_u32_le(ctx["code"], insn_movz(3, 0)) // X3 = NULL
+                    var br_skip_to = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B done_timeout
+
+                    // have_timeout:
+                    var have_pos = bytes_len(ctx["code"])
+                    // sec = timeout_us / 1_000_000
+                    emit_load_u64_imm(ctx, 8, 1000000) // X8 = 1_000_000
+                    push_u32_le(ctx["code"], insn_udiv(7, 6, 8)) // X7 = sec
+                    // rem_us = timeout_us - sec*1_000_000
+                    push_u32_le(ctx["code"], insn_mul(9, 7, 8)) // X9 = sec*1_000_000
+                    push_u32_le(ctx["code"], insn_sub_reg(9, 6, 9)) // X9 = rem_us
+                    // nsec = rem_us * 1000
+                    emit_load_u64_imm(ctx, 10, 1000)
+                    push_u32_le(ctx["code"], insn_mul(9, 9, 10)) // X9 = nsec
+                    // Store timespec to [sp]
+                    push_u32_le(ctx["code"], insn_str_reg_sp(7, 0)) // tv_sec
+                    push_u32_le(ctx["code"], insn_str_reg_sp(9, 8)) // tv_nsec
+                    // X3 = &timespec (SP)
+                    push_u32_le(ctx["code"], insn_add_imm(3, 31, 0))
+
+                    var done_pos = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_have_to, insn_b_cond((have_pos - br_have_to) / 4, 1)) // NE
+                    set_u32_le(ctx["code"], br_skip_to, insn_b((done_pos - br_skip_to) / 4))
+
                     push_u32_le(ctx["code"], insn_movz(4, 0))    // X4 = NULL
                     push_u32_le(ctx["code"], insn_movz(5, 0))    // X5 = 0
 
                     push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_futex()))
                     emit_svc_preserve_heap(ctx, svc_imm)
+
+                    // Pop the optional timespec scratch slot.
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
 
                     // Normalize: rc>=0 => 0, else keep -errno.
                     push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // CMP X0, XZR

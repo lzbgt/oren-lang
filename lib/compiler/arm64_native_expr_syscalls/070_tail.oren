@@ -378,6 +378,100 @@
             }
             
 
+            if fn_name == "sys_thread_create" {
+                // Linux-only: syscall-first OS thread creation (clone wrapper).
+                //
+                // Signature:
+                //   sys_thread_create(start_addr, arg_ptr, stack_top, ctid_ptr) -> tid (parent) / -errno
+                //
+                // Lowering contract:
+                // - In the child, this intrinsic must never return to the caller frame (different SP).
+                // - It calls start_addr(arg_ptr) and then terminates the OS thread via sys_exit(0).
+
+                compile_expr(ctx, args[0]) // start_addr -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                compile_expr(ctx, args[1]) // arg_ptr -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                compile_expr(ctx, args[2]) // stack_top -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                compile_expr(ctx, args[3]) // ctid_ptr -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                // pre: native_capsule_sys_clone_pre()
+                if capsule {
+                    var bl_tc_pre = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_tc_pre, "name": "native_capsule_sys_clone_pre"})
+                }
+
+                // Load args from the parent stack into scratch regs and pop the temp slots.
+                // Stack layout (top..): ctid@0, stack_top@16, arg@32, start@48
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(12, 0))  // X12 = ctid_ptr
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(11, 16)) // X11 = stack_top
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(10, 32)) // X10 = arg_ptr
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 48))  // X9  = start_addr
+                push_u32_le(ctx["code"], insn_add_sp(64))
+                ctx["stack_size"] = ctx["stack_size"] - 64
+
+                if ctx["platform"]["os"] != "linux" {
+                    push_u32_le(ctx["code"], insn_movn(0, 0)) // -1
+                    return true
+                }
+
+                // Prepare child initial stack:
+                //   child_sp = (stack_top - 16)
+                //   [child_sp+0] = start_addr
+                //   [child_sp+8] = arg_ptr
+                push_u32_le(ctx["code"], insn_sub_imm(11, 11, 16)) // X11 = child_sp
+                push_u32_le(ctx["code"], insn_str_ptr(9, 11))      // *(u64*)child_sp = start_addr
+                push_u32_le(ctx["code"], insn_add_imm(13, 11, 8))  // X13 = child_sp + 8
+                push_u32_le(ctx["code"], insn_str_ptr(10, 13))     // *(u64*)(child_sp+8) = arg_ptr
+
+                // clone(flags, child_stack, ptid, ctid, tls)
+                // Flags verified against:
+                //   project-doc/web/linux/include_uapi_linux_sched.h
+                //   CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM|
+                //   CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID
+                emit_load_u64_imm(ctx, 0, 0x01350F00) // X0 = flags
+                push_u32_le(ctx["code"], insn_mov_reg(1, 11)) // X1 = child_sp
+                push_u32_le(ctx["code"], insn_mov_reg(2, 12)) // X2 = ptid (reuse ctid_ptr)
+                push_u32_le(ctx["code"], insn_mov_reg(3, 12)) // X3 = ctid_ptr
+                push_u32_le(ctx["code"], insn_movz(4, 0))     // X4 = tls = 0
+
+                push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_clone()))
+                emit_svc_preserve_heap(ctx, labi.linux_svc_imm())
+
+                // Child path: if X0 == 0, run start(arg) and sys_exit(0).
+                var br_parent = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.NE parent_done
+
+                // X9 = *(u64*)SP (start_addr); X0 = *(u64*)(SP+8) (arg_ptr)
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 0))
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 8))
+                push_u32_le(ctx["code"], insn_blr(9))
+
+                // sys_exit(0) (terminate thread; must not return)
+                push_u32_le(ctx["code"], insn_movz(0, 0)) // exit code
+                push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_exit()))
+                emit_svc_preserve_heap(ctx, labi.linux_svc_imm())
+
+                var parent_pos = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_parent, insn_b_cond((parent_pos - br_parent) / 4, 1)) // NE
+                return true
+            }
+            
+
             if fn_name == "sys_clone" {
                 compile_expr(ctx, args[0]) // flags -> X0
                 push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -385,6 +479,21 @@
                 ctx["stack_size"] = ctx["stack_size"] + 16
     
                 compile_expr(ctx, args[1]) // stack -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                compile_expr(ctx, args[2]) // ptid -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                compile_expr(ctx, args[3]) // ctid -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+    
+                compile_expr(ctx, args[4]) // tls -> X0
                 push_u32_le(ctx["code"], insn_sub_sp(16))
                 push_u32_le(ctx["code"], insn_str_x0_sp(0))
                 ctx["stack_size"] = ctx["stack_size"] + 16
@@ -397,18 +506,17 @@
                 }
     
                 // Load args for syscall:
-                // Stack layout: stack@0, flags@16
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 16)) // flags
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))  // stack
+                // Stack layout (top..):
+                //   tls@0, ctid@16, ptid@32, stack@48, flags@64
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 64)) // flags
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 48)) // stack
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 32)) // ptid
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 16)) // ctid
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 0))  // tls
     
-                // Pop args (2 slots).
-                push_u32_le(ctx["code"], insn_add_sp(32))
-                ctx["stack_size"] = ctx["stack_size"] - 32
-                
-                // Clear other args
-                push_u32_le(ctx["code"], insn_movz(2, 0))
-                push_u32_le(ctx["code"], insn_movz(3, 0))
-                push_u32_le(ctx["code"], insn_movz(4, 0))
+                // Pop args (5 slots).
+                push_u32_le(ctx["code"], insn_add_sp(80))
+                ctx["stack_size"] = ctx["stack_size"] - 80
                 
                 if ctx["platform"]["os"] == "linux" {
                     push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_clone())) // sys_clone
