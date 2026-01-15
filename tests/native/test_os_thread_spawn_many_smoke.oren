@@ -1,4 +1,4 @@
-// OS-thread M substrate: spawn/join-many smoke (Linux + Windows).
+// OS-thread M substrate: spawn/join-many smoke (macOS + Linux + Windows).
 //
 // Purpose:
 // - Prove that we can spawn multiple OS threads in-process and join them
@@ -45,7 +45,7 @@ fn __oren_test_os_thread_spawn_many_worker(meta) {
 }
 
 fn main() {
-    if g_target_os != 2 && g_target_os != 3 {
+    if g_target_os != 1 && g_target_os != 2 && g_target_os != 3 {
         print("skip: os thread spawn-many (target_os=" + oren_int_to_string(g_target_os) + ")")
         return 0
     }
@@ -110,4 +110,3 @@ fn main() {
     print("ok: os thread spawn-many smoke (n=" + oren_int_to_string(n) + ")")
     return 0
 }
-

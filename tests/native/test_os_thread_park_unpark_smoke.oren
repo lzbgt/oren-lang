@@ -1,4 +1,4 @@
-// OS-thread M substrate: park/unpark smoke (Linux + Windows).
+// OS-thread M substrate: park/unpark smoke (macOS + Linux + Windows).
 //
 // Purpose:
 // - Prove that the runtime can:
@@ -32,7 +32,7 @@ fn __oren_test_os_thread_worker(meta) {
 }
 
 fn main() {
-    if g_target_os != 2 && g_target_os != 3 {
+    if g_target_os != 1 && g_target_os != 2 && g_target_os != 3 {
         print("skip: os thread park/unpark (target_os=" + oren_int_to_string(g_target_os) + ")")
         return 0
     }
@@ -96,4 +96,3 @@ fn main() {
     print("ok: os thread park/unpark smoke")
     return 0
 }
-

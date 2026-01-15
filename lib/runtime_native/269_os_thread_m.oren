@@ -2,7 +2,7 @@
 //
 // This module defines a *runtime-owned* OS-thread abstraction that is:
 // - libc-free (syscall-first)
-// - cross-platform (Linux clone wrapper; Windows CreateThread; macOS TBD)
+// - cross-platform (Linux clone wrapper; Windows CreateThread; macOS bsdthread syscall-first when available)
 // - minimal and safe: it does NOT attempt to make the full runtime GC/heap concurrent yet.
 //
 // Why this exists:
@@ -22,7 +22,7 @@
 // - Once more than one OS thread is running, the runtime is in a "multi-threaded" mode and must
 //   avoid doing GC/allocator-heavy work concurrently until a safepoint protocol exists.
 
-fn _m_handle_kind_off() { return 0 }       // u64 (2=linux, 3=windows)
+fn _m_handle_kind_off() { return 0 }       // u64 (1=macos, 2=linux, 3=windows)
 fn _m_handle_th_off() { return 8 }         // u64 (linux tid or windows HANDLE)
 fn _m_handle_stack_base_off() { return 16 } // u64 (linux only)
 fn _m_handle_stack_bytes_off() { return 24 } // u64 (linux only)
@@ -107,6 +107,22 @@ fn oren_os_thread_spawn(start_addr, arg_ptr) {
     ptr_set(h + _m_handle_stack_bytes_off(), 0)
     oren_ptr_set_i32_le(h + _m_handle_ctid_off(), 0)
 
+    if g_target_os == 1 {
+        // macOS: prefer syscall-first bsdthread when available; otherwise fall back to pthread_create
+        // (see `lib/runtime_native/264_darwin_os_threads.oren`).
+        var prev_single = g_runtime_single_threaded
+        g_runtime_single_threaded = 0
+        var meta = oren_darwin_os_thread_spawn_raw(start_addr, arg_ptr)
+        if meta == 0 {
+            g_runtime_single_threaded = prev_single
+            sys_munmap(h, _m_handle_bytes())
+            return 0
+        }
+        ptr_set(h + _m_handle_kind_off(), 1)
+        ptr_set(h + _m_handle_th_off(), meta)
+        return h
+    }
+
     if g_target_os == 2 {
         // Linux: clone wrapper.
         // IMPORTANT: Once we start an additional OS thread, runtime services must stop using any
@@ -176,6 +192,11 @@ fn oren_os_thread_spawn(start_addr, arg_ptr) {
 fn oren_os_thread_join_timeout(handle, timeout_us) {
     if handle == 0 { return -5 }
     var kind = ptr_get(handle + _m_handle_kind_off())
+    if kind == 1 {
+        var meta = ptr_get(handle + _m_handle_th_off())
+        if meta == 0 { return -5 }
+        return oren_darwin_os_thread_join_timeout(meta, timeout_us)
+    }
     if kind == 2 {
         // Linux join: wait for CLONE_CHILD_CLEARTID slot to become 0.
         var ctid_ptr = handle + _m_handle_ctid_off()
@@ -217,6 +238,12 @@ fn oren_os_thread_join_timeout(handle, timeout_us) {
 fn oren_os_thread_destroy(handle) {
     if handle == 0 { return 0 }
     var kind = ptr_get(handle + _m_handle_kind_off())
+    if kind == 1 {
+        var meta = ptr_get(handle + _m_handle_th_off())
+        if meta != 0 { oren_darwin_os_thread_destroy(meta) }
+        sys_munmap(handle, _m_handle_bytes())
+        return 0
+    }
     if kind == 2 {
         var stack_base = ptr_get(handle + _m_handle_stack_base_off())
         var stack_bytes = ptr_get(handle + _m_handle_stack_bytes_off())

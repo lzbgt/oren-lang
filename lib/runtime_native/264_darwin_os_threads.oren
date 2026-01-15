@@ -21,6 +21,19 @@ ffi {
     pthread_join as __oren_pthread_join
 }
 
+// On non-macOS targets, this module is still included in the shared native runtime bundle
+// (`lib/runtime_native_core.oren`), but the libpthread/libSystem FFI boundary must not be
+// pulled in. Provide stubs so cross-target compilation (x64-linux/x64-windows) can still
+// build the injected runtime object without requiring macOS-only symbols.
+//
+// IMPORTANT:
+// - These are not intended to be called on non-macOS targets.
+// - Returning `-38` matches the repo’s convention for “not implemented” (ENOSYS).
+@cfg(not_os="macos")
+fn __oren_pthread_create(thread_ptr, attr_ptr, start_addr, arg_ptr) { return -38 }
+@cfg(not_os="macos")
+fn __oren_pthread_join(thread, retval_ptr) { return -38 }
+
 // OrenDarwinThread layout (raw allocation; not GC-managed).
 //
 // IMPORTANT:
@@ -44,7 +57,12 @@ fn _darwin_thr_off_args_list() { return 40 }  // args list
 fn _darwin_thr_off_pthread() { return 48 }    // pthread/TSD area base (for best-effort kport lookup)
 fn _darwin_thr_off_kind() { return 56 }       // 0=bsdthread stack mapping, 1=libpthread thread
 fn _darwin_thr_off_thread() { return 64 }     // pthread_t (u64)
-fn _darwin_thr_bytes() { return 72 }
+// Optional raw-start fields (for scheduler-facing OS-thread spawn):
+// - start_addr: code address of `fn(arg_ptr) -> u64`
+// - arg_ptr: opaque pointer passed to `start_addr`
+fn _darwin_thr_off_start_addr() { return 72 } // u64
+fn _darwin_thr_off_arg_ptr() { return 80 }    // u64
+fn _darwin_thr_bytes() { return 88 }
 
 fn _darwin_thr_stack_bytes_default() {
     // Rolling default: 1 MiB per OS thread stack.
@@ -82,6 +100,8 @@ fn _darwin_thr_new_stack_and_struct(stack_bytes) {
     ptr_set(meta + _darwin_thr_off_pthread(), pthread_area)
     ptr_set(meta + _darwin_thr_off_kind(), 0)
     ptr_set(meta + _darwin_thr_off_thread(), 0)
+    ptr_set(meta + _darwin_thr_off_start_addr(), 0)
+    ptr_set(meta + _darwin_thr_off_arg_ptr(), 0)
     return meta
 }
 
@@ -99,6 +119,8 @@ fn _darwin_thr_new_meta_only() {
     ptr_set(meta + _darwin_thr_off_pthread(), 0)
     ptr_set(meta + _darwin_thr_off_kind(), 1)
     ptr_set(meta + _darwin_thr_off_thread(), 0)
+    ptr_set(meta + _darwin_thr_off_start_addr(), 0)
+    ptr_set(meta + _darwin_thr_off_arg_ptr(), 0)
     return meta
 }
 
@@ -130,13 +152,21 @@ fn __oren_darwin_thread_start(self, kport, fun, arg, stacksize, flags) {
         exit(941)
     }
 
-    // Run the stored Oren function object.
+    // Run either:
+    // - a raw scheduler-facing start function (preferred for syscall-first OS-thread substrate), or
+    // - a stored Oren function object (legacy convenience).
     var meta = arg
-    var fn_obj = ptr_get(meta + _darwin_thr_off_fn_obj())
-    var args_list = ptr_get(meta + _darwin_thr_off_args_list())
     var ret = 0
-    if fn_obj != 0 {
-        ret = oren_call_obj_list(fn_obj, args_list)
+    var start_addr = ptr_get(meta + _darwin_thr_off_start_addr())
+    if start_addr != 0 {
+        var ap = ptr_get(meta + _darwin_thr_off_arg_ptr())
+        ret = native_call1(start_addr, ap)
+    } else {
+        var fn_obj = ptr_get(meta + _darwin_thr_off_fn_obj())
+        var args_list = ptr_get(meta + _darwin_thr_off_args_list())
+        if fn_obj != 0 {
+            ret = oren_call_obj_list(fn_obj, args_list)
+        }
     }
     ptr_set(meta + _darwin_thr_off_result(), ret)
     ptr_set(meta + _darwin_thr_off_done(), 1)
@@ -205,6 +235,27 @@ fn __oren_darwin_pthread_thread_entry(meta) {
     return 0
 }
 
+// pthread-backed raw entry for scheduler-facing `oren_os_thread_spawn(start_addr, arg_ptr)`.
+@oren.keep
+fn __oren_darwin_pthread_thread_entry_raw(meta) {
+    if meta == 0 { return 0 }
+    var no_reg = native_envp_get_value_ptr("OREN_NO_THREAD_REGISTER")
+    if no_reg == 0 || ptr_get_byte(no_reg) == 0 {
+        oren_register_thread(get_sp())
+    }
+
+    var start_addr = ptr_get(meta + _darwin_thr_off_start_addr())
+    var ap = ptr_get(meta + _darwin_thr_off_arg_ptr())
+    var ret = 0
+    if start_addr != 0 {
+        ret = native_call1(start_addr, ap)
+    }
+    ptr_set(meta + _darwin_thr_off_result(), ret)
+    ptr_set(meta + _darwin_thr_off_done(), 1)
+    sys_ulock_wake(257, meta + _darwin_thr_off_done(), 0)
+    return 0
+}
+
 // --- Minimal spawn/join surface (Darwin only) ---
 //
 // This is intentionally not wired into `spawn` yet. It is a substrate used by the
@@ -220,7 +271,13 @@ fn oren_darwin_os_thread_spawn_call_list(fn_obj, args_list) {
     //   `bsdthread_create` and start them inside `__oren_darwin_thread_start` (syscall-first).
     // - Otherwise, fall back to libpthread (`pthread_create`), which correctly initializes the
     //   pthread self/signature and avoids `_pthread_start` traps.
-    if g_darwin_bsdthread_register_last_rv > 0 {
+    // If our syscall `bsdthread_register` succeeded (rv >= 0), the kernel will start new threads
+    // inside our runtime-owned `__oren_darwin_thread_start` stub, so we can safely create threads
+    // without any libpthread dependency.
+    //
+    // Guard with `g_darwin_bsdthread_registered` so a default 0 value does not accidentally
+    // select the syscall path when threading init was never attempted (shared builds).
+    if g_darwin_bsdthread_registered == 1 && g_darwin_bsdthread_register_last_rv >= 0 {
         var meta0 = _darwin_thr_new_stack_and_struct(_darwin_thr_stack_bytes_default())
         if meta0 == 0 { return 0 }
 
@@ -263,6 +320,108 @@ fn oren_darwin_os_thread_spawn_call_list(fn_obj, args_list) {
         return 0
     }
     return meta
+}
+
+// --- Scheduler-facing OS-thread spawn/join surface (Darwin only) ---
+//
+// This matches the cross-platform `lib/runtime_native/269_os_thread_m.oren` shape:
+//   spawn(start_addr, arg_ptr) -> handle
+//   join_timeout(handle, timeout_us) -> 0/-60/<0
+//   destroy(handle) -> 0
+
+fn oren_darwin_os_thread_spawn_raw(start_addr, arg_ptr) {
+    if g_target_os != 1 { return 0 }
+    if start_addr == 0 { return 0 }
+
+    // Prefer syscall-first bsdthread_create only when our runtime-owned bsdthread_register succeeded
+    // (rv > 0). If the process is already registered by libpthread (common), fall back to pthread_create
+    // to avoid `_pthread_start` traps.
+    // If our syscall `bsdthread_register` succeeded (rv >= 0), the kernel will start new threads
+    // inside our runtime-owned `__oren_darwin_thread_start` stub (syscall-first).
+    //
+    // Guard with `g_darwin_bsdthread_registered` so a default 0 value does not accidentally
+    // select the syscall path when threading init was never attempted (shared builds).
+    if g_darwin_bsdthread_registered == 1 && g_darwin_bsdthread_register_last_rv >= 0 {
+        var meta0 = _darwin_thr_new_stack_and_struct(_darwin_thr_stack_bytes_default())
+        if meta0 == 0 { return 0 }
+        ptr_set(meta0 + _darwin_thr_off_start_addr(), start_addr)
+        ptr_set(meta0 + _darwin_thr_off_arg_ptr(), arg_ptr)
+
+        var base0 = ptr_get(meta0 + _darwin_thr_off_freeaddr())
+        var total0 = ptr_get(meta0 + _darwin_thr_off_freesize())
+        var pthread_area0 = ptr_get(meta0 + _darwin_thr_off_pthread())
+        if base0 == 0 || total0 <= 0 || pthread_area0 == 0 {
+            sys_munmap(meta0, 16384)
+            if base0 != 0 && total0 > 0 { sys_munmap(base0, total0) }
+            return 0
+        }
+
+        // Always set PTHREAD_START_CUSTOM (0x01000000) to satisfy kernel validation.
+        var PTHREAD_START_CUSTOM = 16777216
+        var rv0 = sys_bsdthread_create(__oren_darwin_bsdthread_user_func_unused, meta0, pthread_area0, pthread_area0, PTHREAD_START_CUSTOM)
+        if rv0 == -1 || rv0 < 0 {
+            sys_munmap(meta0, 16384)
+            sys_munmap(base0, total0)
+            return 0
+        }
+        return meta0
+    }
+
+    var meta = _darwin_thr_new_meta_only()
+    if meta == 0 { return 0 }
+    ptr_set(meta + _darwin_thr_off_start_addr(), start_addr)
+    ptr_set(meta + _darwin_thr_off_arg_ptr(), arg_ptr)
+
+    var entry = oren_code_addr(__oren_darwin_pthread_thread_entry_raw)
+    if entry == 0 {
+        sys_munmap(meta, 16384)
+        return 0
+    }
+    // pthread_create(&thread, NULL, start_routine, arg)
+    var rc = __oren_pthread_create(meta + _darwin_thr_off_thread(), 0, entry, meta)
+    if rc != 0 {
+        sys_munmap(meta, 16384)
+        return 0
+    }
+    return meta
+}
+
+fn oren_darwin_os_thread_join_timeout(handle, timeout_us) {
+    if g_target_os != 1 { return -38 }
+    if handle == 0 { return -5 }
+
+    // Wait for done==1 with a bounded timeout.
+    var done_ptr = handle + _darwin_thr_off_done()
+    while true {
+        if ptr_get(done_ptr) != 0 { break }
+        var rc = oren_wait_on_addr(done_ptr, 0, timeout_us)
+        if rc == -60 {
+            if ptr_get(done_ptr) != 0 { break }
+            return -60
+        }
+        if rc != 0 { return rc }
+    }
+
+    // If the thread is pthread-backed, join it to release OS resources.
+    var kind = ptr_get(handle + _darwin_thr_off_kind())
+    if kind == 1 {
+        var thr = ptr_get(handle + _darwin_thr_off_thread())
+        if thr != 0 {
+            // After done==1, pthread_join should return quickly.
+            var jrc = __oren_pthread_join(thr, 0)
+            if jrc != 0 { return -5 }
+        }
+    }
+    return 0
+}
+
+fn oren_darwin_os_thread_destroy(handle) {
+    if g_target_os != 1 { return 0 }
+    if handle == 0 { return 0 }
+    // WARNING: caller must ensure the thread is no longer executing before destroy.
+    // This mirrors the cross-platform `oren_os_thread_destroy` contract.
+    sys_munmap(handle, 16384)
+    return 0
 }
 
 fn oren_darwin_os_thread_is_done(handle) {

@@ -568,6 +568,38 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 return true
             }
 
+            if fn_name == "native_call1" {
+                // native_call1(addr, arg0) -> u64
+                if args == nil || oren_list_len(args) != 2 {
+                    native_error(ctx, expr["token"], "native backend: native_call1 expects 2 arguments")
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    return true
+                }
+                if expr["spread"] != nil {
+                    native_error(ctx, expr["token"], "native backend: native_call1 does not support spread")
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    return true
+                }
+
+                // Evaluate addr -> spill
+                native_compile_expr(ctx, args[0])
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                // Evaluate arg0 -> X0
+                native_compile_expr(ctx, args[1])
+
+                // Load addr -> X9 and call it (arg already in X0).
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                push_u32_le(ctx["code"], insn_blr(9))
+                // Return value is in X0.
+                return true
+            }
+
             if fn_name == "atomic_cas" {
                 // atomic_cas(ptr, expected, new)
                 native_compile_expr(ctx, args[0]) // ptr

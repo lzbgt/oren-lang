@@ -487,9 +487,12 @@ fn native_runtime_threading_init(threadstart, wqthread) {
     // - When registration succeeds, enable the OS-thread API (oren_darwin_os_thread_*).
     g_darwin_bsdthread_register_last_rv = rv
     // Kernel returns:
-    // - >0: supported feature bits (success)
+    // - >=0: success (feature bits; may be 0 on some kernel/substrate combinations)
     // - -EINVAL (-22): already registered (common when dyld/libsystem already installed pthread substrate)
-    if rv > 0 || rv == -22 { g_darwin_bsdthread_registered = 1 }
+    //
+    // Treat any non-negative return as success so syscall-first binaries can still use
+    // `bsdthread_create` even when the kernel reports "no feature bits".
+    if rv >= 0 || rv == -22 { g_darwin_bsdthread_registered = 1 }
     return rv
 }
 

@@ -1024,13 +1024,43 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 
             _intr_tmp_pop(ctx, base)
             return nil
-        }
-        if nm == "atomic_add" { _emit_intrinsic_atomic_add_x64(ctx, expr, locals); return nil }
-        if nm == "atomic_cas" { _emit_intrinsic_atomic_cas_x64(ctx, expr, locals); return nil }
+	        }
+	        if nm == "atomic_add" { _emit_intrinsic_atomic_add_x64(ctx, expr, locals); return nil }
+	        if nm == "atomic_cas" { _emit_intrinsic_atomic_cas_x64(ctx, expr, locals); return nil }
+	        if nm == "native_call1" {
+	            if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: native_call1 expects 2 args"); return nil }
+	            if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: native_call1 does not support spread"); return nil }
 
-        if nm == "malloc" || nm == "malloc_raw" || nm == "malloc_k" {
-            var want_args = 1
-            if nm == "malloc_k" { want_args = 2 }
+	            var base = _intr_tmp_push(ctx, 2) // addr, arg0
+	            if oren_type_tag(base) == 0 { return nil }
+	            var tmp_addr = _intr_tmp_off(ctx, locals, base + 0)
+	            var tmp_arg0 = _intr_tmp_off(ctx, locals, base + 1)
+	            if oren_type_tag(tmp_addr) == 0 || oren_type_tag(tmp_arg0) == 0 { _intr_tmp_pop(ctx, base); return nil }
+
+	            _intr_eval_spill_x64(ctx, locals, args[0], tmp_addr)
+	            _intr_eval_spill_x64(ctx, locals, args[1], tmp_arg0)
+	            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+	            var os = ""
+	            if ctx["platform"] != nil && ctx["platform"]["os"] != nil { os = ctx["platform"]["os"] }
+	            if os == "windows" {
+	                // Win64 ABI: RCX is arg0
+	                _intr_load_x64(ctx, 1, tmp_arg0) // rcx
+	            } else {
+	                // SysV ABI: RDI is arg0
+	                _intr_load_x64(ctx, 7, tmp_arg0) // rdi
+	            }
+
+	            _intr_load_x64(ctx, 0, tmp_addr) // rax = addr
+	            bytes_extend(ctx["code"], insn_call_rax())
+	            // Return value is in RAX.
+	            _intr_tmp_pop(ctx, base)
+	            return nil
+	        }
+	
+	        if nm == "malloc" || nm == "malloc_raw" || nm == "malloc_k" {
+	            var want_args = 1
+	            if nm == "malloc_k" { want_args = 2 }
             if args == nil || oren_list_len(args) != want_args { err(ctx, "x64 native v0: " + nm + " expects " + oren_int_to_string(want_args) + " arg(s)"); return nil }
 
             // Bump allocator state lives in callee-saved registers (initialized in entry stub):

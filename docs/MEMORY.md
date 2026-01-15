@@ -48,8 +48,12 @@ Important remaining nuance:
 
 Rolling status (fact):
 
+- macOS now has a **syscall-first OS-thread substrate** (bsdthread_register + bsdthread_create/terminate) as groundwork for Stage N2,
+  but it is **not** the default `spawn` path yet (language `spawn` still defaults to green tasks unless explicitly overridden).
+  - Darwin substrate: `lib/runtime_native/264_darwin_os_threads.oren`
+  - Shared scheduler-facing OS-thread (“M”) abstraction: `lib/runtime_native/269_os_thread_m.oren`
 - Linux now has a **syscall-first OS-thread substrate** (clone wrapper + futex join) as groundwork for Stage N2,
-  but it is **not** the default `spawn` path yet.
+  but it is **not** the default `spawn` path yet (language `spawn` still defaults to green tasks unless explicitly overridden).
   - Linux clone(2) substrate: `lib/runtime_native/266_linux_os_threads.oren`
   - Shared scheduler-facing OS-thread (“M”) abstraction: `lib/runtime_native/269_os_thread_m.oren`
 

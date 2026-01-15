@@ -214,6 +214,9 @@ Rolling policy:
   - The runtime astbin cache decode path performs a best-effort structural sanity check on decoded blobs.
     If the decoded program looks corrupted/stale (common symptom: later crashes like “string_len expects string”),
     the compiler treats it as a cache miss and falls back to seeds or runtime source parsing.
+  - Important invariant: `@cfg` lowering must be applied even on **decoded** runtime astbins (cache hit / seed hit),
+    not only on the “parse runtime source” path. Otherwise, a cache hit can preserve mutually-exclusive variants or
+    wrong-platform stubs and reintroduce both correctness and performance regressions.
   - If you see repeated “miss (sanity check failed)” behavior, clear caches with `./oren clean` (or delete
     `build/cache/native_runtime_astbin/` if you’re iterating on compiler internals).
 

@@ -155,10 +155,14 @@ Status (rolling groundwork):
   - Smokes:
     - `tests/native/test_os_thread_park_unpark_smoke.oren`
     - `tests/native/test_os_thread_spawn_many_smoke.oren`
-- **macOS arm64:** the compiler has started lowering `bsdthread_register/create/terminate` syscalls
-  (see `lib/compiler/arm64_native_expr_syscalls/070_tail.oren` + `lib/compiler/arm64_abi_macos.oren`),
-  but the runtime does **not** yet install a correct `bsdthread_register` threadstart stub at process init,
-  so `oren_os_thread_spawn` is not enabled on macOS yet.
+- **macOS arm64:** syscall-first `bsdthread_register/create/terminate` lowering exists, and the native backend
+  attempts to install runtime-owned threadstart stubs at process init (non-dylib builds):
+  - Compiler emit + init call: `lib/compiler/arm64_native_program.oren`
+  - Threadstart stubs + fallback implementation: `lib/runtime_native/264_darwin_os_threads.oren`
+  - Runtime init helper: `lib/runtime_native/020_fork_runtime_init.oren` (`native_runtime_threading_init`)
+  - Reality note (rolling): many macOS processes are already registered by dyld/libpthread, so the runtime
+    uses a **pthread_create fallback** for `oren_os_thread_spawn` unless our runtime-owned registration succeeds.
+    The long-term target remains syscall-first threads (no libpthread dependency).
 
 2) **Parking/unparking**
    - When an `M` has no work, it must block efficiently without busy looping.

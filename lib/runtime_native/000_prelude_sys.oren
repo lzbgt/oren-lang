@@ -210,6 +210,19 @@ fn oren_ctx_switch(old_ctx_ptr, new_ctx_ptr) { return 0 }
 // - The argument is expected to be an Identifier expression (not a string literal).
 fn oren_code_addr(fn_ident) { return 0 }
 
+// Call a raw code pointer with 1 argument (native backend intrinsic; rolling).
+//
+// This is needed for syscall-first thread substrates where the kernel passes a user function pointer
+// as a raw address (Darwin bsdthread ABI) or where a runtime needs to invoke a start routine by
+// address (scheduler bring-up).
+//
+// Native backend lowering:
+// - arm64: `blr addr` with arg in X0
+// - x64:   `call rax` with arg in RDI (SysV) / RCX (Win64)
+//
+// This stub must never execute in a correctly built native binary.
+fn native_call1(addr, arg0) { return 0 }
+
 fn oren_exit(code) {
     // Process exit (portable entry point used by user code and runtime).
     //

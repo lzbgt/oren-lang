@@ -338,50 +338,56 @@ References:
      - Rationale: the nil-compare guard is always-on; stdlib must not model “optional int” by comparing numeric scalars to `nil`.
      - Fix: replace numeric `x == nil` checks with `oren_type_tag(x) == 0` defaults in `lib/std/net/*`.
      - Guard: `make verify-native-x64-compile` (stage1 + stage2 emit x64-linux + x64-windows).
-	   - 2026-01-15: Linux syscall-first OS-thread substrate (clone wrapper + futex join) landed.
-	     - Compiler: add `sys_thread_create(start_addr, arg_ptr, stack_top, ctid_ptr)` intrinsic lowered to clone(2) with a safe child trampoline
-	       (child never returns to the caller stack frame).
-	     - Compiler (arm64-linux): fix Linux futex “wake all” constant emission in `sys_ulock_wake` lowering.
-	       - Bug: emitted an *undefined* MOVK encoding by passing `shift_idx=16` instead of `shift_idx=1` (ARM64 MOVK shift field is `hw` in {0,1,2,3}).
-	       - Symptom: `tests/native/test_os_thread_park_unpark_smoke.oren` crashes with SIGILL on linux/arm64.
-	       - Fix: use `insn_movk(..., 1)` and bump the rtobj backend sig to invalidate stale cached runtime objects.
-	       - Compiler (x64-linux): fix stack alignment masking in the clone trampoline: `insn_and_r64_imm32` takes an unsigned u32 immediate,
-	       so the “align down to 16” mask must be `0xFFFFFFF0` (`4294967280`), not `-16` (otherwise child_stack can collapse to 0).
-	     - Compiler: extend `sys_clone(flags, stack, ptid, ctid, tls)` to the full 5-arg Linux syscall ABI (required for CLONE_*TID).
-	     - Compiler (arm64-linux): Linux/aarch64 syscall ABI nuance: raw `clone(2)` arg order is `clone(flags, stack, ptid, tls, ctid)`,
-	       so lowering must pass TLS in X3 and ctid in X4 (different from x64 ordering).
-	     - Runtime: `lib/runtime_native/266_linux_os_threads.oren` (spawn/join substrate for Stage N2; not wired into language `spawn` yet).
-	     - Runtime/compiler: `sys_ulock_wait` Linux lowering supports `timeout_us` by passing a relative futex timespec, and normalizes `-ETIMEDOUT` (`-110`) to portable `-60`.
-	     - Runtime: added a small portable wrapper for the wait-on-address primitive:
-	       - `lib/runtime_native/267_wait_on_addr.oren` (`oren_wait_on_addr`, `oren_wake_all_addr`)
-	       - avoids repeating op codes in hot runtime paths and keeps the runtime bundle free of non-zero global initializers
-	     - Guards:
-	       - `tests/native/test_linux_os_thread_smoke.oren` (OS-thread create/join; skips on non-Linux)
-	       - `tests/native/test_ulock_timeout_linux.oren` (timeout code normalization; skips on non-Linux)
-	       - `tests/native/test_ulock_timeout_portable.oren` (portable `-60` timeout code; skips if ENOSYS)
+   - 2026-01-15: Linux syscall-first OS-thread substrate (clone wrapper + futex join) landed.
+     - Compiler: add `sys_thread_create(start_addr, arg_ptr, stack_top, ctid_ptr)` intrinsic lowered to clone(2) with a safe child trampoline
+       (child never returns to the caller stack frame).
+     - Compiler (arm64-linux): fix Linux futex “wake all” constant emission in `sys_ulock_wake` lowering.
+       - Bug: emitted an *undefined* MOVK encoding by passing `shift_idx=16` instead of `shift_idx=1` (ARM64 MOVK shift field is `hw` in {0,1,2,3}).
+       - Symptom: `tests/native/test_os_thread_park_unpark_smoke.oren` crashes with SIGILL on linux/arm64.
+       - Fix: use `insn_movk(..., 1)` and bump the rtobj backend sig to invalidate stale cached runtime objects.
+       - Compiler (x64-linux): fix stack alignment masking in the clone trampoline: `insn_and_r64_imm32` takes an unsigned u32 immediate,
+       so the “align down to 16” mask must be `0xFFFFFFF0` (`4294967280`), not `-16` (otherwise child_stack can collapse to 0).
+     - Compiler: extend `sys_clone(flags, stack, ptid, ctid, tls)` to the full 5-arg Linux syscall ABI (required for CLONE_*TID).
+     - Compiler (arm64-linux): Linux/aarch64 syscall ABI nuance: raw `clone(2)` arg order is `clone(flags, stack, ptid, tls, ctid)`,
+       so lowering must pass TLS in X3 and ctid in X4 (different from x64 ordering).
+     - Runtime: `lib/runtime_native/266_linux_os_threads.oren` (spawn/join substrate for Stage N2; not wired into language `spawn` yet).
+     - Runtime/compiler: `sys_ulock_wait` Linux lowering supports `timeout_us` by passing a relative futex timespec, and normalizes `-ETIMEDOUT` (`-110`) to portable `-60`.
+     - Runtime: added a small portable wrapper for the wait-on-address primitive:
+       - `lib/runtime_native/267_wait_on_addr.oren` (`oren_wait_on_addr`, `oren_wake_all_addr`)
+       - avoids repeating op codes in hot runtime paths and keeps the runtime bundle free of non-zero global initializers
+     - Guards:
+       - `tests/native/test_linux_os_thread_smoke.oren` (OS-thread create/join; skips on non-Linux)
+       - `tests/native/test_ulock_timeout_linux.oren` (timeout code normalization; skips on non-Linux)
+       - `tests/native/test_ulock_timeout_portable.oren` (portable `-60` timeout code; skips if ENOSYS)
+   - 2026-01-15: fixed macOS syscall-first OS-thread bring-up when `bsdthread_register` returns `0` on success (feature bits may be 0).
+     - Root cause: runtime treated “success” as `rv > 0` and would fall back to pthread (stubbed in syscall-first builds), causing `oren_os_thread_spawn` to fail.
+     - Fix: treat `rv >= 0` as success and allow the syscall-first `bsdthread_create` path to be used by the shared `oren_os_thread_*` abstraction.
+     - Guards:
+       - `tests/native/test_os_thread_park_unpark_smoke.oren` (arm64-macos + linux + windows)
 
-	   Next steps (actionable, highest leverage first):
+   Next steps (actionable, highest leverage first):
 
-		   - Stage N2 groundwork: syscall-first OS threads (no libpthread) on Tier‑1
-	     - macOS arm64: finish the `bsdthread_register` story and define the runtime-owned threadstart stub:
-	       - implement/install threadstart stub at process init (call `native_runtime_threading_init(...)` early)
-	       - wire `sys_bsdthread_create/terminate` to the shared runtime `oren_os_thread_spawn(...)` primitive (`lib/runtime_native/269_os_thread_m.oren`)
-	     - Linux x64/arm64: extend the syscall-first OS-thread substrate toward production:
-	       - add TLS story (`CLONE_SETTLS`) once runtime uses/needs a real thread pointer
-	       - unify the Linux `M` abstraction with Windows/Darwin (shared scheduler-facing shape)
-	       - keep join bounded: `tests/native/test_linux_os_thread_smoke.oren` uses a futex wait timeout and re-checks `ctid_ptr` after timeout (avoids false negatives if a wake is missed)
-		     - Windows x64: unify existing CreateThread-based `spawn` with the same scheduler-facing `M` abstraction (keep WaitForSingleObject join)
-			   - 2026-01-15: introduced a minimal runtime-owned OS-thread ("M") abstraction (Linux + Windows) for future M:N work:
-			     - Runtime: `lib/runtime_native/269_os_thread_m.oren`
-			       - `oren_os_thread_spawn(start_addr, arg_ptr)`
-			       - `oren_os_thread_join_timeout(handle, timeout_us)` (portable timeout `-60`)
-			       - `oren_m_park_word_wait` / `oren_m_park_word_wake` (futex/WaitOnAddress token-based park/unpark)
-			     - Guard: `tests/native/test_os_thread_park_unpark_smoke.oren` (Linux + Windows)
-			     - Guard: `tests/native/test_os_thread_spawn_many_smoke.oren` (Linux + Windows; bounded join timeout)
-	   - Parking/unparking primitive for idle `M` (required to avoid spin):
-	     - macOS: ulock-based park/wake for `P` (pairs with `sys_ulock_wait/sys_ulock_wake`)
-	     - Linux: futex-based park/wake
-	   - GC + safepoint plan for N:M (stop-the-world first, correct before fast)
+   - Stage N2 groundwork: syscall-first OS threads (no libpthread) on Tier‑1
+     - macOS arm64: finish the syscall-first `bsdthread_register` story and keep it robust across modern dyld/libpthread:
+       - keep installing runtime-owned threadstart stubs at process init (call `native_runtime_threading_init(...)` early)
+       - keep `sys_bsdthread_create/terminate` wired to the shared runtime `oren_os_thread_spawn(...)` primitive (`lib/runtime_native/269_os_thread_m.oren`)
+       - reduce/eliminate the pthread fallback by making syscall-first threadstart work even when the process is already registered by libpthread (kernel may return `-EINVAL` / already-registered; requires deeper ABI alignment work)
+     - Linux x64/arm64: extend the syscall-first OS-thread substrate toward production:
+       - add TLS story (`CLONE_SETTLS`) once runtime uses/needs a real thread pointer
+       - unify the Linux `M` abstraction with Windows/Darwin (shared scheduler-facing shape)
+       - keep join bounded: `tests/native/test_linux_os_thread_smoke.oren` uses a futex wait timeout and re-checks `ctid_ptr` after timeout (avoids false negatives if a wake is missed)
+     - Windows x64: unify existing CreateThread-based `spawn` with the same scheduler-facing `M` abstraction (keep WaitForSingleObject join)
+   - 2026-01-15: introduced a minimal runtime-owned OS-thread ("M") abstraction (macOS + Linux + Windows) for future M:N work:
+     - Runtime: `lib/runtime_native/269_os_thread_m.oren`
+       - `oren_os_thread_spawn(start_addr, arg_ptr)`
+       - `oren_os_thread_join_timeout(handle, timeout_us)` (portable timeout `-60`)
+       - `oren_m_park_word_wait` / `oren_m_park_word_wake` (futex/WaitOnAddress token-based park/unpark)
+     - Guard: `tests/native/test_os_thread_park_unpark_smoke.oren` (macOS + Linux + Windows)
+     - Guard: `tests/native/test_os_thread_spawn_many_smoke.oren` (macOS + Linux + Windows; bounded join timeout)
+   - Parking/unparking primitive for idle `M` (required to avoid spin):
+     - macOS: ulock-based park/wake for `P` (pairs with `sys_ulock_wait/sys_ulock_wake`)
+     - Linux: futex-based park/wake
+   - GC + safepoint plan for N:M (stop-the-world first, correct before fast)
 
    References:
 
