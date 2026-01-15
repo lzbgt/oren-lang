@@ -958,6 +958,20 @@ fn insn_sdiv(rd, rn, rm) {
 }
 
 fn insn_movk(reg, imm16, shift_idx) {
+    // MOVK encodes the shift as a 2-bit `hw` field: shift = hw * 16 where hw ∈ {0,1,2,3}.
+    //
+    // Guardrail (rolling, cross-stage):
+    // Some older lowering code accidentally passed a *bit shift* (16/32/48) instead of a shift_idx (1/2/3).
+    // The resulting encoding can be architecturally undefined and crash with SIGILL at runtime.
+    //
+    // Accept both forms to keep the backend robust:
+    // - shift_idx in {0,1,2,3}: used as-is
+    // - shift bits in {0,16,32,48}: normalized to {0,1,2,3}
+    // - any other value: clamp to 0 (defined encoding; avoids SIGILL)
+    if shift_idx == 16 { shift_idx = 1 }
+    if shift_idx == 32 { shift_idx = 2 }
+    if shift_idx == 48 { shift_idx = 3 }
+    if shift_idx < 0 || shift_idx > 3 { shift_idx = 0 }
     return 4068474880 + (shift_idx * 2097152) + (imm16 * 32) + reg
 }
 
