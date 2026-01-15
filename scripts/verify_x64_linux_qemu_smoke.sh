@@ -91,6 +91,7 @@ QI_SRC="tests/native/test_quick_integration_native.oren"
 STD_FFI_LIBC_SMOKE_SRC="tests/native/test_std_ffi_libc_smoke.oren"
 LINUX_OS_THREAD_SMOKE_SRC="tests/native/test_linux_os_thread_smoke.oren"
 LINUX_ULOCK_TIMEOUT_SMOKE_SRC="tests/native/test_ulock_timeout_linux.oren"
+ULOCK_TIMEOUT_PORTABLE_SMOKE_SRC="tests/native/test_ulock_timeout_portable.oren"
 LIBMATH_SRC="examples/libmath.oren"
 FFI_FROM_LIBMATH_SRC="examples/ffi_from_libmath.oren"
 
@@ -104,6 +105,8 @@ build_one "./oren" "$LINUX_OS_THREAD_SMOKE_SRC" "build/tmp/linux_os_thread_smoke
 build_one "./oren_stage2" "$LINUX_OS_THREAD_SMOKE_SRC" "build/tmp/linux_os_thread_smoke_stage2_x64_linux" "build/logs/x64_linux_linux_os_thread_smoke_stage2.log"
 build_one "./oren" "$LINUX_ULOCK_TIMEOUT_SMOKE_SRC" "build/tmp/ulock_timeout_stage1_x64_linux" "build/logs/x64_linux_ulock_timeout_stage1.log"
 build_one "./oren_stage2" "$LINUX_ULOCK_TIMEOUT_SMOKE_SRC" "build/tmp/ulock_timeout_stage2_x64_linux" "build/logs/x64_linux_ulock_timeout_stage2.log"
+build_one "./oren" "$ULOCK_TIMEOUT_PORTABLE_SMOKE_SRC" "build/tmp/ulock_timeout_portable_stage1_x64_linux" "build/logs/x64_linux_ulock_timeout_portable_stage1.log"
+build_one "./oren_stage2" "$ULOCK_TIMEOUT_PORTABLE_SMOKE_SRC" "build/tmp/ulock_timeout_portable_stage2_x64_linux" "build/logs/x64_linux_ulock_timeout_portable_stage2.log"
 
 # Shared library + FFI resolution smoke (high-signal for x64-linux native backend):
 # - stage1/stage2 emit a `.so` and a binary that calls into it via `ffi`.
@@ -123,6 +126,8 @@ run_one "build/tmp/linux_os_thread_smoke_stage1_x64_linux" "ok: linux os thread 
 run_one "build/tmp/linux_os_thread_smoke_stage2_x64_linux" "ok: linux os thread smoke" "linux_os_thread_smoke_stage2_x64_linux"
 run_one "build/tmp/ulock_timeout_stage1_x64_linux" "ok: ulock timeout linux" "ulock_timeout_stage1_x64_linux"
 run_one "build/tmp/ulock_timeout_stage2_x64_linux" "ok: ulock timeout linux" "ulock_timeout_stage2_x64_linux"
+run_one "build/tmp/ulock_timeout_portable_stage1_x64_linux" "ok: ulock timeout portable" "ulock_timeout_portable_stage1_x64_linux"
+run_one "build/tmp/ulock_timeout_portable_stage2_x64_linux" "ok: ulock timeout portable" "ulock_timeout_portable_stage2_x64_linux"
 
 # Copy the `.so` alongside the executable (the embedded `--link` uses a relative `./...so` path).
 docker cp "build/tmp/libmath_stage1_x64_linux.so" "$LINUX_DOCKER_ID:/tmp/hostbins/libmath_stage1_x64_linux.so"

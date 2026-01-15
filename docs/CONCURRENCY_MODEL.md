@@ -51,7 +51,9 @@ Why this matters:
 
 Source of truth / guards:
 
-- Linux timeout normalization smoke: `tests/native/test_ulock_timeout_linux.oren` (skips on non-Linux)
+- Runtime wrapper (portable API): `lib/runtime_native/267_wait_on_addr.oren` (`oren_wait_on_addr`, `oren_wake_all_addr`)
+- Portable timeout smoke: `tests/native/test_ulock_timeout_portable.oren` (expects `-60`, skips `-38`/ENOSYS)
+- Linux timeout normalization smoke: `tests/native/test_ulock_timeout_linux.oren` (skips on non-Linux; asserts `-110` normalizes to `-60`)
 - Tier-1 lock handshake: `tests/fixtures/tier1_native_spawn_join_main.oren`
 
 Implications:

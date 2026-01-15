@@ -28,6 +28,7 @@
 // @include "runtime_native/263_green_tasks.oren"
 // @include "runtime_native/264_darwin_os_threads.oren"
 // @include "runtime_native/266_linux_os_threads.oren"
+// @include "runtime_native/267_wait_on_addr.oren"
 // @include "runtime_native/120_first_class_fn.oren"
 // @include "runtime_native/130_printing.oren"
 // @include "runtime_native/140_errors.oren"

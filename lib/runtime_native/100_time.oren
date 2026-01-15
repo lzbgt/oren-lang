@@ -1164,7 +1164,7 @@ fn acquire_lock() {
             var owner_now = ptr_get(lock_ptr)
             if owner_now != 0 {
                 // operation=UL_COMPARE_AND_WAIT (1), timeout_us=0 => forever
-                sys_ulock_wait(1, lock_ptr, owner_now, 0)
+                oren_wait_on_addr(lock_ptr, owner_now, 0)
             }
             spin = 0
         }
@@ -1198,8 +1198,7 @@ fn release_lock() {
     ptr_set(count_ptr, 0)
     atomic_cas(lock_ptr, tid, 0)
     // Wake any waiters that parked in acquire_lock.
-    // operation=UL_COMPARE_AND_WAIT|ULF_WAKE_ALL = 1|0x100 = 257
-    sys_ulock_wake(257, lock_ptr, 0)
+    oren_wake_all_addr(lock_ptr)
     return 0
 }
 

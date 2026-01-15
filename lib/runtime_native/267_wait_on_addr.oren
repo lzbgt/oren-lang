@@ -1,0 +1,33 @@
+// Portable wait-on-address primitive for the native runtime (rolling).
+//
+// The runtime uses `sys_ulock_wait/sys_ulock_wake` as a cross-platform substrate:
+// - macOS: ulock syscalls
+// - Linux: futex(FUTEX_WAIT_PRIVATE/FUTEX_WAKE_PRIVATE)
+// - Windows: WaitOnAddress/WakeByAddressAll
+//
+// Conventions (fact, enforced by tests where applicable):
+// - operation=1 is treated as "compare-and-wait"
+// - operation=257 (1|0x100) is treated as "wake all waiters"
+// - timeout uses portable `-60` for timeout (Darwin ETIMEDOUT); Linux is normalized to -60.
+
+// Wait until `*(addr)` is not equal to `expected` (or until timeout).
+//
+// Notes:
+// - On Linux, futex waits on a 32-bit word; only the low 32 bits of `expected` are observed.
+// - On Windows, WaitOnAddress uses a byte compare; we currently use AddressSize=8 in the backend.
+//
+// Return:
+// - 0 on wake/spurious wake
+// - -60 on timeout
+// - other negative errno on failure
+fn oren_wait_on_addr(addr, expected, timeout_us) {
+    // Use a literal op code (avoid non-zero global initializers in the native runtime bundle).
+    return sys_ulock_wait(1, addr, expected, timeout_us)
+}
+
+// Wake all threads waiting on `addr` via `oren_wait_on_addr`.
+// Returns 0 on success, or -errno.
+fn oren_wake_all_addr(addr) {
+    // 257 == 1|0x100 (wake-all), matching the wake-all encoding used elsewhere in the runtime.
+    return sys_ulock_wake(257, addr, 0)
+}

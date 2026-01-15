@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-01-14
+**Last updated:** 2026-01-15
 
 This repo is in rolling mode. This file tracks the **highest-leverage work remaining** to evolve Oren
 into a modern, efficient, production-ready language and toolchain, while keeping iteration fast.
@@ -346,9 +346,13 @@ References:
 	     - Compiler: extend `sys_clone(flags, stack, ptid, ctid, tls)` to the full 5-arg Linux syscall ABI (required for CLONE_*TID).
 	     - Runtime: `lib/runtime_native/266_linux_os_threads.oren` (spawn/join substrate for Stage N2; not wired into language `spawn` yet).
 	     - Runtime/compiler: `sys_ulock_wait` Linux lowering supports `timeout_us` by passing a relative futex timespec, and normalizes `-ETIMEDOUT` (`-110`) to portable `-60`.
+	     - Runtime: added a small portable wrapper for the wait-on-address primitive:
+	       - `lib/runtime_native/267_wait_on_addr.oren` (`oren_wait_on_addr`, `oren_wake_all_addr`)
+	       - avoids repeating op codes in hot runtime paths and keeps the runtime bundle free of non-zero global initializers
 	     - Guards:
 	       - `tests/native/test_linux_os_thread_smoke.oren` (OS-thread create/join; skips on non-Linux)
 	       - `tests/native/test_ulock_timeout_linux.oren` (timeout code normalization; skips on non-Linux)
+	       - `tests/native/test_ulock_timeout_portable.oren` (portable `-60` timeout code; skips if ENOSYS)
 
    Next steps (actionable, highest leverage first):
 
@@ -356,11 +360,11 @@ References:
      - macOS arm64: finish the `bsdthread_register` story and define the runtime-owned threadstart stub:
        - implement/install threadstart stub at process init (call `native_runtime_threading_init(...)` early)
        - wire `sys_bsdthread_create/terminate` to a runtime `oren_os_thread_spawn(...)` primitive
-     - Linux x64/arm64: extend the syscall-first OS-thread substrate toward production:
-       - add TLS story (`CLONE_SETTLS`) once runtime uses/needs a real thread pointer
-       - unify the Linux `M` abstraction with Windows/Darwin (shared scheduler-facing shape)
-       - add a regression gate that proves join cannot hang indefinitely (timeout path)
-     - Windows x64: unify existing CreateThread-based `spawn` with the same scheduler-facing `M` abstraction (keep WaitForSingleObject join)
+	     - Linux x64/arm64: extend the syscall-first OS-thread substrate toward production:
+	       - add TLS story (`CLONE_SETTLS`) once runtime uses/needs a real thread pointer
+	       - unify the Linux `M` abstraction with Windows/Darwin (shared scheduler-facing shape)
+	       - keep join bounded: `tests/native/test_linux_os_thread_smoke.oren` uses a futex wait timeout and re-checks `ctid_ptr` after timeout (avoids false negatives if a wake is missed)
+	     - Windows x64: unify existing CreateThread-based `spawn` with the same scheduler-facing `M` abstraction (keep WaitForSingleObject join)
    - Parking/unparking primitive for idle `M` (required to avoid spin):
      - macOS: ulock-based park/wake for `P` (pairs with `sys_ulock_wait/sys_ulock_wake`)
      - Linux: futex-based park/wake

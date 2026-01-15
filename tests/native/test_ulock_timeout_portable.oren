@@ -1,0 +1,38 @@
+// Portable wait-on-address timeout smoke (all OSes; skips if unsupported).
+//
+// Contract:
+// - `sys_ulock_wait(op, addr, expected, timeout_us)` returns:
+//   - 0 on wake/spurious wake
+//   - -60 on timeout
+//   - -38 (ENOSYS) if not implemented on this target/backend
+//
+// This test uses the portable -60 code, matching Darwin ETIMEDOUT, even on Linux where the raw
+// futex timeout errno is -ETIMEDOUT (-110). (Linux backends normalize to -60.)
+
+fn main() {
+    // Needs only anonymous memory + ulock wait.
+    var page = sys_mmap_private_anon(4096)
+    if page == 0 || page == -1 || page < 4096 {
+        print("skip: ulock timeout portable (no mmap)")
+        return 0
+    }
+
+    // Keep word stable so the wait blocks until timeout.
+    oren_ptr_set_i32_le(page, 1)
+
+    // 5ms timeout. Small but should be enough even under CI/qemu noise.
+    var rc = sys_ulock_wait(1, page, 1, 5000)
+    sys_munmap(page, 4096)
+
+    if rc == -38 {
+        print("skip: ulock timeout portable (ENOSYS)")
+        return 0
+    }
+    if rc != -60 {
+        print("FAIL: expected -60 timeout, got " + oren_int_to_string(rc))
+        exit(1)
+    }
+    print("ok: ulock timeout portable")
+    return 0
+}
+

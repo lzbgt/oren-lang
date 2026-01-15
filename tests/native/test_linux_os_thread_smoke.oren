@@ -67,7 +67,12 @@ fn main() {
         if cur == 0 { break }
         var rc = sys_ulock_wait(1, ctid_ptr, cur, timeout_us)
         if rc == -60 {
-            print("FAIL: join timeout")
+            // Robustness:
+            // Even if the futex wait timed out, the kernel may have cleared `ctid_ptr` already.
+            // Treat timeout as failure only if the word is still non-zero after the wait returns.
+            var after = oren_ptr_get_i32_le(ctid_ptr)
+            if after == 0 { break }
+            print("FAIL: join timeout (ctid still " + oren_int_to_string(after) + ")")
             sys_munmap(stack_base, stack_bytes)
             sys_munmap(meta, meta_bytes)
             exit(5)
