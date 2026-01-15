@@ -45,6 +45,7 @@ LINUX_OS_THREAD_SMOKE_SRC="tests/native/test_linux_os_thread_smoke.oren"
 LINUX_ULOCK_TIMEOUT_SMOKE_SRC="tests/native/test_ulock_timeout_linux.oren"
 ULOCK_TIMEOUT_PORTABLE_SMOKE_SRC="tests/native/test_ulock_timeout_portable.oren"
 OS_THREAD_PARK_UNPARK_SMOKE_SRC="tests/native/test_os_thread_park_unpark_smoke.oren"
+OS_THREAD_SPAWN_MANY_SMOKE_SRC="tests/native/test_os_thread_spawn_many_smoke.oren"
 STD_FFI_LIBC_SMOKE_SRC="tests/native/test_std_ffi_libc_smoke.oren"
 STD_FFI_KERNEL32_SMOKE_SRC="tests/native/test_std_ffi_kernel32_smoke.oren"
 LIBMATH_SRC="examples/libmath.oren"
@@ -732,6 +733,8 @@ if has_target arm64-linux; then
   build_native_bin_src "./oren_stage2" "arm64-linux" "$ULOCK_TIMEOUT_PORTABLE_SMOKE_SRC" "build/tmp/ulock_timeout_portable_stage2_arm64_linux"
   build_native_bin_src "./oren" "arm64-linux" "$OS_THREAD_PARK_UNPARK_SMOKE_SRC" "build/tmp/os_thread_park_unpark_stage1_arm64_linux"
   build_native_bin_src "./oren_stage2" "arm64-linux" "$OS_THREAD_PARK_UNPARK_SMOKE_SRC" "build/tmp/os_thread_park_unpark_stage2_arm64_linux"
+  build_native_bin_src "./oren" "arm64-linux" "$OS_THREAD_SPAWN_MANY_SMOKE_SRC" "build/tmp/os_thread_spawn_many_stage1_arm64_linux"
+  build_native_bin_src "./oren_stage2" "arm64-linux" "$OS_THREAD_SPAWN_MANY_SMOKE_SRC" "build/tmp/os_thread_spawn_many_stage2_arm64_linux"
   # Shared library output: `.so` + generated header.
   build_native_bin_src "./oren" "arm64-linux" "$LIBMATH_SRC" "build/tmp/libmath_stage1_arm64_linux.so" --lib
   build_native_bin_src "./oren_stage2" "arm64-linux" "$LIBMATH_SRC" "build/tmp/libmath_stage2_arm64_linux.so" --lib
@@ -763,6 +766,8 @@ if has_target arm64-linux; then
   run_in_linux_container "build/tmp/ulock_timeout_portable_stage2_arm64_linux"
   run_in_linux_container "build/tmp/os_thread_park_unpark_stage1_arm64_linux"
   run_in_linux_container "build/tmp/os_thread_park_unpark_stage2_arm64_linux"
+  run_in_linux_container "build/tmp/os_thread_spawn_many_stage1_arm64_linux"
+  run_in_linux_container "build/tmp/os_thread_spawn_many_stage2_arm64_linux"
   log "OK: linux/arm64 container"
 fi
 
@@ -794,6 +799,8 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-win; then
   build_native_bin_src "./oren_stage2" "x64-windows" "$ULOCK_TIMEOUT_PORTABLE_SMOKE_SRC" "build/tmp/ulock_timeout_portable_stage2_x64_windows.exe"
   build_native_bin_src "./oren" "x64-windows" "$OS_THREAD_PARK_UNPARK_SMOKE_SRC" "build/tmp/os_thread_park_unpark_stage1_x64_windows.exe"
   build_native_bin_src "./oren_stage2" "x64-windows" "$OS_THREAD_PARK_UNPARK_SMOKE_SRC" "build/tmp/os_thread_park_unpark_stage2_x64_windows.exe"
+  build_native_bin_src "./oren" "x64-windows" "$OS_THREAD_SPAWN_MANY_SMOKE_SRC" "build/tmp/os_thread_spawn_many_stage1_x64_windows.exe"
+  build_native_bin_src "./oren_stage2" "x64-windows" "$OS_THREAD_SPAWN_MANY_SMOKE_SRC" "build/tmp/os_thread_spawn_many_stage2_x64_windows.exe"
 
   build_native_bin_src "./oren" "x64-windows" "$WIN_FFI_K32_SRC" "build/tmp/ffi_k32_stage1_x64_windows.exe"
   build_native_bin_src "./oren_stage2" "x64-windows" "$WIN_FFI_K32_SRC" "build/tmp/ffi_k32_stage2_x64_windows.exe"
@@ -822,6 +829,8 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-win; then
   remote_upload "build/tmp/ulock_timeout_portable_stage2_x64_windows.exe" "ulock_timeout_portable_stage2_x64_windows.exe"
   remote_upload "build/tmp/os_thread_park_unpark_stage1_x64_windows.exe" "os_thread_park_unpark_stage1_x64_windows.exe"
   remote_upload "build/tmp/os_thread_park_unpark_stage2_x64_windows.exe" "os_thread_park_unpark_stage2_x64_windows.exe"
+  remote_upload "build/tmp/os_thread_spawn_many_stage1_x64_windows.exe" "os_thread_spawn_many_stage1_x64_windows.exe"
+  remote_upload "build/tmp/os_thread_spawn_many_stage2_x64_windows.exe" "os_thread_spawn_many_stage2_x64_windows.exe"
   remote_upload "build/tmp/ffi_k32_stage1_x64_windows.exe" "ffi_k32_stage1_x64_windows.exe"
   remote_upload "build/tmp/ffi_k32_stage2_x64_windows.exe" "ffi_k32_stage2_x64_windows.exe"
   remote_upload "build/tmp/std_ffi_libc_smoke_stage1_x64_windows.exe" "std_ffi_libc_smoke_stage1_x64_windows.exe"
@@ -850,6 +859,8 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-win; then
   remote_run_win "ulock_timeout_portable_stage2_x64_windows.exe"
   remote_run_win "os_thread_park_unpark_stage1_x64_windows.exe"
   remote_run_win "os_thread_park_unpark_stage2_x64_windows.exe"
+  remote_run_win "os_thread_spawn_many_stage1_x64_windows.exe"
+  remote_run_win "os_thread_spawn_many_stage2_x64_windows.exe"
   remote_run_win "ffi_k32_stage1_x64_windows.exe"
   remote_run_win "ffi_k32_stage2_x64_windows.exe"
   remote_run_win "std_ffi_libc_smoke_stage1_x64_windows.exe"
@@ -909,6 +920,8 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-wsl; then
   build_native_bin_src "./oren_stage2" "x64-linux" "$LINUX_OS_THREAD_SMOKE_SRC" "build/tmp/linux_os_thread_smoke_stage2_x64_linux"
   build_native_bin_src "./oren" "x64-linux" "$OS_THREAD_PARK_UNPARK_SMOKE_SRC" "build/tmp/os_thread_park_unpark_stage1_x64_linux"
   build_native_bin_src "./oren_stage2" "x64-linux" "$OS_THREAD_PARK_UNPARK_SMOKE_SRC" "build/tmp/os_thread_park_unpark_stage2_x64_linux"
+  build_native_bin_src "./oren" "x64-linux" "$OS_THREAD_SPAWN_MANY_SMOKE_SRC" "build/tmp/os_thread_spawn_many_stage1_x64_linux"
+  build_native_bin_src "./oren_stage2" "x64-linux" "$OS_THREAD_SPAWN_MANY_SMOKE_SRC" "build/tmp/os_thread_spawn_many_stage2_x64_linux"
 
   remote_upload "build/tmp/qi_stage1_x64_linux" "qi_stage1_x64_linux"
   remote_upload "build/tmp/qi_stage2_x64_linux" "qi_stage2_x64_linux"
@@ -932,6 +945,8 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-wsl; then
   remote_upload "build/tmp/linux_os_thread_smoke_stage2_x64_linux" "linux_os_thread_smoke_stage2_x64_linux"
   remote_upload "build/tmp/os_thread_park_unpark_stage1_x64_linux" "os_thread_park_unpark_stage1_x64_linux"
   remote_upload "build/tmp/os_thread_park_unpark_stage2_x64_linux" "os_thread_park_unpark_stage2_x64_linux"
+  remote_upload "build/tmp/os_thread_spawn_many_stage1_x64_linux" "os_thread_spawn_many_stage1_x64_linux"
+  remote_upload "build/tmp/os_thread_spawn_many_stage2_x64_linux" "os_thread_spawn_many_stage2_x64_linux"
 
   log "-- run: WSL2 (x64-linux) --"
   remote_run_wsl "qi_stage1_x64_linux"
@@ -956,6 +971,8 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-wsl; then
   remote_run_wsl "linux_os_thread_smoke_stage2_x64_linux"
   remote_run_wsl "os_thread_park_unpark_stage1_x64_linux"
   remote_run_wsl "os_thread_park_unpark_stage2_x64_linux"
+  remote_run_wsl "os_thread_spawn_many_stage1_x64_linux"
+  remote_run_wsl "os_thread_spawn_many_stage2_x64_linux"
   log "OK: remote WSL2 x64"
 fi
 

@@ -1,0 +1,113 @@
+// OS-thread M substrate: spawn/join-many smoke (Linux + Windows).
+//
+// Purpose:
+// - Prove that we can spawn multiple OS threads in-process and join them
+//   without hanging, while using only syscall-first primitives.
+//
+// This is intentionally *not* a full scheduler test:
+// - no per-G stacks
+// - no work stealing
+// - no GC coordination
+//
+// Rolling safety rule:
+// - Avoid heap/GC activity while worker threads are running.
+// - Use mmap-backed shared state + atomics only.
+//
+// Env:
+// - OREN_OS_THREAD_N: how many OS threads to spawn (default 8; clamped).
+
+fn _off_started() { return 0 } // u64
+fn _off_done() { return 8 }    // u64
+fn _off_count() { return 16 }  // u64 (atomic add)
+
+fn _off_handles() { return 64 } // array of u64 handle pointers
+
+fn _parse_thread_n() {
+    var n = 8
+    var v = native_envp_get_value_ptr("OREN_OS_THREAD_N")
+    if v != 0 {
+        var x = native_parse_i64_dec_cstr_or_neg1(v)
+        if x > 0 { n = x }
+    }
+    if n < 1 { n = 1 }
+    if n > 64 { n = 64 }
+    return n
+}
+
+@oren.keep
+fn __oren_test_os_thread_spawn_many_worker(meta) {
+    if meta == 0 { return 0 }
+    oren_register_thread(get_sp())
+    atomic_add(meta + _off_started(), 1)
+    atomic_add(meta + _off_count(), 1)
+    atomic_add(meta + _off_done(), 1)
+    return 0
+}
+
+fn main() {
+    if g_target_os != 2 && g_target_os != 3 {
+        print("skip: os thread spawn-many (target_os=" + oren_int_to_string(g_target_os) + ")")
+        return 0
+    }
+
+    var n = _parse_thread_n()
+
+    var meta = sys_mmap_private_anon(4096)
+    if meta == 0 || meta == -1 || meta < 4096 {
+        print("FAIL: meta mmap")
+        exit(1)
+    }
+    ptr_set(meta + _off_started(), 0)
+    ptr_set(meta + _off_done(), 0)
+    ptr_set(meta + _off_count(), 0)
+
+    var start = oren_code_addr(__oren_test_os_thread_spawn_many_worker)
+    if start == 0 {
+        sys_munmap(meta, 4096)
+        print("FAIL: code addr")
+        exit(2)
+    }
+
+    // Spawn N threads and store their handles in mmap-backed memory.
+    var i = 0
+    while i < n {
+        var h = oren_os_thread_spawn(start, meta)
+        if h == 0 || h == -1 || h < 0 {
+            sys_munmap(meta, 4096)
+            print("FAIL: spawn rc=" + oren_int_to_string(h))
+            exit(3)
+        }
+        ptr_set(meta + _off_handles() + i * 8, h)
+        i = i + 1
+    }
+
+    // Join all threads with a bounded timeout so failures cannot hang the suite.
+    i = 0
+    while i < n {
+        var h = ptr_get(meta + _off_handles() + i * 8)
+        var rc = oren_os_thread_join_timeout(h, 2000000)
+        if rc != 0 {
+            // Best-effort cleanup (don't spam logs).
+            oren_os_thread_destroy(h)
+            sys_munmap(meta, 4096)
+            print("FAIL: join rc=" + oren_int_to_string(rc))
+            exit(4)
+        }
+        oren_os_thread_destroy(h)
+        i = i + 1
+    }
+
+    var started = ptr_get(meta + _off_started())
+    var done = ptr_get(meta + _off_done())
+    var count = ptr_get(meta + _off_count())
+    sys_munmap(meta, 4096)
+
+    if started != n || done != n || count != n {
+        print("FAIL: counters mismatch started=" + oren_int_to_string(started) + " done=" + oren_int_to_string(done) + " count=" + oren_int_to_string(count) + " n=" + oren_int_to_string(n))
+        exit(5)
+    }
+
+    print("ok: os thread spawn-many smoke (n=" + oren_int_to_string(n) + ")")
+    return 0
+}
+

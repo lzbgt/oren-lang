@@ -141,15 +141,24 @@ Key additions:
 
 1) **Syscall-first OS thread creation**
    - Implement OS thread creation via kernel interfaces directly (no libpthread).
-   - macOS note: this requires the `bsdthread_*` syscall boundary (or another kernel-exposed thread API) and correct thread-local storage setup.
-   - Keep the boundary narrow: a single `sys_thread_create(entry, arg)` + `sys_thread_self()` + minimal TLS init.
+   - Keep the boundary narrow: a single `sys_thread_create(entry, arg, stack_top, ctid_ptr)` (Linux),
+     or `sys_win_createthread(entry, arg)` (Windows), plus minimal TLS/registration.
+   - macOS note (rolling): true syscall-first OS-thread creation requires the `bsdthread_*` syscall boundary
+     (or another kernel-exposed thread API) and correct thread-local storage + threadstart stub installation.
 
 Status (rolling groundwork):
 
-- Darwin `bsdthread_register/create/terminate` syscalls are started in the arm64 native backend lowering
-  (see `lib/compiler/arm64_native_expr_syscalls/070_tail.oren` + `lib/compiler/arm64_abi_macos.oren`).
-- The runtime does **not** yet install its own `bsdthread_register` threadstart stub at process init, so
-  true syscall-first OS-thread creation is not yet enabled on macOS.
+- **Linux + Windows:** a runtime-owned OS-thread handle exists and is used by tests:
+  - Runtime: `lib/runtime_native/269_os_thread_m.oren` (`oren_os_thread_spawn`, `oren_os_thread_join_timeout`, `oren_os_thread_destroy`)
+  - Linux thread creation uses the syscall-first clone wrapper: `lib/runtime_native/266_linux_os_threads.oren` (`sys_thread_create`)
+  - Parking uses wait-on-address: `lib/runtime_native/267_wait_on_addr.oren` (`oren_wait_on_addr`, `oren_wake_all_addr`)
+  - Smokes:
+    - `tests/native/test_os_thread_park_unpark_smoke.oren`
+    - `tests/native/test_os_thread_spawn_many_smoke.oren`
+- **macOS arm64:** the compiler has started lowering `bsdthread_register/create/terminate` syscalls
+  (see `lib/compiler/arm64_native_expr_syscalls/070_tail.oren` + `lib/compiler/arm64_abi_macos.oren`),
+  but the runtime does **not** yet install a correct `bsdthread_register` threadstart stub at process init,
+  so `oren_os_thread_spawn` is not enabled on macOS yet.
 
 2) **Parking/unparking**
    - When an `M` has no work, it must block efficiently without busy looping.
@@ -157,6 +166,15 @@ Status (rolling groundwork):
      - macOS candidates include kernel wait/wake interfaces used by system runtimes.
      - Linux uses `futex`.
    - The exact primitive is an implementation detail, but “sleep until work” is mandatory for production.
+
+Status (rolling groundwork):
+
+- The portable wait-on-address layer exists and is verified:
+  - `lib/runtime_native/267_wait_on_addr.oren`
+  - `tests/native/test_ulock_timeout_portable.oren`
+- The scheduler-oriented “park word” exists (token + wait-on-address) and is verified:
+  - `lib/runtime_native/269_os_thread_m.oren` (`oren_m_park_word_wait`, `oren_m_park_word_wake`)
+  - `tests/native/test_os_thread_park_unpark_smoke.oren`
 
 3) **Run queues**
    - Each `P` has a local run queue for `G`.

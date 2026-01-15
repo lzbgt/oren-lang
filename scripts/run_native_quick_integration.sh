@@ -100,6 +100,16 @@ run_with_timeout "$build_timeout_secs" "$compiler" build "$ot_src" \
 run_with_timeout "$run_timeout_secs" "$ot_out" >>"$ot_log" 2>&1
 tail -n 3 "$ot_log" >>"$log"
 
+echo "== os thread spawn-many smoke ==" >>"$log"
+om_src="tests/native/test_os_thread_spawn_many_smoke.oren"
+om_out="build/tmp/${compiler_base}_os_thread_spawn_many_smoke${exe_ext}"
+om_log="build/logs/${compiler_base}_os_thread_spawn_many_smoke.log"
+rm -f "$om_log" "$om_out" 2>/dev/null || true
+run_with_timeout "$build_timeout_secs" "$compiler" build "$om_src" \
+  --backend native --platform "$platform" --debug -o "$om_out" >"$om_log" 2>&1
+run_with_timeout "$run_timeout_secs" "$om_out" >>"$om_log" 2>&1
+tail -n 3 "$om_log" >>"$log"
+
 if [[ "$os_key" != "windows" ]]; then
   # Cross-platform CLI robustness smoke:
   # Accept Windows-style `\` separators even on POSIX hosts so scripts/logs are portable.

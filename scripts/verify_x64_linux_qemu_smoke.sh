@@ -102,6 +102,7 @@ LINUX_OS_THREAD_SMOKE_SRC="tests/native/test_linux_os_thread_smoke.oren"
 LINUX_ULOCK_TIMEOUT_SMOKE_SRC="tests/native/test_ulock_timeout_linux.oren"
 ULOCK_TIMEOUT_PORTABLE_SMOKE_SRC="tests/native/test_ulock_timeout_portable.oren"
 OS_THREAD_PARK_UNPARK_SMOKE_SRC="tests/native/test_os_thread_park_unpark_smoke.oren"
+OS_THREAD_SPAWN_MANY_SMOKE_SRC="tests/native/test_os_thread_spawn_many_smoke.oren"
 LIBMATH_SRC="examples/libmath.oren"
 FFI_FROM_LIBMATH_SRC="examples/ffi_from_libmath.oren"
 
@@ -119,6 +120,8 @@ build_one "./oren" "$ULOCK_TIMEOUT_PORTABLE_SMOKE_SRC" "build/tmp/ulock_timeout_
 build_one "./oren_stage2" "$ULOCK_TIMEOUT_PORTABLE_SMOKE_SRC" "build/tmp/ulock_timeout_portable_stage2_x64_linux" "build/logs/x64_linux_ulock_timeout_portable_stage2.log"
 build_one "./oren" "$OS_THREAD_PARK_UNPARK_SMOKE_SRC" "build/tmp/os_thread_park_unpark_stage1_x64_linux" "build/logs/x64_linux_os_thread_park_unpark_stage1.log"
 build_one "./oren_stage2" "$OS_THREAD_PARK_UNPARK_SMOKE_SRC" "build/tmp/os_thread_park_unpark_stage2_x64_linux" "build/logs/x64_linux_os_thread_park_unpark_stage2.log"
+build_one "./oren" "$OS_THREAD_SPAWN_MANY_SMOKE_SRC" "build/tmp/os_thread_spawn_many_stage1_x64_linux" "build/logs/x64_linux_os_thread_spawn_many_stage1.log"
+build_one "./oren_stage2" "$OS_THREAD_SPAWN_MANY_SMOKE_SRC" "build/tmp/os_thread_spawn_many_stage2_x64_linux" "build/logs/x64_linux_os_thread_spawn_many_stage2.log"
 
 # Shared library + FFI resolution smoke (high-signal for x64-linux native backend):
 # - stage1/stage2 emit a `.so` and a binary that calls into it via `ffi`.
@@ -142,6 +145,8 @@ run_one "build/tmp/ulock_timeout_portable_stage1_x64_linux" "ok: ulock timeout p
 run_one "build/tmp/ulock_timeout_portable_stage2_x64_linux" "ok: ulock timeout portable" "ulock_timeout_portable_stage2_x64_linux"
 run_one "build/tmp/os_thread_park_unpark_stage1_x64_linux" "ok: os thread park/unpark smoke" "os_thread_park_unpark_stage1_x64_linux"
 run_one "build/tmp/os_thread_park_unpark_stage2_x64_linux" "ok: os thread park/unpark smoke" "os_thread_park_unpark_stage2_x64_linux"
+run_one "build/tmp/os_thread_spawn_many_stage1_x64_linux" "ok: os thread spawn-many smoke" "os_thread_spawn_many_stage1_x64_linux"
+run_one "build/tmp/os_thread_spawn_many_stage2_x64_linux" "ok: os thread spawn-many smoke" "os_thread_spawn_many_stage2_x64_linux"
 
 # Copy the `.so` alongside the executable (the embedded `--link` uses a relative `./...so` path).
 docker cp "build/tmp/libmath_stage1_x64_linux.so" "$LINUX_DOCKER_ID:/tmp/hostbins/libmath_stage1_x64_linux.so"

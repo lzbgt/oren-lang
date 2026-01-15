@@ -56,6 +56,9 @@ Source of truth / guards:
   - `lib/runtime_native/269_os_thread_m.oren` (`oren_m_park_word_wait`, `oren_m_park_word_wake`, `oren_os_thread_spawn`, `oren_os_thread_join_timeout`)
 - Portable timeout smoke: `tests/native/test_ulock_timeout_portable.oren` (expects `-60`, skips `-38`/ENOSYS)
 - Linux timeout normalization smoke: `tests/native/test_ulock_timeout_linux.oren` (skips on non-Linux; asserts `-110` normalizes to `-60`)
+- OS-thread substrate smokes:
+  - `tests/native/test_os_thread_park_unpark_smoke.oren` (park/unpark + bounded join)
+  - `tests/native/test_os_thread_spawn_many_smoke.oren` (spawn/join-many bounded stress)
 - Tier-1 lock handshake: `tests/fixtures/tier1_native_spawn_join_main.oren`
 
 Implementation guardrails (native backend contributors):

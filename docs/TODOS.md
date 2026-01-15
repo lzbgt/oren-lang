@@ -370,17 +370,18 @@ References:
 	       - add TLS story (`CLONE_SETTLS`) once runtime uses/needs a real thread pointer
 	       - unify the Linux `M` abstraction with Windows/Darwin (shared scheduler-facing shape)
 	       - keep join bounded: `tests/native/test_linux_os_thread_smoke.oren` uses a futex wait timeout and re-checks `ctid_ptr` after timeout (avoids false negatives if a wake is missed)
-	     - Windows x64: unify existing CreateThread-based `spawn` with the same scheduler-facing `M` abstraction (keep WaitForSingleObject join)
-		   - 2026-01-15: introduced a minimal runtime-owned OS-thread ("M") abstraction (Linux + Windows) for future M:N work:
-		     - Runtime: `lib/runtime_native/269_os_thread_m.oren`
-		       - `oren_os_thread_spawn(start_addr, arg_ptr)`
-		       - `oren_os_thread_join_timeout(handle, timeout_us)` (portable timeout `-60`)
-		       - `oren_m_park_word_wait` / `oren_m_park_word_wake` (futex/WaitOnAddress token-based park/unpark)
-		     - Guard: `tests/native/test_os_thread_park_unpark_smoke.oren` (Linux + Windows)
-   - Parking/unparking primitive for idle `M` (required to avoid spin):
-     - macOS: ulock-based park/wake for `P` (pairs with `sys_ulock_wait/sys_ulock_wake`)
-     - Linux: futex-based park/wake
-   - GC + safepoint plan for N:M (stop-the-world first, correct before fast)
+		     - Windows x64: unify existing CreateThread-based `spawn` with the same scheduler-facing `M` abstraction (keep WaitForSingleObject join)
+			   - 2026-01-15: introduced a minimal runtime-owned OS-thread ("M") abstraction (Linux + Windows) for future M:N work:
+			     - Runtime: `lib/runtime_native/269_os_thread_m.oren`
+			       - `oren_os_thread_spawn(start_addr, arg_ptr)`
+			       - `oren_os_thread_join_timeout(handle, timeout_us)` (portable timeout `-60`)
+			       - `oren_m_park_word_wait` / `oren_m_park_word_wake` (futex/WaitOnAddress token-based park/unpark)
+			     - Guard: `tests/native/test_os_thread_park_unpark_smoke.oren` (Linux + Windows)
+			     - Guard: `tests/native/test_os_thread_spawn_many_smoke.oren` (Linux + Windows; bounded join timeout)
+	   - Parking/unparking primitive for idle `M` (required to avoid spin):
+	     - macOS: ulock-based park/wake for `P` (pairs with `sys_ulock_wait/sys_ulock_wake`)
+	     - Linux: futex-based park/wake
+	   - GC + safepoint plan for N:M (stop-the-world first, correct before fast)
 
    References:
 
