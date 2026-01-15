@@ -90,6 +90,16 @@ run_with_timeout "$build_timeout_secs" "$compiler" build "$ul_src" \
 run_with_timeout "$run_timeout_secs" "$ul_out" >>"$ul_log" 2>&1
 tail -n 3 "$ul_log" >>"$log"
 
+echo "== os thread park/unpark smoke ==" >>"$log"
+ot_src="tests/native/test_os_thread_park_unpark_smoke.oren"
+ot_out="build/tmp/${compiler_base}_os_thread_park_unpark_smoke${exe_ext}"
+ot_log="build/logs/${compiler_base}_os_thread_park_unpark_smoke.log"
+rm -f "$ot_log" "$ot_out" 2>/dev/null || true
+run_with_timeout "$build_timeout_secs" "$compiler" build "$ot_src" \
+  --backend native --platform "$platform" --debug -o "$ot_out" >"$ot_log" 2>&1
+run_with_timeout "$run_timeout_secs" "$ot_out" >>"$ot_log" 2>&1
+tail -n 3 "$ot_log" >>"$log"
+
 if [[ "$os_key" != "windows" ]]; then
   # Cross-platform CLI robustness smoke:
   # Accept Windows-style `\` separators even on POSIX hosts so scripts/logs are portable.

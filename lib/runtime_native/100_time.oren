@@ -235,15 +235,22 @@ fn oren_register_thread(top) {
 	    // Flags (bitmask):
 	    // - bit0: OS thread node (vs. a green-stack node registered for GC scanning)
 	    var THREAD_NODE_FLAG_OS_THREAD = 1
-	    // Runtime metadata: use malloc_raw so GC never reclaims thread nodes.
-	    var node = native_malloc_raw_or_mmap(56)
-	    if node != 0 {
-	        ptr_set(node, top)
-	        ptr_set(iadd(node, 8), 0) // saved_sp
-	        ptr_set(iadd(node, 24), 0) // call_depth
-	        ptr_set(iadd(node, 32), 0) // time_tv_buf
-	        ptr_set(iadd(node, 40), 0) // time_abs_buf
-	        ptr_set(iadd(node, 48), THREAD_NODE_FLAG_OS_THREAD)
+		    // Runtime metadata:
+		    // - Thread nodes must never be GC-managed (they are referenced by the GC scanner).
+		    // - `oren_register_thread` can run concurrently with the main thread during OS-thread bring-up.
+		    // - The "single-thread" fast-path allocator is not concurrency-safe, so allocate via a raw
+		    //   syscall-backed page to avoid any shared allocator state races.
+		    //
+		    // NOTE: we intentionally over-allocate (1 page) to keep the allocator out of the path.
+		    // If/when we have a concurrency-safe raw allocator, we can shrink this to 56 bytes.
+		    var node = sys_mmap_private_anon(4096)
+		    if node != 0 && node != -1 && node >= 4096 {
+		        ptr_set(node, top)
+		        ptr_set(iadd(node, 8), 0) // saved_sp
+		        ptr_set(iadd(node, 24), 0) // call_depth
+		        ptr_set(iadd(node, 32), 0) // time_tv_buf
+		        ptr_set(iadd(node, 40), 0) // time_abs_buf
+		        ptr_set(iadd(node, 48), THREAD_NODE_FLAG_OS_THREAD)
 	        
 	        // Publish the node (lock-free):
         // - `oren_register_thread` can run very early in OS-thread bring-up, before we can

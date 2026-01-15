@@ -1,0 +1,99 @@
+// OS-thread M substrate: park/unpark smoke (Linux + Windows).
+//
+// Purpose:
+// - Prove that the runtime can:
+//   - create an OS thread in-process (shared address space)
+//   - park it on a wait-on-address primitive (no busy spin)
+//   - unpark it from another OS thread
+//   - join with a bounded timeout
+//
+// This is *not* a full scheduler test; it is the smallest building block for an eventual M:N runtime.
+//
+// IMPORTANT (rolling correctness):
+// - Avoid heap/GC activity while the worker thread is running.
+// - This test intentionally does not print during the threaded section.
+
+fn _off_word() { return 0 }     // u64 park word
+fn _off_started() { return 8 }  // u64 flag
+fn _off_done() { return 16 }    // u64 flag
+
+@oren.keep
+fn __oren_test_os_thread_worker(meta) {
+    if meta == 0 { return 0 }
+    // Register for future GC/stack scanning correctness (even though this test avoids GC).
+    oren_register_thread(get_sp())
+    ptr_set(meta + _off_started(), 1)
+    // Wait for wake (2s guard so failures don't hang indefinitely).
+    var rc = oren_m_park_word_wait(meta + _off_word(), 2000000)
+    if rc == 0 {
+        ptr_set(meta + _off_done(), 1)
+    }
+    return 0
+}
+
+fn main() {
+    if g_target_os != 2 && g_target_os != 3 {
+        print("skip: os thread park/unpark (target_os=" + oren_int_to_string(g_target_os) + ")")
+        return 0
+    }
+
+    // Shared meta (raw mmap; avoids GC involvement).
+    var meta = sys_mmap_private_anon(4096)
+    if meta == 0 || meta == -1 || meta < 4096 {
+        print("FAIL: meta mmap")
+        exit(1)
+    }
+    ptr_set(meta + _off_word(), 0)
+    ptr_set(meta + _off_started(), 0)
+    ptr_set(meta + _off_done(), 0)
+
+    var start = oren_code_addr(__oren_test_os_thread_worker)
+    if start == 0 {
+        sys_munmap(meta, 4096)
+        print("FAIL: code addr")
+        exit(2)
+    }
+
+    var h = oren_os_thread_spawn(start, meta)
+    if h == 0 || h == -1 || h < 0 {
+        sys_munmap(meta, 4096)
+        print("FAIL: spawn rc=" + oren_int_to_string(h))
+        exit(3)
+    }
+
+    // Wait for worker to start (bounded, no prints).
+    var i = 0
+    while i < 200 {
+        if ptr_get(meta + _off_started()) != 0 { break }
+        oren_sleep_ms(1)
+        i = i + 1
+    }
+    if ptr_get(meta + _off_started()) == 0 {
+        oren_os_thread_destroy(h)
+        sys_munmap(meta, 4096)
+        print("FAIL: worker did not start")
+        exit(4)
+    }
+
+    // Unpark and join.
+    oren_m_park_word_wake(meta + _off_word())
+    var jrc = oren_os_thread_join_timeout(h, 2000000)
+    if jrc != 0 {
+        oren_os_thread_destroy(h)
+        sys_munmap(meta, 4096)
+        print("FAIL: join rc=" + oren_int_to_string(jrc))
+        exit(5)
+    }
+    oren_os_thread_destroy(h)
+
+    var done = ptr_get(meta + _off_done())
+    sys_munmap(meta, 4096)
+    if done == 0 {
+        print("FAIL: worker did not complete")
+        exit(6)
+    }
+
+    print("ok: os thread park/unpark smoke")
+    return 0
+}
+

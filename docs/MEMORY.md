@@ -1,6 +1,6 @@
 # Memory Model
 
-**Last updated:** 2026-01-14
+**Last updated:** 2026-01-15
 
 Oren’s native backend is **syscall-first** and **libc-free**. Memory management is designed so long-running programs do not grow memory unboundedly (no “leak by design”), while still supporting a deterministic/manual lane.
 
@@ -49,7 +49,15 @@ Important remaining nuance:
 Rolling status (fact):
 
 - Linux now has a **syscall-first OS-thread substrate** (clone wrapper + futex join) as groundwork for Stage N2,
-  but it is **not** the default `spawn` path yet (see `lib/runtime_native/266_linux_os_threads.oren` and `docs/NATIVE_GMP_SCHEDULER.md`).
+  but it is **not** the default `spawn` path yet.
+  - Linux clone(2) substrate: `lib/runtime_native/266_linux_os_threads.oren`
+  - Shared scheduler-facing OS-thread (“M”) abstraction: `lib/runtime_native/269_os_thread_m.oren`
+
+Practical consequence:
+
+- As soon as true OS threads are introduced, runtime bookkeeping allocations that were “safe enough” under single-threaded execution
+  must be made thread-safe (or moved to syscall-first allocations). For example, the native thread registration list node is allocated
+  via `mmap` so it does not depend on any allocator-internal locks that are not yet OS-thread safe.
 
 This is one reason OS-thread + scheduler work (and a coherent thread-safe GC model) is considered P0 for scaling compilation and agentic workloads.
 

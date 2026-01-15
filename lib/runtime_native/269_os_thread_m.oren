@@ -1,0 +1,238 @@
+// --- OS thread ("M") substrate (rolling; for future M:N scheduler) ---
+//
+// This module defines a *runtime-owned* OS-thread abstraction that is:
+// - libc-free (syscall-first)
+// - cross-platform (Linux clone wrapper; Windows CreateThread; macOS TBD)
+// - minimal and safe: it does NOT attempt to make the full runtime GC/heap concurrent yet.
+//
+// Why this exists:
+// - Green tasks (Stage N1) are N:1 and do not provide parallelism.
+// - A real M:N scheduler needs OS threads ("M") that can:
+//   - park/unpark without busy-waiting
+//   - run a scheduler loop and execute G's on a P
+//
+// This is intentionally small and is treated as Stage N2 groundwork.
+//
+// Key dependency:
+// - `lib/runtime_native/267_wait_on_addr.oren` provides:
+//     oren_wait_on_addr(addr, expected, timeout_us)
+//     oren_wake_all_addr(addr)
+//
+// Important limitation (rolling):
+// - Once more than one OS thread is running, the runtime is in a "multi-threaded" mode and must
+//   avoid doing GC/allocator-heavy work concurrently until a safepoint protocol exists.
+
+fn _m_handle_kind_off() { return 0 }       // u64 (2=linux, 3=windows)
+fn _m_handle_th_off() { return 8 }         // u64 (linux tid or windows HANDLE)
+fn _m_handle_stack_base_off() { return 16 } // u64 (linux only)
+fn _m_handle_stack_bytes_off() { return 24 } // u64 (linux only)
+fn _m_handle_ctid_off() { return 40 }      // i32 slot (linux only; must be 4-byte aligned)
+fn _m_handle_bytes() { return 4096 }       // mmap-sized for simplicity (can be shrunk later)
+
+fn _m_default_stack_bytes() {
+    // Default 1 MiB (rolling). Env override: OREN_OS_THREAD_STACK_KB (clamped).
+    var kb = 1024
+    var v = native_envp_get_value_ptr("OREN_OS_THREAD_STACK_KB")
+    if v != 0 {
+        var n = native_parse_i64_dec_cstr_or_neg1(v)
+        if n > 0 {
+            if n < 64 { n = 64 }
+            if n > 16384 { n = 16384 }
+            kb = n
+        }
+    }
+    return kb * 1024
+}
+
+// A small futex/WaitOnAddress-style "park" word:
+// - word==0 => no signal / parked
+// - word==1 => wake requested / token available
+//
+// The word is treated as u64 so:
+// - Windows WaitOnAddress (AddressSize=8) compares full 8 bytes deterministically
+// - Linux futex waits on low 32 bits (still fine as long as high bits are 0)
+//
+// Returns:
+// - 0 on wake/spurious wake
+// - -60 on timeout (portable)
+// - other -errno on failure
+fn oren_m_park_word_wait(word_ptr, timeout_us) {
+    if word_ptr == 0 { return -5 } // EIO-ish
+
+    // Fast path: consume an already-posted token (1 -> 0) without sleeping.
+    if atomic_cas(word_ptr, 1, 0) == 1 { return 0 }
+
+    while true {
+        // If a token was posted since our last check, consume it and return.
+        if atomic_cas(word_ptr, 1, 0) == 1 { return 0 }
+
+        // Otherwise, block while word is 0.
+        var rc = oren_wait_on_addr(word_ptr, 0, timeout_us)
+        if rc != 0 { return rc }
+        // Woken or spurious: retry consumption loop.
+    }
+}
+
+// Post a wake token (0->1) and wake all waiters.
+fn oren_m_park_word_wake(word_ptr) {
+    if word_ptr == 0 { return -5 }
+    if atomic_cas(word_ptr, 0, 1) == 0 {
+        return oren_wake_all_addr(word_ptr)
+    }
+    // Already signaled.
+    return 0
+}
+
+// Spawn an OS thread that runs `start_addr(arg_ptr)`.
+//
+// Return:
+// - pointer to an mmap-backed handle struct on success
+// - 0 on allocation failure
+// - negative -errno on Linux syscall failure (best-effort)
+//
+// Notes:
+// - On Linux, this uses `sys_thread_create` (clone wrapper + CLONE_CHILD_CLEARTID join).
+// - On Windows, this uses `sys_win_createthread`.
+@oren.keep
+fn oren_os_thread_spawn(start_addr, arg_ptr) {
+    if start_addr == 0 { return 0 }
+
+    var h = sys_mmap_private_anon(_m_handle_bytes())
+    if h == 0 || h == -1 || h < 4096 { return 0 }
+
+    // Keep kind=0 until success (so destroy is safe even on partial init).
+    ptr_set(h + _m_handle_kind_off(), 0)
+    ptr_set(h + _m_handle_th_off(), 0)
+    ptr_set(h + _m_handle_stack_base_off(), 0)
+    ptr_set(h + _m_handle_stack_bytes_off(), 0)
+    oren_ptr_set_i32_le(h + _m_handle_ctid_off(), 0)
+
+    if g_target_os == 2 {
+        // Linux: clone wrapper.
+        // IMPORTANT: Once we start an additional OS thread, runtime services must stop using any
+        // "single-threaded" fast paths (shared scratch buffers, allocator shortcuts, etc.).
+        //
+        // We flip the flag *before* creating the thread to avoid the new thread observing an
+        // unsafe single-thread state during early bring-up.
+        var prev_single = g_runtime_single_threaded
+        g_runtime_single_threaded = 0
+
+        var stack_bytes = _m_default_stack_bytes()
+        var stack_base = sys_mmap_private_anon(stack_bytes)
+        if stack_base == 0 || stack_base == -1 || stack_base < 4096 {
+            g_runtime_single_threaded = prev_single
+            sys_munmap(h, _m_handle_bytes())
+            return 0
+        }
+        var stack_top = stack_base + stack_bytes
+        var ctid_ptr = h + _m_handle_ctid_off()
+
+        var tid = sys_thread_create(start_addr, arg_ptr, stack_top, ctid_ptr)
+        if tid <= 0 {
+            g_runtime_single_threaded = prev_single
+            sys_munmap(stack_base, stack_bytes)
+            sys_munmap(h, _m_handle_bytes())
+            return tid
+        }
+
+        ptr_set(h + _m_handle_kind_off(), 2)
+        ptr_set(h + _m_handle_th_off(), tid)
+        ptr_set(h + _m_handle_stack_base_off(), stack_base)
+        ptr_set(h + _m_handle_stack_bytes_off(), stack_bytes)
+        return h
+    }
+
+    if g_target_os == 3 {
+        // Windows: CreateThread.
+        var prev_single = g_runtime_single_threaded
+        g_runtime_single_threaded = 0
+        var th = sys_win_createthread(start_addr, arg_ptr)
+        if th == 0 {
+            g_runtime_single_threaded = prev_single
+            sys_munmap(h, _m_handle_bytes())
+            return 0
+        }
+        ptr_set(h + _m_handle_kind_off(), 3)
+        ptr_set(h + _m_handle_th_off(), th)
+        return h
+    }
+
+    // Other OSes: not implemented yet.
+    sys_munmap(h, _m_handle_bytes())
+    return -38
+}
+
+// Join an OS thread with a bounded timeout.
+//
+// timeout_us:
+// - 0 => wait forever
+// - >0 => bounded wait (portable timeout code -60)
+//
+// Returns:
+// - 0 on success
+// - -60 on timeout
+// - other -errno on failure
+@oren.keep
+fn oren_os_thread_join_timeout(handle, timeout_us) {
+    if handle == 0 { return -5 }
+    var kind = ptr_get(handle + _m_handle_kind_off())
+    if kind == 2 {
+        // Linux join: wait for CLONE_CHILD_CLEARTID slot to become 0.
+        var ctid_ptr = handle + _m_handle_ctid_off()
+        while true {
+            var cur = oren_ptr_get_i32_le(ctid_ptr)
+            if cur == 0 { return 0 }
+            var rc = sys_ulock_wait(1, ctid_ptr, cur, timeout_us)
+            if rc == -60 {
+                // Robustness: if the kernel cleared the slot but we missed a wake, do not fail.
+                var after = oren_ptr_get_i32_le(ctid_ptr)
+                if after == 0 { return 0 }
+                return -60
+            }
+            if rc < 0 && rc != -11 && rc != -4 {
+                // -EAGAIN/-EINTR can be retried.
+                return rc
+            }
+        }
+    }
+    if kind == 3 {
+        // Windows join: WaitForSingleObject.
+        var th = ptr_get(handle + _m_handle_th_off())
+        if th == 0 { return -5 }
+        var timeout_ms = 0
+        if timeout_us > 0 {
+            timeout_ms = timeout_us / 1000
+            if timeout_ms <= 0 { timeout_ms = 1 }
+        } else {
+            timeout_ms = -1
+        }
+        return sys_win_wait_single_object(th, timeout_ms)
+    }
+    return -38
+}
+
+// Destroy an OS thread handle and any associated resources.
+// Safe to call multiple times (best-effort).
+@oren.keep
+fn oren_os_thread_destroy(handle) {
+    if handle == 0 { return 0 }
+    var kind = ptr_get(handle + _m_handle_kind_off())
+    if kind == 2 {
+        var stack_base = ptr_get(handle + _m_handle_stack_base_off())
+        var stack_bytes = ptr_get(handle + _m_handle_stack_bytes_off())
+        if stack_base != 0 && stack_bytes != 0 {
+            sys_munmap(stack_base, stack_bytes)
+        }
+        sys_munmap(handle, _m_handle_bytes())
+        return 0
+    }
+    if kind == 3 {
+        var th = ptr_get(handle + _m_handle_th_off())
+        if th != 0 { sys_win_close_handle(th) }
+        sys_munmap(handle, _m_handle_bytes())
+        return 0
+    }
+    // Unknown/partial init.
+    sys_munmap(handle, _m_handle_bytes())
+    return 0
+}

@@ -18,7 +18,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
-RUN_TIMEOUT_SECS="${OREN_X64_LINUX_QEMU_RUN_TIMEOUT_SECS:-10}"
+RUN_TIMEOUT_SECS="${OREN_X64_LINUX_QEMU_RUN_TIMEOUT_SECS:-20}"
 BUILD_TIMEOUT_SECS="${OREN_X64_LINUX_QEMU_BUILD_TIMEOUT_SECS:-120}"
 
 log() { printf '%s\n' "$*"; }
@@ -73,7 +73,16 @@ run_one() {
   local name="$3"
   log "== run: qemu-x86_64 ${name} =="
   docker cp "$bin" "$LINUX_DOCKER_ID:/tmp/hostbins/$name"
-  docker exec -i "$LINUX_DOCKER_ID" bash -lc "set -e; cd /tmp/hostbins; chmod +x '$name'; timeout '$RUN_TIMEOUT_SECS' qemu-x86_64 './$name' >'${name}.out' 2>&1 || exit \$?"
+  local rc=0
+  docker exec -i "$LINUX_DOCKER_ID" bash -lc "set -e; cd /tmp/hostbins; chmod +x '$name'; : >'${name}.out'; timeout '$RUN_TIMEOUT_SECS' qemu-x86_64 './$name' >'${name}.out' 2>&1" || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    echo "--- run failed: ${name} (exit=$rc) ---" >&2
+    if [[ "$rc" -eq 124 ]]; then
+      echo "note: exit=124 is timeout(${RUN_TIMEOUT_SECS}s); qemu can be slow on cold starts." >&2
+    fi
+    docker exec -i "$LINUX_DOCKER_ID" bash -lc "cd /tmp/hostbins && (ls -la '$name' '${name}.out' || true) && echo '--- output (tail) ---' && (tail -n 200 '${name}.out' | tr -d '\\r' || true)" >&2 || true
+    return 1
+  fi
   out="$(docker exec -i "$LINUX_DOCKER_ID" bash -lc "cd /tmp/hostbins && cat '${name}.out' | tr -d '\\r'")"
   if [[ -n "$want" ]]; then
     if ! printf '%s\n' "$out" | grep -qF "$want"; then
@@ -92,6 +101,7 @@ STD_FFI_LIBC_SMOKE_SRC="tests/native/test_std_ffi_libc_smoke.oren"
 LINUX_OS_THREAD_SMOKE_SRC="tests/native/test_linux_os_thread_smoke.oren"
 LINUX_ULOCK_TIMEOUT_SMOKE_SRC="tests/native/test_ulock_timeout_linux.oren"
 ULOCK_TIMEOUT_PORTABLE_SMOKE_SRC="tests/native/test_ulock_timeout_portable.oren"
+OS_THREAD_PARK_UNPARK_SMOKE_SRC="tests/native/test_os_thread_park_unpark_smoke.oren"
 LIBMATH_SRC="examples/libmath.oren"
 FFI_FROM_LIBMATH_SRC="examples/ffi_from_libmath.oren"
 
@@ -107,6 +117,8 @@ build_one "./oren" "$LINUX_ULOCK_TIMEOUT_SMOKE_SRC" "build/tmp/ulock_timeout_sta
 build_one "./oren_stage2" "$LINUX_ULOCK_TIMEOUT_SMOKE_SRC" "build/tmp/ulock_timeout_stage2_x64_linux" "build/logs/x64_linux_ulock_timeout_stage2.log"
 build_one "./oren" "$ULOCK_TIMEOUT_PORTABLE_SMOKE_SRC" "build/tmp/ulock_timeout_portable_stage1_x64_linux" "build/logs/x64_linux_ulock_timeout_portable_stage1.log"
 build_one "./oren_stage2" "$ULOCK_TIMEOUT_PORTABLE_SMOKE_SRC" "build/tmp/ulock_timeout_portable_stage2_x64_linux" "build/logs/x64_linux_ulock_timeout_portable_stage2.log"
+build_one "./oren" "$OS_THREAD_PARK_UNPARK_SMOKE_SRC" "build/tmp/os_thread_park_unpark_stage1_x64_linux" "build/logs/x64_linux_os_thread_park_unpark_stage1.log"
+build_one "./oren_stage2" "$OS_THREAD_PARK_UNPARK_SMOKE_SRC" "build/tmp/os_thread_park_unpark_stage2_x64_linux" "build/logs/x64_linux_os_thread_park_unpark_stage2.log"
 
 # Shared library + FFI resolution smoke (high-signal for x64-linux native backend):
 # - stage1/stage2 emit a `.so` and a binary that calls into it via `ffi`.
@@ -128,6 +140,8 @@ run_one "build/tmp/ulock_timeout_stage1_x64_linux" "ok: ulock timeout linux" "ul
 run_one "build/tmp/ulock_timeout_stage2_x64_linux" "ok: ulock timeout linux" "ulock_timeout_stage2_x64_linux"
 run_one "build/tmp/ulock_timeout_portable_stage1_x64_linux" "ok: ulock timeout portable" "ulock_timeout_portable_stage1_x64_linux"
 run_one "build/tmp/ulock_timeout_portable_stage2_x64_linux" "ok: ulock timeout portable" "ulock_timeout_portable_stage2_x64_linux"
+run_one "build/tmp/os_thread_park_unpark_stage1_x64_linux" "ok: os thread park/unpark smoke" "os_thread_park_unpark_stage1_x64_linux"
+run_one "build/tmp/os_thread_park_unpark_stage2_x64_linux" "ok: os thread park/unpark smoke" "os_thread_park_unpark_stage2_x64_linux"
 
 # Copy the `.so` alongside the executable (the embedded `--link` uses a relative `./...so` path).
 docker cp "build/tmp/libmath_stage1_x64_linux.so" "$LINUX_DOCKER_ID:/tmp/hostbins/libmath_stage1_x64_linux.so"

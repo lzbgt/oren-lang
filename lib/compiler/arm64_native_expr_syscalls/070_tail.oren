@@ -433,12 +433,28 @@
                 //   child_sp = (stack_top - 16)
                 //   [child_sp+0] = start_addr
                 //   [child_sp+8] = arg_ptr
+                //
+                // Rationale:
+                // - We need the child path to be self-contained: it must not depend on caller stack
+                //   layout, and it must not rely on any register preservation contract beyond `X0`.
+                // - Storing to the new OS thread stack and re-loading via SP keeps the contract
+                //   explicit and stable across kernel/ABI details.
                 push_u32_le(ctx["code"], insn_sub_imm(11, 11, 16)) // X11 = child_sp
                 push_u32_le(ctx["code"], insn_str_ptr(9, 11))      // *(u64*)child_sp = start_addr
                 push_u32_le(ctx["code"], insn_add_imm(13, 11, 8))  // X13 = child_sp + 8
                 push_u32_le(ctx["code"], insn_str_ptr(10, 13))     // *(u64*)(child_sp+8) = arg_ptr
 
-                // clone(flags, child_stack, ptid, ctid, tls)
+                // clone(flags, child_stack, ptid, tls, ctid)   (Linux arm64 syscall ABI)
+                //
+                // NOTE: The Oren-level signature for `sys_clone` is kept stable as:
+                //   sys_clone(flags, stack, ptid, ctid, tls)
+                // but the Linux/arm64 kernel syscall argument order is:
+                //   clone(flags, stack, ptid, tls, ctid)
+                //
+                // So we must pass:
+                //   X2 = ptid
+                //   X3 = tls
+                //   X4 = ctid
                 // Flags verified against:
                 //   project-doc/web/linux/include_uapi_linux_sched.h
                 //   CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM|
@@ -446,17 +462,44 @@
                 emit_load_u64_imm(ctx, 0, 0x01350F00) // X0 = flags
                 push_u32_le(ctx["code"], insn_mov_reg(1, 11)) // X1 = child_sp
                 push_u32_le(ctx["code"], insn_mov_reg(2, 12)) // X2 = ptid (reuse ctid_ptr)
-                push_u32_le(ctx["code"], insn_mov_reg(3, 12)) // X3 = ctid_ptr
-                push_u32_le(ctx["code"], insn_movz(4, 0))     // X4 = tls = 0
+                push_u32_le(ctx["code"], insn_movz(3, 0))     // X3 = tls = 0
+                push_u32_le(ctx["code"], insn_mov_reg(4, 12)) // X4 = ctid_ptr
 
                 push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_clone()))
-                emit_svc_preserve_heap(ctx, labi.linux_svc_imm())
 
-                // Child path: if X0 == 0, run start(arg) and sys_exit(0).
+                // IMPORTANT: `emit_svc_preserve_heap` saves/restores callee-saved regs using SP.
+                // For `clone(2)`, the child returns with a *different* SP (the new thread stack),
+                // so a generic "restore after svc" sequence would read garbage from the child stack.
+                //
+                // Strategy:
+                // - Save regs on the *parent* stack before `svc`.
+                // - After the syscall returns:
+                //   - if child (X0==0): skip restore and immediately run start(arg) on the child stack.
+                //   - if parent (X0!=0): restore regs and continue.
+                //
+                // Layout (80 bytes) matches emit_svc_preserve_heap:
+                //   [SP+0..56]  = X19..X26
+                //   [SP+64]     = X27
+                //   [SP+72]     = X28
+                push_u32_le(ctx["code"], insn_sub_sp(80))
+                var sr = 19
+                while sr <= 26 {
+                    push_u32_le(ctx["code"], insn_str_reg_sp(sr, (sr - 19) * 8))
+                    sr = sr + 1
+                }
+                push_u32_le(ctx["code"], insn_str_reg_sp(27, 64))
+                push_u32_le(ctx["code"], insn_str_reg_sp(28, 72))
+                push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
+
+                // Child path (X0 == 0):
+                // - run start(arg) and sys_exit(0)
+                // Parent path (X0 != 0):
+                // - skip the child stub, restore regs, continue
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // CMP X0, XZR
                 var br_parent = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0) // B.NE parent_done
+                push_u32_le(ctx["code"], 0) // B.NE parent_restore
 
-                // X9 = *(u64*)SP (start_addr); X0 = *(u64*)(SP+8) (arg_ptr)
+                // Child stub: X9 = *(u64*)SP (start_addr); X0 = *(u64*)(SP+8) (arg_ptr)
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 0))
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 8))
                 push_u32_le(ctx["code"], insn_blr(9))
@@ -464,10 +507,20 @@
                 // sys_exit(0) (terminate thread; must not return)
                 push_u32_le(ctx["code"], insn_movz(0, 0)) // exit code
                 push_u32_le(ctx["code"], insn_movz(labi.linux_syscall_reg(), labi.linux_sys_exit()))
-                emit_svc_preserve_heap(ctx, labi.linux_svc_imm())
+                push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
 
                 var parent_pos = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_parent, insn_b_cond((parent_pos - br_parent) / 4, 1)) // NE
+
+                // Parent restore (only executed in parent; child's SP is different).
+                var rr = 19
+                while rr <= 26 {
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(rr, (rr - 19) * 8))
+                    rr = rr + 1
+                }
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(27, 64))
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(28, 72))
+                push_u32_le(ctx["code"], insn_add_sp(80))
                 return true
             }
             
@@ -505,14 +558,17 @@
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_clone_pre, "name": "native_capsule_sys_clone_pre"})
                 }
     
-                // Load args for syscall:
+                // Load args for syscall (Oren signature):
+                //   sys_clone(flags, stack, ptid, ctid, tls)
+                //
                 // Stack layout (top..):
                 //   tls@0, ctid@16, ptid@32, stack@48, flags@64
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 64)) // flags
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 48)) // stack
                 push_u32_le(ctx["code"], insn_ldr_reg_sp(2, 32)) // ptid
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 16)) // ctid
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 0))  // tls
+                // Linux arm64 syscall ABI: clone(flags, stack, ptid, tls, ctid)
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0))  // tls
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 16)) // ctid
     
                 // Pop args (5 slots).
                 push_u32_le(ctx["code"], insn_add_sp(80))

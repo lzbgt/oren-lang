@@ -52,9 +52,19 @@ Why this matters:
 Source of truth / guards:
 
 - Runtime wrapper (portable API): `lib/runtime_native/267_wait_on_addr.oren` (`oren_wait_on_addr`, `oren_wake_all_addr`)
+- OS-thread (M) substrate uses the wait-on-address primitive for parking (no busy spin):
+  - `lib/runtime_native/269_os_thread_m.oren` (`oren_m_park_word_wait`, `oren_m_park_word_wake`, `oren_os_thread_spawn`, `oren_os_thread_join_timeout`)
 - Portable timeout smoke: `tests/native/test_ulock_timeout_portable.oren` (expects `-60`, skips `-38`/ENOSYS)
 - Linux timeout normalization smoke: `tests/native/test_ulock_timeout_linux.oren` (skips on non-Linux; asserts `-110` normalizes to `-60`)
 - Tier-1 lock handshake: `tests/fixtures/tier1_native_spawn_join_main.oren`
+
+Implementation guardrails (native backend contributors):
+
+- The native runtime “rtobj” cache stores compiled machine code for the injected runtime. If native codegen changes (ABI layout,
+  syscall lowering, instruction encoding), bump the backend signature in `lib/compiler/native_runtime_obj_cache.oren` or you can
+  accidentally keep old runtime machine code alive on cache hits.
+- Linux/aarch64 syscall ABI nuance: raw `clone(2)` argument order is `clone(flags, stack, ptid, tls, ctid)` (TLS and ctid are swapped
+  vs x64 conventions). `sys_thread_create` lowering must follow that when using `CLONE_*TID` flags.
 
 Implications:
 

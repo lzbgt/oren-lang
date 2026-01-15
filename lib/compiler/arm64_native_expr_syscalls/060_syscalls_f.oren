@@ -649,7 +649,9 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
                     push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // X0 = addr
                     push_u32_le(ctx["code"], insn_movz(1, 129))  // X1 = FUTEX_WAKE_PRIVATE
                     push_u32_le(ctx["code"], insn_movz(2, 65535)) // lower 16 of INT_MAX
-                    push_u32_le(ctx["code"], insn_movk(2, 32767, 16)) // INT_MAX upper bits (0x7fffffff)
+                    // MOVK uses shift_idx (0..3) where shift = shift_idx * 16.
+                    // We want: movk x2, 0x7fff, lsl #16 => shift_idx=1.
+                    push_u32_le(ctx["code"], insn_movk(2, 32767, 1)) // INT_MAX upper bits (0x7fffffff)
                     push_u32_le(ctx["code"], insn_movz(3, 0))
                     push_u32_le(ctx["code"], insn_movz(4, 0))
                     push_u32_le(ctx["code"], insn_movz(5, 0))
