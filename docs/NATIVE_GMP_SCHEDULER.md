@@ -197,6 +197,14 @@ Status (rolling groundwork):
      - a conservative stack scanning strategy with coordination
    - This is a major reason to do N:1 first: it validates `G` stacks + yield points before introducing cross-thread coordination.
 
+Status (rolling, fact):
+
+- 2026-01-15: a minimal **stop-the-world at safepoints** protocol exists in the native runtime to make `oren_gc_collect()` safe when more than one OS thread exists:
+  - Runtime impl: `lib/runtime_native/100_time.oren` (`native_gc_stw_begin/native_gc_stw_poll_and_park/native_gc_stw_end`)
+  - Coordination words live in globals storage (wait-on-address): offsets `424/432/440` (see `lib/runtime_native/010_channels_globals_consts.oren`)
+  - Guard: `tests/native/test_gc_stw_os_thread_collect.oren`
+  - Limitation: cooperative only (threads must reach `oren_gc_safepoint()`); this is foundational plumbing for a future preemptive/stw design and for M:N.
+
 ## 4) Minimal language surface to support this
 
 To avoid a spec rewrite while still enabling modern concurrency:

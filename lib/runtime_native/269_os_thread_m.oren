@@ -112,6 +112,9 @@ fn oren_os_thread_spawn(start_addr, arg_ptr) {
         // (see `lib/runtime_native/264_darwin_os_threads.oren`).
         var prev_single = g_runtime_single_threaded
         g_runtime_single_threaded = 0
+        // Ensure the spawning thread participates in OS-thread accounting and STW GC.
+        // This keeps `global_get_os_thread_count()` accurate and lets the collector identify itself.
+        oren_register_thread(get_sp())
         var meta = oren_darwin_os_thread_spawn_raw(start_addr, arg_ptr)
         if meta == 0 {
             g_runtime_single_threaded = prev_single
@@ -132,6 +135,8 @@ fn oren_os_thread_spawn(start_addr, arg_ptr) {
         // unsafe single-thread state during early bring-up.
         var prev_single = g_runtime_single_threaded
         g_runtime_single_threaded = 0
+        // Ensure the spawning thread participates in OS-thread accounting and STW GC.
+        oren_register_thread(get_sp())
 
         var stack_bytes = _m_default_stack_bytes()
         var stack_base = sys_mmap_private_anon(stack_bytes)
@@ -162,6 +167,8 @@ fn oren_os_thread_spawn(start_addr, arg_ptr) {
         // Windows: CreateThread.
         var prev_single = g_runtime_single_threaded
         g_runtime_single_threaded = 0
+        // Ensure the spawning thread participates in OS-thread accounting and STW GC.
+        oren_register_thread(get_sp())
         var th = sys_win_createthread(start_addr, arg_ptr)
         if th == 0 {
             g_runtime_single_threaded = prev_single

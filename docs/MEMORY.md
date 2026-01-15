@@ -56,6 +56,12 @@ Rolling status (fact):
   but it is **not** the default `spawn` path yet (language `spawn` still defaults to green tasks unless explicitly overridden).
   - Linux clone(2) substrate: `lib/runtime_native/266_linux_os_threads.oren`
   - Shared scheduler-facing OS-thread (“M”) abstraction: `lib/runtime_native/269_os_thread_m.oren`
+- 2026-01-15: the native runtime gained a minimal **stop-the-world GC safepoint protocol** so manual collection is no longer “single-thread only”:
+  - Collector: `oren_gc_collect()` requests STW, runs `native_gc_collect()`, then releases.
+  - Mutators: `oren_gc_safepoint()` checks the STW state and **parks** the OS thread when requested.
+  - GC stack scanning uses the thread node’s `saved_sp` field to scan parked threads safely.
+  - Current-thread stack selection for **OS threads** uses `sys_gettid()` identity (not an SP/top heuristic), avoiding adjacent-stack misidentification crashes.
+  - Guard: `tests/native/test_gc_stw_os_thread_collect.oren` (object reachable only from parked thread’s stack must survive).
 
 Practical consequence:
 
@@ -74,4 +80,5 @@ This is one reason OS-thread + scheduler work (and a coherent thread-safe GC mod
   - compile with `--no-gc` to make GC scanning/collection a no-op by default
   - runtime override: `OREN_NO_GC=1` disables scanning/collection (useful for production rollouts)
 - Collection locking is coarse today; per-object locking or lock-free structures plus a concurrency-compatible GC/safepoint story are still needed.
-- The collector is stop-the-world and can be invoked manually today; automatic triggers exist in limited form but must remain correct once true OS threads are introduced.
+- The collector is stop-the-world and can be invoked manually today; in multi-threaded programs it currently relies on **cooperative safepoints**
+  (threads must reach `oren_gc_safepoint()` in bounded time). Automatic triggers exist in limited form and still default to single-OS-thread mode.

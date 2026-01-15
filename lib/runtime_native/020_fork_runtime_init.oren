@@ -121,6 +121,17 @@ fn native_runtime_init(target_os) {
     // depend on those singletons being available.
     //
     // Do not clear `g_storage` here.
+    //
+    // However, it is safe (and required for determinism) to initialize newly-added
+    // rolling control slots that live in globals storage *after* the value singletons.
+    //
+    // In particular, stop-the-world GC coordination uses wait-on-address on these words,
+    // so leaving them uninitialized could deadlock the runtime on some targets.
+    if oren_globals() != 0 {
+        ptr_set(iadd(oren_globals(), 424), 0) // GLOBAL_OFF_GC_STW_STATE
+        ptr_set(iadd(oren_globals(), 432), 0) // GLOBAL_OFF_GC_STW_PARKED
+        ptr_set(iadd(oren_globals(), 440), 0) // GLOBAL_OFF_GC_STW_OWNER_NODE
+    }
 
     // --- Critical runtime globals (must not rely on global initializers) ---
     //
@@ -213,6 +224,9 @@ fn native_runtime_init(target_os) {
     GLOBAL_OFF_VALUE_NIL = 368
     GLOBAL_OFF_VALUE_FALSE = 376
     GLOBAL_OFF_VALUE_TRUE = 384
+    GLOBAL_OFF_GC_STW_STATE = 424
+    GLOBAL_OFF_GC_STW_PARKED = 432
+    GLOBAL_OFF_GC_STW_OWNER_NODE = 440
     GLOBAL_SLOTS_RESERVED = 56
 
     // IMPORTANT: do not rely on global initializers for these constants.

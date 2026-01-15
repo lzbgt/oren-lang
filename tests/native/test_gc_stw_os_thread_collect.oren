@@ -1,0 +1,144 @@
+// Stop-the-world GC + OS-thread stack scanning smoke (Tier‑1).
+//
+// Purpose:
+// - Ensure `oren_gc_collect()` is safe once more than one OS thread exists.
+// - Specifically: while an OS thread is running, request a GC and verify that an object
+//   reachable *only from the parked thread's stack* survives.
+//
+// This is a minimal correctness test for the STW safepoint protocol:
+// - worker loops calling `oren_gc_safepoint()` (cooperative safepoint)
+// - collector calls `oren_gc_collect()` which requests STW
+// - worker parks, writes `saved_sp`, and GC scans that stack range
+//
+// Rolling note:
+// - This does NOT attempt full concurrent allocation/GC; it just validates the STW "park + scan + resume" handshake.
+
+fn _off_state() { return 0 }    // u64: 0=init, 1=ready/running, 9=exit
+fn _off_keep_ptr() { return 8 } // u64: pointer to tracked heap object (list)
+
+@oren.keep
+fn __oren_test_gc_stw_worker(meta) {
+    if meta == 0 { return 0 }
+
+    // OS-thread nodes must be registered for GC stack scanning + thread counting.
+    oren_register_thread(get_sp())
+
+    // Allocate a heap object that should stay alive due to stack scanning.
+    var keep = oren_new_list(2)
+    oren_list_push(keep, 123)
+    oren_list_push(keep, 456)
+
+    // Publish the pointer into raw mmap-backed memory (NOT a GC root).
+    ptr_set(meta + _off_keep_ptr(), keep)
+
+    // Signal readiness.
+    ptr_set(meta + _off_state(), 1)
+    oren_wake_all_addr(meta + _off_state())
+
+    // Stay in a tight loop so the collector can reliably park us at a safepoint.
+    // Keep `keep` live on this stack frame until exit.
+    while ptr_get(meta + _off_state()) == 1 {
+        oren_gc_safepoint()
+    }
+    return 0
+}
+
+fn main() {
+    if g_target_os != 1 && g_target_os != 2 && g_target_os != 3 {
+        print("skip: gc stw os-thread collect (target_os=" + oren_int_to_string(g_target_os) + ")")
+        return 0
+    }
+
+    var meta = sys_mmap_private_anon(4096)
+    if meta == 0 || meta == -1 || meta < 4096 {
+        print("FAIL: meta mmap")
+        exit(1)
+    }
+    ptr_set(meta + _off_state(), 0)
+    ptr_set(meta + _off_keep_ptr(), 0)
+
+    var start = oren_code_addr(__oren_test_gc_stw_worker)
+    if start == 0 {
+        sys_munmap(meta, 4096)
+        print("FAIL: code addr")
+        exit(2)
+    }
+
+    var h = oren_os_thread_spawn(start, meta)
+    if h == 0 || h == -1 || h < 0 {
+        sys_munmap(meta, 4096)
+        print("FAIL: spawn rc=" + oren_int_to_string(h))
+        exit(3)
+    }
+
+    // Wait until worker publishes readiness.
+    while ptr_get(meta + _off_state()) == 0 {
+        var rc = oren_wait_on_addr(meta + _off_state(), 0, 2000000)
+        if rc == -60 {
+            oren_os_thread_destroy(h)
+            sys_munmap(meta, 4096)
+            print("FAIL: timeout waiting for worker")
+            exit(4)
+        }
+    }
+
+    print("dbg: worker ready")
+    var gg = oren_globals()
+    print("dbg: globals=" + oren_int_to_string(gg))
+
+    // Critical: do NOT read keep_ptr before the collection, otherwise the pointer would be
+    // present on the collector stack and could mask missing worker stack scanning.
+    print("dbg: os_thread_count=" + oren_int_to_string(global_get_os_thread_count()))
+    print("dbg: requesting GC")
+    oren_gc_collect()
+    print("dbg: GC returned")
+
+    // Now read the pointer and verify it is still tracked.
+    var keep_after = ptr_get(meta + _off_keep_ptr())
+    if keep_after == 0 {
+        ptr_set(meta + _off_state(), 9)
+        oren_wake_all_addr(meta + _off_state())
+        oren_os_thread_join_timeout(h, 2000000)
+        oren_os_thread_destroy(h)
+        sys_munmap(meta, 4096)
+        print("FAIL: keep ptr not published")
+        exit(5)
+    }
+
+    if oren_find_node(keep_after) == 0 {
+        ptr_set(meta + _off_state(), 9)
+        oren_wake_all_addr(meta + _off_state())
+        oren_os_thread_join_timeout(h, 2000000)
+        oren_os_thread_destroy(h)
+        sys_munmap(meta, 4096)
+        print("FAIL: keep was collected (missing parked thread scan?)")
+        exit(6)
+    }
+
+    if oren_list_len(keep_after) != 2 || keep_after[0] != 123 || keep_after[1] != 456 {
+        ptr_set(meta + _off_state(), 9)
+        oren_wake_all_addr(meta + _off_state())
+        oren_os_thread_join_timeout(h, 2000000)
+        oren_os_thread_destroy(h)
+        sys_munmap(meta, 4096)
+        print("FAIL: keep list corrupted after GC")
+        exit(7)
+    }
+
+    // Ask worker to exit and join it.
+    ptr_set(meta + _off_state(), 9)
+    oren_wake_all_addr(meta + _off_state())
+
+    var jrc = oren_os_thread_join_timeout(h, 2000000)
+    if jrc != 0 {
+        oren_os_thread_destroy(h)
+        sys_munmap(meta, 4096)
+        print("FAIL: join rc=" + oren_int_to_string(jrc))
+        exit(8)
+    }
+
+    oren_os_thread_destroy(h)
+    sys_munmap(meta, 4096)
+    print("ok: gc stw os-thread collect")
+    return 0
+}

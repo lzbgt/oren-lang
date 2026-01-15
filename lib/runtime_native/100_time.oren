@@ -87,6 +87,28 @@ fn native_time_current_thread_node_or0() {
     //
     // Returns a Thread Node pointer or 0 if unknown/not registered yet.
     if oren_globals() == 0 { return 0 }
+
+    // Prefer OS-thread identity when available:
+    // - `sys_gettid()` is stable per OS thread on Tier‑1 (macOS/Linux/Windows).
+    // - `oren_register_thread` stores it at node+56 (OS thread nodes only).
+    //
+    // This avoids relying on the "sp within 8MB of top" heuristic, which can fail on:
+    // - larger-than-8MB stacks
+    // - stacks mapped close together (false positives/negatives).
+    var tid = sys_gettid()
+    if tid != 0 {
+        var THREAD_NODE_FLAG_OS_THREAD = 1
+        var node0 = global_get_threads()
+        while node0 != 0 {
+            var flags = ptr_get(iadd(node0, 48))
+            if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+                if ptr_get(iadd(node0, 56)) == tid { return node0 }
+            }
+            node0 = ptr_get(iadd(node0, 16))
+        }
+    }
+
+    // Fallback: stack-window heuristic (works for green stacks registered via `oren_register_stack`).
     var sp = get_sp()
     var node = global_get_threads()
     var max_scan = 8388608 // 8MB
@@ -229,58 +251,85 @@ fn oren_register_thread(top) {
     //   32: time_tv_buf (TIME scratch; 16 bytes)
     //   40: time_abs_buf (TIME scratch; 8 bytes)
     //   48: flags (bitmask; rolling)
+    //   56: os_tid (u64; stable per-OS-thread identity for idempotent registration)
     //
-	    // Size: 56 bytes
-	    //
-	    // Flags (bitmask):
-	    // - bit0: OS thread node (vs. a green-stack node registered for GC scanning)
-	    var THREAD_NODE_FLAG_OS_THREAD = 1
-		    // Runtime metadata:
-		    // - Thread nodes must never be GC-managed (they are referenced by the GC scanner).
-		    // - `oren_register_thread` can run concurrently with the main thread during OS-thread bring-up.
-		    // - The "single-thread" fast-path allocator is not concurrency-safe, so allocate via a raw
+		    // Size: 64 bytes
+		    //
+		    // Flags (bitmask):
+		    // - bit0: OS thread node (vs. a green-stack node registered for GC scanning)
+		    var THREAD_NODE_FLAG_OS_THREAD = 1
+		    // - bit1: STW parked (set by GC safepoints)
+			    // Runtime metadata:
+			    // - Thread nodes must never be GC-managed (they are referenced by the GC scanner).
+			    // - `oren_register_thread` can run concurrently with the main thread during OS-thread bring-up.
+			    // - The "single-thread" fast-path allocator is not concurrency-safe, so allocate via a raw
 		    //   syscall-backed page to avoid any shared allocator state races.
 		    //
-		    // NOTE: we intentionally over-allocate (1 page) to keep the allocator out of the path.
-		    // If/when we have a concurrency-safe raw allocator, we can shrink this to 56 bytes.
-		    var node = sys_mmap_private_anon(4096)
-		    if node != 0 && node != -1 && node >= 4096 {
-		        ptr_set(node, top)
-		        ptr_set(iadd(node, 8), 0) // saved_sp
-		        ptr_set(iadd(node, 24), 0) // call_depth
-		        ptr_set(iadd(node, 32), 0) // time_tv_buf
-		        ptr_set(iadd(node, 40), 0) // time_abs_buf
-		        ptr_set(iadd(node, 48), THREAD_NODE_FLAG_OS_THREAD)
-	        
-	        // Publish the node (lock-free):
-        // - `oren_register_thread` can run very early in OS-thread bring-up, before we can
-        //   rely on any higher-level thread-id / lock substrate.
+			    // NOTE: we intentionally over-allocate (1 page) to keep the allocator out of the path.
+			    // If/when we have a concurrency-safe raw allocator, we can shrink this to 56 bytes.
+			    //
+			    // Idempotency:
+			    // - Some OS-thread start stubs register threads automatically.
+			    // - Tests and early bring-up code sometimes also call `oren_register_thread(get_sp())`.
+			    // - Without dedupe, we would double-count OS threads and create duplicate nodes,
+			    //   which breaks stop-the-world GC waiting (and inflates stack scans).
+			    //
+			    // Use `sys_gettid()` to dedupe per OS thread, and return an existing node if present.
+			    var tid = sys_gettid()
+			    if tid != 0 && oren_globals() != 0 {
+			        var cur0 = global_get_threads()
+			        while cur0 != 0 {
+			            var flags0 = ptr_get(iadd(cur0, 48))
+			            if (flags0 & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+			                var t0 = ptr_get(iadd(cur0, 56))
+			                if t0 == tid {
+			                    // Keep existing top (do not shrink the scan window).
+			                    return cur0
+			                }
+			            }
+			            cur0 = ptr_get(iadd(cur0, 16))
+			        }
+			    }
+
+			    var node = sys_mmap_private_anon(4096)
+			    if node != 0 && node != -1 && node >= 4096 {
+			        ptr_set(node, top)
+			        ptr_set(iadd(node, 8), 0) // saved_sp
+			        ptr_set(iadd(node, 24), 0) // call_depth
+			        ptr_set(iadd(node, 32), 0) // time_tv_buf
+			        ptr_set(iadd(node, 40), 0) // time_abs_buf
+			        ptr_set(iadd(node, 48), THREAD_NODE_FLAG_OS_THREAD)
+			        ptr_set(iadd(node, 56), tid)
+		        
+		        // Publish the node (lock-free):
+	        // - `oren_register_thread` can run very early in OS-thread bring-up, before we can
+	        //   rely on any higher-level thread-id / lock substrate.
         // - Use CAS on the global thread-list head to avoid races.
 	        var threads_ptr = iadd(oren_globals(), 32) // GLOBAL_OFF_THREADS
-	        while 1 {
-	            var prev_head = ptr_get(threads_ptr)
-	            ptr_set(iadd(node, 16), prev_head)
-	            // atomic_cas returns the *old* value. Success iff old == expected.
-	            if atomic_cas(threads_ptr, prev_head, node) == prev_head { break }
-	        }
+		        while 1 {
+		            var prev_head = ptr_get(threads_ptr)
+		            ptr_set(iadd(node, 16), prev_head)
+		            // atomic_cas returns the *old* value. Success iff old == expected.
+		            if atomic_cas(threads_ptr, prev_head, node) == prev_head { break }
+		        }
 
-	        // Update OS-thread count and single-thread fast path.
-        //
-        // This intentionally tracks only OS threads (not green stacks), so green-task mode
-        // can preserve the single-thread fast path.
-	        var count_ptr = iadd(oren_globals(), 416) // GLOBAL_OFF_OS_THREAD_COUNT (rolling)
-	        while 1 {
-	            var old = ptr_get(count_ptr)
-	            var new = iadd(old, 1)
-	            // atomic_cas returns the *old* value. Success iff old == expected.
-	            if atomic_cas(count_ptr, old, new) == old {
-	                if old != 0 { g_runtime_single_threaded = 0 }
-	                break
-	            }
-	        }
-    }
-    return node
-}
+		        // Update OS-thread count and single-thread fast path.
+	        //
+	        // This intentionally tracks only OS threads (not green stacks), so green-task mode
+	        // can preserve the single-thread fast path.
+		        var count_ptr = iadd(oren_globals(), 416) // GLOBAL_OFF_OS_THREAD_COUNT (rolling)
+		        while 1 {
+		            var old = ptr_get(count_ptr)
+		            var new = iadd(old, 1)
+		            // atomic_cas returns the *old* value. Success iff old == expected.
+		            if atomic_cas(count_ptr, old, new) == old {
+		                if old != 0 { g_runtime_single_threaded = 0 }
+		                break
+		            }
+		        }
+	    }
+	    return node
+	}
 
 // Register a non-OS stack node for GC scanning (native green tasks Stage N1).
 //
@@ -414,6 +463,175 @@ fn native_gc_single_threaded() {
     if count > 1 { ok = false }
     release_lock()
     return ok
+}
+
+// --- Stop-the-world (STW) GC safepoints (native runtime; rolling) ---
+//
+// Goal:
+// - Make `oren_gc_collect()` safe once more than one OS thread exists.
+//
+// Design constraints (Tier‑1):
+// - Must be libc-free and cross-platform (uses `oren_wait_on_addr` / `oren_wake_all_addr`).
+// - Must not require a full M:N scheduler yet; this is a minimal "park at safepoints" protocol.
+//
+// Globals storage layout (see `lib/runtime_native/010_channels_globals_consts.oren`):
+// - 424: gc_stw_state       (0=running, 1=stop requested, 2=collector preparing)
+// - 432: gc_stw_parked      (number of parked OS threads excluding collector)
+// - 440: gc_stw_owner_node  (Thread Node pointer of collector, best-effort)
+fn native_gc_stw_state_ptr() {
+    var g = oren_globals()
+    if g == 0 { return 0 }
+    return iadd(g, 424)
+}
+fn native_gc_stw_parked_ptr() {
+    var g = oren_globals()
+    if g == 0 { return 0 }
+    return iadd(g, 432)
+}
+fn native_gc_stw_owner_ptr() {
+    var g = oren_globals()
+    if g == 0 { return 0 }
+    return iadd(g, 440)
+}
+
+fn native_atomic_inc_u64(word_ptr) {
+    if word_ptr == 0 { return 0 }
+    while true {
+        var old = ptr_get(word_ptr)
+        var new = iadd(old, 1)
+        if atomic_cas(word_ptr, old, new) == old { return new }
+    }
+    return 0
+}
+
+fn native_gc_stw_begin() {
+    if oren_globals() == 0 { return 0 }
+    var stw_ptr = native_gc_stw_state_ptr()
+    var parked_ptr = native_gc_stw_parked_ptr()
+    var owner_ptr = native_gc_stw_owner_ptr()
+    if stw_ptr == 0 || parked_ptr == 0 || owner_ptr == 0 { return 0 }
+
+    // Claim the STW controller role:
+    // - CAS 0->2 ("preparing") so other threads do not park yet (avoids losing parked-count increments).
+    // - If another collector is active, wait until the word changes.
+    while true {
+        var s = ptr_get(stw_ptr)
+        if s == 0 {
+            if atomic_cas(stw_ptr, 0, 2) == 0 { break }
+            continue
+        }
+        // Best-effort: sleep while state is unchanged.
+        oren_wait_on_addr(stw_ptr, s, 1000000)
+    }
+
+    // Initialize per-collection coordination state.
+    ptr_set(parked_ptr, 0)
+    // Identify the collector thread so it does NOT park at safepoints during STW.
+    //
+    // Why this is required (Tier‑1 correctness):
+    // The native backend inserts `oren_gc_safepoint()` into loop headers for long-running
+    // compiler/tooling workloads. `native_gc_collect()` (and its helpers like stack scanning)
+    // contains loops, so the collector thread can hit an injected safepoint while STW is active.
+    //
+    // If the collector parks itself (owner not set), STW deadlocks permanently.
+    //
+    // Robustness:
+    // - Prefer the per-OS-thread `sys_gettid()` identity path in `native_time_current_thread_node_or0()`.
+    // - If the main thread is not registered yet, register it now (idempotent on Tier‑1).
+    var owner_node = native_time_current_thread_node_or0()
+    if owner_node == 0 {
+        owner_node = oren_register_thread(get_sp())
+    }
+    ptr_set(owner_ptr, owner_node)
+
+    // Publish the stop request (2->1) and wake threads waiting on the state word.
+    ptr_set(stw_ptr, 1)
+    oren_wake_all_addr(stw_ptr)
+
+    // Wait for all other OS threads to park.
+    var total = global_get_os_thread_count()
+    var expected = 0
+    if total > 0 { expected = total - 1 }
+
+    while expected > 0 {
+        var cur = ptr_get(parked_ptr)
+        if cur >= expected { break }
+        // Wait until parked count changes (threads wake us when they park).
+        oren_wait_on_addr(parked_ptr, cur, 1000000)
+    }
+    return 0
+}
+
+fn native_gc_stw_end() {
+    if oren_globals() == 0 { return 0 }
+    var stw_ptr = native_gc_stw_state_ptr()
+    var parked_ptr = native_gc_stw_parked_ptr()
+    var owner_ptr = native_gc_stw_owner_ptr()
+    if stw_ptr == 0 || parked_ptr == 0 || owner_ptr == 0 { return 0 }
+
+    // Release: set running and wake all waiters parked on the state word.
+    ptr_set(owner_ptr, 0)
+    ptr_set(parked_ptr, 0)
+    ptr_set(stw_ptr, 0)
+    oren_wake_all_addr(stw_ptr)
+    return 0
+}
+
+fn native_gc_stw_poll_and_park() {
+    if oren_globals() == 0 { return 0 }
+    var stw_ptr = native_gc_stw_state_ptr()
+    if stw_ptr == 0 { return 0 }
+
+    // Fast path: no stop requested.
+    var s = ptr_get(stw_ptr)
+    if s == 0 { return 0 }
+
+    // If the collector is in "preparing" mode, wait until it transitions (2->1 or 2->0).
+    while s == 2 {
+        oren_wait_on_addr(stw_ptr, 2, 1000000)
+        s = ptr_get(stw_ptr)
+    }
+    if s == 0 { return 0 }
+
+    // Now s==1: park at safepoint.
+    var node = native_time_current_thread_node_or0()
+    if node == 0 { return 0 }
+
+    // Collector thread does not park.
+    var owner_ptr = native_gc_stw_owner_ptr()
+    var owner = 0
+    if owner_ptr != 0 { owner = ptr_get(owner_ptr) }
+    if owner != 0 {
+        // Pointer equality without `==` to avoid any string-aware compare lowering.
+        if node - owner == 0 { return 0 }
+    }
+
+    // Set saved_sp so GC can scan this non-current thread.
+    ptr_set(iadd(node, 8), get_sp())
+
+    // Mark this thread node as parked (bit1 in flags) and bump parked count once.
+    var flags_ptr = iadd(node, 48)
+    var f = ptr_get(flags_ptr)
+    var THREAD_NODE_FLAG_STW_PARKED = 2
+    if (f & THREAD_NODE_FLAG_STW_PARKED) == 0 {
+        ptr_set(flags_ptr, f | THREAD_NODE_FLAG_STW_PARKED)
+        var parked_ptr = native_gc_stw_parked_ptr()
+        if parked_ptr != 0 {
+            native_atomic_inc_u64(parked_ptr)
+            // Wake the collector waiting on parked-count changes.
+            oren_wake_all_addr(parked_ptr)
+        }
+    }
+
+    // Sleep until the collector releases STW (state becomes 0).
+    while ptr_get(stw_ptr) == 1 {
+        oren_wait_on_addr(stw_ptr, 1, 1000000)
+    }
+
+    // Clear saved_sp and parked flag on resume.
+    ptr_set(iadd(node, 8), 0)
+    ptr_set(flags_ptr, ptr_get(flags_ptr) & -3)
+    return 0
 }
 
 // --- Allocation index (native runtime) ---
@@ -979,21 +1197,36 @@ fn oren_init_static_cstr0_table(table_ptr) {
 fn native_gc_scan_stack() {
     if g_gc_enabled == 0 { return 0 }
     var sp = get_sp()
+    var cur_tid = sys_gettid()
+    var THREAD_NODE_FLAG_OS_THREAD = 1
     var cur = global_get_threads()
     
     while cur != 0 {
         var top = ptr_get(cur)
         var saved = ptr_get(iadd(cur, 8))
+        var flags = ptr_get(iadd(cur, 48))
         var start = 0
         var max_scan = 8388608 // 8MB safety cap (rolling; avoids scanning bogus ranges)
         
-        // Check if this is current thread
-        // Heuristic: sp is within 8MB below top
-        // 8MB = 8388608
-        if sp < top {
-            var diff = top - sp
-            if diff < max_scan {
-                start = sp
+        // Current stack selection (Tier‑1 correctness):
+        //
+        // When multiple OS threads exist, their stacks can be mapped close together. A naive
+        // "sp within 8MB below top" heuristic can misidentify a different OS thread as current,
+        // causing the scanner to read across an unmapped gap between stacks (SIGBUS).
+        //
+        // Prefer a stable OS-thread identity:
+        // - `sys_gettid()` returns a stable per-OS-thread id on Tier‑1 targets.
+        // - `oren_register_thread` stores it at node+56 for OS-thread nodes.
+        if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 && cur_tid != 0 {
+            var tid = ptr_get(iadd(cur, 56))
+            if tid == cur_tid {
+                if sp < top { start = sp }
+            }
+        } else {
+            // Fallback heuristic (green stacks registered via `oren_register_stack`).
+            if sp < top {
+                var diff = top - sp
+                if diff < max_scan { start = sp }
             }
         }
         
@@ -1004,12 +1237,10 @@ fn native_gc_scan_stack() {
             // Treat suspicious saved/top pairs as "skip this node" rather than crashing.
             if saved != 0 {
                 if saved < top {
-                    var diff2 = top - saved
-                    if diff2 > max_scan {
-                        start = top - max_scan
-                    } else {
-                        start = saved
-                    }
+                    // Always start at `saved` (which is expected to be a real SP within the stack).
+                    // We clamp the scan span below, so we never need to synthesize `top-max_scan`
+                    // (which can fall into unmapped guard pages on small stacks).
+                    start = saved
                 }
             }
         }
@@ -1526,6 +1757,8 @@ fn oren_find_node(ptr) {
 @oren.keep
 fn oren_gc_safepoint() {
     if g_gc_enabled == 0 { return 0 }
+    // STW safepoint: if a collector requests stop-the-world, park here.
+    native_gc_stw_poll_and_park()
     if g_gc_auto_enabled == 0 { return 0 }
     if g_gc_auto_pending == 0 { return 0 }
     if native_gc_single_threaded() == false { return 0 }
@@ -1543,7 +1776,43 @@ fn oren_gc_safepoint() {
 @oren.keep
 fn oren_gc_collect() {
     if g_gc_enabled == 0 { return 0 }
+    if native_gc_single_threaded() == true {
+        native_gc_collect()
+        return 0
+    }
+
+    // Multi-OS-thread path: request STW, collect, then release.
+    native_gc_stw_begin()
     native_gc_collect()
+    native_gc_stw_end()
+    return 0
+}
+
+fn native_gc_find_node_nolock(ptr) {
+    if oren_globals() == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+
+    // Fast path: allocation index lookup without the global lock.
+    var hit = native_alloc_index_get(ptr)
+    if hit != 0 { return hit }
+
+    // If probing exhausted, rebuild once and retry.
+    if g_alloc_index_probe_exhausted != 0 {
+        g_alloc_index_probe_exhausted = 0
+        native_alloc_index_rebuild_live()
+        hit = native_alloc_index_get(ptr)
+        if hit != 0 { return hit }
+    }
+
+    // Early init fallback: linear scan when the index isn't initialized yet.
+    if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 {
+        var cur = global_get_allocs()
+        while cur != 0 {
+            if ptr_get(cur) - ptr == 0 { return cur }
+            cur = ptr_get(iadd(cur, 32))
+        }
+    }
     return 0
 }
 
@@ -1551,7 +1820,7 @@ fn oren_mark_value(val) {
     if g_gc_enabled == 0 { return 0 }
     if val == 0 { return 0 }
     
-    var node = oren_find_node(val)
+    var node = native_gc_find_node_nolock(val)
     if node != 0 {
         var kind = ptr_get(iadd(node, 16))
         // Static-kind strings (size=0) are classification-only pointers:

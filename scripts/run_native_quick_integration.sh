@@ -110,6 +110,16 @@ run_with_timeout "$build_timeout_secs" "$compiler" build "$om_src" \
 run_with_timeout "$run_timeout_secs" "$om_out" >>"$om_log" 2>&1
 tail -n 3 "$om_log" >>"$log"
 
+echo "== gc stw os-thread collect smoke ==" >>"$log"
+gc_src="tests/native/test_gc_stw_os_thread_collect.oren"
+gc_out="build/tmp/${compiler_base}_gc_stw_os_thread_collect${exe_ext}"
+gc_log="build/logs/${compiler_base}_gc_stw_os_thread_collect.log"
+rm -f "$gc_log" "$gc_out" 2>/dev/null || true
+run_with_timeout "$build_timeout_secs" "$compiler" build "$gc_src" \
+  --backend native --platform "$platform" --debug -o "$gc_out" >"$gc_log" 2>&1
+run_with_timeout "$run_timeout_secs" "$gc_out" >>"$gc_log" 2>&1
+tail -n 3 "$gc_log" >>"$log"
+
 if [[ "$os_key" != "windows" ]]; then
   # Cross-platform CLI robustness smoke:
   # Accept Windows-style `\` separators even on POSIX hosts so scripts/logs are portable.

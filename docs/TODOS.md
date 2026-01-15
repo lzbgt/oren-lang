@@ -388,7 +388,15 @@ References:
    - Parking/unparking primitive for idle `M` (required to avoid spin):
      - macOS: ulock-based park/wake for `P` (pairs with `sys_ulock_wait/sys_ulock_wake`)
      - Linux: futex-based park/wake
-   - GC + safepoint plan for N:M (stop-the-world first, correct before fast)
+   - 2026-01-15: GC + safepoint groundwork for N:M (stop-the-world first, correct before fast)
+     - Implemented a minimal STW protocol so `oren_gc_collect()` is safe once >1 OS thread exists:
+       - Runtime: `lib/runtime_native/100_time.oren` (`native_gc_stw_begin/native_gc_stw_poll_and_park/native_gc_stw_end`)
+       - Globals storage (wait-on-address words): `424/432/440` (see `lib/runtime_native/010_channels_globals_consts.oren`)
+       - Guard: `tests/native/test_gc_stw_os_thread_collect.oren`
+     - Remaining (still required before real N:M):
+       - ensure the compiler inserts cooperative safepoints in bounded time on all backends (not just tight loops)
+       - define the "GC safe" calling convention wrt registers vs stack (roots must be discoverable at safepoints)
+       - evolve toward per-P allocation caches + a concurrency-correct allocator/metadata model (or keep STW around allocations initially)
 
    References:
 

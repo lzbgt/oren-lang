@@ -97,6 +97,9 @@ fn oren_pipe() {
 //   376:value_false (native backend: `false` singleton value)
 //   384:value_true  (native backend: `true` singleton value)
 //   416:os_thread_count (u64; number of registered OS threads; rolling)
+//   424:gc_stw_state (u64; 0=running, 1=stop-the-world requested; rolling)
+//   432:gc_stw_parked (u64; parked OS-thread count excluding collector; rolling)
+//   440:gc_stw_owner_node (u64; Thread Node pointer of collector; rolling)
 var g_storage = 0
 
 fn oren_globals() {
@@ -156,6 +159,9 @@ var GLOBAL_OFF_NET_FD_CAPS_LOCK = 352
 var GLOBAL_OFF_VALUE_NIL = 368
 var GLOBAL_OFF_VALUE_FALSE = 376
 var GLOBAL_OFF_VALUE_TRUE = 384
+var GLOBAL_OFF_GC_STW_STATE = 424
+var GLOBAL_OFF_GC_STW_PARKED = 432
+var GLOBAL_OFF_GC_STW_OWNER_NODE = 440
 
 // Reserve extra room for rolling ABI growth.
 var GLOBAL_SLOTS_RESERVED = 56
@@ -219,6 +225,15 @@ fn global_set_call_depth_max(v) { ptr_set(iadd(oren_globals(), 312), v) }
 
 fn global_get_os_thread_count() { return ptr_get(iadd(oren_globals(), 416)) }
 fn global_set_os_thread_count(v) { ptr_set(iadd(oren_globals(), 416), v) }
+
+fn global_get_gc_stw_state() { return ptr_get(iadd(oren_globals(), 424)) }
+fn global_set_gc_stw_state(v) { ptr_set(iadd(oren_globals(), 424), v) }
+
+fn global_get_gc_stw_parked() { return ptr_get(iadd(oren_globals(), 432)) }
+fn global_set_gc_stw_parked(v) { ptr_set(iadd(oren_globals(), 432), v) }
+
+fn global_get_gc_stw_owner_node() { return ptr_get(iadd(oren_globals(), 440)) }
+fn global_set_gc_stw_owner_node(v) { ptr_set(iadd(oren_globals(), 440), v) }
 
 fn global_get_result_value() { return ptr_get(iadd(oren_globals(), 360)) }
 fn global_set_result_value(v) { ptr_set(iadd(oren_globals(), 360), v) }
