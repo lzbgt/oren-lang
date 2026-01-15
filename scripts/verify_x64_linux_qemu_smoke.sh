@@ -89,6 +89,8 @@ run_one() {
 PRINT_SRC="tests/native/print.oren"
 QI_SRC="tests/native/test_quick_integration_native.oren"
 STD_FFI_LIBC_SMOKE_SRC="tests/native/test_std_ffi_libc_smoke.oren"
+LINUX_OS_THREAD_SMOKE_SRC="tests/native/test_linux_os_thread_smoke.oren"
+LINUX_ULOCK_TIMEOUT_SMOKE_SRC="tests/native/test_ulock_timeout_linux.oren"
 LIBMATH_SRC="examples/libmath.oren"
 FFI_FROM_LIBMATH_SRC="examples/ffi_from_libmath.oren"
 
@@ -98,6 +100,10 @@ build_one "./oren" "$QI_SRC" "build/tmp/qi_stage1_x64_linux" "build/logs/x64_lin
 build_one "./oren_stage2" "$QI_SRC" "build/tmp/qi_stage2_x64_linux" "build/logs/x64_linux_qi_stage2.log"
 build_one "./oren" "$STD_FFI_LIBC_SMOKE_SRC" "build/tmp/std_ffi_libc_smoke_stage1_x64_linux" "build/logs/x64_linux_std_ffi_libc_smoke_stage1.log"
 build_one "./oren_stage2" "$STD_FFI_LIBC_SMOKE_SRC" "build/tmp/std_ffi_libc_smoke_stage2_x64_linux" "build/logs/x64_linux_std_ffi_libc_smoke_stage2.log"
+build_one "./oren" "$LINUX_OS_THREAD_SMOKE_SRC" "build/tmp/linux_os_thread_smoke_stage1_x64_linux" "build/logs/x64_linux_linux_os_thread_smoke_stage1.log"
+build_one "./oren_stage2" "$LINUX_OS_THREAD_SMOKE_SRC" "build/tmp/linux_os_thread_smoke_stage2_x64_linux" "build/logs/x64_linux_linux_os_thread_smoke_stage2.log"
+build_one "./oren" "$LINUX_ULOCK_TIMEOUT_SMOKE_SRC" "build/tmp/ulock_timeout_stage1_x64_linux" "build/logs/x64_linux_ulock_timeout_stage1.log"
+build_one "./oren_stage2" "$LINUX_ULOCK_TIMEOUT_SMOKE_SRC" "build/tmp/ulock_timeout_stage2_x64_linux" "build/logs/x64_linux_ulock_timeout_stage2.log"
 
 # Shared library + FFI resolution smoke (high-signal for x64-linux native backend):
 # - stage1/stage2 emit a `.so` and a binary that calls into it via `ffi`.
@@ -113,6 +119,10 @@ run_one "build/tmp/qi_stage1_x64_linux" "native quick integration OK" "qi_stage1
 run_one "build/tmp/qi_stage2_x64_linux" "native quick integration OK" "qi_stage2_x64_linux"
 run_one "build/tmp/std_ffi_libc_smoke_stage1_x64_linux" "" "std_ffi_libc_smoke_stage1_x64_linux"
 run_one "build/tmp/std_ffi_libc_smoke_stage2_x64_linux" "" "std_ffi_libc_smoke_stage2_x64_linux"
+run_one "build/tmp/linux_os_thread_smoke_stage1_x64_linux" "ok: linux os thread smoke" "linux_os_thread_smoke_stage1_x64_linux"
+run_one "build/tmp/linux_os_thread_smoke_stage2_x64_linux" "ok: linux os thread smoke" "linux_os_thread_smoke_stage2_x64_linux"
+run_one "build/tmp/ulock_timeout_stage1_x64_linux" "ok: ulock timeout linux" "ulock_timeout_stage1_x64_linux"
+run_one "build/tmp/ulock_timeout_stage2_x64_linux" "ok: ulock timeout linux" "ulock_timeout_stage2_x64_linux"
 
 # Copy the `.so` alongside the executable (the embedded `--link` uses a relative `./...so` path).
 docker cp "build/tmp/libmath_stage1_x64_linux.so" "$LINUX_DOCKER_ID:/tmp/hostbins/libmath_stage1_x64_linux.so"

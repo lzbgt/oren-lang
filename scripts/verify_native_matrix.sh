@@ -42,6 +42,7 @@ LINUX_FFI_I32_SRC="tests/native/ffi_linux_ret_i32_signext.oren"
 LINUX_FFI_U32_SRC="tests/native/ffi_linux_ret_u32_zeroext.oren"
 LINUX_FFI_VOID_SRC="tests/native/ffi_linux_ret_void_zero.oren"
 LINUX_OS_THREAD_SMOKE_SRC="tests/native/test_linux_os_thread_smoke.oren"
+LINUX_ULOCK_TIMEOUT_SMOKE_SRC="tests/native/test_ulock_timeout_linux.oren"
 STD_FFI_LIBC_SMOKE_SRC="tests/native/test_std_ffi_libc_smoke.oren"
 STD_FFI_KERNEL32_SMOKE_SRC="tests/native/test_std_ffi_kernel32_smoke.oren"
 LIBMATH_SRC="examples/libmath.oren"
@@ -723,6 +724,8 @@ if has_target arm64-linux; then
   build_native_bin_src "./oren_stage2" "arm64-linux" "$LINUX_FFI_U32_SRC" "build/tmp/ffi_u32_stage2_arm64_linux"
   build_native_bin_src "./oren" "arm64-linux" "$LINUX_FFI_VOID_SRC" "build/tmp/ffi_void_stage1_arm64_linux"
   build_native_bin_src "./oren_stage2" "arm64-linux" "$LINUX_FFI_VOID_SRC" "build/tmp/ffi_void_stage2_arm64_linux"
+  build_native_bin_src "./oren" "arm64-linux" "$LINUX_ULOCK_TIMEOUT_SMOKE_SRC" "build/tmp/ulock_timeout_stage1_arm64_linux"
+  build_native_bin_src "./oren_stage2" "arm64-linux" "$LINUX_ULOCK_TIMEOUT_SMOKE_SRC" "build/tmp/ulock_timeout_stage2_arm64_linux"
   # Shared library output: `.so` + generated header.
   build_native_bin_src "./oren" "arm64-linux" "$LIBMATH_SRC" "build/tmp/libmath_stage1_arm64_linux.so" --lib
   build_native_bin_src "./oren_stage2" "arm64-linux" "$LIBMATH_SRC" "build/tmp/libmath_stage2_arm64_linux.so" --lib
@@ -748,6 +751,8 @@ if has_target arm64-linux; then
   run_in_linux_container "build/tmp/ffi_u32_stage2_arm64_linux"
   run_in_linux_container "build/tmp/ffi_void_stage1_arm64_linux"
   run_in_linux_container "build/tmp/ffi_void_stage2_arm64_linux"
+  run_in_linux_container "build/tmp/ulock_timeout_stage1_arm64_linux"
+  run_in_linux_container "build/tmp/ulock_timeout_stage2_arm64_linux"
   log "OK: linux/arm64 container"
 fi
 
@@ -873,6 +878,8 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-wsl; then
   build_native_bin_src "./oren_stage2" "x64-linux" "$LINUX_FFI_U32_SRC" "build/tmp/ffi_u32_stage2_x64_linux"
   build_native_bin_src "./oren" "x64-linux" "$LINUX_FFI_VOID_SRC" "build/tmp/ffi_void_stage1_x64_linux"
   build_native_bin_src "./oren_stage2" "x64-linux" "$LINUX_FFI_VOID_SRC" "build/tmp/ffi_void_stage2_x64_linux"
+  build_native_bin_src "./oren" "x64-linux" "$LINUX_ULOCK_TIMEOUT_SMOKE_SRC" "build/tmp/ulock_timeout_stage1_x64_linux"
+  build_native_bin_src "./oren_stage2" "x64-linux" "$LINUX_ULOCK_TIMEOUT_SMOKE_SRC" "build/tmp/ulock_timeout_stage2_x64_linux"
   build_native_bin_src "./oren" "x64-linux" "$LINUX_OS_THREAD_SMOKE_SRC" "build/tmp/linux_os_thread_smoke_stage1_x64_linux"
   build_native_bin_src "./oren_stage2" "x64-linux" "$LINUX_OS_THREAD_SMOKE_SRC" "build/tmp/linux_os_thread_smoke_stage2_x64_linux"
 
@@ -890,6 +897,8 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-wsl; then
   remote_upload "build/tmp/ffi_u32_stage2_x64_linux" "ffi_u32_stage2_x64_linux"
   remote_upload "build/tmp/ffi_void_stage1_x64_linux" "ffi_void_stage1_x64_linux"
   remote_upload "build/tmp/ffi_void_stage2_x64_linux" "ffi_void_stage2_x64_linux"
+  remote_upload "build/tmp/ulock_timeout_stage1_x64_linux" "ulock_timeout_stage1_x64_linux"
+  remote_upload "build/tmp/ulock_timeout_stage2_x64_linux" "ulock_timeout_stage2_x64_linux"
   remote_upload "build/tmp/linux_os_thread_smoke_stage1_x64_linux" "linux_os_thread_smoke_stage1_x64_linux"
   remote_upload "build/tmp/linux_os_thread_smoke_stage2_x64_linux" "linux_os_thread_smoke_stage2_x64_linux"
 
@@ -908,6 +917,8 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-wsl; then
   remote_run_wsl "ffi_u32_stage2_x64_linux"
   remote_run_wsl "ffi_void_stage1_x64_linux"
   remote_run_wsl "ffi_void_stage2_x64_linux"
+  remote_run_wsl "ulock_timeout_stage1_x64_linux"
+  remote_run_wsl "ulock_timeout_stage2_x64_linux"
   remote_run_wsl "linux_os_thread_smoke_stage1_x64_linux"
   remote_run_wsl "linux_os_thread_smoke_stage2_x64_linux"
   log "OK: remote WSL2 x64"

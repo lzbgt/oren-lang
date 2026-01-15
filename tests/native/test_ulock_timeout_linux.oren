@@ -1,0 +1,34 @@
+// Portable wait-on-address timeout smoke (Linux-only).
+//
+// Contract (rolling but enforced by tests):
+// - `sys_ulock_wait(op, addr, expected, timeout_us)` uses the portable -60 timeout code,
+//   even on Linux where the underlying futex returns -ETIMEDOUT (-110).
+//
+// This is important because higher-level runtime code uses -60 as the cross-platform timeout
+// sentinel (matching Darwin ETIMEDOUT), and must not hang if a Linux wait times out.
+
+fn main() {
+    if g_target_os != 2 {
+        print("skip: ulock timeout (target_os=" + oren_int_to_string(g_target_os) + ")")
+        return 0
+    }
+
+    var page = sys_mmap_private_anon(4096)
+    if page == 0 || page == -1 || page < 4096 { exit(1) }
+
+    // u32 futex word at [page]. Keep it non-zero so the wait can actually block until timeout.
+    oren_ptr_set_i32_le(page, 1)
+
+    // Wait for the word to change away from 1. Nobody will wake us, so this must timeout.
+    // Keep it small but non-trivial (qemu + CI scheduling noise).
+    var rc = sys_ulock_wait(1, page, 1, 5000) // 5ms
+    sys_munmap(page, 4096)
+
+    if rc != -60 {
+        print("FAIL: expected -60 timeout, got " + oren_int_to_string(rc))
+        exit(2)
+    }
+    print("ok: ulock timeout linux")
+    return 0
+}
+

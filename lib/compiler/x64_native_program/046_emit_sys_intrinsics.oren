@@ -598,6 +598,20 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], insn_syscall())
         bytes_extend(ctx["code"], insn_add_rsp_imm8(16))
 
+        // Portability: normalize Linux futex timeout to Oren's portable -60 (Darwin ETIMEDOUT).
+        //
+        // Linux futex returns -ETIMEDOUT (-110) when the relative timespec expires.
+        // Many runtime paths (and tests) use -60 as the cross-platform "timeout" code.
+        var labels_tmo = {}
+        var fixups_tmo = []
+        var l_tmo_done = _new_label(ctx, "ulw_tmo_done")
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 4294967186)) // -110
+        _emit_jcc_to_label(ctx, fixups_tmo, "ne", l_tmo_done)
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967236)) // -60
+        bytes_extend(ctx["code"], insn_cdqe())
+        _emit_label(ctx, labels_tmo, l_tmo_done)
+        _patch_local_fixups(ctx, labels_tmo, fixups_tmo)
+
         // Normalize: non-negative => 0, negative => -errno.
         var labels_ulw = {}
         var fixups_ulw = []

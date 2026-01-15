@@ -159,6 +159,7 @@ References:
    - 2026-01-12: fixed the native runtime lock blocking primitive on Tier‑1:
      - `sys_ulock_wait/sys_ulock_wake` are now treated as a portable "wait-on-address" primitive:
        - Linux: `futex(FUTEX_WAIT_PRIVATE/FUTEX_WAKE_PRIVATE)`
+         - Timeout code is normalized to portable `-60` (Darwin ETIMEDOUT), even though Linux futex uses `-ETIMEDOUT` (`-110`).
        - Windows: `WaitOnAddress/WakeByAddressAll` imported from `KERNELBASE.dll` (kernel32 import can fail with `STATUS_ENTRYPOINT_NOT_FOUND` on Win11).
      - Added a direct ulock handshake to `tests/fixtures/tier1_native_spawn_join_main.oren` (remote x64 gate).
      - Verified end-to-end with `./scripts/verify_stage0_windows_bootstrap.sh` and `./scripts/verify_windows_stage2_from_stage1.sh`.
@@ -344,8 +345,10 @@ References:
 	       so the “align down to 16” mask must be `0xFFFFFFF0` (`4294967280`), not `-16` (otherwise child_stack can collapse to 0).
 	     - Compiler: extend `sys_clone(flags, stack, ptid, ctid, tls)` to the full 5-arg Linux syscall ABI (required for CLONE_*TID).
 	     - Runtime: `lib/runtime_native/266_linux_os_threads.oren` (spawn/join substrate for Stage N2; not wired into language `spawn` yet).
-	     - Runtime: `sys_ulock_wait` Linux lowering now supports `timeout_us` by passing a relative futex timespec (prevents infinite hangs).
-	     - Guard: `make test` includes `tests/native/test_linux_os_thread_smoke.oren` (skips on non-Linux).
+	     - Runtime/compiler: `sys_ulock_wait` Linux lowering supports `timeout_us` by passing a relative futex timespec, and normalizes `-ETIMEDOUT` (`-110`) to portable `-60`.
+	     - Guards:
+	       - `tests/native/test_linux_os_thread_smoke.oren` (OS-thread create/join; skips on non-Linux)
+	       - `tests/native/test_ulock_timeout_linux.oren` (timeout code normalization; skips on non-Linux)
 
    Next steps (actionable, highest leverage first):
 

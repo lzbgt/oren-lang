@@ -31,6 +31,29 @@ Additional substrate (not wired into `spawn` yet):
 - **Linux syscall-first OS threads:** a minimal clone(2) wrapper + CLONE_CHILD_CLEARTID join exists as Stage N2 groundwork
   (see `lib/runtime_native/266_linux_os_threads.oren`). This will be used by the upcoming N:M scheduler, not by v0 `spawn`.
 
+### 1.2 Wait-on-address (`sys_ulock_wait/sys_ulock_wake`) (portable lock/park substrate)
+
+The native runtime treats `sys_ulock_wait` / `sys_ulock_wake` as a *portable* “wait on memory address” primitive.
+
+Facts (rolling, verified by tests):
+
+- **macOS:** lowers to the ulock syscalls (`ulock_wait` / `ulock_wake`).
+- **Linux:** lowers to `futex(FUTEX_WAIT_PRIVATE/FUTEX_WAKE_PRIVATE)`.
+  - Timeout behavior is normalized to Oren’s portable `-60` timeout code (Darwin ETIMEDOUT),
+    even though Linux futex uses `-ETIMEDOUT` (`-110`) as the raw errno.
+- **Windows:** lowers to `WaitOnAddress` / `WakeByAddressAll` (KERNELBASE import).
+
+Why this matters:
+
+- This is the basic building block for:
+  - parking/unparking idle scheduler threads (`M`), and
+  - non-busy-wait locks in a libc-free runtime.
+
+Source of truth / guards:
+
+- Linux timeout normalization smoke: `tests/native/test_ulock_timeout_linux.oren` (skips on non-Linux)
+- Tier-1 lock handshake: `tests/fixtures/tier1_native_spawn_join_main.oren`
+
 Implications:
 
 - There is no M:N scheduler in native yet.

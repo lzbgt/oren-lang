@@ -557,6 +557,29 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
                     push_u32_le(ctx["code"], insn_add_sp(16))
                     ctx["stack_size"] = ctx["stack_size"] - 16
 
+                    // Portability: normalize Linux futex timeout to Oren's portable -60 (Darwin ETIMEDOUT).
+                    //
+                    // Linux futex returns -ETIMEDOUT (-110) when the relative timespec expires.
+                    // Many runtime paths (and tests) use -60 as the cross-platform "timeout" code.
+                    //
+                    // If X0 == -110 => X0 = -60.
+                    //
+                    // Note: avoid materializing -110 as a u64 immediate (can exceed i64 in the compiler),
+                    // by comparing errno = -X0 against 110.
+                    push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // CMP X0, XZR
+                    var br_tmo_ge = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B.GE tmo_done
+                    push_u32_le(ctx["code"], insn_sub_reg(9, 31, 0)) // X9 = -X0 (errno)
+                    push_u32_le(ctx["code"], insn_movz(8, 110))      // X8 = 110
+                    push_u32_le(ctx["code"], insn_cmp_reg(9, 8))     // CMP X9, X8
+                    var br_tmo_ne = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B.NE tmo_done
+                    push_u32_le(ctx["code"], insn_movz(0, 60))       // X0 = 60
+                    push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -60
+                    var tmo_done_pos = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_tmo_ge, insn_b_cond((tmo_done_pos - br_tmo_ge) / 4, 10)) // GE
+                    set_u32_le(ctx["code"], br_tmo_ne, insn_b_cond((tmo_done_pos - br_tmo_ne) / 4, 1))  // NE
+
                     // Normalize: rc>=0 => 0, else keep -errno.
                     push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // CMP X0, XZR
                     var br_ok = bytes_len(ctx["code"])
