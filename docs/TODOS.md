@@ -452,10 +452,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				           - direct `break`/`continue`/`return`
 				           - `if { ... } else { ... }` where both branches terminate
 				           - compiler: `lib/compiler/arm64_native_stmt.oren` (`native_compile_stmt` returns `false` for “no fallthrough”)
-				         - status: default `_green_poll_until` still re-fetches `ts`/`P` each iteration; with the ctx-switch preservation upgrade, retry an env-gated cached mode and add a guard that fails fast if cached locals are corrupted
+				         - status: default `_green_poll_until` still re-fetches `ts`/`P` each iteration; an env-gated cached mode now exists and is regression-guarded (keep cached mode opt-in until we decide to flip the default)
 						         - 2026-01-16: arm64 stmt codegen now also restores SP after condition evaluation in `if` / `while` / `for` headers (so branch entry SP matches codegen assumptions):
 						           - compiler: `lib/compiler/arm64_native_stmt.oren` (`cond_delta` restore)
-						         - known repro (rolling): an env-gated cached mode (e.g. probing `OREN_GREEN_POLL_CACHE` via `native_envp_get_value_ptr(...)` and caching `ts`/`P` across iterations) previously caused deterministic SIGSEGV (rc=139) in `make test-native-quick-stage2` / `make test`; re-test after the ctx-switch upgrade before changing defaults
+						         - 2026-01-16: regression guard: native quick integration now also runs with `OREN_GREEN_POLL_CACHE=1` (so cached scheduling locals must remain stable across yields)
 				     - 2026-01-16: switched green sleeper deadlines to a monotonic clock source (avoid wall-clock jumps affecting wake behavior):
 				       - Runtime: `lib/runtime_native/100_time.oren` (`oren_time_mono_ns`)
 				       - Runtime: `lib/runtime_native/263_green_tasks.oren` (`_green_time_now_ns` + scheduler uses it for wake/deadlines)

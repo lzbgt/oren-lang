@@ -106,6 +106,9 @@ run_with_timeout "$build_timeout_secs" "$compiler" build "$test_src" \
 
 run_with_timeout "$run_timeout_secs" "$out" >>"$log" 2>&1
 
+echo "== native quick integration (OREN_GREEN_POLL_CACHE=1) ==" >>"$log"
+OREN_GREEN_POLL_CACHE=1 run_with_timeout "$run_timeout_secs" "$out" >>"$log" 2>&1
+
 tail -n 5 "$log"
 
 echo "== ulock timeout portable smoke ==" >>"$log"
