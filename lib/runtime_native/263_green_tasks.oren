@@ -727,7 +727,10 @@ fn _green_lock_acquire() {
         if spin > 1000 {
             var owner = ptr_get(lock_ptr)
             if owner != 0 {
-                oren_wait_on_addr(lock_ptr, owner, 0)
+                // STW GC robustness: do not block indefinitely while holding no safepoint polls.
+                // Parkable waits must allow `oren_gc_collect()` to complete when multiple OS threads exist.
+                oren_gc_safepoint()
+                oren_wait_on_addr(lock_ptr, owner, 1000) // 1ms
             }
             spin = 0
         }
@@ -1688,6 +1691,10 @@ fn __oren_green_worker_entry(arg_ptr) {
     }
 
     while true {
+        // STW GC robustness: if a collector requests stop-the-world, park here on the scheduler stack.
+        // (Without this, a worker parked in the kernel could prevent `oren_gc_collect()` from observing all threads parked.)
+        oren_gc_safepoint()
+
         // Run until idle (no runnable tasks and no sleepers).
         _green_poll_until(0)
         // Park strategy (Stage N2 robustness):
@@ -1725,9 +1732,11 @@ fn __oren_green_worker_entry(arg_ptr) {
             }
         }
 
-        // No sleepers (or no clock): park indefinitely until someone posts a wake token.
+        // No sleepers (or no clock): park until someone posts a wake token.
+        // IMPORTANT (STW GC): do not park indefinitely; use a bounded timeout so we can observe STW requests.
         if g_green_worker_wake_word != 0 {
-            oren_m_park_word_wait(g_green_worker_wake_word, 0)
+            // 10ms is small enough to keep GC latency bounded and large enough to avoid busy loops.
+            oren_m_park_word_wait(g_green_worker_wake_word, 10000)
         } else {
             // Fallback: avoid busy spin if wake word isn't initialized.
             sys_nanosleep(1000000) // 1ms

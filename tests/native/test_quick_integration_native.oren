@@ -1034,6 +1034,29 @@ fn test_green_worker_release_acquire_p_when_parked() {
     return 0
 }
 
+fn test_gc_collect_does_not_deadlock_with_green_worker_idle() {
+    trace("QI: test_gc_collect_does_not_deadlock_with_green_worker_idle")
+    if g_target_os == 3 { return 0 }
+
+    // Ensure worker mode is active (idempotent).
+    var rcw = oren_green_start_workers(1)
+    assert_eq(rcw, 0, 612)
+
+    // Drive one task so the worker runs and can later become idle/parked.
+    var h = spawn worker_green_yield_then_ret()
+    var r = oren_join_timeout(h, 2000)
+    assert_eq(r, 77, 613)
+
+    // Give the worker a moment to enter its idle/park path.
+    oren_sleep_ms(5)
+
+    // Regression guard:
+    // `oren_gc_collect()` must not deadlock even if a green scheduler worker is parked.
+    // (Worker must periodically poll STW or use bounded waits so the collector can observe it parked.)
+    oren_gc_collect()
+    return 0
+}
+
 var g_green_multi_p_handles = []
 var g_green_multi_p_expect = []
 
@@ -1443,6 +1466,7 @@ fn main() {
     test_green_start_workers_does_not_reserve_extra_ps()
     test_green_workers_join()
     test_green_worker_release_acquire_p_when_parked()
+    test_gc_collect_does_not_deadlock_with_green_worker_idle()
     test_select_in_green_workers()
     test_select_multi_case_in_green_workers()
     test_select_idle_does_not_spin_cpu()
