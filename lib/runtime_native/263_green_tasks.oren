@@ -1388,6 +1388,9 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             if sleep_ns > rem { sleep_ns = rem }
         }
         if g_target_os != 3 && g_netpoll_inited != 0 {
+            // STW GC robustness: before blocking in the kernel readiness wait, poll the STW state.
+            // If a collector requested stop-the-world, park on this scheduler stack now.
+            oren_gc_safepoint()
             if g_green_workers_started != 0 {
                 // Release P while blocked in kevent/epoll (future-proof for M<P).
                 var tid2 = sys_gettid()
@@ -1406,7 +1409,15 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             // - runnable work injection wakes via `_green_workers_wake_if_started()` -> `native_netpoll_wake()`
             // - IO readiness wakes via netpoll tokens
             // Keep a conservative upper bound anyway so a broken wake path cannot stall forever.
-            if sleep_ns > 1000000000 { sleep_ns = 1000000000 } // 1s
+            //
+            // Worker-mode STW note:
+            // STW safepoints are cooperative; a worker blocked in kevent/epoll must wake periodically
+            // so it can observe stop-the-world requests. Keep this bounded.
+            if g_green_workers_started != 0 {
+                if sleep_ns > 10000000 { sleep_ns = 10000000 } // 10ms
+            } else {
+                if sleep_ns > 1000000000 { sleep_ns = 1000000000 } // 1s
+            }
             var sleep_ms = sleep_ns / 1000000
             if sleep_ms <= 0 { sleep_ms = 1 }
             var scratch2 = _green_thread_netpoll_scratch_or0(ts)

@@ -430,7 +430,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_p_acquire_release_blocks_start_workers`) (start_workers must fail early if any P is already claimed by a host thread)
 					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_worker_release_acquire_p_when_parked`) (worker releases P while parked/blocked and re-acquires to run)
 					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_start_workers_does_not_reserve_extra_ps`) (start_workers(1) must not reserve P1/P2; required for M<P)
-					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_green_worker_idle`) (STW GC must not deadlock when a worker is parked)
+					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_green_worker_idle`) (STW GC must not deadlock when a worker is parked or blocked in netpoll)
 					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_p_count_api`) (P topology API; no shrink; reject after workers)
 					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_multi_p_single_thread_poll_steal`) (single-thread multi-P steal + cross-P wake without unsafe parallel workers)
 				     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_ctx_switch_alloc_integrity`) (worker-mode ctx-switch + scheduler stability)
