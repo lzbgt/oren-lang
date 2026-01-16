@@ -80,7 +80,8 @@ fn green_s_off_p_count() { return 8 }   // u64: number of Ps (>=1 once initializ
 fn green_s_off_zomb_head() { return 16 } // u64: zombie list head
 fn green_s_off_glob_run_head() { return 24 } // u64: global runnable queue head (cross-P injection / fairness)
 fn green_s_off_glob_run_tail() { return 32 } // u64: global runnable queue tail
-fn green_s_bytes() { return 40 }
+fn green_s_off_idle_p_head() { return 40 } // u64: head of idle-P list (Ps with owner_tid==0)
+fn green_s_bytes() { return 48 }
 
 // Per-P state struct layout (bytes).
 //
@@ -102,7 +103,8 @@ fn green_p_off_sleep_tail() { return 40 }
 fn green_p_off_id() { return 48 }        // small int id (0..p_count-1)
 fn green_p_off_next() { return 56 }      // u64: next P in the scheduler's P list (0 for end)
 fn green_p_off_owner_tid() { return 64 } // u64: sys_gettid() of owning M (0 when unclaimed)
-fn green_p_bytes() { return 72 }
+fn green_p_off_idle_next() { return 72 } // u64: next P in the idle-P list (0 for end)
+fn green_p_bytes() { return 80 }
 
 fn _green_time_now_ns() {
     // Scheduler time base:
@@ -275,12 +277,14 @@ fn _green_state_p_count(s) { return ptr_get(s + green_s_off_p_count()) }
 fn _green_state_zomb_head(s) { return ptr_get(s + green_s_off_zomb_head()) }
 fn _green_state_glob_run_head(s) { return ptr_get(s + green_s_off_glob_run_head()) }
 fn _green_state_glob_run_tail(s) { return ptr_get(s + green_s_off_glob_run_tail()) }
+fn _green_state_idle_p_head(s) { return ptr_get(s + green_s_off_idle_p_head()) }
 
 fn _green_state_set_p0(s, v) { ptr_set(s + green_s_off_p0(), v); return 0 }
 fn _green_state_set_p_count(s, v) { ptr_set(s + green_s_off_p_count(), v); return 0 }
 fn _green_state_set_zomb_head(s, v) { ptr_set(s + green_s_off_zomb_head(), v); return 0 }
 fn _green_state_set_glob_run_head(s, v) { ptr_set(s + green_s_off_glob_run_head(), v); return 0 }
 fn _green_state_set_glob_run_tail(s, v) { ptr_set(s + green_s_off_glob_run_tail(), v); return 0 }
+fn _green_state_set_idle_p_head(s, v) { ptr_set(s + green_s_off_idle_p_head(), v); return 0 }
 
 fn _green_g_next(g) { return ptr_get(g + green_g_off_next()) }
 fn _green_g_set_next(g, v) { ptr_set(g + green_g_off_next(), v); return 0 }
@@ -293,6 +297,7 @@ fn _green_p_sleep_head(p) { return ptr_get(p + green_p_off_sleep_head()) }
 fn _green_p_sleep_tail(p) { return ptr_get(p + green_p_off_sleep_tail()) }
 fn _green_p_next(p) { return ptr_get(p + green_p_off_next()) }
 fn _green_p_owner_tid(p) { return ptr_get(p + green_p_off_owner_tid()) }
+fn _green_p_idle_next(p) { return ptr_get(p + green_p_off_idle_next()) }
 
 fn _green_p_id(p) { return ptr_get(p + green_p_off_id()) }
 fn _green_p_owner_reserved_tid(p) {
@@ -310,6 +315,7 @@ fn _green_p_set_sleep_head(p, v) { ptr_set(p + green_p_off_sleep_head(), v); ret
 fn _green_p_set_sleep_tail(p, v) { ptr_set(p + green_p_off_sleep_tail(), v); return 0 }
 fn _green_p_set_next(p, v) { ptr_set(p + green_p_off_next(), v); return 0 }
 fn _green_p_set_owner_tid(p, v) { ptr_set(p + green_p_off_owner_tid(), v); return 0 }
+fn _green_p_set_idle_next(p, v) { ptr_set(p + green_p_off_idle_next(), v); return 0 }
 
 fn _green_p_runq_cap(p) { return _green_p_runq_mask(p) + 1 }
 
@@ -450,12 +456,15 @@ fn _green_init_if_needed() {
     ptr_set(p0 + green_p_off_id(), 0)
     _green_p_set_next(p0, 0)
     _green_p_set_owner_tid(p0, 0)
+    _green_p_set_idle_next(p0, 0)
 
     _green_state_set_p0(s, p0)
     _green_state_set_p_count(s, 1)
     _green_state_set_zomb_head(s, 0)
     _green_state_set_glob_run_head(s, 0)
     _green_state_set_glob_run_tail(s, 0)
+    _green_state_set_idle_p_head(s, 0)
+    _green_idle_p_push_locked(s, p0)
     _green_set_state(s)
     native_gc_register_root(s)
 
@@ -629,13 +638,76 @@ fn oren_green_debug_reset() {
     return 0
 }
 
-fn _green_p_ensure_owned_by_tid_locked(p, tid) {
+fn _green_idle_p_remove_locked(s, target_p) {
+    if s == 0 { return 0 }
+    if target_p == 0 { return 0 }
+    var prev = 0
+    var cur = _green_state_idle_p_head(s)
+    while cur != 0 {
+        var next = _green_p_idle_next(cur)
+        if cur == target_p {
+            if prev == 0 {
+                _green_state_set_idle_p_head(s, next)
+            } else {
+                _green_p_set_idle_next(prev, next)
+            }
+            _green_p_set_idle_next(cur, 0)
+            return 1
+        }
+        prev = cur
+        cur = next
+    }
+    return 0
+}
+
+fn _green_idle_p_push_locked(s, p) {
+    if s == 0 { return 0 }
+    if p == 0 { return 0 }
+    // Keep the list free of duplicates (best-effort, bounded by p_count<=64).
+    _green_idle_p_remove_locked(s, p)
+    if _green_p_owner_tid(p) != 0 { return 0 }
+    var head = _green_state_idle_p_head(s)
+    _green_p_set_idle_next(p, head)
+    _green_state_set_idle_p_head(s, p)
+    return 0
+}
+
+fn _green_idle_p_pop_and_acquire_locked(s, tid) {
+    if s == 0 { return 0 }
+    if tid == 0 { return 0 }
+    while true {
+        var p = _green_state_idle_p_head(s)
+        if p == 0 { return 0 }
+        var next = _green_p_idle_next(p)
+        _green_state_set_idle_p_head(s, next)
+        _green_p_set_idle_next(p, 0)
+        if _green_p_owner_tid(p) == 0 {
+            _green_p_set_owner_tid(p, tid)
+            // Debug: record acquisition.
+            var dbg = g_green_debug_word
+            if dbg != 0 && dbg != -1 && dbg >= 4096 {
+                _green_atomic_inc_u64(dbg + 24)
+                ptr_set(dbg + 40, _green_p_id(p))
+            }
+            return p
+        }
+        // Stale entry: ignore and keep draining.
+    }
+    return 0
+}
+
+fn _green_p_ensure_owned_by_tid_locked(s, p, tid) {
+    if s == 0 { return -1 }
     if p == 0 { return -1 }
     if tid == 0 { return -1 }
     var owner = _green_p_owner_tid(p)
     if owner == tid { return 0 }
     var reserved = _green_p_owner_reserved_tid(p)
     if owner == 0 || owner == reserved {
+        if owner == 0 {
+            // Ensure this P is not still present in the idle-P list.
+            _green_idle_p_remove_locked(s, p)
+        }
         _green_p_set_owner_tid(p, tid)
         // Debug: record ownership reacquisition.
         var dbg = g_green_debug_word
@@ -653,10 +725,14 @@ fn _green_worker_try_acquire_any_p_locked(s, tid) {
     // Returns the acquired P pointer, or 0 if none available.
     if s == 0 { return 0 }
     if tid == 0 { return 0 }
+    // Prefer the explicit idle-P pool (Stage N3 groundwork).
+    var got = _green_idle_p_pop_and_acquire_locked(s, tid)
+    if got != 0 { return got }
     var p = _green_state_p0(s)
     while p != 0 {
         var owner = _green_p_owner_tid(p)
         if owner == 0 {
+            _green_idle_p_remove_locked(s, p)
             _green_p_set_owner_tid(p, tid)
             // Debug: record acquisition.
             var dbg = g_green_debug_word
@@ -671,12 +747,14 @@ fn _green_worker_try_acquire_any_p_locked(s, tid) {
     return 0
 }
 
-fn _green_p_release_if_owned_by_tid_locked(p, tid) {
+fn _green_p_release_if_owned_by_tid_locked(s, p, tid) {
+    if s == 0 { return 0 }
     if p == 0 { return 0 }
     if tid == 0 { return 0 }
     var owner = _green_p_owner_tid(p)
     if owner == tid {
         _green_p_set_owner_tid(p, 0)
+        _green_idle_p_push_locked(s, p)
         // Debug: record release.
         var dbg = g_green_debug_word
         if dbg != 0 && dbg != -1 && dbg >= 4096 {
@@ -1292,4 +1370,3 @@ fn _green_runq_pop_any_locked(p, s, prefer_global) {
     // Last resort before idling: attempt a small bounded steal batch.
     return _green_runq_steal_batch_locked(p, s, 4)
 }
-

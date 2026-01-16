@@ -1194,6 +1194,40 @@ fn test_green_p_acquire_release_blocks_start_workers() {
     return 0
 }
 
+fn test_green_idle_p_pool_acquire_any() {
+    trace("QI: test_green_idle_p_pool_acquire_any")
+    if g_target_os == 3 { return 0 }
+
+    // Ensure we start clean (best-effort).
+    oren_green_release_p()
+
+    var tid = oren_green_debug_tid()
+    if tid == 0 { fail(640) }
+
+    // Ensure multiple Ps exist so we can validate the idle pool deterministically.
+    var rc_pc = oren_green_set_p_count(3)
+    assert_eq(rc_pc, 0, 641)
+    assert_true(oren_green_p_count() >= 3, 642)
+
+    // Acquire P1 then release it: it should become the next idle-P candidate.
+    var rc_a1 = oren_green_acquire_p(1)
+    assert_eq(rc_a1, 0, 643)
+    assert_eq(oren_green_debug_p_owner_tid(1), tid, 644)
+    var rc_rel = oren_green_release_p()
+    assert_eq(rc_rel, 0, 645)
+    assert_eq(oren_green_debug_p_owner_tid(1), 0, 646)
+
+    // Acquire any free P: should prefer the recently-released P1 (idle-P head).
+    var got = oren_green_acquire_any_p()
+    assert_eq(got, 1, 647)
+    assert_eq(oren_green_debug_p_owner_tid(1), tid, 648)
+
+    // Cleanup.
+    oren_green_release_p()
+    assert_eq(oren_green_debug_p_owner_tid(1), 0, 649)
+    return 0
+}
+
 fn test_green_p_count_api() {
     trace("QI: test_green_p_count_api")
     if g_target_os == 3 { return 0 }
@@ -1463,6 +1497,7 @@ fn main() {
     test_green_p_count_api()
     test_green_multi_p_single_thread_poll_steal()
     test_green_p_acquire_release_blocks_start_workers()
+    test_green_idle_p_pool_acquire_any()
     test_green_start_workers_does_not_reserve_extra_ps()
     test_green_workers_join()
     test_green_worker_release_acquire_p_when_parked()
