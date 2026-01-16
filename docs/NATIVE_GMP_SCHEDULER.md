@@ -164,6 +164,16 @@ Status (rolling groundwork):
     uses a **pthread_create fallback** for `oren_os_thread_spawn` unless our runtime-owned registration succeeds.
     The long-term target remains syscall-first threads (no libpthread dependency).
 
+- **Green-task scheduler worker mode (Stage N2 groundwork):** the Stage N1 green-task runtime now supports:
+  - per-OS-thread scheduler state (scheduler context + current-G are no longer globals), and
+  - optional background scheduler workers (`oren_green_start_workers(n)`) that drain the global runq/sleepq on OS threads.
+  - Join behavior: when workers are enabled, `oren_green_join_timeout` waits on the green task's state word via the portable
+    wait-on-address primitive (instead of driving the scheduler on the joining thread).
+  - Runtime: `lib/runtime_native/263_green_tasks.oren`
+  - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
+  - Rolling limitation (important): worker parallelism is currently clamped to 1 by default, because the native allocator/GC
+    are not concurrency-correct yet. Opt-in for experimentation only: `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.
+
 2) **Parking/unparking**
    - When an `M` has no work, it must block efficiently without busy looping.
    - Implement via a syscall-level wait primitive (platform-specific):
@@ -204,6 +214,14 @@ Status (rolling, fact):
   - Coordination words live in globals storage (wait-on-address): offsets `424/432/440` (see `lib/runtime_native/010_channels_globals_consts.oren`)
   - Guard: `tests/native/test_gc_stw_os_thread_collect.oren`
   - Limitation: cooperative only (threads must reach `oren_gc_safepoint()`); this is foundational plumbing for a future preemptive/stw design and for M:N.
+- 2026-01-16: compiler backends now insert **throttled cooperative safepoints** into loop headers (every 256 iterations) so OS threads can reliably reach `oren_gc_safepoint()`:
+  - C backend transpiler: `lib/compiler/transpiler.oren`
+  - arm64 native backend: `lib/compiler/arm64_native_stmt.oren` (`native_emit_gc_safepoint_throttled`)
+  - x64 native backend: `lib/compiler/x64_native_program/060_emit_ops.oren` (`_emit_gc_safepoint_throttled_x64`)
+  - Limitation: this is still loop-based cooperative polling; long-running non-loop code still needs a bounded safepoint strategy, and there is no preemption yet.
+- 2026-01-16: native call-depth hook now also performs a **throttled STW poll** (every 1024 function entries) in multi-OS-thread mode:
+  - Runtime: `lib/runtime_native/105_call_depth.oren` (`native_call_depth_safepoint_poll_throttled`)
+  - This complements loop-header polling for call-heavy non-loop paths (visitors/recursion), but is still cooperative (no preemption).
 
 ## 4) Minimal language surface to support this
 

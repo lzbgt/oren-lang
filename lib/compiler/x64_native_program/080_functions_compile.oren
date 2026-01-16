@@ -127,6 +127,12 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     locals["$tmp_div"] = local_next
     local_next = local_next + 8
 
+    // Cooperative GC safepoint throttle (Tier‑1 parity with arm64 + C transpiler):
+    // One per-function tick counter used by loop-header safepoint injection.
+    if locals["$tmp_gc_tick"] != nil { err(ctx, "x64 native v0: reserved local name $tmp_gc_tick used"); return nil }
+    locals["$tmp_gc_tick"] = local_next
+    local_next = local_next + 8
+
     // Reserve additional general-purpose spill slots used by x64 intrinsics.
     // These are intentionally generic so future intrinsic lowering doesn't need to keep
     // growing the reserved namespace (keeps ABI stable while the backend evolves).
@@ -344,6 +350,12 @@ fn _compile_function_v0(ctx, fn_node, platform) {
         bytes_extend(ctx["code"], insn_call_rel32(0))
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": pos_enter, "name": "oren_call_depth_enter"})
     }
+    // Initialize the loop safepoint throttle tick counter.
+    // Keep it deterministic so throttling is consistent across runs (useful for debugging).
+    var off_tick = locals["$tmp_gc_tick"]
+    if oren_type_tag(off_tick) == 0 { err(ctx, "x64 native v0: missing $tmp_gc_tick slot"); return nil }
+    bytes_extend(ctx["code"], insn_xor_r64_r64(0, 0)) // rax = 0
+    _emit_mov_mrbp_r64(ctx, 0 - off_tick, 0)          // [tick] = rax
     if trace_this { print("[x64_fn] emit_ops start"); t_stage = oren_time_now_ns() }
     var trace_emit_ops = false
     if trace_this {

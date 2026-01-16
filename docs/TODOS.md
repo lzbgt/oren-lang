@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-01-15
+**Last updated:** 2026-01-16
 
 This repo is in rolling mode. This file tracks the **highest-leverage work remaining** to evolve Oren
 into a modern, efficient, production-ready language and toolchain, while keeping iteration fast.
@@ -114,10 +114,14 @@ References:
 				     - Wired into default `make test` (native quick integration smoke).
 			   - 2026-01-12: verified x64 native selfhost compile-only gate still passes after the runtime FS-helper refactor:
 			     - `make verify-native-x64-selfhost-compile` (targets: x64-linux, x64-windows)
-		   - 2026-01-12: `scripts/verify_native_x64_compile_only.sh` now pre-seeds native runtime ASTBIN + rtobj (core+full) before running tight per-build timeouts, so the “cold after runtime change” case stays bounded.
-		   - 2026-01-14: fixed an arm64-macos native OS-thread bring-up crash that could be *masked or preserved* by stale rtobj cache entries:
-		     - Symptom: `tests/native/test_darwin_os_thread_spawn_join.oren` crashes (SIGBUS) on stage2-native builds when runtime thread registration is enabled and rtobj cache hits.
-		     - Root cause: native call-depth hooks recursed via an instrumented slow-path helper when multithreading flips `g_runtime_single_threaded` to 0; stale rtobj cache entries kept the buggy runtime machine code alive even after compiler fixes.
+			   - 2026-01-12: `scripts/verify_native_x64_compile_only.sh` now pre-seeds native runtime ASTBIN + rtobj (core+full) before running tight per-build timeouts, so the “cold after runtime change” case stays bounded.
+			   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
+			     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
+			     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
+			     - Guard: `make verify-native-x64-compile` (`scripts/verify_native_x64_compile_only.sh` sets `OREN_PARSE_FORK_PARALLEL=1`).
+			   - 2026-01-14: fixed an arm64-macos native OS-thread bring-up crash that could be *masked or preserved* by stale rtobj cache entries:
+			     - Symptom: `tests/native/test_darwin_os_thread_spawn_join.oren` crashes (SIGBUS) on stage2-native builds when runtime thread registration is enabled and rtobj cache hits.
+			     - Root cause: native call-depth hooks recursed via an instrumented slow-path helper when multithreading flips `g_runtime_single_threaded` to 0; stale rtobj cache entries kept the buggy runtime machine code alive even after compiler fixes.
 		     - Fix: ensure call-depth slow-path helpers are never instrumented + bump rtobj backend signatures (`arm64_v0_8`, `x64_v0_13`) to invalidate old cached runtime objects.
 	   - 2026-01-12: began splitting the >2k-line x64 Linux syscall intrinsic emitter into smaller modules; moved the NET/epoll blocks into `lib/compiler/x64_native_program/046_emit_sys_intrinsics_linux_net.oren` so hot-path compilation of `_emit_intrinsic_sys_linux_x64` stays bounded.
 	   - 2026-01-12: introduced an x64-focused compiler entry (`oren_x64.oren` → `lib/compiler/compiler_x64.oren`) that swaps arm64 native backends for small stubs, so x64 self-host builds do not spend time compiling arm64 code.
@@ -360,11 +364,14 @@ References:
        - `tests/native/test_linux_os_thread_smoke.oren` (OS-thread create/join; skips on non-Linux)
        - `tests/native/test_ulock_timeout_linux.oren` (timeout code normalization; skips on non-Linux)
        - `tests/native/test_ulock_timeout_portable.oren` (portable `-60` timeout code; skips if ENOSYS)
-   - 2026-01-15: fixed macOS syscall-first OS-thread bring-up when `bsdthread_register` returns `0` on success (feature bits may be 0).
-     - Root cause: runtime treated “success” as `rv > 0` and would fall back to pthread (stubbed in syscall-first builds), causing `oren_os_thread_spawn` to fail.
-     - Fix: treat `rv >= 0` as success and allow the syscall-first `bsdthread_create` path to be used by the shared `oren_os_thread_*` abstraction.
-     - Guards:
-       - `tests/native/test_os_thread_park_unpark_smoke.oren` (arm64-macos + linux + windows)
+	   - 2026-01-15: fixed macOS syscall-first OS-thread bring-up when `bsdthread_register` returns `0` on success (feature bits may be 0).
+	     - Root cause: runtime treated “success” as `rv > 0` and would fall back to pthread (stubbed in syscall-first builds), causing `oren_os_thread_spawn` to fail.
+	     - Fix: treat `rv >= 0` as success and allow the syscall-first `bsdthread_create` path to be used by the shared `oren_os_thread_*` abstraction.
+	     - Guards:
+	       - `tests/native/test_os_thread_park_unpark_smoke.oren` (arm64-macos + linux + windows)
+	   - 2026-01-16: x64 native backend now inserts throttled `oren_gc_safepoint()` polling in `while`/`for` loop headers (every 256 iterations), matching arm64 + C transpiler.
+	     - Required for the STW “park at safepoint” protocol to be viable on x64-linux/x64-windows Tier‑1 targets.
+	     - Compiler: `lib/compiler/x64_native_program/060_emit_ops.oren` (`_emit_gc_safepoint_throttled_x64`)
 
    Next steps (actionable, highest leverage first):
 
@@ -378,27 +385,35 @@ References:
        - unify the Linux `M` abstraction with Windows/Darwin (shared scheduler-facing shape)
        - keep join bounded: `tests/native/test_linux_os_thread_smoke.oren` uses a futex wait timeout and re-checks `ctid_ptr` after timeout (avoids false negatives if a wake is missed)
      - Windows x64: unify existing CreateThread-based `spawn` with the same scheduler-facing `M` abstraction (keep WaitForSingleObject join)
-   - 2026-01-15: introduced a minimal runtime-owned OS-thread ("M") abstraction (macOS + Linux + Windows) for future M:N work:
-     - Runtime: `lib/runtime_native/269_os_thread_m.oren`
-       - `oren_os_thread_spawn(start_addr, arg_ptr)`
-       - `oren_os_thread_join_timeout(handle, timeout_us)` (portable timeout `-60`)
-       - `oren_m_park_word_wait` / `oren_m_park_word_wake` (futex/WaitOnAddress token-based park/unpark)
-     - Guard: `tests/native/test_os_thread_park_unpark_smoke.oren` (macOS + Linux + Windows)
-     - Guard: `tests/native/test_os_thread_spawn_many_smoke.oren` (macOS + Linux + Windows; bounded join timeout)
-   - Parking/unparking primitive for idle `M` (required to avoid spin):
-     - macOS: ulock-based park/wake for `P` (pairs with `sys_ulock_wait/sys_ulock_wake`)
-     - Linux: futex-based park/wake
+	   - 2026-01-15: introduced a minimal runtime-owned OS-thread ("M") abstraction (macOS + Linux + Windows) for future M:N work:
+	     - Runtime: `lib/runtime_native/269_os_thread_m.oren`
+	       - `oren_os_thread_spawn(start_addr, arg_ptr)`
+	       - `oren_os_thread_join_timeout(handle, timeout_us)` (portable timeout `-60`)
+	       - `oren_m_park_word_wait` / `oren_m_park_word_wake` (futex/WaitOnAddress token-based park/unpark)
+	     - Guard: `tests/native/test_os_thread_park_unpark_smoke.oren` (macOS + Linux + Windows)
+	     - Guard: `tests/native/test_os_thread_spawn_many_smoke.oren` (macOS + Linux + Windows; bounded join timeout)
+	   - 2026-01-15: Stage N2 groundwork: green-task scheduler can now run on background OS threads ("M") via `oren_green_start_workers(n)`.
+	     - Runtime: `lib/runtime_native/263_green_tasks.oren` (per-OS-thread scheduler context + current-G; worker loop + wait-based join)
+	     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
+	     - Rolling limitation: worker count is clamped to 1 by default until the native allocator/GC are concurrency-correct; opt-in for experimentation only via `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.
+	   - Parking/unparking primitive for idle `M` (required to avoid spin):
+	     - macOS: ulock-based park/wake for `P` (pairs with `sys_ulock_wait/sys_ulock_wake`)
+	     - Linux: futex-based park/wake
    - 2026-01-15: GC + safepoint groundwork for N:M (stop-the-world first, correct before fast)
      - Implemented a minimal STW protocol so `oren_gc_collect()` is safe once >1 OS thread exists:
        - Runtime: `lib/runtime_native/100_time.oren` (`native_gc_stw_begin/native_gc_stw_poll_and_park/native_gc_stw_end`)
        - Globals storage (wait-on-address words): `424/432/440` (see `lib/runtime_native/010_channels_globals_consts.oren`)
-       - Guard: `tests/native/test_gc_stw_os_thread_collect.oren`
-     - Remaining (still required before real N:M):
-       - ensure the compiler inserts cooperative safepoints in bounded time on all backends (not just tight loops)
-       - define the "GC safe" calling convention wrt registers vs stack (roots must be discoverable at safepoints)
-       - evolve toward per-P allocation caches + a concurrency-correct allocator/metadata model (or keep STW around allocations initially)
+	     - Guard: `tests/native/test_gc_stw_os_thread_collect.oren`
+	     - Remaining (still required before real N:M):
+	       - extend safepoints beyond loop headers (bounded time for long-running non-loop code paths); there is no preemption yet
+	       - define the "GC safe" calling convention wrt registers vs stack (roots must be discoverable at safepoints)
+	       - evolve toward per-P allocation caches + a concurrency-correct allocator/metadata model (or keep STW around allocations initially)
+	     - 2026-01-16: extended bounded safepoint reachability beyond loops by piggybacking on native call-depth hooks:
+	       - Runtime: `lib/runtime_native/105_call_depth.oren` (`native_call_depth_safepoint_poll_throttled`)
+	       - Behavior: in multi-OS-thread mode, every ~1024 function entries polls STW state and parks if requested.
+	       - Motivation: call-heavy non-loop code paths (visitors/recursion) should not starve a stop-the-world request indefinitely.
 
-   References:
+	   References:
 
    - `docs/CONCURRENCY_MODEL.md`
    - `docs/NATIVE_GMP_SCHEDULER.md`
@@ -417,7 +432,22 @@ References:
 
    Reference:
 
-   - `docs/STACK_SAFETY.md`
+	   - `docs/STACK_SAFETY.md`
+
+3) **Compiler-in-AVM + plugin packaging (iOS-safe, OBC-first)** (M)
+
+   Goal:
+
+   - ship `libavm` + `oren.obc` + a stdlib strategy so:
+     - “source → `.obc`” can run inside a sandbox universe (VirtualFS, deterministic TIME/RNG, budgets)
+     - untrusted tools/plugins can run as child universes (“Matrix sandbox”) without host FS/PROC/NET
+
+   References:
+
+   - `docs/AVM_MULTIVERSE.md` (compiler-in-AVM section)
+   - `docs/OBC_MODULE_LINKING.md` (OBX v0 for compile-time linking)
+   - `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md` (stdlib distribution models)
+   - `docs/AVM_PLUGINS_AND_NESTING.md` (plugin model A vs B; tracker split)
 
 ## Tier‑1 verification blockers (operational)
 

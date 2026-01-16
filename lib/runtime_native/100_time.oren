@@ -301,17 +301,32 @@ fn oren_register_thread(top) {
 			        ptr_set(iadd(node, 48), THREAD_NODE_FLAG_OS_THREAD)
 			        ptr_set(iadd(node, 56), tid)
 		        
-		        // Publish the node (lock-free):
-	        // - `oren_register_thread` can run very early in OS-thread bring-up, before we can
-	        //   rely on any higher-level thread-id / lock substrate.
-        // - Use CAS on the global thread-list head to avoid races.
-	        var threads_ptr = iadd(oren_globals(), 32) // GLOBAL_OFF_THREADS
-		        while 1 {
-		            var prev_head = ptr_get(threads_ptr)
-		            ptr_set(iadd(node, 16), prev_head)
-		            // atomic_cas returns the *old* value. Success iff old == expected.
-		            if atomic_cas(threads_ptr, prev_head, node) == prev_head { break }
-		        }
+			        // Publish the node:
+			        //
+			        // Single-thread mode:
+			        // - Use lock-free CAS on the global thread-list head (safe during early bring-up).
+			        //
+			        // Multi-thread mode:
+			        // - Use the runtime global lock so this does not race with `oren_register_stack` /
+			        //   `oren_unregister_stack`, which mutate the same list under `acquire_lock()`.
+			        //
+			        // Without this split, a concurrent CAS insertion can be lost if another thread
+			        // performs a non-atomic head write under the lock.
+			        if g_runtime_single_threaded == 0 {
+			            acquire_lock()
+			            var prev_head2 = global_get_threads()
+			            ptr_set(iadd(node, 16), prev_head2)
+			            global_set_threads(node)
+			            release_lock()
+			        } else {
+			            var threads_ptr = iadd(oren_globals(), 32) // GLOBAL_OFF_THREADS
+			            while 1 {
+			                var prev_head = ptr_get(threads_ptr)
+			                ptr_set(iadd(node, 16), prev_head)
+			                // atomic_cas returns the *old* value. Success iff old == expected.
+			                if atomic_cas(threads_ptr, prev_head, node) == prev_head { break }
+			            }
+			        }
 
 		        // Update OS-thread count and single-thread fast path.
 	        //

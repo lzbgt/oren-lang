@@ -50,17 +50,17 @@
 	    // Implemented as compiler intrinsics (inlined) so they do not depend on
 	    // external assembly objects or libc.
 	    //
-	    // Context layout (bytes, u64 slots) for x86_64:
-	    //   0:   rbx
-	    //   8:   rbp
-	    //   16:  rdi  (Win64 nonvolatile; SysV volatile but safe to include)
-	    //   24:  rsi  (Win64 nonvolatile; SysV volatile but safe to include)
-	    //   32:  r12
-	    //   40:  r13
-	    //   48:  r14
-	    //   56:  r15
-	    //   64:  rsp
-	    //   72:  rip (resume address)
+		    // Context layout (bytes, u64 slots) for x86_64:
+		    //   0:   rbx
+		    //   8:   rbp
+		    //   16:  rdi  (Win64 nonvolatile; SysV volatile but safe to include)
+		    //   24:  rsi  (Win64 nonvolatile; SysV volatile but safe to include)
+		    //   32:  r12
+		    //   40:  r13
+		    //   48:  r14  (reserved: global bump allocator heap_limit; MUST NOT be saved/restored)
+		    //   56:  r15  (reserved: global bump allocator heap_ptr;   MUST NOT be saved/restored)
+		    //   64:  rsp
+		    //   72:  rip (resume address)
 	    if nm == "oren_ctx_init" {
 	        if args == nil || oren_list_len(args) != 3 {
 	            err(ctx, "x64 native v0: oren_ctx_init expects 3 args")
@@ -118,9 +118,8 @@
 	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 24, 6))  // rsi
 	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 32, 12)) // r12
 	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 40, 13)) // r13
-	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 48, 14)) // r14
-	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 56, 15)) // r15
-	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 64, 4))  // rsp
+		        // IMPORTANT: do NOT save the global bump allocator registers (r14/r15).
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 64, 4))  // rsp
 
 	        // r8 = &resume_label
 	        var lea_pos = bytes_len(ctx["code"])
@@ -135,8 +134,7 @@
 	        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(6, 11, 24))  // rsi
 	        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(12, 11, 32)) // r12
 	        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(13, 11, 40)) // r13
-	        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(14, 11, 48)) // r14
-	        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(15, 11, 56)) // r15
+		        // IMPORTANT: do NOT restore the global bump allocator registers (r14/r15).
 
 	        // rsp = new_ctx[rsp]
 	        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(9, 11, 64)) // r9 = rsp

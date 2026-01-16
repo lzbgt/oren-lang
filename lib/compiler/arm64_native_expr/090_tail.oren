@@ -154,12 +154,18 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
 		            // These are intentionally implemented as compiler intrinsics (inlined at call sites)
 		            // so they do not depend on libc or a stable external assembly object.
 	            //
-	            // Context layout (bytes, u64 slots) for AArch64:
-	            //   0..72:  x19..x28 (10 regs)
-	            //   80:     x29 (FP)
-	            //   88:     x30 (LR)
-	            //   96:     SP  (saved stack pointer)
-	            //   104:    PC  (resume address; branch target)
+		            // Context layout (bytes, u64 slots) for AArch64:
+		            //   0..72:  x19..x28 (10 regs)
+		            //
+		            // IMPORTANT (native runtime allocator model):
+		            // - X27/X28 are reserved as the bump allocator state (heap_limit/heap_ptr).
+		            // - They must be *shared* across all green tasks running on the same OS thread.
+		            // - Therefore, coroutine context switching must NOT save/restore X27/X28, or it would
+		            //   snapshot allocator state per green task and corrupt the heap.
+		            //   80:     x29 (FP)
+		            //   88:     x30 (LR)
+		            //   96:     SP  (saved stack pointer)
+		            //   104:    PC  (resume address; branch target)
 	            if fn_name == "oren_ctx_init" {
 	                var args = expr["args"]
 	                if args == nil || oren_list_len(args) != 3 {
@@ -208,14 +214,17 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
 	                // Save callee-saved registers into old_ctx.
 	                //
 	                // Store sequence uses a scratch address register (X11) because we only have STR [Xn] with 0 offset helper.
-	                var off = 0
-	                var r = 19
-	                while r <= 28 {
-	                    off = (r - 19) * 8
-	                    push_u32_le(ctx["code"], insn_add_imm(11, 9, off))
-	                    push_u32_le(ctx["code"], insn_str_ptr(r, 11))
-	                    r = r + 1
-	                }
+		                var off = 0
+		                var r = 19
+		                while r <= 28 {
+		                    // Skip X27/X28 (global bump allocator state).
+		                    if r != 27 && r != 28 {
+		                        off = (r - 19) * 8
+		                        push_u32_le(ctx["code"], insn_add_imm(11, 9, off))
+		                        push_u32_le(ctx["code"], insn_str_ptr(r, 11))
+		                    }
+		                    r = r + 1
+		                }
 	                // x29, x30
 	                push_u32_le(ctx["code"], insn_add_imm(11, 9, 80))
 	                push_u32_le(ctx["code"], insn_str_ptr(29, 11))
@@ -234,12 +243,15 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
 	                push_u32_le(ctx["code"], insn_str_ptr(12, 11))
 
 	                // Restore callee-saved registers from new_ctx.
-	                r = 19
-	                while r <= 28 {
-	                    off = (r - 19) * 8
-	                    push_u32_le(ctx["code"], insn_ldr_ptr_off(r, 10, off))
-	                    r = r + 1
-	                }
+		                r = 19
+		                while r <= 28 {
+		                    // Skip X27/X28 (global bump allocator state).
+		                    if r != 27 && r != 28 {
+		                        off = (r - 19) * 8
+		                        push_u32_le(ctx["code"], insn_ldr_ptr_off(r, 10, off))
+		                    }
+		                    r = r + 1
+		                }
 	                push_u32_le(ctx["code"], insn_ldr_ptr_off(29, 10, 80))
 	                push_u32_le(ctx["code"], insn_ldr_ptr_off(30, 10, 88))
 

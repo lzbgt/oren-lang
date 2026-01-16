@@ -86,6 +86,33 @@ fn _linetab_record_tok(ctx, tok) {
     return nil
 }
 
+fn _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, tick_mask) {
+    // PERF:
+    // Calling `oren_gc_safepoint()` on every loop iteration dominates lexer/parser loops.
+    // Emit a cheap counter+mask gate so we only call into the runtime periodically.
+    //
+    // Contract:
+    // - `$tmp_gc_tick` exists as a per-function u64 stack slot (reserved in the function compiler).
+    // - Uses RAX as scratch (caller-saved).
+    //
+    // tick = tick + 1; if (tick & mask) != 0 => skip; else call safepoint.
+    var off_tick = locals["$tmp_gc_tick"]
+    if oren_type_tag(off_tick) == 0 { err(ctx, "x64 native v0: missing $tmp_gc_tick slot"); return nil }
+    // rax = tick
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_tick)
+    // tick++
+    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 1))
+    _emit_mov_mrbp_r64(ctx, 0 - off_tick, 0)
+    // if ((tick & mask) != 0) goto skip
+    bytes_extend(ctx["code"], insn_and_r64_imm32(0, tick_mask))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    var skip = _new_label(ctx, "gc_sp_skip")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", skip)
+    _emit_call_rel32_named_x64(ctx, "oren_gc_safepoint")
+    _emit_label(ctx, labels, skip)
+    return nil
+}
+
 fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
     var n = 0
     if ops != nil { n = oren_list_len(ops) }
@@ -210,6 +237,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             var end_label2 = _new_label(ctx, "while_end")
 
             _emit_label(ctx, labels, cond_label)
+            _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
             _emit_jcc_false_for_cond_x64(ctx, op["cond"], locals, local_fixups, end_label2)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
@@ -235,6 +263,7 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 
             _emit_label(ctx, labels, cond_label2)
+            _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
             _emit_jcc_false_for_cond_x64(ctx, op["cond"], locals, local_fixups, end_label3)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
 

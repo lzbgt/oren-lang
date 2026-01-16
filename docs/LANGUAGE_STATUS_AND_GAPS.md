@@ -24,8 +24,13 @@ It is not meant to be aspirational prose; it is a checklist tied to code and tes
    - `.obc` runs under capability gating,
    - multiverse (AVM-in-AVM) can safely compose universes,
    - **compiler-in-AVM** is supported (compile `.oren → .obc` inside the sandbox).
+   - plugin-style tooling can be modeled as **child universes** (OBC-first; iOS-safe; no-JIT-first).
 
 This doc answers: “what’s real today?” and “what’s missing to reach that definition?”
+
+Related plugin/nesting model notes:
+
+- `docs/AVM_PLUGINS_AND_NESTING.md`
 
 ## Implemented Today (Evidence-Backed)
 

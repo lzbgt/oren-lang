@@ -17,6 +17,37 @@
 //   tier-1 bootstrap, but must be upgraded to per-thread tracking for production multithreading.
 //   (Tracked in docs/TODOS.md.)
 
+// STW safepoint polling throttle for multi-OS-thread mode (rolling).
+//
+// Rationale:
+// - The compiler inserts `oren_gc_safepoint()` at loop headers, but long-running code can also
+//   spend time in call-heavy non-loop paths (parsers, visitors, recursion, etc.).
+// - Piggyback on the existing compiler-inserted call-depth hooks so OS threads reach STW
+//   safepoints in bounded time even when not in tight loops.
+//
+// This counter is best-effort and process-global (same as v0 call_depth).
+// Once we have production multithreading, this should become per-thread.
+var g_call_depth_safepoint_tick = 0
+
+fn native_call_depth_safepoint_poll_throttled() {
+    // Keep this leaf-ish and allocation-free. Best-effort only.
+    if g_gc_enabled == 0 { return 0 }
+    // No STW coordination needed in single-threaded mode.
+    if g_runtime_single_threaded == 1 { return 0 }
+
+    // Throttle: poll every 1024 function entries (keeps overhead low).
+    var t = g_call_depth_safepoint_tick
+    if t < 0 { t = 0 }
+    t = iadd(t, 1)
+    g_call_depth_safepoint_tick = t
+    if (t & 1023) != 0 { return 0 }
+
+    // Poll the STW state word and park if a collector requested it.
+    // This is cooperative and only applies once >1 OS thread exists.
+    native_gc_stw_poll_and_park()
+    return 0
+}
+
 fn native_runtime_call_depth_apply_env() {
     // Apply env override after envp is captured.
     //
@@ -53,6 +84,11 @@ fn oren_call_depth_enter() {
     if g_panicking == 1 { return 0 }
     var g = g_storage
     if g == 0 { return 0 }
+
+    // Multi-OS-thread mode: hit a throttled STW safepoint poll at function entry.
+    // This complements loop-header safepoint injection and reduces the risk of long
+    // non-loop call-heavy code delaying a stop-the-world request indefinitely.
+    native_call_depth_safepoint_poll_throttled()
 
     // Unlimited mode: skip tracking entirely (no deterministic abort).
     var max0 = ptr_get(iadd(g, 312))

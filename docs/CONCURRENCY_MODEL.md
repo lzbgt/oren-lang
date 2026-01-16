@@ -30,6 +30,9 @@ Additional substrate (not wired into `spawn` yet):
 
 - **Linux syscall-first OS threads:** a minimal clone(2) wrapper + CLONE_CHILD_CLEARTID join exists as Stage N2 groundwork
   (see `lib/runtime_native/266_linux_os_threads.oren`). This will be used by the upcoming N:M scheduler, not by v0 `spawn`.
+- **Green-task background workers (Stage N2 groundwork):** the green scheduler can optionally run on background OS threads via:
+  - `oren_green_start_workers(n)` (runtime: `lib/runtime_native/263_green_tasks.oren`)
+  - This is not a full GMP/netpoller yet (no true async IO), but it is the “M” substrate needed to move beyond N:1.
 
 ### 1.2 Wait-on-address (`sys_ulock_wait/sys_ulock_wake`) (portable lock/park substrate)
 
@@ -71,7 +74,8 @@ Implementation guardrails (native backend contributors):
 
 Implications:
 
-- There is no M:N scheduler in native yet.
+- There is no production-grade GMP/netpoller (true async IO + channels/select) in native yet.
+  - However, the runtime now has Stage N2 groundwork for “multiple M” green scheduling via `oren_green_start_workers(n)`.
 - A “mutex” cannot coordinate across `spawn` on POSIX v0, because forked processes do not share the address space.
 
 Source of truth:

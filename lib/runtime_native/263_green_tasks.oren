@@ -14,53 +14,113 @@
 
 // Context buffer size (bytes). The native backend's `oren_ctx_*` intrinsics treat this
 // as an opaque blob and expect at least the platform's required save slots.
-var green_ctx_bytes = 128
+fn green_ctx_bytes() { return 128 }
 
-// Green task struct layout (u64 slots).
-var green_g_off_magic = 0
-var green_g_off_ctx = 8
-var green_g_off_stack_base = 16
-var green_g_off_stack_size = 24
-var green_g_off_stack_top = 32
-var green_g_off_stack_node = 40
-var green_g_off_fn_obj = 48
-var green_g_off_args_list = 56
-var green_g_off_result = 64
-var green_g_off_state = 72
-var green_g_off_wake_ns = 80
-var green_g_off_detached = 88
-var green_g_off_next = 96
-var green_g_bytes = 104
+// Green task struct layout (bytes).
+//
+// IMPORTANT (native runtime init model; rolling):
+// Avoid relying on non-zero global initializers for offset constants. Keep these as
+// tiny functions so the native backend can inline them as immediates reliably.
+fn green_g_off_magic() { return 0 }
+fn green_g_off_ctx() { return 8 }
+fn green_g_off_stack_base() { return 16 }
+fn green_g_off_stack_size() { return 24 }
+fn green_g_off_stack_top() { return 32 }
+fn green_g_off_stack_node() { return 40 }
+fn green_g_off_fn_obj() { return 48 }
+fn green_g_off_args_list() { return 56 }
+fn green_g_off_result() { return 64 }
+fn green_g_off_state() { return 72 }
+fn green_g_off_wake_ns() { return 80 }
+fn green_g_off_detached() { return 88 }
+fn green_g_off_next() { return 96 }
+fn green_g_bytes() { return 104 }
 
-// Green states
-var green_g_state_runnable = 1
-var green_g_state_sleeping = 2
-var green_g_state_done = 3
+// Green states.
+fn green_g_state_runnable() { return 1 }
+fn green_g_state_sleeping() { return 2 }
+fn green_g_state_done() { return 3 }
 
 // Magic for identifying a green task pointer.
 // "ORENGRN1" (ASCII) packed into u64.
-var green_g_magic = 5716837919880455729
+fn green_g_magic() { return 5716837919880455729 }
 
-// Scheduler state struct layout (u64 slots).
-var green_s_off_run_head = 0
-var green_s_off_run_tail = 8
-var green_s_off_sleep_head = 16
-var green_s_off_sleep_tail = 24
-var green_s_off_zomb_head = 32
-var green_s_bytes = 40
+// Scheduler state struct layout (bytes).
+fn green_s_off_run_head() { return 0 }
+fn green_s_off_run_tail() { return 8 }
+fn green_s_off_sleep_head() { return 16 }
+fn green_s_off_sleep_tail() { return 24 }
+fn green_s_off_zomb_head() { return 32 }
+fn green_s_bytes() { return 40 }
 
 var g_green_inited = 0
 var g_green_enabled_checked = 0
-var g_green_enabled = 1
+// IMPORTANT (native runtime init model; rolling):
+// Avoid relying on non-zero global initializers for feature flags. Initialize to 0 and
+// set the default in `_green_enabled()` on first use.
+var g_green_enabled = 0
 
 var g_green_state = 0        // rooted GC object (struct)
-var g_green_sched_ctx = 0    // raw context buffer (mmap)
-var g_green_current = 0      // current G pointer (0 when running on scheduler stack)
-var g_green_entry_fnobj = 0  // rooted function object for __oren_green_entry()
-var g_green_sched_stack_node = 0 // thread/stack node representing the scheduler (OS-thread) stack
+
+// Stage N2 groundwork: optional background scheduler workers ("M").
+// Default remains Stage N1 N:1 (scheduler is driven by join/poll on the calling thread).
+var g_green_workers_started = 0
+var g_green_worker_wake_word = 0 // u64* (mmap page), used with oren_m_park_word_wait/wake
+
+// Per-OS-thread green scheduler state (rolling):
+// - Stage N1 ran on a single OS thread and used globals for scheduler context/current-G.
+// - Stage N2 needs multiple OS threads ("M"), so this state must be per-OS-thread.
+//
+// We stash a pointer in the OS-thread node (which is mmap-sized 4096 bytes) at an appended offset.
+// IMPORTANT: do NOT use this on stack nodes created by `oren_register_stack` (those can be 56 bytes).
+fn green_thread_node_off_green_state() { return 64 }
+
+fn green_t_off_sched_ctx() { return 0 }        // u64: scheduler ctx buffer ptr (mmap, green_ctx_bytes)
+fn green_t_off_current_g() { return 8 }        // u64: currently running G ptr (0 on scheduler stack)
+fn green_t_off_sched_stack_node() { return 16 } // u64: OS-thread node for this scheduler stack (for GC scanning)
+fn green_t_bytes() { return 24 }
+
+fn _green_thread_state_for_current_thread_or0() {
+    if oren_globals() == 0 { return 0 }
+    // Ensure we have an OS-thread node for this thread (idempotent by tid).
+    var os_node = oren_register_thread(get_sp())
+    if os_node == 0 || os_node == -1 || os_node < 4096 { return 0 }
+    var ts = ptr_get(os_node + green_thread_node_off_green_state())
+    if ts != 0 {
+        if ts == -1 || ts < 4096 { return 0 }
+        return ts
+    }
+
+    // Allocate a thread-local state blob. Use mmap to avoid relying on any GC-managed allocator.
+    var ts0 = sys_mmap_private_anon(4096)
+    if ts0 == 0 || ts0 == -1 || ts0 < 4096 { exit(910) }
+
+    var sched_ctx = sys_mmap_private_anon(green_ctx_bytes())
+    if sched_ctx == 0 || sched_ctx == -1 || sched_ctx < 4096 { exit(911) }
+
+    ptr_set(ts0 + green_t_off_sched_ctx(), sched_ctx)
+    ptr_set(ts0 + green_t_off_current_g(), 0)
+    ptr_set(ts0 + green_t_off_sched_stack_node(), os_node)
+
+    // Publish into the OS-thread node (thread-local; no atomic required).
+    ptr_set(os_node + green_thread_node_off_green_state(), ts0)
+    return ts0
+}
+
+fn _green_thread_current_g_or0() {
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return 0 }
+    return ptr_get(ts + green_t_off_current_g())
+}
+
+fn _green_thread_set_current_g(ts, g) { ptr_set(ts + green_t_off_current_g(), g); return 0 }
+fn _green_thread_sched_ctx_or0(ts) { return ptr_get(ts + green_t_off_sched_ctx()) }
+fn _green_thread_sched_stack_node_or0(ts) { return ptr_get(ts + green_t_off_sched_stack_node()) }
 
 fn _green_enabled() {
     if g_green_enabled_checked == 0 {
+        // Default: enabled (Stage N1). Allow env to disable.
+        g_green_enabled = 1
         // Env gate (rolling escape hatch):
         // - OREN_NO_GREEN=1 disables green tasks and keeps legacy spawn behavior (fork+pipe) on POSIX.
         var v = native_envp_get_value_ptr("OREN_NO_GREEN")
@@ -77,27 +137,27 @@ fn _green_enabled() {
 fn _green_get_state() { return g_green_state }
 fn _green_set_state(p) { g_green_state = p; return 0 }
 
-fn _green_state_run_head(s) { return ptr_get(s + green_s_off_run_head) }
-fn _green_state_run_tail(s) { return ptr_get(s + green_s_off_run_tail) }
-fn _green_state_sleep_head(s) { return ptr_get(s + green_s_off_sleep_head) }
-fn _green_state_sleep_tail(s) { return ptr_get(s + green_s_off_sleep_tail) }
-fn _green_state_zomb_head(s) { return ptr_get(s + green_s_off_zomb_head) }
+fn _green_state_run_head(s) { return ptr_get(s + green_s_off_run_head()) }
+fn _green_state_run_tail(s) { return ptr_get(s + green_s_off_run_tail()) }
+fn _green_state_sleep_head(s) { return ptr_get(s + green_s_off_sleep_head()) }
+fn _green_state_sleep_tail(s) { return ptr_get(s + green_s_off_sleep_tail()) }
+fn _green_state_zomb_head(s) { return ptr_get(s + green_s_off_zomb_head()) }
 
-fn _green_state_set_run_head(s, v) { ptr_set(s + green_s_off_run_head, v); return 0 }
-fn _green_state_set_run_tail(s, v) { ptr_set(s + green_s_off_run_tail, v); return 0 }
-fn _green_state_set_sleep_head(s, v) { ptr_set(s + green_s_off_sleep_head, v); return 0 }
-fn _green_state_set_sleep_tail(s, v) { ptr_set(s + green_s_off_sleep_tail, v); return 0 }
-fn _green_state_set_zomb_head(s, v) { ptr_set(s + green_s_off_zomb_head, v); return 0 }
+fn _green_state_set_run_head(s, v) { ptr_set(s + green_s_off_run_head(), v); return 0 }
+fn _green_state_set_run_tail(s, v) { ptr_set(s + green_s_off_run_tail(), v); return 0 }
+fn _green_state_set_sleep_head(s, v) { ptr_set(s + green_s_off_sleep_head(), v); return 0 }
+fn _green_state_set_sleep_tail(s, v) { ptr_set(s + green_s_off_sleep_tail(), v); return 0 }
+fn _green_state_set_zomb_head(s, v) { ptr_set(s + green_s_off_zomb_head(), v); return 0 }
 
-fn _green_g_next(g) { return ptr_get(g + green_g_off_next) }
-fn _green_g_set_next(g, v) { ptr_set(g + green_g_off_next, v); return 0 }
+fn _green_g_next(g) { return ptr_get(g + green_g_off_next()) }
+fn _green_g_set_next(g, v) { ptr_set(g + green_g_off_next(), v); return 0 }
 
 fn _green_is_g(ptr) {
     if ptr == 0 { return false }
     // Avoid crashing on small integers: treat <4096 as not a pointer.
     if ptr < 4096 { return false }
     // Best-effort: check magic first.
-    return ptr_get(ptr + green_g_off_magic) == green_g_magic
+    return ptr_get(ptr + green_g_off_magic()) == green_g_magic()
 }
 
 fn _green_alloc_struct(size) {
@@ -156,130 +216,133 @@ fn _green_init_if_needed() {
     if g_green_inited != 0 { return 0 }
 
     // Allocate scheduler state as a GC-managed struct and root it.
-    var s = _green_alloc_struct(green_s_bytes)
+    var s = _green_alloc_struct(green_s_bytes())
     if s == 0 { exit(901) }
-    ptr_set(s + green_s_off_run_head, 0)
-    ptr_set(s + green_s_off_run_tail, 0)
-    ptr_set(s + green_s_off_sleep_head, 0)
-    ptr_set(s + green_s_off_sleep_tail, 0)
-    ptr_set(s + green_s_off_zomb_head, 0)
+    ptr_set(s + green_s_off_run_head(), 0)
+    ptr_set(s + green_s_off_run_tail(), 0)
+    ptr_set(s + green_s_off_sleep_head(), 0)
+    ptr_set(s + green_s_off_sleep_tail(), 0)
+    ptr_set(s + green_s_off_zomb_head(), 0)
     _green_set_state(s)
     native_gc_register_root(s)
 
-    // Allocate scheduler context buffer via anonymous mmap so we can munmap safely.
-    g_green_sched_ctx = sys_mmap_private_anon(green_ctx_bytes)
-    if g_green_sched_ctx == 0 || g_green_sched_ctx == -1 || g_green_sched_ctx < 4096 { exit(902) }
+    // Per-OS-thread scheduler context buffers are allocated lazily in
+    // `_green_thread_state_for_current_thread_or0()`.
 
-    // Capture a stable code pointer for the green entry trampoline.
-    //
-    // A function identifier in expression position yields a function object (see spec).
-    g_green_entry_fnobj = __oren_green_entry
-    if g_green_entry_fnobj == 0 { exit(903) }
-    native_gc_register_root(g_green_entry_fnobj)
-
-    g_green_current = 0
-
-    // Capture the current OS-thread stack node so GC can scan the scheduler stack even while a
-    // green task is running on its own stack.
-    //
-    // The entry stub registers the main thread before any user code runs, so this should be stable.
-    g_green_sched_stack_node = _green_find_current_stack_node_or0()
-    if g_green_sched_stack_node == 0 {
-        // Fallback: best-effort take the current head (still better than nothing).
-        g_green_sched_stack_node = global_get_threads()
-    }
     g_green_inited = 1
+    return 0
+}
+
+fn _green_workers_wake_if_started() {
+    if g_green_workers_started == 0 { return 0 }
+    if g_green_worker_wake_word == 0 { return 0 }
+    // Best-effort: post a wake token and wake all parked workers.
+    oren_m_park_word_wake(g_green_worker_wake_word)
     return 0
 }
 
 fn _green_runq_push(g) {
     var s = _green_get_state()
     if s == 0 || g == 0 { return 0 }
+    acquire_lock()
     _green_g_set_next(g, 0)
     var head = _green_state_run_head(s)
     if head == 0 {
         _green_state_set_run_head(s, g)
         _green_state_set_run_tail(s, g)
+        release_lock()
+        _green_workers_wake_if_started()
         return 0
     }
     var tail = _green_state_run_tail(s)
     if tail != 0 { _green_g_set_next(tail, g) }
     _green_state_set_run_tail(s, g)
+    release_lock()
+    _green_workers_wake_if_started()
     return 0
 }
 
 fn _green_runq_pop() {
     var s = _green_get_state()
     if s == 0 { return 0 }
+    acquire_lock()
     var head = _green_state_run_head(s)
-    if head == 0 { return 0 }
+    if head == 0 { release_lock(); return 0 }
     var next = _green_g_next(head)
     _green_state_set_run_head(s, next)
     if next == 0 {
         _green_state_set_run_tail(s, 0)
     }
     _green_g_set_next(head, 0)
+    release_lock()
     return head
 }
 
 fn _green_sleepq_push(g) {
     var s = _green_get_state()
     if s == 0 || g == 0 { return 0 }
+    acquire_lock()
     _green_g_set_next(g, 0)
     var head = _green_state_sleep_head(s)
     if head == 0 {
         _green_state_set_sleep_head(s, g)
         _green_state_set_sleep_tail(s, g)
+        release_lock()
         return 0
     }
     var tail = _green_state_sleep_tail(s)
     if tail != 0 { _green_g_set_next(tail, g) }
     _green_state_set_sleep_tail(s, g)
+    release_lock()
     return 0
 }
 
 fn _green_zombie_push(g) {
     var s = _green_get_state()
     if s == 0 || g == 0 { return 0 }
+    acquire_lock()
     // Simple LIFO for zombies.
     var head = _green_state_zomb_head(s)
     _green_g_set_next(g, head)
     _green_state_set_zomb_head(s, g)
+    release_lock()
     return 0
 }
 
 fn _green_cleanup_g(g) {
     if g == 0 { return 0 }
-    var stack_base = ptr_get(g + green_g_off_stack_base)
-    var stack_size = ptr_get(g + green_g_off_stack_size)
-    var ctx_ptr = ptr_get(g + green_g_off_ctx)
-    var node = ptr_get(g + green_g_off_stack_node)
+    var stack_base = ptr_get(g + green_g_off_stack_base())
+    var stack_size = ptr_get(g + green_g_off_stack_size())
+    var ctx_ptr = ptr_get(g + green_g_off_ctx())
+    var node = ptr_get(g + green_g_off_stack_node())
 
     if node != 0 {
         oren_unregister_stack(node)
-        ptr_set(g + green_g_off_stack_node, 0)
+        ptr_set(g + green_g_off_stack_node(), 0)
     }
     if stack_base != 0 && stack_size > 0 {
         sys_munmap(stack_base, stack_size)
-        ptr_set(g + green_g_off_stack_base, 0)
-        ptr_set(g + green_g_off_stack_size, 0)
-        ptr_set(g + green_g_off_stack_top, 0)
+        ptr_set(g + green_g_off_stack_base(), 0)
+        ptr_set(g + green_g_off_stack_size(), 0)
+        ptr_set(g + green_g_off_stack_top(), 0)
     }
     if ctx_ptr != 0 {
-        sys_munmap(ctx_ptr, green_ctx_bytes)
-        ptr_set(g + green_g_off_ctx, 0)
+        sys_munmap(ctx_ptr, green_ctx_bytes())
+        ptr_set(g + green_g_off_ctx(), 0)
     }
     // Clear references to reduce accidental retention.
-    ptr_set(g + green_g_off_fn_obj, 0)
-    ptr_set(g + green_g_off_args_list, 0)
+    ptr_set(g + green_g_off_fn_obj(), 0)
+    ptr_set(g + green_g_off_args_list(), 0)
     return 0
 }
 
 fn _green_zombie_drain() {
     var s = _green_get_state()
     if s == 0 { return 0 }
+    acquire_lock()
     var cur = _green_state_zomb_head(s)
     _green_state_set_zomb_head(s, 0)
+    release_lock()
     while cur != 0 {
         var next = _green_g_next(cur)
         _green_g_set_next(cur, 0)
@@ -292,12 +355,13 @@ fn _green_zombie_drain() {
 fn _green_wake_ready(now_ns) {
     var s = _green_get_state()
     if s == 0 { return 0 }
+    acquire_lock()
     var prev = 0
     var cur = _green_state_sleep_head(s)
     var new_tail = 0
     while cur != 0 {
         var next = _green_g_next(cur)
-        var wake_ns = ptr_get(cur + green_g_off_wake_ns)
+        var wake_ns = ptr_get(cur + green_g_off_wake_ns())
         if wake_ns != 0 && now_ns >= wake_ns {
             // Remove from sleep list.
             if prev == 0 {
@@ -307,7 +371,7 @@ fn _green_wake_ready(now_ns) {
             }
             if next == 0 { new_tail = prev }
             _green_g_set_next(cur, 0)
-            ptr_set(cur + green_g_off_state, green_g_state_runnable)
+            ptr_set(cur + green_g_off_state(), green_g_state_runnable())
             _green_runq_push(cur)
             cur = next
             continue
@@ -320,41 +384,49 @@ fn _green_wake_ready(now_ns) {
     } else if new_tail != 0 {
         _green_state_set_sleep_tail(s, new_tail)
     }
+    release_lock()
     return 0
 }
 
 fn _green_next_wake_ns() {
     var s = _green_get_state()
     if s == 0 { return 0 }
+    acquire_lock()
     var cur = _green_state_sleep_head(s)
     var best = 0
     while cur != 0 {
-        var w = ptr_get(cur + green_g_off_wake_ns)
+        var w = ptr_get(cur + green_g_off_wake_ns())
         if w != 0 {
             if best == 0 || w < best { best = w }
         }
         cur = _green_g_next(cur)
     }
+    release_lock()
     return best
 }
 
 fn _green_sched_switch_to(g) {
     if g == 0 { return 0 }
-    g_green_current = g
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return 0 }
+
+    _green_thread_set_current_g(ts, g)
     // Mark running (best-effort; not externally visible yet).
-    ptr_set(g + green_g_off_state, green_g_state_runnable)
+    ptr_set(g + green_g_off_state(), green_g_state_runnable())
     // Save scheduler-stack SP into the OS-thread node so GC can scan it while we run on the green stack.
-    if g_green_sched_stack_node != 0 { ptr_set(g_green_sched_stack_node + 8, get_sp()) }
+    var sched_node = _green_thread_sched_stack_node_or0(ts)
+    if sched_node != 0 { ptr_set(sched_node + 8, get_sp()) }
     // Clear saved_sp for this stack node so GC uses current SP heuristic.
-    var node = ptr_get(g + green_g_off_stack_node)
+    var node = ptr_get(g + green_g_off_stack_node())
     if node != 0 { ptr_set(node + 8, 0) }
     // Switch from scheduler context to task context.
-    var ctx_g = ptr_get(g + green_g_off_ctx)
-    oren_ctx_switch(g_green_sched_ctx, ctx_g)
+    var ctx_g = ptr_get(g + green_g_off_ctx())
+    var sched_ctx = _green_thread_sched_ctx_or0(ts)
+    oren_ctx_switch(sched_ctx, ctx_g)
     // Returned from task via yield/sleep/done.
-    g_green_current = 0
+    _green_thread_set_current_g(ts, 0)
     // We are back on scheduler stack; clear the saved_sp hint.
-    if g_green_sched_stack_node != 0 { ptr_set(g_green_sched_stack_node + 8, 0) }
+    if sched_node != 0 { ptr_set(sched_node + 8, 0) }
     return 0
 }
 
@@ -362,6 +434,8 @@ fn _green_poll_until(deadline_ns) {
     // deadline_ns == 0 means "run until no runnable work" (but still drive sleepers minimally).
     _green_init_if_needed()
     if _green_enabled() != true { return 0 }
+    // Ensure per-thread scheduler state exists for this OS thread.
+    _green_thread_state_for_current_thread_or0()
     var s = _green_get_state()
     if s == 0 { return 0 }
 
@@ -379,16 +453,17 @@ fn _green_poll_until(deadline_ns) {
         if g != 0 {
             _green_sched_switch_to(g)
             // After returning, decide whether to requeue.
-            var st = ptr_get(g + green_g_off_state)
-            if st == green_g_state_runnable {
+            var st = ptr_get(g + green_g_off_state())
+            if st == green_g_state_runnable() {
                 _green_runq_push(g)
-            } else if st == green_g_state_done {
+            } else if st == green_g_state_done() {
                 // Detached tasks are cleaned immediately by scheduler.
-                if ptr_get(g + green_g_off_detached) != 0 {
+                if ptr_get(g + green_g_off_detached()) != 0 {
                     _green_zombie_push(g)
                 }
             } else {
-                // sleeping: already enqueued in sleepq by sleep primitive.
+                // sleeping: enqueue into sleepq now that the task context is saved/paused.
+                _green_sleepq_push(g)
             }
             continue
         }
@@ -424,31 +499,113 @@ fn _green_poll_until(deadline_ns) {
 // back to the scheduler.
 @oren.keep
 fn __oren_green_entry() {
-    var g = g_green_current
+    var g = _green_thread_current_g_or0()
     if g == 0 {
         // Should never happen; abort loudly in debug mode.
-        sys_exit(904)
+        sys_exit(920)
         return 0
     }
-    var fn_obj = ptr_get(g + green_g_off_fn_obj)
-    var args_list = ptr_get(g + green_g_off_args_list)
+    var fn_obj = ptr_get(g + green_g_off_fn_obj())
+    var args_list = ptr_get(g + green_g_off_args_list())
     var ret = oren_call_obj_list(fn_obj, args_list)
-    ptr_set(g + green_g_off_result, ret)
-    ptr_set(g + green_g_off_state, green_g_state_done)
+    ptr_set(g + green_g_off_result(), ret)
+    ptr_set(g + green_g_off_state(), green_g_state_done())
+    // Wake joiners waiting on state transitions (Stage N2 join waits on addr).
+    oren_wake_all_addr(g + green_g_off_state())
     // Save stack pointer into the stack node so GC can scan this stack while paused.
-    var node = ptr_get(g + green_g_off_stack_node)
+    var node = ptr_get(g + green_g_off_stack_node())
     if node != 0 { ptr_set(node + 8, get_sp()) }
     // Switch back to scheduler.
-    var ctx_g = ptr_get(g + green_g_off_ctx)
-    oren_ctx_switch(ctx_g, g_green_sched_ctx)
+    var ctx_g = ptr_get(g + green_g_off_ctx())
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { sys_exit(921); return 0 }
+    var sched_ctx = _green_thread_sched_ctx_or0(ts)
+    oren_ctx_switch(ctx_g, sched_ctx)
     // If resumed, hard exit (bug).
     sys_exit(905)
     return 0
 }
 
+// --- Optional background scheduler workers (Stage N2 groundwork) ---
+@oren.keep
+fn oren_green_start_workers(n) {
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+    if n <= 0 { return -1 }
+    if n > 64 { n = 64 }
+    // Rolling safety:
+    // The native heap/GC model is not concurrency-correct yet. Multiple background workers
+    // can execute green tasks concurrently on multiple OS threads, which is unsafe until:
+    // - the allocator is made thread-safe (or allocation is mediated by a world lock), AND
+    // - GC safepoints/roots are well-defined across threads.
+    //
+    // Default to 1 worker (still useful: join can block on addr while the worker drains the scheduler).
+    // Opt-in for experimentation only.
+    if n > 1 {
+        var v = native_envp_get_value_ptr("OREN_GREEN_WORKERS_UNSAFE_PARALLEL")
+        if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 { // empty or '0'
+            n = 1
+        }
+    }
+    if g_green_workers_started != 0 { return 0 }
+
+    // Allocate the wake/park word (one page; u64 at offset 0).
+    var word = sys_mmap_private_anon(4096)
+    if word == 0 || word == -1 || word < 4096 { exit(922) }
+    ptr_set(word, 0)
+    g_green_worker_wake_word = word
+
+    // Spawn N background workers. These threads run forever; they are intentionally not joined.
+    var start_addr = oren_code_addr(__oren_green_worker_entry)
+    if start_addr == 0 { exit(923) }
+
+    var i = 0
+    while i < n {
+        var h = oren_os_thread_spawn(start_addr, 0)
+        if h == 0 || h == -1 || h < 0 { exit(924) }
+        i = i + 1
+    }
+
+    g_green_workers_started = 1
+    // Wake all workers so they immediately start draining runq/sleepq.
+    _green_workers_wake_if_started()
+    return 0
+}
+
+@oren.keep
+fn __oren_green_worker_entry(arg_ptr) {
+    // Ensure this OS thread is registered very early so:
+    // - GC stack scanning has a stable "top" bound for future deep calls
+    // - STW GC accounting sees this OS thread
+    oren_register_thread(get_sp())
+
+    _green_init_if_needed()
+    if _green_enabled() != true { return 0 }
+    _green_thread_state_for_current_thread_or0()
+
+    while true {
+        // Run until idle (no runnable tasks and no sleepers).
+        _green_poll_until(0)
+        // Park until someone posts a wake token (runq became non-empty, or an external wake).
+        if g_green_worker_wake_word != 0 {
+            oren_m_park_word_wait(g_green_worker_wake_word, 0)
+        } else {
+            // Fallback: avoid busy spin if wake word isn't initialized.
+            sys_nanosleep(1000000) // 1ms
+        }
+    }
+    return 0
+}
+
 // Public hooks used by spawn/join/sleep/yield.
 @oren.keep
-fn oren_green_current_g_or0() { return g_green_current }
+fn oren_green_current_g_or0() {
+    // Fast path: if green runtime was never initialized, we are not inside a green task.
+    // Avoid allocating per-thread green scheduler state from unrelated runtime calls like `oren_yield()`.
+    if g_green_inited == 0 { return 0 }
+    if _green_enabled() != true { return 0 }
+    return _green_thread_current_g_or0()
+}
 
 @oren.keep
 fn oren_green_is_g(ptr) {
@@ -458,7 +615,7 @@ fn oren_green_is_g(ptr) {
 @oren.keep
 fn oren_green_is_done(ptr) {
     if _green_is_g(ptr) != true { return false }
-    return ptr_get(ptr + green_g_off_state) == green_g_state_done
+    return ptr_get(ptr + green_g_off_state()) == green_g_state_done()
 }
 
 @oren.keep
@@ -472,9 +629,11 @@ fn oren_green_spawn(fn_obj, args_list) {
     var top = base + stack_bytes
     // Keep stack 16-byte aligned. Leave a small redzone.
     top = top - 32
-    top = top & (0 - 16)
+    // Avoid relying on negative immediate masks: `(0 - 16)` can be mishandled by rolling
+    // native backends when lowering wide immediates. Align down via arithmetic instead.
+    top = (top / 16) * 16
 
-    var ctx_ptr = sys_mmap_private_anon(green_ctx_bytes)
+    var ctx_ptr = sys_mmap_private_anon(green_ctx_bytes())
     if ctx_ptr == 0 || ctx_ptr == -1 || ctx_ptr < 4096 { exit(907) }
 
     // Create a stack node for GC scanning while this task is parked.
@@ -482,24 +641,24 @@ fn oren_green_spawn(fn_obj, args_list) {
     if node == 0 { exit(908) }
 
     // Build task object (GC-managed struct so fn_obj/args_list are visible to GC).
-    var g = _green_alloc_struct(green_g_bytes)
+    var g = _green_alloc_struct(green_g_bytes())
     if g == 0 { exit(909) }
-    ptr_set(g + green_g_off_magic, green_g_magic)
-    ptr_set(g + green_g_off_ctx, ctx_ptr)
-    ptr_set(g + green_g_off_stack_base, base)
-    ptr_set(g + green_g_off_stack_size, stack_bytes)
-    ptr_set(g + green_g_off_stack_top, top + 32)
-    ptr_set(g + green_g_off_stack_node, node)
-    ptr_set(g + green_g_off_fn_obj, fn_obj)
-    ptr_set(g + green_g_off_args_list, args_list)
-    ptr_set(g + green_g_off_result, 0)
-    ptr_set(g + green_g_off_state, green_g_state_runnable)
-    ptr_set(g + green_g_off_wake_ns, 0)
-    ptr_set(g + green_g_off_detached, 0)
-    ptr_set(g + green_g_off_next, 0)
+    ptr_set(g + green_g_off_magic(), green_g_magic())
+    ptr_set(g + green_g_off_ctx(), ctx_ptr)
+    ptr_set(g + green_g_off_stack_base(), base)
+    ptr_set(g + green_g_off_stack_size(), stack_bytes)
+    ptr_set(g + green_g_off_stack_top(), top + 32)
+    ptr_set(g + green_g_off_stack_node(), node)
+    ptr_set(g + green_g_off_fn_obj(), fn_obj)
+    ptr_set(g + green_g_off_args_list(), args_list)
+    ptr_set(g + green_g_off_result(), 0)
+    ptr_set(g + green_g_off_state(), green_g_state_runnable())
+    ptr_set(g + green_g_off_wake_ns(), 0)
+    ptr_set(g + green_g_off_detached(), 0)
+    ptr_set(g + green_g_off_next(), 0)
 
     // Initialize context to start at __oren_green_entry on the new stack.
-    var entry_pc = ptr_get(g_green_entry_fnobj) // fn.code_ptr
+    var entry_pc = oren_code_addr(__oren_green_entry)
     oren_ctx_init(ctx_ptr, top, entry_pc)
 
     _green_runq_push(g)
@@ -513,32 +672,119 @@ fn oren_green_join_timeout(g, timeout_ms) {
     _green_init_if_needed()
     if _green_enabled() != true { return -1 }
 
-    var st = ptr_get(g + green_g_off_state)
-    if st == green_g_state_done {
-        var r0 = ptr_get(g + green_g_off_result)
+    var st = ptr_get(g + green_g_off_state())
+    if st == green_g_state_done() {
+        var r0 = ptr_get(g + green_g_off_result())
         _green_cleanup_g(g)
         return r0
     }
 
     var t = timeout_ms
+    var in_green = false
+    if _green_thread_current_g_or0() != 0 { in_green = true }
+
     // timeout_ms < 0 => wait forever
     if t < 0 {
-        while ptr_get(g + green_g_off_state) != green_g_state_done {
+        if in_green {
+            while ptr_get(g + green_g_off_state()) != green_g_state_done() {
+                // Cooperative wait: yield so the scheduler can run other tasks.
+                oren_green_yield()
+            }
+            var r = ptr_get(g + green_g_off_result())
+            _green_cleanup_g(g)
+            return r
+        }
+
+        // Stage N2 worker mode: the scheduler runs on background OS threads; join blocks on addr.
+        if g_green_workers_started != 0 {
+            var state_ptr = g + green_g_off_state()
+            while true {
+                var cur = ptr_get(state_ptr)
+                if cur == green_g_state_done() { break }
+                var rcw = oren_wait_on_addr(state_ptr, cur, 0)
+                if rcw != 0 { return rcw }
+            }
+            var r2 = ptr_get(g + green_g_off_result())
+            _green_cleanup_g(g)
+            return r2
+        }
+
+        // Stage N1: drive the scheduler on this OS thread.
+        while ptr_get(g + green_g_off_state()) != green_g_state_done() {
             _green_poll_until(0)
         }
-        var r = ptr_get(g + green_g_off_result)
+        var r3 = ptr_get(g + green_g_off_result())
         _green_cleanup_g(g)
-        return r
+        return r3
     }
 
     // timeout_ms == 0 => probe only
     if t == 0 {
-        if ptr_get(g + green_g_off_state) == green_g_state_done {
-            var r2 = ptr_get(g + green_g_off_result)
+        if ptr_get(g + green_g_off_state()) == green_g_state_done() {
+            var r2 = ptr_get(g + green_g_off_result())
             _green_cleanup_g(g)
             return r2
         }
         return 0 - 60
+    }
+
+    if in_green {
+        // Cooperative bounded wait (best-effort): yield/sleep until deadline.
+        var start2 = oren_time_unix_ns()
+        if start2 == 0 {
+            var i2 = 0
+            while i2 < t {
+                if ptr_get(g + green_g_off_state()) == green_g_state_done() {
+                    var rr = ptr_get(g + green_g_off_result())
+                    _green_cleanup_g(g)
+                    return rr
+                }
+                // Avoid burning CPU: sleep 1ms in green-space.
+                oren_green_sleep_ns(1000000)
+                i2 = i2 + 1
+            }
+            ptr_set(g + green_g_off_detached(), 1)
+            return 0 - 60
+        }
+        var deadline2 = start2 + t * 1000000
+        while 1 {
+            if ptr_get(g + green_g_off_state()) == green_g_state_done() {
+                var rr2 = ptr_get(g + green_g_off_result())
+                _green_cleanup_g(g)
+                return rr2
+            }
+            var now2 = oren_time_unix_ns()
+            if now2 == 0 { break }
+            if now2 >= deadline2 { break }
+            var rem2 = deadline2 - now2
+            if rem2 > 1000000 {
+                oren_green_sleep_ns(1000000)
+            } else {
+                oren_green_yield()
+            }
+        }
+        ptr_set(g + green_g_off_detached(), 1)
+        return 0 - 60
+    }
+
+    // Stage N2 worker mode: block on addr with a bounded timeout.
+    if g_green_workers_started != 0 {
+        var state_ptr2 = g + green_g_off_state()
+        var timeout_us = t * 1000
+        while true {
+            var cur2 = ptr_get(state_ptr2)
+            if cur2 == green_g_state_done() { break }
+            var rcw2 = oren_wait_on_addr(state_ptr2, cur2, timeout_us)
+            if rcw2 == -60 {
+                ptr_set(g + green_g_off_detached(), 1)
+                return -60
+            }
+            if rcw2 != 0 { return rcw2 }
+            // Woken or spurious; re-check state.
+        }
+        var r_done = ptr_get(g + green_g_off_result())
+        _green_cleanup_g(g)
+        return r_done
     }
 
     var start = oren_time_unix_ns()
@@ -546,22 +792,22 @@ fn oren_green_join_timeout(g, timeout_ms) {
         // Fallback: run a small bounded loop.
         var i = 0
         while i < t {
-            if ptr_get(g + green_g_off_state) == green_g_state_done {
-                var r3 = ptr_get(g + green_g_off_result)
+            if ptr_get(g + green_g_off_state()) == green_g_state_done() {
+                var r3 = ptr_get(g + green_g_off_result())
                 _green_cleanup_g(g)
                 return r3
             }
             _green_poll_until(0)
             i = i + 1
         }
-        ptr_set(g + green_g_off_detached, 1)
+        ptr_set(g + green_g_off_detached(), 1)
         return 0 - 60
     }
 
     var deadline = start + t * 1000000
     while 1 {
-        if ptr_get(g + green_g_off_state) == green_g_state_done {
-            var r4 = ptr_get(g + green_g_off_result)
+        if ptr_get(g + green_g_off_state()) == green_g_state_done() {
+            var r4 = ptr_get(g + green_g_off_result())
             _green_cleanup_g(g)
             return r4
         }
@@ -572,13 +818,15 @@ fn oren_green_join_timeout(g, timeout_ms) {
     }
 
     // Timeout: detach (do not kill; safe semantics matches Windows join_timeout).
-    ptr_set(g + green_g_off_detached, 1)
+    ptr_set(g + green_g_off_detached(), 1)
     return 0 - 60
 }
 
 @oren.keep
 fn oren_green_sleep_ns(ns) {
-    var g = g_green_current
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return 0 }
+    var g = ptr_get(ts + green_t_off_current_g())
     if g == 0 { return 0 }
     if ns <= 0 { return 0 }
     var now = oren_time_unix_ns()
@@ -588,27 +836,29 @@ fn oren_green_sleep_ns(ns) {
         sys_sched_yield()
         return 0
     }
-    ptr_set(g + green_g_off_wake_ns, now + ns)
-    ptr_set(g + green_g_off_state, green_g_state_sleeping)
+    ptr_set(g + green_g_off_wake_ns(), now + ns)
+    ptr_set(g + green_g_off_state(), green_g_state_sleeping())
     // Save SP into stack node for GC scanning while sleeping.
-    var node = ptr_get(g + green_g_off_stack_node)
+    var node = ptr_get(g + green_g_off_stack_node())
     if node != 0 { ptr_set(node + 8, get_sp()) }
-    _green_sleepq_push(g)
-    var ctx_g = ptr_get(g + green_g_off_ctx)
-    oren_ctx_switch(ctx_g, g_green_sched_ctx)
+    var ctx_g = ptr_get(g + green_g_off_ctx())
+    var sched_ctx = _green_thread_sched_ctx_or0(ts)
+    oren_ctx_switch(ctx_g, sched_ctx)
     return 0
 }
 
 @oren.keep
 fn oren_green_yield() {
-    var g = g_green_current
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return 0 }
+    var g = ptr_get(ts + green_t_off_current_g())
     if g == 0 { return 0 }
-    ptr_set(g + green_g_off_state, green_g_state_runnable)
+    ptr_set(g + green_g_off_state(), green_g_state_runnable())
     // Save SP into stack node for GC scanning while parked.
-    var node = ptr_get(g + green_g_off_stack_node)
+    var node = ptr_get(g + green_g_off_stack_node())
     if node != 0 { ptr_set(node + 8, get_sp()) }
-    _green_runq_push(g)
-    var ctx_g = ptr_get(g + green_g_off_ctx)
-    oren_ctx_switch(ctx_g, g_green_sched_ctx)
+    var ctx_g = ptr_get(g + green_g_off_ctx())
+    var sched_ctx = _green_thread_sched_ctx_or0(ts)
+    oren_ctx_switch(ctx_g, sched_ctx)
     return 0
 }

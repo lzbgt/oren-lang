@@ -66,6 +66,62 @@ fn worker_sleep_short() {
     return 55
 }
 
+fn worker_green_yield_then_ret() {
+    // Exercise the green yield primitive (Stage N1) and the background-worker scheduler mode (Stage N2 groundwork).
+    var i = 0
+    while i < 50 {
+        oren_green_yield()
+        i = i + 1
+    }
+    return 77
+}
+
+fn worker_green_alloc_yield_integrity(seed) {
+    // Regression guard: context switching must not corrupt the native bump allocator state.
+    // In the native backends, the bump allocator lives in reserved registers and MUST NOT be
+    // saved/restored by `oren_ctx_switch`.
+    var ptrs = []
+    var i = 0
+    while i < 200 {
+        var p = oren_ptr_alloc(64)
+        if p == 0 { return 0 - 5 }
+        // Write a distinctive per-allocation tag.
+        ptr_set(p, seed + i * 131 + 7)
+        oren_list_push(ptrs, p)
+        if (i & 7) == 0 {
+            oren_green_yield()
+        }
+        i = i + 1
+    }
+
+    // Verify tags survived across many yields (and across interleaving with other green tasks).
+    i = 0
+    while i < oren_list_len(ptrs) {
+        var p2 = oren_list_get(ptrs, i)
+        var got = ptr_get(p2)
+        var want = seed + i * 131 + 7
+        if got != want {
+            // Best-effort: free what we can before failing.
+            var j = 0
+            while j < oren_list_len(ptrs) {
+                var pp = oren_list_get(ptrs, j)
+                if pp != 0 { oren_ptr_free(pp) }
+                j = j + 1
+            }
+            return 0 - 1
+        }
+        i = i + 1
+    }
+
+    i = 0
+    while i < oren_list_len(ptrs) {
+        var p3 = oren_list_get(ptrs, i)
+        if p3 != 0 { oren_ptr_free(p3) }
+        i = i + 1
+    }
+    return 1
+}
+
 fn test_entropy() {
     trace("QI: test_entropy")
     // Smoke: OS entropy surface must exist and be bounded (no hangs).
@@ -608,6 +664,38 @@ fn test_select() {
     return 0
 }
 
+fn test_green_workers_join() {
+    trace("QI: test_green_workers_join")
+    // Green tasks are the default `spawn` path on macOS/Linux today.
+    // Windows uses CreateThread for `spawn`, so skip this test there.
+    if g_target_os == 3 { return 0 }
+
+    // Start one background worker ("M") that runs the green scheduler loop.
+    // Join should complete by blocking on the green task's state word (not by driving the scheduler on the joining thread).
+    var rc = oren_green_start_workers(1)
+    assert_eq(rc, 0, 480)
+
+    var h = spawn worker_green_yield_then_ret()
+    var r = oren_join_timeout(h, 2000)
+    assert_eq(r, 77, 481)
+    return 0
+}
+
+fn test_green_ctx_switch_alloc_integrity() {
+    trace("QI: test_green_ctx_switch_alloc_integrity")
+    if g_target_os == 3 { return 0 }
+
+    // Spawn two green tasks that heavily interleave allocations + yields.
+    var h1 = spawn worker_green_alloc_yield_integrity(1000000)
+    var h2 = spawn worker_green_alloc_yield_integrity(2000000)
+
+    var r1 = oren_join(h1)
+    var r2 = oren_join(h2)
+    assert_eq(r1, 1, 482)
+    assert_eq(r2, 1, 483)
+    return 0
+}
+
 fn test_proc_system_windows() {
     trace("QI: test_proc_system_windows")
     if g_target_os != 3 { return 0 }
@@ -634,6 +722,8 @@ fn main() {
     test_spawn_join()
     test_proc_system_windows()
     test_select()
+    test_green_workers_join()
+    test_green_ctx_switch_alloc_integrity()
     print("native quick integration OK")
     exit(0)
 }
