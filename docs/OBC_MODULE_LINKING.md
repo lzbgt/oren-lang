@@ -39,11 +39,11 @@ The OBX payload is a byte blob stored inside a `BYTES` constant:
 - `u16` `export_count`
   - repeated `export_count` times:
     - `u16` `name_len`, followed by symbol name UTF-8 bytes
-    - `u32` `addr` (byte offset into this module’s code section)
+    - `u32` `addr` (**0-based** byte offset into this module’s code section)
 - `u16` `reloc_count`
   - repeated `reloc_count` times:
     - `u16` `name_len`, followed by symbol name UTF-8 bytes
-    - `u32` `pos` (byte offset into this module’s code where a `u32` address must be patched)
+    - `u32` `pos` (**0-based** byte offset into this module’s code where a `u32` address must be patched)
     - `u8`  `kind`:
       - `0` = `CALL32` target relocation
       - `1` = `PUSH_FUNC32` target relocation
@@ -71,10 +71,16 @@ symbol names that exist in the precompiled stdlib bundle.
 Build bytecode and include OBX exports:
 
 ```
-./oren build lib/std/stdlib.oren --backend bytecode -o build/stdlib_bundle.obc --obc-lib
+./oren build lib/std/stdlib_avm.oren --backend bytecode -o build/stdlib_bundle.obc --obc-lib
 ```
 
 This emits a normal runnable `.obc` plus an OBX payload containing exported function symbols.
+
+Rolling helper scripts:
+
+- Build stdlib bundle and (optionally) a compiler `.obc`: `scripts/build_avm_plugins.sh`
+  - Override bundle root via env `OREN_STDLIB_BUNDLE_ROOT=...`
+- Build+run a host `avm` smoke (proves OBX linking works end-to-end): `scripts/verify_avm_bytecode_link_smoke.sh`
 
 ### Build an app linking against a precompiled stdlib
 
@@ -98,10 +104,13 @@ This mode:
   - `CALL32` / `PUSH_FUNC32` absolute code addresses (code section rebasing)
   - OBX relocations (symbol resolution)
 - Relative jump offsets (`JMP32`/`JMP_IF32`) remain valid under concatenation.
+- To keep execution correct when concatenating multiple modules, the linker strips a trailing
+  `HALT` opcode from each **non-final** module during concatenation. This prevents linked libraries
+  from terminating the pc=0 “skip function bodies” chain before reaching the main program’s entry.
 
 ## Files
 
 - Linker implementation: `lib/compiler/obc_link.oren`
-- Stdlib bundle root: `lib/std/stdlib.oren`
+- Stdlib bundle root (AVM-safe subset): `lib/std/stdlib_avm.oren`
+- Stdlib bundle root (full, rolling, may include native-only helpers): `lib/std/stdlib.oren`
 - Module prefixing + extern stdlib mode: `lib/compiler/compiler/020_modules_linking.oren`
-

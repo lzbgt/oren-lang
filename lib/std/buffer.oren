@@ -57,7 +57,8 @@ fn _strided_is_list(s) {
 }
 
 fn slice_new(buf, off, n) {
-    if off == nil || n == nil { return _err_invalid("slice_new: nil off/len") }
+    // Oren scalar values (bool/int/float) are never nil; use `oren_type_tag(x) == 0` to detect nil.
+    if oren_type_tag(off) == 0 || oren_type_tag(n) == 0 { return _err_invalid("slice_new: nil off/len") }
     if off < 0 || n < 0 { return _err_invalid("slice_new: negative off/len") }
     var bl = oren_buf_len(buf)
     if oren_is_err(bl) { return bl }
@@ -67,7 +68,7 @@ fn slice_new(buf, off, n) {
 
 fn slice_slice(s, off, n) {
     if !_slice_is_list(s) { return _err_invalid("slice_slice: expects slice") }
-    if off == nil || n == nil { return _err_invalid("slice_slice: nil off/len") }
+    if oren_type_tag(off) == 0 || oren_type_tag(n) == 0 { return _err_invalid("slice_slice: nil off/len") }
     if off < 0 || n < 0 { return _err_invalid("slice_slice: negative off/len") }
     var base_off = s[1]
     var base_n = s[2]
@@ -81,7 +82,7 @@ fn slice_len(s) {
 }
 
 fn strided_new(buf, off, n, stride) {
-    if off == nil || n == nil || stride == nil { return _err_invalid("strided_new: nil arg") }
+    if oren_type_tag(off) == 0 || oren_type_tag(n) == 0 || oren_type_tag(stride) == 0 { return _err_invalid("strided_new: nil arg") }
     if off < 0 || n < 0 { return _err_invalid("strided_new: negative off/len") }
     if stride <= 0 { return _err_invalid("strided_new: stride must be > 0") }
     var bl = oren_buf_len(buf)

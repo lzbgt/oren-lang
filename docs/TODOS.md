@@ -70,6 +70,8 @@ References:
 
 ## P0 (Now)
 
+Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N groundwork** is the current focus area (see item 9).
+
 1) **Keep native backend bounded + predictable (perf + stability)** (L)
 
    Budgets (primary dev host; rolling hard expectations):
@@ -392,17 +394,25 @@ References:
 	       - `oren_m_park_word_wait` / `oren_m_park_word_wake` (futex/WaitOnAddress token-based park/unpark)
 	     - Guard: `tests/native/test_os_thread_park_unpark_smoke.oren` (macOS + Linux + Windows)
 	     - Guard: `tests/native/test_os_thread_spawn_many_smoke.oren` (macOS + Linux + Windows; bounded join timeout)
-	   - 2026-01-15: Stage N2 groundwork: green-task scheduler can now run on background OS threads ("M") via `oren_green_start_workers(n)`.
-	     - Runtime: `lib/runtime_native/263_green_tasks.oren` (per-OS-thread scheduler context + current-G; worker loop + wait-based join)
-	     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
-	     - Rolling limitation: worker count is clamped to 1 by default until the native allocator/GC are concurrency-correct; opt-in for experimentation only via `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.
-	   - Parking/unparking primitive for idle `M` (required to avoid spin):
-	     - macOS: ulock-based park/wake for `P` (pairs with `sys_ulock_wait/sys_ulock_wake`)
-	     - Linux: futex-based park/wake
-   - 2026-01-15: GC + safepoint groundwork for N:M (stop-the-world first, correct before fast)
-     - Implemented a minimal STW protocol so `oren_gc_collect()` is safe once >1 OS thread exists:
-       - Runtime: `lib/runtime_native/100_time.oren` (`native_gc_stw_begin/native_gc_stw_poll_and_park/native_gc_stw_end`)
-       - Globals storage (wait-on-address words): `424/432/440` (see `lib/runtime_native/010_channels_globals_consts.oren`)
+		   - 2026-01-15 → 2026-01-16: Stage N2 groundwork: green-task scheduler can now run on background OS threads ("M") via `oren_green_start_workers(n)`.
+		     - Runtime: `lib/runtime_native/263_green_tasks.oren`
+		       - per-OS-thread scheduler state (scheduler ctx + current-G are no longer globals)
+		       - Stage N2 groundwork: `P` struct + per-P runq/sleepq (single-P by default), plus a thread-local **current P** pointer
+		       - worker entry accepts an optional `P*` argument (rolling; no "exclusive P ownership" enforcement yet)
+		     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
+		     - Rolling limitation: worker parallelism is clamped to 1 by default until the native allocator/GC are concurrency-correct; opt-in for experimentation only via `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.
+		   - Parking/unparking primitive for idle `M` (required to avoid spin):
+		     - macOS: ulock-based park/wake for `P` (pairs with `sys_ulock_wait/sys_ulock_wake`)
+		     - Linux: futex-based park/wake
+	   - Stage N3 (next): make `P` real (toward true M:N)
+	     - enforce “an `M` runs Oren code only while holding a `P`” (no shared-P execution)
+	     - add a global runq for fairness/overflow, plus work stealing between `P`
+	     - replace the current global lock in green scheduling with per-P queues + atomics (keep GC/STW correctness first)
+	     - add a small regression gate: spawn many green tasks (with workers enabled) and assert bounded completion (no hangs)
+	   - 2026-01-15: GC + safepoint groundwork for N:M (stop-the-world first, correct before fast)
+	     - Implemented a minimal STW protocol so `oren_gc_collect()` is safe once >1 OS thread exists:
+	       - Runtime: `lib/runtime_native/100_time.oren` (`native_gc_stw_begin/native_gc_stw_poll_and_park/native_gc_stw_end`)
+	       - Globals storage (wait-on-address words): `424/432/440` (see `lib/runtime_native/010_channels_globals_consts.oren`)
 	     - Guard: `tests/native/test_gc_stw_os_thread_collect.oren`
 	     - Remaining (still required before real N:M):
 	       - extend safepoints beyond loop headers (bounded time for long-running non-loop code paths); there is no preemption yet
@@ -448,6 +458,19 @@ References:
    - `docs/OBC_MODULE_LINKING.md` (OBX v0 for compile-time linking)
    - `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md` (stdlib distribution models)
    - `docs/AVM_PLUGINS_AND_NESTING.md` (plugin model A vs B; tracker split)
+
+	   Status (fact):
+
+	   - 2026-01-16: added a practical local smoke + build helper for OBC-first workflows:
+	     - Build stdlib bundle `.obc` (OBX exports): `scripts/build_avm_plugins.sh` → `build/plugins/stdlib_bundle.obc`
+	       - Default root: `lib/std/stdlib_avm.oren` (override via `OREN_STDLIB_BUNDLE_ROOT=...`)
+	     - Verify OBX linking + AVM execution end-to-end: `scripts/verify_avm_bytecode_link_smoke.sh`
+	       (builds `tests/fixtures/avm_obc_link_smoke.oren` with `--stdlib-mode obc` and runs it via `./avm`)
+	   - 2026-01-16: fixed OBX linking correctness for `--stdlib-mode obc`:
+	     - Linker now strips a trailing `HALT` from non-final modules during concatenation (prevents early termination of the pc=0 skip chain).
+	     - OBX exports now encode **0-based** code addresses (compiler internals store 1-based addresses; exports must decode to `enc-1`).
+	     - Added AVM core natives required by the minimal stdlib bundle: `oren_type_tag`, `oren_map_get_str`, `oren_map_set_str`.
+	     - Guard: `scripts/verify_avm_bytecode_link_smoke.sh`
 
 ## Tier‑1 verification blockers (operational)
 

@@ -1,0 +1,28 @@
+// AVM bytecode linking smoke (Tier‑1, compile+run via host `avm` tool).
+//
+// This file is intended to be compiled with:
+//   --backend bytecode
+//   --stdlib-mode obc
+//   --stdlib-obc <stdlib_bundle.obc>
+//
+// The key property under test is OBX-based linking against `std:` without shipping
+// stdlib sources into the compile step.
+import strings "std:strings"
+
+fn main() {
+    if strings.starts_with("hello", "he") != true {
+        print("FAIL: starts_with")
+        exit(1)
+    }
+    if strings.ends_with("hello", "lo") != true {
+        print("FAIL: ends_with")
+        exit(2)
+    }
+    var t = strings.trim("  hi \n")
+    if t != "hi" {
+        print("FAIL: trim got=" + t)
+        exit(3)
+    }
+    print("ok: avm obc link smoke")
+    return 0
+}

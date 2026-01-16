@@ -529,6 +529,22 @@ fn obc_link(obcs) {
         if consts == nil { consts = [] }
         if code == nil { code = [] }
 
+        // Linking semantics (rolling, high leverage):
+        //
+        // Standalone `.obc` files typically end with an `AVM_HALT` opcode.
+        // When linking libraries into a final program, preserving those intermediate HALTs
+        // will terminate execution early during the entry "skip function bodies" chain
+        // (pc=0 walks JMP32 headers until it reaches the module terminator).
+        //
+        // Therefore: strip exactly one trailing HALT from every non-final module's code
+        // during concatenation. The last module (the main program) keeps its HALT.
+        var code_len_eff = oren_list_len(code)
+        if mi < (oren_list_len(obcs) - 1) {
+            if code_len_eff > 0 && (code[code_len_eff - 1] & 255) == codegen_bytecode.AVM_HALT {
+                code_len_eff = code_len_eff - 1
+            }
+        }
+
         // Merge constants first.
         var ci = 0
         while ci < oren_list_len(consts) {
@@ -539,7 +555,7 @@ fn obc_link(obcs) {
         // Patch code in place and append.
         obc_patch_code_in_place(code, const_base, global_base, code_base)
         var k = 0
-        while k < oren_list_len(code) {
+        while k < code_len_eff {
             oren_list_push(out_code, code[k] & 255)
             k = k + 1
         }
@@ -580,7 +596,7 @@ fn obc_link(obcs) {
         var gc = m["global_count"]
         if gc == nil { gc = 0 }
         global_base = global_base + gc
-        code_base = code_base + oren_list_len(code)
+        code_base = code_base + code_len_eff
         mi = mi + 1
     }
 

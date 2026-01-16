@@ -1385,17 +1385,25 @@ fn compiler_main() {
         ctx["meta_bytes"] = meta_bytes
 
         // Optional OBX (exports/relocs) for `.obc` module linking.
-        if allow_undef || obc_lib {
-            var exports = {}
-            if obc_lib {
-                for nm in ctx["functions"] {
-                    if nm != nil && nm != "" && nm != "main" && nm != "__top_level__" {
-                        exports[nm] = ctx["functions"][nm]
+            if allow_undef || obc_lib {
+                var exports = {}
+                if obc_lib {
+                    for nm in ctx["functions"] {
+                        if nm != nil && nm != "" && nm != "main" && nm != "__top_level__" {
+                            // `ctx["functions"][name]` stores 1-based code addresses so 0 is representable while still
+                            // using `nil` as "missing". OBX, however, must store *0-based* code offsets (rolling ABI).
+                            // Export the decoded address (`enc - 1`) so the linker can patch CALL32/PUSH_FUNC32 targets.
+                            var enc = ctx["functions"][nm]
+                            if oren_type_tag(enc) == 1 && enc > 0 {
+                                exports[nm] = enc - 1
+                            } else {
+                                exports[nm] = 0
+                            }
+                        }
                     }
                 }
+                ctx["obx_bytes"] = obc_link.obx_encode(path, exports, ctx["relocs"])
             }
-            ctx["obx_bytes"] = obc_link.obx_encode(path, exports, ctx["relocs"])
-        }
 
         // Stdlib/extra library linking (rolling):
         // - compile the main program with unresolved fixups enabled

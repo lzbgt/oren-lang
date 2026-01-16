@@ -14,7 +14,7 @@ This doc is a fact-first bridge between:
 - stdlib distribution/resolution (`docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md`),
 - and the repo-wide roadmap (`docs/TODOS.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md`).
 
-**Last updated:** 2026-01-15
+**Last updated:** 2026-01-16
 
 ---
 
@@ -142,3 +142,34 @@ When updating `docs/TODOS.md`, keep these as separate deliverables:
    - only after module ABI + policy model is mature
    - likely built on top of OBX, but not the same as compile-time OBX linking
 
+---
+
+## 6) Local workflow (build + run smoke)
+
+This repo includes a small “bytecode linking actually works” smoke that is useful before
+attempting full compiler-in-AVM.
+
+Build the stdlib bundle (exports via OBX) and run a tiny linked program under the host `avm`:
+
+```
+./scripts/verify_avm_bytecode_link_smoke.sh
+```
+
+Notes (rolling):
+
+- `scripts/build_avm_plugins.sh` defaults to `lib/std/stdlib_avm.oren` (AVM-safe subset).
+- Override the bundle root via `OREN_STDLIB_BUNDLE_ROOT=...` when experimenting.
+
+Outputs (rolling):
+
+- stdlib bundle: `build/plugins/stdlib_bundle.obc`
+- linked app: `build/tmp/avm_obc_link_smoke.obc`
+- logs: `build/logs/*avm_obc_link_smoke*`
+
+Optional (heavier, rolling):
+
+```
+OREN_BUILD_COMPILER_OBC=1 ./scripts/build_avm_plugins.sh
+```
+
+This attempts to build a self-contained `build/plugins/oren.obc` by linking against `stdlib_bundle.obc`.

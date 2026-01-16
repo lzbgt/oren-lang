@@ -46,12 +46,25 @@ fn green_g_state_done() { return 3 }
 fn green_g_magic() { return 5716837919880455729 }
 
 // Scheduler state struct layout (bytes).
-fn green_s_off_run_head() { return 0 }
-fn green_s_off_run_tail() { return 8 }
-fn green_s_off_sleep_head() { return 16 }
-fn green_s_off_sleep_tail() { return 24 }
-fn green_s_off_zomb_head() { return 32 }
-fn green_s_bytes() { return 40 }
+//
+// Rolling refactor (2026-01-16+):
+// move runnable/sleep queues under a `P` ("processor") object so the runtime layout
+// matches the eventual Go-like G-M-P model:
+// - `S` holds the global scheduler state (Ps list + zombies)
+// - each `P` holds local runq/sleepq (later: timers, caches, netpoller hooks)
+fn green_s_off_p0() { return 0 }        // u64: default P pointer
+fn green_s_off_p_count() { return 8 }   // u64: number of Ps (>=1 once initialized)
+fn green_s_off_zomb_head() { return 16 } // u64: zombie list head
+fn green_s_bytes() { return 24 }
+
+// Per-P state struct layout (bytes).
+fn green_p_off_run_head() { return 0 }
+fn green_p_off_run_tail() { return 8 }
+fn green_p_off_sleep_head() { return 16 }
+fn green_p_off_sleep_tail() { return 24 }
+fn green_p_off_id() { return 32 } // small int id (0..p_count-1)
+fn green_p_off_next() { return 40 } // u64: next P in the scheduler's P list (0 for end)
+fn green_p_bytes() { return 48 }
 
 var g_green_inited = 0
 var g_green_enabled_checked = 0
@@ -78,7 +91,8 @@ fn green_thread_node_off_green_state() { return 64 }
 fn green_t_off_sched_ctx() { return 0 }        // u64: scheduler ctx buffer ptr (mmap, green_ctx_bytes)
 fn green_t_off_current_g() { return 8 }        // u64: currently running G ptr (0 on scheduler stack)
 fn green_t_off_sched_stack_node() { return 16 } // u64: OS-thread node for this scheduler stack (for GC scanning)
-fn green_t_bytes() { return 24 }
+fn green_t_off_p() { return 24 }               // u64: current P pointer (rolling; required for Stage N2)
+fn green_t_bytes() { return 32 }
 
 fn _green_thread_state_for_current_thread_or0() {
     if oren_globals() == 0 { return 0 }
@@ -101,6 +115,12 @@ fn _green_thread_state_for_current_thread_or0() {
     ptr_set(ts0 + green_t_off_sched_ctx(), sched_ctx)
     ptr_set(ts0 + green_t_off_current_g(), 0)
     ptr_set(ts0 + green_t_off_sched_stack_node(), os_node)
+    // Default P binding: P0 (single-P mode). Caller may override (Stage N2/unsafe parallel).
+    // NOTE: `_green_init_if_needed()` must have run before this on all normal paths.
+    var s = _green_get_state()
+    var p0 = 0
+    if s != 0 { p0 = _green_state_p0(s) }
+    ptr_set(ts0 + green_t_off_p(), p0)
 
     // Publish into the OS-thread node (thread-local; no atomic required).
     ptr_set(os_node + green_thread_node_off_green_state(), ts0)
@@ -116,6 +136,8 @@ fn _green_thread_current_g_or0() {
 fn _green_thread_set_current_g(ts, g) { ptr_set(ts + green_t_off_current_g(), g); return 0 }
 fn _green_thread_sched_ctx_or0(ts) { return ptr_get(ts + green_t_off_sched_ctx()) }
 fn _green_thread_sched_stack_node_or0(ts) { return ptr_get(ts + green_t_off_sched_stack_node()) }
+fn _green_thread_p_or0(ts) { return ptr_get(ts + green_t_off_p()) }
+fn _green_thread_set_p(ts, p) { ptr_set(ts + green_t_off_p(), p); return 0 }
 
 fn _green_enabled() {
     if g_green_enabled_checked == 0 {
@@ -137,20 +159,55 @@ fn _green_enabled() {
 fn _green_get_state() { return g_green_state }
 fn _green_set_state(p) { g_green_state = p; return 0 }
 
-fn _green_state_run_head(s) { return ptr_get(s + green_s_off_run_head()) }
-fn _green_state_run_tail(s) { return ptr_get(s + green_s_off_run_tail()) }
-fn _green_state_sleep_head(s) { return ptr_get(s + green_s_off_sleep_head()) }
-fn _green_state_sleep_tail(s) { return ptr_get(s + green_s_off_sleep_tail()) }
+fn _green_state_p0(s) { return ptr_get(s + green_s_off_p0()) }
+fn _green_state_p_count(s) { return ptr_get(s + green_s_off_p_count()) }
 fn _green_state_zomb_head(s) { return ptr_get(s + green_s_off_zomb_head()) }
 
-fn _green_state_set_run_head(s, v) { ptr_set(s + green_s_off_run_head(), v); return 0 }
-fn _green_state_set_run_tail(s, v) { ptr_set(s + green_s_off_run_tail(), v); return 0 }
-fn _green_state_set_sleep_head(s, v) { ptr_set(s + green_s_off_sleep_head(), v); return 0 }
-fn _green_state_set_sleep_tail(s, v) { ptr_set(s + green_s_off_sleep_tail(), v); return 0 }
+fn _green_state_set_p0(s, v) { ptr_set(s + green_s_off_p0(), v); return 0 }
+fn _green_state_set_p_count(s, v) { ptr_set(s + green_s_off_p_count(), v); return 0 }
 fn _green_state_set_zomb_head(s, v) { ptr_set(s + green_s_off_zomb_head(), v); return 0 }
 
 fn _green_g_next(g) { return ptr_get(g + green_g_off_next()) }
 fn _green_g_set_next(g, v) { ptr_set(g + green_g_off_next(), v); return 0 }
+
+fn _green_p_run_head(p) { return ptr_get(p + green_p_off_run_head()) }
+fn _green_p_run_tail(p) { return ptr_get(p + green_p_off_run_tail()) }
+fn _green_p_sleep_head(p) { return ptr_get(p + green_p_off_sleep_head()) }
+fn _green_p_sleep_tail(p) { return ptr_get(p + green_p_off_sleep_tail()) }
+fn _green_p_next(p) { return ptr_get(p + green_p_off_next()) }
+
+fn _green_p_set_run_head(p, v) { ptr_set(p + green_p_off_run_head(), v); return 0 }
+fn _green_p_set_run_tail(p, v) { ptr_set(p + green_p_off_run_tail(), v); return 0 }
+fn _green_p_set_sleep_head(p, v) { ptr_set(p + green_p_off_sleep_head(), v); return 0 }
+fn _green_p_set_sleep_tail(p, v) { ptr_set(p + green_p_off_sleep_tail(), v); return 0 }
+fn _green_p_set_next(p, v) { ptr_set(p + green_p_off_next(), v); return 0 }
+
+fn _green_state_p_by_id_or0(s, id) {
+    if s == 0 { return 0 }
+    var p = _green_state_p0(s)
+    while p != 0 {
+        if ptr_get(p + green_p_off_id()) == id { return p }
+        p = _green_p_next(p)
+    }
+    return 0
+}
+
+fn _green_current_p_or0() {
+    // Best-effort: use thread-local P binding. Fallback to P0.
+    // NOTE: this may lazily allocate thread-local scheduler state.
+    var ts = _green_thread_state_for_current_thread_or0()
+    var s = _green_get_state()
+    if ts == 0 {
+        if s == 0 { return 0 }
+        return _green_state_p0(s)
+    }
+    var p = _green_thread_p_or0(ts)
+    if p != 0 { return p }
+    if s == 0 { return 0 }
+    var p0 = _green_state_p0(s)
+    if p0 != 0 { _green_thread_set_p(ts, p0) }
+    return p0
+}
 
 fn _green_is_g(ptr) {
     if ptr == 0 { return false }
@@ -218,11 +275,19 @@ fn _green_init_if_needed() {
     // Allocate scheduler state as a GC-managed struct and root it.
     var s = _green_alloc_struct(green_s_bytes())
     if s == 0 { exit(901) }
-    ptr_set(s + green_s_off_run_head(), 0)
-    ptr_set(s + green_s_off_run_tail(), 0)
-    ptr_set(s + green_s_off_sleep_head(), 0)
-    ptr_set(s + green_s_off_sleep_tail(), 0)
-    ptr_set(s + green_s_off_zomb_head(), 0)
+    // Allocate P0 (single-P default; more Ps are optional/unsafe today).
+    var p0 = _green_alloc_struct(green_p_bytes())
+    if p0 == 0 { exit(902) }
+    _green_p_set_run_head(p0, 0)
+    _green_p_set_run_tail(p0, 0)
+    _green_p_set_sleep_head(p0, 0)
+    _green_p_set_sleep_tail(p0, 0)
+    ptr_set(p0 + green_p_off_id(), 0)
+    _green_p_set_next(p0, 0)
+
+    _green_state_set_p0(s, p0)
+    _green_state_set_p_count(s, 1)
+    _green_state_set_zomb_head(s, 0)
     _green_set_state(s)
     native_gc_register_root(s)
 
@@ -241,60 +306,89 @@ fn _green_workers_wake_if_started() {
     return 0
 }
 
-fn _green_runq_push(g) {
-    var s = _green_get_state()
-    if s == 0 || g == 0 { return 0 }
-    acquire_lock()
+fn _green_runq_push_locked(p, g) {
+    if p == 0 || g == 0 { return 0 }
+    var was_empty = 0
     _green_g_set_next(g, 0)
-    var head = _green_state_run_head(s)
+    var head = _green_p_run_head(p)
     if head == 0 {
-        _green_state_set_run_head(s, g)
-        _green_state_set_run_tail(s, g)
-        release_lock()
-        _green_workers_wake_if_started()
-        return 0
+        was_empty = 1
+        _green_p_set_run_head(p, g)
+        _green_p_set_run_tail(p, g)
+        return was_empty
     }
-    var tail = _green_state_run_tail(s)
+    var tail = _green_p_run_tail(p)
     if tail != 0 { _green_g_set_next(tail, g) }
-    _green_state_set_run_tail(s, g)
-    release_lock()
-    _green_workers_wake_if_started()
-    return 0
+    _green_p_set_run_tail(p, g)
+    return was_empty
 }
 
-fn _green_runq_pop() {
-    var s = _green_get_state()
-    if s == 0 { return 0 }
-    acquire_lock()
-    var head = _green_state_run_head(s)
-    if head == 0 { release_lock(); return 0 }
+fn _green_runq_pop_locked(p) {
+    if p == 0 { return 0 }
+    var head = _green_p_run_head(p)
+    if head == 0 { return 0 }
     var next = _green_g_next(head)
-    _green_state_set_run_head(s, next)
+    _green_p_set_run_head(p, next)
     if next == 0 {
-        _green_state_set_run_tail(s, 0)
+        _green_p_set_run_tail(p, 0)
     }
     _green_g_set_next(head, 0)
-    release_lock()
     return head
 }
 
-fn _green_sleepq_push(g) {
-    var s = _green_get_state()
-    if s == 0 || g == 0 { return 0 }
+fn _green_runq_push_p(p, g) {
+    if p == 0 || g == 0 { return 0 }
     acquire_lock()
+    var was_empty = _green_runq_push_locked(p, g)
+    release_lock()
+    if was_empty != 0 { _green_workers_wake_if_started() }
+    return 0
+}
+
+fn _green_runq_pop_p(p) {
+    if p == 0 { return 0 }
+    acquire_lock()
+    var g = _green_runq_pop_locked(p)
+    release_lock()
+    return g
+}
+
+fn _green_runq_push(g) {
+    var p = _green_current_p_or0()
+    return _green_runq_push_p(p, g)
+}
+
+fn _green_runq_pop() {
+    var p = _green_current_p_or0()
+    return _green_runq_pop_p(p)
+}
+
+fn _green_sleepq_push_locked(p, g) {
+    if p == 0 || g == 0 { return 0 }
     _green_g_set_next(g, 0)
-    var head = _green_state_sleep_head(s)
+    var head = _green_p_sleep_head(p)
     if head == 0 {
-        _green_state_set_sleep_head(s, g)
-        _green_state_set_sleep_tail(s, g)
-        release_lock()
+        _green_p_set_sleep_head(p, g)
+        _green_p_set_sleep_tail(p, g)
         return 0
     }
-    var tail = _green_state_sleep_tail(s)
+    var tail = _green_p_sleep_tail(p)
     if tail != 0 { _green_g_set_next(tail, g) }
-    _green_state_set_sleep_tail(s, g)
+    _green_p_set_sleep_tail(p, g)
+    return 0
+}
+
+fn _green_sleepq_push_p(p, g) {
+    if p == 0 || g == 0 { return 0 }
+    acquire_lock()
+    _green_sleepq_push_locked(p, g)
     release_lock()
     return 0
+}
+
+fn _green_sleepq_push(g) {
+    var p = _green_current_p_or0()
+    return _green_sleepq_push_p(p, g)
 }
 
 fn _green_zombie_push(g) {
@@ -352,47 +446,49 @@ fn _green_zombie_drain() {
     return 0
 }
 
-fn _green_wake_ready(now_ns) {
-    var s = _green_get_state()
-    if s == 0 { return 0 }
+fn _green_wake_ready_p(p, now_ns) {
+    if p == 0 { return 0 }
+    if now_ns == 0 { return 0 }
     acquire_lock()
     var prev = 0
-    var cur = _green_state_sleep_head(s)
+    var cur = _green_p_sleep_head(p)
     var new_tail = 0
+    var woke_any = 0
     while cur != 0 {
         var next = _green_g_next(cur)
         var wake_ns = ptr_get(cur + green_g_off_wake_ns())
         if wake_ns != 0 && now_ns >= wake_ns {
             // Remove from sleep list.
             if prev == 0 {
-                _green_state_set_sleep_head(s, next)
+                _green_p_set_sleep_head(p, next)
             } else {
                 _green_g_set_next(prev, next)
             }
             if next == 0 { new_tail = prev }
             _green_g_set_next(cur, 0)
             ptr_set(cur + green_g_off_state(), green_g_state_runnable())
-            _green_runq_push(cur)
+            _green_runq_push_locked(p, cur)
+            woke_any = 1
             cur = next
             continue
         }
         prev = cur
         cur = next
     }
-    if _green_state_sleep_head(s) == 0 {
-        _green_state_set_sleep_tail(s, 0)
+    if _green_p_sleep_head(p) == 0 {
+        _green_p_set_sleep_tail(p, 0)
     } else if new_tail != 0 {
-        _green_state_set_sleep_tail(s, new_tail)
+        _green_p_set_sleep_tail(p, new_tail)
     }
     release_lock()
+    if woke_any != 0 { _green_workers_wake_if_started() }
     return 0
 }
 
-fn _green_next_wake_ns() {
-    var s = _green_get_state()
-    if s == 0 { return 0 }
+fn _green_next_wake_ns_p(p) {
+    if p == 0 { return 0 }
     acquire_lock()
-    var cur = _green_state_sleep_head(s)
+    var cur = _green_p_sleep_head(p)
     var best = 0
     while cur != 0 {
         var w = ptr_get(cur + green_g_off_wake_ns())
@@ -403,6 +499,11 @@ fn _green_next_wake_ns() {
     }
     release_lock()
     return best
+}
+
+fn _green_next_wake_ns() {
+    var p = _green_current_p_or0()
+    return _green_next_wake_ns_p(p)
 }
 
 fn _green_sched_switch_to(g) {
@@ -435,9 +536,16 @@ fn _green_poll_until(deadline_ns) {
     _green_init_if_needed()
     if _green_enabled() != true { return 0 }
     // Ensure per-thread scheduler state exists for this OS thread.
-    _green_thread_state_for_current_thread_or0()
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return 0 }
     var s = _green_get_state()
     if s == 0 { return 0 }
+    var p = _green_thread_p_or0(ts)
+    if p == 0 {
+        p = _green_state_p0(s)
+        if p != 0 { _green_thread_set_p(ts, p) }
+    }
+    if p == 0 { return 0 }
 
     while 1 {
         // Drain detached tasks that completed.
@@ -445,17 +553,17 @@ fn _green_poll_until(deadline_ns) {
 
         var now = oren_time_unix_ns()
         if now != 0 {
-            _green_wake_ready(now)
+            _green_wake_ready_p(p, now)
             if deadline_ns != 0 && now >= deadline_ns { return 0 }
         }
 
-        var g = _green_runq_pop()
+        var g = _green_runq_pop_p(p)
         if g != 0 {
             _green_sched_switch_to(g)
             // After returning, decide whether to requeue.
             var st = ptr_get(g + green_g_off_state())
             if st == green_g_state_runnable() {
-                _green_runq_push(g)
+                _green_runq_push_p(p, g)
             } else if st == green_g_state_done() {
                 // Detached tasks are cleaned immediately by scheduler.
                 if ptr_get(g + green_g_off_detached()) != 0 {
@@ -463,13 +571,13 @@ fn _green_poll_until(deadline_ns) {
                 }
             } else {
                 // sleeping: enqueue into sleepq now that the task context is saved/paused.
-                _green_sleepq_push(g)
+                _green_sleepq_push_p(p, g)
             }
             continue
         }
 
         // No runnable tasks. If no sleepers, we're idle.
-        var next_wake = _green_next_wake_ns()
+        var next_wake = _green_next_wake_ns_p(p)
         if next_wake == 0 {
             return 0
         }
@@ -548,6 +656,39 @@ fn oren_green_start_workers(n) {
         }
     }
     if g_green_workers_started != 0 { return 0 }
+    var s = _green_get_state()
+    if s == 0 { return -1 }
+
+    // Ensure we have enough P objects reachable from the scheduler root.
+    // NOTE: without work stealing, spawning is biased to the current thread's P. This is fine for
+    // rolling bring-up; it still allows nested spawns within tasks to stay local to the worker's P.
+    if n > 1 {
+        acquire_lock()
+        var cur_count = _green_state_p_count(s)
+        if cur_count < n {
+            var tail = _green_state_p0(s)
+            if tail == 0 { release_lock(); return -1 }
+            while _green_p_next(tail) != 0 {
+                tail = _green_p_next(tail)
+            }
+            var id = cur_count
+            while id < n {
+                var p = _green_alloc_struct(green_p_bytes())
+                if p == 0 { exit(925) }
+                _green_p_set_run_head(p, 0)
+                _green_p_set_run_tail(p, 0)
+                _green_p_set_sleep_head(p, 0)
+                _green_p_set_sleep_tail(p, 0)
+                ptr_set(p + green_p_off_id(), id)
+                _green_p_set_next(p, 0)
+                _green_p_set_next(tail, p)
+                tail = p
+                id = id + 1
+            }
+            _green_state_set_p_count(s, n)
+        }
+        release_lock()
+    }
 
     // Allocate the wake/park word (one page; u64 at offset 0).
     var word = sys_mmap_private_anon(4096)
@@ -561,7 +702,9 @@ fn oren_green_start_workers(n) {
 
     var i = 0
     while i < n {
-        var h = oren_os_thread_spawn(start_addr, 0)
+        var p = _green_state_p_by_id_or0(s, i)
+        if p == 0 { p = _green_state_p0(s) }
+        var h = oren_os_thread_spawn(start_addr, p)
         if h == 0 || h == -1 || h < 0 { exit(924) }
         i = i + 1
     }
@@ -581,7 +724,17 @@ fn __oren_green_worker_entry(arg_ptr) {
 
     _green_init_if_needed()
     if _green_enabled() != true { return 0 }
-    _green_thread_state_for_current_thread_or0()
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return 0 }
+
+    // Bind this M to a P (rolling: no "exclusive P ownership" enforcement yet).
+    var p0 = 0
+    if arg_ptr != 0 && arg_ptr >= 4096 { p0 = arg_ptr }
+    if p0 == 0 {
+        var s = _green_get_state()
+        if s != 0 { p0 = _green_state_p0(s) }
+    }
+    if p0 != 0 { _green_thread_set_p(ts, p0) }
 
     while true {
         // Run until idle (no runnable tasks and no sleepers).
