@@ -757,20 +757,26 @@ fn acquire_lock() {
     }
     
     var spin = 0
-    while atomic_cas(lock_ptr, 0, tid) != 0 {
-        if g_panicking == 1 { return 0 }
-        spin = iadd(spin, 1)
-        // Park after a small amount of spinning to avoid burning CPU.
-        if spin > 1000 {
-            // Wait while lock owner hasn't changed.
-            var owner_now = ptr_get(lock_ptr)
-            if owner_now != 0 {
-                // operation=UL_COMPARE_AND_WAIT (1), timeout_us=0 => forever
-                oren_wait_on_addr(lock_ptr, owner_now, 0)
-            }
-            spin = 0
-        }
-    }
+	    while atomic_cas(lock_ptr, 0, tid) != 0 {
+	        if g_panicking == 1 { return 0 }
+	        spin = iadd(spin, 1)
+	        // Park after a small amount of spinning to avoid burning CPU.
+	        if spin > 1000 {
+	            // Wait while lock owner hasn't changed.
+	            var owner_now = ptr_get(lock_ptr)
+	            if owner_now != 0 {
+	                // STW GC robustness:
+	                // Never sleep forever here. If a collector requests STW while this thread is parked
+	                // in a kernel wait, it cannot reach a safepoint and STW can deadlock.
+	                //
+	                // Instead: poll safepoints and sleep in short bounded waits.
+	                oren_gc_safepoint()
+	                // 1ms bounded wait: keep it cheap, but guarantee forward progress under STW.
+	                oren_wait_on_addr(lock_ptr, owner_now, 1000)
+	            }
+	            spin = 0
+	        }
+	    }
     
     var count_ptr = iadd(oren_globals(), 56)
     ptr_set(count_ptr, 1)

@@ -725,19 +725,23 @@ fn oren_green_join_timeout(g, timeout_ms) {
             return r
         }
 
-        // Stage N2 worker mode: the scheduler runs on background OS threads; join blocks on addr.
-        if g_green_workers_started != 0 {
-            var state_ptr = g + green_g_off_state()
-            while true {
-                var cur = ptr_get(state_ptr)
-                if cur == green_g_state_done() { break }
-                var rcw = oren_wait_on_addr(state_ptr, cur, 0)
-                if rcw != 0 { return rcw }
-            }
-            var r2 = ptr_get(g + green_g_off_result())
-            _green_cleanup_g(g)
-            return r2
-        }
+	        // Stage N2 worker mode: the scheduler runs on background OS threads; join blocks on addr.
+	        if g_green_workers_started != 0 {
+	            var state_ptr = g + green_g_off_state()
+	            while true {
+	                var cur = ptr_get(state_ptr)
+	                if cur == green_g_state_done() { break }
+	                // STW GC robustness:
+	                // A host-thread joiner is still an OS thread that must be able to reach safepoints.
+	                // Avoid sleeping forever in a kernel wait here.
+	                oren_gc_safepoint()
+	                var rcw = oren_wait_on_addr(state_ptr, cur, 10000) // 10ms
+	                if rcw != 0 && rcw != -60 { return rcw }
+	            }
+	            var r2 = ptr_get(g + green_g_off_result())
+	            _green_cleanup_g(g)
+	            return r2
+	        }
 
         // Stage N1: drive the scheduler on this OS thread.
         while ptr_get(g + green_g_off_state()) != green_g_state_done() {

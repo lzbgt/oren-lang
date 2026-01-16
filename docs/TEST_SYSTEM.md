@@ -23,6 +23,12 @@ Rolling note:
 - `tests/avm/*.oren`: programs intended for the AVM workflow (`--backend bytecode` + `./avm`)
 - `tests/fixtures/*.oren`: fixtures for compile-time contracts (many are expected failures under specific flags)
 
+Rolling note (fixtures vs ABI):
+
+- Some Tier‑1 fixtures use **test-only runtime hooks** (example: `oren_green_debug_*`) to make scheduling regressions deterministic while the native scheduler is still evolving.
+  - Those hooks are not stable ABI and should not be used in stdlib or user-facing examples.
+  - Reference: `docs/NATIVE_GMP_SCHEDULER.md` (“Test-only debug API: `oren_green_debug_*`”).
+
 Rolling rule: **Oren source should be backend-universal** when the program is within the supported feature set of that backend.
 When a source file is intended to be backend-specific (e.g. AVM domain tests), it should be documented as such in-file.
 

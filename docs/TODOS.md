@@ -428,10 +428,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_bind_p_rejects_in_green`) (topology mutation must be host-thread only)
 					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_acquire_p_rejects_in_green`) (P ownership mutation must be host-thread only)
 					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_p_acquire_release_blocks_start_workers`) (start_workers must fail early if any P is already claimed by a host thread)
-					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_worker_release_acquire_p_when_parked`) (worker releases P while parked/blocked and re-acquires to run)
-					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_start_workers_does_not_reserve_extra_ps`) (start_workers(1) must not reserve P1/P2; required for M<P)
-					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_green_worker_idle`) (STW GC must not deadlock when a worker is parked or blocked in netpoll)
-					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_p_count_api`) (P topology API; no shrink; reject after workers)
+						     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_worker_release_acquire_p_when_parked`) (worker releases P while parked/blocked and re-acquires to run)
+						     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_start_workers_does_not_reserve_extra_ps`) (start_workers(1) must not reserve P1/P2; required for M<P)
+						     - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_green_worker_idle`) (STW GC must not deadlock when a worker is parked or blocked in netpoll)
+						     - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_green_join_waiter`) (STW GC must not deadlock while an OS thread is blocked in `join(..., -1)` under worker-mode green scheduling)
+						     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_p_count_api`) (P topology API; no shrink; reject after workers)
 					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_multi_p_single_thread_poll_steal`) (single-thread multi-P steal + cross-P wake without unsafe parallel workers)
 				     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_ctx_switch_alloc_integrity`) (worker-mode ctx-switch + scheduler stability)
 				     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_local_ptr_survives_yields`) (ctx-switch must preserve long-lived locals across yields)
@@ -456,7 +457,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				         - worker1 acquires P0, worker0 acquires P1, and later worker0 acquires P2 (true `M<P` behavior under world-lock)
 				         - Guard: `tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren`
 				         - Implementation: per-worker park/wake slots + worker-tid table + test-only idle-P requeue + test-only spawn-to-P injection (keeps fixture deterministic).
-				       - Next: harden the test-only debug surface by consolidating helpers behind a single `oren_green_debug_*` namespace doc section (so it’s clear what is “test-only ABI” vs stable runtime ABI).
+					       - DONE (2026-01-16): documented the fixture-only `oren_green_debug_*` surface in one place (what is “test-only ABI” vs stable runtime ABI):
+					         - Doc: `docs/NATIVE_GMP_SCHEDULER.md` (“Test-only debug API: `oren_green_debug_*`”)
 				     - add a single-thread multi-`P` fixture (using `oren_green_bind_p`) to validate cross-P sleep/wake + stealing without enabling unsafe parallel workers
 				     - evolve the global runq into a fairness/overflow queue (it exists today as cross-P injection)
 				     - implement real work stealing between `P` (today: a global-lock bring-up: “steal one before idle”, plus periodic global-runq polling for fairness)

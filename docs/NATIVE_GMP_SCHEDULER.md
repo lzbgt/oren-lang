@@ -226,9 +226,47 @@ Status (rolling groundwork):
       - Implementation note (important): in worker mode, `_green_poll_until` must **not** auto-rebind `P0` when the thread-local binding is cleared; it must acquire from the idle-P pool to enable `M < P` and fairness.
     - Stage N3 evolution (determinism): idle-P pool now uses a **FIFO queue** so idle Ps are acquired fairly (prevents “P2 starves forever” during M<P bring-up).
       - Guard: `tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren` (2 workers, 3 Ps, world-lock; deterministic P swap + P2 acquisition)
-    - Stage N3 evolution (determinism): worker parking now uses **per-worker wake slots** so fixtures can wake a specific worker deterministically (instead of relying on wake-all ordering).
-      - Guard: `tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren` (same fixture; also covers P swap deterministically)
-    - Stage N3 evolution (STW safety): worker idle waits must be bounded and/or include `oren_gc_safepoint()` polling so `oren_gc_collect()` cannot deadlock while a worker is parked (includes park-word and netpoll waits).
+	    - Stage N3 evolution (determinism): worker parking now uses **per-worker wake slots** so fixtures can wake a specific worker deterministically (instead of relying on wake-all ordering).
+	      - Guard: `tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren` (same fixture; also covers P swap deterministically)
+	    - Stage N3 evolution (STW safety): worker idle waits must be bounded and/or include `oren_gc_safepoint()` polling so `oren_gc_collect()` cannot deadlock while a worker is parked (includes park-word and netpoll waits).
+	    - Stage N3 evolution (STW safety): host-thread joiners must also remain safepoint-friendly in worker mode:
+	      - `oren_green_join_timeout(..., timeout_ms<0)` now avoids infinite kernel sleeps and polls `oren_gc_safepoint()` while waiting.
+	      - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_green_join_waiter`)
+
+### Test-only debug API: `oren_green_debug_*` (rolling)
+
+The native green runtime intentionally exposes a small **test/fixture-only** surface (via `@oren.keep`) under the `oren_green_debug_*` namespace.
+
+This exists to keep Tier‑1 scheduler regressions **deterministic** (no probabilistic wake ordering) while the scheduler is still evolving.
+
+Hard rule (rolling): these functions are **not stable ABI**. They may change/remove without compatibility promises.
+
+**Availability / safety**
+
+- These helpers are intended for `tests/native/*.oren` and for developer debugging only.
+- Do not use them in stdlib or “user-facing” examples.
+- Many helpers are meaningful only in worker mode (`oren_green_start_workers`) or only on the host thread (not in-green).
+- Return codes follow the runtime convention: `0` success; negative values are “-errno style” (example: `-16` = busy); some helpers return `-1` for “unsupported/invalid”.
+
+**Determinism helpers (fixtures)**
+
+- `oren_green_debug_wake_worker(worker_id)` / `oren_green_debug_clear_worker_wake(worker_id)`:
+  - posts (or clears) a wake token for a specific worker’s park word.
+  - enables “wake worker0 only” / “wake worker1 only” style fixtures.
+- `oren_green_debug_worker_tid(worker_id)`:
+  - best-effort: returns the OS tid for a specific worker (indexed by the worker’s reserved `P` id).
+- `oren_green_debug_idle_p_requeue(p_id)`:
+  - moves an **idle** `P` to the tail of the idle‑P FIFO, to deterministically control which `P` is acquired next.
+  - returns `-16` if the `P` is not idle (`owner_tid != 0`).
+- `oren_green_debug_spawn_call_list_to_p(p_id, fn_obj, args_list)`:
+  - allocates a runnable task and enqueues it into a specific `P`’s local runq (does not auto-wake workers).
+  - used by deterministic multi-worker fixtures (P swap, `M < P` acquisition).
+
+**Observability helpers**
+
+- `oren_green_debug_p_owner_tid(p_id)` observes `P.owner_tid` (0=idle, negative=reserved sentinel, positive=tid).
+- `oren_green_debug_worker_count()` and `oren_green_debug_workers_ready_count()` help stabilize bring-up sequencing.
+- The remaining counter helpers (`oren_green_debug_idle_iters`, `*_steal_*`, `*_p_acquire_*`, `oren_green_debug_reset`) exist for lightweight regression assertions.
   - Runtime: `lib/runtime_native/263_green_tasks.oren` (split modules: `lib/runtime_native/263_green/*.oren`)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_start_workers_does_not_reserve_extra_ps`) (includes worker-ready counter check)
