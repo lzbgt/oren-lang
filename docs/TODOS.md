@@ -474,14 +474,21 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				       - Runtime: `lib/runtime_native/245_select.oren` (`oren_select` / `oren_select_recv`: poll-mode + `oren_green_sleep_ns` backoff)
 				       - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*`: same poll+sleep strategy for fd readiness)
 				       - Runtime: `lib/runtime_native/263_green_tasks.oren` (`oren_green_in_green`)
-				       - Guards:
-				         - `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
-				         - `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
-				       - Remaining: replace poll+sleep loops with a real scheduler netpoller (kqueue/epoll integration; wake a parked `P` when IO becomes ready).
-				     - 2026-01-16: fixed loopback NET fixtures that spawn in-process servers on POSIX:
-				       - Problem: `spawn` prefers green tasks, but some fixtures ran a blocking client call on the main thread, starving the server green task (timeout).
-				       - Fix: enable green worker mode up front in the spawned-server fixtures (unless `OREN_NO_GREEN` disables green tasks).
-				       - Guards: `make verify-x64-linux-qemu-net` (covers `tests/native/test_dns_loopback.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren`)
+					       - Guards:
+					         - `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
+					         - `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
+					       - Remaining: replace poll+sleep loops with a real scheduler netpoller (kqueue/epoll integration; wake a parked `P` when IO becomes ready).
+					       - Next deliverable (netpoller v0, correctness-first):
+					         - add an internal netpoller that can register fd readiness and wake parked `G` without busy polling
+					         - integrate it into the worker idle path (`_green_poll_until_budget`) so a worker can block in epoll/kevent until either:
+					           - an fd becomes ready, or
+					           - the next sleeper deadline is reached (timers), or
+					           - a runnable `G` is injected (wake word)
+					         - then delete the in-green poll+sleep loops in `oren_select` / `oren_fd_wait_*` (they should park the `G`, not spin).
+					     - 2026-01-16: fixed loopback NET fixtures that spawn in-process servers on POSIX:
+					       - Problem: `spawn` prefers green tasks, but some fixtures ran a blocking client call on the main thread, starving the server green task (timeout).
+					       - Fix: enable green worker mode up front in the spawned-server fixtures (unless `OREN_NO_GREEN` disables green tasks).
+					       - Guards: `make verify-x64-linux-qemu-net` (covers `tests/native/test_dns_loopback.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren`)
 					     - 2026-01-16: made `oren_time_mono_ns()` conversion exact on macOS/Windows (no wall-clock calibration):
 					       - macOS: uses `mach_timebase_info` (num/den) to convert gettimeofday’s `mach_absolute_time` out-arg to ns.
 					       - Windows: uses `QueryPerformanceFrequency` for QPC ticks -> ns (backend exposes `sys_qpc_frequency`).
