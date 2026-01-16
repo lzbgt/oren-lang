@@ -192,6 +192,9 @@ Status (rolling groundwork):
       - `oren_green_p_count()` reports the current `P` count.
       - `oren_green_bind_p(p_id)` binds the current OS thread to a specific `P` (bring-up/testing; rejected in-green and once workers started).
       - `oren_green_current_p_id()` reports the current OS thread’s bound `P` id.
+      - Host-thread ownership helpers (bring-up/testing; rejected in-green and once workers started):
+        - `oren_green_acquire_p(p_id)` binds the OS thread to `p_id` and sets `P.owner_tid = sys_gettid()`
+        - `oren_green_release_p()` releases the currently bound `P` and clears the thread binding
       - low-level scheduler drive hooks (host-thread only; bring-up/tests):
         - `oren_green_poll_until(deadline_ns)` drives until idle or deadline (monotonic ns).
         - `oren_green_poll_steps(n)` drives at most `n` context switches (used to seed multi-P queues deterministically).
@@ -212,6 +215,7 @@ Status (rolling groundwork):
   - P ownership (rolling correctness guard): when workers are enabled, `_green_poll_until` enforces `P.owner_tid == sys_gettid()`.
     Worker bring-up reserves each `P` with a negative sentinel during `oren_green_start_workers`, then the worker claims its bound `P`
     to a positive tid before entering the scheduler loop (hard-fails on mismatches).
+    - Rolling safety: `oren_green_start_workers` rejects if any `P.owner_tid != 0` on entry (prevents subtle “worker aborts because P was already claimed” failures).
   - Runtime: `lib/runtime_native/263_green_tasks.oren`
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_worker_wake_while_sleepers`) (prevents “sleepers stall runnable work” regressions)

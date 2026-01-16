@@ -491,6 +491,30 @@ fn oren_green_debug_last_steal_p_id() {
 }
 
 @oren.keep
+fn oren_green_debug_tid() {
+    // Debug/testing helper: expose the runtime's notion of OS-thread id.
+    // (On supported Tier‑1 hosts this is a stable non-zero id for the lifetime of the thread.)
+    return sys_gettid()
+}
+
+@oren.keep
+fn oren_green_debug_p_owner_tid(p_id) {
+    // Debug/testing helper: observe P ownership (0 = unclaimed, negative = reserved sentinel, positive = tid).
+    _green_init_if_needed()
+    if _green_enabled() != true { return 0 }
+    if p_id < 0 { return 0 }
+    if p_id >= 64 { return 0 }
+    var s = _green_get_state()
+    if s == 0 { return 0 }
+    _green_lock_acquire()
+    var p = _green_state_p_by_id_or0(s, p_id)
+    var v = 0
+    if p != 0 { v = _green_p_owner_tid(p) }
+    _green_lock_release()
+    return v
+}
+
+@oren.keep
 fn oren_green_debug_reset() {
     var p = g_green_debug_word
     if p == 0 || p == -1 || p < 4096 { return 0 }
@@ -1475,9 +1499,10 @@ fn oren_green_start_workers(n) {
     var p_res = _green_state_p0(s)
     while p_res != 0 {
         var owner0 = _green_p_owner_tid(p_res)
-        if owner0 == 0 {
-            _green_p_set_owner_tid(p_res, _green_p_owner_reserved_tid(p_res))
-        }
+        // Rolling safety: fail early if a host thread already claimed any P.
+        // Otherwise worker entry will hard-fail when it tries to claim its reserved P.
+        if owner0 != 0 { _green_lock_release(); return -1 }
+        _green_p_set_owner_tid(p_res, _green_p_owner_reserved_tid(p_res))
         p_res = _green_p_next(p_res)
     }
     _green_lock_release()
@@ -1698,6 +1723,98 @@ fn oren_green_bind_p(p_id) {
     var ts = _green_thread_state_for_current_thread_or0()
     if ts == 0 { return -1 }
     _green_thread_set_p(ts, p)
+    return 0
+}
+
+@oren.keep
+fn oren_green_acquire_p(p_id) {
+    // Host-thread-only P ownership acquisition (Stage N3 bring-up).
+    //
+    // Contract (rolling, current):
+    // - This binds the current OS thread to `p_id` and sets `P.owner_tid = sys_gettid()`.
+    // - If this OS thread already owns a different P, it is automatically released first.
+    // - Rejected in-green and once background workers are started (for now).
+    //
+    // NOTE: `oren_green_start_workers` pre-reserves all Ps; mixing host P ownership with workers
+    // is intentionally disallowed until we have a full "M acquire/release P" protocol.
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+    if p_id < 0 { return -1 }
+    if p_id >= 64 { return -1 }
+    if g_green_workers_started != 0 { return -1 }
+
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return -1 }
+    if ptr_get(ts + green_t_off_current_g()) != 0 { return -1 }
+
+    var tid = sys_gettid()
+    if tid == 0 { return -1 }
+
+    var s = _green_get_state()
+    if s == 0 { return -1 }
+
+    _green_lock_acquire()
+    var rc = _green_ensure_p_count_locked(s, p_id + 1)
+    if rc != 0 { _green_lock_release(); return rc }
+    var p = _green_state_p_by_id_or0(s, p_id)
+    if p == 0 { _green_lock_release(); return -1 }
+
+    // Auto-release the currently bound P if this thread owns it and we're switching.
+    var cur_p = _green_thread_p_or0(ts)
+    if cur_p != 0 && cur_p != p {
+        var cur_owner = _green_p_owner_tid(cur_p)
+        if cur_owner == tid {
+            _green_p_set_owner_tid(cur_p, 0)
+        } else if cur_owner != 0 {
+            // Unexpected: this OS thread is bound to a P it doesn't own.
+            _green_lock_release()
+            return -1
+        }
+    }
+
+    // Acquire requested P.
+    var owner = _green_p_owner_tid(p)
+    if owner == 0 || owner == tid {
+        _green_p_set_owner_tid(p, tid)
+    } else {
+        _green_lock_release()
+        return 0 - 16 // -EBUSY
+    }
+    _green_lock_release()
+
+    _green_thread_set_p(ts, p)
+    return 0
+}
+
+@oren.keep
+fn oren_green_release_p() {
+    // Host-thread-only release of the currently bound P (Stage N3 bring-up).
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+    if g_green_workers_started != 0 { return -1 }
+
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return -1 }
+    if ptr_get(ts + green_t_off_current_g()) != 0 { return -1 }
+
+    var tid = sys_gettid()
+    if tid == 0 { return -1 }
+
+    var p = _green_thread_p_or0(ts)
+    if p == 0 { return 0 }
+
+    _green_lock_acquire()
+    var owner = _green_p_owner_tid(p)
+    if owner == tid {
+        _green_p_set_owner_tid(p, 0)
+    } else if owner != 0 {
+        _green_lock_release()
+        return 0 - 1
+    }
+    _green_lock_release()
+
+    // Clear binding so the next scheduler call re-binds to P0 via `_green_current_p_or0()`.
+    _green_thread_set_p(ts, 0)
     return 0
 }
 

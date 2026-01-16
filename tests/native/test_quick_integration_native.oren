@@ -915,6 +915,11 @@ fn worker_green_try_bind_p_in_green() {
     return oren_green_bind_p(1)
 }
 
+fn worker_green_try_acquire_p_in_green() {
+    // Must run on a green stack so `oren_green_acquire_p` sees in-green execution.
+    return oren_green_acquire_p(1)
+}
+
 fn test_green_start_workers_rejects_in_green() {
     trace("QI: test_green_start_workers_rejects_in_green")
     // Green tasks are the default `spawn` path on macOS/Linux today.
@@ -934,6 +939,15 @@ fn test_green_bind_p_rejects_in_green() {
     var h = spawn worker_green_try_bind_p_in_green()
     var r = oren_join_timeout(h, 2000)
     assert_eq(r, -1, 536)
+    return 0
+}
+
+fn test_green_acquire_p_rejects_in_green() {
+    trace("QI: test_green_acquire_p_rejects_in_green")
+    if g_target_os == 3 { return 0 }
+    var h = spawn worker_green_try_acquire_p_in_green()
+    var r = oren_join_timeout(h, 2000)
+    assert_eq(r, -1, 587)
     return 0
 }
 
@@ -1051,6 +1065,43 @@ fn test_green_multi_p_single_thread_poll_steal() {
     // Also join the seed task (it yielded once, then should complete on subsequent polls/steals).
     var rseed = oren_join_timeout(h_seed, 2000)
     assert_eq(rseed, 0, 536)
+    return 0
+}
+
+fn test_green_p_acquire_release_blocks_start_workers() {
+    trace("QI: test_green_p_acquire_release_blocks_start_workers")
+    if g_target_os == 3 { return 0 }
+
+    // Ensure we start clean (best-effort; should be a no-op in normal runs).
+    oren_green_release_p()
+
+    var tid = oren_green_debug_tid()
+    if tid == 0 { fail(588) }
+
+    // Ensure multiple Ps exist so we can switch ownership deterministically.
+    var rc_pc = oren_green_set_p_count(2)
+    assert_eq(rc_pc, 0, 589)
+
+    // Acquire P1 and validate ownership.
+    var rc_a1 = oren_green_acquire_p(1)
+    assert_eq(rc_a1, 0, 590)
+    assert_eq(oren_green_current_p_id(), 1, 591)
+    assert_eq(oren_green_debug_p_owner_tid(1), tid, 592)
+
+    // Switching ownership should auto-release the previous P.
+    var rc_a0 = oren_green_acquire_p(0)
+    assert_eq(rc_a0, 0, 593)
+    assert_eq(oren_green_current_p_id(), 0, 594)
+    assert_eq(oren_green_debug_p_owner_tid(0), tid, 595)
+    assert_eq(oren_green_debug_p_owner_tid(1), 0, 596)
+
+    // Starting workers while any P is claimed by a host thread must fail early (no hard abort later).
+    assert_eq(oren_green_start_workers(1), -1, 597)
+
+    // After releasing, starting workers should succeed (validated by the next fixture).
+    var rc_rel = oren_green_release_p()
+    assert_eq(rc_rel, 0, 598)
+    assert_eq(oren_green_debug_p_owner_tid(0), 0, 599)
     return 0
 }
 
@@ -1319,8 +1370,10 @@ fn main() {
     test_time_mono_ns_monotonic()
     test_green_start_workers_rejects_in_green()
     test_green_bind_p_rejects_in_green()
+    test_green_acquire_p_rejects_in_green()
     test_green_p_count_api()
     test_green_multi_p_single_thread_poll_steal()
+    test_green_p_acquire_release_blocks_start_workers()
     test_green_workers_join()
     test_select_in_green_workers()
     test_select_multi_case_in_green_workers()
