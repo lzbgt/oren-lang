@@ -818,7 +818,9 @@ fn _qi_select_recv_block_forever(ch) {
 
 fn test_select_idle_does_not_spin_cpu() {
     trace("QI: test_select_idle_does_not_spin_cpu")
-    if g_target_os == 3 { return 0 } // green+netpoll select not supported on Windows yet
+    // Rolling:
+    // - POSIX: select blocks in netpoll.
+    // - Windows: mem-channel select parks the G and wakes explicitly (no 1ms polling loop).
 
     // Ensure worker mode is active and the scheduler can block in netpoll.
     var rcw = oren_green_start_workers(1)

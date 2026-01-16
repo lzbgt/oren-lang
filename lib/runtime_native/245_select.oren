@@ -334,7 +334,7 @@ fn _select_wait_windows_mem_channels(cases, ncases) {
     var recv_buf = malloc(8)
     if recv_buf == 0 { free(kinds); free(chans); free(vals); return 0 - 12 }
 
-    // Ensure the shared seq word exists for the sleep path.
+    // Ensure the shared seq word exists for the wait path.
     _chan_mem_global_seq_init_if_needed()
     var in_green = _select_in_green()
 
@@ -387,23 +387,20 @@ fn _select_wait_windows_mem_channels(cases, ncases) {
             return pair
         }
 
-        // Nothing ready: sleep until any mem-channel signals a state change.
+        // Nothing ready: wait until any mem-channel signals a state change.
         var p = g_chan_mem_global_seq_word
-        if p != 0 {
-            var expected = ptr_get(p)
-            if in_green {
-                // Correctness-first (rolling):
-                // In a green task, do not block the scheduler OS thread in a kernel wait.
-                // Park the current G briefly and re-scan.
-                oren_green_sleep_ns(1000000) // 1ms
-            } else {
+        var expected = 0
+        if p != 0 { expected = ptr_get(p) }
+        if in_green {
+            // Non-polling green wait:
+            // - park this G on a global select wait list
+            // - channel send/recv wakes waiters explicitly
+            native_chan_mem_select_wait_park_expected(expected)
+        } else {
+            // Non-green: kernel wait with bounded sleeps (STW-safe).
+            if p != 0 {
                 oren_gc_safepoint()
                 oren_wait_on_addr(p, expected, 1000) // 1ms
-            }
-        } else {
-            // Should not happen; best-effort yield to avoid spinning.
-            if in_green {
-                oren_green_sleep_ns(1000000)
             } else {
                 oren_gc_safepoint()
             }

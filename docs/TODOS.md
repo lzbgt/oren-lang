@@ -387,11 +387,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
 	   Next steps (actionable, highest leverage first):
 
-	   - Windows: replace the current in-green mem-channel polling with a real scheduler-integrated wait list:
-	     - attach per-channel wait queues (wait nodes owned by sleeping Gs)
-	     - on send/recv, mark waits ready and wake the scheduler (no 1ms polling loop)
-	     - keeps correctness while reducing latency + CPU overhead
-	   - Windows: implement IOCP-backed netpoller for sockets and wire into green scheduler (enables fd-based readiness without blocking Ms)
+	   - Windows: implement IOCP-backed netpoller for sockets and wire into the green scheduler (enables true async IO readiness without blocking Ms).
+	   - Windows: extend the wait-list mechanism beyond channels:
+	     - fd waits (`oren_fd_wait_*`) should eventually park Gs on IOCP wait nodes (no polling, no host-thread blocking)
+	     - unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
 
    - Stage N2 groundwork: syscall-first OS threads (no libpthread) on Tier‑1
      - macOS arm64: finish the syscall-first `bsdthread_register` story and keep it robust across modern dyld/libpthread:
@@ -425,10 +424,13 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	     - Tests: enable select primitives on Windows:
 	       - `tests/native/test_quick_integration_native.oren` (`test_select` no longer skips Windows)
 	       - `tests/native/test_integration_suite.oren` (`test_select_primitives` no longer skips Windows)
-	     - Notes:
-	       - Pipe-fd readiness is still POSIX-only; Windows still needs IOCP for a real netpoller.
-	       - In-green `oren_select` on Windows is now **green-safe** (does not block an M): it uses a small green-sleep polling loop.
-	         - Guards: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`, `test_select_multi_case_in_green_workers`)
+		     - Notes:
+		       - Pipe-fd readiness is still POSIX-only; Windows still needs IOCP for a real netpoller.
+		       - In-green `oren_select` / channel ops on Windows are **green-safe** and **non-polling**:
+		         - green tasks park on per-channel wait lists and a global select wait list
+		         - send/recv wakes parked Gs explicitly (no 1ms polling loop; enables idle-worker parking)
+		         - Guards (Windows-enabled): `tests/native/test_quick_integration_native.oren`
+		           - `test_select_in_green_workers`, `test_select_multi_case_in_green_workers`, `test_select_idle_does_not_spin_cpu`
 			   - 2026-01-15 → 2026-01-16: Stage N2 groundwork: green-task scheduler can now run on background OS threads ("M") via `oren_green_start_workers(n)`.
 			     - Runtime: `lib/runtime_native/263_green_tasks.oren`
 			       - per-OS-thread scheduler state (scheduler ctx + current-G are no longer globals)

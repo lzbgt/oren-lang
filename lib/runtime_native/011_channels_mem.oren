@@ -18,6 +18,8 @@
 // - On Windows, WaitOnAddress compares bytes; we rely on AddressSize=8 in the backend.
 
 var g_chan_mem_global_seq_word = 0 // u64* (mmap page), shared "something changed" counter for selects
+var g_chan_mem_select_lock_word = 0 // u64* (mmap page), protects global select wait list
+var g_chan_mem_select_wait_head = 0 // green G* list (uses green_g_off_next), waiters blocked in select
 
 fn _chan_mem_magic_u64() {
     // Little-endian "ORENMCH1" (8 bytes).
@@ -32,7 +34,9 @@ fn _chan_mem_off_head() { return 24 }      // u64 (read idx)
 fn _chan_mem_off_tail() { return 32 }      // u64 (write idx)
 fn _chan_mem_off_count() { return 40 }     // u64 (items)
 fn _chan_mem_off_seq() { return 48 }       // u64 (monotonic-ish; wake key)
-fn _chan_mem_off_slots() { return 56 }     // start of u64 slots
+fn _chan_mem_off_recv_wait_head() { return 56 } // G* list (recv waiters)
+fn _chan_mem_off_send_wait_head() { return 64 } // G* list (send waiters)
+fn _chan_mem_off_slots() { return 72 }          // start of u64 slots
 
 fn _chan_mem_bytes(cap) {
     return _chan_mem_off_slots() + cap * 8
@@ -57,6 +61,132 @@ fn _chan_mem_global_seq_bump_and_wake() {
     if s == 0 { s = 1 }
     ptr_set(p, s)
     oren_wake_all_addr(p)
+    // Also wake green select waiters (non-polling path).
+    native_chan_mem_select_wait_wake_all()
+    return 0
+}
+
+fn _chan_mem_select_wait_init_if_needed() {
+    if g_chan_mem_select_lock_word != 0 { return 0 }
+    var p = sys_mmap_private_anon(4096)
+    if p == 0 || p == -1 || p < 4096 { exit(935) }
+    ptr_set(p, 0)
+    g_chan_mem_select_lock_word = p
+    g_chan_mem_select_wait_head = 0
+    return 0
+}
+
+fn _chan_mem_select_lock_acquire() {
+    _chan_mem_select_wait_init_if_needed()
+    var lock_ptr = g_chan_mem_select_lock_word
+    if lock_ptr == 0 { return 0 }
+    var tid = sys_gettid()
+    var spin = 0
+    var in_green = oren_green_in_green() == true
+    while atomic_cas(lock_ptr, 0, tid) != 0 {
+        spin = iadd(spin, 1)
+        if spin > 1000 {
+            var owner = ptr_get(lock_ptr)
+            if owner != 0 {
+                if in_green {
+                    // Do not kernel-wait while executing a green task.
+                    oren_green_sleep_ns(1000000) // 1ms
+                } else {
+                    oren_gc_safepoint()
+                    oren_wait_on_addr(lock_ptr, owner, 1000) // 1ms
+                }
+            }
+            spin = 0
+        }
+    }
+    return 0
+}
+
+fn _chan_mem_select_lock_release() {
+    var lock_ptr = g_chan_mem_select_lock_word
+    if lock_ptr == 0 { return 0 }
+    var tid = sys_gettid()
+    atomic_cas(lock_ptr, tid, 0)
+    oren_wake_all_addr(lock_ptr)
+    return 0
+}
+
+fn _chan_mem_green_current_g_or0(ts) {
+    if ts == 0 { return 0 }
+    return ptr_get(ts + green_t_off_current_g())
+}
+
+fn _chan_mem_green_save_sp_to_stack_node(g) {
+    if g == 0 { return 0 }
+    // Save SP into stack node for GC scanning while parked.
+    var node = ptr_get(g + green_g_off_stack_node())
+    if node != 0 { ptr_set(node + 8, get_sp()) }
+    return 0
+}
+
+fn _chan_mem_green_switch_to_sched(ts, g) {
+    if ts == 0 || g == 0 { return 0 }
+    var ctx_g = ptr_get(g + green_g_off_ctx())
+    var sched_ctx = _green_thread_sched_ctx_or0(ts)
+    if ctx_g == 0 || sched_ctx == 0 { return 0 }
+    oren_ctx_switch(ctx_g, sched_ctx)
+    return 0
+}
+
+fn native_chan_mem_select_wait_park_expected(expected_seq) {
+    // Park the current green task until any mem-channel changes.
+    //
+    // Correctness: avoid missed wakeups by checking the global seq word while holding the select lock.
+    if oren_green_in_green() != true { return 0 }
+    _chan_mem_global_seq_init_if_needed()
+    _chan_mem_select_lock_acquire()
+    var p = g_chan_mem_global_seq_word
+    if p != 0 {
+        var cur = ptr_get(p)
+        if cur != expected_seq {
+            _chan_mem_select_lock_release()
+            return 0
+        }
+    }
+
+    var ts = _green_thread_state_for_current_thread_or0()
+    var g = _chan_mem_green_current_g_or0(ts)
+    if g == 0 {
+        _chan_mem_select_lock_release()
+        return 0
+    }
+    ptr_set(g + green_g_off_state(), green_g_state_sleeping())
+    ptr_set(g + green_g_off_wake_ns(), 0)
+    _chan_mem_green_save_sp_to_stack_node(g)
+
+    // Push onto global select wait list.
+    var head = g_chan_mem_select_wait_head
+    ptr_set(g + green_g_off_next(), head)
+    g_chan_mem_select_wait_head = g
+
+    _chan_mem_select_lock_release()
+    _chan_mem_green_switch_to_sched(ts, g)
+    return 0
+}
+
+fn native_chan_mem_select_wait_wake_all() {
+    // Wake all green tasks currently parked in mem-channel select wait.
+    _chan_mem_select_wait_init_if_needed()
+    if g_chan_mem_select_lock_word == 0 { return 0 }
+
+    _chan_mem_select_lock_acquire()
+    var cur = g_chan_mem_select_wait_head
+    g_chan_mem_select_wait_head = 0
+    _chan_mem_select_lock_release()
+
+    while cur != 0 {
+        var next = ptr_get(cur + green_g_off_next())
+        ptr_set(cur + green_g_off_next(), 0)
+        ptr_set(cur + green_g_off_state(), green_g_state_runnable())
+        ptr_set(cur + green_g_off_wake_ns(), 0)
+        _green_global_runq_push(cur)
+        cur = next
+    }
     return 0
 }
 
@@ -139,6 +269,8 @@ fn native_chan_new_mem_default() {
     ptr_set(ch + _chan_mem_off_tail(), 0)
     ptr_set(ch + _chan_mem_off_count(), 0)
     ptr_set(ch + _chan_mem_off_seq(), 1)
+    ptr_set(ch + _chan_mem_off_recv_wait_head(), 0)
+    ptr_set(ch + _chan_mem_off_send_wait_head(), 0)
 
     // Track as STRUCT so values stored in slots are scanned and retained.
     oren_track_alloc(ch, bytes, 4)
@@ -147,6 +279,7 @@ fn native_chan_new_mem_default() {
 
 fn native_chan_try_send_mem(ch, val) {
     if native_chan_is_mem(ch) == 0 { return 0 - 22 } // EINVAL
+    var wake_g = 0
     _chan_mem_lock(ch)
     var cap = ptr_get(ch + _chan_mem_off_cap())
     var cnt = ptr_get(ch + _chan_mem_off_count())
@@ -161,14 +294,29 @@ fn native_chan_try_send_mem(ch, val) {
     ptr_set(ch + _chan_mem_off_tail(), tail)
     ptr_set(ch + _chan_mem_off_count(), iadd(cnt, 1))
     _chan_mem_bump_seq_locked(ch)
+
+    // Wake one receiver if any are waiting.
+    var w = ptr_get(ch + _chan_mem_off_recv_wait_head())
+    if w != 0 {
+        var wn = ptr_get(w + green_g_off_next())
+        ptr_set(ch + _chan_mem_off_recv_wait_head(), wn)
+        ptr_set(w + green_g_off_next(), 0)
+        wake_g = w
+    }
     _chan_mem_unlock(ch)
     _chan_mem_wake_all(ch)
+    if wake_g != 0 {
+        ptr_set(wake_g + green_g_off_state(), green_g_state_runnable())
+        ptr_set(wake_g + green_g_off_wake_ns(), 0)
+        _green_global_runq_push(wake_g)
+    }
     return 1
 }
 
 fn native_chan_try_recv_mem(ch, out_ptr) {
     if native_chan_is_mem(ch) == 0 { return 0 - 22 } // EINVAL
     if out_ptr == 0 { return 0 - 22 }
+    var wake_g = 0
     _chan_mem_lock(ch)
     var cap = ptr_get(ch + _chan_mem_off_cap())
     var cnt = ptr_get(ch + _chan_mem_off_count())
@@ -185,9 +333,23 @@ fn native_chan_try_recv_mem(ch, out_ptr) {
     ptr_set(ch + _chan_mem_off_head(), head)
     ptr_set(ch + _chan_mem_off_count(), cnt - 1)
     _chan_mem_bump_seq_locked(ch)
+
+    // Wake one sender if any are waiting.
+    var w = ptr_get(ch + _chan_mem_off_send_wait_head())
+    if w != 0 {
+        var wn = ptr_get(w + green_g_off_next())
+        ptr_set(ch + _chan_mem_off_send_wait_head(), wn)
+        ptr_set(w + green_g_off_next(), 0)
+        wake_g = w
+    }
     _chan_mem_unlock(ch)
     ptr_set(out_ptr, v)
     _chan_mem_wake_all(ch)
+    if wake_g != 0 {
+        ptr_set(wake_g + green_g_off_state(), green_g_state_runnable())
+        ptr_set(wake_g + green_g_off_wake_ns(), 0)
+        _green_global_runq_push(wake_g)
+    }
     return 1
 }
 
@@ -199,12 +361,32 @@ fn native_chan_send_mem(ch, val) {
         var rc = native_chan_try_send_mem(ch, val)
         if rc == 1 { return 1 }
         if rc < 0 { return 0 }
-        // Full: wait for a state change.
-        var seq = ptr_get(ch + _chan_mem_off_seq())
         if in_green {
-            // Do not block the scheduler thread; park the current G briefly.
-            oren_green_sleep_ns(1000000) // 1ms
+            // Park current G on the per-channel send wait list.
+            _chan_mem_lock(ch)
+            var cap = ptr_get(ch + _chan_mem_off_cap())
+            var cnt = ptr_get(ch + _chan_mem_off_count())
+            if cnt < cap {
+                _chan_mem_unlock(ch)
+                continue
+            }
+            var ts = _green_thread_state_for_current_thread_or0()
+            var g = _chan_mem_green_current_g_or0(ts)
+            if g == 0 {
+                _chan_mem_unlock(ch)
+                continue
+            }
+            ptr_set(g + green_g_off_state(), green_g_state_sleeping())
+            ptr_set(g + green_g_off_wake_ns(), 0)
+            _chan_mem_green_save_sp_to_stack_node(g)
+            var head = ptr_get(ch + _chan_mem_off_send_wait_head())
+            ptr_set(g + green_g_off_next(), head)
+            ptr_set(ch + _chan_mem_off_send_wait_head(), g)
+            _chan_mem_unlock(ch)
+            _chan_mem_green_switch_to_sched(ts, g)
         } else {
+            // Full: wait for a state change.
+            var seq = ptr_get(ch + _chan_mem_off_seq())
             oren_gc_safepoint()
             oren_wait_on_addr(ch + _chan_mem_off_seq(), seq, 1000) // 1ms
         }
@@ -229,10 +411,30 @@ fn native_chan_recv_mem(ch) {
             free(buf)
             return 0
         }
-        var seq = ptr_get(ch + _chan_mem_off_seq())
         if in_green {
-            oren_green_sleep_ns(1000000) // 1ms
+            // Park current G on the per-channel recv wait list.
+            _chan_mem_lock(ch)
+            var cnt = ptr_get(ch + _chan_mem_off_count())
+            if cnt > 0 {
+                _chan_mem_unlock(ch)
+                continue
+            }
+            var ts = _green_thread_state_for_current_thread_or0()
+            var g = _chan_mem_green_current_g_or0(ts)
+            if g == 0 {
+                _chan_mem_unlock(ch)
+                continue
+            }
+            ptr_set(g + green_g_off_state(), green_g_state_sleeping())
+            ptr_set(g + green_g_off_wake_ns(), 0)
+            _chan_mem_green_save_sp_to_stack_node(g)
+            var head = ptr_get(ch + _chan_mem_off_recv_wait_head())
+            ptr_set(g + green_g_off_next(), head)
+            ptr_set(ch + _chan_mem_off_recv_wait_head(), g)
+            _chan_mem_unlock(ch)
+            _chan_mem_green_switch_to_sched(ts, g)
         } else {
+            var seq = ptr_get(ch + _chan_mem_off_seq())
             oren_gc_safepoint()
             oren_wait_on_addr(ch + _chan_mem_off_seq(), seq, 1000) // 1ms
         }
