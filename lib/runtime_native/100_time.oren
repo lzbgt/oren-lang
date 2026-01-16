@@ -97,7 +97,9 @@ var g_time_abs_buf = 0  // 8 bytes  (single-thread fallback)
 //   clock_gettime(CLOCK_MONOTONIC) in nanoseconds. (`raw` already matches ns.)
 // - macOS: kernel gettimeofday provides an out-arg for mach_absolute_time ticks (raw).
 // - Windows: backend uses QueryPerformanceCounter ticks (raw).
-// - For macOS/Windows, convert raw->ns by calibrating against wall time deltas (ratio only).
+// - For macOS/Windows, convert raw->ns using platform-provided scale factors:
+//   - macOS: mach_timebase_info (numer/denom)
+//   - Windows: QueryPerformanceFrequency (ticks/sec)
 //
 // This keeps the runtime bundle free of extra per-OS imports for now, while still providing
 // a monotonic ns clock suitable for scheduler deadlines.
@@ -105,6 +107,17 @@ var g_time_mono_inited = 0
 var g_time_mono_base_raw = 0
 var g_time_mono_scale_num = 0 // numerator: ns_delta
 var g_time_mono_scale_den = 0 // denominator: raw_delta
+
+// macOS-only FFI: mach_timebase_info gives the exact conversion from mach_absolute_time ticks to ns.
+// We keep this gated so non-macOS targets don't pull in extra link deps from the shared runtime bundle.
+@cfg(os="macos")
+@ffi.libc
+@ffi.ret("i32")
+ffi {
+    mach_timebase_info as __oren_mach_timebase_info
+}
+@cfg(not_os="macos")
+fn __oren_mach_timebase_info(info_ptr) { return -38 }
 
 fn native_time_current_thread_node_or0() {
     // Best-effort "which thread am I on?" heuristic shared with call-depth + GC stack scanning.
@@ -292,10 +305,71 @@ fn _time_mul_div_u64(a, num, den) {
 
 fn _time_mono_try_init() {
     if g_time_mono_inited != 0 { return 1 }
-    // Need both a wall clock and a monotonic raw counter to derive the ratio.
+
+    // First preference: exact raw->ns conversion using platform-provided scale factors.
+    //
+    // Linux:
+    // - raw is already ns (we fill it from CLOCK_MONOTONIC in the sys_gettimeofday lowering).
+    //
+    // macOS:
+    // - raw is mach_absolute_time ticks; use mach_timebase_info to convert ticks->ns.
+    //
+    // Windows:
+    // - raw is QueryPerformanceCounter ticks; use QueryPerformanceFrequency ticks/sec to convert.
     var raw0 = oren_time_mono_raw()
+    if raw0 == 0 { return 0 }
+    if g_target_os == 2 {
+        g_time_mono_base_raw = raw0
+        g_time_mono_scale_num = 1
+        g_time_mono_scale_den = 1
+        g_time_mono_inited = 1
+        return 1
+    }
+    if g_target_os == 1 {
+        // mach_timebase_info_data_t { uint32_t numer; uint32_t denom; }
+        var page = sys_mmap_private_anon(4096)
+        if page != 0 && page != -1 && page >= 4096 {
+            var info = page
+            oren_ptr_set_u32_le(info + 0, 0)
+            oren_ptr_set_u32_le(info + 4, 0)
+            var rc = __oren_mach_timebase_info(info)
+            var numer = oren_ptr_get_u32_le(info + 0)
+            var denom = oren_ptr_get_u32_le(info + 4)
+            sys_munmap(page, 4096)
+            if rc == 0 && numer > 0 && denom > 0 {
+                g_time_mono_base_raw = raw0
+                g_time_mono_scale_num = numer
+                g_time_mono_scale_den = denom
+                g_time_mono_inited = 1
+                return 1
+            }
+        }
+        // Fall through to ratio calibration (best-effort) if timebase query fails.
+    }
+    if g_target_os == 3 {
+        // freq_ptr -> u64 ticks/sec
+        var page2 = sys_mmap_private_anon(4096)
+        if page2 != 0 && page2 != -1 && page2 >= 4096 {
+            var freq_ptr = page2
+            ptr_set(freq_ptr, 0)
+            var rc2 = sys_qpc_frequency(freq_ptr)
+            var freq = ptr_get(freq_ptr)
+            sys_munmap(page2, 4096)
+            if rc2 == 0 && freq > 0 {
+                g_time_mono_base_raw = raw0
+                g_time_mono_scale_num = 1000000000
+                g_time_mono_scale_den = freq
+                g_time_mono_inited = 1
+                return 1
+            }
+        }
+        // Fall through to ratio calibration if frequency query fails.
+    }
+
+    // Fallback: ratio calibration against wall time deltas (works even if the exact hooks are missing).
+    // Need both a wall clock and a monotonic raw counter to derive the ratio.
     var unix0 = oren_time_unix_ns()
-    if raw0 == 0 || unix0 == 0 { return 0 }
+    if unix0 == 0 { return 0 }
 
     // Calibration goal:
     // - Use a delta large enough (>=1ms) so (raw_delta, ns_delta) are non-trivial.

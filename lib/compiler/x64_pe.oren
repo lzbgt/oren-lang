@@ -5,7 +5,7 @@
 // - imports a small Win32 surface via an import table:
 //   - KERNEL32.dll: ExitProcess, GetStdHandle, WriteFile, ReadFile, VirtualAlloc, VirtualFree, GetEnvironmentVariableA,
 //                   GetEnvironmentStringsA, FreeEnvironmentStringsA, GetCommandLineW, WideCharToMultiByte, LocalFree,
-//                   Sleep, GetSystemTimeAsFileTime, QueryPerformanceCounter,
+//                   Sleep, GetSystemTimeAsFileTime, QueryPerformanceCounter, QueryPerformanceFrequency,
 //                   CreateProcessA, WaitForSingleObject, GetExitCodeProcess, SetHandleInformation, CloseHandle
 //                   LoadLibraryA, GetProcAddress
 //   - SHELL32.dll: CommandLineToArgvW
@@ -302,7 +302,10 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
         "VirtualFree",
         // FFI (Tier‑1): lazy DLL symbol resolution for `ffi name` stubs.
         "LoadLibraryA",
-        "GetProcAddress"
+        "GetProcAddress",
+        // TIME calibration (Tier‑1 Windows): QPC ticks/sec.
+        // Keep at end to preserve existing IAT offsets.
+        "QueryPerformanceFrequency"
     ]
     // Wait-on-address primitive (Tier‑1 Windows): used by the native runtime lock implementation.
     //
@@ -669,6 +672,7 @@ fn pe_emit_program_x64(out_path, linked, link_libs, is_shared_lib, export_names,
     iat_offs["IAT_VirtualFree"] = off_iat_k32 + 256 + 1
     iat_offs["IAT_LoadLibraryA"] = off_iat_k32 + 264 + 1
     iat_offs["IAT_GetProcAddress"] = off_iat_k32 + 272 + 1
+    iat_offs["IAT_QueryPerformanceFrequency"] = off_iat_k32 + 280 + 1
     // KERNELBASE.dll IAT slots (order matches kernelbase_funcs above)
     iat_offs["IAT_WaitOnAddress"] = off_iat_kb + 0 + 1
     iat_offs["IAT_WakeByAddressAll"] = off_iat_kb + 8 + 1

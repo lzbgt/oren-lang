@@ -449,9 +449,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				         (so `oren_time_mono_raw()` works on Linux too)
 			     - 2026-01-16: added a bounded regression gate for worker-mode scheduling (many tasks must complete; no hangs):
 			       - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_many_tasks_bounded`)
-			     - Next: make `oren_time_mono_ns()` conversion exact on macOS/Windows (avoid wall-clock-based calibration):
-			       - macOS: use `mach_timebase_info` (num/den) for mach_absolute_time -> ns
-			       - Windows: use `QueryPerformanceFrequency` for QPC ticks -> ns
+				     - 2026-01-16: made `oren_time_mono_ns()` conversion exact on macOS/Windows (no wall-clock calibration):
+				       - macOS: uses `mach_timebase_info` (num/den) to convert gettimeofday’s `mach_absolute_time` out-arg to ns.
+				       - Windows: uses `QueryPerformanceFrequency` for QPC ticks -> ns (backend exposes `sys_qpc_frequency`).
 			     - 2026-01-16: fixed a Linux arm64 worker-mode green scheduler corruption + hang:
 			       - Symptom (arm64-linux, Ubuntu container): `test_quick_integration_native.oren` panicked in `worker_green_alloc_yield_integrity` (`list_push on non-list`) and the binary could hang under worker threads.
 			       - Root causes:

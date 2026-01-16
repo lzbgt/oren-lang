@@ -132,6 +132,11 @@ fn sys_dup3(from, to, flags) { return 0 }
 fn sys_ioctl(fd, req, argp) { return 0 }
 fn sys_kill(pid, signum) { return 0 }
 fn sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) { return 0 }
+// Windows-only TIME helper:
+//   sys_qpc_frequency(freq_ptr) -> 0_or_neg_errno
+// Writes the QueryPerformanceCounter frequency (ticks/second) as a u64 to *freq_ptr.
+// Stub body must never execute in a correct native binary.
+fn sys_qpc_frequency(freq_ptr) { return 0 }
 // Entropy / randomness (OS-provided; used by NET/TLS and other protocols).
 //
 // Native backend lowering:

@@ -742,6 +742,20 @@ fn test_time_mono_ns_monotonic() {
     trace("QI: test_time_mono_ns_monotonic")
     // Contract (rolling): `oren_time_mono_ns()` should be monotonic if non-zero.
     // This is required for scheduler deadlines to be robust against wall-clock jumps.
+    //
+    // Tier‑1 Windows note:
+    // `oren_time_mono_ns()` uses QueryPerformanceCounter ticks under the hood; ensure
+    // the backend provides QueryPerformanceFrequency so raw->ns scaling is exact.
+    if g_target_os == 3 {
+        var p = sys_mmap_private_anon(4096)
+        if p == 0 || p == -1 || p < 4096 { fail(508) }
+        ptr_set(p, 0)
+        var rc = sys_qpc_frequency(p)
+        var freq = ptr_get(p)
+        sys_munmap(p, 4096)
+        if rc != 0 { fail(509) }
+        if freq <= 0 { fail(513) }
+    }
     var t0 = oren_time_mono_ns()
     if t0 == 0 { fail(510) }
     // Give time a chance to advance across OSes (Windows Sleep has ms granularity).

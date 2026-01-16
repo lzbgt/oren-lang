@@ -172,8 +172,10 @@ Status (rolling groundwork):
   - Worker sleeping behavior (rolling, but important for responsiveness):
     - when only sleepers exist, the worker parks on the shared park word with a timeout (so new runnable work wakes it immediately)
     - inserting new sleepers wakes workers so the “next wake” deadline is re-evaluated promptly
-    - sleeper deadlines use a **monotonic** clock (`oren_time_mono_ns`) so wall-clock jumps do not break wake behavior
-      (Linux fills `sys_gettimeofday(..., abs_ptr)` via `clock_gettime(CLOCK_MONOTONIC)`; macOS/Windows use raw counters + runtime scaling)
+    - sleeper deadlines use a **monotonic** clock (`oren_time_mono_ns`) so wall-clock jumps do not break wake behavior:
+      - Linux: fills `sys_gettimeofday(..., abs_ptr)` via `clock_gettime(CLOCK_MONOTONIC)` in ns
+      - macOS: converts gettimeofday’s `mach_absolute_time` out-arg using `mach_timebase_info` (num/den)
+      - Windows: converts QPC ticks using `QueryPerformanceFrequency`
   - Join behavior: when workers are enabled, `oren_green_join_timeout` waits on the green task's state word via the portable
     wait-on-address primitive (instead of driving the scheduler on the joining thread).
   - P ownership (rolling correctness guard): when workers are enabled, `_green_poll_until` enforces `P.owner_tid == sys_gettid()`.
