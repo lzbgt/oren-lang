@@ -94,6 +94,7 @@ var g_green_state = 0        // rooted GC object (struct)
 // Default remains Stage N1 N:1 (scheduler is driven by join/poll on the calling thread).
 var g_green_workers_started = 0
 var g_green_worker_wake_word = 0 // u64* (mmap page), used with oren_m_park_word_wait/wake
+var g_green_sched_lock_word = 0  // u64* (mmap page), used as a private scheduler lock (0=unlocked, tid=owner)
 
 // Per-OS-thread green scheduler state (rolling):
 // - Stage N1 ran on a single OS thread and used globals for scheduler context/current-G.
@@ -312,6 +313,15 @@ fn _green_init_if_needed() {
     // Allocate scheduler state as a GC-managed struct and root it.
     var s = _green_alloc_struct(green_s_bytes())
     if s == 0 { exit(901) }
+
+    // Allocate the scheduler-private lock word (one page; u64 at offset 0).
+    // This lock protects scheduler state without coupling to the runtime global lock.
+    if g_green_sched_lock_word == 0 {
+        var lword = sys_mmap_private_anon(4096)
+        if lword == 0 || lword == -1 || lword < 4096 { exit(900) }
+        ptr_set(lword, 0)
+        g_green_sched_lock_word = lword
+    }
     // Allocate P0 (single-P default; more Ps are optional/unsafe today).
     var p0 = _green_alloc_struct(green_p_bytes())
     if p0 == 0 { exit(902) }
@@ -355,6 +365,37 @@ fn _green_workers_wake_if_started() {
     if g_green_worker_wake_word == 0 { return 0 }
     // Best-effort: post a wake token and wake all parked workers.
     oren_m_park_word_wake(g_green_worker_wake_word)
+    return 0
+}
+
+fn _green_lock_acquire() {
+    // Dedicated lock for green scheduler state (runq/sleepq/zombies/P list).
+    // This avoids coupling scheduler progress to the runtime global lock (used heavily by allocator/GC metadata).
+    var lock_ptr = g_green_sched_lock_word
+    if lock_ptr == 0 { return 0 }
+    var tid = sys_gettid()
+    if tid == 0 { return 0 }
+    var spin = 0
+    while atomic_cas(lock_ptr, 0, tid) != 0 {
+        spin = spin + 1
+        if spin > 1000 {
+            var owner = ptr_get(lock_ptr)
+            if owner != 0 {
+                oren_wait_on_addr(lock_ptr, owner, 0)
+            }
+            spin = 0
+        }
+    }
+    return 0
+}
+
+fn _green_lock_release() {
+    var lock_ptr = g_green_sched_lock_word
+    if lock_ptr == 0 { return 0 }
+    var tid = sys_gettid()
+    if tid == 0 { return 0 }
+    atomic_cas(lock_ptr, tid, 0)
+    oren_wake_all_addr(lock_ptr)
     return 0
 }
 
@@ -466,9 +507,9 @@ fn _green_global_runq_pop_locked(s) {
 fn _green_global_runq_push(g) {
     var s = _green_get_state()
     if s == 0 || g == 0 { return 0 }
-    acquire_lock()
+    _green_lock_acquire()
     var was_empty = _green_global_runq_push_locked(s, g)
-    release_lock()
+    _green_lock_release()
     if was_empty != 0 { _green_workers_wake_if_started() }
     return 0
 }
@@ -476,27 +517,27 @@ fn _green_global_runq_push(g) {
 fn _green_global_runq_pop() {
     var s = _green_get_state()
     if s == 0 { return 0 }
-    acquire_lock()
+    _green_lock_acquire()
     var g = _green_global_runq_pop_locked(s)
-    release_lock()
+    _green_lock_release()
     return g
 }
 
 fn _green_runq_push_p(p, g) {
     var s = _green_get_state()
     if p == 0 || s == 0 || g == 0 { return 0 }
-    acquire_lock()
+    _green_lock_acquire()
     var was_empty = _green_runq_push_locked(p, s, g)
-    release_lock()
+    _green_lock_release()
     if was_empty != 0 { _green_workers_wake_if_started() }
     return 0
 }
 
 fn _green_runq_pop_p(p) {
     if p == 0 { return 0 }
-    acquire_lock()
+    _green_lock_acquire()
     var g = _green_runq_pop_locked(p)
-    release_lock()
+    _green_lock_release()
     return g
 }
 
@@ -527,9 +568,9 @@ fn _green_sleepq_push_locked(p, g) {
 
 fn _green_sleepq_push_p(p, g) {
     if p == 0 || g == 0 { return 0 }
-    acquire_lock()
+    _green_lock_acquire()
     _green_sleepq_push_locked(p, g)
-    release_lock()
+    _green_lock_release()
     return 0
 }
 
@@ -541,12 +582,12 @@ fn _green_sleepq_push(g) {
 fn _green_zombie_push(g) {
     var s = _green_get_state()
     if s == 0 || g == 0 { return 0 }
-    acquire_lock()
+    _green_lock_acquire()
     // Simple LIFO for zombies.
     var head = _green_state_zomb_head(s)
     _green_g_set_next(g, head)
     _green_state_set_zomb_head(s, g)
-    release_lock()
+    _green_lock_release()
     return 0
 }
 
@@ -580,10 +621,10 @@ fn _green_cleanup_g(g) {
 fn _green_zombie_drain() {
     var s = _green_get_state()
     if s == 0 { return 0 }
-    acquire_lock()
+    _green_lock_acquire()
     var cur = _green_state_zomb_head(s)
     _green_state_set_zomb_head(s, 0)
-    release_lock()
+    _green_lock_release()
     while cur != 0 {
         var next = _green_g_next(cur)
         _green_g_set_next(cur, 0)
@@ -596,7 +637,7 @@ fn _green_zombie_drain() {
 fn _green_wake_ready_p(p, now_ns) {
     if p == 0 { return 0 }
     if now_ns == 0 { return 0 }
-    acquire_lock()
+    _green_lock_acquire()
     var s = _green_get_state()
     var prev = 0
     var cur = _green_p_sleep_head(p)
@@ -630,14 +671,14 @@ fn _green_wake_ready_p(p, now_ns) {
     } else if new_tail != 0 {
         _green_p_set_sleep_tail(p, new_tail)
     }
-    release_lock()
+    _green_lock_release()
     if woke_any != 0 { _green_workers_wake_if_started() }
     return 0
 }
 
 fn _green_next_wake_ns_p(p) {
     if p == 0 { return 0 }
-    acquire_lock()
+    _green_lock_acquire()
     var cur = _green_p_sleep_head(p)
     var best = 0
     while cur != 0 {
@@ -647,7 +688,7 @@ fn _green_next_wake_ns_p(p) {
         }
         cur = _green_g_next(cur)
     }
-    release_lock()
+    _green_lock_release()
     return best
 }
 
@@ -784,9 +825,9 @@ fn _green_poll_until(deadline_ns) {
         var prefer_global = 0
         if (tick & 31) == 0 { prefer_global = 1 }
 
-        acquire_lock()
+        _green_lock_acquire()
         var g = _green_runq_pop_any_locked(p, s, prefer_global)
-        release_lock()
+        _green_lock_release()
         if g != 0 {
             _green_sched_switch_to(g)
             // After returning, decide whether to requeue.
@@ -892,11 +933,11 @@ fn oren_green_start_workers(n) {
     // NOTE: without work stealing, spawning is biased to the current thread's P. This is fine for
     // rolling bring-up; it still allows nested spawns within tasks to stay local to the worker's P.
     if n > 1 {
-        acquire_lock()
+        _green_lock_acquire()
         var cur_count = _green_state_p_count(s)
         if cur_count < n {
             var tail = _green_state_p0(s)
-            if tail == 0 { release_lock(); return -1 }
+            if tail == 0 { _green_lock_release(); return -1 }
             while _green_p_next(tail) != 0 {
                 tail = _green_p_next(tail)
             }
@@ -927,7 +968,7 @@ fn oren_green_start_workers(n) {
             }
             _green_state_set_p_count(s, n)
         }
-        release_lock()
+        _green_lock_release()
     }
 
     // Allocate the wake/park word (one page; u64 at offset 0).
@@ -979,15 +1020,15 @@ fn __oren_green_worker_entry(arg_ptr) {
         // Claim P ownership for this M. Fail loudly if misconfigured to share a P.
         var tid = sys_gettid()
         if tid == 0 { exit(928) }
-        acquire_lock()
+        _green_lock_acquire()
         var owner = _green_p_owner_tid(p0)
         if owner == 0 {
             _green_p_set_owner_tid(p0, tid)
         } else if owner != tid {
-            release_lock()
+            _green_lock_release()
             exit(929)
         }
-        release_lock()
+        _green_lock_release()
     }
 
     while true {
