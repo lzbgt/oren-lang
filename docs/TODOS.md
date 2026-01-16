@@ -434,8 +434,12 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				       - add a small regression that would have caught the earlier “P pointer becomes a small integer after ctx switch” failure mode
 				       - concrete failure mode seen in worker-mode: `P` can collapse to a small integer (e.g. `2`) and crash in `_green_p_owner_tid`; keep the per-iteration re-fetch until the native backend reliably preserves/spills long-lived locals across call sites
 				       - 2026-01-16: added a small compiler guard to reduce “dead code perturbs stack accounting” hazards:
-				         - arm64 stmt codegen now stops emitting statements after a direct `break`/`continue`/`return` in a `Block` (`lib/compiler/arm64_native_stmt.oren`)
+				         - arm64 stmt codegen now stops emitting statements after a non-fallthrough terminator in a `Block`:
+				           - direct `break`/`continue`/`return`
+				           - `if { ... } else { ... }` where both branches terminate
+				           - compiler: `lib/compiler/arm64_native_stmt.oren` (`native_compile_stmt` returns `false` for “no fallthrough”)
 				         - status: this does **not** yet make `_green_poll_until` safe to cache `ts`/`P` across iterations; keep the re-fetch until a deeper backend/ctx-switch fix lands
+				         - known repro (rolling): attempting to add an env-gated cached `_green_poll_until` mode via `native_envp_get_value_ptr("OREN_GREEN_POLL_CACHE")` currently causes deterministic SIGSEGV in `make test`
 			     - switch green sleeper deadlines to a monotonic clock source (avoid wall-clock jumps affecting wake behavior)
 		     - add a small regression gate: spawn many green tasks (with workers enabled) and assert bounded completion (no hangs)
 	     - Optional dev-only smoke (skipped by default): `tests/native/test_green_workers_multi_p_experimental.oren`

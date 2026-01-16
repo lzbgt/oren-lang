@@ -186,6 +186,8 @@ Status (rolling groundwork):
   - Rolling limitation (important): `_green_poll_until` currently re-fetches per-thread scheduler state (`ts`/`P`) each poll iteration for robustness.
     - Rationale: until native backend/local preservation invariants are fully tightened across ctx switches and syscalls, caching `ts`/`P` as long-lived locals
       can lead to crashes (non-canonical pointers later dereferenced via `ptr_get` / `ptr_get_byte`).
+    - Repro (rolling, 2026-01-16): attempting to add an env-gated cached mode via a `native_envp_get_value_ptr("OREN_GREEN_POLL_CACHE")` probe in `_green_poll_until`
+      caused deterministic SIGSEGV in `make test` (so the runtime keeps the safe re-fetch loop).
     - Runtime: `lib/runtime_native/263_green_tasks.oren` (`_green_poll_until`)
   - Rolling limitation (important): worker parallelism is currently clamped to 1 by default, because the native allocator/GC
     are not concurrency-correct yet. Opt-in for experimentation only: `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.

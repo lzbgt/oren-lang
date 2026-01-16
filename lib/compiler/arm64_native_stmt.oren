@@ -283,7 +283,7 @@ fn native_compile_stmt(ctx, stmt) {
             native_error(ctx, stmt["token"], "native backend: statement recursion exceeded 2048 (likely AST cycle or compiler bug)")
         }
         ctx["stmt_depth"] = depth - 1
-        return nil
+        return false
     }
     var r = native_compile_stmt_inner(ctx, stmt)
     ctx["stmt_depth"] = depth - 1
@@ -328,7 +328,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
         var jpos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
         oren_list_push(loop["break_jumps"], jpos)
-        return nil
+        return false
     }
     if stmt["type"] == "Continue" {
         var loop2 = ctx["loop_ctx"]
@@ -358,7 +358,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
             push_u32_le(ctx["code"], 0)
             oren_list_push(loop2["continue_jumps"], jpos)
         }
-        return nil
+        return false
     }
     if stmt["type"] == "Block" {
         if ctx["in_function"] {
@@ -367,29 +367,29 @@ fn native_compile_stmt_inner(ctx, stmt) {
         var base_stack = ctx["stack_size"]
         var stmts = stmt["stmts"]
         var i = 0
+        var falls_through = true
         while i < oren_list_len(stmts) {
-            native_compile_stmt(ctx, stmts[i])
-            // Control-flow terminators do not fall through; stop emitting statements for this block
-            // so unreachable code cannot perturb stack-size accounting for later reachable paths.
-            //
-            // NOTE: this is intentionally shallow (direct statement types only). Deeper CFG/branch
-            // termination tracking is deferred until native backends share a real IR/CFG pass.
-            var st = stmts[i]
-            if st != nil {
-                var tt = st["type"]
-                if tt == "Break" || tt == "Continue" || tt == "Return" { break }
+            var r = native_compile_stmt(ctx, stmts[i])
+            if r == false {
+                falls_through = false
+                break
             }
             i = i + 1
         }
         var delta = ctx["stack_size"] - base_stack
-        if delta > 0 {
+        // Restore stack only if we reach the end of this block via fallthrough.
+        // If a terminator ended the block, this cleanup would be unreachable and can be skipped.
+        if falls_through == true && delta > 0 {
             push_u32_le(ctx["code"], insn_add_sp(delta))
-            ctx["stack_size"] = base_stack
         }
+        // Keep compile-time stack accounting consistent for subsequent compilation (even if
+        // fallthrough is impossible, later statements are either unreachable or in another CFG arm).
+        ctx["stack_size"] = base_stack
         if ctx["in_function"] {
             scope_exit_codegen(ctx)
         }
-        return nil
+        if falls_through == true { return nil }
+        return false
     }
 
     if stmt["type"] == "Set" {
@@ -576,7 +576,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
         }
         push_u32_le(ctx["code"], insn_ldp_post())
         push_u32_le(ctx["code"], insn_ret())
-        return nil
+        return false
     }
     
 	    if stmt["type"] == "For" {
@@ -943,7 +943,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
     if stmt["type"] == "ExprStmt" {
         var expr = stmt["expr"]
         
-	        if expr["type"] == "If" {
+        if expr["type"] == "If" {
             var base_stack = ctx["stack_size"]
             
 	            native_compile_expr(ctx, expr["cond"])
@@ -954,39 +954,51 @@ fn native_compile_stmt_inner(ctx, stmt) {
             var jump_else_pos = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0) 
             
-            native_compile_stmt(ctx, expr["consq"])
+            var cons_r = native_compile_stmt(ctx, expr["consq"])
+            var cons_falls = true
+            if cons_r == false { cons_falls = false }
 
             var cons_delta = ctx["stack_size"] - base_stack
-            if cons_delta > 0 {
+            if cons_falls == true && cons_delta > 0 {
                 push_u32_le(ctx["code"], insn_add_sp(cons_delta))
-                ctx["stack_size"] = base_stack
             }
-            
-            var jump_end_pos = bytes_len(ctx["code"])
-            push_u32_le(ctx["code"], 0) 
+            ctx["stack_size"] = base_stack
+
+            var jump_end_pos = nil
+            if expr["alt"] != nil && cons_falls == true {
+                jump_end_pos = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+            }
             
             var else_target = bytes_len(ctx["code"])
             var else_off = (else_target - jump_else_pos) / 4
             set_u32_le(ctx["code"], jump_else_pos, insn_b_cond(else_off, 0)) 
             
+            var alt_falls = true
             if expr["alt"] != nil {
-                native_compile_stmt(ctx, expr["alt"])
+                var alt_r = native_compile_stmt(ctx, expr["alt"])
+                if alt_r == false { alt_falls = false }
             }
 
             var alt_delta = ctx["stack_size"] - base_stack
-            if alt_delta > 0 {
+            if alt_falls == true && alt_delta > 0 {
                 push_u32_le(ctx["code"], insn_add_sp(alt_delta))
-                ctx["stack_size"] = base_stack
             }
-            
+            ctx["stack_size"] = base_stack
+
             var end_target = bytes_len(ctx["code"])
-            var end_off = (end_target - jump_end_pos) / 4
-            set_u32_le(ctx["code"], jump_end_pos, insn_b(end_off))
-            
-            return nil
+            if jump_end_pos != nil {
+                var end_off = (end_target - jump_end_pos) / 4
+                set_u32_le(ctx["code"], jump_end_pos, insn_b(end_off))
+            }
+
+            // If there is no else-branch, the false path always falls through.
+            if expr["alt"] == nil { return nil }
+            if cons_falls == true || alt_falls == true { return nil }
+            return false
         }
         
-	        if expr["type"] == "Function" {
+        if expr["type"] == "Function" {
 	            var fn_name = expr["name"]
 
             // Function expressions are only valid as lambdas in Tier‑1 native: name=="".
@@ -1277,9 +1289,9 @@ fn native_compile_stmt_inner(ctx, stmt) {
 	            ctx["locals_list_stringy"] = old_locals_list_stringy
 	            ctx["stack_size"] = old_stack_size
 	            ctx["scope"] = old_scope
-	            ctx["call_depth_enabled"] = old_call_depth_enabled
-	            return nil
-	        }
+            ctx["call_depth_enabled"] = old_call_depth_enabled
+            return nil
+        }
         
         if expr["type"] == "Call" {
             var fn_name = expr["fn"]["value"]
