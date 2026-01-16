@@ -7,7 +7,7 @@ This doc describes:
 
 Oren is rolling; compatibility is not the priority. Accuracy is.
 
-**Last updated:** 2026-01-15
+**Last updated:** 2026-01-16
 
 ## 1) Core primitives (current reality)
 
@@ -45,6 +45,10 @@ Facts (rolling, verified by tests):
   - Timeout behavior is normalized to Oren’s portable `-60` timeout code (Darwin ETIMEDOUT),
     even though Linux futex uses `-ETIMEDOUT` (`-110`) as the raw errno.
 - **Windows:** lowers to `WaitOnAddress` / `WakeByAddressAll` (KERNELBASE import).
+- **Oren-level semantics (portable API):** `oren_wait_on_addr(addr, expected, timeout_us)` is “wait while equal”.
+  - If `*addr != expected`, it returns `0` immediately (no blocking).
+  - If the underlying primitive reports a value mismatch/spurious wake (e.g. Linux futex `-EAGAIN`), it is normalized to `0`
+    because callers are structured as “check → wait → retry”.
 
 Why this matters:
 
@@ -63,6 +67,7 @@ Source of truth / guards:
   - `tests/native/test_os_thread_park_unpark_smoke.oren` (macOS/Linux/Windows; park/unpark + bounded join)
   - `tests/native/test_os_thread_spawn_many_smoke.oren` (macOS/Linux/Windows; spawn/join-many bounded stress)
 - Tier-1 lock handshake: `tests/fixtures/tier1_native_spawn_join_main.oren`
+  - Quick integration regression: `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_mismatch_is_success`)
 
 Implementation guardrails (native backend contributors):
 

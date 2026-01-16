@@ -678,6 +678,23 @@ fn test_select() {
     return 0
 }
 
+fn test_wait_on_addr_mismatch_is_success() {
+    trace("QI: test_wait_on_addr_mismatch_is_success")
+    // Contract (docs/CONCURRENCY_MODEL.md):
+    // - `oren_wait_on_addr(addr, expected, timeout_us)` waits while *addr == expected
+    // - if *addr != expected, it must return 0 immediately (no error)
+    //
+    // This is a correctness requirement for CAS+park loops, where the value can change
+    // between the last check and the kernel wait primitive (Linux futex returns -EAGAIN).
+    var p = sys_mmap_private_anon(4096)
+    if p == 0 || p == -1 || p < 4096 { fail(488) }
+    ptr_set(p, 123)
+    var rc = oren_wait_on_addr(p, 0, 0)
+    sys_munmap(p, 4096)
+    assert_eq(rc, 0, 489)
+    return 0
+}
+
 fn test_green_workers_join() {
     trace("QI: test_green_workers_join")
     // Green tasks are the default `spawn` path on macOS/Linux today.
@@ -792,6 +809,7 @@ fn main() {
     test_spawn_join()
     test_proc_system_windows()
     test_select()
+    test_wait_on_addr_mismatch_is_success()
     test_green_workers_join()
     test_green_global_runq_fairness()
     test_green_ctx_switch_alloc_integrity()

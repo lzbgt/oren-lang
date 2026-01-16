@@ -362,10 +362,12 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - Runtime: added a small portable wrapper for the wait-on-address primitive:
        - `lib/runtime_native/267_wait_on_addr.oren` (`oren_wait_on_addr`, `oren_wake_all_addr`)
        - avoids repeating op codes in hot runtime paths and keeps the runtime bundle free of non-zero global initializers
+       - semantics: “wait while equal”; if `*addr != expected` (or the kernel reports a mismatch like Linux futex `-EAGAIN`), treat as a spurious wake and return `0`
      - Guards:
        - `tests/native/test_linux_os_thread_smoke.oren` (OS-thread create/join; skips on non-Linux)
        - `tests/native/test_ulock_timeout_linux.oren` (timeout code normalization; skips on non-Linux)
        - `tests/native/test_ulock_timeout_portable.oren` (portable `-60` timeout code; skips if ENOSYS)
+       - `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_mismatch_is_success`) (prevents park/wait loops from failing on value mismatch)
 	   - 2026-01-15: fixed macOS syscall-first OS-thread bring-up when `bsdthread_register` returns `0` on success (feature bits may be 0).
 	     - Root cause: runtime treated “success” as `rv > 0` and would fall back to pthread (stubbed in syscall-first builds), causing `oren_os_thread_spawn` to fail.
 	     - Fix: treat `rv >= 0` as success and allow the syscall-first `bsdthread_create` path to be used by the shared `oren_os_thread_*` abstraction.

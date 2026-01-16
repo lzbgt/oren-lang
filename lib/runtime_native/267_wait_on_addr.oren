@@ -21,8 +21,34 @@
 // - -60 on timeout
 // - other negative errno on failure
 fn oren_wait_on_addr(addr, expected, timeout_us) {
+    if addr == 0 { return -5 } // EIO-ish
+
+    // Correct semantics:
+    // - If the value is already not equal to `expected`, return 0 (no blocking needed).
+    // - If the underlying primitive reports "value mismatch" (racy check), normalize it to 0.
+    //
+    // This matters for lock/park loops that do:
+    //   CAS -> if failed: wait_on_addr(expected=cur)
+    // If the value changes between the CAS and the sleep, the kernel can report a mismatch
+    // (Linux futex: -EAGAIN) instead of sleeping.
+    var cur = ptr_get(addr)
+    if g_target_os == 2 {
+        // Linux futex observes only the low 32 bits.
+        if (cur & 4294967295) != (expected & 4294967295) { return 0 }
+        expected = expected & 4294967295
+    } else {
+        if cur != expected { return 0 }
+    }
+
     // Use a literal op code (avoid non-zero global initializers in the native runtime bundle).
-    return sys_ulock_wait(1, addr, expected, timeout_us)
+    var rc = sys_ulock_wait(1, addr, expected, timeout_us)
+
+    // Normalize spurious/mismatch cases to 0:
+    // - Linux futex: EAGAIN (-11) when *addr != expected at the moment of the check
+    // - Darwin ulock: value mismatch can show up as EBUSY (-16) or EAGAIN (-35) depending on kernel path
+    // - Any platform: EINTR (-4) may happen; callers already loop
+    if rc == -11 || rc == -16 || rc == -35 || rc == -4 { return 0 }
+    return rc
 }
 
 // Wake all threads waiting on `addr` via `oren_wait_on_addr`.

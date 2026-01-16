@@ -188,6 +188,7 @@ Status (rolling groundwork):
 - The portable wait-on-address layer exists and is verified:
   - `lib/runtime_native/267_wait_on_addr.oren`
   - `tests/native/test_ulock_timeout_portable.oren`
+  - `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_mismatch_is_success`) (locks in “wait while equal” semantics)
 - The scheduler-oriented “park word” exists (token + wait-on-address) and is verified:
   - `lib/runtime_native/269_os_thread_m.oren` (`oren_m_park_word_wait`, `oren_m_park_word_wake`)
   - `tests/native/test_os_thread_park_unpark_smoke.oren`
