@@ -174,8 +174,9 @@ Status (rolling groundwork):
     - inserting new sleepers wakes workers so the “next wake” deadline is re-evaluated promptly
   - Join behavior: when workers are enabled, `oren_green_join_timeout` waits on the green task's state word via the portable
     wait-on-address primitive (instead of driving the scheduler on the joining thread).
-  - P ownership (rolling correctness guard): when workers are enabled, `_green_poll_until` enforces `P.owner_tid == sys_gettid()`;
-    if `owner_tid` is still `0`, it is claimed under the scheduler lock as bring-up robustness (still hard-fails on mismatches).
+  - P ownership (rolling correctness guard): when workers are enabled, `_green_poll_until` enforces `P.owner_tid == sys_gettid()`.
+    Worker bring-up reserves each `P` with a negative sentinel during `oren_green_start_workers`, then the worker claims its bound `P`
+    to a positive tid before entering the scheduler loop (hard-fails on mismatches).
   - Runtime: `lib/runtime_native/263_green_tasks.oren`
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_worker_wake_while_sleepers`) (prevents “sleepers stall runnable work” regressions)

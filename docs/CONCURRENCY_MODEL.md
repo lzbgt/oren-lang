@@ -33,6 +33,7 @@ Additional substrate (not wired into `spawn` yet):
 - **Green-task background workers (Stage N2 groundwork):** the green scheduler can optionally run on background OS threads via:
   - `oren_green_start_workers(n)` (runtime: `lib/runtime_native/263_green_tasks.oren`)
   - This is not a full GMP/netpoller yet (no true async IO), but it is the “M” substrate needed to move beyond N:1.
+  - Guardrail (rolling): `oren_green_start_workers` must be called from a host thread (not while executing a green task), otherwise it returns `-1`.
 
 ### 1.2 Wait-on-address (`sys_ulock_wait/sys_ulock_wake`) (portable lock/park substrate)
 
