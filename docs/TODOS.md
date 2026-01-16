@@ -419,7 +419,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 			         - scheduler wake/next-deadline logic scans sleepers across all Ps (future-proof for `M < P`)
 			       - worker idle sleeps now park on the shared park word with a timeout (so new runnable work wakes it immediately); inserting sleepers wakes workers to re-evaluate the next deadline
 			       - worker entry accepts an optional `P*` argument and claims `P.owner_tid` (rolling: hard fail if a P is accidentally shared across Ms)
-			       - `_green_poll_until` enforces `P.owner_tid == sys_gettid()` in worker mode; `oren_green_start_workers` reserves each `P` with a negative sentinel and the worker claims its bound `P` to a positive tid before running the scheduler loop
+			       - `_green_poll_until` enforces `P.owner_tid == sys_gettid()` in worker mode; `oren_green_start_workers` reserves each worker `P` with a negative sentinel and the worker claims its bound `P` to a positive tid before running the scheduler loop
 			         - Rolling safety: `oren_green_start_workers` rejects if any `P.owner_tid != 0` on entry (prevents subtle “worker aborts because P was already claimed” failures)
 			         - Stage N3 evolution: `oren_green_start_workers(n)` reserves only the first `n` Ps; extra Ps must remain free (`owner_tid==0`) for future `M < P` operation.
 			       - scheduler now uses a **dedicated scheduler lock** (wait-on-addr based) instead of the runtime global lock (reduces coupling to allocator/GC metadata)
@@ -441,11 +441,13 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		   - Parking/unparking primitive for idle `M` (required to avoid spin):
 		     - macOS: ulock-based park/wake for `P` (pairs with `sys_ulock_wait/sys_ulock_wake`)
 		     - Linux: futex-based park/wake
-		   - Stage N3 (next): make `P` real (toward true M:N)
-		     - enforce “an `M` runs Oren code only while holding a `P`” (no shared-P execution)
-		     - add a single-thread multi-`P` fixture (using `oren_green_bind_p`) to validate cross-P sleep/wake + stealing without enabling unsafe parallel workers
-		     - evolve the global runq into a fairness/overflow queue (it exists today as cross-P injection)
-		     - implement real work stealing between `P` (today: a global-lock bring-up: “steal one before idle”, plus periodic global-runq polling for fairness)
+			   - Stage N3 (next): make `P` real (toward true M:N)
+			     - enforce “an `M` runs Oren code only while holding a `P`” (no shared-P execution)
+			     - implement a real idle-`P` pool + `acquirep/releasep` protocol (so `M` can park without holding a `P`, and wake by acquiring any available `P`)
+			     - add a “world lock” fallback mode to safely experiment with `n>1` workers before allocator/GC are truly concurrent (one `M` executes Oren code at a time; other `M` can still service netpoll/timers)
+			     - add a single-thread multi-`P` fixture (using `oren_green_bind_p`) to validate cross-P sleep/wake + stealing without enabling unsafe parallel workers
+			     - evolve the global runq into a fairness/overflow queue (it exists today as cross-P injection)
+			     - implement real work stealing between `P` (today: a global-lock bring-up: “steal one before idle”, plus periodic global-runq polling for fairness)
 		     - replace the current global lock in green scheduling with per-P queues + atomics (keep GC/STW correctness first)
 				     - define and enforce a context-switch preservation contract (native `oren_ctx_switch` + codegen):
 				       - today, the scheduler re-fetches per-thread state (`ts`/`P`) each poll iteration for robustness; fix the root cause so we can rely on normal locals again
