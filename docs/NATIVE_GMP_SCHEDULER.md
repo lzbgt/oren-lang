@@ -135,7 +135,9 @@ Status (fact, code):
   `lib/runtime_native/000_prelude_sys.oren`).
 - 2026-01-16: native `oren_select` / `oren_select_recv` are green-aware and do not block the scheduler OS thread:
   - Runtime: `lib/runtime_native/245_select.oren` (poll-mode + `oren_green_sleep_ns` backoff when in-green)
+  - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*` use the same poll+sleep strategy when in-green; correctness-first stopgap)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
+  - Guard: `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
   - Limitation: this is not a real netpoller yet; it is a correctness-first stopgap until kqueue/epoll events wake parked `P`s directly.
 
 ### Stage N2: N:M GMP (multiple OS threads, multiple Ps)

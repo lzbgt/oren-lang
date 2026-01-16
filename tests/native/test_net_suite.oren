@@ -413,6 +413,41 @@ fn test_udp_loopback() {
     udp.close(rfd)
 }
 
+fn _net_fd_wait_readable_then_recv(ch, rfd) {
+    // Run inside a green task: readiness waits must not block the scheduler OS thread.
+    var n = oren_fd_wait_readable(rfd, 200)
+    if n <= 0 { return n }
+    return oren_chan_recv(ch)
+}
+
+fn _net_chan_send_delayed(ch, v) {
+    oren_green_sleep_ns(5000000) // 5ms
+    oren_chan_send(ch, v)
+    return 0
+}
+
+fn test_fd_wait_readable_in_green_workers() {
+    // This test uses a pipe fd, which is not a valid WinSock SOCKET for Windows select().
+    if g_target_os == 3 { return 0 }
+
+    // Run under Stage N2 worker mode with a bounded join timeout so regressions cannot hang the suite:
+    // - if `oren_fd_wait_readable` blocks the worker OS thread, the sender will never run and join_timeout will return -60.
+    var rcw = oren_green_start_workers(1)
+    if rcw != 0 { fail(1200) }
+
+    var ch = oren_new_channel()
+    if ch == 0 { fail(1201) }
+    var rfd = oren_list_get(ch, 0)
+
+    var recv_h = spawn _net_fd_wait_readable_then_recv(ch, rfd)
+    var send_h = spawn _net_chan_send_delayed(ch, 888)
+
+    var r = oren_join_timeout(recv_h, 500)
+    if r != 888 { fail(1202) }
+    oren_join_timeout(send_h, 500)
+    return 0
+}
+
 fn main() {
     test_tcp_loopback()
     test_tcp_sockname_peername()
@@ -421,6 +456,7 @@ fn main() {
     test_tcp_sockopt_keepalive()
     test_udp_loopback()
     test_http_helpers()
+    test_fd_wait_readable_in_green_workers()
     print("net suite: OK")
     exit(0)
 }

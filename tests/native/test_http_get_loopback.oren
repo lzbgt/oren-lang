@@ -8,6 +8,28 @@ fn u16be_at(p, off) {
     return (hi << 8) | lo
 }
 
+fn _env_truthy(name) {
+    var p = oren_getenv(name)
+    if p == 0 { return 0 }
+    var b = ptr_get_byte(p)
+    if b == 0 { return 0 }
+    if b == 48 { return 0 } // '0'
+    return 1
+}
+
+fn _ensure_workers_for_spawned_servers(test_name) {
+    // On POSIX targets, `spawn` prefers in-process green tasks. These loopback fixtures run servers
+    // concurrently with blocking client operations, so enable worker mode up front.
+    if g_target_os == 3 { return 0 }
+    if _env_truthy("OREN_NO_GREEN") == 1 { return 0 }
+    var rcw = oren_green_start_workers(1)
+    if rcw != 0 {
+        print(test_name + ": FAIL cannot start green workers rc=" + oren_int_to_string(rcw))
+        exit(109)
+    }
+    return 0
+}
+
 fn _skip_qname(buf, n, off) {
     // Skip a DNS QNAME (no compression expected in queries).
     var i = off
@@ -391,6 +413,8 @@ fn run_case(mode) {
 }
 
 fn main() {
+    _ensure_workers_for_spawned_servers("http_get_loopback")
+
     var rc0 = run_case(0)
     if rc0 != 0 { exit(rc0) }
     var rc1 = run_case(1)

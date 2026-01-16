@@ -85,11 +85,12 @@ Notes:
     which are then used by `oren_select` and the `oren_fd_wait_*` epoll helpers.
 - They are **not a language keyword** (they are runtime helpers).
 - Scheduler integration status (native, rolling):
-  - The green-task scheduler exists (`lib/runtime_native/263_green_tasks.oren`), but the low-level `oren_fd_wait_*` helpers are still
-    OS-thread-blocking primitives (they call kevent/epoll/select and will stall the calling `M` if used inside a green task).
-  - 2026-01-16: the channel-based `oren_select` / `oren_select_recv` runtime is **green-aware** and avoids blocking the scheduler OS thread
-    by polling (timeout=0) and yielding via `oren_green_sleep_ns` backoff when called from a green task.
-    - Guard: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
+  - The green-task scheduler exists (`lib/runtime_native/263_green_tasks.oren`).
+  - 2026-01-16: native waits are green-aware (correctness-first stopgap until a real netpoller exists):
+    - `oren_select` / `oren_select_recv` (pipe-based channels): when called from a green task, uses poll-mode (timeout=0) + `oren_green_sleep_ns` backoff.
+      - Guard: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
+    - `oren_fd_wait_*` (fd readiness): when called from a green task, uses poll-mode + `oren_green_sleep_ns` backoff instead of blocking the scheduler OS thread.
+      - Guard: `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
 
 ### 1.4 File readiness is not yet a stable cross-OS language primitive
 

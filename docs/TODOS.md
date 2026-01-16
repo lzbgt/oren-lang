@@ -470,11 +470,18 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					           - Guard: `make verify-x64-linux-qemu` (stage1 + stage2), plus `tests/native/test_time_mono_raw.oren`.
 				   - 2026-01-16: added a bounded regression gate for worker-mode scheduling (many tasks must complete; no hangs):
 				       - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_many_tasks_bounded`)
-				     - 2026-01-16: made native `oren_select` green-aware so it never blocks the scheduler OS thread when called from a green task:
-				       - Runtime: `lib/runtime_native/245_select.oren` (`_select_in_green` uses poll-mode + `oren_green_sleep_ns` backoff)
+				     - 2026-01-16: made native waits green-aware so they never block the scheduler OS thread when called from a green task:
+				       - Runtime: `lib/runtime_native/245_select.oren` (`oren_select` / `oren_select_recv`: poll-mode + `oren_green_sleep_ns` backoff)
+				       - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*`: same poll+sleep strategy for fd readiness)
 				       - Runtime: `lib/runtime_native/263_green_tasks.oren` (`oren_green_in_green`)
-				       - Guard: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
-				       - Remaining: replace the current poll+sleep loop with a real scheduler netpoller (kqueue/epoll integration; wake a parked `P` when IO becomes ready).
+				       - Guards:
+				         - `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
+				         - `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
+				       - Remaining: replace poll+sleep loops with a real scheduler netpoller (kqueue/epoll integration; wake a parked `P` when IO becomes ready).
+				     - 2026-01-16: fixed loopback NET fixtures that spawn in-process servers on POSIX:
+				       - Problem: `spawn` prefers green tasks, but some fixtures ran a blocking client call on the main thread, starving the server green task (timeout).
+				       - Fix: enable green worker mode up front in the spawned-server fixtures (unless `OREN_NO_GREEN` disables green tasks).
+				       - Guards: `make verify-x64-linux-qemu-net` (covers `tests/native/test_dns_loopback.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren`)
 					     - 2026-01-16: made `oren_time_mono_ns()` conversion exact on macOS/Windows (no wall-clock calibration):
 					       - macOS: uses `mach_timebase_info` (num/den) to convert gettimeofday’s `mach_absolute_time` out-arg to ns.
 					       - Windows: uses `QueryPerformanceFrequency` for QPC ticks -> ns (backend exposes `sys_qpc_frequency`).
