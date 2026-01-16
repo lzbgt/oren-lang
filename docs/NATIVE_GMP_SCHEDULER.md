@@ -216,6 +216,7 @@ Status (rolling groundwork):
     Worker bring-up reserves each `P` with a negative sentinel during `oren_green_start_workers`, then the worker claims its bound `P`
     to a positive tid before entering the scheduler loop (hard-fails on mismatches).
     - Rolling safety: `oren_green_start_workers` rejects if any `P.owner_tid != 0` on entry (prevents subtle “worker aborts because P was already claimed” failures).
+    - Stage N3 evolution: a worker may temporarily set `P.owner_tid = 0` while blocked (park/kevent/epoll), then re-acquire before running Oren code.
   - Runtime: `lib/runtime_native/263_green_tasks.oren`
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_worker_wake_while_sleepers`) (prevents “sleepers stall runnable work” regressions)

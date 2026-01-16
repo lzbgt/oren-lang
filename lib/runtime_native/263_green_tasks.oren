@@ -129,7 +129,9 @@ var g_green_worker_wake_word = 0 // u64* (mmap page), used with oren_m_park_word
 var g_green_sched_lock_word = 0  // u64* (mmap page), used as a private scheduler lock (0=unlocked, tid=owner)
 // Debug counters (mmap page; rolling):
 // Used for lightweight regression guards (e.g. "idle select does not spin CPU").
-var g_green_debug_word = 0 // u64* (mmap page), [0]=idle_iters, [8]=steal_count, [16]=last_steal_p_id
+var g_green_debug_word = 0 // u64* (mmap page), offsets:
+// [0]=idle_iters, [8]=steal_count, [16]=last_steal_p_id,
+// [24]=p_acquire_count, [32]=p_release_count, [40]=last_p_acquire_id, [48]=last_p_release_id
 
 // Rolling config: enable a cached fast path for `_green_poll_until_budget`.
 // Default is conservative (re-fetch per-thread state each iteration); cached mode is opt-in.
@@ -491,6 +493,34 @@ fn oren_green_debug_last_steal_p_id() {
 }
 
 @oren.keep
+fn oren_green_debug_p_acquire_count() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    return ptr_get(p + 24)
+}
+
+@oren.keep
+fn oren_green_debug_p_release_count() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    return ptr_get(p + 32)
+}
+
+@oren.keep
+fn oren_green_debug_last_p_acquire_id() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 - 1 }
+    return ptr_get(p + 40)
+}
+
+@oren.keep
+fn oren_green_debug_last_p_release_id() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 - 1 }
+    return ptr_get(p + 48)
+}
+
+@oren.keep
 fn oren_green_debug_tid() {
     // Debug/testing helper: expose the runtime's notion of OS-thread id.
     // (On supported Tier‑1 hosts this is a stable non-zero id for the lifetime of the thread.)
@@ -521,6 +551,46 @@ fn oren_green_debug_reset() {
     ptr_set(p + 0, 0)
     ptr_set(p + 8, 0)
     ptr_set(p + 16, 0)
+    ptr_set(p + 24, 0)
+    ptr_set(p + 32, 0)
+    ptr_set(p + 40, 0)
+    ptr_set(p + 48, 0)
+    return 0
+}
+
+fn _green_p_ensure_owned_by_tid_locked(p, tid) {
+    if p == 0 { return -1 }
+    if tid == 0 { return -1 }
+    var owner = _green_p_owner_tid(p)
+    if owner == tid { return 0 }
+    var reserved = _green_p_owner_reserved_tid(p)
+    if owner == 0 || owner == reserved {
+        _green_p_set_owner_tid(p, tid)
+        // Debug: record ownership reacquisition.
+        var dbg = g_green_debug_word
+        if dbg != 0 && dbg != -1 && dbg >= 4096 {
+            _green_atomic_inc_u64(dbg + 24)
+            ptr_set(dbg + 40, _green_p_id(p))
+        }
+        return 0
+    }
+    return 0 - 16 // -EBUSY
+}
+
+fn _green_p_release_if_owned_by_tid_locked(p, tid) {
+    if p == 0 { return 0 }
+    if tid == 0 { return 0 }
+    var owner = _green_p_owner_tid(p)
+    if owner == tid {
+        _green_p_set_owner_tid(p, 0)
+        // Debug: record release.
+        var dbg = g_green_debug_word
+        if dbg != 0 && dbg != -1 && dbg >= 4096 {
+            _green_atomic_inc_u64(dbg + 32)
+            ptr_set(dbg + 48, _green_p_id(p))
+        }
+        return 0
+    }
     return 0
 }
 
@@ -1183,15 +1253,17 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             if p < 4096 { exit(940) }
         }
         if g_green_workers_started != 0 {
-            // Enforce "an M runs Oren code only while holding a P" by requiring this thread to
-            // match the owning tid for its bound P (Stage N3 correctness prerequisite).
+            // Stage N3: enforce "an M runs Oren code only while holding a P".
+            //
+            // Rolling semantics:
+            // - an idle worker may temporarily set `P.owner_tid=0` while blocked (release)
+            // - upon wake, the worker must re-acquire its bound P before running Oren code
             var tid = sys_gettid()
             if tid == 0 { exit(926) }
-            var owner = _green_p_owner_tid(p)
-            // Worker mode: P ownership must already be claimed by this M.
-            // `oren_green_start_workers` pre-reserves Ps with a negative sentinel; worker entry
-            // must claim the P to its positive tid before reaching this check.
-            if owner == 0 || owner != tid { exit(927) }
+            _green_lock_acquire()
+            var rc_own = _green_p_ensure_owned_by_tid_locked(p, tid)
+            _green_lock_release()
+            if rc_own != 0 { exit(927) }
         }
 
         // Fairness tick: periodically prefer draining from the global run queue even if the local
@@ -1280,6 +1352,15 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             if sleep_ns > rem { sleep_ns = rem }
         }
         if g_target_os != 3 && g_netpoll_inited != 0 {
+            if g_green_workers_started != 0 {
+                // Release P while blocked in kevent/epoll (future-proof for M<P).
+                var tid2 = sys_gettid()
+                if tid2 != 0 {
+                    _green_lock_acquire()
+                    _green_p_release_if_owned_by_tid_locked(p, tid2)
+                    _green_lock_release()
+                }
+            }
             // Prefer blocking in the kernel readiness wait:
             // - wakes on IO readiness (netpoll tokens)
             // - wakes on explicit runtime nudge (wake pipe)
@@ -1366,6 +1447,12 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
         if sleep_ns > 10000000 { sleep_ns = 10000000 } // 10ms
         if g_green_workers_started != 0 && g_green_worker_wake_word != 0 {
             // Fallback: park on the shared wake word with a timeout.
+            var tid2 = sys_gettid()
+            if tid2 != 0 {
+                _green_lock_acquire()
+                _green_p_release_if_owned_by_tid_locked(p, tid2)
+                _green_lock_release()
+            }
             var sleep_us = sleep_ns / 1000
             if sleep_us <= 0 { sleep_us = 1 }
             oren_m_park_word_wait(g_green_worker_wake_word, sleep_us)
@@ -1544,7 +1631,7 @@ fn __oren_green_worker_entry(arg_ptr) {
     var ts = _green_thread_state_for_current_thread_or0()
     if ts == 0 { return 0 }
 
-    // Bind this M to a P (rolling: no "exclusive P ownership" enforcement yet).
+    // Bind this M to a P (rolling).
     var p0 = 0
     if arg_ptr != 0 && arg_ptr >= 4096 { p0 = arg_ptr }
     if p0 == 0 {
@@ -1552,20 +1639,14 @@ fn __oren_green_worker_entry(arg_ptr) {
         if s != 0 { p0 = _green_state_p0(s) }
     }
     if p0 != 0 { _green_thread_set_p(ts, p0) }
+    // Claim initial P ownership for this M (must succeed before running).
+    var tid = sys_gettid()
+    if tid == 0 { exit(928) }
     if p0 != 0 {
-        // Claim P ownership for this M. Fail loudly if misconfigured to share a P.
-        var tid = sys_gettid()
-        if tid == 0 { exit(928) }
         _green_lock_acquire()
-        var owner = _green_p_owner_tid(p0)
-        var reserved = _green_p_owner_reserved_tid(p0)
-        if owner == 0 || owner == reserved {
-            _green_p_set_owner_tid(p0, tid)
-        } else if owner != tid {
-            _green_lock_release()
-            exit(929)
-        }
+        var rc_own = _green_p_ensure_owned_by_tid_locked(p0, tid)
         _green_lock_release()
+        if rc_own != 0 { exit(929) }
     }
 
     while true {
@@ -1577,13 +1658,14 @@ fn __oren_green_worker_entry(arg_ptr) {
         //   no external wake arrives.
         //
         // This makes worker-mode sleepers reliable even if `_green_poll_until(0)` returns early.
+        // Release P while parked idle (future-proof for M<P).
         var ts2 = _green_thread_state_for_current_thread_or0()
-        var s2 = _green_get_state()
         var p2 = 0
         if ts2 != 0 { p2 = _green_thread_p_or0(ts2) }
-        if p2 == 0 && s2 != 0 {
-            p2 = _green_state_p0(s2)
-            if ts2 != 0 && p2 != 0 { _green_thread_set_p(ts2, p2) }
+        if p2 != 0 {
+            _green_lock_acquire()
+            _green_p_release_if_owned_by_tid_locked(p2, tid)
+            _green_lock_release()
         }
 
         var next_wake = _green_next_wake_ns_all()

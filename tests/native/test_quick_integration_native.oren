@@ -968,6 +968,48 @@ fn test_green_workers_join() {
     return 0
 }
 
+fn test_green_worker_release_acquire_p_when_parked() {
+    trace("QI: test_green_worker_release_acquire_p_when_parked")
+    // Green tasks are the default `spawn` path on macOS/Linux today.
+    // Windows uses CreateThread for `spawn`, so skip this test there.
+    if g_target_os == 3 { return 0 }
+
+    // Ensure worker mode is active (idempotent).
+    var rcw = oren_green_start_workers(1)
+    assert_eq(rcw, 0, 600)
+
+    // Reset debug counters after workers are up so this fixture measures just the park/reacquire behavior.
+    oren_green_debug_reset()
+
+    // Run one task so the worker definitely enters its scheduler loop.
+    var h1 = spawn worker_green_yield_then_ret()
+    var r1 = oren_join_timeout(h1, 2000)
+    assert_eq(r1, 77, 601)
+
+    // Wait for the worker to go idle and park, which should release its P.
+    var tries = 0
+    while tries < 50 {
+        if oren_green_debug_p_release_count() > 0 { break }
+        oren_sleep_ms(1)
+        tries = tries + 1
+    }
+    assert_true(oren_green_debug_p_release_count() > 0, 602)
+
+    // Wake the parked worker by injecting more runnable work; it should re-acquire a P to run.
+    var h2 = spawn worker_green_yield_then_ret()
+    var r2 = oren_join_timeout(h2, 2000)
+    assert_eq(r2, 77, 603)
+
+    tries = 0
+    while tries < 50 {
+        if oren_green_debug_p_acquire_count() > 0 { break }
+        oren_sleep_ms(1)
+        tries = tries + 1
+    }
+    assert_true(oren_green_debug_p_acquire_count() > 0, 604)
+    return 0
+}
+
 var g_green_multi_p_handles = []
 var g_green_multi_p_expect = []
 
@@ -1375,6 +1417,7 @@ fn main() {
     test_green_multi_p_single_thread_poll_steal()
     test_green_p_acquire_release_blocks_start_workers()
     test_green_workers_join()
+    test_green_worker_release_acquire_p_when_parked()
     test_select_in_green_workers()
     test_select_multi_case_in_green_workers()
     test_select_idle_does_not_spin_cpu()

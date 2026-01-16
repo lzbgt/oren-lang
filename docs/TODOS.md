@@ -427,6 +427,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_bind_p_rejects_in_green`) (topology mutation must be host-thread only)
 					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_acquire_p_rejects_in_green`) (P ownership mutation must be host-thread only)
 					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_p_acquire_release_blocks_start_workers`) (start_workers must fail early if any P is already claimed by a host thread)
+					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_worker_release_acquire_p_when_parked`) (worker releases P while parked/blocked and re-acquires to run)
 					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_p_count_api`) (P topology API; no shrink; reject after workers)
 					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_multi_p_single_thread_poll_steal`) (single-thread multi-P steal + cross-P wake without unsafe parallel workers)
 				     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_ctx_switch_alloc_integrity`) (worker-mode ctx-switch + scheduler stability)
