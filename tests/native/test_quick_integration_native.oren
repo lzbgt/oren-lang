@@ -703,6 +703,24 @@ fn test_wait_on_addr_mismatch_is_success() {
     return 0
 }
 
+fn worker_green_try_start_workers_in_green() {
+    // Must run on a green stack so `oren_green_start_workers` sees in-green execution.
+    return oren_green_start_workers(1)
+}
+
+fn test_green_start_workers_rejects_in_green() {
+    trace("QI: test_green_start_workers_rejects_in_green")
+    // Green tasks are the default `spawn` path on macOS/Linux today.
+    // Windows uses CreateThread for `spawn`, so skip this test there.
+    if g_target_os == 3 { return 0 }
+
+    // Must run before any earlier test enables background workers (which would make start_workers idempotent).
+    var h = spawn worker_green_try_start_workers_in_green()
+    var r = oren_join_timeout(h, 2000)
+    assert_eq(r, -1, 493)
+    return 0
+}
+
 fn test_green_workers_join() {
     trace("QI: test_green_workers_join")
     // Green tasks are the default `spawn` path on macOS/Linux today.
@@ -858,6 +876,7 @@ fn main() {
     test_proc_system_windows()
     test_select()
     test_wait_on_addr_mismatch_is_success()
+    test_green_start_workers_rejects_in_green()
     test_green_workers_join()
     test_green_global_runq_fairness()
     test_green_ctx_switch_alloc_integrity()
