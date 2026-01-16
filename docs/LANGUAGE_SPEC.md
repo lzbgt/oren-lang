@@ -810,17 +810,20 @@ Backend behavior (rolling):
 - **AVM backend**: `spawn` creates a **deterministic VM task** (green thread) scheduled by the AVM runtime.
   - `oren_join(handle)` and `oren_yield()` are VM opcodes (portable, snapshot-safe).
   - See `docs/AVM_SPEC_V1.md` (tasks + channels + select).
-- **C backend**: `spawn` uses `pthread_create` and returns a pointer-like handle.
-  - `oren_join(handle)` waits and returns the spawned function’s return value.
-  - `oren_detach(handle)` / `oren_join_all()` exist in the C runtime (rolling; not yet mirrored in native runtime).
-	- **Native backend (Tier‑1, rolling)**:
-	  - **POSIX (macOS/Linux)**: `spawn` is implemented syscall-first as **fork + pipe** today.
-	    - Handle layout (implementation detail): `[pid, read_fd]` stored in a small heap object.
-	    - `oren_join(handle)` waits for child termination and reads the return value from the pipe.
-	  - **Windows x64**: `spawn` is implemented via **CreateThread** (no `fork` on Windows).
-	    - `oren_join(handle)` waits via `WaitForSingleObject` and returns the worker’s result.
-	    - `oren_join_timeout(handle, timeout_ms)` exists and returns `-60` on timeout (rolling contract).
-	  - Note: this is a rolling convergence surface; the long-term direction is a unified thread-based substrate on all native targets (see `docs/CONCURRENCY_MODEL.md`).
+	- **C backend**: `spawn` uses `pthread_create` and returns a pointer-like handle.
+	  - `oren_join(handle)` waits and returns the spawned function’s return value.
+	  - `oren_detach(handle)` / `oren_join_all()` exist in the C runtime (rolling; not yet mirrored in native runtime).
+		- **Native backend (Tier‑1, rolling)**:
+		  - **POSIX (macOS/Linux)**: `spawn` **prefers in-process green tasks** (shared heap), and falls back to syscall-first **fork + pipe**
+		    when green tasks are disabled/unavailable.
+		    - Escape hatch: `OREN_NO_GREEN=1` forces legacy fork+pipe (bring-up/debugging).
+		    - Fork+pipe handle layout (implementation detail): `[pid, read_fd]` stored in a small heap object.
+		    - `oren_join(handle)` waits for child termination and reads the return value from the pipe.
+		  - **Windows x64**: `spawn` is implemented via **CreateThread** (no `fork` on Windows), routed through the same native runtime helper
+		    (`oren_spawn_call_list`) as POSIX.
+		    - `oren_join(handle)` waits via `WaitForSingleObject` and returns the worker’s result.
+		    - `oren_join_timeout(handle, timeout_ms)` exists and returns `-60` on timeout (rolling contract).
+		  - Note: this is a rolling convergence surface; the long-term direction is a unified thread-based substrate on all native targets (see `docs/CONCURRENCY_MODEL.md`).
 
 #### Channels + `oren_select*` (rolling; AVM + native)
 

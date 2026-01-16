@@ -31,6 +31,17 @@ fn _m_handle_ctid_off() { return 40 }      // i32 slot (linux only; must be 4-by
 fn _m_handle_arg_ptr_off() { return 48 }   // u64 (raw entry wrapper)
 fn _m_handle_bytes() { return 4096 }       // mmap-sized for simplicity (can be shrunk later)
 
+// Return the OS-specific raw thread identity stored in an `oren_os_thread_spawn(...)` handle.
+//
+// - macOS: opaque meta pointer (bsdthread/pthread substrate)
+// - Linux: tid (u64)
+// - Windows: HANDLE (u64)
+@oren.keep
+fn oren_os_thread_raw_handle(handle) {
+    if handle == 0 { return 0 }
+    return ptr_get(handle + _m_handle_th_off())
+}
+
 fn _m_default_stack_bytes() {
     // Default 1 MiB (rolling). Env override: OREN_OS_THREAD_STACK_KB (clamped).
     var kb = 1024

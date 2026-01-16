@@ -181,8 +181,10 @@ In the native backend today, `spawn` is a rolling surface with OS-specific behav
 - **macOS/Linux (POSIX rolling):** `spawn` **prefers in-process green tasks** (shared heap + shared GC model) and falls back to fork+pipe when
   green tasks are disabled/unavailable.
   - Escape hatch: `OREN_NO_GREEN=1` forces legacy fork+pipe for bring-up/debugging.
-- **Windows x64 Tier‑1 (rolling):** `spawn` currently uses **CreateThread** (OS threads), and `oren_join(_timeout)` uses Win32 synchronization.
-  - Note: the green-task runtime exists for other scheduling surfaces, but Windows `spawn` does not currently route through it.
+- **Windows x64 Tier‑1 (rolling):** `spawn` uses **CreateThread** (OS threads) via the native runtime helper (`oren_spawn_call_list`),
+  and `oren_join(_timeout)` uses Win32 synchronization.
+  - Note: the green-task runtime exists (and Windows has a rolling socket netpoll path for in-green fd waits), but language-level `spawn`
+    remains OS-thread based on Windows until the default scheduler topology can safely guarantee forward progress under host-thread blocking syscalls.
 
 This is why the design direction here emphasizes “channel-based select” + “netpoller wakes channels”:
 it composes with both a future native scheduler and AVM determinism, without baking OS fd/HANDLE details into the language surface.

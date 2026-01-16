@@ -271,7 +271,7 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
     // This is intentionally lowered through the injected native runtime helper:
     //   oren_spawn_call_list(fn_obj, args_list)
     //
-    // so OS-specific details (threads, pipes, budgets, capsule) remain centralized in runtime.
+    // so OS-specific details (green tasks, threads/fork, budgets, capsule) remain centralized in runtime.
     if ctx == nil { return nil }
     if ctx["runtime_injected"] != true {
         err(ctx, "x64 native v0: SpawnExpr requires injected runtime")
@@ -289,10 +289,6 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
     if args != nil { argc = oren_list_len(args) }
     var has_spread = (spread != nil)
 
-    var platform = ctx["platform"]
-    var is_windows = false
-    if platform != nil && platform["os"] == "windows" { is_windows = true }
-
     // Spill layout:
     // - explicit args: [base + 0 .. base + argc-1]
     // - args_list:     base + argc
@@ -308,11 +304,6 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
     // - fn_obj:        base + argc + 5
     var spill_n = argc + 2
     if has_spread { spill_n = argc + 6 }
-    // Windows spawn lowering needs extra spill slots for the thread handle/result/arg structs.
-    // Keep these in the intrinsic tmp pool so the lowering stays leaf-like (no extra locals plumbing).
-    var win_extra = 0
-    if is_windows { win_extra = 4 } // result_ptr, arg_ptr, handle_ptr, start_ptr
-    spill_n = spill_n + win_extra
     var base = _intr_tmp_push(ctx, spill_n)
     if oren_type_tag(base) == 0 { return nil }
 
@@ -434,103 +425,10 @@ fn _emit_spawn_expr_v0(ctx, expr, locals) {
     _emit_mov_mrbp_r64(ctx, 0 - fn_off, 0)
     var fn_tmp = {"type": "IntrTmp", "idx": fn_slot}
 
-    if is_windows {
-        // Windows Tier-1: lower `spawn` to CreateThread(...) using syscall intrinsics.
-        //
-        // We cannot use the POSIX fork+pipe runtime helper on Windows, and we also cannot take
-        // the address of a function from Oren code. Instead, the code generator materializes
-        // the raw thread entry pointer via a `rip_code_lea` fixup.
-        //
-        // Handle layout on Windows (heap, opaque to user code):
-        //   [0]  thread_handle (HANDLE, u64)
-        //   [8]  result_ptr    (u64*)
-        //   [16] arg_ptr       (spawn arg struct ptr; freed by join)
-        //
-        // Thread arg struct layout:
-        //   [0]  fn_obj
-        //   [8]  args_list
-        //   [16] result_ptr
-        //   [24] auto_free (u64; 0=normal, 1=detach cleanup by thread)
-
-        var win_base = base + spill_n - win_extra
-        var slot_res = win_base + 0
-        var slot_arg = win_base + 1
-        var slot_handle = win_base + 2
-        var slot_start = win_base + 3
-        var off_res = _intr_tmp_off(ctx, locals, slot_res)
-        var off_arg = _intr_tmp_off(ctx, locals, slot_arg)
-        var off_handle = _intr_tmp_off(ctx, locals, slot_handle)
-        var off_start = _intr_tmp_off(ctx, locals, slot_start)
-        if oren_type_tag(off_res) == 0 || oren_type_tag(off_arg) == 0 || oren_type_tag(off_handle) == 0 || oren_type_tag(off_start) == 0 {
-            _intr_tmp_pop(ctx, base)
-            err(ctx, "x64 native v0: missing spill slots for SpawnExpr windows")
-            return nil
-        }
-
-        // result_ptr = malloc_raw(8)
-        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "malloc_raw"}, "args": [{"type": "Integer", "value": "8"}]}, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-        _emit_mov_mrbp_r64(ctx, 0 - off_res, 0)
-
-        // Initialize result to 0.
-        _emit_mov_r64_mrbp(ctx, 10, 0 - off_res) // r10 = result_ptr
-        bytes_extend(ctx["code"], insn_xor_r64_r64(11, 11))
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11))
-
-        // arg_ptr = malloc_raw(32)
-        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "malloc_raw"}, "args": [{"type": "Integer", "value": "32"}]}, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-        _emit_mov_mrbp_r64(ctx, 0 - off_arg, 0)
-
-        // Store [fn_obj, args_list, result_ptr, auto_free=0] into arg struct.
-        _emit_mov_r64_mrbp(ctx, 10, 0 - off_arg) // r10 = arg_ptr
-        _emit_mov_r64_mrbp(ctx, 11, 0 - fn_off)  // r11 = fn_obj
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11)) // [arg+0]=fn_obj
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
-        _emit_mov_r64_mrbp(ctx, 11, 0 - args_off) // r11 = args_list
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11)) // [arg+8]=args_list
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
-        _emit_mov_r64_mrbp(ctx, 11, 0 - off_res) // r11 = result_ptr
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11)) // [arg+16]=result_ptr
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
-        bytes_extend(ctx["code"], insn_xor_r64_r64(11, 11))
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11)) // [arg+24]=auto_free=0
-
-        // start_ptr = &__oren_win_spawn_thread_entry
-        //
-        // lea r11, [rip+disp32]  (patched to function entry)
-        var lea_pos = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(11, 0))
-        oren_list_push(ctx["fixups"], {"type": "rip_code_lea", "pos": lea_pos + 3, "name": "__oren_win_spawn_thread_entry"})
-        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
-        _emit_mov_mrbp_r64(ctx, 0 - off_start, 0)
-
-        // thread_handle = sys_win_createthread(start_ptr, arg_ptr)
-        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "sys_win_createthread"}, "args": [{"type": "IntrTmp", "idx": slot_start}, {"type": "IntrTmp", "idx": slot_arg}]}, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-        _emit_mov_mrbp_r64(ctx, 0 - off_handle, 0)
-
-        // handle_ptr = malloc_raw(24)
-        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "malloc_raw"}, "args": [{"type": "Integer", "value": "24"}]}, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-
-        // Store [thread_handle, result_ptr, arg_ptr] into handle struct.
-        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0)) // r10 = handle_ptr
-        _emit_mov_r64_mrbp(ctx, 11, 0 - off_handle)        // r11 = thread_handle
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
-        _emit_mov_r64_mrbp(ctx, 11, 0 - off_res) // r11 = result_ptr
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11))
-        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
-        _emit_mov_r64_mrbp(ctx, 11, 0 - off_arg) // r11 = arg_ptr
-        bytes_extend(ctx["code"], insn_mov_mr64_r64(10, 11))
-
-        // Return handle_ptr in RAX (already).
-    } else {
-        // POSIX: Call runtime helper: oren_spawn_call_list(fn_obj, args_list)
-        _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_spawn_call_list"}, "args": [fn_tmp, args_tmp]}, locals)
-        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
-    }
+    // Call runtime helper: oren_spawn_call_list(fn_obj, args_list)
+    // (Tier‑1 Windows is also routed through this helper; runtime chooses green-task vs thread fallback.)
+    _emit_eval_int_to_rax(ctx, {"type": "Call", "fn": {"type": "Identifier", "value": "oren_spawn_call_list"}, "args": [fn_tmp, args_tmp]}, locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
     _intr_tmp_pop(ctx, base)
     return nil

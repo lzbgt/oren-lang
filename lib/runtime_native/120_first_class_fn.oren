@@ -54,6 +54,11 @@ fn oren_spawn_call_list(fn_obj, args_list) {
         if g != 0 { return g }
     }
 
+    // Windows has no fork(2). Use OS threads for language-level `spawn`.
+    if g_target_os == 3 {
+        return _oren_spawn_call_list_windows_thread(fn_obj, args_list)
+    }
+
     var pipe_buf = malloc(16)
     if pipe_buf == 0 { exit(321) }
     var rv = sys_pipe(pipe_buf)
@@ -132,12 +137,55 @@ fn oren_spawn_call_list(fn_obj, args_list) {
     return handle
 }
 
+// --- Windows Tier‑1: thread fallback for language `spawn` ---
+//
+// This allocates the same handle layout expected by `oren_join(_timeout)` on Windows:
+//   [0]  os_thread_handle (runtime-owned "M" handle; mmap-backed)
+//   [8]  result_ptr    (u64*)
+//   [16] arg_ptr       (spawn arg struct ptr; freed by join unless detached)
+//
+// Thread arg struct layout (consumed by `__oren_win_spawn_thread_entry`):
+//   [0]  fn_obj
+//   [8]  args_list
+//   [16] result_ptr
+//   [24] auto_free (u64; set to 1 by join_timeout detach)
+fn _oren_spawn_call_list_windows_thread(fn_obj, args_list) {
+    if fn_obj == 0 { return 0 }
+
+    // result_ptr = malloc_raw(8)
+    var result_ptr = malloc_raw(8)
+    if result_ptr == 0 || result_ptr == -1 { exit(325) }
+    ptr_set(result_ptr, 0)
+
+    // arg_ptr = malloc_raw(32)
+    var arg_ptr = malloc_raw(32)
+    if arg_ptr == 0 || arg_ptr == -1 { exit(326) }
+    ptr_set(iadd(arg_ptr, 0), fn_obj)
+    ptr_set(iadd(arg_ptr, 8), args_list)
+    ptr_set(iadd(arg_ptr, 16), result_ptr)
+    ptr_set(iadd(arg_ptr, 24), 0) // auto_free=0 (normal join)
+
+    // start_ptr = &__oren_win_spawn_thread_entry
+    var start_ptr = oren_code_addr(__oren_win_spawn_thread_entry)
+    // Route OS-thread creation through the runtime-owned M substrate so the runtime flips into
+    // multi-thread mode before the new thread can run (avoids a brief window where the new thread
+    // can observe single-thread fast paths).
+    var h = oren_os_thread_spawn(start_ptr, arg_ptr)
+
+    var handle = malloc_raw(24)
+    if handle == 0 || handle == -1 { exit(327) }
+    ptr_set(iadd(handle, 0), h)
+    ptr_set(iadd(handle, 8), result_ptr)
+    ptr_set(iadd(handle, 16), arg_ptr)
+    return handle
+}
+
 // --- Windows x64 Tier‑1: thread entry for language `spawn` ---
 //
-// Windows does not have fork/exec; the x64 backend lowers `spawn` to CreateThread, passing
-// a pointer to a small arg struct.
+// Windows does not have fork/exec; if green tasks are unavailable, `oren_spawn_call_list`
+// falls back to CreateThread, passing a pointer to a small arg struct.
 //
-// Arg layout (written by the x64 code generator):
+// Arg layout (written by `_oren_spawn_call_list_windows_thread`):
 //   [0]  fn_obj
 //   [8]  args_list
 //   [16] result_ptr (u64*)

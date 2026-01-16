@@ -1020,9 +1020,11 @@ fn oren_join_timeout(handle, timeout_ms) {
     return 0 - 60
 }
 
-// Windows Tier‑1: `spawn` is lowered to CreateThread(...) by the x64 native backend.
-// Handle layout (opaque to user code):
-//   [0]  thread_handle (HANDLE, u64)
+// Windows Tier‑1: language `spawn` uses OS threads.
+//
+// The native runtime's `oren_spawn_call_list` returns a CreateThread-based handle with this layout
+// (opaque to user code):
+//   [0]  os_thread_handle (runtime-owned "M" handle; mmap-backed)
 //   [8]  result_ptr    (u64*)
 //   [16] arg_ptr       (spawn arg struct ptr; freed by join)
 //
@@ -1033,13 +1035,15 @@ fn oren_join_timeout(handle, timeout_ms) {
 //   [24] auto_free (u64; set by join_timeout detach)
 //
 // NOTE: This is intentionally separate from POSIX fork+pipe semantics; the goal is
-// Tier‑1 correctness first, then backend unification.
+// Tier‑1 correctness first, while `spawn` evolves toward a unified green-task substrate.
 fn oren_join_timeout_win(handle, timeout_ms) {
     var h = ptr_get(handle)
     var result_ptr = ptr_get(handle + 8)
     var arg_ptr = ptr_get(handle + 16)
+    var th = 0
+    if h != 0 { th = oren_os_thread_raw_handle(h) }
 
-    if h == 0 {
+    if h == 0 || th == 0 {
         if result_ptr != 0 { free(result_ptr) }
         if arg_ptr != 0 { free(arg_ptr) }
         free(handle)
@@ -1051,13 +1055,13 @@ fn oren_join_timeout_win(handle, timeout_ms) {
     // - timeout_ms == 0 => non-blocking probe; on timeout keep handle alive.
     // - timeout_ms > 0 => wait up to N ms; on timeout detach safely (no TerminateThread).
     if timeout_ms == 0 {
-        var rc0 = sys_win_wait_single_object(h, 0)
+        var rc0 = sys_win_wait_single_object(th, 0)
         if rc0 == 0 {
             // Completed: fall through to result extraction + cleanup below.
         } else {
             if rc0 == (0 - 60) { return 0 - 60 }
             // Unexpected failure: close + cleanup to avoid leaking handles/allocations.
-            sys_win_close_handle(h)
+            oren_os_thread_destroy(h)
             if result_ptr != 0 { free(result_ptr) }
             if arg_ptr != 0 { free(arg_ptr) }
             free(handle)
@@ -1071,10 +1075,10 @@ fn oren_join_timeout_win(handle, timeout_ms) {
         // Instead: poll `oren_gc_safepoint()` and wait in short bounded sleeps.
         while true {
             oren_gc_safepoint()
-            var rcw = sys_win_wait_single_object(h, 10) // 10ms
+            var rcw = sys_win_wait_single_object(th, 10) // 10ms
             if rcw == 0 { break }
             if rcw == (0 - 60) { continue }
-            sys_win_close_handle(h)
+            oren_os_thread_destroy(h)
             if result_ptr != 0 { free(result_ptr) }
             if arg_ptr != 0 { free(arg_ptr) }
             free(handle)
@@ -1089,14 +1093,14 @@ fn oren_join_timeout_win(handle, timeout_ms) {
             oren_gc_safepoint()
             var slice = 10
             if remaining < slice { slice = remaining }
-            var rcw2 = sys_win_wait_single_object(h, slice)
+            var rcw2 = sys_win_wait_single_object(th, slice)
             if rcw2 == 0 { break }
             if rcw2 == (0 - 60) {
                 remaining = remaining - slice
                 continue
             }
             // Unexpected failure: close + cleanup to avoid leaking handles/allocations.
-            sys_win_close_handle(h)
+            oren_os_thread_destroy(h)
             if result_ptr != 0 { free(result_ptr) }
             if arg_ptr != 0 { free(arg_ptr) }
             free(handle)
@@ -1106,7 +1110,7 @@ fn oren_join_timeout_win(handle, timeout_ms) {
             // Timeout: detach instead of TerminateThread (unsafe). The running thread will
             // free its own arg/result buffers if we set auto_free=1 in the arg struct.
             if arg_ptr != 0 { ptr_set(arg_ptr + 24, 1) }
-            sys_win_close_handle(h)
+            oren_os_thread_destroy(h)
             free(handle)
             return 0 - 60
         }
@@ -1114,7 +1118,7 @@ fn oren_join_timeout_win(handle, timeout_ms) {
 
     var ret_val = 0
     if result_ptr != 0 { ret_val = ptr_get(result_ptr) }
-    sys_win_close_handle(h)
+    oren_os_thread_destroy(h)
     if result_ptr != 0 { free(result_ptr) }
     if arg_ptr != 0 { free(arg_ptr) }
     free(handle)
@@ -1227,7 +1231,9 @@ fn oren_is_done(handle) {
 
     // Windows Tier‑1 (CreateThread): probe via WaitForSingleObject(0).
     if g_target_os == 3 {
-        var h = ptr_get(handle)
+        var m = ptr_get(handle)
+        if m == 0 { return false }
+        var h = oren_os_thread_raw_handle(m)
         if h == 0 { return false }
         var rc = sys_win_wait_single_object(h, 0)
         if rc == 0 { return true }
