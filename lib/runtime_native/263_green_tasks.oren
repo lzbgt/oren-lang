@@ -878,7 +878,7 @@ fn _green_runq_pop_any_locked(p, s, prefer_global) {
     return _green_runq_steal_batch_locked(p, s, 4)
 }
 
-fn _green_poll_until(deadline_ns) {
+fn _green_poll_until_budget(deadline_ns, max_steps) {
     // deadline_ns == 0 means "run until no runnable work" (but still drive sleepers minimally).
     _green_init_if_needed()
     if _green_enabled() != true { return 0 }
@@ -889,6 +889,7 @@ fn _green_poll_until(deadline_ns) {
     // To keep Stage N2 worker mode robust, re-fetch per-thread scheduler state each iteration.
     // This prevents failures where `ts`/`p` become small integers and later segfault in `ptr_get`.
     var tick = 0
+    var steps_left = max_steps
 
     while 1 {
         // Ensure per-thread scheduler state exists for this OS thread.
@@ -952,6 +953,10 @@ fn _green_poll_until(deadline_ns) {
                 // sleeping: enqueue into sleepq now that the task context is saved/paused.
                 _green_sleepq_push_p(p, g)
             }
+            if max_steps > 0 {
+                steps_left = steps_left - 1
+                if steps_left <= 0 { return 0 }
+            }
             continue
         }
 
@@ -993,6 +998,10 @@ fn _green_poll_until(deadline_ns) {
             sys_nanosleep(sleep_ns)
         }
     }
+}
+
+fn _green_poll_until(deadline_ns) {
+    return _green_poll_until_budget(deadline_ns, 0)
 }
 
 // --- Green entry trampoline (runs on a task stack) ---
@@ -1342,6 +1351,44 @@ fn oren_green_current_p_id() {
     if p == 0 { return 0 - 1 }
     if p < 4096 { return 0 - 1 }
     return _green_p_id(p)
+}
+
+@oren.keep
+fn oren_green_poll_until(deadline_ns) {
+    // Host-thread scheduler drive hook (rolling; Stage N3 bring-up).
+    //
+    // This is intentionally low-level and currently used by fixtures to validate
+    // multi-P behavior without enabling unsafe parallel workers.
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+
+    // Must not be called from inside a green task (it would clobber scheduler invariants).
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts != 0 && ptr_get(ts + green_t_off_current_g()) != 0 { return -1 }
+
+    // Worker-mode: background workers drive the scheduler loop; do not also drive it on the host.
+    if g_green_workers_started != 0 { return -1 }
+
+    _green_poll_until_budget(deadline_ns, 0)
+    return 0
+}
+
+@oren.keep
+fn oren_green_poll_steps(max_steps) {
+    // Host-thread bounded scheduler drive hook (rolling; Stage N3 bring-up).
+    //
+    // Runs at most `max_steps` green task context switches, then returns even if
+    // runnable tasks remain. Used by single-thread multi-P fixtures.
+    if max_steps <= 0 { return 0 }
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts != 0 && ptr_get(ts + green_t_off_current_g()) != 0 { return -1 }
+    if g_green_workers_started != 0 { return -1 }
+
+    _green_poll_until_budget(0, max_steps)
+    return 0
 }
 
 // Public hooks used by spawn/join/sleep/yield.

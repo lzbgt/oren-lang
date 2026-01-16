@@ -815,40 +815,136 @@ fn test_green_workers_join() {
     return 0
 }
 
-fn test_green_p_count_api() {
-    trace("QI: test_green_p_count_api")
+var g_green_multi_p_handles = []
+var g_green_multi_p_expect = []
+
+fn worker_green_sleep_2ms_then_ret_two() {
+    oren_green_sleep_ns(2000000)
+    return 2
+}
+
+fn worker_green_seed_multi_p_local_queue() {
+    // Seed runnable work into the current P's local runq by spawning from inside a green task.
+    //
+    // This is used to validate:
+    // - single-thread multi-P work stealing (P0 steals from P2)
+    // - cross-P sleep/wake (a sleeper parked under P2 can still be woken when driving P0)
+    //
+    // NOTE: this function must run as a green task (so spawns go to local runq).
+    var i = 0
+    while i < 12 {
+        var h = spawn worker_green_ret_one()
+        oren_list_push(g_green_multi_p_handles, h)
+        oren_list_push(g_green_multi_p_expect, 1)
+        i = i + 1
+    }
+    // Include one sleeper to exercise cross-P wake while running a different P.
+    var hs = spawn worker_green_sleep_2ms_then_ret_two()
+    oren_list_push(g_green_multi_p_handles, hs)
+    oren_list_push(g_green_multi_p_expect, 2)
+
+    return 0
+}
+
+fn test_green_multi_p_single_thread_poll_steal() {
+    trace("QI: test_green_multi_p_single_thread_poll_steal")
     // Green tasks are the default `spawn` path on macOS/Linux today.
     // Windows uses CreateThread for `spawn`, so skip this test there.
     if g_target_os == 3 { return 0 }
 
+    // Ensure at least 3 Ps exist.
+    var rc_pc = oren_green_set_p_count(3)
+    assert_eq(rc_pc, 0, 525)
+    if oren_green_p_count() < 3 { fail(526) }
+
+    // Bind to P2 so local spawns land on P2.
+    var rc_b2 = oren_green_bind_p(2)
+    assert_eq(rc_b2, 0, 527)
+    assert_eq(oren_green_current_p_id(), 2, 528)
+
+    // Reset globals for this fixture.
+    g_green_multi_p_handles = []
+    g_green_multi_p_expect = []
+
+    // Spawn seed task (injected via global runq). It will run on P2 and enqueue children into P2 local runq.
+    var h_seed = spawn worker_green_seed_multi_p_local_queue()
+
+    // Run exactly two context switches on P2:
+    // - seed task (from global queue) enqueues children into P2 local runq
+    // - the last-spawned sleeper runs and parks in P2 sleepq
+    var rc_poll = oren_green_poll_steps(2)
+    assert_eq(rc_poll, 0, 530)
+
+    // Children should not be done yet (only the seed task ran for one slice).
+    var i = 0
+    while i < oren_list_len(g_green_multi_p_handles) {
+        var h = oren_list_get(g_green_multi_p_handles, i)
+        if oren_green_is_done(h) == true { fail(531) }
+        i = i + 1
+    }
+
+    // Rebind to P0 and drive the scheduler until idle. With local+global empty on P0,
+    // it must steal from P2's local runq to make progress.
+    var rc_b0 = oren_green_bind_p(0)
+    assert_eq(rc_b0, 0, 532)
+    assert_eq(oren_green_current_p_id(), 0, 533)
+    var rc_poll2 = oren_green_poll_until(0)
+    assert_eq(rc_poll2, 0, 534)
+
+    // Join all seeded child tasks and validate their results.
+    i = 0
+    while i < oren_list_len(g_green_multi_p_handles) {
+        var hh = oren_list_get(g_green_multi_p_handles, i)
+        var expect = oren_list_get(g_green_multi_p_expect, i)
+        var r = oren_join_timeout(hh, 2000)
+        assert_eq(r, expect, 535)
+        i = i + 1
+    }
+
+    // Also join the seed task (it yielded once, then should complete on subsequent polls/steals).
+    var rseed = oren_join_timeout(h_seed, 2000)
+    assert_eq(rseed, 0, 536)
+    return 0
+}
+
+fn test_green_p_count_api() {
+    trace("QI: test_green_p_count_api")
+    if g_target_os == 3 { return 0 }
+
     // The green runtime initializes with exactly one P.
     var c0 = oren_green_p_count()
-    assert_eq(c0, 1, 525)
+    assert_eq(c0, 1, 537)
 
     // P count can be increased before workers start (no shrink in rolling mode).
     var rc = oren_green_set_p_count(4)
-    assert_eq(rc, 0, 526)
+    assert_eq(rc, 0, 538)
     var c1 = oren_green_p_count()
-    assert_eq(c1, 4, 527)
+    assert_eq(c1, 4, 539)
 
     // Current thread P binding can be changed before workers start (Stage N3 plumbing).
     var rc_b0 = oren_green_bind_p(0)
-    assert_eq(rc_b0, 0, 530)
-    assert_eq(oren_green_current_p_id(), 0, 531)
+    assert_eq(rc_b0, 0, 540)
+    assert_eq(oren_green_current_p_id(), 0, 541)
     var rc_b2 = oren_green_bind_p(2)
-    assert_eq(rc_b2, 0, 532)
-    // Binding can also grow P count (grow-only).
-    assert_eq(oren_green_p_count(), 4, 533)
-    assert_eq(oren_green_current_p_id(), 2, 534)
+    assert_eq(rc_b2, 0, 542)
+    assert_eq(oren_green_p_count(), 4, 543)
+    assert_eq(oren_green_current_p_id(), 2, 544)
+    return 0
+}
 
-    // Once workers start, changing P count is rejected (rolling safety).
+fn test_green_topology_rejects_after_workers() {
+    trace("QI: test_green_topology_rejects_after_workers")
+    if g_target_os == 3 { return 0 }
+
+    // Ensure worker mode is active (idempotent).
     var rcw = oren_green_start_workers(1)
-    assert_eq(rcw, 0, 528)
-    var rc2 = oren_green_set_p_count(5)
-    assert_eq(rc2, -1, 529)
-    // Once workers start, re-binding P is also rejected.
-    var rc_b3 = oren_green_bind_p(3)
-    assert_eq(rc_b3, -1, 535)
+    assert_eq(rcw, 0, 545)
+
+    // Once workers start, changing P count / binding / polling is rejected (rolling safety).
+    assert_eq(oren_green_set_p_count(5), -1, 546)
+    assert_eq(oren_green_bind_p(0), -1, 547)
+    assert_eq(oren_green_poll_until(0), -1, 548)
+    assert_eq(oren_green_poll_steps(1), -1, 549)
     return 0
 }
 
@@ -1077,7 +1173,9 @@ fn main() {
     test_green_start_workers_rejects_in_green()
     test_green_bind_p_rejects_in_green()
     test_green_p_count_api()
+    test_green_multi_p_single_thread_poll_steal()
     test_green_workers_join()
+    test_green_topology_rejects_after_workers()
     test_green_global_runq_fairness()
     test_green_ctx_switch_alloc_integrity()
     test_green_local_ptr_survives_yields()

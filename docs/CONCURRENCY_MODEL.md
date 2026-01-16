@@ -39,6 +39,9 @@ Additional substrate (not wired into `spawn` yet):
     - `oren_green_p_count()` reports the current `P` count.
     - `oren_green_bind_p(p_id)` re-binds the current OS thread to a specific `P` (bring-up/testing; rejected in-green and once workers started).
     - `oren_green_current_p_id()` reports the current thread’s bound `P` id (diagnostic/fixtures).
+    - Low-level host-thread scheduler drive hooks (bring-up/tests; rejected once workers started):
+      - `oren_green_poll_until(deadline_ns)` drives the scheduler until idle or deadline.
+      - `oren_green_poll_steps(n)` drives at most `n` context switches (used for deterministic fixtures).
 
 ### 1.2 Wait-on-address (`sys_ulock_wait/sys_ulock_wake`) (portable lock/park substrate)
 

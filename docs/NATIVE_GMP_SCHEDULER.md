@@ -175,6 +175,9 @@ Status (rolling groundwork):
       - `oren_green_p_count()` reports the current `P` count.
       - `oren_green_bind_p(p_id)` binds the current OS thread to a specific `P` (bring-up/testing; rejected in-green and once workers started).
       - `oren_green_current_p_id()` reports the current OS thread’s bound `P` id.
+      - low-level scheduler drive hooks (host-thread only; bring-up/tests):
+        - `oren_green_poll_until(deadline_ns)` drives until idle or deadline (monotonic ns).
+        - `oren_green_poll_steps(n)` drives at most `n` context switches (used to seed multi-P queues deterministically).
     - The scheduler wakes sleepers **across all Ps**, not just the current thread’s bound `P`.
       - This is future-proofing for `M < P` and for global timeout-driven services (netpoller/timers) without requiring every `P` to be actively driven.
   - Worker sleeping behavior (rolling, but important for responsiveness):
