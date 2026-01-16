@@ -122,6 +122,20 @@ fn worker_green_alloc_yield_integrity(seed) {
     return 1
 }
 
+fn _off_green_hog_stop() { return 0 } // u64
+
+fn worker_green_hog_until_stop(meta) {
+    if meta == 0 { return -1 }
+    // Keep this task runnable essentially forever (until stop flips).
+    // This creates perpetual local-runq pressure so we can verify global-runq fairness.
+    while ptr_get(meta + _off_green_hog_stop()) == 0 {
+        oren_green_yield()
+    }
+    return 0
+}
+
+fn worker_green_ret_one() { return 1 }
+
 fn test_entropy() {
     trace("QI: test_entropy")
     // Smoke: OS entropy surface must exist and be bounded (no hangs).
@@ -681,6 +695,62 @@ fn test_green_workers_join() {
     return 0
 }
 
+fn test_green_global_runq_fairness() {
+    trace("QI: test_green_global_runq_fairness")
+    // Green tasks are the default `spawn` path on macOS/Linux today.
+    // Windows uses CreateThread for `spawn`, so skip this test there.
+    if g_target_os == 3 { return 0 }
+
+    // Ensure background worker mode is active.
+    var rc = oren_green_start_workers(1)
+    assert_eq(rc, 0, 484)
+
+    // Meta page used as a stop flag shared between the main thread and green tasks.
+    // (This test intentionally avoids GC-visible allocations inside the hog tasks.)
+    var meta = sys_mmap_private_anon(4096)
+    if meta == 0 || meta == -1 || meta < 4096 { fail(485) }
+    ptr_set(meta + _off_green_hog_stop(), 0)
+
+    // Spawn perpetual hog tasks. They will quickly migrate to the worker's local runq (P) and keep it non-empty.
+    var hogs = []
+    var i = 0
+    while i < 8 {
+        var h = spawn worker_green_hog_until_stop(meta)
+        oren_list_push(hogs, h)
+        i = i + 1
+    }
+
+    // Spawn short tasks from the main thread (outside green context). These are injected via the global runq.
+    // Without fairness, these can starve indefinitely if the local runq is never empty.
+    var hs = []
+    i = 0
+    while i < 40 {
+        var h2 = spawn worker_green_ret_one()
+        oren_list_push(hs, h2)
+        i = i + 1
+    }
+
+    i = 0
+    while i < oren_list_len(hs) {
+        var hh = oren_list_get(hs, i)
+        var r = oren_join_timeout(hh, 2000)
+        assert_eq(r, 1, 486)
+        i = i + 1
+    }
+
+    // Stop hog tasks and join them so they don't leak into later tests.
+    ptr_set(meta + _off_green_hog_stop(), 1)
+    i = 0
+    while i < oren_list_len(hogs) {
+        var hh2 = oren_list_get(hogs, i)
+        var r2 = oren_join_timeout(hh2, 2000)
+        assert_eq(r2, 0, 487)
+        i = i + 1
+    }
+    sys_munmap(meta, 4096)
+    return 0
+}
+
 fn test_green_ctx_switch_alloc_integrity() {
     trace("QI: test_green_ctx_switch_alloc_integrity")
     if g_target_os == 3 { return 0 }
@@ -723,6 +793,7 @@ fn main() {
     test_proc_system_windows()
     test_select()
     test_green_workers_join()
+    test_green_global_runq_fairness()
     test_green_ctx_switch_alloc_integrity()
     print("native quick integration OK")
     exit(0)

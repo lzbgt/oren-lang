@@ -401,6 +401,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		       - scheduler now has a **global run queue** for cross-P injection / fairness (spawns from outside green context)
 		       - worker entry accepts an optional `P*` argument and claims `P.owner_tid` (rolling: hard fail if a P is accidentally shared across Ms)
 		     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
+		     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_global_runq_fairness`) (prevents global-runq starvation regressions)
 		     - Rolling limitation: worker parallelism is clamped to 1 by default until the native allocator/GC are concurrency-correct; opt-in for experimentation only via `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.
 		   - Parking/unparking primitive for idle `M` (required to avoid spin):
 		     - macOS: ulock-based park/wake for `P` (pairs with `sys_ulock_wait/sys_ulock_wake`)
