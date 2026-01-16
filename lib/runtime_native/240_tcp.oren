@@ -455,24 +455,32 @@ fn oren_fd_wait_readable(fd, timeout_ms) {
     if timeout_ms < 0 { timeout_ms = 0 }
 
     // Green-aware behavior (Stage N1/N2):
-    // If called from a green task, a fully-blocking wait would stall the scheduler OS thread.
+    // If called from a green task, park the G and let the scheduler block in the kernel netpoller.
     if timeout_ms > 0 && oren_green_in_green() == true {
-        var deadline_ns = 0
-        var t0 = oren_time_mono_ns()
-        if t0 != 0 { deadline_ns = t0 + timeout_ms * 1000000 }
-        var spins = 0
-        while 1 {
-            var rc = _oren_fd_wait_readable_impl(fd, 0)
-            if rc != 0 { return rc }
-            if deadline_ns != 0 {
-                var now = oren_time_mono_ns()
-                if now != 0 && now >= deadline_ns { return 0 }
-            } else {
-                spins = spins + 1
-                if spins >= 64 { return 0 }
-            }
-            oren_green_sleep_ns(1000000) // 1ms poll backoff (rolling; real netpoller later)
+        var g = oren_green_current_g_or0()
+        if g == 0 { return _oren_fd_wait_readable_impl(fd, timeout_ms) }
+
+        // Arm netpoll readiness on this fd with token=g.
+        ptr_set(g + green_g_off_io_fd(), fd)
+        ptr_set(g + green_g_off_io_kind(), 0)
+        ptr_set(g + green_g_off_io_ready(), 0)
+        ptr_set(g + green_g_off_io_active(), 1)
+        var arc = native_netpoll_arm_fd(fd, 0, g)
+        if arc < 0 {
+            ptr_set(g + green_g_off_io_active(), 0)
+            return arc
         }
+
+        // Sleep until timeout; the netpoller will mark io_ready=1 and force wake_ns=now on readiness.
+        oren_green_sleep_ns(timeout_ms * 1000000)
+
+        // Best-effort cleanup. (For EPOLLONESHOT we DEL; for kevent oneshot we EV_DELETE.)
+        native_netpoll_disarm_fd(fd, 0)
+        var ok = ptr_get(g + green_g_off_io_ready())
+        ptr_set(g + green_g_off_io_active(), 0)
+        ptr_set(g + green_g_off_io_ready(), 0)
+        if ok != 0 { return 1 }
+        return 0
     }
 
     return _oren_fd_wait_readable_impl(fd, timeout_ms)
@@ -485,22 +493,27 @@ fn oren_fd_wait_writable(fd, timeout_ms) {
     if timeout_ms < 0 { timeout_ms = 0 }
 
     if timeout_ms > 0 && oren_green_in_green() == true {
-        var deadline_ns = 0
-        var t0 = oren_time_mono_ns()
-        if t0 != 0 { deadline_ns = t0 + timeout_ms * 1000000 }
-        var spins = 0
-        while 1 {
-            var rc = _oren_fd_wait_writable_impl(fd, 0)
-            if rc != 0 { return rc }
-            if deadline_ns != 0 {
-                var now = oren_time_mono_ns()
-                if now != 0 && now >= deadline_ns { return 0 }
-            } else {
-                spins = spins + 1
-                if spins >= 64 { return 0 }
-            }
-            oren_green_sleep_ns(1000000)
+        var g = oren_green_current_g_or0()
+        if g == 0 { return _oren_fd_wait_writable_impl(fd, timeout_ms) }
+
+        ptr_set(g + green_g_off_io_fd(), fd)
+        ptr_set(g + green_g_off_io_kind(), 1)
+        ptr_set(g + green_g_off_io_ready(), 0)
+        ptr_set(g + green_g_off_io_active(), 1)
+        var arc = native_netpoll_arm_fd(fd, 1, g)
+        if arc < 0 {
+            ptr_set(g + green_g_off_io_active(), 0)
+            return arc
         }
+
+        oren_green_sleep_ns(timeout_ms * 1000000)
+
+        native_netpoll_disarm_fd(fd, 1)
+        var ok = ptr_get(g + green_g_off_io_ready())
+        ptr_set(g + green_g_off_io_active(), 0)
+        ptr_set(g + green_g_off_io_ready(), 0)
+        if ok != 0 { return 1 }
+        return 0
     }
 
     return _oren_fd_wait_writable_impl(fd, timeout_ms)

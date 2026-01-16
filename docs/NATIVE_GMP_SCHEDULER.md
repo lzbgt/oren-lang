@@ -135,10 +135,12 @@ Status (fact, code):
   `lib/runtime_native/000_prelude_sys.oren`).
 - 2026-01-16: native `oren_select` / `oren_select_recv` are green-aware and do not block the scheduler OS thread:
   - Runtime: `lib/runtime_native/245_select.oren` (poll-mode + `oren_green_sleep_ns` backoff when in-green)
-  - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*` use the same poll+sleep strategy when in-green; correctness-first stopgap)
+  - Runtime: `lib/runtime_native/246_netpoll.oren` (POSIX netpoller: kqueue/epoll + wake pipe)
+  - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*` park the G and rely on the scheduler netpoller instead of poll+sleep)
+  - Escape hatch (rolling): `OREN_NO_NETPOLL=1` disables netpoll bring-up for debugging.
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
   - Guard: `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
-  - Limitation: this is not a real netpoller yet; it is a correctness-first stopgap until kqueue/epoll events wake parked `P`s directly.
+  - Limitation: channel `oren_select` is still using a poll+sleep stopgap; it needs to park its G on the netpoller too (multi-fd wait).
 
 ### Stage N2: N:M GMP (multiple OS threads, multiple Ps)
 
@@ -209,22 +211,19 @@ Status (rolling groundwork):
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_worker_wake_while_sleepers`) (prevents “sleepers stall runnable work” regressions)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_many_tasks_bounded`) (many short tasks must complete; no hangs)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_time_mono_ns_monotonic`) (`oren_time_mono_ns` must advance)
-  - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_ctx_switch_alloc_integrity`) (worker-mode ctx-switch must not corrupt scheduler locals / allocator state)
-  - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_local_ptr_survives_yields`) (ctx-switch must preserve long-lived locals across yields)
-  - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_local_ptr_survives_yields`) (same contract under worker-mode scheduling)
-  - Rolling limitation (important): `_green_poll_until` currently re-fetches per-thread scheduler state (`ts`/`P`) each poll iteration for robustness.
-    - Rationale: until native backend/local preservation invariants are fully tightened across ctx switches and syscalls, caching `ts`/`P` as long-lived locals
-      can lead to crashes (non-canonical pointers later dereferenced via `ptr_get` / `ptr_get_byte`).
-    - Repro (rolling, 2026-01-16): attempts to add an env-gated cached mode (e.g. probing an `OREN_GREEN_POLL_CACHE` env var via
-      `native_envp_get_value_ptr(...)` and caching `ts`/`P` across iterations) caused deterministic SIGSEGV (rc=139) in `make test-native-quick-stage2` / `make test`,
-      so the runtime keeps the safe re-fetch loop and does not ship a cache knob yet.
-    - Recent mitigations that tightened stack/local invariants but did **not** make caching safe yet (2026-01-16):
-      - arm64 stmt codegen restores SP after condition evaluation in `if` / `while` / `for` headers
-      - arm64 stmt codegen uses chunked SP restores (`emit_add_sp_any`) for large deltas
-      - arm64 `var` initializer stores via FP-relative addressing (reduces transient SP sensitivity)
-    - Runtime: `lib/runtime_native/263_green_tasks.oren` (`_green_poll_until`)
-  - Rolling limitation (important): worker parallelism is currently clamped to 1 by default, because the native allocator/GC
-    are not concurrency-correct yet. Opt-in for experimentation only: `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.
+- Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_ctx_switch_alloc_integrity`) (worker-mode ctx-switch must not corrupt scheduler locals / allocator state)
+- Guard: `tests/native/test_quick_integration_native.oren` (`test_green_local_ptr_survives_yields`) (ctx-switch must preserve long-lived locals across yields)
+- Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_local_ptr_survives_yields`) (same contract under worker-mode scheduling)
+- Rolling limitation (important): `_green_poll_until` defaults to the conservative mode (re-fetch per-thread scheduler state `ts`/`P` each poll iteration).
+  - Cached mode exists but is opt-in only (env `OREN_GREEN_POLL_CACHE=1` / `oren_green_set_poll_cache_mode(1)`).
+  - Rationale: until native backend/local preservation invariants are fully tightened across ctx switches and syscalls, caching `ts`/`P` as long-lived locals
+    can surface backend bugs as corrupted pointers later dereferenced via `ptr_get` / `ptr_get_byte`.
+  - Fixed flake (2026-01-16): `OREN_GREEN_POLL_CACHE=1` could SIGSEGV (rc=139) due to a join/cleanup race where a joining thread could observe DONE
+    (via ulock/futex mismatch wakeups) and `munmap` the green stack while the task was still executing on it.
+    - Fix: introduce an internal EXITING state so tasks switch back to the scheduler before DONE is published and joiners are woken.
+    - Runtime: `lib/runtime_native/263_green_tasks.oren` (`__oren_green_entry`, `_green_poll_until_budget`)
+- Rolling limitation (important): worker parallelism is currently clamped to 1 by default, because the native allocator/GC
+  are not concurrency-correct yet. Opt-in for experimentation only: `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.
 
 Correctness gotchas (fact; Tier‑1 regression-driven):
 

@@ -1,0 +1,323 @@
+// --- Netpoller (native runtime; rolling) ---
+//
+// Goal (Stage N2/N3 groundwork):
+// - Provide a syscall-first readiness multiplexer (kqueue on macOS, epoll on Linux)
+// - Allow the green scheduler to block in the kernel (no busy polling) and wake when:
+//   - an fd becomes ready, or
+//   - the scheduler is nudged (wake pipe), or
+//   - a timeout expires (timers/sleepers)
+//
+// Design (v0):
+// - Single process-global poller for POSIX targets (macOS/Linux).
+// - Tokens are opaque u64 payloads stored in kevent.udata / epoll_event.data, returned to the scheduler.
+// - A self-pipe is registered so other runtime paths can wake a blocked poller without relying on timeouts.
+//
+// Rolling limitation:
+// - This does not provide a general cancellation map; callers must make token use safe (e.g. token points to a long-lived object).
+// - Windows is not supported here yet; Windows readiness should use IOCP later.
+
+var g_netpoll_inited = 0
+var g_netpoll_fd = 0
+var g_netpoll_wake_rfd = 0
+var g_netpoll_wake_wfd = 0
+
+fn _netpoll_env_truthy(name) {
+    var p = native_envp_get_value_ptr(name)
+    if p == 0 { return 0 }
+    var b = ptr_get_byte(p)
+    if b == 0 { return 0 }
+    if b == 48 { return 0 } // '0'
+    return 1
+}
+
+fn native_netpoll_supported() {
+    // POSIX only for now (macOS/Linux).
+    if g_target_os == 3 { return false }
+    // Allow a rolling escape hatch for debugging.
+    if _netpoll_env_truthy("OREN_NO_NETPOLL") == 1 { return false }
+    return true
+}
+
+fn native_netpoll_init_once() {
+    if native_netpoll_supported() != true { return 0 - 78 } // ENOSYS
+    if g_netpoll_inited != 0 { return 0 }
+
+    // Thread-safety:
+    // - Multiple green worker threads can concurrently reach here (e.g. first fd wait on each M).
+    // - Use the runtime global lock to serialize initialization and publish the globals atomically.
+    acquire_lock()
+    if g_netpoll_inited != 0 { release_lock(); return 0 }
+
+    // Create a wake pipe.
+    var buf = malloc(16)
+    if buf == 0 { release_lock(); return 0 - 12 } // ENOMEM
+    var prc = sys_pipe(buf)
+    if prc != 0 { free(buf); release_lock(); return prc }
+    var rfd = ptr_get(buf + 0)
+    var wfd = ptr_get(buf + 8)
+    free(buf)
+    if rfd < 0 || wfd < 0 { release_lock(); return 0 - 5 } // EIO-ish
+
+    // Best-effort: make the read end non-blocking so drain never blocks.
+    var fl = sys_fcntl_getfl(rfd)
+    if fl >= 0 {
+        sys_fcntl_setfl(rfd, fl | OREN_O_NONBLOCK)
+    }
+
+    // Create poll backend.
+    var pfd = 0
+    if g_target_os == 1 {
+        pfd = sys_kqueue()
+    } else {
+        pfd = sys_epoll_create1(0)
+    }
+    if pfd < 0 {
+        sys_close(rfd)
+        sys_close(wfd)
+        release_lock()
+        return pfd
+    }
+
+    // Register the wake pipe rfd:
+    // - token=0 is reserved for wake events
+    if g_target_os == 1 {
+        // Darwin kevent: add persistent EVFILT_READ watch for rfd.
+        var change = malloc(32)
+        if change == 0 { sys_close(pfd); sys_close(rfd); sys_close(wfd); release_lock(); return 0 - 12 }
+        var zi = 0
+        while zi < 32 { ptr_set_byte(change + zi, 0); zi = zi + 1 }
+        // ident @0, filter @8 (i16), flags @10 (u16), udata @24
+        ptr_set(change + 0, rfd)
+        // EVFILT_READ == -1
+        ptr_set_byte(change + 8, 255)
+        ptr_set_byte(change + 9, 255)
+        var flags = 1 | 4 // EV_ADD | EV_ENABLE
+        ptr_set_byte(change + 10, flags & 255)
+        ptr_set_byte(change + 11, (flags >> 8) & 255)
+        ptr_set(change + 24, 0) // token
+        var rc = sys_kevent(pfd, change, 1, 0, 0, 0)
+        free(change)
+        if rc < 0 {
+            sys_close(pfd); sys_close(rfd); sys_close(wfd)
+            release_lock()
+            return rc
+        }
+    } else {
+        // Linux epoll: register EPOLLIN for rfd (persistent).
+        var evsz = OREN_EPOLL_EVENT_BYTES
+        if evsz == 0 { evsz = 16 }
+        var data_off = OREN_EPOLL_EVENT_OFF_DATA
+        if data_off == 0 { data_off = 8 }
+        var ev = malloc(evsz)
+        if ev == 0 { sys_close(pfd); sys_close(rfd); sys_close(wfd); release_lock(); return 0 - 12 }
+        var zi2 = 0
+        while zi2 < evsz { ptr_set_byte(ev + zi2, 0); zi2 = zi2 + 1 }
+        oren_ptr_set_u32_le(ev + 0, OREN_EPOLLIN)
+        oren_ptr_set_u64_le(ev + data_off, 0) // token
+        var rc2 = sys_epoll_ctl(pfd, OREN_EPOLL_CTL_ADD, rfd, ev)
+        free(ev)
+        if rc2 < 0 {
+            sys_close(pfd); sys_close(rfd); sys_close(wfd)
+            release_lock()
+            return rc2
+        }
+    }
+
+    g_netpoll_fd = pfd
+    g_netpoll_wake_rfd = rfd
+    g_netpoll_wake_wfd = wfd
+    g_netpoll_inited = 1
+    release_lock()
+    return 0
+}
+
+fn native_netpoll_wake() {
+    // Wake the poller by writing one byte into the wake pipe.
+    //
+    // IMPORTANT (threading; rolling):
+    // Do not call `native_netpoll_init_once()` here.
+    // - The wake path can be triggered from multiple OS threads (e.g. host thread injecting work).
+    // - Keep this path allocation-free and syscall-minimal: it should never attempt to create fds
+    //   or configure the poll backend.
+    // - The scheduler/IO wait paths are responsible for initializing the poller once.
+    if g_netpoll_inited == 0 { return 0 }
+    if g_netpoll_wake_wfd == 0 { return 0 }
+    sys_write(g_netpoll_wake_wfd, "x", 1)
+    return 0
+}
+
+fn _native_netpoll_drain_wake_pipe() {
+    if g_netpoll_wake_rfd == 0 { return 0 }
+    // Read until EAGAIN/EWOULDBLOCK (11) or until no more data.
+    var buf = malloc(64)
+    if buf == 0 { return 0 }
+    while 1 {
+        var n = sys_read(g_netpoll_wake_rfd, buf, 64)
+        // Linux: -11; macOS: -35
+        if n == 0 - 11 || n == 0 - 35 { break }
+        if n <= 0 { break }
+    }
+    free(buf)
+    return 0
+}
+
+fn native_netpoll_arm_fd(fd, want_write, token) {
+    // Register interest in fd readiness and associate it with `token`.
+    // Caller must ensure `token` stays valid (or is safely ignorable) until disarmed.
+    var rc0 = native_netpoll_init_once()
+    if rc0 < 0 { return rc0 }
+    if g_netpoll_fd == 0 { return 0 - 78 } // ENOSYS
+    if fd < 0 { return 0 - 22 } // EINVAL
+    if token == 0 { return 0 - 22 } // reserved for wake pipe
+
+    if g_target_os == 1 {
+        // Darwin kevent oneshot.
+        var change = malloc(32)
+        if change == 0 { return 0 - 12 }
+        var zi = 0
+        while zi < 32 { ptr_set_byte(change + zi, 0); zi = zi + 1 }
+        ptr_set(change + 0, fd)
+        if want_write != 0 {
+            // EVFILT_WRITE == -2
+            ptr_set_byte(change + 8, 254)
+            ptr_set_byte(change + 9, 255)
+        } else {
+            // EVFILT_READ == -1
+            ptr_set_byte(change + 8, 255)
+            ptr_set_byte(change + 9, 255)
+        }
+        var flags = 1 | 4 | 16 // EV_ADD | EV_ENABLE | EV_ONESHOT
+        ptr_set_byte(change + 10, flags & 255)
+        ptr_set_byte(change + 11, (flags >> 8) & 255)
+        ptr_set(change + 24, token)
+        var rc = sys_kevent(g_netpoll_fd, change, 1, 0, 0, 0)
+        free(change)
+        return rc
+    }
+
+    // Linux epoll oneshot.
+    var evsz = OREN_EPOLL_EVENT_BYTES
+    if evsz == 0 { evsz = 16 }
+    var data_off = OREN_EPOLL_EVENT_OFF_DATA
+    if data_off == 0 { data_off = 8 }
+    var ev = malloc(evsz)
+    if ev == 0 { return 0 - 12 }
+    var zi2 = 0
+    while zi2 < evsz { ptr_set_byte(ev + zi2, 0); zi2 = zi2 + 1 }
+    var mask = 0
+    if want_write != 0 { mask = OREN_EPOLLOUT } else { mask = OREN_EPOLLIN }
+    // EPOLLONESHOT: 0x40000000
+    mask = mask | 1073741824
+    oren_ptr_set_u32_le(ev + 0, mask)
+    oren_ptr_set_u64_le(ev + data_off, token)
+
+    // ADD, or MOD if already registered.
+    var rc1 = sys_epoll_ctl(g_netpoll_fd, OREN_EPOLL_CTL_ADD, fd, ev)
+    if rc1 < 0 {
+        if rc1 == 0 - 17 {
+            rc1 = sys_epoll_ctl(g_netpoll_fd, OREN_EPOLL_CTL_MOD, fd, ev)
+        }
+    }
+    free(ev)
+    return rc1
+}
+
+fn native_netpoll_disarm_fd(fd, want_write) {
+    // Best-effort cancellation for timeout paths.
+    if g_netpoll_inited == 0 { return 0 }
+    if g_netpoll_fd == 0 { return 0 }
+    if fd < 0 { return 0 }
+    if g_target_os == 1 {
+        var change = malloc(32)
+        if change == 0 { return 0 }
+        var zi = 0
+        while zi < 32 { ptr_set_byte(change + zi, 0); zi = zi + 1 }
+        ptr_set(change + 0, fd)
+        if want_write != 0 {
+            ptr_set_byte(change + 8, 254); ptr_set_byte(change + 9, 255)
+        } else {
+            ptr_set_byte(change + 8, 255); ptr_set_byte(change + 9, 255)
+        }
+        var flags = 2 // EV_DELETE
+        ptr_set_byte(change + 10, flags & 255)
+        ptr_set_byte(change + 11, (flags >> 8) & 255)
+        var rc = sys_kevent(g_netpoll_fd, change, 1, 0, 0, 0)
+        free(change)
+        // Ignore ENOENT / errors in rolling mode.
+        return 0
+    }
+    // Linux epoll DEL ignores ev ptr.
+    sys_epoll_ctl(g_netpoll_fd, OREN_EPOLL_CTL_DEL, fd, 0)
+    return 0
+}
+
+fn native_netpoll_poll_one(timeout_ms) {
+    // Wait for up to timeout_ms and return one token (or 0 if none / only wake).
+    // timeout_ms<0 is treated as 0 (no wait).
+    if g_netpoll_inited == 0 { return 0 }
+    if g_netpoll_fd == 0 { return 0 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+
+    if g_target_os == 1 {
+        var evs = malloc(32 * 8)
+        if evs == 0 { return 0 }
+        var zi = 0
+        while zi < 32 * 8 { ptr_set_byte(evs + zi, 0); zi = zi + 1 }
+        var ts = 0
+        if timeout_ms != 0 {
+            ts = malloc(16)
+            if ts != 0 {
+                ptr_set(ts + 0, timeout_ms / 1000)
+                ptr_set(ts + 8, (timeout_ms - (timeout_ms / 1000) * 1000) * 1000000)
+            }
+        } else {
+            ts = malloc(16)
+            if ts != 0 { ptr_set(ts + 0, 0); ptr_set(ts + 8, 0) }
+        }
+        var n = sys_kevent(g_netpoll_fd, 0, 0, evs, 8, ts)
+        if ts != 0 { free(ts) }
+        if n <= 0 { free(evs); return 0 }
+        var i = 0
+        var tok = 0
+        while i < n {
+            var base = evs + i * 32
+            var udata = ptr_get(base + 24)
+            if udata == 0 {
+                _native_netpoll_drain_wake_pipe()
+            } else {
+                tok = udata
+                break
+            }
+            i = i + 1
+        }
+        free(evs)
+        return tok
+    }
+
+    // Linux epoll.
+    var evsz = OREN_EPOLL_EVENT_BYTES
+    if evsz == 0 { evsz = 16 }
+    var data_off = OREN_EPOLL_EVENT_OFF_DATA
+    if data_off == 0 { data_off = 8 }
+    var out = malloc(evsz * 8)
+    if out == 0 { return 0 }
+    var zi2 = 0
+    while zi2 < evsz * 8 { ptr_set_byte(out + zi2, 0); zi2 = zi2 + 1 }
+    var n2 = sys_epoll_pwait(g_netpoll_fd, out, 8, timeout_ms, 0, 0)
+    if n2 <= 0 { free(out); return 0 }
+    var j = 0
+    var tok2 = 0
+    while j < n2 {
+        var base2 = out + j * evsz
+        var d = oren_ptr_get_u64_le(base2 + data_off)
+        if d == 0 {
+            _native_netpoll_drain_wake_pipe()
+        } else {
+            tok2 = d
+            break
+        }
+        j = j + 1
+    }
+    free(out)
+    return tok2
+}

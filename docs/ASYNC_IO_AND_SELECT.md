@@ -86,10 +86,13 @@ Notes:
 - They are **not a language keyword** (they are runtime helpers).
 - Scheduler integration status (native, rolling):
   - The green-task scheduler exists (`lib/runtime_native/263_green_tasks.oren`).
-  - 2026-01-16: native waits are green-aware (correctness-first stopgap until a real netpoller exists):
+  - 2026-01-16: native waits are green-aware (rolling, correctness-first):
     - `oren_select` / `oren_select_recv` (pipe-based channels): when called from a green task, uses poll-mode (timeout=0) + `oren_green_sleep_ns` backoff.
       - Guard: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
-    - `oren_fd_wait_*` (fd readiness): when called from a green task, uses poll-mode + `oren_green_sleep_ns` backoff instead of blocking the scheduler OS thread.
+    - `oren_fd_wait_*` (fd readiness): when called from a green task, parks the G and lets the scheduler block in the POSIX netpoller (no busy polling).
+      - Runtime: `lib/runtime_native/246_netpoll.oren` (kqueue/epoll + wake pipe)
+      - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains netpoll tokens)
+      - Escape hatch (rolling): `OREN_NO_NETPOLL=1` disables netpoll bring-up for debugging.
       - Guard: `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
 
 ### 1.4 File readiness is not yet a stable cross-OS language primitive

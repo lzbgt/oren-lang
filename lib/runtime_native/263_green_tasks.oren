@@ -38,12 +38,28 @@ fn green_g_off_state() { return 72 }
 fn green_g_off_wake_ns() { return 80 }
 fn green_g_off_detached() { return 88 }
 fn green_g_off_next() { return 96 }
-fn green_g_bytes() { return 104 }
+// IO wait fields (netpoller v0):
+// - io_fd/io_kind identify the readiness watch
+// - io_ready is set to 1 by the scheduler when the netpoller reports readiness
+// - io_active is 1 while the G is parked waiting for readiness (so stale events can be ignored safely)
+fn green_g_off_io_fd() { return 104 }
+fn green_g_off_io_kind() { return 112 }   // 0=read, 1=write
+fn green_g_off_io_ready() { return 120 }  // 0|1
+fn green_g_off_io_active() { return 128 } // 0|1
+fn green_g_bytes() { return 136 }
 
 // Green states.
 fn green_g_state_runnable() { return 1 }
 fn green_g_state_sleeping() { return 2 }
 fn green_g_state_done() { return 3 }
+// Internal transitional state used to make join + stack cleanup race-free in worker mode:
+// - The task marks itself EXITING on its own stack and immediately switches back to the scheduler.
+// - The scheduler (on its own stack) finalizes DONE and wakes joiners.
+//
+// This prevents a host thread blocked in `oren_green_join_timeout` from observing DONE and unmapping
+// the green stack while the task is still executing on it (which can crash in leaf calls like
+// `oren_wake_all_addr` due to stack being unmapped mid-call).
+fn green_g_state_exiting() { return 4 }
 
 // Magic for identifying a green task pointer.
 // "ORENGRN1" (ASCII) packed into u64.
@@ -426,6 +442,38 @@ fn _green_workers_wake_if_started() {
     if g_green_worker_wake_word == 0 { return 0 }
     // Best-effort: post a wake token and wake all parked workers.
     oren_m_park_word_wake(g_green_worker_wake_word)
+    // Also wake the POSIX netpoller (if enabled) so an idle worker blocked in kevent/epoll wakes immediately.
+    if g_target_os != 3 {
+        native_netpoll_wake()
+    }
+    return 0
+}
+
+fn _green_netpoll_drain_ready(now_ns, max_events) {
+    // Drain up to max_events ready tokens from the netpoller (timeout=0) and mark the corresponding Gs
+    // as ready to wake on the next sleeper scan.
+    //
+    // Token contract (rolling):
+    // - token is a G pointer; it must remain valid even if the wait times out (G continues running).
+    if g_target_os == 3 { return 0 }
+    if g_green_inited == 0 { return 0 }
+    if now_ns == 0 { return 0 }
+    // Initialize lazily; ignore ENOSYS.
+    if native_netpoll_init_once() < 0 { return 0 }
+    var n = 0
+    while n < max_events {
+        var tok = native_netpoll_poll_one(0)
+        if tok == 0 { break }
+        if _green_is_g(tok) == true {
+            // Ignore stale tokens (wait already completed/timed out).
+            if ptr_get(tok + green_g_off_io_active()) != 0 {
+                ptr_set(tok + green_g_off_io_ready(), 1)
+                // Force a wake on the next `_green_wake_ready_all(now_ns)` pass.
+                ptr_set(tok + green_g_off_wake_ns(), now_ns)
+            }
+        }
+        n = n + 1
+    }
     return 0
 }
 
@@ -999,6 +1047,10 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
 
         var now = _green_time_now_ns()
         if now != 0 {
+            // Drain ready IO events (netpoller) and mark their Gs as ready-to-wake at `now`.
+            // Keep this bounded so a storm of IO events can't starve runnable work.
+            _green_netpoll_drain_ready(now, 32)
+
             // Wake sleepers across all Ps (future-proof for M < P and for global timeouts).
             _green_wake_ready_all(now)
             if deadline_ns != 0 && now >= deadline_ns { return 0 }
@@ -1017,6 +1069,14 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             var st = ptr_get(g + green_g_off_state())
             if st == green_g_state_runnable() {
                 _green_runq_push_p(p, g)
+            } else if st == green_g_state_exiting() {
+                // Finalize DONE on the scheduler stack, then wake joiners waiting on the state word.
+                ptr_set(g + green_g_off_state(), green_g_state_done())
+                oren_wake_all_addr(g + green_g_off_state())
+                // Detached tasks are cleaned immediately by scheduler.
+                if ptr_get(g + green_g_off_detached()) != 0 {
+                    _green_zombie_push(g)
+                }
             } else if st == green_g_state_done() {
                 // Detached tasks are cleaned immediately by scheduler.
                 if ptr_get(g + green_g_off_detached()) != 0 {
@@ -1060,10 +1120,32 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
         }
         // Clamp to avoid huge sleeps in rolling mode; keep responsiveness.
         if sleep_ns > 10000000 { sleep_ns = 10000000 } // 10ms
+        if g_target_os != 3 && g_netpoll_inited != 0 {
+            // Prefer blocking in the kernel readiness wait:
+            // - wakes on IO readiness (netpoll tokens)
+            // - wakes on explicit runtime nudge (wake pipe)
+            // - wakes on timeout to re-check sleepers and join deadlines
+            var sleep_ms = sleep_ns / 1000000
+            if sleep_ms <= 0 { sleep_ms = 1 }
+            var tok = native_netpoll_poll_one(sleep_ms)
+            if tok != 0 {
+                // Consume the token: mark the corresponding G as ready-to-wake.
+                var now3 = _green_time_now_ns()
+                if now3 == 0 { now3 = now2 }
+                if now3 != 0 {
+                    if _green_is_g(tok) == true {
+                        if ptr_get(tok + green_g_off_io_active()) != 0 {
+                            ptr_set(tok + green_g_off_io_ready(), 1)
+                            ptr_set(tok + green_g_off_wake_ns(), now3)
+                        }
+                    }
+                }
+            }
+            continue
+        }
+
         if g_green_workers_started != 0 && g_green_worker_wake_word != 0 {
-            // Park on the shared wake word with a timeout:
-            // - wake immediately when new runnable work is enqueued
-            // - wake on timeout to re-check sleepers
+            // Fallback: park on the shared wake word with a timeout.
             var sleep_us = sleep_ns / 1000
             if sleep_us <= 0 { sleep_us = 1 }
             oren_m_park_word_wait(g_green_worker_wake_word, sleep_us)
@@ -1093,9 +1175,16 @@ fn __oren_green_entry() {
     var args_list = ptr_get(g + green_g_off_args_list())
     var ret = oren_call_obj_list(fn_obj, args_list)
     ptr_set(g + green_g_off_result(), ret)
-    ptr_set(g + green_g_off_state(), green_g_state_done())
-    // Wake joiners waiting on state transitions (Stage N2 join waits on addr).
-    oren_wake_all_addr(g + green_g_off_state())
+    // IMPORTANT (worker-mode join safety):
+    // Do NOT publish DONE on the task's stack.
+    //
+    // A host thread blocked in `oren_green_join_timeout` can wake spuriously (ulock/futex mismatch)
+    // and observe the state transition without being explicitly woken, then eagerly call
+    // `_green_cleanup_g(g)` which `munmap`s this green stack while we're still executing on it.
+    //
+    // Publish EXITING and immediately switch back to the scheduler; the scheduler finalizes DONE
+    // and wakes joiners from the scheduler stack (race-free).
+    ptr_set(g + green_g_off_state(), green_g_state_exiting())
     // Save stack pointer into the stack node so GC can scan this stack while paused.
     var node = ptr_get(g + green_g_off_stack_node())
     if node != 0 { ptr_set(node + 8, get_sp()) }
@@ -1523,6 +1612,10 @@ fn oren_green_spawn(fn_obj, args_list) {
     ptr_set(g + green_g_off_wake_ns(), 0)
     ptr_set(g + green_g_off_detached(), 0)
     ptr_set(g + green_g_off_next(), 0)
+    ptr_set(g + green_g_off_io_fd(), 0)
+    ptr_set(g + green_g_off_io_kind(), 0)
+    ptr_set(g + green_g_off_io_ready(), 0)
+    ptr_set(g + green_g_off_io_active(), 0)
 
     // Initialize context to start at __oren_green_entry on the new stack.
     var entry_pc = oren_code_addr(__oren_green_entry)
