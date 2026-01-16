@@ -807,6 +807,59 @@ fn test_select_multi_case_in_green_workers() {
     return 0
 }
 
+fn _qi_select_recv_block_forever(ch) {
+    // Block in select forever (rolling: uses a long finite sleep internally).
+    // Used to validate that the scheduler blocks in netpoll instead of spinning.
+    var sel = oren_select_recv([ch])
+    if sel == 0 { return 0 - 5 }
+    if oren_list_len(sel) != 2 { return 0 - 5 }
+    return oren_list_get(sel, 1)
+}
+
+fn test_select_idle_does_not_spin_cpu() {
+    trace("QI: test_select_idle_does_not_spin_cpu")
+    if g_target_os == 3 { return 0 } // select not supported on Windows yet
+
+    // Ensure worker mode is active and the scheduler can block in netpoll.
+    var rcw = oren_green_start_workers(1)
+    assert_eq(rcw, 0, 566)
+    trace("QI: idle spin: workers started")
+
+    // Reset idle counter (global debug page).
+    oren_green_debug_reset()
+    trace("QI: idle spin: debug reset")
+
+    var c = oren_new_channel()
+    if c == 0 { fail(567) }
+    trace("QI: idle spin: channel created")
+
+    // Spawn a receiver that blocks in select; do NOT send yet.
+    var h = spawn _qi_select_recv_block_forever(c)
+    trace("QI: idle spin: recv spawned h=" + oren_int_to_string(h))
+
+    // Sleep on the host thread so the worker's scheduler loop is responsible for idling.
+    // If the worker spins (polling with timeout=0), idle_iters will climb quickly.
+    sys_nanosleep(200000000) // 200ms
+    trace("QI: idle spin: host slept")
+
+    var iters = oren_green_debug_idle_iters()
+    trace("QI: idle spin: iters=" + oren_int_to_string(iters))
+    // Heuristic bound (rolling): idle should block in kevent/epoll with a ~1s timeout clamp,
+    // so we expect <= a handful of idle iterations over 200ms.
+    assert_true(iters >= 0, 568)
+    assert_true(iters <= 20, 569)
+    trace("QI: idle spin: iters ok")
+    trace("QI: idle spin: pre-send h=" + oren_int_to_string(h))
+
+    // Wake and join to avoid leaking a blocked green task in the test suite.
+    oren_chan_send(c, 999)
+    trace("QI: idle spin: sent h=" + oren_int_to_string(h))
+    var r = oren_join_timeout(h, 500)
+    assert_eq(r, 999, 570)
+    trace("QI: idle spin: joined")
+    return 0
+}
+
 fn test_wait_on_addr_mismatch_is_success() {
     trace("QI: test_wait_on_addr_mismatch_is_success")
     // Contract (docs/CONCURRENCY_MODEL.md):
@@ -1263,6 +1316,7 @@ fn main() {
     test_green_workers_join()
     test_select_in_green_workers()
     test_select_multi_case_in_green_workers()
+    test_select_idle_does_not_spin_cpu()
     test_green_topology_rejects_after_workers()
     test_green_global_runq_fairness()
     test_green_ctx_switch_alloc_integrity()

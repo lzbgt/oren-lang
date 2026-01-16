@@ -127,6 +127,9 @@ var g_green_state = 0        // rooted GC object (struct)
 var g_green_workers_started = 0
 var g_green_worker_wake_word = 0 // u64* (mmap page), used with oren_m_park_word_wait/wake
 var g_green_sched_lock_word = 0  // u64* (mmap page), used as a private scheduler lock (0=unlocked, tid=owner)
+// Debug counters (mmap page; rolling):
+// Used for lightweight regression guards (e.g. "idle select does not spin CPU").
+var g_green_debug_word = 0 // u64* (mmap page), [0]=idle_iters
 
 // Rolling config: enable a cached fast path for `_green_poll_until_budget`.
 // Default is conservative (re-fetch per-thread state each iteration); cached mode is opt-in.
@@ -411,6 +414,13 @@ fn _green_init_if_needed() {
         ptr_set(lword, 0)
         g_green_sched_lock_word = lword
     }
+    // Allocate debug counters (one page; u64 at offsets).
+    if g_green_debug_word == 0 {
+        var dword = sys_mmap_private_anon(4096)
+        if dword == 0 || dword == -1 || dword < 4096 { exit(899) }
+        ptr_set(dword, 0)
+        g_green_debug_word = dword
+    }
     // Allocate P0 (single-P default; more Ps are optional/unsafe today).
     var p0 = _green_alloc_struct(green_p_bytes())
     if p0 == 0 { exit(902) }
@@ -446,6 +456,31 @@ fn _green_init_if_needed() {
     // `_green_thread_state_for_current_thread_or0()`.
 
     g_green_inited = 1
+    return 0
+}
+
+fn _green_atomic_inc_u64(word_ptr) {
+    if word_ptr == 0 { return 0 }
+    while true {
+        var old = ptr_get(word_ptr)
+        var new = iadd(old, 1)
+        if atomic_cas(word_ptr, old, new) == old { return new }
+    }
+    return 0
+}
+
+@oren.keep
+fn oren_green_debug_idle_iters() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    return ptr_get(p + 0)
+}
+
+@oren.keep
+fn oren_green_debug_reset() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    ptr_set(p + 0, 0)
     return 0
 }
 
@@ -1176,6 +1211,11 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
         if sleep_ns <= 0 {
             // Should be woken on next iteration.
             continue
+        }
+        // Debug: count idle loop iterations (regression guard for "idle does not spin").
+        var dbg_idle = g_green_debug_word
+        if dbg_idle != 0 && dbg_idle != -1 && dbg_idle >= 4096 {
+            _green_atomic_inc_u64(dbg_idle)
         }
         if deadline_ns != 0 {
             var rem = deadline_ns - now2

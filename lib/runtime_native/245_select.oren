@@ -341,6 +341,39 @@ fn oren_select(cases) {
         return 0
     }
 
+    // Rolling contract (native select):
+    // - duplicate fds across cases are rejected (EINVAL).
+    //
+    // Why:
+    // - The legacy non-green epoll path registers each fd once (duplicates would be an error).
+    // - The green netpoll v2 path arms oneshot readiness with per-case tokens; duplicates would
+    //   cause token overwrites and break deterministic selection.
+    var di = 0
+    while di < ncases {
+        var kdi = ptr_get(iadd(kinds, di * 8))
+        if kdi == 0 || kdi == 1 {
+            var fdi = ptr_get(iadd(fds, di * 8))
+            if fdi >= 0 {
+                var dj = 0
+                while dj < di {
+                    var kdj = ptr_get(iadd(kinds, dj * 8))
+                    if kdj == 0 || kdj == 1 {
+                        var fdj = ptr_get(iadd(fds, dj * 8))
+                        if fdj == fdi {
+                            free(kinds)
+                            free(fds)
+                            free(chans)
+                            free(vals)
+                            return 0 - 22 // EINVAL
+                        }
+                    }
+                    dj = dj + 1
+                }
+            }
+        }
+        di = di + 1
+    }
+
     // Wait until at least one case is ready, then select deterministically using a round-robin cursor.
     var in_green = _select_in_green()
     if in_green {

@@ -460,10 +460,14 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				         - status: default `_green_poll_until` still re-fetches `ts`/`P` each iteration; an env-gated cached mode now exists and is regression-guarded (keep cached mode opt-in until we decide to flip the default)
 						       - 2026-01-16: arm64 stmt codegen now also restores SP after condition evaluation in `if` / `while` / `for` headers (so branch entry SP matches codegen assumptions):
 						         - compiler: `lib/compiler/arm64_native_stmt.oren` (`cond_delta` restore)
-						       - 2026-01-16: regression guard: native quick integration now also runs with `OREN_GREEN_POLL_CACHE=1` (so cached scheduling locals must remain stable across yields)
-						       - 2026-01-16: fixed a worker-mode join/cleanup race that could flake as SIGSEGV (rc=139), especially under `OREN_GREEN_POLL_CACHE=1` stress:
-						         - Root cause: joiners waiting on the `G.state` word can wake via ulock/futex mismatch and observe DONE before an explicit wake,
-						           then call `_green_cleanup_g(g)` and `munmap` the green stack while the task is still executing on it.
+							       - 2026-01-16: regression guard: native quick integration now also runs with `OREN_GREEN_POLL_CACHE=1` (so cached scheduling locals must remain stable across yields)
+							       - 2026-01-16: fixed an arm64 native codegen correctness bug where some expression statements could “pop too much stack” (delta < 0) and cause later locals to overlap earlier locals.
+							         - Fix: statement-level stack restore now handles both delta>0 and delta<0 (`_arm64_restore_stack_to`).
+							         - Compiler: `lib/compiler/arm64_native_stmt.oren`
+							         - Guard: `make test` + `tests/native/test_quick_integration_native.oren` (`test_select_idle_does_not_spin_cpu`)
+							       - 2026-01-16: fixed a worker-mode join/cleanup race that could flake as SIGSEGV (rc=139), especially under `OREN_GREEN_POLL_CACHE=1` stress:
+							         - Root cause: joiners waiting on the `G.state` word can wake via ulock/futex mismatch and observe DONE before an explicit wake,
+							           then call `_green_cleanup_g(g)` and `munmap` the green stack while the task is still executing on it.
 						         - Fix: introduce an internal EXITING state so tasks switch back to the scheduler before DONE is published; scheduler finalizes DONE and wakes joiners.
 						         - Runtime: `lib/runtime_native/263_green_tasks.oren` (`__oren_green_entry`, `_green_poll_until_budget`)
 					     - 2026-01-16: switched green sleeper deadlines to a monotonic clock source (avoid wall-clock jumps affecting wake behavior):
@@ -480,13 +484,14 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						       - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains netpoll tokens and can idle in kevent/epoll)
 						       - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*`: parks the G on netpoll instead of poll+sleep)
 							       - Runtime: `lib/runtime_native/245_select.oren` (`oren_select` / `oren_select_recv`: in-green uses **netpoll v2** case tokens; preserves deterministic selection without per-wake probe polling)
-							       - Guards:
-							         - `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
-							         - `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`, `test_select_multi_case_in_green_workers`)
-							       - Runtime: `lib/runtime_native/246_netpoll.oren` (`native_netpoll_poll_many_scratch` preserves full ready-sets; scheduler does not drop additional ready tokens)
-							       - Follow-ups (still valuable):
-							         - add a perf/behavior regression: “select blocks indefinitely with near-zero CPU while other green tasks keep running” (functional guard exists; CPU budget guard still TODO)
-							         - clarify duplicate-fd semantics for epoll-based select (today: duplicates can be an error path in the legacy per-call epoll implementation)
+								       - Guards:
+								         - `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
+								         - `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`, `test_select_multi_case_in_green_workers`)
+								       - 2026-01-16: `oren_select` now rejects duplicate case fds (`-EINVAL`) to keep behavior deterministic across the legacy per-call select path and netpoll v2.
+								       - 2026-01-16: regression guard added: `tests/native/test_quick_integration_native.oren` (`test_select_idle_does_not_spin_cpu`) (bounds scheduler idle-loop iterations while a select blocks).
+								       - Runtime: `lib/runtime_native/246_netpoll.oren` (`native_netpoll_poll_many_scratch` preserves full ready-sets; scheduler does not drop additional ready tokens)
+								       - Follow-ups (still valuable):
+								         - add a perf/behavior regression: “select blocks indefinitely with near-zero CPU while other green tasks keep running” (now guarded in quick integration via idle-iteration bound; CPU-time API measurement still TODO)
 					     - 2026-01-16: fixed loopback NET fixtures that spawn in-process servers on POSIX:
 					       - Problem: `spawn` prefers green tasks, but some fixtures ran a blocking client call on the main thread, starving the server green task (timeout).
 					       - Fix: enable green worker mode up front in the spawned-server fixtures (unless `OREN_NO_GREEN` disables green tasks).

@@ -30,13 +30,14 @@ fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
 fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
 fn insn_add_reg(rd, rn, rm) { return core.insn_add_reg(rd, rn, rm) }
 fn insn_and_reg(rd, rn, rm) { return core.insn_and_reg(rd, rn, rm) }
-fn insn_b(off) { return core.insn_b(off) }
-fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
-fn emit_add_sp_any(ctx, bytes) { return core.emit_add_sp_any(ctx, bytes) }
-		fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
-		fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
-		fn insn_ldr_ptr_off(rd, rn, offset) { return core.insn_ldr_ptr_off(rd, rn, offset) }
-		fn insn_ldp_post() { return core.insn_ldp_post() }
+	fn insn_b(off) { return core.insn_b(off) }
+	fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
+	fn emit_add_sp_any(ctx, bytes) { return core.emit_add_sp_any(ctx, bytes) }
+	fn emit_sub_sp_any(ctx, bytes) { return core.emit_sub_sp_any(ctx, bytes) }
+			fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
+			fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
+			fn insn_ldr_ptr_off(rd, rn, offset) { return core.insn_ldr_ptr_off(rd, rn, offset) }
+			fn insn_ldp_post() { return core.insn_ldp_post() }
 		fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
 	fn insn_ldur_reg(rt, rn, offset) { return core.insn_ldur_reg(rt, rn, offset) }
 	fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }
@@ -60,14 +61,31 @@ fn insn_svc(imm) { return core.insn_svc(imm) }
 	fn emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) { return core.emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) }
 	fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, val) }
 
-	// Delegate expression compilation to the expr module.
-	fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) }
-	fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
+		// Delegate expression compilation to the expr module.
+		fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) }
+		fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
 
-	fn _arm64_rt_resolve_g_storage_name(ctx) {
-	    // Resolve the runtime's `g_storage` global symbol name once and cache it in ctx.
-	    // We use a suffix match because module linking prefixes global names.
-	    if ctx == nil { return nil }
+		fn _arm64_restore_stack_to(ctx, base_stack) {
+		    // Rolling safety: keep runtime SP and compile-time `ctx["stack_size"]` consistent.
+		    //
+		    // Historically some expression lowering leaked temporary stack slots (delta > 0).
+		    // In rare cases mis-accounting can also pop too much (delta < 0). Both are
+		    // correctness bugs because they can make later locals overlap earlier locals.
+		    var delta = ctx["stack_size"] - base_stack
+		    if delta == 0 { return nil }
+		    if delta > 0 {
+		        emit_add_sp_any(ctx, delta)
+		    } else {
+		        emit_sub_sp_any(ctx, 0 - delta)
+		    }
+		    ctx["stack_size"] = base_stack
+		    return nil
+		}
+
+		fn _arm64_rt_resolve_g_storage_name(ctx) {
+		    // Resolve the runtime's `g_storage` global symbol name once and cache it in ctx.
+		    // We use a suffix match because module linking prefixes global names.
+		    if ctx == nil { return nil }
 	    var gname = ctx["rt_g_storage_name"]
 	    if gname != nil { return gname }
 	    if ctx["globals"] == nil { return nil }
@@ -318,16 +336,13 @@ fn native_compile_stmt_inner(ctx, stmt) {
             return nil
         }
 
-        // Restore stack to the loop base before leaving.
-        var base_stack = loop["base_stack"]
-        var delta = ctx["stack_size"] - base_stack
-        if delta > 0 {
-            emit_add_sp_any(ctx, delta)
-        }
+	        // Restore stack to the loop base before leaving.
+	        var base_stack = loop["base_stack"]
+	        _arm64_restore_stack_to(ctx, base_stack)
 
-        // Jump to loop end (patched after body is compiled).
-        var jpos = bytes_len(ctx["code"])
-        push_u32_le(ctx["code"], 0)
+	        // Jump to loop end (patched after body is compiled).
+	        var jpos = bytes_len(ctx["code"])
+	        push_u32_le(ctx["code"], 0)
         oren_list_push(loop["break_jumps"], jpos)
         return false
     }
@@ -338,16 +353,13 @@ fn native_compile_stmt_inner(ctx, stmt) {
             return nil
         }
 
-        // Restore stack to the loop base before continuing.
-        var base_stack2 = loop2["base_stack"]
-        var delta2 = ctx["stack_size"] - base_stack2
-        if delta2 > 0 {
-            emit_add_sp_any(ctx, delta2)
-        }
+	        // Restore stack to the loop base before continuing.
+	        var base_stack2 = loop2["base_stack"]
+	        _arm64_restore_stack_to(ctx, base_stack2)
 
-        // Jump to the loop-specific continue target.
-        // - while: condition start
-        // - for: post start (so post runs before re-checking condition)
+	        // Jump to the loop-specific continue target.
+	        // - while: condition start
+	        // - for: post start (so post runs before re-checking condition)
         var cont = loop2["continue_pos"]
         if cont != nil {
             var back_pos = bytes_len(ctx["code"])
@@ -377,18 +389,19 @@ fn native_compile_stmt_inner(ctx, stmt) {
             }
             i = i + 1
         }
-        var delta = ctx["stack_size"] - base_stack
-        // Restore stack only if we reach the end of this block via fallthrough.
-        // If a terminator ended the block, this cleanup would be unreachable and can be skipped.
-        if falls_through == true && delta > 0 {
-            emit_add_sp_any(ctx, delta)
-        }
-        // Keep compile-time stack accounting consistent for subsequent compilation (even if
-        // fallthrough is impossible, later statements are either unreachable or in another CFG arm).
-        ctx["stack_size"] = base_stack
-        if ctx["in_function"] {
-            scope_exit_codegen(ctx)
-        }
+	        var delta = ctx["stack_size"] - base_stack
+	        // Restore stack only if we reach the end of this block via fallthrough.
+	        // If a terminator ended the block, this cleanup would be unreachable and can be skipped.
+	        if falls_through == true {
+	            _arm64_restore_stack_to(ctx, base_stack)
+	        } else {
+	            // Keep compile-time stack accounting consistent for subsequent compilation (even if
+	            // fallthrough is impossible, later statements are either unreachable or in another CFG arm).
+	            ctx["stack_size"] = base_stack
+	        }
+	        if ctx["in_function"] {
+	            scope_exit_codegen(ctx)
+	        }
         if falls_through == true { return nil }
         return false
     }
@@ -398,17 +411,13 @@ fn native_compile_stmt_inner(ctx, stmt) {
     }
 
 	        if stmt["type"] == "Assign" {
-		            // Keep stack balanced after computing the RHS.
-		            var rhs_base_stack = ctx["stack_size"]
-		            native_compile_expr(ctx, stmt["value"])
-		            var rhs_delta = ctx["stack_size"] - rhs_base_stack
-		            if rhs_delta > 0 {
-		                emit_add_sp_any(ctx, rhs_delta)
-		                ctx["stack_size"] = rhs_base_stack
-		            }
-		        var is_floaty = exprm.native_expr_is_floaty(ctx, stmt["value"])
-		        var is_stringy = exprm.native_expr_is_stringy(ctx, stmt["value"])
-		        var is_list_stringy = exprm.native_expr_is_list_stringy(ctx, stmt["value"])
+			            // Keep stack balanced after computing the RHS.
+			            var rhs_base_stack = ctx["stack_size"]
+			            native_compile_expr(ctx, stmt["value"])
+			            _arm64_restore_stack_to(ctx, rhs_base_stack)
+			        var is_floaty = exprm.native_expr_is_floaty(ctx, stmt["value"])
+			        var is_stringy = exprm.native_expr_is_stringy(ctx, stmt["value"])
+			        var is_list_stringy = exprm.native_expr_is_list_stringy(ctx, stmt["value"])
 	        
 		        var name = stmt["name"]["value"]
 		        var off_enc = ctx["locals"][name]
@@ -458,17 +467,13 @@ fn native_compile_stmt_inner(ctx, stmt) {
 		        // but in rolling mode some call/syscall lowering paths have historically leaked
 		        // temporary stack slots.
 		        //
-		        // Restore to the pre-expression depth so subsequent local-slot allocation is stable.
-		        var rhs_base_stack = ctx["stack_size"]
-		        native_compile_expr(ctx, stmt["value"])
-		        var rhs_delta = ctx["stack_size"] - rhs_base_stack
-		        if rhs_delta > 0 {
-		            emit_add_sp_any(ctx, rhs_delta)
-		            ctx["stack_size"] = rhs_base_stack
-		        }
-		        var is_floaty2 = exprm.native_expr_is_floaty(ctx, stmt["value"])
-		        var is_stringy2 = exprm.native_expr_is_stringy(ctx, stmt["value"])
-		        var is_list_stringy2 = exprm.native_expr_is_list_stringy(ctx, stmt["value"])
+			        // Restore to the pre-expression depth so subsequent local-slot allocation is stable.
+			        var rhs_base_stack = ctx["stack_size"]
+			        native_compile_expr(ctx, stmt["value"])
+			        _arm64_restore_stack_to(ctx, rhs_base_stack)
+			        var is_floaty2 = exprm.native_expr_is_floaty(ctx, stmt["value"])
+			        var is_stringy2 = exprm.native_expr_is_stringy(ctx, stmt["value"])
+			        var is_list_stringy2 = exprm.native_expr_is_list_stringy(ctx, stmt["value"])
 
         var name = stmt["name"]["value"]
         
@@ -635,10 +640,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
 	        
 	        // Stack discipline: condition temporaries must not leak across the loop branch.
 	        var cond_delta = ctx["stack_size"] - loop_base_stack
-	        if cond_delta > 0 {
-	            emit_add_sp_any(ctx, cond_delta)
-	            ctx["stack_size"] = loop_base_stack
-	        }
+	        if cond_delta != 0 { _arm64_restore_stack_to(ctx, loop_base_stack) }
 	        
 	        push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
 	        var jump_end_pos = bytes_len(ctx["code"])
@@ -650,23 +652,17 @@ fn native_compile_stmt_inner(ctx, stmt) {
 
         native_compile_stmt(ctx, stmt["body"])
 
-        // Ensure stack is restored to the loop base before post/next iter.
-        var loop_delta = ctx["stack_size"] - loop_base_stack
-        if loop_delta > 0 {
-            emit_add_sp_any(ctx, loop_delta)
-            ctx["stack_size"] = loop_base_stack
-        }
+	        // Ensure stack is restored to the loop base before post/next iter.
+	        var loop_delta = ctx["stack_size"] - loop_base_stack
+	        if loop_delta != 0 { _arm64_restore_stack_to(ctx, loop_base_stack) }
 
-        // Post clause (continue target).
-        var post_start = bytes_len(ctx["code"])
-        loop["continue_pos"] = post_start
-        if stmt["post"] != nil { native_compile_stmt(ctx, stmt["post"]) }
+	        // Post clause (continue target).
+	        var post_start = bytes_len(ctx["code"])
+	        loop["continue_pos"] = post_start
+	        if stmt["post"] != nil { native_compile_stmt(ctx, stmt["post"]) }
 
-        var post_delta = ctx["stack_size"] - loop_base_stack
-        if post_delta > 0 {
-            emit_add_sp_any(ctx, post_delta)
-            ctx["stack_size"] = loop_base_stack
-        }
+	        var post_delta = ctx["stack_size"] - loop_base_stack
+	        if post_delta != 0 { _arm64_restore_stack_to(ctx, loop_base_stack) }
 
         // Jump back to the condition.
         var loop_back_pos = bytes_len(ctx["code"])
@@ -695,15 +691,16 @@ fn native_compile_stmt_inner(ctx, stmt) {
 
         ctx["loop_ctx"] = prev_loop
 
-        // `for` introduces an init-scope like a block: pop init locals after the loop.
-        // loop_base_stack includes the GC tick local.
-        var init_delta = loop_base_stack - outer_base_stack
-        if init_delta > 0 {
-            emit_add_sp_any(ctx, init_delta)
-            ctx["stack_size"] = outer_base_stack
-        }
-        return nil
-    }
+	        // `for` introduces an init-scope like a block: pop init locals after the loop.
+	        // loop_base_stack includes the GC tick local.
+	        var init_delta = loop_base_stack - outer_base_stack
+	        if init_delta != 0 {
+	            if init_delta > 0 { emit_add_sp_any(ctx, init_delta) }
+	            else { emit_sub_sp_any(ctx, 0 - init_delta) }
+	            ctx["stack_size"] = outer_base_stack
+	        }
+	        return nil
+	    }
     
     if stmt["type"] == "FFI" {
         var name = stmt["name"]["value"]
@@ -919,10 +916,7 @@ fn native_compile_stmt_inner(ctx, stmt) {
 	        
 	        // Stack discipline: condition temporaries must not leak across the loop branch.
 	        var cond_delta = ctx["stack_size"] - loop_base_stack
-	        if cond_delta > 0 {
-	            emit_add_sp_any(ctx, cond_delta)
-	            ctx["stack_size"] = loop_base_stack
-	        }
+	        if cond_delta != 0 { _arm64_restore_stack_to(ctx, loop_base_stack) }
 	        
 	        push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
 	        
@@ -934,12 +928,9 @@ fn native_compile_stmt_inner(ctx, stmt) {
         
         native_compile_stmt(ctx, stmt["body"])
 
-        // Ensure stack is restored to the loop base before iterating.
-        var loop_delta = ctx["stack_size"] - loop_base_stack
-        if loop_delta > 0 {
-            emit_add_sp_any(ctx, loop_delta)
-            ctx["stack_size"] = loop_base_stack
-        }
+	        // Ensure stack is restored to the loop base before iterating.
+	        var loop_delta = ctx["stack_size"] - loop_base_stack
+	        if loop_delta != 0 { _arm64_restore_stack_to(ctx, loop_base_stack) }
         
         var loop_back_pos = bytes_len(ctx["code"])
         var back_off = (start_pos - loop_back_pos) / 4
@@ -986,13 +977,10 @@ fn native_compile_stmt_inner(ctx, stmt) {
 	            native_compile_expr(ctx, expr["cond"])
 	            _arm64_emit_truthy_norm_in_x0(ctx, expr["token"])
 	            
-	            // Stack discipline (native backend; rolling correctness):
-	            // Ensure condition evaluation does not leave temporary stack slots live across the branch.
-	            var cond_delta = ctx["stack_size"] - base_stack
-	            if cond_delta > 0 {
-	                emit_add_sp_any(ctx, cond_delta)
-	                ctx["stack_size"] = base_stack
-	            }
+		            // Stack discipline (native backend; rolling correctness):
+		            // Ensure condition evaluation does not leave temporary stack slots live across the branch.
+		            var cond_delta = ctx["stack_size"] - base_stack
+		            if cond_delta != 0 { _arm64_restore_stack_to(ctx, base_stack) }
 	            
 	            push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
             
@@ -1003,11 +991,9 @@ fn native_compile_stmt_inner(ctx, stmt) {
             var cons_falls = true
             if cons_r == false { cons_falls = false }
 
-            var cons_delta = ctx["stack_size"] - base_stack
-            if cons_falls == true && cons_delta > 0 {
-                emit_add_sp_any(ctx, cons_delta)
-            }
-            ctx["stack_size"] = base_stack
+		            var cons_delta = ctx["stack_size"] - base_stack
+		            if cons_falls == true && cons_delta != 0 { _arm64_restore_stack_to(ctx, base_stack) }
+		            else { ctx["stack_size"] = base_stack }
 
             var jump_end_pos = nil
             if expr["alt"] != nil && cons_falls == true {
@@ -1025,11 +1011,9 @@ fn native_compile_stmt_inner(ctx, stmt) {
                 if alt_r == false { alt_falls = false }
             }
 
-            var alt_delta = ctx["stack_size"] - base_stack
-            if alt_falls == true && alt_delta > 0 {
-                emit_add_sp_any(ctx, alt_delta)
-            }
-            ctx["stack_size"] = base_stack
+		            var alt_delta = ctx["stack_size"] - base_stack
+		            if alt_falls == true && alt_delta != 0 { _arm64_restore_stack_to(ctx, base_stack) }
+		            else { ctx["stack_size"] = base_stack }
 
             var end_target = bytes_len(ctx["code"])
             if jump_end_pos != nil {
@@ -1556,28 +1540,20 @@ fn native_compile_stmt_inner(ctx, stmt) {
                 return nil
             }
 
-            // General call expression statement: evaluate for side effects and discard value.
-            var base_stack = ctx["stack_size"]
-            native_compile_expr(ctx, expr)
-            var delta = ctx["stack_size"] - base_stack
-            if delta > 0 {
-                emit_add_sp_any(ctx, delta)
-                ctx["stack_size"] = base_stack
-            }
-            return nil
-        }
+	            // General call expression statement: evaluate for side effects and discard value.
+	            var base_stack = ctx["stack_size"]
+	            native_compile_expr(ctx, expr)
+	            _arm64_restore_stack_to(ctx, base_stack)
+	            return nil
+	        }
 
         // General expression statement:
-        // Evaluate the expression for side effects and discard its value.
-        var base_stack = ctx["stack_size"]
-        native_compile_expr(ctx, expr)
-        var delta = ctx["stack_size"] - base_stack
-        if delta > 0 {
-            emit_add_sp_any(ctx, delta)
-            ctx["stack_size"] = base_stack
-        }
-        return nil
-    }
+	        // Evaluate the expression for side effects and discard its value.
+	        var base_stack = ctx["stack_size"]
+	        native_compile_expr(ctx, expr)
+	        _arm64_restore_stack_to(ctx, base_stack)
+	        return nil
+	    }
 }
 
 fn native_compile_stmt_set(ctx, stmt) {
