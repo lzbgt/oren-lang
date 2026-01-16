@@ -98,28 +98,40 @@ fn native_time_current_thread_node_or0() {
     var tid = sys_gettid()
     if tid != 0 {
         var THREAD_NODE_FLAG_OS_THREAD = 1
+        // In multi-OS-thread mode, the global thread list is mutated under `acquire_lock()`.
+        // Traverse under the same lock to avoid seeing partially-published nodes.
+        if g_runtime_single_threaded == 0 { acquire_lock() }
         var node0 = global_get_threads()
         while node0 != 0 {
             var flags = ptr_get(iadd(node0, 48))
             if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 {
-                if ptr_get(iadd(node0, 56)) == tid { return node0 }
+                if ptr_get(iadd(node0, 56)) == tid {
+                    if g_runtime_single_threaded == 0 { release_lock() }
+                    return node0
+                }
             }
             node0 = ptr_get(iadd(node0, 16))
         }
+        if g_runtime_single_threaded == 0 { release_lock() }
     }
 
     // Fallback: stack-window heuristic (works for green stacks registered via `oren_register_stack`).
     var sp = get_sp()
+    if g_runtime_single_threaded == 0 { acquire_lock() }
     var node = global_get_threads()
     var max_scan = 8388608 // 8MB
     while node != 0 {
         var top = ptr_get(node)
         if sp < top {
             var diff = top - sp
-            if diff < max_scan { return node }
+            if diff < max_scan {
+                if g_runtime_single_threaded == 0 { release_lock() }
+                return node
+            }
         }
         node = ptr_get(iadd(node, 16))
     }
+    if g_runtime_single_threaded == 0 { release_lock() }
     return 0
 }
 
@@ -275,21 +287,26 @@ fn oren_register_thread(top) {
 			    //   which breaks stop-the-world GC waiting (and inflates stack scans).
 			    //
 			    // Use `sys_gettid()` to dedupe per OS thread, and return an existing node if present.
-			    var tid = sys_gettid()
-			    if tid != 0 && oren_globals() != 0 {
-			        var cur0 = global_get_threads()
-			        while cur0 != 0 {
-			            var flags0 = ptr_get(iadd(cur0, 48))
-			            if (flags0 & THREAD_NODE_FLAG_OS_THREAD) != 0 {
-			                var t0 = ptr_get(iadd(cur0, 56))
-			                if t0 == tid {
-			                    // Keep existing top (do not shrink the scan window).
-			                    return cur0
-			                }
-			            }
-			            cur0 = ptr_get(iadd(cur0, 16))
-			        }
-			    }
+				    var tid = sys_gettid()
+				    if tid != 0 && oren_globals() != 0 {
+				        // In multi-OS-thread mode, traverse the shared thread list under the runtime lock
+				        // (the list is mutated under `acquire_lock()` by stack nodes and OS-thread nodes).
+				        if g_runtime_single_threaded == 0 { acquire_lock() }
+				        var cur0 = global_get_threads()
+				        while cur0 != 0 {
+				            var flags0 = ptr_get(iadd(cur0, 48))
+				            if (flags0 & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+				                var t0 = ptr_get(iadd(cur0, 56))
+				                if t0 == tid {
+				                    if g_runtime_single_threaded == 0 { release_lock() }
+				                    // Keep existing top (do not shrink the scan window).
+				                    return cur0
+				                }
+				            }
+				            cur0 = ptr_get(iadd(cur0, 16))
+				        }
+				        if g_runtime_single_threaded == 0 { release_lock() }
+				    }
 
 			    var node = sys_mmap_private_anon(4096)
 			    if node != 0 && node != -1 && node >= 4096 {

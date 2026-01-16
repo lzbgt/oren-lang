@@ -169,10 +169,14 @@ Status (rolling groundwork):
   - optional background scheduler workers (`oren_green_start_workers(n)`) that drain:
     - their bound `P` local runq/sleepq (locality), and
     - a scheduler-level **global run queue** for cross-P injection / fairness (spawns from outside green context).
+  - Worker sleeping behavior (rolling, but important for responsiveness):
+    - when only sleepers exist, the worker parks on the shared park word with a timeout (so new runnable work wakes it immediately)
+    - inserting new sleepers wakes workers so the “next wake” deadline is re-evaluated promptly
   - Join behavior: when workers are enabled, `oren_green_join_timeout` waits on the green task's state word via the portable
     wait-on-address primitive (instead of driving the scheduler on the joining thread).
   - Runtime: `lib/runtime_native/263_green_tasks.oren`
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
+  - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_worker_wake_while_sleepers`) (prevents “sleepers stall runnable work” regressions)
   - Rolling limitation (important): worker parallelism is currently clamped to 1 by default, because the native allocator/GC
     are not concurrency-correct yet. Opt-in for experimentation only: `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.
 

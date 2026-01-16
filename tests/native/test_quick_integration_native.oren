@@ -76,6 +76,14 @@ fn worker_green_yield_then_ret() {
     return 77
 }
 
+fn worker_green_sleep_400ms_then_ret2() {
+    // Forces the worker into the "idle with sleepers" path.
+    if g_qi_trace_on != 0 { print("QI: g sleeper enter") }
+    oren_green_sleep_ns(400000000) // 400ms
+    if g_qi_trace_on != 0 { print("QI: g sleeper woke") }
+    return 2
+}
+
 fn worker_green_alloc_yield_integrity(seed) {
     // Regression guard: context switching must not corrupt the native bump allocator state.
     // In the native backends, the bump allocator lives in reserved registers and MUST NOT be
@@ -783,6 +791,46 @@ fn test_green_ctx_switch_alloc_integrity() {
     return 0
 }
 
+fn test_green_worker_wake_while_sleepers() {
+    trace("QI: test_green_worker_wake_while_sleepers")
+    if g_target_os == 3 { return 0 }
+
+    // Ensure background worker mode is active.
+    var rc = oren_green_start_workers(1)
+    assert_eq(rc, 0, 490)
+
+    // Spawn a sleeper so the worker goes into the "sleep until next wake" path.
+    // Then inject runnable work from the main thread and verify it completes quickly.
+    trace("QI: spawn sleeper")
+    var h_sleep = spawn worker_green_sleep_400ms_then_ret2()
+
+    // Give the worker a moment to run and park/sleep on the sleeper deadline.
+    trace("QI: host sleep 20ms")
+    oren_sleep_ms(20)
+
+    trace("QI: spawn runnable batch")
+    var hs = []
+    var i = 0
+    while i < 10 {
+        var h = spawn worker_green_ret_one()
+        oren_list_push(hs, h)
+        i = i + 1
+    }
+    trace("QI: join runnable batch")
+    i = 0
+    while i < oren_list_len(hs) {
+        var hh = oren_list_get(hs, i)
+        var r = oren_join_timeout(hh, 200)
+        assert_eq(r, 1, 491)
+        i = i + 1
+    }
+
+    trace("QI: join sleeper")
+    var r2 = oren_join_timeout(h_sleep, 2000)
+    assert_eq(r2, 2, 492)
+    return 0
+}
+
 fn test_proc_system_windows() {
     trace("QI: test_proc_system_windows")
     if g_target_os != 3 { return 0 }
@@ -813,6 +861,7 @@ fn main() {
     test_green_workers_join()
     test_green_global_runq_fairness()
     test_green_ctx_switch_alloc_integrity()
+    test_green_worker_wake_while_sleepers()
     print("native quick integration OK")
     exit(0)
 }

@@ -21,7 +21,9 @@
 // - -60 on timeout
 // - other negative errno on failure
 fn oren_wait_on_addr(addr, expected, timeout_us) {
-    if addr == 0 { return -5 } // EIO-ish
+    // Treat low addresses as invalid pointers; many runtime subsystems use >=4096 as the
+    // minimal "looks like a real mapping" guard.
+    if addr == 0 || addr < 4096 { return -5 } // EIO-ish
 
     // Correct semantics:
     // - If the value is already not equal to `expected`, return 0 (no blocking needed).

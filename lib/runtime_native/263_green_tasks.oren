@@ -579,6 +579,8 @@ fn _green_sleepq_push_p(p, g) {
     _green_lock_acquire()
     _green_sleepq_push_locked(p, g)
     _green_lock_release()
+    // If a worker is parked (or parked-with-timeout), nudge it to re-evaluate the next wake deadline.
+    _green_workers_wake_if_started()
     return 0
 }
 
@@ -686,10 +688,12 @@ fn _green_wake_ready_p(p, now_ns) {
 
 fn _green_next_wake_ns_p(p) {
     if p == 0 { return 0 }
+    if p < 4096 { exit(941) }
     _green_lock_acquire()
     var cur = _green_p_sleep_head(p)
     var best = 0
     while cur != 0 {
+        if _green_is_g(cur) != true { exit(942) }
         var w = ptr_get(cur + green_g_off_wake_ns())
         if w != 0 {
             if best == 0 || w < best { best = w }
@@ -794,31 +798,48 @@ fn _green_poll_until(deadline_ns) {
     // deadline_ns == 0 means "run until no runnable work" (but still drive sleepers minimally).
     _green_init_if_needed()
     if _green_enabled() != true { return 0 }
-    // Ensure per-thread scheduler state exists for this OS thread.
-    var ts = _green_thread_state_for_current_thread_or0()
-    if ts == 0 { return 0 }
-    var s = _green_get_state()
-    if s == 0 { return 0 }
-    var p = _green_thread_p_or0(ts)
-    if p == 0 {
-        p = _green_state_p0(s)
-        if p != 0 { _green_thread_set_p(ts, p) }
-    }
-    if p == 0 { return 0 }
-    if g_green_workers_started != 0 {
-        // Enforce "an M runs Oren code only while holding a P" by requiring this thread to
-        // match the owning tid for its bound P (Stage N3 correctness prerequisite).
-        var tid = sys_gettid()
-        if tid == 0 { exit(926) }
-        var owner = _green_p_owner_tid(p)
-        if owner == 0 || owner != tid { exit(927) }
-    }
+    // Rolling safety:
+    // Context switches are implemented by compiler intrinsics. When we switch to a green stack
+    // and back, we must treat caller locals as potentially clobbered unless proven otherwise.
+    //
+    // To keep Stage N2 bring-up robust, re-fetch per-thread scheduler state each iteration.
+    // This prevents crashes where `ts`/`p` become small integers and later segfault in `ptr_get`.
+    var ts = 0
+    var s = 0
+    var p = 0
+
+    // Rolling safety:
+    // Keep the scheduler fairness tick as a local variable (not stored in thread state) while
+    // Stage N2 workers are still stabilizing. A per-thread `ts.tick` is nice, but any memory
+    // corruption here is catastrophic (it can clobber the bound P pointer and crash in ptr_get).
+    var tick = 0
 
     while 1 {
-        // Fairness tick: allow periodic draining from the global run queue even if the local runq
-        // is non-empty, so spawns from non-green threads cannot starve indefinitely.
-        var tick = _green_thread_tick(ts) + 1
-        _green_thread_set_tick(ts, tick)
+        // Ensure per-thread scheduler state exists for this OS thread.
+        ts = _green_thread_state_for_current_thread_or0()
+        if ts == 0 { return 0 }
+        s = _green_get_state()
+        if s == 0 { return 0 }
+
+        p = _green_thread_p_or0(ts)
+        if p == 0 {
+            p = _green_state_p0(s)
+            if p != 0 { _green_thread_set_p(ts, p) }
+        }
+        if p == 0 { return 0 }
+        if p < 4096 { exit(940) }
+        if g_green_workers_started != 0 {
+            // Enforce "an M runs Oren code only while holding a P" by requiring this thread to
+            // match the owning tid for its bound P (Stage N3 correctness prerequisite).
+            var tid = sys_gettid()
+            if tid == 0 { exit(926) }
+            var owner = _green_p_owner_tid(p)
+            if owner == 0 || owner != tid { exit(927) }
+        }
+
+        // Fairness tick: periodically prefer draining from the global run queue even if the local
+        // runq is non-empty, so spawns from non-green threads cannot starve indefinitely.
+        tick = tick + 1
 
         // Drain detached tasks that completed.
         _green_zombie_drain()
@@ -862,7 +883,13 @@ fn _green_poll_until(deadline_ns) {
 
         // Idle sleep: do not oversleep past the join deadline.
         var now2 = oren_time_unix_ns()
-        if now2 == 0 { return 0 }
+        if now2 == 0 {
+            // Rolling robustness: if the clock is unavailable or temporarily fails, do not
+            // treat this as "idle". Returning would let worker threads park forever while
+            // sleepers exist, which can deadlock joins.
+            sys_nanosleep(1000000) // 1ms
+            continue
+        }
         var sleep_ns = next_wake - now2
         if sleep_ns <= 0 {
             // Should be woken on next iteration.
@@ -875,7 +902,16 @@ fn _green_poll_until(deadline_ns) {
         }
         // Clamp to avoid huge sleeps in rolling mode; keep responsiveness.
         if sleep_ns > 10000000 { sleep_ns = 10000000 } // 10ms
-        sys_nanosleep(sleep_ns)
+        if g_green_workers_started != 0 && g_green_worker_wake_word != 0 {
+            // Park on the shared wake word with a timeout:
+            // - wake immediately when new runnable work is enqueued
+            // - wake on timeout to re-check sleepers
+            var sleep_us = sleep_ns / 1000
+            if sleep_us <= 0 { sleep_us = 1 }
+            oren_m_park_word_wait(g_green_worker_wake_word, sleep_us)
+        } else {
+            sys_nanosleep(sleep_ns)
+        }
     }
 }
 
@@ -1042,7 +1078,42 @@ fn __oren_green_worker_entry(arg_ptr) {
     while true {
         // Run until idle (no runnable tasks and no sleepers).
         _green_poll_until(0)
-        // Park until someone posts a wake token (runq became non-empty, or an external wake).
+        // Park strategy (Stage N2 robustness):
+        // - Prefer parking on the wake word (efficient for runq injections).
+        // - If there are sleeping tasks, park *with a timeout* so timers are driven even when
+        //   no external wake arrives.
+        //
+        // This makes worker-mode sleepers reliable even if `_green_poll_until(0)` returns early.
+        var ts2 = _green_thread_state_for_current_thread_or0()
+        var s2 = _green_get_state()
+        var p2 = 0
+        if ts2 != 0 { p2 = _green_thread_p_or0(ts2) }
+        if p2 == 0 && s2 != 0 {
+            p2 = _green_state_p0(s2)
+            if ts2 != 0 && p2 != 0 { _green_thread_set_p(ts2, p2) }
+        }
+
+        var next_wake = 0
+        if p2 != 0 { next_wake = _green_next_wake_ns_p(p2) }
+        if next_wake != 0 {
+            var now = oren_time_unix_ns()
+            if now != 0 {
+                var sleep_ns = next_wake - now
+                if sleep_ns < 0 { sleep_ns = 0 }
+                var sleep_us = sleep_ns / 1000
+                if sleep_us <= 0 { sleep_us = 1 }
+                if sleep_us > 10000 { sleep_us = 10000 } // cap to 10ms for responsiveness
+
+                if g_green_worker_wake_word != 0 {
+                    oren_m_park_word_wait(g_green_worker_wake_word, sleep_us)
+                } else {
+                    sys_nanosleep(sleep_us * 1000)
+                }
+                continue
+            }
+        }
+
+        // No sleepers (or no clock): park indefinitely until someone posts a wake token.
         if g_green_worker_wake_word != 0 {
             oren_m_park_word_wait(g_green_worker_wake_word, 0)
         } else {
@@ -1302,7 +1373,8 @@ fn oren_green_sleep_ns(ns) {
         sys_sched_yield()
         return 0
     }
-    ptr_set(g + green_g_off_wake_ns(), now + ns)
+    var wake_ns = now + ns
+    ptr_set(g + green_g_off_wake_ns(), wake_ns)
     ptr_set(g + green_g_off_state(), green_g_state_sleeping())
     // Save SP into stack node for GC scanning while sleeping.
     var node = ptr_get(g + green_g_off_stack_node())
