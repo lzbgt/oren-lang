@@ -52,10 +52,12 @@ fn insn_str_x0_sp(offset) { return core.insn_str_x0_sp(offset) }
 fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
 fn insn_svc(imm) { return core.insn_svc(imm) }
 
-fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
-fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
-fn emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) { return core.emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) }
-fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, val) }
+	fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
+	fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
+	fn emit_ldr_reg_fp_any(ctx, reg, offset) { return core.emit_ldr_reg_fp_any(ctx, reg, offset) }
+	fn emit_str_reg_fp_any(ctx, reg, offset) { return core.emit_str_reg_fp_any(ctx, reg, offset) }
+	fn emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) { return core.emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) }
+	fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, val) }
 
 	// Delegate expression compilation to the expr module.
 	fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) }
@@ -394,23 +396,25 @@ fn native_compile_stmt_inner(ctx, stmt) {
         return native_compile_stmt_set(ctx, stmt)
     }
 
-        if stmt["type"] == "Assign" {
-            native_compile_expr(ctx, stmt["value"])
-        var is_floaty = exprm.native_expr_is_floaty(ctx, stmt["value"])
-        var is_stringy = exprm.native_expr_is_stringy(ctx, stmt["value"])
-        var is_list_stringy = exprm.native_expr_is_list_stringy(ctx, stmt["value"])
-        
-	        var name = stmt["name"]["value"]
-	        var off_enc = ctx["locals"][name]
-	        if oren_type_tag(off_enc) != 0 {
-	            var off = off_enc - 1
-	            var current_sp_off = ctx["stack_size"] - off - 16
-	            emit_str_reg_sp_any(ctx, 0, current_sp_off)
-            if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty }
-            if ctx["locals_stringy"] != nil { ctx["locals_stringy"][name] = is_stringy }
-            if ctx["locals_list_stringy"] != nil { ctx["locals_list_stringy"][name] = is_list_stringy }
-            return nil
-        }
+	        if stmt["type"] == "Assign" {
+	            native_compile_expr(ctx, stmt["value"])
+	        var is_floaty = exprm.native_expr_is_floaty(ctx, stmt["value"])
+	        var is_stringy = exprm.native_expr_is_stringy(ctx, stmt["value"])
+	        var is_list_stringy = exprm.native_expr_is_list_stringy(ctx, stmt["value"])
+	        
+		        var name = stmt["name"]["value"]
+		        var off_enc = ctx["locals"][name]
+		        if oren_type_tag(off_enc) != 0 {
+		            // Locals store offsets as `fp_off+1` so:
+		            // - `nil` remains the "missing" sentinel
+		            // - a real offset of 0 is representable (though FP-relative locals are negative)
+		            var fp_off = off_enc - 1
+		            emit_str_reg_fp_any(ctx, 0, fp_off)
+	            if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty }
+	            if ctx["locals_stringy"] != nil { ctx["locals_stringy"][name] = is_stringy }
+	            if ctx["locals_list_stringy"] != nil { ctx["locals_list_stringy"][name] = is_list_stringy }
+	            return nil
+	        }
 	        
 	        var global_off_enc = ctx["globals"][name]
 	        if oren_type_tag(global_off_enc) != 0 {
@@ -440,11 +444,11 @@ fn native_compile_stmt_inner(ctx, stmt) {
         return nil
     }
 
-    if stmt["type"] == "Var" {
-        native_compile_expr(ctx, stmt["value"])
-        var is_floaty2 = exprm.native_expr_is_floaty(ctx, stmt["value"])
-        var is_stringy2 = exprm.native_expr_is_stringy(ctx, stmt["value"])
-        var is_list_stringy2 = exprm.native_expr_is_list_stringy(ctx, stmt["value"])
+	        if stmt["type"] == "Var" {
+	        native_compile_expr(ctx, stmt["value"])
+	        var is_floaty2 = exprm.native_expr_is_floaty(ctx, stmt["value"])
+	        var is_stringy2 = exprm.native_expr_is_stringy(ctx, stmt["value"])
+	        var is_list_stringy2 = exprm.native_expr_is_list_stringy(ctx, stmt["value"])
 
         var name = stmt["name"]["value"]
         
@@ -453,20 +457,19 @@ fn native_compile_stmt_inner(ctx, stmt) {
             // If the name was already declared in this same scope, treat it as
             // re-initialization for backward compatibility.
             var scope = scope_current_codegen(ctx)
-            if scope != nil {
-                if scope["names"][name] != nil {
-	                    var existing_off_enc = ctx["locals"][name]
-	                    if oren_type_tag(existing_off_enc) != 0 {
-	                        var existing_off = existing_off_enc - 1
-	                        var current_sp_off_existing = ctx["stack_size"] - existing_off - 16
-	                        emit_str_reg_sp_any(ctx, 0, current_sp_off_existing)
-                        if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty2 }
-                        if ctx["locals_stringy"] != nil { ctx["locals_stringy"][name] = is_stringy2 }
-                        if ctx["locals_list_stringy"] != nil { ctx["locals_list_stringy"][name] = is_list_stringy2 }
-                        return nil
-                    }
-                }
-            }
+	            if scope != nil {
+	                if scope["names"][name] != nil {
+		                    var existing_off_enc = ctx["locals"][name]
+		                    if oren_type_tag(existing_off_enc) != 0 {
+		                        var fp_off_existing = existing_off_enc - 1
+		                        emit_str_reg_fp_any(ctx, 0, fp_off_existing)
+	                        if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty2 }
+	                        if ctx["locals_stringy"] != nil { ctx["locals_stringy"][name] = is_stringy2 }
+	                        if ctx["locals_list_stringy"] != nil { ctx["locals_list_stringy"][name] = is_list_stringy2 }
+	                        return nil
+	                    }
+	                }
+	            }
             
             push_u32_le(ctx["code"], insn_sub_sp(16))
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
@@ -481,13 +484,16 @@ fn native_compile_stmt_inner(ctx, stmt) {
             if ctx["locals_list_stringy"] != nil { prev_list_stringy = ctx["locals_list_stringy"][name] }
             scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_stringy, prev_list_stringy)
 
-            // Store as offset+1 so a real offset of 0 is representable while still using `nil`
-            // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
-            ctx["locals"][name] = ctx["stack_size"] + 1
-            if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty2 }
-            if ctx["locals_stringy"] != nil { ctx["locals_stringy"][name] = is_stringy2 }
-            if ctx["locals_list_stringy"] != nil { ctx["locals_list_stringy"][name] = is_list_stringy2 }
-            ctx["stack_size"] = ctx["stack_size"] + 16
+	            // Store as offset+1 so a real offset of 0 is representable while still using `nil`
+	            // as the map sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
+	            //
+	            // Locals are addressed as FP-relative slots: slot is at [FP + fp_off], fp_off < 0.
+	            var fp_off = 0 - ctx["stack_size"]
+	            ctx["locals"][name] = fp_off + 1
+	            if ctx["locals_floaty"] != nil { ctx["locals_floaty"][name] = is_floaty2 }
+	            if ctx["locals_stringy"] != nil { ctx["locals_stringy"][name] = is_stringy2 }
+	            if ctx["locals_list_stringy"] != nil { ctx["locals_list_stringy"][name] = is_list_stringy2 }
+	            ctx["stack_size"] = ctx["stack_size"] + 16
         } else {
             var data_off = bytes_len(ctx["data"])
             var k = 0
@@ -737,16 +743,17 @@ fn native_compile_stmt_inner(ctx, stmt) {
 	        push_u32_le(ctx["code"], insn_mov_fp_sp())
 	        ctx["stack_size"] = ctx["stack_size"] + 16
 
-        // Save args to stack locals for uniform access.
-        var i = 0
-	        while i < n_fields {
-	            var f_name = fields[i]["value"]
-	            push_u32_le(ctx["code"], insn_sub_sp(16))
-	            push_u32_le(ctx["code"], insn_str_reg_sp(i, 0))
-	            ctx["locals"][f_name] = ctx["stack_size"] + 1
-	            ctx["stack_size"] = ctx["stack_size"] + 16
-	            i = i + 1
-	        }
+	        // Save args to stack locals for uniform access.
+	        var i = 0
+		        while i < n_fields {
+		            var f_name = fields[i]["value"]
+		            push_u32_le(ctx["code"], insn_sub_sp(16))
+		            push_u32_le(ctx["code"], insn_str_reg_sp(i, 0))
+		            var fp_off = 0 - ctx["stack_size"]
+		            ctx["locals"][f_name] = fp_off + 1
+		            ctx["stack_size"] = ctx["stack_size"] + 16
+		            i = i + 1
+		        }
 
         // m = oren_new_map(n_fields + 1)
         // Reserve one extra slot for `__oren_type` (basic reflection / stable type naming).
@@ -809,12 +816,11 @@ fn native_compile_stmt_inner(ctx, stmt) {
             push_u32_le(ctx["code"], insn_str_x0_sp(0))
             ctx["stack_size"] = ctx["stack_size"] + 16
 
-            // Load value -> X0 (from saved local slot).
-            // Locals store offsets as `off+1` to avoid nil/0 ambiguity under the native runtime.
-            var off_enc = ctx["locals"][f_name2]
-            var off = off_enc - 1
-            var current_sp_off = ctx["stack_size"] - off - 16
-            emit_ldr_reg_sp_any(ctx, 0, current_sp_off)
+	            // Load value -> X0 (from saved local slot).
+	            // Locals store offsets as `fp_off+1` to avoid nil/0 ambiguity under the native runtime.
+	            var off_enc = ctx["locals"][f_name2]
+	            var fp_off2 = off_enc - 1
+	            emit_ldr_reg_fp_any(ctx, 0, fp_off2)
 
             // Pop key -> X1
             push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
@@ -1172,8 +1178,12 @@ fn native_compile_stmt_inner(ctx, stmt) {
                     emit_load_ptr_from_base_plus(ctx, 10, 9, off) // X10 = arg_i
                     push_u32_le(ctx["code"], insn_str_reg_sp(10, 0))
                 }
+                // Param locals live below FP:
+                // - debug info uses a positive `p_off` and prints value via `caller_fp - p_off`
+                // - codegen locals use an FP-relative signed offset `fp_off = -p_off`
                 var p_off = ctx["stack_size"]
-                ctx["locals"][p_name] = p_off + 1
+                var fp_off = 0 - p_off
+                ctx["locals"][p_name] = fp_off + 1
                 ctx["stack_size"] = ctx["stack_size"] + 16
                 if fn_scope != nil { fn_scope["names"][p_name] = 1 }
 

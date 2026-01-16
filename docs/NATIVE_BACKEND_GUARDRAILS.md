@@ -227,9 +227,10 @@ Invariant:
 
 Why:
 
-- The native backends use a rolling SP-relative stack model (`ctx["stack_size"]`) to address locals/temps.
-- Emitting unreachable code after a terminator can perturb stack-size accounting and lead to miscompiled
-  offsets in later reachable paths (especially inside large loops / scheduler code).
+- The native backends use a rolling SP-relative stack model (`ctx["stack_size"]`) for **temporaries** and dynamic
+  spill areas.
+- On arm64, **locals** are FP-relative (X29) for stability, but stack accounting can still be perturbed by emitting
+  unreachable code after terminators (SP-relative temporaries still exist and must be balanced on fallthrough paths).
 
 Regression:
 

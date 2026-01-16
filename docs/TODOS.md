@@ -425,13 +425,17 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		     - evolve the global runq into a fairness/overflow queue (it exists today as cross-P injection)
 		     - implement real work stealing between `P` (today: a global-lock bring-up: “steal one before idle”, plus periodic global-runq polling for fairness)
 		     - replace the current global lock in green scheduling with per-P queues + atomics (keep GC/STW correctness first)
-			     - define and enforce a context-switch preservation contract (arm64 `oren_ctx_switch` + codegen):
-			       - today, the scheduler re-fetches per-thread state (`ts`/`P`) each poll iteration for robustness; fix the root cause so we can rely on normal locals again
-			       - add a small regression that would have caught the earlier “P pointer becomes a small integer after ctx switch” failure mode
-			       - concrete failure mode seen in worker-mode: `P` can collapse to a small integer (e.g. `2`) and crash in `_green_p_owner_tid`; keep the per-iteration re-fetch until the native backend reliably preserves/spills long-lived locals across call sites
-			       - 2026-01-16: added a small compiler guard to reduce “dead code perturbs stack accounting” hazards:
-			         - arm64 stmt codegen now stops emitting statements after a direct `break`/`continue`/`return` in a `Block` (`lib/compiler/arm64_native_stmt.oren`)
-			         - status: this does **not** yet make `_green_poll_until` safe to cache `ts`/`P` across iterations; keep the re-fetch until a deeper backend/ctx-switch fix lands
+				     - define and enforce a context-switch preservation contract (arm64 `oren_ctx_switch` + codegen):
+				       - today, the scheduler re-fetches per-thread state (`ts`/`P`) each poll iteration for robustness; fix the root cause so we can rely on normal locals again
+				       - 2026-01-16: arm64 native backend now addresses locals FP-relative (X29) instead of SP-relative:
+				         - reduces long-lived-local aliasing hazards when SP moves for temporaries/ABI call frames
+				         - compiler: `lib/compiler/arm64_core.oren`, `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/arm64_native_expr/010_lowering_a.oren`
+				         - verified: `make test`
+				       - add a small regression that would have caught the earlier “P pointer becomes a small integer after ctx switch” failure mode
+				       - concrete failure mode seen in worker-mode: `P` can collapse to a small integer (e.g. `2`) and crash in `_green_p_owner_tid`; keep the per-iteration re-fetch until the native backend reliably preserves/spills long-lived locals across call sites
+				       - 2026-01-16: added a small compiler guard to reduce “dead code perturbs stack accounting” hazards:
+				         - arm64 stmt codegen now stops emitting statements after a direct `break`/`continue`/`return` in a `Block` (`lib/compiler/arm64_native_stmt.oren`)
+				         - status: this does **not** yet make `_green_poll_until` safe to cache `ts`/`P` across iterations; keep the re-fetch until a deeper backend/ctx-switch fix lands
 			     - switch green sleeper deadlines to a monotonic clock source (avoid wall-clock jumps affecting wake behavior)
 		     - add a small regression gate: spawn many green tasks (with workers enabled) and assert bounded completion (no hangs)
 	     - Optional dev-only smoke (skipped by default): `tests/native/test_green_workers_multi_p_experimental.oren`

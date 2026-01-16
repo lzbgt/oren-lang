@@ -183,6 +183,10 @@ Status (rolling groundwork):
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_ctx_switch_alloc_integrity`) (worker-mode ctx-switch must not corrupt scheduler locals / allocator state)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_local_ptr_survives_yields`) (ctx-switch must preserve long-lived locals across yields)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_local_ptr_survives_yields`) (same contract under worker-mode scheduling)
+  - Rolling limitation (important): `_green_poll_until` currently re-fetches per-thread scheduler state (`ts`/`P`) each poll iteration for robustness.
+    - Rationale: until native backend/local preservation invariants are fully tightened across ctx switches and syscalls, caching `ts`/`P` as long-lived locals
+      can lead to crashes (non-canonical pointers later dereferenced via `ptr_get` / `ptr_get_byte`).
+    - Runtime: `lib/runtime_native/263_green_tasks.oren` (`_green_poll_until`)
   - Rolling limitation (important): worker parallelism is currently clamped to 1 by default, because the native allocator/GC
     are not concurrency-correct yet. Opt-in for experimentation only: `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.
 

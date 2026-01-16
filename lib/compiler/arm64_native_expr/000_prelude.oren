@@ -170,6 +170,8 @@ fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, va
 fn emit_add_sp_offset_to_reg(ctx, reg, offset) { return core.emit_add_sp_offset_to_reg(ctx, reg, offset) }
 fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
 fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
+fn emit_ldr_reg_fp_any(ctx, reg, offset) { return core.emit_ldr_reg_fp_any(ctx, reg, offset) }
+fn emit_str_reg_fp_any(ctx, reg, offset) { return core.emit_str_reg_fp_any(ctx, reg, offset) }
 
 fn insn_add_reg(rd, rn, rm) { return core.insn_add_reg(rd, rn, rm) }
 fn insn_and_reg(rd, rn, rm) { return core.insn_and_reg(rd, rn, rm) }

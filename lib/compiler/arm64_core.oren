@@ -14,9 +14,17 @@ fn bytes_finalize(b) { return bb.bytes_finalize(b) }
 
 // --- Codegen Scopes (native backend locals) ---
 //
-// The native backend tracks locals as SP-relative offsets derived from `ctx["stack_size"]`.
-// Blocks restore SP at runtime, so we must also restore the compiler's locals bindings when
-// leaving a block. Otherwise stale offsets alias later locals (e.g. parent/child branches).
+// The native backend assigns locals **frame-pointer-relative** offsets (from FP/X29).
+//
+// Rationale (rolling correctness):
+// - Historically locals were addressed via SP-relative offsets derived from `ctx["stack_size"]`.
+// - That approach is brittle: any mismatch between compile-time `ctx["stack_size"]` and the
+//   real runtime SP (especially around complex control-flow, syscalls, and context switches)
+//   can make a long-lived local appear as a small integer (e.g. aliasing a nearby temp slot).
+// - FP-relative locals stay stable even when SP moves for temporary spills or ABI call frames.
+//
+// Blocks still restore SP at runtime, so we must also restore the compiler's locals bindings
+// when leaving a block. Otherwise stale offsets alias later locals (e.g. parent/child branches).
 //
 // We implement lexical scopes with an undo log:
 // - scope_enter_codegen(): push a scope frame
@@ -427,6 +435,78 @@ fn emit_str_reg_sp_any(ctx, reg, offset) {
     emit_add_sp_offset_to_reg(ctx, scratch, offset)
     push_u32_le(ctx["code"], insn_str_ptr(reg, scratch))
     return nil
+}
+
+fn emit_add_reg_offset_to_reg(ctx, dst, base, offset) {
+    // Emit: Xdst = Xbase + offset (offset in bytes, may be negative).
+    if offset == 0 {
+        push_u32_le(ctx["code"], insn_add_imm(dst, base, 0))
+        return nil
+    }
+
+    if offset > 0 {
+        if offset <= 4095 {
+            push_u32_le(ctx["code"], insn_add_imm(dst, base, offset))
+            return nil
+        }
+        emit_load_u64_imm(ctx, dst, offset)
+        push_u32_le(ctx["code"], insn_add_reg(dst, base, dst))
+        return nil
+    }
+
+    // offset < 0
+    var abs = 0 - offset
+    if abs <= 4095 {
+        push_u32_le(ctx["code"], insn_sub_imm(dst, base, abs))
+        return nil
+    }
+    emit_load_u64_imm(ctx, dst, abs)
+    push_u32_le(ctx["code"], insn_sub_reg(dst, base, dst))
+    return nil
+}
+
+fn emit_ldr_reg_base_any(ctx, reg, base, offset) {
+    // Safe base+offset load helper:
+    // - uses LDUR for small signed offsets
+    // - otherwise materializes the address into a scratch register and loads via [Xtmp]
+    if offset == 0 {
+        push_u32_le(ctx["code"], insn_ldr_ptr(reg, base))
+        return nil
+    }
+    if offset >= -256 && offset <= 255 {
+        push_u32_le(ctx["code"], insn_ldur_reg(reg, base, offset))
+        return nil
+    }
+    var scratch = 15
+    if reg == scratch { scratch = 14 }
+    emit_add_reg_offset_to_reg(ctx, scratch, base, offset)
+    push_u32_le(ctx["code"], insn_ldr_ptr(reg, scratch))
+    return nil
+}
+
+fn emit_str_reg_base_any(ctx, reg, base, offset) {
+    // Safe base+offset store helper (see emit_ldr_reg_base_any for rationale).
+    if offset == 0 {
+        push_u32_le(ctx["code"], insn_str_ptr(reg, base))
+        return nil
+    }
+    if offset >= -256 && offset <= 255 {
+        push_u32_le(ctx["code"], insn_stur_reg(reg, base, offset))
+        return nil
+    }
+    var scratch = 15
+    if reg == scratch { scratch = 14 }
+    emit_add_reg_offset_to_reg(ctx, scratch, base, offset)
+    push_u32_le(ctx["code"], insn_str_ptr(reg, scratch))
+    return nil
+}
+
+fn emit_ldr_reg_fp_any(ctx, reg, offset) {
+    return emit_ldr_reg_base_any(ctx, reg, 29, offset)
+}
+
+fn emit_str_reg_fp_any(ctx, reg, offset) {
+    return emit_str_reg_base_any(ctx, reg, 29, offset)
 }
 
 fn insn_add_reg(rd, rn, rm) {
