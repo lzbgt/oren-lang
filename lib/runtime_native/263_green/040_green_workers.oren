@@ -1,0 +1,755 @@
+// --- Optional background scheduler workers (Stage N2 groundwork) ---
+@oren.keep
+fn oren_green_start_workers(n) {
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+    if n <= 0 { return -1 }
+    if n > 64 { n = 64 }
+    // Rolling safety:
+    // The native heap/GC model is not concurrency-correct yet. Multiple background workers
+    // can execute green tasks concurrently on multiple OS threads, which is unsafe until:
+    // - the allocator is made thread-safe (or allocation is mediated by a world lock), AND
+    // - GC safepoints/roots are well-defined across threads.
+    //
+    // Default to 1 worker (still useful: join can block on addr while the worker drains the scheduler).
+    // Opt-in for experimentation only.
+    if n > 1 {
+        var v = native_envp_get_value_ptr("OREN_GREEN_WORKERS_UNSAFE_PARALLEL")
+        var unsafe_ok = 0
+        if v != 0 && ptr_get_byte(v) != 0 && ptr_get_byte(v) != 48 { unsafe_ok = 1 }
+
+        // Safe experimentation mode: allow multiple workers only if a world-lock is enabled.
+        // This keeps allocator/GC correctness bounded while exercising the scheduler topology.
+        var wl_ok = g_green_world_lock_enabled
+        var vw = native_envp_get_value_ptr("OREN_GREEN_WORKERS_WORLD_LOCK")
+        if vw != 0 && ptr_get_byte(vw) != 0 && ptr_get_byte(vw) != 48 { wl_ok = 1 }
+
+        if unsafe_ok == 0 && wl_ok != 0 {
+            // Ensure the world lock is actually initialized/enabled (env can request it).
+            if g_green_world_lock_word == 0 {
+                var w = sys_mmap_private_anon(4096)
+                if w == 0 || w == -1 || w < 4096 { exit(938) }
+                ptr_set(w, 0)
+                g_green_world_lock_word = w
+            }
+            g_green_world_lock_enabled = 1
+        }
+
+        if unsafe_ok == 0 && wl_ok == 0 {
+            n = 1
+        }
+    }
+    if g_green_workers_started != 0 { return 0 }
+
+    // Rolling safety: do not enable background workers while currently executing on a green stack.
+    // A worker could start draining the scheduler concurrently with this OS thread, which is not
+    // concurrency-safe until allocator/GC are made multi-thread correct.
+    var ts_pre = _green_thread_state_for_current_thread_or0()
+    if ts_pre != 0 && ptr_get(ts_pre + green_t_off_current_g()) != 0 { return -1 }
+
+    var s = _green_get_state()
+    if s == 0 { return -1 }
+
+    // Ensure we have enough P objects reachable from the scheduler root.
+    // NOTE: without work stealing, spawning is biased to the current thread's P. This is fine for
+    // rolling bring-up; it still allows nested spawns within tasks to stay local to the worker's P.
+    if n > 1 {
+        _green_lock_acquire()
+        var cur_count = _green_state_p_count(s)
+        if cur_count < n {
+            var tail = _green_state_p0(s)
+            if tail == 0 { _green_lock_release(); return -1 }
+            while _green_p_next(tail) != 0 {
+                tail = _green_p_next(tail)
+            }
+            var id = cur_count
+            while id < n {
+                var p = _green_alloc_struct(green_p_bytes())
+                if p == 0 { exit(925) }
+                var runq_mask = _green_p_runq_mask_default()
+                var runq_buf = _green_alloc_struct((runq_mask + 1) * 8)
+                if runq_buf == 0 { exit(935) }
+                var j = 0
+                while j <= runq_mask {
+                    ptr_set(runq_buf + j * 8, 0)
+                    j = j + 1
+                }
+                _green_p_set_runq_buf(p, runq_buf)
+                _green_p_set_runq_head(p, 0)
+                _green_p_set_runq_tail(p, 0)
+                _green_p_set_runq_mask(p, runq_mask)
+                _green_p_set_sleep_head(p, 0)
+                _green_p_set_sleep_tail(p, 0)
+                ptr_set(p + green_p_off_id(), id)
+                _green_p_set_next(p, 0)
+                _green_p_set_owner_tid(p, 0)
+                _green_p_set_next(tail, p)
+                tail = p
+                id = id + 1
+            }
+            _green_state_set_p_count(s, n)
+        }
+        _green_lock_release()
+    }
+
+    // Reserve each P for its intended worker before any ownership assertions run.
+    // This prevents any non-worker OS thread from accidentally "claiming" a worker P during bring-up.
+    //
+    // Stage N3 direction (M<P): reserve only Ps that correspond to real workers.
+    // Extra Ps must remain free (owner_tid==0) so workers can acquire them later.
+    _green_lock_acquire()
+    var p_res = _green_state_p0(s)
+    while p_res != 0 {
+        var owner0 = _green_p_owner_tid(p_res)
+        // Rolling safety: fail early if a host thread already claimed any P.
+        // Otherwise worker entry will hard-fail when it tries to claim its reserved P.
+        if owner0 != 0 { _green_lock_release(); return -1 }
+        if _green_p_id(p_res) < n {
+            _green_p_set_owner_tid(p_res, _green_p_owner_reserved_tid(p_res))
+        }
+        p_res = _green_p_next(p_res)
+    }
+    _green_lock_release()
+
+    // Allocate the wake/park word (one page; u64 at offset 0).
+    var word = sys_mmap_private_anon(4096)
+    if word == 0 || word == -1 || word < 4096 { exit(922) }
+    ptr_set(word, 0)
+    g_green_worker_wake_word = word
+
+    // Spawn N background workers. These threads run forever; they are intentionally not joined.
+    var start_addr = oren_code_addr(__oren_green_worker_entry)
+    if start_addr == 0 { exit(923) }
+
+    var i = 0
+    while i < n {
+        var p = _green_state_p_by_id_or0(s, i)
+        if p == 0 { p = _green_state_p0(s) }
+        var h = oren_os_thread_spawn(start_addr, p)
+        if h == 0 || h == -1 || h < 0 { exit(924) }
+        i = i + 1
+    }
+
+    g_green_worker_count = n
+    g_green_workers_started = 1
+    // Wake all workers so they immediately start draining runq/sleepq.
+    _green_workers_wake_if_started()
+    return 0
+}
+
+@oren.keep
+fn __oren_green_worker_entry(arg_ptr) {
+    // Ensure this OS thread is registered very early so:
+    // - GC stack scanning has a stable "top" bound for future deep calls
+    // - STW GC accounting sees this OS thread
+    oren_register_thread(get_sp())
+
+    _green_init_if_needed()
+    if _green_enabled() != true { return 0 }
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return 0 }
+
+    // Bind this M to a P (rolling).
+    var p0 = 0
+    if arg_ptr != 0 && arg_ptr >= 4096 { p0 = arg_ptr }
+    if p0 == 0 {
+        var s = _green_get_state()
+        if s != 0 { p0 = _green_state_p0(s) }
+    }
+    if p0 != 0 { _green_thread_set_p(ts, p0) }
+    // Claim initial P ownership for this M (must succeed before running).
+    var tid = sys_gettid()
+    if tid == 0 { exit(928) }
+    if p0 != 0 {
+        _green_lock_acquire()
+        var rc_own = _green_p_ensure_owned_by_tid_locked(p0, tid)
+        _green_lock_release()
+        if rc_own != 0 { exit(929) }
+    }
+
+    while true {
+        // STW GC robustness: if a collector requests stop-the-world, park here on the scheduler stack.
+        // (Without this, a worker parked in the kernel could prevent `oren_gc_collect()` from observing all threads parked.)
+        oren_gc_safepoint()
+
+        // Run until idle (no runnable tasks and no sleepers).
+        _green_poll_until(0)
+        // Park strategy (Stage N2 robustness):
+        // - Prefer parking on the wake word (efficient for runq injections).
+        // - If there are sleeping tasks, park *with a timeout* so timers are driven even when
+        //   no external wake arrives.
+        //
+        // This makes worker-mode sleepers reliable even if `_green_poll_until(0)` returns early.
+        // Release P while parked idle (future-proof for M<P).
+        var ts2 = _green_thread_state_for_current_thread_or0()
+        var p2 = 0
+        if ts2 != 0 { p2 = _green_thread_p_or0(ts2) }
+        if p2 != 0 {
+            _green_lock_acquire()
+            _green_p_release_if_owned_by_tid_locked(p2, tid)
+            _green_lock_release()
+        }
+
+        var next_wake = _green_next_wake_ns_all()
+        if next_wake != 0 {
+            var now = _green_time_now_ns()
+            if now != 0 {
+                var sleep_ns = next_wake - now
+                if sleep_ns < 0 { sleep_ns = 0 }
+                var sleep_us = sleep_ns / 1000
+                if sleep_us <= 0 { sleep_us = 1 }
+                if sleep_us > 10000 { sleep_us = 10000 } // cap to 10ms for responsiveness
+
+                if g_green_worker_wake_word != 0 {
+                    oren_m_park_word_wait(g_green_worker_wake_word, sleep_us)
+                } else {
+                    sys_nanosleep(sleep_us * 1000)
+                }
+                continue
+            }
+        }
+
+        // No sleepers (or no clock): park until someone posts a wake token.
+        // IMPORTANT (STW GC): do not park indefinitely; use a bounded timeout so we can observe STW requests.
+        if g_green_worker_wake_word != 0 {
+            // 10ms is small enough to keep GC latency bounded and large enough to avoid busy loops.
+            oren_m_park_word_wait(g_green_worker_wake_word, 10000)
+        } else {
+            // Fallback: avoid busy spin if wake word isn't initialized.
+            sys_nanosleep(1000000) // 1ms
+        }
+    }
+    return 0
+}
+
+fn _green_ensure_p_count_locked(s, want_count) {
+    if s == 0 { return -1 }
+    if want_count <= 0 { return -1 }
+    if want_count > 64 { want_count = 64 }
+
+    var cur_count = _green_state_p_count(s)
+    if cur_count >= want_count { return 0 }
+
+    var tail = _green_state_p0(s)
+    if tail == 0 { return -1 }
+    while _green_p_next(tail) != 0 {
+        tail = _green_p_next(tail)
+    }
+
+    var id = cur_count
+    while id < want_count {
+        var p = _green_alloc_struct(green_p_bytes())
+        if p == 0 { exit(925) }
+        var runq_mask = _green_p_runq_mask_default()
+        var runq_buf = _green_alloc_struct((runq_mask + 1) * 8)
+        if runq_buf == 0 { exit(935) }
+        var j = 0
+        while j <= runq_mask {
+            ptr_set(runq_buf + j * 8, 0)
+            j = j + 1
+        }
+        _green_p_set_runq_buf(p, runq_buf)
+        _green_p_set_runq_head(p, 0)
+        _green_p_set_runq_tail(p, 0)
+        _green_p_set_runq_mask(p, runq_mask)
+        _green_p_set_sleep_head(p, 0)
+        _green_p_set_sleep_tail(p, 0)
+        ptr_set(p + green_p_off_id(), id)
+        _green_p_set_next(p, 0)
+        _green_p_set_owner_tid(p, 0)
+        _green_p_set_next(tail, p)
+        tail = p
+        id = id + 1
+    }
+    _green_state_set_p_count(s, want_count)
+    return 0
+}
+
+@oren.keep
+fn oren_green_set_p_count(n) {
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+    if n <= 0 { return -1 }
+    if n > 64 { n = 64 }
+    // Rolling safety: do not allow changing P count once background workers are started.
+    // (Future: allow grow + spawn additional Ms.)
+    if g_green_workers_started != 0 { return -1 }
+
+    // Must not run from inside a green task: we mutate scheduler topology.
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts != 0 && ptr_get(ts + green_t_off_current_g()) != 0 { return -1 }
+
+    var s = _green_get_state()
+    if s == 0 { return -1 }
+
+    _green_lock_acquire()
+    var rc = _green_ensure_p_count_locked(s, n)
+    _green_lock_release()
+    return rc
+}
+
+@oren.keep
+fn oren_green_p_count() {
+    _green_init_if_needed()
+    if _green_enabled() != true { return 0 }
+    var s = _green_get_state()
+    if s == 0 { return 0 }
+    return _green_state_p_count(s)
+}
+
+@oren.keep
+fn oren_green_bind_p(p_id) {
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+    if p_id < 0 { return -1 }
+    if p_id >= 64 { return -1 }
+
+    // Rolling safety: do not allow mutating scheduler topology while workers are running.
+    if g_green_workers_started != 0 { return -1 }
+
+    // Must not run from inside a green task: we mutate the current OS thread's scheduler binding.
+    var ts0 = _green_thread_state_for_current_thread_or0()
+    if ts0 != 0 && ptr_get(ts0 + green_t_off_current_g()) != 0 { return -1 }
+
+    var s = _green_get_state()
+    if s == 0 { return -1 }
+
+    // Ensure enough Ps exist (grow-only).
+    _green_lock_acquire()
+    var rc = _green_ensure_p_count_locked(s, p_id + 1)
+    var p = 0
+    if rc == 0 {
+        p = _green_state_p_by_id_or0(s, p_id)
+    }
+    _green_lock_release()
+    if rc != 0 { return rc }
+    if p == 0 { return -1 }
+
+    // Bind this OS thread to the requested P.
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return -1 }
+    _green_thread_set_p(ts, p)
+    return 0
+}
+
+@oren.keep
+fn oren_green_acquire_p(p_id) {
+    // Host-thread-only P ownership acquisition (Stage N3 bring-up).
+    //
+    // Contract (rolling, current):
+    // - This binds the current OS thread to `p_id` and sets `P.owner_tid = sys_gettid()`.
+    // - If this OS thread already owns a different P, it is automatically released first.
+    // - Rejected in-green and once background workers are started (for now).
+    //
+    // NOTE: `oren_green_start_workers` pre-reserves all Ps; mixing host P ownership with workers
+    // is intentionally disallowed until we have a full "M acquire/release P" protocol.
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+    if p_id < 0 { return -1 }
+    if p_id >= 64 { return -1 }
+    if g_green_workers_started != 0 { return -1 }
+
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return -1 }
+    if ptr_get(ts + green_t_off_current_g()) != 0 { return -1 }
+
+    var tid = sys_gettid()
+    if tid == 0 { return -1 }
+
+    var s = _green_get_state()
+    if s == 0 { return -1 }
+
+    _green_lock_acquire()
+    var rc = _green_ensure_p_count_locked(s, p_id + 1)
+    if rc != 0 { _green_lock_release(); return rc }
+    var p = _green_state_p_by_id_or0(s, p_id)
+    if p == 0 { _green_lock_release(); return -1 }
+
+    // Auto-release the currently bound P if this thread owns it and we're switching.
+    var cur_p = _green_thread_p_or0(ts)
+    if cur_p != 0 && cur_p != p {
+        var cur_owner = _green_p_owner_tid(cur_p)
+        if cur_owner == tid {
+            _green_p_set_owner_tid(cur_p, 0)
+        } else if cur_owner != 0 {
+            // Unexpected: this OS thread is bound to a P it doesn't own.
+            _green_lock_release()
+            return -1
+        }
+    }
+
+    // Acquire requested P.
+    var owner = _green_p_owner_tid(p)
+    if owner == 0 || owner == tid {
+        _green_p_set_owner_tid(p, tid)
+    } else {
+        _green_lock_release()
+        return 0 - 16 // -EBUSY
+    }
+    _green_lock_release()
+
+    _green_thread_set_p(ts, p)
+    return 0
+}
+
+@oren.keep
+fn oren_green_release_p() {
+    // Host-thread-only release of the currently bound P (Stage N3 bring-up).
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+    if g_green_workers_started != 0 { return -1 }
+
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return -1 }
+    if ptr_get(ts + green_t_off_current_g()) != 0 { return -1 }
+
+    var tid = sys_gettid()
+    if tid == 0 { return -1 }
+
+    var p = _green_thread_p_or0(ts)
+    if p == 0 { return 0 }
+
+    _green_lock_acquire()
+    var owner = _green_p_owner_tid(p)
+    if owner == tid {
+        _green_p_set_owner_tid(p, 0)
+    } else if owner != 0 {
+        _green_lock_release()
+        return 0 - 1
+    }
+    _green_lock_release()
+
+    // Clear binding so the next scheduler call re-binds to P0 via `_green_current_p_or0()`.
+    _green_thread_set_p(ts, 0)
+    return 0
+}
+
+@oren.keep
+fn oren_green_current_p_id() {
+    _green_init_if_needed()
+    if _green_enabled() != true { return 0 - 1 }
+    var p = _green_current_p_or0()
+    if p == 0 { return 0 - 1 }
+    if p < 4096 { return 0 - 1 }
+    return _green_p_id(p)
+}
+
+@oren.keep
+fn oren_green_poll_until(deadline_ns) {
+    // Host-thread scheduler drive hook (rolling; Stage N3 bring-up).
+    //
+    // This is intentionally low-level and currently used by fixtures to validate
+    // multi-P behavior without enabling unsafe parallel workers.
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+
+    // Must not be called from inside a green task (it would clobber scheduler invariants).
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts != 0 && ptr_get(ts + green_t_off_current_g()) != 0 { return -1 }
+
+    // Worker-mode: background workers drive the scheduler loop; do not also drive it on the host.
+    if g_green_workers_started != 0 { return -1 }
+
+    _green_poll_until_budget(deadline_ns, 0)
+    return 0
+}
+
+@oren.keep
+fn oren_green_poll_steps(max_steps) {
+    // Host-thread bounded scheduler drive hook (rolling; Stage N3 bring-up).
+    //
+    // Runs at most `max_steps` green task context switches, then returns even if
+    // runnable tasks remain. Used by single-thread multi-P fixtures.
+    if max_steps <= 0 { return 0 }
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts != 0 && ptr_get(ts + green_t_off_current_g()) != 0 { return -1 }
+    if g_green_workers_started != 0 { return -1 }
+
+    _green_poll_until_budget(0, max_steps)
+    return 0
+}
+
+// Public hooks used by spawn/join/sleep/yield.
+@oren.keep
+fn oren_green_current_g_or0() {
+    // Fast path: if green runtime was never initialized, we are not inside a green task.
+    // Avoid allocating per-thread green scheduler state from unrelated runtime calls like `oren_yield()`.
+    if g_green_inited == 0 { return 0 }
+    if _green_enabled() != true { return 0 }
+    return _green_thread_current_g_or0()
+}
+
+@oren.keep
+fn oren_green_is_g(ptr) {
+    return _green_is_g(ptr)
+}
+
+@oren.keep
+fn oren_green_is_done(ptr) {
+    if _green_is_g(ptr) != true { return false }
+    return ptr_get(ptr + green_g_off_state()) == green_g_state_done()
+}
+
+@oren.keep
+fn oren_green_spawn(fn_obj, args_list) {
+    _green_init_if_needed()
+    if _green_enabled() != true { return 0 }
+
+    var stack_bytes = _green_alloc_stack_bytes()
+    var base = sys_mmap_private_anon(stack_bytes)
+    if base == 0 || base == -1 || base < 4096 { exit(906) }
+    var top = base + stack_bytes
+    // Keep stack 16-byte aligned. Leave a small redzone.
+    top = top - 32
+    // Avoid relying on negative immediate masks: `(0 - 16)` can be mishandled by rolling
+    // native backends when lowering wide immediates. Align down via arithmetic instead.
+    top = (top / 16) * 16
+
+    var ctx_ptr = sys_mmap_private_anon(green_ctx_bytes())
+    if ctx_ptr == 0 || ctx_ptr == -1 || ctx_ptr < 4096 { exit(907) }
+
+    // Create a stack node for GC scanning while this task is parked.
+    var node = oren_register_stack(top + 32)
+    if node == 0 { exit(908) }
+
+    // Build task object (GC-managed struct so fn_obj/args_list are visible to GC).
+    var g = _green_alloc_struct(green_g_bytes())
+    if g == 0 { exit(909) }
+    ptr_set(g + green_g_off_magic(), green_g_magic())
+    ptr_set(g + green_g_off_ctx(), ctx_ptr)
+    ptr_set(g + green_g_off_stack_base(), base)
+    ptr_set(g + green_g_off_stack_size(), stack_bytes)
+    ptr_set(g + green_g_off_stack_top(), top + 32)
+    ptr_set(g + green_g_off_stack_node(), node)
+    ptr_set(g + green_g_off_fn_obj(), fn_obj)
+    ptr_set(g + green_g_off_args_list(), args_list)
+    ptr_set(g + green_g_off_result(), 0)
+    ptr_set(g + green_g_off_state(), green_g_state_runnable())
+    ptr_set(g + green_g_off_wake_ns(), 0)
+    ptr_set(g + green_g_off_detached(), 0)
+    ptr_set(g + green_g_off_next(), 0)
+    ptr_set(g + green_g_off_io_fd(), 0)
+    ptr_set(g + green_g_off_io_kind(), 0)
+    ptr_set(g + green_g_off_io_ready(), 0)
+    ptr_set(g + green_g_off_io_active(), 0)
+    ptr_set(g + green_g_off_io_epoch(), 0)
+
+    // Initialize context to start at __oren_green_entry on the new stack.
+    var entry_pc = oren_code_addr(__oren_green_entry)
+    oren_ctx_init(ctx_ptr, top, entry_pc)
+
+    // Spawning policy (rolling, GMP-ready):
+    // - If we're currently inside a green task, enqueue locally to the current P (locality).
+    // - Otherwise, enqueue into the global run queue so any worker P can pick it up (cross-P injection).
+    var ts = _green_thread_state_for_current_thread_or0()
+    var cur_g = 0
+    if ts != 0 { cur_g = ptr_get(ts + green_t_off_current_g()) }
+    if cur_g != 0 {
+        _green_runq_push(g)
+    } else {
+        _green_global_runq_push(g)
+    }
+    return g
+}
+
+@oren.keep
+fn oren_green_join_timeout(g, timeout_ms) {
+    if g == 0 { return 0 }
+    if _green_is_g(g) != true { return -1 }
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+
+    var st = ptr_get(g + green_g_off_state())
+    if st == green_g_state_done() {
+        var r0 = ptr_get(g + green_g_off_result())
+        _green_cleanup_g(g)
+        return r0
+    }
+
+    var t = timeout_ms
+    var in_green = false
+    if _green_thread_current_g_or0() != 0 { in_green = true }
+
+    // timeout_ms < 0 => wait forever
+    if t < 0 {
+        if in_green {
+            while ptr_get(g + green_g_off_state()) != green_g_state_done() {
+                // Cooperative wait: yield so the scheduler can run other tasks.
+                oren_green_yield()
+            }
+            var r = ptr_get(g + green_g_off_result())
+            _green_cleanup_g(g)
+            return r
+        }
+
+        // Stage N2 worker mode: the scheduler runs on background OS threads; join blocks on addr.
+        if g_green_workers_started != 0 {
+            var state_ptr = g + green_g_off_state()
+            while true {
+                var cur = ptr_get(state_ptr)
+                if cur == green_g_state_done() { break }
+                var rcw = oren_wait_on_addr(state_ptr, cur, 0)
+                if rcw != 0 { return rcw }
+            }
+            var r2 = ptr_get(g + green_g_off_result())
+            _green_cleanup_g(g)
+            return r2
+        }
+
+        // Stage N1: drive the scheduler on this OS thread.
+        while ptr_get(g + green_g_off_state()) != green_g_state_done() {
+            _green_poll_until(0)
+        }
+        var r3 = ptr_get(g + green_g_off_result())
+        _green_cleanup_g(g)
+        return r3
+    }
+
+    // timeout_ms == 0 => probe only
+    if t == 0 {
+        if ptr_get(g + green_g_off_state()) == green_g_state_done() {
+            var r2 = ptr_get(g + green_g_off_result())
+            _green_cleanup_g(g)
+            return r2
+        }
+        return 0 - 60
+    }
+
+    if in_green {
+        // Cooperative bounded wait (best-effort): yield/sleep until deadline.
+        var start2 = _green_time_now_ns()
+        if start2 == 0 {
+            var i2 = 0
+            while i2 < t {
+                if ptr_get(g + green_g_off_state()) == green_g_state_done() {
+                    var rr = ptr_get(g + green_g_off_result())
+                    _green_cleanup_g(g)
+                    return rr
+                }
+                // Avoid burning CPU: sleep 1ms in green-space.
+                oren_green_sleep_ns(1000000)
+                i2 = i2 + 1
+            }
+            ptr_set(g + green_g_off_detached(), 1)
+            return 0 - 60
+        }
+        var deadline2 = start2 + t * 1000000
+        while 1 {
+            if ptr_get(g + green_g_off_state()) == green_g_state_done() {
+                var rr2 = ptr_get(g + green_g_off_result())
+                _green_cleanup_g(g)
+                return rr2
+            }
+            var now2 = _green_time_now_ns()
+            if now2 == 0 { break }
+            if now2 >= deadline2 { break }
+            var rem2 = deadline2 - now2
+            if rem2 > 1000000 {
+                oren_green_sleep_ns(1000000)
+            } else {
+                oren_green_yield()
+            }
+        }
+        ptr_set(g + green_g_off_detached(), 1)
+        return 0 - 60
+    }
+
+    // Stage N2 worker mode: block on addr with a bounded timeout.
+    if g_green_workers_started != 0 {
+        var state_ptr2 = g + green_g_off_state()
+        var timeout_us = t * 1000
+        while true {
+            var cur2 = ptr_get(state_ptr2)
+            if cur2 == green_g_state_done() { break }
+            var rcw2 = oren_wait_on_addr(state_ptr2, cur2, timeout_us)
+            if rcw2 == -60 {
+                ptr_set(g + green_g_off_detached(), 1)
+                return -60
+            }
+            if rcw2 != 0 { return rcw2 }
+            // Woken or spurious; re-check state.
+        }
+        var r_done = ptr_get(g + green_g_off_result())
+        _green_cleanup_g(g)
+        return r_done
+    }
+
+    var start = _green_time_now_ns()
+    if start == 0 {
+        // Fallback: run a small bounded loop.
+        var i = 0
+        while i < t {
+            if ptr_get(g + green_g_off_state()) == green_g_state_done() {
+                var r3 = ptr_get(g + green_g_off_result())
+                _green_cleanup_g(g)
+                return r3
+            }
+            _green_poll_until(0)
+            i = i + 1
+        }
+        ptr_set(g + green_g_off_detached(), 1)
+        return 0 - 60
+    }
+
+    var deadline = start + t * 1000000
+    while 1 {
+        if ptr_get(g + green_g_off_state()) == green_g_state_done() {
+            var r4 = ptr_get(g + green_g_off_result())
+            _green_cleanup_g(g)
+            return r4
+        }
+        var now = _green_time_now_ns()
+        if now == 0 { break }
+        if now >= deadline { break }
+        _green_poll_until(deadline)
+    }
+
+    // Timeout: detach (do not kill; safe semantics matches Windows join_timeout).
+    ptr_set(g + green_g_off_detached(), 1)
+    return 0 - 60
+}
+
+@oren.keep
+fn oren_green_sleep_ns(ns) {
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return 0 }
+    var g = ptr_get(ts + green_t_off_current_g())
+    if g == 0 { return 0 }
+    if ns <= 0 { return 0 }
+    var now = _green_time_now_ns()
+    if now == 0 {
+        // If no clock (rolling bring-up), yield best-effort without depending on
+        // higher-level yield helpers.
+        sys_sched_yield()
+        return 0
+    }
+    var wake_ns = now + ns
+    ptr_set(g + green_g_off_wake_ns(), wake_ns)
+    ptr_set(g + green_g_off_state(), green_g_state_sleeping())
+    // Save SP into stack node for GC scanning while sleeping.
+    var node = ptr_get(g + green_g_off_stack_node())
+    if node != 0 { ptr_set(node + 8, get_sp()) }
+    var ctx_g = ptr_get(g + green_g_off_ctx())
+    var sched_ctx = _green_thread_sched_ctx_or0(ts)
+    oren_ctx_switch(ctx_g, sched_ctx)
+    return 0
+}
+
+@oren.keep
+fn oren_green_yield() {
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return 0 }
+    var g = ptr_get(ts + green_t_off_current_g())
+    if g == 0 { return 0 }
+    ptr_set(g + green_g_off_state(), green_g_state_runnable())
+    // Save SP into stack node for GC scanning while parked.
+    var node = ptr_get(g + green_g_off_stack_node())
+    if node != 0 { ptr_set(node + 8, get_sp()) }
+    var ctx_g = ptr_get(g + green_g_off_ctx())
+    var sched_ctx = _green_thread_sched_ctx_or0(ts)
+    oren_ctx_switch(ctx_g, sched_ctx)
+    return 0
+}

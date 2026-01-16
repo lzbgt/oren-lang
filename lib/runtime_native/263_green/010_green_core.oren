@@ -1,0 +1,1295 @@
+// --- Native green tasks (rolling; GMP-ready) ---
+//
+// Goal (Stage N1, per `docs/NATIVE_GMP_SCHEDULER.md`):
+// - Provide an in-process lightweight task substrate so:
+//   - macOS/Linux native `spawn` no longer uses fork+pipe
+//   - heap/GC/locks are in a single shared address space (required for correctness later)
+// - Keep the runtime shape aligned with the eventual G-M-P model:
+//   - Today: single M (one OS thread) + cooperative scheduling
+//   - Later: multiple M + multiple P (work-stealing, netpoller, etc.)
+//
+// NOTE (rolling):
+// - This first landing is intentionally conservative: correctness first, then throughput.
+// - This does NOT yet make blocking syscalls non-blocking across tasks, except for `sleep`.
+
+// Context buffer size (bytes). The native backend's `oren_ctx_*` intrinsics treat this
+// as an opaque blob and expect at least the platform's required save slots.
+//
+// We intentionally allocate a full page:
+// - makes `mmap`/`munmap` length semantics unambiguous across OSes
+// - gives headroom as we expand `oren_ctx_switch` to preserve more CPU state
+fn green_ctx_bytes() { return 4096 }
+
+// Green task struct layout (bytes).
+//
+// IMPORTANT (native runtime init model; rolling):
+// Avoid relying on non-zero global initializers for offset constants. Keep these as
+// tiny functions so the native backend can inline them as immediates reliably.
+fn green_g_off_magic() { return 0 }
+fn green_g_off_ctx() { return 8 }
+fn green_g_off_stack_base() { return 16 }
+fn green_g_off_stack_size() { return 24 }
+fn green_g_off_stack_top() { return 32 }
+fn green_g_off_stack_node() { return 40 }
+fn green_g_off_fn_obj() { return 48 }
+fn green_g_off_args_list() { return 56 }
+fn green_g_off_result() { return 64 }
+fn green_g_off_state() { return 72 }
+fn green_g_off_wake_ns() { return 80 }
+fn green_g_off_detached() { return 88 }
+fn green_g_off_next() { return 96 }
+// IO wait fields (netpoller v0):
+// - io_fd/io_kind identify the readiness watch
+// - io_ready is set to 1 by the scheduler when the netpoller reports readiness
+// - io_active is 1 while the G is parked waiting for readiness (so stale events can be ignored safely)
+fn green_g_off_io_fd() { return 104 }
+fn green_g_off_io_kind() { return 112 }   // 0=read, 1=write
+fn green_g_off_io_ready() { return 120 }  // 0|1
+fn green_g_off_io_active() { return 128 } // 0|1
+// io_epoch is bumped by high-level waiters (e.g. `oren_select`) so the scheduler can reject stale
+// tokens from an earlier wait round without relying on `free` timing.
+fn green_g_off_io_epoch() { return 136 } // u64
+fn green_g_bytes() { return 144 }
+
+// Green states.
+fn green_g_state_runnable() { return 1 }
+fn green_g_state_sleeping() { return 2 }
+fn green_g_state_done() { return 3 }
+// Internal transitional state used to make join + stack cleanup race-free in worker mode:
+// - The task marks itself EXITING on its own stack and immediately switches back to the scheduler.
+// - The scheduler (on its own stack) finalizes DONE and wakes joiners.
+//
+// This prevents a host thread blocked in `oren_green_join_timeout` from observing DONE and unmapping
+// the green stack while the task is still executing on it (which can crash in leaf calls like
+// `oren_wake_all_addr` due to stack being unmapped mid-call).
+fn green_g_state_exiting() { return 4 }
+
+// Magic for identifying a green task pointer.
+// "ORENGRN1" (ASCII) packed into u64.
+fn green_g_magic() { return 5716837919880455729 }
+
+// Scheduler state struct layout (bytes).
+//
+// Rolling refactor (2026-01-16+):
+// move runnable/sleep queues under a `P` ("processor") object so the runtime layout
+// matches the eventual Go-like G-M-P model:
+// - `S` holds the global scheduler state (Ps list + zombies + global run queue)
+// - each `P` holds local runq/sleepq (later: timers, caches, netpoller hooks)
+fn green_s_off_p0() { return 0 }        // u64: default P pointer
+fn green_s_off_p_count() { return 8 }   // u64: number of Ps (>=1 once initialized)
+fn green_s_off_zomb_head() { return 16 } // u64: zombie list head
+fn green_s_off_glob_run_head() { return 24 } // u64: global runnable queue head (cross-P injection / fairness)
+fn green_s_off_glob_run_tail() { return 32 } // u64: global runnable queue tail
+fn green_s_bytes() { return 40 }
+
+// Per-P state struct layout (bytes).
+//
+// Rolling (2026-01-16+): represent the per-P runnable queue as a ring buffer (Go-like work-stealing deque),
+// with overflow to the scheduler's global run queue.
+//
+// Deque policy (aligned with eventual M:N work stealing):
+// - the owning `M` pops from the **tail** (LIFO, good locality)
+// - stealing `M` takes from the **head** (FIFO fairness)
+//
+// In rolling bring-up we still guard operations with the runtime global lock; the layout keeps the
+// eventual atomics path straightforward.
+fn green_p_off_runq_buf() { return 0 }   // u64: pointer to GC-scanned u64[] storing G pointers
+fn green_p_off_runq_head() { return 8 }  // u64: pop index (monotonic)
+fn green_p_off_runq_tail() { return 16 } // u64: push/pop index (moves up/down in deque mode)
+fn green_p_off_runq_mask() { return 24 } // u64: cap-1 (power of two)
+fn green_p_off_sleep_head() { return 32 }
+fn green_p_off_sleep_tail() { return 40 }
+fn green_p_off_id() { return 48 }        // small int id (0..p_count-1)
+fn green_p_off_next() { return 56 }      // u64: next P in the scheduler's P list (0 for end)
+fn green_p_off_owner_tid() { return 64 } // u64: sys_gettid() of owning M (0 when unclaimed)
+fn green_p_bytes() { return 72 }
+
+fn _green_time_now_ns() {
+    // Scheduler time base:
+    // Prefer a monotonic clock for deadlines so wall-clock jumps (NTP/manual set)
+    // do not break wake behavior.
+    var t = oren_time_mono_ns()
+    if t != 0 { return t }
+    return oren_time_unix_ns()
+}
+
+var g_green_inited = 0
+var g_green_enabled_checked = 0
+// IMPORTANT (native runtime init model; rolling):
+// Avoid relying on non-zero global initializers for feature flags. Initialize to 0 and
+// set the default in `_green_enabled()` on first use.
+var g_green_enabled = 0
+
+var g_green_state = 0        // rooted GC object (struct)
+
+// Stage N2 groundwork: optional background scheduler workers ("M").
+// Default remains Stage N1 N:1 (scheduler is driven by join/poll on the calling thread).
+var g_green_workers_started = 0
+var g_green_worker_count = 0 // number of worker threads started (rolling; debug/fixtures)
+var g_green_worker_wake_word = 0 // u64* (mmap page), used with oren_m_park_word_wait/wake
+var g_green_sched_lock_word = 0  // u64* (mmap page), used as a private scheduler lock (0=unlocked, tid=owner)
+// Stage N3 bring-up: optional world lock for multi-worker experimentation.
+// When enabled, at most one OS thread executes on a green stack at a time.
+var g_green_world_lock_word = 0 // u64* (mmap page), used with oren_wait_on_addr/wake (0=unlocked, tid=owner)
+var g_green_world_lock_enabled = 0
+// Debug counters (mmap page; rolling):
+// Used for lightweight regression guards (e.g. "idle select does not spin CPU").
+var g_green_debug_word = 0 // u64* (mmap page), offsets:
+// [0]=idle_iters, [8]=steal_count, [16]=last_steal_p_id,
+// [24]=p_acquire_count, [32]=p_release_count, [40]=last_p_acquire_id, [48]=last_p_release_id
+
+// Rolling config: enable a cached fast path for `_green_poll_until_budget`.
+// Default is conservative (re-fetch per-thread state each iteration); cached mode is opt-in.
+var g_green_poll_cache_checked = 0
+var g_green_poll_cache_enabled = 0
+
+// Per-OS-thread green scheduler state (rolling):
+// - Stage N1 ran on a single OS thread and used globals for scheduler context/current-G.
+// - Stage N2 needs multiple OS threads ("M"), so this state must be per-OS-thread.
+//
+// We stash a pointer in the OS-thread node (which is mmap-sized 4096 bytes) at an appended offset.
+// IMPORTANT: do NOT use this on stack nodes created by `oren_register_stack` (those can be 56 bytes).
+fn green_thread_node_off_green_state() { return 64 }
+
+fn green_t_off_sched_ctx() { return 0 }        // u64: scheduler ctx buffer ptr (mmap, green_ctx_bytes)
+fn green_t_off_current_g() { return 8 }        // u64: currently running G ptr (0 on scheduler stack)
+fn green_t_off_sched_stack_node() { return 16 } // u64: OS-thread node for this scheduler stack (for GC scanning)
+fn green_t_off_p() { return 24 }               // u64: current P pointer (rolling; required for Stage N2)
+fn green_t_off_tick() { return 32 }            // u64: scheduler tick for fairness / periodic global polling
+// Per-thread netpoll scratch (allocation-free scheduler waits):
+// - large enough for kqueue (8*kevent + timespec + drain buf) and epoll (8*epoll_event + drain buf)
+fn green_t_off_netpoll_scratch() { return 64 }
+fn green_t_netpoll_scratch_bytes() { return 512 }
+fn green_t_bytes() { return 64 + green_t_netpoll_scratch_bytes() }
+
+fn _green_thread_netpoll_scratch_or0(ts) {
+    if ts == 0 { return 0 }
+    return ts + green_t_off_netpoll_scratch()
+}
+
+fn _green_thread_state_for_current_thread_or0() {
+    if oren_globals() == 0 { return 0 }
+    // Ensure we have an OS-thread node for this thread (idempotent by tid).
+    var os_node = oren_register_thread(get_sp())
+    if os_node == 0 || os_node == -1 || os_node < 4096 { return 0 }
+    var ts = ptr_get(os_node + green_thread_node_off_green_state())
+    if ts != 0 {
+        if ts == -1 || ts < 4096 { return 0 }
+        return ts
+    }
+
+    // Allocate a thread-local state blob. Use mmap to avoid relying on any GC-managed allocator.
+    var ts0 = sys_mmap_private_anon(4096)
+    if ts0 == 0 || ts0 == -1 || ts0 < 4096 { exit(910) }
+
+    var sched_ctx = sys_mmap_private_anon(green_ctx_bytes())
+    if sched_ctx == 0 || sched_ctx == -1 || sched_ctx < 4096 { exit(911) }
+
+    ptr_set(ts0 + green_t_off_sched_ctx(), sched_ctx)
+    ptr_set(ts0 + green_t_off_current_g(), 0)
+    ptr_set(ts0 + green_t_off_sched_stack_node(), os_node)
+    // Default P binding: P0 (single-P mode). Caller may override (Stage N2/unsafe parallel).
+    // NOTE: `_green_init_if_needed()` must have run before this on all normal paths.
+    var s = _green_get_state()
+    var p0 = 0
+    if s != 0 { p0 = _green_state_p0(s) }
+    ptr_set(ts0 + green_t_off_p(), p0)
+    ptr_set(ts0 + green_t_off_tick(), 0)
+
+    // Publish into the OS-thread node (thread-local; no atomic required).
+    ptr_set(os_node + green_thread_node_off_green_state(), ts0)
+    return ts0
+}
+
+fn _green_thread_current_g_or0() {
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return 0 }
+    return ptr_get(ts + green_t_off_current_g())
+}
+
+fn _green_thread_set_current_g(ts, g) { ptr_set(ts + green_t_off_current_g(), g); return 0 }
+fn _green_thread_sched_ctx_or0(ts) { return ptr_get(ts + green_t_off_sched_ctx()) }
+fn _green_thread_sched_stack_node_or0(ts) { return ptr_get(ts + green_t_off_sched_stack_node()) }
+fn _green_thread_p_or0(ts) { return ptr_get(ts + green_t_off_p()) }
+fn _green_thread_set_p(ts, p) { ptr_set(ts + green_t_off_p(), p); return 0 }
+fn _green_thread_tick(ts) { return ptr_get(ts + green_t_off_tick()) }
+fn _green_thread_set_tick(ts, v) { ptr_set(ts + green_t_off_tick(), v); return 0 }
+
+fn _green_enabled() {
+    if g_green_enabled_checked == 0 {
+        // Default: enabled (Stage N1). Allow env to disable.
+        g_green_enabled = 1
+        // Env gate (rolling escape hatch):
+        // - OREN_NO_GREEN=1 disables green tasks and keeps legacy spawn behavior (fork+pipe) on POSIX.
+        var v = native_envp_get_value_ptr("OREN_NO_GREEN")
+        if v != 0 {
+            if ptr_get_byte(v) != 0 && ptr_get_byte(v) != 48 { // not empty and not '0'
+                g_green_enabled = 0
+            }
+        }
+        g_green_enabled_checked = 1
+    }
+    return g_green_enabled != 0
+}
+
+fn _green_poll_cache() {
+    if g_green_poll_cache_checked == 0 {
+        // Default: off (rolling safety). Opt-in for experimentation only.
+        g_green_poll_cache_enabled = 0
+        var v = native_envp_get_value_ptr("OREN_GREEN_POLL_CACHE")
+        if v != 0 {
+            if ptr_get_byte(v) != 0 && ptr_get_byte(v) != 48 { // not empty and not '0'
+                g_green_poll_cache_enabled = 1
+            }
+        }
+        g_green_poll_cache_checked = 1
+    }
+    return g_green_poll_cache_enabled != 0
+}
+
+@oren.keep
+fn oren_green_set_poll_cache_mode(enable) {
+    // Test/dev-only knob: allow turning cached mode on/off without depending on host env.
+    if enable != 0 { g_green_poll_cache_enabled = 1 } else { g_green_poll_cache_enabled = 0 }
+    g_green_poll_cache_checked = 1
+    return 0
+}
+
+// Return true if the current OS thread is executing on a green stack (i.e. inside a G).
+//
+// This helper exists so non-scheduler runtime subsystems (select/net/proc) can avoid blocking
+// the entire scheduler OS thread when called from green tasks.
+@oren.keep
+fn oren_green_in_green() {
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return false }
+    if ptr_get(ts + green_t_off_current_g()) != 0 { return true }
+    return false
+}
+
+fn _green_get_state() { return g_green_state }
+fn _green_set_state(p) { g_green_state = p; return 0 }
+
+fn _green_state_p0(s) { return ptr_get(s + green_s_off_p0()) }
+fn _green_state_p_count(s) { return ptr_get(s + green_s_off_p_count()) }
+fn _green_state_zomb_head(s) { return ptr_get(s + green_s_off_zomb_head()) }
+fn _green_state_glob_run_head(s) { return ptr_get(s + green_s_off_glob_run_head()) }
+fn _green_state_glob_run_tail(s) { return ptr_get(s + green_s_off_glob_run_tail()) }
+
+fn _green_state_set_p0(s, v) { ptr_set(s + green_s_off_p0(), v); return 0 }
+fn _green_state_set_p_count(s, v) { ptr_set(s + green_s_off_p_count(), v); return 0 }
+fn _green_state_set_zomb_head(s, v) { ptr_set(s + green_s_off_zomb_head(), v); return 0 }
+fn _green_state_set_glob_run_head(s, v) { ptr_set(s + green_s_off_glob_run_head(), v); return 0 }
+fn _green_state_set_glob_run_tail(s, v) { ptr_set(s + green_s_off_glob_run_tail(), v); return 0 }
+
+fn _green_g_next(g) { return ptr_get(g + green_g_off_next()) }
+fn _green_g_set_next(g, v) { ptr_set(g + green_g_off_next(), v); return 0 }
+
+fn _green_p_runq_buf(p) { return ptr_get(p + green_p_off_runq_buf()) }
+fn _green_p_runq_head(p) { return ptr_get(p + green_p_off_runq_head()) }
+fn _green_p_runq_tail(p) { return ptr_get(p + green_p_off_runq_tail()) }
+fn _green_p_runq_mask(p) { return ptr_get(p + green_p_off_runq_mask()) }
+fn _green_p_sleep_head(p) { return ptr_get(p + green_p_off_sleep_head()) }
+fn _green_p_sleep_tail(p) { return ptr_get(p + green_p_off_sleep_tail()) }
+fn _green_p_next(p) { return ptr_get(p + green_p_off_next()) }
+fn _green_p_owner_tid(p) { return ptr_get(p + green_p_off_owner_tid()) }
+
+fn _green_p_id(p) { return ptr_get(p + green_p_off_id()) }
+fn _green_p_owner_reserved_tid(p) {
+    // Negative sentinel used to reserve a P for a worker before its tid is known.
+    // reserved(id) = -(id+1)  (so P0 => -1).
+    if p == 0 { return 0 }
+    return 0 - 1 - _green_p_id(p)
+}
+
+fn _green_p_set_runq_buf(p, v) { ptr_set(p + green_p_off_runq_buf(), v); return 0 }
+fn _green_p_set_runq_head(p, v) { ptr_set(p + green_p_off_runq_head(), v); return 0 }
+fn _green_p_set_runq_tail(p, v) { ptr_set(p + green_p_off_runq_tail(), v); return 0 }
+fn _green_p_set_runq_mask(p, v) { ptr_set(p + green_p_off_runq_mask(), v); return 0 }
+fn _green_p_set_sleep_head(p, v) { ptr_set(p + green_p_off_sleep_head(), v); return 0 }
+fn _green_p_set_sleep_tail(p, v) { ptr_set(p + green_p_off_sleep_tail(), v); return 0 }
+fn _green_p_set_next(p, v) { ptr_set(p + green_p_off_next(), v); return 0 }
+fn _green_p_set_owner_tid(p, v) { ptr_set(p + green_p_off_owner_tid(), v); return 0 }
+
+fn _green_p_runq_cap(p) { return _green_p_runq_mask(p) + 1 }
+
+fn _green_p_runq_mask_default() {
+    // Default per-P local runq capacity (power of two).
+    // Keep bounded: too large increases GC scanning overhead; too small increases global queue pressure.
+    return 255 // cap=256
+}
+
+fn _green_state_p_by_id_or0(s, id) {
+    if s == 0 { return 0 }
+    var p = _green_state_p0(s)
+    while p != 0 {
+        if ptr_get(p + green_p_off_id()) == id { return p }
+        p = _green_p_next(p)
+    }
+    return 0
+}
+
+fn _green_current_p_or0() {
+    // Best-effort: use thread-local P binding. Fallback to P0.
+    // NOTE: this may lazily allocate thread-local scheduler state.
+    var ts = _green_thread_state_for_current_thread_or0()
+    var s = _green_get_state()
+    if ts == 0 {
+        if s == 0 { return 0 }
+        return _green_state_p0(s)
+    }
+    var p = _green_thread_p_or0(ts)
+    if p != 0 { return p }
+    if s == 0 { return 0 }
+    var p0 = _green_state_p0(s)
+    if p0 != 0 { _green_thread_set_p(ts, p0) }
+    return p0
+}
+
+fn _green_is_g(ptr) {
+    if ptr == 0 { return false }
+    // Avoid crashing on small integers: treat <4096 as not a pointer.
+    if ptr < 4096 { return false }
+    // Best-effort: check magic first.
+    return ptr_get(ptr + green_g_off_magic()) == green_g_magic()
+}
+
+fn _green_alloc_struct(size) {
+    // Green-task runtime needs a small GC-visible struct allocation hook, but we cannot
+    // depend on `oren_alloc_struct` ordering (defined later in 120_first_class_fn.oren).
+    //
+    // Match the behavior of `oren_alloc_struct`: allocate via the compiler's special-cased
+    // malloc and then tag the node kind as STRUCT so GC can scan fields conservatively.
+    var ptr = malloc(size)
+    var node = oren_find_node(ptr)
+    if node != 0 {
+        // node.kind at offset 16
+        ptr_set(iadd(node, 16), 4)
+    }
+    return ptr
+}
+
+fn _green_find_current_stack_node_or0() {
+    // Best-effort "which stack am I on?" heuristic.
+    //
+    // Reimplemented locally (instead of calling TIME internals) so it stays reachable even when
+    // the native build is single-threaded and the TIME per-thread path is pruned.
+    if oren_globals() == 0 { return 0 }
+    var sp = get_sp()
+    var node = global_get_threads()
+    var max_scan = 8388608 // 8MB
+    while node != 0 {
+        var top = ptr_get(node)
+        if sp < top {
+            var diff = top - sp
+            if diff < max_scan { return node }
+        }
+        node = ptr_get(node + 16)
+    }
+    return 0
+}
+
+fn _green_alloc_stack_bytes() {
+    // Default 1 MiB per green stack (rolling).
+    // Env override: OREN_GREEN_STACK_KB=<n> (clamped).
+    var kb = 1024
+    var v = native_envp_get_value_ptr("OREN_GREEN_STACK_KB")
+    if v != 0 {
+        var n = native_parse_i64_dec_cstr_or_neg1(v)
+        if n > 0 {
+            if n < 64 { n = 64 }
+            if n > 16384 { n = 16384 }
+            kb = n
+        }
+    }
+    return kb * 1024
+}
+
+fn _green_init_if_needed() {
+    if _green_enabled() != true { return 0 }
+    if g_green_inited != 0 { return 0 }
+
+    // Allocate scheduler state as a GC-managed struct and root it.
+    var s = _green_alloc_struct(green_s_bytes())
+    if s == 0 { exit(901) }
+
+    // Allocate the scheduler-private lock word (one page; u64 at offset 0).
+    // This lock protects scheduler state without coupling to the runtime global lock.
+    if g_green_sched_lock_word == 0 {
+        var lword = sys_mmap_private_anon(4096)
+        if lword == 0 || lword == -1 || lword < 4096 { exit(900) }
+        ptr_set(lword, 0)
+        g_green_sched_lock_word = lword
+    }
+    // Allocate debug counters (one page; u64 at offsets).
+    if g_green_debug_word == 0 {
+        var dword = sys_mmap_private_anon(4096)
+        if dword == 0 || dword == -1 || dword < 4096 { exit(899) }
+        ptr_set(dword, 0)
+        g_green_debug_word = dword
+    }
+    // Allocate P0 (single-P default; more Ps are optional/unsafe today).
+    var p0 = _green_alloc_struct(green_p_bytes())
+    if p0 == 0 { exit(902) }
+    // Allocate local runq buffer as a GC-scanned "struct" so runnable G pointers are retained.
+    var runq_mask = _green_p_runq_mask_default()
+    var runq_buf = _green_alloc_struct((runq_mask + 1) * 8)
+    if runq_buf == 0 { exit(903) }
+    // Explicitly clear the buffer (malloc is not guaranteed to be zeroed).
+    var i = 0
+    while i <= runq_mask {
+        ptr_set(runq_buf + i * 8, 0)
+        i = i + 1
+    }
+    _green_p_set_runq_buf(p0, runq_buf)
+    _green_p_set_runq_head(p0, 0)
+    _green_p_set_runq_tail(p0, 0)
+    _green_p_set_runq_mask(p0, runq_mask)
+    _green_p_set_sleep_head(p0, 0)
+    _green_p_set_sleep_tail(p0, 0)
+    ptr_set(p0 + green_p_off_id(), 0)
+    _green_p_set_next(p0, 0)
+    _green_p_set_owner_tid(p0, 0)
+
+    _green_state_set_p0(s, p0)
+    _green_state_set_p_count(s, 1)
+    _green_state_set_zomb_head(s, 0)
+    _green_state_set_glob_run_head(s, 0)
+    _green_state_set_glob_run_tail(s, 0)
+    _green_set_state(s)
+    native_gc_register_root(s)
+
+    // Per-OS-thread scheduler context buffers are allocated lazily in
+    // `_green_thread_state_for_current_thread_or0()`.
+
+    g_green_inited = 1
+    return 0
+}
+
+fn _green_atomic_inc_u64(word_ptr) {
+    if word_ptr == 0 { return 0 }
+    while true {
+        var old = ptr_get(word_ptr)
+        var new = iadd(old, 1)
+        if atomic_cas(word_ptr, old, new) == old { return new }
+    }
+    return 0
+}
+
+fn _green_world_lock_acquire() {
+    if g_green_world_lock_enabled == 0 { return 0 }
+    var lock_ptr = g_green_world_lock_word
+    if lock_ptr == 0 { return 0 }
+    var tid = sys_gettid()
+    if tid == 0 { exit(939) }
+    var spin = 0
+    while atomic_cas(lock_ptr, 0, tid) != 0 {
+        spin = spin + 1
+        if spin > 1000 {
+            var owner = ptr_get(lock_ptr)
+            if owner != 0 {
+                // STW GC robustness: never block indefinitely while waiting to enter Oren code.
+                oren_gc_safepoint()
+                oren_wait_on_addr(lock_ptr, owner, 1000) // 1ms
+            }
+            spin = 0
+        }
+    }
+    return 0
+}
+
+fn _green_world_lock_release() {
+    if g_green_world_lock_enabled == 0 { return 0 }
+    var lock_ptr = g_green_world_lock_word
+    if lock_ptr == 0 { return 0 }
+    var tid = sys_gettid()
+    if tid == 0 { exit(939) }
+    atomic_cas(lock_ptr, tid, 0)
+    oren_wake_all_addr(lock_ptr)
+    return 0
+}
+
+@oren.keep
+fn oren_green_debug_idle_iters() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    return ptr_get(p + 0)
+}
+
+@oren.keep
+fn oren_green_debug_steal_count() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    return ptr_get(p + 8)
+}
+
+@oren.keep
+fn oren_green_debug_last_steal_p_id() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 - 1 }
+    return ptr_get(p + 16)
+}
+
+@oren.keep
+fn oren_green_debug_p_acquire_count() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    return ptr_get(p + 24)
+}
+
+@oren.keep
+fn oren_green_debug_p_release_count() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    return ptr_get(p + 32)
+}
+
+@oren.keep
+fn oren_green_debug_last_p_acquire_id() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 - 1 }
+    return ptr_get(p + 40)
+}
+
+@oren.keep
+fn oren_green_debug_last_p_release_id() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 - 1 }
+    return ptr_get(p + 48)
+}
+
+@oren.keep
+fn oren_green_debug_tid() {
+    // Debug/testing helper: expose the runtime's notion of OS-thread id.
+    // (On supported Tier‑1 hosts this is a stable non-zero id for the lifetime of the thread.)
+    return sys_gettid()
+}
+
+@oren.keep
+fn oren_green_debug_p_owner_tid(p_id) {
+    // Debug/testing helper: observe P ownership (0 = unclaimed, negative = reserved sentinel, positive = tid).
+    _green_init_if_needed()
+    if _green_enabled() != true { return 0 }
+    if p_id < 0 { return 0 }
+    if p_id >= 64 { return 0 }
+    var s = _green_get_state()
+    if s == 0 { return 0 }
+    _green_lock_acquire()
+    var p = _green_state_p_by_id_or0(s, p_id)
+    var v = 0
+    if p != 0 { v = _green_p_owner_tid(p) }
+    _green_lock_release()
+    return v
+}
+
+@oren.keep
+fn oren_green_debug_worker_count() {
+    return g_green_worker_count
+}
+
+@oren.keep
+fn oren_green_set_world_lock_mode(enable) {
+    // Test/dev-only knob:
+    // Enable a world lock so multiple green scheduler workers can exist while still ensuring
+    // only one OS thread executes Oren code on a green stack at a time.
+    //
+    // Must be set before `oren_green_start_workers`.
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+    if g_green_workers_started != 0 { return -1 }
+    // Must not run in-green.
+    var ts0 = _green_thread_state_for_current_thread_or0()
+    if ts0 != 0 && ptr_get(ts0 + green_t_off_current_g()) != 0 { return -1 }
+
+    if enable != 0 {
+        if g_green_world_lock_word == 0 {
+            var w = sys_mmap_private_anon(4096)
+            if w == 0 || w == -1 || w < 4096 { exit(938) }
+            ptr_set(w, 0)
+            g_green_world_lock_word = w
+        }
+        g_green_world_lock_enabled = 1
+    } else {
+        g_green_world_lock_enabled = 0
+    }
+    return 0
+}
+
+@oren.keep
+fn oren_green_debug_reset() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    ptr_set(p + 0, 0)
+    ptr_set(p + 8, 0)
+    ptr_set(p + 16, 0)
+    ptr_set(p + 24, 0)
+    ptr_set(p + 32, 0)
+    ptr_set(p + 40, 0)
+    ptr_set(p + 48, 0)
+    return 0
+}
+
+fn _green_p_ensure_owned_by_tid_locked(p, tid) {
+    if p == 0 { return -1 }
+    if tid == 0 { return -1 }
+    var owner = _green_p_owner_tid(p)
+    if owner == tid { return 0 }
+    var reserved = _green_p_owner_reserved_tid(p)
+    if owner == 0 || owner == reserved {
+        _green_p_set_owner_tid(p, tid)
+        // Debug: record ownership reacquisition.
+        var dbg = g_green_debug_word
+        if dbg != 0 && dbg != -1 && dbg >= 4096 {
+            _green_atomic_inc_u64(dbg + 24)
+            ptr_set(dbg + 40, _green_p_id(p))
+        }
+        return 0
+    }
+    return 0 - 16 // -EBUSY
+}
+
+fn _green_worker_try_acquire_any_p_locked(s, tid) {
+    // Worker-mode helper: try to acquire some free P (owner_tid==0) for this tid.
+    // Returns the acquired P pointer, or 0 if none available.
+    if s == 0 { return 0 }
+    if tid == 0 { return 0 }
+    var p = _green_state_p0(s)
+    while p != 0 {
+        var owner = _green_p_owner_tid(p)
+        if owner == 0 {
+            _green_p_set_owner_tid(p, tid)
+            // Debug: record acquisition.
+            var dbg = g_green_debug_word
+            if dbg != 0 && dbg != -1 && dbg >= 4096 {
+                _green_atomic_inc_u64(dbg + 24)
+                ptr_set(dbg + 40, _green_p_id(p))
+            }
+            return p
+        }
+        p = _green_p_next(p)
+    }
+    return 0
+}
+
+fn _green_p_release_if_owned_by_tid_locked(p, tid) {
+    if p == 0 { return 0 }
+    if tid == 0 { return 0 }
+    var owner = _green_p_owner_tid(p)
+    if owner == tid {
+        _green_p_set_owner_tid(p, 0)
+        // Debug: record release.
+        var dbg = g_green_debug_word
+        if dbg != 0 && dbg != -1 && dbg >= 4096 {
+            _green_atomic_inc_u64(dbg + 32)
+            ptr_set(dbg + 48, _green_p_id(p))
+        }
+        return 0
+    }
+    return 0
+}
+
+fn _green_workers_wake_if_started() {
+    if g_green_workers_started == 0 { return 0 }
+    if g_green_worker_wake_word == 0 { return 0 }
+    // Best-effort: post a wake token and wake all parked workers.
+    oren_m_park_word_wake(g_green_worker_wake_word)
+    // Also wake the POSIX netpoller (if enabled) so an idle worker blocked in kevent/epoll wakes immediately.
+    if g_target_os != 3 {
+        native_netpoll_wake()
+    }
+    return 0
+}
+
+fn _green_netpoll_drain_ready(ts, now_ns, max_events) {
+    // Drain up to max_events ready tokens from the netpoller (timeout=0) and mark the corresponding Gs
+    // as ready to wake on the next sleeper scan.
+    //
+    // Token contract (rolling):
+    // - token is a G pointer; it must remain valid even if the wait times out (G continues running).
+    if g_target_os == 3 { return 0 }
+    if g_green_inited == 0 { return 0 }
+    if now_ns == 0 { return 0 }
+    // Initialize lazily; ignore ENOSYS.
+    if native_netpoll_init_once() < 0 { return 0 }
+    var scratch = _green_thread_netpoll_scratch_or0(ts)
+    var n = 0
+    while n < max_events {
+        if scratch != 0 {
+            var got = native_netpoll_poll_many_scratch(0, scratch, green_t_netpoll_scratch_bytes())
+            if got <= 0 { break }
+            var i = 0
+            while i < got {
+                if n >= max_events { break }
+                var tok = ptr_get(scratch + i * 8)
+                if tok != 0 {
+                    if _green_is_g(tok) == true {
+                        // Netpoll v1 token: tok is the G pointer.
+                        // Ignore stale tokens (wait already completed/timed out).
+                        if ptr_get(tok + green_g_off_io_active()) != 0 {
+                            ptr_set(tok + green_g_off_io_ready(), 1)
+                            // Force a wake on the next `_green_wake_ready_all(now_ns)` pass.
+                            ptr_set(tok + green_g_off_wake_ns(), now_ns)
+                        }
+                    } else {
+                        // Netpoll v2 token: tok is a small tracked struct describing which select-case became ready.
+                        if native_netpoll_is_wait_token(tok) == true {
+                            var g = ptr_get(tok + native_netpoll_wait_off_g())
+                            if _green_is_g(g) == true {
+                                if ptr_get(g + green_g_off_io_active()) != 0 {
+                                    var want_epoch = ptr_get(tok + native_netpoll_wait_off_epoch())
+                                    if want_epoch == ptr_get(g + green_g_off_io_epoch()) {
+                                        ptr_set(tok + native_netpoll_wait_off_ready(), 1)
+                                        ptr_set(g + green_g_off_io_ready(), 1)
+                                        ptr_set(g + green_g_off_wake_ns(), now_ns)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                i = i + 1
+                n = n + 1
+            }
+        } else {
+            // Fallback (should be rare): poll one token at a time.
+            var tok2 = native_netpoll_poll_one(0)
+            if tok2 == 0 { break }
+            if _green_is_g(tok2) == true {
+                if ptr_get(tok2 + green_g_off_io_active()) != 0 {
+                    ptr_set(tok2 + green_g_off_io_ready(), 1)
+                    ptr_set(tok2 + green_g_off_wake_ns(), now_ns)
+                }
+            } else {
+                if native_netpoll_is_wait_token(tok2) == true {
+                    var g2 = ptr_get(tok2 + native_netpoll_wait_off_g())
+                    if _green_is_g(g2) == true {
+                        if ptr_get(g2 + green_g_off_io_active()) != 0 {
+                            var want_epoch2 = ptr_get(tok2 + native_netpoll_wait_off_epoch())
+                            if want_epoch2 == ptr_get(g2 + green_g_off_io_epoch()) {
+                                ptr_set(tok2 + native_netpoll_wait_off_ready(), 1)
+                                ptr_set(g2 + green_g_off_io_ready(), 1)
+                                ptr_set(g2 + green_g_off_wake_ns(), now_ns)
+                            }
+                        }
+                    }
+                }
+            }
+            n = n + 1
+        }
+    }
+    return 0
+}
+
+fn _green_lock_acquire() {
+    // Dedicated lock for green scheduler state (runq/sleepq/zombies/P list).
+    // This avoids coupling scheduler progress to the runtime global lock (used heavily by allocator/GC metadata).
+    var lock_ptr = g_green_sched_lock_word
+    if lock_ptr == 0 { return 0 }
+    var tid = sys_gettid()
+    if tid == 0 {
+        // If background workers are enabled, we require a stable non-zero tid to avoid
+        // colliding with the "unlocked" sentinel 0.
+        if g_green_workers_started != 0 { exit(930) }
+        return 0
+    }
+    var spin = 0
+    while atomic_cas(lock_ptr, 0, tid) != 0 {
+        spin = spin + 1
+        if spin > 1000 {
+            var owner = ptr_get(lock_ptr)
+            if owner != 0 {
+                // STW GC robustness: do not block indefinitely while holding no safepoint polls.
+                // Parkable waits must allow `oren_gc_collect()` to complete when multiple OS threads exist.
+                oren_gc_safepoint()
+                oren_wait_on_addr(lock_ptr, owner, 1000) // 1ms
+            }
+            spin = 0
+        }
+    }
+    return 0
+}
+
+fn _green_lock_release() {
+    var lock_ptr = g_green_sched_lock_word
+    if lock_ptr == 0 { return 0 }
+    var tid = sys_gettid()
+    if tid == 0 {
+        if g_green_workers_started != 0 { exit(930) }
+        return 0
+    }
+    atomic_cas(lock_ptr, tid, 0)
+    oren_wake_all_addr(lock_ptr)
+    return 0
+}
+
+fn _green_runq_push_local_locked(p, g) {
+    if p == 0 || g == 0 { return 0 }
+    var buf = _green_p_runq_buf(p)
+    var mask = _green_p_runq_mask(p)
+    if buf == 0 || mask == 0 { return 0 }
+
+    var head = _green_p_runq_head(p)
+    var tail = _green_p_runq_tail(p)
+    var cap = mask + 1
+    if tail - head >= cap {
+        // Full: caller should overflow to global queue.
+        return 0 - 60
+    }
+
+    var was_empty = 0
+    if tail == head { was_empty = 1 }
+
+    var idx = tail & mask
+    ptr_set(buf + idx * 8, g)
+    _green_p_set_runq_tail(p, tail + 1)
+    return was_empty
+}
+
+fn _green_runq_pop_local_locked(p) {
+    if p == 0 { return 0 }
+    var buf = _green_p_runq_buf(p)
+    var mask = _green_p_runq_mask(p)
+    if buf == 0 || mask == 0 { return 0 }
+
+    var head = _green_p_runq_head(p)
+    var tail = _green_p_runq_tail(p)
+    if head == tail { return 0 }
+
+    // Owner pop from tail (LIFO).
+    tail = tail - 1
+    var idx = tail & mask
+    var g = ptr_get(buf + idx * 8)
+    ptr_set(buf + idx * 8, 0)
+    _green_p_set_runq_tail(p, tail)
+    return g
+}
+
+fn _green_runq_steal_one_from_locked(victim_p) {
+    if victim_p == 0 { return 0 }
+    var buf = _green_p_runq_buf(victim_p)
+    var mask = _green_p_runq_mask(victim_p)
+    if buf == 0 || mask == 0 { return 0 }
+
+    var head = _green_p_runq_head(victim_p)
+    var tail = _green_p_runq_tail(victim_p)
+    if head == tail { return 0 }
+
+    // Steal from head (FIFO).
+    var idx = head & mask
+    var g = ptr_get(buf + idx * 8)
+    ptr_set(buf + idx * 8, 0)
+    _green_p_set_runq_head(victim_p, head + 1)
+    return g
+}
+
+fn _green_runq_push_locked(p, s, g) {
+    if p == 0 || s == 0 || g == 0 { return 0 }
+    _green_g_set_next(g, 0)
+    var rc = _green_runq_push_local_locked(p, g)
+    if rc == -60 {
+        // Local overflow: push into global runq (fairness / overflow queue).
+        return _green_global_runq_push_locked(s, g)
+    }
+    return rc
+}
+
+fn _green_runq_pop_locked(p) {
+    return _green_runq_pop_local_locked(p)
+}
+
+fn _green_global_runq_push_locked(s, g) {
+    if s == 0 || g == 0 { return 0 }
+    var was_empty = 0
+    _green_g_set_next(g, 0)
+    var head = _green_state_glob_run_head(s)
+    if head == 0 {
+        was_empty = 1
+        _green_state_set_glob_run_head(s, g)
+        _green_state_set_glob_run_tail(s, g)
+        return was_empty
+    }
+    var tail = _green_state_glob_run_tail(s)
+    if tail != 0 { _green_g_set_next(tail, g) }
+    _green_state_set_glob_run_tail(s, g)
+    return was_empty
+}
+
+fn _green_global_runq_pop_locked(s) {
+    if s == 0 { return 0 }
+    var head = _green_state_glob_run_head(s)
+    if head == 0 { return 0 }
+    var next = _green_g_next(head)
+    _green_state_set_glob_run_head(s, next)
+    if next == 0 {
+        _green_state_set_glob_run_tail(s, 0)
+    }
+    _green_g_set_next(head, 0)
+    return head
+}
+
+fn _green_global_runq_push(g) {
+    var s = _green_get_state()
+    if s == 0 || g == 0 { return 0 }
+    _green_lock_acquire()
+    var was_empty = _green_global_runq_push_locked(s, g)
+    _green_lock_release()
+    if was_empty != 0 { _green_workers_wake_if_started() }
+    return 0
+}
+
+fn _green_global_runq_pop() {
+    var s = _green_get_state()
+    if s == 0 { return 0 }
+    _green_lock_acquire()
+    var g = _green_global_runq_pop_locked(s)
+    _green_lock_release()
+    return g
+}
+
+fn _green_runq_push_p(p, g) {
+    var s = _green_get_state()
+    if p == 0 || s == 0 || g == 0 { return 0 }
+    _green_lock_acquire()
+    var was_empty = _green_runq_push_locked(p, s, g)
+    _green_lock_release()
+    if was_empty != 0 { _green_workers_wake_if_started() }
+    return 0
+}
+
+fn _green_runq_pop_p(p) {
+    if p == 0 { return 0 }
+    _green_lock_acquire()
+    var g = _green_runq_pop_locked(p)
+    _green_lock_release()
+    return g
+}
+
+fn _green_runq_push(g) {
+    var p = _green_current_p_or0()
+    return _green_runq_push_p(p, g)
+}
+
+fn _green_runq_pop() {
+    var p = _green_current_p_or0()
+    return _green_runq_pop_p(p)
+}
+
+fn _green_sleepq_push_locked(p, g) {
+    if p == 0 || g == 0 { return 0 }
+    _green_g_set_next(g, 0)
+    var head = _green_p_sleep_head(p)
+    if head == 0 {
+        _green_p_set_sleep_head(p, g)
+        _green_p_set_sleep_tail(p, g)
+        return 0
+    }
+    var tail = _green_p_sleep_tail(p)
+    if tail != 0 { _green_g_set_next(tail, g) }
+    _green_p_set_sleep_tail(p, g)
+    return 0
+}
+
+fn _green_sleepq_push_p(p, g) {
+    if p == 0 || g == 0 { return 0 }
+    _green_lock_acquire()
+    _green_sleepq_push_locked(p, g)
+    _green_lock_release()
+    // If a worker is parked (or parked-with-timeout), nudge it to re-evaluate the next wake deadline.
+    _green_workers_wake_if_started()
+    return 0
+}
+
+fn _green_sleepq_push(g) {
+    var p = _green_current_p_or0()
+    return _green_sleepq_push_p(p, g)
+}
+
+fn _green_zombie_push(g) {
+    var s = _green_get_state()
+    if s == 0 || g == 0 { return 0 }
+    _green_lock_acquire()
+    // Simple LIFO for zombies.
+    var head = _green_state_zomb_head(s)
+    _green_g_set_next(g, head)
+    _green_state_set_zomb_head(s, g)
+    _green_lock_release()
+    return 0
+}
+
+fn _green_cleanup_g(g) {
+    if g == 0 { return 0 }
+    var stack_base = ptr_get(g + green_g_off_stack_base())
+    var stack_size = ptr_get(g + green_g_off_stack_size())
+    var ctx_ptr = ptr_get(g + green_g_off_ctx())
+    var node = ptr_get(g + green_g_off_stack_node())
+
+    if node != 0 {
+        oren_unregister_stack(node)
+        ptr_set(g + green_g_off_stack_node(), 0)
+    }
+    if stack_base != 0 && stack_size > 0 {
+        sys_munmap(stack_base, stack_size)
+        ptr_set(g + green_g_off_stack_base(), 0)
+        ptr_set(g + green_g_off_stack_size(), 0)
+        ptr_set(g + green_g_off_stack_top(), 0)
+    }
+    if ctx_ptr != 0 {
+        sys_munmap(ctx_ptr, green_ctx_bytes())
+        ptr_set(g + green_g_off_ctx(), 0)
+    }
+    // Clear references to reduce accidental retention.
+    ptr_set(g + green_g_off_fn_obj(), 0)
+    ptr_set(g + green_g_off_args_list(), 0)
+    return 0
+}
+
+fn _green_zombie_drain() {
+    var s = _green_get_state()
+    if s == 0 { return 0 }
+    _green_lock_acquire()
+    var cur = _green_state_zomb_head(s)
+    _green_state_set_zomb_head(s, 0)
+    _green_lock_release()
+    while cur != 0 {
+        var next = _green_g_next(cur)
+        _green_g_set_next(cur, 0)
+        _green_cleanup_g(cur)
+        cur = next
+    }
+    return 0
+}
+
+fn _green_wake_ready_p(p, now_ns) {
+    if p == 0 { return 0 }
+    if now_ns == 0 { return 0 }
+    _green_lock_acquire()
+    var s = _green_get_state()
+    var prev = 0
+    var cur = _green_p_sleep_head(p)
+    var new_tail = 0
+    var woke_any = 0
+    while cur != 0 {
+        var next = _green_g_next(cur)
+        var wake_ns = ptr_get(cur + green_g_off_wake_ns())
+        if wake_ns != 0 && now_ns >= wake_ns {
+            // Remove from sleep list.
+            if prev == 0 {
+                _green_p_set_sleep_head(p, next)
+            } else {
+                _green_g_set_next(prev, next)
+            }
+            if next == 0 { new_tail = prev }
+            _green_g_set_next(cur, 0)
+            ptr_set(cur + green_g_off_state(), green_g_state_runnable())
+            if s != 0 {
+                _green_runq_push_locked(p, s, cur)
+            }
+            woke_any = 1
+            cur = next
+            continue
+        }
+        prev = cur
+        cur = next
+    }
+    if _green_p_sleep_head(p) == 0 {
+        _green_p_set_sleep_tail(p, 0)
+    } else if new_tail != 0 {
+        _green_p_set_sleep_tail(p, new_tail)
+    }
+    _green_lock_release()
+    if woke_any != 0 { _green_workers_wake_if_started() }
+    return 0
+}
+
+fn _green_wake_ready_all(now_ns) {
+    if now_ns == 0 { return 0 }
+    var s = _green_get_state()
+    if s == 0 { return 0 }
+
+    var woke_any = 0
+    _green_lock_acquire()
+    var p = _green_state_p0(s)
+    while p != 0 {
+        var prev = 0
+        var cur = _green_p_sleep_head(p)
+        var new_tail = 0
+        while cur != 0 {
+            var next = _green_g_next(cur)
+            var wake_ns = ptr_get(cur + green_g_off_wake_ns())
+            if wake_ns != 0 && now_ns >= wake_ns {
+                // Remove from sleep list.
+                if prev == 0 {
+                    _green_p_set_sleep_head(p, next)
+                } else {
+                    _green_g_set_next(prev, next)
+                }
+                if next == 0 { new_tail = prev }
+                _green_g_set_next(cur, 0)
+                ptr_set(cur + green_g_off_state(), green_g_state_runnable())
+                _green_runq_push_locked(p, s, cur)
+                woke_any = 1
+                cur = next
+                continue
+            }
+            prev = cur
+            cur = next
+        }
+        if _green_p_sleep_head(p) == 0 {
+            _green_p_set_sleep_tail(p, 0)
+        } else if new_tail != 0 {
+            _green_p_set_sleep_tail(p, new_tail)
+        }
+        p = _green_p_next(p)
+    }
+    _green_lock_release()
+    if woke_any != 0 { _green_workers_wake_if_started() }
+    return 0
+}
+
+fn _green_next_wake_ns_p(p) {
+    if p == 0 { return 0 }
+    if p < 4096 { exit(941) }
+    _green_lock_acquire()
+    var cur = _green_p_sleep_head(p)
+    var best = 0
+    while cur != 0 {
+        if _green_is_g(cur) != true { exit(942) }
+        var w = ptr_get(cur + green_g_off_wake_ns())
+        if w != 0 {
+            if best == 0 || w < best { best = w }
+        }
+        cur = _green_g_next(cur)
+    }
+    _green_lock_release()
+    return best
+}
+
+fn _green_next_wake_ns_all() {
+    var s = _green_get_state()
+    if s == 0 { return 0 }
+    var best = 0
+    _green_lock_acquire()
+    var p = _green_state_p0(s)
+    while p != 0 {
+        var cur = _green_p_sleep_head(p)
+        while cur != 0 {
+            if _green_is_g(cur) != true { exit(942) }
+            var w = ptr_get(cur + green_g_off_wake_ns())
+            if w != 0 {
+                if best == 0 || w < best { best = w }
+            }
+            cur = _green_g_next(cur)
+        }
+        p = _green_p_next(p)
+    }
+    _green_lock_release()
+    return best
+}
+
+fn _green_next_wake_ns() {
+    var p = _green_current_p_or0()
+    return _green_next_wake_ns_p(p)
+}
+
+fn _green_sched_switch_to(g) {
+    if g == 0 { return 0 }
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return 0 }
+
+    _green_thread_set_current_g(ts, g)
+    // Mark running (best-effort; not externally visible yet).
+    ptr_set(g + green_g_off_state(), green_g_state_runnable())
+    // Save scheduler-stack SP into the OS-thread node so GC can scan it while we run on the green stack.
+    var sched_node = _green_thread_sched_stack_node_or0(ts)
+    if sched_node != 0 { ptr_set(sched_node + 8, get_sp()) }
+    // Clear saved_sp for this stack node so GC uses current SP heuristic.
+    var node = ptr_get(g + green_g_off_stack_node())
+    if node != 0 { ptr_set(node + 8, 0) }
+    // Switch from scheduler context to task context.
+    var ctx_g = ptr_get(g + green_g_off_ctx())
+    var sched_ctx = _green_thread_sched_ctx_or0(ts)
+    oren_ctx_switch(sched_ctx, ctx_g)
+    // Returned from task via yield/sleep/done.
+    _green_thread_set_current_g(ts, 0)
+    // We are back on scheduler stack; clear the saved_sp hint.
+    if sched_node != 0 { ptr_set(sched_node + 8, 0) }
+    return 0
+}
+
+fn _green_runq_size_locked(p) {
+    if p == 0 { return 0 }
+    var head = _green_p_runq_head(p)
+    var tail = _green_p_runq_tail(p)
+    if tail < head { return 0 }
+    return tail - head
+}
+
+fn _green_runq_steal_batch_locked(dst_p, s, max_n) {
+    if dst_p == 0 || s == 0 { return 0 }
+    if max_n <= 0 { max_n = 1 }
+    if max_n > 32 { max_n = 32 }
+
+    // Choose the most loaded victim P (by runq size) to reduce thrash and keep stealing stable.
+    // (This is under the scheduler lock today; later atomics-based stealing can use a different policy.)
+    var best_p = 0
+    var best_sz = 0
+    var cur = _green_state_p0(s)
+    while cur != 0 {
+        if cur != dst_p {
+            var sz = _green_runq_size_locked(cur)
+            if sz > best_sz {
+                best_sz = sz
+                best_p = cur
+            }
+        }
+        cur = _green_p_next(cur)
+    }
+
+    if best_p != 0 && best_sz > 0 {
+        // Steal up to half (bounded), so we don't immediately thrash.
+        var want = best_sz / 2
+        if want < 1 { want = 1 }
+        if want > max_n { want = max_n }
+
+        var first = 0
+        var i = 0
+        while i < want {
+            var g = _green_runq_steal_one_from_locked(best_p)
+            if g == 0 { break }
+            if first == 0 {
+                first = g
+            } else {
+                // Queue the rest locally (overflowing to global as needed).
+                _green_runq_push_locked(dst_p, s, g)
+            }
+            i = i + 1
+        }
+        if first != 0 {
+            // Debug counters: record steals for regression fixtures (best-effort).
+            var dbg = g_green_debug_word
+            if dbg != 0 && dbg != -1 && dbg >= 4096 {
+                _green_atomic_inc_u64(dbg + 8)
+                ptr_set(dbg + 16, _green_p_id(best_p))
+            }
+        }
+        return first
+    }
+    return 0
+}
+
+fn _green_runq_pop_any_locked(p, s, prefer_global) {
+    if p == 0 || s == 0 { return 0 }
+    var g = 0
+    if prefer_global != 0 {
+        g = _green_global_runq_pop_locked(s)
+        if g != 0 { return g }
+    }
+    g = _green_runq_pop_locked(p)
+    if g != 0 { return g }
+    // If local is empty, allow the global queue as a fallback.
+    g = _green_global_runq_pop_locked(s)
+    if g != 0 { return g }
+    // Last resort before idling: attempt a small bounded steal batch.
+    return _green_runq_steal_batch_locked(p, s, 4)
+}
+

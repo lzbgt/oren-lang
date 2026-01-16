@@ -219,7 +219,7 @@ Status (rolling groundwork):
     - Stage N3 evolution: a worker may temporarily set `P.owner_tid = 0` while blocked (park/kevent/epoll), then re-acquire before running Oren code.
     - Stage N3 evolution: `oren_green_start_workers(n)` reserves only the first `n` Ps; extra Ps must remain free (`owner_tid==0`) for future `M < P` operation.
     - Stage N3 evolution (STW safety): worker idle waits must be bounded and/or include `oren_gc_safepoint()` polling so `oren_gc_collect()` cannot deadlock while a worker is parked (includes park-word and netpoll waits).
-  - Runtime: `lib/runtime_native/263_green_tasks.oren`
+  - Runtime: `lib/runtime_native/263_green_tasks.oren` (split modules: `lib/runtime_native/263_green/*.oren`)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_worker_wake_while_sleepers`) (prevents “sleepers stall runnable work” regressions)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_many_tasks_bounded`) (many short tasks must complete; no hangs)
@@ -242,6 +242,9 @@ Status (rolling groundwork):
     - runtime knob: `oren_green_set_world_lock_mode(1)` (must be called before workers start)
     - env knob (alternative): `OREN_GREEN_WORKERS_WORLD_LOCK=1`
     - guard: `tests/native/test_green_two_workers_world_lock_smoke.oren`
+    - Implementation note (fact, rolling): the world lock is held in `_green_poll_until_budget` across the scheduler loop + one green task execution,
+      and is released before blocking waits (kevent/epoll, park-word wait, nanosleep) so other workers can still drive netpoll/timers while this worker blocks.
+      - Lock ordering invariant: scheduler lock (`_green_lock_*`) is acquired before the world lock to avoid deadlocks.
 
 Correctness gotchas (fact; Tier‑1 regression-driven):
 

@@ -1,0 +1,40 @@
+// --- Green entry trampoline (runs on a task stack) ---
+//
+// This must never return. It executes the task's target callable, then yields
+// back to the scheduler.
+@oren.keep
+fn __oren_green_entry() {
+    var g = _green_thread_current_g_or0()
+    if g == 0 {
+        // Should never happen; abort loudly in debug mode.
+        sys_exit(920)
+        return 0
+    }
+    var fn_obj = ptr_get(g + green_g_off_fn_obj())
+    var args_list = ptr_get(g + green_g_off_args_list())
+    var ret = oren_call_obj_list(fn_obj, args_list)
+    ptr_set(g + green_g_off_result(), ret)
+    // IMPORTANT (worker-mode join safety):
+    // Do NOT publish DONE on the task's stack.
+    //
+    // A host thread blocked in `oren_green_join_timeout` can wake spuriously (ulock/futex mismatch)
+    // and observe the state transition without being explicitly woken, then eagerly call
+    // `_green_cleanup_g(g)` which `munmap`s this green stack while we're still executing on it.
+    //
+    // Publish EXITING and immediately switch back to the scheduler; the scheduler finalizes DONE
+    // and wakes joiners from the scheduler stack (race-free).
+    ptr_set(g + green_g_off_state(), green_g_state_exiting())
+    // Save stack pointer into the stack node so GC can scan this stack while paused.
+    var node = ptr_get(g + green_g_off_stack_node())
+    if node != 0 { ptr_set(node + 8, get_sp()) }
+    // Switch back to scheduler.
+    var ctx_g = ptr_get(g + green_g_off_ctx())
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { sys_exit(921); return 0 }
+    var sched_ctx = _green_thread_sched_ctx_or0(ts)
+    oren_ctx_switch(ctx_g, sched_ctx)
+    // If resumed, hard exit (bug).
+    sys_exit(905)
+    return 0
+}
+
