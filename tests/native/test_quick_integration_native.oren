@@ -991,6 +991,9 @@ fn test_green_multi_p_single_thread_poll_steal() {
     // Windows uses CreateThread for `spawn`, so skip this test there.
     if g_target_os == 3 { return 0 }
 
+    // Reset debug counters: this fixture should force at least one steal.
+    oren_green_debug_reset()
+
     // Ensure at least 3 Ps exist.
     var rc_pc = oren_green_set_p_count(3)
     assert_eq(rc_pc, 0, 525)
@@ -1029,6 +1032,11 @@ fn test_green_multi_p_single_thread_poll_steal() {
     assert_eq(oren_green_current_p_id(), 0, 533)
     var rc_poll2 = oren_green_poll_until(0)
     assert_eq(rc_poll2, 0, 534)
+
+    // Regression guard: P0 must steal from P2 to make progress (local+global empty on P0).
+    // Verify the stealing path was exercised.
+    assert_true(oren_green_debug_steal_count() > 0, 585)
+    assert_eq(oren_green_debug_last_steal_p_id(), 2, 586)
 
     // Join all seeded child tasks and validate their results.
     i = 0

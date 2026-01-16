@@ -479,11 +479,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					           - Guard: `make verify-x64-linux-qemu` (stage1 + stage2), plus `tests/native/test_time_mono_raw.oren`.
 				   - 2026-01-16: added a bounded regression gate for worker-mode scheduling (many tasks must complete; no hangs):
 				       - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_many_tasks_bounded`)
-						     - 2026-01-16: made native waits green-aware so they never block the scheduler OS thread when called from a green task:
-						       - Runtime: `lib/runtime_native/246_netpoll.oren` (POSIX netpoller: kqueue/epoll + wake pipe)
-						       - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains netpoll tokens and can idle in kevent/epoll)
-						       - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*`: parks the G on netpoll instead of poll+sleep)
-							       - Runtime: `lib/runtime_native/245_select.oren` (`oren_select` / `oren_select_recv`: in-green uses **netpoll v2** case tokens; preserves deterministic selection without per-wake probe polling)
+							     - 2026-01-16: made native waits green-aware so they never block the scheduler OS thread when called from a green task:
+							       - Runtime: `lib/runtime_native/246_netpoll.oren` (POSIX netpoller: kqueue/epoll + wake pipe)
+							       - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains netpoll tokens and can idle in kevent/epoll)
+							       - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*`: parks the G on netpoll instead of poll+sleep)
+								       - Runtime: `lib/runtime_native/245_select.oren` (`oren_select` / `oren_select_recv`: in-green uses **netpoll v2** case tokens; preserves deterministic selection without per-wake probe polling)
 								       - Guards:
 								         - `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
 								         - `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`, `test_select_multi_case_in_green_workers`)
@@ -492,6 +492,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 								       - Runtime: `lib/runtime_native/246_netpoll.oren` (`native_netpoll_poll_many_scratch` preserves full ready-sets; scheduler does not drop additional ready tokens)
 								       - Follow-ups (still valuable):
 								         - add a perf/behavior regression: “select blocks indefinitely with near-zero CPU while other green tasks keep running” (now guarded in quick integration via idle-iteration bound; CPU-time API measurement still TODO)
+								     - 2026-01-16: strengthened multi-P work-stealing regression:
+								       - Runtime: stealing now chooses the most-loaded victim P (under the scheduler lock) and records debug counters.
+								       - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_multi_p_single_thread_poll_steal`) now asserts `steal_count > 0` and last victim is P2.
 					     - 2026-01-16: fixed loopback NET fixtures that spawn in-process servers on POSIX:
 					       - Problem: `spawn` prefers green tasks, but some fixtures ran a blocking client call on the main thread, starving the server green task (timeout).
 					       - Fix: enable green worker mode up front in the spawned-server fixtures (unless `OREN_NO_GREEN` disables green tasks).
