@@ -125,8 +125,13 @@ var g_green_state = 0        // rooted GC object (struct)
 // Stage N2 groundwork: optional background scheduler workers ("M").
 // Default remains Stage N1 N:1 (scheduler is driven by join/poll on the calling thread).
 var g_green_workers_started = 0
+var g_green_worker_count = 0 // number of worker threads started (rolling; debug/fixtures)
 var g_green_worker_wake_word = 0 // u64* (mmap page), used with oren_m_park_word_wait/wake
 var g_green_sched_lock_word = 0  // u64* (mmap page), used as a private scheduler lock (0=unlocked, tid=owner)
+// Stage N3 bring-up: optional world lock for multi-worker experimentation.
+// When enabled, at most one OS thread executes on a green stack at a time.
+var g_green_world_lock_word = 0 // u64* (mmap page), used with oren_wait_on_addr/wake (0=unlocked, tid=owner)
+var g_green_world_lock_enabled = 0
 // Debug counters (mmap page; rolling):
 // Used for lightweight regression guards (e.g. "idle select does not spin CPU").
 var g_green_debug_word = 0 // u64* (mmap page), offsets:
@@ -471,6 +476,39 @@ fn _green_atomic_inc_u64(word_ptr) {
     return 0
 }
 
+fn _green_world_lock_acquire() {
+    if g_green_world_lock_enabled == 0 { return 0 }
+    var lock_ptr = g_green_world_lock_word
+    if lock_ptr == 0 { return 0 }
+    var tid = sys_gettid()
+    if tid == 0 { exit(939) }
+    var spin = 0
+    while atomic_cas(lock_ptr, 0, tid) != 0 {
+        spin = spin + 1
+        if spin > 1000 {
+            var owner = ptr_get(lock_ptr)
+            if owner != 0 {
+                // STW GC robustness: never block indefinitely while waiting to enter Oren code.
+                oren_gc_safepoint()
+                oren_wait_on_addr(lock_ptr, owner, 1000) // 1ms
+            }
+            spin = 0
+        }
+    }
+    return 0
+}
+
+fn _green_world_lock_release() {
+    if g_green_world_lock_enabled == 0 { return 0 }
+    var lock_ptr = g_green_world_lock_word
+    if lock_ptr == 0 { return 0 }
+    var tid = sys_gettid()
+    if tid == 0 { exit(939) }
+    atomic_cas(lock_ptr, tid, 0)
+    oren_wake_all_addr(lock_ptr)
+    return 0
+}
+
 @oren.keep
 fn oren_green_debug_idle_iters() {
     var p = g_green_debug_word
@@ -542,6 +580,39 @@ fn oren_green_debug_p_owner_tid(p_id) {
     if p != 0 { v = _green_p_owner_tid(p) }
     _green_lock_release()
     return v
+}
+
+@oren.keep
+fn oren_green_debug_worker_count() {
+    return g_green_worker_count
+}
+
+@oren.keep
+fn oren_green_set_world_lock_mode(enable) {
+    // Test/dev-only knob:
+    // Enable a world lock so multiple green scheduler workers can exist while still ensuring
+    // only one OS thread executes Oren code on a green stack at a time.
+    //
+    // Must be set before `oren_green_start_workers`.
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+    if g_green_workers_started != 0 { return -1 }
+    // Must not run in-green.
+    var ts0 = _green_thread_state_for_current_thread_or0()
+    if ts0 != 0 && ptr_get(ts0 + green_t_off_current_g()) != 0 { return -1 }
+
+    if enable != 0 {
+        if g_green_world_lock_word == 0 {
+            var w = sys_mmap_private_anon(4096)
+            if w == 0 || w == -1 || w < 4096 { exit(938) }
+            ptr_set(w, 0)
+            g_green_world_lock_word = w
+        }
+        g_green_world_lock_enabled = 1
+    } else {
+        g_green_world_lock_enabled = 0
+    }
+    return 0
 }
 
 @oren.keep
@@ -1137,7 +1208,13 @@ fn _green_sched_switch_to(g) {
     // Switch from scheduler context to task context.
     var ctx_g = ptr_get(g + green_g_off_ctx())
     var sched_ctx = _green_thread_sched_ctx_or0(ts)
+    if g_green_workers_started != 0 && g_green_worker_count > 1 {
+        _green_world_lock_acquire()
+    }
     oren_ctx_switch(sched_ctx, ctx_g)
+    if g_green_workers_started != 0 && g_green_worker_count > 1 {
+        _green_world_lock_release()
+    }
     // Returned from task via yield/sleep/done.
     _green_thread_set_current_g(ts, 0)
     // We are back on scheduler stack; clear the saved_sp hint.
@@ -1570,7 +1647,27 @@ fn oren_green_start_workers(n) {
     // Opt-in for experimentation only.
     if n > 1 {
         var v = native_envp_get_value_ptr("OREN_GREEN_WORKERS_UNSAFE_PARALLEL")
-        if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 { // empty or '0'
+        var unsafe_ok = 0
+        if v != 0 && ptr_get_byte(v) != 0 && ptr_get_byte(v) != 48 { unsafe_ok = 1 }
+
+        // Safe experimentation mode: allow multiple workers only if a world-lock is enabled.
+        // This keeps allocator/GC correctness bounded while exercising the scheduler topology.
+        var wl_ok = g_green_world_lock_enabled
+        var vw = native_envp_get_value_ptr("OREN_GREEN_WORKERS_WORLD_LOCK")
+        if vw != 0 && ptr_get_byte(vw) != 0 && ptr_get_byte(vw) != 48 { wl_ok = 1 }
+
+        if unsafe_ok == 0 && wl_ok != 0 {
+            // Ensure the world lock is actually initialized/enabled (env can request it).
+            if g_green_world_lock_word == 0 {
+                var w = sys_mmap_private_anon(4096)
+                if w == 0 || w == -1 || w < 4096 { exit(938) }
+                ptr_set(w, 0)
+                g_green_world_lock_word = w
+            }
+            g_green_world_lock_enabled = 1
+        }
+
+        if unsafe_ok == 0 && wl_ok == 0 {
             n = 1
         }
     }
@@ -1665,6 +1762,7 @@ fn oren_green_start_workers(n) {
         i = i + 1
     }
 
+    g_green_worker_count = n
     g_green_workers_started = 1
     // Wake all workers so they immediately start draining runq/sleepq.
     _green_workers_wake_if_started()

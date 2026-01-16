@@ -1,0 +1,56 @@
+// Green scheduler: 2-worker "world lock" smoke (rolling, Tier‑1).
+//
+// Purpose:
+// - Allow experimenting with `n>1` green scheduler workers while allocator/GC are not parallel-safe.
+// - Enforce "only one OS thread executes Oren code at a time" via a runtime world lock.
+//
+// Gate:
+// - Must build+run quickly.
+// - Must not hang.
+// - Must return correct results from many small green tasks.
+// - Must not deadlock STW GC (`oren_gc_collect`) with multiple workers present.
+
+fn worker_green_yield_then_ret() {
+    oren_green_yield()
+    return 77
+}
+
+fn main() {
+    if g_target_os == 3 {
+        print("skip: green two workers world lock smoke (windows)")
+        return 0
+    }
+
+    var rcwl = oren_green_set_world_lock_mode(1)
+    if rcwl != 0 { print("FAIL: world lock mode rc=" + oren_int_to_string(rcwl)); exit(1) }
+
+    var rcw = oren_green_start_workers(2)
+    if rcw != 0 { print("FAIL: start_workers rc=" + oren_int_to_string(rcw)); exit(2) }
+
+    var wc = oren_green_debug_worker_count()
+    if wc != 2 { print("FAIL: worker_count=" + oren_int_to_string(wc)); exit(3) }
+
+    var hs = []
+    var i = 0
+    while i < 80 {
+        var h = spawn worker_green_yield_then_ret()
+        oren_list_push(hs, h)
+        i = i + 1
+    }
+    i = 0
+    while i < oren_list_len(hs) {
+        var hh = oren_list_get(hs, i)
+        var r = oren_join_timeout(hh, 2000)
+        if r != 77 {
+            print("FAIL: join r=" + oren_int_to_string(r))
+            exit(4)
+        }
+        i = i + 1
+    }
+
+    // STW regression: must not deadlock with multiple worker threads present.
+    oren_gc_collect()
+
+    print("ok: green two workers world lock smoke")
+    return 0
+}

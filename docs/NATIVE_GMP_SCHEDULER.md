@@ -235,8 +235,13 @@ Status (rolling groundwork):
     (via ulock/futex mismatch wakeups) and `munmap` the green stack while the task was still executing on it.
     - Fix: introduce an internal EXITING state so tasks switch back to the scheduler before DONE is published and joiners are woken.
     - Runtime: `lib/runtime_native/263_green_tasks.oren` (`__oren_green_entry`, `_green_poll_until_budget`)
-- Rolling limitation (important): worker parallelism is currently clamped to 1 by default, because the native allocator/GC
+  - Rolling limitation (important): worker parallelism is currently clamped to 1 by default, because the native allocator/GC
   are not concurrency-correct yet. Opt-in for experimentation only: `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.
+  - Safer experimentation mode (rolling): enable a world-lock so `oren_green_start_workers(n>1)` can run while still enforcing
+    “only one OS thread executes Oren code at a time”:
+    - runtime knob: `oren_green_set_world_lock_mode(1)` (must be called before workers start)
+    - env knob (alternative): `OREN_GREEN_WORKERS_WORLD_LOCK=1`
+    - guard: `tests/native/test_green_two_workers_world_lock_smoke.oren`
 
 Correctness gotchas (fact; Tier‑1 regression-driven):
 
