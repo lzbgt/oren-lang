@@ -12,6 +12,33 @@ run_timeout_secs="${OREN_NATIVE_RUN_TIMEOUT_SECS:-5}"
 run_with_timeout() {
   local secs="$1"
   shift
+  # macOS robustness:
+  # GNU coreutils `timeout` has been observed to segfault on some self-hosted Oren
+  # native binaries on Darwin. Prefer a tiny bash-native watchdog there.
+  if [[ "${uname_s:-}" == "Darwin" ]]; then
+    if [[ -z "$secs" || "$secs" == "0" ]]; then
+      "$@"
+      return $?
+    fi
+
+    set +e
+    "$@" &
+    local pid=$!
+    (
+      sleep "$secs"
+      kill -TERM "$pid" 2>/dev/null
+      sleep "$timeout_kill_secs"
+      kill -KILL "$pid" 2>/dev/null
+    ) &
+    local watcher=$!
+    wait "$pid"
+    local rc=$?
+    kill "$watcher" 2>/dev/null
+    wait "$watcher" 2>/dev/null
+    set -e
+    return "$rc"
+  fi
+
   if [[ -n "$timeout_bin" ]]; then
     "$timeout_bin" -k "$timeout_kill_secs" "$secs" "$@"
   else

@@ -807,8 +807,8 @@ fn _green_poll_until(deadline_ns) {
     _green_init_if_needed()
     if _green_enabled() != true { return 0 }
     // Rolling safety:
-    // The native backend does not yet guarantee stable register allocation/preservation for
-    // long-lived locals across arbitrary call sites (especially around ctx switches and syscalls).
+    // The native backend does not yet guarantee stable preservation for long-lived locals
+    // across arbitrary call sites (especially around ctx switches and syscalls).
     //
     // To keep Stage N2 worker mode robust, re-fetch per-thread scheduler state each iteration.
     // This prevents failures where `ts`/`p` become small integers and later segfault in `ptr_get`.

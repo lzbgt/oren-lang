@@ -116,6 +116,7 @@ Invariant:
 - CI/rolling development must not hang indefinitely:
   - per-build and per-test timeouts are enforced,
   - scripts print bounded tails/snippets (avoid dumping megabytes).
+  - macOS: scripts may use a bash-native watchdog instead of GNU coreutils `timeout` if the host `timeout` is unstable.
 
 Why:
 
@@ -216,3 +217,20 @@ Regression:
 - `make test` via `tests/native/test_quick_integration_native.oren`:
   - `test_green_local_ptr_survives_yields`
   - `test_green_workers_local_ptr_survives_yields`
+
+## 12) Stop emitting statements after terminators in blocks (stack accounting)
+
+Invariant:
+
+- In native backend statement codegen, a `Block` must stop emitting code after a direct terminator statement:
+  - `break`, `continue`, `return`
+
+Why:
+
+- The native backends use a rolling SP-relative stack model (`ctx["stack_size"]`) to address locals/temps.
+- Emitting unreachable code after a terminator can perturb stack-size accounting and lead to miscompiled
+  offsets in later reachable paths (especially inside large loops / scheduler code).
+
+Regression:
+
+- `make test` (native quick integration exercises loops + break/continue patterns in stdlib/runtime code)

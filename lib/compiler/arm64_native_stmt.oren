@@ -367,6 +367,16 @@ fn native_compile_stmt_inner(ctx, stmt) {
         var i = 0
         while i < oren_list_len(stmts) {
             native_compile_stmt(ctx, stmts[i])
+            // Control-flow terminators do not fall through; stop emitting statements for this block
+            // so unreachable code cannot perturb stack-size accounting for later reachable paths.
+            //
+            // NOTE: this is intentionally shallow (direct statement types only). Deeper CFG/branch
+            // termination tracking is deferred until native backends share a real IR/CFG pass.
+            var st = stmts[i]
+            if st != nil {
+                var tt = st["type"]
+                if tt == "Break" || tt == "Continue" || tt == "Return" { break }
+            }
             i = i + 1
         }
         var delta = ctx["stack_size"] - base_stack
