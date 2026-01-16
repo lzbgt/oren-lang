@@ -404,6 +404,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		       - per-P local runq is now a **GC-visible ring buffer / work-stealing deque** (head+tail+mask), with overflow to the global runq
 		       - worker idle sleeps now park on the shared park word with a timeout (so new runnable work wakes it immediately); inserting sleepers wakes workers to re-evaluate the next deadline
 		       - worker entry accepts an optional `P*` argument and claims `P.owner_tid` (rolling: hard fail if a P is accidentally shared across Ms)
+		       - `_green_poll_until` enforces `P.owner_tid == sys_gettid()` in worker mode; if `owner_tid` is still `0`, it is claimed under the scheduler lock as bring-up robustness (still hard-fails on mismatch)
 		       - scheduler now uses a **dedicated scheduler lock** (wait-on-addr based) instead of the runtime global lock (reduces coupling to allocator/GC metadata)
 		         - Invariant: requires `sys_gettid()` to be non-zero when workers are enabled (0 is reserved as the “unlocked” sentinel).
 		     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
@@ -422,6 +423,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		       - today, the scheduler re-fetches per-thread state (`ts`/`P`) each poll iteration for robustness; fix the root cause so we can rely on normal locals again
 		       - add a small regression that would have caught the earlier “P pointer becomes a small integer after ctx switch” failure mode
 		     - switch green sleeper deadlines to a monotonic clock source (avoid wall-clock jumps affecting wake behavior)
+		     - remove/replace poll-side “late-claim owner_tid” by introducing an explicit worker bring-up barrier or a reserved `owner_tid` sentinel per `P` (so non-worker threads can never claim a worker P by accident)
 	     - add a small regression gate: spawn many green tasks (with workers enabled) and assert bounded completion (no hangs)
 	     - Optional dev-only smoke (skipped by default): `tests/native/test_green_workers_multi_p_experimental.oren`
 	   - 2026-01-15: GC + safepoint groundwork for N:M (stop-the-world first, correct before fast)

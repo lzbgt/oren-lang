@@ -833,8 +833,21 @@ fn _green_poll_until(deadline_ns) {
             // match the owning tid for its bound P (Stage N3 correctness prerequisite).
             var tid = sys_gettid()
             if tid == 0 { exit(926) }
+            // Rolling robustness: allow late P claiming if the worker hasn't published its tid yet.
+            // This avoids hard-failing on a transient owner==0 window during bring-up.
             var owner = _green_p_owner_tid(p)
-            if owner == 0 || owner != tid { exit(927) }
+            if owner != tid {
+                if owner == 0 {
+                    _green_lock_acquire()
+                    owner = _green_p_owner_tid(p)
+                    if owner == 0 {
+                        _green_p_set_owner_tid(p, tid)
+                        owner = tid
+                    }
+                    _green_lock_release()
+                }
+                if owner != tid { exit(927) }
+            }
         }
 
         // Fairness tick: periodically prefer draining from the global run queue even if the local
