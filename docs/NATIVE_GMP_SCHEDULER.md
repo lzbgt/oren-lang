@@ -134,13 +134,13 @@ Status (fact, code):
 - Context switch intrinsics are defined as native backend intrinsics (`oren_ctx_init`, `oren_ctx_switch` in
   `lib/runtime_native/000_prelude_sys.oren`).
 - 2026-01-16: native `oren_select` / `oren_select_recv` are green-aware and do not block the scheduler OS thread:
-  - Runtime: `lib/runtime_native/245_select.oren` (poll-mode + `oren_green_sleep_ns` backoff when in-green)
+  - Runtime: `lib/runtime_native/245_select.oren` (parks the G on the scheduler netpoller when in-green; no poll+sleep loop)
   - Runtime: `lib/runtime_native/246_netpoll.oren` (POSIX netpoller: kqueue/epoll + wake pipe)
   - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*` park the G and rely on the scheduler netpoller instead of poll+sleep)
   - Escape hatch (rolling): `OREN_NO_NETPOLL=1` disables netpoll bring-up for debugging.
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
   - Guard: `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
-  - Limitation: channel `oren_select` is still using a poll+sleep stopgap; it needs to park its G on the netpoller too (multi-fd wait).
+  - Note: non-green `oren_select` still uses a per-call kqueue/epoll wait; the green-path is the first step toward a production-grade shared netpoller.
 
 ### Stage N2: N:M GMP (multiple OS threads, multiple Ps)
 

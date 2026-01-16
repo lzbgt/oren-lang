@@ -81,6 +81,71 @@ fn _select_in_green() {
     return oren_green_in_green() == true
 }
 
+fn _select_park_on_netpoll(kinds, fds, ncases) {
+    // Park the current green task until any case fd becomes ready.
+    //
+    // Contract:
+    // - Must not block the scheduler OS thread (it must park the G).
+    // - Readiness is detected by re-running the normal kqueue/epoll poll after wake
+    //   (so we preserve the existing deterministic selection logic).
+    //
+    // Rolling notes:
+    // - We register all fds with token=g (the current G). We do not know which fd triggered;
+    //   the caller re-checks readiness after waking.
+    // - Stale/spurious wakeups are acceptable as long as they do not deadlock or busy-loop.
+    if ncases <= 0 { return 0 }
+    if _select_in_green() != true { return 0 }
+    if native_netpoll_supported() != true { return 0 }
+
+    var g = oren_green_current_g_or0()
+    if g == 0 { return 0 }
+
+    var rc0 = native_netpoll_init_once()
+    if rc0 < 0 { return 0 }
+
+    // Mark this G as "IO-active" so netpoll tokens can wake it.
+    ptr_set(g + green_g_off_io_ready(), 0)
+    ptr_set(g + green_g_off_io_active(), 1)
+
+    // Arm all case fds.
+    var i = 0
+    while i < ncases {
+        var k = ptr_get(iadd(kinds, i * 8))
+        if k == 0 || k == 1 {
+            var fd = ptr_get(iadd(fds, i * 8))
+            if fd >= 0 {
+                // want_write = 0 for recv (read), 1 for send (write)
+                native_netpoll_arm_fd(fd, k, g)
+            }
+        }
+        i = i + 1
+    }
+
+    // Park "forever" (rolling approximation):
+    // - select has no timeout, but `oren_green_sleep_ns` requires a finite wake time so the
+    //   scheduler can compute next-wake deadlines.
+    // - The scheduler netpoller forces wake_ns=now on readiness, waking us early.
+    oren_green_sleep_ns(60000000000) // 60s
+
+    // Best-effort disarm on wake (timeout or readiness).
+    i = 0
+    while i < ncases {
+        var k2 = ptr_get(iadd(kinds, i * 8))
+        if k2 == 0 || k2 == 1 {
+            var fd2 = ptr_get(iadd(fds, i * 8))
+            if fd2 >= 0 {
+                native_netpoll_disarm_fd(fd2, k2)
+            }
+        }
+        i = i + 1
+    }
+
+    // Clear IO-active state so stale tokens can be ignored.
+    ptr_set(g + green_g_off_io_active(), 0)
+    ptr_set(g + green_g_off_io_ready(), 0)
+    return 0
+}
+
 @oren.keep
 fn oren_select(cases) {
     // NOTE: This is a blocking primitive (matches AVM select semantics).
@@ -227,7 +292,7 @@ fn oren_select(cases) {
             }
 
             // In green mode, avoid blocking the entire scheduler OS thread:
-            // - poll (timeout=0) and then yield/sleep in green-space until ready.
+            // - poll once (timeout=0); if nothing ready, park the G on the scheduler netpoller.
             var ts = 0
             if in_green {
                 ts = malloc(16)
@@ -238,27 +303,7 @@ fn oren_select(cases) {
                 ptr_set(ts + 0, 0)
                 ptr_set(ts + 8, 0)
             }
-
-            // Apply changes once, then poll with no changelist.
-            var did_reg = 0
-            while 1 {
-                if did_reg == 0 {
-                    nready = sys_kevent(kq, change, nfds, evs, nfds, ts)
-                    did_reg = 1
-                } else {
-                    nready = sys_kevent(kq, 0, 0, evs, nfds, ts)
-                }
-
-                if nready < 0 { break }
-                if nready > 0 { break }
-
-                // nready == 0:
-                // - non-green: shouldn't happen (would require a finite timeout), but treat it as spurious
-                // - green: yield/sleep so other G can run
-                if in_green {
-                    oren_green_sleep_ns(1000000) // 1ms poll backoff (rolling; real netpoller later)
-                }
-            }
+            nready = sys_kevent(kq, change, nfds, evs, nfds, ts)
             sys_close(kq)
             free(change)
             if ts != 0 { free(ts) }
@@ -268,7 +313,10 @@ fn oren_select(cases) {
                     free(kinds); free(fds); free(chans); free(vals)
                     return nready
                 }
-                // Spurious wakeup / no events; keep blocking.
+                if in_green {
+                    // No events yet: park this G via the shared scheduler netpoller and retry.
+                    _select_park_on_netpoll(kinds, fds, ncases)
+                }
                 continue
             }
             evbuf = evs
@@ -319,17 +367,10 @@ fn oren_select(cases) {
             }
 
             // In green mode, avoid blocking the entire scheduler OS thread:
-            // - poll (timeout=0) and then yield/sleep in green-space until ready.
+            // - poll once (timeout=0); if nothing ready, park the G on the scheduler netpoller.
             var timeout_ms = -1
             if in_green { timeout_ms = 0 }
-            while 1 {
-                nready = sys_epoll_pwait(epfd, out, nfds2, timeout_ms, 0, 0)
-                if nready < 0 { break }
-                if nready > 0 { break }
-                if in_green {
-                    oren_green_sleep_ns(1000000) // 1ms poll backoff (rolling; real netpoller later)
-                }
-            }
+            nready = sys_epoll_pwait(epfd, out, nfds2, timeout_ms, 0, 0)
             sys_close(epfd)
             free(ev)
             if nready <= 0 {
@@ -337,6 +378,9 @@ fn oren_select(cases) {
                 if nready < 0 {
                     free(kinds); free(fds); free(chans); free(vals)
                     return nready
+                }
+                if in_green {
+                    _select_park_on_netpoll(kinds, fds, ncases)
                 }
                 continue
             }

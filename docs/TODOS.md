@@ -475,18 +475,18 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					           - Guard: `make verify-x64-linux-qemu` (stage1 + stage2), plus `tests/native/test_time_mono_raw.oren`.
 				   - 2026-01-16: added a bounded regression gate for worker-mode scheduling (many tasks must complete; no hangs):
 				       - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_many_tasks_bounded`)
-					     - 2026-01-16: made native waits green-aware so they never block the scheduler OS thread when called from a green task:
-					       - Runtime: `lib/runtime_native/246_netpoll.oren` (POSIX netpoller: kqueue/epoll + wake pipe)
-					       - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains netpoll tokens and can idle in kevent/epoll)
-					       - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*`: parks the G on netpoll instead of poll+sleep)
-					       - Runtime: `lib/runtime_native/245_select.oren` (`oren_select` / `oren_select_recv`: still poll-mode + `oren_green_sleep_ns` backoff; needs multi-fd netpoll integration)
-					       - Guards:
-					         - `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
-					         - `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
-					       - Next deliverable (netpoller v0→v1):
-					         - park channel `oren_select` on the netpoller (multi-fd wait token mapping) and delete its poll+sleep loop
-					         - ensure timeouts cancel readiness watches safely (no stale wakeups) under both epoll and kqueue
-					         - add a bounded regression for “select blocks on IO while other green tasks keep running” (no hangs).
+						     - 2026-01-16: made native waits green-aware so they never block the scheduler OS thread when called from a green task:
+						       - Runtime: `lib/runtime_native/246_netpoll.oren` (POSIX netpoller: kqueue/epoll + wake pipe)
+						       - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains netpoll tokens and can idle in kevent/epoll)
+						       - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*`: parks the G on netpoll instead of poll+sleep)
+						       - Runtime: `lib/runtime_native/245_select.oren` (`oren_select` / `oren_select_recv`: in-green now parks the G on netpoll; no poll+sleep loop)
+						       - Guards:
+						         - `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
+						         - `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
+						       - Next deliverable (netpoller v1→v2):
+						         - avoid per-wake “probe poll”: teach netpoll tokens to identify *which* fd/case fired so `oren_select` can pick without allocating a temporary kqueue/epoll
+						         - formalize stale-event safety (sequence/epoch per parked wait) so re-arming cannot spuriously wake the wrong wait in pathological races
+						         - add a small perf/behavior regression: “select blocks indefinitely with near-zero CPU while other green tasks keep running”.
 					     - 2026-01-16: fixed loopback NET fixtures that spawn in-process servers on POSIX:
 					       - Problem: `spawn` prefers green tasks, but some fixtures ran a blocking client call on the main thread, starving the server green task (timeout).
 					       - Fix: enable green worker mode up front in the spawned-server fixtures (unless `OREN_NO_GREEN` disables green tasks).

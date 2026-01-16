@@ -1118,13 +1118,17 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             if rem <= 0 { return 0 }
             if sleep_ns > rem { sleep_ns = rem }
         }
-        // Clamp to avoid huge sleeps in rolling mode; keep responsiveness.
-        if sleep_ns > 10000000 { sleep_ns = 10000000 } // 10ms
         if g_target_os != 3 && g_netpoll_inited != 0 {
             // Prefer blocking in the kernel readiness wait:
             // - wakes on IO readiness (netpoll tokens)
             // - wakes on explicit runtime nudge (wake pipe)
             // - wakes on timeout to re-check sleepers and join deadlines
+            //
+            // With netpoll + wake pipe, we can safely sleep longer than the old 10ms clamp:
+            // - runnable work injection wakes via `_green_workers_wake_if_started()` -> `native_netpoll_wake()`
+            // - IO readiness wakes via netpoll tokens
+            // Keep a conservative upper bound anyway so a broken wake path cannot stall forever.
+            if sleep_ns > 1000000000 { sleep_ns = 1000000000 } // 1s
             var sleep_ms = sleep_ns / 1000000
             if sleep_ms <= 0 { sleep_ms = 1 }
             var tok = native_netpoll_poll_one(sleep_ms)
@@ -1144,6 +1148,8 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             continue
         }
 
+        // Clamp to avoid huge sleeps in rolling mode; keep responsiveness when netpoll is unavailable.
+        if sleep_ns > 10000000 { sleep_ns = 10000000 } // 10ms
         if g_green_workers_started != 0 && g_green_worker_wake_word != 0 {
             // Fallback: park on the shared wake word with a timeout.
             var sleep_us = sleep_ns / 1000
