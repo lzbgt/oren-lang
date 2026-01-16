@@ -577,6 +577,29 @@ fn _green_p_ensure_owned_by_tid_locked(p, tid) {
     return 0 - 16 // -EBUSY
 }
 
+fn _green_worker_try_acquire_any_p_locked(s, tid) {
+    // Worker-mode helper: try to acquire some free P (owner_tid==0) for this tid.
+    // Returns the acquired P pointer, or 0 if none available.
+    if s == 0 { return 0 }
+    if tid == 0 { return 0 }
+    var p = _green_state_p0(s)
+    while p != 0 {
+        var owner = _green_p_owner_tid(p)
+        if owner == 0 {
+            _green_p_set_owner_tid(p, tid)
+            // Debug: record acquisition.
+            var dbg = g_green_debug_word
+            if dbg != 0 && dbg != -1 && dbg >= 4096 {
+                _green_atomic_inc_u64(dbg + 24)
+                ptr_set(dbg + 40, _green_p_id(p))
+            }
+            return p
+        }
+        p = _green_p_next(p)
+    }
+    return 0
+}
+
 fn _green_p_release_if_owned_by_tid_locked(p, tid) {
     if p == 0 { return 0 }
     if tid == 0 { return 0 }
@@ -1262,6 +1285,16 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             if tid == 0 { exit(926) }
             _green_lock_acquire()
             var rc_own = _green_p_ensure_owned_by_tid_locked(p, tid)
+            if rc_own == (0 - 16) {
+                // In future M<P, this M may have lost its bound P to another M while parked.
+                // Instead of hard-failing, try to acquire another free P and continue.
+                var alt = _green_worker_try_acquire_any_p_locked(s, tid)
+                if alt != 0 {
+                    p = alt
+                    _green_thread_set_p(ts, alt)
+                    rc_own = 0
+                }
+            }
             _green_lock_release()
             if rc_own != 0 { exit(927) }
         }
@@ -1582,6 +1615,9 @@ fn oren_green_start_workers(n) {
 
     // Reserve each P for its intended worker before any ownership assertions run.
     // This prevents any non-worker OS thread from accidentally "claiming" a worker P during bring-up.
+    //
+    // Stage N3 direction (M<P): reserve only Ps that correspond to real workers.
+    // Extra Ps must remain free (owner_tid==0) so workers can acquire them later.
     _green_lock_acquire()
     var p_res = _green_state_p0(s)
     while p_res != 0 {
@@ -1589,7 +1625,9 @@ fn oren_green_start_workers(n) {
         // Rolling safety: fail early if a host thread already claimed any P.
         // Otherwise worker entry will hard-fail when it tries to claim its reserved P.
         if owner0 != 0 { _green_lock_release(); return -1 }
-        _green_p_set_owner_tid(p_res, _green_p_owner_reserved_tid(p_res))
+        if _green_p_id(p_res) < n {
+            _green_p_set_owner_tid(p_res, _green_p_owner_reserved_tid(p_res))
+        }
         p_res = _green_p_next(p_res)
     }
     _green_lock_release()

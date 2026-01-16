@@ -968,6 +968,30 @@ fn test_green_workers_join() {
     return 0
 }
 
+fn test_green_start_workers_does_not_reserve_extra_ps() {
+    trace("QI: test_green_start_workers_does_not_reserve_extra_ps")
+    if g_target_os == 3 { return 0 }
+
+    // Ensure we can create extra Ps before workers start.
+    var rc_pc = oren_green_set_p_count(3)
+    assert_eq(rc_pc, 0, 605)
+    assert_true(oren_green_p_count() >= 3, 606)
+
+    // Before workers start, extra Ps must be unclaimed.
+    assert_eq(oren_green_debug_p_owner_tid(1), 0, 607)
+    assert_eq(oren_green_debug_p_owner_tid(2), 0, 608)
+
+    // Start 1 worker. Stage N3 direction: reserve only Ps that correspond to real workers.
+    // Extra Ps must remain free so future M<P can acquire them.
+    var rcw = oren_green_start_workers(1)
+    assert_eq(rcw, 0, 609)
+
+    // After workers start, extra Ps must still be unclaimed (not negative-reserved).
+    assert_eq(oren_green_debug_p_owner_tid(1), 0, 610)
+    assert_eq(oren_green_debug_p_owner_tid(2), 0, 611)
+    return 0
+}
+
 fn test_green_worker_release_acquire_p_when_parked() {
     trace("QI: test_green_worker_release_acquire_p_when_parked")
     // Green tasks are the default `spawn` path on macOS/Linux today.
@@ -1416,6 +1440,7 @@ fn main() {
     test_green_p_count_api()
     test_green_multi_p_single_thread_poll_steal()
     test_green_p_acquire_release_blocks_start_workers()
+    test_green_start_workers_does_not_reserve_extra_ps()
     test_green_workers_join()
     test_green_worker_release_acquire_p_when_parked()
     test_select_in_green_workers()

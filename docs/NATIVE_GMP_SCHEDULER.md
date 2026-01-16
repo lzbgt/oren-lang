@@ -213,10 +213,11 @@ Status (rolling groundwork):
   - Join behavior: when workers are enabled, `oren_green_join_timeout` waits on the green task's state word via the portable
     wait-on-address primitive (instead of driving the scheduler on the joining thread).
   - P ownership (rolling correctness guard): when workers are enabled, `_green_poll_until` enforces `P.owner_tid == sys_gettid()`.
-    Worker bring-up reserves each `P` with a negative sentinel during `oren_green_start_workers`, then the worker claims its bound `P`
+    Worker bring-up reserves each worker `P` with a negative sentinel during `oren_green_start_workers`, then the worker claims its bound `P`
     to a positive tid before entering the scheduler loop (hard-fails on mismatches).
     - Rolling safety: `oren_green_start_workers` rejects if any `P.owner_tid != 0` on entry (prevents subtle “worker aborts because P was already claimed” failures).
     - Stage N3 evolution: a worker may temporarily set `P.owner_tid = 0` while blocked (park/kevent/epoll), then re-acquire before running Oren code.
+    - Stage N3 evolution: `oren_green_start_workers(n)` reserves only the first `n` Ps; extra Ps must remain free (`owner_tid==0`) for future `M < P` operation.
   - Runtime: `lib/runtime_native/263_green_tasks.oren`
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_worker_wake_while_sleepers`) (prevents “sleepers stall runnable work” regressions)
