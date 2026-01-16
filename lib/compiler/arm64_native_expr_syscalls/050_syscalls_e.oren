@@ -195,7 +195,8 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                     push_u32_le(ctx["code"], 0) // B.LT skip_abs
 
                     // Preserve abs_ptr across syscall setup.
-                    push_u32_le(ctx["code"], insn_mov_reg(9, 3)) // X9=abs_ptr
+                    // Use X19 (callee-saved) because the kernel may clobber caller-saved regs across `svc`.
+                    push_u32_le(ctx["code"], insn_mov_reg(19, 3)) // X19=abs_ptr
 
                     // timespec scratch on stack: { tv_sec(u64), tv_nsec(u64) }
                     push_u32_le(ctx["code"], insn_sub_sp(16))
@@ -218,7 +219,7 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                     push_u32_le(ctx["code"], insn_mul(4, 4, 6))       // X4=sec*1e9
                     push_u32_le(ctx["code"], insn_add_reg(4, 4, 5))   // X4 += nsec
                     // *abs_ptr = ns
-                    push_u32_le(ctx["code"], insn_str_ptr(4, 9))
+                    push_u32_le(ctx["code"], insn_str_ptr(4, 19))
 
                     var skip_abs_pos = bytes_len(ctx["code"])
                     set_u32_le(ctx["code"], br_skip_abs0, insn_b_cond((skip_abs_pos - br_skip_abs0) / 4, 0)) // EQ

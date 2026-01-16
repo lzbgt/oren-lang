@@ -1971,6 +1971,8 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         _emit_mov_r64_mrbp(ctx, 9, 0 - tmp_ts_nsec) // r9 = nsec
         bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
         // *abs_ptr = ns
+        // NOTE: Linux `syscall` clobbers r11, so reload abs_ptr after clock_gettime.
+        _intr_load_x64(ctx, 11, tmp_abs)
         bytes_extend(ctx["code"], insn_mov_mr64_r64(11, 10))
 
         _emit_label(ctx, labels, l_abs_done)
