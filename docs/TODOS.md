@@ -385,7 +385,13 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	     - Required for the STW “park at safepoint” protocol to be viable on x64-linux/x64-windows Tier‑1 targets.
 	     - Compiler: `lib/compiler/x64_native_program/060_emit_ops.oren` (`_emit_gc_safepoint_throttled_x64`)
 
-   Next steps (actionable, highest leverage first):
+	   Next steps (actionable, highest leverage first):
+
+	   - Windows: replace the current in-green mem-channel polling with a real scheduler-integrated wait list:
+	     - attach per-channel wait queues (wait nodes owned by sleeping Gs)
+	     - on send/recv, mark waits ready and wake the scheduler (no 1ms polling loop)
+	     - keeps correctness while reducing latency + CPU overhead
+	   - Windows: implement IOCP-backed netpoller for sockets and wire into green scheduler (enables fd-based readiness without blocking Ms)
 
    - Stage N2 groundwork: syscall-first OS threads (no libpthread) on Tier‑1
      - macOS arm64: finish the syscall-first `bsdthread_register` story and keep it robust across modern dyld/libpthread:
