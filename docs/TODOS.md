@@ -429,6 +429,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		       - In-green `oren_select` / channel ops on Windows are **green-safe** and **non-polling**:
 		         - green tasks park on per-channel wait lists and a global select wait list
 		         - send/recv wakes parked Gs explicitly (no 1ms polling loop; enables idle-worker parking)
+		         - runtime roots the global select wait list so parked Gs remain GC-reachable even if callers drop handles
 		         - Guards (Windows-enabled): `tests/native/test_quick_integration_native.oren`
 		           - `test_select_in_green_workers`, `test_select_multi_case_in_green_workers`, `test_select_idle_does_not_spin_cpu`
 			   - 2026-01-15 → 2026-01-16: Stage N2 groundwork: green-task scheduler can now run on background OS threads ("M") via `oren_green_start_workers(n)`.

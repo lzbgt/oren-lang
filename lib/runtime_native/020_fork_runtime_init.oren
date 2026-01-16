@@ -161,7 +161,7 @@ fn native_runtime_init(target_os) {
     // Channel globals (do not rely on global initializers).
     g_chan_mem_global_seq_word = 0
     g_chan_mem_select_lock_word = 0
-    g_chan_mem_select_wait_head = 0
+    g_chan_mem_select_root = 0
 
     // NET wait backend probe state (must not rely on global initializers).
     g_target_os = target_os
