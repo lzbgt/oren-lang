@@ -1194,7 +1194,9 @@ fn oren_mark_value(val) {
             if ptr_get(iadd(node, 8)) == 0 { return 0 }
         }
 
-        // Mark it
+        // Mark it (and avoid infinite recursion on cyclic structures).
+        var marked = ptr_get(iadd(node, 24))
+        if marked == -1 { return 0 }
         ptr_set(iadd(node, 24), -1)
 
         if kind == 2 { // LIST
@@ -1236,6 +1238,22 @@ fn oren_mark_value(val) {
             // Keep the payload alive while the header is reachable.
             var buf = ptr_get(iadd(val, 16))
             oren_mark_value(buf)
+        }
+        if kind == 4 { // STRUCT (conservative scan)
+            // Rolling contract (native runtime):
+            // Struct allocations are tagged with kind=STRUCT so GC can scan fields conservatively.
+            //
+            // We do not have a type descriptor here, so we conservatively treat every 8-byte slot
+            // in the payload as a potential pointer.
+            var sz = ptr_get(iadd(node, 8))
+            if sz > 0 {
+                var off = 0
+                while off + 8 <= sz {
+                    var v = ptr_get(iadd(val, off))
+                    oren_mark_value(v)
+                    off = off + 8
+                }
+            }
         }
     }
     return 0

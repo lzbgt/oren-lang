@@ -504,21 +504,25 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 			         - route arm64 `exit(...)` to Linux `exit_group(2)` via a new `sys_exit_group` syscall-lowering hook
 			       - Guards: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join` + `test_green_global_runq_fairness` + `test_green_ctx_switch_alloc_integrity`) now run to completion on `arm64-linux`.
 	     - Optional dev-only smoke (skipped by default): `tests/native/test_green_workers_multi_p_experimental.oren`
-	   - 2026-01-15: GC + safepoint groundwork for N:M (stop-the-world first, correct before fast)
-	     - Implemented a minimal STW protocol so `oren_gc_collect()` is safe once >1 OS thread exists:
-	       - Runtime: `lib/runtime_native/100_time.oren` (`native_gc_stw_begin/native_gc_stw_poll_and_park/native_gc_stw_end`)
-	       - Globals storage (wait-on-address words): `424/432/440` (see `lib/runtime_native/010_channels_globals_consts.oren`)
-	     - Guard: `tests/native/test_gc_stw_os_thread_collect.oren`
-	     - Remaining (still required before real N:M):
-	       - extend safepoints beyond loop headers (bounded time for long-running non-loop code paths); there is no preemption yet
-	       - define the "GC safe" calling convention wrt registers vs stack (roots must be discoverable at safepoints)
-	       - evolve toward per-P allocation caches + a concurrency-correct allocator/metadata model (or keep STW around allocations initially)
-	     - 2026-01-16: extended bounded safepoint reachability beyond loops by piggybacking on native call-depth hooks:
-	       - Runtime: `lib/runtime_native/105_call_depth.oren` (`native_call_depth_safepoint_poll_throttled`)
-	       - Behavior: in multi-OS-thread mode, every ~1024 function entries polls STW state and parks if requested.
-	       - Motivation: call-heavy non-loop code paths (visitors/recursion) should not starve a stop-the-world request indefinitely.
+		   - 2026-01-15: GC + safepoint groundwork for N:M (stop-the-world first, correct before fast)
+		     - Implemented a minimal STW protocol so `oren_gc_collect()` is safe once >1 OS thread exists:
+		       - Runtime: `lib/runtime_native/100_time.oren` (`native_gc_stw_begin/native_gc_stw_poll_and_park/native_gc_stw_end`)
+		       - Globals storage (wait-on-address words): `424/432/440` (see `lib/runtime_native/010_channels_globals_consts.oren`)
+		     - Guard: `tests/native/test_gc_stw_os_thread_collect.oren`
+		     - Remaining (still required before real N:M):
+		       - extend safepoints beyond loop headers (bounded time for long-running non-loop code paths); there is no preemption yet
+		       - define the "GC safe" calling convention wrt registers vs stack (roots must be discoverable at safepoints)
+		       - evolve toward per-P allocation caches + a concurrency-correct allocator/metadata model (or keep STW around allocations initially)
+		     - 2026-01-16: extended bounded safepoint reachability beyond loops by piggybacking on native call-depth hooks:
+		       - Runtime: `lib/runtime_native/105_call_depth.oren` (`native_call_depth_safepoint_poll_throttled`)
+		       - Behavior: in multi-OS-thread mode, every ~1024 function entries polls STW state and parks if requested.
+		       - Motivation: call-heavy non-loop code paths (visitors/recursion) should not starve a stop-the-world request indefinitely.
+		     - 2026-01-16: fixed a native GC correctness gap: STRUCT allocations are now conservatively scanned, and the mark phase is cycle-safe:
+		       - Problem: many runtime subsystems tag allocations as kind=STRUCT “so GC can scan fields”, but the mark phase previously did not traverse kind=STRUCT.
+		       - Fix: `oren_mark_value` now scans 8-byte slots for kind=STRUCT, and honors the mark bit to avoid infinite recursion on cyclic graphs.
+		       - Runtime: `lib/runtime_native/100_time_gc_alloc.oren` (`oren_mark_value`)
 
-	   References:
+		   References:
 
    - `docs/CONCURRENCY_MODEL.md`
    - `docs/NATIVE_GMP_SCHEDULER.md`

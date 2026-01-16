@@ -1,6 +1,6 @@
 # Memory Model
 
-**Last updated:** 2026-01-15
+**Last updated:** 2026-01-16
 
 Oren’s native backend is **syscall-first** and **libc-free**. Memory management is designed so long-running programs do not grow memory unboundedly (no “leak by design”), while still supporting a deterministic/manual lane.
 
@@ -14,6 +14,13 @@ This doc is rolling: it records what the code does today and the constraints tha
 - In the native backend, heap allocations are performed by the compiler’s intrinsic `malloc(...)`, implemented directly on top of OS syscalls (not `libc malloc`).
 - Runtime objects (strings/lists/maps/structs/function-closures) are tracked by the native runtime so GC can traverse container graphs and reuse freed blocks.
 - **Runtime metadata** (globals storage, thread-list nodes, root-list nodes) is allocated with `malloc_raw(...)` so it is not subject to GC (prevents GC from reclaiming internal runtime bookkeeping).
+
+Rolling detail (native GC correctness):
+
+- Struct allocations tagged as kind=STRUCT are scanned **conservatively**:
+  - every 8-byte slot in the allocation payload is treated as a potential pointer and marked if it refers to a tracked allocation
+  - there is no type descriptor yet, so this is correctness-first (it can visit many non-pointers, but they fast-skip via alloc-index miss)
+- The mark phase honors the mark bit to avoid infinite recursion on cyclic container graphs.
 
 ## Roots & collection
 - The collector is cooperative: call `native_gc_collect()` at safe points to reclaim unreachable tracked allocations.
