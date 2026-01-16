@@ -146,7 +146,7 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                     sys_reg = labi.linux_syscall_reg()
                     svc_imm = labi.linux_svc_imm()
                     sysno = labi.linux_sys_gettimeofday()
-                    // Linux ignores abs_ptr; clear X2 for safety.
+                    // Linux ignores abs_ptr for the gettimeofday syscall itself; clear X2 for safety.
                     push_u32_le(ctx["code"], insn_movz(2, 0))
                 }
     
@@ -169,6 +169,60 @@ fn native_syscalls_chunk_050_syscalls_e(ctx, fn_name, args, compile_expr) {
                     push_u32_le(ctx["code"], insn_sub_reg(0, 31, 0)) // X0 = -errno
                     var ok_pos = bytes_len(ctx["code"])
                     set_u32_le(ctx["code"], br_ok, insn_b_cond((ok_pos - br_ok) / 4, 3)) // CC
+                }
+
+                if ctx["platform"]["os"] == "linux" {
+                    // Best-effort monotonic raw time:
+                    // If abs_ptr is non-null, fill *abs_ptr with CLOCK_MONOTONIC time in ns.
+                    //
+                    // Oren-side signature stays stable across OSes:
+                    //   sys_gettimeofday(tv_ptr, tz_ptr, abs_ptr) -> 0_or_neg_errno
+                    //
+                    // - Darwin: kernel syscall accepts a 3rd out-arg (mach_absolute_time ticks)
+                    // - Windows: x64 backend uses QueryPerformanceCounter ticks
+                    // - Linux: synthesize it via clock_gettime(CLOCK_MONOTONIC) and normalize to ns
+                    //
+                    // NOTE: abs_ptr is an optional out-arg; do not fail gettimeofday if this fails.
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(3, 0)) // X3=abs_ptr
+                    push_u32_le(ctx["code"], insn_cmp_reg(3, 31))   // CMP X3, XZR
+                    var br_skip_abs0 = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B.EQ skip_abs
+
+                    // abs_ptr < 4096 => skip (avoid obvious non-pointers).
+                    emit_load_u64_imm(ctx, 4, 4096)
+                    push_u32_le(ctx["code"], insn_cmp_reg(3, 4))
+                    var br_skip_abs_small = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0) // B.LT skip_abs
+
+                    // Preserve abs_ptr across syscall setup.
+                    push_u32_le(ctx["code"], insn_mov_reg(9, 3)) // X9=abs_ptr
+
+                    // timespec scratch on stack: { tv_sec(u64), tv_nsec(u64) }
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+
+                    // clock_gettime(CLOCK_MONOTONIC=1, timespec_ptr=SP)
+                    push_u32_le(ctx["code"], insn_movz(0, 1))        // X0=clockid
+                    push_u32_le(ctx["code"], insn_add_imm(1, 31, 0)) // X1=SP (timespec*)
+                    push_u32_le(ctx["code"], insn_movz(sys_reg, labi.linux_sys_clock_gettime()))
+                    emit_svc_preserve_heap(ctx, svc_imm)
+
+                    // Load timespec from stack, then pop the scratch.
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(4, 0)) // X4=tv_sec
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(5, 8)) // X5=tv_nsec
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+
+                    // ns = sec*1e9 + nsec
+                    emit_load_u64_imm(ctx, 6, 1000000000)
+                    push_u32_le(ctx["code"], insn_mul(4, 4, 6))       // X4=sec*1e9
+                    push_u32_le(ctx["code"], insn_add_reg(4, 4, 5))   // X4 += nsec
+                    // *abs_ptr = ns
+                    push_u32_le(ctx["code"], insn_str_ptr(4, 9))
+
+                    var skip_abs_pos = bytes_len(ctx["code"])
+                    set_u32_le(ctx["code"], br_skip_abs0, insn_b_cond((skip_abs_pos - br_skip_abs0) / 4, 0)) // EQ
+                    set_u32_le(ctx["code"], br_skip_abs_small, insn_b_cond((skip_abs_pos - br_skip_abs_small) / 4, 11)) // LT
                 }
     
                 // Pop abs + tz + tv

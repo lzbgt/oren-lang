@@ -172,6 +172,8 @@ Status (rolling groundwork):
   - Worker sleeping behavior (rolling, but important for responsiveness):
     - when only sleepers exist, the worker parks on the shared park word with a timeout (so new runnable work wakes it immediately)
     - inserting new sleepers wakes workers so the “next wake” deadline is re-evaluated promptly
+    - sleeper deadlines use a **monotonic** clock (`oren_time_mono_ns`) so wall-clock jumps do not break wake behavior
+      (Linux fills `sys_gettimeofday(..., abs_ptr)` via `clock_gettime(CLOCK_MONOTONIC)`; macOS/Windows use raw counters + runtime scaling)
   - Join behavior: when workers are enabled, `oren_green_join_timeout` waits on the green task's state word via the portable
     wait-on-address primitive (instead of driving the scheduler on the joining thread).
   - P ownership (rolling correctness guard): when workers are enabled, `_green_poll_until` enforces `P.owner_tid == sys_gettid()`.
@@ -180,6 +182,8 @@ Status (rolling groundwork):
   - Runtime: `lib/runtime_native/263_green_tasks.oren`
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_worker_wake_while_sleepers`) (prevents “sleepers stall runnable work” regressions)
+  - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_many_tasks_bounded`) (many short tasks must complete; no hangs)
+  - Guard: `tests/native/test_quick_integration_native.oren` (`test_time_mono_ns_monotonic`) (`oren_time_mono_ns` must advance)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_ctx_switch_alloc_integrity`) (worker-mode ctx-switch must not corrupt scheduler locals / allocator state)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_local_ptr_survives_yields`) (ctx-switch must preserve long-lived locals across yields)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_local_ptr_survives_yields`) (same contract under worker-mode scheduling)

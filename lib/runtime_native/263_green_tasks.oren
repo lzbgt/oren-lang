@@ -81,6 +81,15 @@ fn green_p_off_next() { return 56 }      // u64: next P in the scheduler's P lis
 fn green_p_off_owner_tid() { return 64 } // u64: sys_gettid() of owning M (0 when unclaimed)
 fn green_p_bytes() { return 72 }
 
+fn _green_time_now_ns() {
+    // Scheduler time base:
+    // Prefer a monotonic clock for deadlines so wall-clock jumps (NTP/manual set)
+    // do not break wake behavior.
+    var t = oren_time_mono_ns()
+    if t != 0 { return t }
+    return oren_time_unix_ns()
+}
+
 var g_green_inited = 0
 var g_green_enabled_checked = 0
 // IMPORTANT (native runtime init model; rolling):
@@ -847,7 +856,7 @@ fn _green_poll_until(deadline_ns) {
         // Drain detached tasks that completed.
         _green_zombie_drain()
 
-        var now = oren_time_unix_ns()
+        var now = _green_time_now_ns()
         if now != 0 {
             _green_wake_ready_p(p, now)
             if deadline_ns != 0 && now >= deadline_ns { return 0 }
@@ -885,7 +894,7 @@ fn _green_poll_until(deadline_ns) {
         }
 
         // Idle sleep: do not oversleep past the join deadline.
-        var now2 = oren_time_unix_ns()
+        var now2 = _green_time_now_ns()
         if now2 == 0 {
             // Rolling robustness: if the clock is unavailable or temporarily fails, do not
             // treat this as "idle". Returning would let worker threads park forever while
@@ -1120,7 +1129,7 @@ fn __oren_green_worker_entry(arg_ptr) {
         var next_wake = 0
         if p2 != 0 { next_wake = _green_next_wake_ns_p(p2) }
         if next_wake != 0 {
-            var now = oren_time_unix_ns()
+            var now = _green_time_now_ns()
             if now != 0 {
                 var sleep_ns = next_wake - now
                 if sleep_ns < 0 { sleep_ns = 0 }
@@ -1291,7 +1300,7 @@ fn oren_green_join_timeout(g, timeout_ms) {
 
     if in_green {
         // Cooperative bounded wait (best-effort): yield/sleep until deadline.
-        var start2 = oren_time_unix_ns()
+        var start2 = _green_time_now_ns()
         if start2 == 0 {
             var i2 = 0
             while i2 < t {
@@ -1314,7 +1323,7 @@ fn oren_green_join_timeout(g, timeout_ms) {
                 _green_cleanup_g(g)
                 return rr2
             }
-            var now2 = oren_time_unix_ns()
+            var now2 = _green_time_now_ns()
             if now2 == 0 { break }
             if now2 >= deadline2 { break }
             var rem2 = deadline2 - now2
@@ -1348,7 +1357,7 @@ fn oren_green_join_timeout(g, timeout_ms) {
         return r_done
     }
 
-    var start = oren_time_unix_ns()
+    var start = _green_time_now_ns()
     if start == 0 {
         // Fallback: run a small bounded loop.
         var i = 0
@@ -1372,7 +1381,7 @@ fn oren_green_join_timeout(g, timeout_ms) {
             _green_cleanup_g(g)
             return r4
         }
-        var now = oren_time_unix_ns()
+        var now = _green_time_now_ns()
         if now == 0 { break }
         if now >= deadline { break }
         _green_poll_until(deadline)
@@ -1390,7 +1399,7 @@ fn oren_green_sleep_ns(ns) {
     var g = ptr_get(ts + green_t_off_current_g())
     if g == 0 { return 0 }
     if ns <= 0 { return 0 }
-    var now = oren_time_unix_ns()
+    var now = _green_time_now_ns()
     if now == 0 {
         // If no clock (rolling bring-up), yield best-effort without depending on
         // higher-level yield helpers.

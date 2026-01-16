@@ -442,8 +442,16 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					         - 2026-01-16: arm64 stmt codegen now also restores SP after condition evaluation in `if` / `while` / `for` headers (so branch entry SP matches codegen assumptions):
 					           - compiler: `lib/compiler/arm64_native_stmt.oren` (`cond_delta` restore)
 					         - known repro (rolling): attempts to add an env-gated cached mode (e.g. probing `OREN_GREEN_POLL_CACHE` via `native_envp_get_value_ptr(...)` and caching `ts`/`P` across iterations) still cause deterministic SIGSEGV (rc=139) in `make test-native-quick-stage2` / `make test`; keep the safe per-iteration re-fetch loop by default
-			     - switch green sleeper deadlines to a monotonic clock source (avoid wall-clock jumps affecting wake behavior)
-		     - add a small regression gate: spawn many green tasks (with workers enabled) and assert bounded completion (no hangs)
+				     - 2026-01-16: switched green sleeper deadlines to a monotonic clock source (avoid wall-clock jumps affecting wake behavior):
+				       - Runtime: `lib/runtime_native/100_time.oren` (`oren_time_mono_ns`)
+				       - Runtime: `lib/runtime_native/263_green_tasks.oren` (`_green_time_now_ns` + scheduler uses it for wake/deadlines)
+				       - Compiler (Linux x64/arm64): `sys_gettimeofday(..., abs_ptr)` now fills abs_ptr with `clock_gettime(CLOCK_MONOTONIC)` in ns
+				         (so `oren_time_mono_raw()` works on Linux too)
+			     - 2026-01-16: added a bounded regression gate for worker-mode scheduling (many tasks must complete; no hangs):
+			       - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_many_tasks_bounded`)
+			     - Next: make `oren_time_mono_ns()` conversion exact on macOS/Windows (avoid wall-clock-based calibration):
+			       - macOS: use `mach_timebase_info` (num/den) for mach_absolute_time -> ns
+			       - Windows: use `QueryPerformanceFrequency` for QPC ticks -> ns
 	     - Optional dev-only smoke (skipped by default): `tests/native/test_green_workers_multi_p_experimental.oren`
 	   - 2026-01-15: GC + safepoint groundwork for N:M (stop-the-world first, correct before fast)
 	     - Implemented a minimal STW protocol so `oren_gc_collect()` is safe once >1 OS thread exists:

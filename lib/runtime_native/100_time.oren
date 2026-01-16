@@ -82,6 +82,30 @@ fn oren_kill(pid, signum) {
 var g_time_tv_buf = 0   // 16 bytes (single-thread fallback)
 var g_time_abs_buf = 0  // 8 bytes  (single-thread fallback)
 
+// Monotonic clock calibration (process-global).
+//
+// Motivation:
+// - Green-task scheduler deadlines must be immune to wall-clock jumps (NTP, manual changes).
+// - Tier‑1 must remain syscall-first (avoid hard dependencies on libc wrappers).
+//
+// We expose:
+// - `oren_time_mono_raw()` : a monotonic, compare-only raw counter (platform-specific units)
+// - `oren_time_mono_ns()`  : best-effort conversion to nanoseconds since an unspecified origin
+//
+// Implementation strategy (rolling, cross-platform):
+// - Linux: native backend lowers `sys_gettimeofday(..., abs_ptr)` to fill abs_ptr with
+//   clock_gettime(CLOCK_MONOTONIC) in nanoseconds. (`raw` already matches ns.)
+// - macOS: kernel gettimeofday provides an out-arg for mach_absolute_time ticks (raw).
+// - Windows: backend uses QueryPerformanceCounter ticks (raw).
+// - For macOS/Windows, convert raw->ns by calibrating against wall time deltas (ratio only).
+//
+// This keeps the runtime bundle free of extra per-OS imports for now, while still providing
+// a monotonic ns clock suitable for scheduler deadlines.
+var g_time_mono_inited = 0
+var g_time_mono_base_raw = 0
+var g_time_mono_scale_num = 0 // numerator: ns_delta
+var g_time_mono_scale_den = 0 // denominator: raw_delta
+
 fn native_time_current_thread_node_or0() {
     // Best-effort "which thread am I on?" heuristic shared with call-depth + GC stack scanning.
     //
@@ -249,7 +273,78 @@ fn oren_time_mono_raw() {
     return t
 }
 
-	@oren.keep
+fn _time_mul_div_u64(a, num, den) {
+    // Compute floor(a * num / den) with reduced overflow risk for typical monotonic scaling.
+    //
+    // Inputs are expected to be non-negative (u64-carried).
+    if den == 0 { return 0 }
+    if a <= 0 { return 0 }
+    if num <= 0 { return 0 }
+    if den < 0 { return 0 }
+    if num < 0 { return 0 }
+    var q = a / den
+    var r = a - (q * den)
+    // (q*num) + ((r*num)/den)
+    var hi = q * num
+    var lo = (r * num) / den
+    return hi + lo
+}
+
+fn _time_mono_try_init() {
+    if g_time_mono_inited != 0 { return 1 }
+    // Need both a wall clock and a monotonic raw counter to derive the ratio.
+    var raw0 = oren_time_mono_raw()
+    var unix0 = oren_time_unix_ns()
+    if raw0 == 0 || unix0 == 0 { return 0 }
+
+    // Calibration goal:
+    // - Use a delta large enough (>=1ms) so (raw_delta, ns_delta) are non-trivial.
+    // - Avoid sleeping here (would slow scheduler bring-up and tests); just spin a bounded number of samples.
+    var i = 0
+    while i < 200000 {
+        var raw1 = oren_time_mono_raw()
+        var unix1 = oren_time_unix_ns()
+        if raw1 != 0 && unix1 != 0 && raw1 > raw0 && unix1 > unix0 {
+            var d_raw = raw1 - raw0
+            var d_ns = unix1 - unix0
+            if d_raw > 0 && d_ns >= 1000000 && d_ns <= 1000000000 {
+                g_time_mono_base_raw = raw0
+                g_time_mono_scale_num = d_ns
+                g_time_mono_scale_den = d_raw
+                g_time_mono_inited = 1
+                return 1
+            }
+            // If wall time advanced too much, re-anchor to avoid pathological ratios.
+            if d_ns > 1000000000 {
+                raw0 = raw1
+                unix0 = unix1
+            }
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+// Monotonic time in nanoseconds since an unspecified origin (compare-only absolute value).
+//
+// Guarantees (best-effort, rolling):
+// - If non-zero, it should be monotonic within a process (no wall-clock jumps).
+// - Origin is unspecified (not Unix epoch); treat it as "monotonic timestamp".
+fn oren_time_mono_ns() {
+    if g_time_mono_inited == 0 {
+        _time_mono_try_init()
+        if g_time_mono_inited == 0 { return 0 }
+    }
+    // Read raw after calibration so we never compare against a base that was sampled later.
+    var raw = oren_time_mono_raw()
+    if raw == 0 { return 0 }
+    var base = g_time_mono_base_raw
+    if raw < base { return 0 }
+    var d = raw - base
+    return _time_mul_div_u64(d, g_time_mono_scale_num, g_time_mono_scale_den)
+}
+
+		@oren.keep
 fn oren_register_thread(top) {
     // Thread Node (rolling):
     // - [top, saved_sp, next] must stay at offsets 0/8/16 because GC stack scanning depends on it.

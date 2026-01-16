@@ -84,6 +84,11 @@ fn worker_green_sleep_400ms_then_ret2() {
     return 2
 }
 
+fn worker_green_sleep_1ms_then_ret_one() {
+    oren_green_sleep_ns(1000000) // 1ms
+    return 1
+}
+
 fn worker_green_alloc_yield_integrity(seed) {
     // Regression guard: context switching must not corrupt the native bump allocator state.
     // In the native backends, the bump allocator lives in reserved registers and MUST NOT be
@@ -733,6 +738,20 @@ fn test_wait_on_addr_mismatch_is_success() {
     return 0
 }
 
+fn test_time_mono_ns_monotonic() {
+    trace("QI: test_time_mono_ns_monotonic")
+    // Contract (rolling): `oren_time_mono_ns()` should be monotonic if non-zero.
+    // This is required for scheduler deadlines to be robust against wall-clock jumps.
+    var t0 = oren_time_mono_ns()
+    if t0 == 0 { fail(510) }
+    // Give time a chance to advance across OSes (Windows Sleep has ms granularity).
+    oren_sleep_ms(2)
+    var t1 = oren_time_mono_ns()
+    if t1 == 0 { fail(511) }
+    if t1 <= t0 { fail(512) }
+    return 0
+}
+
 fn worker_green_try_start_workers_in_green() {
     // Must run on a green stack so `oren_green_start_workers` sees in-green execution.
     return oren_green_start_workers(1)
@@ -930,6 +949,38 @@ fn test_green_worker_wake_while_sleepers() {
     return 0
 }
 
+fn test_green_workers_many_tasks_bounded() {
+    trace("QI: test_green_workers_many_tasks_bounded")
+    if g_target_os == 3 { return 0 }
+
+    // Ensure background worker mode is active.
+    var rc = oren_green_start_workers(1)
+    assert_eq(rc, 0, 520)
+
+    // Stress: spawn many short green tasks and ensure joins are bounded (no hangs).
+    var hs = []
+    var i = 0
+    while i < 200 {
+        var h = 0
+        if (i & 7) == 0 {
+            h = spawn worker_green_sleep_1ms_then_ret_one()
+        } else {
+            h = spawn worker_green_ret_one()
+        }
+        oren_list_push(hs, h)
+        i = i + 1
+    }
+
+    i = 0
+    while i < oren_list_len(hs) {
+        var hh = oren_list_get(hs, i)
+        var r = oren_join_timeout(hh, 2000)
+        assert_eq(r, 1, 521)
+        i = i + 1
+    }
+    return 0
+}
+
 fn test_proc_system_windows() {
     trace("QI: test_proc_system_windows")
     if g_target_os != 3 { return 0 }
@@ -957,6 +1008,7 @@ fn main() {
     test_proc_system_windows()
     test_select()
     test_wait_on_addr_mismatch_is_success()
+    test_time_mono_ns_monotonic()
     test_green_start_workers_rejects_in_green()
     test_green_workers_join()
     test_green_global_runq_fairness()
@@ -965,6 +1017,7 @@ fn main() {
     test_green_workers_ctx_switch_alloc_integrity()
     test_green_workers_local_ptr_survives_yields()
     test_green_worker_wake_while_sleepers()
+    test_green_workers_many_tasks_bounded()
     print("native quick integration OK")
     exit(0)
 }
