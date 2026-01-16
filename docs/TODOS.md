@@ -430,6 +430,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		     - Linux: futex-based park/wake
 		   - Stage N3 (next): make `P` real (toward true M:N)
 		     - enforce “an `M` runs Oren code only while holding a `P`” (no shared-P execution)
+		     - add a single-thread multi-`P` fixture (using `oren_green_bind_p`) to validate cross-P sleep/wake + stealing without enabling unsafe parallel workers
 		     - evolve the global runq into a fairness/overflow queue (it exists today as cross-P injection)
 		     - implement real work stealing between `P` (today: a global-lock bring-up: “steal one before idle”, plus periodic global-runq polling for fairness)
 		     - replace the current global lock in green scheduling with per-P queues + atomics (keep GC/STW correctness first)
