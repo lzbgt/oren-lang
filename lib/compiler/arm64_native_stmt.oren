@@ -1550,8 +1550,9 @@ fn native_compile_stmt_inner(ctx, stmt) {
             
             if fn_name == "exit" {
                 // Route through centralized syscall lowering so OS ABIs stay in one place.
-                // (exit is implemented via sys_exit, but user code does not call sys_exit directly.)
-                sysm.native_compile_syscall_call(ctx, "sys_exit", expr["args"], native_compile_expr)
+                // On Linux, `exit(2)` terminates only the calling thread; once OS threads exist,
+                // source-level `exit(...)` must terminate the whole process (`exit_group(2)`).
+                sysm.native_compile_syscall_call(ctx, "sys_exit_group", expr["args"], native_compile_expr)
                 return nil
             }
 

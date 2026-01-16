@@ -201,6 +201,22 @@ Status (rolling groundwork):
   - Rolling limitation (important): worker parallelism is currently clamped to 1 by default, because the native allocator/GC
     are not concurrency-correct yet. Opt-in for experimentation only: `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.
 
+Correctness gotchas (fact; Tier‑1 regression-driven):
+
+- **Linux clone trampoline must initialize “reserved registers” for the child OS thread.**
+  - The native bump allocator state lives in reserved callee-saved registers:
+    - arm64: `X28` = heap_ptr, `X27` = heap_limit
+    - x64: `R15` = heap_ptr, `R14` = heap_limit
+  - Linux `clone(2)` threads inherit the parent register contents; if the child keeps those heap registers,
+    the parent and child can allocate from the same bump region and corrupt heap objects/metadata under worker-mode scheduling.
+  - Fix (2026-01-16): the `sys_thread_create` child path now resets the heap registers to `0` before calling the start routine,
+    forcing the first allocation in the new OS thread to take the slow path (mmap a fresh chunk) and seed per-thread bump state.
+
+- **Process exit on Linux must use `exit_group(2)` once OS threads exist.**
+  - `exit(2)` terminates only the calling thread; if background workers exist, `exit(0)` can leave the process alive and look “hung”.
+  - Fix (2026-01-16): arm64 native lowering routes source-level `exit(...)` to `exit_group` via `sys_exit_group`;
+    `sys_exit` remains “terminate this thread” and is used by thread trampolines.
+
 2) **Parking/unparking**
    - When an `M` has no work, it must block efficiently without busy looping.
    - Implement via a syscall-level wait primitive (platform-specific):

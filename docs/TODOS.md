@@ -452,8 +452,15 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 			     - Next: make `oren_time_mono_ns()` conversion exact on macOS/Windows (avoid wall-clock-based calibration):
 			       - macOS: use `mach_timebase_info` (num/den) for mach_absolute_time -> ns
 			       - Windows: use `QueryPerformanceFrequency` for QPC ticks -> ns
-			     - Rolling (Linux arm64): native quick integration currently panics in `worker_green_alloc_yield_integrity` with `list_push on non-list`
-			       (seen while validating `arm64-linux` inside the Ubuntu container); likely a local preservation / call ABI spill bug in the arm64-linux native backend.
+			     - 2026-01-16: fixed a Linux arm64 worker-mode green scheduler corruption + hang:
+			       - Symptom (arm64-linux, Ubuntu container): `test_quick_integration_native.oren` panicked in `worker_green_alloc_yield_integrity` (`list_push on non-list`) and the binary could hang under worker threads.
+			       - Root causes:
+			         - Linux `sys_thread_create` clone trampoline did not reinitialize the native bump allocator registers in the child OS thread, so the child could inherit parent heap state and corrupt allocations under worker-mode scheduling.
+			         - arm64 `exit(...)` intrinsic routed to `sys_exit` (thread-only), so after starting background workers `exit(0)` could leave the process alive and appear “hung”.
+			       - Fix:
+			         - reset heap regs in the clone child path (arm64: X27/X28; x64: R14/R15) before calling the thread entry function
+			         - route arm64 `exit(...)` to Linux `exit_group(2)` via a new `sys_exit_group` syscall-lowering hook
+			       - Guards: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join` + `test_green_global_runq_fairness` + `test_green_ctx_switch_alloc_integrity`) now run to completion on `arm64-linux`.
 	     - Optional dev-only smoke (skipped by default): `tests/native/test_green_workers_multi_p_experimental.oren`
 	   - 2026-01-15: GC + safepoint groundwork for N:M (stop-the-world first, correct before fast)
 	     - Implemented a minimal STW protocol so `oren_gc_collect()` is safe once >1 OS thread exists:

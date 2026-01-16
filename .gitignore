@@ -9,6 +9,8 @@ build/
 /oren_stage2_dbg
 /oren_bootstrap
 /oren_boostrap
+/oren_bootstrap_linux
+/oren_linux
 /oredoc
 /orensign
 /avm

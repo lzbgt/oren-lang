@@ -378,7 +378,7 @@
             }
             
 
-            if fn_name == "sys_thread_create" {
+	            if fn_name == "sys_thread_create" {
                 // Linux-only: syscall-first OS thread creation (clone wrapper).
                 //
                 // Signature:
@@ -491,18 +491,32 @@
                 push_u32_le(ctx["code"], insn_str_reg_sp(28, 72))
                 push_u32_le(ctx["code"], insn_svc(labi.linux_svc_imm()))
 
-                // Child path (X0 == 0):
-                // - run start(arg) and sys_exit(0)
-                // Parent path (X0 != 0):
-                // - skip the child stub, restore regs, continue
-                push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // CMP X0, XZR
-                var br_parent = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0) // B.NE parent_restore
-
-                // Child stub: X9 = *(u64*)SP (start_addr); X0 = *(u64*)(SP+8) (arg_ptr)
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 0))
-                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 8))
-                push_u32_le(ctx["code"], insn_blr(9))
+	                // Child path (X0 == 0):
+	                // - run start(arg) and sys_exit(0)
+	                // Parent path (X0 != 0):
+	                // - skip the child stub, restore regs, continue
+	                push_u32_le(ctx["code"], insn_cmp_reg(0, 31)) // CMP X0, XZR
+	                var br_parent = bytes_len(ctx["code"])
+	                push_u32_le(ctx["code"], 0) // B.NE parent_restore
+	
+	                // Child init (allocator hygiene):
+	                // The native bump allocator state lives in reserved callee-saved registers:
+	                //   - X28 = heap_ptr
+	                //   - X27 = heap_limit
+	                //
+	                // For `clone(2)` thread creation, the child inherits parent register contents.
+	                // If we keep X27/X28 as-is, both OS threads can allocate from the same bump region
+	                // concurrently, corrupting heap objects and tracked metadata.
+	                //
+	                // Reset so the first `malloc`/`malloc_raw` in the new OS thread takes the slow path
+	                // (mmap a fresh chunk) and establishes thread-local bump state.
+	                push_u32_le(ctx["code"], insn_movz(27, 0))
+	                push_u32_le(ctx["code"], insn_movz(28, 0))
+	
+	                // Child stub: X9 = *(u64*)SP (start_addr); X0 = *(u64*)(SP+8) (arg_ptr)
+	                push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 0))
+	                push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 8))
+	                push_u32_le(ctx["code"], insn_blr(9))
 
                 // sys_exit(0) (terminate thread; must not return)
                 push_u32_le(ctx["code"], insn_movz(0, 0)) // exit code

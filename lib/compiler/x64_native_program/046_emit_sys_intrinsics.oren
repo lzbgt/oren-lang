@@ -1597,6 +1597,18 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
         _emit_jcc_to_label(ctx, fixups_tc, "ne", l_tc_done)
 
+        // Child init (allocator hygiene):
+        // The x64 native bump allocator state lives in callee-saved registers:
+        //   - R15 = heap_ptr
+        //   - R14 = heap_limit
+        //
+        // `clone(2)` threads inherit parent register contents, so without resetting R14/R15
+        // the parent and child can allocate from the same bump region concurrently.
+        // Reset so the first allocation in the child takes the slow path (mmap) and seeds
+        // per-thread bump state.
+        bytes_extend(ctx["code"], insn_xor_r64_r64(14, 14)) // r14 = 0
+        bytes_extend(ctx["code"], insn_xor_r64_r64(15, 15)) // r15 = 0
+
         // Child path: call start_addr(arg_ptr)
         bytes_extend(ctx["code"], insn_mov_r64_r64(7, 13)) // rdi = r13 (arg_ptr)
         bytes_extend(ctx["code"], insn_mov_r64_r64(0, 12)) // rax = r12 (start_addr)

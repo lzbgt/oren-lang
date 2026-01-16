@@ -247,6 +247,32 @@ fn native_syscalls_chunk_010_syscalls_a(ctx, fn_name, args, compile_expr) {
             emit_svc_preserve_heap(ctx, svc_imm)
             return true
         }
+
+        if fn_name == "sys_exit_group" {
+            // sys_exit_group(code) -> does not return (process-wide termination on Linux).
+            //
+            // Linux note:
+            // - `exit(2)` terminates only the calling thread in a thread group.
+            // - `exit_group(2)` terminates the whole process (all threads), which is what
+            //   source-level `exit(...)` expects once OS-thread substrates are enabled.
+            //
+            // macOS note:
+            // - There is no `exit_group`; `exit` already terminates the process.
+            compile_expr(ctx, args[0]) // code -> X0
+
+            var svc_imm2 = abi.darwin_svc_imm()
+            var sys_reg2 = abi.darwin_syscall_reg()
+            var sys_exit2 = abi.darwin_sys_exit()
+            if ctx["platform"]["os"] == "linux" {
+                svc_imm2 = labi.linux_svc_imm()
+                sys_reg2 = labi.linux_syscall_reg()
+                sys_exit2 = labi.linux_sys_exit_group()
+            }
+
+            push_u32_le(ctx["code"], insn_movz(sys_reg2, sys_exit2))
+            emit_svc_preserve_heap(ctx, svc_imm2)
+            return true
+        }
     
 
             if fn_name == "sys_open" {

@@ -56,21 +56,21 @@ fn oren_is_list(v) {
 	    return true
 }
 
-@oren.keep
-fn oren_list_push(list, value) {
-    if list == nil {
-        oren_panic("list_push on nil")
-        return nil
-    }
-    // Safety: do not dereference arbitrary large integers as pointers.
-	    var node = oren_find_node(list)
-	    if node == 0 { oren_panic("list_push on non-list"); return 0 }
-	    if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_push on non-list"); return 0 }
-	    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_push on non-list"); return 0 }
-	    var count = ptr_get(iadd(list, 0))
-	    var cap = ptr_get(iadd(list, 8))
-		    var buf = ptr_get(iadd(list, 16))
-		    if count >= cap {
+	@oren.keep
+	fn oren_list_push(list, value) {
+	    if list == nil {
+	        oren_panic("list_push on nil")
+	        return nil
+	    }
+	    // Safety: do not dereference arbitrary large integers as pointers.
+		    var node = oren_find_node(list)
+		    if node == 0 { oren_panic("list_push: untracked ptr"); return 0 }
+		    if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_push: wrong kind"); return 0 }
+		    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_push: bad magic"); return 0 }
+		    var count = ptr_get(iadd(list, 0))
+		    var cap = ptr_get(iadd(list, 8))
+			    var buf = ptr_get(iadd(list, 16))
+			    if count >= cap {
 		        var new_cap = cap * 2
 		        if new_cap < 4 { new_cap = 4 }
 		        var new_buf = malloc_k(new_cap * 8, 0)
