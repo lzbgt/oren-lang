@@ -80,8 +80,9 @@ fn green_s_off_p_count() { return 8 }   // u64: number of Ps (>=1 once initializ
 fn green_s_off_zomb_head() { return 16 } // u64: zombie list head
 fn green_s_off_glob_run_head() { return 24 } // u64: global runnable queue head (cross-P injection / fairness)
 fn green_s_off_glob_run_tail() { return 32 } // u64: global runnable queue tail
-fn green_s_off_idle_p_head() { return 40 } // u64: head of idle-P list (Ps with owner_tid==0)
-fn green_s_bytes() { return 48 }
+fn green_s_off_idle_p_head() { return 40 } // u64: head of idle-P queue (Ps with owner_tid==0)
+fn green_s_off_idle_p_tail() { return 48 } // u64: tail of idle-P queue
+fn green_s_bytes() { return 56 }
 
 // Per-P state struct layout (bytes).
 //
@@ -279,6 +280,7 @@ fn _green_state_zomb_head(s) { return ptr_get(s + green_s_off_zomb_head()) }
 fn _green_state_glob_run_head(s) { return ptr_get(s + green_s_off_glob_run_head()) }
 fn _green_state_glob_run_tail(s) { return ptr_get(s + green_s_off_glob_run_tail()) }
 fn _green_state_idle_p_head(s) { return ptr_get(s + green_s_off_idle_p_head()) }
+fn _green_state_idle_p_tail(s) { return ptr_get(s + green_s_off_idle_p_tail()) }
 
 fn _green_state_set_p0(s, v) { ptr_set(s + green_s_off_p0(), v); return 0 }
 fn _green_state_set_p_count(s, v) { ptr_set(s + green_s_off_p_count(), v); return 0 }
@@ -286,6 +288,7 @@ fn _green_state_set_zomb_head(s, v) { ptr_set(s + green_s_off_zomb_head(), v); r
 fn _green_state_set_glob_run_head(s, v) { ptr_set(s + green_s_off_glob_run_head(), v); return 0 }
 fn _green_state_set_glob_run_tail(s, v) { ptr_set(s + green_s_off_glob_run_tail(), v); return 0 }
 fn _green_state_set_idle_p_head(s, v) { ptr_set(s + green_s_off_idle_p_head(), v); return 0 }
+fn _green_state_set_idle_p_tail(s, v) { ptr_set(s + green_s_off_idle_p_tail(), v); return 0 }
 
 fn _green_g_next(g) { return ptr_get(g + green_g_off_next()) }
 fn _green_g_set_next(g, v) { ptr_set(g + green_g_off_next(), v); return 0 }
@@ -473,6 +476,7 @@ fn _green_init_if_needed() {
     _green_state_set_glob_run_head(s, 0)
     _green_state_set_glob_run_tail(s, 0)
     _green_state_set_idle_p_head(s, 0)
+    _green_state_set_idle_p_tail(s, 0)
     _green_idle_p_push_locked(s, p0)
     _green_set_state(s)
     native_gc_register_root(s)
@@ -667,6 +671,10 @@ fn _green_idle_p_remove_locked(s, target_p) {
             } else {
                 _green_p_set_idle_next(prev, next)
             }
+            if next == 0 {
+                // Removed tail.
+                _green_state_set_idle_p_tail(s, prev)
+            }
             _green_p_set_idle_next(cur, 0)
             return 1
         }
@@ -679,12 +687,21 @@ fn _green_idle_p_remove_locked(s, target_p) {
 fn _green_idle_p_push_locked(s, p) {
     if s == 0 { return 0 }
     if p == 0 { return 0 }
-    // Keep the list free of duplicates (best-effort, bounded by p_count<=64).
+    // Keep the queue free of duplicates (best-effort, bounded by p_count<=64).
     _green_idle_p_remove_locked(s, p)
     if _green_p_owner_tid(p) != 0 { return 0 }
+    _green_p_set_idle_next(p, 0)
     var head = _green_state_idle_p_head(s)
-    _green_p_set_idle_next(p, head)
-    _green_state_set_idle_p_head(s, p)
+    var tail = _green_state_idle_p_tail(s)
+    if head == 0 {
+        _green_state_set_idle_p_head(s, p)
+        _green_state_set_idle_p_tail(s, p)
+    } else {
+        if tail != 0 {
+            _green_p_set_idle_next(tail, p)
+        }
+        _green_state_set_idle_p_tail(s, p)
+    }
     return 0
 }
 
@@ -696,6 +713,9 @@ fn _green_idle_p_pop_and_acquire_locked(s, tid) {
         if p == 0 { return 0 }
         var next = _green_p_idle_next(p)
         _green_state_set_idle_p_head(s, next)
+        if next == 0 {
+            _green_state_set_idle_p_tail(s, 0)
+        }
         _green_p_set_idle_next(p, 0)
         if _green_p_owner_tid(p) == 0 {
             _green_p_set_owner_tid(p, tid)

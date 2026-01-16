@@ -162,10 +162,20 @@ tail -n 3 "$om_log" >>"$log"
 	run_with_timeout "$run_timeout_secs" "$gw_out" >>"$gw_log" 2>&1
 	tail -n 3 "$gw_log" >>"$log"
 
+	echo "== green two workers M<P smoke ==" >>"$log"
+	mp_src="tests/native/test_green_two_workers_m_less_p_smoke.oren"
+	mp_out="build/tmp/${compiler_base}_green_two_workers_m_less_p_smoke${exe_ext}"
+	mp_log="build/logs/${compiler_base}_green_two_workers_m_less_p_smoke.log"
+	rm -f "$mp_log" "$mp_out" 2>/dev/null || true
+	run_with_timeout "$build_timeout_secs" "$compiler" build "$mp_src" \
+	  --backend native --platform "$platform" --debug -o "$mp_out" >"$mp_log" 2>&1
+	run_with_timeout "$run_timeout_secs" "$mp_out" >>"$mp_log" 2>&1
+	tail -n 3 "$mp_log" >>"$log"
+
 	if [[ "$os_key" != "windows" ]]; then
 	  # Cross-platform CLI robustness smoke:
 	  # Accept Windows-style `\` separators even on POSIX hosts so scripts/logs are portable.
-  #
+	  #
   # This is compile-only (fast) and intentionally does not run the binary.
   echo "== path separator smoke (backslash input) =="
   bs_src='examples\myapp.oren'

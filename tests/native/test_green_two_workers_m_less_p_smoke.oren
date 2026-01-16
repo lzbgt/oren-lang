@@ -1,0 +1,89 @@
+// Green scheduler: 2-worker M<P smoke (rolling, Tier‑1).
+//
+// Purpose:
+// - Prove Stage N3 direction toward real Go-like GMP where `M < P` is possible:
+//   a worker can park without holding a P and later acquire **any** idle P.
+// - Provide a deterministic regression by relying on the idle-P pool fairness:
+//   with `P_count=3` and `worker_count=2`, at least one worker should acquire `P2`
+//   when waking from idle.
+//
+// Notes:
+// - This runs only in world-lock mode so allocator/GC remain single-thread safe.
+// - Keep bounded: must not hang.
+
+fn worker_busy_yield_bounded() {
+    // Keep runnable for a short period so host can observe P ownership changing.
+    // Avoid sleeping: that would put this G into sleepq and could let workers park again.
+    var i = 0
+    while i < 200000 {
+        if (i & 255) == 0 { oren_green_yield() }
+        i = i + 1
+    }
+    return 1
+}
+
+fn main() {
+    if g_target_os == 3 {
+        print("skip: green two workers M<P smoke (windows)")
+        return 0
+    }
+
+    // Ensure at least 3 Ps exist before workers start.
+    var rcpc = oren_green_set_p_count(3)
+    if rcpc != 0 { print("FAIL: set_p_count rc=" + oren_int_to_string(rcpc)); exit(1) }
+
+    var rcwl = oren_green_set_world_lock_mode(1)
+    if rcwl != 0 { print("FAIL: world lock mode rc=" + oren_int_to_string(rcwl)); exit(2) }
+
+    var rcw = oren_green_start_workers(2)
+    if rcw != 0 { print("FAIL: start_workers rc=" + oren_int_to_string(rcw)); exit(3) }
+
+    // Wait briefly for workers to enter the scheduler loop.
+    var tries = 0
+    while tries < 50 {
+        if oren_green_debug_workers_ready_count() >= 2 { break }
+        oren_sleep_ms(1)
+        tries = tries + 1
+    }
+    if oren_green_debug_workers_ready_count() < 2 {
+        print("FAIL: workers_ready_count=" + oren_int_to_string(oren_green_debug_workers_ready_count()))
+        exit(4)
+    }
+
+    // Wait for workers to go idle and release their reserved Ps (P0/P1).
+    // This ensures they will need to acquire a P from the idle-P pool when woken.
+    tries = 0
+    while tries < 80 {
+        if oren_green_debug_p_owner_tid(0) == 0 && oren_green_debug_p_owner_tid(1) == 0 { break }
+        oren_sleep_ms(1)
+        tries = tries + 1
+    }
+
+    // Inject runnable work to wake workers.
+    var h1 = spawn worker_busy_yield_bounded()
+    var h2 = spawn worker_busy_yield_bounded()
+
+    // Regression signal: with idle-P FIFO fairness and P_count=3, at least one worker should
+    // acquire P2 while running this work.
+    tries = 0
+    while tries < 80 {
+        if oren_green_debug_p_owner_tid(2) > 0 { break }
+        oren_sleep_ms(1)
+        tries = tries + 1
+    }
+    if oren_green_debug_p_owner_tid(2) <= 0 {
+        print("FAIL: P2 was never acquired (owner_tid=" + oren_int_to_string(oren_green_debug_p_owner_tid(2)) + ")")
+        exit(5)
+    }
+
+    var r1 = oren_join_timeout(h1, 2000)
+    var r2 = oren_join_timeout(h2, 2000)
+    if r1 != 1 || r2 != 1 {
+        print("FAIL: join r1=" + oren_int_to_string(r1) + " r2=" + oren_int_to_string(r2))
+        exit(6)
+    }
+
+    print("ok: green two workers M<P smoke")
+    return 0
+}
+

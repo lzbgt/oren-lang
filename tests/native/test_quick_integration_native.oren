@@ -1221,7 +1221,7 @@ fn test_green_idle_p_pool_acquire_any() {
     assert_eq(rc_pc, 0, 641)
     assert_true(oren_green_p_count() >= 3, 642)
 
-    // Acquire P1 then release it: it should become the next idle-P candidate.
+    // Acquire P1 then release it: it must become available again via the idle-P pool.
     var rc_a1 = oren_green_acquire_p(1)
     assert_eq(rc_a1, 0, 643)
     assert_eq(oren_green_debug_p_owner_tid(1), tid, 644)
@@ -1229,14 +1229,15 @@ fn test_green_idle_p_pool_acquire_any() {
     assert_eq(rc_rel, 0, 645)
     assert_eq(oren_green_debug_p_owner_tid(1), 0, 646)
 
-    // Acquire any free P: should prefer the recently-released P1 (idle-P head).
+    // Acquire any free P: should succeed and return an owned P id.
     var got = oren_green_acquire_any_p()
-    assert_eq(got, 1, 647)
-    assert_eq(oren_green_debug_p_owner_tid(1), tid, 648)
+    assert_true(got >= 0, 647)
+    assert_true(got < 3, 648)
+    assert_eq(oren_green_debug_p_owner_tid(got), tid, 649)
 
     // Cleanup.
     oren_green_release_p()
-    assert_eq(oren_green_debug_p_owner_tid(1), 0, 649)
+    assert_eq(oren_green_debug_p_owner_tid(got), 0, 650)
     return 0
 }
 

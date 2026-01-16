@@ -449,6 +449,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				       - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_idle_p_pool_acquire_any`)
 				       - Progress (2026-01-16): worker idle/blocked paths now clear the thread-local P binding while parked, and on wake attempt to acquire **any** idle P before running Oren code (still under scheduler lock).
 				       - Progress (2026-01-16): `oren_green_start_workers` now publishes worker-mode state before spawning threads and exposes a worker-ready counter (debug) to stabilize fixtures.
+				       - Progress (2026-01-16): idle-P pool is now FIFO (fair) and has a multi-worker guard that proves `P2` can be acquired under `M<P` in world-lock mode:
+				         - Guard: `tests/native/test_green_two_workers_m_less_p_smoke.oren` (wired into native quick integration runner)
+				         - NOTE (required): in worker mode, `_green_poll_until` must not auto-bind `P0` when a worker intentionally clears its thread-local P binding; P acquisition must happen via the idle-P pool for M<P/fairness.
 				       - Next: add a deterministic multi-worker regression fixture that proves one worker can “lose” its original P to another worker and then acquire a different idle P (`M < P` behavior under world-lock).
 				     - add a single-thread multi-`P` fixture (using `oren_green_bind_p`) to validate cross-P sleep/wake + stealing without enabling unsafe parallel workers
 				     - evolve the global runq into a fairness/overflow queue (it exists today as cross-P injection)
