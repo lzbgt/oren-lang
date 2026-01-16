@@ -407,10 +407,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		       - `_green_poll_until` enforces `P.owner_tid == sys_gettid()` in worker mode; `oren_green_start_workers` reserves each `P` with a negative sentinel and the worker claims its bound `P` to a positive tid before running the scheduler loop
 		       - scheduler now uses a **dedicated scheduler lock** (wait-on-addr based) instead of the runtime global lock (reduces coupling to allocator/GC metadata)
 		         - Invariant: requires `sys_gettid()` to be non-zero when workers are enabled (0 is reserved as the “unlocked” sentinel).
-		     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
-		     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_worker_wake_while_sleepers`) (prevents “sleepers stall runnable work” regressions)
-		     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_global_runq_fairness`) (prevents global-runq starvation regressions)
-		     - Rolling limitation: worker parallelism is clamped to 1 by default until the native allocator/GC are concurrency-correct; opt-in for experimentation only via `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.
+			     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
+			     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_ctx_switch_alloc_integrity`) (worker-mode ctx-switch + scheduler stability)
+			     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_worker_wake_while_sleepers`) (prevents “sleepers stall runnable work” regressions)
+			     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_global_runq_fairness`) (prevents global-runq starvation regressions)
+			     - Rolling limitation: worker parallelism is clamped to 1 by default until the native allocator/GC are concurrency-correct; opt-in for experimentation only via `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.
 		   - Parking/unparking primitive for idle `M` (required to avoid spin):
 		     - macOS: ulock-based park/wake for `P` (pairs with `sys_ulock_wait/sys_ulock_wake`)
 		     - Linux: futex-based park/wake
@@ -422,6 +423,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		     - define and enforce a context-switch preservation contract (arm64 `oren_ctx_switch` + codegen):
 		       - today, the scheduler re-fetches per-thread state (`ts`/`P`) each poll iteration for robustness; fix the root cause so we can rely on normal locals again
 		       - add a small regression that would have caught the earlier “P pointer becomes a small integer after ctx switch” failure mode
+		       - concrete failure mode seen in worker-mode: `P` can collapse to a small integer (e.g. `2`) and crash in `_green_p_owner_tid`; keep the per-iteration re-fetch until the native backend reliably preserves/spills long-lived locals across call sites
 		     - switch green sleeper deadlines to a monotonic clock source (avoid wall-clock jumps affecting wake behavior)
 	     - add a small regression gate: spawn many green tasks (with workers enabled) and assert bounded completion (no hangs)
 	     - Optional dev-only smoke (skipped by default): `tests/native/test_green_workers_multi_p_experimental.oren`

@@ -809,6 +809,28 @@ fn test_green_ctx_switch_alloc_integrity() {
     return 0
 }
 
+fn test_green_workers_ctx_switch_alloc_integrity() {
+    trace("QI: test_green_workers_ctx_switch_alloc_integrity")
+    // Green tasks are the default `spawn` path on macOS/Linux today.
+    // Windows uses CreateThread for `spawn`, so skip this test there.
+    if g_target_os == 3 { return 0 }
+
+    // Ensure background worker mode is active.
+    var rc = oren_green_start_workers(1)
+    assert_eq(rc, 0, 494)
+
+    // Run the same allocator integrity stress under worker-mode scheduling, so the scheduler loop
+    // must survive many ctx switches without relying on per-iteration "re-fetch" hacks.
+    var h1 = spawn worker_green_alloc_yield_integrity(3000000)
+    var h2 = spawn worker_green_alloc_yield_integrity(4000000)
+
+    var r1 = oren_join_timeout(h1, 2000)
+    var r2 = oren_join_timeout(h2, 2000)
+    assert_eq(r1, 1, 495)
+    assert_eq(r2, 1, 496)
+    return 0
+}
+
 fn test_green_worker_wake_while_sleepers() {
     trace("QI: test_green_worker_wake_while_sleepers")
     if g_target_os == 3 { return 0 }
@@ -880,6 +902,7 @@ fn main() {
     test_green_workers_join()
     test_green_global_runq_fairness()
     test_green_ctx_switch_alloc_integrity()
+    test_green_workers_ctx_switch_alloc_integrity()
     test_green_worker_wake_while_sleepers()
     print("native quick integration OK")
     exit(0)
