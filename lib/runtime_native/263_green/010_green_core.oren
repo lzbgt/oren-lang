@@ -128,6 +128,7 @@ var g_green_state = 0        // rooted GC object (struct)
 // Default remains Stage N1 N:1 (scheduler is driven by join/poll on the calling thread).
 var g_green_workers_started = 0
 var g_green_worker_count = 0 // number of worker threads started (rolling; debug/fixtures)
+var g_green_workers_ready_word = 0 // u64* (mmap page), used as a best-effort worker readiness counter
 var g_green_worker_wake_word = 0 // u64* (mmap page), used with oren_m_park_word_wait/wake
 var g_green_sched_lock_word = 0  // u64* (mmap page), used as a private scheduler lock (0=unlocked, tid=owner)
 // Stage N3 bring-up: optional world lock for multi-worker experimentation.
@@ -434,6 +435,14 @@ fn _green_init_if_needed() {
         ptr_set(dword, 0)
         g_green_debug_word = dword
     }
+    // Allocate a worker readiness counter word (one page; u64 at offset 0).
+    // This is best-effort and used only by fixtures to stabilize bring-up sequencing.
+    if g_green_workers_ready_word == 0 {
+        var rword = sys_mmap_private_anon(4096)
+        if rword == 0 || rword == -1 || rword < 4096 { exit(898) }
+        ptr_set(rword, 0)
+        g_green_workers_ready_word = rword
+    }
     // Allocate P0 (single-P default; more Ps are optional/unsafe today).
     var p0 = _green_alloc_struct(green_p_bytes())
     if p0 == 0 { exit(902) }
@@ -594,6 +603,13 @@ fn oren_green_debug_p_owner_tid(p_id) {
 @oren.keep
 fn oren_green_debug_worker_count() {
     return g_green_worker_count
+}
+
+@oren.keep
+fn oren_green_debug_workers_ready_count() {
+    var p = g_green_workers_ready_word
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    return ptr_get(p)
 }
 
 @oren.keep

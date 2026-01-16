@@ -115,10 +115,20 @@ fn oren_green_start_workers(n) {
     _green_lock_release()
 
     // Allocate the wake/park word (one page; u64 at offset 0).
-    var word = sys_mmap_private_anon(4096)
-    if word == 0 || word == -1 || word < 4096 { exit(922) }
-    ptr_set(word, 0)
-    g_green_worker_wake_word = word
+    if g_green_worker_wake_word == 0 {
+        var word = sys_mmap_private_anon(4096)
+        if word == 0 || word == -1 || word < 4096 { exit(922) }
+        ptr_set(word, 0)
+        g_green_worker_wake_word = word
+    }
+
+    // Publish worker mode *before* spawning OS threads so worker entry sees consistent state.
+    // (Without this, a worker could start running and treat itself as "host mode" briefly.)
+    g_green_worker_count = n
+    if g_green_workers_ready_word != 0 && g_green_workers_ready_word != -1 && g_green_workers_ready_word >= 4096 {
+        ptr_set(g_green_workers_ready_word, 0)
+    }
+    g_green_workers_started = 1
 
     // Spawn N background workers. These threads run forever; they are intentionally not joined.
     var start_addr = oren_code_addr(__oren_green_worker_entry)
@@ -132,9 +142,16 @@ fn oren_green_start_workers(n) {
         if h == 0 || h == -1 || h < 0 { exit(924) }
         i = i + 1
     }
-
-    g_green_worker_count = n
-    g_green_workers_started = 1
+    // Best-effort: wait briefly for workers to reach the scheduler loop (stabilizes fixtures).
+    // Keep bounded so start_workers stays fast.
+    var tries = 0
+    while tries < 50 {
+        if g_green_workers_ready_word != 0 && g_green_workers_ready_word != -1 && g_green_workers_ready_word >= 4096 {
+            if ptr_get(g_green_workers_ready_word) >= n { break }
+        }
+        sys_nanosleep(1000000) // 1ms
+        tries = tries + 1
+    }
     // Wake all workers so they immediately start draining runq/sleepq.
     _green_workers_wake_if_started()
     return 0
@@ -171,6 +188,10 @@ fn __oren_green_worker_entry(arg_ptr) {
         _green_lock_release()
         if rc_own != 0 { exit(929) }
     }
+
+    // Signal "ready" once per worker after it can safely run scheduler code.
+    // This is used only by fixtures to stabilize bring-up sequencing.
+    _green_atomic_inc_u64(g_green_workers_ready_word)
 
     while true {
         // STW GC robustness: if a collector requests stop-the-world, park here on the scheduler stack.

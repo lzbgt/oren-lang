@@ -985,6 +985,8 @@ fn test_green_start_workers_does_not_reserve_extra_ps() {
     // Extra Ps must remain free so future M<P can acquire them.
     var rcw = oren_green_start_workers(1)
     assert_eq(rcw, 0, 609)
+    // Start-up sequencing must be stable: worker should reach its scheduler loop promptly.
+    assert_true(oren_green_debug_workers_ready_count() >= 1, 660)
 
     // After workers start, extra Ps must still be unclaimed (not negative-reserved).
     assert_eq(oren_green_debug_p_owner_tid(1), 0, 610)
