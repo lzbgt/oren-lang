@@ -130,7 +130,15 @@ var g_green_state = 0        // rooted GC object (struct)
 var g_green_workers_started = 0
 var g_green_worker_count = 0 // number of worker threads started (rolling; debug/fixtures)
 var g_green_workers_ready_word = 0 // u64* (mmap page), used as a best-effort worker readiness counter
-var g_green_worker_wake_word = 0 // u64* (mmap page), used with oren_m_park_word_wait/wake
+// Worker wake words:
+// - mmap page holding up to 64 u64 slots
+// - worker `i` parks on `g_green_worker_wake_word + i*8`
+// - enables deterministic per-worker wake in fixtures
+var g_green_worker_wake_word = 0 // u64* (mmap page, slots), used with oren_m_park_word_wait/wake
+// Best-effort worker tid table for fixtures: u64 slots indexed by worker id (reserved P id).
+var g_green_worker_tid_word = 0 // u64* (mmap page, slots)
+// Rolling config: worker idle park timeout (us). 0 => default (10000us).
+var g_green_worker_idle_park_us = 0
 var g_green_sched_lock_word = 0  // u64* (mmap page), used as a private scheduler lock (0=unlocked, tid=owner)
 // Stage N3 bring-up: optional world lock for multi-worker experimentation.
 // When enabled, at most one OS thread executes on a green stack at a time.
@@ -160,6 +168,7 @@ fn green_t_off_current_g() { return 8 }        // u64: currently running G ptr (
 fn green_t_off_sched_stack_node() { return 16 } // u64: OS-thread node for this scheduler stack (for GC scanning)
 fn green_t_off_p() { return 24 }               // u64: current P pointer (rolling; required for Stage N2)
 fn green_t_off_tick() { return 32 }            // u64: scheduler tick for fairness / periodic global polling
+fn green_t_off_worker_id() { return 40 }       // u64: reserved worker id (0..63), 0 => host (default)
 // Per-thread netpoll scratch (allocation-free scheduler waits):
 // - large enough for kqueue (8*kevent + timespec + drain buf) and epoll (8*epoll_event + drain buf)
 fn green_t_off_netpoll_scratch() { return 64 }
@@ -169,6 +178,29 @@ fn green_t_bytes() { return 64 + green_t_netpoll_scratch_bytes() }
 fn _green_thread_netpoll_scratch_or0(ts) {
     if ts == 0 { return 0 }
     return ts + green_t_off_netpoll_scratch()
+}
+
+fn _green_worker_idle_park_us() {
+    var v = g_green_worker_idle_park_us
+    if v == 0 { return 10000 }
+    // Keep bounded for STW safety; fixtures can raise it up to 1s.
+    if v < 1000 { v = 1000 }
+    if v > 1000000 { v = 1000000 }
+    return v
+}
+
+fn _green_thread_worker_id_or_neg1(ts) {
+    if ts == 0 { return 0 - 1 }
+    var v = ptr_get(ts + green_t_off_worker_id())
+    if v < 0 { return 0 - 1 }
+    if v >= 64 { return 0 - 1 }
+    return v
+}
+
+fn _green_thread_set_worker_id(ts, worker_id) {
+    if ts == 0 { return 0 }
+    ptr_set(ts + green_t_off_worker_id(), worker_id)
+    return 0
 }
 
 fn _green_thread_state_for_current_thread_or0() {
@@ -199,6 +231,8 @@ fn _green_thread_state_for_current_thread_or0() {
     if s != 0 { p0 = _green_state_p0(s) }
     ptr_set(ts0 + green_t_off_p(), p0)
     ptr_set(ts0 + green_t_off_tick(), 0)
+    // Default: host thread (not a worker).
+    ptr_set(ts0 + green_t_off_worker_id(), 0 - 1)
 
     // Publish into the OS-thread node (thread-local; no atomic required).
     ptr_set(os_node + green_thread_node_off_green_state(), ts0)
@@ -532,6 +566,48 @@ fn _green_world_lock_release() {
 }
 
 @oren.keep
+fn oren_green_debug_worker_tid(worker_id) {
+    // Fixture helper: get worker tid for worker_id (reserved P id).
+    if worker_id < 0 { return 0 }
+    if worker_id >= 64 { return 0 }
+    var p = g_green_worker_tid_word
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    return ptr_get(p + worker_id * 8)
+}
+
+@oren.keep
+fn oren_green_debug_wake_worker(worker_id) {
+    // Fixture helper: post a wake token for a specific worker.
+    if worker_id < 0 { return -1 }
+    if worker_id >= 64 { return -1 }
+    if g_green_workers_started == 0 { return -1 }
+    var base = g_green_worker_wake_word
+    if base == 0 || base == -1 || base < 4096 { return -1 }
+    var wc = g_green_worker_count
+    if worker_id >= wc { return -1 }
+    return oren_m_park_word_wake(base + worker_id * 8)
+}
+
+@oren.keep
+fn oren_green_debug_clear_worker_wake(worker_id) {
+    // Fixture helper: clear a pending wake token (best-effort).
+    if worker_id < 0 { return -1 }
+    if worker_id >= 64 { return -1 }
+    var base = g_green_worker_wake_word
+    if base == 0 || base == -1 || base < 4096 { return -1 }
+    ptr_set(base + worker_id * 8, 0)
+    return 0
+}
+
+@oren.keep
+fn oren_green_debug_set_worker_idle_park_us(timeout_us) {
+    // Fixture helper: override idle-park timeout in microseconds.
+    // 0 => restore default (10ms).
+    g_green_worker_idle_park_us = timeout_us
+    return 0
+}
+
+@oren.keep
 fn oren_green_debug_idle_iters() {
     var p = g_green_debug_word
     if p == 0 || p == -1 || p < 4096 { return 0 }
@@ -804,13 +880,46 @@ fn _green_p_release_if_owned_by_tid_locked(s, p, tid) {
 
 fn _green_workers_wake_if_started() {
     if g_green_workers_started == 0 { return 0 }
-    if g_green_worker_wake_word == 0 { return 0 }
-    // Best-effort: post a wake token and wake all parked workers.
-    oren_m_park_word_wake(g_green_worker_wake_word)
+    var base = g_green_worker_wake_word
+    if base == 0 { return 0 }
+    // Best-effort: post wake tokens and wake all parked workers.
+    // (Per-worker slots enable deterministic wake for fixtures.)
+    var wc = g_green_worker_count
+    var i = 0
+    while i < wc {
+        oren_m_park_word_wake(base + i * 8)
+        i = i + 1
+    }
     // Also wake the POSIX netpoller (if enabled) so an idle worker blocked in kevent/epoll wakes immediately.
     if g_target_os != 3 {
         native_netpoll_wake()
     }
+    return 0
+}
+
+@oren.keep
+fn oren_green_debug_idle_p_requeue(p_id) {
+    // Fixture helper: move an idle P to the tail of the idle-P queue (to deterministically control FIFO order).
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+    if p_id < 0 { return -1 }
+    if p_id >= 64 { return -1 }
+    var s = _green_get_state()
+    if s == 0 { return -1 }
+    _green_lock_acquire()
+    var p = _green_state_p_by_id_or0(s, p_id)
+    if p == 0 {
+        _green_lock_release()
+        return -1
+    }
+    if _green_p_owner_tid(p) != 0 {
+        _green_lock_release()
+        return 0 - 16 // -EBUSY
+    }
+    // Remove then append to tail.
+    _green_idle_p_remove_locked(s, p)
+    _green_idle_p_push_locked(s, p)
+    _green_lock_release()
     return 0
 }
 

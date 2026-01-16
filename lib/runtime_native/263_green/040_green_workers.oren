@@ -114,12 +114,25 @@ fn oren_green_start_workers(n) {
 	    }
     _green_lock_release()
 
-    // Allocate the wake/park word (one page; u64 at offset 0).
+    // Allocate the wake/park word page (one page; u64 slots).
+    // Worker `i` parks on `g_green_worker_wake_word + i*8`.
     if g_green_worker_wake_word == 0 {
         var word = sys_mmap_private_anon(4096)
         if word == 0 || word == -1 || word < 4096 { exit(922) }
-        ptr_set(word, 0)
         g_green_worker_wake_word = word
+    }
+    // Allocate the worker tid table page (one page; u64 slots indexed by worker id).
+    if g_green_worker_tid_word == 0 {
+        var tword = sys_mmap_private_anon(4096)
+        if tword == 0 || tword == -1 || tword < 4096 { exit(941) }
+        g_green_worker_tid_word = tword
+    }
+    // Clear wake/tid slots for the workers we're about to start (stabilizes fixtures).
+    var i0 = 0
+    while i0 < n {
+        ptr_set(g_green_worker_wake_word + i0 * 8, 0)
+        ptr_set(g_green_worker_tid_word + i0 * 8, 0)
+        i0 = i0 + 1
     }
 
     // Publish worker mode *before* spawning OS threads so worker entry sees consistent state.
@@ -177,9 +190,21 @@ fn __oren_green_worker_entry(arg_ptr) {
         if s != 0 { p0 = _green_state_p0(s) }
     }
     if p0 != 0 { _green_thread_set_p(ts, p0) }
+    // Record the reserved worker id for this OS thread (used for per-worker wake slots and fixtures).
+    // Convention: worker_id == reserved P id.
+    var worker_id = 0
+    if p0 != 0 {
+        worker_id = _green_p_id(p0)
+        if worker_id < 0 || worker_id >= 64 { worker_id = 0 }
+    }
+    _green_thread_set_worker_id(ts, worker_id)
     // Claim initial P ownership for this M (must succeed before running).
     var tid = sys_gettid()
     if tid == 0 { exit(928) }
+    // Publish worker tid for fixtures (best-effort).
+    if g_green_worker_tid_word != 0 && g_green_worker_tid_word != -1 && g_green_worker_tid_word >= 4096 {
+        ptr_set(g_green_worker_tid_word + worker_id * 8, tid)
+    }
     if p0 != 0 {
         var s0 = _green_get_state()
         if s0 == 0 { exit(929) }
@@ -230,7 +255,8 @@ fn __oren_green_worker_entry(arg_ptr) {
                 if sleep_us > 10000 { sleep_us = 10000 } // cap to 10ms for responsiveness
 
                 if g_green_worker_wake_word != 0 {
-                    oren_m_park_word_wait(g_green_worker_wake_word, sleep_us)
+                    var wptr = g_green_worker_wake_word + worker_id * 8
+                    oren_m_park_word_wait(wptr, sleep_us)
                 } else {
                     sys_nanosleep(sleep_us * 1000)
                 }
@@ -241,8 +267,10 @@ fn __oren_green_worker_entry(arg_ptr) {
         // No sleepers (or no clock): park until someone posts a wake token.
         // IMPORTANT (STW GC): do not park indefinitely; use a bounded timeout so we can observe STW requests.
         if g_green_worker_wake_word != 0 {
-            // 10ms is small enough to keep GC latency bounded and large enough to avoid busy loops.
-            oren_m_park_word_wait(g_green_worker_wake_word, 10000)
+            var park_us = _green_worker_idle_park_us()
+            if park_us <= 0 { park_us = 10000 }
+            var wptr2 = g_green_worker_wake_word + worker_id * 8
+            oren_m_park_word_wait(wptr2, park_us)
         } else {
             // Fallback: avoid busy spin if wake word isn't initialized.
             sys_nanosleep(1000000) // 1ms
@@ -567,8 +595,8 @@ fn oren_green_is_done(ptr) {
     return ptr_get(ptr + green_g_off_state()) == green_g_state_done()
 }
 
-@oren.keep
-fn oren_green_spawn(fn_obj, args_list) {
+fn _green_spawn_alloc_g(fn_obj, args_list) {
+    // Allocate a runnable G with its own stack/context, but do not enqueue it.
     _green_init_if_needed()
     if _green_enabled() != true { return 0 }
 
@@ -614,6 +642,13 @@ fn oren_green_spawn(fn_obj, args_list) {
     // Initialize context to start at __oren_green_entry on the new stack.
     var entry_pc = oren_code_addr(__oren_green_entry)
     oren_ctx_init(ctx_ptr, top, entry_pc)
+    return g
+}
+
+@oren.keep
+fn oren_green_spawn(fn_obj, args_list) {
+    var g = _green_spawn_alloc_g(fn_obj, args_list)
+    if g == 0 { return 0 }
 
     // Spawning policy (rolling, GMP-ready):
     // - If we're currently inside a green task, enqueue locally to the current P (locality).
@@ -626,6 +661,37 @@ fn oren_green_spawn(fn_obj, args_list) {
     } else {
         _green_global_runq_push(g)
     }
+    return g
+}
+
+@oren.keep
+fn oren_green_debug_spawn_call_list_to_p(p_id, fn_obj, args_list) {
+    // Fixture helper: allocate a runnable G and enqueue it into a specific P's local runq.
+    //
+    // This enables deterministic worker scheduling tests by:
+    // - preparing runnable work while workers are parked, and
+    // - explicitly waking a chosen worker via `oren_green_debug_wake_worker(worker_id)`.
+    //
+    // Notes:
+    // - This does NOT auto-wake workers. Caller must wake explicitly.
+    // - Must not be called in-green.
+    if p_id < 0 { return 0 }
+    if p_id >= 64 { return 0 }
+    var ts0 = _green_thread_state_for_current_thread_or0()
+    if ts0 != 0 && ptr_get(ts0 + green_t_off_current_g()) != 0 { return 0 }
+
+    var g = _green_spawn_alloc_g(fn_obj, args_list)
+    if g == 0 { return 0 }
+
+    var s = _green_get_state()
+    if s == 0 { return 0 }
+    _green_lock_acquire()
+    var p = _green_state_p_by_id_or0(s, p_id)
+    if p == 0 { p = _green_state_p0(s) }
+    if p != 0 {
+        _green_runq_push_locked(p, s, g)
+    }
+    _green_lock_release()
     return g
 }
 

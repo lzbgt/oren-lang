@@ -452,7 +452,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				       - Progress (2026-01-16): idle-P pool is now FIFO (fair) and has a multi-worker guard that proves `P2` can be acquired under `M<P` in world-lock mode:
 				         - Guard: `tests/native/test_green_two_workers_m_less_p_smoke.oren` (wired into native quick integration runner)
 				         - NOTE (required): in worker mode, `_green_poll_until` must not auto-bind `P0` when a worker intentionally clears its thread-local P binding; P acquisition must happen via the idle-P pool for M<P/fairness.
-				       - Next: add a deterministic multi-worker regression fixture that proves one worker can “lose” its original P to another worker and then acquire a different idle P (`M < P` behavior under world-lock).
+				       - DONE (2026-01-16): deterministic multi-worker regression that proves workers can swap Ps (a worker can “lose” its reserved/original P and later run on a different P):
+				         - Guard: `tests/native/test_green_two_workers_p_swap_smoke.oren` (wired into native quick integration runner)
+				         - Implementation: per-worker park/wake slots + worker-tid table + test-only idle-P requeue + test-only spawn-to-P injection (keeps fixture deterministic).
+				       - Next: merge “P swap” + “P2 acquisition” into one deterministic fixture (2 workers, 3 Ps) where:
+				         - worker1 acquires P0, worker0 acquires P1, and later worker0 (or worker1) acquires P2 (true `M<P` behavior under world-lock).
 				     - add a single-thread multi-`P` fixture (using `oren_green_bind_p`) to validate cross-P sleep/wake + stealing without enabling unsafe parallel workers
 				     - evolve the global runq into a fairness/overflow queue (it exists today as cross-P injection)
 				     - implement real work stealing between `P` (today: a global-lock bring-up: “steal one before idle”, plus periodic global-runq polling for fairness)

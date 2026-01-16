@@ -1,0 +1,170 @@
+// Green scheduler: deterministic 2-worker P swap smoke (rolling, Tier‑1).
+//
+// Purpose:
+// - Provide a deterministic regression that proves a worker can "lose" its original reserved P
+//   and later run work on a different P (a key prerequisite for true Go-like GMP and for `M < P`).
+//
+// Strategy (world-lock mode, safe while allocator/GC are not parallel-ready):
+// - Park both workers so P0/P1 are idle.
+// - Deterministically order the idle-P FIFO queue (P0 then P1).
+// - Enqueue work into P0 while it is idle, wake worker1 only, assert worker1 acquires P0.
+// - Re-order FIFO (P1 then P0), enqueue work into P1, wake worker0 only, assert worker0 acquires P1.
+//
+// Gate:
+// - Must build+run quickly.
+// - Must not hang.
+// - Must not rely on probabilistic wake ordering.
+
+fn busy_yield_bounded() {
+    var i = 0
+    while i < 200000 {
+        if (i & 255) == 0 { oren_green_yield() }
+        i = i + 1
+    }
+    return 1
+}
+
+fn wait_workers_ready() {
+    var tries = 0
+    while tries < 50 {
+        if oren_green_debug_workers_ready_count() >= 2 { return 0 }
+        oren_sleep_ms(1)
+        tries = tries + 1
+    }
+    return -1
+}
+
+fn wait_p_idle_both() {
+    var tries = 0
+    while tries < 200 {
+        // Clear any pending wake tokens so workers don't immediately re-wake and re-acquire a P
+        // right after we observe an "idle" moment.
+        oren_green_debug_clear_worker_wake(0)
+        oren_green_debug_clear_worker_wake(1)
+        if oren_green_debug_p_owner_tid(0) == 0 && oren_green_debug_p_owner_tid(1) == 0 {
+            // Require stability across a small window.
+            oren_sleep_ms(2)
+            if oren_green_debug_p_owner_tid(0) == 0 && oren_green_debug_p_owner_tid(1) == 0 { return 0 }
+        }
+        oren_sleep_ms(1)
+        tries = tries + 1
+    }
+    return -1
+}
+
+fn force_idle_fifo_order(first_p_id, second_p_id) {
+    var tries = 0
+    while tries < 200 {
+        if wait_p_idle_both() != 0 { return -1 }
+        var rc0 = oren_green_debug_idle_p_requeue(first_p_id)
+        var rc1 = oren_green_debug_idle_p_requeue(second_p_id)
+        if rc0 == 0 && rc1 == 0 { return 0 }
+        // If workers re-acquired one P between checks, retry.
+        oren_sleep_ms(1)
+        tries = tries + 1
+    }
+    return -1
+}
+
+fn main() {
+    if g_target_os == 3 {
+        print("skip: green two workers P swap smoke (windows)")
+        return 0
+    }
+
+    // Keep only 2 Ps so the idle-P queue contains just {P0,P1} (simplifies deterministic ordering).
+    var rcpc = oren_green_set_p_count(2)
+    if rcpc != 0 { print("FAIL: set_p_count rc=" + oren_int_to_string(rcpc)); exit(1) }
+
+    var rcwl = oren_green_set_world_lock_mode(1)
+    if rcwl != 0 { print("FAIL: world lock mode rc=" + oren_int_to_string(rcwl)); exit(2) }
+
+    // Make worker idle parking deterministic: park "forever" (bounded by wake token), not by 10ms timeout.
+    // This fixture does not depend on timers; a longer timeout reduces spurious wake reordering.
+    oren_green_debug_set_worker_idle_park_us(1000000)
+
+    var rcw = oren_green_start_workers(2)
+    if rcw != 0 { print("FAIL: start_workers rc=" + oren_int_to_string(rcw)); exit(3) }
+    if wait_workers_ready() != 0 { print("FAIL: workers_ready"); exit(4) }
+
+    // Wait for worker tids to be published (best-effort, but required for deterministic assertions).
+    var tries = 0
+    var t0 = 0
+    var t1 = 0
+    while tries < 50 {
+        t0 = oren_green_debug_worker_tid(0)
+        t1 = oren_green_debug_worker_tid(1)
+        if t0 != 0 && t1 != 0 && t0 != t1 { break }
+        oren_sleep_ms(1)
+        tries = tries + 1
+    }
+    if t0 == 0 || t1 == 0 || t0 == t1 {
+        print("FAIL: worker tids t0=" + oren_int_to_string(t0) + " t1=" + oren_int_to_string(t1))
+        exit(5)
+    }
+
+    // Park both workers and ensure both Ps are idle (stable).
+    if wait_p_idle_both() != 0 {
+        print("FAIL: Ps not idle (p0_owner=" + oren_int_to_string(oren_green_debug_p_owner_tid(0)) +
+            " p1_owner=" + oren_int_to_string(oren_green_debug_p_owner_tid(1)) + ")")
+        exit(6)
+    }
+
+    // Force idle-P FIFO order: P0 then P1.
+    if force_idle_fifo_order(0, 1) != 0 {
+        print("FAIL: idle fifo order (P0,P1) not established")
+        exit(7)
+    }
+
+    // Enqueue work into P0 while idle and wake worker1 only: worker1 must acquire P0 (not its reserved P1).
+    var h0 = oren_green_debug_spawn_call_list_to_p(0, busy_yield_bounded, [])
+    if h0 == 0 { print("FAIL: debug_spawn_to_p0"); exit(8) }
+    var rw = oren_green_debug_wake_worker(1)
+    if rw != 0 { print("FAIL: wake_worker1 rc=" + oren_int_to_string(rw)); exit(9) }
+
+    tries = 0
+    while tries < 200 {
+        if oren_green_debug_p_owner_tid(0) == t1 { break }
+        oren_sleep_ms(1)
+        tries = tries + 1
+    }
+    if oren_green_debug_p_owner_tid(0) != t1 {
+        print("FAIL: expected P0 owned by worker1 tid=" + oren_int_to_string(t1) +
+            " got=" + oren_int_to_string(oren_green_debug_p_owner_tid(0)))
+        exit(10)
+    }
+    var r0 = oren_join_timeout(h0, 2000)
+    if r0 != 1 { print("FAIL: join0 r=" + oren_int_to_string(r0)); exit(11) }
+
+    // Park again and ensure both Ps idle (clean slate for step 2).
+    if wait_p_idle_both() != 0 { print("FAIL: Ps not idle after step1"); exit(12) }
+
+    // Force idle-P FIFO order: P1 then P0.
+    if force_idle_fifo_order(1, 0) != 0 {
+        print("FAIL: idle fifo order (P1,P0) not established")
+        exit(13)
+    }
+
+    // Enqueue work into P1 and wake worker0 only: worker0 must acquire P1 (not its reserved P0).
+    var h1 = oren_green_debug_spawn_call_list_to_p(1, busy_yield_bounded, [])
+    if h1 == 0 { print("FAIL: debug_spawn_to_p1"); exit(14) }
+    rw = oren_green_debug_wake_worker(0)
+    if rw != 0 { print("FAIL: wake_worker0 rc=" + oren_int_to_string(rw)); exit(15) }
+
+    tries = 0
+    while tries < 200 {
+        if oren_green_debug_p_owner_tid(1) == t0 { break }
+        oren_sleep_ms(1)
+        tries = tries + 1
+    }
+    if oren_green_debug_p_owner_tid(1) != t0 {
+        print("FAIL: expected P1 owned by worker0 tid=" + oren_int_to_string(t0) +
+            " got=" + oren_int_to_string(oren_green_debug_p_owner_tid(1)))
+        exit(16)
+    }
+    var r1 = oren_join_timeout(h1, 2000)
+    if r1 != 1 { print("FAIL: join1 r=" + oren_int_to_string(r1)); exit(17) }
+
+    print("ok: green two workers P swap smoke")
+    return 0
+}

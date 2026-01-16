@@ -172,6 +172,16 @@ run_with_timeout "$build_timeout_secs" "$compiler" build "$mp_src" \
 run_with_timeout "$run_timeout_secs" "$mp_out" >>"$mp_log" 2>&1
 tail -n 3 "$mp_log" >>"$log"
 
+echo "== green two workers P swap smoke ==" >>"$log"
+ps_src="tests/native/test_green_two_workers_p_swap_smoke.oren"
+ps_out="build/tmp/${compiler_base}_green_two_workers_p_swap_smoke${exe_ext}"
+ps_log="build/logs/${compiler_base}_green_two_workers_p_swap_smoke.log"
+rm -f "$ps_log" "$ps_out" 2>/dev/null || true
+run_with_timeout "$build_timeout_secs" "$compiler" build "$ps_src" \
+  --backend native --platform "$platform" --debug -o "$ps_out" >"$ps_log" 2>&1
+run_with_timeout "$run_timeout_secs" "$ps_out" >>"$ps_log" 2>&1
+tail -n 3 "$ps_log" >>"$log"
+
 if [[ "$os_key" != "windows" ]]; then
   # Cross-platform CLI robustness smoke:
   # Accept Windows-style `\` separators even on POSIX hosts so scripts/logs are portable.

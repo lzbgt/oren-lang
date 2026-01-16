@@ -405,7 +405,12 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
         // Clamp to avoid huge sleeps in rolling mode; keep responsiveness when netpoll is unavailable.
         if sleep_ns > 10000000 { sleep_ns = 10000000 } // 10ms
         if g_green_workers_started != 0 && g_green_worker_wake_word != 0 {
-            // Fallback: park on the shared wake word with a timeout.
+            // Worker-mode: park on the per-worker wake word with a timeout.
+            var wptr = g_green_worker_wake_word
+            var wid = _green_thread_worker_id_or_neg1(ts)
+            if wid >= 0 && wid < g_green_worker_count {
+                wptr = g_green_worker_wake_word + wid * 8
+            }
             var tid2 = sys_gettid()
             if tid2 != 0 {
                 _green_lock_acquire()
@@ -417,7 +422,7 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             var sleep_us = sleep_ns / 1000
             if sleep_us <= 0 { sleep_us = 1 }
             if wl != 0 { _green_world_lock_release() }
-            oren_m_park_word_wait(g_green_worker_wake_word, sleep_us)
+            oren_m_park_word_wait(wptr, sleep_us)
         } else {
             if wl != 0 { _green_world_lock_release() }
             sys_nanosleep(sleep_ns)
