@@ -75,14 +75,22 @@ fn _chan_mem_lock(ch) {
     var lock_ptr = ch + _chan_mem_off_lock()
     var tid = sys_gettid()
     var spin = 0
+    var in_green = oren_green_in_green() == true
     while atomic_cas(lock_ptr, 0, tid) != 0 {
         spin = iadd(spin, 1)
         if spin > 1000 {
             var owner = ptr_get(lock_ptr)
             if owner != 0 {
-                // STW-safe: bounded wait + safepoint polling.
-                oren_gc_safepoint()
-                oren_wait_on_addr(lock_ptr, owner, 1000) // 1ms
+                if in_green {
+                    // Critical correctness (GMP / green scheduling):
+                    // Do NOT block the scheduler OS thread in a kernel wait while executing a green task.
+                    // Poll with a tiny green sleep instead.
+                    oren_green_sleep_ns(1000000) // 1ms
+                } else {
+                    // STW-safe: bounded wait + safepoint polling.
+                    oren_gc_safepoint()
+                    oren_wait_on_addr(lock_ptr, owner, 1000) // 1ms
+                }
             }
             spin = 0
         }
@@ -186,14 +194,20 @@ fn native_chan_try_recv_mem(ch, out_ptr) {
 fn native_chan_send_mem(ch, val) {
     // Blocking send: wait until buffer has space.
     if native_chan_is_mem(ch) == 0 { return 0 }
+    var in_green = oren_green_in_green() == true
     while 1 {
         var rc = native_chan_try_send_mem(ch, val)
         if rc == 1 { return 1 }
         if rc < 0 { return 0 }
         // Full: wait for a state change.
         var seq = ptr_get(ch + _chan_mem_off_seq())
-        oren_gc_safepoint()
-        oren_wait_on_addr(ch + _chan_mem_off_seq(), seq, 1000) // 1ms
+        if in_green {
+            // Do not block the scheduler thread; park the current G briefly.
+            oren_green_sleep_ns(1000000) // 1ms
+        } else {
+            oren_gc_safepoint()
+            oren_wait_on_addr(ch + _chan_mem_off_seq(), seq, 1000) // 1ms
+        }
     }
     return 0
 }
@@ -203,6 +217,7 @@ fn native_chan_recv_mem(ch) {
     if native_chan_is_mem(ch) == 0 { return 0 }
     var buf = malloc(8)
     if buf == 0 { return 0 }
+    var in_green = oren_green_in_green() == true
     while 1 {
         var rc = native_chan_try_recv_mem(ch, buf)
         if rc == 1 {
@@ -215,10 +230,13 @@ fn native_chan_recv_mem(ch) {
             return 0
         }
         var seq = ptr_get(ch + _chan_mem_off_seq())
-        oren_gc_safepoint()
-        oren_wait_on_addr(ch + _chan_mem_off_seq(), seq, 1000) // 1ms
+        if in_green {
+            oren_green_sleep_ns(1000000) // 1ms
+        } else {
+            oren_gc_safepoint()
+            oren_wait_on_addr(ch + _chan_mem_off_seq(), seq, 1000) // 1ms
+        }
     }
     free(buf)
     return 0
 }
-

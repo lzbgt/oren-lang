@@ -336,6 +336,7 @@ fn _select_wait_windows_mem_channels(cases, ncases) {
 
     // Ensure the shared seq word exists for the sleep path.
     _chan_mem_global_seq_init_if_needed()
+    var in_green = _select_in_green()
 
     while 1 {
         var picked = -1
@@ -390,11 +391,22 @@ fn _select_wait_windows_mem_channels(cases, ncases) {
         var p = g_chan_mem_global_seq_word
         if p != 0 {
             var expected = ptr_get(p)
-            oren_gc_safepoint()
-            oren_wait_on_addr(p, expected, 1000) // 1ms
+            if in_green {
+                // Correctness-first (rolling):
+                // In a green task, do not block the scheduler OS thread in a kernel wait.
+                // Park the current G briefly and re-scan.
+                oren_green_sleep_ns(1000000) // 1ms
+            } else {
+                oren_gc_safepoint()
+                oren_wait_on_addr(p, expected, 1000) // 1ms
+            }
         } else {
             // Should not happen; best-effort yield to avoid spinning.
-            oren_gc_safepoint()
+            if in_green {
+                oren_green_sleep_ns(1000000)
+            } else {
+                oren_gc_safepoint()
+            }
         }
     }
     return 0

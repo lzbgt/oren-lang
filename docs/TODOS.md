@@ -421,7 +421,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	       - `tests/native/test_integration_suite.oren` (`test_select_primitives` no longer skips Windows)
 	     - Notes:
 	       - Pipe-fd readiness is still POSIX-only; Windows still needs IOCP for a real netpoller.
-	       - In-green `oren_select` remains POSIX netpoll-only for now (Windows green workers would block without IOCP).
+	       - In-green `oren_select` on Windows is now **green-safe** (does not block an M): it uses a small green-sleep polling loop.
+	         - Guards: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`, `test_select_multi_case_in_green_workers`)
 			   - 2026-01-15 → 2026-01-16: Stage N2 groundwork: green-task scheduler can now run on background OS threads ("M") via `oren_green_start_workers(n)`.
 			     - Runtime: `lib/runtime_native/263_green_tasks.oren`
 			       - per-OS-thread scheduler state (scheduler ctx + current-G are no longer globals)

@@ -768,9 +768,10 @@ fn _qi_select_send_fairness_in_green(c1, c2) {
 
 fn test_select_in_green_workers() {
     trace("QI: test_select_in_green_workers")
-    // Native in-green select today relies on the POSIX netpoller (kqueue/epoll) for pipe fds.
-    // Windows uses in-memory channels (no IOCP netpoll yet), so keep this skipped for now.
-    if g_target_os == 3 { return 0 }
+    // Rolling:
+    // - POSIX: in-green select over pipe channels uses netpoll v2.
+    // - Windows: in-green select over mem-channels uses a small green-sleep polling loop (no IOCP yet),
+    //   but it must still not block the scheduler OS thread.
 
     // Run under Stage N2 worker mode with a bounded join timeout so regressions cannot hang the suite:
     // - if `oren_select` blocks the worker OS thread, the sender will never run and join_timeout will return -60.
@@ -792,7 +793,6 @@ fn test_select_in_green_workers() {
 
 fn test_select_multi_case_in_green_workers() {
     trace("QI: test_select_multi_case_in_green_workers")
-    if g_target_os == 3 { return 0 }
 
     var rcw = oren_green_start_workers(1)
     assert_eq(rcw, 0, 563)

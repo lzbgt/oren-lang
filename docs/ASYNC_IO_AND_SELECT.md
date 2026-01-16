@@ -233,7 +233,9 @@ Planned direction:
 Current (rolling, correctness-first):
 
 - `oren_select` works for **in-memory channels** on Windows (not pipe fds).
-- In-green select semantics on Windows are not yet netpoll-driven (no IOCP integration yet); tests that require “select must not block the scheduler OS thread” remain POSIX-only for now.
+- In-green select semantics on Windows are not yet netpoll-driven (no IOCP integration yet).
+  - Current behavior: in-green waits use a tiny `oren_green_sleep_ns(1ms)` polling loop (correctness-first, not final perf).
+  - Netpoll-backed in-green IO readiness still requires IOCP work.
 
 ---
 
