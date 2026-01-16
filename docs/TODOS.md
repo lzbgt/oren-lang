@@ -554,6 +554,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 			       - Fix: OS-thread start stubs now mark their thread node as DEAD on exit, and STW counts only live (non-DEAD) OS-thread nodes when waiting.
 			       - Runtime: `lib/runtime_native/100_time_core.oren` (`native_time_mark_thread_dead_current`), `lib/runtime_native/100_time_gc_stw.oren` (`native_gc_stw_expected_parked_count`)
 			       - Guards: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_green_join_waiter`, `test_gc_collect_does_not_deadlock_with_os_thread_join_waiter`)
+			       - Next: ensure the Windows CreateThread-based language `spawn` path also marks OS-thread nodes DEAD on thread exit (otherwise STW can regress after many short-lived threads); add a dedicated Tier‑1 x64-windows guard.
 			     - 2026-01-16: fixed a native GC correctness gap: STRUCT allocations are now conservatively scanned, and the mark phase is cycle-safe:
 			       - Problem: many runtime subsystems tag allocations as kind=STRUCT “so GC can scan fields”, but the mark phase previously did not traverse kind=STRUCT.
 			       - Fix: `oren_mark_value` now scans 8-byte slots for kind=STRUCT, and honors the mark bit to avoid infinite recursion on cyclic graphs.
