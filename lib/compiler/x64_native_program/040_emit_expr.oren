@@ -761,8 +761,8 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         // any intrinsic-special handling. Avoid the long intrinsic chain for these names.
         //
         // Keep this conservative: only short-circuit on well-known internal prefixes.
-        if nm_is_oren != true && nm != nil {
-            if nm_len >= 5 {
+	        if nm_is_oren != true && nm != nil {
+	            if nm_len >= 5 {
                 // "insn_" / "push_"
                 var b0 = oren_string_byte_at_unchecked(nm, 0) & 255
                 var b1 = oren_string_byte_at_unchecked(nm, 1) & 255
@@ -796,19 +796,36 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
                     return _emit_generic_call_expr_v0(ctx, expr, locals, nm, args)
                 }
             }
-            if nm_len >= 7 {
-                // "native_"
-                if (oren_string_byte_at_unchecked(nm, 0) & 255) == 110 && // n
-                   (oren_string_byte_at_unchecked(nm, 1) & 255) == 97 &&  // a
-                   (oren_string_byte_at_unchecked(nm, 2) & 255) == 116 && // t
-                   (oren_string_byte_at_unchecked(nm, 3) & 255) == 105 && // i
-                   (oren_string_byte_at_unchecked(nm, 4) & 255) == 118 && // v
-                   (oren_string_byte_at_unchecked(nm, 5) & 255) == 101 && // e
-                   (oren_string_byte_at_unchecked(nm, 6) & 255) == 95 {   // _
-                    return _emit_generic_call_expr_v0(ctx, expr, locals, nm, args)
-                }
-            }
-        }
+	            if nm_len >= 7 {
+	                // "native_"
+	                if (oren_string_byte_at_unchecked(nm, 0) & 255) == 110 && // n
+	                   (oren_string_byte_at_unchecked(nm, 1) & 255) == 97 &&  // a
+	                   (oren_string_byte_at_unchecked(nm, 2) & 255) == 116 && // t
+	                   (oren_string_byte_at_unchecked(nm, 3) & 255) == 105 && // i
+	                   (oren_string_byte_at_unchecked(nm, 4) & 255) == 118 && // v
+	                   (oren_string_byte_at_unchecked(nm, 5) & 255) == 101 && // e
+	                   (oren_string_byte_at_unchecked(nm, 6) & 255) == 95 {   // _
+	                    // NOTE: `native_call1(addr, arg0)` is a compiler intrinsic (runtime ABI helper).
+	                    // Do not short-circuit it into a generic direct call, or the stub body from
+	                    // `lib/runtime_native/000_prelude_sys.oren` will execute and silently return 0.
+	                    //
+	                    // Keep the fast-path for all other `native_*` helpers (they're normal functions).
+	                    var is_native_call1 = false
+	                    if nm_len == 12 {
+	                        if (oren_string_byte_at_unchecked(nm, 7) & 255) == 99 &&  // c
+	                           (oren_string_byte_at_unchecked(nm, 8) & 255) == 97 &&  // a
+	                           (oren_string_byte_at_unchecked(nm, 9) & 255) == 108 && // l
+	                           (oren_string_byte_at_unchecked(nm, 10) & 255) == 108 && // l
+	                           (oren_string_byte_at_unchecked(nm, 11) & 255) == 49 {  // 1
+	                            is_native_call1 = true
+	                        }
+	                    }
+	                    if is_native_call1 != true {
+	                        return _emit_generic_call_expr_v0(ctx, expr, locals, nm, args)
+	                    }
+	                }
+	            }
+	        }
 
         // --- Intrinsics (Tier-1 convergence step) ---
         //
@@ -1041,15 +1058,14 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 	            _intr_eval_spill_x64(ctx, locals, args[1], tmp_arg0)
 	            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
 
-	            var os = ""
-	            if ctx["platform"] != nil && ctx["platform"]["os"] != nil { os = ctx["platform"]["os"] }
-	            if os == "windows" {
-	                // Win64 ABI: RCX is arg0
-	                _intr_load_x64(ctx, 1, tmp_arg0) // rcx
-	            } else {
-	                // SysV ABI: RDI is arg0
-	                _intr_load_x64(ctx, 7, tmp_arg0) // rdi
-	            }
+		            // Use the active ABI's arg register mapping (Tier‑1: SysV vs Win64).
+		            // This keeps `native_call1` correct across cross-target builds without relying on
+		            // `ctx["platform"]` (which can be missing in some driver paths).
+		            var arg_regs = nil
+		            if ctx["abi"] != nil { arg_regs = ctx["abi"]["int_arg_regs"] }
+		            var reg0 = 7 // fallback: SysV rdi
+		            if arg_regs != nil && oren_list_len(arg_regs) > 0 { reg0 = arg_regs[0] }
+		            _intr_load_x64(ctx, reg0, tmp_arg0)
 
 	            _intr_load_x64(ctx, 0, tmp_addr) // rax = addr
 	            bytes_extend(ctx["code"], insn_call_rax())

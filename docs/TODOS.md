@@ -396,19 +396,28 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
        - add TLS story (`CLONE_SETTLS`) once runtime uses/needs a real thread pointer
        - unify the Linux `M` abstraction with Windows/Darwin (shared scheduler-facing shape)
        - keep join bounded: `tests/native/test_linux_os_thread_smoke.oren` uses a futex wait timeout and re-checks `ctid_ptr` after timeout (avoids false negatives if a wake is missed)
-     - Windows x64: unify existing CreateThread-based `spawn` with the same scheduler-facing `M` abstraction (keep WaitForSingleObject join)
-	   - 2026-01-15: introduced a minimal runtime-owned OS-thread ("M") abstraction (macOS + Linux + Windows) for future M:N work:
-	     - Runtime: `lib/runtime_native/269_os_thread_m.oren`
-	       - `oren_os_thread_spawn(start_addr, arg_ptr)`
-	       - `oren_os_thread_join_timeout(handle, timeout_us)` (portable timeout `-60`)
-	       - `oren_m_park_word_wait` / `oren_m_park_word_wake` (futex/WaitOnAddress token-based park/unpark)
-	     - Guard: `tests/native/test_os_thread_park_unpark_smoke.oren` (macOS + Linux + Windows)
-	     - Guard: `tests/native/test_os_thread_spawn_many_smoke.oren` (macOS + Linux + Windows; bounded join timeout)
-		   - 2026-01-15 → 2026-01-16: Stage N2 groundwork: green-task scheduler can now run on background OS threads ("M") via `oren_green_start_workers(n)`.
-		     - Runtime: `lib/runtime_native/263_green_tasks.oren`
-		       - per-OS-thread scheduler state (scheduler ctx + current-G are no longer globals)
-		       - Stage N2 groundwork: `P` struct + per-P runq/sleepq (single-P by default), plus a thread-local **current P** pointer
-		       - scheduler now has a **global run queue** for cross-P injection / fairness (spawns from outside green context)
+	     - Windows x64: unify existing CreateThread-based `spawn` with the same scheduler-facing `M` abstraction (keep WaitForSingleObject join)
+		   - 2026-01-15: introduced a minimal runtime-owned OS-thread ("M") abstraction (macOS + Linux + Windows) for future M:N work:
+		     - Runtime: `lib/runtime_native/269_os_thread_m.oren`
+		       - `oren_os_thread_spawn(start_addr, arg_ptr)`
+		       - `oren_os_thread_join_timeout(handle, timeout_us)` (portable timeout `-60`)
+		       - `oren_m_park_word_wait` / `oren_m_park_word_wake` (futex/WaitOnAddress token-based park/unpark)
+		     - Guard: `tests/native/test_os_thread_park_unpark_smoke.oren` (macOS + Linux + Windows)
+		     - Guard: `tests/native/test_os_thread_spawn_many_smoke.oren` (macOS + Linux + Windows; bounded join timeout)
+		     - 2026-01-16: fixed Tier‑1 Windows bring-up regressions in the OS-thread substrate and TIME monotonic path:
+		       - Root cause: `native_call1(addr, arg0)` was incorrectly short-circuited as a generic `native_*` call on x64,
+		         executing the prelude stub body (returns 0) instead of doing an indirect call; this broke `oren_os_thread_spawn`
+		         on Windows and made STW GC join-waiter tests hang/flake.
+		       - Fix: keep `native_call1` routed through the x64 intrinsic emitter (ABI-aware arg-register mapping), and bump the
+		         x64 rtobj backend signature (`x64_v0_17`) to invalidate stale cached runtime objects.
+		       - Fix: treat `sys_qpc_frequency` as a syscall intrinsic and write the QueryPerformanceFrequency result directly to
+		         `*freq_ptr` (avoid fixed stack scratch slots).
+		       - Verified: `./scripts/verify_native_matrix.sh --targets x64-win --trace` (stage1 + stage2) on remote Win11.
+			   - 2026-01-15 → 2026-01-16: Stage N2 groundwork: green-task scheduler can now run on background OS threads ("M") via `oren_green_start_workers(n)`.
+			     - Runtime: `lib/runtime_native/263_green_tasks.oren`
+			       - per-OS-thread scheduler state (scheduler ctx + current-G are no longer globals)
+			       - Stage N2 groundwork: `P` struct + per-P runq/sleepq (single-P by default), plus a thread-local **current P** pointer
+			       - scheduler now has a **global run queue** for cross-P injection / fairness (spawns from outside green context)
 		       - per-P local runq is now a **GC-visible ring buffer / work-stealing deque** (head+tail+mask), with overflow to the global runq
 			       - Stage N3 plumbing: `P` topology is now configurable (before workers start) and sleepers are woken across all Ps:
 			         - `oren_green_set_p_count(n)` grows scheduler Ps (no shrink; rejected once workers started)
@@ -623,3 +632,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - If a fetched log is only a few lines and shows `x64 pe: failed to write ... examples\\...`:
       - it usually indicates an older compiler that did not normalize backslash paths early; re-run `scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` to confirm the current gate is green.
     - Note: `scripts/fetch_remote_file.sh --trace` is safe to use when debugging proxy/ssh issues (it now scans the full stage log for the `FETCH_OK:` marker instead of assuming it appears in the last few lines).
+
+- The native runtime-object cache can preserve stale machine code across compiler/backend changes (even when runtime source hashes are unchanged).
+  - Mitigation:
+    - When touching x64/arm64 codegen or syscall intrinsic lowering, bump the relevant backend signature(s) in `lib/compiler/native_runtime_obj_cache.oren`.
+    - If you need a quick one-off confirmation without bumping signatures: build with `--no-cache` / env `OREN_NO_CACHE=1`.
+    - Optional: refresh cross-target seeds for faster first-run confidence: `make rtobj-seed-x64`.

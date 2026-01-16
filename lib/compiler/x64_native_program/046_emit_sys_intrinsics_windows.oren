@@ -355,6 +355,7 @@ fn _emit_intrinsic_sys_qpc_frequency_windows_x64(ctx, expr, locals, args) {
     var fixups = []
     var l_done = _new_label(ctx, "sys_qpc_freq_done")
     var l_ok = _new_label(ctx, "sys_qpc_freq_ok")
+    var l_ret0 = _new_label(ctx, "sys_qpc_freq_ret0")
 
     // Validate ptr != 0.
     _intr_load_x64(ctx, 0, tmp_p)
@@ -366,18 +367,24 @@ fn _emit_intrinsic_sys_qpc_frequency_windows_x64(ctx, expr, locals, args) {
     _emit_jmp_to_label(ctx, fixups, l_done)
     _emit_label(ctx, labels, l_ok)
 
-    // QueryPerformanceFrequency(&freq) into [rsp+0x20].
-    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(1, 32)) // rcx = &freq
+    // QueryPerformanceFrequency(freq_ptr) writes ticks/sec to *freq_ptr.
+    //
+    // Avoid using fixed stack scratch offsets here: the intrinsic temp stack space can be smaller
+    // than 0x20 bytes, and relying on [rsp+0x20] can alias caller frames or other runtime data.
+    _intr_load_x64(ctx, 1, tmp_p) // rcx = freq_ptr
     var mov_iat = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat + 3, "IAT_QueryPerformanceFrequency")
     bytes_extend(ctx["code"], insn_call_rax())
 
-    // Store freq (u64) into *freq_ptr.
-    bytes_extend(ctx["code"], insn_mov_r64_mrsp_disp8(0, 32)) // rax = freq
-    _intr_load_x64(ctx, 11, tmp_p)
-    bytes_extend(ctx["code"], insn_mov_mr64_r64(11, 0))
+    // If the call fails, return a generic -EIO-ish error so callers don't treat a zero frequency as valid.
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0)) // eax == 0?
+    _emit_jcc_to_label(ctx, fixups, "ne", l_ret0)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 4294967291)) // -5
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_jmp_to_label(ctx, fixups, l_done)
 
+    _emit_label(ctx, labels, l_ret0)
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
     bytes_extend(ctx["code"], insn_cdqe())
 
