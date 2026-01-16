@@ -771,6 +771,11 @@ fn worker_green_try_start_workers_in_green() {
     return oren_green_start_workers(1)
 }
 
+fn worker_green_try_bind_p_in_green() {
+    // Must run on a green stack so `oren_green_bind_p` sees in-green execution.
+    return oren_green_bind_p(1)
+}
+
 fn test_green_start_workers_rejects_in_green() {
     trace("QI: test_green_start_workers_rejects_in_green")
     // Green tasks are the default `spawn` path on macOS/Linux today.
@@ -781,6 +786,15 @@ fn test_green_start_workers_rejects_in_green() {
     var h = spawn worker_green_try_start_workers_in_green()
     var r = oren_join_timeout(h, 2000)
     assert_eq(r, -1, 493)
+    return 0
+}
+
+fn test_green_bind_p_rejects_in_green() {
+    trace("QI: test_green_bind_p_rejects_in_green")
+    if g_target_os == 3 { return 0 }
+    var h = spawn worker_green_try_bind_p_in_green()
+    var r = oren_join_timeout(h, 2000)
+    assert_eq(r, -1, 536)
     return 0
 }
 
@@ -817,11 +831,24 @@ fn test_green_p_count_api() {
     var c1 = oren_green_p_count()
     assert_eq(c1, 4, 527)
 
+    // Current thread P binding can be changed before workers start (Stage N3 plumbing).
+    var rc_b0 = oren_green_bind_p(0)
+    assert_eq(rc_b0, 0, 530)
+    assert_eq(oren_green_current_p_id(), 0, 531)
+    var rc_b2 = oren_green_bind_p(2)
+    assert_eq(rc_b2, 0, 532)
+    // Binding can also grow P count (grow-only).
+    assert_eq(oren_green_p_count(), 4, 533)
+    assert_eq(oren_green_current_p_id(), 2, 534)
+
     // Once workers start, changing P count is rejected (rolling safety).
     var rcw = oren_green_start_workers(1)
     assert_eq(rcw, 0, 528)
     var rc2 = oren_green_set_p_count(5)
     assert_eq(rc2, -1, 529)
+    // Once workers start, re-binding P is also rejected.
+    var rc_b3 = oren_green_bind_p(3)
+    assert_eq(rc_b3, -1, 535)
     return 0
 }
 
@@ -1048,6 +1075,7 @@ fn main() {
     test_wait_on_addr_mismatch_is_success()
     test_time_mono_ns_monotonic()
     test_green_start_workers_rejects_in_green()
+    test_green_bind_p_rejects_in_green()
     test_green_p_count_api()
     test_green_workers_join()
     test_green_global_runq_fairness()

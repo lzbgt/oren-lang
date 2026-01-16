@@ -408,6 +408,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		       - Stage N3 plumbing: `P` topology is now configurable (before workers start) and sleepers are woken across all Ps:
 		         - `oren_green_set_p_count(n)` grows scheduler Ps (no shrink; rejected once workers started)
 		         - `oren_green_p_count()` reports the current P count
+		         - `oren_green_bind_p(p_id)` binds the current OS thread to a specific P (bring-up/testing; rejected in-green and once workers started)
+		         - `oren_green_current_p_id()` reports the current OS thread’s bound P id
 		         - scheduler wake/next-deadline logic scans sleepers across all Ps (future-proof for `M < P`)
 		       - worker idle sleeps now park on the shared park word with a timeout (so new runnable work wakes it immediately); inserting sleepers wakes workers to re-evaluate the next deadline
 		       - worker entry accepts an optional `P*` argument and claims `P.owner_tid` (rolling: hard fail if a P is accidentally shared across Ms)
@@ -415,6 +417,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		       - scheduler now uses a **dedicated scheduler lock** (wait-on-addr based) instead of the runtime global lock (reduces coupling to allocator/GC metadata)
 		         - Invariant: requires `sys_gettid()` to be non-zero when workers are enabled (0 is reserved as the “unlocked” sentinel).
 				     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
+				     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_bind_p_rejects_in_green`) (topology mutation must be host-thread only)
 				     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_p_count_api`) (P topology API; no shrink; reject after workers)
 				     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_ctx_switch_alloc_integrity`) (worker-mode ctx-switch + scheduler stability)
 				     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_local_ptr_survives_yields`) (ctx-switch must preserve long-lived locals across yields)

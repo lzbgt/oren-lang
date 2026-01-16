@@ -1299,6 +1299,51 @@ fn oren_green_p_count() {
     return _green_state_p_count(s)
 }
 
+@oren.keep
+fn oren_green_bind_p(p_id) {
+    _green_init_if_needed()
+    if _green_enabled() != true { return -1 }
+    if p_id < 0 { return -1 }
+    if p_id >= 64 { return -1 }
+
+    // Rolling safety: do not allow mutating scheduler topology while workers are running.
+    if g_green_workers_started != 0 { return -1 }
+
+    // Must not run from inside a green task: we mutate the current OS thread's scheduler binding.
+    var ts0 = _green_thread_state_for_current_thread_or0()
+    if ts0 != 0 && ptr_get(ts0 + green_t_off_current_g()) != 0 { return -1 }
+
+    var s = _green_get_state()
+    if s == 0 { return -1 }
+
+    // Ensure enough Ps exist (grow-only).
+    _green_lock_acquire()
+    var rc = _green_ensure_p_count_locked(s, p_id + 1)
+    var p = 0
+    if rc == 0 {
+        p = _green_state_p_by_id_or0(s, p_id)
+    }
+    _green_lock_release()
+    if rc != 0 { return rc }
+    if p == 0 { return -1 }
+
+    // Bind this OS thread to the requested P.
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return -1 }
+    _green_thread_set_p(ts, p)
+    return 0
+}
+
+@oren.keep
+fn oren_green_current_p_id() {
+    _green_init_if_needed()
+    if _green_enabled() != true { return 0 - 1 }
+    var p = _green_current_p_or0()
+    if p == 0 { return 0 - 1 }
+    if p < 4096 { return 0 - 1 }
+    return _green_p_id(p)
+}
+
 // Public hooks used by spawn/join/sleep/yield.
 @oren.keep
 fn oren_green_current_g_or0() {
