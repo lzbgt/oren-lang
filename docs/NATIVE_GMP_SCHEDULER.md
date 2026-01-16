@@ -201,8 +201,10 @@ Status (rolling groundwork):
 Rolling status (native runtime bring-up):
 
 - The native green scheduler now models `P` local run queues as a **ring buffer** (monotonic head/tail + mask),
-  with overflow to a scheduler-level **global run queue**. This keeps the shape aligned with an eventual atomics-based
-  work-stealing implementation while keeping the current bring-up lock model simple.
+  with overflow to a scheduler-level **global run queue**. The local queue is treated as a **work-stealing deque**:
+  - the owning `M` pops from the *tail* (LIFO locality), and
+  - stealing `M` takes from the *head* (FIFO fairness).
+  This keeps the shape aligned with an eventual atomics-based implementation while keeping the current bring-up lock model simple.
 
 4) **Syscall blocking strategy**
    - Prefer non-blocking + event loop for IO-bound `G` (best scalability).

@@ -61,15 +61,18 @@ fn green_s_bytes() { return 40 }
 
 // Per-P state struct layout (bytes).
 //
-// Rolling (2026-01-16+): represent the per-P runnable queue as a ring buffer (Go-like local runq),
+// Rolling (2026-01-16+): represent the per-P runnable queue as a ring buffer (Go-like work-stealing deque),
 // with overflow to the scheduler's global run queue.
 //
-// This keeps the shape aligned with an eventual atomics-based implementation:
-// - head/tail are monotonic counters (u64)
-// - index uses a power-of-two mask
+// Deque policy (aligned with eventual M:N work stealing):
+// - the owning `M` pops from the **tail** (LIFO, good locality)
+// - stealing `M` takes from the **head** (FIFO fairness)
+//
+// In rolling bring-up we still guard operations with the runtime global lock; the layout keeps the
+// eventual atomics path straightforward.
 fn green_p_off_runq_buf() { return 0 }   // u64: pointer to GC-scanned u64[] storing G pointers
 fn green_p_off_runq_head() { return 8 }  // u64: pop index (monotonic)
-fn green_p_off_runq_tail() { return 16 } // u64: push index (monotonic)
+fn green_p_off_runq_tail() { return 16 } // u64: push/pop index (moves up/down in deque mode)
 fn green_p_off_runq_mask() { return 24 } // u64: cap-1 (power of two)
 fn green_p_off_sleep_head() { return 32 }
 fn green_p_off_sleep_tail() { return 40 }
@@ -388,10 +391,30 @@ fn _green_runq_pop_local_locked(p) {
     var tail = _green_p_runq_tail(p)
     if head == tail { return 0 }
 
+    // Owner pop from tail (LIFO).
+    tail = tail - 1
+    var idx = tail & mask
+    var g = ptr_get(buf + idx * 8)
+    ptr_set(buf + idx * 8, 0)
+    _green_p_set_runq_tail(p, tail)
+    return g
+}
+
+fn _green_runq_steal_one_from_locked(victim_p) {
+    if victim_p == 0 { return 0 }
+    var buf = _green_p_runq_buf(victim_p)
+    var mask = _green_p_runq_mask(victim_p)
+    if buf == 0 || mask == 0 { return 0 }
+
+    var head = _green_p_runq_head(victim_p)
+    var tail = _green_p_runq_tail(victim_p)
+    if head == tail { return 0 }
+
+    // Steal from head (FIFO).
     var idx = head & mask
     var g = ptr_get(buf + idx * 8)
     ptr_set(buf + idx * 8, 0)
-    _green_p_set_runq_head(p, head + 1)
+    _green_p_set_runq_head(victim_p, head + 1)
     return g
 }
 
@@ -658,15 +681,44 @@ fn _green_sched_switch_to(g) {
     return 0
 }
 
-fn _green_runq_steal_one_locked(dst_p) {
-    if dst_p == 0 { return 0 }
-    var s = _green_get_state()
-    if s == 0 { return 0 }
+fn _green_runq_size_locked(p) {
+    if p == 0 { return 0 }
+    var head = _green_p_runq_head(p)
+    var tail = _green_p_runq_tail(p)
+    if tail < head { return 0 }
+    return tail - head
+}
+
+fn _green_runq_steal_batch_locked(dst_p, s, max_n) {
+    if dst_p == 0 || s == 0 { return 0 }
+    if max_n <= 0 { max_n = 1 }
+    if max_n > 32 { max_n = 32 }
+
     var cur = _green_state_p0(s)
     while cur != 0 {
         if cur != dst_p {
-            var g = _green_runq_pop_locked(cur)
-            if g != 0 { return g }
+            var sz = _green_runq_size_locked(cur)
+            if sz > 0 {
+                // Steal up to half (bounded), so we don't immediately thrash.
+                var want = sz / 2
+                if want < 1 { want = 1 }
+                if want > max_n { want = max_n }
+
+                var first = 0
+                var i = 0
+                while i < want {
+                    var g = _green_runq_steal_one_from_locked(cur)
+                    if g == 0 { break }
+                    if first == 0 {
+                        first = g
+                    } else {
+                        // Queue the rest locally (overflowing to global as needed).
+                        _green_runq_push_locked(dst_p, s, g)
+                    }
+                    i = i + 1
+                }
+                return first
+            }
         }
         cur = _green_p_next(cur)
     }
@@ -685,8 +737,8 @@ fn _green_runq_pop_any_locked(p, s, prefer_global) {
     // If local is empty, allow the global queue as a fallback.
     g = _green_global_runq_pop_locked(s)
     if g != 0 { return g }
-    // Last resort before idling: attempt a single steal.
-    return _green_runq_steal_one_locked(p)
+    // Last resort before idling: attempt a small bounded steal batch.
+    return _green_runq_steal_batch_locked(p, s, 4)
 }
 
 fn _green_poll_until(deadline_ns) {
