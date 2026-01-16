@@ -468,11 +468,16 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					         (so `oren_time_mono_raw()` works on Linux too)
 					         - 2026-01-16: fix x64-linux lowering bug where the `timespec` scratch overlapped the spilled `abs_ptr` slot (clobbered with `tv_nsec` and could crash).
 					           - Guard: `make verify-x64-linux-qemu` (stage1 + stage2), plus `tests/native/test_time_mono_raw.oren`.
-			     - 2026-01-16: added a bounded regression gate for worker-mode scheduling (many tasks must complete; no hangs):
-			       - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_many_tasks_bounded`)
-				     - 2026-01-16: made `oren_time_mono_ns()` conversion exact on macOS/Windows (no wall-clock calibration):
-				       - macOS: uses `mach_timebase_info` (num/den) to convert gettimeofday’s `mach_absolute_time` out-arg to ns.
-				       - Windows: uses `QueryPerformanceFrequency` for QPC ticks -> ns (backend exposes `sys_qpc_frequency`).
+				   - 2026-01-16: added a bounded regression gate for worker-mode scheduling (many tasks must complete; no hangs):
+				       - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_many_tasks_bounded`)
+				     - 2026-01-16: made native `oren_select` green-aware so it never blocks the scheduler OS thread when called from a green task:
+				       - Runtime: `lib/runtime_native/245_select.oren` (`_select_in_green` uses poll-mode + `oren_green_sleep_ns` backoff)
+				       - Runtime: `lib/runtime_native/263_green_tasks.oren` (`oren_green_in_green`)
+				       - Guard: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
+				       - Remaining: replace the current poll+sleep loop with a real scheduler netpoller (kqueue/epoll integration; wake a parked `P` when IO becomes ready).
+					     - 2026-01-16: made `oren_time_mono_ns()` conversion exact on macOS/Windows (no wall-clock calibration):
+					       - macOS: uses `mach_timebase_info` (num/den) to convert gettimeofday’s `mach_absolute_time` out-arg to ns.
+					       - Windows: uses `QueryPerformanceFrequency` for QPC ticks -> ns (backend exposes `sys_qpc_frequency`).
 			     - 2026-01-16: fixed a Linux arm64 worker-mode green scheduler corruption + hang:
 			       - Symptom (arm64-linux, Ubuntu container): `test_quick_integration_native.oren` panicked in `worker_green_alloc_yield_integrity` (`list_push on non-list`) and the binary could hang under worker threads.
 			       - Root causes:

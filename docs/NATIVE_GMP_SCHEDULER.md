@@ -133,6 +133,10 @@ Status (fact, code):
 - `spawn` prefers green tasks on POSIX via `oren_green_spawn` (`lib/runtime_native/120_first_class_fn.oren`).
 - Context switch intrinsics are defined as native backend intrinsics (`oren_ctx_init`, `oren_ctx_switch` in
   `lib/runtime_native/000_prelude_sys.oren`).
+- 2026-01-16: native `oren_select` / `oren_select_recv` are green-aware and do not block the scheduler OS thread:
+  - Runtime: `lib/runtime_native/245_select.oren` (poll-mode + `oren_green_sleep_ns` backoff when in-green)
+  - Guard: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
+  - Limitation: this is not a real netpoller yet; it is a correctness-first stopgap until kqueue/epoll events wake parked `P`s directly.
 
 ### Stage N2: N:M GMP (multiple OS threads, multiple Ps)
 

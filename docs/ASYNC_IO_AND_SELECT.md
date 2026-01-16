@@ -83,9 +83,13 @@ Notes:
   - `epoll_event` layout differs by arch (`x86_64` packed 12 bytes vs `arm64` 16 bytes).
   - The native runtime probes this once at startup (`native_runtime_init`) and fills `OREN_EPOLL_EVENT_*`,
     which are then used by `oren_select` and the `oren_fd_wait_*` epoll helpers.
-- They are **not a language keyword** and they are not yet integrated with a native scheduler:
-  - on native today they block the calling OS thread (Windows) or the calling process (POSIX fork-based `spawn` v0),
-  - there is no native green-thread scheduler yet, so “blocking IO” does not automatically unblock other work within a single process.
+- They are **not a language keyword** (they are runtime helpers).
+- Scheduler integration status (native, rolling):
+  - The green-task scheduler exists (`lib/runtime_native/263_green_tasks.oren`), but the low-level `oren_fd_wait_*` helpers are still
+    OS-thread-blocking primitives (they call kevent/epoll/select and will stall the calling `M` if used inside a green task).
+  - 2026-01-16: the channel-based `oren_select` / `oren_select_recv` runtime is **green-aware** and avoids blocking the scheduler OS thread
+    by polling (timeout=0) and yielding via `oren_green_sleep_ns` backoff when called from a green task.
+    - Guard: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
 
 ### 1.4 File readiness is not yet a stable cross-OS language primitive
 
@@ -160,12 +164,15 @@ References:
 - `docs/AVM_SPEC.md` (VirtualFS/VirtualNET/VirtualPROC backends)
 - `docs/AVM_MULTIVERSE.md` (nested universes / host service constraints)
 
-### 3.3 Current native constraint: `spawn` is not “green threads” yet
+### 3.3 Current native status: `spawn` is rolling toward green tasks + N:M
 
-In the native backend today, `spawn` is not a lightweight task scheduled on a shared runtime:
+In the native backend today, `spawn` is a rolling surface with OS-specific behavior:
 
-- **macOS/Linux (POSIX v0):** `spawn` uses **fork + pipe** (process-based). There is no shared heap, no shared GC, and no shared scheduler state.
-- **Windows x64 Tier‑1:** `spawn` uses **CreateThread** (OS threads), and `oren_join(_timeout)` uses Win32 synchronization.
+- **macOS/Linux (POSIX rolling):** `spawn` **prefers in-process green tasks** (shared heap + shared GC model) and falls back to fork+pipe when
+  green tasks are disabled/unavailable.
+  - Escape hatch: `OREN_NO_GREEN=1` forces legacy fork+pipe for bring-up/debugging.
+- **Windows x64 Tier‑1 (rolling):** `spawn` currently uses **CreateThread** (OS threads), and `oren_join(_timeout)` uses Win32 synchronization.
+  - Note: the green-task runtime exists for other scheduling surfaces, but Windows `spawn` does not currently route through it.
 
 This is why the design direction here emphasizes “channel-based select” + “netpoller wakes channels”:
 it composes with both a future native scheduler and AVM determinism, without baking OS fd/HANDLE details into the language surface.

@@ -1,0 +1,169 @@
+// --- Stop-the-world (STW) GC safepoints (native runtime; rolling) ---
+//
+// Goal:
+// - Make `oren_gc_collect()` safe once more than one OS thread exists.
+//
+// Design constraints (Tier‑1):
+// - Must be libc-free and cross-platform (uses `oren_wait_on_addr` / `oren_wake_all_addr`).
+// - Must not require a full M:N scheduler yet; this is a minimal "park at safepoints" protocol.
+//
+// Globals storage layout (see `lib/runtime_native/010_channels_globals_consts.oren`):
+// - 424: gc_stw_state       (0=running, 1=stop requested, 2=collector preparing)
+// - 432: gc_stw_parked      (number of parked OS threads excluding collector)
+// - 440: gc_stw_owner_node  (Thread Node pointer of collector, best-effort)
+fn native_gc_stw_state_ptr() {
+    var g = oren_globals()
+    if g == 0 { return 0 }
+    return iadd(g, 424)
+}
+fn native_gc_stw_parked_ptr() {
+    var g = oren_globals()
+    if g == 0 { return 0 }
+    return iadd(g, 432)
+}
+fn native_gc_stw_owner_ptr() {
+    var g = oren_globals()
+    if g == 0 { return 0 }
+    return iadd(g, 440)
+}
+
+fn native_atomic_inc_u64(word_ptr) {
+    if word_ptr == 0 { return 0 }
+    while true {
+        var old = ptr_get(word_ptr)
+        var new = iadd(old, 1)
+        if atomic_cas(word_ptr, old, new) == old { return new }
+    }
+    return 0
+}
+
+fn native_gc_stw_begin() {
+    if oren_globals() == 0 { return 0 }
+    var stw_ptr = native_gc_stw_state_ptr()
+    var parked_ptr = native_gc_stw_parked_ptr()
+    var owner_ptr = native_gc_stw_owner_ptr()
+    if stw_ptr == 0 || parked_ptr == 0 || owner_ptr == 0 { return 0 }
+
+    // Claim the STW controller role:
+    // - CAS 0->2 ("preparing") so other threads do not park yet (avoids losing parked-count increments).
+    // - If another collector is active, wait until the word changes.
+    while true {
+        var s = ptr_get(stw_ptr)
+        if s == 0 {
+            if atomic_cas(stw_ptr, 0, 2) == 0 { break }
+            continue
+        }
+        // Best-effort: sleep while state is unchanged.
+        oren_wait_on_addr(stw_ptr, s, 1000000)
+    }
+
+    // Initialize per-collection coordination state.
+    ptr_set(parked_ptr, 0)
+    // Identify the collector thread so it does NOT park at safepoints during STW.
+    //
+    // Why this is required (Tier‑1 correctness):
+    // The native backend inserts `oren_gc_safepoint()` into loop headers for long-running
+    // compiler/tooling workloads. `native_gc_collect()` (and its helpers like stack scanning)
+    // contains loops, so the collector thread can hit an injected safepoint while STW is active.
+    //
+    // If the collector parks itself (owner not set), STW deadlocks permanently.
+    //
+    // Robustness:
+    // - Prefer the per-OS-thread `sys_gettid()` identity path in `native_time_current_thread_node_or0()`.
+    // - If the main thread is not registered yet, register it now (idempotent on Tier‑1).
+    var owner_node = native_time_current_thread_node_or0()
+    if owner_node == 0 {
+        owner_node = oren_register_thread(get_sp())
+    }
+    ptr_set(owner_ptr, owner_node)
+
+    // Publish the stop request (2->1) and wake threads waiting on the state word.
+    ptr_set(stw_ptr, 1)
+    oren_wake_all_addr(stw_ptr)
+
+    // Wait for all other OS threads to park.
+    var total = global_get_os_thread_count()
+    var expected = 0
+    if total > 0 { expected = total - 1 }
+
+    while expected > 0 {
+        var cur = ptr_get(parked_ptr)
+        if cur >= expected { break }
+        // Wait until parked count changes (threads wake us when they park).
+        oren_wait_on_addr(parked_ptr, cur, 1000000)
+    }
+    return 0
+}
+
+fn native_gc_stw_end() {
+    if oren_globals() == 0 { return 0 }
+    var stw_ptr = native_gc_stw_state_ptr()
+    var parked_ptr = native_gc_stw_parked_ptr()
+    var owner_ptr = native_gc_stw_owner_ptr()
+    if stw_ptr == 0 || parked_ptr == 0 || owner_ptr == 0 { return 0 }
+
+    // Release: set running and wake all waiters parked on the state word.
+    ptr_set(owner_ptr, 0)
+    ptr_set(parked_ptr, 0)
+    ptr_set(stw_ptr, 0)
+    oren_wake_all_addr(stw_ptr)
+    return 0
+}
+
+fn native_gc_stw_poll_and_park() {
+    if oren_globals() == 0 { return 0 }
+    var stw_ptr = native_gc_stw_state_ptr()
+    if stw_ptr == 0 { return 0 }
+
+    // Fast path: no stop requested.
+    var s = ptr_get(stw_ptr)
+    if s == 0 { return 0 }
+
+    // If the collector is in "preparing" mode, wait until it transitions (2->1 or 2->0).
+    while s == 2 {
+        oren_wait_on_addr(stw_ptr, 2, 1000000)
+        s = ptr_get(stw_ptr)
+    }
+    if s == 0 { return 0 }
+
+    // Now s==1: park at safepoint.
+    var node = native_time_current_thread_node_or0()
+    if node == 0 { return 0 }
+
+    // Collector thread does not park.
+    var owner_ptr = native_gc_stw_owner_ptr()
+    var owner = 0
+    if owner_ptr != 0 { owner = ptr_get(owner_ptr) }
+    if owner != 0 {
+        // Pointer equality without `==` to avoid any string-aware compare lowering.
+        if node - owner == 0 { return 0 }
+    }
+
+    // Set saved_sp so GC can scan this non-current thread.
+    ptr_set(iadd(node, 8), get_sp())
+
+    // Mark this thread node as parked (bit1 in flags) and bump parked count once.
+    var flags_ptr = iadd(node, 48)
+    var f = ptr_get(flags_ptr)
+    var THREAD_NODE_FLAG_STW_PARKED = 2
+    if (f & THREAD_NODE_FLAG_STW_PARKED) == 0 {
+        ptr_set(flags_ptr, f | THREAD_NODE_FLAG_STW_PARKED)
+        var parked_ptr = native_gc_stw_parked_ptr()
+        if parked_ptr != 0 {
+            native_atomic_inc_u64(parked_ptr)
+            // Wake the collector waiting on parked-count changes.
+            oren_wake_all_addr(parked_ptr)
+        }
+    }
+
+    // Sleep until the collector releases STW (state becomes 0).
+    while ptr_get(stw_ptr) == 1 {
+        oren_wait_on_addr(stw_ptr, 1, 1000000)
+    }
+
+    // Clear saved_sp and parked flag on resume.
+    ptr_set(iadd(node, 8), 0)
+    ptr_set(flags_ptr, ptr_get(flags_ptr) & -3)
+    return 0
+}
+

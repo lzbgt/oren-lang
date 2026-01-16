@@ -1,0 +1,1324 @@
+// --- Allocation index (native runtime) ---
+//
+// The GC scans large memory ranges conservatively (stack words). A linear scan of the alloc
+// registry on every candidate word becomes catastrophically slow for compiler workloads.
+//
+// Maintain an open-addressing hash table mapping `ptr -> alloc_node` so `oren_find_node`
+// is O(1) average.
+var g_alloc_index_ptr = 0
+var g_alloc_index_cap = 0
+var g_alloc_index_len = 0
+var g_alloc_index_tomb = 1 // sentinel (not a valid pointer)
+// Rolling robustness: set when a probe loop exhausts its cap bound.
+// This should be impossible in a healthy open-addressing table (we resize before full),
+// so treat it as a corruption signal and rebuild the table on the next lookup.
+var g_alloc_index_probe_exhausted = 0
+
+// --- Static kind tracking (native runtime) ---
+//
+// Some pointers are valid "values" in the native runtime model but should not be treated as
+// GC-managed heap allocations (e.g. platform-provided stable pointers or "static" buffers).
+//
+// Static-kind tracking attaches a lightweight metadata node (40 bytes) to such pointers so
+// `oren_find_node(ptr)` can classify them (kind!=0) without forcing a heap copy.
+var g_static_allocs = 0
+
+// --- Embedded cstr0 literal membership (native runtime) ---
+//
+// The native compiler embeds string literals into a single NUL-terminated byte pool ("cstr0").
+// Those bytes live in the binary's data segment and MUST NOT be tracked as GC allocations:
+// - tracking them as alloc-nodes makes GC conservatively "see" literals as heap pointers,
+//   inflating mark work in compiler workloads
+// - allocating per-literal tracking nodes can be a startup hotspot for large binaries
+//
+// Instead, we build a dedicated open-addressing set of literal start pointers at process entry.
+// This lets runtime code safely answer "is this pointer a string?" without creating alloc nodes.
+var g_cstr0_set_ptr = 0
+var g_cstr0_set_cap = 0
+var g_cstr0_set_len = 0
+// Optional quick reject for pointer-like integers: if outside [min,max], it cannot be a cstr0 literal.
+var g_cstr0_min_ptr = 0
+var g_cstr0_max_ptr = 0
+
+fn native_alloc_index_mmap_table(bytes) {
+    // IMPORTANT (Tier‑1 correctness):
+    // Allocate the alloc-index table via a dedicated anonymous mmap instead of `malloc_raw`.
+    //
+    // Why:
+    // - On arm64 native, the rolling bump allocator for `malloc_raw` shares machinery with the GC heap.
+    // - A single overlap/corruption bug can cause the index table (raw metadata) to alias tracked nodes,
+    //   making `oren_find_node` crash after a GC sweep.
+    //
+    // By pinning the table in its own mapping, we eliminate aliasing with tracked allocations.
+    var q = sys_mmap_private_anon(bytes)
+    if q == 0 { exit(311) }
+    if q == -1 { exit(312) }
+    if q < 0 { exit(313) }
+    if q < 4096 { exit(314) }
+    return q
+}
+
+fn native_alloc_index_hash(ptr) {
+    // Multiplicative hash (Knuth) for 64-bit keys. Shift away low alignment bits.
+    var x = ptr / 16
+    return x * 11400714819323198485
+}
+
+fn native_cstr0_set_clear(table_ptr, cap) {
+    if table_ptr == 0 { return 0 }
+    var i = 0
+    while i < cap {
+        ptr_set(iadd(table_ptr, i << 3), 0)
+        i = i + 1
+    }
+    return 0
+}
+
+fn native_cstr0_set_init_min(min_cap) {
+    if g_cstr0_set_cap != 0 { return 0 }
+    var cap = 1024
+    if min_cap != nil && min_cap > cap {
+        // Round up by doubling from a power-of-two seed (mirrors alloc-index init policy).
+        // NOTE: do not try to "power-of-two normalize" by repeatedly doubling a non-power-of-two
+        // value; that never converges.
+        while cap < min_cap { cap = cap * 2 }
+    }
+
+    // Keep mmap size bounded in pathological builds (rolling safety).
+    // cap is entry count (u64 slots), table size is cap*8 bytes.
+    if cap > 4194304 { cap = 4194304 } // 32 MiB table
+
+    var table = native_alloc_index_mmap_table(cap << 3)
+    if table == 0 { return 0 }
+    native_cstr0_set_clear(table, cap)
+    g_cstr0_set_ptr = table
+    g_cstr0_set_cap = cap
+    g_cstr0_set_len = 0
+    g_cstr0_min_ptr = 0
+    g_cstr0_max_ptr = 0
+    return 0
+}
+
+fn native_cstr0_set_put(ptr) {
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    if g_cstr0_set_ptr == 0 || g_cstr0_set_cap == 0 { return 0 }
+    var mask = g_cstr0_set_cap - 1
+    var idx = native_alloc_index_hash(ptr) & mask
+    var rem = g_cstr0_set_cap
+    while true {
+        if rem <= 0 { return 0 }
+        rem = rem - 1
+        var slot = ptr_get(iadd(g_cstr0_set_ptr, idx << 3))
+        if slot == 0 {
+            ptr_set(iadd(g_cstr0_set_ptr, idx << 3), ptr)
+            g_cstr0_set_len = iadd(g_cstr0_set_len, 1)
+            // Track min/max for quick reject.
+            // IMPORTANT: avoid pointer-vs-pointer `<`/`>` here. On x64, comparisons can lower
+            // through string-aware compare which consults `native_is_string_ptr` and can recurse.
+            if g_cstr0_min_ptr == 0 {
+                g_cstr0_min_ptr = ptr
+            } else {
+                if (ptr - g_cstr0_min_ptr) < 0 { g_cstr0_min_ptr = ptr }
+            }
+            if g_cstr0_max_ptr == 0 {
+                g_cstr0_max_ptr = ptr
+            } else {
+                if (ptr - g_cstr0_max_ptr) > 0 { g_cstr0_max_ptr = ptr }
+            }
+            return 0
+        }
+        if slot - ptr == 0 { return 0 }
+        idx = iadd(idx, 1) & mask
+    }
+    return 0
+}
+
+fn native_cstr0_set_has(ptr) {
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    if g_cstr0_set_ptr == 0 || g_cstr0_set_cap == 0 { return 0 }
+    // Quick reject for obvious non-pointers (and most integer values).
+    // IMPORTANT: avoid pointer-vs-pointer `<`/`>` here (see note in `native_cstr0_set_put`).
+    if g_cstr0_min_ptr != 0 {
+        if (ptr - g_cstr0_min_ptr) < 0 { return 0 }
+    }
+    if g_cstr0_max_ptr != 0 {
+        if (ptr - g_cstr0_max_ptr) > 0 { return 0 }
+    }
+
+    var mask = g_cstr0_set_cap - 1
+    var idx = native_alloc_index_hash(ptr) & mask
+    var rem = g_cstr0_set_cap
+    while true {
+        if rem <= 0 { return 0 }
+        rem = rem - 1
+        var slot = ptr_get(iadd(g_cstr0_set_ptr, idx << 3))
+        if slot == 0 { return 0 }
+        if slot - ptr == 0 { return 1 }
+        idx = iadd(idx, 1) & mask
+    }
+    return 0
+}
+
+@oren.keep
+fn native_is_string_ptr(ptr) {
+    // Return 1 iff `ptr` is safe to treat as a C string in native v0:
+    // - tracked heap string allocation (kind=1)
+    // - embedded cstr0 literal start pointer (from the program's data blob)
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+
+    // Fast path: tracked heap string kind.
+    var node = native_alloc_index_get(ptr)
+    if node != 0 {
+        var k = ptr_get(iadd(node, 16))
+        if k == 1 { return 1 }
+    }
+
+    // Fast path: embedded literal membership.
+    if native_cstr0_set_has(ptr) != 0 { return 1 }
+    return 0
+}
+
+fn native_alloc_index_clear(table_ptr, cap) {
+    if table_ptr == 0 { return 0 }
+    var i = 0
+    while i < cap {
+        // Use shift instead of multiply (native backend mul lowering is still rolling in some paths).
+        ptr_set(iadd(table_ptr, i << 3), 0)
+        i = i + 1
+    }
+    return 0
+}
+
+fn native_alloc_index_init_min(min_cap) {
+    if g_alloc_index_cap != 0 { return 0 }
+    var cap = 1024
+    if min_cap != nil && min_cap > cap { cap = min_cap }
+    // Ensure power-of-two cap (keep it simple: round up by doubling).
+    //
+    // IMPORTANT:
+    // Parenthesize the bit-test so it parses as:
+    //   (cap & (cap - 1)) != 0
+    // rather than:
+    //   cap & ((cap - 1) != 0)
+    while (cap & (cap - 1)) != 0 { cap = cap * 2 }
+    var table = native_alloc_index_mmap_table(cap * 8)
+    if table == 0 { return 0 }
+    native_alloc_index_clear(table, cap)
+    g_alloc_index_ptr = table
+    g_alloc_index_cap = cap
+    g_alloc_index_len = 0
+    return 0
+}
+
+fn native_alloc_index_get(ptr) {
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+    var mask = g_alloc_index_cap - 1
+    var idx = native_alloc_index_hash(ptr) & mask
+    // Bound probing to avoid non-termination if the table becomes corrupted or saturated.
+    // If we cannot find an empty slot within `cap` probes, treat as a miss.
+    var rem = g_alloc_index_cap
+    while true {
+        if rem <= 0 {
+            g_alloc_index_probe_exhausted = 1
+            return 0
+        }
+        rem = rem - 1
+        var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
+        if slot == 0 { return 0 }
+        // IMPORTANT (Tier‑1 correctness):
+        // Avoid `slot != g_alloc_index_tomb` here.
+        //
+        // On some native backends, `==/!=` can lower to a string-aware compare that consults
+        // tracking metadata. That compare uses `native_alloc_index_get`, which would recurse
+        // back into this function and stack-overflow during early runtime init.
+        //
+        // Use arithmetic + compare-to-0 so the backend can lower it as a raw integer compare.
+        if slot - g_alloc_index_tomb != 0 {
+            // Rolling safety: treat any non-pointer slot payload as a tombstone.
+            // This prevents segfaults if a buggy codegen path scribbles over the table.
+            if slot < 4096 {
+                // IMPORTANT (Tier‑1 correctness):
+                // Use primitive integer add instead of `+` (which lowers to `oren_add`).
+                // If `g_alloc_index_cap` grows beyond 4096, `idx` becomes >=4096 and `oren_add`
+                // will treat it as a pointer candidate, calling `oren_find_node()` which calls
+                // back into `native_alloc_index_get()`, causing infinite recursion/stack overflow.
+                idx = iadd(idx, 1) & mask
+                continue
+            }
+            // Pointer equality without `==` (avoid string-aware compare recursion).
+            if ptr_get(slot) - ptr == 0 { return slot }
+        }
+        idx = iadd(idx, 1) & mask
+    }
+    return 0
+}
+
+fn native_alloc_index_put_node(node) {
+    if node == 0 { return 0 }
+    var ptr = ptr_get(node)
+    if ptr == 0 || ptr < 4096 { return 0 }
+    if g_alloc_index_cap == 0 { native_alloc_index_init_min(1024) }
+    if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+
+    // Resize when load factor exceeds ~0.75.
+    if g_alloc_index_len * 4 >= g_alloc_index_cap * 3 {
+        // Rebuild from allocs list (deterministic, keeps table fresh and avoids tombstone drift).
+        var new_cap = g_alloc_index_cap * 2
+        var new_tab = native_alloc_index_mmap_table(new_cap * 8)
+        if new_tab != 0 {
+            native_alloc_index_clear(new_tab, new_cap)
+            g_alloc_index_ptr = new_tab
+            g_alloc_index_cap = new_cap
+            g_alloc_index_len = 0
+
+            // Reinsert all live alloc nodes.
+            var cur = global_get_allocs()
+            while cur != 0 {
+                // Insert cur (no further resize expected during rebuild).
+                var p0 = ptr_get(cur)
+                if p0 != 0 && p0 >= 4096 {
+                    var mask0 = g_alloc_index_cap - 1
+                    var idx0 = native_alloc_index_hash(p0) & mask0
+                    var first_tomb = -1
+                    var rem0 = g_alloc_index_cap
+                    while true {
+                        if rem0 <= 0 {
+                            g_alloc_index_probe_exhausted = 1
+                            break
+                        }
+                        rem0 = rem0 - 1
+                        var slot0 = ptr_get(iadd(g_alloc_index_ptr, idx0 << 3))
+                        if slot0 == 0 {
+                            if first_tomb >= 0 { idx0 = first_tomb }
+                            ptr_set(iadd(g_alloc_index_ptr, idx0 << 3), cur)
+                            g_alloc_index_len = iadd(g_alloc_index_len, 1)
+                            break
+                        }
+                        if slot0 - g_alloc_index_tomb == 0 {
+                            if first_tomb < 0 { first_tomb = idx0 }
+                        } else {
+                            if ptr_get(slot0) - p0 == 0 {
+                                ptr_set(iadd(g_alloc_index_ptr, idx0 << 3), cur)
+                                break
+                            }
+                        }
+                        idx0 = iadd(idx0, 1) & mask0
+                    }
+                }
+                cur = ptr_get(iadd(cur, 32))
+            }
+
+            // Reinsert static-kind nodes.
+            var cur_static = g_static_allocs
+            while cur_static != 0 {
+                var p1 = ptr_get(cur_static)
+                if p1 != 0 && p1 >= 4096 {
+                    var mask1 = g_alloc_index_cap - 1
+                    var idx1 = native_alloc_index_hash(p1) & mask1
+                    var rem1 = g_alloc_index_cap
+                    while true {
+                        if rem1 <= 0 {
+                            g_alloc_index_probe_exhausted = 1
+                            break
+                        }
+                        rem1 = rem1 - 1
+                        var slot1 = ptr_get(iadd(g_alloc_index_ptr, idx1 << 3))
+                        if slot1 == 0 {
+                            ptr_set(iadd(g_alloc_index_ptr, idx1 << 3), cur_static)
+                            g_alloc_index_len = iadd(g_alloc_index_len, 1)
+                            break
+                        }
+                        if slot1 - g_alloc_index_tomb != 0 {
+                            if ptr_get(slot1) - p1 == 0 {
+                                ptr_set(iadd(g_alloc_index_ptr, idx1 << 3), cur_static)
+                                break
+                            }
+                        }
+                        idx1 = iadd(idx1, 1) & mask1
+                    }
+                }
+                cur_static = ptr_get(iadd(cur_static, 32))
+            }
+        }
+    }
+
+    var mask = g_alloc_index_cap - 1
+    var idx = native_alloc_index_hash(ptr) & mask
+    var first_tomb = -1
+    var rem = g_alloc_index_cap
+    while true {
+        if rem <= 0 {
+            g_alloc_index_probe_exhausted = 1
+            return 0
+        }
+        rem = rem - 1
+        var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
+        if slot == 0 {
+            if first_tomb >= 0 { idx = first_tomb }
+            ptr_set(iadd(g_alloc_index_ptr, idx << 3), node)
+            g_alloc_index_len = iadd(g_alloc_index_len, 1)
+            return 0
+        }
+        if slot - g_alloc_index_tomb == 0 {
+            if first_tomb < 0 { first_tomb = idx }
+        } else {
+            if ptr_get(slot) - ptr == 0 {
+                ptr_set(iadd(g_alloc_index_ptr, idx << 3), node)
+                return 0
+            }
+        }
+        idx = iadd(idx, 1) & mask
+    }
+    return 0
+}
+
+fn native_alloc_index_remove_ptr(ptr) {
+    if ptr == 0 || ptr < 4096 { return 0 }
+    if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+    var mask = g_alloc_index_cap - 1
+    var idx = native_alloc_index_hash(ptr) & mask
+    var rem = g_alloc_index_cap
+    while true {
+        if rem <= 0 {
+            g_alloc_index_probe_exhausted = 1
+            return 0
+        }
+        rem = rem - 1
+        var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
+        if slot == 0 { return 0 }
+        if slot - g_alloc_index_tomb != 0 {
+            if slot < 4096 {
+                idx = iadd(idx, 1) & mask
+                continue
+            }
+            if ptr_get(slot) - ptr == 0 {
+                ptr_set(iadd(g_alloc_index_ptr, idx << 3), g_alloc_index_tomb)
+                if g_alloc_index_len > 0 { g_alloc_index_len = g_alloc_index_len - 1 }
+                return 0
+            }
+        }
+        idx = iadd(idx, 1) & mask
+    }
+    return 0
+}
+
+fn native_alloc_index_rebuild_live() {
+    // Rebuild the alloc index from the current allocs list (drops tombstones).
+    if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+    native_alloc_index_clear(g_alloc_index_ptr, g_alloc_index_cap)
+    g_alloc_index_len = 0
+
+    var cur = global_get_allocs()
+    var mask = g_alloc_index_cap - 1
+    while cur != 0 {
+        var p = ptr_get(cur)
+        // Skip non-pointers.
+        if p != 0 && p >= 4096 {
+            var idx = native_alloc_index_hash(p) & mask
+            var rem = g_alloc_index_cap
+            while true {
+                if rem <= 0 {
+                    g_alloc_index_probe_exhausted = 1
+                    break
+                }
+                rem = rem - 1
+                var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
+                if slot == 0 {
+                    ptr_set(iadd(g_alloc_index_ptr, idx << 3), cur)
+                    g_alloc_index_len = iadd(g_alloc_index_len, 1)
+                    break
+                }
+                idx = iadd(idx, 1) & mask
+            }
+        }
+        cur = ptr_get(iadd(cur, 32))
+    }
+
+    // Also include static-kind nodes tracked via `oren_track_static`.
+    var cur_static = g_static_allocs
+    while cur_static != 0 {
+        var p1 = ptr_get(cur_static)
+        if p1 != 0 && p1 >= 4096 {
+            var idx1 = native_alloc_index_hash(p1) & mask
+            var rem1 = g_alloc_index_cap
+            while true {
+                if rem1 <= 0 {
+                    g_alloc_index_probe_exhausted = 1
+                    break
+                }
+                rem1 = rem1 - 1
+                var slot1 = ptr_get(iadd(g_alloc_index_ptr, idx1 << 3))
+                if slot1 == 0 {
+                    ptr_set(iadd(g_alloc_index_ptr, idx1 << 3), cur_static)
+                    g_alloc_index_len = iadd(g_alloc_index_len, 1)
+                    break
+                }
+                idx1 = iadd(idx1, 1) & mask
+            }
+        }
+        cur_static = ptr_get(iadd(cur_static, 32))
+    }
+    return 0
+}
+
+@oren.keep
+fn oren_track_static(ptr, kind) {
+    if oren_globals() == 0 { return ptr }
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return ptr }
+
+    // Guardrail: never attach static-kind tracking nodes to embedded cstr0 literals.
+    // Those pointers are already recognized via `native_cstr0_set_has` and should remain untracked.
+    if kind == 1 && g_cstr0_set_cap != 0 {
+        if native_cstr0_set_has(ptr) != 0 { return ptr }
+    }
+    acquire_lock()
+
+    // Ensure the alloc-index exists so `oren_find_node` can classify this pointer fast.
+    if g_alloc_index_cap == 0 {
+        native_alloc_index_init_min(1024)
+        native_alloc_index_rebuild_live()
+    }
+
+    // De-duplicate: if already tracked (either as heap alloc or static-kind), keep it.
+    var hit = native_alloc_index_get(ptr)
+    if hit != 0 {
+        if kind != 0 { ptr_set(iadd(hit, 16), kind) }
+        release_lock()
+        return ptr
+    }
+
+    // Allocate a tracking node in raw memory and link it into the static list (NOT allocs).
+    var node = native_malloc_raw_or_mmap(40)
+    if node != 0 {
+        ptr_set(node, ptr)
+        ptr_set(iadd(node, 8), 0)
+        ptr_set(iadd(node, 16), kind)
+        ptr_set(iadd(node, 24), 0) // not freed, not marked (meaningless for static nodes)
+        ptr_set(iadd(node, 32), g_static_allocs)
+        g_static_allocs = node
+        native_alloc_index_put_node(node)
+    }
+
+    release_lock()
+    return ptr
+}
+
+@oren.keep
+fn oren_init_static_cstr0_table(table_ptr) {
+    // Initialize the embedded string literal membership set (cstr0 pool).
+    //
+    // Rationale:
+    // - String literals already live in the native binary's data segment; they are not GC-managed.
+    // - Tracking them as alloc nodes bloats GC conservative scans and can be a startup hotspot
+    //   for large self-hosted binaries.
+    // - Runtime still needs to answer "is this pointer a string?" safely, so we build a
+    //   dedicated pointer set (see `native_is_string_ptr` / `native_cstr0_set_has`).
+    //
+    // Table layout (u64 slots, little-endian):
+    //   [0] table_off  (u64)  -- offset of this table from data base
+    //   [1] count      (u64)  -- number of offsets
+    //   [2..] offs[i]  (u64)  -- byte offsets of each cstr0 literal from data base
+    //
+    // The entry stub passes `table_ptr = data_base + table_off`, and we recover:
+    //   data_base = table_ptr - table_off
+    if table_ptr == 0 { return 0 }
+    var table_off = ptr_get(table_ptr)
+    var count = ptr_get(iadd(table_ptr, 8))
+    var data_base = table_ptr - table_off
+
+    // Initialize the cstr0 set once. Pre-size based on literal count to keep insertion bounded.
+    acquire_lock()
+    if g_cstr0_set_cap == 0 {
+        var need = count * 2
+        if need < 1024 { need = 1024 }
+        // Round up to a power-of-two cap, capped for safety.
+        native_cstr0_set_init_min(need)
+    }
+
+    var i = 0
+    var p = iadd(table_ptr, 16)
+    while i < count {
+        var off = ptr_get(p)
+        p = iadd(p, 8)
+        var s_ptr = data_base + off
+
+        if s_ptr != 0 && s_ptr >= 4096 {
+            native_cstr0_set_put(s_ptr)
+        }
+        i = i + 1
+    }
+
+    release_lock()
+    return 0
+}
+
+fn native_gc_scan_stack() {
+    if g_gc_enabled == 0 { return 0 }
+    var sp = get_sp()
+    var cur_tid = sys_gettid()
+    var THREAD_NODE_FLAG_OS_THREAD = 1
+    var cur = global_get_threads()
+    
+    while cur != 0 {
+        var top = ptr_get(cur)
+        var saved = ptr_get(iadd(cur, 8))
+        var flags = ptr_get(iadd(cur, 48))
+        var start = 0
+        var max_scan = 8388608 // 8MB safety cap (rolling; avoids scanning bogus ranges)
+        
+        // Current stack selection (Tier‑1 correctness):
+        //
+        // When multiple OS threads exist, their stacks can be mapped close together. A naive
+        // "sp within 8MB below top" heuristic can misidentify a different OS thread as current,
+        // causing the scanner to read across an unmapped gap between stacks (SIGBUS).
+        //
+        // Prefer a stable OS-thread identity:
+        // - `sys_gettid()` returns a stable per-OS-thread id on Tier‑1 targets.
+        // - `oren_register_thread` stores it at node+56 for OS-thread nodes.
+        if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 && cur_tid != 0 {
+            var tid = ptr_get(iadd(cur, 56))
+            if tid == cur_tid {
+                if sp < top { start = sp }
+            }
+        } else {
+            // Fallback heuristic (green stacks registered via `oren_register_stack`).
+            if sp < top {
+                var diff = top - sp
+                if diff < max_scan { start = sp }
+            }
+        }
+        
+        if start == 0 {
+            // Saved stack pointer path (non-current thread).
+            //
+            // Rolling safety: thread nodes can be corrupted by buggy codegen / allocator invariants.
+            // Treat suspicious saved/top pairs as "skip this node" rather than crashing.
+            if saved != 0 {
+                if saved < top {
+                    // Always start at `saved` (which is expected to be a real SP within the stack).
+                    // We clamp the scan span below, so we never need to synthesize `top-max_scan`
+                    // (which can fall into unmapped guard pages on small stacks).
+                    start = saved
+                }
+            }
+        }
+        
+        if start != 0 {
+            // Reject obviously bogus pointers (avoid crashing on low/null-ish addresses).
+            if start < 4096 || top < 4096 {
+                // skip
+            } else {
+                // Clamp scan window so we never walk arbitrary/unmapped ranges.
+                var end = top
+                if end > start {
+                    var span = end - start
+                    if span > max_scan { end = start + max_scan }
+                } else {
+                    end = start
+                }
+
+                while start < end {
+                    var val = ptr_get(start)
+                    oren_mark_value(val)
+                    start = iadd(start, 8)
+                }
+            }
+        }
+        
+        cur = ptr_get(iadd(cur, 16))
+    }
+    return 0
+}
+
+// Node layout: [ptr, size, kind, freed, next] (5 * 8 = 40 bytes)
+// Offsets: 0=ptr, 8=size, 16=kind, 24=freed, 32=next
+
+// Try to reuse a raw node allocation (used by malloc_raw callers like root lists).
+// This must NOT reuse freed "blocks" (which are tracked allocation records pointing at object memory),
+// otherwise we'd lose pointers to freed object memory and create leaks/corruption.
+@oren.keep
+fn native_try_reuse_node(size) {
+    // Rolling robustness: disable raw-node reuse for now.
+    //
+    // Rationale:
+    // - `malloc_raw` is used for runtime metadata nodes (alloc tracking nodes, root nodes, thread nodes).
+    // - A single corrupted node in the free-nodes list can cause allocator to return an invalid pointer,
+    //   which then crashes in `oren_track_alloc` with small addresses like 0xF.
+    // - Tier‑1 correctness is higher priority than micro-optimizing metadata reuse during rolling.
+    //
+    // TODO: re-enable after we harden free-node list integrity + add determinism guards.
+    return 0
+
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var prev = 0
+    var cur = global_get_free_nodes()
+    while cur != 0 {
+        var node_size = ptr_get(iadd(cur, 8))
+        if node_size >= size {
+            var next = ptr_get(iadd(cur, 32))
+            if prev == 0 {
+                global_set_free_nodes(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            // Clear next pointer; caller will overwrite fields.
+            ptr_set(iadd(cur, 32), 0)
+            release_lock()
+            return cur
+        }
+        prev = cur
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return 0
+}
+
+@oren.keep
+fn native_try_reuse(size) {
+    // Rolling robustness: temporarily disable free-block reuse.
+    //
+    // This is a Tier‑1 correctness stopgap while the native allocator + tracking-node reuse
+    // are still stabilizing (see integration suite crash reports involving invalid pointers).
+    //
+    // TODO: re-enable after fixing the underlying allocator invariants and adding validation
+    // for free-block list nodes (ptr/size/kind sanity).
+    return 0
+
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    // Simple first-fit from the free list.
+    var prev = 0
+    var cur = global_get_free_blocks()
+    while cur != 0 {
+        var chunk_size = ptr_get(iadd(cur, 8))
+        if chunk_size >= size {
+            // Unlink from free list.
+            var next = ptr_get(iadd(cur, 32))
+            if prev == 0 {
+                global_set_free_blocks(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+
+            // Reactivate this tracking node by placing it back into allocs.
+            // NOTE:
+            // - We keep chunk_size (capacity) as-is; size is the requested logical size.
+            // - kind defaults to 5 (misc). Callers may later call `oren_track_alloc(...)`
+            //   to specialize kind (e.g. string/list/map/struct/func).
+            ptr_set(iadd(cur, 8), size)
+            ptr_set(iadd(cur, 16), 5)
+            ptr_set(iadd(cur, 24), 0) // not freed, not marked
+            ptr_set(iadd(cur, 32), global_get_allocs())
+            global_set_allocs(cur)
+
+            var out = ptr_get(cur)
+            release_lock()
+            return out
+        }
+        prev = cur
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return 0
+}
+
+var g_panicking = 0
+// Single-thread fast path (native runtime):
+// The self-host compiler and most tooling run single-threaded. Avoid taking the global lock
+// in that mode, because `oren_find_node` and container ops are extremely lock-heavy.
+//
+// This is automatically disabled once a second thread is registered.
+var g_runtime_single_threaded = 1
+
+fn acquire_lock() {
+    if g_panicking == 1 { return 0 }
+    if oren_globals() == 0 { return 0 }
+    if g_runtime_single_threaded == 1 { return 0 }
+    
+    var tid = sys_gettid()
+    // NOTE: use literal offsets (native backend global var init/write is still rolling).
+    // lock_owner_tid lives at globals +16.
+    var lock_ptr = iadd(oren_globals(), 16)
+    var owner = ptr_get(lock_ptr)
+    
+    if owner == tid {
+        // lock_recurse_count lives at globals +56.
+        var count_ptr = iadd(oren_globals(), 56)
+        var count = ptr_get(count_ptr)
+        ptr_set(count_ptr, iadd(count, 1))
+        return 0
+    }
+    
+    var spin = 0
+    while atomic_cas(lock_ptr, 0, tid) != 0 {
+        if g_panicking == 1 { return 0 }
+        spin = iadd(spin, 1)
+        // Park after a small amount of spinning to avoid burning CPU.
+        if spin > 1000 {
+            // Wait while lock owner hasn't changed.
+            var owner_now = ptr_get(lock_ptr)
+            if owner_now != 0 {
+                // operation=UL_COMPARE_AND_WAIT (1), timeout_us=0 => forever
+                oren_wait_on_addr(lock_ptr, owner_now, 0)
+            }
+            spin = 0
+        }
+    }
+    
+    var count_ptr = iadd(oren_globals(), 56)
+    ptr_set(count_ptr, 1)
+    return 0
+}
+
+fn release_lock() {
+    if g_panicking == 1 { return 0 }
+    if oren_globals() == 0 { return 0 }
+    if g_runtime_single_threaded == 1 { return 0 }
+    
+    var tid = sys_gettid()
+    var lock_ptr = iadd(oren_globals(), 16)
+    var owner = ptr_get(lock_ptr)
+    
+    if owner != tid {
+        return 0
+    }
+    
+    var count_ptr = iadd(oren_globals(), 56)
+    var count = ptr_get(count_ptr)
+    if count > 1 {
+        ptr_set(count_ptr, count - 1)
+        return 0
+    }
+    
+    ptr_set(count_ptr, 0)
+    atomic_cas(lock_ptr, tid, 0)
+    // Wake any waiters that parked in acquire_lock.
+    oren_wake_all_addr(lock_ptr)
+    return 0
+}
+
+// NOTE: `malloc_raw` and the `native_malloc_raw_or_mmap` fallback live in
+// `lib/runtime_native/015_raw_alloc.oren` so early init code can safely use them.
+
+@oren.keep
+fn oren_track_alloc(ptr, size, kind) {
+    if oren_globals() == 0 { return ptr }
+    // Safety: do not allow tracking metadata to be attached to non-pointers.
+    // Many runtime helpers use `oren_find_node(x)` + `node.kind` as the single source of truth
+    // for whether it is safe to dereference `x` as a container header.
+    //
+    // If user code could call `oren_track_alloc(50000, ..., kind=LIST)`, later code might
+    // treat 50000 as a list pointer and dereference arbitrary memory. Filter this here.
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return ptr }
+
+    // IMPORTANT (native runtime model):
+    // Embedded string literals (cstr0 pool) live in the binary's data segment and must not be
+    // tracked as GC-managed allocations or even as static-kind nodes. The runtime recognizes
+    // them via the startup-built cstr0 membership set (`oren_init_static_cstr0_table`).
+    //
+    // Guardrail: if compiler/codegen accidentally calls `oren_track_alloc(literal, ...)`,
+    // treat it as a no-op so we never create tracking nodes pointing into static data.
+    if kind == 1 && g_cstr0_set_cap != 0 {
+        if native_cstr0_set_has(ptr) != 0 { return ptr }
+    }
+    acquire_lock()
+
+    // Ensure the alloc-index exists before we rely on it for de-duplication.
+    // This is a one-time cost in early init; it prevents duplicate tracking nodes.
+    if g_alloc_index_cap == 0 {
+        native_alloc_index_init_min(1024)
+        native_alloc_index_rebuild_live()
+    }
+
+    // De-duplicate (critical perf):
+    // Use the alloc-index hash table instead of scanning the full allocs list.
+    // The compiler self-host workload can create millions of allocations; an O(n) scan here
+    // makes `malloc + track` degrade to O(n^2) and can look like a hang.
+    var hit = native_alloc_index_get(ptr)
+    if hit == 0 && g_alloc_index_probe_exhausted != 0 {
+        // Rare corruption guard: rebuild once and retry.
+        g_alloc_index_probe_exhausted = 0
+        native_alloc_index_rebuild_live()
+        hit = native_alloc_index_get(ptr)
+    }
+    if hit != 0 {
+        if size != 0 { ptr_set(iadd(hit, 8), size) }
+        if kind != 0 { ptr_set(iadd(hit, 16), kind) }
+        // Clear "freed" and mark flags on re-track.
+        ptr_set(iadd(hit, 24), 0)
+        native_alloc_index_put_node(hit)
+        // Auto-GC accounting: treat tracking as allocation event (compiler emits this after malloc).
+        if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
+            g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
+            if g_gc_alloc_threshold > 0 && g_gc_allocs_since_collect >= g_gc_alloc_threshold {
+                g_gc_allocs_since_collect = 0
+                g_gc_auto_pending = 1
+            }
+        }
+        release_lock()
+        return ptr
+    }
+
+    // If it exists in the free list (reused pointer or manual re-track),
+    // move it back into allocs to avoid duplicate nodes pointing at the same ptr.
+    var prev = 0
+    var cur = global_get_free_blocks()
+    while cur != 0 {
+        if ptr_get(cur) == ptr {
+            var next = ptr_get(iadd(cur, 32))
+            if prev == 0 {
+                global_set_free_blocks(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+
+            ptr_set(iadd(cur, 8), size)
+            ptr_set(iadd(cur, 16), kind)
+            ptr_set(iadd(cur, 24), 0)
+            ptr_set(iadd(cur, 32), global_get_allocs())
+            global_set_allocs(cur)
+            native_alloc_index_put_node(cur)
+
+            if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
+                g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
+                if g_gc_alloc_threshold > 0 && g_gc_allocs_since_collect >= g_gc_alloc_threshold {
+                    g_gc_allocs_since_collect = 0
+                    g_gc_auto_pending = 1
+                }
+            }
+
+            release_lock()
+            return ptr
+        }
+        prev = cur
+        cur = ptr_get(iadd(cur, 32))
+    }
+
+    // Allocate a new tracking node (raw, untracked by GC).
+    var node = native_malloc_raw_or_mmap(40)
+    if node != 0 {
+        ptr_set(node, ptr)
+        ptr_set(iadd(node, 8), size)
+        ptr_set(iadd(node, 16), kind)
+        ptr_set(iadd(node, 24), 0) // not freed, not marked
+        ptr_set(iadd(node, 32), global_get_allocs())
+        global_set_allocs(node)
+        native_alloc_index_put_node(node)
+    }
+
+    if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
+        g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
+        if g_gc_alloc_threshold > 0 && g_gc_allocs_since_collect >= g_gc_alloc_threshold {
+            g_gc_allocs_since_collect = 0
+            g_gc_auto_pending = 1
+        }
+    }
+
+    release_lock()
+    return ptr
+}
+
+fn native_gc_register_root(ptr) {
+    if g_gc_enabled == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    acquire_lock()
+    
+    var node = native_malloc_raw_or_mmap(40)
+    if node != 0 {
+        ptr_set(node, ptr)
+        ptr_set(iadd(node, 8), 0)
+        ptr_set(iadd(node, 16), 0) // kind 0 for root
+        ptr_set(iadd(node, 24), 0)
+        ptr_set(iadd(node, 32), global_get_roots())
+        global_set_roots(node)
+    }
+    
+    release_lock()
+    return 0
+}
+
+fn native_gc_unregister_root(ptr) {
+    if g_gc_enabled == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    acquire_lock()
+
+    var prev = 0
+    var cur = global_get_roots()
+    while cur != 0 {
+        var next = ptr_get(iadd(cur, 32))
+        if ptr_get(cur) == ptr {
+            if prev == 0 {
+                global_set_roots(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            // Reuse node storage via free list.
+            ptr_set(cur, 0)
+            ptr_set(iadd(cur, 8), 40)
+            ptr_set(iadd(cur, 16), 0)
+            ptr_set(iadd(cur, 24), 0)
+            ptr_set(iadd(cur, 32), global_get_free_nodes())
+            global_set_free_nodes(cur)
+            release_lock()
+            return 0
+        }
+        prev = cur
+        cur = next
+    }
+
+    release_lock()
+    return 0
+}
+
+// --- Compiler/tooling GC pin (Tier‑1 parity with C backend) ---
+//
+// The self-hosted compiler uses `oren_gc_pin(x)` as a cheap way to keep a composite
+// object graph alive across deep recursive traversals (renamer/parser/serde lowering)
+// when auto-GC is enabled with bounded stack scanning.
+//
+// Native runtime does not have the C backend's per-thread pin slot, so we implement a
+// best-effort process-wide pin that registers/unregisters the pinned pointer as a GC root.
+//
+// Contract matches the C backend:
+// - returns previous pin value
+// - caller may restore the previous pin (stack discipline)
+var g_oren_gc_pin = 0
+
+// `oren_find_node` is a hot path in native v0 because many container/string operations
+// validate pointers via tracked metadata (Tier‑1 safety).
+//
+// Keep a tiny MRU cache for single-threaded compiler/tooling workloads to reduce repeated
+// alloc-index probes for the same few pointers.
+//
+// Correctness note:
+// - This cache is best-effort and is cleared on `native_gc_collect()` because sweep may
+//   recycle tracking nodes.
+var g_find_cache_ptr0 = 0
+var g_find_cache_node0 = 0
+var g_find_cache_ptr1 = 0
+var g_find_cache_node1 = 0
+
+fn native_find_cache_clear() {
+    g_find_cache_ptr0 = 0
+    g_find_cache_node0 = 0
+    g_find_cache_ptr1 = 0
+    g_find_cache_node1 = 0
+    return 0
+}
+
+@oren.keep
+fn oren_gc_pin(v) {
+    if g_gc_enabled == 0 { return 0 }
+    var prev = g_oren_gc_pin
+    // Unregister previous pinned pointer if it is a tracked heap object.
+    //
+    // IMPORTANT (native runtime model):
+    // Embedded string literals (cstr0 pool) are NOT tracked as GC heap allocations.
+    // They must not be rooted here; `oren_find_node(lit)` returns 0 for literals.
+    if prev != 0 {
+        var prev_node = oren_find_node(prev)
+        if prev_node != 0 {
+            if ptr_get(iadd(prev_node, 8)) != 0 {
+                native_gc_unregister_root(prev)
+            }
+        }
+    }
+    g_oren_gc_pin = v
+    // Register new pinned pointer if it is a tracked heap object.
+    if v != 0 {
+        var node = oren_find_node(v)
+        if node != 0 {
+            if ptr_get(iadd(node, 8)) != 0 {
+                native_gc_register_root(v)
+            }
+        }
+    }
+    return prev
+}
+
+@oren.keep
+fn oren_find_node(ptr) {
+    if oren_globals() == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    // Native runtime safety/perf rule:
+    // - Small integers are not pointers; don't scan the alloc list for them.
+    // - This also avoids accidental "pointer probing" semantics in places like map key-kind inference.
+    if ptr < 4096 { return 0 }
+
+    // Single-threaded fast path: avoid repeated hash probes for the same ptrs.
+    if g_runtime_single_threaded == 1 {
+        // Pointer identity compare MUST be primitive (not string-aware `==`).
+        if ptr - g_find_cache_ptr0 == 0 { return g_find_cache_node0 }
+        if ptr - g_find_cache_ptr1 == 0 { return g_find_cache_node1 }
+    }
+    acquire_lock()
+    var hit = native_alloc_index_get(ptr)
+    if hit != 0 {
+        if g_runtime_single_threaded == 1 {
+            g_find_cache_ptr1 = g_find_cache_ptr0
+            g_find_cache_node1 = g_find_cache_node0
+            g_find_cache_ptr0 = ptr
+            g_find_cache_node0 = hit
+        }
+        release_lock()
+        return hit
+    }
+
+    // If probing exhausted, the table is likely corrupted/saturated. Rebuild it once and retry.
+    if g_alloc_index_probe_exhausted != 0 {
+        g_alloc_index_probe_exhausted = 0
+        native_alloc_index_rebuild_live()
+        hit = native_alloc_index_get(ptr)
+        if hit != 0 {
+            if g_runtime_single_threaded == 1 {
+                g_find_cache_ptr1 = g_find_cache_ptr0
+                g_find_cache_node1 = g_find_cache_node0
+                g_find_cache_ptr0 = ptr
+                g_find_cache_node0 = hit
+            }
+            release_lock()
+            return hit
+        }
+    }
+
+    // Critical perf rule (native runtime):
+    // If the alloc-index is initialized and we missed, treat it as "not tracked" and return 0.
+    // Scanning the full alloc list on misses is catastrophically slow for compiler workloads
+    // because many pointers (embedded literals, argv/envp, raw buffers) are intentionally untracked.
+    if g_alloc_index_ptr != 0 && g_alloc_index_cap != 0 {
+        release_lock()
+        return 0
+    }
+
+    // Fallback for early init only: linear scan when the index isn't initialized yet.
+    var cur = global_get_allocs()
+    while cur != 0 {
+        if ptr_get(cur) == ptr {
+            native_alloc_index_put_node(cur)
+            if g_runtime_single_threaded == 1 {
+                g_find_cache_ptr1 = g_find_cache_ptr0
+                g_find_cache_node1 = g_find_cache_node0
+                g_find_cache_ptr0 = ptr
+                g_find_cache_node0 = cur
+            }
+            release_lock()
+            return cur
+        }
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return 0
+}
+
+@oren.keep
+fn oren_gc_safepoint() {
+    if g_gc_enabled == 0 { return 0 }
+    // STW safepoint: if a collector requests stop-the-world, park here.
+    native_gc_stw_poll_and_park()
+    if g_gc_auto_enabled == 0 { return 0 }
+    if g_gc_auto_pending == 0 { return 0 }
+    if native_gc_single_threaded() == false { return 0 }
+    g_gc_auto_pending = 0
+    native_gc_collect()
+    return 0
+}
+
+// Tier‑1 parity: provide `oren_gc_collect()` so compiler-internal modules can request
+// a collection without depending on the C backend runtime.
+//
+// Native backend note:
+// - This is a best-effort stopgap until the compiler's memory story is fully bounded
+//   by arena allocation + explicit phase ownership.
+@oren.keep
+fn oren_gc_collect() {
+    if g_gc_enabled == 0 { return 0 }
+    if native_gc_single_threaded() == true {
+        native_gc_collect()
+        return 0
+    }
+
+    // Multi-OS-thread path: request STW, collect, then release.
+    native_gc_stw_begin()
+    native_gc_collect()
+    native_gc_stw_end()
+    return 0
+}
+
+fn native_gc_find_node_nolock(ptr) {
+    if oren_globals() == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+
+    // Fast path: allocation index lookup without the global lock.
+    var hit = native_alloc_index_get(ptr)
+    if hit != 0 { return hit }
+
+    // If probing exhausted, rebuild once and retry.
+    if g_alloc_index_probe_exhausted != 0 {
+        g_alloc_index_probe_exhausted = 0
+        native_alloc_index_rebuild_live()
+        hit = native_alloc_index_get(ptr)
+        if hit != 0 { return hit }
+    }
+
+    // Early init fallback: linear scan when the index isn't initialized yet.
+    if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 {
+        var cur = global_get_allocs()
+        while cur != 0 {
+            if ptr_get(cur) - ptr == 0 { return cur }
+            cur = ptr_get(iadd(cur, 32))
+        }
+    }
+    return 0
+}
+
+fn oren_mark_value(val) {
+    if g_gc_enabled == 0 { return 0 }
+    if val == 0 { return 0 }
+    
+    var node = native_gc_find_node_nolock(val)
+    if node != 0 {
+        var kind = ptr_get(iadd(node, 16))
+        // Static-kind strings (size=0) are classification-only pointers:
+        // - They are not GC-managed and must not participate in mark/sweep.
+        // - Embedded cstr0 literals are typically *not tracked at all* (recognized via `native_cstr0_set_has`).
+        if kind == 1 {
+            if ptr_get(iadd(node, 8)) == 0 { return 0 }
+        }
+
+        // Mark it
+        ptr_set(iadd(node, 24), -1)
+
+        if kind == 2 { // LIST
+            var count = ptr_get(val)
+            var buf = ptr_get(iadd(val, 16))
+            if buf != 0 {
+                var i = 0
+                while i < count {
+                    var item = ptr_get(iadd(buf, i * 8))
+                    oren_mark_value(item)
+                    i = i + 1
+                }
+                oren_mark_value(buf)
+            }
+        }
+        if kind == 3 { // MAP
+            var count = ptr_get(iadd(val, 0))
+            var buf = ptr_get(iadd(val, 16))
+            var i = 0
+            while i < count {
+                // Entry layout (24 bytes): [key][key_kind][value]
+                var base = i * 24
+                var k = ptr_get(iadd(buf, base + 0))
+                var k_kind = ptr_get(iadd(buf, base + 8))
+                var v = ptr_get(iadd(buf, base + 16))
+                if k_kind == 1 { oren_mark_value(k) }
+                oren_mark_value(v)
+                i = i + 1
+            }
+            // Keep the entries buffer alive (tracked allocation).
+            oren_mark_value(buf)
+        }
+        if kind == 6 { // FUNC (closure env)
+            var env = ptr_get(iadd(val, 8))
+            oren_mark_value(env)
+        }
+        if kind == 7 { // BUF (typed buffers)
+            // Buffer header holds an owned payload pointer at +16.
+            // Keep the payload alive while the header is reachable.
+            var buf = ptr_get(iadd(val, 16))
+            oren_mark_value(buf)
+        }
+    }
+    return 0
+}
+
+fn native_gc_collect() {
+    if g_gc_enabled == 0 { return 0 }
+    native_find_cache_clear()
+    // 1) Clear marks (keep this phase allocation-free and leaf-ish).
+    var cur_clear = global_get_allocs()
+    while cur_clear != 0 {
+        if ptr_get(iadd(cur_clear, 24)) == -1 {
+            ptr_set(iadd(cur_clear, 24), 0)
+        }
+        cur_clear = ptr_get(iadd(cur_clear, 32))
+    }
+    
+    // 2) Mark stack
+    native_gc_scan_stack()
+
+    // 3) Mark roots
+    var r = global_get_roots()
+    while r != 0 {
+        var slot = ptr_get(r)
+        if slot != 0 {
+            var val = ptr_get(slot)
+            oren_mark_value(val)
+        }
+        r = ptr_get(iadd(r, 32))
+    }
+    
+    // 4) Sweep
+    //
+    // Rolling robustness:
+    // Avoid reusing locals across phases. The native backend's stack/local lowering is still
+    // rolling, and reusing the same var name across multiple loops has been a real source of
+    // miscompilations (manifesting as runaway recursion / stack corruption in GC).
+    var prev = 0
+    var cur_sweep = global_get_allocs()
+    while cur_sweep != 0 {
+        var next_node = ptr_get(iadd(cur_sweep, 32))
+        if ptr_get(iadd(cur_sweep, 24)) == -1 {
+            // Live
+            ptr_set(iadd(cur_sweep, 24), 0)
+            prev = cur_sweep
+        } else {
+            // Garbage
+            if prev == 0 {
+                global_set_allocs(next_node)
+            } else {
+                ptr_set(iadd(prev, 32), next_node)
+            }
+
+            var kind = ptr_get(iadd(cur_sweep, 16))
+            if kind == 9 {
+                // RAW_MMAP: return memory to OS immediately (do not keep in free_blocks).
+                var p = ptr_get(cur_sweep)
+                if p != 0 {
+                    var base = p - raw_hdr_size()
+                    if ptr_get(base + 0) == raw_magic() {
+                        var total = ptr_get(base + 8)
+                        var backend = ptr_get(base + 16)
+                        if backend == 1 && total > 0 {
+                            // best-effort
+                            sys_munmap(base, total)
+                        }
+                    }
+                }
+
+                // Reuse the tracking node storage via free_nodes list.
+                ptr_set(cur_sweep, 0)
+                ptr_set(iadd(cur_sweep, 8), 40)
+                ptr_set(iadd(cur_sweep, 16), 0)
+                ptr_set(iadd(cur_sweep, 24), 0)
+                ptr_set(iadd(cur_sweep, 32), global_get_free_nodes())
+                global_set_free_nodes(cur_sweep)
+            } else {
+                ptr_set(iadd(cur_sweep, 32), global_get_free_blocks())
+                global_set_free_blocks(cur_sweep)
+            }
+        }
+        cur_sweep = next_node
+    }
+
+    return 0
+}

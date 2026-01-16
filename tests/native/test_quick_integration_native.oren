@@ -721,6 +721,45 @@ fn test_select() {
     return 0
 }
 
+fn _qi_select_recv_one(ch) {
+    // Run inside a green task: `oren_select` must not block the scheduler OS thread.
+    var sel = oren_select_recv([ch])
+    if sel == 0 { return 0 - 5 } // EIO-ish
+    if oren_list_len(sel) != 2 { return 0 - 5 }
+    return oren_list_get(sel, 1)
+}
+
+fn _qi_select_send_delayed(ch, v) {
+    // Ensure the receiver enters select before we send (otherwise a blocking select would not deadlock).
+    // Use green-space sleep so we do not block the OS thread.
+    oren_green_sleep_ns(5000000) // 5ms
+    oren_chan_send(ch, v)
+    return 0
+}
+
+fn test_select_in_green_workers() {
+    trace("QI: test_select_in_green_workers")
+    // Native select over pipe-based channels is not supported on Windows yet.
+    if g_target_os == 3 { return 0 }
+
+    // Run under Stage N2 worker mode with a bounded join timeout so regressions cannot hang the suite:
+    // - if `oren_select` blocks the worker OS thread, the sender will never run and join_timeout will return -60.
+    var rcw = oren_green_start_workers(1)
+    assert_eq(rcw, 0, 560)
+
+    var c = oren_new_channel()
+    if c == 0 { fail(561) }
+
+    var recv_h = spawn _qi_select_recv_one(c)
+    var send_h = spawn _qi_select_send_delayed(c, 777)
+
+    var r = oren_join_timeout(recv_h, 200)
+    assert_eq(r, 777, 562)
+    // Best-effort cleanup: sender should be done quickly too.
+    oren_join_timeout(send_h, 200)
+    return 0
+}
+
 fn test_wait_on_addr_mismatch_is_success() {
     trace("QI: test_wait_on_addr_mismatch_is_success")
     // Contract (docs/CONCURRENCY_MODEL.md):
@@ -1175,6 +1214,7 @@ fn main() {
     test_green_p_count_api()
     test_green_multi_p_single_thread_poll_steal()
     test_green_workers_join()
+    test_select_in_green_workers()
     test_green_topology_rejects_after_workers()
     test_green_global_runq_fairness()
     test_green_ctx_switch_alloc_integrity()

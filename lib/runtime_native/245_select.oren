@@ -75,6 +75,12 @@ fn _select_epoll_event_has(evbuf, nready, want_kind, fd) {
     return 0
 }
 
+fn _select_in_green() {
+    // Detect whether the current OS thread is executing on a green stack (Stage N1/N2).
+    // If so, a fully-blocking select would stall the whole scheduler on that M.
+    return oren_green_in_green() == true
+}
+
 @oren.keep
 fn oren_select(cases) {
     // NOTE: This is a blocking primitive (matches AVM select semantics).
@@ -169,6 +175,7 @@ fn oren_select(cases) {
     }
 
     // Wait until at least one case is ready, then select deterministically using a round-robin cursor.
+    var in_green = _select_in_green()
     while 1 {
         var nready = 0
         var evbuf = 0
@@ -219,10 +226,42 @@ fn oren_select(cases) {
                 j = j + 1
             }
 
-            // Block indefinitely (timeout_ptr = NULL).
-            nready = sys_kevent(kq, change, nfds, evs, nfds, 0)
+            // In green mode, avoid blocking the entire scheduler OS thread:
+            // - poll (timeout=0) and then yield/sleep in green-space until ready.
+            var ts = 0
+            if in_green {
+                ts = malloc(16)
+                if ts == 0 {
+                    sys_close(kq); free(change); free(evs); free(kinds); free(fds); free(chans); free(vals)
+                    return 0 - 12
+                }
+                ptr_set(ts + 0, 0)
+                ptr_set(ts + 8, 0)
+            }
+
+            // Apply changes once, then poll with no changelist.
+            var did_reg = 0
+            while 1 {
+                if did_reg == 0 {
+                    nready = sys_kevent(kq, change, nfds, evs, nfds, ts)
+                    did_reg = 1
+                } else {
+                    nready = sys_kevent(kq, 0, 0, evs, nfds, ts)
+                }
+
+                if nready < 0 { break }
+                if nready > 0 { break }
+
+                // nready == 0:
+                // - non-green: shouldn't happen (would require a finite timeout), but treat it as spurious
+                // - green: yield/sleep so other G can run
+                if in_green {
+                    oren_green_sleep_ns(1000000) // 1ms poll backoff (rolling; real netpoller later)
+                }
+            }
             sys_close(kq)
             free(change)
+            if ts != 0 { free(ts) }
             if nready <= 0 {
                 free(evs)
                 if nready < 0 {
@@ -279,8 +318,18 @@ fn oren_select(cases) {
                 k = k + 1
             }
 
-            // Block indefinitely (timeout_ms = -1).
-            nready = sys_epoll_pwait(epfd, out, nfds2, -1, 0, 0)
+            // In green mode, avoid blocking the entire scheduler OS thread:
+            // - poll (timeout=0) and then yield/sleep in green-space until ready.
+            var timeout_ms = -1
+            if in_green { timeout_ms = 0 }
+            while 1 {
+                nready = sys_epoll_pwait(epfd, out, nfds2, timeout_ms, 0, 0)
+                if nready < 0 { break }
+                if nready > 0 { break }
+                if in_green {
+                    oren_green_sleep_ns(1000000) // 1ms poll backoff (rolling; real netpoller later)
+                }
+            }
             sys_close(epfd)
             free(ev)
             if nready <= 0 {

@@ -1,0 +1,668 @@
+// --- TIME (syscall-first) ---
+//
+// Provide a minimal “sleep” primitive without libc.
+// We keep TIME intentionally small in v0: higher-level deadlines/cancellation can be built on top.
+//
+// sys_nanosleep(ns) is a native-backend intrinsic implemented per-OS:
+// - macOS: kqueue/kevent timeout (no libc shims)
+// - Linux: nanosleep syscall
+//
+// Returns 0 on success, or -errno.
+@cap.requires(domain="TIME")
+fn oren_sleep_ns(ns) {
+    native_capsule_require(CAP_TIME, "TIME")
+    if ns <= 0 { return 0 }
+    // Primary path: native intrinsic sleep.
+    //
+    // Rolling safety (x86_64 bring-up):
+    // Some platforms/environments can temporarily have a stubbed or failing nanosleep path.
+    // To keep Tier‑1 semantics stable (and to keep join-timeout contracts meaningful),
+    // we fall back to a gettimeofday-based spin if the observed elapsed time is suspiciously low.
+    var t0 = oren_time_unix_ns()
+    var rc = sys_nanosleep(ns)
+    var t1 = oren_time_unix_ns()
+    // Debugging aid (Tier‑1 bring-up): diagnose environments where nanosleep/time are stubbed
+    // or failing. Keep output bounded: only print for "long" sleeps.
+    var dbg_sleep = native_envp_get_value_ptr("OREN_DEBUG_SLEEP")
+    var dbg_sleep_all = native_envp_get_value_ptr("OREN_DEBUG_SLEEP_ALL")
+    var do_log = false
+    if dbg_sleep_all != 0 {
+        if ptr_get_byte(dbg_sleep_all) != 0 { do_log = true }
+    }
+    if do_log != true && dbg_sleep != 0 {
+        if ptr_get_byte(dbg_sleep) != 0 {
+            if ns >= 1000000000 { do_log = true }
+        }
+    }
+    if do_log {
+        print("sleep debug: ns=" + oren_int_to_string(ns) + " rc=" + oren_int_to_string(rc) + " t0=" + oren_int_to_string(t0) + " t1=" + oren_int_to_string(t1))
+    }
+    if t0 != 0 && t1 != 0 {
+        var dt = t1 - t0
+        // If we asked for a positive sleep and got essentially no time advancement,
+        // treat it as a no-op and spin until the deadline (best-effort).
+        if dt >= 0 && dt < (ns / 4) {
+            var deadline = t0 + ns
+            var guard = 0
+            while guard < 100000000 {
+                var now = oren_time_unix_ns()
+                if now == 0 { break }
+                if now >= deadline { break }
+                guard = guard + 1
+            }
+        }
+    }
+    return rc
+}
+
+@cap.requires(domain="TIME")
+fn oren_sleep_ms(ms) {
+    native_capsule_require(CAP_TIME, "TIME")
+    if ms <= 0 { return 0 }
+    // ms -> ns
+    return oren_sleep_ns(ms * 1000000)
+}
+
+fn oren_kill(pid, signum) {
+    return sys_kill(pid, signum)
+}
+
+// Reusable scratch buffers for time syscalls (native runtime).
+//
+// Avoid per-call `malloc/free` in time helpers:
+// - reduces allocator churn in compiler workloads
+// - avoids crashes if `free()` / reuse lists are still rolling on some platforms
+// - keeps `oren_time_now_ns()` safe to call from tracing/profiling paths
+//
+// NOTE (Tier‑1 correctness):
+// In multi-threaded native programs (Windows `spawn`), TIME must not use shared mutable scratch
+// without synchronization. The fast path uses per-thread scratch stored in the thread node.
+// These globals are kept as a single-thread fallback (and as an emergency fallback if a
+// thread node is not discoverable).
+var g_time_tv_buf = 0   // 16 bytes (single-thread fallback)
+var g_time_abs_buf = 0  // 8 bytes  (single-thread fallback)
+
+// Monotonic clock calibration (process-global).
+//
+// Motivation:
+// - Green-task scheduler deadlines must be immune to wall-clock jumps (NTP, manual changes).
+// - Tier‑1 must remain syscall-first (avoid hard dependencies on libc wrappers).
+//
+// We expose:
+// - `oren_time_mono_raw()` : a monotonic, compare-only raw counter (platform-specific units)
+// - `oren_time_mono_ns()`  : best-effort conversion to nanoseconds since an unspecified origin
+//
+// Implementation strategy (rolling, cross-platform):
+// - Linux: native backend lowers `sys_gettimeofday(..., abs_ptr)` to fill abs_ptr with
+//   clock_gettime(CLOCK_MONOTONIC) in nanoseconds. (`raw` already matches ns.)
+// - macOS: kernel gettimeofday provides an out-arg for mach_absolute_time ticks (raw).
+// - Windows: backend uses QueryPerformanceCounter ticks (raw).
+// - For macOS/Windows, convert raw->ns using platform-provided scale factors:
+//   - macOS: mach_timebase_info (numer/denom)
+//   - Windows: QueryPerformanceFrequency (ticks/sec)
+//
+// This keeps the runtime bundle free of extra per-OS imports for now, while still providing
+// a monotonic ns clock suitable for scheduler deadlines.
+var g_time_mono_inited = 0
+var g_time_mono_base_raw = 0
+var g_time_mono_scale_num = 0 // numerator: ns_delta
+var g_time_mono_scale_den = 0 // denominator: raw_delta
+
+// macOS-only FFI: mach_timebase_info gives the exact conversion from mach_absolute_time ticks to ns.
+// We keep this gated so non-macOS targets don't pull in extra link deps from the shared runtime bundle.
+@cfg(os="macos")
+@ffi.libc
+@ffi.ret("i32")
+ffi {
+    mach_timebase_info as __oren_mach_timebase_info
+}
+@cfg(not_os="macos")
+fn __oren_mach_timebase_info(info_ptr) { return -38 }
+
+fn native_time_current_thread_node_or0() {
+    // Best-effort "which thread am I on?" heuristic shared with call-depth + GC stack scanning.
+    //
+    // Returns a Thread Node pointer or 0 if unknown/not registered yet.
+    if oren_globals() == 0 { return 0 }
+
+    // Prefer OS-thread identity when available:
+    // - `sys_gettid()` is stable per OS thread on Tier‑1 (macOS/Linux/Windows).
+    // - `oren_register_thread` stores it at node+56 (OS thread nodes only).
+    //
+    // This avoids relying on the "sp within 8MB of top" heuristic, which can fail on:
+    // - larger-than-8MB stacks
+    // - stacks mapped close together (false positives/negatives).
+    var tid = sys_gettid()
+    if tid != 0 {
+        var THREAD_NODE_FLAG_OS_THREAD = 1
+        // In multi-OS-thread mode, the global thread list is mutated under `acquire_lock()`.
+        // Traverse under the same lock to avoid seeing partially-published nodes.
+        if g_runtime_single_threaded == 0 { acquire_lock() }
+        var node0 = global_get_threads()
+        while node0 != 0 {
+            var flags = ptr_get(iadd(node0, 48))
+            if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+                if ptr_get(iadd(node0, 56)) == tid {
+                    if g_runtime_single_threaded == 0 { release_lock() }
+                    return node0
+                }
+            }
+            node0 = ptr_get(iadd(node0, 16))
+        }
+        if g_runtime_single_threaded == 0 { release_lock() }
+    }
+
+    // Fallback: stack-window heuristic (works for green stacks registered via `oren_register_stack`).
+    var sp = get_sp()
+    if g_runtime_single_threaded == 0 { acquire_lock() }
+    var node = global_get_threads()
+    var max_scan = 8388608 // 8MB
+    while node != 0 {
+        var top = ptr_get(node)
+        if sp < top {
+            var diff = top - sp
+            if diff < max_scan {
+                if g_runtime_single_threaded == 0 { release_lock() }
+                return node
+            }
+        }
+        node = ptr_get(iadd(node, 16))
+    }
+    if g_runtime_single_threaded == 0 { release_lock() }
+    return 0
+}
+
+fn native_time_thread_tv_buf(node) {
+    // Per-thread `struct timeval` scratch (16 bytes).
+    // Stored at node+32.
+    if node == 0 { return 0 }
+    var tv = ptr_get(iadd(node, 32))
+    if tv != 0 { return tv }
+    var p = sys_mmap_private_anon(16)
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    ptr_set(iadd(node, 32), p)
+    return p
+}
+
+fn native_time_thread_abs_buf(node) {
+    // Per-thread monotonic scratch (8 bytes).
+    // Stored at node+40.
+    if node == 0 { return 0 }
+    var abs_ptr = ptr_get(iadd(node, 40))
+    if abs_ptr != 0 { return abs_ptr }
+    var p = sys_mmap_private_anon(8)
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    ptr_set(iadd(node, 40), p)
+    return p
+}
+
+// Wall time in nanoseconds since Unix epoch (best-effort; not monotonic).
+fn oren_time_unix_ns() {
+    // struct timeval { tv_sec(u64), tv_usec(u64) } (we use 2x u64 for simplicity)
+    var tv = 0
+    if g_runtime_single_threaded == 1 {
+        // Single-thread fast path: globals are safe and avoid thread-node scanning.
+        if g_time_tv_buf == 0 {
+            g_time_tv_buf = native_malloc_raw_or_mmap(16)
+            if g_time_tv_buf == 0 { return 0 }
+        }
+        tv = g_time_tv_buf
+    } else {
+        // Multi-thread: use per-thread scratch stored in the thread node.
+        var node = native_time_current_thread_node_or0()
+        tv = native_time_thread_tv_buf(node)
+        if tv == 0 {
+            // Fallback: serialized global scratch (rare; keeps behavior deterministic).
+            acquire_lock()
+            if g_time_tv_buf == 0 { g_time_tv_buf = native_malloc_raw_or_mmap(16) }
+            tv = g_time_tv_buf
+            release_lock()
+            if tv == 0 { return 0 }
+        }
+    }
+    ptr_set(tv + 0, 0)
+    ptr_set(tv + 8, 0)
+    
+    var rc = sys_gettimeofday(tv, 0, 0)
+    var sec = 0
+    var usec = 0
+    if rc >= 0 {
+        sec = ptr_get(tv + 0)
+        usec = ptr_get(tv + 8)
+    }
+    
+    if rc < 0 { return 0 }
+    return sec * 1000000000 + usec * 1000
+}
+
+// Rolling alias used by stdlib + AVM parity.
+fn oren_time_now_ns() {
+    return oren_time_unix_ns()
+}
+
+// Monotonic “raw” time. For correctness, treat as compare-only (do not assume units).
+// On Linux, this will be nanoseconds (via clock_gettime64 monotonic in the intrinsic).
+// On macOS, this is mach_absolute_time units (returned by gettimeofday's 3rd out-arg).
+fn oren_time_mono_raw() {
+    var tv = 0
+    var abs_ptr = 0
+    if g_runtime_single_threaded == 1 {
+        if g_time_tv_buf == 0 {
+            g_time_tv_buf = native_malloc_raw_or_mmap(16)
+            if g_time_tv_buf == 0 { return 0 }
+        }
+        if g_time_abs_buf == 0 {
+            g_time_abs_buf = native_malloc_raw_or_mmap(8)
+            if g_time_abs_buf == 0 { return 0 }
+        }
+        tv = g_time_tv_buf
+        abs_ptr = g_time_abs_buf
+    } else {
+        var node = native_time_current_thread_node_or0()
+        tv = native_time_thread_tv_buf(node)
+        abs_ptr = native_time_thread_abs_buf(node)
+        if tv == 0 || abs_ptr == 0 {
+            // Emergency fallback: shared scratch under lock.
+            acquire_lock()
+            if g_time_tv_buf == 0 { g_time_tv_buf = native_malloc_raw_or_mmap(16) }
+            if g_time_abs_buf == 0 { g_time_abs_buf = native_malloc_raw_or_mmap(8) }
+            tv = g_time_tv_buf
+            abs_ptr = g_time_abs_buf
+            release_lock()
+            if tv == 0 || abs_ptr == 0 { return 0 }
+        }
+    }
+    ptr_set(tv + 0, 0)
+    ptr_set(tv + 8, 0)
+    ptr_set(abs_ptr, 0)
+    
+    var rc = sys_gettimeofday(tv, 0, abs_ptr)
+    var t = 0
+    if rc >= 0 {
+        t = ptr_get(abs_ptr)
+    }
+    
+    if rc < 0 { return 0 }
+    return t
+}
+
+fn _time_mul_div_u64(a, num, den) {
+    // Compute floor(a * num / den) with reduced overflow risk for typical monotonic scaling.
+    //
+    // Inputs are expected to be non-negative (u64-carried).
+    if den == 0 { return 0 }
+    if a <= 0 { return 0 }
+    if num <= 0 { return 0 }
+    if den < 0 { return 0 }
+    if num < 0 { return 0 }
+    var q = a / den
+    var r = a - (q * den)
+    // (q*num) + ((r*num)/den)
+    var hi = q * num
+    var lo = (r * num) / den
+    return hi + lo
+}
+
+fn _time_mono_try_init() {
+    if g_time_mono_inited != 0 { return 1 }
+
+    // First preference: exact raw->ns conversion using platform-provided scale factors.
+    //
+    // Linux:
+    // - raw is already ns (we fill it from CLOCK_MONOTONIC in the sys_gettimeofday lowering).
+    //
+    // macOS:
+    // - raw is mach_absolute_time ticks; use mach_timebase_info to convert ticks->ns.
+    //
+    // Windows:
+    // - raw is QueryPerformanceCounter ticks; use QueryPerformanceFrequency ticks/sec to convert.
+    var raw0 = oren_time_mono_raw()
+    if raw0 == 0 { return 0 }
+    if g_target_os == 2 {
+        g_time_mono_base_raw = raw0
+        g_time_mono_scale_num = 1
+        g_time_mono_scale_den = 1
+        g_time_mono_inited = 1
+        return 1
+    }
+    if g_target_os == 1 {
+        // mach_timebase_info_data_t { uint32_t numer; uint32_t denom; }
+        var page = sys_mmap_private_anon(4096)
+        if page != 0 && page != -1 && page >= 4096 {
+            var info = page
+            oren_ptr_set_u32_le(info + 0, 0)
+            oren_ptr_set_u32_le(info + 4, 0)
+            var rc = __oren_mach_timebase_info(info)
+            var numer = oren_ptr_get_u32_le(info + 0)
+            var denom = oren_ptr_get_u32_le(info + 4)
+            sys_munmap(page, 4096)
+            if rc == 0 && numer > 0 && denom > 0 {
+                g_time_mono_base_raw = raw0
+                g_time_mono_scale_num = numer
+                g_time_mono_scale_den = denom
+                g_time_mono_inited = 1
+                return 1
+            }
+        }
+        // Fall through to ratio calibration (best-effort) if timebase query fails.
+    }
+    if g_target_os == 3 {
+        // freq_ptr -> u64 ticks/sec
+        var page2 = sys_mmap_private_anon(4096)
+        if page2 != 0 && page2 != -1 && page2 >= 4096 {
+            var freq_ptr = page2
+            ptr_set(freq_ptr, 0)
+            var rc2 = sys_qpc_frequency(freq_ptr)
+            var freq = ptr_get(freq_ptr)
+            sys_munmap(page2, 4096)
+            if rc2 == 0 && freq > 0 {
+                g_time_mono_base_raw = raw0
+                g_time_mono_scale_num = 1000000000
+                g_time_mono_scale_den = freq
+                g_time_mono_inited = 1
+                return 1
+            }
+        }
+        // Fall through to ratio calibration if frequency query fails.
+    }
+
+    // Fallback: ratio calibration against wall time deltas (works even if the exact hooks are missing).
+    // Need both a wall clock and a monotonic raw counter to derive the ratio.
+    var unix0 = oren_time_unix_ns()
+    if unix0 == 0 { return 0 }
+
+    // Calibration goal:
+    // - Use a delta large enough (>=1ms) so (raw_delta, ns_delta) are non-trivial.
+    // - Avoid sleeping here (would slow scheduler bring-up and tests); just spin a bounded number of samples.
+    var i = 0
+    while i < 200000 {
+        var raw1 = oren_time_mono_raw()
+        var unix1 = oren_time_unix_ns()
+        if raw1 != 0 && unix1 != 0 && raw1 > raw0 && unix1 > unix0 {
+            var d_raw = raw1 - raw0
+            var d_ns = unix1 - unix0
+            if d_raw > 0 && d_ns >= 1000000 && d_ns <= 1000000000 {
+                g_time_mono_base_raw = raw0
+                g_time_mono_scale_num = d_ns
+                g_time_mono_scale_den = d_raw
+                g_time_mono_inited = 1
+                return 1
+            }
+            // If wall time advanced too much, re-anchor to avoid pathological ratios.
+            if d_ns > 1000000000 {
+                raw0 = raw1
+                unix0 = unix1
+            }
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+// Monotonic time in nanoseconds since an unspecified origin (compare-only absolute value).
+//
+// Guarantees (best-effort, rolling):
+// - If non-zero, it should be monotonic within a process (no wall-clock jumps).
+// - Origin is unspecified (not Unix epoch); treat it as "monotonic timestamp".
+fn oren_time_mono_ns() {
+    if g_time_mono_inited == 0 {
+        _time_mono_try_init()
+        if g_time_mono_inited == 0 { return 0 }
+    }
+    // Read raw after calibration so we never compare against a base that was sampled later.
+    var raw = oren_time_mono_raw()
+    if raw == 0 { return 0 }
+    var base = g_time_mono_base_raw
+    if raw < base { return 0 }
+    var d = raw - base
+    return _time_mul_div_u64(d, g_time_mono_scale_num, g_time_mono_scale_den)
+}
+
+		@oren.keep
+fn oren_register_thread(top) {
+    // Thread Node (rolling):
+    // - [top, saved_sp, next] must stay at offsets 0/8/16 because GC stack scanning depends on it.
+    // - Additional fields may be appended for tier-1 runtime services.
+    //
+    // Layout (8-byte slots):
+    //   0: top
+    //   8: saved_sp
+    //   16: next
+    //   24: call_depth (stack safety)
+    //   32: time_tv_buf (TIME scratch; 16 bytes)
+    //   40: time_abs_buf (TIME scratch; 8 bytes)
+    //   48: flags (bitmask; rolling)
+    //   56: os_tid (u64; stable per-OS-thread identity for idempotent registration)
+    //
+		    // Size: 64 bytes
+		    //
+		    // Flags (bitmask):
+		    // - bit0: OS thread node (vs. a green-stack node registered for GC scanning)
+		    var THREAD_NODE_FLAG_OS_THREAD = 1
+		    // - bit1: STW parked (set by GC safepoints)
+			    // Runtime metadata:
+			    // - Thread nodes must never be GC-managed (they are referenced by the GC scanner).
+			    // - `oren_register_thread` can run concurrently with the main thread during OS-thread bring-up.
+			    // - The "single-thread" fast-path allocator is not concurrency-safe, so allocate via a raw
+		    //   syscall-backed page to avoid any shared allocator state races.
+		    //
+			    // NOTE: we intentionally over-allocate (1 page) to keep the allocator out of the path.
+			    // If/when we have a concurrency-safe raw allocator, we can shrink this to 56 bytes.
+			    //
+			    // Idempotency:
+			    // - Some OS-thread start stubs register threads automatically.
+			    // - Tests and early bring-up code sometimes also call `oren_register_thread(get_sp())`.
+			    // - Without dedupe, we would double-count OS threads and create duplicate nodes,
+			    //   which breaks stop-the-world GC waiting (and inflates stack scans).
+			    //
+			    // Use `sys_gettid()` to dedupe per OS thread, and return an existing node if present.
+				    var tid = sys_gettid()
+				    if tid != 0 && oren_globals() != 0 {
+				        // In multi-OS-thread mode, traverse the shared thread list under the runtime lock
+				        // (the list is mutated under `acquire_lock()` by stack nodes and OS-thread nodes).
+				        if g_runtime_single_threaded == 0 { acquire_lock() }
+				        var cur0 = global_get_threads()
+				        while cur0 != 0 {
+				            var flags0 = ptr_get(iadd(cur0, 48))
+				            if (flags0 & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+				                var t0 = ptr_get(iadd(cur0, 56))
+				                if t0 == tid {
+				                    if g_runtime_single_threaded == 0 { release_lock() }
+				                    // Keep existing top (do not shrink the scan window).
+				                    return cur0
+				                }
+				            }
+				            cur0 = ptr_get(iadd(cur0, 16))
+				        }
+				        if g_runtime_single_threaded == 0 { release_lock() }
+				    }
+
+			    var node = sys_mmap_private_anon(4096)
+			    if node != 0 && node != -1 && node >= 4096 {
+			        ptr_set(node, top)
+			        ptr_set(iadd(node, 8), 0) // saved_sp
+			        ptr_set(iadd(node, 24), 0) // call_depth
+			        ptr_set(iadd(node, 32), 0) // time_tv_buf
+			        ptr_set(iadd(node, 40), 0) // time_abs_buf
+			        ptr_set(iadd(node, 48), THREAD_NODE_FLAG_OS_THREAD)
+			        ptr_set(iadd(node, 56), tid)
+		        
+			        // Publish the node:
+			        //
+			        // Single-thread mode:
+			        // - Use lock-free CAS on the global thread-list head (safe during early bring-up).
+			        //
+			        // Multi-thread mode:
+			        // - Use the runtime global lock so this does not race with `oren_register_stack` /
+			        //   `oren_unregister_stack`, which mutate the same list under `acquire_lock()`.
+			        //
+			        // Without this split, a concurrent CAS insertion can be lost if another thread
+			        // performs a non-atomic head write under the lock.
+			        if g_runtime_single_threaded == 0 {
+			            acquire_lock()
+			            var prev_head2 = global_get_threads()
+			            ptr_set(iadd(node, 16), prev_head2)
+			            global_set_threads(node)
+			            release_lock()
+			        } else {
+			            var threads_ptr = iadd(oren_globals(), 32) // GLOBAL_OFF_THREADS
+			            while 1 {
+			                var prev_head = ptr_get(threads_ptr)
+			                ptr_set(iadd(node, 16), prev_head)
+			                // atomic_cas returns the *old* value. Success iff old == expected.
+			                if atomic_cas(threads_ptr, prev_head, node) == prev_head { break }
+			            }
+			        }
+
+		        // Update OS-thread count and single-thread fast path.
+	        //
+	        // This intentionally tracks only OS threads (not green stacks), so green-task mode
+	        // can preserve the single-thread fast path.
+		        var count_ptr = iadd(oren_globals(), 416) // GLOBAL_OFF_OS_THREAD_COUNT (rolling)
+		        while 1 {
+		            var old = ptr_get(count_ptr)
+		            var new = iadd(old, 1)
+		            // atomic_cas returns the *old* value. Success iff old == expected.
+		            if atomic_cas(count_ptr, old, new) == old {
+		                if old != 0 { g_runtime_single_threaded = 0 }
+		                break
+		            }
+		        }
+	    }
+	    return node
+	}
+
+// Register a non-OS stack node for GC scanning (native green tasks Stage N1).
+//
+// This must NOT disable the "single-thread" fast paths: green tasks share a single OS thread
+// and run cooperatively, so using global scratch without locks remains safe.
+@oren.keep
+fn oren_register_stack(top) {
+    if oren_globals() == 0 { return 0 }
+    // Same node layout as `oren_register_thread`, but flags=0.
+    var node = native_malloc_raw_or_mmap(56)
+    if node == 0 { return 0 }
+    ptr_set(node, top)
+    ptr_set(iadd(node, 8), 0) // saved_sp
+    ptr_set(iadd(node, 24), 0) // call_depth (unused for stacks today)
+    ptr_set(iadd(node, 32), 0) // time_tv_buf (unused)
+    ptr_set(iadd(node, 40), 0) // time_abs_buf (unused)
+    ptr_set(iadd(node, 48), 0) // flags
+
+    acquire_lock()
+    var prev_head = global_get_threads()
+    ptr_set(iadd(node, 16), prev_head)
+    global_set_threads(node)
+    release_lock()
+    return node
+}
+
+@oren.keep
+fn oren_unregister_stack(node) {
+    if node == 0 { return 0 }
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var prev = 0
+    var cur = global_get_threads()
+    while cur != 0 {
+        if cur == node {
+            var next = ptr_get(iadd(cur, 16))
+            if prev == 0 {
+                global_set_threads(next)
+            } else {
+                ptr_set(iadd(prev, 16), next)
+            }
+            break
+        }
+        prev = cur
+        cur = ptr_get(iadd(cur, 16))
+    }
+    release_lock()
+    return 0
+}
+
+fn get_sp() { return 0 } // Intrinsic
+
+// GC mode toggle (native backend):
+// - enabled (default): conservative mark/sweep from stack + registered roots
+// - disabled (deterministic/manual): disable scanning/collection; keep tracking so `free()` can reuse blocks
+var g_gc_enabled = 1
+
+// Auto-GC (native backend; rolling):
+//
+// The native runtime GC is conservative mark/sweep. For long-running tools like the compiler
+// self-host build (stage2 native), we need a bounded-memory mode so RSS doesn't climb into
+// multi‑GB territory.
+//
+// Strategy:
+// - Count tracked allocations in `oren_track_alloc` (compiler inserts it after malloc).
+// - When the threshold is reached, set a pending flag.
+// - A safepoint (`oren_gc_safepoint`) initiates collection in a safe place.
+//
+// NOTE: we only auto-collect in single-threaded programs for now. The native GC scans
+// stacks without a stop-the-world protocol; collecting while other threads run would be unsafe.
+var g_gc_auto_enabled = 0
+var g_gc_alloc_threshold = 200000
+var g_gc_allocs_since_collect = 0
+var g_gc_auto_pending = 0
+
+@oren.keep
+fn native_runtime_init_gc_mode(default_enabled) {
+    // default_enabled is provided by the compiler from `--no-gc`.
+    g_gc_enabled = default_enabled
+
+    // Runtime override: allow disabling GC via environment variable.
+    // Any non-empty value disables scanning/collection.
+    var v = native_envp_get_value_ptr("OREN_NO_GC")
+    if v != 0 {
+        if ptr_get_byte(v) != 0 { g_gc_enabled = 0 }
+    }
+
+    // Auto-GC policy (opt-in; compiler/test harness can enable via env).
+    //
+    // Env:
+    // - OREN_GC_AUTO=1 enables auto-collection
+    // - OREN_GC_ALLOC_THRESHOLD=<n> triggers a collection request after n tracked allocations
+    //   (0 disables auto-GC even if OREN_GC_AUTO is set)
+    g_gc_auto_enabled = 0
+    g_gc_alloc_threshold = 200000
+    g_gc_allocs_since_collect = 0
+    g_gc_auto_pending = 0
+
+    var v_auto = native_envp_get_value_ptr("OREN_GC_AUTO")
+    if v_auto != 0 {
+        if ptr_get_byte(v_auto) != 0 && ptr_get_byte(v_auto) != 48 { // not empty and not '0'
+            g_gc_auto_enabled = 1
+        }
+    }
+
+    var v_thr = native_envp_get_value_ptr("OREN_GC_ALLOC_THRESHOLD")
+    if v_thr != 0 {
+        var thr = native_parse_i64_dec_cstr_or_neg1(v_thr)
+        if thr >= 0 { g_gc_alloc_threshold = thr }
+    }
+    if g_gc_alloc_threshold == 0 { g_gc_auto_enabled = 0 }
+    return 0
+}
+
+fn native_gc_single_threaded() {
+    if oren_globals() == 0 { return true }
+    acquire_lock()
+    // Treat this as "single OS thread" (not "single stack node"), so green stacks
+    // registered for GC scanning do not disable auto-GC / safepoints.
+    var THREAD_NODE_FLAG_OS_THREAD = 1
+    var count = 0
+    var cur = global_get_threads()
+    while cur != 0 {
+        if (ptr_get(iadd(cur, 48)) & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+            count = count + 1
+            if count > 1 { break }
+        }
+        cur = ptr_get(iadd(cur, 16))
+    }
+    var ok = true
+    if count > 1 { ok = false }
+    release_lock()
+    return ok
+}
+

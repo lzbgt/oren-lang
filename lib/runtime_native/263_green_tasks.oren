@@ -217,6 +217,18 @@ fn oren_green_set_poll_cache_mode(enable) {
     return 0
 }
 
+// Return true if the current OS thread is executing on a green stack (i.e. inside a G).
+//
+// This helper exists so non-scheduler runtime subsystems (select/net/proc) can avoid blocking
+// the entire scheduler OS thread when called from green tasks.
+@oren.keep
+fn oren_green_in_green() {
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return false }
+    if ptr_get(ts + green_t_off_current_g()) != 0 { return true }
+    return false
+}
+
 fn _green_get_state() { return g_green_state }
 fn _green_set_state(p) { g_green_state = p; return 0 }
 
