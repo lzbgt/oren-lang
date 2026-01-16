@@ -1176,6 +1176,46 @@ fn insn_movd_r32_xmm(r_dst, xmm_src) {
     return out
 }
 
+fn insn_movdqu_m128_xmm_disp(base_reg, disp, xmm_src) {
+    // MOVDQU m128, xmm => F3 0F 7F /r (with disp8/disp32 + optional REX)
+    //
+    // This is used by coroutine context switching to preserve SIMD state.
+    if xmm_src < 0 || xmm_src > 15 { return nil }
+    if base_reg < 0 || base_reg > 15 { return nil }
+    var out = _insn_pool_get()
+    bytes_push(out, 243) // F3
+    var rex = _rex_base_xmm_rm(xmm_src, base_reg, false)
+    if rex != 64 { bytes_push(out, rex) }
+    bytes_push(out, 15)  // 0F
+    bytes_push(out, 127) // 7F
+    var enc = _mem_base_modrm_and_sib_disp(base_reg, int_mod(xmm_src, 8), disp)
+    if enc == nil { return nil }
+    bytes_push(out, enc["modrm"])
+    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
+    return out
+}
+
+fn insn_movdqu_xmm_m128_disp(xmm_dst, base_reg, disp) {
+    // MOVDQU xmm, m128 => F3 0F 6F /r (with disp8/disp32 + optional REX)
+    if xmm_dst < 0 || xmm_dst > 15 { return nil }
+    if base_reg < 0 || base_reg > 15 { return nil }
+    var out = _insn_pool_get()
+    bytes_push(out, 243) // F3
+    var rex = _rex_base_xmm_rm(xmm_dst, base_reg, false)
+    if rex != 64 { bytes_push(out, rex) }
+    bytes_push(out, 15)  // 0F
+    bytes_push(out, 111) // 6F
+    var enc = _mem_base_modrm_and_sib_disp(base_reg, int_mod(xmm_dst, 8), disp)
+    if enc == nil { return nil }
+    bytes_push(out, enc["modrm"])
+    if enc["sib"] != nil { bytes_push(out, enc["sib"]) }
+    if enc["disp8"] != nil { bytes_push(out, enc["disp8"]) }
+    if enc["disp32"] != nil { push_u32_le(out, enc["disp32"]) }
+    return out
+}
+
 fn insn_cvtsi2sd_xmm_r64(xmm_dst, r_src) {
     // CVTSI2SD xmm, r/m64 => F2 0F 2A /r with REX.W=1
     if xmm_dst < 0 || xmm_dst > 15 { return nil }

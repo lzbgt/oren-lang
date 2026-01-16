@@ -100,10 +100,13 @@ Core idea:
 Requirements:
 
 1) **A context switch primitive**
-   - Implemented as a tiny AArch64 assembly routine (no libc):
-     - save callee-saved registers + SP + return address into a `Context`
-     - restore from another `Context`
-   - Exposed to Oren as an intrinsic (e.g. `oren_ctx_switch(old, new)`).
+   - Implemented as **native backend intrinsics** (inlined at call sites; no external asm objects or libc):
+     - `oren_ctx_init(ctx_ptr, sp, pc)` initializes a context blob for first entry
+     - `oren_ctx_switch(old_ctx, new_ctx)` saves CPU state into `old_ctx` and resumes `new_ctx`
+   - Preservation contract (rolling, required for green scheduling correctness):
+     - Save/restore all non-reserved GPRs + `SP` + resume `PC`.
+     - Save/restore SIMD regs too (arm64: `Q0..Q31`, x64: `XMM0..XMM15`).
+     - Do **not** save/restore the native bump allocator registers (arm64: `X27/X28`, x64: `R14/R15`), because allocator state must be shared per OS thread.
 
 2) **Per-greenlet stack**
    - Allocate stacks from the runtime allocator (eventually with guard pages).
@@ -308,6 +311,7 @@ Add (recommended) explicit primitives:
 N:1 (must land before N:M to avoid massive debugging complexity):
 
 - `Context` struct + `oren_ctx_switch` intrinsic (AArch64)
+- `Context` blob + `oren_ctx_switch` intrinsic (x86_64)
 - `G` struct (stack, context, status, id)
 - scheduler loop in runtime (ready queue + timers)
 - `yield()` intrinsic and at least one regression test that proves it yields

@@ -81,6 +81,7 @@ fn insn_fcvtzs(rd, rn) { return core.insn_fcvtzs(rd, rn) }
 fn insn_mul_4s(vd, vn, vm) { return core.insn_mul_4s(vd, vn, vm) }
 fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
 fn insn_str_ptr(rd, rn) { return core.insn_str_ptr(rd, rn) }
+fn insn_str_ptr_off(rt, rn, offset) { return core.insn_str_ptr_off(rt, rn, offset) }
 fn insn_ldr_w(rt, rn, offset) { return core.insn_ldr_w(rt, rn, offset) }
 fn insn_str_w(rt, rn, offset) { return core.insn_str_w(rt, rn, offset) }
 fn insn_strb(rt, rn) { return core.insn_strb(rt, rn) }

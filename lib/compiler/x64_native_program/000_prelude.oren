@@ -137,6 +137,8 @@ fn insn_movq_xmm_r64(xmm_dst, r_src) { return core.insn_movq_xmm_r64(xmm_dst, r_
 fn insn_movq_r64_xmm(r_dst, xmm_src) { return core.insn_movq_r64_xmm(r_dst, xmm_src) }
 fn insn_movd_xmm_r32(xmm_dst, r_src) { return core.insn_movd_xmm_r32(xmm_dst, r_src) }
 fn insn_movd_r32_xmm(r_dst, xmm_src) { return core.insn_movd_r32_xmm(r_dst, xmm_src) }
+fn insn_movdqu_m128_xmm_disp(base_reg, disp, xmm_src) { return core.insn_movdqu_m128_xmm_disp(base_reg, disp, xmm_src) }
+fn insn_movdqu_xmm_m128_disp(xmm_dst, base_reg, disp) { return core.insn_movdqu_xmm_m128_disp(xmm_dst, base_reg, disp) }
 fn insn_cvtsi2sd_xmm_r64(xmm_dst, r_src) { return core.insn_cvtsi2sd_xmm_r64(xmm_dst, r_src) }
 fn insn_cvttsd2si_r64_xmm(r_dst, xmm_src) { return core.insn_cvttsd2si_r64_xmm(r_dst, xmm_src) }
 fn insn_addsd_xmm_xmm(xmm_dst, xmm_src) { return core.insn_addsd_xmm_xmm(xmm_dst, xmm_src) }

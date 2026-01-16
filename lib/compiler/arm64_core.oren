@@ -897,6 +897,14 @@ fn insn_ldr_q(vt, rn) {
     return 1035993088 + (rn * 32) + vt
 }
 
+fn insn_ldr_q_off(vt, rn, offset) {
+    // LDR Qt, [Xn, #imm12<<4] (unsigned offset encoding, scaled by 16)
+    // Verified via clang:
+    //   ldr q2, [sp]      => 0x3DC003E2
+    //   ldr q3, [sp,#16]  => 0x3DC007E3
+    return 1035993088 + ((offset / 16) * 1024) + (rn * 32) + vt
+}
+
 fn insn_str_q(vt, rn) {
     // STR Qt, [Xn] (unsigned offset imm=0)
     // Verified via clang:
@@ -934,6 +942,15 @@ fn insn_str_ptr(rd, rn) {
     // Verified via clang:
     //   str x2, [x3] => 0xF9000062
     return 4177526784 + (rn * 32) + rd
+}
+
+fn insn_str_ptr_off(rt, rn, offset) {
+    // STR Xt, [Xn, #imm12<<3] (unsigned offset encoding, scaled by 8)
+    // Verified via clang:
+    //   str x2, [x3]      => 0xF9000062
+    //   str x3, [x4,#24]  => 0xF9000C83
+    // Base: 0xF9000000
+    return 4177526784 + ((offset / 8) * 1024) + (rn * 32) + rt
 }
 
 fn insn_ldr_w(rt, rn, offset) {

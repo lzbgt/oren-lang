@@ -153,19 +153,24 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
 		            //
 		            // These are intentionally implemented as compiler intrinsics (inlined at call sites)
 		            // so they do not depend on libc or a stable external assembly object.
-	            //
-		            // Context layout (bytes, u64 slots) for AArch64:
-		            //   0..72:  x19..x28 (10 regs)
+		            //
+		            // Context layout (rolling, AArch64):
 		            //
 		            // IMPORTANT (native runtime allocator model):
 		            // - X27/X28 are reserved as the bump allocator state (heap_limit/heap_ptr).
 		            // - They must be *shared* across all green tasks running on the same OS thread.
 		            // - Therefore, coroutine context switching must NOT save/restore X27/X28, or it would
 		            //   snapshot allocator state per green task and corrupt the heap.
-		            //   80:     x29 (FP)
-		            //   88:     x30 (LR)
-		            //   96:     SP  (saved stack pointer)
-		            //   104:    PC  (resume address; branch target)
+		            //
+		            // GPR region (u64 slots; 8-byte aligned):
+		            // - slot 0..26:  x0..x26
+		            // - slot 27:     x29 (FP)
+		            // - slot 28:     x30 (LR)
+		            // - slot 29:     SP
+		            // - slot 30:     PC (resume address)
+		            //
+		            // SIMD region (16-byte aligned):
+		            // - at offset 256: Q0..Q31 (each 16 bytes)
 	            if fn_name == "oren_ctx_init" {
 	                var args = expr["args"]
 	                if args == nil || oren_list_len(args) != 3 {
@@ -184,83 +189,105 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
 	                native_compile_expr(ctx, args[2])
 	                push_u32_le(ctx["code"], insn_mov_reg(11, 0))
 
-	                // ctx[sp] = sp
-	                push_u32_le(ctx["code"], insn_add_imm(12, 9, 96))
-	                push_u32_le(ctx["code"], insn_str_ptr(10, 12))
-	                // ctx[pc] = pc
-	                push_u32_le(ctx["code"], insn_add_imm(12, 9, 104))
-	                push_u32_le(ctx["code"], insn_str_ptr(11, 12))
+	                // ctx[sp] = sp (slot 29)
+	                push_u32_le(ctx["code"], insn_str_ptr_off(10, 9, 232))
+	                // ctx[pc] = pc (slot 30)
+	                push_u32_le(ctx["code"], insn_str_ptr_off(11, 9, 240))
 
 	                // Return 0
 	                push_u32_le(ctx["code"], insn_movz(0, 0))
 	                return true
 	            }
 
-	            if fn_name == "oren_ctx_switch" {
-	                var args = expr["args"]
-	                if args == nil || oren_list_len(args) != 2 {
-	                    native_error(ctx, expr["token"], "native backend: oren_ctx_switch expects 2 arguments")
-	                    push_u32_le(ctx["code"], insn_movz(0, 0))
-	                    return true
+		            if fn_name == "oren_ctx_switch" {
+		                var args = expr["args"]
+		                if args == nil || oren_list_len(args) != 2 {
+		                    native_error(ctx, expr["token"], "native backend: oren_ctx_switch expects 2 arguments")
+		                    push_u32_le(ctx["code"], insn_movz(0, 0))
+		                    return true
+		                }
+
+		                // Save GPRs + SP + resume PC into old_ctx.
+		                //
+		                // Note:
+		                // - We do not save/restore X27/X28 (reserved heap regs).
+		                // - Saving caller-saved registers improves robustness for scheduler code that can
+		                //   resume after `oren_ctx_switch` with live locals.
+		                //
+		                // Implementation detail:
+		                // - `native_compile_expr` produces its result in X0, so we spill the caller's
+		                //   original X0 to the stack first so the saved context preserves it.
+		                push_u32_le(ctx["code"], insn_sub_sp(16))
+		                push_u32_le(ctx["code"], insn_str_reg_sp(0, 0)) // [sp+0] = orig x0
+
+		                // old_ctx_ptr -> X0
+		                native_compile_expr(ctx, args[0])
+
+		                // Save GPRs x1..x26 into old_ctx (X0 base).
+		                var r = 1
+		                while r <= 26 {
+		                    push_u32_le(ctx["code"], insn_str_ptr_off(r, 0, r * 8))
+		                    r = r + 1
+		                }
+		                // Save original X0 (spilled on stack) into old_ctx[x0]. Balance SP before saving SP.
+		                push_u32_le(ctx["code"], insn_ldr_reg_sp(12, 0)) // X12 = orig x0
+		                push_u32_le(ctx["code"], insn_str_ptr_off(12, 0, 0))
+		                push_u32_le(ctx["code"], insn_add_sp(16))
+
+		                // x29, x30
+		                push_u32_le(ctx["code"], insn_str_ptr_off(29, 0, 216))
+		                push_u32_le(ctx["code"], insn_str_ptr_off(30, 0, 224))
+
+		                // Save current SP into old_ctx[sp].
+		                push_u32_le(ctx["code"], insn_add_imm(12, 31, 0)) // X12 = SP
+		                push_u32_le(ctx["code"], insn_str_ptr_off(12, 0, 232))
+
+		                // Save resume PC into old_ctx[pc]. We encode the address of the local resume label.
+		                var adr_pos = bytes_len(ctx["code"])
+		                push_u32_le(ctx["code"], 0) // patched to ADR X12, #imm
+		                push_u32_le(ctx["code"], insn_str_ptr_off(12, 0, 240))
+
+		                // Save SIMD state (Q0..Q31).
+		                var vi = 0
+		                while vi < 32 {
+		                    push_u32_le(ctx["code"], insn_str_q_off(vi, 0, 256 + vi * 16))
+		                    vi = vi + 1
+		                }
+
+		                // new_ctx_ptr -> X0
+		                native_compile_expr(ctx, args[1])
+
+		                // Restore from new_ctx.
+		                //
+		                // Use X16 as the base pointer so we can restore X10 without clobbering the base.
+		                // X16 is call-scratch; we intentionally do not restore it.
+		                push_u32_le(ctx["code"], insn_mov_reg(16, 0)) // X16 = new_ctx_ptr
+
+		                // Restore SIMD state (Q0..Q31).
+		                vi = 0
+		                while vi < 32 {
+		                    push_u32_le(ctx["code"], insn_ldr_q_off(vi, 16, 256 + vi * 16))
+	                    vi = vi + 1
 	                }
 
-	                // old_ctx_ptr -> X9
-	                native_compile_expr(ctx, args[0])
-	                push_u32_le(ctx["code"], insn_mov_reg(9, 0))
-	                // new_ctx_ptr -> X10
-	                native_compile_expr(ctx, args[1])
-	                push_u32_le(ctx["code"], insn_mov_reg(10, 0))
-
-	                // Save callee-saved registers into old_ctx.
-	                //
-	                // Store sequence uses a scratch address register (X11) because we only have STR [Xn] with 0 offset helper.
-		                var off = 0
-		                var r = 19
-		                while r <= 28 {
-		                    // Skip X27/X28 (global bump allocator state).
-		                    if r != 27 && r != 28 {
-		                        off = (r - 19) * 8
-		                        push_u32_le(ctx["code"], insn_add_imm(11, 9, off))
-		                        push_u32_le(ctx["code"], insn_str_ptr(r, 11))
-		                    }
-		                    r = r + 1
-		                }
+	                // Restore GPRs x0..x26 (skip X16 which is used as the base).
+	                r = 0
+	                while r <= 26 {
+	                    if r != 16 {
+	                        push_u32_le(ctx["code"], insn_ldr_ptr_off(r, 16, r * 8))
+	                    }
+	                    r = r + 1
+	                }
 	                // x29, x30
-	                push_u32_le(ctx["code"], insn_add_imm(11, 9, 80))
-	                push_u32_le(ctx["code"], insn_str_ptr(29, 11))
-	                push_u32_le(ctx["code"], insn_add_imm(11, 9, 88))
-	                push_u32_le(ctx["code"], insn_str_ptr(30, 11))
+	                push_u32_le(ctx["code"], insn_ldr_ptr_off(29, 16, 216))
+	                push_u32_le(ctx["code"], insn_ldr_ptr_off(30, 16, 224))
 
-	                // Save current SP into old_ctx[sp].
-	                push_u32_le(ctx["code"], insn_add_imm(12, 31, 0)) // X12 = SP
-	                push_u32_le(ctx["code"], insn_add_imm(11, 9, 96))
-	                push_u32_le(ctx["code"], insn_str_ptr(12, 11))
-
-	                // Save resume PC into old_ctx[pc]. We encode the address of the local resume label.
-	                var adr_pos = bytes_len(ctx["code"])
-	                push_u32_le(ctx["code"], 0) // patched to ADR X12, #imm
-	                push_u32_le(ctx["code"], insn_add_imm(11, 9, 104))
-	                push_u32_le(ctx["code"], insn_str_ptr(12, 11))
-
-	                // Restore callee-saved registers from new_ctx.
-		                r = 19
-		                while r <= 28 {
-		                    // Skip X27/X28 (global bump allocator state).
-		                    if r != 27 && r != 28 {
-		                        off = (r - 19) * 8
-		                        push_u32_le(ctx["code"], insn_ldr_ptr_off(r, 10, off))
-		                    }
-		                    r = r + 1
-		                }
-	                push_u32_le(ctx["code"], insn_ldr_ptr_off(29, 10, 80))
-	                push_u32_le(ctx["code"], insn_ldr_ptr_off(30, 10, 88))
-
-	                // Restore SP.
-	                push_u32_le(ctx["code"], insn_ldr_ptr_off(12, 10, 96))
-	                push_u32_le(ctx["code"], insn_add_imm(31, 12, 0)) // SP = X12
+		                // Restore SP.
+		                push_u32_le(ctx["code"], insn_ldr_ptr_off(12, 16, 232))
+		                push_u32_le(ctx["code"], insn_add_imm(31, 12, 0)) // SP = X12
 
 	                // Jump to new PC.
-	                push_u32_le(ctx["code"], insn_ldr_ptr_off(12, 10, 104))
+	                push_u32_le(ctx["code"], insn_ldr_ptr_off(12, 16, 240))
 	                push_u32_le(ctx["code"], insn_br(12))
 
 	                // Resume label: execution continues here when switched back into this context.

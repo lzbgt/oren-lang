@@ -50,17 +50,33 @@
 	    // Implemented as compiler intrinsics (inlined) so they do not depend on
 	    // external assembly objects or libc.
 	    //
-		    // Context layout (bytes, u64 slots) for x86_64:
-		    //   0:   rbx
-		    //   8:   rbp
-		    //   16:  rdi  (Win64 nonvolatile; SysV volatile but safe to include)
-		    //   24:  rsi  (Win64 nonvolatile; SysV volatile but safe to include)
-		    //   32:  r12
-		    //   40:  r13
-		    //   48:  r14  (reserved: global bump allocator heap_limit; MUST NOT be saved/restored)
-		    //   56:  r15  (reserved: global bump allocator heap_ptr;   MUST NOT be saved/restored)
-		    //   64:  rsp
-		    //   72:  rip (resume address)
+		    // Context layout (rolling, x86_64):
+		    //
+		    // IMPORTANT (native runtime allocator model):
+		    // - R14/R15 are reserved as the bump allocator state (heap_limit/heap_ptr).
+		    // - They must be *shared* across all green tasks running on the same OS thread.
+		    // - Therefore, coroutine context switching must NOT save/restore R14/R15, or it would
+		    //   snapshot allocator state per green task and corrupt the heap.
+		    //
+		    // GPR region (u64 slots):
+		    //   0:   rax
+		    //   8:   rcx
+		    //   16:  rdx
+		    //   24:  rbx
+		    //   32:  rbp
+		    //   40:  rdi
+		    //   48:  rsi
+		    //   56:  r8
+		    //   64:  r9
+		    //   72:  r10
+		    //   80:  r11
+		    //   88:  r12
+		    //   96:  r13
+		    //   104: rsp
+		    //   112: rip (resume address)
+		    //
+		    // SIMD region (16-byte aligned):
+		    //   128..: XMM0..XMM15 (each 16 bytes)
 	    if nm == "oren_ctx_init" {
 	        if args == nil || oren_list_len(args) != 3 {
 	            err(ctx, "x64 native v0: oren_ctx_init expects 3 args")
@@ -85,69 +101,115 @@
 	        bytes_extend(ctx["code"], insn_mov_r64_r64(8, 0))
 
 	        // ctx[rsp] = sp
-	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 64, 11))
+	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 104, 11))
 	        // ctx[rip] = pc
-	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 72, 8))
+	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 112, 8))
 
 	        // Return 0
 	        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
 	        return 1
 	    }
 
-	    if nm == "oren_ctx_switch" {
-	        if args == nil || oren_list_len(args) != 2 {
-	            err(ctx, "x64 native v0: oren_ctx_switch expects 2 args")
-	            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
-	            return 1
-	        }
+		    if nm == "oren_ctx_switch" {
+		        if args == nil || oren_list_len(args) != 2 {
+		            err(ctx, "x64 native v0: oren_ctx_switch expects 2 args")
+		            bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+		            return 1
+		        }
 
-	        // old_ctx_ptr -> r10
-	        _emit_eval_int_to_rax(ctx, args[0], locals)
-	        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
-	        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0))
-
-	        // new_ctx_ptr -> r11
-	        _emit_eval_int_to_rax(ctx, args[1], locals)
-	        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
-	        bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0))
-
-	        // Save callee-saved regs + rsp + resume rip into old_ctx.
-	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 0, 3))   // rbx
-	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 8, 5))   // rbp
-	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 16, 7))  // rdi
-	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 24, 6))  // rsi
-	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 32, 12)) // r12
-	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 40, 13)) // r13
+		        // Save GPRs + rsp + resume rip into old_ctx.
+		        //
 		        // IMPORTANT: do NOT save the global bump allocator registers (r14/r15).
-		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 64, 4))  // rsp
+		        //
+		        // NOTE: We intentionally avoid clobbering arbitrary registers before saving them
+		        // into `old_ctx`. In particular, we compute `old_ctx` first and only evaluate
+		        // `new_ctx` after saving.
+		        //
+		        // Preserve the caller's original RAX across `_emit_eval_int_to_rax`.
+		        bytes_extend(ctx["code"], insn_push_r64(0)) // push rax
 
-	        // r8 = &resume_label
-	        var lea_pos = bytes_len(ctx["code"])
-	        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(8, 0))
-	        // ctx[rip] = r8
-	        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 72, 8))
+		        // old_ctx_ptr -> rax
+		        _emit_eval_int_to_rax(ctx, args[0], locals)
+		        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
 
-	        // Restore regs from new_ctx.
-	        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(3, 11, 0))   // rbx
-	        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(5, 11, 8))   // rbp
-	        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(7, 11, 16))  // rdi
-	        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(6, 11, 24))  // rsi
-	        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(12, 11, 32)) // r12
-	        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(13, 11, 40)) // r13
-		        // IMPORTANT: do NOT restore the global bump allocator registers (r14/r15).
+		        // Save all non-reserved GPRs except RAX (we'll store it from the stack).
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 8, 1))    // rcx
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 16, 2))   // rdx
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 24, 3))   // rbx
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 32, 5))   // rbp
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 40, 7))   // rdi
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 48, 6))   // rsi
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 56, 8))   // r8
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 64, 9))   // r9
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 72, 10))  // r10
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 80, 11))  // r11
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 88, 12))  // r12
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 96, 13))  // r13
 
-	        // rsp = new_ctx[rsp]
-	        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(9, 11, 64)) // r9 = rsp
-	        bytes_extend(ctx["code"], insn_mov_r64_r64(4, 9))           // rsp = r9
+		        // Store the caller's original RAX (saved on stack) into ctx[rax]. This balances
+		        // the stack so the saved RSP matches the yield point.
+		        bytes_extend(ctx["code"], insn_pop_r64(8))                  // r8 = orig rax
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 0, 8))  // ctx[rax] = r8
 
-	        // Jump to new_ctx[rip]
-	        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(0, 11, 72)) // rax = rip
-	        bytes_extend(ctx["code"], insn_jmp_rax())
+		        // ctx[rsp] = rsp
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 104, 4))
 
-	        // Resume label: execution continues here when switched back into this context.
-	        var resume_pos = bytes_len(ctx["code"])
-	        // Patch LEA disp32 (relative to next instruction).
-	        set_u32_le(ctx["code"], lea_pos + 3, resume_pos - (lea_pos + 7))
+		        // r8 = &resume_label; ctx[rip] = r8
+		        var lea_pos = bytes_len(ctx["code"])
+		        bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(8, 0))
+		        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(0, 112, 8))
+
+		        // Save SIMD state (XMM0..XMM15).
+		        var xi = 0
+		        while xi < 16 {
+		            bytes_extend(ctx["code"], insn_movdqu_m128_xmm_disp(0, 128 + xi * 16, xi))
+		            xi = xi + 1
+		        }
+
+		        // new_ctx_ptr -> rax
+		        _emit_eval_int_to_rax(ctx, args[1], locals)
+		        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return 1 }
+
+		        // Restore regs from new_ctx.
+		        // Use r9 as the restore base pointer, and restore it last.
+		        bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0)) // r9 = new_ctx_ptr
+
+		        // Restore SIMD state (XMM0..XMM15).
+		        xi = 0
+		        while xi < 16 {
+		            bytes_extend(ctx["code"], insn_movdqu_xmm_m128_disp(xi, 9, 128 + xi * 16))
+		            xi = xi + 1
+		        }
+
+		        // Restore GPRs (do not restore r14/r15 allocator regs; restore r9 base last).
+		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(1, 9, 8))    // rcx
+		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(2, 9, 16))   // rdx
+		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(3, 9, 24))   // rbx
+		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(5, 9, 32))   // rbp
+		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(7, 9, 40))   // rdi
+		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(6, 9, 48))   // rsi
+		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(10, 9, 72))  // r10
+		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(11, 9, 80))  // r11
+		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(12, 9, 88))  // r12
+		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(13, 9, 96))  // r13
+
+		        // Switch stacks: rsp = new_ctx[rsp]
+		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(8, 9, 104)) // r8 = rsp
+		        bytes_extend(ctx["code"], insn_mov_r64_r64(4, 8))           // rsp = r8
+
+		        // Push target RIP on the new stack, restore clobbered regs, then RET.
+		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(8, 9, 112)) // r8 = rip
+		        bytes_extend(ctx["code"], insn_push_r64(8))                 // push rip
+
+		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(8, 9, 56))  // r8
+		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(0, 9, 0))   // rax
+		        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(9, 9, 64))  // r9
+		        bytes_extend(ctx["code"], insn_ret())
+
+		        // Resume label: execution continues here when switched back into this context.
+		        var resume_pos = bytes_len(ctx["code"])
+		        // Patch LEA disp32 (relative to next instruction).
+		        set_u32_le(ctx["code"], lea_pos + 3, resume_pos - (lea_pos + 7))
 	        // Return value (best-effort): 0
 	        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
 	        return 1

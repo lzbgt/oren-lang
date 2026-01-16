@@ -57,7 +57,9 @@ fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
 fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
 fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
 fn insn_str_ptr(rd, rn) { return core.insn_str_ptr(rd, rn) }
+fn insn_str_ptr_off(rt, rn, offset) { return core.insn_str_ptr_off(rt, rn, offset) }
 fn insn_ldr_q(vt, rn) { return core.insn_ldr_q(vt, rn) }
+fn insn_ldr_q_off(vt, rn, offset) { return core.insn_ldr_q_off(vt, rn, offset) }
 fn insn_str_q_off(vt, rn, offset) { return core.insn_str_q_off(vt, rn, offset) }
 
 fn native_compile_program_arm64(linked, platform) { return codegen.native_compile_program_arm64(linked, platform) }

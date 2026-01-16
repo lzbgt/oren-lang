@@ -14,7 +14,11 @@
 
 // Context buffer size (bytes). The native backend's `oren_ctx_*` intrinsics treat this
 // as an opaque blob and expect at least the platform's required save slots.
-fn green_ctx_bytes() { return 128 }
+//
+// We intentionally allocate a full page:
+// - makes `mmap`/`munmap` length semantics unambiguous across OSes
+// - gives headroom as we expand `oren_ctx_switch` to preserve more CPU state
+fn green_ctx_bytes() { return 4096 }
 
 // Green task struct layout (bytes).
 //
