@@ -1384,6 +1384,62 @@ fn test_gc_collect_does_not_deadlock_with_os_thread_join_waiter() {
     return 0
 }
 
+fn worker_win_ret_7() { return 7 }
+
+fn worker_win_gc_collect() {
+    // Run GC on a background OS thread (CreateThread) and return 0 on completion.
+    oren_gc_collect()
+    return 0
+}
+
+fn _join_spawn_handle_bounded_stw_safe(handle, timeout_ms) {
+    // Join a CreateThread-based `spawn` handle without blocking the current thread in an
+    // uninterruptible kernel wait, so STW GC can still park this thread while waiting.
+    //
+    // This is intentionally test-only logic (not a runtime API) used to keep regression guards bounded.
+    var waited = 0
+    while waited < timeout_ms {
+        oren_gc_safepoint()
+        if oren_is_done(handle) {
+            // Join forever is STW-safe on Windows (polls safepoint + bounded waits).
+            return oren_join_timeout(handle, -1)
+        }
+        oren_sleep_ms(1)
+        waited = waited + 1
+    }
+    // Best-effort: detach so the test doesn't leak resources on failure.
+    return oren_join_timeout(handle, 1)
+}
+
+fn test_gc_collect_does_not_wait_for_exited_spawn_threads_win() {
+    trace("QI: test_gc_collect_does_not_wait_for_exited_spawn_threads_win")
+    if g_target_os != 3 { return 0 }
+
+    // Spawn many short-lived CreateThread workers and join them. This creates many OS-thread nodes.
+    // Those nodes are mmap-backed metadata and persist after thread exit; they must be marked DEAD
+    // so future STW GC collections do not wait for them.
+    var i = 0
+    while i < 16 {
+        var h = spawn worker_win_ret_7()
+        var r = oren_join_timeout(h, 2000)
+        assert_eq(r, 7, 743)
+        i = i + 1
+    }
+
+    // Now run STW GC from a background OS thread and join it in an STW-friendly bounded loop.
+    // If the runtime accidentally counts exited threads as live, this will time out instead of hanging.
+    var hgc = spawn worker_win_gc_collect()
+    var rgc = _join_spawn_handle_bounded_stw_safe(hgc, 2000)
+    assert_eq(rgc, 0, 744)
+
+    // Run a second collection: regressions were previously observable only on the *second* STW
+    // (after multiple short-lived threads had already exited).
+    var hgc2 = spawn worker_win_gc_collect()
+    var rgc2 = _join_spawn_handle_bounded_stw_safe(hgc2, 2000)
+    assert_eq(rgc2, 0, 745)
+    return 0
+}
+
 var g_green_multi_p_handles = []
 var g_green_multi_p_expect = []
 

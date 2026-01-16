@@ -1081,15 +1081,19 @@ fn oren_join_timeout_win(handle, timeout_ms) {
             return rcw
         }
     } else {
-        var rcw2 = sys_win_wait_single_object(h, timeout_ms)
-        if rcw2 != 0 {
+        // STW GC robustness:
+        // Even finite-timeout joins must remain safepoint-friendly; otherwise a collector running on
+        // another OS thread can request STW and deadlock waiting for this thread to park.
+        var remaining = timeout_ms
+        while remaining > 0 {
+            oren_gc_safepoint()
+            var slice = 10
+            if remaining < slice { slice = remaining }
+            var rcw2 = sys_win_wait_single_object(h, slice)
+            if rcw2 == 0 { break }
             if rcw2 == (0 - 60) {
-                // Timeout: detach instead of TerminateThread (unsafe). The running thread will
-                // free its own arg/result buffers if we set auto_free=1 in the arg struct.
-                if arg_ptr != 0 { ptr_set(arg_ptr + 24, 1) }
-                sys_win_close_handle(h)
-                free(handle)
-                return 0 - 60
+                remaining = remaining - slice
+                continue
             }
             // Unexpected failure: close + cleanup to avoid leaking handles/allocations.
             sys_win_close_handle(h)
@@ -1097,6 +1101,14 @@ fn oren_join_timeout_win(handle, timeout_ms) {
             if arg_ptr != 0 { free(arg_ptr) }
             free(handle)
             return rcw2
+        }
+        if remaining <= 0 {
+            // Timeout: detach instead of TerminateThread (unsafe). The running thread will
+            // free its own arg/result buffers if we set auto_free=1 in the arg struct.
+            if arg_ptr != 0 { ptr_set(arg_ptr + 24, 1) }
+            sys_win_close_handle(h)
+            free(handle)
+            return 0 - 60
         }
     }
 

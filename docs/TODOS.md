@@ -549,16 +549,20 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 			       - Runtime: `lib/runtime_native/105_call_depth.oren` (`native_call_depth_safepoint_poll_throttled`)
 			       - Behavior: in multi-OS-thread mode, every ~1024 function entries polls STW state and parks if requested.
 			       - Motivation: call-heavy non-loop code paths (visitors/recursion) should not starve a stop-the-world request indefinitely.
-			     - 2026-01-16: fixed an STW deadlock hazard after OS threads exit:
-			       - Problem: thread nodes are mmap-backed metadata; without an explicit “dead” marker, STW could wait forever on threads that have already exited.
-			       - Fix: OS-thread start stubs now mark their thread node as DEAD on exit, and STW counts only live (non-DEAD) OS-thread nodes when waiting.
-			       - Runtime: `lib/runtime_native/100_time_core.oren` (`native_time_mark_thread_dead_current`), `lib/runtime_native/100_time_gc_stw.oren` (`native_gc_stw_expected_parked_count`)
-			       - Guards: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_green_join_waiter`, `test_gc_collect_does_not_deadlock_with_os_thread_join_waiter`)
-			       - Next: ensure the Windows CreateThread-based language `spawn` path also marks OS-thread nodes DEAD on thread exit (otherwise STW can regress after many short-lived threads); add a dedicated Tier‑1 x64-windows guard.
-			     - 2026-01-16: fixed a native GC correctness gap: STRUCT allocations are now conservatively scanned, and the mark phase is cycle-safe:
-			       - Problem: many runtime subsystems tag allocations as kind=STRUCT “so GC can scan fields”, but the mark phase previously did not traverse kind=STRUCT.
-			       - Fix: `oren_mark_value` now scans 8-byte slots for kind=STRUCT, and honors the mark bit to avoid infinite recursion on cyclic graphs.
-			       - Runtime: `lib/runtime_native/100_time_gc_alloc.oren` (`oren_mark_value`)
+				   - 2026-01-16: fixed an STW deadlock hazard after OS threads exit:
+				       - Problem: thread nodes are mmap-backed metadata; without an explicit “dead” marker, STW could wait forever on threads that have already exited.
+				       - Fix: OS-thread start stubs now mark their thread node as DEAD on exit, and STW counts only live (non-DEAD) OS-thread nodes when waiting.
+				       - Runtime: `lib/runtime_native/100_time_core.oren` (`native_time_mark_thread_dead_current`), `lib/runtime_native/100_time_gc_stw.oren` (`native_gc_stw_expected_parked_count`)
+				       - Guards: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_green_join_waiter`, `test_gc_collect_does_not_deadlock_with_os_thread_join_waiter`)
+				       - 2026-01-16: ensured the Windows CreateThread-based language `spawn` path also marks OS-thread nodes DEAD on thread exit (prevents STW regressions after many short-lived threads):
+				         - Runtime: `lib/runtime_native/120_first_class_fn.oren` (`__oren_win_spawn_thread_entry`)
+				         - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_wait_for_exited_spawn_threads_win`) (bounded; fails with timeout instead of hanging)
+				       - 2026-01-16: made Windows `oren_join_timeout(timeout_ms>0)` STW-safe (polls `oren_gc_safepoint()` while waiting):
+				         - Runtime: `lib/runtime_native/260_threads.oren` (`oren_join_timeout_win`)
+				     - 2026-01-16: fixed a native GC correctness gap: STRUCT allocations are now conservatively scanned, and the mark phase is cycle-safe:
+				       - Problem: many runtime subsystems tag allocations as kind=STRUCT “so GC can scan fields”, but the mark phase previously did not traverse kind=STRUCT.
+				       - Fix: `oren_mark_value` now scans 8-byte slots for kind=STRUCT, and honors the mark bit to avoid infinite recursion on cyclic graphs.
+				       - Runtime: `lib/runtime_native/100_time_gc_alloc.oren` (`oren_mark_value`)
 
 		   References:
 

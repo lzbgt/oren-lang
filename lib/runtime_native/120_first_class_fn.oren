@@ -194,6 +194,12 @@ fn __oren_win_spawn_thread_entry(arg_ptr) {
         if out_ptr != 0 { free(out_ptr) }
         free(arg_ptr)
     }
+
+    // STW GC correctness:
+    // This CreateThread-based language `spawn` path registers an OS-thread node via `oren_register_thread`.
+    // Thread nodes are mmap-backed metadata and persist after thread exit; mark the node DEAD so future
+    // STW collections do not wait for an exited thread to park at a safepoint.
+    native_time_mark_thread_dead_current()
     return 0
 }
 
