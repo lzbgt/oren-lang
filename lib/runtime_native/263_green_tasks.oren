@@ -60,14 +60,23 @@ fn green_s_off_glob_run_tail() { return 32 } // u64: global runnable queue tail
 fn green_s_bytes() { return 40 }
 
 // Per-P state struct layout (bytes).
-fn green_p_off_run_head() { return 0 }
-fn green_p_off_run_tail() { return 8 }
-fn green_p_off_sleep_head() { return 16 }
-fn green_p_off_sleep_tail() { return 24 }
-fn green_p_off_id() { return 32 } // small int id (0..p_count-1)
-fn green_p_off_next() { return 40 } // u64: next P in the scheduler's P list (0 for end)
-fn green_p_off_owner_tid() { return 48 } // u64: sys_gettid() of owning M (0 when unclaimed)
-fn green_p_bytes() { return 56 }
+//
+// Rolling (2026-01-16+): represent the per-P runnable queue as a ring buffer (Go-like local runq),
+// with overflow to the scheduler's global run queue.
+//
+// This keeps the shape aligned with an eventual atomics-based implementation:
+// - head/tail are monotonic counters (u64)
+// - index uses a power-of-two mask
+fn green_p_off_runq_buf() { return 0 }   // u64: pointer to GC-scanned u64[] storing G pointers
+fn green_p_off_runq_head() { return 8 }  // u64: pop index (monotonic)
+fn green_p_off_runq_tail() { return 16 } // u64: push index (monotonic)
+fn green_p_off_runq_mask() { return 24 } // u64: cap-1 (power of two)
+fn green_p_off_sleep_head() { return 32 }
+fn green_p_off_sleep_tail() { return 40 }
+fn green_p_off_id() { return 48 }        // small int id (0..p_count-1)
+fn green_p_off_next() { return 56 }      // u64: next P in the scheduler's P list (0 for end)
+fn green_p_off_owner_tid() { return 64 } // u64: sys_gettid() of owning M (0 when unclaimed)
+fn green_p_bytes() { return 72 }
 
 var g_green_inited = 0
 var g_green_enabled_checked = 0
@@ -181,19 +190,31 @@ fn _green_state_set_glob_run_tail(s, v) { ptr_set(s + green_s_off_glob_run_tail(
 fn _green_g_next(g) { return ptr_get(g + green_g_off_next()) }
 fn _green_g_set_next(g, v) { ptr_set(g + green_g_off_next(), v); return 0 }
 
-fn _green_p_run_head(p) { return ptr_get(p + green_p_off_run_head()) }
-fn _green_p_run_tail(p) { return ptr_get(p + green_p_off_run_tail()) }
+fn _green_p_runq_buf(p) { return ptr_get(p + green_p_off_runq_buf()) }
+fn _green_p_runq_head(p) { return ptr_get(p + green_p_off_runq_head()) }
+fn _green_p_runq_tail(p) { return ptr_get(p + green_p_off_runq_tail()) }
+fn _green_p_runq_mask(p) { return ptr_get(p + green_p_off_runq_mask()) }
 fn _green_p_sleep_head(p) { return ptr_get(p + green_p_off_sleep_head()) }
 fn _green_p_sleep_tail(p) { return ptr_get(p + green_p_off_sleep_tail()) }
 fn _green_p_next(p) { return ptr_get(p + green_p_off_next()) }
 fn _green_p_owner_tid(p) { return ptr_get(p + green_p_off_owner_tid()) }
 
-fn _green_p_set_run_head(p, v) { ptr_set(p + green_p_off_run_head(), v); return 0 }
-fn _green_p_set_run_tail(p, v) { ptr_set(p + green_p_off_run_tail(), v); return 0 }
+fn _green_p_set_runq_buf(p, v) { ptr_set(p + green_p_off_runq_buf(), v); return 0 }
+fn _green_p_set_runq_head(p, v) { ptr_set(p + green_p_off_runq_head(), v); return 0 }
+fn _green_p_set_runq_tail(p, v) { ptr_set(p + green_p_off_runq_tail(), v); return 0 }
+fn _green_p_set_runq_mask(p, v) { ptr_set(p + green_p_off_runq_mask(), v); return 0 }
 fn _green_p_set_sleep_head(p, v) { ptr_set(p + green_p_off_sleep_head(), v); return 0 }
 fn _green_p_set_sleep_tail(p, v) { ptr_set(p + green_p_off_sleep_tail(), v); return 0 }
 fn _green_p_set_next(p, v) { ptr_set(p + green_p_off_next(), v); return 0 }
 fn _green_p_set_owner_tid(p, v) { ptr_set(p + green_p_off_owner_tid(), v); return 0 }
+
+fn _green_p_runq_cap(p) { return _green_p_runq_mask(p) + 1 }
+
+fn _green_p_runq_mask_default() {
+    // Default per-P local runq capacity (power of two).
+    // Keep bounded: too large increases GC scanning overhead; too small increases global queue pressure.
+    return 255 // cap=256
+}
 
 fn _green_state_p_by_id_or0(s, id) {
     if s == 0 { return 0 }
@@ -291,8 +312,20 @@ fn _green_init_if_needed() {
     // Allocate P0 (single-P default; more Ps are optional/unsafe today).
     var p0 = _green_alloc_struct(green_p_bytes())
     if p0 == 0 { exit(902) }
-    _green_p_set_run_head(p0, 0)
-    _green_p_set_run_tail(p0, 0)
+    // Allocate local runq buffer as a GC-scanned "struct" so runnable G pointers are retained.
+    var runq_mask = _green_p_runq_mask_default()
+    var runq_buf = _green_alloc_struct((runq_mask + 1) * 8)
+    if runq_buf == 0 { exit(903) }
+    // Explicitly clear the buffer (malloc is not guaranteed to be zeroed).
+    var i = 0
+    while i <= runq_mask {
+        ptr_set(runq_buf + i * 8, 0)
+        i = i + 1
+    }
+    _green_p_set_runq_buf(p0, runq_buf)
+    _green_p_set_runq_head(p0, 0)
+    _green_p_set_runq_tail(p0, 0)
+    _green_p_set_runq_mask(p0, runq_mask)
     _green_p_set_sleep_head(p0, 0)
     _green_p_set_sleep_tail(p0, 0)
     ptr_set(p0 + green_p_off_id(), 0)
@@ -322,34 +355,59 @@ fn _green_workers_wake_if_started() {
     return 0
 }
 
-fn _green_runq_push_locked(p, g) {
+fn _green_runq_push_local_locked(p, g) {
     if p == 0 || g == 0 { return 0 }
-    var was_empty = 0
-    _green_g_set_next(g, 0)
-    var head = _green_p_run_head(p)
-    if head == 0 {
-        was_empty = 1
-        _green_p_set_run_head(p, g)
-        _green_p_set_run_tail(p, g)
-        return was_empty
+    var buf = _green_p_runq_buf(p)
+    var mask = _green_p_runq_mask(p)
+    if buf == 0 || mask == 0 { return 0 }
+
+    var head = _green_p_runq_head(p)
+    var tail = _green_p_runq_tail(p)
+    var cap = mask + 1
+    if tail - head >= cap {
+        // Full: caller should overflow to global queue.
+        return 0 - 60
     }
-    var tail = _green_p_run_tail(p)
-    if tail != 0 { _green_g_set_next(tail, g) }
-    _green_p_set_run_tail(p, g)
+
+    var was_empty = 0
+    if tail == head { was_empty = 1 }
+
+    var idx = tail & mask
+    ptr_set(buf + idx * 8, g)
+    _green_p_set_runq_tail(p, tail + 1)
     return was_empty
 }
 
-fn _green_runq_pop_locked(p) {
+fn _green_runq_pop_local_locked(p) {
     if p == 0 { return 0 }
-    var head = _green_p_run_head(p)
-    if head == 0 { return 0 }
-    var next = _green_g_next(head)
-    _green_p_set_run_head(p, next)
-    if next == 0 {
-        _green_p_set_run_tail(p, 0)
+    var buf = _green_p_runq_buf(p)
+    var mask = _green_p_runq_mask(p)
+    if buf == 0 || mask == 0 { return 0 }
+
+    var head = _green_p_runq_head(p)
+    var tail = _green_p_runq_tail(p)
+    if head == tail { return 0 }
+
+    var idx = head & mask
+    var g = ptr_get(buf + idx * 8)
+    ptr_set(buf + idx * 8, 0)
+    _green_p_set_runq_head(p, head + 1)
+    return g
+}
+
+fn _green_runq_push_locked(p, s, g) {
+    if p == 0 || s == 0 || g == 0 { return 0 }
+    _green_g_set_next(g, 0)
+    var rc = _green_runq_push_local_locked(p, g)
+    if rc == -60 {
+        // Local overflow: push into global runq (fairness / overflow queue).
+        return _green_global_runq_push_locked(s, g)
     }
-    _green_g_set_next(head, 0)
-    return head
+    return rc
+}
+
+fn _green_runq_pop_locked(p) {
+    return _green_runq_pop_local_locked(p)
 }
 
 fn _green_global_runq_push_locked(s, g) {
@@ -402,9 +460,10 @@ fn _green_global_runq_pop() {
 }
 
 fn _green_runq_push_p(p, g) {
-    if p == 0 || g == 0 { return 0 }
+    var s = _green_get_state()
+    if p == 0 || s == 0 || g == 0 { return 0 }
     acquire_lock()
-    var was_empty = _green_runq_push_locked(p, g)
+    var was_empty = _green_runq_push_locked(p, s, g)
     release_lock()
     if was_empty != 0 { _green_workers_wake_if_started() }
     return 0
@@ -515,6 +574,7 @@ fn _green_wake_ready_p(p, now_ns) {
     if p == 0 { return 0 }
     if now_ns == 0 { return 0 }
     acquire_lock()
+    var s = _green_get_state()
     var prev = 0
     var cur = _green_p_sleep_head(p)
     var new_tail = 0
@@ -532,7 +592,9 @@ fn _green_wake_ready_p(p, now_ns) {
             if next == 0 { new_tail = prev }
             _green_g_set_next(cur, 0)
             ptr_set(cur + green_g_off_state(), green_g_state_runnable())
-            _green_runq_push_locked(p, cur)
+            if s != 0 {
+                _green_runq_push_locked(p, s, cur)
+            }
             woke_any = 1
             cur = next
             continue
@@ -790,8 +852,18 @@ fn oren_green_start_workers(n) {
             while id < n {
                 var p = _green_alloc_struct(green_p_bytes())
                 if p == 0 { exit(925) }
-                _green_p_set_run_head(p, 0)
-                _green_p_set_run_tail(p, 0)
+                var runq_mask = _green_p_runq_mask_default()
+                var runq_buf = _green_alloc_struct((runq_mask + 1) * 8)
+                if runq_buf == 0 { exit(935) }
+                var j = 0
+                while j <= runq_mask {
+                    ptr_set(runq_buf + j * 8, 0)
+                    j = j + 1
+                }
+                _green_p_set_runq_buf(p, runq_buf)
+                _green_p_set_runq_head(p, 0)
+                _green_p_set_runq_tail(p, 0)
+                _green_p_set_runq_mask(p, runq_mask)
                 _green_p_set_sleep_head(p, 0)
                 _green_p_set_sleep_tail(p, 0)
                 ptr_set(p + green_p_off_id(), id)

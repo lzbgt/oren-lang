@@ -399,6 +399,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		       - per-OS-thread scheduler state (scheduler ctx + current-G are no longer globals)
 		       - Stage N2 groundwork: `P` struct + per-P runq/sleepq (single-P by default), plus a thread-local **current P** pointer
 		       - scheduler now has a **global run queue** for cross-P injection / fairness (spawns from outside green context)
+		       - per-P local runq is now a **GC-visible ring buffer** (monotonic head/tail + power-of-two mask), with overflow to the global runq
 		       - worker entry accepts an optional `P*` argument and claims `P.owner_tid` (rolling: hard fail if a P is accidentally shared across Ms)
 		     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
 		     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_global_runq_fairness`) (prevents global-runq starvation regressions)

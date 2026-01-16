@@ -198,6 +198,12 @@ Status (rolling groundwork):
    - Add work stealing between `P` (to balance load).
    - Requires atomics (already present: `atomic_add`, `atomic_cas`).
 
+Rolling status (native runtime bring-up):
+
+- The native green scheduler now models `P` local run queues as a **ring buffer** (monotonic head/tail + mask),
+  with overflow to a scheduler-level **global run queue**. This keeps the shape aligned with an eventual atomics-based
+  work-stealing implementation while keeping the current bring-up lock model simple.
+
 4) **Syscall blocking strategy**
    - Prefer non-blocking + event loop for IO-bound `G` (best scalability).
    - For truly blocking operations, detach the `G` from the `M` and let the `M` continue running other `G`.
