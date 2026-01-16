@@ -1,0 +1,59 @@
+// Experimental gate for multi-P green scheduler bring-up (Stage N2/N3).
+//
+// IMPORTANT (rolling):
+// - This test is intentionally **skipped by default** because running multiple green scheduler workers
+//   in parallel is not concurrency-safe until the native allocator/GC are made multi-thread correct.
+// - Enable explicitly by setting:
+//     OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1
+//
+// What this test covers when enabled:
+// - `oren_green_start_workers(n)` can start multiple OS threads ("M") bound to distinct `P`.
+// - Spawning from outside green context injects runnable tasks via the global run queue.
+// - Many tasks complete in bounded time (no scheduler deadlocks / missed wake-ups).
+
+fn fail(code) {
+    oren_fail(code, "green workers multi-p experimental")
+    return 0
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    print("assert_eq failed: code=" + oren_int_to_string(code))
+    print("  got=" + oren_int_to_string(a))
+    print("  expected=" + oren_int_to_string(b))
+    fail(code)
+}
+
+fn worker_ret_one() {
+    return 1
+}
+
+fn main() {
+    // Windows `spawn` is OS-thread based today; skip.
+    if g_target_os == 3 { return 0 }
+
+    // Skip unless explicitly enabled.
+    if oren_getenv("OREN_GREEN_WORKERS_UNSAFE_PARALLEL") == 0 {
+        print("SKIP: set OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1 to run")
+        return 0
+    }
+
+    var n = 4
+    var rc = oren_green_start_workers(n)
+    assert_eq(rc, 0, 10)
+
+    // Spawn many tiny tasks from the main thread (not inside green context).
+    // These must be executable by any worker via the global run queue.
+    var total = 0
+    var i = 0
+    while i < 200 {
+        var h = spawn worker_ret_one()
+        var r = oren_join_timeout(h, 5000)
+        assert_eq(r, 1, 20)
+        total = total + r
+        i = i + 1
+    }
+    assert_eq(total, 200, 30)
+    print("green workers multi-p experimental OK")
+    return 0
+}

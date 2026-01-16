@@ -166,7 +166,9 @@ Status (rolling groundwork):
 
 - **Green-task scheduler worker mode (Stage N2 groundwork):** the Stage N1 green-task runtime now supports:
   - per-OS-thread scheduler state (scheduler context + current-G are no longer globals), including a thread-local **current P** pointer, and
-  - optional background scheduler workers (`oren_green_start_workers(n)`) that drain the scheduler's **P0** runq/sleepq on OS threads.
+  - optional background scheduler workers (`oren_green_start_workers(n)`) that drain:
+    - their bound `P` local runq/sleepq (locality), and
+    - a scheduler-level **global run queue** for cross-P injection / fairness (spawns from outside green context).
   - Join behavior: when workers are enabled, `oren_green_join_timeout` waits on the green task's state word via the portable
     wait-on-address primitive (instead of driving the scheduler on the joining thread).
   - Runtime: `lib/runtime_native/263_green_tasks.oren`

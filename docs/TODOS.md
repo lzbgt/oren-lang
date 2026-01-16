@@ -398,7 +398,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		     - Runtime: `lib/runtime_native/263_green_tasks.oren`
 		       - per-OS-thread scheduler state (scheduler ctx + current-G are no longer globals)
 		       - Stage N2 groundwork: `P` struct + per-P runq/sleepq (single-P by default), plus a thread-local **current P** pointer
-		       - worker entry accepts an optional `P*` argument (rolling; no "exclusive P ownership" enforcement yet)
+		       - scheduler now has a **global run queue** for cross-P injection / fairness (spawns from outside green context)
+		       - worker entry accepts an optional `P*` argument and claims `P.owner_tid` (rolling: hard fail if a P is accidentally shared across Ms)
 		     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
 		     - Rolling limitation: worker parallelism is clamped to 1 by default until the native allocator/GC are concurrency-correct; opt-in for experimentation only via `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.
 		   - Parking/unparking primitive for idle `M` (required to avoid spin):
@@ -406,9 +407,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		     - Linux: futex-based park/wake
 	   - Stage N3 (next): make `P` real (toward true M:N)
 	     - enforce “an `M` runs Oren code only while holding a `P`” (no shared-P execution)
-	     - add a global runq for fairness/overflow, plus work stealing between `P`
+	     - evolve the global runq into a fairness/overflow queue (it exists today as cross-P injection)
+	     - implement real work stealing between `P` (today: a simple global-lock “steal one before idle” bring-up)
 	     - replace the current global lock in green scheduling with per-P queues + atomics (keep GC/STW correctness first)
 	     - add a small regression gate: spawn many green tasks (with workers enabled) and assert bounded completion (no hangs)
+	     - Optional dev-only smoke (skipped by default): `tests/native/test_green_workers_multi_p_experimental.oren`
 	   - 2026-01-15: GC + safepoint groundwork for N:M (stop-the-world first, correct before fast)
 	     - Implemented a minimal STW protocol so `oren_gc_collect()` is safe once >1 OS thread exists:
 	       - Runtime: `lib/runtime_native/100_time.oren` (`native_gc_stw_begin/native_gc_stw_poll_and_park/native_gc_stw_end`)
