@@ -1018,6 +1018,11 @@ fn test_green_worker_release_acquire_p_when_parked() {
         tries = tries + 1
     }
     assert_true(oren_green_debug_p_release_count() > 0, 602)
+    var pid_rel = oren_green_debug_last_p_release_id()
+    assert_true(pid_rel >= 0, 650)
+    // After a release, the P must not remain in the negative "reserved" sentinel state.
+    // (It may be re-acquired immediately by the worker before we observe it here.)
+    assert_true(oren_green_debug_p_owner_tid(pid_rel) >= 0, 651)
 
     // Wake the parked worker by injecting more runnable work; it should re-acquire a P to run.
     var h2 = spawn worker_green_yield_then_ret()
@@ -1031,6 +1036,11 @@ fn test_green_worker_release_acquire_p_when_parked() {
         tries = tries + 1
     }
     assert_true(oren_green_debug_p_acquire_count() > 0, 604)
+    var pid_acq = oren_green_debug_last_p_acquire_id()
+    assert_true(pid_acq >= 0, 652)
+    // The acquired P must not be left in the negative "reserved" sentinel state.
+    // (It may be released again before we observe it here, so allow 0.)
+    assert_true(oren_green_debug_p_owner_tid(pid_acq) >= 0, 653)
     return 0
 }
 

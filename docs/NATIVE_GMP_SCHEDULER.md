@@ -221,6 +221,8 @@ Status (rolling groundwork):
     - Stage N3 evolution: an explicit **idle-P pool** now exists (under the scheduler lock) so “owner_tid==0” Ps can be acquired/released without rescanning the full P list.
       - Test-only host hook: `oren_green_acquire_any_p()` (pre-workers only) for M<P bring-up and fixtures.
       - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_idle_p_pool_acquire_any`)
+    - Stage N3 evolution (toward real `M < P`): workers now clear their **thread-local P binding** while parked/blocked, and on wake attempt to
+      acquire **any** idle P before running Oren code (still under the scheduler lock; world-lock may further serialize execution).
     - Stage N3 evolution (STW safety): worker idle waits must be bounded and/or include `oren_gc_safepoint()` polling so `oren_gc_collect()` cannot deadlock while a worker is parked (includes park-word and netpoll waits).
   - Runtime: `lib/runtime_native/263_green_tasks.oren` (split modules: `lib/runtime_native/263_green/*.oren`)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)

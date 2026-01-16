@@ -51,7 +51,17 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             if p < 4096 { exit(940) }
         } else {
             // Cached mode: keep cheap sanity checks so corruption fails fast/loud.
-            if ts == 0 || s == 0 || p == 0 { return 0 }
+            //
+            // NOTE (worker mode / M<P evolution):
+            // a worker can intentionally clear its thread-local P binding while parked, so `p` may become 0.
+            // Allow refreshing `p` without abandoning cached mode entirely.
+            if ts == 0 || s == 0 { return 0 }
+            if p == 0 { p = _green_thread_p_or0(ts) }
+            if p == 0 {
+                p = _green_state_p0(s)
+                if p != 0 { _green_thread_set_p(ts, p) }
+            }
+            if p == 0 { return 0 }
             if p < 4096 { exit(940) }
         }
         if g_green_workers_started != 0 {
@@ -59,22 +69,38 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             //
             // Rolling semantics:
             // - an idle worker may temporarily set `P.owner_tid=0` while blocked (release)
-            // - upon wake, the worker must re-acquire its bound P before running Oren code
-	            var tid = sys_gettid()
-	            if tid == 0 { exit(926) }
-	            _green_lock_acquire()
-	            var rc_own = _green_p_ensure_owned_by_tid_locked(s, p, tid)
-	            if rc_own == (0 - 16) {
-                // In future M<P, this M may have lost its bound P to another M while parked.
-                // Instead of hard-failing, try to acquire another free P and continue.
+            // - a parked worker may also clear its thread-local P binding (to allow M<P acquisition)
+            // - upon wake, the worker must acquire some P before running Oren code
+            var tid = sys_gettid()
+            if tid == 0 { exit(926) }
+            _green_lock_acquire()
+
+            var rc_own = 0
+            if p != 0 {
+                rc_own = _green_p_ensure_owned_by_tid_locked(s, p, tid)
+                if rc_own == (0 - 16) {
+                    // This M lost its bound P (or another M acquired it while we were parked).
+                    // Clear the binding and acquire any available P.
+                    p = 0
+                    _green_thread_set_p(ts, 0)
+                }
+            }
+            if p == 0 {
                 var alt = _green_worker_try_acquire_any_p_locked(s, tid)
                 if alt != 0 {
                     p = alt
                     _green_thread_set_p(ts, alt)
                     rc_own = 0
+                } else {
+                    rc_own = 0 - 16 // -EBUSY
                 }
             }
+
             _green_lock_release()
+            if rc_own == (0 - 16) {
+                // No P available: treat as idle for now and let the worker park.
+                return 0
+            }
             if rc_own != 0 { exit(927) }
         }
 
@@ -191,11 +217,14 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             oren_gc_safepoint()
             if g_green_workers_started != 0 {
                 // Release P while blocked in kevent/epoll (future-proof for M<P).
+                // Also clear the thread-local P binding so on wake we can acquire any idle P.
                 var tid2 = sys_gettid()
                 if tid2 != 0 {
                     _green_lock_acquire()
-	                    _green_p_release_if_owned_by_tid_locked(s, p, tid2)
+                    _green_p_release_if_owned_by_tid_locked(s, p, tid2)
+                    _green_thread_set_p(ts, 0)
                     _green_lock_release()
+                    p = 0
                 }
             }
             // Prefer blocking in the kernel readiness wait:
@@ -233,13 +262,22 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
                         var tid3 = sys_gettid()
                         if tid3 != 0 {
                             _green_lock_acquire()
-	                            var rc_own2 = _green_p_ensure_owned_by_tid_locked(s, p, tid3)
-                            if rc_own2 == (0 - 16) {
+                            var rc_own2 = 0
+                            if p != 0 {
+                                rc_own2 = _green_p_ensure_owned_by_tid_locked(s, p, tid3)
+                                if rc_own2 == (0 - 16) {
+                                    p = 0
+                                    _green_thread_set_p(ts, 0)
+                                }
+                            }
+                            if p == 0 {
                                 var alt2 = _green_worker_try_acquire_any_p_locked(s, tid3)
                                 if alt2 != 0 {
                                     p = alt2
                                     _green_thread_set_p(ts, alt2)
                                     rc_own2 = 0
+                                } else {
+                                    rc_own2 = 0 - 16
                                 }
                             }
                             _green_lock_release()
@@ -292,13 +330,22 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
                         var tid3 = sys_gettid()
                         if tid3 != 0 {
                             _green_lock_acquire()
-	                            var rc_own2 = _green_p_ensure_owned_by_tid_locked(s, p, tid3)
-                            if rc_own2 == (0 - 16) {
+                            var rc_own2 = 0
+                            if p != 0 {
+                                rc_own2 = _green_p_ensure_owned_by_tid_locked(s, p, tid3)
+                                if rc_own2 == (0 - 16) {
+                                    p = 0
+                                    _green_thread_set_p(ts, 0)
+                                }
+                            }
+                            if p == 0 {
                                 var alt2 = _green_worker_try_acquire_any_p_locked(s, tid3)
                                 if alt2 != 0 {
                                     p = alt2
                                     _green_thread_set_p(ts, alt2)
                                     rc_own2 = 0
+                                } else {
+                                    rc_own2 = 0 - 16
                                 }
                             }
                             _green_lock_release()
@@ -347,8 +394,10 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             var tid2 = sys_gettid()
             if tid2 != 0 {
                 _green_lock_acquire()
-	                _green_p_release_if_owned_by_tid_locked(s, p, tid2)
+                _green_p_release_if_owned_by_tid_locked(s, p, tid2)
+                _green_thread_set_p(ts, 0)
                 _green_lock_release()
+                p = 0
             }
             var sleep_us = sleep_ns / 1000
             if sleep_us <= 0 { sleep_us = 1 }

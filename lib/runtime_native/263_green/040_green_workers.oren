@@ -193,6 +193,8 @@ fn __oren_green_worker_entry(arg_ptr) {
             var s2 = _green_get_state()
             _green_lock_acquire()
             _green_p_release_if_owned_by_tid_locked(s2, p2, tid)
+            // Allow M<P: when this worker wakes, it must acquire any idle P before running Oren code.
+            _green_thread_set_p(ts2, 0)
             _green_lock_release()
         }
 
