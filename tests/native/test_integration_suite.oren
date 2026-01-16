@@ -284,10 +284,10 @@ fn test_spawn_join_timeout_probe_zero() {
 }
 
 fn test_select_primitives() {
-    // Native select is implemented over pipe-based channels on macOS/Linux.
-    // Windows is not supported yet for pipe channels (needs IOCP or a different channel impl).
-    if g_target_os == 3 { return 0 }
-
+    // Native select:
+    // - macOS/Linux: pipe-based channels
+    // - Windows: in-memory channels (no pipe-fd readiness yet)
+    
     var c1 = oren_new_channel()
     var c2 = oren_new_channel()
     if c1 == 0 || c2 == 0 { fail(140) }

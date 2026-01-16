@@ -677,8 +677,7 @@ fn test_spawn_join() {
 
 fn test_select() {
     trace("QI: test_select")
-    // Native select over pipe-based channels is not supported on Windows yet.
-    if g_target_os == 3 { return 0 }
+    // Rolling: on Windows, select works over in-memory channels (not pipe fds).
 
     var c1 = oren_new_channel()
     var c2 = oren_new_channel()
@@ -769,7 +768,8 @@ fn _qi_select_send_fairness_in_green(c1, c2) {
 
 fn test_select_in_green_workers() {
     trace("QI: test_select_in_green_workers")
-    // Native select over pipe-based channels is not supported on Windows yet.
+    // Native in-green select today relies on the POSIX netpoller (kqueue/epoll) for pipe fds.
+    // Windows uses in-memory channels (no IOCP netpoll yet), so keep this skipped for now.
     if g_target_os == 3 { return 0 }
 
     // Run under Stage N2 worker mode with a bounded join timeout so regressions cannot hang the suite:
@@ -818,7 +818,7 @@ fn _qi_select_recv_block_forever(ch) {
 
 fn test_select_idle_does_not_spin_cpu() {
     trace("QI: test_select_idle_does_not_spin_cpu")
-    if g_target_os == 3 { return 0 } // select not supported on Windows yet
+    if g_target_os == 3 { return 0 } // green+netpoll select not supported on Windows yet
 
     // Ensure worker mode is active and the scheduler can block in netpoll.
     var rcw = oren_green_start_workers(1)

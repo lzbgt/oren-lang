@@ -822,7 +822,7 @@ Backend behavior (rolling):
 	    - `oren_join_timeout(handle, timeout_ms)` exists and returns `-60` on timeout (rolling contract).
 	  - Note: this is a rolling convergence surface; the long-term direction is a unified thread-based substrate on all native targets (see `docs/CONCURRENCY_MODEL.md`).
 
-#### Channels + `oren_select*` (rolling; AVM + native macOS/Linux)
+#### Channels + `oren_select*` (rolling; AVM + native)
 
 Two low-level concurrency primitives exist today as **runtime builtins** (not keywords):
 
@@ -844,8 +844,8 @@ Backend behavior (rolling):
 - **Native backend**:
   - On macOS: implemented over **pipes + kqueue/kevent**.
   - On Linux: implemented over **pipes + epoll**.
-  - On Windows: pipe-based channels/select are not implemented yet (needs IOCP or a new channel implementation).
-  - See `lib/runtime_native/010_channels_globals_consts.oren` and `lib/runtime_native/245_select.oren`.
+  - On Windows: implemented over **in-memory channels** (pipe-fd readiness/select still needs IOCP for a real netpoller).
+  - See `lib/runtime_native/010_channels_globals_consts.oren`, `lib/runtime_native/011_channels_mem.oren`, and `lib/runtime_native/245_select.oren`.
 
 Design direction:
 

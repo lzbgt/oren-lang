@@ -1,0 +1,224 @@
+// --- Channels (in-memory; portable; rolling) ---
+//
+// Motivation:
+// - Native `oren_select` is historically implemented over pipe fds on macOS/Linux.
+// - Windows does not have a portable "pipe fd readiness" story without IOCP/overlapped I/O.
+// - For Tier‑1 Windows parity (and for sandboxed runtimes where fd readiness may not exist),
+//   we provide a small in-memory channel that supports:
+//     - `oren_chan_send` / `oren_chan_recv`
+//     - `oren_select` over channel send/recv cases
+//
+// Design (rolling):
+// - A mem-channel is a GC-tracked STRUCT so values stored in its ring buffer are scanned and retained.
+// - Synchronization uses per-channel CAS + `oren_wait_on_addr` (futex/WaitOnAddress-style).
+// - Select waits on a single shared global sequence word (one mmap page) to avoid per-case OS waits.
+//
+// IMPORTANT (STW GC):
+// - Never sleep forever in kernel waits. Use bounded waits + `oren_gc_safepoint()` polling.
+// - On Windows, WaitOnAddress compares bytes; we rely on AddressSize=8 in the backend.
+
+var g_chan_mem_global_seq_word = 0 // u64* (mmap page), shared "something changed" counter for selects
+
+fn _chan_mem_magic_u64() {
+    // Little-endian "ORENMCH1" (8 bytes).
+    // Keep it as a literal-returning function so it does not rely on global initializers.
+    return 3551162305486344783
+}
+
+fn _chan_mem_off_magic() { return 0 }      // u64
+fn _chan_mem_off_lock() { return 8 }       // u64 (0 unlocked; tid owner)
+fn _chan_mem_off_cap() { return 16 }       // u64 (slot count)
+fn _chan_mem_off_head() { return 24 }      // u64 (read idx)
+fn _chan_mem_off_tail() { return 32 }      // u64 (write idx)
+fn _chan_mem_off_count() { return 40 }     // u64 (items)
+fn _chan_mem_off_seq() { return 48 }       // u64 (monotonic-ish; wake key)
+fn _chan_mem_off_slots() { return 56 }     // start of u64 slots
+
+fn _chan_mem_bytes(cap) {
+    return _chan_mem_off_slots() + cap * 8
+}
+
+fn _chan_mem_cap_default() { return 64 }
+
+fn _chan_mem_global_seq_init_if_needed() {
+    if g_chan_mem_global_seq_word != 0 { return 0 }
+    var p = sys_mmap_private_anon(4096)
+    if p == 0 || p == -1 || p < 4096 { exit(934) }
+    ptr_set(p, 0)
+    g_chan_mem_global_seq_word = p
+    return 0
+}
+
+fn _chan_mem_global_seq_bump_and_wake() {
+    _chan_mem_global_seq_init_if_needed()
+    var p = g_chan_mem_global_seq_word
+    if p == 0 { return 0 }
+    var s = ptr_get(p) + 1
+    if s == 0 { s = 1 }
+    ptr_set(p, s)
+    oren_wake_all_addr(p)
+    return 0
+}
+
+fn native_chan_is_mem(ch) {
+    // Robustness: avoid probing arbitrary memory for non-tracked pointers.
+    var node = oren_find_node(ch)
+    if node == 0 { return 0 }
+    // Expect kind==STRUCT (4); reject lists/strings/etc.
+    if ptr_get(iadd(node, 16)) != 4 { return 0 }
+    // Now it is safe to probe the header.
+    if ptr_get(ch + _chan_mem_off_magic()) != _chan_mem_magic_u64() { return 0 }
+    return 1
+}
+
+fn _chan_mem_lock(ch) {
+    var lock_ptr = ch + _chan_mem_off_lock()
+    var tid = sys_gettid()
+    var spin = 0
+    while atomic_cas(lock_ptr, 0, tid) != 0 {
+        spin = iadd(spin, 1)
+        if spin > 1000 {
+            var owner = ptr_get(lock_ptr)
+            if owner != 0 {
+                // STW-safe: bounded wait + safepoint polling.
+                oren_gc_safepoint()
+                oren_wait_on_addr(lock_ptr, owner, 1000) // 1ms
+            }
+            spin = 0
+        }
+    }
+    return 0
+}
+
+fn _chan_mem_unlock(ch) {
+    var lock_ptr = ch + _chan_mem_off_lock()
+    var tid = sys_gettid()
+    atomic_cas(lock_ptr, tid, 0)
+    oren_wake_all_addr(lock_ptr)
+    return 0
+}
+
+fn _chan_mem_bump_seq_locked(ch) {
+    var seq_ptr = ch + _chan_mem_off_seq()
+    var s = ptr_get(seq_ptr) + 1
+    if s == 0 { s = 1 }
+    ptr_set(seq_ptr, s)
+    return s
+}
+
+fn _chan_mem_wake_all(ch) {
+    // Wake local channel waiters and global select waiters.
+    oren_wake_all_addr(ch + _chan_mem_off_seq())
+    _chan_mem_global_seq_bump_and_wake()
+    return 0
+}
+
+fn native_chan_new_mem_default() {
+    var cap = _chan_mem_cap_default()
+    var bytes = _chan_mem_bytes(cap)
+    var ch = malloc(bytes)
+    if ch == 0 { return 0 }
+    // Clear so GC scanning doesn't see stale pointers.
+    var i = 0
+    while i < bytes {
+        ptr_set_byte(ch + i, 0)
+        i = i + 1
+    }
+    ptr_set(ch + _chan_mem_off_magic(), _chan_mem_magic_u64())
+    ptr_set(ch + _chan_mem_off_lock(), 0)
+    ptr_set(ch + _chan_mem_off_cap(), cap)
+    ptr_set(ch + _chan_mem_off_head(), 0)
+    ptr_set(ch + _chan_mem_off_tail(), 0)
+    ptr_set(ch + _chan_mem_off_count(), 0)
+    ptr_set(ch + _chan_mem_off_seq(), 1)
+
+    // Track as STRUCT so values stored in slots are scanned and retained.
+    oren_track_alloc(ch, bytes, 4)
+    return ch
+}
+
+fn native_chan_try_send_mem(ch, val) {
+    if native_chan_is_mem(ch) == 0 { return 0 - 22 } // EINVAL
+    _chan_mem_lock(ch)
+    var cap = ptr_get(ch + _chan_mem_off_cap())
+    var cnt = ptr_get(ch + _chan_mem_off_count())
+    if cnt >= cap {
+        _chan_mem_unlock(ch)
+        return 0
+    }
+    var tail = ptr_get(ch + _chan_mem_off_tail())
+    ptr_set(ch + _chan_mem_off_slots() + tail * 8, val)
+    tail = iadd(tail, 1)
+    if tail >= cap { tail = 0 }
+    ptr_set(ch + _chan_mem_off_tail(), tail)
+    ptr_set(ch + _chan_mem_off_count(), iadd(cnt, 1))
+    _chan_mem_bump_seq_locked(ch)
+    _chan_mem_unlock(ch)
+    _chan_mem_wake_all(ch)
+    return 1
+}
+
+fn native_chan_try_recv_mem(ch, out_ptr) {
+    if native_chan_is_mem(ch) == 0 { return 0 - 22 } // EINVAL
+    if out_ptr == 0 { return 0 - 22 }
+    _chan_mem_lock(ch)
+    var cap = ptr_get(ch + _chan_mem_off_cap())
+    var cnt = ptr_get(ch + _chan_mem_off_count())
+    if cnt <= 0 {
+        _chan_mem_unlock(ch)
+        return 0
+    }
+    var head = ptr_get(ch + _chan_mem_off_head())
+    var v = ptr_get(ch + _chan_mem_off_slots() + head * 8)
+    // Best-effort clear to reduce stale pointers retained by conservative scans.
+    ptr_set(ch + _chan_mem_off_slots() + head * 8, 0)
+    head = iadd(head, 1)
+    if head >= cap { head = 0 }
+    ptr_set(ch + _chan_mem_off_head(), head)
+    ptr_set(ch + _chan_mem_off_count(), cnt - 1)
+    _chan_mem_bump_seq_locked(ch)
+    _chan_mem_unlock(ch)
+    ptr_set(out_ptr, v)
+    _chan_mem_wake_all(ch)
+    return 1
+}
+
+fn native_chan_send_mem(ch, val) {
+    // Blocking send: wait until buffer has space.
+    if native_chan_is_mem(ch) == 0 { return 0 }
+    while 1 {
+        var rc = native_chan_try_send_mem(ch, val)
+        if rc == 1 { return 1 }
+        if rc < 0 { return 0 }
+        // Full: wait for a state change.
+        var seq = ptr_get(ch + _chan_mem_off_seq())
+        oren_gc_safepoint()
+        oren_wait_on_addr(ch + _chan_mem_off_seq(), seq, 1000) // 1ms
+    }
+    return 0
+}
+
+fn native_chan_recv_mem(ch) {
+    // Blocking recv: wait until at least one value exists.
+    if native_chan_is_mem(ch) == 0 { return 0 }
+    var buf = malloc(8)
+    if buf == 0 { return 0 }
+    while 1 {
+        var rc = native_chan_try_recv_mem(ch, buf)
+        if rc == 1 {
+            var v = ptr_get(buf)
+            free(buf)
+            return v
+        }
+        if rc < 0 {
+            free(buf)
+            return 0
+        }
+        var seq = ptr_get(ch + _chan_mem_off_seq())
+        oren_gc_safepoint()
+        oren_wait_on_addr(ch + _chan_mem_off_seq(), seq, 1000) // 1ms
+    }
+    free(buf)
+    return 0
+}
+

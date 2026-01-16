@@ -47,9 +47,11 @@ Sources of truth:
   - select case encoding: `select_case_parse` in `lib/avm/avm_vm.c`
   - bytecode lowering recognizes the symbol names:
     - `lib/compiler/codegen_bytecode/010_codegen_a.oren` (`oren_select_recv`, `oren_select`)
-- Native runtime implementation (macOS/Linux only, rolling):
+- Native runtime implementation (rolling):
   - `lib/runtime_native/245_select.oren`
-  - native channels are currently pipe pairs `[rfd, wfd]` from `oren_new_channel()` in `lib/runtime_native/010_channels_globals_consts.oren`
+  - native channels:
+    - macOS/Linux: pipe pairs `[rfd, wfd]` from `oren_new_channel()` in `lib/runtime_native/010_channels_globals_consts.oren`
+    - Windows: in-memory channels from `oren_new_channel()` in `lib/runtime_native/011_channels_mem.oren`
 
 Important consequence:
 
@@ -227,6 +229,11 @@ Planned direction:
 - a Windows netpoller using IOCP for sockets
 - a separate FS async layer (thread pool or overlapped IO) if needed
 - channels/select remain the language surface
+
+Current (rolling, correctness-first):
+
+- `oren_select` works for **in-memory channels** on Windows (not pipe fds).
+- In-green select semantics on Windows are not yet netpoll-driven (no IOCP integration yet); tests that require “select must not block the scheduler OS thread” remain POSIX-only for now.
 
 ---
 

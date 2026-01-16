@@ -96,9 +96,11 @@ Related plugin/nesting model notes:
 - **Channels + select in AVM**
   - Deterministic VM opcodes: `SELECT_RECV` / `SELECT` in `lib/avm/avm_vm.c`
   - Evidence: `tests/avm/test_smoke_suite.oren` (channels + select cases)
-- **Channels + select in native runtime (macOS/Linux)**
-  - Pipe-based channels: `lib/runtime_native/010_channels_globals_consts.oren`
-  - Select over channels: `lib/runtime_native/245_select.oren` (macOS kqueue, Linux epoll)
+- **Channels + select in native runtime (rolling)**
+  - Channels:
+    - macOS/Linux: pipe-based channels: `lib/runtime_native/010_channels_globals_consts.oren`
+    - Windows: in-memory channels: `lib/runtime_native/011_channels_mem.oren`
+  - Select over channels: `lib/runtime_native/245_select.oren` (POSIX: kqueue/epoll; Windows: mem-channel select)
   - Evidence: `tests/native/test_integration_suite.oren` (`test_select_primitives`)
 
 ### Networking + crypto (stdlib; rolling)

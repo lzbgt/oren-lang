@@ -88,8 +88,9 @@ Implementation guardrails (native backend contributors):
 
 Implications:
 
-- There is no production-grade GMP/netpoller (true async IO + channels/select) in native yet.
-  - However, the runtime now has Stage N2 groundwork for “multiple M” green scheduling via `oren_green_start_workers(n)`.
+- There is no **production-grade** GMP/netpoller (true async IO + channels/select across Tier‑1) in native yet.
+  - However, macOS/Linux already have an early green-task scheduler + netpoll integration for pipe/socket readiness (rolling; see `docs/NATIVE_GMP_SCHEDULER.md`).
+  - Windows has a correctness-first in-memory channel implementation so `oren_select` works for channels even without IOCP (see `docs/ASYNC_IO_AND_SELECT.md`).
 - A “mutex” cannot coordinate across `spawn` on POSIX v0, because forked processes do not share the address space.
 
 Source of truth:
@@ -121,13 +122,15 @@ Source of truth:
 
 Channels exist today, but their implementation is currently a bring-up substrate:
 
-- Native channels are pipe pairs `[rfd, wfd]` (`oren_new_channel()`).
+- Native channels are platform-dependent today (rolling):
+  - **macOS/Linux:** pipe pairs `[rfd, wfd]` (`oren_new_channel()` returns a list)
+  - **Windows:** in-memory channels (a GC-tracked struct; `oren_new_channel()` returns a pointer)
 - AVM has proper channels as VM objects.
 - `oren_select_recv` / `oren_select` exist as **functions** (not syntax) and have a shared encoding across AVM and native.
 
 Source of truth:
 
-- Native: `lib/runtime_native/010_channels_globals_consts.oren`, `lib/runtime_native/245_select.oren`
+- Native: `lib/runtime_native/010_channels_globals_consts.oren`, `lib/runtime_native/011_channels_mem.oren`, `lib/runtime_native/245_select.oren`
 - AVM: `lib/avm/avm_vm.c` opcodes `SELECT_RECV` / `SELECT`
 - Docs: `docs/ASYNC_IO_AND_SELECT.md`
 

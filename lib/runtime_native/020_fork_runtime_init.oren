@@ -158,6 +158,8 @@ fn native_runtime_init(target_os) {
     g_cstr0_max_ptr = 0
     g_alloc_index_tomb = 1
     g_runtime_single_threaded = 1
+    // Channel globals (do not rely on global initializers).
+    g_chan_mem_global_seq_word = 0
 
     // NET wait backend probe state (must not rely on global initializers).
     g_target_os = target_os

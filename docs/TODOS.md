@@ -404,7 +404,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		       - `oren_m_park_word_wait` / `oren_m_park_word_wake` (futex/WaitOnAddress token-based park/unpark)
 		     - Guard: `tests/native/test_os_thread_park_unpark_smoke.oren` (macOS + Linux + Windows)
 		     - Guard: `tests/native/test_os_thread_spawn_many_smoke.oren` (macOS + Linux + Windows; bounded join timeout)
-		     - 2026-01-16: fixed Tier‑1 Windows bring-up regressions in the OS-thread substrate and TIME monotonic path:
+	   - 2026-01-16: fixed Tier‑1 Windows bring-up regressions in the OS-thread substrate and TIME monotonic path:
 		       - Root cause: `native_call1(addr, arg0)` was incorrectly short-circuited as a generic `native_*` call on x64,
 		         executing the prelude stub body (returns 0) instead of doing an indirect call; this broke `oren_os_thread_spawn`
 		         on Windows and made STW GC join-waiter tests hang/flake.
@@ -412,7 +412,16 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		         x64 rtobj backend signature (`x64_v0_17`) to invalidate stale cached runtime objects.
 		       - Fix: treat `sys_qpc_frequency` as a syscall intrinsic and write the QueryPerformanceFrequency result directly to
 		         `*freq_ptr` (avoid fixed stack scratch slots).
-		       - Verified: `./scripts/verify_native_matrix.sh --targets x64-win --trace` (stage1 + stage2) on remote Win11.
+	         - Verified: `./scripts/verify_native_matrix.sh --targets x64-win --trace` (stage1 + stage2) on remote Win11.
+	   - 2026-01-16: Windows channel/select groundwork (portable in-memory channels):
+	     - Runtime: `lib/runtime_native/011_channels_mem.oren` (GC-tracked ring-buffer channels + wait-on-addr)
+	     - Runtime: `lib/runtime_native/245_select.oren` (Windows: `oren_select` / `oren_select_recv` over mem-channels)
+	     - Tests: enable select primitives on Windows:
+	       - `tests/native/test_quick_integration_native.oren` (`test_select` no longer skips Windows)
+	       - `tests/native/test_integration_suite.oren` (`test_select_primitives` no longer skips Windows)
+	     - Notes:
+	       - Pipe-fd readiness is still POSIX-only; Windows still needs IOCP for a real netpoller.
+	       - In-green `oren_select` remains POSIX netpoll-only for now (Windows green workers would block without IOCP).
 			   - 2026-01-15 → 2026-01-16: Stage N2 groundwork: green-task scheduler can now run on background OS threads ("M") via `oren_green_start_workers(n)`.
 			     - Runtime: `lib/runtime_native/263_green_tasks.oren`
 			       - per-OS-thread scheduler state (scheduler ctx + current-G are no longer globals)

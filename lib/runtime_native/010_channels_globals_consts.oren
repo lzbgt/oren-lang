@@ -1,9 +1,19 @@
-// --- Channels (Pipe-based) ---
+// --- Channels (portable; rolling) ---
+//
+// Native channel representations (rolling):
+// - macOS/Linux: pipe pair list `[rfd, wfd]` (fd readiness integrates with select/netpoll)
+// - Windows: in-memory channel struct (see `lib/runtime_native/011_channels_mem.oren`)
 fn oren_new_channel() {
+    if g_target_os == 3 {
+        return native_chan_new_mem_default()
+    }
     return oren_pipe() // Returns [r, w]
 }
 
 fn oren_chan_send(ch, val) {
+    if native_chan_is_mem(ch) == 1 {
+        return native_chan_send_mem(ch, val)
+    }
     var w = oren_list_get(ch, 1)
     var buf = malloc(8)
     if buf == 0 { return 0 }
@@ -14,6 +24,9 @@ fn oren_chan_send(ch, val) {
 }
 
 fn oren_chan_recv(ch) {
+    if native_chan_is_mem(ch) == 1 {
+        return native_chan_recv_mem(ch)
+    }
     var r = oren_list_get(ch, 0)
     var buf = malloc(8)
     if buf == 0 { return 0 }
