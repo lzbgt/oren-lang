@@ -46,7 +46,10 @@ fn green_g_off_io_fd() { return 104 }
 fn green_g_off_io_kind() { return 112 }   // 0=read, 1=write
 fn green_g_off_io_ready() { return 120 }  // 0|1
 fn green_g_off_io_active() { return 128 } // 0|1
-fn green_g_bytes() { return 136 }
+// io_epoch is bumped by high-level waiters (e.g. `oren_select`) so the scheduler can reject stale
+// tokens from an earlier wait round without relying on `free` timing.
+fn green_g_off_io_epoch() { return 136 } // u64
+fn green_g_bytes() { return 144 }
 
 // Green states.
 fn green_g_state_runnable() { return 1 }
@@ -143,7 +146,16 @@ fn green_t_off_current_g() { return 8 }        // u64: currently running G ptr (
 fn green_t_off_sched_stack_node() { return 16 } // u64: OS-thread node for this scheduler stack (for GC scanning)
 fn green_t_off_p() { return 24 }               // u64: current P pointer (rolling; required for Stage N2)
 fn green_t_off_tick() { return 32 }            // u64: scheduler tick for fairness / periodic global polling
-fn green_t_bytes() { return 40 }
+// Per-thread netpoll scratch (allocation-free scheduler waits):
+// - large enough for kqueue (8*kevent + timespec + drain buf) and epoll (8*epoll_event + drain buf)
+fn green_t_off_netpoll_scratch() { return 64 }
+fn green_t_netpoll_scratch_bytes() { return 512 }
+fn green_t_bytes() { return 64 + green_t_netpoll_scratch_bytes() }
+
+fn _green_thread_netpoll_scratch_or0(ts) {
+    if ts == 0 { return 0 }
+    return ts + green_t_off_netpoll_scratch()
+}
 
 fn _green_thread_state_for_current_thread_or0() {
     if oren_globals() == 0 { return 0 }
@@ -449,7 +461,7 @@ fn _green_workers_wake_if_started() {
     return 0
 }
 
-fn _green_netpoll_drain_ready(now_ns, max_events) {
+fn _green_netpoll_drain_ready(ts, now_ns, max_events) {
     // Drain up to max_events ready tokens from the netpoller (timeout=0) and mark the corresponding Gs
     // as ready to wake on the next sleeper scan.
     //
@@ -460,19 +472,71 @@ fn _green_netpoll_drain_ready(now_ns, max_events) {
     if now_ns == 0 { return 0 }
     // Initialize lazily; ignore ENOSYS.
     if native_netpoll_init_once() < 0 { return 0 }
+    var scratch = _green_thread_netpoll_scratch_or0(ts)
     var n = 0
     while n < max_events {
-        var tok = native_netpoll_poll_one(0)
-        if tok == 0 { break }
-        if _green_is_g(tok) == true {
-            // Ignore stale tokens (wait already completed/timed out).
-            if ptr_get(tok + green_g_off_io_active()) != 0 {
-                ptr_set(tok + green_g_off_io_ready(), 1)
-                // Force a wake on the next `_green_wake_ready_all(now_ns)` pass.
-                ptr_set(tok + green_g_off_wake_ns(), now_ns)
+        if scratch != 0 {
+            var got = native_netpoll_poll_many_scratch(0, scratch, green_t_netpoll_scratch_bytes())
+            if got <= 0 { break }
+            var i = 0
+            while i < got {
+                if n >= max_events { break }
+                var tok = ptr_get(scratch + i * 8)
+                if tok != 0 {
+                    if _green_is_g(tok) == true {
+                        // Netpoll v1 token: tok is the G pointer.
+                        // Ignore stale tokens (wait already completed/timed out).
+                        if ptr_get(tok + green_g_off_io_active()) != 0 {
+                            ptr_set(tok + green_g_off_io_ready(), 1)
+                            // Force a wake on the next `_green_wake_ready_all(now_ns)` pass.
+                            ptr_set(tok + green_g_off_wake_ns(), now_ns)
+                        }
+                    } else {
+                        // Netpoll v2 token: tok is a small tracked struct describing which select-case became ready.
+                        if native_netpoll_is_wait_token(tok) == true {
+                            var g = ptr_get(tok + native_netpoll_wait_off_g())
+                            if _green_is_g(g) == true {
+                                if ptr_get(g + green_g_off_io_active()) != 0 {
+                                    var want_epoch = ptr_get(tok + native_netpoll_wait_off_epoch())
+                                    if want_epoch == ptr_get(g + green_g_off_io_epoch()) {
+                                        ptr_set(tok + native_netpoll_wait_off_ready(), 1)
+                                        ptr_set(g + green_g_off_io_ready(), 1)
+                                        ptr_set(g + green_g_off_wake_ns(), now_ns)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                i = i + 1
+                n = n + 1
             }
+        } else {
+            // Fallback (should be rare): poll one token at a time.
+            var tok2 = native_netpoll_poll_one(0)
+            if tok2 == 0 { break }
+            if _green_is_g(tok2) == true {
+                if ptr_get(tok2 + green_g_off_io_active()) != 0 {
+                    ptr_set(tok2 + green_g_off_io_ready(), 1)
+                    ptr_set(tok2 + green_g_off_wake_ns(), now_ns)
+                }
+            } else {
+                if native_netpoll_is_wait_token(tok2) == true {
+                    var g2 = ptr_get(tok2 + native_netpoll_wait_off_g())
+                    if _green_is_g(g2) == true {
+                        if ptr_get(g2 + green_g_off_io_active()) != 0 {
+                            var want_epoch2 = ptr_get(tok2 + native_netpoll_wait_off_epoch())
+                            if want_epoch2 == ptr_get(g2 + green_g_off_io_epoch()) {
+                                ptr_set(tok2 + native_netpoll_wait_off_ready(), 1)
+                                ptr_set(g2 + green_g_off_io_ready(), 1)
+                                ptr_set(g2 + green_g_off_wake_ns(), now_ns)
+                            }
+                        }
+                    }
+                }
+            }
+            n = n + 1
         }
-        n = n + 1
     }
     return 0
 }
@@ -1049,7 +1113,7 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
         if now != 0 {
             // Drain ready IO events (netpoller) and mark their Gs as ready-to-wake at `now`.
             // Keep this bounded so a storm of IO events can't starve runnable work.
-            _green_netpoll_drain_ready(now, 32)
+            _green_netpoll_drain_ready(ts, now, 32)
 
             // Wake sleepers across all Ps (future-proof for M < P and for global timeouts).
             _green_wake_ready_all(now)
@@ -1131,16 +1195,69 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             if sleep_ns > 1000000000 { sleep_ns = 1000000000 } // 1s
             var sleep_ms = sleep_ns / 1000000
             if sleep_ms <= 0 { sleep_ms = 1 }
-            var tok = native_netpoll_poll_one(sleep_ms)
-            if tok != 0 {
-                // Consume the token: mark the corresponding G as ready-to-wake.
-                var now3 = _green_time_now_ns()
-                if now3 == 0 { now3 = now2 }
-                if now3 != 0 {
-                    if _green_is_g(tok) == true {
-                        if ptr_get(tok + green_g_off_io_active()) != 0 {
-                            ptr_set(tok + green_g_off_io_ready(), 1)
-                            ptr_set(tok + green_g_off_wake_ns(), now3)
+            var scratch2 = _green_thread_netpoll_scratch_or0(ts)
+            if scratch2 != 0 {
+                var got = native_netpoll_poll_many_scratch(sleep_ms, scratch2, green_t_netpoll_scratch_bytes())
+                if got > 0 {
+                    // Consume tokens: mark corresponding Gs as ready-to-wake.
+                    var now3 = _green_time_now_ns()
+                    if now3 == 0 { now3 = now2 }
+                    if now3 != 0 {
+                        var i2 = 0
+                        while i2 < got {
+                            var tok = ptr_get(scratch2 + i2 * 8)
+                            if tok != 0 {
+                                if _green_is_g(tok) == true {
+                                    if ptr_get(tok + green_g_off_io_active()) != 0 {
+                                        ptr_set(tok + green_g_off_io_ready(), 1)
+                                        ptr_set(tok + green_g_off_wake_ns(), now3)
+                                    }
+                                } else {
+                                    if native_netpoll_is_wait_token(tok) == true {
+                                        var g = ptr_get(tok + native_netpoll_wait_off_g())
+                                        if _green_is_g(g) == true {
+                                            if ptr_get(g + green_g_off_io_active()) != 0 {
+                                                var want_epoch = ptr_get(tok + native_netpoll_wait_off_epoch())
+                                                if want_epoch == ptr_get(g + green_g_off_io_epoch()) {
+                                                    ptr_set(tok + native_netpoll_wait_off_ready(), 1)
+                                                    ptr_set(g + green_g_off_io_ready(), 1)
+                                                    ptr_set(g + green_g_off_wake_ns(), now3)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            i2 = i2 + 1
+                        }
+                    }
+                }
+            } else {
+                var tok = native_netpoll_poll_one(sleep_ms)
+                if tok != 0 {
+                    // Consume the token: mark the corresponding G as ready-to-wake.
+                    var now3 = _green_time_now_ns()
+                    if now3 == 0 { now3 = now2 }
+                    if now3 != 0 {
+                        if _green_is_g(tok) == true {
+                            if ptr_get(tok + green_g_off_io_active()) != 0 {
+                                ptr_set(tok + green_g_off_io_ready(), 1)
+                                ptr_set(tok + green_g_off_wake_ns(), now3)
+                            }
+                        } else {
+                            if native_netpoll_is_wait_token(tok) == true {
+                                var g = ptr_get(tok + native_netpoll_wait_off_g())
+                                if _green_is_g(g) == true {
+                                    if ptr_get(g + green_g_off_io_active()) != 0 {
+                                        var want_epoch = ptr_get(tok + native_netpoll_wait_off_epoch())
+                                        if want_epoch == ptr_get(g + green_g_off_io_epoch()) {
+                                            ptr_set(tok + native_netpoll_wait_off_ready(), 1)
+                                            ptr_set(g + green_g_off_io_ready(), 1)
+                                            ptr_set(g + green_g_off_wake_ns(), now3)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1622,6 +1739,7 @@ fn oren_green_spawn(fn_obj, args_list) {
     ptr_set(g + green_g_off_io_kind(), 0)
     ptr_set(g + green_g_off_io_ready(), 0)
     ptr_set(g + green_g_off_io_active(), 0)
+    ptr_set(g + green_g_off_io_epoch(), 0)
 
     // Initialize context to start at __oren_green_entry on the new stack.
     var entry_pc = oren_code_addr(__oren_green_entry)

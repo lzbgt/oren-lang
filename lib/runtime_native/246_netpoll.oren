@@ -146,19 +146,53 @@ fn native_netpoll_wake() {
     return 0
 }
 
-fn _native_netpoll_drain_wake_pipe() {
+fn _native_netpoll_drain_wake_pipe_into(buf, buf_len) {
     if g_netpoll_wake_rfd == 0 { return 0 }
     // Read until EAGAIN/EWOULDBLOCK (11) or until no more data.
-    var buf = malloc(64)
-    if buf == 0 { return 0 }
     while 1 {
-        var n = sys_read(g_netpoll_wake_rfd, buf, 64)
+        var n = sys_read(g_netpoll_wake_rfd, buf, buf_len)
         // Linux: -11; macOS: -35
         if n == 0 - 11 || n == 0 - 35 { break }
         if n <= 0 { break }
     }
+    return 0
+}
+
+fn _native_netpoll_drain_wake_pipe() {
+    var buf = malloc(64)
+    if buf == 0 { return 0 }
+    _native_netpoll_drain_wake_pipe_into(buf, 64)
     free(buf)
     return 0
+}
+
+// --- Netpoll tokens (v1 -> v2) ---
+//
+// v1 token contract:
+// - token == G pointer (green task)
+//
+// v2 token contract (rolling; used by `oren_select` to avoid per-wake probe polling):
+// - token == pointer to a small tracked struct that encodes:
+//   - which G to wake
+//   - which select-case index became ready
+//   - an epoch to reject stale events safely
+//
+// This lets the scheduler wake the correct green task and mark a precise ready set
+// without allocating a temporary kqueue/epoll per wake.
+fn native_netpoll_wait_off_magic() { return 0 }      // u64: magic tag
+fn native_netpoll_wait_off_g() { return 8 }          // u64: G pointer
+fn native_netpoll_wait_off_case_idx() { return 16 }  // u64: select case index
+fn native_netpoll_wait_off_epoch() { return 24 }     // u64: epoch (stale-event reject)
+fn native_netpoll_wait_off_ready() { return 32 }     // u64: 0|1 (set by scheduler)
+fn native_netpoll_wait_bytes() { return 40 }
+
+// "ORENPWL1" (ASCII) packed into u64 (little-endian).
+fn native_netpoll_wait_magic() { return 3552310208510644815 }
+
+fn native_netpoll_is_wait_token(ptr) {
+    if ptr == 0 { return false }
+    if ptr < 4096 { return false }
+    return ptr_get(ptr + native_netpoll_wait_off_magic()) == native_netpoll_wait_magic()
 }
 
 fn native_netpoll_arm_fd(fd, want_write, token) {
@@ -249,6 +283,156 @@ fn native_netpoll_disarm_fd(fd, want_write) {
     // Linux epoll DEL ignores ev ptr.
     sys_epoll_ctl(g_netpoll_fd, OREN_EPOLL_CTL_DEL, fd, 0)
     return 0
+}
+
+fn native_netpoll_poll_many_scratch(timeout_ms, scratch, scratch_bytes) {
+    // Allocation-free poll helper that returns up to 8 tokens at once.
+    //
+    // Layout (common):
+    // - scratch[0..63] is used as an output u64 tokens array (up to 8 tokens)
+    //
+    // Additional internal scratch is used per backend (kqueue/epoll) so we do not allocate.
+    //
+    // Returns: count (0..8). Tokens are written at `scratch + i*8` for i in [0,count).
+    if g_netpoll_inited == 0 { return 0 }
+    if g_netpoll_fd == 0 { return 0 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+    if scratch == 0 { return 0 }
+    if scratch_bytes < 64 { return 0 }
+
+    if g_target_os == 1 {
+        // Darwin kqueue:
+        // - reserve scratch[0..63] for output tokens
+        // - use scratch[64..319] for up to 8 kevents (8*32)
+        // - use scratch[320..335] for timespec (16)
+        // - use scratch[336..399] for wake drain buf (64)
+        var evs = scratch + 64
+        var ts = scratch + 64 + 256
+        var drain = scratch + 64 + 256 + 16
+        if scratch_bytes < 64 + 256 + 16 + 64 { return 0 }
+
+        if timeout_ms != 0 {
+            ptr_set(ts + 0, timeout_ms / 1000)
+            ptr_set(ts + 8, (timeout_ms - (timeout_ms / 1000) * 1000) * 1000000)
+        } else {
+            ptr_set(ts + 0, 0)
+            ptr_set(ts + 8, 0)
+        }
+
+        var n = sys_kevent(g_netpoll_fd, 0, 0, evs, 8, ts)
+        if n <= 0 { return 0 }
+        var i = 0
+        var out_n = 0
+        while i < n {
+            var base = evs + i * 32
+            var udata = ptr_get(base + 24)
+            if udata == 0 {
+                _native_netpoll_drain_wake_pipe_into(drain, 64)
+            } else {
+                ptr_set(scratch + out_n * 8, udata)
+                out_n = out_n + 1
+            }
+            i = i + 1
+        }
+        return out_n
+    }
+
+    // Linux epoll:
+    // - reserve scratch[0..63] for output tokens
+    // - use scratch[64..] for up to 8 epoll_event structs
+    // - append wake drain buf (64 bytes)
+    var evsz = OREN_EPOLL_EVENT_BYTES
+    if evsz == 0 { evsz = 16 }
+    var data_off = OREN_EPOLL_EVENT_OFF_DATA
+    if data_off == 0 { data_off = 8 }
+    if 64 + evsz * 8 + 64 > scratch_bytes { return 0 }
+    var evbuf = scratch + 64
+    var drain2 = scratch + 64 + evsz * 8
+
+    var n2 = sys_epoll_pwait(g_netpoll_fd, evbuf, 8, timeout_ms, 0, 0)
+    if n2 <= 0 { return 0 }
+    var j = 0
+    var out_n2 = 0
+    while j < n2 {
+        var base2 = evbuf + j * evsz
+        var d = oren_ptr_get_u64_le(base2 + data_off)
+        if d == 0 {
+            _native_netpoll_drain_wake_pipe_into(drain2, 64)
+        } else {
+            ptr_set(scratch + out_n2 * 8, d)
+            out_n2 = out_n2 + 1
+        }
+        j = j + 1
+    }
+    return out_n2
+}
+
+fn native_netpoll_poll_one_scratch(timeout_ms, scratch, scratch_bytes) {
+    // Allocation-free poll helper intended for scheduler hot paths.
+    //
+    // scratch must point to writable memory of at least scratch_bytes.
+    // Returns one token (u64) or 0 if none / only wake.
+    if g_netpoll_inited == 0 { return 0 }
+    if g_netpoll_fd == 0 { return 0 }
+    if timeout_ms < 0 { timeout_ms = 0 }
+    if scratch == 0 { return 0 }
+    if scratch_bytes < 256 { return 0 }
+
+    if g_target_os == 1 {
+        // Darwin kqueue: each kevent is 32 bytes. Use space for up to 8 events.
+        var evs = scratch
+        var ts = scratch + 256
+        if scratch_bytes < 256 + 16 + 64 { return 0 }
+
+        if timeout_ms != 0 {
+            ptr_set(ts + 0, timeout_ms / 1000)
+            ptr_set(ts + 8, (timeout_ms - (timeout_ms / 1000) * 1000) * 1000000)
+        } else {
+            ptr_set(ts + 0, 0)
+            ptr_set(ts + 8, 0)
+        }
+
+        var n = sys_kevent(g_netpoll_fd, 0, 0, evs, 8, ts)
+        if n <= 0 { return 0 }
+        var i = 0
+        var tok = 0
+        while i < n {
+            var base = evs + i * 32
+            var udata = ptr_get(base + 24)
+            if udata == 0 {
+                _native_netpoll_drain_wake_pipe_into(scratch + 256 + 16, 64)
+            } else {
+                tok = udata
+                break
+            }
+            i = i + 1
+        }
+        return tok
+    }
+
+    // Linux epoll.
+    var evsz = OREN_EPOLL_EVENT_BYTES
+    if evsz == 0 { evsz = 16 }
+    var data_off = OREN_EPOLL_EVENT_OFF_DATA
+    if data_off == 0 { data_off = 8 }
+    if evsz * 8 + 64 > scratch_bytes { return 0 }
+    var out = scratch
+    var n2 = sys_epoll_pwait(g_netpoll_fd, out, 8, timeout_ms, 0, 0)
+    if n2 <= 0 { return 0 }
+    var j = 0
+    var tok2 = 0
+    while j < n2 {
+        var base2 = out + j * evsz
+        var d = oren_ptr_get_u64_le(base2 + data_off)
+        if d == 0 {
+            _native_netpoll_drain_wake_pipe_into(scratch + evsz * 8, 64)
+        } else {
+            tok2 = d
+            break
+        }
+        j = j + 1
+    }
+    return tok2
 }
 
 fn native_netpoll_poll_one(timeout_ms) {

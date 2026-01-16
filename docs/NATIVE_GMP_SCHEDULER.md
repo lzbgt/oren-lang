@@ -134,13 +134,19 @@ Status (fact, code):
 - Context switch intrinsics are defined as native backend intrinsics (`oren_ctx_init`, `oren_ctx_switch` in
   `lib/runtime_native/000_prelude_sys.oren`).
 - 2026-01-16: native `oren_select` / `oren_select_recv` are green-aware and do not block the scheduler OS thread:
-  - Runtime: `lib/runtime_native/245_select.oren` (parks the G on the scheduler netpoller when in-green; no poll+sleep loop)
-  - Runtime: `lib/runtime_native/246_netpoll.oren` (POSIX netpoller: kqueue/epoll + wake pipe)
+  - Green path uses the shared scheduler netpoller directly (**netpoll v2**): per-case tokens mark a full ready-set so deterministic cursor selection does not require per-wake probe polling.
+  - Runtime: `lib/runtime_native/245_select.oren` (green `oren_select` waits on netpoll v2; non-green still uses a per-call kqueue/epoll wait)
+  - Runtime: `lib/runtime_native/246_netpoll.oren` (POSIX netpoller: kqueue/epoll + wake pipe; allocation-free `native_netpoll_poll_many_scratch`)
+  - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains netpoll tokens and marks G/wait nodes ready)
   - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*` park the G and rely on the scheduler netpoller instead of poll+sleep)
-  - Escape hatch (rolling): `OREN_NO_NETPOLL=1` disables netpoll bring-up for debugging.
-  - Guard: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
-  - Guard: `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
-  - Note: non-green `oren_select` still uses a per-call kqueue/epoll wait; the green-path is the first step toward a production-grade shared netpoller.
+  - Escape hatch (rolling): `OREN_NO_NETPOLL=1` disables netpoll bring-up for debugging (in-green select returns ENOSYS; avoids busy loops).
+  - Guards:
+    - `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`, `test_select_multi_case_in_green_workers`)
+    - `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
+
+- 2026-01-16: scheduler netpoll waiting is allocation-free in steady-state:
+  - the green scheduler uses a per-OS-thread scratch region for `native_netpoll_poll_many_scratch(...)` so worker idle waits do not allocate and do not drop additional ready tokens
+  - Runtime: `lib/runtime_native/263_green_tasks.oren` (per-thread scratch in `green_t`)
 
 ### Stage N2: N:M GMP (multiple OS threads, multiple Ps)
 

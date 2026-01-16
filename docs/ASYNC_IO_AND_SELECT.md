@@ -1,6 +1,6 @@
 # Async IO Readiness + `select` in Oren (Rolling Design + Current Reality)
 
-**Last updated:** 2026-01-02
+**Last updated:** 2026-01-16
 
 This doc answers a recurring question:
 
@@ -87,8 +87,8 @@ Notes:
 - Scheduler integration status (native, rolling):
   - The green-task scheduler exists (`lib/runtime_native/263_green_tasks.oren`).
   - 2026-01-16: native waits are green-aware (rolling, correctness-first):
-    - `oren_select` / `oren_select_recv` (pipe-based channels): when called from a green task, parks the G on the scheduler netpoller (no poll+sleep loop).
-      - Guard: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`)
+    - `oren_select` / `oren_select_recv` (pipe-based channels): when called from a green task, waits via the shared scheduler netpoller (**netpoll v2**) and preserves deterministic selection without per-wake probe polling.
+      - Guards: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`, `test_select_multi_case_in_green_workers`)
     - `oren_fd_wait_*` (fd readiness): when called from a green task, parks the G and lets the scheduler block in the POSIX netpoller (no busy polling).
       - Runtime: `lib/runtime_native/246_netpoll.oren` (kqueue/epoll + wake pipe)
       - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains netpoll tokens)
