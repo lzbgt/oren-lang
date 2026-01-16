@@ -34,6 +34,9 @@ Additional substrate (not wired into `spawn` yet):
   - `oren_green_start_workers(n)` (runtime: `lib/runtime_native/263_green_tasks.oren`)
   - This is not a full GMP/netpoller yet (no true async IO), but it is the “M” substrate needed to move beyond N:1.
   - Guardrail (rolling): `oren_green_start_workers` must be called from a host thread (not while executing a green task), otherwise it returns `-1`.
+  - Rolling Stage N3 plumbing: `P` count is now configurable before workers start:
+    - `oren_green_set_p_count(n)` grows scheduler `P` objects (no shrink; rejected once workers started).
+    - `oren_green_p_count()` reports the current `P` count.
 
 ### 1.2 Wait-on-address (`sys_ulock_wait/sys_ulock_wake`) (portable lock/park substrate)
 

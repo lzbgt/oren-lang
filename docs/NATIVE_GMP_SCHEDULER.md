@@ -169,6 +169,12 @@ Status (rolling groundwork):
   - optional background scheduler workers (`oren_green_start_workers(n)`) that drain:
     - their bound `P` local runq/sleepq (locality), and
     - a scheduler-level **global run queue** for cross-P injection / fairness (spawns from outside green context).
+  - Scheduler topology (rolling; Stage N3 plumbing):
+    - `P` count is now a real runtime parameter:
+      - `oren_green_set_p_count(n)` grows the number of `P` objects before workers start (no shrink; returns `-1` once workers started).
+      - `oren_green_p_count()` reports the current `P` count.
+    - The scheduler wakes sleepers **across all Ps**, not just the current thread’s bound `P`.
+      - This is future-proofing for `M < P` and for global timeout-driven services (netpoller/timers) without requiring every `P` to be actively driven.
   - Worker sleeping behavior (rolling, but important for responsiveness):
     - when only sleepers exist, the worker parks on the shared park word with a timeout (so new runnable work wakes it immediately)
     - inserting new sleepers wakes workers so the “next wake” deadline is re-evaluated promptly
