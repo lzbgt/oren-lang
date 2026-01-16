@@ -450,13 +450,13 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				       - Progress (2026-01-16): worker idle/blocked paths now clear the thread-local P binding while parked, and on wake attempt to acquire **any** idle P before running Oren code (still under scheduler lock).
 				       - Progress (2026-01-16): `oren_green_start_workers` now publishes worker-mode state before spawning threads and exposes a worker-ready counter (debug) to stabilize fixtures.
 				       - Progress (2026-01-16): idle-P pool is now FIFO (fair) and has a multi-worker guard that proves `P2` can be acquired under `M<P` in world-lock mode:
-				         - Guard: `tests/native/test_green_two_workers_m_less_p_smoke.oren` (wired into native quick integration runner)
+				         - Guard: `tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren` (wired into native quick integration runner; deterministic P swap + P2 acquisition)
 				         - NOTE (required): in worker mode, `_green_poll_until` must not auto-bind `P0` when a worker intentionally clears its thread-local P binding; P acquisition must happen via the idle-P pool for M<P/fairness.
-				       - DONE (2026-01-16): deterministic multi-worker regression that proves workers can swap Ps (a worker can “lose” its reserved/original P and later run on a different P):
-				         - Guard: `tests/native/test_green_two_workers_p_swap_smoke.oren` (wired into native quick integration runner)
+				       - DONE (2026-01-16): deterministic combined regression (2 workers, 3 Ps) that proves:
+				         - worker1 acquires P0, worker0 acquires P1, and later worker0 acquires P2 (true `M<P` behavior under world-lock)
+				         - Guard: `tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren`
 				         - Implementation: per-worker park/wake slots + worker-tid table + test-only idle-P requeue + test-only spawn-to-P injection (keeps fixture deterministic).
-				       - Next: merge “P swap” + “P2 acquisition” into one deterministic fixture (2 workers, 3 Ps) where:
-				         - worker1 acquires P0, worker0 acquires P1, and later worker0 (or worker1) acquires P2 (true `M<P` behavior under world-lock).
+				       - Next: harden the test-only debug surface by consolidating helpers behind a single `oren_green_debug_*` namespace doc section (so it’s clear what is “test-only ABI” vs stable runtime ABI).
 				     - add a single-thread multi-`P` fixture (using `oren_green_bind_p`) to validate cross-P sleep/wake + stealing without enabling unsafe parallel workers
 				     - evolve the global runq into a fairness/overflow queue (it exists today as cross-P injection)
 				     - implement real work stealing between `P` (today: a global-lock bring-up: “steal one before idle”, plus periodic global-runq polling for fairness)

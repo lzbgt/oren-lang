@@ -225,9 +225,9 @@ Status (rolling groundwork):
       acquire **any** idle P before running Oren code (still under the scheduler lock; world-lock may further serialize execution).
       - Implementation note (important): in worker mode, `_green_poll_until` must **not** auto-rebind `P0` when the thread-local binding is cleared; it must acquire from the idle-P pool to enable `M < P` and fairness.
     - Stage N3 evolution (determinism): idle-P pool now uses a **FIFO queue** so idle Ps are acquired fairly (prevents “P2 starves forever” during M<P bring-up).
-      - Guard: `tests/native/test_green_two_workers_m_less_p_smoke.oren` (2 workers, 3 Ps, world-lock; must observe P2 acquired)
+      - Guard: `tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren` (2 workers, 3 Ps, world-lock; deterministic P swap + P2 acquisition)
     - Stage N3 evolution (determinism): worker parking now uses **per-worker wake slots** so fixtures can wake a specific worker deterministically (instead of relying on wake-all ordering).
-      - Guard: `tests/native/test_green_two_workers_p_swap_smoke.oren` (2 workers, 2 Ps, world-lock; worker1 must acquire P0 and worker0 must acquire P1)
+      - Guard: `tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren` (same fixture; also covers P swap deterministically)
     - Stage N3 evolution (STW safety): worker idle waits must be bounded and/or include `oren_gc_safepoint()` polling so `oren_gc_collect()` cannot deadlock while a worker is parked (includes park-word and netpoll waits).
   - Runtime: `lib/runtime_native/263_green_tasks.oren` (split modules: `lib/runtime_native/263_green/*.oren`)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)

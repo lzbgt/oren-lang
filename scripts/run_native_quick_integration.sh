@@ -162,25 +162,15 @@ run_with_timeout "$build_timeout_secs" "$compiler" build "$gw_src" \
 run_with_timeout "$run_timeout_secs" "$gw_out" >>"$gw_log" 2>&1
 tail -n 3 "$gw_log" >>"$log"
 
-echo "== green two workers M<P smoke ==" >>"$log"
-mp_src="tests/native/test_green_two_workers_m_less_p_smoke.oren"
-mp_out="build/tmp/${compiler_base}_green_two_workers_m_less_p_smoke${exe_ext}"
-mp_log="build/logs/${compiler_base}_green_two_workers_m_less_p_smoke.log"
-rm -f "$mp_log" "$mp_out" 2>/dev/null || true
-run_with_timeout "$build_timeout_secs" "$compiler" build "$mp_src" \
-  --backend native --platform "$platform" --debug -o "$mp_out" >"$mp_log" 2>&1
-run_with_timeout "$run_timeout_secs" "$mp_out" >>"$mp_log" 2>&1
-tail -n 3 "$mp_log" >>"$log"
-
-echo "== green two workers P swap smoke ==" >>"$log"
-ps_src="tests/native/test_green_two_workers_p_swap_smoke.oren"
-ps_out="build/tmp/${compiler_base}_green_two_workers_p_swap_smoke${exe_ext}"
-ps_log="build/logs/${compiler_base}_green_two_workers_p_swap_smoke.log"
-rm -f "$ps_log" "$ps_out" 2>/dev/null || true
-run_with_timeout "$build_timeout_secs" "$compiler" build "$ps_src" \
-  --backend native --platform "$platform" --debug -o "$ps_out" >"$ps_log" 2>&1
-run_with_timeout "$run_timeout_secs" "$ps_out" >>"$ps_log" 2>&1
-tail -n 3 "$ps_log" >>"$log"
+echo "== green two workers M<P deterministic smoke ==" >>"$log"
+md_src="tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren"
+md_out="build/tmp/${compiler_base}_green_two_workers_m_less_p_deterministic_smoke${exe_ext}"
+md_log="build/logs/${compiler_base}_green_two_workers_m_less_p_deterministic_smoke.log"
+rm -f "$md_log" "$md_out" 2>/dev/null || true
+run_with_timeout "$build_timeout_secs" "$compiler" build "$md_src" \
+  --backend native --platform "$platform" --debug -o "$md_out" >"$md_log" 2>&1
+run_with_timeout "$run_timeout_secs" "$md_out" >>"$md_log" 2>&1
+tail -n 3 "$md_log" >>"$log"
 
 if [[ "$os_key" != "windows" ]]; then
   # Cross-platform CLI robustness smoke:
