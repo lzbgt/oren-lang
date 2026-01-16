@@ -121,13 +121,18 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
 				     - Guard: `make verify-native-x64-compile` (`scripts/verify_native_x64_compile_only.sh` sets `OREN_PARSE_FORK_PARALLEL=1`).
-				   - 2026-01-16: hardened native debug-info parsing so diagnostics never crash debug builds (best-effort tables must not segfault):
-				     - Runtime: `lib/runtime_native/110_mem_diag.oren` (`compute_program_pc_bounds`, `find_func_info`) now bails out on malformed lengths/pointers.
-				     - Guard: `make test` (native quick integration is built with `--debug` and installs debug info at entry).
-				   - 2026-01-14: fixed an arm64-macos native OS-thread bring-up crash that could be *masked or preserved* by stale rtobj cache entries:
+					   - 2026-01-16: hardened native debug-info parsing so diagnostics never crash debug builds (best-effort tables must not segfault):
+					     - Runtime: `lib/runtime_native/110_mem_diag.oren` (`compute_program_pc_bounds`, `find_func_info`) now bails out on malformed lengths/pointers.
+					     - Guard: `make test` (native quick integration is built with `--debug` and installs debug info at entry).
+					   - 2026-01-16: fixed a deterministic x64-linux execution crash under qemu (`make verify-x64-linux-qemu`) in the TIME monotonic path:
+					     - Symptom: `tests/native/test_time_mono_raw.oren` (and native quick integration) segfaults immediately after `clock_gettime(CLOCK_MONOTONIC, ...)` returns 0.
+					     - Root cause: Linux/x86_64 `sys_gettimeofday(tv, tz, abs_ptr)` lowering used a 16B `timespec` scratch where the kernel's `+8` write overlapped the spilled `abs_ptr` slot, clobbering it with `tv_nsec` and causing `*abs_ptr = ns` to dereference a small integer.
+					     - Fix: use a safe adjacent-slot layout for the `timespec` scratch (pass the deeper slot as the base pointer so the kernel's `+8` write lands in the shallower slot), and bump x64 rtobj backend signature to invalidate stale runtime objects (`x64_v0_14`).
+					     - Guard: `make verify-x64-linux-qemu` (stage1 + stage2), plus minimal repro `tests/native/test_time_mono_raw.oren`.
+					   - 2026-01-14: fixed an arm64-macos native OS-thread bring-up crash that could be *masked or preserved* by stale rtobj cache entries:
 				     - Symptom: `tests/native/test_darwin_os_thread_spawn_join.oren` crashes (SIGBUS) on stage2-native builds when runtime thread registration is enabled and rtobj cache hits.
 				     - Root cause: native call-depth hooks recursed via an instrumented slow-path helper when multithreading flips `g_runtime_single_threaded` to 0; stale rtobj cache entries kept the buggy runtime machine code alive even after compiler fixes.
-			     - Fix: ensure call-depth slow-path helpers are never instrumented + bump rtobj backend signatures (`arm64_v0_8`, `x64_v0_13`) to invalidate old cached runtime objects.
+			     - Fix: ensure call-depth slow-path helpers are never instrumented + bump rtobj backend signatures (`arm64_v0_8`, `x64_v0_13` at the time; x64 is now `x64_v0_14`) to invalidate old cached runtime objects.
 	   - 2026-01-12: began splitting the >2k-line x64 Linux syscall intrinsic emitter into smaller modules; moved the NET/epoll blocks into `lib/compiler/x64_native_program/046_emit_sys_intrinsics_linux_net.oren` so hot-path compilation of `_emit_intrinsic_sys_linux_x64` stays bounded.
 	   - 2026-01-12: introduced an x64-focused compiler entry (`oren_x64.oren` → `lib/compiler/compiler_x64.oren`) that swaps arm64 native backends for small stubs, so x64 self-host builds do not spend time compiling arm64 code.
 	     - Fact (arm64-macos host → x64-linux target, `--no-cache`): `./oren_stage2 build oren_x64.oren --backend native --platform x64-linux --no-debug`
@@ -456,11 +461,13 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						         - 2026-01-16: arm64 stmt codegen now also restores SP after condition evaluation in `if` / `while` / `for` headers (so branch entry SP matches codegen assumptions):
 						           - compiler: `lib/compiler/arm64_native_stmt.oren` (`cond_delta` restore)
 						         - 2026-01-16: regression guard: native quick integration now also runs with `OREN_GREEN_POLL_CACHE=1` (so cached scheduling locals must remain stable across yields)
-				     - 2026-01-16: switched green sleeper deadlines to a monotonic clock source (avoid wall-clock jumps affecting wake behavior):
-				       - Runtime: `lib/runtime_native/100_time.oren` (`oren_time_mono_ns`)
-				       - Runtime: `lib/runtime_native/263_green_tasks.oren` (`_green_time_now_ns` + scheduler uses it for wake/deadlines)
-				       - Compiler (Linux x64/arm64): `sys_gettimeofday(..., abs_ptr)` now fills abs_ptr with `clock_gettime(CLOCK_MONOTONIC)` in ns
-				         (so `oren_time_mono_raw()` works on Linux too)
+					     - 2026-01-16: switched green sleeper deadlines to a monotonic clock source (avoid wall-clock jumps affecting wake behavior):
+					       - Runtime: `lib/runtime_native/100_time.oren` (`oren_time_mono_ns`)
+					       - Runtime: `lib/runtime_native/263_green_tasks.oren` (`_green_time_now_ns` + scheduler uses it for wake/deadlines)
+					       - Compiler (Linux x64/arm64): `sys_gettimeofday(..., abs_ptr)` now fills abs_ptr with `clock_gettime(CLOCK_MONOTONIC)` in ns
+					         (so `oren_time_mono_raw()` works on Linux too)
+					         - 2026-01-16: fix x64-linux lowering bug where the `timespec` scratch overlapped the spilled `abs_ptr` slot (clobbered with `tv_nsec` and could crash).
+					           - Guard: `make verify-x64-linux-qemu` (stage1 + stage2), plus `tests/native/test_time_mono_raw.oren`.
 			     - 2026-01-16: added a bounded regression gate for worker-mode scheduling (many tasks must complete; no hangs):
 			       - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_many_tasks_bounded`)
 				     - 2026-01-16: made `oren_time_mono_ns()` conversion exact on macOS/Windows (no wall-clock calibration):

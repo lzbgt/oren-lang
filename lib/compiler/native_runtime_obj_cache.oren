@@ -69,7 +69,12 @@ var RUNTIME_OBJ_DATA_PREFIX_LEN = 544
 // - Fix Linux/arm64 clone(2) syscall ABI arg order and make sys_thread_create safe
 //   w.r.t. child stack switching (child must not restore parent SP-saved regs).
 var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_9"
-var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_13"
+// 2026-01: v0_14
+// - Fix Linux/x86_64 sys_gettimeofday monotonic synthesis bug:
+//   clock_gettime(CLOCK_MONOTONIC, &timespec) scratch slots were laid out with the +8
+//   field write overlapping the spilled abs_ptr, clobbering it with tv_nsec and causing
+//   deterministic SIGSEGV under qemu-x86_64 (and on real hosts).
+var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_14"
 
 fn rtobj_backend_sig(backend) {
     if backend == "arm64" { return RUNTIME_OBJ_BACKEND_SIG_ARM64 }

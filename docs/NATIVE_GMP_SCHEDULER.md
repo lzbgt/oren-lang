@@ -188,6 +188,9 @@ Status (rolling groundwork):
     - inserting new sleepers wakes workers so the “next wake” deadline is re-evaluated promptly
     - sleeper deadlines use a **monotonic** clock (`oren_time_mono_ns`) so wall-clock jumps do not break wake behavior:
       - Linux: fills `sys_gettimeofday(..., abs_ptr)` via `clock_gettime(CLOCK_MONOTONIC)` in ns
+        - x64-linux note (fixed 2026-01-16): ensure the `timespec` scratch used by `clock_gettime` does not overlap the spilled `abs_ptr`
+          (otherwise `abs_ptr` can be clobbered with `tv_nsec` and cause deterministic SIGSEGV under qemu and on real hosts).
+          - Gate: `make verify-x64-linux-qemu`
       - macOS: converts gettimeofday’s `mach_absolute_time` out-arg using `mach_timebase_info` (num/den)
       - Windows: converts QPC ticks using `QueryPerformanceFrequency`
   - Join behavior: when workers are enabled, `oren_green_join_timeout` waits on the green task's state word via the portable

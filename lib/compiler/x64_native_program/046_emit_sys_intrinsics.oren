@@ -1918,15 +1918,27 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
 
         // Also reserve a 16-byte timespec scratch so we can optionally provide a
         // monotonic raw timestamp via clock_gettime(CLOCK_MONOTONIC) on Linux.
-        var base23 = _intr_tmp_push(ctx, 5) // tv, tz, abs, ts_sec, ts_nsec
+        //
+        // IMPORTANT (x64-linux stack direction):
+        // Intrinsic temp stack slots are addressed as `[rbp - off]`, and `off` grows down the stack.
+        // For `struct timespec { sec(u64) at +0, nsec(u64) at +8 }`, we must pass a base pointer
+        // where the +8 write lands in the adjacent slot *without* clobbering other spills.
+        //
+        // Concretely, if we allocate two adjacent 8-byte slots:
+        // - the deeper slot (larger `off`) is a lower address
+        // - the shallower slot (smaller `off`) is a higher address
+        //
+        // We pass the deeper slot as the timespec base so the kernel's "+8" write lands in
+        // the shallower slot.
+        var base23 = _intr_tmp_push(ctx, 5) // tv, tz, abs, ts_hi, ts_lo
         if oren_type_tag(base23) == 0 { return nil }
         var tmp_tv = _intr_tmp_off(ctx, locals, base23 + 0)
         var tmp_tz = _intr_tmp_off(ctx, locals, base23 + 1)
         var tmp_abs = _intr_tmp_off(ctx, locals, base23 + 2)
-        var tmp_ts_sec = _intr_tmp_off(ctx, locals, base23 + 3)
-        var tmp_ts_nsec = _intr_tmp_off(ctx, locals, base23 + 4)
+        var tmp_ts_hi = _intr_tmp_off(ctx, locals, base23 + 3) // higher address (base+8)
+        var tmp_ts_lo = _intr_tmp_off(ctx, locals, base23 + 4) // lower address  (base+0)
         if oren_type_tag(tmp_tv) == 0 || oren_type_tag(tmp_tz) == 0 || oren_type_tag(tmp_abs) == 0 ||
-           oren_type_tag(tmp_ts_sec) == 0 || oren_type_tag(tmp_ts_nsec) == 0 {
+           oren_type_tag(tmp_ts_hi) == 0 || oren_type_tag(tmp_ts_lo) == 0 {
             _intr_tmp_pop(ctx, base23)
             return nil
         }
@@ -1973,14 +1985,14 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
 
         // clock_gettime(CLOCK_MONOTONIC=1, &timespec)
         bytes_extend(ctx["code"], insn_mov_r32_imm32(7, 1)) // rdi = CLOCK_MONOTONIC
-        _emit_addr_rbp_minus_off_x64(ctx, 6, tmp_ts_sec)    // rsi = &timespec
+        _emit_addr_rbp_minus_off_x64(ctx, 6, tmp_ts_lo)     // rsi = &timespec (sec at +0, nsec at +8)
         bytes_extend(ctx["code"], insn_mov_r32_imm32(0, labi.linux_sys_clock_gettime()))
         bytes_extend(ctx["code"], insn_syscall())
 
         // ns = sec*1e9 + nsec
-        _emit_mov_r64_mrbp(ctx, 10, 0 - tmp_ts_sec) // r10 = sec
+        _emit_mov_r64_mrbp(ctx, 10, 0 - tmp_ts_lo) // r10 = sec
         bytes_extend(ctx["code"], insn_imul_r64_imm32(10, 1000000000))
-        _emit_mov_r64_mrbp(ctx, 9, 0 - tmp_ts_nsec) // r9 = nsec
+        _emit_mov_r64_mrbp(ctx, 9, 0 - tmp_ts_hi) // r9 = nsec
         bytes_extend(ctx["code"], insn_add_r64_r64(10, 9))
         // *abs_ptr = ns
         // NOTE: Linux `syscall` clobbers r11, so reload abs_ptr after clock_gettime.
