@@ -844,7 +844,7 @@ Backend behavior (rolling):
 - **Native backend**:
   - On macOS: implemented over **pipes + kqueue/kevent**.
   - On Linux: implemented over **pipes + epoll**.
-  - On Windows: implemented over **in-memory channels** (pipe-fd readiness/select still needs IOCP for a real netpoller).
+  - On Windows: implemented over **in-memory channels** (pipe-fd readiness/select is POSIX-only; Windows has a rolling select-v0 socket netpoll path, but IOCP is still the intended long-term “real netpoller”).
   - See `lib/runtime_native/010_channels_globals_consts.oren`, `lib/runtime_native/011_channels_mem.oren`, and `lib/runtime_native/245_select.oren`.
 
 Design direction:

@@ -21,6 +21,19 @@ var g_netpoll_fd = 0
 var g_netpoll_wake_rfd = 0
 var g_netpoll_wake_wfd = 0
 
+// Windows netpoll v0 state (rolling):
+// - There is no kqueue/epoll; we use WinSock select() over a small watched set (FD_SETSIZE=64).
+// - Tokens are stored in a process-global watch table protected by a small lock.
+// - Wake is timeout-based (no internal wake socket; keeps capsule policy independent of loopback enrollment).
+//
+// NOTE:
+// This is intentionally not IOCP yet; it exists to unblock green-task NET readiness waits on Tier‑1 Windows.
+var g_netpoll_watch_lock_word = 0  // pointer to u64 lock word (0 unlocked, 1 locked)
+var g_netpoll_watch_n = 0
+var g_netpoll_watch_fds = 0        // u64[64]
+var g_netpoll_watch_kinds = 0      // u64[64] (0=read, 1=write)
+var g_netpoll_watch_tokens = 0     // u64[64] (token pointers)
+
 fn _netpoll_env_truthy(name) {
     var p = native_envp_get_value_ptr(name)
     if p == 0 { return 0 }
@@ -31,11 +44,85 @@ fn _netpoll_env_truthy(name) {
 }
 
 fn native_netpoll_supported() {
-    // POSIX only for now (macOS/Linux).
-    if g_target_os == 3 { return false }
+    // Rolling support:
+    // - macOS/Linux: kqueue/epoll backend.
+    // - Windows: select()-based backend, but only after WinSock is initialized.
+    if g_target_os == 3 {
+        // Do not attempt to initialize WinSock here; keep it behind `native_net_init_once()` (NET cap boundary).
+        if g_net_wsa_inited != 1 { return false }
+    }
     // Allow a rolling escape hatch for debugging.
     if _netpoll_env_truthy("OREN_NO_NETPOLL") == 1 { return false }
     return true
+}
+
+fn native_netpoll_can_block() {
+    // Whether it is meaningful for the scheduler to block in `native_netpoll_poll_*`.
+    //
+    // POSIX has a wake pipe registered, so it can always block once initialized.
+    // Windows select() has no wake FD, so only block when we have watched sockets.
+    if g_netpoll_inited == 0 { return false }
+    if g_target_os == 3 {
+        if g_netpoll_watch_n > 0 { return true }
+        return false
+    }
+    if g_netpoll_wake_rfd != 0 { return true }
+    return false
+}
+
+fn _netpoll_watch_lock_acquire() {
+    // Small portable lock (wait-on-address semantics).
+    //
+    // Conventions match `oren_wait_on_addr`:
+    // - op=1: compare-and-wait
+    // - wake op=257: wake all
+    var lock_ptr = g_netpoll_watch_lock_word
+    if lock_ptr == 0 { return 0 }
+    var spin = 0
+    while atomic_cas(lock_ptr, 0, 1) != 0 {
+        spin = spin + 1
+        if spin > 1000 {
+            // Wait while the lock is still held (value==1).
+            sys_ulock_wait(1, lock_ptr, 1, 1000) // 1ms
+            spin = 0
+        }
+    }
+    return 0
+}
+
+fn _netpoll_watch_lock_release() {
+    var lock_ptr = g_netpoll_watch_lock_word
+    if lock_ptr == 0 { return 0 }
+    atomic_cas(lock_ptr, 1, 0)
+    sys_ulock_wake(257, lock_ptr, 0)
+    return 0
+}
+
+fn _netpoll_watch_take_token_locked(fd, kind) {
+    // Remove first matching (fd, kind) from the watch table and return its token.
+    // Caller must hold `_netpoll_watch_lock_acquire()`.
+    var nn = g_netpoll_watch_n
+    var ii = 0
+    while ii < nn {
+        var f2 = ptr_get(g_netpoll_watch_fds + ii * 8)
+        var k2 = ptr_get(g_netpoll_watch_kinds + ii * 8)
+        if f2 == fd && k2 == kind {
+            var tok = ptr_get(g_netpoll_watch_tokens + ii * 8)
+            var last = nn - 1
+            if last != ii {
+                ptr_set(g_netpoll_watch_fds + ii * 8, ptr_get(g_netpoll_watch_fds + last * 8))
+                ptr_set(g_netpoll_watch_kinds + ii * 8, ptr_get(g_netpoll_watch_kinds + last * 8))
+                ptr_set(g_netpoll_watch_tokens + ii * 8, ptr_get(g_netpoll_watch_tokens + last * 8))
+            }
+            ptr_set(g_netpoll_watch_fds + last * 8, 0)
+            ptr_set(g_netpoll_watch_kinds + last * 8, 0)
+            ptr_set(g_netpoll_watch_tokens + last * 8, 0)
+            g_netpoll_watch_n = last
+            return tok
+        }
+        ii = ii + 1
+    }
+    return 0
 }
 
 fn native_netpoll_init_once() {
@@ -47,6 +134,50 @@ fn native_netpoll_init_once() {
     // - Use the runtime global lock to serialize initialization and publish the globals atomically.
     acquire_lock()
     if g_netpoll_inited != 0 { release_lock(); return 0 }
+
+    // Windows backend:
+    // - No kqueue/epoll fd.
+    // - No internal wake socket (keeps capsule NET policy independent of loopback allowlist).
+    // - Watch table is stored in-process and polled via WinSock select().
+    if g_target_os == 3 {
+        if g_netpoll_inited != 0 { release_lock(); return 0 }
+        if g_netpoll_watch_lock_word == 0 {
+            g_netpoll_watch_lock_word = malloc(8)
+            if g_netpoll_watch_lock_word == 0 {
+                release_lock()
+                return 0 - 12 // ENOMEM
+            }
+            ptr_set(g_netpoll_watch_lock_word, 0)
+        }
+        if g_netpoll_watch_fds == 0 {
+            g_netpoll_watch_fds = malloc(64 * 8)
+            g_netpoll_watch_kinds = malloc(64 * 8)
+            g_netpoll_watch_tokens = malloc(64 * 8)
+            if g_netpoll_watch_fds == 0 || g_netpoll_watch_kinds == 0 || g_netpoll_watch_tokens == 0 {
+                // Best-effort cleanup.
+                if g_netpoll_watch_fds != 0 { free(g_netpoll_watch_fds); g_netpoll_watch_fds = 0 }
+                if g_netpoll_watch_kinds != 0 { free(g_netpoll_watch_kinds); g_netpoll_watch_kinds = 0 }
+                if g_netpoll_watch_tokens != 0 { free(g_netpoll_watch_tokens); g_netpoll_watch_tokens = 0 }
+                release_lock()
+                return 0 - 12 // ENOMEM
+            }
+            var zi0 = 0
+            while zi0 < 64 * 8 {
+                ptr_set_byte(g_netpoll_watch_fds + zi0, 0)
+                ptr_set_byte(g_netpoll_watch_kinds + zi0, 0)
+                ptr_set_byte(g_netpoll_watch_tokens + zi0, 0)
+                zi0 = zi0 + 1
+            }
+        }
+        g_netpoll_watch_n = 0
+        // Use a non-zero sentinel so callers can treat "poller exists" uniformly.
+        g_netpoll_fd = 1
+        g_netpoll_wake_rfd = 0
+        g_netpoll_wake_wfd = 0
+        g_netpoll_inited = 1
+        release_lock()
+        return 0
+    }
 
     // Create a wake pipe.
     var buf = malloc(16)
@@ -141,6 +272,11 @@ fn native_netpoll_wake() {
     //   or configure the poll backend.
     // - The scheduler/IO wait paths are responsible for initializing the poller once.
     if g_netpoll_inited == 0 { return 0 }
+    if g_target_os == 3 {
+        // Windows backend uses timeout-bounded select() without an internal wake FD.
+        // The scheduler keeps sleeps bounded (worker mode clamps to ~10ms) so this is sufficient for now.
+        return 0
+    }
     if g_netpoll_wake_wfd == 0 { return 0 }
     sys_write(g_netpoll_wake_wfd, "x", 1)
     return 0
@@ -204,6 +340,36 @@ fn native_netpoll_arm_fd(fd, want_write, token) {
     if fd < 0 { return 0 - 22 } // EINVAL
     if token == 0 { return 0 - 22 } // reserved for wake pipe
 
+    if g_target_os == 3 {
+        // Windows select()-based oneshot registration.
+        // Key is (fd, want_write).
+        if g_netpoll_watch_fds == 0 || g_netpoll_watch_tokens == 0 || g_netpoll_watch_kinds == 0 { return 0 - 12 }
+        _netpoll_watch_lock_acquire()
+        var n = g_netpoll_watch_n
+        var i = 0
+        while i < n {
+            var f = ptr_get(g_netpoll_watch_fds + i * 8)
+            var k = ptr_get(g_netpoll_watch_kinds + i * 8)
+            if f == fd && k == want_write {
+                // Last-wins update (rolling; matches epoll MOD semantics for repeated arms).
+                ptr_set(g_netpoll_watch_tokens + i * 8, token)
+                _netpoll_watch_lock_release()
+                return 0
+            }
+            i = i + 1
+        }
+        if n >= 64 {
+            _netpoll_watch_lock_release()
+            return 0 - 28 // ENOSPC (FD_SETSIZE cap)
+        }
+        ptr_set(g_netpoll_watch_fds + n * 8, fd)
+        ptr_set(g_netpoll_watch_kinds + n * 8, want_write)
+        ptr_set(g_netpoll_watch_tokens + n * 8, token)
+        g_netpoll_watch_n = n + 1
+        _netpoll_watch_lock_release()
+        return 0
+    }
+
     if g_target_os == 1 {
         // Darwin kevent oneshot.
         var change = malloc(32)
@@ -261,6 +427,33 @@ fn native_netpoll_disarm_fd(fd, want_write) {
     if g_netpoll_inited == 0 { return 0 }
     if g_netpoll_fd == 0 { return 0 }
     if fd < 0 { return 0 }
+    if g_target_os == 3 {
+        if g_netpoll_watch_fds == 0 { return 0 }
+        _netpoll_watch_lock_acquire()
+        var n = g_netpoll_watch_n
+        var i = 0
+        while i < n {
+            var f = ptr_get(g_netpoll_watch_fds + i * 8)
+            var k = ptr_get(g_netpoll_watch_kinds + i * 8)
+            if f == fd && k == want_write {
+                // Swap-remove.
+                var last = n - 1
+                if last != i {
+                    ptr_set(g_netpoll_watch_fds + i * 8, ptr_get(g_netpoll_watch_fds + last * 8))
+                    ptr_set(g_netpoll_watch_kinds + i * 8, ptr_get(g_netpoll_watch_kinds + last * 8))
+                    ptr_set(g_netpoll_watch_tokens + i * 8, ptr_get(g_netpoll_watch_tokens + last * 8))
+                }
+                ptr_set(g_netpoll_watch_fds + last * 8, 0)
+                ptr_set(g_netpoll_watch_kinds + last * 8, 0)
+                ptr_set(g_netpoll_watch_tokens + last * 8, 0)
+                g_netpoll_watch_n = last
+                break
+            }
+            i = i + 1
+        }
+        _netpoll_watch_lock_release()
+        return 0
+    }
     if g_target_os == 1 {
         var change = malloc(32)
         if change == 0 { return 0 }
@@ -299,6 +492,123 @@ fn native_netpoll_poll_many_scratch(timeout_ms, scratch, scratch_bytes) {
     if timeout_ms < 0 { timeout_ms = 0 }
     if scratch == 0 { return 0 }
     if scratch_bytes < 64 { return 0 }
+
+    if g_target_os == 3 {
+        // Windows select() backend.
+        //
+        // Scratch layout:
+        // - scratch[0..63] output tokens (u64[8])
+        // - scratch[64..] temporary fd_set buffers + timeval
+        //
+        // fd_set layout (Windows x64):
+        //   u32 fd_count @0
+        //   u32 pad      @4
+        //   SOCKET fd_array[FD_SETSIZE] @8   (FD_SETSIZE=64)
+        var set_bytes = 8 + 8 * 64
+        var readfds = scratch + 64
+        var writefds = scratch + 64 + set_bytes
+        var tv = scratch + 64 + set_bytes + set_bytes
+        if scratch_bytes < 64 + set_bytes + set_bytes + 16 { return 0 }
+
+        // Zero the full fd_set buffers.
+        // WinSock has been observed to copy/scan the full array even when fd_count is small.
+        var zi0 = 0
+        while zi0 < set_bytes {
+            ptr_set_byte(readfds + zi0, 0)
+            ptr_set_byte(writefds + zi0, 0)
+            zi0 = zi0 + 1
+        }
+
+        // Clamp: without a wake FD on Windows, keep bounded sleeps so:
+        // - new registrations are observed promptly
+        // - worker-mode safepoints remain responsive
+        if timeout_ms < 0 { timeout_ms = 0 }
+        if timeout_ms > 10 { timeout_ms = 10 }
+
+        // Build fd_sets from the current watch table.
+        var nr = 0
+        var nw = 0
+        _netpoll_watch_lock_acquire()
+        var n = g_netpoll_watch_n
+        var i = 0
+        while i < n {
+            var fd = ptr_get(g_netpoll_watch_fds + i * 8)
+            var k = ptr_get(g_netpoll_watch_kinds + i * 8)
+            if fd >= 0 {
+                if k == 1 {
+                    if nw < 64 {
+                        oren_ptr_set_u64_le(writefds + 8 + nw * 8, fd)
+                        nw = nw + 1
+                    }
+                } else {
+                    if nr < 64 {
+                        oren_ptr_set_u64_le(readfds + 8 + nr * 8, fd)
+                        nr = nr + 1
+                    }
+                }
+            }
+            i = i + 1
+        }
+        oren_ptr_set_u32_le(readfds + 0, nr)
+        oren_ptr_set_u32_le(writefds + 0, nw)
+        _netpoll_watch_lock_release()
+
+        // If we have nothing to poll, don't block here (let the scheduler use its park-word idle path).
+        if nr == 0 && nw == 0 { return 0 }
+
+        // timeval (Windows uses 32-bit longs even on x64: LLP64).
+        var sec = timeout_ms / 1000
+        var usec = (timeout_ms - sec * 1000) * 1000
+        if sec < 0 { sec = 0 }
+        if sec > 4294967295 { sec = 4294967295 }
+        if usec < 0 { usec = 0 }
+        if usec > 4294967295 { usec = 4294967295 }
+        oren_ptr_set_u32_le(tv + 0, sec)
+        oren_ptr_set_u32_le(tv + 4, usec)
+
+        var rptr = readfds
+        var wptr = writefds
+        if nr == 0 { rptr = 0 }
+        if nw == 0 { wptr = 0 }
+
+        var rc = sys_select(0, rptr, wptr, 0, tv)
+        if rc <= 0 { return rc }
+
+        // Consume ready sockets and remove them from the watch table (oneshot).
+        var out_n = 0
+        _netpoll_watch_lock_acquire()
+
+        // Read set
+        var rr = oren_ptr_get_u32_le(readfds + 0)
+        var ri = 0
+        while ri < rr {
+            if out_n >= 8 { break }
+            var fd_ready = oren_ptr_get_u64_le(readfds + 8 + ri * 8)
+            var tok = _netpoll_watch_take_token_locked(fd_ready, 0)
+            if tok != 0 {
+                ptr_set(scratch + out_n * 8, tok)
+                out_n = out_n + 1
+            }
+            ri = ri + 1
+        }
+
+        // Write set
+        var ww = oren_ptr_get_u32_le(writefds + 0)
+        var wi = 0
+        while wi < ww {
+            if out_n >= 8 { break }
+            var fd_ready2 = oren_ptr_get_u64_le(writefds + 8 + wi * 8)
+            var tok2 = _netpoll_watch_take_token_locked(fd_ready2, 1)
+            if tok2 != 0 {
+                ptr_set(scratch + out_n * 8, tok2)
+                out_n = out_n + 1
+            }
+            wi = wi + 1
+        }
+
+        _netpoll_watch_lock_release()
+        return out_n
+    }
 
     if g_target_os == 1 {
         // Darwin kqueue:
@@ -376,6 +686,12 @@ fn native_netpoll_poll_one_scratch(timeout_ms, scratch, scratch_bytes) {
     if g_netpoll_fd == 0 { return 0 }
     if timeout_ms < 0 { timeout_ms = 0 }
     if scratch == 0 { return 0 }
+    if g_target_os == 3 {
+        // Reuse the many-token poller; return the first token if any.
+        var got = native_netpoll_poll_many_scratch(timeout_ms, scratch, scratch_bytes)
+        if got <= 0 { return 0 }
+        return ptr_get(scratch + 0)
+    }
     if scratch_bytes < 256 { return 0 }
 
     if g_target_os == 1 {
@@ -441,6 +757,19 @@ fn native_netpoll_poll_one(timeout_ms) {
     if g_netpoll_inited == 0 { return 0 }
     if g_netpoll_fd == 0 { return 0 }
     if timeout_ms < 0 { timeout_ms = 0 }
+
+    if g_target_os == 3 {
+        // Fallback (allocating) helper: use a temporary scratch buffer.
+        var scratch = malloc(2048)
+        if scratch == 0 { return 0 }
+        var zi0 = 0
+        while zi0 < 2048 { ptr_set_byte(scratch + zi0, 0); zi0 = zi0 + 1 }
+        var got = native_netpoll_poll_many_scratch(timeout_ms, scratch, 2048)
+        var tok = 0
+        if got > 0 { tok = ptr_get(scratch + 0) }
+        free(scratch)
+        return tok
+    }
 
     if g_target_os == 1 {
         var evs = malloc(32 * 8)

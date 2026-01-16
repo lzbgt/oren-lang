@@ -91,6 +91,7 @@ Implications:
 - There is no **production-grade** GMP/netpoller (true async IO + channels/select across Tier‑1) in native yet.
   - However, macOS/Linux already have an early green-task scheduler + netpoll integration for pipe/socket readiness (rolling; see `docs/NATIVE_GMP_SCHEDULER.md`).
   - Windows has a correctness-first in-memory channel implementation so `oren_select` works for channels even without IOCP (see `docs/ASYNC_IO_AND_SELECT.md`).
+  - Windows also has a rolling v0 socket netpoll path (WinSock `select()` over a small watched set) so green-task `oren_fd_wait_*` can be scheduler-driven, but IOCP is still the intended long-term implementation.
 - A “mutex” cannot coordinate across `spawn` on POSIX v0, because forked processes do not share the address space.
 
 Source of truth:

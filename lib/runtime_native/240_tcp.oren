@@ -453,6 +453,11 @@ fn oren_fd_wait_readable(fd, timeout_ms) {
     timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
     // Rolling determinism rule: avoid accidental hangs. Treat negative timeout as "no wait".
     if timeout_ms < 0 { timeout_ms = 0 }
+    if g_target_os == 3 {
+        // Ensure WinSock is initialized before any readiness waits (select/netpoll).
+        var init_rc = native_net_init_once()
+        if init_rc < 0 { return init_rc }
+    }
 
     // Green-aware behavior (Stage N1/N2):
     // If called from a green task, park the G and let the scheduler block in the kernel netpoller.
@@ -491,6 +496,10 @@ fn oren_fd_wait_writable(fd, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
     timeout_ms = native_canon_timeout_ms_arg(timeout_ms)
     if timeout_ms < 0 { timeout_ms = 0 }
+    if g_target_os == 3 {
+        var init_rc = native_net_init_once()
+        if init_rc < 0 { return init_rc }
+    }
 
     if timeout_ms > 0 && oren_green_in_green() == true {
         var g = oren_green_current_g_or0()

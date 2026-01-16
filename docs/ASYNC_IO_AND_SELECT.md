@@ -92,11 +92,13 @@ Notes:
     - `oren_select` / `oren_select_recv` (pipe-based channels): when called from a green task, waits via the shared scheduler netpoller (**netpoll v2**) and preserves deterministic selection without per-wake probe polling.
       - Guards: `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`, `test_select_multi_case_in_green_workers`)
       - Rolling note: duplicate case fds are rejected (`EINVAL`) to keep semantics deterministic across the legacy per-call epoll/kqueue path and the shared netpoll v2 path.
-    - `oren_fd_wait_*` (fd readiness): when called from a green task, parks the G and lets the scheduler block in the POSIX netpoller (no busy polling).
-      - Runtime: `lib/runtime_native/246_netpoll.oren` (kqueue/epoll + wake pipe)
+    - `oren_fd_wait_*` (fd readiness): when called from a green task, parks the G and lets the scheduler drive readiness waits (no host-thread blocking).
+      - POSIX: `lib/runtime_native/246_netpoll.oren` (kqueue/epoll + wake pipe)
+      - Windows (rolling v0): `lib/runtime_native/246_netpoll.oren` uses WinSock `select()` over a small watched set (`FD_SETSIZE=64` cap).
+        - Note: Windows v0 is timeout-bounded (no internal wake socket) to keep capsule NET policy independent of loopback enrollment; IOCP is still the intended long-term path.
       - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains netpoll tokens)
       - Escape hatch (rolling): `OREN_NO_NETPOLL=1` disables netpoll bring-up for debugging.
-      - Guard: `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
+      - Guard: `tests/native/test_net_suite.oren` (`test_fd_wait_socket_readable_in_green_workers`)
 
 ### 1.4 File readiness is not yet a stable cross-OS language primitive
 
@@ -233,9 +235,13 @@ Planned direction:
 Current (rolling, correctness-first):
 
 - `oren_select` works for **in-memory channels** on Windows (not pipe fds).
-- In-green select semantics on Windows are not yet netpoll-driven (no IOCP integration yet).
-  - Current behavior: in-green waits **park the G** on a runtime wait list and are woken explicitly on channel send/recv (no 1ms polling loop).
-  - Netpoll-backed in-green IO readiness still requires IOCP work.
+- In-green `oren_select` on Windows is currently channel-only:
+  - In-memory channels park the G on runtime wait lists and are woken explicitly on channel send/recv (no 1ms polling loop).
+  - Pipe-fd readiness is still POSIX-only.
+- In-green IO readiness on Windows (rolling v0):
+  - `oren_fd_wait_readable` / `oren_fd_wait_writable` can park a green task and rely on the scheduler netpoller.
+  - Implementation is WinSock `select()` over a small watched set (`FD_SETSIZE=64` cap); it is not IOCP yet.
+  - The scheduler keeps kernel waits bounded in worker mode (STW safety), so the lack of a wake FD is acceptable for now.
 
 ---
 

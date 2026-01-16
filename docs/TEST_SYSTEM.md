@@ -208,8 +208,8 @@ However, a small amount of `@cfg(os=...)` glue is still sometimes necessary at t
 - FFI library naming / attachment (`@ffi.link("...")` vs `@ffi.dll("...")`).
 - OS-specific process semantics (e.g. TLS loopback servers may use `fork+exec` on macOS to avoid
   fork-unsafety around Security/CoreFoundation; see `docs/NET_TLS.md`).
-- Temporary bring-up gaps (e.g. POSIX pipe-fd readiness is not supported on Windows yet; tests that depend on
-  netpoll-backed in-green `select` remain POSIX-only while IOCP integration is still pending).
+- Temporary bring-up gaps (e.g. POSIX pipe-fd readiness is not supported on Windows yet; Windows has a rolling select-v0 socket netpoll path,
+  but IOCP integration is still pending for production-grade readiness and for any future HANDLE-based readiness story).
 
 Rule of thumb (rolling):
 

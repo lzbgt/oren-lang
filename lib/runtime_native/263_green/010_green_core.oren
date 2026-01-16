@@ -172,7 +172,14 @@ fn green_t_off_worker_id() { return 40 }       // u64: reserved worker id (0..63
 // Per-thread netpoll scratch (allocation-free scheduler waits):
 // - large enough for kqueue (8*kevent + timespec + drain buf) and epoll (8*epoll_event + drain buf)
 fn green_t_off_netpoll_scratch() { return 64 }
-fn green_t_netpoll_scratch_bytes() { return 512 }
+fn green_t_netpoll_scratch_bytes() {
+    // Per-thread scratch used by `native_netpoll_poll_*_scratch`.
+    //
+    // POSIX needs only a small buffer (kqueue/epoll structs + wake drain).
+    // Windows select() needs two full fd_set buffers (FD_SETSIZE=64) plus a timeval, so keep it larger.
+    if g_target_os == 3 { return 2048 }
+    return 512
+}
 fn green_t_bytes() { return 64 + green_t_netpoll_scratch_bytes() }
 
 fn _green_thread_netpoll_scratch_or0(ts) {
@@ -890,10 +897,8 @@ fn _green_workers_wake_if_started() {
         oren_m_park_word_wake(base + i * 8)
         i = i + 1
     }
-    // Also wake the POSIX netpoller (if enabled) so an idle worker blocked in kevent/epoll wakes immediately.
-    if g_target_os != 3 {
-        native_netpoll_wake()
-    }
+    // Also nudge the netpoller (if enabled) so an idle worker blocked in the readiness wait wakes promptly.
+    native_netpoll_wake()
     return 0
 }
 
@@ -929,7 +934,6 @@ fn _green_netpoll_drain_ready(ts, now_ns, max_events) {
     //
     // Token contract (rolling):
     // - token is a G pointer; it must remain valid even if the wait times out (G continues running).
-    if g_target_os == 3 { return 0 }
     if g_green_inited == 0 { return 0 }
     if now_ns == 0 { return 0 }
     // Initialize lazily; ignore ENOSYS.

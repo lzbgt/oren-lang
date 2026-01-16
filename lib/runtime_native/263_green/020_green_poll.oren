@@ -226,7 +226,7 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             }
             if sleep_ns > rem { sleep_ns = rem }
         }
-        if g_target_os != 3 && g_netpoll_inited != 0 {
+        if g_netpoll_inited != 0 && native_netpoll_can_block() == true {
             // STW GC robustness: before blocking in the kernel readiness wait, poll the STW state.
             // If a collector requested stop-the-world, park on this scheduler stack now.
             oren_gc_safepoint()

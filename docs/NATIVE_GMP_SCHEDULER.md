@@ -136,13 +136,15 @@ Status (fact, code):
 - 2026-01-16: native `oren_select` / `oren_select_recv` are green-aware and do not block the scheduler OS thread:
   - Green path uses the shared scheduler netpoller directly (**netpoll v2**): per-case tokens mark a full ready-set so deterministic cursor selection does not require per-wake probe polling.
   - Runtime: `lib/runtime_native/245_select.oren` (green `oren_select` waits on netpoll v2; non-green still uses a per-call kqueue/epoll wait)
-  - Runtime: `lib/runtime_native/246_netpoll.oren` (POSIX netpoller: kqueue/epoll + wake pipe; allocation-free `native_netpoll_poll_many_scratch`)
+  - Runtime: `lib/runtime_native/246_netpoll.oren`
+    - POSIX: kqueue/epoll + wake pipe; allocation-free `native_netpoll_poll_many_scratch`
+    - Windows (rolling v0): WinSock `select()` over a small watched set (`FD_SETSIZE=64` cap); timeout-bounded (no internal wake socket yet); IOCP is still the intended long-term implementation
   - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains netpoll tokens and marks G/wait nodes ready)
   - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*` park the G and rely on the scheduler netpoller instead of poll+sleep)
   - Escape hatch (rolling): `OREN_NO_NETPOLL=1` disables netpoll bring-up for debugging (in-green select returns ENOSYS; avoids busy loops).
   - Guards:
     - `tests/native/test_quick_integration_native.oren` (`test_select_in_green_workers`, `test_select_multi_case_in_green_workers`)
-    - `tests/native/test_net_suite.oren` (`test_fd_wait_readable_in_green_workers`)
+    - `tests/native/test_net_suite.oren` (`test_fd_wait_socket_readable_in_green_workers`)
 
 - 2026-01-16: scheduler netpoll waiting is allocation-free in steady-state:
   - the green scheduler uses a per-OS-thread scratch region for `native_netpoll_poll_many_scratch(...)` so worker idle waits do not allocate and do not drop additional ready tokens

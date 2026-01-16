@@ -426,6 +426,64 @@ fn _net_chan_send_delayed(ch, v) {
     return 0
 }
 
+fn _net_udp_wait_readable_then_recv_byte(rfd) {
+    // Run inside a green task: readiness waits must not block the scheduler OS thread.
+    var n = oren_fd_wait_readable(rfd, 200)
+    if n <= 0 { return n }
+    var b = malloc(1)
+    if b == 0 { return 0 - 12 } // ENOMEM
+    ptr_set_byte(b, 0)
+    var rn = sys_recv(rfd, b, 1, 0)
+    if rn != 1 {
+        free(b)
+        return rn
+    }
+    var v = ptr_get_byte(b)
+    free(b)
+    return v
+}
+
+fn _net_udp_send_delayed(sfd, rport, bytev) {
+    // Ensure the receiver reaches the readiness wait before we send.
+    oren_green_sleep_ns(5000000) // 5ms
+    var outb = malloc(1)
+    if outb == 0 { return 0 - 12 }
+    ptr_set_byte(outb, bytev & 255)
+    var wn = udp.send_to(sfd, "127.0.0.1", rport, outb, 1, 200)
+    free(outb)
+    return wn
+}
+
+fn test_fd_wait_socket_readable_in_green_workers() {
+    // Cross-platform readiness wait on a socket from a green task.
+    //
+    // This is the Windows Tier‑1 gate for `native_netpoll_*`:
+    // - if readiness waits block the worker OS thread, the sender green task never runs
+    // - join_timeout would return -60 (ETIMEDOUT) and the test fails
+    var rcw = oren_green_start_workers(1)
+    if rcw != 0 { fail(1190) }
+
+    var rfd = udp.bind_local(0)
+    if rfd < 0 { fail(1191) }
+    var rport = udp.sockname_port(rfd)
+    if rport <= 0 { fail(1192) }
+
+    var sfd = udp.bind_local(0)
+    if sfd < 0 { fail(1193) }
+
+    var recv_h = spawn _net_udp_wait_readable_then_recv_byte(rfd)
+    var send_h = spawn _net_udp_send_delayed(sfd, rport, 7)
+
+    var r = oren_join_timeout(recv_h, 500)
+    if r != 7 { fail(1194) }
+    var sw = oren_join_timeout(send_h, 500)
+    if sw != 1 { fail(1195) }
+
+    udp.close(sfd)
+    udp.close(rfd)
+    return 0
+}
+
 fn test_fd_wait_readable_in_green_workers() {
     // This test uses a pipe fd, which is not a valid WinSock SOCKET for Windows select().
     if g_target_os == 3 { return 0 }
@@ -456,6 +514,7 @@ fn main() {
     test_tcp_sockopt_keepalive()
     test_udp_loopback()
     test_http_helpers()
+    test_fd_wait_socket_readable_in_green_workers()
     test_fd_wait_readable_in_green_workers()
     print("net suite: OK")
     exit(0)
