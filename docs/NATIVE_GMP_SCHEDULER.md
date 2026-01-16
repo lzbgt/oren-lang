@@ -186,8 +186,13 @@ Status (rolling groundwork):
   - Rolling limitation (important): `_green_poll_until` currently re-fetches per-thread scheduler state (`ts`/`P`) each poll iteration for robustness.
     - Rationale: until native backend/local preservation invariants are fully tightened across ctx switches and syscalls, caching `ts`/`P` as long-lived locals
       can lead to crashes (non-canonical pointers later dereferenced via `ptr_get` / `ptr_get_byte`).
-    - Repro (rolling, 2026-01-16): attempting to add an env-gated cached mode via a `native_envp_get_value_ptr("OREN_GREEN_POLL_CACHE")` probe in `_green_poll_until`
-      caused deterministic SIGSEGV in `make test` (so the runtime keeps the safe re-fetch loop).
+    - Repro (rolling, 2026-01-16): attempts to add an env-gated cached mode (e.g. probing an `OREN_GREEN_POLL_CACHE` env var via
+      `native_envp_get_value_ptr(...)` and caching `ts`/`P` across iterations) caused deterministic SIGSEGV (rc=139) in `make test-native-quick-stage2` / `make test`,
+      so the runtime keeps the safe re-fetch loop and does not ship a cache knob yet.
+    - Recent mitigations that tightened stack/local invariants but did **not** make caching safe yet (2026-01-16):
+      - arm64 stmt codegen restores SP after condition evaluation in `if` / `while` / `for` headers
+      - arm64 stmt codegen uses chunked SP restores (`emit_add_sp_any`) for large deltas
+      - arm64 `var` initializer stores via FP-relative addressing (reduces transient SP sensitivity)
     - Runtime: `lib/runtime_native/263_green_tasks.oren` (`_green_poll_until`)
   - Rolling limitation (important): worker parallelism is currently clamped to 1 by default, because the native allocator/GC
     are not concurrency-correct yet. Opt-in for experimentation only: `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.

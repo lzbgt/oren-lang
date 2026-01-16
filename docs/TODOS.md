@@ -439,7 +439,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				           - `if { ... } else { ... }` where both branches terminate
 				           - compiler: `lib/compiler/arm64_native_stmt.oren` (`native_compile_stmt` returns `false` for “no fallthrough”)
 				         - status: this does **not** yet make `_green_poll_until` safe to cache `ts`/`P` across iterations; keep the re-fetch until a deeper backend/ctx-switch fix lands
-				         - known repro (rolling): attempting to add an env-gated cached `_green_poll_until` mode via `native_envp_get_value_ptr("OREN_GREEN_POLL_CACHE")` currently causes deterministic SIGSEGV in `make test`
+					         - 2026-01-16: arm64 stmt codegen now also restores SP after condition evaluation in `if` / `while` / `for` headers (so branch entry SP matches codegen assumptions):
+					           - compiler: `lib/compiler/arm64_native_stmt.oren` (`cond_delta` restore)
+					         - known repro (rolling): attempts to add an env-gated cached mode (e.g. probing `OREN_GREEN_POLL_CACHE` via `native_envp_get_value_ptr(...)` and caching `ts`/`P` across iterations) still cause deterministic SIGSEGV (rc=139) in `make test-native-quick-stage2` / `make test`; keep the safe per-iteration re-fetch loop by default
 			     - switch green sleeper deadlines to a monotonic clock source (avoid wall-clock jumps affecting wake behavior)
 		     - add a small regression gate: spawn many green tasks (with workers enabled) and assert bounded completion (no hangs)
 	     - Optional dev-only smoke (skipped by default): `tests/native/test_green_workers_multi_p_experimental.oren`
