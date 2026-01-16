@@ -432,6 +432,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_start_workers_does_not_reserve_extra_ps`) (start_workers(1) must not reserve P1/P2; required for M<P)
 						     - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_green_worker_idle`) (STW GC must not deadlock when a worker is parked or blocked in netpoll)
 						     - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_green_join_waiter`) (STW GC must not deadlock while an OS thread is blocked in `join(..., -1)` under worker-mode green scheduling)
+						     - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_os_thread_join_waiter`) (STW GC must not deadlock while an OS thread is blocked in `oren_os_thread_join_timeout(..., timeout_us=0)`)
 						     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_p_count_api`) (P topology API; no shrink; reject after workers)
 					     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_multi_p_single_thread_poll_steal`) (single-thread multi-P steal + cross-P wake without unsafe parallel workers)
 				     - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_ctx_switch_alloc_integrity`) (worker-mode ctx-switch + scheduler stability)
@@ -544,14 +545,19 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		       - extend safepoints beyond loop headers (bounded time for long-running non-loop code paths); there is no preemption yet
 		       - define the "GC safe" calling convention wrt registers vs stack (roots must be discoverable at safepoints)
 		       - evolve toward per-P allocation caches + a concurrency-correct allocator/metadata model (or keep STW around allocations initially)
-		     - 2026-01-16: extended bounded safepoint reachability beyond loops by piggybacking on native call-depth hooks:
-		       - Runtime: `lib/runtime_native/105_call_depth.oren` (`native_call_depth_safepoint_poll_throttled`)
-		       - Behavior: in multi-OS-thread mode, every ~1024 function entries polls STW state and parks if requested.
-		       - Motivation: call-heavy non-loop code paths (visitors/recursion) should not starve a stop-the-world request indefinitely.
-		     - 2026-01-16: fixed a native GC correctness gap: STRUCT allocations are now conservatively scanned, and the mark phase is cycle-safe:
-		       - Problem: many runtime subsystems tag allocations as kind=STRUCT “so GC can scan fields”, but the mark phase previously did not traverse kind=STRUCT.
-		       - Fix: `oren_mark_value` now scans 8-byte slots for kind=STRUCT, and honors the mark bit to avoid infinite recursion on cyclic graphs.
-		       - Runtime: `lib/runtime_native/100_time_gc_alloc.oren` (`oren_mark_value`)
+			     - 2026-01-16: extended bounded safepoint reachability beyond loops by piggybacking on native call-depth hooks:
+			       - Runtime: `lib/runtime_native/105_call_depth.oren` (`native_call_depth_safepoint_poll_throttled`)
+			       - Behavior: in multi-OS-thread mode, every ~1024 function entries polls STW state and parks if requested.
+			       - Motivation: call-heavy non-loop code paths (visitors/recursion) should not starve a stop-the-world request indefinitely.
+			     - 2026-01-16: fixed an STW deadlock hazard after OS threads exit:
+			       - Problem: thread nodes are mmap-backed metadata; without an explicit “dead” marker, STW could wait forever on threads that have already exited.
+			       - Fix: OS-thread start stubs now mark their thread node as DEAD on exit, and STW counts only live (non-DEAD) OS-thread nodes when waiting.
+			       - Runtime: `lib/runtime_native/100_time_core.oren` (`native_time_mark_thread_dead_current`), `lib/runtime_native/100_time_gc_stw.oren` (`native_gc_stw_expected_parked_count`)
+			       - Guards: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_green_join_waiter`, `test_gc_collect_does_not_deadlock_with_os_thread_join_waiter`)
+			     - 2026-01-16: fixed a native GC correctness gap: STRUCT allocations are now conservatively scanned, and the mark phase is cycle-safe:
+			       - Problem: many runtime subsystems tag allocations as kind=STRUCT “so GC can scan fields”, but the mark phase previously did not traverse kind=STRUCT.
+			       - Fix: `oren_mark_value` now scans 8-byte slots for kind=STRUCT, and honors the mark bit to avoid infinite recursion on cyclic graphs.
+			       - Runtime: `lib/runtime_native/100_time_gc_alloc.oren` (`oren_mark_value`)
 
 		   References:
 

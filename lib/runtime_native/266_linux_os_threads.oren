@@ -64,6 +64,9 @@ fn __oren_linux_os_thread_entry(meta) {
         ret = oren_call_obj_list(fn_obj, args_list)
     }
     ptr_set(meta + _linux_thr_off_result(), ret)
+
+    // Mark this OS thread as dead for future STW collections (prevents waiting on exited threads).
+    native_time_mark_thread_dead_current()
     return 0
 }
 

@@ -69,6 +69,8 @@ Rolling status (fact):
   - GC stack scanning uses the thread node’s `saved_sp` field to scan parked threads safely.
   - Current-thread stack selection for **OS threads** uses `sys_gettid()` identity (not an SP/top heuristic), avoiding adjacent-stack misidentification crashes.
   - Guard: `tests/native/test_gc_stw_os_thread_collect.oren` (object reachable only from parked thread’s stack must survive).
+  - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_os_thread_join_waiter`) (STW GC must not deadlock while another OS thread is blocked in `oren_os_thread_join_timeout(..., timeout_us=0)`).
+  - Rolling constraint: any runtime path that can block in a kernel wait must either be bounded or poll `oren_gc_safepoint()` periodically, otherwise STW can deadlock.
 
 Practical consequence:
 

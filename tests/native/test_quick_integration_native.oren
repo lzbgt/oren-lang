@@ -1208,6 +1208,182 @@ fn test_gc_collect_does_not_deadlock_with_green_join_waiter() {
     return 0
 }
 
+fn _off_gc_os_join_stop() { return 0 }          // u64
+fn _off_gc_os_join_ready_sleeper() { return 8 } // u64
+fn _off_gc_os_join_ready_joiner() { return 16 } // u64
+fn _off_gc_os_join_gc_done() { return 24 }      // u64
+fn _off_gc_os_join_join_done() { return 32 }    // u64
+fn _off_gc_os_join_join_rc() { return 40 }      // u64
+fn _off_gc_os_join_sleeper_h() { return 48 }    // u64 (OS thread handle ptr)
+
+@oren.keep
+fn __oren_test_gc_os_join_sleeper(meta) {
+    if meta == 0 { return 0 }
+    oren_register_thread(get_sp())
+
+    ptr_set(meta + _off_gc_os_join_ready_sleeper(), 1)
+    oren_wake_all_addr(meta + _off_gc_os_join_ready_sleeper())
+
+    // Stay alive until collector flips stop (keeps joiner blocked in join).
+    while ptr_get(meta + _off_gc_os_join_stop()) == 0 {
+        oren_gc_safepoint()
+        oren_wait_on_addr(meta + _off_gc_os_join_stop(), 0, 1000) // 1ms
+    }
+    return 0
+}
+
+@oren.keep
+fn __oren_test_gc_os_join_waiter(meta) {
+    if meta == 0 { return 0 }
+    oren_register_thread(get_sp())
+
+    var h = ptr_get(meta + _off_gc_os_join_sleeper_h())
+    if h == 0 {
+        ptr_set(meta + _off_gc_os_join_join_rc(), 0 - 5)
+        ptr_set(meta + _off_gc_os_join_join_done(), 1)
+        oren_wake_all_addr(meta + _off_gc_os_join_join_done())
+        return 0
+    }
+
+    // Signal readiness just before blocking in join.
+    ptr_set(meta + _off_gc_os_join_ready_joiner(), 1)
+    oren_wake_all_addr(meta + _off_gc_os_join_ready_joiner())
+
+    // Join forever (timeout_us=0). Must remain STW-safe: this thread must still reach safepoints.
+    var rc = oren_os_thread_join_timeout(h, 0)
+    ptr_set(meta + _off_gc_os_join_join_rc(), rc)
+    ptr_set(meta + _off_gc_os_join_join_done(), 1)
+    oren_wake_all_addr(meta + _off_gc_os_join_join_done())
+    return 0
+}
+
+@oren.keep
+fn __oren_test_gc_os_join_collector(meta) {
+    if meta == 0 { return 0 }
+    oren_register_thread(get_sp())
+
+    // Wait until the joiner thread is ready and the sleeper thread is running.
+    while ptr_get(meta + _off_gc_os_join_ready_joiner()) == 0 {
+        var rc = oren_wait_on_addr(meta + _off_gc_os_join_ready_joiner(), 0, 1000000)
+        if rc == -60 { continue }
+        if rc != 0 { break }
+    }
+    while ptr_get(meta + _off_gc_os_join_ready_sleeper()) == 0 {
+        var rc2 = oren_wait_on_addr(meta + _off_gc_os_join_ready_sleeper(), 0, 1000000)
+        if rc2 == -60 { continue }
+        if rc2 != 0 { break }
+    }
+
+    // Regression guard: STW GC must not deadlock while another OS thread is blocked in `oren_os_thread_join_timeout(..., 0)`.
+    oren_gc_collect()
+
+    ptr_set(meta + _off_gc_os_join_gc_done(), 1)
+    oren_wake_all_addr(meta + _off_gc_os_join_gc_done())
+
+    // Allow sleeper to exit, so joiner can complete.
+    ptr_set(meta + _off_gc_os_join_stop(), 1)
+    oren_wake_all_addr(meta + _off_gc_os_join_stop())
+    return 0
+}
+
+fn test_gc_collect_does_not_deadlock_with_os_thread_join_waiter() {
+    trace("QI: test_gc_collect_does_not_deadlock_with_os_thread_join_waiter")
+    if g_target_os != 1 && g_target_os != 2 && g_target_os != 3 { return 0 }
+
+    var meta = sys_mmap_private_anon(4096)
+    if meta == 0 || meta == -1 || meta < 4096 { fail(731) }
+    ptr_set(meta + _off_gc_os_join_stop(), 0)
+    ptr_set(meta + _off_gc_os_join_ready_sleeper(), 0)
+    ptr_set(meta + _off_gc_os_join_ready_joiner(), 0)
+    ptr_set(meta + _off_gc_os_join_gc_done(), 0)
+    ptr_set(meta + _off_gc_os_join_join_done(), 0)
+    ptr_set(meta + _off_gc_os_join_join_rc(), 0)
+    ptr_set(meta + _off_gc_os_join_sleeper_h(), 0)
+
+    var start_sleep = oren_code_addr(__oren_test_gc_os_join_sleeper)
+    var start_join = oren_code_addr(__oren_test_gc_os_join_waiter)
+    var start_gc = oren_code_addr(__oren_test_gc_os_join_collector)
+    if start_sleep == 0 || start_join == 0 || start_gc == 0 {
+        sys_munmap(meta, 4096)
+        fail(732)
+    }
+
+    var th_sleep = oren_os_thread_spawn(start_sleep, meta)
+    if th_sleep == 0 || th_sleep == -1 || th_sleep < 0 {
+        sys_munmap(meta, 4096)
+        fail(733)
+    }
+    ptr_set(meta + _off_gc_os_join_sleeper_h(), th_sleep)
+
+    var th_join = oren_os_thread_spawn(start_join, meta)
+    if th_join == 0 || th_join == -1 || th_join < 0 {
+        oren_os_thread_destroy(th_sleep)
+        sys_munmap(meta, 4096)
+        fail(734)
+    }
+
+    // Wait for sleeper + joiner readiness (bounded).
+    var tries = 0
+    while ptr_get(meta + _off_gc_os_join_ready_sleeper()) == 0 {
+        var rcw = oren_wait_on_addr(meta + _off_gc_os_join_ready_sleeper(), 0, 2000000)
+        if rcw == -60 { break }
+        tries = tries + 1
+        if tries > 4 { break }
+    }
+    assert_eq(ptr_get(meta + _off_gc_os_join_ready_sleeper()), 1, 735)
+
+    tries = 0
+    while ptr_get(meta + _off_gc_os_join_ready_joiner()) == 0 {
+        var rcw2 = oren_wait_on_addr(meta + _off_gc_os_join_ready_joiner(), 0, 2000000)
+        if rcw2 == -60 { break }
+        tries = tries + 1
+        if tries > 4 { break }
+    }
+    assert_eq(ptr_get(meta + _off_gc_os_join_ready_joiner()), 1, 736)
+
+    var th_gc = oren_os_thread_spawn(start_gc, meta)
+    if th_gc == 0 || th_gc == -1 || th_gc < 0 {
+        oren_os_thread_destroy(th_join)
+        oren_os_thread_destroy(th_sleep)
+        sys_munmap(meta, 4096)
+        fail(737)
+    }
+
+    // Wait for collector completion with a hard timeout so this fixture never hangs.
+    var waited_ms = 0
+    while ptr_get(meta + _off_gc_os_join_gc_done()) == 0 {
+        oren_gc_safepoint()
+        var rcw3 = oren_wait_on_addr(meta + _off_gc_os_join_gc_done(), 0, 1000) // 1ms
+        if rcw3 != 0 && rcw3 != -60 { break }
+        waited_ms = waited_ms + 1
+        if waited_ms > 2000 { break }
+    }
+    assert_eq(ptr_get(meta + _off_gc_os_join_gc_done()), 1, 738)
+
+    // Ensure joiner also completes (after collector flips stop).
+    waited_ms = 0
+    while ptr_get(meta + _off_gc_os_join_join_done()) == 0 {
+        oren_gc_safepoint()
+        var rcw4 = oren_wait_on_addr(meta + _off_gc_os_join_join_done(), 0, 1000)
+        if rcw4 != 0 && rcw4 != -60 { break }
+        waited_ms = waited_ms + 1
+        if waited_ms > 2000 { break }
+    }
+    assert_eq(ptr_get(meta + _off_gc_os_join_join_done()), 1, 739)
+    assert_eq(ptr_get(meta + _off_gc_os_join_join_rc()), 0, 740)
+
+    // Join/destroy: sleeper was joined by the joiner thread; destroy only.
+    assert_eq(oren_os_thread_join_timeout(th_gc, 2000000), 0, 741)
+    assert_eq(oren_os_thread_join_timeout(th_join, 2000000), 0, 742)
+    oren_os_thread_destroy(th_gc)
+    oren_os_thread_destroy(th_join)
+    oren_os_thread_destroy(th_sleep)
+    ptr_set(meta + _off_gc_os_join_sleeper_h(), 0)
+
+    sys_munmap(meta, 4096)
+    return 0
+}
+
 var g_green_multi_p_handles = []
 var g_green_multi_p_expect = []
 
@@ -1655,6 +1831,7 @@ fn main() {
     test_green_worker_release_acquire_p_when_parked()
     test_gc_collect_does_not_deadlock_with_green_worker_idle()
     test_gc_collect_does_not_deadlock_with_green_join_waiter()
+    test_gc_collect_does_not_deadlock_with_os_thread_join_waiter()
     test_select_in_green_workers()
     test_select_multi_case_in_green_workers()
     test_select_idle_does_not_spin_cpu()

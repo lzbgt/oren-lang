@@ -1064,8 +1064,16 @@ fn oren_join_timeout_win(handle, timeout_ms) {
             return rc0
         }
     } else if timeout_ms < 0 {
-        var rcw = sys_win_wait_single_object(h, -1)
-        if rcw != 0 {
+        // STW GC robustness:
+        // Never block forever in a kernel wait here. If a collector requests STW while this thread is blocked
+        // in WaitForSingleObject(INFINITE), it cannot reach a safepoint and STW can deadlock.
+        //
+        // Instead: poll `oren_gc_safepoint()` and wait in short bounded sleeps.
+        while true {
+            oren_gc_safepoint()
+            var rcw = sys_win_wait_single_object(h, 10) // 10ms
+            if rcw == 0 { break }
+            if rcw == (0 - 60) { continue }
             sys_win_close_handle(h)
             if result_ptr != 0 { free(result_ptr) }
             if arg_ptr != 0 { free(arg_ptr) }

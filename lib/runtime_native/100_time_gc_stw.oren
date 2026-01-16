@@ -81,10 +81,14 @@ fn native_gc_stw_begin() {
     ptr_set(stw_ptr, 1)
     oren_wake_all_addr(stw_ptr)
 
-    // Wait for all other OS threads to park.
-    var total = global_get_os_thread_count()
-    var expected = 0
-    if total > 0 { expected = total - 1 }
+    // Wait for all other *live* OS threads to park.
+    //
+    // NOTE (rolling correctness): `oren_register_thread` is idempotent and a thread node can outlive
+    // the OS thread itself (nodes are mmap-backed metadata and are not GC-managed). If we relied on a
+    // monotonically-increasing "threads ever registered" counter, STW would deadlock after a thread exits.
+    //
+    // Instead, count only OS-thread nodes that are not marked DEAD, and exclude the collector itself.
+    var expected = native_gc_stw_expected_parked_count(owner_node)
 
     while expected > 0 {
         var cur = ptr_get(parked_ptr)
@@ -93,6 +97,29 @@ fn native_gc_stw_begin() {
         oren_wait_on_addr(parked_ptr, cur, 1000000)
     }
     return 0
+}
+
+fn native_gc_stw_expected_parked_count(owner_node) {
+    if oren_globals() == 0 { return 0 }
+    var THREAD_NODE_FLAG_OS_THREAD = 1
+    var THREAD_NODE_FLAG_DEAD = 4
+
+    if g_runtime_single_threaded == 0 { acquire_lock() }
+    var cur = global_get_threads()
+    var n = 0
+    while cur != 0 {
+        var flags = ptr_get(iadd(cur, 48))
+        if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+            if (flags & THREAD_NODE_FLAG_DEAD) == 0 {
+                if owner_node == 0 || cur - owner_node != 0 {
+                    n = n + 1
+                }
+            }
+        }
+        cur = ptr_get(iadd(cur, 16))
+    }
+    if g_runtime_single_threaded == 0 { release_lock() }
+    return n
 }
 
 fn native_gc_stw_end() {
@@ -166,4 +193,3 @@ fn native_gc_stw_poll_and_park() {
     ptr_set(flags_ptr, ptr_get(flags_ptr) & -3)
     return 0
 }
-

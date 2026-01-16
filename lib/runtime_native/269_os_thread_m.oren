@@ -26,7 +26,9 @@ fn _m_handle_kind_off() { return 0 }       // u64 (1=macos, 2=linux, 3=windows)
 fn _m_handle_th_off() { return 8 }         // u64 (linux tid or windows HANDLE)
 fn _m_handle_stack_base_off() { return 16 } // u64 (linux only)
 fn _m_handle_stack_bytes_off() { return 24 } // u64 (linux only)
+fn _m_handle_start_addr_off() { return 32 } // u64 (raw entry wrapper)
 fn _m_handle_ctid_off() { return 40 }      // i32 slot (linux only; must be 4-byte aligned)
+fn _m_handle_arg_ptr_off() { return 48 }   // u64 (raw entry wrapper)
 fn _m_handle_bytes() { return 4096 }       // mmap-sized for simplicity (can be shrunk later)
 
 fn _m_default_stack_bytes() {
@@ -83,6 +85,28 @@ fn oren_m_park_word_wake(word_ptr) {
     return 0
 }
 
+// Raw entry wrapper for `oren_os_thread_spawn` (Linux/Windows):
+// - registers the thread (unless disabled)
+// - calls the user-provided `start_addr(arg_ptr)` stored in the handle
+// - marks the thread dead for future STW collections
+@oren.keep
+fn __oren_os_thread_entry_raw(handle) {
+    if handle == 0 { return 0 }
+    var no_reg = native_envp_get_value_ptr("OREN_NO_THREAD_REGISTER")
+    if no_reg == 0 || ptr_get_byte(no_reg) == 0 {
+        oren_register_thread(get_sp())
+    }
+
+    var start_addr = ptr_get(handle + _m_handle_start_addr_off())
+    var ap = ptr_get(handle + _m_handle_arg_ptr_off())
+    if start_addr != 0 {
+        native_call1(start_addr, ap)
+    }
+
+    native_time_mark_thread_dead_current()
+    return 0
+}
+
 // Spawn an OS thread that runs `start_addr(arg_ptr)`.
 //
 // Return:
@@ -105,7 +129,9 @@ fn oren_os_thread_spawn(start_addr, arg_ptr) {
     ptr_set(h + _m_handle_th_off(), 0)
     ptr_set(h + _m_handle_stack_base_off(), 0)
     ptr_set(h + _m_handle_stack_bytes_off(), 0)
+    ptr_set(h + _m_handle_start_addr_off(), 0)
     oren_ptr_set_i32_le(h + _m_handle_ctid_off(), 0)
+    ptr_set(h + _m_handle_arg_ptr_off(), 0)
 
     if g_target_os == 1 {
         // macOS: prefer syscall-first bsdthread when available; otherwise fall back to pthread_create
@@ -148,6 +174,8 @@ fn oren_os_thread_spawn(start_addr, arg_ptr) {
         var stack_top = stack_base + stack_bytes
         var ctid_ptr = h + _m_handle_ctid_off()
 
+        // Linux: invoke the user entry directly.
+        // (Avoid an extra indirect-call wrapper here; `sys_thread_create` already provides a safe child trampoline.)
         var tid = sys_thread_create(start_addr, arg_ptr, stack_top, ctid_ptr)
         if tid <= 0 {
             g_runtime_single_threaded = prev_single
@@ -169,7 +197,17 @@ fn oren_os_thread_spawn(start_addr, arg_ptr) {
         g_runtime_single_threaded = 0
         // Ensure the spawning thread participates in OS-thread accounting and STW GC.
         oren_register_thread(get_sp())
-        var th = sys_win_createthread(start_addr, arg_ptr)
+
+        ptr_set(h + _m_handle_start_addr_off(), start_addr)
+        ptr_set(h + _m_handle_arg_ptr_off(), arg_ptr)
+        var entry = oren_code_addr(__oren_os_thread_entry_raw)
+        if entry == 0 {
+            g_runtime_single_threaded = prev_single
+            sys_munmap(h, _m_handle_bytes())
+            return 0
+        }
+
+        var th = sys_win_createthread(entry, h)
         if th == 0 {
             g_runtime_single_threaded = prev_single
             sys_munmap(h, _m_handle_bytes())
@@ -188,7 +226,7 @@ fn oren_os_thread_spawn(start_addr, arg_ptr) {
 // Join an OS thread with a bounded timeout.
 //
 // timeout_us:
-// - 0 => wait forever
+// - 0 => wait forever (but STW-safe: implemented as bounded waits + `oren_gc_safepoint()` polling)
 // - >0 => bounded wait (portable timeout code -60)
 //
 // Returns:
@@ -207,15 +245,65 @@ fn oren_os_thread_join_timeout(handle, timeout_us) {
     if kind == 2 {
         // Linux join: wait for CLONE_CHILD_CLEARTID slot to become 0.
         var ctid_ptr = handle + _m_handle_ctid_off()
+        var bounded = false
+        var remaining_us = 0
+        if timeout_us > 0 {
+            bounded = true
+            remaining_us = timeout_us
+        }
+
+        var deadline_ns = 0
+        if bounded {
+            var now0 = oren_time_mono_ns()
+            if now0 != 0 {
+                deadline_ns = now0 + timeout_us * 1000
+            }
+        }
         while true {
             var cur = oren_ptr_get_i32_le(ctid_ptr)
-            if cur == 0 { return 0 }
-            var rc = sys_ulock_wait(1, ctid_ptr, cur, timeout_us)
+            if cur == 0 {
+                // Mark the joined thread dead so future STW collections do not wait on it.
+                native_time_mark_thread_dead_by_tid(ptr_get(handle + _m_handle_th_off()))
+                return 0
+            }
+
+            // STW GC robustness:
+            // Never sleep forever here. If a collector requests STW while this thread is blocked in a futex wait,
+            // it cannot reach a safepoint and STW can deadlock.
+            oren_gc_safepoint()
+
+            var wait_us = 10000 // 10ms
+            if bounded {
+                if deadline_ns != 0 {
+                    var now = oren_time_mono_ns()
+                    if now != 0 {
+                        var rem_ns = deadline_ns - now
+                        if rem_ns <= 0 {
+                            if oren_ptr_get_i32_le(ctid_ptr) == 0 { return 0 }
+                            return -60
+                        }
+                        wait_us = rem_ns / 1000
+                        if wait_us > 10000 { wait_us = 10000 }
+                        if wait_us <= 0 { wait_us = 1 }
+                    }
+                } else {
+                    // Monotonic time unavailable: best-effort decrementing timeout.
+                    if remaining_us <= 0 { return -60 }
+                    if remaining_us < wait_us { wait_us = remaining_us }
+                }
+            }
+
+            var rc = sys_ulock_wait(1, ctid_ptr, cur, wait_us)
+            if bounded && deadline_ns == 0 {
+                remaining_us = remaining_us - wait_us
+            }
             if rc == -60 {
                 // Robustness: if the kernel cleared the slot but we missed a wake, do not fail.
-                var after = oren_ptr_get_i32_le(ctid_ptr)
-                if after == 0 { return 0 }
-                return -60
+                if oren_ptr_get_i32_le(ctid_ptr) == 0 {
+                    native_time_mark_thread_dead_by_tid(ptr_get(handle + _m_handle_th_off()))
+                    return 0
+                }
+                continue
             }
             if rc < 0 && rc != -11 && rc != -4 {
                 // -EAGAIN/-EINTR can be retried.
@@ -227,14 +315,57 @@ fn oren_os_thread_join_timeout(handle, timeout_us) {
         // Windows join: WaitForSingleObject.
         var th = ptr_get(handle + _m_handle_th_off())
         if th == 0 { return -5 }
-        var timeout_ms = 0
+
+        var bounded = false
+        var remaining_us = 0
         if timeout_us > 0 {
-            timeout_ms = timeout_us / 1000
-            if timeout_ms <= 0 { timeout_ms = 1 }
-        } else {
-            timeout_ms = -1
+            bounded = true
+            remaining_us = timeout_us
         }
-        return sys_win_wait_single_object(th, timeout_ms)
+
+        var deadline_ns = 0
+        if bounded {
+            var now0 = oren_time_mono_ns()
+            if now0 != 0 {
+                deadline_ns = now0 + timeout_us * 1000
+            }
+        }
+
+        while true {
+            oren_gc_safepoint()
+
+            var wait_ms = 10
+            if bounded {
+                if deadline_ns != 0 {
+                    var now = oren_time_mono_ns()
+                    if now != 0 {
+                        var rem_ns = deadline_ns - now
+                        if rem_ns <= 0 {
+                            // One last probe before declaring timeout.
+                            var rc0 = sys_win_wait_single_object(th, 0)
+                            if rc0 == 0 { return 0 }
+                            return -60
+                        }
+                        var rem_ms = (rem_ns / 1000000)
+                        if rem_ms <= 0 { rem_ms = 1 }
+                        if rem_ms < wait_ms { wait_ms = rem_ms }
+                    }
+                } else {
+                    // Monotonic time unavailable: best-effort decrementing timeout.
+                    var rem_ms2 = remaining_us / 1000
+                    if rem_ms2 <= 0 { return -60 }
+                    if rem_ms2 < wait_ms { wait_ms = rem_ms2 }
+                }
+            }
+
+            var rcw = sys_win_wait_single_object(th, wait_ms)
+            if bounded && deadline_ns == 0 {
+                remaining_us = remaining_us - wait_ms * 1000
+            }
+            if rcw == 0 { return 0 }
+            if rcw == (0 - 60) { continue }
+            return rcw
+        }
     }
     return -38
 }

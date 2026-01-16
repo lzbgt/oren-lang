@@ -156,13 +156,20 @@ fn oren_green_start_workers(n) {
         i = i + 1
     }
     // Best-effort: wait briefly for workers to reach the scheduler loop (stabilizes fixtures).
-    // Keep bounded so start_workers stays fast.
+    // Keep bounded so start_workers stays fast, but allow more headroom on slow hosts (qemu).
     var tries = 0
-    while tries < 50 {
+    while tries < 500 {
         if g_green_workers_ready_word != 0 && g_green_workers_ready_word != -1 && g_green_workers_ready_word >= 4096 {
             if ptr_get(g_green_workers_ready_word) >= n { break }
         }
-        sys_nanosleep(1000000) // 1ms
+        // Stay STW-friendly while waiting for worker bring-up.
+        oren_gc_safepoint()
+        if g_green_workers_ready_word != 0 && g_green_workers_ready_word != -1 && g_green_workers_ready_word >= 4096 {
+            var cur = ptr_get(g_green_workers_ready_word)
+            oren_wait_on_addr(g_green_workers_ready_word, cur, 1000) // 1ms
+        } else {
+            sys_nanosleep(1000000) // 1ms
+        }
         tries = tries + 1
     }
     // Wake all workers so they immediately start draining runq/sleepq.
