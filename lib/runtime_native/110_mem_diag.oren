@@ -113,32 +113,47 @@ fn compute_program_pc_bounds() {
     g_prog_pc_max = 0
     if g_debug_info == 0 { return 0 }
     var ptr = g_debug_info
+    // Robustness (rolling):
+    // Debug info is best-effort and must never crash the program. If the table is missing,
+    // corrupted, or we accidentally parse a bogus length (overflow), bail out.
+    if ptr < 4096 { return 0 }
     var count = ptr_get_u64(ptr)
+    if count < 0 || count > 1000000 { return 0 }
     ptr = ptr + 8
     var i = 0
     while i < count {
+        if ptr < 4096 { return 0 }
         var start = ptr_get_u64(ptr)
         ptr = ptr + 8
+        if ptr < 4096 { return 0 }
         var end = ptr_get_u64(ptr)
         ptr = ptr + 8
         if g_prog_pc_min == 0 || start < g_prog_pc_min { g_prog_pc_min = start }
         if end > g_prog_pc_max { g_prog_pc_max = end }
 
+        if ptr < 4096 { return 0 }
         var name_len = ptr_get_u64(ptr)
+        if name_len < 0 || name_len > 1048576 { return 0 }
         ptr = ptr + 8 + name_len
         ptr = align_ptr8(ptr)
 
         // file + (line,col)
+        if ptr < 4096 { return 0 }
         var file_len = ptr_get_u64(ptr)
+        if file_len < 0 || file_len > 1048576 { return 0 }
         ptr = ptr + 8 + file_len
         ptr = align_ptr8(ptr)
         ptr = ptr + 16 // line + col
 
+        if ptr < 4096 { return 0 }
         var p_count = ptr_get_u64(ptr)
+        if p_count < 0 || p_count > 1024 { return 0 }
         ptr = ptr + 8
         var j = 0
         while j < p_count {
+            if ptr < 4096 { return 0 }
             var pname_len = ptr_get_u64(ptr)
+            if pname_len < 0 || pname_len > 1048576 { return 0 }
             ptr = ptr + 8 + pname_len
             ptr = align_ptr8(ptr)
             ptr = ptr + 8 // offset
@@ -179,13 +194,17 @@ fn find_func_info(pc) {
     var static_pc = pc - g_slide
     
     var ptr = g_debug_info
+    if ptr < 4096 { return 0 }
     var count = ptr_get_u64(ptr)
+    if count < 0 || count > 1000000 { return 0 }
     ptr = ptr + 8
     
     var i = 0
     while i < count {
+        if ptr < 4096 { return 0 }
         var start = ptr_get_u64(ptr)
         ptr = ptr + 8
+        if ptr < 4096 { return 0 }
         var end = ptr_get_u64(ptr)
         ptr = ptr + 8
         
@@ -195,21 +214,29 @@ fn find_func_info(pc) {
             }
         }
         
+        if ptr < 4096 { return 0 }
         var name_len = ptr_get_u64(ptr)
+        if name_len < 0 || name_len > 1048576 { return 0 }
         ptr = ptr + 8 + name_len
         ptr = align_ptr8(ptr)
 
         // file + (line,col)
+        if ptr < 4096 { return 0 }
         var file_len = ptr_get_u64(ptr)
+        if file_len < 0 || file_len > 1048576 { return 0 }
         ptr = ptr + 8 + file_len
         ptr = align_ptr8(ptr)
         ptr = ptr + 16 // line + col
 
+        if ptr < 4096 { return 0 }
         var p_count = ptr_get_u64(ptr)
+        if p_count < 0 || p_count > 1024 { return 0 }
         ptr = ptr + 8
         var j = 0
         while j < p_count {
+            if ptr < 4096 { return 0 }
             var pname_len = ptr_get_u64(ptr)
+            if pname_len < 0 || pname_len > 1048576 { return 0 }
             ptr = ptr + 8 + pname_len
             ptr = align_ptr8(ptr)
             ptr = ptr + 8 // offset

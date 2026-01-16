@@ -183,3 +183,36 @@ Regression:
 
 - `scripts/verify_native_matrix.sh` executes `tests/native/test_std_ffi_libc_smoke.oren` on Tier‑1 targets (stage1 + stage2).
 - `make verify-x64-linux-qemu` also builds/runs the same fixture under `qemu-x86_64` (local, no remote required).
+
+## 10) Debug-info symbolication must never crash (debug builds)
+
+Invariant:
+
+- Debug-info tables and symbol resolvers (`oren_set_debug_info`, `oren_resolve_symbol`) are **best-effort diagnostics**.
+- Malformed/corrupted tables must not crash the process (bail out / return `"???"`), even in debug mode.
+
+Why:
+
+- Many Tier‑1 smokes compile with `--debug` (including `make test`), so a debug-info parsing crash blocks iteration.
+- Diagnostics must not turn a recoverable bug into a hard segfault.
+
+Regression:
+
+- `make test` (native quick integration is built with `--debug` and installs debug info at entry)
+
+## 11) Green ctx-switch must preserve long-lived locals across yields
+
+Invariant:
+
+- A local pointer kept live across many `oren_green_yield()` points must remain valid and stable.
+
+Why:
+
+- If ctx-switch lowering or backend stack/register discipline is wrong, locals can collapse to small/misaligned integers
+  and later crash in `ptr_get`/`ptr_set`.
+
+Regression:
+
+- `make test` via `tests/native/test_quick_integration_native.oren`:
+  - `test_green_local_ptr_survives_yields`
+  - `test_green_workers_local_ptr_survives_yields`

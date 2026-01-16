@@ -130,6 +130,36 @@ fn worker_green_alloc_yield_integrity(seed) {
     return 1
 }
 
+fn worker_green_local_ptr_survives_yields(seed) {
+    // Regression guard (compiler + ctx switch contract):
+    // A long-lived local pointer must remain valid across many yields / ctx switches.
+    //
+    // This is intentionally different from `worker_green_alloc_yield_integrity`:
+    // - here we keep a single pointer local *live across yield points*
+    // - if a backend miscompiles locals around `oren_ctx_switch`, `p` can collapse
+    //   to a small integer (e.g. 2) and would otherwise segfault in `ptr_get`.
+    var p = oren_ptr_alloc(32)
+    if p == 0 { return 0 - 21 }
+    ptr_set(p, seed + 123)
+
+    var i = 0
+    while i < 200 {
+        if p == 0 || p < 4096 { oren_ptr_free(p); return 0 - 22 }
+        var got = ptr_get(p)
+        if got != seed + 123 { oren_ptr_free(p); return 0 - 23 }
+        // Keep `p` live and exercised across the yield boundary.
+        if (i & 7) == 0 {
+            ptr_set(p, seed + 123 + i)
+            if ptr_get(p) != seed + 123 + i { oren_ptr_free(p); return 0 - 24 }
+            ptr_set(p, seed + 123)
+        }
+        oren_green_yield()
+        i = i + 1
+    }
+    oren_ptr_free(p)
+    return 1
+}
+
 fn _off_green_hog_stop() { return 0 } // u64
 
 fn worker_green_hog_until_stop(meta) {
@@ -809,6 +839,19 @@ fn test_green_ctx_switch_alloc_integrity() {
     return 0
 }
 
+fn test_green_local_ptr_survives_yields() {
+    trace("QI: test_green_local_ptr_survives_yields")
+    if g_target_os == 3 { return 0 }
+
+    var h1 = spawn worker_green_local_ptr_survives_yields(8000000)
+    var h2 = spawn worker_green_local_ptr_survives_yields(9000000)
+    var r1 = oren_join(h1)
+    var r2 = oren_join(h2)
+    assert_eq(r1, 1, 488)
+    assert_eq(r2, 1, 489)
+    return 0
+}
+
 fn test_green_workers_ctx_switch_alloc_integrity() {
     trace("QI: test_green_workers_ctx_switch_alloc_integrity")
     // Green tasks are the default `spawn` path on macOS/Linux today.
@@ -828,6 +871,22 @@ fn test_green_workers_ctx_switch_alloc_integrity() {
     var r2 = oren_join_timeout(h2, 2000)
     assert_eq(r1, 1, 495)
     assert_eq(r2, 1, 496)
+    return 0
+}
+
+fn test_green_workers_local_ptr_survives_yields() {
+    trace("QI: test_green_workers_local_ptr_survives_yields")
+    if g_target_os == 3 { return 0 }
+
+    var rc = oren_green_start_workers(1)
+    assert_eq(rc, 0, 497)
+
+    var h1 = spawn worker_green_local_ptr_survives_yields(10000000)
+    var h2 = spawn worker_green_local_ptr_survives_yields(11000000)
+    var r1 = oren_join_timeout(h1, 2000)
+    var r2 = oren_join_timeout(h2, 2000)
+    assert_eq(r1, 1, 498)
+    assert_eq(r2, 1, 499)
     return 0
 }
 
@@ -902,7 +961,9 @@ fn main() {
     test_green_workers_join()
     test_green_global_runq_fairness()
     test_green_ctx_switch_alloc_integrity()
+    test_green_local_ptr_survives_yields()
     test_green_workers_ctx_switch_alloc_integrity()
+    test_green_workers_local_ptr_survives_yields()
     test_green_worker_wake_while_sleepers()
     print("native quick integration OK")
     exit(0)
