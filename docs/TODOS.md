@@ -408,7 +408,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	   - Stage N3 (next): make `P` real (toward true M:N)
 	     - enforce “an `M` runs Oren code only while holding a `P`” (no shared-P execution)
 	     - evolve the global runq into a fairness/overflow queue (it exists today as cross-P injection)
-	     - implement real work stealing between `P` (today: a simple global-lock “steal one before idle” bring-up)
+	     - implement real work stealing between `P` (today: a global-lock bring-up: “steal one before idle”, plus periodic global-runq polling for fairness)
 	     - replace the current global lock in green scheduling with per-P queues + atomics (keep GC/STW correctness first)
 	     - add a small regression gate: spawn many green tasks (with workers enabled) and assert bounded completion (no hangs)
 	     - Optional dev-only smoke (skipped by default): `tests/native/test_green_workers_multi_p_experimental.oren`

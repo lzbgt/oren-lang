@@ -95,7 +95,8 @@ fn green_t_off_sched_ctx() { return 0 }        // u64: scheduler ctx buffer ptr 
 fn green_t_off_current_g() { return 8 }        // u64: currently running G ptr (0 on scheduler stack)
 fn green_t_off_sched_stack_node() { return 16 } // u64: OS-thread node for this scheduler stack (for GC scanning)
 fn green_t_off_p() { return 24 }               // u64: current P pointer (rolling; required for Stage N2)
-fn green_t_bytes() { return 32 }
+fn green_t_off_tick() { return 32 }            // u64: scheduler tick for fairness / periodic global polling
+fn green_t_bytes() { return 40 }
 
 fn _green_thread_state_for_current_thread_or0() {
     if oren_globals() == 0 { return 0 }
@@ -124,6 +125,7 @@ fn _green_thread_state_for_current_thread_or0() {
     var p0 = 0
     if s != 0 { p0 = _green_state_p0(s) }
     ptr_set(ts0 + green_t_off_p(), p0)
+    ptr_set(ts0 + green_t_off_tick(), 0)
 
     // Publish into the OS-thread node (thread-local; no atomic required).
     ptr_set(os_node + green_thread_node_off_green_state(), ts0)
@@ -141,6 +143,8 @@ fn _green_thread_sched_ctx_or0(ts) { return ptr_get(ts + green_t_off_sched_ctx()
 fn _green_thread_sched_stack_node_or0(ts) { return ptr_get(ts + green_t_off_sched_stack_node()) }
 fn _green_thread_p_or0(ts) { return ptr_get(ts + green_t_off_p()) }
 fn _green_thread_set_p(ts, p) { ptr_set(ts + green_t_off_p(), p); return 0 }
+fn _green_thread_tick(ts) { return ptr_get(ts + green_t_off_tick()) }
+fn _green_thread_set_tick(ts, v) { ptr_set(ts + green_t_off_tick(), v); return 0 }
 
 fn _green_enabled() {
     if g_green_enabled_checked == 0 {
@@ -607,6 +611,22 @@ fn _green_runq_steal_one_locked(dst_p) {
     return 0
 }
 
+fn _green_runq_pop_any_locked(p, s, prefer_global) {
+    if p == 0 || s == 0 { return 0 }
+    var g = 0
+    if prefer_global != 0 {
+        g = _green_global_runq_pop_locked(s)
+        if g != 0 { return g }
+    }
+    g = _green_runq_pop_locked(p)
+    if g != 0 { return g }
+    // If local is empty, allow the global queue as a fallback.
+    g = _green_global_runq_pop_locked(s)
+    if g != 0 { return g }
+    // Last resort before idling: attempt a single steal.
+    return _green_runq_steal_one_locked(p)
+}
+
 fn _green_poll_until(deadline_ns) {
     // deadline_ns == 0 means "run until no runnable work" (but still drive sleepers minimally).
     _green_init_if_needed()
@@ -632,6 +652,11 @@ fn _green_poll_until(deadline_ns) {
     }
 
     while 1 {
+        // Fairness tick: allow periodic draining from the global run queue even if the local runq
+        // is non-empty, so spawns from non-green threads cannot starve indefinitely.
+        var tick = _green_thread_tick(ts) + 1
+        _green_thread_set_tick(ts, tick)
+
         // Drain detached tasks that completed.
         _green_zombie_drain()
 
@@ -641,11 +666,13 @@ fn _green_poll_until(deadline_ns) {
             if deadline_ns != 0 && now >= deadline_ns { return 0 }
         }
 
-        var g = _green_runq_pop_p(p)
-        if g == 0 {
-            // Cross-P injection / fairness: allow any scheduler M to pull from the global run queue.
-            g = _green_global_runq_pop()
-        }
+        // Prefer the global run queue periodically for fairness.
+        var prefer_global = 0
+        if (tick & 31) == 0 { prefer_global = 1 }
+
+        acquire_lock()
+        var g = _green_runq_pop_any_locked(p, s, prefer_global)
+        release_lock()
         if g != 0 {
             _green_sched_switch_to(g)
             // After returning, decide whether to requeue.
@@ -667,24 +694,6 @@ fn _green_poll_until(deadline_ns) {
         // No runnable tasks. If no sleepers, we're idle.
         var next_wake = _green_next_wake_ns_p(p)
         if next_wake == 0 {
-            // Before declaring idle, attempt a last-chance steal from other P queues.
-            acquire_lock()
-            var g2 = _green_runq_steal_one_locked(p)
-            release_lock()
-            if g2 != 0 {
-                _green_sched_switch_to(g2)
-                var st2 = ptr_get(g2 + green_g_off_state())
-                if st2 == green_g_state_runnable() {
-                    _green_runq_push_p(p, g2)
-                } else if st2 == green_g_state_done() {
-                    if ptr_get(g2 + green_g_off_detached()) != 0 {
-                        _green_zombie_push(g2)
-                    }
-                } else {
-                    _green_sleepq_push_p(p, g2)
-                }
-                continue
-            }
             return 0
         }
 
