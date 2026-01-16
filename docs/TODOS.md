@@ -452,6 +452,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 			     - Next: make `oren_time_mono_ns()` conversion exact on macOS/Windows (avoid wall-clock-based calibration):
 			       - macOS: use `mach_timebase_info` (num/den) for mach_absolute_time -> ns
 			       - Windows: use `QueryPerformanceFrequency` for QPC ticks -> ns
+			     - Rolling (Linux arm64): native quick integration currently panics in `worker_green_alloc_yield_integrity` with `list_push on non-list`
+			       (seen while validating `arm64-linux` inside the Ubuntu container); likely a local preservation / call ABI spill bug in the arm64-linux native backend.
 	     - Optional dev-only smoke (skipped by default): `tests/native/test_green_workers_multi_p_experimental.oren`
 	   - 2026-01-15: GC + safepoint groundwork for N:M (stop-the-world first, correct before fast)
 	     - Implemented a minimal STW protocol so `oren_gc_collect()` is safe once >1 OS thread exists:
