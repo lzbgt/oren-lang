@@ -94,8 +94,9 @@ Notes:
       - Rolling note: duplicate case fds are rejected (`EINVAL`) to keep semantics deterministic across the legacy per-call epoll/kqueue path and the shared netpoll v2 path.
     - `oren_fd_wait_*` (fd readiness): when called from a green task, parks the G and lets the scheduler drive readiness waits (no host-thread blocking).
       - POSIX: `lib/runtime_native/246_netpoll.oren` (kqueue/epoll + wake pipe)
-      - Windows (rolling v0): `lib/runtime_native/246_netpoll.oren` uses WinSock `select()` over a small watched set (`FD_SETSIZE=64` cap).
-        - Note: Windows v0 is timeout-bounded (no internal wake socket) to keep capsule NET policy independent of loopback enrollment; IOCP is still the intended long-term path.
+      - Windows (rolling v0): `lib/runtime_native/246_netpoll.oren` uses WinSock `select()` over a watched set (`FD_SETSIZE=64` per call) and batches watches beyond 64.
+        - Wake: best-effort loopback UDP wake socket in non-capsule builds; in capsule builds it is only created if loopback endpoints are explicitly allowed (no policy bypass). Without it, waits remain timeout-bounded.
+        - IOCP is still the intended long-term “real netpoller” path (scalable readiness + HANDLE story).
       - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains netpoll tokens)
       - Escape hatch (rolling): `OREN_NO_NETPOLL=1` disables netpoll bring-up for debugging.
       - Guard: `tests/native/test_net_suite.oren` (`test_fd_wait_socket_readable_in_green_workers`)

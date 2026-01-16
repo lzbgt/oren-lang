@@ -22,17 +22,24 @@ var g_netpoll_wake_rfd = 0
 var g_netpoll_wake_wfd = 0
 
 // Windows netpoll v0 state (rolling):
-// - There is no kqueue/epoll; we use WinSock select() over a small watched set (FD_SETSIZE=64).
+// - There is no kqueue/epoll; we use WinSock select() over a watched set (FD_SETSIZE=64 per call).
 // - Tokens are stored in a process-global watch table protected by a small lock.
-// - Wake is timeout-based (no internal wake socket; keeps capsule policy independent of loopback enrollment).
+// - Polling batches the watch table (round-robin) so the total watch table can exceed 64.
+// - Optional wake socket:
+//   - In non-capsule mode, we create a loopback UDP socket and include it in readfds to break select.
+//   - In capsule mode, we only create the wake socket if loopback endpoints are explicitly allowed.
 //
 // NOTE:
 // This is intentionally not IOCP yet; it exists to unblock green-task NET readiness waits on Tier‑1 Windows.
+fn _netpoll_watch_max() { return 1024 }
+var g_netpoll_watch_cursor = 0
 var g_netpoll_watch_lock_word = 0  // pointer to u64 lock word (0 unlocked, 1 locked)
 var g_netpoll_watch_n = 0
-var g_netpoll_watch_fds = 0        // u64[64]
-var g_netpoll_watch_kinds = 0      // u64[64] (0=read, 1=write)
-var g_netpoll_watch_tokens = 0     // u64[64] (token pointers)
+var g_netpoll_watch_fds = 0        // u64[_netpoll_watch_max()]
+var g_netpoll_watch_kinds = 0      // u64[_netpoll_watch_max()] (0=read, 1=write)
+var g_netpoll_watch_tokens = 0     // u64[_netpoll_watch_max()] (token pointers)
+var g_netpoll_win_wake_sa = 0      // sockaddr_in ptr (16 bytes), or 0
+var g_netpoll_win_wake_sa_len = 0  // 16
 
 fn _netpoll_env_truthy(name) {
     var p = native_envp_get_value_ptr(name)
@@ -60,14 +67,44 @@ fn native_netpoll_can_block() {
     // Whether it is meaningful for the scheduler to block in `native_netpoll_poll_*`.
     //
     // POSIX has a wake pipe registered, so it can always block once initialized.
-    // Windows select() has no wake FD, so only block when we have watched sockets.
+    // Windows can block if either:
+    // - it has watched sockets, or
+    // - it has a wake socket (so select can be broken on demand).
     if g_netpoll_inited == 0 { return false }
     if g_target_os == 3 {
         if g_netpoll_watch_n > 0 { return true }
+        if g_netpoll_wake_rfd != 0 { return true }
         return false
     }
     if g_netpoll_wake_rfd != 0 { return true }
     return false
+}
+
+fn _netpoll_windows_wake_allowed() {
+    // In capsule mode, creating a loopback wake socket must respect NET enrollment:
+    // - we only create it if loopback endpoints are explicitly allowed.
+    //
+    // In non-capsule mode, always allow (not a security boundary).
+    if global_get_capsule_mode() != 1 { return true }
+    if global_get_net_allow_loopback() == 1 { return true }
+    return false
+}
+
+fn _native_netpoll_drain_wake_fd_into(buf, buf_len) {
+    if g_netpoll_wake_rfd == 0 { return 0 }
+    // Drain until EAGAIN/EWOULDBLOCK.
+    while 1 {
+        var n = 0
+        if g_target_os == 3 {
+            n = sys_recv(g_netpoll_wake_rfd, buf, buf_len, 0)
+        } else {
+            n = sys_read(g_netpoll_wake_rfd, buf, buf_len)
+        }
+        // Linux: -11; macOS: -35; Windows: -11 (WSAEWOULDBLOCK normalized in syscall lowering)
+        if n == 0 - 11 || n == 0 - 35 { break }
+        if n <= 0 { break }
+    }
+    return 0
 }
 
 fn _netpoll_watch_lock_acquire() {
@@ -137,7 +174,6 @@ fn native_netpoll_init_once() {
 
     // Windows backend:
     // - No kqueue/epoll fd.
-    // - No internal wake socket (keeps capsule NET policy independent of loopback allowlist).
     // - Watch table is stored in-process and polled via WinSock select().
     if g_target_os == 3 {
         if g_netpoll_inited != 0 { release_lock(); return 0 }
@@ -150,9 +186,10 @@ fn native_netpoll_init_once() {
             ptr_set(g_netpoll_watch_lock_word, 0)
         }
         if g_netpoll_watch_fds == 0 {
-            g_netpoll_watch_fds = malloc(64 * 8)
-            g_netpoll_watch_kinds = malloc(64 * 8)
-            g_netpoll_watch_tokens = malloc(64 * 8)
+            var maxn = _netpoll_watch_max()
+            g_netpoll_watch_fds = malloc(maxn * 8)
+            g_netpoll_watch_kinds = malloc(maxn * 8)
+            g_netpoll_watch_tokens = malloc(maxn * 8)
             if g_netpoll_watch_fds == 0 || g_netpoll_watch_kinds == 0 || g_netpoll_watch_tokens == 0 {
                 // Best-effort cleanup.
                 if g_netpoll_watch_fds != 0 { free(g_netpoll_watch_fds); g_netpoll_watch_fds = 0 }
@@ -162,7 +199,7 @@ fn native_netpoll_init_once() {
                 return 0 - 12 // ENOMEM
             }
             var zi0 = 0
-            while zi0 < 64 * 8 {
+            while zi0 < maxn * 8 {
                 ptr_set_byte(g_netpoll_watch_fds + zi0, 0)
                 ptr_set_byte(g_netpoll_watch_kinds + zi0, 0)
                 ptr_set_byte(g_netpoll_watch_tokens + zi0, 0)
@@ -170,10 +207,69 @@ fn native_netpoll_init_once() {
             }
         }
         g_netpoll_watch_n = 0
+        g_netpoll_watch_cursor = 0
+
+        // Best-effort: create an internal wake socket on loopback so `native_netpoll_wake()` can
+        // break a blocking select() immediately.
+        //
+        // In capsule mode, respect loopback enrollment (no bypass).
+        if g_netpoll_wake_rfd == 0 && _netpoll_windows_wake_allowed() == true {
+            var fd = sys_socket(OREN_AF_INET, OREN_SOCK_DGRAM, 17) // IPPROTO_UDP
+            if fd >= 0 {
+                // Bind to 127.0.0.1:0 (ephemeral).
+                var sa = malloc(16)
+                if sa != 0 {
+                    var zi2 = 0
+                    while zi2 < 16 { ptr_set_byte(sa + zi2, 0); zi2 = zi2 + 1 }
+                    // sockaddr_in (Linux/Windows layout):
+                    //   u16 family @0 (LE)
+                    //   u16 port   @2 (BE)
+                    //   u32 addr   @4 (bytes)
+                    ptr_set_byte(sa + 0, OREN_AF_INET)
+                    ptr_set_byte(sa + 1, 0)
+                    ptr_set_byte(sa + 4, 127)
+                    ptr_set_byte(sa + 5, 0)
+                    ptr_set_byte(sa + 6, 0)
+                    ptr_set_byte(sa + 7, 1)
+                    var brc = sys_bind(fd, sa, 16)
+                    if brc >= 0 {
+                        // Query the bound port via getsockname.
+                        var out_sa = malloc(32)
+                        var lenp = malloc(8)
+                        if out_sa != 0 && lenp != 0 {
+                            ptr_set(lenp, 32)
+                            var grc = sys_getsockname(fd, out_sa, lenp)
+                            if grc >= 0 {
+                                // Copy port into our sockaddr_in buffer.
+                                ptr_set_byte(sa + 2, ptr_get_byte(out_sa + 2))
+                                ptr_set_byte(sa + 3, ptr_get_byte(out_sa + 3))
+                                g_netpoll_wake_rfd = fd
+                                g_netpoll_wake_wfd = fd
+                                g_netpoll_win_wake_sa = sa
+                                g_netpoll_win_wake_sa_len = 16
+                                // Non-blocking so drain never blocks.
+                                sys_fcntl_setfl(fd, OREN_O_NONBLOCK)
+                            } else {
+                                free(sa)
+                            }
+                        } else {
+                            free(sa)
+                        }
+                        if out_sa != 0 { free(out_sa) }
+                        if lenp != 0 { free(lenp) }
+                    } else {
+                        free(sa)
+                    }
+                }
+                if g_netpoll_wake_rfd == 0 {
+                    // If wake socket creation failed, close the temporary fd.
+                    sys_close(fd)
+                }
+            }
+        }
+
         // Use a non-zero sentinel so callers can treat "poller exists" uniformly.
         g_netpoll_fd = 1
-        g_netpoll_wake_rfd = 0
-        g_netpoll_wake_wfd = 0
         g_netpoll_inited = 1
         release_lock()
         return 0
@@ -273,8 +369,11 @@ fn native_netpoll_wake() {
     // - The scheduler/IO wait paths are responsible for initializing the poller once.
     if g_netpoll_inited == 0 { return 0 }
     if g_target_os == 3 {
-        // Windows backend uses timeout-bounded select() without an internal wake FD.
-        // The scheduler keeps sleeps bounded (worker mode clamps to ~10ms) so this is sufficient for now.
+        // Windows backend: best-effort wake via loopback UDP socket (if available).
+        // If unavailable (capsule policy, failure), scheduler waits remain bounded by timeouts.
+        if g_netpoll_wake_wfd == 0 { return 0 }
+        if g_netpoll_win_wake_sa == 0 { return 0 }
+        sys_sendto(g_netpoll_wake_wfd, "x", 1, 0, g_netpoll_win_wake_sa, g_netpoll_win_wake_sa_len)
         return 0
     }
     if g_netpoll_wake_wfd == 0 { return 0 }
@@ -284,14 +383,7 @@ fn native_netpoll_wake() {
 
 fn _native_netpoll_drain_wake_pipe_into(buf, buf_len) {
     if g_netpoll_wake_rfd == 0 { return 0 }
-    // Read until EAGAIN/EWOULDBLOCK (11) or until no more data.
-    while 1 {
-        var n = sys_read(g_netpoll_wake_rfd, buf, buf_len)
-        // Linux: -11; macOS: -35
-        if n == 0 - 11 || n == 0 - 35 { break }
-        if n <= 0 { break }
-    }
-    return 0
+    return _native_netpoll_drain_wake_fd_into(buf, buf_len)
 }
 
 fn _native_netpoll_drain_wake_pipe() {
@@ -358,9 +450,9 @@ fn native_netpoll_arm_fd(fd, want_write, token) {
             }
             i = i + 1
         }
-        if n >= 64 {
+        if n >= _netpoll_watch_max() {
             _netpoll_watch_lock_release()
-            return 0 - 28 // ENOSPC (FD_SETSIZE cap)
+            return 0 - 28 // ENOSPC
         }
         ptr_set(g_netpoll_watch_fds + n * 8, fd)
         ptr_set(g_netpoll_watch_kinds + n * 8, want_write)
@@ -499,6 +591,7 @@ fn native_netpoll_poll_many_scratch(timeout_ms, scratch, scratch_bytes) {
         // Scratch layout:
         // - scratch[0..63] output tokens (u64[8])
         // - scratch[64..] temporary fd_set buffers + timeval
+        // - scratch[...] drain buf (64)
         //
         // fd_set layout (Windows x64):
         //   u32 fd_count @0
@@ -508,7 +601,8 @@ fn native_netpoll_poll_many_scratch(timeout_ms, scratch, scratch_bytes) {
         var readfds = scratch + 64
         var writefds = scratch + 64 + set_bytes
         var tv = scratch + 64 + set_bytes + set_bytes
-        if scratch_bytes < 64 + set_bytes + set_bytes + 16 { return 0 }
+        var drain = scratch + 64 + set_bytes + set_bytes + 16
+        if scratch_bytes < 64 + set_bytes + set_bytes + 16 + 64 { return 0 }
 
         // Zero the full fd_set buffers.
         // WinSock has been observed to copy/scan the full array even when fd_count is small.
@@ -525,15 +619,37 @@ fn native_netpoll_poll_many_scratch(timeout_ms, scratch, scratch_bytes) {
         if timeout_ms < 0 { timeout_ms = 0 }
         if timeout_ms > 10 { timeout_ms = 10 }
 
-        // Build fd_sets from the current watch table.
+        // Build fd_sets from the current watch table (bounded to FD_SETSIZE).
+        // Use a rolling cursor to avoid starving watches beyond the first 64 entries.
+        //
+        // Reserve one read slot for the wake socket if present.
+        var want_wake = 0
+        if g_netpoll_wake_rfd != 0 && g_netpoll_win_wake_sa != 0 { want_wake = 1 }
+
         var nr = 0
         var nw = 0
         _netpoll_watch_lock_acquire()
         var n = g_netpoll_watch_n
-        var i = 0
-        while i < n {
-            var fd = ptr_get(g_netpoll_watch_fds + i * 8)
-            var k = ptr_get(g_netpoll_watch_kinds + i * 8)
+        var wake_slot = 0
+        if want_wake == 1 { wake_slot = 1 }
+        if want_wake == 1 {
+            // Place wake socket at the start of readfds.
+            oren_ptr_set_u64_le(readfds + 8 + 0 * 8, g_netpoll_wake_rfd)
+            nr = 1
+        }
+        var start = 0
+        if n > 0 {
+            start = g_netpoll_watch_cursor % n
+        }
+        var scan = 0
+        var cap_r = 64 - wake_slot
+        var cap_w = 64
+        while scan < n {
+            // Limit to FD_SETSIZE total per set (read/write are independent).
+            if (nr - wake_slot) >= cap_r && nw >= cap_w { break }
+            var idx = (start + scan) % n
+            var fd = ptr_get(g_netpoll_watch_fds + idx * 8)
+            var k = ptr_get(g_netpoll_watch_kinds + idx * 8)
             if fd >= 0 {
                 if k == 1 {
                     if nw < 64 {
@@ -541,13 +657,26 @@ fn native_netpoll_poll_many_scratch(timeout_ms, scratch, scratch_bytes) {
                         nw = nw + 1
                     }
                 } else {
-                    if nr < 64 {
-                        oren_ptr_set_u64_le(readfds + 8 + nr * 8, fd)
-                        nr = nr + 1
+                    // Skip adding the wake fd twice (it can also appear in the watch table).
+                    if want_wake == 1 && fd == g_netpoll_wake_rfd {
+                        // no-op
+                    } else {
+                        if nr < 64 {
+                            oren_ptr_set_u64_le(readfds + 8 + nr * 8, fd)
+                            nr = nr + 1
+                        }
                     }
                 }
             }
-            i = i + 1
+            scan = scan + 1
+            // Stop early once both sets are full.
+            if (nr - wake_slot) >= cap_r && nw >= cap_w { break }
+        }
+        if n > 0 {
+            // Advance cursor for fairness (round-robin).
+            g_netpoll_watch_cursor = (start + scan + 1) % n
+        } else {
+            g_netpoll_watch_cursor = 0
         }
         oren_ptr_set_u32_le(readfds + 0, nr)
         oren_ptr_set_u32_le(writefds + 0, nw)
@@ -584,6 +713,11 @@ fn native_netpoll_poll_many_scratch(timeout_ms, scratch, scratch_bytes) {
         while ri < rr {
             if out_n >= 8 { break }
             var fd_ready = oren_ptr_get_u64_le(readfds + 8 + ri * 8)
+            if want_wake == 1 && fd_ready == g_netpoll_wake_rfd {
+                _native_netpoll_drain_wake_fd_into(drain, 64)
+                ri = ri + 1
+                continue
+            }
             var tok = _netpoll_watch_take_token_locked(fd_ready, 0)
             if tok != 0 {
                 ptr_set(scratch + out_n * 8, tok)

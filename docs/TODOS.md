@@ -387,7 +387,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
 	   Next steps (actionable, highest leverage first):
 
-	   - Windows: upgrade the socket netpoller from select-v0 to IOCP (scalable readiness + true wake; removes `FD_SETSIZE=64` cap).
+	   - Windows: upgrade the socket netpoller from select-v0 to IOCP (scalable readiness + true wake; removes `FD_SETSIZE=64` per-call limit and avoids batching).
 	   - Windows: extend the wait-list mechanism beyond channels:
 	     - fd waits (`oren_fd_wait_*`) should eventually park Gs on IOCP wait nodes (no polling, no scheduler-thread blocking)
 	     - unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
@@ -433,7 +433,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		         - Guards (Windows-enabled): `tests/native/test_quick_integration_native.oren`
 		           - `test_select_in_green_workers`, `test_select_multi_case_in_green_workers`, `test_select_idle_does_not_spin_cpu`
 			   - 2026-01-16: Windows socket netpoll v0 (readiness waits are green-safe):
-			     - Runtime: `lib/runtime_native/246_netpoll.oren` (WinSock `select()` watch table; `FD_SETSIZE=64` cap; timeout-bounded wake)
+			     - Runtime: `lib/runtime_native/246_netpoll.oren` (WinSock `select()`; `FD_SETSIZE=64` per-call; watch table batched beyond 64; best-effort wake socket when loopback is allowed)
 			     - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains tokens and wakes parked Gs)
 			     - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*` call into netpoll when in-green)
 			     - Guard: `tests/native/test_net_suite.oren` (`test_fd_wait_socket_readable_in_green_workers`)

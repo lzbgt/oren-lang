@@ -138,7 +138,9 @@ Status (fact, code):
   - Runtime: `lib/runtime_native/245_select.oren` (green `oren_select` waits on netpoll v2; non-green still uses a per-call kqueue/epoll wait)
   - Runtime: `lib/runtime_native/246_netpoll.oren`
     - POSIX: kqueue/epoll + wake pipe; allocation-free `native_netpoll_poll_many_scratch`
-    - Windows (rolling v0): WinSock `select()` over a small watched set (`FD_SETSIZE=64` cap); timeout-bounded (no internal wake socket yet); IOCP is still the intended long-term implementation
+    - Windows (rolling v0): WinSock `select()` (`FD_SETSIZE=64` per call) with a watch table that can exceed 64 (polled in batches).
+      - Wake: best-effort loopback UDP wake socket in non-capsule builds; in capsule builds it is only created if loopback endpoints are explicitly allowed.
+      - IOCP is still the intended long-term implementation (scalability + true wake + future HANDLE story).
   - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains netpoll tokens and marks G/wait nodes ready)
   - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*` park the G and rely on the scheduler netpoller instead of poll+sleep)
   - Escape hatch (rolling): `OREN_NO_NETPOLL=1` disables netpoll bring-up for debugging (in-green select returns ENOSYS; avoids busy loops).
