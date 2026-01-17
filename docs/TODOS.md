@@ -392,9 +392,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		     - fd waits (`oren_fd_wait_*`) should eventually park Gs on IOCP wait nodes (no polling, no scheduler-thread blocking)
 		     - unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
 		   - Cross-platform: evolve the scheduler-owned “word wait” wait-list so in-green waits never kernel-block the scheduler OS thread.
-		     - DONE (2026-01-17): the “forever” case (`oren_wait_on_addr(..., timeout_us=0)`) is wake-driven (parks `G` on a scheduler list; wakes via `oren_wake_all_addr`).
-		       - Guard: `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_in_green_does_not_block_scheduler`)
-		     - Next: extend the same mechanism to **bounded** timeouts (`timeout_us>0`) so lock contention paths can remain low-latency without blocking the entire green scheduler.
+		     - DONE (2026-01-17): `oren_wait_on_addr` inside a green task is wake-driven via the scheduler-owned “word wait” list:
+		       - `timeout_us==0` (“forever”): parks `G` on a scheduler list; wakes via `oren_wake_all_addr`.
+		         - Guard: `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_in_green_does_not_block_scheduler`)
+		       - `timeout_us>0` (bounded): parks on the same list with a deadline; returns portable timeout `-60`.
+		         - Guard: `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_timeout_in_green_does_not_block_scheduler`)
 
 	   - Stage N2 groundwork: syscall-first OS threads (no libpthread) on Tier‑1
      - macOS arm64: finish the syscall-first `bsdthread_register` story and keep it robust across modern dyld/libpthread:
@@ -425,12 +427,15 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		   - 2026-01-17: keep cross-target x64 builds robust when the injected runtime contains Windows-only branches guarded by `g_target_os`:
 		     - x64 non-Windows syscall lowering now treats `sys_qpc_frequency` as `-ENOSYS` (instead of a hard compile-time error).
 		     - Verified: `make verify-x64-linux-qemu` (stage1 + stage2).
-		   - 2026-01-17: green-task safety: `oren_wait_on_addr(..., timeout_us=0)` (“forever”) must not block the scheduler OS thread:
+		   - 2026-01-17: green-task safety: `oren_wait_on_addr` inside green tasks must not block the scheduler OS thread:
 		     - Runtime: `lib/runtime_native/267_wait_on_addr.oren` + `lib/runtime_native/263_green/*.oren`
 		       - parks the current `G` on a scheduler-owned “word wait” list (wake-driven; no polling)
 		       - woken via `oren_wake_all_addr(addr)` (hooks into green wake best-effort)
+		       - bounded timeouts use scheduler deadlines and return portable `-60`
 		       - scheduler lock acquire uses a no-alloc “in-green” probe to avoid recursion with the runtime global lock wake path
-		     - Guard: `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_in_green_does_not_block_scheduler`)
+		     - Guards:
+		       - `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_in_green_does_not_block_scheduler`)
+		       - `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_timeout_in_green_does_not_block_scheduler`)
 		   - 2026-01-16: Windows channel/select groundwork (portable in-memory channels):
 	     - Runtime: `lib/runtime_native/011_channels_mem.oren` (GC-tracked ring-buffer channels + wait-on-addr)
 	     - Runtime: `lib/runtime_native/245_select.oren` (Windows: `oren_select` / `oren_select_recv` over mem-channels)

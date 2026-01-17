@@ -46,16 +46,27 @@ fn oren_wait_on_addr(addr, expected, timeout_us) {
     // If this call happens inside a green task, do NOT block the scheduler OS thread forever
     // in the kernel wait primitive.
     //
-    // Scope (intentionally narrow for now):
-    // - Only intercept the "forever" case (`timeout_us == 0`) to avoid deadlocks where the
-    //   waker is itself a green task that cannot run while the scheduler OS thread is blocked.
-    // - Bounded waits (`timeout_us > 0`) keep using the OS primitive so wake-by-address remains
-    //   event-driven and latency stays low under contention.
-    //
-    // Note: the native scheduler now has a dedicated "word wait" wait-list for the forever case,
-    // so this path is wake-driven (no polling).
-    if timeout_us == 0 && oren_green_current_g_or0() != 0 {
-        return oren_green_wait_on_addr_forever(addr, expected)
+    // Scope (rolling):
+    // - When called inside a green task, do not kernel-block the scheduler OS thread.
+    // - Route both "forever" (timeout_us==0) and bounded waits (timeout_us>0) through the
+    //   scheduler-owned word-wait list (wake-driven; timeout is handled by scheduler deadlines).
+    var cg = oren_green_current_g_or0()
+    if cg != 0 {
+        // Critical correctness: do not park a task that is in the EXITING/DONE transition.
+        //
+        // The green entry trampoline (`__oren_green_entry`) sets state=EXITING and then may
+        // briefly call runtime helpers before it switches back to the scheduler stack.
+        // If we were to park here (word-wait list), we'd clobber the EXITING state and the
+        // scheduler could mistakenly re-enqueue the task, resuming past the "never return"
+        // ctx-switch and hard-aborting (`sys_exit(905)`).
+        var st = ptr_get(cg + green_g_off_state())
+        if st != green_g_state_exiting() && st != green_g_state_done() {
+            if timeout_us == 0 { return oren_green_wait_on_addr_forever(addr, expected) }
+            if timeout_us > 0 { return oren_green_wait_on_addr_timeout(addr, expected, timeout_us) }
+        } else {
+            // Never block forever from an EXITING task.
+            if timeout_us == 0 { return 0 }
+        }
     }
 
     // Use a literal op code (avoid non-zero global initializers in the native runtime bundle).

@@ -58,11 +58,12 @@ Facts (rolling, verified by tests):
   - If `*addr != expected`, it returns `0` immediately (no blocking).
   - If the underlying primitive reports a value mismatch/spurious wake (e.g. Linux futex `-EAGAIN`), it is normalized to `0`
     because callers are structured as “check → wait → retry”.
-  - Green-task nuance (rolling, 2026-01-17): when called from inside a green task with `timeout_us == 0` (“forever”), the runtime
-    must not block the scheduler OS thread forever in the kernel wait primitive.
+  - Green-task nuance (rolling, 2026-01-17): when called from inside a green task, the runtime must not kernel-block the scheduler OS thread
+    in the wait-on-address primitive (either forever or with bounded timeout).
     - Current implementation: parks the current `G` on a scheduler-owned “word wait” list and wakes it via `oren_wake_all_addr(addr)`
-      (wake-driven; no polling).
+      (wake-driven; no polling; timeouts return portable `-60`).
     - Guard: `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_in_green_does_not_block_scheduler`)
+    - Guard: `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_timeout_in_green_does_not_block_scheduler`)
 
 Why this matters:
 

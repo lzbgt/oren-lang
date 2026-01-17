@@ -896,6 +896,35 @@ fn worker_green_set_word_and_wake(meta) {
     return 0
 }
 
+fn worker_green_wait_on_addr_timeout_then_ret(meta) {
+    // Called as a green task (POSIX Tier‑1) so `oren_wait_on_addr` must not block the scheduler OS thread,
+    // even for bounded waits (`timeout_us > 0`).
+    //
+    // meta layout (u64 slots):
+    // - [0] wait word (stays 0)
+    // - [16] a_started
+    // - [24] a_done
+    ptr_set(meta + 16, 1) // a_started
+    var rc = oren_wait_on_addr(meta + 0, 0, 20000) // 20ms timeout
+    ptr_set(meta + 24, 1) // a_done
+    return rc
+}
+
+fn worker_green_mark_ran_while_waiter_blocked(meta) {
+    // meta layout (u64 slots):
+    // - [8]  b_ran
+    // - [16] a_started
+    // - [24] a_done
+    // - [32] b_saw_a_done
+    while ptr_get(meta + 16) == 0 {
+        oren_green_yield()
+    }
+    var saw_done = ptr_get(meta + 24)
+    ptr_set(meta + 32, saw_done)
+    ptr_set(meta + 8, 1)
+    return 0
+}
+
 fn test_wait_on_addr_in_green_does_not_block_scheduler() {
     trace("QI: test_wait_on_addr_in_green_does_not_block_scheduler")
     // Green tasks are the default `spawn` path on macOS/Linux today.
@@ -920,6 +949,53 @@ fn test_wait_on_addr_in_green_does_not_block_scheduler() {
     assert_eq(rs, 0, 762)
     var rw = oren_join_timeout(hw, 2000)
     assert_eq(rw, 0, 763)
+
+    sys_munmap(meta, 4096)
+    return 0
+}
+
+fn test_wait_on_addr_timeout_in_green_does_not_block_scheduler() {
+    trace("QI: test_wait_on_addr_timeout_in_green_does_not_block_scheduler")
+    // Green tasks are the default `spawn` path on macOS/Linux today.
+    // Windows uses CreateThread for `spawn`, so skip this test there.
+    if g_target_os == 3 { return 0 }
+
+    var meta = sys_mmap_private_anon(4096)
+    if meta == 0 || meta == -1 || meta < 4096 { fail(764) }
+    // Clear words.
+    ptr_set(meta + 0, 0)  // wait word
+    ptr_set(meta + 8, 0)  // b_ran
+    ptr_set(meta + 16, 0) // a_started
+    ptr_set(meta + 24, 0) // a_done
+    ptr_set(meta + 32, 0) // b_saw_a_done
+
+    // Spawn a bounded-timeout waiter + an independent runnable task.
+    //
+    // Regression contract:
+    // - If `oren_wait_on_addr(..., timeout_us>0)` blocks in the kernel, the scheduler OS thread stalls,
+    //   and the marker task cannot run until the waiter returns (timeout).
+    //
+    // We assert that the marker observes a_done==0 when it runs, proving it ran while the waiter was parked.
+    var hw = spawn worker_green_wait_on_addr_timeout_then_ret(meta)
+    var hm = spawn worker_green_mark_ran_while_waiter_blocked(meta)
+
+    // Drive a few steps: enough for waiter to park and marker to run.
+    assert_eq(oren_green_poll_steps(16), 0, 765)
+
+    assert_eq(ptr_get(meta + 8), 1, 766)   // marker ran
+    assert_eq(ptr_get(meta + 32), 0, 767)  // marker ran before waiter completed
+
+    // Now drive until the waiter times out, then join both.
+    var dl = oren_time_mono_ns()
+    if dl == 0 { dl = oren_time_unix_ns() }
+    if dl == 0 { fail(768) }
+    // +200ms
+    assert_eq(oren_green_poll_until(dl + 200000000), 0, 769)
+
+    var rm = oren_join_timeout(hm, 2000)
+    assert_eq(rm, 0, 770)
+    var rw = oren_join_timeout(hw, 2000)
+    assert_eq(rw, -60, 771)
 
     sys_munmap(meta, 4096)
     return 0
@@ -1923,6 +1999,7 @@ fn main() {
     test_select()
     test_wait_on_addr_mismatch_is_success()
     test_wait_on_addr_in_green_does_not_block_scheduler()
+    test_wait_on_addr_timeout_in_green_does_not_block_scheduler()
     test_time_mono_ns_monotonic()
     test_green_start_workers_rejects_in_green()
     test_green_bind_p_rejects_in_green()

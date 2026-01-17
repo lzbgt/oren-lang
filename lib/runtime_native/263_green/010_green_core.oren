@@ -53,7 +53,8 @@ fn green_g_off_io_epoch() { return 136 } // u64
 // Used by the green scheduler to park a G without blocking the scheduler OS thread in the kernel.
 fn green_g_off_word_wait_addr() { return 144 }     // u64: address waited on
 fn green_g_off_word_wait_expected() { return 152 } // u64: expected value ("wait while equal")
-fn green_g_bytes() { return 160 }
+fn green_g_off_word_wait_rc() { return 160 }       // i64: timed-wait return code (0 or -60)
+fn green_g_bytes() { return 168 }
 
 // Green states.
 fn green_g_state_runnable() { return 1 }
@@ -378,6 +379,8 @@ fn _green_g_word_wait_addr(g) { return ptr_get(g + green_g_off_word_wait_addr())
 fn _green_g_word_wait_expected(g) { return ptr_get(g + green_g_off_word_wait_expected()) }
 fn _green_g_set_word_wait_addr(g, v) { ptr_set(g + green_g_off_word_wait_addr(), v); return 0 }
 fn _green_g_set_word_wait_expected(g, v) { ptr_set(g + green_g_off_word_wait_expected(), v); return 0 }
+fn _green_g_word_wait_rc(g) { return ptr_get(g + green_g_off_word_wait_rc()) }
+fn _green_g_set_word_wait_rc(g, v) { ptr_set(g + green_g_off_word_wait_rc(), v); return 0 }
 
 fn _green_p_runq_buf(p) { return ptr_get(p + green_p_off_runq_buf()) }
 fn _green_p_runq_head(p) { return ptr_get(p + green_p_off_runq_head()) }
@@ -1466,6 +1469,8 @@ fn _green_wake_ready_all(now_ns) {
             _green_g_set_next(ww_cur, 0)
             _green_g_set_word_wait_addr(ww_cur, 0)
             _green_g_set_word_wait_expected(ww_cur, 0)
+            // Timed out: the waiter should observe a portable timeout code (-60).
+            _green_g_set_word_wait_rc(ww_cur, 0 - 60)
             ptr_set(ww_cur + green_g_off_state(), green_g_state_runnable())
             ptr_set(ww_cur + green_g_off_wake_ns(), 0)
             _green_global_runq_push_locked(s, ww_cur)
