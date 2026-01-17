@@ -1,0 +1,101 @@
+// Windows IOCP netpoll wake smoke (rolling).
+//
+// Purpose:
+// - Validate the IOCP poll core + wake plumbing works end-to-end:
+//     - `native_netpoll_init_once` selects IOCP when `OREN_NETPOLL_WIN_IOCP=1`
+//     - `native_netpoll_poll_many_scratch` blocks in GetQueuedCompletionStatusEx
+//     - `native_netpoll_wake()` breaks the blocking poll via PostQueuedCompletionStatus
+//
+// This does NOT validate completion-based socket operations yet.
+// It is a regression guard for the "poll core + wake" deliverable.
+
+fn fail(code, msg) {
+    print("FAIL(" + oren_int_to_string(code) + "): " + msg)
+    exit(code)
+    return 0
+}
+
+fn assert_true(x, code, msg) {
+    if x { return 0 }
+    fail(code, msg)
+}
+
+fn worker_poll_iocp(meta_ptr) {
+    // meta layout:
+    //   [0] scratch ptr
+    //   [8] scratch_bytes
+    //   [16] done_word (u64*)
+    var scratch = ptr_get(meta_ptr + 0)
+    var scratch_bytes = ptr_get(meta_ptr + 8)
+    var done_word = ptr_get(meta_ptr + 16)
+    if done_word != 0 { ptr_set(done_word, 0) }
+
+    // Block "forever" (10s) in IOCP. The main thread should wake us promptly.
+    native_netpoll_poll_many_scratch(10000, scratch, scratch_bytes)
+
+    if done_word != 0 { ptr_set(done_word, 1) }
+    return 0
+}
+
+fn main() {
+    if g_target_os != 3 {
+        print("SKIP: windows iocp wake smoke (not Windows)")
+        return 0
+    }
+
+    // Netpoll is gated behind WinSock init on Windows.
+    var nrc = native_net_init_once()
+    if nrc != 0 { fail(10, "native_net_init_once rc=" + oren_int_to_string(nrc)) }
+
+    var rc = native_netpoll_init_once()
+    if rc != 0 { fail(11, "native_netpoll_init_once rc=" + oren_int_to_string(rc)) }
+
+    // Ensure IOCP backend is actually selected (test must be run with OREN_NETPOLL_WIN_IOCP=1).
+    assert_true(g_netpoll_win_backend == 1, 12, "expected IOCP backend (set OREN_NETPOLL_WIN_IOCP=1)")
+    assert_true(g_netpoll_fd != 0, 13, "expected IOCP handle in g_netpoll_fd")
+    assert_true(native_netpoll_can_wake() == true, 14, "expected native_netpoll_can_wake()==true")
+
+    var scratch_bytes = 512
+    var scratch = malloc(scratch_bytes)
+    assert_true(scratch != 0 && scratch != -1, 15, "malloc scratch failed")
+    var zi = 0
+    while zi < scratch_bytes { ptr_set_byte(scratch + zi, 0); zi = zi + 1 }
+
+    var done_word = malloc_raw(8)
+    assert_true(done_word != 0 && done_word != -1, 16, "malloc_raw done_word failed")
+    ptr_set(done_word, 0)
+
+    var meta = malloc_raw(32)
+    assert_true(meta != 0 && meta != -1, 17, "malloc_raw meta failed")
+    ptr_set(meta + 0, scratch)
+    ptr_set(meta + 8, scratch_bytes)
+    ptr_set(meta + 16, done_word)
+    ptr_set(meta + 24, 0)
+
+    var entry = oren_code_addr(worker_poll_iocp)
+    assert_true(entry != 0, 18, "oren_code_addr(worker_poll_iocp)==0")
+
+    var th = oren_os_thread_spawn(entry, meta)
+    assert_true(th != 0 && th != -1, 19, "oren_os_thread_spawn failed")
+
+    // Give the worker time to enter a blocking IOCP poll.
+    oren_sleep_ms(50)
+    assert_true(ptr_get(done_word) == 0, 20, "worker returned too early (poll did not block)")
+
+    // Wake the blocked poll and require it to return quickly.
+    native_netpoll_wake()
+    var jrc = oren_os_thread_join_timeout(th, 2000 * 1000) // 2s
+    assert_true(jrc == 0, 21, "join_timeout rc=" + oren_int_to_string(jrc))
+    assert_true(ptr_get(done_word) == 1, 22, "worker did not observe wake (done_word!=1)")
+
+    oren_os_thread_destroy(th)
+    free(scratch)
+    free(done_word)
+    free(meta)
+
+    print("ok: windows iocp wake smoke")
+    return 0
+}
+
+main()
+

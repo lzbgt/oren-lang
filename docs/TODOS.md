@@ -402,7 +402,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 			           - `native_netpoll_wake()` uses `PostQueuedCompletionStatus` (no loopback dependency)
 			           - `native_netpoll_poll_many_scratch` uses `GetQueuedCompletionStatusEx` (allocation-free)
 			         - Rolling limitation: IOCP readiness watches are not implemented yet (`native_netpoll_arm_fd` returns `-ENOSYS` in IOCP mode), so do not enable IOCP for NET/TLS parity yet.
-	       - Gate (to add when IOCP lands): Windows-only fixture proving a blocked IOCP poll is broken by `native_netpoll_wake()` and STW stays bounded without periodic polling.
+	       - Gate (added, 2026-01-17): Windows-only fixture proving a blocked IOCP poll is broken by `native_netpoll_wake()` (no loopback):
+	         - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (run with `OREN_NETPOLL_WIN_IOCP=1`)
+	         - Wired into: `scripts/verify_native_matrix.sh --targets x64-win-tier1` (remote Win11)
 		   - Windows: extend the wait-list mechanism beyond channels:
 		     - fd waits (`oren_fd_wait_*`) should eventually park Gs on IOCP wait nodes (no polling, no scheduler-thread blocking)
 		     - unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
@@ -423,7 +425,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
        - unify the Linux `M` abstraction with Windows/Darwin (shared scheduler-facing shape)
        - keep join bounded: `tests/native/test_linux_os_thread_smoke.oren` uses a futex wait timeout and re-checks `ctid_ptr` after timeout (avoids false negatives if a wake is missed)
 		     - DONE (2026-01-17): Windows x64: language `spawn` now prefers green tasks (N:1) like POSIX; OS-thread fallback when `OREN_NO_GREEN=1` routes through `oren_os_thread_spawn` (M abstraction).
-		       - Follow-up (high-signal gate): add a Windows-only Tier‑1 fixture (remote Win11) that runs with `OREN_NO_GREEN=1` to keep the OS-thread `spawn` fallback from rotting (join timeout + STW-safe detach behavior).
+		       - Gate (added, 2026-01-17): remote Win11 Tier‑1 now also runs with `OREN_NO_GREEN=1` to keep the OS-thread `spawn` fallback from rotting (join timeout + STW-safe detach behavior).
 		   - 2026-01-15: introduced a minimal runtime-owned OS-thread ("M") abstraction (macOS + Linux + Windows) for future M:N work:
 		     - Runtime: `lib/runtime_native/269_os_thread_m.oren`
 		       - `oren_os_thread_spawn(start_addr, arg_ptr)`

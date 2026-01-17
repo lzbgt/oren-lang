@@ -169,6 +169,9 @@ This must be allocation-free and safe from any OS thread (mirrors the constraint
 As IOCP work lands, add/extend Tier‑1 guards:
 
 - Prove the netpoll wake path breaks a blocked `GetQueuedCompletionStatusEx` without loopback:
+  - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren`
+    - Run with: `OREN_NETPOLL_WIN_IOCP=1`
+    - Wired into: `scripts/verify_native_matrix.sh --targets x64-win-tier1` (stage1 + stage2; remote Win11)
   - add a Windows-only fixture analogous to `test_gc_stw_wakes_netpoll_blocked_threads`
 - Prove timeouts do not leak:
   - bounded IO operation with timeout that cancels successfully and does not leave “stuck overlapped” state

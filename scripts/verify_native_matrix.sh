@@ -39,6 +39,7 @@ WIN_FFI_U32_SRC="tests/native/ffi_windows_ret_u32_zeroext.oren"
 WIN_FFI_VOID_SRC="tests/native/ffi_windows_ret_void_zero.oren"
 WIN_FFI_EXPORT_GETPROC_SRC="tests/native/ffi_windows_export_getprocaddress.oren"
 WIN_DNS_DEFAULT_RESOLVER_SMOKE="tests/fixtures/windows_dns_default_resolver_smoke.oren"
+WIN_IOCP_WAKE_SMOKE_SRC="tests/fixtures/windows_iocp_wake_smoke.oren"
 LINUX_FFI_PANIC_SRC="tests/native/ffi_linux_unresolved_panics.oren"
 LINUX_FFI_OK_SRC="tests/native/ffi_linux_strlen_ok.oren"
 LINUX_FFI_I32_SRC="tests/native/ffi_linux_ret_i32_signext.oren"
@@ -556,11 +557,28 @@ remote_upload() {
 
 remote_run_win() {
   local exe_name="$1"
+  shift || true
   remote_kill_win "$exe_name" >/dev/null 2>&1 || true
   local canon_abort="${OREN_CANON_I32_ABORT:-}"
   local envp=""
   if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
     envp="set OREN_CANON_I32_ABORT=1 & "
+  fi
+  # Optional extra environment variables (KEY=VALUE) for this run.
+  #
+  # IMPORTANT (cmd.exe quoting): keep this strict and avoid introducing `&`/`|` injection hazards.
+  if [[ "$#" -gt 0 ]]; then
+    for kv in "$@"; do
+      if [[ -z "$kv" || "$kv" != *"="* ]]; then
+        echo "ERROR: remote_run_win expects KEY=VALUE env items; got: $kv" >&2
+        return 2
+      fi
+      if [[ "$kv" == *" "* || "$kv" == *"&"* || "$kv" == *"|"* || "$kv" == *"<"* || "$kv" == *">"* ]]; then
+        echo "ERROR: remote_run_win env contains unsafe characters (spaces or shell metachars): $kv" >&2
+        return 2
+      fi
+      envp+="set ${kv} & "
+    done
   fi
   local want_tier1=0
   if [[ "$exe_name" == tier1_* ]]; then
@@ -921,10 +939,21 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-win-tier1; then
   log "-- run: Win11 Tier‑1 native smoke (x64-windows) --"
   remote_run_win "tier1_stage1_x64_windows.exe"
   remote_run_win "tier1_stage2_x64_windows.exe"
+  log "-- run: Win11 Tier‑1 native smoke (x64-windows; OREN_NO_GREEN=1) --"
+  remote_run_win "tier1_stage1_x64_windows.exe" "OREN_NO_GREEN=1"
+  remote_run_win "tier1_stage2_x64_windows.exe" "OREN_NO_GREEN=1"
 
   # When running the default Tier‑1 smoke, extend it with a small set of green-worker (GMP) fixtures.
   # This keeps Windows/WSL2 coverage “automatic” for the current P0 focus area.
   if [[ "$TIER1_EXPECT_MARKERS" -ne 0 ]]; then
+    log "-- build+run: Win11 IOCP wake smoke (x64-windows; OREN_NETPOLL_WIN_IOCP=1) --"
+    build_native_bin_src "./oren" "x64-windows" "$WIN_IOCP_WAKE_SMOKE_SRC" "build/tmp/win_iocp_wake_stage1_x64_windows.exe"
+    build_native_bin_src "./oren_stage2" "x64-windows" "$WIN_IOCP_WAKE_SMOKE_SRC" "build/tmp/win_iocp_wake_stage2_x64_windows.exe"
+    remote_upload "build/tmp/win_iocp_wake_stage1_x64_windows.exe" "win_iocp_wake_stage1_x64_windows.exe"
+    remote_upload "build/tmp/win_iocp_wake_stage2_x64_windows.exe" "win_iocp_wake_stage2_x64_windows.exe"
+    remote_run_win "win_iocp_wake_stage1_x64_windows.exe" "OREN_NETPOLL_WIN_IOCP=1"
+    remote_run_win "win_iocp_wake_stage2_x64_windows.exe" "OREN_NETPOLL_WIN_IOCP=1"
+
     log "-- build+run: Win11 Tier‑1 green-worker fixtures (x64-windows) --"
     build_green_worker_fixtures "x64-windows"
     remote_upload "build/tmp/green2w_world_lock_stage1_x64-windows.exe" "green2w_world_lock_stage1_x64_windows.exe"
