@@ -23,8 +23,11 @@ Current native backend behavior (rolling, fact):
   - Fork+pipe semantics (fallback):
     - the child computes the return value, writes 8 bytes to the pipe, and exits
     - the parent joins by reading those 8 bytes and reaping the child
-- **Windows x64 Tier‑1:** `spawn` is implemented as **CreateThread** (OS threads) via the native runtime helper (`oren_spawn_call_list`).
-  - The join handle wraps a runtime-owned OS-thread handle (backed by a Win32 HANDLE) and a result pointer (see `lib/runtime_native/260_threads.oren`, `lib/runtime_native/269_os_thread_m.oren`).
+- **Windows x64 Tier‑1:** `spawn` prefers **in-process green tasks** (**N:1**, one OS thread), same as POSIX.
+  - Escape hatch: `OREN_NO_GREEN=1` disables green tasks; Windows then falls back to a runtime-owned OS-thread spawn (CreateThread).
+  - Join handles are either:
+    - a green-task pointer (preferred; `oren_green_is_g(handle)`), or
+    - an OS-thread join handle (fallback; wraps a Win32 HANDLE + result pointer).
 
 Additional substrate (not wired into `spawn` yet):
 

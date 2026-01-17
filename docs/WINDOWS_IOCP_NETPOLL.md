@@ -20,8 +20,13 @@ The authoritative source content is stored in-tree under:
 
 ## Current repo status (fact)
 
-- 2026-01-17: runtime recognizes `OREN_NETPOLL_WIN_IOCP=1` but IOCP init is still a stub returning `-ENOSYS`,
-  so Windows continues to use the select-v0 netpoll backend by default.
+- 2026-01-17: runtime recognizes `OREN_NETPOLL_WIN_IOCP=1` and now has an **IOCP poll core + wake** substrate:
+  - Init: `native_netpoll_init_once` creates an IOCP via `CreateIoCompletionPort(INVALID_HANDLE_VALUE, ...)`
+  - Poll: `native_netpoll_poll_many_scratch` calls `GetQueuedCompletionStatusEx` (allocation-free scratch)
+  - Wake: `native_netpoll_wake()` uses `PostQueuedCompletionStatus` (no loopback dependency)
+  - Implementation: `lib/runtime_native/246_netpoll.oren`
+  - Rolling limitation: IOCP readiness watches are **not implemented yet** (`native_netpoll_arm_fd` returns `-ENOSYS` in IOCP mode),
+    so Windows still defaults to select-v0 for NET readiness parity.
 - 2026-01-17: x64-windows now has syscall/intrinsic plumbing + PE imports for the IOCP core APIs:
   - Runtime stubs: `lib/runtime_native/000_prelude_sys.oren`
   - x64 syscall lowering (Win64 ABI, kernel32 IAT): `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net.oren`

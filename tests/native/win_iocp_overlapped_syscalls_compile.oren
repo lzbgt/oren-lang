@@ -10,6 +10,22 @@ fn _compile_only_touch_iocp_and_overlapped(sock) {
     var port = sys_create_io_completion_port(0 - 1, 0, 0, 0)
     if port < 0 { return port }
 
+    // IOCP poll core + wake syscalls (compile-only):
+    // - PostQueuedCompletionStatus(port, ...)
+    // - GetQueuedCompletionStatusEx(port, ...)
+    //
+    // NOTE: not executed here; this file is a compile-only guard so cross-target x64 builds
+    // keep the syscall lowering hooked up.
+    sys_post_queued_completion_status(port, 0, 0, 0)
+    var entries = malloc(64) // big enough for 1 OVERLAPPED_ENTRY (Win64 is 32 bytes)
+    var removed = malloc(8)
+    if entries != 0 && removed != 0 {
+        ptr_set(removed, 0)
+        sys_get_queued_completion_status_ex(port, entries, 1, removed, 0, 0)
+    }
+    if entries != 0 { free(entries) }
+    if removed != 0 { free(removed) }
+
     var flags_mem = malloc(8)
     if flags_mem == 0 { return 0 - 12 }
     ptr_set(flags_mem, 0)

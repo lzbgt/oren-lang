@@ -1713,59 +1713,50 @@ fn test_gc_collect_does_not_deadlock_with_os_thread_join_waiter() {
     return 0
 }
 
-fn worker_win_ret_7() { return 7 }
+fn worker_win_os_thread_nop(_arg_ptr) { return 0 }
 
-fn worker_win_gc_collect() {
-    // Run GC on a background OS thread (CreateThread) and return 0 on completion.
+fn worker_win_os_thread_gc_collect(_arg_ptr) {
+    // Run GC on a background OS thread and return 0 on completion.
     oren_gc_collect()
     return 0
 }
 
-fn _join_spawn_handle_bounded_stw_safe(handle, timeout_ms) {
-    // Join a CreateThread-based `spawn` handle without blocking the current thread in an
-    // uninterruptible kernel wait, so STW GC can still park this thread while waiting.
-    //
-    // This is intentionally test-only logic (not a runtime API) used to keep regression guards bounded.
-    var waited = 0
-    while waited < timeout_ms {
-        oren_gc_safepoint()
-        if oren_is_done(handle) {
-            // Join forever is STW-safe on Windows (polls safepoint + bounded waits).
-            return oren_join_timeout(handle, -1)
-        }
-        oren_sleep_ms(1)
-        waited = waited + 1
-    }
-    // Best-effort: detach so the test doesn't leak resources on failure.
-    return oren_join_timeout(handle, 1)
-}
-
-fn test_gc_collect_does_not_wait_for_exited_spawn_threads_win() {
-    trace("QI: test_gc_collect_does_not_wait_for_exited_spawn_threads_win")
+fn test_gc_collect_does_not_wait_for_exited_os_threads_win() {
+    trace("QI: test_gc_collect_does_not_wait_for_exited_os_threads_win")
     if g_target_os != 3 { return 0 }
 
-    // Spawn many short-lived CreateThread workers and join them. This creates many OS-thread nodes.
+    // Spawn many short-lived OS threads and join them. This creates many OS-thread nodes.
     // Those nodes are mmap-backed metadata and persist after thread exit; they must be marked DEAD
     // so future STW GC collections do not wait for them.
+    var entry_nop = oren_code_addr(worker_win_os_thread_nop)
+    assert_true(entry_nop != 0, 743)
     var i = 0
     while i < 16 {
-        var h = spawn worker_win_ret_7()
-        var r = oren_join_timeout(h, 2000)
-        assert_eq(r, 7, 743)
+        var h = oren_os_thread_spawn(entry_nop, 0)
+        assert_true(h != 0 && h != -1, 744)
+        var rc = oren_os_thread_join_timeout(h, _qi_timeout_ms(2000) * 1000)
+        assert_eq(rc, 0, 745)
+        oren_os_thread_destroy(h)
         i = i + 1
     }
 
     // Now run STW GC from a background OS thread and join it in an STW-friendly bounded loop.
     // If the runtime accidentally counts exited threads as live, this will time out instead of hanging.
-    var hgc = spawn worker_win_gc_collect()
-    var rgc = _join_spawn_handle_bounded_stw_safe(hgc, 2000)
-    assert_eq(rgc, 0, 744)
+    var entry_gc = oren_code_addr(worker_win_os_thread_gc_collect)
+    assert_true(entry_gc != 0, 746)
+    var hgc = oren_os_thread_spawn(entry_gc, 0)
+    assert_true(hgc != 0 && hgc != -1, 747)
+    var rgc = oren_os_thread_join_timeout(hgc, _qi_timeout_ms(2000) * 1000)
+    assert_eq(rgc, 0, 748)
+    oren_os_thread_destroy(hgc)
 
     // Run a second collection: regressions were previously observable only on the *second* STW
     // (after multiple short-lived threads had already exited).
-    var hgc2 = spawn worker_win_gc_collect()
-    var rgc2 = _join_spawn_handle_bounded_stw_safe(hgc2, 2000)
-    assert_eq(rgc2, 0, 745)
+    var hgc2 = oren_os_thread_spawn(entry_gc, 0)
+    assert_true(hgc2 != 0 && hgc2 != -1, 749)
+    var rgc2 = oren_os_thread_join_timeout(hgc2, _qi_timeout_ms(2000) * 1000)
+    assert_eq(rgc2, 0, 750)
+    oren_os_thread_destroy(hgc2)
     return 0
 }
 
@@ -2262,6 +2253,7 @@ fn main() {
     test_gc_stw_wakes_netpoll_blocked_threads()
     test_gc_collect_does_not_deadlock_with_green_join_waiter()
     test_gc_collect_does_not_deadlock_with_os_thread_join_waiter()
+    test_gc_collect_does_not_wait_for_exited_os_threads_win()
     test_select_in_green_workers()
     test_select_multi_case_in_green_workers()
     test_select_idle_does_not_spin_cpu()

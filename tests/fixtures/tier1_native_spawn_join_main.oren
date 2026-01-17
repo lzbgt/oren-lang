@@ -1,6 +1,6 @@
 // Tier‑1 x86_64 native: language-level `spawn` + `oren_join(_timeout)` must work on:
-// - Linux x86_64 (POSIX fork+pipe implementation today)
-// - Windows x64 (CreateThread-based spawn via `oren_spawn_call_list`; join via WaitForSingleObject)
+// - Linux x86_64 (green-task spawn by default; POSIX fork+pipe fallback when `OREN_NO_GREEN=1`)
+// - Windows x64 (green-task spawn by default; OS-thread fallback when `OREN_NO_GREEN=1`)
 //
 // This fixture is executed only in the remote x64 gate (Win11 + WSL2) because the host
 // dev machine may be arm64 and cannot run x86_64 native outputs locally.

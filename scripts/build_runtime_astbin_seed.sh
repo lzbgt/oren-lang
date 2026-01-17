@@ -184,10 +184,12 @@ if [[ -d "$seed_dir" && -z "${OREN_FORCE_RUNTIME_ASTBIN_SEED:-}" ]]; then
     want_compiler_sha="$(sha256_file "$compiler")"
 
     have_runtime_sha="$(
-      grep -E "^runtime_sources_sha256=" "$meta" | head -n 1 | sed -E 's/^runtime_sources_sha256=//'
+      # NOTE: this script runs with `set -euo pipefail`. Treat "missing key" as empty instead of aborting
+      # so older meta files (or partially-written files) simply force a rebuild.
+      (grep -E "^runtime_sources_sha256=" "$meta" || true) | head -n 1 | sed -E 's/^runtime_sources_sha256=//'
     )"
     have_compiler_sha="$(
-      grep -E "^compiler_sha256=" "$meta" | head -n 1 | sed -E 's/^compiler_sha256=//'
+      (grep -E "^compiler_sha256=" "$meta" || true) | head -n 1 | sed -E 's/^compiler_sha256=//'
     )"
 
     if [[ -n "$want_runtime_sha" && -n "$want_compiler_sha" && "$want_runtime_sha" == "$have_runtime_sha" && "$want_compiler_sha" == "$have_compiler_sha" ]]; then

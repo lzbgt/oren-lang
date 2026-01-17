@@ -393,14 +393,15 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		   - Windows: upgrade the socket netpoller from select-v0 to IOCP (scalable readiness + true wake; removes `FD_SETSIZE=64` per-call limit and avoids batching).
 		       - Design doc: `docs/WINDOWS_IOCP_NETPOLL.md`
 		       - Primary reference snapshots (verbatim): `project-doc/web/learn.microsoft.com/iocp/20260117/`
-		       - Rolling plumbing landed (2026-01-17):
-		         - `OREN_NETPOLL_WIN_IOCP=1` is recognized, but IOCP init is still a stub returning `-ENOSYS` so it falls back to select-v0.
-		         - IOCP syscall/intrinsic + PE import plumbing is present for x64-windows (CreateIoCompletionPort/GetQueuedCompletionStatusEx/PostQueuedCompletionStatus/CancelIoEx).
-		         - WinSock overlapped syscall plumbing is present for x64-windows (WSARecv/WSASend) to support completion-based NET ops (treats `WSA_IO_PENDING` as success).
-		       - Deliverable v1 (when implemented): IOCP poll core + wake:
-		         - `CreateIoCompletionPort` + `GetQueuedCompletionStatusEx` + `PostQueuedCompletionStatus`
-		         - Wire `native_netpoll_wake()` to `PostQueuedCompletionStatus` (no loopback dependency)
-		         - Represent completions as scheduler tokens (likely a new “IO wait node” object; aligns with netpoll v2 token shape)
+			       - Rolling plumbing landed (2026-01-17):
+			         - IOCP syscall/intrinsic + PE import plumbing is present for x64-windows (CreateIoCompletionPort/GetQueuedCompletionStatusEx/PostQueuedCompletionStatus/CancelIoEx).
+			         - WinSock overlapped syscall plumbing is present for x64-windows (WSARecv/WSASend) to support completion-based NET ops (treats `WSA_IO_PENDING` as success).
+			       - Deliverable v1 (DONE, 2026-01-17): IOCP poll core + wake (still opt-in):
+			         - Runtime: `lib/runtime_native/246_netpoll.oren`
+			           - `native_netpoll_init_once` creates an IOCP when `OREN_NETPOLL_WIN_IOCP=1`
+			           - `native_netpoll_wake()` uses `PostQueuedCompletionStatus` (no loopback dependency)
+			           - `native_netpoll_poll_many_scratch` uses `GetQueuedCompletionStatusEx` (allocation-free)
+			         - Rolling limitation: IOCP readiness watches are not implemented yet (`native_netpoll_arm_fd` returns `-ENOSYS` in IOCP mode), so do not enable IOCP for NET/TLS parity yet.
 	       - Gate (to add when IOCP lands): Windows-only fixture proving a blocked IOCP poll is broken by `native_netpoll_wake()` and STW stays bounded without periodic polling.
 		   - Windows: extend the wait-list mechanism beyond channels:
 		     - fd waits (`oren_fd_wait_*`) should eventually park Gs on IOCP wait nodes (no polling, no scheduler-thread blocking)
@@ -421,7 +422,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
        - add TLS story (`CLONE_SETTLS`) once runtime uses/needs a real thread pointer
        - unify the Linux `M` abstraction with Windows/Darwin (shared scheduler-facing shape)
        - keep join bounded: `tests/native/test_linux_os_thread_smoke.oren` uses a futex wait timeout and re-checks `ctid_ptr` after timeout (avoids false negatives if a wake is missed)
-	     - Windows x64: unify existing CreateThread-based `spawn` with the same scheduler-facing `M` abstraction (keep WaitForSingleObject join)
+		     - DONE (2026-01-17): Windows x64: language `spawn` now prefers green tasks (N:1) like POSIX; OS-thread fallback when `OREN_NO_GREEN=1` routes through `oren_os_thread_spawn` (M abstraction).
 		   - 2026-01-15: introduced a minimal runtime-owned OS-thread ("M") abstraction (macOS + Linux + Windows) for future M:N work:
 		     - Runtime: `lib/runtime_native/269_os_thread_m.oren`
 		       - `oren_os_thread_spawn(start_addr, arg_ptr)`
@@ -640,9 +641,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				       - Fix: OS-thread start stubs now mark their thread node as DEAD on exit, and STW counts only live (non-DEAD) OS-thread nodes when waiting.
 				       - Runtime: `lib/runtime_native/100_time_core.oren` (`native_time_mark_thread_dead_current`), `lib/runtime_native/100_time_gc_stw.oren` (`native_gc_stw_expected_parked_count`)
 				       - Guards: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_green_join_waiter`, `test_gc_collect_does_not_deadlock_with_os_thread_join_waiter`)
-					       - 2026-01-16: ensured the Windows CreateThread-based language `spawn` path also marks OS-thread nodes DEAD on thread exit (prevents STW regressions after many short-lived threads):
-					         - Runtime: `lib/runtime_native/120_first_class_fn.oren` (`__oren_win_spawn_thread_entry`)
-					         - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_wait_for_exited_spawn_threads_win`) (bounded; fails with timeout instead of hanging)
+					       - 2026-01-16: ensured Windows OS-thread paths mark OS-thread nodes DEAD on thread exit (prevents STW regressions after many short-lived threads):
+					         - Runtime: `lib/runtime_native/269_os_thread_m.oren` (`__oren_os_thread_entry_raw`), `lib/runtime_native/120_first_class_fn.oren` (`__oren_win_spawn_thread_entry` for `OREN_NO_GREEN=1` fallback)
+					         - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_wait_for_exited_os_threads_win`) (bounded; fails with timeout instead of hanging)
 					       - 2026-01-16: routed x64-windows language `spawn` lowering through the native runtime helper (`oren_spawn_call_list`) so the runtime owns CreateThread plumbing:
 					         - Compiler: `lib/compiler/x64_native_program/044_emit_call_expr.oren` (`_emit_spawn_expr_v0`)
 					         - Runtime: `lib/runtime_native/120_first_class_fn.oren` (`_oren_spawn_call_list_windows_thread`)

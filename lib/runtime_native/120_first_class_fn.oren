@@ -48,13 +48,15 @@ fn oren_spawn_call_list(fn_obj, args_list) {
     // If the in-process green-task runtime is enabled, `spawn` becomes lightweight and shares memory
     // (required for correct future GC/concurrency behavior).
     //
-    // Escape hatch: set `OREN_NO_GREEN=1` to force legacy POSIX fork+pipe behavior.
-    if g_target_os != 3 {
-        var g = oren_green_spawn(fn_obj, args_list)
-        if g != 0 { return g }
-    }
+    // Escape hatch: set `OREN_NO_GREEN=1` to disable green tasks.
+    //
+    // Notes (rolling):
+    // - On POSIX, the fallback is legacy fork+pipe.
+    // - On Windows (no fork), the fallback is a runtime-owned OS-thread spawn.
+    var g = oren_green_spawn(fn_obj, args_list)
+    if g != 0 { return g }
 
-    // Windows has no fork(2). Use OS threads for language-level `spawn`.
+    // Windows has no fork(2). If green tasks are disabled/unavailable, fall back to OS threads.
     if g_target_os == 3 {
         return _oren_spawn_call_list_windows_thread(fn_obj, args_list)
     }

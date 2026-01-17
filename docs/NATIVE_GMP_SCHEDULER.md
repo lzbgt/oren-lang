@@ -137,7 +137,8 @@ This stage gives:
 Status (fact, code):
 
 - Green task runtime is implemented in `lib/runtime_native/263_green_tasks.oren`.
-- `spawn` prefers green tasks on POSIX via `oren_green_spawn` (`lib/runtime_native/120_first_class_fn.oren`).
+- `spawn` prefers green tasks on Tier‑1 (POSIX + Windows) via `oren_green_spawn` (`lib/runtime_native/120_first_class_fn.oren`).
+  - Escape hatch: `OREN_NO_GREEN=1` disables green tasks; POSIX falls back to fork+pipe, Windows falls back to a runtime-owned OS thread.
 - Context switch intrinsics are defined as native backend intrinsics (`oren_ctx_init`, `oren_ctx_switch` in
   `lib/runtime_native/000_prelude_sys.oren`).
 - 2026-01-16: native `oren_select` / `oren_select_recv` are green-aware and do not block the scheduler OS thread:

@@ -70,7 +70,7 @@ Rolling status (fact):
   - Current-thread stack selection for **OS threads** uses `sys_gettid()` identity (not an SP/top heuristic), avoiding adjacent-stack misidentification crashes.
   - Guard: `tests/native/test_gc_stw_os_thread_collect.oren` (object reachable only from parked thread’s stack must survive).
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_os_thread_join_waiter`) (STW GC must not deadlock while another OS thread is blocked in `oren_os_thread_join_timeout(..., timeout_us=0)`).
-  - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_wait_for_exited_spawn_threads_win`) (Windows: CreateThread-based `spawn` threads must be marked DEAD on exit so STW does not wait for them).
+  - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_wait_for_exited_os_threads_win`) (Windows: exited OS threads must be marked DEAD on exit so STW does not wait for them).
   - Rolling constraint: any runtime path that can block in a kernel wait must either be bounded or poll `oren_gc_safepoint()` periodically, otherwise STW can deadlock.
 
 Practical consequence:

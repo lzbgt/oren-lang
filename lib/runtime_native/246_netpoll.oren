@@ -14,7 +14,8 @@
 //
 // Rolling limitation:
 // - This does not provide a general cancellation map; callers must make token use safe (e.g. token points to a long-lived object).
-// - Windows is not supported here yet; Windows readiness should use IOCP later.
+// - Windows readiness is still select-v0 today. An IOCP poll core + wake substrate exists behind `OREN_NETPOLL_WIN_IOCP=1`,
+//   but readiness watches are not implemented for IOCP yet (see `docs/WINDOWS_IOCP_NETPOLL.md`).
 
 var g_netpoll_inited = 0
 var g_netpoll_fd = 0
@@ -28,6 +29,12 @@ var g_netpoll_wake_wfd = 0
 // NOTE: this is intentionally a runtime selection knob so we can land IOCP incrementally
 // behind an opt-in env flag without breaking Tier‑1 bring-up.
 var g_netpoll_win_backend = 0
+
+// Windows backend ids (rolling):
+// - select-v0 remains the Tier‑1 correctness default
+// - IOCP is opt-in (env `OREN_NETPOLL_WIN_IOCP=1`) until completion-based NET ops are implemented
+fn _netpoll_win_backend_select_v0() { return 0 }
+fn _netpoll_win_backend_iocp() { return 1 }
 
 // Windows netpoll v0 state (rolling):
 // - There is no kqueue/epoll; we use WinSock select() over a watched set (FD_SETSIZE=64 per call).
@@ -63,14 +70,35 @@ fn _netpoll_windows_backend_select() {
     //
     // Default is select-v0 (correctness-first, minimal dependencies).
     // Opt-in: OREN_NETPOLL_WIN_IOCP=1 requests IOCP once implemented.
-    if _netpoll_env_truthy("OREN_NETPOLL_WIN_IOCP") == 1 { return 1 }
-    return 0
+    if _netpoll_env_truthy("OREN_NETPOLL_WIN_IOCP") == 1 { return _netpoll_win_backend_iocp() }
+    return _netpoll_win_backend_select_v0()
 }
 
 fn _native_netpoll_windows_init_iocp_once() {
-    // IOCP backend is not implemented yet.
-    // Keep this as a stub so we can land the public selection plumbing early.
-    return 0 - 78 // ENOSYS
+    // Initialize the Windows IOCP poll core (CreateIoCompletionPort + wake support).
+    //
+    // IMPORTANT (rolling v1 scope):
+    // This does not implement socket readiness yet. IOCP is completion-based, so we need
+    // either:
+    // - Strategy A: a readiness bridge with per-operation wait nodes + cancellation, or
+    // - Strategy B: completion-driven socket operations (preferred end state).
+    //
+    // For now this deliverable provides:
+    // - `native_netpoll_wake()` via `PostQueuedCompletionStatus` (no loopback dependency)
+    // - `native_netpoll_poll_many_scratch` via `GetQueuedCompletionStatusEx`
+    if g_target_os != 3 { return 0 - 78 } // ENOSYS
+    if g_netpoll_fd != 0 { return 0 }
+    // INVALID_HANDLE_VALUE = (HANDLE)(LONG_PTR)-1
+    var port = sys_create_io_completion_port(0 - 1, 0, 0, 0)
+    if port < 0 { return port }
+    if port == 0 { return 0 - 5 } // EIO-ish; should not happen if intrinsic lowering is correct
+    g_netpoll_fd = port
+    // Wake socket is not used in IOCP mode.
+    g_netpoll_wake_rfd = 0
+    g_netpoll_wake_wfd = 0
+    g_netpoll_win_wake_sa = 0
+    g_netpoll_win_wake_sa_len = 0
+    return 0
 }
 
 fn native_netpoll_supported() {
@@ -95,6 +123,11 @@ fn native_netpoll_can_block() {
     // - it has a wake socket (so select can be broken on demand).
     if g_netpoll_inited == 0 { return false }
     if g_target_os == 3 {
+        if g_netpoll_win_backend == _netpoll_win_backend_iocp() {
+            // IOCP can always block once initialized (even with no watched sockets).
+            if g_netpoll_fd != 0 { return true }
+            return false
+        }
         if g_netpoll_watch_n > 0 { return true }
         if g_netpoll_wake_rfd != 0 { return true }
         return false
@@ -113,6 +146,11 @@ fn native_netpoll_can_wake() {
     // If this is false, callers should keep their poll timeouts bounded (fallback is periodic wake).
     if g_netpoll_inited == 0 { return false }
     if g_target_os == 3 {
+        if g_netpoll_win_backend == _netpoll_win_backend_iocp() {
+            // IOCP wake does not require a loopback socket.
+            if g_netpoll_fd == 0 { return false }
+            return true
+        }
         if g_netpoll_wake_wfd == 0 { return false }
         if g_netpoll_win_wake_sa == 0 { return false }
         return true
@@ -228,7 +266,7 @@ fn native_netpoll_init_once() {
     if g_target_os == 3 {
         // Select backend once.
         g_netpoll_win_backend = _netpoll_windows_backend_select()
-        if g_netpoll_win_backend == 1 {
+        if g_netpoll_win_backend == _netpoll_win_backend_iocp() {
             // Attempt IOCP init. If unimplemented/unavailable, fall back to select-v0.
             var iocp_rc = _native_netpoll_windows_init_iocp_once()
             if iocp_rc == 0 {
@@ -237,7 +275,7 @@ fn native_netpoll_init_once() {
                 return 0
             }
             // Fall back to select-v0 for rolling Tier‑1 correctness.
-            g_netpoll_win_backend = 0
+            g_netpoll_win_backend = _netpoll_win_backend_select_v0()
         }
         if g_netpoll_inited != 0 { release_lock(); return 0 }
         if g_netpoll_watch_lock_word == 0 {
@@ -432,6 +470,13 @@ fn native_netpoll_wake() {
     // - The scheduler/IO wait paths are responsible for initializing the poller once.
     if g_netpoll_inited == 0 { return 0 }
     if g_target_os == 3 {
+        if g_netpoll_win_backend == _netpoll_win_backend_iocp() {
+            // IOCP backend: explicit wake, no loopback dependency.
+            if g_netpoll_fd == 0 { return 0 }
+            // completion_key=0 is reserved (poller ignores); overlapped_ptr=NULL
+            sys_post_queued_completion_status(g_netpoll_fd, 0, 0, 0)
+            return 0
+        }
         // Windows backend: best-effort wake via loopback UDP socket (if available).
         // If unavailable (capsule policy, failure), scheduler waits remain bounded by timeouts.
         if g_netpoll_wake_wfd == 0 { return 0 }
@@ -496,6 +541,12 @@ fn native_netpoll_arm_fd(fd, want_write, token) {
     if token == 0 { return 0 - 22 } // reserved for wake pipe
 
     if g_target_os == 3 {
+        if g_netpoll_win_backend == _netpoll_win_backend_iocp() {
+            // Not implemented yet (see `docs/WINDOWS_IOCP_NETPOLL.md`):
+            // IOCP is completion-based, so we cannot directly represent readiness watches without
+            // per-operation state (OVERLAPPED storage + cancellation + mapping back to a `G`/wait token).
+            return 0 - 78 // ENOSYS
+        }
         // Windows select()-based oneshot registration.
         // Key is (fd, want_write).
         if g_netpoll_watch_fds == 0 || g_netpoll_watch_tokens == 0 || g_netpoll_watch_kinds == 0 { return 0 - 12 }
@@ -586,6 +637,10 @@ fn native_netpoll_disarm_fd(fd, want_write) {
     if g_netpoll_fd == 0 { return 0 }
     if fd < 0 { return 0 }
     if g_target_os == 3 {
+        if g_netpoll_win_backend == _netpoll_win_backend_iocp() {
+            // Not implemented yet (requires per-operation cancellation).
+            return 0
+        }
         if g_netpoll_watch_fds == 0 { return 0 }
         _netpoll_watch_lock_acquire()
         var n = g_netpoll_watch_n
@@ -654,6 +709,75 @@ fn native_netpoll_poll_many_scratch(timeout_ms, scratch, scratch_bytes) {
     if scratch_bytes < 64 { return 0 }
 
     if g_target_os == 3 {
+        if g_netpoll_win_backend == _netpoll_win_backend_iocp() {
+            // Windows IOCP backend (poll core + wake).
+            //
+            // Scratch layout:
+            // - scratch[0..63] output tokens (u64[8])
+            // - scratch[64..] OVERLAPPED_ENTRY[8] (32 bytes each) + removed_count slot (8 bytes)
+            //
+            // Token strategy (rolling v1):
+            // - reserved: completion_key==0 is used for wake events (ignored by scheduler)
+            // - future: completion_key will be a stable token pointer (likely an IO wait node)
+            //
+            // NOTE: this does not yet implement readiness watches. Until NET ops post completions,
+            // the only expected completion is the wake event posted by `native_netpoll_wake()`.
+            if g_netpoll_fd == 0 { return 0 }
+            if timeout_ms < 0 { timeout_ms = 0 }
+
+            // Clamp if wake is unavailable (should not happen for IOCP).
+            if native_netpoll_can_wake() != true {
+                if timeout_ms > 10 { timeout_ms = 10 }
+            }
+
+            var entry_bytes = 32
+            var cap = 8
+            var entries = scratch + 64
+            var removed_ptr = scratch + 64 + entry_bytes * cap
+            if scratch_bytes < 64 + entry_bytes * cap + 8 { return 0 }
+            ptr_set(removed_ptr, 0)
+
+            var rc = sys_get_queued_completion_status_ex(g_netpoll_fd, entries, cap, removed_ptr, timeout_ms, 0)
+            if rc < 0 {
+                // Timeout returns -60 (mapped from WAIT_TIMEOUT).
+                if rc == 0 - 60 { return 0 }
+                return 0
+            }
+
+            // Parse completions.
+            //
+            // OVERLAPPED_ENTRY (Win64) layout snapshot (repo-saved MS docs):
+            // - lpCompletionKey @0 (u64)
+            // - lpOverlapped     @8 (u64)
+            // - Internal         @16 (u64)
+            // - dwNumberOfBytesTransferred @24 (u32)
+            //
+            // We read only key+overlapped so we can ignore wake events and pass tokens through.
+            var n = ptr_get(removed_ptr)
+            if n < 0 { n = 0 }
+            if n > 8 { n = 8 }
+            var outn = 0
+            var i = 0
+            while i < n {
+                var ent = entries + i * entry_bytes
+                var key = ptr_get(ent + 0)
+                var ov = ptr_get(ent + 8)
+                // Ignore wake events (key==0 && ov==0) and any key==0 reserved entries.
+                if key != 0 {
+                    if outn < 8 {
+                        ptr_set(scratch + outn * 8, key)
+                        outn = outn + 1
+                    }
+                } else {
+                    // reserved / wake
+                    if ov != 0 {
+                        // no-op for now
+                    }
+                }
+                i = i + 1
+            }
+            return outn
+        }
         // Windows select() backend.
         //
         // Scratch layout:
