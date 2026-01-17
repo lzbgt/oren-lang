@@ -451,8 +451,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 			         - green tasks park on per-channel wait lists and on the shared global select sequence word via `oren_wait_on_addr`
 			         - send/recv wakes parked Gs by bumping the global seq word (no 1ms polling loop; enables idle-worker parking)
 			         - select waiters are rooted by the scheduler-owned word-wait list (so parked `G`s remain GC-reachable even if callers drop handles)
-		         - Guards (Windows-enabled): `tests/native/test_quick_integration_native.oren`
-		           - `test_select_in_green_workers`, `test_select_multi_case_in_green_workers`, `test_select_idle_does_not_spin_cpu`
+			         - per-channel mem-channel locks (`_chan_mem_lock`) use the same green-aware `oren_wait_on_addr` path under contention (no `oren_green_sleep_ns` polling)
+			         - Guards (Windows-enabled): `tests/native/test_quick_integration_native.oren`
+			           - `test_select_in_green_workers`, `test_select_multi_case_in_green_workers`, `test_select_idle_does_not_spin_cpu`
 			   - 2026-01-16: Windows socket netpoll v0 (readiness waits are green-safe):
 			     - Runtime: `lib/runtime_native/246_netpoll.oren` (WinSock `select()`; `FD_SETSIZE=64` per-call; watch table batched beyond 64; best-effort wake socket when loopback is allowed)
 			     - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains tokens and wakes parked Gs)

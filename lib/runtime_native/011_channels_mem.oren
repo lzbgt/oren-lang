@@ -126,8 +126,12 @@ fn _chan_mem_lock(ch) {
                 if in_green {
                     // Critical correctness (GMP / green scheduling):
                     // Do NOT block the scheduler OS thread in a kernel wait while executing a green task.
-                    // Poll with a tiny green sleep instead.
-                    oren_green_sleep_ns(1000000) // 1ms
+                    //
+                    // Prefer a scheduler-owned park via `oren_wait_on_addr`:
+                    // - wake-driven (paired with `_chan_mem_unlock` -> `oren_wake_all_addr(lock_ptr)`)
+                    // - does not kernel-block the scheduler OS thread
+                    // - avoids 1ms polling sleeps under lock contention
+                    oren_wait_on_addr(lock_ptr, owner, 0)
                 } else {
                     // STW-safe: bounded wait + safepoint polling.
                     oren_gc_safepoint()
