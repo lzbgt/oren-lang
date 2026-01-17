@@ -45,6 +45,8 @@ Local (fast):
 - `make test` (fast native smoke; stage1 + stage2 quick integration + capsule)
   - Includes “must fail” fixtures (e.g. `scalar == nil` hazards, reserved `__oren_type`).
 - `make verify-native-quick` (alias of `make test`; stage1 + stage2 + capsule)
+- `./scripts/verify_x64_linux_qemu_smoke.sh` (x64-linux execution under QEMU in the persistent Linux container)
+  - Runs the native quick integration binary both normally and with `OREN_GREEN_POLL_CACHE=1` (catches cached-scheduler-local hazards on x86_64).
 
 Tier‑1 cross-arch (execution on real hosts):
 
