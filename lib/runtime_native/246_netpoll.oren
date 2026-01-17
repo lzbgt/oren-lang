@@ -120,7 +120,15 @@ fn _netpoll_watch_lock_acquire() {
         spin = spin + 1
         if spin > 1000 {
             // Wait while the lock is still held (value==1).
-            sys_ulock_wait(1, lock_ptr, 1, 1000) // 1ms
+            //
+            // IMPORTANT (green scheduling):
+            // This lock can be contended while executing inside a green task (e.g. in-green fd waits).
+            // Do NOT kernel-block the scheduler OS thread in that case.
+            //
+            // `oren_wait_on_addr` is green-aware:
+            // - in-green: parks on the scheduler-owned word-wait list (wake-driven; no kernel block)
+            // - non-green: uses the OS wait primitive with a bounded timeout
+            oren_wait_on_addr(lock_ptr, 1, 1000) // 1ms
             spin = 0
         }
     }
@@ -131,7 +139,8 @@ fn _netpoll_watch_lock_release() {
     var lock_ptr = g_netpoll_watch_lock_word
     if lock_ptr == 0 { return 0 }
     atomic_cas(lock_ptr, 1, 0)
-    sys_ulock_wake(257, lock_ptr, 0)
+    // Wake both kernel waiters and any green waiters parked via the scheduler word-wait list.
+    oren_wake_all_addr(lock_ptr)
     return 0
 }
 

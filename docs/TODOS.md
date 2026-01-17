@@ -454,12 +454,14 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 			         - per-channel mem-channel locks (`_chan_mem_lock`) use the same green-aware `oren_wait_on_addr` path under contention (no `oren_green_sleep_ns` polling)
 			         - Guards (Windows-enabled): `tests/native/test_quick_integration_native.oren`
 			           - `test_select_in_green_workers`, `test_select_multi_case_in_green_workers`, `test_select_idle_does_not_spin_cpu`
-			   - 2026-01-16: Windows socket netpoll v0 (readiness waits are green-safe):
-			     - Runtime: `lib/runtime_native/246_netpoll.oren` (WinSock `select()`; `FD_SETSIZE=64` per-call; watch table batched beyond 64; best-effort wake socket when loopback is allowed)
-			     - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains tokens and wakes parked Gs)
-			     - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*` call into netpoll when in-green)
-			     - Guard: `tests/native/test_net_suite.oren` (`test_fd_wait_socket_readable_in_green_workers`)
-			   - 2026-01-15 → 2026-01-16: Stage N2 groundwork: green-task scheduler can now run on background OS threads ("M") via `oren_green_start_workers(n)`.
+				   - 2026-01-16: Windows socket netpoll v0 (readiness waits are green-safe):
+				     - Runtime: `lib/runtime_native/246_netpoll.oren` (WinSock `select()`; `FD_SETSIZE=64` per-call; watch table batched beyond 64; best-effort wake socket when loopback is allowed)
+				     - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains tokens and wakes parked Gs)
+				     - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*` call into netpoll when in-green)
+				     - Guard: `tests/native/test_net_suite.oren` (`test_fd_wait_socket_readable_in_green_workers`)
+				     - Rolling safety: watch-table lock contention is green-safe (never kernel-blocks the scheduler OS thread):
+				       - Runtime: `lib/runtime_native/246_netpoll.oren` (`_netpoll_watch_lock_acquire` uses `oren_wait_on_addr`)
+				   - 2026-01-15 → 2026-01-16: Stage N2 groundwork: green-task scheduler can now run on background OS threads ("M") via `oren_green_start_workers(n)`.
 			     - Runtime: `lib/runtime_native/263_green_tasks.oren`
 			       - per-OS-thread scheduler state (scheduler ctx + current-G are no longer globals)
 			       - Stage N2 groundwork: `P` struct + per-P runq/sleepq (single-P by default), plus a thread-local **current P** pointer
