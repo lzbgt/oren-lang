@@ -1209,6 +1209,195 @@ fn test_gc_collect_does_not_deadlock_with_green_worker_idle() {
     return 0
 }
 
+fn _off_qi_gc_stw_state() { return 0 }     // u64: 0=init, 1=ready/running, 9=exit
+fn _off_qi_gc_stw_keep_ptr() { return 8 }  // u64: pointer to tracked heap object (list)
+
+@oren.keep
+fn __oren_qi_test_gc_stw_worker_stack(meta) {
+    if meta == 0 { return 0 }
+    if g_gc_enabled == 0 { return 0 }
+
+    // OS-thread nodes must be registered for GC stack scanning + STW coordination.
+    oren_register_thread(get_sp())
+
+    // Allocate a heap object that should stay alive due to stack scanning.
+    var keep = oren_new_list(2)
+    oren_list_push(keep, 123)
+    oren_list_push(keep, 456)
+
+    // Publish pointer into raw mmap-backed memory (NOT a GC root).
+    ptr_set(meta + _off_qi_gc_stw_keep_ptr(), keep)
+
+    // Signal readiness.
+    ptr_set(meta + _off_qi_gc_stw_state(), 1)
+    oren_wake_all_addr(meta + _off_qi_gc_stw_state())
+
+    // Stay in a loop so the collector can reliably park us at a safepoint.
+    // Keep `keep` live on this stack frame until exit.
+    while ptr_get(meta + _off_qi_gc_stw_state()) == 1 {
+        oren_gc_safepoint()
+    }
+    return 0
+}
+
+fn test_gc_stw_os_thread_collect_scans_parked_stack() {
+    trace("QI: test_gc_stw_os_thread_collect_scans_parked_stack")
+    if g_gc_enabled == 0 { return 0 }
+    if g_target_os != 1 && g_target_os != 2 && g_target_os != 3 { return 0 }
+
+    var meta = sys_mmap_private_anon(4096)
+    if meta == 0 || meta == -1 || meta < 4096 { fail(780) }
+    ptr_set(meta + _off_qi_gc_stw_state(), 0)
+    ptr_set(meta + _off_qi_gc_stw_keep_ptr(), 0)
+
+    var start = oren_code_addr(__oren_qi_test_gc_stw_worker_stack)
+    if start == 0 { sys_munmap(meta, 4096); fail(781) }
+
+    var h = oren_os_thread_spawn(start, meta)
+    if h == 0 || h == -1 || h < 0 { sys_munmap(meta, 4096); fail(782) }
+
+    // Wait until worker is ready (bounded).
+    while ptr_get(meta + _off_qi_gc_stw_state()) == 0 {
+        var rc = oren_wait_on_addr(meta + _off_qi_gc_stw_state(), 0, 2000000)
+        if rc == -60 {
+            oren_os_thread_destroy(h)
+            sys_munmap(meta, 4096)
+            fail(783)
+        }
+    }
+    assert_eq(ptr_get(meta + _off_qi_gc_stw_state()), 1, 790)
+
+    // Critical: do NOT read keep_ptr before the collection, otherwise it would be present
+    // on the collector stack and could mask missing worker stack scanning.
+    oren_gc_collect()
+
+    // Now read the pointer and verify it is still tracked.
+    var keep_after = ptr_get(meta + _off_qi_gc_stw_keep_ptr())
+    assert_true(keep_after != 0, 791)
+    assert_true(oren_find_node(keep_after) != 0, 792)
+    assert_eq(oren_list_len(keep_after), 2, 793)
+    assert_eq(keep_after[0], 123, 794)
+    assert_eq(keep_after[1], 456, 795)
+
+    // Ask worker to exit and join it.
+    ptr_set(meta + _off_qi_gc_stw_state(), 9)
+    oren_wake_all_addr(meta + _off_qi_gc_stw_state())
+    assert_eq(oren_os_thread_join_timeout(h, 2000000), 0, 796)
+    oren_os_thread_destroy(h)
+    sys_munmap(meta, 4096)
+    return 0
+}
+
+fn _off_qi_gc_netpoll_ready() { return 0 }   // u64
+fn _off_qi_gc_netpoll_in_poll() { return 8 } // u64
+fn _off_qi_gc_netpoll_stop() { return 16 }   // u64
+
+@oren.keep
+fn __oren_qi_test_gc_stw_netpoll_blocked(meta) {
+    if meta == 0 { return 0 }
+    if g_gc_enabled == 0 { return 0 }
+    if g_target_os == 3 { return 0 }
+
+    // Ensure this OS thread participates in STW coordination.
+    oren_register_thread(get_sp())
+
+    // Ensure netpoll is initialized so we can block in the kernel readiness wait.
+    var rc0 = native_netpoll_init_once()
+    if rc0 < 0 {
+        // Signal ready anyway so the test doesn't hang; main will likely skip/return.
+        ptr_set(meta + _off_qi_gc_netpoll_ready(), 1)
+        oren_wake_all_addr(meta + _off_qi_gc_netpoll_ready())
+        return 0
+    }
+
+    var scratch = sys_mmap_private_anon(4096)
+    if scratch == 0 || scratch == -1 || scratch < 4096 {
+        ptr_set(meta + _off_qi_gc_netpoll_ready(), 1)
+        oren_wake_all_addr(meta + _off_qi_gc_netpoll_ready())
+        return 0
+    }
+
+    ptr_set(meta + _off_qi_gc_netpoll_ready(), 1)
+    oren_wake_all_addr(meta + _off_qi_gc_netpoll_ready())
+
+    while ptr_get(meta + _off_qi_gc_netpoll_stop()) == 0 {
+        // Tell the main thread we're about to block in netpoll.
+        ptr_set(meta + _off_qi_gc_netpoll_in_poll(), 1)
+        oren_wake_all_addr(meta + _off_qi_gc_netpoll_in_poll())
+
+        // Block "long" (1s). STW must still complete promptly by waking pollers.
+        native_netpoll_poll_many_scratch(1000, scratch, 4096)
+
+        ptr_set(meta + _off_qi_gc_netpoll_in_poll(), 0)
+
+        // Cooperate with STW if requested.
+        oren_gc_safepoint()
+    }
+
+    sys_munmap(scratch, 4096)
+    return 0
+}
+
+fn test_gc_stw_wakes_netpoll_blocked_threads() {
+    trace("QI: test_gc_stw_wakes_netpoll_blocked_threads")
+    if g_gc_enabled == 0 { return 0 }
+    // This fixture relies on the POSIX netpoll wake pipe.
+    if g_target_os == 3 { return 0 }
+
+    var meta = sys_mmap_private_anon(4096)
+    if meta == 0 || meta == -1 || meta < 4096 { fail(784) }
+    ptr_set(meta + _off_qi_gc_netpoll_ready(), 0)
+    ptr_set(meta + _off_qi_gc_netpoll_in_poll(), 0)
+    ptr_set(meta + _off_qi_gc_netpoll_stop(), 0)
+
+    var start = oren_code_addr(__oren_qi_test_gc_stw_netpoll_blocked)
+    if start == 0 { sys_munmap(meta, 4096); fail(785) }
+    var h = oren_os_thread_spawn(start, meta)
+    if h == 0 || h == -1 || h < 0 { sys_munmap(meta, 4096); fail(786) }
+
+    // Wait for readiness.
+    while ptr_get(meta + _off_qi_gc_netpoll_ready()) == 0 {
+        var rc = oren_wait_on_addr(meta + _off_qi_gc_netpoll_ready(), 0, 2000000)
+        if rc == -60 {
+            oren_os_thread_destroy(h)
+            sys_munmap(meta, 4096)
+            fail(787)
+        }
+    }
+
+    // Wait until the thread is about to block in netpoll (reduces race vs immediate GC).
+    var tries = 0
+    while ptr_get(meta + _off_qi_gc_netpoll_in_poll()) == 0 {
+        var rc2 = oren_wait_on_addr(meta + _off_qi_gc_netpoll_in_poll(), 0, 2000000)
+        if rc2 == -60 {
+            tries = tries + 1
+            if tries > 2 { break }
+        }
+    }
+
+    var t0 = oren_time_mono_ns()
+    if t0 == 0 { t0 = oren_time_unix_ns() }
+    if t0 == 0 { fail(788) }
+    oren_gc_collect()
+    var t1 = oren_time_mono_ns()
+    if t1 == 0 { t1 = oren_time_unix_ns() }
+    if t1 == 0 { fail(789) }
+
+    // Guardrail: without `native_netpoll_wake()` at STW begin, this can stall near 1s.
+    var dt_ms = (t1 - t0) / 1000000
+    assert_true(dt_ms < 700, 797)
+
+    // Stop and wake thread so join is bounded.
+    ptr_set(meta + _off_qi_gc_netpoll_stop(), 1)
+    oren_wake_all_addr(meta + _off_qi_gc_netpoll_stop())
+    native_netpoll_wake()
+
+    assert_eq(oren_os_thread_join_timeout(h, 2000000), 0, 798)
+    oren_os_thread_destroy(h)
+    sys_munmap(meta, 4096)
+    return 0
+}
+
 fn worker_green_sleep_50ms_then_ret_33() {
     oren_green_sleep_ns(50000000)
     return 33
@@ -2028,6 +2217,8 @@ fn main() {
     test_green_workers_join()
     test_green_worker_release_acquire_p_when_parked()
     test_gc_collect_does_not_deadlock_with_green_worker_idle()
+    test_gc_stw_os_thread_collect_scans_parked_stack()
+    test_gc_stw_wakes_netpoll_blocked_threads()
     test_gc_collect_does_not_deadlock_with_green_join_waiter()
     test_gc_collect_does_not_deadlock_with_os_thread_join_waiter()
     test_select_in_green_workers()

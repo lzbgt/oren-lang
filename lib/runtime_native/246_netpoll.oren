@@ -80,6 +80,24 @@ fn native_netpoll_can_block() {
     return false
 }
 
+fn native_netpoll_can_wake() {
+    // Whether `native_netpoll_wake()` is expected to break a blocking poll immediately.
+    //
+    // Why this matters:
+    // - In worker-mode green scheduling we want to block "long" for efficiency.
+    // - But stop-the-world GC and other runtime nudges must still wake pollers promptly.
+    //
+    // If this is false, callers should keep their poll timeouts bounded (fallback is periodic wake).
+    if g_netpoll_inited == 0 { return false }
+    if g_target_os == 3 {
+        if g_netpoll_wake_wfd == 0 { return false }
+        if g_netpoll_win_wake_sa == 0 { return false }
+        return true
+    }
+    if g_netpoll_wake_wfd == 0 { return false }
+    return true
+}
+
 fn _netpoll_windows_wake_allowed() {
     // In capsule mode, creating a loopback wake socket must respect NET enrollment:
     // - we only create it if loopback endpoints are explicitly allowed.
@@ -455,6 +473,8 @@ fn native_netpoll_arm_fd(fd, want_write, token) {
                 // Last-wins update (rolling; matches epoll MOD semantics for repeated arms).
                 ptr_set(g_netpoll_watch_tokens + i * 8, token)
                 _netpoll_watch_lock_release()
+                // If a poller is currently blocked in select(), break it so it rebuilds its fd_set.
+                native_netpoll_wake()
                 return 0
             }
             i = i + 1
@@ -468,6 +488,7 @@ fn native_netpoll_arm_fd(fd, want_write, token) {
         ptr_set(g_netpoll_watch_tokens + n * 8, token)
         g_netpoll_watch_n = n + 1
         _netpoll_watch_lock_release()
+        native_netpoll_wake()
         return 0
     }
 
@@ -553,6 +574,8 @@ fn native_netpoll_disarm_fd(fd, want_write) {
             i = i + 1
         }
         _netpoll_watch_lock_release()
+        // If a poller is blocked in select(), break it so it observes the removal promptly.
+        native_netpoll_wake()
         return 0
     }
     if g_target_os == 1 {
@@ -622,11 +645,13 @@ fn native_netpoll_poll_many_scratch(timeout_ms, scratch, scratch_bytes) {
             zi0 = zi0 + 1
         }
 
-        // Clamp: without a wake FD on Windows, keep bounded sleeps so:
+        // Clamp: if we cannot reliably wake a blocking select(), keep bounded sleeps so:
         // - new registrations are observed promptly
-        // - worker-mode safepoints remain responsive
+        // - worker-mode safepoints remain responsive (STW is cooperative)
         if timeout_ms < 0 { timeout_ms = 0 }
-        if timeout_ms > 10 { timeout_ms = 10 }
+        if native_netpoll_can_wake() != true {
+            if timeout_ms > 10 { timeout_ms = 10 }
+        }
 
         // Build fd_sets from the current watch table (bounded to FD_SETSIZE).
         // Use a rolling cursor to avoid starving watches beyond the first 64 entries.

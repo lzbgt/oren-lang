@@ -256,10 +256,23 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             // Keep a conservative upper bound anyway so a broken wake path cannot stall forever.
             //
             // Worker-mode STW note:
-            // STW safepoints are cooperative; a worker blocked in kevent/epoll must wake periodically
-            // so it can observe stop-the-world requests. Keep this bounded.
+            // STW safepoints are cooperative; a worker blocked in kevent/epoll/select must wake so it
+            // can observe stop-the-world requests and park.
+            //
+            // Rolling improvement:
+            // - STW now explicitly calls `native_netpoll_wake()` when it begins/ends.
+            // - If the poll backend has a working wake mechanism, we can safely sleep "long" (bounded)
+            //   without a 10ms polling clamp.
+            //
+            // Robust fallback:
+            // - On Windows in capsule mode, a wake socket may be unavailable; in that case, keep a
+            //   short bound so STW and other nudges are observed promptly via periodic wakeups.
             if g_green_workers_started != 0 {
-                if sleep_ns > 10000000 { sleep_ns = 10000000 } // 10ms
+                if native_netpoll_can_wake() == true {
+                    if sleep_ns > 1000000000 { sleep_ns = 1000000000 } // 1s
+                } else {
+                    if sleep_ns > 10000000 { sleep_ns = 10000000 } // 10ms
+                }
             } else {
                 if sleep_ns > 1000000000 { sleep_ns = 1000000000 } // 1s
             }

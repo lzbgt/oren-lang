@@ -147,6 +147,10 @@ Status (fact, code):
     - POSIX: kqueue/epoll + wake pipe; allocation-free `native_netpoll_poll_many_scratch`
     - Windows (rolling v0): WinSock `select()` (`FD_SETSIZE=64` per call) with a watch table that can exceed 64 (polled in batches).
       - Wake: best-effort loopback UDP wake socket in non-capsule builds; in capsule builds it is only created if loopback endpoints are explicitly allowed.
+      - When the wake socket exists:
+        - watch-table updates call `native_netpoll_wake()` to break a blocking select and rebuild the `fd_set` promptly
+        - worker-mode idle waits can use longer timeouts (bounded by the scheduler), instead of a fixed 10ms polling clamp
+      - When wake is unavailable (capsule policy or failure), select waits remain bounded by short timeouts (polling fallback; correctness-first).
       - IOCP is still the intended long-term implementation (scalability + true wake + future HANDLE story).
   - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains netpoll tokens and marks G/wait nodes ready)
   - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*` park the G and rely on the scheduler netpoller instead of poll+sleep)
@@ -384,7 +388,12 @@ Status (rolling, fact):
   - Runtime impl: `lib/runtime_native/100_time.oren` (`native_gc_stw_begin/native_gc_stw_poll_and_park/native_gc_stw_end`)
   - Coordination words live in globals storage (wait-on-address): offsets `424/432/440` (see `lib/runtime_native/010_channels_globals_consts.oren`)
   - Guard: `tests/native/test_gc_stw_os_thread_collect.oren`
+  - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_stw_os_thread_collect_scans_parked_stack`)
   - Limitation: cooperative only (threads must reach `oren_gc_safepoint()`); this is foundational plumbing for a future preemptive/stw design and for M:N.
+- 2026-01-17: STW now **wakes blocked netpoll waits** to keep GC pauses bounded without 10ms polling:
+  - Runtime: STW begin/end call `native_netpoll_wake()` (breaks kevent/epoll/select waits so threads can observe STW and park).
+  - Scheduler: worker-mode netpoll waits can block up to 1s when the backend has a working wake mechanism; otherwise they fall back to a short bound.
+  - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_stw_wakes_netpoll_blocked_threads`)
 - 2026-01-16: compiler backends now insert **throttled cooperative safepoints** into loop headers (every 256 iterations) so OS threads can reliably reach `oren_gc_safepoint()`:
   - C backend transpiler: `lib/compiler/transpiler.oren`
   - arm64 native backend: `lib/compiler/arm64_native_stmt.oren` (`native_emit_gc_safepoint_throttled`)

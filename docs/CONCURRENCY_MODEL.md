@@ -105,6 +105,30 @@ Source of truth:
 - POSIX fork+pipe join handle: `lib/runtime_native/120_first_class_fn.oren`, `lib/runtime_native/260_threads.oren`
 - Windows CreateThread path: `lib/runtime_native/120_first_class_fn.oren`, `lib/runtime_native/260_threads.oren`
 
+### 1.3 Stop-the-world GC safepoints (native runtime; minimal Tier‑1 protocol)
+
+Oren’s native runtime GC is a conservative mark/sweep collector. Once more than one OS thread exists, stack scanning
+must be coordinated or the collector can miss live references.
+
+Current native behavior (rolling, fact):
+
+- `oren_gc_collect()` uses a minimal **stop-the-world at safepoints** protocol:
+  - collector thread requests STW, waits for other OS threads to park, scans stacks, then resumes the world
+  - parked OS threads publish a `saved_sp` so the collector can scan their stacks safely
+- Safepoints are **cooperative** today:
+  - compiler backends insert throttled `oren_gc_safepoint()` polling in loop headers
+  - long-running non-loop code remains a limitation until a stronger/preemptive scheme exists
+- To keep STW bounded even when threads are blocked in kernel readiness waits:
+  - STW begin/end call `native_netpoll_wake()` so OS threads blocked in kevent/epoll/select are broken out and can observe STW
+
+Source of truth / guards:
+
+- Runtime: `lib/runtime_native/100_time_gc_stw.oren` (`native_gc_stw_begin/native_gc_stw_poll_and_park/native_gc_stw_end`)
+- Guards:
+  - `tests/native/test_gc_stw_os_thread_collect.oren` (standalone smoke; stack scanning on parked thread)
+  - `tests/native/test_quick_integration_native.oren` (`test_gc_stw_os_thread_collect_scans_parked_stack`)
+  - `tests/native/test_quick_integration_native.oren` (`test_gc_stw_wakes_netpoll_blocked_threads`)
+
 ### 1.1 `oren_yield()` (rolling: green-yield when available; OS yield otherwise)
 
 `oren_yield()` is the best-effort “yield” surface used by both:

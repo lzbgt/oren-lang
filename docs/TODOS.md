@@ -439,6 +439,12 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		     - Guards:
 		       - `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_in_green_does_not_block_scheduler`)
 		       - `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_timeout_in_green_does_not_block_scheduler`)
+		   - 2026-01-17: STW GC + netpoll integration (worker-mode efficiency without GC deadlocks):
+		     - Runtime STW begin/end now call `native_netpoll_wake()` so OS threads blocked in kevent/epoll/select are broken out immediately and can park at safepoints.
+		     - Green worker-mode idle netpoll waits can block up to 1s when the backend has a working wake mechanism; otherwise they fall back to a short bound (Windows capsule/no-wake correctness-first).
+		     - Windows select-v0 netpoll: watch-table updates now wake a blocked poller when the wake socket exists, so longer select timeouts are possible without missing new registrations.
+		     - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_stw_wakes_netpoll_blocked_threads`)
+		     - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_stw_os_thread_collect_scans_parked_stack`)
 		   - 2026-01-16: Windows channel/select groundwork (portable in-memory channels):
 	     - Runtime: `lib/runtime_native/011_channels_mem.oren` (GC-tracked ring-buffer channels + wait-on-addr)
 	     - Runtime: `lib/runtime_native/245_select.oren` (Windows: `oren_select` / `oren_select_recv` over mem-channels)
