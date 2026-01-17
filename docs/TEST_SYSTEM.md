@@ -163,6 +163,10 @@ When you need confidence that the **native backend** output works across the pra
 # Opt-in: run the larger Tier‑1 native smoke fixture on remote x64 hosts
 ./scripts/verify_native_matrix.sh --targets x64-win-tier1
 ./scripts/verify_native_matrix.sh --targets x64-wsl-tier1
+  # Note: Tier‑1 matrix targets also run a small set of green-worker (GMP) fixtures when using the default
+  # Tier‑1 source (`tests/fixtures/tier1_native_smoke_main.oren`). This keeps cross-arch coverage aligned with
+  # the current scheduler focus without making the default `all` target slower.
+  # Use `--tier1-src <path>` to override the Tier‑1 program and skip the extra green-worker fixture set.
 
 # Loopback NET matrix (TCP/UDP + HTTP GET loopback + WebSocket echo) across Tier‑1 hosts
 ./scripts/verify_native_net_matrix.sh

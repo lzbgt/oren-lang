@@ -12,6 +12,18 @@
 fn oren_sleep_ns(ns) {
     native_capsule_require(CAP_TIME, "TIME")
     if ns <= 0 { return 0 }
+
+    // Green-task integration (Stage N1):
+    // When running inside a green task, do NOT block the OS thread in `sys_nanosleep`.
+    // Instead, park the current G in the scheduler sleep queue so:
+    // - join/join_timeout can continue to make progress (and enforce deadlines), and
+    // - the scheduler can run other runnable tasks while this one sleeps.
+    //
+    // This is a key requirement for Tier‑1 semantics on Linux where `spawn` is green-task-based.
+    if oren_green_current_g_or0() != 0 {
+        return oren_green_sleep_ns(ns)
+    }
+
     // Primary path: native intrinsic sleep.
     //
     // Rolling safety (x86_64 bring-up):

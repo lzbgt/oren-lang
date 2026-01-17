@@ -495,7 +495,12 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					         - `tests/native/test_green_two_workers_world_lock_smoke.oren` now spawns work via `oren_green_spawn(...)` (so it covers Windows too).
 					         - `tests/native/test_green_two_workers_p_swap_smoke.oren` and `tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren` now assert ownership by observing `P.owner_tid` (via `oren_green_debug_p_owner_tid`) with monotonic-time spin waits (avoids flakes from coarse sleep timers and from global “last acquire” debug markers being overwritten).
 					         - `tests/native/test_green_two_workers_m_less_p_smoke.oren` now uses a durable “seen P ids” bitmask (`oren_green_debug_p_acquire_seen_mask`) to detect that `P2` was acquired (not a fragile “last acquire wins” check).
-					         - Verified: `make test` (arm64-macos) + `./scripts/verify_native_matrix.sh --targets x64-win-tier1 --tier1-src tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren --trace` (Win11 x64, stage1+stage2).
+					         - 2026-01-17: fixed Tier‑1 Linux (WSL2) `join_timeout` contract under green-task `spawn` by making TIME sleep green-aware:
+					           - Root cause: `spawn` is green-task-based on Linux; `oren_sleep_ms` previously blocked the scheduler OS thread in `sys_nanosleep`, so `oren_join_timeout` could not time out while the task “slept”.
+					           - Fix: `oren_sleep_ns` now routes to `oren_green_sleep_ns` when called from inside a green task (`lib/runtime_native/100_time_core.oren`).
+					           - Verified: `make test` (arm64-macos) + `./scripts/verify_native_matrix.sh --targets x64-win-tier1,x64-wsl-tier1 --trace` (remote Win11 + remote WSL2; stage1+stage2).
+					         - 2026-01-17: Tier‑1 matrix now also runs the green-worker fixture set by default (when using the default Tier‑1 source):
+					           - Implemented in: `scripts/verify_native_matrix.sh` (`x64-win-tier1`, `x64-wsl-tier1`).
 						       - DONE (2026-01-16): documented the fixture-only `oren_green_debug_*` surface in one place (what is “test-only ABI” vs stable runtime ABI):
 						         - Doc: `docs/NATIVE_GMP_SCHEDULER.md` (“Test-only debug API: `oren_green_debug_*`”)
 				     - add a single-thread multi-`P` fixture (using `oren_green_bind_p`) to validate cross-P sleep/wake + stealing without enabling unsafe parallel workers

@@ -28,6 +28,9 @@ cd "$ROOT"
 TEST_SRC="tests/native/test_quick_integration_native.oren"
 TIER1_SRC="tests/fixtures/tier1_native_smoke_main.oren"
 TIER1_EXPECT_MARKERS=1
+GREEN_2W_WORLD_LOCK_SRC="tests/native/test_green_two_workers_world_lock_smoke.oren"
+GREEN_2W_M_LESS_P_SMOKE_SRC="tests/native/test_green_two_workers_m_less_p_smoke.oren"
+GREEN_2W_M_LESS_P_DETERMINISTIC_SRC="tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren"
 WIN_FFI_K32_SRC="tests/native/ffi_windows_kernel32.oren"
 WIN_FFI_MSVCRT_ATTR_SRC="tests/native/ffi_windows_msvcrt_attr_dll.oren"
 WIN_FFI_MSVCRT_LINK_ATTR_SRC="tests/native/ffi_windows_msvcrt_attr_link.oren"
@@ -377,6 +380,26 @@ build_native_bin() {
   build_native_bin_src "$compiler" "$platform" "$TEST_SRC" "$out"
 }
 
+build_green_worker_fixtures() {
+  local platform="$1"
+  local ext=""
+  if [[ "$platform" == "x64-windows" ]]; then
+    ext=".exe"
+  fi
+  # Keep this list small and high-signal: it should remain reasonable as part of Tier‑1 gates.
+  #
+  # Intent:
+  # - world lock safety w/ 2 workers (allocator/GC not parallel yet)
+  # - real spawn injection path acquires extra P (M<P) in world-lock mode
+  # - deterministic P swap + P2 acquisition (test-only debug API)
+  build_native_bin_src "./oren" "$platform" "$GREEN_2W_WORLD_LOCK_SRC" "build/tmp/green2w_world_lock_stage1_${platform}${ext}"
+  build_native_bin_src "./oren_stage2" "$platform" "$GREEN_2W_WORLD_LOCK_SRC" "build/tmp/green2w_world_lock_stage2_${platform}${ext}"
+  build_native_bin_src "./oren" "$platform" "$GREEN_2W_M_LESS_P_SMOKE_SRC" "build/tmp/green2w_m_less_p_smoke_stage1_${platform}${ext}"
+  build_native_bin_src "./oren_stage2" "$platform" "$GREEN_2W_M_LESS_P_SMOKE_SRC" "build/tmp/green2w_m_less_p_smoke_stage2_${platform}${ext}"
+  build_native_bin_src "./oren" "$platform" "$GREEN_2W_M_LESS_P_DETERMINISTIC_SRC" "build/tmp/green2w_m_less_p_det_stage1_${platform}${ext}"
+  build_native_bin_src "./oren_stage2" "$platform" "$GREEN_2W_M_LESS_P_DETERMINISTIC_SRC" "build/tmp/green2w_m_less_p_det_stage2_${platform}${ext}"
+}
+
 run_in_linux_container() {
   local bin="$1"
   local dst="/tmp/$(basename "$bin")"
@@ -598,7 +621,11 @@ remote_run_wsl() {
     cmd+="; cat '${out}'; echo EXIT="
     cmd+='$rc'
     if [[ "$TIER1_EXPECT_MARKERS" -ne 0 ]]; then
-      cmd+="; grep -q 'tier1 spawn join ok' '${out}' || exit 97; grep -q 'tier1 proc ok' '${out}' || exit 98"
+      # Only enforce marker checks on successful exit. If the program fails, preserve its
+      # real exit code (the output already includes a stable EXIT=... marker).
+      cmd+="; if [ "
+      cmd+='$rc'
+      cmd+=" -eq 0 ]; then grep -q 'tier1 spawn join ok' '${out}' || exit 97; grep -q 'tier1 proc ok' '${out}' || exit 98; fi"
     fi
     cmd+="; exit "
     cmd+='$rc'
@@ -894,6 +921,25 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-win-tier1; then
   log "-- run: Win11 Tier‑1 native smoke (x64-windows) --"
   remote_run_win "tier1_stage1_x64_windows.exe"
   remote_run_win "tier1_stage2_x64_windows.exe"
+
+  # When running the default Tier‑1 smoke, extend it with a small set of green-worker (GMP) fixtures.
+  # This keeps Windows/WSL2 coverage “automatic” for the current P0 focus area.
+  if [[ "$TIER1_EXPECT_MARKERS" -ne 0 ]]; then
+    log "-- build+run: Win11 Tier‑1 green-worker fixtures (x64-windows) --"
+    build_green_worker_fixtures "x64-windows"
+    remote_upload "build/tmp/green2w_world_lock_stage1_x64-windows.exe" "green2w_world_lock_stage1_x64_windows.exe"
+    remote_upload "build/tmp/green2w_world_lock_stage2_x64-windows.exe" "green2w_world_lock_stage2_x64_windows.exe"
+    remote_upload "build/tmp/green2w_m_less_p_smoke_stage1_x64-windows.exe" "green2w_m_less_p_smoke_stage1_x64_windows.exe"
+    remote_upload "build/tmp/green2w_m_less_p_smoke_stage2_x64-windows.exe" "green2w_m_less_p_smoke_stage2_x64_windows.exe"
+    remote_upload "build/tmp/green2w_m_less_p_det_stage1_x64-windows.exe" "green2w_m_less_p_det_stage1_x64_windows.exe"
+    remote_upload "build/tmp/green2w_m_less_p_det_stage2_x64-windows.exe" "green2w_m_less_p_det_stage2_x64_windows.exe"
+    remote_run_win "green2w_world_lock_stage1_x64_windows.exe"
+    remote_run_win "green2w_world_lock_stage2_x64_windows.exe"
+    remote_run_win "green2w_m_less_p_smoke_stage1_x64_windows.exe"
+    remote_run_win "green2w_m_less_p_smoke_stage2_x64_windows.exe"
+    remote_run_win "green2w_m_less_p_det_stage1_x64_windows.exe"
+    remote_run_win "green2w_m_less_p_det_stage2_x64_windows.exe"
+  fi
   log "OK: remote Win11 x64 tier1"
 fi
 
@@ -986,6 +1032,23 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-wsl-tier1; then
   log "-- run: WSL2 Tier‑1 native smoke (x64-linux) --"
   remote_run_wsl "tier1_stage1_x64_linux"
   remote_run_wsl "tier1_stage2_x64_linux"
+
+  if [[ "$TIER1_EXPECT_MARKERS" -ne 0 ]]; then
+    log "-- build+run: WSL2 Tier‑1 green-worker fixtures (x64-linux) --"
+    build_green_worker_fixtures "x64-linux"
+    remote_upload "build/tmp/green2w_world_lock_stage1_x64-linux" "green2w_world_lock_stage1_x64_linux"
+    remote_upload "build/tmp/green2w_world_lock_stage2_x64-linux" "green2w_world_lock_stage2_x64_linux"
+    remote_upload "build/tmp/green2w_m_less_p_smoke_stage1_x64-linux" "green2w_m_less_p_smoke_stage1_x64_linux"
+    remote_upload "build/tmp/green2w_m_less_p_smoke_stage2_x64-linux" "green2w_m_less_p_smoke_stage2_x64_linux"
+    remote_upload "build/tmp/green2w_m_less_p_det_stage1_x64-linux" "green2w_m_less_p_det_stage1_x64_linux"
+    remote_upload "build/tmp/green2w_m_less_p_det_stage2_x64-linux" "green2w_m_less_p_det_stage2_x64_linux"
+    remote_run_wsl "green2w_world_lock_stage1_x64_linux"
+    remote_run_wsl "green2w_world_lock_stage2_x64_linux"
+    remote_run_wsl "green2w_m_less_p_smoke_stage1_x64_linux"
+    remote_run_wsl "green2w_m_less_p_smoke_stage2_x64_linux"
+    remote_run_wsl "green2w_m_less_p_det_stage1_x64_linux"
+    remote_run_wsl "green2w_m_less_p_det_stage2_x64_linux"
+  fi
   log "OK: remote WSL2 x64 tier1"
 fi
 

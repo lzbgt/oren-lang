@@ -115,6 +115,7 @@ Requirements:
 3) **Yield points**
    - Minimal: `yield()` builtin (or `oren_yield()` runtime call) that enqueues current `G` and switches to scheduler.
    - Also: `sleep_ms`, channel ops, and capability-scoped “syscalls” become yield points.
+     - Fact (2026-01-17): TIME sleep is green-aware on the native backend: `oren_sleep_ns/ms` route to `oren_green_sleep_ns` when called from inside a green task (so sleep does not block the scheduler OS thread).
 
 4) **Non-blocking OS integration**
    - On macOS, `kqueue/kevent` is the syscall-first friendly multiplexer.
