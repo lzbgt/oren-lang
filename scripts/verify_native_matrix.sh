@@ -611,12 +611,28 @@ remote_run_win() {
 
 remote_run_wsl() {
   local bin_name="$1"
+  shift || true
   remote_kill_wsl "$bin_name" >/dev/null 2>&1 || true
   # Use WSL-side `timeout` to avoid leaving background processes if the outer ssh is terminated.
   local envp=""
   local canon_abort="${OREN_CANON_I32_ABORT:-}"
   if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
     envp="OREN_CANON_I32_ABORT=1 "
+  fi
+  # Optional extra environment variables (KEY=VALUE) for this run.
+  if [[ "$#" -gt 0 ]]; then
+    for kv in "$@"; do
+      if [[ -z "$kv" || "$kv" != *"="* ]]; then
+        echo "ERROR: remote_run_wsl expects KEY=VALUE env items; got: $kv" >&2
+        return 2
+      fi
+      # Keep quoting simple: disallow chars that break `bash -lc "..."` and avoid injection hazards.
+      if [[ "$kv" == *" "* || "$kv" == *"\""* || "$kv" == *"'"* || "$kv" == *"$"* || "$kv" == *"\\"* ]]; then
+        echo "ERROR: remote_run_wsl env contains unsafe characters: $kv" >&2
+        return 2
+      fi
+      envp+="${kv} "
+    done
   fi
   if [[ "$TRACE" -ne 0 ]]; then
     envp+="OREN_QI_TRACE=1 "
@@ -1061,6 +1077,9 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-wsl-tier1; then
   log "-- run: WSL2 Tier‑1 native smoke (x64-linux) --"
   remote_run_wsl "tier1_stage1_x64_linux"
   remote_run_wsl "tier1_stage2_x64_linux"
+  log "-- run: WSL2 Tier‑1 native smoke (x64-linux; OREN_NO_GREEN=1) --"
+  remote_run_wsl "tier1_stage1_x64_linux" "OREN_NO_GREEN=1"
+  remote_run_wsl "tier1_stage2_x64_linux" "OREN_NO_GREEN=1"
 
   if [[ "$TIER1_EXPECT_MARKERS" -ne 0 ]]; then
     log "-- build+run: WSL2 Tier‑1 green-worker fixtures (x64-linux) --"

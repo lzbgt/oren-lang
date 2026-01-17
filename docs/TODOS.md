@@ -426,6 +426,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
        - keep join bounded: `tests/native/test_linux_os_thread_smoke.oren` uses a futex wait timeout and re-checks `ctid_ptr` after timeout (avoids false negatives if a wake is missed)
 		     - DONE (2026-01-17): Windows x64: language `spawn` now prefers green tasks (N:1) like POSIX; OS-thread fallback when `OREN_NO_GREEN=1` routes through `oren_os_thread_spawn` (M abstraction).
 		       - Gate (added, 2026-01-17): remote Win11 Tier‑1 now also runs with `OREN_NO_GREEN=1` to keep the OS-thread `spawn` fallback from rotting (join timeout + STW-safe detach behavior).
+		       - Gate (added, 2026-01-17): remote WSL2 Tier‑1 now also runs with `OREN_NO_GREEN=1` to keep the POSIX fork+pipe fallback from rotting.
 		   - 2026-01-15: introduced a minimal runtime-owned OS-thread ("M") abstraction (macOS + Linux + Windows) for future M:N work:
 		     - Runtime: `lib/runtime_native/269_os_thread_m.oren`
 		       - `oren_os_thread_spawn(start_addr, arg_ptr)`
