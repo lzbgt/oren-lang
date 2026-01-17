@@ -1,0 +1,34 @@
+// Compile-only: ensure WinSock overlapped + IOCP syscall names lower on x64-windows.
+// This file is safe on non-Windows because calls are runtime-gated and should lower to -ENOSYS.
+
+fn _dummy_ptr() { return 0 }
+
+fn _compile_only_touch_iocp_and_overlapped(sock) {
+    if g_target_os != 3 { return 0 }
+    // These symbols must exist as compiler intrinsics for x64-windows.
+    // Do not execute in tests yet (IOCP backend is still rolling).
+    var port = sys_create_io_completion_port(0 - 1, 0, 0, 0)
+    if port < 0 { return port }
+
+    var flags_mem = malloc(8)
+    if flags_mem == 0 { return 0 - 12 }
+    ptr_set(flags_mem, 0)
+
+    var ov = malloc(64) // big enough for WSAOVERLAPPED bring-up (exact layout handled later)
+    if ov == 0 { free(flags_mem); return 0 - 12 }
+
+    // Overlapped recv/send should accept IO_PENDING as success (0).
+    var rc0 = sys_wsarecv(sock, _dummy_ptr(), 0, flags_mem, ov)
+    var rc1 = sys_wsasend(sock, _dummy_ptr(), 0, 0, ov)
+
+    free(ov)
+    free(flags_mem)
+
+    // These are not executed; return a combined value so the calls aren't DCE'd too early.
+    return rc0 + rc1
+}
+
+fn main() {
+    // Keep this file runnable (it just exits) so it can be reused in future runtime tests.
+    return 0
+}

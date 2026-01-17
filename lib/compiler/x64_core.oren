@@ -865,6 +865,18 @@ fn insn_mov_mrsp_disp8_r64(disp8, src_reg) {
     return out
 }
 
+fn insn_mov_mrsp_disp8_r32(disp8, src_reg) {
+    // mov dword ptr [rsp+disp8], r32 => 89 44 24 ib  (with optional REX.R for r8d-r15d)
+    if src_reg < 0 || src_reg > 15 { return nil }
+    var out = _insn_pool_get()
+    if src_reg >= 8 { bytes_push(out, 68) } // 0x44 (REX.R)
+    bytes_push(out, 137) // 89
+    bytes_push(out, 68 + int_mod(src_reg, 8) * 8) // 0x44 | ((src&7)<<3)
+    bytes_push(out, 36) // 0x24
+    bytes_push(out, int_mod(disp8, 256))
+    return out
+}
+
 fn insn_mov_r64_mrsp_disp32(dst_reg, disp32) {
     // mov r64, qword ptr [rsp+disp32] => REX.W 8B 84 24 id  (or REX.W+REX.R for r8-r15)
     if dst_reg < 0 || dst_reg > 15 { return nil }

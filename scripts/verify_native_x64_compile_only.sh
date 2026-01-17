@@ -156,6 +156,7 @@ WIN_FFI_I32_SRC="tests/native/ffi_windows_ret_i32_signext.oren"
 WIN_FFI_U32_SRC="tests/native/ffi_windows_ret_u32_zeroext.oren"
 WIN_FFI_VOID_SRC="tests/native/ffi_windows_ret_void_zero.oren"
 WIN_FFI_EXPORT_GETPROC_SRC="tests/native/ffi_windows_export_getprocaddress.oren"
+WIN_IOCP_OVERLAPPED_SYSCALLS_SRC="tests/native/win_iocp_overlapped_syscalls_compile.oren"
 
 LINUX_FFI_OK_SRC="tests/native/ffi_linux_strlen_ok.oren"
 LINUX_FFI_I32_SRC="tests/native/ffi_linux_ret_i32_signext.oren"
@@ -519,6 +520,10 @@ run_suite_x64_win() {
   build_one "$compiler" x64-windows "$WIN_FFI_EXPORT_GETPROC_SRC" "build/tmp/ffi_export_${tag}_x64_windows.exe"
   check_pe_x64_exe "build/tmp/ffi_export_${tag}_x64_windows.exe"
   check_pe_exports_contains "build/tmp/ffi_export_${tag}_x64_windows.exe" "oren_test_export_cb"
+
+  # Windows IOCP + overlapped NET syscall plumbing (compile-only).
+  build_one "$compiler" x64-windows "$WIN_IOCP_OVERLAPPED_SYSCALLS_SRC" "build/tmp/iocp_overlapped_syscalls_${tag}_x64_windows.exe"
+  check_pe_x64_exe "build/tmp/iocp_overlapped_syscalls_${tag}_x64_windows.exe"
 
   # Shared library output: `.dll` + generated header.
   build_one "$compiler" x64-windows "$LIBMATH_SRC" "build/tmp/libmath_${tag}_x64_windows.dll" --lib

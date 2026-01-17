@@ -396,6 +396,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		       - Rolling plumbing landed (2026-01-17):
 		         - `OREN_NETPOLL_WIN_IOCP=1` is recognized, but IOCP init is still a stub returning `-ENOSYS` so it falls back to select-v0.
 		         - IOCP syscall/intrinsic + PE import plumbing is present for x64-windows (CreateIoCompletionPort/GetQueuedCompletionStatusEx/PostQueuedCompletionStatus/CancelIoEx).
+		         - WinSock overlapped syscall plumbing is present for x64-windows (WSARecv/WSASend) to support completion-based NET ops (treats `WSA_IO_PENDING` as success).
 		       - Deliverable v1 (when implemented): IOCP poll core + wake:
 		         - `CreateIoCompletionPort` + `GetQueuedCompletionStatusEx` + `PostQueuedCompletionStatus`
 		         - Wire `native_netpoll_wake()` to `PostQueuedCompletionStatus` (no loopback dependency)

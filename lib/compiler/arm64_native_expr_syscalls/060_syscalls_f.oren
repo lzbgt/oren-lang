@@ -24,6 +24,16 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
                 emit_load_i64_imm(ctx, 0, -78) // -ENOSYS
                 return true
             }
+            if fn_name == "sys_wsarecv" {
+                // Windows-only WinSock overlapped intrinsic (WSARecv).
+                emit_load_i64_imm(ctx, 0, -78) // -ENOSYS
+                return true
+            }
+            if fn_name == "sys_wsasend" {
+                // Windows-only WinSock overlapped intrinsic (WSASend).
+                emit_load_i64_imm(ctx, 0, -78) // -ENOSYS
+                return true
+            }
 
             if fn_name == "sys_epoll_pwait" {
                 // sys_epoll_pwait(epfd, events_ptr, maxevents, timeout_ms, sigmask_ptr, sigsetsize) -> n_or_neg_errno

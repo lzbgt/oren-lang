@@ -538,6 +538,21 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         return nil
     }
 
+    if nm == "sys_wsarecv" {
+        // Windows-only intrinsic (WSARecv overlapped).
+        if args == nil || oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_wsarecv expects 5 args"); return nil }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsarecv does not support spread"); return nil }
+        _emit_return_enosys_x64(ctx)
+        return nil
+    }
+    if nm == "sys_wsasend" {
+        // Windows-only intrinsic (WSASend overlapped).
+        if args == nil || oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_wsasend expects 5 args"); return nil }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsasend does not support spread"); return nil }
+        _emit_return_enosys_x64(ctx)
+        return nil
+    }
+
     if nm == "sys_getentropy" {
         // Linux x86_64: no getentropy syscall; return -ENOSYS and let runtime fall back to getrandom.
         _emit_return_enosys_x64(ctx)

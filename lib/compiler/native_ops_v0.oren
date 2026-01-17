@@ -1094,6 +1094,9 @@ fn _x64_is_syscall_intrinsic_name(nm) {
     if nm == "sys_get_queued_completion_status_ex" { return true }
     if nm == "sys_post_queued_completion_status" { return true }
     if nm == "sys_cancel_io_ex" { return true }
+    // Windows-only WinSock overlapped I/O helpers (WS2_32)
+    if nm == "sys_wsarecv" { return true }
+    if nm == "sys_wsasend" { return true }
     // epoll
     if nm == "sys_epoll_create1" || nm == "sys_epoll_ctl" || nm == "sys_epoll_pwait" { return true }
     // Darwin-only (still compiler intrinsics; may return -ENOSYS on non-Darwin)

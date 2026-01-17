@@ -319,6 +319,53 @@ fn native_capsule_sys_recvfrom_pre(fd, buf, len, flags, from, fromlen) {
     return 0
 }
 
+fn native_capsule_sys_wsarecv_pre(fd, buf, len, flags_ptr, overlapped_ptr) {
+    // Overlapped WinSock receive (IOCP bring-up).
+    //
+    // This is still a NET capability boundary (no bypass). For now we treat it like recvfrom:
+    // - require NET
+    // - require fd is a NET-tagged socket (not a listening socket)
+    //
+    // Endpoint enforcement is handled at the socket creation/connect/bind/accept boundaries.
+    native_capsule_require(CAP_NET, "NET")
+    if global_get_capsule_mode() != 1 { return 0 }
+    var k = native_capsule_net_fd_kind_get(fd)
+    if k == 0 {
+        print("CAPSULE DENY: NET_FD")
+        exit(79)
+    }
+    if k == FD_KIND_TCP_LISTEN {
+        print("CAPSULE DENY: NET_RECV_LISTEN")
+        exit(79)
+    }
+    return 0
+}
+
+fn native_capsule_sys_wsarecv_post(rc, fd, buf, len, flags_ptr, overlapped_ptr) {
+    // For symmetry/debugging; no state mutation today.
+    return rc
+}
+
+fn native_capsule_sys_wsasend_pre(fd, buf, len, flags, overlapped_ptr) {
+    // Overlapped WinSock send (IOCP bring-up).
+    native_capsule_require(CAP_NET, "NET")
+    if global_get_capsule_mode() != 1 { return 0 }
+    var k = native_capsule_net_fd_kind_get(fd)
+    if k == 0 {
+        print("CAPSULE DENY: NET_FD")
+        exit(79)
+    }
+    if k == FD_KIND_TCP_LISTEN {
+        print("CAPSULE DENY: NET_SEND_LISTEN")
+        exit(79)
+    }
+    return 0
+}
+
+fn native_capsule_sys_wsasend_post(rc, fd, buf, len, flags, overlapped_ptr) {
+    return rc
+}
+
 fn native_capsule_sys_close_post(rc, fd) {
     if global_get_capsule_mode() != 1 { return rc }
     if rc == 0 {

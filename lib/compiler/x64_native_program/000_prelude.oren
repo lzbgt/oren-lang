@@ -99,6 +99,7 @@ fn insn_mov_r64_mrbp_disp32(reg, disp32) { return core.insn_mov_r64_mrbp_disp32(
 fn insn_mov_mrbp_disp32_r64(disp32, reg) { return core.insn_mov_mrbp_disp32_r64(disp32, reg) }
 fn insn_mov_r64_mrsp_disp8(reg, disp8) { return core.insn_mov_r64_mrsp_disp8(reg, disp8) }
 fn insn_mov_mrsp_disp8_r64(disp8, reg) { return core.insn_mov_mrsp_disp8_r64(disp8, reg) }
+fn insn_mov_mrsp_disp8_r32(disp8, reg) { return core.insn_mov_mrsp_disp8_r32(disp8, reg) }
 fn insn_mov_r64_mrsp_disp32(reg, disp32) { return core.insn_mov_r64_mrsp_disp32(reg, disp32) }
 fn insn_mov_mrsp_disp32_r64(disp32, reg) { return core.insn_mov_mrsp_disp32_r64(disp32, reg) }
 fn insn_add_r32_imm32(reg, imm32) { return core.insn_add_r32_imm32(reg, imm32) }

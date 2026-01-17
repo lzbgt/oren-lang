@@ -27,6 +27,10 @@ The authoritative source content is stored in-tree under:
   - x64 syscall lowering (Win64 ABI, kernel32 IAT): `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net.oren`
   - PE imports (KERNEL32.dll): `lib/compiler/x64_pe.oren` (appended imports; existing IAT offsets preserved)
   - Non-Windows fallback: these syscalls lower to `-ENOSYS` on x64/arm64 so runtime-gated code keeps compiling.
+- 2026-01-17: x64-windows also has WinSock overlapped syscall plumbing needed for IOCP completion-based NET ops:
+  - `sys_wsarecv` / `sys_wsasend` lower to `WSARecv` / `WSASend` (treats `WSA_IO_PENDING` as success).
+  - PE imports (WS2_32.dll) appended: `WSARecv`, `WSASend`.
+  - Capsule boundary hooks exist (NET capability required): `lib/runtime_native/070_capsule_net_hooks.oren`.
 
 ## Why IOCP (vs select-v0)
 
