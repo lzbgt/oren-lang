@@ -1,0 +1,27 @@
+All pages downloaded on 2026-01-17.
+
+IOCP overview:
+- https://learn.microsoft.com/en-us/windows/win32/fileio/i-o-completion-ports
+
+IOCP APIs:
+- https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-createiocompletionport
+- https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-getqueuedcompletionstatus
+- https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-getqueuedcompletionstatusex
+- https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-postqueuedcompletionstatus
+- https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-cancelioex
+
+Winsock overlapped + extension fns:
+- https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsarecv
+- https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsasend
+- https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsaioctl
+- https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsagetoverlappedresult
+- https://learn.microsoft.com/en-us/windows/win32/api/winsock2/ns-winsock2-wsaoverlapped
+- https://learn.microsoft.com/en-us/windows/win32/api/minwinbase/ns-minwinbase-overlapped
+- https://learn.microsoft.com/en-us/windows/win32/api/mswsock/nf-mswsock-acceptex
+- https://learn.microsoft.com/en-us/windows/win32/api/mswsock/nc-mswsock-lpfn_connectex
+
+Winsock model docs:
+- https://learn.microsoft.com/en-us/windows/win32/fileio/synchronous-and-asynchronous-i-o
+- https://learn.microsoft.com/en-us/windows/win32/winsock/overlapped-i-o-and-event-objects-2
+- https://learn.microsoft.com/en-us/windows/win32/winsock/socket-i-o-2
+- https://learn.microsoft.com/en-us/windows/win32/winsock/winsock-ioctls

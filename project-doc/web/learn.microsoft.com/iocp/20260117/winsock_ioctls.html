@@ -1,0 +1,1847 @@
+ <!DOCTYPE html>
+		<html
+			class="layout layout-holy-grail   show-table-of-contents conceptual show-breadcrumb default-focus"
+			lang="en-us"
+			dir="ltr"
+			data-authenticated="false"
+			data-auth-status-determined="false"
+			data-target="docs"
+			x-ms-format-detection="none"
+		>
+			
+		<head>
+			<title>Winsock IOCTLs (Winsock2.h) - Win32 apps | Microsoft Learn</title>
+			<meta charset="utf-8" />
+			<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+			<meta name="color-scheme" content="light dark" />
+
+			<meta name="description" content="Navigation topic for Windows Sockets (Winsock) socket IOCTLs." />
+			<link rel="canonical" href="https://learn.microsoft.com/en-us/windows/win32/winsock/winsock-ioctls" /> 
+
+			<!-- Non-customizable open graph and sharing-related metadata -->
+			<meta name="twitter:card" content="summary_large_image" />
+			<meta name="twitter:site" content="@MicrosoftLearn" />
+			<meta property="og:type" content="website" />
+			<meta property="og:image:alt" content="Microsoft Learn" />
+			<meta property="og:image" content="https://learn.microsoft.com/en-us/media/open-graph-image.png" />
+			<!-- Page specific open graph and sharing-related metadata -->
+			<meta property="og:title" content="Winsock IOCTLs (Winsock2.h) - Win32 apps" />
+			<meta property="og:url" content="https://learn.microsoft.com/en-us/windows/win32/winsock/winsock-ioctls" />
+			<meta property="og:description" content="Navigation topic for Windows Sockets (Winsock) socket IOCTLs." />
+			<meta name="platform_id" content="61496ea5-5063-23cf-30fd-0c5a6777d6bb" /> <meta name="scope" content="Windows,Desktop" />
+			<meta name="locale" content="en-us" />
+			 <meta name="adobe-target" content="true" /> 
+			<meta name="uhfHeaderId" content="MSDocsHeader-WinDevCenter" />
+
+			<meta name="page_type" content="conceptual" />
+
+			<!--page specific meta tags-->
+			
+
+			<!-- custom meta tags -->
+			
+		<meta name="breadcrumb_path" content="/windows/desktop/breadcrumb/toc.json" />
+	
+		<meta name="recommendations" content="true" />
+	
+		<meta name="ms.service" content="windows-api-desktop-tech" />
+	
+		<meta name="ms.subservice" content="networking" />
+	
+		<meta name="ms.author" content="stwhi" />
+	
+		<meta name="author" content="stevewhims" />
+	
+		<meta name="feedback_system" content="Standard" />
+	
+		<meta name="feedback_product_url" content="https://www.microsoft.com/en-us/windowsinsider/feedbackhub/fb" />
+	
+		<meta name="feedback_help_link_url" content="https://learn.microsoft.com/answers/tags/224/windows-api-win32/" />
+	
+		<meta name="feedback_help_link_type" content="get-help-at-qna" />
+	
+		<meta name="ms.assetid" content="6a63c2c9-4e09-4a62-b39f-3ccb26287da8" />
+	
+		<meta name="ms.topic" content="reference" />
+	
+		<meta name="ms.date" content="2018-05-31T00:00:00Z" />
+	
+		<meta name="document_id" content="a41a5f4f-276c-98a6-888f-2037f7d8ea49" />
+	
+		<meta name="document_version_independent_id" content="a12937b8-c608-dce9-ef7d-8945c615865f" />
+	
+		<meta name="updated_at" content="2025-05-14T18:19:00Z" />
+	
+		<meta name="original_content_git_url" content="https://github.com/MicrosoftDocs/win32-pr/blob/live/desktop-src/WinSock/winsock-ioctls.md" />
+	
+		<meta name="gitcommit" content="https://github.com/MicrosoftDocs/win32-pr/blob/6d53d13f0e4634bd03b16f76997a4fa2758cada8/desktop-src/WinSock/winsock-ioctls.md" />
+	
+		<meta name="git_commit_id" content="6d53d13f0e4634bd03b16f76997a4fa2758cada8" />
+	
+		<meta name="site_name" content="Docs" />
+	
+		<meta name="depot_name" content="MSDN.win32" />
+	
+		<meta name="schema" content="Conceptual" />
+	
+		<meta name="toc_rel" content="toc.json" />
+	
+		<meta name="pdf_url_template" content="https://learn.microsoft.com/pdfstore/en-us/MSDN.win32/{branchName}{pdfName}" />
+	
+		<meta name="word_count" content="7488" />
+	
+		<meta name="asset_id" content="winsock/winsock-ioctls" />
+	
+		<meta name="moniker_range_name" content="" />
+	
+		<meta name="item_type" content="Content" />
+	
+		<meta name="source_path" content="desktop-src/WinSock/winsock-ioctls.md" />
+	
+		<meta name="previous_tlsh_hash" content="C82D8633C62D8702FFC3DD0A166BE2E150F0D0D83FB06ED0146A6A61544A3FB35F05A5CAD653BB96237142221291B50F53DBFBAE81BC637B016614A9CA5C3643DB9C3BBBE5" />
+	
+		<meta name="github_feedback_content_git_url" content="https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/WinSock/winsock-ioctls.md" />
+	 
+		<meta name="cmProducts" content="https://authoring-docs-microsoft.poolparty.biz/devrel/bcbcbad5-4208-4783-8035-8481272c98b8" data-source="generated" />
+	
+		<meta name="cmProducts" content="https://authoring-docs-microsoft.poolparty.biz/devrel/540ac133-a371-4dbb-8f94-28d6cc77a70b" data-source="generated" />
+	
+		<meta name="spProducts" content="https://authoring-docs-microsoft.poolparty.biz/devrel/43b2e5aa-8a6d-4de2-a252-692232e5edc8" data-source="generated" />
+	
+		<meta name="spProducts" content="https://authoring-docs-microsoft.poolparty.biz/devrel/60bfc045-f127-4841-9d00-ea35495a5800" data-source="generated" />
+	
+
+			<!-- assets and js globals -->
+			
+			<link rel="stylesheet" href="/static/assets/0.4.03301.7415-7dd881c1/styles/site-ltr.css" />
+			
+			<link rel="preconnect" href="//mscom.demdex.net" crossorigin />
+						<link rel="dns-prefetch" href="//target.microsoft.com" />
+						<link rel="dns-prefetch" href="//microsoftmscompoc.tt.omtrdc.net" />
+						<link
+							rel="preload"
+							as="script"
+							href="/static/third-party/adobe-target/at-js/2.9.0/at.js"
+							integrity="sha384-l4AKhsU8cUWSht4SaJU5JWcHEWh1m4UTqL08s6b/hqBLAeIDxTNl+AMSxTLx6YMI"
+							crossorigin="anonymous"
+							id="adobe-target-script"
+							type="application/javascript"
+						/>
+			<script src="https://wcpstatic.microsoft.com/mscc/lib/v2/wcp-consent.js"></script>
+			<script src="https://js.monitor.azure.com/scripts/c/ms.jsll-4.min.js"></script>
+			<script src="/_themes/docs.theme/master/en-us/_themes/global/deprecation.js"></script>
+
+			<!-- msdocs global object -->
+			<script id="msdocs-script">
+		var msDocs = {
+  "environment": {
+    "accessLevel": "online",
+    "azurePortalHostname": "portal.azure.com",
+    "reviewFeatures": false,
+    "supportLevel": "production",
+    "systemContent": true,
+    "siteName": "learn",
+    "legacyHosting": false
+  },
+  "data": {
+    "contentLocale": "en-us",
+    "contentDir": "ltr",
+    "userLocale": "en-us",
+    "userDir": "ltr",
+    "pageTemplate": "Conceptual",
+    "brand": "",
+    "context": {},
+    "standardFeedback": true,
+    "showFeedbackReport": false,
+    "feedbackHelpLinkType": "get-help-at-qna",
+    "feedbackHelpLinkUrl": "https://learn.microsoft.com/answers/tags/224/windows-api-win32/",
+    "feedbackSystem": "Standard",
+    "feedbackGitHubRepo": "",
+    "feedbackProductUrl": "https://www.microsoft.com/en-us/windowsinsider/feedbackhub/fb",
+    "extendBreadcrumb": false,
+    "isEditDisplayable": true,
+    "isPrivateUnauthorized": false,
+    "hideViewSource": false,
+    "isPermissioned": false,
+    "hasRecommendations": false,
+    "contributors": [
+      {
+        "name": "stevewhims",
+        "url": "https://github.com/stevewhims"
+      },
+      {
+        "name": "mingpepe",
+        "url": "https://github.com/mingpepe"
+      },
+      {
+        "name": "QuinnRadich",
+        "url": "https://github.com/QuinnRadich"
+      },
+      {
+        "name": "v-kents",
+        "url": "https://github.com/v-kents"
+      },
+      {
+        "name": "DCtheGeek",
+        "url": "https://github.com/DCtheGeek"
+      },
+      {
+        "name": "wenhg",
+        "url": "https://github.com/wenhg"
+      },
+      {
+        "name": "drewbatgit",
+        "url": "https://github.com/drewbatgit"
+      },
+      {
+        "name": "mijacobs",
+        "url": "https://github.com/mijacobs"
+      },
+      {
+        "name": "msatranjr",
+        "url": "https://github.com/msatranjr"
+      }
+    ]
+  },
+  "functions": {}
+};;
+	</script>
+
+			<!-- base scripts, msdocs global should be before this -->
+			<script src="/static/assets/0.4.03301.7415-7dd881c1/scripts/en-us/index-docs.js"></script>
+			
+
+			<!-- json-ld -->
+			
+		</head>
+	
+			<body
+				id="body"
+				data-bi-name="body"
+				class="layout-body "
+				lang="en-us"
+				dir="ltr"
+			>
+				<header class="layout-body-header">
+		<div class="header-holder has-default-focus">
+			
+		<a
+			href="#main"
+			
+			style="z-index: 1070"
+			class="outline-color-text visually-hidden-until-focused position-fixed inner-focus focus-visible top-0 left-0 right-0 padding-xs text-align-center background-color-body"
+			
+		>
+			Skip to main content
+		</a>
+	
+		<a
+			href="#"
+			data-skip-to-ask-learn
+			style="z-index: 1070"
+			class="outline-color-text visually-hidden-until-focused position-fixed inner-focus focus-visible top-0 left-0 right-0 padding-xs text-align-center background-color-body"
+			hidden
+		>
+			Skip to Ask Learn chat experience
+		</a>
+	
+
+			<div hidden id="cookie-consent-holder" data-test-id="cookie-consent-container"></div>
+			<!-- Unsupported browser warning -->
+			<div
+				id="unsupported-browser"
+				style="background-color: white; color: black; padding: 16px; border-bottom: 1px solid grey;"
+				hidden
+			>
+				<div style="max-width: 800px; margin: 0 auto;">
+					<p style="font-size: 24px">This browser is no longer supported.</p>
+					<p style="font-size: 16px; margin-top: 16px;">
+						Upgrade to Microsoft Edge to take advantage of the latest features, security updates, and technical support.
+					</p>
+					<div style="margin-top: 12px;">
+						<a
+							href="https://go.microsoft.com/fwlink/p/?LinkID=2092881 "
+							style="background-color: #0078d4; border: 1px solid #0078d4; color: white; padding: 6px 12px; border-radius: 2px; display: inline-block;"
+						>
+							Download Microsoft Edge
+						</a>
+						<a
+							href="https://learn.microsoft.com/en-us/lifecycle/faq/internet-explorer-microsoft-edge"
+							style="background-color: white; padding: 6px 12px; border: 1px solid #505050; color: #171717; border-radius: 2px; display: inline-block;"
+						>
+							More info about Internet Explorer and Microsoft Edge
+						</a>
+					</div>
+				</div>
+			</div>
+			<!-- site header -->
+			<header
+				id="ms--site-header"
+				data-test-id="site-header-wrapper"
+				role="banner"
+				itemscope="itemscope"
+				itemtype="http://schema.org/Organization"
+			>
+				<div
+					id="ms--mobile-nav"
+					class="site-header display-none-tablet padding-inline-none gap-none"
+					data-bi-name="mobile-header"
+					data-test-id="mobile-header"
+				></div>
+				<div
+					id="ms--primary-nav"
+					class="site-header display-none display-flex-tablet"
+					data-bi-name="L1-header"
+					data-test-id="primary-header"
+				></div>
+				<div
+					id="ms--secondary-nav"
+					class="site-header display-none display-flex-tablet"
+					data-bi-name="L2-header"
+					data-test-id="secondary-header"
+					
+				></div>
+			</header>
+			
+		<!-- banner -->
+		<div data-banner>
+			<div id="disclaimer-holder"></div>
+			
+		</div>
+		<!-- banner end -->
+	
+		</div>
+	</header>
+				 <section
+					id="layout-body-menu"
+					class="layout-body-menu display-flex"
+					data-bi-name="menu"
+			  >
+					
+		<div
+			id="left-container"
+			class="left-container display-none display-block-tablet padding-inline-sm padding-bottom-sm width-full"
+			data-toc-container="true"
+		>
+			<!-- Regular TOC content (default) -->
+			<div id="ms--toc-content" class="height-full">
+				<nav
+					id="affixed-left-container"
+					class="margin-top-sm-tablet position-sticky display-flex flex-direction-column"
+					aria-label="Primary"
+					data-bi-name="left-toc"
+					role="navigation"
+				></nav>
+			</div>
+			<!-- Collapsible TOC content (hidden by default) -->
+			<div id="ms--toc-content-collapsible" class="height-full" hidden>
+				<nav
+					id="affixed-left-container"
+					class="margin-top-sm-tablet position-sticky display-flex flex-direction-column"
+					aria-label="Primary"
+					data-bi-name="left-toc"
+					role="navigation"
+				>
+					<div
+						id="ms--collapsible-toc-header"
+						class="display-flex justify-content-flex-end margin-bottom-xxs"
+					>
+						<button
+							type="button"
+							class="button button-clear inner-focus"
+							data-collapsible-toc-toggle
+							aria-expanded="true"
+							aria-controls="ms--collapsible-toc-content"
+							aria-label="Table of contents"
+						>
+							<span class="icon font-size-h4" aria-hidden="true">
+								<span class="docon docon-panel-left-contract"></span>
+							</span>
+						</button>
+					</div>
+				</nav>
+			</div>
+		</div>
+	
+			  </section>
+
+				<main
+					id="main"
+					role="main"
+					class="layout-body-main "
+					data-bi-name="content"
+					lang="en-us"
+					dir="ltr"
+				>
+					
+			<div
+		id="ms--content-header"
+		class="content-header default-focus border-bottom-none"
+		data-bi-name="content-header"
+	>
+		<div class="content-header-controls margin-xxs margin-inline-sm-tablet">
+			<button
+				type="button"
+				class="contents-button button button-sm margin-right-xxs"
+				data-bi-name="contents-expand"
+				aria-haspopup="true"
+				data-contents-button
+			>
+				<span class="icon" aria-hidden="true"><span class="docon docon-menu"></span></span>
+				<span class="contents-expand-title"> Table of contents </span>
+			</button>
+			<button
+				type="button"
+				class="ap-collapse-behavior ap-expanded button button-sm"
+				data-bi-name="ap-collapse"
+				aria-controls="action-panel"
+			>
+				<span class="icon" aria-hidden="true"><span class="docon docon-exit-mode"></span></span>
+				<span>Exit editor mode</span>
+			</button>
+		</div>
+	</div>
+			<div data-main-column class="padding-sm padding-top-none padding-top-sm-tablet">
+				<div>
+					
+		<div id="article-header" class="background-color-body margin-bottom-xs display-none-print">
+			<div class="display-flex align-items-center justify-content-space-between">
+				
+		<details
+			id="article-header-breadcrumbs-overflow-popover"
+			class="popover"
+			data-for="article-header-breadcrumbs"
+		>
+			<summary
+				class="button button-clear button-primary button-sm inner-focus"
+				aria-label="All breadcrumbs"
+			>
+				<span class="icon">
+					<span class="docon docon-more"></span>
+				</span>
+			</summary>
+			<div id="article-header-breadcrumbs-overflow" class="popover-content padding-none"></div>
+		</details>
+
+		<bread-crumbs
+			id="article-header-breadcrumbs"
+			role="group"
+			aria-label="Breadcrumbs"
+			data-test-id="article-header-breadcrumbs"
+			class="overflow-hidden flex-grow-1 margin-right-sm margin-right-md-tablet margin-right-lg-desktop margin-left-negative-xxs padding-left-xxs"
+		></bread-crumbs>
+	 
+		<div
+			id="article-header-page-actions"
+			class="opacity-none margin-left-auto display-flex flex-wrap-no-wrap align-items-stretch"
+		>
+			
+		<button
+			class="button button-sm border-none inner-focus display-none-tablet flex-shrink-0 "
+			data-bi-name="ask-learn-assistant-entry"
+			data-test-id="ask-learn-assistant-modal-entry-mobile"
+			data-ask-learn-modal-entry
+			
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			aria-label="Ask Learn"
+			hidden
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+		</button>
+		<button
+			class="button button-sm display-none display-inline-flex-tablet display-none-desktop flex-shrink-0 margin-right-xxs border-color-ask-learn "
+			data-bi-name="ask-learn-assistant-entry"
+			
+			data-test-id="ask-learn-assistant-modal-entry-tablet"
+			data-ask-learn-modal-entry
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			hidden
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+			<span>Ask Learn</span>
+		</button>
+		<button
+			class="button button-sm display-none flex-shrink-0 display-inline-flex-desktop margin-right-xxs border-color-ask-learn "
+			data-bi-name="ask-learn-assistant-entry"
+			
+			data-test-id="ask-learn-assistant-flyout-entry"
+			data-ask-learn-flyout-entry
+			data-flyout-button="toggle"
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			aria-controls="ask-learn-flyout"
+			hidden
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+			<span>Ask Learn</span>
+		</button>
+	 
+		<button
+			type="button"
+			id="ms--focus-mode-button"
+			data-focus-mode
+			data-bi-name="focus-mode-entry"
+			class="button button-sm flex-shrink-0 margin-right-xxs display-none display-inline-flex-desktop"
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-glasses"></span>
+			</span>
+			<span>Focus mode</span>
+		</button>
+	 
+
+			<details class="popover popover-right" id="article-header-page-actions-overflow">
+				<summary
+					class="justify-content-flex-start button button-clear button-sm button-primary inner-focus"
+					aria-label="More actions"
+					title="More actions"
+				>
+					<span class="icon" aria-hidden="true">
+						<span class="docon docon-more-vertical"></span>
+					</span>
+				</summary>
+				<div class="popover-content">
+					
+		<button
+			data-page-action-item="overflow-mobile"
+			type="button"
+			class="button-block button-sm inner-focus button button-clear display-none-tablet justify-content-flex-start text-align-left"
+			data-bi-name="contents-expand"
+			data-contents-button
+			data-popover-close
+		>
+			<span class="icon">
+				<span class="docon docon-editor-list-bullet" aria-hidden="true"></span>
+			</span>
+			<span class="contents-expand-title">Table of contents</span>
+		</button>
+	 
+		<a
+			id="lang-link-overflow"
+			class="button-sm inner-focus button button-clear button-block justify-content-flex-start text-align-left"
+			data-bi-name="language-toggle"
+			data-page-action-item="overflow-all"
+			data-check-hidden="true"
+			data-read-in-link
+			href="#"
+			hidden
+		>
+			<span class="icon" aria-hidden="true" data-read-in-link-icon>
+				<span class="docon docon-locale-globe"></span>
+			</span>
+			<span data-read-in-link-text>Read in English</span>
+		</a>
+	 
+		<button
+			type="button"
+			class="collection button button-clear button-sm button-block justify-content-flex-start text-align-left inner-focus"
+			data-list-type="collection"
+			data-bi-name="collection"
+			data-page-action-item="overflow-all"
+			data-check-hidden="true"
+			data-popover-close
+		>
+			<span class="icon" aria-hidden="true">
+				<span class="docon docon-circle-addition"></span>
+			</span>
+			<span class="collection-status">Add</span>
+		</button>
+	
+					
+		<button
+			type="button"
+			class="collection button button-block button-clear button-sm justify-content-flex-start text-align-left inner-focus"
+			data-list-type="plan"
+			data-bi-name="plan"
+			data-page-action-item="overflow-all"
+			data-check-hidden="true"
+			data-popover-close
+			hidden
+		>
+			<span class="icon" aria-hidden="true">
+				<span class="docon docon-circle-addition"></span>
+			</span>
+			<span class="plan-status">Add to plan</span>
+		</button>
+	  
+		<a
+			data-contenteditbtn
+			class="button button-clear button-block button-sm inner-focus justify-content-flex-start text-align-left text-decoration-none"
+			data-bi-name="edit"
+			
+			href="https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/WinSock/winsock-ioctls.md"
+			data-original_content_git_url="https://github.com/MicrosoftDocs/win32-pr/blob/live/desktop-src/WinSock/winsock-ioctls.md"
+			data-original_content_git_url_template="{repo}/blob/{branch}/desktop-src/WinSock/winsock-ioctls.md"
+			data-pr_repo=""
+			data-pr_branch=""
+		>
+			<span class="icon" aria-hidden="true">
+				<span class="docon docon-edit-outline"></span>
+			</span>
+			<span>Edit</span>
+		</a>
+	
+					
+		<hr class="margin-block-xxs" />
+		<h4 class="font-size-sm padding-left-xxs">Share via</h4>
+		
+					<a
+						class="button button-clear button-sm inner-focus button-block justify-content-flex-start text-align-left text-decoration-none share-facebook"
+						data-bi-name="facebook"
+						data-page-action-item="overflow-all"
+						href="#"
+					>
+						<span class="icon color-primary" aria-hidden="true">
+							<span class="docon docon-facebook-share"></span>
+						</span>
+						<span>Facebook</span>
+					</a>
+
+					<a
+						href="#"
+						class="button button-clear button-sm inner-focus button-block justify-content-flex-start text-align-left text-decoration-none share-twitter"
+						data-bi-name="twitter"
+						data-page-action-item="overflow-all"
+					>
+						<span class="icon color-text" aria-hidden="true">
+							<span class="docon docon-xlogo-share"></span>
+						</span>
+						<span>x.com</span>
+					</a>
+
+					<a
+						href="#"
+						class="button button-clear button-sm inner-focus button-block justify-content-flex-start text-align-left text-decoration-none share-linkedin"
+						data-bi-name="linkedin"
+						data-page-action-item="overflow-all"
+					>
+						<span class="icon color-primary" aria-hidden="true">
+							<span class="docon docon-linked-in-logo"></span>
+						</span>
+						<span>LinkedIn</span>
+					</a>
+					<a
+						href="#"
+						class="button button-clear button-sm inner-focus button-block justify-content-flex-start text-align-left text-decoration-none share-email"
+						data-bi-name="email"
+						data-page-action-item="overflow-all"
+					>
+						<span class="icon color-primary" aria-hidden="true">
+							<span class="docon docon-mail-message"></span>
+						</span>
+						<span>Email</span>
+					</a>
+			  
+	 
+		<hr class="margin-block-xxs" />
+		<button
+			class="button button-block button-clear button-sm justify-content-flex-start text-align-left inner-focus"
+			type="button"
+			data-bi-name="print"
+			data-page-action-item="overflow-all"
+			data-popover-close
+			data-print-page
+			data-check-hidden="true"
+		>
+			<span class="icon color-primary" aria-hidden="true">
+				<span class="docon docon-print"></span>
+			</span>
+			<span>Print</span>
+		</button>
+	
+				</div>
+			</details>
+		</div>
+	
+			</div>
+		</div>
+	  
+		<!-- privateUnauthorizedTemplate is hidden by default -->
+		<div unauthorized-private-section data-bi-name="permission-content-unauthorized-private" hidden>
+			<hr class="hr margin-top-xs margin-bottom-sm" />
+			<div class="notification notification-info">
+				<div class="notification-content">
+					<p class="margin-top-none notification-title">
+						<span class="icon">
+							<span class="docon docon-exclamation-circle-solid" aria-hidden="true"></span>
+						</span>
+						<span>Note</span>
+					</p>
+					<p class="margin-top-none authentication-determined not-authenticated">
+						Access to this page requires authorization. You can try <a class="docs-sign-in" href="#" data-bi-name="permission-content-sign-in">signing in</a> or <a  class="docs-change-directory" data-bi-name="permisson-content-change-directory">changing directories</a>.
+					</p>
+					<p class="margin-top-none authentication-determined authenticated">
+						Access to this page requires authorization. You can try <a class="docs-change-directory" data-bi-name="permisson-content-change-directory">changing directories</a>.
+					</p>
+				</div>
+			</div>
+		</div>
+	
+					<div class="content"><h1 id="winsock-ioctls">Winsock IOCTLs</h1></div>
+					
+		<div
+			id="article-metadata"
+			data-bi-name="article-metadata"
+			data-test-id="article-metadata"
+			class="page-metadata-container display-flex gap-xxs justify-content-space-between align-items-center flex-wrap-wrap"
+		>
+			 
+				<div
+					id="user-feedback"
+					class="margin-block-xxs display-none display-none-print"
+					hidden
+					data-hide-on-archived
+				>
+					
+		<button
+			id="user-feedback-button"
+			data-test-id="conceptual-feedback-button"
+			class="button button-sm button-clear button-primary display-none"
+			type="button"
+			data-bi-name="user-feedback-button"
+			data-user-feedback-button
+			hidden
+		>
+			<span class="icon" aria-hidden="true">
+				<span class="docon docon-like"></span>
+			</span>
+			<span>Feedback</span>
+		</button>
+	
+				</div>
+		  
+		</div>
+	 
+		<div data-id="ai-summary" hidden>
+			<div id="ms--ai-summary-cta" class="margin-top-xs display-flex align-items-center">
+				<span class="icon" aria-hidden="true">
+					<span class="docon docon-sparkle-fill gradient-text-vivid"></span>
+				</span>
+				<button
+					id="ms--ai-summary"
+					type="button"
+					class="tag tag-sm tag-suggestion margin-left-xxs"
+					data-test-id="ai-summary-cta"
+					data-bi-name="ai-summary-cta"
+					data-an="ai-summary"
+				>
+					<span class="ai-summary-cta-text">
+						Summarize this article for me
+					</span>
+				</button>
+			</div>
+			<!-- Slot where the client will render the summary card after the user clicks the CTA -->
+			<div id="ms--ai-summary-header" class="margin-top-xs"></div>
+		</div>
+	 
+		<nav
+			id="center-doc-outline"
+			class="doc-outline is-hidden-desktop display-none-print margin-bottom-sm"
+			data-bi-name="intopic toc"
+			aria-label="In this article"
+		>
+			<h2 id="ms--in-this-article" class="title is-6 margin-block-xs">
+				In this article
+			</h2>
+		</nav>
+	
+					<div class="content"><p>This section describes Winsock Socket input/output controls (IOCTLs) for various editions of Windows operating systems. Use the <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-wsaioctl" data-linktype="absolute-path"><strong>WSAIoctl</strong></a> or <a href="/en-us/previous-versions/windows/hardware/network/ff566296(v=vs.85)" data-linktype="absolute-path"><strong>WSPIoctl</strong></a> function to issue a Winsock IOCTL to control the mode of a socket, the transport protocol, or the communications subsystem.</p>
+<p>Some Winsock IOCTLs require more explanation than this table can convey; such options contain links to additional topics.</p>
+<p>It is possible to adopt an encoding scheme that preserves the currently defined <a href="/en-us/windows/desktop/api/winsock/nf-winsock-ioctlsocket" data-linktype="absolute-path"><strong>ioctlsocket</strong></a> opcodes while providing a convenient way to partition the opcode identifier space in as much as the <em>dwIoControlCode</em> parameter is now a 32-bit entity. The <em>dwIoControlCode</em> parameter is built to allow for protocol and vendor independence when adding new control codes while retaining backward compatibility with the Windows Sockets 1.1 and Unix control codes. The <em>dwIoControlCode</em> parameter has the following form.</p>
+<table>
+<thead>
+<tr>
+<th>I</th>
+<th>O</th>
+<th>V</th>
+<th>T</th>
+<th>Vendor/address family</th>
+<th>Code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3</td>
+<td>3</td>
+<td>2</td>
+<td>2 2</td>
+<td>2 2 2 2 2 2 2 1 1 1 1</td>
+<td>1 1 1 1 1 1</td>
+</tr>
+<tr>
+<td>1</td>
+<td>0</td>
+<td>9</td>
+<td>8 7</td>
+<td>6 5 4 3 2 1 0 9 8 7 6</td>
+<td>5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0</td>
+</tr>
+</tbody>
+</table>
+<div class="NOTE">
+<p>Note</p>
+<p>The bits in <em>dwIoControlCode</em> parameter displayed in the table must be read vertically from top to bottom by column. So the left-most bit is bit 31, the next bit is bit 30, and the right-most bit is bit 0.</p>
+</div>
+<p>I is set if the input buffer is valid for the code, as with <strong>IOC_IN</strong>.</p>
+<p>O is set if the output buffer is valid for the code, as with <strong>IOC_OUT</strong>. Control codes using both input and output buffers set both I and O.</p>
+<p>V is set if there are no parameters for the code, as with <strong>IOC_VOID</strong>.</p>
+<p>T is a 2-bit quantity that defines the type of the IOCTL. The following values are defined:</p>
+<p>0 The IOCTL is a standard Unix IOCTL code, as with <strong>FIONREAD</strong> and <strong>FIONBIO</strong>.</p>
+<p>1 The IOCTL is a generic Windows Sockets 2 IOCTL code. New IOCTL codes defined for Windows Sockets 2 will have T == 1.</p>
+<p>2 The IOCTL applies only to a specific address family.</p>
+<p>3 The IOCTL applies only to a specific vendor's provider, as with <strong>IOC_VENDOR</strong>. This type allows companies to be assigned a vendor number that appears in the <strong>Vendor/Address family</strong> parameter. Then, the vendor can define new IOCTLs specific to that vendor without having to register the IOCTL with a clearinghouse, thereby providing vendor flexibility and privacy.</p>
+<p><strong>Vendor/Address family</strong> An 11-bit quantity that defines the vendor who owns the code (if T == 3) or that contains the address family to which the code applies (if T == 2). If this is a Unix IOCTL code (T == 0) then this parameter has the same value as the code on Unix. If this is a generic Windows Sockets 2 IOCTL (T == 1) then this parameter can be used as an extension of the code parameter to provide additional code values.</p>
+<p><strong>Code</strong> The 16-bit quantity that contains the specific IOCTL code for the operation.</p>
+<h2 id="unix-ioctl-codes">Unix IOCTL codes</h2>
+<p>The following Unix IOCTL codes (commands) are supported.</p>
+<h3 id="fionbio">FIONBIO</h3>
+<p>Enable or disable non-blocking mode on socket <em>s</em>. The <em>lpvInBuffer</em> parameter points at an <strong>unsigned long</strong> (QoS), which is nonzero if non-blocking mode is to be enabled and zero if it is to be disabled. When a socket is created, it operates in blocking mode (that is, non-blocking mode is disabled). This is consistent with BSD sockets.</p>
+<p>The <a href="/en-us/windows/desktop/api/winsock/nf-winsock-wsaasyncselect" data-linktype="absolute-path"><strong>WSAAsyncSelect</strong></a> or <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-wsaeventselect" data-linktype="absolute-path"><strong>WSAEventSelect</strong></a> routine automatically sets a socket to non-blocking mode. If <strong>WSAAsyncSelect</strong> or <strong>WSAEventSelect</strong> has been issued on a socket, then any attempt to use <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-wsaioctl" data-linktype="absolute-path"><strong>WSAIoctl</strong></a> to set the socket back to blocking mode will fail with WSAEINVAL. To set the socket back to blocking mode, an application must first disable <strong>WSAAsyncSelect</strong> by calling <strong>WSAAsyncSelect</strong> with the <em>lEvent</em> parameter equal to zero, or disable <strong>WSAEventSelect</strong> by calling <strong>WSAEventSelect</strong> with the <em>lNetworkEvents</em> parameter equal to zero.</p>
+<h3 id="fionread">FIONREAD</h3>
+<p>Determine the amount of data that can be read atomically from socket <em>s</em>. The <em>lpvOutBuffer</em> parameter points at an <strong>unsigned long</strong> in which <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-wsaioctl" data-linktype="absolute-path"><strong>WSAIoctl</strong></a> stores the result.</p>
+<p>If the socket passed in the <em>s</em> parameter is stream oriented (for example, type SOCK_STREAM), <strong>FIONREAD</strong> returns the total amount of data that can be read in a single receive operation; this is normally the same as the total amount of data queued on the socket (since a data stream is byte-oriented, this is not guaranteed).</p>
+<p>If the socket passed in the <em>s</em> parameter is message oriented (for example, type SOCK_DGRAM), <strong>FIONREAD</strong> returns the reports the total number of bytes available to read, not the size of the first datagram (message) queued on the socket.</p>
+<h3 id="siocatmark">SIOCATMARK</h3>
+<p>Determine whether or not all OOB data has been read. This applies only to a socket of stream-style (for example, type SOCK_STREAM) that has been configured for inline reception of any OOB data (SO_OOBINLINE). If no OOB data is waiting to be read, the operation returns TRUE. Otherwise, it returns <strong>FALSE</strong>, and the next receive operation performed on the socket will retrieve some or all of the data preceding the mark; the application should use the <strong>SIOCATMARK</strong> operation to determine whether any remains. If there is any normal data preceding the urgent (out of band) data, it will be received in order. (Note that <a href="/en-us/windows/desktop/api/winsock/nf-winsock-recv" data-linktype="absolute-path"><strong>recv</strong></a> operations will never mix OOB and normal data in the same call.) <em>lpvOutBuffer</em> points at a BOOL in which <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-wsaioctl" data-linktype="absolute-path"><strong>WSAIoctl</strong></a> stores the result.</p>
+<h2 id="windows-sockets-2-commands">Windows Sockets 2 commands</h2>
+<p>The following Windows Sockets 2 commands are supported.</p>
+<h3 id="sio_acquire_port_reservation-opcode-setting-i-t3">SIO_ACQUIRE_PORT_RESERVATION (opcode setting: I, T==3)</h3>
+<p>Request a runtime reservation for a block of TCP or UDP ports. For runtime port reservations, the port pool requires that reservations be consumed from the process on whose socket the reservation was granted. Runtime port reservations last only as long as the lifetime of the socket on which the <a href="/en-us/windows/win32/winsock/sio-acquire-port-reservation" data-linktype="absolute-path"><strong>SIO_ACQUIRE_PORT_RESERVATION</strong></a> IOCTL was called. In contrast, persistent port reservations created using the <a href="/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-createpersistenttcpportreservation" data-linktype="absolute-path"><strong>CreatePersistentTcpPortReservation</strong></a> or <a href="/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-createpersistentudpportreservation" data-linktype="absolute-path"><strong>CreatePersistentUdpPortReservation</strong></a> function may be consumed by any process with the ability to obtain persistent reservations.</p>
+<p>For more detailed information, see the <a href="/en-us/windows/win32/winsock/sio-acquire-port-reservation" data-linktype="absolute-path"><strong>SIO_ACQUIRE_PORT_RESERVATION</strong></a> reference.</p>
+<p><a href="/en-us/windows/win32/winsock/sio-acquire-port-reservation" data-linktype="absolute-path"><strong>SIO_ACQUIRE_PORT_RESERVATION</strong></a> is supported on Windows&nbsp;Vista and later versions of the operating system.</p>
+<h3 id="sio_address_list_change-opcode-setting-v-t1">SIO_ADDRESS_LIST_CHANGE (opcode setting: V, T==1)</h3>
+<p>To receive notification of changes in the list of local transport addresses of the socket's protocol family to which the application can bind. No output information will be provided upon completion of this IOCTL; the completion merely indicates that list of available local address has changed and should be queried again through <strong>SIO_ADDRESS_LIST_QUERY</strong>.</p>
+<p>It is assumed (although not required) that the application uses overlapped I/O to be notified of change by completion of <strong>SIO_ADDRESS_LIST_CHANGE</strong> request. Alternatively, if the <strong>SIO_ADDRESS_LIST_CHANGE</strong> IOCTL is issued on a non-blocking socket and without overlapped parameters (<em>lpOverlapped</em>/ <em>lpCompletionRoutine</em> are set to <strong>NULL</strong>), it will complete immediately with error <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAEWOULDBLOCK</a>. The application can then wait for address list change events through a call to <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-wsaeventselect" data-linktype="absolute-path"><strong>WSAEventSelect</strong></a> or <a href="/en-us/windows/desktop/api/winsock/nf-winsock-wsaasyncselect" data-linktype="absolute-path"><strong>WSAAsyncSelect</strong></a> with FD_ADDRESS_LIST_CHANGE bit set in the network event bitmask.</p>
+<h3 id="sio_address_list_query-opcode-setting-o-t1">SIO_ADDRESS_LIST_QUERY (opcode setting: O, T==1)</h3>
+<p>Obtains a list of local transport addresses of the socket's protocol family to which the application can bind. The list of addresses varies based on address family and some addresses are excluded from the list.</p>
+<div class="NOTE">
+<p>Note</p>
+<p>In Windows Plug-n-Play environments, addresses can be added and removed dynamically. Therefore, applications cannot rely on the information returned by <strong>SIO_ADDRESS_LIST_QUERY</strong> to be persistent. Applications may register for address change notifications through the <strong>SIO_ADDRESS_LIST_CHANGE</strong> IOCTL which provides for notification through either overlapped I/O or FD_ADDRESS_LIST_CHANGE event. The following sequence of actions can be used to guarantee that the application always has current address list information:</p>
+</div>
+<ul>
+<li>Issue <strong>SIO_ADDRESS_LIST_CHANGE</strong> IOCTL</li>
+<li>Issue <strong>SIO_ADDRESS_LIST_QUERY</strong> IOCTL</li>
+<li>Whenever <strong>SIO_ADDRESS_LIST_CHANGE</strong> IOCTL notifies the application of address list change (either through overlapped I/O or by signaling FD_ADDRESS_LIST_CHANGE event), the whole sequence of actions should be repeated.</li>
+</ul>
+<p>For more detailed information, see the <a href="/en-us/windows/win32/winsock/sio-address-list-query" data-linktype="absolute-path"><strong>SIO_ADDRESS_LIST_QUERY</strong></a> reference. <strong>SIO_ADDRESS_LIST_QUERY</strong> is supported on Windows 2000 and later.</p>
+<h3 id="sio_apply_transport_setting-opcode-setting-i-t3">SIO_APPLY_TRANSPORT_SETTING (opcode setting: I, T==3)</h3>
+<p>Applies a transport setting to a socket. The transport setting being applied is based on the <a href="/en-us/windows/win32/api/transportsettingcommon/ns-transportsettingcommon-transport_setting_id" data-linktype="absolute-path"><strong>TRANSPORT_SETTING_ID</strong></a> passed in the <em>lpvInBuffer</em> parameter.</p>
+<p>The only transport setting currently defines is for the <strong>REAL_TIME_NOTIFICATION_CAPABILITY</strong> capability on a TCP socket.</p>
+<p>If the <a href="/en-us/windows/win32/api/transportsettingcommon/ns-transportsettingcommon-transport_setting_id" data-linktype="absolute-path"><strong>TRANSPORT_SETTING_ID</strong></a> passed has the <strong>Guid</strong> member set to <strong>REAL_TIME_NOTIFICATION_CAPABILITY</strong>, then this is a request to apply real time notification settings for the TCP socket used with the <a href="/en-us/uwp/api/Windows.Networking.Sockets.ControlChannelTrigger" data-linktype="absolute-path"><strong>ControlChannelTrigger</strong></a> to receive background network notifications in a Windows Store app.</p>
+<p>For more detailed information, see the <a href="/en-us/windows/win32/winsock/sio-apply-transport-setting" data-linktype="absolute-path"><strong>SIO_APPLY_TRANSPORT_SETTING</strong></a> reference. <strong>SIO_APPLY_TRANSPORT_SETTING</strong> is supported on Windows 8, Windows Server 2012, and later.</p>
+<h3 id="sio_associate_handle-opcode-setting-i-t1">SIO_ASSOCIATE_HANDLE (opcode setting: I, T==1)</h3>
+<p>Associate this socket with the specified handle of a companion interface. The input buffer contains the integer value corresponding to the manifest constant for the companion interface (for example, TH_NETDEV and TH_TAPI.), followed by a value that is a handle of the specified companion interface, along with any other required information. Refer to the appropriate section in <a href="winsock-annexes" data-linktype="relative-path">Winsock Annexes</a> for details specific to a particular companion interface. The total size is reflected in the input buffer length. No output buffer is required. The <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAENOPROTOOPT</a> error code is indicated for service providers that do not support this IOCTL. The handle associated by this IOCTL can be retrieved using <strong>SIO_TRANSLATE_HANDLE</strong>.</p>
+<p>A companion interface might be used, for example, if a particular provider provides (1) a great deal of additional controls over the behavior of a socket and (2) the controls are provider-specific enough that they do not map to existing Windows Socket functions or ones likely to be defined in the future. It is recommend that the Component Object Model (COM) be used instead of this IOCTL to discover and track other interfaces that might be supported by a socket. This IOCTL is present for (reverse) compatibility with systems where COM is not available or cannot be used for some other reason.</p>
+<h3 id="sio_associate_port_reservation-opcode-setting-i-t3">SIO_ASSOCIATE_PORT_RESERVATION (opcode setting: I, T==3)</h3>
+<p>Associate a socket with a persistent or runtime reservation for a block of TCP or UDP ports identified by the port reservation token. The <a href="/en-us/windows/win32/winsock/sio-associate-port-reservation" data-linktype="absolute-path"><strong>SIO_ASSOCIATE_PORT_RESERVATION</strong></a> IOCTL must be issued before the socket is bound. If and when the socket is bound, the port assigned to it will be selected from the port reservation identified by the given token. If no ports are available from the specified reservation, the <a href="/en-us/windows/desktop/api/winsock/nf-winsock-bind" data-linktype="absolute-path"><strong>bind</strong></a> function call will fail.</p>
+<p>For more detailed information, see the <a href="/en-us/windows/win32/winsock/sio-associate-port-reservation" data-linktype="absolute-path"><strong>SIO_ASSOCIATE_PORT_RESERVATION</strong></a> reference.</p>
+<p><a href="/en-us/windows/win32/winsock/sio-associate-port-reservation" data-linktype="absolute-path"><strong>SIO_ASSOCIATE_PORT_RESERVATION</strong></a> is supported on Windows&nbsp;Vista and later versions of the operating system.</p>
+<h3 id="sio_base_handle-opcode-setting-o-t1">SIO_BASE_HANDLE (opcode setting: O, T==1)</h3>
+<p>Retrieves the base service provider handle for a given socket. The returned value is a <strong>SOCKET</strong>.</p>
+<p>A layered service provider would never intercept this IOCTL since the return value must be the socket handle from the base service provider.</p>
+<p>If the output buffer is not large enough for a socket handle (the <em>cbOutBuffer</em> is less than the size of a <strong>SOCKET</strong>) or the <em>lpvOutBuffer</em> parameter is a <strong>NULL</strong> pointer, <strong>SOCKET_ERROR</strong> is returned as the result of this IOCTL and <a href="/en-us/windows/desktop/api/winsock/nf-winsock-wsagetlasterror" data-linktype="absolute-path"><strong>WSAGetLastError</strong></a> returns <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAEFAULT</a>.</p>
+<p><strong>SIO_BASE_HANDLE</strong> is defined in the <em>Mswsock.h</em> header file and supported on Windows&nbsp;Vista and later.</p>
+<h3 id="sio_bsp_handle-opcode-setting-o-t1">SIO_BSP_HANDLE (opcode setting: O, T==1)</h3>
+<p>Retrieves the base service provider handle for a socket used by the <a href="/en-us/windows/desktop/api/winsock2/nf-winsock2-wsasendmsg" data-linktype="absolute-path"><strong>WSASendMsg</strong></a> function. The returned value is a <strong>SOCKET</strong>.</p>
+<p>This Ioctl is used by a layered service provider to ensure the provider intercept the <a href="/en-us/windows/desktop/api/winsock2/nf-winsock2-wsasendmsg" data-linktype="absolute-path"><strong>WSASendMsg</strong></a> function.</p>
+<p>If the output buffer is not large enough for a socket handle (the <em>cbOutBuffer</em> is less than the size of a <strong>SOCKET</strong>) or the <em>lpvOutBuffer</em> parameter is a <strong>NULL</strong> pointer, <strong>SOCKET_ERROR</strong> is returned as the result of this IOCTL and <a href="/en-us/windows/desktop/api/winsock/nf-winsock-wsagetlasterror" data-linktype="absolute-path"><strong>WSAGetLastError</strong></a> returns <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAEFAULT</a>.</p>
+<p><strong>SIO_BSP_HANDLE</strong> is defined in the <em>Mswsock.h</em> header file and supported on Windows&nbsp;Vista and later.</p>
+<h3 id="sio_bsp_handle_select-opcode-setting-o-t1">SIO_BSP_HANDLE_SELECT (opcode setting: O, T==1)</h3>
+<p>Retrieves the base service provider handle for a socket used by the <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-select" data-linktype="absolute-path"><strong>select</strong></a> function. The returned value is a <strong>SOCKET</strong>.</p>
+<p>This Ioctl is used by a layered service provider to ensure the provider intercept the <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-select" data-linktype="absolute-path"><strong>select</strong></a> function.</p>
+<p>If the output buffer is not large enough for a socket handle (the <em>cbOutBuffer</em> is less than the size of a <strong>SOCKET</strong>) or the <em>lpvOutBuffer</em> parameter is a <strong>NULL</strong> pointer, <strong>SOCKET_ERROR</strong> is returned as the result of this IOCTL and <a href="/en-us/windows/desktop/api/winsock/nf-winsock-wsagetlasterror" data-linktype="absolute-path"><strong>WSAGetLastError</strong></a> returns <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAEFAULT</a>.</p>
+<p><strong>SIO_BSP_HANDLE_SELECT</strong> is defined in the <em>Mswsock.h</em> header file and supported on Windows&nbsp;Vista and later.</p>
+<h3 id="sio_bsp_handle_poll-opcode-setting-o-t1">SIO_BSP_HANDLE_POLL (opcode setting: O, T==1)</h3>
+<p>Retrieves the base service provider handle for a socket used by the <a href="/en-us/windows/win32/api/winsock2/nf-winsock2-wsapoll" data-linktype="absolute-path"><strong>WSAPoll</strong></a> function. The <em>lpOverlapped</em> parameter must be a <strong>NULL</strong> pointer. The returned value is a <strong>SOCKET</strong>.</p>
+<p>This Ioctl is used by a layered service provider to ensure the provider intercept the <a href="/en-us/windows/win32/api/winsock2/nf-winsock2-wsapoll" data-linktype="absolute-path"><strong>WSAPoll</strong></a> function.</p>
+<p>If the output buffer is not large enough for a socket handle (the <em>cbOutBuffer</em> is less than the size of a <strong>SOCKET</strong>), the <em>lpvOutBuffer</em> parameter is a <strong>NULL</strong> pointer, or the <em>lpOverlapped</em> parameter is not a <strong>NULL</strong> pointer, <strong>SOCKET_ERROR</strong> is returned as the result of this IOCTL and <a href="/en-us/windows/desktop/api/winsock/nf-winsock-wsagetlasterror" data-linktype="absolute-path"><strong>WSAGetLastError</strong></a> returns <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAEFAULT</a>.</p>
+<p><strong>SIO_BSP_HANDLE_POLL</strong> is defined in the <em>Mswsock.h</em> header file and supported on Windows&nbsp;Vista and later.</p>
+<h3 id="sio_chk_qos-opcode-setting-i-o-t3">SIO_CHK_QOS (opcode setting: I, O, T==3)</h3>
+<p>Retrieves information about QoS traffic characteristics. During the transitional phase on the sending system between flow setup and the receipt of a RESV message (see <a href="/en-us/previous-versions/windows/desktop/qos/how-the-rsvp-service-invokes-tc" data-linktype="absolute-path">How the RSVP Service Invokes TC</a> for more information on the transitional phase), traffic associated with an RSVP flow is shaped based on service type (<a href="/en-us/previous-versions/windows/desktop/qos/best-effort" data-linktype="absolute-path">BEST EFFORT</a>, <a href="/en-us/previous-versions/windows/desktop/qos/controlled-load" data-linktype="absolute-path">CONTROLLED LOAD</a>, or <a href="/en-us/previous-versions/windows/desktop/qos/guaranteed" data-linktype="absolute-path">GUARANTEED</a>). For more information, see <a href="/en-us/previous-versions/windows/desktop/qos/using-sio-chk-qos" data-linktype="absolute-path">Using SIO_CHK_QOS</a> in the <a href="/en-us/previous-versions/windows/desktop/qos/qos-start-page" data-linktype="absolute-path">Quality of Service</a> section of the Platform SDK.</p>
+<h3 id="sio_cpu_affinity-opcode-setting-i-t3">SIO_CPU_AFFINITY (opcode setting: I, T==3)</h3>
+<p>Enables port sharing and receive indication parallelization. When your application uses this socket option to associate sockets to different processors, and then binds the sockets to the same address, receive indications will be distributed across the sockets based on Receive Side Scaling (RSS) hash. The RSS settings don't change, so any given flow (local endpoint, remote endpoint pair) will always be indicated on the same processor. As a result, all packets belonging to a given flow will be indicated to the same socket. This IOCTL must be called prior to bind, otherwise WSAEINVAL will be returned. The input buffer is a processor index (0-based) of type USHORT. The IOCTL is incompatible with SO_REUSEADDR and SO_REUSE_MULTICASTPORT. Only supported for UDP sockets.</p>
+<div class="NOTE">
+<p>Note</p>
+<p>If you're targeting version 10.0.19041.0 (Windows 10, version 2004) of the Windows SDK, then use the value <code>0x98000015</code> instead of the name <strong>SIO_CPU_AFFINITY</strong>.</p>
+</div>
+<h3 id="sio_enable_circular_queueing-opcode-setting-v-t1">SIO_ENABLE_CIRCULAR_QUEUEING (opcode setting: V, T==1)</h3>
+<p>Indicates to the underlying message-oriented service provider that a newly arrived message should never be dropped because of a buffer queue overflow. Instead, the oldest message in the queue should be eliminated in order to accommodate the newly arrived message. No input and output buffers are required. Note that this IOCTL is only valid for sockets associated with unreliable, message-oriented protocols. The <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAENOPROTOOPT</a> error code is indicated for service providers that do not support this IOCTL.</p>
+<h3 id="sio_find_route-opcode-setting-o-t1">SIO_FIND_ROUTE (opcode setting: O, T==1)</h3>
+<p>When issued, this IOCTL requests that the route to the remote address specified as a <a href="sockaddr-2" data-linktype="relative-path"><strong>sockaddr</strong></a> in the input buffer be discovered. If the address already exists in the local cache, its entry is invalidated. In the case of Novell's IPX, this call initiates an IPX GetLocalTarget (GLT), which queries the network for the given remote address.</p>
+<h3 id="sio_flush-opcode-setting-v-t1">SIO_FLUSH (opcode setting: V, T==1)</h3>
+<p>Discards current contents of the sending queue associated with this socket. No input and output buffers are required. The <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAENOPROTOOPT</a> error code is indicated for service providers that do not support this IOCTL.</p>
+<h3 id="sio_get_broadcast_address-opcode-setting-o-t1">SIO_GET_BROADCAST_ADDRESS (opcode setting: O, T==1)</h3>
+<p>This IOCTL fills the output buffer with a <a href="sockaddr-2" data-linktype="relative-path">sockaddr</a> structure containing a suitable broadcast address for use with <a href="/en-us/windows/desktop/api/winsock/nf-winsock-sendto" data-linktype="absolute-path"><strong>sendto</strong></a>/ <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-wsasendto" data-linktype="absolute-path"><strong>WSASendTo</strong></a>. This IOCTL is not supported for IPv6 sockets and returns the <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAENOPROTOOPT</a> error code.</p>
+<h3 id="sio_get_extension_function_pointer-opcode-setting-o-i-t1">SIO_GET_EXTENSION_FUNCTION_POINTER (opcode setting: O, I, T==1)</h3>
+<p>Retrieve a pointer to the specified extension function supported by the associated service provider. The input buffer contains a globally unique identifier (<strong>GUID</strong>) whose value identifies the extension function in question. The pointer to the desired function is returned in the output buffer. Extension function identifiers are established by service provider vendors and should be included in vendor documentation that describes extension function capabilities and semantics.</p>
+<p>The GUID values for extension functions supported by the Windows TCP/IP service provider are defined in the <em>Mswsock.h</em> header file. The possible value for these GUIDs are as follows:</p>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span id="WSAID_ACCEPTEX"></span><span id="wsaid_acceptex"></span>WSAID_ACCEPTEX<br></td>
+<td>The <a href="/en-us/windows/win32/api/mswsock/nf-mswsock-acceptex" data-linktype="absolute-path"><strong>AcceptEx</strong></a> extension function.<br></td>
+</tr>
+<tr>
+<td><span id="WSAID_CONNECTEX"></span><span id="wsaid_connectex"></span>WSAID_CONNECTEX<br></td>
+<td>The <a href="/en-us/windows/desktop/api/Mswsock/nc-mswsock-lpfn_connectex" data-linktype="absolute-path"><strong>ConnectEx</strong></a> extension function. <br></td>
+</tr>
+<tr>
+<td><span id="WSAID_DISCONNECTEX"></span><span id="wsaid_disconnectex"></span>WSAID_DISCONNECTEX<br></td>
+<td>The <a href="/en-us/previous-versions/windows/desktop/legacy/ms737757(v=vs.85)" data-linktype="absolute-path"><strong>DisconnectEx</strong></a> extension function. <br></td>
+</tr>
+<tr>
+<td><span id="WSAID_GETACCEPTEXSOCKADDRS"></span><span id="wsaid_getacceptexsockaddrs"></span>WSAID_GETACCEPTEXSOCKADDRS<br></td>
+<td>The <a href="/en-us/windows/win32/api/mswsock/nf-mswsock-getacceptexsockaddrs" data-linktype="absolute-path"><strong>GetAcceptExSockaddrs</strong></a> extension function.<br></td>
+</tr>
+<tr>
+<td><span id="WSAID_TRANSMITFILE"></span><span id="wsaid_transmitfile"></span>WSAID_TRANSMITFILE<br></td>
+<td>The <a href="/en-us/windows/win32/api/mswsock/nf-mswsock-transmitfile" data-linktype="absolute-path"><strong>TransmitFile</strong></a> extension function.<br></td>
+</tr>
+<tr>
+<td><span id="WSAID_TRANSMITPACKETS"></span><span id="wsaid_transmitpackets"></span>WSAID_TRANSMITPACKETS<br></td>
+<td>The <a href="/en-us/windows/desktop/api/Mswsock/nc-mswsock-lpfn_transmitpackets" data-linktype="absolute-path"><strong>TransmitPackets</strong></a> extension function. <br></td>
+</tr>
+<tr>
+<td><span id="WSAID_WSARECVMSG"></span><span id="wsaid_wsarecvmsg"></span>WSAID_WSARECVMSG<br></td>
+<td>The <a href="/en-us/windows/win32/api/mswsock/nc-mswsock-lpfn_wsarecvmsg" data-linktype="absolute-path"><strong>LPFN_WSARECVMSG (WSARecvMsg)</strong></a> extension function.<br></td>
+</tr>
+<tr>
+<td><span id="WSAID_WSASENDMSG"></span><span id="wsaid_wsasendmsg"></span>WSAID_WSASENDMSG<br></td>
+<td>The <a href="/en-us/windows/desktop/api/winsock2/nf-winsock2-wsasendmsg" data-linktype="absolute-path"><strong>WSASendMsg</strong></a> extension function. <br></td>
+</tr>
+</tbody>
+</table>
+<h3 id="sio_get_group_qos-opcode-setting-o-i-t1">SIO_GET_GROUP_QOS (opcode setting: O, I, T==1)</h3>
+<p>Reserved for future use with sockets.</p>
+<p>Retrieve the <a href="/en-us/windows/win32/api/winsock2/ns-winsock2-qos" data-linktype="absolute-path"><strong>QOS</strong></a> structure associated with the socket group to which this socket belongs. The input buffer is optional. Some protocols (for example, RSVP) allow the input buffer to be used to qualify a quality of service request. The <strong>QOS</strong> structure will be copied into the output buffer. If this socket does not belong to an appropriate socket group, the <strong>SendingFlowspec</strong> and <strong>ReceivingFlowspec</strong> members of the returned <strong>QOS</strong> structure are set to <strong>NULL</strong>. The <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAENOPROTOOPT</a> error code is indicated for service providers that do not support quality of service.</p>
+<h3 id="sio_get_interface_list-opcode-setting-o-t0">SIO_GET_INTERFACE_LIST (opcode setting: O, T==0)</h3>
+<p>Returns a list of configured IP interfaces and their parameters as an array of <a href="/en-us/windows/desktop/api/Ws2ipdef/ns-ws2ipdef-interface_info" data-linktype="absolute-path"><strong>INTERFACE_INFO</strong></a> structures.</p>
+<div class="NOTE">
+<p>Note</p>
+<p>Support of this command is mandatory for Windows Sockets 2-compliant TCP/IP service providers.</p>
+</div>
+<p>The <em>lpvOutBuffer</em> parameter points to the buffer in which to store the information about interfaces as an array of <a href="/en-us/windows/desktop/api/Ws2ipdef/ns-ws2ipdef-interface_info" data-linktype="absolute-path"><strong>INTERFACE_INFO</strong></a> structures for unicast IP addresses on the interfaces. The <em>cbOutBuffer</em> parameter specifies the length of the output buffer. The number of interfaces returned (number of structures returned in the buffer pointed to by <em>lpvOutBuffer</em> parameter) can be determined based on the actual length of the output buffer returned in <em>lpcbBytesReturned</em> parameter.</p>
+<p>If the <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-wsaioctl" data-linktype="absolute-path"><strong>WSAIoctl</strong></a> function is called with <strong>SIO_GET_INTERFACE_LIST</strong> and the level member of the socket <em>s</em> parameter is not defined as <strong>IPPROTO_IP</strong>, <strong>WSAEINVAL</strong> is returned. A call to the <strong>WSAIoctl</strong> function with <strong>SIO_GET_INTERFACE_LIST</strong> returns <strong>WSAEFAULT</strong> if the <em>cbOutBuffer</em> parameter that specifies the length of the output buffer is too small ro receive the list of configured interfaces.</p>
+<p><strong>SIO_GET_INTERFACE_LIST</strong> is supported on Windows&nbsp;Me/98 and Windows&nbsp;NT&nbsp;4.0 with SP4 and later.</p>
+<h3 id="sio_get_interface_list_ex-opcode-setting-o-t0">SIO_GET_INTERFACE_LIST_EX (opcode setting: O, T==0)</h3>
+<p>Reserved for future use with sockets.</p>
+<p>Returns a list of configured IP interfaces and their parameters as an array of <a href="/en-us/windows/desktop/api/Ws2ipdef/ns-ws2ipdef-interface_info_ex" data-linktype="absolute-path"><strong>INTERFACE_INFO_EX</strong></a> structures.</p>
+<p>The <em>lpvOutBuffer</em> parameter points to the buffer in which to store the information about interfaces as an array of <a href="/en-us/windows/desktop/api/Ws2ipdef/ns-ws2ipdef-interface_info_ex" data-linktype="absolute-path"><strong>INTERFACE_INFO_EX</strong></a> structures for unicast IP addresses on the interface. The <em>cbOutBuffer</em> parameter specifies the length of the output buffer. The number of interfaces returned (number of structures returned in <em>lpvOutBuffer</em>) can be determined based on the actual length of the output buffer returned in <em>lpcbBytesReturned</em> parameter.</p>
+<p><strong>SIO_GET_INTERFACE_LIST_EX</strong> is not currently supported on Windows.</p>
+<h3 id="sio_get_qos-opcode-setting-o-t1">SIO_GET_QOS (opcode setting: O, T==1)</h3>
+<p>Reserved for future use with sockets. Retrieve the <a href="/en-us/windows/win32/api/winsock2/ns-winsock2-qos" data-linktype="absolute-path"><strong>QOS</strong></a> structure associated with the socket. The input buffer is optional. Some protocols (for example, RSVP) allow the input buffer to be used to qualify a quality of service request. The <strong>QOS</strong> structure will be copied into the output buffer. The output buffer must be sized large enough to be able to contain the full <strong>QOS</strong> structure. The <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAENOPROTOOPT</a> error code is indicated for service providers that do not support quality of service.</p>
+<p>A sender may not call <strong>SIO_GET_QOS</strong> until the socket is connected.</p>
+<p>A receiver may call <strong>SIO_GET_QOS</strong> as soon as it is bound.</p>
+<h3 id="sio_get_tx_timestamp">SIO_GET_TX_TIMESTAMP</h3>
+<p>A socket IOCTL used to get timestamps for transmitted (TX) packets. Valid only for datagram sockets.</p>
+<p>The <strong>SIO_GET_TX_TIMESTAMP</strong> control code removes a transmit timestamp from a socket's transmit timestamp queue. Enable timestamp reception first by using the <a href="#sio_timestamping" data-linktype="self-bookmark"><strong>SIO_TIMESTAMPING</strong></a> socket IOCTL. Then retrieve tx timestamps by ID by calling the <a href="/en-us/windows/win32/api/winsock2/nf-winsock2-wsaioctl" data-linktype="absolute-path"><strong>WSAIoctl</strong></a> (or <a href="/en-us/previous-versions/windows/hardware/network/ff566296(v=vs.85)" data-linktype="absolute-path"><strong>WSPIoctl</strong></a>) function with the following parameters.</p>
+<p>For <strong>SIO_GET_TX_TIMESTAMP</strong>, the input is a <strong>UINT32</strong> timestamp ID, and the output is a <strong>UINT64</strong> timestamp value. On success, the tx timestamp is available, and is returned. If no transmit timestamps are available, then <a href="/en-us/windows/win32/api/winsock/nf-winsock-wsagetlasterror" data-linktype="absolute-path"><strong>WSAGetLastError</strong></a> returns <strong>WSAEWOULDBLOCK</strong>.</p>
+<div class="NOTE">
+<p>Note</p>
+<p>TX timestamps are not supported when doing a coalesced send via <strong>UDP_SEND_MSG_SIZE</strong>.</p>
+</div>
+<p>Also see <a href="/en-us/windows/win32/winsock/winsock-timestamping" data-linktype="absolute-path">Winsock timestamping</a>.</p>
+<h3 id="sio_ideal_send_backlog_change-opcode-setting-v-t0">SIO_IDEAL_SEND_BACKLOG_CHANGE (opcode setting: V, T==0)</h3>
+<p>Notifies an application when the ideal send backlog (ISB) value changes for the underlying connection.</p>
+<p>When sending data over a TCP connection using Windows sockets, it is important to keep a sufficient amount of data outstanding (sent but not acknowledged yet) in TCP in order to achieve the highest throughput. The ideal value for the amount of data outstanding to achieve the best throughput for the TCP connection is called the ideal send backlog (ISB) size. The ISB value is a function of the bandwidth-delay product of the TCP connection and the receiver's advertised receive window (and partly the amount of congestion in the network).</p>
+<p>The ISB value per connection is available from the TCP protocol implementation in Windows Server&nbsp;2008, Windows&nbsp;Vista with SP1, and later versions of the operating system. The <strong>SIO_IDEAL_SEND_BACKLOG_CHANGE</strong> IOCTL can be used by an application to get notification when the ISB value changes dynamically for a connection.</p>
+<p>For more detailed information, see the <a href="/en-us/windows/win32/winsock/sio-ideal-send-backlog-change" data-linktype="absolute-path"><strong>SIO_IDEAL_SEND_BACKLOG_CHANGE</strong></a> reference.</p>
+<p><a href="/en-us/windows/win32/winsock/sio-ideal-send-backlog-change" data-linktype="absolute-path"><strong>SIO_IDEAL_SEND_BACKLOG_CHANGE</strong></a> is supported on Windows Server&nbsp;2008, Windows&nbsp;Vista with SP1, and later versions of the operating system.</p>
+<h3 id="sio_ideal_send_backlog_query-opcode-setting-o-t0">SIO_IDEAL_SEND_BACKLOG_QUERY (opcode setting: O, T==0)</h3>
+<p>Retrieves the ideal send backlog (ISB) value for the underlying connection.</p>
+<p>When sending data over a TCP connection using Windows sockets, it is important to keep a sufficient amount of data outstanding (sent but not acknowledged yet) in TCP in order to achieve the highest throughput. The ideal value for the amount of data outstanding to achieve the best throughput for the TCP connection is called the ideal send backlog (ISB) size. The ISB value is a function of the bandwidth-delay product of the TCP connection and the receiver's advertised receive window (and partly the amount of congestion in the network).</p>
+<p>The ISB value per connection is available from the TCP protocol implementation in Windows Server&nbsp;2008 and later. The <strong>SIO_IDEAL_SEND_BACKLOG_QUERY</strong> IOCTL can be used by an application to query the ISB value for a connection.</p>
+<p>For more detailed information, see the <a href="/en-us/windows/win32/winsock/sio-ideal-send-backlog-query" data-linktype="absolute-path"><strong>SIO_IDEAL_SEND_BACKLOG_QUERY</strong></a> reference.</p>
+<p><a href="/en-us/windows/win32/winsock/sio-ideal-send-backlog-query" data-linktype="absolute-path"><strong>SIO_IDEAL_SEND_BACKLOG_QUERY</strong></a> is supported on Windows Server 2008, Windows Vista with SP1, and later versions of the operating system.</p>
+<h3 id="sio_keepalive_vals-opcode-setting-i-t3">SIO_KEEPALIVE_VALS (opcode setting: I, T==3)</h3>
+<p>Enables or disables the per-connection setting of the TCP <strong>keep-alive</strong> option which specifies the TCP keep-alive timeout and interval. For more information on the keep-alive option, see section 4.2.3.6 on the <em>Requirements for Internet Hosts—Communication Layers</em> specified in RFC 1122 available at the <a href="https://www.ietf.org/rfc/rfc1122.txt" data-linktype="external">IETF website</a>. (This resource may only be available in English.)</p>
+<p><strong>SIO_KEEPALIVE_VALS</strong> can be used to enable or disable keep-alive probes and set the keep-alive timeout and interval. The keep-alive timeout specifies the timeout, in milliseconds, with no activity until the first keep-alive packet is sent. The keep-alive interval specifies the interval, in milliseconds, between when successive keep-alive packets are sent if no acknowledgement is received.</p>
+<p>The <a href="so-keepalive" data-linktype="relative-path"><strong>SO_KEEPALIVE</strong></a> option, which is one of the <a href="sol-socket-socket-options" data-linktype="relative-path">SOL_SOCKET Socket Options</a>, can also be used to enable or disable the TCP keep-alive on a connection, as well as query the current state of this option. To query whether TCP keep-alive is enabled on a socket, the <a href="/en-us/windows/desktop/api/winsock/nf-winsock-getsockopt" data-linktype="absolute-path"><strong>getsockopt</strong></a> function can be called with the <strong>SO_KEEPALIVE</strong> option. To enable or disable TCP keep-alive, the <a href="/en-us/windows/desktop/api/winsock/nf-winsock-setsockopt" data-linktype="absolute-path"><strong>setsockopt</strong></a> function can be called with the <a href="so-keepalive" data-linktype="relative-path"><strong>SO_KEEPALIVE</strong></a> option. If TCP keep-alive is enabled with <strong>SO_KEEPALIVE</strong>, then the default TCP settings are used for keep-alive timeout and interval unless these values have been changed using <strong>SIO_KEEPALIVE_VALS</strong>.</p>
+<p>For more detailed information, see the <a href="/en-us/windows/win32/winsock/sio-keepalive-vals" data-linktype="absolute-path"><strong>SIO_KEEPALIVE_VALS</strong></a> reference. <strong>SIO_KEEPALIVE_VALS</strong> is supported on Windows 2000 and later.</p>
+<h3 id="sio_loopback_fast_path-opcode-setting-i-t3">SIO_LOOPBACK_FAST_PATH (opcode setting: I, T==3)</h3>
+<p>Configures a TCP socket for lower latency and faster operations on the loopback interface. This IOCTL requests that the TCP/IP stack uses a special fast path for loopback operations on this socket. The <a href="/en-us/windows-hardware/drivers/network/sio-loopback-fast-path" data-linktype="absolute-path"><strong>SIO_LOOPBACK_FAST_PATH</strong></a> IOCTL can be used only with TCP sockets. This IOCTL must be used on both sides of the loopback session. The TCP loopback fast path is supported using either the IPv4 or IPv6 loopback interface. By default, <strong>SIO_LOOPBACK_FAST_PATH</strong> is disabled.</p>
+<p>For more detailed information, see the <a href="/en-us/windows-hardware/drivers/network/sio-loopback-fast-path" data-linktype="absolute-path"><strong>SIO_LOOPBACK_FAST_PATH</strong></a> reference. <strong>SIO_LOOPBACK_FAST_PATH</strong> is supported on Windows 8, Windows Server 2012, and later.</p>
+<h3 id="sio_multipoint_loopback-opcode-setting-v-t1">SIO_MULTIPOINT_LOOPBACK (opcode setting: V, T==1)</h3>
+<p>Controls whether data sent by an application on the local computer (not necessarily by the same socket) in a multicast session will be received by a socket joined to the multicast destination group on the loopback interface. A value of <strong>TRUE</strong> causes multicast data sent by an application on the local computer to be delivered to a listening socket on the loopback interface. A value of <strong>FALSE</strong> prevents multicast data sent by an application on the local computer from being delivered to a listening socket on the loopback interface. By default, <strong>SIO_MULTIPOINT_LOOPBACK</strong> is enabled.</p>
+<h3 id="sio_multicast_scope-opcode-setting-i-t1">SIO_MULTICAST_SCOPE (opcode setting: I, T==1)</h3>
+<p>Specifies the scope over which multicast transmissions will occur. Scope is defined as the number of routed network segments to be covered. A scope of zero would indicate that the multicast transmission would not be placed on the wire but could be disseminated across sockets within the local host. A scope value of one (the default) indicates that the transmission will be placed on the wire, but will not cross any routers. Higher scope values determine the number of routers that can be crossed. Note that this corresponds to the time-to-live (TTL) parameter in IP multicasting. By default, scope is 1.</p>
+<h3 id="sio_query_rss_processor_info-opcode-setting-o-t1">SIO_QUERY_RSS_PROCESSOR_INFO (opcode setting: O, T==1)</h3>
+<p>Queries the association between a socket and an RSS processor core and NUMA node.</p>
+<p>The <a href="/en-us/windows/win32/winsock/sio-query-rss-processor-info" data-linktype="absolute-path"><strong>SIO_QUERY_RSS_PROCESSOR_INFO</strong></a> IOCTL returns a <a href="/en-us/windows/desktop/api/Ws2def/ns-ws2def-socket_processor_affinity" data-linktype="absolute-path"><strong>SOCKET_PROCESSOR_AFFINITY</strong></a> structure that contains the <a href="/en-us/windows/win32/api/winnt/ns-winnt-processor_number" data-linktype="absolute-path"><strong>PROCESSOR_NUMBER</strong></a> and the NUMA node ID. The returned <strong>PROCESSOR_NUMBER</strong> structure contains a group number and relative processor number within the group.</p>
+<p>For more detailed information, see the <a href="/en-us/windows/win32/winsock/sio-query-rss-processor-info" data-linktype="absolute-path"><strong>SIO_QUERY_RSS_PROCESSOR_INFO</strong></a> reference. <strong>SIO_QUERY_RSS_PROCESSOR_INFO</strong> is supported on Windows&nbsp;8, Windows Server&nbsp;2012, and later.</p>
+<h3 id="sio_query_rss_scalability_info-opcode-setting-o-t3">SIO_QUERY_RSS_SCALABILITY_INFO (opcode setting: O, T==3)</h3>
+<p>Queries offload interfaces for receive-side scaling (RSS) capability. The argument structure returned for <strong>SIO_QUERY_RSS_SCALABILITY_INFO</strong> is specified in the <strong>RSS_SCALABILITY_INFO</strong> structure defined in the <em>Mstcpip.h</em> header file. This structure is defined as follows:</p>
+<pre><code class="lang-cpp">// Scalability info for the transport
+typedef struct _RSS_SCALABILITY_INFO {
+   BOOLEAN RssEnabled;
+} RSS_SCALABILITY_INFO, *PRSS_SCALABILITY_INFO;
+</code></pre>
+<p>The value returned in the <strong>RssEnabled</strong> member indicates if RSS is enabled on at least one interface.</p>
+<p>If the output buffer is not large enough for the <strong>RSS_SCALABILITY_INFO</strong> structure (the <em>cbOutBuffer</em> is less than the size of a <strong>RSS_SCALABILITY_INFO</strong>) or the <em>lpvOutBuffer</em> parameter is a <strong>NULL</strong> pointer, <strong>SOCKET_ERROR</strong> is returned as the result of this IOCTL and <a href="/en-us/windows/desktop/api/winsock/nf-winsock-wsagetlasterror" data-linktype="absolute-path"><strong>WSAGetLastError</strong></a> returns <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAEINVAL</a>.</p>
+<p>In high-speed networking where multiple CPUs reside within a single system, the ability of the networking protocol stack to scale well on a multi-CPU system is inhibited because the architecture of NDIS 5.1 and earlier versions limits receive protocol processing to a single CPU. Receive-side scaling (RSS) resolves this issue by allowing the network load from a network adapter to be balanced across multiple CPUs.</p>
+<p><strong>SIO_QUERY_RSS_SCALABILITY_INFO</strong> is supported on Windows&nbsp;Vista and later.</p>
+<h3 id="sio_query_transport_setting-opcode-setting-i-t3">SIO_QUERY_TRANSPORT_SETTING (opcode setting: I, T==3)</h3>
+<p>Queries the transport settings on a socket. The transport setting being queried is based on the <a href="/en-us/windows/win32/api/transportsettingcommon/ns-transportsettingcommon-transport_setting_id" data-linktype="absolute-path"><strong>TRANSPORT_SETTING_ID</strong></a> passed in the <em>lpvInBuffer</em> parameter.</p>
+<p>The only transport setting currently defines is for the <strong>REAL_TIME_NOTIFICATION_CAPABILITY</strong> capability on a TCP socket.</p>
+<p>If the <a href="/en-us/windows/win32/api/transportsettingcommon/ns-transportsettingcommon-transport_setting_id" data-linktype="absolute-path"><strong>TRANSPORT_SETTING_ID</strong></a> has the <strong>Guid</strong> member set to <strong>REAL_TIME_NOTIFICATION_CAPABILITY</strong>, then this is a request to query the real time notification settings for the TCP socket used with the <a href="/en-us/uwp/api/Windows.Networking.Sockets.ControlChannelTrigger" data-linktype="absolute-path"><strong>ControlChannelTrigger</strong></a> to receive background network notifications in a Windows Store app. If the <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-wsaioctl" data-linktype="absolute-path"><strong>WSAIoctl</strong></a> or <a href="/en-us/previous-versions/windows/hardware/network/ff566296(v=vs.85)" data-linktype="absolute-path"><strong>WSPIoctl</strong></a> call is successful, this IOCTL returns a <a href="/en-us/windows/desktop/api/Mstcpip/ns-mstcpip-real_time_notification_setting_input" data-linktype="absolute-path"><strong>REAL_TIME_NOTIFICATION_SETTING_OUTPUT</strong></a> structure with the current status.</p>
+<p>For more detailed information, see the <a href="/en-us/windows/win32/winsock/sio-query-transport-setting" data-linktype="absolute-path"><strong>SIO_QUERY_TRANSPORT_SETTING</strong></a> reference. <strong>SIO_QUERY_TRANSPORT_SETTING</strong> is supported on Windows&nbsp;8, Windows Server&nbsp;2012, and later.</p>
+<h3 id="sio_query_wfp_ale_endpoint_handle-opcode-setting-o-t3">SIO_QUERY_WFP_ALE_ENDPOINT_HANDLE (opcode setting: O, T==3)</h3>
+<p>Queries the Application Layer Enforcement (ALE) endpoint handle.</p>
+<p>The Windows Filtering Platform (WFP) supports network traffic inspection and modification. On Windows Vista, WFP focuses on scenarios where the host machine is the communication endpoint. On Windows Server 2008 , however, there are edge firewall implementations which would like to leverage the WFP platform to inspect and proxy pass-through traffic. The Internet Security and Acceleration (ISA) server is an example of such an edge device.</p>
+<p>There are some firewall scenarios that may require the ability to inject an inbound packet into the send path associated with an existing endpoint. There needs to be a mechanism to discover the transport layer endpoint handle associated with the destination endpoint. The application that created the endpoint owns these transport layer endpoints. This IOCTL is used to provide socket handle to transport layer endpoint handle mapping.</p>
+<p>If the output buffer is not large enough for the endpoint handle (the <em>cbOutBuffer</em> is less than the size of a <strong>UINT64</strong>) or the <em>lpvOutBuffer</em> parameter is a <strong>NULL</strong> pointer, <strong>SOCKET_ERROR</strong> is returned as the result of this IOCTL and <a href="/en-us/windows/desktop/api/winsock/nf-winsock-wsagetlasterror" data-linktype="absolute-path"><strong>WSAGetLastError</strong></a> returns <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAEINVAL</a>.</p>
+<p><strong>SIO_QUERY_WFP_ALE_ENDPOINT_HANDLE</strong> is supported on Windows Vista and later.</p>
+<h3 id="sio_query_wfp_connection_redirect_context-opcode-setting-i-t3">SIO_QUERY_WFP_CONNECTION_REDIRECT_CONTEXT (opcode setting: I, T==3)</h3>
+<p>Queries the redirect context for a redirect record used by a Windows Filtering Platform (WFP) redirect service.</p>
+<p>The <a href="/en-us/windows-hardware/drivers/network/sio-query-wfp-connection-redirect-context" data-linktype="absolute-path"><strong>SIO_QUERY_WFP_CONNECTION_REDIRECT_CONTEXT</strong></a> IOCTL is used to provide proxied connection tracking on redirected socket connections. This WFP feature facilitates tracking of redirection records from the initial redirect of a connection to the final connection to the destination.</p>
+<p>For more detailed information, see the <a href="/en-us/windows-hardware/drivers/network/sio-query-wfp-connection-redirect-context" data-linktype="absolute-path"><strong>SIO_QUERY_WFP_CONNECTION_REDIRECT_CONTEXT</strong></a> reference. <strong>SIO_QUERY_WFP_CONNECTION_REDIRECT_CONTEXT</strong> is supported on Windows 8, Windows Server 2012, and later.</p>
+<h3 id="sio_query_wfp_connection_redirect_records-opcode-setting-i-t3">SIO_QUERY_WFP_CONNECTION_REDIRECT_RECORDS (opcode setting: I, T==3)</h3>
+<p>Queries the redirect record for the accepted TCP/IP connection for use by a Windows Filtering Platform (WFP) redirect service.</p>
+<p>The <a href="/en-us/windows-hardware/drivers/network/sio-query-wfp-connection-redirect-records" data-linktype="absolute-path"><strong>SIO_QUERY_WFP_CONNECTION_REDIRECT_RECORDS</strong></a> IOCTL is used to provide proxied connection tracking on redirected socket connections. This WFP feature facilitates tracking of redirection records from the initial redirect of a connection to the final connection to the destination.</p>
+<p>For more detailed information, see the <a href="/en-us/windows-hardware/drivers/network/sio-query-wfp-connection-redirect-records" data-linktype="absolute-path"><strong>SIO_QUERY_WFP_CONNECTION_REDIRECT_RECORDS</strong></a> reference. <strong>SIO_QUERY_WFP_CONNECTION_REDIRECT_RECORDS</strong> is supported on Windows&nbsp;8, Windows Server&nbsp;2012, and later.</p>
+<h3 id="sio_rcvall-opcode-setting-i-t3">SIO_RCVALL (opcode setting: I, T==3)</h3>
+<p>Enables a socket to receive all IPv4 or IPv6 packets passing through a network interface. The socket handle passed to the <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-wsaioctl" data-linktype="absolute-path"><strong>WSAIoctl</strong></a> function must be one of the following:</p>
+<ul>
+<li>An IPv4 socket that was created with the address family set to AF_INET, the socket type set to SOCK_RAW, and the protocol set to IPPROTO_IP.</li>
+<li>An IPv6 socket that was created with the address family set to AF_INET6, the socket type set to SOCK_RAW, and the protocol set to IPPROTO_IPV6.</li>
+</ul>
+<p>The socket also must be bound to an explicit local IPv4 or IPv6 interface, which means that you cannot bind to <strong>INADDR_ANY</strong> or <strong>in6addr_any</strong>.</p>
+<p>On Windows Server 2008 and earlier, the <a href="/en-us/windows/win32/winsock/sio-rcvall" data-linktype="absolute-path"><strong>SIO_RCVALL</strong></a> IOCTL setting would not capture local packets sent out of a network interface. This included packets received on another interface and forwarded out the network interface specified for the <strong>SIO_RCVALL</strong> IOCTL.</p>
+<p>On Windows 7 and Windows Server 2008 R2 , this was changed so that local packets sent out of a network interface are also captured. This includes packets received on another interface and then forwarded out the network interface bound to the socket with <a href="/en-us/windows/win32/winsock/sio-rcvall" data-linktype="absolute-path"><strong>SIO_RCVALL</strong></a> IOCTL.</p>
+<p>Setting this IOCTL requires Administrator privilege on the local computer.</p>
+<p>This feature is sometimes referred to as promiscuous mode.</p>
+<p>The possible values for the <strong>SIO_RCVALL</strong> IOCTL option are specified in the <strong>RCVALL_VALUE</strong> enumeration defined in the <em>Mstcpip.h</em> header file. The possible values for SIO_RCVALL are as follows:</p>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span id="RCVALL_OFF"></span><span id="rcvall_off"></span>RCVALL_OFF<br></td>
+<td>Disable this option so a socket does not receive all IPv4 or IPv6 packets on the network. <br></td>
+</tr>
+<tr>
+<td><span id="RCVALL_ON"></span><span id="rcvall_on"></span>RCVALL_ON<br></td>
+<td>Enable this option so a socket receives all IPv4 or IPv6 packets on the network. This option enables promiscuous mode on the network interface card (NIC), if the NIC supports promiscuous mode. On a LAN segment with a network hub, a NIC that supports promiscuous mode will capture all IPv4 or IPv6 traffic on the LAN, including traffic between other computers on the same LAN segment. All of the captured packets (IPv4 or IPv6, depending on the socket) will be delivered to the raw socket. <br> This option will not capture other packets (ARP, IPX, and NetBEUI packets, for example) on the interface.<br> Netmon uses the same mode for the network interface, but does not use this option to capture traffic.<br></td>
+</tr>
+<tr>
+<td><span id="RCVALL_SOCKETLEVELONLY"></span><span id="rcvall_socketlevelonly"></span>RCVALL_SOCKETLEVELONLY<br></td>
+<td>This feature is not currently implemented, so setting this option does not have any affect.<br></td>
+</tr>
+<tr>
+<td><span id="RCVALL_IPLEVEL"></span><span id="rcvall_iplevel"></span>RCVALL_IPLEVEL<br></td>
+<td>Enable this option so an IPv4 or IPv6 socket receives all packets at the IP level on the network. This option does not enable promiscuous mode on the network interface card. This option only affects packet processing at the IP level. The NIC still receives only packets directed to its configured unicast and multicast addresses. However, a socket with this option enabled will receive not only packets directed to specific IP addresses, but will receive all the IPv4 or IPv6 packets the NIC receives.<br> This option will not capture other packets (ARP, IPX, and NetBEUI packets, for example) received on the interface.<br></td>
+</tr>
+</tbody>
+</table>
+<p>For more detailed information, see the <a href="/en-us/windows/win32/winsock/sio-rcvall" data-linktype="absolute-path"><strong>SIO_RCVALL</strong></a> reference.</p>
+<p><strong>SIO_RCVALL</strong> is supported on Windows&nbsp;2000 and later.</p>
+<h3 id="sio_rcvall_igmpmcast-opcode-setting-i-t3">SIO_RCVALL_IGMPMCAST (opcode setting: I, T==3)</h3>
+<p>Enables a socket to receive all IGMP multicast IP traffic on the network, without receiving other multicast IP traffic. The socket handle passed to the <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-wsaioctl" data-linktype="absolute-path"><strong>WSAIoctl</strong></a> function must be of AF_INET address family, SOCK_RAW socket type, and IPPROTO_IGMP protocol. The socket also must be bound to an explicit local interface, which means that you cannot bind to INADDR_ANY.</p>
+<p>Once the socket is bound and the IOCTL set, calls to the <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-wsarecv" data-linktype="absolute-path"><strong>WSARecv</strong></a> or <a href="/en-us/windows/desktop/api/winsock/nf-winsock-recv" data-linktype="absolute-path"><strong>recv</strong></a> functions return multicast IP datagrams passing through the given interface. Note that you must supply a sufficiently large buffer. Setting this IOCTL requires Administrator privilege on the local computer.</p>
+<p><strong>SIO_RCVALL_IGMPMCAST</strong> is supported on Windows 2000 and later.</p>
+<h3 id="sio_rcvall_mcast-opcode-setting-i-t3">SIO_RCVALL_MCAST (opcode setting: I, T==3)</h3>
+<p>Enables a socket to receive all multicast IP traffic on the network (that is, all IP packets destined for IP addresses in the range of 224.0.0.0 to 239.255.255.255). The socket handle passed to the <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-wsaioctl" data-linktype="absolute-path"><strong>WSAIoctl</strong></a> function must be of AF_INET address family, SOCK_RAW socket type, and IPPROTO_UDP protocol. The socket also must bind to an explicit local interface, which means that you cannot bind to INADDR_ANY. The socket should bind to port zero.</p>
+<p>Once the socket is bound and the IOCTL set, calls to the <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-wsarecv" data-linktype="absolute-path"><strong>WSARecv</strong></a> or <a href="/en-us/windows/desktop/api/winsock/nf-winsock-recv" data-linktype="absolute-path"><strong>recv</strong></a> functions return multicast IP datagrams passing through the given interface. Note that you must supply a sufficiently large buffer. Setting this IOCTL requires Administrator privilege on the local computer.</p>
+<p><strong>SIO_RCVALL_MCAST</strong> is supported on Windows&nbsp;2000 and later.</p>
+<h3 id="sio_release_port_reservation-opcode-setting-i-t3">SIO_RELEASE_PORT_RESERVATION (opcode setting: I, T==3)</h3>
+<p>Releases a runtime reservation for a block of TCP or UDP ports. The runtime reservation to be released must have been obtained from the issuing process using the <a href="/en-us/windows/win32/winsock/sio-acquire-port-reservation" data-linktype="absolute-path"><strong>SIO_ACQUIRE_PORT_RESERVATION</strong></a> IOCTL.</p>
+<p>For more detailed information, see the <a href="/en-us/windows/win32/winsock/sio-release-port-reservation" data-linktype="absolute-path"><strong>SIO_RELEASE_PORT_RESERVATION</strong></a> reference.</p>
+<p><a href="/en-us/windows/win32/winsock/sio-release-port-reservation" data-linktype="absolute-path"><strong>SIO_RELEASE_PORT_RESERVATION</strong></a> is supported on Windows&nbsp;Vista and later versions of the operating system.</p>
+<h3 id="sio_routing_interface_change-opcode-setting-i-t1">SIO_ROUTING_INTERFACE_CHANGE (opcode setting: I, T==1)</h3>
+<p>To receive notification of a routing interface change that should be used to reach the remote address in the input buffer (specified as a <a href="sockaddr-2" data-linktype="relative-path"><strong>sockaddr</strong></a> structure). No output information on the new routing interface will be provided upon completion of this IOCTL; the completion merely indicates that the routing interface for a given destination has changed and should be queried using the <strong>SIO_ROUTING_INTERFACE_QUERY</strong> IOCTL.</p>
+<p>It is assumed, although not required, that the application uses overlapped I/O to be notified of the routing interface change through completion of <strong>SIO_ROUTING_INTERFACE_CHANGE</strong> request. Alternatively, if the <strong>SIO_ROUTING_INTERFACE_CHANGE</strong> IOCTL is issued on a non-blocking socket with the <em>lpOverlapped</em> and <em>lpCompletionRoutine</em> parameters set to <strong>NULL</strong>), it will complete immediately returning and <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAEWOULDBLOCK</a> as an error, and the application can then wait for routing change events through call to <a href="/en-us/windows/desktop/api/Winsock2/nf-winsock2-wsaeventselect" data-linktype="absolute-path"><strong>WSAEventSelect</strong></a> or <a href="/en-us/windows/desktop/api/winsock/nf-winsock-wsaasyncselect" data-linktype="absolute-path"><strong>WSAAsyncSelect</strong></a> with FD_ROUTING_INTERFACE_CHANGE bit set in the network event bitmask.</p>
+<p>It is recognized that routing information remains stable in most cases so that requiring the application to keep multiple outstanding IOCTLs to get notifications about all destinations that it is interested in as well as having the service provider keep track of these notification requests will use a significant amount system resources. This situation can be avoided by extending the meaning of the input parameters and relaxing the service provider requirements as follows:</p>
+<ul>
+<li>The application can specify a protocol family specific wildcard address (same as one used in <a href="/en-us/windows/desktop/api/winsock/nf-winsock-bind" data-linktype="absolute-path"><strong>bind</strong></a> call when requesting to bind to any available address) to request notifications of any routing changes. This allows the application to keep only one outstanding <strong>SIO_ROUTING_INTERFACE_CHANGE</strong> for all the sockets and destinations it has and then use <strong>SIO_ROUTING_INTERFACE_QUERY</strong> to get the actual routing information.</li>
+<li>A service provider has the option to ignore the information specified by the application in the input buffer of the <strong>SIO_ROUTING_INTERFACE_CHANGE</strong> (as though the application specified a wildcard address) and complete the <strong>SIO_ROUTING_INTERFACE_CHANGE</strong> IOCTL or signal FD_ROUTING_INTERFACE_CHANGE event in the event of any routing information change (not just the route to the destination specified in the input buffer).</li>
+</ul>
+<h3 id="sio_routing_interface_query-opcode-setting-i-o-t1">SIO_ROUTING_INTERFACE_QUERY (opcode setting: I, O, T==1)</h3>
+<p>To obtain the address of the local interface (represented as <a href="sockaddr-2" data-linktype="relative-path"><strong>sockaddr</strong></a> structure) which should be used to send to the remote address specified in the input buffer (as <strong>sockaddr</strong>). Remote multicast addresses may be submitted in the input buffer to get the address of the preferred interface for multicast transmission. In any case, the interface address returned may be used by the application in a subsequent bind() request.</p>
+<p>Note that routes are subject to change. Therefore, applications cannot rely on the information returned by <strong>SIO_ROUTING_INTERFACE_QUERY</strong> to be persistent. Applications may register for routing change notifications through the <strong>SIO_ROUTING_INTERFACE_CHANGE</strong> IOCTL which provides for notification through either overlapped I/O or a FD_ROUTING_INTERFACE_CHANGE event. The following sequence of actions can be used to guarantee that the application always has current routing interface information for a given destination:</p>
+<ul>
+<li>Issue <strong>SIO_ROUTING_INTERFACE_CHANGE</strong> IOCTL</li>
+<li>Issue <strong>SIO_ROUTING_INTERFACE_QUERY</strong> IOCTL</li>
+<li>Whenever <strong>SIO_ROUTING_INTERFACE_CHANGE</strong> IOCTL notifies the application of routing change (either through overlapped I/O or by signaling FD_ROUTING_INTERFACE_CHANGE event), the whole sequence of actions should be repeated.</li>
+</ul>
+<p>If the output buffer is not large enough to contain the interface address, SOCKET_ERROR is returned as the result of this IOCTL and <a href="/en-us/windows/desktop/api/winsock/nf-winsock-wsagetlasterror" data-linktype="absolute-path"><strong>WSAGetLastError</strong></a> returns <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAEFAULT</a>. The required size of the output buffer will be returned in <em>lpcbBytesReturned</em> in this case. Note the WSAEFAULT error code is also returned if the <em>lpvInBuffer</em>, <em>lpvOutBuffer</em>, or <em>lpcbBytesReturned</em> parameter is not totally contained in a valid part of the user address space.</p>
+<p>If the destination address specified in the input buffer cannot be reached through any of the available interfaces, SOCKET_ERROR is returned as the result of this IOCTL and <a href="/en-us/windows/desktop/api/winsock/nf-winsock-wsagetlasterror" data-linktype="absolute-path"><strong>WSAGetLastError</strong></a> returns <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAENETUNREACH</a> or even <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAENETDOWN</a> if all of the network connectivity is lost.</p>
+<h3 id="sio_set_compatibility_mode-opcode-setting-i-t3">SIO_SET_COMPATIBILITY_MODE (opcode setting: I, T==3)</h3>
+<p>Requests how the networking stack should handle certain behaviors for which the default way of handling the behavior may differ across Windows versions. The argument structure for <strong>SIO_SET_COMPATIBILITY_MODE</strong> is specified in the <strong>WSA_COMPATIBILITY_MODE</strong> structure defined in the <em>Mswsockdef.h</em> header file. This structure is defined as follows:</p>
+<pre><code class="lang-cpp">/* Argument structure for SIO_SET_COMPATIBILITY_MODE */
+typedef struct _WSA_COMPATIBILITY_MODE {
+    WSA_COMPATIBILITY_BEHAVIOR_ID BehaviorId;
+    ULONG TargetOsVersion;
+} WSA_COMPATIBILITY_MODE, *PWSA_COMPATIBILITY_MODE;
+</code></pre>
+<p>The value specified in the <strong>BehaviorId</strong> member indicates the behavior requested. The value specified in the <strong>TargetOsVersion</strong> member indicates the Windows version that is being requested for the behavior.</p>
+<p>The <strong>BehaviorId</strong> member can be one of the values from the <strong>WSA_COMPATIBILITY_BEHAVIOR_ID</strong> enumeration type defined in the <em>Mswsockdef.h</em> header file. The possible values for the <strong>BehaviorId</strong> member are as follows.</p>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span id="WsaBehaviorAll"></span><span id="wsabehaviorall"></span><span id="WSABEHAVIORALL"></span>WsaBehaviorAll<br></td>
+<td>This is equivalent to requesting all of the possible compatible behaviors defined for <strong>WSA_COMPATIBILITY_BEHAVIOR_ID</strong>.<br></td>
+</tr>
+<tr>
+<td><span id="WsaBehaviorReceiveBuffering"></span><span id="wsabehaviorreceivebuffering"></span><span id="WSABEHAVIORRECEIVEBUFFERING"></span>WsaBehaviorReceiveBuffering<br></td>
+<td>When the <strong>TargetOsVersion</strong> member is set to a value for Windows&nbsp;Vista or later, reductions to the TCP receive buffer size on this socket using the <strong>SO_RCVBUF</strong> socket option are allowed even after a TCP connection has been establishment. <br> When the <strong>TargetOsVersion</strong> member is set to a value earlier than Windows&nbsp;Vista, reductions to the TCP receive buffer size on this socket using the <strong>SO_RCVBUF</strong> socket option are not allowed after connection establishment. <br></td>
+</tr>
+<tr>
+<td><span id="WsaBehaviorAutoTuning"></span><span id="wsabehaviorautotuning"></span><span id="WSABEHAVIORAUTOTUNING"></span>WsaBehaviorAutoTuning<br></td>
+<td>When the <strong>TargetOsVersion</strong> member is set to a value for Windows&nbsp;Vista or later, receive window auto-tuning is enabled and the TCP window scale factor is reduced to 2 from the default value of 8.<br> When the <strong>TargetOsVersion</strong> is set to a value earlier than Windows&nbsp;Vista, receive window auto-tuning is disabled. The TCP window scaling option is also disabled and the maximum true receive window size is limited to 65,535 bytes. The TCP window scaling option can't be negotiated on the connection even if the <strong>SO_RCVBUF</strong> socket option was called on this socket specifying a value greater than 65,535 bytes before the connection was established.<br></td>
+</tr>
+</tbody>
+</table>
+<p>For more detailed information, see the <a href="/en-us/windows/win32/winsock/sio-set-compatibility-mode" data-linktype="absolute-path"><strong>SIO_SET_COMPATIBILITY_MODE</strong></a> reference.</p>
+<p><strong>SIO_SET_COMPATIBILITY_MODE</strong> is supported on Windows&nbsp;Vista and later.</p>
+<h3 id="sio_set_group_qos-opcode-setting-i-t1">SIO_SET_GROUP_QOS (opcode setting: I, T==1)</h3>
+<p>Reserved.</p>
+<h3 id="sio_set_priority_hint-opcode-setting-i-t3">SIO_SET_PRIORITY_HINT (opcode setting: I, T==3)</h3>
+<p>Provides a hint to the underlying transport protocol to treat the traffic on this socket with a specific priority. The <em>lpvInBuffer</em> must point to a variable of type <strong>PRIORITY_HINT</strong> with <em>cbInBuffer</em> set to sizeof(PRIORITY_HINT). The <em>lpvOutBuffer</em> and <em>cbOutBuffer</em> parameters must be <strong>NULL</strong> and 0, respectively. The Microsoft Windows TCP implementation supports this IOCTL starting with Windows 10, version 1809 (10.0; Build 17763) and later as follows: when the requested priority value is set to <strong>IoPriorityHintVeryLow</strong>, TCP uses a modified version of the LEDBAT algorithm (defined in RFC 6817) for controlling the outbound traffic rate on the socket. The inbound traffic is not affected by this IOCTL. LEDBAT is a scavenger algorithm, and its goal is to keep latency low and prevent any adverse effect on normal-priority traffic by getting out of the way when normal-priority traffic is present.</p>
+<p>Also see <a href="https://tools.ietf.org/html/rfc6817" data-linktype="external">RFC 6817</a>.</p>
+<p><strong>SIO_SET_PRIORITY_HINT</strong> is supported on Windows 10, version 1809 (10.0; Build 17763) and later.</p>
+<h3 id="sio_set_qos-opcode-setting-i-t1">SIO_SET_QOS (opcode setting: I, T==1)</h3>
+<p>Associate the specified <a href="/en-us/windows/win32/api/winsock2/ns-winsock2-qos" data-linktype="absolute-path"><strong>QOS</strong></a> structure with the socket. No output buffer is required, the <strong>QOS</strong> structure will be obtained from the input buffer. The <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAENOPROTOOPT</a> error code is indicated for service providers that do not support quality of service.</p>
+<h3 id="sio_tcp_initial_rto-opcode-setting-i-t3">SIO_TCP_INITIAL_RTO (opcode setting: I, T==3)</h3>
+<p>Controls the initial (SYN / SYN+ACK) retransmission characteristics of a TCP socket by configuring initial retransmission timeout (RTO) parameters. The configuration parameters are specified in a <a href="/en-us/windows/desktop/api/mswsock/ns-mswsock-transmit_file_buffers" data-linktype="absolute-path"><strong>TCP_INITIAL_RTO_PARAMETERS</strong></a> structure.</p>
+<p>For more detailed information, see the <a href="sio-tcp-initial-rto" data-linktype="relative-path"><strong>SIO_TCP_INITIAL_RTO</strong></a> reference. <a href="sio-tcp-initial-rto" data-linktype="relative-path"><strong>SIO_TCP_INITIAL_RTO</strong></a> is supported on Windows&nbsp;8, Windows Server&nbsp;2012, and later.</p>
+<h3 id="sio_timestamping">SIO_TIMESTAMPING</h3>
+<p>A socket IOCTL used to configure reception of socket transmit/receive timestamps. Valid only for datagram sockets. The input type for <strong>SIO_TIMESTAMPING</strong> is the <a href="/en-us/windows/win32/api/mstcpip/ns-mstcpip-timestamping_config" data-linktype="absolute-path"><strong>TIMESTAMPING_CONFIG</strong></a> structure.</p>
+<p>Also see <a href="/en-us/windows/win32/winsock/winsock-timestamping" data-linktype="absolute-path">Winsock timestamping</a>.</p>
+<h3 id="sio_translate_handle-opcode-setting-i-o-t1">SIO_TRANSLATE_HANDLE (opcode setting: I, O, T==1)</h3>
+<p>To obtain a corresponding handle for socket <em>s</em> that is valid in the context of a companion interface (for example, TH_NETDEV and TH_TAPI). A manifest constant identifying the companion interface along with any other needed parameters are specified in the input buffer. The corresponding handle will be available in the output buffer upon completion of this function. Refer to the appropriate section in <a href="winsock-annexes" data-linktype="relative-path">Winsock Annexes</a> for details specific to a particular companion interface. The <a href="windows-sockets-error-codes-2" data-linktype="relative-path">WSAENOPROTOOPT</a> error code is indicated for service providers that do not support this IOCTL for the specified companion interface. This IOCTL retrieves the handle associated using <strong>SIO_TRANSLATE_HANDLE</strong>.</p>
+<p>It is recommend that the Component Object Model (COM) be used instead of this IOCTL to discover and track other interfaces that might be supported by a socket. This IOCTL is present for backward compatibility with systems where COM is not available or cannot be used for some other reason.</p>
+<h3 id="sio_udp_connreset-opcode-setting-i-t3">SIO_UDP_CONNRESET (opcode setting: I, T==3)</h3>
+<p><strong>Windows&nbsp;XP:</strong> Controls whether UDP PORT_UNREACHABLE messages are reported. Set to <strong>TRUE</strong> to enable reporting. Set to <strong>FALSE</strong> to disable reporting.</p>
+<h3 id="sio_udp_netreset">SIO_UDP_NETRESET</h3>
+<p>Controls whether <strong>NET_UNREACHABLE</strong> (TTL expired) messages are reported on UDP sockets via recv/WSARecv/etc. Pass <strong>TRUE</strong> in input buffer to enable (default if supported). Pass <strong>FALSE</strong> to disable reporting.</p>
+<h3 id="sio_set_wfp_connection_redirect_records-opcode-setting-i-t3">SIO_SET_WFP_CONNECTION_REDIRECT_RECORDS (opcode setting: I, T==3)</h3>
+<p>Sets the redirect record to the new TCP socket used for connecting to the final destination for use by a Windows Filtering Platform (WFP) redirect service.</p>
+<p>The <a href="/en-us/windows/win32/winsock/sio-set-wfp-connection-redirect-records" data-linktype="absolute-path"><strong>SIO_SET_WFP_CONNECTION_REDIRECT_RECORDS</strong></a> IOCTL is used as part of proxied connection tracking on redirected socket connections. This WFP feature facilitates tracking of redirection records from the initial redirect of a connection to the final connection to the destination.</p>
+<p>For more detailed information, see the <a href="/en-us/windows/win32/winsock/sio-set-wfp-connection-redirect-records" data-linktype="absolute-path"><strong>SIO_SET_WFP_CONNECTION_REDIRECT_RECORDS</strong></a> reference. <strong>SIO_SET_WFP_CONNECTION_REDIRECT_RECORDS</strong> is supported on Windows&nbsp;8, Windows Server&nbsp;2012, and later.</p>
+<h3 id="sio_tcp_info-opcode-setting-i-o-t3">SIO_TCP_INFO (opcode setting: I, O, T==3)</h3>
+<p>Retrieves the TCP statistics for a socket. The TCP statistics are provided in a <a href="/en-us/windows/desktop/api/Mstcpip/ns-mstcpip-tcp_info_v0" data-linktype="absolute-path"><strong>TCP_INFO_v0</strong></a> structure.</p>
+<p>Unlike retrieving TCP statistics with the <a href="/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getpertcpconnectionestats" data-linktype="absolute-path"><strong>GetPerTcpConnectionEStats</strong></a> function, retrieving TCP statistics with this control code does not require the user code to load, store, and filter the TCP connection table, and does not require elevated privileges to use.</p>
+<p>For more information, see <a href="/en-us/windows/win32/winsock/sio-tcp-info" data-linktype="absolute-path"><strong>SIO_TCP_INFO</strong></a>. <strong>SIO_TCP_INFO</strong> is supported on Windows 10, version 1703, Windows Server 2016, and later.</p>
+<h2 id="remarks">Remarks</h2>
+<p>Winsock Ioctls are defined in a number of different header files. These include the <em>Winsock2.h</em>, <em>Mswsock.h</em>, and <em>Mstcpip.h</em> header file.</p>
+<p>On the Microsoft Windows Software Development Kit (SDK) released for Windows&nbsp;Vista and later, the organization of header files has changed and a number of Winsock Ioctls are also defined in the <em>Ws2def.h</em>, <em>Ws2ipdef.h</em>, and <em>Mswsockdef.h</em> header files. The <em>Ws2def.h</em> header file is automatically included by the <em>Winsock2.h</em> header file. The <em>Ws2ipdef.h</em> header file is automatically included by the <em>Ws2tcpip.h</em> header file. The <em>Mswsockdef.h</em> header file is automatically included in the <em>Mswsockdef.h</em> header file.</p>
+<h2 id="requirements">Requirements</h2>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Header<br></td>
+<td><dl> <dt>Winsock2.h; </dt> <dt>Mstcpip.h; </dt> <dt>Mswsock.h; </dt> <dt>Mswsockdef.h on Windows Vista, Windows Server 2008 and Windows 7 (include Mswsock.h); </dt> <dt>Ws2def.h on Windows&nbsp;Vista, Windows Server&nbsp;2008 and Windows&nbsp;7 (include Winsock2.h); </dt> <dt>Ws2ipdef.h on Windows&nbsp;Vista, Windows Server&nbsp;2008 and Windows&nbsp;7 (include Ws2tcpip.h)</dt> </dl></td>
+</tr>
+</tbody>
+</table>
+</div>
+					
+		<div
+			id="ms--inline-notifications"
+			class="margin-block-xs"
+			data-bi-name="inline-notification"
+		></div>
+	 
+		<div
+			id="assertive-live-region"
+			role="alert"
+			aria-live="assertive"
+			class="visually-hidden"
+			aria-relevant="additions"
+			aria-atomic="true"
+		></div>
+		<div
+			id="polite-live-region"
+			role="status"
+			aria-live="polite"
+			class="visually-hidden"
+			aria-relevant="additions"
+			aria-atomic="true"
+		></div>
+	
+					
+		<!-- feedback section -->
+		<section
+			id="site-user-feedback-footer"
+			class="font-size-sm margin-top-md display-none-print display-none-desktop"
+			data-test-id="site-user-feedback-footer"
+			data-bi-name="site-feedback-section"
+		>
+			<hr class="hr" />
+			<h2 id="ms--feedback" class="title is-3">Feedback</h2>
+			<div class="display-flex flex-wrap-wrap align-items-center">
+				<p class="font-weight-semibold margin-xxs margin-left-none">
+					Was this page helpful?
+				</p>
+				<div class="buttons">
+					<button
+						class="thumb-rating-button like button button-primary button-sm"
+						data-test-id="footer-rating-yes"
+						data-binary-rating-response="rating-yes"
+						type="button"
+						title="This article is helpful"
+						data-bi-name="button-rating-yes"
+						aria-pressed="false"
+					>
+						<span class="icon" aria-hidden="true">
+							<span class="docon docon-like"></span>
+						</span>
+						<span>Yes</span>
+					</button>
+					<button
+						class="thumb-rating-button dislike button button-primary button-sm"
+						id="standard-rating-no-button"
+						hidden
+						data-test-id="footer-rating-no"
+						data-binary-rating-response="rating-no"
+						type="button"
+						title="This article is not helpful"
+						data-bi-name="button-rating-no"
+						aria-pressed="false"
+					>
+						<span class="icon" aria-hidden="true">
+							<span class="docon docon-dislike"></span>
+						</span>
+						<span>No</span>
+					</button>
+					<details
+						class="popover popover-top"
+						id="mobile-help-popover"
+						data-test-id="footer-feedback-popover"
+					>
+						<summary
+							class="thumb-rating-button dislike button button-primary button-sm"
+							data-test-id="details-footer-rating-no"
+							data-binary-rating-response="rating-no"
+							title="This article is not helpful"
+							data-bi-name="button-rating-no"
+							aria-pressed="false"
+							data-bi-an="feedback-unhelpful-popover"
+						>
+							<span class="icon" aria-hidden="true">
+								<span class="docon docon-dislike"></span>
+							</span>
+							<span>No</span>
+						</summary>
+						<div
+							class="popover-content width-200 width-300-tablet"
+							role="dialog"
+							aria-labelledby="popover-heading"
+							aria-describedby="popover-description"
+						>
+							<p id="popover-heading" class="font-size-lg margin-bottom-xxs font-weight-semibold">
+								Need help with this topic?
+							</p>
+							<p id="popover-description" class="font-size-sm margin-bottom-xs">
+								Want to try using Ask Learn to clarify or guide you through this topic?
+							</p>
+							
+		<div class="buttons flex-direction-row flex-wrap justify-content-center gap-xxs">
+			<div>
+		<button
+			class="button button-sm border inner-focus display-none margin-right-xxs"
+			data-bi-name="ask-learn-assistant-entry-troubleshoot"
+			data-test-id="ask-learn-assistant-modal-entry-mobile-feedback"
+			data-ask-learn-modal-entry-feedback
+			data-bi-an=feedback-unhelpful-popover
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			aria-label="Ask Learn"
+			hidden
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+		</button>
+		<button
+			class="button button-sm display-inline-flex display-none-desktop flex-shrink-0 margin-right-xxs border-color-ask-learn margin-right-xxs"
+			data-bi-name="ask-learn-assistant-entry-troubleshoot"
+			data-bi-an=feedback-unhelpful-popover
+			data-test-id="ask-learn-assistant-modal-entry-tablet-feedback"
+			data-ask-learn-modal-entry-feedback
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			hidden
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+			<span>Ask Learn</span>
+		</button>
+		<button
+			class="button button-sm display-none flex-shrink-0 display-inline-flex-desktop margin-right-xxs border-color-ask-learn margin-right-xxs"
+			data-bi-name="ask-learn-assistant-entry-troubleshoot"
+			data-bi-an=feedback-unhelpful-popover
+			data-test-id="ask-learn-assistant-flyout-entry-feedback"
+			data-ask-learn-flyout-entry-show-only
+			data-flyout-button="toggle"
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			aria-controls="ask-learn-flyout"
+			hidden
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+			<span>Ask Learn</span>
+		</button>
+	</div>
+			<button
+				type="button"
+				class="button button-sm margin-right-xxs"
+				data-help-option="suggest-fix"
+				data-bi-name="feedback-suggest"
+				data-bi-an="feedback-unhelpful-popover"
+				data-test-id="suggest-fix"
+			>
+				<span class="icon" aria-hidden="true">
+					<span class="docon docon-feedback"></span>
+				</span>
+				<span> Suggest a fix? </span>
+			</button>
+		</div>
+	
+						</div>
+					</details>
+				</div>
+			</div>
+		</section>
+		<!-- end feedback section -->
+	
+				</div>
+				
+		<div id="ms--additional-resources-mobile" class="display-none-print">
+			<hr class="hr" hidden />
+			<h2 id="ms--additional-resources-mobile-heading" class="title is-3" hidden>
+				Additional resources
+			</h2>
+			 
+		<section
+			id="right-rail-training-mobile"
+			class=""
+			data-bi-name="learning-resource-card"
+			hidden
+		></section>
+	 
+		<section
+			id="right-rail-events-mobile"
+			class=""
+			data-bi-name="events-card"
+			hidden
+		></section>
+	 
+		<section
+			id="right-rail-qna-mobile"
+			class="margin-top-xxs"
+			data-bi-name="qna-link-card"
+			hidden
+		></section>
+	
+		</div>
+	 
+		<div
+			id="article-metadata-footer"
+			data-bi-name="article-metadata-footer"
+			data-test-id="article-metadata-footer"
+			class="page-metadata-container"
+		>
+			<hr class="hr" />
+			<ul class="metadata page-metadata" data-bi-name="page info" lang="en-us" dir="ltr">
+				<li class="visibility-hidden-visual-diff">
+			<span class="badge badge-sm text-wrap-pretty">
+				<span>Last updated on <local-time format="twoDigitNumeric"
+		datetime="2022-01-19T02:19:00.000Z"
+		data-article-date-source="calculated"
+		class="is-invisible"
+	>
+		2022-01-19
+	</local-time></span>
+			</span>
+		</li>
+			</ul>
+		</div>
+	
+			</div>
+			
+		<div
+			id="action-panel"
+			role="region"
+			aria-label="Action Panel"
+			class="action-panel"
+			tabindex="-1"
+		></div>
+	
+		
+				</main>
+				<aside
+					id="layout-body-aside"
+					class="layout-body-aside "
+					data-bi-name="aside"
+			  >
+					
+		<div
+			id="ms--additional-resources"
+			class="right-container padding-sm display-none display-block-desktop height-full"
+			data-bi-name="pageactions"
+			role="complementary"
+			aria-label="Additional resources"
+		>
+			<div id="affixed-right-container" data-bi-name="right-column">
+				
+		<nav
+			id="side-doc-outline"
+			class="doc-outline border-bottom padding-bottom-xs margin-bottom-xs"
+			data-bi-name="intopic toc"
+			aria-label="In this article"
+		>
+			<h3>In this article</h3>
+		</nav>
+	
+				<!-- Feedback -->
+				
+		<section
+			id="ms--site-user-feedback-right-rail"
+			class="font-size-sm display-none-print"
+			data-test-id="site-user-feedback-right-rail"
+			data-bi-name="site-feedback-right-rail"
+		>
+			<p class="font-weight-semibold margin-bottom-xs">Was this page helpful?</p>
+			<div class="buttons">
+				<button
+					class="thumb-rating-button like button button-primary button-sm"
+					data-test-id="right-rail-rating-yes"
+					data-binary-rating-response="rating-yes"
+					type="button"
+					title="This article is helpful"
+					data-bi-name="button-rating-yes"
+					aria-pressed="false"
+				>
+					<span class="icon" aria-hidden="true">
+						<span class="docon docon-like"></span>
+					</span>
+					<span>Yes</span>
+				</button>
+				<button
+					class="thumb-rating-button dislike button button-primary button-sm"
+					id="right-rail-no-button"
+					hidden
+					data-test-id="right-rail-rating-no"
+					data-binary-rating-response="rating-no"
+					type="button"
+					title="This article is not helpful"
+					data-bi-name="button-rating-no"
+					aria-pressed="false"
+				>
+					<span class="icon" aria-hidden="true">
+						<span class="docon docon-dislike"></span>
+					</span>
+					<span>No</span>
+				</button>
+				<details class="popover popover-right" id="help-popover" data-test-id="feedback-popover">
+					<summary
+						tabindex="0"
+						class="thumb-rating-button dislike button button-primary button-sm"
+						data-test-id="details-right-rail-rating-no"
+						data-binary-rating-response="rating-no"
+						title="This article is not helpful"
+						data-bi-name="button-rating-no"
+						aria-pressed="false"
+						data-bi-an="feedback-unhelpful-popover"
+					>
+						<span class="icon" aria-hidden="true">
+							<span class="docon docon-dislike"></span>
+						</span>
+						<span>No</span>
+					</summary>
+					<div
+						class="popover-content width-200 width-300-tablet"
+						role="dialog"
+						aria-labelledby="popover-heading"
+						aria-describedby="popover-description"
+					>
+						<p
+							id="popover-heading-right-rail"
+							class="font-size-lg margin-bottom-xxs font-weight-semibold"
+						>
+							Need help with this topic?
+						</p>
+						<p id="popover-description-right-rail" class="font-size-sm margin-bottom-xs">
+							Want to try using Ask Learn to clarify or guide you through this topic?
+						</p>
+						
+		<div class="buttons flex-direction-row flex-wrap justify-content-center gap-xxs">
+			<div>
+		<button
+			class="button button-sm border inner-focus display-none margin-right-xxs"
+			data-bi-name="ask-learn-assistant-entry-troubleshoot"
+			data-test-id="ask-learn-assistant-modal-entry-mobile-feedback"
+			data-ask-learn-modal-entry-feedback
+			data-bi-an=feedback-unhelpful-popover
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			aria-label="Ask Learn"
+			hidden
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+		</button>
+		<button
+			class="button button-sm display-inline-flex display-none-desktop flex-shrink-0 margin-right-xxs border-color-ask-learn margin-right-xxs"
+			data-bi-name="ask-learn-assistant-entry-troubleshoot"
+			data-bi-an=feedback-unhelpful-popover
+			data-test-id="ask-learn-assistant-modal-entry-tablet-feedback"
+			data-ask-learn-modal-entry-feedback
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			hidden
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+			<span>Ask Learn</span>
+		</button>
+		<button
+			class="button button-sm display-none flex-shrink-0 display-inline-flex-desktop margin-right-xxs border-color-ask-learn margin-right-xxs"
+			data-bi-name="ask-learn-assistant-entry-troubleshoot"
+			data-bi-an=feedback-unhelpful-popover
+			data-test-id="ask-learn-assistant-flyout-entry-feedback"
+			data-ask-learn-flyout-entry-show-only
+			data-flyout-button="toggle"
+			type="button"
+			style="min-width: max-content;"
+			aria-expanded="false"
+			aria-controls="ask-learn-flyout"
+			hidden
+		>
+			<span class="icon font-size-lg" aria-hidden="true">
+				<span class="docon docon-chat-sparkle-fill gradient-ask-learn-logo"></span>
+			</span>
+			<span>Ask Learn</span>
+		</button>
+	</div>
+			<button
+				type="button"
+				class="button button-sm margin-right-xxs"
+				data-help-option="suggest-fix"
+				data-bi-name="feedback-suggest"
+				data-bi-an="feedback-unhelpful-popover"
+				data-test-id="suggest-fix"
+			>
+				<span class="icon" aria-hidden="true">
+					<span class="docon docon-feedback"></span>
+				</span>
+				<span> Suggest a fix? </span>
+			</button>
+		</div>
+	
+					</div>
+				</details>
+			</div>
+		</section>
+	
+			</div>
+		</div>
+	
+			  </aside> <section
+					id="layout-body-flyout"
+					class="layout-body-flyout "
+					data-bi-name="flyout"
+			  >
+					 <div
+	class="height-full border-left background-color-body-medium"
+	id="ask-learn-flyout"
+></div>
+			  </section> <div class="layout-body-footer " data-bi-name="layout-footer">
+		<footer
+			id="footer"
+			data-test-id="footer"
+			data-bi-name="footer"
+			class="footer-layout has-padding has-default-focus border-top  uhf-container"
+			role="contentinfo"
+		>
+			<div class="display-flex gap-xs flex-wrap-wrap is-full-height padding-right-lg-desktop">
+				
+		<a
+			data-mscc-ic="false"
+			href="#"
+			data-bi-name="select-locale"
+			class="locale-selector-link flex-shrink-0 button button-sm button-clear external-link-indicator"
+			id=""
+			title=""
+			><span class="icon" aria-hidden="true"
+				><span class="docon docon-world"></span></span
+			><span class="local-selector-link-text">en-us</span></a
+		>
+	 <div class="ccpa-privacy-link" data-ccpa-privacy-link hidden>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://aka.ms/yourcaliforniaprivacychoices"
+			data-bi-name="your-privacy-choices"
+			class="button button-sm button-clear flex-shrink-0 external-link-indicator"
+			id=""
+			title=""
+			>
+		<svg
+			xmlns="http://www.w3.org/2000/svg"
+			viewBox="0 0 30 14"
+			xml:space="preserve"
+			height="16"
+			width="43"
+			aria-hidden="true"
+			focusable="false"
+		>
+			<path
+				d="M7.4 12.8h6.8l3.1-11.6H7.4C4.2 1.2 1.6 3.8 1.6 7s2.6 5.8 5.8 5.8z"
+				style="fill-rule:evenodd;clip-rule:evenodd;fill:#fff"
+			></path>
+			<path
+				d="M22.6 0H7.4c-3.9 0-7 3.1-7 7s3.1 7 7 7h15.2c3.9 0 7-3.1 7-7s-3.2-7-7-7zm-21 7c0-3.2 2.6-5.8 5.8-5.8h9.9l-3.1 11.6H7.4c-3.2 0-5.8-2.6-5.8-5.8z"
+				style="fill-rule:evenodd;clip-rule:evenodd;fill:#06f"
+			></path>
+			<path
+				d="M24.6 4c.2.2.2.6 0 .8L22.5 7l2.2 2.2c.2.2.2.6 0 .8-.2.2-.6.2-.8 0l-2.2-2.2-2.2 2.2c-.2.2-.6.2-.8 0-.2-.2-.2-.6 0-.8L20.8 7l-2.2-2.2c-.2-.2-.2-.6 0-.8.2-.2.6-.2.8 0l2.2 2.2L23.8 4c.2-.2.6-.2.8 0z"
+				style="fill:#fff"
+			></path>
+			<path
+				d="M12.7 4.1c.2.2.3.6.1.8L8.6 9.8c-.1.1-.2.2-.3.2-.2.1-.5.1-.7-.1L5.4 7.7c-.2-.2-.2-.6 0-.8.2-.2.6-.2.8 0L8 8.6l3.8-4.5c.2-.2.6-.2.9 0z"
+				style="fill:#06f"
+			></path>
+		</svg>
+	
+			<span>Your Privacy Choices</span></a
+		>
+	
+	</div>
+				<div class="flex-shrink-0">
+		<div class="dropdown has-caret-up">
+			<button
+				data-test-id="theme-selector-button"
+				class="dropdown-trigger button button-clear button-sm inner-focus theme-dropdown-trigger"
+				aria-controls="{{ themeMenuId }}"
+				aria-expanded="false"
+				title="Theme"
+				data-bi-name="theme"
+			>
+				<span class="icon">
+					<span class="docon docon-sun" aria-hidden="true"></span>
+				</span>
+				<span>Theme</span>
+				<span class="icon expanded-indicator" aria-hidden="true">
+					<span class="docon docon-chevron-down-light"></span>
+				</span>
+			</button>
+			<div class="dropdown-menu" id="{{ themeMenuId }}" role="menu">
+				<ul class="theme-selector padding-xxs" data-test-id="theme-dropdown-menu">
+					<li class="theme display-block">
+						<button
+							class="button button-clear button-sm theme-control button-block justify-content-flex-start text-align-left"
+							data-theme-to="light"
+						>
+							<span class="theme-light margin-right-xxs">
+								<span
+									class="theme-selector-icon border display-inline-block has-body-background"
+									aria-hidden="true"
+								>
+									<svg class="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 14">
+										<rect width="22" height="14" class="has-fill-body-background" />
+										<rect x="5" y="5" width="12" height="4" class="has-fill-secondary" />
+										<rect x="5" y="2" width="2" height="1" class="has-fill-secondary" />
+										<rect x="8" y="2" width="2" height="1" class="has-fill-secondary" />
+										<rect x="11" y="2" width="3" height="1" class="has-fill-secondary" />
+										<rect x="1" y="1" width="2" height="2" class="has-fill-secondary" />
+										<rect x="5" y="10" width="7" height="2" rx="0.3" class="has-fill-primary" />
+										<rect x="19" y="1" width="2" height="2" rx="1" class="has-fill-secondary" />
+									</svg>
+								</span>
+							</span>
+							<span role="menuitem"> Light </span>
+						</button>
+					</li>
+					<li class="theme display-block">
+						<button
+							class="button button-clear button-sm theme-control button-block justify-content-flex-start text-align-left"
+							data-theme-to="dark"
+						>
+							<span class="theme-dark margin-right-xxs">
+								<span
+									class="border theme-selector-icon display-inline-block has-body-background"
+									aria-hidden="true"
+								>
+									<svg class="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 14">
+										<rect width="22" height="14" class="has-fill-body-background" />
+										<rect x="5" y="5" width="12" height="4" class="has-fill-secondary" />
+										<rect x="5" y="2" width="2" height="1" class="has-fill-secondary" />
+										<rect x="8" y="2" width="2" height="1" class="has-fill-secondary" />
+										<rect x="11" y="2" width="3" height="1" class="has-fill-secondary" />
+										<rect x="1" y="1" width="2" height="2" class="has-fill-secondary" />
+										<rect x="5" y="10" width="7" height="2" rx="0.3" class="has-fill-primary" />
+										<rect x="19" y="1" width="2" height="2" rx="1" class="has-fill-secondary" />
+									</svg>
+								</span>
+							</span>
+							<span role="menuitem"> Dark </span>
+						</button>
+					</li>
+					<li class="theme display-block">
+						<button
+							class="button button-clear button-sm theme-control button-block justify-content-flex-start text-align-left"
+							data-theme-to="high-contrast"
+						>
+							<span class="theme-high-contrast margin-right-xxs">
+								<span
+									class="border theme-selector-icon display-inline-block has-body-background"
+									aria-hidden="true"
+								>
+									<svg class="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 14">
+										<rect width="22" height="14" class="has-fill-body-background" />
+										<rect x="5" y="5" width="12" height="4" class="has-fill-secondary" />
+										<rect x="5" y="2" width="2" height="1" class="has-fill-secondary" />
+										<rect x="8" y="2" width="2" height="1" class="has-fill-secondary" />
+										<rect x="11" y="2" width="3" height="1" class="has-fill-secondary" />
+										<rect x="1" y="1" width="2" height="2" class="has-fill-secondary" />
+										<rect x="5" y="10" width="7" height="2" rx="0.3" class="has-fill-primary" />
+										<rect x="19" y="1" width="2" height="2" rx="1" class="has-fill-secondary" />
+									</svg>
+								</span>
+							</span>
+							<span role="menuitem"> High contrast </span>
+						</button>
+					</li>
+				</ul>
+			</div>
+		</div>
+	</div>
+			</div>
+			<ul class="links" data-bi-name="footerlinks">
+				<li class="manage-cookies-holder" hidden=""></li>
+				<li>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://learn.microsoft.com/en-us/principles-for-ai-generated-content"
+			data-bi-name="aiDisclaimer"
+			class=" external-link-indicator"
+			id=""
+			title=""
+			>AI Disclaimer</a
+		>
+	
+	</li><li>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://learn.microsoft.com/en-us/previous-versions/"
+			data-bi-name="archivelink"
+			class=" external-link-indicator"
+			id=""
+			title=""
+			>Previous Versions</a
+		>
+	
+	</li> <li>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://techcommunity.microsoft.com/t5/microsoft-learn-blog/bg-p/MicrosoftLearnBlog"
+			data-bi-name="bloglink"
+			class=" external-link-indicator"
+			id=""
+			title=""
+			>Blog</a
+		>
+	
+	</li> <li>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://learn.microsoft.com/en-us/contribute"
+			data-bi-name="contributorGuide"
+			class=" external-link-indicator"
+			id=""
+			title=""
+			>Contribute</a
+		>
+	
+	</li><li>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://go.microsoft.com/fwlink/?LinkId=521839"
+			data-bi-name="privacy"
+			class=" external-link-indicator"
+			id=""
+			title=""
+			>Privacy</a
+		>
+	
+	</li><li>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://learn.microsoft.com/en-us/legal/termsofuse"
+			data-bi-name="termsofuse"
+			class=" external-link-indicator"
+			id=""
+			title=""
+			>Terms of Use</a
+		>
+	
+	</li><li>
+		
+		<a
+			data-mscc-ic="false"
+			href="https://www.microsoft.com/legal/intellectualproperty/Trademarks/"
+			data-bi-name="trademarks"
+			class=" external-link-indicator"
+			id=""
+			title=""
+			>Trademarks</a
+		>
+	
+	</li>
+				<li>&copy; Microsoft 2026</li>
+			</ul>
+		</footer>
+	</footer>
+			</body>
+		</html>

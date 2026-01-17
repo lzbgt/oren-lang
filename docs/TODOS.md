@@ -391,6 +391,14 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	   Next steps (actionable, highest leverage first):
 
 	   - Windows: upgrade the socket netpoller from select-v0 to IOCP (scalable readiness + true wake; removes `FD_SETSIZE=64` per-call limit and avoids batching).
+	       - Design doc: `docs/WINDOWS_IOCP_NETPOLL.md`
+	       - Primary reference snapshots (verbatim): `project-doc/web/learn.microsoft.com/iocp/20260117/`
+	       - Rolling plumbing landed (2026-01-17): `OREN_NETPOLL_WIN_IOCP=1` is now recognized but still falls back to select-v0 (IOCP stub returns `-ENOSYS`).
+	       - Deliverable v1 (when implemented): IOCP poll core + wake:
+	         - `CreateIoCompletionPort` + `GetQueuedCompletionStatusEx` + `PostQueuedCompletionStatus`
+	         - Wire `native_netpoll_wake()` to `PostQueuedCompletionStatus` (no loopback dependency)
+	         - Represent completions as scheduler tokens (likely a new “IO wait node” object; aligns with netpoll v2 token shape)
+	       - Gate (to add when IOCP lands): Windows-only fixture proving a blocked IOCP poll is broken by `native_netpoll_wake()` and STW stays bounded without periodic polling.
 		   - Windows: extend the wait-list mechanism beyond channels:
 		     - fd waits (`oren_fd_wait_*`) should eventually park Gs on IOCP wait nodes (no polling, no scheduler-thread blocking)
 		     - unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface

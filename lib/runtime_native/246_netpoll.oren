@@ -21,6 +21,14 @@ var g_netpoll_fd = 0
 var g_netpoll_wake_rfd = 0
 var g_netpoll_wake_wfd = 0
 
+// Rolling Windows backend selector:
+// - 0: select-v0 (watch table + select batching)
+// - 1: IOCP (planned; completion-based; not implemented yet)
+//
+// NOTE: this is intentionally a runtime selection knob so we can land IOCP incrementally
+// behind an opt-in env flag without breaking Tier‑1 bring-up.
+var g_netpoll_win_backend = 0
+
 // Windows netpoll v0 state (rolling):
 // - There is no kqueue/epoll; we use WinSock select() over a watched set (FD_SETSIZE=64 per call).
 // - Tokens are stored in a process-global watch table protected by a small lock.
@@ -48,6 +56,21 @@ fn _netpoll_env_truthy(name) {
     if b == 0 { return 0 }
     if b == 48 { return 0 } // '0'
     return 1
+}
+
+fn _netpoll_windows_backend_select() {
+    // Decide which Windows netpoll backend to use.
+    //
+    // Default is select-v0 (correctness-first, minimal dependencies).
+    // Opt-in: OREN_NETPOLL_WIN_IOCP=1 requests IOCP once implemented.
+    if _netpoll_env_truthy("OREN_NETPOLL_WIN_IOCP") == 1 { return 1 }
+    return 0
+}
+
+fn _native_netpoll_windows_init_iocp_once() {
+    // IOCP backend is not implemented yet.
+    // Keep this as a stub so we can land the public selection plumbing early.
+    return 0 - 78 // ENOSYS
 }
 
 fn native_netpoll_supported() {
@@ -203,6 +226,19 @@ fn native_netpoll_init_once() {
     // - No kqueue/epoll fd.
     // - Watch table is stored in-process and polled via WinSock select().
     if g_target_os == 3 {
+        // Select backend once.
+        g_netpoll_win_backend = _netpoll_windows_backend_select()
+        if g_netpoll_win_backend == 1 {
+            // Attempt IOCP init. If unimplemented/unavailable, fall back to select-v0.
+            var iocp_rc = _native_netpoll_windows_init_iocp_once()
+            if iocp_rc == 0 {
+                g_netpoll_inited = 1
+                release_lock()
+                return 0
+            }
+            // Fall back to select-v0 for rolling Tier‑1 correctness.
+            g_netpoll_win_backend = 0
+        }
         if g_netpoll_inited != 0 { release_lock(); return 0 }
         if g_netpoll_watch_lock_word == 0 {
             g_netpoll_watch_lock_word = malloc(8)

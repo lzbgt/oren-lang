@@ -244,7 +244,10 @@ Current (rolling, correctness-first):
 - In-green IO readiness on Windows (rolling v0):
   - `oren_fd_wait_readable` / `oren_fd_wait_writable` can park a green task and rely on the scheduler netpoller.
   - Implementation is WinSock `select()` over a small watched set (`FD_SETSIZE=64` cap); it is not IOCP yet.
-  - The scheduler keeps kernel waits bounded in worker mode (STW safety), so the lack of a wake FD is acceptable for now.
+  - Wake (best-effort): non-capsule builds create a loopback UDP wake socket so `native_netpoll_wake()` can break a blocking select immediately.
+    - Watch-table updates also call `native_netpoll_wake()` when the wake socket exists, so new registrations are observed promptly even with longer select timeouts.
+    - In capsule mode, the wake socket is only created if loopback is explicitly allowed; otherwise waits remain bounded by short timeouts (polling fallback; correctness-first).
+  - STW GC integration: stop-the-world now calls `native_netpoll_wake()` so OS threads blocked in select can observe STW promptly (no 10ms global clamp requirement).
 
 ---
 
@@ -257,3 +260,4 @@ The relevant near-term items are:
 - Tier‑1 native parity (x86_64 + arm64; macOS/Linux/Windows) — see `docs/TODOS.md` P0.1
 - Backend architecture unification (CoreIR boundary) — see `docs/TODOS.md` P0.3
 - After that: native scheduler + channels/select maturity and IO integration — see `docs/CONCURRENCY_MODEL.md` / `docs/NATIVE_GMP_SCHEDULER.md`
+  - Windows IOCP design notes (rolling): `docs/WINDOWS_IOCP_NETPOLL.md`
