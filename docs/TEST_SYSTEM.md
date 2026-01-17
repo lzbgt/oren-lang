@@ -111,6 +111,10 @@ For broader native coverage:
 make test-native-all
 ```
 
+Operational note (rolling):
+
+- When running a compiled native test binary directly (outside the Makefile targets), wrap it with `timeout`/`gtimeout` to keep the “tests must never hang forever” rule true for ad-hoc repros too (and to avoid leaving long-lived `build/tmp/test_*` processes behind if a regression hangs).
+
 Perf tripwire (rolling):
 
 ```bash
