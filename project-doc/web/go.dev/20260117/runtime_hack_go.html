@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="auto">
+<head>
+
+<link rel="preconnect" href="https://www.googletagmanager.com">
+<script >(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','GTM-W8MVQXG');</script>
+  
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#00add8">
+<link rel="canonical" href="https://go.dev/src/runtime/HACKING">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Material+Icons">
+<link rel="stylesheet" href="/css/styles.css">
+<link rel="icon" href="/images/favicon-gopher.png" sizes="any">
+<link rel="apple-touch-icon" href="/images/favicon-gopher-plain.png"/>
+<link rel="icon" href="/images/favicon-gopher.svg" type="image/svg+xml">
+<link rel="me" href="https://hachyderm.io/@golang">
+
+  
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','GTM-W8MVQXG');</script>
+  
+<script src="/js/site.js"></script>
+<meta name="og:url" content="https://go.dev/src/runtime/HACKING">
+<meta name="og:title" content=" - The Go Programming Language">
+<title> - The Go Programming Language</title>
+
+<meta name="og:image" content="https://go.dev/doc/gopher/gopher5logo.jpg">
+<meta name="twitter:image" content="https://go.dev/doc/gopher/gopherbelly300.jpg">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:site" content="@golang">
+</head>
+<body class="Site">
+  
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W8MVQXG"
+  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  
+
+
+<header class="Site-header js-siteHeader">
+  <div class="Header Header--dark">
+    <nav class="Header-nav">
+      <a href="/">
+        <img
+          class="js-headerLogo Header-logo"
+          src="/images/go-logo-white.svg"
+          alt="Go">
+      </a>
+      <div class="skip-navigation-wrapper">
+        <a class="skip-to-content-link" aria-label="Skip to main content" href="#main-content"> Skip to Main Content </a>
+      </div>
+      <div class="Header-rightContent">
+        <ul class="Header-menu">
+          <li class="Header-menuItem ">
+            <a href="#"  class="js-desktop-menu-hover" aria-label=Why&#32;Go aria-describedby="dropdown-description">
+              Why Go <i class="material-icons" aria-hidden="true">arrow_drop_down</i>
+            </a>
+            <div class="screen-reader-only" id="dropdown-description" hidden>
+              Press Enter to activate/deactivate dropdown
+            </div>
+              <ul class="Header-submenu js-desktop-submenu-hover" aria-label="submenu">
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/solutions/case-studies">
+                          Case Studies
+                          
+                        </a>
+                    </div>
+                    <p>Common problems companies solve with Go</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/solutions/use-cases">
+                          Use Cases
+                          
+                        </a>
+                    </div>
+                    <p>Stories about how and why companies use Go</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/security/">
+                          Security
+                          
+                        </a>
+                    </div>
+                    <p>How Go can help keep you secure by default</p>
+                  </li>
+              </ul>
+          </li>
+          <li class="Header-menuItem ">
+            <a href="/learn/"  aria-label=Learn aria-describedby="dropdown-description">
+              Learn 
+            </a>
+            <div class="screen-reader-only" id="dropdown-description" hidden>
+              Press Enter to activate/deactivate dropdown
+            </div>
+          </li>
+          <li class="Header-menuItem ">
+            <a href="#"  class="js-desktop-menu-hover" aria-label=Docs aria-describedby="dropdown-description">
+              Docs <i class="material-icons" aria-hidden="true">arrow_drop_down</i>
+            </a>
+            <div class="screen-reader-only" id="dropdown-description" hidden>
+              Press Enter to activate/deactivate dropdown
+            </div>
+              <ul class="Header-submenu js-desktop-submenu-hover" aria-label="submenu">
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/ref/spec">
+                          Go Spec
+                          
+                        </a>
+                    </div>
+                    <p>The official Go language specification</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/doc">
+                          Go User Manual
+                          
+                        </a>
+                    </div>
+                    <p>A complete introduction to building software with Go</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="https://pkg.go.dev/std">
+                          Standard library
+                          
+                        </a>
+                    </div>
+                    <p>Reference documentation for Go&#39;s standard library</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/doc/devel/release">
+                          Release Notes
+                          
+                        </a>
+                    </div>
+                    <p>Learn what&#39;s new in each Go release</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/doc/effective_go">
+                          Effective Go
+                          
+                        </a>
+                    </div>
+                    <p>Tips for writing clear, performant, and idiomatic Go code</p>
+                  </li>
+              </ul>
+          </li>
+          <li class="Header-menuItem ">
+            <a href="https://pkg.go.dev"  aria-label=Packages aria-describedby="dropdown-description">
+              Packages 
+            </a>
+            <div class="screen-reader-only" id="dropdown-description" hidden>
+              Press Enter to activate/deactivate dropdown
+            </div>
+          </li>
+          <li class="Header-menuItem ">
+            <a href="#"  class="js-desktop-menu-hover" aria-label=Community aria-describedby="dropdown-description">
+              Community <i class="material-icons" aria-hidden="true">arrow_drop_down</i>
+            </a>
+            <div class="screen-reader-only" id="dropdown-description" hidden>
+              Press Enter to activate/deactivate dropdown
+            </div>
+              <ul class="Header-submenu js-desktop-submenu-hover" aria-label="submenu">
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/talks/">
+                          Recorded Talks
+                          
+                        </a>
+                    </div>
+                    <p>Videos from prior events</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="https://www.meetup.com/pro/go">
+                          Meetups
+                           <i class="material-icons">open_in_new</i>
+                        </a>
+                    </div>
+                    <p>Meet other local Go developers</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/wiki/Conferences">
+                          Conferences
+                           <i class="material-icons">open_in_new</i>
+                        </a>
+                    </div>
+                    <p>Learn and network with Go developers from around the world</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/blog">
+                          Go blog
+                          
+                        </a>
+                    </div>
+                    <p>The Go project&#39;s official blog.</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        <a href="/help">
+                          Go project
+                          
+                        </a>
+                    </div>
+                    <p>Get help and stay informed from Go</p>
+                  </li>
+                  <li class="Header-submenuItem">
+                    <div>
+                        Get connected
+                    </div>
+                    <p></p>
+                      <div class="Header-socialIcons">
+                        
+                        <a class="Header-socialIcon" aria-label="Get connected with google-groups (Opens in new window)" href="https://groups.google.com/g/golang-nuts"><img src="/images/logos/social/google-groups.svg" /></a>
+                        <a class="Header-socialIcon" aria-label="Get connected with github (Opens in new window)" href="https://github.com/golang"><img src="/images/logos/social/github.svg" /></a>
+                        <a class="Header-socialIcon" aria-label="Get connected with twitter (Opens in new window)" href="https://twitter.com/golang"><img src="/images/logos/social/twitter.svg" /></a>
+                        <a class="Header-socialIcon" aria-label="Get connected with reddit (Opens in new window)" href="https://www.reddit.com/r/golang/"><img src="/images/logos/social/reddit.svg" /></a>
+                        <a class="Header-socialIcon" aria-label="Get connected with slack (Opens in new window)" href="https://invite.slack.golangbridge.org/"><img src="/images/logos/social/slack.svg" /></a>
+                        <a class="Header-socialIcon" aria-label="Get connected with stack-overflow (Opens in new window)" href="https://stackoverflow.com/tags/go"><img src="/images/logos/social/stack-overflow.svg" /></a>
+                      </div>
+                  </li>
+              </ul>
+          </li>
+        </ul>
+        <button class="Header-navOpen js-headerMenuButton Header-navOpen--white" aria-label="Open navigation.">
+        </button>
+      </div>
+    </nav>
+    
+  </div>
+</header>
+<aside class="NavigationDrawer js-header">
+  <nav class="NavigationDrawer-nav">
+    <div class="NavigationDrawer-header">
+      <a href="/">
+        <img class="NavigationDrawer-logo" src="/images/go-logo-blue.svg" alt="Go.">
+      </a>
+    </div>
+    <ul class="NavigationDrawer-list">
+        
+          <li class="NavigationDrawer-listItem js-mobile-subnav-trigger  NavigationDrawer-hasSubnav">
+            <a href="#"><span>Why Go</span> <i class="material-icons">navigate_next</i></a>
+
+            <div class="NavigationDrawer NavigationDrawer-submenuItem">
+              <nav class="NavigationDrawer-nav">
+                <div class="NavigationDrawer-header">
+                  <a href="#"><i class="material-icons">navigate_before</i>Why Go</a>
+                </div>
+                <ul class="NavigationDrawer-list">
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/solutions/case-studies">
+                          Case Studies
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/solutions/use-cases">
+                          Use Cases
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/security/">
+                          Security
+                          
+                        </a>
+                      
+                    </li>
+                </ul>
+              </div>
+            </div>
+          </li>
+
+        
+        
+          <li class="NavigationDrawer-listItem ">
+            <a href="/learn/">Learn</a>
+          </li>
+        
+        
+          <li class="NavigationDrawer-listItem js-mobile-subnav-trigger  NavigationDrawer-hasSubnav">
+            <a href="#"><span>Docs</span> <i class="material-icons">navigate_next</i></a>
+
+            <div class="NavigationDrawer NavigationDrawer-submenuItem">
+              <nav class="NavigationDrawer-nav">
+                <div class="NavigationDrawer-header">
+                  <a href="#"><i class="material-icons">navigate_before</i>Docs</a>
+                </div>
+                <ul class="NavigationDrawer-list">
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/ref/spec">
+                          Go Spec
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/doc">
+                          Go User Manual
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="https://pkg.go.dev/std">
+                          Standard library
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/doc/devel/release">
+                          Release Notes
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/doc/effective_go">
+                          Effective Go
+                          
+                        </a>
+                      
+                    </li>
+                </ul>
+              </div>
+            </div>
+          </li>
+
+        
+        
+          <li class="NavigationDrawer-listItem ">
+            <a href="https://pkg.go.dev">Packages</a>
+          </li>
+        
+        
+          <li class="NavigationDrawer-listItem js-mobile-subnav-trigger  NavigationDrawer-hasSubnav">
+            <a href="#"><span>Community</span> <i class="material-icons">navigate_next</i></a>
+
+            <div class="NavigationDrawer NavigationDrawer-submenuItem">
+              <nav class="NavigationDrawer-nav">
+                <div class="NavigationDrawer-header">
+                  <a href="#"><i class="material-icons">navigate_before</i>Community</a>
+                </div>
+                <ul class="NavigationDrawer-list">
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/talks/">
+                          Recorded Talks
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="https://www.meetup.com/pro/go">
+                          Meetups
+                           <i class="material-icons">open_in_new</i>
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/wiki/Conferences">
+                          Conferences
+                           <i class="material-icons">open_in_new</i>
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/blog">
+                          Go blog
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <a href="/help">
+                          Go project
+                          
+                        </a>
+                      
+                    </li>
+                    <li class="NavigationDrawer-listItem">
+                        <div>Get connected</div>
+                        <div class="Header-socialIcons">
+                          
+                            <a class="Header-socialIcon" href="https://groups.google.com/g/golang-nuts"><img src="/images/logos/social/google-groups.svg" /></a>
+                            <a class="Header-socialIcon" href="https://github.com/golang"><img src="/images/logos/social/github.svg" /></a>
+                            <a class="Header-socialIcon" href="https://twitter.com/golang"><img src="/images/logos/social/twitter.svg" /></a>
+                            <a class="Header-socialIcon" href="https://www.reddit.com/r/golang/"><img src="/images/logos/social/reddit.svg" /></a>
+                            <a class="Header-socialIcon" href="https://invite.slack.golangbridge.org/"><img src="/images/logos/social/slack.svg" /></a>
+                            <a class="Header-socialIcon" href="https://stackoverflow.com/tags/go"><img src="/images/logos/social/stack-overflow.svg" /></a>
+                        </div>
+                    </li>
+                </ul>
+              </div>
+            </div>
+          </li>
+
+        
+    </ul>
+  </nav>
+</aside>
+<div class="NavigationDrawer-scrim js-scrim" role="presentation"></div>
+<main class="SiteContent SiteContent--default" id="main-content">
+  
+
+
+<article class="Doc Article">
+
+
+
+
+
+
+
+
+
+
+<div id="nav" class="TOC"></div>
+
+
+
+<div class='markdown'>
+<p>This is a living document and at times it will be out of date. It is
+intended to articulate how programming in the Go runtime differs from
+writing normal Go. It focuses on pervasive concepts rather than
+details of particular interfaces.</p>
+<h1 id="scheduler-structures">Scheduler structures</h1>
+<p>The scheduler manages three types of resources that pervade the
+runtime: Gs, Ms, and Ps. It&rsquo;s important to understand these even if
+you&rsquo;re not working on the scheduler.</p>
+<h2 id="gs-ms-ps">Gs, Ms, Ps</h2>
+<p>A &ldquo;G&rdquo; is simply a goroutine. It&rsquo;s represented by type <code>g</code>. When a
+goroutine exits, its <code>g</code> object is returned to a pool of free <code>g</code>s and
+can later be reused for some other goroutine.</p>
+<p>An &ldquo;M&rdquo; is an OS thread that can be executing user Go code, runtime
+code, a system call, or be idle. It&rsquo;s represented by type <code>m</code>. There
+can be any number of Ms at a time since any number of threads may be
+blocked in system calls.</p>
+<p>Finally, a &ldquo;P&rdquo; represents the resources required to execute user Go
+code, such as scheduler and memory allocator state. It&rsquo;s represented
+by type <code>p</code>. There are exactly <code>GOMAXPROCS</code> Ps. A P can be thought of
+like a CPU in the OS scheduler and the contents of the <code>p</code> type like
+per-CPU state. This is a good place to put state that needs to be
+sharded for efficiency, but doesn&rsquo;t need to be per-thread or
+per-goroutine.</p>
+<p>The scheduler&rsquo;s job is to match up a G (the code to execute), an M
+(where to execute it), and a P (the rights and resources to execute
+it). When an M stops executing user Go code, for example by entering a
+system call, it returns its P to the idle P pool. In order to resume
+executing user Go code, for example on return from a system call, it
+must acquire a P from the idle pool.</p>
+<p>All <code>g</code>, <code>m</code>, and <code>p</code> objects are heap allocated, but are never freed,
+so their memory remains type stable. As a result, the runtime can
+avoid write barriers in the depths of the scheduler.</p>
+<h2 id="getg-and-getgmcurg"><code>getg()</code> and <code>getg().m.curg</code></h2>
+<p>To get the current user <code>g</code>, use <code>getg().m.curg</code>.</p>
+<p><code>getg()</code> alone returns the current <code>g</code>, but when executing on the
+system or signal stacks, this will return the current M&rsquo;s &ldquo;g0&rdquo; or
+&ldquo;gsignal&rdquo;, respectively. This is usually not what you want.</p>
+<p>To determine if you&rsquo;re running on the user stack or the system stack,
+use <code>getg() == getg().m.curg</code>.</p>
+<h1 id="stacks">Stacks</h1>
+<p>Every non-dead G has a <em>user stack</em> associated with it, which is what
+user Go code executes on. User stacks start small (e.g., 2K) and grow
+or shrink dynamically.</p>
+<p>Every M has a <em>system stack</em> associated with it (also known as the M&rsquo;s
+&ldquo;g0&rdquo; stack because it&rsquo;s implemented as a stub G) and, on Unix
+platforms, a <em>signal stack</em> (also known as the M&rsquo;s &ldquo;gsignal&rdquo; stack).
+System and signal stacks cannot grow, but are large enough to execute
+runtime and cgo code (8K in a pure Go binary; system-allocated in a
+cgo binary).</p>
+<p>Runtime code often temporarily switches to the system stack using
+<code>systemstack</code>, <code>mcall</code>, or <code>asmcgocall</code> to perform tasks that must not
+be preempted, that must not grow the user stack, or that switch user
+goroutines. Code running on the system stack is implicitly
+non-preemptible and the garbage collector does not scan system stacks.
+While running on the system stack, the current user stack is not used
+for execution.</p>
+<h2 id="nosplit-functions">nosplit functions</h2>
+<p>Most functions start with a prologue that inspects the stack pointer
+and the current G&rsquo;s stack bound and calls <code>morestack</code> if the stack
+needs to grow.</p>
+<p>Functions can be marked <code>//go:nosplit</code> (or <code>NOSPLIT</code> in assembly) to
+indicate that they should not get this prologue. This has several
+uses:</p>
+<ul>
+<li>
+<p>Functions that must run on the user stack, but must not call into
+stack growth, for example because this would cause a deadlock, or
+because they have untyped words on the stack.</p>
+</li>
+<li>
+<p>Functions that must not be preempted on entry.</p>
+</li>
+<li>
+<p>Functions that may run without a valid G. For example, functions
+that run in early runtime start-up, or that may be entered from C
+code such as cgo callbacks or the signal handler.</p>
+</li>
+</ul>
+<p>Splittable functions ensure there&rsquo;s some amount of space on the stack
+for nosplit functions to run in and the linker checks that any static
+chain of nosplit function calls cannot exceed this bound.</p>
+<p>Any function with a <code>//go:nosplit</code> annotation should explain why it is
+nosplit in its documentation comment.</p>
+<h1 id="error-handling-and-reporting">Error handling and reporting</h1>
+<p>Errors that can reasonably be recovered from in user code should use
+<code>panic</code> like usual. However, there are some situations where <code>panic</code>
+will cause an immediate fatal error, such as when called on the system
+stack or when called during <code>mallocgc</code>.</p>
+<p>Most errors in the runtime are not recoverable. For these, use
+<code>throw</code>, which dumps the traceback and immediately terminates the
+process. In general, <code>throw</code> should be passed a string constant to
+avoid allocating in perilous situations. By convention, additional
+details are printed before <code>throw</code> using <code>print</code> or <code>println</code> and the
+messages are prefixed with &ldquo;runtime:&rdquo;.</p>
+<p>For unrecoverable errors where user code is expected to be at fault for the
+failure (such as racing map writes), use <code>fatal</code>.</p>
+<p>For runtime error debugging, it may be useful to run with <code>GOTRACEBACK=system</code>
+or <code>GOTRACEBACK=crash</code>. The output of <code>panic</code> and <code>fatal</code> is as described by
+<code>GOTRACEBACK</code>. The output of <code>throw</code> always includes runtime frames, metadata
+and all goroutines regardless of <code>GOTRACEBACK</code> (i.e., equivalent to
+<code>GOTRACEBACK=system</code>). Whether <code>throw</code> crashes or not is still controlled by
+<code>GOTRACEBACK</code>.</p>
+<h1 id="synchronization">Synchronization</h1>
+<p>The runtime has multiple synchronization mechanisms. They differ in
+semantics and, in particular, in whether they interact with the
+goroutine scheduler or the OS scheduler.</p>
+<p>The simplest is <code>mutex</code>, which is manipulated using <code>lock</code> and
+<code>unlock</code>. This should be used to protect shared structures for short
+periods. Blocking on a <code>mutex</code> directly blocks the M, without
+interacting with the Go scheduler. This means it is safe to use from
+the lowest levels of the runtime, but also prevents any associated G
+and P from being rescheduled. <code>rwmutex</code> is similar.</p>
+<p>For one-shot notifications, use <code>note</code>, which provides <code>notesleep</code> and
+<code>notewakeup</code>. Unlike traditional UNIX <code>sleep</code>/<code>wakeup</code>, <code>note</code>s are
+race-free, so <code>notesleep</code> returns immediately if the <code>notewakeup</code> has
+already happened. A <code>note</code> can be reset after use with <code>noteclear</code>,
+which must not race with a sleep or wakeup. Like <code>mutex</code>, blocking on
+a <code>note</code> blocks the M. However, there are different ways to sleep on a
+<code>note</code>:<code>notesleep</code> also prevents rescheduling of any associated G and
+P, while <code>notetsleepg</code> acts like a blocking system call that allows
+the P to be reused to run another G. This is still less efficient than
+blocking the G directly since it consumes an M.</p>
+<p>To interact directly with the goroutine scheduler, use <code>gopark</code> and
+<code>goready</code>. <code>gopark</code> parks the current goroutine—putting it in the
+&ldquo;waiting&rdquo; state and removing it from the scheduler&rsquo;s run queue—and
+schedules another goroutine on the current M/P. <code>goready</code> puts a
+parked goroutine back in the &ldquo;runnable&rdquo; state and adds it to the run
+queue.</p>
+<p>In summary,</p>
+<table>
+<tr><th></th><th colspan="3">Blocks</th></tr>
+<tr><th>Interface</th><th>G</th><th>M</th><th>P</th></tr>
+<tr><td>(rw)mutex</td><td>Y</td><td>Y</td><td>Y</td></tr>
+<tr><td>note</td><td>Y</td><td>Y</td><td>Y/N</td></tr>
+<tr><td>park</td><td>Y</td><td>N</td><td>N</td></tr>
+</table>
+<h1 id="atomics">Atomics</h1>
+<p>The runtime uses its own atomics package at <code>internal/runtime/atomic</code>.
+This corresponds to <code>sync/atomic</code>, but functions have different names
+for historical reasons and there are a few additional functions needed
+by the runtime.</p>
+<p>In general, we think hard about the uses of atomics in the runtime and
+try to avoid unnecessary atomic operations. If access to a variable is
+sometimes protected by another synchronization mechanism, the
+already-protected accesses generally don&rsquo;t need to be atomic. There
+are several reasons for this:</p>
+<ol>
+<li>
+<p>Using non-atomic or atomic access where appropriate makes the code
+more self-documenting. Atomic access to a variable implies there&rsquo;s
+somewhere else that may concurrently access the variable.</p>
+</li>
+<li>
+<p>Non-atomic access allows for automatic race detection. The runtime
+doesn&rsquo;t currently have a race detector, but it may in the future.
+Atomic access defeats the race detector, while non-atomic access
+allows the race detector to check your assumptions.</p>
+</li>
+<li>
+<p>Non-atomic access may improve performance.</p>
+</li>
+</ol>
+<p>Of course, any non-atomic access to a shared variable should be
+documented to explain how that access is protected.</p>
+<p>Some common patterns that mix atomic and non-atomic access are:</p>
+<ul>
+<li>
+<p>Read-mostly variables where updates are protected by a lock. Within
+the locked region, reads do not need to be atomic, but the write
+does. Outside the locked region, reads need to be atomic.</p>
+</li>
+<li>
+<p>Reads that only happen during STW, where no writes can happen during
+STW, do not need to be atomic.</p>
+</li>
+</ul>
+<p>That said, the advice from the Go memory model stands: &ldquo;Don&rsquo;t be
+[too] clever.&rdquo; The performance of the runtime matters, but its
+robustness matters more.</p>
+<h1 id="unmanaged-memory">Unmanaged memory</h1>
+<p>In general, the runtime tries to use regular heap allocation. However,
+in some cases the runtime must allocate objects outside of the garbage
+collected heap, in <em>unmanaged memory</em>. This is necessary if the
+objects are part of the memory manager itself or if they must be
+allocated in situations where the caller may not have a P.</p>
+<p>There are three mechanisms for allocating unmanaged memory:</p>
+<ul>
+<li>
+<p>sysAlloc obtains memory directly from the OS. This comes in whole
+multiples of the system page size, but it can be freed with sysFree.</p>
+</li>
+<li>
+<p>persistentalloc combines multiple smaller allocations into a single
+sysAlloc to avoid fragmentation. However, there is no way to free
+persistentalloced objects (hence the name).</p>
+</li>
+<li>
+<p>fixalloc is a SLAB-style allocator that allocates objects of a fixed
+size. fixalloced objects can be freed, but this memory can only be
+reused by the same fixalloc pool, so it can only be reused for
+objects of the same type.</p>
+</li>
+</ul>
+<p>In general, types that are allocated using any of these should be
+marked as not in heap by embedding <code>internal/runtime/sys.NotInHeap</code>.</p>
+<p>Objects that are allocated in unmanaged memory <strong>must not</strong> contain
+heap pointers unless the following rules are also obeyed:</p>
+<ol>
+<li>
+<p>Any pointers from unmanaged memory to the heap must be garbage
+collection roots. More specifically, any pointer must either be
+accessible through a global variable or be added as an explicit
+garbage collection root in <code>runtime.markroot</code>.</p>
+</li>
+<li>
+<p>If the memory is reused, the heap pointers must be zero-initialized
+before they become visible as GC roots. Otherwise, the GC may
+observe stale heap pointers. See &ldquo;Zero-initialization versus
+zeroing&rdquo;.</p>
+</li>
+</ol>
+<h1 id="zero-initialization-versus-zeroing">Zero-initialization versus zeroing</h1>
+<p>There are two types of zeroing in the runtime, depending on whether
+the memory is already initialized to a type-safe state.</p>
+<p>If memory is not in a type-safe state, meaning it potentially contains
+&ldquo;garbage&rdquo; because it was just allocated and it is being initialized
+for first use, then it must be <em>zero-initialized</em> using
+<code>memclrNoHeapPointers</code> or non-pointer writes. This does not perform
+write barriers.</p>
+<p>If memory is already in a type-safe state and is simply being set to
+the zero value, this must be done using regular writes, <code>typedmemclr</code>,
+or <code>memclrHasPointers</code>. This performs write barriers.</p>
+<h1 id="runtime-only-compiler-directives">Runtime-only compiler directives</h1>
+<p>In addition to the &ldquo;//go:&rdquo; directives documented in &ldquo;go doc compile&rdquo;,
+the compiler supports additional directives only in the runtime.</p>
+<h2 id="gosystemstack">go:systemstack</h2>
+<p><code>go:systemstack</code> indicates that a function must run on the system
+stack. This is checked dynamically by a special function prologue.</p>
+<h2 id="gonowritebarrier">go:nowritebarrier</h2>
+<p><code>go:nowritebarrier</code> directs the compiler to emit an error if the
+following function contains any write barriers. (It <em>does not</em>
+suppress the generation of write barriers; it is simply an assertion.)</p>
+<p>Usually you want <code>go:nowritebarrierrec</code>. <code>go:nowritebarrier</code> is
+primarily useful in situations where it&rsquo;s &ldquo;nice&rdquo; not to have write
+barriers, but not required for correctness.</p>
+<h2 id="gonowritebarrierrec-and-goyeswritebarrierrec">go:nowritebarrierrec and go:yeswritebarrierrec</h2>
+<p><code>go:nowritebarrierrec</code> directs the compiler to emit an error if the
+following function or any function it calls recursively, up to a
+<code>go:yeswritebarrierrec</code>, contains a write barrier.</p>
+<p>Logically, the compiler floods the call graph starting from each
+<code>go:nowritebarrierrec</code> function and produces an error if it encounters
+a function containing a write barrier. This flood stops at
+<code>go:yeswritebarrierrec</code> functions.</p>
+<p><code>go:nowritebarrierrec</code> is used in the implementation of the write
+barrier to prevent infinite loops.</p>
+<p>Both directives are used in the scheduler. The write barrier requires
+an active P (<code>getg().m.p != nil</code>) and scheduler code often runs
+without an active P. In this case, <code>go:nowritebarrierrec</code> is used on
+functions that release the P or may run without a P and
+<code>go:yeswritebarrierrec</code> is used when code re-acquires an active P.
+Since these are function-level annotations, code that releases or
+acquires a P may need to be split across two functions.</p>
+<h2 id="gouintptrkeepalive">go:uintptrkeepalive</h2>
+<p>The //go:uintptrkeepalive directive must be followed by a function declaration.</p>
+<p>It specifies that the function&rsquo;s uintptr arguments may be pointer values that
+have been converted to uintptr and must be kept alive for the duration of the
+call, even though from the types alone it would appear that the object is no
+longer needed during the call.</p>
+<p>This directive is similar to //go:uintptrescapes, but it does not force
+arguments to escape. Since stack growth does not understand these arguments,
+this directive must be used with //go:nosplit (in the marked function and all
+transitive calls) to prevent stack growth.</p>
+<p>The conversion from pointer to uintptr must appear in the argument list of any
+call to this function. This directive is used for some low-level system call
+implementations.</p>
+<h1 id="execution-tracer">Execution tracer</h1>
+<p>The execution tracer is a way for users to see what their goroutines are doing,
+but they&rsquo;re also useful for runtime hacking.</p>
+<h2 id="using-execution-traces-to-debug-runtime-problems">Using execution traces to debug runtime problems</h2>
+<p>Execution traces contain a wealth of information about what the runtime is
+doing. They contain all goroutine scheduling actions, data about time spent in
+the scheduler (P running without a G), data about time spent in the garbage
+collector, and more. Use <code>go tool trace</code> or <a href="https://gotraceui.dev" rel="noreferrer" target="_blank">gotraceui</a>
+to inspect traces.</p>
+<p>Traces are especially useful for debugging latency issues, and especially if you
+can catch the problem in the act. Consider using the flight recorder to help
+with this.</p>
+<p>Turn on CPU profiling when you take a trace. This will put the CPU profiling
+samples as timestamped events into the trace, allowing you to see execution with
+greater detail. If you see CPU profiling sample events appear at a rate that does
+not match the sample rate, consider that the OS or platform might be taking away
+CPU time from the process, and that you might not be debugging a Go issue.</p>
+<p>If you&rsquo;re really stuck on a problem, adding new instrumentation with the tracer
+might help, especially if it&rsquo;s helpful to see events in relation to other
+scheduling events. See the next section on modifying the execution tracer.
+However, consider using <code>debuglog</code> for additional instrumentation first, as that
+is far easier to get started with.</p>
+<h2 id="notes-on-modifying-the-execution-tracer">Notes on modifying the execution tracer</h2>
+<p>The execution tracer lives in the files whose names start with &ldquo;trace.&rdquo;
+The parser for the execution trace format lives in the <code>internal/trace</code> package.</p>
+<p>If you plan on adding new trace events, consider starting with a <a href="../internal/trace/tracev2/EXPERIMENTS.md">trace
+experiment</a>.</p>
+<p>If you plan to add new trace instrumentation to the runtime, wrap whatever operation
+you&rsquo;re tracing in <code>traceAcquire</code> and <code>traceRelease</code> fully. These functions mark a
+critical section that appears atomic to the execution tracer (but nothing else).</p>
+<h1 id="debuglog">debuglog</h1>
+<p><code>debuglog</code> is a powerful runtime-only debugging tool. Think of it as an
+ultra-low-overhead <code>println</code> that works just about anywhere in the runtime.
+These properties are invaluable when debugging subtle problems in tricky parts
+of the codebase. <code>println</code> can often perturb code enough to stop data races from
+happening, while <code>debuglog</code> perturbs execution far less.</p>
+<p><code>debuglog</code> accumulates log messages in a ring buffer on each M, and dumps out
+the contents, ordering it by timestamp, on certain kinds of crashes. Some messages
+might be lost if the ring buffer gets full, in which case consider increasing the
+size, or just work with a partial log.</p>
+<ol>
+<li>Add <code>debuglog</code> instrumentation to the runtime. Don&rsquo;t forget to call <code>end</code>!
+Example: <code>dlog().s(&quot;hello world&quot;).u32(5).end()</code></li>
+<li>By default, <code>debuglog</code> only dumps its contents in certain kinds of crashes.
+Consider adding more calls to <code>printDebugLog</code> if you&rsquo;re not getting any output.</li>
+<li>Build the program you wish to debug with the <code>debuglog</code> build tag.</li>
+</ol>
+<p><code>debuglog</code> is lower level than execution traces, and much easier to set up.</p>
+</div>
+
+
+
+
+
+
+
+</article>
+
+
+
+</main>
+<footer class="Site-footer">
+  <div class="Footer">
+    <div class="Container">
+      <div class="Footer-links">
+          <div class="Footer-linkColumn">
+            <a href="/solutions/" class="Footer-link Footer-link--primary" aria-describedby="footer-description">
+              Why Go
+            </a>
+              <a href="/solutions/use-cases" class="Footer-link" aria-describedby="footer-description">
+                Use Cases
+              </a>
+              <a href="/solutions/case-studies" class="Footer-link" aria-describedby="footer-description">
+                Case Studies
+              </a>
+          </div>
+          <div class="Footer-linkColumn">
+            <a href="/learn/" class="Footer-link Footer-link--primary" aria-describedby="footer-description">
+              Get Started
+            </a>
+              <a href="/play" class="Footer-link" aria-describedby="footer-description">
+                Playground
+              </a>
+              <a href="/tour/" class="Footer-link" aria-describedby="footer-description">
+                Tour
+              </a>
+              <a href="https://stackoverflow.com/questions/tagged/go?tab=Newest" class="Footer-link" aria-describedby="footer-description">
+                Stack Overflow
+              </a>
+              <a href="/help/" class="Footer-link" aria-describedby="footer-description">
+                Help
+              </a>
+          </div>
+          <div class="Footer-linkColumn">
+            <a href="https://pkg.go.dev" class="Footer-link Footer-link--primary" aria-describedby="footer-description">
+              Packages
+            </a>
+              <a href="/pkg/" class="Footer-link" aria-describedby="footer-description">
+                Standard Library
+              </a>
+              <a href="https://pkg.go.dev/about" class="Footer-link" aria-describedby="footer-description">
+                About Go Packages
+              </a>
+          </div>
+          <div class="Footer-linkColumn">
+            <a href="/project" class="Footer-link Footer-link--primary" aria-describedby="footer-description">
+              About
+            </a>
+              <a href="/dl/" class="Footer-link" aria-describedby="footer-description">
+                Download
+              </a>
+              <a href="/blog/" class="Footer-link" aria-describedby="footer-description">
+                Blog
+              </a>
+              <a href="https://github.com/golang/go/issues" class="Footer-link" aria-describedby="footer-description">
+                Issue Tracker
+              </a>
+              <a href="/doc/devel/release" class="Footer-link" aria-describedby="footer-description">
+                Release Notes
+              </a>
+              <a href="/brand" class="Footer-link" aria-describedby="footer-description">
+                Brand Guidelines
+              </a>
+              <a href="/conduct" class="Footer-link" aria-describedby="footer-description">
+                Code of Conduct
+              </a>
+          </div>
+          <div class="Footer-linkColumn">
+            <a href="https://www.twitter.com/golang" class="Footer-link Footer-link--primary" aria-describedby="footer-description">
+              Connect
+            </a>
+              <a href="https://www.twitter.com/golang" class="Footer-link" aria-describedby="footer-description">
+                Twitter
+              </a>
+              <a href="https://github.com/golang" class="Footer-link" aria-describedby="footer-description">
+                GitHub
+              </a>
+              <a href="https://invite.slack.golangbridge.org/" class="Footer-link" aria-describedby="footer-description">
+                Slack
+              </a>
+              <a href="https://reddit.com/r/golang" class="Footer-link" aria-describedby="footer-description">
+                r/golang
+              </a>
+              <a href="https://www.meetup.com/pro/go" class="Footer-link" aria-describedby="footer-description">
+                Meetup
+              </a>
+              <a href="https://golangweekly.com/" class="Footer-link" aria-describedby="footer-description">
+                Golang Weekly
+              </a>
+          </div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-reader-only" id="footer-description" hidden>
+          Opens in new window.
+  </div>
+  <div class="Footer">
+    <div class="Container Container--fullBleed">
+      <div class="Footer-bottom">
+        <img class="Footer-gopher" src="/images/gophers/pilot-bust.svg" alt="The Go Gopher">
+        <ul class="Footer-listRow">
+          <li class="Footer-listItem">
+            <a href="/copyright" aria-describedby="footer-description">Copyright</a>
+          </li>
+          <li class="Footer-listItem">
+            <a href="/tos" aria-describedby="footer-description">Terms of Service</a>
+          </li>
+          <li class="Footer-listItem">
+            <a href="http://www.google.com/intl/en/policies/privacy/" aria-describedby="footer-description"
+              target="_blank"
+              rel="noopener">
+              Privacy Policy
+            </a>
+            </li>
+          <li class="Footer-listItem">
+            <a
+              href="/s/website-issue" aria-describedby="footer-description"
+              target="_blank"
+              rel="noopener"
+              >
+              Report an Issue
+            </a>
+          </li>
+          <li class="Footer-listItem go-Footer-listItem">
+            <button class="go-Button go-Button--text go-Footer-toggleTheme js-toggleTheme" aria-label="Toggle theme">
+              <img
+                data-value="auto"
+                class="go-Icon go-Icon--inverted"
+                height="24"
+                width="24"
+                src="/images/icons/brightness_6_gm_grey_24dp.svg"
+                alt="System theme">
+              <img
+                data-value="dark"
+                class="go-Icon go-Icon--inverted"
+                height="24"
+                width="24"
+                src="/images/icons/brightness_2_gm_grey_24dp.svg"
+                alt="Dark theme">
+              <img
+                data-value="light"
+                class="go-Icon go-Icon--inverted"
+                height="24"
+                width="24"
+                src="/images/icons/light_mode_gm_grey_24dp.svg"
+                alt="Light theme">
+            </button>
+          </li>
+        </ul>
+        <a class="Footer-googleLogo" target="_blank" href="https://google.com" rel="noopener">
+          <img class="Footer-googleLogoImg" src="/images/google-white.png" alt="Google logo">
+        </a>
+      </div>
+    </div>
+  </div>
+  <script src="/js/jquery.js"></script>
+  <script src="/js/carousels.js"></script>
+  <script src="/js/searchBox.js"></script>
+  <script src="/js/misc.js"></script>
+  <script src="/js/hats.js"></script>
+  <script src="/js/playground.js"></script>
+  <script src="/js/godocs.js"></script>
+  <script async src="/js/copypaste.js"></script>
+</footer>
+<section class="Cookie-notice js-cookieNotice">
+  <div>go.dev uses cookies from Google to deliver and enhance the quality of its services and to
+  analyze traffic. <a target=_blank href="https://policies.google.com/technologies/cookies">Learn more.</a></div>
+  <div><button class="go-Button">Okay</button></div>
+</section>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

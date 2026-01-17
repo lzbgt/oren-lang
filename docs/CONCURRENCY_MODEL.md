@@ -23,6 +23,8 @@ Current native backend behavior (rolling, fact):
   - Fork+pipe semantics (fallback):
     - the child computes the return value, writes 8 bytes to the pipe, and exits
     - the parent joins by reading those 8 bytes and reaping the child
+    - STW GC safety (rolling, 2026-01-17): POSIX fork+pipe `join/join_timeout` is **poll + safepoint** based (no infinite kernel blocking)
+      so stop-the-world collectors on other OS threads cannot deadlock waiting for a joining host thread to reach a safepoint.
 - **Windows x64 Tier‑1:** `spawn` prefers **in-process green tasks** (**N:1**, one OS thread), same as POSIX.
   - Escape hatch: `OREN_NO_GREEN=1` disables green tasks; Windows then falls back to a runtime-owned OS-thread spawn (CreateThread).
   - Join handles are either:

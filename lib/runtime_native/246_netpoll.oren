@@ -104,9 +104,14 @@ fn _native_netpoll_windows_init_iocp_once() {
 fn native_netpoll_supported() {
     // Rolling support:
     // - macOS/Linux: kqueue/epoll backend.
-    // - Windows: select()-based backend, but only after WinSock is initialized.
+    // - Windows: select()-based backend requires WinSock init; IOCP poll core does not.
     if g_target_os == 3 {
-        // Do not attempt to initialize WinSock here; keep it behind `native_net_init_once()` (NET cap boundary).
+        // IMPORTANT (cap boundary):
+        // Do not attempt to initialize WinSock here; keep it behind `native_net_init_once()`.
+        //
+        // Exception: the rolling IOCP poll core + wake deliverable does not require WinSock initialization
+        // (it is kernel32-only). Allow enabling IOCP for wake-only fixtures even when the NET stack is absent.
+        if _netpoll_env_truthy("OREN_NETPOLL_WIN_IOCP") == 1 { return true }
         if g_net_wsa_inited != 1 { return false }
     }
     // Allow a rolling escape hatch for debugging.

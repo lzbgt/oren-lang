@@ -656,6 +656,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					         - Motivation: keep OS-specific details out of codegen (reduces per-backend divergence; simplifies future N:M unification).
 					       - 2026-01-16: made Windows `oren_join_timeout(timeout_ms>0)` STW-safe (polls `oren_gc_safepoint()` while waiting):
 					         - Runtime: `lib/runtime_native/260_threads.oren` (`oren_join_timeout_win`)
+					       - 2026-01-17: made POSIX fork+pipe join + syscall-first proc waits STW-safe (no infinite kernel blocks on host threads):
+					         - Runtime: `lib/runtime_native/260_threads.oren`
+					           - POSIX `oren_join/oren_join_timeout` uses `oren_is_done` + `wait4(WNOHANG)` under `oren_gc_safepoint()` (blocking joins are poll-based, timeout joins enforce timeout semantics without kernel-blocking).
+					           - `oren_proc_spawn(timeout_ms<0)` is now poll-based (`wait4(WNOHANG)` + sleep) so STW collectors cannot deadlock on a forever wait.
 				     - 2026-01-16: fixed a native GC correctness gap: STRUCT allocations are now conservatively scanned, and the mark phase is cycle-safe:
 				       - Problem: many runtime subsystems tag allocations as kind=STRUCT “so GC can scan fields”, but the mark phase previously did not traverse kind=STRUCT.
 				       - Fix: `oren_mark_value` now scans 8-byte slots for kind=STRUCT, and honors the mark bit to avoid infinite recursion on cyclic graphs.

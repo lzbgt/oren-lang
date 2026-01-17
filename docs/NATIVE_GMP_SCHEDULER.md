@@ -177,6 +177,12 @@ Goal:
 
 - scale compute across cores while keeping `G` lightweight.
 
+Primary references (verbatim snapshots, for scheduler topology + netpoll design):
+
+- Go runtime scheduler (`proc.go`): `project-doc/web/go.dev/20260117/runtime_proc_go.html`
+- Go runtime netpoll (`netpoll.go`): `project-doc/web/go.dev/20260117/runtime_netpoll_go.html`
+- Go runtime hacking notes: `project-doc/web/go.dev/20260117/runtime_hack_go.html`
+
 Key additions:
 
 1) **Syscall-first OS thread creation**
@@ -258,6 +264,8 @@ Status (rolling groundwork):
 	    - Stage N3 evolution (STW safety): worker idle waits must be bounded and/or include `oren_gc_safepoint()` polling so `oren_gc_collect()` cannot deadlock while a worker is parked (includes park-word and netpoll waits).
 	    - Stage N3 evolution (STW safety): host-thread joiners must also remain safepoint-friendly in worker mode:
 	      - `oren_green_join_timeout(..., timeout_ms<0)` now avoids infinite kernel sleeps and polls `oren_gc_safepoint()` while waiting.
+	      - POSIX fork+pipe `oren_join/oren_join_timeout` also avoids infinite kernel blocking (polls `oren_is_done` + `wait4(WNOHANG)` under `oren_gc_safepoint()`).
+	        - This matters because the POSIX fork+pipe fallback is still exercised in Tier‑1 gates under `OREN_NO_GREEN=1` to prevent bitrot.
 	      - Guard: `tests/native/test_quick_integration_native.oren` (`test_gc_collect_does_not_deadlock_with_green_join_waiter`)
 
 ### Test-only debug API: `oren_green_debug_*` (rolling)

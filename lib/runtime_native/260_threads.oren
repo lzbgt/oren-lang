@@ -639,15 +639,22 @@ fn oren_proc_spawn(path, argv, timeout_ms) {
     ptr_set(status_ptr, 0)
 
     if timeout_ms < 0 {
+        // STW GC robustness:
+        // avoid indefinite kernel waits; poll safepoints while waiting for the child.
         while 1 {
-            var wpid = sys_wait4(pid, status_ptr, 0, 0)
+            oren_gc_safepoint()
+            var wpid = sys_wait4(pid, status_ptr, 1, 0) // WNOHANG
             if wpid == pid {
                 var status = ptr_get(status_ptr)
                 free(status_ptr)
                 return status
             }
+            if wpid == 0 {
+                oren_sleep_ms(1)
+                continue
+            }
             if wpid == (0 - 4) { // EINTR
-                // Retry a blocking wait when interrupted by a signal.
+                // Retry without sleeping or failing on signal interrupts.
                 continue
             }
             if wpid < 0 {
@@ -661,6 +668,7 @@ fn oren_proc_spawn(path, argv, timeout_ms) {
     // Poll: wait4(..., WNOHANG=1) until budget exhausted (deterministic; no TIME domain required).
     var remaining = timeout_ms
     while remaining > 0 {
+        oren_gc_safepoint()
         var wpid2 = sys_wait4(pid, status_ptr, 1, 0) // WNOHANG
         if wpid2 == pid {
             var status2 = ptr_get(status_ptr)
@@ -676,6 +684,8 @@ fn oren_proc_spawn(path, argv, timeout_ms) {
             // Preserve syscall errno style (-errno) to keep failures actionable.
             return wpid2
         }
+        // Keep bounded and avoid busy spin: treat each iteration as ~1ms of timeout budget.
+        oren_sleep_ms(1)
         remaining = remaining - 1
     }
 
@@ -964,8 +974,25 @@ fn oren_join_timeout(handle, timeout_ms) {
 
     // timeout_ms == 0: non-blocking probe.
     if t == 0 {
+        // Non-blocking join probe must be STW-safe and must not kernel-block indefinitely.
+        // Even if the result bytes are already available on the pipe, the child may not have
+        // fully exited yet; treat that as "still running" and keep the handle alive.
         if oren_is_done(h) == false { return 0 - 60 }
-        return oren_join_posix(h)
+
+        var pid0 = ptr_get(h)
+        if pid0 <= 0 { return 0 - 60 }
+        var reaped0 = _oren_join_posix_try_reap(pid0)
+        if reaped0 == 1 {
+            return _oren_join_posix_finish(h)
+        }
+        if reaped0 < 0 {
+            // Unexpected wait failure: tear down to avoid zombies / handle leaks.
+            var fd0 = ptr_get(iadd(h, 8))
+            if fd0 > 0 { sys_close(fd0) }
+            free(h)
+            return reaped0
+        }
+        return 0 - 60
     }
 
     // timeout_ms > 0: wait up to N ms.
@@ -976,27 +1003,49 @@ fn oren_join_timeout(handle, timeout_ms) {
     var start_ns = oren_time_unix_ns()
     if start_ns == 0 {
             // Fallback: no clock available; use the old ms-loop.
+            var pid_fb = ptr_get(h)
             var i = 0
             while i < t {
+                oren_gc_safepoint()
                 if oren_is_done(h) {
-                    if dbg_on {
-                        var got_dbg = ptr_get(iadd(h, 16))
-                        print("join_timeout debug: done i=" + oren_int_to_string(i) + " got=" + oren_int_to_string(got_dbg))
+                    var reaped_fb = _oren_join_posix_try_reap(pid_fb)
+                    if reaped_fb == 1 {
+                        if dbg_on {
+                            var got_dbg = ptr_get(iadd(h, 16))
+                            print("join_timeout debug: done i=" + oren_int_to_string(i) + " got=" + oren_int_to_string(got_dbg))
+                        }
+                        return _oren_join_posix_finish(h)
                     }
-                    return oren_join_posix(h)
+                    if reaped_fb < 0 {
+                        var fd_fb = ptr_get(iadd(h, 8))
+                        if fd_fb > 0 { sys_close(fd_fb) }
+                        free(h)
+                        return reaped_fb
+                    }
                 }
                 oren_sleep_ms(1)
                 i = i + 1
             }
     } else {
         var deadline = start_ns + t * 1000000
+        var pid = ptr_get(h)
         while 1 {
+            oren_gc_safepoint()
             if oren_is_done(h) {
-                if dbg_on {
-                    var got_dbg2 = ptr_get(iadd(h, 16))
-                    print("join_timeout debug: done got=" + oren_int_to_string(got_dbg2))
+                var reaped = _oren_join_posix_try_reap(pid)
+                if reaped == 1 {
+                    if dbg_on {
+                        var got_dbg2 = ptr_get(iadd(h, 16))
+                        print("join_timeout debug: done got=" + oren_int_to_string(got_dbg2))
+                    }
+                    return _oren_join_posix_finish(h)
                 }
-                return oren_join_posix(h)
+                if reaped < 0 {
+                    var fd2 = ptr_get(iadd(h, 8))
+                    if fd2 > 0 { sys_close(fd2) }
+                    free(h)
+                    return reaped
+                }
             }
             var now = oren_time_unix_ns()
             if now == 0 { break }
@@ -1011,10 +1060,16 @@ fn oren_join_timeout(handle, timeout_ms) {
     }
 
     // Timeout: kill child and reap to avoid zombies.
-    var pid = ptr_get(h)
+    var pid2 = ptr_get(h)
     if dbg_on { print("join_timeout debug: timeout") }
-    oren_kill(pid, 9) // SIGKILL
-    sys_wait4(pid, 0, 0, 0)
+    oren_kill(pid2, 9) // SIGKILL
+    while 1 {
+        oren_gc_safepoint()
+        var wpid_k = sys_wait4(pid2, 0, 0, 0)
+        if wpid_k == pid2 { break }
+        if wpid_k == (0 - 4) { continue } // EINTR
+        break // best-effort reap
+    }
     sys_close(fd)
     free(h)
     return 0 - 60
@@ -1142,41 +1197,37 @@ fn oren_join_posix(handle) {
         return -1
     }
 
-    // Read until we have the full 8-byte result.
+    // STW GC robustness (POSIX fork+pipe fallback):
+    // Never block forever in a kernel wait here. If a collector requests STW while this host thread is
+    // blocked in a syscall (e.g. read/wait4), it cannot reach a safepoint and STW can deadlock.
     //
-    // We do not require the fd to be blocking: if an earlier probe flipped O_NONBLOCK,
-    // EAGAIN/EWOULDBLOCK is handled with a small sleep.
-    while got < 8 {
-        var n = sys_read(fd, iadd(res_buf, got), 8 - got)
-        if n > 0 {
-            got = got + n
-            ptr_set(got_slot, got)
-            continue
-        }
-        if n == 0 { break } // EOF
-        // EAGAIN/EWOULDBLOCK: macOS=35, Linux=11
-        if n == 0 - 35 || n == 0 - 11 {
-            oren_sleep_ms(1)
-            continue
-        }
-        sys_close(fd)
-        sys_wait4(pid, 0, 0, 0)
-        free(handle)
-        return n
-    }
+    // Instead, make join poll-based:
+    // - use `oren_is_done(handle)` to do best-effort non-blocking reads into the inline result buffer
+    // - reap the child via wait4(WNOHANG) until it has fully exited
+    // - poll `oren_gc_safepoint()` while waiting
+    while 1 {
+        oren_gc_safepoint()
 
-    if got < 8 {
-        sys_close(fd)
-        sys_wait4(pid, 0, 0, 0)
-        free(handle)
-        return -1
-    }
+        if got < 8 {
+            if oren_is_done(handle) {
+                got = ptr_get(got_slot)
+            }
+        }
 
-    sys_close(fd)
-    sys_wait4(pid, 0, 0, 0)
-    var ret_val = ptr_get(res_buf)
-    free(handle)
-    return ret_val
+        if got >= 8 {
+            var reaped = _oren_join_posix_try_reap(pid)
+            if reaped == 1 {
+                return _oren_join_posix_finish(handle)
+            }
+            if reaped < 0 {
+                sys_close(fd)
+                free(handle)
+                return reaped
+            }
+        }
+
+        oren_sleep_ms(1)
+    }
 }
 
 fn oren_join_timeout_posix(handle, timeout_ms) {
@@ -1190,8 +1241,18 @@ fn oren_join_timeout_posix(handle, timeout_ms) {
 
     var remaining = timeout_ms
     while remaining > 0 {
+        oren_gc_safepoint()
         if oren_is_done(handle) {
-            return oren_join_posix(handle)
+            // Do not kernel-block indefinitely when the child hasn't exited yet.
+            var reaped = _oren_join_posix_try_reap(pid)
+            if reaped == 1 {
+                return _oren_join_posix_finish(handle)
+            }
+            if reaped < 0 {
+                sys_close(fd)
+                free(handle)
+                return reaped
+            }
         }
         oren_sleep_ms(1)
         remaining = remaining - 1
@@ -1199,10 +1260,43 @@ fn oren_join_timeout_posix(handle, timeout_ms) {
 
     // Timeout: kill child and reap to avoid zombies.
     oren_kill(pid, 9) // SIGKILL
-    sys_wait4(pid, 0, 0, 0)
+    while 1 {
+        oren_gc_safepoint()
+        var wpid_k = sys_wait4(pid, 0, 0, 0)
+        if wpid_k == pid { break }
+        if wpid_k == (0 - 4) { continue } // EINTR
+        break // best-effort reap
+    }
     sys_close(fd)
     free(handle)
     return 0 - 60
+}
+
+fn _oren_join_posix_try_reap(pid) {
+    // Attempt to reap `pid` without blocking.
+    //
+    // Returns:
+    // - 1 if the child was reaped
+    // - 0 if the child is still running
+    // - negative -errno on failure
+    while 1 {
+        var wpid = sys_wait4(pid, 0, 1, 0) // WNOHANG
+        if wpid == pid { return 1 }
+        if wpid == 0 { return 0 }
+        if wpid == (0 - 4) { continue } // EINTR
+        return wpid
+    }
+}
+
+fn _oren_join_posix_finish(handle) {
+    // Finish a POSIX fork+pipe join once:
+    // - result bytes are available (got>=8), AND
+    // - the child has been reaped.
+    var fd = ptr_get(iadd(handle, 8))
+    if fd > 0 { sys_close(fd) }
+    var ret_val = ptr_get(iadd(handle, 24))
+    free(handle)
+    return ret_val
 }
 
 @oren.keep

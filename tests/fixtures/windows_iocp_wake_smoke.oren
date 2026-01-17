@@ -43,10 +43,6 @@ fn main() {
         return 0
     }
 
-    // Netpoll is gated behind WinSock init on Windows.
-    var nrc = native_net_init_once()
-    if nrc != 0 { fail(10, "native_net_init_once rc=" + oren_int_to_string(nrc)) }
-
     var rc = native_netpoll_init_once()
     if rc != 0 { fail(11, "native_netpoll_init_once rc=" + oren_int_to_string(rc)) }
 
@@ -98,4 +94,3 @@ fn main() {
 }
 
 main()
-
