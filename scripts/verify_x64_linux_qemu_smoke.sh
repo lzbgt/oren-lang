@@ -96,18 +96,30 @@ run_one() {
 }
 
 run_one_env() {
-  local env_kv="$1"
-  local bin="$2"
-  local want="$3"
-  local name="$4"
-  if [[ -z "$env_kv" || "$env_kv" == *" "* ]]; then
-    echo "ERROR: run_one_env expects a single KEY=VALUE (no spaces): got: $env_kv" >&2
+  local bin="$1"
+  local want="$2"
+  local name="$3"
+  shift 3
+  if [[ "$#" -le 0 ]]; then
+    echo "ERROR: run_one_env expects at least one KEY=VALUE" >&2
     exit 2
   fi
-  log "== run: qemu-x86_64 ${name} (env: ${env_kv}) =="
+  local env_desc=""
+  for kv in "$@"; do
+    if [[ -z "$kv" || "$kv" == *" "* || "$kv" != *"="* ]]; then
+      echo "ERROR: run_one_env expects KEY=VALUE items (no spaces): got: $kv" >&2
+      exit 2
+    fi
+    if [[ -z "$env_desc" ]]; then
+      env_desc="$kv"
+    else
+      env_desc="${env_desc} ${kv}"
+    fi
+  done
+  log "== run: qemu-x86_64 ${name} (env: ${env_desc}) =="
   docker cp "$bin" "$LINUX_DOCKER_ID:/tmp/hostbins/$name"
   local rc=0
-  docker exec -i "$LINUX_DOCKER_ID" bash -lc "set -e; cd /tmp/hostbins; chmod +x '$name'; : >'${name}.out'; timeout '$RUN_TIMEOUT_SECS' env '${env_kv}' qemu-x86_64 './$name' >'${name}.out' 2>&1" || rc=$?
+  docker exec -i "$LINUX_DOCKER_ID" bash -lc "set -e; cd /tmp/hostbins; chmod +x '$name'; : >'${name}.out'; timeout '$RUN_TIMEOUT_SECS' env $* qemu-x86_64 './$name' >'${name}.out' 2>&1" || rc=$?
   if [[ "$rc" -ne 0 ]]; then
     echo "--- run failed: ${name} (exit=$rc) ---" >&2
     if [[ "$rc" -eq 124 ]]; then
@@ -171,8 +183,8 @@ run_one "build/tmp/print_stage1_x64_linux" "hello from native" "print_stage1_x64
 run_one "build/tmp/print_stage2_x64_linux" "hello from native" "print_stage2_x64_linux"
 run_one "build/tmp/qi_stage1_x64_linux" "native quick integration OK" "qi_stage1_x64_linux"
 run_one "build/tmp/qi_stage2_x64_linux" "native quick integration OK" "qi_stage2_x64_linux"
-run_one_env "OREN_GREEN_POLL_CACHE=1" "build/tmp/qi_stage1_x64_linux" "native quick integration OK" "qi_stage1_x64_linux_cache"
-run_one_env "OREN_GREEN_POLL_CACHE=1" "build/tmp/qi_stage2_x64_linux" "native quick integration OK" "qi_stage2_x64_linux_cache"
+run_one_env "build/tmp/qi_stage1_x64_linux" "native quick integration OK" "qi_stage1_x64_linux_cache" "OREN_GREEN_POLL_CACHE=1" "OREN_TEST_SLOW=1"
+run_one_env "build/tmp/qi_stage2_x64_linux" "native quick integration OK" "qi_stage2_x64_linux_cache" "OREN_GREEN_POLL_CACHE=1" "OREN_TEST_SLOW=1"
 run_one "build/tmp/std_ffi_libc_smoke_stage1_x64_linux" "" "std_ffi_libc_smoke_stage1_x64_linux"
 run_one "build/tmp/std_ffi_libc_smoke_stage2_x64_linux" "" "std_ffi_libc_smoke_stage2_x64_linux"
 run_one "build/tmp/linux_os_thread_smoke_stage1_x64_linux" "ok: linux os thread smoke" "linux_os_thread_smoke_stage1_x64_linux"

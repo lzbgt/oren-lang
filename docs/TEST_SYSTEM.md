@@ -114,6 +114,8 @@ make test-native-all
 Operational note (rolling):
 
 - When running a compiled native test binary directly (outside the Makefile targets), wrap it with `timeout`/`gtimeout` to keep the “tests must never hang forever” rule true for ad-hoc repros too (and to avoid leaving long-lived `build/tmp/test_*` processes behind if a regression hangs).
+- Emulated/slow environments (example: `qemu-x86_64` under the persistent Linux container) can legitimately need larger join deadlines for heavy scheduler fixtures.
+  - Opt-in knob: set `OREN_TEST_SLOW=1` to scale a small set of timeouts inside `tests/native/test_quick_integration_native.oren` while keeping defaults strict on Tier‑1 hosts.
 
 Perf tripwire (rolling):
 

@@ -18,8 +18,6 @@
 // - On Windows, WaitOnAddress compares bytes; we rely on AddressSize=8 in the backend.
 
 var g_chan_mem_global_seq_word = 0 // u64* (mmap page), shared "something changed" counter for selects
-var g_chan_mem_select_lock_word = 0 // u64* (mmap page), protects global select wait list
-var g_chan_mem_select_root = 0 // STRUCT* root (kept alive via native_gc_register_root)
 
 fn _chan_mem_magic_u64() {
     // Little-endian "ORENMCH1" (8 bytes).
@@ -64,69 +62,6 @@ fn _chan_mem_global_seq_bump_and_wake() {
     return 0
 }
 
-fn _chan_mem_select_wait_init_if_needed() {
-    if g_chan_mem_select_lock_word != 0 { return 0 }
-    var p = sys_mmap_private_anon(4096)
-    if p == 0 || p == -1 || p < 4096 { exit(935) }
-    ptr_set(p, 0)
-    g_chan_mem_select_lock_word = p
-    // Allocate a tiny GC-tracked root object to hold the wait-list head pointer.
-    // This ensures parked G pointers remain reachable even if the caller dropped its join handle.
-    var root = malloc(8)
-    if root == 0 { exit(936) }
-    ptr_set(root, 0)
-    oren_track_alloc(root, 8, 4) // STRUCT
-    native_gc_register_root(root)
-    g_chan_mem_select_root = root
-    return 0
-}
-
-fn _chan_mem_select_lock_acquire() {
-    _chan_mem_select_wait_init_if_needed()
-    var lock_ptr = g_chan_mem_select_lock_word
-    if lock_ptr == 0 { return 0 }
-    var tid = sys_gettid()
-    var spin = 0
-    var in_green = oren_green_in_green() == true
-    while atomic_cas(lock_ptr, 0, tid) != 0 {
-        spin = iadd(spin, 1)
-        if spin > 1000 {
-            var owner = ptr_get(lock_ptr)
-            if owner != 0 {
-                if in_green {
-                    // Do not kernel-wait while executing a green task.
-                    oren_green_sleep_ns(1000000) // 1ms
-                } else {
-                    oren_gc_safepoint()
-                    oren_wait_on_addr(lock_ptr, owner, 1000) // 1ms
-                }
-            }
-            spin = 0
-        }
-    }
-    return 0
-}
-
-fn _chan_mem_select_lock_release() {
-    var lock_ptr = g_chan_mem_select_lock_word
-    if lock_ptr == 0 { return 0 }
-    var tid = sys_gettid()
-    atomic_cas(lock_ptr, tid, 0)
-    oren_wake_all_addr(lock_ptr)
-    return 0
-}
-
-fn _chan_mem_select_wait_head_or0() {
-    if g_chan_mem_select_root == 0 { return 0 }
-    return ptr_get(g_chan_mem_select_root)
-}
-
-fn _chan_mem_select_set_wait_head(v) {
-    if g_chan_mem_select_root == 0 { return 0 }
-    ptr_set(g_chan_mem_select_root, v)
-    return 0
-}
-
 fn _chan_mem_green_current_g_or0(ts) {
     if ts == 0 { return 0 }
     return ptr_get(ts + green_t_off_current_g())
@@ -151,57 +86,19 @@ fn _chan_mem_green_switch_to_sched(ts, g) {
 
 fn native_chan_mem_select_wait_park_expected(expected_seq) {
     // Park the current green task until any mem-channel changes.
-    //
-    // Correctness: avoid missed wakeups by checking the global seq word while holding the select lock.
     if oren_green_in_green() != true { return 0 }
     _chan_mem_global_seq_init_if_needed()
-    _chan_mem_select_lock_acquire()
     var p = g_chan_mem_global_seq_word
-    if p != 0 {
-        var cur = ptr_get(p)
-        if cur != expected_seq {
-            _chan_mem_select_lock_release()
-            return 0
-        }
-    }
-
-    var ts = _green_thread_state_for_current_thread_or0()
-    var g = _chan_mem_green_current_g_or0(ts)
-    if g == 0 {
-        _chan_mem_select_lock_release()
-        return 0
-    }
-    ptr_set(g + green_g_off_state(), green_g_state_sleeping())
-    ptr_set(g + green_g_off_wake_ns(), 0)
-    _chan_mem_green_save_sp_to_stack_node(g)
-
-    // Push onto global select wait list.
-    var head = _chan_mem_select_wait_head_or0()
-    ptr_set(g + green_g_off_next(), head)
-    _chan_mem_select_set_wait_head(g)
-
-    _chan_mem_select_lock_release()
-    _chan_mem_green_switch_to_sched(ts, g)
-    return 0
-}
-
-fn native_chan_mem_select_wait_wake_all_locked() {
-    // Wake all green tasks currently parked in mem-channel select wait.
-    _chan_mem_select_wait_init_if_needed()
-    if g_chan_mem_select_lock_word == 0 { return 0 }
-
-    // Caller holds select lock.
-    var cur = _chan_mem_select_wait_head_or0()
-    _chan_mem_select_set_wait_head(0)
-
-    while cur != 0 {
-        var next = ptr_get(cur + green_g_off_next())
-        ptr_set(cur + green_g_off_next(), 0)
-        ptr_set(cur + green_g_off_state(), green_g_state_runnable())
-        ptr_set(cur + green_g_off_wake_ns(), 0)
-        _green_global_runq_push(cur)
-        cur = next
-    }
+    if p == 0 { return 0 }
+    // Delegate to the shared wait-on-address primitive:
+    // - In green context, `oren_wait_on_addr(..., timeout_us=0)` parks on the scheduler-owned word-wait list
+    //   (wake-driven; does not kernel-block the scheduler OS thread).
+    // - Wake happens via `_chan_mem_global_seq_bump_and_wake` (`oren_wake_all_addr(seq_word)`).
+    //
+    // Correctness (missed wakeups): the green wait-on-addr path checks `*addr != expected` while holding
+    // the scheduler lock and only then links the waiter into the word-wait list, so concurrent bumps
+    // cannot be missed.
+    oren_wait_on_addr(p, expected_seq, 0)
     return 0
 }
 
@@ -262,13 +159,7 @@ fn _chan_mem_bump_seq_locked(ch) {
 fn _chan_mem_wake_all(ch) {
     // Wake local channel waiters and global select waiters.
     oren_wake_all_addr(ch + _chan_mem_off_seq())
-    // Synchronize with the global select wait list to avoid missed wakeups:
-    // - a select waiter parks under the select lock after checking the seq value
-    // - a waker bumps seq + drains waiters under the same lock
-    _chan_mem_select_lock_acquire()
     _chan_mem_global_seq_bump_and_wake()
-    native_chan_mem_select_wait_wake_all_locked()
-    _chan_mem_select_lock_release()
     return 0
 }
 

@@ -47,6 +47,7 @@ Local (fast):
 - `make verify-native-quick` (alias of `make test`; stage1 + stage2 + capsule)
 - `./scripts/verify_x64_linux_qemu_smoke.sh` (x64-linux execution under QEMU in the persistent Linux container)
   - Runs the native quick integration binary both normally and with `OREN_GREEN_POLL_CACHE=1` (catches cached-scheduler-local hazards on x86_64).
+    - Cached-mode runs set `OREN_TEST_SLOW=1` to scale a small set of join timeouts for qemu (keeps the gate bounded but non-flaky).
 
 Tier‑1 cross-arch (execution on real hosts):
 
@@ -446,10 +447,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	       - `tests/native/test_integration_suite.oren` (`test_select_primitives` no longer skips Windows)
 		     - Notes:
 		       - Pipe-fd readiness is still POSIX-only; Windows has a rolling select-v0 socket netpoller, but IOCP is still needed for a production-grade netpoller (scalability + wake).
-		       - In-green `oren_select` / channel ops on Windows are **green-safe** and **non-polling**:
-		         - green tasks park on per-channel wait lists and a global select wait list
-		         - send/recv wakes parked Gs explicitly (no 1ms polling loop; enables idle-worker parking)
-		         - runtime roots the global select wait list so parked Gs remain GC-reachable even if callers drop handles
+			       - In-green `oren_select` / channel ops on Windows are **green-safe** and **non-polling**:
+			         - green tasks park on per-channel wait lists and on the shared global select sequence word via `oren_wait_on_addr`
+			         - send/recv wakes parked Gs by bumping the global seq word (no 1ms polling loop; enables idle-worker parking)
+			         - select waiters are rooted by the scheduler-owned word-wait list (so parked `G`s remain GC-reachable even if callers drop handles)
 		         - Guards (Windows-enabled): `tests/native/test_quick_integration_native.oren`
 		           - `test_select_in_green_workers`, `test_select_multi_case_in_green_workers`, `test_select_idle_does_not_spin_cpu`
 			   - 2026-01-16: Windows socket netpoll v0 (readiness waits are green-safe):
