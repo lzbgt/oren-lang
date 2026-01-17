@@ -104,12 +104,14 @@ run_one_env() {
     echo "ERROR: run_one_env expects at least one KEY=VALUE" >&2
     exit 2
   fi
+  local env_args=()
   local env_desc=""
   for kv in "$@"; do
     if [[ -z "$kv" || "$kv" == *" "* || "$kv" != *"="* ]]; then
       echo "ERROR: run_one_env expects KEY=VALUE items (no spaces): got: $kv" >&2
       exit 2
     fi
+    env_args+=("-e" "$kv")
     if [[ -z "$env_desc" ]]; then
       env_desc="$kv"
     else
@@ -119,7 +121,7 @@ run_one_env() {
   log "== run: qemu-x86_64 ${name} (env: ${env_desc}) =="
   docker cp "$bin" "$LINUX_DOCKER_ID:/tmp/hostbins/$name"
   local rc=0
-  docker exec -i "$LINUX_DOCKER_ID" bash -lc "set -e; cd /tmp/hostbins; chmod +x '$name'; : >'${name}.out'; timeout '$RUN_TIMEOUT_SECS' env $* qemu-x86_64 './$name' >'${name}.out' 2>&1" || rc=$?
+  docker exec -i "${env_args[@]}" "$LINUX_DOCKER_ID" bash -lc "set -e; cd /tmp/hostbins; chmod +x '$name'; : >'${name}.out'; timeout '$RUN_TIMEOUT_SECS' qemu-x86_64 './$name' >'${name}.out' 2>&1" || rc=$?
   if [[ "$rc" -ne 0 ]]; then
     echo "--- run failed: ${name} (exit=$rc) ---" >&2
     if [[ "$rc" -eq 124 ]]; then
