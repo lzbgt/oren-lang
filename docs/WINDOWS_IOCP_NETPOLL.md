@@ -18,6 +18,16 @@ The authoritative source content is stored in-tree under:
 - `project-doc/web/learn.microsoft.com/iocp/20260117/`
   - `SOURCES.txt` lists all downloaded URLs.
 
+## Current repo status (fact)
+
+- 2026-01-17: runtime recognizes `OREN_NETPOLL_WIN_IOCP=1` but IOCP init is still a stub returning `-ENOSYS`,
+  so Windows continues to use the select-v0 netpoll backend by default.
+- 2026-01-17: x64-windows now has syscall/intrinsic plumbing + PE imports for the IOCP core APIs:
+  - Runtime stubs: `lib/runtime_native/000_prelude_sys.oren`
+  - x64 syscall lowering (Win64 ABI, kernel32 IAT): `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net.oren`
+  - PE imports (KERNEL32.dll): `lib/compiler/x64_pe.oren` (appended imports; existing IAT offsets preserved)
+  - Non-Windows fallback: these syscalls lower to `-ENOSYS` on x64/arm64 so runtime-gated code keeps compiling.
+
 ## Why IOCP (vs select-v0)
 
 The current Windows netpoll v0 exists to unblock Tier‑1 bring-up (green tasks can wait on socket readability/writability),
@@ -158,4 +168,3 @@ As IOCP work lands, add/extend Tier‑1 guards:
 Tracker link:
 
 - `docs/TODOS.md` item “Native scheduler + netpoller”
-

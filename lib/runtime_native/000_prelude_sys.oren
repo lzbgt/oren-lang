@@ -96,6 +96,15 @@ fn sys_win_createthread(start_addr, arg_ptr) { return 0 }
 fn sys_win_wait_single_object(handle, timeout_ms) { return 0 }
 fn sys_win_terminate_thread(handle, exit_code) { return 0 }
 fn sys_win_close_handle(handle) { return 0 }
+// Windows-only IOCP helpers (kernel32):
+// - sys_create_io_completion_port(file_handle, existing_port, completion_key, concurrent_threads) -> HANDLE(u64) or -errno
+// - sys_get_queued_completion_status_ex(port, entries, entry_cap, removed_ptr, timeout_ms, alertable) -> 0 or -errno
+// - sys_post_queued_completion_status(port, bytes, completion_key, overlapped_ptr) -> 0 or -errno
+// - sys_cancel_io_ex(file_handle, overlapped_ptr) -> 0 or -errno
+fn sys_create_io_completion_port(file_handle, existing_port, completion_key, concurrent_threads) { return 0 }
+fn sys_get_queued_completion_status_ex(port, entries, entry_cap, removed_ptr, timeout_ms, alertable) { return 0 }
+fn sys_post_queued_completion_status(port, bytes, completion_key, overlapped_ptr) { return 0 }
+fn sys_cancel_io_ex(file_handle, overlapped_ptr) { return 0 }
 fn sys_mmap_private_anon(len) { return 0 }
 fn sys_munmap(addr, len) { return 0 }
 // Linux clone(2) (syscall-first; no libpthread).

@@ -1089,6 +1089,11 @@ fn _x64_is_syscall_intrinsic_name(nm) {
     if nm == "sys_sendto" || nm == "sys_recvfrom" { return true }
     // Windows-only NET helpers
     if nm == "sys_wsa_startup" || nm == "sys_select" { return true }
+    // Windows-only IOCP helpers (kernel32)
+    if nm == "sys_create_io_completion_port" { return true }
+    if nm == "sys_get_queued_completion_status_ex" { return true }
+    if nm == "sys_post_queued_completion_status" { return true }
+    if nm == "sys_cancel_io_ex" { return true }
     // epoll
     if nm == "sys_epoll_create1" || nm == "sys_epoll_ctl" || nm == "sys_epoll_pwait" { return true }
     // Darwin-only (still compiler intrinsics; may return -ENOSYS on non-Darwin)

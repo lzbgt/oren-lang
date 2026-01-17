@@ -3,6 +3,28 @@ fn native_syscalls_chunk_060_syscalls_f(ctx, fn_name, args, compile_expr) {
     var capsule = false
     if ctx != nil && ctx["platform"] != nil && ctx["platform"]["capsule"] == true { capsule = true }
 
+            if fn_name == "sys_create_io_completion_port" {
+                // Windows-only IOCP intrinsic (CreateIoCompletionPort).
+                // Keep arm64 builds compiling even if the call exists in a runtime-gated code path.
+                emit_load_i64_imm(ctx, 0, -78) // -ENOSYS
+                return true
+            }
+            if fn_name == "sys_get_queued_completion_status_ex" {
+                // Windows-only IOCP intrinsic (GetQueuedCompletionStatusEx).
+                emit_load_i64_imm(ctx, 0, -78) // -ENOSYS
+                return true
+            }
+            if fn_name == "sys_post_queued_completion_status" {
+                // Windows-only IOCP intrinsic (PostQueuedCompletionStatus).
+                emit_load_i64_imm(ctx, 0, -78) // -ENOSYS
+                return true
+            }
+            if fn_name == "sys_cancel_io_ex" {
+                // Windows-only IOCP intrinsic (CancelIoEx).
+                emit_load_i64_imm(ctx, 0, -78) // -ENOSYS
+                return true
+            }
+
             if fn_name == "sys_epoll_pwait" {
                 // sys_epoll_pwait(epfd, events_ptr, maxevents, timeout_ms, sigmask_ptr, sigsetsize) -> n_or_neg_errno
                 //

@@ -509,6 +509,35 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
         return nil
     }
 
+    if nm == "sys_create_io_completion_port" {
+        // Windows-only intrinsic (CreateIoCompletionPort).
+        if args == nil || oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_create_io_completion_port expects 4 args"); return nil }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_create_io_completion_port does not support spread"); return nil }
+        _emit_return_enosys_x64(ctx)
+        return nil
+    }
+    if nm == "sys_get_queued_completion_status_ex" {
+        // Windows-only intrinsic (GetQueuedCompletionStatusEx).
+        if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_get_queued_completion_status_ex expects 6 args"); return nil }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_get_queued_completion_status_ex does not support spread"); return nil }
+        _emit_return_enosys_x64(ctx)
+        return nil
+    }
+    if nm == "sys_post_queued_completion_status" {
+        // Windows-only intrinsic (PostQueuedCompletionStatus).
+        if args == nil || oren_list_len(args) != 4 { err(ctx, "x64 native v0: sys_post_queued_completion_status expects 4 args"); return nil }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_post_queued_completion_status does not support spread"); return nil }
+        _emit_return_enosys_x64(ctx)
+        return nil
+    }
+    if nm == "sys_cancel_io_ex" {
+        // Windows-only intrinsic (CancelIoEx).
+        if args == nil || oren_list_len(args) != 2 { err(ctx, "x64 native v0: sys_cancel_io_ex expects 2 args"); return nil }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_cancel_io_ex does not support spread"); return nil }
+        _emit_return_enosys_x64(ctx)
+        return nil
+    }
+
     if nm == "sys_getentropy" {
         // Linux x86_64: no getentropy syscall; return -ENOSYS and let runtime fall back to getrandom.
         _emit_return_enosys_x64(ctx)

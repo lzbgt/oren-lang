@@ -220,6 +220,10 @@ Status (rolling groundwork):
       - low-level scheduler drive hooks (host-thread only; bring-up/tests):
         - `oren_green_poll_until(deadline_ns)` drives until idle or deadline (monotonic ns).
         - `oren_green_poll_steps(n)` drives at most `n` context switches (used to seed multi-P queues deterministically).
+      - Single-thread multi-`P` bring-up regression (no unsafe worker parallelism):
+        - `tests/native/test_quick_integration_native.oren` (`test_green_multi_p_single_thread_poll_steal`)
+          - binds to `P2`, seeds `P2` local runq from a green task, then rebinds to `P0` and proves the scheduler steals work from `P2`,
+            including waking a sleeper parked under `P2` while driving `P0`.
     - The scheduler wakes sleepers **across all Ps**, not just the current thread’s bound `P`.
       - This is future-proofing for `M < P` and for global timeout-driven services (netpoller/timers) without requiring every `P` to be actively driven.
   - Worker sleeping behavior (rolling, but important for responsiveness):

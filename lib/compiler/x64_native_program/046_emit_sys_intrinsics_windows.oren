@@ -766,6 +766,11 @@ fn _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args) {
         // NET + wait backend
         if nm == "sys_wsa_startup" { return _emit_intrinsic_sys_wsa_startup_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_select" { return _emit_intrinsic_sys_select_windows_x64(ctx, expr, locals, args) }
+        // IOCP (kernel32) (future Windows netpoll backend; still runtime-gated)
+        if nm == "sys_create_io_completion_port" { return _emit_intrinsic_sys_create_io_completion_port_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_get_queued_completion_status_ex" { return _emit_intrinsic_sys_get_queued_completion_status_ex_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_post_queued_completion_status" { return _emit_intrinsic_sys_post_queued_completion_status_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_cancel_io_ex" { return _emit_intrinsic_sys_cancel_io_ex_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_socket" { return _emit_intrinsic_sys_socket_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_connect" { return _emit_intrinsic_sys_connect_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_bind" { return _emit_intrinsic_sys_bind_windows_x64(ctx, expr, locals, args) }
