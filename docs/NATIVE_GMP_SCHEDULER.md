@@ -116,7 +116,7 @@ Requirements:
    - Minimal: `yield()` builtin (or `oren_yield()` runtime call) that enqueues current `G` and switches to scheduler.
    - Also: `sleep_ms`, channel ops, and capability-scoped “syscalls” become yield points.
      - Fact (2026-01-17): TIME sleep is green-aware on the native backend: `oren_sleep_ns/ms` route to `oren_green_sleep_ns` when called from inside a green task (so sleep does not block the scheduler OS thread).
-     - Fact (2026-01-17): in-green “forever wait” on an address must not deadlock the scheduler: `oren_wait_on_addr(..., timeout_us=0)` parks cooperatively (green sleep + re-check) when invoked from inside a green task.
+     - Fact (2026-01-17): in-green “forever wait” on an address must not deadlock the scheduler: `oren_wait_on_addr(..., timeout_us=0)` parks the `G` on a scheduler-owned “word wait” list and is woken via `oren_wake_all_addr(addr)` (wake-driven; no polling).
        - Guard: `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_in_green_does_not_block_scheduler`)
 
 4) **Non-blocking OS integration**
@@ -154,6 +154,13 @@ Status (fact, code):
 - 2026-01-16: scheduler netpoll waiting is allocation-free in steady-state:
   - the green scheduler uses a per-OS-thread scratch region for `native_netpoll_poll_many_scratch(...)` so worker idle waits do not allocate and do not drop additional ready tokens
   - Runtime: `lib/runtime_native/263_green_tasks.oren` (per-thread scratch in `green_t`)
+
+- 2026-01-17: scheduler-lock reentrancy hazard (fixed):
+  - Fact: the native runtime global lock `release_lock()` wakes waiters via `oren_wake_all_addr(lock_ptr)` (runtime: `lib/runtime_native/100_time_gc_alloc.oren`).
+  - Fact: `oren_wake_all_addr` also wakes green tasks parked on the scheduler’s word-wait list (runtime: `lib/runtime_native/267_wait_on_addr.oren` → `oren_green_wake_all_addr`).
+  - Therefore: green scheduler lock acquire MUST avoid allocating thread-local green state via `oren_register_thread`, otherwise it can recurse:
+    `release_lock -> oren_wake_all_addr -> oren_green_wake_all_addr -> _green_lock_acquire -> (register thread) -> release_lock -> ...` (stack overflow).
+  - Implementation note: `_green_lock_acquire` uses a no-alloc best-effort “in-green” probe (`_green_in_green_best_effort_noalloc`) that inspects the current stack node flags (source of truth: `lib/runtime_native/100_time_core.oren`).
 
 ### Stage N2: N:M GMP (multiple OS threads, multiple Ps)
 

@@ -90,7 +90,10 @@ fn oren_m_park_word_wait(word_ptr, timeout_us) {
 fn oren_m_park_word_wake(word_ptr) {
     if word_ptr == 0 { return -5 }
     if atomic_cas(word_ptr, 0, 1) == 0 {
-        return oren_wake_all_addr(word_ptr)
+        // This is an internal OS-thread ("M") park word used by the scheduler and fixtures.
+        // Wake kernel waiters directly; do not route through `oren_wake_all_addr`, which integrates
+        // green waiters and can introduce accidental wake recursion when worker bring-up is enabled.
+        return sys_ulock_wake(257, word_ptr, 0)
     }
     // Already signaled.
     return 0

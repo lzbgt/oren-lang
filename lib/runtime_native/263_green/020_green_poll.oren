@@ -175,6 +175,9 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
                 if ptr_get(g + green_g_off_detached()) != 0 {
                     _green_zombie_push(g)
                 }
+            } else if st == green_g_state_word_wait() {
+                // Parked on the scheduler word-wait list (wait-on-address).
+                // Already enqueued by the waiter before switching back to the scheduler.
             } else {
                 // sleeping: enqueue into sleepq now that the task context is saved/paused.
                 _green_sleepq_push_p(p, g)

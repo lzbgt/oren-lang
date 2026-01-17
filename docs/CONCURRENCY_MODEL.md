@@ -59,7 +59,9 @@ Facts (rolling, verified by tests):
   - If the underlying primitive reports a value mismatch/spurious wake (e.g. Linux futex `-EAGAIN`), it is normalized to `0`
     because callers are structured as “check → wait → retry”.
   - Green-task nuance (rolling, 2026-01-17): when called from inside a green task with `timeout_us == 0` (“forever”), the runtime
-    must not block the scheduler OS thread forever in the kernel wait primitive. It parks cooperatively (green sleeps + re-check).
+    must not block the scheduler OS thread forever in the kernel wait primitive.
+    - Current implementation: parks the current `G` on a scheduler-owned “word wait” list and wakes it via `oren_wake_all_addr(addr)`
+      (wake-driven; no polling).
     - Guard: `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_in_green_does_not_block_scheduler`)
 
 Why this matters:

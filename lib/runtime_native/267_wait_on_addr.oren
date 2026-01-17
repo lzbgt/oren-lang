@@ -52,18 +52,10 @@ fn oren_wait_on_addr(addr, expected, timeout_us) {
     // - Bounded waits (`timeout_us > 0`) keep using the OS primitive so wake-by-address remains
     //   event-driven and latency stays low under contention.
     //
-    // Note: this is a bridge until the scheduler grows a first-class "word wait" wait-list.
+    // Note: the native scheduler now has a dedicated "word wait" wait-list for the forever case,
+    // so this path is wake-driven (no polling).
     if timeout_us == 0 && oren_green_current_g_or0() != 0 {
-        while true {
-            var cur2 = ptr_get(addr)
-            if g_target_os == 2 {
-                if (cur2 & 4294967295) != expected { return 0 }
-            } else {
-                if cur2 != expected { return 0 }
-            }
-            // Keep the scheduler responsive: sleep in small slices (not a busy spin).
-            oren_green_sleep_ns(1000000) // 1ms
-        }
+        return oren_green_wait_on_addr_forever(addr, expected)
     }
 
     // Use a literal op code (avoid non-zero global initializers in the native runtime bundle).
@@ -81,5 +73,9 @@ fn oren_wait_on_addr(addr, expected, timeout_us) {
 // Returns 0 on success, or -errno.
 fn oren_wake_all_addr(addr) {
     // 257 == 1|0x100 (wake-all), matching the wake-all encoding used elsewhere in the runtime.
-    return sys_ulock_wake(257, addr, 0)
+    var rc = sys_ulock_wake(257, addr, 0)
+    // Also wake green tasks parked on this address (best-effort).
+    // Avoid initializing the green runtime here: `oren_green_wake_all_addr` is a no-op if green is not inited.
+    oren_green_wake_all_addr(addr)
+    return rc
 }

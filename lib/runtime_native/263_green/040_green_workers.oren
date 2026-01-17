@@ -648,6 +648,8 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
     ptr_set(g + green_g_off_io_ready(), 0)
     ptr_set(g + green_g_off_io_active(), 0)
     ptr_set(g + green_g_off_io_epoch(), 0)
+    ptr_set(g + green_g_off_word_wait_addr(), 0)
+    ptr_set(g + green_g_off_word_wait_expected(), 0)
 
     // Initialize context to start at __oren_green_entry on the new stack.
     var entry_pc = oren_code_addr(__oren_green_entry)
@@ -905,5 +907,103 @@ fn oren_green_yield() {
     var ctx_g = ptr_get(g + green_g_off_ctx())
     var sched_ctx = _green_thread_sched_ctx_or0(ts)
     oren_ctx_switch(ctx_g, sched_ctx)
+    return 0
+}
+
+fn _green_word_wait_list_push_locked(s, g) {
+    if s == 0 || g == 0 { return 0 }
+    var head = _green_state_word_wait_head(s)
+    ptr_set(g + green_g_off_next(), head)
+    _green_state_set_word_wait_head(s, g)
+    return 0
+}
+
+fn _green_word_wait_list_remove_and_wake_all_locked(s, addr) {
+    // Caller holds scheduler lock.
+    if s == 0 { return 0 }
+    var prev = 0
+    var cur = _green_state_word_wait_head(s)
+    var woke_any = 0
+    while cur != 0 {
+        var next = ptr_get(cur + green_g_off_next())
+        if _green_g_word_wait_addr(cur) == addr {
+            // Remove from list.
+            if prev == 0 {
+                _green_state_set_word_wait_head(s, next)
+            } else {
+                ptr_set(prev + green_g_off_next(), next)
+            }
+            ptr_set(cur + green_g_off_next(), 0)
+            _green_g_set_word_wait_addr(cur, 0)
+            _green_g_set_word_wait_expected(cur, 0)
+            ptr_set(cur + green_g_off_wake_ns(), 0)
+            ptr_set(cur + green_g_off_state(), green_g_state_runnable())
+            _green_global_runq_push_locked(s, cur)
+            woke_any = 1
+            cur = next
+            continue
+        }
+        prev = cur
+        cur = next
+    }
+    return woke_any
+}
+
+@oren.keep
+fn oren_green_wait_on_addr_forever(addr, expected) {
+    // Park the current green task until `oren_wake_all_addr(addr)` is called
+    // (or until the value changes and a spurious wake occurs).
+    //
+    // This is used by `oren_wait_on_addr(..., timeout_us=0)` to avoid blocking the scheduler OS thread
+    // in the kernel wait primitive (correctness-first for N:1 green scheduling).
+    if addr == 0 || addr < 4096 { return -5 }
+    var ts = _green_thread_state_for_current_thread_or0()
+    if ts == 0 { return -1 }
+    var g = ptr_get(ts + green_t_off_current_g())
+    if g == 0 { return -1 }
+    var s = _green_get_state()
+    if s == 0 { return -1 }
+
+    // Avoid missed wakeups by checking the word while holding the scheduler lock.
+    _green_lock_acquire()
+    if ptr_get(addr) != expected {
+        _green_lock_release()
+        return 0
+    }
+
+    // Record wait metadata (for wake-by-address).
+    _green_g_set_word_wait_addr(g, addr)
+    _green_g_set_word_wait_expected(g, expected)
+    ptr_set(g + green_g_off_wake_ns(), 0)
+    ptr_set(g + green_g_off_state(), green_g_state_word_wait())
+
+    // Save SP into stack node for GC scanning while parked.
+    var node = ptr_get(g + green_g_off_stack_node())
+    if node != 0 { ptr_set(node + 8, get_sp()) }
+
+    _green_word_wait_list_push_locked(s, g)
+    _green_lock_release()
+
+    // Switch back to scheduler stack.
+    var ctx_g = ptr_get(g + green_g_off_ctx())
+    var sched_ctx = _green_thread_sched_ctx_or0(ts)
+    oren_ctx_switch(ctx_g, sched_ctx)
+    return 0
+}
+
+@oren.keep
+fn oren_green_wake_all_addr(addr) {
+    // Wake all green tasks parked via `oren_green_wait_on_addr_forever`.
+    //
+    // Note: this is best-effort and does not validate that the word changed.
+    if g_green_inited == 0 { return 0 }
+    if addr == 0 || addr < 4096 { return 0 }
+    var s = _green_get_state()
+    if s == 0 { return 0 }
+
+    _green_lock_acquire()
+    var woke_any = _green_word_wait_list_remove_and_wake_all_locked(s, addr)
+    _green_lock_release()
+    if woke_any != 0 { _green_workers_wake_if_started() }
     return 0
 }

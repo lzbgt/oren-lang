@@ -49,7 +49,11 @@ fn green_g_off_io_active() { return 128 } // 0|1
 // io_epoch is bumped by high-level waiters (e.g. `oren_select`) so the scheduler can reject stale
 // tokens from an earlier wait round without relying on `free` timing.
 fn green_g_off_io_epoch() { return 136 } // u64
-fn green_g_bytes() { return 144 }
+// Word-wait fields (wake-by-address substrate integration; rolling):
+// Used by the green scheduler to park a G without blocking the scheduler OS thread in the kernel.
+fn green_g_off_word_wait_addr() { return 144 }     // u64: address waited on
+fn green_g_off_word_wait_expected() { return 152 } // u64: expected value ("wait while equal")
+fn green_g_bytes() { return 160 }
 
 // Green states.
 fn green_g_state_runnable() { return 1 }
@@ -63,6 +67,8 @@ fn green_g_state_done() { return 3 }
 // the green stack while the task is still executing on it (which can crash in leaf calls like
 // `oren_wake_all_addr` due to stack being unmapped mid-call).
 fn green_g_state_exiting() { return 4 }
+// Green task is parked on the scheduler's wait-on-address list.
+fn green_g_state_word_wait() { return 5 }
 
 // Magic for identifying a green task pointer.
 // "ORENGRN1" (ASCII) packed into u64.
@@ -82,7 +88,9 @@ fn green_s_off_glob_run_head() { return 24 } // u64: global runnable queue head 
 fn green_s_off_glob_run_tail() { return 32 } // u64: global runnable queue tail
 fn green_s_off_idle_p_head() { return 40 } // u64: head of idle-P queue (Ps with owner_tid==0)
 fn green_s_off_idle_p_tail() { return 48 } // u64: tail of idle-P queue
-fn green_s_bytes() { return 56 }
+// Word-wait list head (Gs parked via `oren_wait_on_addr` in green context).
+fn green_s_off_word_wait_head() { return 56 } // u64: head of word-wait list (G.next-linked)
+fn green_s_bytes() { return 64 }
 
 // Per-P state struct layout (bytes).
 //
@@ -253,6 +261,35 @@ fn _green_thread_current_g_or0() {
     return ptr_get(ts + green_t_off_current_g())
 }
 
+fn _green_in_green_best_effort_noalloc() {
+    // Best-effort "am I executing inside a green task?" probe that avoids allocating
+    // thread-local green state or calling `oren_register_thread`.
+    //
+    // Why:
+    // - `_green_lock_acquire` can run while holding the runtime global lock, and calling
+    //   `oren_register_thread` from there can recurse via `release_lock -> oren_wake_all_addr -> ...`.
+    // - For lock waiting policy, we only need a conservative heuristic.
+    //
+    // Thread node layout source of truth: `lib/runtime_native/100_time_core.oren`.
+    if oren_globals() == 0 { return false }
+    if g_green_inited == 0 { return false }
+
+    var node = _green_find_current_stack_node_or0()
+    if node == 0 { return false }
+    // flags live at offset 48 for both OS-thread nodes (4096B) and green-stack nodes (56B).
+    var flags = ptr_get(node + 48)
+    var THREAD_NODE_FLAG_OS_THREAD = 1
+    if (flags & THREAD_NODE_FLAG_OS_THREAD) == 0 {
+        // Non-OS stack node => green stack (Stage N1).
+        return true
+    }
+
+    // OS-thread node: read the attached green thread-state pointer (if any).
+    var ts = ptr_get(node + green_thread_node_off_green_state())
+    if ts == 0 || ts == -1 || ts < 4096 { return false }
+    return ptr_get(ts + green_t_off_current_g()) != 0
+}
+
 fn _green_thread_set_current_g(ts, g) { ptr_set(ts + green_t_off_current_g(), g); return 0 }
 fn _green_thread_sched_ctx_or0(ts) { return ptr_get(ts + green_t_off_sched_ctx()) }
 fn _green_thread_sched_stack_node_or0(ts) { return ptr_get(ts + green_t_off_sched_stack_node()) }
@@ -323,6 +360,7 @@ fn _green_state_glob_run_head(s) { return ptr_get(s + green_s_off_glob_run_head(
 fn _green_state_glob_run_tail(s) { return ptr_get(s + green_s_off_glob_run_tail()) }
 fn _green_state_idle_p_head(s) { return ptr_get(s + green_s_off_idle_p_head()) }
 fn _green_state_idle_p_tail(s) { return ptr_get(s + green_s_off_idle_p_tail()) }
+fn _green_state_word_wait_head(s) { return ptr_get(s + green_s_off_word_wait_head()) }
 
 fn _green_state_set_p0(s, v) { ptr_set(s + green_s_off_p0(), v); return 0 }
 fn _green_state_set_p_count(s, v) { ptr_set(s + green_s_off_p_count(), v); return 0 }
@@ -331,9 +369,15 @@ fn _green_state_set_glob_run_head(s, v) { ptr_set(s + green_s_off_glob_run_head(
 fn _green_state_set_glob_run_tail(s, v) { ptr_set(s + green_s_off_glob_run_tail(), v); return 0 }
 fn _green_state_set_idle_p_head(s, v) { ptr_set(s + green_s_off_idle_p_head(), v); return 0 }
 fn _green_state_set_idle_p_tail(s, v) { ptr_set(s + green_s_off_idle_p_tail(), v); return 0 }
+fn _green_state_set_word_wait_head(s, v) { ptr_set(s + green_s_off_word_wait_head(), v); return 0 }
 
 fn _green_g_next(g) { return ptr_get(g + green_g_off_next()) }
 fn _green_g_set_next(g, v) { ptr_set(g + green_g_off_next(), v); return 0 }
+
+fn _green_g_word_wait_addr(g) { return ptr_get(g + green_g_off_word_wait_addr()) }
+fn _green_g_word_wait_expected(g) { return ptr_get(g + green_g_off_word_wait_expected()) }
+fn _green_g_set_word_wait_addr(g, v) { ptr_set(g + green_g_off_word_wait_addr(), v); return 0 }
+fn _green_g_set_word_wait_expected(g, v) { ptr_set(g + green_g_off_word_wait_expected(), v); return 0 }
 
 fn _green_p_runq_buf(p) { return ptr_get(p + green_p_off_runq_buf()) }
 fn _green_p_runq_head(p) { return ptr_get(p + green_p_off_runq_head()) }
@@ -519,6 +563,7 @@ fn _green_init_if_needed() {
     _green_state_set_glob_run_tail(s, 0)
     _green_state_set_idle_p_head(s, 0)
     _green_state_set_idle_p_tail(s, 0)
+    _green_state_set_word_wait_head(s, 0)
     _green_idle_p_push_locked(s, p0)
     _green_set_state(s)
     native_gc_register_root(s)
@@ -1064,15 +1109,31 @@ fn _green_lock_acquire() {
         return 0
     }
     var spin = 0
+    var in_green = false
+    // Best-effort: if we're executing on a green stack, avoid blocking the scheduler OS thread
+    // in a kernel wait while contending on the scheduler lock.
+    in_green = _green_in_green_best_effort_noalloc()
     while atomic_cas(lock_ptr, 0, tid) != 0 {
         spin = spin + 1
         if spin > 1000 {
             var owner = ptr_get(lock_ptr)
             if owner != 0 {
-                // STW GC robustness: do not block indefinitely while holding no safepoint polls.
-                // Parkable waits must allow `oren_gc_collect()` to complete when multiple OS threads exist.
-                oren_gc_safepoint()
-                oren_wait_on_addr(lock_ptr, owner, 1000) // 1ms
+                if in_green {
+                    // Critical correctness (GMP / green scheduling):
+                    // Do NOT block the scheduler OS thread in a kernel wait while executing a green task.
+                    //
+                    // IMPORTANT:
+                    // Avoid calling any green scheduling helper here (e.g. `oren_green_sleep_ns`), because those
+                    // helpers themselves need `_green_lock_acquire` and would recurse until stack overflow.
+                    //
+                    // Best-effort: yield the OS thread so the lock owner can run and release the lock.
+                    sys_sched_yield()
+                } else {
+                    // STW GC robustness: do not block indefinitely while holding no safepoint polls.
+                    // Parkable waits must allow `oren_gc_collect()` to complete when multiple OS threads exist.
+                    oren_gc_safepoint()
+                    oren_wait_on_addr(lock_ptr, owner, 1000) // 1ms
+                }
             }
             spin = 0
         }
@@ -1089,7 +1150,16 @@ fn _green_lock_release() {
         return 0
     }
     atomic_cas(lock_ptr, tid, 0)
-    oren_wake_all_addr(lock_ptr)
+    // IMPORTANT:
+    // Do not call `oren_wake_all_addr` here.
+    //
+    // `oren_wake_all_addr` integrates with green waiters by calling `oren_green_wake_all_addr`,
+    // which needs the scheduler lock. Calling it while releasing the scheduler lock would recurse:
+    // `_green_lock_release` -> `oren_wake_all_addr` -> `oren_green_wake_all_addr` -> `_green_lock_release` -> ...
+    //
+    // The scheduler lock is an internal implementation detail; wake kernel waiters directly.
+    // Operation 257 matches `oren_wake_all_addr` ("wake all").
+    sys_ulock_wake(257, lock_ptr, 0)
     return 0
 }
 
@@ -1379,6 +1449,33 @@ fn _green_wake_ready_all(now_ns) {
 
     var woke_any = 0
     _green_lock_acquire()
+    // Wake any timed word-waiters whose deadline has elapsed.
+    // (Forever word waits use wake_ns==0 and are woken explicitly via `oren_wake_all_addr`.)
+    var ww_prev = 0
+    var ww_cur = _green_state_word_wait_head(s)
+    while ww_cur != 0 {
+        var ww_next = _green_g_next(ww_cur)
+        var dl = ptr_get(ww_cur + green_g_off_wake_ns())
+        if dl != 0 && now_ns >= dl {
+            // Remove from list.
+            if ww_prev == 0 {
+                _green_state_set_word_wait_head(s, ww_next)
+            } else {
+                _green_g_set_next(ww_prev, ww_next)
+            }
+            _green_g_set_next(ww_cur, 0)
+            _green_g_set_word_wait_addr(ww_cur, 0)
+            _green_g_set_word_wait_expected(ww_cur, 0)
+            ptr_set(ww_cur + green_g_off_state(), green_g_state_runnable())
+            ptr_set(ww_cur + green_g_off_wake_ns(), 0)
+            _green_global_runq_push_locked(s, ww_cur)
+            woke_any = 1
+            ww_cur = ww_next
+            continue
+        }
+        ww_prev = ww_cur
+        ww_cur = ww_next
+    }
     var p = _green_state_p0(s)
     while p != 0 {
         var prev = 0
@@ -1440,6 +1537,16 @@ fn _green_next_wake_ns_all() {
     if s == 0 { return 0 }
     var best = 0
     _green_lock_acquire()
+    // Include word-wait deadlines.
+    var ww = _green_state_word_wait_head(s)
+    while ww != 0 {
+        if _green_is_g(ww) != true { exit(942) }
+        var wwdl = ptr_get(ww + green_g_off_wake_ns())
+        if wwdl != 0 {
+            if best == 0 || wwdl < best { best = wwdl }
+        }
+        ww = _green_g_next(ww)
+    }
     var p = _green_state_p0(s)
     while p != 0 {
         var cur = _green_p_sleep_head(p)
