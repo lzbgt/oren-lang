@@ -879,6 +879,52 @@ fn test_wait_on_addr_mismatch_is_success() {
     return 0
 }
 
+fn worker_green_wait_on_addr_then_ret_ok(meta) {
+    // Called as a green task (POSIX Tier‑1) so `oren_wait_on_addr` must not block the scheduler OS thread.
+    //
+    // Contract under green tasks (rolling):
+    // - `oren_wait_on_addr` must park/yield cooperatively instead of blocking in the kernel wait primitive.
+    var rc = oren_wait_on_addr(meta, 0, 0) // forever until meta != 0
+    if rc != 0 { return rc }
+    return 0
+}
+
+fn worker_green_set_word_and_wake(meta) {
+    // Wake the waiter by changing the value and issuing a wake-by-address.
+    ptr_set(meta, 1)
+    oren_wake_all_addr(meta)
+    return 0
+}
+
+fn test_wait_on_addr_in_green_does_not_block_scheduler() {
+    trace("QI: test_wait_on_addr_in_green_does_not_block_scheduler")
+    // Green tasks are the default `spawn` path on macOS/Linux today.
+    // Windows uses CreateThread for `spawn`, so skip this test there.
+    if g_target_os == 3 { return 0 }
+
+    var meta = sys_mmap_private_anon(4096)
+    if meta == 0 || meta == -1 || meta < 4096 { fail(760) }
+    ptr_set(meta, 0)
+
+    // Spawn waiter + waker. This is a minimal deadlock regression:
+    // - If `oren_wait_on_addr(..., timeout_us=0)` blocks the scheduler OS thread,
+    //   the waker cannot run and the suite will hang.
+    var hw = spawn worker_green_wait_on_addr_then_ret_ok(meta)
+    var hs = spawn worker_green_set_word_and_wake(meta)
+
+    // Deterministic drive: run a bounded number of steps to ensure both tasks get CPU time
+    // before any later fixture starts green worker threads.
+    assert_eq(oren_green_poll_steps(8), 0, 761)
+
+    var rs = oren_join_timeout(hs, 2000)
+    assert_eq(rs, 0, 762)
+    var rw = oren_join_timeout(hw, 2000)
+    assert_eq(rw, 0, 763)
+
+    sys_munmap(meta, 4096)
+    return 0
+}
+
 fn test_time_mono_ns_monotonic() {
     trace("QI: test_time_mono_ns_monotonic")
     // Contract (rolling): `oren_time_mono_ns()` should be monotonic if non-zero.
@@ -1876,6 +1922,7 @@ fn main() {
     test_proc_system_windows()
     test_select()
     test_wait_on_addr_mismatch_is_success()
+    test_wait_on_addr_in_green_does_not_block_scheduler()
     test_time_mono_ns_monotonic()
     test_green_start_workers_rejects_in_green()
     test_green_bind_p_rejects_in_green()

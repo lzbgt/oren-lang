@@ -388,11 +388,14 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	   Next steps (actionable, highest leverage first):
 
 	   - Windows: upgrade the socket netpoller from select-v0 to IOCP (scalable readiness + true wake; removes `FD_SETSIZE=64` per-call limit and avoids batching).
-	   - Windows: extend the wait-list mechanism beyond channels:
-	     - fd waits (`oren_fd_wait_*`) should eventually park Gs on IOCP wait nodes (no polling, no scheduler-thread blocking)
-	     - unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
+		   - Windows: extend the wait-list mechanism beyond channels:
+		     - fd waits (`oren_fd_wait_*`) should eventually park Gs on IOCP wait nodes (no polling, no scheduler-thread blocking)
+		     - unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
+		   - Cross-platform: add a scheduler-owned “word wait” wait-list so in-green `oren_wait_on_addr` can be **wake-driven** (not polling).
+		     - Current stopgap (2026-01-17): only the “forever” case (`timeout_us==0`) is green-safe via cooperative sleep+recheck.
+		     - Guard: `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_in_green_does_not_block_scheduler`)
 
-   - Stage N2 groundwork: syscall-first OS threads (no libpthread) on Tier‑1
+	   - Stage N2 groundwork: syscall-first OS threads (no libpthread) on Tier‑1
      - macOS arm64: finish the syscall-first `bsdthread_register` story and keep it robust across modern dyld/libpthread:
        - keep installing runtime-owned threadstart stubs at process init (call `native_runtime_threading_init(...)` early)
        - keep `sys_bsdthread_create/terminate` wired to the shared runtime `oren_os_thread_spawn(...)` primitive (`lib/runtime_native/269_os_thread_m.oren`)
@@ -416,9 +419,15 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		       - Fix: keep `native_call1` routed through the x64 intrinsic emitter (ABI-aware arg-register mapping), and bump the
 		         x64 rtobj backend signature (`x64_v0_17`) to invalidate stale cached runtime objects.
 		       - Fix: treat `sys_qpc_frequency` as a syscall intrinsic and write the QueryPerformanceFrequency result directly to
-		         `*freq_ptr` (avoid fixed stack scratch slots).
-	         - Verified: `./scripts/verify_native_matrix.sh --targets x64-win --trace` (stage1 + stage2) on remote Win11.
-	   - 2026-01-16: Windows channel/select groundwork (portable in-memory channels):
+			         `*freq_ptr` (avoid fixed stack scratch slots).
+		         - Verified: `./scripts/verify_native_matrix.sh --targets x64-win --trace` (stage1 + stage2) on remote Win11.
+		   - 2026-01-17: keep cross-target x64 builds robust when the injected runtime contains Windows-only branches guarded by `g_target_os`:
+		     - x64 non-Windows syscall lowering now treats `sys_qpc_frequency` as `-ENOSYS` (instead of a hard compile-time error).
+		     - Verified: `make verify-x64-linux-qemu` (stage1 + stage2).
+		   - 2026-01-17: green-task safety: `oren_wait_on_addr(..., timeout_us=0)` (“forever”) must not block the scheduler OS thread:
+		     - Runtime: `lib/runtime_native/267_wait_on_addr.oren` (in-green “forever wait” parks cooperatively via green sleeps + re-check)
+		     - Guard: `tests/native/test_quick_integration_native.oren` (`test_wait_on_addr_in_green_does_not_block_scheduler`)
+		   - 2026-01-16: Windows channel/select groundwork (portable in-memory channels):
 	     - Runtime: `lib/runtime_native/011_channels_mem.oren` (GC-tracked ring-buffer channels + wait-on-addr)
 	     - Runtime: `lib/runtime_native/245_select.oren` (Windows: `oren_select` / `oren_select_recv` over mem-channels)
 	     - Tests: enable select primitives on Windows:

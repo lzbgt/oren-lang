@@ -496,6 +496,19 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
     if nm == "sys_write" { return _emit_intrinsic_sys_write_x64(ctx, expr, locals, args) }
     if nm == "sys_exit" { return _emit_intrinsic_sys_exit_x64(ctx, expr, locals, args) }
 
+    if nm == "sys_qpc_frequency" {
+        // Windows-only intrinsic (QueryPerformanceFrequency).
+        // On non-Windows targets we still want builds to succeed, because sources commonly gate
+        // the call at runtime via `if g_target_os == 3 { ... }`, but the compiler still must lower
+        // the call site while parsing/compiling the full function body.
+        //
+        // Return -ENOSYS so accidental non-Windows calls fail cleanly.
+        if args == nil || oren_list_len(args) != 1 { err(ctx, "x64 native v0: sys_qpc_frequency expects 1 arg"); return nil }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_qpc_frequency does not support spread"); return nil }
+        _emit_return_enosys_x64(ctx)
+        return nil
+    }
+
     if nm == "sys_getentropy" {
         // Linux x86_64: no getentropy syscall; return -ENOSYS and let runtime fall back to getrandom.
         _emit_return_enosys_x64(ctx)

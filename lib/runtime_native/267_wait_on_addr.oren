@@ -42,6 +42,30 @@ fn oren_wait_on_addr(addr, expected, timeout_us) {
         if cur != expected { return 0 }
     }
 
+    // Green-task friendliness (rolling):
+    // If this call happens inside a green task, do NOT block the scheduler OS thread forever
+    // in the kernel wait primitive.
+    //
+    // Scope (intentionally narrow for now):
+    // - Only intercept the "forever" case (`timeout_us == 0`) to avoid deadlocks where the
+    //   waker is itself a green task that cannot run while the scheduler OS thread is blocked.
+    // - Bounded waits (`timeout_us > 0`) keep using the OS primitive so wake-by-address remains
+    //   event-driven and latency stays low under contention.
+    //
+    // Note: this is a bridge until the scheduler grows a first-class "word wait" wait-list.
+    if timeout_us == 0 && oren_green_current_g_or0() != 0 {
+        while true {
+            var cur2 = ptr_get(addr)
+            if g_target_os == 2 {
+                if (cur2 & 4294967295) != expected { return 0 }
+            } else {
+                if cur2 != expected { return 0 }
+            }
+            // Keep the scheduler responsive: sleep in small slices (not a busy spin).
+            oren_green_sleep_ns(1000000) // 1ms
+        }
+    }
+
     // Use a literal op code (avoid non-zero global initializers in the native runtime bundle).
     var rc = sys_ulock_wait(1, addr, expected, timeout_us)
 
