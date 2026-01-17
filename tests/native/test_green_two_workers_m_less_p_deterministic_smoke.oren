@@ -26,6 +26,27 @@ fn busy_yield_bounded() {
     return 1
 }
 
+fn spin_wait_p_owner_eq(p_id, want_tid, timeout_ms) {
+    // Avoid relying on fine-grained sleep behavior (Windows can have coarse timer resolution).
+    // Use yield + monotonic time when available.
+    var deadline_ns = 0
+    var now0 = oren_time_mono_ns()
+    if now0 != 0 && timeout_ms > 0 {
+        deadline_ns = now0 + timeout_ms * 1000000
+    }
+    var iters = 0
+    while iters < 200000 {
+        if oren_green_debug_p_owner_tid(p_id) == want_tid { return 0 }
+        if deadline_ns != 0 {
+            var now = oren_time_mono_ns()
+            if now != 0 && now >= deadline_ns { break }
+        }
+        oren_yield()
+        iters = iters + 1
+    }
+    return -1
+}
+
 fn wait_workers_ready() {
     var tries = 0
     while tries < 50 {
@@ -87,22 +108,7 @@ fn force_idle_fifo_order_3(p0, p1, p2) {
     return -1
 }
 
-fn wait_p_owner_eq(p_id, want_tid) {
-    var tries = 0
-    while tries < 300 {
-        if oren_green_debug_p_owner_tid(p_id) == want_tid { return 0 }
-        oren_sleep_ms(1)
-        tries = tries + 1
-    }
-    return -1
-}
-
 fn main() {
-    if g_target_os == 3 {
-        print("skip: green two workers M<P deterministic smoke (windows)")
-        return 0
-    }
-
     // Ensure 3 Ps exist before workers start.
     var rcpc = oren_green_set_p_count(3)
     if rcpc != 0 { print("FAIL: set_p_count rc=" + oren_int_to_string(rcpc)); exit(1) }
@@ -143,7 +149,7 @@ fn main() {
     if h0 == 0 { print("FAIL: spawn_to_p0"); exit(9) }
     var rw = oren_green_debug_wake_worker(1)
     if rw != 0 { print("FAIL: wake_worker1 rc=" + oren_int_to_string(rw)); exit(10) }
-    if wait_p_owner_eq(0, t1) != 0 {
+    if spin_wait_p_owner_eq(0, t1, 2000) != 0 {
         print("FAIL: expected P0 owned by worker1 tid=" + oren_int_to_string(t1) +
             " got=" + oren_int_to_string(oren_green_debug_p_owner_tid(0)))
         exit(11)
@@ -162,7 +168,7 @@ fn main() {
     if h1 == 0 { print("FAIL: spawn_to_p1"); exit(15) }
     rw = oren_green_debug_wake_worker(0)
     if rw != 0 { print("FAIL: wake_worker0 rc=" + oren_int_to_string(rw)); exit(16) }
-    if wait_p_owner_eq(1, t0) != 0 {
+    if spin_wait_p_owner_eq(1, t0, 2000) != 0 {
         print("FAIL: expected P1 owned by worker0 tid=" + oren_int_to_string(t0) +
             " got=" + oren_int_to_string(oren_green_debug_p_owner_tid(1)))
         exit(17)
@@ -181,7 +187,7 @@ fn main() {
     if h2 == 0 { print("FAIL: spawn_to_p2"); exit(21) }
     rw = oren_green_debug_wake_worker(0)
     if rw != 0 { print("FAIL: wake_worker0(stepC) rc=" + oren_int_to_string(rw)); exit(22) }
-    if wait_p_owner_eq(2, t0) != 0 {
+    if spin_wait_p_owner_eq(2, t0, 2000) != 0 {
         print("FAIL: expected P2 owned by worker0 tid=" + oren_int_to_string(t0) +
             " got=" + oren_int_to_string(oren_green_debug_p_owner_tid(2)))
         exit(23)
@@ -192,4 +198,3 @@ fn main() {
     print("ok: green two workers M<P deterministic smoke")
     return 0
 }
-

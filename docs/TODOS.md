@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-01-16
+**Last updated:** 2026-01-17
 
 This repo is in rolling mode. This file tracks the **highest-leverage work remaining** to evolve Oren
 into a modern, efficient, production-ready language and toolchain, while keeping iteration fast.
@@ -487,12 +487,17 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				       - Progress (2026-01-16): idle-P pool is now FIFO (fair) and has a multi-worker guard that proves `P2` can be acquired under `M<P` in world-lock mode:
 				         - Guard: `tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren` (wired into native quick integration runner; deterministic P swap + P2 acquisition)
 				         - NOTE (required): in worker mode, `_green_poll_until` must not auto-bind `P0` when a worker intentionally clears its thread-local P binding; P acquisition must happen via the idle-P pool for M<P/fairness.
-				       - DONE (2026-01-16): deterministic combined regression (2 workers, 3 Ps) that proves:
-				         - worker1 acquires P0, worker0 acquires P1, and later worker0 acquires P2 (true `M<P` behavior under world-lock)
-				         - Guard: `tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren`
-				         - Implementation: per-worker park/wake slots + worker-tid table + test-only idle-P requeue + test-only spawn-to-P injection (keeps fixture deterministic).
-					       - DONE (2026-01-16): documented the fixture-only `oren_green_debug_*` surface in one place (what is “test-only ABI” vs stable runtime ABI):
-					         - Doc: `docs/NATIVE_GMP_SCHEDULER.md` (“Test-only debug API: `oren_green_debug_*`”)
+					       - DONE (2026-01-16): deterministic combined regression (2 workers, 3 Ps) that proves:
+					         - worker1 acquires P0, worker0 acquires P1, and later worker0 acquires P2 (true `M<P` behavior under world-lock)
+					         - Guard: `tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren`
+					         - Implementation: per-worker park/wake slots + worker-tid table + test-only idle-P requeue + test-only spawn-to-P injection (keeps fixture deterministic).
+					       - 2026-01-17: hardened multi-worker green scheduler fixtures so they run across Tier‑1 (including Windows) without relying on language `spawn` semantics:
+					         - `tests/native/test_green_two_workers_world_lock_smoke.oren` now spawns work via `oren_green_spawn(...)` (so it covers Windows too).
+					         - `tests/native/test_green_two_workers_p_swap_smoke.oren` and `tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren` now assert ownership by observing `P.owner_tid` (via `oren_green_debug_p_owner_tid`) with monotonic-time spin waits (avoids flakes from coarse sleep timers and from global “last acquire” debug markers being overwritten).
+					         - `tests/native/test_green_two_workers_m_less_p_smoke.oren` now uses a durable “seen P ids” bitmask (`oren_green_debug_p_acquire_seen_mask`) to detect that `P2` was acquired (not a fragile “last acquire wins” check).
+					         - Verified: `make test` (arm64-macos) + `./scripts/verify_native_matrix.sh --targets x64-win-tier1 --tier1-src tests/native/test_green_two_workers_m_less_p_deterministic_smoke.oren --trace` (Win11 x64, stage1+stage2).
+						       - DONE (2026-01-16): documented the fixture-only `oren_green_debug_*` surface in one place (what is “test-only ABI” vs stable runtime ABI):
+						         - Doc: `docs/NATIVE_GMP_SCHEDULER.md` (“Test-only debug API: `oren_green_debug_*`”)
 				     - add a single-thread multi-`P` fixture (using `oren_green_bind_p`) to validate cross-P sleep/wake + stealing without enabling unsafe parallel workers
 				     - evolve the global runq into a fairness/overflow queue (it exists today as cross-P injection)
 				     - implement real work stealing between `P` (today: a global-lock bring-up: “steal one before idle”, plus periodic global-runq polling for fairness)

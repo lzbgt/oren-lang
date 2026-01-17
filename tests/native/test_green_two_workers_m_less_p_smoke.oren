@@ -23,17 +23,16 @@ fn worker_busy_yield_bounded() {
 }
 
 fn main() {
-    if g_target_os == 3 {
-        print("skip: green two workers M<P smoke (windows)")
-        return 0
-    }
-
     // Ensure at least 3 Ps exist before workers start.
     var rcpc = oren_green_set_p_count(3)
     if rcpc != 0 { print("FAIL: set_p_count rc=" + oren_int_to_string(rcpc)); exit(1) }
 
     var rcwl = oren_green_set_world_lock_mode(1)
     if rcwl != 0 { print("FAIL: world lock mode rc=" + oren_int_to_string(rcwl)); exit(2) }
+
+    // Make worker idle parking deterministic: park "forever" (bounded by wake token), not by 10ms timeout.
+    // This keeps background workers from spuriously waking and re-acquiring Ps during the observation window.
+    oren_green_debug_set_worker_idle_park_us(1000000)
 
     var rcw = oren_green_start_workers(2)
     if rcw != 0 { print("FAIL: start_workers rc=" + oren_int_to_string(rcw)); exit(3) }
@@ -59,20 +58,27 @@ fn main() {
         tries = tries + 1
     }
 
+    // Reset debug counters so we can deterministically observe which P ids were acquired after we inject work.
+    oren_green_debug_reset()
+
     // Inject runnable work to wake workers.
-    var h1 = spawn worker_busy_yield_bounded()
-    var h2 = spawn worker_busy_yield_bounded()
+    // Use the green scheduler explicitly so this test covers Windows too (language `spawn`
+    // is OS-thread based on Windows in rolling mode).
+    var h1 = oren_green_spawn(worker_busy_yield_bounded, [])
+    var h2 = oren_green_spawn(worker_busy_yield_bounded, [])
 
     // Regression signal: with idle-P FIFO fairness and P_count=3, at least one worker should
     // acquire P2 while running this work.
     tries = 0
     while tries < 80 {
-        if oren_green_debug_p_owner_tid(2) > 0 { break }
-        oren_sleep_ms(1)
+        var mask = oren_green_debug_p_acquire_seen_mask()
+        if (mask & (1 << 2)) != 0 { break }
+        oren_sleep_ms(1) // bounded; sleep granularity can vary per host OS
         tries = tries + 1
     }
-    if oren_green_debug_p_owner_tid(2) <= 0 {
-        print("FAIL: P2 was never acquired (owner_tid=" + oren_int_to_string(oren_green_debug_p_owner_tid(2)) + ")")
+    var mask2 = oren_green_debug_p_acquire_seen_mask()
+    if (mask2 & (1 << 2)) == 0 {
+        print("FAIL: P2 was never acquired (seen_mask=" + oren_int_to_string(mask2) + ")")
         exit(5)
     }
 
@@ -86,4 +92,3 @@ fn main() {
     print("ok: green two workers M<P smoke")
     return 0
 }
-

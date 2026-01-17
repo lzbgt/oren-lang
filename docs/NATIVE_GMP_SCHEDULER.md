@@ -270,6 +270,8 @@ Hard rule (rolling): these functions are **not stable ABI**. They may change/rem
 
 - `oren_green_debug_p_owner_tid(p_id)` observes `P.owner_tid` (0=idle, negative=reserved sentinel, positive=tid).
 - `oren_green_debug_worker_count()` and `oren_green_debug_workers_ready_count()` help stabilize bring-up sequencing.
+- `oren_green_debug_p_acquire_seen_mask()` returns a bitset of `P` ids that were acquired since the last `oren_green_debug_reset()` (durable “did P2 ever get acquired?” signal).
+- `oren_green_debug_last_p_acquire_tid()` / `oren_green_debug_last_p_release_tid()` expose the tid recorded for the most recent acquire/release event (best-effort, can be overwritten by later events).
 - The remaining counter helpers (`oren_green_debug_idle_iters`, `*_steal_*`, `*_p_acquire_*`, `oren_green_debug_reset`) exist for lightweight regression assertions.
   - Runtime: `lib/runtime_native/263_green_tasks.oren` (split modules: `lib/runtime_native/263_green/*.oren`)
   - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_join`)
@@ -290,14 +292,19 @@ Hard rule (rolling): these functions are **not stable ABI**. They may change/rem
     - Runtime: `lib/runtime_native/263_green_tasks.oren` (`__oren_green_entry`, `_green_poll_until_budget`)
   - Rolling limitation (important): worker parallelism is currently clamped to 1 by default, because the native allocator/GC
   are not concurrency-correct yet. Opt-in for experimentation only: `OREN_GREEN_WORKERS_UNSAFE_PARALLEL=1`.
-  - Safer experimentation mode (rolling): enable a world-lock so `oren_green_start_workers(n>1)` can run while still enforcing
-    “only one OS thread executes Oren code at a time”:
+- Safer experimentation mode (rolling): enable a world-lock so `oren_green_start_workers(n>1)` can run while still enforcing
+  “only one OS thread executes Oren code at a time”:
     - runtime knob: `oren_green_set_world_lock_mode(1)` (must be called before workers start)
     - env knob (alternative): `OREN_GREEN_WORKERS_WORLD_LOCK=1`
     - guard: `tests/native/test_green_two_workers_world_lock_smoke.oren`
     - Implementation note (fact, rolling): the world lock is held in `_green_poll_until_budget` across the scheduler loop + one green task execution,
       and is released before blocking waits (kevent/epoll, park-word wait, nanosleep) so other workers can still drive netpoll/timers while this worker blocks.
       - Lock ordering invariant: scheduler lock (`_green_lock_*`) is acquired before the world lock to avoid deadlocks.
+
+Fixture guidance (fact; Tier‑1 stability):
+
+- Prefer asserting ownership by observing `P.owner_tid` via `oren_green_debug_p_owner_tid(p_id)` and waiting with a monotonic-time spin (`oren_time_mono_ns` + `oren_yield`) rather than relying on “last acquire” debug markers.
+  - Rationale: in multi-worker mode, unrelated reacquisitions can overwrite global “last event” counters before a fixture observes them.
 
 Correctness gotchas (fact; Tier‑1 regression-driven):
 

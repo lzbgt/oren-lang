@@ -16,11 +16,6 @@ fn worker_green_yield_then_ret() {
 }
 
 fn main() {
-    if g_target_os == 3 {
-        print("skip: green two workers world lock smoke (windows)")
-        return 0
-    }
-
     var rcwl = oren_green_set_world_lock_mode(1)
     if rcwl != 0 { print("FAIL: world lock mode rc=" + oren_int_to_string(rcwl)); exit(1) }
 
@@ -33,7 +28,9 @@ fn main() {
     var hs = []
     var i = 0
     while i < 80 {
-        var h = spawn worker_green_yield_then_ret()
+        // Use the green scheduler explicitly so this test covers Windows too (language `spawn`
+        // is OS-thread based on Windows in rolling mode).
+        var h = oren_green_spawn(worker_green_yield_then_ret, [])
         oren_list_push(hs, h)
         i = i + 1
     }

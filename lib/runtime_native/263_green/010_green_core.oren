@@ -148,7 +148,8 @@ var g_green_world_lock_enabled = 0
 // Used for lightweight regression guards (e.g. "idle select does not spin CPU").
 var g_green_debug_word = 0 // u64* (mmap page), offsets:
 // [0]=idle_iters, [8]=steal_count, [16]=last_steal_p_id,
-// [24]=p_acquire_count, [32]=p_release_count, [40]=last_p_acquire_id, [48]=last_p_release_id
+// [24]=p_acquire_count, [32]=p_release_count, [40]=last_p_acquire_id, [48]=last_p_release_id,
+// [56]=last_p_acquire_tid, [64]=last_p_release_tid, [72]=p_acquire_seen_mask (bitset of P ids)
 
 // Rolling config: enable a cached fast path for `_green_poll_until_budget`.
 // Default is conservative (re-fetch per-thread state each iteration); cached mode is opt-in.
@@ -664,6 +665,27 @@ fn oren_green_debug_last_p_release_id() {
 }
 
 @oren.keep
+fn oren_green_debug_last_p_acquire_tid() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    return ptr_get(p + 56)
+}
+
+@oren.keep
+fn oren_green_debug_last_p_release_tid() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    return ptr_get(p + 64)
+}
+
+@oren.keep
+fn oren_green_debug_p_acquire_seen_mask() {
+    var p = g_green_debug_word
+    if p == 0 || p == -1 || p < 4096 { return 0 }
+    return ptr_get(p + 72)
+}
+
+@oren.keep
 fn oren_green_debug_tid() {
     // Debug/testing helper: expose the runtime's notion of OS-thread id.
     // (On supported Tier‑1 hosts this is a stable non-zero id for the lifetime of the thread.)
@@ -738,6 +760,9 @@ fn oren_green_debug_reset() {
     ptr_set(p + 32, 0)
     ptr_set(p + 40, 0)
     ptr_set(p + 48, 0)
+    ptr_set(p + 56, 0)
+    ptr_set(p + 64, 0)
+    ptr_set(p + 72, 0)
     return 0
 }
 
@@ -800,16 +825,22 @@ fn _green_idle_p_pop_and_acquire_locked(s, tid) {
             _green_state_set_idle_p_tail(s, 0)
         }
         _green_p_set_idle_next(p, 0)
-        if _green_p_owner_tid(p) == 0 {
-            _green_p_set_owner_tid(p, tid)
-            // Debug: record acquisition.
-            var dbg = g_green_debug_word
-            if dbg != 0 && dbg != -1 && dbg >= 4096 {
-                _green_atomic_inc_u64(dbg + 24)
-                ptr_set(dbg + 40, _green_p_id(p))
+            if _green_p_owner_tid(p) == 0 {
+                _green_p_set_owner_tid(p, tid)
+                // Debug: record acquisition.
+                var dbg = g_green_debug_word
+                if dbg != 0 && dbg != -1 && dbg >= 4096 {
+                    _green_atomic_inc_u64(dbg + 24)
+                    ptr_set(dbg + 40, _green_p_id(p))
+                    ptr_set(dbg + 56, tid)
+                    var pid = _green_p_id(p)
+                    if pid >= 0 && pid < 64 {
+                        var mask = ptr_get(dbg + 72)
+                        ptr_set(dbg + 72, mask | (1 << pid))
+                    }
+                }
+                return p
             }
-            return p
-        }
         // Stale entry: ignore and keep draining.
     }
     return 0
@@ -833,6 +864,12 @@ fn _green_p_ensure_owned_by_tid_locked(s, p, tid) {
         if dbg != 0 && dbg != -1 && dbg >= 4096 {
             _green_atomic_inc_u64(dbg + 24)
             ptr_set(dbg + 40, _green_p_id(p))
+            ptr_set(dbg + 56, tid)
+            var pid = _green_p_id(p)
+            if pid >= 0 && pid < 64 {
+                var mask = ptr_get(dbg + 72)
+                ptr_set(dbg + 72, mask | (1 << pid))
+            }
         }
         return 0
     }
@@ -858,6 +895,12 @@ fn _green_worker_try_acquire_any_p_locked(s, tid) {
             if dbg != 0 && dbg != -1 && dbg >= 4096 {
                 _green_atomic_inc_u64(dbg + 24)
                 ptr_set(dbg + 40, _green_p_id(p))
+                ptr_set(dbg + 56, tid)
+                var pid = _green_p_id(p)
+                if pid >= 0 && pid < 64 {
+                    var mask = ptr_get(dbg + 72)
+                    ptr_set(dbg + 72, mask | (1 << pid))
+                }
             }
             return p
         }
@@ -879,6 +922,7 @@ fn _green_p_release_if_owned_by_tid_locked(s, p, tid) {
         if dbg != 0 && dbg != -1 && dbg >= 4096 {
             _green_atomic_inc_u64(dbg + 32)
             ptr_set(dbg + 48, _green_p_id(p))
+            ptr_set(dbg + 64, tid)
         }
         return 0
     }

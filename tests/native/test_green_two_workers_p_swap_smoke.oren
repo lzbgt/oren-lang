@@ -24,6 +24,27 @@ fn busy_yield_bounded() {
     return 1
 }
 
+fn spin_wait_p_owner_eq(p_id, want_tid, timeout_ms) {
+    // Avoid relying on fine-grained sleep behavior (Windows can have coarse timer resolution).
+    // Use yield + monotonic time when available.
+    var deadline_ns = 0
+    var now0 = oren_time_mono_ns()
+    if now0 != 0 && timeout_ms > 0 {
+        deadline_ns = now0 + timeout_ms * 1000000
+    }
+    var iters = 0
+    while iters < 200000 {
+        if oren_green_debug_p_owner_tid(p_id) == want_tid { return 0 }
+        if deadline_ns != 0 {
+            var now = oren_time_mono_ns()
+            if now != 0 && now >= deadline_ns { break }
+        }
+        oren_yield()
+        iters = iters + 1
+    }
+    return -1
+}
+
 fn wait_workers_ready() {
     var tries = 0
     while tries < 50 {
@@ -67,11 +88,6 @@ fn force_idle_fifo_order(first_p_id, second_p_id) {
 }
 
 fn main() {
-    if g_target_os == 3 {
-        print("skip: green two workers P swap smoke (windows)")
-        return 0
-    }
-
     // Keep only 2 Ps so the idle-P queue contains just {P0,P1} (simplifies deterministic ordering).
     var rcpc = oren_green_set_p_count(2)
     if rcpc != 0 { print("FAIL: set_p_count rc=" + oren_int_to_string(rcpc)); exit(1) }
@@ -122,13 +138,7 @@ fn main() {
     var rw = oren_green_debug_wake_worker(1)
     if rw != 0 { print("FAIL: wake_worker1 rc=" + oren_int_to_string(rw)); exit(9) }
 
-    tries = 0
-    while tries < 200 {
-        if oren_green_debug_p_owner_tid(0) == t1 { break }
-        oren_sleep_ms(1)
-        tries = tries + 1
-    }
-    if oren_green_debug_p_owner_tid(0) != t1 {
+    if spin_wait_p_owner_eq(0, t1, 2000) != 0 {
         print("FAIL: expected P0 owned by worker1 tid=" + oren_int_to_string(t1) +
             " got=" + oren_int_to_string(oren_green_debug_p_owner_tid(0)))
         exit(10)
@@ -151,13 +161,7 @@ fn main() {
     rw = oren_green_debug_wake_worker(0)
     if rw != 0 { print("FAIL: wake_worker0 rc=" + oren_int_to_string(rw)); exit(15) }
 
-    tries = 0
-    while tries < 200 {
-        if oren_green_debug_p_owner_tid(1) == t0 { break }
-        oren_sleep_ms(1)
-        tries = tries + 1
-    }
-    if oren_green_debug_p_owner_tid(1) != t0 {
+    if spin_wait_p_owner_eq(1, t0, 2000) != 0 {
         print("FAIL: expected P1 owned by worker0 tid=" + oren_int_to_string(t0) +
             " got=" + oren_int_to_string(oren_green_debug_p_owner_tid(1)))
         exit(16)

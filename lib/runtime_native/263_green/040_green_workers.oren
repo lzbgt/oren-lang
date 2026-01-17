@@ -51,8 +51,11 @@ fn oren_green_start_workers(n) {
 	    if s == 0 { return -1 }
 
     // Ensure we have enough P objects reachable from the scheduler root.
-    // NOTE: without work stealing, spawning is biased to the current thread's P. This is fine for
-    // rolling bring-up; it still allows nested spawns within tasks to stay local to the worker's P.
+    //
+    // Notes (rolling, GMP-ready):
+    // - The scheduler supports a basic global runq + bounded under-lock work stealing (see `010_green_core.oren`),
+    //   so runnable work can migrate across Ps in worker mode.
+    // - Spawns from inside a running G still prefer the current P for locality; overflow goes to the global runq.
     if n > 1 {
         _green_lock_acquire()
         var cur_count = _green_state_p_count(s)
