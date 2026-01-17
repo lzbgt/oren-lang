@@ -2176,6 +2176,46 @@ fn test_green_workers_many_tasks_bounded() {
     return 0
 }
 
+fn test_green_poll_cache_does_not_corrupt_p_ptr() {
+    trace("QI: test_green_poll_cache_does_not_corrupt_p_ptr")
+    // Regression guard for cached scheduler locals (`OREN_GREEN_POLL_CACHE=1`).
+    //
+    // Historical failure mode (cached mode only):
+    // - scheduler locals (notably `P* p`) could be clobbered across a context switch and collapse
+    //   into a small integer (e.g. `2`), later crashing in `ptr_get(p + off)` or tripping the
+    //   fast-fail `exit(940)` guard in `_green_poll_until_budget`.
+    //
+    // Keep this test small and deterministic: just stress many ctx switches in cached mode.
+    if _qi_env_truthy("OREN_GREEN_POLL_CACHE") != true { return 0 }
+    if _qi_env_truthy("OREN_NO_GREEN") == true { return 0 }
+    if g_target_os == 3 { return 0 } // Windows uses a different spawn substrate today.
+
+    // Ensure the cached knob is latched even if the runtime hasn't consulted env yet.
+    oren_green_set_poll_cache_mode(1)
+
+    var hs = []
+    var i = 0
+    // Keep bounded for qemu-x86_64 gates; still forces many context switches.
+    while i < 20 {
+        var h = spawn worker_green_yield_then_ret()
+        oren_list_push(hs, h)
+        i = i + 1
+    }
+
+    i = 0
+    while i < oren_list_len(hs) {
+        var hh = oren_list_get(hs, i)
+        var r = oren_join_timeout(hh, _qi_timeout_ms(2000))
+        assert_eq(r, 77, 522)
+        i = i + 1
+    }
+
+    // Host-thread should still have a valid P binding after driving the scheduler.
+    var pid = oren_green_current_p_id()
+    assert_eq(pid, 0, 523)
+    return 0
+}
+
 fn test_proc_system_windows() {
     trace("QI: test_proc_system_windows")
     if g_target_os != 3 { return 0 }
@@ -2211,6 +2251,7 @@ fn main() {
     test_green_acquire_p_rejects_in_green()
     test_green_p_count_api()
     test_green_multi_p_single_thread_poll_steal()
+    test_green_poll_cache_does_not_corrupt_p_ptr()
     test_green_p_acquire_release_blocks_start_workers()
     test_green_idle_p_pool_acquire_any()
     test_green_start_workers_does_not_reserve_extra_ps()

@@ -559,7 +559,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				         - arm64: saves/restores `x0..x26` + `x29/x30` + `SP/PC` and `Q0..Q31`, while skipping the heap bump regs (`X27/X28`)
 				         - x64: saves/restores GPRs + `RSP/RIP` and `XMM0..XMM15`, while skipping the heap bump regs (`R14/R15`)
 				         - runtime: green context blobs now allocate one page (`green_ctx_bytes() == 4096`) to keep mmap/munmap semantics unambiguous and leave headroom
-				       - add a small regression that would have caught the earlier “P pointer becomes a small integer after ctx switch” failure mode
+					       - 2026-01-17: regression guard for cached poll locals (would have caught “P pointer becomes a small integer after ctx switch”):
+					         - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_poll_cache_does_not_corrupt_p_ptr`) (runs only when `OREN_GREEN_POLL_CACHE=1`)
 				       - concrete failure mode seen in worker-mode: `P` can collapse to a small integer (e.g. `2`) and crash in `_green_p_owner_tid`; keep the per-iteration re-fetch until cached mode is proven safe under a dedicated guard
 				       - 2026-01-16: added a small compiler guard to reduce “dead code perturbs stack accounting” hazards:
 				         - arm64 stmt codegen now stops emitting statements after a non-fallthrough terminator in a `Block`:
