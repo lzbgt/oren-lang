@@ -2,7 +2,7 @@
 
 **Status:** Active plan (documented for later reference)  
 **Last updated:** 2026-01-12  
-**Repo:** `compiler-mini` (Oren)
+**Repo:** `oren-lang` (Oren; formerly `compiler-mini`)
 
 ## 0. Summary (What We Are Doing)
 

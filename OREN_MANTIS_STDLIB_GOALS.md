@@ -2,7 +2,7 @@
 
 **Status:** Draft goal document (for rolling execution)  
 **Audience:** Oren maintainers / agent instances improving Oren over time  
-**Repo context:** This MANTIS workspace vendors Oren as `third_party/compiler-mini/`  
+**Repo context:** This MANTIS workspace vendors Oren as `third_party/oren-lang/` (formerly `third_party/compiler-mini/`)  
 **Pinned Oren revision (in this workspace):** `934c759e5e85a52a71ca45672fb373c40a21c0aa`
 
 ## 0) Problem Statement
