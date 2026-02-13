@@ -46,7 +46,7 @@ Agentic/production constraints that drive prioritization (rolling mode):
 
 ## Phase 2
 - **Optimization**: Implement **Register Allocation** (replace stack PUSH/POP with usage of X0-X28). Add basic inlining and const-prop.
-- **Concurrency (Core)**: [IN PROGRESS] Implement **Atomics** (Done). **Channels** (Implemented, debugging `sys_pipe`). **OS Threads** (`spawn` intrinsic added, wrapper pending).
+- **Concurrency (Core)**: Atomics done. Channels/select implemented (see `docs/LANGUAGE_STATUS_AND_GAPS.md`). OS thread spawn/join exists; next is M:N scheduler + async IO (see `docs/NATIVE_GMP_SCHEDULER.md`).
 - **Type system**: Full checker with generics/monomorphization, interfaces/traits, enums/ADTs, pattern matching, result/option-based error handling.
 - **Testing & QA**: Built-in test runner, property testing, coverage hooks, fuzz entry points.
 - **Package Management**: Module registry layout, vendoring, lockfiles, reproducible builds.

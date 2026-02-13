@@ -1,6 +1,6 @@
 # Docs Index (Canonical Map)
 
-**Last updated:** 2026-02-14  
+**Last updated:** 2026-02-13  
 This folder contains the **canonical specs** and living design notes for Oren (rolling).
 
 ## 1) “Start Here”
