@@ -24,6 +24,8 @@ The authoritative source content is stored in-tree under:
   - Init: `native_netpoll_init_once` creates an IOCP via `CreateIoCompletionPort(INVALID_HANDLE_VALUE, ...)`
   - Poll: `native_netpoll_poll_many_scratch` calls `GetQueuedCompletionStatusEx` (allocation-free scratch)
   - Wake: `native_netpoll_wake()` uses `PostQueuedCompletionStatus` (no loopback dependency)
+  - Token selection (rolling): IOCP poll now returns the **OVERLAPPED pointer** when present (`ov!=0`),
+    falling back to the completion key only when `ov==0`. Wake packets use `key==0, ov==0` and are ignored.
   - Implementation: `lib/runtime_native/246_netpoll.oren`
   - Rolling limitation: IOCP readiness watches are **not implemented yet** (`native_netpoll_arm_fd` returns `-ENOSYS` in IOCP mode),
     so Windows still defaults to select-v0 for NET readiness parity.
@@ -172,6 +174,7 @@ As IOCP work lands, add/extend Tier‑1 guards:
   - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren`
     - Run with: `OREN_NETPOLL_WIN_IOCP=1`
     - Wired into: `scripts/verify_native_matrix.sh --targets x64-win-tier1` (stage1 + stage2; remote Win11)
+  - Smoke: IOCP poll returns the OVERLAPPED pointer token when `PostQueuedCompletionStatus` sets `ov!=0`.
   - add a Windows-only fixture analogous to `test_gc_stw_wakes_netpoll_blocked_threads`
 - Prove timeouts do not leak:
   - bounded IO operation with timeout that cancels successfully and does not leave “stuck overlapped” state

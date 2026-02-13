@@ -57,6 +57,18 @@ fn main() {
     var zi = 0
     while zi < scratch_bytes { ptr_set_byte(scratch + zi, 0); zi = zi + 1 }
 
+    // Token path smoke:
+    // Post a completion with key==0 and ov==token, then require poll to return the ov pointer.
+    var tok = malloc_raw(8)
+    assert_true(tok != 0 && tok != -1, 23, "malloc_raw tok failed")
+    ptr_set(tok, 123)
+    var prc = sys_post_queued_completion_status(g_netpoll_fd, 0, 0, tok)
+    assert_true(prc == 0, 24, "post_queued_completion_status rc=" + oren_int_to_string(prc))
+
+    var got0 = native_netpoll_poll_many_scratch(1000, scratch, scratch_bytes)
+    assert_true(got0 == 1, 25, "expected 1 completion token, got=" + oren_int_to_string(got0))
+    assert_true(ptr_get(scratch + 0) == tok, 26, "expected token from ov pointer")
+
     var done_word = malloc_raw(8)
     assert_true(done_word != 0 && done_word != -1, 16, "malloc_raw done_word failed")
     ptr_set(done_word, 0)
@@ -86,6 +98,7 @@ fn main() {
 
     oren_os_thread_destroy(th)
     free(scratch)
+    free(tok)
     free(done_word)
     free(meta)
 

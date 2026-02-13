@@ -767,16 +767,22 @@ fn native_netpoll_poll_many_scratch(timeout_ms, scratch, scratch_bytes) {
                 var ent = entries + i * entry_bytes
                 var key = ptr_get(ent + 0)
                 var ov = ptr_get(ent + 8)
-                // Ignore wake events (key==0 && ov==0) and any key==0 reserved entries.
-                if key != 0 {
+                // Token selection (rolling):
+                // - Wake events use key==0 and ov==0 and are ignored.
+                // - For real I/O completions, prefer the per-operation OVERLAPPED pointer
+                //   (ov!=0). This is required for IOCP readiness/overlapped operations where
+                //   the completion key is per-handle, not per-operation.
+                // - If ov is 0 but key is non-zero, fall back to key (legacy / wake-like cases).
+                var tok = 0
+                if ov != 0 {
+                    tok = ov
+                } else if key != 0 {
+                    tok = key
+                }
+                if tok != 0 {
                     if outn < 8 {
-                        ptr_set(scratch + outn * 8, key)
+                        ptr_set(scratch + outn * 8, tok)
                         outn = outn + 1
-                    }
-                } else {
-                    // reserved / wake
-                    if ov != 0 {
-                        // no-op for now
                     }
                 }
                 i = i + 1

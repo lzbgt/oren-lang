@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-01-17
+**Last updated:** 2026-02-13
 
 This repo is in rolling mode. This file tracks the **highest-leverage work remaining** to evolve Oren
 into a modern, efficient, production-ready language and toolchain, while keeping iteration fast.
@@ -405,9 +405,12 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	       - Gate (added, 2026-01-17): Windows-only fixture proving a blocked IOCP poll is broken by `native_netpoll_wake()` (no loopback):
 	         - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (run with `OREN_NETPOLL_WIN_IOCP=1`)
 	         - Wired into: `scripts/verify_native_matrix.sh --targets x64-win-tier1` (remote Win11)
-		   - Windows: extend the wait-list mechanism beyond channels:
-		     - fd waits (`oren_fd_wait_*`) should eventually park Gs on IOCP wait nodes (no polling, no scheduler-thread blocking)
-		     - unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
+	       - 2026-02-13: IOCP poll core now returns per-operation OVERLAPPED tokens when present (enables future readiness/overlapped ops):
+	         - Runtime: `lib/runtime_native/246_netpoll.oren` (IOCP poll token selection uses `ov!=0` before completion key)
+	         - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (posts completion with `ov!=0` and asserts token return)
+	   - Windows: extend the wait-list mechanism beyond channels:
+	     - fd waits (`oren_fd_wait_*`) should eventually park Gs on IOCP wait nodes (no polling, no scheduler-thread blocking)
+	     - unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
 		   - Cross-platform: evolve the scheduler-owned “word wait” wait-list so in-green waits never kernel-block the scheduler OS thread.
 		     - DONE (2026-01-17): `oren_wait_on_addr` inside a green task is wake-driven via the scheduler-owned “word wait” list:
 		       - `timeout_us==0` (“forever”): parks `G` on a scheduler list; wakes via `oren_wake_all_addr`.
