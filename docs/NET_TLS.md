@@ -260,7 +260,8 @@ As of **2026-01-10 (rolling)**, `std:net/tls` has a Windows provider implemented
     - `tests/native/test_wss_echo_loopback.oren`
 - Rolling limitation (2026-02-13): on Win11, running TLS on a green stack can crash TLS-over-HTTP/WS/HTTP2
   loopback clients (access violation). The net matrix runs `https_*`, `wss_*`, and `http2_*` with
-  `OREN_NO_GREEN=1` until the green-stack ABI + Schannel path is fixed.
+  `OREN_NO_GREEN=1` until the green-stack ABI + Schannel path is fixed. Increasing
+  `OREN_GREEN_STACK_KB` up to 16384 (16 MiB) did not avoid the crash.
 
 Implementation notes (Windows):
 

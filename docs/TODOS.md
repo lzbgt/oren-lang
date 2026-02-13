@@ -623,6 +623,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						     - 2026-02-13: x64-windows TLS fixtures crash when TLS runs on a green stack (access violation):
 						       - Affects: `https_loopback`, `wss_loopback`, `http2_*` loopback tests on Win11 when green tasks are enabled.
 						       - Workaround (rolling): `scripts/verify_native_net_matrix.sh` sets `OREN_NO_GREEN=1` for `https_*`, `wss_*`, `http2_*` on x64-win.
+						       - Probe: `OREN_GREEN_STACK_KB` up to 16384 (16 MiB) still crashes (`EXIT=-1073741819`), so this is not a small-stack overflow.
 						       - TODO: fix green-stack ABI / Schannel interaction so TLS-over-HTTP/WS/HTTP2 can run with green enabled.
 					     - 2026-01-16: made `oren_time_mono_ns()` conversion exact on macOS/Windows (no wall-clock calibration):
 					       - macOS: uses `mach_timebase_info` (num/den) to convert gettimeofday’s `mach_absolute_time` out-arg to ns.
