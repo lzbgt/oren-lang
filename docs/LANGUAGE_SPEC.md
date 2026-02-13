@@ -351,7 +351,7 @@ Non-normative guidance (rolling):
 Supported attachment sites (rolling v0):
 
 - Declarations: `fn`, `struct`, `ffi`, `var`
-- Statements inside blocks (e.g., `@cfg("debug") print("...")`)
+- Statements inside blocks (e.g., `@cfg("debug") print("...")` or `@debug print("...")`)
 - Not supported: arbitrary expressions (use statement-level form)
 - Not supported yet: `import`
   - Reason: stage2 has a lexer-only fast import scan that cannot respect conditional imports.
@@ -380,10 +380,15 @@ Build-profile note (rolling):
 - Debug/release selectors are driven by the compiler’s build profile:
   - Native builds default to **debug** (for readable stack traces).
   - `--no-debug` (or `OREN_NATIVE_NO_DEBUG=1`) selects **release**.
+  - Shorthand attributes exist:
+    - `@debug` ⇒ `@cfg("debug")`
+    - `@release` ⇒ `@cfg("release")`
+    - Both are **arg‑less** and follow the same statement/declaration rules as `@cfg`.
 
 Note on naming:
 
 - The compiler canonicalizes `@cfg` to `@oren.cfg` in metadata.
+- The compiler canonicalizes `@debug` / `@release` to `@oren.debug` / `@oren.release`.
 
 Addendum: `ffi("...")` sugar (rolling, parser-only)
 

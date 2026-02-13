@@ -127,10 +127,11 @@ Notes:
 
 - Native builds default to **debug** (readable stack traces, debug-info tables).
 - Use `--no-debug` (or `OREN_NATIVE_NO_DEBUG=1`) for **release** builds.
-- `@cfg("debug")` / `@cfg("release")` can be used to gate debug-only statements:
+- `@cfg("debug")` / `@cfg("release")` can be used to gate debug-only statements.
+- Shorthand attributes exist: `@debug` / `@release` (arg‑less).
 
 ```oren
-@cfg("debug") print("trace: enter foo")
+@debug print("trace: enter foo")
 ```
 
 ### Fast native verification (recommended on macOS/Linux)

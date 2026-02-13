@@ -504,12 +504,16 @@ Build-profile note:
 - Debug/release selectors are driven by the compiler’s build profile:
   - Native builds default to **debug** (for readable stack traces).
   - `--no-debug` (or `OREN_NATIVE_NO_DEBUG=1`) selects **release**.
+  - Shorthand attributes exist:
+    - `@debug` ⇒ `@cfg("debug")`
+    - `@release` ⇒ `@cfg("release")`
+    - Both are **arg‑less** and follow the same statement/declaration rules as `@cfg`.
 
 Example (debug-only trace without deleting code):
 
 ```oren
 fn work() {
-    @cfg("debug") print("trace: entering work()")
+    @debug print("trace: entering work()")
     // ... real logic ...
 }
 ```

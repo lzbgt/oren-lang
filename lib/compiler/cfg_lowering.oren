@@ -336,6 +336,32 @@ fn _cfg_eval_one(cfg_attr, config, stmt_type) {
     return true
 }
 
+fn _cfg_eval_debug_attr(cfg_attr, config, stmt_type, want_debug) {
+    if cfg_attr == nil { return true }
+    var tok = _attr_token(cfg_attr)
+    var loc = _tok_loc(tok)
+
+    if stmt_type == "Import" {
+        cfg_error(loc + ": @debug/@release is not supported on import yet (stage2 fast import scan cannot respect it); gate declarations inside the module instead")
+        return false
+    }
+
+    var debug_mode = false
+    if config != nil {
+        var dbg = config["debug"]
+        if dbg == true || dbg == 1 { debug_mode = true }
+    }
+
+    var args = cfg_attr["args"]
+    if args != nil && oren_list_len(args) > 0 {
+        cfg_error(loc + ": @debug/@release does not accept arguments (use @cfg(...) for selectors)")
+        return false
+    }
+
+    if want_debug == true { return debug_mode == true }
+    return debug_mode != true
+}
+
 fn _cfg_stmt_keep(stmt, config) {
     var attrs = _stmt_attrs(stmt)
     if attrs == nil { return true }
@@ -345,6 +371,14 @@ fn _cfg_stmt_keep(stmt, config) {
         var a = attrs[i]
         if _is_attr_name(a, "oren.cfg") {
             if _cfg_eval_one(a, config, stmt["type"]) != true {
+                keep = false
+            }
+        } else if _is_attr_name(a, "oren.debug") {
+            if _cfg_eval_debug_attr(a, config, stmt["type"], true) != true {
+                keep = false
+            }
+        } else if _is_attr_name(a, "oren.release") {
+            if _cfg_eval_debug_attr(a, config, stmt["type"], false) != true {
                 keep = false
             }
         }

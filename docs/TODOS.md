@@ -70,7 +70,7 @@ References:
 - Remote x64 workflow: `docs/REMOTE_X64_ENV.md`
 - Language docs baseline: `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md`, `docs/LANGUAGE_FEATURE_MATRIX.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md`
   - Last sync (fact): 2026-01-11
-  - 2026-02-14: `@cfg` now supports statement-level filtering plus `debug`/`release` selectors (see `docs/ATTRIBUTES.md`).
+- 2026-02-13: `@cfg` supports statement-level filtering, `debug`/`release` selectors, and the `@debug`/`@release` shorthand (see `docs/ATTRIBUTES.md`).
 
 ## P0 (Now)
 
@@ -723,11 +723,25 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	       - Default root: `lib/std/stdlib_avm.oren` (override via `OREN_STDLIB_BUNDLE_ROOT=...`)
 	     - Verify OBX linking + AVM execution end-to-end: `scripts/verify_avm_bytecode_link_smoke.sh`
 	       (builds `tests/fixtures/avm_obc_link_smoke.oren` with `--stdlib-mode obc` and runs it via `./avm`)
-	   - 2026-01-16: fixed OBX linking correctness for `--stdlib-mode obc`:
-	     - Linker now strips a trailing `HALT` from non-final modules during concatenation (prevents early termination of the pc=0 skip chain).
-	     - OBX exports now encode **0-based** code addresses (compiler internals store 1-based addresses; exports must decode to `enc-1`).
-	     - Added AVM core natives required by the minimal stdlib bundle: `oren_type_tag`, `oren_map_get_str`, `oren_map_set_str`.
-	     - Guard: `scripts/verify_avm_bytecode_link_smoke.sh`
+		  - 2026-01-16: fixed OBX linking correctness for `--stdlib-mode obc`:
+		    - Linker now strips a trailing `HALT` from non-final modules during concatenation (prevents early termination of the pc=0 skip chain).
+		    - OBX exports now encode **0-based** code addresses (compiler internals store 1-based addresses; exports must decode to `enc-1`).
+		    - Added AVM core natives required by the minimal stdlib bundle: `oren_type_tag`, `oren_map_get_str`, `oren_map_set_str`.
+		    - Guard: `scripts/verify_avm_bytecode_link_smoke.sh`
+
+4) **Ergonomic debug logging helpers (compile‑out in release)** (S)
+
+   Goal:
+
+   - Provide a `dbg(...)`/`trace(...)`-style helper that:
+     - is **zero-cost** in release builds (compiled out)
+     - captures file/line by default (compiler-supplied or metadata-based)
+     - keeps the surface deterministic and capsule-safe
+   - Keep `@debug`/`@release` as the low-level primitive (already implemented).
+
+   References:
+
+   - `docs/ATTRIBUTES.md` (conditional compilation + shorthand)
 
 ## Tier‑1 verification blockers (operational)
 

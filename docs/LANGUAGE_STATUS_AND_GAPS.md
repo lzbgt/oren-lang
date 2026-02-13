@@ -61,6 +61,10 @@ Related plugin/nesting model notes:
 - **Attributes + strict mode**
   - `tests/native/fixtures/strict_attrs_ok.oren` / `strict_attrs_bad.oren`
   - See also `docs/ATTRIBUTES.md`
+- **Conditional compilation (`@cfg`, `@debug`/`@release`)**
+  - Statement-level filtering + debug/release gating is exercised by:
+    - `tests/native/cfg_os_select.oren`
+    - `tests/native/test_quick_integration_native.oren` (`test_cfg_debug_release`)
 - **ABI layout query intrinsics**
   - `tests/native/fixtures/abi_layout_error.oren`
 

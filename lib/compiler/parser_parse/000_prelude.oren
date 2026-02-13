@@ -290,7 +290,9 @@ fn _attrs_all_cfg(attrs) {
     while i < oren_list_len(attrs) {
         var a = attrs[i]
         if a != nil {
-            if a["type"] != "Attr" || a["name"] != "oren.cfg" { return false }
+            if a["type"] != "Attr" { return false }
+            var nm = a["name"]
+            if nm != "oren.cfg" && nm != "oren.debug" && nm != "oren.release" { return false }
         }
         i = i + 1
     }

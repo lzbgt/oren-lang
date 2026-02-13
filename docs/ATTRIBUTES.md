@@ -14,6 +14,8 @@ Recommended user-facing forms:
 - `@abi` (ABI layout-only structs for FFI / `sizeof` / `offsetof`)
 - `@json.*` (serde annotations for tooling / future codegen)
 - `@doc("...")` (docs)
+- `@cfg(...)` (conditional compilation)
+- `@debug` / `@release` (build-profile shorthand for debug-only / release-only code)
 
 Canonical names in metadata (what `oren meta` / `--metadata` exports):
 
@@ -21,6 +23,9 @@ Canonical names in metadata (what `oren meta` / `--metadata` exports):
 - `oren.abi`
 - `serde.*`
 - `doc`
+- `oren.cfg`
+- `oren.debug`
+- `oren.release`
 
 This keeps source code terse but ensures tooling has a stable, non-colliding namespace.
 
@@ -138,6 +143,10 @@ Build-profile note:
 - Debug/release selectors are driven by the compiler’s build profile:
   - Native builds default to **debug** (for readable stack traces).
   - `--no-debug` (or `OREN_NATIVE_NO_DEBUG=1`) selects **release**.
+  - Shorthand attributes exist:
+    - `@debug` ⇒ `@cfg("debug")`
+    - `@release` ⇒ `@cfg("release")`
+    - Both are **arg‑less** and follow the same statement/declaration rules as `@cfg`.
 
 Example (FFI library name differs per OS):
 

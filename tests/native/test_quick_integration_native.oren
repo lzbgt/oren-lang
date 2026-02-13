@@ -219,6 +219,13 @@ fn test_cfg_debug_release() {
         print("QI: cfg debug/release mismatch hit=" + oren_int_to_string(hit))
         fail(74)
     }
+    var hit2 = 0
+    @debug hit2 = hit2 + 4
+    @release hit2 = hit2 + 8
+    if hit2 != 4 && hit2 != 8 {
+        print("QI: debug/release shorthand mismatch hit2=" + oren_int_to_string(hit2))
+        fail(75)
+    }
     return 0
 }
 
