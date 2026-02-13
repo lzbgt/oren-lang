@@ -1020,6 +1020,53 @@ fn oren_green_debug_idle_p_requeue(p_id) {
     return 0
 }
 
+fn _green_netpoll_mark_ready(tok, now_ns) {
+    if tok == 0 { return 0 }
+    if now_ns == 0 { return 0 }
+    if _green_is_g(tok) == true {
+        // Netpoll v1 token: tok is the G pointer.
+        if ptr_get(tok + green_g_off_io_active()) != 0 {
+            ptr_set(tok + green_g_off_io_ready(), 1)
+            ptr_set(tok + green_g_off_wake_ns(), now_ns)
+            return 1
+        }
+        return 0
+    }
+    if native_netpoll_is_wait_token(tok) == true {
+        var g = ptr_get(tok + native_netpoll_wait_off_g())
+        if _green_is_g(g) == true {
+            if ptr_get(g + green_g_off_io_active()) != 0 {
+                var want_epoch = ptr_get(tok + native_netpoll_wait_off_epoch())
+                if want_epoch == ptr_get(g + green_g_off_io_epoch()) {
+                    ptr_set(tok + native_netpoll_wait_off_ready(), 1)
+                    ptr_set(g + green_g_off_io_ready(), 1)
+                    ptr_set(g + green_g_off_wake_ns(), now_ns)
+                    return 1
+                }
+            }
+        }
+        return 0
+    }
+    if native_netpoll_is_iocp_wait_token(tok) == true {
+        var g2 = ptr_get(tok + native_iocp_wait_off_g())
+        if _green_is_g(g2) == true {
+            if ptr_get(g2 + green_g_off_io_active()) != 0 {
+                var want_epoch2 = ptr_get(tok + native_iocp_wait_off_epoch())
+                if want_epoch2 == ptr_get(g2 + green_g_off_io_epoch()) {
+                    ptr_set(tok + native_iocp_wait_off_ready(), 1)
+                    ptr_set(g2 + green_g_off_io_ready(), 1)
+                    ptr_set(g2 + green_g_off_wake_ns(), now_ns)
+                    return 1
+                }
+            }
+        }
+        // Orphan/stale completion: recycle the wait node.
+        native_netpoll_iocp_wait_recycle(tok)
+        return 0
+    }
+    return 0
+}
+
 fn _green_netpoll_drain_ready(ts, now_ns, max_events) {
     // Drain up to max_events ready tokens from the netpoller (timeout=0) and mark the corresponding Gs
     // as ready to wake on the next sleeper scan.
@@ -1040,51 +1087,7 @@ fn _green_netpoll_drain_ready(ts, now_ns, max_events) {
             while i < got {
                 if n >= max_events { break }
                 var tok = ptr_get(scratch + i * 8)
-                if tok != 0 {
-                    if _green_is_g(tok) == true {
-                        // Netpoll v1 token: tok is the G pointer.
-                        // Ignore stale tokens (wait already completed/timed out).
-                        if ptr_get(tok + green_g_off_io_active()) != 0 {
-                            ptr_set(tok + green_g_off_io_ready(), 1)
-                            // Force a wake on the next `_green_wake_ready_all(now_ns)` pass.
-                            ptr_set(tok + green_g_off_wake_ns(), now_ns)
-                        }
-                    } else {
-                        // Netpoll v2 token: tok is a small tracked struct describing which select-case became ready.
-                        if native_netpoll_is_wait_token(tok) == true {
-                            var g = ptr_get(tok + native_netpoll_wait_off_g())
-                            if _green_is_g(g) == true {
-                                if ptr_get(g + green_g_off_io_active()) != 0 {
-                                    var want_epoch = ptr_get(tok + native_netpoll_wait_off_epoch())
-                                    if want_epoch == ptr_get(g + green_g_off_io_epoch()) {
-                                        ptr_set(tok + native_netpoll_wait_off_ready(), 1)
-                                        ptr_set(g + green_g_off_io_ready(), 1)
-                                        ptr_set(g + green_g_off_wake_ns(), now_ns)
-                                    }
-                                }
-                            }
-                        } else if native_netpoll_is_iocp_wait_token(tok) == true {
-                            // IOCP wait node (OVERLAPPED-based token).
-                            var matched = 0
-                            var g3 = ptr_get(tok + native_iocp_wait_off_g())
-                            if _green_is_g(g3) == true {
-                                if ptr_get(g3 + green_g_off_io_active()) != 0 {
-                                    var want_epoch3 = ptr_get(tok + native_iocp_wait_off_epoch())
-                                    if want_epoch3 == ptr_get(g3 + green_g_off_io_epoch()) {
-                                        ptr_set(tok + native_iocp_wait_off_ready(), 1)
-                                        ptr_set(g3 + green_g_off_io_ready(), 1)
-                                        ptr_set(g3 + green_g_off_wake_ns(), now_ns)
-                                        matched = 1
-                                    }
-                                }
-                            }
-                            if matched == 0 {
-                                // Orphan/stale completion: recycle the wait node.
-                                native_netpoll_iocp_wait_recycle(tok)
-                            }
-                        }
-                    }
-                }
+                if tok != 0 { _green_netpoll_mark_ready(tok, now_ns) }
                 i = i + 1
                 n = n + 1
             }
@@ -1092,43 +1095,7 @@ fn _green_netpoll_drain_ready(ts, now_ns, max_events) {
             // Fallback (should be rare): poll one token at a time.
             var tok2 = native_netpoll_poll_one(0)
             if tok2 == 0 { break }
-            if _green_is_g(tok2) == true {
-                if ptr_get(tok2 + green_g_off_io_active()) != 0 {
-                    ptr_set(tok2 + green_g_off_io_ready(), 1)
-                    ptr_set(tok2 + green_g_off_wake_ns(), now_ns)
-                }
-            } else {
-                if native_netpoll_is_wait_token(tok2) == true {
-                    var g2 = ptr_get(tok2 + native_netpoll_wait_off_g())
-                    if _green_is_g(g2) == true {
-                        if ptr_get(g2 + green_g_off_io_active()) != 0 {
-                            var want_epoch2 = ptr_get(tok2 + native_netpoll_wait_off_epoch())
-                            if want_epoch2 == ptr_get(g2 + green_g_off_io_epoch()) {
-                                ptr_set(tok2 + native_netpoll_wait_off_ready(), 1)
-                                ptr_set(g2 + green_g_off_io_ready(), 1)
-                                ptr_set(g2 + green_g_off_wake_ns(), now_ns)
-                            }
-                        }
-                    }
-                } else if native_netpoll_is_iocp_wait_token(tok2) == true {
-                    var matched2 = 0
-                    var g4 = ptr_get(tok2 + native_iocp_wait_off_g())
-                    if _green_is_g(g4) == true {
-                        if ptr_get(g4 + green_g_off_io_active()) != 0 {
-                            var want_epoch4 = ptr_get(tok2 + native_iocp_wait_off_epoch())
-                            if want_epoch4 == ptr_get(g4 + green_g_off_io_epoch()) {
-                                ptr_set(tok2 + native_iocp_wait_off_ready(), 1)
-                                ptr_set(g4 + green_g_off_io_ready(), 1)
-                                ptr_set(g4 + green_g_off_wake_ns(), now_ns)
-                                matched2 = 1
-                            }
-                        }
-                    }
-                    if matched2 == 0 {
-                        native_netpoll_iocp_wait_recycle(tok2)
-                    }
-                }
-            }
+            _green_netpoll_mark_ready(tok2, now_ns)
             n = n + 1
         }
     }
