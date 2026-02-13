@@ -1,0 +1,558 @@
+// Compile minimal x64 program.
+//
+// Returns a ctx:
+// - code: []byte
+// - data: []byte (used by PE import table)
+// - fixups: list of fixups for emitters (call_main, rip_data32)
+// - functions: map name->offset
+// - import_list: list of imports (for PE)
+// - errors: list of strings
+
+fn x64_env_str_eq(a, b) {
+    // Avoid depending on runtime string equality semantics in compiler hot paths.
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _x64_str_contains_bytes(hay, needle) {
+    // Byte-based substring search for ASCII-ish strings (paths, env vars).
+    // Returns true if `needle` occurs in `hay`.
+    if hay == nil || needle == nil { return false }
+    var n = oren_string_len(hay)
+    var m = oren_string_len(needle)
+    if m == 0 { return true }
+    if m > n { return false }
+    var i = 0
+    while i <= (n - m) {
+        var j = 0
+        while j < m {
+            if (oren_string_byte_at_unchecked(hay, i + j) & 255) != (oren_string_byte_at_unchecked(needle, j) & 255) { break }
+            j = j + 1
+        }
+        if j == m { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _x64_should_use_full_native_runtime_profile(linked) {
+    // Default runtime injection profile heuristic (rolling, perf-oriented):
+    // - Prefer the smaller core profile for typical programs to keep cold rtobj misses bounded.
+    // - Escalate to the full profile when program dependencies imply runtime networking is needed.
+    //
+    // NOTE: This intentionally uses the module graph (import closure), not deep AST scanning,
+    // to keep the decision fast and deterministic.
+    if linked == nil { return true } // safe default
+    var g = linked["module_graph"]
+    if g == nil { return true } // safe default
+
+    // Any module under `lib/std/net/` needs the full runtime profile today because std:net calls
+    // runtime primitives (`oren_tcp_*`, `oren_udp_*`, `oren_select_*`, `oren_net_get`).
+    var entry = g["entry"]
+    if _x64_str_contains_bytes(entry, "/lib/std/net/") ||
+       _x64_str_contains_bytes(entry, "lib/std/net/") ||
+       _x64_str_contains_bytes(entry, "\\lib\\std\\net\\") ||
+       _x64_str_contains_bytes(entry, "lib\\std\\net\\") { return true }
+
+    var mods = g["modules"]
+    if mods == nil { return false }
+    var i = 0
+    while i < oren_list_len(mods) {
+        var m = mods[i]
+        if m != nil {
+            var p = m["path"]
+            if _x64_str_contains_bytes(p, "/lib/std/net/") ||
+               _x64_str_contains_bytes(p, "lib/std/net/") ||
+               _x64_str_contains_bytes(p, "\\lib\\std\\net\\") ||
+               _x64_str_contains_bytes(p, "lib\\std\\net\\") { return true }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn _emit_parse_u64_decimal_from_cstr_ptr_x64(ctx, start_ptr_reg, dst_reg, labels, local_fixups) {
+    // Parse decimal digits at *(char*)start_ptr_reg into dst_reg (u64).
+    //
+    // Stops at first non-digit. Returns 0 if there are no digits.
+    //
+    // Clobbers: RAX, R10, R11
+    if ctx == nil { return nil }
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(dst_reg, 0))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, start_ptr_reg)) // r11 = cursor
+
+    var l_loop = _new_label(ctx, "parse_u64_digits_loop")
+    var l_done = _new_label(ctx, "parse_u64_digits_done")
+    _emit_label(ctx, labels, l_loop)
+
+    // eax = *(u8*)r11
+    bytes_extend(ctx["code"], insn_movzx_r32_mr8(0, 11))
+    // if eax < '0' => done
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 48))
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_done)
+    // if eax > '9' => done
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 57))
+    _emit_jcc_to_label(ctx, local_fixups, "g", l_done)
+
+    // eax -= '0'
+    bytes_extend(ctx["code"], insn_sub_r32_imm32(0, 48))
+    // dst = dst*10 + eax
+    bytes_extend(ctx["code"], insn_imul_r64_imm32(dst_reg, 10))
+    bytes_extend(ctx["code"], insn_movsxd_r64_r32(10, 0)) // r10 = digit
+    bytes_extend(ctx["code"], insn_add_r64_r64(dst_reg, 10))
+
+    // cursor++
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 1))
+    _emit_jmp_to_label(ctx, local_fixups, l_loop)
+
+    _emit_label(ctx, labels, l_done)
+    return nil
+}
+
+fn _emit_entry_capture_envblock_windows_x64(ctx, scratch_base) {
+    // Windows x64: capture the Win32 environment block pointer for the injected runtime.
+    //
+    // Strategy (Tier‑1 production):
+    // - Call kernel32!GetEnvironmentStringsA() to obtain the environment block:
+    //     "K=V\\0K2=V2\\0...\\0\\0"
+    // - Store the returned pointer in the entry scratch region.
+    // - After `native_runtime_init` (so `malloc_raw` is available), build a POSIX-style `envp`
+    //   array from this block by calling the runtime helper:
+    //     `native_envp_build_from_win_envblock(env_block)`.
+    //
+    // Notes:
+    // - The runtime helper copies env strings into runtime-owned memory, so the env block
+    //   can be safely freed after `native_envp_build_from_win_envblock` returns.
+    // - This removes the previous fixed-allowlist envp synthesis and makes ENV semantics match
+    //   Linux/macOS (full environment visible to `env()` / `native_envp_get_value_ptr`).
+    //
+    // Requires:
+    // - PE emitter imports kernel32!GetEnvironmentStringsA and exposes IAT label
+    //   "IAT_GetEnvironmentStringsA".
+    //
+    // Clobbers: RAX
+    if ctx == nil { return nil }
+
+    var mov_iat_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    _x64_add_rip_data32_fixup(ctx, mov_iat_pos + 3, "IAT_GetEnvironmentStringsA")
+    bytes_extend(ctx["code"], insn_call_rax()) // rax = env_block (or 0)
+
+    // scratch[16] = env_block (later overwritten with envp pointer)
+    _emit_mov_mrsp_r64(ctx, scratch_base + 16, 0)
+    return nil
+}
+
+fn _emit_entry_build_args_windows_x64(ctx, scratch_base) {
+    // Windows x64: synthesize argc/argv for the injected native runtime (no CRT).
+    //
+    // Strategy (Tier‑1, production correctness):
+    // - Use the system command-line parser: shell32!CommandLineToArgvW(GetCommandLineW()).
+    // - Convert each wide argument to UTF‑8 via kernel32!WideCharToMultiByte(CP_UTF8,...).
+    // - Store the resulting `char** argv` + strings into fixed `.data` buffers.
+    // - Store argc/argv pointers into the entry scratch region for `native_runtime_set_args`.
+    //
+    // Determinism:
+    // - If argc exceeds the fixed cap or the pool overflows, abort with a deterministic exit code.
+    //
+    // Requires PE imports + IAT labels:
+    // - kernel32!GetCommandLineW            => "IAT_GetCommandLineW"
+    // - shell32!CommandLineToArgvW          => "IAT_CommandLineToArgvW"
+    // - kernel32!WideCharToMultiByte        => "IAT_WideCharToMultiByte"
+    // - kernel32!LocalFree                  => "IAT_LocalFree"
+    //
+    // Stack args note:
+    // - WideCharToMultiByte has 8 parameters, so the entry stub must reserve Win64 stack arg
+    //   slots at [rsp+0x20..] (see entry stub allocation below).
+    //
+    // Clobbers: RAX, RBX, RCX, RDX, R8, R9, R10, R11, R12, R13, R14, R15, RSI, RDI
+    if ctx == nil { return nil }
+
+    var max_args = 128
+    var off_argv = _data_add_zeros(ctx, (max_args + 1) * 8)
+    var pool_cap = 65536
+    var off_pool = _data_add_zeros(ctx, pool_cap)
+    // Offsets can legitimately be 0 (the first bytes in the data blob). Under the native
+    // backend, we often store offsets as `off+1` so missing can be represented as `nil`.
+    // Never treat an offset of 0 as failure here: `_data_add_zeros` only returns `nil` when
+    // `ctx` is nil or `nbytes<=0`.
+
+    var labels = {}
+    var local_fixups = []
+    var l_done = _new_label(ctx, "win_argv_done")
+    var l_overflow = _new_label(ctx, "win_argv_overflow")
+    var l_loop = _new_label(ctx, "win_argv_loop")
+    var l_free = _new_label(ctx, "win_argv_free")
+
+    // r13 = argv_out_cur = &argv_out[0]
+    var lea_argv = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(13, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_argv + 3, "data_off": off_argv})
+
+    // Default argc=0, argv=&argv_out[0] (so runtime has a stable pointer even on failure).
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_mov_mrsp_r64(ctx, scratch_base + 0, 0)  // argc
+    _emit_mov_mrsp_r64(ctx, scratch_base + 8, 13) // argv
+
+    // temp argc storage (u64 slot; CommandLineToArgvW writes int32 into low bits)
+    _emit_mov_mrsp_r64(ctx, scratch_base + 24, 0)
+
+    // r12 = pool_cur = &pool[0]
+    var lea_pool = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(12, 0))
+    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pool + 3, "data_off": off_pool})
+    // r15 = pool_end = pool_cur + pool_cap
+    bytes_extend(ctx["code"], insn_mov_r64_r64(15, 12))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(15, pool_cap))
+
+    // GetCommandLineW() -> rax
+    var mov_iat_cmd = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    _x64_add_rip_data32_fixup(ctx, mov_iat_cmd + 3, "IAT_GetCommandLineW")
+    bytes_extend(ctx["code"], insn_call_rax())
+
+    // CommandLineToArgvW(cmd, &argc) -> rax (argvw), argc written to scratch.
+    // rcx = cmdline (rax)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 0))
+    // rdx = &scratch_argc (in the entry scratch region)
+    // NOTE: scratch_base is chosen so scratch_base+24 fits disp8 for lea.
+    bytes_extend(ctx["code"], insn_lea_r64_rsp_disp8(2, scratch_base + 24))
+    var mov_iat_argvw = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    _x64_add_rip_data32_fixup(ctx, mov_iat_argvw + 3, "IAT_CommandLineToArgvW")
+    bytes_extend(ctx["code"], insn_call_rax())
+
+    // if rax == 0 => done (leave argc=0, argv=&argv_out)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
+
+    // rbx = argvw_ptr (for LocalFree later)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(3, 0))
+
+    // r10 = argc (u64)
+    _emit_mov_r64_mrsp(ctx, 10, scratch_base + 24)
+    // if argc <= 0 => free+done
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_free)
+    // if argc > max_args => overflow
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, max_args))
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_loop)
+    _emit_jmp_to_label(ctx, local_fixups, l_overflow)
+
+    _emit_label(ctx, labels, l_loop)
+    // Persist argc for runtime_set_args.
+    _emit_mov_mrsp_r64(ctx, scratch_base + 0, 10)
+
+    // rsi = argvw_cur = argvw_ptr
+    bytes_extend(ctx["code"], insn_mov_r64_r64(6, 3))
+    // rdi = remaining = argc
+    bytes_extend(ctx["code"], insn_mov_r64_r64(7, 10))
+
+    var l_body = _new_label(ctx, "win_argv_body")
+    var l_after = _new_label(ctx, "win_argv_after")
+    _emit_jmp_to_label(ctx, local_fixups, l_body)
+
+    _emit_label(ctx, labels, l_body)
+    // if remaining == 0 => after
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(7, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_after)
+
+    // r8 = wptr = *(u64*)rsi
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(8, 6))
+    // rsi += 8
+    bytes_extend(ctx["code"], insn_add_r64_imm32(6, 8))
+    // Preserve wptr across WinAPI calls (r8 is volatile in Win64 ABI).
+    _emit_mov_mrsp_r64(ctx, scratch_base + 24, 8)
+
+    // Query required UTF-8 bytes: WideCharToMultiByte(CP_UTF8,0,wptr,-1,NULL,0,NULL,NULL)
+    // rcx = 65001 (CP_UTF8)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 65001))
+    // rdx = 0 (flags)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0))
+    // r8 = wptr
+    _emit_mov_r64_mrsp(ctx, 8, scratch_base + 24)
+    // r9d = -1 (cchWideChar)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 4294967295))
+
+    // stack args (5..8) at [rsp+0x20..]: zero them for the query call.
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_mov_mrsp_r64(ctx, 32, 0) // lpMultiByteStr = NULL
+    _emit_mov_mrsp_r64(ctx, 40, 0) // cbMultiByte = 0
+    _emit_mov_mrsp_r64(ctx, 48, 0) // lpDefaultChar = NULL
+    _emit_mov_mrsp_r64(ctx, 56, 0) // lpUsedDefaultChar = NULL
+
+    var mov_iat_wctmb0 = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    _x64_add_rip_data32_fixup(ctx, mov_iat_wctmb0 + 3, "IAT_WideCharToMultiByte")
+    bytes_extend(ctx["code"], insn_call_rax())
+
+    // if eax == 0 => abort (conversion failed)
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    var l_have_req = _new_label(ctx, "win_argv_have_req")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_have_req)
+    _emit_abort_exitcode(ctx, 203)
+    _emit_label(ctx, labels, l_have_req)
+
+    // r10 = required bytes (u64)
+    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0))
+
+    // r14 = next_pool = pool_cur + required
+    bytes_extend(ctx["code"], insn_mov_r64_r64(14, 12))
+    bytes_extend(ctx["code"], insn_add_r64_r64(14, 10))
+    // if next_pool > pool_end => overflow
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(14, 15))
+    var l_pool_ok = _new_label(ctx, "win_argv_pool_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_pool_ok)
+    _emit_jmp_to_label(ctx, local_fixups, l_overflow)
+    _emit_label(ctx, labels, l_pool_ok)
+
+    // Store pool_cur pointer into argv_out array: *argv_out_cur = pool_cur; argv_out_cur += 8
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(13, 12))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(13, 8))
+
+    // Convert into pool_cur: WideCharToMultiByte(CP_UTF8,0,wptr,-1,pool_cur,required,NULL,NULL)
+    // rcx = 65001
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 65001))
+    // rdx = 0
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(2, 0))
+    // r8 = wptr
+    _emit_mov_r64_mrsp(ctx, 8, scratch_base + 24)
+    // r9d = -1
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(9, 4294967295))
+
+    // arg5 = pool_cur
+    _emit_mov_mrsp_r64(ctx, 32, 12)
+    // arg6 = required
+    _emit_mov_mrsp_r64(ctx, 40, 10)
+    // arg7/8 = NULL
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    _emit_mov_mrsp_r64(ctx, 48, 0)
+    _emit_mov_mrsp_r64(ctx, 56, 0)
+
+    var mov_iat_wctmb1 = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    _x64_add_rip_data32_fixup(ctx, mov_iat_wctmb1 + 3, "IAT_WideCharToMultiByte")
+    bytes_extend(ctx["code"], insn_call_rax())
+
+    // if eax == 0 => abort
+    bytes_extend(ctx["code"], insn_cmp_r32_imm32(0, 0))
+    var l_conv_ok = _new_label(ctx, "win_argv_conv_ok")
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_conv_ok)
+    _emit_abort_exitcode(ctx, 203)
+    _emit_label(ctx, labels, l_conv_ok)
+
+    // pool_cur = next_pool
+    bytes_extend(ctx["code"], insn_mov_r64_r64(12, 14))
+
+    // remaining--
+    bytes_extend(ctx["code"], insn_sub_r64_imm32(7, 1))
+    _emit_jmp_to_label(ctx, local_fixups, l_body)
+
+    _emit_label(ctx, labels, l_after)
+    // argv terminator: *argv_out_cur = NULL
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    bytes_extend(ctx["code"], insn_cdqe())
+    bytes_extend(ctx["code"], insn_mov_mr64_r64(13, 0))
+    _emit_jmp_to_label(ctx, local_fixups, l_free)
+
+    _emit_label(ctx, labels, l_overflow)
+    _emit_abort_exitcode(ctx, 202)
+
+    _emit_label(ctx, labels, l_free)
+    // LocalFree(argvw_ptr)
+    // rcx = argvw_ptr (rbx)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(1, 3))
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(1, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "e", l_done)
+    var mov_iat_free = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
+    _x64_add_rip_data32_fixup(ctx, mov_iat_free + 3, "IAT_LocalFree")
+    bytes_extend(ctx["code"], insn_call_rax())
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    return nil
+}
+
+fn _rtobj_decode_int_enc(x_enc) {
+    if oren_type_tag(x_enc) == 0 { return nil }
+    return x_enc - 1
+}
+
+fn _x64_new_ctx(linked, platform) {
+    // Shared x64 native compiler context initializer.
+    //
+    // This is used both by the main program compiler and by the native-runtime object cache
+    // that compiles the injected runtime once and reuses it across builds.
+    var ctx = {
+        "code": bytes_new(),
+        "data": bytes_new(),
+        "fixups": [],
+        "functions": {},
+        "imports": {},
+        "import_list": [],
+        "errors": [],
+        "platform": platform,
+        // Global variable storage (top-level `var`).
+        "globals": {},
+        // Named function declarations (name -> arity) collected before codegen.
+        "func_arity": {},
+        // Named function varargs mapping (name -> fixed param count). Presence means varargs.
+        "func_varargs_fixed": {},
+        // Deterministic declaration order (source order). Used by some backends for wrapper synthesis.
+        "func_decl_order": [],
+        "declared_functions": {},
+        // Track which named functions are actually used as first-class values so we only
+        // synthesize `__oren_fnwrap_*` wrappers when needed (Tier‑1 perf; parity with arm64).
+        "fnwrap_needed": {}
+    }
+
+    // Expose whether runtime injection is enabled so lowering can progressively
+    // switch from x64 bring-up intrinsics to shared runtime helpers (Tier‑1 parity).
+    ctx["inject_runtime"] = true
+    ctx["abi"] = abi.x64(platform)
+
+    // Import aliases / type namespaces are used by shared callable lowering and ns-resolution.
+    if linked != nil {
+        ctx["aliases"] = linked["aliases"]
+        ctx["type_ns"] = linked["type_ns"]
+    }
+    if ctx["aliases"] == nil { ctx["aliases"] = {} }
+    if ctx["type_ns"] == nil { ctx["type_ns"] = {} }
+
+    // Lambda collection state (lambdas are parsed as Function nodes with name="").
+    ctx["lambda_defs"] = []
+    ctx["lambda_counter"] = 0
+
+    // Reserve a `.data` slot holding the cstr0-literal table offset (u64).
+    //
+    // Store as offset+1 so offset 0 is representable while still using `nil` as the
+    // sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
+    var cstr_slot_off = _data_add_u64(ctx, 0)
+    ctx["cstr0_table_slot_enc"] = cstr_slot_off + 1
+
+    // Tier‑1 bootstrap: reserve a stable slot for the runtime's `g_storage` global and a small
+    // boot globals storage blob used before `native_runtime_init` runs.
+    //
+    // Layout is defined by `rtobj.RUNTIME_OBJ_DATA_PREFIX_LEN` and must match across:
+    // - main program compilation
+    // - runtime object compilation/cache
+    var g_storage_slot_off = _data_add_u64(ctx, 0)
+    if ctx["globals"] != nil { ctx["globals"]["g_storage"] = g_storage_slot_off + 1 }
+    var boot_off = _data_add_zeros(ctx, 512)
+    ctx["boot_globals_storage_off_enc"] = boot_off + 1
+
+    // Tier‑1 export/FFI ABI bridge: reserve persistent heap register spill slots.
+    //
+    // x64 native uses r14/r15 as global bump allocator registers for intra-Oren calls.
+    // That is intentionally incompatible with the platform ABIs at external boundaries
+    // (C callers expect r14/r15 preserved). Export wrappers and DLL entrypoints use these
+    // slots to persist heap state across calls while still restoring caller registers.
+    var heap_limit_slot_off = _data_add_u64(ctx, 0)
+    var heap_ptr_slot_off = _data_add_u64(ctx, 0)
+    ctx["heap_limit_slot_enc"] = heap_limit_slot_off + 1
+    ctx["heap_ptr_slot_enc"] = heap_ptr_slot_off + 1
+
+    // Bounded debug knob (bring-up):
+    // Enable narrow tracing inside list/hash literal lowering without paying an env lookup per literal.
+    //   OREN_TRACE_X64_ARRAY_LIT=1 ./oren_stage2 build ... --platform x64-linux --no-cache
+    if oren_env("OREN_TRACE_X64_ARRAY_LIT") != nil {
+        ctx["trace_x64_array_lit"] = 1
+    }
+    return ctx
+}
+
+fn _x64_rtobj_encode_offsets_map_int(m) {
+    // Encode map<string,int> as map<string,int+1> to avoid 0-as-nil in stage2-native.
+    if m == nil { return {} }
+    var out = {}
+    var idx = 0
+    var pair = [nil, nil]
+    while 1 {
+        var ok = oren_iter_next_entry(m, idx, pair)
+        if ok == 0 { break }
+        var k = pair[0]
+        var v = pair[1]
+        // `v` must be an int; skip missing entries (nil) without relying on `v == nil` checks.
+        if k != nil && oren_type_tag(v) == 1 {
+            out[k] = v + 1
+        }
+        idx = idx + 1
+    }
+    return out
+}
+
+fn _x64_rtobj_encode_offsets_list_int(xs) {
+    if xs == nil { return [] }
+    var out = []
+    var i = 0
+    while i < oren_list_len(xs) {
+        var v = xs[i]
+        // Encode as `v+1` so a real offset of 0 is representable; skip non-ints (nil).
+        if oren_type_tag(v) == 1 { oren_list_push(out, v + 1) }
+        i = i + 1
+    }
+    return out
+}
+
+fn _x64_rtobj_encode_fixups(fixups) {
+    if fixups == nil { return [] }
+    var out = []
+    var i = 0
+    while i < oren_list_len(fixups) {
+        var f0 = fixups[i]
+        if f0 != nil {
+            // NOTE: rip_data32 fixups are persisted separately in `rip_data32_fixups_enc`
+            // to avoid storing thousands of per-fixup maps in the rtobj meta.
+            if f0["type"] == "rip_data32" { i = i + 1; continue }
+            var f1 = {"type": f0["type"], "pos": (f0["pos"] + 1)}
+            if f0["name"] != nil { f1["name"] = f0["name"] }
+            if f0["data_label"] != nil { f1["data_label"] = f0["data_label"] }
+            if f0["data_off"] != nil { f1["data_off"] = (f0["data_off"] + 1) }
+            oren_list_push(out, f1)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _x64_rtobj_encode_rip_data32_fixups(m) {
+    // Encode map<string, list<int>> as map<string, list<int+1>>.
+    // The +1 encoding avoids 0-as-nil in stage2-native.
+    if m == nil { return {} }
+    var out = {}
+    var idx = 0
+    var pair = [nil, nil]
+    while 1 {
+        var ok = oren_iter_next_entry(m, idx, pair)
+        if ok == 0 { break }
+        var k = pair[0]
+        var xs = pair[1]
+        if k != nil && xs != nil {
+            var enc = []
+            var i = 0
+            while i < oren_list_len(xs) {
+                var p = xs[i]
+                if oren_type_tag(p) != 0 { oren_list_push(enc, p + 1) }
+                i = i + 1
+            }
+            out[k] = enc
+        }
+        idx = idx + 1
+    }
+    return out
+}
+

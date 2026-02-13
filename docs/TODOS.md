@@ -798,6 +798,24 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - `lib/compiler/compiler/020_modules_linking/020_pipeline.oren`
      - `lib/compiler/compiler/020_modules_linking/090_tail.oren`
 
+8) **Split oversized x64 syscall intrinsics file (maintenance)** (S)
+
+   Status (fact):
+
+   - 2026-02-13: split `lib/compiler/x64_native_program/046_emit_sys_intrinsics.oren` into include segments:
+     - `lib/compiler/x64_native_program/046_emit_sys_intrinsics/000_prelude.oren`
+     - `lib/compiler/x64_native_program/046_emit_sys_intrinsics/090_tail.oren`
+
+9) **Split oversized x64 program entry file (maintenance)** (S)
+
+   Status (fact):
+
+   - 2026-02-13: split `lib/compiler/x64_native_program/090_program_entry.oren` into include segments:
+     - `lib/compiler/x64_native_program/090_program_entry/000_prelude.oren`
+     - `lib/compiler/x64_native_program/090_program_entry/010_part_a.oren`
+     - `lib/compiler/x64_native_program/090_program_entry/020_part_b.oren`
+     - `lib/compiler/x64_native_program/090_program_entry/090_tail.oren`
+
 ## Tier‑1 verification blockers (operational)
 
 - Remote Win11/WSL2 access can intermittently fail via the default proxy hostname (`pc.work`).
