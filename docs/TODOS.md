@@ -788,6 +788,16 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - `lib/compiler/compiler/040_build_pipeline/010_main.oren`
      - `lib/compiler/compiler/040_build_pipeline/090_selftest.oren`
 
+7) **Split oversized module linking file (maintenance)** (S)
+
+   Status (fact):
+
+   - 2026-02-13: split `lib/compiler/compiler/020_modules_linking.oren` into include segments:
+     - `lib/compiler/compiler/020_modules_linking/000_prelude.oren`
+     - `lib/compiler/compiler/020_modules_linking/010_parse.oren`
+     - `lib/compiler/compiler/020_modules_linking/020_pipeline.oren`
+     - `lib/compiler/compiler/020_modules_linking/090_tail.oren`
+
 ## Tier‑1 verification blockers (operational)
 
 - Remote Win11/WSL2 access can intermittently fail via the default proxy hostname (`pc.work`).

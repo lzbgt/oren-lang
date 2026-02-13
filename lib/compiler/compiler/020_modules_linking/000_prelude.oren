@@ -1,0 +1,700 @@
+fn _is_std_spec(path) {
+    if path == nil { return false }
+    if starts_with(path, "std:") { return true }
+    if starts_with(path, "std/") { return true }
+    return false
+}
+
+fn _strip_orext(p) {
+    if p == nil { return "" }
+    var n = oren_string_len(p)
+    if n >= 5 && oren_string_slice(p, n - 5, n) == ".oren" {
+        return oren_string_slice(p, 0, n - 5)
+    }
+    return p
+}
+
+fn _canonical_std_spec(path) {
+    // Normalize any std specifier to `std:<key>` (no extension, slash-separated).
+    if path == nil { return "std:" }
+    if starts_with(path, "std:") {
+        var key = oren_string_slice(path, 4, oren_string_len(path))
+        key = _strip_orext(key)
+        return "std:" + key
+    }
+    if starts_with(path, "std/") {
+        var key2 = oren_string_slice(path, 4, oren_string_len(path))
+        key2 = _strip_orext(key2)
+        return "std:" + key2
+    }
+    return path
+}
+
+fn _stable_std_prefix(path) {
+    // Stable prefix for stdlib modules, used to support separate compilation/linking.
+    // Example: "std:net/http" -> "STD_net_http_"
+    var spec = _canonical_std_spec(path)
+    var key = spec
+    if starts_with(spec, "std:") {
+        key = oren_string_slice(spec, 4, oren_string_len(spec))
+    }
+    if key == nil { key = "" }
+    var out = "STD_"
+    var i = 0
+    while i < oren_string_len(key) {
+        var c = oren_string_char_at(key, i)
+        // Keep [A-Za-z0-9_], map everything else to '_'
+        var ok = false
+        if c != "" {
+            var b = oren_string_char_code_at(c, 0)
+            if b >= 97 && b <= 122 { ok = true } // a..z
+            if b >= 65 && b <= 90 { ok = true }  // A..Z
+            if b >= 48 && b <= 57 { ok = true }  // 0..9
+        }
+        if c == "_" { ok = true }
+        if ok {
+            out = out + c
+        } else {
+            out = out + "_"
+        }
+        i = i + 1
+    }
+    return out + "_"
+}
+
+fn _ml_stable_module_prefix_from_full(full) {
+    // Stable prefix to make module prefixing deterministic across different entrypoints
+    // and across separate compiler processes.
+    //
+    // Why:
+    // - The native backend uses fork-based spawn today; module parsing happens in worker
+    //   processes and is bounced via ASTBIN files (expensive).
+    // - A persistent module cache can only be reused across different entrypoints if the
+    //   prefix for a given module is stable (otherwise cached ASTBIN contains mismatched
+    //   renamed identifiers).
+    //
+    // Contract:
+    // - Must start with a letter/underscore so it is a valid identifier prefix.
+    // - Must be short to keep generated symbols reasonable.
+    if full == nil { return "M0_" }
+    var h = _sha256_hex_string(full)
+    if h == nil { return "M0_" }
+    var take = 16
+    if oren_string_len(h) < take { take = oren_string_len(h) }
+    var short_hex = oren_string_slice(h, 0, take)
+    return "M" + short_hex + "_"
+}
+
+// Determine whether language-level `spawn` runs in shared memory (threads) or crosses a
+// process boundary (fork).
+//
+// Background (rolling):
+// - Stage1 (C runtime): `spawn` is pthread-based by default (shared memory).
+// - Native runtime (macOS/Linux today): `spawn` is green-task based by default (shared memory),
+//   with a POSIX fork+pipe fallback when green tasks are disabled (e.g. `OREN_NO_GREEN=1`).
+//
+// Module-parse parallelism must choose:
+// - thread-mode: workers attach parsed programs in-place (requires shared memory), OR
+// - fork-mode: workers write ASTBIN files and the parent reads/attaches them (process-safe).
+//
+// Avoid guessing based on host OS in compiler code (stage1 doesn't expose native-only globals).
+// Probe once via a shared-global side effect and cache the result.
+var _ML_SPAWN_IS_THREAD_MODE = nil
+var _ML_SPAWN_PROBE_FLAG = 0
+var _ML_SPAWN_IS_COOPERATIVE = nil
+var _ML_SPAWN_PROBE_COOP_FLAG = 0
+
+fn _ml_spawn_probe_thread_mode_worker() {
+    _ML_SPAWN_PROBE_FLAG = 12345
+    return 0
+}
+
+fn _ml_spawn_is_thread_mode() {
+    if _ML_SPAWN_IS_THREAD_MODE != nil { return _ML_SPAWN_IS_THREAD_MODE }
+    _ML_SPAWN_PROBE_FLAG = 0
+    var h = spawn _ml_spawn_probe_thread_mode_worker()
+    oren_join(h)
+    _ML_SPAWN_IS_THREAD_MODE = (_ML_SPAWN_PROBE_FLAG == 12345)
+    return _ML_SPAWN_IS_THREAD_MODE
+}
+
+fn _ml_spawn_probe_cooperative_worker() {
+    _ML_SPAWN_PROBE_COOP_FLAG = 54321
+    return 0
+}
+
+fn _ml_spawn_is_cooperative() {
+    // Determine whether thread-mode `spawn` workers run concurrently (OS threads) or only
+    // make progress when the parent drives the scheduler (green-task cooperative mode).
+    //
+    // Why this matters:
+    // - The compiler's module-parse "thread mode" join loop sometimes polls `oren_is_done`
+    //   and sleeps between polls to avoid long no-output gaps.
+    // - If `spawn` is cooperative (Stage N1 green tasks), sleeping does NOT drive the scheduler,
+    //   so workers never run and the compiler deadlocks.
+    if _ML_SPAWN_IS_COOPERATIVE != nil { return _ML_SPAWN_IS_COOPERATIVE }
+    if _ml_spawn_is_thread_mode() != true { _ML_SPAWN_IS_COOPERATIVE = false; return _ML_SPAWN_IS_COOPERATIVE }
+
+    _ML_SPAWN_PROBE_COOP_FLAG = 0
+    var h = spawn _ml_spawn_probe_cooperative_worker()
+    // Give true OS-thread workers a chance to run without joining.
+    // In cooperative (green) mode, this will not run the worker.
+    oren_sleep_ns(5000000) // ~5ms
+    var coop = (_ML_SPAWN_PROBE_COOP_FLAG != 54321)
+    // Ensure the probe worker is cleaned up.
+    oren_join(h)
+    _ML_SPAWN_IS_COOPERATIVE = coop
+    return _ML_SPAWN_IS_COOPERATIVE
+}
+
+fn _ml_parse_jobs() {
+    // Parallel parsing is a compiler build pipeline optimization.
+    //
+    // IMPORTANT (Windows correctness):
+    // On Windows, language-level `spawn` is lowered to CreateThread(...) and the
+    // runtime GC is not thread-safe yet, so keep parse jobs at 1.
+    var host = detect_host_platform()
+    if host != nil && host["target"] == "windows" { return 1 }
+
+    var v = oren_env("OREN_PARSE_JOBS")
+    var n = 0
+    if v != nil && v != "" {
+        // Keep this portable across backends: use compiler-side int literal parsing.
+        // `optimizer.parse_int` is defined in `optimizer.oren` and imported by the compiler prelude.
+        n = optimizer.parse_int(v)
+    }
+    if n <= 0 { n = 1 }
+    // Keep a conservative cap to avoid forking dozens of parser processes in CI.
+    if n > 32 { n = 32 }
+    return n
+}
+
+// Persistent module ASTBIN cache (rolling).
+//
+// Goal:
+// - When a dev/test script invokes the compiler many times in separate processes
+//   (Tier‑1 matrices, NET matrix), avoid repeatedly parsing the same stdlib modules.
+//
+// Design:
+// - Cache stores *post-prepare* module programs (after cfg/rename/serde_json lowering),
+//   keyed by:
+//     - compiler signature (argv[0] path + size + mtime_ns)
+//     - config platform tuple (os/arch/platform)
+//     - module path + prefix (stable)
+//     - expanded source fingerprint (after @include expansion)
+// - Cache is best-effort: decode failures fall back to parsing.
+//
+// Safety notes:
+// - We only write the cache when fork-parallel parsing is enabled (workers already astbin-encode),
+//   so we avoid adding additional encode work to the serial/thread parse paths.
+var _ML_MODCACHE_COMPILER_SIG = nil
+var _ML_MODCACHE_TRACE_CNT = 0
+
+fn _ml_modcache_enabled() {
+    // Enabled by default; disable with:
+    //   OREN_MODULE_ASTBIN_CACHE=0
+    var v = oren_env("OREN_MODULE_ASTBIN_CACHE")
+    if v != nil && v != "" && (v == "0" || v == "false") { return false }
+    return true
+}
+
+fn _ml_modcache_trace_workers() {
+    // Avoid huge logs by default in fork-parallel mode (many worker processes).
+    //
+    // Enable worker logging explicitly with:
+    //   OREN_TRACE_MODULE_ASTBIN_CACHE=workers
+    var v = oren_env("OREN_TRACE_MODULE_ASTBIN_CACHE")
+    if v == nil { return false }
+    return v == "workers"
+}
+
+fn _ml_modcache_trace_enabled() {
+    // Default trace mode is "parent only" to keep output bounded.
+    // In fork-parallel mode, workers can be very chatty; see _ml_modcache_trace_workers().
+    if oren_env("OREN_TRACE_MODULE_ASTBIN_CACHE") == nil { return false }
+    if oren_env("OREN_PARSE_FORK_PARALLEL") != nil { return _ml_modcache_trace_workers() }
+    return true
+}
+
+fn _ml_mask63(x) { return x & 9223372036854775807 }
+
+fn _ml_fnv1a63_string(s, basis) {
+    if s == nil { return 0 }
+    var h = _ml_mask63(basis)
+    var prime = 1099511628211
+    var n = oren_string_len(s)
+    var i = 0
+    while i < n {
+        var b = oren_string_byte_at_unchecked(s, i) & 255
+        h = _ml_mask63(h ^ b)
+        h = _ml_mask63(h * prime)
+        i = i + 1
+    }
+    return h
+}
+
+fn _ml_fingerprint2_string(s) {
+    var h1 = _ml_fnv1a63_string(s, 1469598103934665603)
+    var h2 = _ml_fnv1a63_string(s, 1099511628211)
+    return "v2_" + oren_int_to_string(h1) + "_" + oren_int_to_string(h2)
+}
+
+fn _ml_sanitize_path_component(s) {
+    if s == nil { return "" }
+    var out = ""
+    var i = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at_unchecked(s, i)
+        var ok = false
+        if ch != "" {
+            var b = oren_string_char_code_at(ch, 0)
+            if b >= 48 && b <= 57 { ok = true } // 0..9
+            if b >= 65 && b <= 90 { ok = true }  // A..Z
+            if b >= 97 && b <= 122 { ok = true } // a..z
+        }
+        if ch == "_" || ch == "-" { ok = true }
+        if ok { out = out + ch } else { out = out + "_" }
+        i = i + 1
+    }
+    return out
+}
+
+fn _ml_modcache_compiler_sig() {
+    if _ML_MODCACHE_COMPILER_SIG != nil { return _ML_MODCACHE_COMPILER_SIG }
+    var sig = "unknown"
+    var args = oren_args()
+    if args != nil && oren_list_len(args) > 0 {
+        var exe = args[0]
+        if exe != nil && exe != "" && file_exists(exe) {
+            var meta = oren_file_stat_size_mtime_ns(exe)
+            if !oren_is_err(meta) && meta != nil && oren_is_list(meta) == true && oren_list_len(meta) >= 2 {
+                var sz = meta[0]
+                var mt = meta[1]
+                sig = "exe_" + _ml_fingerprint2_string(exe) + "_sz" + oren_int_to_string(sz) + "_mt" + oren_int_to_string(mt)
+            } else {
+                sig = "exe_" + _ml_fingerprint2_string(exe)
+            }
+        }
+    }
+    _ML_MODCACHE_COMPILER_SIG = _ml_sanitize_path_component(sig)
+    return _ML_MODCACHE_COMPILER_SIG
+}
+
+fn _ml_modcache_base_dir() {
+    // Reuse repo-local default for predictability; allow overriding via OREN_CACHE_DIR.
+    var base = oren_env("OREN_CACHE_DIR")
+    if base == nil || base == "" { base = "build/cache" }
+    return path_norm(base + "/module_astbin")
+}
+
+fn _ml_modcache_path_for_module(full, prefix, src_fp, config) {
+    if full == nil { return nil }
+    if config == nil { return nil }
+    if src_fp == nil || src_fp == "" { return nil }
+    // Normalize module path so the cache key remains stable across:
+    // - absolute vs relative module discovery
+    // - redundant "."/".." segments
+    //
+    // NOTE: use `path_norm()` (pure lexical normalization) rather than a runtime intrinsic
+    // so stage1 (C backend) can build this compiler code.
+    var full_key = path_norm(full)
+    var os = config["os"]
+    var arch = config["arch"]
+    var plat = config["platform"]
+    if os == nil { os = config["target"] }
+    if arch == nil { arch = "" }
+    if plat == nil {
+        if os != nil && arch != nil && os != "" && arch != "" { plat = arch + "-" + os } else { plat = "unknown" }
+    }
+    var comp_sig = _ml_modcache_compiler_sig()
+    var key = _ml_sanitize_path_component(plat) + "_" + _ml_fingerprint2_string(full_key) + "_" + _ml_fingerprint2_string(prefix) + "_" + src_fp
+    var dir = _ml_modcache_base_dir() + "/" + comp_sig
+    return path_norm(dir + "/" + key + ".astbin")
+}
+
+fn _ml_line_is_only_comment_or_ws(line) {
+    if line == nil { return true }
+    var n = oren_string_len(line)
+    var i = 0
+    while i < n {
+        var ch = oren_string_char_at_unchecked(line, i)
+        if ch == " " || ch == "\t" || ch == "\r" {
+            i = i + 1
+            continue
+        }
+        // Line comment.
+        if ch == "/" && i + 1 < n {
+            if oren_string_char_at_unchecked(line, i + 1) == "/" { return true }
+        }
+        // Any other non-ws is "code".
+        return false
+    }
+    return true
+}
+
+fn _ml_scan_is_ws(ch) {
+    if ch == " " { return true }
+    if ch == "\t" { return true }
+    if ch == "\r" { return true }
+    if ch == "\n" { return true }
+    return false
+}
+
+fn _ml_scan_is_ident_start(ch) {
+    if ch == "" { return false }
+    var b = oren_string_char_code_at(ch, 0)
+    if b >= 97 && b <= 122 { return true } // a..z
+    if b >= 65 && b <= 90 { return true }  // A..Z
+    if ch == "_" { return true }
+    return false
+}
+
+fn _ml_scan_is_ident_char(ch) {
+    if _ml_scan_is_ident_start(ch) { return true }
+    if ch == "" { return false }
+    var b = oren_string_char_code_at(ch, 0)
+    if b >= 48 && b <= 57 { return true } // 0..9
+    return false
+}
+
+fn _ml_scan_match_kw_import(src_s, idx) {
+    // Matches "import" at idx with identifier-boundary on both sides.
+    // Return true/false (no allocations).
+    var n = oren_string_len(src_s)
+    if idx + 6 > n { return false }
+    if oren_string_char_at_unchecked(src_s, idx + 0) != "i" { return false }
+    if oren_string_char_at_unchecked(src_s, idx + 1) != "m" { return false }
+    if oren_string_char_at_unchecked(src_s, idx + 2) != "p" { return false }
+    if oren_string_char_at_unchecked(src_s, idx + 3) != "o" { return false }
+    if oren_string_char_at_unchecked(src_s, idx + 4) != "r" { return false }
+    if oren_string_char_at_unchecked(src_s, idx + 5) != "t" { return false }
+    // Left boundary: either beginning, or non-ident char.
+    if idx > 0 {
+        var prev = oren_string_char_at_unchecked(src_s, idx - 1)
+        if _ml_scan_is_ident_char(prev) { return false }
+    }
+    // Right boundary: must be whitespace.
+    if idx + 6 < n {
+        var next = oren_string_char_at_unchecked(src_s, idx + 6)
+        if !_ml_scan_is_ws(next) { return false }
+    }
+    return true
+}
+
+fn _ml_include_list_if_aggregator(full_path) {
+    // Detect "include aggregator" files like `lib/compiler/compiler.oren`:
+    // - contain one or more `// @include "..."` directives
+    // - contain no other non-comment code
+    //
+    // For these, parsing a single giant include-expanded string is wasteful.
+    // We instead parse each include child and then merge the AST fragments.
+    var src = oren_read_file(full_path)
+    if oren_is_err(src) { return nil }
+
+    var includes = []
+    var has_code = false
+
+    var line_start = 0
+    var i = 0
+    var n = oren_string_len(src)
+    while i < n {
+        if oren_string_char_at_unchecked(src, i) == "\n" {
+            var line = oren_string_slice(src, line_start, i)
+            var inc = include_path_from_line(line)
+            if inc != nil && oren_string_len(inc) > 0 {
+                var inc_full = inc
+                if oren_string_char_at_unchecked(inc, 0) != "/" {
+                    inc_full = resolve_path(dirname(full_path), inc)
+                }
+                oren_list_push(includes, inc_full)
+            } else {
+                if !_ml_line_is_only_comment_or_ws(line) { has_code = true }
+            }
+            line_start = i + 1
+        }
+        i = i + 1
+    }
+    // Trailing line (no final '\n').
+    if line_start < n {
+        var line2 = oren_string_slice(src, line_start, n)
+        var inc2 = include_path_from_line(line2)
+        if inc2 != nil && oren_string_len(inc2) > 0 {
+            var inc_full2 = inc2
+            if oren_string_char_at_unchecked(inc2, 0) != "/" {
+                inc_full2 = resolve_path(dirname(full_path), inc2)
+            }
+            oren_list_push(includes, inc_full2)
+        } else {
+            if !_ml_line_is_only_comment_or_ws(line2) { has_code = true }
+        }
+    }
+
+    if has_code { return nil }
+    if oren_list_len(includes) == 0 { return nil }
+    return includes
+}
+
+fn _ml_parse_program_from_src(file, src) {
+    if src == nil { return nil }
+    var l = lexer.new_lexer(src)
+    l["file"] = file
+    var p = parser.new_parser(l)
+    p["strict_attrs"] = STRICT_ATTRS
+    p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
+    var prog = parser.parse_program(p)
+    // Defensive: parser must return a program map with "statements".
+    if prog == nil || prog["statements"] == nil || oren_is_list(prog["statements"]) != true {
+        print("Parse failed (internal): parser returned invalid program for " + file)
+        oren_exit(1)
+    }
+
+    if oren_list_len(p["errors"]) > 0 {
+        print("Parse errors in " + file + ":")
+        var i = 0
+        while i < oren_list_len(p["errors"]) {
+            print(p["errors"][i])
+            i = i + 1
+        }
+        oren_exit(1)
+    }
+    // Drop large scaffolding aggressively.
+    src = nil
+    l = nil
+    p = nil
+    return prog
+}
+
+fn _ml_parse_program_from_src_result(file, src) {
+    // Like `_ml_parse_program_from_src`, but does not exit on parse errors.
+    // Used by fork-parallel parse workers so they can report failures cleanly.
+    if src == nil { return {"ok": false, "err": "empty source"} }
+    var l = lexer.new_lexer(src)
+    l["file"] = file
+    var p = parser.new_parser(l)
+    p["strict_attrs"] = STRICT_ATTRS
+    p["attr_allow_prefixes"] = ATTR_ALLOW_PREFIXES
+    var prog = parser.parse_program(p)
+
+    // Defensive: parser must return a program map with "statements".
+    if prog == nil || prog["statements"] == nil || oren_is_list(prog["statements"]) != true {
+        // Drop scaffolding.
+        src = nil
+        l = nil
+        p = nil
+        return {"ok": false, "err": "parse returned invalid program"}
+    }
+
+    if oren_list_len(p["errors"]) > 0 {
+        var errs = []
+        var i = 0
+        while i < oren_list_len(p["errors"]) {
+            oren_list_push(errs, p["errors"][i])
+            i = i + 1
+        }
+        // Drop scaffolding.
+        src = nil
+        l = nil
+        p = nil
+        return {"ok": false, "err": "parse errors", "errors": errs}
+    }
+    // Drop scaffolding.
+    src = nil
+    l = nil
+    p = nil
+    return {"ok": true, "prog": prog}
+}
+
+fn _ml_parse_include_bucket(bucket, out_dir) {
+    // Worker for include-aggregator parsing (fork-based spawn on macOS/Linux).
+    //
+    // For each included file:
+    // - expand nested `// @include` directives
+    // - parse into a program AST
+    // - serialize to astbin and write to <out_dir>/<sha>.astbin
+    if bucket == nil { return 0 }
+    if out_dir == nil { return 1 }
+    ensure_dir(out_dir)
+
+    var i = 0
+    while i < oren_list_len(bucket) {
+        var inc_full = bucket[i]
+        var rr = expand_includes_file_result(inc_full, [])
+        if rr["ok"] != true {
+            print("Failed to read file: " + inc_full)
+            if rr["err"] != nil { print(rr["err"]) }
+            return 1
+        }
+        var src = rr["src"]
+        var prog = _ml_parse_program_from_src(inc_full, src)
+        // Encode program fragment.
+        var bs = astbin_encode(prog)
+        var out_path = path_norm(out_dir + "/" + _sha256_hex_string(inc_full) + ".astbin")
+        var tmp = out_path + ".tmp"
+        var w = oren_write_bytes(tmp, bs)
+        if oren_is_err(w) {
+            print("Failed to write: " + tmp)
+            var em = oren_err_msg(w)
+            if em != nil { print(em) }
+            return 1
+        }
+        // Best-effort atomic rename.
+        oren_rename(tmp, out_path)
+        i = i + 1
+    }
+    return 0
+}
+
+fn _ml_scan_imports_in_src(full_path, src, config) {
+    // Return {"ok":bool, "imports":[{"alias":..., "path":...}, ...], "err":string}
+    //
+    // PERFORMANCE CRITICAL (stage2 self-hosting gate):
+    // This is used only for dependency discovery. The old implementation used the full lexer,
+    // which allocates per-token objects and is too slow for large modules.
+    //
+    // We instead do a single-pass *string scan* for the grammar:
+    //   import <ident> "<path>"
+    //
+    // and ignore everything else. This is sufficient because we only need import edges.
+    if src == nil { return {"ok": true, "imports": []} }
+    var imports = []
+
+    var n = oren_string_len(src)
+    var i = 0
+    var at_bol = true
+
+    while i < n {
+        var ch = oren_string_char_at_unchecked(src, i)
+
+        // Line comment
+        if ch == "/" && i + 1 < n && oren_string_char_at_unchecked(src, i + 1) == "/" {
+            // Skip to newline.
+            i = i + 2
+            while i < n && oren_string_char_at_unchecked(src, i) != "\n" {
+                i = i + 1
+            }
+            continue
+        }
+        // Block comment
+        if ch == "/" && i + 1 < n && oren_string_char_at_unchecked(src, i + 1) == "*" {
+            i = i + 2
+            while i + 1 < n {
+                if oren_string_char_at_unchecked(src, i) == "*" && oren_string_char_at_unchecked(src, i + 1) == "/" {
+                    i = i + 2
+                    break
+                }
+                i = i + 1
+            }
+            continue
+        }
+
+        if ch == "\n" { at_bol = true; i = i + 1; continue }
+        if at_bol {
+            // Skip leading indentation at BOL.
+            if ch == " " || ch == "\t" || ch == "\r" { i = i + 1; continue }
+            // Fast path: import lines tend to be at BOL; check keyword.
+            if _ml_scan_match_kw_import(src, i) {
+                i = i + 6
+                // Skip ws
+                while i < n && _ml_scan_is_ws(oren_string_char_at_unchecked(src, i)) {
+                    if oren_string_char_at_unchecked(src, i) == "\n" { break }
+                    i = i + 1
+                }
+                // Parse alias ident
+                if i >= n { break }
+                var a0 = i
+                var c0 = oren_string_char_at_unchecked(src, i)
+                if !_ml_scan_is_ident_start(c0) {
+                    return {"ok": false, "err": "scan_imports: invalid import (expected identifier after import) in " + full_path}
+                }
+                i = i + 1
+                while i < n && _ml_scan_is_ident_char(oren_string_char_at_unchecked(src, i)) {
+                    i = i + 1
+                }
+                var alias = oren_string_slice(src, a0, i)
+                // Skip ws
+                while i < n && _ml_scan_is_ws(oren_string_char_at_unchecked(src, i)) {
+                    if oren_string_char_at_unchecked(src, i) == "\n" { break }
+                    i = i + 1
+                }
+                if i >= n || oren_string_char_at_unchecked(src, i) != "\"" {
+                    return {"ok": false, "err": "scan_imports: invalid import (expected string path) in " + full_path}
+                }
+                i = i + 1
+                var p0 = i
+                while i < n {
+                    var c = oren_string_char_at_unchecked(src, i)
+                    if c == "\"" { break }
+                    if c == "\\" && i + 1 < n {
+                        // Skip escaped char.
+                        i = i + 2
+                        continue
+                    }
+                    if c == "\n" {
+                        return {"ok": false, "err": "scan_imports: unterminated string in import in " + full_path}
+                    }
+                    i = i + 1
+                }
+                if i >= n || oren_string_char_at_unchecked(src, i) != "\"" {
+                    return {"ok": false, "err": "scan_imports: unterminated string in import in " + full_path}
+                }
+                var path = oren_string_slice(src, p0, i)
+                i = i + 1
+                oren_list_push(imports, {"alias": alias, "path": path})
+                // Consume rest of line quickly.
+                while i < n && oren_string_char_at_unchecked(src, i) != "\n" {
+                    i = i + 1
+                }
+                continue
+            }
+            // Non-import at BOL => keep scanning but treat as "not at bol" for this line.
+            at_bol = false
+            i = i + 1
+            continue
+        }
+
+        i = i + 1
+    }
+
+    return {"ok": true, "imports": imports}
+}
+
+fn _ml_scan_imports_for_module(full_path, config) {
+    // Return {"ok":bool, "imports":[{"alias":..., "path":...}, ...], "err":string}
+    //
+    // Include aggregators are scanned by scanning each include child in include order.
+    // This avoids building one huge include-expanded string.
+    var includes = _ml_include_list_if_aggregator(full_path)
+    if includes == nil {
+        var src = oren_read_file(full_path)
+        if oren_is_err(src) {
+            var msg = oren_err_msg(src)
+            if msg == nil { msg = "failed to read" }
+            return {"ok": false, "err": msg}
+        }
+        return _ml_scan_imports_in_src(full_path, src, config)
+    }
+
+    var out = []
+    var i = 0
+    while i < oren_list_len(includes) {
+        var inc_full = includes[i]
+        // Shallow scan:
+        // - do not expand includes; just read the file text and scan `import` tokens.
+        // - if the included file itself is an include-aggregator, recurse structurally.
+        var sub_includes = _ml_include_list_if_aggregator(inc_full)
+        if sub_includes != nil {
+            var ri = 0
+            while ri < oren_list_len(sub_includes) {
+                var r0 = _ml_scan_imports_for_module(sub_includes[ri], config)
+                if r0["ok"] != true { return r0 }
+                var imps0 = r0["imports"]
+                var j0 = 0
+                while j0 < oren_list_len(imps0) {
+                    oren_list_push(out, imps0[j0])
+                    j0 = j0 + 1
+                }
+                ri = ri + 1
+            }
+        } else {
+            var src2 = oren_read_file(inc_full)
+            if oren_is_err(src2) {

@@ -1,0 +1,600 @@
+            var item = handles[hi]
+            var res = oren_join(item["h"])
+            if res != 0 {
+                failed = true
+                print("Module parse worker failed; bucket modules:")
+                var b = item["bucket"]
+                var mi = 0
+                while mi < oren_list_len(b) {
+                    print("  - " + b[mi]["path"])
+                    mi = mi + 1
+                }
+                if item["log"] != nil {
+                    print("  log: " + item["log"])
+                }
+            }
+            hi = hi + 1
+        }
+    } else {
+        var total = oren_list_len(handles)
+        var done = 0
+        var last_print = 0
+        if oren_env("OREN_TRACE_PHASES") != nil { last_print = oren_time_now_ns() }
+
+        // If thread-mode `spawn` is cooperative (green tasks without background workers),
+        // the polling loop below does not drive the scheduler and will deadlock.
+        // In that mode, join sequentially (each join drives the scheduler).
+        if _ml_spawn_is_cooperative() == true {
+            var hi2 = 0
+            while hi2 < oren_list_len(handles) {
+                var item2 = handles[hi2]
+                var h2 = item2["h"]
+                var res2 = oren_join(h2)
+                done = done + 1
+                if res2 == nil || res2["ok"] != true {
+                    failed = true
+                    print("Module parse worker failed (cooperative thread mode)")
+                    if res2 != nil && res2["path"] != nil {
+                        print("  module: " + res2["path"])
+                    }
+                    if res2 != nil && res2["err"] != nil {
+                        print("  err: " + res2["err"])
+                    }
+                    if res2 != nil && res2["errors"] != nil {
+                        var ei2 = 0
+                        while ei2 < oren_list_len(res2["errors"]) {
+                            print("  " + res2["errors"][ei2])
+                            ei2 = ei2 + 1
+                        }
+                    }
+                }
+                if oren_env("OREN_TRACE_PHASES") != nil {
+                    print("[phase] link parse progress " + oren_int_to_string(done) + "/" + oren_int_to_string(total))
+                }
+                hi2 = hi2 + 1
+            }
+        } else {
+        // Remaining queue (list of items with handles).
+        var remaining = handles
+        while oren_list_len(remaining) > 0 {
+            var next_remaining = []
+            var i0 = 0
+            while i0 < oren_list_len(remaining) {
+                var item0 = remaining[i0]
+                var h0 = item0["h"]
+                if oren_is_done(h0) == true {
+                    var res0 = oren_join(h0)
+                    done = done + 1
+                    if res0 == nil || res0["ok"] != true {
+                        failed = true
+                        print("Module parse worker failed (thread mode)")
+                        if res0 != nil && res0["path"] != nil {
+                            print("  module: " + res0["path"])
+                        }
+                        if res0 != nil && res0["err"] != nil {
+                            print("  err: " + res0["err"])
+                        }
+                        if res0 != nil && res0["errors"] != nil {
+                            var ei = 0
+                            while ei < oren_list_len(res0["errors"]) {
+                                print("  " + res0["errors"][ei])
+                                ei = ei + 1
+                            }
+                        }
+                    } else {
+                        // Success: worker attached module programs in-place.
+                    }
+                } else {
+                    oren_list_push(next_remaining, item0)
+                }
+                i0 = i0 + 1
+            }
+            remaining = next_remaining
+
+            // Progress output + short sleep to avoid busy spin.
+            if oren_env("OREN_TRACE_PHASES") != nil {
+                var now = oren_time_now_ns()
+                if last_print == 0 || now - last_print > 250000000 {
+                    print("[phase] link parse progress " + oren_int_to_string(done) + "/" + oren_int_to_string(total))
+                    last_print = now
+                }
+            }
+            if oren_list_len(remaining) > 0 {
+                // GC-cooperative wait:
+                // A worker thread may initiate stop-the-world GC at a safepoint. If the main
+                // thread is sleeping here without entering safepoints, the GC protocol can
+                // deadlock. Explicitly hit a safepoint between polls.
+                oren_gc_safepoint()
+                // Sleep ~5ms. This keeps polling deterministic and prevents burning CPU while waiting.
+                oren_sleep_ns(5000000)
+            }
+        }
+        }
+    }
+    if failed {
+        print("Module parse worker failed")
+        oren_exit(1)
+    }
+
+    if fork_mode {
+        // Read results back and attach to MODULE_ORDER entries.
+        i = 0
+        while i < oren_list_len(MODULE_ORDER) {
+            var m2 = MODULE_ORDER[i]
+            if m2["program"] == nil {
+                var p = path_norm(out_dir + "/" + _sha256_hex_string(m2["path"]) + ".astbin")
+                var bs = oren_read_u8_buf(p)
+                if oren_is_err(bs) {
+                    print("Failed to read parsed module: " + p)
+                    var em = oren_err_msg(bs)
+                    if em != nil { print(em) }
+                    oren_exit(1)
+                }
+                var prog = astbin_decode(bs)
+                if prog == nil {
+                    print("Failed to decode parsed module: " + p)
+                    oren_exit(1)
+                }
+                m2["program"] = prog
+            }
+            i = i + 1
+        }
+    }
+    return 0
+}
+
+fn load_module(base, path, config) {
+    var std_mode = nil
+    if config != nil { std_mode = config["stdlib_mode"] }
+    var is_std = _is_std_spec(path)
+
+    // In stdlib `.obc` mode, avoid resolving stdlib source paths entirely.
+    // This keeps compiler-in-AVM viable without shipping std sources.
+    var full = nil
+    if is_std && std_mode == "obc" {
+        full = _canonical_std_spec(path)
+    } else {
+        full = resolve_import_path(base, path)
+    }
+    if MODULES[full] != nil {
+        return MODULES[full]
+    }
+
+    if oren_env("OREN_TRACE_PASSES") != nil {
+        print("[trace] load_module: " + full)
+    }
+
+    // Cycle check
+    var k = 0
+    while k < oren_list_len(MODULE_STACK) {
+        if MODULE_STACK[k] == full {
+            print("Cyclic import detected: " + full)
+            oren_exit(1)
+        }
+        k = k + 1
+    }
+    oren_list_push(MODULE_STACK, full)
+
+    // Extern stdlib module (bytecode stdlib linking mode):
+    // - no parsing, no dependency walking
+    // - contributes no statements
+    if is_std && std_mode == "obc" {
+        var mod = {"prefix": _stable_std_prefix(path), "path": full, "program": {"statements": [], "traits": []}, "aliases": {}, "imports": [], "added": false}
+        MODULES[full] = mod
+        if mod["added"] != true {
+            mod["added"] = true
+            oren_list_push(MODULE_ORDER, mod)
+        }
+        // Pop cycle-check stack.
+        var new_stack = []
+        var si = 0
+        var sl = oren_list_len(MODULE_STACK)
+        while si + 1 < sl {
+            oren_list_push(new_stack, MODULE_STACK[si])
+            si = si + 1
+        }
+        MODULE_STACK = new_stack
+        return mod
+    }
+
+    var prog = _ml_parse_program_for_module(full, config)
+    if prog == nil {
+        print("Failed to read file: " + full)
+        // Best-effort: surface include-expansion error deterministically without shared globals.
+        if _ml_include_list_if_aggregator(full) == nil {
+            var rr = expand_includes_file_result(full, [])
+            if rr["ok"] != true && rr["err"] != nil { print(rr["err"]) }
+        }
+        oren_exit(1)
+    }
+
+    var prefix = _ml_stable_module_prefix_from_full(full)
+    if is_std { prefix = _stable_std_prefix(path) }
+    var mod = {"prefix": prefix, "path": full, "program": prog, "aliases": {}, "imports": [], "added": false}
+    MODULES[full] = mod
+
+    var dir = dirname(full)
+    var seen_alias = {}
+    var i = 0
+    while i < oren_list_len(prog["statements"]) {
+        var s = prog["statements"][i]
+        if s["type"] == "Import" {
+            var alias = s["name"]["value"]
+            if seen_alias[alias] != nil {
+                print("Duplicate import alias: " + alias + " in " + full)
+                oren_exit(1)
+            }
+            seen_alias[alias] = true
+            var dep = load_module(dir, s["path"], config)
+            var alias_ns = mod["prefix"] + alias
+            mod["aliases"][alias_ns] = dep["prefix"]
+            // Preserve import edges in deterministic source order for graph export.
+            oren_list_push(mod["imports"], {"alias": alias, "alias_ns": alias_ns, "path": s["path"], "prefix": dep["prefix"], "full": dep["path"]})
+        }
+        i = i + 1
+    }
+
+    // Rename pass would be here, but we need to move rename logic to a module too?
+    // For now let's assume we copy `collect_toplevel_rename_pairs` etc.
+    // Or better, put them in `analysis.oren` or a new `modules.oren`.
+    // Let's put module logic in `compiler.oren` for now as it orchestrates loading.
+    var pairs = renamer.collect_toplevel_rename_pairs(prog, mod["prefix"])
+    i = 0
+    while i < oren_list_len(prog["statements"]) {
+        var s2 = prog["statements"][i]
+        if s2["type"] == "Import" {
+            var alias2 = s2["name"]["value"]
+            if renamer.rename_lookup(pairs, alias2) != "" {
+                print("Import alias conflicts with top-level name: " + alias2 + " in " + full)
+                oren_exit(1)
+            }
+        }
+        i = i + 1
+    }
+
+    // Namespace import aliases with the *owning* module prefix so after linking/merging
+    // all statements into one program, alias resolution remains unambiguous and scoped.
+    //
+    // Example: within module prefix "M5_", `lexer.new_lexer(...)` becomes `M5_lexer.new_lexer(...)`.
+    i = 0
+    while i < oren_list_len(prog["statements"]) {
+        var s3 = prog["statements"][i]
+        if s3["type"] == "Import" {
+            var a3 = s3["name"]["value"]
+            pairs[a3] = mod["prefix"] + a3
+        }
+        i = i + 1
+    }
+    renamer.rename_program_in_place(prog, pairs)
+
+    // Attribute-driven JSON serde codegen (opt-in via `@json.derive(...)`).
+    // Must run *after* module renaming so generated functions are naturally prefixed
+    // via the (already-prefixed) type names.
+    serde_json.lower_program_in_place(prog, mod["prefix"])
+    if prog["serde_json_errors"] != nil && oren_list_len(prog["serde_json_errors"]) > 0 {
+        var first_err = prog["serde_json_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Serde JSON lowering errors in " + full + ":")
+        var ei = 0
+        while ei < oren_list_len(prog["serde_json_errors"]) {
+            print(prog["serde_json_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+
+    if mod["added"] != true {
+        mod["added"] = true
+        oren_list_push(MODULE_ORDER, mod)
+    }
+
+    // Pop cycle-check stack (runtime has no list_pop; do it manually).
+    var new_stack = []
+    var si = 0
+    var sl = oren_list_len(MODULE_STACK)
+    while si + 1 < sl {
+        oren_list_push(new_stack, MODULE_STACK[si])
+        si = si + 1
+    }
+    MODULE_STACK = new_stack
+
+    return mod
+}
+
+fn link_program(entry_path, root_prog, config) {
+    var trace_passes = oren_env("OREN_TRACE_PASSES") != nil
+    var trace_phases = oren_env("OREN_TRACE_PHASES") != nil
+    var t0 = 0
+    if trace_phases { t0 = oren_time_now_ns() }
+    if trace_passes { print("[trace] link: start " + entry_path) }
+    MODULES = {}
+    MODULE_STACK = []
+    MODULE_ORDER = []
+    MODULE_ID_COUNTER = 0
+    
+    var base = dirname(entry_path)
+    var root_prefix = "R_"
+    var root_aliases = {}
+    var root_imports = []
+
+    // Conditional compilation (rolling):
+    // Filter the root program early so:
+    // - rename/serde passes don't see cfg-disabled duplicates
+    // - codegen doesn't error on duplicate top-level names that are mutually exclusive by cfg
+    debug_sugar.lower_program_in_place(root_prog)
+    if config != nil {
+        cfg_lowering.lower_program_in_place(root_prog, config)
+        if root_prog["cfg_errors"] != nil && oren_is_list(root_prog["cfg_errors"]) == true && oren_list_len(root_prog["cfg_errors"]) > 0 {
+            var first_err0 = root_prog["cfg_errors"][0]
+            emit_diag("compile", 1, first_err0)
+            print("Cfg filtering errors in " + entry_path + ":")
+            var ei0 = 0
+            while ei0 < oren_list_len(root_prog["cfg_errors"]) {
+                print(root_prog["cfg_errors"][ei0])
+                ei0 = ei0 + 1
+            }
+            oren_exit(1)
+        }
+    }
+    
+    var i = 0
+    while i < oren_list_len(root_prog["statements"]) {
+        var s = root_prog["statements"][i]
+        if s["type"] == "Import" {
+            var alias = s["name"]["value"]
+            var mod = discover_module(base, s["path"], config)
+            var alias_ns = root_prefix + alias
+            root_aliases[alias_ns] = mod["prefix"]
+            // Preserve root import edges in source order.
+            oren_list_push(root_imports, {"alias": alias, "alias_ns": alias_ns, "path": s["path"], "prefix": mod["prefix"], "full": mod["path"]})
+        }
+        i = i + 1
+    }
+    if trace_phases {
+        var dt0 = oren_time_now_ns() - t0
+        print("[phase] link discover done +" + oren_int_to_string(dt0 / 1000000) + "ms modules=" + oren_int_to_string(oren_list_len(MODULE_ORDER)))
+    }
+
+    // Parse all discovered modules in fork-parallel workers.
+    _ml_parse_discovered_modules_parallel(config)
+    if trace_phases {
+        var dt1 = oren_time_now_ns() - t0
+        print("[phase] link parse done +" + oren_int_to_string(dt1 / 1000000) + "ms")
+    }
+
+    // Apply the same alias namespacing rule to the root module so its imports are
+    // scoped and do not collide with nested module imports after linking.
+    var root_pairs = {}
+    i = 0
+    while i < oren_list_len(root_prog["statements"]) {
+        var s0 = root_prog["statements"][i]
+        if s0["type"] == "Import" {
+            var a0 = s0["name"]["value"]
+            root_pairs[a0] = root_prefix + a0
+        }
+        i = i + 1
+    }
+    renamer.rename_program_in_place(root_prog, root_pairs)
+
+    // Attribute-driven JSON serde codegen for the root module.
+    // Root is not renamed, so prefix is empty.
+    serde_json.lower_program_in_place(root_prog, "")
+    if root_prog["serde_json_errors"] != nil && oren_list_len(root_prog["serde_json_errors"]) > 0 {
+        var first_err = root_prog["serde_json_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Serde JSON lowering errors in " + entry_path + ":")
+        var ei = 0
+        while ei < oren_list_len(root_prog["serde_json_errors"]) {
+            print(root_prog["serde_json_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+    
+    var merged_stmts = []
+    var merged_traits = []
+    var type_ns = {}
+    
+    i = 0
+    while i < oren_list_len(MODULE_ORDER) {
+        var mod = MODULE_ORDER[i]
+        var stmts = mod["program"]["statements"]
+        if mod["program"]["traits"] != nil {
+            var ti = 0
+            while ti < oren_list_len(mod["program"]["traits"]) {
+                oren_list_push(merged_traits, mod["program"]["traits"][ti])
+                ti = ti + 1
+            }
+        }
+        var j = 0
+        while j < oren_list_len(stmts) {
+            var st = stmts[j]
+            if st["type"] == "Type" {
+                type_ns[st["name"]["value"]] = true
+            }
+            if st["type"] != "Import" {
+                oren_list_push(merged_stmts, st)
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+    
+    i = 0
+    while i < oren_list_len(root_prog["statements"]) {
+        var st = root_prog["statements"][i]
+        if st["type"] == "Type" {
+            type_ns[st["name"]["value"]] = true
+        }
+        if st["type"] != "Import" {
+            oren_list_push(merged_stmts, st)
+        }
+        i = i + 1
+    }
+
+    if root_prog["traits"] != nil {
+        var rti = 0
+        while rti < oren_list_len(root_prog["traits"]) {
+            oren_list_push(merged_traits, root_prog["traits"][rti])
+            rti = rti + 1
+        }
+    }
+    if trace_phases {
+        var dt2 = oren_time_now_ns() - t0
+        print("[phase] link merge done +" + oren_int_to_string(dt2 / 1000000) + "ms stmts=" + oren_int_to_string(oren_list_len(merged_stmts)))
+    }
+    
+    // Preserve metadata-only surfaces across module linking.
+    // (Traits are not represented as executable statements yet in v0.)
+    // Provide a deterministic module graph surface for tooling.
+    var module_summaries = []
+    i = 0
+    while i < oren_list_len(MODULE_ORDER) {
+        var m = MODULE_ORDER[i]
+        oren_list_push(module_summaries, {"prefix": m["prefix"], "path": m["path"], "imports": m["imports"]})
+        i = i + 1
+    }
+
+    // Global alias map for whole-program codegen.
+    //
+    // `load_module()` keeps `mod["aliases"]` per-module, but after we merge all
+    // statements into one linked program, backends need a single alias lookup
+    // table to resolve `alias.symbol` member calls (e.g. `lexer.new_lexer`).
+    //
+    // Rolling rule:
+    // - import aliases are namespaced per-module (see `load_module` and root module renaming)
+    // - after namespacing, aliases must be globally unique; any collision is a bug
+    var all_aliases = {}
+    // root aliases first
+    var ri = 0
+    while ri < oren_list_len(root_imports) {
+        var e = root_imports[ri]
+        if e != nil {
+            all_aliases[e["alias_ns"]] = e["prefix"]
+        }
+        ri = ri + 1
+    }
+    // merge module aliases in deterministic order (MODULE_ORDER, then per-module import order)
+    i = 0
+    while i < oren_list_len(MODULE_ORDER) {
+        var m2 = MODULE_ORDER[i]
+        var imps = m2["imports"]
+        if imps != nil {
+            var ii = 0
+            while ii < oren_list_len(imps) {
+                var ie = imps[ii]
+                var a2 = ie["alias_ns"]
+                var p2 = ie["prefix"]
+                if all_aliases[a2] == nil {
+                    all_aliases[a2] = p2
+                } else {
+                    if all_aliases[a2] != p2 {
+                        var msgA = "Import alias conflict: '" + a2 + "' maps to both '" + all_aliases[a2] + "' and '" + p2 + "'"
+                        emit_diag("compile", 1, msgA)
+                        print(msgA)
+                        oren_exit(1)
+                    }
+                }
+                ii = ii + 1
+            }
+        }
+        i = i + 1
+    }
+    if trace_phases {
+        var dt3 = oren_time_now_ns() - t0
+        print("[phase] link aliases done +" + oren_int_to_string(dt3 / 1000000) + "ms")
+    }
+
+    var linked = {
+        "statements": merged_stmts,
+        "traits": merged_traits,
+        "aliases": all_aliases,
+        "type_ns": type_ns,
+        "config": config,
+        "module_graph": {"entry": entry_path, "imports": root_imports, "modules": module_summaries}
+    }
+
+    // Whole-program cfg pass (safety belt): ensure any remaining cfg-gated decls are filtered
+    // before subsequent passes. (Per-module preparation already runs cfg, but this keeps the
+    // contract stable if that pipeline evolves.)
+    if trace_passes { print("[trace] pass: cfg") }
+    cfg_lowering.lower_linked_program_in_place(linked)
+    if linked["cfg_errors"] != nil && oren_list_len(linked["cfg_errors"]) > 0 {
+        var first_cfg = linked["cfg_errors"][0]
+        emit_diag("compile", 1, first_cfg)
+        print("Cfg filtering errors:")
+        var cei = 0
+        while cei < oren_list_len(linked["cfg_errors"]) {
+            print(linked["cfg_errors"][cei])
+            cei = cei + 1
+        }
+        oren_exit(1)
+    }
+
+    // Normalize cross-module type annotation spellings:
+    //   <alias_ns>.Type -> <dep_prefix>Type
+    //
+    // Must run before lowerings that consult annotations for dispatch decisions.
+    if trace_passes { print("[trace] pass: type_name_resolve") }
+    type_resolve.lower_linked_program_in_place(linked)
+    if linked["type_name_errors"] != nil && oren_list_len(linked["type_name_errors"]) > 0 {
+        var first_err = linked["type_name_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Type name resolution errors:")
+        var ei = 0
+        while ei < oren_list_len(linked["type_name_errors"]) {
+            print(linked["type_name_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+    if trace_phases {
+        var dt4 = oren_time_now_ns() - t0
+        print("[phase] pass type_name_resolve +" + oren_int_to_string(dt4 / 1000000) + "ms")
+    }
+
+    // Whole-program impl/method-call lowering:
+    // - enables cross-module method call sugar without runtime vtables
+    // - enforces deterministic coherence (ambiguous overlap is a compile error)
+    if trace_passes { print("[trace] pass: impl_lowering") }
+    impl_lowering.lower_linked_program_in_place(linked)
+    if linked["impl_lowering_errors"] != nil && oren_list_len(linked["impl_lowering_errors"]) > 0 {
+        var first_err = linked["impl_lowering_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Impl lowering errors:")
+        var ei = 0
+        while ei < oren_list_len(linked["impl_lowering_errors"]) {
+            print(linked["impl_lowering_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+    if trace_phases {
+        var dt5 = oren_time_now_ns() - t0
+        print("[phase] pass impl_lowering +" + oren_int_to_string(dt5 / 1000000) + "ms")
+    }
+
+    // Compile-time lowering: packed struct views over bytes.
+    if trace_passes { print("[trace] pass: packview") }
+    packview.lower_linked_program_in_place(linked)
+    if linked["packview_errors"] != nil && oren_list_len(linked["packview_errors"]) > 0 {
+        var first_err = linked["packview_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Packview errors:")
+        var ei = 0
+        while ei < oren_list_len(linked["packview_errors"]) {
+            print(linked["packview_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+    if trace_phases {
+        var dt5b = oren_time_now_ns() - t0
+        print("[phase] pass packview +" + oren_int_to_string(dt5b / 1000000) + "ms")
+    }
+
+    // Always-on parity guard (native backend hazard):
+    // - Comparing provably-scalar values (bool/int/float) to `nil` is almost always a bug.
+    // - The native runtime uses a sentinel representation for `nil`, so treating `== nil` as
+    //   “missing” can silently misbehave (especially when `0`/`false` are valid values).
+    //

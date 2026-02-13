@@ -1,0 +1,131 @@
+    // This guard is conservative (best-effort inference) and is intentionally always enabled,
+    // even when the full gradual-typing pass is disabled.
+    if trace_passes { print("[trace] pass: nil_compare_guard") }
+    typecheck.nil_scalar_compare_guard_linked_program_in_place(linked)
+    if linked["nil_compare_errors"] != nil && oren_list_len(linked["nil_compare_errors"]) > 0 {
+        var first_err0 = linked["nil_compare_errors"][0]
+        emit_diag("compile", 1, first_err0)
+        print("Nil-compare guard errors:")
+        var ei_ng = 0
+        while ei_ng < oren_list_len(linked["nil_compare_errors"]) {
+            print(linked["nil_compare_errors"][ei_ng])
+            ei_ng = ei_ng + 1
+        }
+        oren_exit(1)
+    }
+
+    // Optional: typecheck pass (gradual typing).
+    //
+    // Run this before normalization casts are inserted so diagnostics point at user code
+    // rather than compiler-generated boundary rewrites.
+    if config != nil && config["typecheck"] == true {
+        if trace_passes { print("[trace] pass: typecheck") }
+        typecheck.typecheck_linked_program_in_place(linked)
+    }
+    if linked["typecheck_errors"] != nil && oren_list_len(linked["typecheck_errors"]) > 0 {
+        var first_err = linked["typecheck_errors"][0]
+        emit_diag("typecheck", 1, first_err)
+        print("Typecheck errors:")
+        var ei2 = 0
+        while ei2 < oren_list_len(linked["typecheck_errors"]) {
+            print(linked["typecheck_errors"][ei2])
+            ei2 = ei2 + 1
+        }
+        oren_exit(1)
+    }
+
+
+    // Compile-time lowering: apply value-level normalization for annotated boundaries.
+    // (Rolling step toward exact-size layout semantics.)
+    if trace_passes { print("[trace] pass: type_ann") }
+    type_ann.lower_linked_program_in_place(linked)
+    if trace_phases {
+        var dt5c = oren_time_now_ns() - t0
+        print("[phase] pass type_ann +" + oren_int_to_string(dt5c / 1000000) + "ms")
+    }
+
+    // Compile-time lowering: specialization call sugar.
+    //   f[T](...) -> f__T(...)
+    //
+    // This is a v0 stepping stone toward full generics + monomorphization, with zero runtime cost.
+    if trace_passes { print("[trace] pass: generic_calls") }
+    gen_calls.lower_linked_program_in_place(linked)
+    if linked["generic_call_errors"] != nil && oren_list_len(linked["generic_call_errors"]) > 0 {
+        var first_err = linked["generic_call_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Generic call errors:")
+        var ei0 = 0
+        while ei0 < oren_list_len(linked["generic_call_errors"]) {
+            print(linked["generic_call_errors"][ei0])
+            ei0 = ei0 + 1
+        }
+        oren_exit(1)
+    }
+    if trace_phases {
+        var dt6 = oren_time_now_ns() - t0
+        print("[phase] pass generic_calls +" + oren_int_to_string(dt6 / 1000000) + "ms")
+    }
+
+    // Compile-time lowering: generic function monomorphization (rolling v0).
+    //   fn f[T](...) + f[T](...) calls  ->  fn f__T(...)
+    if trace_passes { print("[trace] pass: generic_mono") }
+    gen_mono.lower_linked_program_in_place(linked)
+    if linked["generic_monomorph_errors"] != nil && oren_list_len(linked["generic_monomorph_errors"]) > 0 {
+        var first_err = linked["generic_monomorph_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("Generic monomorphization errors:")
+        var ei = 0
+        while ei < oren_list_len(linked["generic_monomorph_errors"]) {
+            print(linked["generic_monomorph_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+    if trace_phases {
+        var dt7 = oren_time_now_ns() - t0
+        print("[phase] pass generic_mono +" + oren_int_to_string(dt7 / 1000000) + "ms")
+    }
+
+    // Compile-time lowering: ABI layout computation and sizeof/offsetof constants.
+    // Opt-in via `@abi` (canonical: `@oren.abi`) and does not depend on host headers.
+    if trace_passes { print("[trace] pass: abi_layout") }
+    abi_layout.lower_linked_program_in_place(linked)
+    if linked["abi_layout_errors"] != nil && oren_list_len(linked["abi_layout_errors"]) > 0 {
+        var first_err = linked["abi_layout_errors"][0]
+        emit_diag("compile", 1, first_err)
+        print("ABI layout errors:")
+        var ei = 0
+        while ei < oren_list_len(linked["abi_layout_errors"]) {
+            print(linked["abi_layout_errors"][ei])
+            ei = ei + 1
+        }
+        oren_exit(1)
+    }
+    if trace_phases {
+        var dt8 = oren_time_now_ns() - t0
+        print("[phase] pass abi_layout +" + oren_int_to_string(dt8 / 1000000) + "ms")
+    }
+
+
+    // Optimizer baseline (safe, conservative).
+    if trace_passes { print("[trace] pass: optimizer") }
+    optimizer.lower_linked_program_in_place(linked)
+    if trace_phases {
+        var dt9 = oren_time_now_ns() - t0
+        print("[phase] pass optimizer +" + oren_int_to_string(dt9 / 1000000) + "ms")
+    }
+
+    // Whole-program function DCE (rolling):
+    // - keeps semantic/type/attr passes applied to the full program
+    // - removes unreachable functions before backend compilation
+    // - fixes "imported stdlib has unsupported exprs" for tier-1 native v0 backends
+    if trace_passes { print("[trace] pass: global_dce") }
+    global_dce.lower_linked_program_in_place(linked)
+    if trace_phases {
+        var dt10 = oren_time_now_ns() - t0
+        print("[phase] pass global_dce +" + oren_int_to_string(dt10 / 1000000) + "ms")
+    }
+
+    if trace_passes { print("[trace] link: done (stmts=" + oren_int_to_string(oren_list_len(linked["statements"])) + ")") }
+    return linked
+}

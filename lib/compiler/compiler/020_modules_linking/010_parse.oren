@@ -1,0 +1,700 @@
+                var msg2 = oren_err_msg(src2)
+                if msg2 == nil { msg2 = "failed to read" }
+                return {"ok": false, "err": msg2}
+            }
+            var r = _ml_scan_imports_in_src(inc_full, src2, config)
+            if r["ok"] != true { return r }
+            var imps = r["imports"]
+            var j = 0
+            while j < oren_list_len(imps) {
+                oren_list_push(out, imps[j])
+                j = j + 1
+            }
+        }
+        i = i + 1
+    }
+    return {"ok": true, "imports": out}
+}
+
+fn _ml_parse_program_for_module_serial(full, config) {
+    // Serial parser for a module, used inside parse workers to avoid nested spawning.
+    var includes = _ml_include_list_if_aggregator(full)
+    if includes == nil {
+        var rr = expand_includes_file_result(full, [])
+        if rr["ok"] != true { return nil }
+        var src = rr["src"]
+        return _ml_parse_program_from_src(full, src)
+    }
+    var merged_stmts = []
+    var merged_traits = []
+    var ii = 0
+    while ii < oren_list_len(includes) {
+        var inc_full = includes[ii]
+        var rr2 = expand_includes_file_result(inc_full, [])
+        if rr2["ok"] != true { return nil }
+        var src2 = rr2["src"]
+        var prog2 = _ml_parse_program_from_src(inc_full, src2)
+        var si = 0
+        while si < oren_list_len(prog2["statements"]) {
+            oren_list_push(merged_stmts, prog2["statements"][si])
+            si = si + 1
+        }
+        if prog2["traits"] != nil {
+            var ti = 0
+            while ti < oren_list_len(prog2["traits"]) {
+                oren_list_push(merged_traits, prog2["traits"][ti])
+                ti = ti + 1
+            }
+        }
+        ii = ii + 1
+    }
+    return {"statements": merged_stmts, "traits": merged_traits}
+}
+
+fn _ml_prepare_module_program_in_place(full, prefix, prog, config) {
+    // Apply the same per-module passes as `load_module`, but for already-parsed `prog`:
+    // - collect toplevel renames + namespace import aliases
+    // - rename in place
+    // - serde_json lowering (prefix-aware)
+    if prog == nil { return {"ok": false, "err": "nil program"} }
+    if prog["statements"] == nil || oren_is_list(prog["statements"]) != true {
+        return {"ok": false, "err": "invalid program (missing statements)"}
+    }
+
+    // Debug sugar (rolling): rewrite dbg(...)/dprint(...) to @debug print(...) before cfg filtering.
+    debug_sugar.lower_program_in_place(prog)
+
+    // Conditional compilation (rolling): filter out `@cfg(...)`-disabled declarations early
+    // so later passes (rename/serde/type lowering) do not see conflicting duplicates.
+    if config != nil {
+        cfg_lowering.lower_program_in_place(prog, config)
+        if prog["cfg_errors"] != nil && oren_is_list(prog["cfg_errors"]) == true && oren_list_len(prog["cfg_errors"]) > 0 {
+            var first_err = prog["cfg_errors"][0]
+            var msg0 = "cfg filtering failed in " + full
+            if first_err != nil { msg0 = msg0 + ": " + first_err }
+            return {"ok": false, "err": msg0, "errors": prog["cfg_errors"]}
+        }
+    }
+
+    var pairs = renamer.collect_toplevel_rename_pairs(prog, prefix)
+    var i = 0
+    while i < oren_list_len(prog["statements"]) {
+        var s = prog["statements"][i]
+        if s["type"] == "Import" {
+            var alias = s["name"]["value"]
+            if renamer.rename_lookup(pairs, alias) != "" {
+                return {"ok": false, "err": "import alias conflicts with top-level name: " + alias + " in " + full}
+            }
+            pairs[alias] = prefix + alias
+        }
+        i = i + 1
+    }
+    renamer.rename_program_in_place(prog, pairs)
+
+    serde_json.lower_program_in_place(prog, prefix)
+    if prog["serde_json_errors"] != nil && oren_is_list(prog["serde_json_errors"]) == true && oren_list_len(prog["serde_json_errors"]) > 0 {
+        var first_err = prog["serde_json_errors"][0]
+        var msg = "serde_json lowering failed in " + full
+        if first_err != nil { msg = msg + ": " + first_err }
+        return {"ok": false, "err": msg, "errors": prog["serde_json_errors"]}
+    }
+
+    return {"ok": true}
+}
+
+fn _ml_parse_and_prepare_module_result(full, prefix, config) {
+    // Parse a module (including include-aggregators), then apply per-module passes:
+    // - rename (namespace prefixing)
+    // - serde_json lowering
+    //
+    // Returns:
+    //   {"ok":true, "prog": program}
+    //   {"ok":false, "err": string, "errors": [string]?}
+    if full == nil { return {"ok": false, "err": "nil module path"} }
+    if prefix == nil { prefix = "" }
+
+    var prog = nil
+    var cache_path = nil
+    var includes = _ml_include_list_if_aggregator(full)
+    if includes == nil {
+        var rr = expand_includes_file_result(full, [])
+        if rr["ok"] != true {
+            var msg = rr["err"]
+            if msg == nil { msg = "failed to read " + full }
+            return {"ok": false, "err": msg}
+        }
+        var src = rr["src"]
+        var src_fp = _ml_fingerprint2_string(src)
+        if _ml_modcache_enabled() == true {
+            cache_path = _ml_modcache_path_for_module(full, prefix, src_fp, config)
+            if cache_path != nil {
+                var bs_hit = oren_read_u8_buf(cache_path)
+                if !oren_is_err(bs_hit) {
+                    var prog_hit = astbin_decode(bs_hit)
+                    if prog_hit != nil && prog_hit["statements"] != nil && oren_is_list(prog_hit["statements"]) == true {
+                        if _ml_modcache_trace_enabled() == true && _ML_MODCACHE_TRACE_CNT < 5 {
+                            _ML_MODCACHE_TRACE_CNT = _ML_MODCACHE_TRACE_CNT + 1
+                            print("[modcache] hit " + cache_path)
+                        }
+                        // Return both the decoded program and the original ASTBIN bytes so fork-parallel
+                        // workers can avoid re-encoding work (a major win for large stdlib graphs).
+                        return {"ok": true, "prog": prog_hit, "astbin": bs_hit, "cache_path": cache_path, "cache_hit": true}
+                    }
+                }
+            }
+        }
+        var pr = _ml_parse_program_from_src_result(full, src)
+        if pr["ok"] != true { return pr }
+        prog = pr["prog"]
+    } else {
+        var merged_stmts = []
+        var merged_traits = []
+        var ii = 0
+        while ii < oren_list_len(includes) {
+            var inc_full = includes[ii]
+            var rr2 = expand_includes_file_result(inc_full, [])
+            if rr2["ok"] != true {
+                var msg2 = rr2["err"]
+                if msg2 == nil { msg2 = "failed to read " + inc_full }
+                return {"ok": false, "err": msg2}
+            }
+            var src2 = rr2["src"]
+            var pr2 = _ml_parse_program_from_src_result(inc_full, src2)
+            if pr2["ok"] != true {
+                if pr2["errors"] != nil { return {"ok": false, "err": "parse errors in " + inc_full, "errors": pr2["errors"]} }
+                return {"ok": false, "err": "parse failed in " + inc_full}
+            }
+            var prog2 = pr2["prog"]
+            var si = 0
+            while si < oren_list_len(prog2["statements"]) {
+                oren_list_push(merged_stmts, prog2["statements"][si])
+                si = si + 1
+            }
+            if prog2["traits"] != nil {
+                var ti = 0
+                while ti < oren_list_len(prog2["traits"]) {
+                    oren_list_push(merged_traits, prog2["traits"][ti])
+                    ti = ti + 1
+                }
+            }
+            ii = ii + 1
+        }
+        prog = {"statements": merged_stmts, "traits": merged_traits}
+    }
+
+    var prep = _ml_prepare_module_program_in_place(full, prefix, prog, config)
+    if prep["ok"] != true { return prep }
+    // Note: cache write happens in parse workers (when fork-parallel is enabled) to avoid
+    // extra astbin encoding work in the serial/thread parse paths.
+    return {"ok": true, "prog": prog, "cache_path": cache_path}
+}
+
+fn _ml_parse_module_bucket(bucket, out_dir, log_path, config) {
+    // Worker: parse + rename + serde_json lowering for a list of modules.
+    //
+    // bucket items: {"path":full, "prefix":prefix}
+    if bucket == nil { return 0 }
+    if out_dir == nil { return 1 }
+    if log_path == nil { log_path = path_norm(out_dir + "/logs/worker_unknown.log") }
+    ensure_dir(out_dir)
+    ensure_dir(path_norm(out_dir + "/logs"))
+
+    var log = ""
+    log = log + "worker start\n"
+    // Native backend currently does not reliably support assignment to an outer local from inside
+    // an `if` block (rolling scoping bug). Prefer single-expression init.
+    var trace = (oren_env("OREN_PARSE_WORKER_TRACE") != nil)
+    // Create the log file early so the parent can distinguish:
+    // - "log missing" => worker crashed before user-level error handling
+    // - "log present with FAIL" => worker reported a structured failure
+    oren_write_file(log_path, log)
+
+    var bi = 0
+    while bi < oren_list_len(bucket) {
+        var item = bucket[bi]
+        var full = item["path"]
+        var prefix = item["prefix"]
+
+        log = log + "module: " + full + "\n"
+        // Best-effort progress checkpoint for crash diagnostics.
+        // (Overwrites the file; deterministic and simple.)
+        oren_write_file(log_path, log)
+
+        var rr = _ml_parse_and_prepare_module_result(full, prefix, config)
+        if rr["ok"] != true {
+            log = log + "FAIL: " + full + "\n"
+            if rr["err"] != nil { log = log + rr["err"] + "\n" }
+            if rr["errors"] != nil {
+                var ei = 0
+                while ei < oren_list_len(rr["errors"]) {
+                    log = log + rr["errors"][ei] + "\n"
+                    ei = ei + 1
+                }
+            }
+            oren_write_file(log_path, log)
+            return 1
+        }
+        var prog = rr["prog"]
+        var cache_path = rr["cache_path"]
+        log = log + "  ok: parsed\n"
+        log = log + "  ok: renamed\n"
+        log = log + "  ok: serde_json\n"
+        oren_write_file(log_path, log)
+
+        var bs = rr["astbin"]
+        if bs == nil {
+            log = log + "  step: astbin_encode\n"
+            oren_write_file(log_path, log)
+            bs = astbin_encode(prog)
+            log = log + "  ok: astbin_encode\n"
+            oren_write_file(log_path, log)
+        } else {
+            log = log + "  ok: astbin_cache_hit\n"
+            oren_write_file(log_path, log)
+        }
+        var out_path = path_norm(out_dir + "/" + _sha256_hex_string(full) + ".astbin")
+        var tmp = out_path + ".tmp"
+        var w = oren_write_bytes(tmp, bs)
+        if oren_is_err(w) {
+            log = log + "FAIL write: " + tmp + "\n"
+            var em = oren_err_msg(w)
+            if em != nil { log = log + em + "\n" }
+            oren_write_file(log_path, log)
+            return 1
+        }
+        oren_rename(tmp, out_path)
+        log = log + "  ok: wrote astbin\n"
+        oren_write_file(log_path, log)
+
+        // Best-effort: persist a stable module cache copy (for reuse across separate compiler processes).
+        if cache_path != nil && _ml_modcache_enabled() == true {
+            ensure_dir(dirname(cache_path))
+            var tmpc = cache_path + ".tmp"
+            var wc = oren_write_bytes(tmpc, bs)
+            if !oren_is_err(wc) {
+                oren_rename(tmpc, cache_path)
+            }
+            if _ml_modcache_trace_enabled() == true && _ML_MODCACHE_TRACE_CNT < 5 {
+                _ML_MODCACHE_TRACE_CNT = _ML_MODCACHE_TRACE_CNT + 1
+                print("[modcache] wrote " + cache_path)
+            }
+        } else {
+            if _ml_modcache_trace_enabled() == true && _ML_MODCACHE_TRACE_CNT < 5 {
+                _ML_MODCACHE_TRACE_CNT = _ML_MODCACHE_TRACE_CNT + 1
+                var cp = cache_path
+                if cp == nil { cp = "nil" }
+                print("[modcache] skip full=" + full + " cache_path=" + cp)
+            }
+        }
+        bi = bi + 1
+    }
+
+    log = log + "worker ok\n"
+    oren_write_file(log_path, log)
+    return 0
+}
+
+fn _ml_parse_module_bucket_mem(bucket, config) {
+    // Thread-mode worker: parse + rename + serde_json lowering for a list of modules.
+    //
+    // Contract: returns a structured result so the parent can surface errors deterministically.
+    // This is only used when `spawn` is backed by threads (shared memory).
+    if bucket == nil { return {"ok": true, "count": 0} }
+    var bi = 0
+    var trace = (oren_env("OREN_PARSE_WORKER_TRACE") != nil)
+    while bi < oren_list_len(bucket) {
+        var item = bucket[bi]
+        var full = item["path"]
+        var prefix = item["prefix"]
+        if trace {
+            print("[trace] parse worker module: " + full)
+        }
+
+        var rr = _ml_parse_and_prepare_module_result(full, prefix, config)
+        if rr["ok"] != true {
+            return {"ok": false, "path": full, "err": rr["err"], "errors": rr["errors"]}
+        }
+
+        // Avoid returning pointer-heavy ASTs through join results.
+        // In thread mode (shared memory), attach directly to the module record.
+        var mrec = MODULES[full]
+        if mrec == nil {
+            return {"ok": false, "path": full, "err": "internal: module record missing", "errors": []}
+        }
+        mrec["program"] = rr["prog"]
+        bi = bi + 1
+    }
+    return {"ok": true, "count": oren_list_len(bucket)}
+}
+
+fn _ml_parse_program_for_module(full, config) {
+    // Parse a module, with a fast path for include-aggregator modules.
+    var includes = _ml_include_list_if_aggregator(full)
+    if includes == nil {
+        var rr = expand_includes_file_result(full, [])
+        if rr["ok"] != true { return nil }
+        var src = rr["src"]
+        return _ml_parse_program_from_src(full, src)
+    }
+
+    var jobs = _ml_parse_jobs()
+    // Optional progress prints (bounded, for remote hang triage).
+    // Enabled via env so normal builds stay quiet:
+    //   OREN_PARSE_PROGRESS=1
+    var want_progress = (oren_env("OREN_PARSE_PROGRESS") != nil)
+    var next_progress_ns = 0
+    if want_progress {
+        // Print immediately on entry, then rate-limit to ~1Hz.
+        next_progress_ns = oren_time_now_ns()
+        print("[progress] include-agg: " + full + " includes=" + oren_int_to_string(oren_list_len(includes)) + " jobs=" + oren_int_to_string(jobs))
+    }
+    if oren_env("OREN_TRACE_PASSES") != nil {
+        print("[trace] include-agg: " + full + " includes=" + oren_int_to_string(oren_list_len(includes)) + " jobs=" + oren_int_to_string(jobs))
+    }
+    // Always avoid building a giant concatenated source string for include aggregators.
+    // Use in-process parsing when jobs==1.
+    if jobs <= 1 {
+        var merged_stmts = []
+        var merged_traits = []
+        var ii = 0
+        while ii < oren_list_len(includes) {
+            var inc_full = includes[ii]
+            if want_progress {
+                // Rate-limit to avoid huge logs: check time only every 64 includes.
+                if _imod(ii, 64) == 0 {
+                    var now_ns = oren_time_now_ns()
+                    if now_ns >= next_progress_ns {
+                        print("[progress] include-agg: " + full + " parsed=" + oren_int_to_string(ii) + "/" + oren_int_to_string(oren_list_len(includes)))
+                        next_progress_ns = now_ns + 1000000000
+                    }
+                }
+            }
+            var rr2 = expand_includes_file_result(inc_full, [])
+            if rr2["ok"] != true {
+                print("Failed to read file: " + inc_full)
+                if rr2["err"] != nil { print(rr2["err"]) }
+                oren_exit(1)
+            }
+            var src2 = rr2["src"]
+            var prog2 = _ml_parse_program_from_src(inc_full, src2)
+            var si = 0
+            while si < oren_list_len(prog2["statements"]) {
+                oren_list_push(merged_stmts, prog2["statements"][si])
+                si = si + 1
+            }
+            if prog2["traits"] != nil {
+                var ti = 0
+                while ti < oren_list_len(prog2["traits"]) {
+                    oren_list_push(merged_traits, prog2["traits"][ti])
+                    ti = ti + 1
+                }
+            }
+            ii = ii + 1
+        }
+        if want_progress {
+            print("[progress] include-agg: " + full + " parsed=" + oren_int_to_string(oren_list_len(includes)) + "/" + oren_int_to_string(oren_list_len(includes)))
+        }
+        return {"statements": merged_stmts, "traits": merged_traits}
+    }
+
+    // Parallel: distribute include children across forked workers, then merge astbins.
+    var out_dir = path_norm("build/tmp/parse_includes/" + _sha256_hex_string(full))
+    ensure_dir(out_dir)
+
+    var buckets = []
+    var bi = 0
+    while bi < jobs {
+        oren_list_push(buckets, [])
+        bi = bi + 1
+    }
+    var ix = 0
+    while ix < oren_list_len(includes) {
+        var b = _imod(ix, jobs)
+        oren_list_push(buckets[b], includes[ix])
+        ix = ix + 1
+    }
+
+    var handles = []
+    bi = 0
+    while bi < oren_list_len(buckets) {
+        if oren_list_len(buckets[bi]) > 0 {
+            var h = spawn _ml_parse_include_bucket(buckets[bi], out_dir)
+            oren_list_push(handles, h)
+        }
+        bi = bi + 1
+    }
+
+    // While workers run, the parent stays on CPU (dependency loading below happens after parse).
+    var hi = 0
+    while hi < oren_list_len(handles) {
+        var rc = oren_join(handles[hi])
+        if rc != 0 {
+            print("Include parse worker failed for module: " + full)
+            oren_exit(1)
+        }
+        hi = hi + 1
+    }
+
+    var merged_stmts2 = []
+    var merged_traits2 = []
+    ix = 0
+    while ix < oren_list_len(includes) {
+        var inc_full3 = includes[ix]
+        var p = path_norm(out_dir + "/" + _sha256_hex_string(inc_full3) + ".astbin")
+        var bs2 = oren_read_u8_buf(p)
+        if oren_is_err(bs2) {
+            print("Failed to read: " + p)
+            var em2 = oren_err_msg(bs2)
+            if em2 != nil { print(em2) }
+            oren_exit(1)
+        }
+        var prog3 = astbin_decode(bs2)
+        if prog3 == nil {
+            print("Failed to decode astbin: " + p)
+            oren_exit(1)
+        }
+        var si2 = 0
+        while si2 < oren_list_len(prog3["statements"]) {
+            oren_list_push(merged_stmts2, prog3["statements"][si2])
+            si2 = si2 + 1
+        }
+        if prog3["traits"] != nil {
+            var ti2 = 0
+            while ti2 < oren_list_len(prog3["traits"]) {
+                oren_list_push(merged_traits2, prog3["traits"][ti2])
+                ti2 = ti2 + 1
+            }
+        }
+        ix = ix + 1
+    }
+    return {"statements": merged_stmts2, "traits": merged_traits2}
+}
+
+fn discover_module(base, path, config) {
+    // Dependency discovery + deterministic prefix assignment (cheap).
+    //
+    // This is the fast phase of the stage2 pipeline:
+    // - walk the import graph using lexer-only import scanning
+    // - assign module prefixes in the same deterministic order as legacy load_module
+    // - build MODULE_ORDER without constructing full ASTs
+    var std_mode = nil
+    if config != nil { std_mode = config["stdlib_mode"] }
+    var is_std = _is_std_spec(path)
+
+    var full = nil
+    if is_std && std_mode == "obc" {
+        full = _canonical_std_spec(path)
+    } else {
+        full = resolve_import_path(base, path)
+    }
+    if MODULES[full] != nil {
+        return MODULES[full]
+    }
+
+    if oren_env("OREN_TRACE_PASSES") != nil {
+        print("[trace] discover_module: " + full)
+    }
+
+    // Cycle check
+    var k = 0
+    while k < oren_list_len(MODULE_STACK) {
+        if MODULE_STACK[k] == full {
+            print("Cyclic import detected: " + full)
+            oren_exit(1)
+        }
+        k = k + 1
+    }
+    oren_list_push(MODULE_STACK, full)
+
+    // Extern stdlib module (bytecode stdlib linking mode).
+    if is_std && std_mode == "obc" {
+        var mod = {"prefix": _stable_std_prefix(path), "path": full, "program": {"statements": [], "traits": []}, "aliases": {}, "imports": [], "added": false}
+        MODULES[full] = mod
+        if mod["added"] != true {
+            mod["added"] = true
+            oren_list_push(MODULE_ORDER, mod)
+        }
+        // Pop cycle-check stack.
+        var new_stack = []
+        var si = 0
+        var sl = oren_list_len(MODULE_STACK)
+        while si + 1 < sl {
+            oren_list_push(new_stack, MODULE_STACK[si])
+            si = si + 1
+        }
+        MODULE_STACK = new_stack
+        return mod
+    }
+
+    var prefix = _ml_stable_module_prefix_from_full(full)
+    if is_std { prefix = _stable_std_prefix(path) }
+    var mod2 = {"prefix": prefix, "path": full, "program": nil, "aliases": {}, "imports": [], "added": false}
+    MODULES[full] = mod2
+
+    // Scan imports cheaply and recurse.
+    var scan = _ml_scan_imports_for_module(full, config)
+    if scan["ok"] != true {
+        print("Failed to scan imports in: " + full)
+        if scan["err"] != nil { print(scan["err"]) }
+        oren_exit(1)
+    }
+    var seen_alias = {}
+    var dir = dirname(full)
+    var imports = scan["imports"]
+    var i = 0
+    while i < oren_list_len(imports) {
+        var e = imports[i]
+        var alias = e["alias"]
+        if alias == nil { alias = "" }
+        if seen_alias[alias] != nil {
+            print("Duplicate import alias: " + alias + " in " + full)
+            oren_exit(1)
+        }
+        seen_alias[alias] = true
+        var dep = discover_module(dir, e["path"], config)
+        var alias_ns = mod2["prefix"] + alias
+        mod2["aliases"][alias_ns] = dep["prefix"]
+        oren_list_push(mod2["imports"], {"alias": alias, "alias_ns": alias_ns, "path": e["path"], "prefix": dep["prefix"], "full": dep["path"]})
+        i = i + 1
+    }
+
+    if mod2["added"] != true {
+        mod2["added"] = true
+        oren_list_push(MODULE_ORDER, mod2)
+    }
+
+    // Pop cycle-check stack.
+    var new_stack2 = []
+    var si2 = 0
+    var sl2 = oren_list_len(MODULE_STACK)
+    while si2 + 1 < sl2 {
+        oren_list_push(new_stack2, MODULE_STACK[si2])
+        si2 = si2 + 1
+    }
+    MODULE_STACK = new_stack2
+    return mod2
+}
+
+fn _ml_parse_discovered_modules_serial(config) {
+    var i = 0
+    while i < oren_list_len(MODULE_ORDER) {
+        var m = MODULE_ORDER[i]
+        if m["program"] == nil {
+            if oren_env("OREN_PARSE_WORKER_TRACE") != nil {
+                print("[trace] parse serial module: " + m["path"])
+            }
+            var rr = _ml_parse_and_prepare_module_result(m["path"], m["prefix"], config)
+            if rr["ok"] != true {
+                print("Failed to parse module: " + m["path"])
+                if rr["err"] != nil { print(rr["err"]) }
+                if rr["errors"] != nil {
+                    var ei = 0
+                    while ei < oren_list_len(rr["errors"]) {
+                        print(rr["errors"][ei])
+                        ei = ei + 1
+                    }
+                }
+                oren_exit(1)
+            }
+            m["program"] = rr["prog"]
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+fn _ml_parse_discovered_modules_parallel(config) {
+    var jobs = _ml_parse_jobs()
+    if jobs <= 1 { jobs = 1 }
+    if jobs <= 1 { return _ml_parse_discovered_modules_serial(config) }
+    // Decide whether we're in "fork spawn" mode (process boundary) or "thread spawn" mode
+    // (shared memory) for this runtime.
+    //
+    // - C runtime: default is thread mode; env `OREN_SPAWN_FORK=1` forces fork mode.
+    // - Native runtime (macOS/Linux today): spawn is fork-based, so fork mode is required.
+    var fork_mode = false
+    var v_fork = oren_env("OREN_SPAWN_FORK")
+    if v_fork != nil && v_fork == "1" { fork_mode = true }
+    else { if _ml_spawn_is_thread_mode() != true { fork_mode = true } }
+
+    // In fork-spawn mode, workers cannot return pointer-backed values across the process
+    // boundary. The ASTBIN file bounce is correct but expensive; prefer in-process parse
+    // for the stage2 (<3min) gate unless explicitly forced.
+    if fork_mode && oren_env("OREN_PARSE_FORK_PARALLEL") == nil {
+        return _ml_parse_discovered_modules_serial(config)
+    }
+    // Deterministic, single-build temp directory (rolling).
+    // Workers write per-module files keyed by sha(path), so concurrent builds don't collide
+    // unless they share the same workspace directory at the same time.
+    var out_dir = path_norm("build/tmp/parse_modules")
+    ensure_dir(out_dir)
+    ensure_dir(path_norm(out_dir + "/logs"))
+
+    // Build a worklist in deterministic MODULE_ORDER.
+    var work = []
+    var i = 0
+    while i < oren_list_len(MODULE_ORDER) {
+        var m = MODULE_ORDER[i]
+        // Skip external stdlib (already has a program).
+        if m["program"] == nil {
+            oren_list_push(work, {"path": m["path"], "prefix": m["prefix"]})
+        }
+        i = i + 1
+    }
+    if oren_list_len(work) == 0 { return 0 }
+
+    // Debug mode: isolate failures by running one module per worker bucket.
+    // Enable with: OREN_PARSE_DEBUG_SINGLE=1
+    if oren_env("OREN_PARSE_DEBUG_SINGLE") != nil {
+        jobs = oren_list_len(work)
+        if jobs < 1 { jobs = 1 }
+        if jobs > 64 { jobs = 64 } // keep bounded
+    }
+
+    // Bucketize modules across jobs.
+    var buckets = []
+    var bi = 0
+    while bi < jobs {
+        oren_list_push(buckets, [])
+        bi = bi + 1
+    }
+    i = 0
+    while i < oren_list_len(work) {
+        var b = _imod(i, jobs)
+        if oren_env("OREN_PARSE_DEBUG_SINGLE") != nil {
+            // Force one module per bucket (first N modules if jobs is capped).
+            b = i
+            if b >= jobs { break }
+        }
+        oren_list_push(buckets[b], work[i])
+        i = i + 1
+    }
+
+    var handles = []
+    bi = 0
+    while bi < oren_list_len(buckets) {
+        if oren_list_len(buckets[bi]) > 0 {
+            if fork_mode {
+                var lp = path_norm(out_dir + "/logs/worker_" + oren_int_to_string(bi) + ".log")
+                var h = spawn _ml_parse_module_bucket(buckets[bi], out_dir, lp, config)
+                // Keep the bucket alongside the handle so we can diagnose failures.
+                oren_list_push(handles, {"h": h, "bucket": buckets[bi], "log": lp})
+            } else {
+                var h2 = spawn _ml_parse_module_bucket_mem(buckets[bi], config)
+                oren_list_push(handles, {"h": h2, "bucket": buckets[bi]})
+            }
+        }
+        bi = bi + 1
+    }
+
+    var failed = false
+    // Join strategy:
+    // - In fork mode we must `join` directly (process boundary).
+    // - In thread mode, joining one handle at a time can cause long "no output" gaps and
+    //   can also interact poorly with stop-the-world GC if the main thread blocks in join.
+    //
+    // Use `oren_is_done(handle)` to join only completed workers, and poll progress with
+    // short sleeps so `OREN_TRACE_PHASES` users see forward motion without external scripts.
+    if fork_mode {
+        var hi = 0
+        while hi < oren_list_len(handles) {
