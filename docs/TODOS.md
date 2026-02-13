@@ -616,10 +616,14 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 								     - 2026-01-16: strengthened multi-P work-stealing regression:
 								       - Runtime: stealing now chooses the most-loaded victim P (under the scheduler lock) and records debug counters.
 								       - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_multi_p_single_thread_poll_steal`) now asserts `steal_count > 0` and last victim is P2.
-					     - 2026-01-16: fixed loopback NET fixtures that spawn in-process servers on POSIX:
-					       - Problem: `spawn` prefers green tasks, but some fixtures ran a blocking client call on the main thread, starving the server green task (timeout).
-					       - Fix: enable green worker mode up front in the spawned-server fixtures (unless `OREN_NO_GREEN` disables green tasks).
-					       - Guards: `make verify-x64-linux-qemu-net` (covers `tests/native/test_dns_loopback.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren`)
+						     - 2026-01-16: fixed loopback NET fixtures that spawn in-process servers on POSIX:
+						       - Problem: `spawn` prefers green tasks, but some fixtures ran a blocking client call on the main thread, starving the server green task (timeout).
+						       - Fix: enable green worker mode up front in the spawned-server fixtures (unless `OREN_NO_GREEN` disables green tasks).
+						       - Guards: `make verify-x64-linux-qemu-net` (covers `tests/native/test_dns_loopback.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren`)
+						     - 2026-02-13: x64-windows green worker mode crashes TLS-over-HTTP fixtures (access violation):
+						       - Affects: `https_loopback`, `wss_loopback`, `http2_*` loopback tests on Win11 when green workers are enabled.
+						       - Workaround (rolling): `scripts/verify_native_net_matrix.sh` sets `OREN_NO_GREEN=1` for `https_*`, `wss_*`, `http2_*` on x64-win.
+						       - TODO: fix green worker + Schannel + HTTP/WS/HTTP2 interaction so these run with green enabled.
 					     - 2026-01-16: made `oren_time_mono_ns()` conversion exact on macOS/Windows (no wall-clock calibration):
 					       - macOS: uses `mach_timebase_info` (num/den) to convert gettimeofday’s `mach_absolute_time` out-arg to ns.
 					       - Windows: uses `QueryPerformanceFrequency` for QPC ticks -> ns (backend exposes `sys_qpc_frequency`).

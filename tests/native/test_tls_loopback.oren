@@ -54,6 +54,28 @@ fn u16be_at(p, off) {
     return (hi << 8) | lo
 }
 
+fn _env_truthy(name) {
+    var p = oren_getenv(name)
+    if p == 0 { return 0 }
+    var b = ptr_get_byte(p)
+    if b == 0 { return 0 }
+    if b == 48 { return 0 } // '0'
+    return 1
+}
+
+fn _ensure_workers_for_spawned_servers(test_name) {
+    // `spawn` prefers in-process green tasks on Tier‑1 (including Windows).
+    // These loopback fixtures run servers concurrently with blocking client operations,
+    // so enable worker mode up front.
+    if _env_truthy("OREN_NO_GREEN") == 1 { return 0 }
+    var rcw = oren_green_start_workers(1)
+    if rcw != 0 {
+        print(test_name + ": FAIL cannot start green workers rc=" + oren_int_to_string(rcw))
+        exit(109)
+    }
+    return 0
+}
+
 @cfg(not_os="macos,linux,windows")
 fn main() {
     // TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/NET_TLS.md.
@@ -142,6 +164,8 @@ fn main_client() {
     free(sa)
     free(lenp)
     if port <= 0 { exit(7) }
+
+    _ensure_workers_for_spawned_servers("tls_loopback")
 
     // Windows spawn is thread-based (CreateThread); use a return-code worker.
     var h = spawn server_main(listen_fd, fixture.pkcs12_b64())

@@ -18,9 +18,9 @@ fn _env_truthy(name) {
 }
 
 fn _ensure_workers_for_spawned_servers(test_name) {
-    // On POSIX targets, `spawn` prefers in-process green tasks. These loopback fixtures run servers
-    // concurrently with blocking client operations, so enable worker mode up front.
-    if g_target_os == 3 { return 0 }
+    // `spawn` prefers in-process green tasks on Tier‑1 (including Windows).
+    // These loopback fixtures run servers concurrently with blocking client operations,
+    // so enable worker mode up front.
     if _env_truthy("OREN_NO_GREEN") == 1 { return 0 }
     var rcw = oren_green_start_workers(1)
     if rcw != 0 {

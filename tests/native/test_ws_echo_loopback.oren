@@ -18,7 +18,7 @@ fn _env_truthy(name) {
 }
 
 fn _ensure_workers_for_spawned_servers(test_name) {
-    if g_target_os == 3 { return 0 }
+    // `spawn` prefers in-process green tasks on Tier‑1 (including Windows).
     if _env_truthy("OREN_NO_GREEN") == 1 { return 0 }
     var rcw = oren_green_start_workers(1)
     if rcw != 0 {

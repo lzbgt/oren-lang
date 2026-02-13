@@ -258,6 +258,9 @@ As of **2026-01-10 (rolling)**, `std:net/tls` has a Windows provider implemented
     - `tests/native/test_tls_loopback.oren`
     - `tests/native/test_https_get_loopback.oren`
     - `tests/native/test_wss_echo_loopback.oren`
+  - Rolling limitation (2026-02-13): on Win11, green-worker mode can crash TLS-over-HTTP/WS/HTTP2 loopback
+    clients (access violation). The net matrix runs `https_*`, `wss_*`, and `http2_*` with `OREN_NO_GREEN=1`
+    until the green+Schannel+HTTP path is fixed.
 
 Implementation notes (Windows):
 
