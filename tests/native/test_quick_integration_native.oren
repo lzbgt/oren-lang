@@ -226,6 +226,17 @@ fn test_cfg_debug_release() {
         print("QI: debug/release shorthand mismatch hit2=" + oren_int_to_string(hit2))
         fail(75)
     }
+    var hit3 = 0
+    debug {
+        hit3 = hit3 + 16
+    }
+    release {
+        hit3 = hit3 + 32
+    }
+    if hit3 != 16 && hit3 != 32 {
+        print("QI: debug/release block mismatch hit3=" + oren_int_to_string(hit3))
+        fail(76)
+    }
     dbg("QI: dbg sugar")
     @cfg("debug") dbg("QI: dbg sugar cfg")
     return 0

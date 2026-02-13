@@ -388,6 +388,16 @@ fn parse_statement(p) {
     if cur_is(p, token.TOK_SPAWN) { return parse_spawn(p) }
     if cur_is(p, token.TOK_LBRACE) { return parse_block(p) }
     if cur_is(p, token.TOK_IDENT) {
+        var lit = p["cur"]["literal"]
+        if (lit == "debug" || lit == "release") && peek_is(p, token.TOK_LBRACE) {
+            var attr_name = "oren.debug"
+            if lit == "release" { attr_name = "oren.release" }
+            var attr = {"type": "Attr", "token": p["cur"], "name": attr_name, "args": []}
+            parser_next_token(p) // '{'
+            var block = parse_block(p)
+            if block != nil { attach_attrs_to_stmt(p, block, [attr]) }
+            return block
+        }
         // Contextual keyword: `match` is only treated as a statement when it is not
         // being used as an identifier (var name, call, member, indexing, etc.).
         if p["cur"]["literal"] == "match" {

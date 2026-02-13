@@ -384,6 +384,9 @@ Build-profile note (rolling):
     - `@debug` ⇒ `@cfg("debug")`
     - `@release` ⇒ `@cfg("release")`
     - Both are **arg‑less** and follow the same statement/declaration rules as `@cfg`.
+  - Block sugar exists for multi-line sections:
+    - `debug { ... }` ⇒ `@debug { ... }`
+    - `release { ... }` ⇒ `@release { ... }`
   - Statement sugar: `dbg(...)` expands to `@debug print(...)` with a `file:line` prefix.
     - It is statement-level only (not expression forms).
 

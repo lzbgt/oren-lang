@@ -501,21 +501,27 @@ Important limitations (current implementation):
 
 Build-profile note:
 
-- Debug/release selectors are driven by the compiler’s build profile:
-  - Native builds default to **debug** (for readable stack traces).
-  - `--no-debug` (or `OREN_NATIVE_NO_DEBUG=1`) selects **release**.
-  - Shorthand attributes exist:
-    - `@debug` ⇒ `@cfg("debug")`
-    - `@release` ⇒ `@cfg("release")`
-    - Both are **arg‑less** and follow the same statement/declaration rules as `@cfg`.
-  - `dbg(...)` is statement-level sugar that expands to `@debug print(...)` with a `file:line` prefix.
-    - It is **not** an expression; use it as a standalone statement.
+  - Debug/release selectors are driven by the compiler’s build profile:
+    - Native builds default to **debug** (for readable stack traces).
+    - `--no-debug` (or `OREN_NATIVE_NO_DEBUG=1`) selects **release**.
+    - Shorthand attributes exist:
+      - `@debug` ⇒ `@cfg("debug")`
+      - `@release` ⇒ `@cfg("release")`
+      - Both are **arg‑less** and follow the same statement/declaration rules as `@cfg`.
+    - Block sugar exists for multi-line sections:
+      - `debug { ... }` ⇒ `@debug { ... }`
+      - `release { ... }` ⇒ `@release { ... }`
+    - `dbg(...)` is statement-level sugar that expands to `@debug print(...)` with a `file:line` prefix.
+      - It is **not** an expression; use it as a standalone statement.
 
 Example (debug-only trace without deleting code):
 
 ```oren
 fn work() {
     @debug print("trace: entering work()")
+    debug {
+        print("trace: entering work() (block)")
+    }
     // ... real logic ...
 }
 ```
