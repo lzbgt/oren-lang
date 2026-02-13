@@ -195,6 +195,11 @@ fn worker_green_hog_until_stop(meta) {
 
 fn worker_green_ret_one() { return 1 }
 
+fn worker_green_sp_align_mod16() {
+    var sp = get_sp()
+    return sp & 15
+}
+
 fn test_entropy() {
     trace("QI: test_entropy")
     // Smoke: OS entropy surface must exist and be bounded (no hangs).
@@ -1120,6 +1125,19 @@ fn test_green_acquire_p_rejects_in_green() {
     var h = spawn worker_green_try_acquire_p_in_green()
     var r = oren_join_timeout(h, 2000)
     assert_eq(r, -1, 587)
+    return 0
+}
+
+fn test_green_sp_alignment_x64() {
+    @cfg(arch="x64") {
+        trace("QI: test_green_sp_alignment_x64")
+        var h = spawn worker_green_sp_align_mod16()
+        var got = oren_join(h)
+        if got != 8 {
+            print("QI: green sp alignment mismatch mod16=" + oren_int_to_string(got))
+            fail(588)
+        }
+    }
     return 0
 }
 
@@ -2273,6 +2291,7 @@ fn main() {
     test_green_start_workers_rejects_in_green()
     test_green_bind_p_rejects_in_green()
     test_green_acquire_p_rejects_in_green()
+    test_green_sp_alignment_x64()
     test_green_p_count_api()
     test_green_multi_p_single_thread_poll_steal()
     test_green_poll_cache_does_not_corrupt_p_ptr()

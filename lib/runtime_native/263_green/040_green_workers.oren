@@ -614,11 +614,12 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
     var base = sys_mmap_private_anon(stack_bytes)
     if base == 0 || base == -1 || base < 4096 { exit(906) }
     var top = base + stack_bytes
-    // Keep stack 16-byte aligned. Leave a small redzone.
+    // Keep stack aligned for ABI rules. Leave a small redzone.
     top = top - 32
     // Avoid relying on negative immediate masks: `(0 - 16)` can be mishandled by rolling
     // native backends when lowering wide immediates. Align down via arithmetic instead.
     top = (top / 16) * 16
+    @cfg(arch="x64") top = top - 8 // ctx_switch resumes via `ret`, so rsp+8 must be 16-byte aligned
 
     var ctx_ptr = sys_mmap_private_anon(green_ctx_bytes())
     if ctx_ptr == 0 || ctx_ptr == -1 || ctx_ptr < 4096 { exit(907) }
