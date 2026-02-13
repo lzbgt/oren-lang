@@ -284,6 +284,19 @@ fn _merge_attrs(existing, incoming) {
     return existing
 }
 
+fn _attrs_all_cfg(attrs) {
+    if attrs == nil { return false }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a != nil {
+            if a["type"] != "Attr" || a["name"] != "oren.cfg" { return false }
+        }
+        i = i + 1
+    }
+    return true
+}
+
 fn _attrs_count_name(attrs, nm) {
     if attrs == nil || nm == nil { return 0 }
     var n = 0
@@ -342,6 +355,12 @@ fn attach_attrs_to_stmt(p, stmt, attrs) {
             exp["attrs"] = _merge_attrs(exp["attrs"], attrs)
             return nil
         }
+    }
+
+    // Allow statement-level @cfg (rolling).
+    if _attrs_all_cfg(attrs) == true {
+        stmt["attrs"] = _merge_attrs(stmt["attrs"], attrs)
+        return nil
     }
 
     parser_add_error(p, "attributes may only precede declarations (fn/struct/class/import/ffi/var)")

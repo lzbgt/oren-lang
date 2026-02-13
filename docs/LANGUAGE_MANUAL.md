@@ -483,19 +483,36 @@ Supported selector forms (rolling v0):
   - `@cfg("linux")` / `@cfg("macos")` / `@cfg("windows")`
   - `@cfg("x64")` / `@cfg("arm64")`
   - `@cfg("x64-windows")` / `@cfg("arm64-linux")`
+  - `@cfg("debug")` / `@cfg("release")` (build profile)
 - Keyword selectors (CSV strings; AND across keys):
   - `@cfg(os="linux,macos")`
   - `@cfg(arch="x64")`
   - `@cfg(platform="arm64-linux")`
   - Negation keys: `not_os`, `not_arch`, `not_platform`
+  - `@cfg(debug=true)` / `@cfg(debug=false)`
 
 Important limitations (current implementation):
 
-- `@cfg` is implemented for **declarations** (`fn`, `struct`, `ffi`, `var`).
-- `@cfg` is **not** supported on statements or expressions inside a function body.
+- `@cfg` is implemented for **declarations** (`fn`, `struct`, `ffi`, `var`) and **statements** inside blocks.
+- `@cfg` is **not** supported on arbitrary expressions (use statement-level form).
 - If you use `@cfg` to provide multiple platform variants of the same declaration name, the variants must be **mutually exclusive** (otherwise you can get duplicate definitions).
 - `@cfg` is **not supported on `import` yet** (the stage2 fast import scan cannot respect conditional imports).
   - Gate declarations *inside* the imported module instead.
+
+Build-profile note:
+
+- Debug/release selectors are driven by the compiler’s build profile:
+  - Native builds default to **debug** (for readable stack traces).
+  - `--no-debug` (or `OREN_NATIVE_NO_DEBUG=1`) selects **release**.
+
+Example (debug-only trace without deleting code):
+
+```oren
+fn work() {
+    @cfg("debug") print("trace: entering work()")
+    // ... real logic ...
+}
+```
 
 Example (safe per‑OS declaration variants with a fallback):
 

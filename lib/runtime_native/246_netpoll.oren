@@ -65,6 +65,15 @@ var g_netpoll_iocp_free_lock_word = 0 // pointer to u64 lock word
 var g_netpoll_iocp_dummy_buf = 0
 var g_netpoll_iocp_flags_ptr = 0
 
+fn _netpoll_iocp_debug_enabled() {
+    var v = native_envp_get_value_ptr("OREN_NETPOLL_IOCP_DEBUG")
+    if v == 0 { return 0 }
+    var b = ptr_get_byte(v)
+    if b == 0 { return 0 }
+    if b == 48 { return 0 } // '0'
+    return 1
+}
+
 fn _netpoll_env_truthy(name) {
     var p = native_envp_get_value_ptr(name)
     if p == 0 { return 0 }
@@ -119,13 +128,13 @@ fn _native_netpoll_windows_init_iocp_once() {
         ptr_set(g_netpoll_iocp_free_lock_word, 0)
     }
     if g_netpoll_iocp_dummy_buf == 0 {
-        g_netpoll_iocp_dummy_buf = malloc_raw(1)
-        if g_netpoll_iocp_dummy_buf == 0 || g_netpoll_iocp_dummy_buf == -1 { return 0 - 12 }
+        g_netpoll_iocp_dummy_buf = native_malloc_raw_or_mmap(1)
+        if g_netpoll_iocp_dummy_buf == 0 { return 0 - 12 }
         ptr_set_byte(g_netpoll_iocp_dummy_buf, 0)
     }
     if g_netpoll_iocp_flags_ptr == 0 {
-        g_netpoll_iocp_flags_ptr = malloc_raw(8)
-        if g_netpoll_iocp_flags_ptr == 0 || g_netpoll_iocp_flags_ptr == -1 { return 0 - 12 }
+        g_netpoll_iocp_flags_ptr = native_malloc_raw_or_mmap(8)
+        if g_netpoll_iocp_flags_ptr == 0 { return 0 - 12 }
         ptr_set(g_netpoll_iocp_flags_ptr, 0)
     }
     return 0
@@ -301,6 +310,22 @@ fn _netpoll_watch_take_token_locked(fd, kind) {
             ptr_set(g_netpoll_watch_tokens + last * 8, 0)
             g_netpoll_watch_n = last
             return tok
+        }
+        ii = ii + 1
+    }
+    return 0
+}
+
+fn _netpoll_watch_peek_token_locked(fd, kind) {
+    // Return first matching (fd, kind) token without removing it.
+    // Caller must hold `_netpoll_watch_lock_acquire()`.
+    var nn = g_netpoll_watch_n
+    var ii = 0
+    while ii < nn {
+        var f2 = ptr_get(g_netpoll_watch_fds + ii * 8)
+        var k2 = ptr_get(g_netpoll_watch_kinds + ii * 8)
+        if f2 == fd && k2 == kind {
+            return ptr_get(g_netpoll_watch_tokens + ii * 8)
         }
         ii = ii + 1
     }
@@ -601,7 +626,7 @@ fn native_netpoll_is_wait_token(ptr) {
 //
 // Layout:
 // - [0..31]   OVERLAPPED / WSAOVERLAPPED (Win64 layout, 32 bytes)
-// - [32..]    netpoll wait metadata (magic + G + epoch + ready + bytes + rc)
+// - [32..]    netpoll wait metadata (magic + G + epoch + ready + bytes + rc + UDP prefetch fields)
 //
 // The token pointer returned by IOCP is the OVERLAPPED pointer, so we place the
 // magic after the OVERLAPPED header and use a dedicated predicate to detect it.
@@ -612,8 +637,15 @@ fn native_iocp_wait_off_epoch() { return 56 }      // u64: epoch (stale-event re
 fn native_iocp_wait_off_ready() { return 64 }      // u64: 0|1 (set by scheduler)
 fn native_iocp_wait_off_bytes() { return 72 }      // u64: bytes transferred (best-effort)
 fn native_iocp_wait_off_rc() { return 80 }         // i64: completion rc (future)
-fn native_iocp_wait_off_next() { return 88 }       // u64: free-list next
-fn native_iocp_wait_bytes() { return 96 }
+// UDP prefetch metadata (IOCP recvfrom readiness bridge).
+fn native_iocp_wait_off_udp_buf() { return 88 }      // u64: data buffer (owned)
+fn native_iocp_wait_off_udp_len() { return 96 }      // u64: buffer length
+fn native_iocp_wait_off_udp_sa() { return 104 }      // u64: sockaddr storage
+fn native_iocp_wait_off_udp_sa_lenp() { return 112 } // u64: sockaddr length ptr
+fn native_iocp_wait_off_udp_flags() { return 120 }   // u64: flags ptr
+fn native_iocp_wait_off_udp_kind() { return 128 }    // u64: 0|1 (udp prefetch active)
+fn native_iocp_wait_off_next() { return 136 }        // u64: free-list next
+fn native_iocp_wait_bytes() { return 144 }
 
 fn native_netpoll_is_iocp_wait_token(ptr) {
     if ptr == 0 { return false }
@@ -631,6 +663,44 @@ fn native_netpoll_iocp_wait_reset(ptr) {
     ptr_set(ptr + native_iocp_wait_off_ready(), 0)
     ptr_set(ptr + native_iocp_wait_off_bytes(), 0)
     ptr_set(ptr + native_iocp_wait_off_rc(), 0)
+    ptr_set(ptr + native_iocp_wait_off_udp_buf(), 0)
+    ptr_set(ptr + native_iocp_wait_off_udp_len(), 0)
+    ptr_set(ptr + native_iocp_wait_off_udp_sa(), 0)
+    ptr_set(ptr + native_iocp_wait_off_udp_sa_lenp(), 0)
+    ptr_set(ptr + native_iocp_wait_off_udp_flags(), 0)
+    ptr_set(ptr + native_iocp_wait_off_udp_kind(), 0)
+    return 0
+}
+
+fn _netpoll_iocp_wait_cleanup_udp(ptr) {
+    if ptr == 0 { return 0 }
+    var kind = ptr_get(ptr + native_iocp_wait_off_udp_kind())
+    if kind == 0 {
+        // Defensive: free any stray pointers if present.
+        var p0 = ptr_get(ptr + native_iocp_wait_off_udp_buf())
+        var p1 = ptr_get(ptr + native_iocp_wait_off_udp_sa())
+        var p2 = ptr_get(ptr + native_iocp_wait_off_udp_sa_lenp())
+        var p3 = ptr_get(ptr + native_iocp_wait_off_udp_flags())
+        if p0 != 0 { free(p0) }
+        if p1 != 0 { free(p1) }
+        if p2 != 0 { free(p2) }
+        if p3 != 0 { free(p3) }
+    } else {
+        var buf = ptr_get(ptr + native_iocp_wait_off_udp_buf())
+        var sa = ptr_get(ptr + native_iocp_wait_off_udp_sa())
+        var sa_lenp = ptr_get(ptr + native_iocp_wait_off_udp_sa_lenp())
+        var flags = ptr_get(ptr + native_iocp_wait_off_udp_flags())
+        if buf != 0 { free(buf) }
+        if sa != 0 { free(sa) }
+        if sa_lenp != 0 { free(sa_lenp) }
+        if flags != 0 { free(flags) }
+    }
+    ptr_set(ptr + native_iocp_wait_off_udp_buf(), 0)
+    ptr_set(ptr + native_iocp_wait_off_udp_len(), 0)
+    ptr_set(ptr + native_iocp_wait_off_udp_sa(), 0)
+    ptr_set(ptr + native_iocp_wait_off_udp_sa_lenp(), 0)
+    ptr_set(ptr + native_iocp_wait_off_udp_flags(), 0)
+    ptr_set(ptr + native_iocp_wait_off_udp_kind(), 0)
     return 0
 }
 
@@ -643,8 +713,9 @@ fn native_netpoll_iocp_wait_alloc() {
         _netpoll_iocp_lock_release()
     } else {
         _netpoll_iocp_lock_release()
-        head = malloc_raw(native_iocp_wait_bytes())
-        if head == 0 || head == -1 { return 0 }
+        // Use robust raw allocation: malloc_raw can be invalid on new targets.
+        head = native_malloc_raw_or_mmap(native_iocp_wait_bytes())
+        if head == 0 { return 0 }
     }
     ptr_set(head + native_iocp_wait_off_magic(), native_netpoll_wait_magic())
     ptr_set(head + native_iocp_wait_off_g(), 0)
@@ -660,6 +731,7 @@ fn native_netpoll_iocp_wait_alloc() {
 
 fn native_netpoll_iocp_wait_recycle(ptr) {
     if ptr == 0 { return 0 }
+    _netpoll_iocp_wait_cleanup_udp(ptr)
     ptr_set(ptr + native_iocp_wait_off_g(), 0)
     ptr_set(ptr + native_iocp_wait_off_case_idx(), 0)
     ptr_set(ptr + native_iocp_wait_off_epoch(), 0)
@@ -691,12 +763,101 @@ fn _netpoll_iocp_associate_fd(fd) {
 
 fn _netpoll_iocp_post_recv(fd, ov_ptr) {
     if g_netpoll_iocp_dummy_buf == 0 || g_netpoll_iocp_flags_ptr == 0 { return 0 - 78 }
-    return sys_wsarecv(fd, g_netpoll_iocp_dummy_buf, 0, g_netpoll_iocp_flags_ptr, ov_ptr)
+    var bytes_ptr = ov_ptr + native_iocp_wait_off_bytes()
+    return sys_wsarecv(fd, g_netpoll_iocp_dummy_buf, 0, g_netpoll_iocp_flags_ptr, bytes_ptr, ov_ptr)
 }
 
 fn _netpoll_iocp_post_send(fd, ov_ptr) {
     if g_netpoll_iocp_dummy_buf == 0 { return 0 - 78 }
-    return sys_wsasend(fd, g_netpoll_iocp_dummy_buf, 0, 0, ov_ptr)
+    var bytes_ptr = ov_ptr + native_iocp_wait_off_bytes()
+    return sys_wsasend(fd, g_netpoll_iocp_dummy_buf, 0, 0, bytes_ptr, ov_ptr)
+}
+
+fn _netpoll_iocp_is_udp_socket(fd) {
+    if fd < 0 { return 0 }
+    var val = malloc(8)
+    var lenp = malloc(8)
+    if val == 0 || lenp == 0 {
+        if val != 0 { free(val) }
+        if lenp != 0 { free(lenp) }
+        return 0
+    }
+    ptr_set(val, 0)
+    ptr_set(lenp, 4)
+    var rc = sys_getsockopt(fd, OREN_SOL_SOCKET, OREN_SO_TYPE, val, lenp)
+    if rc < 0 {
+        if _netpoll_iocp_debug_enabled() != 0 {
+            print("IOCP UDP: getsockopt SO_TYPE rc=")
+            print_int(rc)
+            print("\n")
+        }
+        free(val)
+        free(lenp)
+        return 0
+    }
+    var ty = ptr_get(val)
+    if _netpoll_iocp_debug_enabled() != 0 {
+        print("IOCP UDP: getsockopt SO_TYPE=")
+        print_int(ty)
+        print("\n")
+    }
+    free(val)
+    free(lenp)
+    if ty == OREN_SOCK_DGRAM { return 1 }
+    return 0
+}
+
+fn _netpoll_iocp_post_recvfrom(fd, ov_ptr) {
+    if ov_ptr == 0 { return 0 - 22 }
+    var buf = ptr_get(ov_ptr + native_iocp_wait_off_udp_buf())
+    var buf_len = ptr_get(ov_ptr + native_iocp_wait_off_udp_len())
+    var flags_ptr = ptr_get(ov_ptr + native_iocp_wait_off_udp_flags())
+    var sa = ptr_get(ov_ptr + native_iocp_wait_off_udp_sa())
+    var sa_lenp = ptr_get(ov_ptr + native_iocp_wait_off_udp_sa_lenp())
+    if buf == 0 || flags_ptr == 0 || sa == 0 || sa_lenp == 0 { return 0 - 78 }
+    if _netpoll_iocp_debug_enabled() != 0 {
+        print("IOCP UDP: post recvfrom\n")
+    }
+    ptr_set(sa_lenp, 16)
+    var bytes_ptr = ov_ptr + native_iocp_wait_off_bytes()
+    if _netpoll_iocp_debug_enabled() != 0 {
+        print("IOCP UDP: recvfrom args buf=")
+        print_int(buf)
+        print(" len=")
+        print_int(buf_len)
+        print(" flags=")
+        print_int(flags_ptr)
+        print(" sa=")
+        print_int(sa)
+        print(" sa_lenp=")
+        print_int(sa_lenp)
+        print(" bytes=")
+        print_int(bytes_ptr)
+        print(" ov=")
+        print_int(ov_ptr)
+        print("\n")
+    }
+    return sys_wsarecvfrom(fd, buf, buf_len, flags_ptr, bytes_ptr, ov_ptr, sa, sa_lenp)
+}
+
+fn native_netpoll_iocp_udp_peek(fd) {
+    if g_target_os != 3 { return 0 }
+    if g_netpoll_win_backend != _netpoll_win_backend_iocp() { return 0 }
+    if g_netpoll_watch_fds == 0 || g_netpoll_watch_tokens == 0 || g_netpoll_watch_kinds == 0 { return 0 }
+    _netpoll_watch_lock_acquire()
+    var tok = _netpoll_watch_peek_token_locked(fd, 0)
+    _netpoll_watch_lock_release()
+    return tok
+}
+
+fn native_netpoll_iocp_udp_take(fd) {
+    if g_target_os != 3 { return 0 }
+    if g_netpoll_win_backend != _netpoll_win_backend_iocp() { return 0 }
+    if g_netpoll_watch_fds == 0 || g_netpoll_watch_tokens == 0 || g_netpoll_watch_kinds == 0 { return 0 }
+    _netpoll_watch_lock_acquire()
+    var tok = _netpoll_watch_take_token_locked(fd, 0)
+    _netpoll_watch_lock_release()
+    return tok
 }
 
 fn native_netpoll_arm_fd(fd, want_write, token) {
@@ -746,11 +907,45 @@ fn native_netpoll_arm_fd(fd, want_write, token) {
             }
             if old_tok != 0 {
                 sys_cancel_io_ex(fd, old_tok)
+                if native_netpoll_is_iocp_wait_token(old_tok) == true {
+                    native_netpoll_iocp_wait_orphan(old_tok)
+                }
             }
 
             var rc_iocp = 0
+            var is_udp = 0
+            if want_write == 0 {
+                is_udp = _netpoll_iocp_is_udp_socket(fd)
+                if is_udp != 0 {
+                    var buf_len = 65536
+                    var buf = native_malloc_raw_or_mmap(buf_len)
+                    var sa = native_malloc_raw_or_mmap(32)
+                    var sa_lenp = native_malloc_raw_or_mmap(8)
+                    var flags = native_malloc_raw_or_mmap(8)
+                    if buf == 0 || sa == 0 || sa_lenp == 0 || flags == 0 {
+                        if buf != 0 && buf != -1 { free(buf) }
+                        if sa != 0 && sa != -1 { free(sa) }
+                        if sa_lenp != 0 && sa_lenp != -1 { free(sa_lenp) }
+                        if flags != 0 && flags != -1 { free(flags) }
+                        _netpoll_watch_lock_acquire()
+                        _netpoll_watch_take_token_locked(fd, want_write)
+                        _netpoll_watch_lock_release()
+                        return 0 - 12
+                    }
+                    ptr_set(flags, 0)
+                    ptr_set(sa_lenp, 16)
+                    ptr_set(token + native_iocp_wait_off_udp_buf(), buf)
+                    ptr_set(token + native_iocp_wait_off_udp_len(), buf_len)
+                    ptr_set(token + native_iocp_wait_off_udp_sa(), sa)
+                    ptr_set(token + native_iocp_wait_off_udp_sa_lenp(), sa_lenp)
+                    ptr_set(token + native_iocp_wait_off_udp_flags(), flags)
+                    ptr_set(token + native_iocp_wait_off_udp_kind(), 1)
+                }
+            }
             if want_write != 0 {
                 rc_iocp = _netpoll_iocp_post_send(fd, token)
+            } else if is_udp != 0 {
+                rc_iocp = _netpoll_iocp_post_recvfrom(fd, token)
             } else {
                 rc_iocp = _netpoll_iocp_post_recv(fd, token)
             }
@@ -758,6 +953,18 @@ fn native_netpoll_arm_fd(fd, want_write, token) {
                 _netpoll_watch_lock_acquire()
                 _netpoll_watch_take_token_locked(fd, want_write)
                 _netpoll_watch_lock_release()
+                if is_udp != 0 {
+                    if _netpoll_iocp_debug_enabled() != 0 {
+                        print("IOCP UDP: post recvfrom rc=")
+                        print_int(rc_iocp)
+                        print("\n")
+                        var wsae = sys_wsa_get_last_error()
+                        print("IOCP UDP: wsa_last_error=")
+                        print_int(wsae)
+                        print("\n")
+                    }
+                    _netpoll_iocp_wait_cleanup_udp(token)
+                }
                 return rc_iocp
             }
             return 0
@@ -999,6 +1206,13 @@ fn native_netpoll_poll_many_scratch(timeout_ms, scratch, scratch_bytes) {
                     if native_netpoll_is_iocp_wait_token(ov) == true {
                         var nbytes = oren_ptr_get_u32_le(ent + 24)
                         ptr_set(ov + native_iocp_wait_off_bytes(), nbytes)
+                        if _netpoll_iocp_debug_enabled() != 0 {
+                            if ptr_get(ov + native_iocp_wait_off_udp_kind()) != 0 {
+                                print("IOCP UDP: completion bytes=")
+                                print_int(nbytes)
+                                print("\n")
+                            }
+                        }
                     }
                 }
                 if tok != 0 {

@@ -433,7 +433,7 @@ fn _net_udp_wait_readable_then_recv_byte(rfd) {
     var b = malloc(1)
     if b == 0 { return 0 - 12 } // ENOMEM
     ptr_set_byte(b, 0)
-    var rn = sys_recv(rfd, b, 1, 0)
+    var rn = udp.recv_into(rfd, b, 1, 200)
     if rn != 1 {
         free(b)
         return rn

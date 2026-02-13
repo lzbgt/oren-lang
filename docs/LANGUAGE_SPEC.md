@@ -338,7 +338,7 @@ Status: **Rolling (implemented)**.
 Semantics:
 
 - `@cfg(...)` is evaluated at compile time using the selected target platform (see above).
-- If a declaration does not match its `@cfg`, it is **removed** from the program before later passes and before codegen.
+- If a declaration or statement does not match its `@cfg`, it is **removed** from the program before later passes and before codegen.
 - If the target platform is unknown/missing, using `@cfg` is a compile-time error.
 
 Non-normative guidance (rolling):
@@ -351,7 +351,8 @@ Non-normative guidance (rolling):
 Supported attachment sites (rolling v0):
 
 - Declarations: `fn`, `struct`, `ffi`, `var`
-- Not supported: statements / expressions (there is no statement-level conditional compilation in v0)
+- Statements inside blocks (e.g., `@cfg("debug") print("...")`)
+- Not supported: arbitrary expressions (use statement-level form)
 - Not supported yet: `import`
   - Reason: stage2 has a lexer-only fast import scan that cannot respect conditional imports.
   - Workaround: keep imports stable and gate platform-specific declarations *inside* imported modules.
@@ -366,11 +367,19 @@ Selector forms (rolling v0):
   - OS match: `@cfg("linux")` / `@cfg("macos")` / `@cfg("windows")`
   - Arch match: `@cfg("x64")` / `@cfg("arm64")`
   - Platform match: `@cfg("x64-windows")`, `@cfg("arm64-linux")`, etc.
+  - Build profile: `@cfg("debug")` / `@cfg("release")`
 - Keyword selectors (CSV strings; AND across keys):
   - `@cfg(os="linux,macos")`
   - `@cfg(arch="x64")`
   - `@cfg(platform="arm64-linux")`
   - Negation keys: `not_os`, `not_arch`, `not_platform`
+  - Build profile: `@cfg(debug=true)` / `@cfg(debug=false)`
+
+Build-profile note (rolling):
+
+- Debug/release selectors are driven by the compiler’s build profile:
+  - Native builds default to **debug** (for readable stack traces).
+  - `--no-debug` (or `OREN_NATIVE_NO_DEBUG=1`) selects **release**.
 
 Note on naming:
 

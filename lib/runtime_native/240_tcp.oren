@@ -467,6 +467,12 @@ fn oren_fd_wait_readable(fd, timeout_ms) {
 
         native_netpoll_init_once()
         if g_target_os == 3 && native_netpoll_is_iocp_backend() == true {
+            var tok0 = native_netpoll_iocp_udp_peek(fd)
+            if native_netpoll_is_iocp_wait_token(tok0) == true {
+                if ptr_get(tok0 + native_iocp_wait_off_udp_kind()) != 0 {
+                    if ptr_get(tok0 + native_iocp_wait_off_ready()) != 0 { return 1 }
+                }
+            }
             var node = native_netpoll_iocp_wait_alloc()
             if node == 0 { return 0 - 12 }
             var epoch = ptr_get(g + green_g_off_io_epoch()) + 1
@@ -488,10 +494,21 @@ fn oren_fd_wait_readable(fd, timeout_ms) {
 
             oren_green_sleep_ns(timeout_ms * 1000000)
 
-            native_netpoll_disarm_fd(fd, 0)
-            var ok_iocp = ptr_get(node + native_iocp_wait_off_ready())
             ptr_set(g + green_g_off_io_active(), 0)
             ptr_set(g + green_g_off_io_ready(), 0)
+            if ptr_get(node + native_iocp_wait_off_udp_kind()) != 0 {
+                var ok_udp = ptr_get(node + native_iocp_wait_off_ready())
+                if ok_udp != 0 {
+                    // Keep the token for UDP prefetch consumption.
+                    ptr_set(node + native_iocp_wait_off_g(), 0)
+                    return 1
+                }
+                native_netpoll_disarm_fd(fd, 0)
+                native_netpoll_iocp_wait_orphan(node)
+                return 0
+            }
+            native_netpoll_disarm_fd(fd, 0)
+            var ok_iocp = ptr_get(node + native_iocp_wait_off_ready())
             if ok_iocp != 0 {
                 native_netpoll_iocp_wait_recycle(node)
                 return 1

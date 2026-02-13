@@ -122,6 +122,16 @@ Notes:
 - The Linux/Windows x86_64 backend is Tier‑1 intent but still in bring-up; see `docs/TODOS.md`.
 - To run x86_64 artifacts on real hardware (Win11 + WSL2), use the documented remote workflow: `docs/REMOTE_X64_ENV.md`.
 
+### Debug vs release (native backend)
+
+- Native builds default to **debug** (readable stack traces, debug-info tables).
+- Use `--no-debug` (or `OREN_NATIVE_NO_DEBUG=1`) for **release** builds.
+- `@cfg("debug")` / `@cfg("release")` can be used to gate debug-only statements:
+
+```oren
+@cfg("debug") print("trace: enter foo")
+```
+
 ### Fast native verification (recommended on macOS/Linux)
 ```bash
 make verify-native-quick

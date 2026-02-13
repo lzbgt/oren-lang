@@ -1088,7 +1088,7 @@ fn _x64_is_syscall_intrinsic_name(nm) {
     if nm == "sys_getsockopt" || nm == "sys_setsockopt" || nm == "sys_shutdown" { return true }
     if nm == "sys_sendto" || nm == "sys_recvfrom" { return true }
     // Windows-only NET helpers
-    if nm == "sys_wsa_startup" || nm == "sys_select" { return true }
+    if nm == "sys_wsa_startup" || nm == "sys_wsa_get_last_error" || nm == "sys_select" { return true }
     // Windows-only IOCP helpers (kernel32)
     if nm == "sys_create_io_completion_port" { return true }
     if nm == "sys_get_queued_completion_status_ex" { return true }
@@ -1097,6 +1097,7 @@ fn _x64_is_syscall_intrinsic_name(nm) {
     // Windows-only WinSock overlapped I/O helpers (WS2_32)
     if nm == "sys_wsarecv" { return true }
     if nm == "sys_wsasend" { return true }
+    if nm == "sys_wsarecvfrom" { return true }
     // epoll
     if nm == "sys_epoll_create1" || nm == "sys_epoll_ctl" || nm == "sys_epoll_pwait" { return true }
     // Darwin-only (still compiler intrinsics; may return -ENOSYS on non-Darwin)

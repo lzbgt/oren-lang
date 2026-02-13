@@ -722,6 +722,7 @@ remote_upload() {
 
 remote_run_win() {
   local exe_name="$1"
+  local extra_env="${2:-}"
   local attempt=1
   local max_attempts=3
   while true; do
@@ -734,6 +735,9 @@ remote_run_win() {
     fi
     if [[ -n "$WS_ECHO_N" ]]; then
       envp+="set OREN_WS_ECHO_N=${WS_ECHO_N} & "
+    fi
+    if [[ -n "$extra_env" ]]; then
+      envp+="${extra_env} & "
     fi
     set +e
     run_with_timeout 40 "${ssh_base[@]}" "cmd.exe /v:on /c \"${envp}${remote_win_root_cmd}\\\\${exe_name} & set RC=!ERRORLEVEL! & echo EXIT=!RC! & exit /b !RC!\""
@@ -913,26 +917,30 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-win; then
   remote_ssh_retry "cmd.exe /v:on /c \"pushd ${remote_win_root_cmd} && tar -xf ${win_tar_remote} && popd\""
 
   log "-- run: Win11 (x64-windows) --"
-  remote_run_win "net_stage1_x64_windows.exe"
-  remote_run_win "net_stage2_x64_windows.exe"
-  remote_run_win "dns_stage1_x64_windows.exe"
-  remote_run_win "dns_stage2_x64_windows.exe"
-  remote_run_win "http_stage1_x64_windows.exe"
-  remote_run_win "http_stage2_x64_windows.exe"
-  remote_run_win "https_stage1_x64_windows.exe"
-  remote_run_win "https_stage2_x64_windows.exe"
-  remote_run_win "ws_stage1_x64_windows.exe"
-  remote_run_win "ws_stage2_x64_windows.exe"
-  remote_run_win "wss_stage1_x64_windows.exe"
-  remote_run_win "wss_stage2_x64_windows.exe"
-  remote_run_win "tls_stage1_x64_windows.exe"
-  remote_run_win "tls_stage2_x64_windows.exe"
-  remote_run_win "http2_stage1_x64_windows.exe"
-  remote_run_win "http2_stage2_x64_windows.exe"
-  remote_run_win "hpack_stage1_x64_windows.exe"
-  remote_run_win "hpack_stage2_x64_windows.exe"
-  remote_run_win "http2_headers_stage1_x64_windows.exe"
-  remote_run_win "http2_headers_stage2_x64_windows.exe"
+  win_net_env="set OREN_NETPOLL_WIN_IOCP=1"
+  if [[ -n "${OREN_NETPOLL_IOCP_DEBUG:-}" && "${OREN_NETPOLL_IOCP_DEBUG}" != "0" ]]; then
+    win_net_env+=" & set OREN_NETPOLL_IOCP_DEBUG=1"
+  fi
+  remote_run_win "net_stage1_x64_windows.exe" "$win_net_env"
+  remote_run_win "net_stage2_x64_windows.exe" "$win_net_env"
+  remote_run_win "dns_stage1_x64_windows.exe" "$win_net_env"
+  remote_run_win "dns_stage2_x64_windows.exe" "$win_net_env"
+  remote_run_win "http_stage1_x64_windows.exe" "$win_net_env"
+  remote_run_win "http_stage2_x64_windows.exe" "$win_net_env"
+  remote_run_win "https_stage1_x64_windows.exe" "$win_net_env"
+  remote_run_win "https_stage2_x64_windows.exe" "$win_net_env"
+  remote_run_win "ws_stage1_x64_windows.exe" "$win_net_env"
+  remote_run_win "ws_stage2_x64_windows.exe" "$win_net_env"
+  remote_run_win "wss_stage1_x64_windows.exe" "$win_net_env"
+  remote_run_win "wss_stage2_x64_windows.exe" "$win_net_env"
+  remote_run_win "tls_stage1_x64_windows.exe" "$win_net_env"
+  remote_run_win "tls_stage2_x64_windows.exe" "$win_net_env"
+  remote_run_win "http2_stage1_x64_windows.exe" "$win_net_env"
+  remote_run_win "http2_stage2_x64_windows.exe" "$win_net_env"
+  remote_run_win "hpack_stage1_x64_windows.exe" "$win_net_env"
+  remote_run_win "hpack_stage2_x64_windows.exe" "$win_net_env"
+  remote_run_win "http2_headers_stage1_x64_windows.exe" "$win_net_env"
+  remote_run_win "http2_headers_stage2_x64_windows.exe" "$win_net_env"
   log "OK: remote Win11 x64"
 fi
 

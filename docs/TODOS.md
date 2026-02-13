@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-02-13
+**Last updated:** 2026-02-14
 
 This repo is in rolling mode. This file tracks the **highest-leverage work remaining** to evolve Oren
 into a modern, efficient, production-ready language and toolchain, while keeping iteration fast.
@@ -70,6 +70,7 @@ References:
 - Remote x64 workflow: `docs/REMOTE_X64_ENV.md`
 - Language docs baseline: `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md`, `docs/LANGUAGE_FEATURE_MATRIX.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md`
   - Last sync (fact): 2026-01-11
+  - 2026-02-14: `@cfg` now supports statement-level filtering plus `debug`/`release` selectors (see `docs/ATTRIBUTES.md`).
 
 ## P0 (Now)
 
@@ -413,8 +414,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
          - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (posts completion with `ov!=0`, asserts token return, bytes capture)
 		   - Windows: extend the wait-list mechanism beyond channels:
 		     - DONE (2026-02-13): fd waits (`oren_fd_wait_*`) can park Gs on IOCP wait nodes in IOCP mode (zero‑byte overlapped readiness bridge).
-		     - Rolling issue (2026-02-13): UDP readiness can time out on Win11 with zero‑byte `WSARecv`, so
-		       `verify_native_net_matrix` does **not** enable IOCP for the net suite yet.
+		     - DONE (2026-02-13): UDP readiness uses overlapped `WSARecvFrom` prefetch; `udp.recv` consumes the buffered datagram.
+		       - `verify_native_net_matrix` now runs Win11 net fixtures with `OREN_NETPOLL_WIN_IOCP=1`.
 		     - Next: unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
 		   - Cross-platform: evolve the scheduler-owned “word wait” wait-list so in-green waits never kernel-block the scheduler OS thread.
 		     - DONE (2026-01-17): `oren_wait_on_addr` inside a green task is wake-driven via the scheduler-owned “word wait” list:

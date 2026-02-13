@@ -113,17 +113,18 @@ Supported forms (rolling v0):
   - `@cfg("x64-windows")`
   - `@cfg("linux")`
   - `@cfg("arm64")`
+  - `@cfg("debug")` / `@cfg("release")` (build profile)
 - Keyword (CSV strings; AND across keys):
   - `@cfg(os="linux,macos")`
   - `@cfg(arch="x64")`
   - `@cfg(platform="arm64-linux")`
   - Negation keys: `not_os`, `not_arch`, `not_platform`
+  - `@cfg(debug=true)` / `@cfg(debug=false)`
 
 Notes (important):
 
-- `@cfg` is implemented for **declarations** (`fn`, `struct`, `ffi`, `var`).
+- `@cfg` is implemented for **declarations** (`fn`, `struct`, `ffi`, `var`) and **statements** inside blocks.
 - `@cfg` is **not** a general “preprocessor”:
-  - it does **not** apply to statements inside a function body
   - it does **not** apply to arbitrary expressions
 - When using `@cfg` to provide platform variants (e.g. per‑OS implementations of the same `fn`), the variants must be **mutually exclusive**.
   - Otherwise multiple copies of the same declaration can survive the filter and cause duplicate symbol / duplicate definition errors.
@@ -131,6 +132,12 @@ Notes (important):
 - `@cfg` is **not supported on `import` yet**:
   - stage2 has a fast lexer-only import scan that cannot respect conditional imports
   - gate platform-specific declarations *inside* the imported module instead
+
+Build-profile note:
+
+- Debug/release selectors are driven by the compiler’s build profile:
+  - Native builds default to **debug** (for readable stack traces).
+  - `--no-debug` (or `OREN_NATIVE_NO_DEBUG=1`) selects **release**.
 
 Example (FFI library name differs per OS):
 

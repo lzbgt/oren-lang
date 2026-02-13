@@ -683,7 +683,10 @@ fn compiler_main() {
                 }
                 oren_exit(1)
             }
-            var linked = link_program(path, prog, {"target": target, "arch": arch, "keep_all_top_level_functions": true})
+            var cfg_debug = true
+            var v_nd = oren_env("OREN_NATIVE_NO_DEBUG")
+            if v_nd != nil && v_nd != "" && v_nd != "0" && v_nd != "false" { cfg_debug = false }
+            var linked = link_program(path, prog, {"target": target, "arch": arch, "debug": cfg_debug, "keep_all_top_level_functions": true})
             if dbg_flow != nil { print("DEBUG_FLOW dump linked linked_ok") }
             var js2 = dump.linked_summary_json(linked)
             var rc2 = dump.write_or_print(outp, js2)
@@ -725,7 +728,10 @@ fn compiler_main() {
                 }
                 oren_exit(1)
             }
-            var linkedg = link_program(path, progg, {"target": target, "arch": arch, "keep_all_top_level_functions": true})
+            var cfg_debugg = true
+            var v_ndg = oren_env("OREN_NATIVE_NO_DEBUG")
+            if v_ndg != nil && v_ndg != "" && v_ndg != "0" && v_ndg != "false" { cfg_debugg = false }
+            var linkedg = link_program(path, progg, {"target": target, "arch": arch, "debug": cfg_debugg, "keep_all_top_level_functions": true})
             if dbg_flow != nil { print("DEBUG_FLOW dump graph linked_ok") }
             var graph = linkedg["module_graph"]
             var jsg = dump.module_graph_json(graph)
@@ -823,7 +829,10 @@ fn compiler_main() {
 
         // `oren meta` is an introspection command; it should include metadata for all
         // declared symbols, not only those reachable from `main`.
-        var linked = link_program(path, prog, {"target": target, "arch": arch, "keep_all_top_level_functions": true})
+        var cfg_debugm = true
+        var v_ndm = oren_env("OREN_NATIVE_NO_DEBUG")
+        if v_ndm != nil && v_ndm != "" && v_ndm != "0" && v_ndm != "false" { cfg_debugm = false }
+        var linked = link_program(path, prog, {"target": target, "arch": arch, "debug": cfg_debugm, "keep_all_top_level_functions": true})
         var meta_json = metadata.generate_metadata(linked)
         ensure_dir(dirname(out_meta))
         var w = oren_write_file(out_meta, meta_json)
@@ -1346,7 +1355,7 @@ fn compiler_main() {
         if stdlib_mode == "obc" { allow_undef = true }
         if oren_list_len(link_obc) > 0 { allow_undef = true }
 
-        var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "typecheck": do_typecheck, "stdlib_mode": stdlib_mode, "keep_all_top_level_functions": obc_lib})
+        var linked_bc = link_program(path, prog, {"target": target, "arch": arch, "debug": debug_mode, "typecheck": do_typecheck, "stdlib_mode": stdlib_mode, "keep_all_top_level_functions": obc_lib})
 
         var ctx = codegen_bytecode.bytecode_compile_program(linked_bc, {"allow_undef": allow_undef})
         if ctx != nil && ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {
@@ -1516,7 +1525,7 @@ fn compiler_main() {
             oren_exit(2)
         }
 
-        var linked = link_program(path, prog, {"target": target, "arch": arch, "typecheck": do_typecheck, "keep_all_top_level_functions": is_shared_lib})
+        var linked = link_program(path, prog, {"target": target, "arch": arch, "debug": debug_mode, "typecheck": do_typecheck, "keep_all_top_level_functions": is_shared_lib})
         if trace_build_summary { t_sum_link_done = oren_time_now_ns() }
         // Memory hygiene (rolling):
         // - After linking, the native backend no longer needs the parsed root AST `prog`.
@@ -1804,7 +1813,7 @@ fn compiler_main() {
     // *new* function definitions during linking. The C transpiler consumes per-module
     // ASTs (MODULE_ORDER + prog), so we must sync generated functions back into those
     // unit programs before transpiling.
-    var linked_c = link_program(path, prog, {"target": target, "arch": arch, "typecheck": do_typecheck})
+    var linked_c = link_program(path, prog, {"target": target, "arch": arch, "debug": debug_mode, "typecheck": do_typecheck})
     c_backend_sync_generated_functions(prog, MODULE_ORDER, linked_c)
     var c_code = transpiler.transpile_entry(path, prog, MODULE_ORDER, linked_c["aliases"])
     // IMPORTANT (rolling hygiene):

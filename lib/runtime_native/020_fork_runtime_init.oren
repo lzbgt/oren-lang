@@ -264,6 +264,12 @@ fn native_runtime_init(target_os) {
     OREN_SOL_SOCKET = 1
     OREN_SO_REUSEADDR = 2
     OREN_SO_ERROR = 4
+    // SO_TYPE differs across OSes:
+    // - Linux: 3
+    // - macOS/Windows: 0x1008
+    if target_os == 1 { OREN_SO_TYPE = 4104 }
+    else if target_os == 3 { OREN_SO_TYPE = 4104 }
+    else { OREN_SO_TYPE = 3 }
     // Matches Linux SO_KEEPALIVE (9); Darwin/Windows translate from this Oren-level ID.
     OREN_SO_KEEPALIVE = 9
 

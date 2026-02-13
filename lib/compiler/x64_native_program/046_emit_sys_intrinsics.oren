@@ -540,14 +540,21 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
 
     if nm == "sys_wsarecv" {
         // Windows-only intrinsic (WSARecv overlapped).
-        if args == nil || oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_wsarecv expects 5 args"); return nil }
+        if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_wsarecv expects 6 args"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsarecv does not support spread"); return nil }
+        _emit_return_enosys_x64(ctx)
+        return nil
+    }
+    if nm == "sys_wsarecvfrom" {
+        // Windows-only intrinsic (WSARecvFrom overlapped).
+        if args == nil || oren_list_len(args) != 8 { err(ctx, "x64 native v0: sys_wsarecvfrom expects 8 args"); return nil }
+        if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsarecvfrom does not support spread"); return nil }
         _emit_return_enosys_x64(ctx)
         return nil
     }
     if nm == "sys_wsasend" {
         // Windows-only intrinsic (WSASend overlapped).
-        if args == nil || oren_list_len(args) != 5 { err(ctx, "x64 native v0: sys_wsasend expects 5 args"); return nil }
+        if args == nil || oren_list_len(args) != 6 { err(ctx, "x64 native v0: sys_wsasend expects 6 args"); return nil }
         if expr != nil && expr["spread"] != nil { err(ctx, "x64 native v0: sys_wsasend does not support spread"); return nil }
         _emit_return_enosys_x64(ctx)
         return nil
@@ -735,7 +742,7 @@ fn _emit_intrinsic_sys_linux_x64(ctx, nm, expr, locals, args) {
     // NOTE: the injected runtime is a single portable source that contains Windows-only branches
     // guarded by `g_target_os`. The compiler still must be able to compile those branches when
     // cross-targeting Linux, so we treat these names as "return -ENOSYS" rather than hard errors.
-    if nm == "sys_wsa_startup" || nm == "sys_select" ||
+    if nm == "sys_wsa_startup" || nm == "sys_wsa_get_last_error" || nm == "sys_select" ||
         nm == "sys_win_createprocess" ||
         nm == "sys_win_createthread" || nm == "sys_win_wait_single_object" || nm == "sys_win_terminate_thread" || nm == "sys_win_close_handle" {
         _emit_return_enosys_x64(ctx)

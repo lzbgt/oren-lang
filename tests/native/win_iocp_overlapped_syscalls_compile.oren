@@ -34,14 +34,22 @@ fn _compile_only_touch_iocp_and_overlapped(sock) {
     if ov == 0 { free(flags_mem); return 0 - 12 }
 
     // Overlapped recv/send should accept IO_PENDING as success (0).
-    var rc0 = sys_wsarecv(sock, _dummy_ptr(), 0, flags_mem, ov)
-    var rc1 = sys_wsasend(sock, _dummy_ptr(), 0, 0, ov)
+    var sa = malloc(32)
+    var sa_lenp = malloc(8)
+    if sa_lenp != 0 { ptr_set(sa_lenp, 16) }
+
+    var rc0 = sys_wsarecv(sock, _dummy_ptr(), 0, flags_mem, flags_mem, ov)
+    var rc1 = sys_wsarecvfrom(sock, _dummy_ptr(), 0, flags_mem, flags_mem, ov, sa, sa_lenp)
+    var rc2 = sys_wsasend(sock, _dummy_ptr(), 0, 0, flags_mem, ov)
+
+    if sa != 0 { free(sa) }
+    if sa_lenp != 0 { free(sa_lenp) }
 
     free(ov)
     free(flags_mem)
 
     // These are not executed; return a combined value so the calls aren't DCE'd too early.
-    return rc0 + rc1
+    return rc0 + rc1 + rc2
 }
 
 fn main() {

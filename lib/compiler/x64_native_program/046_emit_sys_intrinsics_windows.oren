@@ -785,7 +785,9 @@ fn _emit_intrinsic_sys_dispatch_x64(ctx, nm, expr, locals, args) {
         if nm == "sys_recvfrom" { return _emit_intrinsic_sys_recvfrom_windows_x64(ctx, expr, locals, args) }
         // WinSock overlapped I/O (IOCP bring-up)
         if nm == "sys_wsarecv" { return _emit_intrinsic_sys_wsarecv_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_wsarecvfrom" { return _emit_intrinsic_sys_wsarecvfrom_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_wsasend" { return _emit_intrinsic_sys_wsasend_windows_x64(ctx, expr, locals, args) }
+        if nm == "sys_wsa_get_last_error" { return _emit_intrinsic_sys_wsa_get_last_error_windows_x64(ctx, expr, locals, args) }
         if nm == "sys_close" { return _emit_intrinsic_sys_close_windows_x64(ctx, expr, locals, args) }
         // PROC (CreateProcessA spawn+wait)
         if nm == "sys_win_createprocess" { return _emit_intrinsic_sys_win_createprocess_windows_x64(ctx, expr, locals, args) }

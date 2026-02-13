@@ -55,6 +55,12 @@ fn _lit_string(v) {
     return v["value"]
 }
 
+fn _lit_bool(v) {
+    if v == nil { return nil }
+    if v["type"] != "Boolean" { return nil }
+    return v["value"]
+}
+
 fn _cfg_str_eq(a, b) {
     // Stable string equality for compiler passes.
     // Avoid depending on runtime `==` semantics (stage1 C runtime vs stage2 native runtime).
@@ -140,9 +146,12 @@ fn _cfg_eval_one(cfg_attr, config, stmt_type) {
 
     var os = nil
     var arch = nil
+    var debug_mode = false
     if config != nil {
         os = config["target"]
         arch = config["arch"]
+        var dbg = config["debug"]
+        if dbg == true || dbg == 1 { debug_mode = true }
     }
     if os == nil || arch == nil { 
         cfg_error(loc + ": @cfg requires a known target platform (missing config.target/config.arch)")
@@ -170,6 +179,7 @@ fn _cfg_eval_one(cfg_attr, config, stmt_type) {
     var not_os_v = nil
     var not_arch_v = nil
     var not_plat_v = nil
+    var debug_v = nil
     var has_kw = false
     var i = 0
     while i < oren_list_len(args) {
@@ -184,8 +194,8 @@ fn _cfg_eval_one(cfg_attr, config, stmt_type) {
                 pos = a["value"]
             } else {
                 has_kw = true
-                if k != "os" && k != "arch" && k != "platform" && k != "not_os" && k != "not_arch" && k != "not_platform" {
-                    cfg_error(loc + ": @cfg unknown key '" + k + "' (supported: os, arch, platform, not_os, not_arch, not_platform)")
+                if k != "os" && k != "arch" && k != "platform" && k != "not_os" && k != "not_arch" && k != "not_platform" && k != "debug" {
+                    cfg_error(loc + ": @cfg unknown key '" + k + "' (supported: os, arch, platform, not_os, not_arch, not_platform, debug)")
                     return false
                 }
                 if k == "os" {
@@ -206,6 +216,9 @@ fn _cfg_eval_one(cfg_attr, config, stmt_type) {
                 } else if k == "not_platform" {
                     if not_plat_v != nil { cfg_error(loc + ": @cfg duplicate key 'not_platform'"); return false }
                     not_plat_v = a["value"]
+                } else if k == "debug" {
+                    if debug_v != nil { cfg_error(loc + ": @cfg duplicate key 'debug'"); return false }
+                    debug_v = a["value"]
                 }
             }
         }
@@ -221,6 +234,7 @@ fn _cfg_eval_one(cfg_attr, config, stmt_type) {
     // - @cfg("linux") / @cfg("macos") / @cfg("windows")  => OS match
     // - @cfg("x64") / @cfg("arm64") => arch match
     // - @cfg("x64-linux") etc => full platform match
+    // - @cfg("debug") / @cfg("release") => build profile match
     if pos != nil {
         var s = _lit_string(pos)
         if s == nil {
@@ -228,6 +242,8 @@ fn _cfg_eval_one(cfg_attr, config, stmt_type) {
             return false
         }
         if trace { print("[trace] cfg: selector=" + s) }
+        if _cfg_str_eq(s, "debug") { return debug_mode == true }
+        if _cfg_str_eq(s, "release") { return debug_mode != true }
         if _cfg_str_eq(s, os) { return true }
         if _cfg_str_eq(s, arch) { return true }
         if _cfg_str_eq(s, platform) { return true }
@@ -237,7 +253,7 @@ fn _cfg_eval_one(cfg_attr, config, stmt_type) {
             return false
         }
         // Unrecognized string: treat as mismatch (but make it actionable).
-        cfg_error(loc + ": @cfg unrecognized selector '" + s + "' (expected: linux|macos|windows|x64|arm64|<arch>-<os>)")
+        cfg_error(loc + ": @cfg unrecognized selector '" + s + "' (expected: linux|macos|windows|x64|arm64|<arch>-<os>|debug|release)")
         return false
     }
 
@@ -301,8 +317,19 @@ fn _cfg_eval_one(cfg_attr, config, stmt_type) {
         if _cfg_any_eq(_cfg_split_csv(s4), platform) == true { return false }
     }
 
+    if debug_v != nil {
+        seen_any = true
+        var dv = _lit_bool(debug_v)
+        if dv == nil { cfg_error(loc + ": @cfg(debug=...) expects a boolean literal"); return false }
+        if dv == true {
+            if debug_mode != true { return false }
+        } else {
+            if debug_mode == true { return false }
+        }
+    }
+
     if seen_any != true {
-        cfg_error(loc + ": @cfg requires at least one selector key (os/arch/platform) or a positional selector string")
+        cfg_error(loc + ": @cfg requires at least one selector key (os/arch/platform/debug) or a positional selector string")
         return false
     }
 
@@ -326,6 +353,74 @@ fn _cfg_stmt_keep(stmt, config) {
     return keep
 }
 
+fn _cfg_lower_stmt_in_place(stmt, config) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Block" {
+        stmt["stmts"] = _cfg_lower_stmt_list_in_place(stmt["stmts"], config)
+        return nil
+    }
+    if t == "StmtList" {
+        stmt["stmts"] = _cfg_lower_stmt_list_in_place(stmt["stmts"], config)
+        return nil
+    }
+    if t == "Function" {
+        _cfg_lower_stmt_in_place(stmt["body"], config)
+        return nil
+    }
+    if t == "ExprStmt" {
+        var exp = stmt["expr"]
+        if exp != nil && exp["type"] == "Function" {
+            _cfg_lower_stmt_in_place(exp["body"], config)
+        }
+        return nil
+    }
+    if t == "If" {
+        _cfg_lower_stmt_in_place(stmt["consq"], config)
+        if stmt["alt"] != nil { _cfg_lower_stmt_in_place(stmt["alt"], config) }
+        return nil
+    }
+    if t == "While" {
+        _cfg_lower_stmt_in_place(stmt["body"], config)
+        return nil
+    }
+    if t == "For" {
+        if stmt["init"] != nil { _cfg_lower_stmt_in_place(stmt["init"], config) }
+        if stmt["post"] != nil { _cfg_lower_stmt_in_place(stmt["post"], config) }
+        _cfg_lower_stmt_in_place(stmt["body"], config)
+        return nil
+    }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil { _cfg_lower_stmt_in_place(c["body"], config) }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil { _cfg_lower_stmt_in_place(stmt["default"], config) }
+        return nil
+    }
+    return nil
+}
+
+fn _cfg_lower_stmt_list_in_place(stmts, config) {
+    if stmts == nil { return [] }
+    var out = []
+    var i = 0
+    while i < oren_list_len(stmts) {
+        var st = stmts[i]
+        if _cfg_stmt_keep(st, config) == true {
+            _cfg_lower_stmt_in_place(st, config)
+            oren_list_push(out, st)
+        }
+        i = i + 1
+    }
+    return out
+}
+
 fn lower_program_in_place(prog, config) {
     CFG_ERRS = nil
     if prog == nil { return nil }
@@ -333,16 +428,7 @@ fn lower_program_in_place(prog, config) {
     var stmts = prog["statements"]
     if stmts == nil { return nil }
 
-    var out = []
-    var i = 0
-    while i < oren_list_len(stmts) {
-        var st = stmts[i]
-        if _cfg_stmt_keep(st, config) == true {
-            oren_list_push(out, st)
-        }
-        i = i + 1
-    }
-    prog["statements"] = out
+    prog["statements"] = _cfg_lower_stmt_list_in_place(stmts, config)
     if CFG_ERRS != nil { prog["cfg_errors"] = CFG_ERRS }
     return nil
 }

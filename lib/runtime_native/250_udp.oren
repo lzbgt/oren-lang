@@ -142,6 +142,33 @@ fn oren_udp_sendto(fd, ip, port, buf, len, timeout_ms) {
     }
 }
 
+fn _udp_iocp_prefetch_consume(tok, buf, len, sa_out, sa_lenp) {
+    if tok == 0 { return 0 }
+    var n = ptr_get(tok + native_iocp_wait_off_bytes())
+    var cap = ptr_get(tok + native_iocp_wait_off_udp_len())
+    if cap > 0 && n > cap { n = cap }
+    if len >= 0 && n > len { n = len }
+    var src = ptr_get(tok + native_iocp_wait_off_udp_buf())
+    if n > 0 && src != 0 {
+        oren_memcpy(buf, src, n)
+    }
+    if sa_out != 0 && sa_lenp != 0 {
+        var sa = ptr_get(tok + native_iocp_wait_off_udp_sa())
+        var sa_lenp2 = ptr_get(tok + native_iocp_wait_off_udp_sa_lenp())
+        var salen = 16
+        if sa_lenp2 != 0 {
+            var sl = ptr_get(sa_lenp2)
+            if sl > 0 { salen = sl }
+        }
+        var copy_len = salen
+        if copy_len > 32 { copy_len = 32 }
+        if sa != 0 { oren_memcpy(sa_out, sa, copy_len) }
+        ptr_set(sa_lenp, copy_len)
+    }
+    native_netpoll_iocp_wait_recycle(tok)
+    return n
+}
+
 @cap.requires(domain="NET")
 fn oren_udp_recvfrom_into(fd, buf, len, timeout_ms) {
     native_capsule_require(CAP_NET, "NET")
@@ -159,6 +186,19 @@ fn oren_udp_recvfrom_into(fd, buf, len, timeout_ms) {
     var spins = 0
 
     while 1 {
+        if g_target_os == 3 && native_netpoll_is_iocp_backend() == true {
+            var tok0 = native_netpoll_iocp_udp_peek(fd)
+            if native_netpoll_is_iocp_wait_token(tok0) == true {
+                if ptr_get(tok0 + native_iocp_wait_off_udp_kind()) != 0 {
+                    if ptr_get(tok0 + native_iocp_wait_off_ready()) != 0 {
+                        var tok = native_netpoll_iocp_udp_take(fd)
+                        if tok != 0 {
+                            return _udp_iocp_prefetch_consume(tok, buf, len, 0, 0)
+                        }
+                    }
+                }
+            }
+        }
         var r0 = sys_recvfrom(fd, buf, len, 0, 0, 0)
         r0 = native_canon_i32_arg(r0)
         if r0 != 0 - 35 && r0 != 0 - 11 { return r0 }
@@ -226,6 +266,19 @@ fn oren_udp_recvfrom_into_with_addr(fd, buf, len, timeout_ms, sa_out, sa_lenp) {
 
     while 1 {
         ptr_set(sa_lenp, 16)
+        if g_target_os == 3 && native_netpoll_is_iocp_backend() == true {
+            var tok0 = native_netpoll_iocp_udp_peek(fd)
+            if native_netpoll_is_iocp_wait_token(tok0) == true {
+                if ptr_get(tok0 + native_iocp_wait_off_udp_kind()) != 0 {
+                    if ptr_get(tok0 + native_iocp_wait_off_ready()) != 0 {
+                        var tok = native_netpoll_iocp_udp_take(fd)
+                        if tok != 0 {
+                            return _udp_iocp_prefetch_consume(tok, buf, len, sa_out, sa_lenp)
+                        }
+                    }
+                }
+            }
+        }
         var r0 = sys_recvfrom(fd, buf, len, 0, sa_out, sa_lenp)
         r0 = native_canon_i32_arg(r0)
         if r0 != 0 - 35 && r0 != 0 - 11 { return r0 }

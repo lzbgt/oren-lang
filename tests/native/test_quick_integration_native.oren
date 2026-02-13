@@ -210,6 +210,18 @@ fn test_entropy() {
     return 0
 }
 
+fn test_cfg_debug_release() {
+    trace("QI: test_cfg_debug_release")
+    var hit = 0
+    @cfg("debug") hit = hit + 1
+    @cfg("release") hit = hit + 2
+    if hit != 1 && hit != 2 {
+        print("QI: cfg debug/release mismatch hit=" + oren_int_to_string(hit))
+        fail(74)
+    }
+    return 0
+}
+
 @pack
 struct PV_H {
     v: u8,
@@ -2222,6 +2234,7 @@ fn main() {
 
     test_core()
     test_entropy()
+    test_cfg_debug_release()
     test_string_literals_static()
     test_type_tag_varargs()
     test_read_u8_buf_missing_returns_err()

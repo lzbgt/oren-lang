@@ -106,14 +106,18 @@ fn sys_get_queued_completion_status_ex(port, entries, entry_cap, removed_ptr, ti
 fn sys_post_queued_completion_status(port, bytes, completion_key, overlapped_ptr) { return 0 }
 fn sys_cancel_io_ex(file_handle, overlapped_ptr) { return 0 }
 // Windows-only WinSock overlapped I/O helpers (WS2_32):
-// - sys_wsarecv(sock, buf_ptr, buf_len, flags_ptr, overlapped_ptr) -> 0 or -errno
-// - sys_wsasend(sock, buf_ptr, buf_len, flags, overlapped_ptr) -> 0 or -errno
+// - sys_wsarecv(sock, buf_ptr, buf_len, flags_ptr, bytes_ptr, overlapped_ptr) -> 0 or -errno
+// - sys_wsarecvfrom(sock, buf_ptr, buf_len, flags_ptr, bytes_ptr, overlapped_ptr, sa_out, sa_lenp) -> 0 or -errno
+// - sys_wsasend(sock, buf_ptr, buf_len, flags, bytes_ptr, overlapped_ptr) -> 0 or -errno
+// - sys_wsa_get_last_error() -> WSA error code (or -ENOSYS if not available)
 //
 // Notes:
 // - These are used for IOCP bring-up (completion-based NET operations). They should treat
 //   WSA_IO_PENDING (queued) as success (0), because completion will be delivered later.
-fn sys_wsarecv(sock, buf_ptr, buf_len, flags_ptr, overlapped_ptr) { return 0 }
-fn sys_wsasend(sock, buf_ptr, buf_len, flags, overlapped_ptr) { return 0 }
+fn sys_wsarecv(sock, buf_ptr, buf_len, flags_ptr, bytes_ptr, overlapped_ptr) { return 0 - 78 }
+fn sys_wsarecvfrom(sock, buf_ptr, buf_len, flags_ptr, bytes_ptr, overlapped_ptr, sa_out, sa_lenp) { return 0 - 78 }
+fn sys_wsasend(sock, buf_ptr, buf_len, flags, bytes_ptr, overlapped_ptr) { return 0 - 78 }
+fn sys_wsa_get_last_error() { return 0 - 78 }
 fn sys_mmap_private_anon(len) { return 0 }
 fn sys_munmap(addr, len) { return 0 }
 // Linux clone(2) (syscall-first; no libpthread).
