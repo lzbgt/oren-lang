@@ -173,7 +173,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		     - proves `oren_mkdir_p` handles the `-EEXIST` case correctly for directories
 		     - proves `sys_stat` reports directory mode correctly on both WSL2 (x64-linux) and Win11 (x64-windows)
 		   - 2026-01-13: `./scripts/verify_native_matrix.sh --targets x64-win-tier1,x64-wsl-tier1` passed (remote Win11 + remote WSL2; stage1 + stage2).
-		   - 2026-01-15: `./scripts/verify_native_matrix.sh --targets x64-win-tier1,x64-wsl-tier1` passed (remote Win11 + remote WSL2; stage1 + stage2).
+	   - 2026-01-15: `./scripts/verify_native_matrix.sh --targets x64-win-tier1,x64-wsl-tier1` passed (remote Win11 + remote WSL2; stage1 + stage2).
+	   - 2026-02-13: `pc2.work` Win11 host is online, but WSL2 is not installed/enabled yet; `x64-wsl-tier1` is blocked until WSL is enabled (use x64-win only for now).
    - 2026-01-12: fixed the native runtime lock blocking primitive on Tier‑1:
      - `sys_ulock_wait/sys_ulock_wake` are now treated as a portable "wait-on-address" primitive:
        - Linux: `futex(FUTEX_WAIT_PRIVATE/FUTEX_WAKE_PRIVATE)`

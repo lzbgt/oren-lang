@@ -286,6 +286,15 @@ Run a Linux command inside WSL2:
 ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work 'wsl.exe -e uname -a'
 ```
 
+If WSL2 is not installed/enabled on the remote host, `wsl.exe` may emit a garbled
+UTF‑16 message that mentions `wsl.exe --list --online` / `wsl.exe --install`.
+In that case:
+
+- Install WSL (admin shell on the remote host):
+  - `wsl.exe --install`
+- Or run only Windows targets (example):
+  - `./scripts/verify_native_matrix.sh --targets x64-win-tier1`
+
 Run a Linux x86_64 ELF executable from the Windows filesystem path:
 
 ```bash
