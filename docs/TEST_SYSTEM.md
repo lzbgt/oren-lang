@@ -98,7 +98,7 @@ make test
 # Build stage2 compiler
 make stage2
 
-# Fast, single-file native integration smoke (stage2)
+# Fast native integration smoke (stage2; single entry file with includes)
 make test-native-quick-stage2
 
 # Convenience alias (same as `make test`)
@@ -116,6 +116,9 @@ Operational note (rolling):
 - When running a compiled native test binary directly (outside the Makefile targets), wrap it with `timeout`/`gtimeout` to keep the “tests must never hang forever” rule true for ad-hoc repros too (and to avoid leaving long-lived `build/tmp/test_*` processes behind if a regression hangs).
 - Emulated/slow environments (example: `qemu-x86_64` under the persistent Linux container) can legitimately need larger join deadlines for heavy scheduler fixtures.
   - Opt-in knob: set `OREN_TEST_SLOW=1` to scale a small set of timeouts inside `tests/native/test_quick_integration_native.oren` while keeping defaults strict on Tier‑1 hosts.
+- The quick integration fixture is a single entry file that expands compile-time includes:
+  - Entry: `tests/native/test_quick_integration_native.oren`
+  - Segments: `tests/native/qi/*.oren` (kept <2k LOC per file)
 
 Perf tripwire (rolling):
 
