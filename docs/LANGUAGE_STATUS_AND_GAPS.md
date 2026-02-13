@@ -89,7 +89,8 @@ Related plugin/nesting model notes:
   - native backend (arm64 mature; x86_64 rolling bring-up)
 - **Tier‑1 intent for x86_64**
   - Local build existence + format checks are validated by the curated runner.
-  - Real-hardware x86_64 run validation is opt-in (Win11 + WSL2): `docs/REMOTE_X64_ENV.md`
+  - Real-hardware x86_64 run validation is opt-in (Win11 + WSL2 when available): `docs/REMOTE_X64_ENV.md`
+    - Rolling note (2026-02-13): the current remote host has Win11 online, but WSL2 is not installed/enabled yet.
     - Tier‑1 TIME substrate (Linux+Windows): `tests/native/test_time_suite.oren` (expects `oren_sleep_ms` + wall/mono time to work without libc)
     - Tier‑1 RNG substrate (Linux+Windows): `tests/native/test_quick_integration_native.oren` asserts `oren_getentropy` works (and Tier‑1 WebSocket uses it for client key + masking).
     - Tier‑1 parity fixture (closures + varargs): `tests/fixtures/tier1_native_lambda_varargs_main.oren` (remote x86_64 gate via `scripts/verify_native_matrix.sh --targets x64-win-tier1` / `x64-wsl-tier1` with `--tier1-src ...`)
@@ -118,7 +119,7 @@ Related plugin/nesting model notes:
   - Tier‑1 reality: these are included in the remote x86_64 net verification gate (`scripts/verify_native_net_matrix.sh`).
 - **TLS/HTTPS/WSS loopback on macOS + Linux + Windows**
   - Evidence: `tests/native/test_tls_loopback.oren`, `tests/native/test_https_get_loopback.oren`, `tests/native/test_wss_echo_loopback.oren`
-  - Tier‑1 gate: `scripts/verify_native_net_matrix.sh` runs these fixtures on Win11 + WSL2 + local macOS + linux/arm64 container.
+  - Tier‑1 gate: `scripts/verify_native_net_matrix.sh` runs these fixtures on Win11 (WSL2 when available) + local macOS + linux/arm64 container.
 - **HTTP/2 bring-up (framing-only; ALPN `h2`)**
   - Scope today: connection preface + frame header encoding/decoding + minimal control frames (SETTINGS/ACK, PING/ACK) + SETTINGS payload codec + HPACK encode/decode v0.
   - Stdlib: `lib/std/net/http2.oren`
@@ -173,20 +174,20 @@ production maturity requires both implementation *and* regression coverage.
       - TIME substrate is now proved by `tests/native/test_time_suite.oren` on Win11 (sleep + gettimeofday shims).
       - RNG substrate is now proved by `tests/native/test_quick_integration_native.oren` (asserts `oren_getentropy` works).
       - NET substrate is now regression-gated by `scripts/verify_native_net_matrix.sh`:
-        - Loopback-only TCP/UDP + HTTP GET + WebSocket echo are covered on Win11 + WSL2 via `tests/native/test_net_suite.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren` (see `docs/REMOTE_X64_ENV.md`).
-        - TLS/HTTPS/WSS are now proved on Win11 + WSL2 + macOS + Linux via `scripts/verify_native_net_matrix.sh` (fixtures: `tests/native/test_tls_loopback.oren`, `tests/native/test_https_get_loopback.oren`, `tests/native/test_wss_echo_loopback.oren`).
+        - Loopback-only TCP/UDP + HTTP GET + WebSocket echo are covered on Win11 (WSL2 when available) via `tests/native/test_net_suite.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren` (see `docs/REMOTE_X64_ENV.md`).
+        - TLS/HTTPS/WSS are now proved on Win11 (WSL2 when available) + macOS + Linux via `scripts/verify_native_net_matrix.sh` (fixtures: `tests/native/test_tls_loopback.oren`, `tests/native/test_https_get_loopback.oren`, `tests/native/test_wss_echo_loopback.oren`).
     - FFI substrate (Tier‑1 Windows, rolling):
       - `ffi name` is implemented via lazy `LoadLibraryA`/`GetProcAddress` stubs in the x64 backend.
       - Evidence: `tests/native/ffi_windows_kernel32.oren` (remote Win11 gate via `scripts/verify_native_matrix.sh --targets x64-win`).
     - PROC substrate (Tier‑1 Windows): rolling but now regression-gated:
       - POSIX fork/exec/wait4 do not exist, so the runtime uses `CreateProcessA` via `sys_win_createprocess` for `oren_proc_spawn`/`oren_system`.
-      - Proof gate: `scripts/verify_native_matrix.sh --targets x64-win-tier1` runs `tests/fixtures/tier1_native_smoke_main.oren` on Win11+WSL2; the fixture calls `oren_system("echo tier1 smoke proc ok")` and returns non‑zero on failure.
+      - Proof gate: `scripts/verify_native_matrix.sh --targets x64-win-tier1` runs `tests/fixtures/tier1_native_smoke_main.oren` on Win11 (WSL2 when available); the fixture calls `oren_system("echo tier1 smoke proc ok")` and returns non‑zero on failure.
       - Note (concurrency): Windows Tier‑1 `spawn` now prefers in-process green tasks (N:1), same as POSIX; host-thread `oren_join(_timeout)` drives the green scheduler (Tier‑1 remote fixture: `tests/fixtures/tier1_native_spawn_join_main.oren`).
         - Escape hatch: `OREN_NO_GREEN=1` falls back to a runtime-owned OS-thread spawn; join waits via `WaitForSingleObject` and timeout handling uses a best-effort detach (avoids `TerminateThread`).
     - Self-host compiler on x86_64 (rolling):
       - Local emit sanity (compile-only): `make verify-native-x64-compile` (builds stage1+stage2 and emits x64-linux + x64-windows artifacts).
       - Native Windows bootstrap gate (stage0 -> stage1 -> stage2, then compile+run a tiny exe): `scripts/verify_windows_stage2_from_stage1.sh` (`make verify-stage2-win`).
-      - Remote run gate: `scripts/verify_selfhost_x64_compiler.sh` builds x64 compiler binaries and runs them on Win11+WSL2 to compile+run a tiny native program.
+      - Remote run gate: `scripts/verify_selfhost_x64_compiler.sh` builds x64 compiler binaries and runs them on Win11 (WSL2 when available) to compile+run a tiny native program.
     - Track: `docs/TODOS.md` (P0.1–P0.3), `docs/NATIVE_BACKEND.md`.
 
   - **Async IO + scheduler integration (planned)**
