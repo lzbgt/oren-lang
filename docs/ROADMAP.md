@@ -2,6 +2,9 @@
 
 This document captures the staged plan for turning Oren into a production-grade, modern language and toolchain. It specifically addresses the trade-offs highlighted in `docs/COMPARISON.md`.
 
+**Rolling note (execution order):** the active, time-ordered priorities live in `docs/TODOS.md`.
+Treat this roadmap as a longer‑horizon narrative; it may lag the rolling tracker.
+
 ## Goals
 - Fast native codegen for macOS/Linux **arm64 first**, with a portable C backend for bootstrapping and constrained targets.
 - Robust type system (generics, interfaces/traits, enums/ADTs, pattern matching) with a sound checker.
@@ -30,7 +33,7 @@ Agentic/production constraints that drive prioritization (rolling mode):
   - callable/closure semantics
   - runtime-injection surface (lists/maps/strings, capsule gating)
   - test strategy (fixtures + opt-in remote runs)
-- **Concurrency**: [IN PROGRESS] Core threading primitives foundation (Thread Registry). Implementing IPC (Pipes). Next: `spawn` intrinsic (Linux clone/macOS bsdthread_create), channels/queues, atomics; ensure runtime data structures are thread-safe.
+- **Concurrency**: Core threading primitives + channels/select exist; current rolling focus is native M:N scheduler groundwork (see `docs/NATIVE_GMP_SCHEDULER.md`, `docs/TODOS.md`).
 - **FFI/Linking**: [DONE] Implemented real dynamic linking on macOS (ARM64) with `LC_DYLD_INFO_ONLY` binding and GOT stubs. Linux `DT_NEEDED`/PLT pending but architecture is shared.
 - **Native backend**: Managed struct allocation in the native runtime (done). Global variable support (done). Next: register allocator groundwork (IR definition).
 - **Tooling**: CLI switches parity (codesign/notarize already), add `oren fmt` skeleton and lint scaffolding.
