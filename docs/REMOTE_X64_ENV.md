@@ -7,6 +7,8 @@ Rolling note (2026-02-13):
 
 - The current reachable host is `pc2.work` (Win11 online via proxy).
 - WSL2 is **not installed/enabled** on that host yet, so x64-linux run gates are currently blocked there.
+- Direct SSH (key auth, no password prompt):
+  - `ssh -o 'ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002' xue@pc2.work`
 
 ## Terminology: platform, target, and the remote x64 gate
 

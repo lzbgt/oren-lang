@@ -134,11 +134,7 @@ fn _select_wait_in_green_netpoll_v2(kinds, fds, chans, vals, ncases) {
                     free(wait_ptrs)
                     return 0 - 12
                 }
-                ptr_set(w + native_netpoll_wait_off_magic(), native_netpoll_wait_magic())
-                ptr_set(w + native_netpoll_wait_off_g(), g)
-                ptr_set(w + native_netpoll_wait_off_case_idx(), i)
-                ptr_set(w + native_netpoll_wait_off_epoch(), epoch)
-                ptr_set(w + native_netpoll_wait_off_ready(), 0)
+                native_netpoll_wait_init(w, g, i, epoch)
                 ptr_set(iadd(wait_ptrs, i * 8), w)
                 oren_list_push(wait_roots, w)
             }
@@ -160,7 +156,7 @@ fn _select_wait_in_green_netpoll_v2(kinds, fds, chans, vals, ncases) {
                 var fd2 = ptr_get(iadd(fds, i * 8))
                 var w2 = ptr_get(iadd(wait_ptrs, i * 8))
                 if fd2 >= 0 && w2 != 0 {
-                    ptr_set(w2 + native_netpoll_wait_off_ready(), 0)
+                    native_netpoll_wait_reset(w2)
                     var arc = native_netpoll_arm_fd(fd2, k2, w2)
                     if arc < 0 {
                         // Best-effort cleanup on partial arm.

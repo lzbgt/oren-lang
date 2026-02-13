@@ -621,6 +621,22 @@ fn native_netpoll_wait_bytes() { return 40 }
 // "ORENPWL1" (ASCII) packed into u64 (little-endian).
 fn native_netpoll_wait_magic() { return 3552310208510644815 }
 
+fn native_netpoll_wait_init(ptr, g, case_idx, epoch) {
+    if ptr == 0 { return 0 }
+    ptr_set(ptr + native_netpoll_wait_off_magic(), native_netpoll_wait_magic())
+    ptr_set(ptr + native_netpoll_wait_off_g(), g)
+    ptr_set(ptr + native_netpoll_wait_off_case_idx(), case_idx)
+    ptr_set(ptr + native_netpoll_wait_off_epoch(), epoch)
+    ptr_set(ptr + native_netpoll_wait_off_ready(), 0)
+    return 0
+}
+
+fn native_netpoll_wait_reset(ptr) {
+    if ptr == 0 { return 0 }
+    ptr_set(ptr + native_netpoll_wait_off_ready(), 0)
+    return 0
+}
+
 fn native_netpoll_is_wait_token(ptr) {
     if ptr == 0 { return false }
     if ptr < 4096 { return false }
@@ -656,6 +672,18 @@ fn native_netpoll_is_iocp_wait_token(ptr) {
     if ptr == 0 { return false }
     if ptr < 4096 { return false }
     return ptr_get(ptr + native_iocp_wait_off_magic()) == native_netpoll_wait_magic()
+}
+
+fn native_netpoll_iocp_wait_init(ptr, g, case_idx, epoch) {
+    if ptr == 0 { return 0 }
+    ptr_set(ptr + native_iocp_wait_off_magic(), native_netpoll_wait_magic())
+    ptr_set(ptr + native_iocp_wait_off_g(), g)
+    ptr_set(ptr + native_iocp_wait_off_case_idx(), case_idx)
+    ptr_set(ptr + native_iocp_wait_off_epoch(), epoch)
+    ptr_set(ptr + native_iocp_wait_off_ready(), 0)
+    ptr_set(ptr + native_iocp_wait_off_bytes(), 0)
+    ptr_set(ptr + native_iocp_wait_off_rc(), 0)
+    return 0
 }
 
 fn native_netpoll_iocp_wait_reset(ptr) {
@@ -722,13 +750,7 @@ fn native_netpoll_iocp_wait_alloc() {
         head = native_malloc_raw_or_mmap(native_iocp_wait_bytes())
         if head == 0 { return 0 }
     }
-    ptr_set(head + native_iocp_wait_off_magic(), native_netpoll_wait_magic())
-    ptr_set(head + native_iocp_wait_off_g(), 0)
-    ptr_set(head + native_iocp_wait_off_case_idx(), 0)
-    ptr_set(head + native_iocp_wait_off_epoch(), 0)
-    ptr_set(head + native_iocp_wait_off_ready(), 0)
-    ptr_set(head + native_iocp_wait_off_bytes(), 0)
-    ptr_set(head + native_iocp_wait_off_rc(), 0)
+    native_netpoll_iocp_wait_init(head, 0, 0, 0)
     ptr_set(head + native_iocp_wait_off_next(), 0)
     native_netpoll_iocp_wait_reset(head)
     return head

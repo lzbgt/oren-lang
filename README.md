@@ -108,18 +108,20 @@ make verify     # clean + stage2 self-hosting verification
 
 ### Build a native ARM64 binary (macOS/Linux)
 ```bash
-./oren build examples/hello.oren --backend native --target macos --arch arm64 -o hello_native
-./oren build examples/hello.oren --backend native --target linux --arch arm64 -o hello_linux_arm64
+./oren build examples/hello.oren --backend native --platform arm64-macos -o hello_native
+./oren build examples/hello.oren --backend native --platform arm64-linux -o hello_linux_arm64
 ```
 
 ### Build a native x86_64 binary (Linux ELF / Windows PE32+ bring-up)
 ```bash
-./oren build examples/hello.oren --backend native --target linux --arch x64 -o hello_linux_x64
-./oren build examples/hello.oren --backend native --target windows --arch x64 -o hello_win_x64.exe
+./oren build examples/hello.oren --backend native --platform x64-linux -o hello_linux_x64
+./oren build examples/hello.oren --backend native --platform x64-windows -o hello_win_x64.exe
 ```
 
 Notes:
 
+- `--platform <arch>-<os>` is the recommended unified flag. Legacy `--target/--arch` are still supported.
+- Environment fallback: `OREN_PLATFORM=<arch>-<os>` (used when `--platform` is omitted).
 - The Linux/Windows x86_64 backend is Tier‑1 intent but still in bring-up; see `docs/TODOS.md`.
 - To run x86_64 artifacts on real hardware (Win11, WSL2 optional), use the documented remote workflow: `docs/REMOTE_X64_ENV.md`.
 
