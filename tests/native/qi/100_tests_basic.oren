@@ -1,0 +1,717 @@
+fn test_entropy() {
+    trace("QI: test_entropy")
+    // Smoke: OS entropy surface must exist and be bounded (no hangs).
+    // Contract: oren_getentropy(ptr, len) -> 0 on success, or -errno.
+    var p = oren_ptr_alloc(32)
+    if p == 0 { fail(72) }
+    var rc = oren_getentropy(p, 32)
+    oren_ptr_free(p)
+    if rc != 0 {
+        print("QI: oren_getentropy failed rc=" + oren_int_to_string(rc))
+        fail(73)
+    }
+    return 0
+}
+
+fn test_cfg_debug_release() {
+    trace("QI: test_cfg_debug_release")
+    var hit = 0
+    @cfg("debug") hit = hit + 1
+    @cfg("release") hit = hit + 2
+    if hit != 1 && hit != 2 {
+        print("QI: cfg debug/release mismatch hit=" + oren_int_to_string(hit))
+        fail(74)
+    }
+    var hit2 = 0
+    @debug hit2 = hit2 + 4
+    @release hit2 = hit2 + 8
+    if hit2 != 4 && hit2 != 8 {
+        print("QI: debug/release shorthand mismatch hit2=" + oren_int_to_string(hit2))
+        fail(75)
+    }
+    var hit3 = 0
+    debug {
+        hit3 = hit3 + 16
+    }
+    release {
+        hit3 = hit3 + 32
+    }
+    if hit3 != 16 && hit3 != 32 {
+        print("QI: debug/release block mismatch hit3=" + oren_int_to_string(hit3))
+        fail(76)
+    }
+    dbg("QI: dbg sugar")
+    @cfg("debug") dbg("QI: dbg sugar cfg")
+    dprint("QI: dprint sugar")
+    @cfg("debug") dprint("QI: dprint sugar cfg")
+    return 0
+}
+
+@pack
+struct PV_H {
+    v: u8,
+    t: u8,
+    len: u16be,
+    src: u32be,
+    dst: u32be
+}
+
+struct F32Box {
+    x: f32
+}
+
+fn test_core() {
+    trace("QI: test_core begin")
+    // Arithmetic / bool / bit ops.
+    assert_eq(2 + 3, 5, 10)
+    assert_true(true, 11)
+    assert_true(!false, 12)
+    assert_eq((1 | 2), 3, 13)
+    assert_eq((255 & 7), 7, 131)
+    assert_eq((10 & 255), 10, 132)
+    assert_eq((5 ^ 1), 4, 14)
+    assert_eq((1 << 5), 32, 15)
+    assert_eq((32 >> 5), 1, 16)
+    assert_eq(7 / 3, 2, 17)
+    assert_eq(-7 / 3, -2, 18)
+    assert_eq(7 / -3, -2, 19)
+    assert_eq(-7 / -3, 2, 20)
+
+    trace("QI: test_core yield")
+    // Yield is a best-effort OS scheduling hint today (future: native greenlet scheduler).
+    // It must be callable and bounded on all Tier‑1 platforms.
+    var yrc = oren_yield()
+    if yrc != 0 {
+        print("QI: oren_yield failed rc=" + oren_int_to_string(yrc))
+        fail(137)
+    }
+    
+    // Pointer byte stores/loads must work (critical for typed buffers, hashing, IO).
+    var p0 = oren_ptr_alloc(16)
+    if p0 == 0 { fail(133) }
+    ptr_set_byte(p0 + 0, 123)
+    ptr_set_byte(p0 + 1, 45)
+    var w0 = ptr_get(p0)
+    assert_eq(w0 & 255, 123, 134)
+    assert_eq((w0 >> 8) & 255, 45, 135)
+    oren_ptr_free(p0)
+
+    // Multi-arg calling convention (native ABI) sanity.
+    assert_eq(add3(1, 2, 3), 6, 136)
+
+    // Type-strict equality parity (critical):
+    // - `nil` must be distinct from numeric zero
+    // - `false` must be distinct from numeric zero
+    // - `nil` must be distinct from `false`
+    //
+    // NOTE (rolling):
+    // The compiler rejects provably-scalar `== nil` comparisons as a correctness guardrail.
+    // Exercise the equality behavior through unknown-typed values (map flows) so the test
+    // still probes the native backend hazard surface until full tagged values land.
+    var m0 = {"z": 0, "f": false, "n": nil}
+    var z0 = m0["z"]
+    var f0 = m0["f"]
+    var n0 = m0["n"]
+
+    if z0 == nil { fail(1001) }
+    if nil == z0 { fail(1002) }
+    if z0 == false { fail(1003) }
+    if false == z0 { fail(1004) }
+    if 0 == false { fail(1005) }
+    if false == 0 { fail(1006) }
+    if n0 == false { fail(1007) }
+    if false == n0 { fail(1008) }
+    if n0 != nil { fail(1009) }
+
+    // Truthiness parity (docs/LANGUAGE_SPEC.md):
+    // - falsey: `nil`, `false`
+    // - truthy: everything else (including int 0)
+    if 0 { } else { fail(1010) }
+    if nil { fail(1011) }
+    if false { fail(1012) }
+    if !0 { fail(1013) }
+    if !nil { } else { fail(1014) }
+    assert_true((0 && nil) == false, 1015)
+    assert_true((0 || nil) == true, 1016)
+    assert_true((nil || 0) == true, 1017)
+    assert_true((nil && 0) == false, 1018)
+
+    trace("QI: test_core string literal pooling")
+    // Critical perf/correctness invariant (native backend):
+    // - string literals are deduped into a single cstr0 pool
+    // - literals are recognized as strings via `oren_init_static_cstr0_table`
+    // - literals must NOT be tracked as GC heap allocations
+    //
+    // These checks are intentionally pointer-identity based (do not use `==` for strings).
+    var lit0 = "qi_literal_pool_test"
+    var lit1 = "qi_literal_pool_test"
+    if (lit0 - lit1) != 0 { fail(3100) }
+    assert_true(oren_is_string(lit0), 3101)
+    if oren_find_node(lit0) != 0 { fail(3102) }
+
+    trace("QI: test_core reflection func")
+    // Reflection v0 (native backend):
+    // `std:reflect.tag/name` must be able to discriminate first-class function values so varargs
+    // and logging can safely dispatch.
+    var fn0 = add
+    assert_eq(reflect.tag(fn0), reflect.TAG_FUNC, 3110)
+    assert_streq(reflect.name(fn0), "func", 3111)
+
+    trace("QI: test_core lists")
+    // Lists + for-in + break/continue.
+    var xs = [1, 2, 3, 4]
+    xs[1] = 20
+    assert_eq(xs[1], 20, 30)
+    var s = 0
+    for x in xs {
+        if x == 20 { continue }
+        s = s + x
+    }
+    assert_eq(s, 1 + 3 + 4, 31)
+
+    trace("QI: test_core iterable-map protocol")
+    // Iterable map protocol safety + robustness (native backend):
+    // - Runtime must not call strcmp on non-strings.
+    // - Do not rely on literal pointer equality: a user can construct an equal string that
+    //   is not the same pointer as the cstr0 literal.
+    //
+    // Regression: "__iter" set to a heap string "range" must behave like the stdlib protocol.
+    var it = "ra" + "nge" // heap string, not necessarily pointer-equal to the literal "range"
+    assert_true(oren_is_string(it), 3210)
+    assert_streq(it, "range", 3211)
+    var m_it = {"__iter": it, "start": 0, "end": 4, "step": 1}
+    var ys = []
+    for v in m_it { oren_list_push(ys, v) }
+    assert_eq(oren_list_len(ys), 4, 3212)
+    assert_eq(ys[0], 0, 3213)
+    assert_eq(ys[1], 1, 3214)
+    assert_eq(ys[2], 2, 3215)
+    assert_eq(ys[3], 3, 3216)
+
+    trace("QI: test_core typed buffer views")
+    // Typed-buffer view iteration (std/buffer protocol):
+    // - slice view:   [buf, off, len]
+    // - strided view: [buf, off, len, stride]
+    //
+    // `for x in view` must iterate underlying buffer values, not the metadata list.
+
+    // Sanity: `oren_is_err` must treat integer 0 as "not an error".
+    // Many runtime helpers return 0 on success (e.g. native_buf_check).
+    var ie0 = oren_is_err(0)
+    if ie0 {
+        print("QI: BUG: oren_is_err(0) returned true")
+        fail(3190)
+    }
+    var b = oren_i32_buf_new(6)
+    if oren_is_err(b) {
+        print("QI: oren_i32_buf_new failed")
+        fail(3200)
+    }
+    var chk0 = native_buf_check(b, BUF_TAG_I32, 4)
+    if chk0 != 0 {
+        print("QI: BUG: native_buf_check(b) returned err=" + oren_int_to_string(chk0))
+        fail(3191)
+    }
+    if oren_is_err(chk0) {
+        print("QI: BUG: oren_is_err(native_buf_check_ok)=1")
+        fail(3192)
+    }
+    var bi = 0
+    while bi < 6 {
+        var st = oren_buf_store_i32(b, bi, (bi + 1) * 10) // 10,20,30,40,50,60
+        if oren_is_err(st) {
+            print("QI: oren_buf_store_i32 failed idx=" + oren_int_to_string(bi))
+            fail(3201)
+        }
+        if g_qi_trace_on != 0 && bi == 0 {
+            print("QI: store_i32 ret=" + oren_int_to_string(st) + " buf=" + oren_int_to_string(b))
+        }
+        if st != b { fail(3204) }
+        bi = bi + 1
+    }
+    // Sanity: typed-buffer stores/loads must work before testing the view iterator protocol.
+    if g_qi_trace_on != 0 {
+        var dp = oren_buf_data_ptr_unchecked(b)
+        print("QI: buf hdr len=" + oren_int_to_string(ptr_get(b + 0)))
+        print("QI: buf hdr elem_size=" + oren_int_to_string(ptr_get(b + 8)))
+        print("QI: buf hdr magic=" + oren_int_to_string(ptr_get(b + 24)))
+        print("QI: buf hdr tag=" + oren_int_to_string(ptr_get(b + 32)) + " BUF_TAG_I32=" + oren_int_to_string(BUF_TAG_I32))
+        print("QI: buf hdr data=" + oren_int_to_string(ptr_get(b + 16)))
+        print("QI: buf hdr data_ptr=" + oren_int_to_string(ptr_get(b + 40)))
+        print("QI: buf payload ptr=" + oren_int_to_string(dp))
+        if dp != 0 {
+            fn dump4(off) {
+                return oren_int_to_string(ptr_get_byte(dp + off + 0) & 255) + "," +
+                    oren_int_to_string(ptr_get_byte(dp + off + 1) & 255) + "," +
+                    oren_int_to_string(ptr_get_byte(dp + off + 2) & 255) + "," +
+                    oren_int_to_string(ptr_get_byte(dp + off + 3) & 255)
+            }
+            print("QI: buf bytes @0..3   = " + dump4(0))
+            print("QI: buf bytes @4..7   = " + dump4(4))
+            print("QI: buf bytes @8..11  = " + dump4(8))
+            print("QI: buf bytes @12..15 = " + dump4(12))
+            print("QI: buf bytes @16..19 = " + dump4(16))
+            print("QI: buf bytes @20..23 = " + dump4(20))
+            print("QI: buf u64 @0  = " + oren_int_to_string(ptr_get(dp + 0)))
+            print("QI: buf u64 @8  = " + oren_int_to_string(ptr_get(dp + 8)))
+            print("QI: buf u64 @16 = " + oren_int_to_string(ptr_get(dp + 16)))
+        }
+    }
+    var r2 = oren_buf_load_i32(b, 2)
+    if oren_is_err(r2) { fail(3202) }
+    assert_eq(r2, 30, 3203)
+    var view = [b, 2, 3] // 30,40,50
+    var s2 = 0
+    for x2 in view { s2 = s2 + x2 }
+    assert_eq(s2, 120, 32)
+    var view2 = [b, 1, 3, 2] // 20,40,60
+    var s3 = 0
+    for x3 in view2 { s3 = s3 + x3 }
+    assert_eq(s3, 120, 33)
+
+    trace("QI: test_core maps")
+    // Deterministic map iteration order (keys).
+    var m = {"b": 1, "a": 2}
+    var ks = []
+    for k in m { oren_list_push(ks, k) }
+    assert_eq(oren_list_len(ks), 2, 40)
+    assert_streq(ks[0], "a", 41)
+    assert_streq(ks[1], "b", 42)
+
+    // Map lookup semantics:
+    // - present key yields the stored value (even if it is numeric zero)
+    // - missing key yields `nil`
+    var m2 = {"x": 0}
+    var v0 = m2["x"]
+    assert_eq(v0, 0, 46)
+    if v0 == nil { fail(1020) }
+    assert_true(m2["missing"] == nil, 1021)
+
+    trace("QI: test_core strings")
+    // String operations (portable).
+    var st = "a" + "b" + "c"
+    assert_eq(oren_string_len(st), 3, 43)
+    assert_streq(oren_string_char_at(st, 0), "a", 44)
+    assert_streq(oren_string_char_at(st, 2), "c", 45)
+
+    trace("QI: test_core function_values")
+    // Function values + spread calls.
+    var f = add
+    assert_eq(f(10, 1), 11, 50)
+    var xs3 = [2, 3]
+    assert_eq(add3(1, xs3...), 6, 51)
+    // Runtime function value (ensures native backends can synthesize `__oren_fnwrap_*` on-demand
+    // for injected runtime functions too, not just user-defined functions).
+    var glen = oren_list_len
+    assert_eq(glen([1, 2, 3]), 3, 52)
+
+    trace("QI: test_core recursion")
+    // Recursion depth (moderate): sum 1..2000 = 2001000.
+    assert_eq(sum_rec(2000), 2001000, 60)
+    trace("QI: test_core end")
+}
+
+fn test_string_literals_static() {
+    trace("QI: test_string_literals_static")
+    // GC correctness/perf: embedded string literals must NOT become GC-managed heap allocations.
+    // They live in the binary's data segment and are recognized via the cstr0 literal pool.
+    var before = native_mem_live_count()
+    var before_roots = native_mem_roots_count()
+    // Identical literals should be de-duplicated into the cstr0 pool (pointer identity stable).
+    var p1 = "qi_static_lit"
+    var p2 = "qi_static_lit"
+    // Pointer identity compare (avoid string-aware `==`).
+    assert_true((p1 - p2) == 0, 69)
+    // Literal pointers are NOT tracked as GC alloc nodes.
+    assert_true(oren_find_node(p1) == 0, 70)
+    // But they must still be recognized as strings for printing/concat/map keys.
+    assert_true(native_is_string_ptr(p1) != 0, 71)
+    assert_true(native_cstr0_set_has(p1) != 0, 72)
+    var after = native_mem_live_count()
+    assert_eq(after, before, 73)
+    var after_roots = native_mem_roots_count()
+    assert_eq(after_roots, before_roots, 74)
+}
+
+fn test_type_tag_varargs() {
+    trace("QI: test_type_tag_varargs")
+
+    fn tags_of(...args) {
+        var out = []
+        for v in args { oren_list_push(out, oren_type_tag(v)) }
+        return out
+    }
+
+    // std:reflect constants must match the runtime contract.
+    assert_eq(reflect.TAG_NIL, 0, 970)
+    assert_eq(reflect.TAG_INT, 1, 971)
+    assert_eq(reflect.TAG_FLOAT, 2, 972)
+    assert_eq(reflect.TAG_BOOL, 3, 973)
+    assert_eq(reflect.TAG_STRING, 4, 974)
+    assert_eq(reflect.TAG_FUNC, 8, 9741)
+    assert_eq(reflect.TAG_LIST, 6, 975)
+    assert_eq(reflect.TAG_MAP, 7, 976)
+    assert_eq(reflect.TAG_I32_BUF, 10, 977)
+
+    var v_nil = nil
+    var v_bool = true
+    var v_int = 123
+    var v_float = 1.25
+    var v_str = "x"
+    var v_func = add
+    var v_list = []
+    var v_map = {"k": 1}
+    var v_buf = oren_i32_buf_new(0)
+    var v_struct = F32Box(1.0)
+
+    var tags = tags_of(v_nil, v_bool, v_int, v_float, v_str, v_func, v_list, v_map, v_buf, v_struct)
+    assert_eq(oren_list_len(tags), 10, 76)
+    assert_eq(tags[0], 0, 77) // nil
+    assert_eq(tags[1], 3, 771) // bool
+    assert_eq(tags[2], 1, 78) // int
+    // Note: native backend is still rolling toward full tagged values; float tag may be best-effort.
+    assert_true(tags[3] == 1 || tags[3] == 2, 781) // float (int/float)
+    assert_eq(tags[4], 4, 79) // string
+    assert_eq(tags[5], 8, 791) // func
+    assert_eq(tags[6], 6, 80) // list
+    assert_eq(tags[7], 7, 81) // map
+    assert_eq(tags[8], 10, 82) // i32_buf
+    assert_eq(tags[9], 7, 89) // struct is map-shaped in rolling v0
+
+    assert_streq(oren_type_name(v_nil), "nil", 83)
+    assert_streq(oren_type_name(v_bool), "bool", 831)
+    assert_streq(oren_type_name(v_int), "int", 84)
+    var n_float = oren_type_name(v_float)
+    assert_true(n_float == "int" || n_float == "float", 841)
+    assert_streq(oren_type_name(v_str), "string", 85)
+    assert_streq(oren_type_name(v_func), "func", 851)
+    assert_streq(oren_type_name(v_list), "list", 86)
+    assert_streq(oren_type_name(v_map), "map", 87)
+    assert_streq(oren_type_name(v_buf), "i32_buf", 88)
+    assert_streq(oren_type_name(v_struct), "F32Box", 90)
+
+    // std:reflect wrappers must match the raw runtime helpers.
+    assert_eq(reflect.tag(v_nil), 0, 978)
+    assert_streq(reflect.name(v_struct), "F32Box", 979)
+}
+
+fn test_read_u8_buf_missing_returns_err() {
+    trace("QI: test_read_u8_buf_missing_returns_err")
+    // Tooling contract: FS helpers must return structured errors (not hard-exit) so compiler caches
+    // can probe optional files and treat ENOENT as a normal miss.
+    var r = oren_read_u8_buf("__qi_missing_file_should_not_exist__u8.bin")
+    assert_true(oren_is_err(r), 74)
+}
+
+fn test_read_file_missing_returns_err() {
+    trace("QI: test_read_file_missing_returns_err")
+    // Tooling contract: `oren_read_file` must match the stage1 runtime behavior:
+    // return an error map on failure (not exit), so optional cache probes don't abort the process.
+    var r = oren_read_file("__qi_missing_file_should_not_exist__s.txt")
+    assert_true(oren_is_err(r), 75)
+}
+
+fn test_numeric_casts() {
+    // Unchecked casts (wrap/truncate).
+    assert_eq(ints.u8(256 + 5), 5, 100)
+    assert_eq(ints.u8(-1), 255, 101)
+    assert_eq(ints.i8(255), -1, 102)
+    assert_eq(ints.i8(128), -128, 103)
+
+    assert_eq(ints.u16(65536 + 7), 7, 110)
+    assert_eq(ints.u16(-1), 65535, 111)
+    assert_eq(ints.i16(65535), -1, 112)
+    assert_eq(ints.i16(32768), -32768, 113)
+
+    assert_eq(ints.u32(4294967296 + 9), 9, 120)
+    assert_eq(ints.u32(-1), 4294967295, 121)
+    assert_eq(ints.i32(4294967295), -1, 122)
+    assert_eq(ints.i32(2147483648), -2147483648, 123)
+
+    // Cast sugar (compiler-lowered) must work without stdlib imports.
+    assert_eq(u8(1.9), 1, 130)
+    assert_eq(i32(-1.9), -1, 131)
+    assert_eq(f64(1), 1.0, 132)
+}
+
+fn test_float_and_bytes() {
+    var a = 1.5
+    var b = 2.5
+    assert_eq(a + b, 4.0, 200)
+    assert_eq(b - a, 1.0, 201)
+    assert_eq(a * 2.0, 3.0, 202)
+    assert_eq(3.0 / a, 2.0, 203)
+
+    // f32 rounding: 16777217 (2^24+1) is not representable in float32; it rounds to 16777216.
+    var b32 = F32Box(16777217.0)
+    assert_eq(b32.x, 16777216.0, 210)
+
+    // bytes hex helpers + iteration.
+    var hx = "00ff1020"
+    var bb = oren_bytes_from_hex(hx)
+    assert_true(oren_is_err(bb) == false, 220)
+    assert_eq(oren_bytes_len(bb), 4, 221)
+    assert_streq(oren_bytes_to_hex(bb), hx, 222)
+    var sum = 0
+    for x in bb { sum = sum + x }
+    assert_eq(sum, 0 + 255 + 16 + 32, 223)
+
+    // pack_view (network-order parsing story).
+    var pkt = [69, 0, 0, 84, 192, 168, 0, 1, 8, 8, 8, 8]
+    assert_eq(pack_view("PV_H", pkt, 0).v, 69, 230)
+    assert_eq(pack_view("PV_H", pkt, 0).len, 84, 231)
+    assert_eq(pack_view("PV_H", pkt, 0).src, 3232235521, 232)
+    assert_eq(pack_view("PV_H", pkt, 0).dst, 134744072, 233)
+}
+
+fn test_json() {
+    // JSON encode should be stable with deterministic map ordering.
+    var jr = json.decode("{\"b\":2,\"a\":1,\"s\":\"x\\\\n\\\"y\"}")
+    assert_eq(jr["ok"], 1, 300)
+    var out = json.encode(jr["v"])
+    assert_streq(out, "{\"a\":1,\"b\":2,\"s\":\"x\\\\n\\\"y\"}", 301)
+}
+
+fn test_ui_headless() {
+    // Headless UI core (portable, deterministic):
+    // - tree -> layout -> render command buffer -> raster RGBA bytes
+    //
+    // This intentionally avoids any OS windowing. It should work on all native targets.
+    trace("QI: test_ui_headless")
+
+    var b = ui_core.box("b", 2, 2)
+    b["p"]["bg"] = "#ff0000ff" // solid red
+    var t = ui_core.text("t", "hi", 2, 1)
+    t["p"]["color"] = "#00ff00ff" // solid green
+    var root = ui_core.column("root", [b, t])
+
+    var opts = {"clear_color": "#00000000"} // transparent black
+    var cmds = ui_render.render(root, opts)
+    assert_eq(oren_list_len(cmds), 3, 310) // clear + fill_rect + text marker
+
+    // Layout result for this tree is 2x3; validate/rasterize in strict mode.
+    var w = 2
+    var h = 3
+    var vr = ui_cmds.validate(cmds, w, h, {"strict_bounds": 1})
+    assert_true(vr == 0, 311)
+
+    var img = ui_raster.rasterize(cmds, w, h, {"strict_bounds": 1})
+    assert_true(oren_is_err(img) == false, 312)
+
+    var n = oren_buf_len(img)
+    assert_true(oren_is_err(n) == false, 313)
+    assert_eq(n, w * h * 4, 314)
+
+    // Pixel checks:
+    // - box at (0,0) size 2x2 is red
+    // - text at y=2 draws 1 green pixel per character at x=0..len-1
+    assert_eq(oren_buf_load_u8(img, 0), 255, 315) // (0,0) R
+    assert_eq(oren_buf_load_u8(img, 1), 0, 316)   // (0,0) G
+    assert_eq(oren_buf_load_u8(img, 2), 0, 317)   // (0,0) B
+    assert_eq(oren_buf_load_u8(img, 3), 255, 318) // (0,0) A
+
+    var idx_t0 = (2 * w + 0) * 4
+    assert_eq(oren_buf_load_u8(img, idx_t0 + 0), 0, 319)   // (0,2) R
+    assert_eq(oren_buf_load_u8(img, idx_t0 + 1), 255, 320) // (0,2) G
+    assert_eq(oren_buf_load_u8(img, idx_t0 + 2), 0, 321)   // (0,2) B
+    assert_eq(oren_buf_load_u8(img, idx_t0 + 3), 255, 322) // (0,2) A
+}
+
+fn test_spawn_join() {
+    // `timeout_ms == 0` is a non-blocking probe:
+    // - if not finished, returns ETIMEDOUT but must NOT cancel/kill the spawned worker
+    // - a later `oren_join` must still return the worker's value.
+    var h = spawn worker_sleep_short()
+    var r0 = oren_join_timeout(h, 0)
+    assert_eq(r0, 0 - 60, 400) // ETIMEDOUT (BSD)
+    var r1 = oren_join(h)
+    assert_eq(r1, 55, 401)
+}
+
+fn test_select() {
+    trace("QI: test_select")
+    // Rolling: on Windows, select works over in-memory channels (not pipe fds).
+
+    var c1 = oren_new_channel()
+    var c2 = oren_new_channel()
+    if c1 == 0 || c2 == 0 { fail(450) }
+
+    // select-recv returns [idx, val] where idx is the chosen channel index.
+    trace("QI: select_recv")
+    oren_chan_send(c2, 111)
+    var sel = oren_select_recv([c1, c2])
+    if sel == 0 { fail(451) }
+    assert_eq(oren_list_len(sel), 2, 452)
+    assert_eq(oren_list_get(sel, 0), 1, 453)
+    assert_eq(oren_list_get(sel, 1), 111, 454)
+
+    // select-send returns [idx, 1] and the value must be readable from that channel.
+    // Run twice to exercise the rolling fairness cursor update path (`g_select_cursor`).
+    trace("QI: select send #1")
+    var s1 = oren_select([[1, c1, 11], [1, c2, 22]])
+    if s1 == 0 { fail(455) }
+    assert_eq(oren_list_len(s1), 2, 456)
+    assert_eq(oren_list_get(s1, 1), 1, 457)
+    var idx1 = oren_list_get(s1, 0)
+    if idx1 == 0 {
+        assert_eq(oren_chan_recv(c1), 11, 458)
+    } else {
+        assert_eq(oren_chan_recv(c2), 22, 459)
+    }
+
+    trace("QI: select send #2")
+    var s2 = oren_select([[1, c1, 33], [1, c2, 44]])
+    if s2 == 0 { fail(460) }
+    assert_eq(oren_list_len(s2), 2, 461)
+    assert_eq(oren_list_get(s2, 1), 1, 462)
+    var idx2 = oren_list_get(s2, 0)
+    if idx2 == 0 {
+        assert_eq(oren_chan_recv(c1), 33, 463)
+    } else {
+        assert_eq(oren_chan_recv(c2), 44, 464)
+    }
+    return 0
+}
+
+fn _qi_select_recv_one(ch) {
+    // Run inside a green task: `oren_select` must not block the scheduler OS thread.
+    var sel = oren_select_recv([ch])
+    if sel == 0 { return 0 - 5 } // EIO-ish
+    if oren_list_len(sel) != 2 { return 0 - 5 }
+    return oren_list_get(sel, 1)
+}
+
+fn _qi_select_send_delayed(ch, v) {
+    // Ensure the receiver enters select before we send (otherwise a blocking select would not deadlock).
+    // Use green-space sleep so we do not block the OS thread.
+    oren_green_sleep_ns(5000000) // 5ms
+    oren_chan_send(ch, v)
+    return 0
+}
+
+fn _qi_select_send_fairness_in_green(c1, c2) {
+    // Run inside a green task: multi-case `oren_select` must preserve deterministic cursor behavior
+    // without doing per-wake probe polling (netpoll v2 path).
+    var s1 = oren_select([[1, c1, 11], [1, c2, 22]])
+    if s1 == 0 { return 0 - 5 }
+    if oren_list_len(s1) != 2 { return 0 - 5 }
+    if oren_list_get(s1, 1) != 1 { return 0 - 5 }
+    var idx1 = oren_list_get(s1, 0)
+    if idx1 == 0 {
+        if oren_chan_recv(c1) != 11 { return 0 - 5 }
+    } else {
+        if oren_chan_recv(c2) != 22 { return 0 - 5 }
+    }
+
+    var s2 = oren_select([[1, c1, 33], [1, c2, 44]])
+    if s2 == 0 { return 0 - 5 }
+    if oren_list_len(s2) != 2 { return 0 - 5 }
+    if oren_list_get(s2, 1) != 1 { return 0 - 5 }
+    var idx2 = oren_list_get(s2, 0)
+    if idx2 == 0 {
+        if oren_chan_recv(c1) != 33 { return 0 - 5 }
+    } else {
+        if oren_chan_recv(c2) != 44 { return 0 - 5 }
+    }
+
+    // Cursor should advance, so with both cases always writable, we should not pick the same index twice.
+    if idx1 == idx2 { return 0 - 5 }
+    return 0
+}
+
+fn test_select_in_green_workers() {
+    trace("QI: test_select_in_green_workers")
+    // Rolling:
+    // - POSIX: in-green select over pipe channels uses netpoll v2.
+    // - Windows: in-green select over mem-channels parks on the shared global seq word via `oren_wait_on_addr`
+    //   (wake-driven; no polling), but it must still not block the scheduler OS thread.
+
+    // Run under Stage N2 worker mode with a bounded join timeout so regressions cannot hang the suite:
+    // - if `oren_select` blocks the worker OS thread, the sender will never run and join_timeout will return -60.
+    var rcw = oren_green_start_workers(1)
+    assert_eq(rcw, 0, 560)
+
+    var c = oren_new_channel()
+    if c == 0 { fail(561) }
+
+    var recv_h = spawn _qi_select_recv_one(c)
+    var send_h = spawn _qi_select_send_delayed(c, 777)
+
+    var r = oren_join_timeout(recv_h, 200)
+    assert_eq(r, 777, 562)
+    // Best-effort cleanup: sender should be done quickly too.
+    oren_join_timeout(send_h, 200)
+    return 0
+}
+
+fn test_select_multi_case_in_green_workers() {
+    trace("QI: test_select_multi_case_in_green_workers")
+
+    var rcw = oren_green_start_workers(1)
+    assert_eq(rcw, 0, 563)
+
+    var c1 = oren_new_channel()
+    var c2 = oren_new_channel()
+    if c1 == 0 || c2 == 0 { fail(564) }
+
+    var h = spawn _qi_select_send_fairness_in_green(c1, c2)
+    var r = oren_join_timeout(h, 500)
+    assert_eq(r, 0, 565)
+    return 0
+}
+
+fn _qi_select_recv_block_forever(ch) {
+    // Block in select forever (rolling: uses a long finite sleep internally).
+    // Used to validate that the scheduler blocks in netpoll instead of spinning.
+    var sel = oren_select_recv([ch])
+    if sel == 0 { return 0 - 5 }
+    if oren_list_len(sel) != 2 { return 0 - 5 }
+    return oren_list_get(sel, 1)
+}
+
+fn test_select_idle_does_not_spin_cpu() {
+    trace("QI: test_select_idle_does_not_spin_cpu")
+    // Rolling:
+    // - POSIX: select blocks in netpoll.
+    // - Windows: mem-channel select parks the G and wakes explicitly (no 1ms polling loop).
+
+    // Ensure worker mode is active and the scheduler can block in netpoll.
+    var rcw = oren_green_start_workers(1)
+    assert_eq(rcw, 0, 566)
+    trace("QI: idle spin: workers started")
+
+    // Reset idle counter (global debug page).
+    oren_green_debug_reset()
+    trace("QI: idle spin: debug reset")
+
+    var c = oren_new_channel()
+    if c == 0 { fail(567) }
+    trace("QI: idle spin: channel created")
+
+    // Spawn a receiver that blocks in select; do NOT send yet.
+    var h = spawn _qi_select_recv_block_forever(c)
+    trace("QI: idle spin: recv spawned h=" + oren_int_to_string(h))
+
+    // Sleep on the host thread so the worker's scheduler loop is responsible for idling.
+    // If the worker spins (polling with timeout=0), idle_iters will climb quickly.
+    sys_nanosleep(200000000) // 200ms
+    trace("QI: idle spin: host slept")
+
+    var iters = oren_green_debug_idle_iters()
+    trace("QI: idle spin: iters=" + oren_int_to_string(iters))
+    // Heuristic bound (rolling): idle should block in kevent/epoll with a ~1s timeout clamp,
+    // so we expect <= a handful of idle iterations over 200ms.
+    assert_true(iters >= 0, 568)
+    assert_true(iters <= 20, 569)
+    trace("QI: idle spin: iters ok")
+    trace("QI: idle spin: pre-send h=" + oren_int_to_string(h))
+
+    // Wake and join to avoid leaking a blocked green task in the test suite.
+    oren_chan_send(c, 999)
+    trace("QI: idle spin: sent h=" + oren_int_to_string(h))
+    var r = oren_join_timeout(h, 500)
+    assert_eq(r, 999, 570)
+    trace("QI: idle spin: joined")
+    return 0
+}
+

@@ -770,6 +770,15 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    - The fixture is now >2k LOC and touches many surfaces; refactoring into logical chunks will reduce
      maintenance risk while keeping the Tier‑1 gate signal.
 
+   Status (fact):
+
+   - 2026-02-13: split `tests/native/test_quick_integration_native.oren` into include segments:
+     - `tests/native/qi/000_prelude.oren`
+     - `tests/native/qi/100_tests_basic.oren`
+     - `tests/native/qi/200_tests_wait_gc.oren`
+     - `tests/native/qi/300_tests_green.oren`
+     - `tests/native/qi/400_main.oren`
+
 ## Tier‑1 verification blockers (operational)
 
 - Remote Win11/WSL2 access can intermittently fail via the default proxy hostname (`pc.work`).

@@ -1,0 +1,201 @@
+import json "../../lib/std/json.oren"
+import ints "../../lib/std/ints.oren"
+import reflect "../../lib/std/reflect.oren"
+import ui_core "../../lib/std/ui/core.oren"
+import ui_render "../../lib/std/ui/render.oren"
+import ui_raster "../../lib/std/ui/raster.oren"
+import ui_cmds "../../lib/std/ui/commands.oren"
+
+// Quick, self-contained native backend integration smoke.
+//
+// Design goals:
+// - single entry file (easy manual invocation; compiled with `// @include` expansion)
+// - no reliance on external binaries (/bin/sh, /usr/bin/*)
+// - no network dependencies
+// - exercises high-signal language + runtime surfaces that should be backend-universal
+//
+// NOTE: This is intentionally smaller than `tests/native/test_integration_suite.oren`,
+// and avoids runner-provided helper binaries.
+
+fn fail(code) {
+    oren_fail(code, "native quick integration")
+    return 0
+}
+
+fn assert_true(x, code) {
+    if x { return 0 }
+    fail(code)
+}
+
+fn assert_eq(a, b, code) {
+    if a == b { return 0 }
+    print("assert_eq failed: code=" + oren_int_to_string(code))
+    print("  got=" + oren_int_to_string(a))
+    print("  expected=" + oren_int_to_string(b))
+    fail(code)
+}
+
+fn assert_streq(a, b, code) {
+    if strcmp(a, b) == 0 { return 0 }
+    print("assert_streq failed: code=" + oren_int_to_string(code))
+    print("  got=" + a)
+    print("  expected=" + b)
+    fail(code)
+}
+
+var g_qi_trace_on = 0
+
+fn trace(msg) {
+    // Opt-in progress markers for debugging remote hangs/timeouts.
+    // Enable by setting `OREN_QI_TRACE=1` in the environment.
+    if g_qi_trace_on != 0 {
+        print(msg)
+    }
+}
+
+fn _qi_env_truthy(key) {
+    // Return true if env var is set to a truthy value ("", "0", nil are false).
+    var v = oren_env(key)
+    if v == nil { return false }
+    if v == "" { return false }
+    if strcmp(v, "0") == 0 { return false }
+    return true
+}
+
+fn _qi_timeout_ms(ms) {
+    // Optional slowdown knob for emulated/very-slow environments (e.g. qemu-x86_64 smoke runs).
+    // Default is strict so regressions remain bounded on Tier‑1 hosts.
+    if _qi_env_truthy("OREN_TEST_SLOW") { return ms * 4 }
+    return ms
+}
+
+fn add(a, b) { return a + b }
+fn add3(a, b, c) { return a + b + c }
+
+fn sum_rec(n) {
+    if n <= 0 { return 0 }
+    return n + sum_rec(n - 1)
+}
+
+fn worker_sleep_short() {
+    oren_sleep_ms(200)
+    return 55
+}
+
+fn worker_green_yield_then_ret() {
+    // Exercise the green yield primitive (Stage N1) and the background-worker scheduler mode (Stage N2 groundwork).
+    var i = 0
+    while i < 50 {
+        oren_green_yield()
+        i = i + 1
+    }
+    return 77
+}
+
+fn worker_green_sleep_400ms_then_ret2() {
+    // Forces the worker into the "idle with sleepers" path.
+    if g_qi_trace_on != 0 { print("QI: g sleeper enter") }
+    oren_green_sleep_ns(400000000) // 400ms
+    if g_qi_trace_on != 0 { print("QI: g sleeper woke") }
+    return 2
+}
+
+fn worker_green_sleep_1ms_then_ret_one() {
+    oren_green_sleep_ns(1000000) // 1ms
+    return 1
+}
+
+fn worker_green_alloc_yield_integrity(seed) {
+    // Regression guard: context switching must not corrupt the native bump allocator state.
+    // In the native backends, the bump allocator lives in reserved registers and MUST NOT be
+    // saved/restored by `oren_ctx_switch`.
+    var ptrs = []
+    var i = 0
+    while i < 200 {
+        var p = oren_ptr_alloc(64)
+        if p == 0 { return 0 - 5 }
+        // Write a distinctive per-allocation tag.
+        ptr_set(p, seed + i * 131 + 7)
+        oren_list_push(ptrs, p)
+        if (i & 7) == 0 {
+            oren_green_yield()
+        }
+        i = i + 1
+    }
+
+    // Verify tags survived across many yields (and across interleaving with other green tasks).
+    i = 0
+    while i < oren_list_len(ptrs) {
+        var p2 = oren_list_get(ptrs, i)
+        var got = ptr_get(p2)
+        var want = seed + i * 131 + 7
+        if got != want {
+            // Best-effort: free what we can before failing.
+            var j = 0
+            while j < oren_list_len(ptrs) {
+                var pp = oren_list_get(ptrs, j)
+                if pp != 0 { oren_ptr_free(pp) }
+                j = j + 1
+            }
+            return 0 - 1
+        }
+        i = i + 1
+    }
+
+    i = 0
+    while i < oren_list_len(ptrs) {
+        var p3 = oren_list_get(ptrs, i)
+        if p3 != 0 { oren_ptr_free(p3) }
+        i = i + 1
+    }
+    return 1
+}
+
+fn worker_green_local_ptr_survives_yields(seed) {
+    // Regression guard (compiler + ctx switch contract):
+    // A long-lived local pointer must remain valid across many yields / ctx switches.
+    //
+    // This is intentionally different from `worker_green_alloc_yield_integrity`:
+    // - here we keep a single pointer local *live across yield points*
+    // - if a backend miscompiles locals around `oren_ctx_switch`, `p` can collapse
+    //   to a small integer (e.g. 2) and would otherwise segfault in `ptr_get`.
+    var p = oren_ptr_alloc(32)
+    if p == 0 { return 0 - 21 }
+    ptr_set(p, seed + 123)
+
+    var i = 0
+    while i < 200 {
+        if p == 0 || p < 4096 { oren_ptr_free(p); return 0 - 22 }
+        var got = ptr_get(p)
+        if got != seed + 123 { oren_ptr_free(p); return 0 - 23 }
+        // Keep `p` live and exercised across the yield boundary.
+        if (i & 7) == 0 {
+            ptr_set(p, seed + 123 + i)
+            if ptr_get(p) != seed + 123 + i { oren_ptr_free(p); return 0 - 24 }
+            ptr_set(p, seed + 123)
+        }
+        oren_green_yield()
+        i = i + 1
+    }
+    oren_ptr_free(p)
+    return 1
+}
+
+fn _off_green_hog_stop() { return 0 } // u64
+
+fn worker_green_hog_until_stop(meta) {
+    if meta == 0 { return -1 }
+    // Keep this task runnable essentially forever (until stop flips).
+    // This creates perpetual local-runq pressure so we can verify global-runq fairness.
+    while ptr_get(meta + _off_green_hog_stop()) == 0 {
+        oren_green_yield()
+    }
+    return 0
+}
+
+fn worker_green_ret_one() { return 1 }
+
+fn worker_green_sp_align_mod16() {
+    var sp = get_sp()
+    return sp & 15
+}

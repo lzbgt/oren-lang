@@ -1,0 +1,926 @@
+fn test_wait_on_addr_mismatch_is_success() {
+    trace("QI: test_wait_on_addr_mismatch_is_success")
+    // Contract (docs/CONCURRENCY_MODEL.md):
+    // - `oren_wait_on_addr(addr, expected, timeout_us)` waits while *addr == expected
+    // - if *addr != expected, it must return 0 immediately (no error)
+    //
+    // This is a correctness requirement for CAS+park loops, where the value can change
+    // between the last check and the kernel wait primitive (Linux futex returns -EAGAIN).
+    var p = sys_mmap_private_anon(4096)
+    if p == 0 || p == -1 || p < 4096 { fail(488) }
+    ptr_set(p, 123)
+    var rc = oren_wait_on_addr(p, 0, 0)
+    sys_munmap(p, 4096)
+    assert_eq(rc, 0, 489)
+    return 0
+}
+
+fn worker_green_wait_on_addr_then_ret_ok(meta) {
+    // Called as a green task (POSIX Tier‑1) so `oren_wait_on_addr` must not block the scheduler OS thread.
+    //
+    // Contract under green tasks (rolling):
+    // - `oren_wait_on_addr` must park/yield cooperatively instead of blocking in the kernel wait primitive.
+    var rc = oren_wait_on_addr(meta, 0, 0) // forever until meta != 0
+    if rc != 0 { return rc }
+    return 0
+}
+
+fn worker_green_set_word_and_wake(meta) {
+    // Wake the waiter by changing the value and issuing a wake-by-address.
+    ptr_set(meta, 1)
+    oren_wake_all_addr(meta)
+    return 0
+}
+
+fn worker_green_wait_on_addr_timeout_then_ret(meta) {
+    // Called as a green task (POSIX Tier‑1) so `oren_wait_on_addr` must not block the scheduler OS thread,
+    // even for bounded waits (`timeout_us > 0`).
+    //
+    // meta layout (u64 slots):
+    // - [0] wait word (stays 0)
+    // - [16] a_started
+    // - [24] a_done
+    ptr_set(meta + 16, 1) // a_started
+    var rc = oren_wait_on_addr(meta + 0, 0, 20000) // 20ms timeout
+    ptr_set(meta + 24, 1) // a_done
+    return rc
+}
+
+fn worker_green_mark_ran_while_waiter_blocked(meta) {
+    // meta layout (u64 slots):
+    // - [8]  b_ran
+    // - [16] a_started
+    // - [24] a_done
+    // - [32] b_saw_a_done
+    while ptr_get(meta + 16) == 0 {
+        oren_green_yield()
+    }
+    var saw_done = ptr_get(meta + 24)
+    ptr_set(meta + 32, saw_done)
+    ptr_set(meta + 8, 1)
+    return 0
+}
+
+fn test_wait_on_addr_in_green_does_not_block_scheduler() {
+    trace("QI: test_wait_on_addr_in_green_does_not_block_scheduler")
+    // Green tasks are the default `spawn` path on macOS/Linux today.
+    // Windows uses CreateThread for `spawn`, so skip this test there.
+    if g_target_os == 3 { return 0 }
+
+    var meta = sys_mmap_private_anon(4096)
+    if meta == 0 || meta == -1 || meta < 4096 { fail(760) }
+    ptr_set(meta, 0)
+
+    // Spawn waiter + waker. This is a minimal deadlock regression:
+    // - If `oren_wait_on_addr(..., timeout_us=0)` blocks the scheduler OS thread,
+    //   the waker cannot run and the suite will hang.
+    var hw = spawn worker_green_wait_on_addr_then_ret_ok(meta)
+    var hs = spawn worker_green_set_word_and_wake(meta)
+
+    // Deterministic drive: run a bounded number of steps to ensure both tasks get CPU time
+    // before any later fixture starts green worker threads.
+    assert_eq(oren_green_poll_steps(8), 0, 761)
+
+    var rs = oren_join_timeout(hs, 2000)
+    assert_eq(rs, 0, 762)
+    var rw = oren_join_timeout(hw, 2000)
+    assert_eq(rw, 0, 763)
+
+    sys_munmap(meta, 4096)
+    return 0
+}
+
+fn test_wait_on_addr_timeout_in_green_does_not_block_scheduler() {
+    trace("QI: test_wait_on_addr_timeout_in_green_does_not_block_scheduler")
+    // Green tasks are the default `spawn` path on macOS/Linux today.
+    // Windows uses CreateThread for `spawn`, so skip this test there.
+    if g_target_os == 3 { return 0 }
+
+    var meta = sys_mmap_private_anon(4096)
+    if meta == 0 || meta == -1 || meta < 4096 { fail(764) }
+    // Clear words.
+    ptr_set(meta + 0, 0)  // wait word
+    ptr_set(meta + 8, 0)  // b_ran
+    ptr_set(meta + 16, 0) // a_started
+    ptr_set(meta + 24, 0) // a_done
+    ptr_set(meta + 32, 0) // b_saw_a_done
+
+    // Spawn a bounded-timeout waiter + an independent runnable task.
+    //
+    // Regression contract:
+    // - If `oren_wait_on_addr(..., timeout_us>0)` blocks in the kernel, the scheduler OS thread stalls,
+    //   and the marker task cannot run until the waiter returns (timeout).
+    //
+    // We assert that the marker observes a_done==0 when it runs, proving it ran while the waiter was parked.
+    var hw = spawn worker_green_wait_on_addr_timeout_then_ret(meta)
+    var hm = spawn worker_green_mark_ran_while_waiter_blocked(meta)
+
+    // Drive a few steps: enough for waiter to park and marker to run.
+    assert_eq(oren_green_poll_steps(16), 0, 765)
+
+    assert_eq(ptr_get(meta + 8), 1, 766)   // marker ran
+    assert_eq(ptr_get(meta + 32), 0, 767)  // marker ran before waiter completed
+
+    // Now drive until the waiter times out, then join both.
+    var dl = oren_time_mono_ns()
+    if dl == 0 { dl = oren_time_unix_ns() }
+    if dl == 0 { fail(768) }
+    // +200ms
+    assert_eq(oren_green_poll_until(dl + 200000000), 0, 769)
+
+    var rm = oren_join_timeout(hm, 2000)
+    assert_eq(rm, 0, 770)
+    var rw = oren_join_timeout(hw, 2000)
+    assert_eq(rw, -60, 771)
+
+    sys_munmap(meta, 4096)
+    return 0
+}
+
+fn test_time_mono_ns_monotonic() {
+    trace("QI: test_time_mono_ns_monotonic")
+    // Contract (rolling): `oren_time_mono_ns()` should be monotonic if non-zero.
+    // This is required for scheduler deadlines to be robust against wall-clock jumps.
+    //
+    // Tier‑1 Windows note:
+    // `oren_time_mono_ns()` uses QueryPerformanceCounter ticks under the hood; ensure
+    // the backend provides QueryPerformanceFrequency so raw->ns scaling is exact.
+    if g_target_os == 3 {
+        var p = sys_mmap_private_anon(4096)
+        if p == 0 || p == -1 || p < 4096 { fail(508) }
+        ptr_set(p, 0)
+        var rc = sys_qpc_frequency(p)
+        var freq = ptr_get(p)
+        sys_munmap(p, 4096)
+        if rc != 0 { fail(509) }
+        if freq <= 0 { fail(513) }
+    }
+    var t0 = oren_time_mono_ns()
+    if t0 == 0 { fail(510) }
+    // Give time a chance to advance across OSes (Windows Sleep has ms granularity).
+    oren_sleep_ms(2)
+    var t1 = oren_time_mono_ns()
+    if t1 == 0 { fail(511) }
+    if t1 <= t0 { fail(512) }
+    return 0
+}
+
+fn worker_green_try_start_workers_in_green() {
+    // Must run on a green stack so `oren_green_start_workers` sees in-green execution.
+    return oren_green_start_workers(1)
+}
+
+fn worker_green_try_bind_p_in_green() {
+    // Must run on a green stack so `oren_green_bind_p` sees in-green execution.
+    return oren_green_bind_p(1)
+}
+
+fn worker_green_try_acquire_p_in_green() {
+    // Must run on a green stack so `oren_green_acquire_p` sees in-green execution.
+    return oren_green_acquire_p(1)
+}
+
+fn test_green_start_workers_rejects_in_green() {
+    trace("QI: test_green_start_workers_rejects_in_green")
+    // Green tasks are the default `spawn` path on macOS/Linux today.
+    // Windows uses CreateThread for `spawn`, so skip this test there.
+    if g_target_os == 3 { return 0 }
+
+    // Must run before any earlier test enables background workers (which would make start_workers idempotent).
+    var h = spawn worker_green_try_start_workers_in_green()
+    var r = oren_join_timeout(h, 2000)
+    assert_eq(r, -1, 493)
+    return 0
+}
+
+fn test_green_bind_p_rejects_in_green() {
+    trace("QI: test_green_bind_p_rejects_in_green")
+    if g_target_os == 3 { return 0 }
+    var h = spawn worker_green_try_bind_p_in_green()
+    var r = oren_join_timeout(h, 2000)
+    assert_eq(r, -1, 536)
+    return 0
+}
+
+fn test_green_acquire_p_rejects_in_green() {
+    trace("QI: test_green_acquire_p_rejects_in_green")
+    if g_target_os == 3 { return 0 }
+    var h = spawn worker_green_try_acquire_p_in_green()
+    var r = oren_join_timeout(h, 2000)
+    assert_eq(r, -1, 587)
+    return 0
+}
+
+fn test_green_sp_alignment_x64() {
+    @cfg(arch="x64") {
+        trace("QI: test_green_sp_alignment_x64")
+        var h = spawn worker_green_sp_align_mod16()
+        var got = oren_join(h)
+        if got != 8 {
+            print("QI: green sp alignment mismatch mod16=" + oren_int_to_string(got))
+            fail(588)
+        }
+    }
+    return 0
+}
+
+fn test_green_workers_join() {
+    trace("QI: test_green_workers_join")
+    // Green tasks are the default `spawn` path on macOS/Linux today.
+    // Windows uses CreateThread for `spawn`, so skip this test there.
+    if g_target_os == 3 { return 0 }
+
+    // Start one background worker ("M") that runs the green scheduler loop.
+    // Join should complete by blocking on the green task's state word (not by driving the scheduler on the joining thread).
+    var rc = oren_green_start_workers(1)
+    assert_eq(rc, 0, 480)
+
+    var h = spawn worker_green_yield_then_ret()
+    var r = oren_join_timeout(h, 2000)
+    assert_eq(r, 77, 481)
+    return 0
+}
+
+fn test_green_start_workers_does_not_reserve_extra_ps() {
+    trace("QI: test_green_start_workers_does_not_reserve_extra_ps")
+    if g_target_os == 3 { return 0 }
+
+    // Ensure we can create extra Ps before workers start.
+    var rc_pc = oren_green_set_p_count(3)
+    assert_eq(rc_pc, 0, 605)
+    assert_true(oren_green_p_count() >= 3, 606)
+
+    // Before workers start, extra Ps must be unclaimed.
+    assert_eq(oren_green_debug_p_owner_tid(1), 0, 607)
+    assert_eq(oren_green_debug_p_owner_tid(2), 0, 608)
+
+    // Start 1 worker. Stage N3 direction: reserve only Ps that correspond to real workers.
+    // Extra Ps must remain free so future M<P can acquire them.
+    var rcw = oren_green_start_workers(1)
+    assert_eq(rcw, 0, 609)
+    // Start-up sequencing must be stable: worker should reach its scheduler loop promptly.
+    assert_true(oren_green_debug_workers_ready_count() >= 1, 660)
+
+    // After workers start, extra Ps must still be unclaimed (not negative-reserved).
+    assert_eq(oren_green_debug_p_owner_tid(1), 0, 610)
+    assert_eq(oren_green_debug_p_owner_tid(2), 0, 611)
+    return 0
+}
+
+fn test_green_worker_release_acquire_p_when_parked() {
+    trace("QI: test_green_worker_release_acquire_p_when_parked")
+    // Green tasks are the default `spawn` path on macOS/Linux today.
+    // Windows uses CreateThread for `spawn`, so skip this test there.
+    if g_target_os == 3 { return 0 }
+
+    // Ensure worker mode is active (idempotent).
+    var rcw = oren_green_start_workers(1)
+    assert_eq(rcw, 0, 600)
+
+    // Reset debug counters after workers are up so this fixture measures just the park/reacquire behavior.
+    oren_green_debug_reset()
+
+    // Run one task so the worker definitely enters its scheduler loop.
+    var h1 = spawn worker_green_yield_then_ret()
+    var r1 = oren_join_timeout(h1, 2000)
+    assert_eq(r1, 77, 601)
+
+    // Wait for the worker to go idle and park, which should release its P.
+    var tries = 0
+    while tries < 50 {
+        if oren_green_debug_p_release_count() > 0 { break }
+        oren_sleep_ms(1)
+        tries = tries + 1
+    }
+    assert_true(oren_green_debug_p_release_count() > 0, 602)
+    var pid_rel = oren_green_debug_last_p_release_id()
+    assert_true(pid_rel >= 0, 650)
+    // After a release, the P must not remain in the negative "reserved" sentinel state.
+    // (It may be re-acquired immediately by the worker before we observe it here.)
+    assert_true(oren_green_debug_p_owner_tid(pid_rel) >= 0, 651)
+
+    // Wake the parked worker by injecting more runnable work; it should re-acquire a P to run.
+    var h2 = spawn worker_green_yield_then_ret()
+    var r2 = oren_join_timeout(h2, 2000)
+    assert_eq(r2, 77, 603)
+
+    tries = 0
+    while tries < 50 {
+        if oren_green_debug_p_acquire_count() > 0 { break }
+        oren_sleep_ms(1)
+        tries = tries + 1
+    }
+    assert_true(oren_green_debug_p_acquire_count() > 0, 604)
+    var pid_acq = oren_green_debug_last_p_acquire_id()
+    assert_true(pid_acq >= 0, 652)
+    // The acquired P must not be left in the negative "reserved" sentinel state.
+    // (It may be released again before we observe it here, so allow 0.)
+    assert_true(oren_green_debug_p_owner_tid(pid_acq) >= 0, 653)
+    return 0
+}
+
+fn test_gc_collect_does_not_deadlock_with_green_worker_idle() {
+    trace("QI: test_gc_collect_does_not_deadlock_with_green_worker_idle")
+    if g_target_os == 3 { return 0 }
+
+    // Ensure worker mode is active (idempotent).
+    var rcw = oren_green_start_workers(1)
+    assert_eq(rcw, 0, 612)
+
+    // Drive one task so the worker runs and can later become idle/parked.
+    var h = spawn worker_green_yield_then_ret()
+    var r = oren_join_timeout(h, 2000)
+    assert_eq(r, 77, 613)
+
+    // Give the worker a moment to enter its idle/park path.
+    oren_sleep_ms(5)
+
+    // Regression guard:
+    // `oren_gc_collect()` must not deadlock even if a green scheduler worker is parked.
+    // (Worker must periodically poll STW or use bounded waits so the collector can observe it parked.)
+    oren_gc_collect()
+    return 0
+}
+
+fn _off_qi_gc_stw_state() { return 0 }     // u64: 0=init, 1=ready/running, 9=exit
+fn _off_qi_gc_stw_keep_ptr() { return 8 }  // u64: pointer to tracked heap object (list)
+
+@oren.keep
+fn __oren_qi_test_gc_stw_worker_stack(meta) {
+    if meta == 0 { return 0 }
+    if g_gc_enabled == 0 { return 0 }
+
+    // OS-thread nodes must be registered for GC stack scanning + STW coordination.
+    oren_register_thread(get_sp())
+
+    // Allocate a heap object that should stay alive due to stack scanning.
+    var keep = oren_new_list(2)
+    oren_list_push(keep, 123)
+    oren_list_push(keep, 456)
+
+    // Publish pointer into raw mmap-backed memory (NOT a GC root).
+    ptr_set(meta + _off_qi_gc_stw_keep_ptr(), keep)
+
+    // Signal readiness.
+    ptr_set(meta + _off_qi_gc_stw_state(), 1)
+    oren_wake_all_addr(meta + _off_qi_gc_stw_state())
+
+    // Stay in a loop so the collector can reliably park us at a safepoint.
+    // Keep `keep` live on this stack frame until exit.
+    while ptr_get(meta + _off_qi_gc_stw_state()) == 1 {
+        oren_gc_safepoint()
+    }
+    return 0
+}
+
+fn test_gc_stw_os_thread_collect_scans_parked_stack() {
+    trace("QI: test_gc_stw_os_thread_collect_scans_parked_stack")
+    if g_gc_enabled == 0 { return 0 }
+    if g_target_os != 1 && g_target_os != 2 && g_target_os != 3 { return 0 }
+
+    var meta = sys_mmap_private_anon(4096)
+    if meta == 0 || meta == -1 || meta < 4096 { fail(780) }
+    ptr_set(meta + _off_qi_gc_stw_state(), 0)
+    ptr_set(meta + _off_qi_gc_stw_keep_ptr(), 0)
+
+    var start = oren_code_addr(__oren_qi_test_gc_stw_worker_stack)
+    if start == 0 { sys_munmap(meta, 4096); fail(781) }
+
+    var h = oren_os_thread_spawn(start, meta)
+    if h == 0 || h == -1 || h < 0 { sys_munmap(meta, 4096); fail(782) }
+
+    // Wait until worker is ready (bounded).
+    while ptr_get(meta + _off_qi_gc_stw_state()) == 0 {
+        var rc = oren_wait_on_addr(meta + _off_qi_gc_stw_state(), 0, 2000000)
+        if rc == -60 {
+            oren_os_thread_destroy(h)
+            sys_munmap(meta, 4096)
+            fail(783)
+        }
+    }
+    assert_eq(ptr_get(meta + _off_qi_gc_stw_state()), 1, 790)
+
+    // Critical: do NOT read keep_ptr before the collection, otherwise it would be present
+    // on the collector stack and could mask missing worker stack scanning.
+    oren_gc_collect()
+
+    // Now read the pointer and verify it is still tracked.
+    var keep_after = ptr_get(meta + _off_qi_gc_stw_keep_ptr())
+    assert_true(keep_after != 0, 791)
+    assert_true(oren_find_node(keep_after) != 0, 792)
+    assert_eq(oren_list_len(keep_after), 2, 793)
+    assert_eq(keep_after[0], 123, 794)
+    assert_eq(keep_after[1], 456, 795)
+
+    // Ask worker to exit and join it.
+    ptr_set(meta + _off_qi_gc_stw_state(), 9)
+    oren_wake_all_addr(meta + _off_qi_gc_stw_state())
+    assert_eq(oren_os_thread_join_timeout(h, 2000000), 0, 796)
+    oren_os_thread_destroy(h)
+    sys_munmap(meta, 4096)
+    return 0
+}
+
+fn _off_qi_gc_netpoll_ready() { return 0 }   // u64
+fn _off_qi_gc_netpoll_in_poll() { return 8 } // u64
+fn _off_qi_gc_netpoll_stop() { return 16 }   // u64
+
+@oren.keep
+fn __oren_qi_test_gc_stw_netpoll_blocked(meta) {
+    if meta == 0 { return 0 }
+    if g_gc_enabled == 0 { return 0 }
+    if g_target_os == 3 { return 0 }
+
+    // Ensure this OS thread participates in STW coordination.
+    oren_register_thread(get_sp())
+
+    // Ensure netpoll is initialized so we can block in the kernel readiness wait.
+    var rc0 = native_netpoll_init_once()
+    if rc0 < 0 {
+        // Signal ready anyway so the test doesn't hang; main will likely skip/return.
+        ptr_set(meta + _off_qi_gc_netpoll_ready(), 1)
+        oren_wake_all_addr(meta + _off_qi_gc_netpoll_ready())
+        return 0
+    }
+
+    var scratch = sys_mmap_private_anon(4096)
+    if scratch == 0 || scratch == -1 || scratch < 4096 {
+        ptr_set(meta + _off_qi_gc_netpoll_ready(), 1)
+        oren_wake_all_addr(meta + _off_qi_gc_netpoll_ready())
+        return 0
+    }
+
+    ptr_set(meta + _off_qi_gc_netpoll_ready(), 1)
+    oren_wake_all_addr(meta + _off_qi_gc_netpoll_ready())
+
+    while ptr_get(meta + _off_qi_gc_netpoll_stop()) == 0 {
+        // Tell the main thread we're about to block in netpoll.
+        ptr_set(meta + _off_qi_gc_netpoll_in_poll(), 1)
+        oren_wake_all_addr(meta + _off_qi_gc_netpoll_in_poll())
+
+        // Block "long" (1s). STW must still complete promptly by waking pollers.
+        native_netpoll_poll_many_scratch(1000, scratch, 4096)
+
+        ptr_set(meta + _off_qi_gc_netpoll_in_poll(), 0)
+
+        // Cooperate with STW if requested.
+        oren_gc_safepoint()
+    }
+
+    sys_munmap(scratch, 4096)
+    return 0
+}
+
+fn test_gc_stw_wakes_netpoll_blocked_threads() {
+    trace("QI: test_gc_stw_wakes_netpoll_blocked_threads")
+    if g_gc_enabled == 0 { return 0 }
+    // This fixture relies on the POSIX netpoll wake pipe.
+    if g_target_os == 3 { return 0 }
+
+    var meta = sys_mmap_private_anon(4096)
+    if meta == 0 || meta == -1 || meta < 4096 { fail(784) }
+    ptr_set(meta + _off_qi_gc_netpoll_ready(), 0)
+    ptr_set(meta + _off_qi_gc_netpoll_in_poll(), 0)
+    ptr_set(meta + _off_qi_gc_netpoll_stop(), 0)
+
+    var start = oren_code_addr(__oren_qi_test_gc_stw_netpoll_blocked)
+    if start == 0 { sys_munmap(meta, 4096); fail(785) }
+    var h = oren_os_thread_spawn(start, meta)
+    if h == 0 || h == -1 || h < 0 { sys_munmap(meta, 4096); fail(786) }
+
+    // Wait for readiness.
+    while ptr_get(meta + _off_qi_gc_netpoll_ready()) == 0 {
+        var rc = oren_wait_on_addr(meta + _off_qi_gc_netpoll_ready(), 0, 2000000)
+        if rc == -60 {
+            oren_os_thread_destroy(h)
+            sys_munmap(meta, 4096)
+            fail(787)
+        }
+    }
+
+    // Wait until the thread is about to block in netpoll (reduces race vs immediate GC).
+    var tries = 0
+    while ptr_get(meta + _off_qi_gc_netpoll_in_poll()) == 0 {
+        var rc2 = oren_wait_on_addr(meta + _off_qi_gc_netpoll_in_poll(), 0, 2000000)
+        if rc2 == -60 {
+            tries = tries + 1
+            if tries > 2 { break }
+        }
+    }
+
+    var t0 = oren_time_mono_ns()
+    if t0 == 0 { t0 = oren_time_unix_ns() }
+    if t0 == 0 { fail(788) }
+    oren_gc_collect()
+    var t1 = oren_time_mono_ns()
+    if t1 == 0 { t1 = oren_time_unix_ns() }
+    if t1 == 0 { fail(789) }
+
+    // Guardrail: without `native_netpoll_wake()` at STW begin, this can stall near 1s.
+    var dt_ms = (t1 - t0) / 1000000
+    assert_true(dt_ms < 700, 797)
+
+    // Stop and wake thread so join is bounded.
+    ptr_set(meta + _off_qi_gc_netpoll_stop(), 1)
+    oren_wake_all_addr(meta + _off_qi_gc_netpoll_stop())
+    native_netpoll_wake()
+
+    assert_eq(oren_os_thread_join_timeout(h, 2000000), 0, 798)
+    oren_os_thread_destroy(h)
+    sys_munmap(meta, 4096)
+    return 0
+}
+
+fn worker_green_sleep_50ms_then_ret_33() {
+    oren_green_sleep_ns(50000000)
+    return 33
+}
+
+fn _off_gc_join_ready() { return 0 }       // u64
+fn _off_gc_join_gc_done() { return 8 }     // u64
+fn _off_gc_join_join_done() { return 16 }  // u64
+fn _off_gc_join_join_result() { return 24 } // u64
+fn _off_gc_join_handle() { return 32 }     // u64 (green task handle)
+
+@oren.keep
+fn __oren_test_gc_join_waiter(meta) {
+    if meta == 0 { return 0 }
+
+    // OS-thread nodes must be registered for GC stack scanning + STW coordination.
+    oren_register_thread(get_sp())
+
+    var h = ptr_get(meta + _off_gc_join_handle())
+    if h == 0 {
+        ptr_set(meta + _off_gc_join_join_result(), 0 - 1)
+        ptr_set(meta + _off_gc_join_join_done(), 1)
+        oren_wake_all_addr(meta + _off_gc_join_join_done())
+        return 0
+    }
+
+    // Signal readiness just before blocking in join.
+    ptr_set(meta + _off_gc_join_ready(), 1)
+    oren_wake_all_addr(meta + _off_gc_join_ready())
+
+    // Join forever: must remain STW-safe even in worker mode (no infinite kernel sleeps).
+    var r = oren_join_timeout(h, -1)
+    ptr_set(meta + _off_gc_join_join_result(), r)
+    ptr_set(meta + _off_gc_join_join_done(), 1)
+    oren_wake_all_addr(meta + _off_gc_join_join_done())
+    return 0
+}
+
+@oren.keep
+fn __oren_test_gc_join_collector(meta) {
+    if meta == 0 { return 0 }
+    oren_register_thread(get_sp())
+
+    // Wait until the joiner thread is ready and (very likely) blocked in join.
+    while ptr_get(meta + _off_gc_join_ready()) == 0 {
+        var rc = oren_wait_on_addr(meta + _off_gc_join_ready(), 0, 1000000)
+        if rc == -60 { continue }
+        if rc != 0 { break }
+    }
+
+    // Regression guard: STW GC must not deadlock while another OS thread is blocked in `oren_join_timeout(..., -1)`.
+    oren_gc_collect()
+
+    ptr_set(meta + _off_gc_join_gc_done(), 1)
+    oren_wake_all_addr(meta + _off_gc_join_gc_done())
+    return 0
+}
+
+fn test_gc_collect_does_not_deadlock_with_green_join_waiter() {
+    trace("QI: test_gc_collect_does_not_deadlock_with_green_join_waiter")
+    if g_target_os == 3 { return 0 }
+
+    // Ensure worker mode is active (idempotent).
+    var rcw = oren_green_start_workers(1)
+    assert_eq(rcw, 0, 720)
+
+    // Spawn a long-ish green task so the joiner blocks long enough for the collector to run.
+    var h = spawn worker_green_sleep_50ms_then_ret_33()
+
+    // Thread-to-thread coordination via raw mmap (not a GC root).
+    var meta = sys_mmap_private_anon(4096)
+    if meta == 0 || meta == -1 || meta < 4096 { fail(721) }
+    ptr_set(meta + _off_gc_join_ready(), 0)
+    ptr_set(meta + _off_gc_join_gc_done(), 0)
+    ptr_set(meta + _off_gc_join_join_done(), 0)
+    ptr_set(meta + _off_gc_join_join_result(), 0)
+    ptr_set(meta + _off_gc_join_handle(), h)
+
+    var join_start = oren_code_addr(__oren_test_gc_join_waiter)
+    var gc_start = oren_code_addr(__oren_test_gc_join_collector)
+    if join_start == 0 || gc_start == 0 { sys_munmap(meta, 4096); fail(722) }
+
+    var th_join = oren_os_thread_spawn(join_start, meta)
+    if th_join == 0 || th_join == -1 || th_join < 0 { sys_munmap(meta, 4096); fail(723) }
+
+    // Wait for joiner readiness (bounded).
+    var tries = 0
+    while ptr_get(meta + _off_gc_join_ready()) == 0 {
+        var rc = oren_wait_on_addr(meta + _off_gc_join_ready(), 0, 2000000)
+        if rc == -60 { break }
+        tries = tries + 1
+        if tries > 4 { break }
+    }
+    assert_eq(ptr_get(meta + _off_gc_join_ready()), 1, 724)
+
+    var th_gc = oren_os_thread_spawn(gc_start, meta)
+    if th_gc == 0 || th_gc == -1 || th_gc < 0 {
+        oren_os_thread_destroy(th_join)
+        sys_munmap(meta, 4096)
+        fail(725)
+    }
+
+    // Wait for collector completion with a hard timeout so this fixture never hangs.
+    var waited_ms = 0
+    while ptr_get(meta + _off_gc_join_gc_done()) == 0 {
+        // Keep the main thread STW-friendly while waiting.
+        oren_gc_safepoint()
+        var rcw2 = oren_wait_on_addr(meta + _off_gc_join_gc_done(), 0, 1000) // 1ms
+        if rcw2 != 0 && rcw2 != -60 { break }
+        waited_ms = waited_ms + 1
+        if waited_ms > 2000 { break }
+    }
+    assert_eq(ptr_get(meta + _off_gc_join_gc_done()), 1, 726)
+
+    // Ensure joiner also completes (task should finish after ~50ms).
+    waited_ms = 0
+    while ptr_get(meta + _off_gc_join_join_done()) == 0 {
+        oren_gc_safepoint()
+        var rcw3 = oren_wait_on_addr(meta + _off_gc_join_join_done(), 0, 1000)
+        if rcw3 != 0 && rcw3 != -60 { break }
+        waited_ms = waited_ms + 1
+        if waited_ms > 2000 { break }
+    }
+    assert_eq(ptr_get(meta + _off_gc_join_join_done()), 1, 727)
+    assert_eq(ptr_get(meta + _off_gc_join_join_result()), 33, 728)
+
+    // Cleanup: join and destroy both OS threads (bounded join so this cannot hang forever).
+    assert_eq(oren_os_thread_join_timeout(th_gc, 2000000), 0, 729)
+    assert_eq(oren_os_thread_join_timeout(th_join, 2000000), 0, 730)
+    oren_os_thread_destroy(th_gc)
+    oren_os_thread_destroy(th_join)
+
+    // Avoid keeping a stale handle live on the stack after joiner cleaned it up.
+    h = 0
+
+    sys_munmap(meta, 4096)
+    return 0
+}
+
+fn _off_gc_os_join_stop() { return 0 }          // u64
+fn _off_gc_os_join_ready_sleeper() { return 8 } // u64
+fn _off_gc_os_join_ready_joiner() { return 16 } // u64
+fn _off_gc_os_join_gc_done() { return 24 }      // u64
+fn _off_gc_os_join_join_done() { return 32 }    // u64
+fn _off_gc_os_join_join_rc() { return 40 }      // u64
+fn _off_gc_os_join_sleeper_h() { return 48 }    // u64 (OS thread handle ptr)
+
+@oren.keep
+fn __oren_test_gc_os_join_sleeper(meta) {
+    if meta == 0 { return 0 }
+    oren_register_thread(get_sp())
+
+    ptr_set(meta + _off_gc_os_join_ready_sleeper(), 1)
+    oren_wake_all_addr(meta + _off_gc_os_join_ready_sleeper())
+
+    // Stay alive until collector flips stop (keeps joiner blocked in join).
+    while ptr_get(meta + _off_gc_os_join_stop()) == 0 {
+        oren_gc_safepoint()
+        oren_wait_on_addr(meta + _off_gc_os_join_stop(), 0, 1000) // 1ms
+    }
+    return 0
+}
+
+@oren.keep
+fn __oren_test_gc_os_join_waiter(meta) {
+    if meta == 0 { return 0 }
+    oren_register_thread(get_sp())
+
+    var h = ptr_get(meta + _off_gc_os_join_sleeper_h())
+    if h == 0 {
+        ptr_set(meta + _off_gc_os_join_join_rc(), 0 - 5)
+        ptr_set(meta + _off_gc_os_join_join_done(), 1)
+        oren_wake_all_addr(meta + _off_gc_os_join_join_done())
+        return 0
+    }
+
+    // Signal readiness just before blocking in join.
+    ptr_set(meta + _off_gc_os_join_ready_joiner(), 1)
+    oren_wake_all_addr(meta + _off_gc_os_join_ready_joiner())
+
+    // Join forever (timeout_us=0). Must remain STW-safe: this thread must still reach safepoints.
+    var rc = oren_os_thread_join_timeout(h, 0)
+    ptr_set(meta + _off_gc_os_join_join_rc(), rc)
+    ptr_set(meta + _off_gc_os_join_join_done(), 1)
+    oren_wake_all_addr(meta + _off_gc_os_join_join_done())
+    return 0
+}
+
+@oren.keep
+fn __oren_test_gc_os_join_collector(meta) {
+    if meta == 0 { return 0 }
+    oren_register_thread(get_sp())
+
+    // Wait until the joiner thread is ready and the sleeper thread is running.
+    while ptr_get(meta + _off_gc_os_join_ready_joiner()) == 0 {
+        var rc = oren_wait_on_addr(meta + _off_gc_os_join_ready_joiner(), 0, 1000000)
+        if rc == -60 { continue }
+        if rc != 0 { break }
+    }
+    while ptr_get(meta + _off_gc_os_join_ready_sleeper()) == 0 {
+        var rc2 = oren_wait_on_addr(meta + _off_gc_os_join_ready_sleeper(), 0, 1000000)
+        if rc2 == -60 { continue }
+        if rc2 != 0 { break }
+    }
+
+    // Regression guard: STW GC must not deadlock while another OS thread is blocked in `oren_os_thread_join_timeout(..., 0)`.
+    oren_gc_collect()
+
+    ptr_set(meta + _off_gc_os_join_gc_done(), 1)
+    oren_wake_all_addr(meta + _off_gc_os_join_gc_done())
+
+    // Allow sleeper to exit, so joiner can complete.
+    ptr_set(meta + _off_gc_os_join_stop(), 1)
+    oren_wake_all_addr(meta + _off_gc_os_join_stop())
+    return 0
+}
+
+fn test_gc_collect_does_not_deadlock_with_os_thread_join_waiter() {
+    trace("QI: test_gc_collect_does_not_deadlock_with_os_thread_join_waiter")
+    if g_target_os != 1 && g_target_os != 2 && g_target_os != 3 { return 0 }
+
+    var meta = sys_mmap_private_anon(4096)
+    if meta == 0 || meta == -1 || meta < 4096 { fail(731) }
+    ptr_set(meta + _off_gc_os_join_stop(), 0)
+    ptr_set(meta + _off_gc_os_join_ready_sleeper(), 0)
+    ptr_set(meta + _off_gc_os_join_ready_joiner(), 0)
+    ptr_set(meta + _off_gc_os_join_gc_done(), 0)
+    ptr_set(meta + _off_gc_os_join_join_done(), 0)
+    ptr_set(meta + _off_gc_os_join_join_rc(), 0)
+    ptr_set(meta + _off_gc_os_join_sleeper_h(), 0)
+
+    var start_sleep = oren_code_addr(__oren_test_gc_os_join_sleeper)
+    var start_join = oren_code_addr(__oren_test_gc_os_join_waiter)
+    var start_gc = oren_code_addr(__oren_test_gc_os_join_collector)
+    if start_sleep == 0 || start_join == 0 || start_gc == 0 {
+        sys_munmap(meta, 4096)
+        fail(732)
+    }
+
+    var th_sleep = oren_os_thread_spawn(start_sleep, meta)
+    if th_sleep == 0 || th_sleep == -1 || th_sleep < 0 {
+        sys_munmap(meta, 4096)
+        fail(733)
+    }
+    ptr_set(meta + _off_gc_os_join_sleeper_h(), th_sleep)
+
+    var th_join = oren_os_thread_spawn(start_join, meta)
+    if th_join == 0 || th_join == -1 || th_join < 0 {
+        oren_os_thread_destroy(th_sleep)
+        sys_munmap(meta, 4096)
+        fail(734)
+    }
+
+    // Wait for sleeper + joiner readiness (bounded).
+    var tries = 0
+    while ptr_get(meta + _off_gc_os_join_ready_sleeper()) == 0 {
+        var rcw = oren_wait_on_addr(meta + _off_gc_os_join_ready_sleeper(), 0, 2000000)
+        if rcw == -60 { break }
+        tries = tries + 1
+        if tries > 4 { break }
+    }
+    assert_eq(ptr_get(meta + _off_gc_os_join_ready_sleeper()), 1, 735)
+
+    tries = 0
+    while ptr_get(meta + _off_gc_os_join_ready_joiner()) == 0 {
+        var rcw2 = oren_wait_on_addr(meta + _off_gc_os_join_ready_joiner(), 0, 2000000)
+        if rcw2 == -60 { break }
+        tries = tries + 1
+        if tries > 4 { break }
+    }
+    assert_eq(ptr_get(meta + _off_gc_os_join_ready_joiner()), 1, 736)
+
+    var th_gc = oren_os_thread_spawn(start_gc, meta)
+    if th_gc == 0 || th_gc == -1 || th_gc < 0 {
+        oren_os_thread_destroy(th_join)
+        oren_os_thread_destroy(th_sleep)
+        sys_munmap(meta, 4096)
+        fail(737)
+    }
+
+    // Wait for collector completion with a hard timeout so this fixture never hangs.
+    var waited_ms = 0
+    while ptr_get(meta + _off_gc_os_join_gc_done()) == 0 {
+        oren_gc_safepoint()
+        var rcw3 = oren_wait_on_addr(meta + _off_gc_os_join_gc_done(), 0, 1000) // 1ms
+        if rcw3 != 0 && rcw3 != -60 { break }
+        waited_ms = waited_ms + 1
+        if waited_ms > 2000 { break }
+    }
+    assert_eq(ptr_get(meta + _off_gc_os_join_gc_done()), 1, 738)
+
+    // Ensure joiner also completes (after collector flips stop).
+    waited_ms = 0
+    while ptr_get(meta + _off_gc_os_join_join_done()) == 0 {
+        oren_gc_safepoint()
+        var rcw4 = oren_wait_on_addr(meta + _off_gc_os_join_join_done(), 0, 1000)
+        if rcw4 != 0 && rcw4 != -60 { break }
+        waited_ms = waited_ms + 1
+        if waited_ms > 2000 { break }
+    }
+    assert_eq(ptr_get(meta + _off_gc_os_join_join_done()), 1, 739)
+    assert_eq(ptr_get(meta + _off_gc_os_join_join_rc()), 0, 740)
+
+    // Join/destroy: sleeper was joined by the joiner thread; destroy only.
+    assert_eq(oren_os_thread_join_timeout(th_gc, 2000000), 0, 741)
+    assert_eq(oren_os_thread_join_timeout(th_join, 2000000), 0, 742)
+    oren_os_thread_destroy(th_gc)
+    oren_os_thread_destroy(th_join)
+    oren_os_thread_destroy(th_sleep)
+    ptr_set(meta + _off_gc_os_join_sleeper_h(), 0)
+
+    sys_munmap(meta, 4096)
+    return 0
+}
+
+fn worker_win_os_thread_nop(_arg_ptr) { return 0 }
+
+fn worker_win_os_thread_gc_collect(_arg_ptr) {
+    // Run GC on a background OS thread and return 0 on completion.
+    oren_gc_collect()
+    return 0
+}
+
+fn test_gc_collect_does_not_wait_for_exited_os_threads_win() {
+    trace("QI: test_gc_collect_does_not_wait_for_exited_os_threads_win")
+    if g_target_os != 3 { return 0 }
+
+    // Spawn many short-lived OS threads and join them. This creates many OS-thread nodes.
+    // Those nodes are mmap-backed metadata and persist after thread exit; they must be marked DEAD
+    // so future STW GC collections do not wait for them.
+    var entry_nop = oren_code_addr(worker_win_os_thread_nop)
+    assert_true(entry_nop != 0, 743)
+    var i = 0
+    while i < 16 {
+        var h = oren_os_thread_spawn(entry_nop, 0)
+        assert_true(h != 0 && h != -1, 744)
+        var rc = oren_os_thread_join_timeout(h, _qi_timeout_ms(2000) * 1000)
+        assert_eq(rc, 0, 745)
+        oren_os_thread_destroy(h)
+        i = i + 1
+    }
+
+    // Now run STW GC from a background OS thread and join it in an STW-friendly bounded loop.
+    // If the runtime accidentally counts exited threads as live, this will time out instead of hanging.
+    var entry_gc = oren_code_addr(worker_win_os_thread_gc_collect)
+    assert_true(entry_gc != 0, 746)
+    var hgc = oren_os_thread_spawn(entry_gc, 0)
+    assert_true(hgc != 0 && hgc != -1, 747)
+    var rgc = oren_os_thread_join_timeout(hgc, _qi_timeout_ms(2000) * 1000)
+    assert_eq(rgc, 0, 748)
+    oren_os_thread_destroy(hgc)
+
+    // Run a second collection: regressions were previously observable only on the *second* STW
+    // (after multiple short-lived threads had already exited).
+    var hgc2 = oren_os_thread_spawn(entry_gc, 0)
+    assert_true(hgc2 != 0 && hgc2 != -1, 749)
+    var rgc2 = oren_os_thread_join_timeout(hgc2, _qi_timeout_ms(2000) * 1000)
+    assert_eq(rgc2, 0, 750)
+    oren_os_thread_destroy(hgc2)
+    return 0
+}
+
+var g_green_multi_p_handles = []
+var g_green_multi_p_expect = []
+
+fn worker_green_sleep_2ms_then_ret_two() {
+    oren_green_sleep_ns(2000000)
+    return 2
+}
+
+fn worker_green_seed_multi_p_local_queue() {
+    // Seed runnable work into the current P's local runq by spawning from inside a green task.
+    //
+    // This is used to validate:
+    // - single-thread multi-P work stealing (P0 steals from P2)
+    // - cross-P sleep/wake (a sleeper parked under P2 can still be woken when driving P0)
+    //
+    // NOTE: this function must run as a green task (so spawns go to local runq).
+    var i = 0
+    while i < 12 {
+        var h = spawn worker_green_ret_one()
+        oren_list_push(g_green_multi_p_handles, h)
+        oren_list_push(g_green_multi_p_expect, 1)
+        i = i + 1
+    }
+    // Include one sleeper to exercise cross-P wake while running a different P.
+    var hs = spawn worker_green_sleep_2ms_then_ret_two()
+    oren_list_push(g_green_multi_p_handles, hs)
+    oren_list_push(g_green_multi_p_expect, 2)
+
+    return 0
+}
+
