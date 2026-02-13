@@ -227,6 +227,7 @@ fn test_cfg_debug_release() {
         fail(75)
     }
     dbg("QI: dbg sugar")
+    @cfg("debug") dbg("QI: dbg sugar cfg")
     return 0
 }
 

@@ -52,6 +52,17 @@ fn _dbg_make_print_call(call_expr) {
     return out
 }
 
+fn _dbg_attrs_has_name(attrs, name) {
+    if attrs == nil || name == nil { return false }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a != nil && a["type"] == "Attr" && a["name"] == name { return true }
+        i = i + 1
+    }
+    return false
+}
+
 fn _dbg_stmt_rewrite(stmt) {
     if stmt == nil { return nil }
     if stmt["type"] != "ExprStmt" { return nil }
@@ -59,11 +70,12 @@ fn _dbg_stmt_rewrite(stmt) {
     var call = stmt["expr"]
     if call["fn"] == nil || call["fn"]["type"] != "Identifier" { return nil }
     if call["fn"]["value"] != "dbg" { return nil }
-    // Avoid double-wrapping statements that already have attrs.
-    if stmt["attrs"] != nil && oren_list_len(stmt["attrs"]) > 0 { return nil }
 
     stmt["expr"] = _dbg_make_print_call(call)
-    stmt["attrs"] = [_dbg_attr(call["token"])]
+    if stmt["attrs"] == nil { stmt["attrs"] = [] }
+    if _dbg_attrs_has_name(stmt["attrs"], "oren.debug") != true {
+        oren_list_push(stmt["attrs"], _dbg_attr(call["token"]))
+    }
     return nil
 }
 
