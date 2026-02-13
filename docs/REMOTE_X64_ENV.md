@@ -57,6 +57,11 @@ Host/proxy overrides (rolling ergonomics):
 # set the host to a reachable IP or DNS name.
 export OREN_REMOTE_X64_HOST='lzbgt@203.0.113.10'
 
+# Alternate host (2026-02-13): pc2.work is online via the same proxy.
+# No password needed (SSH key already installed on the host).
+export OREN_REMOTE_X64_HOST='xue@pc2.work'
+export OREN_REMOTE_X64_PROXY='ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002'
+
 # If you have direct SSH access (no ProxyCommand), disable the proxy.
 # (Most scripts also accept `--no-proxy` explicitly.)
 export OREN_REMOTE_X64_PROXY=''

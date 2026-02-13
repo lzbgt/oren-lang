@@ -1063,6 +1063,19 @@ fn _green_netpoll_drain_ready(ts, now_ns, max_events) {
                                     }
                                 }
                             }
+                        } else if native_netpoll_is_iocp_wait_token(tok) == true {
+                            // IOCP wait node (OVERLAPPED-based token).
+                            var g3 = ptr_get(tok + native_iocp_wait_off_g())
+                            if _green_is_g(g3) == true {
+                                if ptr_get(g3 + green_g_off_io_active()) != 0 {
+                                    var want_epoch3 = ptr_get(tok + native_iocp_wait_off_epoch())
+                                    if want_epoch3 == ptr_get(g3 + green_g_off_io_epoch()) {
+                                        ptr_set(tok + native_iocp_wait_off_ready(), 1)
+                                        ptr_set(g3 + green_g_off_io_ready(), 1)
+                                        ptr_set(g3 + green_g_off_wake_ns(), now_ns)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1088,6 +1101,18 @@ fn _green_netpoll_drain_ready(ts, now_ns, max_events) {
                                 ptr_set(tok2 + native_netpoll_wait_off_ready(), 1)
                                 ptr_set(g2 + green_g_off_io_ready(), 1)
                                 ptr_set(g2 + green_g_off_wake_ns(), now_ns)
+                            }
+                        }
+                    }
+                } else if native_netpoll_is_iocp_wait_token(tok2) == true {
+                    var g4 = ptr_get(tok2 + native_iocp_wait_off_g())
+                    if _green_is_g(g4) == true {
+                        if ptr_get(g4 + green_g_off_io_active()) != 0 {
+                            var want_epoch4 = ptr_get(tok2 + native_iocp_wait_off_epoch())
+                            if want_epoch4 == ptr_get(g4 + green_g_off_io_epoch()) {
+                                ptr_set(tok2 + native_iocp_wait_off_ready(), 1)
+                                ptr_set(g4 + green_g_off_io_ready(), 1)
+                                ptr_set(g4 + green_g_off_wake_ns(), now_ns)
                             }
                         }
                     }

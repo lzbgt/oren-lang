@@ -153,6 +153,7 @@ Status (fact, code):
         - worker-mode idle waits can use longer timeouts (bounded by the scheduler), instead of a fixed 10ms polling clamp
       - When wake is unavailable (capsule policy or failure), select waits remain bounded by short timeouts (polling fallback; correctness-first).
       - IOCP is still the intended long-term implementation (scalability + true wake + future HANDLE story).
+      - Rolling IOCP token support: the scheduler recognizes IOCP wait nodes whose `OVERLAPPED*` is returned by the poller (magic after the OVERLAPPED header).
   - Runtime: `lib/runtime_native/263_green_tasks.oren` (scheduler drains netpoll tokens and marks G/wait nodes ready)
   - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_*` park the G and rely on the scheduler netpoller instead of poll+sleep)
   - Escape hatch (rolling): `OREN_NO_NETPOLL=1` disables netpoll bring-up for debugging (in-green select returns ENOSYS; avoids busy loops).

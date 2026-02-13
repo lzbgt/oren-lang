@@ -407,7 +407,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	         - Wired into: `scripts/verify_native_matrix.sh --targets x64-win-tier1` (remote Win11)
 	       - 2026-02-13: IOCP poll core now returns per-operation OVERLAPPED tokens when present (enables future readiness/overlapped ops):
 	         - Runtime: `lib/runtime_native/246_netpoll.oren` (IOCP poll token selection uses `ov!=0` before completion key)
-	         - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (posts completion with `ov!=0` and asserts token return)
+	         - Runtime: IOCP wait-node layout (OVERLAPPED + netpoll metadata + bytes slot) and scheduler recognition of IOCP wait tokens.
+	         - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (posts completion with `ov!=0`, asserts token return, bytes capture)
 	   - Windows: extend the wait-list mechanism beyond channels:
 	     - fd waits (`oren_fd_wait_*`) should eventually park Gs on IOCP wait nodes (no polling, no scheduler-thread blocking)
 	     - unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface

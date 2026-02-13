@@ -536,6 +536,29 @@ fn native_netpoll_is_wait_token(ptr) {
     return ptr_get(ptr + native_netpoll_wait_off_magic()) == native_netpoll_wait_magic()
 }
 
+// Windows IOCP wait node (rolling; overlapped-first future):
+//
+// Layout:
+// - [0..31]   OVERLAPPED / WSAOVERLAPPED (Win64 layout, 32 bytes)
+// - [32..]    netpoll wait metadata (magic + G + epoch + ready + bytes + rc)
+//
+// The token pointer returned by IOCP is the OVERLAPPED pointer, so we place the
+// magic after the OVERLAPPED header and use a dedicated predicate to detect it.
+fn native_iocp_wait_off_magic() { return 32 }      // u64: magic tag (same as netpoll wait)
+fn native_iocp_wait_off_g() { return 40 }          // u64: G pointer
+fn native_iocp_wait_off_case_idx() { return 48 }   // u64: select case index (if used)
+fn native_iocp_wait_off_epoch() { return 56 }      // u64: epoch (stale-event reject)
+fn native_iocp_wait_off_ready() { return 64 }      // u64: 0|1 (set by scheduler)
+fn native_iocp_wait_off_bytes() { return 72 }      // u64: bytes transferred (best-effort)
+fn native_iocp_wait_off_rc() { return 80 }         // i64: completion rc (future)
+fn native_iocp_wait_bytes() { return 88 }
+
+fn native_netpoll_is_iocp_wait_token(ptr) {
+    if ptr == 0 { return false }
+    if ptr < 4096 { return false }
+    return ptr_get(ptr + native_iocp_wait_off_magic()) == native_netpoll_wait_magic()
+}
+
 fn native_netpoll_arm_fd(fd, want_write, token) {
     // Register interest in fd readiness and associate it with `token`.
     // Caller must ensure `token` stays valid (or is safely ignorable) until disarmed.
@@ -778,6 +801,12 @@ fn native_netpoll_poll_many_scratch(timeout_ms, scratch, scratch_bytes) {
                     tok = ov
                 } else if key != 0 {
                     tok = key
+                }
+                if ov != 0 {
+                    if native_netpoll_is_iocp_wait_token(ov) == true {
+                        var nbytes = oren_ptr_get_u32_le(ent + 24)
+                        ptr_set(ov + native_iocp_wait_off_bytes(), nbytes)
+                    }
                 }
                 if tok != 0 {
                     if outn < 8 {
