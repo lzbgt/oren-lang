@@ -743,6 +743,12 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    - `docs/ATTRIBUTES.md` (conditional compilation + shorthand)
 
+   Status (fact):
+
+   - 2026-02-13: implemented `dbg(...)` statement sugar (expands to `@debug print(...)` with file/line prefix)
+     - Pass: `lib/compiler/debug_sugar.oren`
+     - Evidence: `tests/native/test_quick_integration_native.oren` (`test_cfg_debug_release`)
+
 ## Tier‑1 verification blockers (operational)
 
 - Remote Win11/WSL2 access can intermittently fail via the default proxy hostname (`pc.work`).

@@ -508,6 +508,7 @@ Build-profile note:
     - `@debug` ⇒ `@cfg("debug")`
     - `@release` ⇒ `@cfg("release")`
     - Both are **arg‑less** and follow the same statement/declaration rules as `@cfg`.
+  - `dbg(...)` is a statement-level sugar that expands to `@debug print(...)` with a `file:line` prefix.
 
 Example (debug-only trace without deleting code):
 
@@ -515,6 +516,14 @@ Example (debug-only trace without deleting code):
 fn work() {
     @debug print("trace: entering work()")
     // ... real logic ...
+}
+```
+
+Example (debug-only print sugar):
+
+```oren
+fn work() {
+    dbg("trace: entering work()") // compiled out in release builds
 }
 ```
 

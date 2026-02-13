@@ -147,6 +147,7 @@ Build-profile note:
     - `@debug` ⇒ `@cfg("debug")`
     - `@release` ⇒ `@cfg("release")`
     - Both are **arg‑less** and follow the same statement/declaration rules as `@cfg`.
+  - Statement sugar: `dbg(...)` expands to `@debug print(...)` with a `file:line` prefix.
 
 Example (FFI library name differs per OS):
 
