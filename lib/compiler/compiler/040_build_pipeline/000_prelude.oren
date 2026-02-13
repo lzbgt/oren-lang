@@ -1,0 +1,204 @@
+fn _build_parse_nonneg_dec_or_neg1(s) {
+    // Parse a non-negative decimal integer from a string (best-effort).
+    // Returns -1 on invalid input.
+    //
+    // This is intentionally implemented here (compiler code) instead of relying on a
+    // runtime-specific helper so build tracing knobs behave consistently across backends.
+    if s == nil || s == "" { return -1 }
+    var i = 0
+    var v = 0
+    var any = 0
+    while 1 {
+        var c = oren_string_byte_at_unchecked(s, i) & 255
+        if c == 0 { break }
+        if c < 48 { return -1 }
+        if c > 57 { return -1 }
+        any = 1
+        v = v * 10 + (c - 48)
+        i = i + 1
+        if i > 32 { return -1 } // bound
+    }
+    if any == 0 { return -1 }
+    return v
+}
+
+fn _build_str_eq_bytes(a, b) {
+    // Stable string equality for compiler passes.
+    // Avoid depending on runtime `==` semantics (stage1 C runtime vs stage2 native runtime).
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _build_lit_string(v) {
+    if v == nil { return nil }
+    if v["type"] != "String" { return nil }
+    return v["value"]
+}
+
+fn _build_resolve_ffi_libc(target) {
+    // Resolve the platform C library for the given target OS (rolling convenience).
+    //
+    // Goal: reduce per-OS cfg boilerplate in FFI-heavy code where the only difference is the
+    // library/framework name.
+    //
+    // Tier‑1 intent:
+    // - windows: msvcrt.dll
+    // - linux:   libc.so.6
+    // - macos:   libSystem.B.dylib
+    if target == nil { return nil }
+    if _build_str_eq_bytes(target, "windows") { return "msvcrt.dll" }
+    if _build_str_eq_bytes(target, "linux") { return "libc.so.6" }
+    if _build_str_eq_bytes(target, "macos") { return "libSystem.B.dylib" }
+    return nil
+}
+
+fn _build_collect_ffi_link_libs_from_ffi_stmt(st, target, out, seen) {
+    if st == nil || out == nil || seen == nil { return nil }
+    if st["type"] != "FFI" { return nil }
+    var attrs = st["attrs"]
+    if attrs == nil { return nil }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a == nil || a["type"] != "Attr" { i = i + 1; continue }
+        var nm = a["name"]
+        if nm == nil { i = i + 1; continue }
+        // `@ffi.link("...")` (portable) and `@ffi.dll("...")` (Windows shorthand) both map to `--link`.
+        // Also accept `@ffi.libc` as a portable alias for the platform C library.
+        if _build_str_eq_bytes(nm, "ffi.libc") {
+            var libc = _build_resolve_ffi_libc(target)
+            if libc != nil && libc != "" && seen[libc] == nil {
+                seen[libc] = true
+                oren_list_push(out, libc)
+            }
+            i = i + 1
+            continue
+        }
+        if !_build_str_eq_bytes(nm, "ffi.link") && !_build_str_eq_bytes(nm, "ffi.dll") { i = i + 1; continue }
+        var args = a["args"]
+        if args == nil || oren_list_len(args) != 1 || args[0] == nil { i = i + 1; continue }
+        var val = _build_lit_string(args[0]["value"])
+        if val == nil || val == "" { i = i + 1; continue }
+        if seen[val] == nil {
+            seen[val] = true
+            oren_list_push(out, val)
+        }
+        i = i + 1
+    }
+    return nil
+}
+
+fn _build_collect_ffi_link_libs(linked, target) {
+    // Collect implicit native link deps declared on `ffi` statements.
+    //
+    // This keeps stdlib/platform bindings self-contained and is a prerequisite for production
+    // NET/TLS layers (HTTPS/WSS) without manual `--link` flags.
+    //
+    // Supported attrs (rolling):
+    // - `@ffi.link("...")` (portable; preferred)
+    // - `@ffi.dll("...")` (Windows x64 convenience; treated as `--link` too)
+    // - `@ffi.libc` (portable alias for the target's C library)
+    //
+    // Return: list<string> (unique, in first-seen order), or [].
+    var out = []
+    if linked == nil { return out }
+    var stmts = linked["statements"]
+    if stmts == nil { return out }
+    var seen = {}
+    var i = 0
+    while i < oren_list_len(stmts) {
+        _build_collect_ffi_link_libs_from_ffi_stmt(stmts[i], target, out, seen)
+        i = i + 1
+    }
+    return out
+}
+
+fn _build_merge_link_libs(user_link_libs, implicit_link_libs) {
+    // Preserve user ordering first, then add implicit deps (deduped).
+    var out = []
+    var seen = {}
+    if user_link_libs != nil {
+        var i = 0
+        while i < oren_list_len(user_link_libs) {
+            var s = user_link_libs[i]
+            if s != nil && s != "" && seen[s] == nil {
+                seen[s] = true
+                oren_list_push(out, s)
+            }
+            i = i + 1
+        }
+    }
+    if implicit_link_libs != nil {
+        var j = 0
+        while j < oren_list_len(implicit_link_libs) {
+            var s2 = implicit_link_libs[j]
+            if s2 != nil && s2 != "" && seen[s2] == nil {
+                seen[s2] = true
+                oren_list_push(out, s2)
+            }
+            j = j + 1
+        }
+    }
+    return out
+}
+
+fn _build_collect_ffi_export_names_from_stmt(st, out, seen) {
+    // Collect symbol export requests from top-level functions marked `@ffi.export`.
+    //
+    // This is primarily used to support C-style callback APIs on platforms where the
+    // OS library expects raw function pointers (e.g. macOS SecureTransport's IO funcs).
+    if st == nil || out == nil || seen == nil { return nil }
+
+    var fn_node = nil
+    if st["type"] == "Function" {
+        fn_node = st
+    } else if st["type"] == "ExprStmt" {
+        var expr = st["expr"]
+        if expr != nil && expr["type"] == "Function" { fn_node = expr }
+    }
+    if fn_node == nil { return nil }
+
+    var attrs = fn_node["attrs"]
+    if attrs == nil { return nil }
+    var fn_name = fn_node["name"]
+    if fn_name == nil || fn_name == "" { return nil }
+
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a == nil || a["type"] != "Attr" { i = i + 1; continue }
+        if !_build_str_eq_bytes(a["name"], "ffi.export") { i = i + 1; continue }
+        if seen[fn_name] == nil {
+            seen[fn_name] = true
+            oren_list_push(out, fn_name)
+        }
+        // `@ffi.export` is boolean; ignore args.
+        return nil
+    }
+    return nil
+}
+
+fn _build_collect_ffi_export_names(linked) {
+    // Return: list<string> of unique top-level function names marked `@ffi.export`.
+    var out = []
+    if linked == nil { return out }
+    var stmts = linked["statements"]
+    if stmts == nil { return out }
+    var seen = {}
+    var i = 0
+    while i < oren_list_len(stmts) {
+        _build_collect_ffi_export_names_from_stmt(stmts[i], out, seen)
+        i = i + 1
+    }
+    return out
+}
+

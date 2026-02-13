@@ -779,6 +779,15 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - `tests/native/qi/300_tests_green.oren`
      - `tests/native/qi/400_main.oren`
 
+6) **Split oversized compiler build pipeline file (maintenance)** (S)
+
+   Status (fact):
+
+   - 2026-02-13: split `lib/compiler/compiler/040_build_pipeline.oren` into include segments:
+     - `lib/compiler/compiler/040_build_pipeline/000_prelude.oren`
+     - `lib/compiler/compiler/040_build_pipeline/010_main.oren`
+     - `lib/compiler/compiler/040_build_pipeline/090_selftest.oren`
+
 ## Tier‑1 verification blockers (operational)
 
 - Remote Win11/WSL2 access can intermittently fail via the default proxy hostname (`pc.work`).
