@@ -65,7 +65,7 @@ Related plugin/nesting model notes:
   - Statement-level filtering + debug/release gating is exercised by:
     - `tests/native/cfg_os_select.oren`
     - `tests/native/test_quick_integration_native.oren` (`test_cfg_debug_release`)
-- **Debug print sugar (`dbg(...)` / `trace(...)`)**
+- **Debug print sugar (`dbg(...)`)**
   - Expands to `@debug print(...)` with a file/line prefix (compiled out in release).
   - Evidence: `tests/native/test_quick_integration_native.oren` (`test_cfg_debug_release`)
 - **ABI layout query intrinsics**

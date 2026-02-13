@@ -228,7 +228,6 @@ fn test_cfg_debug_release() {
     }
     dbg("QI: dbg sugar")
     @cfg("debug") dbg("QI: dbg sugar cfg")
-    trace("QI: trace sugar")
     return 0
 }
 

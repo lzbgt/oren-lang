@@ -129,12 +129,11 @@ Notes:
 - Use `--no-debug` (or `OREN_NATIVE_NO_DEBUG=1`) for **release** builds.
 - `@cfg("debug")` / `@cfg("release")` can be used to gate debug-only statements.
 - Shorthand attributes exist: `@debug` / `@release` (arg‑less).
-- `dbg(...)` / `trace(...)` are statement-level sugar that expand to `@debug print(...)` with a `file:line` prefix.
+- `dbg(...)` is a statement-level sugar that expands to `@debug print(...)` with a `file:line` prefix.
 
 ```oren
 @debug print("trace: enter foo")
 dbg("trace: enter foo")
-trace("trace: enter foo")
 ```
 
 ### Fast native verification (recommended on macOS/Linux)
