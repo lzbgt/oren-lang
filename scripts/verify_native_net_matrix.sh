@@ -732,16 +732,9 @@ remote_run_win() {
     if [[ -n "$canon_abort" && "$canon_abort" != "0" ]]; then
       envp="set OREN_CANON_I32_ABORT=1 & "
     fi
-  if [[ -n "$WS_ECHO_N" ]]; then
-    envp+="set OREN_WS_ECHO_N=${WS_ECHO_N} & "
-  fi
-  case "$exe_name" in
-    https_*|wss_*|http2_*)
-      # Windows Schannel currently crashes when TLS runs on a green stack (access violation).
-      # Force OS-thread execution for these fixtures until the green stack ABI is fixed.
-      envp+="set OREN_NO_GREEN=1 & "
-      ;;
-  esac
+    if [[ -n "$WS_ECHO_N" ]]; then
+      envp+="set OREN_WS_ECHO_N=${WS_ECHO_N} & "
+    fi
     set +e
     run_with_timeout 40 "${ssh_base[@]}" "cmd.exe /v:on /c \"${envp}${remote_win_root_cmd}\\\\${exe_name} & set RC=!ERRORLEVEL! & echo EXIT=!RC! & exit /b !RC!\""
     local rc=$?

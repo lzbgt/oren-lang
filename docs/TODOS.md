@@ -397,23 +397,25 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 			       - Rolling plumbing landed (2026-01-17):
 			         - IOCP syscall/intrinsic + PE import plumbing is present for x64-windows (CreateIoCompletionPort/GetQueuedCompletionStatusEx/PostQueuedCompletionStatus/CancelIoEx).
 			         - WinSock overlapped syscall plumbing is present for x64-windows (WSARecv/WSASend) to support completion-based NET ops (treats `WSA_IO_PENDING` as success).
-			       - Deliverable v1 (DONE, 2026-01-17): IOCP poll core + wake (still opt-in):
+				       - Deliverable v1 (DONE, 2026-01-17): IOCP poll core + wake (still opt-in):
 			         - Runtime: `lib/runtime_native/246_netpoll.oren`
 			           - `native_netpoll_init_once` creates an IOCP when `OREN_NETPOLL_WIN_IOCP=1`
 			           - `native_netpoll_wake()` uses `PostQueuedCompletionStatus` (no loopback dependency)
 			           - `native_netpoll_poll_many_scratch` uses `GetQueuedCompletionStatusEx` (allocation-free)
-			         - Rolling limitation: IOCP readiness watches are not implemented yet (`native_netpoll_arm_fd` returns `-ENOSYS` in IOCP mode), so do not enable IOCP for NET/TLS parity yet.
+				         - Rolling limitation (updated 2026-02-13): readiness is bridged for `oren_fd_wait_*` in green tasks via zero‑byte `WSARecv/WSASend`, but true completion‑driven NET ops are still future work.
 	       - Gate (added, 2026-01-17): Windows-only fixture proving a blocked IOCP poll is broken by `native_netpoll_wake()` (no loopback):
 	         - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (run with `OREN_NETPOLL_WIN_IOCP=1`)
 	         - Wired into: `scripts/verify_native_matrix.sh --targets x64-win-tier1` (remote Win11)
-       - 2026-02-13: IOCP poll core now returns per-operation OVERLAPPED tokens when present (enables future readiness/overlapped ops):
+	       - 2026-02-13: IOCP poll core now returns per-operation OVERLAPPED tokens when present (enables readiness/overlapped ops):
          - Runtime: `lib/runtime_native/246_netpoll.oren` (IOCP poll token selection uses `ov!=0` before completion key)
          - Runtime: IOCP wait-node layout (OVERLAPPED + netpoll metadata + bytes slot) and scheduler recognition of IOCP wait tokens.
          - Runtime: scheduler idle/blocking netpoll path also recognizes IOCP wait tokens (no drop on blocking polls).
          - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (posts completion with `ov!=0`, asserts token return, bytes capture)
-	   - Windows: extend the wait-list mechanism beyond channels:
-	     - fd waits (`oren_fd_wait_*`) should eventually park Gs on IOCP wait nodes (no polling, no scheduler-thread blocking)
-	     - unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
+		   - Windows: extend the wait-list mechanism beyond channels:
+		     - DONE (2026-02-13): fd waits (`oren_fd_wait_*`) can park Gs on IOCP wait nodes in IOCP mode (zero‑byte overlapped readiness bridge).
+		     - Rolling issue (2026-02-13): UDP readiness can time out on Win11 with zero‑byte `WSARecv`, so
+		       `verify_native_net_matrix` does **not** enable IOCP for the net suite yet.
+		     - Next: unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
 		   - Cross-platform: evolve the scheduler-owned “word wait” wait-list so in-green waits never kernel-block the scheduler OS thread.
 		     - DONE (2026-01-17): `oren_wait_on_addr` inside a green task is wake-driven via the scheduler-owned “word wait” list:
 		       - `timeout_us==0` (“forever”): parks `G` on a scheduler list; wakes via `oren_wake_all_addr`.
@@ -622,7 +624,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						       - Guards: `make verify-x64-linux-qemu-net` (covers `tests/native/test_dns_loopback.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren`)
 						     - 2026-02-13: x64-windows TLS fixtures crash when TLS runs on a green stack (access violation):
 						       - Affects: `https_loopback`, `wss_loopback`, `http2_*` loopback tests on Win11 when green tasks are enabled.
-						       - Workaround (rolling): `scripts/verify_native_net_matrix.sh` sets `OREN_NO_GREEN=1` for `https_*`, `wss_*`, `http2_*` on x64-win.
+						       - Workaround (rolling, 2026-02-13): Windows TLS fixtures now spawn server/client on native OS threads
+						         via `oren_windows_os_thread_spawn_call_list` (net matrix no longer forces `OREN_NO_GREEN` for these).
 						       - Probe: `OREN_GREEN_STACK_KB` up to 16384 (16 MiB) still crashes (`EXIT=-1073741819`), so this is not a small-stack overflow.
 						       - TODO: fix green-stack ABI / Schannel interaction so TLS-over-HTTP/WS/HTTP2 can run with green enabled.
 					     - 2026-01-16: made `oren_time_mono_ns()` conversion exact on macOS/Windows (no wall-clock calibration):

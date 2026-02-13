@@ -346,6 +346,7 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
                                             }
                                         }
                                     } else if native_netpoll_is_iocp_wait_token(tok) == true {
+                                        var matched = 0
                                         var g2 = ptr_get(tok + native_iocp_wait_off_g())
                                         if _green_is_g(g2) == true {
                                             if ptr_get(g2 + green_g_off_io_active()) != 0 {
@@ -354,8 +355,12 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
                                                     ptr_set(tok + native_iocp_wait_off_ready(), 1)
                                                     ptr_set(g2 + green_g_off_io_ready(), 1)
                                                     ptr_set(g2 + green_g_off_wake_ns(), now3)
+                                                    matched = 1
                                                 }
                                             }
+                                        }
+                                        if matched == 0 {
+                                            native_netpoll_iocp_wait_recycle(tok)
                                         }
                                     }
                                 }
@@ -422,6 +427,7 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
                                     }
                                 }
                             } else if native_netpoll_is_iocp_wait_token(tok) == true {
+                                var matched2 = 0
                                 var g2 = ptr_get(tok + native_iocp_wait_off_g())
                                 if _green_is_g(g2) == true {
                                     if ptr_get(g2 + green_g_off_io_active()) != 0 {
@@ -430,8 +436,12 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
                                             ptr_set(tok + native_iocp_wait_off_ready(), 1)
                                             ptr_set(g2 + green_g_off_io_ready(), 1)
                                             ptr_set(g2 + green_g_off_wake_ns(), now3)
+                                            matched2 = 1
                                         }
                                     }
+                                }
+                                if matched2 == 0 {
+                                    native_netpoll_iocp_wait_recycle(tok)
                                 }
                             }
                         }

@@ -72,15 +72,6 @@ fn u16be_at(ptr0, off) {
     return a * 256 + b
 }
 
-fn _env_truthy(name) {
-    var p = oren_getenv(name)
-    if p == 0 { return 0 }
-    var b = ptr_get_byte(p)
-    if b == 0 { return 0 }
-    if b == 48 { return 0 } // '0'
-    return 1
-}
-
 fn _read_exact(conn, buf, need, timeout_ms) {
     if need < 0 { return 0 - 22 }
     var off = 0
@@ -459,18 +450,18 @@ fn main_client() {
     free(lenp)
     free(sa)
 
-    var h = spawn server_main(listen_fd, fixture.pkcs12_b64())
+    var args_srv = oren_new_list(0)
+    oren_list_push(args_srv, listen_fd)
+    oren_list_push(args_srv, fixture.pkcs12_b64())
+    var h = oren_windows_os_thread_spawn_call_list(server_main, args_srv)
+    if h == 0 { exit(100) }
 
-    if _env_truthy("OREN_NO_GREEN") == 1 {
-        var rc = _http2_headers_client_impl(port, expected_leaf_sha256_hex)
-        var sr = oren_join_timeout(h, 5000)
-        tcp.close(listen_fd)
-        if rc != 0 { exit(rc) }
-        if sr != 0 { exit(31) }
-        exit(0)
-    }
+    var args_cli = oren_new_list(0)
+    oren_list_push(args_cli, port)
+    oren_list_push(args_cli, expected_leaf_sha256_hex)
+    var hc = oren_windows_os_thread_spawn_call_list(_http2_headers_client_impl, args_cli)
+    if hc == 0 { exit(101) }
 
-    var hc = spawn _http2_headers_client_impl(port, expected_leaf_sha256_hex)
     var rc2 = oren_join_timeout(hc, 5000)
     var sr2 = oren_join_timeout(h, 5000)
     tcp.close(listen_fd)

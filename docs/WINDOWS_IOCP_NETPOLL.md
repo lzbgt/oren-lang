@@ -1,6 +1,6 @@
 # Windows IOCP Netpoller (Native Runtime) — Design Notes (Rolling)
 
-**Last updated:** 2026-01-17  
+**Last updated:** 2026-02-13  
 **Scope:** Windows x64 native runtime netpoller (future replacement for select-v0)  
 **Non-goal:** shipping a full Windows async FS layer in the same step
 
@@ -30,8 +30,16 @@ The authoritative source content is stored in-tree under:
     appends netpoll metadata (magic, `G*`, epoch, ready) plus a `bytes` slot. Poll captures `dwNumberOfBytesTransferred`
     into the wait node when the magic matches.
   - Implementation: `lib/runtime_native/246_netpoll.oren`
-  - Rolling limitation: IOCP readiness watches are **not implemented yet** (`native_netpoll_arm_fd` returns `-ENOSYS` in IOCP mode),
-    so Windows still defaults to select-v0 for NET readiness parity.
+  - Rolling limitation: IOCP readiness was initially absent; as of 2026‑02‑13 a bridge exists for
+    `oren_fd_wait_readable/…_writable` using zero‑byte overlapped `WSARecv/WSASend`, but it is not yet
+    reliable for UDP readiness (see below). Completion‑driven socket ops remain the preferred end‑state
+    (Strategy B).
+- 2026-02-13: IOCP readiness bridge (Strategy A) for green‑task socket waits (experimental):
+  - `native_netpoll_arm_fd` posts zero‑byte `WSARecv` / `WSASend` with per‑op IOCP wait nodes.
+  - IOCP completions return OVERLAPPED tokens; the scheduler marks the owning `G` ready.
+  - Timeouts cancel with `CancelIoEx`; orphaned completions are recycled safely.
+  - Observed: UDP readiness in the net suite can time out on Win11 (zero‑byte `WSARecv` does not
+    always yield a completion), so IOCP is **not** enabled by default in `verify_native_net_matrix` yet.
 - 2026-01-17: x64-windows now has syscall/intrinsic plumbing + PE imports for the IOCP core APIs:
   - Runtime stubs: `lib/runtime_native/000_prelude_sys.oren`
   - x64 syscall lowering (Win64 ABI, kernel32 IAT): `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net.oren`

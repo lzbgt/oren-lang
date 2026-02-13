@@ -14,8 +14,9 @@
 //
 // Rolling limitation:
 // - This does not provide a general cancellation map; callers must make token use safe (e.g. token points to a long-lived object).
-// - Windows readiness is still select-v0 today. An IOCP poll core + wake substrate exists behind `OREN_NETPOLL_WIN_IOCP=1`,
-//   but readiness watches are not implemented for IOCP yet (see `docs/WINDOWS_IOCP_NETPOLL.md`).
+// - Windows readiness defaults to select-v0. When `OREN_NETPOLL_WIN_IOCP=1`, IOCP is used with a
+//   readiness bridge (zero-byte overlapped WSARecv/WSASend) for green-task waits; full completion-based
+//   socket ops remain future work (see `docs/WINDOWS_IOCP_NETPOLL.md`).
 
 var g_netpoll_inited = 0
 var g_netpoll_fd = 0
@@ -56,6 +57,14 @@ var g_netpoll_watch_tokens = 0     // u64[_netpoll_watch_max()] (token pointers)
 var g_netpoll_win_wake_sa = 0      // sockaddr_in ptr (16 bytes), or 0
 var g_netpoll_win_wake_sa_len = 0  // 16
 
+// IOCP helper state (rolling; Windows only):
+// - free list for IOCP wait nodes
+// - shared dummy buffer + flags pointer for zero-byte readiness posts
+var g_netpoll_iocp_free_head = 0
+var g_netpoll_iocp_free_lock_word = 0 // pointer to u64 lock word
+var g_netpoll_iocp_dummy_buf = 0
+var g_netpoll_iocp_flags_ptr = 0
+
 fn _netpoll_env_truthy(name) {
     var p = native_envp_get_value_ptr(name)
     if p == 0 { return 0 }
@@ -72,6 +81,12 @@ fn _netpoll_windows_backend_select() {
     // Opt-in: OREN_NETPOLL_WIN_IOCP=1 requests IOCP once implemented.
     if _netpoll_env_truthy("OREN_NETPOLL_WIN_IOCP") == 1 { return _netpoll_win_backend_iocp() }
     return _netpoll_win_backend_select_v0()
+}
+
+fn native_netpoll_is_iocp_backend() {
+    if g_target_os != 3 { return false }
+    if g_netpoll_win_backend == _netpoll_win_backend_iocp() { return true }
+    return false
 }
 
 fn _native_netpoll_windows_init_iocp_once() {
@@ -98,6 +113,21 @@ fn _native_netpoll_windows_init_iocp_once() {
     g_netpoll_wake_wfd = 0
     g_netpoll_win_wake_sa = 0
     g_netpoll_win_wake_sa_len = 0
+    if g_netpoll_iocp_free_lock_word == 0 {
+        g_netpoll_iocp_free_lock_word = malloc(8)
+        if g_netpoll_iocp_free_lock_word == 0 { return 0 - 12 }
+        ptr_set(g_netpoll_iocp_free_lock_word, 0)
+    }
+    if g_netpoll_iocp_dummy_buf == 0 {
+        g_netpoll_iocp_dummy_buf = malloc_raw(1)
+        if g_netpoll_iocp_dummy_buf == 0 || g_netpoll_iocp_dummy_buf == -1 { return 0 - 12 }
+        ptr_set_byte(g_netpoll_iocp_dummy_buf, 0)
+    }
+    if g_netpoll_iocp_flags_ptr == 0 {
+        g_netpoll_iocp_flags_ptr = malloc_raw(8)
+        if g_netpoll_iocp_flags_ptr == 0 || g_netpoll_iocp_flags_ptr == -1 { return 0 - 12 }
+        ptr_set(g_netpoll_iocp_flags_ptr, 0)
+    }
     return 0
 }
 
@@ -228,6 +258,28 @@ fn _netpoll_watch_lock_release() {
     return 0
 }
 
+fn _netpoll_iocp_lock_acquire() {
+    var lock_ptr = g_netpoll_iocp_free_lock_word
+    if lock_ptr == 0 { return 0 }
+    var spin = 0
+    while atomic_cas(lock_ptr, 0, 1) != 0 {
+        spin = spin + 1
+        if spin > 1000 {
+            oren_wait_on_addr(lock_ptr, 1, 1000) // 1ms
+            spin = 0
+        }
+    }
+    return 0
+}
+
+fn _netpoll_iocp_lock_release() {
+    var lock_ptr = g_netpoll_iocp_free_lock_word
+    if lock_ptr == 0 { return 0 }
+    atomic_cas(lock_ptr, 1, 0)
+    oren_wake_all_addr(lock_ptr)
+    return 0
+}
+
 fn _netpoll_watch_take_token_locked(fd, kind) {
     // Remove first matching (fd, kind) from the watch table and return its token.
     // Caller must hold `_netpoll_watch_lock_acquire()`.
@@ -255,6 +307,36 @@ fn _netpoll_watch_take_token_locked(fd, kind) {
     return 0
 }
 
+fn _netpoll_windows_init_watch_table_if_needed() {
+    if g_netpoll_watch_lock_word == 0 {
+        g_netpoll_watch_lock_word = malloc(8)
+        if g_netpoll_watch_lock_word == 0 { return 0 - 12 } // ENOMEM
+        ptr_set(g_netpoll_watch_lock_word, 0)
+    }
+    if g_netpoll_watch_fds == 0 {
+        var maxn = _netpoll_watch_max()
+        g_netpoll_watch_fds = malloc(maxn * 8)
+        g_netpoll_watch_kinds = malloc(maxn * 8)
+        g_netpoll_watch_tokens = malloc(maxn * 8)
+        if g_netpoll_watch_fds == 0 || g_netpoll_watch_kinds == 0 || g_netpoll_watch_tokens == 0 {
+            if g_netpoll_watch_fds != 0 { free(g_netpoll_watch_fds); g_netpoll_watch_fds = 0 }
+            if g_netpoll_watch_kinds != 0 { free(g_netpoll_watch_kinds); g_netpoll_watch_kinds = 0 }
+            if g_netpoll_watch_tokens != 0 { free(g_netpoll_watch_tokens); g_netpoll_watch_tokens = 0 }
+            return 0 - 12 // ENOMEM
+        }
+        var zi0 = 0
+        while zi0 < maxn * 8 {
+            ptr_set_byte(g_netpoll_watch_fds + zi0, 0)
+            ptr_set_byte(g_netpoll_watch_kinds + zi0, 0)
+            ptr_set_byte(g_netpoll_watch_tokens + zi0, 0)
+            zi0 = zi0 + 1
+        }
+    }
+    g_netpoll_watch_n = 0
+    g_netpoll_watch_cursor = 0
+    return 0
+}
+
 fn native_netpoll_init_once() {
     if native_netpoll_supported() != true { return 0 - 78 } // ENOSYS
     if g_netpoll_inited != 0 { return 0 }
@@ -275,6 +357,11 @@ fn native_netpoll_init_once() {
             // Attempt IOCP init. If unimplemented/unavailable, fall back to select-v0.
             var iocp_rc = _native_netpoll_windows_init_iocp_once()
             if iocp_rc == 0 {
+                var wrc = _netpoll_windows_init_watch_table_if_needed()
+                if wrc < 0 {
+                    release_lock()
+                    return wrc
+                }
                 g_netpoll_inited = 1
                 release_lock()
                 return 0
@@ -283,37 +370,11 @@ fn native_netpoll_init_once() {
             g_netpoll_win_backend = _netpoll_win_backend_select_v0()
         }
         if g_netpoll_inited != 0 { release_lock(); return 0 }
-        if g_netpoll_watch_lock_word == 0 {
-            g_netpoll_watch_lock_word = malloc(8)
-            if g_netpoll_watch_lock_word == 0 {
-                release_lock()
-                return 0 - 12 // ENOMEM
-            }
-            ptr_set(g_netpoll_watch_lock_word, 0)
+        var wrc2 = _netpoll_windows_init_watch_table_if_needed()
+        if wrc2 < 0 {
+            release_lock()
+            return wrc2
         }
-        if g_netpoll_watch_fds == 0 {
-            var maxn = _netpoll_watch_max()
-            g_netpoll_watch_fds = malloc(maxn * 8)
-            g_netpoll_watch_kinds = malloc(maxn * 8)
-            g_netpoll_watch_tokens = malloc(maxn * 8)
-            if g_netpoll_watch_fds == 0 || g_netpoll_watch_kinds == 0 || g_netpoll_watch_tokens == 0 {
-                // Best-effort cleanup.
-                if g_netpoll_watch_fds != 0 { free(g_netpoll_watch_fds); g_netpoll_watch_fds = 0 }
-                if g_netpoll_watch_kinds != 0 { free(g_netpoll_watch_kinds); g_netpoll_watch_kinds = 0 }
-                if g_netpoll_watch_tokens != 0 { free(g_netpoll_watch_tokens); g_netpoll_watch_tokens = 0 }
-                release_lock()
-                return 0 - 12 // ENOMEM
-            }
-            var zi0 = 0
-            while zi0 < maxn * 8 {
-                ptr_set_byte(g_netpoll_watch_fds + zi0, 0)
-                ptr_set_byte(g_netpoll_watch_kinds + zi0, 0)
-                ptr_set_byte(g_netpoll_watch_tokens + zi0, 0)
-                zi0 = zi0 + 1
-            }
-        }
-        g_netpoll_watch_n = 0
-        g_netpoll_watch_cursor = 0
 
         // Best-effort: create an internal wake socket on loopback so `native_netpoll_wake()` can
         // break a blocking select() immediately.
@@ -551,12 +612,91 @@ fn native_iocp_wait_off_epoch() { return 56 }      // u64: epoch (stale-event re
 fn native_iocp_wait_off_ready() { return 64 }      // u64: 0|1 (set by scheduler)
 fn native_iocp_wait_off_bytes() { return 72 }      // u64: bytes transferred (best-effort)
 fn native_iocp_wait_off_rc() { return 80 }         // i64: completion rc (future)
-fn native_iocp_wait_bytes() { return 88 }
+fn native_iocp_wait_off_next() { return 88 }       // u64: free-list next
+fn native_iocp_wait_bytes() { return 96 }
 
 fn native_netpoll_is_iocp_wait_token(ptr) {
     if ptr == 0 { return false }
     if ptr < 4096 { return false }
     return ptr_get(ptr + native_iocp_wait_off_magic()) == native_netpoll_wait_magic()
+}
+
+fn native_netpoll_iocp_wait_reset(ptr) {
+    if ptr == 0 { return 0 }
+    var i = 0
+    while i < 32 {
+        ptr_set_byte(ptr + i, 0)
+        i = i + 1
+    }
+    ptr_set(ptr + native_iocp_wait_off_ready(), 0)
+    ptr_set(ptr + native_iocp_wait_off_bytes(), 0)
+    ptr_set(ptr + native_iocp_wait_off_rc(), 0)
+    return 0
+}
+
+fn native_netpoll_iocp_wait_alloc() {
+    if g_netpoll_iocp_free_lock_word == 0 { return 0 }
+    _netpoll_iocp_lock_acquire()
+    var head = g_netpoll_iocp_free_head
+    if head != 0 {
+        g_netpoll_iocp_free_head = ptr_get(head + native_iocp_wait_off_next())
+        _netpoll_iocp_lock_release()
+    } else {
+        _netpoll_iocp_lock_release()
+        head = malloc_raw(native_iocp_wait_bytes())
+        if head == 0 || head == -1 { return 0 }
+    }
+    ptr_set(head + native_iocp_wait_off_magic(), native_netpoll_wait_magic())
+    ptr_set(head + native_iocp_wait_off_g(), 0)
+    ptr_set(head + native_iocp_wait_off_case_idx(), 0)
+    ptr_set(head + native_iocp_wait_off_epoch(), 0)
+    ptr_set(head + native_iocp_wait_off_ready(), 0)
+    ptr_set(head + native_iocp_wait_off_bytes(), 0)
+    ptr_set(head + native_iocp_wait_off_rc(), 0)
+    ptr_set(head + native_iocp_wait_off_next(), 0)
+    native_netpoll_iocp_wait_reset(head)
+    return head
+}
+
+fn native_netpoll_iocp_wait_recycle(ptr) {
+    if ptr == 0 { return 0 }
+    ptr_set(ptr + native_iocp_wait_off_g(), 0)
+    ptr_set(ptr + native_iocp_wait_off_case_idx(), 0)
+    ptr_set(ptr + native_iocp_wait_off_epoch(), 0)
+    ptr_set(ptr + native_iocp_wait_off_ready(), 0)
+    ptr_set(ptr + native_iocp_wait_off_bytes(), 0)
+    ptr_set(ptr + native_iocp_wait_off_rc(), 0)
+    _netpoll_iocp_lock_acquire()
+    ptr_set(ptr + native_iocp_wait_off_next(), g_netpoll_iocp_free_head)
+    g_netpoll_iocp_free_head = ptr
+    _netpoll_iocp_lock_release()
+    return 0
+}
+
+fn native_netpoll_iocp_wait_orphan(ptr) {
+    if ptr == 0 { return 0 }
+    // Mark as orphan; scheduler will recycle on completion.
+    ptr_set(ptr + native_iocp_wait_off_g(), 0)
+    return 0
+}
+
+fn _netpoll_iocp_associate_fd(fd) {
+    if g_netpoll_fd == 0 { return 0 - 78 } // ENOSYS
+    // Associate socket with IOCP (idempotent).
+    var rc = sys_create_io_completion_port(fd, g_netpoll_fd, 0, 0)
+    if rc < 0 { return rc }
+    if rc == 0 { return 0 - 5 }
+    return 0
+}
+
+fn _netpoll_iocp_post_recv(fd, ov_ptr) {
+    if g_netpoll_iocp_dummy_buf == 0 || g_netpoll_iocp_flags_ptr == 0 { return 0 - 78 }
+    return sys_wsarecv(fd, g_netpoll_iocp_dummy_buf, 0, g_netpoll_iocp_flags_ptr, ov_ptr)
+}
+
+fn _netpoll_iocp_post_send(fd, ov_ptr) {
+    if g_netpoll_iocp_dummy_buf == 0 { return 0 - 78 }
+    return sys_wsasend(fd, g_netpoll_iocp_dummy_buf, 0, 0, ov_ptr)
 }
 
 fn native_netpoll_arm_fd(fd, want_write, token) {
@@ -570,10 +710,57 @@ fn native_netpoll_arm_fd(fd, want_write, token) {
 
     if g_target_os == 3 {
         if g_netpoll_win_backend == _netpoll_win_backend_iocp() {
-            // Not implemented yet (see `docs/WINDOWS_IOCP_NETPOLL.md`):
-            // IOCP is completion-based, so we cannot directly represent readiness watches without
-            // per-operation state (OVERLAPPED storage + cancellation + mapping back to a `G`/wait token).
-            return 0 - 78 // ENOSYS
+            if native_netpoll_is_iocp_wait_token(token) != true { return 0 - 22 }
+            if g_netpoll_watch_fds == 0 || g_netpoll_watch_tokens == 0 || g_netpoll_watch_kinds == 0 { return 0 - 12 }
+            var arc0 = _netpoll_iocp_associate_fd(fd)
+            if arc0 < 0 { return arc0 }
+            native_netpoll_iocp_wait_reset(token)
+
+            var old_tok = 0
+            var replaced = 0
+            _netpoll_watch_lock_acquire()
+            var n = g_netpoll_watch_n
+            var i = 0
+            while i < n {
+                var f = ptr_get(g_netpoll_watch_fds + i * 8)
+                var k = ptr_get(g_netpoll_watch_kinds + i * 8)
+                if f == fd && k == want_write {
+                    old_tok = ptr_get(g_netpoll_watch_tokens + i * 8)
+                    ptr_set(g_netpoll_watch_tokens + i * 8, token)
+                    replaced = 1
+                    _netpoll_watch_lock_release()
+                    break
+                }
+                i = i + 1
+            }
+            if replaced == 0 {
+                if n >= _netpoll_watch_max() {
+                    _netpoll_watch_lock_release()
+                    return 0 - 28 // ENOSPC
+                }
+                ptr_set(g_netpoll_watch_fds + n * 8, fd)
+                ptr_set(g_netpoll_watch_kinds + n * 8, want_write)
+                ptr_set(g_netpoll_watch_tokens + n * 8, token)
+                g_netpoll_watch_n = n + 1
+                _netpoll_watch_lock_release()
+            }
+            if old_tok != 0 {
+                sys_cancel_io_ex(fd, old_tok)
+            }
+
+            var rc_iocp = 0
+            if want_write != 0 {
+                rc_iocp = _netpoll_iocp_post_send(fd, token)
+            } else {
+                rc_iocp = _netpoll_iocp_post_recv(fd, token)
+            }
+            if rc_iocp < 0 {
+                _netpoll_watch_lock_acquire()
+                _netpoll_watch_take_token_locked(fd, want_write)
+                _netpoll_watch_lock_release()
+                return rc_iocp
+            }
+            return 0
         }
         // Windows select()-based oneshot registration.
         // Key is (fd, want_write).
@@ -666,7 +853,13 @@ fn native_netpoll_disarm_fd(fd, want_write) {
     if fd < 0 { return 0 }
     if g_target_os == 3 {
         if g_netpoll_win_backend == _netpoll_win_backend_iocp() {
-            // Not implemented yet (requires per-operation cancellation).
+            if g_netpoll_watch_fds == 0 { return 0 }
+            _netpoll_watch_lock_acquire()
+            var tok = _netpoll_watch_take_token_locked(fd, want_write)
+            _netpoll_watch_lock_release()
+            if tok != 0 {
+                sys_cancel_io_ex(fd, tok)
+            }
             return 0
         }
         if g_netpoll_watch_fds == 0 { return 0 }

@@ -151,6 +151,12 @@ fn oren_spawn_call_list(fn_obj, args_list) {
 //   [8]  args_list
 //   [16] result_ptr
 //   [24] auto_free (u64; set to 1 by join_timeout detach)
+@oren.keep
+@cfg(os="windows")
+fn oren_windows_os_thread_spawn_call_list(fn_obj, args_list) {
+    return _oren_spawn_call_list_windows_thread(fn_obj, args_list)
+}
+
 fn _oren_spawn_call_list_windows_thread(fn_obj, args_list) {
     if fn_obj == 0 { return 0 }
 
