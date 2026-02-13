@@ -52,7 +52,7 @@ Authoritative specs/strategy docs:
   - **Tier‑1 intent (rolling):** `arm64` + `x86_64` across **macOS / Linux / Windows**.
   - Practical reality today:
     - native arm64 is the most feature-complete
-    - native x86_64 exists for Linux ELF + Windows PE32+ but is still bring-up (see `docs/TODOS.md` and `docs/REMOTE_X64_ENV.md`)
+    - native x86_64 exists for Linux ELF + Windows PE32+ and is in **rolling bring‑up**, with Tier‑1 remote gates (see `docs/TODOS.md` and `docs/REMOTE_X64_ENV.md`)
   - C backend is portable to any platform with a C toolchain.
 
 ## Stdlib (Rolling highlights)

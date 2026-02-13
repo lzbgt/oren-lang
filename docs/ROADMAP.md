@@ -34,6 +34,7 @@ Agentic/production constraints that drive prioritization (rolling mode):
   - runtime-injection surface (lists/maps/strings, capsule gating)
   - test strategy (fixtures + opt-in remote runs)
 - **Concurrency**: Core threading primitives + channels/select exist; current rolling focus is native M:N scheduler groundwork (see `docs/NATIVE_GMP_SCHEDULER.md`, `docs/TODOS.md`).
+  - Fact (rolling): Stage N1 green tasks are in place, and Stage N2 worker-mode groundwork exists; true M:N remains a future milestone.
 - **FFI/Linking**: [DONE] Implemented real dynamic linking on macOS (ARM64) with `LC_DYLD_INFO_ONLY` binding and GOT stubs. Linux `DT_NEEDED`/PLT pending but architecture is shared.
 - **Native backend**: Managed struct allocation in the native runtime (done). Global variable support (done). Next: register allocator groundwork (IR definition).
 - **Tooling**: CLI switches parity (codesign/notarize already), add `oren fmt` skeleton and lint scaffolding.
