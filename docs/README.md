@@ -31,7 +31,7 @@ This folder contains the **canonical specs** and living design notes for Oren (r
 - C backend notes: `docs/C_BACKEND.md`
 - Memory notes: `docs/MEMORY.md`
 - Windows IOCP netpoller design: `docs/WINDOWS_IOCP_NETPOLL.md`
-- Remote x86_64 (Win11 + WSL2) workflow: `docs/REMOTE_X64_ENV.md`
+- Remote x86_64 (Win11, WSL2 optional) workflow: `docs/REMOTE_X64_ENV.md`
 
 ## 4) Concurrency
 

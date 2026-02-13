@@ -25,7 +25,7 @@ Legend:
 - Priority: **P0 (Now)** > **P1 (Soon)**
 - Size tags: **(S/M/L)** = expected scope (not difficulty)
 - Tier‑1 targets intent: `arm64-macos`, `arm64-linux`, `x64-windows`, `x64-linux`
-  - x64-linux execution is currently validated via the Win11+WSL2 host (`docs/REMOTE_X64_ENV.md`)
+  - x64-linux execution is validated via WSL2 when available; current remote host is Win11-only (`docs/REMOTE_X64_ENV.md`)
 
 ## “Maturity” definition (rolling, measurable)
 
@@ -169,7 +169,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    Status (fact):
 
-	   - 2026-01-12: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` passed (compiler runs on Win11 + WSL2 and compiles+runs a tiny native program on both).
+	   - 2026-01-12: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` passed (compiler runs on Win11 (WSL2 optional) and compiles+runs a tiny native program on both).
 		   - 2026-01-13: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` extended with a filesystem directory gate (`fs_dir_gate.oren`) and remains green:
 		     - proves `oren_mkdir_p` handles the `-EEXIST` case correctly for directories
 		     - proves `sys_stat` reports directory mode correctly on both WSL2 (x64-linux) and Win11 (x64-windows)
@@ -187,7 +187,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - Root cause: `native_value_is_nil(...)` returns `true/false` **singletons**, not numeric `0/1`, so comparing it to `0` breaks cache-hit detection.
      - `oren_intern_cstr` now treats map misses as `nil` and checks `native_value_is_nil(cached) != true` before returning cached values.
      - Tier‑1 fixture now uses `false` (not numeric `0`) for the boolean short-circuit guard (`false && boom()`), matching the language spec (`0` is truthy).
-     - Verified end-to-end via `./scripts/verify_native_matrix.sh --targets x64-win-tier1,x64-wsl-tier1` (stage1 + stage2; Win11 + WSL2).
+     - Verified end-to-end via `./scripts/verify_native_matrix.sh --targets x64-win-tier1,x64-wsl-tier1` (stage1 + stage2; Win11 (WSL2 optional)).
    - 2026-01-12: hardened Tier‑1 remote gate on Windows:
      - `scripts/verify_native_matrix.sh` now enforces Tier‑1 markers on Win11 too (not just WSL2).
      - Prevents “silent early exit still returns 0” false positives (Tier‑1 must print `tier1 spawn join ok` and `tier1 proc ok`).
@@ -219,7 +219,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		     - x64 now materializes first-class function values via `oren_func(code_ptr, env_ptr)` (tracked kind=6), matching arm64.
 		     - rtobj (cached injected runtime) path now marks `ctx["runtime_injected"]=true`, so Tier‑1 lowering paths are consistently selected.
 		     - Guarded by `./scripts/verify_native_matrix.sh --targets x64-win,x64-wsl` (stage1 + stage2).
-	   - 2026-01-13: Tier‑1 native smoke now asserts the reflection v0 contract on real x64 hosts (Win11 + WSL2):
+	   - 2026-01-13: Tier‑1 native smoke now asserts the reflection v0 contract on real x64 hosts (Win11, WSL2 optional):
 	     - `tests/fixtures/tier1_native_smoke_main.oren` checks `reflect.tag/name` for `nil/bool/int/string/func/list/map/u8_buf`
 	     - also checks that struct values expose a stable name via `__oren_type` (even though structs remain map-shaped in v0)
 	     - and checks that identical string literals are deduplicated in the cstr0 pool (pointer identity stable; literals are not GC-tracked)
@@ -289,7 +289,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	   - 2026-01-13: `scripts/verify_windows_stage2_from_stage1.sh` passed (remote Win11; stage0→stage1→stage2):
 	     - Now also asserts default output path is created and runnable when the source path is provided with backslashes (`examples\\myapp.oren` → `build\\targets\\x64-windows\\native\\myapp.exe`).
    - 2026-01-13: `scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl` passed (remote WSL2; x64-linux compiler runs and compiles+executes a tiny native program).
-   - 2026-01-12: `scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` passed (remote Win11 + WSL2; stage2 compiler runs and compiles+runs a tiny native program on both).
+   - 2026-01-12: `scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` passed (remote Win11 (WSL2 optional); stage2 compiler runs and compiles+runs a tiny native program on both).
 
 7) **GUI: platform shims for Tier‑1 (RGBA blit v0)** (L)
 

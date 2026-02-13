@@ -124,7 +124,7 @@ Policy (Tier‑1 Windows host):
 See:
 
 - `docs/BUILD_AND_VERIFY.md` (Windows C backend policy)
-- `docs/REMOTE_X64_ENV.md` (Win11+WSL2 workflow)
+- `docs/REMOTE_X64_ENV.md` (Win11 (WSL2 optional) workflow)
 
 ## 5) Performance and hang-debugging entry points
 

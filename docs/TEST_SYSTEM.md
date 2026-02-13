@@ -159,7 +159,7 @@ When you need confidence that the **native backend** output works across the pra
 # Linux/arm64 via the persistent container (stage1 + stage2 artifacts)
 ./scripts/verify_native_matrix.sh --targets arm64-linux
 
-# Full matrix: local + linux/arm64 container + remote x64 Win11 + remote x64 WSL2
+# Full matrix: local + linux/arm64 container + remote x64 Win11 (+ WSL2 when available)
 ./scripts/verify_native_matrix.sh
 
 # Dev convenience: keep local + docker arm64-linux, but skip remote Win11/WSL2 (explicit opt-in)
@@ -179,8 +179,10 @@ When you need confidence that the **native backend** output works across the pra
 # Dev convenience: run local + docker arm64-linux, but skip remote Win11/WSL2 (explicit opt-in)
 ./scripts/verify_native_net_matrix.sh --targets local,arm64-linux --skip-remote
 
-# x86_64 self-host: the compiler binary itself runs on Win11 + WSL2 and can compile+run a tiny program
+# x86_64 self-host: the compiler binary itself runs on Win11 (and WSL2 when available) and can compile+run a tiny program
 ./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
+# If WSL2 is unavailable, use:
+# ./scripts/verify_selfhost_x64_compiler.sh --targets x64-win
 
 # Optional: stage0->stage1 bootstrap on native Windows using MSVC cl.exe (VS2022)
 ./scripts/verify_stage0_windows_bootstrap.sh

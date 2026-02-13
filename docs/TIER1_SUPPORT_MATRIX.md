@@ -80,7 +80,7 @@ These scripts are the intended long-run gate for Tier‑1 parity:
 - NET/TLS/HTTP/WS loopback matrix (stage1 + stage2): `./scripts/verify_native_net_matrix.sh`
 - x64 self-host parity (stage2 correctness on real x86_64): `./scripts/verify_selfhost_x64_compiler.sh`
 
-See `docs/REMOTE_X64_ENV.md` for how the remote Windows + WSL2 hosts are configured and how logs are fetched.
+See `docs/REMOTE_X64_ENV.md` for how the remote Windows host (WSL2 optional) is configured and how logs are fetched.
 
 HTTP/2 note (rolling but verified):
 

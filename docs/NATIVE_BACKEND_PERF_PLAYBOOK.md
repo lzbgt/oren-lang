@@ -162,7 +162,7 @@ docker exec c7e5f7bd9f5c bash -lc 'cd /tmp/hostbins && qemu-x86_64 -g 1234 ./pri
 docker exec -it c7e5f7bd9f5c bash -lc 'cd /tmp/hostbins && gdb-multiarch -q ./print_x64_linux'
 ```
 
-### 2.2.2 x64 self-host compiler “run” gate (remote Win11 + WSL2)
+### 2.2.2 x64 self-host compiler “run” gate (remote Win11 (WSL2 optional))
 
 Once basic x64 binaries run, Tier‑1 parity still requires the **compiler binary itself** to run on x86_64:
 

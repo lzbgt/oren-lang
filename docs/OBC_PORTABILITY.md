@@ -35,7 +35,7 @@ It verifies the same `.obc` (`tests/avm/test_smoke_suite.oren`) runs identically
 
 - macOS arm64 (host)
 - linux/arm64 (persistent docker container)
-- linux/x86_64 (WSL2 on remote Win11 host)
+- linux/x86_64 (WSL2 when available on remote Win11 host)
 
 Outputs are stored under:
 
@@ -55,9 +55,10 @@ This repo uses an **already-running** persistent Ubuntu toolchain container (it 
 
 The portability gate syncs **tracked** sources into `/work/repo`, rebuilds AVM inside the container, then executes the host-built `.obc`.
 
-### 3) Remote x64 host (Win11 + WSL2)
+### 3) Remote x64 host (Win11, WSL2 optional)
 
-The script uses the existing ssh proxy workflow (see `docs/REMOTE_X64_ENV.md`) and runs AVM inside WSL2 (Linux x86_64).
+The script uses the existing ssh proxy workflow (see `docs/REMOTE_X64_ENV.md`) and runs AVM inside WSL2 (Linux x86_64) when available.
+If WSL2 is unavailable, skip the remote Linux leg and keep the Windows leg for native gates.
 
 Environment variables (defaults match the repo’s existing conventions):
 

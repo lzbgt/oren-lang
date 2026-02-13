@@ -43,7 +43,7 @@ Agentic/production constraints that drive prioritization (rolling mode):
 - **Syscall-first OS boundary**: expand/lock `sys_*` surface (FS/PROC/ENV/TIME + NET) and keep all core runtime services behind it.
 - **Native TCP/IP (macOS arm64)**: minimal socket/connect/send/recv + timeout/cancellation story.
 - **Linux arm64 parity**: implement the same syscall surface and run smoke tests on the trusted QEMU host early and continuously.
-- **x86_64 Tier‑1 parity**: validate on real x86_64 continuously (Win11 + WSL2 remote host; see `docs/REMOTE_X64_ENV.md`).
+- **x86_64 Tier‑1 parity**: validate on real x86_64 continuously (Win11 (WSL2 optional) remote host; see `docs/REMOTE_X64_ENV.md`).
 
 ## Phase 2
 - **Optimization**: Implement **Register Allocation** (replace stack PUSH/POP with usage of X0-X28). Add basic inlining and const-prop.

@@ -28,7 +28,7 @@ Last verification (fact):
   - `x64-linux` (remote WSL2)
 - 2026-01-10: `make verify-x64-linux-qemu-tls` passed on:
   - `x64-linux` under QEMU in docker container `c7e5f7bd9f5c` (stage1 + stage2; TLS/HTTPS/WSS loopbacks, plus HTTP/2/HPACK smokes)
-- `x64-linux` / `x64-windows` runs require the remote Win11+WSL2 host; see `docs/REMOTE_X64_ENV.md` if the proxy/hostname is unavailable.
+- `x64-linux` / `x64-windows` runs require the remote Win11 (WSL2 optional) host; see `docs/REMOTE_X64_ENV.md` if the proxy/hostname is unavailable.
 
 ## 1) Constraints (why this design exists)
 

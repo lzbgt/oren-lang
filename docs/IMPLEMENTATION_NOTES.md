@@ -276,7 +276,7 @@ Implementation:
 
 Regression gate:
 
-- `scripts/verify_selfhost_x64_compiler.sh` intentionally omits `--platform` when running the x64 compiler binaries on Win11+WSL2, so the gate proves host auto-detection (not just codegen correctness).
+- `scripts/verify_selfhost_x64_compiler.sh` intentionally omits `--platform` when running the x64 compiler binaries on Win11 (WSL2 optional), so the gate proves host auto-detection (not just codegen correctness).
 
 ---
 

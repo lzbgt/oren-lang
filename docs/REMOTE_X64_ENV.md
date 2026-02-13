@@ -1,4 +1,4 @@
-# Remote x86_64 Dev Environment (Win11 + WSL2) — Access + Workflow (Rolling)
+# Remote x86_64 Dev Environment (Win11, WSL2 optional) — Access + Workflow (Rolling)
 
 This repo now has an x86_64 native backend bring-up path (Linux ELF + Windows PE).
 To test it on real x86_64 machines, we use a remote Win11 host (WSL2 optional).
@@ -111,7 +111,7 @@ Notes:
 The Tier‑1 matrix script focuses on a broad native smoke (containers, strings, maps, proc, etc),
 but it does not exercise TCP/UDP/HTTP.
 
-To validate Oren’s **native NET substrate** on real x86_64 hosts (Win11 + WSL2), run:
+To validate Oren’s **native NET substrate** on real x86_64 hosts (Win11, WSL2 optional), run:
 
 ```bash
 # Builds stage1 + stage2, compiles the NET suites for x64-windows and x64-linux,
@@ -140,7 +140,7 @@ This is intentionally **opt-in** because building the compiler for x64 can be sl
 
 Rolling status:
 
-- As of 2026-01-08, the x64 self-host compiler run gate passes on the remote Win11+WSL2 host (when WSL2 is available).
+- As of 2026-01-08, the x64 self-host compiler run gate passes on the remote Win11 (WSL2 optional) host (when WSL2 is available).
   - Root-cause + fix notes live in `docs/TODOS_ARCHIVE.md`.
 
 ```bash

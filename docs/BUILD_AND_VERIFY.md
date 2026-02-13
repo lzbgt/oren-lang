@@ -213,7 +213,7 @@ Compiles directly to machine code (Mach-O / ELF / PE). Fast and dependency-free 
 
 Notes (rolling):
 
-- A Linux/Windows native artifact may not be runnable on a macOS host. Use a Linux machine or the Win11+WSL2 remote workflow (`docs/REMOTE_X64_ENV.md`) to execute x86_64 outputs.
+- A Linux/Windows native artifact may not be runnable on a macOS host. Use a Linux machine or the Win11 (WSL2 optional) remote workflow (`docs/REMOTE_X64_ENV.md`) to execute x86_64 outputs.
 - The x86_64 native backend is Tier‑1 intent but still in bring-up; `docs/TODOS.md` tracks what is implemented today.
 - Native builds embed best-effort debug info for stack traces by default (rolling ergonomics). Disable with `--no-debug` or `OREN_NATIVE_NO_DEBUG=1`.
 
@@ -254,7 +254,7 @@ Cross‑arch Tier‑1 matrix (stage1 + stage2):
 # Loopback-only NET matrix (TCP/UDP + HTTP GET loopback + WebSocket echo)
 ./scripts/verify_native_net_matrix.sh
 
-# x86_64 self-host: run the compiler binary on remote Win11 + WSL2 and compile+run a tiny program
+# x86_64 self-host: run the compiler binary on remote Win11 (WSL2 optional) and compile+run a tiny program
 ./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
 
 # Remote host note (rolling):
