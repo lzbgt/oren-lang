@@ -66,6 +66,8 @@ Env overrides:
   OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
   OREN_REMOTE_X64_PROXY  (default: ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002)
   OREN_REMOTE_STAGE2_BOOTSTRAP_DIR (default: tmp_oren/stage2_from_stage1)
+  OREN_REMOTE_X64_WIN_ROOT (default: C:\Users\<user>\tmp_oren) remote Windows staging root
+  OREN_REMOTE_X64_SSH_ROOT (default: tmp_oren) scp/sftp staging root (Windows OpenSSH path)
 EOF
 }
 
@@ -99,6 +101,26 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+remote_user="$REMOTE_HOST"
+if [[ "$REMOTE_HOST" == *"@"* ]]; then
+  remote_user="${REMOTE_HOST%@*}"
+fi
+remote_win_root="${OREN_REMOTE_X64_WIN_ROOT:-C:\\Users\\${remote_user}\\tmp_oren}"
+remote_win_root_cmd="${remote_win_root//\//\\}"
+remote_unix_root="${OREN_REMOTE_X64_SSH_ROOT:-}"
+if [[ -z "$remote_unix_root" ]]; then
+  if [[ -n "${OREN_REMOTE_X64_WIN_ROOT:-}" ]]; then
+    remote_unix_root="${remote_win_root_cmd//\\//}"
+  else
+    remote_unix_root="tmp_oren"
+  fi
+fi
+remote_dir_rel="${REMOTE_DIR}"
+remote_dir_rel="${remote_dir_rel#tmp_oren/}"
+remote_dir_rel="${remote_dir_rel#tmp_oren\\}"
+remote_dir_win="${remote_win_root_cmd}\\${remote_dir_rel//\//\\}"
+remote_dir_ssh="${remote_unix_root}/${remote_dir_rel//\\//}"
 
 need_bin() {
   local b="$1"
@@ -261,16 +283,16 @@ GOOS=windows GOARCH=amd64 go build -o build/tmp/oren_bootstrap_win.exe ./cmd/ore
 		  scripts/win_msvc_cmd.cmd
 
 log "== remote: upload stage0 + bundle =="
-scp_retry build/tmp/oren_bootstrap_win.exe "${REMOTE_HOST}:tmp_oren/oren_bootstrap_win.exe"
-scp_retry build/tmp/stage2_src_bundle.tgz "${REMOTE_HOST}:tmp_oren/stage2_src_bundle.tgz"
+scp_retry build/tmp/oren_bootstrap_win.exe "${REMOTE_HOST}:${remote_unix_root}/oren_bootstrap_win.exe"
+scp_retry build/tmp/stage2_src_bundle.tgz "${REMOTE_HOST}:${remote_unix_root}/stage2_src_bundle.tgz"
 
 log "== remote: extract bundle =="
-"${SSH[@]}" "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\tmp_oren && (if exist ${REMOTE_DIR#tmp_oren/} rmdir /s /q ${REMOTE_DIR#tmp_oren/}) && mkdir ${REMOTE_DIR#tmp_oren/} && tar -xzf stage2_src_bundle.tgz -C ${REMOTE_DIR#tmp_oren/}\""
+"${SSH[@]}" "cmd.exe /v:on /c \"cd ${remote_win_root_cmd} && (if exist ${remote_dir_rel//\//\\\\} rmdir /s /q ${remote_dir_rel//\//\\\\}) && mkdir ${remote_dir_rel//\//\\\\} && tar -xzf stage2_src_bundle.tgz -C ${remote_dir_rel//\//\\\\}\""
 
 log "== remote: stage0 builds stage1 (MSVC cl.exe) =="
 run_with_timeout "$STAGE0_BUILD_TIMEOUT_SECS" \
   "${SSH[@]}" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && ..\\\\oren_bootstrap_win.exe build oren.oren --target windows --cc cl -o oren_stage1.exe\""
+  "cmd.exe /v:on /c \"cd ${remote_dir_win} && ..\\\\oren_bootstrap_win.exe build oren.oren --target windows --cc cl -o oren_stage1.exe\""
 
 log "== remote: stage1 builds stage2 (native backend; x64-windows PE) =="
 stage2_log="stage1_build_stage2.log"
@@ -282,41 +304,41 @@ fi
 set +e
 run_with_timeout "$STAGE2_BUILD_TIMEOUT_SECS" \
   "${SSH[@]}" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && (${progress_env}oren_stage1.exe build oren.oren --backend native --platform x64-windows --no-debug -o oren_stage2.exe > ${stage2_log} 2>&1)\""
+  "cmd.exe /v:on /c \"cd ${remote_dir_win} && (${progress_env}oren_stage1.exe build oren.oren --backend native --platform x64-windows --no-debug -o oren_stage2.exe > ${stage2_log} 2>&1)\""
 rc=$?
 set -e
 if [[ "$rc" -ne 0 ]]; then
   echo "ERROR: stage1->stage2 build failed or timed out (timeout=${STAGE2_BUILD_TIMEOUT_SECS}s); tailing ${stage2_log}:" >&2
-  capture_remote_log_best_effort "${REMOTE_DIR}/${stage2_log}"
+  capture_remote_log_best_effort "${remote_dir_ssh}/${stage2_log}"
   # PowerShell is present on modern Windows; use tail to avoid huge logs.
   "${SSH[@]}" \
-    "powershell -NoProfile -Command \"Set-Location -LiteralPath '%USERPROFILE%\\\\${REMOTE_DIR//\//\\\\}'; if (Test-Path -LiteralPath '${stage2_log}') { Get-Content -LiteralPath '${stage2_log}' -Tail 120 } else { Write-Host 'missing log: ${stage2_log}' }\""
+    "powershell -NoProfile -Command \"Set-Location -LiteralPath '${remote_dir_win}'; if (Test-Path -LiteralPath '${stage2_log}') { Get-Content -LiteralPath '${stage2_log}' -Tail 120 } else { Write-Host 'missing log: ${stage2_log}' }\""
   exit "$rc"
 fi
 
 # Capture the full stage1->stage2 build log for traceability (best-effort, bounded output).
-capture_remote_log_best_effort "${REMOTE_DIR}/${stage2_log}"
+capture_remote_log_best_effort "${remote_dir_ssh}/${stage2_log}"
 
 # Fail fast on known x64-native backend correctness warnings (even if the compiler exits 0).
 # Use PowerShell to avoid cmd.exe quoting pitfalls around patterns with spaces.
 "${SSH[@]}" \
-  "powershell -NoProfile -Command \"Set-Location -LiteralPath '%USERPROFILE%\\\\${REMOTE_DIR//\//\\\\}'; if (!(Test-Path -LiteralPath '${stage2_log}')) { Write-Host 'missing log: ${stage2_log}'; exit 2 }; if (Select-String -LiteralPath '${stage2_log}' -SimpleMatch -Pattern 'x64 native v0: missing ABI arg reg') { Write-Host 'ERROR: ABI arg-reg warnings found in stage1->stage2 build log'; Select-String -LiteralPath '${stage2_log}' -SimpleMatch -Pattern 'x64 native v0: missing ABI arg reg' | Select-Object -First 20; exit 3 }\""
+  "powershell -NoProfile -Command \"Set-Location -LiteralPath '${remote_dir_win}'; if (!(Test-Path -LiteralPath '${stage2_log}')) { Write-Host 'missing log: ${stage2_log}'; exit 2 }; if (Select-String -LiteralPath '${stage2_log}' -SimpleMatch -Pattern 'x64 native v0: missing ABI arg reg') { Write-Host 'ERROR: ABI arg-reg warnings found in stage1->stage2 build log'; Select-String -LiteralPath '${stage2_log}' -SimpleMatch -Pattern 'x64 native v0: missing ABI arg reg' | Select-Object -First 20; exit 3 }\""
 
 log "== remote: stage2 builds a tiny native exe (guard: canon i32) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
   "${SSH[@]}" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build tests\\\\native\\\\print.oren --backend native --no-cache --no-debug -o print_stage2_native.exe\""
+  "cmd.exe /v:on /c \"cd ${remote_dir_win} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build tests\\\\native\\\\print.oren --backend native --no-cache --no-debug -o print_stage2_native.exe\""
 
 log "== remote: stage2 builds a nested-path native exe (default -o path; backslash-safe) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
   "${SSH[@]}" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\myapp.oren --backend native --platform x64-windows --no-cache --no-debug && if not exist build\\\\targets\\\\x64-windows\\\\native\\\\myapp.exe exit /b 2\""
+  "cmd.exe /v:on /c \"cd ${remote_dir_win} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\myapp.oren --backend native --platform x64-windows --no-cache --no-debug && if not exist build\\\\targets\\\\x64-windows\\\\native\\\\myapp.exe exit /b 2\""
 
 log "== remote: run the produced default-output native exe =="
 out_myapp="$(
   run_with_timeout "$REMOTE_RUN_TIMEOUT_SECS" \
     "${SSH[@]}" \
-    "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OREN_CANON_I32_ABORT=1&& build\\\\targets\\\\x64-windows\\\\native\\\\myapp.exe & echo EXIT=!ERRORLEVEL!\""
+    "cmd.exe /v:on /c \"cd ${remote_dir_win} && set OREN_CANON_I32_ABORT=1&& build\\\\targets\\\\x64-windows\\\\native\\\\myapp.exe & echo EXIT=!ERRORLEVEL!\""
 )"
 out_myapp="$(printf '%s' "$out_myapp" | tr -d '\r')"
 printf '%s\n' "$out_myapp"
@@ -326,28 +348,28 @@ echo "$out_myapp" | grep -qF "EXIT=0"
 log "== remote: stage2 builds a tiny native DLL (--lib; x64-windows) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
   "${SSH[@]}" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\libmath.oren --backend native --platform x64-windows --lib --no-cache --no-debug -o libmath.dll && if not exist libmath.dll exit /b 2 && if not exist libmath.h exit /b 3\""
+  "cmd.exe /v:on /c \"cd ${remote_dir_win} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\libmath.oren --backend native --platform x64-windows --lib --no-cache --no-debug -o libmath.dll && if not exist libmath.dll exit /b 2 && if not exist libmath.h exit /b 3\""
 
 log "== remote: build Win32 OrenUI shim DLL (MSVC via scripts\\\\win_msvc_cmd.cmd) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
   "${SSH[@]}" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& call scripts\\\\win_msvc_cmd.cmd cl.exe /nologo /O2 /LD /DORENUI_EXPORTS native\\\\orenui\\\\win32\\\\orenui_win32.c /I native\\\\orenui user32.lib gdi32.lib /link /OUT:orenui_win32.dll && if not exist orenui_win32.dll exit /b 2\""
+  "cmd.exe /v:on /c \"cd ${remote_dir_win} && set OS=&& call scripts\\\\win_msvc_cmd.cmd cl.exe /nologo /O2 /LD /DORENUI_EXPORTS native\\\\orenui\\\\win32\\\\orenui_win32.c /I native\\\\orenui user32.lib gdi32.lib /link /OUT:orenui_win32.dll && if not exist orenui_win32.dll exit /b 2\""
 
 log "== remote: stage2 compiles ui_hello (native; links shim dll; no run) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
   "${SSH[@]}" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\ui_hello.oren --backend native --platform x64-windows --no-cache --no-debug --link orenui_win32.dll -o ui_hello_stage2_native.exe && if not exist ui_hello_stage2_native.exe exit /b 2\""
+  "cmd.exe /v:on /c \"cd ${remote_dir_win} && set OS=&& set OREN_CANON_I32_ABORT=1&& oren_stage2.exe build examples\\\\ui_hello.oren --backend native --platform x64-windows --no-cache --no-debug --link orenui_win32.dll -o ui_hello_stage2_native.exe && if not exist ui_hello_stage2_native.exe exit /b 2\""
 
 log "== remote: stage2 builds a tiny C-backend exe (default --cc; should auto-pick MSVC cl.exe on Windows) =="
 run_with_timeout "$REMOTE_COMPILE_TIMEOUT_SECS" \
   "${SSH[@]}" \
-  "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OS=&& oren_stage2.exe build examples\\\\myapp.oren --backend c --no-cache -o myapp_c_stage2.exe\""
+  "cmd.exe /v:on /c \"cd ${remote_dir_win} && set OS=&& oren_stage2.exe build examples\\\\myapp.oren --backend c --no-cache -o myapp_c_stage2.exe\""
 
 log "== remote: run the produced C-backend exe =="
 out_c="$(
   run_with_timeout "$REMOTE_RUN_TIMEOUT_SECS" \
     "${SSH[@]}" \
-    "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && myapp_c_stage2.exe & echo EXIT=!ERRORLEVEL!\""
+    "cmd.exe /v:on /c \"cd ${remote_dir_win} && myapp_c_stage2.exe & echo EXIT=!ERRORLEVEL!\""
 )"
 out_c="$(printf '%s' "$out_c" | tr -d '\r')"
 printf '%s\n' "$out_c"
@@ -358,7 +380,7 @@ log "== remote: run the produced exe =="
 out="$(
   run_with_timeout "$REMOTE_RUN_TIMEOUT_SECS" \
     "${SSH[@]}" \
-    "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && set OREN_CANON_I32_ABORT=1&& print_stage2_native.exe & echo EXIT=!ERRORLEVEL!\""
+    "cmd.exe /v:on /c \"cd ${remote_dir_win} && set OREN_CANON_I32_ABORT=1&& print_stage2_native.exe & echo EXIT=!ERRORLEVEL!\""
 )"
 out="$(printf '%s' "$out" | tr -d '\r')"
 printf '%s\n' "$out"

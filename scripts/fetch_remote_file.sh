@@ -9,7 +9,8 @@ set -euo pipefail
 #
 # This script:
 # 1) Runs a fast SSH preflight (15s bounded).
-# 2) Copies the requested remote file into %USERPROFILE%\tmp_oren\remote_fetch\ on the remote host.
+# 2) Copies the requested remote file into the remote staging root (default:
+#    %USERPROFILE%\tmp_oren\remote_fetch\) on the remote host.
 # 3) scp's the staged copy into `project-doc/remote/` with a timestamp.
 #
 # Notes:
@@ -42,6 +43,8 @@ Examples:
 Env overrides:
   OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
   OREN_REMOTE_X64_PROXY  (default: ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002)
+  OREN_REMOTE_X64_WIN_ROOT (default: C:\Users\<user>\tmp_oren) remote Windows staging root
+  OREN_REMOTE_X64_SSH_ROOT (default: tmp_oren) scp/sftp staging root (Windows OpenSSH path)
 
 Output:
   Writes the fetched file under:
@@ -100,6 +103,21 @@ if [[ -z "$WIN_PATH" ]]; then
   echo "ERROR: --win-path is required" >&2
   usage >&2
   exit 2
+fi
+
+remote_user="$REMOTE_HOST"
+if [[ "$REMOTE_HOST" == *"@"* ]]; then
+  remote_user="${REMOTE_HOST%@*}"
+fi
+remote_win_root="${OREN_REMOTE_X64_WIN_ROOT:-C:\\Users\\${remote_user}\\tmp_oren}"
+remote_win_root_cmd="${remote_win_root//\//\\}"
+remote_unix_root="${OREN_REMOTE_X64_SSH_ROOT:-}"
+if [[ -z "$remote_unix_root" ]]; then
+  if [[ -n "${OREN_REMOTE_X64_WIN_ROOT:-}" ]]; then
+    remote_unix_root="${remote_win_root_cmd//\\//}"
+  else
+    remote_unix_root="tmp_oren"
+  fi
 fi
 
 need_bin() {
@@ -224,7 +242,8 @@ set +e
 run_with_timeout 30 "${ssh_base[@]}" "powershell -NoProfile -Command \"\
 \$ErrorActionPreference='Stop'; \
 \$src='${ps_src}'; \
-\$dstDir=(Join-Path \$env:USERPROFILE 'tmp_oren\\remote_fetch'); \
+\$root='${remote_win_root_cmd}'; \
+\$dstDir=(Join-Path \$root 'remote_fetch'); \
 New-Item -ItemType Directory -Force -Path \$dstDir | Out-Null; \
 if ('${ps_base}' -ne '') { \$name='${ps_base}' } else { \$name=[IO.Path]::GetFileName(\$src) }; \
 if ([string]::IsNullOrEmpty(\$name)) { \$name='remote_fetch.bin' }; \
@@ -263,7 +282,7 @@ fi
 mkdir -p "$OUT_DIR"
 
 local_dst="${OUT_DIR}/${staged_name}"
-remote_src="${REMOTE_HOST}:tmp_oren/remote_fetch/${staged_name}"
+remote_src="${REMOTE_HOST}:${remote_unix_root}/remote_fetch/${staged_name}"
 
 echo "== fetch: scp ${remote_src} -> ${local_dst} ==" >&2
 set +e

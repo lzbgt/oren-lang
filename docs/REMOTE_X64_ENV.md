@@ -74,6 +74,25 @@ export OREN_REMOTE_X64_PROXY=''
 ./scripts/verify_native_matrix.sh --targets x64-wsl,x64-win --host 'lzbgt@203.0.113.10' --no-proxy
 ```
 
+Remote staging root overrides (useful when `C:` is full):
+
+```bash
+# Example: move remote staging to G:\work\tmp_oren on pc2.work.
+export OREN_REMOTE_X64_HOST='xue@pc2.work'
+export OREN_REMOTE_X64_PROXY='ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002'
+export OREN_REMOTE_X64_WIN_ROOT='G:\\work\\tmp_oren'
+export OREN_REMOTE_X64_WSL_ROOT='/mnt/g/work/tmp_oren'
+export OREN_REMOTE_X64_SSH_ROOT='G:/work/tmp_oren'
+```
+
+Notes:
+
+- Keep the three roots in sync:
+  - `OREN_REMOTE_X64_WIN_ROOT` is the Windows path used by `cmd.exe`.
+  - `OREN_REMOTE_X64_WSL_ROOT` is the WSL path for the same directory.
+  - `OREN_REMOTE_X64_SSH_ROOT` is the scp/sftp path (Windows OpenSSH).
+- If you only set `OREN_REMOTE_X64_WIN_ROOT`, the scripts attempt to derive `SSH_ROOT` and `WSL_ROOT`.
+
 ## NET loopback matrix (TCP/UDP + HTTP GET loopback)
 
 The Tier‑1 matrix script focuses on a broad native smoke (containers, strings, maps, proc, etc),
@@ -193,6 +212,9 @@ Common env overrides (match `scripts/verify_native_matrix.sh` defaults):
 
 - `OREN_REMOTE_X64_HOST` (example: `lzbgt@pc.work`)
 - `OREN_REMOTE_X64_PROXY` (example: `ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002`)
+- `OREN_REMOTE_X64_WIN_ROOT` (example: `G:\\work\\tmp_oren`)
+- `OREN_REMOTE_X64_WSL_ROOT` (example: `/mnt/g/work/tmp_oren`)
+- `OREN_REMOTE_X64_SSH_ROOT` (example: `G:/work/tmp_oren`)
 - `OREN_NATIVE_BUILD_TIMEOUT_SECS` (rolling hang guard; default `10`)
 
 ## Prerequisites (local machine)
@@ -276,6 +298,12 @@ Create a staging directory on the remote machine (Windows user profile):
 
 ```bash
 ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.work 'cmd.exe /c "mkdir %USERPROFILE%\\tmp_oren"'
+```
+
+If you use a custom staging root (example: G:\work\tmp_oren), run:
+
+```bash
+ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" xue@pc2.work 'cmd.exe /c "mkdir G:\\work\\tmp_oren"'
 ```
 
 Copy artifacts:

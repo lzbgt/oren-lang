@@ -122,6 +122,9 @@ Env overrides:
   OREN_NATIVE_BUILD_TIMEOUT_SECS_X64_WINDOWS (default: 15) timeout override for x64-windows cross builds (toolchain-heavy)
   OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
   OREN_REMOTE_X64_PROXY  (default: ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002)
+  OREN_REMOTE_X64_WIN_ROOT (default: C:\Users\<user>\tmp_oren) remote Windows staging root
+  OREN_REMOTE_X64_WSL_ROOT (default: /mnt/c/Users/<user>/tmp_oren) remote WSL staging root
+  OREN_REMOTE_X64_SSH_ROOT (default: tmp_oren) scp/sftp staging root (Windows OpenSSH path)
   OREN_WS_ECHO_N         (optional) run ws echo loop N times (stress)
   OREN_CANON_I32_ABORT   (optional) set to 1 to hard-fail on non-canonical i32 values on all targets
 EOF
@@ -535,9 +538,26 @@ remote_user="$REMOTE_HOST"
 if [[ "$REMOTE_HOST" == *"@"* ]]; then
   remote_user="${REMOTE_HOST%@*}"
 fi
-remote_unix_root="tmp_oren"
-remote_win_root="C:\\Users\\${remote_user}\\tmp_oren"
-remote_wsl_root="/mnt/c/Users/${remote_user}/tmp_oren"
+remote_win_root="${OREN_REMOTE_X64_WIN_ROOT:-C:\\Users\\${remote_user}\\tmp_oren}"
+remote_win_root_cmd="${remote_win_root//\//\\}"
+remote_unix_root="${OREN_REMOTE_X64_SSH_ROOT:-}"
+if [[ -z "$remote_unix_root" ]]; then
+  if [[ -n "${OREN_REMOTE_X64_WIN_ROOT:-}" ]]; then
+    remote_unix_root="${remote_win_root_cmd//\\//}"
+  else
+    remote_unix_root="tmp_oren"
+  fi
+fi
+remote_wsl_root="${OREN_REMOTE_X64_WSL_ROOT:-}"
+if [[ -z "$remote_wsl_root" ]]; then
+  if [[ -n "${OREN_REMOTE_X64_WIN_ROOT:-}" && "$remote_win_root_cmd" =~ ^([A-Za-z]):\\(.*)$ ]]; then
+    drive="${BASH_REMATCH[1],,}"
+    rest="${BASH_REMATCH[2]//\\//}"
+    remote_wsl_root="/mnt/${drive}/${rest}"
+  else
+    remote_wsl_root="/mnt/c/Users/${remote_user}/tmp_oren"
+  fi
+fi
 
 ssh_opt_proxy=()
 scp_opt_proxy=()
@@ -601,12 +621,12 @@ remote_preflight() {
 remote_mkdir() {
   # IMPORTANT: `cmd.exe` can inherit a non-zero ERRORLEVEL under some ssh server setups.
   # Force success to avoid "false failures" when the directory already exists.
-  "${ssh_base[@]}" 'cmd.exe /c "if not exist %USERPROFILE%\\tmp_oren mkdir %USERPROFILE%\\tmp_oren 2>nul & exit /b 0"'
+  "${ssh_base[@]}" "cmd.exe /c \"if not exist \\\"${remote_win_root_cmd}\\\" mkdir \\\"${remote_win_root_cmd}\\\" 2>nul & exit /b 0\""
 }
 
 remote_del() {
   local name="$1"
-  "${ssh_base[@]}" "cmd.exe /c \"del /f /q %USERPROFILE%\\\\tmp_oren\\\\${name} 2>nul\""
+  "${ssh_base[@]}" "cmd.exe /c \"del /f /q \\\"${remote_win_root_cmd}\\\\${name}\\\" 2>nul\""
 }
 
 remote_ssh_retry() {
@@ -690,7 +710,7 @@ remote_run_win() {
       envp+="set OREN_WS_ECHO_N=${WS_ECHO_N} & "
     fi
     set +e
-    run_with_timeout 40 "${ssh_base[@]}" "cmd.exe /v:on /c \"${envp}${remote_win_root}\\\\${exe_name} & set RC=!ERRORLEVEL! & echo EXIT=!RC! & exit /b !RC!\""
+    run_with_timeout 40 "${ssh_base[@]}" "cmd.exe /v:on /c \"${envp}${remote_win_root_cmd}\\\\${exe_name} & set RC=!ERRORLEVEL! & echo EXIT=!RC! & exit /b !RC!\""
     local rc=$?
     set -e
     if [[ "$rc" -eq 0 ]]; then

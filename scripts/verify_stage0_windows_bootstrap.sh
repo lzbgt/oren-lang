@@ -34,6 +34,8 @@ Env overrides:
   OREN_REMOTE_X64_HOST   (default: lzbgt@pc.work)
   OREN_REMOTE_X64_PROXY  (default: ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002)
   OREN_REMOTE_STAGE0_BOOTSTRAP_DIR (default: tmp_oren/stage0_bootstrap)
+  OREN_REMOTE_X64_WIN_ROOT (default: C:\Users\<user>\tmp_oren) remote Windows staging root
+  OREN_REMOTE_X64_SSH_ROOT (default: tmp_oren) scp/sftp staging root (Windows OpenSSH path)
 EOF
 }
 
@@ -67,6 +69,25 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+remote_user="$REMOTE_HOST"
+if [[ "$REMOTE_HOST" == *"@"* ]]; then
+  remote_user="${REMOTE_HOST%@*}"
+fi
+remote_win_root="${OREN_REMOTE_X64_WIN_ROOT:-C:\\Users\\${remote_user}\\tmp_oren}"
+remote_win_root_cmd="${remote_win_root//\//\\}"
+remote_unix_root="${OREN_REMOTE_X64_SSH_ROOT:-}"
+if [[ -z "$remote_unix_root" ]]; then
+  if [[ -n "${OREN_REMOTE_X64_WIN_ROOT:-}" ]]; then
+    remote_unix_root="${remote_win_root_cmd//\\//}"
+  else
+    remote_unix_root="tmp_oren"
+  fi
+fi
+remote_dir_rel="${REMOTE_DIR}"
+remote_dir_rel="${remote_dir_rel#tmp_oren/}"
+remote_dir_rel="${remote_dir_rel#tmp_oren\\}"
+remote_dir_win="${remote_win_root_cmd}\\${remote_dir_rel//\//\\}"
 
 need_bin() {
   local b="$1"
@@ -192,21 +213,21 @@ tar -czf build/tmp/stage0_src_bundle.tgz \
   tests/native/print.oren
 
 log "== remote: upload stage0 + bundle =="
-scp_retry build/tmp/oren_bootstrap_win.exe "${REMOTE_HOST}:tmp_oren/oren_bootstrap_win.exe"
-scp_retry build/tmp/stage0_src_bundle.tgz "${REMOTE_HOST}:tmp_oren/stage0_src_bundle.tgz"
+scp_retry build/tmp/oren_bootstrap_win.exe "${REMOTE_HOST}:${remote_unix_root}/oren_bootstrap_win.exe"
+scp_retry build/tmp/stage0_src_bundle.tgz "${REMOTE_HOST}:${remote_unix_root}/stage0_src_bundle.tgz"
 
 log "== remote: extract bundle =="
-"${SSH[@]}" "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\tmp_oren && (if exist ${REMOTE_DIR#tmp_oren/} rmdir /s /q ${REMOTE_DIR#tmp_oren/}) && mkdir ${REMOTE_DIR#tmp_oren/} && tar -xzf stage0_src_bundle.tgz -C ${REMOTE_DIR#tmp_oren/}\""
+"${SSH[@]}" "cmd.exe /v:on /c \"cd ${remote_win_root_cmd} && (if exist ${remote_dir_rel//\//\\\\} rmdir /s /q ${remote_dir_rel//\//\\\\}) && mkdir ${remote_dir_rel//\//\\\\} && tar -xzf stage0_src_bundle.tgz -C ${remote_dir_rel//\//\\\\}\""
 
 log "== remote: stage0 builds stage1 (MSVC cl.exe) =="
-run_with_timeout "$STAGE0_BUILD_TIMEOUT_SECS" "${SSH[@]}" "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && ..\\\\oren_bootstrap_win.exe build oren.oren --target windows --cc cl -o oren_stage1.exe\""
+run_with_timeout "$STAGE0_BUILD_TIMEOUT_SECS" "${SSH[@]}" "cmd.exe /v:on /c \"cd ${remote_dir_win} && ..\\\\oren_bootstrap_win.exe build oren.oren --target windows --cc cl -o oren_stage1.exe\""
 
 log "== remote: stage1 builds a tiny native exe =="
-run_with_timeout "$STAGE1_BUILD_TIMEOUT_SECS" "${SSH[@]}" "cmd.exe /v:on /c \"cd %USERPROFILE%\\\\${REMOTE_DIR//\//\\\\} && oren_stage1.exe build tests\\\\native\\\\print.oren --backend native --no-cache --no-debug -o print_stage1_native.exe\""
+run_with_timeout "$STAGE1_BUILD_TIMEOUT_SECS" "${SSH[@]}" "cmd.exe /v:on /c \"cd ${remote_dir_win} && oren_stage1.exe build tests\\\\native\\\\print.oren --backend native --no-cache --no-debug -o print_stage1_native.exe\""
 
 log "== remote: run the produced exe =="
 out="$(
-  run_with_timeout "$REMOTE_RUN_TIMEOUT_SECS" "${SSH[@]}" "cmd.exe /v:on /c \"%USERPROFILE%\\\\${REMOTE_DIR//\//\\\\}\\\\print_stage1_native.exe\""
+  run_with_timeout "$REMOTE_RUN_TIMEOUT_SECS" "${SSH[@]}" "cmd.exe /v:on /c \"${remote_dir_win}\\\\print_stage1_native.exe\""
 )"
 out="$(printf '%s' "$out" | tr -d '\r')"
 printf '%s\n' "$out"
