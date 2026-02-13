@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-02-14
+**Last updated:** 2026-02-13
 
 This repo is in rolling mode. This file tracks the **highest-leverage work remaining** to evolve Oren
 into a modern, efficient, production-ready language and toolchain, while keeping iteration fast.
@@ -403,7 +403,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 			           - `native_netpoll_init_once` creates an IOCP when `OREN_NETPOLL_WIN_IOCP=1`
 			           - `native_netpoll_wake()` uses `PostQueuedCompletionStatus` (no loopback dependency)
 			           - `native_netpoll_poll_many_scratch` uses `GetQueuedCompletionStatusEx` (allocation-free)
-				         - Rolling limitation (updated 2026-02-13): readiness is bridged for `oren_fd_wait_*` in green tasks via zero‑byte `WSARecv/WSASend`, but true completion‑driven NET ops are still future work.
+			         - Rolling limitation (updated 2026-02-13): readiness bridge exists but is **gated** behind `OREN_NETPOLL_WIN_IOCP_READY=1`.
+			           - Default path (`OREN_NETPOLL_WIN_IOCP=1` only) uses select‑v0 for socket readiness.
 	       - Gate (added, 2026-01-17): Windows-only fixture proving a blocked IOCP poll is broken by `native_netpoll_wake()` (no loopback):
 	         - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (run with `OREN_NETPOLL_WIN_IOCP=1`)
 	         - Wired into: `scripts/verify_native_matrix.sh --targets x64-win-tier1` (remote Win11)
@@ -412,11 +413,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
          - Runtime: IOCP wait-node layout (OVERLAPPED + netpoll metadata + bytes slot) and scheduler recognition of IOCP wait tokens.
          - Runtime: scheduler idle/blocking netpoll path also recognizes IOCP wait tokens (no drop on blocking polls).
          - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (posts completion with `ov!=0`, asserts token return, bytes capture)
-		   - Windows: extend the wait-list mechanism beyond channels:
-		     - DONE (2026-02-13): fd waits (`oren_fd_wait_*`) can park Gs on IOCP wait nodes in IOCP mode (zero‑byte overlapped readiness bridge).
-		     - DONE (2026-02-13): UDP readiness uses overlapped `WSARecvFrom` prefetch; `udp.recv` consumes the buffered datagram.
-		       - `verify_native_net_matrix` now runs Win11 net fixtures with `OREN_NETPOLL_WIN_IOCP=1`.
-		     - Next: unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
+			   - Windows: extend the wait-list mechanism beyond channels:
+			     - 2026-02-13: fd waits (`oren_fd_wait_*`) can park Gs on IOCP wait nodes when IOCP readiness is explicitly enabled (`OREN_NETPOLL_WIN_IOCP_READY=1`).
+			     - Rolling issue: IOCP readiness remains unreliable on Win11 (UDP `WSAEFAULT`, TCP header timeouts); default path uses select‑v0.
+			     - Next: unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
 		   - Cross-platform: evolve the scheduler-owned “word wait” wait-list so in-green waits never kernel-block the scheduler OS thread.
 		     - DONE (2026-01-17): `oren_wait_on_addr` inside a green task is wake-driven via the scheduler-owned “word wait” list:
 		       - `timeout_us==0` (“forever”): parks `G` on a scheduler list; wakes via `oren_wake_all_addr`.

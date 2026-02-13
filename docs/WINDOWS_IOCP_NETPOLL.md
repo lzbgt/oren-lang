@@ -1,6 +1,6 @@
 # Windows IOCP Netpoller (Native Runtime) — Design Notes (Rolling)
 
-**Last updated:** 2026-02-14  
+**Last updated:** 2026-02-13  
 **Scope:** Windows x64 native runtime netpoller (future replacement for select-v0)  
 **Non-goal:** shipping a full Windows async FS layer in the same step
 
@@ -16,6 +16,8 @@ The repo is rolling; this design may evolve, but it must remain **fact-based** a
 The authoritative source content is stored in-tree under:
 
 - `project-doc/web/learn.microsoft.com/iocp/20260117/`
+  - `SOURCES.txt` lists all downloaded URLs.
+- `project-doc/web/learn.microsoft.com/winsock/20260213/`
   - `SOURCES.txt` lists all downloaded URLs.
 
 ## Current repo status (fact)
@@ -34,14 +36,14 @@ The authoritative source content is stored in-tree under:
     `oren_fd_wait_readable/…_writable` using zero‑byte overlapped `WSARecv/WSASend`, but it is not yet
     reliable for UDP readiness (see below). Completion‑driven socket ops remain the preferred end‑state
     (Strategy B).
-- 2026-02-14: IOCP readiness bridge (Strategy A) for green‑task socket waits (experimental) is **implemented but still failing for UDP**:
-  - `native_netpoll_arm_fd` posts zero‑byte `WSARecv` / `WSASend` with per‑op IOCP wait nodes (TCP).
-  - UDP readiness uses **prefetch**: `WSARecvFrom` posts a real read into a per‑wait buffer,
-    then `oren_fd_wait_readable` should return ready while keeping the token for `udp.recv`.
-  - Current failure: `WSARecvFrom` returns `WSAEFAULT (10014)` on Win11 in `test_fd_wait_socket_readable_in_green_workers`;
-    net matrix still fails with `OREN_NETPOLL_WIN_IOCP=1`.
-  - Debugging is instrumented in `lib/runtime_native/246_netpoll.oren` (prints WSA last error) and the
-    Windows NET matrix runner now exports `OREN_NETPOLL_WIN_IOCP=1` by default for x64‑win.
+- 2026-02-13: IOCP readiness bridge (Strategy A) for green‑task socket waits is **gated**:
+  - Readiness now requires **both** `OREN_NETPOLL_WIN_IOCP=1` **and** `OREN_NETPOLL_WIN_IOCP_READY=1`.
+  - With only `OREN_NETPOLL_WIN_IOCP=1`, the runtime keeps **IOCP wake** but falls back to select‑v0
+    for socket readiness (Tier‑1 correctness first; IOCP readiness is still rolling).
+  - Motivation (fact): Win11 IOCP readiness is still unreliable today:
+    - UDP: `WSARecvFrom` reports `WSAEFAULT (10014)` under the readiness bridge.
+    - TCP: HTTP loopback can time out under IOCP readiness (headers never fully read).
+  - Implementation: `lib/runtime_native/246_netpoll.oren` (backend selection + readiness fallback).
 - 2026-01-17: x64-windows now has syscall/intrinsic plumbing + PE imports for the IOCP core APIs:
   - Runtime stubs: `lib/runtime_native/000_prelude_sys.oren`
   - x64 syscall lowering (Win64 ABI, kernel32 IAT): `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net.oren`

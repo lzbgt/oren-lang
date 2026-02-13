@@ -108,6 +108,11 @@ To validate Oren’s **native NET substrate** on real x86_64 hosts (Win11 + WSL2
 ./scripts/verify_native_net_matrix.sh --targets x64-wsl,x64-win
 ```
 
+Rolling IOCP note:
+
+- `OREN_NETPOLL_WIN_IOCP=1` enables the IOCP **wake** substrate.
+- Socket readiness stays on select‑v0 unless `OREN_NETPOLL_WIN_IOCP_READY=1` is also set.
+
 ## Optional: x64 self-host compiler gate (compiler runs on x86_64)
 
 `verify_native_matrix.sh` focuses on **running native programs** built by the compiler.

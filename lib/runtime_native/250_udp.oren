@@ -161,8 +161,9 @@ fn _udp_iocp_prefetch_consume(tok, buf, len, sa_out, sa_lenp) {
             if sl > 0 { salen = sl }
         }
         var copy_len = salen
-        if copy_len > 32 { copy_len = 32 }
-        if sa != 0 { oren_memcpy(sa_out, sa, copy_len) }
+        var caller_cap = ptr_get(sa_lenp)
+        if caller_cap > 0 && copy_len > caller_cap { copy_len = caller_cap }
+        if copy_len > 0 && sa != 0 { oren_memcpy(sa_out, sa, copy_len) }
         ptr_set(sa_lenp, copy_len)
     }
     native_netpoll_iocp_wait_recycle(tok)

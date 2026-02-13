@@ -88,7 +88,12 @@ fn _netpoll_windows_backend_select() {
     //
     // Default is select-v0 (correctness-first, minimal dependencies).
     // Opt-in: OREN_NETPOLL_WIN_IOCP=1 requests IOCP once implemented.
-    if _netpoll_env_truthy("OREN_NETPOLL_WIN_IOCP") == 1 { return _netpoll_win_backend_iocp() }
+    if _netpoll_env_truthy("OREN_NETPOLL_WIN_IOCP") == 1 {
+        // IOCP readiness is still rolling; require explicit opt-in for readiness.
+        if _netpoll_env_truthy("OREN_NETPOLL_WIN_IOCP_READY") == 1 {
+            return _netpoll_win_backend_iocp()
+        }
+    }
     return _netpoll_win_backend_select_v0()
 }
 
@@ -818,7 +823,7 @@ fn _netpoll_iocp_post_recvfrom(fd, ov_ptr) {
     if _netpoll_iocp_debug_enabled() != 0 {
         print("IOCP UDP: post recvfrom\n")
     }
-    ptr_set(sa_lenp, 16)
+    ptr_set(sa_lenp, 128)
     var bytes_ptr = ov_ptr + native_iocp_wait_off_bytes()
     if _netpoll_iocp_debug_enabled() != 0 {
         print("IOCP UDP: recvfrom args buf=")
@@ -858,6 +863,39 @@ fn native_netpoll_iocp_udp_take(fd) {
     var tok = _netpoll_watch_take_token_locked(fd, 0)
     _netpoll_watch_lock_release()
     return tok
+}
+
+fn _netpoll_arm_fd_windows_select(fd, want_write, token) {
+    // Windows select()-based oneshot registration.
+    // Key is (fd, want_write).
+    if g_netpoll_watch_fds == 0 || g_netpoll_watch_tokens == 0 || g_netpoll_watch_kinds == 0 { return 0 - 12 }
+    _netpoll_watch_lock_acquire()
+    var n = g_netpoll_watch_n
+    var i = 0
+    while i < n {
+        var f = ptr_get(g_netpoll_watch_fds + i * 8)
+        var k = ptr_get(g_netpoll_watch_kinds + i * 8)
+        if f == fd && k == want_write {
+            // Last-wins update (rolling; matches epoll MOD semantics for repeated arms).
+            ptr_set(g_netpoll_watch_tokens + i * 8, token)
+            _netpoll_watch_lock_release()
+            // If a poller is currently blocked in select(), break it so it rebuilds its fd_set.
+            native_netpoll_wake()
+            return 0
+        }
+        i = i + 1
+    }
+    if n >= _netpoll_watch_max() {
+        _netpoll_watch_lock_release()
+        return 0 - 28 // ENOSPC
+    }
+    ptr_set(g_netpoll_watch_fds + n * 8, fd)
+    ptr_set(g_netpoll_watch_kinds + n * 8, want_write)
+    ptr_set(g_netpoll_watch_tokens + n * 8, token)
+    g_netpoll_watch_n = n + 1
+    _netpoll_watch_lock_release()
+    native_netpoll_wake()
+    return 0
 }
 
 fn native_netpoll_arm_fd(fd, want_write, token) {
@@ -917,35 +955,13 @@ fn native_netpoll_arm_fd(fd, want_write, token) {
             if want_write == 0 {
                 is_udp = _netpoll_iocp_is_udp_socket(fd)
                 if is_udp != 0 {
-                    var buf_len = 65536
-                    var buf = native_malloc_raw_or_mmap(buf_len)
-                    var sa = native_malloc_raw_or_mmap(32)
-                    var sa_lenp = native_malloc_raw_or_mmap(8)
-                    var flags = native_malloc_raw_or_mmap(8)
-                    if buf == 0 || sa == 0 || sa_lenp == 0 || flags == 0 {
-                        if buf != 0 && buf != -1 { free(buf) }
-                        if sa != 0 && sa != -1 { free(sa) }
-                        if sa_lenp != 0 && sa_lenp != -1 { free(sa_lenp) }
-                        if flags != 0 && flags != -1 { free(flags) }
-                        _netpoll_watch_lock_acquire()
-                        _netpoll_watch_take_token_locked(fd, want_write)
-                        _netpoll_watch_lock_release()
-                        return 0 - 12
-                    }
-                    ptr_set(flags, 0)
-                    ptr_set(sa_lenp, 16)
-                    ptr_set(token + native_iocp_wait_off_udp_buf(), buf)
-                    ptr_set(token + native_iocp_wait_off_udp_len(), buf_len)
-                    ptr_set(token + native_iocp_wait_off_udp_sa(), sa)
-                    ptr_set(token + native_iocp_wait_off_udp_sa_lenp(), sa_lenp)
-                    ptr_set(token + native_iocp_wait_off_udp_flags(), flags)
-                    ptr_set(token + native_iocp_wait_off_udp_kind(), 1)
+                    // IOCP UDP readiness is still rolling; fall back to select for correctness.
+                    g_netpoll_win_backend = _netpoll_win_backend_select_v0()
+                    return _netpoll_arm_fd_windows_select(fd, want_write, token)
                 }
             }
             if want_write != 0 {
                 rc_iocp = _netpoll_iocp_post_send(fd, token)
-            } else if is_udp != 0 {
-                rc_iocp = _netpoll_iocp_post_recvfrom(fd, token)
             } else {
                 rc_iocp = _netpoll_iocp_post_recv(fd, token)
             }
@@ -953,52 +969,11 @@ fn native_netpoll_arm_fd(fd, want_write, token) {
                 _netpoll_watch_lock_acquire()
                 _netpoll_watch_take_token_locked(fd, want_write)
                 _netpoll_watch_lock_release()
-                if is_udp != 0 {
-                    if _netpoll_iocp_debug_enabled() != 0 {
-                        print("IOCP UDP: post recvfrom rc=")
-                        print_int(rc_iocp)
-                        print("\n")
-                        var wsae = sys_wsa_get_last_error()
-                        print("IOCP UDP: wsa_last_error=")
-                        print_int(wsae)
-                        print("\n")
-                    }
-                    _netpoll_iocp_wait_cleanup_udp(token)
-                }
                 return rc_iocp
             }
             return 0
         }
-        // Windows select()-based oneshot registration.
-        // Key is (fd, want_write).
-        if g_netpoll_watch_fds == 0 || g_netpoll_watch_tokens == 0 || g_netpoll_watch_kinds == 0 { return 0 - 12 }
-        _netpoll_watch_lock_acquire()
-        var n = g_netpoll_watch_n
-        var i = 0
-        while i < n {
-            var f = ptr_get(g_netpoll_watch_fds + i * 8)
-            var k = ptr_get(g_netpoll_watch_kinds + i * 8)
-            if f == fd && k == want_write {
-                // Last-wins update (rolling; matches epoll MOD semantics for repeated arms).
-                ptr_set(g_netpoll_watch_tokens + i * 8, token)
-                _netpoll_watch_lock_release()
-                // If a poller is currently blocked in select(), break it so it rebuilds its fd_set.
-                native_netpoll_wake()
-                return 0
-            }
-            i = i + 1
-        }
-        if n >= _netpoll_watch_max() {
-            _netpoll_watch_lock_release()
-            return 0 - 28 // ENOSPC
-        }
-        ptr_set(g_netpoll_watch_fds + n * 8, fd)
-        ptr_set(g_netpoll_watch_kinds + n * 8, want_write)
-        ptr_set(g_netpoll_watch_tokens + n * 8, token)
-        g_netpoll_watch_n = n + 1
-        _netpoll_watch_lock_release()
-        native_netpoll_wake()
-        return 0
+        return _netpoll_arm_fd_windows_select(fd, want_write, token)
     }
 
     if g_target_os == 1 {

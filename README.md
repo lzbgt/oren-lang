@@ -81,6 +81,7 @@ This repo is intentionally syscall-first and “no libc shims” for native runt
 Windows note (rolling):
 
 - The build uses bash scripts under `scripts/`; prefer MSYS2/Git Bash/Cygwin when running `make` locally on Windows.
+- Windows IOCP readiness is still experimental; select‑v0 remains the default unless `OREN_NETPOLL_WIN_IOCP_READY=1` is set (see `docs/WINDOWS_IOCP_NETPOLL.md`).
 
 ### Commands
 ```bash
