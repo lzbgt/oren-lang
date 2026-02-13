@@ -737,8 +737,8 @@ remote_run_win() {
   fi
   case "$exe_name" in
     https_*|wss_*|http2_*)
-      # Windows green worker mode currently crashes in TLS HTTP/WSS/HTTP2 clients (access violation).
-      # Run these TLS-over-HTTP fixtures with green disabled until the runtime path is fixed.
+      # Windows Schannel currently crashes when TLS runs on a green stack (access violation).
+      # Force OS-thread execution for these fixtures until the green stack ABI is fixed.
       envp+="set OREN_NO_GREEN=1 & "
       ;;
   esac

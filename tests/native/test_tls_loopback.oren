@@ -63,19 +63,6 @@ fn _env_truthy(name) {
     return 1
 }
 
-fn _ensure_workers_for_spawned_servers(test_name) {
-    // `spawn` prefers in-process green tasks on Tier‑1 (including Windows).
-    // These loopback fixtures run servers concurrently with blocking client operations,
-    // so enable worker mode up front.
-    if _env_truthy("OREN_NO_GREEN") == 1 { return 0 }
-    var rcw = oren_green_start_workers(1)
-    if rcw != 0 {
-        print(test_name + ": FAIL cannot start green workers rc=" + oren_int_to_string(rcw))
-        exit(109)
-    }
-    return 0
-}
-
 @cfg(not_os="macos,linux,windows")
 fn main() {
     // TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/NET_TLS.md.
@@ -145,6 +132,82 @@ fn server_main(listen_fd, pfx_b64) {
 }
 
 @cfg(os="windows")
+fn _tls_client_impl(port, expected_leaf_sha256_hex) {
+    var fd = tcp.connect("127.0.0.1", port, 5000)
+    if fd < 0 { return 8 }
+
+    // Deterministic offline fixture:
+    // - insecure_skip_verify bypasses platform trust stores
+    // - pin_cert_sha256_hex is enforced by std:net/tls.wrap_client
+    // Exercise client-side ALPN plumbing as well (TLS provider may ignore it on some OS).
+    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "alpn": ["h2", "http/1.1"]}
+    var cr = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
+    var ok = oren_map_get_str(cr, "ok")
+    if ok != 1 {
+        var es = oren_map_get_str(cr, "err")
+        if es != 0 { print("tls_loopback: FAIL client wrap: " + es) }
+        return 9
+    }
+    var conn = oren_map_get_str(cr, "conn")
+    if conn == 0 { return 10 }
+
+    // Windows Schannel: server selects "http/1.1" from the client offer.
+    var ar = tls.negotiated_alpn(conn)
+    if oren_map_get_str(ar, "ok") != 1 {
+        tls.close(conn)
+        return 11
+    }
+    var ap = oren_map_get_str(ar, "v")
+    if ap == nil || _str_eq_bytes(ap, "http/1.1") != true {
+        tls.close(conn)
+        return 12
+    }
+
+    var msg = "PING"
+    var wr = tls.write_from(conn, msg, 4, 5000)
+    if wr != 4 {
+        tls.close(conn)
+        return 20
+    }
+    var buf = malloc(16)
+    if buf == 0 {
+        tls.close(conn)
+        return 21
+    }
+    var rn = tls.read_into(conn, buf, 4, 5000)
+    if rn != 4 {
+        free(buf)
+        tls.close(conn)
+        return 22
+    }
+    if ptr_get_byte(buf + 0) != 80 || ptr_get_byte(buf + 1) != 73 || ptr_get_byte(buf + 2) != 78 || ptr_get_byte(buf + 3) != 71 {
+        free(buf)
+        tls.close(conn)
+        return 23
+    }
+    free(buf)
+
+    // Cross-check leaf hash query works (pinning is enforced already).
+    var hr = tls.peer_cert_sha256_hex(conn)
+    var hok = oren_map_get_str(hr, "ok")
+    if hok != 1 {
+        tls.close(conn)
+        return 30
+    }
+    var hv = oren_map_get_str(hr, "v")
+    if hv == 0 || _str_eq_bytes(hv, expected_leaf_sha256_hex) != true {
+        print("tls_loopback: FAIL cert pin mismatch")
+        print("got=" + hv)
+        print("want=" + expected_leaf_sha256_hex)
+        tls.close(conn)
+        return 31
+    }
+
+    tls.close(conn)
+    return 0
+}
+
+@cfg(os="windows")
 fn main_client() {
     var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
 
@@ -165,97 +228,22 @@ fn main_client() {
     free(lenp)
     if port <= 0 { exit(7) }
 
-    _ensure_workers_for_spawned_servers("tls_loopback")
-
-    // Windows spawn is thread-based (CreateThread); use a return-code worker.
     var h = spawn server_main(listen_fd, fixture.pkcs12_b64())
-
-    var fd = tcp.connect("127.0.0.1", port, 5000)
-    if fd < 0 { exit(8) }
-
-    // Deterministic offline fixture:
-    // - insecure_skip_verify bypasses platform trust stores
-    // - pin_cert_sha256_hex is enforced by std:net/tls.wrap_client
-    // Exercise client-side ALPN plumbing as well (TLS provider may ignore it on some OS).
-    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "alpn": ["h2", "http/1.1"]}
-    var cr = tls.wrap_client(fd, "oren.test", 5000, tls_opts)
-    var ok = oren_map_get_str(cr, "ok")
-    if ok != 1 {
-        var es = oren_map_get_str(cr, "err")
-        if es != 0 { print("tls_loopback: FAIL client wrap: " + es) }
-        oren_join_timeout(h, 5000)
-        exit(9)
-    }
-    var conn = oren_map_get_str(cr, "conn")
-    if conn == 0 {
-        oren_join_timeout(h, 5000)
-        exit(10)
+    if _env_truthy("OREN_NO_GREEN") == 1 {
+        var rc = _tls_client_impl(port, expected_leaf_sha256_hex)
+        var sr = oren_join_timeout(h, 5000)
+        tcp.close(listen_fd)
+        if rc != 0 { exit(rc) }
+        if sr != 0 { exit(50) }
+        exit(0)
     }
 
-    // Windows Schannel: server selects "http/1.1" from the client offer.
-    var ar = tls.negotiated_alpn(conn)
-    if oren_map_get_str(ar, "ok") != 1 {
-        tls.close(conn)
-        oren_join_timeout(h, 5000)
-        exit(11)
-    }
-    var ap = oren_map_get_str(ar, "v")
-    if ap == nil || _str_eq_bytes(ap, "http/1.1") != true {
-        tls.close(conn)
-        oren_join_timeout(h, 5000)
-        exit(12)
-    }
-
-    var msg = "PING"
-    var wr = tls.write_from(conn, msg, 4, 5000)
-    if wr != 4 {
-        tls.close(conn)
-        oren_join_timeout(h, 5000)
-        exit(20)
-    }
-    var buf = malloc(16)
-    if buf == 0 {
-        tls.close(conn)
-        oren_join_timeout(h, 5000)
-        exit(21)
-    }
-    var rn = tls.read_into(conn, buf, 4, 5000)
-    if rn != 4 {
-        free(buf)
-        tls.close(conn)
-        oren_join_timeout(h, 5000)
-        exit(22)
-    }
-    if ptr_get_byte(buf + 0) != 80 || ptr_get_byte(buf + 1) != 73 || ptr_get_byte(buf + 2) != 78 || ptr_get_byte(buf + 3) != 71 {
-        free(buf)
-        tls.close(conn)
-        oren_join_timeout(h, 5000)
-        exit(23)
-    }
-    free(buf)
-
-    // Cross-check leaf hash query works (pinning is enforced already).
-    var hr = tls.peer_cert_sha256_hex(conn)
-    var hok = oren_map_get_str(hr, "ok")
-    if hok != 1 {
-        tls.close(conn)
-        oren_join_timeout(h, 5000)
-        exit(30)
-    }
-    var hv = oren_map_get_str(hr, "v")
-    if hv == 0 || _str_eq_bytes(hv, expected_leaf_sha256_hex) != true {
-        print("tls_loopback: FAIL cert pin mismatch")
-        print("got=" + hv)
-        print("want=" + expected_leaf_sha256_hex)
-        tls.close(conn)
-        oren_join_timeout(h, 5000)
-        exit(31)
-    }
-
-    tls.close(conn)
-    var sr = oren_join_timeout(h, 5000)
-    if sr != 0 { exit(50) }
+    var hc = spawn _tls_client_impl(port, expected_leaf_sha256_hex)
+    var rc2 = oren_join_timeout(hc, 5000)
+    var sr2 = oren_join_timeout(h, 5000)
     tcp.close(listen_fd)
+    if rc2 != 0 { exit(rc2) }
+    if sr2 != 0 { exit(50) }
     exit(0)
 }
 

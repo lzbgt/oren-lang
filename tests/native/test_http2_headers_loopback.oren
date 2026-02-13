@@ -81,19 +81,6 @@ fn _env_truthy(name) {
     return 1
 }
 
-fn _ensure_workers_for_spawned_servers(test_name) {
-    // `spawn` prefers in-process green tasks on Tier‑1 (including Windows).
-    // These loopback fixtures run servers concurrently with blocking client operations,
-    // so enable worker mode up front.
-    if _env_truthy("OREN_NO_GREEN") == 1 { return 0 }
-    var rcw = oren_green_start_workers(1)
-    if rcw != 0 {
-        print(test_name + ": FAIL cannot start green workers rc=" + oren_int_to_string(rcw))
-        exit(109)
-    }
-    return 0
-}
-
 fn _read_exact(conn, buf, need, timeout_ms) {
     if need < 0 { return 0 - 22 }
     var off = 0
@@ -434,6 +421,28 @@ fn server_main(listen_fd, pfx_b64) {
 fn main() { exit(0) }
 
 @cfg(os="windows")
+fn _http2_headers_client_impl(port, expected_leaf_sha256_hex) {
+    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
+    var cr = tls.connect("127.0.0.1", port, 5000, tls_opts)
+    if oren_map_get_str(cr, "ok") != 1 { return 7 }
+    var conn = oren_map_get_str(cr, "conn")
+    if conn == 0 { return 8 }
+
+    var al = tls.negotiated_alpn(conn)
+    if oren_map_get_str(al, "ok") == 1 {
+        var v = oren_map_get_str(al, "v")
+        var rc0 = _must_be_h2(v)
+        if rc0 != 0 { tls.close(conn); return 9 }
+    }
+
+    var rc_roundtrip = _client_roundtrip(conn)
+    if rc_roundtrip != 0 { tls.close(conn); return 10 }
+
+    tls.close(conn)
+    return 0
+}
+
+@cfg(os="windows")
 fn main_client() {
     var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
     var listen_fd = tcp.listen_local(0)
@@ -450,30 +459,23 @@ fn main_client() {
     free(lenp)
     free(sa)
 
-    _ensure_workers_for_spawned_servers("http2_headers_loopback")
-
     var h = spawn server_main(listen_fd, fixture.pkcs12_b64())
 
-    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
-    var cr = tls.connect("127.0.0.1", port, 5000, tls_opts)
-    if oren_map_get_str(cr, "ok") != 1 { exit(7) }
-    var conn = oren_map_get_str(cr, "conn")
-    if conn == 0 { exit(8) }
-
-    var al = tls.negotiated_alpn(conn)
-    if oren_map_get_str(al, "ok") == 1 {
-        var v = oren_map_get_str(al, "v")
-        var rc0 = _must_be_h2(v)
-        if rc0 != 0 { tls.close(conn); exit(9) }
+    if _env_truthy("OREN_NO_GREEN") == 1 {
+        var rc = _http2_headers_client_impl(port, expected_leaf_sha256_hex)
+        var sr = oren_join_timeout(h, 5000)
+        tcp.close(listen_fd)
+        if rc != 0 { exit(rc) }
+        if sr != 0 { exit(31) }
+        exit(0)
     }
 
-    var rc_roundtrip = _client_roundtrip(conn)
-    if rc_roundtrip != 0 { tls.close(conn); exit(10) }
-
-    tls.close(conn)
-    var sr = oren_join_timeout(h, 5000)
+    var hc = spawn _http2_headers_client_impl(port, expected_leaf_sha256_hex)
+    var rc2 = oren_join_timeout(hc, 5000)
+    var sr2 = oren_join_timeout(h, 5000)
     tcp.close(listen_fd)
-    if sr != 0 { exit(31) }
+    if rc2 != 0 { exit(rc2) }
+    if sr2 != 0 { exit(31) }
     exit(0)
 }
 

@@ -74,19 +74,6 @@ fn _env_truthy(name) {
     return 1
 }
 
-fn _ensure_workers_for_spawned_servers(test_name) {
-    // `spawn` prefers in-process green tasks on Tier‑1 (including Windows).
-    // These loopback fixtures run servers concurrently with blocking client operations,
-    // so enable worker mode up front.
-    if _env_truthy("OREN_NO_GREEN") == 1 { return 0 }
-    var rcw = oren_green_start_workers(1)
-    if rcw != 0 {
-        print(test_name + ": FAIL cannot start green workers rc=" + oren_int_to_string(rcw))
-        exit(109)
-    }
-    return 0
-}
-
 fn _read_exact(conn, buf, need, timeout_ms) {
     // Read exactly `need` bytes into buf. Returns 0 on success, or -errno.
     if need < 0 { return 0 - 22 }
@@ -243,6 +230,92 @@ fn main() {
 }
 
 @cfg(os="windows")
+fn _http2_preface_client_impl(port, expected_leaf_sha256_hex) {
+    // Client: request h2 and pin the deterministic cert.
+    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
+    var cr = tls.connect("127.0.0.1", port, 5000, tls_opts)
+    if oren_map_get_str(cr, "ok") != 1 {
+        var es = oren_map_get_str(cr, "err")
+        if es != 0 { print("http2_loopback: client connect FAIL: " + es) }
+        return 7
+    }
+    var conn = oren_map_get_str(cr, "conn")
+    if conn == 0 { return 8 }
+
+    var al = tls.negotiated_alpn(conn)
+    if oren_map_get_str(al, "ok") == 1 {
+        var v = oren_map_get_str(al, "v")
+        var rc = _must_be_h2(v)
+        if rc != 0 {
+            tls.close(conn)
+            return 9
+        }
+    }
+
+    // Send preface + SETTINGS(empty).
+    var hdr = malloc(16)
+    if hdr == 0 { tls.close(conn); return 10 }
+    var wr0 = _write_all(conn, h2.CLIENT_PREFACE, h2.CLIENT_PREFACE_LEN, 5000)
+    if wr0 != 0 { free(hdr); tls.close(conn); return 11 }
+    var w0 = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, 0, 0)
+    if w0 != 0 { free(hdr); tls.close(conn); return 12 }
+    wr0 = _write_all(conn, hdr, 9, 5000)
+    if wr0 != 0 { free(hdr); tls.close(conn); return 13 }
+
+    // Read server SETTINGS.
+    var rr0 = _read_exact(conn, hdr, 9, 5000)
+    if rr0 != 0 { free(hdr); tls.close(conn); return 14 }
+    var fh = h2.parse_frame_header(hdr)
+    if fh["ok"] != 1 { free(hdr); tls.close(conn); return 15 }
+    if fh["type"] != h2.FRAME_SETTINGS || fh["len"] != 0 || fh["stream"] != 0 { free(hdr); tls.close(conn); return 16 }
+
+    // Read server ACK for client SETTINGS.
+    rr0 = _read_exact(conn, hdr, 9, 5000)
+    if rr0 != 0 { free(hdr); tls.close(conn); return 160 }
+    fh = h2.parse_frame_header(hdr)
+    if fh["ok"] != 1 { free(hdr); tls.close(conn); return 161 }
+    if fh["type"] != h2.FRAME_SETTINGS || fh["len"] != 0 || fh["stream"] != 0 || fh["flags"] != h2.FLAG_ACK { free(hdr); tls.close(conn); return 162 }
+
+    // ACK server SETTINGS.
+    w0 = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, h2.FLAG_ACK, 0)
+    if w0 != 0 { free(hdr); tls.close(conn); return 163 }
+    wr0 = _write_all(conn, hdr, 9, 5000)
+    if wr0 != 0 { free(hdr); tls.close(conn); return 164 }
+
+    // Send PING (8 bytes) and expect ACK.
+    var ping = "12345678"
+    w0 = h2.write_frame_header(hdr, 8, h2.FRAME_PING, 0, 0)
+    if w0 != 0 { free(hdr); tls.close(conn); return 17 }
+    wr0 = _write_all(conn, hdr, 9, 5000)
+    if wr0 != 0 { free(hdr); tls.close(conn); return 18 }
+    wr0 = _write_all(conn, ping, 8, 5000)
+    if wr0 != 0 { free(hdr); tls.close(conn); return 19 }
+
+    rr0 = _read_exact(conn, hdr, 9, 5000)
+    if rr0 != 0 { free(hdr); tls.close(conn); return 20 }
+    fh = h2.parse_frame_header(hdr)
+    if fh["ok"] != 1 { free(hdr); tls.close(conn); return 21 }
+    if fh["type"] != h2.FRAME_PING || fh["len"] != 8 || fh["flags"] != h2.FLAG_ACK || fh["stream"] != 0 {
+        free(hdr); tls.close(conn); return 22
+    }
+    var buf = malloc(8)
+    if buf == 0 { free(hdr); tls.close(conn); return 23 }
+    rr0 = _read_exact(conn, buf, 8, 5000)
+    if rr0 != 0 { free(buf); free(hdr); tls.close(conn); return 24 }
+    var i2 = 0
+    while i2 < 8 {
+        if (ptr_get_byte(buf + i2) & 255) != (oren_string_byte_at_unchecked(ping, i2) & 255) {
+            free(buf); free(hdr); tls.close(conn); return 25
+        }
+        i2 = i2 + 1
+    }
+    free(buf)
+    free(hdr)
+    tls.close(conn)
+    return 0
+}
+
+@cfg(os="windows")
 fn main_client() {
     var expected_leaf_sha256_hex = fixture.leaf_sha256_hex()
 
@@ -262,100 +335,22 @@ fn main_client() {
     free(lenp)
     free(sa)
 
-    _ensure_workers_for_spawned_servers("http2_preface_loopback")
-
-    // Windows spawn is thread-based; use a return-code worker.
     var h = spawn server_main(listen_fd, fixture.pkcs12_b64())
-
-    // Client: request h2 and pin the deterministic cert.
-    var tls_opts = {"insecure_skip_verify": 1, "pin_cert_sha256_hex": expected_leaf_sha256_hex, "server_name": "oren.test", "alpn": ["h2", "http/1.1"]}
-    var cr = tls.connect("127.0.0.1", port, 5000, tls_opts)
-    if oren_map_get_str(cr, "ok") != 1 {
-        var es = oren_map_get_str(cr, "err")
-        if es != 0 { print("http2_loopback: client connect FAIL: " + es) }
-        oren_join_timeout(h, 5000)
+    if _env_truthy("OREN_NO_GREEN") == 1 {
+        var rc = _http2_preface_client_impl(port, expected_leaf_sha256_hex)
+        var sr = oren_join_timeout(h, 5000)
         tcp.close(listen_fd)
-        exit(7)
-    }
-    var conn = oren_map_get_str(cr, "conn")
-    if conn == 0 { exit(8) }
-
-    var al = tls.negotiated_alpn(conn)
-    if oren_map_get_str(al, "ok") == 1 {
-        var v = oren_map_get_str(al, "v")
-        var rc = _must_be_h2(v)
-        if rc != 0 {
-            tls.close(conn)
-            oren_join_timeout(h, 5000)
-            tcp.close(listen_fd)
-            exit(9)
-        }
+        if rc != 0 { exit(rc) }
+        if sr != 0 { exit(26) }
+        exit(0)
     }
 
-    // Send preface + SETTINGS(empty).
-    var hdr = malloc(16)
-    if hdr == 0 { tls.close(conn); exit(10) }
-    var wr0 = _write_all(conn, h2.CLIENT_PREFACE, h2.CLIENT_PREFACE_LEN, 5000)
-    if wr0 != 0 { free(hdr); tls.close(conn); exit(11) }
-    var w0 = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, 0, 0)
-    if w0 != 0 { free(hdr); tls.close(conn); exit(12) }
-    wr0 = _write_all(conn, hdr, 9, 5000)
-    if wr0 != 0 { free(hdr); tls.close(conn); exit(13) }
-
-    // Read server SETTINGS.
-    var rr0 = _read_exact(conn, hdr, 9, 5000)
-    if rr0 != 0 { free(hdr); tls.close(conn); exit(14) }
-    var fh = h2.parse_frame_header(hdr)
-    if fh["ok"] != 1 { free(hdr); tls.close(conn); exit(15) }
-    if fh["type"] != h2.FRAME_SETTINGS || fh["len"] != 0 || fh["stream"] != 0 { free(hdr); tls.close(conn); exit(16) }
-
-    // Read server ACK for client SETTINGS.
-    rr0 = _read_exact(conn, hdr, 9, 5000)
-    if rr0 != 0 { free(hdr); tls.close(conn); exit(160) }
-    fh = h2.parse_frame_header(hdr)
-    if fh["ok"] != 1 { free(hdr); tls.close(conn); exit(161) }
-    if fh["type"] != h2.FRAME_SETTINGS || fh["len"] != 0 || fh["stream"] != 0 || fh["flags"] != h2.FLAG_ACK { free(hdr); tls.close(conn); exit(162) }
-
-    // ACK server SETTINGS.
-    w0 = h2.write_frame_header(hdr, 0, h2.FRAME_SETTINGS, h2.FLAG_ACK, 0)
-    if w0 != 0 { free(hdr); tls.close(conn); exit(163) }
-    wr0 = _write_all(conn, hdr, 9, 5000)
-    if wr0 != 0 { free(hdr); tls.close(conn); exit(164) }
-
-    // Send PING (8 bytes) and expect ACK.
-    var ping = "12345678"
-    w0 = h2.write_frame_header(hdr, 8, h2.FRAME_PING, 0, 0)
-    if w0 != 0 { free(hdr); tls.close(conn); exit(17) }
-    wr0 = _write_all(conn, hdr, 9, 5000)
-    if wr0 != 0 { free(hdr); tls.close(conn); exit(18) }
-    wr0 = _write_all(conn, ping, 8, 5000)
-    if wr0 != 0 { free(hdr); tls.close(conn); exit(19) }
-
-    rr0 = _read_exact(conn, hdr, 9, 5000)
-    if rr0 != 0 { free(hdr); tls.close(conn); exit(20) }
-    fh = h2.parse_frame_header(hdr)
-    if fh["ok"] != 1 { free(hdr); tls.close(conn); exit(21) }
-    if fh["type"] != h2.FRAME_PING || fh["len"] != 8 || fh["flags"] != h2.FLAG_ACK || fh["stream"] != 0 {
-        free(hdr); tls.close(conn); exit(22)
-    }
-    var buf = malloc(8)
-    if buf == 0 { free(hdr); tls.close(conn); exit(23) }
-    rr0 = _read_exact(conn, buf, 8, 5000)
-    if rr0 != 0 { free(buf); free(hdr); tls.close(conn); exit(24) }
-    var i2 = 0
-    while i2 < 8 {
-        if (ptr_get_byte(buf + i2) & 255) != (oren_string_byte_at_unchecked(ping, i2) & 255) {
-            free(buf); free(hdr); tls.close(conn); exit(25)
-        }
-        i2 = i2 + 1
-    }
-    free(buf)
-    free(hdr)
-    tls.close(conn)
-
-    var sr = oren_join_timeout(h, 5000)
+    var hc = spawn _http2_preface_client_impl(port, expected_leaf_sha256_hex)
+    var rc2 = oren_join_timeout(hc, 5000)
+    var sr2 = oren_join_timeout(h, 5000)
     tcp.close(listen_fd)
-    if sr != 0 { exit(26) }
+    if rc2 != 0 { exit(rc2) }
+    if sr2 != 0 { exit(26) }
     exit(0)
 }
 
