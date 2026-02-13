@@ -405,10 +405,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	       - Gate (added, 2026-01-17): Windows-only fixture proving a blocked IOCP poll is broken by `native_netpoll_wake()` (no loopback):
 	         - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (run with `OREN_NETPOLL_WIN_IOCP=1`)
 	         - Wired into: `scripts/verify_native_matrix.sh --targets x64-win-tier1` (remote Win11)
-	       - 2026-02-13: IOCP poll core now returns per-operation OVERLAPPED tokens when present (enables future readiness/overlapped ops):
-	         - Runtime: `lib/runtime_native/246_netpoll.oren` (IOCP poll token selection uses `ov!=0` before completion key)
-	         - Runtime: IOCP wait-node layout (OVERLAPPED + netpoll metadata + bytes slot) and scheduler recognition of IOCP wait tokens.
-	         - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (posts completion with `ov!=0`, asserts token return, bytes capture)
+       - 2026-02-13: IOCP poll core now returns per-operation OVERLAPPED tokens when present (enables future readiness/overlapped ops):
+         - Runtime: `lib/runtime_native/246_netpoll.oren` (IOCP poll token selection uses `ov!=0` before completion key)
+         - Runtime: IOCP wait-node layout (OVERLAPPED + netpoll metadata + bytes slot) and scheduler recognition of IOCP wait tokens.
+         - Runtime: scheduler idle/blocking netpoll path also recognizes IOCP wait tokens (no drop on blocking polls).
+         - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (posts completion with `ov!=0`, asserts token return, bytes capture)
 	   - Windows: extend the wait-list mechanism beyond channels:
 	     - fd waits (`oren_fd_wait_*`) should eventually park Gs on IOCP wait nodes (no polling, no scheduler-thread blocking)
 	     - unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
