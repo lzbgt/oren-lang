@@ -630,7 +630,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						       - Probe: `OREN_GREEN_STACK_KB` up to 16384 (16 MiB) still crashes (`EXIT=-1073741819`), so this is not a small-stack overflow.
 						       - TODO: fix green-stack ABI / Schannel interaction so TLS-over-HTTP/WS/HTTP2 can run with green enabled.
 						       - 2026-02-14: adjusted x64 green stack entry alignment so `rsp+8` is 16-byte aligned (ctx_switch resumes via `ret`);
-						         added a green-stack alignment regression (`test_green_sp_alignment_x64`). Needs Win11 TLS re-test.
+						         added a green-stack alignment regression (`test_green_sp_alignment_x64`).
+						       - 2026-02-14: Windows TLS loopback fixtures now default to **green tasks** on Win11.
+						         - Fallback: set `OREN_TLS_USE_OS_THREAD=1` to force OS-thread spawn.
+						         - Verified: `./scripts/verify_native_net_matrix.sh --targets x64-win` (pc2.work, green default; TLS/HTTPS/WSS/HTTP2 all OK).
 					     - 2026-01-16: made `oren_time_mono_ns()` conversion exact on macOS/Windows (no wall-clock calibration):
 					       - macOS: uses `mach_timebase_info` (num/den) to convert gettimeofday’s `mach_absolute_time` out-arg to ns.
 					       - Windows: uses `QueryPerformanceFrequency` for QPC ticks -> ns (backend exposes `sys_qpc_frequency`).
