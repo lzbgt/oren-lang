@@ -257,6 +257,11 @@ Cross‑arch Tier‑1 matrix (stage1 + stage2):
 # x86_64 self-host: run the compiler binary on remote Win11 + WSL2 and compile+run a tiny program
 ./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
 
+# Remote host note (rolling):
+# - current reachable host: pc2.work via proxy
+# - remote staging should use G:\work (C: is full on the host)
+# - set env overrides as documented in docs/REMOTE_X64_ENV.md
+
 # Optional: stage0->stage1 bootstrap on native Windows using MSVC cl.exe (VS2022)
 ./scripts/verify_stage0_windows_bootstrap.sh
 
@@ -268,19 +273,19 @@ Cross‑arch Tier‑1 matrix (stage1 + stage2):
 #   - `project-doc/remote/<timestamp>/stage1_build_stage2.log` (full remote build log, best-effort download)
 #   - `project-doc/remote/<timestamp>/stage2_windows_env.log` (small environment snapshot: cl.exe/link.exe/vswhere.exe presence)
 
-		# Local sanity gate: compile-only for x64-linux + x64-windows (stage1 + stage2)
-		make verify-native-x64-compile
+# Local sanity gate: compile-only for x64-linux + x64-windows (stage1 + stage2)
+make verify-native-x64-compile
 
-		# Higher-signal local gate: compile the compiler program for x64 targets (compile-only)
-		# - defaults to `oren_x64.oren` (x64-focused; avoids compiling arm64 native backends into x64 artifacts)
-		# - override with `OREN_SELFHOST_SRC=oren.oren` to force the full multi-target compiler graph
-		make verify-native-x64-selfhost-compile
+# Higher-signal local gate: compile the compiler program for x64 targets (compile-only)
+# - defaults to `oren_x64.oren` (x64-focused; avoids compiling arm64 native backends into x64 artifacts)
+# - override with `OREN_SELFHOST_SRC=oren.oren` to force the full multi-target compiler graph
+make verify-native-x64-selfhost-compile
 
-	# Compile-only shared-library emission on all Tier‑1 targets (no foreign execution):
-	# - builds `examples/libmath.oren --lib` for arm64-linux + x64-linux + x64-windows
-	# - validates the generated header, `oren scan` output, and `file` kind checks
-	make examples-cross-compile-smoke
-	```
+# Compile-only shared-library emission on all Tier‑1 targets (no foreign execution):
+# - builds `examples/libmath.oren --lib` for arm64-linux + x64-linux + x64-windows
+# - validates the generated header, `oren scan` output, and `file` kind checks
+make examples-cross-compile-smoke
+```
 
 ## Local x64-linux execution (QEMU in the Linux container)
 

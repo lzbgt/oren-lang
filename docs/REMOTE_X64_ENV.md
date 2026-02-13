@@ -85,6 +85,10 @@ export OREN_REMOTE_X64_WSL_ROOT='/mnt/g/work/tmp_oren'
 export OREN_REMOTE_X64_SSH_ROOT='G:/work/tmp_oren'
 ```
 
+Rolling note (2026-02-13):
+
+- The pc2.work Win11 host has a full `C:` drive; use the `G:\work\...` roots above.
+
 Notes:
 
 - Keep the three roots in sync:
