@@ -1,7 +1,12 @@
 # Remote x86_64 Dev Environment (Win11 + WSL2) — Access + Workflow (Rolling)
 
 This repo now has an x86_64 native backend bring-up path (Linux ELF + Windows PE).
-To test it on real x86_64 machines, we use a remote Win11 host with WSL2 enabled.
+To test it on real x86_64 machines, we use a remote Win11 host (WSL2 optional).
+
+Rolling note (2026-02-13):
+
+- The current reachable host is `pc2.work` (Win11 online via proxy).
+- WSL2 is **not installed/enabled** on that host yet, so x64-linux run gates are currently blocked there.
 
 ## Terminology: platform, target, and the remote x64 gate
 
@@ -45,9 +50,12 @@ Then re-run the failing `oren_stage2.exe build ...` invocation.
 If your local host is macOS arm64 (Tier‑1 dev path), the recommended way to validate x86_64 targets is:
 
 ```bash
-# Runs x64-linux under WSL2 and x64-windows under cmd.exe on the remote Win11 host.
+# Runs x64-linux under WSL2 (if available) and x64-windows under cmd.exe on the remote Win11 host.
 # Also builds the artifacts locally (stage1 + stage2) before copying/running them remotely.
 ./scripts/verify_native_matrix.sh --targets x64-wsl,x64-win
+
+# If WSL2 is not available, run Windows-only:
+./scripts/verify_native_matrix.sh --targets x64-win
 ```
 
 Host/proxy overrides (rolling ergonomics):
@@ -88,6 +96,7 @@ export OREN_REMOTE_X64_SSH_ROOT='G:/work/tmp_oren'
 Rolling note (2026-02-13):
 
 - The pc2.work Win11 host has a full `C:` drive; use the `G:\work\...` roots above.
+- WSL2 is currently not installed/enabled on pc2.work, so `x64-wsl` targets are blocked there.
 
 Notes:
 
@@ -110,6 +119,9 @@ To validate Oren’s **native NET substrate** on real x86_64 hosts (Win11 + WSL2
 #   - tests/native/test_net_suite.oren
 #   - tests/native/test_http_get_loopback.oren
 ./scripts/verify_native_net_matrix.sh --targets x64-wsl,x64-win
+
+# If WSL2 is not available, run Windows-only:
+./scripts/verify_native_net_matrix.sh --targets x64-win
 ```
 
 Rolling IOCP note:
@@ -128,7 +140,7 @@ This is intentionally **opt-in** because building the compiler for x64 can be sl
 
 Rolling status:
 
-- As of 2026-01-08, the x64 self-host compiler run gate passes again on the remote Win11+WSL2 host.
+- As of 2026-01-08, the x64 self-host compiler run gate passes on the remote Win11+WSL2 host (when WSL2 is available).
   - Root-cause + fix notes live in `docs/TODOS_ARCHIVE.md`.
 
 ```bash
@@ -142,6 +154,9 @@ Rolling status:
 # Important: the remote `oren_selfhost_*` invocations intentionally omit `--platform` so this gate also
 # proves the compiler’s host auto-detection works correctly on WSL2 and native Windows.
 ./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win
+
+# If WSL2 is not available, run Windows-only:
+./scripts/verify_selfhost_x64_compiler.sh --targets x64-win
 
 # Note: this gate defaults to building `oren_x64.oren` (x64-focused compiler source) so the build stays bounded.
 # Override to force the full compiler graph:
@@ -242,7 +257,8 @@ ssh -o "ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002" lzbgt@pc.wo
 
 Notes:
 
-- The remote host is Win11 (SSH provided by the environment) and also has WSL2 available.
+- The remote host is Win11 (SSH provided by the environment).
+- WSL2 may be unavailable depending on the host (pc2.work currently lacks WSL2).
 - Keys/certs are already provisioned (no password prompt expected).
 - If you see a proxy error like `socat ... CONNECT <host>:22: Not Found`, the proxy cannot resolve the hostname you passed.
   - Fix: set `OREN_REMOTE_X64_HOST` to an IP address (or a resolvable DNS name), or override `OREN_REMOTE_X64_PROXY` to connect directly (no proxy).
