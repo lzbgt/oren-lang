@@ -53,6 +53,10 @@ Env overrides:
   OREN_REMOTE_X64_PROXY
   OREN_REMOTE_SELFHOST_DIR_WIN   (default: %USERPROFILE%\\tmp_oren_selfhost)
   OREN_REMOTE_SELFHOST_DIR_SSH   (default: /Users/lzbgt/tmp_oren_selfhost)
+  OREN_REMOTE_SELFHOST_DIR_WSL   (default: /mnt/c/Users/<user>/tmp_oren_selfhost)
+  OREN_REMOTE_X64_WIN_ROOT       (default: C:\Users\<user>\tmp_oren) remote Windows staging root
+  OREN_REMOTE_X64_WSL_ROOT       (default: /mnt/c/Users/<user>/tmp_oren) remote WSL staging root
+  OREN_REMOTE_X64_SSH_ROOT       (default: tmp_oren) scp/sftp staging root (Windows OpenSSH path)
   OREN_SELFHOST_SRC (default: oren_x64.oren) override the compiler source built for x64
     - set to `oren.oren` to force the full multi-target compiler graph
   OREN_SELFHOST_COMPILER_BUILD_TIMEOUT_SECS (default: 1200)
@@ -215,7 +219,35 @@ remote_user="$REMOTE_HOST"
 if [[ "$REMOTE_HOST" == *"@"* ]]; then
   remote_user="${REMOTE_HOST%@*}"
 fi
-REMOTE_DIR_WSL="${OREN_REMOTE_SELFHOST_DIR_WSL:-/mnt/c/Users/${remote_user}/${REMOTE_DIR_NAME}}"
+remote_win_root="${OREN_REMOTE_X64_WIN_ROOT:-C:\\Users\\${remote_user}\\tmp_oren}"
+remote_win_root_cmd="${remote_win_root//\//\\}"
+remote_unix_root="${OREN_REMOTE_X64_SSH_ROOT:-}"
+if [[ -z "$remote_unix_root" ]]; then
+  if [[ -n "${OREN_REMOTE_X64_WIN_ROOT:-}" ]]; then
+    remote_unix_root="${remote_win_root_cmd//\\//}"
+  else
+    remote_unix_root="tmp_oren"
+  fi
+fi
+if [[ -z "${OREN_REMOTE_SELFHOST_DIR_SSH:-}" ]]; then
+  REMOTE_DIR_SSH="${remote_unix_root}/${REMOTE_DIR_NAME}"
+fi
+if [[ -z "${OREN_REMOTE_SELFHOST_DIR_WIN:-}" ]]; then
+  REMOTE_DIR_WIN="${remote_win_root_cmd}\\${REMOTE_DIR_NAME}"
+fi
+remote_wsl_root="${OREN_REMOTE_X64_WSL_ROOT:-}"
+if [[ -z "$remote_wsl_root" ]]; then
+  if [[ -n "${OREN_REMOTE_X64_WIN_ROOT:-}" && "$remote_win_root_cmd" =~ ^([A-Za-z]):\\(.*)$ ]]; then
+    drive="${BASH_REMATCH[1],,}"
+    rest="${BASH_REMATCH[2]//\\//}"
+    remote_wsl_root="/mnt/${drive}/${rest}"
+  else
+    remote_wsl_root="/mnt/c/Users/${remote_user}/tmp_oren"
+  fi
+fi
+if [[ -z "${OREN_REMOTE_SELFHOST_DIR_WSL:-}" ]]; then
+  REMOTE_DIR_WSL="${remote_wsl_root}/${REMOTE_DIR_NAME}"
+fi
 
 scp_put() {
   local src="$1"
@@ -280,6 +312,28 @@ remote_preflight() {
   done
 }
 
+remote_wsl_preflight() {
+  if [[ "$want_wsl" -eq 0 ]]; then
+    return 0
+  fi
+  mkdir -p build/logs
+  local logf="build/logs/selfhost_remote_wsl_probe.log"
+  echo "== remote: wsl probe ==" >&2
+  : >"$logf"
+  set +e
+  run_with_timeout 15 "${SSH[@]}" "cmd.exe /c \"wsl.exe -e bash -lc \\\"echo OREN_WSL_OK\\\"\"" >"$logf" 2>&1
+  local rc=$?
+  set -e
+  if [[ "$rc" -eq 0 ]] && grep -q "OREN_WSL_OK" "$logf" 2>/dev/null; then
+    return 0
+  fi
+  echo "ERROR: remote WSL2 is not available (x64-wsl targets requested) host=$REMOTE_HOST" >&2
+  tail -n 80 "$logf" >&2 2>/dev/null || true
+  echo "HINT: install WSL on the remote host (wsl.exe --install) or run --targets x64-win only." >&2
+  echo "log=$logf" >&2
+  exit 3
+}
+
 # Default to the x64-focused compiler source (avoids compiling arm64 backends into x64 artifacts).
 #
 # Override to force the full compiler program:
@@ -290,8 +344,15 @@ if [[ ! -f "$SELFHOST_SRC" ]]; then
   SELFHOST_SRC="oren.oren"
 fi
 
+# Build the compiler binaries for x64 targets (this can be slow on cold caches).
+want_wsl=0
+want_win=0
+if has_target x64-wsl; then want_wsl=1; fi
+if has_target x64-win; then want_win=1; fi
+
 # Fail fast on remote connectivity before spending minutes building cross-target compiler binaries.
 remote_preflight
+remote_wsl_preflight
 
 # Cross-target compiler builds are large and can allocate heavily.
 # Keep them bounded by enabling the cooperative GC trigger and limiting stack scan.
@@ -304,12 +365,6 @@ abi_warn_patterns='x64 native v0: missing ABI arg reg|x64 native v0: missing ABI
 
 echo "== ensure: stage2 compiler (host) =="
 make stage2 >/dev/null
-
-# Build the compiler binaries for x64 targets (this can be slow on cold caches).
-want_wsl=0
-want_win=0
-if has_target x64-wsl; then want_wsl=1; fi
-if has_target x64-win; then want_win=1; fi
 
 COMPILER_LINUX="build/tmp/oren_selfhost_x64_linux"
 COMPILER_WIN="build/tmp/oren_selfhost_x64_windows.exe"

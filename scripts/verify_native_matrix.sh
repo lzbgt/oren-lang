@@ -523,6 +523,32 @@ remote_preflight() {
   done
 }
 
+remote_wsl_preflight() {
+  if ! has_target x64-wsl && ! has_target x64-wsl-tier1; then
+    return 0
+  fi
+  if [[ "$SKIP_REMOTE" -ne 0 ]]; then
+    return 0
+  fi
+  mkdir -p build/logs
+  local logf="build/logs/native_matrix_remote_wsl_probe.log"
+  log "== remote: wsl probe =="
+  : >"$logf"
+  set +e
+  run_with_timeout 15 "${ssh_base[@]}" "cmd.exe /c \"wsl.exe -e bash -lc \\\"echo OREN_WSL_OK\\\"\"" >"$logf" 2>&1
+  local rc=$?
+  set -e
+  if [[ "$rc" -eq 0 ]] && grep -q "OREN_WSL_OK" "$logf" 2>/dev/null; then
+    log "OK: remote WSL probe"
+    return 0
+  fi
+  echo "ERROR: remote WSL2 is not available (x64-wsl targets requested) host=$REMOTE_HOST" >&2
+  tail -n 80 "$logf" >&2 2>/dev/null || true
+  echo "HINT: install WSL on the remote host (wsl.exe --install) or run --targets x64-win-tier1 only." >&2
+  echo "log=$logf" >&2
+  exit 3
+}
+
 remote_mkdir() {
   # Ensure the Windows user profile staging directory exists. (This also backs the WSL /mnt/c path.)
   # IMPORTANT: `cmd.exe` can inherit a non-zero ERRORLEVEL under some ssh server setups.
@@ -870,6 +896,7 @@ if has_target x64-win || has_target x64-wsl || has_target x64-win-tier1 || has_t
     log "== verify: remote x64 Windows + WSL2 via ${REMOTE_HOST} =="
     remote_preflight
     remote_mkdir
+    remote_wsl_preflight
   fi
 fi
 
