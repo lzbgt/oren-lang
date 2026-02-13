@@ -761,7 +761,7 @@ fn _ml_prepare_module_program_in_place(full, prefix, prog, config) {
         return {"ok": false, "err": "invalid program (missing statements)"}
     }
 
-    // Debug sugar (rolling): rewrite dbg(...) to @debug print(...) before cfg filtering.
+    // Debug sugar (rolling): rewrite dbg(...)/dprint(...) to @debug print(...) before cfg filtering.
     debug_sugar.lower_program_in_place(prog)
 
     // Conditional compilation (rolling): filter out `@cfg(...)`-disabled declarations early

@@ -513,6 +513,8 @@ Build-profile note:
       - `release { ... }` ⇒ `@release { ... }`
     - `dbg(...)` is statement-level sugar that expands to `@debug print(...)` with a `file:line` prefix.
       - It is **not** an expression; use it as a standalone statement.
+    - `dprint(...)` is statement-level sugar that expands to `@debug print(...)` with **no prefix**.
+      - It is **not** an expression; use it as a standalone statement.
 
 Example (debug-only trace without deleting code):
 
@@ -531,6 +533,7 @@ Example (debug-only print sugar):
 ```oren
 fn work() {
     dbg("trace: entering work()") // compiled out in release builds
+    dprint("trace: entering work() (no prefix)")
 }
 ```
 

@@ -5,7 +5,7 @@ fn _dbg_attr(tok) {
     return {"type": "Attr", "token": tok, "name": "oren.debug", "args": []}
 }
 
-fn _dbg_prefix_string(tok) {
+fn _dbg_prefix_string(tok, tag) {
     var file = "<input>"
     var line = 0
     if tok != nil {
@@ -13,10 +13,11 @@ fn _dbg_prefix_string(tok) {
         var ln = tok["line"]
         if oren_type_tag(ln) != 0 { line = ln }
     }
+    if tag == nil { tag = "dbg" }
     if line > 0 {
-        return "dbg " + file + ":" + oren_int_to_string(line) + ":"
+        return tag + " " + file + ":" + oren_int_to_string(line) + ":"
     }
-    return "dbg " + file + ":"
+    return tag + " " + file + ":"
 }
 
 fn _dbg_is_ident(expr, name) {
@@ -24,17 +25,18 @@ fn _dbg_is_ident(expr, name) {
     return expr["type"] == "Identifier" && expr["value"] == name
 }
 
-fn _dbg_make_print_call(call_expr) {
+fn _dbg_make_print_call(call_expr, prefix) {
     var tok = nil
     if call_expr != nil { tok = call_expr["token"] }
-    var prefix = _dbg_prefix_string(tok)
-    var prefix_tok = token.new_token(token.TOK_STRING, prefix)
-    var prefix_expr = ast.new_string(prefix_tok)
-
     var print_tok = token.new_token(token.TOK_IDENT, "print")
     var print_ident = ast.new_identifier(print_tok)
 
-    var args = [prefix_expr]
+    var args = []
+    if prefix != nil {
+        var prefix_tok = token.new_token(token.TOK_STRING, prefix)
+        var prefix_expr = ast.new_string(prefix_tok)
+        oren_list_push(args, prefix_expr)
+    }
     var orig = nil
     if call_expr != nil { orig = call_expr["args"] }
     if orig != nil {
@@ -69,9 +71,17 @@ fn _dbg_stmt_rewrite(stmt) {
     if stmt["expr"] == nil || stmt["expr"]["type"] != "Call" { return nil }
     var call = stmt["expr"]
     if call["fn"] == nil || call["fn"]["type"] != "Identifier" { return nil }
-    if call["fn"]["value"] != "dbg" { return nil }
+    var name = call["fn"]["value"]
+    var prefix = nil
+    if name == "dbg" {
+        prefix = _dbg_prefix_string(call["token"], "dbg")
+    } else if name == "dprint" {
+        prefix = nil
+    } else {
+        return nil
+    }
 
-    stmt["expr"] = _dbg_make_print_call(call)
+    stmt["expr"] = _dbg_make_print_call(call, prefix)
     if stmt["attrs"] == nil { stmt["attrs"] = [] }
     if _dbg_attrs_has_name(stmt["attrs"], "oren.debug") != true {
         oren_list_push(stmt["attrs"], _dbg_attr(call["token"]))

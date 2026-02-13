@@ -387,8 +387,10 @@ Build-profile note (rolling):
   - Block sugar exists for multi-line sections:
     - `debug { ... }` ⇒ `@debug { ... }`
     - `release { ... }` ⇒ `@release { ... }`
-  - Statement sugar: `dbg(...)` expands to `@debug print(...)` with a `file:line` prefix.
-    - It is statement-level only (not expression forms).
+  - Statement sugar:
+    - `dbg(...)` expands to `@debug print(...)` with a `file:line` prefix.
+    - `dprint(...)` expands to `@debug print(...)` with no prefix.
+    - Both are statement-level only (not expression forms).
 
 Note on naming:
 

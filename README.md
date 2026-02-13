@@ -131,10 +131,12 @@ Notes:
 - Shorthand attributes exist: `@debug` / `@release` (arg‑less).
 - Block sugar exists for multi-line sections: `debug { ... }` / `release { ... }` (equivalent to `@debug { ... }` / `@release { ... }`).
 - `dbg(...)` is a statement-level sugar that expands to `@debug print(...)` with a `file:line` prefix.
+- `dprint(...)` is a statement-level sugar that expands to `@debug print(...)` with no prefix (just your args).
 
 ```oren
 @debug print("trace: enter foo")
 dbg("trace: enter foo")
+dprint("trace: enter foo")
 debug {
     print("trace: enter foo (block)")
 }

@@ -735,7 +735,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    Goal:
 
-   - Provide a `dbg(...)`/`trace(...)`-style helper that:
+   - Provide a `dbg(...)`/`dprint(...)`-style helper that:
      - is **zero-cost** in release builds (compiled out)
      - captures file/line by default (compiler-supplied or metadata-based)
      - keeps the surface deterministic and capsule-safe
@@ -750,9 +750,25 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    - 2026-02-13: implemented `dbg(...)` statement sugar (expands to `@debug print(...)` with file/line prefix)
      - Pass: `lib/compiler/debug_sugar.oren`
      - Evidence: `tests/native/test_quick_integration_native.oren` (`test_cfg_debug_release`)
+   - 2026-02-13: implemented `dprint(...)` statement sugar (expands to `@debug print(...)` with no prefix)
+     - Pass: `lib/compiler/debug_sugar.oren`
+     - Evidence: `tests/native/test_quick_integration_native.oren` (`test_cfg_debug_release`)
    - 2026-02-13: added `debug { ... }` / `release { ... }` block sugar (parses to `@debug` / `@release`)
      - Parser: `lib/compiler/parser_parse/000_prelude.oren`
      - Evidence: `tests/native/test_quick_integration_native.oren` (`test_cfg_debug_release`)
+
+5) **Split oversized quick integration fixture (maintenance)** (S)
+
+   Goal:
+
+   - Keep `tests/native/test_quick_integration_native.oren` under ~2k LOC by extracting
+     self-contained groups into include aggregators (or small helper modules) without changing semantics.
+   - Preserve the single-entry smoke semantics while making it easier to add/remove high-signal checks.
+
+   Rationale:
+
+   - The fixture is now >2k LOC and touches many surfaces; refactoring into logical chunks will reduce
+     maintenance risk while keeping the Tier‑1 gate signal.
 
 ## Tier‑1 verification blockers (operational)
 

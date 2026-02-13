@@ -150,7 +150,9 @@ Build-profile note:
   - Block sugar exists for multi-line sections:
     - `debug { ... }` ⇒ `@debug { ... }`
     - `release { ... }` ⇒ `@release { ... }`
-  - Statement sugar: `dbg(...)` expands to `@debug print(...)` with a `file:line` prefix.
+  - Statement sugar:
+    - `dbg(...)` expands to `@debug print(...)` with a `file:line` prefix.
+    - `dprint(...)` expands to `@debug print(...)` with no prefix.
 
 Example (FFI library name differs per OS):
 
