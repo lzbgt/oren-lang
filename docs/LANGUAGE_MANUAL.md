@@ -509,6 +509,7 @@ Build-profile note:
     - `@release` ⇒ `@cfg("release")`
     - Both are **arg‑less** and follow the same statement/declaration rules as `@cfg`.
   - `dbg(...)` is a statement-level sugar that expands to `@debug print(...)` with a `file:line` prefix.
+    - It is **not** an expression; use it as a standalone statement.
 
 Example (debug-only trace without deleting code):
 
