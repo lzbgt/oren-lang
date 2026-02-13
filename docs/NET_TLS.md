@@ -258,11 +258,9 @@ As of **2026-01-10 (rolling)**, `std:net/tls` has a Windows provider implemented
     - `tests/native/test_tls_loopback.oren`
     - `tests/native/test_https_get_loopback.oren`
     - `tests/native/test_wss_echo_loopback.oren`
-- Rolling limitation (2026-02-13): on Win11, running TLS on a green stack can crash TLS-over-HTTP/WS/HTTP2
-  loopback clients (access violation). The TLS/HTTPS/WSS/HTTP2 fixtures now run their server/client
-  on native OS threads via `oren_windows_os_thread_spawn_call_list` (no `OREN_NO_GREEN` gate), but
-  green-stack TLS remains unsafe until the Schannel path is fixed. Increasing `OREN_GREEN_STACK_KB`
-  up to 16384 (16 MiB) did not avoid the crash.
+- Rolling status (2026-02-14): Win11 TLS loopbacks now run on green tasks by default.
+  - Fallback: set `OREN_TLS_USE_OS_THREAD=1` to force OS-thread spawn for server/client.
+  - Verified via `scripts/verify_native_net_matrix.sh --targets x64-win` (TLS/HTTPS/WSS/HTTP2 loopbacks).
 
 Implementation notes (Windows):
 

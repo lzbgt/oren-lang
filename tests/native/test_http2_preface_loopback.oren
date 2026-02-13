@@ -14,19 +14,7 @@ import tls "std:net/tls"
 import base64 "std:encoding/base64"
 import h2 "std:net/http2"
 import fixture "./fixture_tls_p12.oren"
-
-@cfg(os="windows")
-fn _tls_spawn(fn_obj, args_list) {
-    if oren_getenv("OREN_TLS_USE_OS_THREAD") != 0 {
-        return oren_windows_os_thread_spawn_call_list(fn_obj, args_list)
-    }
-    return oren_spawn_call_list(fn_obj, args_list)
-}
-
-@cfg(not_os="windows")
-fn _tls_spawn(fn_obj, args_list) {
-    return oren_spawn_call_list(fn_obj, args_list)
-}
+import spawner "./fixture_tls_spawn.oren"
 
 fn _cstr_from_string(s) {
     if s == nil { s = "" }
@@ -342,13 +330,13 @@ fn main_client() {
     var args_srv = oren_new_list(0)
     oren_list_push(args_srv, listen_fd)
     oren_list_push(args_srv, fixture.pkcs12_b64())
-    var h = _tls_spawn(server_main, args_srv)
+    var h = spawner.tls_spawn(server_main, args_srv)
     if h == 0 { exit(100) }
 
     var args_cli = oren_new_list(0)
     oren_list_push(args_cli, port)
     oren_list_push(args_cli, expected_leaf_sha256_hex)
-    var hc = _tls_spawn(_http2_preface_client_impl, args_cli)
+    var hc = spawner.tls_spawn(_http2_preface_client_impl, args_cli)
     if hc == 0 { exit(101) }
 
     var rc2 = oren_join_timeout(hc, 5000)

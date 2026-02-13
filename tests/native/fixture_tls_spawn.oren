@@ -1,0 +1,18 @@
+// Shared spawn policy for TLS loopback fixtures (rolling).
+//
+// - Windows: default to green tasks (shared-address-space),
+//   set OREN_TLS_USE_OS_THREAD=1 to force OS-thread spawn.
+// - Other OSes: always use green/standard spawn.
+
+@cfg(os="windows")
+fn tls_spawn(fn_obj, args_list) {
+    if oren_getenv("OREN_TLS_USE_OS_THREAD") != 0 {
+        return oren_windows_os_thread_spawn_call_list(fn_obj, args_list)
+    }
+    return oren_spawn_call_list(fn_obj, args_list)
+}
+
+@cfg(not_os="windows")
+fn tls_spawn(fn_obj, args_list) {
+    return oren_spawn_call_list(fn_obj, args_list)
+}

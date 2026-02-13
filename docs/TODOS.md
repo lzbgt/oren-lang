@@ -623,12 +623,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						       - Problem: `spawn` prefers green tasks, but some fixtures ran a blocking client call on the main thread, starving the server green task (timeout).
 						       - Fix: enable green worker mode up front in the spawned-server fixtures (unless `OREN_NO_GREEN` disables green tasks).
 						       - Guards: `make verify-x64-linux-qemu-net` (covers `tests/native/test_dns_loopback.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren`)
-						     - 2026-02-13: x64-windows TLS fixtures crash when TLS runs on a green stack (access violation):
-						       - Affects: `https_loopback`, `wss_loopback`, `http2_*` loopback tests on Win11 when green tasks are enabled.
-						       - Workaround (rolling, 2026-02-13): Windows TLS fixtures now spawn server/client on native OS threads
-						         via `oren_windows_os_thread_spawn_call_list` (net matrix no longer forces `OREN_NO_GREEN` for these).
-						       - Probe: `OREN_GREEN_STACK_KB` up to 16384 (16 MiB) still crashes (`EXIT=-1073741819`), so this is not a small-stack overflow.
-						       - TODO: fix green-stack ABI / Schannel interaction so TLS-over-HTTP/WS/HTTP2 can run with green enabled.
+						     - 2026-02-13: x64-windows TLS fixtures crashed when TLS ran on a green stack (access violation):
+						       - Affects: `https_loopback`, `wss_loopback`, `http2_*` loopback tests on Win11 when green tasks were enabled.
+						       - Probe: `OREN_GREEN_STACK_KB` up to 16384 (16 MiB) still crashed (`EXIT=-1073741819`), so this was not a small-stack overflow.
 						       - 2026-02-14: adjusted x64 green stack entry alignment so `rsp+8` is 16-byte aligned (ctx_switch resumes via `ret`);
 						         added a green-stack alignment regression (`test_green_sp_alignment_x64`).
 						       - 2026-02-14: Windows TLS loopback fixtures now default to **green tasks** on Win11.
