@@ -69,7 +69,8 @@ fn _dbg_stmt_rewrite(stmt) {
     if stmt["expr"] == nil || stmt["expr"]["type"] != "Call" { return nil }
     var call = stmt["expr"]
     if call["fn"] == nil || call["fn"]["type"] != "Identifier" { return nil }
-    if call["fn"]["value"] != "dbg" { return nil }
+    var fn_name = call["fn"]["value"]
+    if fn_name != "dbg" && fn_name != "trace" { return nil }
 
     stmt["expr"] = _dbg_make_print_call(call)
     if stmt["attrs"] == nil { stmt["attrs"] = [] }
