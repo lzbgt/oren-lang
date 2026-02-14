@@ -190,6 +190,7 @@ fn _arm64_new_ctx(linked, platform) {
         "locals": {},
         "globals": {},
         "globals_floaty": {},
+        "globals_inty": {},
         "globals_stringy": {},
         "globals_list_stringy": {},
         "functions": {},
@@ -214,6 +215,7 @@ fn _arm64_new_ctx(linked, platform) {
         "loop_ctx": nil,
         "scope": nil,
         "locals_floaty": {},
+        "locals_inty": {},
         "locals_stringy": {},
         "locals_list_stringy": {},
         "platform": platform,
@@ -1011,9 +1013,11 @@ fn _arm64_alloc_global_slot(ctx, name_node, init_expr, from_runtime) {
     ctx["globals"][nm] = data_off + 1
 
     var is_floaty = exprm.native_expr_is_floaty(ctx, init_expr)
+    var is_inty = exprm.native_expr_is_inty(ctx, init_expr)
     var is_stringy = exprm.native_expr_is_stringy(ctx, init_expr)
     var is_list_stringy = exprm.native_expr_is_list_stringy(ctx, init_expr)
     if ctx["globals_floaty"] != nil { ctx["globals_floaty"][nm] = is_floaty }
+    if ctx["globals_inty"] != nil { ctx["globals_inty"][nm] = is_inty }
     if ctx["globals_stringy"] != nil { ctx["globals_stringy"][nm] = is_stringy }
     if ctx["globals_list_stringy"] != nil { ctx["globals_list_stringy"][nm] = is_list_stringy }
     return nm

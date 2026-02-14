@@ -780,15 +780,31 @@ fn native_expr_chunk_noncall(ctx, expr) {
                     }
                 }
                 
-                if op == "+" { 
-                    // Swap X0/X1 so X0=Left, X1=Right for oren_add call
-                    push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // Right -> X2
-                    push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // Left -> X0
-                    push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // Right -> X1
-                    
-                    var bl_pos = bytes_len(ctx["code"])
-                    push_u32_le(ctx["code"], 0)
-                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_add"})
+                if op == "+" {
+                    var ls = native_expr_is_stringy(ctx, expr["left"])
+                    var rs = native_expr_is_stringy(ctx, expr["right"])
+                    if ls != true && rs != true {
+                        // Fast-path int add when both operands are known int-like.
+                        if native_expr_is_inty(ctx, expr["left"]) && native_expr_is_inty(ctx, expr["right"]) {
+                            push_u32_le(ctx["code"], insn_add_reg(0, 1, 0))
+                        } else {
+                            // Fallback to dynamic helper for unknown types.
+                            push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // Right -> X2
+                            push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // Left -> X0
+                            push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // Right -> X1
+                            var bl_pos = bytes_len(ctx["code"])
+                            push_u32_le(ctx["code"], 0)
+                            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_add"})
+                        }
+                    } else {
+                        // String concat (or potential string) uses runtime helper.
+                        push_u32_le(ctx["code"], insn_mov_reg(2, 0)) // Right -> X2
+                        push_u32_le(ctx["code"], insn_mov_reg(0, 1)) // Left -> X0
+                        push_u32_le(ctx["code"], insn_mov_reg(1, 2)) // Right -> X1
+                        var bl_pos2 = bytes_len(ctx["code"])
+                        push_u32_le(ctx["code"], 0)
+                        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos2, "name": "oren_add"})
+                    }
                 }
                 if op == "%" {
                     // Fast-path constant RHS: inline deterministic modulo when divisor is a safe

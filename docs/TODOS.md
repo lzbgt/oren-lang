@@ -153,6 +153,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					     - Result artifact: `benchmarks/results/loop_sum_m2_20260214_133422.md`
 					   - 2026-02-14: alloc_churn refresh (M2 Pro, runs=5, warmup=1): C 0.00275s, Oren C 0.1182s, Oren native 1.2805s, OBC 0.4110s
 					     - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_133613.md`
+					   - 2026-02-14: native '+' int fast-path (arm64) using inty propagation:
+					     - Avoids `oren_add` when both operands are known integer-like (keeps runtime helper for strings/unknown).
+					     - Compiler: `lib/compiler/arm64_native_expr/010_lowering_a.oren` + inty tracking in `arm64_native_stmt.oren`
+					     - Bench (loop_sum, M2 Pro, 20M iters): C 0.0713s, Oren C 1.2655s (~17.7×), Oren native 2.1598s (~30.3×), OBC 6.0519s (~84.8×)
+					     - Result artifact: `benchmarks/results/loop_sum_m2_20260214_134458.md`
 			   - 2026-02-14: native free-block reuse now exists but is **gated** behind `OREN_GC_REUSE_BLOCKS=1` (default off pending GC correctness hardening):
 				     - Runtime: `lib/runtime_native/100_time_gc_alloc.oren`
 				     - Compiler: `lib/compiler/arm64_native_expr/090_tail.oren`, `lib/compiler/x64_native_program/040_emit_expr.oren`
@@ -441,12 +446,13 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
 			   Next steps (actionable, highest leverage first):
 
-					   - Performance (P0): close the Oren native gap on `benchmarks/loop_sum` (M2 baseline ~33.5× C).
+					   - Performance (P0): close the Oren native gap on `benchmarks/loop_sum` (M2 baseline ~30.3× C).
 					     - Focus on: unboxed int arithmetic + modulo fast paths, loop‑header lowering overhead, and constant‑mod strength reduction.
 					     - Guard: keep `benchmarks/loop_sum` results in `benchmarks/results/` and re-run after changes.
-					   - Performance (P0): bring Oren C backend loop_sum under 10× C on M2 (currently ~18.1×).
+					   - Performance (P0): bring Oren C backend loop_sum under 10× C on M2 (currently ~17.7×).
 					     - Focus on: avoid OrenValue boxing in tight loops, reduce helper call overhead, and enable constant‑folded modulo where safe.
 					   - Performance (P0): capture x64 loop_sum baseline (after constant‑mod inline) on the Linux/Win Tier‑1 path to confirm x64 impact.
+					   - Performance (P1): port inty propagation + '+' fast-path to x64 native (needs stringy/inty tracking or another safe guard).
 					   - Reliability (P0): investigate reported memory leaks by adding a minimal leak repro + RSS sampling to the benchmark harness, then triage GC/runtime roots.
 					   - Reliability (P0): alloc_churn RSS is still high under `OREN_GC_AUTO=1`; re-run with `OREN_BENCH_RSS=1` on the refreshed baseline and confirm auto-GC triggers.
 			   - Windows: upgrade the socket netpoller from select-v0 to IOCP (scalable readiness + true wake; removes `FD_SETSIZE=64` per-call limit and avoids batching).

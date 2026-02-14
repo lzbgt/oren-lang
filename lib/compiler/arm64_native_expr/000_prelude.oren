@@ -295,6 +295,50 @@ fn native_expr_is_floaty(ctx, expr) {
     return false
 }
 
+fn native_expr_is_inty(ctx, expr) {
+    // Heuristic "int propagation" for the native backend.
+    // Used to avoid dynamic `oren_add` when both operands are known integer-like.
+    if expr == nil { return false }
+    if native_expr_is_floaty(ctx, expr) { return false }
+    var et = expr["type"]
+    if et == "Integer" { return true }
+    if et == "Float" { return false }
+    if et == "String" { return false }
+    if et == "Identifier" {
+        var name = expr["value"]
+        if ctx != nil {
+            if ctx["locals_inty"] != nil {
+                if ctx["locals_inty"][name] == true { return true }
+            }
+            if ctx["globals_inty"] != nil {
+                if ctx["globals_inty"][name] == true { return true }
+            }
+        }
+        return false
+    }
+    if et == "Prefix" {
+        if expr["op"] == "-" { return native_expr_is_inty(ctx, expr["right"]) }
+        return false
+    }
+    if et == "Infix" {
+        var op = expr["op"]
+        if op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>" {
+            if native_expr_is_inty(ctx, expr["left"]) && native_expr_is_inty(ctx, expr["right"]) { return true }
+        }
+        return false
+    }
+    if et == "Call" {
+        var fnn = expr["fn"]
+        if fnn != nil && fnn["type"] == "Identifier" {
+            var nm = fnn["value"]
+            if nm == "iadd" || nm == "isub" || nm == "imul" || nm == "idiv" || nm == "imod" { return true }
+            if nm == "oren_string_len" { return true }
+        }
+        return false
+    }
+    return false
+}
+
 fn native_expr_is_list_stringy(ctx, expr) {
     // Heuristic for "list of strings" propagation in the native backend.
     // This is used to make `xs[i] == "lit"` work when `xs` comes from known APIs like `oren_readdir`.
