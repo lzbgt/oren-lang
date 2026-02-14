@@ -151,6 +151,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					     - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_121632.md`
 					   - 2026-02-14: loop_sum refresh (M2 Pro, 20M iters): C 0.0673s, Oren C 1.2218s (~18.1×), Oren native 2.2507s (~33.5×), OBC 6.0740s (~90.3×)
 					     - Result artifact: `benchmarks/results/loop_sum_m2_20260214_133422.md`
+					   - 2026-02-14: loop_sum refresh (M2 Pro, 20M iters; host-tagged runner): C 0.0694s, Oren C 1.2289s (~17.7×), Oren native 0.3880s (~5.6×), OBC 6.0913s (~87.8×)
+					     - Result artifact: `benchmarks/results/loop_sum_darwin_arm64_20260214_143629.md`
 					   - 2026-02-14: alloc_churn refresh (M2 Pro, runs=5, warmup=1): C 0.00275s, Oren C 0.1182s, Oren native 1.2805s, OBC 0.4110s
 					     - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_133613.md`
 					   - 2026-02-14: native '+' int fast-path (arm64) using inty propagation:
@@ -162,6 +164,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					     - Avoids `oren_add` when both operands are known integer-like; keeps runtime helper for strings/unknown.
 					     - Compiler: `lib/compiler/x64_native_program/046_emit_string_helpers.oren` + inty tracking in `060_emit_ops.oren`
 					     - Benchmark pending (capture x64 loop_sum baseline on Tier‑1 Linux/Win).
+					     - 2026-02-14: remote Win11 host (`pc2.work`) could not pull from GitHub (connection reset/timeouts); need alternate sync or retry before capturing x64 results.
 				   - 2026-02-14: native free-block reuse now exists but is **gated** behind `OREN_GC_REUSE_BLOCKS=1` (default off pending GC correctness hardening):
 				     - Runtime: `lib/runtime_native/100_time_gc_alloc.oren`
 				     - Compiler: `lib/compiler/arm64_native_expr/090_tail.oren`, `lib/compiler/x64_native_program/040_emit_expr.oren`
