@@ -239,6 +239,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    Parity surfaces:
 
    - value semantics (`nil/false/true` vs numeric), comparisons, list/map behavior
+   - (P0/S) **STW GC saved_sp stability**: investigate why `stw_saved_sp` zeros out on macOS (stack-size fallback masks it now).
+     - Gate: `tests/native/test_gc_stw_os_thread_collect.oren` passes on all Tier‑1 without relying on stack-size fallback.
+     - Follow-up: capture stack size for Linux/Windows OS threads (store in thread node) so fallback is valid cross‑platform.
    - eliminate legacy “nil==0” / 0-sentinel assumptions (0 is a valid int and is truthy; `nil/false/true` are runtime singletons)
      - Fixed: x64 ModRM disp8 emission no longer uses a “disp8+1” encoding (see `lib/compiler/x64_core.oren`); `disp8=0` is now a real byte value with `nil` meaning “absent”.
      - Fixed: `std:net/dns.default_resolver` no longer treats missing `OREN_DNS_SERVER` as “present” under native singleton-`nil` semantics (checks `env_ip != nil && env_ip != 0 && env_ip != ""`); Tier‑1 Win11 fixture `tests/fixtures/windows_dns_default_resolver_smoke.oren` now passes.
