@@ -24,6 +24,11 @@ Optional knobs:
 - `OREN_BENCH_WARMUPS=<n>` (default: 1)
 - `OREN_BENCH_RSS=1` (capture per-run max RSS via `/usr/bin/time`)
 - `OREN_BENCH_PROGRAM=<name>` (default: `loop_sum`)
+- `OREN_BENCH_ENV_ALL=K=V,...` (apply env overrides to all variants)
+- `OREN_BENCH_ENV_C=K=V,...`
+- `OREN_BENCH_ENV_OREN_C=K=V,...`
+- `OREN_BENCH_ENV_OREN_NATIVE=K=V,...`
+- `OREN_BENCH_ENV_OREN_OBC=K=V,...`
 
 Results are written to:
 

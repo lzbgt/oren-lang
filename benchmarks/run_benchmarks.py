@@ -18,6 +18,25 @@ DEFAULT_WARMUPS = 1
 DEFAULT_RSS = 0
 
 
+def _parse_env_overrides(raw):
+    out = {}
+    if not raw:
+        return out
+    parts = [p.strip() for p in raw.split(",")]
+    for part in parts:
+        if not part:
+            continue
+        if "=" not in part:
+            raise RuntimeError(f"invalid env override (expected KEY=VAL): {part}")
+        k, v = part.split("=", 1)
+        k = k.strip()
+        v = v.strip()
+        if not k:
+            raise RuntimeError(f"invalid env override (empty key): {part}")
+        out[k] = v
+    return out
+
+
 def _run(cmd, env=None, log_path=None, time_path=None):
     start = time.perf_counter()
     if time_path:
@@ -97,6 +116,11 @@ def main():
     warmups = int(os.environ.get("OREN_BENCH_WARMUPS", DEFAULT_WARMUPS))
     rss_enabled = int(os.environ.get("OREN_BENCH_RSS", DEFAULT_RSS)) == 1
     program = os.environ.get("OREN_BENCH_PROGRAM", "loop_sum")
+    env_all = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_ALL", ""))
+    env_c = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_C", ""))
+    env_oren_c = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_OREN_C", ""))
+    env_oren_native = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_OREN_NATIVE", ""))
+    env_oren_obc = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_OREN_OBC", ""))
 
     bench_dir = ROOT / "benchmarks" / program
     if not bench_dir.exists():
@@ -130,18 +154,22 @@ def main():
     outputs = {}
     rss_results = {}
 
+    env_base = os.environ.copy()
     suites = [
-        ("c", [str(c_bin)]),
-        ("oren_c", [str(oren_c_bin)]),
-        ("oren_native", [str(oren_native_bin)]),
-        ("oren_obc", [str(avm_bin), str(obc_out)]),
+        ("c", [str(c_bin)], env_c),
+        ("oren_c", [str(oren_c_bin)], env_oren_c),
+        ("oren_native", [str(oren_native_bin)], env_oren_native),
+        ("oren_obc", [str(avm_bin), str(obc_out)], env_oren_obc),
     ]
 
-    for name, cmd in suites:
+    for name, cmd, extra_env in suites:
+        env = env_base.copy()
+        env.update(env_all)
+        env.update(extra_env)
         rss_dir = None
         if rss_enabled:
             rss_dir = LOG_DIR / f"bench_rss_{name}_{ts}"
-        times, rss, out = _time_cmd(cmd, runs=runs, warmups=warmups, rss_enabled=rss_enabled, rss_dir=rss_dir)
+        times, rss, out = _time_cmd(cmd, runs=runs, warmups=warmups, env=env, rss_enabled=rss_enabled, rss_dir=rss_dir)
         results[name] = {
             "runs": times,
             "median_s": statistics.median(times),
@@ -181,6 +209,13 @@ def main():
         "program": program,
         "output": first_out,
         "rss_enabled": rss_enabled,
+        "env_overrides": {
+            "all": env_all,
+            "c": env_c,
+            "oren_c": env_oren_c,
+            "oren_native": env_oren_native,
+            "oren_obc": env_oren_obc,
+        },
     }
 
     payload = {"meta": meta, "results": results}

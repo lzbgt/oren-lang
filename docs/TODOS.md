@@ -147,6 +147,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				     - M2 Pro baseline (runs=3, warmup=1, `OREN_GC_AUTO=1`): C 0.0042s, Oren C 0.1146s, Oren native 0.6410s, OBC 0.4070s
 				     - RSS medians (bytes): C 1.29MB, Oren C 68.6MB, Oren native 54.0MB, OBC 61.4MB
 				     - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_121359.md`
+				   - 2026-02-14: alloc_churn with lower GC threshold (`OREN_GC_ALLOC_THRESHOLD=200000`) did not reduce RSS (but increased runtime):
+				     - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_121632.md`
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
