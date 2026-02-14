@@ -64,7 +64,7 @@ fn _x64_err_invalid_int_lit(ctx, lit) {
     return nil
 }
 
-fn _emit_malloc_size_in_rax(ctx, locals) {
+fn _emit_malloc_size_in_rax(ctx, locals, reuse_mode) {
     // malloc(size) / malloc_raw(size) intrinsic core.
     // Input:
     // - RAX: requested size (signed int)
@@ -96,6 +96,17 @@ fn _emit_malloc_size_in_rax(ctx, locals) {
     bytes_extend(ctx["code"], insn_mov_r64_r64(11, 0)) // r11 = aligned size
     // Spill aligned size so slow paths can recompute after syscall/call clobbers volatile regs.
     _emit_mov_mrbp_r64(ctx, 0 - tmp0, 0)
+
+    // Try reuse (malloc / malloc_k only).
+    if reuse_mode == 1 {
+        var a0m_enc = abi.int_arg_reg(ctx["abi"], 0)
+        if oren_type_tag(a0m_enc) == 0 { err(ctx, "x64 native v0: missing ABI arg reg for native_try_reuse"); return nil }
+        var a0m = a0m_enc - 1
+        _emit_mov_r64_mrbp(ctx, a0m, 0 - tmp0) // arg0 = aligned size
+        _emit_call_rel32_named_x64(ctx, "native_try_reuse")
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_done)
+    }
 
     // candidate_end = heap_ptr + size
     bytes_extend(ctx["code"], insn_mov_r64_r64(10, 15)) // r10 = heap_ptr
@@ -1108,7 +1119,9 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
 	                return nil
 	            }
 
-            _emit_malloc_size_in_rax(ctx, locals)
+            var reuse_mode = 1
+            if nm == "malloc_raw" { reuse_mode = 0 }
+            _emit_malloc_size_in_rax(ctx, locals, reuse_mode)
 
             // Tier‑1 convergence:
             // - On the syscall-first native runtime, `malloc` produces a tracked allocation so

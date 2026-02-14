@@ -682,25 +682,38 @@ fn native_try_reuse_node(size) {
 
 @oren.keep
 fn native_try_reuse(size) {
-    // Rolling robustness: temporarily disable free-block reuse.
-    //
-    // This is a Tier‑1 correctness stopgap while the native allocator + tracking-node reuse
-    // are still stabilizing (see integration suite crash reports involving invalid pointers).
-    //
-    // TODO: re-enable after fixing the underlying allocator invariants and adding validation
-    // for free-block list nodes (ptr/size/kind sanity).
-    return 0
-
+    // Default-off gate: reuse is still rolling and must be explicitly enabled.
+    if native_envp_get_value_ptr("OREN_GC_REUSE_BLOCKS") == 0 { return 0 }
     if oren_globals() == 0 { return 0 }
     acquire_lock()
     // Simple first-fit from the free list.
     var prev = 0
     var cur = global_get_free_blocks()
     while cur != 0 {
+        var next = ptr_get(iadd(cur, 32))
+        // Validate the free-block node before trusting it.
+        if cur < 4096 {
+            if prev == 0 {
+                global_set_free_blocks(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            cur = next
+            continue
+        }
+        var chunk_ptr = ptr_get(cur)
         var chunk_size = ptr_get(iadd(cur, 8))
+        if chunk_ptr < 4096 || chunk_size <= 0 {
+            if prev == 0 {
+                global_set_free_blocks(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            cur = next
+            continue
+        }
         if chunk_size >= size {
             // Unlink from free list.
-            var next = ptr_get(iadd(cur, 32))
             if prev == 0 {
                 global_set_free_blocks(next)
             } else {
@@ -717,13 +730,14 @@ fn native_try_reuse(size) {
             ptr_set(iadd(cur, 24), 0) // not freed, not marked
             ptr_set(iadd(cur, 32), global_get_allocs())
             global_set_allocs(cur)
+            native_alloc_index_put_node(cur)
 
-            var out = ptr_get(cur)
+            var out = chunk_ptr
             release_lock()
             return out
         }
         prev = cur
-        cur = ptr_get(iadd(cur, 32))
+        cur = next
     }
     release_lock()
     return 0
@@ -1314,9 +1328,9 @@ fn native_gc_collect() {
             }
 
             var kind = ptr_get(iadd(cur_sweep, 16))
+            var p = ptr_get(cur_sweep)
             if kind == 9 {
                 // RAW_MMAP: return memory to OS immediately (do not keep in free_blocks).
-                var p = ptr_get(cur_sweep)
                 if p != 0 {
                     var base = p - raw_hdr_size()
                     if ptr_get(base + 0) == raw_magic() {

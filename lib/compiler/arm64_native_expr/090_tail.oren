@@ -336,10 +336,10 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
 	                // - malloc_raw(): reuse free node storage (tracking/root nodes), never object blocks
 	                var bl_reuse_pos = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
-                if fn_name == "malloc" {
-                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reuse_pos, "name": "native_try_reuse"})
-                } else {
-                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reuse_pos, "name": "native_try_reuse_node"})
+	                if fn_name == "malloc_raw" {
+	                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reuse_pos, "name": "native_try_reuse_node"})
+	                } else {
+	                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reuse_pos, "name": "native_try_reuse"})
 	                }
 	                
 	                // RESTORE X9 (and X10 for malloc_k)
