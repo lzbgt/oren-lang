@@ -137,6 +137,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				     - Runner: `benchmarks/run_benchmarks.py`
 				     - M2 Pro baseline (arm64‑macOS, 20M iters): C 0.069s, Oren C 1.231s (~17.7×), Oren native 2.430s (~35.0×), OBC 6.152s (~88.5×)
 				     - Result artifact: `benchmarks/results/loop_sum_m2_20260214_114953.md`
+				   - 2026-02-14: arm64 native inlines constant RHS modulo (nonzero, not -1) to avoid `oren_mod` call in hot loops:
+				     - `benchmarks/loop_sum` (M2 Pro, 20M iters): C 0.0808s, Oren C 1.2187s (~15.1×), Oren native 2.4080s (~29.8×), OBC 6.2733s (~77.6×)
+				     - Result artifact: `benchmarks/results/loop_sum_m2_20260214_115726.md`
+				   - 2026-02-14: x64 native inlines constant RHS modulo (nonzero, not -1) to avoid `oren_mod` call in hot loops (no x64 bench captured yet).
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
@@ -415,8 +419,12 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				   - Performance (P0): close the Oren native gap on `benchmarks/loop_sum` (M2 baseline ~35× C).
 				     - Focus on: unboxed int arithmetic + modulo fast paths, loop‑header lowering overhead, and constant‑mod strength reduction.
 				     - Guard: keep `benchmarks/loop_sum` results in `benchmarks/results/` and re-run after changes.
-				   - Performance (P0): bring Oren C backend loop_sum under 10× C on M2 (currently ~17.7×).
+				   - Performance (P0): close the Oren native gap on `benchmarks/loop_sum` (M2 baseline ~29.8× C).
+				     - Focus on: further reduce helper calls in integer hot paths (add/compare), tighten loop header lowering, and consider unboxed int fast-paths in the native runtime.
+				   - Performance (P0): bring Oren C backend loop_sum under 10× C on M2 (currently ~15.1×).
 				     - Focus on: avoid OrenValue boxing in tight loops, reduce helper call overhead, and enable constant‑folded modulo where safe.
+				   - Performance (P0): capture x64 loop_sum baseline (after constant‑mod inline) on the Linux/Win Tier‑1 path to confirm x64 impact.
+				   - Reliability (P0): investigate reported memory leaks by adding a minimal leak repro + RSS sampling to the benchmark harness, then triage GC/runtime roots.
 			   - Windows: upgrade the socket netpoller from select-v0 to IOCP (scalable readiness + true wake; removes `FD_SETSIZE=64` per-call limit and avoids batching).
 		       - Design doc: `docs/WINDOWS_IOCP_NETPOLL.md`
 		       - Primary reference snapshots (verbatim): `project-doc/web/learn.microsoft.com/iocp/20260117/`
