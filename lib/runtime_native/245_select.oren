@@ -418,8 +418,10 @@ fn oren_select(cases) {
 
     var kinds = malloc(ncases * 8)
     var fds = malloc(ncases * 8)
-    var chans = malloc(ncases * 8)
-    var vals = malloc(ncases * 8)
+    // GC safety: chans/vals carry Oren values (lists, maps, funcs). Use STRUCT-kind buffers
+    // so GC conservatively scans slots and keeps pointed-to objects alive during select.
+    var chans = malloc_k(ncases * 8, 4)
+    var vals = malloc_k(ncases * 8, 4)
     if kinds == 0 || fds == 0 || chans == 0 || vals == 0 {
         if kinds != 0 { free(kinds) }
         if fds != 0 { free(fds) }

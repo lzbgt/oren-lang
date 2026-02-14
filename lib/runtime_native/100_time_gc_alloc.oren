@@ -1191,29 +1191,7 @@ fn native_find_cache_clear() {
 fn oren_gc_pin(v) {
     if g_gc_enabled == 0 { return 0 }
     var prev = g_oren_gc_pin
-    // Unregister previous pinned pointer if it is a tracked heap object.
-    //
-    // IMPORTANT (native runtime model):
-    // Embedded string literals (cstr0 pool) are NOT tracked as GC heap allocations.
-    // They must not be rooted here; `oren_find_node(lit)` returns 0 for literals.
-    if prev != 0 {
-        var prev_node = oren_find_node(prev)
-        if prev_node != 0 {
-            if ptr_get(iadd(prev_node, 8)) != 0 {
-                native_gc_unregister_root(prev)
-            }
-        }
-    }
     g_oren_gc_pin = v
-    // Register new pinned pointer if it is a tracked heap object.
-    if v != 0 {
-        var node = oren_find_node(v)
-        if node != 0 {
-            if ptr_get(iadd(node, 8)) != 0 {
-                native_gc_register_root(v)
-            }
-        }
-    }
     return prev
 }
 
@@ -1467,6 +1445,10 @@ fn native_gc_collect() {
     native_gc_scan_stack()
 
     // 3) Mark roots
+    // Process-wide pin (matches C backend `gc_pin` semantics).
+    if g_oren_gc_pin != 0 {
+        oren_mark_value(g_oren_gc_pin)
+    }
     var r = global_get_roots()
     while r != 0 {
         var slot = ptr_get(r)

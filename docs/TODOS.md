@@ -165,7 +165,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					     - Compiler: `lib/compiler/x64_native_program/046_emit_string_helpers.oren` + inty tracking in `060_emit_ops.oren`
 					     - Benchmark pending (capture x64 loop_sum baseline on Tier‑1 Linux/Win).
 					     - 2026-02-14: remote Win11 host (`pc2.work`) could not pull from GitHub (connection reset/timeouts); need alternate sync or retry before capturing x64 results.
-				   - 2026-02-14: native free-block reuse now exists but is **gated** behind `OREN_GC_REUSE_BLOCKS=1` (default off pending GC correctness hardening):
+					   - 2026-02-14: native free-block reuse now exists but is **gated** behind `OREN_GC_REUSE_BLOCKS=1` (default off pending GC correctness hardening):
 				     - Runtime: `lib/runtime_native/100_time_gc_alloc.oren`
 				     - Compiler: `lib/compiler/arm64_native_expr/090_tail.oren`, `lib/compiler/x64_native_program/040_emit_expr.oren`
 				     - alloc_churn RSS on macOS remained at the high-water mark (bump allocator retains OS pages):
@@ -175,12 +175,19 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				     - Raw tracking nodes now come from a dedicated raw arena (`sys_mmap_private_anon`) instead of the GC heap (`lib/runtime_native/015_raw_alloc.oren`).
 				     - Tracking nodes now carry a magic word and are validated during alloc-index lookups/rebuilds (`lib/runtime_native/100_time_gc_alloc.oren`).
 				     - Reuse-on now gets past map tracking but still fails quick integration with `list_len on non-list` (select path) — keep gated.
-				     - 2026-02-14: reuse diagnostics + guardrails added:
-				       - Reuse-mode alloc-index cleanup + cache clear on free/GC (guarded by `OREN_GC_REUSE_BLOCKS`).
-				       - Reuse-mode alloc-index miss recovery in `oren_find_node` (linear scan on miss).
-				       - `oren_track_alloc` now de-stales kind=0 in reuse mode and removes hit nodes from free list.
-				       - `native_list_len_panic` emits list header diagnostics; arm64 list_len intrinsic routes failures through it.
-				       - Still failing: list magic overwritten with list pointer (count/cap/buf intact). Trace shows list is tracked (kind=2) but header corrupted; suspect reuse + temporary list lifetime. Investigate root cause before enabling reuse.
+				       - 2026-02-14: reuse diagnostics + guardrails added:
+				         - Reuse-mode alloc-index cleanup + cache clear on free/GC (guarded by `OREN_GC_REUSE_BLOCKS`).
+				         - Reuse-mode alloc-index miss recovery in `oren_find_node` (linear scan on miss).
+				         - `oren_track_alloc` now de-stales kind=0 in reuse mode and removes hit nodes from free list.
+				         - `native_list_len_panic` emits list header diagnostics; arm64 list_len intrinsic routes failures through it.
+				       - 2026-02-14: select GC rooting hardening:
+				         - `oren_select` now allocates `chans`/`vals` arrays with `malloc_k(..., kind=STRUCT)` so GC conservatively scans channel/value pointers.
+				       - 2026-02-14: native `oren_gc_pin` fixed to match C backend semantics:
+				         - No longer registers a root slot (which incorrectly dereferenced the pinned object).
+				         - GC now marks the pinned value directly during the root phase.
+				       - Still failing (reuse-on): list magic overwritten with list pointer in `oren_select` (`test_quick_integration_native`):
+				         - trace: list is tracked (kind=2) but header magic is clobbered; likely a remaining GC root/stack spill issue or alloc-index duplication.
+				         - Next steps: verify GC pin consumers (compiler/serde/renamer), audit select + netpoll pointer roots, and validate stack/register spill discipline at safepoints.
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
