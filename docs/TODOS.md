@@ -185,10 +185,13 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				         - `oren_select` pins `cases`/`chans`/`vals` via `oren_gc_pin` to keep them visible across safepoints.
 				         - `_select_wait_in_green_netpoll_v2` pins `wait_roots` + `chans` + `vals` for netpoll tokens.
 				         - `_select_wait_windows_mem_channels` now uses `malloc_k(..., kind=STRUCT)` for chans/vals and pins `cases`/`chans`/`vals`.
+				         - Added native runtime root-slot array (`native_gc_root_push/pop`) and hooked it into GC root marking.
+				         - `oren_select`/green netpoll/windows mem-select now push cases/chans/vals/wait_roots into root slots to avoid register-only root loss.
 				       - 2026-02-14: native `oren_gc_pin` fixed to match C backend semantics:
 				         - No longer registers a root slot (which incorrectly dereferenced the pinned object).
 				         - GC now marks the pinned value directly during the root phase.
 				       - Still failing (reuse-on): list magic overwritten with list pointer in `oren_select` (`test_quick_integration_native`):
+				         - Status after root-slot + pinning hardening: still reproduces under `OREN_GC_REUSE_BLOCKS=1` (list magic == list ptr).
 				         - trace: list is tracked (kind=2) but header magic is clobbered; likely a remaining GC root/stack spill issue or alloc-index duplication.
 				         - Next steps: verify GC pin consumers (compiler/serde/renamer), audit select + netpoll pointer roots, and validate stack/register spill discipline at safepoints.
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):

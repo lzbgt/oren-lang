@@ -132,6 +132,11 @@ fn _select_wait_in_green_netpoll_v2(kinds, fds, chans, vals, ncases) {
     oren_list_push(pin_list, wait_roots)
     oren_list_push(pin_list, chans)
     oren_list_push(pin_list, vals)
+    // Root slots: ensure wait_roots/chans/vals survive even if pin slots are overwritten.
+    var root_count = 0
+    native_gc_root_push(wait_roots); root_count = root_count + 1
+    native_gc_root_push(chans); root_count = root_count + 1
+    native_gc_root_push(vals); root_count = root_count + 1
 
     // Allocate per-case wait nodes once for this select call.
     var i = 0
@@ -143,6 +148,7 @@ fn _select_wait_in_green_netpoll_v2(kinds, fds, chans, vals, ncases) {
                 var w = oren_alloc_struct(native_netpoll_wait_bytes())
                 if w == 0 {
                     free(wait_ptrs)
+                    native_gc_root_pop(root_count)
                     oren_gc_pin(prev_pin)
                     return 0 - 12
                 }
@@ -184,6 +190,7 @@ fn _select_wait_in_green_netpoll_v2(kinds, fds, chans, vals, ncases) {
                         ptr_set(g + green_g_off_io_active(), 0)
                         ptr_set(g + green_g_off_io_ready(), 0)
                         free(wait_ptrs)
+                        native_gc_root_pop(root_count)
                         oren_gc_pin(prev_pin)
                         return arc
                     }
@@ -251,6 +258,7 @@ fn _select_wait_in_green_netpoll_v2(kinds, fds, chans, vals, ncases) {
             free(fds)
             free(chans)
             free(vals)
+            native_gc_root_pop(root_count)
             oren_gc_pin(prev_pin)
             return pair
         }
@@ -287,6 +295,10 @@ fn _select_wait_windows_mem_channels(cases, ncases) {
     oren_list_push(pin_list, cases)
     oren_list_push(pin_list, chans)
     oren_list_push(pin_list, vals)
+    var root_count = 0
+    native_gc_root_push(cases); root_count = root_count + 1
+    native_gc_root_push(chans); root_count = root_count + 1
+    native_gc_root_push(vals); root_count = root_count + 1
 
     // Parse cases into flat arrays.
     // kinds[i] = -1 invalid, 0 recv, 1 send
@@ -338,12 +350,14 @@ fn _select_wait_windows_mem_channels(cases, ncases) {
 
         if kind != 0 && kind != 1 {
             free(kinds); free(chans); free(vals)
+            native_gc_root_pop(root_count)
             oren_gc_pin(prev_pin)
             return 0 - 22 // EINVAL
         }
         if native_chan_is_mem(ch) != 1 {
             // Pipe-based channels are not supported on Windows. Treat as ENOSYS.
             free(kinds); free(chans); free(vals)
+            native_gc_root_pop(root_count)
             oren_gc_pin(prev_pin)
             return 0 - 78 // ENOSYS
         }
@@ -355,7 +369,7 @@ fn _select_wait_windows_mem_channels(cases, ncases) {
     }
 
     var recv_buf = malloc(8)
-    if recv_buf == 0 { free(kinds); free(chans); free(vals); oren_gc_pin(prev_pin); return 0 - 12 }
+    if recv_buf == 0 { free(kinds); free(chans); free(vals); native_gc_root_pop(root_count); oren_gc_pin(prev_pin); return 0 - 12 }
 
     // Ensure the shared seq word exists for the wait path.
     _chan_mem_global_seq_init_if_needed()
@@ -380,6 +394,7 @@ fn _select_wait_windows_mem_channels(cases, ncases) {
                 }
                 if okr < 0 {
                     free(recv_buf); free(kinds); free(chans); free(vals)
+                    native_gc_root_pop(root_count)
                     oren_gc_pin(prev_pin)
                     return okr
                 }
@@ -393,6 +408,7 @@ fn _select_wait_windows_mem_channels(cases, ncases) {
                 }
                 if oks < 0 {
                     free(recv_buf); free(kinds); free(chans); free(vals)
+                    native_gc_root_pop(root_count)
                     oren_gc_pin(prev_pin)
                     return oks
                 }
@@ -409,6 +425,7 @@ fn _select_wait_windows_mem_channels(cases, ncases) {
             free(kinds)
             free(chans)
             free(vals)
+            native_gc_root_pop(root_count)
             oren_gc_pin(prev_pin)
             return pair
         }
@@ -447,9 +464,12 @@ fn oren_select(cases) {
     if pin_list == 0 { return 0 }
     var prev_pin = oren_gc_pin(pin_list)
     oren_list_push(pin_list, cases)
+    var root_count = 0
+    native_gc_root_push(cases); root_count = root_count + 1
 
     if g_target_os == 3 {
         var win_res = _select_wait_windows_mem_channels(cases, ncases)
+        native_gc_root_pop(root_count)
         oren_gc_pin(prev_pin)
         return win_res
     }
@@ -465,11 +485,14 @@ fn oren_select(cases) {
         if fds != 0 { free(fds) }
         if chans != 0 { free(chans) }
         if vals != 0 { free(vals) }
+        native_gc_root_pop(root_count)
         oren_gc_pin(prev_pin)
         return 0
     }
     oren_list_push(pin_list, chans)
     oren_list_push(pin_list, vals)
+    native_gc_root_push(chans); root_count = root_count + 1
+    native_gc_root_push(vals); root_count = root_count + 1
 
     // Parse cases into flat arrays.
     // kinds[i] = -1 invalid, 0 recv, 1 send
@@ -539,6 +562,7 @@ fn oren_select(cases) {
         free(fds)
         free(chans)
         free(vals)
+        native_gc_root_pop(root_count)
         oren_gc_pin(prev_pin)
         return 0
     }
@@ -566,6 +590,7 @@ fn oren_select(cases) {
                             free(fds)
                             free(chans)
                             free(vals)
+                            native_gc_root_pop(root_count)
                             oren_gc_pin(prev_pin)
                             return 0 - 22 // EINVAL
                         }
@@ -583,6 +608,7 @@ fn oren_select(cases) {
         // Green select must not block the scheduler OS thread.
         // Use the shared scheduler netpoller directly (netpoll v2).
         var green_res = _select_wait_in_green_netpoll_v2(kinds, fds, chans, vals, ncases)
+        native_gc_root_pop(root_count)
         oren_gc_pin(prev_pin)
         return green_res
     }
@@ -596,14 +622,15 @@ fn oren_select(cases) {
             var kq = sys_kqueue()
             if kq < 0 {
                 free(kinds); free(fds); free(chans); free(vals)
+                native_gc_root_pop(root_count)
                 oren_gc_pin(prev_pin)
                 return kq
             }
 
             var change = malloc(nfds * 32)
-            if change == 0 { sys_close(kq); free(kinds); free(fds); free(chans); free(vals); oren_gc_pin(prev_pin); return 0 - 12 } // ENOMEM
+            if change == 0 { sys_close(kq); free(kinds); free(fds); free(chans); free(vals); native_gc_root_pop(root_count); oren_gc_pin(prev_pin); return 0 - 12 } // ENOMEM
             var evs = malloc(nfds * 32)
-            if evs == 0 { sys_close(kq); free(change); free(kinds); free(fds); free(chans); free(vals); oren_gc_pin(prev_pin); return 0 - 12 }
+            if evs == 0 { sys_close(kq); free(change); free(kinds); free(fds); free(chans); free(vals); native_gc_root_pop(root_count); oren_gc_pin(prev_pin); return 0 - 12 }
 
             // Zero-fill change list (required for deterministic unused fields).
             var zi = 0
@@ -644,6 +671,7 @@ fn oren_select(cases) {
                 free(evs)
                 if nready < 0 {
                     free(kinds); free(fds); free(chans); free(vals)
+                    native_gc_root_pop(root_count)
                     oren_gc_pin(prev_pin)
                     return nready
                 }
@@ -656,6 +684,7 @@ fn oren_select(cases) {
             var epfd = sys_epoll_create1(0)
             if epfd < 0 {
                 free(kinds); free(fds); free(chans); free(vals)
+                native_gc_root_pop(root_count)
                 oren_gc_pin(prev_pin)
                 return epfd
             }
@@ -669,9 +698,9 @@ fn oren_select(cases) {
             var data_off2 = OREN_EPOLL_EVENT_OFF_DATA
             if data_off2 == 0 { data_off2 = 8 }
             var ev = malloc(evsz)
-            if ev == 0 { sys_close(epfd); free(kinds); free(fds); free(chans); free(vals); oren_gc_pin(prev_pin); return 0 - 12 } // ENOMEM
+            if ev == 0 { sys_close(epfd); free(kinds); free(fds); free(chans); free(vals); native_gc_root_pop(root_count); oren_gc_pin(prev_pin); return 0 - 12 } // ENOMEM
             var out = malloc(nfds2 * evsz)
-            if out == 0 { sys_close(epfd); free(ev); free(kinds); free(fds); free(chans); free(vals); oren_gc_pin(prev_pin); return 0 - 12 }
+            if out == 0 { sys_close(epfd); free(ev); free(kinds); free(fds); free(chans); free(vals); native_gc_root_pop(root_count); oren_gc_pin(prev_pin); return 0 - 12 }
 
             // Register all fds (best-effort; assumes no duplicates).
             var k = 0
@@ -691,6 +720,7 @@ fn oren_select(cases) {
                         free(ev)
                         free(out)
                         free(kinds); free(fds); free(chans); free(vals)
+                        native_gc_root_pop(root_count)
                         oren_gc_pin(prev_pin)
                         return rc
                     }
@@ -705,6 +735,7 @@ fn oren_select(cases) {
                 free(out)
                 if nready < 0 {
                     free(kinds); free(fds); free(chans); free(vals)
+                    native_gc_root_pop(root_count)
                     oren_gc_pin(prev_pin)
                     return nready
                 }
@@ -756,6 +787,7 @@ fn oren_select(cases) {
             free(fds)
             free(chans)
             free(vals)
+            native_gc_root_pop(root_count)
             oren_gc_pin(prev_pin)
             return pair
         }

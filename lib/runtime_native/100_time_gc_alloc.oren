@@ -1164,6 +1164,62 @@ fn native_gc_unregister_root(ptr) {
 // - returns previous pin value
 // - caller may restore the previous pin (stack discipline)
 var g_oren_gc_pin = 0
+// Runtime root slots (native): a small raw array of pinned values for runtime hot paths.
+// This avoids relying on register/stack discovery during conservative GC.
+var g_runtime_root_slots = 0
+var g_runtime_root_len = 0
+var g_runtime_root_cap = 0
+
+fn native_gc_root_init_min(min_cap) {
+    if g_runtime_root_cap != 0 { return 0 }
+    if min_cap < 16 { min_cap = 16 }
+    // Round up to a power of two for simplicity.
+    var cap = 1
+    while cap < min_cap { cap = cap * 2 }
+    var bytes = cap * 8
+    var buf = native_malloc_raw_or_mmap(bytes)
+    if buf == 0 { return 0 - 12 }
+    // Zero the slots for deterministic scans.
+    var i = 0
+    while i < bytes {
+        ptr_set_byte(buf + i, 0)
+        i = i + 1
+    }
+    g_runtime_root_slots = buf
+    g_runtime_root_cap = cap
+    g_runtime_root_len = 0
+    return 0
+}
+
+fn native_gc_root_push(v) {
+    if g_gc_enabled == 0 { return 0 }
+    if v == 0 { return 0 }
+    acquire_lock()
+    if g_runtime_root_cap == 0 {
+        native_gc_root_init_min(128)
+    }
+    if g_runtime_root_slots != 0 && g_runtime_root_len < g_runtime_root_cap {
+        ptr_set(g_runtime_root_slots + g_runtime_root_len * 8, v)
+        g_runtime_root_len = g_runtime_root_len + 1
+    }
+    release_lock()
+    return 0
+}
+
+fn native_gc_root_pop(n) {
+    if g_gc_enabled == 0 { return 0 }
+    if n <= 0 { return 0 }
+    acquire_lock()
+    var cur = g_runtime_root_len
+    if cur <= 0 {
+        g_runtime_root_len = 0
+    } else {
+        if n >= cur { g_runtime_root_len = 0 }
+        else { g_runtime_root_len = cur - n }
+    }
+    release_lock()
+    return 0
+}
 
 // `oren_find_node` is a hot path in native v0 because many container/string operations
 // validate pointers via tracked metadata (Tier‑1 safety).
@@ -1448,6 +1504,15 @@ fn native_gc_collect() {
     // Process-wide pin (matches C backend `gc_pin` semantics).
     if g_oren_gc_pin != 0 {
         oren_mark_value(g_oren_gc_pin)
+    }
+    // Runtime root slots (best-effort, rolling).
+    if g_runtime_root_slots != 0 && g_runtime_root_len > 0 {
+        var ri = 0
+        while ri < g_runtime_root_len {
+            var rv = ptr_get(g_runtime_root_slots + ri * 8)
+            if rv != 0 { oren_mark_value(rv) }
+            ri = ri + 1
+        }
     }
     var r = global_get_roots()
     while r != 0 {
