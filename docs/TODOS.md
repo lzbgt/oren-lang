@@ -231,6 +231,13 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    - (P1/M) **Loop_sum native still ~6.4× C**
      - Latest: native 0.4205s vs C 0.0659s (`benchmarks/results/loop_sum_darwin_arm64_20260214_165701.md`).
      - Target: native ≤0.25s (≤4× C) while keeping correctness gates.
+   - (P1/M) **Capture x64-windows benchmark baselines (pc2.work)**
+     - Blockers observed (2026-02-14):
+       - No `oren_stage2.exe` in `G:\work\compiler-mini-git` (bench harness fails to compile Oren variants).
+       - `avm.exe` build fails on MinGW: `sys/mman.h` + `clock_gettime` missing; `tools/gen_avm_root_pubkeys_inc.sh` requires MSYS `cat`.
+     - Actions:
+       - Cross-compile `oren_stage2.exe` for x64-windows on macOS and sync to pc2.work.
+       - Decide if AVM should be Windows-capable (add win32 time/mmap shims) or allow `OREN_BENCH_SKIP_OBC=1`.
 
 2) **Tier‑1 native parity: correctness across arch/OS** (L)
 

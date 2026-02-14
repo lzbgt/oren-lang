@@ -517,19 +517,19 @@ fn oren_register_thread(top) {
 					                    if g_runtime_single_threaded == 0 { release_lock() }
 					                    // Reuse existing node (dedupe per OS tid).
 					                    //
-					                    // If the node was previously marked dead (thread exited), revive it.
-					                    // We also clear the parked bit and refresh `top` to the current SP
-					                    // so GC scanning never relies on a stale stack range.
-					                    var THREAD_NODE_FLAG_STW_PARKED = 2
-					                    var THREAD_NODE_FLAG_DEAD = 4
-					                    if (flags0 & (THREAD_NODE_FLAG_STW_PARKED | THREAD_NODE_FLAG_DEAD)) != 0 {
-					                        ptr_set(iadd(cur0, 48), flags0 & -3 & -5)
-					                        ptr_set(cur0, top)
-					                        ptr_set(iadd(cur0, 8), 0) // saved_sp
-					                        ptr_set(iadd(cur0, 72), 0) // sched_saved_sp
-					                        ptr_set(iadd(cur0, 80), 0) // stw_saved_sp
-					                        ptr_set(iadd(cur0, 88), 0) // stack_size
-					                    }
+                    // If the node was previously marked dead (thread exited), revive it.
+                    // NOTE: do NOT clear saved_sp for STW_PARKED live threads; that can
+                    // race with GC parking via green-aware `oren_wait_on_addr`.
+                    var THREAD_NODE_FLAG_STW_PARKED = 2
+                    var THREAD_NODE_FLAG_DEAD = 4
+                    if (flags0 & THREAD_NODE_FLAG_DEAD) != 0 {
+                        ptr_set(iadd(cur0, 48), flags0 & -3 & -5)
+                        ptr_set(cur0, top)
+                        ptr_set(iadd(cur0, 8), 0) // saved_sp
+                        ptr_set(iadd(cur0, 72), 0) // sched_saved_sp
+                        ptr_set(iadd(cur0, 80), 0) // stw_saved_sp
+                        ptr_set(iadd(cur0, 88), 0) // stack_size
+                    }
 								                    // Keep existing top for live threads (do not shrink scan window).
 								                    // If we have a better OS-provided top, update it (grow-only).
 								                    var old_top = ptr_get(cur0)
