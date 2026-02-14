@@ -1,0 +1,15 @@
+fn main() {
+    var n = 20000000
+    var mod = 1000000007
+    var x = 1
+    var sum = 0
+    var i = 0
+    while i < n {
+        x = (x * 1664525 + 1013904223) % mod
+        sum = (sum + (x % 1000) + (i % 7)) % mod
+        i = i + 1
+    }
+
+    print(sum)
+    return 0
+}
