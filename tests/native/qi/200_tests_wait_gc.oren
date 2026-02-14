@@ -216,7 +216,8 @@ fn test_green_sp_alignment_x64() {
         trace("QI: test_green_sp_alignment_x64")
         var h = spawn worker_green_sp_align_mod16()
         var got = oren_join(h)
-        if got != 8 {
+        // The x64 prologue pushes RBP, so RSP should be 16B-aligned in the function body.
+        if got != 0 {
             print("QI: green sp alignment mismatch mod16=" + oren_int_to_string(got))
             fail(588)
         }
@@ -923,4 +924,3 @@ fn worker_green_seed_multi_p_local_queue() {
 
     return 0
 }
-

@@ -22,6 +22,7 @@
 
 import rtinj "native_runtime_inject.oren"
 import astbin "astbin.oren"
+import bytes "bytes_builder.oren"
 
 // Schema version for on-disk runtime object cache format.
 //
@@ -33,6 +34,14 @@ import astbin "astbin.oren"
 // Schema v2 switches the cache key input to a fast 63-bit FNV-1a-style fingerprint (two lanes)
 // so repeated builds can find cached runtime objects without spending seconds hashing the runtime.
 var RUNTIME_OBJ_SCHEMA = 2
+// Container version for rtobj meta checksum sidecar.
+// Used to avoid fatal astbin decode on corrupted/partial meta files.
+var RUNTIME_OBJ_META_CHECK_VERSION = 1
+var RUNTIME_OBJ_META_CHECK_MAGIC0 = 82 // 'R'
+var RUNTIME_OBJ_META_CHECK_MAGIC1 = 84 // 'T'
+var RUNTIME_OBJ_META_CHECK_MAGIC2 = 77 // 'M'
+var RUNTIME_OBJ_META_CHECK_MAGIC3 = 67 // 'C'
+var RUNTIME_OBJ_META_CHECK_LEN = 20
 // Native entry stub `.data` prefix (must be identical across:
 // - main program compilation
 // - runtime object compilation
@@ -241,6 +250,32 @@ fn _rtobj_dbg_val_to_string(v) {
         return "false"
     }
     return "<tag=" + oren_int_to_string(tt) + ">"
+}
+
+fn _rtobj_u8_at(ub, idx) {
+    if ub == nil { return -1 }
+    if oren_is_u8_buf(ub) != true { return -1 }
+    var n = oren_buf_len(ub)
+    if idx < 0 || idx >= n { return -1 }
+    var p = oren_buf_data_ptr_unchecked(ub)
+    if p == 0 { return -1 }
+    return ptr_get_byte(iadd(p, idx)) & 255
+}
+
+fn _rtobj_read_u32_le(ub, off) {
+    var b0 = _rtobj_u8_at(ub, off + 0); if b0 < 0 { return -1 }
+    var b1 = _rtobj_u8_at(ub, off + 1); if b1 < 0 { return -1 }
+    var b2 = _rtobj_u8_at(ub, off + 2); if b2 < 0 { return -1 }
+    var b3 = _rtobj_u8_at(ub, off + 3); if b3 < 0 { return -1 }
+    return b0 + b1 * 256 + b2 * 65536 + b3 * 16777216
+}
+
+fn _rtobj_read_u64_le(ub, off) {
+    var lo = _rtobj_read_u32_le(ub, off)
+    if lo < 0 { return -1 }
+    var hi = _rtobj_read_u32_le(ub, off + 4)
+    if hi < 0 { return -1 }
+    return lo + hi * 4294967296
 }
 
 fn _rtobj_meta_trace_sample(meta) {
@@ -499,6 +534,25 @@ fn _fnv1a63_string(s, basis) {
     return h
 }
 
+fn _fnv1a63_u8_buf(ub, basis) {
+    if ub == nil { return 0 }
+    if oren_is_u8_buf(ub) != true { return 0 }
+    var h = _mask63(basis)
+    var prime = 1099511628211
+    var n = oren_buf_len(ub)
+    if n <= 0 { return h }
+    var p = oren_buf_data_ptr_unchecked(ub)
+    if p == 0 { return h }
+    var i = 0
+    while i < n {
+        var b = ptr_get_byte(iadd(p, i)) & 255
+        h = _mask63(h ^ b)
+        h = _mask63(h * prime)
+        i = i + 1
+    }
+    return h
+}
+
 fn _fnv1a63_update_string(s, h0) {
     // Continue a 63-bit FNV-1a-style fingerprint from an existing state.
     if s == nil { return _mask63(h0) }
@@ -683,9 +737,97 @@ fn rtobj_paths(cache_dir, key) {
     return {
         "dir": dir,
         "meta": dir + "/meta.astbin",
+        "meta_check": dir + "/meta.check",
         "code": dir + "/code.u8",
         "data_tail": dir + "/data_tail.u8"
     }
+}
+
+fn _rtobj_meta_check_build(meta_bs) {
+    if meta_bs == nil { return nil }
+    if oren_is_u8_buf(meta_bs) != true { return nil }
+    var n = oren_buf_len(meta_bs)
+    if n <= 0 { return nil }
+    var b = bytes.bytes_new()
+    bytes.bytes_push(b, RUNTIME_OBJ_META_CHECK_MAGIC0)
+    bytes.bytes_push(b, RUNTIME_OBJ_META_CHECK_MAGIC1)
+    bytes.bytes_push(b, RUNTIME_OBJ_META_CHECK_MAGIC2)
+    bytes.bytes_push(b, RUNTIME_OBJ_META_CHECK_MAGIC3)
+    bytes.bytes_push_u32_le(b, RUNTIME_OBJ_META_CHECK_VERSION)
+    bytes.bytes_push_u32_le(b, n)
+    var h = _fnv1a63_u8_buf(meta_bs, 1469598103934665603)
+    bytes.bytes_push_u64_le(b, h)
+    return bytes.bytes_finalize(b)
+}
+
+fn _rtobj_meta_check_verify(meta_bs, check_bs, trace, tag) {
+    if meta_bs == nil || check_bs == nil {
+        if trace { print("[rtobj] " + tag + " miss: meta check missing") }
+        return false
+    }
+    if oren_is_u8_buf(meta_bs) != true || oren_is_u8_buf(check_bs) != true {
+        if trace { print("[rtobj] " + tag + " miss: meta check type mismatch") }
+        return false
+    }
+    if oren_buf_len(check_bs) != RUNTIME_OBJ_META_CHECK_LEN {
+        if trace {
+            print("[rtobj] " + tag + " miss: meta check len=" + oren_int_to_string(oren_buf_len(check_bs)) +
+                  " want=" + oren_int_to_string(RUNTIME_OBJ_META_CHECK_LEN))
+        }
+        return false
+    }
+    if _rtobj_u8_at(check_bs, 0) != RUNTIME_OBJ_META_CHECK_MAGIC0 ||
+       _rtobj_u8_at(check_bs, 1) != RUNTIME_OBJ_META_CHECK_MAGIC1 ||
+       _rtobj_u8_at(check_bs, 2) != RUNTIME_OBJ_META_CHECK_MAGIC2 ||
+       _rtobj_u8_at(check_bs, 3) != RUNTIME_OBJ_META_CHECK_MAGIC3 {
+        if trace { print("[rtobj] " + tag + " miss: meta check magic mismatch") }
+        return false
+    }
+    var ver = _rtobj_read_u32_le(check_bs, 4)
+    if ver != RUNTIME_OBJ_META_CHECK_VERSION {
+        if trace {
+            print("[rtobj] " + tag + " miss: meta check version=" + _rtobj_dbg_val_to_string(ver) +
+                  " want=" + oren_int_to_string(RUNTIME_OBJ_META_CHECK_VERSION))
+        }
+        return false
+    }
+    var want_len = _rtobj_read_u32_le(check_bs, 8)
+    if want_len <= 0 || want_len != oren_buf_len(meta_bs) {
+        if trace {
+            print("[rtobj] " + tag + " miss: meta check len mismatch want=" + _rtobj_dbg_val_to_string(want_len) +
+                  " have=" + oren_int_to_string(oren_buf_len(meta_bs)))
+        }
+        return false
+    }
+    var want_hash = _rtobj_read_u64_le(check_bs, 12)
+    if want_hash < 0 {
+        if trace { print("[rtobj] " + tag + " miss: meta check hash invalid") }
+        return false
+    }
+    var got_hash = _fnv1a63_u8_buf(meta_bs, 1469598103934665603)
+    if want_hash != got_hash {
+        if trace {
+            print("[rtobj] " + tag + " miss: meta check hash mismatch want=" + _rtobj_dbg_val_to_string(want_hash) +
+                  " have=" + _rtobj_dbg_val_to_string(got_hash))
+        }
+        return false
+    }
+    return true
+}
+
+fn _rtobj_write_atomic(path, bytes_u8) {
+    if path == nil || path == "" { return nil }
+    if bytes_u8 == nil { return nil }
+    var tmp = path + ".tmp." + oren_int_to_string(oren_time_now_ns())
+    var w = oren_write_bytes(tmp, bytes_u8)
+    if oren_is_err(w) { return nil }
+    var rr = oren_rename(tmp, path)
+    if rr != 0 {
+        // Fallback: direct write if rename fails on this platform.
+        var w2 = oren_write_bytes(path, bytes_u8)
+        if oren_is_err(w2) { return nil }
+    }
+    return nil
 }
 
 fn rtobj_try_load_seed_into_cache(cache_dir, key) {
@@ -704,6 +846,9 @@ fn rtobj_try_load_seed_into_cache(cache_dir, key) {
     var src = rtobj_paths(seed_dir, key)
     var meta_bs = oren_read_u8_buf(src["meta"])
     if oren_is_err(meta_bs) { return nil }
+    var meta_check = oren_read_u8_buf(src["meta_check"])
+    if oren_is_err(meta_check) { return nil }
+    if _rtobj_meta_check_verify(meta_bs, meta_check, trace, "seed") != true { return nil }
     var code = oren_read_u8_buf(src["code"])
     if oren_is_err(code) { return nil }
     var data_tail = oren_read_u8_buf(src["data_tail"])
@@ -729,9 +874,10 @@ fn rtobj_try_load_seed_into_cache(cache_dir, key) {
         _ensure_dir(dst["dir"])
         // Copy raw bytes (avoid any re-encode cost on first-run seeding).
         // If the meta is missing newer key fields, `rtobj_load` will migrate them in-memory.
-        oren_write_bytes(dst["meta"], meta_bs)
-        oren_write_bytes(dst["code"], code)
-        oren_write_bytes(dst["data_tail"], data_tail)
+        _rtobj_write_atomic(dst["meta"], meta_bs)
+        _rtobj_write_atomic(dst["meta_check"], meta_check)
+        _rtobj_write_atomic(dst["code"], code)
+        _rtobj_write_atomic(dst["data_tail"], data_tail)
         if trace { print("[rtobj] seed-copied to cache dir=" + cache_dir) }
     }
 
@@ -750,6 +896,12 @@ fn rtobj_load(cache_dir, key) {
         print("[rtobj] load meta bytes done +" + oren_int_to_string(dt0 / 1000000) + "ms")
         t0 = oren_time_now_ns()
     }
+    var meta_check = oren_read_u8_buf(paths["meta_check"])
+    if oren_is_err(meta_check) {
+        if trace { print("[rtobj] load miss: meta check missing") }
+        return nil
+    }
+    if _rtobj_meta_check_verify(meta_bs, meta_check, trace, "load") != true { return nil }
     var meta = astbin.astbin_decode(meta_bs)
     if meta == nil { return nil }
     if meta["schema"] == nil {
@@ -824,24 +976,27 @@ fn rtobj_store(cache_dir, key, meta, code_u8, data_tail_u8) {
     }
     var meta_bs = astbin.astbin_encode(meta)
     if meta_bs == nil { return nil }
+    var meta_check = _rtobj_meta_check_build(meta_bs)
+    if meta_check == nil { return nil }
     if trace {
         var dt1 = oren_time_now_ns() - t0
         print("[rtobj] store meta encode done +" + oren_int_to_string(dt1 / 1000000) + "ms bytes=" + oren_int_to_string(oren_buf_len(meta_bs)))
         t0 = oren_time_now_ns()
     }
-    oren_write_bytes(paths["meta"], meta_bs)
+    _rtobj_write_atomic(paths["meta"], meta_bs)
     if trace {
         var dt2 = oren_time_now_ns() - t0
         print("[rtobj] store meta write done +" + oren_int_to_string(dt2 / 1000000) + "ms")
         t0 = oren_time_now_ns()
     }
-    oren_write_bytes(paths["code"], code_u8)
+    _rtobj_write_atomic(paths["meta_check"], meta_check)
+    _rtobj_write_atomic(paths["code"], code_u8)
     if trace {
         var dt3 = oren_time_now_ns() - t0
         print("[rtobj] store code write done +" + oren_int_to_string(dt3 / 1000000) + "ms bytes=" + oren_int_to_string(oren_buf_len(code_u8)))
         t0 = oren_time_now_ns()
     }
-    oren_write_bytes(paths["data_tail"], data_tail_u8)
+    _rtobj_write_atomic(paths["data_tail"], data_tail_u8)
     if trace {
         var dt4 = oren_time_now_ns() - t0
         print("[rtobj] store data write done +" + oren_int_to_string(dt4 / 1000000) + "ms bytes=" + oren_int_to_string(oren_buf_len(data_tail_u8)))

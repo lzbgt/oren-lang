@@ -99,9 +99,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		     - Direction: provide a small syscall-first filesystem helper surface usable by both native and C backend runtimes (avoid `oren_system("mkdir -p ...")` for core operations).
 		     - Keep it bounded: implement only what the compiler needs (mkdir -p, rm -f, rm -rf, exists, rename).
 
-	   Status (fact):
+		   Status (fact):
 
-			   - 2026-01-12: eliminated compiler dependency on shell `mkdir` for core tooling by adding `oren_mkdir_p`:
+				   - 2026-01-12: eliminated compiler dependency on shell `mkdir` for core tooling by adding `oren_mkdir_p`:
 			     - C backend runtime: `lib/runtime/050_io_misc.inc` (`oren_mkdir_p` returns 0 / -errno)
 			     - native runtime: `lib/runtime_native/230_binary_io.oren` (`oren_mkdir_p` implemented via `sys_mkdir` + `sys_stat` dir check)
 			     - compiler tooling: `ensure_dir(...)` now calls `oren_mkdir_p` (no `oren_system("mkdir ...")`)
@@ -120,8 +120,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				     - Wired into default `make test` (native quick integration smoke).
 			   - 2026-01-12: verified x64 native selfhost compile-only gate still passes after the runtime FS-helper refactor:
 			     - `make verify-native-x64-selfhost-compile` (targets: x64-linux, x64-windows)
-			   - 2026-01-12: `scripts/verify_native_x64_compile_only.sh` now pre-seeds native runtime ASTBIN + rtobj (core+full) before running tight per-build timeouts, so the “cold after runtime change” case stays bounded.
-				   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
+				   - 2026-01-12: `scripts/verify_native_x64_compile_only.sh` now pre-seeds native runtime ASTBIN + rtobj (core+full) before running tight per-build timeouts, so the “cold after runtime change” case stays bounded.
+				   - 2026-02-14: hardened rtobj meta loading against corruption:
+				     - Added a small `meta.check` sidecar (magic/version/len/fingerprint) and atomic writes, so corrupted or partial `meta.astbin` files become cache misses instead of fatal astbin decode exits.
+				     - Seed bundles now copy `meta.check` alongside meta/code/data; missing/invalid check files are treated as misses (old caches rebuild on first use).
+					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
 				     - Guard: `make verify-native-x64-compile` (`scripts/verify_native_x64_compile_only.sh` sets `OREN_PARSE_FORK_PARALLEL=1`).
