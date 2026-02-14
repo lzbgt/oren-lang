@@ -182,6 +182,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				         - `native_list_len_panic` emits list header diagnostics; arm64 list_len intrinsic routes failures through it.
 				       - 2026-02-14: select GC rooting hardening:
 				         - `oren_select` now allocates `chans`/`vals` arrays with `malloc_k(..., kind=STRUCT)` so GC conservatively scans channel/value pointers.
+				         - `oren_select` pins `cases`/`chans`/`vals` via `oren_gc_pin` to keep them visible across safepoints.
+				         - `_select_wait_in_green_netpoll_v2` pins `wait_roots` + `chans` + `vals` for netpoll tokens.
+				         - `_select_wait_windows_mem_channels` now uses `malloc_k(..., kind=STRUCT)` for chans/vals and pins `cases`/`chans`/`vals`.
 				       - 2026-02-14: native `oren_gc_pin` fixed to match C backend semantics:
 				         - No longer registers a root slot (which incorrectly dereferenced the pinned object).
 				         - GC now marks the pinned value directly during the root phase.
