@@ -153,8 +153,12 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					     - Result artifact: `benchmarks/results/loop_sum_m2_20260214_133422.md`
 					   - 2026-02-14: loop_sum refresh (M2 Pro, 20M iters; host-tagged runner): C 0.0694s, Oren C 1.2289s (~17.7×), Oren native 0.3880s (~5.6×), OBC 6.0913s (~87.8×)
 					     - Result artifact: `benchmarks/results/loop_sum_darwin_arm64_20260214_143629.md`
-					   - 2026-02-14: alloc_churn refresh (M2 Pro, runs=5, warmup=1): C 0.00275s, Oren C 0.1182s, Oren native 1.2805s, OBC 0.4110s
-					     - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_133613.md`
+						   - 2026-02-14: alloc_churn refresh (M2 Pro, runs=5, warmup=1): C 0.00275s, Oren C 0.1182s, Oren native 1.2805s, OBC 0.4110s
+						     - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_133613.md`
+						   - 2026-02-14: loop_sum refresh (M2 Pro, runs=5, warmup=1): C 0.0659s, Oren C 1.1754s (~17.8×), Oren native 0.4205s (~6.4×), OBC 5.7436s (~87.2×)
+						     - Result artifact: `benchmarks/results/loop_sum_darwin_arm64_20260214_165701.md`
+						   - 2026-02-14: alloc_churn refresh (M2 Pro, runs=5, warmup=1): C 0.00289s, Oren C 0.1078s, Oren native 0.5712s, OBC 0.3880s
+						     - Result artifact: `benchmarks/results/alloc_churn_darwin_arm64_20260214_165758.md`
 					   - 2026-02-14: native '+' int fast-path (arm64) using inty propagation:
 					     - Avoids `oren_add` when both operands are known integer-like (keeps runtime helper for strings/unknown).
 					     - Compiler: `lib/compiler/arm64_native_expr/010_lowering_a.oren` + inty tracking in `arm64_native_stmt.oren`
@@ -217,6 +221,16 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
        - link (parse+passes) ~103s (`link_ms=102635`)
        - x64 emit+link ~78s (`emit_ms=77747`)
      - This keeps `scripts/verify_native_x64_selfhost_compile_only.sh` under the default 240s timeout (it now defaults to `oren_x64.oren`; override via `OREN_SELFHOST_SRC=oren.oren`).
+
+   Perf gaps from latest M2 benchmarks (2026-02-14, host-tagged results):
+
+   - (P0/M) **Native alloc_churn is still slower than OBC and far behind Oren C**
+     - Latest (runs=5): native 0.571s vs OBC 0.388s vs Oren C 0.108s (`benchmarks/results/alloc_churn_darwin_arm64_20260214_165758.md`).
+     - Target: native ≤0.20s on M2 for alloc_churn without increasing RSS.
+     - Likely work: harden free-block reuse (`OREN_GC_REUSE_BLOCKS=1`), reduce per-alloc tracking overhead, add a bump allocator for short-lived struct-heavy loops, verify GC root coverage at safepoints.
+   - (P1/M) **Loop_sum native still ~6.4× C**
+     - Latest: native 0.4205s vs C 0.0659s (`benchmarks/results/loop_sum_darwin_arm64_20260214_165701.md`).
+     - Target: native ≤0.25s (≤4× C) while keeping correctness gates.
 
 2) **Tier‑1 native parity: correctness across arch/OS** (L)
 

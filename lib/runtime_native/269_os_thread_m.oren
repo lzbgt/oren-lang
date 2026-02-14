@@ -108,7 +108,16 @@ fn __oren_os_thread_entry_raw(handle) {
     if handle == 0 { return 0 }
     var no_reg = native_envp_get_value_ptr("OREN_NO_THREAD_REGISTER")
     if no_reg == 0 || ptr_get_byte(no_reg) == 0 {
-        oren_register_thread(get_sp())
+        var stack_top = 0
+        if g_target_os == 2 {
+            var stack_base = ptr_get(handle + _m_handle_stack_base_off())
+            var stack_bytes = ptr_get(handle + _m_handle_stack_bytes_off())
+            if stack_base != 0 && stack_bytes > 0 {
+                stack_top = stack_base + stack_bytes
+            }
+        }
+        if stack_top == 0 { stack_top = get_sp() }
+        oren_register_thread(stack_top)
     }
 
     var start_addr = ptr_get(handle + _m_handle_start_addr_off())

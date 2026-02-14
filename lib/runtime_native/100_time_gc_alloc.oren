@@ -256,6 +256,14 @@ fn native_alloc_index_get(ptr) {
                 idx = iadd(idx, 1) & mask
                 continue
             }
+            // Skip freed nodes that might still be in the index (reuse mode).
+            // Node flags: -1 = marked, 0 = live/unmarked, 1 = freed.
+            if ptr_get(iadd(slot, 24)) - 1 == 0 {
+                ptr_set(iadd(g_alloc_index_ptr, idx << 3), g_alloc_index_tomb)
+                if g_alloc_index_len > 0 { g_alloc_index_len = g_alloc_index_len - 1 }
+                idx = iadd(idx, 1) & mask
+                continue
+            }
             // Pointer equality without `==` (avoid string-aware compare recursion).
             if ptr_get(slot) - ptr == 0 { return slot }
         }
@@ -587,15 +595,43 @@ fn oren_init_static_cstr0_table(table_ptr) {
 
 fn native_gc_scan_stack() {
     if g_gc_enabled == 0 { return 0 }
+    var trace = native_envp_get_value_ptr("OREN_TRACE_GC_STACK")
+    var trace_on = 0
+    if trace != 0 && ptr_get_byte(trace) != 0 { trace_on = 1 }
     var sp = get_sp()
     var cur_tid = sys_gettid()
     var THREAD_NODE_FLAG_OS_THREAD = 1
+    var THREAD_NODE_FLAG_STW_PARKED = 2
     var cur = global_get_threads()
     
     while cur != 0 {
         var top = ptr_get(cur)
-        var saved = ptr_get(iadd(cur, 8))
         var flags = ptr_get(iadd(cur, 48))
+        // Atomic read (best-effort) for saved_sp visibility.
+        var saved_ptr = iadd(cur, 8)
+        var saved = 0
+        var sched_saved = 0
+        var backup_saved = 0
+        var stack_size = 0
+        if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+            saved_ptr = iadd(cur, 80) // stw_saved_sp
+            sched_saved = ptr_get(iadd(cur, 72))
+            backup_saved = ptr_get(iadd(cur, 8))
+            stack_size = ptr_get(iadd(cur, 88))
+        }
+        saved = ptr_get(saved_ptr)
+        if (flags & THREAD_NODE_FLAG_STW_PARKED) != 0 && saved == 0 {
+            // Best-effort: wait briefly for saved_sp visibility (weak ordering / late park).
+            var tries = 0
+            while tries < 10 && saved == 0 {
+                oren_wait_on_addr(saved_ptr, 0, 1000)
+                saved = ptr_get(saved_ptr)
+                if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+                    backup_saved = ptr_get(iadd(cur, 8))
+                }
+                tries = tries + 1
+            }
+        }
         var start = 0
         var max_scan = 8388608 // 8MB safety cap (rolling; avoids scanning bogus ranges)
         
@@ -634,6 +670,17 @@ fn native_gc_scan_stack() {
                     start = saved
                 }
             }
+            if start == 0 && sched_saved != 0 {
+                if sched_saved < top { start = sched_saved }
+            }
+            if start == 0 && backup_saved != 0 {
+                if backup_saved < top { start = backup_saved }
+            }
+            if start == 0 && stack_size > 0 {
+                var scan_sz = stack_size
+                if scan_sz > max_scan { scan_sz = max_scan }
+                if top > scan_sz { start = top - scan_sz }
+            }
         }
         
         if start != 0 {
@@ -649,12 +696,42 @@ fn native_gc_scan_stack() {
                 } else {
                     end = start
                 }
+                if trace_on != 0 {
+                    var node_tid = 0
+                    if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 { node_tid = ptr_get(iadd(cur, 56)) }
+                    print("trace: gc_stack node=" + oren_int_to_string(cur) +
+                          " top=" + oren_int_to_string(top) +
+                          " saved=" + oren_int_to_string(saved) +
+                          " sched=" + oren_int_to_string(sched_saved) +
+                          " backup=" + oren_int_to_string(backup_saved) +
+                          " stack_size=" + oren_int_to_string(stack_size) +
+                          " flags=" + oren_int_to_string(flags) +
+                          " start=" + oren_int_to_string(start) +
+                          " end=" + oren_int_to_string(end) +
+                          " cur_tid=" + oren_int_to_string(cur_tid) +
+                          " node_tid=" + oren_int_to_string(node_tid))
+                }
 
                 while start < end {
                     var val = ptr_get(start)
                     oren_mark_value(val)
                     start = iadd(start, 8)
                 }
+            }
+        } else {
+            if trace_on != 0 {
+                var node_tid0 = 0
+                if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 { node_tid0 = ptr_get(iadd(cur, 56)) }
+                print("trace: gc_stack skip node=" + oren_int_to_string(cur) +
+                      " top=" + oren_int_to_string(top) +
+                      " saved=" + oren_int_to_string(saved) +
+                      " sched=" + oren_int_to_string(sched_saved) +
+                      " backup=" + oren_int_to_string(backup_saved) +
+                      " stack_size=" + oren_int_to_string(stack_size) +
+                      " flags=" + oren_int_to_string(flags) +
+                      " sp=" + oren_int_to_string(sp) +
+                      " cur_tid=" + oren_int_to_string(cur_tid) +
+                      " node_tid=" + oren_int_to_string(node_tid0))
             }
         }
         
@@ -1577,6 +1654,8 @@ fn native_gc_collect() {
                 ptr_set(iadd(cur_sweep, 32), global_get_free_nodes())
                 global_set_free_nodes(cur_sweep)
             } else {
+                // Mark node as freed so stale index entries can't resurrect it.
+                ptr_set(iadd(cur_sweep, 24), 1)
                 ptr_set(iadd(cur_sweep, 32), global_get_free_blocks())
                 global_set_free_blocks(cur_sweep)
             }

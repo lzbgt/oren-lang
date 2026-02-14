@@ -37,8 +37,17 @@ fn native_atomic_inc_u64(word_ptr) {
     return 0
 }
 
+fn native_atomic_load_u64(word_ptr) {
+    if word_ptr == 0 { return 0 }
+    // Best-effort atomic load (CAS 0->0).
+    return atomic_cas(word_ptr, 0, 0)
+}
+
 fn native_gc_stw_begin() {
     if oren_globals() == 0 { return 0 }
+    var trace = native_envp_get_value_ptr("OREN_TRACE_GC_STW")
+    var trace_on = 0
+    if trace != 0 && ptr_get_byte(trace) != 0 { trace_on = 1 }
     var stw_ptr = native_gc_stw_state_ptr()
     var parked_ptr = native_gc_stw_parked_ptr()
     var owner_ptr = native_gc_stw_owner_ptr()
@@ -95,12 +104,58 @@ fn native_gc_stw_begin() {
     //
     // Instead, count only OS-thread nodes that are not marked DEAD, and exclude the collector itself.
     var expected = native_gc_stw_expected_parked_count(owner_node)
+    if trace_on != 0 {
+        print("trace: gc_stw_begin owner=" + oren_int_to_string(owner_node) +
+              " expected=" + oren_int_to_string(expected))
+    }
 
     while expected > 0 {
-        var cur = ptr_get(parked_ptr)
+        var cur = native_atomic_load_u64(parked_ptr)
         if cur >= expected { break }
         // Wait until parked count changes (threads wake us when they park).
         oren_wait_on_addr(parked_ptr, cur, 1000000)
+    }
+
+    // Ensure parked threads have published saved_sp before GC scans stacks.
+    if expected > 0 {
+        var THREAD_NODE_FLAG_OS_THREAD = 1
+        var THREAD_NODE_FLAG_DEAD = 4
+        var cur2 = global_get_threads()
+        while cur2 != 0 {
+            var flags2 = ptr_get(iadd(cur2, 48))
+            if (flags2 & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+                if (flags2 & THREAD_NODE_FLAG_DEAD) == 0 {
+                    if owner_node == 0 || cur2 - owner_node != 0 {
+                        var saved_ptr = iadd(cur2, 80)
+                        var saved = ptr_get(saved_ptr)
+                        var sched_saved = ptr_get(iadd(cur2, 72))
+                        var backup_saved = ptr_get(iadd(cur2, 8))
+                        var stack_size = ptr_get(iadd(cur2, 88))
+                        var ready = 0
+                        if saved != 0 || sched_saved != 0 || backup_saved != 0 || stack_size != 0 { ready = 1 }
+                        var tries = 0
+                        while ready == 0 && tries < 200 {
+                            oren_wait_on_addr(saved_ptr, 0, 1000)
+                            saved = ptr_get(saved_ptr)
+                            sched_saved = ptr_get(iadd(cur2, 72))
+                            backup_saved = ptr_get(iadd(cur2, 8))
+                            stack_size = ptr_get(iadd(cur2, 88))
+                            if saved != 0 || sched_saved != 0 || backup_saved != 0 || stack_size != 0 { ready = 1 }
+                            tries = tries + 1
+                        }
+                        if trace_on != 0 && ready == 0 {
+                            var node_tid0 = ptr_get(iadd(cur2, 56))
+                            print("trace: gc_stw_saved_timeout node=" + oren_int_to_string(cur2) +
+                                  " tid=" + oren_int_to_string(node_tid0) +
+                                  " sched=" + oren_int_to_string(sched_saved) +
+                                  " backup=" + oren_int_to_string(backup_saved) +
+                                  " stack_size=" + oren_int_to_string(stack_size))
+                        }
+                    }
+                }
+            }
+            cur2 = ptr_get(iadd(cur2, 16))
+        }
     }
     return 0
 }
@@ -148,6 +203,9 @@ fn native_gc_stw_end() {
 
 fn native_gc_stw_poll_and_park() {
     if oren_globals() == 0 { return 0 }
+    var trace = native_envp_get_value_ptr("OREN_TRACE_GC_STW")
+    var trace_on = 0
+    if trace != 0 && ptr_get_byte(trace) != 0 { trace_on = 1 }
     var stw_ptr = native_gc_stw_state_ptr()
     if stw_ptr == 0 { return 0 }
 
@@ -164,7 +222,21 @@ fn native_gc_stw_poll_and_park() {
 
     // Now s==1: park at safepoint.
     var node = native_time_current_thread_node_or0()
-    if node == 0 { return 0 }
+    if node == 0 {
+        if trace_on != 0 { print("trace: gc_stw_poll node=0 tid=" + oren_int_to_string(sys_gettid())) }
+        return 0
+    }
+    // Determine which stack node should receive the saved_sp.
+    // Prefer the current green stack (if any), otherwise use the OS-thread stack node.
+    var saved_node = node
+    var ts = ptr_get(node + green_thread_node_off_green_state())
+    if ts != 0 && ts != -1 && ts >= 4096 {
+        var g = ptr_get(ts + green_t_off_current_g())
+        if g != 0 && g != -1 && g >= 4096 {
+            var g_node = ptr_get(g + green_g_off_stack_node())
+            if g_node != 0 && g_node != -1 && g_node >= 4096 { saved_node = g_node }
+        }
+    }
 
     // Collector thread does not park.
     var owner_ptr = native_gc_stw_owner_ptr()
@@ -176,19 +248,53 @@ fn native_gc_stw_poll_and_park() {
     }
 
     // Set saved_sp so GC can scan this non-current thread.
-    ptr_set(iadd(node, 8), get_sp())
+    // Use an atomic CAS loop to ensure visibility before the parked-count increment.
+    var sp_now = get_sp()
+    var THREAD_NODE_FLAG_OS_THREAD = 1
+    var saved_ptr = iadd(saved_node, 8)
+    var saved_flags = ptr_get(iadd(saved_node, 48))
+    if (saved_flags & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+        saved_ptr = iadd(saved_node, 80)
+    }
+    while true {
+        var old_sp = ptr_get(saved_ptr)
+        if atomic_cas(saved_ptr, old_sp, sp_now) == old_sp { break }
+    }
+    // Backup to legacy saved_sp slot for OS-thread nodes (rolling robustness).
+    if saved_node - node == 0 && (saved_flags & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+        var backup_ptr = iadd(node, 8)
+        while true {
+            var old_backup = ptr_get(backup_ptr)
+            if atomic_cas(backup_ptr, old_backup, sp_now) == old_backup { break }
+        }
+    }
+    // Wake any collector waiting for saved_sp visibility.
+    oren_wake_all_addr(saved_ptr)
+    if trace_on != 0 {
+        var node_tid = ptr_get(iadd(node, 56))
+        var saved_off = saved_ptr - saved_node
+        print("trace: gc_stw_park node=" + oren_int_to_string(node) +
+              " tid=" + oren_int_to_string(node_tid) +
+              " saved=" + oren_int_to_string(ptr_get(saved_ptr)) +
+              " saved_node=" + oren_int_to_string(saved_node) +
+              " saved_off=" + oren_int_to_string(saved_off) +
+              " saved_flags=" + oren_int_to_string(saved_flags))
+    }
 
     // Mark this thread node as parked (bit1 in flags) and bump parked count once.
     var flags_ptr = iadd(node, 48)
-    var f = ptr_get(flags_ptr)
     var THREAD_NODE_FLAG_STW_PARKED = 2
-    if (f & THREAD_NODE_FLAG_STW_PARKED) == 0 {
-        ptr_set(flags_ptr, f | THREAD_NODE_FLAG_STW_PARKED)
-        var parked_ptr = native_gc_stw_parked_ptr()
-        if parked_ptr != 0 {
-            native_atomic_inc_u64(parked_ptr)
-            // Wake the collector waiting on parked-count changes.
-            oren_wake_all_addr(parked_ptr)
+    while true {
+        var f = ptr_get(flags_ptr)
+        if (f & THREAD_NODE_FLAG_STW_PARKED) != 0 { break }
+        if atomic_cas(flags_ptr, f, f | THREAD_NODE_FLAG_STW_PARKED) == f {
+            var parked_ptr = native_gc_stw_parked_ptr()
+            if parked_ptr != 0 {
+                native_atomic_inc_u64(parked_ptr)
+                // Wake the collector waiting on parked-count changes.
+                oren_wake_all_addr(parked_ptr)
+            }
+            break
         }
     }
 
@@ -197,8 +303,14 @@ fn native_gc_stw_poll_and_park() {
         oren_wait_on_addr(stw_ptr, 1, 1000000)
     }
 
-    // Clear saved_sp and parked flag on resume.
-    ptr_set(iadd(node, 8), 0)
-    ptr_set(flags_ptr, ptr_get(flags_ptr) & -3)
+    // Clear saved_sp and parked flag on resume (atomic best-effort).
+    while true {
+        var old_saved = ptr_get(saved_ptr)
+        if atomic_cas(saved_ptr, old_saved, 0) == old_saved { break }
+    }
+    while true {
+        var f0 = ptr_get(flags_ptr)
+        if atomic_cas(flags_ptr, f0, f0 & -3) == f0 { break }
+    }
     return 0
 }

@@ -80,7 +80,75 @@ fn native_list_len_panic(list, stage) {
               " cap=" + oren_int_to_string(ptr_get(iadd(list, 8))) +
               " buf=" + oren_int_to_string(ptr_get(iadd(list, 16))))
     }
+    if stage == 3 {
+        native_list_debug_node(list)
+    }
     oren_panic("list_len on non-list")
+    return 0
+}
+
+fn native_list_debug_node(list) {
+    if list == 0 || list < 4096 { return 0 }
+    var node = oren_find_node(list)
+    if node == 0 {
+        print("trace: list_debug node=0 list=" + oren_int_to_string(list))
+        return 0
+    }
+    var n_ptr = ptr_get(node)
+    var n_size = ptr_get(iadd(node, 8))
+    var n_kind = ptr_get(iadd(node, 16))
+    var n_freed = ptr_get(iadd(node, 24))
+    var n_next = ptr_get(iadd(node, 32))
+    var n_magic = ptr_get(iadd(node, 40))
+    print("trace: list_debug node_ptr=" + oren_int_to_string(n_ptr) +
+          " size=" + oren_int_to_string(n_size) +
+          " kind=" + oren_int_to_string(n_kind) +
+          " freed=" + oren_int_to_string(n_freed) +
+          " next=" + oren_int_to_string(n_next) +
+          " magic=" + oren_int_to_string(n_magic))
+    if n_ptr - list != 0 {
+        print("trace: list_debug node_ptr_mismatch list=" + oren_int_to_string(list) +
+              " node_ptr=" + oren_int_to_string(n_ptr))
+    }
+
+    // Check alloc-index entry (if present).
+    var idx = native_alloc_index_get(list)
+    if idx == 0 {
+        print("trace: list_debug alloc_index miss list=" + oren_int_to_string(list))
+    } else if idx - node != 0 {
+        print("trace: list_debug alloc_index mismatch idx=" + oren_int_to_string(idx) +
+              " node=" + oren_int_to_string(node))
+    }
+
+    // Scan allocs list for node membership (bounded).
+    var seen_alloc = 0
+    var cur = global_get_allocs()
+    var limit = 200000
+    while cur != 0 && limit > 0 {
+        if cur - node == 0 { seen_alloc = 1; break }
+        cur = ptr_get(iadd(cur, 32))
+        limit = limit - 1
+    }
+    if seen_alloc == 1 {
+        print("trace: list_debug node_in_allocs=1")
+    } else {
+        print("trace: list_debug node_in_allocs=0")
+    }
+
+    // Scan free blocks list for node membership (bounded).
+    var seen_free = 0
+    var cur_free = global_get_free_blocks()
+    limit = 200000
+    while cur_free != 0 && limit > 0 {
+        if cur_free - node == 0 { seen_free = 1; break }
+        cur_free = ptr_get(iadd(cur_free, 32))
+        limit = limit - 1
+    }
+    if seen_free == 1 {
+        print("trace: list_debug node_in_free_blocks=1")
+    } else {
+        print("trace: list_debug node_in_free_blocks=0")
+    }
     return 0
 }
 

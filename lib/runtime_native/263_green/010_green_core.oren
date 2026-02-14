@@ -1600,7 +1600,7 @@ fn _green_sched_switch_to(g) {
     ptr_set(g + green_g_off_state(), green_g_state_runnable())
     // Save scheduler-stack SP into the OS-thread node so GC can scan it while we run on the green stack.
     var sched_node = _green_thread_sched_stack_node_or0(ts)
-    if sched_node != 0 { ptr_set(sched_node + 8, get_sp()) }
+    if sched_node != 0 { ptr_set(sched_node + 72, get_sp()) }
     // Clear saved_sp for this stack node so GC uses current SP heuristic.
     var node = ptr_get(g + green_g_off_stack_node())
     if node != 0 { ptr_set(node + 8, 0) }
@@ -1611,7 +1611,7 @@ fn _green_sched_switch_to(g) {
     // Returned from task via yield/sleep/done.
     _green_thread_set_current_g(ts, 0)
     // We are back on scheduler stack; clear the saved_sp hint.
-    if sched_node != 0 { ptr_set(sched_node + 8, 0) }
+    if sched_node != 0 { ptr_set(sched_node + 72, 0) }
     return 0
 }
 

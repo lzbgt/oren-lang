@@ -146,7 +146,7 @@ fn native_time_current_thread_node_or0() {
     // - stacks mapped close together (false positives/negatives).
     var tid = sys_gettid()
     if tid != 0 {
-        var THREAD_NODE_FLAG_OS_THREAD = 1
+				    var THREAD_NODE_FLAG_OS_THREAD = 1
         // In multi-OS-thread mode, the global thread list is mutated under `acquire_lock()`.
         // Traverse under the same lock to avoid seeing partially-published nodes.
         if g_runtime_single_threaded == 0 { acquire_lock() }
@@ -169,6 +169,30 @@ fn native_time_current_thread_node_or0() {
     if g_runtime_single_threaded == 0 { acquire_lock() }
     var node = global_get_threads()
     var max_scan = 8388608 // 8MB
+    while node != 0 {
+        var top = ptr_get(node)
+        if sp < top {
+            var diff = top - sp
+            if diff < max_scan {
+                if g_runtime_single_threaded == 0 { release_lock() }
+                return node
+            }
+        }
+        node = ptr_get(iadd(node, 16))
+    }
+    if g_runtime_single_threaded == 0 { release_lock() }
+    return 0
+}
+
+fn native_time_current_stack_node_or0() {
+    // Best-effort "which stack am I on?" heuristic without OS-thread identity.
+    //
+    // Used by STW safepoints to capture the current stack (including green stacks).
+    if oren_globals() == 0 { return 0 }
+    var sp = get_sp()
+    var max_scan = 8388608 // 8MB
+    if g_runtime_single_threaded == 0 { acquire_lock() }
+    var node = global_get_threads()
     while node != 0 {
         var top = ptr_get(node)
         if sp < top {
@@ -445,12 +469,23 @@ fn oren_register_thread(top) {
     //   40: time_abs_buf (TIME scratch; 8 bytes)
     //   48: flags (bitmask; rolling)
     //   56: os_tid (u64; stable per-OS-thread identity for idempotent registration)
+    //   64: green_state (u64; pointer to green thread state, see green_thread_node_off_green_state)
+    //   72: sched_saved_sp (u64; scheduler stack SP hint for green tasks)
+    //   80: stw_saved_sp (u64; GC STW saved SP for OS threads)
+    //   88: stack_size (u64; OS-reported stack size, 0 if unknown)
     //
-		    // Size: 64 bytes
+			    // Size: 96 bytes
 		    //
-		    // Flags (bitmask):
-		    // - bit0: OS thread node (vs. a green-stack node registered for GC scanning)
-		    var THREAD_NODE_FLAG_OS_THREAD = 1
+			    // Flags (bitmask):
+			    // - bit0: OS thread node (vs. a green-stack node registered for GC scanning)
+			    var THREAD_NODE_FLAG_OS_THREAD = 1
+			    // Prefer OS-reported stack top when available (macOS pthreads).
+			    // This prevents under-scanning when callers pass `get_sp()`.
+			    var os_top = native_os_thread_stack_top_or0()
+			    if os_top != 0 {
+			        if top == 0 || os_top > top { top = os_top }
+			    }
+			    var os_size = native_os_thread_stack_size_or0()
 		    // - bit1: STW parked (set by GC safepoints)
 			    // Runtime metadata:
 			    // - Thread nodes must never be GC-managed (they are referenced by the GC scanner).
@@ -468,8 +503,8 @@ fn oren_register_thread(top) {
 				    //   which breaks stop-the-world GC waiting (and inflates stack scans).
 				   //
 				    // Use `sys_gettid()` to dedupe per OS thread, and return an existing node if present.
-					    var tid = sys_gettid()
-					    if tid != 0 && oren_globals() != 0 {
+			    var tid = sys_gettid()
+			    if tid != 0 && oren_globals() != 0 {
 					        // In multi-OS-thread mode, traverse the shared thread list under the runtime lock
 					        // (the list is mutated under `acquire_lock()` by stack nodes and OS-thread nodes).
 					        if g_runtime_single_threaded == 0 { acquire_lock() }
@@ -491,10 +526,17 @@ fn oren_register_thread(top) {
 					                        ptr_set(iadd(cur0, 48), flags0 & -3 & -5)
 					                        ptr_set(cur0, top)
 					                        ptr_set(iadd(cur0, 8), 0) // saved_sp
+					                        ptr_set(iadd(cur0, 72), 0) // sched_saved_sp
+					                        ptr_set(iadd(cur0, 80), 0) // stw_saved_sp
+					                        ptr_set(iadd(cur0, 88), 0) // stack_size
 					                    }
-					                    // Keep existing top for live threads (do not shrink scan window).
-					                    return cur0
-					                }
+								                    // Keep existing top for live threads (do not shrink scan window).
+								                    // If we have a better OS-provided top, update it (grow-only).
+								                    var old_top = ptr_get(cur0)
+								                    if top > old_top { ptr_set(cur0, top) }
+								                    if os_size > 0 { ptr_set(iadd(cur0, 88), os_size) }
+								                    return cur0
+						                }
 					            }
 					            cur0 = ptr_get(iadd(cur0, 16))
 				        }
@@ -502,14 +544,17 @@ fn oren_register_thread(top) {
 				    }
 
 			    var node = sys_mmap_private_anon(4096)
-			    if node != 0 && node != -1 && node >= 4096 {
-			        ptr_set(node, top)
-			        ptr_set(iadd(node, 8), 0) // saved_sp
-			        ptr_set(iadd(node, 24), 0) // call_depth
-			        ptr_set(iadd(node, 32), 0) // time_tv_buf
-			        ptr_set(iadd(node, 40), 0) // time_abs_buf
-			        ptr_set(iadd(node, 48), THREAD_NODE_FLAG_OS_THREAD)
-			        ptr_set(iadd(node, 56), tid)
+				    if node != 0 && node != -1 && node >= 4096 {
+				        ptr_set(node, top)
+				        ptr_set(iadd(node, 8), 0) // saved_sp
+				        ptr_set(iadd(node, 24), 0) // call_depth
+				        ptr_set(iadd(node, 32), 0) // time_tv_buf
+	        ptr_set(iadd(node, 40), 0) // time_abs_buf
+	        ptr_set(iadd(node, 48), THREAD_NODE_FLAG_OS_THREAD)
+	        ptr_set(iadd(node, 56), tid)
+			        ptr_set(iadd(node, 72), 0) // sched_saved_sp
+			        ptr_set(iadd(node, 80), 0) // stw_saved_sp
+			        if os_size > 0 { ptr_set(iadd(node, 88), os_size) }
 		        
 			        // Publish the node:
 			        //
@@ -567,7 +612,17 @@ fn native_time_mark_thread_dead_current() {
     var THREAD_NODE_FLAG_DEAD = 4
     ptr_set(flags_ptr, f | THREAD_NODE_FLAG_DEAD)
     // Clear saved_sp so GC never tries to scan a stale stack range.
-    ptr_set(iadd(node, 8), 0)
+    var saved_ptr = iadd(node, 8)
+    while true {
+        var old_saved = ptr_get(saved_ptr)
+        if atomic_cas(saved_ptr, old_saved, 0) == old_saved { break }
+    }
+    var stw_ptr = iadd(node, 80)
+    while true {
+        var old_stw = ptr_get(stw_ptr)
+        if atomic_cas(stw_ptr, old_stw, 0) == old_stw { break }
+    }
+    ptr_set(iadd(node, 72), 0) // sched_saved_sp
     return 0
 }
 
@@ -587,7 +642,17 @@ fn native_time_mark_thread_dead_by_tid(tid) {
         if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 {
             if ptr_get(iadd(cur, 56)) == tid {
                 ptr_set(iadd(cur, 48), (flags | THREAD_NODE_FLAG_DEAD) & -3)
-                ptr_set(iadd(cur, 8), 0) // saved_sp
+                var saved_ptr0 = iadd(cur, 8)
+                while true {
+                    var old_saved0 = ptr_get(saved_ptr0)
+                    if atomic_cas(saved_ptr0, old_saved0, 0) == old_saved0 { break }
+                }
+                var stw_ptr0 = iadd(cur, 80)
+                while true {
+                    var old_stw0 = ptr_get(stw_ptr0)
+                    if atomic_cas(stw_ptr0, old_stw0, 0) == old_stw0 { break }
+                }
+                ptr_set(iadd(cur, 72), 0) // sched_saved_sp
                 break
             }
         }

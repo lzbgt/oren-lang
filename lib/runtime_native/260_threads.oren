@@ -837,6 +837,8 @@ fn free(ptr) {
                 ptr_set(iadd(cur, 32), global_get_free_nodes())
                 global_set_free_nodes(cur)
             } else {
+                // Mark node as freed so stale index entries can't resurrect it.
+                ptr_set(iadd(cur, 24), 1)
                 ptr_set(iadd(cur, 32), global_get_free_blocks())
                 global_set_free_blocks(cur)
             }

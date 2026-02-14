@@ -21,6 +21,15 @@ ffi {
     pthread_join as __oren_pthread_join
 }
 
+// pthread stack queries (macOS-only).
+@cfg(os="macos")
+@ffi.libc
+ffi {
+    @ffi.ret("ptr") pthread_self as __oren_pthread_self,
+    @ffi.ret("ptr") pthread_get_stackaddr_np as __oren_pthread_get_stackaddr_np,
+    @ffi.ret("usize") pthread_get_stacksize_np as __oren_pthread_get_stacksize_np
+}
+
 // On non-macOS targets, this module is still included in the shared native runtime bundle
 // (`lib/runtime_native_core.oren`), but the libpthread/libSystem FFI boundary must not be
 // pulled in. Provide stubs so cross-target compilation (x64-linux/x64-windows) can still
@@ -33,6 +42,31 @@ ffi {
 fn __oren_pthread_create(thread_ptr, attr_ptr, start_addr, arg_ptr) { return -38 }
 @cfg(not_os="macos")
 fn __oren_pthread_join(thread, retval_ptr) { return -38 }
+@cfg(not_os="macos")
+fn __oren_pthread_self() { return 0 }
+@cfg(not_os="macos")
+fn __oren_pthread_get_stackaddr_np(thr) { return 0 }
+@cfg(not_os="macos")
+fn __oren_pthread_get_stacksize_np(thr) { return 0 }
+
+// Best-effort OS-thread stack top (macOS).
+fn native_os_thread_stack_top_or0() {
+    if g_target_os != 1 { return 0 }
+    var thr = __oren_pthread_self()
+    if thr == 0 { return 0 }
+    var top = __oren_pthread_get_stackaddr_np(thr)
+    if top == 0 { return 0 }
+    return top
+}
+
+fn native_os_thread_stack_size_or0() {
+    if g_target_os != 1 { return 0 }
+    var thr = __oren_pthread_self()
+    if thr == 0 { return 0 }
+    var sz = __oren_pthread_get_stacksize_np(thr)
+    if sz <= 0 { return 0 }
+    return sz
+}
 
 // OrenDarwinThread layout (raw allocation; not GC-managed).
 //
@@ -144,7 +178,9 @@ fn __oren_darwin_thread_start(self, kport, fun, arg, stacksize, flags) {
     // bring-up (should never be used in production).
     var no_reg = native_envp_get_value_ptr("OREN_NO_THREAD_REGISTER")
     if no_reg == 0 || ptr_get_byte(no_reg) == 0 {
-        oren_register_thread(get_sp())
+        var stack_top = native_os_thread_stack_top_or0()
+        if stack_top == 0 { stack_top = get_sp() }
+        oren_register_thread(stack_top)
     }
 
     if self == 0 || arg == 0 {
@@ -222,7 +258,9 @@ fn __oren_darwin_pthread_thread_entry(meta) {
     // bring-up (should never be used in production).
     var no_reg = native_envp_get_value_ptr("OREN_NO_THREAD_REGISTER")
     if no_reg == 0 || ptr_get_byte(no_reg) == 0 {
-        oren_register_thread(get_sp())
+        var stack_top = native_os_thread_stack_top_or0()
+        if stack_top == 0 { stack_top = get_sp() }
+        oren_register_thread(stack_top)
     }
 
     var fn_obj = ptr_get(meta + _darwin_thr_off_fn_obj())
