@@ -748,6 +748,13 @@ fn native_try_reuse(size) {
             cur = next
             continue
         }
+        var cur_kind = ptr_get(iadd(cur, 16))
+        // Reuse guardrail (rolling): only reuse raw/misc blocks for now.
+        if cur_kind != 0 && cur_kind != 5 {
+            prev = cur
+            cur = next
+            continue
+        }
         var chunk_ptr = ptr_get(cur)
         var chunk_size = ptr_get(iadd(cur, 8))
         if chunk_ptr < 4096 || chunk_size <= 0 {
@@ -926,9 +933,54 @@ fn oren_track_alloc(ptr, size, kind) {
         native_alloc_index_rebuild_live()
         hit = native_alloc_index_get(ptr)
     }
+    if hit == 0 && native_envp_get_value_ptr("OREN_GC_REUSE_BLOCKS") != 0 {
+        // Reuse mode: avoid duplicate tracking nodes if the index missed.
+        var cur_live = global_get_allocs()
+        while cur_live != 0 {
+            if ptr_get(cur_live) == ptr {
+                if size != 0 { ptr_set(iadd(cur_live, 8), size) }
+                if kind != 0 {
+                    ptr_set(iadd(cur_live, 16), kind)
+                } else {
+                    ptr_set(iadd(cur_live, 16), 0)
+                }
+                ptr_set(iadd(cur_live, 24), 0)
+                ptr_set(iadd(cur_live, 40), native_node_magic())
+                native_alloc_index_put_node(cur_live)
+                release_lock()
+                return ptr
+            }
+            cur_live = ptr_get(iadd(cur_live, 32))
+        }
+    }
     if hit != 0 {
+        if native_envp_get_value_ptr("OREN_GC_REUSE_BLOCKS") != 0 {
+            // Reuse mode: ensure this node is not still in the free list.
+            var prev_free = 0
+            var cur_free = global_get_free_blocks()
+            while cur_free != 0 {
+                if cur_free == hit {
+                    var next_free = ptr_get(iadd(cur_free, 32))
+                    if prev_free == 0 {
+                        global_set_free_blocks(next_free)
+                    } else {
+                        ptr_set(iadd(prev_free, 32), next_free)
+                    }
+                    break
+                }
+                prev_free = cur_free
+                cur_free = ptr_get(iadd(cur_free, 32))
+            }
+        }
         if size != 0 { ptr_set(iadd(hit, 8), size) }
-        if kind != 0 { ptr_set(iadd(hit, 16), kind) }
+        if kind != 0 {
+            ptr_set(iadd(hit, 16), kind)
+        } else {
+            // Reuse mode: allow kind=0 to overwrite stale kinds (raw buffers).
+            if native_envp_get_value_ptr("OREN_GC_REUSE_BLOCKS") != 0 {
+                ptr_set(iadd(hit, 16), 0)
+            }
+        }
         // Clear "freed" and mark flags on re-track.
         ptr_set(iadd(hit, 24), 0)
         ptr_set(iadd(hit, 40), native_node_magic())
@@ -1215,6 +1267,25 @@ fn oren_find_node(ptr) {
     // Scanning the full alloc list on misses is catastrophically slow for compiler workloads
     // because many pointers (embedded literals, argv/envp, raw buffers) are intentionally untracked.
     if g_alloc_index_ptr != 0 && g_alloc_index_cap != 0 {
+        // Rolling safety: when reuse is enabled, fall back to a one-off scan on misses to avoid
+        // false negatives from stale index entries (correctness > perf in reuse experiments).
+        if native_envp_get_value_ptr("OREN_GC_REUSE_BLOCKS") != 0 {
+            var cur_recover = global_get_allocs()
+            while cur_recover != 0 {
+                if ptr_get(cur_recover) == ptr {
+                    native_alloc_index_put_node(cur_recover)
+                    if g_runtime_single_threaded == 1 {
+                        g_find_cache_ptr1 = g_find_cache_ptr0
+                        g_find_cache_node1 = g_find_cache_node0
+                        g_find_cache_ptr0 = ptr
+                        g_find_cache_node0 = cur_recover
+                    }
+                    release_lock()
+                    return cur_recover
+                }
+                cur_recover = ptr_get(iadd(cur_recover, 32))
+            }
+        }
         release_lock()
         return 0
     }
@@ -1430,6 +1501,12 @@ fn native_gc_collect() {
 
             var kind = ptr_get(iadd(cur_sweep, 16))
             var p = ptr_get(cur_sweep)
+            if p != 0 && p >= 4096 {
+                // Prevent stale alloc-index hits for freed objects (reuse mode only).
+                if native_envp_get_value_ptr("OREN_GC_REUSE_BLOCKS") != 0 {
+                    native_alloc_index_remove_ptr(p)
+                }
+            }
             if kind == 9 {
                 // RAW_MMAP: return memory to OS immediately (do not keep in free_blocks).
                 if p != 0 {

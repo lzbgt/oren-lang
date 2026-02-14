@@ -812,6 +812,12 @@ fn free(ptr) {
                 ptr_set(iadd(prev, 32), next)
             }
             var kind = ptr_get(iadd(cur, 16))
+            if ptr >= 4096 {
+                // Keep alloc-index consistent so reused blocks are re-tracked correctly.
+                if native_envp_get_value_ptr("OREN_GC_REUSE_BLOCKS") != 0 {
+                    native_alloc_index_remove_ptr(ptr)
+                }
+            }
 
             if kind == 9 {
                 // RAW_MMAP: return to OS now; do not keep for reuse.
@@ -833,6 +839,10 @@ fn free(ptr) {
             } else {
                 ptr_set(iadd(cur, 32), global_get_free_blocks())
                 global_set_free_blocks(cur)
+            }
+            // Avoid stale single-thread find-cache hits for freed pointers (reuse mode only).
+            if native_envp_get_value_ptr("OREN_GC_REUSE_BLOCKS") != 0 {
+                native_find_cache_clear()
             }
             release_lock()
             return 0

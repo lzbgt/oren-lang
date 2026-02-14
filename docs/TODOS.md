@@ -162,16 +162,22 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					     - Avoids `oren_add` when both operands are known integer-like; keeps runtime helper for strings/unknown.
 					     - Compiler: `lib/compiler/x64_native_program/046_emit_string_helpers.oren` + inty tracking in `060_emit_ops.oren`
 					     - Benchmark pending (capture x64 loop_sum baseline on Tier‑1 Linux/Win).
-			   - 2026-02-14: native free-block reuse now exists but is **gated** behind `OREN_GC_REUSE_BLOCKS=1` (default off pending GC correctness hardening):
+				   - 2026-02-14: native free-block reuse now exists but is **gated** behind `OREN_GC_REUSE_BLOCKS=1` (default off pending GC correctness hardening):
 				     - Runtime: `lib/runtime_native/100_time_gc_alloc.oren`
 				     - Compiler: `lib/compiler/arm64_native_expr/090_tail.oren`, `lib/compiler/x64_native_program/040_emit_expr.oren`
 				     - alloc_churn RSS on macOS remained at the high-water mark (bump allocator retains OS pages):
 				       - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_122357.md`
-				     - Guard: enabling reuse currently trips `map op on non-map` in native quick integration; fix GC/alloc invariants before default-on.
+				     - Guard: enabling reuse currently trips `list_len on non-list` in native quick integration (select path); keep gated until GC/alloc invariants are hardened.
 				   - 2026-02-14: allocator hardening for native runtime metadata:
 				     - Raw tracking nodes now come from a dedicated raw arena (`sys_mmap_private_anon`) instead of the GC heap (`lib/runtime_native/015_raw_alloc.oren`).
 				     - Tracking nodes now carry a magic word and are validated during alloc-index lookups/rebuilds (`lib/runtime_native/100_time_gc_alloc.oren`).
 				     - Reuse-on now gets past map tracking but still fails quick integration with `list_len on non-list` (select path) — keep gated.
+				     - 2026-02-14: reuse diagnostics + guardrails added:
+				       - Reuse-mode alloc-index cleanup + cache clear on free/GC (guarded by `OREN_GC_REUSE_BLOCKS`).
+				       - Reuse-mode alloc-index miss recovery in `oren_find_node` (linear scan on miss).
+				       - `oren_track_alloc` now de-stales kind=0 in reuse mode and removes hit nodes from free list.
+				       - `native_list_len_panic` emits list header diagnostics; arm64 list_len intrinsic routes failures through it.
+				       - Still failing: list magic overwritten with list pointer (count/cap/buf intact). Trace shows list is tracked (kind=2) but header corrupted; suspect reuse + temporary list lifetime. Investigate root cause before enabling reuse.
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).

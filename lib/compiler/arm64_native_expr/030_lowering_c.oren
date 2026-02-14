@@ -46,7 +46,12 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 	                push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
 	                var br_node_nonzero = bytes_len(ctx["code"])
 	                push_u32_le(ctx["code"], 0)
-	                native_emit_panic(ctx, "list_len on non-list")
+                // Panic helper with diagnostics.
+                push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // X0 = list
+                emit_load_i64_imm(ctx, 1, 1)                 // X1 = stage (node==0)
+                var bl_list_panic0 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_panic0, "name": "native_list_len_panic"})
 	                var node_ok_pos = bytes_len(ctx["code"])
 	                set_u32_le(ctx["code"], br_node_nonzero, insn_b_cond((node_ok_pos - br_node_nonzero) / 4, 1)) // NE
 	
@@ -56,7 +61,12 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 	                push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
 	                var br_kind_ok = bytes_len(ctx["code"])
 	                push_u32_le(ctx["code"], 0)
-	                native_emit_panic(ctx, "list_len on non-list")
+                // Panic helper with diagnostics.
+                push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // X0 = list
+                emit_load_i64_imm(ctx, 1, 2)                 // X1 = stage (kind mismatch)
+                var bl_list_panic1 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_panic1, "name": "native_list_len_panic"})
 	                var kind_ok_pos = bytes_len(ctx["code"])
 	                set_u32_le(ctx["code"], br_kind_ok, insn_b_cond((kind_ok_pos - br_kind_ok) / 4, 0)) // EQ
 	
@@ -67,7 +77,11 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 	                push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
 	                var br_is_list = bytes_len(ctx["code"])
 	                push_u32_le(ctx["code"], 0)
-	                native_emit_panic(ctx, "list_len on non-list")
+                // Panic helper with diagnostics.
+                emit_load_i64_imm(ctx, 1, 3)                 // X1 = stage (magic mismatch)
+                var bl_list_panic2 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_panic2, "name": "native_list_len_panic"})
 	                var is_list_pos = bytes_len(ctx["code"])
 	                set_u32_le(ctx["code"], br_is_list, insn_b_cond((is_list_pos - br_is_list) / 4, 0)) // EQ
 

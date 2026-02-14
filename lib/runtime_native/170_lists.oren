@@ -40,31 +40,48 @@ fn oren_list_len(list) {
     // Rely on the tracked-alloc metadata (native) / runtime tracking (C) to discriminate.
     var node = oren_find_node(list)
     if node == 0 {
-        if oren_getenv("OREN_TRACE_LIST_CHECK") != 0 {
-            print("trace: list_len node=0 list=" + oren_int_to_string(list))
-        }
+        print("trace: list_len node=0 list=" + oren_int_to_string(list))
         oren_panic("list_len on non-list")
         return 0
     }
     if ptr_get(iadd(node, 16)) != 2 {
-        if oren_getenv("OREN_TRACE_LIST_CHECK") != 0 {
-            print("trace: list_len kind=" + oren_int_to_string(ptr_get(iadd(node, 16))) +
-                  " list=" + oren_int_to_string(list) +
-                  " node=" + oren_int_to_string(node))
-        }
+        print("trace: list_len kind=" + oren_int_to_string(ptr_get(iadd(node, 16))) +
+              " list=" + oren_int_to_string(list) +
+              " node=" + oren_int_to_string(node))
         oren_panic("list_len on non-list")
         return 0
     }
     if ptr_get(iadd(list, 24)) != list_magic() {
-        if oren_getenv("OREN_TRACE_LIST_CHECK") != 0 {
-            print("trace: list_len magic=" + oren_int_to_string(ptr_get(iadd(list, 24))) +
-                  " want=" + oren_int_to_string(list_magic()) +
-                  " list=" + oren_int_to_string(list))
-        }
+        print("trace: list_len magic=" + oren_int_to_string(ptr_get(iadd(list, 24))) +
+              " want=" + oren_int_to_string(list_magic()) +
+              " list=" + oren_int_to_string(list))
         oren_panic("list_len on non-list")
         return 0
     }
     return ptr_get(iadd(list, 0))
+}
+
+@oren.keep
+fn native_list_len_panic(list, stage) {
+    // stage: 1=node missing, 2=kind mismatch, 3=magic mismatch
+    print("trace: list_len panic stage=" + oren_int_to_string(stage) +
+          " list=" + oren_int_to_string(list))
+    var node = oren_find_node(list)
+    if node == 0 {
+        print("trace: list_len node=0")
+    } else {
+        print("trace: list_len node=" + oren_int_to_string(node) +
+              " kind=" + oren_int_to_string(ptr_get(iadd(node, 16))))
+    }
+    if list != 0 && list >= 4096 {
+        print("trace: list_len magic=" + oren_int_to_string(ptr_get(iadd(list, 24))) +
+              " want=" + oren_int_to_string(list_magic()))
+        print("trace: list_len count=" + oren_int_to_string(ptr_get(iadd(list, 0))) +
+              " cap=" + oren_int_to_string(ptr_get(iadd(list, 8))) +
+              " buf=" + oren_int_to_string(ptr_get(iadd(list, 16))))
+    }
+    oren_panic("list_len on non-list")
+    return 0
 }
 
 // Safe type predicate: must not panic.
