@@ -420,14 +420,16 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 			           - `native_netpoll_poll_many_scratch` uses `GetQueuedCompletionStatusEx` (allocation-free)
 			         - Rolling limitation (updated 2026-02-13): readiness bridge exists but is **gated** behind `OREN_NETPOLL_WIN_IOCP_READY=1`.
 			           - Default path (`OREN_NETPOLL_WIN_IOCP=1` only) uses select‑v0 for socket readiness.
-	       - Gate (added, 2026-01-17): Windows-only fixture proving a blocked IOCP poll is broken by `native_netpoll_wake()` (no loopback):
-	         - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (run with `OREN_NETPOLL_WIN_IOCP=1`)
+		       - Gate (added, 2026-01-17): Windows-only fixture proving a blocked IOCP poll is broken by `native_netpoll_wake()` (no loopback):
+		         - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (run with `OREN_NETPOLL_WIN_IOCP=1` and `OREN_NETPOLL_WIN_IOCP_READY=1`)
 	         - Wired into: `scripts/verify_native_matrix.sh --targets x64-win-tier1` (remote Win11)
-	       - 2026-02-13: IOCP poll core now returns per-operation OVERLAPPED tokens when present (enables readiness/overlapped ops):
+		       - 2026-02-13: IOCP poll core now returns per-operation OVERLAPPED tokens when present (enables readiness/overlapped ops):
          - Runtime: `lib/runtime_native/246_netpoll.oren` (IOCP poll token selection uses `ov!=0` before completion key)
          - Runtime: IOCP wait-node layout (OVERLAPPED + netpoll metadata + bytes slot) and scheduler recognition of IOCP wait tokens.
          - Runtime: scheduler idle/blocking netpoll path also recognizes IOCP wait tokens (no drop on blocking polls).
          - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (posts completion with `ov!=0`, asserts token return, bytes capture)
+		       - 2026-02-14: Win11 Tier‑1 matrix now runs green-worker fixtures with `OREN_GREEN_POLL_CACHE=1` to validate cached poll in worker mode.
+		       - 2026-02-14: `./scripts/verify_native_matrix.sh --targets x64-win-tier1` passes on pc2.work (IOCP wake + green-worker cached poll fixtures OK).
 				   - Windows: extend the wait-list mechanism beyond channels:
 				     - 2026-02-13: fd waits (`oren_fd_wait_*`) can park Gs on IOCP wait nodes when IOCP readiness is explicitly enabled (`OREN_NETPOLL_WIN_IOCP_READY=1`).
 			   - Follow-up: keep validating cached poll mode under worker scheduling on Tier‑1 (x64-win/x64-linux) before considering a default-on change.

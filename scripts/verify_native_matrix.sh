@@ -1015,8 +1015,8 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-win-tier1; then
     build_native_bin_src "./oren_stage2" "x64-windows" "$WIN_IOCP_WAKE_SMOKE_SRC" "build/tmp/win_iocp_wake_stage2_x64_windows.exe"
     remote_upload "build/tmp/win_iocp_wake_stage1_x64_windows.exe" "win_iocp_wake_stage1_x64_windows.exe"
     remote_upload "build/tmp/win_iocp_wake_stage2_x64_windows.exe" "win_iocp_wake_stage2_x64_windows.exe"
-    remote_run_win "win_iocp_wake_stage1_x64_windows.exe" "OREN_NETPOLL_WIN_IOCP=1"
-    remote_run_win "win_iocp_wake_stage2_x64_windows.exe" "OREN_NETPOLL_WIN_IOCP=1"
+    remote_run_win "win_iocp_wake_stage1_x64_windows.exe" "OREN_NETPOLL_WIN_IOCP=1" "OREN_NETPOLL_WIN_IOCP_READY=1"
+    remote_run_win "win_iocp_wake_stage2_x64_windows.exe" "OREN_NETPOLL_WIN_IOCP=1" "OREN_NETPOLL_WIN_IOCP_READY=1"
 
     log "-- build+run: Win11 Tier‑1 green-worker fixtures (x64-windows) --"
     build_green_worker_fixtures "x64-windows"
@@ -1032,6 +1032,13 @@ if [[ "$SKIP_REMOTE" -eq 0 ]] && has_target x64-win-tier1; then
     remote_run_win "green2w_m_less_p_smoke_stage2_x64_windows.exe"
     remote_run_win "green2w_m_less_p_det_stage1_x64_windows.exe"
     remote_run_win "green2w_m_less_p_det_stage2_x64_windows.exe"
+    log "-- run: Win11 Tier‑1 green-worker fixtures (x64-windows; OREN_GREEN_POLL_CACHE=1) --"
+    remote_run_win "green2w_world_lock_stage1_x64_windows.exe" "OREN_GREEN_POLL_CACHE=1"
+    remote_run_win "green2w_world_lock_stage2_x64_windows.exe" "OREN_GREEN_POLL_CACHE=1"
+    remote_run_win "green2w_m_less_p_smoke_stage1_x64_windows.exe" "OREN_GREEN_POLL_CACHE=1"
+    remote_run_win "green2w_m_less_p_smoke_stage2_x64_windows.exe" "OREN_GREEN_POLL_CACHE=1"
+    remote_run_win "green2w_m_less_p_det_stage1_x64_windows.exe" "OREN_GREEN_POLL_CACHE=1"
+    remote_run_win "green2w_m_less_p_det_stage2_x64_windows.exe" "OREN_GREEN_POLL_CACHE=1"
   fi
   log "OK: remote Win11 x64 tier1"
 fi

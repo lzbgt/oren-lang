@@ -22,7 +22,7 @@ The authoritative source content is stored in-tree under:
 
 ## Current repo status (fact)
 
-- 2026-01-17: runtime recognizes `OREN_NETPOLL_WIN_IOCP=1` and now has an **IOCP poll core + wake** substrate:
+- 2026-01-17: runtime recognizes IOCP and has an **IOCP poll core + wake** substrate (when IOCP backend is selected):
   - Init: `native_netpoll_init_once` creates an IOCP via `CreateIoCompletionPort(INVALID_HANDLE_VALUE, ...)`
   - Poll: `native_netpoll_poll_many_scratch` calls `GetQueuedCompletionStatusEx` (allocation-free scratch)
   - Wake: `native_netpoll_wake()` uses `PostQueuedCompletionStatus` (no loopback dependency)
@@ -36,10 +36,9 @@ The authoritative source content is stored in-tree under:
     `oren_fd_wait_readable/…_writable` using zero‑byte overlapped `WSARecv/WSASend`, but it is not yet
     reliable for UDP readiness (see below). Completion‑driven socket ops remain the preferred end‑state
     (Strategy B).
-- 2026-02-13: IOCP readiness bridge (Strategy A) for green‑task socket waits is **gated**:
-  - Readiness now requires **both** `OREN_NETPOLL_WIN_IOCP=1` **and** `OREN_NETPOLL_WIN_IOCP_READY=1`.
-  - With only `OREN_NETPOLL_WIN_IOCP=1`, the runtime keeps **IOCP wake** but falls back to select‑v0
-    for socket readiness (Tier‑1 correctness first; IOCP readiness is still rolling).
+- 2026-02-13: IOCP backend selection + readiness bridge (Strategy A) for green‑task socket waits is **gated**:
+  - IOCP backend selection currently requires **both** `OREN_NETPOLL_WIN_IOCP=1` **and** `OREN_NETPOLL_WIN_IOCP_READY=1`.
+  - Without `OREN_NETPOLL_WIN_IOCP_READY=1`, the runtime keeps select‑v0 for Tier‑1 correctness.
   - Motivation (fact): Win11 IOCP readiness is still unreliable today:
     - UDP: `WSARecvFrom` reports `WSAEFAULT (10014)` under the readiness bridge.
     - TCP: HTTP loopback can time out under IOCP readiness (headers never fully read).

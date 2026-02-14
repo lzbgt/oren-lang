@@ -3,6 +3,7 @@
 // Purpose:
 // - Validate the IOCP poll core + wake plumbing works end-to-end:
 //     - `native_netpoll_init_once` selects IOCP when `OREN_NETPOLL_WIN_IOCP=1`
+//       and `OREN_NETPOLL_WIN_IOCP_READY=1` are both set
 //     - `native_netpoll_poll_many_scratch` blocks in GetQueuedCompletionStatusEx
 //     - `native_netpoll_wake()` breaks the blocking poll via PostQueuedCompletionStatus
 //
@@ -46,8 +47,9 @@ fn main() {
     var rc = native_netpoll_init_once()
     if rc != 0 { fail(11, "native_netpoll_init_once rc=" + oren_int_to_string(rc)) }
 
-    // Ensure IOCP backend is actually selected (test must be run with OREN_NETPOLL_WIN_IOCP=1).
-    assert_true(g_netpoll_win_backend == 1, 12, "expected IOCP backend (set OREN_NETPOLL_WIN_IOCP=1)")
+    // Ensure IOCP backend is actually selected (test must be run with
+    // OREN_NETPOLL_WIN_IOCP=1 and OREN_NETPOLL_WIN_IOCP_READY=1).
+    assert_true(g_netpoll_win_backend == 1, 12, "expected IOCP backend (set OREN_NETPOLL_WIN_IOCP=1 and OREN_NETPOLL_WIN_IOCP_READY=1)")
     assert_true(g_netpoll_fd != 0, 13, "expected IOCP handle in g_netpoll_fd")
     assert_true(native_netpoll_can_wake() == true, 14, "expected native_netpoll_can_wake()==true")
 
