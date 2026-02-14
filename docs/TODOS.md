@@ -127,6 +127,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				   - 2026-02-14: fixed Python interop leaks (C runtime, `OREN_ENABLE_PYTHON`):
 				     - `oren_list_get` now decref’s the temporary `py_index` created by `oren_to_py(index)` for `PyObject_GetItem`.
 				     - `oren_to_py` map conversion now decref’s temporary key/value objects after `PyDict_SetItem` (which does not steal refs).
+				     - `oren_py_to_oren` now consumes new refs for value conversions (DECREFs after copying), preventing leaks for `get_attr`/call results that return non-`PY_OBJ` values.
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).

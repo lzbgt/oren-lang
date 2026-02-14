@@ -803,17 +803,39 @@ void oren_init(int argc, char **argv) {
 
 #ifdef OREN_ENABLE_PYTHON
 static OrenValue oren_py_to_oren(PyObject* obj) {
-    if (obj == Py_None) return OREN_NIL;
-    if (PyBool_Check(obj)) return (obj == Py_True) ? OREN_TRUE : OREN_FALSE;
-    if (PyLong_Check(obj)) return oren_int(PyLong_AsLongLong(obj));
-    if (PyFloat_Check(obj)) return oren_float(PyFloat_AsDouble(obj));
-    if (PyUnicode_Check(obj)) return oren_string(PyUnicode_AsUTF8(obj));
+    // NOTE: this consumes a new reference and transfers ownership:
+    // - for value-converted types, we DECREF before returning
+    // - for PY_OBJ wrappers, we keep the ref without DECREF
+    if (obj == Py_None) {
+        Py_DECREF(obj);
+        return OREN_NIL;
+    }
+    if (PyBool_Check(obj)) {
+        OrenValue v = (obj == Py_True) ? OREN_TRUE : OREN_FALSE;
+        Py_DECREF(obj);
+        return v;
+    }
+    if (PyLong_Check(obj)) {
+        OrenValue v = oren_int(PyLong_AsLongLong(obj));
+        Py_DECREF(obj);
+        return v;
+    }
+    if (PyFloat_Check(obj)) {
+        OrenValue v = oren_float(PyFloat_AsDouble(obj));
+        Py_DECREF(obj);
+        return v;
+    }
+    if (PyUnicode_Check(obj)) {
+        const char* s = PyUnicode_AsUTF8(obj);
+        OrenValue v = oren_string(s ? s : "");
+        Py_DECREF(obj);
+        return v;
+    }
 
-    // Wrap generic python object
+    // Wrap generic python object (keep ownership).
     OrenValue v;
     v.type = OREN_TYPE_PY_OBJ;
     v.as.py_obj = obj;
-    // IncRef? No, usually return new ref.
     return v;
 }
 
