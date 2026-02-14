@@ -420,6 +420,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 			     - 2026-02-13: added shared wait-node init/reset helpers and used them in select/netpoll paths:
 			       - Runtime: `lib/runtime_native/246_netpoll.oren` (`native_netpoll_wait_init`, `native_netpoll_wait_reset`)
 			       - Runtime: `lib/runtime_native/245_select.oren` (select wait nodes now use the shared helpers)
+			     - 2026-02-14: IOCP fd waits now use the shared IOCP wait-node init helper:
+			       - Runtime: `lib/runtime_native/240_tcp.oren` (`oren_fd_wait_readable` / `oren_fd_wait_writable`)
 		   - Cross-platform: evolve the scheduler-owned “word wait” wait-list so in-green waits never kernel-block the scheduler OS thread.
 		     - DONE (2026-01-17): `oren_wait_on_addr` inside a green task is wake-driven via the scheduler-owned “word wait” list:
 		       - `timeout_us==0` (“forever”): parks `G` on a scheduler list; wakes via `oren_wake_all_addr`.

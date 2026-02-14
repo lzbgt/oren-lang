@@ -477,10 +477,7 @@ fn oren_fd_wait_readable(fd, timeout_ms) {
             if node == 0 { return 0 - 12 }
             var epoch = ptr_get(g + green_g_off_io_epoch()) + 1
             ptr_set(g + green_g_off_io_epoch(), epoch)
-            ptr_set(node + native_iocp_wait_off_g(), g)
-            ptr_set(node + native_iocp_wait_off_case_idx(), 0)
-            ptr_set(node + native_iocp_wait_off_epoch(), epoch)
-            ptr_set(node + native_iocp_wait_off_ready(), 0)
+            native_netpoll_iocp_wait_init(node, g, 0, epoch)
             ptr_set(g + green_g_off_io_fd(), fd)
             ptr_set(g + green_g_off_io_kind(), 0)
             ptr_set(g + green_g_off_io_ready(), 0)
@@ -563,10 +560,7 @@ fn oren_fd_wait_writable(fd, timeout_ms) {
             if node == 0 { return 0 - 12 }
             var epoch = ptr_get(g + green_g_off_io_epoch()) + 1
             ptr_set(g + green_g_off_io_epoch(), epoch)
-            ptr_set(node + native_iocp_wait_off_g(), g)
-            ptr_set(node + native_iocp_wait_off_case_idx(), 0)
-            ptr_set(node + native_iocp_wait_off_epoch(), epoch)
-            ptr_set(node + native_iocp_wait_off_ready(), 0)
+            native_netpoll_iocp_wait_init(node, g, 0, epoch)
             ptr_set(g + green_g_off_io_fd(), fd)
             ptr_set(g + green_g_off_io_kind(), 1)
             ptr_set(g + green_g_off_io_ready(), 0)
