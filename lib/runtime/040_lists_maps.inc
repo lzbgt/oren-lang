@@ -248,7 +248,9 @@ OrenValue oren_list_get(OrenValue list, OrenValue index) {
     // Also support python list get item?
 #ifdef OREN_ENABLE_PYTHON
     if (list.type == OREN_TYPE_PY_OBJ) {
-         PyObject* item = PyObject_GetItem(list.as.py_obj, oren_to_py(index)); // This leaks the index py object reference
+         PyObject* py_index = oren_to_py(index);
+         PyObject* item = PyObject_GetItem(list.as.py_obj, py_index);
+         Py_DECREF(py_index);
          if (!item) {
              PyErr_Print();
              oren_panic("Python list get item failed");

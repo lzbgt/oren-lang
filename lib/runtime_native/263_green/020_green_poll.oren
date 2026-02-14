@@ -12,6 +12,9 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
     // - The default mode keeps worker scheduling robust while backends evolve.
     var cache = 0
     if _green_poll_cache() { cache = 1 }
+    // Cached poll mode is safe for N:1 scheduling, but worker-mode introduces
+    // extra P ownership transitions; keep the conservative path when workers run.
+    if g_green_workers_started != 0 { cache = 0 }
 
     var ts = 0
     var s = 0

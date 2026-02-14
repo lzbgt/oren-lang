@@ -837,7 +837,11 @@ static PyObject* oren_to_py(OrenValue v) {
         case OREN_TYPE_MAP: {
              PyObject* dict = PyDict_New();
              for (int i = 0; i < v.as.map_val->count; i++) {
-                 PyDict_SetItem(dict, oren_to_py(v.as.map_val->keys[i]), oren_to_py(v.as.map_val->values[i]));
+                 PyObject* py_key = oren_to_py(v.as.map_val->keys[i]);
+                 PyObject* py_val = oren_to_py(v.as.map_val->values[i]);
+                 PyDict_SetItem(dict, py_key, py_val);
+                 Py_DECREF(py_key);
+                 Py_DECREF(py_val);
              }
              return dict;
         }

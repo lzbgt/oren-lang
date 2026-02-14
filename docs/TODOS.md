@@ -124,6 +124,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				   - 2026-02-14: hardened rtobj meta loading against corruption:
 				     - Added a small `meta.check` sidecar (magic/version/len/fingerprint) and atomic writes, so corrupted or partial `meta.astbin` files become cache misses instead of fatal astbin decode exits.
 				     - Seed bundles now copy `meta.check` alongside meta/code/data; missing/invalid check files are treated as misses (old caches rebuild on first use).
+				   - 2026-02-14: fixed Python interop leaks (C runtime, `OREN_ENABLE_PYTHON`):
+				     - `oren_list_get` now decref’s the temporary `py_index` created by `oren_to_py(index)` for `PyObject_GetItem`.
+				     - `oren_to_py` map conversion now decref’s temporary key/value objects after `PyDict_SetItem` (which does not steal refs).
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
@@ -389,13 +392,16 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	     - Fix: treat `rv >= 0` as success and allow the syscall-first `bsdthread_create` path to be used by the shared `oren_os_thread_*` abstraction.
 	     - Guards:
 	       - `tests/native/test_os_thread_park_unpark_smoke.oren` (arm64-macos + linux + windows)
-	   - 2026-01-16: x64 native backend now inserts throttled `oren_gc_safepoint()` polling in `while`/`for` loop headers (every 256 iterations), matching arm64 + C transpiler.
-	     - Required for the STW “park at safepoint” protocol to be viable on x64-linux/x64-windows Tier‑1 targets.
-	     - Compiler: `lib/compiler/x64_native_program/060_emit_ops.oren` (`_emit_gc_safepoint_throttled_x64`)
+		   - 2026-01-16: x64 native backend now inserts throttled `oren_gc_safepoint()` polling in `while`/`for` loop headers (every 256 iterations), matching arm64 + C transpiler.
+		     - Required for the STW “park at safepoint” protocol to be viable on x64-linux/x64-windows Tier‑1 targets.
+		     - Compiler: `lib/compiler/x64_native_program/060_emit_ops.oren` (`_emit_gc_safepoint_throttled_x64`)
+		   - 2026-02-14: hardened green scheduler poll caching in worker mode:
+		     - `OREN_GREEN_POLL_CACHE=1` is now honored only when workers are not started (N:1 mode), because cached locals in worker mode caused join timeouts under `test_green_workers_many_tasks_bounded`.
+		     - Runtime: `lib/runtime_native/263_green/020_green_poll.oren`
 
-	   Next steps (actionable, highest leverage first):
+		   Next steps (actionable, highest leverage first):
 
-		   - Windows: upgrade the socket netpoller from select-v0 to IOCP (scalable readiness + true wake; removes `FD_SETSIZE=64` per-call limit and avoids batching).
+			   - Windows: upgrade the socket netpoller from select-v0 to IOCP (scalable readiness + true wake; removes `FD_SETSIZE=64` per-call limit and avoids batching).
 		       - Design doc: `docs/WINDOWS_IOCP_NETPOLL.md`
 		       - Primary reference snapshots (verbatim): `project-doc/web/learn.microsoft.com/iocp/20260117/`
 			       - Rolling plumbing landed (2026-01-17):
@@ -416,8 +422,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
          - Runtime: IOCP wait-node layout (OVERLAPPED + netpoll metadata + bytes slot) and scheduler recognition of IOCP wait tokens.
          - Runtime: scheduler idle/blocking netpoll path also recognizes IOCP wait tokens (no drop on blocking polls).
          - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (posts completion with `ov!=0`, asserts token return, bytes capture)
-			   - Windows: extend the wait-list mechanism beyond channels:
-			     - 2026-02-13: fd waits (`oren_fd_wait_*`) can park Gs on IOCP wait nodes when IOCP readiness is explicitly enabled (`OREN_NETPOLL_WIN_IOCP_READY=1`).
+				   - Windows: extend the wait-list mechanism beyond channels:
+				     - 2026-02-13: fd waits (`oren_fd_wait_*`) can park Gs on IOCP wait nodes when IOCP readiness is explicitly enabled (`OREN_NETPOLL_WIN_IOCP_READY=1`).
+			   - Re‑enable cached poll mode under worker scheduling once we have a proven safe path:
+			     - Currently `OREN_GREEN_POLL_CACHE=1` is ignored when workers are started (N:1 only), because cached locals caused `oren_join_timeout` to spuriously time out under `test_green_workers_many_tasks_bounded`.
+			     - Goal: keep the cached fast path while ensuring P ownership transitions (M<P) refresh `ts/p` safely across ctx switches.
 			     - Rolling issue: IOCP readiness remains unreliable on Win11 (UDP `WSAEFAULT`, TCP header timeouts); default path uses select‑v0.
 			     - Next: unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
 			     - 2026-02-13: added shared wait-node init/reset helpers and used them in select/netpoll paths:
