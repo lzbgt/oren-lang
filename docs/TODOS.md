@@ -141,14 +141,18 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				     - `benchmarks/loop_sum` (M2 Pro, 20M iters): C 0.0808s, Oren C 1.2187s (~15.1×), Oren native 2.4080s (~29.8×), OBC 6.2733s (~77.6×)
 				     - Result artifact: `benchmarks/results/loop_sum_m2_20260214_115726.md`
 				   - 2026-02-14: x64 native inlines constant RHS modulo (nonzero, not -1) to avoid `oren_mod` call in hot loops (no x64 bench captured yet).
-				   - 2026-02-14: benchmark harness can capture per-run RSS (`OREN_BENCH_RSS=1`):
-				     - Result artifact: `benchmarks/results/loop_sum_m2_20260214_120502.md`
-				   - 2026-02-14: added `alloc_churn` allocation churn benchmark (GC/leak surface):
-				     - M2 Pro baseline (runs=3, warmup=1, `OREN_GC_AUTO=1`): C 0.0042s, Oren C 0.1146s, Oren native 0.6410s, OBC 0.4070s
-				     - RSS medians (bytes): C 1.29MB, Oren C 68.6MB, Oren native 54.0MB, OBC 61.4MB
-				     - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_121359.md`
-				   - 2026-02-14: alloc_churn with lower GC threshold (`OREN_GC_ALLOC_THRESHOLD=200000`) did not reduce RSS (but increased runtime):
-				     - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_121632.md`
+					   - 2026-02-14: benchmark harness can capture per-run RSS (`OREN_BENCH_RSS=1`):
+					     - Result artifact: `benchmarks/results/loop_sum_m2_20260214_120502.md`
+					   - 2026-02-14: added `alloc_churn` allocation churn benchmark (GC/leak surface):
+					     - M2 Pro baseline (runs=3, warmup=1, `OREN_GC_AUTO=1`): C 0.0042s, Oren C 0.1146s, Oren native 0.6410s, OBC 0.4070s
+					     - RSS medians (bytes): C 1.29MB, Oren C 68.6MB, Oren native 54.0MB, OBC 61.4MB
+					     - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_121359.md`
+					   - 2026-02-14: alloc_churn with lower GC threshold (`OREN_GC_ALLOC_THRESHOLD=200000`) did not reduce RSS (but increased runtime):
+					     - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_121632.md`
+					   - 2026-02-14: loop_sum refresh (M2 Pro, 20M iters): C 0.0673s, Oren C 1.2218s (~18.1×), Oren native 2.2507s (~33.5×), OBC 6.0740s (~90.3×)
+					     - Result artifact: `benchmarks/results/loop_sum_m2_20260214_133422.md`
+					   - 2026-02-14: alloc_churn refresh (M2 Pro, runs=5, warmup=1): C 0.00275s, Oren C 0.1182s, Oren native 1.2805s, OBC 0.4110s
+					     - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_133613.md`
 			   - 2026-02-14: native free-block reuse now exists but is **gated** behind `OREN_GC_REUSE_BLOCKS=1` (default off pending GC correctness hardening):
 				     - Runtime: `lib/runtime_native/100_time_gc_alloc.oren`
 				     - Compiler: `lib/compiler/arm64_native_expr/090_tail.oren`, `lib/compiler/x64_native_program/040_emit_expr.oren`
@@ -427,23 +431,24 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		   - 2026-01-16: x64 native backend now inserts throttled `oren_gc_safepoint()` polling in `while`/`for` loop headers (every 256 iterations), matching arm64 + C transpiler.
 		     - Required for the STW “park at safepoint” protocol to be viable on x64-linux/x64-windows Tier‑1 targets.
 		     - Compiler: `lib/compiler/x64_native_program/060_emit_ops.oren` (`_emit_gc_safepoint_throttled_x64`)
-			   - 2026-02-14: re-enabled cached poll mode under worker scheduling with P-epoch refresh:
-			     - Cached path now tracks per-thread P epoch and refreshes cached `P` bindings across ownership transitions.
-			     - Worker-mode cached poll is exercised by `test_green_workers_many_tasks_bounded` when `OREN_GREEN_POLL_CACHE=1` is set.
-			     - Runtime: `lib/runtime_native/263_green/020_green_poll.oren`
+				   - 2026-02-14: re-enabled cached poll mode under worker scheduling with P-epoch refresh:
+				     - Cached path now tracks per-thread P epoch and refreshes cached `P` bindings across ownership transitions.
+				     - Worker-mode cached poll is exercised by `test_green_workers_many_tasks_bounded` when `OREN_GREEN_POLL_CACHE=1` is set.
+				     - Runtime: `lib/runtime_native/263_green/020_green_poll.oren`
+				   - 2026-02-14: cached green poll auto-disables once workers start (rolling safety):
+				     - Prevents stale cached scheduler locals from hanging OS-thread GC join tests under `OREN_GREEN_POLL_CACHE=1`.
+				     - Runtime: `lib/runtime_native/263_green/010_green_core.oren` (`_green_poll_cache`)
 
 			   Next steps (actionable, highest leverage first):
 
-				   - Performance (P0): close the Oren native gap on `benchmarks/loop_sum` (M2 baseline ~35× C).
-				     - Focus on: unboxed int arithmetic + modulo fast paths, loop‑header lowering overhead, and constant‑mod strength reduction.
-				     - Guard: keep `benchmarks/loop_sum` results in `benchmarks/results/` and re-run after changes.
-				   - Performance (P0): close the Oren native gap on `benchmarks/loop_sum` (M2 baseline ~29.8× C).
-				     - Focus on: further reduce helper calls in integer hot paths (add/compare), tighten loop header lowering, and consider unboxed int fast-paths in the native runtime.
-				   - Performance (P0): bring Oren C backend loop_sum under 10× C on M2 (currently ~15.1×).
-				     - Focus on: avoid OrenValue boxing in tight loops, reduce helper call overhead, and enable constant‑folded modulo where safe.
-				   - Performance (P0): capture x64 loop_sum baseline (after constant‑mod inline) on the Linux/Win Tier‑1 path to confirm x64 impact.
-				   - Reliability (P0): investigate reported memory leaks by adding a minimal leak repro + RSS sampling to the benchmark harness, then triage GC/runtime roots.
-				   - Reliability (P0): alloc_churn RSS is still high under `OREN_GC_AUTO=1`; confirm auto-GC triggers and tune thresholds or add explicit GC hooks for long churn loops.
+					   - Performance (P0): close the Oren native gap on `benchmarks/loop_sum` (M2 baseline ~33.5× C).
+					     - Focus on: unboxed int arithmetic + modulo fast paths, loop‑header lowering overhead, and constant‑mod strength reduction.
+					     - Guard: keep `benchmarks/loop_sum` results in `benchmarks/results/` and re-run after changes.
+					   - Performance (P0): bring Oren C backend loop_sum under 10× C on M2 (currently ~18.1×).
+					     - Focus on: avoid OrenValue boxing in tight loops, reduce helper call overhead, and enable constant‑folded modulo where safe.
+					   - Performance (P0): capture x64 loop_sum baseline (after constant‑mod inline) on the Linux/Win Tier‑1 path to confirm x64 impact.
+					   - Reliability (P0): investigate reported memory leaks by adding a minimal leak repro + RSS sampling to the benchmark harness, then triage GC/runtime roots.
+					   - Reliability (P0): alloc_churn RSS is still high under `OREN_GC_AUTO=1`; re-run with `OREN_BENCH_RSS=1` on the refreshed baseline and confirm auto-GC triggers.
 			   - Windows: upgrade the socket netpoller from select-v0 to IOCP (scalable readiness + true wake; removes `FD_SETSIZE=64` per-call limit and avoids batching).
 		       - Design doc: `docs/WINDOWS_IOCP_NETPOLL.md`
 		       - Primary reference snapshots (verbatim): `project-doc/web/learn.microsoft.com/iocp/20260117/`

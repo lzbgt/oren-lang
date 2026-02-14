@@ -338,6 +338,9 @@ fn _green_poll_cache() {
         }
         g_green_poll_cache_checked = 1
     }
+    // Worker mode safety: cached scheduler locals are still rolling in multi-OS-thread paths.
+    // Disable caching once workers start (even if env requested it) to avoid stale pointers.
+    if g_green_workers_started != 0 { return false }
     return g_green_poll_cache_enabled != 0
 }
 
