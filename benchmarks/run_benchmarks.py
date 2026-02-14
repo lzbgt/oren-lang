@@ -2,6 +2,7 @@
 import json
 import os
 import platform
+import shutil
 import statistics
 import subprocess
 import sys
@@ -111,6 +112,52 @@ def _sysctl_value(key):
         return ""
 
 
+def _sanitize_tag(value):
+    cleaned = "".join(ch if ch.isalnum() else "_" for ch in value)
+    cleaned = cleaned.strip("_")
+    return cleaned or "host"
+
+
+def _host_tag():
+    return _sanitize_tag(f"{platform.system().lower()}_{platform.machine().lower()}")
+
+
+def _resolve_exe(path):
+    if platform.system() != "Windows":
+        return path
+    if path.suffix:
+        return path
+    exe_path = path.with_suffix(".exe")
+    if exe_path.exists():
+        return exe_path
+    return path
+
+
+def _pick_c_compiler():
+    override = os.environ.get("OREN_BENCH_CC")
+    if override:
+        return override
+    if platform.system() == "Windows":
+        candidates = ["cc", "clang", "gcc", "cl"]
+    else:
+        candidates = ["cc", "clang", "gcc"]
+    for name in candidates:
+        if shutil.which(name):
+            return name
+    return "cc"
+
+
+def _is_msvc(compiler):
+    name = Path(compiler).name.lower()
+    return name in {"cl", "cl.exe"}
+
+
+def _c_compile_cmd(compiler, output, source):
+    if _is_msvc(compiler):
+        return [compiler, "/nologo", "/O2", str(source), f"/Fe:{output}"]
+    return [compiler, "-O2", "-o", str(output), str(source)]
+
+
 def main():
     runs = int(os.environ.get("OREN_BENCH_RUNS", DEFAULT_RUNS))
     warmups = int(os.environ.get("OREN_BENCH_WARMUPS", DEFAULT_WARMUPS))
@@ -139,10 +186,16 @@ def main():
     oren_native_bin = build_dir / f"{program}_oren_native"
     obc_out = build_dir / f"{program}.obc"
 
-    avm_bin = ROOT / "avm"
-    oren_bin = ROOT / "oren_stage2"
+    if platform.system() == "Windows":
+        c_bin = c_bin.with_suffix(".exe")
+        oren_c_bin = oren_c_bin.with_suffix(".exe")
+        oren_native_bin = oren_native_bin.with_suffix(".exe")
 
-    _run(["cc", "-O2", "-o", str(c_bin), str(bench_dir / f"{program}.c")], log_path=LOG_DIR / f"bench_build_c_{program}_{ts}.log")
+    avm_bin = _resolve_exe(ROOT / "avm")
+    oren_bin = _resolve_exe(ROOT / "oren_stage2")
+    c_compiler = _pick_c_compiler()
+
+    _run(_c_compile_cmd(c_compiler, c_bin, bench_dir / f"{program}.c"), log_path=LOG_DIR / f"bench_build_c_{program}_{ts}.log")
     _run([str(oren_bin), "build", str(bench_dir / f"{program}.oren"), "--backend", "c", "--no-debug", "-o", str(oren_c_bin)], log_path=LOG_DIR / f"bench_build_oren_c_{program}_{ts}.log")
     _run([str(oren_bin), "build", str(bench_dir / f"{program}.oren"), "--backend", "native", "--no-debug", "-o", str(oren_native_bin)], log_path=LOG_DIR / f"bench_build_oren_native_{program}_{ts}.log")
     _run([str(oren_bin), "build", str(bench_dir / f"{program}.oren"), "--backend", "bytecode", "-o", str(obc_out)], log_path=LOG_DIR / f"bench_build_oren_obc_{program}_{ts}.log")
@@ -204,6 +257,7 @@ def main():
         "cpu_cores": _sysctl_value("hw.ncpu"),
         "mem_bytes": _sysctl_value("hw.memsize"),
         "git_rev": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT).decode("utf-8").strip(),
+        "c_compiler": c_compiler,
         "runs": runs,
         "warmups": warmups,
         "program": program,
@@ -222,8 +276,9 @@ def main():
     if rss_enabled and rss_results:
         payload["rss"] = rss_results
 
-    json_path = RESULTS_DIR / f"{program}_m2_{ts}.json"
-    md_path = RESULTS_DIR / f"{program}_m2_{ts}.md"
+    host_tag = _host_tag()
+    json_path = RESULTS_DIR / f"{program}_{host_tag}_{ts}.json"
+    md_path = RESULTS_DIR / f"{program}_{host_tag}_{ts}.md"
 
     json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
