@@ -19,7 +19,7 @@ var g_alloc_index_probe_exhausted = 0
 // Some pointers are valid "values" in the native runtime model but should not be treated as
 // GC-managed heap allocations (e.g. platform-provided stable pointers or "static" buffers).
 //
-// Static-kind tracking attaches a lightweight metadata node (40 bytes) to such pointers so
+// Static-kind tracking attaches a lightweight metadata node (48 bytes) to such pointers so
 // `oren_find_node(ptr)` can classify them (kind!=0) without forcing a heap copy.
 var g_static_allocs = 0
 
@@ -250,6 +250,12 @@ fn native_alloc_index_get(ptr) {
                 idx = iadd(idx, 1) & mask
                 continue
             }
+            if ptr_get(iadd(slot, 40)) != native_node_magic() {
+                // Corrupted/alien entry: tombstone it so future probes skip it.
+                ptr_set(iadd(g_alloc_index_ptr, idx << 3), g_alloc_index_tomb)
+                idx = iadd(idx, 1) & mask
+                continue
+            }
             // Pointer equality without `==` (avoid string-aware compare recursion).
             if ptr_get(slot) - ptr == 0 { return slot }
         }
@@ -262,8 +268,20 @@ fn native_alloc_index_put_node(node) {
     if node == 0 { return 0 }
     var ptr = ptr_get(node)
     if ptr == 0 || ptr < 4096 { return 0 }
-    if g_alloc_index_cap == 0 { native_alloc_index_init_min(1024) }
+    if ptr_get(iadd(node, 40)) != native_node_magic() {
+        ptr_set(iadd(node, 40), native_node_magic())
+    }
+    var need_rebuild = 0
+    if g_alloc_index_cap == 0 {
+        native_alloc_index_init_min(1024)
+        need_rebuild = 1
+    }
     if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+    if need_rebuild != 0 {
+        // Ensure the index is complete if this is the first initializer.
+        // Without this, the index can miss existing live nodes and cause "untracked" lookups.
+        native_alloc_index_rebuild_live()
+    }
 
     // Resize when load factor exceeds ~0.75.
     if g_alloc_index_len * 4 >= g_alloc_index_cap * 3 {
@@ -280,6 +298,10 @@ fn native_alloc_index_put_node(node) {
             var cur = global_get_allocs()
             while cur != 0 {
                 // Insert cur (no further resize expected during rebuild).
+                if ptr_get(iadd(cur, 40)) != native_node_magic() {
+                    cur = ptr_get(iadd(cur, 32))
+                    continue
+                }
                 var p0 = ptr_get(cur)
                 if p0 != 0 && p0 >= 4096 {
                     var mask0 = g_alloc_index_cap - 1
@@ -316,6 +338,10 @@ fn native_alloc_index_put_node(node) {
             // Reinsert static-kind nodes.
             var cur_static = g_static_allocs
             while cur_static != 0 {
+                if ptr_get(iadd(cur_static, 40)) != native_node_magic() {
+                    cur_static = ptr_get(iadd(cur_static, 32))
+                    continue
+                }
                 var p1 = ptr_get(cur_static)
                 if p1 != 0 && p1 >= 4096 {
                     var mask1 = g_alloc_index_cap - 1
@@ -494,13 +520,14 @@ fn oren_track_static(ptr, kind) {
     }
 
     // Allocate a tracking node in raw memory and link it into the static list (NOT allocs).
-    var node = native_malloc_raw_or_mmap(40)
+    var node = native_malloc_raw_or_mmap(48)
     if node != 0 {
         ptr_set(node, ptr)
         ptr_set(iadd(node, 8), 0)
         ptr_set(iadd(node, 16), kind)
         ptr_set(iadd(node, 24), 0) // not freed, not marked (meaningless for static nodes)
         ptr_set(iadd(node, 32), g_static_allocs)
+        ptr_set(iadd(node, 40), native_node_magic())
         g_static_allocs = node
         native_alloc_index_put_node(node)
     }
@@ -636,8 +663,9 @@ fn native_gc_scan_stack() {
     return 0
 }
 
-// Node layout: [ptr, size, kind, freed, next] (5 * 8 = 40 bytes)
-// Offsets: 0=ptr, 8=size, 16=kind, 24=freed, 32=next
+// Node layout: [ptr, size, kind, freed, next, magic] (6 * 8 = 48 bytes)
+// Offsets: 0=ptr, 8=size, 16=kind, 24=freed, 32=next, 40=magic
+fn native_node_magic() { return 5717241888024741957 } // 0x4f52454e4e4f4445 ("ORENNODE")
 
 // Try to reuse a raw node allocation (used by malloc_raw callers like root lists).
 // This must NOT reuse freed "blocks" (which are tracked allocation records pointing at object memory),
@@ -661,6 +689,16 @@ fn native_try_reuse_node(size) {
     var cur = global_get_free_nodes()
     while cur != 0 {
         var node_size = ptr_get(iadd(cur, 8))
+        if ptr_get(iadd(cur, 40)) != native_node_magic() {
+            var next_bad = ptr_get(iadd(cur, 32))
+            if prev == 0 {
+                global_set_free_nodes(next_bad)
+            } else {
+                ptr_set(iadd(prev, 32), next_bad)
+            }
+            cur = next_bad
+            continue
+        }
         if node_size >= size {
             var next = ptr_get(iadd(cur, 32))
             if prev == 0 {
@@ -701,6 +739,15 @@ fn native_try_reuse(size) {
             cur = next
             continue
         }
+        if ptr_get(iadd(cur, 40)) != native_node_magic() {
+            if prev == 0 {
+                global_set_free_blocks(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            cur = next
+            continue
+        }
         var chunk_ptr = ptr_get(cur)
         var chunk_size = ptr_get(iadd(cur, 8))
         if chunk_ptr < 4096 || chunk_size <= 0 {
@@ -729,6 +776,7 @@ fn native_try_reuse(size) {
             ptr_set(iadd(cur, 16), 5)
             ptr_set(iadd(cur, 24), 0) // not freed, not marked
             ptr_set(iadd(cur, 32), global_get_allocs())
+            ptr_set(iadd(cur, 40), native_node_magic())
             global_set_allocs(cur)
             native_alloc_index_put_node(cur)
 
@@ -849,6 +897,15 @@ fn oren_track_alloc(ptr, size, kind) {
     if kind == 1 && g_cstr0_set_cap != 0 {
         if native_cstr0_set_has(ptr) != 0 { return ptr }
     }
+    if oren_getenv("OREN_TRACE_TRACK_ALLOC") != 0 {
+        if kind == 3 {
+            print("trace: track_alloc ptr=" + oren_int_to_string(ptr) +
+                  " size=" + oren_int_to_string(size) +
+                  " kind=" + oren_int_to_string(kind) +
+                  " idx_ptr=" + oren_int_to_string(g_alloc_index_ptr) +
+                  " idx_cap=" + oren_int_to_string(g_alloc_index_cap))
+        }
+    }
     acquire_lock()
 
     // Ensure the alloc-index exists before we rely on it for de-duplication.
@@ -874,7 +931,22 @@ fn oren_track_alloc(ptr, size, kind) {
         if kind != 0 { ptr_set(iadd(hit, 16), kind) }
         // Clear "freed" and mark flags on re-track.
         ptr_set(iadd(hit, 24), 0)
+        ptr_set(iadd(hit, 40), native_node_magic())
         native_alloc_index_put_node(hit)
+        if native_alloc_index_get(ptr) == 0 {
+            // Rolling robustness: force rebuild if the index didn't pick up the update.
+            native_alloc_index_rebuild_live()
+        }
+        if oren_getenv("OREN_TRACE_TRACK_ALLOC") != 0 && kind == 3 {
+            var chk = native_alloc_index_get(ptr)
+            if chk == 0 {
+                print("trace: track_alloc miss_after_hit ptr=" + oren_int_to_string(ptr))
+            } else {
+                print("trace: track_alloc hit_after_hit node=" + oren_int_to_string(chk) +
+                      " node_ptr=" + oren_int_to_string(ptr_get(chk)) +
+                      " node_kind=" + oren_int_to_string(ptr_get(iadd(chk, 16))))
+            }
+        }
         // Auto-GC accounting: treat tracking as allocation event (compiler emits this after malloc).
         if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
             g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
@@ -904,8 +976,22 @@ fn oren_track_alloc(ptr, size, kind) {
             ptr_set(iadd(cur, 16), kind)
             ptr_set(iadd(cur, 24), 0)
             ptr_set(iadd(cur, 32), global_get_allocs())
+            ptr_set(iadd(cur, 40), native_node_magic())
             global_set_allocs(cur)
             native_alloc_index_put_node(cur)
+            if native_alloc_index_get(ptr) == 0 {
+                native_alloc_index_rebuild_live()
+            }
+            if oren_getenv("OREN_TRACE_TRACK_ALLOC") != 0 && kind == 3 {
+                var chk2 = native_alloc_index_get(ptr)
+                if chk2 == 0 {
+                    print("trace: track_alloc miss_after_free ptr=" + oren_int_to_string(ptr))
+                } else {
+                    print("trace: track_alloc hit_after_free node=" + oren_int_to_string(chk2) +
+                          " node_ptr=" + oren_int_to_string(ptr_get(chk2)) +
+                          " node_kind=" + oren_int_to_string(ptr_get(iadd(chk2, 16))))
+                }
+            }
 
             if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
                 g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
@@ -923,15 +1009,29 @@ fn oren_track_alloc(ptr, size, kind) {
     }
 
     // Allocate a new tracking node (raw, untracked by GC).
-    var node = native_malloc_raw_or_mmap(40)
+    var node = native_malloc_raw_or_mmap(48)
     if node != 0 {
         ptr_set(node, ptr)
         ptr_set(iadd(node, 8), size)
         ptr_set(iadd(node, 16), kind)
         ptr_set(iadd(node, 24), 0) // not freed, not marked
         ptr_set(iadd(node, 32), global_get_allocs())
+        ptr_set(iadd(node, 40), native_node_magic())
         global_set_allocs(node)
         native_alloc_index_put_node(node)
+        if native_alloc_index_get(ptr) == 0 {
+            native_alloc_index_rebuild_live()
+        }
+        if oren_getenv("OREN_TRACE_TRACK_ALLOC") != 0 && kind == 3 {
+            var chk3 = native_alloc_index_get(ptr)
+            if chk3 == 0 {
+                print("trace: track_alloc miss_after_new ptr=" + oren_int_to_string(ptr))
+            } else {
+                print("trace: track_alloc hit_after_new node=" + oren_int_to_string(chk3) +
+                      " node_ptr=" + oren_int_to_string(ptr_get(chk3)) +
+                      " node_kind=" + oren_int_to_string(ptr_get(iadd(chk3, 16))))
+            }
+        }
     }
 
     if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
@@ -951,7 +1051,7 @@ fn native_gc_register_root(ptr) {
     if ptr == 0 { return 0 }
     acquire_lock()
     
-    var node = native_malloc_raw_or_mmap(40)
+    var node = native_malloc_raw_or_mmap(48)
     if node != 0 {
         ptr_set(node, ptr)
         ptr_set(iadd(node, 8), 0)
@@ -982,7 +1082,8 @@ fn native_gc_unregister_root(ptr) {
             }
             // Reuse node storage via free list.
             ptr_set(cur, 0)
-            ptr_set(iadd(cur, 8), 40)
+            ptr_set(iadd(cur, 8), 48)
+            ptr_set(iadd(cur, 40), native_node_magic())
             ptr_set(iadd(cur, 16), 0)
             ptr_set(iadd(cur, 24), 0)
             ptr_set(iadd(cur, 32), global_get_free_nodes())
@@ -1345,7 +1446,8 @@ fn native_gc_collect() {
 
                 // Reuse the tracking node storage via free_nodes list.
                 ptr_set(cur_sweep, 0)
-                ptr_set(iadd(cur_sweep, 8), 40)
+                ptr_set(iadd(cur_sweep, 8), 48)
+                ptr_set(iadd(cur_sweep, 40), native_node_magic())
                 ptr_set(iadd(cur_sweep, 16), 0)
                 ptr_set(iadd(cur_sweep, 24), 0)
                 ptr_set(iadd(cur_sweep, 32), global_get_free_nodes())

@@ -38,11 +38,33 @@ fn oren_list_len(list) {
     if list == nil { return 0 }
     // Safety: do not dereference arbitrary large integers as pointers.
     // Rely on the tracked-alloc metadata (native) / runtime tracking (C) to discriminate.
-	    var node = oren_find_node(list)
-	    if node == 0 { oren_panic("list_len on non-list"); return 0 }
-	    if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_len on non-list"); return 0 }
-	    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_len on non-list"); return 0 }
-	    return ptr_get(iadd(list, 0))
+    var node = oren_find_node(list)
+    if node == 0 {
+        if oren_getenv("OREN_TRACE_LIST_CHECK") != 0 {
+            print("trace: list_len node=0 list=" + oren_int_to_string(list))
+        }
+        oren_panic("list_len on non-list")
+        return 0
+    }
+    if ptr_get(iadd(node, 16)) != 2 {
+        if oren_getenv("OREN_TRACE_LIST_CHECK") != 0 {
+            print("trace: list_len kind=" + oren_int_to_string(ptr_get(iadd(node, 16))) +
+                  " list=" + oren_int_to_string(list) +
+                  " node=" + oren_int_to_string(node))
+        }
+        oren_panic("list_len on non-list")
+        return 0
+    }
+    if ptr_get(iadd(list, 24)) != list_magic() {
+        if oren_getenv("OREN_TRACE_LIST_CHECK") != 0 {
+            print("trace: list_len magic=" + oren_int_to_string(ptr_get(iadd(list, 24))) +
+                  " want=" + oren_int_to_string(list_magic()) +
+                  " list=" + oren_int_to_string(list))
+        }
+        oren_panic("list_len on non-list")
+        return 0
+    }
+    return ptr_get(iadd(list, 0))
 }
 
 // Safe type predicate: must not panic.

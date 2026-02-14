@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-02-13
+**Last updated:** 2026-02-14
 
 This repo is in rolling mode. This file tracks the **highest-leverage work remaining** to evolve Oren
 into a modern, efficient, production-ready language and toolchain, while keeping iteration fast.
@@ -149,12 +149,16 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				     - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_121359.md`
 				   - 2026-02-14: alloc_churn with lower GC threshold (`OREN_GC_ALLOC_THRESHOLD=200000`) did not reduce RSS (but increased runtime):
 				     - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_121632.md`
-				   - 2026-02-14: native free-block reuse now exists but is **gated** behind `OREN_GC_REUSE_BLOCKS=1` (default off pending GC correctness hardening):
+			   - 2026-02-14: native free-block reuse now exists but is **gated** behind `OREN_GC_REUSE_BLOCKS=1` (default off pending GC correctness hardening):
 				     - Runtime: `lib/runtime_native/100_time_gc_alloc.oren`
 				     - Compiler: `lib/compiler/arm64_native_expr/090_tail.oren`, `lib/compiler/x64_native_program/040_emit_expr.oren`
 				     - alloc_churn RSS on macOS remained at the high-water mark (bump allocator retains OS pages):
 				       - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_122357.md`
 				     - Guard: enabling reuse currently trips `map op on non-map` in native quick integration; fix GC/alloc invariants before default-on.
+				   - 2026-02-14: allocator hardening for native runtime metadata:
+				     - Raw tracking nodes now come from a dedicated raw arena (`sys_mmap_private_anon`) instead of the GC heap (`lib/runtime_native/015_raw_alloc.oren`).
+				     - Tracking nodes now carry a magic word and are validated during alloc-index lookups/rebuilds (`lib/runtime_native/100_time_gc_alloc.oren`).
+				     - Reuse-on now gets past map tracking but still fails quick integration with `list_len on non-list` (select path) — keep gated.
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).

@@ -471,8 +471,19 @@ fn oren_is_map(v) {
     ptr_set(iadd(header, 32), 0)      // dirty_sort
     ptr_set(iadd(header, 40), 0)      // hash_ptr
     ptr_set(iadd(header, 48), 0)      // hash_cap
-	    return header
-			}
+    if oren_getenv("OREN_TRACE_MAP_CHECK") != 0 {
+        var hit = native_alloc_index_get(header)
+        if hit == 0 {
+            print("trace: new_map untracked header=" + oren_int_to_string(header) +
+                  " idx_ptr=" + oren_int_to_string(g_alloc_index_ptr) +
+                  " idx_cap=" + oren_int_to_string(g_alloc_index_cap))
+        } else {
+            print("trace: new_map tracked header=" + oren_int_to_string(header) +
+                  " node=" + oren_int_to_string(hit))
+        }
+    }
+    return header
+}
 
 // Cross-backend helper: allocate an empty map with reserved capacity.
 // In native runtime, `oren_new_map(cap)` already has "capacity constructor" semantics.
@@ -486,9 +497,27 @@ fn _oren_map_check(m) {
     // Safety: do not dereference arbitrary large integers as pointers.
     // Require a tracked heap object, then validate kind+magic.
     var node = oren_find_node(m)
-    if node == 0 { oren_panic("map op on non-map") }
-    if ptr_get(iadd(node, 16)) != 3 { oren_panic("map op on non-map") }
-    if ptr_get(iadd(m, 24)) != map_magic() { oren_panic("map op on non-map") }
+    if node == 0 {
+        if oren_getenv("OREN_TRACE_MAP_CHECK") != 0 {
+            print("trace: map_check node=0 m=" + oren_int_to_string(m))
+        }
+        oren_panic("map op on non-map")
+    }
+    if ptr_get(iadd(node, 16)) != 3 {
+        if oren_getenv("OREN_TRACE_MAP_CHECK") != 0 {
+            print("trace: map_check kind=" + oren_int_to_string(ptr_get(iadd(node, 16))) +
+                  " m=" + oren_int_to_string(m) + " node=" + oren_int_to_string(node))
+        }
+        oren_panic("map op on non-map")
+    }
+    if ptr_get(iadd(m, 24)) != map_magic() {
+        if oren_getenv("OREN_TRACE_MAP_CHECK") != 0 {
+            print("trace: map_check magic=" + oren_int_to_string(ptr_get(iadd(m, 24))) +
+                  " want=" + oren_int_to_string(map_magic()) +
+                  " m=" + oren_int_to_string(m))
+        }
+        oren_panic("map op on non-map")
+    }
     return 0
 }
 

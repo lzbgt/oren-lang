@@ -14,6 +14,37 @@
 // Native-backend intrinsic (stub for parsing/other backends).
 fn malloc_raw(size) { return 0 }
 
+// Dedicated raw arena for runtime metadata (tracking nodes, tables, etc).
+// Keep it separate from the GC heap to avoid aliasing/corruption in rolling builds.
+var g_raw_arena_ptr = 0
+var g_raw_arena_limit = 0
+
+fn native_raw_arena_alloc(size) {
+    if size == 0 { return 0 }
+    if size < 0 { return 0 }
+    var want = size
+    var rem = want % 16
+    if rem != 0 { want = iadd(want, 16 - rem) }
+
+    var cur = g_raw_arena_ptr
+    var lim = g_raw_arena_limit
+    if cur == 0 || iadd(cur, want) > lim {
+        var chunk = 65536
+        if want > chunk { chunk = want }
+        var base = sys_mmap_private_anon(chunk)
+        if base == 0 { return 0 }
+        if base == -1 { return 0 }
+        if native_is_neg_i64(base) == true { return 0 }
+        if base < 4096 { return 0 }
+        g_raw_arena_ptr = iadd(base, want)
+        g_raw_arena_limit = iadd(base, chunk)
+        return base
+    }
+
+    g_raw_arena_ptr = iadd(cur, want)
+    return cur
+}
+
 // RAW mmap header for large runtime allocations (and typed-buffer payloads):
 // [magic:u64, total_len:u64, backend:u64, ...padding... ] (64 bytes)
 //
@@ -51,15 +82,10 @@ fn native_abort(msg_cstr) {
 
 fn native_malloc_raw_or_mmap(size) {
     // Robust raw allocator:
-    // - Try the intrinsic fast-path `malloc_raw`
-    // - Validate the returned pointer
-    // - Fall back to `sys_mmap_private_anon` if invalid
-    var p = malloc_raw(size)
-    if p != 0 {
-        if native_is_neg_i64(p) == false {
-            if p >= 4096 { return p }
-        }
-    }
+    // - Prefer a dedicated raw arena (separate from GC heap)
+    // - Fall back to a direct anonymous mmap if arena fails
+    var p = native_raw_arena_alloc(size)
+    if p != 0 { return p }
 
     var q = sys_mmap_private_anon(size)
     if q == 0 { return 0 }
