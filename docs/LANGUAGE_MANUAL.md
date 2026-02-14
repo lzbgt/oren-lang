@@ -511,10 +511,12 @@ Build-profile note:
     - Block sugar exists for multi-line sections:
       - `debug { ... }` ⇒ `@debug { ... }`
       - `release { ... }` ⇒ `@release { ... }`
-    - `dbg(...)` is statement-level sugar that expands to `@debug print(...)` with a `file:line` prefix.
-      - It is **not** an expression; use it as a standalone statement.
-    - `dprint(...)` is statement-level sugar that expands to `@debug print(...)` with **no prefix**.
-      - It is **not** an expression; use it as a standalone statement.
+    - `dbg(...)` is debug print sugar:
+      - Statement form: expands to `@debug print(...)` with a `file:line` prefix.
+      - Expression form (single-arg): `dbg(expr)` returns `expr` and prints it in **debug** builds (compiled out in release).
+    - `dprint(...)` is the no-prefix variant:
+      - Statement form: expands to `@debug print(...)` with **no prefix**.
+      - Expression form (single-arg): `dprint(expr)` returns `expr` and prints it in **debug** builds (compiled out in release).
 
 Example (debug-only trace without deleting code):
 
@@ -534,6 +536,15 @@ Example (debug-only print sugar):
 fn work() {
     dbg("trace: entering work()") // compiled out in release builds
     dprint("trace: entering work() (no prefix)")
+}
+```
+
+Example (expression form):
+
+```oren
+fn work() {
+    var n = dbg(41)       // returns 41; prints only in debug builds
+    var m = dprint(n + 1) // returns 42; prints only in debug builds
 }
 ```
 

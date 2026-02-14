@@ -134,6 +134,7 @@ Notes:
 - Block sugar exists for multi-line sections: `debug { ... }` / `release { ... }` (equivalent to `@debug { ... }` / `@release { ... }`).
 - `dbg(...)` is a statement-level sugar that expands to `@debug print(...)` with a `file:line` prefix.
 - `dprint(...)` is a statement-level sugar that expands to `@debug print(...)` with no prefix (just your args).
+- Expression form (single-arg): `dbg(expr)` / `dprint(expr)` return `expr` and print only in debug builds (compiled out in release).
 
 ```oren
 @debug print("trace: enter foo")

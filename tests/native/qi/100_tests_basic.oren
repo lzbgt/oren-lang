@@ -44,6 +44,12 @@ fn test_cfg_debug_release() {
     @cfg("debug") dbg("QI: dbg sugar cfg")
     dprint("QI: dprint sugar")
     @cfg("debug") dprint("QI: dprint sugar cfg")
+    var dv = dbg(41)
+    var dv2 = dprint(42)
+    if dv != 41 || dv2 != 42 {
+        print("QI: dbg expr mismatch dv=" + oren_int_to_string(dv) + " dv2=" + oren_int_to_string(dv2))
+        fail(77)
+    }
     return 0
 }
 
@@ -714,4 +720,3 @@ fn test_select_idle_does_not_spin_cpu() {
     trace("QI: idle spin: joined")
     return 0
 }
-

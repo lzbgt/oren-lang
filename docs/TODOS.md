@@ -759,6 +759,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    - 2026-02-13: added `debug { ... }` / `release { ... }` block sugar (parses to `@debug` / `@release`)
      - Parser: `lib/compiler/parser_parse/000_prelude.oren`
      - Evidence: `tests/native/test_quick_integration_native.oren` (`test_cfg_debug_release`)
+   - 2026-02-14: added single‑arg expression sugar for `dbg(expr)` / `dprint(expr)` (returns value; prints only in debug builds)
+     - Pass: `lib/compiler/debug_sugar.oren`
+     - Evidence: `tests/native/test_quick_integration_native.oren` (`test_cfg_debug_release`)
 
 5) **Split oversized quick integration fixture (maintenance)** (S)
 

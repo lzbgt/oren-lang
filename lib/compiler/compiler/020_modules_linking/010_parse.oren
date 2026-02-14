@@ -62,7 +62,7 @@ fn _ml_prepare_module_program_in_place(full, prefix, prog, config) {
     }
 
     // Debug sugar (rolling): rewrite dbg(...)/dprint(...) to @debug print(...) before cfg filtering.
-    debug_sugar.lower_program_in_place(prog)
+    debug_sugar.lower_program_in_place(prog, config)
 
     // Conditional compilation (rolling): filter out `@cfg(...)`-disabled declarations early
     // so later passes (rename/serde/type lowering) do not see conflicting duplicates.

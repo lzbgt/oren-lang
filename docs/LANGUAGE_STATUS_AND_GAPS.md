@@ -66,8 +66,9 @@ Related plugin/nesting model notes:
     - `tests/native/cfg_os_select.oren`
     - `tests/native/test_quick_integration_native.oren` (`test_cfg_debug_release`)
 - **Debug print sugar (`dbg(...)`, `dprint(...)`)**
-  - `dbg(...)` expands to `@debug print(...)` with a file/line prefix (compiled out in release).
-  - `dprint(...)` expands to `@debug print(...)` with no prefix.
+  - Statement form: `dbg(...)` expands to `@debug print(...)` with a file/line prefix (compiled out in release).
+  - Statement form: `dprint(...)` expands to `@debug print(...)` with no prefix.
+  - Expression form (single-arg): `dbg(expr)` / `dprint(expr)` return `expr` and print only in debug builds.
   - Evidence: `tests/native/test_quick_integration_native.oren` (`test_cfg_debug_release`)
 - **ABI layout query intrinsics**
   - `tests/native/fixtures/abi_layout_error.oren`

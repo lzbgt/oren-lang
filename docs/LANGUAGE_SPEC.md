@@ -390,7 +390,9 @@ Build-profile note (rolling):
   - Statement sugar:
     - `dbg(...)` expands to `@debug print(...)` with a `file:line` prefix.
     - `dprint(...)` expands to `@debug print(...)` with no prefix.
-    - Both are statement-level only (not expression forms).
+  - Expression sugar (single-arg only):
+    - `dbg(expr)` returns `expr` and prints it in **debug** builds (compiled out in release).
+    - `dprint(expr)` returns `expr` and prints it in **debug** builds (compiled out in release).
 
 Note on naming:
 

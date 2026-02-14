@@ -321,7 +321,7 @@ fn link_program(entry_path, root_prog, config) {
     // Filter the root program early so:
     // - rename/serde passes don't see cfg-disabled duplicates
     // - codegen doesn't error on duplicate top-level names that are mutually exclusive by cfg
-    debug_sugar.lower_program_in_place(root_prog)
+    debug_sugar.lower_program_in_place(root_prog, config)
     if config != nil {
         cfg_lowering.lower_program_in_place(root_prog, config)
         if root_prog["cfg_errors"] != nil && oren_is_list(root_prog["cfg_errors"]) == true && oren_list_len(root_prog["cfg_errors"]) > 0 {

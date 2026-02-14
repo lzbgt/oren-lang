@@ -153,6 +153,9 @@ Build-profile note:
   - Statement sugar:
     - `dbg(...)` expands to `@debug print(...)` with a `file:line` prefix.
     - `dprint(...)` expands to `@debug print(...)` with no prefix.
+  - Expression sugar (single-arg only):
+    - `dbg(expr)` returns `expr` and prints it in **debug** builds (compiled out in release).
+    - `dprint(expr)` returns `expr` and prints it in **debug** builds (compiled out in release).
 
 Example (FFI library name differs per OS):
 

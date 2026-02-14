@@ -5,6 +5,15 @@ fn _dbg_attr(tok) {
     return {"type": "Attr", "token": tok, "name": "oren.debug", "args": []}
 }
 
+fn _dbg_debug_mode(config) {
+    var debug_mode = false
+    if config != nil {
+        var dbg = config["debug"]
+        if dbg == true || dbg == 1 { debug_mode = true }
+    }
+    return debug_mode
+}
+
 fn _dbg_prefix_string(tok, tag) {
     var file = "<input>"
     var line = 0
@@ -54,6 +63,30 @@ fn _dbg_make_print_call(call_expr, prefix) {
     return out
 }
 
+fn _dbg_make_print_call_with_args(tok, args, prefix) {
+    var print_tok = token.new_token(token.TOK_IDENT, "print")
+    var print_ident = ast.new_identifier(print_tok)
+    var out_args = []
+    if prefix != nil {
+        var prefix_tok = token.new_token(token.TOK_STRING, prefix)
+        var prefix_expr = ast.new_string(prefix_tok)
+        oren_list_push(out_args, prefix_expr)
+    }
+    if args != nil {
+        var i = 0
+        while i < oren_list_len(args) {
+            oren_list_push(out_args, args[i])
+            i = i + 1
+        }
+    }
+    return ast.new_call(tok, print_ident, out_args)
+}
+
+fn _dbg_new_ident(name) {
+    var tok = token.new_token(token.TOK_IDENT, name)
+    return ast.new_identifier(tok)
+}
+
 fn _dbg_attrs_has_name(attrs, name) {
     if attrs == nil || name == nil { return false }
     var i = 0
@@ -66,11 +99,11 @@ fn _dbg_attrs_has_name(attrs, name) {
 }
 
 fn _dbg_stmt_rewrite(stmt) {
-    if stmt == nil { return nil }
-    if stmt["type"] != "ExprStmt" { return nil }
-    if stmt["expr"] == nil || stmt["expr"]["type"] != "Call" { return nil }
+    if stmt == nil { return false }
+    if stmt["type"] != "ExprStmt" { return false }
+    if stmt["expr"] == nil || stmt["expr"]["type"] != "Call" { return false }
     var call = stmt["expr"]
-    if call["fn"] == nil || call["fn"]["type"] != "Identifier" { return nil }
+    if call["fn"] == nil || call["fn"]["type"] != "Identifier" { return false }
     var name = call["fn"]["value"]
     var prefix = nil
     if name == "dbg" {
@@ -78,7 +111,7 @@ fn _dbg_stmt_rewrite(stmt) {
     } else if name == "dprint" {
         prefix = nil
     } else {
-        return nil
+        return false
     }
 
     stmt["expr"] = _dbg_make_print_call(call, prefix)
@@ -86,45 +119,175 @@ fn _dbg_stmt_rewrite(stmt) {
     if _dbg_attrs_has_name(stmt["attrs"], "oren.debug") != true {
         oren_list_push(stmt["attrs"], _dbg_attr(call["token"]))
     }
-    return nil
+    return true
 }
 
-fn _dbg_lower_stmt_in_place(stmt) {
+fn _dbg_make_expr_rewrite(call_expr, name, debug_mode) {
+    if call_expr == nil { return nil }
+    if call_expr["spread"] != nil { return nil }
+    var args = call_expr["args"]
+    if args == nil || oren_list_len(args) != 1 { return nil }
+    var arg0 = args[0]
+    if debug_mode != true { return arg0 }
+
+    var prefix = nil
+    if name == "dbg" {
+        prefix = _dbg_prefix_string(call_expr["token"], "dbg")
+    } else if name == "dprint" {
+        prefix = nil
+    } else {
+        return nil
+    }
+
+    var tmp_name = "__dbg_tmp"
+    var tmp_param = _dbg_new_ident(tmp_name)
+    var tmp_arg = _dbg_new_ident(tmp_name)
+    var tmp_ret = _dbg_new_ident(tmp_name)
+    var print_call = _dbg_make_print_call_with_args(call_expr["token"], [tmp_arg], prefix)
+    var print_stmt = ast.new_expr_stmt(token.new_token(token.TOK_IDENT, "print"), print_call)
+    var ret_stmt = ast.new_return(token.new_token(token.TOK_RETURN, "return"), tmp_ret)
+    var body = ast.new_block(token.new_token(token.TOK_LBRACE, "{"))
+    oren_list_push(body["stmts"], print_stmt)
+    oren_list_push(body["stmts"], ret_stmt)
+    var fn_expr = ast.new_function(call_expr["token"], "", [tmp_param], body)
+    return ast.new_call(call_expr["token"], fn_expr, [arg0])
+}
+
+fn _dbg_lower_expr_in_place(expr, debug_mode) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Function" {
+        _dbg_lower_stmt_in_place(expr["body"], debug_mode)
+        return expr
+    }
+    if t == "Prefix" {
+        expr["right"] = _dbg_lower_expr_in_place(expr["right"], debug_mode)
+        return expr
+    }
+    if t == "Infix" {
+        expr["left"] = _dbg_lower_expr_in_place(expr["left"], debug_mode)
+        expr["right"] = _dbg_lower_expr_in_place(expr["right"], debug_mode)
+        return expr
+    }
+    if t == "If" {
+        expr["cond"] = _dbg_lower_expr_in_place(expr["cond"], debug_mode)
+        _dbg_lower_stmt_in_place(expr["consq"], debug_mode)
+        if expr["alt"] != nil { _dbg_lower_stmt_in_place(expr["alt"], debug_mode) }
+        return expr
+    }
+    if t == "Array" {
+        var xs = expr["elements"]
+        var i = 0
+        while i < oren_list_len(xs) {
+            xs[i] = _dbg_lower_expr_in_place(xs[i], debug_mode)
+            i = i + 1
+        }
+        return expr
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        var i2 = 0
+        while i2 < oren_list_len(ps) {
+            ps[i2]["key"] = _dbg_lower_expr_in_place(ps[i2]["key"], debug_mode)
+            ps[i2]["value"] = _dbg_lower_expr_in_place(ps[i2]["value"], debug_mode)
+            i2 = i2 + 1
+        }
+        return expr
+    }
+    if t == "Index" {
+        expr["left"] = _dbg_lower_expr_in_place(expr["left"], debug_mode)
+        expr["index"] = _dbg_lower_expr_in_place(expr["index"], debug_mode)
+        return expr
+    }
+    if t == "Member" {
+        expr["left"] = _dbg_lower_expr_in_place(expr["left"], debug_mode)
+        return expr
+    }
+    if t == "SpawnExpr" {
+        expr["call"] = _dbg_lower_expr_in_place(expr["call"], debug_mode)
+        return expr
+    }
+    if t == "Call" {
+        expr["fn"] = _dbg_lower_expr_in_place(expr["fn"], debug_mode)
+        var args = expr["args"]
+        if args != nil {
+            var i3 = 0
+            while i3 < oren_list_len(args) {
+                args[i3] = _dbg_lower_expr_in_place(args[i3], debug_mode)
+                i3 = i3 + 1
+            }
+        }
+        if expr["spread"] != nil { expr["spread"] = _dbg_lower_expr_in_place(expr["spread"], debug_mode) }
+        if expr["fn"] != nil && expr["fn"]["type"] == "Identifier" {
+            var nm = expr["fn"]["value"]
+            if nm == "dbg" || nm == "dprint" {
+                var out = _dbg_make_expr_rewrite(expr, nm, debug_mode)
+                if out != nil { return out }
+            }
+        }
+        return expr
+    }
+    return expr
+}
+
+fn _dbg_lower_stmt_in_place(stmt, debug_mode) {
     if stmt == nil { return nil }
-    _dbg_stmt_rewrite(stmt)
+    var rewritten = _dbg_stmt_rewrite(stmt)
     var t = stmt["type"]
     if t == "Block" {
-        _dbg_lower_stmt_list_in_place(stmt["stmts"])
+        _dbg_lower_stmt_list_in_place(stmt["stmts"], debug_mode)
         return nil
     }
     if t == "StmtList" {
-        _dbg_lower_stmt_list_in_place(stmt["stmts"])
+        _dbg_lower_stmt_list_in_place(stmt["stmts"], debug_mode)
         return nil
     }
     if t == "Function" {
-        _dbg_lower_stmt_in_place(stmt["body"])
+        _dbg_lower_stmt_in_place(stmt["body"], debug_mode)
+        return nil
+    }
+    if t == "Var" {
+        stmt["value"] = _dbg_lower_expr_in_place(stmt["value"], debug_mode)
+        return nil
+    }
+    if t == "Assign" {
+        stmt["value"] = _dbg_lower_expr_in_place(stmt["value"], debug_mode)
+        return nil
+    }
+    if t == "Set" {
+        stmt["left"] = _dbg_lower_expr_in_place(stmt["left"], debug_mode)
+        stmt["value"] = _dbg_lower_expr_in_place(stmt["value"], debug_mode)
         return nil
     }
     if t == "ExprStmt" {
+        if rewritten == true { return nil }
         var exp = stmt["expr"]
+        stmt["expr"] = _dbg_lower_expr_in_place(exp, debug_mode)
         if exp != nil && exp["type"] == "Function" {
-            _dbg_lower_stmt_in_place(exp["body"])
+            _dbg_lower_stmt_in_place(exp["body"], debug_mode)
         }
         return nil
     }
+    if t == "Return" {
+        stmt["value"] = _dbg_lower_expr_in_place(stmt["value"], debug_mode)
+        return nil
+    }
     if t == "If" {
-        _dbg_lower_stmt_in_place(stmt["consq"])
-        if stmt["alt"] != nil { _dbg_lower_stmt_in_place(stmt["alt"]) }
+        stmt["cond"] = _dbg_lower_expr_in_place(stmt["cond"], debug_mode)
+        _dbg_lower_stmt_in_place(stmt["consq"], debug_mode)
+        if stmt["alt"] != nil { _dbg_lower_stmt_in_place(stmt["alt"], debug_mode) }
         return nil
     }
     if t == "While" {
-        _dbg_lower_stmt_in_place(stmt["body"])
+        stmt["cond"] = _dbg_lower_expr_in_place(stmt["cond"], debug_mode)
+        _dbg_lower_stmt_in_place(stmt["body"], debug_mode)
         return nil
     }
     if t == "For" {
-        if stmt["init"] != nil { _dbg_lower_stmt_in_place(stmt["init"]) }
-        if stmt["post"] != nil { _dbg_lower_stmt_in_place(stmt["post"]) }
-        _dbg_lower_stmt_in_place(stmt["body"])
+        if stmt["init"] != nil { _dbg_lower_stmt_in_place(stmt["init"], debug_mode) }
+        if stmt["cond"] != nil { stmt["cond"] = _dbg_lower_expr_in_place(stmt["cond"], debug_mode) }
+        if stmt["post"] != nil { stmt["post"] = _dbg_lower_expr_in_place(stmt["post"], debug_mode) }
+        _dbg_lower_stmt_in_place(stmt["body"], debug_mode)
         return nil
     }
     if t == "Switch" {
@@ -133,30 +296,35 @@ fn _dbg_lower_stmt_in_place(stmt) {
             var ci = 0
             while ci < oren_list_len(cases) {
                 var c = cases[ci]
-                if c != nil && c["body"] != nil { _dbg_lower_stmt_in_place(c["body"]) }
+                if c != nil && c["body"] != nil { _dbg_lower_stmt_in_place(c["body"], debug_mode) }
                 ci = ci + 1
             }
         }
-        if stmt["default"] != nil { _dbg_lower_stmt_in_place(stmt["default"]) }
+        if stmt["default"] != nil { _dbg_lower_stmt_in_place(stmt["default"], debug_mode) }
+        return nil
+    }
+    if t == "Spawn" {
+        if stmt["call"] != nil { stmt["call"] = _dbg_lower_expr_in_place(stmt["call"], debug_mode) }
         return nil
     }
     return nil
 }
 
-fn _dbg_lower_stmt_list_in_place(stmts) {
+fn _dbg_lower_stmt_list_in_place(stmts, debug_mode) {
     if stmts == nil { return nil }
     var i = 0
     while i < oren_list_len(stmts) {
-        _dbg_lower_stmt_in_place(stmts[i])
+        _dbg_lower_stmt_in_place(stmts[i], debug_mode)
         i = i + 1
     }
     return nil
 }
 
-fn lower_program_in_place(prog) {
+fn lower_program_in_place(prog, config) {
     if prog == nil { return nil }
     var stmts = prog["statements"]
     if stmts == nil { return nil }
-    _dbg_lower_stmt_list_in_place(stmts)
+    var debug_mode = _dbg_debug_mode(config)
+    _dbg_lower_stmt_list_in_place(stmts, debug_mode)
     return nil
 }
