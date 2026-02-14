@@ -7,7 +7,10 @@ This folder contains **local, reproducible** microbenchmarks intended to compare
 - Oren (native backend)
 - Oren bytecode running on AVM (`.obc`)
 
-The initial benchmark is `loop_sum`, a tight integer loop with simple arithmetic.
+Benchmarks:
+
+- `loop_sum` (tight integer loop with simple arithmetic)
+- `alloc_churn` (allocation churn with periodic GC to surface leaks)
 
 ## Run
 
@@ -20,11 +23,12 @@ Optional knobs:
 - `OREN_BENCH_RUNS=<n>` (default: 5)
 - `OREN_BENCH_WARMUPS=<n>` (default: 1)
 - `OREN_BENCH_RSS=1` (capture per-run max RSS via `/usr/bin/time`)
+- `OREN_BENCH_PROGRAM=<name>` (default: `loop_sum`)
 
 Results are written to:
 
-- `benchmarks/results/loop_sum_m2_<timestamp>.md`
-- `benchmarks/results/loop_sum_m2_<timestamp>.json`
+- `benchmarks/results/<program>_m2_<timestamp>.md`
+- `benchmarks/results/<program>_m2_<timestamp>.json`
 
 Build logs are stored under `build/logs/` with a `bench_build_*` prefix.
 

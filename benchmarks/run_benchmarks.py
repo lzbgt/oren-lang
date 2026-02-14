@@ -10,8 +10,6 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-BENCH_DIR = ROOT / "benchmarks" / "loop_sum"
-BUILD_DIR = ROOT / "build" / "benchmarks" / "loop_sum"
 LOG_DIR = ROOT / "build" / "logs"
 RESULTS_DIR = ROOT / "benchmarks" / "results"
 
@@ -98,25 +96,32 @@ def main():
     runs = int(os.environ.get("OREN_BENCH_RUNS", DEFAULT_RUNS))
     warmups = int(os.environ.get("OREN_BENCH_WARMUPS", DEFAULT_WARMUPS))
     rss_enabled = int(os.environ.get("OREN_BENCH_RSS", DEFAULT_RSS)) == 1
+    program = os.environ.get("OREN_BENCH_PROGRAM", "loop_sum")
 
-    BUILD_DIR.mkdir(parents=True, exist_ok=True)
+    bench_dir = ROOT / "benchmarks" / program
+    if not bench_dir.exists():
+        raise RuntimeError(f"unknown benchmark program: {program}")
+
+    build_dir = ROOT / "build" / "benchmarks" / program
+
+    build_dir.mkdir(parents=True, exist_ok=True)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    c_bin = BUILD_DIR / "loop_sum_c"
-    oren_c_bin = BUILD_DIR / "loop_sum_oren_c"
-    oren_native_bin = BUILD_DIR / "loop_sum_oren_native"
-    obc_out = BUILD_DIR / "loop_sum.obc"
+    c_bin = build_dir / f"{program}_c"
+    oren_c_bin = build_dir / f"{program}_oren_c"
+    oren_native_bin = build_dir / f"{program}_oren_native"
+    obc_out = build_dir / f"{program}.obc"
 
     avm_bin = ROOT / "avm"
     oren_bin = ROOT / "oren_stage2"
 
-    _run(["cc", "-O2", "-o", str(c_bin), str(BENCH_DIR / "loop_sum.c")], log_path=LOG_DIR / f"bench_build_c_{ts}.log")
-    _run([str(oren_bin), "build", str(BENCH_DIR / "loop_sum.oren"), "--backend", "c", "--no-debug", "-o", str(oren_c_bin)], log_path=LOG_DIR / f"bench_build_oren_c_{ts}.log")
-    _run([str(oren_bin), "build", str(BENCH_DIR / "loop_sum.oren"), "--backend", "native", "--no-debug", "-o", str(oren_native_bin)], log_path=LOG_DIR / f"bench_build_oren_native_{ts}.log")
-    _run([str(oren_bin), "build", str(BENCH_DIR / "loop_sum.oren"), "--backend", "bytecode", "-o", str(obc_out)], log_path=LOG_DIR / f"bench_build_oren_obc_{ts}.log")
+    _run(["cc", "-O2", "-o", str(c_bin), str(bench_dir / f"{program}.c")], log_path=LOG_DIR / f"bench_build_c_{program}_{ts}.log")
+    _run([str(oren_bin), "build", str(bench_dir / f"{program}.oren"), "--backend", "c", "--no-debug", "-o", str(oren_c_bin)], log_path=LOG_DIR / f"bench_build_oren_c_{program}_{ts}.log")
+    _run([str(oren_bin), "build", str(bench_dir / f"{program}.oren"), "--backend", "native", "--no-debug", "-o", str(oren_native_bin)], log_path=LOG_DIR / f"bench_build_oren_native_{program}_{ts}.log")
+    _run([str(oren_bin), "build", str(bench_dir / f"{program}.oren"), "--backend", "bytecode", "-o", str(obc_out)], log_path=LOG_DIR / f"bench_build_oren_obc_{program}_{ts}.log")
 
     if not avm_bin.exists():
         _run(["make", "avm"], log_path=LOG_DIR / f"bench_build_avm_{ts}.log")
@@ -173,7 +178,7 @@ def main():
         "git_rev": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT).decode("utf-8").strip(),
         "runs": runs,
         "warmups": warmups,
-        "program": "loop_sum",
+        "program": program,
         "output": first_out,
         "rss_enabled": rss_enabled,
     }
@@ -182,13 +187,13 @@ def main():
     if rss_enabled and rss_results:
         payload["rss"] = rss_results
 
-    json_path = RESULTS_DIR / f"loop_sum_m2_{ts}.json"
-    md_path = RESULTS_DIR / f"loop_sum_m2_{ts}.md"
+    json_path = RESULTS_DIR / f"{program}_m2_{ts}.json"
+    md_path = RESULTS_DIR / f"{program}_m2_{ts}.md"
 
     json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     lines = []
-    lines.append(f"# loop_sum benchmark ({ts})")
+    lines.append(f"# {program} benchmark ({ts})")
     lines.append("")
     lines.append("## Host")
     lines.append("")

@@ -1,0 +1,18 @@
+fn main() {
+    // Allocation churn to surface leaks / GC regressions.
+    // Note: we trigger GC periodically to keep live set bounded.
+    var n = 20000
+    var i = 0
+    var acc = 0
+    while i < n {
+        var xs = []
+        var j = 0
+        while j < 128 {
+            oren_list_push(xs, i + j)
+            j = j + 1
+        }
+        acc = acc + xs[0]
+        i = i + 1
+    }
+    print(acc)
+}

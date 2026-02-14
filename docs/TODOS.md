@@ -143,6 +143,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				   - 2026-02-14: x64 native inlines constant RHS modulo (nonzero, not -1) to avoid `oren_mod` call in hot loops (no x64 bench captured yet).
 				   - 2026-02-14: benchmark harness can capture per-run RSS (`OREN_BENCH_RSS=1`):
 				     - Result artifact: `benchmarks/results/loop_sum_m2_20260214_120502.md`
+				   - 2026-02-14: added `alloc_churn` allocation churn benchmark (GC/leak surface):
+				     - M2 Pro baseline (runs=3, warmup=1, `OREN_GC_AUTO=1`): C 0.0042s, Oren C 0.1146s, Oren native 0.6410s, OBC 0.4070s
+				     - RSS medians (bytes): C 1.29MB, Oren C 68.6MB, Oren native 54.0MB, OBC 61.4MB
+				     - Result artifact: `benchmarks/results/alloc_churn_m2_20260214_121359.md`
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
@@ -427,6 +431,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				     - Focus on: avoid OrenValue boxing in tight loops, reduce helper call overhead, and enable constant‑folded modulo where safe.
 				   - Performance (P0): capture x64 loop_sum baseline (after constant‑mod inline) on the Linux/Win Tier‑1 path to confirm x64 impact.
 				   - Reliability (P0): investigate reported memory leaks by adding a minimal leak repro + RSS sampling to the benchmark harness, then triage GC/runtime roots.
+				   - Reliability (P0): alloc_churn RSS is still high under `OREN_GC_AUTO=1`; confirm auto-GC triggers and tune thresholds or add explicit GC hooks for long churn loops.
 			   - Windows: upgrade the socket netpoller from select-v0 to IOCP (scalable readiness + true wake; removes `FD_SETSIZE=64` per-call limit and avoids batching).
 		       - Design doc: `docs/WINDOWS_IOCP_NETPOLL.md`
 		       - Primary reference snapshots (verbatim): `project-doc/web/learn.microsoft.com/iocp/20260117/`
