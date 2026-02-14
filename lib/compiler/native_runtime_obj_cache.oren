@@ -85,7 +85,7 @@ var RUNTIME_OBJ_BACKEND_SIG_ARM64 = "arm64_v0_12"
 // - Invalidate stale x64 runtime objects that were built before `native_call1` was routed through the
 //   intrinsic emitter (it was incorrectly short-circuited as a generic `native_*` call, executing the
 //   prelude stub body and breaking Windows OS-thread bring-up).
-var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_19"
+var RUNTIME_OBJ_BACKEND_SIG_X64 = "x64_v0_20"
 
 fn rtobj_backend_sig(backend) {
     if backend == "arm64" { return RUNTIME_OBJ_BACKEND_SIG_ARM64 }

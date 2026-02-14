@@ -408,6 +408,8 @@ fn _x64_new_ctx(linked, platform) {
         "platform": platform,
         // Global variable storage (top-level `var`).
         "globals": {},
+        "globals_floaty": {},
+        "globals_inty": {},
         // Named function declarations (name -> arity) collected before codegen.
         "func_arity": {},
         // Named function varargs mapping (name -> fixed param count). Presence means varargs.
@@ -555,4 +557,3 @@ fn _x64_rtobj_encode_rip_data32_fixups(m) {
     }
     return out
 }
-

@@ -164,6 +164,9 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             if ctx["locals_floaty"] != nil {
                 ctx["locals_floaty"][op["name"]] = _x64_expr_is_floaty(ctx, op["expr"])
             }
+            if ctx["locals_inty"] != nil {
+                ctx["locals_inty"][op["name"]] = _x64_expr_is_inty(ctx, op["expr"])
+            }
             _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_mov_mrbp_r64(ctx, 0 - off, 0)
@@ -173,6 +176,9 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             if ctx["locals_floaty"] != nil {
                 ctx["locals_floaty"][op["name"]] = _x64_expr_is_floaty(ctx, op["expr"])
+            }
+            if ctx["locals_inty"] != nil {
+                ctx["locals_inty"][op["name"]] = _x64_expr_is_inty(ctx, op["expr"])
             }
             _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
@@ -186,6 +192,12 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                 if ctx["globals"] != nil { goff_enc = ctx["globals"][name] }
                 if oren_type_tag(goff_enc) == 0 { err(ctx, "x64 native v0: assign unknown var " + name); return nil }
                 var goff = goff_enc - 1
+                if ctx["globals_floaty"] != nil {
+                    ctx["globals_floaty"][name] = _x64_expr_is_floaty(ctx, op["expr"])
+                }
+                if ctx["globals_inty"] != nil {
+                    ctx["globals_inty"][name] = _x64_expr_is_inty(ctx, op["expr"])
+                }
 
                 // r10 = &global_slot ; *(u64*)r10 = rax
                 var lea_pos = bytes_len(ctx["code"])

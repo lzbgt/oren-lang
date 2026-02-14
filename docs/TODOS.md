@@ -158,6 +158,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					     - Compiler: `lib/compiler/arm64_native_expr/010_lowering_a.oren` + inty tracking in `arm64_native_stmt.oren`
 					     - Bench (loop_sum, M2 Pro, 20M iters): C 0.0713s, Oren C 1.2655s (~17.7×), Oren native 2.1598s (~30.3×), OBC 6.0519s (~84.8×)
 					     - Result artifact: `benchmarks/results/loop_sum_m2_20260214_134458.md`
+					   - 2026-02-14: native '+' int fast-path (x64) using inty propagation:
+					     - Avoids `oren_add` when both operands are known integer-like; keeps runtime helper for strings/unknown.
+					     - Compiler: `lib/compiler/x64_native_program/046_emit_string_helpers.oren` + inty tracking in `060_emit_ops.oren`
+					     - Benchmark pending (capture x64 loop_sum baseline on Tier‑1 Linux/Win).
 			   - 2026-02-14: native free-block reuse now exists but is **gated** behind `OREN_GC_REUSE_BLOCKS=1` (default off pending GC correctness hardening):
 				     - Runtime: `lib/runtime_native/100_time_gc_alloc.oren`
 				     - Compiler: `lib/compiler/arm64_native_expr/090_tail.oren`, `lib/compiler/x64_native_program/040_emit_expr.oren`

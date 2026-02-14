@@ -50,6 +50,45 @@ fn _x64_expr_is_floaty(ctx, expr) {
     return false
 }
 
+fn _x64_expr_is_inty(ctx, expr) {
+    // Heuristic "int propagation" for x64 native (rolling).
+    if expr == nil { return false }
+    if _x64_expr_is_floaty(ctx, expr) { return false }
+    var et = expr["type"]
+    if et == "Integer" { return true }
+    if et == "Float" { return false }
+    if et == "String" { return false }
+    if et == "Identifier" {
+        var name = expr["value"]
+        if ctx != nil {
+            if ctx["locals_inty"] != nil && ctx["locals_inty"][name] == true { return true }
+            if ctx["globals_inty"] != nil && ctx["globals_inty"][name] == true { return true }
+        }
+        return false
+    }
+    if et == "Prefix" {
+        if expr["op"] == "-" { return _x64_expr_is_inty(ctx, expr["right"]) }
+        return false
+    }
+    if et == "Infix" {
+        var op = expr["op"]
+        if op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>" {
+            if _x64_expr_is_inty(ctx, expr["left"]) && _x64_expr_is_inty(ctx, expr["right"]) { return true }
+        }
+        return false
+    }
+    if et == "Call" {
+        var fnn = expr["fn"]
+        if fnn != nil && fnn["type"] == "Identifier" {
+            var nm = fnn["value"]
+            if nm == "iadd" || nm == "isub" || nm == "imul" || nm == "idiv" || nm == "imod" { return true }
+            if nm == "oren_string_len" { return true }
+        }
+        return false
+    }
+    return false
+}
+
 fn _emit_float64_binop_x64(ctx, op, left_expr, right_expr, locals) {
     // Emit float64 arithmetic:
     // - operands are either float bits (if floaty) or ints (converted via cvtsi2sd)
