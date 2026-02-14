@@ -374,9 +374,26 @@ OrenValue oren_py_import(OrenValue name) {
     v.as.py_obj = mod;
     return v;
 }
+
+OrenValue oren_py_release(OrenValue obj) {
+    if (obj.type != OREN_TYPE_PY_OBJ) {
+        oren_panic("py_release expects a Python object");
+        return OREN_NIL;
+    }
+    if (obj.as.py_obj != NULL) {
+        Py_DECREF(obj.as.py_obj);
+    }
+    return OREN_NIL;
+}
 #else
 OrenValue oren_py_import(OrenValue name) {
     (void)name;
+    oren_panic("Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)");
+    return OREN_NIL; // Should not be reached
+}
+
+OrenValue oren_py_release(OrenValue obj) {
+    (void)obj;
     oren_panic("Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)");
     return OREN_NIL; // Should not be reached
 }

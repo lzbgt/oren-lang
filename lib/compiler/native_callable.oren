@@ -331,7 +331,7 @@ fn lambda_maybe_add_capture(ctx, name, declared, seen, out) {
     if name == "malloc" || name == "malloc_raw" ||
         name == "ptr_get" || name == "ptr_set" || name == "ptr_get_byte" || name == "ptr_set_byte" ||
         name == "iadd" ||
-        name == "print" || name == "exit" || name == "system" || name == "py_import" {
+        name == "print" || name == "exit" || name == "system" || name == "py_import" || name == "py_release" {
         return nil
     }
     if ctx["aliases"][name] != nil { return nil }

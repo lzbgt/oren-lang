@@ -128,6 +128,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				     - `oren_list_get` now decref’s the temporary `py_index` created by `oren_to_py(index)` for `PyObject_GetItem`.
 				     - `oren_to_py` map conversion now decref’s temporary key/value objects after `PyDict_SetItem` (which does not steal refs).
 				     - `oren_py_to_oren` now consumes new refs for value conversions (DECREFs after copying), preventing leaks for `get_attr`/call results that return non-`PY_OBJ` values.
+				   - 2026-02-14: added `py_release(obj)` for manual Python refcount drops (reduces long‑lived `py_obj` leaks):
+				     - Runtime: `lib/runtime/030_ops_compare.inc` (`oren_py_release`)
+				     - Compiler: `lib/compiler/transpiler.oren` builtin lowering
+				     - Docs: `docs/LANGUAGE_SPEC.md`, `docs/SELF_HOSTING.md`, `docs/LANGUAGE_MANUAL.md`
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
@@ -396,9 +400,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		   - 2026-01-16: x64 native backend now inserts throttled `oren_gc_safepoint()` polling in `while`/`for` loop headers (every 256 iterations), matching arm64 + C transpiler.
 		     - Required for the STW “park at safepoint” protocol to be viable on x64-linux/x64-windows Tier‑1 targets.
 		     - Compiler: `lib/compiler/x64_native_program/060_emit_ops.oren` (`_emit_gc_safepoint_throttled_x64`)
-		   - 2026-02-14: hardened green scheduler poll caching in worker mode:
-		     - `OREN_GREEN_POLL_CACHE=1` is now honored only when workers are not started (N:1 mode), because cached locals in worker mode caused join timeouts under `test_green_workers_many_tasks_bounded`.
-		     - Runtime: `lib/runtime_native/263_green/020_green_poll.oren`
+			   - 2026-02-14: re-enabled cached poll mode under worker scheduling with P-epoch refresh:
+			     - Cached path now tracks per-thread P epoch and refreshes cached `P` bindings across ownership transitions.
+			     - Worker-mode cached poll is exercised by `test_green_workers_many_tasks_bounded` when `OREN_GREEN_POLL_CACHE=1` is set.
+			     - Runtime: `lib/runtime_native/263_green/020_green_poll.oren`
 
 		   Next steps (actionable, highest leverage first):
 
@@ -425,9 +430,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
          - Fixture: `tests/fixtures/windows_iocp_wake_smoke.oren` (posts completion with `ov!=0`, asserts token return, bytes capture)
 				   - Windows: extend the wait-list mechanism beyond channels:
 				     - 2026-02-13: fd waits (`oren_fd_wait_*`) can park Gs on IOCP wait nodes when IOCP readiness is explicitly enabled (`OREN_NETPOLL_WIN_IOCP_READY=1`).
-			   - Re‑enable cached poll mode under worker scheduling once we have a proven safe path:
-			     - Currently `OREN_GREEN_POLL_CACHE=1` is ignored when workers are started (N:1 only), because cached locals caused `oren_join_timeout` to spuriously time out under `test_green_workers_many_tasks_bounded`.
-			     - Goal: keep the cached fast path while ensuring P ownership transitions (M<P) refresh `ts/p` safely across ctx switches.
+			   - Follow-up: keep validating cached poll mode under worker scheduling on Tier‑1 (x64-win/x64-linux) before considering a default-on change.
 			     - Rolling issue: IOCP readiness remains unreliable on Win11 (UDP `WSAEFAULT`, TCP header timeouts); default path uses select‑v0.
 			     - Next: unify “wait node” metadata so channels + IO readiness share the same scheduler integration surface
 			     - 2026-02-13: added shared wait-node init/reset helpers and used them in select/netpoll paths:

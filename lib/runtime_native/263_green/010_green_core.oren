@@ -179,6 +179,7 @@ fn green_t_off_sched_stack_node() { return 16 } // u64: OS-thread node for this 
 fn green_t_off_p() { return 24 }               // u64: current P pointer (rolling; required for Stage N2)
 fn green_t_off_tick() { return 32 }            // u64: scheduler tick for fairness / periodic global polling
 fn green_t_off_worker_id() { return 40 }       // u64: reserved worker id (0..63), 0 => host (default)
+fn green_t_off_p_epoch() { return 48 }         // u64: increments whenever thread-local P binding changes
 // Per-thread netpoll scratch (allocation-free scheduler waits):
 // - large enough for kqueue (8*kevent + timespec + drain buf) and epoll (8*epoll_event + drain buf)
 fn green_t_off_netpoll_scratch() { return 64 }
@@ -295,7 +296,16 @@ fn _green_thread_set_current_g(ts, g) { ptr_set(ts + green_t_off_current_g(), g)
 fn _green_thread_sched_ctx_or0(ts) { return ptr_get(ts + green_t_off_sched_ctx()) }
 fn _green_thread_sched_stack_node_or0(ts) { return ptr_get(ts + green_t_off_sched_stack_node()) }
 fn _green_thread_p_or0(ts) { return ptr_get(ts + green_t_off_p()) }
-fn _green_thread_set_p(ts, p) { ptr_set(ts + green_t_off_p(), p); return 0 }
+fn _green_thread_p_epoch(ts) { return ptr_get(ts + green_t_off_p_epoch()) }
+fn _green_thread_set_p(ts, p) {
+    if ts == 0 { return 0 }
+    var cur = ptr_get(ts + green_t_off_p())
+    if cur == p { return 0 }
+    ptr_set(ts + green_t_off_p(), p)
+    var epoch = ptr_get(ts + green_t_off_p_epoch())
+    ptr_set(ts + green_t_off_p_epoch(), epoch + 1)
+    return 0
+}
 fn _green_thread_tick(ts) { return ptr_get(ts + green_t_off_tick()) }
 fn _green_thread_set_tick(ts, v) { ptr_set(ts + green_t_off_tick(), v); return 0 }
 

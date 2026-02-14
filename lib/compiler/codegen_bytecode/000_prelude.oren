@@ -144,6 +144,7 @@ fn new_bytecode_ctx() {
 fn is_builtin_ident_name(name) {
     if name == "print" { return true }
     if name == "py_import" { return true }
+    if name == "py_release" { return true }
     if name == "system" { return true }
     if name == "exit" { return true }
     return false

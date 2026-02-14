@@ -1371,6 +1371,10 @@ Python interop is only available when the runtime is built with Python embedding
 - Attribute access: `math.sqrt` (Python attribute get)
 - Indexing: `obj[key]` (Python `__getitem__`)
 - Calls: `obj(...)` (Python call)
+- Release: `py_release(obj)` decrements the Python refcount and returns `nil` (use to drop long‑lived Python objects).
+
+Rolling note: Oren does not GC Python refcounts; `py_obj` wrappers hold a strong reference until you
+explicitly release them (or the process exits).
 
 ## Standard Runtime Surface (Self-Hosting)
 Self-hosting relies on a small runtime API (implemented in C, callable from Oren) including:

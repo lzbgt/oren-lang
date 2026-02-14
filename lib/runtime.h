@@ -204,6 +204,7 @@ OrenValue oren_set_attr(OrenValue obj, const char* attr, OrenValue value);
 
 // Python Interop
 OrenValue oren_py_import(OrenValue name);
+OrenValue oren_py_release(OrenValue obj);
 OrenValue oren_py_call(OrenValue obj, int count, ...); // Specific call?
 // Actually, generic call support is better
 OrenValue oren_call_obj(OrenValue fn, int count, ...);

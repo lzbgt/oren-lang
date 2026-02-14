@@ -49,6 +49,7 @@ The bytecode backend emits `.obc` for the AVM prototype.
   - build with `--python` (or compile with `-DOREN_ENABLE_PYTHON` and link libpython via `python3-config`)
   - `py_import("module")` becomes `oren_py_import(...)`
   - calls on Python objects route through `oren_call_obj(...)`
+  - `py_release(obj)` decrements the Python refcount for a wrapped `py_obj` (returns `nil`)
 
 ## Modules (`import`) at Compile Time
 Oren modules are file-based and resolved at compile time:

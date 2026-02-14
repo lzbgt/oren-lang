@@ -389,6 +389,7 @@ fn lambda_sig_by_name(name) {
 fn is_builtin_ident_name(name) {
     if name == "print" { return true }
     if name == "py_import" { return true }
+    if name == "py_release" { return true }
     if name == "system" { return true }
     if name == "exit" { return true }
     return false
@@ -1118,6 +1119,9 @@ fn transpile_expression(t, exp) {
             }
             if name == "py_import" {
                 if argc == 1 { return "oren_py_import(" + args_s + ")" }
+            }
+            if name == "py_release" {
+                if argc == 1 { return "oren_py_release(" + args_s + ")" }
             }
             if name == "system" {
                 if argc == 1 { return "oren_system(" + args_s + ")" }

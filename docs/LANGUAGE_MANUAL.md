@@ -142,6 +142,7 @@ Toolchain selection (C backend, rolling):
 - On **Windows hosts**, if `--cc` is not provided, the compiler defaults to **MSVC** `cl.exe` and attempts to auto-configure the VS environment (vswhere + VsDevCmd/vcvars) so a Developer Prompt is not required.
   - Escape hatches: `OREN_MSVC_INSTALL_PATH` (pin VS install root), `OREN_MSVC_VSWHERE` (pin `vswhere.exe` path).
   - Note: `--python` is not supported when using MSVC `cl.exe` in the rolling C-backend path (you must use a gcc/clang-style compiler via `--cc` if you need Python embedding today).
+  - When Python embedding is enabled, use `py_release(obj)` to drop long‑lived Python objects and avoid refcount leaks.
 - For **cross-compiling** a C-backend Windows artifact from a non-Windows host, you must pass an explicit cross compiler via `--cc` (the compiler will not auto-pick `cl.exe` off-host).
 
 You can also emit the generated C without compiling it:

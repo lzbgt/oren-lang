@@ -317,6 +317,7 @@ Hard rule (rolling): these functions are **not stable ABI**. They may change/rem
 - Guard: `tests/native/test_quick_integration_native.oren` (`test_green_workers_local_ptr_survives_yields`) (same contract under worker-mode scheduling)
 - Rolling limitation (important): `_green_poll_until` defaults to the conservative mode (re-fetch per-thread scheduler state `ts`/`P` each poll iteration).
   - Cached mode exists but is opt-in only (env `OREN_GREEN_POLL_CACHE=1` / `oren_green_set_poll_cache_mode(1)`).
+  - Worker mode refreshes cached `P` bindings using a per-thread epoch so ownership transitions (M<P) cannot reuse stale `P` pointers.
   - Rationale: until native backend/local preservation invariants are fully tightened across ctx switches and syscalls, caching `ts`/`P` as long-lived locals
     can surface backend bugs as corrupted pointers later dereferenced via `ptr_get` / `ptr_get_byte`.
   - Fixed flake (2026-01-16): `OREN_GREEN_POLL_CACHE=1` could SIGSEGV (rc=139) due to a join/cleanup race where a joining thread could observe DONE

@@ -347,6 +347,10 @@ fn test_green_workers_many_tasks_bounded() {
     if g_target_os == 3 { return 0 }
 
     // Ensure background worker mode is active.
+    if _qi_env_truthy("OREN_GREEN_POLL_CACHE") == true {
+        // Ensure cached scheduler locals are enabled for the worker-mode stress path.
+        oren_green_set_poll_cache_mode(1)
+    }
     var rc = oren_green_start_workers(1)
     assert_eq(rc, 0, 520)
 
@@ -423,4 +427,3 @@ fn test_proc_system_windows() {
     assert_eq(rc, 0, 470)
     return 0
 }
-

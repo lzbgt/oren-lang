@@ -12,13 +12,13 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
     // - The default mode keeps worker scheduling robust while backends evolve.
     var cache = 0
     if _green_poll_cache() { cache = 1 }
-    // Cached poll mode is safe for N:1 scheduling, but worker-mode introduces
-    // extra P ownership transitions; keep the conservative path when workers run.
-    if g_green_workers_started != 0 { cache = 0 }
+    // Cached poll mode is opt-in even in worker mode. When workers are active, we
+    // must refresh cached P bindings across ownership transitions (see p-epoch below).
 
     var ts = 0
     var s = 0
     var p = 0
+    var p_epoch = 0
 
     if cache != 0 {
         // One-time fetch for the cached path.
@@ -27,6 +27,7 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
         s = _green_get_state()
         if s == 0 { return 0 }
         p = _green_thread_p_or0(ts)
+        p_epoch = _green_thread_p_epoch(ts)
         // In worker mode (Stage N3 / M<P evolution), a worker may intentionally clear its thread-local
         // P binding while parked. Do not forcibly rebind to P0 here; let the worker acquire from the
         // idle-P pool under the lock below.
@@ -70,6 +71,11 @@ fn _green_poll_until_budget(deadline_ns, max_steps) {
             // a worker can intentionally clear its thread-local P binding while parked, so `p` may become 0.
             // Allow refreshing `p` without abandoning cached mode entirely.
             if ts == 0 || s == 0 { return 0 }
+            var epoch_now = _green_thread_p_epoch(ts)
+            if p_epoch != epoch_now {
+                p_epoch = epoch_now
+                p = _green_thread_p_or0(ts)
+            }
             if p == 0 { p = _green_thread_p_or0(ts) }
             if p == 0 && g_green_workers_started == 0 {
                 p = _green_state_p0(s)
