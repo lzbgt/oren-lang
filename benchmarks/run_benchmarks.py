@@ -17,10 +17,17 @@ RESULTS_DIR = ROOT / "benchmarks" / "results"
 
 DEFAULT_RUNS = 5
 DEFAULT_WARMUPS = 1
+DEFAULT_RSS = 0
 
 
-def _run(cmd, env=None, log_path=None):
+def _run(cmd, env=None, log_path=None, time_path=None):
     start = time.perf_counter()
+    if time_path:
+        time_path.parent.mkdir(parents=True, exist_ok=True)
+        if platform.system() == "Darwin":
+            cmd = ["/usr/bin/time", "-l", "-o", str(time_path)] + cmd
+        else:
+            cmd = ["/usr/bin/time", "-v", "-o", str(time_path)] + cmd
     if log_path:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("w", encoding="utf-8") as f:
@@ -35,17 +42,48 @@ def _run(cmd, env=None, log_path=None):
     return dt, proc.stdout if proc.stdout is not None else ""
 
 
-def _time_cmd(cmd, runs, warmups, env=None):
+def _parse_rss_bytes(time_path):
+    if not time_path or not time_path.exists():
+        return None
+    data = time_path.read_text(encoding="utf-8", errors="replace")
+    for line in data.splitlines():
+        if "maximum resident set size" in line:
+            # macOS time -l: bytes
+            parts = line.strip().split()
+            try:
+                return int(parts[0])
+            except Exception:
+                return None
+        if "Maximum resident set size" in line:
+            # GNU time -v: kbytes
+            parts = line.strip().split()
+            if parts:
+                try:
+                    return int(parts[-1]) * 1024
+                except Exception:
+                    return None
+    return None
+
+
+def _time_cmd(cmd, runs, warmups, env=None, rss_enabled=False, rss_dir=None):
     for _ in range(warmups):
         _run(cmd, env=env)
     times = []
+    rss = []
     out_sample = None
     for _ in range(runs):
-        dt, out = _run(cmd, env=env)
+        time_path = None
+        if rss_enabled and rss_dir is not None:
+            time_path = rss_dir / f"time_{len(times)}.log"
+        dt, out = _run(cmd, env=env, time_path=time_path)
         times.append(dt)
+        if rss_enabled:
+            rss_bytes = _parse_rss_bytes(time_path)
+            if rss_bytes is not None:
+                rss.append(rss_bytes)
         if out_sample is None:
             out_sample = out.strip()
-    return times, out_sample
+    return times, rss, out_sample
 
 
 def _sysctl_value(key):
@@ -59,6 +97,7 @@ def _sysctl_value(key):
 def main():
     runs = int(os.environ.get("OREN_BENCH_RUNS", DEFAULT_RUNS))
     warmups = int(os.environ.get("OREN_BENCH_WARMUPS", DEFAULT_WARMUPS))
+    rss_enabled = int(os.environ.get("OREN_BENCH_RSS", DEFAULT_RSS)) == 1
 
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -84,6 +123,7 @@ def main():
 
     results = {}
     outputs = {}
+    rss_results = {}
 
     suites = [
         ("c", [str(c_bin)]),
@@ -93,7 +133,10 @@ def main():
     ]
 
     for name, cmd in suites:
-        times, out = _time_cmd(cmd, runs=runs, warmups=warmups)
+        rss_dir = None
+        if rss_enabled:
+            rss_dir = LOG_DIR / f"bench_rss_{name}_{ts}"
+        times, rss, out = _time_cmd(cmd, runs=runs, warmups=warmups, rss_enabled=rss_enabled, rss_dir=rss_dir)
         results[name] = {
             "runs": times,
             "median_s": statistics.median(times),
@@ -101,6 +144,14 @@ def main():
             "min_s": min(times),
             "max_s": max(times),
         }
+        if rss_enabled and rss:
+            rss_results[name] = {
+                "runs": rss,
+                "median_bytes": int(statistics.median(rss)),
+                "mean_bytes": int(statistics.mean(rss)),
+                "min_bytes": min(rss),
+                "max_bytes": max(rss),
+            }
         outputs[name] = out
 
     # Output consistency check
@@ -124,9 +175,12 @@ def main():
         "warmups": warmups,
         "program": "loop_sum",
         "output": first_out,
+        "rss_enabled": rss_enabled,
     }
 
     payload = {"meta": meta, "results": results}
+    if rss_enabled and rss_results:
+        payload["rss"] = rss_results
 
     json_path = RESULTS_DIR / f"loop_sum_m2_{ts}.json"
     md_path = RESULTS_DIR / f"loop_sum_m2_{ts}.md"
@@ -159,6 +213,19 @@ def main():
         lines.append(
             f"| {name} | {r['median_s']:.6f} | {r['mean_s']:.6f} | {r['min_s']:.6f} | {r['max_s']:.6f} |"
         )
+    if rss_enabled and rss_results:
+        lines.append("")
+        lines.append("## RSS (bytes)")
+        lines.append("")
+        lines.append("| variant | median | mean | min | max |")
+        lines.append("| --- | --- | --- | --- | --- |")
+        for name in ["c", "oren_c", "oren_native", "oren_obc"]:
+            if name not in rss_results:
+                continue
+            r = rss_results[name]
+            lines.append(
+                f"| {name} | {r['median_bytes']} | {r['mean_bytes']} | {r['min_bytes']} | {r['max_bytes']} |"
+            )
     lines.append("")
     lines.append(f"Output checksum (stdout): `{first_out}`")
     lines.append("")

@@ -141,6 +141,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				     - `benchmarks/loop_sum` (M2 Pro, 20M iters): C 0.0808s, Oren C 1.2187s (~15.1×), Oren native 2.4080s (~29.8×), OBC 6.2733s (~77.6×)
 				     - Result artifact: `benchmarks/results/loop_sum_m2_20260214_115726.md`
 				   - 2026-02-14: x64 native inlines constant RHS modulo (nonzero, not -1) to avoid `oren_mod` call in hot loops (no x64 bench captured yet).
+				   - 2026-02-14: benchmark harness can capture per-run RSS (`OREN_BENCH_RSS=1`):
+				     - Result artifact: `benchmarks/results/loop_sum_m2_20260214_120502.md`
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).

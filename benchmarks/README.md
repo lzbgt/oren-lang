@@ -19,6 +19,7 @@ Optional knobs:
 
 - `OREN_BENCH_RUNS=<n>` (default: 5)
 - `OREN_BENCH_WARMUPS=<n>` (default: 1)
+- `OREN_BENCH_RSS=1` (capture per-run max RSS via `/usr/bin/time`)
 
 Results are written to:
 
