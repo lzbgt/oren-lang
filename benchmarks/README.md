@@ -31,7 +31,8 @@ Optional knobs:
 - `OREN_BENCH_ENV_OREN_C=K=V,...`
 - `OREN_BENCH_ENV_OREN_NATIVE=K=V,...`
 - `OREN_BENCH_ENV_OREN_OBC=K=V,...`
-- `OREN_BENCH_ITERS=<n>` (used by `alloc_drop`; default: 200000)
+- `OREN_BENCH_ITERS=<n>` (used by `alloc_drop`; default: 10000)
+- `OREN_BENCH_SKIP_OBC=1` (skip AVM/OBC build+run; useful on Windows if `avm.exe` is unavailable)
 
 Results are written to:
 

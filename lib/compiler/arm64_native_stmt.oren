@@ -1094,6 +1094,12 @@ fn native_compile_stmt_inner(ctx, stmt) {
             //
             // Runtime functions are tagged with token.file == runtime entry path.
             ctx["call_depth_enabled"] = true
+            // If the call-depth guard is disabled for this build, skip inserting hooks.
+            var cd_platform = ctx["platform"]
+            if cd_platform != nil {
+                var cd_max = cd_platform["call_depth_max"]
+                if oren_type_tag(cd_max) != 0 && cd_max == 0 { ctx["call_depth_enabled"] = false }
+            }
             var ftok0 = expr["token"]
             var ffile0 = nil
             if ftok0 != nil { ffile0 = ftok0["file"] }

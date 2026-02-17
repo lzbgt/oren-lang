@@ -162,6 +162,7 @@ def main():
     runs = int(os.environ.get("OREN_BENCH_RUNS", DEFAULT_RUNS))
     warmups = int(os.environ.get("OREN_BENCH_WARMUPS", DEFAULT_WARMUPS))
     rss_enabled = int(os.environ.get("OREN_BENCH_RSS", DEFAULT_RSS)) == 1
+    skip_obc = int(os.environ.get("OREN_BENCH_SKIP_OBC", "0")) == 1
     program = os.environ.get("OREN_BENCH_PROGRAM", "loop_sum")
     env_all = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_ALL", ""))
     env_c = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_C", ""))
@@ -200,8 +201,9 @@ def main():
     _run([str(oren_bin), "build", str(bench_dir / f"{program}.oren"), "--backend", "native", "--no-debug", "-o", str(oren_native_bin)], log_path=LOG_DIR / f"bench_build_oren_native_{program}_{ts}.log")
     _run([str(oren_bin), "build", str(bench_dir / f"{program}.oren"), "--backend", "bytecode", "-o", str(obc_out)], log_path=LOG_DIR / f"bench_build_oren_obc_{program}_{ts}.log")
 
-    if not avm_bin.exists():
-        _run(["make", "avm"], log_path=LOG_DIR / f"bench_build_avm_{ts}.log")
+    if not skip_obc:
+        if not avm_bin.exists():
+            _run(["make", "avm"], log_path=LOG_DIR / f"bench_build_avm_{ts}.log")
 
     results = {}
     outputs = {}
@@ -212,8 +214,10 @@ def main():
         ("c", [str(c_bin)], env_c),
         ("oren_c", [str(oren_c_bin)], env_oren_c),
         ("oren_native", [str(oren_native_bin)], env_oren_native),
-        ("oren_obc", [str(avm_bin), str(obc_out)], env_oren_obc),
     ]
+    if not skip_obc:
+        suites.append(("oren_obc", [str(avm_bin), str(obc_out)], env_oren_obc))
+    variant_order = [name for name, _, _ in suites]
 
     for name, cmd, extra_env in suites:
         env = env_base.copy()
@@ -263,6 +267,7 @@ def main():
         "program": program,
         "output": first_out,
         "rss_enabled": rss_enabled,
+        "skip_obc": skip_obc,
         "env_overrides": {
             "all": env_all,
             "c": env_c,
@@ -303,7 +308,7 @@ def main():
     lines.append("")
     lines.append("| variant | median | mean | min | max |")
     lines.append("| --- | --- | --- | --- | --- |")
-    for name in ["c", "oren_c", "oren_native", "oren_obc"]:
+    for name in variant_order:
         r = results[name]
         lines.append(
             f"| {name} | {r['median_s']:.6f} | {r['mean_s']:.6f} | {r['min_s']:.6f} | {r['max_s']:.6f} |"
@@ -314,7 +319,7 @@ def main():
         lines.append("")
         lines.append("| variant | median | mean | min | max |")
         lines.append("| --- | --- | --- | --- | --- |")
-        for name in ["c", "oren_c", "oren_native", "oren_obc"]:
+        for name in variant_order:
             if name not in rss_results:
                 continue
             r = rss_results[name]
