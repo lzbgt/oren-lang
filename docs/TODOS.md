@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-02-14
+**Last updated:** 2026-02-17
 
 This repo is in rolling mode. This file tracks the **highest-leverage work remaining** to evolve Oren
 into a modern, efficient, production-ready language and toolchain, while keeping iteration fast.
@@ -228,6 +228,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - Latest (runs=5): native 0.571s vs OBC 0.388s vs Oren C 0.108s (`benchmarks/results/alloc_churn_darwin_arm64_20260214_165758.md`).
      - Target: native ≤0.20s on M2 for alloc_churn without increasing RSS.
      - Likely work: harden free-block reuse (`OREN_GC_REUSE_BLOCKS=1`), reduce per-alloc tracking overhead, add a bump allocator for short-lived struct-heavy loops, verify GC root coverage at safepoints.
+   - (P0/S) **alloc_drop native is catastrophic (drop-path bottleneck)**
+     - Latest (50k iters): native 120.6s vs C 0.0087s vs Oren C 0.0407s (`benchmarks/results/alloc_drop_darwin_arm64_20260217_230447.md`).
+     - Target: native ≤0.50s on M2 with stable RSS.
+     - Likely work: profile drop/GC sweep path, reduce per-drop tracking churn, verify free-list reuse + fast-path for short-lived drops.
    - (P1/M) **Loop_sum native still ~6.4× C**
      - Latest: native 0.4205s vs C 0.0659s (`benchmarks/results/loop_sum_darwin_arm64_20260214_165701.md`).
      - Target: native ≤0.25s (≤4× C) while keeping correctness gates.
@@ -238,10 +242,15 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
        - 2026-02-17: macOS-built `oren_stage2.exe` exits immediately with `0xC00000FD` (stack overflow) on Win11 (`--version`); PE header stack reserve is 64MB/commit 64KB, so this is likely a recursion/entry bug (not a small stack).
      - Actions:
        - Cross-compile `oren_stage2.exe` for x64-windows on macOS and sync to pc2.work.
-       - Triage the x64-windows stack-overflow path (call-depth instrumentation, runtime init, or entry stub) before re-running baselines.
-         - 2026-02-17: compiler now skips inserting call-depth hooks when `call_depth_max==0`; try `--call-depth-max 0` to test if hooks are the overflow trigger.
-         - 2026-02-17: `oren_stage2_cd0.exe` (built with `--call-depth-max 0`) runs `--version` on Win11 with `EXITCODE=0` (no stack overflow); baseline likely blocked by call-depth hook recursion/entry path.
-         - 2026-02-17: `oren_stage2_cd0.exe build examples/hello.oren ... -o build\\tmp\\hello_cd0.exe` returns `EXITCODE=0` but emits no output and produces no file (log empty) — likely argv/envp or stdout handling bug in x64-windows runtime/entry stub.
+      - Triage the x64-windows stack-overflow path (call-depth instrumentation, runtime init, or entry stub) before re-running baselines.
+        - 2026-02-17: compiler now skips inserting call-depth hooks when `call_depth_max==0`; try `--call-depth-max 0` to test if hooks are the overflow trigger.
+        - 2026-02-17: `oren_stage2_cd0.exe` (built with `--call-depth-max 0`) runs `--version` on Win11 with `EXITCODE=0` (no stack overflow); baseline likely blocked by call-depth hook recursion/entry path.
+        - 2026-02-17: `oren_stage2_cd0.exe build examples/hello.oren ... -o build\\tmp\\hello_cd0.exe` returns `EXITCODE=0` but emits no output and produces no file (log empty) — likely argv/envp or stdout handling bug in x64-windows runtime/entry stub.
+        - 2026-02-17: entry trace still dies after `ENTRY: register_thread ok` (no `ENTRY: top_level call`).
+          - `ENTRY` write helper now reserves its own 0x30 shadow/stack scratch, but stack overflow persists.
+          - RSP drift check (r12 vs rsp) after `oren_register_thread` passes.
+          - Next: isolate whether the post-register `WriteFile` call itself triggers overflow; try skipping the
+            "register_thread ok" print or exiting immediately after register_thread in a trace build.
        - Decide if AVM should be Windows-capable (add win32 time/mmap shims) or allow `OREN_BENCH_SKIP_OBC=1` (bench runner now supports this).
 
 2) **Tier‑1 native parity: correctness across arch/OS** (L)

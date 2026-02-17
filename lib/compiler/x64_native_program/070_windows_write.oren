@@ -10,6 +10,10 @@ fn _emit_windows_write_cstr(ctx, s) {
     var data_off = meta["off"]
     var nbytes = meta["len"]
 
+    // Reserve shadow + stack-arg scratch so this helper is self-contained.
+    // 0x30 keeps 16B alignment when the caller is already aligned.
+    bytes_extend(ctx["code"], insn_sub_rsp_imm32(48))
+
     // --- GetStdHandle(STD_OUTPUT_HANDLE=-11) ---
     // ecx = 0xFFFFFFF5
     bytes_extend(ctx["code"], insn_mov_r32_imm32(1, 4294967285))
@@ -42,5 +46,6 @@ fn _emit_windows_write_cstr(ctx, s) {
     bytes_extend(ctx["code"], insn_mov_rax_mrip_disp32(0))
     _x64_add_rip_data32_fixup(ctx, mov_iat1 + 3, "IAT_WriteFile")
     bytes_extend(ctx["code"], insn_call_rax())
+    bytes_extend(ctx["code"], insn_add_rsp_imm32(48))
     return nil
 }

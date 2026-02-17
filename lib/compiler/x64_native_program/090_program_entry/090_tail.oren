@@ -49,6 +49,21 @@ fn native_compile_program_x64(linked, platform) {
             trace_entry = true
         }
     }
+    // Debug knob: allow skipping thread registration to bisect entry crashes.
+    var skip_register_thread = false
+    var v_skip_reg = oren_env("OREN_SKIP_REGISTER_THREAD")
+    if v_skip_reg != nil && v_skip_reg != "" {
+        if x64_env_str_eq(v_skip_reg, "0") != true && x64_env_str_eq(v_skip_reg, "false") != true {
+            skip_register_thread = true
+        }
+    }
+    var exit_after_register_thread = false
+    var v_exit_reg = oren_env("OREN_ENTRY_EXIT_AFTER_REGISTER_THREAD")
+    if v_exit_reg != nil && v_exit_reg != "" {
+        if x64_env_str_eq(v_exit_reg, "0") != true && x64_env_str_eq(v_exit_reg, "false") != true {
+            exit_after_register_thread = true
+        }
+    }
     var t0 = 0
     var t_rtobj_done = 0
     var t_entry_done = 0
@@ -828,23 +843,50 @@ fn native_compile_program_x64(linked, platform) {
         _emit_windows_write_cstr(ctx, "ENTRY: gc_mode ok")
     }
 
-    // Register main thread for GC/stack safety.
-    if platform != nil && platform["os"] == "windows" {
-        bytes_extend(ctx["code"], insn_mov_r64_r64(1, 4)) // rcx = rsp
+    // Register main thread for GC/stack safety (allow skip for bisecting entry crashes).
+    if skip_register_thread != true {
+        if trace_entry && platform != nil && platform["os"] == "windows" {
+            // Save current RSP in a non-volatile register to detect stack drift.
+            bytes_extend(ctx["code"], insn_mov_r64_r64(12, 4)) // r12 = rsp
+        }
+        if platform != nil && platform["os"] == "windows" {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(1, 4)) // rcx = rsp
+        } else {
+            bytes_extend(ctx["code"], insn_mov_r64_r64(7, 4)) // rdi = rsp
+        }
+        var call_reg_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_reg_pos, "name": "oren_register_thread"})
+        if trace_entry && platform != nil && platform["os"] == "windows" {
+            var labels_rsp = {}
+            var fixups_rsp = []
+            var l_rsp_ok = _new_label(ctx, "entry_rsp_ok")
+            bytes_extend(ctx["code"], insn_cmp_r64_r64(12, 4)) // r12 (saved) vs rsp
+            _emit_jcc_to_label(ctx, fixups_rsp, "e", l_rsp_ok)
+            _emit_windows_write_cstr(ctx, "ENTRY: rsp drift after register_thread")
+            _emit_abort_exitcode(ctx, 244)
+            _emit_label(ctx, labels_rsp, l_rsp_ok)
+            _patch_local_fixups(ctx, labels_rsp, fixups_rsp)
+        }
+        if trace_entry && platform != nil && platform["os"] == "windows" {
+            _emit_windows_write_cstr(ctx, "ENTRY: register_thread ok")
+        }
+        if exit_after_register_thread == true {
+            _emit_abort_exitcode(ctx, 241)
+        }
     } else {
-        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 4)) // rdi = rsp
-    }
-    var call_reg_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
-    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_reg_pos, "name": "oren_register_thread"})
-    if trace_entry && platform != nil && platform["os"] == "windows" {
-        _emit_windows_write_cstr(ctx, "ENTRY: register_thread ok")
+        if trace_entry && platform != nil && platform["os"] == "windows" {
+            _emit_windows_write_cstr(ctx, "ENTRY: register_thread skip")
+        }
     }
 
     // Run top-level statements (including non-constant global initializers) before `main`.
     //
     // This converges x64 behavior with the other backends while keeping the x64 v0
     // "fn main() required" rule.
+    if trace_entry && platform != nil && platform["os"] == "windows" {
+        _emit_windows_write_cstr(ctx, "ENTRY: top_level call")
+    }
     var call_top_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_top_pos, "name": "__top_level__"})
