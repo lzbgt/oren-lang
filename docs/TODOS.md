@@ -251,6 +251,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
           - RSP drift check (r12 vs rsp) after `oren_register_thread` passes.
           - Next: isolate whether the post-register `WriteFile` call itself triggers overflow; try skipping the
             "register_thread ok" print or exiting immediately after register_thread in a trace build.
+        - 2026-02-17: rebuilt stage2 and re-ran entry traces with post-register prints suppressed:
+          - Trace with `OREN_ENTRY_EXIT_AFTER_REGISTER_THREAD=1` exits with code 241 (so `oren_register_thread` returns).
+          - Trace with `OREN_TRACE_X64_ENTRY_AFTER_REG=0` still stack-overflows after `gc_mode ok`,
+            implying the crash is in the `__top_level__` call path (or immediately after `oren_register_thread`),
+            not in the post-register `WriteFile` trace.
        - Decide if AVM should be Windows-capable (add win32 time/mmap shims) or allow `OREN_BENCH_SKIP_OBC=1` (bench runner now supports this).
 
 2) **Tier‑1 native parity: correctness across arch/OS** (L)

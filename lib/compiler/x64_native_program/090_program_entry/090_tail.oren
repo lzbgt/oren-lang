@@ -64,6 +64,14 @@ fn native_compile_program_x64(linked, platform) {
             exit_after_register_thread = true
         }
     }
+    // Debug knob: suppress entry prints after thread registration (bisect write/stack faults).
+    var trace_entry_after_reg = true
+    var v_trace_after = oren_env("OREN_TRACE_X64_ENTRY_AFTER_REG")
+    if v_trace_after != nil && v_trace_after != "" {
+        if x64_env_str_eq(v_trace_after, "0") == true || x64_env_str_eq(v_trace_after, "false") == true {
+            trace_entry_after_reg = false
+        }
+    }
     var t0 = 0
     var t_rtobj_done = 0
     var t_entry_done = 0
@@ -868,7 +876,7 @@ fn native_compile_program_x64(linked, platform) {
             _emit_label(ctx, labels_rsp, l_rsp_ok)
             _patch_local_fixups(ctx, labels_rsp, fixups_rsp)
         }
-        if trace_entry && platform != nil && platform["os"] == "windows" {
+        if trace_entry && trace_entry_after_reg && platform != nil && platform["os"] == "windows" {
             _emit_windows_write_cstr(ctx, "ENTRY: register_thread ok")
         }
         if exit_after_register_thread == true {
@@ -884,13 +892,13 @@ fn native_compile_program_x64(linked, platform) {
     //
     // This converges x64 behavior with the other backends while keeping the x64 v0
     // "fn main() required" rule.
-    if trace_entry && platform != nil && platform["os"] == "windows" {
+    if trace_entry && trace_entry_after_reg && platform != nil && platform["os"] == "windows" {
         _emit_windows_write_cstr(ctx, "ENTRY: top_level call")
     }
     var call_top_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
     oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_top_pos, "name": "__top_level__"})
-    if trace_entry && platform != nil && platform["os"] == "windows" {
+    if trace_entry && trace_entry_after_reg && platform != nil && platform["os"] == "windows" {
         _emit_windows_write_cstr(ctx, "ENTRY: top_level ok")
     }
 
