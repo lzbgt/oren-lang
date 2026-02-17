@@ -235,8 +235,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - Blockers observed (2026-02-14):
        - No `oren_stage2.exe` in `G:\work\compiler-mini-git` (bench harness fails to compile Oren variants).
        - `avm.exe` build fails on MinGW: `sys/mman.h` + `clock_gettime` missing; `tools/gen_avm_root_pubkeys_inc.sh` requires MSYS `cat`.
+       - 2026-02-17: macOS-built `oren_stage2.exe` exits immediately with `0xC00000FD` (stack overflow) on Win11 (`--version`); PE header stack reserve is 64MB/commit 64KB, so this is likely a recursion/entry bug (not a small stack).
      - Actions:
        - Cross-compile `oren_stage2.exe` for x64-windows on macOS and sync to pc2.work.
+       - Triage the x64-windows stack-overflow path (call-depth instrumentation, runtime init, or entry stub) before re-running baselines.
        - Decide if AVM should be Windows-capable (add win32 time/mmap shims) or allow `OREN_BENCH_SKIP_OBC=1`.
 
 2) **Tier‑1 native parity: correctness across arch/OS** (L)
@@ -504,6 +506,13 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					   - Performance (P0): capture x64 loop_sum baseline (after constant‑mod inline) on the Linux/Win Tier‑1 path to confirm x64 impact.
 					   - Performance (P1): port inty propagation + '+' fast-path to x64 native (needs stringy/inty tracking or another safe guard).
 					   - Reliability (P0): investigate reported memory leaks by adding a minimal leak repro + RSS sampling to the benchmark harness, then triage GC/runtime roots.
+					     - 2026-02-17: added `benchmarks/alloc_drop` (C/Oren/AVM) with `OREN_BENCH_ITERS` override to make leak/RSS repros deterministic.
+					     - 2026-02-17: baseline `alloc_drop` (darwin/arm64, iters=10000, runs=3, `OREN_GC_AUTO=1` for Oren):
+					       - C: 0.0056s, RSS ~1.3MB
+					       - Oren C: 0.0078s, RSS ~4.7MB
+					       - Oren native: 0.339s, RSS ~7.7MB
+					       - OBC: 0.0118s, RSS ~9.4MB
+					     - Next: increase `OREN_BENCH_ITERS` (50k/200k) and confirm RSS remains bounded under auto-GC; if growth persists, trace roots in native GC/reuse.
 					   - Reliability (P0): alloc_churn RSS is still high under `OREN_GC_AUTO=1`; re-run with `OREN_BENCH_RSS=1` on the refreshed baseline and confirm auto-GC triggers.
 			   - Windows: upgrade the socket netpoller from select-v0 to IOCP (scalable readiness + true wake; removes `FD_SETSIZE=64` per-call limit and avoids batching).
 		       - Design doc: `docs/WINDOWS_IOCP_NETPOLL.md`

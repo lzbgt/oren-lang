@@ -13,6 +13,7 @@ import metadata "metadata.oren"
 import packview "packview.oren"
 import serde_json "serde_json_lowering.oren"
 import cfg_lowering "cfg_lowering.oren"
+import debug_sugar "debug_sugar.oren"
 import type_ann "type_ann_lowering.oren"
 import typecheck "typecheck.oren"
 import gen_calls "generic_call_lowering.oren"
@@ -27,4 +28,3 @@ import obc_link "obc_link.oren"
 import argparse "std:argparse"
 
 // @include "000_prelude_body.oren"
-

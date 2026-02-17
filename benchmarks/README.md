@@ -11,6 +11,7 @@ Benchmarks:
 
 - `loop_sum` (tight integer loop with simple arithmetic)
 - `alloc_churn` (allocation churn with periodic GC to surface leaks)
+- `alloc_drop` (allocation churn with periodic drops to surface GC/root leaks; respects `OREN_BENCH_ITERS`)
 
 ## Run
 
@@ -30,6 +31,7 @@ Optional knobs:
 - `OREN_BENCH_ENV_OREN_C=K=V,...`
 - `OREN_BENCH_ENV_OREN_NATIVE=K=V,...`
 - `OREN_BENCH_ENV_OREN_OBC=K=V,...`
+- `OREN_BENCH_ITERS=<n>` (used by `alloc_drop`; default: 200000)
 
 Results are written to:
 
