@@ -240,6 +240,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
        - Cross-compile `oren_stage2.exe` for x64-windows on macOS and sync to pc2.work.
        - Triage the x64-windows stack-overflow path (call-depth instrumentation, runtime init, or entry stub) before re-running baselines.
          - 2026-02-17: compiler now skips inserting call-depth hooks when `call_depth_max==0`; try `--call-depth-max 0` to test if hooks are the overflow trigger.
+         - 2026-02-17: `oren_stage2_cd0.exe` (built with `--call-depth-max 0`) runs `--version` on Win11 with `EXITCODE=0` (no stack overflow); baseline likely blocked by call-depth hook recursion/entry path.
+         - 2026-02-17: `oren_stage2_cd0.exe build examples/hello.oren ... -o build\\tmp\\hello_cd0.exe` returns `EXITCODE=0` but emits no output and produces no file (log empty) — likely argv/envp or stdout handling bug in x64-windows runtime/entry stub.
        - Decide if AVM should be Windows-capable (add win32 time/mmap shims) or allow `OREN_BENCH_SKIP_OBC=1` (bench runner now supports this).
 
 2) **Tier‑1 native parity: correctness across arch/OS** (L)
@@ -517,6 +519,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					       - C: 0.0077s, RSS ~1.3MB
 					       - Oren C: 0.0190s, RSS ~9.9MB
 					       - Oren native: 0.734s, RSS ~13.5MB
+					     - 2026-02-17: `alloc_drop` (darwin/arm64, iters=50000, runs=1, `OREN_GC_AUTO=1`, OBC skipped):
+					       - C: 0.0087s, RSS ~1.3MB
+					       - Oren C: 0.0407s, RSS ~24.8MB
+					       - Oren native: 120.6s, RSS ~15.9MB (severe perf regression at higher churn)
 					     - Next: increase `OREN_BENCH_ITERS` (50k/200k) and confirm RSS remains bounded under auto-GC; if growth persists, trace roots in native GC/reuse.
 					   - Reliability (P0): alloc_churn RSS is still high under `OREN_GC_AUTO=1`; re-run with `OREN_BENCH_RSS=1` on the refreshed baseline and confirm auto-GC triggers.
 			   - Windows: upgrade the socket netpoller from select-v0 to IOCP (scalable readiness + true wake; removes `FD_SETSIZE=64` per-call limit and avoids batching).

@@ -1,0 +1,90 @@
+{
+  "meta": {
+    "timestamp": "20260217_230447",
+    "host": "Bruce-Mac",
+    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu_brand": "Apple M2 Pro",
+    "cpu_cores": "10",
+    "mem_bytes": "17179869184",
+    "git_rev": "42556c6eeb9f66f6d08ac7d3028dbdf1e3ce2580",
+    "c_compiler": "cc",
+    "runs": 1,
+    "warmups": 0,
+    "program": "alloc_drop",
+    "output": "alloc_drop keep=10",
+    "rss_enabled": true,
+    "skip_obc": true,
+    "env_overrides": {
+      "all": {
+        "OREN_BENCH_ITERS": "50000"
+      },
+      "c": {},
+      "oren_c": {
+        "OREN_GC_AUTO": "1"
+      },
+      "oren_native": {
+        "OREN_GC_AUTO": "1"
+      },
+      "oren_obc": {}
+    }
+  },
+  "results": {
+    "c": {
+      "runs": [
+        0.008744833001401275
+      ],
+      "median_s": 0.008744833001401275,
+      "mean_s": 0.008744833001401275,
+      "min_s": 0.008744833001401275,
+      "max_s": 0.008744833001401275
+    },
+    "oren_c": {
+      "runs": [
+        0.04073533305199817
+      ],
+      "median_s": 0.04073533305199817,
+      "mean_s": 0.04073533305199817,
+      "min_s": 0.04073533305199817,
+      "max_s": 0.04073533305199817
+    },
+    "oren_native": {
+      "runs": [
+        120.6015339170117
+      ],
+      "median_s": 120.6015339170117,
+      "mean_s": 120.6015339170117,
+      "min_s": 120.6015339170117,
+      "max_s": 120.6015339170117
+    }
+  },
+  "rss": {
+    "c": {
+      "runs": [
+        1310720
+      ],
+      "median_bytes": 1310720,
+      "mean_bytes": 1310720,
+      "min_bytes": 1310720,
+      "max_bytes": 1310720
+    },
+    "oren_c": {
+      "runs": [
+        24821760
+      ],
+      "median_bytes": 24821760,
+      "mean_bytes": 24821760,
+      "min_bytes": 24821760,
+      "max_bytes": 24821760
+    },
+    "oren_native": {
+      "runs": [
+        15925248
+      ],
+      "median_bytes": 15925248,
+      "mean_bytes": 15925248,
+      "min_bytes": 15925248,
+      "max_bytes": 15925248
+    }
+  }
+}
