@@ -474,6 +474,7 @@ OrenValue oren_list_new_cap(OrenValue cap);
 OrenValue oren_map_new_cap(OrenValue cap);
 
 OrenValue oren_string_len(OrenValue s);
+OrenValue oren_string_eq(OrenValue a, OrenValue b);
 OrenValue oren_string_char_at(OrenValue s, OrenValue index);
 // Fast path for tooling (compiler/lexer): like `oren_string_char_at`, but assumes
 // the caller has already bounds-checked `index` against a known string length.

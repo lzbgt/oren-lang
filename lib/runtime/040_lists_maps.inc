@@ -2188,6 +2188,12 @@ OrenValue oren_string_len(OrenValue s) {
     return oren_int((long long)strlen(s.as.string_val));
 }
 
+OrenValue oren_string_eq(OrenValue a, OrenValue b) {
+    if (a.type != OREN_TYPE_STRING || b.type != OREN_TYPE_STRING) return OREN_FALSE;
+    if (!a.as.string_val || !b.as.string_val) return OREN_FALSE;
+    return oren_bool(strcmp(a.as.string_val, b.as.string_val) == 0);
+}
+
 OrenValue oren_is_string(OrenValue v) {
     return oren_bool(v.type == OREN_TYPE_STRING);
 }

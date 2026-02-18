@@ -198,6 +198,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				         - Status after root-slot + pinning hardening: still reproduces under `OREN_GC_REUSE_BLOCKS=1` (list magic == list ptr).
 				         - trace: list is tracked (kind=2) but header magic is clobbered; likely a remaining GC root/stack spill issue or alloc-index duplication.
 				         - Next steps: verify GC pin consumers (compiler/serde/renamer), audit select + netpoll pointer roots, and validate stack/register spill discipline at safepoints.
+					   - 2026-02-19: re-enabled C backend list<int> fast while loops (string-safe identifier comparisons) + raw accumulator for list<int> reductions:
+					     - Compiler: `lib/compiler/transpiler.oren` (`str_eq`, list<int> matcher, fast RHS).
+					     - C runtime: `lib/runtime/040_lists_maps.inc` + `lib/runtime.h` (`oren_string_eq`).
+					     - Bench (M2 Pro, runs=5): array_sum_int Oren C 0.0697s (was 0.1202s), dot_product_int Oren C 0.1168s (was 0.1897s).
+					     - Artifacts: `benchmarks/results/array_sum_int_darwin_arm64_20260219_032654.md`, `benchmarks/results/dot_product_int_darwin_arm64_20260219_032701.md`.
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
@@ -1028,7 +1033,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
   - Extend list<int> fast-loop hoist to cover more safe patterns and to the native backend (C backend now uses it for strict list_int_get-only loops).
   - Reduce Oren C boxing cost in list<int> loops by avoiding intermediate `OrenValue` temporaries where possible (keep fast-path bounds checks).
-   - Add AVM bytecode unboxed list<int> ops or confirm boxed fallback and document its perf cost.
+  - Audit compiler internal string comparisons under the native backend; prefer `str_eq`/string-aware helpers to avoid pointer-eq traps in name matching.
+  - Add AVM bytecode unboxed list<int> ops or confirm boxed fallback and document its perf cost.
 
 ## P1 (Soon)
 
