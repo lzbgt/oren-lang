@@ -241,15 +241,21 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
       - Oren C: 0.1855s; OBC/AVM: 0.6295s (same run).
     - 2026-02-18: `OREN_LIST_ASSUME_LIST=1` (skip list validation) does **not** improve:
       - native 0.1506s vs C 0.00417s (`benchmarks/results/array_sum_darwin_arm64_20260218_220638.md`).
+    - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` (skip native list index checks) does **not** improve:
+      - native 0.1482s vs C 0.00399s (`benchmarks/results/array_sum_darwin_arm64_20260218_221223.md`).
     - Target: native ≤0.03s (≤8× C) via faster list element access + fewer boxed int ops.
     - Likely work: unboxed `list<int>` fast path (tag bit or dedicated list kind), bounds-check hoisting, tighter int add/mul/mod lowering.
+    - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
   - (P0/M) **Dot_product shows heavy list+multiply overhead**
     - Latest (M2 Pro, runs=5): C 0.00493s, Oren C 0.319s (~64.7×), Oren native 0.2196s (~44.5×), OBC 0.9027s (~183×).
       - Result: `benchmarks/results/dot_product_darwin_arm64_20260218_175058.md`
     - Target: native ≤0.03s (≤6× C) via bounds-check hoisting + tighter int multiply path.
     - 2026-02-18: `OREN_LIST_ASSUME_LIST=1` does **not** improve:
       - native 0.2309s vs C 0.00499s (`benchmarks/results/dot_product_darwin_arm64_20260218_220721.md`).
+    - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` does **not** improve:
+      - native 0.2271s vs C 0.00509s (`benchmarks/results/dot_product_darwin_arm64_20260218_221234.md`).
     - Likely work: same as array_sum + consider vectorized inner loop for `a[i]*b[i]` on native backend.
+    - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
    - (P1/M) **Capture x64-windows benchmark baselines (pc2.work)**
      - Blockers observed (2026-02-14):
        - No `oren_stage2.exe` in `G:\work\compiler-mini-git` (bench harness fails to compile Oren variants).

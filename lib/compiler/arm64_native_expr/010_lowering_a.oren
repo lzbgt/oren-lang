@@ -1,3 +1,12 @@
+var g_native_assume_list_index = -1
+
+fn _native_assume_list_index_enabled() {
+    if g_native_assume_list_index != -1 { return g_native_assume_list_index == 1 }
+    var v = oren_env("OREN_NATIVE_ASSUME_LIST_INDEX")
+    if v != nil && v != "" && v != "0" { g_native_assume_list_index = 1 } else { g_native_assume_list_index = 0 }
+    return g_native_assume_list_index == 1
+}
+
 fn native_emit_index_get_inline(ctx, expr) {
     // Fast-path list indexing directly in the native backend (no stdlib call),
     // with a deterministic fallback to typed `oren_map_get_*` for non-lists.
@@ -34,6 +43,20 @@ fn native_emit_index_get_inline(ctx, expr) {
     var non_nil_pos = bytes_len(ctx["code"])
     set_u32_le(ctx["code"], br_non_nil, insn_b_cond((non_nil_pos - br_non_nil) / 4, 1)) // NE
 
+    // Perf-only fast path: assume recv_kind=list and index is in bounds.
+    var recv_kind0 = expr["recv_kind"]
+    if recv_kind0 == "list" && _native_assume_list_index_enabled() == true {
+        // buf = *(container + 16)
+        push_u32_le(ctx["code"], insn_add_imm(2, 0, 16))
+        push_u32_le(ctx["code"], insn_ldr_ptr(6, 2)) // X6 = buf
+        // addr = buf + idx*8
+        emit_load_i64_imm(ctx, 2, 8)
+        push_u32_le(ctx["code"], insn_mul(7, 1, 2))        // X7 = idx * 8
+        push_u32_le(ctx["code"], insn_add_reg(7, 6, 7))    // X7 = buf + off
+        push_u32_le(ctx["code"], insn_ldr_ptr(0, 7))       // X0 = *(addr)
+        return true
+    }
+
     // Tier‑1 safety: never read object headers from untracked pointers.
     //
     // In the native v0 carrier model, immediates and pointers share the same i64 slot, so we
@@ -58,7 +81,7 @@ fn native_emit_index_get_inline(ctx, expr) {
     push_u32_le(ctx["code"], insn_cmp_reg(0, 4))
     var br_node_nonzero = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
-    var recv_kind0 = expr["recv_kind"]
+    recv_kind0 = expr["recv_kind"]
     if recv_kind0 == "list" {
         native_emit_panic(ctx, "Index recv_kind=list but value is not a list")
     } else if recv_kind0 == "map" {
