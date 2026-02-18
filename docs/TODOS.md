@@ -252,12 +252,12 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    Perf gaps from latest M2 benchmarks (2026-02-19, runs=3, RSS on):
 
    - (P0/M) **Native alloc_churn is still slower than OBC and far behind Oren C**
-     - Latest: native 0.5906s vs OBC 0.3894s vs Oren C 0.0696s vs C 0.00422s (`benchmarks/results/alloc_churn_darwin_arm64_20260219_041544.md`).
+     - Latest: native 0.3961s vs OBC 0.3879s vs Oren C 0.0698s vs C 0.00405s (`benchmarks/results/alloc_churn_darwin_arm64_20260219_044310.md`).
      - RSS (median): Oren C ~68.4MB, native ~53.8MB, OBC ~61.4MB.
      - Target: native ≤0.20s on M2 for alloc_churn without increasing RSS.
      - Likely work: harden free-block reuse (`OREN_GC_REUSE_BLOCKS=1`), reduce per-alloc tracking overhead, add a bump allocator for short-lived struct-heavy loops, verify GC root coverage at safepoints.
    - (P0/S) **alloc_drop native is catastrophic (drop-path bottleneck)**
-     - Latest: native 0.2656s vs C 0.00425s vs Oren C 0.00671s vs OBC 0.01098s (`benchmarks/results/alloc_drop_darwin_arm64_20260219_041618.md`).
+     - Latest: native 0.1713s vs C 0.00430s vs Oren C 0.00657s vs OBC 0.01060s (`benchmarks/results/alloc_drop_darwin_arm64_20260219_044322.md`).
      - RSS (median): native ~7.8MB, Oren C ~4.47MB, OBC ~9.36MB.
      - Target: native ≤0.50s on M2 with stable RSS.
      - Likely work: profile drop/GC sweep path, reduce per-drop tracking churn, verify free-list reuse + fast-path for short-lived drops.
