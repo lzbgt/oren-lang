@@ -171,7 +171,16 @@ fn _x64_is_list_int_push_call(ctx, exp) {
 }
 
 fn _x64_is_list_int_get_call(ctx, exp, idx_name) {
-    if exp == nil || exp["type"] != "Call" { return nil }
+    if exp == nil { return nil }
+    if exp["type"] == "Index" {
+        if exp["recv_kind"] != "list_int" { return nil }
+        var list_name0 = _x64_is_ident(exp["left"])
+        var idx0 = _x64_is_ident(exp["index"])
+        if list_name0 == nil || idx0 == nil { return nil }
+        if _x64_str_eq_bytes(idx0, idx_name) != true { return nil }
+        return list_name0
+    }
+    if exp["type"] != "Call" { return nil }
     if exp["fn"] == nil { return nil }
     var nm = nil
     if exp["fn"]["type"] == "Identifier" {

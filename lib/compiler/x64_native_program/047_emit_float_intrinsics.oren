@@ -77,6 +77,10 @@ fn _x64_expr_is_inty(ctx, expr) {
         }
         return false
     }
+    if et == "Index" {
+        if expr["recv_kind"] == "list_int" { return true }
+        return false
+    }
     if et == "Call" {
         var fnn = expr["fn"]
         if fnn != nil && fnn["type"] == "Identifier" {
