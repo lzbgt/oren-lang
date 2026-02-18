@@ -50,6 +50,7 @@ OrenValue oren_spawn0(OrenFn0 fn) {
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     (void)pthread_attr_setstacksize(&attr, stack_size);
+    OREN_ATOMIC_STORE_INT(&g_threads_started, 1);
     int rc = pthread_create(&t, &attr, oren_spawn0_entry, args);
     pthread_attr_destroy(&attr);
     if (rc != 0) {
@@ -384,6 +385,7 @@ OrenValue oren_spawn_call_list(OrenValue fn, OrenValue args_list) {
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     (void)pthread_attr_setstacksize(&attr, stack_size);
+    OREN_ATOMIC_STORE_INT(&g_threads_started, 1);
     int rc = pthread_create(&t, &attr, oren_spawn_call_entry, args);
     pthread_attr_destroy(&attr);
     if (rc != 0) {

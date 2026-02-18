@@ -58,6 +58,9 @@ static void oren_map_grow(OrenMap* m, int newCap) {
 static pthread_mutex_t g_obj_locks[OREN_OBJ_LOCKS];
 static pthread_once_t g_obj_locks_once = PTHREAD_ONCE_INIT;
 static int g_obj_locks_skip = -1;
+static int g_obj_locks_force = -1;
+static int g_obj_locks_trace = -1;
+static int g_obj_locks_trace_done = 0;
 
 static void oren_obj_locks_init(void) {
     for (size_t i = 0; i < (size_t)OREN_OBJ_LOCKS; i++) {
@@ -76,8 +79,41 @@ static inline int oren_obj_locks_skip_enabled(void) {
     return g_obj_locks_skip;
 }
 
+static inline int oren_obj_locks_force_enabled(void) {
+    if (g_obj_locks_force != -1) return g_obj_locks_force;
+    const char* env = getenv("OREN_LIST_FORCE_LOCKS");
+    if (env && env[0] != 0 && env[0] != '0') {
+        g_obj_locks_force = 1;
+    } else {
+        g_obj_locks_force = 0;
+    }
+    return g_obj_locks_force;
+}
+
+static inline int oren_obj_locks_trace_enabled(void) {
+    if (g_obj_locks_trace != -1) return g_obj_locks_trace;
+    const char* env = getenv("OREN_TRACE_LIST_LOCKS");
+    if (env && env[0] != 0 && env[0] != '0') {
+        g_obj_locks_trace = 1;
+    } else {
+        g_obj_locks_trace = 0;
+    }
+    return g_obj_locks_trace;
+}
+
 static inline pthread_mutex_t* oren_obj_lock_for_ptr(void* p) {
-    if (oren_obj_locks_skip_enabled()) return NULL;
+    if (oren_obj_locks_trace_enabled() && !g_obj_locks_trace_done) {
+        g_obj_locks_trace_done = 1;
+        fprintf(stderr,
+                "trace: list locks skip=%d force=%d threads_started=%d\n",
+                oren_obj_locks_skip_enabled(),
+                oren_obj_locks_force_enabled(),
+                (int)OREN_ATOMIC_LOAD_INT(&g_threads_started));
+    }
+    if (!oren_obj_locks_force_enabled()) {
+        if (oren_obj_locks_skip_enabled()) return NULL;
+        if (OREN_ATOMIC_LOAD_INT(&g_threads_started) == 0) return NULL;
+    }
     (void)pthread_once(&g_obj_locks_once, oren_obj_locks_init);
     size_t h = oren_ptr_hash(p);
     return &g_obj_locks[h & (OREN_OBJ_LOCKS - 1u)];

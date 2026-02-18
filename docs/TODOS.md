@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-02-18
+**Last updated:** 2026-02-19
 
 This repo is in rolling mode. This file tracks the **highest-leverage work remaining** to evolve Oren
 into a modern, efficient, production-ready language and toolchain, while keeping iteration fast.
@@ -593,6 +593,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					     - Guard: keep `benchmarks/loop_sum` results in `benchmarks/results/` and re-run after changes.
 					   - Performance (P0): bring Oren C backend loop_sum under 10× C on M2 (currently ~17.3×).
 					     - Focus on: avoid OrenValue boxing in tight loops, reduce helper call overhead, and enable constant‑folded modulo where safe.
+					   - Performance (P0): cut list<int> overhead on C + native backends using `array_sum_int` / `dot_product_int` as guards.
+					     - Targets (rolling, M2): halve the current list<int> slowdown vs C; prioritize C backend first (list locks + unboxed access).
+					     - Focus on: unboxed list<int> iteration, bounds-check hoisting, and reducing per-iteration OrenValue traffic.
 					   - Performance (P0): capture x64 loop_sum baseline (after constant‑mod inline) on the Linux/Win Tier‑1 path to confirm x64 impact.
 					   - Performance (P1): port inty propagation + '+' fast-path to x64 native (needs stringy/inty tracking or another safe guard).
 					   - Reliability (P0): investigate reported memory leaks by adding a minimal leak repro + RSS sampling to the benchmark harness, then triage GC/runtime roots.
@@ -629,6 +632,22 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - 82 cycles, total track_alloc time median ~0.135s per cycle (mean ~0.162s, max ~0.827s)
      - other_count median ~869 with other_ns median ~0.111s; list_count median ~121 with list_ns median ~0.026s
      - Confirms alloc_drop cost is dominated by per-allocation tracking on non-list allocations.
+   - 2026-02-19: C backend build cache now includes the C runtime include-closure (`lib/runtime.c`, `lib/runtime_buf.c`, `lib/runtime.h`, and `runtime*/**.inc`).
+     - Fixes stale C backend artifacts when runtime chunks change.
+   - 2026-02-19: list<int> microbench (darwin/arm64, runs=5, warmup=1, RSS):
+     - `array_sum_int` baseline: C 0.00535s; Oren C 0.21096s (~39.4×); Oren native 0.21361s (~39.9×); OBC 0.62902s (~117.5×)
+       - Result artifact: `benchmarks/results/array_sum_int_darwin_arm64_20260219_014519.md`
+     - `dot_product_int` baseline: C 0.00639s; Oren C 0.35846s (~56.1×); Oren native 0.36297s (~56.8×); OBC 0.90223s (~141.3×)
+       - Result artifact: `benchmarks/results/dot_product_int_darwin_arm64_20260219_014347.md`
+   - 2026-02-19: list<int> microbench with C-backend lock elision (`OREN_LIST_SKIP_LOCKS=1`):
+     - `array_sum_int`: Oren C 0.13685s (~24.7× vs C); Oren native/OBC unchanged
+       - Result artifact: `benchmarks/results/array_sum_int_darwin_arm64_20260219_014449.md`
+     - `dot_product_int`: Oren C 0.23191s (~36.1× vs C); Oren native/OBC unchanged
+       - Result artifact: `benchmarks/results/dot_product_int_darwin_arm64_20260219_014945.md`
+     - Indicates list lock overhead is ~1.5–1.6× on C backend for list<int> hot loops.
+   - 2026-02-19: C backend list/map lock gating now skips locks until `spawn` is used (tracks `g_threads_started`).
+     - Overrides: `OREN_LIST_FORCE_LOCKS=1` (force locks), `OREN_LIST_SKIP_LOCKS=1` (skip even after spawn).
+     - Diagnostics: `OREN_TRACE_LIST_LOCKS=1` prints the gating state once at first list access.
    - 2026-02-19: loop_sum refresh (M2 Pro, runs=5, warmup=1, RSS):
      - C 0.0682s; Oren C 1.1902s (~17.5×); Oren native 0.4298s (~6.3×); OBC 5.7201s (~83.9×)
      - Result artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_010934.md`
@@ -956,21 +975,21 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    - 2026-02-19:
      - baseline:
-       - `array_sum_int` (2M elems): C 0.00551s; Oren C 0.21164s (~38.4×); Oren native 0.21428s (~38.9×); OBC 0.62950s (~114.2×)
-       - `dot_product_int` (2M elems): C 0.00640s; Oren C 0.35900s (~56.1×); Oren native 0.36207s (~56.6×); OBC 0.90447s (~141.3×)
+       - `array_sum_int` (2M elems): C 0.00535s; Oren C 0.21096s (~39.4×); Oren native 0.21361s (~39.9×); OBC 0.62902s (~117.5×)
+       - `dot_product_int` (2M elems): C 0.00639s; Oren C 0.35846s (~56.1×); Oren native 0.36297s (~56.8×); OBC 0.90223s (~141.2×)
      - perf-only (`OREN_LIST_SKIP_LOCKS=1` on Oren C):
-       - `array_sum_int` (2M elems): C 0.00552s; Oren C 0.13652s (~24.7×); Oren native 0.21567s (~39.1×); OBC 0.62915s (~114.0×)
-       - `dot_product_int` (2M elems): C 0.00671s; Oren C 0.23139s (~34.5×); Oren native 0.36539s (~54.5×); OBC 0.90108s (~134.3×)
+       - `array_sum_int` (2M elems): C 0.00555s; Oren C 0.13685s (~24.7×); Oren native 0.21675s (~39.1×); OBC 0.62884s (~113.3×)
+       - `dot_product_int` (2M elems): C 0.00643s; Oren C 0.23191s (~36.1×); Oren native 0.38462s (~59.8×); OBC 0.90014s (~140.1×)
    - 2026-02-18:
      - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
      - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
 
    Artifacts:
 
-   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_012921.md`
-   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_012933.md`
-   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_012952.md` (skip locks)
-   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_013026.md` (skip locks)
+   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_014519.md`
+   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_014347.md`
+   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_014449.md` (skip locks)
+   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_014945.md` (skip locks)
    - `benchmarks/results/array_sum_int_darwin_arm64_20260218_230227.md`
    - `benchmarks/results/dot_product_int_darwin_arm64_20260218_230252.md`
 
@@ -978,8 +997,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    - 2026-02-19: C backend list<int> get/set now inline the list fast-path (bypasses generic list/map/python dispatch).
      - Runtime: `lib/runtime/040_lists_maps.inc` (`oren_list_int_get`, `oren_list_int_set`)
-   - 2026-02-19: C backend list/map ops can skip striped object locks via `OREN_LIST_SKIP_LOCKS=1` (perf-only; unsafe under real threading).
-     - Runtime: `lib/runtime/040_lists_maps.inc` (lock gating)
+   - 2026-02-19: C backend list/map ops skip striped object locks until `spawn` is used (reduces single-thread overhead; main thread wrapper does not enable locks).
+     - Override: `OREN_LIST_FORCE_LOCKS=1` forces locks; `OREN_LIST_SKIP_LOCKS=1` disables locks even after threads (perf-only, unsafe).
+     - Runtime: `lib/runtime/010_prelude.inc` (`g_threads_started`), `lib/runtime/020_threads_gc.inc` (spawn marks), `lib/runtime/040_lists_maps.inc` (lock gating)
 
    x64‑windows status:
 

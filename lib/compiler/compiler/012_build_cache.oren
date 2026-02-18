@@ -1002,6 +1002,68 @@ fn _cache_hash_expanded_includes(path, build_cfg, scan_state) {
     return {"ok": true, "hash": h}
 }
 
+fn _cache_scan_c_includes_from_src(src, full_path) {
+    // Scan `#include "runtime/..."` and `#include "runtime_buf/..."` in C sources.
+    var out = []
+    if src == nil { return out }
+    var bs = oren_bytes_from_string(src)
+    var n = oren_list_len(bs)
+    var i = 0
+    while i + 10 < n {
+        if bs[i] == 35 && bs[i + 1] == 105 && bs[i + 2] == 110 && bs[i + 3] == 99 &&
+           bs[i + 4] == 108 && bs[i + 5] == 117 && bs[i + 6] == 100 && bs[i + 7] == 101 &&
+           bs[i + 8] == 32 && bs[i + 9] == 34 {
+            var j = i + 10
+            var start = j
+            while j < n && bs[j] != 34 && bs[j] != 10 && bs[j] != 13 {
+                j = j + 1
+            }
+            if j < n && bs[j] == 34 {
+                var inc = oren_string_from_bytes_slice(bs, start, j - start)
+                if starts_with(inc, "runtime/") || starts_with(inc, "runtime_buf/") {
+                    var base = dirname(full_path)
+                    var full = path_norm(base + "/" + inc)
+                    oren_list_push(out, full)
+                }
+            }
+            i = j + 1
+            continue
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn _cache_hash_c_runtime_inputs(inputs, build_cfg, scan_state) {
+    var seen = {}
+    var stack = ["lib/runtime.c", "lib/runtime_buf.c", "lib/runtime.h"]
+    var sp = 3
+    while sp > 0 {
+        sp = sp - 1
+        var path = stack[sp]
+        stack[sp] = nil
+        if path == nil || path == "" { continue }
+        if seen[path] == true { continue }
+        seen[path] = true
+        var src = oren_read_file(path)
+        if oren_is_err(src) {
+            return {"ok": false, "err": "failed to read runtime input: " + path}
+        }
+        inputs["RUNTIME_C:" + path] = _cache_hash_string(src, build_cfg)
+        var incs = _cache_scan_c_includes_from_src(src, path)
+        var i = 0
+        while i < oren_list_len(incs) {
+            var inc_path = incs[i]
+            if inc_path != nil && inc_path != "" {
+                stack[sp] = inc_path
+                sp = sp + 1
+            }
+            i = i + 1
+        }
+    }
+    return {"ok": true}
+}
+
 fn cache_compute_key_build(entry_path, build_cfg) {
     // build_cfg fields used (expected):
     // - backend, target, arch, cc, emit_c, no_gc, capsule, cap_domains, call_depth_max
@@ -1130,6 +1192,13 @@ fn cache_compute_key_build(entry_path, build_cfg) {
         if trace_build {
             var dt_rt = (oren_time_now_ns() - t_rt0) / 1000000
             print("[cache] injected_runtime_hash +" + oren_int_to_string(dt_rt) + "ms hash=" + inputs["RUNTIME:" + rt_path])
+        }
+    }
+
+    if build_cfg != nil && build_cfg["backend"] == "c" {
+        var rr_c = _cache_hash_c_runtime_inputs(inputs, build_cfg, scan_state)
+        if rr_c["ok"] != true {
+            return {"ok": false, "err": rr_c["err"]}
         }
     }
 

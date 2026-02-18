@@ -93,6 +93,18 @@ make verify-native-quick # stage1 + stage2 native smoke
 make verify     # clean + stage2 self-hosting verification
 ```
 
+## Benchmarks (local perf)
+
+Local, reproducible microbenchmarks live under `benchmarks/` (C baseline vs Oren C backend vs
+Oren native vs OBC/AVM). See `benchmarks/README.md` for all knobs and examples.
+
+Quick run:
+```bash
+python3 benchmarks/run_benchmarks.py
+```
+
+Recent result artifacts are written under `benchmarks/results/` and referenced in `docs/TODOS.md`.
+
 ## Using The Compiler
 
 ### Build an executable (C backend, default)

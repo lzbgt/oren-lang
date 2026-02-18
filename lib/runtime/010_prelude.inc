@@ -734,6 +734,7 @@ static OrenAtomicInt g_gc_requested = 0;
 static OrenAtomicInt g_gc_in_progress = 0;
 static int g_threads_total = 0;
 static int g_threads_waiting = 0;
+static OrenAtomicInt g_threads_started = 0;
 static pthread_key_t g_thread_key;
 static pthread_once_t g_thread_key_once = PTHREAD_ONCE_INIT;
 static struct OrenThreadState* g_thread_states = NULL;
