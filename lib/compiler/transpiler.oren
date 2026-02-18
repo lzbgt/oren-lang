@@ -442,13 +442,20 @@ fn _transpiler_fast_int_rhs(t, exp, idx_name, list_items, idx_c) {
         if items == nil { return nil }
         return "(uint64_t)" + items + "[" + idx_c + "].as.int_val"
     }
+    if et == "Prefix" {
+        if exp["op"] != "-" { return nil }
+        var right = _transpiler_fast_int_rhs(t, exp["right"], idx_name, list_items, idx_c)
+        if right == nil { return nil }
+        return "(0ull - " + right + ")"
+    }
     if et == "Infix" {
-        if exp["op"] != "*" { return nil }
+        var op = exp["op"]
+        if op != "*" && op != "+" && op != "-" { return nil }
         var left = _transpiler_fast_int_rhs(t, exp["left"], idx_name, list_items, idx_c)
         if left == nil { return nil }
         var right = _transpiler_fast_int_rhs(t, exp["right"], idx_name, list_items, idx_c)
         if right == nil { return nil }
-        return "(" + left + " * " + right + ")"
+        return "(" + left + " " + op + " " + right + ")"
     }
     return nil
 }
