@@ -12,6 +12,7 @@ Legend: `x` = slowdown relative to C median.
 | --- | --- | --- | --- | --- | --- |
 | loop_sum | 0.068195 | 1.190155 (17.45×) | 0.429771 (6.30×) | 5.720071 (83.88×) | `benchmarks/results/loop_sum_darwin_arm64_20260219_010934.md` |
 | array_sum | 0.006021 | 0.116454 (19.34×) | 0.145107 (24.10×) | 0.626310 (104.02×) | `benchmarks/results/array_sum_darwin_arm64_20260219_050804.md` |
+| array_sum_int | 0.003905 | 0.083507 (21.38×) | 0.104486 (26.76×) | 0.626739 (160.50×) | `benchmarks/results/array_sum_int_darwin_arm64_20260219_052501.md` |
 | dot_product | 0.006472 | 0.209131 (32.31×) | 0.221092 (34.16×) | 0.896550 (138.53×) | `benchmarks/results/dot_product_darwin_arm64_20260219_050816.md` |
 | dot_product_int | 0.004702 | 0.071653 (15.24×) | 0.024691 (5.25×) | 0.897349 (190.84×) | `benchmarks/results/dot_product_int_darwin_arm64_20260219_043018.md` |
 | alloc_churn | 0.004082 | 0.069660 (17.07×) | 0.162040 (39.70×) | 0.388069 (95.07×) | `benchmarks/results/alloc_churn_darwin_arm64_20260219_045329.md` |

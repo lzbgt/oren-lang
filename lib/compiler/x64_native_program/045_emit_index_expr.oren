@@ -129,8 +129,10 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
         bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
         bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
         bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
-        // kind == 2 (LIST)
+        // kind == 2 (LIST) || kind == 8 (LIST_INT)
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 2))
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 8))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
         _emit_abort_panic_str(ctx, "Index recv_kind=list but value is not a list")
     } else if recv_kind == "map" {
@@ -159,8 +161,10 @@ fn _emit_index_expr_v0(ctx, expr, locals) {
         bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
         bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
 
-        // kind == 2 => list, kind == 3 => map
+        // kind == 2/8 => list, kind == 3 => map
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 2))
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 8))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_list)
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 3))
         _emit_jcc_to_label(ctx, local_fixups, "e", l_is_map)

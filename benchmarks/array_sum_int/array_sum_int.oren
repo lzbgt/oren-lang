@@ -12,7 +12,7 @@ fn main() {
     var sum = 0
     i = 0
     while i < n {
-        sum = sum + list.int_get(xs, i)
+        sum = sum + xs[i]
         i = i + 1
     }
 
