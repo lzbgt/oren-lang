@@ -304,6 +304,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
           - Still crashes with `OREN_NO_GC=1` and `OREN_LEX_SAFE=0`.
           - `OREN_TRACE_DUMP=1` or `OREN_TRACE_LEX_STEP=1` avoids the crash (heisenbug).
           - Next: audit native string-compare path + map key compare recursion; consider a byte-only lexer (no map lookups in hot loops) or a Windows-only fast comment skip that avoids `l["ch"]` string compares entirely.
+        - 2026-02-18: hardened `strcmp` pointer checks (avoid `==` on raw pointers) but Win11 comment repro still overflows.
         - 2026-02-18: latest trace shows crash during module discovery (even earlier):
           - With `OREN_TRACE_PASSES=1` + parse tracing, Win11 exits after `discover_module: lib/std/list.oren` (list has no imports).
           - Next: instrument `_ml_scan_imports_in_src` + `discover_module` to pinpoint the fault; consider Windows-only fallback to parser-based import scanning if the fast scanner is corrupting memory.

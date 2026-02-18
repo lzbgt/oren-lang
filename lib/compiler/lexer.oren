@@ -204,6 +204,36 @@ fn read_line_comment_text(l) {
     return _lex_slice(l, start, l["position"])
 }
 
+fn _skip_line_comment_fast(l) {
+    // Fast path for line comments: scan bytes without per-character map traffic.
+    var input = l["input"]
+    var input_len = l["input_len"]
+    if l["safe"] == true { input_len = oren_string_len(input) }
+    var pos = l["position"]
+    var col = l["col"]
+    var i = pos
+    while i < input_len {
+        var b = oren_string_byte_at_unchecked(input, i)
+        if b == 10 { // '\n'
+            var delta = i - pos
+            l["position"] = i
+            l["read_position"] = iadd(i, 1)
+            l["col"] = iadd(col, delta)
+            l["ch_byte"] = 10
+            l["ch"] = token.CH_LF
+            return nil
+        }
+        i = iadd(i, 1)
+    }
+    // EOF: leave `ch` as empty string.
+    l["position"] = input_len
+    l["read_position"] = iadd(input_len, 1)
+    l["col"] = iadd(col, input_len - pos)
+    l["ch_byte"] = -1
+    l["ch"] = ""
+    return nil
+}
+
 fn _lex_slice(l, start, end) {
     // On Windows bring-up, prefer the bounds-checked slice in safe mode to avoid
     // unchecked slice bugs corrupting the lexer state.
@@ -581,19 +611,19 @@ fn next_token(l) {
             //
             // Emitted as a token so the parser can attach it to the next declaration
             // and export it in metadata deterministically.
-            if peek_byte(l) == 47 && peek_byte2(l) == 47 {
-                read_char(l) // consume first '/'
-                read_char(l) // consume second '/'
-                read_char(l) // consume third '/'
-                var text = read_line_comment_text(l)
+        if peek_byte(l) == 47 && peek_byte2(l) == 47 {
+            read_char(l) // consume first '/'
+            read_char(l) // consume second '/'
+            read_char(l) // consume third '/'
+            var text = read_line_comment_text(l)
                 text = trim_one_leading_space(text)
                 // Do not consume the \\n here; `skip_whitespace` will handle it.
                 return tok_lc(l, token.TOK_DOC, text, start, l["position"], start_line, start_col)
-            }
-            if peek_byte(l) == 47 {
-                skip_comment(l)
-                continue
-            }
+        }
+        if peek_byte(l) == 47 {
+            _skip_line_comment_fast(l)
+            continue
+        }
             if peek_byte(l) == 42 {
                 read_char(l) // consume /
                 read_char(l) // consume *
