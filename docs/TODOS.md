@@ -222,19 +222,21 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
        - x64 emit+link ~78s (`emit_ms=77747`)
      - This keeps `scripts/verify_native_x64_selfhost_compile_only.sh` under the default 240s timeout (it now defaults to `oren_x64.oren`; override via `OREN_SELFHOST_SRC=oren.oren`).
 
-   Perf gaps from latest M2 benchmarks (2026-02-14, host-tagged results):
+   Perf gaps from latest M2 benchmarks (2026-02-19, runs=3, RSS on):
 
    - (P0/M) **Native alloc_churn is still slower than OBC and far behind Oren C**
-     - Latest (runs=5): native 0.571s vs OBC 0.388s vs Oren C 0.108s (`benchmarks/results/alloc_churn_darwin_arm64_20260214_165758.md`).
+     - Latest: native 0.6947s vs OBC 0.4075s vs Oren C 0.1151s vs C 0.00418s (`benchmarks/results/alloc_churn_darwin_arm64_20260219_002502.md`).
+     - RSS (median): Oren C ~68.7MB, native ~53.8MB, OBC ~61.4MB.
      - Target: native ≤0.20s on M2 for alloc_churn without increasing RSS.
      - Likely work: harden free-block reuse (`OREN_GC_REUSE_BLOCKS=1`), reduce per-alloc tracking overhead, add a bump allocator for short-lived struct-heavy loops, verify GC root coverage at safepoints.
    - (P0/S) **alloc_drop native is catastrophic (drop-path bottleneck)**
-     - Latest (50k iters): native 120.6s vs C 0.0087s vs Oren C 0.0407s (`benchmarks/results/alloc_drop_darwin_arm64_20260217_230447.md`).
+     - Latest: native 0.295s vs C 0.00474s vs Oren C 0.00714s vs OBC 0.0125s (`benchmarks/results/alloc_drop_darwin_arm64_20260219_002526.md`).
+     - RSS (median): native ~7.7MB, Oren C ~4.7MB, OBC ~9.4MB.
      - Target: native ≤0.50s on M2 with stable RSS.
      - Likely work: profile drop/GC sweep path, reduce per-drop tracking churn, verify free-list reuse + fast-path for short-lived drops.
-   - (P1/M) **Loop_sum native still ~6.4× C**
-     - Latest: native 0.4253s vs C 0.0665s (`benchmarks/results/loop_sum_darwin_arm64_20260218_104800.md`).
-       - Oren C: 1.1811s; OBC/AVM: 5.8217s (same run).
+   - (P1/M) **Loop_sum native still ~6.3× C**
+     - Latest: native 0.4386s vs C 0.0695s (`benchmarks/results/loop_sum_darwin_arm64_20260219_002240.md`).
+       - Oren C: 1.2065s; OBC/AVM: 5.9393s (same run).
      - Target: native ≤0.25s (≤4× C) while keeping correctness gates.
   - (P1/M) **Array_sum list access is still ~34× C (native) / ~44× C (Oren C)**
     - Latest: native 0.1435s vs C 0.00418s (`benchmarks/results/array_sum_darwin_arm64_20260218_133631.md`).
@@ -247,20 +249,23 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - Likely work: unboxed `list<int>` fast path (tag bit or dedicated list kind), bounds-check hoisting, tighter int add/mul/mod lowering.
     - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
   - (P0/M) **Dot_product shows heavy list+multiply overhead**
-    - Latest (M2 Pro, runs=5): C 0.00493s, Oren C 0.319s (~64.7×), Oren native 0.2196s (~44.5×), OBC 0.9027s (~183×).
-      - Result: `benchmarks/results/dot_product_darwin_arm64_20260218_175058.md`
+    - Latest (runs=3): C 0.00718s, Oren C 0.333s (~46×), Oren native 0.2316s (~32×), OBC 0.967s (~135×).
+      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_002549.md`
+    - Dot_product_int is **slower** on native (list<int> not yet a win):
+      - native 0.394s vs C 0.00758s (~52×) (`benchmarks/results/dot_product_int_darwin_arm64_20260219_002614.md`).
     - Target: native ≤0.03s (≤6× C) via bounds-check hoisting + tighter int multiply path.
     - 2026-02-18: `OREN_LIST_ASSUME_LIST=1` does **not** improve:
       - native 0.2309s vs C 0.00499s (`benchmarks/results/dot_product_darwin_arm64_20260218_220721.md`).
     - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` does **not** improve:
       - native 0.2271s vs C 0.00509s (`benchmarks/results/dot_product_darwin_arm64_20260218_221234.md`).
-    - Likely work: same as array_sum + consider vectorized inner loop for `a[i]*b[i]` on native backend.
-    - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
+   - Likely work: same as array_sum + consider vectorized inner loop for `a[i]*b[i]` on native backend.
+   - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
    - (P1/M) **Capture x64-windows benchmark baselines (pc2.work)**
      - Blockers observed (2026-02-14):
        - No `oren_stage2.exe` in `G:\work\compiler-mini-git` (bench harness fails to compile Oren variants).
        - `avm.exe` build fails on MinGW: `sys/mman.h` + `clock_gettime` missing; `tools/gen_avm_root_pubkeys_inc.sh` requires MSYS `cat`.
-       - 2026-02-17: macOS-built `oren_stage2.exe` exits immediately with `0xC00000FD` (stack overflow) on Win11 (`--version`); PE header stack reserve is 64MB/commit 64KB, so this is likely a recursion/entry bug (not a small stack).
+      - 2026-02-17: macOS-built `oren_stage2.exe` exits immediately with `0xC00000FD` (stack overflow) on Win11 (`--version`); PE header stack reserve is 64MB/commit 64KB, so this is likely a recursion/entry bug (not a small stack).
+      - 2026-02-19: bumped x64 PE stack reserve to 256MB and synced new `oren_stage2.exe` to pc2.work; `build examples/hello.oren` now **hangs** with no trace output, leaving stray `oren_stage2.exe` processes that must be killed; `OREN_TRACE_PHASES=1` log remains empty (suggests hang before phase emit).
      - Actions:
        - Cross-compile `oren_stage2.exe` for x64-windows on macOS and sync to pc2.work.
       - Triage the x64-windows stack-overflow path (call-depth instrumentation, runtime init, or entry stub) before re-running baselines.
@@ -583,10 +588,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
 			   Next steps (actionable, highest leverage first):
 
-					   - Performance (P0): close the Oren native gap on `benchmarks/loop_sum` (M2 baseline ~30.3× C).
+					   - Performance (P0): close the Oren native gap on `benchmarks/loop_sum` (M2 baseline ~6.3× C).
 					     - Focus on: unboxed int arithmetic + modulo fast paths, loop‑header lowering overhead, and constant‑mod strength reduction.
 					     - Guard: keep `benchmarks/loop_sum` results in `benchmarks/results/` and re-run after changes.
-					   - Performance (P0): bring Oren C backend loop_sum under 10× C on M2 (currently ~17.7×).
+					   - Performance (P0): bring Oren C backend loop_sum under 10× C on M2 (currently ~17.3×).
 					     - Focus on: avoid OrenValue boxing in tight loops, reduce helper call overhead, and enable constant‑folded modulo where safe.
 					   - Performance (P0): capture x64 loop_sum baseline (after constant‑mod inline) on the Linux/Win Tier‑1 path to confirm x64 impact.
 					   - Performance (P1): port inty propagation + '+' fast-path to x64 native (needs stringy/inty tracking or another safe guard).
@@ -603,6 +608,16 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    - 2026-02-18: `alloc_drop` (darwin/arm64, iters=10000, runs=1, `OREN_BENCH_RSS=1`):
      - C: 0.0057s, RSS ~1.3MB
      - Oren C: 0.0073s, RSS ~4.7MB
+   - 2026-02-19: `alloc_drop` (darwin/arm64, iters=10000, runs=3, `OREN_BENCH_RSS=1`):
+     - C: 0.0047s, RSS ~1.3MB
+     - Oren C: 0.0071s, RSS ~4.7MB
+     - Oren native: 0.295s, RSS ~7.7MB
+     - OBC: 0.0125s, RSS ~9.4MB
+   - 2026-02-19: `alloc_churn` (darwin/arm64, runs=3, `OREN_BENCH_RSS=1`):
+     - C: 0.0042s, RSS ~1.3MB
+     - Oren C: 0.115s, RSS ~68.7MB
+     - Oren native: 0.695s, RSS ~53.8MB
+     - OBC: 0.407s, RSS ~61.4MB
      - Oren native: 0.2817s, RSS ~7.7MB
      - OBC: 0.0120s, RSS ~9.3MB (`benchmarks/results/alloc_drop_darwin_arm64_20260218_133744.md`)
 					       - Oren native: 0.734s, RSS ~13.5MB
