@@ -428,6 +428,66 @@ fn _transpiler_stmt_collect_list_int_gets(t, stmt, idx_name, lists) {
     return {"ok": false, "lists": lists, "uses_idx": false}
 }
 
+fn _transpiler_expr_uses_ident(exp, name) {
+    if exp == nil || name == nil { return false }
+    var et = exp["type"]
+    if et == "Identifier" { return str_eq(exp["value"], name) }
+    if et == "Integer" || et == "Float" || et == "String" || et == "Boolean" || et == "Nil" { return false }
+    if et == "Prefix" { return _transpiler_expr_uses_ident(exp["right"], name) }
+    if et == "Infix" {
+        if _transpiler_expr_uses_ident(exp["left"], name) { return true }
+        return _transpiler_expr_uses_ident(exp["right"], name)
+    }
+    if et == "Call" {
+        if _transpiler_expr_uses_ident(exp["fn"], name) { return true }
+        var args = exp["args"]
+        var i = 0
+        while i < oren_list_len(args) {
+            if _transpiler_expr_uses_ident(args[i], name) { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if et == "Member" {
+        return _transpiler_expr_uses_ident(exp["left"], name)
+    }
+    if et == "Index" {
+        if _transpiler_expr_uses_ident(exp["left"], name) { return true }
+        return _transpiler_expr_uses_ident(exp["index"], name)
+    }
+    if et == "Array" {
+        var xs = exp["elements"]
+        var j = 0
+        while j < oren_list_len(xs) {
+            if _transpiler_expr_uses_ident(xs[j], name) { return true }
+            j = j + 1
+        }
+        return false
+    }
+    if et == "Hash" {
+        var ps = exp["pairs"]
+        var k = 0
+        while k < oren_list_len(ps) {
+            if _transpiler_expr_uses_ident(ps[k]["key"], name) { return true }
+            if _transpiler_expr_uses_ident(ps[k]["value"], name) { return true }
+            k = k + 1
+        }
+        return false
+    }
+    if et == "If" || et == "Function" { return true }
+    return true
+}
+
+fn _transpiler_expr_uses_any_ident(exp, names) {
+    if exp == nil || names == nil { return false }
+    var i = 0
+    while i < oren_list_len(names) {
+        if _transpiler_expr_uses_ident(exp, names[i]) { return true }
+        i = i + 1
+    }
+    return false
+}
+
 fn _transpiler_fast_int_rhs(t, exp, idx_name, list_items, idx_c) {
     if exp == nil { return nil }
     var et = exp["type"]
@@ -579,6 +639,11 @@ fn _transpiler_match_fast_list_int_push_while(t, stmt) {
         i = i + 1
     }
     if oren_list_len(lists) == 0 { return nil }
+    var pi = 0
+    while pi < oren_list_len(pushes) {
+        if _transpiler_expr_uses_any_ident(pushes[pi]["value"], lists) { return nil }
+        pi = pi + 1
+    }
     return {"idx": idx_name, "n": n_name, "lists": lists, "pushes": pushes, "body_len": n - 1}
 }
 

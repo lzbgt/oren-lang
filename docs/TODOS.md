@@ -217,17 +217,17 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						   - 2026-02-19: added `multi_list_push_int` benchmark (three list<int> pushes per loop + sum):
 						     - Bench (M2 Pro, runs=5): C 0.00774s, Oren C 0.162s (~21.0×), Oren native 0.440s (~56.9×), OBC 1.230s (~159×).
 						     - Artifact: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_041028.md`.
-						   - 2026-02-19: multi_list_push_int refresh after list<int> push fast paths (deferred count update):
-						     - Bench (M2 Pro, runs=5): C 0.00833s, Oren C 0.0792s (~9.51×), Oren native 0.0306s (~3.67×), OBC 1.229s (~147×).
-						     - Artifact: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_063118.md`.
+						   - 2026-02-19: multi_list_push_int refresh after safe list<int> push deferral (guard self-reads; native defers count updates):
+						     - Bench (M2 Pro, runs=5): C 0.00832s, Oren C 0.0792s (~9.52×), Oren native 0.0312s (~3.75×), OBC 1.227s (~147.55×).
+						     - Artifact: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_064308.md`.
 						   - 2026-02-19: arm64 native fast list<int> get-sum loop (pattern match + direct loads) closes the gap on array_sum_int/multi_list_push_int:
 						     - Compiler: `lib/compiler/arm64_native_stmt.oren` (fast while matcher + direct buffer loads).
 						     - Bench (M2 Pro, runs=5):
-						       - array_sum_int native 0.0201s (~5.2× C) (`benchmarks/results/array_sum_int_darwin_arm64_20260219_042246.md`).
-						       - multi_list_push_int native 0.0302s (~3.8× C) (`benchmarks/results/multi_list_push_int_darwin_arm64_20260219_042256.md`).
+						       - array_sum_int native 0.0204s (~5.29× C) (`benchmarks/results/array_sum_int_darwin_arm64_20260219_064250.md`).
+						       - multi_list_push_int native 0.0312s (~3.75× C) (`benchmarks/results/multi_list_push_int_darwin_arm64_20260219_064308.md`).
 						   - 2026-02-19: arm64 native fast list<int> dot loop (pattern match + direct loads + mul) closes dot_product_int gap:
 						     - Compiler: `lib/compiler/arm64_native_stmt.oren` (fast dot while matcher + direct buffer loads).
-						     - Bench (M2 Pro, runs=5): dot_product_int native 0.0247s (~5.3× C) (`benchmarks/results/dot_product_int_darwin_arm64_20260219_043018.md`).
+						     - Bench (M2 Pro, runs=5): dot_product_int native 0.0252s (~5.22× C) (`benchmarks/results/dot_product_int_darwin_arm64_20260219_064258.md`).
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
@@ -290,9 +290,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	      - native 0.2271s vs C 0.00509s (`benchmarks/results/dot_product_darwin_arm64_20260218_221234.md`).
 	   - Likely work: focus on boxed list path (same as array_sum) + consider vectorized inner loop for `a[i]*b[i]` on native backend.
 	   - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
-		  - (P1/S) **multi_list_push_int regression guard**
-		    - Latest (runs=5): C 0.00833s, Oren C 0.0792s (~9.51×), Oren native 0.0306s (~3.67×), OBC 1.229s (~147×).
-		      - Result: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_063118.md`
+			  - (P1/S) **multi_list_push_int regression guard**
+			    - Latest (runs=5): C 0.00832s, Oren C 0.0792s (~9.52×), Oren native 0.0312s (~3.75×), OBC 1.227s (~147.55×).
+			      - Result: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_064308.md`
 	    - Guard target: native stays ≤0.05s (≤6× C).
 	   - (P1/M) **Capture x64-windows benchmark baselines (pc2.work)**
      - Blockers observed (2026-02-14):
