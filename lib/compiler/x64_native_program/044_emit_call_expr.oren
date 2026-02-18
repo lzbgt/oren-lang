@@ -528,6 +528,18 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         _emit_list_push_intrinsic_v0_x64(ctx, expr, locals)
         return nil
     }
+    if nm == "oren_list_int_len" || nm == "STD_list_int_len" {
+        _emit_list_int_len_intrinsic_v0_x64(ctx, expr, locals)
+        return nil
+    }
+    if nm == "oren_list_int_push" || nm == "STD_list_int_push" {
+        _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals)
+        return nil
+    }
+    if nm == "oren_list_int_get" || nm == "STD_list_int_get" {
+        _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals)
+        return nil
+    }
 
     if nm == "oren_call_obj_list" {
         if spread != nil { err(ctx, "x64 native v0: oren_call_obj_list does not support spread"); return nil }

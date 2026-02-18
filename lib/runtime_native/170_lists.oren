@@ -47,6 +47,7 @@ fn oren_new_list_int(cap) {
     return header
 }
 
+@oren.keep
 fn _list_int_check_value(v) {
     if native_value_is_nil(v) { oren_panic("list_int expects int (got nil)"); return 0 }
     if native_value_is_true(v) || native_value_is_false(v) {

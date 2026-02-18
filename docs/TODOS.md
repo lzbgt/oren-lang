@@ -920,13 +920,13 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    Recent measurements (arm64-macos, M2 Pro; runs=5, warmup=1):
 
-   - `array_sum_int` (2M elems): C 0.0040s; Oren C 0.2014s (~50×); Oren native 0.2989s (~75×); OBC 0.6507s (~163×)
-   - `dot_product_int` (2M elems): C 0.0049s; Oren C 0.3339s (~68×); Oren native 0.5167s (~105×); OBC 0.9330s (~189×)
+   - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
+   - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
 
    Artifacts:
 
-   - `benchmarks/results/array_sum_int_darwin_arm64_20260218_224358.md`
-   - `benchmarks/results/dot_product_int_darwin_arm64_20260218_224421.md`
+   - `benchmarks/results/array_sum_int_darwin_arm64_20260218_230227.md`
+   - `benchmarks/results/dot_product_int_darwin_arm64_20260218_230252.md`
 
    Gates:
 
@@ -935,7 +935,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    Next steps (highest leverage):
 
-   - Lower list<int> get/set/push to native intrinsics with bounds-check elision in tight loops (native + C backends).
+   - Hoist list<int> header/tracked-node checks out of tight loops and add bounds-check elision for list<int> get/set (native + C backends).
+   - Add list<int> set fast-path (native + C backend) to match get/push/len coverage.
    - Add inty propagation for list<int> loops (avoid `oren_add`/`oren_mod` helper calls in hot paths).
    - Add AVM bytecode unboxed list<int> ops or confirm boxed fallback and document its perf cost.
 

@@ -1,8 +1,8 @@
 // Chunked out of native_compile_expr call handling for include coherence.
 fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 
-	            if fn_name == "oren_list_len" || fn_name == "STD_list_len" {
-	                // Intrinsic: list length (fast-path, no runtime call).
+            if fn_name == "oren_list_len" || fn_name == "STD_list_len" {
+                // Intrinsic: list length (fast-path, no runtime call).
 	                //
 	                // Runtime layout: [count][capacity][buffer_ptr][magic]
 	                // - nil list => 0
@@ -93,8 +93,83 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 return true
             }
 
-	            if fn_name == "oren_list_push" || fn_name == "STD_list_push" {
-	                // Intrinsic: list push fast-path (in-bounds capacity case), fallback to runtime for growth.
+            if fn_name == "oren_list_int_len" {
+                // Intrinsic: list<int> length (fast-path, no runtime call).
+                //
+                // Runtime layout: [count][capacity][buffer_ptr][magic]
+                // - nil list => 0
+                // - non-list => deterministic panic (matches runtime)
+                var args0i = expr["args"]
+                if args0i == nil || oren_list_len(args0i) != 1 {
+                    native_error(ctx, expr["token"], "native backend: oren_list_int_len expects 1 argument")
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    return true
+                }
+
+                native_compile_expr(ctx, args0i[0]) // list -> X0
+
+                // nil => 0
+                push_u32_le(ctx["code"], insn_movz(1, 0))
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
+                var br_non_nil_i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                var br_done_i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+
+                var non_nil_pos_i = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_non_nil_i, insn_b_cond((non_nil_pos_i - br_non_nil_i) / 4, 1)) // NE
+
+                // Tier‑1 safety: never read object headers from untracked pointers.
+                // Use tracked-node kind to validate list-ness before any header loads.
+                // - node.kind == 8 => LIST_INT
+                push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = list
+
+                // node = oren_find_node(list)
+                var bl_find_node_i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node_i, "name": "oren_find_node"})
+
+                // node == 0 => panic
+                push_u32_le(ctx["code"], insn_movz(1, 0))
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
+                var br_node_nonzero_i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_int_len on non-list")
+                var node_ok_pos_i = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_node_nonzero_i, insn_b_cond((node_ok_pos_i - br_node_nonzero_i) / 4, 1)) // NE
+
+                // kind = *(node + 16); require kind==LIST_INT
+                emit_load_ptr_from_base_plus(ctx, 1, 0, 16)   // X1 = kind
+                emit_load_i64_imm(ctx, 2, 8)                 // X2 = LIST_INT
+                push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+                var br_kind_ok_i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_int_len on non-list")
+                var kind_ok_pos_i = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_kind_ok_i, insn_b_cond((kind_ok_pos_i - br_kind_ok_i) / 4, 0)) // EQ
+
+                // Restore list pointer and validate magic.
+                push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+                emit_load_ptr_from_base_plus(ctx, 1, 0, 24)   // X1 = magic
+                emit_load_i64_imm(ctx, 2, 1279870019)         // X2 = 'LIST'
+                push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+                var br_is_list_i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_int_len on non-list")
+                var is_list_pos_i = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_is_list_i, insn_b_cond((is_list_pos_i - br_is_list_i) / 4, 0)) // EQ
+
+                // count
+                emit_load_ptr_from_base_plus(ctx, 0, 0, 0)
+
+                var done_pos_i = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_done_i, insn_b((done_pos_i - br_done_i) / 4))
+                return true
+            }
+
+            if fn_name == "oren_list_push" || fn_name == "STD_list_push" {
+                // Intrinsic: list push fast-path (in-bounds capacity case), fallback to runtime for growth.
 	                //
 	                // Signature: oren_list_push(list, value) -> nil
                 var args1 = expr["args"]
@@ -210,6 +285,239 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 
                 // Language-level semantics: return `nil` regardless of the underlying runtime helper's return value.
                 push_u32_le(ctx["code"], insn_movz(0, 0))
+                return true
+            }
+
+            if fn_name == "oren_list_int_push" {
+                // Intrinsic: list<int> push fast-path (in-bounds capacity case), fallback to runtime for growth.
+                //
+                // Signature: oren_list_int_push(list, value) -> nil
+                var args1i = expr["args"]
+                if args1i == nil || oren_list_len(args1i) != 2 {
+                    native_error(ctx, expr["token"], "native backend: oren_list_int_push expects 2 arguments")
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    return true
+                }
+
+                // Eval list -> stack
+                native_compile_expr(ctx, args1i[0]) // list -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                // Eval value -> X0
+                native_compile_expr(ctx, args1i[1])
+
+                // Pop list -> X1
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // Swap: X0=value, X1=list => X0=list, X1=value
+                push_u32_le(ctx["code"], insn_mov_reg(2, 0))
+                push_u32_le(ctx["code"], insn_mov_reg(0, 1))
+                push_u32_le(ctx["code"], insn_mov_reg(1, 2))
+
+                // nil => panic
+                push_u32_le(ctx["code"], insn_movz(2, 0))
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
+                var br_non_nil2i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_int_push on nil")
+                var non_nil_pos2i = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_non_nil2i, insn_b_cond((non_nil_pos2i - br_non_nil2i) / 4, 1)) // NE
+
+                // Tier‑1 safety: never read object headers from untracked pointers.
+                // Validate list via tracked-node kind first (matches runtime contract).
+                push_u32_le(ctx["code"], insn_mov_reg(19, 0)) // X19 = list
+                push_u32_le(ctx["code"], insn_mov_reg(20, 1)) // X20 = value
+
+                // node = oren_find_node(list)
+                push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+                var bl_find_node2i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node2i, "name": "oren_find_node"})
+
+                // node == 0 => panic
+                push_u32_le(ctx["code"], insn_movz(2, 0))
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
+                var br_node_nonzero2i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_int_push on non-list")
+                var node_ok_pos2i = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_node_nonzero2i, insn_b_cond((node_ok_pos2i - br_node_nonzero2i) / 4, 1)) // NE
+
+                // kind = *(node + 16); require kind==LIST_INT
+                emit_load_ptr_from_base_plus(ctx, 2, 0, 16) // X2 = kind
+                emit_load_i64_imm(ctx, 3, 8)               // X3 = LIST_INT
+                push_u32_le(ctx["code"], insn_cmp_reg(2, 3))
+                var br_kind_ok2i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_int_push on non-list")
+                var kind_ok_pos2i = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_kind_ok2i, insn_b_cond((kind_ok_pos2i - br_kind_ok2i) / 4, 0)) // EQ
+
+                // Restore list/value and validate magic.
+                push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+                push_u32_le(ctx["code"], insn_mov_reg(1, 20))
+                emit_load_ptr_from_base_plus(ctx, 2, 0, 24) // X2 = magic
+                emit_load_i64_imm(ctx, 3, 1279870019)       // X3 = 'LIST'
+                push_u32_le(ctx["code"], insn_cmp_reg(2, 3))
+                var br_is_list2i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_int_push on non-list")
+                var is_list_pos2i = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_is_list2i, insn_b_cond((is_list_pos2i - br_is_list2i) / 4, 0)) // EQ
+
+                // Validate value is int (no tracked pointer / no nil/bool).
+                push_u32_le(ctx["code"], insn_mov_reg(0, 20)) // X0 = value
+                var bl_check_val = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_check_val, "name": "_list_int_check_value"})
+
+                // Restore list/value after check.
+                push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+                push_u32_le(ctx["code"], insn_mov_reg(1, 20))
+
+                // Load count/cap/buf
+                emit_load_ptr_from_base_plus(ctx, 4, 0, 0)   // X4 = count
+                emit_load_ptr_from_base_plus(ctx, 5, 0, 8)   // X5 = cap
+                emit_load_ptr_from_base_plus(ctx, 6, 0, 16)  // X6 = buf
+
+                // if count < cap => fast store; else => slow path call
+                push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+                var br_fast_i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+
+                // Slow path: call runtime oren_list_int_push(list, value)
+                var bl_pos_i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_i, "name": "oren_list_int_push"})
+                var br_done2i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+
+                // Fast path
+                var fast_pos_i = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_fast_i, insn_b_cond((fast_pos_i - br_fast_i) / 4, 11)) // LT
+
+                // addr = buf + count*8
+                emit_load_i64_imm(ctx, 2, 8)
+                push_u32_le(ctx["code"], insn_mul(7, 4, 2))      // X7 = count*8
+                push_u32_le(ctx["code"], insn_add_reg(7, 6, 7))  // X7 = buf + off
+                push_u32_le(ctx["code"], insn_str_ptr(1, 7))     // *(addr) = value
+
+                // count++
+                push_u32_le(ctx["code"], insn_add_imm(4, 4, 1))
+                push_u32_le(ctx["code"], insn_str_ptr(4, 0))     // *(list) = count+1
+
+                var done_pos2i = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_done2i, insn_b((done_pos2i - br_done2i) / 4))
+
+                // Language-level semantics: return `nil` regardless of the underlying runtime helper's return value.
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                return true
+            }
+
+            if fn_name == "oren_list_int_get" {
+                // Intrinsic: list<int> get fast-path (bounds-checked).
+                //
+                // Signature: oren_list_int_get(list, idx) -> int
+                var args2i = expr["args"]
+                if args2i == nil || oren_list_len(args2i) != 2 {
+                    native_error(ctx, expr["token"], "native backend: oren_list_int_get expects 2 arguments")
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    return true
+                }
+
+                // Eval list -> stack
+                native_compile_expr(ctx, args2i[0]) // list -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                // Eval idx -> X0
+                native_compile_expr(ctx, args2i[1])
+
+                // Pop list -> X1
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // Save list/idx in callee-saved regs.
+                push_u32_le(ctx["code"], insn_mov_reg(20, 0)) // X20 = idx
+                push_u32_le(ctx["code"], insn_mov_reg(19, 1)) // X19 = list
+                push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // X0 = list
+
+                // nil => panic
+                push_u32_le(ctx["code"], insn_movz(2, 0))
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
+                var br_non_nil_g = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_int_get on nil")
+                var non_nil_pos_g = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_non_nil_g, insn_b_cond((non_nil_pos_g - br_non_nil_g) / 4, 1)) // NE
+
+                // node = oren_find_node(list)
+                var bl_find_node_g = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node_g, "name": "oren_find_node"})
+
+                // node == 0 => panic
+                push_u32_le(ctx["code"], insn_movz(2, 0))
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
+                var br_node_nonzero_g = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_int_get on non-list")
+                var node_ok_pos_g = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_node_nonzero_g, insn_b_cond((node_ok_pos_g - br_node_nonzero_g) / 4, 1)) // NE
+
+                // kind = *(node + 16); require kind==LIST_INT
+                emit_load_ptr_from_base_plus(ctx, 2, 0, 16) // X2 = kind
+                emit_load_i64_imm(ctx, 3, 8)               // X3 = LIST_INT
+                push_u32_le(ctx["code"], insn_cmp_reg(2, 3))
+                var br_kind_ok_g = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_int_get on non-list")
+                var kind_ok_pos_g = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_kind_ok_g, insn_b_cond((kind_ok_pos_g - br_kind_ok_g) / 4, 0)) // EQ
+
+                // Restore list pointer and validate magic.
+                push_u32_le(ctx["code"], insn_mov_reg(0, 19))
+                emit_load_ptr_from_base_plus(ctx, 1, 0, 24)   // X1 = magic
+                emit_load_i64_imm(ctx, 2, 1279870019)         // X2 = 'LIST'
+                push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+                var br_is_list_g = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_int_get on non-list")
+                var is_list_pos_g = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_is_list_g, insn_b_cond((is_list_pos_g - br_is_list_g) / 4, 0)) // EQ
+
+                // count
+                emit_load_ptr_from_base_plus(ctx, 3, 0, 0) // X3 = count
+
+                // idx < 0 => panic
+                push_u32_le(ctx["code"], insn_movz(4, 0))
+                push_u32_le(ctx["code"], insn_cmp_reg(20, 4))
+                var br_idx_nonneg = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "Index out of bounds (negative)")
+                var idx_nonneg_pos = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_idx_nonneg, insn_b_cond((idx_nonneg_pos - br_idx_nonneg) / 4, 10)) // GE
+
+                // idx >= count => panic
+                push_u32_le(ctx["code"], insn_cmp_reg(20, 3))
+                var br_idx_ok = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "Index out of bounds")
+                var idx_ok_pos = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_idx_ok, insn_b_cond((idx_ok_pos - br_idx_ok) / 4, 11)) // LT
+
+                // buf + idx*8
+                emit_load_ptr_from_base_plus(ctx, 4, 0, 16) // X4 = buf
+                emit_load_i64_imm(ctx, 5, 8)
+                push_u32_le(ctx["code"], insn_mul(6, 20, 5))     // X6 = idx*8
+                push_u32_le(ctx["code"], insn_add_reg(6, 4, 6))  // X6 = buf + off
+                push_u32_le(ctx["code"], insn_ldr_ptr(0, 6))     // X0 = *(addr)
                 return true
             }
 
