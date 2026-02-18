@@ -629,6 +629,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - 82 cycles, total track_alloc time median ~0.135s per cycle (mean ~0.162s, max ~0.827s)
      - other_count median ~869 with other_ns median ~0.111s; list_count median ~121 with list_ns median ~0.026s
      - Confirms alloc_drop cost is dominated by per-allocation tracking on non-list allocations.
+   - 2026-02-19: loop_sum refresh (M2 Pro, runs=5, warmup=1, RSS):
+     - C 0.0682s; Oren C 1.1902s (~17.5×); Oren native 0.4298s (~6.3×); OBC 5.7201s (~83.9×)
+     - Result artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_010934.md`
    - 2026-02-19: `alloc_churn` (darwin/arm64, runs=3, `OREN_BENCH_RSS=1`):
      - C: 0.0042s, RSS ~1.3MB
      - Oren C: 0.115s, RSS ~68.7MB
@@ -951,13 +954,24 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    Recent measurements (arm64-macos, M2 Pro; runs=5, warmup=1):
 
-   - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
-   - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
+   - 2026-02-19:
+     - `array_sum_int` (2M elems): C 0.00588s; Oren C 0.20301s (~34.6×); Oren native 0.21675s (~36.9×); OBC 0.63610s (~108.3×)
+     - `dot_product_int` (2M elems): C 0.00707s; Oren C 0.33223s (~47.0×); Oren native 0.36481s (~51.6×); OBC 0.91061s (~128.7×)
+   - 2026-02-18:
+     - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
+     - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
 
    Artifacts:
 
+   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_011235.md`
+   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_011245.md`
    - `benchmarks/results/array_sum_int_darwin_arm64_20260218_230227.md`
    - `benchmarks/results/dot_product_int_darwin_arm64_20260218_230252.md`
+
+   Status (fact):
+
+   - 2026-02-19: C backend list<int> get/set now inline the list fast-path (bypasses generic list/map/python dispatch).
+     - Runtime: `lib/runtime/040_lists_maps.inc` (`oren_list_int_get`, `oren_list_int_set`)
 
    x64‑windows status:
 
@@ -973,7 +987,6 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    Next steps (highest leverage):
 
    - Hoist list<int> header/tracked-node checks out of tight loops and add bounds-check elision for list<int> get/set (native + C backends).
-   - Add list<int> set fast-path in C backend (native fast-path done 2026-02-18) to match get/push/len coverage.
    - Add inty propagation for list<int> loops (avoid `oren_add`/`oren_mod` helper calls in hot paths).
    - Add AVM bytecode unboxed list<int> ops or confirm boxed fallback and document its perf cost.
 

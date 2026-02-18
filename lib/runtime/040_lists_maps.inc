@@ -327,12 +327,86 @@ OrenValue oren_list_int_push(OrenValue list, OrenValue value) {
 }
 
 OrenValue oren_list_int_get(OrenValue list, OrenValue index) {
-    return oren_list_get(list, index);
+    if (list.type == OREN_TYPE_LIST) {
+        if (index.type != OREN_TYPE_INT) {
+             oren_panic("index must be integer");
+             return OREN_NIL; // Should not be reached
+        }
+        OrenList* l = list.as.list_val;
+        if (!l) {
+            oren_panic("index get on nil list");
+            return OREN_NIL;
+        }
+        pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
+        pthread_mutex_lock(mu);
+        int idx = (int)index.as.int_val;
+        int cnt = l->count;
+        if (idx < 0 || idx >= cnt) {
+            char buf[128];
+            snprintf(buf, sizeof(buf), "index out of bounds (idx=%d, count=%d)", idx, cnt);
+            pthread_mutex_unlock(mu);
+            oren_panic(buf);
+            return OREN_NIL; // Should not be reached
+        }
+        OrenValue v = l->items[idx];
+        pthread_mutex_unlock(mu);
+        return v;
+    }
+#ifdef OREN_ENABLE_PYTHON
+    if (list.type == OREN_TYPE_PY_OBJ) {
+         PyObject* py_index = oren_to_py(index);
+         PyObject* item = PyObject_GetItem(list.as.py_obj, py_index);
+         Py_DECREF(py_index);
+         if (!item) {
+             PyErr_Print();
+             oren_panic("Python list get item failed");
+             return OREN_NIL; // Should not be reached
+         }
+         return oren_py_to_oren(item);
+    }
+#else
+    if (list.type == OREN_TYPE_PY_OBJ) {
+        (void)index;
+        oren_panic("Python support is disabled (rebuild with -DOREN_ENABLE_PYTHON)");
+        return OREN_NIL; // Should not be reached
+    }
+#endif
+
+    if (list.type == OREN_TYPE_MAP) {
+        return oren_map_get(list, index);
+    }
+
+    oren_panic("index get on non-list/map");
+    return OREN_NIL; // Should not be reached
 }
 
 OrenValue oren_list_int_set(OrenValue list, OrenValue index, OrenValue value) {
     if (!oren_list_int_check_value(value)) return OREN_NIL;
-    return oren_list_set(list, index, value);
+    if (list.type != OREN_TYPE_LIST) {
+        oren_panic("list_set on non-list");
+        return value; // Should not be reached
+    }
+    if (index.type != OREN_TYPE_INT) {
+        oren_panic("list_set index must be int");
+        return value; // Should not be reached
+    }
+    OrenList* l = list.as.list_val;
+    if (!l) {
+        oren_panic("list_set on nil list");
+        return value;
+    }
+    pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
+    pthread_mutex_lock(mu);
+    int idx = (int)index.as.int_val;
+    int cnt = l->count;
+    if (idx < 0 || idx >= cnt) {
+        pthread_mutex_unlock(mu);
+        oren_panic("list_set index out of bounds");
+        return value; // Should not be reached
+    }
+    l->items[idx] = value;
+    pthread_mutex_unlock(mu);
+    return value;
 }
 
 static int bytes_get_u8_checked(OrenValue bytes, int idx, uint8_t* out) {
