@@ -650,11 +650,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - Diagnostics: `OREN_TRACE_LIST_LOCKS=1` prints the gating state once at first list access.
    - 2026-02-19: C backend list<int> fast-paths now inline when locks are not needed (len/get/set/push).
      - Transpiler emits `oren_list_int_*_fast` helpers; runtime exposes `oren_list_locking_needed()`.
-   - 2026-02-19: list<int> refresh after fast-path (darwin/arm64, runs=5, warmup=1, RSS):
-     - `array_sum_int`: C 0.00380s; Oren C 0.13491s (~35.5×); Oren native 0.21081s (~55.5×); OBC 0.64867s (~170.7×)
-       - Result artifact: `benchmarks/results/array_sum_int_darwin_arm64_20260219_020505.md`
-     - `dot_product_int`: C 0.00494s; Oren C 0.23605s (~47.8×); Oren native 0.35843s (~72.6×); OBC 0.89755s (~181.7×)
-       - Result artifact: `benchmarks/results/dot_product_int_darwin_arm64_20260219_020516.md`
+   - 2026-02-19: list<int> refresh after inty inlining (darwin/arm64, runs=5, warmup=1, RSS):
+     - `array_sum_int`: C 0.00384s; Oren C 0.11973s (~31.2×); Oren native 0.21122s (~55.0×); OBC 0.62737s (~163.5×)
+       - Result artifact: `benchmarks/results/array_sum_int_darwin_arm64_20260219_021452.md`
+     - `dot_product_int`: C 0.00512s; Oren C 0.20436s (~39.9×); Oren native 0.35988s (~70.2×); OBC 0.90120s (~175.9×)
+       - Result artifact: `benchmarks/results/dot_product_int_darwin_arm64_20260219_021503.md`
    - 2026-02-19: loop_sum refresh (M2 Pro, runs=5, warmup=1, RSS):
      - C 0.0682s; Oren C 1.1902s (~17.5×); Oren native 0.4298s (~6.3×); OBC 5.7201s (~83.9×)
      - Result artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_010934.md`

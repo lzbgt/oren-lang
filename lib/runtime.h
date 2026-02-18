@@ -96,6 +96,9 @@ typedef struct OrenBuf {
     uint32_t elem_size; // 4 for i32/f32, 8 for i64/f64
 } OrenBuf;
 
+// Forward declaration for inline helpers.
+void oren_panic(const char* msg);
+
 	// GC / roots
 	void oren_register_root(OrenValue* slot);
 	void oren_unregister_root(OrenValue* slot);
@@ -279,6 +282,144 @@ static inline OrenValue oren_list_int_set_fast(OrenValue list, OrenValue index, 
         }
     }
     return oren_list_int_set(list, index, value);
+}
+
+static inline OrenValue oren_int_add_fast(OrenValue a, OrenValue b) {
+    uint64_t ua = 0, ub = 0, ur = 0;
+    long long r = 0;
+    memcpy(&ua, &a.as.int_val, sizeof(ua));
+    memcpy(&ub, &b.as.int_val, sizeof(ub));
+    ur = ua + ub;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
+}
+
+static inline OrenValue oren_int_sub_fast(OrenValue a, OrenValue b) {
+    uint64_t ua = 0, ub = 0, ur = 0;
+    long long r = 0;
+    memcpy(&ua, &a.as.int_val, sizeof(ua));
+    memcpy(&ub, &b.as.int_val, sizeof(ub));
+    ur = ua - ub;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
+}
+
+static inline OrenValue oren_int_mul_fast(OrenValue a, OrenValue b) {
+    uint64_t ua = 0, ub = 0, ur = 0;
+    long long r = 0;
+    memcpy(&ua, &a.as.int_val, sizeof(ua));
+    memcpy(&ub, &b.as.int_val, sizeof(ub));
+    ur = ua * ub;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
+}
+
+static inline OrenValue oren_int_div_fast(OrenValue a, OrenValue b) {
+    if (b.as.int_val == 0) {
+        oren_panic("division by zero");
+        return OREN_NIL;
+    }
+    if (a.as.int_val == INT64_MIN && b.as.int_val == -1) {
+        oren_panic("division overflow (i64_min / -1)");
+        return OREN_NIL;
+    }
+    return oren_int(a.as.int_val / b.as.int_val);
+}
+
+static inline OrenValue oren_int_mod_fast(OrenValue a, OrenValue b) {
+    if (b.as.int_val == 0) {
+        oren_panic("modulo by zero");
+        return OREN_NIL;
+    }
+    if (a.as.int_val == INT64_MIN && b.as.int_val == -1) {
+        oren_panic("modulo overflow (i64_min % -1)");
+        return OREN_NIL;
+    }
+    return oren_int(a.as.int_val % b.as.int_val);
+}
+
+static inline OrenValue oren_int_band_fast(OrenValue a, OrenValue b) {
+    uint64_t x = 0;
+    uint64_t y = 0;
+    uint64_t ur = 0;
+    long long r = 0;
+    memcpy(&x, &a.as.int_val, sizeof(x));
+    memcpy(&y, &b.as.int_val, sizeof(y));
+    ur = x & y;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
+}
+
+static inline OrenValue oren_int_bor_fast(OrenValue a, OrenValue b) {
+    uint64_t x = 0;
+    uint64_t y = 0;
+    uint64_t ur = 0;
+    long long r = 0;
+    memcpy(&x, &a.as.int_val, sizeof(x));
+    memcpy(&y, &b.as.int_val, sizeof(y));
+    ur = x | y;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
+}
+
+static inline OrenValue oren_int_bxor_fast(OrenValue a, OrenValue b) {
+    uint64_t x = 0;
+    uint64_t y = 0;
+    uint64_t ur = 0;
+    long long r = 0;
+    memcpy(&x, &a.as.int_val, sizeof(x));
+    memcpy(&y, &b.as.int_val, sizeof(y));
+    ur = x ^ y;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
+}
+
+static inline OrenValue oren_int_shl_fast(OrenValue a, OrenValue b) {
+    long long s = b.as.int_val;
+    if (s < 0 || s >= 64) {
+        oren_panic("shl shift count out of range (need 0..63)");
+        return OREN_NIL;
+    }
+    uint64_t x = 0;
+    memcpy(&x, &a.as.int_val, sizeof(x));
+    uint64_t ur = x << (uint64_t)s;
+    long long r = 0;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
+}
+
+static inline OrenValue oren_int_shr_fast(OrenValue a, OrenValue b) {
+    long long s = b.as.int_val;
+    if (s < 0 || s >= 64) {
+        oren_panic("shr shift count out of range (need 0..63)");
+        return OREN_NIL;
+    }
+    uint64_t x = 0;
+    memcpy(&x, &a.as.int_val, sizeof(x));
+    uint64_t ur = x >> (uint64_t)s;
+    long long r = 0;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
+}
+
+static inline OrenValue oren_int_neg_fast(OrenValue a) {
+    // Deterministic two's-complement wrap without signed-overflow UB.
+    uint64_t ua = 0, ur = 0;
+    long long r = 0;
+    memcpy(&ua, &a.as.int_val, sizeof(ua));
+    ur = 0 - ua;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
+}
+
+static inline OrenValue oren_int_bnot_fast(OrenValue a) {
+    uint64_t x = 0;
+    uint64_t ur = 0;
+    long long r = 0;
+    memcpy(&x, &a.as.int_val, sizeof(x));
+    ur = ~x;
+    memcpy(&r, &ur, sizeof(r));
+    return oren_int(r);
 }
 OrenValue oren_iter_next(OrenValue container, OrenValue idx, OrenValue out_pair);
 // Map entry iterator (key+value). Returns ok:int (1/0) and writes into out_pair[0..1].

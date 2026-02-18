@@ -104,6 +104,93 @@ fn list_contains(lst, val) {
     return false
 }
 
+fn _transpiler_inty_list(t) {
+    if t["inty"] == nil { t["inty"] = [] }
+    return t["inty"]
+}
+
+fn _transpiler_inty_clone(xs) {
+    var out = []
+    if xs == nil { return out }
+    var i = 0
+    while i < oren_list_len(xs) {
+        oren_list_push(out, xs[i])
+        i = i + 1
+    }
+    return out
+}
+
+fn _transpiler_inty_remove(xs, name) {
+    if xs == nil { return [] }
+    var out = []
+    var i = 0
+    while i < oren_list_len(xs) {
+        if xs[i] != name { oren_list_push(out, xs[i]) }
+        i = i + 1
+    }
+    return out
+}
+
+fn _transpiler_inty_set(t, name, ok) {
+    var xs = _transpiler_inty_list(t)
+    if ok {
+        if list_contains(xs, name) == false {
+            oren_list_push(xs, name)
+        }
+        return nil
+    }
+    t["inty"] = _transpiler_inty_remove(xs, name)
+    return nil
+}
+
+fn _transpiler_inty_intersect(a, b) {
+    var out = []
+    if a == nil || b == nil { return out }
+    var i = 0
+    while i < oren_list_len(a) {
+        if list_contains(b, a[i]) { oren_list_push(out, a[i]) }
+        i = i + 1
+    }
+    return out
+}
+
+fn _transpiler_expr_is_inty(t, exp) {
+    if exp == nil { return false }
+    var et = exp["type"]
+    if et == "Integer" { return true }
+    if et == "Identifier" {
+        return list_contains(_transpiler_inty_list(t), exp["value"])
+    }
+    if et == "Call" {
+        if exp["fn"] != nil && exp["fn"]["type"] == "Identifier" {
+            var nm = exp["fn"]["value"]
+            if nm == "oren_int" { return true }
+            if nm == "oren_list_int_get" || nm == "STD_list_int_get" { return true }
+            if nm == "oren_list_int_len" || nm == "STD_list_int_len" { return true }
+            if nm == "oren_list_int_set" || nm == "STD_list_int_set" { return true }
+            if nm == "oren_list_len" || nm == "STD_list_len" { return true }
+        }
+        return false
+    }
+    if et == "Prefix" {
+        var op = exp["op"]
+        if op == "-" || op == "~" {
+            return _transpiler_expr_is_inty(t, exp["right"])
+        }
+        return false
+    }
+    if et == "Infix" {
+        var op = exp["op"]
+        if op == "+" || op == "-" || op == "*" || op == "/" || op == "%" ||
+           op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>" {
+            return _transpiler_expr_is_inty(t, exp["left"]) &&
+                   _transpiler_expr_is_inty(t, exp["right"])
+        }
+        return false
+    }
+    return false
+}
+
 fn fun_varargs_fixed(fun) {
     // Returns fixed-parameter count for a varargs function, or -1 if not varargs.
     //
@@ -823,6 +910,7 @@ fn transpile_lambda_def(t, def) {
 fn transpile_statement(t, stmt) {
     if stmt["type"] == "Var" {
         var v = transpile_expression(t, stmt["value"])
+        _transpiler_inty_set(t, stmt["name"]["value"], _transpiler_expr_is_inty(t, stmt["value"]))
         return "OrenValue " + c_ident(stmt["name"]["value"]) + " = " + v + ";"
     }
     if stmt["type"] == "Spawn" {
@@ -843,6 +931,7 @@ fn transpile_statement(t, stmt) {
     if stmt["type"] == "Block" {
         var stmts = stmt["stmts"]
         var parts = []
+        var inty_prev = _transpiler_inty_clone(_transpiler_inty_list(t))
         oren_list_push(parts, "{")
         oren_list_push(parts, CH_LF)
         var i = 0
@@ -852,6 +941,7 @@ fn transpile_statement(t, stmt) {
             i = i + 1
         }
         oren_list_push(parts, "}")
+        t["inty"] = inty_prev
         return _transpiler_join_parts(parts)
     }
     if stmt["type"] == "Set" {
@@ -875,6 +965,7 @@ fn transpile_statement(t, stmt) {
     }
     if stmt["type"] == "Assign" {
         var v_assign = transpile_expression(t, stmt["value"])
+        _transpiler_inty_set(t, stmt["name"]["value"], _transpiler_expr_is_inty(t, stmt["value"]))
         return c_ident(stmt["name"]["value"]) + " = " + v_assign + ";"
     }
     if stmt["type"] == "Return" {
@@ -943,17 +1034,21 @@ fn transpile_statement(t, stmt) {
 
 fn transpile_if(t, expr) {
     var cond = transpile_expression(t, expr["cond"])
+    var inty_base = _transpiler_inty_clone(_transpiler_inty_list(t))
     var parts = []
     oren_list_push(parts, "if (oren_is_truthy(" + cond + ")) {")
     oren_list_push(parts, CH_LF)
+    t["inty"] = _transpiler_inty_clone(inty_base)
     var i = 0
     while i < oren_list_len(expr["consq"]["stmts"]) {
         oren_list_push(parts, "    " + transpile_statement(t, expr["consq"]["stmts"][i]))
         oren_list_push(parts, CH_LF)
         i = i + 1
     }
+    var inty_consq = _transpiler_inty_clone(_transpiler_inty_list(t))
     oren_list_push(parts, "}")
     if expr["alt"] != nil {
+        t["inty"] = _transpiler_inty_clone(inty_base)
         oren_list_push(parts, " else {")
         oren_list_push(parts, CH_LF)
         i = 0
@@ -964,6 +1059,9 @@ fn transpile_if(t, expr) {
         }
         oren_list_push(parts, "}")
     }
+    var inty_alt = inty_base
+    if expr["alt"] != nil { inty_alt = _transpiler_inty_clone(_transpiler_inty_list(t)) }
+    t["inty"] = _transpiler_inty_intersect(inty_consq, inty_alt)
     return _transpiler_join_parts(parts)
 }
 
@@ -1006,14 +1104,38 @@ fn transpile_expression(t, exp) {
         // Unary minus:
         // - Use multiplication by -1 so float negation preserves IEEE-754 sign bit (notably -0.0).
         // - Integers have deterministic wrap semantics in the runtime, so -1*x is consistent.
-        if exp["op"] == "-" { return "oren_mul(oren_int(-1), " + right + ")" }
+        if exp["op"] == "-" {
+            if _transpiler_expr_is_inty(t, exp["right"]) {
+                return "oren_int_neg_fast(" + right + ")"
+            }
+            return "oren_mul(oren_int(-1), " + right + ")"
+        }
         if exp["op"] == "!" { return "oren_bool(!oren_is_truthy(" + right + "))" }
-        if exp["op"] == "~" { return "oren_bnot(" + right + ")" }
+        if exp["op"] == "~" {
+            if _transpiler_expr_is_inty(t, exp["right"]) {
+                return "oren_int_bnot_fast(" + right + ")"
+            }
+            return "oren_bnot(" + right + ")"
+        }
     }
     if et == "Infix" {
         var left = transpile_expression(t, exp["left"])
         var right_expr = transpile_expression(t, exp["right"])
         var op = exp["op"]
+        var left_inty = _transpiler_expr_is_inty(t, exp["left"])
+        var right_inty = _transpiler_expr_is_inty(t, exp["right"])
+        if left_inty && right_inty {
+            if op == "+" { return "oren_int_add_fast(" + left + ", " + right_expr + ")" }
+            if op == "-" { return "oren_int_sub_fast(" + left + ", " + right_expr + ")" }
+            if op == "*" { return "oren_int_mul_fast(" + left + ", " + right_expr + ")" }
+            if op == "/" { return "oren_int_div_fast(" + left + ", " + right_expr + ")" }
+            if op == "%" { return "oren_int_mod_fast(" + left + ", " + right_expr + ")" }
+            if op == "&" { return "oren_int_band_fast(" + left + ", " + right_expr + ")" }
+            if op == "|" { return "oren_int_bor_fast(" + left + ", " + right_expr + ")" }
+            if op == "^" { return "oren_int_bxor_fast(" + left + ", " + right_expr + ")" }
+            if op == "<<" { return "oren_int_shl_fast(" + left + ", " + right_expr + ")" }
+            if op == ">>" { return "oren_int_shr_fast(" + left + ", " + right_expr + ")" }
+        }
         if op == "+" { return "oren_add(" + left + ", " + right_expr + ")" }
         if op == "-" { return "oren_sub(" + left + ", " + right_expr + ")" }
         if op == "*" { return "oren_mul(" + left + ", " + right_expr + ")" }
@@ -1246,6 +1368,7 @@ fn transpile_expression(t, exp) {
 fn transpile_function(t, func_decl) {
     emit(t, function_sig(func_decl) + " {")
     indent_more(t)
+    t["inty"] = []
     // Stack safety: deterministic recursion guard for C backend binaries.
     emit(t, "oren_call_depth_enter();")
     var i = 0
@@ -1299,10 +1422,12 @@ fn transpile_for_header_stmt(t, stmt) {
     if stmt == nil { return "" }
     if stmt["type"] == "Var" {
         var v = transpile_expression(t, stmt["value"])
+        _transpiler_inty_set(t, stmt["name"]["value"], _transpiler_expr_is_inty(t, stmt["value"]))
         return "OrenValue " + c_ident(stmt["name"]["value"]) + " = " + v
     }
     if stmt["type"] == "Assign" {
         var v_assign = transpile_expression(t, stmt["value"])
+        _transpiler_inty_set(t, stmt["name"]["value"], _transpiler_expr_is_inty(t, stmt["value"]))
         return c_ident(stmt["name"]["value"]) + " = " + v_assign
     }
     if stmt["type"] == "Set" {
@@ -1564,6 +1689,7 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
     i = 0
     while i < oren_list_len(units) - 1 {
         t["aliases"] = units[i]["aliases"]
+        t["inty"] = []
         var body = units[i]["parts"]["main_body"]
         var j = 0
         while j < oren_list_len(body) {
@@ -1575,6 +1701,7 @@ fn transpile_entry(entry_path, program, module_order, root_aliases) {
 
     // Root top-level statements last.
     t["aliases"] = units[oren_list_len(units) - 1]["aliases"]
+    t["inty"] = []
     var root_body = units[oren_list_len(units) - 1]["parts"]["main_body"]
     i = 0
     while i < oren_list_len(root_body) {
