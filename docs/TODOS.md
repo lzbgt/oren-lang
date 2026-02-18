@@ -207,6 +207,12 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						     - Compiler: `lib/compiler/arm64_native_stmt.oren` (fast while matcher + direct buffer stores).
 						     - Bench (M2 Pro, runs=5): array_sum_int Oren native 0.0409s (~10.2× vs C), dot_product_int Oren native 0.0653s (~13.7× vs C).
 						     - Artifacts: `benchmarks/results/array_sum_int_darwin_arm64_20260219_035636.md`, `benchmarks/results/dot_product_int_darwin_arm64_20260219_035647.md`.
+						   - 2026-02-19: x64 native fast list<int> push loop parity (matcher + direct buffer stores) landed:
+						     - Compiler: `lib/compiler/x64_native_program/060_emit_ops.oren` (fast while matcher + direct buffer stores).
+						     - Status: stage2 + make test OK on macOS; needs x64-native benchmark capture to quantify.
+						   - 2026-02-19: added `multi_list_push_int` benchmark (three list<int> pushes per loop + sum):
+						     - Bench (M2 Pro, runs=5): C 0.00774s, Oren C 0.162s (~21.0×), Oren native 0.440s (~56.9×), OBC 1.230s (~159×).
+						     - Artifact: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_041028.md`.
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
@@ -267,9 +273,14 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
       - native 0.2309s vs C 0.00499s (`benchmarks/results/dot_product_darwin_arm64_20260218_220721.md`).
     - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` does **not** improve:
       - native 0.2271s vs C 0.00509s (`benchmarks/results/dot_product_darwin_arm64_20260218_221234.md`).
-   - Likely work: same as array_sum + consider vectorized inner loop for `a[i]*b[i]` on native backend.
-   - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
-   - (P1/M) **Capture x64-windows benchmark baselines (pc2.work)**
+	   - Likely work: same as array_sum + consider vectorized inner loop for `a[i]*b[i]` on native backend.
+	   - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
+	  - (P0/M) **multi_list_push_int shows list<int> access still ~57× C (native)**
+	    - Latest (runs=5): C 0.00774s, Oren C 0.162s (~21×), Oren native 0.440s (~56.9×), OBC 1.230s (~159×).
+	      - Result: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_041028.md`
+	    - Target: native ≤0.05s (≤6× C) via unboxed list<int> get + bounds-check hoisting + tighter int math.
+	    - Likely work: extend unboxed list<int> get path + loop bounds hoist for multi-list loops (same design as array_sum/dot_product).
+	   - (P1/M) **Capture x64-windows benchmark baselines (pc2.work)**
      - Blockers observed (2026-02-14):
        - No `oren_stage2.exe` in `G:\work\compiler-mini-git` (bench harness fails to compile Oren variants).
        - `avm.exe` build fails on MinGW: `sys/mman.h` + `clock_gettime` missing; `tools/gen_avm_root_pubkeys_inc.sh` requires MSYS `cat`.
@@ -1046,10 +1057,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    Next steps (highest leverage):
 
   - Extend list<int> fast-loop hoist to cover more safe patterns and to the native backend (C backend now uses it for strict list_int_get-only loops).
-  - Port arm64 native list<int> fast push-loop lowering to x64 native backend (060_emit_ops + list intrinsics) and capture x64 benchmarks.
+  - Capture x64 benchmarks for the new native list<int> fast push-loop (ported to `lib/compiler/x64_native_program/060_emit_ops.oren`); validate parity and safety.
   - Reduce Oren C boxing cost in list<int> loops by avoiding intermediate `OrenValue` temporaries where possible (keep fast-path bounds checks).
   - Audit compiler internal string comparisons under the native backend; prefer `str_eq`/string-aware helpers to avoid pointer-eq traps in name matching.
   - Add AVM bytecode unboxed list<int> ops or confirm boxed fallback and document its perf cost.
+  - Audit root `README.md` + key docs for outdated build/test/bench/remote instructions; refresh to match current rolling workflows.
 
 ## P1 (Soon)
 

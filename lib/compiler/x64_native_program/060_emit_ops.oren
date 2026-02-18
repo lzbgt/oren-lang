@@ -113,6 +113,280 @@ fn _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, tick_mask
     return nil
 }
 
+fn _x64_is_ident(exp) {
+    if exp == nil { return nil }
+    if exp["type"] == "Identifier" { return exp["value"] }
+    return nil
+}
+
+fn _x64_list_contains(xs, value) {
+    if xs == nil { return false }
+    var i = 0
+    while i < oren_list_len(xs) {
+        if _x64_str_eq_bytes(xs[i], value) { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _x64_is_simple_inc_op(op, idx_name) {
+    if op == nil || op["op"] != "assign_i32" { return false }
+    var name = op["name"]
+    if name == nil || _x64_str_eq_bytes(name, idx_name) != true { return false }
+    var v = op["expr"]
+    if v == nil || v["type"] != "Infix" { return false }
+    if v["op"] != "+" { return false }
+    var left = _x64_is_ident(v["left"])
+    if left == nil || _x64_str_eq_bytes(left, idx_name) != true { return false }
+    if v["right"] == nil || v["right"]["type"] != "Integer" { return false }
+    if v["right"]["value"] != "1" { return false }
+    return true
+}
+
+fn _x64_is_list_int_push_call(ctx, exp) {
+    if exp == nil || exp["type"] != "Call" { return nil }
+    if exp["fn"] == nil { return nil }
+    var nm = nil
+    if exp["fn"]["type"] == "Identifier" {
+        nm = exp["fn"]["value"]
+    } else if exp["fn"]["type"] == "Member" {
+        var nsr = _x64_ns_resolve(ctx, exp["fn"])
+        if nsr != nil {
+            nm = nsr["name"]
+        } else {
+            var left = exp["fn"]["left"]
+            var prop = exp["fn"]["prop"]
+            if left != nil && prop != nil && left["type"] == "Identifier" && left["value"] == "list" {
+                if prop["value"] == "int_push" { nm = "STD_list_int_push" }
+            }
+        }
+    }
+    if nm == nil { return nil }
+    if nm != "oren_list_int_push" && nm != "STD_list_int_push" { return nil }
+    var args = exp["args"]
+    if args == nil || oren_list_len(args) != 2 { return nil }
+    var list_name = _x64_is_ident(args[0])
+    if list_name == nil { return nil }
+    return {"list": list_name, "value": args[1]}
+}
+
+fn _x64_match_fast_list_int_push_while(ctx, op, locals) {
+    if op == nil || op["op"] != "while" { return nil }
+    if locals == nil { return nil }
+    var cond = op["cond"]
+    if cond == nil || cond["type"] != "Infix" { return nil }
+    if cond["op"] != "<" { return nil }
+    var idx_name = _x64_is_ident(cond["left"])
+    var n_name = _x64_is_ident(cond["right"])
+    if idx_name == nil || n_name == nil { return nil }
+    var off_idx = locals[idx_name]
+    var off_n = locals[n_name]
+    if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 { return nil }
+    if ctx["locals_inty"] != nil {
+        if ctx["locals_inty"][idx_name] != true { return nil }
+        if ctx["locals_inty"][n_name] != true { return nil }
+    }
+    var body = op["body"]
+    if body == nil { return nil }
+    var n = oren_list_len(body)
+    if n < 1 { return nil }
+    var last = body[n - 1]
+    if _x64_is_simple_inc_op(last, idx_name) != true { return nil }
+    var lists = []
+    var pushes = []
+    var i = 0
+    while i < n - 1 {
+        var st = body[i]
+        if st == nil || st["op"] != "expr" { return nil }
+        var exp = st["expr"]
+        var info = _x64_is_list_int_push_call(ctx, exp)
+        if info == nil { return nil }
+        var list_name = info["list"]
+        if oren_type_tag(locals[list_name]) == 0 { return nil }
+        if _x64_list_contains(lists, list_name) { return nil }
+        if _x64_expr_is_inty(ctx, info["value"]) != true { return nil }
+        oren_list_push(lists, list_name)
+        oren_list_push(pushes, info)
+        i = i + 1
+    }
+    if oren_list_len(lists) == 0 { return nil }
+    return {"idx": idx_name, "n": n_name, "lists": lists, "pushes": pushes}
+}
+
+fn _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
+    var cond_label = _new_label(ctx, "while_cond")
+    var body_label = _new_label(ctx, "while_body")
+    var end_label2 = _new_label(ctx, "while_end")
+
+    _emit_label(ctx, labels, cond_label)
+    _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
+    _emit_jcc_false_for_cond_x64(ctx, op["cond"], locals, local_fixups, end_label2)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+
+    _emit_label(ctx, labels, body_label)
+    _emit_ops_in_fn(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, cond_label, end_label2)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
+    _emit_jmp_to_label(ctx, local_fixups, cond_label)
+    _emit_label(ctx, labels, end_label2)
+    return nil
+}
+
+fn _emit_fast_list_int_push_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
+    if ctx == nil || op == nil || info == nil { return nil }
+    if locals == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    if ctx["runtime_injected"] != true { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+
+    var idx_name = info["idx"]
+    var n_name = info["n"]
+    var lists = info["lists"]
+    var pushes = info["pushes"]
+
+    var off_idx = locals[idx_name]
+    var off_n = locals[n_name]
+    if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+
+    var list_count = oren_list_len(lists)
+    var base = _intr_tmp_push(ctx, iadd(list_count, list_count))
+    if oren_type_tag(base) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+
+    var l_slow = _new_label(ctx, "list_int_push_slow")
+    var l_fast_cond = _new_label(ctx, "list_int_push_cond")
+    var l_fast_end = _new_label(ctx, "list_int_push_end")
+    var l_done = _new_label(ctx, "list_int_push_done")
+
+    // i < 0 => slow
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_slow)
+
+    // n < 0 => slow
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_n)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_slow)
+
+    var li = 0
+    while li < list_count {
+        var list_name = lists[li]
+        var off_list = locals[list_name]
+        if oren_type_tag(off_list) == 0 { _intr_tmp_pop(ctx, base); return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+        var slot_list = _intr_tmp_off(ctx, locals, base + li * 2)
+        var slot_buf = _intr_tmp_off(ctx, locals, base + li * 2 + 1)
+        if oren_type_tag(slot_list) == 0 || oren_type_tag(slot_buf) == 0 {
+            _intr_tmp_pop(ctx, base)
+            return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+        }
+
+        // list -> slot
+        _emit_mov_r64_mrbp(ctx, 0, 0 - off_list)
+        _emit_mov_mrbp_r64(ctx, 0 - slot_list, 0)
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
+
+        // tracked node
+        _emit_find_tracked_node_x64(ctx, 0, 11)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(11, 0))
+        _emit_jcc_to_label(ctx, local_fixups, "e", l_slow)
+
+        // kind == LIST_INT (8)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 11))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(10, 10))
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(10, 8))
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+
+        // magic check
+        _emit_mov_r64_mrbp(ctx, 0, 0 - slot_list)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 0))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 24))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+
+        // cap >= n
+        _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 9))
+        _emit_jcc_to_label(ctx, local_fixups, "l", l_slow)
+
+        // count == i
+        _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        _emit_mov_r64_mrbp(ctx, 9, 0 - off_idx)
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 9))
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+
+        // buf -> slot
+        _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 16))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        _emit_mov_mrbp_r64(ctx, 0 - slot_buf, 0)
+
+        li = li + 1
+    }
+
+    _emit_label(ctx, labels, l_fast_cond)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
+    _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 9))
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_fast_end)
+
+    _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
+
+    var pi = 0
+    while pi < oren_list_len(pushes) {
+        var push = pushes[pi]
+        var list_name2 = push["list"]
+        var list_index = 0
+        while list_index < list_count {
+            if _x64_str_eq_bytes(lists[list_index], list_name2) { break }
+            list_index = list_index + 1
+        }
+        var slot_list2 = _intr_tmp_off(ctx, locals, base + list_index * 2)
+        var slot_buf2 = _intr_tmp_off(ctx, locals, base + list_index * 2 + 1)
+        if oren_type_tag(slot_list2) == 0 || oren_type_tag(slot_buf2) == 0 { _intr_tmp_pop(ctx, base); return nil }
+
+        _emit_eval_int_to_rax(ctx, push["value"], locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+        _emit_mov_r64_mrbp(ctx, 10, 0 - off_idx)
+        _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf2)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(12, 10))
+        bytes_extend(ctx["code"], insn_shl_r64_imm8(12, 3))
+        bytes_extend(ctx["code"], insn_add_r64_r64(12, 11))
+        bytes_extend(ctx["code"], insn_mov_mr64_r64(12, 0))
+
+        _emit_mov_r64_mrbp(ctx, 13, 0 - slot_list2)
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 1))
+        bytes_extend(ctx["code"], insn_mov_mr64_r64(13, 10))
+
+        pi = pi + 1
+    }
+
+    // i++
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
+    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 1))
+    _emit_mov_mrbp_r64(ctx, 0 - off_idx, 0)
+
+    _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
+
+    _emit_label(ctx, labels, l_fast_end)
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+
+    _intr_tmp_pop(ctx, base)
+
+    _emit_label(ctx, labels, l_slow)
+    _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    _emit_label(ctx, labels, l_done)
+    return nil
+}
+
 fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
     var n = 0
     if ops != nil { n = oren_list_len(ops) }
@@ -244,20 +518,13 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_label(ctx, labels, end_label)
         } else if op["op"] == "while" {
-            var cond_label = _new_label(ctx, "while_cond")
-            var body_label = _new_label(ctx, "while_body")
-            var end_label2 = _new_label(ctx, "while_end")
-
-            _emit_label(ctx, labels, cond_label)
-            _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
-            _emit_jcc_false_for_cond_x64(ctx, op["cond"], locals, local_fixups, end_label2)
+            var fast_info = _x64_match_fast_list_int_push_while(ctx, op, locals)
+            if fast_info != nil {
+                _emit_fast_list_int_push_while_x64(ctx, op, fast_info, locals, labels, local_fixups, epilogue_label, platform)
+            } else {
+                _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+            }
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-
-            _emit_label(ctx, labels, body_label)
-            _emit_ops_in_fn(ctx, op["body"], locals, labels, local_fixups, epilogue_label, platform, cond_label, end_label2)
-            if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
-            _emit_jmp_to_label(ctx, local_fixups, cond_label)
-            _emit_label(ctx, labels, end_label2)
         } else if op["op"] == "for" {
             // for init; cond; post { body }
             //
