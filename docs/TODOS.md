@@ -300,6 +300,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
         - 2026-02-18: minimal Win11 lexer repro isolated to long line comments (native backend):
           - `build\\tmp\\comment_only_40.oren` OK; `comment_only_45.oren` stack-overflows (`EXITCODE=-1073741571`).
           - Repro file content: `// ` + 45×`a` + `\\n` (no code required).
+          - Fixture: `tests/fixtures/windows/lexer_comment_repro.oren`.
           - Still crashes with `OREN_NO_GC=1` and `OREN_LEX_SAFE=0`.
           - `OREN_TRACE_DUMP=1` or `OREN_TRACE_LEX_STEP=1` avoids the crash (heisenbug).
           - Next: audit native string-compare path + map key compare recursion; consider a byte-only lexer (no map lookups in hot loops) or a Windows-only fast comment skip that avoids `l["ch"]` string compares entirely.

@@ -1,0 +1,2 @@
+// win11 native lexer repro: long line comment (>=45 chars)
+// aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
