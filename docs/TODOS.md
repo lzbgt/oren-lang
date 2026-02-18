@@ -265,9 +265,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - Latest: native 0.4386s vs C 0.0695s (`benchmarks/results/loop_sum_darwin_arm64_20260219_002240.md`).
        - Oren C: 1.2065s; OBC/AVM: 5.9393s (same run).
      - Target: native ≤0.25s (≤4× C) while keeping correctness gates.
-  - (P1/M) **Array_sum list access is still ~34× C (native) / ~44× C (Oren C)**
-    - Latest: native 0.1435s vs C 0.00418s (`benchmarks/results/array_sum_darwin_arm64_20260218_133631.md`).
-      - Oren C: 0.1855s; OBC/AVM: 0.6295s (same run).
+  - (P1/M) **Array_sum list access is still ~24× C (native) / ~19× C (Oren C)**
+    - Latest: native 0.1451s vs C 0.00602s (`benchmarks/results/array_sum_darwin_arm64_20260219_050804.md`).
+      - Oren C: 0.1165s; OBC/AVM: 0.6263s (same run).
     - 2026-02-18: `OREN_LIST_ASSUME_LIST=1` (skip list validation) does **not** improve:
       - native 0.1506s vs C 0.00417s (`benchmarks/results/array_sum_darwin_arm64_20260218_220638.md`).
     - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` (skip native list index checks) does **not** improve:
@@ -276,8 +276,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - Likely work: unboxed `list<int>` fast path (tag bit or dedicated list kind), bounds-check hoisting, tighter int add/mul/mod lowering.
     - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
 	  - (P1/M) **Dot_product still shows heavy list+multiply overhead (boxed path)**
-	    - Latest (runs=3): C 0.00718s, Oren C 0.333s (~46×), Oren native 0.2316s (~32×), OBC 0.967s (~135×).
-	      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_002549.md`
+	    - Latest (runs=5): C 0.00647s, Oren C 0.209s (~32×), Oren native 0.221s (~34×), OBC 0.897s (~139×).
+	      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_050816.md`
 	    - Dot_product_int now improved on native via fast list<int> dot loop:
 	      - native 0.0247s vs C 0.00470s (~5.3×) (`benchmarks/results/dot_product_int_darwin_arm64_20260219_043018.md`).
 	    - Target: native ≤0.03s (≤6× C) for dot_product_int is met; focus shifts to boxed dot_product.
