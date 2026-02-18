@@ -269,6 +269,12 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
           - slice 90:105 overflows; slice 105:121 OK.
           - => offending initializer is in stmt index range [90,105).
           - Next: dump/top-level-stmt list with indices (or bisect 90:97 vs 97:105) and fix the specific initializer.
+        - 2026-02-18: added `OREN_TRACE_TOP_LEVEL_LIST=1` and identified indices 94-100 as `lib/compiler/token.oren`
+          char constants + debug flags; switched CH_* to string literals in `lib/compiler/token.oren` and
+          `lib/compiler/transpiler.oren` to avoid top-level `oren_char` init.
+          - After change: slice 0:121 OK, slices 94:97/97:101 OK, but slice 121:242 still overflows.
+          - slice 121:181 OK; slice 181:242 overflows (`EXITCODE=-1073741571`).
+          - Next: dump indices 181-242 from top-level list and bisect 181:211 vs 211:242.
        - Decide if AVM should be Windows-capable (add win32 time/mmap shims) or allow `OREN_BENCH_SKIP_OBC=1` (bench runner now supports this).
 
 2) **Tier‑1 native parity: correctness across arch/OS** (L)

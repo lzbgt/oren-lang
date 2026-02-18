@@ -251,11 +251,12 @@ fn type_ctor_sig(type_decl) {
     return "OrenValue " + type_ctor_name(type_decl) + "(" + params + ")"
 }
 
-var CH_QUOTE = oren_char(34)
-var CH_BACKSLASH = oren_char(92)
-var CH_LF = oren_char(10)
-var CH_CR = oren_char(13)
-var CH_TAB = oren_char(9)
+// Use literals to avoid top-level `oren_char` init on native Win11 bring-up.
+var CH_QUOTE = "\""
+var CH_BACKSLASH = "\\"
+var CH_LF = "\n"
+var CH_CR = "\r"
+var CH_TAB = "\t"
 
 fn contains_curly_braces(s) {
     var i = 0

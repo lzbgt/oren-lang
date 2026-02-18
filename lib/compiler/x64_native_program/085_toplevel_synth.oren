@@ -80,10 +80,39 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
         j = j + 1
     }
 
+    var top_len = oren_list_len(top_stmts)
+    // Debug-only tracing: list synthesized top-level statements with indices.
+    var v_list = oren_env("OREN_TRACE_TOP_LEVEL_LIST")
+    if v_list != nil && v_list != "" {
+        if x64_env_str_eq(v_list, "0") != true && x64_env_str_eq(v_list, "false") != true {
+            var li = 0
+            while li < top_len {
+                var stl = top_stmts[li]
+                var kind = "nil"
+                var extra = ""
+                var tok = nil
+                if stl != nil {
+                    kind = stl["type"]
+                    tok = stl["token"]
+                    if kind == "Assign" && stl["name"] != nil { extra = " name=" + stl["name"]["value"] }
+                    if kind == "ExprStmt" && stl["expr"] != nil { extra = " expr=" + stl["expr"]["type"] }
+                }
+                var loc = ""
+                if tok != nil {
+                    var tf = tok["file"]
+                    var tl = tok["line"]
+                    if tf != nil && tl != nil {
+                        loc = " @" + tf + ":" + oren_int_to_string(tl)
+                    }
+                }
+                print("[x64_top_level] idx=" + oren_int_to_string(li) + " type=" + kind + extra + loc)
+                li = li + 1
+            }
+        }
+    }
     // Debug-only bisecting: slice the synthesized top-level statements by index.
     // - OREN_TOP_LEVEL_FROM / OREN_TOP_LEVEL_TO are inclusive-exclusive indexes.
     // - OREN_TRACE_TOP_LEVEL_SLICE=1 prints the slice + total count at compile time.
-    var top_len = oren_list_len(top_stmts)
     var slice_from = 0
     var slice_to = top_len
     var v_from = oren_env("OREN_TOP_LEVEL_FROM")

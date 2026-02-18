@@ -100,11 +100,12 @@ var TOK_I64BE = "I64BE"
 var TOK_I64LE = "I64LE"
 
 // Character constants
-var CH_TAB = oren_char(9)
-var CH_LF = oren_char(10)
-var CH_CR = oren_char(13)
-var CH_QUOTE = oren_char(34)
-var CH_BACKSLASH = oren_char(92)
+// Prefer string literals to avoid runtime `oren_char` initialization during top-level startup.
+var CH_TAB = "\t"
+var CH_LF = "\n"
+var CH_CR = "\r"
+var CH_QUOTE = "\""
+var CH_BACKSLASH = "\\"
 
 // Debug flags (env-gated; used during stage2-native bringup).
 var g_trace_token_once = false
