@@ -228,9 +228,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						   - 2026-02-19: arm64 native fast list<int> dot loop (pattern match + direct loads + mul) closes dot_product_int gap:
 						     - Compiler: `lib/compiler/arm64_native_stmt.oren` (fast dot while matcher + direct buffer loads).
 						     - Bench (M2 Pro, runs=5): dot_product_int native 0.0252s (~5.22× C) (`benchmarks/results/dot_product_int_darwin_arm64_20260219_064258.md`).
-						   - 2026-02-19: native boxed list get-sum loop inlines string-check+iadd (avoid `oren_add` call):
+						   - 2026-02-19: native boxed list get-sum loop inlines string-check+iadd (avoid `oren_add` call) and skips string checks when sum is inty:
 						     - Compiler: `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
-						     - Bench (M2 Pro, runs=5): array_sum native 0.1435s (~37.6× C) (`benchmarks/results/array_sum_darwin_arm64_20260219_065305.md`).
+						     - Bench (M2 Pro, runs=5): array_sum native 0.1416s (~38.0× C) (`benchmarks/results/array_sum_darwin_arm64_20260219_070646.md`).
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
@@ -271,9 +271,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - Latest: native 0.4386s vs C 0.0695s (`benchmarks/results/loop_sum_darwin_arm64_20260219_002240.md`).
        - Oren C: 1.2065s; OBC/AVM: 5.9393s (same run).
      - Target: native ≤0.25s (≤4× C) while keeping correctness gates.
-	  - (P1/M) **Array_sum list access is still ~38× C (native) / ~30× C (Oren C)**
-	    - Latest: native 0.1435s vs C 0.00381s (`benchmarks/results/array_sum_darwin_arm64_20260219_065305.md`).
-	      - Oren C: 0.1159s; OBC/AVM: 0.6222s (same run).
+	  - (P1/M) **Array_sum list access is still ~38× C (native) / ~31× C (Oren C)**
+	    - Latest: native 0.1416s vs C 0.003726s (`benchmarks/results/array_sum_darwin_arm64_20260219_070646.md`).
+	      - Oren C: 0.1150s; OBC/AVM: 0.6232s (same run).
     - 2026-02-18: `OREN_LIST_ASSUME_LIST=1` (skip list validation) does **not** improve:
       - native 0.1506s vs C 0.00417s (`benchmarks/results/array_sum_darwin_arm64_20260218_220638.md`).
     - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` (skip native list index checks) does **not** improve:

@@ -439,7 +439,9 @@ fn _x64_match_fast_list_int_get_sum_while(ctx, op, locals) {
     }
     if sum_name == nil { return nil }
     if oren_list_len(loads) == 0 { return nil }
-    return {"idx": idx_name, "n": n_name, "sum": sum_name, "lists": lists, "loads": loads}
+    var sum_inty = false
+    if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] == true { sum_inty = true }
+    return {"idx": idx_name, "n": n_name, "sum": sum_name, "lists": lists, "loads": loads, "sum_inty": sum_inty}
 }
 
 fn _x64_match_fast_list_get_sum_while(ctx, op, locals) {
@@ -724,6 +726,7 @@ fn _emit_fast_list_int_get_sum_while_x64(ctx, op, info, locals, labels, local_fi
     var sum_name = info["sum"]
     var lists = info["lists"]
     var loads = info["loads"]
+    var sum_inty = info["sum_inty"]
 
     var off_idx = locals[idx_name]
     var off_n = locals[n_name]
@@ -991,34 +994,38 @@ fn _emit_fast_list_get_sum_while_x64(ctx, op, info, locals, labels, local_fixups
         bytes_extend(ctx["code"], insn_add_r64_r64(12, 11))
         bytes_extend(ctx["code"], insn_mov_r64_mr64(14, 12))
 
-        var l_iadd = _new_label(ctx, "list_get_iadd")
-        var l_after = _new_label(ctx, "list_get_after")
+        if sum_inty == true {
+            bytes_extend(ctx["code"], insn_add_r64_r64(13, 14))
+        } else {
+            var l_iadd = _new_label(ctx, "list_get_iadd")
+            var l_after = _new_label(ctx, "list_get_after")
 
-        if a0 != 13 { bytes_extend(ctx["code"], insn_mov_r64_r64(a0, 13)) }
-        var call_sum = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_call_rel32(0))
-        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_sum, "name": "native_is_string_ptr"})
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_iadd)
+            if a0 != 13 { bytes_extend(ctx["code"], insn_mov_r64_r64(a0, 13)) }
+            var call_sum = bytes_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_call_rel32(0))
+            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_sum, "name": "native_is_string_ptr"})
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+            _emit_jcc_to_label(ctx, local_fixups, "e", l_iadd)
 
-        if a0 != 14 { bytes_extend(ctx["code"], insn_mov_r64_r64(a0, 14)) }
-        var call_val = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_call_rel32(0))
-        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_val, "name": "native_is_string_ptr"})
-        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
-        _emit_jcc_to_label(ctx, local_fixups, "e", l_iadd)
+            if a0 != 14 { bytes_extend(ctx["code"], insn_mov_r64_r64(a0, 14)) }
+            var call_val = bytes_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_call_rel32(0))
+            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_val, "name": "native_is_string_ptr"})
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+            _emit_jcc_to_label(ctx, local_fixups, "e", l_iadd)
 
-        if a0 != 13 { bytes_extend(ctx["code"], insn_mov_r64_r64(a0, 13)) }
-        if a1 != 14 { bytes_extend(ctx["code"], insn_mov_r64_r64(a1, 14)) }
-        var call_concat = bytes_len(ctx["code"])
-        bytes_extend(ctx["code"], insn_call_rel32(0))
-        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_concat, "name": "string_concat"})
-        if 13 != 0 { bytes_extend(ctx["code"], insn_mov_r64_r64(13, 0)) }
-        _emit_jmp_to_label(ctx, local_fixups, l_after)
+            if a0 != 13 { bytes_extend(ctx["code"], insn_mov_r64_r64(a0, 13)) }
+            if a1 != 14 { bytes_extend(ctx["code"], insn_mov_r64_r64(a1, 14)) }
+            var call_concat = bytes_len(ctx["code"])
+            bytes_extend(ctx["code"], insn_call_rel32(0))
+            oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_concat, "name": "string_concat"})
+            if 13 != 0 { bytes_extend(ctx["code"], insn_mov_r64_r64(13, 0)) }
+            _emit_jmp_to_label(ctx, local_fixups, l_after)
 
-        _emit_label(ctx, labels, l_iadd)
-        bytes_extend(ctx["code"], insn_add_r64_r64(13, 14))
-        _emit_label(ctx, labels, l_after)
+            _emit_label(ctx, labels, l_iadd)
+            bytes_extend(ctx["code"], insn_add_r64_r64(13, 14))
+            _emit_label(ctx, labels, l_after)
+        }
 
         pi = pi + 1
     }
