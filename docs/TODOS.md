@@ -218,6 +218,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						     - Bench (M2 Pro, runs=5):
 						       - array_sum_int native 0.0201s (~5.2× C) (`benchmarks/results/array_sum_int_darwin_arm64_20260219_042246.md`).
 						       - multi_list_push_int native 0.0302s (~3.8× C) (`benchmarks/results/multi_list_push_int_darwin_arm64_20260219_042256.md`).
+						   - 2026-02-19: arm64 native fast list<int> dot loop (pattern match + direct loads + mul) closes dot_product_int gap:
+						     - Compiler: `lib/compiler/arm64_native_stmt.oren` (fast dot while matcher + direct buffer loads).
+						     - Bench (M2 Pro, runs=5): dot_product_int native 0.0247s (~5.3× C) (`benchmarks/results/dot_product_int_darwin_arm64_20260219_043018.md`).
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
@@ -268,17 +271,17 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - Target: native ≤0.03s (≤8× C) via faster list element access + fewer boxed int ops.
     - Likely work: unboxed `list<int>` fast path (tag bit or dedicated list kind), bounds-check hoisting, tighter int add/mul/mod lowering.
     - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
-  - (P0/M) **Dot_product shows heavy list+multiply overhead**
-    - Latest (runs=3): C 0.00718s, Oren C 0.333s (~46×), Oren native 0.2316s (~32×), OBC 0.967s (~135×).
-      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_002549.md`
-    - Dot_product_int is **slower** on native (list<int> not yet a win):
-      - native 0.394s vs C 0.00758s (~52×) (`benchmarks/results/dot_product_int_darwin_arm64_20260219_002614.md`).
-    - Target: native ≤0.03s (≤6× C) via bounds-check hoisting + tighter int multiply path.
-    - 2026-02-18: `OREN_LIST_ASSUME_LIST=1` does **not** improve:
-      - native 0.2309s vs C 0.00499s (`benchmarks/results/dot_product_darwin_arm64_20260218_220721.md`).
-    - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` does **not** improve:
-      - native 0.2271s vs C 0.00509s (`benchmarks/results/dot_product_darwin_arm64_20260218_221234.md`).
-	   - Likely work: same as array_sum + consider vectorized inner loop for `a[i]*b[i]` on native backend.
+	  - (P1/M) **Dot_product still shows heavy list+multiply overhead (boxed path)**
+	    - Latest (runs=3): C 0.00718s, Oren C 0.333s (~46×), Oren native 0.2316s (~32×), OBC 0.967s (~135×).
+	      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_002549.md`
+	    - Dot_product_int now improved on native via fast list<int> dot loop:
+	      - native 0.0247s vs C 0.00470s (~5.3×) (`benchmarks/results/dot_product_int_darwin_arm64_20260219_043018.md`).
+	    - Target: native ≤0.03s (≤6× C) for dot_product_int is met; focus shifts to boxed dot_product.
+	    - 2026-02-18: `OREN_LIST_ASSUME_LIST=1` does **not** improve boxed dot_product:
+	      - native 0.2309s vs C 0.00499s (`benchmarks/results/dot_product_darwin_arm64_20260218_220721.md`).
+	    - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` does **not** improve boxed dot_product:
+	      - native 0.2271s vs C 0.00509s (`benchmarks/results/dot_product_darwin_arm64_20260218_221234.md`).
+	   - Likely work: focus on boxed list path (same as array_sum) + consider vectorized inner loop for `a[i]*b[i]` on native backend.
 	   - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
 	  - (P1/S) **multi_list_push_int regression guard**
 	    - Latest (runs=5): C 0.00791s, Oren C 0.162s (~20.6×), Oren native 0.0302s (~3.8×), OBC 1.239s (~157×).
