@@ -201,6 +201,19 @@ fn parse_block(p) {
         if cur_is(p, token.TOK_RBRACE) { cont = false }
         if cur_is(p, token.TOK_EOF) { cont = false }
         if cont {
+            if p["_trace_fn_active"] == true {
+                var tn = p["_trace_fn_name"]
+                if tn == nil { tn = "" }
+                var tf = p["file"]
+                if tf == nil { tf = "" }
+                var cur_lit = p["cur"]["literal"]
+                if cur_lit == nil { cur_lit = "" }
+                var cur_line = p["cur"]["line"]
+                var cur_col = p["cur"]["col"]
+                if cur_line == nil { cur_line = 0 }
+                if cur_col == nil { cur_col = 0 }
+                print("[parse_block] file=" + tf + " fn=" + tn + " cur=" + p["cur"]["type"] + " line=" + oren_int_to_string(cur_line) + " col=" + oren_int_to_string(cur_col) + " lit=" + cur_lit)
+            }
             // Allow doc comments and attributes inside blocks (useful for local declarations,
             // and for metadata channels like @trace/@cap annotations).
             //
@@ -221,6 +234,13 @@ fn parse_block(p) {
             var doc = docs_join(doc_lines)
             p["_pending_doc"] = doc
             var stmt = parse_statement(p)
+            if p["_trace_fn_active"] == true {
+                var tf2 = p["file"]
+                if tf2 == nil { tf2 = "" }
+                var st = "nil"
+                if stmt != nil { st = stmt["type"] }
+                print("[parse_block] file=" + tf2 + " stmt_done type=" + st)
+            }
             if stmt != nil {
                 if stmt["type"] == "StmtList" {
                     var origin = stmt["origin"]
@@ -309,10 +329,17 @@ fn parse_function(p) {
     var trace_fn = false
     var v_trace_fn = oren_env("OREN_TRACE_PARSE_FN")
     if v_trace_fn != nil && v_trace_fn != "" { trace_fn = true }
+    var trace_fn_from = 0
+    var v_trace_fn_from = oren_env("OREN_TRACE_PARSE_FN_FROM")
+    if v_trace_fn_from != nil && v_trace_fn_from != "" {
+        trace_fn_from = _parse_int_env(v_trace_fn_from, trace_fn_from)
+    }
     var trace_stmt_i = p["_trace_stmt_i"]
     if trace_stmt_i == nil { trace_stmt_i = -1 }
-    if trace_fn && trace_stmt_i >= 320 {
-        print("[parse_fn] start name=" + name + " stmt_i=" + oren_int_to_string(trace_stmt_i))
+    if trace_fn && trace_stmt_i >= trace_fn_from {
+        var tf0 = p["file"]
+        if tf0 == nil { tf0 = "" }
+        print("[parse_fn] file=" + tf0 + " start name=" + name + " stmt_i=" + oren_int_to_string(trace_stmt_i))
     }
 
     // Generic function definition (rolling v0):
@@ -404,13 +431,18 @@ fn parse_function(p) {
     if oren_list_len(pend) > 0 {
         p["_pending_scope_types"] = pend
     }
+    var trace_fn_active = trace_fn && trace_stmt_i >= trace_fn_from
+    if trace_fn_active { p["_trace_fn_active"] = true; p["_trace_fn_name"] = name }
     var body = parse_block(p)
+    if trace_fn_active { p["_trace_fn_active"] = nil; p["_trace_fn_name"] = nil }
     var fnn = ast.new_function(tok, name, params, body)
     if type_params != nil { fnn["type_params"] = type_params }
     if ret_ann != nil { fnn["ret_ann_type"] = ret_ann }
     if doc != nil { fnn["doc"] = doc }
-    if trace_fn && trace_stmt_i >= 320 {
-        print("[parse_fn] end name=" + name + " stmt_i=" + oren_int_to_string(trace_stmt_i))
+    if trace_fn && trace_stmt_i >= trace_fn_from {
+        var tf1 = p["file"]
+        if tf1 == nil { tf1 = "" }
+        print("[parse_fn] file=" + tf1 + " end name=" + name + " stmt_i=" + oren_int_to_string(trace_stmt_i))
     }
     return fnn
 }

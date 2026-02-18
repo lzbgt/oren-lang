@@ -47,6 +47,27 @@ fn docs_join(lines) { return core.docs_join(lines) }
 fn parse_doc_list(p) { return core.parse_doc_list(p) }
 fn parser_take_pending_doc(p) { return core.parser_take_pending_doc(p) }
 
+fn _parse_int_env(v, default_val) {
+    if v == nil || v == "" { return default_val }
+    var n = oren_string_len(v)
+    if n == 0 { return default_val }
+    var i = 0
+    var neg = false
+    if oren_string_char_at(v, 0) == "-" {
+        neg = true
+        i = 1
+    }
+    var acc = 0
+    while i < n {
+        var c = oren_string_byte_at_unchecked(v, i)
+        if c < 48 || c > 57 { return default_val }
+        acc = acc * 10 + (c - 48)
+        i = i + 1
+    }
+    if neg { acc = 0 - acc }
+    return acc
+}
+
 fn parser_next_token(p) { return core.parser_next_token(p) }
 fn cur_is(p, t) { return core.cur_is(p, t) }
 fn peek_is(p, t) { return core.peek_is(p, t) }
@@ -71,22 +92,33 @@ fn parse_program(p) {
     var trace_prog_verbose = false
     var v_trace_prog_verbose = oren_env("OREN_TRACE_PARSE_PROGRESS_VERBOSE")
     if v_trace_prog_verbose != nil && v_trace_prog_verbose != "" { trace_prog_verbose = true }
+    var trace_prog_verbose_from = 230
+    var v_trace_prog_verbose_from = oren_env("OREN_TRACE_PARSE_PROGRESS_VERBOSE_FROM")
+    if v_trace_prog_verbose_from != nil && v_trace_prog_verbose_from != "" {
+        trace_prog_verbose_from = _parse_int_env(v_trace_prog_verbose_from, trace_prog_verbose_from)
+    }
+    var trace_file = p["file"]
+    if trace_file == nil { trace_file = "" }
     var stmt_i = 0
     var trace_prog_countdown = 0
     while p["cur"]["type"] != token.TOK_EOF {
         if trace_prog {
             if trace_prog_countdown <= 0 {
-                print("[parse] stmt_i=" + oren_int_to_string(stmt_i) + " cur=" + p["cur"]["type"])
+                print("[parse] file=" + trace_file + " stmt_i=" + oren_int_to_string(stmt_i) + " cur=" + p["cur"]["type"])
                 trace_prog_countdown = 5
             }
             trace_prog_countdown = trace_prog_countdown - 1
         }
-        if trace_prog_verbose && stmt_i >= 230 {
+        if trace_prog_verbose && stmt_i >= trace_prog_verbose_from {
             var cur_lit = p["cur"]["literal"]
             var peek_lit = p["peek"]["literal"]
             if cur_lit == nil { cur_lit = "" }
             if peek_lit == nil { peek_lit = "" }
-            print("[parse_verbose] stmt_i=" + oren_int_to_string(stmt_i) + " cur=" + p["cur"]["type"] + " lit=" + cur_lit + " peek=" + peek_lit)
+            var cur_line = p["cur"]["line"]
+            var cur_col = p["cur"]["col"]
+            if cur_line == nil { cur_line = 0 }
+            if cur_col == nil { cur_col = 0 }
+            print("[parse_verbose] file=" + trace_file + " stmt_i=" + oren_int_to_string(stmt_i) + " cur=" + p["cur"]["type"] + " line=" + oren_int_to_string(cur_line) + " col=" + oren_int_to_string(cur_col) + " lit=" + cur_lit + " peek=" + peek_lit)
         }
         // Allow doc comments and attributes to appear in either order before a declaration:
         //   /// doc

@@ -1,6 +1,6 @@
 # Active Tracker (Rolling)
 
-**Last updated:** 2026-02-17
+**Last updated:** 2026-02-18
 
 This repo is in rolling mode. This file tracks the **highest-leverage work remaining** to evolve Oren
 into a modern, efficient, production-ready language and toolchain, while keeping iteration fast.
@@ -236,10 +236,14 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - Latest: native 0.4253s vs C 0.0665s (`benchmarks/results/loop_sum_darwin_arm64_20260218_104800.md`).
        - Oren C: 1.1811s; OBC/AVM: 5.8217s (same run).
      - Target: native ≤0.25s (≤4× C) while keeping correctness gates.
-   - (P1/M) **Array_sum list access is still ~34× C (native) / ~44× C (Oren C)**
-     - Latest: native 0.1435s vs C 0.00418s (`benchmarks/results/array_sum_darwin_arm64_20260218_133631.md`).
-       - Oren C: 0.1855s; OBC/AVM: 0.6295s (same run).
-     - Target: native ≤0.03s (≤8× C) via faster list element access + fewer boxed int ops.
+  - (P1/M) **Array_sum list access is still ~34× C (native) / ~44× C (Oren C)**
+    - Latest: native 0.1435s vs C 0.00418s (`benchmarks/results/array_sum_darwin_arm64_20260218_133631.md`).
+      - Oren C: 0.1855s; OBC/AVM: 0.6295s (same run).
+    - Target: native ≤0.03s (≤8× C) via faster list element access + fewer boxed int ops.
+  - (P0/M) **Dot_product shows heavy list+multiply overhead**
+    - Latest (M2 Pro, runs=5): C 0.00493s, Oren C 0.319s (~64.7×), Oren native 0.2196s (~44.5×), OBC 0.9027s (~183×).
+      - Result: `benchmarks/results/dot_product_darwin_arm64_20260218_175058.md`
+    - Target: native ≤0.03s (≤6× C) via bounds-check hoisting + tighter int multiply path.
    - (P1/M) **Capture x64-windows benchmark baselines (pc2.work)**
      - Blockers observed (2026-02-14):
        - No `oren_stage2.exe` in `G:\work\compiler-mini-git` (bench harness fails to compile Oren variants).
@@ -288,6 +292,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
           - `oren_stage2_cd0.exe build lib\\runtime_native\\011_channels_mem.oren --backend c` exits early on Win11 with trace stopping around stmt index ~20 (offset helper functions).
           - Same crash reproduces during native runtime bundle parse (after `parse_program start`), likely a parser/lexer/GC issue on Win11.
           - Next: add lexer-level tracing on Windows or temporarily disable parser-side GC to confirm; consider prebuilt astbin seeding as a stopgap for benchmarks.
+        - 2026-02-18: latest trace shows crash during module discovery (even earlier):
+          - With `OREN_TRACE_PASSES=1` + parse tracing, Win11 exits after `discover_module: lib/std/list.oren` (list has no imports).
+          - Next: instrument `_ml_scan_imports_in_src` + `discover_module` to pinpoint the fault; consider Windows-only fallback to parser-based import scanning if the fast scanner is corrupting memory.
        - Decide if AVM should be Windows-capable (add win32 time/mmap shims) or allow `OREN_BENCH_SKIP_OBC=1` (bench runner now supports this).
 
 2) **Tier‑1 native parity: correctness across arch/OS** (L)
