@@ -1,0 +1,102 @@
+{
+  "meta": {
+    "timestamp": "20260218_133744",
+    "host": "Bruce-Mac",
+    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu_brand": "Apple M2 Pro",
+    "cpu_cores": "10",
+    "mem_bytes": "17179869184",
+    "git_rev": "d006e24d30e524bc80a33ca988c41785397be3b4",
+    "c_compiler": "cc",
+    "runs": 1,
+    "warmups": 0,
+    "program": "alloc_drop",
+    "output": "alloc_drop keep=11",
+    "rss_enabled": true,
+    "skip_obc": false,
+    "env_overrides": {
+      "all": {},
+      "c": {},
+      "oren_c": {},
+      "oren_native": {},
+      "oren_obc": {}
+    }
+  },
+  "results": {
+    "c": {
+      "runs": [
+        0.005732042000090587
+      ],
+      "median_s": 0.005732042000090587,
+      "mean_s": 0.005732042000090587,
+      "min_s": 0.005732042000090587,
+      "max_s": 0.005732042000090587
+    },
+    "oren_c": {
+      "runs": [
+        0.00734754199947929
+      ],
+      "median_s": 0.00734754199947929,
+      "mean_s": 0.00734754199947929,
+      "min_s": 0.00734754199947929,
+      "max_s": 0.00734754199947929
+    },
+    "oren_native": {
+      "runs": [
+        0.28165412499947706
+      ],
+      "median_s": 0.28165412499947706,
+      "mean_s": 0.28165412499947706,
+      "min_s": 0.28165412499947706,
+      "max_s": 0.28165412499947706
+    },
+    "oren_obc": {
+      "runs": [
+        0.011996167000688729
+      ],
+      "median_s": 0.011996167000688729,
+      "mean_s": 0.011996167000688729,
+      "min_s": 0.011996167000688729,
+      "max_s": 0.011996167000688729
+    }
+  },
+  "rss": {
+    "c": {
+      "runs": [
+        1327104
+      ],
+      "median_bytes": 1327104,
+      "mean_bytes": 1327104,
+      "min_bytes": 1327104,
+      "max_bytes": 1327104
+    },
+    "oren_c": {
+      "runs": [
+        4734976
+      ],
+      "median_bytes": 4734976,
+      "mean_bytes": 4734976,
+      "min_bytes": 4734976,
+      "max_bytes": 4734976
+    },
+    "oren_native": {
+      "runs": [
+        7716864
+      ],
+      "median_bytes": 7716864,
+      "mean_bytes": 7716864,
+      "min_bytes": 7716864,
+      "max_bytes": 7716864
+    },
+    "oren_obc": {
+      "runs": [
+        9322496
+      ],
+      "median_bytes": 9322496,
+      "mean_bytes": 9322496,
+      "min_bytes": 9322496,
+      "max_bytes": 9322496
+    }
+  }
+}

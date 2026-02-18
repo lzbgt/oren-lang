@@ -232,10 +232,14 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - Latest (50k iters): native 120.6s vs C 0.0087s vs Oren C 0.0407s (`benchmarks/results/alloc_drop_darwin_arm64_20260217_230447.md`).
      - Target: native ≤0.50s on M2 with stable RSS.
      - Likely work: profile drop/GC sweep path, reduce per-drop tracking churn, verify free-list reuse + fast-path for short-lived drops.
-  - (P1/M) **Loop_sum native still ~6.4× C**
-    - Latest: native 0.4253s vs C 0.0665s (`benchmarks/results/loop_sum_darwin_arm64_20260218_104800.md`).
-      - Oren C: 1.1811s; OBC/AVM: 5.8217s (same run).
-    - Target: native ≤0.25s (≤4× C) while keeping correctness gates.
+   - (P1/M) **Loop_sum native still ~6.4× C**
+     - Latest: native 0.4253s vs C 0.0665s (`benchmarks/results/loop_sum_darwin_arm64_20260218_104800.md`).
+       - Oren C: 1.1811s; OBC/AVM: 5.8217s (same run).
+     - Target: native ≤0.25s (≤4× C) while keeping correctness gates.
+   - (P1/M) **Array_sum list access is still ~34× C (native) / ~44× C (Oren C)**
+     - Latest: native 0.1435s vs C 0.00418s (`benchmarks/results/array_sum_darwin_arm64_20260218_133631.md`).
+       - Oren C: 0.1855s; OBC/AVM: 0.6295s (same run).
+     - Target: native ≤0.03s (≤8× C) via faster list element access + fewer boxed int ops.
    - (P1/M) **Capture x64-windows benchmark baselines (pc2.work)**
      - Blockers observed (2026-02-14):
        - No `oren_stage2.exe` in `G:\work\compiler-mini-git` (bench harness fails to compile Oren variants).
@@ -275,6 +279,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
           - After change: slice 0:121 OK, slices 94:97/97:101 OK, but slice 121:242 still overflows.
           - slice 121:181 OK; slice 181:242 overflows (`EXITCODE=-1073741571`).
           - Next: dump indices 181-242 from top-level list and bisect 181:211 vs 211:242.
+        - 2026-02-18: root-cause fixed for Win11 `--version` stack overflow:
+          - `std:argparse` `_normalize_key` now uses byte-at + slice-unchecked (avoids single-byte cache init).
+          - single-byte string cache now allocates via raw arena and registers pointers in the cstr0 set
+            (no GC-root registration during early init).
+          - Verified: `oren_stage2_argparse_dbg7.exe --version` runs on pc2.work and prints version.
        - Decide if AVM should be Windows-capable (add win32 time/mmap shims) or allow `OREN_BENCH_SKIP_OBC=1` (bench runner now supports this).
 
 2) **Tier‑1 native parity: correctness across arch/OS** (L)
@@ -548,9 +557,14 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 					       - Oren C: 0.0078s, RSS ~4.7MB
 					       - Oren native: 0.339s, RSS ~7.7MB
 					       - OBC: 0.0118s, RSS ~9.4MB
-					     - 2026-02-17: `alloc_drop` (darwin/arm64, iters=20000, runs=1, `OREN_GC_AUTO=1`, OBC skipped):
-					       - C: 0.0077s, RSS ~1.3MB
-					       - Oren C: 0.0190s, RSS ~9.9MB
+   - 2026-02-17: `alloc_drop` (darwin/arm64, iters=20000, runs=1, `OREN_GC_AUTO=1`, OBC skipped):
+     - C: 0.0077s, RSS ~1.3MB
+     - Oren C: 0.0190s, RSS ~9.9MB
+   - 2026-02-18: `alloc_drop` (darwin/arm64, iters=10000, runs=1, `OREN_BENCH_RSS=1`):
+     - C: 0.0057s, RSS ~1.3MB
+     - Oren C: 0.0073s, RSS ~4.7MB
+     - Oren native: 0.2817s, RSS ~7.7MB
+     - OBC: 0.0120s, RSS ~9.3MB (`benchmarks/results/alloc_drop_darwin_arm64_20260218_133744.md`)
 					       - Oren native: 0.734s, RSS ~13.5MB
 					     - 2026-02-17: `alloc_drop` (darwin/arm64, iters=50000, runs=1, `OREN_GC_AUTO=1`, OBC skipped):
 					       - C: 0.0087s, RSS ~1.3MB

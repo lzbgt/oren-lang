@@ -190,12 +190,12 @@ fn _normalize_key(name) {
     if n == 0 { return "" }
     var i = 0
     while i < n {
-        if oren_string_char_at(name, i) != "-" { break }
+        if oren_string_byte_at_unchecked(name, i) != 45 { break } // '-'
         i = i + 1
     }
     if i == 0 { return name }
     if i >= n { return "" }
-    return oren_string_slice(name, i, n)
+    return oren_string_slice_unchecked(name, i, n)
 }
 
 fn _opt_env(opt) {
@@ -499,8 +499,39 @@ fn _suggest_command(p, name) {
 
 fn _opts_defaults(cmd) {
     var m = {}
-    for o in cmd["options"] {
-        var key = _normalize_key(o[1])
+    var dbg_ap = oren_env("OREN_DEBUG_ARGPARSE")
+    if dbg_ap != nil { print("DEBUG_ARGPARSE opts_defaults enter") }
+    var skip_opts = oren_env("OREN_DEBUG_ARGPARSE_SKIP_OPTS")
+    if skip_opts != nil && skip_opts != "" {
+        if dbg_ap != nil { print("DEBUG_ARGPARSE opts_defaults skip") }
+        return m
+    }
+    var dbg_opt_trace = nil
+    if dbg_ap != nil { dbg_opt_trace = oren_env("OREN_DEBUG_ARGPARSE_OPT_TRACE") }
+    if cmd == nil { return m }
+    if dbg_ap != nil { print("DEBUG_ARGPARSE opts_defaults cmd_tag=" + oren_int_to_string(oren_type_tag(cmd))) }
+    if oren_type_tag(cmd) != 7 { return m }
+    var opts = cmd["options"]
+    if dbg_ap != nil { print("DEBUG_ARGPARSE opts_defaults opts_tag=" + oren_int_to_string(oren_type_tag(opts))) }
+    if opts == nil || oren_type_tag(opts) != 6 { return m }
+    var oi = 0
+    var on = list.len(opts)
+    if dbg_ap != nil { print("DEBUG_ARGPARSE opts_defaults opts_len=" + oren_int_to_string(on)) }
+    while oi < on {
+        var o = opts[oi]
+        if o == nil || oren_type_tag(o) != 6 || list.len(o) < 5 { oi = oi + 1; continue }
+        if dbg_opt_trace != nil && dbg_opt_trace != "" {
+            print("DEBUG_ARGPARSE opts_defaults opt_i=" + oren_int_to_string(oi))
+        }
+        var key_src = o[1]
+        if dbg_opt_trace != nil && dbg_opt_trace != "" {
+            print("DEBUG_ARGPARSE opts_defaults opt_i=" + oren_int_to_string(oi) + " key_tag=" + oren_int_to_string(oren_type_tag(key_src)))
+        }
+        if key_src == nil || oren_type_tag(key_src) != 4 { oi = oi + 1; continue }
+        var key = _normalize_key(key_src)
+        if dbg_opt_trace != nil && dbg_opt_trace != "" {
+            print("DEBUG_ARGPARSE opts_defaults opt_i=" + oren_int_to_string(oi) + " norm_ok")
+        }
         var defv = o[4]
         // If marked repeatable, ensure default is a list.
         var multiple = false
@@ -541,6 +572,7 @@ fn _opts_defaults(cmd) {
         }
         // Options are always normalized string keys.
         oren_map_set_str(m, key, defv)
+        oi = oi + 1
     }
     return m
 }
@@ -1068,6 +1100,12 @@ fn parse(p, argv) {
     // }
 
     var res = { "ok": false, "code": 2, "err": nil, "help": nil, "cmd": nil, "root_opts": {}, "opts": {}, "all_opts": {}, "seen": {}, "pos": [], "rest": [] }
+    var dbg_ap = oren_env("OREN_DEBUG_ARGPARSE")
+    var dbg_exit = oren_env("OREN_DEBUG_ARGPARSE_EXIT")
+    if dbg_ap != nil {
+        print("DEBUG_ARGPARSE start argv_len=" + oren_int_to_string(list.len(argv)))
+    }
+    if dbg_exit != nil && dbg_exit == "start" { oren_exit(200) }
     if argv == nil { argv = [] }
 
     // Read settings (default to click-style).
@@ -1080,7 +1118,9 @@ fn parse(p, argv) {
 
     // Root parsing phase (global options + command selection).
     var root_cmd = p["root"]
+    if dbg_ap != nil { print("DEBUG_ARGPARSE root defaults") }
     res["root_opts"] = _opts_defaults(root_cmd)
+    if dbg_exit != nil && dbg_exit == "root_defaults" { oren_exit(200) }
     // During root parsing, write option values into root_opts (click-style global options).
     res["opts"] = res["root_opts"]
 
@@ -1136,6 +1176,8 @@ fn parse(p, argv) {
         break
     }
     
+    if dbg_ap != nil { print("DEBUG_ARGPARSE root parse done cmd=" + cmd_name) }
+    if dbg_exit != nil && dbg_exit == "root_parse" { oren_exit(200) }
     res["cmd"] = cmd_name
     // If no subcommand is selected, treat the root options map as the effective opts.
     // This prevents root options like `--version` from being overwritten by defaults.
@@ -1144,6 +1186,8 @@ fn parse(p, argv) {
     } else {
         res["opts"] = _opts_defaults(cmd)
     }
+    if dbg_ap != nil { print("DEBUG_ARGPARSE cmd defaults done") }
+    if dbg_exit != nil && dbg_exit == "cmd_defaults" { oren_exit(200) }
 
     // Command args parsing phase.
     var pos = []

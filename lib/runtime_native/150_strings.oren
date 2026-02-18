@@ -17,22 +17,27 @@ var g_single_byte_string_cache = 0 // ptr to [256] pointers (untracked; roots ke
 fn _oren_init_single_byte_string_cache() {
     if g_single_byte_string_cache != 0 { return 0 }
 
-    // A 256-entry table of pointers to tracked 1-byte strings.
-    // We keep the table itself untracked (leak-by-design, bounded) and root each string
-    // so GC cannot collect them even though they are only referenced by a global pointer table.
-    var table = malloc_k(256 * 8, 0)
+    // A 256-entry table of pointers to single-byte strings.
+    // Allocate via the raw arena to avoid GC-root registration during early runtime init.
+    // Register each pointer in the cstr0 set so `native_is_string_ptr` recognizes them.
+    if g_cstr0_set_ptr == 0 || g_cstr0_set_cap == 0 {
+        native_cstr0_set_init_min(512)
+    }
+
+    var table = native_malloc_raw_or_mmap(256 * 8)
     if table == 0 { oren_panic("single_byte_string_cache: malloc failed") }
     if table == -1 { oren_panic("single_byte_string_cache: malloc failed") }
+    var buf = native_malloc_raw_or_mmap(256 * 2)
+    if buf == 0 { oren_panic("single_byte_string_cache: malloc failed") }
+    if buf == -1 { oren_panic("single_byte_string_cache: malloc failed") }
 
     var i = 0
     while i < 256 {
-        var s = malloc_k(2, 1)
-        if s == 0 { oren_panic("single_byte_string_cache: malloc failed") }
-        if s == -1 { oren_panic("single_byte_string_cache: malloc failed") }
-        ptr_set_byte(s + 0, i)
-        ptr_set_byte(s + 1, 0)
-        native_gc_register_root(s)
-        ptr_set(table + i * 8, s)
+        var s = iadd(buf, i * 2)
+        ptr_set_byte(iadd(s, 0), i)
+        ptr_set_byte(iadd(s, 1), 0)
+        native_cstr0_set_put(s)
+        ptr_set(iadd(table, i * 8), s)
         i = i + 1
     }
 
