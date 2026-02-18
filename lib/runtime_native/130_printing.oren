@@ -582,13 +582,30 @@ fn _oren_assert_string_ptr(k) {
     return 0
 }
 
+// Debugging/bringup: optionally compare string keys by pointer only to avoid strcmp.
+// Enabled by OREN_MAP_STRING_PTR_ONLY=1.
+var g_map_str_ptr_only = -1
+
+fn _map_str_ptr_only_enabled() {
+    if g_map_str_ptr_only < 0 {
+        if oren_getenv("OREN_MAP_STRING_PTR_ONLY") != 0 {
+            g_map_str_ptr_only = 1
+        } else {
+            g_map_str_ptr_only = 0
+        }
+    }
+    return g_map_str_ptr_only
+}
+
 fn _oren_map_set_kind(m, k, v, k_kind) {
     _oren_map_check(m)
 
     if k_kind != 0 && k_kind != 1 { oren_panic("map_set: invalid key kind") }
+    var ptr_only = 0
     if k_kind == 1 {
         // String keys must be valid C strings (non-nil pointer).
         _oren_assert_string_ptr(k)
+        ptr_only = _map_str_ptr_only_enabled()
     }
 
     var count = ptr_get(iadd(m, 0))
@@ -621,10 +638,16 @@ fn _oren_map_set_kind(m, k, v, k_kind) {
                                 return v
                             }
                         } else {
+                        if ek0 - k == 0 {
+                            ptr_set(iadd(base0, 16), v)
+                            return v
+                        }
+                        if ptr_only == 0 {
                             if strcmp(ek0, k) == 0 {
                                 ptr_set(iadd(base0, 16), v)
                                 return v
                             }
+                        }
                         }
                     }
                     si = iadd(si, 1)
@@ -703,9 +726,15 @@ fn _oren_map_set_kind(m, k, v, k_kind) {
                             return v
                         }
                     } else {
-                        if strcmp(ek, k) == 0 {
+                        if ek - k == 0 {
                             ptr_set(iadd(base, 16), v)
                             return v
+                        }
+                        if ptr_only == 0 {
+                            if strcmp(ek, k) == 0 {
+                                ptr_set(iadd(base, 16), v)
+                                return v
+                            }
                         }
                     }
                 }
@@ -773,6 +802,8 @@ fn _oren_map_set_kind_unchecked(m, k, v, k_kind) {
     // No `_oren_map_check` / `_oren_assert_string_ptr` here by design.
     if m == 0 { oren_panic("map_set_unchecked on nil"); return 0 }
     if k_kind != 0 && k_kind != 1 { oren_panic("map_set_unchecked: invalid key kind"); return 0 }
+    var ptr_only = 0
+    if k_kind == 1 { ptr_only = _map_str_ptr_only_enabled() }
 
     var count = ptr_get(iadd(m, 0))
     var cap = ptr_get(iadd(m, 8))
@@ -800,7 +831,10 @@ fn _oren_map_set_kind_unchecked(m, k, v, k_kind) {
                         if k_kind == 0 {
                             if ek0 == k { ptr_set(iadd(base0, 16), v); return v }
                         } else {
-                            if strcmp(ek0, k) == 0 { ptr_set(iadd(base0, 16), v); return v }
+                            if ek0 - k == 0 { ptr_set(iadd(base0, 16), v); return v }
+                            if ptr_only == 0 {
+                                if strcmp(ek0, k) == 0 { ptr_set(iadd(base0, 16), v); return v }
+                            }
                         }
                     }
                     si = iadd(si, 1)
@@ -873,7 +907,10 @@ fn _oren_map_set_kind_unchecked(m, k, v, k_kind) {
                     if k_kind == 0 {
                         if ek == k { ptr_set(iadd(base, 16), v); return v }
                     } else {
-                        if strcmp(ek, k) == 0 { ptr_set(iadd(base, 16), v); return v }
+                        if ek - k == 0 { ptr_set(iadd(base, 16), v); return v }
+                        if ptr_only == 0 {
+                            if strcmp(ek, k) == 0 { ptr_set(iadd(base, 16), v); return v }
+                        }
                     }
                 }
             } else {
@@ -1098,9 +1135,11 @@ fn _oren_map_get_kind(m, k, k_kind) {
     if ptr_get(iadd(m, 24)) != map_magic() { return native_value_nil() }
 
     if k_kind != 0 && k_kind != 1 { oren_panic("map_get: invalid key kind") }
+    var ptr_only = 0
     if k_kind == 1 {
         if k == 0 { return native_value_nil() }
         _oren_assert_string_ptr(k)
+        ptr_only = _map_str_ptr_only_enabled()
     }
 
     var count = ptr_get(iadd(m, 0))
@@ -1121,7 +1160,10 @@ fn _oren_map_get_kind(m, k, k_kind) {
                 if k_kind == 0 {
                     if kp0 == k { return ptr_get(iadd(base0, 16)) }
                 } else {
-                    if strcmp(kp0, k) == 0 { return ptr_get(iadd(base0, 16)) }
+                    if kp0 - k == 0 { return ptr_get(iadd(base0, 16)) }
+                    if ptr_only == 0 {
+                        if strcmp(kp0, k) == 0 { return ptr_get(iadd(base0, 16)) }
+                    }
                 }
             }
             i0 = iadd(i0, 1)
@@ -1148,7 +1190,10 @@ fn _oren_map_get_kind(m, k, k_kind) {
                     if k_kind == 0 {
                         if kp == k { return ptr_get(iadd(base, 16)) }
                     } else {
-                        if strcmp(kp, k) == 0 { return ptr_get(iadd(base, 16)) }
+                        if kp - k == 0 { return ptr_get(iadd(base, 16)) }
+                        if ptr_only == 0 {
+                            if strcmp(kp, k) == 0 { return ptr_get(iadd(base, 16)) }
+                        }
                     }
                 }
             } else {
@@ -1171,7 +1216,10 @@ fn _oren_map_get_kind(m, k, k_kind) {
             if k_kind == 0 {
                 if kp2 == k { return ptr_get(iadd(base2, 16)) }
             } else {
-                if strcmp(kp2, k) == 0 { return ptr_get(iadd(base2, 16)) }
+                if kp2 - k == 0 { return ptr_get(iadd(base2, 16)) }
+                if ptr_only == 0 {
+                    if strcmp(kp2, k) == 0 { return ptr_get(iadd(base2, 16)) }
+                }
             }
         }
         i = iadd(i, 1)

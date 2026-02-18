@@ -78,11 +78,13 @@ fn read_char(l) {
         // PERF: caller already bounds-checks against `input_len`, so avoid `char_at`'s
         // per-call length scan (O(n) `strlen` on C backend, O(n) byte scan on native).
         if safe == true {
-            l["ch"] = oren_string_char_at(input, pos)
+            var ch = oren_string_char_at(input, pos)
+            l["ch"] = ch
+            b = _byte0(ch)
         } else {
             l["ch"] = oren_string_char_at_unchecked(input, pos)
+            b = oren_string_byte_at_unchecked(input, pos)
         }
-        b = oren_string_byte_at_unchecked(input, pos)
     }
     l["position"] = pos
     l["read_position"] = iadd(pos, 1)
@@ -119,6 +121,10 @@ fn peek_byte(l) {
     if safe == true { input_len = oren_string_len(input) }
     var pos = l["read_position"]
     if pos >= input_len { return -1 }
+    if safe == true {
+        var ch = oren_string_char_at(input, pos)
+        return _byte0(ch)
+    }
     return oren_string_byte_at_unchecked(input, pos)
 }
 
@@ -129,6 +135,10 @@ fn peek_byte2(l) {
     if safe == true { input_len = oren_string_len(input) }
     var pos = iadd(l["read_position"], 1)
     if pos >= input_len { return -1 }
+    if safe == true {
+        var ch = oren_string_char_at(input, pos)
+        return _byte0(ch)
+    }
     return oren_string_byte_at_unchecked(input, pos)
 }
 
@@ -206,6 +216,9 @@ fn read_line_comment_text(l) {
 
 fn _skip_line_comment_fast(l) {
     // Fast path for line comments: scan bytes without per-character map traffic.
+    if l["safe"] == true {
+        return skip_comment(l)
+    }
     var input = l["input"]
     var input_len = l["input_len"]
     if l["safe"] == true { input_len = oren_string_len(input) }

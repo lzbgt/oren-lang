@@ -305,9 +305,13 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
           - `OREN_TRACE_DUMP=1` or `OREN_TRACE_LEX_STEP=1` avoids the crash (heisenbug).
           - Next: audit native string-compare path + map key compare recursion; consider a byte-only lexer (no map lookups in hot loops) or a Windows-only fast comment skip that avoids `l["ch"]` string compares entirely.
         - 2026-02-18: hardened `strcmp` pointer checks (avoid `==` on raw pointers) but Win11 comment repro still overflows.
+        - 2026-02-18: added pointer-equality fast paths for string keys in native map get/set; repro still overflows.
+        - 2026-02-18: added `OREN_MAP_STRING_PTR_ONLY=1` to skip `strcmp` in map get/set; repro still overflows.
+        - 2026-02-18: added `OREN_IMPORT_SCAN_PARSE=1` fallback (parse-based import scan); repro still overflows.
+        - 2026-02-18: safe lexer now derives `ch_byte` via `char_at` and disables fast line-comment scan when `safe`; repro still overflows.
         - 2026-02-18: latest trace shows crash during module discovery (even earlier):
           - With `OREN_TRACE_PASSES=1` + parse tracing, Win11 exits after `discover_module: lib/std/list.oren` (list has no imports).
-          - Next: instrument `_ml_scan_imports_in_src` + `discover_module` to pinpoint the fault; consider Windows-only fallback to parser-based import scanning if the fast scanner is corrupting memory.
+          - Next: instrument `oren_string_char_at(_unchecked)` / `oren_string_byte_at_unchecked` on Win11 to pinpoint stack overflow; consider a Windows-only lexer path that avoids byte-at-unchecked entirely (pure char_at + char_code) and add a native unit test that lexes a long `//` line comment.
        - Decide if AVM should be Windows-capable (add win32 time/mmap shims) or allow `OREN_BENCH_SKIP_OBC=1` (bench runner now supports this).
 
 2) **Tier‑1 native parity: correctness across arch/OS** (L)

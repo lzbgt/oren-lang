@@ -589,10 +589,38 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
     // and ignore everything else. This is sufficient because we only need import edges.
     if src == nil { return {"ok": true, "imports": []} }
     var imports = []
-    var safe = _ml_scan_should_use_safe()
     var trace = oren_env("OREN_TRACE_IMPORT_SCAN") != nil
     var trace_file = oren_env("OREN_TRACE_IMPORT_SCAN_FILE")
     if trace_file != nil && trace_file != "" && full_path != trace_file { trace = false }
+    var force_parse = oren_env("OREN_IMPORT_SCAN_PARSE") != nil
+    if force_parse {
+        if trace { print("[import_scan] start file=" + full_path + " mode=parse") }
+        var pr = _ml_parse_program_from_src_result(full_path, src)
+        if pr["ok"] != true {
+            var em = pr["err"]
+            if em == nil { em = "parse failed" }
+            return {"ok": false, "err": em}
+        }
+        var prog = pr["prog"]
+        if prog != nil && prog["statements"] != nil && oren_is_list(prog["statements"]) == true {
+            var pi = 0
+            while pi < oren_list_len(prog["statements"]) {
+                var s = prog["statements"][pi]
+                if s != nil && s["type"] == "Import" {
+                    var alias = s["name"]["value"]
+                    var path = s["path"]
+                    oren_list_push(imports, {"alias": alias, "path": path})
+                }
+                pi = pi + 1
+            }
+        }
+        if trace {
+            print("[import_scan] done file=" + full_path + " imports=" + oren_int_to_string(oren_list_len(imports)))
+        }
+        return {"ok": true, "imports": imports}
+    }
+
+    var safe = _ml_scan_should_use_safe()
     if trace {
         var sm = "fast"
         if safe { sm = "safe" }
