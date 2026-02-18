@@ -203,6 +203,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						     - C runtime: `lib/runtime/040_lists_maps.inc` + `lib/runtime.h` (`oren_string_eq`).
 						     - Bench (M2 Pro, runs=5): array_sum_int Oren C 0.0388s (~10.0× vs C; was 0.0697s), dot_product_int Oren C 0.0720s (~14.6× vs C; was 0.1168s).
 						     - Artifacts: `benchmarks/results/array_sum_int_darwin_arm64_20260219_034125.md`, `benchmarks/results/dot_product_int_darwin_arm64_20260219_034136.md` (prior: `..._032654.md`, `..._032701.md`).
+						   - 2026-02-19: arm64 native fast list<int> push loop (pattern match + inline stores) brings native close to C backend:
+						     - Compiler: `lib/compiler/arm64_native_stmt.oren` (fast while matcher + direct buffer stores).
+						     - Bench (M2 Pro, runs=5): array_sum_int Oren native 0.0409s (~10.2× vs C), dot_product_int Oren native 0.0653s (~13.7× vs C).
+						     - Artifacts: `benchmarks/results/array_sum_int_darwin_arm64_20260219_035636.md`, `benchmarks/results/dot_product_int_darwin_arm64_20260219_035647.md`.
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
@@ -998,12 +1002,17 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - fast list<int> push fill (C backend):
       - `array_sum_int` (2M elems): C 0.003885s; Oren C 0.038837s (~10.0×); Oren native 0.150526s (~38.7×); OBC 0.628100s (~161.7×)
       - `dot_product_int` (2M elems): C 0.004934s; Oren C 0.071982s (~14.6×); Oren native 0.284129s (~57.6×); OBC 0.899077s (~182.2×)
+    - fast list<int> push fill (arm64 native):
+      - `array_sum_int` (2M elems): C 0.004004s; Oren C 0.039389s (~9.84×); Oren native 0.040908s (~10.2×); OBC 0.629024s (~157.1×)
+      - `dot_product_int` (2M elems): C 0.004784s; Oren C 0.072135s (~15.1×); Oren native 0.065333s (~13.7×); OBC 0.898854s (~187.9×)
    - 2026-02-18:
      - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
      - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
 
    Artifacts:
 
+  - `benchmarks/results/array_sum_int_darwin_arm64_20260219_035636.md`
+  - `benchmarks/results/dot_product_int_darwin_arm64_20260219_035647.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_034125.md`
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_034136.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_014519.md`
@@ -1037,6 +1046,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    Next steps (highest leverage):
 
   - Extend list<int> fast-loop hoist to cover more safe patterns and to the native backend (C backend now uses it for strict list_int_get-only loops).
+  - Port arm64 native list<int> fast push-loop lowering to x64 native backend (060_emit_ops + list intrinsics) and capture x64 benchmarks.
   - Reduce Oren C boxing cost in list<int> loops by avoiding intermediate `OrenValue` temporaries where possible (keep fast-path bounds checks).
   - Audit compiler internal string comparisons under the native backend; prefer `str_eq`/string-aware helpers to avoid pointer-eq traps in name matching.
   - Add AVM bytecode unboxed list<int> ops or confirm boxed fallback and document its perf cost.
