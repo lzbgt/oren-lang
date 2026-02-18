@@ -119,6 +119,13 @@ static inline pthread_mutex_t* oren_obj_lock_for_ptr(void* p) {
     return &g_obj_locks[h & (OREN_OBJ_LOCKS - 1u)];
 }
 
+int oren_list_locking_needed(void) {
+    if (oren_obj_locks_force_enabled()) return 1;
+    if (oren_obj_locks_skip_enabled()) return 0;
+    if (OREN_ATOMIC_LOAD_INT(&g_threads_started) == 0) return 0;
+    return 1;
+}
+
 static inline void oren_obj_lock(pthread_mutex_t* mu) {
     if (!mu) return;
     pthread_mutex_lock(mu);

@@ -1064,6 +1064,20 @@ fn transpile_expression(t, exp) {
         if exp["fn"]["type"] == "Identifier" {
             var name = exp["fn"]["value"]
             var argc = oren_list_len(exp["args"])
+            if spread == nil {
+                if (name == "oren_list_int_len" || name == "STD_list_int_len") && argc == 1 {
+                    return "oren_list_int_len_fast(" + args_s + ")"
+                }
+                if (name == "oren_list_int_push" || name == "STD_list_int_push") && argc == 2 {
+                    return "oren_list_int_push_fast(" + args_s + ")"
+                }
+                if (name == "oren_list_int_get" || name == "STD_list_int_get") && argc == 2 {
+                    return "oren_list_int_get_fast(" + args_s + ")"
+                }
+                if (name == "oren_list_int_set" || name == "STD_list_int_set") && argc == 3 {
+                    return "oren_list_int_set_fast(" + args_s + ")"
+                }
+            }
             if name == "print" {
                 if spread != nil {
                     // print(..., xs...) lower to runtime list-based helpers.

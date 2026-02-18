@@ -230,6 +230,56 @@ OrenValue oren_list_int_len(OrenValue list);
 OrenValue oren_list_int_push(OrenValue list, OrenValue value);
 OrenValue oren_list_int_get(OrenValue list, OrenValue index);
 OrenValue oren_list_int_set(OrenValue list, OrenValue index, OrenValue value);
+// Returns 1 if list/map ops must take locks (threads started / forced), 0 otherwise.
+int oren_list_locking_needed(void);
+// C backend fast-paths for list<int> hot loops (inlines when locks not needed).
+static inline OrenValue oren_list_int_len_fast(OrenValue list) {
+    if (list.type == OREN_TYPE_LIST) {
+        OrenList* l = list.as.list_val;
+        if (!l) return oren_int(0);
+        if (!oren_list_locking_needed()) return oren_int(l->count);
+    }
+    return oren_list_int_len(list);
+}
+static inline OrenValue oren_list_int_push_fast(OrenValue list, OrenValue value) {
+    if (list.type == OREN_TYPE_LIST && value.type == OREN_TYPE_INT) {
+        OrenList* l = list.as.list_val;
+        if (l && !oren_list_locking_needed()) {
+            int cnt = l->count;
+            if (cnt < l->capacity) {
+                l->items[cnt] = value;
+                l->count = cnt + 1;
+                return OREN_NIL;
+            }
+        }
+    }
+    return oren_list_int_push(list, value);
+}
+static inline OrenValue oren_list_int_get_fast(OrenValue list, OrenValue index) {
+    if (list.type == OREN_TYPE_LIST && index.type == OREN_TYPE_INT) {
+        OrenList* l = list.as.list_val;
+        if (l && !oren_list_locking_needed()) {
+            int idx = (int)index.as.int_val;
+            if ((unsigned)idx < (unsigned)l->count) {
+                return l->items[idx];
+            }
+        }
+    }
+    return oren_list_int_get(list, index);
+}
+static inline OrenValue oren_list_int_set_fast(OrenValue list, OrenValue index, OrenValue value) {
+    if (list.type == OREN_TYPE_LIST && index.type == OREN_TYPE_INT && value.type == OREN_TYPE_INT) {
+        OrenList* l = list.as.list_val;
+        if (l && !oren_list_locking_needed()) {
+            int idx = (int)index.as.int_val;
+            if ((unsigned)idx < (unsigned)l->count) {
+                l->items[idx] = value;
+                return value;
+            }
+        }
+    }
+    return oren_list_int_set(list, index, value);
+}
 OrenValue oren_iter_next(OrenValue container, OrenValue idx, OrenValue out_pair);
 // Map entry iterator (key+value). Returns ok:int (1/0) and writes into out_pair[0..1].
 OrenValue oren_iter_next_entry(OrenValue map, OrenValue idx, OrenValue out_pair);
