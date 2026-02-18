@@ -163,6 +163,9 @@ def main():
     warmups = int(os.environ.get("OREN_BENCH_WARMUPS", DEFAULT_WARMUPS))
     rss_enabled = int(os.environ.get("OREN_BENCH_RSS", DEFAULT_RSS)) == 1
     skip_obc = int(os.environ.get("OREN_BENCH_SKIP_OBC", "0")) == 1
+    skip_c = int(os.environ.get("OREN_BENCH_SKIP_C", "0")) == 1
+    skip_oren_c = int(os.environ.get("OREN_BENCH_SKIP_OREN_C", "0")) == 1
+    skip_native = int(os.environ.get("OREN_BENCH_SKIP_NATIVE", "0")) == 1
     program = os.environ.get("OREN_BENCH_PROGRAM", "loop_sum")
     env_all = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_ALL", ""))
     env_c = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_C", ""))
@@ -196,10 +199,14 @@ def main():
     oren_bin = _resolve_exe(ROOT / "oren_stage2")
     c_compiler = _pick_c_compiler()
 
-    _run(_c_compile_cmd(c_compiler, c_bin, bench_dir / f"{program}.c"), log_path=LOG_DIR / f"bench_build_c_{program}_{ts}.log")
-    _run([str(oren_bin), "build", str(bench_dir / f"{program}.oren"), "--backend", "c", "--no-debug", "-o", str(oren_c_bin)], log_path=LOG_DIR / f"bench_build_oren_c_{program}_{ts}.log")
-    _run([str(oren_bin), "build", str(bench_dir / f"{program}.oren"), "--backend", "native", "--no-debug", "-o", str(oren_native_bin)], log_path=LOG_DIR / f"bench_build_oren_native_{program}_{ts}.log")
-    _run([str(oren_bin), "build", str(bench_dir / f"{program}.oren"), "--backend", "bytecode", "-o", str(obc_out)], log_path=LOG_DIR / f"bench_build_oren_obc_{program}_{ts}.log")
+    if not skip_c:
+        _run(_c_compile_cmd(c_compiler, c_bin, bench_dir / f"{program}.c"), log_path=LOG_DIR / f"bench_build_c_{program}_{ts}.log")
+    if not skip_oren_c:
+        _run([str(oren_bin), "build", str(bench_dir / f"{program}.oren"), "--backend", "c", "--no-debug", "-o", str(oren_c_bin)], log_path=LOG_DIR / f"bench_build_oren_c_{program}_{ts}.log")
+    if not skip_native:
+        _run([str(oren_bin), "build", str(bench_dir / f"{program}.oren"), "--backend", "native", "--no-debug", "-o", str(oren_native_bin)], log_path=LOG_DIR / f"bench_build_oren_native_{program}_{ts}.log")
+    if not skip_obc:
+        _run([str(oren_bin), "build", str(bench_dir / f"{program}.oren"), "--backend", "bytecode", "-o", str(obc_out)], log_path=LOG_DIR / f"bench_build_oren_obc_{program}_{ts}.log")
 
     if not skip_obc:
         if not avm_bin.exists():
@@ -210,11 +217,13 @@ def main():
     rss_results = {}
 
     env_base = os.environ.copy()
-    suites = [
-        ("c", [str(c_bin)], env_c),
-        ("oren_c", [str(oren_c_bin)], env_oren_c),
-        ("oren_native", [str(oren_native_bin)], env_oren_native),
-    ]
+    suites = []
+    if not skip_c:
+        suites.append(("c", [str(c_bin)], env_c))
+    if not skip_oren_c:
+        suites.append(("oren_c", [str(oren_c_bin)], env_oren_c))
+    if not skip_native:
+        suites.append(("oren_native", [str(oren_native_bin)], env_oren_native))
     if not skip_obc:
         suites.append(("oren_obc", [str(avm_bin), str(obc_out)], env_oren_obc))
     variant_order = [name for name, _, _ in suites]

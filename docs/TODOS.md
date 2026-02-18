@@ -930,7 +930,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    x64‑windows status:
 
-   - `pc2.work`: `oren_stage2.exe` crashes with stack overflow (rc=3221225725 / 0xC00000FD) when compiling `array_sum_int` (`bench_build_oren_c_array_sum_int_20260218_232046.log` empty). Need to debug before capturing x64 perf.
+   - `pc2.work`: `oren_stage2.exe` crashes with stack overflow (rc=3221225725 / 0xC00000FD) when compiling `array_sum_int` (native + C backend builds); logs are empty.
+     - 2026-02-18: increased PE stack reserve to 256MB (`lib/compiler/x64_pe.oren`), but the overflow persists.
+     - `oren_stage2.exe --version` works; the crash happens during `oren_stage2 build ...` for bench programs.
 
    Gates:
 
