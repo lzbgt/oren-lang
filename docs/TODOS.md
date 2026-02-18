@@ -240,13 +240,13 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    Perf gaps from latest M2 benchmarks (2026-02-19, runs=3, RSS on):
 
    - (P0/M) **Native alloc_churn is still slower than OBC and far behind Oren C**
-     - Latest: native 0.6947s vs OBC 0.4075s vs Oren C 0.1151s vs C 0.00418s (`benchmarks/results/alloc_churn_darwin_arm64_20260219_002502.md`).
-     - RSS (median): Oren C ~68.7MB, native ~53.8MB, OBC ~61.4MB.
+     - Latest: native 0.5906s vs OBC 0.3894s vs Oren C 0.0696s vs C 0.00422s (`benchmarks/results/alloc_churn_darwin_arm64_20260219_041544.md`).
+     - RSS (median): Oren C ~68.4MB, native ~53.8MB, OBC ~61.4MB.
      - Target: native ≤0.20s on M2 for alloc_churn without increasing RSS.
      - Likely work: harden free-block reuse (`OREN_GC_REUSE_BLOCKS=1`), reduce per-alloc tracking overhead, add a bump allocator for short-lived struct-heavy loops, verify GC root coverage at safepoints.
    - (P0/S) **alloc_drop native is catastrophic (drop-path bottleneck)**
-     - Latest: native 0.295s vs C 0.00474s vs Oren C 0.00714s vs OBC 0.0125s (`benchmarks/results/alloc_drop_darwin_arm64_20260219_002526.md`).
-     - RSS (median): native ~7.7MB, Oren C ~4.7MB, OBC ~9.4MB.
+     - Latest: native 0.2656s vs C 0.00425s vs Oren C 0.00671s vs OBC 0.01098s (`benchmarks/results/alloc_drop_darwin_arm64_20260219_041618.md`).
+     - RSS (median): native ~7.8MB, Oren C ~4.47MB, OBC ~9.36MB.
      - Target: native ≤0.50s on M2 with stable RSS.
      - Likely work: profile drop/GC sweep path, reduce per-drop tracking churn, verify free-list reuse + fast-path for short-lived drops.
    - (P1/M) **Loop_sum native still ~6.3× C**
@@ -1058,6 +1058,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
   - Extend list<int> fast-loop hoist to cover more safe patterns and to the native backend (C backend now uses it for strict list_int_get-only loops).
   - Capture x64 benchmarks for the new native list<int> fast push-loop (ported to `lib/compiler/x64_native_program/060_emit_ops.oren`); validate parity and safety.
+    - Blocker (2026-02-19): local docker CLI returns `EOF` for `docker ps` (cannot access Tier‑1 container `c7e5f7bd9f5c`); restore docker daemon/CLI access.
   - Reduce Oren C boxing cost in list<int> loops by avoiding intermediate `OrenValue` temporaries where possible (keep fast-path bounds checks).
   - Audit compiler internal string comparisons under the native backend; prefer `str_eq`/string-aware helpers to avoid pointer-eq traps in name matching.
   - Add AVM bytecode unboxed list<int> ops or confirm boxed fallback and document its perf cost.
