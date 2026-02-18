@@ -57,6 +57,7 @@ static void oren_map_grow(OrenMap* m, int newCap) {
 #define OREN_OBJ_LOCKS 4096u
 static pthread_mutex_t g_obj_locks[OREN_OBJ_LOCKS];
 static pthread_once_t g_obj_locks_once = PTHREAD_ONCE_INIT;
+static int g_obj_locks_skip = -1;
 
 static void oren_obj_locks_init(void) {
     for (size_t i = 0; i < (size_t)OREN_OBJ_LOCKS; i++) {
@@ -64,10 +65,32 @@ static void oren_obj_locks_init(void) {
     }
 }
 
+static inline int oren_obj_locks_skip_enabled(void) {
+    if (g_obj_locks_skip != -1) return g_obj_locks_skip;
+    const char* env = getenv("OREN_LIST_SKIP_LOCKS");
+    if (env && env[0] != 0 && env[0] != '0') {
+        g_obj_locks_skip = 1;
+    } else {
+        g_obj_locks_skip = 0;
+    }
+    return g_obj_locks_skip;
+}
+
 static inline pthread_mutex_t* oren_obj_lock_for_ptr(void* p) {
+    if (oren_obj_locks_skip_enabled()) return NULL;
     (void)pthread_once(&g_obj_locks_once, oren_obj_locks_init);
     size_t h = oren_ptr_hash(p);
     return &g_obj_locks[h & (OREN_OBJ_LOCKS - 1u)];
+}
+
+static inline void oren_obj_lock(pthread_mutex_t* mu) {
+    if (!mu) return;
+    pthread_mutex_lock(mu);
+}
+
+static inline void oren_obj_unlock(pthread_mutex_t* mu) {
+    if (!mu) return;
+    pthread_mutex_unlock(mu);
 }
 
 static inline int oren_map_key_rank(OrenType t) {
@@ -170,9 +193,9 @@ OrenValue oren_list_len(OrenValue list) {
     OrenList* l = list.as.list_val;
     if (!l) return oren_int(0);
     pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
-    pthread_mutex_lock(mu);
+    oren_obj_lock(mu);
     int c = l->count;
-    pthread_mutex_unlock(mu);
+    oren_obj_unlock(mu);
     return oren_int(c);
 }
 
@@ -191,14 +214,14 @@ OrenValue oren_list_push(OrenValue list, OrenValue value) {
         return OREN_NIL;
     }
     pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
-    pthread_mutex_lock(mu);
+    oren_obj_lock(mu);
     if (l->count >= l->capacity) {
         int newCap = l->capacity < 1 ? 4 : l->capacity * 2;
         oren_list_grow(l, newCap);
     }
     l->items[l->count] = value;
     l->count += 1;
-    pthread_mutex_unlock(mu);
+    oren_obj_unlock(mu);
     // Language-level semantics: `oren_list_push` returns `nil`.
     return OREN_NIL;
 }
@@ -216,14 +239,14 @@ OrenValue oren_list_push_unchecked(OrenValue list, OrenValue value) {
         return OREN_NIL;
     }
     pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
-    pthread_mutex_lock(mu);
+    oren_obj_lock(mu);
     if (l->count >= l->capacity) {
         int newCap = l->capacity < 1 ? 4 : l->capacity * 2;
         oren_list_grow(l, newCap);
     }
     l->items[l->count] = value;
     l->count += 1;
-    pthread_mutex_unlock(mu);
+    oren_obj_unlock(mu);
     return OREN_NIL;
 }
 
@@ -239,18 +262,18 @@ OrenValue oren_list_get(OrenValue list, OrenValue index) {
             return OREN_NIL;
         }
         pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
-        pthread_mutex_lock(mu);
+        oren_obj_lock(mu);
         int idx = (int)index.as.int_val;
         int cnt = l->count;
         if (idx < 0 || idx >= cnt) {
             char buf[128];
             snprintf(buf, sizeof(buf), "index out of bounds (idx=%d, count=%d)", idx, cnt);
-            pthread_mutex_unlock(mu);
+            oren_obj_unlock(mu);
             oren_panic(buf);
             return OREN_NIL; // Should not be reached
         }
         OrenValue v = l->items[idx];
-        pthread_mutex_unlock(mu);
+        oren_obj_unlock(mu);
         return v;
     }
     // Also support python list get item?
@@ -299,16 +322,16 @@ OrenValue oren_list_set(OrenValue list, OrenValue index, OrenValue value) {
         return value;
     }
     pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
-    pthread_mutex_lock(mu);
+    oren_obj_lock(mu);
     int idx = (int)index.as.int_val;
     int cnt = l->count;
     if (idx < 0 || idx >= cnt) {
-        pthread_mutex_unlock(mu);
+        oren_obj_unlock(mu);
         oren_panic("list_set index out of bounds");
         return value; // Should not be reached
     }
     l->items[idx] = value;
-    pthread_mutex_unlock(mu);
+    oren_obj_unlock(mu);
     return value;
 }
 
@@ -338,18 +361,18 @@ OrenValue oren_list_int_get(OrenValue list, OrenValue index) {
             return OREN_NIL;
         }
         pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
-        pthread_mutex_lock(mu);
+        oren_obj_lock(mu);
         int idx = (int)index.as.int_val;
         int cnt = l->count;
         if (idx < 0 || idx >= cnt) {
             char buf[128];
             snprintf(buf, sizeof(buf), "index out of bounds (idx=%d, count=%d)", idx, cnt);
-            pthread_mutex_unlock(mu);
+            oren_obj_unlock(mu);
             oren_panic(buf);
             return OREN_NIL; // Should not be reached
         }
         OrenValue v = l->items[idx];
-        pthread_mutex_unlock(mu);
+        oren_obj_unlock(mu);
         return v;
     }
 #ifdef OREN_ENABLE_PYTHON
@@ -396,16 +419,16 @@ OrenValue oren_list_int_set(OrenValue list, OrenValue index, OrenValue value) {
         return value;
     }
     pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
-    pthread_mutex_lock(mu);
+    oren_obj_lock(mu);
     int idx = (int)index.as.int_val;
     int cnt = l->count;
     if (idx < 0 || idx >= cnt) {
-        pthread_mutex_unlock(mu);
+        oren_obj_unlock(mu);
         oren_panic("list_set index out of bounds");
         return value; // Should not be reached
     }
     l->items[idx] = value;
-    pthread_mutex_unlock(mu);
+    oren_obj_unlock(mu);
     return value;
 }
 
@@ -835,12 +858,12 @@ OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value) 
             return value;
         }
         pthread_mutex_t* mu = oren_obj_lock_for_ptr(l);
-        pthread_mutex_lock(mu);
+        oren_obj_lock(mu);
         int idx = (int)index.as.int_val;
         if (idx < 0) {
             char buf[128];
             snprintf(buf, sizeof(buf), "index out of bounds (idx=%d, count=%d)", idx, l->count);
-            pthread_mutex_unlock(mu);
+            oren_obj_unlock(mu);
             oren_panic(buf);
             return value; // Should not be reached
         }
@@ -858,7 +881,7 @@ OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value) 
             l->count = idx + 1;
         }
         l->items[idx] = value;
-        pthread_mutex_unlock(mu);
+        oren_obj_unlock(mu);
         return value;
     }
 
@@ -869,9 +892,9 @@ OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value) 
             return value;
         }
         pthread_mutex_t* mu = oren_obj_lock_for_ptr(map);
-        pthread_mutex_lock(mu);
+        oren_obj_lock(mu);
         if (!(index.type == OREN_TYPE_NIL || index.type == OREN_TYPE_BOOL || index.type == OREN_TYPE_INT || index.type == OREN_TYPE_STRING)) {
-            pthread_mutex_unlock(mu);
+            oren_obj_unlock(mu);
             oren_panic("map key type not supported (need nil/bool/int/string)");
             return value; // Should not be reached
         }
@@ -890,7 +913,7 @@ OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value) 
 
         if (idx < map->count && oren_map_key_eq(map->keys[idx], index)) {
             map->values[idx] = value;
-            pthread_mutex_unlock(mu);
+            oren_obj_unlock(mu);
             return value;
         }
 
@@ -905,7 +928,7 @@ OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value) 
         map->keys[idx] = index;
         map->values[idx] = value;
         map->count += 1;
-        pthread_mutex_unlock(mu);
+        oren_obj_unlock(mu);
         return value;
     }
 
@@ -1158,7 +1181,7 @@ OrenValue oren_map_get(OrenValue map, OrenValue key) {
     }
 
     pthread_mutex_t* mu = oren_obj_lock_for_ptr(m);
-    pthread_mutex_lock(mu);
+    oren_obj_lock(mu);
     int lo = 0;
     int hi = m->count;
     while (lo < hi) {
@@ -1173,7 +1196,7 @@ OrenValue oren_map_get(OrenValue map, OrenValue key) {
     if (lo < m->count && oren_map_key_eq(m->keys[lo], key)) {
         out = m->values[lo];
     }
-    pthread_mutex_unlock(mu);
+    oren_obj_unlock(mu);
     return out;
 }
 
@@ -1253,9 +1276,9 @@ OrenValue oren_map_len(OrenValue map) {
     OrenMap* m = map.as.map_val;
     if (!m) return oren_int(0);
     pthread_mutex_t* mu = oren_obj_lock_for_ptr(m);
-    pthread_mutex_lock(mu);
+    oren_obj_lock(mu);
     int c = m->count;
-    pthread_mutex_unlock(mu);
+    oren_obj_unlock(mu);
     return oren_int(c);
 }
 

@@ -955,16 +955,22 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    Recent measurements (arm64-macos, M2 Pro; runs=5, warmup=1):
 
    - 2026-02-19:
-     - `array_sum_int` (2M elems): C 0.00588s; Oren C 0.20301s (~34.6×); Oren native 0.21675s (~36.9×); OBC 0.63610s (~108.3×)
-     - `dot_product_int` (2M elems): C 0.00707s; Oren C 0.33223s (~47.0×); Oren native 0.36481s (~51.6×); OBC 0.91061s (~128.7×)
+     - baseline:
+       - `array_sum_int` (2M elems): C 0.00551s; Oren C 0.21164s (~38.4×); Oren native 0.21428s (~38.9×); OBC 0.62950s (~114.2×)
+       - `dot_product_int` (2M elems): C 0.00640s; Oren C 0.35900s (~56.1×); Oren native 0.36207s (~56.6×); OBC 0.90447s (~141.3×)
+     - perf-only (`OREN_LIST_SKIP_LOCKS=1` on Oren C):
+       - `array_sum_int` (2M elems): C 0.00552s; Oren C 0.13652s (~24.7×); Oren native 0.21567s (~39.1×); OBC 0.62915s (~114.0×)
+       - `dot_product_int` (2M elems): C 0.00671s; Oren C 0.23139s (~34.5×); Oren native 0.36539s (~54.5×); OBC 0.90108s (~134.3×)
    - 2026-02-18:
      - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
      - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
 
    Artifacts:
 
-   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_011235.md`
-   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_011245.md`
+   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_012921.md`
+   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_012933.md`
+   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_012952.md` (skip locks)
+   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_013026.md` (skip locks)
    - `benchmarks/results/array_sum_int_darwin_arm64_20260218_230227.md`
    - `benchmarks/results/dot_product_int_darwin_arm64_20260218_230252.md`
 
@@ -972,6 +978,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    - 2026-02-19: C backend list<int> get/set now inline the list fast-path (bypasses generic list/map/python dispatch).
      - Runtime: `lib/runtime/040_lists_maps.inc` (`oren_list_int_get`, `oren_list_int_set`)
+   - 2026-02-19: C backend list/map ops can skip striped object locks via `OREN_LIST_SKIP_LOCKS=1` (perf-only; unsafe under real threading).
+     - Runtime: `lib/runtime/040_lists_maps.inc` (lock gating)
 
    x64‑windows status:
 
