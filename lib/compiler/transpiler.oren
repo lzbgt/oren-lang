@@ -434,7 +434,7 @@ fn _transpiler_fast_int_rhs(t, exp, idx_name, list_items, idx_c) {
     if et == "Integer" {
         return "(uint64_t)" + int_str(parse_int_lit(exp["value"]))
     }
-    if et == "Call" {
+    if et == "Call" || et == "Index" {
         var list_name = _transpiler_is_list_int_get_call(t, exp, idx_name)
         if list_name == nil { return nil }
         if list_items == nil { return nil }

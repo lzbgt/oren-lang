@@ -1028,14 +1028,16 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
       - `array_sum_int` (2M elems): C 0.004004s; Oren C 0.039389s (~9.84×); Oren native 0.040908s (~10.2×); OBC 0.629024s (~157.1×)
       - `dot_product_int` (2M elems): C 0.004784s; Oren C 0.072135s (~15.1×); Oren native 0.065333s (~13.7×); OBC 0.898854s (~187.9×)
     - index syntax (list<int> `xs[i]`, list_int recv-kind + native index fast-loop):
-      - `array_sum_int` (2M elems): C 0.003957s; Oren C 0.065205s (~16.5×); Oren native 0.019772s (~5.00×); OBC 0.621473s (~157.1×)
-      - `dot_product_int` (2M elems): C 0.004641s; Oren C 0.126783s (~27.3×); Oren native 0.024480s (~5.27×); OBC 0.889601s (~191.7×)
+      - `array_sum_int` (2M elems): C 0.004008s; Oren C 0.057246s (~14.3×); Oren native 0.020166s (~5.03×); OBC 0.622126s (~155.2×)
+      - `dot_product_int` (2M elems): C 0.004800s; Oren C 0.113551s (~23.7×); Oren native 0.024767s (~5.16×); OBC 0.888789s (~185.2×)
    - 2026-02-18:
      - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
      - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
 
   Artifacts:
 
+  - `benchmarks/results/dot_product_int_darwin_arm64_20260219_060427.md`
+  - `benchmarks/results/array_sum_int_darwin_arm64_20260219_060418.md`
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_055756.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_055746.md`
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_054926.md`
@@ -1072,6 +1074,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - Runtime: `lib/runtime/040_lists_maps.inc` (`oren_list_int_get`, `oren_list_int_set`)
   - 2026-02-19: C backend list<int> index syntax now emits list-int fast helpers for get/set.
     - Compiler: `lib/compiler/transpiler.oren` (`Index` + `Set` lowering)
+  - 2026-02-19: C backend fast list<int> accumulator now accepts index syntax in sum/dot loops.
+    - Compiler: `lib/compiler/transpiler.oren` (`_transpiler_fast_int_rhs` Index support)
    - 2026-02-19: C backend list/map ops skip striped object locks until `spawn` is used (reduces single-thread overhead; main thread wrapper does not enable locks).
      - Override: `OREN_LIST_FORCE_LOCKS=1` forces locks; `OREN_LIST_SKIP_LOCKS=1` disables locks even after threads (perf-only, unsafe).
      - Runtime: `lib/runtime/010_prelude.inc` (`g_threads_started`), `lib/runtime/020_threads_gc.inc` (spawn marks), `lib/runtime/040_lists_maps.inc` (lock gating)
