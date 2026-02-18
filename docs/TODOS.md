@@ -910,11 +910,34 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				       - Fix: `oren_mark_value` now scans 8-byte slots for kind=STRUCT, and honors the mark bit to avoid infinite recursion on cyclic graphs.
 				       - Runtime: `lib/runtime_native/100_time_gc_alloc.oren` (`oren_mark_value`)
 
-		   References:
+   References:
 
    - `docs/CONCURRENCY_MODEL.md`
    - `docs/NATIVE_GMP_SCHEDULER.md`
    - `docs/ASYNC_IO_AND_SELECT.md`
+
+2) **Close list<int> perf gap vs C (M)**
+
+   Recent measurements (arm64-macos, M2 Pro; runs=5, warmup=1):
+
+   - `array_sum_int` (2M elems): C 0.0040s; Oren C 0.2014s (~50×); Oren native 0.2989s (~75×); OBC 0.6507s (~163×)
+   - `dot_product_int` (2M elems): C 0.0049s; Oren C 0.3339s (~68×); Oren native 0.5167s (~105×); OBC 0.9330s (~189×)
+
+   Artifacts:
+
+   - `benchmarks/results/array_sum_int_darwin_arm64_20260218_224358.md`
+   - `benchmarks/results/dot_product_int_darwin_arm64_20260218_224421.md`
+
+   Gates:
+
+   - `OREN_BENCH_PROGRAM=array_sum_int python3 benchmarks/run_benchmarks.py`
+   - `OREN_BENCH_PROGRAM=dot_product_int python3 benchmarks/run_benchmarks.py`
+
+   Next steps (highest leverage):
+
+   - Lower list<int> get/set/push to native intrinsics with bounds-check elision in tight loops (native + C backends).
+   - Add inty propagation for list<int> loops (avoid `oren_add`/`oren_mod` helper calls in hot paths).
+   - Add AVM bytecode unboxed list<int> ops or confirm boxed fallback and document its perf cost.
 
 ## P1 (Soon)
 

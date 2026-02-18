@@ -358,6 +358,7 @@ fn oren_type_tag(v) {
     if native_value_is_false(v) || native_value_is_true(v) { return 3 }
     if oren_is_string(v) == true { return 4 }
     if oren_is_list(v) == true { return 6 }
+    if oren_is_list_int(v) == true { return 6 }
     if oren_is_map(v) == true { return 7 }
     if oren_is_func(v) == true { return 8 }
     if oren_is_buf(v) == true {

@@ -20,8 +20,19 @@ fn oren_iter_next(container, idx, out_pair) {
         if node != 0 {
             var kind = ptr_get(iadd(node, 16))
 
+            // List<int>: yield elements (no view protocol).
+            if kind == list_int_kind() {
+                var count = ptr_get(container)
+                if idx < count {
+                    var buf = ptr_get(iadd(container, 16))
+                    if buf != 0 {
+                        ok = 1
+                        val = ptr_get(iadd(buf, idx * 8))
+                    }
+                }
+            }
             // List: yield elements (or view protocol for typed buffers).
-            if kind == 2 {
+            else if kind == 2 {
                 var count = ptr_get(container)
                 var is_buf_view = 0
 

@@ -11,6 +11,14 @@ static void oren_list_grow(OrenList* l, int newCap) {
     l->capacity = newCap;
 }
 
+static inline int oren_list_int_check_value(OrenValue v) {
+    if (v.type != OREN_TYPE_INT) {
+        oren_panic("list_int expects int");
+        return 0;
+    }
+    return 1;
+}
+
 static void oren_map_grow(OrenMap* m, int newCap) {
     if (!m) return;
     if (newCap <= m->capacity) return;
@@ -302,6 +310,29 @@ OrenValue oren_list_set(OrenValue list, OrenValue index, OrenValue value) {
     l->items[idx] = value;
     pthread_mutex_unlock(mu);
     return value;
+}
+
+// --- list<int> helpers (boxed ints in C backend) ---
+OrenValue oren_new_list_int(OrenValue cap) {
+    return oren_list_new_cap(cap);
+}
+
+OrenValue oren_list_int_len(OrenValue list) {
+    return oren_list_len(list);
+}
+
+OrenValue oren_list_int_push(OrenValue list, OrenValue value) {
+    if (!oren_list_int_check_value(value)) return OREN_NIL;
+    return oren_list_push(list, value);
+}
+
+OrenValue oren_list_int_get(OrenValue list, OrenValue index) {
+    return oren_list_get(list, index);
+}
+
+OrenValue oren_list_int_set(OrenValue list, OrenValue index, OrenValue value) {
+    if (!oren_list_int_check_value(value)) return OREN_NIL;
+    return oren_list_set(list, index, value);
 }
 
 static int bytes_get_u8_checked(OrenValue bytes, int idx, uint8_t* out) {

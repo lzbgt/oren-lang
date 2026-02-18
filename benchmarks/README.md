@@ -11,7 +11,9 @@ Benchmarks:
 
 - `loop_sum` (tight integer loop with simple arithmetic)
 - `array_sum` (list/array fill + sum; stresses element access and loop overhead)
+- `array_sum_int` (list<int> fill + sum; evaluates unboxed list<int> path)
 - `dot_product` (two-array dot product; stresses loads, multiply, and loop)
+- `dot_product_int` (list<int> dot product; evaluates unboxed list<int> path)
 - `alloc_churn` (allocation churn with periodic GC to surface leaks)
 - `alloc_drop` (allocation churn with periodic drops to surface GC/root leaks; respects `OREN_BENCH_ITERS`)
 

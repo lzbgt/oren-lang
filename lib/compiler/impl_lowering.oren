@@ -573,6 +573,31 @@ fn rewrite_call_expr(expr, regs, trait_set, env, kind_env, errs) {
                 return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_list_push"}, [argsR[0], argsR[1]])
             }
         }
+        if resolved == "STD_list_int_new" {
+            if oren_list_len(argsR) == 1 {
+                return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_new_list_int"}, [argsR[0]])
+            }
+        }
+        if resolved == "STD_list_int_len" {
+            if oren_list_len(argsR) == 1 {
+                return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_list_int_len"}, [argsR[0]])
+            }
+        }
+        if resolved == "STD_list_int_push" {
+            if oren_list_len(argsR) == 2 {
+                return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_list_int_push"}, [argsR[0], argsR[1]])
+            }
+        }
+        if resolved == "STD_list_int_get" {
+            if oren_list_len(argsR) == 2 {
+                return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_list_int_get"}, [argsR[0], argsR[1]])
+            }
+        }
+        if resolved == "STD_list_int_set" {
+            if oren_list_len(argsR) == 3 {
+                return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_list_int_set"}, [argsR[0], argsR[1], argsR[2]])
+            }
+        }
     }
 
     // Iterator extension hook (rolling v1):

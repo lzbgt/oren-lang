@@ -1,0 +1,21 @@
+import list "std:list"
+
+fn main() {
+    var n = 2000000
+    var xs = list.int_new(n)
+    var i = 0
+    while i < n {
+        list.int_push(xs, (i * 3 + 7) % 1000)
+        i = i + 1
+    }
+
+    var sum = 0
+    i = 0
+    while i < n {
+        sum = sum + list.int_get(xs, i)
+        i = i + 1
+    }
+
+    print(sum)
+    return 0
+}

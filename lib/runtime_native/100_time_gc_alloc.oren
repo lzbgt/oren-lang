@@ -1515,6 +1515,10 @@ fn oren_mark_value(val) {
                 oren_mark_value(buf)
             }
         }
+        if kind == list_int_kind() { // LIST_INT (unboxed)
+            var buf = ptr_get(iadd(val, 16))
+            if buf != 0 { oren_mark_value(buf) }
+        }
         if kind == 3 { // MAP
             var count = ptr_get(iadd(val, 0))
             var buf = ptr_get(iadd(val, 16))

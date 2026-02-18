@@ -224,6 +224,12 @@ OrenValue oren_list_push(OrenValue list, OrenValue value);
 OrenValue oren_list_push_unchecked(OrenValue list, OrenValue value);
 OrenValue oren_list_get(OrenValue list, OrenValue index);
 OrenValue oren_list_set(OrenValue list, OrenValue index, OrenValue value);
+// list<int> helpers (native fast path; C backend uses boxed ints).
+OrenValue oren_new_list_int(OrenValue cap);
+OrenValue oren_list_int_len(OrenValue list);
+OrenValue oren_list_int_push(OrenValue list, OrenValue value);
+OrenValue oren_list_int_get(OrenValue list, OrenValue index);
+OrenValue oren_list_int_set(OrenValue list, OrenValue index, OrenValue value);
 OrenValue oren_iter_next(OrenValue container, OrenValue idx, OrenValue out_pair);
 // Map entry iterator (key+value). Returns ok:int (1/0) and writes into out_pair[0..1].
 OrenValue oren_iter_next_entry(OrenValue map, OrenValue idx, OrenValue out_pair);

@@ -1,5 +1,6 @@
 // --- Lists ---
 // Layout: [count][capacity][buffer_ptr][magic]
+fn list_int_kind() { return 8 } // LIST_INT (unboxed int list)
 	@oren.keep
 	fn oren_new_list(cap) {
 	    if cap < 0 { cap = 0 }
@@ -23,8 +24,40 @@
 	    ptr_set(iadd(header, 8), cap)     // capacity
 	    ptr_set(iadd(header, 16), buf)    // data buffer
 	    ptr_set(iadd(header, 24), list_magic())
-		    return header
+	    return header
 			}
+
+// --- List<int> (unboxed) ---
+@oren.keep
+fn oren_new_list_int(cap) {
+    if cap < 0 { cap = 0 }
+    var total = 32
+    if cap > 0 { total = total + cap * 8 }
+    var header = malloc_k(total, list_int_kind())
+    if header == 0 { exit(200) }
+    if header == -1 { exit(200) }
+    var buf = 0
+    if cap > 0 {
+        buf = iadd(header, 32)
+    }
+    ptr_set(iadd(header, 0), 0)       // count
+    ptr_set(iadd(header, 8), cap)     // capacity
+    ptr_set(iadd(header, 16), buf)    // data buffer
+    ptr_set(iadd(header, 24), list_magic())
+    return header
+}
+
+fn _list_int_check_value(v) {
+    if native_value_is_nil(v) { oren_panic("list_int expects int (got nil)"); return 0 }
+    if native_value_is_true(v) || native_value_is_false(v) {
+        oren_panic("list_int expects int (got bool)"); return 0
+    }
+    // If v is tracked, it's not an int (ints are untracked immediates).
+    if native_gc_find_node_nolock(v) != 0 {
+        oren_panic("list_int expects int (got pointer)")
+    }
+    return 0
+}
 
 // Cross-backend helper: allocate an empty list with reserved capacity.
 // In native runtime, `oren_new_list(cap)` already has "capacity constructor" semantics.
@@ -179,6 +212,121 @@ fn oren_is_list(v) {
 	    if ptr_get(iadd(node, 16)) != 2 { return false }
 	    if ptr_get(iadd(v, 24)) != list_magic() { return false }
 	    return true
+}
+
+// Safe type predicate: list<int> (unboxed list).
+@oren.keep
+fn oren_is_list_int(v) {
+    if v == nil { return false }
+    var node = oren_find_node(v)
+    if node == 0 { return false }
+    if ptr_get(iadd(node, 16)) != list_int_kind() { return false }
+    if ptr_get(iadd(v, 24)) != list_magic() { return false }
+    return true
+}
+
+@oren.keep
+fn oren_list_int_len(list) {
+    if list == nil { return 0 }
+    var node = oren_find_node(list)
+    if node == 0 { oren_panic("list_int_len on non-list"); return 0 }
+    if ptr_get(iadd(node, 16)) != list_int_kind() { oren_panic("list_int_len on non-list"); return 0 }
+    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_int_len on non-list"); return 0 }
+    return ptr_get(iadd(list, 0))
+}
+
+@oren.keep
+fn oren_list_int_push(list, value) {
+    if list == nil { oren_panic("list_int_push on nil"); return nil }
+    var node = oren_find_node(list)
+    if node == 0 { oren_panic("list_int_push on non-list"); return nil }
+    if ptr_get(iadd(node, 16)) != list_int_kind() { oren_panic("list_int_push on non-list"); return nil }
+    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_int_push on non-list"); return nil }
+    _list_int_check_value(value)
+
+    var count = ptr_get(iadd(list, 0))
+    var cap = ptr_get(iadd(list, 8))
+    var buf = ptr_get(iadd(list, 16))
+    if count >= cap {
+        var new_cap = cap * 2
+        if new_cap < 4 { new_cap = 4 }
+        var new_buf = malloc_k(new_cap * 8, 0)
+        if new_buf == 0 { exit(211) }
+        if new_buf == -1 { exit(211) }
+        var i = 0
+        while i < count {
+            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+            i = iadd(i, 1)
+        }
+        buf = new_buf
+        cap = new_cap
+        ptr_set(iadd(list, 8), cap)
+        ptr_set(iadd(list, 16), buf)
+    }
+    ptr_set(iadd(buf, count * 8), value)
+    ptr_set(iadd(list, 0), iadd(count, 1))
+    return nil
+}
+
+@oren.keep
+fn oren_list_int_get(list, idx) {
+    if list == nil { oren_panic("list_int_get on nil"); return nil }
+    var node = oren_find_node(list)
+    if node == 0 { oren_panic("list_int_get on non-list"); return nil }
+    if ptr_get(iadd(node, 16)) != list_int_kind() { oren_panic("list_int_get on non-list"); return nil }
+    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_int_get on non-list"); return nil }
+    var count = ptr_get(iadd(list, 0))
+    if idx < 0 { oren_panic("Index out of bounds (negative)"); return nil }
+    if idx >= count { oren_panic("Index out of bounds"); return nil }
+    var buf = ptr_get(iadd(list, 16))
+    return ptr_get(iadd(buf, idx * 8))
+}
+
+@oren.keep
+fn oren_list_int_set(list, idx, value) {
+    if list == nil { oren_panic("list_int_set on nil"); return nil }
+    var node = oren_find_node(list)
+    if node == 0 { oren_panic("list_int_set on non-list"); return nil }
+    if ptr_get(iadd(node, 16)) != list_int_kind() { oren_panic("list_int_set on non-list"); return nil }
+    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_int_set on non-list") }
+    _list_int_check_value(value)
+
+    var count = ptr_get(iadd(list, 0))
+    if idx < 0 { oren_panic("Index out of bounds (negative)") }
+    var want = iadd(idx, 1)
+    var cap = ptr_get(iadd(list, 8))
+    var buf = ptr_get(iadd(list, 16))
+
+    if want > cap {
+        var new_cap = cap * 2
+        if new_cap < 4 { new_cap = 4 }
+        if new_cap < want { new_cap = want }
+        var new_buf = malloc_k(new_cap * 8, 0)
+        if new_buf == 0 { exit(212) }
+        if new_buf == -1 { exit(212) }
+
+        var i = 0
+        while i < count {
+            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+            i = iadd(i, 1)
+        }
+        // Initialize new slots to 0.
+        while i < want {
+            ptr_set(iadd(new_buf, i * 8), 0)
+            i = iadd(i, 1)
+        }
+
+        buf = new_buf
+        cap = new_cap
+        ptr_set(iadd(list, 8), cap)
+        ptr_set(iadd(list, 16), buf)
+    } else {
+        if buf == 0 { oren_panic("list_int_set: buf nil") }
+    }
+
+    ptr_set(iadd(buf, idx * 8), value)
+    if want > count { ptr_set(iadd(list, 0), want) }
+    return value
 }
 
 	@oren.keep

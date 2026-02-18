@@ -1044,7 +1044,7 @@ fn transpile_expression(t, exp) {
         } else {
             if exp["fn"]["type"] == "Member" {
                 var ns2 = ns_resolve(t, exp["fn"])
-                if ns2 != nil && ns2["is_ns"] == true {
+                if ns2 != nil {
                     if list_contains(t["functions"], ns2["name"]) { fn_sym = ns2["name"] }
                 }
             }

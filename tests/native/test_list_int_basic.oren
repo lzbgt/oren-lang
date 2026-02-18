@@ -1,0 +1,17 @@
+import list "std:list"
+
+fn main() {
+    var xs = list.int_new(2)
+    list.int_push(xs, 10)
+    list.int_push(xs, 20)
+
+    if list.int_len(xs) != 2 { exit(1) }
+    if list.int_get(xs, 0) != 10 { exit(2) }
+    if list.int_get(xs, 1) != 20 { exit(3) }
+
+    list.int_set(xs, 1, 99)
+    if list.int_get(xs, 1) != 99 { exit(4) }
+
+    print("list<int> OK")
+    exit(0)
+}

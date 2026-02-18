@@ -758,6 +758,42 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_byte(ctx, AVM_JOIN)
             return nil
         }
+        if name == "oren_new_list_int" {
+            if oren_list_len(expr["args"]) != 1 {
+            bytecode_error(ctx, "bytecode backend: oren_new_list_int expects (cap)")
+            return nil
+            }
+            // Preserve side effects of cap expression; ignore the value (boxed-list fallback).
+            bytecode_compile_expr(ctx, expr["args"][0])
+            emit_byte(ctx, AVM_POP)
+            emit_byte(ctx, AVM_NEW_LIST)
+            emit_u16(ctx, 0)
+            return nil
+        }
+        if name == "oren_list_int_get" {
+            if oren_list_len(expr["args"]) != 2 {
+            bytecode_error(ctx, "bytecode backend: oren_list_int_get expects (list, idx)")
+            return nil
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            bytecode_compile_expr(ctx, expr["args"][1])
+            emit_byte(ctx, AVM_GET_INDEX)
+            return nil
+        }
+        if name == "oren_list_int_set" {
+            if oren_list_len(expr["args"]) != 3 {
+            bytecode_error(ctx, "bytecode backend: oren_list_int_set expects (list, idx, val)")
+            return nil
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            bytecode_compile_expr(ctx, expr["args"][1])
+            bytecode_compile_expr(ctx, expr["args"][2])
+            emit_byte(ctx, AVM_SET_INDEX)
+            var nil_idx = add_constant(ctx, {"type": "Nil"})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, nil_idx)
+            return nil
+        }
         if name == "oren_join_timeout" {
             if oren_list_len(expr["args"]) != 2 {
             bytecode_error(ctx, "bytecode backend: oren_join_timeout expects (handle, timeout_ms)")
@@ -836,8 +872,10 @@ fn bytecode_compile_expr(ctx, expr) {
         // stable-stdlib names (`STD_*`) so bytecode stays fast even if wrapper
         // inlining is skipped for some reason.
         if name == "oren_list_len" || name == "STD_list_len" { native_id = 12 }
+        if name == "oren_list_int_len" { native_id = 12 }
         // Note: `oren_list_push` returns `nil` (cross-backend contract).
         if name == "oren_list_push" || name == "STD_list_push" { native_id = 13 }
+        if name == "oren_list_int_push" { native_id = 13 }
         if name == "oren_index_set" { native_id = 14 }
         if name == "int_mod" { native_id = 15 }
         if name == "oren_bytes_from_string" { native_id = 16 }
