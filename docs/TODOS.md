@@ -650,11 +650,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - Diagnostics: `OREN_TRACE_LIST_LOCKS=1` prints the gating state once at first list access.
    - 2026-02-19: C backend list<int> fast-paths now inline when locks are not needed (len/get/set/push).
      - Transpiler emits `oren_list_int_*_fast` helpers; runtime exposes `oren_list_locking_needed()`.
-   - 2026-02-19: list<int> refresh after inty inlining (darwin/arm64, runs=5, warmup=1, RSS):
-     - `array_sum_int`: C 0.00384s; Oren C 0.11973s (~31.2×); Oren native 0.21122s (~55.0×); OBC 0.62737s (~163.5×)
-       - Result artifact: `benchmarks/results/array_sum_int_darwin_arm64_20260219_021452.md`
-     - `dot_product_int`: C 0.00512s; Oren C 0.20436s (~39.9×); Oren native 0.35988s (~70.2×); OBC 0.90120s (~175.9×)
-       - Result artifact: `benchmarks/results/dot_product_int_darwin_arm64_20260219_021503.md`
+  - 2026-02-19: list<int> refresh after inty + fast-loop hoist (darwin/arm64, runs=5, warmup=1, RSS):
+    - `array_sum_int`: C 0.003753s; Oren C 0.119836s (~31.9×); Oren native 0.214117s (~57.1×); OBC 0.629634s (~167.8×)
+      - Result artifact: `benchmarks/results/array_sum_int_darwin_arm64_20260219_023233.md`
+    - `dot_product_int`: C 0.004777s; Oren C 0.187978s (~39.3×); Oren native 0.362284s (~75.8×); OBC 0.902063s (~188.9×)
+      - Result artifact: `benchmarks/results/dot_product_int_darwin_arm64_20260219_023244.md`
    - 2026-02-19: loop_sum refresh (M2 Pro, runs=5, warmup=1, RSS):
      - C 0.0682s; Oren C 1.1902s (~17.5×); Oren native 0.4298s (~6.3×); OBC 5.7201s (~83.9×)
      - Result artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_010934.md`
@@ -980,25 +980,30 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    Recent measurements (arm64-macos, M2 Pro; runs=5, warmup=1):
 
-   - 2026-02-19:
-     - baseline:
-       - `array_sum_int` (2M elems): C 0.00535s; Oren C 0.21096s (~39.4×); Oren native 0.21361s (~39.9×); OBC 0.62902s (~117.5×)
-       - `dot_product_int` (2M elems): C 0.00639s; Oren C 0.35846s (~56.1×); Oren native 0.36297s (~56.8×); OBC 0.90223s (~141.2×)
-     - perf-only (`OREN_LIST_SKIP_LOCKS=1` on Oren C):
-       - `array_sum_int` (2M elems): C 0.00555s; Oren C 0.13685s (~24.7×); Oren native 0.21675s (~39.1×); OBC 0.62884s (~113.3×)
-       - `dot_product_int` (2M elems): C 0.00643s; Oren C 0.23191s (~36.1×); Oren native 0.38462s (~59.8×); OBC 0.90014s (~140.1×)
+  - 2026-02-19:
+    - baseline:
+      - `array_sum_int` (2M elems): C 0.00535s; Oren C 0.21096s (~39.4×); Oren native 0.21361s (~39.9×); OBC 0.62902s (~117.5×)
+      - `dot_product_int` (2M elems): C 0.00639s; Oren C 0.35846s (~56.1×); Oren native 0.36297s (~56.8×); OBC 0.90223s (~141.2×)
+    - perf-only (`OREN_LIST_SKIP_LOCKS=1` on Oren C):
+      - `array_sum_int` (2M elems): C 0.00555s; Oren C 0.13685s (~24.7×); Oren native 0.21675s (~39.1×); OBC 0.62884s (~113.3×)
+      - `dot_product_int` (2M elems): C 0.00643s; Oren C 0.23191s (~36.1×); Oren native 0.38462s (~59.8×); OBC 0.90014s (~140.1×)
+    - refresh (inty + list<int> fast-loop hoist):
+      - `array_sum_int` (2M elems): C 0.003753s; Oren C 0.119836s (~31.9×); Oren native 0.214117s (~57.1×); OBC 0.629634s (~167.8×)
+      - `dot_product_int` (2M elems): C 0.004777s; Oren C 0.187978s (~39.3×); Oren native 0.362284s (~75.8×); OBC 0.902063s (~188.9×)
    - 2026-02-18:
      - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
      - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
 
    Artifacts:
 
-   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_014519.md`
-   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_014347.md`
-   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_014449.md` (skip locks)
-   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_014945.md` (skip locks)
-   - `benchmarks/results/array_sum_int_darwin_arm64_20260218_230227.md`
-   - `benchmarks/results/dot_product_int_darwin_arm64_20260218_230252.md`
+  - `benchmarks/results/array_sum_int_darwin_arm64_20260219_014519.md`
+  - `benchmarks/results/dot_product_int_darwin_arm64_20260219_014347.md`
+  - `benchmarks/results/array_sum_int_darwin_arm64_20260219_014449.md` (skip locks)
+  - `benchmarks/results/dot_product_int_darwin_arm64_20260219_014945.md` (skip locks)
+  - `benchmarks/results/array_sum_int_darwin_arm64_20260219_023233.md`
+  - `benchmarks/results/dot_product_int_darwin_arm64_20260219_023244.md`
+  - `benchmarks/results/array_sum_int_darwin_arm64_20260218_230227.md`
+  - `benchmarks/results/dot_product_int_darwin_arm64_20260218_230252.md`
 
    Status (fact):
 
@@ -1021,8 +1026,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    Next steps (highest leverage):
 
-   - Hoist list<int> header/tracked-node checks out of tight loops and add bounds-check elision for list<int> get/set (native + C backends).
-   - Add inty propagation for list<int> loops (avoid `oren_add`/`oren_mod` helper calls in hot paths).
+  - Extend list<int> fast-loop hoist to cover more safe patterns and to the native backend (C backend now uses it for strict list_int_get-only loops).
+  - Reduce Oren C boxing cost in list<int> loops by avoiding intermediate `OrenValue` temporaries where possible (keep fast-path bounds checks).
    - Add AVM bytecode unboxed list<int> ops or confirm boxed fallback and document its perf cost.
 
 ## P1 (Soon)
