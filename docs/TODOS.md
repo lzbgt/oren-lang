@@ -618,6 +618,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - nodes median ~642 (freed median ~611), freed_bytes median ~15.2k
      - freed_kinds median: list ~114, other ~497 (list_int/map/struct/func/buf/raw all 0)
      - Indicates sweep work per cycle is small and dominated by non-list nodes; bottleneck likely in alloc tracking/drop path rather than sweep volume.
+   - 2026-02-19: alloc_drop alloc-kind trace (`OREN_TRACE_GC_ALLOC_KIND=1`, threshold=1000):
+     - 91 cycles, alloc median total ~947 (list ~109, other ~886; list_int/map/struct/func/buf/raw all 0)
+     - Confirms most allocation traffic is non-list (likely strings/other small temporaries), so drop-path tracking cost is not list-heavy.
    - 2026-02-19: `alloc_churn` (darwin/arm64, runs=3, `OREN_BENCH_RSS=1`):
      - C: 0.0042s, RSS ~1.3MB
      - Oren C: 0.115s, RSS ~68.7MB

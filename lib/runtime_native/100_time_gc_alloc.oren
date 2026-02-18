@@ -40,6 +40,18 @@ var g_cstr0_set_len = 0
 var g_cstr0_min_ptr = 0
 var g_cstr0_max_ptr = 0
 
+// --- GC alloc-kind tracing (optional) ---
+// Counters accumulate between sweeps when `OREN_TRACE_GC_ALLOC_KIND=1`.
+var g_gc_alloc_kind_total = 0
+var g_gc_alloc_kind_list = 0
+var g_gc_alloc_kind_list_int = 0
+var g_gc_alloc_kind_map = 0
+var g_gc_alloc_kind_struct = 0
+var g_gc_alloc_kind_func = 0
+var g_gc_alloc_kind_buf = 0
+var g_gc_alloc_kind_raw = 0
+var g_gc_alloc_kind_other = 0
+
 fn native_alloc_index_mmap_table(bytes) {
     // IMPORTANT (Tier‑1 correctness):
     // Allocate the alloc-index table via a dedicated anonymous mmap instead of `malloc_raw`.
@@ -992,6 +1004,27 @@ fn oren_track_alloc(ptr, size, kind) {
     }
     acquire_lock()
 
+    if g_gc_trace_alloc_kind != 0 {
+        g_gc_alloc_kind_total = g_gc_alloc_kind_total + 1
+        if kind == 2 {
+            g_gc_alloc_kind_list = g_gc_alloc_kind_list + 1
+        } else if kind == list_int_kind() {
+            g_gc_alloc_kind_list_int = g_gc_alloc_kind_list_int + 1
+        } else if kind == 3 {
+            g_gc_alloc_kind_map = g_gc_alloc_kind_map + 1
+        } else if kind == 4 {
+            g_gc_alloc_kind_struct = g_gc_alloc_kind_struct + 1
+        } else if kind == 6 {
+            g_gc_alloc_kind_func = g_gc_alloc_kind_func + 1
+        } else if kind == 7 {
+            g_gc_alloc_kind_buf = g_gc_alloc_kind_buf + 1
+        } else if kind == 9 {
+            g_gc_alloc_kind_raw = g_gc_alloc_kind_raw + 1
+        } else {
+            g_gc_alloc_kind_other = g_gc_alloc_kind_other + 1
+        }
+    }
+
     // Ensure the alloc-index exists before we rely on it for de-duplication.
     // This is a one-time cost in early init; it prevents duplicate tracking nodes.
     if g_alloc_index_cap == 0 {
@@ -1728,6 +1761,26 @@ fn native_gc_collect() {
             " buf:" + oren_int_to_string(sweep_buf) +
             " raw:" + oren_int_to_string(sweep_raw) +
             " other:" + oren_int_to_string(sweep_other))
+    }
+    if g_gc_trace_alloc_kind != 0 {
+        print("[gc_alloc] total=" + oren_int_to_string(g_gc_alloc_kind_total) +
+            " list=" + oren_int_to_string(g_gc_alloc_kind_list) +
+            " list_int=" + oren_int_to_string(g_gc_alloc_kind_list_int) +
+            " map=" + oren_int_to_string(g_gc_alloc_kind_map) +
+            " struct=" + oren_int_to_string(g_gc_alloc_kind_struct) +
+            " func=" + oren_int_to_string(g_gc_alloc_kind_func) +
+            " buf=" + oren_int_to_string(g_gc_alloc_kind_buf) +
+            " raw=" + oren_int_to_string(g_gc_alloc_kind_raw) +
+            " other=" + oren_int_to_string(g_gc_alloc_kind_other))
+        g_gc_alloc_kind_total = 0
+        g_gc_alloc_kind_list = 0
+        g_gc_alloc_kind_list_int = 0
+        g_gc_alloc_kind_map = 0
+        g_gc_alloc_kind_struct = 0
+        g_gc_alloc_kind_func = 0
+        g_gc_alloc_kind_buf = 0
+        g_gc_alloc_kind_raw = 0
+        g_gc_alloc_kind_other = 0
     }
     return 0
 }
