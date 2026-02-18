@@ -59,6 +59,14 @@ var g_alloc_index_rebuild_allocs = 0
 var g_alloc_index_rebuild_static = 0
 var g_alloc_index_probe_exhausted_count = 0
 
+// track_alloc timing (optional; gated by g_trace_track_alloc_time).
+var g_track_alloc_time_total_ns = 0
+var g_track_alloc_time_total_count = 0
+var g_track_alloc_time_list_ns = 0
+var g_track_alloc_time_list_count = 0
+var g_track_alloc_time_other_ns = 0
+var g_track_alloc_time_other_count = 0
+
 fn native_alloc_index_mmap_table(bytes) {
     // IMPORTANT (Tier‑1 correctness):
     // Allocate the alloc-index table via a dedicated anonymous mmap instead of `malloc_raw`.
@@ -994,6 +1002,22 @@ fn release_lock() {
     return 0
 }
 
+fn _trace_track_alloc_time_finish(t0, kind) {
+    if g_trace_track_alloc_time == 0 { return 0 }
+    var dt = oren_time_now_ns() - t0
+    if dt < 0 { return 0 }
+    g_track_alloc_time_total_ns = g_track_alloc_time_total_ns + dt
+    g_track_alloc_time_total_count = g_track_alloc_time_total_count + 1
+    if kind == 2 {
+        g_track_alloc_time_list_ns = g_track_alloc_time_list_ns + dt
+        g_track_alloc_time_list_count = g_track_alloc_time_list_count + 1
+    } else {
+        g_track_alloc_time_other_ns = g_track_alloc_time_other_ns + dt
+        g_track_alloc_time_other_count = g_track_alloc_time_other_count + 1
+    }
+    return 0
+}
+
 // NOTE: `malloc_raw` and the `native_malloc_raw_or_mmap` fallback live in
 // `lib/runtime_native/015_raw_alloc.oren` so early init code can safely use them.
 
@@ -1028,6 +1052,10 @@ fn oren_track_alloc(ptr, size, kind) {
                   " idx_cap=" + oren_int_to_string(g_alloc_index_cap))
         }
     }
+    var trace_time = g_trace_track_alloc_time != 0
+    var t0 = 0
+    if trace_time { t0 = oren_time_now_ns() }
+
     acquire_lock()
 
     if g_gc_trace_alloc_kind != 0 {
@@ -1144,6 +1172,7 @@ fn oren_track_alloc(ptr, size, kind) {
             }
         }
         release_lock()
+        if trace_time { _trace_track_alloc_time_finish(t0, kind) }
         return ptr
     }
 
@@ -1190,6 +1219,7 @@ fn oren_track_alloc(ptr, size, kind) {
             }
 
             release_lock()
+            if trace_time { _trace_track_alloc_time_finish(t0, kind) }
             return ptr
         }
         prev = cur
@@ -1231,6 +1261,7 @@ fn oren_track_alloc(ptr, size, kind) {
     }
 
     release_lock()
+    if trace_time { _trace_track_alloc_time_finish(t0, kind) }
     return ptr
 }
 
@@ -1821,6 +1852,20 @@ fn native_gc_collect() {
         g_alloc_index_rebuild_allocs = 0
         g_alloc_index_rebuild_static = 0
         g_alloc_index_probe_exhausted_count = 0
+    }
+    if g_trace_track_alloc_time != 0 {
+        print("[track_alloc] total_count=" + oren_int_to_string(g_track_alloc_time_total_count) +
+            " total_ns=" + oren_int_to_string(g_track_alloc_time_total_ns) +
+            " list_count=" + oren_int_to_string(g_track_alloc_time_list_count) +
+            " list_ns=" + oren_int_to_string(g_track_alloc_time_list_ns) +
+            " other_count=" + oren_int_to_string(g_track_alloc_time_other_count) +
+            " other_ns=" + oren_int_to_string(g_track_alloc_time_other_ns))
+        g_track_alloc_time_total_ns = 0
+        g_track_alloc_time_total_count = 0
+        g_track_alloc_time_list_ns = 0
+        g_track_alloc_time_list_count = 0
+        g_track_alloc_time_other_ns = 0
+        g_track_alloc_time_other_count = 0
     }
     return 0
 }
