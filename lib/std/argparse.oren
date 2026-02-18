@@ -1102,6 +1102,7 @@ fn parse(p, argv) {
     var res = { "ok": false, "code": 2, "err": nil, "help": nil, "cmd": nil, "root_opts": {}, "opts": {}, "all_opts": {}, "seen": {}, "pos": [], "rest": [] }
     var dbg_ap = oren_env("OREN_DEBUG_ARGPARSE")
     var dbg_exit = oren_env("OREN_DEBUG_ARGPARSE_EXIT")
+    var dbg_ret = oren_env("OREN_DEBUG_ARGPARSE_RETURN")
     if dbg_ap != nil {
         print("DEBUG_ARGPARSE start argv_len=" + oren_int_to_string(list.len(argv)))
     }
@@ -1121,6 +1122,7 @@ fn parse(p, argv) {
     if dbg_ap != nil { print("DEBUG_ARGPARSE root defaults") }
     res["root_opts"] = _opts_defaults(root_cmd)
     if dbg_exit != nil && dbg_exit == "root_defaults" { oren_exit(200) }
+    if dbg_ret != nil && dbg_ret == "root_defaults" { res["ok"] = true; return res }
     // During root parsing, write option values into root_opts (click-style global options).
     res["opts"] = res["root_opts"]
 
@@ -1178,6 +1180,7 @@ fn parse(p, argv) {
     
     if dbg_ap != nil { print("DEBUG_ARGPARSE root parse done cmd=" + cmd_name) }
     if dbg_exit != nil && dbg_exit == "root_parse" { oren_exit(200) }
+    if dbg_ret != nil && dbg_ret == "root_parse" { res["ok"] = true; res["cmd"] = cmd_name; return res }
     res["cmd"] = cmd_name
     // If no subcommand is selected, treat the root options map as the effective opts.
     // This prevents root options like `--version` from being overwritten by defaults.
@@ -1188,6 +1191,7 @@ fn parse(p, argv) {
     }
     if dbg_ap != nil { print("DEBUG_ARGPARSE cmd defaults done") }
     if dbg_exit != nil && dbg_exit == "cmd_defaults" { oren_exit(200) }
+    if dbg_ret != nil && dbg_ret == "cmd_defaults" { res["ok"] = true; res["cmd"] = cmd_name; return res }
 
     // Command args parsing phase.
     var pos = []
@@ -1230,8 +1234,19 @@ fn parse(p, argv) {
         }
         i = i + 1
     }
+    if dbg_ap != nil {
+        print("DEBUG_ARGPARSE cmd_parse done pos_len=" + oren_int_to_string(list.len(pos)) + " rest_len=" + oren_int_to_string(list.len(rest)))
+    }
+    if dbg_ret != nil && dbg_ret == "cmd_parse" {
+        res["ok"] = true
+        res["cmd"] = cmd_name
+        res["pos"] = pos
+        res["rest"] = rest
+        return res
+    }
 
     // Validate positionals (required + max count).
+    if dbg_ap != nil { print("DEBUG_ARGPARSE validate_pos start") }
     var required = 0
     for ps in cmd["positionals"] { if ps[1] { required = required + 1 } }
     if list.len(pos) < required {

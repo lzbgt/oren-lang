@@ -47,97 +47,107 @@ fn precedence(tokType) {
 
 // ----- Parser (core state + helpers) -----
 fn new_parser(l) {
-    var p = {
-        "l": l,
-        // Source + path for diagnostics (rolling).
-        "_src": l["input"],
-        "file": l["file"],
-        "errors": [],
-        "cur": token.new_token(token.TOK_ILLEGAL, ""),
-        "peek": token.new_token(token.TOK_ILLEGAL, ""),
-        "gensym": 0,
+    // Build the parser state incrementally to avoid large nested literals in a single expression.
+    // This keeps native x64-windows bring-up more robust under rolling codegen changes.
+    var p = {}
+    p["l"] = l
+    // Source + path for diagnostics (rolling).
+    p["_src"] = l["input"]
+    p["file"] = l["file"]
+    p["errors"] = []
+    p["cur"] = token.new_token(token.TOK_ILLEGAL, "")
+    p["peek"] = token.new_token(token.TOK_ILLEGAL, "")
+    p["gensym"] = 0
 
-        // Rolling symbol tables (parser-local):
-        // - enums: { "Option": true }
-        // - enum_variants: { "Option": { "None": 0, "Some": 1 } }
-        //
-        // Used for syntax sugar like `Option.Some(1)` and `Option.None`.
-        "enums": {},
-        "enum_variants": {},
+    // Rolling symbol tables (parser-local):
+    // - enums: { "Option": true }
+    // - enum_variants: { "Option": { "None": 0, "Some": 1 } }
+    //
+    // Used for syntax sugar like `Option.Some(1)` and `Option.None`.
+    p["enums"] = {}
+    p["enum_variants"] = {}
 
-        // Rolling impl registry (parser-local):
-        // - impl_methods: { "TypeName": { "method": "__oren_impl__Trait__Type__method" } }
-        //
-        // Used for method-call sugar rewriting:
-        //   x.method(...)  -> __oren_impl__...__method(x, ...)
-        //   Type.method(...) -> __oren_impl__...__method(...)
-        //
-        // v0 policy: if multiple impls define the same method name for a type, the
-        // method is marked ambiguous and sugar becomes a compile-time error.
-        "impl_methods": {},
-        // Qualified impl registry (trait-qualified calls):
-        // - impl_trait_methods: { "TraitName": { "TypeName": { "method": "__oren_impl__..." } } }
-        "impl_trait_methods": {},
+    // Rolling impl registry (parser-local):
+    // - impl_methods: { "TypeName": { "method": "__oren_impl__Trait__Type__method" } }
+    //
+    // Used for method-call sugar rewriting:
+    //   x.method(...)  -> __oren_impl__...__method(x, ...)
+    //   Type.method(...) -> __oren_impl__...__method(...)
+    //
+    // v0 policy: if multiple impls define the same method name for a type, the
+    // method is marked ambiguous and sugar becomes a compile-time error.
+    p["impl_methods"] = {}
+    // Qualified impl registry (trait-qualified calls):
+    // - impl_trait_methods: { "TraitName": { "TypeName": { "method": "__oren_impl__..." } } }
+    p["impl_trait_methods"] = {}
 
-        // Rolling trait registry (parser-local, metadata-only for now):
-        // - traits: [ {"name": "Foo", "methods": [ {"name": "bar", "params": [...] } ] } ]
-        "traits": [],
-        // Set of known trait names (for `Trait.method(x, ...)` calls).
-        "trait_set": {},
+    // Rolling trait registry (parser-local, metadata-only for now):
+    // - traits: [ {"name": "Foo", "methods": [ {"name": "bar", "params": [...] } ] } ]
+    p["traits"] = []
+    // Set of known trait names (for `Trait.method(x, ...)` calls).
+    p["trait_set"] = {}
 
-        // Rolling type environment (parser-local):
-        // Stack of scopes mapping `varName -> typeName` (from `name: Type` annotations).
-        //
-        // Used for static-first method sugar on `x.method(...)` without adding a full
-        // type checker yet.
-        //
-        // Implementation note: use a depth counter + a map-of-maps to avoid relying
-        // on list pop/shrink primitives.
-        "type_scopes": {0: {}},
-        "type_depth": 0,
-        "_pending_scope_types": nil,
+    // Rolling type environment (parser-local):
+    // Stack of scopes mapping `varName -> typeName` (from `name: Type` annotations).
+    //
+    // Used for static-first method sugar on `x.method(...)` without adding a full
+    // type checker yet.
+    //
+    // Implementation note: use a depth counter + a map-of-maps to avoid relying
+    // on list pop/shrink primitives.
+    var type_scopes = {}
+    oren_map_set_int(type_scopes, 0, {})
+    p["type_scopes"] = type_scopes
+    p["type_depth"] = 0
+    p["_pending_scope_types"] = nil
 
-        // Attribute validation knobs (set by the compiler front-end).
-        // Defaults are permissive (rolling mode).
-        "strict_attrs": false,
-        "attr_allow_prefixes": [],
+    // Attribute validation knobs (set by the compiler front-end).
+    // Defaults are permissive (rolling mode).
+    p["strict_attrs"] = false
+    p["attr_allow_prefixes"] = []
 
-        // Built-in, compiler-recognized attribute names (strict mode allows only these
-        // unless a prefix is explicitly allowlisted).
-        //
-        // NOTE: keep this list small but complete for reserved compiler attributes.
-        "known_attrs": [
-            "doc", "deprecated",
-            // Capability-governed host effects (enforced only when capsule mode is enabled).
-            "cap.requires",
-            // Conditional compilation (compile-time filtering by target arch/os).
-            "oren.cfg",
-            // Build-profile conditional compilation (sugar for @cfg("debug") / @cfg("release")).
-            "oren.debug",
-            "oren.release",
-            // Native backend FFI metadata: attach a platform-specific library to an `ffi` decl.
-            // Examples:
-            // - `@ffi.dll("msvcrt.dll") ffi puts` (Windows x64 bring-up convenience)
-            // - `@ffi.link("libc.so.6") ffi strlen` (portable; matches `--link` behavior)
-            "ffi.dll",
-            "ffi.link",
-            // Native backend FFI metadata: portable system library aliases.
-            // Example: `@ffi.libc ffi { puts, atoi }` (maps to libc on Linux, libSystem on macOS, msvcrt on Windows).
-            "ffi.libc",
-            // Native backend FFI metadata: specify the ABI-level return type for correct lowering.
-            // Example: `@ffi.ret("i32") ffi atoi(s: Str) -> I64` (Oren type can be wider than ABI).
-            "ffi.ret",
-            // Compiler/runtime internal: pin a function as a DCE root (kept even if unreachable).
-            // Used for Tier‑1 native runtime helpers invoked via codegen fixups/entry stubs.
-            "oren.keep",
-            // Packed struct / byte views (compile-time lowering).
-            "oren.packed",
-            // ABI/FFI layout mode (compile-time meaning; does not use host headers).
-            "oren.abi",
-            // Serde metadata (non-reserved but frequently used; allow in strict mode).
-            "serde", "serde.rename", "serde.skip", "serde.default", "serde.tag", "serde.derive"
-        ]
-    }
+    // Built-in, compiler-recognized attribute names (strict mode allows only these
+    // unless a prefix is explicitly allowlisted).
+    //
+    // NOTE: keep this list small but complete for reserved compiler attributes.
+    var known = []
+    oren_list_push(known, "doc")
+    oren_list_push(known, "deprecated")
+    // Capability-governed host effects (enforced only when capsule mode is enabled).
+    oren_list_push(known, "cap.requires")
+    // Conditional compilation (compile-time filtering by target arch/os).
+    oren_list_push(known, "oren.cfg")
+    // Build-profile conditional compilation (sugar for @cfg("debug") / @cfg("release")).
+    oren_list_push(known, "oren.debug")
+    oren_list_push(known, "oren.release")
+    // Native backend FFI metadata: attach a platform-specific library to an `ffi` decl.
+    // Examples:
+    // - `@ffi.dll("msvcrt.dll") ffi puts` (Windows x64 bring-up convenience)
+    // - `@ffi.link("libc.so.6") ffi strlen` (portable; matches `--link` behavior)
+    oren_list_push(known, "ffi.dll")
+    oren_list_push(known, "ffi.link")
+    // Native backend FFI metadata: portable system library aliases.
+    // Example: `@ffi.libc ffi { puts, atoi }` (maps to libc on Linux, libSystem on macOS, msvcrt on Windows).
+    oren_list_push(known, "ffi.libc")
+    // Native backend FFI metadata: specify the ABI-level return type for correct lowering.
+    // Example: `@ffi.ret(\"i32\") ffi atoi(s: Str) -> I64` (Oren type can be wider than ABI).
+    oren_list_push(known, "ffi.ret")
+    // Compiler/runtime internal: pin a function as a DCE root (kept even if unreachable).
+    // Used for Tier‑1 native runtime helpers invoked via codegen fixups/entry stubs.
+    oren_list_push(known, "oren.keep")
+    // Packed struct / byte views (compile-time lowering).
+    oren_list_push(known, "oren.packed")
+    // ABI/FFI layout mode (compile-time meaning; does not use host headers).
+    oren_list_push(known, "oren.abi")
+    // Serde metadata (non-reserved but frequently used; allow in strict mode).
+    oren_list_push(known, "serde")
+    oren_list_push(known, "serde.rename")
+    oren_list_push(known, "serde.skip")
+    oren_list_push(known, "serde.default")
+    oren_list_push(known, "serde.tag")
+    oren_list_push(known, "serde.derive")
+    p["known_attrs"] = known
+
     parser_next_token(p)
     parser_next_token(p)
     return p

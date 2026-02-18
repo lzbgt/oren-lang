@@ -306,6 +306,14 @@ fn parse_function(p) {
         parser_next_token(p)
         name = p["cur"]["literal"]
     }
+    var trace_fn = false
+    var v_trace_fn = oren_env("OREN_TRACE_PARSE_FN")
+    if v_trace_fn != nil && v_trace_fn != "" { trace_fn = true }
+    var trace_stmt_i = p["_trace_stmt_i"]
+    if trace_stmt_i == nil { trace_stmt_i = -1 }
+    if trace_fn && trace_stmt_i >= 320 {
+        print("[parse_fn] start name=" + name + " stmt_i=" + oren_int_to_string(trace_stmt_i))
+    }
 
     // Generic function definition (rolling v0):
     //   fn f[T](x: []T): T { ... }
@@ -401,6 +409,9 @@ fn parse_function(p) {
     if type_params != nil { fnn["type_params"] = type_params }
     if ret_ann != nil { fnn["ret_ann_type"] = ret_ann }
     if doc != nil { fnn["doc"] = doc }
+    if trace_fn && trace_stmt_i >= 320 {
+        print("[parse_fn] end name=" + name + " stmt_i=" + oren_int_to_string(trace_stmt_i))
+    }
     return fnn
 }
 

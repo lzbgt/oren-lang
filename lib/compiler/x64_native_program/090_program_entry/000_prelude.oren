@@ -397,35 +397,41 @@ fn _x64_new_ctx(linked, platform) {
     //
     // This is used both by the main program compiler and by the native-runtime object cache
     // that compiles the injected runtime once and reuses it across builds.
-    var ctx = {
-        "code": bytes_new(),
-        "data": bytes_new(),
-        "fixups": [],
-        "functions": {},
-        "imports": {},
-        "import_list": [],
-        "errors": [],
-        "platform": platform,
-        // Global variable storage (top-level `var`).
-        "globals": {},
-        "globals_floaty": {},
-        "globals_inty": {},
-        // Named function declarations (name -> arity) collected before codegen.
-        "func_arity": {},
-        // Named function varargs mapping (name -> fixed param count). Presence means varargs.
-        "func_varargs_fixed": {},
-        // Deterministic declaration order (source order). Used by some backends for wrapper synthesis.
-        "func_decl_order": [],
-        "declared_functions": {},
-        // Track which named functions are actually used as first-class values so we only
-        // synthesize `__oren_fnwrap_*` wrappers when needed (Tier‑1 perf; parity with arm64).
-        "fnwrap_needed": {}
-    }
+    //
+    // Build incrementally to avoid large nested map literals (rolling x64-windows robustness).
+    var trace_ctx = false
+    var v_trace_ctx = oren_env("OREN_TRACE_X64_COMPILE_PROGRESS")
+    if v_trace_ctx != nil && v_trace_ctx != "" { trace_ctx = true }
+    var ctx = {}
+    ctx["code"] = bytes_new()
+    ctx["data"] = bytes_new()
+    ctx["fixups"] = []
+    ctx["functions"] = {}
+    ctx["imports"] = {}
+    ctx["import_list"] = []
+    ctx["errors"] = []
+    ctx["platform"] = platform
+    // Global variable storage (top-level `var`).
+    ctx["globals"] = {}
+    ctx["globals_floaty"] = {}
+    ctx["globals_inty"] = {}
+    // Named function declarations (name -> arity) collected before codegen.
+    ctx["func_arity"] = {}
+    // Named function varargs mapping (name -> fixed param count). Presence means varargs.
+    ctx["func_varargs_fixed"] = {}
+    // Deterministic declaration order (source order). Used by some backends for wrapper synthesis.
+    ctx["func_decl_order"] = []
+    ctx["declared_functions"] = {}
+    // Track which named functions are actually used as first-class values so we only
+    // synthesize `__oren_fnwrap_*` wrappers when needed (Tier‑1 perf; parity with arm64).
+    ctx["fnwrap_needed"] = {}
+    if trace_ctx { print("[x64_ctx] base init ok") }
 
     // Expose whether runtime injection is enabled so lowering can progressively
     // switch from x64 bring-up intrinsics to shared runtime helpers (Tier‑1 parity).
     ctx["inject_runtime"] = true
     ctx["abi"] = abi.x64(platform)
+    if trace_ctx { print("[x64_ctx] abi ok") }
 
     // Import aliases / type namespaces are used by shared callable lowering and ns-resolution.
     if linked != nil {
@@ -434,6 +440,7 @@ fn _x64_new_ctx(linked, platform) {
     }
     if ctx["aliases"] == nil { ctx["aliases"] = {} }
     if ctx["type_ns"] == nil { ctx["type_ns"] = {} }
+    if trace_ctx { print("[x64_ctx] aliases ok") }
 
     // Lambda collection state (lambdas are parsed as Function nodes with name="").
     ctx["lambda_defs"] = []
@@ -445,6 +452,7 @@ fn _x64_new_ctx(linked, platform) {
     // sentinel for "missing/uninitialized" (call sites decode with `enc-1`).
     var cstr_slot_off = _data_add_u64(ctx, 0)
     ctx["cstr0_table_slot_enc"] = cstr_slot_off + 1
+    if trace_ctx { print("[x64_ctx] cstr slot ok") }
 
     // Tier‑1 bootstrap: reserve a stable slot for the runtime's `g_storage` global and a small
     // boot globals storage blob used before `native_runtime_init` runs.
@@ -456,6 +464,7 @@ fn _x64_new_ctx(linked, platform) {
     if ctx["globals"] != nil { ctx["globals"]["g_storage"] = g_storage_slot_off + 1 }
     var boot_off = _data_add_zeros(ctx, 512)
     ctx["boot_globals_storage_off_enc"] = boot_off + 1
+    if trace_ctx { print("[x64_ctx] boot globals ok") }
 
     // Tier‑1 export/FFI ABI bridge: reserve persistent heap register spill slots.
     //
@@ -467,6 +476,7 @@ fn _x64_new_ctx(linked, platform) {
     var heap_ptr_slot_off = _data_add_u64(ctx, 0)
     ctx["heap_limit_slot_enc"] = heap_limit_slot_off + 1
     ctx["heap_ptr_slot_enc"] = heap_ptr_slot_off + 1
+    if trace_ctx { print("[x64_ctx] heap slots ok") }
 
     // Bounded debug knob (bring-up):
     // Enable narrow tracing inside list/hash literal lowering without paying an env lookup per literal.

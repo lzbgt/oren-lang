@@ -151,6 +151,10 @@ fn runtime_expand_includes_file_into_parts(ctx, full_path, stack, out_parts) {
         _err(ctx, "native backend: runtime include: out_parts is nil")
         return nil
     }
+    var trace = false
+    if oren_env("OREN_TRACE_RUNTIME_BUNDLE") != nil { trace = true }
+    if oren_env("OREN_TRACE_NATIVE_RUNTIME_BUNDLE") != nil { trace = true }
+    if trace { print("[rt_bundle] include file=" + full_path) }
 
     // Cycle check
     if stack != nil {

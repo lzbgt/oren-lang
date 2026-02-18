@@ -141,7 +141,9 @@ fn native_compile_program_x64(linked, platform) {
     }
     var linked2 = linked
 
+    if trace_prog { print("[x64_compile] ctx init") }
     var ctx = _x64_new_ctx(linked, platform)
+    if trace_prog { print("[x64_compile] ctx init done") }
 
     // Runtime injection (default-on; see comment at top of function).
     //
@@ -149,15 +151,49 @@ fn native_compile_program_x64(linked, platform) {
     // - identical include expansion + parsing,
     // - capsule enforcement (compile-time) when `--capsule` is enabled,
     // - post-injection DCE + pinned entry-stub roots.
-    var used_rtobj = _x64_try_load_or_build_runtime_obj(ctx, platform, runtime_path)
+    var rtobj_enabled = true
+    var v_rtobj = oren_env("OREN_NATIVE_RUNTIME_OBJ_CACHE")
+    if v_rtobj != nil && v_rtobj != "" {
+        if x64_env_str_eq(v_rtobj, "0") == true || x64_env_str_eq(v_rtobj, "false") == true {
+            rtobj_enabled = false
+        }
+    }
+    var v_skip_rtobj = oren_env("OREN_X64_SKIP_RTOBJ")
+    if v_skip_rtobj != nil && v_skip_rtobj != "" {
+        if x64_env_str_eq(v_skip_rtobj, "0") != true && x64_env_str_eq(v_skip_rtobj, "false") != true {
+            rtobj_enabled = false
+        }
+    }
+    if trace_prog {
+        var re = "1"
+        if rtobj_enabled != true { re = "0" }
+        var vlen = -1
+        var vb0 = -1
+        if v_rtobj != nil {
+            vlen = oren_string_len(v_rtobj)
+            if vlen > 0 { vb0 = oren_string_byte_at_unchecked(v_rtobj, 0) & 255 }
+        }
+        print("[x64_compile] rtobj enabled=" + re + " path=" + runtime_path + " env_len=" + oren_int_to_string(vlen) + " env_b0=" + oren_int_to_string(vb0))
+    }
+    var used_rtobj = false
+    if rtobj_enabled == true {
+        used_rtobj = _x64_try_load_or_build_runtime_obj(ctx, platform, runtime_path)
+    }
+    if trace_prog {
+        var u0 = "0"
+        if used_rtobj == true { u0 = "1" }
+        print("[x64_compile] rtobj done used=" + u0)
+    }
     if trace_sum { t_rtobj_done = oren_time_now_ns() }
 
     var bun = nil
     var runtime_stmts = []
     var user_stmts = []
     if used_rtobj != true {
+        if trace_prog { print("[x64_compile] runtime bundle prepare") }
         bun = bundle.prepare_native_runtime_bundle(ctx, "x64", linked, platform, {"runtime_path": runtime_path, "inject_runtime": true})
         if bun == nil { return ctx }
+        if trace_prog { print("[x64_compile] runtime bundle prepared") }
         linked2 = bun["linked"]
         ctx["runtime_injected"] = true
         runtime_stmts = bun["runtime_stmts"]
@@ -165,6 +201,7 @@ fn native_compile_program_x64(linked, platform) {
         if runtime_stmts == nil { runtime_stmts = [] }
         if user_stmts == nil { user_stmts = [] }
     } else {
+        if trace_prog { print("[x64_compile] runtime bundle skipped (rtobj)") }
         // Runtime already compiled into ctx; user statements come from the original program.
         // Mark as injected so lowering selects Tier‑1 shared runtime paths (parity with arm64 and
         // with the non-rtobj injection path).
@@ -180,21 +217,27 @@ fn native_compile_program_x64(linked, platform) {
     // build those branches are compile-time constants. Prune unreachable runtime branches
     // early so the x64 backend does not compile dead platform code.
     if used_rtobj != true {
+        if trace_prog { print("[x64_compile] runtime prune start") }
         pprune.prune_runtime_os_branches_in_linked_program_in_place(linked2, platform)
+        if trace_prog { print("[x64_compile] runtime prune done") }
     }
 
     // Normalize local `fn name(...) { ... }` declarations inside blocks into lambdas+vars
     // so Tier‑1 native backends share the same nested-function semantics.
     if used_rtobj != true {
+        if trace_prog { print("[x64_compile] runtime local-fn rewrite") }
         callable.rewrite_local_fn_decls_in_stmt_list(ctx, runtime_stmts)
     }
+    if trace_prog { print("[x64_compile] user local-fn rewrite") }
     callable.rewrite_local_fn_decls_in_stmt_list(ctx, user_stmts)
 
     var fns = nil
     if used_rtobj == true {
         // Runtime function metadata already seeded from rtobj; add user declarations.
+        if trace_prog { print("[x64_compile] collect functions (rtobj merge)") }
         fns = coreir.collect_top_level_functions_merge(ctx, linked2, "x64 native v0")
     } else {
+        if trace_prog { print("[x64_compile] extract functions") }
         fns = _extract_functions_v0(ctx, linked2)
     }
     if fns == nil { return ctx }

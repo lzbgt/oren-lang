@@ -25,16 +25,28 @@ fn _chan_mem_magic_u64() {
     return 3551162305486344783
 }
 
-fn _chan_mem_off_magic() { return 0 }      // u64
-fn _chan_mem_off_lock() { return 8 }       // u64 (0 unlocked; tid owner)
-fn _chan_mem_off_cap() { return 16 }       // u64 (slot count)
-fn _chan_mem_off_head() { return 24 }      // u64 (read idx)
-fn _chan_mem_off_tail() { return 32 }      // u64 (write idx)
-fn _chan_mem_off_count() { return 40 }     // u64 (items)
-fn _chan_mem_off_seq() { return 48 }       // u64 (monotonic-ish; wake key)
-fn _chan_mem_off_recv_wait_head() { return 56 } // G* list (recv waiters)
-fn _chan_mem_off_send_wait_head() { return 64 } // G* list (send waiters)
-fn _chan_mem_off_slots() { return 72 }          // start of u64 slots
+// Fixed layout offsets (bytes).
+// Offsets (bytes):
+// - magic: u64
+// - lock: u64 (0 unlocked; tid owner)
+// - cap: u64 (slot count)
+// - head: u64 (read idx)
+// - tail: u64 (write idx)
+// - count: u64 (items)
+// - seq: u64 (monotonic-ish; wake key)
+// - recv_wait_head: G* list (recv waiters)
+// - send_wait_head: G* list (send waiters)
+// - slots: start of u64 slots
+fn _chan_mem_off_magic() { return 0 }
+fn _chan_mem_off_lock() { return 8 }
+fn _chan_mem_off_cap() { return 16 }
+fn _chan_mem_off_head() { return 24 }
+fn _chan_mem_off_tail() { return 32 }
+fn _chan_mem_off_count() { return 40 }
+fn _chan_mem_off_seq() { return 48 }
+fn _chan_mem_off_recv_wait_head() { return 56 }
+fn _chan_mem_off_send_wait_head() { return 64 }
+fn _chan_mem_off_slots() { return 72 }
 
 fn _chan_mem_bytes(cap) {
     return _chan_mem_off_slots() + cap * 8

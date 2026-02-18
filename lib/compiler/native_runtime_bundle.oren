@@ -784,6 +784,7 @@ fn _load_and_parse_runtime_native_impl(ctx, runtime_path, platform) {
     if v_trace != nil && v_trace != "" { trace = true }
 
     var os_key = _rt_bundle_platform_os_key(platform)
+    if os_key == nil { os_key = "" }
 
     // Troubleshooting fast path:
     // - Parsing the full native runtime can be extremely slow in stage2 native compilers.
@@ -895,7 +896,17 @@ fn _load_and_parse_runtime_native_impl(ctx, runtime_path, platform) {
     //   opportunistically migrate them to the v2 path to avoid re-parsing.
     var cache_enabled = _rt_bundle_cache_enabled()
     var cache_dir = _rt_bundle_cache_dir()
+    if cache_dir == nil { cache_dir = "" }
+    if trace { print("[rt_bundle] fingerprint start") }
     var fp2 = _rt_bundle_runtime_fingerprint_v2(runtime_src)
+    if trace { print("[rt_bundle] fingerprint done") }
+    if fp2 == nil || fp2 == "" {
+        _bundle_err(ctx, "native runtime bundle: runtime fingerprint failed")
+        return nil
+    }
+    if trace {
+        print("[rt_bundle] fingerprint key=" + fp2 + " cache_dir=" + cache_dir + " os_key=" + os_key)
+    }
     var base_v2 = fp2 + ".astbin"
     var cache_astbin_v2 = cache_dir + "/" + base_v2
     var cache_astbin_v2_legacy = cache_astbin_v2
@@ -1194,8 +1205,12 @@ fn _load_and_parse_runtime_native_impl(ctx, runtime_path, platform) {
     if trace { print("[rt_bundle] parse start") }
     var l = lexer.new_lexer(runtime_src)
     l["file"] = runtime_path
+    if trace { print("[rt_bundle] parser.new_parser start") }
     var p2 = parser.new_parser(l)
+    if trace { print("[rt_bundle] parser.new_parser done") }
+    if trace { print("[rt_bundle] parse_program start") }
     var runtime_prog = parser.parse_program(p2)
+    if trace { print("[rt_bundle] parse_program done") }
     if trace {
         var dt2 = oren_time_now_ns() - t0
         var nerr = 0
@@ -1355,8 +1370,13 @@ fn prepare_native_runtime_bundle(ctx, backend, linked, platform, opts) {
     // strictly opt-in until global-root scanning is implemented.
     ctx["__compiler_gc_aggressive"] = aggressive_gc
 
+    var trace_bundle = false
+    if oren_env("OREN_TRACE_NATIVE_RUNTIME_BUNDLE") != nil { trace_bundle = true }
+    if oren_env("OREN_TRACE_X64_COMPILE_PROGRESS") != nil { trace_bundle = true }
+    if trace_bundle { print("[bundle] load runtime path=" + runtime_path) }
     var runtime_prog = load_and_parse_runtime_native_for_platform(ctx, runtime_path, platform)
     if runtime_prog == nil { return nil }
+    if trace_bundle { print("[bundle] runtime load done") }
 
     // Capsule enforcement (compile-time):
     //
@@ -1369,8 +1389,10 @@ fn prepare_native_runtime_bundle(ctx, backend, linked, platform, opts) {
     var aliases = linked["aliases"]
     if aliases == nil { aliases = {} }
 
+    if trace_bundle { print("[bundle] inject+dce start") }
     var out = inject_runtime_into_linked_and_dce(ctx, backend, linked, runtime_prog, platform, aliases)
     if out == nil { return nil }
+    if trace_bundle { print("[bundle] inject+dce done") }
 
     out["inject_runtime"] = true
     out["runtime_prog"] = runtime_prog

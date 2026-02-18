@@ -284,6 +284,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
           - single-byte string cache now allocates via raw arena and registers pointers in the cstr0 set
             (no GC-root registration during early init).
           - Verified: `oren_stage2_argparse_dbg7.exe --version` runs on pc2.work and prints version.
+        - 2026-02-18: x64-windows stage2 now reaches runtime bundle parse, but parsing still crashes:
+          - `oren_stage2_cd0.exe build lib\\runtime_native\\011_channels_mem.oren --backend c` exits early on Win11 with trace stopping around stmt index ~20 (offset helper functions).
+          - Same crash reproduces during native runtime bundle parse (after `parse_program start`), likely a parser/lexer/GC issue on Win11.
+          - Next: add lexer-level tracing on Windows or temporarily disable parser-side GC to confirm; consider prebuilt astbin seeding as a stopgap for benchmarks.
        - Decide if AVM should be Windows-capable (add win32 time/mmap shims) or allow `OREN_BENCH_SKIP_OBC=1` (bench runner now supports this).
 
 2) **Tier‑1 native parity: correctness across arch/OS** (L)

@@ -65,7 +65,29 @@ fn parse_program(p) {
     // Ensure the in-progress program (and per-iteration scratch lists) remain reachable from
     // the pinned parser state so they cannot be collected mid-parse.
     p["_gc_prog"] = prog
+    var trace_prog = false
+    var v_trace_prog = oren_env("OREN_TRACE_PARSE_PROGRESS")
+    if v_trace_prog != nil && v_trace_prog != "" { trace_prog = true }
+    var trace_prog_verbose = false
+    var v_trace_prog_verbose = oren_env("OREN_TRACE_PARSE_PROGRESS_VERBOSE")
+    if v_trace_prog_verbose != nil && v_trace_prog_verbose != "" { trace_prog_verbose = true }
+    var stmt_i = 0
+    var trace_prog_countdown = 0
     while p["cur"]["type"] != token.TOK_EOF {
+        if trace_prog {
+            if trace_prog_countdown <= 0 {
+                print("[parse] stmt_i=" + oren_int_to_string(stmt_i) + " cur=" + p["cur"]["type"])
+                trace_prog_countdown = 5
+            }
+            trace_prog_countdown = trace_prog_countdown - 1
+        }
+        if trace_prog_verbose && stmt_i >= 230 {
+            var cur_lit = p["cur"]["literal"]
+            var peek_lit = p["peek"]["literal"]
+            if cur_lit == nil { cur_lit = "" }
+            if peek_lit == nil { peek_lit = "" }
+            print("[parse_verbose] stmt_i=" + oren_int_to_string(stmt_i) + " cur=" + p["cur"]["type"] + " lit=" + cur_lit + " peek=" + peek_lit)
+        }
         // Allow doc comments and attributes to appear in either order before a declaration:
         //   /// doc
         //   @attr(...)
@@ -93,6 +115,7 @@ fn parse_program(p) {
         }
         var doc = docs_join(doc_lines)
         p["_pending_doc"] = doc
+        p["_trace_stmt_i"] = stmt_i
         var stmt = parse_statement(p)
         p["_gc_stmt"] = stmt
         if stmt != nil {
@@ -169,6 +192,7 @@ fn parse_program(p) {
         p["_gc_stmt"] = nil
         p["_gc_attrs"] = nil
         p["_gc_doc_lines"] = nil
+        stmt_i = stmt_i + 1
         parser_next_token(p)
     }
     // Carry trait declarations for tooling/metadata (no runtime meaning in v0).
