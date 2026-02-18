@@ -928,6 +928,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    - `benchmarks/results/array_sum_int_darwin_arm64_20260218_230227.md`
    - `benchmarks/results/dot_product_int_darwin_arm64_20260218_230252.md`
 
+   x64‑windows status:
+
+   - `pc2.work`: `oren_stage2.exe` crashes with stack overflow (rc=3221225725 / 0xC00000FD) when compiling `array_sum_int` (`bench_build_oren_c_array_sum_int_20260218_232046.log` empty). Need to debug before capturing x64 perf.
+
    Gates:
 
    - `OREN_BENCH_PROGRAM=array_sum_int python3 benchmarks/run_benchmarks.py`
@@ -936,7 +940,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    Next steps (highest leverage):
 
    - Hoist list<int> header/tracked-node checks out of tight loops and add bounds-check elision for list<int> get/set (native + C backends).
-   - Add list<int> set fast-path (native + C backend) to match get/push/len coverage.
+   - Add list<int> set fast-path in C backend (native fast-path done 2026-02-18) to match get/push/len coverage.
    - Add inty propagation for list<int> loops (avoid `oren_add`/`oren_mod` helper calls in hot paths).
    - Add AVM bytecode unboxed list<int> ops or confirm boxed fallback and document its perf cost.
 
