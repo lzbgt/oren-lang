@@ -14,7 +14,7 @@ fn main() {
     var sum = 0
     i = 0
     while i < n {
-        sum = sum + list.int_get(a, i) * list.int_get(b, i)
+        sum = sum + a[i] * b[i]
         i = i + 1
     }
 

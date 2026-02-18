@@ -1029,12 +1029,14 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
       - `dot_product_int` (2M elems): C 0.004784s; Oren C 0.072135s (~15.1×); Oren native 0.065333s (~13.7×); OBC 0.898854s (~187.9×)
     - index syntax (list<int> `xs[i]`, list_int recv-kind + native index fast-loop):
       - `array_sum_int` (2M elems): C 0.003825s; Oren C 0.082009s (~21.4×); Oren native 0.019824s (~5.18×); OBC 0.622686s (~162.8×)
+      - `dot_product_int` (2M elems): C 0.004886s; Oren C 0.154683s (~31.7×); Oren native 0.024859s (~5.09×); OBC 0.890823s (~182.3×)
    - 2026-02-18:
      - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
      - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
 
   Artifacts:
 
+  - `benchmarks/results/dot_product_int_darwin_arm64_20260219_054554.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_054300.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_053538.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_052501.md`
