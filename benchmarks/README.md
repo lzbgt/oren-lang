@@ -18,6 +18,10 @@ Benchmarks:
 - `alloc_churn` (allocation churn with periodic GC to surface leaks)
 - `alloc_drop` (allocation churn with periodic drops to surface GC/root leaks; respects `OREN_BENCH_ITERS`)
 
+## Latest snapshot
+
+See `benchmarks/RESULTS_LATEST.md` for the latest M2 baseline summary (medians + C-relative ratios).
+
 ## Run
 
 ```bash

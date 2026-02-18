@@ -510,7 +510,7 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
 	                    push_u32_le(ctx["code"], insn_movz(2, 5))       // kind = 5
 	                    var bl_track_pos = bytes_len(ctx["code"])
 	                    push_u32_le(ctx["code"], 0)
-	                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track_pos, "name": "oren_track_alloc"})
+	                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track_pos, "name": "oren_track_alloc_new"})
 	                }
 	                if fn_name == "malloc_k" {
 	                    // Track allocation with caller-provided kind.
@@ -518,7 +518,7 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
 	                    push_u32_le(ctx["code"], insn_mov_reg(2, 10))   // X2 = kind
 	                    var bl_track_pos2 = bytes_len(ctx["code"])
 	                    push_u32_le(ctx["code"], 0)
-	                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track_pos2, "name": "oren_track_alloc"})
+	                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track_pos2, "name": "oren_track_alloc_new"})
 	                }
 	                
 	                // Return path

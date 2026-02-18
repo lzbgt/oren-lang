@@ -251,16 +251,16 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    Perf gaps from latest M2 benchmarks (2026-02-19, runs=3, RSS on):
 
-   - (P0/M) **Native alloc_churn is still slower than OBC and far behind Oren C**
-     - Latest: native 0.3961s vs OBC 0.3879s vs Oren C 0.0698s vs C 0.00405s (`benchmarks/results/alloc_churn_darwin_arm64_20260219_044310.md`).
+   - (P0/M) **Native alloc_churn still far behind Oren C/C (now faster than OBC)**
+     - Latest: native 0.1620s vs Oren C 0.0697s vs C 0.00408s vs OBC 0.3881s (`benchmarks/results/alloc_churn_darwin_arm64_20260219_045329.md`).
      - RSS (median): Oren C ~68.4MB, native ~53.8MB, OBC ~61.4MB.
-     - Target: native ≤0.20s on M2 for alloc_churn without increasing RSS.
-     - Likely work: harden free-block reuse (`OREN_GC_REUSE_BLOCKS=1`), reduce per-alloc tracking overhead, add a bump allocator for short-lived struct-heavy loops, verify GC root coverage at safepoints.
-   - (P0/S) **alloc_drop native is catastrophic (drop-path bottleneck)**
-     - Latest: native 0.1713s vs C 0.00430s vs Oren C 0.00657s vs OBC 0.01060s (`benchmarks/results/alloc_drop_darwin_arm64_20260219_044322.md`).
-     - RSS (median): native ~7.8MB, Oren C ~4.47MB, OBC ~9.36MB.
-     - Target: native ≤0.50s on M2 with stable RSS.
-     - Likely work: profile drop/GC sweep path, reduce per-drop tracking churn, verify free-list reuse + fast-path for short-lived drops.
+     - Target: native ≤0.20s on M2 for alloc_churn without increasing RSS (met 2026‑02‑19; keep as guard).
+     - Next: push toward ≤0.12s by trimming per-alloc tracking cost further (index insert fast-path, metadata reuse) while keeping GC correctness.
+   - (P0/S) **alloc_drop native still ~24× C (drop-path bottleneck improved)**
+     - Latest: native 0.1033s vs C 0.00418s vs Oren C 0.00664s vs OBC 0.01146s (`benchmarks/results/alloc_drop_darwin_arm64_20260219_045323.md`).
+     - RSS (median): native ~7.75MB, Oren C ~4.47MB, OBC ~9.34MB.
+     - Target: native ≤0.50s on M2 with stable RSS (met 2026‑02‑19).
+     - Stretch: ≤0.08s by reducing per-alloc tracking overhead and string concat allocations in alloc_drop.
    - (P1/M) **Loop_sum native still ~6.3× C**
      - Latest: native 0.4386s vs C 0.0695s (`benchmarks/results/loop_sum_darwin_arm64_20260219_002240.md`).
        - Oren C: 1.2065s; OBC/AVM: 5.9393s (same run).

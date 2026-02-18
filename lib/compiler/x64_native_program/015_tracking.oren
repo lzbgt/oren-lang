@@ -6,7 +6,7 @@
 //
 // arm64 native already routes this through the injected syscall-first runtime:
 // - `oren_find_node(ptr)`    -> returns tracking node or 0
-// - `oren_track_alloc(ptr, size, kind)`
+// - `oren_track_alloc_new(ptr, size, kind)`
 // - `oren_ensure_tracked(ptr, kind)`
 //
 // x86_64 originally had a backend-local tracking list (bring-up hack). That created
@@ -79,7 +79,7 @@ fn _emit_find_tracked_node_x64(ctx, ptr_reg, dst_node_reg) {
 }
 
 fn _emit_track_alloc_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
-    // x64 native: call the runtime `oren_track_alloc(ptr,size,kind)`.
+    // x64 native: call the runtime `oren_track_alloc_new(ptr,size,kind)`.
     //
     // IMPORTANT: do not rely on SysV/Win64 callee-saved regs here.
     // The x64 backend uses registers like R12 as scratch in many helpers, so the
@@ -99,7 +99,7 @@ fn _emit_track_alloc_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
     var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
     var a2_enc = abi.int_arg_reg(ctx["abi"], 2)
     if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 || oren_type_tag(a2_enc) == 0 {
-        err(ctx, "x64 native v0: missing ABI arg regs for oren_track_alloc")
+        err(ctx, "x64 native v0: missing ABI arg regs for oren_track_alloc_new")
         return nil
     }
     var a0 = a0_enc - 1
@@ -124,7 +124,7 @@ fn _emit_track_alloc_x64(ctx, locals, ptr_reg, size_reg, kind_reg) {
 
     var call_pos = bytes_len(ctx["code"])
     bytes_extend(ctx["code"], insn_call_rel32(0))
-    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_track_alloc"})
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_track_alloc_new"})
 
     // Restore pointer to satisfy legacy helper contract.
     _emit_mov_r64_mrbp(ctx, ptr_reg, 0 - off_ptr)

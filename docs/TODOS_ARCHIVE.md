@@ -5,6 +5,19 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Archived on: 2025-12-18
 - Current prioritized TODOs live in: `docs/TODOS.md`
 
+## Archived (2026-02-19) — native track_alloc_new fast path for malloc/malloc_k
+
+- Motivation: alloc_drop/alloc_churn were dominated by per-allocation tracking overhead.
+- Change:
+  - Runtime: added `oren_track_alloc_new` fast path when reuse is off.
+  - Compiler: arm64 + x64 native emitters now call `oren_track_alloc_new` for `malloc`/`malloc_k`.
+- Results (M2 Pro, runs=5, RSS on):
+  - alloc_churn: native 0.162s (was 0.396), Oren C 0.0697, C 0.00408, OBC 0.388
+    (`benchmarks/results/alloc_churn_darwin_arm64_20260219_045329.md`).
+  - alloc_drop: native 0.103s (was 0.171), Oren C 0.00664, C 0.00418, OBC 0.01146
+    (`benchmarks/results/alloc_drop_darwin_arm64_20260219_045323.md`).
+- Next: further reduce alloc-index insert cost and re-evaluate metadata reuse with added guardrails.
+
 ## Archived (2026-01-09) — Win11 stage2 build: default output dirs + cmd.exe quoting
 
 - Symptom (native Win11 bring-up; stage2 compiler built by stage1):
