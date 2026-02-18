@@ -296,7 +296,15 @@ fn _x64_is_list_int_get_call(ctx, exp, idx_name) {
 }
 
 fn _x64_is_list_get_call(ctx, exp, idx_name) {
-    if exp == nil || exp["type"] != "Call" { return nil }
+    if exp == nil { return nil }
+    if exp["type"] == "Index" {
+        var list_name0 = _x64_is_ident(exp["left"])
+        var idx0 = _x64_is_ident(exp["index"])
+        if list_name0 == nil || idx0 == nil { return nil }
+        if _x64_str_eq_bytes(idx0, idx_name) != true { return nil }
+        return list_name0
+    }
+    if exp["type"] != "Call" { return nil }
     if exp["fn"] == nil { return nil }
     var nm = nil
     if exp["fn"]["type"] == "Identifier" {
@@ -701,14 +709,41 @@ fn _emit_fast_list_int_push_while_x64(ctx, op, info, locals, labels, local_fixup
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
         _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
 
-        // cap >= n
+        // cap >= n (else grow when count==0 && i==0)
+        var l_cap_ok = _new_label(ctx, "list_push_cap_ok")
         _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
         bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
         bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
         bytes_extend(ctx["code"], insn_mov_rax_mrax())
         _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
         bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 9))
-        _emit_jcc_to_label(ctx, local_fixups, "l", l_slow)
+        _emit_jcc_to_label(ctx, local_fixups, "ge", l_cap_ok)
+
+        // count == 0?
+        _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+
+        // i == 0?
+        _emit_mov_r64_mrbp(ctx, 9, 0 - off_idx)
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+
+        // grow buffer: buf = malloc_k(n * 8, 0)
+        var size_expr = {"type": "Infix", "op": "*", "left": {"type": "Identifier", "value": n_name}, "right": {"type": "Integer", "value": "8"}}
+        var alloc_expr = {"type": "Call", "fn": {"type": "Identifier", "value": "malloc_k"}, "args": [size_expr, {"type": "Integer", "value": "0"}]}
+        _emit_eval_int_to_rax(ctx, alloc_expr, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+        // list->cap = n ; list->buf = new_buf
+        _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
+        _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
+        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 8, 9))
+        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 16, 0))
+
+        _emit_label(ctx, labels, l_cap_ok)
 
         // count == i
         _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
@@ -863,14 +898,41 @@ fn _emit_fast_list_push_while_x64(ctx, op, info, locals, labels, local_fixups, e
         bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 1279870019))
         _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
 
-        // cap >= n
+        // cap >= n (else grow when count==0 && i==0)
+        var l_cap_ok = _new_label(ctx, "list_int_push_cap_ok")
         _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
         bytes_extend(ctx["code"], insn_add_r64_imm32(10, 8))
         bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
         bytes_extend(ctx["code"], insn_mov_rax_mrax())
         _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
         bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 9))
-        _emit_jcc_to_label(ctx, local_fixups, "l", l_slow)
+        _emit_jcc_to_label(ctx, local_fixups, "ge", l_cap_ok)
+
+        // count == 0?
+        _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_mov_rax_mrax())
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+
+        // i == 0?
+        _emit_mov_r64_mrbp(ctx, 9, 0 - off_idx)
+        bytes_extend(ctx["code"], insn_cmp_r64_imm32(9, 0))
+        _emit_jcc_to_label(ctx, local_fixups, "ne", l_slow)
+
+        // grow buffer: buf = malloc_k(n * 8, 0)
+        var size_expr = {"type": "Infix", "op": "*", "left": {"type": "Identifier", "value": n_name}, "right": {"type": "Integer", "value": "8"}}
+        var alloc_expr = {"type": "Call", "fn": {"type": "Identifier", "value": "malloc_k"}, "args": [size_expr, {"type": "Integer", "value": "0"}]}
+        _emit_eval_int_to_rax(ctx, alloc_expr, locals)
+        if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+
+        // list->cap = n ; list->buf = new_buf
+        _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
+        _emit_mov_r64_mrbp(ctx, 9, 0 - off_n)
+        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 8, 9))
+        bytes_extend(ctx["code"], insn_mov_mr64_r64_disp(10, 16, 0))
+
+        _emit_label(ctx, labels, l_cap_ok)
 
         // count == i
         _emit_mov_r64_mrbp(ctx, 10, 0 - slot_list)
@@ -1133,6 +1195,15 @@ fn _emit_fast_list_get_sum_while_x64(ctx, op, info, locals, labels, local_fixups
     var l_fast_cond = _new_label(ctx, "list_get_cond")
     var l_fast_end = _new_label(ctx, "list_get_end")
     var l_done = _new_label(ctx, "list_get_done")
+    var sum_inty = info["sum_inty"]
+
+    // sum string flag once (rbx): native_is_string_ptr(sum)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_sum)
+    if a0 != 0 { bytes_extend(ctx["code"], insn_mov_r64_r64(a0, 0)) }
+    var call_sum_flag = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_sum_flag, "name": "native_is_string_ptr"})
+    if 3 != 0 { bytes_extend(ctx["code"], insn_mov_r64_r64(3, 0)) }
 
     // i < 0 => slow
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
@@ -1235,6 +1306,10 @@ fn _emit_fast_list_get_sum_while_x64(ctx, op, info, locals, labels, local_fixups
         } else {
             var l_iadd = _new_label(ctx, "list_get_iadd")
             var l_after = _new_label(ctx, "list_get_after")
+
+            // If sum was not a string at loop entry, oren_add always reduces to iadd.
+            bytes_extend(ctx["code"], insn_cmp_r64_imm32(3, 0))
+            _emit_jcc_to_label(ctx, local_fixups, "e", l_iadd)
 
             if a0 != 13 { bytes_extend(ctx["code"], insn_mov_r64_r64(a0, 13)) }
             var call_sum = bytes_len(ctx["code"])

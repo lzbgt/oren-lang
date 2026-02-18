@@ -49,6 +49,7 @@ fn insn_ret() { return core.insn_ret() }
 fn insn_stp_pre() { return core.insn_stp_pre() }
 fn insn_stur_reg(rt, rn, offset) { return core.insn_stur_reg(rt, rn, offset) }
 fn insn_str_ptr(rt, rn) { return core.insn_str_ptr(rt, rn) }
+fn insn_str_ptr_off(rt, rn, offset) { return core.insn_str_ptr_off(rt, rn, offset) }
 fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
 fn insn_str_x0_sp(offset) { return core.insn_str_x0_sp(offset) }
 fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
@@ -475,7 +476,15 @@ fn _arm64_is_list_int_get_call(ctx, exp, idx_name) {
 }
 
 fn _arm64_is_list_get_call(ctx, exp, idx_name) {
-    if exp == nil || exp["type"] != "Call" { return nil }
+    if exp == nil { return nil }
+    if exp["type"] == "Index" {
+        var list_name0 = _arm64_is_ident(exp["left"])
+        var idx0 = _arm64_is_ident(exp["index"])
+        if list_name0 == nil || idx0 == nil { return nil }
+        if _arm64_str_eq_bytes(idx0, idx_name) != true { return nil }
+        return list_name0
+    }
+    if exp["type"] != "Call" { return nil }
     if exp["fn"] == nil { return nil }
     var nm = nil
     if exp["fn"]["type"] == "Identifier" {
@@ -967,6 +976,13 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
         li = li + 1
     }
 
+    // sum string flag (once): X26 = native_is_string_ptr(sum)
+    emit_ldr_reg_sp_any(ctx, 0, sum_off)
+    var bl_sum_flag = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_sum_flag, "name": "native_is_string_ptr"})
+    push_u32_le(ctx["code"], insn_mov_reg(26, 0))
+
     // Fast loop entry
     var loop_cond_pos = bytes_len(ctx["code"])
     emit_ldr_reg_sp_any(ctx, 20, i_off)
@@ -1002,6 +1018,11 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
             // sum is known int => oren_add reduces to iadd
             push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
         } else {
+            // If sum is not a string at loop entry, oren_add will always reduce to iadd.
+            push_u32_le(ctx["code"], insn_cmp_reg(26, 31))
+            var jpos_sum_flag_zero = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0) // patched: b.eq iadd
+
             // sum = oren_add(sum, value), inlined (native strings fast check)
             push_u32_le(ctx["code"], insn_mov_reg(0, 23))
             var bl_sum_str = bytes_len(ctx["code"])
@@ -1031,6 +1052,8 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
             var iadd_pos = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
             var after_pos = bytes_len(ctx["code"])
+            var off_flag = (iadd_pos - jpos_sum_flag_zero) / 4
+            set_u32_le(ctx["code"], jpos_sum_flag_zero, insn_b_cond(off_flag, 0))
             var off_sum = (iadd_pos - jpos_sum_not_str) / 4
             set_u32_le(ctx["code"], jpos_sum_not_str, insn_b_cond(off_sum, 0))
             var off_val = (iadd_pos - jpos_val_not_str) / 4
@@ -1583,13 +1606,43 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(slow_jumps, {"pos": jpos_magic_bad, "cond": 1}) // NE
 
-        // capacity check: cap < n => slow
+        // capacity check: cap < n => grow (only when count==0 && i==0)
         emit_load_ptr_from_base_plus(ctx, 1, 0, 8) // cap
         emit_ldr_reg_sp_any(ctx, 2, n_off)
         push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
-        var jpos_cap_small = bytes_len(ctx["code"])
+        var jpos_cap_ok = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0) // patched: b.ge cap_ok
+
+        // count == 0?
+        emit_load_ptr_from_base_plus(ctx, 3, 0, 0) // count
+        push_u32_le(ctx["code"], insn_cmp_reg(3, 31))
+        var jpos_count_nonzero = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
-        oren_list_push(slow_jumps, {"pos": jpos_cap_small, "cond": 11}) // LT
+        oren_list_push(slow_jumps, {"pos": jpos_count_nonzero, "cond": 1}) // NE
+
+        // i == 0?
+        emit_ldr_reg_sp_any(ctx, 4, i_off)
+        push_u32_le(ctx["code"], insn_cmp_reg(4, 31))
+        var jpos_i_nonzero = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(slow_jumps, {"pos": jpos_i_nonzero, "cond": 1}) // NE
+
+        // grow buffer: buf = malloc_k(n * 8, 0)
+        var size_expr = {"type": "Infix", "op": "*", "left": {"type": "Identifier", "value": n_name}, "right": {"type": "Integer", "value": "8"}}
+        var alloc_expr = {"type": "Call", "fn": {"type": "Identifier", "value": "malloc_k"}, "args": [size_expr, {"type": "Integer", "value": "0"}]}
+        native_compile_expr(ctx, alloc_expr)
+        _arm64_restore_stack_to(ctx, loop_base_stack)
+
+        // list->cap = n ; list->buf = new_buf
+        emit_ldr_reg_sp_any(ctx, 5, list_slot)
+        emit_ldr_reg_sp_any(ctx, 2, n_off)
+        push_u32_le(ctx["code"], insn_str_ptr_off(2, 5, 8))
+        push_u32_le(ctx["code"], insn_str_ptr_off(0, 5, 16))
+        emit_ldr_reg_sp_any(ctx, 0, list_slot) // restore list ptr after malloc_k clobbers X0
+
+        var cap_ok_pos = bytes_len(ctx["code"])
+        var cap_ok_off = (cap_ok_pos - jpos_cap_ok) / 4
+        set_u32_le(ctx["code"], jpos_cap_ok, insn_b_cond(cap_ok_off, 10)) // GE
 
         // count check: count != i => slow
         emit_load_ptr_from_base_plus(ctx, 1, 0, 0) // count
@@ -1792,13 +1845,43 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(slow_jumps, {"pos": jpos_magic_bad, "cond": 1}) // NE
 
-        // capacity check: cap < n => slow
+        // capacity check: cap < n => grow (only when count==0 && i==0)
         emit_load_ptr_from_base_plus(ctx, 1, 0, 8) // cap
         emit_ldr_reg_sp_any(ctx, 2, n_off)
         push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
-        var jpos_cap_small = bytes_len(ctx["code"])
+        var jpos_cap_ok = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0) // patched: b.ge cap_ok
+
+        // count == 0?
+        emit_load_ptr_from_base_plus(ctx, 3, 0, 0) // count
+        push_u32_le(ctx["code"], insn_cmp_reg(3, 31))
+        var jpos_count_nonzero = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
-        oren_list_push(slow_jumps, {"pos": jpos_cap_small, "cond": 11}) // LT
+        oren_list_push(slow_jumps, {"pos": jpos_count_nonzero, "cond": 1}) // NE
+
+        // i == 0?
+        emit_ldr_reg_sp_any(ctx, 4, i_off)
+        push_u32_le(ctx["code"], insn_cmp_reg(4, 31))
+        var jpos_i_nonzero = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(slow_jumps, {"pos": jpos_i_nonzero, "cond": 1}) // NE
+
+        // grow buffer: buf = malloc_k(n * 8, 0)
+        var size_expr = {"type": "Infix", "op": "*", "left": {"type": "Identifier", "value": n_name}, "right": {"type": "Integer", "value": "8"}}
+        var alloc_expr = {"type": "Call", "fn": {"type": "Identifier", "value": "malloc_k"}, "args": [size_expr, {"type": "Integer", "value": "0"}]}
+        native_compile_expr(ctx, alloc_expr)
+        _arm64_restore_stack_to(ctx, loop_base_stack)
+
+        // list->cap = n ; list->buf = new_buf
+        emit_ldr_reg_sp_any(ctx, 5, list_slot)
+        emit_ldr_reg_sp_any(ctx, 2, n_off)
+        push_u32_le(ctx["code"], insn_str_ptr_off(2, 5, 8))
+        push_u32_le(ctx["code"], insn_str_ptr_off(0, 5, 16))
+        emit_ldr_reg_sp_any(ctx, 0, list_slot) // restore list ptr after malloc_k clobbers X0
+
+        var cap_ok_pos = bytes_len(ctx["code"])
+        var cap_ok_off = (cap_ok_pos - jpos_cap_ok) / 4
+        set_u32_le(ctx["code"], jpos_cap_ok, insn_b_cond(cap_ok_off, 10)) // GE
 
         // count check: count != i => slow
         emit_load_ptr_from_base_plus(ctx, 1, 0, 0) // count
