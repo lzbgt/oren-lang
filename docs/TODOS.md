@@ -1027,14 +1027,15 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - fast list<int> push fill (arm64 native):
       - `array_sum_int` (2M elems): C 0.004004s; Oren C 0.039389s (~9.84×); Oren native 0.040908s (~10.2×); OBC 0.629024s (~157.1×)
       - `dot_product_int` (2M elems): C 0.004784s; Oren C 0.072135s (~15.1×); Oren native 0.065333s (~13.7×); OBC 0.898854s (~187.9×)
-    - index syntax (list<int> `xs[i]`, native index emitter LIST_INT support):
-      - `array_sum_int` (2M elems): C 0.003905s; Oren C 0.083507s (~21.4×); Oren native 0.104486s (~26.8×); OBC 0.626739s (~160.5×)
+    - index syntax (list<int> `xs[i]`, list_int recv-kind + native index specialization):
+      - `array_sum_int` (2M elems): C 0.003749s; Oren C 0.081959s (~21.9×); Oren native 0.102534s (~27.3×); OBC 0.621127s (~165.7×)
    - 2026-02-18:
      - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
      - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
 
   Artifacts:
 
+  - `benchmarks/results/array_sum_int_darwin_arm64_20260219_053538.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_052501.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_035636.md`
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_035647.md`
@@ -1051,6 +1052,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
   Status (fact):
 
+  - 2026-02-19: list<int> recv-kind inference + index lowering specialization landed:
+    - Compiler: `lib/compiler/impl_lowering.oren` (infer `list_int`), `lib/compiler/transpiler.oren` (list_int get/set),
+      `lib/compiler/arm64_native_expr/010_lowering_a.oren`, `lib/compiler/x64_native_program/045_emit_index_expr.oren`,
+      `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/x64_native_program/045_emit_index_set_expr.oren`.
   - 2026-02-19: native index emitters now treat LIST_INT as list for `xs[i]` (no native panic on list<int> indexing).
     - Compiler: `lib/compiler/arm64_native_expr/010_lowering_a.oren`, `lib/compiler/x64_native_program/045_emit_index_expr.oren`
   - 2026-02-19: C backend list<int> get/set now inline the list fast-path (bypasses generic list/map/python dispatch).

@@ -2810,6 +2810,8 @@ fn native_compile_stmt_set(ctx, stmt) {
         var recv_kind0 = stmt["left"]["recv_kind"]
         if recv_kind0 == "list" {
             exprm.native_emit_panic(ctx, "index_set recv_kind=list but value is not a list")
+        } else if recv_kind0 == "list_int" {
+            exprm.native_emit_panic(ctx, "index_set recv_kind=list_int but value is not a list_int")
         } else if recv_kind0 == "map" {
             exprm.native_emit_panic(ctx, "index_set recv_kind=map but value is not a map")
         } else {
@@ -2828,9 +2830,22 @@ fn native_compile_stmt_set(ctx, stmt) {
             push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
             var br_is_list = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
+            emit_load_i64_imm(ctx, 5, 8) // X5 = LIST_INT
+            push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+            var br_is_list_int = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
             exprm.native_emit_panic(ctx, "index_set recv_kind=list but value is not a list")
             var list_ok_pos = bytes_len(ctx["code"])
             set_u32_le(ctx["code"], br_is_list, insn_b_cond((list_ok_pos - br_is_list) / 4, 0)) // EQ
+            set_u32_le(ctx["code"], br_is_list_int, insn_b_cond((list_ok_pos - br_is_list_int) / 4, 0)) // EQ
+        } else if recv_kind0 == "list_int" {
+            emit_load_i64_imm(ctx, 5, 8) // X5 = LIST_INT
+            push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+            var br_is_list_int = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            exprm.native_emit_panic(ctx, "index_set recv_kind=list_int but value is not a list_int")
+            var list_int_ok_pos = bytes_len(ctx["code"])
+            set_u32_le(ctx["code"], br_is_list_int, insn_b_cond((list_int_ok_pos - br_is_list_int) / 4, 0)) // EQ
         } else if recv_kind0 == "map" {
             emit_load_i64_imm(ctx, 5, 3) // X5 = MAP
             push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
@@ -2845,6 +2860,11 @@ fn native_compile_stmt_set(ctx, stmt) {
             var br_is_list2 = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
 
+            emit_load_i64_imm(ctx, 5, 8) // X5 = LIST_INT
+            push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+            var br_is_list2_int = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+
             emit_load_i64_imm(ctx, 5, 3) // X5 = MAP
             push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
             br_to_map = bytes_len(ctx["code"])
@@ -2853,6 +2873,7 @@ fn native_compile_stmt_set(ctx, stmt) {
             exprm.native_emit_panic(ctx, "index_set on non-container (expected list or map)")
             var list_pos = bytes_len(ctx["code"])
             set_u32_le(ctx["code"], br_is_list2, insn_b_cond((list_pos - br_is_list2) / 4, 0)) // EQ
+            set_u32_le(ctx["code"], br_is_list2_int, insn_b_cond((list_pos - br_is_list2_int) / 4, 0)) // EQ
             // If kind==MAP, `br_to_map` is patched later to map_pos.
         }
 
@@ -2864,9 +2885,11 @@ fn native_compile_stmt_set(ctx, stmt) {
 
         // Semantics: `xs[i] = v` grows lists as needed (matches C backend + tests).
         // Delegate to the native runtime helper rather than inlining strict in-bounds stores.
+        var list_set_sym = "oren_list_set"
+        if recv_kind0 == "list_int" { list_set_sym = "oren_list_int_set" }
         var bl_list_set = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_set, "name": "oren_list_set"})
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_set, "name": list_set_sym})
 
         // Done.
         var br_done = bytes_len(ctx["code"])
@@ -2880,9 +2903,13 @@ fn native_compile_stmt_set(ctx, stmt) {
         push_u32_le(ctx["code"], insn_mov_reg(2, 21))
         var bl_pos = bytes_len(ctx["code"])
         var recv_kind = stmt["left"]["recv_kind"]
-        if recv_kind == "list" {
+        if recv_kind == "list" || recv_kind == "list_int" {
             // Deterministic contract: list index_set never falls back to map ops.
-            exprm.native_emit_panic(ctx, "index_set recv_kind=list but value is not a list")
+            if recv_kind == "list_int" {
+                exprm.native_emit_panic(ctx, "index_set recv_kind=list_int but value is not a list_int")
+            } else {
+                exprm.native_emit_panic(ctx, "index_set recv_kind=list but value is not a list")
+            }
         } else {
             // Typed map set (no key-kind heuristics).
             var kk = -1

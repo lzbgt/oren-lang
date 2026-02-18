@@ -351,6 +351,7 @@ fn infer_container_kind(expr, kind_env) {
         var fnn = expr["fn"]
         if fnn != nil && fnn["type"] == "Identifier" {
             var nm = fnn["value"]
+            if nm == "oren_new_list_int" { return "list_int" }
             if nm == "oren_i32_buf_new" { return "buf" }
             if nm == "oren_i64_buf_new" { return "buf" }
             if nm == "oren_f32_buf_new" { return "buf" }

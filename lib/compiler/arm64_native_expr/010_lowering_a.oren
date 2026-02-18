@@ -43,9 +43,9 @@ fn native_emit_index_get_inline(ctx, expr) {
     var non_nil_pos = bytes_len(ctx["code"])
     set_u32_le(ctx["code"], br_non_nil, insn_b_cond((non_nil_pos - br_non_nil) / 4, 1)) // NE
 
-    // Perf-only fast path: assume recv_kind=list and index is in bounds.
+    // Perf-only fast path: assume recv_kind=list/list_int and index is in bounds.
     var recv_kind0 = expr["recv_kind"]
-    if recv_kind0 == "list" && _native_assume_list_index_enabled() == true {
+    if (recv_kind0 == "list" || recv_kind0 == "list_int") && _native_assume_list_index_enabled() == true {
         // buf = *(container + 16)
         push_u32_le(ctx["code"], insn_add_imm(2, 0, 16))
         push_u32_le(ctx["code"], insn_ldr_ptr(6, 2)) // X6 = buf
@@ -84,6 +84,8 @@ fn native_emit_index_get_inline(ctx, expr) {
     recv_kind0 = expr["recv_kind"]
     if recv_kind0 == "list" {
         native_emit_panic(ctx, "Index recv_kind=list but value is not a list")
+    } else if recv_kind0 == "list_int" {
+        native_emit_panic(ctx, "Index recv_kind=list_int but value is not a list_int")
     } else if recv_kind0 == "map" {
         native_emit_panic(ctx, "Index recv_kind=map but value is not a map")
     } else {
@@ -110,6 +112,14 @@ fn native_emit_index_get_inline(ctx, expr) {
         var list_ok_pos = bytes_len(ctx["code"])
         set_u32_le(ctx["code"], br_is_list, insn_b_cond((list_ok_pos - br_is_list) / 4, 0)) // EQ
         set_u32_le(ctx["code"], br_is_list_int, insn_b_cond((list_ok_pos - br_is_list_int) / 4, 0)) // EQ
+    } else if recv_kind0 == "list_int" {
+        emit_load_i64_imm(ctx, 5, 8) // X5 = LIST_INT
+        push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
+        var br_is_list_int2 = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        native_emit_panic(ctx, "Index recv_kind=list_int but value is not a list_int")
+        var list_int_ok_pos = bytes_len(ctx["code"])
+        set_u32_le(ctx["code"], br_is_list_int2, insn_b_cond((list_int_ok_pos - br_is_list_int2) / 4, 0)) // EQ
     } else if recv_kind0 == "map" {
         emit_load_i64_imm(ctx, 5, 3) // X5 = MAP
         push_u32_le(ctx["code"], insn_cmp_reg(4, 5))
@@ -186,9 +196,13 @@ fn native_emit_index_get_inline(ctx, expr) {
     push_u32_le(ctx["code"], insn_mov_reg(1, 20))
     // X0=container, X1=index
     var recv_kind = expr["recv_kind"]
-    if recv_kind == "list" {
+    if recv_kind == "list" || recv_kind == "list_int" {
         // Deterministic contract: list indexing never falls back to map ops.
-        native_emit_panic(ctx, "Index recv_kind=list but value is not a list")
+        if recv_kind == "list_int" {
+            native_emit_panic(ctx, "Index recv_kind=list_int but value is not a list_int")
+        } else {
+            native_emit_panic(ctx, "Index recv_kind=list but value is not a list")
+        }
     } else {
         // If shared lowering inferred this is a map, validate magic deterministically.
         if recv_kind == "map" {

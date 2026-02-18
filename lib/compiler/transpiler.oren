@@ -1480,6 +1480,10 @@ fn transpile_statement(t, stmt) {
             var arr = transpile_expression(t, stmt["left"]["left"])
             var idx = transpile_expression(t, stmt["left"]["index"])
             var val = transpile_expression(t, stmt["value"])
+            var rk = stmt["left"]["recv_kind"]
+            if rk == "list_int" {
+                return "oren_list_int_set(" + arr + ", " + idx + ", " + val + ");"
+            }
             return "oren_index_set(" + arr + ", " + idx + ", " + val + ");"
         }
         if stmt["left"]["type"] == "Member" {
@@ -1890,6 +1894,10 @@ fn transpile_expression(t, exp) {
     if et == "Index" {
         var left_expr = transpile_expression(t, exp["left"])
         var idx = transpile_expression(t, exp["index"])
+        var rk = exp["recv_kind"]
+        if rk == "list_int" {
+            return "oren_list_int_get(" + left_expr + ", " + idx + ")"
+        }
         return "oren_list_get(" + left_expr + ", " + idx + ")"
     }
     if et == "Hash" {
