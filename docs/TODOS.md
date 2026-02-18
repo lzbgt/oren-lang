@@ -198,11 +198,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				         - Status after root-slot + pinning hardening: still reproduces under `OREN_GC_REUSE_BLOCKS=1` (list magic == list ptr).
 				         - trace: list is tracked (kind=2) but header magic is clobbered; likely a remaining GC root/stack spill issue or alloc-index duplication.
 				         - Next steps: verify GC pin consumers (compiler/serde/renamer), audit select + netpoll pointer roots, and validate stack/register spill discipline at safepoints.
-					   - 2026-02-19: re-enabled C backend list<int> fast while loops (string-safe identifier comparisons) + raw accumulator for list<int> reductions:
-					     - Compiler: `lib/compiler/transpiler.oren` (`str_eq`, list<int> matcher, fast RHS).
-					     - C runtime: `lib/runtime/040_lists_maps.inc` + `lib/runtime.h` (`oren_string_eq`).
-					     - Bench (M2 Pro, runs=5): array_sum_int Oren C 0.0697s (was 0.1202s), dot_product_int Oren C 0.1168s (was 0.1897s).
-					     - Artifacts: `benchmarks/results/array_sum_int_darwin_arm64_20260219_032654.md`, `benchmarks/results/dot_product_int_darwin_arm64_20260219_032701.md`.
+						   - 2026-02-19: C backend list<int> fast loops expanded (string-safe matching + fast push fill, raw accumulator):
+						     - Compiler: `lib/compiler/transpiler.oren` (`str_eq`, list<int> matcher, fast RHS, fast push fill).
+						     - C runtime: `lib/runtime/040_lists_maps.inc` + `lib/runtime.h` (`oren_string_eq`).
+						     - Bench (M2 Pro, runs=5): array_sum_int Oren C 0.0388s (~10.0× vs C; was 0.0697s), dot_product_int Oren C 0.0720s (~14.6× vs C; was 0.1168s).
+						     - Artifacts: `benchmarks/results/array_sum_int_darwin_arm64_20260219_034125.md`, `benchmarks/results/dot_product_int_darwin_arm64_20260219_034136.md` (prior: `..._032654.md`, `..._032701.md`).
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
@@ -995,12 +995,17 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - refresh (native inty propagation for list<int>):
       - `array_sum_int` (2M elems): C 0.003710s; Oren C 0.120190s (~32.4×); Oren native 0.151673s (~40.9×); OBC 0.627180s (~169.1×)
       - `dot_product_int` (2M elems): C 0.004755s; Oren C 0.187782s (~39.5×); Oren native 0.283206s (~59.6×); OBC 0.900093s (~189.3×)
+    - fast list<int> push fill (C backend):
+      - `array_sum_int` (2M elems): C 0.003885s; Oren C 0.038837s (~10.0×); Oren native 0.150526s (~38.7×); OBC 0.628100s (~161.7×)
+      - `dot_product_int` (2M elems): C 0.004934s; Oren C 0.071982s (~14.6×); Oren native 0.284129s (~57.6×); OBC 0.899077s (~182.2×)
    - 2026-02-18:
      - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
      - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
 
    Artifacts:
 
+  - `benchmarks/results/array_sum_int_darwin_arm64_20260219_034125.md`
+  - `benchmarks/results/dot_product_int_darwin_arm64_20260219_034136.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_014519.md`
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_014347.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_014449.md` (skip locks)
