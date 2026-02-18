@@ -1569,6 +1569,16 @@ fn oren_mark_value(val) {
 fn native_gc_collect() {
     if g_gc_enabled == 0 { return 0 }
     native_find_cache_clear()
+    var trace_sweep = native_envp_get_value_ptr("OREN_TRACE_GC_SWEEP")
+    var trace_on = trace_sweep != 0
+    var sweep_t0 = 0
+    var sweep_nodes = 0
+    var sweep_live = 0
+    var sweep_freed = 0
+    var sweep_bytes = 0
+    if trace_on {
+        sweep_t0 = oren_time_now_ns()
+    }
     // 1) Clear marks (keep this phase allocation-free and leaf-ish).
     var cur_clear = global_get_allocs()
     while cur_clear != 0 {
@@ -1615,12 +1625,23 @@ fn native_gc_collect() {
     var cur_sweep = global_get_allocs()
     while cur_sweep != 0 {
         var next_node = ptr_get(iadd(cur_sweep, 32))
+        if trace_on {
+            sweep_nodes = sweep_nodes + 1
+        }
         if ptr_get(iadd(cur_sweep, 24)) == -1 {
             // Live
             ptr_set(iadd(cur_sweep, 24), 0)
             prev = cur_sweep
+            if trace_on {
+                sweep_live = sweep_live + 1
+            }
         } else {
             // Garbage
+            if trace_on {
+                sweep_freed = sweep_freed + 1
+                var sz_drop = ptr_get(iadd(cur_sweep, 8))
+                if sz_drop > 0 { sweep_bytes = sweep_bytes + sz_drop }
+            }
             if prev == 0 {
                 global_set_allocs(next_node)
             } else {
@@ -1667,5 +1688,13 @@ fn native_gc_collect() {
         cur_sweep = next_node
     }
 
+    if trace_on {
+        var sweep_dt = oren_time_now_ns() - sweep_t0
+        print("[gc_sweep] nodes=" + oren_int_to_string(sweep_nodes) +
+            " live=" + oren_int_to_string(sweep_live) +
+            " freed=" + oren_int_to_string(sweep_freed) +
+            " freed_bytes=" + oren_int_to_string(sweep_bytes) +
+            " dt_ns=" + oren_int_to_string(sweep_dt))
+    }
     return 0
 }
