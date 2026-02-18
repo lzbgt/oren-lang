@@ -650,11 +650,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - Diagnostics: `OREN_TRACE_LIST_LOCKS=1` prints the gating state once at first list access.
    - 2026-02-19: C backend list<int> fast-paths now inline when locks are not needed (len/get/set/push).
      - Transpiler emits `oren_list_int_*_fast` helpers; runtime exposes `oren_list_locking_needed()`.
-  - 2026-02-19: list<int> refresh after inty + fast-loop hoist (darwin/arm64, runs=5, warmup=1, RSS):
-    - `array_sum_int`: C 0.003753s; Oren C 0.119836s (~31.9×); Oren native 0.214117s (~57.1×); OBC 0.629634s (~167.8×)
-      - Result artifact: `benchmarks/results/array_sum_int_darwin_arm64_20260219_023233.md`
-    - `dot_product_int`: C 0.004777s; Oren C 0.187978s (~39.3×); Oren native 0.362284s (~75.8×); OBC 0.902063s (~188.9×)
-      - Result artifact: `benchmarks/results/dot_product_int_darwin_arm64_20260219_023244.md`
+  - 2026-02-19: list<int> refresh after native inty propagation (darwin/arm64, runs=5, warmup=1, RSS):
+    - `array_sum_int`: C 0.003710s; Oren C 0.120190s (~32.4×); Oren native 0.151673s (~40.9×); OBC 0.627180s (~169.1×)
+      - Result artifact: `benchmarks/results/array_sum_int_darwin_arm64_20260219_024448.md`
+    - `dot_product_int`: C 0.004755s; Oren C 0.187782s (~39.5×); Oren native 0.283206s (~59.6×); OBC 0.900093s (~189.3×)
+      - Result artifact: `benchmarks/results/dot_product_int_darwin_arm64_20260219_024458.md`
    - 2026-02-19: loop_sum refresh (M2 Pro, runs=5, warmup=1, RSS):
      - C 0.0682s; Oren C 1.1902s (~17.5×); Oren native 0.4298s (~6.3×); OBC 5.7201s (~83.9×)
      - Result artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_010934.md`
@@ -987,9 +987,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - perf-only (`OREN_LIST_SKIP_LOCKS=1` on Oren C):
       - `array_sum_int` (2M elems): C 0.00555s; Oren C 0.13685s (~24.7×); Oren native 0.21675s (~39.1×); OBC 0.62884s (~113.3×)
       - `dot_product_int` (2M elems): C 0.00643s; Oren C 0.23191s (~36.1×); Oren native 0.38462s (~59.8×); OBC 0.90014s (~140.1×)
-    - refresh (inty + list<int> fast-loop hoist):
-      - `array_sum_int` (2M elems): C 0.003753s; Oren C 0.119836s (~31.9×); Oren native 0.214117s (~57.1×); OBC 0.629634s (~167.8×)
-      - `dot_product_int` (2M elems): C 0.004777s; Oren C 0.187978s (~39.3×); Oren native 0.362284s (~75.8×); OBC 0.902063s (~188.9×)
+    - refresh (native inty propagation for list<int>):
+      - `array_sum_int` (2M elems): C 0.003710s; Oren C 0.120190s (~32.4×); Oren native 0.151673s (~40.9×); OBC 0.627180s (~169.1×)
+      - `dot_product_int` (2M elems): C 0.004755s; Oren C 0.187782s (~39.5×); Oren native 0.283206s (~59.6×); OBC 0.900093s (~189.3×)
    - 2026-02-18:
      - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
      - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
@@ -1000,8 +1000,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_014347.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_014449.md` (skip locks)
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_014945.md` (skip locks)
-  - `benchmarks/results/array_sum_int_darwin_arm64_20260219_023233.md`
-  - `benchmarks/results/dot_product_int_darwin_arm64_20260219_023244.md`
+  - `benchmarks/results/array_sum_int_darwin_arm64_20260219_024448.md`
+  - `benchmarks/results/dot_product_int_darwin_arm64_20260219_024458.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260218_230227.md`
   - `benchmarks/results/dot_product_int_darwin_arm64_20260218_230252.md`
 

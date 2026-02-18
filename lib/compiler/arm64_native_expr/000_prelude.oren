@@ -333,6 +333,9 @@ fn native_expr_is_inty(ctx, expr) {
             var nm = fnn["value"]
             if nm == "iadd" || nm == "isub" || nm == "imul" || nm == "idiv" || nm == "imod" { return true }
             if nm == "oren_string_len" { return true }
+            if nm == "oren_list_len" || nm == "STD_list_len" { return true }
+            if nm == "oren_list_int_len" || nm == "STD_list_int_len" { return true }
+            if nm == "oren_list_int_get" || nm == "STD_list_int_get" { return true }
         }
         return false
     }
