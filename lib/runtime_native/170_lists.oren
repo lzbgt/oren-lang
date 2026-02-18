@@ -95,8 +95,9 @@ fn oren_list_len(list) {
             oren_panic("list_len on non-list")
             return 0
         }
-        if ptr_get(iadd(node, 16)) != 2 {
-            print("trace: list_len kind=" + oren_int_to_string(ptr_get(iadd(node, 16))) +
+        var k = ptr_get(iadd(node, 16))
+        if k != 2 && k != list_int_kind() {
+            print("trace: list_len kind=" + oren_int_to_string(k) +
                   " list=" + oren_int_to_string(list) +
                   " node=" + oren_int_to_string(node))
             oren_panic("list_len on non-list")
@@ -411,7 +412,7 @@ fn oren_list_get(list, idx) {
         var node = oren_find_node(list)
         if node == 0 { oren_panic("Indexing on non-container"); return nil }
 	    var kind = ptr_get(iadd(node, 16))
-	    if kind != 2 {
+	    if kind != 2 && kind != list_int_kind() {
 	        if kind == 3 {
                 // Not a list: treat as map indexing.
                 // Key kind is selected by `oren_map_get` using tracking metadata.
@@ -447,15 +448,22 @@ fn oren_list_set(list, idx, value) {
     if list == nil { oren_panic("list_set on nil"); return nil }
     // Safety: do not dereference arbitrary large integers as pointers.
 	    var count = 0
+        var is_list_int = 0
         if _list_assume_list_enabled() != true {
 	        var node = oren_find_node(list)
 	        if node == 0 { oren_panic("list_set on non-list"); return nil }
-	        if ptr_get(iadd(node, 16)) != 2 { oren_panic("list_set on non-list"); return nil }
+	        var kind = ptr_get(iadd(node, 16))
+	        if kind == list_int_kind() {
+	            is_list_int = 1
+	        } else if kind != 2 {
+	            oren_panic("list_set on non-list"); return nil
+	        }
 	        if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_set on non-list") }
 	        count = ptr_get(iadd(list, 0))
         } else {
             count = ptr_get(iadd(list, 0))
         }
+        if is_list_int != 0 { _list_int_check_value(value) }
 	    if idx < 0 { oren_panic("Index out of bounds (negative)") }
 	    var want = iadd(idx, 1)
 	    var cap = ptr_get(iadd(list, 8))
@@ -474,10 +482,18 @@ fn oren_list_set(list, idx, value) {
             ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
             i = iadd(i, 1)
         }
-        // Initialize new slots to nil.
-        while i < want {
-            ptr_set(iadd(new_buf, i * 8), nil)
-            i = iadd(i, 1)
+        if is_list_int != 0 {
+            // Initialize new slots to 0 for list<int>.
+            while i < want {
+                ptr_set(iadd(new_buf, i * 8), 0)
+                i = iadd(i, 1)
+            }
+        } else {
+            // Initialize new slots to nil.
+            while i < want {
+                ptr_set(iadd(new_buf, i * 8), nil)
+                i = iadd(i, 1)
+            }
         }
 
         buf = new_buf

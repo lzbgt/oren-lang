@@ -14,7 +14,7 @@ fn is_empty(xs) { return oren_list_len(xs) == 0 }
 
 // --- list<int> (unboxed, native backend) ---
 // Explicit opt-in; falls back to boxed list on non-native backends.
-// Note: index syntax (`xs[i]`) does not yet specialize list<int>; use int_get/int_set.
+// Note: index syntax (`xs[i]`) now works for list<int> on native backend (uses list-int checks).
 fn int_new(cap) { return oren_new_list_int(cap) }
 
 fn int_len(xs) { return oren_list_int_len(xs) }
