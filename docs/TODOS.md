@@ -621,6 +621,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    - 2026-02-19: alloc_drop alloc-kind trace (`OREN_TRACE_GC_ALLOC_KIND=1`, threshold=1000):
      - 91 cycles, alloc median total ~947 (list ~109, other ~886; list_int/map/struct/func/buf/raw all 0)
      - Confirms most allocation traffic is non-list (likely strings/other small temporaries), so drop-path tracking cost is not list-heavy.
+   - 2026-02-19: alloc_drop alloc-index trace (`OREN_TRACE_ALLOC_INDEX=1`, threshold=1000):
+     - Rebuilds are rare (median 0; occasional 1–2), cap=2048, len varies ~24–1092
+     - Probe exhaustion events observed (up to 7 in a cycle); rebuild_ns up to ~0.2ms
+     - Suggests alloc-index rebuilds are not the dominant cost; track per-allocation overhead next.
    - 2026-02-19: `alloc_churn` (darwin/arm64, runs=3, `OREN_BENCH_RSS=1`):
      - C: 0.0042s, RSS ~1.3MB
      - Oren C: 0.115s, RSS ~68.7MB

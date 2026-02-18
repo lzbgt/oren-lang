@@ -52,6 +52,13 @@ var g_gc_alloc_kind_buf = 0
 var g_gc_alloc_kind_raw = 0
 var g_gc_alloc_kind_other = 0
 
+// Alloc-index tracing (optional; gated by g_trace_alloc_index).
+var g_alloc_index_rebuild_count = 0
+var g_alloc_index_rebuild_ns = 0
+var g_alloc_index_rebuild_allocs = 0
+var g_alloc_index_rebuild_static = 0
+var g_alloc_index_probe_exhausted_count = 0
+
 fn native_alloc_index_mmap_table(bytes) {
     // IMPORTANT (Tier‑1 correctness):
     // Allocate the alloc-index table via a dedicated anonymous mmap instead of `malloc_raw`.
@@ -237,6 +244,9 @@ fn native_alloc_index_get(ptr) {
     while true {
         if rem <= 0 {
             g_alloc_index_probe_exhausted = 1
+            if g_trace_alloc_index != 0 {
+                g_alloc_index_probe_exhausted_count = g_alloc_index_probe_exhausted_count + 1
+            }
             return 0
         }
         rem = rem - 1
@@ -456,12 +466,18 @@ fn native_alloc_index_remove_ptr(ptr) {
 fn native_alloc_index_rebuild_live() {
     // Rebuild the alloc index from the current allocs list (drops tombstones).
     if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+    var trace = g_trace_alloc_index != 0
+    var t0 = 0
+    var count_allocs = 0
+    var count_static = 0
+    if trace { t0 = oren_time_now_ns() }
     native_alloc_index_clear(g_alloc_index_ptr, g_alloc_index_cap)
     g_alloc_index_len = 0
 
     var cur = global_get_allocs()
     var mask = g_alloc_index_cap - 1
     while cur != 0 {
+        if trace { count_allocs = count_allocs + 1 }
         var p = ptr_get(cur)
         // Skip non-pointers.
         if p != 0 && p >= 4096 {
@@ -470,6 +486,7 @@ fn native_alloc_index_rebuild_live() {
             while true {
                 if rem <= 0 {
                     g_alloc_index_probe_exhausted = 1
+                    if trace { g_alloc_index_probe_exhausted_count = g_alloc_index_probe_exhausted_count + 1 }
                     break
                 }
                 rem = rem - 1
@@ -488,6 +505,7 @@ fn native_alloc_index_rebuild_live() {
     // Also include static-kind nodes tracked via `oren_track_static`.
     var cur_static = g_static_allocs
     while cur_static != 0 {
+        if trace { count_static = count_static + 1 }
         var p1 = ptr_get(cur_static)
         if p1 != 0 && p1 >= 4096 {
             var idx1 = native_alloc_index_hash(p1) & mask
@@ -495,6 +513,7 @@ fn native_alloc_index_rebuild_live() {
             while true {
                 if rem1 <= 0 {
                     g_alloc_index_probe_exhausted = 1
+                    if trace { g_alloc_index_probe_exhausted_count = g_alloc_index_probe_exhausted_count + 1 }
                     break
                 }
                 rem1 = rem1 - 1
@@ -508,6 +527,13 @@ fn native_alloc_index_rebuild_live() {
             }
         }
         cur_static = ptr_get(iadd(cur_static, 32))
+    }
+    if trace {
+        var dt = oren_time_now_ns() - t0
+        g_alloc_index_rebuild_count = g_alloc_index_rebuild_count + 1
+        g_alloc_index_rebuild_ns = g_alloc_index_rebuild_ns + dt
+        g_alloc_index_rebuild_allocs = g_alloc_index_rebuild_allocs + count_allocs
+        g_alloc_index_rebuild_static = g_alloc_index_rebuild_static + count_static
     }
     return 0
 }
@@ -1781,6 +1807,20 @@ fn native_gc_collect() {
         g_gc_alloc_kind_buf = 0
         g_gc_alloc_kind_raw = 0
         g_gc_alloc_kind_other = 0
+    }
+    if g_trace_alloc_index != 0 {
+        print("[alloc_index] rebuilds=" + oren_int_to_string(g_alloc_index_rebuild_count) +
+            " rebuild_ns=" + oren_int_to_string(g_alloc_index_rebuild_ns) +
+            " rebuild_allocs=" + oren_int_to_string(g_alloc_index_rebuild_allocs) +
+            " rebuild_static=" + oren_int_to_string(g_alloc_index_rebuild_static) +
+            " probe_exhausted=" + oren_int_to_string(g_alloc_index_probe_exhausted_count) +
+            " len=" + oren_int_to_string(g_alloc_index_len) +
+            " cap=" + oren_int_to_string(g_alloc_index_cap))
+        g_alloc_index_rebuild_count = 0
+        g_alloc_index_rebuild_ns = 0
+        g_alloc_index_rebuild_allocs = 0
+        g_alloc_index_rebuild_static = 0
+        g_alloc_index_probe_exhausted_count = 0
     }
     return 0
 }

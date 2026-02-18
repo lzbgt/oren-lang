@@ -737,6 +737,8 @@ var g_gc_allocs_since_collect = 0
 var g_gc_auto_pending = 0
 // Optional tracing: allocation kind counters between sweeps.
 var g_gc_trace_alloc_kind = 0
+// Optional tracing: alloc-index rebuilds/probe exhaustion.
+var g_trace_alloc_index = 0
 
 @oren.keep
 fn native_runtime_init_gc_mode(default_enabled) {
@@ -761,6 +763,7 @@ fn native_runtime_init_gc_mode(default_enabled) {
     g_gc_allocs_since_collect = 0
     g_gc_auto_pending = 0
     g_gc_trace_alloc_kind = 0
+    g_trace_alloc_index = 0
 
     var v_auto = native_envp_get_value_ptr("OREN_GC_AUTO")
     if v_auto != 0 {
@@ -780,6 +783,12 @@ fn native_runtime_init_gc_mode(default_enabled) {
     if v_trace_alloc != 0 {
         if ptr_get_byte(v_trace_alloc) != 0 && ptr_get_byte(v_trace_alloc) != 48 {
             g_gc_trace_alloc_kind = 1
+        }
+    }
+    var v_trace_index = native_envp_get_value_ptr("OREN_TRACE_ALLOC_INDEX")
+    if v_trace_index != 0 {
+        if ptr_get_byte(v_trace_index) != 0 && ptr_get_byte(v_trace_index) != 48 {
+            g_trace_alloc_index = 1
         }
     }
     return 0
