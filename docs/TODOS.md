@@ -210,6 +210,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						   - 2026-02-19: x64 native fast list<int> push loop parity (matcher + direct buffer stores) landed:
 						     - Compiler: `lib/compiler/x64_native_program/060_emit_ops.oren` (fast while matcher + direct buffer stores).
 						     - Status: stage2 + make test OK on macOS; needs x64-native benchmark capture to quantify.
+						   - 2026-02-19: x64 native fast list<int> get-sum + dot loops landed (matcher + direct loads/mul):
+						     - Compiler: `lib/compiler/x64_native_program/060_emit_ops.oren` (fast get-sum + dot while matchers).
+						     - Status: stage2 + make test OK on macOS; needs x64-native benchmark capture to quantify.
 						   - 2026-02-19: added `multi_list_push_int` benchmark (three list<int> pushes per loop + sum):
 						     - Bench (M2 Pro, runs=5): C 0.00774s, Oren C 0.162s (~21.0×), Oren native 0.440s (~56.9×), OBC 1.230s (~159×).
 						     - Artifact: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_041028.md`.
