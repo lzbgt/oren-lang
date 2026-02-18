@@ -217,6 +217,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						   - 2026-02-19: added `multi_list_push_int` benchmark (three list<int> pushes per loop + sum):
 						     - Bench (M2 Pro, runs=5): C 0.00774s, Oren C 0.162s (~21.0×), Oren native 0.440s (~56.9×), OBC 1.230s (~159×).
 						     - Artifact: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_041028.md`.
+						   - 2026-02-19: multi_list_push_int refresh after list<int> push fast paths (deferred count update):
+						     - Bench (M2 Pro, runs=5): C 0.00833s, Oren C 0.0792s (~9.51×), Oren native 0.0306s (~3.67×), OBC 1.229s (~147×).
+						     - Artifact: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_063118.md`.
 						   - 2026-02-19: arm64 native fast list<int> get-sum loop (pattern match + direct loads) closes the gap on array_sum_int/multi_list_push_int:
 						     - Compiler: `lib/compiler/arm64_native_stmt.oren` (fast while matcher + direct buffer loads).
 						     - Bench (M2 Pro, runs=5):
@@ -287,9 +290,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	      - native 0.2271s vs C 0.00509s (`benchmarks/results/dot_product_darwin_arm64_20260218_221234.md`).
 	   - Likely work: focus on boxed list path (same as array_sum) + consider vectorized inner loop for `a[i]*b[i]` on native backend.
 	   - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
-	  - (P1/S) **multi_list_push_int regression guard**
-	    - Latest (runs=5): C 0.00791s, Oren C 0.162s (~20.6×), Oren native 0.0302s (~3.8×), OBC 1.239s (~157×).
-	      - Result: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_042256.md`
+		  - (P1/S) **multi_list_push_int regression guard**
+		    - Latest (runs=5): C 0.00833s, Oren C 0.0792s (~9.51×), Oren native 0.0306s (~3.67×), OBC 1.229s (~147×).
+		      - Result: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_063118.md`
 	    - Guard target: native stays ≤0.05s (≤6× C).
 	   - (P1/M) **Capture x64-windows benchmark baselines (pc2.work)**
      - Blockers observed (2026-02-14):
