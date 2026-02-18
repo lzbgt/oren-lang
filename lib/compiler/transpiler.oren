@@ -230,7 +230,16 @@ fn _transpiler_is_int_lit(exp, val) {
 }
 
 fn _transpiler_is_list_int_get_call(t, exp, idx_name) {
-    if exp == nil || exp["type"] != "Call" { return nil }
+    if exp == nil { return nil }
+    if exp["type"] == "Index" {
+        if exp["recv_kind"] != "list_int" { return nil }
+        var list_name0 = _transpiler_is_ident(exp["left"])
+        var idx0 = _transpiler_is_ident(exp["index"])
+        if list_name0 == nil || idx0 == nil { return nil }
+        if str_eq(idx0, idx_name) != true { return nil }
+        return list_name0
+    }
+    if exp["type"] != "Call" { return nil }
     if exp["fn"] == nil { return nil }
     var nm = nil
     if exp["fn"]["type"] == "Identifier" {
@@ -298,6 +307,16 @@ fn _transpiler_expr_collect_list_int_gets(t, exp, idx_name, lists) {
             oren_list_push(lists, list_name)
         }
         return {"ok": true, "lists": lists, "uses_idx": false}
+    }
+    if et == "Index" {
+        var list_name2 = _transpiler_is_list_int_get_call(t, exp, idx_name)
+        if list_name2 != nil {
+            if list_contains(lists, list_name2) == false {
+                oren_list_push(lists, list_name2)
+            }
+            return {"ok": true, "lists": lists, "uses_idx": false}
+        }
+        return {"ok": false, "lists": lists, "uses_idx": false}
     }
     if et == "Call" {
         var nm = nil
