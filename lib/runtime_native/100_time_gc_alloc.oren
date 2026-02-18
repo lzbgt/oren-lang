@@ -844,7 +844,7 @@ fn native_try_reuse_node(size) {
 @oren.keep
 fn native_try_reuse(size) {
     // Default-off gate: reuse is still rolling and must be explicitly enabled.
-    if native_envp_get_value_ptr("OREN_GC_REUSE_BLOCKS") == 0 { return 0 }
+    if g_gc_reuse_blocks == 0 { return 0 }
     if oren_globals() == 0 { return 0 }
     acquire_lock()
     // Simple first-fit from the free list.
@@ -1097,7 +1097,7 @@ fn oren_track_alloc(ptr, size, kind) {
         native_alloc_index_rebuild_live()
         hit = native_alloc_index_get(ptr)
     }
-    if hit == 0 && native_envp_get_value_ptr("OREN_GC_REUSE_BLOCKS") != 0 {
+    if hit == 0 && g_gc_reuse_blocks != 0 {
         // Reuse mode: avoid duplicate tracking nodes if the index missed.
         var cur_live = global_get_allocs()
         while cur_live != 0 {
@@ -1118,7 +1118,7 @@ fn oren_track_alloc(ptr, size, kind) {
         }
     }
     if hit != 0 {
-        if native_envp_get_value_ptr("OREN_GC_REUSE_BLOCKS") != 0 {
+        if g_gc_reuse_blocks != 0 {
             // Reuse mode: ensure this node is not still in the free list.
             var prev_free = 0
             var cur_free = global_get_free_blocks()
@@ -1141,7 +1141,7 @@ fn oren_track_alloc(ptr, size, kind) {
             ptr_set(iadd(hit, 16), kind)
         } else {
             // Reuse mode: allow kind=0 to overwrite stale kinds (raw buffers).
-            if native_envp_get_value_ptr("OREN_GC_REUSE_BLOCKS") != 0 {
+            if g_gc_reuse_blocks != 0 {
                 ptr_set(iadd(hit, 16), 0)
             }
         }
@@ -1470,7 +1470,7 @@ fn oren_find_node(ptr) {
     if g_alloc_index_ptr != 0 && g_alloc_index_cap != 0 {
         // Rolling safety: when reuse is enabled, fall back to a one-off scan on misses to avoid
         // false negatives from stale index entries (correctness > perf in reuse experiments).
-        if native_envp_get_value_ptr("OREN_GC_REUSE_BLOCKS") != 0 {
+        if g_gc_reuse_blocks != 0 {
             var cur_recover = global_get_allocs()
             while cur_recover != 0 {
                 if ptr_get(cur_recover) == ptr {
@@ -1767,7 +1767,7 @@ fn native_gc_collect() {
             var p = ptr_get(cur_sweep)
             if p != 0 && p >= 4096 {
                 // Prevent stale alloc-index hits for freed objects (reuse mode only).
-                if native_envp_get_value_ptr("OREN_GC_REUSE_BLOCKS") != 0 {
+                if g_gc_reuse_blocks != 0 {
                     native_alloc_index_remove_ptr(p)
                 }
             }
