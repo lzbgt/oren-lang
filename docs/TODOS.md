@@ -613,6 +613,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - Oren C: 0.0071s, RSS ~4.7MB
      - Oren native: 0.295s, RSS ~7.7MB
      - OBC: 0.0125s, RSS ~9.4MB
+   - 2026-02-19: alloc_drop native GC sweep trace (`OREN_TRACE_GC_SWEEP=1`, `OREN_GC_ALLOC_THRESHOLD=1000`):
+     - 86 sweeps, median dt ~0.68ms (mean ~1.48ms, max 13.2ms)
+     - nodes median ~642 (freed median ~611), freed_bytes median ~15.2k
+     - freed_kinds median: list ~114, other ~497 (list_int/map/struct/func/buf/raw all 0)
+     - Indicates sweep work per cycle is small and dominated by non-list nodes; bottleneck likely in alloc tracking/drop path rather than sweep volume.
    - 2026-02-19: `alloc_churn` (darwin/arm64, runs=3, `OREN_BENCH_RSS=1`):
      - C: 0.0042s, RSS ~1.3MB
      - Oren C: 0.115s, RSS ~68.7MB
