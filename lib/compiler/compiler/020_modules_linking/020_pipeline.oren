@@ -140,6 +140,11 @@
             i = i + 1
         }
     }
+    if LINK_GC_ROOT != nil {
+        LINK_GC_ROOT["parse_work"] = nil
+        LINK_GC_ROOT["parse_buckets"] = nil
+        LINK_GC_ROOT["parse_handles"] = nil
+    }
     return 0
 }
 
@@ -311,11 +316,19 @@ fn link_program(entry_path, root_prog, config) {
     MODULE_STACK = []
     MODULE_ORDER = []
     MODULE_ID_COUNTER = 0
+
+    // GC safety (rolling, Windows bring-up):
+    // The native GC stack scan can miss locals in deep or optimized frames. Pin a composite
+    // root for the full link phase so module discovery/parse worklists stay reachable even if
+    // a safepoint triggers collection.
+    LINK_GC_ROOT = {"root_prog": root_prog, "config": config, "modules": MODULES, "module_stack": MODULE_STACK, "module_order": MODULE_ORDER}
+    var prev_pin = oren_gc_pin(LINK_GC_ROOT)
     
     var base = dirname(entry_path)
     var root_prefix = "R_"
     var root_aliases = {}
     var root_imports = []
+    if LINK_GC_ROOT != nil { LINK_GC_ROOT["root_aliases"] = root_aliases; LINK_GC_ROOT["root_imports"] = root_imports }
 
     // Conditional compilation (rolling):
     // Filter the root program early so:
@@ -394,6 +407,11 @@ fn link_program(entry_path, root_prog, config) {
     var merged_stmts = []
     var merged_traits = []
     var type_ns = {}
+    if LINK_GC_ROOT != nil {
+        LINK_GC_ROOT["merged_stmts"] = merged_stmts
+        LINK_GC_ROOT["merged_traits"] = merged_traits
+        LINK_GC_ROOT["type_ns"] = type_ns
+    }
     
     i = 0
     while i < oren_list_len(MODULE_ORDER) {

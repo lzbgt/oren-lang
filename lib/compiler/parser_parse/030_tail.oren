@@ -413,10 +413,19 @@ fn parse_import(p) {
     var tok = p["cur"]
     if !expect_peek(p, token.TOK_IDENT) { return nil }
     var name = ast.new_identifier(p["cur"])
-    if !expect_peek(p, token.TOK_STRING) { return nil }
+    // GC safety (rolling): pin locals across expect_peek/parse to avoid stack-scan misses.
+    p["_gc_import_name"] = name
+    if !expect_peek(p, token.TOK_STRING) {
+        p["_gc_import_name"] = nil
+        return nil
+    }
     var path = p["cur"]["literal"]
+    p["_gc_import_path"] = path
     if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
-    return ast.new_import(tok, name, path)
+    var stmt = ast.new_import(tok, name, path)
+    p["_gc_import_name"] = nil
+    p["_gc_import_path"] = nil
+    return stmt
 }
 
 fn parse_type_decl(p) {

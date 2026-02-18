@@ -127,5 +127,7 @@
     }
 
     if trace_passes { print("[trace] link: done (stmts=" + oren_int_to_string(oren_list_len(linked["statements"])) + ")") }
+    oren_gc_pin(prev_pin)
+    LINK_GC_ROOT = nil
     return linked
 }

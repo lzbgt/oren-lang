@@ -541,6 +541,7 @@ fn discover_module(base, path, config) {
     var seen_alias = {}
     var dir = dirname(full)
     var imports = scan["imports"]
+    if LINK_GC_ROOT != nil { LINK_GC_ROOT["scan_tmp"] = scan; LINK_GC_ROOT["imports_tmp"] = imports }
     var i = 0
     while i < oren_list_len(imports) {
         var e = imports[i]
@@ -557,6 +558,7 @@ fn discover_module(base, path, config) {
         oren_list_push(mod2["imports"], {"alias": alias, "alias_ns": alias_ns, "path": e["path"], "prefix": dep["prefix"], "full": dep["path"]})
         i = i + 1
     }
+    if LINK_GC_ROOT != nil { LINK_GC_ROOT["scan_tmp"] = nil; LINK_GC_ROOT["imports_tmp"] = nil }
 
     if mod2["added"] != true {
         mod2["added"] = true
@@ -632,6 +634,7 @@ fn _ml_parse_discovered_modules_parallel(config) {
 
     // Build a worklist in deterministic MODULE_ORDER.
     var work = []
+    if LINK_GC_ROOT != nil { LINK_GC_ROOT["parse_work"] = work }
     var i = 0
     while i < oren_list_len(MODULE_ORDER) {
         var m = MODULE_ORDER[i]
@@ -669,6 +672,7 @@ fn _ml_parse_discovered_modules_parallel(config) {
         oren_list_push(buckets[b], work[i])
         i = i + 1
     }
+    if LINK_GC_ROOT != nil { LINK_GC_ROOT["parse_buckets"] = buckets }
 
     var handles = []
     bi = 0
@@ -686,6 +690,7 @@ fn _ml_parse_discovered_modules_parallel(config) {
         }
         bi = bi + 1
     }
+    if LINK_GC_ROOT != nil { LINK_GC_ROOT["parse_handles"] = handles }
 
     var failed = false
     // Join strategy:

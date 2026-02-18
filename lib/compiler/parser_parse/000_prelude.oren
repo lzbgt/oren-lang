@@ -52,13 +52,27 @@ fn _parse_int_env(v, default_val) {
     var n = oren_string_len(v)
     if n == 0 { return default_val }
     var i = 0
+    var j = n
+    // Trim ASCII whitespace (common on Windows envs via cmd.exe).
+    while i < j {
+        var c0 = oren_string_char_at(v, i)
+        if c0 == " " || c0 == "\t" || c0 == "\r" || c0 == "\n" { i = i + 1; continue }
+        break
+    }
+    while j > i {
+        var c1 = oren_string_char_at(v, j - 1)
+        if c1 == " " || c1 == "\t" || c1 == "\r" || c1 == "\n" { j = j - 1; continue }
+        break
+    }
+    if i >= j { return default_val }
+    var n2 = j
     var neg = false
-    if oren_string_char_at(v, 0) == "-" {
+    if oren_string_char_at(v, i) == "-" {
         neg = true
-        i = 1
+        i = i + 1
     }
     var acc = 0
-    while i < n {
+    while i < n2 {
         var c = oren_string_byte_at_unchecked(v, i)
         if c < 48 || c > 57 { return default_val }
         acc = acc * 10 + (c - 48)
@@ -79,33 +93,52 @@ fn parse_type_name_after_colon(p) { return core.parse_type_name_after_colon(p) }
 fn parse_type_name_after_for(p) { return core.parse_type_name_after_for(p) }
 
 fn parse_program(p) {
-    var __prev_gc_pin = oren_gc_pin(p)
+    var gcroot = {"parser": p, "lexer": p["l"], "input": p["l"]["input"]}
+    var __prev_gc_pin = oren_gc_pin(gcroot)
+    // Expose GC root for nested parse helpers (e.g. parse_block) to pin locals.
+    p["_gc_root"] = gcroot
+    gcroot["block_frames"] = []
     var prog = ast.new_program()
     // GC safety (rolling):
     // Stage2 self-hosting uses auto-GC and may run with bounded conservative stack scanning.
     // Ensure the in-progress program (and per-iteration scratch lists) remain reachable from
     // the pinned parser state so they cannot be collected mid-parse.
     p["_gc_prog"] = prog
+    gcroot["prog"] = prog
     var trace_prog = false
     var v_trace_prog = oren_env("OREN_TRACE_PARSE_PROGRESS")
     if v_trace_prog != nil && v_trace_prog != "" { trace_prog = true }
     var trace_prog_verbose = false
     var v_trace_prog_verbose = oren_env("OREN_TRACE_PARSE_PROGRESS_VERBOSE")
     if v_trace_prog_verbose != nil && v_trace_prog_verbose != "" { trace_prog_verbose = true }
+    var trace_file = p["file"]
+    if trace_file == nil { trace_file = "" }
+    var trace_file_filter = oren_env("OREN_TRACE_PARSE_FILE")
+    if trace_file_filter != nil && trace_file_filter != "" {
+        if trace_file != trace_file_filter {
+            trace_prog = false
+            trace_prog_verbose = false
+        }
+    }
     var trace_prog_verbose_from = 230
     var v_trace_prog_verbose_from = oren_env("OREN_TRACE_PARSE_PROGRESS_VERBOSE_FROM")
     if v_trace_prog_verbose_from != nil && v_trace_prog_verbose_from != "" {
         trace_prog_verbose_from = _parse_int_env(v_trace_prog_verbose_from, trace_prog_verbose_from)
     }
-    var trace_file = p["file"]
-    if trace_file == nil { trace_file = "" }
     var stmt_i = 0
+    var trace_prog_every = 5
+    var v_trace_prog_every = oren_env("OREN_TRACE_PARSE_PROGRESS_EVERY")
+    if trace_prog && v_trace_prog_every != nil && v_trace_prog_every != "" {
+        print("[parse] trace_every_env=" + v_trace_prog_every)
+        trace_prog_every = _parse_int_env(v_trace_prog_every, trace_prog_every)
+        if trace_prog_every < 1 { trace_prog_every = 1 }
+    }
     var trace_prog_countdown = 0
     while p["cur"]["type"] != token.TOK_EOF {
         if trace_prog {
             if trace_prog_countdown <= 0 {
                 print("[parse] file=" + trace_file + " stmt_i=" + oren_int_to_string(stmt_i) + " cur=" + p["cur"]["type"])
-                trace_prog_countdown = 5
+                trace_prog_countdown = trace_prog_every
             }
             trace_prog_countdown = trace_prog_countdown - 1
         }
@@ -135,6 +168,8 @@ fn parse_program(p) {
         var attrs = []
         p["_gc_doc_lines"] = doc_lines
         p["_gc_attrs"] = attrs
+        gcroot["doc_lines"] = doc_lines
+        gcroot["attrs"] = attrs
         while cur_is(p, token.TOK_DOC) || cur_is(p, token.TOK_AT) {
             if cur_is(p, token.TOK_DOC) {
                 oren_list_push(doc_lines, p["cur"]["literal"])
@@ -150,6 +185,7 @@ fn parse_program(p) {
         p["_trace_stmt_i"] = stmt_i
         var stmt = parse_statement(p)
         p["_gc_stmt"] = stmt
+        gcroot["stmt"] = stmt
         if stmt != nil {
             if stmt["type"] == "StmtList" {
                 var origin = stmt["origin"]
@@ -224,6 +260,9 @@ fn parse_program(p) {
         p["_gc_stmt"] = nil
         p["_gc_attrs"] = nil
         p["_gc_doc_lines"] = nil
+        gcroot["stmt"] = nil
+        gcroot["attrs"] = nil
+        gcroot["doc_lines"] = nil
         stmt_i = stmt_i + 1
         parser_next_token(p)
     }
@@ -233,6 +272,9 @@ fn parse_program(p) {
     p["_gc_attrs"] = nil
     p["_gc_doc_lines"] = nil
     p["_gc_prog"] = nil
+    gcroot["prog"] = nil
+    gcroot["block_frames"] = nil
+    p["_gc_root"] = nil
     oren_gc_pin(__prev_gc_pin)
     return prog
 }

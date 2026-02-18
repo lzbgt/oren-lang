@@ -195,6 +195,17 @@ fn parse_if(p) {
 fn parse_block(p) {
     type_env_push(p)
     var block = ast.new_block(p["cur"])
+    var gcroot = p["_gc_root"]
+    var frame = nil
+    if gcroot != nil {
+        var block_frames = gcroot["block_frames"]
+        if block_frames == nil {
+            block_frames = []
+            gcroot["block_frames"] = block_frames
+        }
+        frame = {"block": block, "doc_lines": nil, "attrs": nil, "doc": nil, "stmt": nil}
+        oren_list_push(block_frames, frame)
+    }
     parser_next_token(p)
     var cont = true
     while cont {
@@ -221,6 +232,10 @@ fn parse_block(p) {
             // matching top-level behavior.
             var doc_lines = []
             var attrs = []
+            if frame != nil {
+                frame["doc_lines"] = doc_lines
+                frame["attrs"] = attrs
+            }
             while cur_is(p, token.TOK_DOC) || cur_is(p, token.TOK_AT) {
                 if cur_is(p, token.TOK_DOC) {
                     oren_list_push(doc_lines, p["cur"]["literal"])
@@ -233,7 +248,9 @@ fn parse_block(p) {
             }
             var doc = docs_join(doc_lines)
             p["_pending_doc"] = doc
+            if frame != nil { frame["doc"] = doc }
             var stmt = parse_statement(p)
+            if frame != nil { frame["stmt"] = stmt }
             if p["_trace_fn_active"] == true {
                 var tf2 = p["file"]
                 if tf2 == nil { tf2 = "" }
@@ -308,10 +325,29 @@ fn parse_block(p) {
                     oren_list_push(block["stmts"], stmt)
                 }
             }
+            if frame != nil {
+                frame["doc_lines"] = nil
+                frame["attrs"] = nil
+                frame["doc"] = nil
+                frame["stmt"] = nil
+            }
             parser_next_token(p)
         }
     }
     type_env_pop(p)
+    if frame != nil {
+        var block_frames2 = gcroot["block_frames"]
+        if block_frames2 != nil {
+            var new_frames = []
+            var fi = 0
+            var fl = oren_list_len(block_frames2)
+            while fi + 1 < fl {
+                oren_list_push(new_frames, block_frames2[fi])
+                fi = fi + 1
+            }
+            gcroot["block_frames"] = new_frames
+        }
+    }
     return block
 }
 

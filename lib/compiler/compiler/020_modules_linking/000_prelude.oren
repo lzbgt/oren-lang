@@ -5,6 +5,9 @@ fn _is_std_spec(path) {
     return false
 }
 
+// GC pin root for module linking (set in link_program).
+var LINK_GC_ROOT = nil
+
 fn _strip_orext(p) {
     if p == nil { return "" }
     var n = oren_string_len(p)
@@ -314,17 +317,18 @@ fn _ml_modcache_path_for_module(full, prefix, src_fp, config) {
 
 fn _ml_line_is_only_comment_or_ws(line) {
     if line == nil { return true }
+    var safe = _ml_scan_should_use_safe()
     var n = oren_string_len(line)
     var i = 0
     while i < n {
-        var ch = oren_string_char_at_unchecked(line, i)
+        var ch = _ml_scan_char_at(line, i, safe)
         if ch == " " || ch == "\t" || ch == "\r" {
             i = i + 1
             continue
         }
         // Line comment.
         if ch == "/" && i + 1 < n {
-            if oren_string_char_at_unchecked(line, i + 1) == "/" { return true }
+            if _ml_scan_char_at(line, i + 1, safe) == "/" { return true }
         }
         // Any other non-ws is "code".
         return false
@@ -357,25 +361,40 @@ fn _ml_scan_is_ident_char(ch) {
     return false
 }
 
-fn _ml_scan_match_kw_import(src_s, idx) {
+fn _ml_scan_should_use_safe() {
+    var v = oren_env("OREN_IMPORT_SCAN_SAFE")
+    if v != nil {
+        if v == "0" { return false }
+        return true
+    }
+    if host_is_windows() { return true }
+    return false
+}
+
+fn _ml_scan_char_at(src_s, idx, safe) {
+    if safe { return oren_string_char_at(src_s, idx) }
+    return oren_string_char_at_unchecked(src_s, idx)
+}
+
+fn _ml_scan_match_kw_import(src_s, idx, safe) {
     // Matches "import" at idx with identifier-boundary on both sides.
     // Return true/false (no allocations).
     var n = oren_string_len(src_s)
     if idx + 6 > n { return false }
-    if oren_string_char_at_unchecked(src_s, idx + 0) != "i" { return false }
-    if oren_string_char_at_unchecked(src_s, idx + 1) != "m" { return false }
-    if oren_string_char_at_unchecked(src_s, idx + 2) != "p" { return false }
-    if oren_string_char_at_unchecked(src_s, idx + 3) != "o" { return false }
-    if oren_string_char_at_unchecked(src_s, idx + 4) != "r" { return false }
-    if oren_string_char_at_unchecked(src_s, idx + 5) != "t" { return false }
+    if _ml_scan_char_at(src_s, idx + 0, safe) != "i" { return false }
+    if _ml_scan_char_at(src_s, idx + 1, safe) != "m" { return false }
+    if _ml_scan_char_at(src_s, idx + 2, safe) != "p" { return false }
+    if _ml_scan_char_at(src_s, idx + 3, safe) != "o" { return false }
+    if _ml_scan_char_at(src_s, idx + 4, safe) != "r" { return false }
+    if _ml_scan_char_at(src_s, idx + 5, safe) != "t" { return false }
     // Left boundary: either beginning, or non-ident char.
     if idx > 0 {
-        var prev = oren_string_char_at_unchecked(src_s, idx - 1)
+        var prev = _ml_scan_char_at(src_s, idx - 1, safe)
         if _ml_scan_is_ident_char(prev) { return false }
     }
     // Right boundary: must be whitespace.
     if idx + 6 < n {
-        var next = oren_string_char_at_unchecked(src_s, idx + 6)
+        var next = _ml_scan_char_at(src_s, idx + 6, safe)
         if !_ml_scan_is_ws(next) { return false }
     }
     return true
@@ -388,22 +407,35 @@ fn _ml_include_list_if_aggregator(full_path) {
     //
     // For these, parsing a single giant include-expanded string is wasteful.
     // We instead parse each include child and then merge the AST fragments.
+    var trace = oren_env("OREN_TRACE_IMPORT_SCAN") != nil
+    if trace { print("[include_scan] read start file=" + full_path) }
     var src = oren_read_file(full_path)
-    if oren_is_err(src) { return nil }
+    if oren_is_err(src) {
+        if trace {
+            var em = oren_err_msg(src)
+            if em == nil { em = "read failed" }
+            print("[include_scan] read error file=" + full_path + " err=" + em)
+        }
+        return nil
+    }
 
     var includes = []
     var has_code = false
+    var safe = _ml_scan_should_use_safe()
+    if trace {
+        print("[include_scan] file=" + full_path + " bytes=" + oren_int_to_string(oren_string_len(src)))
+    }
 
     var line_start = 0
     var i = 0
     var n = oren_string_len(src)
     while i < n {
-        if oren_string_char_at_unchecked(src, i) == "\n" {
+        if _ml_scan_char_at(src, i, safe) == "\n" {
             var line = oren_string_slice(src, line_start, i)
             var inc = include_path_from_line(line)
             if inc != nil && oren_string_len(inc) > 0 {
                 var inc_full = inc
-                if oren_string_char_at_unchecked(inc, 0) != "/" {
+                if _ml_scan_char_at(inc, 0, safe) != "/" {
                     inc_full = resolve_path(dirname(full_path), inc)
                 }
                 oren_list_push(includes, inc_full)
@@ -557,28 +589,37 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
     // and ignore everything else. This is sufficient because we only need import edges.
     if src == nil { return {"ok": true, "imports": []} }
     var imports = []
+    var safe = _ml_scan_should_use_safe()
+    var trace = oren_env("OREN_TRACE_IMPORT_SCAN") != nil
+    var trace_file = oren_env("OREN_TRACE_IMPORT_SCAN_FILE")
+    if trace_file != nil && trace_file != "" && full_path != trace_file { trace = false }
+    if trace {
+        var sm = "fast"
+        if safe { sm = "safe" }
+        print("[import_scan] start file=" + full_path + " mode=" + sm)
+    }
 
     var n = oren_string_len(src)
     var i = 0
     var at_bol = true
 
     while i < n {
-        var ch = oren_string_char_at_unchecked(src, i)
+        var ch = _ml_scan_char_at(src, i, safe)
 
         // Line comment
-        if ch == "/" && i + 1 < n && oren_string_char_at_unchecked(src, i + 1) == "/" {
+        if ch == "/" && i + 1 < n && _ml_scan_char_at(src, i + 1, safe) == "/" {
             // Skip to newline.
             i = i + 2
-            while i < n && oren_string_char_at_unchecked(src, i) != "\n" {
+            while i < n && _ml_scan_char_at(src, i, safe) != "\n" {
                 i = i + 1
             }
             continue
         }
         // Block comment
-        if ch == "/" && i + 1 < n && oren_string_char_at_unchecked(src, i + 1) == "*" {
+        if ch == "/" && i + 1 < n && _ml_scan_char_at(src, i + 1, safe) == "*" {
             i = i + 2
             while i + 1 < n {
-                if oren_string_char_at_unchecked(src, i) == "*" && oren_string_char_at_unchecked(src, i + 1) == "/" {
+                if _ml_scan_char_at(src, i, safe) == "*" && _ml_scan_char_at(src, i + 1, safe) == "/" {
                     i = i + 2
                     break
                 }
@@ -592,37 +633,39 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
             // Skip leading indentation at BOL.
             if ch == " " || ch == "\t" || ch == "\r" { i = i + 1; continue }
             // Fast path: import lines tend to be at BOL; check keyword.
-            if _ml_scan_match_kw_import(src, i) {
+            if _ml_scan_match_kw_import(src, i, safe) {
                 i = i + 6
                 // Skip ws
-                while i < n && _ml_scan_is_ws(oren_string_char_at_unchecked(src, i)) {
-                    if oren_string_char_at_unchecked(src, i) == "\n" { break }
+                while i < n && _ml_scan_is_ws(_ml_scan_char_at(src, i, safe)) {
+                    if _ml_scan_char_at(src, i, safe) == "\n" { break }
                     i = i + 1
                 }
                 // Parse alias ident
                 if i >= n { break }
                 var a0 = i
-                var c0 = oren_string_char_at_unchecked(src, i)
+                var c0 = _ml_scan_char_at(src, i, safe)
                 if !_ml_scan_is_ident_start(c0) {
+                    if trace { print("[import_scan] error invalid ident at i=" + oren_int_to_string(i)) }
                     return {"ok": false, "err": "scan_imports: invalid import (expected identifier after import) in " + full_path}
                 }
                 i = i + 1
-                while i < n && _ml_scan_is_ident_char(oren_string_char_at_unchecked(src, i)) {
+                while i < n && _ml_scan_is_ident_char(_ml_scan_char_at(src, i, safe)) {
                     i = i + 1
                 }
                 var alias = oren_string_slice(src, a0, i)
                 // Skip ws
-                while i < n && _ml_scan_is_ws(oren_string_char_at_unchecked(src, i)) {
-                    if oren_string_char_at_unchecked(src, i) == "\n" { break }
+                while i < n && _ml_scan_is_ws(_ml_scan_char_at(src, i, safe)) {
+                    if _ml_scan_char_at(src, i, safe) == "\n" { break }
                     i = i + 1
                 }
-                if i >= n || oren_string_char_at_unchecked(src, i) != "\"" {
+                if i >= n || _ml_scan_char_at(src, i, safe) != "\"" {
+                    if trace { print("[import_scan] error expected quote at i=" + oren_int_to_string(i)) }
                     return {"ok": false, "err": "scan_imports: invalid import (expected string path) in " + full_path}
                 }
                 i = i + 1
                 var p0 = i
                 while i < n {
-                    var c = oren_string_char_at_unchecked(src, i)
+                    var c = _ml_scan_char_at(src, i, safe)
                     if c == "\"" { break }
                     if c == "\\" && i + 1 < n {
                         // Skip escaped char.
@@ -630,18 +673,21 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
                         continue
                     }
                     if c == "\n" {
+                        if trace { print("[import_scan] error unterminated string at i=" + oren_int_to_string(i)) }
                         return {"ok": false, "err": "scan_imports: unterminated string in import in " + full_path}
                     }
                     i = i + 1
                 }
-                if i >= n || oren_string_char_at_unchecked(src, i) != "\"" {
+                if i >= n || _ml_scan_char_at(src, i, safe) != "\"" {
+                    if trace { print("[import_scan] error missing closing quote at i=" + oren_int_to_string(i)) }
                     return {"ok": false, "err": "scan_imports: unterminated string in import in " + full_path}
                 }
                 var path = oren_string_slice(src, p0, i)
                 i = i + 1
                 oren_list_push(imports, {"alias": alias, "path": path})
+                if trace { print("[import_scan] import alias=" + alias + " path=" + path) }
                 // Consume rest of line quickly.
-                while i < n && oren_string_char_at_unchecked(src, i) != "\n" {
+                while i < n && _ml_scan_char_at(src, i, safe) != "\n" {
                     i = i + 1
                 }
                 continue
@@ -655,6 +701,9 @@ fn _ml_scan_imports_in_src(full_path, src, config) {
         i = i + 1
     }
 
+    if trace {
+        print("[import_scan] done file=" + full_path + " imports=" + oren_int_to_string(oren_list_len(imports)))
+    }
     return {"ok": true, "imports": imports}
 }
 

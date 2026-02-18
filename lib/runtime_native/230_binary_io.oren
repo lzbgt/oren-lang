@@ -237,10 +237,17 @@ fn oren_read_file(path) {
     // - return an error map (do NOT hard-exit)
     // This must match the C runtime contract: compiler caches probe optional paths
     // and treat ENOENT as a normal cache miss.
+    var trace = native_envp_get_value_ptr("OREN_TRACE_READ_FILE")
+    if trace != 0 {
+        print("[read_file] path=" + path)
+    }
     var pair = native_capsule_fs_path_resolve_pair(path, 0)
     var rpath = ptr_get(pair + 0)
     var owned = ptr_get(pair + 8)
     free(pair)
+    if trace != 0 {
+        print("[read_file] resolve done owned=" + oren_int_to_string(owned))
+    }
 
     // Stat size first so we can do a single allocation and a bounded read loop.
     var st = oren_stat_alloc()
@@ -248,18 +255,22 @@ fn oren_read_file(path) {
     if src < 0 {
         free(st)
         if owned == 1 { free(rpath) }
+        if trace != 0 { print("[read_file] sys_stat failed rc=" + oren_int_to_string(src)) }
         return oren_err(0 - src, "read_file: sys_stat failed")
     }
     var size = oren_stat_get_size(st)
     free(st)
     if size < 0 {
         if owned == 1 { free(rpath) }
+        if trace != 0 { print("[read_file] invalid size") }
         return oren_err(4, "read_file: invalid size")
     }
+    if trace != 0 { print("[read_file] size=" + oren_int_to_string(size)) }
 
     var fd = sys_open(rpath, 0, 0) // O_RDONLY
     if fd < 0 {
         if owned == 1 { free(rpath) }
+        if trace != 0 { print("[read_file] sys_open failed rc=" + oren_int_to_string(fd)) }
         return oren_err(0 - fd, "read_file: sys_open failed")
     }
 

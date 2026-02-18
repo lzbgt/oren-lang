@@ -292,6 +292,17 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
           - `oren_stage2_cd0.exe build lib\\runtime_native\\011_channels_mem.oren --backend c` exits early on Win11 with trace stopping around stmt index ~20 (offset helper functions).
           - Same crash reproduces during native runtime bundle parse (after `parse_program start`), likely a parser/lexer/GC issue on Win11.
           - Next: add lexer-level tracing on Windows or temporarily disable parser-side GC to confirm; consider prebuilt astbin seeding as a stopgap for benchmarks.
+        - 2026-02-18: added GC-root pinning for module linking + safe-mode lexer path, but Win11 parse still crashes:
+          - `LINK_GC_ROOT` pins module discovery/parse worklists; `parse_import` pins name/path; lexer safe mode uses `OREN_LEX_SAFE` or `OS=Windows_NT`.
+          - With `OREN_TRACE_PARSE_PROGRESS=1` on `examples/hello.oren`, crash still occurs after stmt_i=1 (second import).
+          - With `OREN_TRACE_LEX_STEP=1`, crash later while lexing `lib/std/list.oren` around `fn clone` (pos ~575).
+          - Next: add GC pins for lexer/parser locals or temporarily disable GC during parse; capture a minimal repro to validate string lifetime on Win11.
+        - 2026-02-18: minimal Win11 lexer repro isolated to long line comments (native backend):
+          - `build\\tmp\\comment_only_40.oren` OK; `comment_only_45.oren` stack-overflows (`EXITCODE=-1073741571`).
+          - Repro file content: `// ` + 45×`a` + `\\n` (no code required).
+          - Still crashes with `OREN_NO_GC=1` and `OREN_LEX_SAFE=0`.
+          - `OREN_TRACE_DUMP=1` or `OREN_TRACE_LEX_STEP=1` avoids the crash (heisenbug).
+          - Next: audit native string-compare path + map key compare recursion; consider a byte-only lexer (no map lookups in hot loops) or a Windows-only fast comment skip that avoids `l["ch"]` string compares entirely.
         - 2026-02-18: latest trace shows crash during module discovery (even earlier):
           - With `OREN_TRACE_PASSES=1` + parse tracing, Win11 exits after `discover_module: lib/std/list.oren` (list has no imports).
           - Next: instrument `_ml_scan_imports_in_src` + `discover_module` to pinpoint the fault; consider Windows-only fallback to parser-based import scanning if the fast scanner is corrupting memory.
