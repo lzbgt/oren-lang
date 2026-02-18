@@ -460,6 +460,38 @@ fn _transpiler_fast_int_rhs(t, exp, idx_name, list_items, idx_c) {
     return nil
 }
 
+fn _transpiler_fast_nonneg_rhs(t, exp, idx_name, idx_c) {
+    if exp == nil { return nil }
+    var et = exp["type"]
+    if et == "Integer" {
+        var v = parse_int_lit(exp["value"])
+        if v < 0 { return nil }
+        return "(uint64_t)" + int_str(v)
+    }
+    if et == "Identifier" {
+        var name = exp["value"]
+        if name != nil && str_eq(name, idx_name) { return "(uint64_t)" + idx_c }
+        return nil
+    }
+    if et == "Infix" {
+        var op = exp["op"]
+        if op != "+" && op != "*" && op != "%" { return nil }
+        var left = _transpiler_fast_nonneg_rhs(t, exp["left"], idx_name, idx_c)
+        if left == nil { return nil }
+        var right = exp["right"]
+        if op == "%" {
+            if right == nil || right["type"] != "Integer" { return nil }
+            var rv = parse_int_lit(right["value"])
+            if rv <= 0 { return nil }
+            return "(" + left + " % (uint64_t)" + int_str(rv) + ")"
+        }
+        var right_s = _transpiler_fast_nonneg_rhs(t, right, idx_name, idx_c)
+        if right_s == nil { return nil }
+        return "(" + left + " " + op + " " + right_s + ")"
+    }
+    return nil
+}
+
 fn _transpiler_is_simple_inc(stmt, idx_name) {
     if stmt == nil || stmt["type"] != "Assign" { return false }
     if stmt["name"] == nil || str_eq(stmt["name"]["value"], idx_name) != true { return false }
@@ -615,8 +647,19 @@ fn _transpiler_emit_fast_list_int_push_while(t, stmt, info) {
         var value_expr = push["value"]
         var items_tmp2 = list_items[list_name]
         var ptr_tmp2 = list_ptrs[list_name]
-        var v_out = transpile_expression(t, value_expr)
-        oren_list_push(parts, "        " + items_tmp2 + "[" + i_int + "] = " + v_out + ";")
+        var fast_v = _transpiler_fast_nonneg_rhs(t, value_expr, idx_name, i_int)
+        if fast_v != nil {
+            var v_u = tmp_gensym(t, "list_fast_val_u")
+            var v_ll = tmp_gensym(t, "list_fast_val_ll")
+            oren_list_push(parts, "        uint64_t " + v_u + " = " + fast_v + ";")
+            oren_list_push(parts, "        long long " + v_ll + " = 0;")
+            oren_list_push(parts, "        memcpy(&" + v_ll + ", &" + v_u + ", sizeof(" + v_ll + "));")
+            oren_list_push(parts, "        " + items_tmp2 + "[" + i_int + "].type = OREN_TYPE_INT;")
+            oren_list_push(parts, "        " + items_tmp2 + "[" + i_int + "].as.int_val = " + v_ll + ";")
+        } else {
+            var v_out = transpile_expression(t, value_expr)
+            oren_list_push(parts, "        " + items_tmp2 + "[" + i_int + "] = " + v_out + ";")
+        }
         oren_list_push(parts, "        " + ptr_tmp2 + "->count = (int)(" + i_int + " + 1);")
         pi = pi + 1
     }
