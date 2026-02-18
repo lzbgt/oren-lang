@@ -79,6 +79,34 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
         }
         j = j + 1
     }
+
+    // Debug-only bisecting: slice the synthesized top-level statements by index.
+    // - OREN_TOP_LEVEL_FROM / OREN_TOP_LEVEL_TO are inclusive-exclusive indexes.
+    // - OREN_TRACE_TOP_LEVEL_SLICE=1 prints the slice + total count at compile time.
+    var top_len = oren_list_len(top_stmts)
+    var slice_from = 0
+    var slice_to = top_len
+    var v_from = oren_env("OREN_TOP_LEVEL_FROM")
+    if v_from != nil && v_from != "" { slice_from = core.parse_int_decimal(v_from, slice_from) }
+    var v_to = oren_env("OREN_TOP_LEVEL_TO")
+    if v_to != nil && v_to != "" { slice_to = core.parse_int_decimal(v_to, slice_to) }
+    if slice_from < 0 { slice_from = 0 }
+    if slice_to < 0 { slice_to = 0 }
+    if slice_from > top_len { slice_from = top_len }
+    if slice_to > top_len { slice_to = top_len }
+    if slice_to < slice_from { slice_to = slice_from }
+    var v_trace = oren_env("OREN_TRACE_TOP_LEVEL_SLICE")
+    if v_trace != nil && v_trace != "" {
+        if x64_env_str_eq(v_trace, "0") != true && x64_env_str_eq(v_trace, "false") != true {
+            print("[x64_top_level] stmts=" + oren_int_to_string(top_len) + " slice=" + oren_int_to_string(slice_from) + ":" + oren_int_to_string(slice_to))
+        }
+    }
+    if slice_from > 0 || slice_to < top_len {
+        var sliced = []
+        var k = slice_from
+        while k < slice_to { oren_list_push(sliced, top_stmts[k]); k = k + 1 }
+        top_stmts = sliced
+    }
     return {"top_level_fn": _x64_synth_top_level_fn(top_stmts)}
 }
 

@@ -64,6 +64,22 @@ fn native_compile_program_x64(linked, platform) {
             exit_after_register_thread = true
         }
     }
+    // Debug knob: skip __top_level__ entirely (bisect entry crashes).
+    var skip_top_level = false
+    var v_skip_top = oren_env("OREN_ENTRY_SKIP_TOP_LEVEL")
+    if v_skip_top != nil && v_skip_top != "" {
+        if x64_env_str_eq(v_skip_top, "0") != true && x64_env_str_eq(v_skip_top, "false") != true {
+            skip_top_level = true
+        }
+    }
+    // Debug knob: skip calling main (bisect startup crashes after top-level).
+    var skip_main = false
+    var v_skip_main = oren_env("OREN_ENTRY_SKIP_MAIN")
+    if v_skip_main != nil && v_skip_main != "" {
+        if x64_env_str_eq(v_skip_main, "0") != true && x64_env_str_eq(v_skip_main, "false") != true {
+            skip_main = true
+        }
+    }
     // Debug knob: suppress entry prints after thread registration (bisect write/stack faults).
     var trace_entry_after_reg = true
     var v_trace_after = oren_env("OREN_TRACE_X64_ENTRY_AFTER_REG")
@@ -892,21 +908,33 @@ fn native_compile_program_x64(linked, platform) {
     //
     // This converges x64 behavior with the other backends while keeping the x64 v0
     // "fn main() required" rule.
-    if trace_entry && trace_entry_after_reg && platform != nil && platform["os"] == "windows" {
-        _emit_windows_write_cstr(ctx, "ENTRY: top_level call")
-    }
-    var call_top_pos = bytes_len(ctx["code"])
-    bytes_extend(ctx["code"], insn_call_rel32(0))
-    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_top_pos, "name": "__top_level__"})
-    if trace_entry && trace_entry_after_reg && platform != nil && platform["os"] == "windows" {
-        _emit_windows_write_cstr(ctx, "ENTRY: top_level ok")
+    if skip_top_level != true {
+        if trace_entry && trace_entry_after_reg && platform != nil && platform["os"] == "windows" {
+            _emit_windows_write_cstr(ctx, "ENTRY: top_level call")
+        }
+        var call_top_pos = bytes_len(ctx["code"])
+        bytes_extend(ctx["code"], insn_call_rel32(0))
+        oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_top_pos, "name": "__top_level__"})
+        if trace_entry && trace_entry_after_reg && platform != nil && platform["os"] == "windows" {
+            _emit_windows_write_cstr(ctx, "ENTRY: top_level ok")
+        }
+    } else {
+        if trace_entry && trace_entry_after_reg && platform != nil && platform["os"] == "windows" {
+            _emit_windows_write_cstr(ctx, "ENTRY: top_level skip")
+        }
     }
 
-    if is_dll != true && is_so != true && has_main {
+    if is_dll != true && is_so != true && has_main && skip_main != true {
         var call_pos = bytes_len(ctx["code"])
         // placeholder rel32=0
         bytes_extend(ctx["code"], insn_call_rel32(0))
         oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "main"})
+    } else if is_dll != true && is_so != true {
+        // Ensure a deterministic exit code when main is absent or intentionally skipped.
+        if skip_main == true && trace_entry && trace_entry_after_reg && platform != nil && platform["os"] == "windows" {
+            _emit_windows_write_cstr(ctx, "ENTRY: main skip")
+        }
+        bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
     }
 
     if platform != nil && platform["os"] == "windows" {

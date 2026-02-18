@@ -232,9 +232,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - Latest (50k iters): native 120.6s vs C 0.0087s vs Oren C 0.0407s (`benchmarks/results/alloc_drop_darwin_arm64_20260217_230447.md`).
      - Target: native ≤0.50s on M2 with stable RSS.
      - Likely work: profile drop/GC sweep path, reduce per-drop tracking churn, verify free-list reuse + fast-path for short-lived drops.
-   - (P1/M) **Loop_sum native still ~6.4× C**
-     - Latest: native 0.4205s vs C 0.0659s (`benchmarks/results/loop_sum_darwin_arm64_20260214_165701.md`).
-     - Target: native ≤0.25s (≤4× C) while keeping correctness gates.
+  - (P1/M) **Loop_sum native still ~6.4× C**
+    - Latest: native 0.4253s vs C 0.0665s (`benchmarks/results/loop_sum_darwin_arm64_20260218_104800.md`).
+      - Oren C: 1.1811s; OBC/AVM: 5.8217s (same run).
+    - Target: native ≤0.25s (≤4× C) while keeping correctness gates.
    - (P1/M) **Capture x64-windows benchmark baselines (pc2.work)**
      - Blockers observed (2026-02-14):
        - No `oren_stage2.exe` in `G:\work\compiler-mini-git` (bench harness fails to compile Oren variants).
@@ -256,6 +257,17 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
           - Trace with `OREN_TRACE_X64_ENTRY_AFTER_REG=0` still stack-overflows after `gc_mode ok`,
             implying the crash is in the `__top_level__` call path (or immediately after `oren_register_thread`),
             not in the post-register `WriteFile` trace.
+        - 2026-02-18: `OREN_ENTRY_SKIP_TOP_LEVEL=1` (with post-register prints suppressed) avoids stack overflow,
+          but exit code is still abnormal (`EXITCODE=291307520` on Win11); add a deterministic exit code when `main`
+          is skipped and isolate the `main` path.
+        - 2026-02-18: added `OREN_ENTRY_SKIP_MAIN=1` (and default `eax=0` when main is skipped) to bisect:
+          - trace reaches `ENTRY: top_level call` and then stack-overflows (`EXITCODE=-1073741571`), so the
+            overflow is inside `__top_level__` (or immediately after its call), not in `main`.
+        - 2026-02-18: added compile-time top-level slicing (`OREN_TOP_LEVEL_FROM/TO`, `OREN_TRACE_TOP_LEVEL_SLICE`):
+          - total synthesized top-level stmts: 242.
+          - slice 0:121 still overflows; slice 0:60 OK; slice 60:90 OK; slice 90:121 overflows.
+          - => offending initializer is in stmt index range [90,121).
+          - Next: dump/top-level-stmt list with indices (or bisect 90:105 vs 105:121) and fix the specific initializer.
        - Decide if AVM should be Windows-capable (add win32 time/mmap shims) or allow `OREN_BENCH_SKIP_OBC=1` (bench runner now supports this).
 
 2) **Tier‑1 native parity: correctness across arch/OS** (L)
