@@ -12,7 +12,7 @@ Legend: `x` = slowdown relative to C median.
 | --- | --- | --- | --- | --- | --- |
 | loop_sum | 0.068195 | 1.190155 (17.45×) | 0.429771 (6.30×) | 5.720071 (83.88×) | `benchmarks/results/loop_sum_darwin_arm64_20260219_010934.md` |
 | array_sum | 0.006021 | 0.116454 (19.34×) | 0.145107 (24.10×) | 0.626310 (104.02×) | `benchmarks/results/array_sum_darwin_arm64_20260219_050804.md` |
-| array_sum_int | 0.003825 | 0.082009 (21.44×) | 0.019824 (5.18×) | 0.622686 (162.79×) | `benchmarks/results/array_sum_int_darwin_arm64_20260219_054300.md` |
+| array_sum_int | 0.003818 | 0.065961 (17.28×) | 0.019952 (5.23×) | 0.619605 (162.29×) | `benchmarks/results/array_sum_int_darwin_arm64_20260219_055227.md` |
 | dot_product | 0.006472 | 0.209131 (32.31×) | 0.221092 (34.16×) | 0.896550 (138.53×) | `benchmarks/results/dot_product_darwin_arm64_20260219_050816.md` |
 | dot_product_int | 0.004745 | 0.126416 (26.64×) | 0.024336 (5.13×) | 0.892373 (188.07×) | `benchmarks/results/dot_product_int_darwin_arm64_20260219_054926.md` |
 | alloc_churn | 0.004082 | 0.069660 (17.07×) | 0.162040 (39.70×) | 0.388069 (95.07×) | `benchmarks/results/alloc_churn_darwin_arm64_20260219_045329.md` |

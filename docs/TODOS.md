@@ -1028,7 +1028,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
       - `array_sum_int` (2M elems): C 0.004004s; Oren C 0.039389s (~9.84×); Oren native 0.040908s (~10.2×); OBC 0.629024s (~157.1×)
       - `dot_product_int` (2M elems): C 0.004784s; Oren C 0.072135s (~15.1×); Oren native 0.065333s (~13.7×); OBC 0.898854s (~187.9×)
     - index syntax (list<int> `xs[i]`, list_int recv-kind + native index fast-loop):
-      - `array_sum_int` (2M elems): C 0.003825s; Oren C 0.082009s (~21.4×); Oren native 0.019824s (~5.18×); OBC 0.622686s (~162.8×)
+      - `array_sum_int` (2M elems): C 0.003818s; Oren C 0.065961s (~17.3×); Oren native 0.019952s (~5.23×); OBC 0.619605s (~162.3×)
       - `dot_product_int` (2M elems): C 0.004745s; Oren C 0.126416s (~26.6×); Oren native 0.024336s (~5.13×); OBC 0.892373s (~188.1×)
    - 2026-02-18:
      - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
@@ -1038,6 +1038,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_054926.md`
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_054554.md`
+  - `benchmarks/results/array_sum_int_darwin_arm64_20260219_055227.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_054300.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_053538.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_052501.md`
