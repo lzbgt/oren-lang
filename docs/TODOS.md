@@ -266,8 +266,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
         - 2026-02-18: added compile-time top-level slicing (`OREN_TOP_LEVEL_FROM/TO`, `OREN_TRACE_TOP_LEVEL_SLICE`):
           - total synthesized top-level stmts: 242.
           - slice 0:121 still overflows; slice 0:60 OK; slice 60:90 OK; slice 90:121 overflows.
-          - => offending initializer is in stmt index range [90,121).
-          - Next: dump/top-level-stmt list with indices (or bisect 90:105 vs 105:121) and fix the specific initializer.
+          - slice 90:105 overflows; slice 105:121 OK.
+          - => offending initializer is in stmt index range [90,105).
+          - Next: dump/top-level-stmt list with indices (or bisect 90:97 vs 97:105) and fix the specific initializer.
        - Decide if AVM should be Windows-capable (add win32 time/mmap shims) or allow `OREN_BENCH_SKIP_OBC=1` (bench runner now supports this).
 
 2) **Tier‑1 native parity: correctness across arch/OS** (L)
