@@ -660,11 +660,17 @@ fn _transpiler_emit_fast_list_int_push_while(t, stmt, info) {
             var v_out = transpile_expression(t, value_expr)
             oren_list_push(parts, "        " + items_tmp2 + "[" + i_int + "] = " + v_out + ";")
         }
-        oren_list_push(parts, "        " + ptr_tmp2 + "->count = (int)(" + i_int + " + 1);")
         pi = pi + 1
     }
     oren_list_push(parts, "        " + i_int + "++;")
     oren_list_push(parts, "    }")
+    var ci = 0
+    while ci < oren_list_len(lists) {
+        var list_name2 = lists[ci]
+        var ptr_tmp3 = list_ptrs[list_name2]
+        oren_list_push(parts, "    " + ptr_tmp3 + "->count = (int)" + i_int + ";")
+        ci = ci + 1
+    }
     oren_list_push(parts, "    " + c_ident(idx_name) + " = oren_int(" + i_int + ");")
     t["fast_list_items"] = prev_fast_items
     t["fast_idx_name"] = prev_fast_idx_name

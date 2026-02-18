@@ -1028,14 +1028,16 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
       - `array_sum_int` (2M elems): C 0.004004s; Oren C 0.039389s (~9.84×); Oren native 0.040908s (~10.2×); OBC 0.629024s (~157.1×)
       - `dot_product_int` (2M elems): C 0.004784s; Oren C 0.072135s (~15.1×); Oren native 0.065333s (~13.7×); OBC 0.898854s (~187.9×)
     - index syntax (list<int> `xs[i]`, list_int recv-kind + native index fast-loop):
-      - `array_sum_int` (2M elems): C 0.003826s; Oren C 0.039121s (~10.2×); Oren native 0.019972s (~5.22×); OBC 0.620983s (~162.3×)
-      - `dot_product_int` (2M elems): C 0.005128s; Oren C 0.072759s (~14.2×); Oren native 0.024895s (~4.85×); OBC 0.893882s (~174.3×)
+      - `array_sum_int` (2M elems): C 0.004389s; Oren C 0.012024s (~2.74×); Oren native 0.020845s (~4.75×); OBC 0.621412s (~141.6×)
+      - `dot_product_int` (2M elems): C 0.004965s; Oren C 0.018847s (~3.80×); Oren native 0.024758s (~4.99×); OBC 0.890157s (~179.3×)
    - 2026-02-18:
      - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
      - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
 
   Artifacts:
 
+  - `benchmarks/results/dot_product_int_darwin_arm64_20260219_062657.md`
+  - `benchmarks/results/array_sum_int_darwin_arm64_20260219_062648.md`
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_061903.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_061855.md`
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_061139.md`
@@ -1084,6 +1086,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - Compiler: `lib/compiler/transpiler.oren` (`_transpiler_fast_int_rhs`)
   - 2026-02-19: fast list<int> push loops now compute non-negative int RHS directly (supports +, *, % with positive literals).
     - Compiler: `lib/compiler/transpiler.oren` (`_transpiler_fast_nonneg_rhs`)
+  - 2026-02-19: fast list<int> push loops now defer list count updates to the end of the loop (no per-iter count store).
+    - Compiler: `lib/compiler/transpiler.oren` (fast list<int> push while emit)
    - 2026-02-19: C backend list/map ops skip striped object locks until `spawn` is used (reduces single-thread overhead; main thread wrapper does not enable locks).
      - Override: `OREN_LIST_FORCE_LOCKS=1` forces locks; `OREN_LIST_SKIP_LOCKS=1` disables locks even after threads (perf-only, unsafe).
      - Runtime: `lib/runtime/010_prelude.inc` (`g_threads_started`), `lib/runtime/020_threads_gc.inc` (spawn marks), `lib/runtime/040_lists_maps.inc` (lock gating)
@@ -1101,7 +1105,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
   Next steps (highest leverage):
 
-  - Investigate remaining Oren C vs C gap for list<int> index loops (now ~10–15×): consider unboxed list<int> storage or more aggressive raw-int lowering in C backend hot loops.
+  - Investigate remaining Oren C vs C gap for list<int> index loops (now ~3–4×): consider unboxed list<int> storage or additional raw-int lowering in C backend hot loops.
   - Extend list<int> fast-loop hoist to cover more safe patterns and to the native backend (C backend now uses it for strict list_int_get-only loops).
   - Capture x64 benchmarks for the new native list<int> fast push-loop (ported to `lib/compiler/x64_native_program/060_emit_ops.oren`); validate parity and safety.
     - Blocker (2026-02-19): local docker CLI returns `EOF` for `docker ps` (cannot access Tier‑1 container `c7e5f7bd9f5c`); restore docker daemon/CLI access.
