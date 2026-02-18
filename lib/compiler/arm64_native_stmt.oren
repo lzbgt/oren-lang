@@ -923,13 +923,41 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], insn_add_reg(24, 21, 24))
         push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
 
-        // sum = oren_add(sum, value)
+        // sum = oren_add(sum, value), inlined (native strings fast check)
+        push_u32_le(ctx["code"], insn_mov_reg(0, 23))
+        var bl_sum_str = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_sum_str, "name": "native_is_string_ptr"})
+        push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+        var jpos_sum_not_str = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0) // patched: b.eq iadd
+
+        push_u32_le(ctx["code"], insn_mov_reg(0, 25))
+        var bl_val_str = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0)
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_val_str, "name": "native_is_string_ptr"})
+        push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+        var jpos_val_not_str = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0) // patched: b.eq iadd
+
         push_u32_le(ctx["code"], insn_mov_reg(0, 23))
         push_u32_le(ctx["code"], insn_mov_reg(1, 25))
-        var bl_add = bytes_len(ctx["code"])
+        var bl_concat = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
-        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_add, "name": "oren_add"})
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_concat, "name": "string_concat"})
         push_u32_le(ctx["code"], insn_mov_reg(23, 0))
+        var jpos_skip_iadd = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], 0) // patched: b after iadd
+
+        var iadd_pos = bytes_len(ctx["code"])
+        push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
+        var after_pos = bytes_len(ctx["code"])
+        var off_sum = (iadd_pos - jpos_sum_not_str) / 4
+        set_u32_le(ctx["code"], jpos_sum_not_str, insn_b_cond(off_sum, 0))
+        var off_val = (iadd_pos - jpos_val_not_str) / 4
+        set_u32_le(ctx["code"], jpos_val_not_str, insn_b_cond(off_val, 0))
+        var off_skip = (after_pos - jpos_skip_iadd) / 4
+        set_u32_le(ctx["code"], jpos_skip_iadd, insn_b(off_skip))
 
         pi = pi + 1
     }
