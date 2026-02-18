@@ -1028,14 +1028,16 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
       - `array_sum_int` (2M elems): C 0.004004s; Oren C 0.039389s (~9.84×); Oren native 0.040908s (~10.2×); OBC 0.629024s (~157.1×)
       - `dot_product_int` (2M elems): C 0.004784s; Oren C 0.072135s (~15.1×); Oren native 0.065333s (~13.7×); OBC 0.898854s (~187.9×)
     - index syntax (list<int> `xs[i]`, list_int recv-kind + native index fast-loop):
-      - `array_sum_int` (2M elems): C 0.003818s; Oren C 0.065961s (~17.3×); Oren native 0.019952s (~5.23×); OBC 0.619605s (~162.3×)
-      - `dot_product_int` (2M elems): C 0.004745s; Oren C 0.126416s (~26.6×); Oren native 0.024336s (~5.13×); OBC 0.892373s (~188.1×)
+      - `array_sum_int` (2M elems): C 0.003957s; Oren C 0.065205s (~16.5×); Oren native 0.019772s (~5.00×); OBC 0.621473s (~157.1×)
+      - `dot_product_int` (2M elems): C 0.004641s; Oren C 0.126783s (~27.3×); Oren native 0.024480s (~5.27×); OBC 0.889601s (~191.7×)
    - 2026-02-18:
      - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
      - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
 
   Artifacts:
 
+  - `benchmarks/results/dot_product_int_darwin_arm64_20260219_055756.md`
+  - `benchmarks/results/array_sum_int_darwin_arm64_20260219_055746.md`
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_054926.md`
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_054554.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_055227.md`
@@ -1068,6 +1070,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - Compiler: `lib/compiler/arm64_native_expr/010_lowering_a.oren`, `lib/compiler/x64_native_program/045_emit_index_expr.oren`
   - 2026-02-19: C backend list<int> get/set now inline the list fast-path (bypasses generic list/map/python dispatch).
     - Runtime: `lib/runtime/040_lists_maps.inc` (`oren_list_int_get`, `oren_list_int_set`)
+  - 2026-02-19: C backend list<int> index syntax now emits list-int fast helpers for get/set.
+    - Compiler: `lib/compiler/transpiler.oren` (`Index` + `Set` lowering)
    - 2026-02-19: C backend list/map ops skip striped object locks until `spawn` is used (reduces single-thread overhead; main thread wrapper does not enable locks).
      - Override: `OREN_LIST_FORCE_LOCKS=1` forces locks; `OREN_LIST_SKIP_LOCKS=1` disables locks even after threads (perf-only, unsafe).
      - Runtime: `lib/runtime/010_prelude.inc` (`g_threads_started`), `lib/runtime/020_threads_gc.inc` (spawn marks), `lib/runtime/040_lists_maps.inc` (lock gating)
@@ -1085,7 +1089,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
   Next steps (highest leverage):
 
-  - Specialize list<int> index syntax (`xs[i]`) to use list-int fast paths (avoid generic index checks); use `array_sum_int` index-syntax bench as the guard.
+  - Investigate remaining Oren C vs C gap for list<int> index loops (still ~16–27×): consider int accumulator unboxing or lowering `sum += xs[i]` into raw int math with a single box at the end.
   - Extend list<int> fast-loop hoist to cover more safe patterns and to the native backend (C backend now uses it for strict list_int_get-only loops).
   - Capture x64 benchmarks for the new native list<int> fast push-loop (ported to `lib/compiler/x64_native_program/060_emit_ops.oren`); validate parity and safety.
     - Blocker (2026-02-19): local docker CLI returns `EOF` for `docker ps` (cannot access Tier‑1 container `c7e5f7bd9f5c`); restore docker daemon/CLI access.

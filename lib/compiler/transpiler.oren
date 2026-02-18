@@ -1501,7 +1501,7 @@ fn transpile_statement(t, stmt) {
             var val = transpile_expression(t, stmt["value"])
             var rk = stmt["left"]["recv_kind"]
             if rk == "list_int" {
-                return "oren_list_int_set(" + arr + ", " + idx + ", " + val + ");"
+                return "oren_list_int_set_fast(" + arr + ", " + idx + ", " + val + ");"
             }
             return "oren_index_set(" + arr + ", " + idx + ", " + val + ");"
         }
@@ -1915,7 +1915,7 @@ fn transpile_expression(t, exp) {
         var idx = transpile_expression(t, exp["index"])
         var rk = exp["recv_kind"]
         if rk == "list_int" {
-            return "oren_list_int_get(" + left_expr + ", " + idx + ")"
+            return "oren_list_int_get_fast(" + left_expr + ", " + idx + ")"
         }
         return "oren_list_get(" + left_expr + ", " + idx + ")"
     }
