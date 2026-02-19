@@ -1,6 +1,6 @@
 // --- Native green tasks (rolling; GMP-ready) ---
 //
-// Goal (Stage N1, per `docs/NATIVE_GMP_SCHEDULER.md`):
+// Goal (Stage N1, per `docs/RUNTIME.md`):
 // - Provide an in-process lightweight task substrate so:
 //   - macOS/Linux native `spawn` no longer uses fork+pipe
 //   - heap/GC/locks are in a single shared address space (required for correctness later)

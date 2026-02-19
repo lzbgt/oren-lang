@@ -14,8 +14,8 @@
 //   `sys_ulock_wait/sys_ulock_wake` interface (Linux lowering is futex).
 //
 // References:
-// - docs/MEMORY.md (why OS threads are P0 for scaling)
-// - docs/NATIVE_GMP_SCHEDULER.md (Stage N2 plan)
+// - docs/LANGUAGE.md (why OS threads are P0 for scaling)
+// - docs/RUNTIME.md (Stage N2 plan)
 // - project-doc/web/linux/include_uapi_linux_sched.h (CLONE_* constants)
 
 // Debug: last OS-thread spawn error (rolling, best-effort).
