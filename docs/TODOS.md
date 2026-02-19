@@ -82,6 +82,8 @@ Weights reflect expected impact on C-parity + breadth of code affected.
    - Expand `inty` propagation and arithmetic fast paths so inner loops avoid runtime helpers
      (`oren_add`, `oren_mod`, etc.) in both arm64 and x64 native emitters.
    - Add/verify fastmod reductions for constant modulus in native backends (mirror OBC fastmod).
+   - 2026-02-19: optimizer rewrites `% ident` to `% <int>` when `ident` is a known int literal in the same block,
+     enabling native fastmod for loops that use `mod` variables.
    - Gate: native `loop_sum` and `dot_product` ≤ 2× C on Tier‑1 arm64 + x64.
 
 2) **W5 — Allocation/GC overhead reduction (alloc_churn/alloc_drop)** (L)
