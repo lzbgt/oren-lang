@@ -10,7 +10,7 @@ Legend: `x` = slowdown relative to C median.
 
 | benchmark | C median (s) | Oren C median (x) | Oren native median (x) | Oren OBC median (x) | result file |
 | --- | --- | --- | --- | --- | --- |
-| loop_sum | 0.069655 | 0.349441 (5.02×) | 0.426707 (6.13×) | 0.100273 (1.44×) | `benchmarks/results/loop_sum_darwin_arm64_20260219_152215.md` |
+| loop_sum | 0.067019 | 0.060689 (0.91×) | 0.425392 (6.35×) | 0.098356 (1.47×) | `benchmarks/results/loop_sum_darwin_arm64_20260219_153046.md` |
 | array_sum | 0.004190 | 0.007941 (1.90×) | 0.020951 (5.00×) | 0.010095 (2.41×) | `benchmarks/results/array_sum_darwin_arm64_20260219_130446.md` |
 | array_sum_int | 0.004914 | 0.010160 (2.07×) | 0.022312 (4.54×) | 0.005768 (1.17×) | `benchmarks/results/array_sum_int_darwin_arm64_20260219_144341.md` |
 | multi_list_sum | 0.008349 | 0.017322 (2.07×) | 0.030751 (3.68×) | 0.015799 (1.89×) | `benchmarks/results/multi_list_sum_darwin_arm64_20260219_130703.md` |
@@ -23,7 +23,8 @@ Legend: `x` = slowdown relative to C median.
 Notes:
 
 - alloc_churn/alloc_drop are allocation-heavy; they highlight tracking and GC overhead.
-- loop_sum OBC lands at ~1.44× C after emitting a fused AVM `INT_LCG_SUM_LOOP` opcode for the LCG+sum loop (now using a fast sum-mod reduction when safe).
+- loop_sum OBC lands at ~1.47× C after emitting a fused AVM `INT_LCG_SUM_LOOP` opcode for the LCG+sum loop (now using a fast sum-mod reduction when safe).
+- loop_sum Oren C can edge out C on this microbench after LCG fast-path parity fixes; treat this as a narrow win until revalidated on more hosts.
 - loop_sum now has fast-path lowering for C/native backends (LCG+sum loop), but the M2 baseline is still
   ~5.08× (Oren C) and ~6.32× (native). The fast path triggers; remaining gap appears dominated by
   runtime init + per-process overhead rather than the loop body. Next: quantify init cost and

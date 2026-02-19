@@ -818,10 +818,12 @@ fn _transpiler_match_mul_const(expr, name) {
     if expr == nil || expr["type"] != "Infix" || expr["op"] != "*" { return nil }
     var left = expr["left"]
     var right = expr["right"]
-    if _transpiler_is_ident(left) == name {
+    var left_name = _transpiler_is_ident(left)
+    if left_name != nil && str_eq(left_name, name) {
         return _transpiler_parse_int_lit_expr(right)
     }
-    if _transpiler_is_ident(right) == name {
+    var right_name = _transpiler_is_ident(right)
+    if right_name != nil && str_eq(right_name, name) {
         return _transpiler_parse_int_lit_expr(left)
     }
     return nil
@@ -840,7 +842,8 @@ fn _transpiler_collect_add_terms(expr, out) {
 
 fn _transpiler_match_mod_term(expr, name) {
     if expr == nil || expr["type"] != "Infix" || expr["op"] != "%" { return nil }
-    if _transpiler_is_ident(expr["left"]) != name { return nil }
+    var left_name = _transpiler_is_ident(expr["left"])
+    if left_name == nil || str_eq(left_name, name) != true { return nil }
     var modv = _transpiler_parse_int_lit_expr(expr["right"])
     if modv == nil || modv <= 0 { return nil }
     return modv
@@ -848,7 +851,8 @@ fn _transpiler_match_mod_term(expr, name) {
 
 fn _transpiler_match_lcg_update(stmt, x_name) {
     if stmt == nil || stmt["type"] != "Assign" { return nil }
-    if _transpiler_is_ident(stmt["name"]) != x_name { return nil }
+    var name = _transpiler_is_ident(stmt["name"])
+    if name == nil || str_eq(name, x_name) != true { return nil }
     var val = stmt["value"]
     if val == nil || val["type"] != "Infix" || val["op"] != "%" { return nil }
     var mod_ident = val["right"]
@@ -868,10 +872,12 @@ fn _transpiler_match_lcg_update(stmt, x_name) {
 
 fn _transpiler_match_sum_mod_update(stmt, sum_name, x_name, idx_name, mod_name) {
     if stmt == nil || stmt["type"] != "Assign" { return nil }
-    if _transpiler_is_ident(stmt["name"]) != sum_name { return nil }
+    var name = _transpiler_is_ident(stmt["name"])
+    if name == nil || str_eq(name, sum_name) != true { return nil }
     var val = stmt["value"]
     if val == nil || val["type"] != "Infix" || val["op"] != "%" { return nil }
-    if _transpiler_is_ident(val["right"]) != mod_name { return nil }
+    var mod_rhs = _transpiler_is_ident(val["right"])
+    if mod_rhs == nil || str_eq(mod_rhs, mod_name) != true { return nil }
     var terms = []
     _transpiler_collect_add_terms(val["left"], terms)
     if oren_list_len(terms) != 3 { return nil }
@@ -881,7 +887,8 @@ fn _transpiler_match_sum_mod_update(stmt, sum_name, x_name, idx_name, mod_name) 
     var ti = 0
     while ti < oren_list_len(terms) {
         var t = terms[ti]
-        if _transpiler_is_ident(t) == sum_name {
+        var tname = _transpiler_is_ident(t)
+        if tname != nil && str_eq(tname, sum_name) {
             saw_sum = true
             ti = ti + 1
             continue
