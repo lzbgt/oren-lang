@@ -122,6 +122,24 @@ Tagged value convergence plan (rolling, lean):
     (`AVM_VAL_LIST` and `AVM_VAL_LIST_INT` both map to tag 6).
   - Native: `oren_type_tag` is best‑effort for scalars; container/buffer tags match
     OrenType and list<int> reports tag 6 (list) until full tagging lands.
+- Backend tag mapping table (rolling; `oren_type_tag` contract):
+
+| OrenType tag | C backend (`lib/runtime.h`) | AVM (`lib/avm/avm.h`) | Native (`lib/runtime_native/130_printing.oren`) |
+| --- | --- | --- | --- |
+| 0 nil | `OREN_TYPE_NIL` | `AVM_VAL_NIL` | `native_value_is_nil` |
+| 1 int | `OREN_TYPE_INT` | `AVM_VAL_INT` | best‑effort (scalars may report int) |
+| 2 float | `OREN_TYPE_FLOAT` | `AVM_VAL_FLOAT` | may still report as tag 1 |
+| 3 bool | `OREN_TYPE_BOOL` | `AVM_VAL_BOOL` | `native_value_is_false/true` |
+| 4 string | `OREN_TYPE_STRING` | `AVM_VAL_STRING` | `oren_is_string` |
+| 5 py_obj | `OREN_TYPE_PY_OBJ` | n/a | n/a |
+| 6 list | `OREN_TYPE_LIST` | `AVM_VAL_LIST` + `AVM_VAL_LIST_INT` | `oren_is_list` + `oren_is_list_int` |
+| 7 map | `OREN_TYPE_MAP` | `AVM_VAL_MAP` | `oren_is_map` |
+| 8 func | `OREN_TYPE_FUNC` | `AVM_VAL_FUNC` | `oren_is_func` |
+| 9 u8_buf | `OREN_TYPE_U8_BUF` | `AVM_VAL_BYTES` (u8 buffer) | `oren_is_u8_buf` |
+| 10 i32_buf | `OREN_TYPE_I32_BUF` | `AVM_VAL_I32_BUF` | `oren_is_i32_buf` |
+| 11 i64_buf | `OREN_TYPE_I64_BUF` | `AVM_VAL_I64_BUF` | `oren_is_i64_buf` |
+| 12 f32_buf | `OREN_TYPE_F32_BUF` | `AVM_VAL_F32_BUF` | `oren_is_f32_buf` |
+| 13 f64_buf | `OREN_TYPE_F64_BUF` | `AVM_VAL_F64_BUF` | `oren_is_f64_buf` |
 - Define a single **canonical value model** that can be represented in:
   - native backend values,
   - C backend values,

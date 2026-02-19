@@ -64,7 +64,20 @@ fn main() {
     assert_tag_eq("f32_buf", oren_type_tag(bf32), 12)
     assert_tag_eq("f64_buf", oren_type_tag(bf64), 13)
 
+    assert_str_eq("nil", oren_type_name(nil), "nil")
+    assert_str_eq("bool_true", oren_type_name(true), "bool")
+    assert_str_eq("bool_false", oren_type_name(false), "bool")
+    assert_str_eq("int", oren_type_name(1), "int")
+    assert_str_eq("string", oren_type_name("hi"), "string")
+    assert_str_eq("list", oren_type_name(xs), "list")
+    assert_str_eq("list_int", oren_type_name(xs_int), "list")
     assert_str_eq("map", oren_type_name(m), "map")
     assert_str_eq("type_map", oren_type_name(tm), "Widget")
+    assert_str_eq("func", oren_type_name(f), "func")
+    assert_str_eq("u8_buf", oren_type_name(b), "u8_buf")
+    assert_str_eq("i32_buf", oren_type_name(b32), "i32_buf")
+    assert_str_eq("i64_buf", oren_type_name(b64), "i64_buf")
+    assert_str_eq("f32_buf", oren_type_name(bf32), "f32_buf")
+    assert_str_eq("f64_buf", oren_type_name(bf64), "f64_buf")
     return 0
 }
