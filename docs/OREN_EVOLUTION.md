@@ -155,8 +155,7 @@ The Agent will write whatever syntax we tell it to. The adoption depends entirel
 
 References for the current AVM direction:
 
-- Bootstrap VM (current): `docs/AVM_SPEC.md`
-- Next-gen AVM plan (no-JIT-first, ML-focused typed buffers/SIMD, capability domains): `docs/AVM_SPEC_V1.md`
+- AVM spec (bootstrap + Next-Gen plan section): `docs/AVM_SPEC.md`
 - Agentic requirements (end-to-end): `docs/AGENTIC_REQUIREMENTS.md`
 
 ---

@@ -210,5 +210,5 @@ For AVM execution (interpreter-only environments), concurrency primitives must:
 
 See:
 
-- `docs/AVM_SPEC_V1.md`
+- `docs/AVM_SPEC.md` (Next-Gen plan section)
 - `docs/AGENTIC_REQUIREMENTS.md`

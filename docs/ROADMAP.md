@@ -95,7 +95,7 @@ This enables swarm governance and self-healing workflows (see `docs/AVM_DESIGN.m
 
 ### Next-Gen AVM (No-JIT-First, ML-Oriented)
 
-- Spec draft: `docs/AVM_SPEC_V1.md`
+- Spec draft (Next-Gen plan section): `docs/AVM_SPEC.md`
 - Agentic requirements (end-to-end): `docs/AGENTIC_REQUIREMENTS.md`
 - Language stability / feature rollout rules (self-hosting): `docs/LANGUAGE_EVOLUTION.md`
 

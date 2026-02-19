@@ -832,7 +832,7 @@ Backend behavior (rolling):
 
 - **AVM backend**: `spawn` creates a **deterministic VM task** (green thread) scheduled by the AVM runtime.
   - `oren_join(handle)` and `oren_yield()` are VM opcodes (portable, snapshot-safe).
-  - See `docs/AVM_SPEC_V1.md` (tasks + channels + select).
+  - See `docs/AVM_SPEC.md` (Next-Gen plan section: tasks + channels + select).
 	- **C backend**: `spawn` uses `pthread_create` and returns a pointer-like handle.
 	  - `oren_join(handle)` waits and returns the spawned function’s return value.
 	  - `oren_detach(handle)` / `oren_join_all()` exist in the C runtime (rolling; not yet mirrored in native runtime).

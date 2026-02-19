@@ -1724,7 +1724,7 @@ fn compiler_main() {
             oren_list_push(parts, "if errorlevel 1 exit /b %errorlevel%\r\n")
 
             // cl args.
-            var cl_args = ["/nologo", "/std:c11", "/Fe:" + out_win, c_win, "lib\\runtime.c", "lib\\runtime_buf.c", "/Ilib"]
+            var cl_args = ["/nologo", "/std:c11", "/O2", "/Fe:" + out_win, c_win, "lib\\runtime.c", "lib\\runtime_buf.c", "/Ilib"]
             if no_gc { oren_list_push(cl_args, "/DOREN_NO_GC") }
             var j_lib = 0
             while j_lib < oren_list_len(link_libs) {
@@ -1753,7 +1753,7 @@ fn compiler_main() {
             cmd = "cmd.exe /d /c " + cmd_quote(sp)
         } else {
             // gcc/clang-style compiler on Windows (MSYS2). Keep the existing flag shape.
-            cmd = cc + " -o " + shell_quote(out_path) + " " + shell_quote(c_path) + " lib/runtime.c lib/runtime_buf.c -Ilib"
+            cmd = cc + " -O2 -o " + shell_quote(out_path) + " " + shell_quote(c_path) + " lib/runtime.c lib/runtime_buf.c -Ilib"
             var k_lib = 0
             while k_lib < oren_list_len(link_libs) {
                 cmd = cmd + " " + shell_quote(link_libs[k_lib])
@@ -1765,7 +1765,7 @@ fn compiler_main() {
             }
         }
     } else {
-        cmd = cc + " -o " + shell_quote(out_path) + " " + shell_quote(c_path) + " lib/runtime.c lib/runtime_buf.c -Ilib -pthread"
+        cmd = cc + " -O2 -o " + shell_quote(out_path) + " " + shell_quote(c_path) + " lib/runtime.c lib/runtime_buf.c -Ilib -pthread"
         var k_lib = 0
         while k_lib < oren_list_len(link_libs) {
             cmd = cmd + " " + shell_quote(link_libs[k_lib])
@@ -1861,4 +1861,3 @@ fn compiler_main() {
     }
     return nil
 }
-

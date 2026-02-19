@@ -36,8 +36,7 @@ This is the foundation for self-healing agent workflows where “code is data”
 
 Authoritative specs/strategy docs:
 - `docs/AGENTIC_REQUIREMENTS.md` (top requirements, prioritized)
-- `docs/AVM_SPEC.md` (current bootstrap spec)
-- `docs/AVM_SPEC_V1.md` (next-gen direction)
+- `docs/AVM_SPEC.md` (bootstrap spec + “Next-Gen AVM Plan” section)
 - `docs/AVM_DESIGN.md#avm-swarm-consensus-agent-mobility-design-validation` (swarm validation + mobility model)
 - `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes` (nested universes / AVM-in-AVM)
 - `docs/ROADMAP.md` and `docs/OREN_EVOLUTION.md`

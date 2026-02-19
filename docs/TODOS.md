@@ -1062,7 +1062,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - multi-list push loop opcodes (LIST_PUSH2_INT_LOOP + LIST_PUSH3_INT_LOOP):
       - `array_sum_int` (2M elems): C 0.004399s; Oren C 0.011875s (~2.70×); Oren native 0.021051s (~4.79×); OBC 0.005241s (~1.19×)
       - `dot_product_int` (2M elems): C 0.005468s; Oren C 0.019166s (~3.51×); Oren native 0.026497s (~4.85×); OBC 0.010319s (~1.89×)
-      - `multi_list_push_int` (2M elems): C 0.008529s; Oren C 0.083179s (~9.75×); Oren native 0.032209s (~3.78×); OBC 0.011110s (~1.30×)
+      - `multi_list_push_int` (2M elems): C 0.010435s; Oren C 0.041430s (~3.97×); Oren native 0.034321s (~3.29×); OBC 0.012781s (~1.22×)
+        - Note: C backend now builds with -O2 by default; these numbers reflect the optimized build.
     - AVM list<int> push loop (OBC refresh):
       - `array_sum_int` (2M elems): C 0.004327s; Oren C 0.011515s (~2.66×); Oren native 0.020331s (~4.70×); OBC 0.263552s (~60.9×)
       - `dot_product_int` (2M elems): C 0.005524s; Oren C 0.018334s (~3.32×); Oren native 0.025093s (~4.54×); OBC 0.553466s (~100.2×)
@@ -1092,6 +1093,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
   Artifacts:
 
+  - `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_125343.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_123739.md`
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_123740.md`
   - `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_123742.md`
@@ -1134,6 +1136,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
   - 2026-02-19: AVM gained unboxed list<int> storage + NEW_LIST_INT (0x5E) with snapshot/hash/serialization support; bytecode emits NEW_LIST_INT for `oren_new_list_int`.
     - Bench impact: OBC `array_sum_int` now ~1.24× C; multi-list push opcodes bring `dot_product_int` and `multi_list_push_int` near C (see latest measurements above).
+  - 2026-02-19: C backend builds now pass -O2 by default (MSVC `/O2`); multi_list_push_int Oren C dropped to ~3.97× C on M2 Pro.
+  - 2026-02-19: AVM spec consolidation: merged `AVM_SPEC_V1` into `docs/AVM_SPEC.md` (Next-Gen AVM Plan section) and updated references.
   - 2026-02-19: list<int> index syntax now hits native fast-loop hoists after inty propagation update.
     - Compiler: `lib/compiler/arm64_native_expr/000_prelude.oren`, `lib/compiler/x64_native_program/047_emit_float_intrinsics.oren`,
       `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
@@ -1185,7 +1189,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
   - Reduce Oren C boxing cost in list<int> loops by avoiding intermediate `OrenValue` temporaries where possible (keep fast-path bounds checks).
   - Audit compiler internal string comparisons under the native backend; prefer `str_eq`/string-aware helpers to avoid pointer-eq traps in name matching.
   - Extend AVM list<int> bytecode fast paths beyond push (e.g. LIST_SUM_INT / LIST_DOT_INT / indexed sum loop) or adopt unboxed list<int> storage in AVM; target OBC <= ~10× C on list<int> benchmarks.
-  - Audit root `README.md` + key docs for outdated build/test/bench/remote instructions; refresh to match current rolling workflows.
+  - Audit root `README.md` + key docs for outdated build/test/bench/remote instructions; refresh to match current rolling workflows, and continue design-doc consolidation (merge overlapping design specs into canonical docs; remove stubs/duplicates).
 
 ## P1 (Soon)
 

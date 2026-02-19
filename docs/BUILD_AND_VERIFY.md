@@ -219,6 +219,7 @@ Notes (rolling):
 
 ### C Backend (Portable)
 Transpiles Oren to C, then compiles with the system C compiler (`cc`). Best for stability and platform compatibility (x86_64, etc.).
+By default, the build pipeline passes **-O2** (or **/O2** for MSVC) for C-backend performance.
 
 ```bash
 ./oren build examples/hello.oren --backend c -o hello
@@ -436,14 +437,14 @@ To link arbitrary libraries portably, use the C backend:
     ./oren build examples/myapp.oren --backend c --emit-c
     
     # Compile manually with your libraries
-    cc -o myapp examples/myapp.oren.c lib/runtime.c -Ilib -pthread -lcurl
+    cc -O2 -o myapp examples/myapp.oren.c lib/runtime.c -Ilib -pthread -lcurl
     ```
 
     **On Windows (MSVC/CL):**
     ```powershell
     # Compile generated C code with CL.exe
     # Ensure you are in a Developer Command Prompt
-    cl /Fe:myapp.exe examples/myapp.oren.c lib/runtime.c /Ilib user32.lib kernel32.lib
+    cl /O2 /Fe:myapp.exe examples/myapp.oren.c lib/runtime.c /Ilib user32.lib kernel32.lib
     ```
 
 2.  **Linux Native Backend Support (rolling)**:

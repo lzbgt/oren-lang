@@ -672,7 +672,7 @@ These are the most urgent tasks to make “multiverse” real (not speculative).
 ### 8) Related docs
 
 - Swarm consensus + mobility: `docs/AVM_DESIGN.md#avm-swarm-consensus-agent-mobility-design-validation`
-- Next-gen AVM plan: `docs/AVM_SPEC_V1.md`
+- Next-gen AVM plan (see “Next-Gen AVM Plan” section): `docs/AVM_SPEC.md`
 - Agentic requirements: `docs/AGENTIC_REQUIREMENTS.md`
 - Advanced scenarios: `docs/ADVANCED_SCENARIOS.md`
 
@@ -733,7 +733,7 @@ Status (fact, today):
 
 - Nested-universe execution is described (and partially implemented) via `oren_avm_run_obc_bytes(child_obc_bytes, cfg_map)`:
   - Interface + cfg keys: `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes` section “6.2 Current bootstrap cfg keys”.
-  - Determinism/fixtures intent: `docs/AVM_SPEC_V1.md`, `docs/AGENTIC_REQUIREMENTS.md`.
+  - Determinism/fixtures intent: `docs/AVM_SPEC.md` (Next-Gen plan section), `docs/AGENTIC_REQUIREMENTS.md`.
 
 This model is already “plugin-friendly” because:
 
@@ -1116,8 +1116,7 @@ Bootstrap status (rolling):
 
 - Canonical requirements: `docs/AGENTIC_REQUIREMENTS.md`
 - Advanced scenarios: `docs/ADVANCED_SCENARIOS.md`
-- AVM bootstrap spec: `docs/AVM_SPEC.md`
-- AVM next-gen plan: `docs/AVM_SPEC_V1.md`
+- AVM spec (bootstrap + Next-Gen plan section): `docs/AVM_SPEC.md`
 
 ## AVM NEON Mapping Plan (arm64, No-JIT-First)
 
@@ -1249,7 +1248,7 @@ Build-time:
 
 ### 8) What we do next (repo tasks)
 
-1) Freeze the ABI nucleus list in `docs/AVM_SPEC_V1.md` (names + arg order + return convention).
+1) Freeze the ABI nucleus list in `docs/AVM_SPEC.md` (names + arg order + return convention).
 2) Implement NEON versions behind a build flag and runtime flag.
 3) Validate:
    - macOS arm64 first
@@ -1319,4 +1318,3 @@ and computes:
 - The benchmark result is **host- and build-dependent** (CPU, OS, compiler flags, etc.).
 - This does **not** make deterministic virtual time “more correct”; it only makes it more intuitive for interactive use.
 - For consensus jobs, treat virtual time as a *simulation time* derived from work, not as a wall-clock substitute.
-

@@ -145,8 +145,7 @@ That’s why the syscall boundary must be designed first and kept small.
 
 Docs:
 
-- `docs/AVM_SPEC.md` (bootstrap, implemented today)
-- `docs/AVM_SPEC_V1.md` (next-gen plan)
+- `docs/AVM_SPEC.md` (bootstrap spec + Next-Gen AVM Plan section)
 - `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes` (nested universes)
 - `docs/AVM_DESIGN.md#avm-swarm-consensus-agent-mobility-design-validation` (swarm validation/mobility)
 - `docs/AVM_DESIGN.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly` (deterministic tasks design)

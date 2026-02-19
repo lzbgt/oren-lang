@@ -21,8 +21,7 @@ This folder contains the **canonical specs** and living design notes for Oren (r
 ## 2) Canonical Specs
 
 - Language: `docs/LANGUAGE_SPEC.md`
-- AVM (bootstrap, current): `docs/AVM_SPEC.md`
-- AVM (next-gen plan): `docs/AVM_SPEC_V1.md`
+- AVM (bootstrap spec + next-gen plan section): `docs/AVM_SPEC.md`
 
 ## 3) Runtime / Backend Design
 

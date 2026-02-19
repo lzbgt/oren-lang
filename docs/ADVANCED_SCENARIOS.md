@@ -5,7 +5,7 @@ This document outlines advanced architectural capabilities where Oren and AVM pr
 See also:
 
 - `docs/AGENTIC_REQUIREMENTS.md`
-- `docs/AVM_SPEC_V1.md`
+- `docs/AVM_SPEC.md` (Next-Gen plan section)
 
 ---
 

@@ -255,8 +255,7 @@ This ordering is chosen to unlock “agent-grade” behavior early without requi
 ## 5) Canonical References
 
 - Docs index: `docs/README.md`
-- AVM bootstrap spec: `docs/AVM_SPEC.md`
-- AVM next-gen plan: `docs/AVM_SPEC_V1.md`
+- AVM spec (bootstrap + Next-Gen plan section): `docs/AVM_SPEC.md`
 - Syscall-first runtime plan: `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`
 - Language spec: `docs/LANGUAGE_SPEC.md`
 - Concurrency model: `docs/CONCURRENCY_MODEL.md`
