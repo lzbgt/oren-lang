@@ -79,6 +79,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Alloc-site snapshot (arm64, 2026-02-20): `alloc_churn` list_header=20k, list_buf=20k (reserve now fires); `alloc_drop` list_header≈10011, list_buf≈10031. Next: extend reserve insertion to cover more list literal patterns (e.g., non-empty literals) and list_int.
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, OBC/OREN_C skipped):
      - `alloc_churn` 25.90× C, `alloc_drop` 38.26× C (see `benchmarks/RESULTS_LATEST.md`).
+   - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1`, OBC/OREN_C skipped):
+     - `alloc_churn` 24.82× C, `alloc_drop` 38.16× C (see `benchmarks/results/alloc_*_20260220_041633.md`).
    - Design + implement loop‑local arenas for list/list_int (compiler escape analysis + arena tracking table).
    - Native runtime scaffolding: `oren_arena_push/pop` + `oren_arena_new_list(_int)` (compiler lowering pending).
    - Arena cap: `OREN_ARENA_CAP_BYTES` spills allocations back to GC when exceeded.
