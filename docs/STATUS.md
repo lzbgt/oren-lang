@@ -53,16 +53,21 @@ Baseline reference: `benchmarks/RESULTS_LATEST.md` (M2 Pro, 2026-02-19).
 Weights reflect expected impact on C parity and breadth of affected code.
 
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
+   - Baseline (arm64 native, 2026-02-19): `loop_sum` 3.38× C, `dot_product` 5.06× C.
    - Expand inty propagation and arithmetic fast paths.
+   - Split runtime init vs steady-state cost and quantify the init gap (see `benchmarks/RESULTS_LATEST.md` notes).
    - Const-divisor `%` is now inlined for literal/const RHS (arm64 + x64).
    - Boxed list dot/get-sum regression guard added to native QI (2026-02-19).
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
+   - Baseline (arm64 native, 2026-02-19): `alloc_churn` 63.04× C, `alloc_drop` 37.66× C.
    - Fix and enable reuse paths (`OREN_GC_REUSE_BLOCKS`) when correct.
+   - Add allocation-site counters for `alloc_churn`/`alloc_drop` to pinpoint dominant allocations.
    - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
 
 3) **W4 - List reserve + unchecked push** (M)
+   - Baseline (arm64 native, 2026-02-19): `array_sum` 3.80× C, `multi_list_push_int` 3.17× C.
    - Extend bounds propagation for reserve/unchecked push.
    - Gate: native `array_sum` and `multi_list_push_int` <= 2x C.
 
@@ -71,16 +76,19 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: fixtures pass; no backend-only semantics.
 
 5) **W3 - SIMD/typed-buffer parity on native (x64 + arm64)** (M)
+    - Baseline (arm64 native, 2026-02-19): `dot_product_int` 4.42× C.
     - SSE2 baseline on x64; scalar equivalence gated.
     - Wire list_int dot loops to SIMD kernels (or typed-buffer views) where safe.
     - Read-only list_int sum/dot loops now use a 1023 safepoint mask on native.
     - Gate: native `dot_product_int` <= 2x C.
 
 6) **W3 - AVM allocation fast paths + typed buffers** (M)
+   - Baseline (OBC, 2026-02-19): `alloc_churn` 63.04× C, `alloc_drop` 2.50× C.
    - Arena/slab alloc for short-lived lists/structs.
    - Gate: OBC `alloc_churn` <= 10x C; AVM SIMD test suite passes.
 
 7) **W3 - AVM unboxed list<int> payload + lowering** (M)
+   - Baseline (OBC, 2026-02-19): `dot_product_int` 1.94× C, `array_sum_int` 1.18× C.
    - Implement list<int> payload + OBC lowering.
    - Gate: list<int> fixtures + OBC perf parity for dot/sum loops.
 
