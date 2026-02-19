@@ -1317,7 +1317,7 @@ Examples of native/AVM intrinsics include:
 - `oren_buf_load_f32(buf, idx)`
 - `oren_buf_store_f32(buf, idx, val)`
 
-See `docs/HPC_SERVER_PLAN.md` and `docs/AVM_NEON_MAPPING_PLAN.md` for direction and design constraints.
+See `docs/HPC_SERVER_PLAN.md` and `docs/AVM_DESIGN.md#avm-neon-mapping-plan-arm64-no-jit-first` for direction and design constraints.
 - `@cap.requires(domain="...")` for capsule/capability gating of host-effectful APIs (see below)
 
 #### Strict attribute mode (compiler option)
@@ -1566,7 +1566,7 @@ Some Tier‑1 fixtures still use small `@cfg(os=...)` glue for other OS differen
 Concurrency in AVM differs from native mode; see:
 
 - `docs/CONCURRENCY_MODEL.md`
-- `docs/AVM_CONCURRENCY.md`
+- `docs/AVM_DESIGN.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly`
 
 ### Channels + select (rolling; AVM + native macOS/Linux)
 

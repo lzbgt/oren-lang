@@ -147,9 +147,9 @@ Docs:
 
 - `docs/AVM_SPEC.md` (bootstrap, implemented today)
 - `docs/AVM_SPEC_V1.md` (next-gen plan)
-- `docs/AVM_MULTIVERSE.md` (nested universes)
-- `docs/AVM_SWARM_CONSENSUS.md` (swarm validation/mobility)
-- `docs/AVM_CONCURRENCY.md` (deterministic tasks design)
+- `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes` (nested universes)
+- `docs/AVM_DESIGN.md#avm-swarm-consensus-agent-mobility-design-validation` (swarm validation/mobility)
+- `docs/AVM_DESIGN.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly` (deterministic tasks design)
 
 AVM exists because there are real environments where:
 
@@ -195,7 +195,7 @@ This is the key to:
 
 Doc:
 
-- `docs/AVM_MULTIVERSE.md`
+- `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes`
 
 “Nested universes” are a pragmatic agent primitive:
 
@@ -270,7 +270,7 @@ This is the guiding story of “how languages get built” applied to Oren’s g
 - “How to build/test”: `docs/BUILD_AND_VERIFY.md`
 - “Syscall-first runtime plan”: `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`
 - “AVM bootstrap spec”: `docs/AVM_SPEC.md`
-- “Multiverse design”: `docs/AVM_MULTIVERSE.md`
+- “Multiverse design”: `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes`
 
 ---
 

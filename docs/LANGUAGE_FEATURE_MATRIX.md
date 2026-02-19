@@ -104,8 +104,8 @@ Remote x86_64 evidence:
 | `.obc` signature verification (`--require-sig`) | Rolling | Sig verifier: `lib/avm/avm_sig.c` | Spec: `docs/AVM_SPEC.md`; tools: `cmd/orensign/main.go` |
 | Delegated signing via embedded cert chain (`OREN_CERTS`) | Rolling | Cert parser: `lib/avm/avm_cert.c`; chain verify: `lib/avm/avm_sig.c` | Docs: `docs/CERT_CHAIN_FORMAT.md`, `docs/APPSTORE_ROOTCA_AND_UPDATES.md` |
 | Strict verification mode (`--verify-strict`) | Rolling | CLI + verifier gating: `lib/avm/main.c` | Spec: `docs/AVM_SPEC.md` (strict verification); help: `lib/avm/avm_help.inc` |
-| Nested universes (“AVM in AVM” / multiverse host service) | Rolling (gated) | AVM domain dispatch: `lib/avm/avm_native.inc` (Domain 8: AVM) | Docs: `docs/AVM_MULTIVERSE.md` (model + constraints) |
-| Swarm / consensus outcome hashing | Rolling (in progress) | Job hash + result selection: `lib/avm/avm_state.inc`, `lib/avm/avm.h` | Docs: `docs/AVM_SWARM_CONSENSUS.md` |
+| Nested universes (“AVM in AVM” / multiverse host service) | Rolling (gated) | AVM domain dispatch: `lib/avm/avm_native.inc` (Domain 8: AVM) | Docs: `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes` (model + constraints) |
+| Swarm / consensus outcome hashing | Rolling (in progress) | Job hash + result selection: `lib/avm/avm_state.inc`, `lib/avm/avm.h` | Docs: `docs/AVM_DESIGN.md#avm-swarm-consensus-agent-mobility-design-validation` |
 | Compiler-in-AVM | Planned | Bytecode compiler + AVM host interface constraints | Track: `docs/TODOS.md` (P0.10), `docs/TOOLCHAIN_SELF_HOSTING.md` |
 
 ## HPC / SIMD (Tier‑1 HPC: arm64 NEON now, x86_64 SSE/AVX next)
@@ -118,7 +118,7 @@ Remote x86_64 evidence:
 | SIMD intrinsics (arm64 NEON) | Rolling (arm64 macOS/Linux); Planned (x86_64) | Native arm64 codegen lowers `simd_*` intrinsics: `lib/compiler/arm64_native_expr/**` | Spec lists the intrinsic family: `docs/LANGUAGE_SPEC.md` (“Native Backend Intrinsics”) |
 | SIMD-backed typed-buffer kernels (dot/axpy/gemm/etc.) | Rolling (arm64 macOS/Linux); Planned (x86_64) | Runtime dispatch in `lib/runtime_native/typed_buffers/**` + arm64 intrinsic lowering; scalar fallbacks exist for all `simd_*_ptr` entrypoints in `lib/runtime_native/typed_buffers/005_simd_scalar_fallback.oren` | Opt-in via `OREN_ENABLE_SIMD=1` (or disable with `OREN_NO_SIMD=1`). Must remain deterministic. |
 | x86_64 SIMD plan (SSE2 baseline, AVX2 optional) | Planned | x64 native codegen + runtime kernel implementations | Track under `docs/TODOS.md` (HPC item) until we have an x86_64 SIMD parity suite (scalar vs SIMD) and stable feature detection for Linux+Windows |
-| AVM SIMD (NEON) | Planned / Rolling (gated) | Build/runtime gating exists (`AVM_ENABLE_SIMD=1`, arm64 NEON): `lib/avm/avm_native.c`, `lib/avm/main.c` | Design constraints: `docs/AVM_NEON_MAPPING_PLAN.md` (determinism-first); not treated as mature until fully covered by AVM tests |
+| AVM SIMD (NEON) | Planned / Rolling (gated) | Build/runtime gating exists (`AVM_ENABLE_SIMD=1`, arm64 NEON): `lib/avm/avm_native.c`, `lib/avm/main.c` | Design constraints: `docs/AVM_DESIGN.md#avm-neon-mapping-plan-arm64-no-jit-first` (determinism-first); not treated as mature until fully covered by AVM tests |
 | HPC roadmap (math/linalg + perf harness) | Rolling (in progress) | Design docs: `docs/HPC_SERVER_PLAN.md`, typed-buffer + linalg layers | Tracker: `docs/TODOS.md` (P1.3) |
 
 ## Tooling / ecosystem

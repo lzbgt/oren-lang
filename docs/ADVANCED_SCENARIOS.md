@@ -51,7 +51,7 @@ See also:
 
 Design validation and a concrete path to implementation:
 
-- `docs/AVM_SWARM_CONSENSUS.md`
+- `docs/AVM_DESIGN.md#avm-swarm-consensus-agent-mobility-design-validation`
 
 ## 5. Nested Universes ("AVM in AVM")
 
@@ -65,4 +65,4 @@ Design validation and a concrete path to implementation:
 
 Design feasibility and a concrete staged plan:
 
-- `docs/AVM_MULTIVERSE.md`
+- `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes`

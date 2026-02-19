@@ -91,7 +91,7 @@ The “inception” step is not only for iOS convenience; it is the core agent-n
 - compile inside a deterministic, budgeted, capability-scoped universe
 - validate artifacts by hashes (compiler capsule + produced `.obc`)
 
-This enables swarm governance and self-healing workflows (see `docs/AVM_MULTIVERSE.md` and `docs/AVM_SWARM_CONSENSUS.md`).
+This enables swarm governance and self-healing workflows (see `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes` and `docs/AVM_DESIGN.md#avm-swarm-consensus-agent-mobility-design-validation`).
 
 ### Next-Gen AVM (No-JIT-First, ML-Oriented)
 

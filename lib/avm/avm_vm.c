@@ -666,6 +666,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x5A: return "LIST_PUSH";
         case 0x5B: return "LIST_PUSH_INT_LOOP";
         case 0x5C: return "LIST_SUM_INT_LOOP";
+        case 0x5D: return "LIST_SUM3_INT_LOOP";
         case 0x43: return "SET_INDEX";
         case 0x44: return "CALL_INDIRECT_SPREAD";
         case 0x45: return "SPAWN_CALL_LIST";
@@ -2582,6 +2583,107 @@ list_sum_slow:
                     }
 
 list_sum_push:
+                    vm->stack[vm->sp++] = idx;
+                    vm->stack[vm->sp++] = sum;
+                }
+                break;
+            }
+            case 0x5D: { // LIST_SUM3_INT_LOOP
+                if (vm->sp >= 6) {
+                    AvmValue sum = vm->stack[--vm->sp];
+                    AvmValue n = vm->stack[--vm->sp];
+                    AvmValue idx = vm->stack[--vm->sp];
+                    AvmValue list_c = vm->stack[--vm->sp];
+                    AvmValue list_b = vm->stack[--vm->sp];
+                    AvmValue list_a = vm->stack[--vm->sp];
+                    AvmValue one = avm_int(1);
+                    if (list_a.type == AVM_VAL_LIST && list_b.type == AVM_VAL_LIST && list_c.type == AVM_VAL_LIST &&
+                        idx.type == AVM_VAL_INT && n.type == AVM_VAL_INT &&
+                        sum.type == AVM_VAL_INT) {
+                        int64_t i64 = idx.as.i;
+                        int64_t end64 = n.as.i;
+                        if (i64 >= 0 && i64 <= (int64_t)INT_MAX &&
+                            end64 >= (int64_t)INT_MIN && end64 <= (int64_t)INT_MAX &&
+                            list_a.as.l && list_b.as.l && list_c.as.l) {
+                            int i = (int)i64;
+                            int end = (int)end64;
+                            if (i < end) {
+                                int count_a = list_a.as.l->count;
+                                int count_b = list_b.as.l->count;
+                                int count_c = list_c.as.l->count;
+                                int64_t acc = sum.as.i;
+                                int all_int = list_a.as.l->all_int && list_b.as.l->all_int && list_c.as.l->all_int;
+                                if (end <= count_a && end <= count_b && end <= count_c) {
+                                    if (all_int) {
+                                        for (; i < end; i++) {
+                                            AvmValue va = list_a.as.l->items[i];
+                                            AvmValue vb = list_b.as.l->items[i];
+                                            AvmValue vc = list_c.as.l->items[i];
+                                            acc = avm_i64_add_wrap(acc, va.as.i);
+                                            acc = avm_i64_add_wrap(acc, vb.as.i);
+                                            acc = avm_i64_add_wrap(acc, vc.as.i);
+                                        }
+                                    } else {
+                                        for (; i < end; i++) {
+                                            AvmValue va = list_a.as.l->items[i];
+                                            AvmValue vb = list_b.as.l->items[i];
+                                            AvmValue vc = list_c.as.l->items[i];
+                                            if (va.type != AVM_VAL_INT || vb.type != AVM_VAL_INT || vc.type != AVM_VAL_INT) {
+                                                idx = avm_int(i);
+                                                sum = avm_int(acc);
+                                                goto list_sum3_slow;
+                                            }
+                                            acc = avm_i64_add_wrap(acc, va.as.i);
+                                            acc = avm_i64_add_wrap(acc, vb.as.i);
+                                            acc = avm_i64_add_wrap(acc, vc.as.i);
+                                        }
+                                    }
+                                } else {
+                                    for (; i < end; i++) {
+                                        if (i < 0 || i >= count_a || i >= count_b || i >= count_c) {
+                                            sum = avm_nil();
+                                            idx = avm_int(end);
+                                            goto list_sum3_push;
+                                        }
+                                        AvmValue va = list_a.as.l->items[i];
+                                        AvmValue vb = list_b.as.l->items[i];
+                                        AvmValue vc = list_c.as.l->items[i];
+                                        if (!all_int && (va.type != AVM_VAL_INT || vb.type != AVM_VAL_INT || vc.type != AVM_VAL_INT)) {
+                                            idx = avm_int(i);
+                                            sum = avm_int(acc);
+                                            goto list_sum3_slow;
+                                        }
+                                        acc = avm_i64_add_wrap(acc, va.as.i);
+                                        acc = avm_i64_add_wrap(acc, vb.as.i);
+                                        acc = avm_i64_add_wrap(acc, vc.as.i);
+                                    }
+                                }
+                                sum = avm_int(acc);
+                                idx = avm_int(i);
+                                goto list_sum3_push;
+                            }
+                        }
+                    }
+
+list_sum3_slow:
+                    while (1) {
+                        AvmValue cond = avm_lt_values(idx, n);
+                        if (!avm_truthy(cond)) break;
+                        AvmValue va = avm_list_get_value(list_a, idx);
+                        AvmValue vb = avm_list_get_value(list_b, idx);
+                        AvmValue vc = avm_list_get_value(list_c, idx);
+                        int ok = 1;
+                        sum = avm_add_values(vm, sum, va, &ok);
+                        if (!ok || !vm->running) break;
+                        sum = avm_add_values(vm, sum, vb, &ok);
+                        if (!ok || !vm->running) break;
+                        sum = avm_add_values(vm, sum, vc, &ok);
+                        if (!ok || !vm->running) break;
+                        idx = avm_add_values(vm, idx, one, &ok);
+                        if (!ok || !vm->running) break;
+                    }
+
+list_sum3_push:
                     vm->stack[vm->sp++] = idx;
                     vm->stack[vm->sp++] = sum;
                 }

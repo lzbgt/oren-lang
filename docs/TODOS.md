@@ -238,8 +238,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						     - Compiler: `lib/compiler/transpiler.oren`.
 						     - Bench (M2 Pro, runs=5): array_sum Oren C 0.0739s (~19.26× C) (`benchmarks/results/array_sum_darwin_arm64_20260219_080150.md`).
 						   - 2026-02-19: added `multi_list_sum` benchmark (boxed lists; three list reads per loop + sum):
-						     - Bench (M2 Pro, runs=5): C 0.00838s, Oren C 0.0258s (~3.08×), Oren native 0.0305s (~3.64×), OBC 1.2285s (~146.55×).
-						     - Artifact: `benchmarks/results/multi_list_sum_darwin_arm64_20260219_083044.md`.
+						     - Bench (M2 Pro, runs=5): C 0.008527s, Oren C 0.026208s (~3.07×), Oren native 0.031299s (~3.67×), OBC 0.783350s (~91.87×).
+						     - Artifact: `benchmarks/results/multi_list_sum_darwin_arm64_20260219_114309.md`.
 						   - 2026-02-19: C backend boxed list push fast path now reserves capacity and writes int payloads directly:
 						     - Compiler: `lib/compiler/transpiler.oren` (fast list.push while + reserve).
 						     - Runtime: `lib/runtime/040_lists_maps.inc` (`oren_list_reserve`) + list all_int tracking.
@@ -302,10 +302,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	      - native 0.1506s vs C 0.00417s (`benchmarks/results/array_sum_darwin_arm64_20260218_220638.md`).
 	    - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` (skip native list index checks) does **not** improve:
 	      - native 0.1482s vs C 0.00399s (`benchmarks/results/array_sum_darwin_arm64_20260218_221223.md`).
-	  - (P2/M) **multi_list_sum boxed list reads now ~3.1× C (Oren C) / ~3.6× native**
-	    - Latest (runs=5): C 0.00838s, Oren C 0.0258s (~3.08×), Oren native 0.0305s (~3.64×), OBC 1.2285s (~146.55×).
-	      - Result: `benchmarks/results/multi_list_sum_darwin_arm64_20260219_083044.md`
-	    - Next: push native ≤3.0× C and Oren C ≤2.5× by tightening boxed list sum/load path further.
+	  - (P2/M) **multi_list_sum boxed list reads now ~3.1× C (Oren C) / ~3.7× native; OBC ~92×**
+	    - Latest (runs=5): C 0.008527s, Oren C 0.026208s (~3.07×), Oren native 0.031299s (~3.67×), OBC 0.783350s (~91.87×).
+	      - Result: `benchmarks/results/multi_list_sum_darwin_arm64_20260219_114309.md`
+	    - Next: push native ≤3.0× C and Oren C ≤2.5× by tightening boxed list sum/load path further; OBC target ≤10× via broader fused loops or unboxed list<int> in AVM.
 		  - (P1/M) **Dot_product boxed path now near native target; keep guard + focus on OBC gap**
 		    - Latest (runs=5): C 0.004780s, Oren C 0.017754s (~3.71×), Oren native 0.024412s (~5.11×), OBC 0.547356s (~114.51×).
 		      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_094136.md`
@@ -324,7 +324,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		     - 2026-02-19: added `GET_INDEX_LIST` (opcode 0x57) and emit it when `recv_kind` is list/list_int (bytecode backend); no meaningful improvement alone.
 		     - 2026-02-19: added fused `LIST_DOT` (opcode 0x58) for `sum += a[i]*b[i]` loops; OBC dot_product now ~0.586s on M2 Pro.
 		     - Next: consider widening LIST_DOT for typed buffers (i32/f64) or a list<int> specialization to reduce per-iteration type checks further.
-		     - 2026-02-19: `LIST_SUM_INT_LOOP` (opcode 0x5C) drops OBC `array_sum_int` to ~0.0107s (~2.48× C); `multi_list_sum` unchanged (~1.24s).
+		     - 2026-02-19: `LIST_SUM_INT_LOOP` (opcode 0x5C) drops OBC `array_sum_int` to ~0.0107s (~2.48× C).
+		     - 2026-02-19: `LIST_SUM3_INT_LOOP` (opcode 0x5D) reduces OBC `multi_list_sum` to ~0.783s (~91.87× C).
 			  - (P1/S) **multi_list_push_int regression guard**
 			    - Latest (runs=5): C 0.00832s, Oren C 0.0792s (~9.52×), Oren native 0.0312s (~3.75×), OBC 1.227s (~147.55×).
 			      - Result: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_064308.md`
@@ -1191,10 +1192,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    References:
 
-   - `docs/AVM_MULTIVERSE.md` (compiler-in-AVM section)
+   - `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes` (compiler-in-AVM section)
    - `docs/OBC_MODULE_LINKING.md` (OBX v0 for compile-time linking)
    - `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md` (stdlib distribution models)
-   - `docs/AVM_PLUGINS_AND_NESTING.md` (plugin model A vs B; tracker split)
+   - `docs/AVM_DESIGN.md#avm-plugins-nesting-obc-first-ios-safe-rolling` (plugin model A vs B; tracker split)
 
 	   Status (fact):
 

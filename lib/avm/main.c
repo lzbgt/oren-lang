@@ -575,6 +575,10 @@ static VerifyResult verify_program_region(
             len = 1;
             pop = 4; // list, idx, n, sum
             push = 2; // idx, sum
+        } else if (op == 0x5D) { // LIST_SUM3_INT_LOOP
+            len = 1;
+            pop = 6; // list_a, list_b, list_c, idx, n, sum
+            push = 2; // idx, sum
         } else if (op == 0x58) { // LIST_DOT
             len = 1;
             pop = 5; // list_a, list_b, idx, n, sum
@@ -1751,6 +1755,7 @@ static const char* op_name(uint8_t op) {
         case 0x5A: return "LIST_PUSH";
         case 0x5B: return "LIST_PUSH_INT_LOOP";
         case 0x5C: return "LIST_SUM_INT_LOOP";
+        case 0x5D: return "LIST_SUM3_INT_LOOP";
         case 0x43: return "SET_INDEX";
         case 0x45: return "SPAWN_CALL_LIST";
         case 0x54: return "SPAWN_CALL_SPREAD";

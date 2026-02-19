@@ -38,7 +38,7 @@ Requirements:
 
 Swarm implication:
 
-- deterministic mode is the substrate for “k-of-n verification” and swarm consensus on result/state hashes (see `docs/AVM_SWARM_CONSENSUS.md`).
+- deterministic mode is the substrate for “k-of-n verification” and swarm consensus on result/state hashes (see `docs/AVM_DESIGN.md#avm-swarm-consensus-agent-mobility-design-validation`).
 
 ### 1.2 Snapshot / restore (resumability)
 
@@ -190,7 +190,7 @@ Rationale:
 
 Design reference:
 
-- `docs/AVM_MULTIVERSE.md`
+- `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes`
 
 ### 3.5 Deterministic trace + explainability surfaces (agent debugging)
 
@@ -222,7 +222,7 @@ Bootstrap status (rolling, implementation reality as of 2025-12-15):
   - `TRACE_BYTES_HEX ...` (trace stream as data; hex for transport)
   Trace capture must **not** affect program semantics: if trace bytes hit budget, AVM truncates (disables further capture) rather than aborting execution.
   Trace bytes storage is governed by `AVM_TRACE_BYTES` and is isolated from `AVM_MEM_BYTES` (program heap budget).
-- Deterministic scheduling (tasks) is not implemented yet; see `docs/AVM_CONCURRENCY.md` for the design direction.
+- Deterministic scheduling (tasks) is not implemented yet; see `docs/AVM_DESIGN.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly` for the design direction.
 
 ### 3.6 Governance-ready module boundaries (SOLID on bytecode artifacts)
 

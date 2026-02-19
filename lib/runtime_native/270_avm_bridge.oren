@@ -10,7 +10,7 @@
 // - This implementation intentionally uses the existing `avm` binary rather than embedding
 //   the VM as a library (future work).
 //
-// Contract (matches docs/AVM_MULTIVERSE.md implementation reality today):
+// Contract (matches docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes implementation reality today):
 // - cfg_map keys (subset supported here):
 //   - allowed_domains: int (bitmask)
 //   - gas_limit: int

@@ -164,7 +164,7 @@ Bootstrapping note:
 
 ## Related Docs
 
-- Multiverse requirements: `docs/AVM_MULTIVERSE.md`
+- Multiverse requirements: `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes`
 - `.obc` module linking (OBX): `docs/OBC_MODULE_LINKING.md`
 - `.obc` format and metadata conventions: `docs/AVM_SPEC.md`
 - Delegated signing cert chains: `docs/CERT_CHAIN_FORMAT.md`

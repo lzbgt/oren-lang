@@ -105,6 +105,13 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 | 0x41 | NEW_MAP | `u16_le pairs` | `[k0,v0..k(p-1),v(p-1)] -> [map]` | Pop `pairs` key/value pairs and build a map (sorted key storage). |
 | 0x55 | TYPE_CTOR_MAP_SPREAD | `u16_le fixed` | `[keys_list, fixed_args..., spread_list] -> [map]` | Construct a map for typed-ctor calls using `keys_list` + fixed args + spread args (arity must match). |
 | 0x42 | GET_INDEX | - | `[obj, key] -> [val]` | Index list/map; returns `nil` for missing/out-of-range. |
+| 0x57 | GET_INDEX_LIST | - | `[list, idx] -> [val]` | List-only index; returns `nil` for out-of-range or non-int index. |
+| 0x58 | LIST_DOT | - | `[list_a, list_b, idx, n, sum] -> [idx, sum]` | Fused dot-product loop (int fast-path with fallback). |
+| 0x59 | LIST_PUSH_INT | - | `[list, int] -> [nil_or_err]` | Push int into list; errors if list/value invalid. |
+| 0x5A | LIST_PUSH | - | `[list, val] -> [nil_or_err]` | Push value into list; errors if list invalid. |
+| 0x5B | LIST_PUSH_INT_LOOP | - | `[list, idx, end, mul, add, mod] -> [idx]` | Fused int push loop: `list.push((i*mul+add)%mod)` from idx..end. |
+| 0x5C | LIST_SUM_INT_LOOP | - | `[list, idx, n, sum] -> [idx, sum]` | Fused int sum loop: `sum += list[i]` from idx..n. |
+| 0x5D | LIST_SUM3_INT_LOOP | - | `[list_a, list_b, list_c, idx, n, sum] -> [idx, sum]` | Fused int sum loop: `sum += list_a[i] + list_b[i] + list_c[i]` from idx..n. |
 | 0x43 | SET_INDEX | - | `[obj, key, val] -> []` | Mutate list/map; list also supports append when `key == len`. |
 | 0x45 | SPAWN_CALL_LIST | - | `[fn, args_list] -> [handle_int]` | Spawn a task calling `fn(args_list...)` (handle is `tid+1`). |
 | 0x54 | SPAWN_CALL_SPREAD | `u16_le fixed` | `[fn, fixed_args..., spread_list] -> [handle_int]` | Spawn a task calling `fn(fixed..., spread...)`. |

@@ -30,7 +30,7 @@ This doc answers: “what’s real today?” and “what’s missing to reach th
 
 Related plugin/nesting model notes:
 
-- `docs/AVM_PLUGINS_AND_NESTING.md`
+- `docs/AVM_DESIGN.md#avm-plugins-nesting-obc-first-ios-safe-rolling`
 
 ## Implemented Today (Evidence-Backed)
 

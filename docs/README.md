@@ -37,14 +37,14 @@ This folder contains the **canonical specs** and living design notes for Oren (r
 ## 4) Concurrency
 
 - Concurrency and IPC model: `docs/CONCURRENCY_MODEL.md`
-- AVM deterministic concurrency model: `docs/AVM_CONCURRENCY.md`
+- AVM deterministic concurrency model: `docs/AVM_DESIGN.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly`
 
 ## 5) Strategy / Narrative / “Why”
 
 - Overall evolution strategy: `docs/OREN_EVOLUTION.md`
 - Advanced scenarios (“killer apps”): `docs/ADVANCED_SCENARIOS.md`
-- Swarm consensus + agent mobility: `docs/AVM_SWARM_CONSENSUS.md`
-- Nested universes (“AVM in AVM”): `docs/AVM_MULTIVERSE.md`
+- Swarm consensus + agent mobility: `docs/AVM_DESIGN.md#avm-swarm-consensus-agent-mobility-design-validation`
+- Nested universes (“AVM in AVM”): `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes`
 - Comparison notes: `docs/COMPARISON.md`
 
 ## 6) Tools

@@ -289,7 +289,7 @@ Execution strategy:
 
 Implementation notes (arm64 NEON, no-JIT-first):
 
-- See `docs/AVM_NEON_MAPPING_PLAN.md` for the concrete mapping plan and determinism constraints.
+- See `docs/AVM_DESIGN.md#avm-neon-mapping-plan-arm64-no-jit-first` for the concrete mapping plan and determinism constraints.
 
 ## 4) Host Interface: Capability-Scoped Native Calls
 

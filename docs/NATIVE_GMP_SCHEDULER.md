@@ -12,7 +12,7 @@ Related:
 
 - `docs/SYSCALL_FIRST_RUNTIME_PLAN.md` (syscall-first runtime boundary)
 - `docs/CONCURRENCY_MODEL.md` (language-level concurrency surface)
-- `docs/AVM_CONCURRENCY.md` (deterministic concurrency inside AVM; different goal)
+- `docs/AVM_DESIGN.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly` (deterministic concurrency inside AVM; different goal)
 
 ## 0) Terminology
 
@@ -44,7 +44,7 @@ Target end state:
 
 ## 2) Why AVM and native concurrency are different problems
 
-AVM concurrency (`docs/AVM_CONCURRENCY.md`) is about:
+AVM concurrency (`docs/AVM_DESIGN.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly`) is about:
 
 - determinism (consensus/replay)
 - snapshot/restore of scheduler state as data

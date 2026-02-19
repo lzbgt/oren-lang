@@ -198,7 +198,7 @@ Implementation plan is tracked in `docs/TODOS.md` and the deeper design docs:
 
 - `docs/NATIVE_GMP_SCHEDULER.md`
 - `docs/ASYNC_IO_AND_SELECT.md`
-- `docs/AVM_CONCURRENCY.md`
+- `docs/AVM_DESIGN.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly`
 
 ## 4) AVM notes
 

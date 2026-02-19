@@ -172,7 +172,7 @@ The model is:
 References:
 
 - `docs/AVM_SPEC.md` (VirtualFS/VirtualNET/VirtualPROC backends)
-- `docs/AVM_MULTIVERSE.md` (nested universes / host service constraints)
+- `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes` (nested universes / host service constraints)
 
 ### 3.3 Current native status: `spawn` is rolling toward green tasks + N:M
 
