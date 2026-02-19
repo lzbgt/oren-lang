@@ -12,6 +12,8 @@ No archives. No stubs. When a task is done enough, summarize it and move on.
 - Start at P0 and take the first unfinished item.
 - Tie work to a regression gate (benchmark or test).
 - Update fixtures and this doc when behavior changes.
+- High-level goals live in `docs/BLEEDING_EDGE_TASKS.md`.
+- High-level goals live in `docs/BLEEDING_EDGE_TASKS.md`.
 
 ---
 
