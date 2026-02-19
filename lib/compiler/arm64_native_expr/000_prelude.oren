@@ -342,6 +342,7 @@ fn native_expr_is_inty(ctx, expr) {
             if nm == "oren_string_len" { return true }
             if nm == "oren_list_len" || nm == "STD_list_len" { return true }
             if nm == "oren_list_int_len" || nm == "STD_list_int_len" { return true }
+            if nm == "oren_map_len" { return true }
             if nm == "oren_list_int_get" || nm == "STD_list_int_get" { return true }
             if nm == "oren_buf_len" { return true }
             if nm == "oren_buf_load_u8" || nm == "oren_buf_load_u8_unchecked" { return true }
