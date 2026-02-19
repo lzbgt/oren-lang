@@ -1,5 +1,7 @@
 import ast "ast.oren"
 import intparse "int_lit.oren"
+import optconst "optimizer_constprop.oren"
+import opthelp "optimizer_helpers.oren"
 import optloops "optimizer_loops.oren"
 
 // Optimizer baseline (rolling, conservative).
@@ -827,11 +829,6 @@ fn dce_block_in_place(block) {
 // This is intentionally conservative to avoid introducing new runtime panics when
 // `n` or `list` are not the expected types.
 
-fn _opt_is_ident(expr) {
-    if expr == nil || expr["type"] != "Identifier" { return nil }
-    return expr["value"]
-}
-
 fn _opt_is_len_call(expr) {
     if expr == nil || expr["type"] != "Call" { return false }
     var fnn = expr["fn"]
@@ -882,7 +879,7 @@ fn _opt_collect_list_pushes_expr(expr, out) {
             if nm == "oren_list_push" || nm == "STD_list_push" {
                 var args = expr["args"]
                 if args != nil && oren_list_len(args) >= 2 {
-                    var recv_name = _opt_is_ident(args[0])
+                    var recv_name = opthelp.is_ident(args[0])
                     if recv_name != nil { out[recv_name] = true }
                 }
             }
@@ -948,7 +945,7 @@ fn _opt_collect_list_int_pushes_expr(expr, out) {
             if nm == "oren_list_int_push" || nm == "STD_list_int_push" {
                 var args = expr["args"]
                 if args != nil && oren_list_len(args) >= 2 {
-                    var recv_name = _opt_is_ident(args[0])
+                    var recv_name = opthelp.is_ident(args[0])
                     if recv_name != nil { out[recv_name] = true }
                 }
             }
@@ -1078,74 +1075,6 @@ fn _opt_collect_list_int_pushes_stmt(stmt, out) {
     return nil
 }
 
-fn _opt_collect_assigned_names_stmt(out, stmt) {
-    if out == nil || stmt == nil { return nil }
-    var t = stmt["type"]
-    if t == "Assign" || t == "Var" {
-        var n = stmt["name"]
-        if n != nil && n["type"] == "Identifier" { out[n["value"]] = true }
-        return nil
-    }
-    if t == "Block" {
-        var xs = stmt["stmts"]
-        if xs == nil { return nil }
-        var i = 0
-        while i < oren_list_len(xs) {
-            _opt_collect_assigned_names_stmt(out, xs[i])
-            i = i + 1
-        }
-        return nil
-    }
-    if t == "If" {
-        _opt_collect_assigned_names_stmt(out, stmt["consq"])
-        if stmt["alt"] != nil { _opt_collect_assigned_names_stmt(out, stmt["alt"]) }
-        return nil
-    }
-    if t == "While" { _opt_collect_assigned_names_stmt(out, stmt["body"]); return nil }
-    if t == "For" {
-        _opt_collect_assigned_names_stmt(out, stmt["init"])
-        _opt_collect_assigned_names_stmt(out, stmt["post"])
-        _opt_collect_assigned_names_stmt(out, stmt["body"])
-        return nil
-    }
-    if t == "Switch" {
-        var cases = stmt["cases"]
-        if cases != nil {
-            var ci = 0
-            while ci < oren_list_len(cases) {
-                var c = cases[ci]
-                if c != nil && c["body"] != nil { _opt_collect_assigned_names_stmt(out, c["body"]) }
-                ci = ci + 1
-            }
-        }
-        if stmt["default"] != nil { _opt_collect_assigned_names_stmt(out, stmt["default"]) }
-        return nil
-    }
-    if t == "Function" { return nil }
-    if t == "ExprStmt" {
-        // Expression-level control flow can contain assignments in nested blocks.
-        var e = stmt["expr"]
-        if e != nil && e["type"] == "If" {
-            _opt_collect_assigned_names_stmt(out, e["consq"])
-            if e["alt"] != nil { _opt_collect_assigned_names_stmt(out, e["alt"]) }
-        }
-        if e != nil && e["type"] == "Switch" {
-            var cases2 = e["cases"]
-            if cases2 != nil {
-                var ci2 = 0
-                while ci2 < oren_list_len(cases2) {
-                    var c2 = cases2[ci2]
-                    if c2 != nil && c2["body"] != nil { _opt_collect_assigned_names_stmt(out, c2["body"]) }
-                    ci2 = ci2 + 1
-                }
-            }
-            if e["default"] != nil { _opt_collect_assigned_names_stmt(out, e["default"]) }
-        }
-        return nil
-    }
-    return nil
-}
-
 fn _opt_insert_list_reserve_in_block(block) {
     if block == nil || block["type"] != "Block" { return nil }
     var ss = block["stmts"]
@@ -1160,7 +1089,7 @@ fn _opt_insert_list_reserve_in_block(block) {
         var st = ss[i]
         var is_top_assign = st != nil && (st["type"] == "Var" || st["type"] == "Assign")
         if is_top_assign {
-            var nm = _opt_is_ident(st["name"])
+            var nm = opthelp.is_ident(st["name"])
             if nm != nil {
                 var v = st["value"]
                 var is_list_int_new = false
@@ -1185,7 +1114,7 @@ fn _opt_insert_list_reserve_in_block(block) {
             var n_expr = nil
             var n_ok = false
             if cond != nil && cond["type"] == "Infix" && cond["op"] == "<" {
-                var left_name = _opt_is_ident(cond["left"])
+                var left_name = opthelp.is_ident(cond["left"])
                 var right = cond["right"]
                 if left_name != nil && right != nil {
                     if _opt_is_safe_int_expr(right, last_int_safe) {
@@ -1227,7 +1156,7 @@ fn _opt_insert_list_reserve_in_block(block) {
             var n_expr2 = nil
             var n_ok2 = false
             if cond2 != nil && cond2["type"] == "Infix" && cond2["op"] == "<" {
-                var left_name2 = _opt_is_ident(cond2["left"])
+                var left_name2 = opthelp.is_ident(cond2["left"])
                 var right2 = cond2["right"]
                 if left_name2 != nil && right2 != nil {
                     if _opt_is_safe_int_expr(right2, last_int_safe) {
@@ -1268,7 +1197,7 @@ fn _opt_insert_list_reserve_in_block(block) {
         oren_list_push(out, st)
         if is_top_assign != true {
             var assigned = {}
-            _opt_collect_assigned_names_stmt(assigned, st)
+            opthelp.collect_assigned_names_stmt(assigned, st)
             for nm2 in assigned {
                 last_list_lit[nm2] = false
                 last_list_int_new[nm2] = false
@@ -1279,298 +1208,6 @@ fn _opt_insert_list_reserve_in_block(block) {
     }
     block["stmts"] = out
     return nil
-}
-
-// --- Const int propagation (rolling, conservative) ---
-//
-// Replace `% ident` with `% <int>` when `ident` is a known int literal in the
-// current block. This enables native fastmod on hot loops without changing
-// semantics (we only propagate literals, not arbitrary expressions).
-
-fn _opt_const_env_clone(env) {
-    var out = {}
-    if env == nil { return out }
-    for k in env {
-        var v = env[k]
-        if v != nil { out[k] = v }
-    }
-    return out
-}
-
-fn _opt_const_env_intersect(a, b) {
-    var out = {}
-    if a == nil || b == nil { return out }
-    for k in a {
-        var av = a[k]
-        if av != nil && b[k] == av { out[k] = av }
-    }
-    return out
-}
-
-fn _opt_const_env_set_from_expr(env, name, expr) {
-    if env == nil || name == nil { return nil }
-    var val = nil
-    if expr != nil {
-        if expr["type"] == "Integer" {
-            val = expr["value"]
-        } else if expr["type"] == "Identifier" {
-            var src = expr["value"]
-            if src != nil && env[src] != nil { val = env[src] }
-        }
-    }
-    env[name] = val
-    return nil
-}
-
-fn _opt_rewrite_expr_const_mod(expr, env) {
-    if expr == nil { return nil }
-    var t = expr["type"]
-    if t == "Call" {
-        var args = expr["args"]
-        if args != nil {
-            var i = 0
-            while i < oren_list_len(args) {
-                args[i] = _opt_rewrite_expr_const_mod(args[i], env)
-                i = i + 1
-            }
-            expr["args"] = args
-        }
-        if expr["spread"] != nil { expr["spread"] = _opt_rewrite_expr_const_mod(expr["spread"], env) }
-        return expr
-    }
-    if t == "Prefix" {
-        expr["right"] = _opt_rewrite_expr_const_mod(expr["right"], env)
-        return expr
-    }
-    if t == "Infix" {
-        expr["left"] = _opt_rewrite_expr_const_mod(expr["left"], env)
-        expr["right"] = _opt_rewrite_expr_const_mod(expr["right"], env)
-        if expr["op"] == "%" {
-            var right = expr["right"]
-            if right != nil && right["type"] == "Identifier" {
-                var nm = right["value"]
-                if nm != nil && env != nil && env[nm] != nil {
-                    expr["right"] = {"type": "Integer", "token": right["token"], "value": env[nm]}
-                }
-            }
-        }
-        return expr
-    }
-    if t == "If" {
-        expr["cond"] = _opt_rewrite_expr_const_mod(expr["cond"], env)
-        if expr["consq"] != nil { _opt_rewrite_const_mod_in_block(expr["consq"], _opt_const_env_clone(env)) }
-        if expr["alt"] != nil { _opt_rewrite_const_mod_in_block(expr["alt"], _opt_const_env_clone(env)) }
-        return expr
-    }
-    if t == "Array" {
-        var els = expr["elements"]
-        var i2 = 0
-        while i2 < oren_list_len(els) {
-            els[i2] = _opt_rewrite_expr_const_mod(els[i2], env)
-            i2 = i2 + 1
-        }
-        expr["elements"] = els
-        return expr
-    }
-    if t == "Hash" {
-        var ps = expr["pairs"]
-        var i3 = 0
-        while i3 < oren_list_len(ps) {
-            ps[i3]["key"] = _opt_rewrite_expr_const_mod(ps[i3]["key"], env)
-            ps[i3]["value"] = _opt_rewrite_expr_const_mod(ps[i3]["value"], env)
-            i3 = i3 + 1
-        }
-        expr["pairs"] = ps
-        return expr
-    }
-    if t == "Index" {
-        expr["left"] = _opt_rewrite_expr_const_mod(expr["left"], env)
-        expr["index"] = _opt_rewrite_expr_const_mod(expr["index"], env)
-        return expr
-    }
-    if t == "Member" {
-        expr["left"] = _opt_rewrite_expr_const_mod(expr["left"], env)
-        return expr
-    }
-    if t == "SpawnExpr" {
-        expr["call"] = _opt_rewrite_expr_const_mod(expr["call"], env)
-        return expr
-    }
-    return expr
-}
-
-fn _opt_rewrite_const_mod_stmt(stmt, env) {
-    if stmt == nil { return env }
-    var t = stmt["type"]
-    if t == "Block" || t == "StmtList" {
-        var xs = stmt["stmts"]
-        if xs == nil { xs = stmt["statements"] }
-        if xs == nil { return env }
-        var cur = env
-        var i = 0
-        while i < oren_list_len(xs) {
-            cur = _opt_rewrite_const_mod_stmt(xs[i], cur)
-            i = i + 1
-        }
-        if stmt["stmts"] != nil { stmt["stmts"] = xs }
-        if stmt["statements"] != nil { stmt["statements"] = xs }
-        return cur
-    }
-    if t == "Var" || t == "Assign" {
-        stmt["value"] = _opt_rewrite_expr_const_mod(stmt["value"], env)
-        var nm = _opt_is_ident(stmt["name"])
-        if nm != nil { _opt_const_env_set_from_expr(env, nm, stmt["value"]) }
-        return env
-    }
-    if t == "Set" {
-        stmt["left"] = _opt_rewrite_expr_const_mod(stmt["left"], env)
-        stmt["value"] = _opt_rewrite_expr_const_mod(stmt["value"], env)
-        return env
-    }
-    if t == "ExprStmt" {
-        var e = stmt["expr"]
-        if e != nil && e["type"] == "If" {
-            e["cond"] = _opt_rewrite_expr_const_mod(e["cond"], env)
-            var base = env
-            var then_env = _opt_const_env_clone(base)
-            _opt_rewrite_const_mod_in_block(e["consq"], then_env)
-            var alt_env = _opt_const_env_clone(base)
-            if e["alt"] != nil { _opt_rewrite_const_mod_in_block(e["alt"], alt_env) }
-            var merged = _opt_const_env_intersect(then_env, alt_env)
-            stmt["expr"] = e
-            return merged
-        }
-        if e != nil && e["type"] == "Switch" {
-            e["value"] = _opt_rewrite_expr_const_mod(e["value"], env)
-            var cases = e["cases"]
-            var merged2 = nil
-            var saw = false
-            if cases != nil {
-                var ci = 0
-                while ci < oren_list_len(cases) {
-                    var c = cases[ci]
-                    var vals = c["values"]
-                    var vi = 0
-                    while vi < oren_list_len(vals) {
-                        vals[vi] = _opt_rewrite_expr_const_mod(vals[vi], env)
-                        vi = vi + 1
-                    }
-                    c["values"] = vals
-                    var case_env = _opt_const_env_clone(env)
-                    _opt_rewrite_const_mod_in_block(c["body"], case_env)
-                    if saw != true { merged2 = case_env; saw = true }
-                    else { merged2 = _opt_const_env_intersect(merged2, case_env) }
-                    ci = ci + 1
-                }
-            }
-            if e["default"] != nil {
-                var def_env = _opt_const_env_clone(env)
-                _opt_rewrite_const_mod_in_block(e["default"], def_env)
-                if saw != true { merged2 = def_env; saw = true }
-                else { merged2 = _opt_const_env_intersect(merged2, def_env) }
-            } else if saw == true {
-                merged2 = _opt_const_env_intersect(merged2, env)
-            }
-            if saw != true { merged2 = env }
-            stmt["expr"] = e
-            return merged2
-        }
-        stmt["expr"] = _opt_rewrite_expr_const_mod(stmt["expr"], env)
-        return env
-    }
-    if t == "Return" {
-        stmt["value"] = _opt_rewrite_expr_const_mod(stmt["value"], env)
-        return env
-    }
-    if t == "If" {
-        stmt["cond"] = _opt_rewrite_expr_const_mod(stmt["cond"], env)
-        var base2 = env
-        var env_then = _opt_const_env_clone(base2)
-        _opt_rewrite_const_mod_in_block(stmt["consq"], env_then)
-        var env_alt = _opt_const_env_clone(base2)
-        if stmt["alt"] != nil { _opt_rewrite_const_mod_in_block(stmt["alt"], env_alt) }
-        return _opt_const_env_intersect(env_then, env_alt)
-    }
-    if t == "While" {
-        stmt["cond"] = _opt_rewrite_expr_const_mod(stmt["cond"], env)
-        var body_env = _opt_const_env_clone(env)
-        _opt_rewrite_const_mod_in_block(stmt["body"], body_env)
-        var assigned = {}
-        _opt_collect_assigned_names_stmt(assigned, stmt["body"])
-        for nm2 in assigned { env[nm2] = nil }
-        return env
-    }
-    if t == "For" {
-        if stmt["init"] != nil { env = _opt_rewrite_const_mod_stmt(stmt["init"], env) }
-        if stmt["cond"] != nil { stmt["cond"] = _opt_rewrite_expr_const_mod(stmt["cond"], env) }
-        if stmt["body"] != nil {
-            var body_env2 = _opt_const_env_clone(env)
-            _opt_rewrite_const_mod_in_block(stmt["body"], body_env2)
-        }
-        if stmt["post"] != nil {
-            var post_env = _opt_const_env_clone(env)
-            _opt_rewrite_const_mod_stmt(stmt["post"], post_env)
-        }
-        var assigned2 = {}
-        _opt_collect_assigned_names_stmt(assigned2, stmt["body"])
-        _opt_collect_assigned_names_stmt(assigned2, stmt["post"])
-        for nm3 in assigned2 { env[nm3] = nil }
-        return env
-    }
-    if t == "Switch" {
-        stmt["value"] = _opt_rewrite_expr_const_mod(stmt["value"], env)
-        var cases2 = stmt["cases"]
-        var merged3 = nil
-        var saw2 = false
-        if cases2 != nil {
-            var ci2 = 0
-            while ci2 < oren_list_len(cases2) {
-                var c2 = cases2[ci2]
-                var vals2 = c2["values"]
-                var vi2 = 0
-                while vi2 < oren_list_len(vals2) {
-                    vals2[vi2] = _opt_rewrite_expr_const_mod(vals2[vi2], env)
-                    vi2 = vi2 + 1
-                }
-                c2["values"] = vals2
-                var case_env2 = _opt_const_env_clone(env)
-                _opt_rewrite_const_mod_in_block(c2["body"], case_env2)
-                if saw2 != true { merged3 = case_env2; saw2 = true }
-                else { merged3 = _opt_const_env_intersect(merged3, case_env2) }
-                ci2 = ci2 + 1
-            }
-        }
-        if stmt["default"] != nil {
-            var def_env2 = _opt_const_env_clone(env)
-            _opt_rewrite_const_mod_in_block(stmt["default"], def_env2)
-            if saw2 != true { merged3 = def_env2; saw2 = true }
-            else { merged3 = _opt_const_env_intersect(merged3, def_env2) }
-        } else if saw2 == true {
-            merged3 = _opt_const_env_intersect(merged3, env)
-        }
-        if saw2 != true { merged3 = env }
-        return merged3
-    }
-    if t == "Spawn" {
-        if stmt["call"] != nil { stmt["call"] = _opt_rewrite_expr_const_mod(stmt["call"], env) }
-        return env
-    }
-    return env
-}
-
-fn _opt_rewrite_const_mod_in_block(block, env) {
-    if block == nil || block["type"] != "Block" { return env }
-    if env == nil { env = {} }
-    var ss = block["stmts"]
-    if ss == nil { return env }
-    var cur = env
-    var i = 0
-    while i < oren_list_len(ss) {
-        cur = _opt_rewrite_const_mod_stmt(ss[i], cur)
-        i = i + 1
-    }
-    block["stmts"] = ss
-    return cur
 }
 
 // --- Tail-call optimization (TCO): direct self tail recursion (rolling, conservative) ---
@@ -1949,7 +1586,7 @@ fn lower_linked_program_in_place(linked) {
             if trace_opt && i == 0 { print("[opt] tco done") }
             optloops.lower_simple_for_in_block(ss[i]["expr"]["body"])
             _opt_insert_list_reserve_in_block(ss[i]["expr"]["body"])
-            _opt_rewrite_const_mod_in_block(ss[i]["expr"]["body"], nil)
+            optconst.rewrite_const_mod_in_block(ss[i]["expr"]["body"], nil)
             if trace_opt && i == 0 { print("[opt] dce start") }
             dce_block_in_place(ss[i]["expr"]["body"])
             if trace_opt && i == 0 { print("[opt] dce done") }
