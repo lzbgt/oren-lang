@@ -816,10 +816,12 @@ fn dce_block_in_place(block) {
 
 // --- List reserve insertion (rolling, conservative) ---
 //
-// Insert `oren_list_reserve(list, n)` before `while i < n { list.push(...) }` loops
+// Insert `oren_list_reserve(list, n)` (or `oren_list_int_reserve`) before
+// `while i < n { list.push(...) }` loops
 // when:
 // - `n` is an int literal or a local that was most-recently assigned an int literal, and
 // - the list was most-recently assigned a list literal (`[]`) in the same block.
+// - or the list was most-recently assigned `oren_new_list_int(...)` in the same block.
 //
 // This is intentionally conservative to avoid introducing new runtime panics when
 // `n` or `list` are not the expected types.
@@ -895,6 +897,72 @@ fn _opt_collect_list_pushes_expr(expr, out) {
     return nil
 }
 
+fn _opt_collect_list_int_pushes_expr(expr, out) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Call" {
+        var fnn = expr["fn"]
+        if fnn != nil && fnn["type"] == "Identifier" {
+            var nm = fnn["value"]
+            if nm == "oren_list_int_push" || nm == "STD_list_int_push" {
+                var args = expr["args"]
+                if args != nil && oren_list_len(args) >= 2 {
+                    var recv_name = _opt_is_ident(args[0])
+                    if recv_name != nil { out[recv_name] = true }
+                }
+            }
+        }
+        var args2 = expr["args"]
+        if args2 != nil {
+            var i = 0
+            while i < oren_list_len(args2) {
+                _opt_collect_list_int_pushes_expr(args2[i], out)
+                i = i + 1
+            }
+        }
+        if expr["spread"] != nil { _opt_collect_list_int_pushes_expr(expr["spread"], out) }
+        return nil
+    }
+    if t == "Prefix" { return _opt_collect_list_int_pushes_expr(expr["right"], out) }
+    if t == "Infix" {
+        _opt_collect_list_int_pushes_expr(expr["left"], out)
+        _opt_collect_list_int_pushes_expr(expr["right"], out)
+        return nil
+    }
+    if t == "If" {
+        _opt_collect_list_int_pushes_expr(expr["cond"], out)
+        _opt_collect_list_int_pushes_stmt(expr["consq"], out)
+        if expr["alt"] != nil { _opt_collect_list_int_pushes_stmt(expr["alt"], out) }
+        return nil
+    }
+    if t == "Array" {
+        var els = expr["elements"]
+        var i2 = 0
+        while i2 < oren_list_len(els) {
+            _opt_collect_list_int_pushes_expr(els[i2], out)
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        var i3 = 0
+        while i3 < oren_list_len(ps) {
+            _opt_collect_list_int_pushes_expr(ps[i3]["key"], out)
+            _opt_collect_list_int_pushes_expr(ps[i3]["value"], out)
+            i3 = i3 + 1
+        }
+        return nil
+    }
+    if t == "Index" {
+        _opt_collect_list_int_pushes_expr(expr["left"], out)
+        _opt_collect_list_int_pushes_expr(expr["index"], out)
+        return nil
+    }
+    if t == "Member" { return _opt_collect_list_int_pushes_expr(expr["left"], out) }
+    return nil
+}
+
 fn _opt_collect_list_pushes_stmt(stmt, out) {
     if stmt == nil { return nil }
     var t = stmt["type"]
@@ -928,6 +996,43 @@ fn _opt_collect_list_pushes_stmt(stmt, out) {
         return nil
     }
     if t == "Return" { return _opt_collect_list_pushes_expr(stmt["value"], out) }
+    if t == "Function" { return nil } // avoid nested functions
+    return nil
+}
+
+fn _opt_collect_list_int_pushes_stmt(stmt, out) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        var i = 0
+        while i < oren_list_len(ss) {
+            _opt_collect_list_int_pushes_stmt(ss[i], out)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "While" {
+        _opt_collect_list_int_pushes_expr(stmt["cond"], out)
+        _opt_collect_list_int_pushes_stmt(stmt["body"], out)
+        return nil
+    }
+    if t == "For" {
+        _opt_collect_list_int_pushes_stmt(stmt["init"], out)
+        _opt_collect_list_int_pushes_expr(stmt["cond"], out)
+        _opt_collect_list_int_pushes_expr(stmt["post"], out)
+        _opt_collect_list_int_pushes_stmt(stmt["body"], out)
+        return nil
+    }
+    if t == "ExprStmt" { return _opt_collect_list_int_pushes_expr(stmt["expr"], out) }
+    if t == "Assign" { return _opt_collect_list_int_pushes_expr(stmt["value"], out) }
+    if t == "Var" { return _opt_collect_list_int_pushes_expr(stmt["value"], out) }
+    if t == "Set" {
+        _opt_collect_list_int_pushes_expr(stmt["left"], out)
+        _opt_collect_list_int_pushes_expr(stmt["value"], out)
+        return nil
+    }
+    if t == "Return" { return _opt_collect_list_int_pushes_expr(stmt["value"], out) }
     if t == "Function" { return nil } // avoid nested functions
     return nil
 }
@@ -1006,6 +1111,7 @@ fn _opt_insert_list_reserve_in_block(block) {
     if ss == nil { return nil }
 
     var last_list_lit = {}
+    var last_list_int_new = {}
     var last_int_lit = {}
     var out = []
     var i = 0
@@ -1016,8 +1122,18 @@ fn _opt_insert_list_reserve_in_block(block) {
             var nm = _opt_is_ident(st["name"])
             if nm != nil {
                 var v = st["value"]
+                var is_list_int_new = false
+                if v != nil && v["type"] == "Call" {
+                    var fnv = v["fn"]
+                    if fnv != nil && fnv["type"] == "Identifier" {
+                        var fn_name = fnv["value"]
+                        if fn_name == "oren_new_list_int" { is_list_int_new = true }
+                    }
+                }
                 if v != nil && v["type"] == "Array" { last_list_lit[nm] = true }
                 else { last_list_lit[nm] = false }
+                if is_list_int_new { last_list_int_new[nm] = true }
+                else { last_list_int_new[nm] = false }
                 if v != nil && v["type"] == "Integer" { last_int_lit[nm] = true }
                 else { last_int_lit[nm] = false }
             }
@@ -1046,14 +1162,26 @@ fn _opt_insert_list_reserve_in_block(block) {
 
             if n_ok {
                 var pushes = {}
+                var pushes_int = {}
                 _opt_collect_list_pushes_stmt(st["body"], pushes)
+                _opt_collect_list_int_pushes_stmt(st["body"], pushes_int)
                 if pushes != nil {
                     for list_name in pushes {
-                        if last_list_lit[list_name] == true {
+                        if last_list_lit[list_name] == true && pushes_int[list_name] != true {
                             var call = ast.new_call(nil,
                                 {"type": "Identifier", "token": nil, "value": "oren_list_reserve"},
                                 [{"type": "Identifier", "token": nil, "value": list_name}, n_expr])
                             oren_list_push(out, ast.new_expr_stmt(nil, call))
+                        }
+                    }
+                }
+                if pushes_int != nil {
+                    for list_namei in pushes_int {
+                        if last_list_int_new[list_namei] == true && pushes[list_namei] != true {
+                            var calli = ast.new_call(nil,
+                                {"type": "Identifier", "token": nil, "value": "oren_list_int_reserve"},
+                                [{"type": "Identifier", "token": nil, "value": list_namei}, n_expr])
+                            oren_list_push(out, ast.new_expr_stmt(nil, calli))
                         }
                     }
                 }
@@ -1082,14 +1210,26 @@ fn _opt_insert_list_reserve_in_block(block) {
 
             if n_ok2 {
                 var pushes2 = {}
+                var pushes2_int = {}
                 _opt_collect_list_pushes_stmt(st["body"], pushes2)
+                _opt_collect_list_int_pushes_stmt(st["body"], pushes2_int)
                 if pushes2 != nil {
                     for list_name2 in pushes2 {
-                        if last_list_lit[list_name2] == true {
+                        if last_list_lit[list_name2] == true && pushes2_int[list_name2] != true {
                             var call2 = ast.new_call(nil,
                                 {"type": "Identifier", "token": nil, "value": "oren_list_reserve"},
                                 [{"type": "Identifier", "token": nil, "value": list_name2}, n_expr2])
                             oren_list_push(out, ast.new_expr_stmt(nil, call2))
+                        }
+                    }
+                }
+                if pushes2_int != nil {
+                    for list_name2i in pushes2_int {
+                        if last_list_int_new[list_name2i] == true && pushes2[list_name2i] != true {
+                            var call2i = ast.new_call(nil,
+                                {"type": "Identifier", "token": nil, "value": "oren_list_int_reserve"},
+                                [{"type": "Identifier", "token": nil, "value": list_name2i}, n_expr2])
+                            oren_list_push(out, ast.new_expr_stmt(nil, call2i))
                         }
                     }
                 }
@@ -1102,6 +1242,7 @@ fn _opt_insert_list_reserve_in_block(block) {
             _opt_collect_assigned_names_stmt(assigned, st)
             for nm2 in assigned {
                 last_list_lit[nm2] = false
+                last_list_int_new[nm2] = false
                 last_int_lit[nm2] = false
             }
         }

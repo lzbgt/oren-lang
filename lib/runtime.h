@@ -242,6 +242,7 @@ OrenValue oren_list_int_len(OrenValue list);
 OrenValue oren_list_int_push(OrenValue list, OrenValue value);
 OrenValue oren_list_int_get(OrenValue list, OrenValue index);
 OrenValue oren_list_int_set(OrenValue list, OrenValue index, OrenValue value);
+OrenValue oren_list_int_reserve(OrenValue list, OrenValue new_cap);
 // Returns 1 if list/map ops must take locks (threads started / forced), 0 otherwise.
 int oren_list_locking_needed(void);
 // C backend fast-paths for list<int> hot loops (inlines when locks not needed).

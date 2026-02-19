@@ -807,6 +807,21 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_u16(ctx, nil_idx_r)
             return nil
         }
+        if name == "oren_list_int_reserve" || name == "STD_list_int_reserve" {
+            if oren_list_len(expr["args"]) != 2 {
+            bytecode_error(ctx, "bytecode backend: oren_list_int_reserve expects (list, cap)")
+            return nil
+            }
+            // Reserve is a perf hint; evaluate args for side effects, then drop.
+            bytecode_compile_expr(ctx, expr["args"][0])
+            bytecode_compile_expr(ctx, expr["args"][1])
+            emit_byte(ctx, AVM_POP)
+            emit_byte(ctx, AVM_POP)
+            var nil_idx_ri = add_constant(ctx, {"type": "Nil"})
+            emit_byte(ctx, AVM_PUSH_CONST)
+            emit_u16(ctx, nil_idx_ri)
+            return nil
+        }
         if name == "oren_list_int_get" {
             if oren_list_len(expr["args"]) != 2 {
             bytecode_error(ctx, "bytecode backend: oren_list_int_get expects (list, idx)")

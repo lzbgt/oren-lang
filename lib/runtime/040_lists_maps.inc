@@ -514,6 +514,26 @@ OrenValue oren_list_int_set(OrenValue list, OrenValue index, OrenValue value) {
     return value;
 }
 
+OrenValue oren_list_int_reserve(OrenValue list, OrenValue new_cap) {
+    if (list.type == OREN_TYPE_NIL) return OREN_NIL;
+    if (new_cap.type == OREN_TYPE_NIL) return OREN_NIL;
+    if (new_cap.type == OREN_TYPE_BOOL) {
+        oren_panic("list_int_reserve expects int (got bool)");
+        return OREN_NIL;
+    }
+    if (new_cap.type != OREN_TYPE_INT) {
+        oren_panic("list_int_reserve expects int (got pointer)");
+        return OREN_NIL;
+    }
+    if (new_cap.as.int_val < 0) return OREN_NIL;
+    if (list.type != OREN_TYPE_LIST || list.as.list_val == NULL) {
+        oren_panic("list_int_reserve on non-list");
+        return OREN_NIL;
+    }
+    oren_list_reserve_raw(list.as.list_val, (int)new_cap.as.int_val);
+    return OREN_NIL;
+}
+
 static int bytes_get_u8_checked(OrenValue bytes, int idx, uint8_t* out) {
     if (bytes.type == OREN_TYPE_LIST) {
         if (idx < 0 || idx >= bytes.as.list_val->count) return 0;
