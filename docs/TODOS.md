@@ -219,6 +219,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
                              - Compiler: `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
                              - Bench (loop_sum, M2 Pro, runs=5): C 0.065988s, Oren C 0.060332s (~0.91×), Oren native 0.419718s (~6.36×), OBC 0.097816s (~1.48×).
                              - Artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_163434.md`.
+                           - 2026-02-19: AVM `INT_LCG_SUM_LOOP` unrolled by 4 in the fast-sum path to reduce branch overhead:
+                             - AVM: `lib/avm/avm_vm.c`.
+                             - Bench (loop_sum, M2 Pro, runs=5): C 0.065923s, Oren C 0.060476s (~0.92×), Oren native 0.419101s (~6.36×), OBC 0.097808s (~1.48×).
+                             - Artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_164231.md`.
                            - 2026-02-19: loop_sum init-only/steady-state refresh (quantify init overhead vs body):
                              - Init-only (args `0 1`): C 0.002027s, Oren C 0.002278s (~1.12×), native 0.002368s (~1.17×), OBC 0.002109s (~1.04×).
                                - Artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_161557.md`.
@@ -314,8 +318,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - RSS (median): native ~7.75MB, Oren C ~4.47MB, OBC ~9.34MB.
      - Target: native ≤0.50s on M2 with stable RSS (met 2026‑02‑19).
      - Stretch: ≤0.08s by reducing per-alloc tracking overhead and string concat allocations in alloc_drop.
-  - (P1/M) **Loop_sum native still ~6.3× C; Oren C ~5.1×; OBC ~1.46×**
-    - Latest (runs=5, warmups=1): C 0.070953s, Oren C 0.360361s (~5.08×), native 0.448654s (~6.32×), OBC 0.103690s (~1.46×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_144327.md`).
+  - (P1/M) **Loop_sum native still ~6.36× C; Oren C ~0.92×; OBC ~1.48×**
+    - Latest (runs=5, warmups=1): C 0.065923s, Oren C 0.060476s (~0.92×), native 0.419101s (~6.36×), OBC 0.097808s (~1.48×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_164231.md`).
     - Note: OBC speedup comes from emitting fused AVM `INT_LCG_SUM_LOOP` for the LCG+sum loop pattern.
     - New (2026-02-19): C/native backends now emit a fast LCG+sum loop lowering; fast path triggers on `benchmarks/loop_sum/loop_sum.oren`.
     - Remaining gap appears dominated by runtime init + per-process overhead rather than the loop body; quantify init cost and add a fast-init path for pure-int benchmarks.
@@ -324,7 +328,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - 2026-02-19: loop_sum steady-state (args `2000000 10`): C 0.066332s, Oren C 0.060866s (~0.92×), native 0.427017s (~6.44×), OBC 0.098803s (~1.49×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_154221.md`).
     - 2026-02-19: benchmark runner now injects `--` and a synthetic argv[0] for AVM runs so OBC arg parsing matches C/native.
     - 2026-02-19: AVM scheduler now lazy-inits on first spawn/chan/select/yield; non-concurrency programs skip scheduler setup overhead.
-    - Target: native ≤0.25s (≤4× C) and Oren C ≤0.20s (≤3× C) while keeping correctness gates.
+    - Target: native ≤0.25s (≤4× C) and OBC ≤0.08s (≤1.2× C) while keeping correctness gates.
   - (P2/S) **Array_sum list access now ~5.0× C (native); Oren C ~1.90×; OBC ~2.41×**
     - Latest: native 0.020951s vs C 0.004190s (`benchmarks/results/array_sum_darwin_arm64_20260219_130446.md`).
       - Oren C: 0.007941s; OBC/AVM: 0.010095s (same run).
