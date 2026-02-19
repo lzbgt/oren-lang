@@ -19,6 +19,7 @@ fn new_transpiler() {
         "type_ns": {},
         "lambda_defs": [],
         "lambda_counter": 0,
+        "const_ints": {},
     }
 }
 
@@ -159,6 +160,33 @@ fn _transpiler_inty_intersect(a, b) {
         i = i + 1
     }
     return out
+}
+
+fn _transpiler_const_map(t) {
+    if t["const_ints"] == nil { t["const_ints"] = {} }
+    return t["const_ints"]
+}
+
+fn _transpiler_const_get(t, name) {
+    var m = _transpiler_const_map(t)
+    return m[name]
+}
+
+fn _transpiler_const_set(t, name, val) {
+    var m = _transpiler_const_map(t)
+    m[name] = val
+    return nil
+}
+
+fn _transpiler_const_clear(t, name) {
+    var m = _transpiler_const_map(t)
+    m[name] = nil
+    return nil
+}
+
+fn _transpiler_const_reset(t) {
+    t["const_ints"] = {}
+    return nil
 }
 
 fn _transpiler_expr_is_inty(t, exp) {
@@ -1091,6 +1119,8 @@ fn _transpiler_match_fast_lcg_sum_while(t, stmt) {
     var mod_name = lcg["mod"]
     if mod_name == nil { return nil }
     if str_eq(mod_name, idx_name) || str_eq(mod_name, n_name) || str_eq(mod_name, x_name) { return nil }
+    var mod_const = _transpiler_const_get(t, mod_name)
+    if oren_type_tag(mod_const) != 1 || mod_const <= 0 { mod_const = nil }
 
     if sum_stmt == nil || sum_stmt["type"] != "Assign" { return nil }
     var sum_name = _transpiler_is_ident(sum_stmt["name"])
@@ -1106,6 +1136,7 @@ fn _transpiler_match_fast_lcg_sum_while(t, stmt) {
         "x": x_name,
         "sum": sum_name,
         "mod": mod_name,
+        "mod_const": mod_const,
         "mul": lcg["mul"],
         "add": lcg["add"],
         "mod_x": sum_info["mod_x"],
@@ -1321,6 +1352,7 @@ fn _transpiler_emit_fast_lcg_sum_while(t, stmt, info) {
     var add = info["add"]
     var mod_x = info["mod_x"]
     var mod_i = info["mod_i"]
+    var mod_const = info["mod_const"]
 
     var inty_before = _transpiler_inty_clone(_transpiler_inty_list(t))
     var slow = _transpiler_emit_while_basic(t, stmt)
@@ -1334,10 +1366,12 @@ fn _transpiler_emit_fast_lcg_sum_while(t, stmt, info) {
     var sum_ll = tmp_gensym(t, "lcg_sum")
     var mod_ll = tmp_gensym(t, "lcg_mod")
     var i_u = tmp_gensym(t, "lcg_i_u")
+    var n_u = tmp_gensym(t, "lcg_n_u")
     var x_u = tmp_gensym(t, "lcg_x_u")
     var sum_u = tmp_gensym(t, "lcg_sum_u")
-    var term_x_u = tmp_gensym(t, "lcg_term_x_u")
-    var term_i_u = tmp_gensym(t, "lcg_term_i_u")
+    var mod_u = tmp_gensym(t, "lcg_mod_u")
+    var mod_expr = mod_u
+    if mod_const != nil { mod_expr = "lcg_mod" }
 
     var parts = []
     oren_list_push(parts, "{")
@@ -1349,39 +1383,39 @@ fn _transpiler_emit_fast_lcg_sum_while(t, stmt, info) {
     oren_list_push(parts, "long long " + sum_ll + " = 0;")
     oren_list_push(parts, "long long " + mod_ll + " = 0;")
     oren_list_push(parts, "uint64_t " + i_u + " = 0;")
+    oren_list_push(parts, "uint64_t " + n_u + " = 0;")
     oren_list_push(parts, "uint64_t " + x_u + " = 0;")
     oren_list_push(parts, "uint64_t " + sum_u + " = 0;")
-    oren_list_push(parts, "uint64_t " + term_x_u + " = 0;")
-    oren_list_push(parts, "uint64_t " + term_i_u + " = 0;")
-    oren_list_push(parts, "const long long lcg_mul = " + int_str(mul) + ";")
-    oren_list_push(parts, "const long long lcg_add = " + int_str(add) + ";")
-    oren_list_push(parts, "const long long lcg_mod_x = " + int_str(mod_x) + ";")
-    oren_list_push(parts, "const long long lcg_mod_i = " + int_str(mod_i) + ";")
+    oren_list_push(parts, "uint64_t " + mod_u + " = 0;")
+    oren_list_push(parts, "const uint64_t lcg_mul = " + int_str(mul) + "ULL;")
+    oren_list_push(parts, "const uint64_t lcg_add = " + int_str(add) + "ULL;")
+    oren_list_push(parts, "const uint64_t lcg_mod_x = " + int_str(mod_x) + "ULL;")
+    oren_list_push(parts, "const uint64_t lcg_mod_i = " + int_str(mod_i) + "ULL;")
+    if mod_const != nil {
+        oren_list_push(parts, "const uint64_t lcg_mod = " + int_str(mod_const) + "ULL;")
+    }
 
-    oren_list_push(parts, "if (" + c_ident(idx_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + i_ll + " = " + c_ident(idx_name) + ".as.int_val; memcpy(&" + i_u + ", &" + i_ll + ", sizeof(" + i_u + ")); }")
-    oren_list_push(parts, "if (" + c_ident(n_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + n_ll + " = " + c_ident(n_name) + ".as.int_val; }")
-    oren_list_push(parts, "if (" + c_ident(x_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + x_ll + " = " + c_ident(x_name) + ".as.int_val; memcpy(&" + x_u + ", &" + x_ll + ", sizeof(" + x_u + ")); }")
-    oren_list_push(parts, "if (" + c_ident(sum_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + sum_ll + " = " + c_ident(sum_name) + ".as.int_val; memcpy(&" + sum_u + ", &" + sum_ll + ", sizeof(" + sum_u + ")); }")
-    oren_list_push(parts, "if (" + c_ident(mod_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + mod_ll + " = " + c_ident(mod_name) + ".as.int_val; if (" + mod_ll + " <= 0) " + fast_ok + " = 0; }")
+    oren_list_push(parts, "if (" + c_ident(idx_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + i_ll + " = " + c_ident(idx_name) + ".as.int_val; if (" + i_ll + " < 0) " + fast_ok + " = 0; else " + i_u + " = (uint64_t)" + i_ll + "; }")
+    oren_list_push(parts, "if (" + c_ident(n_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + n_ll + " = " + c_ident(n_name) + ".as.int_val; if (" + n_ll + " < 0) " + fast_ok + " = 0; else " + n_u + " = (uint64_t)" + n_ll + "; }")
+    oren_list_push(parts, "if (" + c_ident(x_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + x_ll + " = " + c_ident(x_name) + ".as.int_val; if (" + x_ll + " < 0) " + fast_ok + " = 0; else " + x_u + " = (uint64_t)" + x_ll + "; }")
+    oren_list_push(parts, "if (" + c_ident(sum_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + sum_ll + " = " + c_ident(sum_name) + ".as.int_val; if (" + sum_ll + " < 0) " + fast_ok + " = 0; else " + sum_u + " = (uint64_t)" + sum_ll + "; }")
+    if mod_const != nil {
+        oren_list_push(parts, "if (" + c_ident(mod_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + mod_ll + " = " + c_ident(mod_name) + ".as.int_val; if (" + mod_ll + " != " + int_str(mod_const) + ") " + fast_ok + " = 0; }")
+    } else {
+        oren_list_push(parts, "if (" + c_ident(mod_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + mod_ll + " = " + c_ident(mod_name) + ".as.int_val; if (" + mod_ll + " <= 0) " + fast_ok + " = 0; else " + mod_u + " = (uint64_t)" + mod_ll + "; }")
+    }
 
     oren_list_push(parts, "if (" + fast_ok + ") {")
-    oren_list_push(parts, "    while (" + i_ll + " < " + n_ll + ") {")
-    oren_list_push(parts, "        " + x_u + " = " + x_u + " * (uint64_t)lcg_mul + (uint64_t)lcg_add;")
-    oren_list_push(parts, "        memcpy(&" + x_ll + ", &" + x_u + ", sizeof(" + x_ll + "));")
-    oren_list_push(parts, "        " + x_ll + " = " + x_ll + " % " + mod_ll + ";")
-    oren_list_push(parts, "        memcpy(&" + x_u + ", &" + x_ll + ", sizeof(" + x_u + "));")
-    oren_list_push(parts, "        long long lcg_term_x = " + x_ll + " % lcg_mod_x;")
-    oren_list_push(parts, "        long long lcg_term_i = " + i_ll + " % lcg_mod_i;")
-    oren_list_push(parts, "        memcpy(&" + term_x_u + ", &lcg_term_x, sizeof(" + term_x_u + "));")
-    oren_list_push(parts, "        memcpy(&" + term_i_u + ", &lcg_term_i, sizeof(" + term_i_u + "));")
-    oren_list_push(parts, "        " + sum_u + " = " + sum_u + " + " + term_x_u + ";")
-    oren_list_push(parts, "        " + sum_u + " = " + sum_u + " + " + term_i_u + ";")
-    oren_list_push(parts, "        memcpy(&" + sum_ll + ", &" + sum_u + ", sizeof(" + sum_ll + "));")
-    oren_list_push(parts, "        " + sum_ll + " = " + sum_ll + " % " + mod_ll + ";")
-    oren_list_push(parts, "        memcpy(&" + sum_u + ", &" + sum_ll + ", sizeof(" + sum_u + "));")
+    oren_list_push(parts, "    while (" + i_u + " < " + n_u + ") {")
+    oren_list_push(parts, "        " + x_u + " = (" + x_u + " * lcg_mul + lcg_add) % " + mod_expr + ";")
+    oren_list_push(parts, "        uint64_t lcg_term_x = " + x_u + " % lcg_mod_x;")
+    oren_list_push(parts, "        uint64_t lcg_term_i = " + i_u + " % lcg_mod_i;")
+    oren_list_push(parts, "        " + sum_u + " = (" + sum_u + " + lcg_term_x + lcg_term_i) % " + mod_expr + ";")
     oren_list_push(parts, "        " + i_u + " = " + i_u + " + 1;")
-    oren_list_push(parts, "        memcpy(&" + i_ll + ", &" + i_u + ", sizeof(" + i_ll + "));")
     oren_list_push(parts, "    }")
+    oren_list_push(parts, "    " + x_ll + " = (long long)" + x_u + ";")
+    oren_list_push(parts, "    " + sum_ll + " = (long long)" + sum_u + ";")
+    oren_list_push(parts, "    " + i_ll + " = (long long)" + i_u + ";")
     oren_list_push(parts, "    " + c_ident(x_name) + " = oren_int(" + x_ll + ");")
     oren_list_push(parts, "    " + c_ident(sum_name) + " = oren_int(" + sum_ll + ");")
     oren_list_push(parts, "    " + c_ident(idx_name) + " = oren_int(" + i_ll + ");")
@@ -2436,6 +2470,9 @@ fn transpile_statement(t, stmt) {
     if stmt["type"] == "Var" {
         var v = transpile_expression(t, stmt["value"])
         _transpiler_inty_set(t, stmt["name"]["value"], _transpiler_expr_is_inty(t, stmt["value"]))
+        var litv = _transpiler_parse_int_lit_expr(stmt["value"])
+        if litv != nil { _transpiler_const_set(t, stmt["name"]["value"], litv) }
+        else { _transpiler_const_clear(t, stmt["name"]["value"]) }
         return "OrenValue " + c_ident(stmt["name"]["value"]) + " = " + v + ";"
     }
     if stmt["type"] == "Spawn" {
@@ -2467,6 +2504,7 @@ fn transpile_statement(t, stmt) {
         }
         oren_list_push(parts, "}")
         t["inty"] = inty_prev
+        _transpiler_const_reset(t)
         return _transpiler_join_parts(parts)
     }
     if stmt["type"] == "Set" {
@@ -2495,6 +2533,9 @@ fn transpile_statement(t, stmt) {
     if stmt["type"] == "Assign" {
         var v_assign = transpile_expression(t, stmt["value"])
         _transpiler_inty_set(t, stmt["name"]["value"], _transpiler_expr_is_inty(t, stmt["value"]))
+        var litv2 = _transpiler_parse_int_lit_expr(stmt["value"])
+        if litv2 != nil { _transpiler_const_set(t, stmt["name"]["value"], litv2) }
+        else { _transpiler_const_clear(t, stmt["name"]["value"]) }
         return c_ident(stmt["name"]["value"]) + " = " + v_assign + ";"
     }
     if stmt["type"] == "Return" {
@@ -2505,25 +2546,53 @@ fn transpile_statement(t, stmt) {
     }
     if stmt["type"] == "ExprStmt" {
         if stmt["expr"]["type"] == "If" {
-            return transpile_if(t, stmt["expr"])
+            var if_s = transpile_if(t, stmt["expr"])
+            _transpiler_const_reset(t)
+            return if_s
         }
         var v_expr = transpile_expression(t, stmt["expr"])
         return v_expr + ";"
     }
     if stmt["type"] == "While" {
         var fast_lcg = _transpiler_match_fast_lcg_sum_while(t, stmt)
-        if fast_lcg != nil { return _transpiler_emit_fast_lcg_sum_while(t, stmt, fast_lcg) }
+        if fast_lcg != nil {
+            var out_lcg = _transpiler_emit_fast_lcg_sum_while(t, stmt, fast_lcg)
+            _transpiler_const_reset(t)
+            return out_lcg
+        }
         var fast_push_box = _transpiler_match_fast_list_push_while(t, stmt)
-        if fast_push_box != nil { return _transpiler_emit_fast_list_push_while(t, stmt, fast_push_box) }
+        if fast_push_box != nil {
+            var out_push_box = _transpiler_emit_fast_list_push_while(t, stmt, fast_push_box)
+            _transpiler_const_reset(t)
+            return out_push_box
+        }
         var fast_push = _transpiler_match_fast_list_int_push_while(t, stmt)
-        if fast_push != nil { return _transpiler_emit_fast_list_int_push_while(t, stmt, fast_push) }
+        if fast_push != nil {
+            var out_push = _transpiler_emit_fast_list_int_push_while(t, stmt, fast_push)
+            _transpiler_const_reset(t)
+            return out_push
+        }
         var fast = _transpiler_match_fast_list_int_while(t, stmt)
-        if fast != nil { return _transpiler_emit_fast_list_int_while(t, stmt, fast) }
+        if fast != nil {
+            var out_fast = _transpiler_emit_fast_list_int_while(t, stmt, fast)
+            _transpiler_const_reset(t)
+            return out_fast
+        }
         var fast_box_sum = _transpiler_match_fast_list_get_sum_while(t, stmt)
-        if fast_box_sum != nil { return _transpiler_emit_fast_list_get_sum_while(t, stmt, fast_box_sum) }
+        if fast_box_sum != nil {
+            var out_box_sum = _transpiler_emit_fast_list_get_sum_while(t, stmt, fast_box_sum)
+            _transpiler_const_reset(t)
+            return out_box_sum
+        }
         var fast_box = _transpiler_match_fast_list_while(t, stmt)
-        if fast_box != nil { return _transpiler_emit_fast_list_while(t, stmt, fast_box) }
-        return _transpiler_emit_while_basic(t, stmt)
+        if fast_box != nil {
+            var out_box = _transpiler_emit_fast_list_while(t, stmt, fast_box)
+            _transpiler_const_reset(t)
+            return out_box
+        }
+        var out_while = _transpiler_emit_while_basic(t, stmt)
+        _transpiler_const_reset(t)
+        return out_while
     }
     if stmt["type"] == "For" {
         var init_s = transpile_for_header_stmt(t, stmt["init"])
@@ -2543,8 +2612,10 @@ fn transpile_statement(t, stmt) {
             j = j + 1
         }
         var inner2 = _transpiler_join_parts(inner2_parts)
-        return "{ uint64_t " + tick2 + " = 0; for (" + init_s + "; " + cond_s + "; " + post_s + ") {" + CH_LF + inner2 + "} }"
-    }
+            var out_for = "{ uint64_t " + tick2 + " = 0; for (" + init_s + "; " + cond_s + "; " + post_s + ") {" + CH_LF + inner2 + "} }"
+            _transpiler_const_reset(t)
+            return out_for
+        }
     if stmt["type"] == "Break" {
         return "break;"
     }
@@ -2922,6 +2993,7 @@ fn transpile_function(t, func_decl) {
     emit(t, function_sig(func_decl) + " {")
     indent_more(t)
     t["inty"] = []
+    t["const_ints"] = {}
     // Stack safety: deterministic recursion guard for C backend binaries.
     emit(t, "oren_call_depth_enter();")
     var i = 0
@@ -2976,11 +3048,17 @@ fn transpile_for_header_stmt(t, stmt) {
     if stmt["type"] == "Var" {
         var v = transpile_expression(t, stmt["value"])
         _transpiler_inty_set(t, stmt["name"]["value"], _transpiler_expr_is_inty(t, stmt["value"]))
+        var litv = _transpiler_parse_int_lit_expr(stmt["value"])
+        if litv != nil { _transpiler_const_set(t, stmt["name"]["value"], litv) }
+        else { _transpiler_const_clear(t, stmt["name"]["value"]) }
         return "OrenValue " + c_ident(stmt["name"]["value"]) + " = " + v
     }
     if stmt["type"] == "Assign" {
         var v_assign = transpile_expression(t, stmt["value"])
         _transpiler_inty_set(t, stmt["name"]["value"], _transpiler_expr_is_inty(t, stmt["value"]))
+        var litv2 = _transpiler_parse_int_lit_expr(stmt["value"])
+        if litv2 != nil { _transpiler_const_set(t, stmt["name"]["value"], litv2) }
+        else { _transpiler_const_clear(t, stmt["name"]["value"]) }
         return c_ident(stmt["name"]["value"]) + " = " + v_assign
     }
     if stmt["type"] == "Set" {
