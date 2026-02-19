@@ -1084,6 +1084,7 @@ Provide opt-in helpers:
 - `oren_list_int_push(list, value)`
 - `oren_list_int_get(list, idx)`
 - `oren_list_int_set(list, idx, value)`
+- `oren_list_int_reserve(list, cap)`
 
 Generic list ops accept both list kinds, but specialized ops require list<int>.
 

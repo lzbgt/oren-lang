@@ -25,6 +25,8 @@ fn int_get(xs, i) { return oren_list_int_get(xs, i) }
 
 fn int_set(xs, i, v) { oren_list_int_set(xs, i, v); return nil }
 
+fn int_reserve(xs, cap) { oren_list_int_reserve(xs, cap); return nil }
+
 fn clone(xs) {
     // Shallow clone:
     // - returns a new list with the same element values
