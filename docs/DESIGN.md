@@ -282,8 +282,8 @@ Runtime design (native):
 - Arena objects must still be classified by `oren_find_node` so list operations
   remain safe. This requires a **separate arena tracking table**:
   - entries map `ptr -> {kind, gen}` (not GC‑managed).
-  - on `arena_pop`, bump a generation counter and reset the table (or lazily
-    ignore stale generations).
+  - on `arena_pop`, bump a generation counter and reset the table (lazily
+    ignore stale generations to avoid per‑iteration clears).
 
 Non‑goals (initial slice):
 

@@ -87,6 +87,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Define long‑lived loop policy: per‑iteration sub‑arenas when safe; values that escape an iteration must allocate in GC/outer arenas; otherwise loop‑scoped arena with cap + GC spill.
    - Add arena‑lifetime counters (spills, epoch resets) to quantify long‑loop behavior.
    - `OREN_TRACE_ARENA=1` prints arena alloc/spill counters at arena epoch reset.
+   - Arena tracking table now resets via epoch generation bump (avoids O(cap) clears per iteration).
    - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
 
 3) **W4 - List reserve + unchecked push** (M)
