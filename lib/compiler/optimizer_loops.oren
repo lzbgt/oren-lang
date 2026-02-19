@@ -21,7 +21,8 @@ fn _opt_has_continue_stmt(stmt) {
         return false
     }
     if t == "While" || t == "For" {
-        return _opt_has_continue_stmt(stmt["body"])
+        // Continue inside nested loops does not skip the outer-loop epilogue.
+        return false
     }
     if t == "Switch" {
         var cases = stmt["cases"]

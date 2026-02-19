@@ -238,6 +238,8 @@ Proposed compiler strategy (first slice):
 4) Rolling auto‑mode (`OREN_ARENA_AUTO_LOOP=1`):
    - Wraps simple loops and rewrites loop‑local list allocations only when usage
      stays in safe list intrinsics (conservative escape check).
+   - Only wraps loops without `break`/`return`/`continue` in the same loop body
+     (nested-loop `continue` does not block the outer loop).
 
 Runtime design (native):
 
