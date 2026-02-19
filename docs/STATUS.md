@@ -71,6 +71,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Baseline (arm64 native, 2026-02-19): `alloc_churn` 63.04× C, `alloc_drop` 37.66× C.
    - Fix and enable reuse paths (`OREN_GC_REUSE_BLOCKS`) when correct.
    - Add allocation-site counters for `alloc_churn`/`alloc_drop` to pinpoint dominant allocations.
+   - New: `OREN_TRACE_ALLOC_SITE=1` reports list/list_int header+buffer sites (ids 1..4; see `lib/runtime_native/170_lists.oren`).
    - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
 
 3) **W4 - List reserve + unchecked push** (M)

@@ -52,6 +52,61 @@ var g_gc_alloc_kind_buf = 0
 var g_gc_alloc_kind_raw = 0
 var g_gc_alloc_kind_other = 0
 
+// --- Alloc-site tracing (optional) ---
+// Fixed-capacity counter table gated by g_trace_alloc_site.
+// Site IDs are defined by the call sites (runtime helpers).
+fn native_alloc_site_init(cap) {
+    if g_trace_alloc_site == 0 { return 0 }
+    if g_alloc_site_ptr != 0 { return g_alloc_site_ptr }
+    if cap <= 0 { cap = 64 }
+    var bytes = cap * 8
+    var buf = native_malloc_raw_or_mmap(bytes)
+    if buf == 0 { return 0 }
+    var i = 0
+    while i < cap {
+        ptr_set(iadd(buf, i * 8), 0)
+        i = i + 1
+    }
+    g_alloc_site_ptr = buf
+    g_alloc_site_cap = cap
+    g_alloc_site_total = 0
+    return buf
+}
+
+fn native_alloc_site_bump(site) {
+    if g_trace_alloc_site == 0 { return 0 }
+    if g_alloc_site_ptr == 0 {
+        if g_alloc_site_cap <= 0 { g_alloc_site_cap = 64 }
+        native_alloc_site_init(g_alloc_site_cap)
+    }
+    if g_alloc_site_ptr == 0 { return 0 }
+    if site < 0 { return 0 }
+    if site >= g_alloc_site_cap { return 0 }
+    var off = site * 8
+    var cur = ptr_get(iadd(g_alloc_site_ptr, off))
+    ptr_set(iadd(g_alloc_site_ptr, off), cur + 1)
+    g_alloc_site_total = g_alloc_site_total + 1
+    return 0
+}
+
+fn native_alloc_site_get(site) {
+    if g_alloc_site_ptr == 0 { return 0 }
+    if site < 0 { return 0 }
+    if site >= g_alloc_site_cap { return 0 }
+    return ptr_get(iadd(g_alloc_site_ptr, site * 8))
+}
+
+fn native_alloc_site_reset() {
+    if g_alloc_site_ptr == 0 { return 0 }
+    var i = 0
+    while i < g_alloc_site_cap {
+        ptr_set(iadd(g_alloc_site_ptr, i * 8), 0)
+        i = i + 1
+    }
+    g_alloc_site_total = 0
+    return 0
+}
+
 // Alloc-index tracing (optional; gated by g_trace_alloc_index).
 var g_alloc_index_rebuild_count = 0
 var g_alloc_index_rebuild_ns = 0
@@ -1914,6 +1969,16 @@ fn native_gc_collect() {
         g_gc_alloc_kind_buf = 0
         g_gc_alloc_kind_raw = 0
         g_gc_alloc_kind_other = 0
+    }
+    if g_trace_alloc_site != 0 {
+        if g_alloc_site_ptr != 0 {
+            print("[alloc_site] total=" + oren_int_to_string(g_alloc_site_total) +
+                " list_header=" + oren_int_to_string(native_alloc_site_get(1)) +
+                " list_int_header=" + oren_int_to_string(native_alloc_site_get(2)) +
+                " list_buf=" + oren_int_to_string(native_alloc_site_get(3)) +
+                " list_int_buf=" + oren_int_to_string(native_alloc_site_get(4)))
+            native_alloc_site_reset()
+        }
     }
     if g_trace_alloc_index != 0 {
         print("[alloc_index] rebuilds=" + oren_int_to_string(g_alloc_index_rebuild_count) +

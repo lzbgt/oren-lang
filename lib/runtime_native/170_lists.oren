@@ -1,6 +1,10 @@
 // --- Lists ---
 // Layout: [count][capacity][buffer_ptr][magic]
 fn list_int_kind() { return 8 } // LIST_INT (unboxed int list)
+fn _alloc_site_list_header() { return 1 }
+fn _alloc_site_list_int_header() { return 2 }
+fn _alloc_site_list_buf() { return 3 }
+fn _alloc_site_list_int_buf() { return 4 }
 	@oren.keep
 	fn oren_new_list(cap) {
 	    if cap < 0 { cap = 0 }
@@ -13,9 +17,10 @@ fn list_int_kind() { return 8 } // LIST_INT (unboxed int list)
 	    // When cap>0, buffer_ptr points to inline storage at header+32.
 	    var total = 32
 	    if cap > 0 { total = total + cap * 8 }
-	    var header = malloc_k(total, 2)
-	    if header == 0 { exit(200) }
-	    if header == -1 { exit(200) }
+    var header = malloc_k(total, 2)
+    if header == 0 { exit(200) }
+    if header == -1 { exit(200) }
+    native_alloc_site_bump(_alloc_site_list_header())
 	    var buf = 0
 	    if cap > 0 {
 	        buf = iadd(header, 32)
@@ -36,6 +41,7 @@ fn oren_new_list_int(cap) {
     var header = malloc_k(total, list_int_kind())
     if header == 0 { exit(200) }
     if header == -1 { exit(200) }
+    native_alloc_site_bump(_alloc_site_list_int_header())
     var buf = 0
     if cap > 0 {
         buf = iadd(header, 32)
@@ -141,6 +147,7 @@ fn oren_list_reserve(list, new_cap) {
     var new_buf = malloc_k(new_cap * 8, 0)
     if new_buf == 0 { exit(211) }
     if new_buf == -1 { exit(211) }
+    native_alloc_site_bump(_alloc_site_list_buf())
     var i = 0
     while i < count {
         ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -298,6 +305,7 @@ fn oren_list_int_reserve(list, new_cap) {
     var new_buf = malloc_k(new_cap * 8, 0)
     if new_buf == 0 { exit(211) }
     if new_buf == -1 { exit(211) }
+    native_alloc_site_bump(_alloc_site_list_int_buf())
     var i = 0
     while i < count {
         ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -326,6 +334,7 @@ fn oren_list_int_push(list, value) {
         var new_buf = malloc_k(new_cap * 8, 0)
         if new_buf == 0 { exit(211) }
         if new_buf == -1 { exit(211) }
+        native_alloc_site_bump(_alloc_site_list_int_buf())
         var i = 0
         while i < count {
             ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -377,6 +386,7 @@ fn oren_list_int_set(list, idx, value) {
         var new_buf = malloc_k(new_cap * 8, 0)
         if new_buf == 0 { exit(212) }
         if new_buf == -1 { exit(212) }
+        native_alloc_site_bump(_alloc_site_list_int_buf())
 
         var i = 0
         while i < count {
@@ -421,9 +431,10 @@ fn oren_list_push(list, value) {
 			    if count >= cap {
 		        var new_cap = cap * 2
 		        if new_cap < 4 { new_cap = 4 }
-		        var new_buf = malloc_k(new_cap * 8, 0)
-	        if new_buf == 0 { exit(211) }
-	        if new_buf == -1 { exit(211) }
+	        var new_buf = malloc_k(new_cap * 8, 0)
+        if new_buf == 0 { exit(211) }
+        if new_buf == -1 { exit(211) }
+        native_alloc_site_bump(_alloc_site_list_buf())
 		        var i = 0
 		        while i < count {
 		            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -453,8 +464,9 @@ fn oren_list_push_unchecked(list, value) {
 	        var new_cap = cap * 2
 	        if new_cap < 4 { new_cap = 4 }
 	        var new_buf = malloc_k(new_cap * 8, 0)
-	        if new_buf == 0 { exit(211) }
-	        if new_buf == -1 { exit(211) }
+        if new_buf == 0 { exit(211) }
+        if new_buf == -1 { exit(211) }
+        native_alloc_site_bump(_alloc_site_list_buf())
 	        var i = 0
 	        while i < count {
 	            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -547,6 +559,11 @@ fn oren_list_set(list, idx, value) {
         var new_buf = malloc_k(new_cap * 8, 0)
         if new_buf == 0 { exit(212) }
         if new_buf == -1 { exit(212) }
+        if is_list_int != 0 {
+            native_alloc_site_bump(_alloc_site_list_int_buf())
+        } else {
+            native_alloc_site_bump(_alloc_site_list_buf())
+        }
 
         var i = 0
         while i < count {
