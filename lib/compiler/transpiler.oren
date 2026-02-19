@@ -220,10 +220,20 @@ fn _transpiler_expr_is_inty(t, exp) {
         }
         if nm == nil { return false }
         if str_eq(nm, "oren_int") { return true }
+        if str_eq(nm, "oren_trunc_int") { return true }
+        if str_eq(nm, "oren_f32_to_u32_bits") { return true }
+        if str_eq(nm, "oren_f64_to_u64_bits") { return true }
         if str_eq(nm, "oren_list_int_get") || str_eq(nm, "STD_list_int_get") { return true }
         if str_eq(nm, "oren_list_int_len") || str_eq(nm, "STD_list_int_len") { return true }
         if str_eq(nm, "oren_list_int_set") || str_eq(nm, "STD_list_int_set") { return true }
         if str_eq(nm, "oren_list_len") || str_eq(nm, "STD_list_len") { return true }
+        if str_eq(nm, "oren_map_len") { return true }
+        if str_eq(nm, "oren_string_len") { return true }
+        if str_eq(nm, "oren_buf_len") { return true }
+        if str_eq(nm, "oren_buf_load_u8") || str_eq(nm, "oren_buf_load_u8_unchecked") { return true }
+        if str_eq(nm, "oren_buf_load_i32") || str_eq(nm, "oren_buf_load_i64") { return true }
+        if str_eq(nm, "oren_buf_dot_i32") || str_eq(nm, "oren_buf_dot_i32_slice") || str_eq(nm, "oren_buf_dot_i32_strided") { return true }
+        if str_eq(nm, "oren_buf_reduce_sum_i32") { return true }
         return false
     }
     if et == "Prefix" {
