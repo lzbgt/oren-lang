@@ -197,6 +197,21 @@ if ! grep -q "\\[arena\\]" "$arena_log" 2>/dev/null; then
 fi
 tail -n 3 "$arena_log" >>"$log"
 
+echo "== arena auto loop assign smoke ==" >>"$log"
+arena_assign_src="tests/native/test_arena_auto_loop_assign_smoke.oren"
+arena_assign_out="build/tmp/${compiler_base}_arena_auto_loop_assign_smoke${exe_ext}"
+arena_assign_log="build/logs/${compiler_base}_arena_auto_loop_assign_smoke.log"
+rm -f "$arena_assign_log" "$arena_assign_out" 2>/dev/null || true
+OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_assign_src" \
+  --backend native --platform "$platform" --debug -o "$arena_assign_out" >"$arena_assign_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_assign_out" >>"$arena_assign_log" 2>&1
+if ! grep -q "\\[arena\\]" "$arena_assign_log" 2>/dev/null; then
+  echo "ERROR: arena auto loop assign trace missing (expected [arena] output)" >&2
+  tail -n 80 "$arena_assign_log" >&2 2>/dev/null || true
+  exit 1
+fi
+tail -n 3 "$arena_assign_log" >>"$log"
+
 echo "== arena auto loop list<int> smoke ==" >>"$log"
 arena_int_src="tests/native/test_arena_auto_loop_list_int_smoke.oren"
 arena_int_out="build/tmp/${compiler_base}_arena_auto_loop_list_int_smoke${exe_ext}"

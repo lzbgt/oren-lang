@@ -692,6 +692,15 @@ fn _opt_collect_loop_new_list_vars(stmt, out) {
         }
         return nil
     }
+    if t == "Assign" {
+        var nm2 = opthelp.is_ident(stmt["name"])
+        if nm2 != nil {
+            var kind2 = _opt_expr_is_new_list_call(stmt["value"])
+            if kind2 != nil { _opt_add_safe_var(out, nm2, kind2) }
+            else if _opt_expr_is_empty_list_lit(stmt["value"]) { _opt_add_safe_var(out, nm2, "list_lit") }
+        }
+        return nil
+    }
     if t == "Block" {
         var ss = stmt["stmts"]
         if ss != nil {
@@ -775,6 +784,28 @@ fn _opt_rewrite_new_list_in_stmt(stmt, safe_vars) {
                     changed = true
                 }
             } else if kind2 == "list_lit" && _opt_expr_is_empty_list_lit(v) {
+                stmt["value"] = ast.new_call(stmt["token"],
+                    {"type": "Identifier", "token": nil, "value": "oren_arena_new_list"},
+                    [{"type": "Integer", "token": nil, "value": "0"}])
+                changed = true
+            }
+        }
+        return changed
+    }
+    if t == "Assign" {
+        var nm2 = opthelp.is_ident(stmt["name"])
+        var kind2b = _opt_safe_var_kind(safe_vars, nm2)
+        if nm2 != nil && kind2b != nil {
+            var v2 = stmt["value"]
+            var kindb = _opt_expr_is_new_list_call(v2)
+            if kindb != nil {
+                var fn_exprb = v2["fn"]
+                if fn_exprb != nil && fn_exprb["type"] == "Identifier" {
+                    if kind2b == "list" || kind2b == "list_lit" { fn_exprb["value"] = "oren_arena_new_list" }
+                    else { fn_exprb["value"] = "oren_arena_new_list_int" }
+                    changed = true
+                }
+            } else if kind2b == "list_lit" && _opt_expr_is_empty_list_lit(v2) {
                 stmt["value"] = ast.new_call(stmt["token"],
                     {"type": "Identifier", "token": nil, "value": "oren_arena_new_list"},
                     [{"type": "Integer", "token": nil, "value": "0"}])
