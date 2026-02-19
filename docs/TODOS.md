@@ -95,7 +95,9 @@ Weights reflect expected impact on C-parity + breadth of code affected.
    - Route local, compiler-proven list allocations to `oren_list_push_unchecked` where safe.
    - Gate: native `array_sum` and `multi_list_push_int` ≤ 2× C.
    - 2026-02-19: native runtime provides `oren_list_reserve` / `oren_list_int_reserve`; native fast list-push loops now reserve when `cap < n`.
-     - Remaining: general lowering for non-fast loops + safe `oren_list_push_unchecked` routing.
+   - 2026-02-19: optimizer inserts `oren_list_reserve(list, n)` before `while i < n` push loops when `n` is a known int literal and `list` was created via `[]`.
+     - Conservative guards: skips when earlier control-flow in the same block assigns to `list` or `n` (avoid new runtime panics).
+     - Remaining: broader lowering (non-literal `n`), list_int reserve wiring, and safe `oren_list_push_unchecked` routing.
 
 4) **W3 — AVM allocation fast path (OBC)** (M)
    - Add arena/slab allocation for short‑lived list/struct values and reduce per-alloc bookkeeping.

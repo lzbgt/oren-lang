@@ -814,6 +814,267 @@ fn dce_block_in_place(block) {
     return nil
 }
 
+// --- List reserve insertion (rolling, conservative) ---
+//
+// Insert `oren_list_reserve(list, n)` before `while i < n { list.push(...) }` loops
+// when:
+// - `n` is an int literal or a local that was most-recently assigned an int literal, and
+// - the list was most-recently assigned a list literal (`[]`) in the same block.
+//
+// This is intentionally conservative to avoid introducing new runtime panics when
+// `n` or `list` are not the expected types.
+
+fn _opt_is_ident(expr) {
+    if expr == nil || expr["type"] != "Identifier" { return nil }
+    return expr["value"]
+}
+
+fn _opt_collect_list_pushes_expr(expr, out) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Call" {
+        var fnn = expr["fn"]
+        if fnn != nil && fnn["type"] == "Identifier" {
+            var nm = fnn["value"]
+            if nm == "oren_list_push" || nm == "STD_list_push" {
+                var args = expr["args"]
+                if args != nil && oren_list_len(args) >= 2 {
+                    var recv_name = _opt_is_ident(args[0])
+                    if recv_name != nil { out[recv_name] = true }
+                }
+            }
+        }
+        var args2 = expr["args"]
+        if args2 != nil {
+            var i = 0
+            while i < oren_list_len(args2) {
+                _opt_collect_list_pushes_expr(args2[i], out)
+                i = i + 1
+            }
+        }
+        if expr["spread"] != nil { _opt_collect_list_pushes_expr(expr["spread"], out) }
+        return nil
+    }
+    if t == "Prefix" { return _opt_collect_list_pushes_expr(expr["right"], out) }
+    if t == "Infix" {
+        _opt_collect_list_pushes_expr(expr["left"], out)
+        _opt_collect_list_pushes_expr(expr["right"], out)
+        return nil
+    }
+    if t == "If" {
+        _opt_collect_list_pushes_expr(expr["cond"], out)
+        _opt_collect_list_pushes_stmt(expr["consq"], out)
+        if expr["alt"] != nil { _opt_collect_list_pushes_stmt(expr["alt"], out) }
+        return nil
+    }
+    if t == "Array" {
+        var els = expr["elements"]
+        var i2 = 0
+        while i2 < oren_list_len(els) {
+            _opt_collect_list_pushes_expr(els[i2], out)
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        var i3 = 0
+        while i3 < oren_list_len(ps) {
+            _opt_collect_list_pushes_expr(ps[i3]["key"], out)
+            _opt_collect_list_pushes_expr(ps[i3]["value"], out)
+            i3 = i3 + 1
+        }
+        return nil
+    }
+    if t == "Index" {
+        _opt_collect_list_pushes_expr(expr["left"], out)
+        _opt_collect_list_pushes_expr(expr["index"], out)
+        return nil
+    }
+    if t == "Member" { return _opt_collect_list_pushes_expr(expr["left"], out) }
+    return nil
+}
+
+fn _opt_collect_list_pushes_stmt(stmt, out) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        var i = 0
+        while i < oren_list_len(ss) {
+            _opt_collect_list_pushes_stmt(ss[i], out)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "While" {
+        _opt_collect_list_pushes_expr(stmt["cond"], out)
+        _opt_collect_list_pushes_stmt(stmt["body"], out)
+        return nil
+    }
+    if t == "For" {
+        _opt_collect_list_pushes_stmt(stmt["init"], out)
+        _opt_collect_list_pushes_expr(stmt["cond"], out)
+        _opt_collect_list_pushes_expr(stmt["post"], out)
+        _opt_collect_list_pushes_stmt(stmt["body"], out)
+        return nil
+    }
+    if t == "ExprStmt" { return _opt_collect_list_pushes_expr(stmt["expr"], out) }
+    if t == "Assign" { return _opt_collect_list_pushes_expr(stmt["value"], out) }
+    if t == "Var" { return _opt_collect_list_pushes_expr(stmt["value"], out) }
+    if t == "Set" {
+        _opt_collect_list_pushes_expr(stmt["left"], out)
+        _opt_collect_list_pushes_expr(stmt["value"], out)
+        return nil
+    }
+    if t == "Return" { return _opt_collect_list_pushes_expr(stmt["value"], out) }
+    if t == "Function" { return nil } // avoid nested functions
+    return nil
+}
+
+fn _opt_collect_assigned_names_stmt(out, stmt) {
+    if out == nil || stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Assign" || t == "Var" {
+        var n = stmt["name"]
+        if n != nil && n["type"] == "Identifier" { out[n["value"]] = true }
+        return nil
+    }
+    if t == "Block" {
+        var xs = stmt["stmts"]
+        if xs == nil { return nil }
+        var i = 0
+        while i < oren_list_len(xs) {
+            _opt_collect_assigned_names_stmt(out, xs[i])
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "If" {
+        _opt_collect_assigned_names_stmt(out, stmt["consq"])
+        if stmt["alt"] != nil { _opt_collect_assigned_names_stmt(out, stmt["alt"]) }
+        return nil
+    }
+    if t == "While" { _opt_collect_assigned_names_stmt(out, stmt["body"]); return nil }
+    if t == "For" {
+        _opt_collect_assigned_names_stmt(out, stmt["init"])
+        _opt_collect_assigned_names_stmt(out, stmt["post"])
+        _opt_collect_assigned_names_stmt(out, stmt["body"])
+        return nil
+    }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil { _opt_collect_assigned_names_stmt(out, c["body"]) }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil { _opt_collect_assigned_names_stmt(out, stmt["default"]) }
+        return nil
+    }
+    if t == "Function" { return nil }
+    if t == "ExprStmt" {
+        // Expression-level control flow can contain assignments in nested blocks.
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "If" {
+            _opt_collect_assigned_names_stmt(out, e["consq"])
+            if e["alt"] != nil { _opt_collect_assigned_names_stmt(out, e["alt"]) }
+        }
+        if e != nil && e["type"] == "Switch" {
+            var cases2 = e["cases"]
+            if cases2 != nil {
+                var ci2 = 0
+                while ci2 < oren_list_len(cases2) {
+                    var c2 = cases2[ci2]
+                    if c2 != nil && c2["body"] != nil { _opt_collect_assigned_names_stmt(out, c2["body"]) }
+                    ci2 = ci2 + 1
+                }
+            }
+            if e["default"] != nil { _opt_collect_assigned_names_stmt(out, e["default"]) }
+        }
+        return nil
+    }
+    return nil
+}
+
+fn _opt_insert_list_reserve_in_block(block) {
+    if block == nil || block["type"] != "Block" { return nil }
+    var ss = block["stmts"]
+    if ss == nil { return nil }
+
+    var last_list_lit = {}
+    var last_int_lit = {}
+    var out = []
+    var i = 0
+    while i < oren_list_len(ss) {
+        var st = ss[i]
+        var is_top_assign = st != nil && (st["type"] == "Var" || st["type"] == "Assign")
+        if is_top_assign {
+            var nm = _opt_is_ident(st["name"])
+            if nm != nil {
+                var v = st["value"]
+                if v != nil && v["type"] == "Array" { last_list_lit[nm] = true }
+                else { last_list_lit[nm] = false }
+                if v != nil && v["type"] == "Integer" { last_int_lit[nm] = true }
+                else { last_int_lit[nm] = false }
+            }
+        }
+
+        if st != nil && st["type"] == "While" {
+            var cond = st["cond"]
+            var n_expr = nil
+            var n_ok = false
+            if cond != nil && cond["type"] == "Infix" && cond["op"] == "<" {
+                var left_name = _opt_is_ident(cond["left"])
+                var right = cond["right"]
+                if left_name != nil && right != nil {
+                    if right["type"] == "Integer" {
+                        n_expr = right
+                        n_ok = true
+                    } else if right["type"] == "Identifier" {
+                        var n_name = right["value"]
+                        if n_name != nil && last_int_lit[n_name] == true {
+                            n_expr = right
+                            n_ok = true
+                        }
+                    }
+                }
+            }
+
+            if n_ok {
+                var pushes = {}
+                _opt_collect_list_pushes_stmt(st["body"], pushes)
+                if pushes != nil {
+                    for list_name in pushes {
+                        if last_list_lit[list_name] == true {
+                            var call = ast.new_call(nil,
+                                {"type": "Identifier", "token": nil, "value": "oren_list_reserve"},
+                                [{"type": "Identifier", "token": nil, "value": list_name}, n_expr])
+                            oren_list_push(out, ast.new_expr_stmt(nil, call))
+                        }
+                    }
+                }
+            }
+        }
+
+        oren_list_push(out, st)
+        if is_top_assign != true {
+            var assigned = {}
+            _opt_collect_assigned_names_stmt(assigned, st)
+            for nm2 in assigned {
+                last_list_lit[nm2] = false
+                last_int_lit[nm2] = false
+            }
+        }
+        i = i + 1
+    }
+    block["stmts"] = out
+    return nil
+}
+
 // --- Tail-call optimization (TCO): direct self tail recursion (rolling, conservative) ---
 
 fn _tco_ident(name) { return {"type": "Identifier", "token": nil, "value": name} }
@@ -1188,6 +1449,7 @@ fn lower_linked_program_in_place(linked) {
             if trace_opt && i == 0 { print("[opt] tco start") }
             _tco_function_in_place(ss[i]["expr"])
             if trace_opt && i == 0 { print("[opt] tco done") }
+            _opt_insert_list_reserve_in_block(ss[i]["expr"]["body"])
             if trace_opt && i == 0 { print("[opt] dce start") }
             dce_block_in_place(ss[i]["expr"]["body"])
             if trace_opt && i == 0 { print("[opt] dce done") }
