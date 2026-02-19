@@ -166,6 +166,7 @@ class BenchConfig:
     runs: int
     warmups: int
     rss_enabled: bool
+    output_check: bool
     skip_obc: bool
     skip_c: bool
     skip_oren_c: bool
@@ -311,12 +312,13 @@ def _run_one(program, cfg: BenchConfig):
             }
         outputs[name] = out
 
-    # Output consistency check
+    # Output consistency check (can be disabled for tracing/instrumentation).
     first_out = None
     for name, out in outputs.items():
         if first_out is None:
             first_out = out
-        elif out != first_out:
+            continue
+        if cfg.output_check and out != first_out:
             raise RuntimeError(f"benchmark output mismatch: {name} output={out!r} expected={first_out!r}")
 
     meta = {
@@ -333,6 +335,7 @@ def _run_one(program, cfg: BenchConfig):
         "warmups": cfg.warmups,
         "program": program,
         "output": first_out,
+        "output_check": cfg.output_check,
         "rss_enabled": cfg.rss_enabled,
         "skip_obc": cfg.skip_obc,
         "env_overrides": {
@@ -407,6 +410,7 @@ def main():
     runs = int(os.environ.get("OREN_BENCH_RUNS", DEFAULT_RUNS))
     warmups = int(os.environ.get("OREN_BENCH_WARMUPS", DEFAULT_WARMUPS))
     rss_enabled = int(os.environ.get("OREN_BENCH_RSS", DEFAULT_RSS)) == 1
+    output_check = int(os.environ.get("OREN_BENCH_OUTPUT_CHECK", "1")) == 1
     skip_obc = int(os.environ.get("OREN_BENCH_SKIP_OBC", "0")) == 1
     skip_c = int(os.environ.get("OREN_BENCH_SKIP_C", "0")) == 1
     skip_oren_c = int(os.environ.get("OREN_BENCH_SKIP_OREN_C", "0")) == 1
@@ -425,6 +429,7 @@ def main():
         runs=runs,
         warmups=warmups,
         rss_enabled=rss_enabled,
+        output_check=output_check,
         skip_obc=skip_obc,
         skip_c=skip_c,
         skip_oren_c=skip_oren_c,

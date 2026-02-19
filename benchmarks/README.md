@@ -34,6 +34,7 @@ Optional knobs:
 - `OREN_BENCH_RUNS=<n>` (default: 5)
 - `OREN_BENCH_WARMUPS=<n>` (default: 1)
 - `OREN_BENCH_RSS=1` (capture per-run max RSS via `/usr/bin/time`)
+- `OREN_BENCH_OUTPUT_CHECK=0` (skip stdout consistency check; useful for trace/instrumentation)
 - `OREN_BENCH_PROGRAM=<name|all|name1,name2>` (default: `loop_sum`)
 - `OREN_BENCH_PROGRAMS=name1,name2` (explicit list; overrides `OREN_BENCH_PROGRAM`)
 - `OREN_BENCH_CC=<compiler>` (override C compiler; auto-detects `cc/clang/gcc` otherwise)
