@@ -228,7 +228,11 @@ def main():
     if not skip_native:
         suites.append(("oren_native", [str(oren_native_bin), *bench_args], env_oren_native))
     if not skip_obc:
-        suites.append(("oren_obc", [str(avm_bin), str(obc_out), *bench_args], env_oren_obc))
+        # AVM args are the list after `--` (no implicit argv[0]); inject obc path as argv[0]
+        # to match native/C semantics and keep cross-backend benchmarks aligned.
+        obc_args = [str(obc_out), *bench_args]
+        obc_cmd = [str(avm_bin), str(obc_out), "--", *obc_args]
+        suites.append(("oren_obc", obc_cmd, env_oren_obc))
     variant_order = [name for name, _, _ in suites]
 
     for name, cmd, extra_env in suites:
