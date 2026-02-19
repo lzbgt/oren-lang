@@ -212,6 +212,21 @@ if ! grep -q "\\[arena\\]" "$arena_int_log" 2>/dev/null; then
 fi
 tail -n 3 "$arena_int_log" >>"$log"
 
+echo "== arena auto loop empty list literal smoke ==" >>"$log"
+arena_lit_src="tests/native/test_arena_auto_loop_empty_list_smoke.oren"
+arena_lit_out="build/tmp/${compiler_base}_arena_auto_loop_empty_list_smoke${exe_ext}"
+arena_lit_log="build/logs/${compiler_base}_arena_auto_loop_empty_list_smoke.log"
+rm -f "$arena_lit_log" "$arena_lit_out" 2>/dev/null || true
+OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_lit_src" \
+  --backend native --platform "$platform" --debug -o "$arena_lit_out" >"$arena_lit_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_lit_out" >>"$arena_lit_log" 2>&1
+if ! grep -q "\\[arena\\]" "$arena_lit_log" 2>/dev/null; then
+  echo "ERROR: arena auto loop empty list trace missing (expected [arena] output)" >&2
+  tail -n 80 "$arena_lit_log" >&2 2>/dev/null || true
+  exit 1
+fi
+tail -n 3 "$arena_lit_log" >>"$log"
+
 if [[ "$os_key" != "windows" ]]; then
   # Cross-platform CLI robustness smoke:
   # Accept Windows-style `\` separators even on POSIX hosts so scripts/logs are portable.

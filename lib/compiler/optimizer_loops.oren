@@ -137,6 +137,13 @@ fn _opt_expr_is_new_list_call(expr) {
     return nil
 }
 
+fn _opt_expr_is_empty_list_lit(expr) {
+    if expr == nil || expr["type"] != "Array" { return false }
+    var els = expr["elements"]
+    if els == nil { return true }
+    return oren_list_len(els) == 0
+}
+
 fn _opt_expr_contains_new_list(expr) {
     if expr == nil { return false }
     var t = expr["type"]
@@ -596,7 +603,7 @@ fn _opt_stmt_has_unsafe_list_use(stmt, name) {
         var nm = opthelp.is_ident(stmt["name"])
         var v = stmt["value"]
         if nm != nil && nm == name {
-            if _opt_expr_is_new_list_call(v) != nil {
+            if _opt_expr_is_new_list_call(v) != nil || _opt_expr_is_empty_list_lit(v) == true {
                 if _opt_expr_has_ident(v, name) { return true }
                 return false
             }
@@ -680,6 +687,7 @@ fn _opt_collect_loop_new_list_vars(stmt, out) {
         if nm != nil {
             var kind = _opt_expr_is_new_list_call(stmt["value"])
             if kind != nil { _opt_add_safe_var(out, nm, kind) }
+            else if _opt_expr_is_empty_list_lit(stmt["value"]) { _opt_add_safe_var(out, nm, "list_lit") }
         }
         return nil
     }
@@ -761,10 +769,15 @@ fn _opt_rewrite_new_list_in_stmt(stmt, safe_vars) {
             if kind != nil {
                 var fn_expr = v["fn"]
                 if fn_expr != nil && fn_expr["type"] == "Identifier" {
-                    if kind2 == "list" { fn_expr["value"] = "oren_arena_new_list" }
+                    if kind2 == "list" || kind2 == "list_lit" { fn_expr["value"] = "oren_arena_new_list" }
                     else { fn_expr["value"] = "oren_arena_new_list_int" }
                     changed = true
                 }
+            } else if kind2 == "list_lit" && _opt_expr_is_empty_list_lit(v) {
+                stmt["value"] = ast.new_call(stmt["token"],
+                    {"type": "Identifier", "token": nil, "value": "oren_arena_new_list"},
+                    [{"type": "Integer", "token": nil, "value": "0"}])
+                changed = true
             }
         }
         return changed
