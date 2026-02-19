@@ -40,6 +40,7 @@ Start here: `docs/README.md` (canonical entry point and doc map).
 
 - How to run: `benchmarks/README.md`
 - Latest snapshot: `benchmarks/RESULTS_LATEST.md`
+- Full sweep: `make benchmarks`
 
 ## License
 

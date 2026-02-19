@@ -29,6 +29,12 @@ See `benchmarks/RESULTS_LATEST.md` for the latest M2 baseline summary (medians +
 python3 benchmarks/run_benchmarks.py
 ```
 
+Full sweep (all benchmarks + snapshot update + pruning):
+
+```bash
+make benchmarks
+```
+
 Optional knobs:
 
 - `OREN_BENCH_RUNS=<n>` (default: 5)
