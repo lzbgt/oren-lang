@@ -663,6 +663,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x57: return "GET_INDEX_LIST";
         case 0x58: return "LIST_DOT";
         case 0x59: return "LIST_PUSH_INT";
+        case 0x5A: return "LIST_PUSH";
         case 0x43: return "SET_INDEX";
         case 0x44: return "CALL_INDIRECT_SPREAD";
         case 0x45: return "SPAWN_CALL_LIST";
@@ -2414,6 +2415,29 @@ list_dot_push:
                     }
                     list->items[list->count++] = val;
                     // list_int_push enforces int values, so keep all_int true if already set.
+                    vm->stack[vm->sp++] = avm_nil();
+                }
+                break;
+            }
+            case 0x5A: { // LIST_PUSH
+                if (vm->sp >= 2) {
+                    AvmValue val = vm->stack[--vm->sp];
+                    AvmValue obj = vm->stack[--vm->sp];
+                    if (obj.type != AVM_VAL_LIST || !obj.as.l) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_push expects list");
+                        break;
+                    }
+                    AvmList* list = obj.as.l;
+                    if (list->count >= list->capacity) {
+                        if (!avm_list_ensure_cap(list, list->count + 1)) {
+                            AvmValue e = avm_alloc_fail_value();
+                            avm_abort(vm, e);
+                            vm->stack[vm->sp++] = e;
+                            break;
+                        }
+                    }
+                    list->items[list->count++] = val;
+                    if (list->all_int && val.type != AVM_VAL_INT) list->all_int = 0;
                     vm->stack[vm->sp++] = avm_nil();
                 }
                 break;
