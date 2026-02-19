@@ -47,6 +47,11 @@ Tier-1 cross-arch (when touching native/runtime/net):
 - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win`
 - `./scripts/verify_stage0_windows_bootstrap.sh`
 
+Periodic perf gates (when touching performance-critical paths):
+
+- `make benchmarks`
+- `make bench-native-compile`
+
 ---
 
 ## Performance parity tracker (weighted, 2026-02-19 baseline)
