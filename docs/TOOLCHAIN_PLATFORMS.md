@@ -227,7 +227,7 @@ Compiles directly to machine code (Mach-O / ELF / PE). Fast and dependency-free 
 Notes (rolling):
 
 - A Linux/Windows native artifact may not be runnable on a macOS host. Use a Linux machine or the Win11 (WSL2 optional) remote workflow (`docs/TOOLCHAIN_PLATFORMS.md`) to execute x86_64 outputs.
-- The x86_64 native backend is Tier‑1 intent but still in bring-up; `docs/TODOS.md` tracks what is implemented today.
+- The x86_64 native backend is Tier‑1 intent but still in bring-up; `docs/STATUS.md` tracks what is implemented today.
 - Native builds embed best-effort debug info for stack traces by default (rolling ergonomics). Disable with `--no-debug` or `OREN_NATIVE_NO_DEBUG=1`.
 
 ### C Backend (Portable)
@@ -970,7 +970,7 @@ Oren: oren / oren_stage2 (compiler)
 C: avm (VM)
 ```
 
-This is consistent with the roadmap stance in `docs/STATUS_AND_ROADMAP.md`: keep bootstrapping practical until language + runtime contracts stabilize.
+This is consistent with the roadmap stance in `docs/STATUS.md`: keep bootstrapping practical until language + runtime contracts stabilize.
 
 ## What “full self-hosted toolchain” actually requires
 
@@ -1253,7 +1253,7 @@ If you prefer to compile the generated C yourself, use `--emit-c` and then run t
 The C backend can write `*.oren.c` files (when `--emit-c` is used).
 
 This repo’s canonical test runners avoid generating `*.oren.c` in-tree by default to prevent accidental Makefile implicit-rule coupling.
-See `docs/TODOS.md` rule “Never generate `*.oren.c` next to sources” and `docs/TOOLCHAIN_PLATFORMS.md` for the migration plan.
+See `docs/STATUS.md` rule “Never generate `*.oren.c` next to sources” and `docs/TOOLCHAIN_PLATFORMS.md` for the migration plan.
 
 ## CLI Completion (bash / zsh)
 
@@ -1602,7 +1602,7 @@ HTTP/2 note (rolling but verified):
 - HTTP/2 is implemented as a deterministic framing + HPACK bring-up layer and is verified by the NET matrix
   (ALPN `h2`, preface, SETTINGS/ACK, PING/ACK, HEADERS/CONTINUATION/DATA loopback).
   - Source: `lib/std/net/http2.oren`, `lib/std/net/hpack.oren`
-  - Evidence: `tests/native/test_http2_*_loopback.oren` (see `docs/STATUS_AND_ROADMAP.md`)
+  - Evidence: `tests/native/test_http2_*_loopback.oren` (see `docs/STATUS.md`)
 
 ### Remote connectivity (fact-based)
 
@@ -1635,7 +1635,7 @@ When something is not green, record the *smallest actionable next step* and the 
   - Primary gates:
     - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-win` (compiler runs on Win11 and compiles+runs a tiny native program)
     - `./scripts/verify_windows_stage2_from_stage1.sh` (stage0→stage1→stage2 on Win11)
-  - Last known green (fact): 2026-01-13 (see `docs/TODOS.md`).
+  - Last known green (fact): 2026-01-13 (see `docs/STATUS.md`).
 - Remote reliability: keep remote log capture bounded and reproducible; use
   `scripts/fetch_remote_file.sh --analyze` + `scripts/analyze_stage2_failure_log.sh` for triage.
   - If the build appears to hang, enable bounded parse progress for include-aggregators:

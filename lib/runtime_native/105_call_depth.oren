@@ -15,7 +15,7 @@
 // Notes:
 // - This is process-global, not per-thread. That is sufficient for current single-threaded
 //   tier-1 bootstrap, but must be upgraded to per-thread tracking for production multithreading.
-//   (Tracked in docs/TODOS.md.)
+//   (Tracked in docs/STATUS.md.)
 
 // STW safepoint polling throttle for multi-OS-thread mode (rolling).
 //

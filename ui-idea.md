@@ -7,4 +7,4 @@ To avoid stale pointers and duplication, the current source of truth lives in `d
 - `docs/GUI.md` — GUI/UI architecture for Oren (retained‑mode UI core, platform shim bring-up plan,
   optional Dear ImGui shell/overlay)
 
-If you are looking for “what should we build next?”, start with `docs/TODOS.md` (GUI section).
+If you are looking for “what should we build next?”, start with `docs/STATUS.md` (GUI section).

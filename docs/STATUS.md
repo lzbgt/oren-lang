@@ -1,4 +1,117 @@
-# Status and Roadmap (Rolling)
+# Status + Tracker (Rolling)
+
+**Last updated:** 2026-02-19
+
+This file merges the former status/roadmap and active tracker into a single canonical doc to reduce split attention.
+
+## Active Tracker (Rolling)
+
+This file tracks the **highest‑leverage work** to make Oren mature and performance‑competitive with C
+across the C, native, and OBC/AVM backends. Keep it short and action‑oriented.
+
+## How to use this tracker
+
+- Start at **P0 (Now)** and take the first unfinished item that blocks Tier‑1 parity/perf.
+- Keep tasks tied to a **regression gate** (benchmark or test) so work stays measurable.
+- If a task is “done enough” in rolling mode, summarize the result and move on (don’t archive here).
+
+Legend:
+
+- Priority: **P0 (Now)** > **P1 (Soon)** > **P2 (Later)**
+- Weight: **W5 (highest impact)** → **W1 (lowest impact)**
+- Size: **(S/M/L)** = expected scope
+
+## Maturity definition (rolling, measurable)
+
+Oren is “mature” when all are reliably true on Tier‑1 targets (`arm64-macos`, `arm64-linux`, `x64-linux`, `x64-windows`):
+
+- **Buildability:** stage0→stage1→stage2 works with minimal manual setup.
+- **Semantic parity:** native/C/bytecode behavior matches the language spec (fixtures prove it).
+- **Performance budgets:** hot‑loop and allocation benchmarks are within target ratios vs C.
+- **Docs fidelity:** manuals/spec/status reflect real behavior (fixtures are the living spec).
+- **Stdlib quality:** NET/TLS/HTTP/WS are correct and bounded under loopback tests.
+
+## Regression gates (run first when touching compiler/runtime)
+
+Local (fast):
+
+- `make test`
+- `make verify-native-quick`
+- `./scripts/verify_x64_linux_qemu_smoke.sh`
+
+Tier‑1 cross‑arch:
+
+- `./scripts/verify_native_matrix.sh` (use `--skip-remote` if remote is down)
+- `./scripts/verify_native_net_matrix.sh`
+- `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win`
+- `./scripts/verify_stage0_windows_bootstrap.sh`
+
+## Performance parity tracker (weighted, 2026‑02‑19 baseline)
+
+Baseline reference: `benchmarks/RESULTS_LATEST.md` (M2 Pro, 2026‑02‑19).
+Weights reflect expected impact on C parity + breadth of affected code.
+
+1) **W5 — Native integer hot‑loop parity (loop_sum, dot_product)** (L)
+   - Expand `inty` propagation + arithmetic fast paths to avoid runtime helpers in tight loops.
+   - Ensure native fastmod handles constant RHS and known‑literal mod vars.
+   - Gate: native `loop_sum` and `dot_product` ≤ 2× C on arm64 + x64.
+
+2) **W5 — Allocation/GC overhead reduction (alloc_churn/alloc_drop)** (L)
+   - Fix and enable reuse paths (`OREN_GC_REUSE_BLOCKS`) when correct.
+   - Reduce per‑alloc metadata overhead; add slabs for hot small objects.
+   - Gate: native `alloc_churn` ≤ 8× C; native `alloc_drop` ≤ 5× C; Oren C `alloc_churn` ≤ 5× C.
+
+3) **W4 — List reserve + fast push** (M)
+   - Current reserve insertion covers safe int bounds (literals, propagated ints, `oren_*_len` calls, +/−/* arithmetic). Next: widen to richer computed bounds (e.g., min/clamp) and `<=` loop patterns.
+   - Route compiler‑proven lists to unchecked push when safe.
+   - Gate: native `array_sum` and `multi_list_push_int` ≤ 2× C.
+
+4) **W4 — Tagged value representation convergence (native/C/AVM)** (L)
+   - Converge on a canonical tagged representation (no heuristic tagging).
+   - This unlocks faster comparisons + removes many fallback paths.
+   - Gate: no semantic regressions in `make test` + cross‑backend fixtures.
+
+5) **W3 — SIMD/typed‑buffer parity on native (x64 + arm64)** (M)
+   - Ensure list<int>/typed buffers lower to SIMD kernels.
+   - Bring up x64 SIMD baseline (SSE2) with scalar‑equivalence gates.
+   - Gate: native `dot_product_int` ≤ 2× C.
+
+6) **W3 — AVM allocation fast paths + typed buffers** (M)
+   - Arena/slab alloc for short‑lived lists/structs.
+   - Ensure typed buffers + vector ops are available without JIT.
+   - Gate: OBC `alloc_churn` ≤ 10× C; AVM SIMD test suite passes.
+
+7) **W3 — AVM unboxed list<int> payload + opcode lowering** (M)
+   - Implement list<int> payload + compiler lowering for OBC (see collections design).
+   - Gate: `list_int` fixtures + OBC perf parity for dot/sum loops.
+
+## P0 (Now)
+
+1) **Native scheduler / GMP M:N groundwork** (L, W4)
+   - Keep syscall‑first, no‑libc/pthreads constraints.
+   - Ensure green scheduling correctness across sleep/IO waits.
+   - Gate: `make test` + `verify_native_matrix.sh` (all Tier‑1).
+
+2) **Perf parity W5 items** (L, W5)
+   - Execute items 1–2 in the weighted tracker above.
+
+3) **Tagged value convergence plan** (L, W4)
+   - Define the canonical tagged layout + staged migration plan.
+   - Gate: fixtures + backends converge without heuristic fallbacks.
+
+## P1 (Soon)
+
+1) **Reserve + unchecked push generalization** (M, W4)
+2) **SIMD/typed buffer bring‑up on x64** (M, W3)
+3) **AVM allocation slabs + list<int> lowering** (M, W3)
+4) **Tooling reliability: SSH/scp timeouts in verify scripts** (S, W2)
+
+## P2 (Later)
+
+1) **Allow non‑macOS hosts for partial targets** (S, W2)
+2) **Package manager / signed module workflow** (M, W2)
+
+## Status and Roadmap (Rolling)
 
 This document consolidates status snapshots, feature matrices, and roadmap planning to reduce drift.
 
@@ -11,7 +124,7 @@ This document is a *fact-first* snapshot of:
 
 1) what exists today (with references to tests/fixtures),
 2) what is missing for “modern production language” maturity,
-3) the prioritized gap list (feeds `docs/TODOS.md`).
+3) the prioritized gap list (feeds the Active Tracker (above)).
 
 It is not meant to be aspirational prose; it is a checklist tied to code and tests.
 
@@ -193,12 +306,12 @@ production maturity requires both implementation *and* regression coverage.
       - Local emit sanity (compile-only): `make verify-native-x64-compile` (builds stage1+stage2 and emits x64-linux + x64-windows artifacts).
       - Native Windows bootstrap gate (stage0 -> stage1 -> stage2, then compile+run a tiny exe): `scripts/verify_windows_stage2_from_stage1.sh` (`make verify-stage2-win`).
       - Remote run gate: `scripts/verify_selfhost_x64_compiler.sh` builds x64 compiler binaries and runs them on Win11 (WSL2 optional) to compile+run a tiny native program.
-    - Track: `docs/TODOS.md` (P0.1–P0.3), `docs/COMPILER_BACKENDS.md#native-backend-overview`.
+    - Track: `docs/STATUS.md` (P0.1–P0.3), `docs/COMPILER_BACKENDS.md#native-backend-overview`.
 
   - **Async IO + scheduler integration (planned)**
     - Today, NET fd waits are runtime helpers that block OS threads (`lib/runtime_native/240_tcp.oren`).
     - The production direction is a native scheduler + netpoller so IO readiness can feed channels and `select`.
-    - Track: `docs/TODOS.md` (P1.3), `docs/RUNTIME.md`.
+    - Track: `docs/STATUS.md` (P1.3), `docs/RUNTIME.md`.
 
 ### P1: Tooling quality (modern compiler UX)
 
@@ -222,7 +335,7 @@ production maturity requires both implementation *and* regression coverage.
     - stable exit codes for parse/analyze/codegen/link phases,
     - a consistent “flag precedence” contract (env vs CLI vs defaults),
     - help output suitable for IDEs and wrappers.
-  - Track: `docs/TODOS.md` (P0.8).
+  - Track: `docs/STATUS.md` (P0.8).
 
 ### P1: Stdlib maturity
 
@@ -242,14 +355,14 @@ production maturity requires both implementation *and* regression coverage.
     - module naming / resolution,
     - lockfiles, hashes, deterministic builds,
     - support for precompiled `.obc` libraries (OBX exports/relocs) in AVM.
-  - Track: `docs/AVM.md`, `docs/TOOLCHAIN_PLATFORMS.md`, `docs/TODOS.md` (P1.2, P1.4).
+  - Track: `docs/AVM.md`, `docs/TOOLCHAIN_PLATFORMS.md`, `docs/STATUS.md` (P1.2, P1.4).
 
 - **Trust / signing / update channels for multiverse**
   - Multiverse implies “code moves between universes”; production needs a root-of-trust:
     - signed `.obc` artifacts, cert chains, key rotation,
     - developer identity / org delegation model,
     - update and patch workflows that do not break determinism.
-  - Track: `docs/AVM.md`, `docs/AVM.md`, `docs/TODOS.md` (P1.1).
+  - Track: `docs/AVM.md`, `docs/AVM.md`, `docs/STATUS.md` (P1.1).
 
 ## How to Use This Doc
 
@@ -272,13 +385,13 @@ It complements:
 
 - `docs/LANGUAGE.md` (how to write Oren today),
 - `docs/LANGUAGE.md` (grammar + semantics),
-- `docs/STATUS_AND_ROADMAP.md` (production gaps, evidence-backed).
+- `docs/STATUS.md` (production gaps, evidence-backed).
 
 Status legend:
 
 - **Implemented**: supported by the Stage1 compiler and used in current code.
 - **Rolling**: supported, but semantics/ABI may still evolve (must stay regression-tested).
-- **Planned**: design intent; track via `docs/TODOS.md` / `docs/STATUS_AND_ROADMAP.md`.
+- **Planned**: design intent; track via `docs/STATUS.md`.
 
 Remote x86_64 evidence:
 
@@ -309,7 +422,7 @@ Remote x86_64 evidence:
 |---|---|---|---|
 | Type annotations (syntax) | Rolling | Parser supports `: type_name`; lowering uses hints | Manual/spec: type annotation sections |
 | Traits + impl blocks (static-first) | Rolling | Parser: `lib/compiler/parser_parse/**`; Lowering: impl rewrite passes under `lib/compiler/**` | Tests: `tests/modules/test_trait_*.oren` |
-| `dyn` / runtime trait objects | Planned | Design docs (static-first + opt-in runtime polymorphism) | Track: `docs/TODOS.md` |
+| `dyn` / runtime trait objects | Planned | Design docs (static-first + opt-in runtime polymorphism) | Track: `docs/STATUS.md` |
 | Floats (`f64` container) + casts (`f32/f64/i64/u64/bool`) + comparisons + **bit-casts** (`u32↔f32`, `u64↔f64`) | Rolling | Front-end cast lowering: `lib/compiler/type_ann_lowering.oren`; Bytecode: `lib/compiler/codegen_bytecode/**`; C runtime helpers: `lib/runtime/050_io_misc.inc`; Native: arm64 `lib/compiler/arm64_native_expr/**`, x86_64 `lib/compiler/x64_native_program/047_emit_float_intrinsics.oren` + `lib/compiler/x64_native_program/050_emit_cmp_labels.oren` + `lib/compiler/x64_native_program/040_emit_expr.oren` (bit-cast intrinsics) | Tier‑1 x86_64 fixture: `tests/fixtures/tier1_native_float_ops_main.oren` (remote x86_64 Tier‑1 gate); SIMD suite exercises float kernels: `tests/native/test_simd_suite.oren` |
 
 ## Containers and performance
@@ -317,14 +430,14 @@ Remote x86_64 evidence:
 | Feature | Status | Where (impl) | Evidence / examples |
 |---|---|---|---|
 | List literal `[]` and indexing `xs[i]` | Rolling | Shared lowering + backend intrinsics; C uses runtime helpers | Tests: `tests/native/fixtures/**`; Docs: `docs/RUNTIME.md` |
-| List `push/len` as operations (no wrapper overhead) | Rolling | Lowering: `lib/compiler/impl_lowering.oren`; Intrinsics: `oren_list_len`, `oren_list_push` (returns `nil`) | Track: `docs/TODOS.md` (P0.4); Internals: `docs/COMPILER_BACKENDS.md` |
-| `slice_view` / `clone` / `slice_copy` | Rolling | Stdlib: `lib/std/list.oren` (`clone`, `slice_copy`, `slice_view`) | Manual: `docs/LANGUAGE.md` (List helpers); Track: `docs/TODOS.md` (P0.4) |
+| List `push/len` as operations (no wrapper overhead) | Rolling | Lowering: `lib/compiler/impl_lowering.oren`; Intrinsics: `oren_list_len`, `oren_list_push` (returns `nil`) | Track: `docs/STATUS.md` (P0.4); Internals: `docs/COMPILER_BACKENDS.md` |
+| `slice_view` / `clone` / `slice_copy` | Rolling | Stdlib: `lib/std/list.oren` (`clone`, `slice_copy`, `slice_view`) | Manual: `docs/LANGUAGE.md` (List helpers); Track: `docs/STATUS.md` (P0.4) |
 | Map literal `{}` and indexing `m[k]` / `m[k]=v` | Rolling | Parser + lowering; C/AVM: dynamic keys; Native: key-kind must be deterministic | Tests: `tests/native/test_integration_suite.oren`; Manual: `docs/LANGUAGE.md` “Maps” |
 | Map dynamic string keys on empty maps (Tier‑1 x86_64) | Rolling | x64 native uses tracked-allocation metadata for key-kind inference; no syntax heuristics | Tier‑1 remote fixture: `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (remote x86_64 Tier‑1 gate) |
 | Map get with dynamic string key (Tier‑1 x86_64) | Rolling | x64 native map lookup must infer key kind from value metadata and perform string compare when needed | Tier‑1 remote fixture: `tests/fixtures/tier1_native_map_get_dynamic_key_main.oren` (remote x86_64 Tier‑1 gate) |
 | Deterministic map iteration | Rolling | C runtime keeps keys sorted; native runtime sorts lazily on demand; x86_64 native runs with **full native runtime injection** (Tier‑1 mandatory) | Tests: `tests/native/test_integration_suite.oren` (map iteration); Tier‑1 x86_64: `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (remote x86_64 Tier‑1 gate); Runtime: `lib/runtime_native/160_iteration.oren`, `lib/runtime_native/130_printing.oren` |
 | Typed map ops (`oren_map_get_str/int`, `oren_map_set_str/int`) | Rolling | Native runtime: `lib/runtime_native/130_printing.oren`; C runtime: `lib/runtime/040_lists_maps.inc`; Native lowering selects typed ops when key kind is known | Used by stdlib codecs: `lib/std/json.oren`, `lib/std/yaml.oren`, `lib/std/cbor.oren` |
-| Typed buffers `[]i32`, `[]f64`, ... | Rolling | Stdlib: `lib/std/buffer.oren` + runtime helpers | Docs: `docs/STATUS_AND_ROADMAP.md` |
+| Typed buffers `[]i32`, `[]f64`, ... | Rolling | Stdlib: `lib/std/buffer.oren` + runtime helpers | Docs: `docs/STATUS.md` |
 | Typed buffers `[]u8` in AVM (bytes-backed) + buffer views | Rolling | AVM core natives: `lib/avm/avm_native.inc` (`oren_u8_buf_new`, `oren_buf_*_u8`, `oren_iter_next` view handling); Bytecode lowering: `lib/compiler/codegen_bytecode/010_codegen_a.oren` | AVM test: `tests/avm/test_u8_buf_views.oren` |
 | Typed buffers Tier‑1 native smoke (x86_64 Linux/Windows) | Rolling | Native runtime: `lib/runtime_native/typed_buffers/**`; x64 native: typed-buffer ops are **runtime-defined** (same source bundle as arm64) and lowered via generic runtime calls from `lib/compiler/x64_native_program/040_emit_expr.oren` (no x64-only typed-buffer intrinsics). | Tier‑1 remote fixture: `tests/fixtures/tier1_native_smoke_main.oren` (includes typed buffer checks) (remote x86_64 Tier‑1 gate) |
 | `for x in buf` + buffer views (`[buf,off,len]`, `[buf,off,len,stride]`) on Tier‑1 x86_64 | Rolling | Iterator semantics are defined in the injected native runtime (`lib/runtime_native/160_iteration.oren`); x64 native lowers iteration via the runtime (no x64-only `oren_iter_next` bring-up intrinsic). | Tier‑1 remote fixture: `tests/fixtures/tier1_native_smoke_main.oren` (includes buf + view iteration checks) (remote x86_64 Tier‑1 gate) |
@@ -347,7 +460,7 @@ Remote x86_64 evidence:
 | DNS v0 stdlib (UDP A query; explicit server + best-effort system default resolver) | Rolling | Stdlib: `lib/std/net/dns.oren` (built on `std:net/udp`, OS entropy via `std:crypto/rand` for txid); default resolver selection reads `OREN_DNS_SERVER` when set, else: POSIX parses `/etc/resolv.conf` (IPv4 only), Windows uses iphlpapi `GetNetworkParams` (IPv4 only); no TCP fallback, no AAAA yet | Loopback regression: `tests/native/test_dns_loopback.oren`; Tier‑1 cross‑arch gate: `scripts/verify_native_net_matrix.sh` |
 | TLS v0 stdlib (secure stream wrapper; PKCS#12 server; client opts for pinning) | Rolling (macOS/Linux/Windows) | Primary implementation: `lib/std/net/tls.oren`; providers: macOS `lib/std/net/tls_macos_securetransport.oren` (Security.framework), Linux `lib/std/net/tls_linux_openssl.oren` (OpenSSL), Windows `lib/std/net/tls_windows_schannel.oren` (Schannel/SSPI). Convenience facade: `lib/std/crypto/tls.oren` (alias-layer over `std:net/tls` while the TLS crypto-core split is implemented). Surface: `tls.connect`, `tls.wrap_client`, `tls.wrap_server_pkcs12`, `tls.read_into`, `tls.write_from`, `tls.close`, `tls.peer_cert_sha256_hex`, `tls.negotiated_alpn`. See `docs/RUNTIME.md`. | Loopback regression: `tests/native/test_tls_loopback.oren`; HTTPS/WSS use the same TLS substrate: `tests/native/test_https_get_loopback.oren`, `tests/native/test_wss_echo_loopback.oren` |
 | HTTP/1.1 GET stdlib (`http://` + `https://` when TLS available; Content-Length + chunked; IPv4 + hostname via DNS A) | Rolling | Stdlib: `lib/std/net/http.oren` (built on `std:net/tcp`); hostname support via explicit resolver injection (`http.get_text_resolver` / `http.get_response_resolver`) or system `dns.default_resolver`; structured response API returns `{status, headers, body}`; `https://` support is enabled via `std:net/tls` on macOS/Linux/Windows (see `docs/RUNTIME.md`). | Loopback regression: `tests/native/test_http_get_loopback.oren` (hostname + status/header assertions) and `tests/native/test_https_get_loopback.oren` (TLS/HTTPS loopback); Tier‑1 cross‑arch gate: `scripts/verify_native_net_matrix.sh` |
-| HTTP/2 (framing core + ALPN `h2`; HPACK/streams planned) | Rolling (framing + HPACK encode/decode v0) | Framing core: `lib/std/net/http2.oren` (preface + frame header encode/decode + SETTINGS payload codec). Loopback framing smoke: `tests/native/test_http2_preface_loopback.oren` (preface + SETTINGS/ACK + PING/ACK). HPACK core: `lib/std/net/hpack.oren` (static+dynamic tables, Huffman encode/decode, header block encode/decode). Minimal client facade: `lib/std/net/http2_client.oren` (handshake + single-stream request/response on top of TLS+framing+HPACK). HTTP/2 request/response loopback: `tests/native/test_http2_headers_loopback.oren` (client uses `std:net/http2_client`; server uses `std:net/http2` primitives; covers HEADERS + CONTINUATION + DATA over TLS; includes SETTINGS payload + SETTINGS/ACK). Stream muxing is still planned and tracked in `docs/TODOS.md`. | Tier‑1 cross‑arch gate: `scripts/verify_native_net_matrix.sh` runs the HTTP/2 fixtures (stage1 + stage2; macOS+Linux+Win11 (WSL2 optional)). |
+| HTTP/2 (framing core + ALPN `h2`; HPACK/streams planned) | Rolling (framing + HPACK encode/decode v0) | Framing core: `lib/std/net/http2.oren` (preface + frame header encode/decode + SETTINGS payload codec). Loopback framing smoke: `tests/native/test_http2_preface_loopback.oren` (preface + SETTINGS/ACK + PING/ACK). HPACK core: `lib/std/net/hpack.oren` (static+dynamic tables, Huffman encode/decode, header block encode/decode). Minimal client facade: `lib/std/net/http2_client.oren` (handshake + single-stream request/response on top of TLS+framing+HPACK). HTTP/2 request/response loopback: `tests/native/test_http2_headers_loopback.oren` (client uses `std:net/http2_client`; server uses `std:net/http2` primitives; covers HEADERS + CONTINUATION + DATA over TLS; includes SETTINGS payload + SETTINGS/ACK). Stream muxing is still planned and tracked in `docs/STATUS.md`. | Tier‑1 cross‑arch gate: `scripts/verify_native_net_matrix.sh` runs the HTTP/2 fixtures (stage1 + stage2; macOS+Linux+Win11 (WSL2 optional)). |
 | WebSocket v0 stdlib (`ws://` + `wss://` when TLS available; masked text frames; ping/pong; hostname via DNS A) | Rolling | Stdlib: `lib/std/net/ws.oren` (built on `std:net/tcp`, `std:crypto/sha1`, `std:encoding/base64`, `std:crypto/rand`); hostname support via explicit resolver injection (`ws.connect_resolver`) or POSIX `dns.default_resolver`; `wss://` support is enabled via `std:net/tls` on macOS/Linux/Windows (see `docs/RUNTIME.md`). | Loopback regression: `tests/native/test_ws_echo_loopback.oren` (ws://, includes hostname path + ping/pong) and `tests/native/test_wss_echo_loopback.oren` (wss:// loopback); Tier‑1 cross‑arch gate: `scripts/verify_native_net_matrix.sh` |
 | PROC substrate (`oren_proc_spawn`, `oren_system`) on Tier‑1 native | Rolling | Runtime: `lib/runtime_native/260_threads.oren`; POSIX: `fork/execve/wait4`; Windows: `sys_win_createprocess` lowered by `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_proc.oren` + PE IAT: `lib/compiler/x64_pe.oren` | POSIX coverage: native integration suite exercises `oren_system_timeout` (`tests/native/test_integration_suite.oren`). Windows proof (Tier‑1 remote gate): `scripts/verify_native_matrix.sh --targets x64-win-tier1` runs `tests/fixtures/tier1_native_smoke_main.oren` on Win11 (WSL2 optional) (fixture calls `oren_system("echo tier1 smoke proc ok")`). |
 | `spawn` + `oren_join(_timeout)` on Tier‑1 native | Rolling | Runtime join: `lib/runtime_native/260_threads.oren`; Spawn: `oren_spawn_call_list` in `lib/runtime_native/120_first_class_fn.oren` prefers green tasks (N:1) and falls back when `OREN_NO_GREEN=1` (POSIX: fork+pipe; Windows: runtime-owned OS thread). x86_64 spawn lowering routes through the runtime helper (`lib/compiler/x64_native_program/044_emit_call_expr.oren`). | Native suites: `tests/native/test_integration_suite.oren` (`test_spawn_join_timeout`, `test_spawn_join_timeout_probe_zero`) + `tests/native/test_smoke_suite.oren` (spawn/join). Tier‑1 x86_64 remote fixture: `tests/fixtures/tier1_native_spawn_join_main.oren` (remote x86_64 Tier‑1 gate). |
@@ -365,7 +478,7 @@ Remote x86_64 evidence:
 | Strict verification mode (`--verify-strict`) | Rolling | CLI + verifier gating: `lib/avm/main.c` | Spec: `docs/AVM.md` (strict verification); help: `lib/avm/avm_help.inc` |
 | Nested universes (“AVM in AVM” / multiverse host service) | Rolling (gated) | AVM domain dispatch: `lib/avm/avm_native.inc` (Domain 8: AVM) | Docs: `docs/AVM.md#avm-in-avm-multiverse-design-nested-virtual-universes` (model + constraints) |
 | Swarm / consensus outcome hashing | Rolling (in progress) | Job hash + result selection: `lib/avm/avm_state.inc`, `lib/avm/avm.h` | Docs: `docs/AVM.md#avm-swarm-consensus-agent-mobility-design-validation` |
-| Compiler-in-AVM | Planned | Bytecode compiler + AVM host interface constraints | Track: `docs/TODOS.md` (P0.10), `docs/TOOLCHAIN_PLATFORMS.md` |
+| Compiler-in-AVM | Planned | Bytecode compiler + AVM host interface constraints | Track: `docs/STATUS.md` (P0.10), `docs/TOOLCHAIN_PLATFORMS.md` |
 
 ## HPC / SIMD (Tier‑1 HPC: arm64 NEON now, x86_64 SSE/AVX next)
 
@@ -376,16 +489,16 @@ Remote x86_64 evidence:
 | SIMD determinism contract (scalar is authoritative) | Rolling | Runtime dispatch chooses scalar vs SIMD; tests enforce equivalence | Determinism guard: SIMD must remain bit-identical to scalar for covered kernels; reduction order is fixed (no reassociation). Primary suite: `tests/native/test_simd_suite.oren` |
 | SIMD intrinsics (arm64 NEON) | Rolling (arm64 macOS/Linux); Planned (x86_64) | Native arm64 codegen lowers `simd_*` intrinsics: `lib/compiler/arm64_native_expr/**` | Spec lists the intrinsic family: `docs/LANGUAGE.md` (“Native Backend Intrinsics”) |
 | SIMD-backed typed-buffer kernels (dot/axpy/gemm/etc.) | Rolling (arm64 macOS/Linux); Planned (x86_64) | Runtime dispatch in `lib/runtime_native/typed_buffers/**` + arm64 intrinsic lowering; scalar fallbacks exist for all `simd_*_ptr` entrypoints in `lib/runtime_native/typed_buffers/005_simd_scalar_fallback.oren` | Opt-in via `OREN_ENABLE_SIMD=1` (or disable with `OREN_NO_SIMD=1`). Must remain deterministic. |
-| x86_64 SIMD plan (SSE2 baseline, AVX2 optional) | Planned | x64 native codegen + runtime kernel implementations | Track under `docs/TODOS.md` (HPC item) until we have an x86_64 SIMD parity suite (scalar vs SIMD) and stable feature detection for Linux+Windows |
+| x86_64 SIMD plan (SSE2 baseline, AVX2 optional) | Planned | x64 native codegen + runtime kernel implementations | Track under `docs/STATUS.md` (HPC item) until we have an x86_64 SIMD parity suite (scalar vs SIMD) and stable feature detection for Linux+Windows |
 | AVM SIMD (NEON) | Planned / Rolling (gated) | Build/runtime gating exists (`AVM_ENABLE_SIMD=1`, arm64 NEON): `lib/avm/avm_native.c`, `lib/avm/main.c` | Design constraints: `docs/AVM.md#avm-neon-mapping-plan-arm64-no-jit-first` (determinism-first); not treated as mature until fully covered by AVM tests |
-| HPC roadmap (math/linalg + perf harness) | Rolling (in progress) | Design docs: `docs/STATUS_AND_ROADMAP.md`, typed-buffer + linalg layers | Tracker: `docs/TODOS.md` (P1.3) |
+| HPC roadmap (math/linalg + perf harness) | Rolling (in progress) | Design docs: `docs/STATUS.md`, typed-buffer + linalg layers | Tracker: `docs/STATUS.md` (P1.3) |
 
 ## Tooling / ecosystem
 
 | Feature | Status | Where (impl) | Evidence / examples |
 |---|---|---|---|
 | `oren` CLI subcommands + completion | Rolling | CLI: `lib/compiler/compiler/000_prelude.oren`; completion docs | Docs: `docs/TOOLCHAIN_PLATFORMS.md` |
-| Package registry (`oren-packages`) integration | Planned | Module resolution + lockfiles + reproducible builds | Track: `docs/TODOS.md`, `docs/STATUS_AND_ROADMAP.md` |
+| Package registry (`oren-packages`) integration | Planned | Module resolution + lockfiles + reproducible builds | Track: `docs/STATUS.md` |
 
 ## Core System Plans: Type System, Syscall-First Runtime, and HPC
 
@@ -692,7 +805,7 @@ Production-grade HPC on servers needs:
 
 ### Tracker
 
-- Active priorities: `docs/TODOS.md`
+- Active priorities: `docs/STATUS.md`
 
 ## Oren Evolution and Roadmap (Rolling)
 
@@ -846,7 +959,7 @@ Preference: stackless-first to avoid multi-stack GC and switching complexity.
 
 ## 3) Roadmap (phases and priorities)
 
-This section mirrors the rolling roadmap while the active, time-ordered priorities live in `docs/TODOS.md`.
+This section mirrors the rolling roadmap while the active, time-ordered priorities live in `docs/STATUS.md`.
 
 ### Goals
 
@@ -897,7 +1010,7 @@ Syscall-first runtime track (Phase 1 details):
 
 ### Phase 3
 
-- Agent readiness: implement `docs/STATUS_AND_ROADMAP.md`
+- Agent readiness: implement `docs/STATUS.md`
 - Concurrency (advanced): pub/sub, fan-out, parallel iterators
 - Targets: avoid WASM as a first-class backend; AVM hosted in WASM is acceptable
 - Security/trust: deterministic builds, supply chain verification, signed artifacts
@@ -981,12 +1094,12 @@ Execution priority: runtime capability and determinism over syntax sugar.
 Canonical references for deeper detail:
 
 - AVM spec + Next-Gen plan: `docs/AVM.md`, `docs/AVM.md`
-- Agentic requirements: `docs/STATUS_AND_ROADMAP.md`
-- Core system plans (type system, syscall-first runtime, HPC): `docs/STATUS_AND_ROADMAP.md`
+- Agentic requirements: `docs/STATUS.md`
+- Core system plans (type system, syscall-first runtime, HPC): `docs/STATUS.md`
 - Backends overview: `docs/COMPILER_BACKENDS.md`
 - Self-hosting: `docs/TOOLCHAIN_PLATFORMS.md`
 - Toolchain bootstrap: `docs/TOOLCHAIN_PLATFORMS.md`
-- Active tracker: `docs/TODOS.md`
+- Active tracker: `docs/STATUS.md`
 
 ## Agentic-AI Requirements (Language + Compiler + AVM)
 
@@ -1246,7 +1359,7 @@ This ordering is chosen to unlock “agent-grade” behavior early without requi
 
 - Docs index: `docs/README.md`
 - AVM spec (bootstrap + Next-Gen plan section): `docs/AVM.md`, `docs/AVM.md`
-- Syscall-first runtime plan: `docs/STATUS_AND_ROADMAP.md`
+- Syscall-first runtime plan: `docs/STATUS.md`
 - Language spec: `docs/LANGUAGE.md`
 - Concurrency model: `docs/LANGUAGE.md`
 
@@ -1309,7 +1422,7 @@ This document outlines the design philosophy of Oren by comparing it to Zig, hig
 ### 5. Tooling Maturity
 *   **Zig:** Robust build system, package manager, cross-compiler.
 *   **Oren:** Bare-bones compiler.
-    *   **Impact:** debugger story is still rolling, but basic I/O + networking (including TLS/HTTP2 loopback gates) exists in stdlib and is actively verified; see `docs/TODOS.md` and `scripts/verify_native_net_matrix.sh` for the current scope.
+    *   **Impact:** debugger story is still rolling, but basic I/O + networking (including TLS/HTTP2 loopback gates) exists in stdlib and is actively verified; see `docs/STATUS.md` and `scripts/verify_native_net_matrix.sh` for the current scope.
 
 ## Advanced Scenarios: The "Blue Ocean" for Oren
 
@@ -1317,7 +1430,7 @@ This document outlines advanced architectural capabilities where Oren and AVM pr
 
 See also:
 
-- `docs/STATUS_AND_ROADMAP.md`
+- `docs/STATUS.md`
 - `docs/AVM.md` (Next-Gen plan section)
 
 ---

@@ -488,7 +488,7 @@ runtime **without relying on libc/pthreads shims**.
 
 Related:
 
-- `docs/STATUS_AND_ROADMAP.md` (syscall-first runtime boundary)
+- `docs/STATUS.md` (syscall-first runtime boundary)
 - `docs/LANGUAGE.md` (language-level concurrency surface)
 - `docs/AVM.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly` (deterministic concurrency inside AVM; different goal)
 
@@ -1819,9 +1819,9 @@ Regression gates (headless):
   - `tests/avm/test_ui_patch_v0.oren`
   - `tests/avm/test_ui_color_v0.oren`
 
-## 7) Roadmap tasks (tracked in `docs/TODOS.md`)
+## 7) Roadmap tasks (tracked in `docs/STATUS.md`)
 
-This document defines the intended design; implementation tasks are tracked in `docs/TODOS.md`.
+This document defines the intended design; implementation tasks are tracked in `docs/STATUS.md`.
 The recommended progression is:
 
 1) `std:ui` portable core (node model + diff + layout + style)
@@ -1853,7 +1853,7 @@ This repo is rolling. The goals are:
 This document separates:
 
 - **What exists today** (grounded in code), vs
-- **What we plan** (design direction, tracked in `docs/TODOS.md`).
+- **What we plan** (design direction, tracked in `docs/STATUS.md`).
 
 ---
 
@@ -2089,12 +2089,12 @@ Current (rolling, correctness-first):
 
 ## 6) Tracking (what to implement next)
 
-This doc is not the tracker; the tracker is `docs/TODOS.md`.
+This doc is not the tracker; the tracker is `docs/STATUS.md`.
 
 The relevant near-term items are:
 
-- Tier‑1 native parity (x86_64 + arm64; macOS/Linux/Windows) — see `docs/TODOS.md` P0.1
-- Backend architecture unification (CoreIR boundary) — see `docs/TODOS.md` P0.3
+- Tier‑1 native parity (x86_64 + arm64; macOS/Linux/Windows) — see `docs/STATUS.md` P0.1
+- Backend architecture unification (CoreIR boundary) — see `docs/STATUS.md` P0.3
 - After that: native scheduler + channels/select maturity and IO integration — see `docs/LANGUAGE.md` / `docs/RUNTIME.md`
   - Windows IOCP design notes (rolling): `docs/RUNTIME.md`
 
@@ -2296,7 +2296,7 @@ As IOCP work lands, add/extend Tier‑1 guards:
 
 Tracker link:
 
-- `docs/TODOS.md` item “Native scheduler + netpoller”
+- `docs/STATUS.md` item “Native scheduler + netpoller”
 
 ## TLS / HTTPS / WSS (stdlib, native backend) — rolling
 
@@ -2351,7 +2351,7 @@ Rolling rule:
 
 See:
 
-- `docs/TODOS.md` (native FFI parity)
+- `docs/STATUS.md` (native FFI parity)
 - `docs/COMPILER_BACKENDS.md#native-backend-overview` (native dynamic linking model)
 
 ## 2) Stdlib API (`std:net/tls`)

@@ -20,7 +20,7 @@ For OBC portability/linking and signing, see `docs/AVM.md`.
 For the next step (no-JIT-first, ML-focused typed buffers/SIMD, capability-scoped natives), see:
 
 - `docs/AVM.md` (Next-Gen AVM Plan)
-- `docs/STATUS_AND_ROADMAP.md`
+- `docs/STATUS.md`
 
 Compatibility policy:
 
@@ -900,9 +900,9 @@ This is essential for safely executing LLM-generated or untrusted scripts.
 
 ### 9) Related Docs
 
-- Agentic requirements (language + compiler + AVM): `docs/STATUS_AND_ROADMAP.md`
-- System evolution context: `docs/STATUS_AND_ROADMAP.md`
-- Roadmap: `docs/STATUS_AND_ROADMAP.md`
+- Agentic requirements (language + compiler + AVM): `docs/STATUS.md`
+- System evolution context: `docs/STATUS.md`
+- Roadmap: `docs/STATUS.md`
 
 
 ## AVM Design (Rolling)
@@ -1091,7 +1091,7 @@ This document defines what “concurrency” should mean for **AVM** in the AI/a
 
 - AVM supports **nested universes** (AVM-in-AVM) (`docs/AVM.md#avm-in-avm-multiverse-design-nested-virtual-universes`)
 - AVM targets restricted environments (iOS/Web/Edge) and must stay **no-JIT-first**
-- Oren’s native runtime roadmap is **syscall-first** and avoids libc/pthreads (`docs/STATUS_AND_ROADMAP.md`)
+- Oren’s native runtime roadmap is **syscall-first** and avoids libc/pthreads (`docs/STATUS.md`)
 
 The key requirement is not raw throughput; it is **deterministic, governable concurrency** that composes with:
 
@@ -1216,7 +1216,7 @@ To add task scheduling without breaking determinism, AVM needs:
 
 Near-term “must-have” tasks to unlock deterministic concurrency:
 
-- Implement deterministic `TRACE_HASH` and a canonical trace encoding (see `docs/TODOS.md` P1).
+- Implement deterministic `TRACE_HASH` and a canonical trace encoding (see `docs/STATUS.md` P1).
 - Define the `TASK` domain surface (design first):
   - spawn task (pure)
   - join task (blocking)
@@ -1578,8 +1578,8 @@ These are the most urgent tasks to make “multiverse” real (not speculative).
 
 - Swarm consensus + mobility: `docs/AVM.md#avm-swarm-consensus-agent-mobility-design-validation`
 - Next-gen AVM plan (see “Next-Gen AVM Plan” section): `docs/AVM.md#next-gen-avm-plan-v1-draft`
-- Agentic requirements: `docs/STATUS_AND_ROADMAP.md`
-- Advanced scenarios: `docs/STATUS_AND_ROADMAP.md`
+- Agentic requirements: `docs/STATUS.md`
+- Advanced scenarios: `docs/STATUS.md`
 
 ## AVM Plugins + Nesting (OBC-First, iOS-Safe) (Rolling)
 
@@ -1595,7 +1595,7 @@ This doc is a fact-first bridge between:
 - multiverse execution (`docs/AVM.md#avm-in-avm-multiverse-design-nested-virtual-universes`),
 - bytecode module linking (`docs/AVM.md`),
 - stdlib distribution/resolution (`docs/RUNTIME.md`),
-- and the repo-wide roadmap (`docs/TODOS.md`, `docs/STATUS_AND_ROADMAP.md`).
+- and the repo-wide roadmap (`docs/STATUS.md`, `docs/STATUS.md`).
 
 
 ---
@@ -1637,7 +1637,7 @@ Status (fact, today):
 
 - Nested-universe execution is described (and partially implemented) via `oren_avm_run_obc_bytes(child_obc_bytes, cfg_map)`:
   - Interface + cfg keys: `docs/AVM.md#avm-in-avm-multiverse-design-nested-virtual-universes` section “6.2 Current bootstrap cfg keys”.
-  - Determinism/fixtures intent: `docs/AVM.md` (Next-Gen plan section), `docs/STATUS_AND_ROADMAP.md`.
+  - Determinism/fixtures intent: `docs/AVM.md` (Next-Gen plan section), `docs/STATUS.md`.
 
 This model is already “plugin-friendly” because:
 
@@ -1709,7 +1709,7 @@ Key supporting docs:
 
 ### 5) Recommended tracker items (so we don’t drift)
 
-When updating `docs/TODOS.md`, keep these as separate deliverables:
+When updating `docs/STATUS.md`, keep these as separate deliverables:
 
 1) **Model A hardening (child-universe plugins)**
    - stable `cfg` schema for `oren_avm_run_obc_bytes`
@@ -2017,8 +2017,8 @@ Bootstrap status (rolling):
 
 ### 7) Related Docs
 
-- Canonical requirements: `docs/STATUS_AND_ROADMAP.md`
-- Advanced scenarios: `docs/STATUS_AND_ROADMAP.md`
+- Canonical requirements: `docs/STATUS.md`
+- Advanced scenarios: `docs/STATUS.md`
 - AVM spec (bootstrap + Next-Gen plan section): `docs/AVM.md`, `docs/AVM.md`
 
 ## AVM NEON Mapping Plan (arm64, No-JIT-First)

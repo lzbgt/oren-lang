@@ -398,7 +398,7 @@ This is the suggested “rolling-safe” order to expand CoreIR while continuous
      - `Load/StoreLocal`, `Const`, `BinOp`, `Cmp`, `Branch`, `Call`, `Return`, …
    - This reduces duplication between `arm64_native_*` and `x64_native_program/**`.
 
-Track these items in `docs/TODOS.md` (CoreIR boundary section).
+Track these items in `docs/STATUS.md` (CoreIR boundary section).
 
 ## 7) Practical guidance (for contributors / agents)
 
@@ -407,7 +407,7 @@ When you modify semantics in a lowering pass:
 - update the relevant section(s) in:
   - `docs/LANGUAGE.md` (normative intent)
   - `docs/LANGUAGE.md` (practical usage)
-  - `docs/STATUS_AND_ROADMAP.md` (status + evidence)
+  - `docs/STATUS.md` (status + evidence)
 - ensure there is a fixture or integration test that exercises the semantic contract.
 
 When you add a new backend feature:
@@ -631,7 +631,7 @@ This file is **non-normative**:
 
 - For formal semantics: `docs/LANGUAGE.md`
 - For practical usage: `docs/LANGUAGE.md`
-- For feature maturity + gaps: `docs/STATUS_AND_ROADMAP.md`, `docs/TODOS.md`
+- For feature maturity + gaps: `docs/STATUS.md`, `docs/STATUS.md`
 
 ---
 
@@ -1027,7 +1027,7 @@ Rolling implementation status (today):
   - `lib/compiler/coreir.oren`
   - currently: deterministic extraction of top-level function metadata (decl order, arity, varargs)
   - initial consumer: x86_64 native backend prepass (Tier‑1 bring-up)
-- Next steps (tracked in `docs/TODOS.md`): migrate call canonicalization (callables + varargs + spread) into CoreIR so backends stop re-deciding semantics.
+- Next steps (tracked in `docs/STATUS.md`): migrate call canonicalization (callables + varargs + spread) into CoreIR so backends stop re-deciding semantics.
 
 **Stage B — Backend adapters (thin)**
 
@@ -1220,7 +1220,7 @@ For “do not regress” invariants (and the regression gates that enforce them)
 - **ARM64** (primary): macOS (Mach-O) and Linux (ELF)
 - **x86_64** (Tier 1; rolling evolution): Linux (ELF) and Windows (PE32+)
 
-The x86_64 backend is a Tier-1 target, but is still in rolling evolution; `docs/TODOS.md` tracks what is implemented today and what is next.
+The x86_64 backend is a Tier-1 target, but is still in rolling evolution; `docs/STATUS.md` tracks what is implemented today and what is next.
 
 ### ABI Notes (x86_64 SysV vs Win64)
 
@@ -2582,4 +2582,4 @@ The long-term fix for “runtime bundle dominates cold builds” is to reduce th
 - keep fast paths **zero-copy** where possible
 - avoid pointer-heavy AST graphs crossing boundaries unless necessary
 
-Track active work in `docs/TODOS.md`.
+Track active work in `docs/STATUS.md`.

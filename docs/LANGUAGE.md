@@ -25,8 +25,8 @@ Oren is designed to be usable by **humans and AI agents**. In rolling mode, the 
 This manual therefore follows a strict grounding rule:
 
 - **If you need the truth for execution semantics, trust code + fixtures first.**
-  - Canonical “what works today” snapshot: `docs/STATUS_AND_ROADMAP.md`
-  - AI-friendly feature index: `docs/STATUS_AND_ROADMAP.md`
+  - Canonical “what works today” snapshot: `docs/STATUS.md`
+  - AI-friendly feature index: `docs/STATUS.md`
   - Living spec fixtures: `tests/native/fixtures/`, `tests/modules/`, `tests/avm/`
   - Runnable integrated examples: `examples/` (suite: `make examples-test`)
 
@@ -34,7 +34,7 @@ When you change behavior (compiler/runtime/stdlib):
 
 - add or update a fixture,
 - update the relevant section(s) in this manual and/or `docs/LANGUAGE.md`,
-- update `docs/TODOS.md` if a new gap is discovered.
+- update `docs/STATUS.md` if a new gap is discovered.
 
 ## Implementation map (where semantics live)
 
@@ -86,7 +86,7 @@ Oren is an **agent-native**, syscall-first language and toolchain:
   - Tier‑1 targets (rolling intent): `arm64` and `x86_64` across **macOS / Linux / Windows**.
   - Practical reality today:
     - macOS `arm64` is the most feature-complete native backend surface.
-    - Linux/Windows `x86_64` (`--arch x64`) is Tier‑1 intent but still a growing bring-up subset (see `docs/TODOS.md` and `docs/TOOLCHAIN_PLATFORMS.md` for real-hardware validation).
+    - Linux/Windows `x86_64` (`--arch x64`) is Tier‑1 intent but still a growing bring-up subset (see `docs/STATUS.md` and `docs/TOOLCHAIN_PLATFORMS.md` for real-hardware validation).
 - **Portable** mode: compiles to `.obc` bytecode executed by AVM, supporting determinism, snapshots, and capability-governed virtualized domains (FS/NET/PROC/ENV/TIME).
 
 ## 0.1) Compiler CLI quick reference (modern, machine-friendly)
@@ -982,7 +982,7 @@ Rolling note (native backend):
   - This is a correctness feature: scalars are not “optionals”; treat missing values explicitly (e.g. `{"ok":1,"v":...}` / `{"ok":0}`), or use a tag-based check on truly dynamic values:
     - `if oren_type_tag(x) == 0 { ... }`
   - This guard is **always-on** (it does not require `--typecheck`). Diagnostics are tagged as `nil-compare guard: ...` so regressions are easy to spot in CI logs.
-- Beyond `oren_type_tag` / `oren_type_name`, full runtime reflection (fields/layout/type metadata) is not yet implemented and is tracked as a larger refactor in `docs/TODOS.md`.
+- Beyond `oren_type_tag` / `oren_type_name`, full runtime reflection (fields/layout/type metadata) is not yet implemented and is tracked as a larger refactor in `docs/STATUS.md`.
 
 Call-site spread (apply-style call):
 
@@ -1327,7 +1327,7 @@ Examples of native/AVM intrinsics include:
 - `oren_buf_load_f32(buf, idx)`
 - `oren_buf_store_f32(buf, idx, val)`
 
-See `docs/STATUS_AND_ROADMAP.md` and `docs/AVM.md#avm-neon-mapping-plan-arm64-no-jit-first` for direction and design constraints.
+See `docs/STATUS.md` and `docs/AVM.md#avm-neon-mapping-plan-arm64-no-jit-first` for direction and design constraints.
 - `@cap.requires(domain="...")` for capsule/capability gating of host-effectful APIs (see below)
 
 #### Strict attribute mode (compiler option)
@@ -1706,8 +1706,8 @@ are the canonical incremental contract for what the x64 backend supports today:
 ## 13) Where to go next
 
 - Formal language spec: `docs/LANGUAGE.md`
-- Evolution narrative + roadmap (day0 -> compiler-in-AVM, phases): `docs/STATUS_AND_ROADMAP.md`
-- Current task tracker (execution order): `docs/TODOS.md`
+- Evolution narrative + roadmap (day0 -> compiler-in-AVM, phases): `docs/STATUS.md`
+- Current task tracker (execution order): `docs/STATUS.md`
 
 
 ---
@@ -1719,7 +1719,7 @@ This document describes the **current Oren language** as accepted by the Stage1 
 It includes both:
 
 - **normative “what exists today”** rules (grounded in compiler behavior and fixtures),
-- **explicitly marked planned design direction** items (tied to `docs/TODOS.md` / `docs/STATUS_AND_ROADMAP.md`).
+- **explicitly marked planned design direction** items (tied to `docs/STATUS.md` / `docs/STATUS.md`).
 
 The Go interpreter (`cmd/oren run` / REPL) is a convenience tool and is **not** the reference implementation (it supports only a subset and differs in some semantics like scoping).
 
@@ -1727,15 +1727,15 @@ The Go interpreter (`cmd/oren run` / REPL) is a convenience tool and is **not** 
 
 This repo is in rolling mode. To keep the spec precise for both humans and AI agents, we use the following status markers:
 
-- **Implemented**: works today and should have fixture evidence (see `tests/**` and `docs/STATUS_AND_ROADMAP.md`).
+- **Implemented**: works today and should have fixture evidence (see `tests/**` and `docs/STATUS.md`).
 - **Rolling**: implemented but not stabilized (ABI/format/details may change; still regression-tested).
-- **Planned**: design intent; not implemented yet (must link to `docs/TODOS.md` or other canonical design docs).
+- **Planned**: design intent; not implemented yet (must link to `docs/STATUS.md` or other canonical design docs).
 
 If an AI agent needs the most “ground-truth” behavior, prioritize:
 
 - `docs/LANGUAGE.md` (practical usage today),
-- `docs/STATUS_AND_ROADMAP.md` (evidence-backed “what works today” + missing gaps),
-- `docs/STATUS_AND_ROADMAP.md` (feature → status → implementation → fixtures),
+- `docs/STATUS.md` (evidence-backed “what works today” + missing gaps),
+- `docs/STATUS.md` (feature → status → implementation → fixtures),
 - the fixtures under `tests/native/fixtures/`, `tests/modules/`, `tests/avm/` (living spec).
 
 ## Non-normative: Implementation map (for maintainers and agents)
@@ -2884,7 +2884,7 @@ Expression evaluation order is currently not specified by the language (rolling 
 Status:
 
 - **Rolling**: current compilers/backends are free to choose internal evaluation strategies.
-- **Planned**: specify a stable evaluation order (or an explicit effect model) so optimizations are semantics-preserving across backends. Track: `docs/TODOS.md` (P0.2).
+- **Planned**: specify a stable evaluation order (or an explicit effect model) so optimizations are semantics-preserving across backends. Track: `docs/STATUS.md` (P0.2).
 
 Practical guidance (all backends):
 
@@ -3707,7 +3707,7 @@ Planned next step:
 - `./oren meta <file.oren> -o out.meta.json` exports metadata including attributes
 - `./oren dump tokens <file.oren> -o out.tokens.json` helps debug attribute parsing and spans
 
-For the rolling rules and priorities, see `docs/TODOS.md`.
+For the rolling rules and priorities, see `docs/STATUS.md`.
 
 ## Traits & Polymorphism (Static-first, Dyn-opt-in)
 
@@ -4104,7 +4104,7 @@ Relevant existing docs:
 
 - Dynamic value representation work: `docs/COMPILER_BACKENDS.md#native-tagged-value-representation`
 - Object model direction: `docs/LANGUAGE.md`
-- Type-system stabilization direction: `docs/STATUS_AND_ROADMAP.md`
+- Type-system stabilization direction: `docs/STATUS.md`
 - Attribute contract: `docs/LANGUAGE.md`
 
 Key constraints for reflection v1:
@@ -4230,7 +4230,7 @@ This is needed for safe “memcpy style” FFI tooling, but it must not leak int
 ## 8) Related work (tracked elsewhere)
 
 - Value representation refactor targets: `docs/COMPILER_BACKENDS.md#native-tagged-value-representation`
-- Type-system stabilization targets: `docs/STATUS_AND_ROADMAP.md`
+- Type-system stabilization targets: `docs/STATUS.md`
 - Stdlibrary layering (crypto/net split): `docs/RUNTIME.md`
 
 ## Oren Object Model (Traits/Protocols + Composition)
@@ -4537,7 +4537,7 @@ This is one reason OS-thread + scheduler work (and a coherent thread-safe GC mod
 This doc describes:
 
 - what exists today (facts, grounded in code), and
-- what the intended direction is (design, tracked in `docs/TODOS.md`).
+- what the intended direction is (design, tracked in `docs/STATUS.md`).
 
 Oren is rolling; compatibility is not the priority. Accuracy is.
 
@@ -4727,7 +4727,7 @@ The following are *design goals* but are not implemented today as stable primiti
 
 ## 3) Roadmap (high-level)
 
-Implementation plan is tracked in `docs/TODOS.md` and the deeper design docs:
+Implementation plan is tracked in `docs/STATUS.md` and the deeper design docs:
 
 - `docs/RUNTIME.md`
 - `docs/RUNTIME.md`
@@ -4744,7 +4744,7 @@ For AVM execution (interpreter-only environments), concurrency primitives must:
 See:
 
 - `docs/AVM.md` (Next-Gen plan section)
-- `docs/STATUS_AND_ROADMAP.md`
+- `docs/STATUS.md`
 
 ## Stack Safety (Recursion, Call Depth, and Deterministic Failure)
 

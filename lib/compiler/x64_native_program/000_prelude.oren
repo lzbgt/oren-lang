@@ -5,7 +5,7 @@
 // - Linux x86_64 SysV (ELF)
 // - Windows x64 (PE32+, Win64 ABI)
 //
-// Future work (tracked in docs/TODOS.md):
+// Future work (tracked in docs/STATUS.md):
 // - full expression + statement lowering parity with arm64 backend
 // - native runtime injection on x64 (print, malloc, syscalls, capsule gating)
 

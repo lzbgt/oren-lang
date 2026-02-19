@@ -11,7 +11,7 @@
 // - Client frames are masked (required by RFC6455); server frames are unmasked
 //
 // This module is intentionally small and syscall-first. Production maturity work
-// (HTTP/2, TLS, DNS, streaming APIs) is tracked in `docs/TODOS.md`.
+// (HTTP/2, TLS, DNS, streaming APIs) is tracked in `docs/STATUS.md`.
 
 import tcp "std:net/tcp"
 import tls "std:net/tls"

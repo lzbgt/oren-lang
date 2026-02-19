@@ -51,8 +51,7 @@ make avm
 
 Details and platform-specific notes live in:
 
-- `docs/TOOLCHAIN_PLATFORMS.md` — build/test/self-hosting + verification flow
-- `docs/TOOLCHAIN_PLATFORMS.md` — Tier‑1 targets, portability notes, remote x64 workflow
+- `docs/TOOLCHAIN_PLATFORMS.md` — build/test/self-hosting, Tier‑1 targets, portability notes, remote x64 workflow
 
 ## 3) Benchmarks (perf sanity)
 
@@ -65,8 +64,7 @@ Local cross-backend microbenchmarks live under `benchmarks/`:
 
 **Start here / trackers**
 
-- `docs/TODOS.md` — single source-of-truth task tracker (weighted + gated)
-- `docs/STATUS_AND_ROADMAP.md` — feature matrix, gaps, roadmap, agentic requirements
+- `docs/STATUS.md` — task tracker + feature matrix, gaps, roadmap, agentic requirements
 
 **Language (user-facing)**
 

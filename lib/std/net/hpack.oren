@@ -8,7 +8,7 @@
 // - Header block decoding for the common representations (RFC 7541 §6)
 // - Dynamic table maintenance (RFC 7541 §2.3)
 //
-// Not yet implemented (planned, tracked in docs/TODOS.md):
+// Not yet implemented (planned, tracked in docs/STATUS.md):
 // - Header block encoding (beyond small helpers) (in progress)
 // - Full HTTP/2 HEADERS/CONTINUATION stream integration
 //
