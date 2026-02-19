@@ -927,7 +927,7 @@ Stdlib wrapper (rolling):
 Native backend note:
 
   - Until native value tagging is fully implemented, numeric immediates (`int`/`float`) may still be indistinguishable in some native-mode paths, so `oren_type_tag` is best-effort for those values.
-    - Track: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
+    - Track: `docs/BACKEND_ARCHITECTURE.md#native-tagged-value-representation`
     - Rolling implementation detail: `nil`, `false`, and `true` are **runtime singleton values** in native mode (not raw `0/1`), so `0` (int zero) remains distinct from `nil`/`false` in the common case.
     - Rolling reflection v0 for structs: user-defined `struct` values are map-shaped today, but constructors tag them with `{"__oren_type":"TypeName", ...}`, so `oren_type_name(TypeName(...))` returns `"TypeName"` instead of `"map"`.
       - `__oren_type` is a **reserved** struct key; user code must not declare a field named `__oren_type` (compile-time error).

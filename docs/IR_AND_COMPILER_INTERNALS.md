@@ -15,7 +15,7 @@ It complements:
 - `docs/LANGUAGE_MANUAL.md` (user-facing “how to write Oren today”)
 - `docs/LANGUAGE_SPEC.md` (grammar + semantics intent)
 - `docs/BACKEND_ARCHITECTURE.md` (high-level architecture + invariants)
-- `docs/NATIVE_BACKEND_CODE_REUSE_PLAN.md` (native backend reuse direction)
+- `docs/BACKEND_ARCHITECTURE.md#native-backend-code-reuse-plan` (native backend reuse direction)
 
 ## 1) Terminology: “IR” in rolling v0
 
@@ -166,7 +166,7 @@ Those decisions must be centralized, deterministic, and regression-tested.
 References:
 
 - Architecture: `docs/BACKEND_ARCHITECTURE.md`
-- Native reuse direction: `docs/NATIVE_BACKEND_CODE_REUSE_PLAN.md`
+- Native reuse direction: `docs/BACKEND_ARCHITECTURE.md#native-backend-code-reuse-plan`
 
 ## 5) CoreIR v0 scaffold (what exists today)
 

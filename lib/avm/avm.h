@@ -18,19 +18,21 @@ typedef enum {
     AVM_VAL_BOOL = 3,
     AVM_VAL_STRING = 4,
     AVM_VAL_LIST = 5,
-    AVM_VAL_MAP = 6,
-    AVM_VAL_BYTES = 7,
+    AVM_VAL_LIST_INT = 6,
+    AVM_VAL_MAP = 7,
+    AVM_VAL_BYTES = 8,
     // First-class function value (closure): code address + captured environment value.
     // Rolling ABI: representation may evolve; semantics must remain deterministic.
-    AVM_VAL_FUNC = 8,
+    AVM_VAL_FUNC = 9,
     // Typed numeric buffers (rolling; required for ML-ish workloads + SIMD kernels).
-    AVM_VAL_I32_BUF = 9,
-    AVM_VAL_I64_BUF = 10,
-    AVM_VAL_F32_BUF = 11,
-    AVM_VAL_F64_BUF = 12
+    AVM_VAL_I32_BUF = 10,
+    AVM_VAL_I64_BUF = 11,
+    AVM_VAL_F32_BUF = 12,
+    AVM_VAL_F64_BUF = 13
 } AvmType;
 
 struct AvmList;
+struct AvmListInt;
 struct AvmMap;
 struct AvmBytes;
 struct AvmFunc;
@@ -43,6 +45,7 @@ typedef struct {
         double f;
         void* p;
         struct AvmList* l;
+        struct AvmListInt* li;
         struct AvmMap* m;
         struct AvmBytes* b;
         struct AvmFunc* fn;
@@ -65,6 +68,12 @@ typedef struct AvmList {
     int capacity;
     int all_int;
 } AvmList;
+
+typedef struct AvmListInt {
+    int64_t* items;
+    int count;
+    int capacity;
+} AvmListInt;
 
 typedef struct AvmMap {
     AvmValue* keys;

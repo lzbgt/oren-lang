@@ -79,7 +79,7 @@ These are not competing ideas; they form an evolution ladder.
 
 Doc:
 
-- `docs/C_BACKEND.md`
+- `docs/BACKEND_ARCHITECTURE.md#c-backend-design-and-abi`
 
 Purpose:
 
@@ -106,7 +106,7 @@ Important: the production goal for the **native syscall-first runtime** is diffe
 
 Docs:
 
-- `docs/NATIVE_BACKEND.md`
+- `docs/BACKEND_ARCHITECTURE.md#native-backend-overview`
 - `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`
 
 What “syscall-first” means in this repo:

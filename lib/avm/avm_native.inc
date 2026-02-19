@@ -262,6 +262,9 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             if (nargs > 0 && args[0].type == AVM_VAL_LIST) {
                 res.type = AVM_VAL_INT;
                 res.as.i = args[0].as.l->count;
+            } else if (nargs > 0 && args[0].type == AVM_VAL_LIST_INT) {
+                res.type = AVM_VAL_INT;
+                res.as.i = args[0].as.li->count;
             }
             break;
         case 13: // oren_list_push
@@ -280,10 +283,34 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                 }
                 list->items[list->count++] = args[1];
                 if (list->all_int && args[1].type != AVM_VAL_INT) list->all_int = 0;
+            } else if (nargs > 1 && args[0].type == AVM_VAL_LIST_INT) {
+                if (args[1].type != AVM_VAL_INT) {
+                    res = avm_err(AVM_ERR_INVALID_ARG, "list_push expects int for list_int");
+                    break;
+                }
+                AvmListInt* list = args[0].as.li;
+                if (!avm_list_int_ensure_cap(list, list->count + 1)) {
+                    res = avm_alloc_fail_value();
+                    avm_abort(vm, res);
+                    break;
+                }
+                list->items[list->count++] = args[1].as.i;
             }
             break;
         case 149: // oren_list_int_push
-            if (nargs > 1 && args[0].type == AVM_VAL_LIST) {
+            if (nargs > 1 && args[0].type == AVM_VAL_LIST_INT) {
+                if (args[1].type != AVM_VAL_INT) {
+                    res = avm_err(AVM_ERR_INVALID_ARG, "list_int_push expects int");
+                    break;
+                }
+                AvmListInt* list = args[0].as.li;
+                if (!avm_list_int_ensure_cap(list, list->count + 1)) {
+                    res = avm_alloc_fail_value();
+                    avm_abort(vm, res);
+                    break;
+                }
+                list->items[list->count++] = args[1].as.i;
+            } else if (nargs > 1 && args[0].type == AVM_VAL_LIST) {
                 AvmList* list = args[0].as.l;
                 if (args[1].type != AVM_VAL_INT) {
                     res = avm_err(AVM_ERR_INVALID_ARG, "list_int_push expects int");

@@ -106,6 +106,18 @@ int avm_list_ensure_cap(AvmList* list, int need) {
     return 1;
 }
 
+int avm_list_int_ensure_cap(AvmListInt* list, int need) {
+    if (!list) return 0;
+    if (need <= list->capacity) return 1;
+    int new_cap = list->capacity ? list->capacity : 8;
+    while (new_cap < need) new_cap *= 2;
+    int64_t* ni = (int64_t*)avm_heap_realloc_k(list->items, sizeof(int64_t) * (size_t)new_cap, AVM_ALLOC_KIND_LIST_INT);
+    if (!ni) return 0;
+    list->items = ni;
+    list->capacity = new_cap;
+    return 1;
+}
+
 static int avm_map_ensure_cap(AvmMap* map, int need) {
     if (!map) return 0;
     if (need <= map->capacity) return 1;
@@ -151,4 +163,3 @@ int avm_map_set_sorted(AvmMap* map, AvmValue key, AvmValue val) {
     map->count++;
     return 1;
 }
-

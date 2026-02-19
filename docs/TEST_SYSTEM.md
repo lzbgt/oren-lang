@@ -243,7 +243,7 @@ When investigating “why did `oren build` take >10s?” regressions, use the bo
 
 For a deeper “what regressed and how do we keep it bounded” playbook (rolling):
 
-- `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`
+- `docs/BACKEND_ARCHITECTURE.md#native-backend-performance-playbook`
 
 ## Logs and artifacts
 

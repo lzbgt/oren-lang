@@ -835,8 +835,8 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 
 - Compressed `docs/TODOS.md` back to a short “top items only” tracker (rolling rule: 5–10 items).
 - The detailed x86_64 bring-up notes remain in git history and in the dedicated design docs:
-  - `docs/NATIVE_BACKEND.md`
-  - `docs/NATIVE_BACKEND_CODE_REUSE_PLAN.md`
+  - `docs/BACKEND_ARCHITECTURE.md#native-backend-overview`
+  - `docs/BACKEND_ARCHITECTURE.md#native-backend-code-reuse-plan`
   - `docs/BACKEND_ARCHITECTURE.md`
   - `docs/REMOTE_X64_ENV.md`
 

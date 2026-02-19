@@ -416,9 +416,9 @@ Notes (rolling):
 - `ffi` is a low-level escape hatch intended primarily for native interop and experiments.
 - In **capsule** mode, `ffi` declarations are rejected (FFI bypasses capability gating).
   - Native backend:
-    - **macOS** supports binding against `libSystem` for `ffi` calls (see `docs/NATIVE_BACKEND.md`).
+    - **macOS** supports binding against `libSystem` for `ffi` calls (see `docs/BACKEND_ARCHITECTURE.md#native-backend-overview`).
     - **Windows x64** supports `ffi` via lazy `LoadLibraryA`/`GetProcAddress` stubs.
-      - `--link` adds DLLs to the resolver search list (see `docs/NATIVE_BACKEND.md`).
+      - `--link` adds DLLs to the resolver search list (see `docs/BACKEND_ARCHITECTURE.md#native-backend-overview`).
       - `@ffi.link("...")` can attach a dynamic library directly to an `ffi` declaration (portable form; maps to `--link`).
       - `@ffi.dll("name.dll")` can also attach a DLL directly to an `ffi` declaration (Windows convenience; useful for stdlib).
       - `@ffi.ret("i32"|"u32"|"void"|"ptr"|"usize")` can declare ABI return width/kind for some C-style APIs:
@@ -427,10 +427,10 @@ Notes (rolling):
         - `"void"`: force the return value to 0 for expression contexts.
         - `"ptr"` / `"usize"`: pointer-sized / `size_t` returns. On Tier‑1 (arm64/x64), these are 64-bit returns and do not require normalization, but the annotation is accepted as ABI metadata (and future 32-bit targets can lower it correctly).
       - `@ffi.export` can export a top-level function symbol for callback-style interop (currently: arm64-macos + linux/arm64 + linux/x64 + windows/x64 native; see `docs/ATTRIBUTES.md`).
-    - **Linux x64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/NATIVE_BACKEND.md`).
-    - **Linux arm64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/NATIVE_BACKEND.md`).
+    - **Linux x64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/BACKEND_ARCHITECTURE.md#native-backend-overview`).
+    - **Linux arm64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/BACKEND_ARCHITECTURE.md#native-backend-overview`).
   - C backend:
-    - Oren does not have a stabilized “typed C FFI” surface yet, but you can still link extra C by compiling the emitted C yourself (see `docs/C_BACKEND.md`).
+    - Oren does not have a stabilized “typed C FFI” surface yet, but you can still link extra C by compiling the emitted C yourself (see `docs/BACKEND_ARCHITECTURE.md#c-backend-design-and-abi`).
 
 FFI sugar (rolling ergonomics):
 
@@ -674,8 +674,8 @@ Notes:
   - These embedded literals live in the binary’s constant/data segment and are **not tracked as GC heap allocations** (they are “static”).
   - Dynamically created strings (concatenation, slicing, parsing) still allocate and are GC-managed as usual.
   - References:
-    - `docs/RUNTIME_NATIVE_LAYOUT.md` (literal pool + runtime init)
-    - `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md` (why this matters for hot paths)
+    - `docs/BACKEND_ARCHITECTURE.md#native-runtime-layout` (literal pool + runtime init)
+    - `docs/BACKEND_ARCHITECTURE.md#native-backend-performance-playbook` (why this matters for hot paths)
 
 ## 3) Variables and assignment
 

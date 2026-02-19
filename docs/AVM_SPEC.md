@@ -18,6 +18,7 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 - **Values:** `AvmValue` (`type` tag + union), see `lib/avm/avm.h`.
 - **Stack:** `AvmValue[]` stack inside the VM (`lib/avm/avm_vm.c`).
 - **Heap:** Currently plain `malloc` allocations for strings/lists/maps (no GC yet).
+- **List<int> fast-path (rolling):** `LIST_INT` is an unboxed int64 list optimized for tight loops; created via `NEW_LIST_INT` and interoperates with list ops that accept int-only lists.
 
 ## Bytecode Format (.obc)
 **Current on-disk format (as implemented today):**
@@ -112,6 +113,7 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 | 0x5B | LIST_PUSH_INT_LOOP | - | `[list, idx, end, mul, add, mod] -> [idx]` | Fused int push loop: `list.push((i*mul+add)%mod)` from idx..end. |
 | 0x5C | LIST_SUM_INT_LOOP | - | `[list, idx, n, sum] -> [idx, sum]` | Fused int sum loop: `sum += list[i]` from idx..n. |
 | 0x5D | LIST_SUM3_INT_LOOP | - | `[list_a, list_b, list_c, idx, n, sum] -> [idx, sum]` | Fused int sum loop: `sum += list_a[i] + list_b[i] + list_c[i]` from idx..n. |
+| 0x5E | NEW_LIST_INT | - | `[cap] -> [list_int_or_err]` | Allocate an unboxed `list<int>` with initial capacity `cap` (int); returns error value on invalid cap. |
 | 0x43 | SET_INDEX | - | `[obj, key, val] -> []` | Mutate list/map; list also supports append when `key == len`. |
 | 0x45 | SPAWN_CALL_LIST | - | `[fn, args_list] -> [handle_int]` | Spawn a task calling `fn(args_list...)` (handle is `tid+1`). |
 | 0x54 | SPAWN_CALL_SPREAD | `u16_le fixed` | `[fn, fixed_args..., spread_list] -> [handle_int]` | Spawn a task calling `fn(fixed..., spread...)`. |

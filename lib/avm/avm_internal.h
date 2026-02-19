@@ -119,7 +119,9 @@ enum {
     AVM_ALLOC_KIND_FUNC = 9,
     AVM_ALLOC_KIND_BUF = 10,
     // Opaque raw bytes (no pointers). Used for typed-buffer payloads.
-    AVM_ALLOC_KIND_RAW = 11
+    AVM_ALLOC_KIND_RAW = 11,
+    // Unboxed list<int> payloads (AVM list-int).
+    AVM_ALLOC_KIND_LIST_INT = 12
 };
 
 static inline AvmValue avm_int(int64_t i) {
@@ -183,6 +185,7 @@ int avm_map_key_supported(AvmValue k);
 int avm_map_find_index(AvmMap* map, AvmValue key, int* found);
 int avm_map_set_sorted(AvmMap* map, AvmValue key, AvmValue val);
 int avm_list_ensure_cap(AvmList* list, int need);
+int avm_list_int_ensure_cap(AvmListInt* list, int need);
 
 // --- BYTES utils (in-memory record/replay + trace bytes) ---
 int bytes_ensure_cap(AvmBytes* b, int need);

@@ -25,7 +25,7 @@ See:
 
 - `docs/TOOLCHAIN_SELF_HOSTING.md`
 - `docs/BUILD_AND_VERIFY.md`
-- `docs/NATIVE_BACKEND.md`
+- `docs/BACKEND_ARCHITECTURE.md#native-backend-overview`
 
 ## 1) Artifact kinds and where they come from
 
@@ -135,7 +135,7 @@ Fast regression/diagnosis helpers:
 
 Primary playbook:
 
-- `docs/NATIVE_BACKEND_PERF_PLAYBOOK.md`
+- `docs/BACKEND_ARCHITECTURE.md#native-backend-performance-playbook`
 
 When a build step “hangs”, prefer:
 

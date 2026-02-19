@@ -91,7 +91,7 @@ value representations to get performance and bring-up velocity.
 
 Relevant existing docs:
 
-- Dynamic value representation work: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
+- Dynamic value representation work: `docs/BACKEND_ARCHITECTURE.md#native-tagged-value-representation`
 - Object model direction: `docs/OBJECT_MODEL.md`
 - Type-system stabilization direction: `docs/TYPE_SYSTEM_PLAN.md`
 - Attribute contract: `docs/ATTRIBUTES.md`
@@ -218,6 +218,6 @@ This is needed for safe “memcpy style” FFI tooling, but it must not leak int
 
 ## 8) Related work (tracked elsewhere)
 
-- Value representation refactor targets: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
+- Value representation refactor targets: `docs/BACKEND_ARCHITECTURE.md#native-tagged-value-representation`
 - Type-system stabilization targets: `docs/TYPE_SYSTEM_PLAN.md`
 - Stdlibrary layering (crypto/net split): `docs/STDLIB_LAYERS.md`

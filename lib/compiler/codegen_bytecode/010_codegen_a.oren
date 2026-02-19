@@ -768,11 +768,8 @@ fn bytecode_compile_expr(ctx, expr) {
             bytecode_error(ctx, "bytecode backend: oren_new_list_int expects (cap)")
             return nil
             }
-            // Preserve side effects of cap expression; ignore the value (boxed-list fallback).
             bytecode_compile_expr(ctx, expr["args"][0])
-            emit_byte(ctx, AVM_POP)
-            emit_byte(ctx, AVM_NEW_LIST)
-            emit_u16(ctx, 0)
+            emit_byte(ctx, AVM_NEW_LIST_INT)
             return nil
         }
         if name == "oren_list_push" || name == "STD_list_push" {

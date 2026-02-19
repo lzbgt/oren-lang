@@ -295,7 +295,7 @@ Implementation:
 Rolling note (native backend):
 
 - Native values are not fully tagged yet; numeric immediates (`int`/`bool`/`float`) may be indistinguishable in native mode (so `oren_type_tag` can return `1` for multiple numeric kinds).
-- Track the full fix: `docs/NATIVE_TAGGED_VALUE_REPRESENTATION.md`
+- Track the full fix: `docs/BACKEND_ARCHITECTURE.md#native-tagged-value-representation`
 
 Evidence:
 

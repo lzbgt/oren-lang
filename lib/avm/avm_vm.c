@@ -55,6 +55,11 @@ static inline AvmValue avm_list_get_value(AvmValue obj, AvmValue key) {
         if (i >= 0 && i < obj.as.l->count) {
             res = obj.as.l->items[i];
         }
+    } else if (obj.type == AVM_VAL_LIST_INT && key.type == AVM_VAL_INT) {
+        int i = (int)key.as.i;
+        if (i >= 0 && i < obj.as.li->count) {
+            res = avm_int(obj.as.li->items[i]);
+        }
     }
     return res;
 }
@@ -255,6 +260,22 @@ static AvmValue make_pair_list(AvmVM* vm, AvmValue a, AvmValue b) {
     list->items[0] = a;
     list->items[1] = b;
     AvmValue v; v.type = AVM_VAL_LIST; v.as.l = list;
+    return v;
+}
+
+static AvmValue avm_list_int_new(int cap) {
+    if (cap < 0) cap = 0;
+    if (cap > INT_MAX) return avm_err(AVM_ERR_INVALID_ARG, "list_int_new cap too large");
+    AvmListInt* list = (AvmListInt*)avm_heap_malloc_k(sizeof(AvmListInt), AVM_ALLOC_KIND_LIST_INT);
+    if (!list) return avm_alloc_fail_value();
+    list->count = 0;
+    list->capacity = cap;
+    list->items = NULL;
+    if (cap > 0) {
+        list->items = (int64_t*)avm_heap_malloc_k(sizeof(int64_t) * (size_t)cap, AVM_ALLOC_KIND_LIST_INT);
+        if (!list->items) { avm_heap_free(list); return avm_alloc_fail_value(); }
+    }
+    AvmValue v; v.type = AVM_VAL_LIST_INT; v.as.li = list;
     return v;
 }
 
@@ -658,6 +679,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x3E: return "MAKE_CLOSURE";
         case 0x3F: return "LOAD_ENV";
         case 0x40: return "NEW_LIST";
+        case 0x5E: return "NEW_LIST_INT";
         case 0x41: return "NEW_MAP";
         case 0x42: return "GET_INDEX";
         case 0x57: return "GET_INDEX_LIST";
@@ -692,6 +714,7 @@ static void avm_print_value_no_nl(AvmValue v) {
     else if (v.type == AVM_VAL_BOOL) printf("%s", v.as.i ? "true" : "false");
     else if (v.type == AVM_VAL_NIL) printf("nil");
     else if (v.type == AVM_VAL_LIST) printf("<list>");
+    else if (v.type == AVM_VAL_LIST_INT) printf("<list_int>");
     else if (v.type == AVM_VAL_MAP) printf("<map>");
     else if (v.type == AVM_VAL_FUNC) printf("<func>");
     else if (v.type == AVM_VAL_I32_BUF) printf("<i32_buf>");
@@ -709,6 +732,7 @@ static const char* avm_val_type_short(AvmValue v) {
         case AVM_VAL_BOOL: return "BOOL";
         case AVM_VAL_NIL: return "NIL";
         case AVM_VAL_LIST: return "LIST";
+        case AVM_VAL_LIST_INT: return "LIST_INT";
         case AVM_VAL_MAP: return "MAP";
         case AVM_VAL_FUNC: return "FUNC";
         case AVM_VAL_I32_BUF: return "I32_BUF";
@@ -2238,6 +2262,29 @@ select2_done:
                 vm->stack[vm->sp++] = res;
                 break;
             }
+            case 0x5E: { // NEW_LIST_INT (cap on stack)
+                if (vm->sp < 1) {
+                    avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow"));
+                    break;
+                }
+                AvmValue capv = vm->stack[--vm->sp];
+                if (capv.type != AVM_VAL_INT) {
+                    vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_new expects int");
+                    break;
+                }
+                int64_t cap64 = capv.as.i;
+                if (cap64 < 0) cap64 = 0;
+                if (cap64 > (int64_t)INT_MAX) {
+                    vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_new cap too large");
+                    break;
+                }
+                AvmValue res = avm_list_int_new((int)cap64);
+                if (avm_is_err_val(res)) {
+                    avm_abort(vm, res);
+                }
+                vm->stack[vm->sp++] = res;
+                break;
+            }
             case 0x41: { // NEW_MAP u16
                 uint16_t pairs = code[vm->pc++];
                 pairs |= (uint16_t)code[vm->pc++] << 8;
@@ -2283,6 +2330,11 @@ select2_done:
                         if (i >= 0 && i < obj.as.l->count) {
                             res = obj.as.l->items[i];
                         }
+                    } else if (obj.type == AVM_VAL_LIST_INT && key.type == AVM_VAL_INT) {
+                        int i = (int)key.as.i;
+                        if (i >= 0 && i < obj.as.li->count) {
+                            res = avm_int(obj.as.li->items[i]);
+                        }
                     } else if (obj.type == AVM_VAL_MAP) {
                         if (!avm_map_key_supported(key)) {
                             avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "map key type not supported (need nil/bool/int/string)"));
@@ -2309,6 +2361,11 @@ select2_done:
                         if (i >= 0 && i < obj.as.l->count) {
                             res = obj.as.l->items[i];
                         }
+                    } else if (obj.type == AVM_VAL_LIST_INT && key.type == AVM_VAL_INT) {
+                        int i = (int)key.as.i;
+                        if (i >= 0 && i < obj.as.li->count) {
+                            res = avm_int(obj.as.li->items[i]);
+                        }
                     }
                     vm->stack[vm->sp++] = res;
                 }
@@ -2322,6 +2379,40 @@ select2_done:
                     AvmValue list_b = vm->stack[--vm->sp];
                     AvmValue list_a = vm->stack[--vm->sp];
                     AvmValue one = avm_int(1);
+                    if (list_a.type == AVM_VAL_LIST_INT && list_b.type == AVM_VAL_LIST_INT &&
+                        idx.type == AVM_VAL_INT && n.type == AVM_VAL_INT &&
+                        sum.type == AVM_VAL_INT) {
+                        int64_t i64 = idx.as.i;
+                        int64_t end64 = n.as.i;
+                        if (i64 >= 0 && i64 <= (int64_t)INT_MAX &&
+                            end64 >= (int64_t)INT_MIN && end64 <= (int64_t)INT_MAX &&
+                            list_a.as.li && list_b.as.li) {
+                            int i = (int)i64;
+                            int end = (int)end64;
+                            if (i < end) {
+                                int count_a = list_a.as.li->count;
+                                int count_b = list_b.as.li->count;
+                                int64_t acc = sum.as.i;
+                                if (end <= count_a && end <= count_b) {
+                                    for (; i < end; i++) {
+                                        acc = avm_i64_add_wrap(acc, avm_i64_mul_wrap(list_a.as.li->items[i], list_b.as.li->items[i]));
+                                    }
+                                } else {
+                                    for (; i < end; i++) {
+                                        if (i < 0 || i >= count_a || i >= count_b) {
+                                            sum = avm_nil();
+                                            idx = avm_int(end);
+                                            goto list_dot_push;
+                                        }
+                                        acc = avm_i64_add_wrap(acc, avm_i64_mul_wrap(list_a.as.li->items[i], list_b.as.li->items[i]));
+                                    }
+                                }
+                                sum = avm_int(acc);
+                                idx = avm_int(i);
+                                goto list_dot_push;
+                            }
+                        }
+                    }
                     if (list_a.type == AVM_VAL_LIST && list_b.type == AVM_VAL_LIST &&
                         idx.type == AVM_VAL_INT && n.type == AVM_VAL_INT &&
                         sum.type == AVM_VAL_INT) {
@@ -2403,7 +2494,23 @@ list_dot_push:
                 if (vm->sp >= 2) {
                     AvmValue val = vm->stack[--vm->sp];
                     AvmValue obj = vm->stack[--vm->sp];
-                    if (obj.type != AVM_VAL_LIST || !obj.as.l || val.type != AVM_VAL_INT) {
+                    if (val.type != AVM_VAL_INT) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push expects int");
+                        break;
+                    }
+                    if (obj.type == AVM_VAL_LIST_INT && obj.as.li) {
+                        AvmListInt* list = obj.as.li;
+                        if (!avm_list_int_ensure_cap(list, list->count + 1)) {
+                            AvmValue e = avm_alloc_fail_value();
+                            avm_abort(vm, e);
+                            vm->stack[vm->sp++] = e;
+                            break;
+                        }
+                        list->items[list->count++] = val.as.i;
+                        vm->stack[vm->sp++] = avm_nil();
+                        break;
+                    }
+                    if (obj.type != AVM_VAL_LIST || !obj.as.l) {
                         vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push expects (list, int)");
                         break;
                     }
@@ -2430,6 +2537,22 @@ list_dot_push:
                 if (vm->sp >= 2) {
                     AvmValue val = vm->stack[--vm->sp];
                     AvmValue obj = vm->stack[--vm->sp];
+                    if (obj.type == AVM_VAL_LIST_INT && obj.as.li) {
+                        if (val.type != AVM_VAL_INT) {
+                            vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_push expects int for list_int");
+                            break;
+                        }
+                        AvmListInt* list = obj.as.li;
+                        if (!avm_list_int_ensure_cap(list, list->count + 1)) {
+                            AvmValue e = avm_alloc_fail_value();
+                            avm_abort(vm, e);
+                            vm->stack[vm->sp++] = e;
+                            break;
+                        }
+                        list->items[list->count++] = val.as.i;
+                        vm->stack[vm->sp++] = avm_nil();
+                        break;
+                    }
                     if (obj.type != AVM_VAL_LIST || !obj.as.l) {
                         vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_push expects list");
                         break;
@@ -2457,14 +2580,17 @@ list_dot_push:
                     AvmValue endv = vm->stack[--vm->sp];
                     AvmValue idxv = vm->stack[--vm->sp];
                     AvmValue obj = vm->stack[--vm->sp];
-                    if (obj.type != AVM_VAL_LIST || !obj.as.l ||
-                        idxv.type != AVM_VAL_INT || endv.type != AVM_VAL_INT ||
+                    if (idxv.type != AVM_VAL_INT || endv.type != AVM_VAL_INT ||
                         mulv.type != AVM_VAL_INT || addv.type != AVM_VAL_INT ||
                         modv.type != AVM_VAL_INT) {
                         vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push_loop expects (list, idx, end, mul, add, mod)");
                         break;
                     }
-                    AvmList* list = obj.as.l;
+                    int use_list_int = (obj.type == AVM_VAL_LIST_INT && obj.as.li);
+                    if (!use_list_int && (obj.type != AVM_VAL_LIST || !obj.as.l)) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push_loop expects (list, idx, end, mul, add, mod)");
+                        break;
+                    }
                     int64_t i = idxv.as.i;
                     int64_t end = endv.as.i;
                     int64_t mul = mulv.as.i;
@@ -2475,33 +2601,54 @@ list_dot_push:
                         vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push_loop mod must be >= 0");
                         break;
                     }
-                    if (list->count == 0) {
-                        // list_int_push_loop only writes ints; mark int-fast.
-                        list->all_int = 1;
-                    }
                     if (i < end) {
                         int64_t iters = end - i;
-                        int64_t new_count = (int64_t)list->count + iters;
+                        int64_t cur_count = use_list_int ? (int64_t)obj.as.li->count : (int64_t)obj.as.l->count;
+                        int64_t new_count = cur_count + iters;
                         if (new_count > (int64_t)INT_MAX) {
                             AvmValue e = avm_err(AVM_ERR_INVALID_ARG, "list_int_push_loop size overflow");
                             avm_abort(vm, e);
                             vm->stack[vm->sp++] = e;
                             break;
                         }
-                        if (list->capacity < (int)new_count) {
-                            if (!avm_list_ensure_cap(list, (int)new_count)) {
-                                AvmValue e = avm_alloc_fail_value();
-                                avm_abort(vm, e);
-                                vm->stack[vm->sp++] = e;
-                                break;
+                        if (use_list_int) {
+                            AvmListInt* listi = obj.as.li;
+                            if (listi->capacity < (int)new_count) {
+                                if (!avm_list_int_ensure_cap(listi, (int)new_count)) {
+                                    AvmValue e = avm_alloc_fail_value();
+                                    avm_abort(vm, e);
+                                    vm->stack[vm->sp++] = e;
+                                    break;
+                                }
                             }
-                        }
-                        for (; i < end; i++) {
-                            int64_t v = avm_i64_add_wrap(avm_i64_mul_wrap(i, mul), add);
-                            if (mod > 0) {
-                                v = v % mod;
+                            for (; i < end; i++) {
+                                int64_t v = avm_i64_add_wrap(avm_i64_mul_wrap(i, mul), add);
+                                if (mod > 0) {
+                                    v = v % mod;
+                                }
+                                listi->items[listi->count++] = v;
                             }
-                            list->items[list->count++] = avm_int(v);
+                        } else {
+                            AvmList* list = obj.as.l;
+                            if (list->count == 0) {
+                                // list_int_push_loop only writes ints; mark int-fast.
+                                list->all_int = 1;
+                            }
+                            if (list->capacity < (int)new_count) {
+                                if (!avm_list_ensure_cap(list, (int)new_count)) {
+                                    AvmValue e = avm_alloc_fail_value();
+                                    avm_abort(vm, e);
+                                    vm->stack[vm->sp++] = e;
+                                    break;
+                                }
+                            }
+                            for (; i < end; i++) {
+                                int64_t v = avm_i64_add_wrap(avm_i64_mul_wrap(i, mul), add);
+                                if (mod > 0) {
+                                    v = v % mod;
+                                }
+                                list->items[list->count++] = avm_int(v);
+                            }
                         }
                         final_i = end;
                     }
@@ -2516,6 +2663,39 @@ list_dot_push:
                     AvmValue idx = vm->stack[--vm->sp];
                     AvmValue list = vm->stack[--vm->sp];
                     AvmValue one = avm_int(1);
+                    if (list.type == AVM_VAL_LIST_INT &&
+                        idx.type == AVM_VAL_INT && n.type == AVM_VAL_INT &&
+                        sum.type == AVM_VAL_INT) {
+                        int64_t i64 = idx.as.i;
+                        int64_t end64 = n.as.i;
+                        if (i64 >= 0 && i64 <= (int64_t)INT_MAX &&
+                            end64 >= (int64_t)INT_MIN && end64 <= (int64_t)INT_MAX &&
+                            list.as.li) {
+                            int i = (int)i64;
+                            int end = (int)end64;
+                            if (i < end) {
+                                int count = list.as.li->count;
+                                int64_t acc = sum.as.i;
+                                if (end <= count) {
+                                    for (; i < end; i++) {
+                                        acc = avm_i64_add_wrap(acc, list.as.li->items[i]);
+                                    }
+                                } else {
+                                    for (; i < end; i++) {
+                                        if (i < 0 || i >= count) {
+                                            sum = avm_nil();
+                                            idx = avm_int(end);
+                                            goto list_sum_push;
+                                        }
+                                        acc = avm_i64_add_wrap(acc, list.as.li->items[i]);
+                                    }
+                                }
+                                sum = avm_int(acc);
+                                idx = avm_int(i);
+                                goto list_sum_push;
+                            }
+                        }
+                    }
                     if (list.type == AVM_VAL_LIST &&
                         idx.type == AVM_VAL_INT && n.type == AVM_VAL_INT &&
                         sum.type == AVM_VAL_INT) {
@@ -2597,6 +2777,45 @@ list_sum_push:
                     AvmValue list_b = vm->stack[--vm->sp];
                     AvmValue list_a = vm->stack[--vm->sp];
                     AvmValue one = avm_int(1);
+                    if (list_a.type == AVM_VAL_LIST_INT && list_b.type == AVM_VAL_LIST_INT && list_c.type == AVM_VAL_LIST_INT &&
+                        idx.type == AVM_VAL_INT && n.type == AVM_VAL_INT &&
+                        sum.type == AVM_VAL_INT) {
+                        int64_t i64 = idx.as.i;
+                        int64_t end64 = n.as.i;
+                        if (i64 >= 0 && i64 <= (int64_t)INT_MAX &&
+                            end64 >= (int64_t)INT_MIN && end64 <= (int64_t)INT_MAX &&
+                            list_a.as.li && list_b.as.li && list_c.as.li) {
+                            int i = (int)i64;
+                            int end = (int)end64;
+                            if (i < end) {
+                                int count_a = list_a.as.li->count;
+                                int count_b = list_b.as.li->count;
+                                int count_c = list_c.as.li->count;
+                                int64_t acc = sum.as.i;
+                                if (end <= count_a && end <= count_b && end <= count_c) {
+                                    for (; i < end; i++) {
+                                        acc = avm_i64_add_wrap(acc, list_a.as.li->items[i]);
+                                        acc = avm_i64_add_wrap(acc, list_b.as.li->items[i]);
+                                        acc = avm_i64_add_wrap(acc, list_c.as.li->items[i]);
+                                    }
+                                } else {
+                                    for (; i < end; i++) {
+                                        if (i < 0 || i >= count_a || i >= count_b || i >= count_c) {
+                                            sum = avm_nil();
+                                            idx = avm_int(end);
+                                            goto list_sum3_push;
+                                        }
+                                        acc = avm_i64_add_wrap(acc, list_a.as.li->items[i]);
+                                        acc = avm_i64_add_wrap(acc, list_b.as.li->items[i]);
+                                        acc = avm_i64_add_wrap(acc, list_c.as.li->items[i]);
+                                    }
+                                }
+                                sum = avm_int(acc);
+                                idx = avm_int(i);
+                                goto list_sum3_push;
+                            }
+                        }
+                    }
                     if (list_a.type == AVM_VAL_LIST && list_b.type == AVM_VAL_LIST && list_c.type == AVM_VAL_LIST &&
                         idx.type == AVM_VAL_INT && n.type == AVM_VAL_INT &&
                         sum.type == AVM_VAL_INT) {
@@ -2695,7 +2914,23 @@ list_sum3_push:
                     AvmValue key = vm->stack[--vm->sp];
                     AvmValue obj = vm->stack[--vm->sp];
 
-                    if (obj.type == AVM_VAL_LIST && key.type == AVM_VAL_INT) {
+                    if (obj.type == AVM_VAL_LIST_INT && key.type == AVM_VAL_INT) {
+                        if (val.type != AVM_VAL_INT) {
+                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "list_int_set expects int"));
+                            break;
+                        }
+                        int idx = (int)key.as.i;
+                        AvmListInt* list = obj.as.li;
+                        if (idx >= 0 && idx < list->count) {
+                            list->items[idx] = val.as.i;
+                        } else if (idx == list->count) {
+                            if (!avm_list_int_ensure_cap(list, list->count + 1)) {
+                                avm_abort(vm, avm_alloc_fail_value());
+                                break;
+                            }
+                            list->items[list->count++] = val.as.i;
+                        }
+                    } else if (obj.type == AVM_VAL_LIST && key.type == AVM_VAL_INT) {
                         int i = (int)key.as.i;
                         if (i >= 0 && i < obj.as.l->count) {
                             obj.as.l->items[i] = val;

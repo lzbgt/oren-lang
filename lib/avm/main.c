@@ -210,6 +210,13 @@ static void free_constant_value(AvmValue v) {
         free(l);
         return;
     }
+    if (v.type == AVM_VAL_LIST_INT) {
+        AvmListInt* l = v.as.li;
+        if (!l) return;
+        if (l->items) free(l->items);
+        free(l);
+        return;
+    }
     if (v.type == AVM_VAL_MAP) {
         AvmMap* m = v.as.m;
         if (!m) return;
@@ -544,6 +551,10 @@ static VerifyResult verify_program_region(
             uint16_t count = 0;
             if (!decode_u16(code, code_len, pc + 1, &count)) { free(depth_at); free(queue); free(qdepth); return err_result("verify: truncated NEW_LIST"); }
             pop = (int)count;
+            push = 1;
+        } else if (op == 0x5E) { // NEW_LIST_INT (cap on stack)
+            len = 1;
+            pop = 1;
             push = 1;
         } else if (op == 0x41) { // NEW_MAP u16_count (pairs)
             len = 3;
@@ -1760,6 +1771,7 @@ static const char* op_name(uint8_t op) {
         case 0x45: return "SPAWN_CALL_LIST";
         case 0x54: return "SPAWN_CALL_SPREAD";
         case 0x55: return "TYPE_CTOR_MAP_SPREAD";
+        case 0x5E: return "NEW_LIST_INT";
         case 0x56: return "NEW_LIST_SPREAD";
         case 0x46: return "JOIN";
         case 0x47: return "CHAN_NEW";
@@ -1784,6 +1796,8 @@ static void disasm_const(FILE* out, const AvmProgram* prog, uint16_t idx) {
     else if (v.type == AVM_VAL_STRING) fprintf(out, "\"%s\"", v.as.p ? (char*)v.as.p : "");
     else if (v.type == AVM_VAL_BYTES) fprintf(out, "<bytes len=%d>", v.as.b ? v.as.b->len : 0);
     else if (v.type == AVM_VAL_LIST) fprintf(out, "<list>");
+    else if (v.type == AVM_VAL_LIST_INT) fprintf(out, "<list_int>");
+    else if (v.type == AVM_VAL_LIST_INT) fprintf(out, "<list_int>");
     else if (v.type == AVM_VAL_MAP) fprintf(out, "<map>");
     else if (v.type == AVM_VAL_FUNC) fprintf(out, "<func addr=%u>", v.as.fn ? (unsigned)v.as.fn->addr : 0u);
     else fprintf(out, "<val?>");
@@ -1810,6 +1824,7 @@ static const char* avm_val_type_name(AvmValue v) {
         case AVM_VAL_STRING: return "STRING";
         case AVM_VAL_BYTES: return "BYTES";
         case AVM_VAL_LIST: return "LIST";
+        case AVM_VAL_LIST_INT: return "LIST_INT";
         case AVM_VAL_MAP: return "MAP";
         case AVM_VAL_FUNC: return "FUNC";
         case AVM_VAL_I32_BUF: return "I32_BUF";
@@ -2116,6 +2131,7 @@ static void dump_value_short(FILE* out, AvmValue v) {
     if (v.type == AVM_VAL_STRING) { fprintf(out, "\"%s\"", v.as.p ? (char*)v.as.p : ""); return; }
     if (v.type == AVM_VAL_BYTES) { fprintf(out, "<bytes len=%d>", v.as.b ? v.as.b->len : 0); return; }
     if (v.type == AVM_VAL_LIST) { fprintf(out, "<list n=%d>", v.as.l ? v.as.l->count : 0); return; }
+    if (v.type == AVM_VAL_LIST_INT) { fprintf(out, "<list_int n=%d>", v.as.li ? v.as.li->count : 0); return; }
     if (v.type == AVM_VAL_MAP) { fprintf(out, "<map n=%d>", v.as.m ? v.as.m->count : 0); return; }
     if (v.type == AVM_VAL_FUNC) { fprintf(out, "<func addr=%u>", v.as.fn ? (unsigned)v.as.fn->addr : 0u); return; }
     if (v.type == AVM_VAL_I32_BUF) { fprintf(out, "<i32_buf len=%u>", v.as.buf ? (unsigned)v.as.buf->len : 0u); return; }
@@ -2159,6 +2175,8 @@ static void json_dump_value_short(FILE* out, AvmValue v) {
         fprintf(out, ",\"len\":%d", v.as.b ? v.as.b->len : 0);
     } else if (v.type == AVM_VAL_LIST) {
         fprintf(out, ",\"len\":%d", v.as.l ? v.as.l->count : 0);
+    } else if (v.type == AVM_VAL_LIST_INT) {
+        fprintf(out, ",\"len\":%d", v.as.li ? v.as.li->count : 0);
     } else if (v.type == AVM_VAL_MAP) {
         fprintf(out, ",\"len\":%d", v.as.m ? v.as.m->count : 0);
     }
@@ -2229,6 +2247,7 @@ static const char* avm_value_type_name(int t) {
         case AVM_VAL_BOOL: return "BOOL";
         case AVM_VAL_NIL: return "NIL";
         case AVM_VAL_LIST: return "LIST";
+        case AVM_VAL_LIST_INT: return "LIST_INT";
         case AVM_VAL_MAP: return "MAP";
         case AVM_VAL_FUNC: return "FUNC";
         case AVM_VAL_I32_BUF: return "I32_BUF";

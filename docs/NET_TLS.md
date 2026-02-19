@@ -52,7 +52,7 @@ Rolling rule:
 See:
 
 - `docs/TODOS.md` (native FFI parity)
-- `docs/NATIVE_BACKEND.md` (native dynamic linking model)
+- `docs/BACKEND_ARCHITECTURE.md#native-backend-overview` (native dynamic linking model)
 
 ## 2) Stdlib API (`std:net/tls`)
 
