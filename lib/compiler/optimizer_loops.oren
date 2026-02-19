@@ -1384,12 +1384,13 @@ fn _opt_insert_arena_pop_in_block(block, allow_break, allow_continue) {
     return changed
 }
 
-fn _opt_prepare_loop_arena(block, idx, stmt) {
+fn _opt_prepare_loop_arena(block, idx, stmt, parent_forced) {
     if stmt == nil { return false }
     if stmt["type"] != "While" && stmt["type"] != "For" { return false }
     if _opt_stmt_has_attr(stmt, "oren.noarena") == true { return false }
     var force_iter = _opt_stmt_has_attr(stmt, "oren.arena_iter")
     var force = _opt_stmt_has_attr(stmt, "oren.arena") || force_iter
+    if parent_forced == true && force != true { return false }
     if _opt_arena_auto_enabled() != true && force != true { return false }
     var body = stmt["body"]
     if body == nil || body["type"] != "Block" {
@@ -1455,6 +1456,10 @@ fn _opt_prepare_loop_arena(block, idx, stmt) {
 }
 
 fn wrap_arena_loops_in_block(block) {
+    return wrap_arena_loops_in_block_inner(block, false)
+}
+
+fn wrap_arena_loops_in_block_inner(block, parent_forced) {
     if block == nil || block["type"] != "Block" { return false }
     var ss = block["stmts"]
     if ss == nil { return false }
@@ -1464,29 +1469,31 @@ fn wrap_arena_loops_in_block(block) {
         var st = ss[i]
         if st != nil {
             if st["type"] == "While" || st["type"] == "For" {
-                if _opt_prepare_loop_arena(block, i, st) { changed = true }
-                if st["body"] != nil { if wrap_arena_loops_in_block(st["body"]) { changed = true } }
+                if _opt_prepare_loop_arena(block, i, st, parent_forced) { changed = true }
+                var loop_forced = _opt_stmt_has_attr(st, "oren.arena") || _opt_stmt_has_attr(st, "oren.arena_iter")
+                var next_forced = parent_forced || loop_forced
+                if st["body"] != nil { if wrap_arena_loops_in_block_inner(st["body"], next_forced) { changed = true } }
             } else if st["type"] == "If" {
-                if st["consq"] != nil && wrap_arena_loops_in_block(st["consq"]) { changed = true }
-                if st["alt"] != nil && wrap_arena_loops_in_block(st["alt"]) { changed = true }
+                if st["consq"] != nil && wrap_arena_loops_in_block_inner(st["consq"], parent_forced) { changed = true }
+                if st["alt"] != nil && wrap_arena_loops_in_block_inner(st["alt"], parent_forced) { changed = true }
             } else if st["type"] == "Block" {
-                if wrap_arena_loops_in_block(st) { changed = true }
+                if wrap_arena_loops_in_block_inner(st, parent_forced) { changed = true }
             } else if st["type"] == "Switch" {
                 var cases = st["cases"]
                 if cases != nil {
                     var ci = 0
                     while ci < oren_list_len(cases) {
                         var c = cases[ci]
-                        if c != nil && wrap_arena_loops_in_block(c["body"]) { changed = true }
+                        if c != nil && wrap_arena_loops_in_block_inner(c["body"], parent_forced) { changed = true }
                         ci = ci + 1
                     }
                 }
-                if st["default"] != nil && wrap_arena_loops_in_block(st["default"]) { changed = true }
+                if st["default"] != nil && wrap_arena_loops_in_block_inner(st["default"], parent_forced) { changed = true }
             } else if st["type"] == "ExprStmt" {
                 var e = st["expr"]
                 if e != nil && e["type"] == "If" {
-                    if wrap_arena_loops_in_block(e["consq"]) { changed = true }
-                    if e["alt"] != nil && wrap_arena_loops_in_block(e["alt"]) { changed = true }
+                    if wrap_arena_loops_in_block_inner(e["consq"], parent_forced) { changed = true }
+                    if e["alt"] != nil && wrap_arena_loops_in_block_inner(e["alt"], parent_forced) { changed = true }
                 }
                 if e != nil && e["type"] == "Switch" {
                     var cases2 = e["cases"]
@@ -1494,11 +1501,11 @@ fn wrap_arena_loops_in_block(block) {
                         var ci2 = 0
                         while ci2 < oren_list_len(cases2) {
                             var c2 = cases2[ci2]
-                            if c2 != nil && wrap_arena_loops_in_block(c2["body"]) { changed = true }
+                            if c2 != nil && wrap_arena_loops_in_block_inner(c2["body"], parent_forced) { changed = true }
                             ci2 = ci2 + 1
                         }
                     }
-                    if e["default"] != nil && wrap_arena_loops_in_block(e["default"]) { changed = true }
+                    if e["default"] != nil && wrap_arena_loops_in_block_inner(e["default"], parent_forced) { changed = true }
                 }
             }
         }

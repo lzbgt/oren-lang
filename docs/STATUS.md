@@ -96,6 +96,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - `continue` is allowed for `while` and `for` loops (post executes outside the arena).
    - Auto-loop now keeps bounded loops truly loop-scoped (push before the loop, pop after); per-iteration
      push/pop is reserved for long-lived loops or `@oren.arena_iter`.
+   - Auto-loop wrapping skips nested loops when an ancestor has explicit `@oren.arena` or `@oren.arena_iter`.
    - `OREN_ARENA_PER_ITER=1` switches auto‑mode to per‑iteration push/pop for long‑lived loops.
    - `@oren.arena_iter` forces per‑iteration push/pop on a loop (even if auto mode is off).
    - Heuristic: loops without a simple literal upper bound default to per‑iteration mode;
