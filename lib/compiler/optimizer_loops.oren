@@ -134,6 +134,7 @@ fn _opt_expr_is_new_list_call(expr) {
     if fn_expr == nil || fn_expr["type"] != "Identifier" { return nil }
     var nm = fn_expr["value"]
     if nm == "oren_new_list" { return "list" }
+    if nm == "oren_list_new_cap" { return "list" }
     if nm == "oren_new_list_int" { return "list_int" }
     return nil
 }
