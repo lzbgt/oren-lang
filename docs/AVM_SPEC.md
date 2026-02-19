@@ -114,6 +114,8 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
 | 0x5C | LIST_SUM_INT_LOOP | - | `[list, idx, n, sum] -> [idx, sum]` | Fused int sum loop: `sum += list[i]` from idx..n. |
 | 0x5D | LIST_SUM3_INT_LOOP | - | `[list_a, list_b, list_c, idx, n, sum] -> [idx, sum]` | Fused int sum loop: `sum += list_a[i] + list_b[i] + list_c[i]` from idx..n. |
 | 0x5E | NEW_LIST_INT | - | `[cap] -> [list_int_or_err]` | Allocate an unboxed `list<int>` with initial capacity `cap` (int); returns error value on invalid cap. |
+| 0x5F | LIST_PUSH2_INT_LOOP | - | `[list_a, list_b, idx, end, mul_a, add_a, mod_a, mul_b, add_b, mod_b] -> [idx]` | Fused int push loop for two lists: `list_a.push((i*mul_a+add_a)%mod_a)` and `list_b.push((i*mul_b+add_b)%mod_b)` from idx..end. |
+| 0x60 | LIST_PUSH3_INT_LOOP | - | `[list_a, list_b, list_c, idx, end, mul_a, add_a, mod_a, mul_b, add_b, mod_b, mul_c, add_c, mod_c] -> [idx]` | Fused int push loop for three lists (per-list linear RHS) from idx..end. |
 | 0x43 | SET_INDEX | - | `[obj, key, val] -> []` | Mutate list/map; list also supports append when `key == len`. |
 | 0x45 | SPAWN_CALL_LIST | - | `[fn, args_list] -> [handle_int]` | Spawn a task calling `fn(args_list...)` (handle is `tid+1`). |
 | 0x54 | SPAWN_CALL_SPREAD | `u16_le fixed` | `[fn, fixed_args..., spread_list] -> [handle_int]` | Spawn a task calling `fn(fixed..., spread...)`. |

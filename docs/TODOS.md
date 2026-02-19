@@ -1059,6 +1059,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
       - `array_sum_int` (2M elems): C 0.004162s; Oren C 0.010820s (~2.60×); Oren native 0.020558s (~4.94×); OBC 0.005169s (~1.24×)
       - `dot_product_int` (2M elems): C 0.005722s; Oren C 0.018668s (~3.26×); Oren native 0.025657s (~4.48×); OBC 0.549362s (~96.01×)
       - `multi_list_push_int` (2M elems): C 0.009375s; Oren C 0.083655s (~8.92×); Oren native 0.034152s (~3.64×); OBC 0.761596s (~81.24×)
+    - multi-list push loop opcodes (LIST_PUSH2_INT_LOOP + LIST_PUSH3_INT_LOOP):
+      - `array_sum_int` (2M elems): C 0.004399s; Oren C 0.011875s (~2.70×); Oren native 0.021051s (~4.79×); OBC 0.005241s (~1.19×)
+      - `dot_product_int` (2M elems): C 0.005468s; Oren C 0.019166s (~3.51×); Oren native 0.026497s (~4.85×); OBC 0.010319s (~1.89×)
+      - `multi_list_push_int` (2M elems): C 0.008529s; Oren C 0.083179s (~9.75×); Oren native 0.032209s (~3.78×); OBC 0.011110s (~1.30×)
     - AVM list<int> push loop (OBC refresh):
       - `array_sum_int` (2M elems): C 0.004327s; Oren C 0.011515s (~2.66×); Oren native 0.020331s (~4.70×); OBC 0.263552s (~60.9×)
       - `dot_product_int` (2M elems): C 0.005524s; Oren C 0.018334s (~3.32×); Oren native 0.025093s (~4.54×); OBC 0.553466s (~100.2×)
@@ -1084,10 +1088,13 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    - 2026-02-18:
     - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
     - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
-  - Next: make OBC dot_product_int + multi_list_push_int use the unboxed list<int> fast paths end-to-end (ensure `LIST_DOT` + push loops operate on list_int values without fallback) to push OBC toward ≤10× C.
+  - Next: close remaining Oren C/native gaps for list<int> loops (still ~2.7–4.8× C); focus on removing per-iter boxing in C backend and reducing native loop overhead.
 
   Artifacts:
 
+  - `benchmarks/results/array_sum_int_darwin_arm64_20260219_123739.md`
+  - `benchmarks/results/dot_product_int_darwin_arm64_20260219_123740.md`
+  - `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_123742.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_122045.md`
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_122046.md`
   - `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_122050.md`
@@ -1126,7 +1133,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
   Status (fact):
 
   - 2026-02-19: AVM gained unboxed list<int> storage + NEW_LIST_INT (0x5E) with snapshot/hash/serialization support; bytecode emits NEW_LIST_INT for `oren_new_list_int`.
-    - Bench impact: OBC `array_sum_int` now ~1.24× C, but `dot_product_int` and `multi_list_push_int` remain far slower (see latest measurements above).
+    - Bench impact: OBC `array_sum_int` now ~1.24× C; multi-list push opcodes bring `dot_product_int` and `multi_list_push_int` near C (see latest measurements above).
   - 2026-02-19: list<int> index syntax now hits native fast-loop hoists after inty propagation update.
     - Compiler: `lib/compiler/arm64_native_expr/000_prelude.oren`, `lib/compiler/x64_native_program/047_emit_float_intrinsics.oren`,
       `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
@@ -1149,6 +1156,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
   - 2026-02-19: fast list<int> push loops now defer list count updates to the end of the loop (no per-iter count store).
     - Compiler: `lib/compiler/transpiler.oren` (fast list<int> push while emit)
   - 2026-02-19: AVM bytecode list<int> push loops now emit `LIST_PUSH_INT_LOOP` for linear RHS with optional `%` (mul/add/mod).
+    - Compiler: `lib/compiler/codegen_bytecode/000_prelude.oren`, `lib/compiler/codegen_bytecode/030_tail.oren`
+    - VM: `lib/avm/avm_vm.c` (opcode implementation), `lib/avm/main.c` (disasm/verify)
+  - 2026-02-19: AVM bytecode emits `LIST_PUSH2_INT_LOOP` / `LIST_PUSH3_INT_LOOP` for multi-list push loops.
     - Compiler: `lib/compiler/codegen_bytecode/000_prelude.oren`, `lib/compiler/codegen_bytecode/030_tail.oren`
     - VM: `lib/avm/avm_vm.c` (opcode implementation), `lib/avm/main.c` (disasm/verify)
   - 2026-02-19: C backend list/map ops skip striped object locks until `spawn` is used (reduces single-thread overhead; main thread wrapper does not enable locks).

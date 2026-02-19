@@ -43,6 +43,8 @@ var AVM_LIST_PUSH_INT_LOOP = 91
 var AVM_LIST_SUM_INT_LOOP = 92
 var AVM_LIST_SUM3_INT_LOOP = 93
 var AVM_NEW_LIST_INT = 94          // 0x5E
+var AVM_LIST_PUSH2_INT_LOOP = 95   // 0x5F
+var AVM_LIST_PUSH3_INT_LOOP = 96   // 0x60
 // Build a list from fixed stack values plus a spread list (rolling).
 // stack: [... fixed_values spread_list] NEW_LIST_SPREAD u16_fixed -> [... list]
 var AVM_NEW_LIST_SPREAD = 86       // 0x56

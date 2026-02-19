@@ -689,6 +689,8 @@ const char* avm_op_name(uint8_t op) {
         case 0x5B: return "LIST_PUSH_INT_LOOP";
         case 0x5C: return "LIST_SUM_INT_LOOP";
         case 0x5D: return "LIST_SUM3_INT_LOOP";
+        case 0x5F: return "LIST_PUSH2_INT_LOOP";
+        case 0x60: return "LIST_PUSH3_INT_LOOP";
         case 0x43: return "SET_INDEX";
         case 0x44: return "CALL_INDIRECT_SPREAD";
         case 0x45: return "SPAWN_CALL_LIST";
@@ -2648,6 +2650,328 @@ list_dot_push:
                                     v = v % mod;
                                 }
                                 list->items[list->count++] = avm_int(v);
+                            }
+                        }
+                        final_i = end;
+                    }
+                    vm->stack[vm->sp++] = avm_int(final_i);
+                }
+                break;
+            }
+            case 0x5F: { // LIST_PUSH2_INT_LOOP
+                if (vm->sp >= 10) {
+                    AvmValue modb = vm->stack[--vm->sp];
+                    AvmValue addb = vm->stack[--vm->sp];
+                    AvmValue mulb = vm->stack[--vm->sp];
+                    AvmValue moda = vm->stack[--vm->sp];
+                    AvmValue adda = vm->stack[--vm->sp];
+                    AvmValue mula = vm->stack[--vm->sp];
+                    AvmValue endv = vm->stack[--vm->sp];
+                    AvmValue idxv = vm->stack[--vm->sp];
+                    AvmValue list_b = vm->stack[--vm->sp];
+                    AvmValue list_a = vm->stack[--vm->sp];
+                    if (idxv.type != AVM_VAL_INT || endv.type != AVM_VAL_INT ||
+                        mula.type != AVM_VAL_INT || adda.type != AVM_VAL_INT ||
+                        moda.type != AVM_VAL_INT || mulb.type != AVM_VAL_INT ||
+                        addb.type != AVM_VAL_INT || modb.type != AVM_VAL_INT) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push2_loop expects (list_a, list_b, idx, end, mul_a, add_a, mod_a, mul_b, add_b, mod_b)");
+                        break;
+                    }
+                    int use_list_int_a = (list_a.type == AVM_VAL_LIST_INT && list_a.as.li);
+                    int use_list_int_b = (list_b.type == AVM_VAL_LIST_INT && list_b.as.li);
+                    if (!use_list_int_a && (list_a.type != AVM_VAL_LIST || !list_a.as.l)) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push2_loop expects list_a");
+                        break;
+                    }
+                    if (!use_list_int_b && (list_b.type != AVM_VAL_LIST || !list_b.as.l)) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push2_loop expects list_b");
+                        break;
+                    }
+                    if (use_list_int_a && use_list_int_b && list_a.as.li == list_b.as.li) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push2_loop expects distinct lists");
+                        break;
+                    }
+                    if (!use_list_int_a && !use_list_int_b && list_a.as.l == list_b.as.l) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push2_loop expects distinct lists");
+                        break;
+                    }
+                    int64_t i = idxv.as.i;
+                    int64_t end = endv.as.i;
+                    int64_t mul_a = mula.as.i;
+                    int64_t add_a = adda.as.i;
+                    int64_t mod_a = moda.as.i;
+                    int64_t mul_b = mulb.as.i;
+                    int64_t add_b = addb.as.i;
+                    int64_t mod_b = modb.as.i;
+                    int64_t final_i = i;
+                    if (mod_a < 0 || mod_b < 0) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push2_loop mod must be >= 0");
+                        break;
+                    }
+                    if (i < end) {
+                        int64_t iters = end - i;
+                        int64_t cur_a = use_list_int_a ? (int64_t)list_a.as.li->count : (int64_t)list_a.as.l->count;
+                        int64_t cur_b = use_list_int_b ? (int64_t)list_b.as.li->count : (int64_t)list_b.as.l->count;
+                        int64_t new_a = cur_a + iters;
+                        int64_t new_b = cur_b + iters;
+                        if (new_a > (int64_t)INT_MAX || new_b > (int64_t)INT_MAX) {
+                            AvmValue e = avm_err(AVM_ERR_INVALID_ARG, "list_int_push2_loop size overflow");
+                            avm_abort(vm, e);
+                            vm->stack[vm->sp++] = e;
+                            break;
+                        }
+                        if (use_list_int_a) {
+                            if (list_a.as.li->capacity < (int)new_a) {
+                                if (!avm_list_int_ensure_cap(list_a.as.li, (int)new_a)) {
+                                    AvmValue e = avm_alloc_fail_value();
+                                    avm_abort(vm, e);
+                                    vm->stack[vm->sp++] = e;
+                                    break;
+                                }
+                            }
+                        } else {
+                            AvmList* la = list_a.as.l;
+                            if (la->count == 0) la->all_int = 1;
+                            if (la->capacity < (int)new_a) {
+                                if (!avm_list_ensure_cap(la, (int)new_a)) {
+                                    AvmValue e = avm_alloc_fail_value();
+                                    avm_abort(vm, e);
+                                    vm->stack[vm->sp++] = e;
+                                    break;
+                                }
+                            }
+                        }
+                        if (use_list_int_b) {
+                            if (list_b.as.li->capacity < (int)new_b) {
+                                if (!avm_list_int_ensure_cap(list_b.as.li, (int)new_b)) {
+                                    AvmValue e = avm_alloc_fail_value();
+                                    avm_abort(vm, e);
+                                    vm->stack[vm->sp++] = e;
+                                    break;
+                                }
+                            }
+                        } else {
+                            AvmList* lb = list_b.as.l;
+                            if (lb->count == 0) lb->all_int = 1;
+                            if (lb->capacity < (int)new_b) {
+                                if (!avm_list_ensure_cap(lb, (int)new_b)) {
+                                    AvmValue e = avm_alloc_fail_value();
+                                    avm_abort(vm, e);
+                                    vm->stack[vm->sp++] = e;
+                                    break;
+                                }
+                            }
+                        }
+                        for (; i < end; i++) {
+                            int64_t va = avm_i64_add_wrap(avm_i64_mul_wrap(i, mul_a), add_a);
+                            if (mod_a > 0) {
+                                va = va % mod_a;
+                            }
+                            int64_t vb = avm_i64_add_wrap(avm_i64_mul_wrap(i, mul_b), add_b);
+                            if (mod_b > 0) {
+                                vb = vb % mod_b;
+                            }
+                            if (use_list_int_a) {
+                                list_a.as.li->items[list_a.as.li->count++] = va;
+                            } else {
+                                list_a.as.l->items[list_a.as.l->count++] = avm_int(va);
+                            }
+                            if (use_list_int_b) {
+                                list_b.as.li->items[list_b.as.li->count++] = vb;
+                            } else {
+                                list_b.as.l->items[list_b.as.l->count++] = avm_int(vb);
+                            }
+                        }
+                        final_i = end;
+                    }
+                    vm->stack[vm->sp++] = avm_int(final_i);
+                }
+                break;
+            }
+            case 0x60: { // LIST_PUSH3_INT_LOOP
+                if (vm->sp >= 14) {
+                    AvmValue modc = vm->stack[--vm->sp];
+                    AvmValue addc = vm->stack[--vm->sp];
+                    AvmValue mulc = vm->stack[--vm->sp];
+                    AvmValue modb = vm->stack[--vm->sp];
+                    AvmValue addb = vm->stack[--vm->sp];
+                    AvmValue mulb = vm->stack[--vm->sp];
+                    AvmValue moda = vm->stack[--vm->sp];
+                    AvmValue adda = vm->stack[--vm->sp];
+                    AvmValue mula = vm->stack[--vm->sp];
+                    AvmValue endv = vm->stack[--vm->sp];
+                    AvmValue idxv = vm->stack[--vm->sp];
+                    AvmValue list_c = vm->stack[--vm->sp];
+                    AvmValue list_b = vm->stack[--vm->sp];
+                    AvmValue list_a = vm->stack[--vm->sp];
+                    if (idxv.type != AVM_VAL_INT || endv.type != AVM_VAL_INT ||
+                        mula.type != AVM_VAL_INT || adda.type != AVM_VAL_INT ||
+                        moda.type != AVM_VAL_INT || mulb.type != AVM_VAL_INT ||
+                        addb.type != AVM_VAL_INT || modb.type != AVM_VAL_INT ||
+                        mulc.type != AVM_VAL_INT || addc.type != AVM_VAL_INT ||
+                        modc.type != AVM_VAL_INT) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push3_loop expects (list_a, list_b, list_c, idx, end, mul_a, add_a, mod_a, mul_b, add_b, mod_b, mul_c, add_c, mod_c)");
+                        break;
+                    }
+                    int use_list_int_a = (list_a.type == AVM_VAL_LIST_INT && list_a.as.li);
+                    int use_list_int_b = (list_b.type == AVM_VAL_LIST_INT && list_b.as.li);
+                    int use_list_int_c = (list_c.type == AVM_VAL_LIST_INT && list_c.as.li);
+                    if (!use_list_int_a && (list_a.type != AVM_VAL_LIST || !list_a.as.l)) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push3_loop expects list_a");
+                        break;
+                    }
+                    if (!use_list_int_b && (list_b.type != AVM_VAL_LIST || !list_b.as.l)) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push3_loop expects list_b");
+                        break;
+                    }
+                    if (!use_list_int_c && (list_c.type != AVM_VAL_LIST || !list_c.as.l)) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push3_loop expects list_c");
+                        break;
+                    }
+                    if (use_list_int_a && use_list_int_b && list_a.as.li == list_b.as.li) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push3_loop expects distinct lists");
+                        break;
+                    }
+                    if (use_list_int_a && use_list_int_c && list_a.as.li == list_c.as.li) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push3_loop expects distinct lists");
+                        break;
+                    }
+                    if (use_list_int_b && use_list_int_c && list_b.as.li == list_c.as.li) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push3_loop expects distinct lists");
+                        break;
+                    }
+                    if (!use_list_int_a && !use_list_int_b && list_a.as.l == list_b.as.l) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push3_loop expects distinct lists");
+                        break;
+                    }
+                    if (!use_list_int_a && !use_list_int_c && list_a.as.l == list_c.as.l) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push3_loop expects distinct lists");
+                        break;
+                    }
+                    if (!use_list_int_b && !use_list_int_c && list_b.as.l == list_c.as.l) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push3_loop expects distinct lists");
+                        break;
+                    }
+                    int64_t i = idxv.as.i;
+                    int64_t end = endv.as.i;
+                    int64_t mul_a = mula.as.i;
+                    int64_t add_a = adda.as.i;
+                    int64_t mod_a = moda.as.i;
+                    int64_t mul_b = mulb.as.i;
+                    int64_t add_b = addb.as.i;
+                    int64_t mod_b = modb.as.i;
+                    int64_t mul_c = mulc.as.i;
+                    int64_t add_c = addc.as.i;
+                    int64_t mod_c = modc.as.i;
+                    int64_t final_i = i;
+                    if (mod_a < 0 || mod_b < 0 || mod_c < 0) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push3_loop mod must be >= 0");
+                        break;
+                    }
+                    if (i < end) {
+                        int64_t iters = end - i;
+                        int64_t cur_a = use_list_int_a ? (int64_t)list_a.as.li->count : (int64_t)list_a.as.l->count;
+                        int64_t cur_b = use_list_int_b ? (int64_t)list_b.as.li->count : (int64_t)list_b.as.l->count;
+                        int64_t cur_c = use_list_int_c ? (int64_t)list_c.as.li->count : (int64_t)list_c.as.l->count;
+                        int64_t new_a = cur_a + iters;
+                        int64_t new_b = cur_b + iters;
+                        int64_t new_c = cur_c + iters;
+                        if (new_a > (int64_t)INT_MAX || new_b > (int64_t)INT_MAX || new_c > (int64_t)INT_MAX) {
+                            AvmValue e = avm_err(AVM_ERR_INVALID_ARG, "list_int_push3_loop size overflow");
+                            avm_abort(vm, e);
+                            vm->stack[vm->sp++] = e;
+                            break;
+                        }
+                        if (use_list_int_a) {
+                            if (list_a.as.li->capacity < (int)new_a) {
+                                if (!avm_list_int_ensure_cap(list_a.as.li, (int)new_a)) {
+                                    AvmValue e = avm_alloc_fail_value();
+                                    avm_abort(vm, e);
+                                    vm->stack[vm->sp++] = e;
+                                    break;
+                                }
+                            }
+                        } else {
+                            AvmList* la = list_a.as.l;
+                            if (la->count == 0) la->all_int = 1;
+                            if (la->capacity < (int)new_a) {
+                                if (!avm_list_ensure_cap(la, (int)new_a)) {
+                                    AvmValue e = avm_alloc_fail_value();
+                                    avm_abort(vm, e);
+                                    vm->stack[vm->sp++] = e;
+                                    break;
+                                }
+                            }
+                        }
+                        if (use_list_int_b) {
+                            if (list_b.as.li->capacity < (int)new_b) {
+                                if (!avm_list_int_ensure_cap(list_b.as.li, (int)new_b)) {
+                                    AvmValue e = avm_alloc_fail_value();
+                                    avm_abort(vm, e);
+                                    vm->stack[vm->sp++] = e;
+                                    break;
+                                }
+                            }
+                        } else {
+                            AvmList* lb = list_b.as.l;
+                            if (lb->count == 0) lb->all_int = 1;
+                            if (lb->capacity < (int)new_b) {
+                                if (!avm_list_ensure_cap(lb, (int)new_b)) {
+                                    AvmValue e = avm_alloc_fail_value();
+                                    avm_abort(vm, e);
+                                    vm->stack[vm->sp++] = e;
+                                    break;
+                                }
+                            }
+                        }
+                        if (use_list_int_c) {
+                            if (list_c.as.li->capacity < (int)new_c) {
+                                if (!avm_list_int_ensure_cap(list_c.as.li, (int)new_c)) {
+                                    AvmValue e = avm_alloc_fail_value();
+                                    avm_abort(vm, e);
+                                    vm->stack[vm->sp++] = e;
+                                    break;
+                                }
+                            }
+                        } else {
+                            AvmList* lc = list_c.as.l;
+                            if (lc->count == 0) lc->all_int = 1;
+                            if (lc->capacity < (int)new_c) {
+                                if (!avm_list_ensure_cap(lc, (int)new_c)) {
+                                    AvmValue e = avm_alloc_fail_value();
+                                    avm_abort(vm, e);
+                                    vm->stack[vm->sp++] = e;
+                                    break;
+                                }
+                            }
+                        }
+                        for (; i < end; i++) {
+                            int64_t va = avm_i64_add_wrap(avm_i64_mul_wrap(i, mul_a), add_a);
+                            if (mod_a > 0) {
+                                va = va % mod_a;
+                            }
+                            int64_t vb = avm_i64_add_wrap(avm_i64_mul_wrap(i, mul_b), add_b);
+                            if (mod_b > 0) {
+                                vb = vb % mod_b;
+                            }
+                            int64_t vc = avm_i64_add_wrap(avm_i64_mul_wrap(i, mul_c), add_c);
+                            if (mod_c > 0) {
+                                vc = vc % mod_c;
+                            }
+                            if (use_list_int_a) {
+                                list_a.as.li->items[list_a.as.li->count++] = va;
+                            } else {
+                                list_a.as.l->items[list_a.as.l->count++] = avm_int(va);
+                            }
+                            if (use_list_int_b) {
+                                list_b.as.li->items[list_b.as.li->count++] = vb;
+                            } else {
+                                list_b.as.l->items[list_b.as.l->count++] = avm_int(vb);
+                            }
+                            if (use_list_int_c) {
+                                list_c.as.li->items[list_c.as.li->count++] = vc;
+                            } else {
+                                list_c.as.l->items[list_c.as.l->count++] = avm_int(vc);
                             }
                         }
                         final_i = end;

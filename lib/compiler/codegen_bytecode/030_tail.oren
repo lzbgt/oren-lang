@@ -326,6 +326,142 @@ fn bytecode_try_emit_list_int_push_loop(ctx, stmt) {
     return true
 }
 
+fn bytecode_try_emit_list_int_push2_loop(ctx, stmt) {
+    if stmt == nil || stmt["type"] != "While" { return false }
+    var cond = stmt["cond"]
+    if cond == nil || cond["type"] != "Infix" || cond["op"] != "<" { return false }
+    var idx_ident = cond["left"]
+    var n_ident = cond["right"]
+    if _bc_is_ident(idx_ident, nil) != true { return false }
+    if _bc_is_ident(n_ident, nil) != true { return false }
+    var idx_name = idx_ident["value"]
+    var n_name = n_ident["value"]
+    if idx_name == nil || n_name == nil { return false }
+
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return false }
+    var stmts = body["stmts"]
+    if stmts == nil || oren_list_len(stmts) != 3 { return false }
+    if _bc_match_simple_inc(stmts[2], idx_name) != true { return false }
+
+    var push_a = stmts[0]
+    var push_b = stmts[1]
+    if push_a == nil || push_a["type"] != "ExprStmt" { return false }
+    if push_b == nil || push_b["type"] != "ExprStmt" { return false }
+    var info_a = _bc_match_list_int_push_call(ctx, push_a["expr"])
+    var info_b = _bc_match_list_int_push_call(ctx, push_b["expr"])
+    if info_a == nil || info_b == nil { return false }
+    var list_a = info_a["list"]
+    var list_b = info_b["list"]
+    if list_a == nil || list_b == nil { return false }
+    if list_a == list_b { return false }
+    var rhs_a = _bc_parse_nonneg_linear(info_a["value"], idx_name)
+    var rhs_b = _bc_parse_nonneg_linear(info_b["value"], idx_name)
+    if rhs_a == nil || rhs_b == nil { return false }
+
+    var caps = ctx["env_captures"]
+    if caps != nil {
+        if oren_type_tag(caps[idx_name]) != 0 { return false }
+        if oren_type_tag(caps[n_name]) != 0 { return false }
+        if oren_type_tag(caps[list_a]) != 0 { return false }
+        if oren_type_tag(caps[list_b]) != 0 { return false }
+    }
+    if oren_type_tag(ctx["locals"][idx_name]) == 0 && oren_type_tag(ctx["globals"][idx_name]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][n_name]) == 0 && oren_type_tag(ctx["globals"][n_name]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][list_a]) == 0 && oren_type_tag(ctx["globals"][list_a]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][list_b]) == 0 && oren_type_tag(ctx["globals"][list_b]) == 0 { return false }
+
+    var list_a_ident = {"type": "Identifier", "value": list_a}
+    var list_b_ident = {"type": "Identifier", "value": list_b}
+    bytecode_compile_expr(ctx, list_a_ident)
+    bytecode_compile_expr(ctx, list_b_ident)
+    bytecode_compile_expr(ctx, idx_ident)
+    bytecode_compile_expr(ctx, n_ident)
+    _bc_push_int_const(ctx, rhs_a["mul"])
+    _bc_push_int_const(ctx, rhs_a["add"])
+    _bc_push_int_const(ctx, rhs_a["mod"])
+    _bc_push_int_const(ctx, rhs_b["mul"])
+    _bc_push_int_const(ctx, rhs_b["add"])
+    _bc_push_int_const(ctx, rhs_b["mod"])
+    emit_byte(ctx, AVM_LIST_PUSH2_INT_LOOP)
+    _bc_emit_store_ident(ctx, idx_ident)
+    return true
+}
+
+fn bytecode_try_emit_list_int_push3_loop(ctx, stmt) {
+    if stmt == nil || stmt["type"] != "While" { return false }
+    var cond = stmt["cond"]
+    if cond == nil || cond["type"] != "Infix" || cond["op"] != "<" { return false }
+    var idx_ident = cond["left"]
+    var n_ident = cond["right"]
+    if _bc_is_ident(idx_ident, nil) != true { return false }
+    if _bc_is_ident(n_ident, nil) != true { return false }
+    var idx_name = idx_ident["value"]
+    var n_name = n_ident["value"]
+    if idx_name == nil || n_name == nil { return false }
+
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return false }
+    var stmts = body["stmts"]
+    if stmts == nil || oren_list_len(stmts) != 4 { return false }
+    if _bc_match_simple_inc(stmts[3], idx_name) != true { return false }
+
+    var push_a = stmts[0]
+    var push_b = stmts[1]
+    var push_c = stmts[2]
+    if push_a == nil || push_a["type"] != "ExprStmt" { return false }
+    if push_b == nil || push_b["type"] != "ExprStmt" { return false }
+    if push_c == nil || push_c["type"] != "ExprStmt" { return false }
+    var info_a = _bc_match_list_int_push_call(ctx, push_a["expr"])
+    var info_b = _bc_match_list_int_push_call(ctx, push_b["expr"])
+    var info_c = _bc_match_list_int_push_call(ctx, push_c["expr"])
+    if info_a == nil || info_b == nil || info_c == nil { return false }
+    var list_a = info_a["list"]
+    var list_b = info_b["list"]
+    var list_c = info_c["list"]
+    if list_a == nil || list_b == nil || list_c == nil { return false }
+    if list_a == list_b || list_a == list_c || list_b == list_c { return false }
+    var rhs_a = _bc_parse_nonneg_linear(info_a["value"], idx_name)
+    var rhs_b = _bc_parse_nonneg_linear(info_b["value"], idx_name)
+    var rhs_c = _bc_parse_nonneg_linear(info_c["value"], idx_name)
+    if rhs_a == nil || rhs_b == nil || rhs_c == nil { return false }
+
+    var caps = ctx["env_captures"]
+    if caps != nil {
+        if oren_type_tag(caps[idx_name]) != 0 { return false }
+        if oren_type_tag(caps[n_name]) != 0 { return false }
+        if oren_type_tag(caps[list_a]) != 0 { return false }
+        if oren_type_tag(caps[list_b]) != 0 { return false }
+        if oren_type_tag(caps[list_c]) != 0 { return false }
+    }
+    if oren_type_tag(ctx["locals"][idx_name]) == 0 && oren_type_tag(ctx["globals"][idx_name]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][n_name]) == 0 && oren_type_tag(ctx["globals"][n_name]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][list_a]) == 0 && oren_type_tag(ctx["globals"][list_a]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][list_b]) == 0 && oren_type_tag(ctx["globals"][list_b]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][list_c]) == 0 && oren_type_tag(ctx["globals"][list_c]) == 0 { return false }
+
+    var list_a_ident = {"type": "Identifier", "value": list_a}
+    var list_b_ident = {"type": "Identifier", "value": list_b}
+    var list_c_ident = {"type": "Identifier", "value": list_c}
+    bytecode_compile_expr(ctx, list_a_ident)
+    bytecode_compile_expr(ctx, list_b_ident)
+    bytecode_compile_expr(ctx, list_c_ident)
+    bytecode_compile_expr(ctx, idx_ident)
+    bytecode_compile_expr(ctx, n_ident)
+    _bc_push_int_const(ctx, rhs_a["mul"])
+    _bc_push_int_const(ctx, rhs_a["add"])
+    _bc_push_int_const(ctx, rhs_a["mod"])
+    _bc_push_int_const(ctx, rhs_b["mul"])
+    _bc_push_int_const(ctx, rhs_b["add"])
+    _bc_push_int_const(ctx, rhs_b["mod"])
+    _bc_push_int_const(ctx, rhs_c["mul"])
+    _bc_push_int_const(ctx, rhs_c["add"])
+    _bc_push_int_const(ctx, rhs_c["mod"])
+    emit_byte(ctx, AVM_LIST_PUSH3_INT_LOOP)
+    _bc_emit_store_ident(ctx, idx_ident)
+    return true
+}
+
 fn bytecode_try_emit_list_sum_loop(ctx, stmt) {
     if stmt == nil || stmt["type"] != "While" { return false }
     var cond = stmt["cond"]
@@ -676,6 +812,8 @@ fn bytecode_compile_stmt(ctx, stmt) {
     }
     
     if stmt["type"] == "While" {
+        if bytecode_try_emit_list_int_push3_loop(ctx, stmt) == true { return nil }
+        if bytecode_try_emit_list_int_push2_loop(ctx, stmt) == true { return nil }
         if bytecode_try_emit_list_int_push_loop(ctx, stmt) == true { return nil }
         if bytecode_try_emit_list_sum3_loop(ctx, stmt) == true { return nil }
         if bytecode_try_emit_list_sum_loop(ctx, stmt) == true { return nil }
