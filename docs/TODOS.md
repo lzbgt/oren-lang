@@ -324,6 +324,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		     - 2026-02-19: added `GET_INDEX_LIST` (opcode 0x57) and emit it when `recv_kind` is list/list_int (bytecode backend); no meaningful improvement alone.
 		     - 2026-02-19: added fused `LIST_DOT` (opcode 0x58) for `sum += a[i]*b[i]` loops; OBC dot_product now ~0.586s on M2 Pro.
 		     - Next: consider widening LIST_DOT for typed buffers (i32/f64) or a list<int> specialization to reduce per-iteration type checks further.
+		     - Next: AVM `oren_write_bytes` should accept `u8_buf` to avoid list fallback during bytecode emission (compiler-in-AVM throughput).
 			  - (P1/S) **multi_list_push_int regression guard**
 			    - Latest (runs=5): C 0.00832s, Oren C 0.0792s (~9.52×), Oren native 0.0312s (~3.75×), OBC 1.227s (~147.55×).
 			      - Result: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_064308.md`
