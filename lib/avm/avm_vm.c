@@ -3048,95 +3048,186 @@ list_dot_push:
                                 uint64_t end_u = (uint64_t)end;
                                 uint64_t x_u = (uint64_t)x;
                                 uint64_t sum_u = (uint64_t)sum;
-                                uint64_t mod_m = avm_fastmod_prepare_u64(mod_u);
-                                uint64_t modx_m = avm_fastmod_prepare_u64(modx_u);
-                                uint64_t modi_m = avm_fastmod_prepare_u64(modi_u);
-                                uint64_t i_mod = avm_fastmod_u64(i_u, modi_u, modi_m);
-                                int fast_sum = (modx_u + modi_u <= mod_u);
-                                if (i_u < end_u) {
-                                    if (fast_sum) {
-                                        for (; end_u - i_u >= 4;) {
-                                            uint64_t x_next0 = x_u * mul_u + add_u;
-                                            x_u = avm_fastmod_u64(x_next0, mod_u, mod_m);
-                                            uint64_t term_x0 = avm_fastmod_u64(x_u, modx_u, modx_m);
-                                            uint64_t term_i0 = i_mod;
-                                            sum_u = sum_u + term_x0 + term_i0;
-                                            if (sum_u >= mod_u) {
-                                                sum_u -= mod_u;
-                                            }
-                                            i_mod++;
-                                            if (i_mod >= modi_u) {
-                                                i_mod = 0;
-                                            }
-                                            i_u++;
+                                if (mod_u <= UINT32_MAX && modx_u <= UINT32_MAX && modi_u <= UINT32_MAX &&
+                                    mul_u <= UINT32_MAX && add_u <= UINT32_MAX &&
+                                    i_u <= UINT32_MAX && end_u <= UINT32_MAX &&
+                                    x_u <= UINT32_MAX && sum_u <= UINT32_MAX) {
+                                    uint32_t mod32 = (uint32_t)mod_u;
+                                    uint32_t modx32 = (uint32_t)modx_u;
+                                    uint32_t modi32 = (uint32_t)modi_u;
+                                    uint32_t mul32 = (uint32_t)mul_u;
+                                    uint32_t add32 = (uint32_t)add_u;
+                                    uint32_t i32 = (uint32_t)i_u;
+                                    uint32_t end32 = (uint32_t)end_u;
+                                    uint32_t x32 = (uint32_t)x_u;
+                                    uint32_t sum32 = (uint32_t)sum_u;
+                                    uint32_t i_mod32 = (modi32 == 0) ? 0u : (uint32_t)((uint64_t)i32 % (uint64_t)modi32);
+                                    int fast_sum32 = ((uint64_t)modx32 + (uint64_t)modi32 <= (uint64_t)mod32);
+                                    if (i32 < end32) {
+                                        if (fast_sum32) {
+                                            for (; (uint32_t)(end32 - i32) >= 4u;) {
+                                                uint64_t x_next0 = (uint64_t)x32 * (uint64_t)mul32 + (uint64_t)add32;
+                                                x32 = (uint32_t)(x_next0 % (uint64_t)mod32);
+                                                uint32_t term_x0 = (uint32_t)((uint64_t)x32 % (uint64_t)modx32);
+                                                uint32_t term_i0 = i_mod32;
+                                                uint64_t sum_next0 = (uint64_t)sum32 + (uint64_t)term_x0 + (uint64_t)term_i0;
+                                                if (sum_next0 >= (uint64_t)mod32) sum_next0 -= (uint64_t)mod32;
+                                                sum32 = (uint32_t)sum_next0;
+                                                i_mod32++;
+                                                if (i_mod32 >= modi32) i_mod32 = 0;
+                                                i32++;
 
-                                            uint64_t x_next1 = x_u * mul_u + add_u;
-                                            x_u = avm_fastmod_u64(x_next1, mod_u, mod_m);
-                                            uint64_t term_x1 = avm_fastmod_u64(x_u, modx_u, modx_m);
-                                            uint64_t term_i1 = i_mod;
-                                            sum_u = sum_u + term_x1 + term_i1;
-                                            if (sum_u >= mod_u) {
-                                                sum_u -= mod_u;
-                                            }
-                                            i_mod++;
-                                            if (i_mod >= modi_u) {
-                                                i_mod = 0;
-                                            }
-                                            i_u++;
+                                                uint64_t x_next1 = (uint64_t)x32 * (uint64_t)mul32 + (uint64_t)add32;
+                                                x32 = (uint32_t)(x_next1 % (uint64_t)mod32);
+                                                uint32_t term_x1 = (uint32_t)((uint64_t)x32 % (uint64_t)modx32);
+                                                uint32_t term_i1 = i_mod32;
+                                                uint64_t sum_next1 = (uint64_t)sum32 + (uint64_t)term_x1 + (uint64_t)term_i1;
+                                                if (sum_next1 >= (uint64_t)mod32) sum_next1 -= (uint64_t)mod32;
+                                                sum32 = (uint32_t)sum_next1;
+                                                i_mod32++;
+                                                if (i_mod32 >= modi32) i_mod32 = 0;
+                                                i32++;
 
-                                            uint64_t x_next2 = x_u * mul_u + add_u;
-                                            x_u = avm_fastmod_u64(x_next2, mod_u, mod_m);
-                                            uint64_t term_x2 = avm_fastmod_u64(x_u, modx_u, modx_m);
-                                            uint64_t term_i2 = i_mod;
-                                            sum_u = sum_u + term_x2 + term_i2;
-                                            if (sum_u >= mod_u) {
-                                                sum_u -= mod_u;
-                                            }
-                                            i_mod++;
-                                            if (i_mod >= modi_u) {
-                                                i_mod = 0;
-                                            }
-                                            i_u++;
+                                                uint64_t x_next2 = (uint64_t)x32 * (uint64_t)mul32 + (uint64_t)add32;
+                                                x32 = (uint32_t)(x_next2 % (uint64_t)mod32);
+                                                uint32_t term_x2 = (uint32_t)((uint64_t)x32 % (uint64_t)modx32);
+                                                uint32_t term_i2 = i_mod32;
+                                                uint64_t sum_next2 = (uint64_t)sum32 + (uint64_t)term_x2 + (uint64_t)term_i2;
+                                                if (sum_next2 >= (uint64_t)mod32) sum_next2 -= (uint64_t)mod32;
+                                                sum32 = (uint32_t)sum_next2;
+                                                i_mod32++;
+                                                if (i_mod32 >= modi32) i_mod32 = 0;
+                                                i32++;
 
-                                            uint64_t x_next3 = x_u * mul_u + add_u;
-                                            x_u = avm_fastmod_u64(x_next3, mod_u, mod_m);
-                                            uint64_t term_x3 = avm_fastmod_u64(x_u, modx_u, modx_m);
-                                            uint64_t term_i3 = i_mod;
-                                            sum_u = sum_u + term_x3 + term_i3;
-                                            if (sum_u >= mod_u) {
-                                                sum_u -= mod_u;
+                                                uint64_t x_next3 = (uint64_t)x32 * (uint64_t)mul32 + (uint64_t)add32;
+                                                x32 = (uint32_t)(x_next3 % (uint64_t)mod32);
+                                                uint32_t term_x3 = (uint32_t)((uint64_t)x32 % (uint64_t)modx32);
+                                                uint32_t term_i3 = i_mod32;
+                                                uint64_t sum_next3 = (uint64_t)sum32 + (uint64_t)term_x3 + (uint64_t)term_i3;
+                                                if (sum_next3 >= (uint64_t)mod32) sum_next3 -= (uint64_t)mod32;
+                                                sum32 = (uint32_t)sum_next3;
+                                                i_mod32++;
+                                                if (i_mod32 >= modi32) i_mod32 = 0;
+                                                i32++;
                                             }
-                                            i_mod++;
-                                            if (i_mod >= modi_u) {
-                                                i_mod = 0;
+                                            for (; i32 < end32; i32++) {
+                                                uint64_t x_next = (uint64_t)x32 * (uint64_t)mul32 + (uint64_t)add32;
+                                                x32 = (uint32_t)(x_next % (uint64_t)mod32);
+                                                uint32_t term_x = (uint32_t)((uint64_t)x32 % (uint64_t)modx32);
+                                                uint32_t term_i = i_mod32;
+                                                uint64_t sum_next = (uint64_t)sum32 + (uint64_t)term_x + (uint64_t)term_i;
+                                                if (sum_next >= (uint64_t)mod32) sum_next -= (uint64_t)mod32;
+                                                sum32 = (uint32_t)sum_next;
+                                                i_mod32++;
+                                                if (i_mod32 >= modi32) i_mod32 = 0;
                                             }
-                                            i_u++;
+                                        } else {
+                                            for (; i32 < end32; i32++) {
+                                                uint64_t x_next = (uint64_t)x32 * (uint64_t)mul32 + (uint64_t)add32;
+                                                x32 = (uint32_t)(x_next % (uint64_t)mod32);
+                                                uint32_t term_x = (uint32_t)((uint64_t)x32 % (uint64_t)modx32);
+                                                uint32_t term_i = i_mod32;
+                                                uint64_t sum_next = (uint64_t)sum32 + (uint64_t)term_x + (uint64_t)term_i;
+                                                sum32 = (uint32_t)(sum_next % (uint64_t)mod32);
+                                                i_mod32++;
+                                                if (i_mod32 >= modi32) i_mod32 = 0;
+                                            }
                                         }
-                                        for (; i_u < end_u; i_u++) {
-                                            uint64_t x_next = x_u * mul_u + add_u;
-                                            x_u = avm_fastmod_u64(x_next, mod_u, mod_m);
-                                            uint64_t term_x = avm_fastmod_u64(x_u, modx_u, modx_m);
-                                            uint64_t term_i = i_mod;
-                                            sum_u = sum_u + term_x + term_i;
-                                            if (sum_u >= mod_u) {
-                                                sum_u -= mod_u;
+                                    }
+                                    i_u = (uint64_t)i32;
+                                    sum_u = (uint64_t)sum32;
+                                    x_u = (uint64_t)x32;
+                                } else {
+                                    uint64_t mod_m = avm_fastmod_prepare_u64(mod_u);
+                                    uint64_t modx_m = avm_fastmod_prepare_u64(modx_u);
+                                    uint64_t modi_m = avm_fastmod_prepare_u64(modi_u);
+                                    uint64_t i_mod = avm_fastmod_u64(i_u, modi_u, modi_m);
+                                    int fast_sum = (modx_u + modi_u <= mod_u);
+                                    if (i_u < end_u) {
+                                        if (fast_sum) {
+                                            for (; end_u - i_u >= 4;) {
+                                                uint64_t x_next0 = x_u * mul_u + add_u;
+                                                x_u = avm_fastmod_u64(x_next0, mod_u, mod_m);
+                                                uint64_t term_x0 = avm_fastmod_u64(x_u, modx_u, modx_m);
+                                                uint64_t term_i0 = i_mod;
+                                                sum_u = sum_u + term_x0 + term_i0;
+                                                if (sum_u >= mod_u) {
+                                                    sum_u -= mod_u;
+                                                }
+                                                i_mod++;
+                                                if (i_mod >= modi_u) {
+                                                    i_mod = 0;
+                                                }
+                                                i_u++;
+
+                                                uint64_t x_next1 = x_u * mul_u + add_u;
+                                                x_u = avm_fastmod_u64(x_next1, mod_u, mod_m);
+                                                uint64_t term_x1 = avm_fastmod_u64(x_u, modx_u, modx_m);
+                                                uint64_t term_i1 = i_mod;
+                                                sum_u = sum_u + term_x1 + term_i1;
+                                                if (sum_u >= mod_u) {
+                                                    sum_u -= mod_u;
+                                                }
+                                                i_mod++;
+                                                if (i_mod >= modi_u) {
+                                                    i_mod = 0;
+                                                }
+                                                i_u++;
+
+                                                uint64_t x_next2 = x_u * mul_u + add_u;
+                                                x_u = avm_fastmod_u64(x_next2, mod_u, mod_m);
+                                                uint64_t term_x2 = avm_fastmod_u64(x_u, modx_u, modx_m);
+                                                uint64_t term_i2 = i_mod;
+                                                sum_u = sum_u + term_x2 + term_i2;
+                                                if (sum_u >= mod_u) {
+                                                    sum_u -= mod_u;
+                                                }
+                                                i_mod++;
+                                                if (i_mod >= modi_u) {
+                                                    i_mod = 0;
+                                                }
+                                                i_u++;
+
+                                                uint64_t x_next3 = x_u * mul_u + add_u;
+                                                x_u = avm_fastmod_u64(x_next3, mod_u, mod_m);
+                                                uint64_t term_x3 = avm_fastmod_u64(x_u, modx_u, modx_m);
+                                                uint64_t term_i3 = i_mod;
+                                                sum_u = sum_u + term_x3 + term_i3;
+                                                if (sum_u >= mod_u) {
+                                                    sum_u -= mod_u;
+                                                }
+                                                i_mod++;
+                                                if (i_mod >= modi_u) {
+                                                    i_mod = 0;
+                                                }
+                                                i_u++;
                                             }
-                                            i_mod++;
-                                            if (i_mod >= modi_u) {
-                                                i_mod = 0;
+                                            for (; i_u < end_u; i_u++) {
+                                                uint64_t x_next = x_u * mul_u + add_u;
+                                                x_u = avm_fastmod_u64(x_next, mod_u, mod_m);
+                                                uint64_t term_x = avm_fastmod_u64(x_u, modx_u, modx_m);
+                                                uint64_t term_i = i_mod;
+                                                sum_u = sum_u + term_x + term_i;
+                                                if (sum_u >= mod_u) {
+                                                    sum_u -= mod_u;
+                                                }
+                                                i_mod++;
+                                                if (i_mod >= modi_u) {
+                                                    i_mod = 0;
+                                                }
                                             }
-                                        }
-                                    } else {
-                                        for (; i_u < end_u; i_u++) {
-                                            uint64_t x_next = x_u * mul_u + add_u;
-                                            x_u = avm_fastmod_u64(x_next, mod_u, mod_m);
-                                            uint64_t term_x = avm_fastmod_u64(x_u, modx_u, modx_m);
-                                            uint64_t term_i = i_mod;
-                                            uint64_t sum_next = sum_u + term_x + term_i;
-                                            sum_u = avm_fastmod_u64(sum_next, mod_u, mod_m);
-                                            i_mod++;
-                                            if (i_mod >= modi_u) {
-                                                i_mod = 0;
+                                        } else {
+                                            for (; i_u < end_u; i_u++) {
+                                                uint64_t x_next = x_u * mul_u + add_u;
+                                                x_u = avm_fastmod_u64(x_next, mod_u, mod_m);
+                                                uint64_t term_x = avm_fastmod_u64(x_u, modx_u, modx_m);
+                                                uint64_t term_i = i_mod;
+                                                uint64_t sum_next = sum_u + term_x + term_i;
+                                                sum_u = avm_fastmod_u64(sum_next, mod_u, mod_m);
+                                                i_mod++;
+                                                if (i_mod >= modi_u) {
+                                                    i_mod = 0;
+                                                }
                                             }
                                         }
                                     }
