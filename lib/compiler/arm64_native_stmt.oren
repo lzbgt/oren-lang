@@ -56,6 +56,7 @@ fn insn_str_x0_sp(offset) { return core.insn_str_x0_sp(offset) }
 fn insn_sub_reg(rd, rn, rm) { return core.insn_sub_reg(rd, rn, rm) }
 fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
 fn insn_sdiv(rd, rn, rm) { return core.insn_sdiv(rd, rn, rm) }
+fn insn_udiv(rd, rn, rm) { return core.insn_udiv(rd, rn, rm) }
 fn insn_svc(imm) { return core.insn_svc(imm) }
 
 	fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
@@ -1468,7 +1469,7 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     emit_ldr_reg_sp_any(ctx, 22, mod_off)
 
     // i_mod = i % mod_i (fast path only)
-    push_u32_le(ctx["code"], insn_sdiv(1, 20, 28))
+    push_u32_le(ctx["code"], insn_udiv(1, 20, 28))
     push_u32_le(ctx["code"], insn_mul(1, 1, 28))
     push_u32_le(ctx["code"], insn_sub_reg(2, 20, 1))
 
@@ -1499,12 +1500,12 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], insn_add_reg(23, 23, 26))
 
     // x = x % mod
-    push_u32_le(ctx["code"], insn_sdiv(0, 23, 22))
+    push_u32_le(ctx["code"], insn_udiv(0, 23, 22))
     push_u32_le(ctx["code"], insn_mul(0, 0, 22))
     push_u32_le(ctx["code"], insn_sub_reg(23, 23, 0))
 
     // term_x = x % mod_x
-    push_u32_le(ctx["code"], insn_sdiv(0, 23, 27))
+    push_u32_le(ctx["code"], insn_udiv(0, 23, 27))
     push_u32_le(ctx["code"], insn_mul(0, 0, 27))
     push_u32_le(ctx["code"], insn_sub_reg(1, 23, 0))
 

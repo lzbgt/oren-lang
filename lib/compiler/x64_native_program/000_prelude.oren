@@ -132,6 +132,7 @@ fn insn_shr_r64_cl(reg) { return core.insn_shr_r64_cl(reg) }
 fn insn_movsxd_r64_r32(dst, src) { return core.insn_movsxd_r64_r32(dst, src) }
 fn insn_cqo() { return core.insn_cqo() }
 fn insn_idiv_r64(reg) { return core.insn_idiv_r64(reg) }
+fn insn_div_r64(reg) { return core.insn_div_r64(reg) }
 fn insn_not_r64(reg) { return core.insn_not_r64(reg) }
 fn insn_neg_r64(reg) { return core.insn_neg_r64(reg) }
 fn insn_movq_xmm_r64(xmm_dst, r_src) { return core.insn_movq_xmm_r64(xmm_dst, r_src) }
