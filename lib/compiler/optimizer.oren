@@ -1075,6 +1075,124 @@ fn _opt_collect_list_int_pushes_stmt(stmt, out) {
     return nil
 }
 
+fn _opt_rewrite_list_pushes_expr(expr, list_names) {
+    if expr == nil || list_names == nil { return false }
+    var changed = false
+    var t = expr["type"]
+    if t == "Call" {
+        var fnn = expr["fn"]
+        var nm = nil
+        if fnn != nil && fnn["type"] == "Identifier" { nm = fnn["value"] }
+        var args = expr["args"]
+        if nm != nil && (nm == "oren_list_push" || nm == "STD_list_push") {
+            if args != nil && oren_list_len(args) >= 2 {
+                var recv = args[0]
+                if recv != nil && recv["type"] == "Identifier" {
+                    var rnm = recv["value"]
+                    if rnm != nil && list_names[rnm] == true {
+                        fnn["value"] = "oren_list_push_unchecked"
+                        changed = true
+                    }
+                }
+            }
+        }
+        if args != nil {
+            var i = 0
+            while i < oren_list_len(args) {
+                if _opt_rewrite_list_pushes_expr(args[i], list_names) { changed = true }
+                i = i + 1
+            }
+        }
+        if expr["spread"] != nil {
+            if _opt_rewrite_list_pushes_expr(expr["spread"], list_names) { changed = true }
+        }
+        return changed
+    }
+    if t == "Prefix" { return _opt_rewrite_list_pushes_expr(expr["right"], list_names) }
+    if t == "Infix" {
+        if _opt_rewrite_list_pushes_expr(expr["left"], list_names) { changed = true }
+        if _opt_rewrite_list_pushes_expr(expr["right"], list_names) { changed = true }
+        return changed
+    }
+    if t == "If" {
+        if _opt_rewrite_list_pushes_expr(expr["cond"], list_names) { changed = true }
+        if _opt_rewrite_list_pushes_stmt(expr["consq"], list_names) { changed = true }
+        if expr["alt"] != nil && _opt_rewrite_list_pushes_stmt(expr["alt"], list_names) { changed = true }
+        return changed
+    }
+    if t == "Array" {
+        var xs = expr["elements"]
+        var i2 = 0
+        while i2 < oren_list_len(xs) {
+            if _opt_rewrite_list_pushes_expr(xs[i2], list_names) { changed = true }
+            i2 = i2 + 1
+        }
+        return changed
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        var i3 = 0
+        while i3 < oren_list_len(ps) {
+            if _opt_rewrite_list_pushes_expr(ps[i3]["key"], list_names) { changed = true }
+            if _opt_rewrite_list_pushes_expr(ps[i3]["value"], list_names) { changed = true }
+            i3 = i3 + 1
+        }
+        return changed
+    }
+    if t == "Index" {
+        if _opt_rewrite_list_pushes_expr(expr["left"], list_names) { changed = true }
+        if _opt_rewrite_list_pushes_expr(expr["index"], list_names) { changed = true }
+        return changed
+    }
+    if t == "Member" { return _opt_rewrite_list_pushes_expr(expr["left"], list_names) }
+    if t == "Function" { return false }
+    return false
+}
+
+fn _opt_rewrite_list_pushes_stmt(stmt, list_names) {
+    if stmt == nil || list_names == nil { return false }
+    var changed = false
+    var t = stmt["type"]
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        var i = 0
+        while i < oren_list_len(ss) {
+            if _opt_rewrite_list_pushes_stmt(ss[i], list_names) { changed = true }
+            i = i + 1
+        }
+        return changed
+    }
+    if t == "While" {
+        if _opt_rewrite_list_pushes_expr(stmt["cond"], list_names) { changed = true }
+        if _opt_rewrite_list_pushes_stmt(stmt["body"], list_names) { changed = true }
+        return changed
+    }
+    if t == "For" {
+        if _opt_rewrite_list_pushes_stmt(stmt["init"], list_names) { changed = true }
+        if _opt_rewrite_list_pushes_expr(stmt["cond"], list_names) { changed = true }
+        if _opt_rewrite_list_pushes_expr(stmt["post"], list_names) { changed = true }
+        if _opt_rewrite_list_pushes_stmt(stmt["body"], list_names) { changed = true }
+        return changed
+    }
+    if t == "ExprStmt" { return _opt_rewrite_list_pushes_expr(stmt["expr"], list_names) }
+    if t == "Assign" { return _opt_rewrite_list_pushes_expr(stmt["value"], list_names) }
+    if t == "Var" { return _opt_rewrite_list_pushes_expr(stmt["value"], list_names) }
+    if t == "Set" {
+        if _opt_rewrite_list_pushes_expr(stmt["left"], list_names) { changed = true }
+        if _opt_rewrite_list_pushes_expr(stmt["value"], list_names) { changed = true }
+        return changed
+    }
+    if t == "Return" { return _opt_rewrite_list_pushes_expr(stmt["value"], list_names) }
+    if t == "If" {
+        if _opt_rewrite_list_pushes_expr(stmt["cond"], list_names) { changed = true }
+        if _opt_rewrite_list_pushes_stmt(stmt["consq"], list_names) { changed = true }
+        if stmt["alt"] != nil && _opt_rewrite_list_pushes_stmt(stmt["alt"], list_names) { changed = true }
+        return changed
+    }
+    if t == "Function" { return false }
+    return false
+}
+
 fn _opt_map_clone(m) {
     var out = {}
     if m != nil {
@@ -1160,6 +1278,8 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                 var pushes_int = {}
                 _opt_collect_list_pushes_stmt(st["body"], pushes)
                 _opt_collect_list_int_pushes_stmt(st["body"], pushes_int)
+                var assigned = {}
+                opthelp.collect_assigned_names_stmt(assigned, st["body"])
                 if pushes != nil {
                     for list_name in pushes {
                         if last_list_lit[list_name] == true && pushes_int[list_name] != true {
@@ -1185,6 +1305,15 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                             oren_list_push(out, ast.new_expr_stmt(nil, calli))
                         }
                     }
+                }
+                if pushes != nil && assigned != nil {
+                    var safe_lists = {}
+                    for list_name2 in pushes {
+                        if last_list_lit[list_name2] == true && pushes_int[list_name2] != true && assigned[list_name2] != true {
+                            safe_lists[list_name2] = true
+                        }
+                    }
+                    if safe_lists != nil { _opt_rewrite_list_pushes_stmt(st["body"], safe_lists) }
                 }
             }
             if st["body"] != nil {
@@ -1215,6 +1344,8 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                 var pushes2_int = {}
                 _opt_collect_list_pushes_stmt(st["body"], pushes2)
                 _opt_collect_list_int_pushes_stmt(st["body"], pushes2_int)
+                var assigned2 = {}
+                opthelp.collect_assigned_names_stmt(assigned2, st["body"])
                 if pushes2 != nil {
                     for list_name2 in pushes2 {
                         if last_list_lit[list_name2] == true && pushes2_int[list_name2] != true {
@@ -1240,6 +1371,15 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                             oren_list_push(out, ast.new_expr_stmt(nil, call2i))
                         }
                     }
+                }
+                if pushes2 != nil && assigned2 != nil {
+                    var safe_lists2 = {}
+                    for list_name3 in pushes2 {
+                        if last_list_lit[list_name3] == true && pushes2_int[list_name3] != true && assigned2[list_name3] != true {
+                            safe_lists2[list_name3] = true
+                        }
+                    }
+                    if safe_lists2 != nil { _opt_rewrite_list_pushes_stmt(st["body"], safe_lists2) }
                 }
             }
             if st["body"] != nil {
