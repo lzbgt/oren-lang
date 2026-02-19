@@ -71,7 +71,7 @@ fn _x64_expr_is_inty(ctx, expr) {
         return false
     }
     if et == "Prefix" {
-        if expr["op"] == "-" { return _x64_expr_is_inty(ctx, expr["right"]) }
+        if expr["op"] == "-" || expr["op"] == "~" { return _x64_expr_is_inty(ctx, expr["right"]) }
         return false
     }
     if et == "Infix" {
@@ -91,6 +91,7 @@ fn _x64_expr_is_inty(ctx, expr) {
             var nm = fnn["value"]
             if nm == "iadd" || nm == "isub" || nm == "imul" || nm == "idiv" || nm == "imod" { return true }
             if nm == "oren_trunc_int" { return true }
+            if nm == "oren_int" { return true }
             if nm == "oren_f32_to_u32_bits" { return true }
             if nm == "oren_f64_to_u64_bits" { return true }
             if nm == "oren_string_len" { return true }
