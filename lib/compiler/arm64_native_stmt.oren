@@ -2360,39 +2360,19 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(slow_jumps, {"pos": jpos_magic_bad, "cond": 1}) // NE
 
-        // capacity check: cap < n => grow (only when count==0 && i==0)
+        // capacity check: cap < n => reserve (grow list buffer)
         emit_load_ptr_from_base_plus(ctx, 1, 0, 8) // cap
         emit_ldr_reg_sp_any(ctx, 2, n_off)
         push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
         var jpos_cap_ok = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0) // patched: b.ge cap_ok
-
-        // count == 0?
-        emit_load_ptr_from_base_plus(ctx, 3, 0, 0) // count
-        push_u32_le(ctx["code"], insn_cmp_reg(3, 31))
-        var jpos_count_nonzero = bytes_len(ctx["code"])
+        // list_reserve(list, n)
+        emit_ldr_reg_sp_any(ctx, 0, list_slot) // list
+        emit_ldr_reg_sp_any(ctx, 1, n_off)     // new_cap
+        var bl_reserve = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
-        oren_list_push(slow_jumps, {"pos": jpos_count_nonzero, "cond": 1}) // NE
-
-        // i == 0?
-        emit_ldr_reg_sp_any(ctx, 4, i_off)
-        push_u32_le(ctx["code"], insn_cmp_reg(4, 31))
-        var jpos_i_nonzero = bytes_len(ctx["code"])
-        push_u32_le(ctx["code"], 0)
-        oren_list_push(slow_jumps, {"pos": jpos_i_nonzero, "cond": 1}) // NE
-
-        // grow buffer: buf = malloc_k(n * 8, 0)
-        var size_expr = {"type": "Infix", "op": "*", "left": {"type": "Identifier", "value": n_name}, "right": {"type": "Integer", "value": "8"}}
-        var alloc_expr = {"type": "Call", "fn": {"type": "Identifier", "value": "malloc_k"}, "args": [size_expr, {"type": "Integer", "value": "0"}]}
-        native_compile_expr(ctx, alloc_expr)
-        _arm64_restore_stack_to(ctx, loop_base_stack)
-
-        // list->cap = n ; list->buf = new_buf
-        emit_ldr_reg_sp_any(ctx, 5, list_slot)
-        emit_ldr_reg_sp_any(ctx, 2, n_off)
-        push_u32_le(ctx["code"], insn_str_ptr_off(2, 5, 8))
-        push_u32_le(ctx["code"], insn_str_ptr_off(0, 5, 16))
-        emit_ldr_reg_sp_any(ctx, 0, list_slot) // restore list ptr after malloc_k clobbers X0
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reserve, "name": "oren_list_int_reserve"})
+        emit_ldr_reg_sp_any(ctx, 0, list_slot) // restore list ptr after call
 
         var cap_ok_pos = bytes_len(ctx["code"])
         var cap_ok_off = (cap_ok_pos - jpos_cap_ok) / 4
@@ -2599,39 +2579,19 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0)
         oren_list_push(slow_jumps, {"pos": jpos_magic_bad, "cond": 1}) // NE
 
-        // capacity check: cap < n => grow (only when count==0 && i==0)
+        // capacity check: cap < n => reserve (grow list buffer)
         emit_load_ptr_from_base_plus(ctx, 1, 0, 8) // cap
         emit_ldr_reg_sp_any(ctx, 2, n_off)
         push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
         var jpos_cap_ok = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0) // patched: b.ge cap_ok
-
-        // count == 0?
-        emit_load_ptr_from_base_plus(ctx, 3, 0, 0) // count
-        push_u32_le(ctx["code"], insn_cmp_reg(3, 31))
-        var jpos_count_nonzero = bytes_len(ctx["code"])
+        // list_reserve(list, n)
+        emit_ldr_reg_sp_any(ctx, 0, list_slot) // list
+        emit_ldr_reg_sp_any(ctx, 1, n_off)     // new_cap
+        var bl_reserve = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)
-        oren_list_push(slow_jumps, {"pos": jpos_count_nonzero, "cond": 1}) // NE
-
-        // i == 0?
-        emit_ldr_reg_sp_any(ctx, 4, i_off)
-        push_u32_le(ctx["code"], insn_cmp_reg(4, 31))
-        var jpos_i_nonzero = bytes_len(ctx["code"])
-        push_u32_le(ctx["code"], 0)
-        oren_list_push(slow_jumps, {"pos": jpos_i_nonzero, "cond": 1}) // NE
-
-        // grow buffer: buf = malloc_k(n * 8, 0)
-        var size_expr = {"type": "Infix", "op": "*", "left": {"type": "Identifier", "value": n_name}, "right": {"type": "Integer", "value": "8"}}
-        var alloc_expr = {"type": "Call", "fn": {"type": "Identifier", "value": "malloc_k"}, "args": [size_expr, {"type": "Integer", "value": "0"}]}
-        native_compile_expr(ctx, alloc_expr)
-        _arm64_restore_stack_to(ctx, loop_base_stack)
-
-        // list->cap = n ; list->buf = new_buf
-        emit_ldr_reg_sp_any(ctx, 5, list_slot)
-        emit_ldr_reg_sp_any(ctx, 2, n_off)
-        push_u32_le(ctx["code"], insn_str_ptr_off(2, 5, 8))
-        push_u32_le(ctx["code"], insn_str_ptr_off(0, 5, 16))
-        emit_ldr_reg_sp_any(ctx, 0, list_slot) // restore list ptr after malloc_k clobbers X0
+        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_reserve, "name": "oren_list_reserve"})
+        emit_ldr_reg_sp_any(ctx, 0, list_slot) // restore list ptr after call
 
         var cap_ok_pos = bytes_len(ctx["code"])
         var cap_ok_off = (cap_ok_pos - jpos_cap_ok) / 4
