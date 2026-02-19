@@ -207,6 +207,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
                              - Compiler: `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
                              - Bench (loop_sum, M2 Pro, runs=5): C 0.067083s, Oren C 0.060393s (~0.90×), Oren native 0.422314s (~6.30×), OBC 0.098364s (~1.47×).
                              - Artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_161357.md`.
+                           - 2026-02-19: loop_sum init-only/steady-state refresh (quantify init overhead vs body):
+                             - Init-only (args `0 1`): C 0.002027s, Oren C 0.002278s (~1.12×), native 0.002368s (~1.17×), OBC 0.002109s (~1.04×).
+                               - Artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_161557.md`.
+                             - Steady-state (args `2000000 10`): C 0.065753s, Oren C 0.060181s (~0.92×), native 0.423776s (~6.44×), OBC 0.097867s (~1.49×).
+                               - Artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_161607.md`.
                            - 2026-02-19: C backend list<int> fast loops expanded (string-safe matching + fast push fill, raw accumulator):
 						     - Compiler: `lib/compiler/transpiler.oren` (`str_eq`, list<int> matcher, fast RHS, fast push fill).
 						     - C runtime: `lib/runtime/040_lists_maps.inc` + `lib/runtime.h` (`oren_string_eq`).
