@@ -80,6 +80,9 @@ typedef struct OrenList {
     OrenValue* items;
     int count;
     int capacity;
+    // Monotonic flag: 1 means all elements observed so far are ints.
+    // Once cleared (0), it never flips back to 1 to avoid O(n) rescans.
+    uint8_t all_int;
 } OrenList;
 
 typedef struct OrenMap {

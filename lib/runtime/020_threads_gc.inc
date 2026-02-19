@@ -661,6 +661,7 @@ static void oren_store_args(int argc, char **argv) {
     OREN_ARG_LIST->count = argc;
     OREN_ARG_LIST->capacity = argc;
     OREN_ARG_LIST->items = malloc(sizeof(OrenValue) * (size_t)argc);
+    OREN_ARG_LIST->all_int = 0;
     for (int i = 0; i < argc; i++) {
         OREN_ARG_LIST->items[i] = oren_string(argv[i]);
     }
@@ -675,6 +676,7 @@ OrenValue oren_args() {
         empty.as.list_val->count = 0;
         empty.as.list_val->capacity = 0;
         empty.as.list_val->items = NULL;
+        empty.as.list_val->all_int = 1;
         return empty;
     }
     OrenValue v;
@@ -929,6 +931,7 @@ OrenValue oren_closure(OrenFn fn, int capture_count, ...) {
     list->count = capture_count;
     list->capacity = capture_count;
     list->items = malloc(sizeof(OrenValue) * (size_t)capture_count);
+    list->all_int = 1;
     if (!list->items) {
         unlock_collections();
         va_end(args);
@@ -937,6 +940,7 @@ OrenValue oren_closure(OrenFn fn, int capture_count, ...) {
     }
     for (int i = 0; i < capture_count; i++) {
         list->items[i] = va_arg(args, OrenValue);
+        if (list->all_int && list->items[i].type != OREN_TYPE_INT) list->all_int = 0;
     }
     unlock_collections();
 
@@ -961,6 +965,7 @@ OrenValue oren_closure_from_array(OrenFn fn, int capture_count, const OrenValue*
     list->count = capture_count;
     list->capacity = capture_count;
     list->items = malloc(sizeof(OrenValue) * (size_t)capture_count);
+    list->all_int = 1;
     if (!list->items) {
         unlock_collections();
         oren_panic("closure_from_array: env items alloc failed");
@@ -968,8 +973,12 @@ OrenValue oren_closure_from_array(OrenFn fn, int capture_count, const OrenValue*
     }
     if (captures) {
         memcpy(list->items, captures, sizeof(OrenValue) * (size_t)capture_count);
+        for (int i = 0; i < capture_count; i++) {
+            if (list->items[i].type != OREN_TYPE_INT) { list->all_int = 0; break; }
+        }
     } else {
         for (int i = 0; i < capture_count; i++) list->items[i] = OREN_NIL;
+        if (capture_count > 0) list->all_int = 0;
     }
     unlock_collections();
     return oren_func(fn, list);

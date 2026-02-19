@@ -669,6 +669,7 @@ OrenValue oren_read_bytes(OrenValue path) {
     list->count = size;
     list->capacity = size;
     list->items = NULL;
+    list->all_int = 1;
     if (size > 0) {
         list->items = malloc(sizeof(OrenValue) * (size_t)size);
         if (!list->items) {
@@ -772,6 +773,7 @@ OrenValue oren_bytes_from_string(OrenValue s) {
     list->count = (int)n;
     list->capacity = (int)n;
     list->items = NULL;
+    list->all_int = 1;
     if (n > 0) {
         list->items = malloc(sizeof(OrenValue) * n);
         if (!list->items) {
@@ -1234,6 +1236,7 @@ OrenValue oren_sha256_range(OrenValue bytes, OrenValue start, OrenValue length) 
 
     out->count = 32;
     out->capacity = 32;
+    out->all_int = 1;
     out->items = malloc(sizeof(OrenValue) * 32);
     if (!out->items) {
         unlock_collections();
@@ -1276,6 +1279,7 @@ OrenValue oren_sha256_string(OrenValue s) {
 
     out->count = 32;
     out->capacity = 32;
+    out->all_int = 1;
     out->items = malloc(sizeof(OrenValue) * 32);
     if (!out->items) {
         unlock_collections();

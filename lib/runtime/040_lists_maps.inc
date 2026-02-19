@@ -184,6 +184,7 @@ OrenValue oren_new_list(int count, ...) {
     list->count = count;
     list->capacity = count;
     list->items = NULL;
+    list->all_int = 1;
     if (count > 0) {
         list->items = malloc(sizeof(OrenValue) * (size_t)count);
         if (!list->items) {
@@ -194,6 +195,7 @@ OrenValue oren_new_list(int count, ...) {
 
     for (int i = 0; i < count; i++) {
         list->items[i] = va_arg(args, OrenValue); // NOTE: passing structs via varargs is UB; avoid in new codegen.
+        if (list->all_int && list->items[i].type != OREN_TYPE_INT) list->all_int = 0;
     }
 
     va_end(args);
@@ -211,6 +213,7 @@ OrenValue oren_new_list_from_array(int count, const OrenValue* items) {
     list->count = count;
     list->capacity = count;
     list->items = NULL;
+    list->all_int = 1;
     if (count > 0) {
         list->items = malloc(sizeof(OrenValue) * (size_t)count);
         if (!list->items) {
@@ -218,9 +221,15 @@ OrenValue oren_new_list_from_array(int count, const OrenValue* items) {
         }
     }
     if (items) {
-        if (count > 0) memcpy(list->items, items, sizeof(OrenValue) * (size_t)count);
+        if (count > 0) {
+            memcpy(list->items, items, sizeof(OrenValue) * (size_t)count);
+            for (int i = 0; i < count; i++) {
+                if (list->items[i].type != OREN_TYPE_INT) { list->all_int = 0; break; }
+            }
+        }
     } else {
         for (int i = 0; i < count; i++) list->items[i] = OREN_NIL;
+        if (count > 0) list->all_int = 0;
     }
     OrenValue v;
     v.type = OREN_TYPE_LIST;
@@ -264,6 +273,7 @@ OrenValue oren_list_push(OrenValue list, OrenValue value) {
     }
     l->items[l->count] = value;
     l->count += 1;
+    if (l->all_int && value.type != OREN_TYPE_INT) l->all_int = 0;
     oren_obj_unlock(mu);
     // Language-level semantics: `oren_list_push` returns `nil`.
     return OREN_NIL;
@@ -289,6 +299,7 @@ OrenValue oren_list_push_unchecked(OrenValue list, OrenValue value) {
     }
     l->items[l->count] = value;
     l->count += 1;
+    if (l->all_int && value.type != OREN_TYPE_INT) l->all_int = 0;
     oren_obj_unlock(mu);
     return OREN_NIL;
 }
@@ -374,6 +385,7 @@ OrenValue oren_list_set(OrenValue list, OrenValue index, OrenValue value) {
         return value; // Should not be reached
     }
     l->items[idx] = value;
+    if (l->all_int && value.type != OREN_TYPE_INT) l->all_int = 0;
     oren_obj_unlock(mu);
     return value;
 }
@@ -922,8 +934,10 @@ OrenValue oren_index_set(OrenValue container, OrenValue index, OrenValue value) 
                 l->items[i] = OREN_NIL;
             }
             l->count = idx + 1;
+            if (l->all_int) l->all_int = 0;
         }
         l->items[idx] = value;
+        if (l->all_int && value.type != OREN_TYPE_INT) l->all_int = 0;
         oren_obj_unlock(mu);
         return value;
     }
@@ -1095,6 +1109,7 @@ OrenValue oren_list_new_cap(OrenValue capv) {
     list->count = 0;
     list->capacity = cap;
     list->items = NULL;
+    list->all_int = 1;
     if (cap > 0) {
         list->items = malloc(sizeof(OrenValue) * (size_t)cap);
         if (!list->items) {

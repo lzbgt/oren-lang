@@ -969,6 +969,7 @@ fn _transpiler_emit_fast_list_get_sum_while(t, stmt, info) {
     var sum_u = tmp_gensym(t, "list_fast_sum_u")
     var sum_ll = tmp_gensym(t, "list_fast_sum_ll")
     var fast_sum_ok = tmp_gensym(t, "list_fast_sum_ok")
+    var fast_all_int = tmp_gensym(t, "list_fast_all_int")
     var parts = []
     oren_list_push(parts, "{")
     oren_list_push(parts, CH_LF)
@@ -978,6 +979,7 @@ fn _transpiler_emit_fast_list_get_sum_while(t, stmt, info) {
     oren_list_push(parts, "uint64_t " + sum_u + " = 0;")
     oren_list_push(parts, "long long " + sum_ll + " = 0;")
     oren_list_push(parts, "int " + fast_sum_ok + " = 0;")
+    oren_list_push(parts, "int " + fast_all_int + " = 1;")
     oren_list_push(parts, "if (" + c_ident(n_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + n_int + " = " + c_ident(n_name) + ".as.int_val; if (" + n_int + " < 0) " + fast_ok + " = 0; }")
     oren_list_push(parts, "if (" + c_ident(idx_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + i_int + " = " + c_ident(idx_name) + ".as.int_val; if (" + i_int + " < 0) " + fast_ok + " = 0; }")
     oren_list_push(parts, "if (" + fast_ok + " && oren_list_locking_needed()) { " + fast_ok + " = 0; }")
@@ -998,7 +1000,7 @@ fn _transpiler_emit_fast_list_get_sum_while(t, stmt, info) {
         oren_list_push(parts, "if (" + fast_ok + ") {")
         oren_list_push(parts, "    if (" + list_tmp + ".type != OREN_TYPE_LIST || " + list_tmp + ".as.list_val == NULL) { " + fast_ok + " = 0; } else {")
         oren_list_push(parts, "        " + ptr_tmp + " = " + list_tmp + ".as.list_val;")
-        oren_list_push(parts, "        if ((long long)" + ptr_tmp + "->count < " + n_int + ") { " + fast_ok + " = 0; } else { " + items_tmp + " = " + ptr_tmp + "->items; }")
+        oren_list_push(parts, "        if ((long long)" + ptr_tmp + "->count < " + n_int + ") { " + fast_ok + " = 0; } else { " + items_tmp + " = " + ptr_tmp + "->items; if (!" + ptr_tmp + "->all_int) { " + fast_all_int + " = 0; } }")
         oren_list_push(parts, "    }")
         oren_list_push(parts, "}")
         li = li + 1
@@ -1011,19 +1013,32 @@ fn _transpiler_emit_fast_list_get_sum_while(t, stmt, info) {
     oren_list_push(parts, "}")
 
     oren_list_push(parts, "if (" + fast_sum_ok + ") {")
-    oren_list_push(parts, "    while (" + i_int + " < " + n_int + ") {")
+    oren_list_push(parts, "    if (" + fast_all_int + ") {")
+    oren_list_push(parts, "        while (" + i_int + " < " + n_int + ") {")
+    var pi_fast = 0
+    while pi_fast < oren_list_len(loads) {
+        var list_name_fast = loads[pi_fast]
+        var items_tmp_fast = list_items[list_name_fast]
+        oren_list_push(parts, "            " + sum_u + " += (uint64_t)" + items_tmp_fast + "[" + i_int + "].as.int_val;")
+        pi_fast = pi_fast + 1
+    }
+    oren_list_push(parts, "            " + i_int + "++;")
+    oren_list_push(parts, "        }")
+    oren_list_push(parts, "    } else {")
+    oren_list_push(parts, "        while (" + i_int + " < " + n_int + ") {")
     var pi = 0
     while pi < oren_list_len(loads) {
         var list_name2 = loads[pi]
         var items_tmp2 = list_items[list_name2]
         var v_tmp2 = tmp_gensym(t, "list_fast_val")
-        oren_list_push(parts, "        OrenValue " + v_tmp2 + " = " + items_tmp2 + "[" + i_int + "];")
-        oren_list_push(parts, "        if (" + v_tmp2 + ".type != OREN_TYPE_INT) { " + fast_sum_ok + " = 0; break; }")
-        oren_list_push(parts, "        " + sum_u + " += (uint64_t)" + v_tmp2 + ".as.int_val;")
+        oren_list_push(parts, "            OrenValue " + v_tmp2 + " = " + items_tmp2 + "[" + i_int + "];")
+        oren_list_push(parts, "            if (" + v_tmp2 + ".type != OREN_TYPE_INT) { " + fast_sum_ok + " = 0; break; }")
+        oren_list_push(parts, "            " + sum_u + " += (uint64_t)" + v_tmp2 + ".as.int_val;")
         pi = pi + 1
     }
-    oren_list_push(parts, "        if (!" + fast_sum_ok + ") { break; }")
-    oren_list_push(parts, "        " + i_int + "++;")
+    oren_list_push(parts, "            if (!" + fast_sum_ok + ") { break; }")
+    oren_list_push(parts, "            " + i_int + "++;")
+    oren_list_push(parts, "        }")
     oren_list_push(parts, "    }")
     oren_list_push(parts, "}")
 
