@@ -775,6 +775,16 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_u16(ctx, 0)
             return nil
         }
+        if name == "oren_list_int_push" || name == "STD_list_int_push" {
+            if oren_list_len(expr["args"]) != 2 {
+            bytecode_error(ctx, "bytecode backend: oren_list_int_push expects (list, int)")
+            return nil
+            }
+            bytecode_compile_expr(ctx, expr["args"][0])
+            bytecode_compile_expr(ctx, expr["args"][1])
+            emit_byte(ctx, AVM_LIST_PUSH_INT)
+            return nil
+        }
         if name == "oren_list_int_get" {
             if oren_list_len(expr["args"]) != 2 {
             bytecode_error(ctx, "bytecode backend: oren_list_int_get expects (list, idx)")

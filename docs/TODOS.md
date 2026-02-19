@@ -227,7 +227,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						       - multi_list_push_int native 0.0312s (~3.75× C) (`benchmarks/results/multi_list_push_int_darwin_arm64_20260219_064308.md`).
 						   - 2026-02-19: arm64 native fast list<int> dot loop (pattern match + direct loads + mul) closes dot_product_int gap:
 						     - Compiler: `lib/compiler/arm64_native_stmt.oren` (fast dot while matcher + direct buffer loads).
-						     - Bench (M2 Pro, runs=5): dot_product_int native 0.0252s (~5.22× C) (`benchmarks/results/dot_product_int_darwin_arm64_20260219_064258.md`).
+						     - Bench (M2 Pro, runs=5): dot_product_int native 0.0247s (~5.05× C) (`benchmarks/results/dot_product_int_darwin_arm64_20260219_093705.md`).
 						   - 2026-02-19: native boxed list push loop (pattern match + direct buffer stores + deferred count updates) for `list.push`:
 						     - Compiler: `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
 						     - Bench (M2 Pro, runs=5): array_sum native 0.0197s (~5.13× C) (`benchmarks/results/array_sum_darwin_arm64_20260219_080150.md`).
