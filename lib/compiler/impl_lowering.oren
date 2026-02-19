@@ -599,6 +599,11 @@ fn rewrite_call_expr(expr, regs, trait_set, env, kind_env, errs) {
                 return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_list_int_set"}, [argsR[0], argsR[1], argsR[2]])
             }
         }
+        if resolved == "STD_list_int_reserve" {
+            if oren_list_len(argsR) == 2 {
+                return ast.new_call(expr["token"], {"type": "Identifier", "token": nil, "value": "oren_list_int_reserve"}, [argsR[0], argsR[1]])
+            }
+        }
     }
 
     // Iterator extension hook (rolling v1):
