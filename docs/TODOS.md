@@ -288,8 +288,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - RSS (median): native ~7.75MB, Oren C ~4.47MB, OBC ~9.34MB.
      - Target: native ≤0.50s on M2 with stable RSS (met 2026‑02‑19).
      - Stretch: ≤0.08s by reducing per-alloc tracking overhead and string concat allocations in alloc_drop.
-  - (P1/M) **Loop_sum native still ~6.4× C; Oren C ~5.2×; OBC ~1.54×**
-    - Latest (runs=5, warmups=1): C 0.066761s, Oren C 0.345528s (~5.18×), native 0.424858s (~6.36×), OBC 0.102720s (~1.54×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_142648.md`).
+  - (P1/M) **Loop_sum native still ~6.3× C; Oren C ~5.1×; OBC ~1.46×**
+    - Latest (runs=5, warmups=1): C 0.070953s, Oren C 0.360361s (~5.08×), native 0.448654s (~6.32×), OBC 0.103690s (~1.46×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_144327.md`).
     - Note: OBC speedup comes from emitting fused AVM `INT_LCG_SUM_LOOP` for the LCG+sum loop pattern.
     - New (2026-02-19): C/native backends now emit a fast LCG+sum loop lowering; fast path triggers on `benchmarks/loop_sum/loop_sum.oren`.
     - Remaining gap appears dominated by runtime init + per-process overhead rather than the loop body; quantify init cost and add a fast-init path for pure-int benchmarks.
