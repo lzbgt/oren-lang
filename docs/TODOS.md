@@ -244,6 +244,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						     - Compiler: `lib/compiler/transpiler.oren` (fast list.push while + reserve).
 						     - Runtime: `lib/runtime/040_lists_maps.inc` (`oren_list_reserve`) + list all_int tracking.
 						     - Bench (M2 Pro, runs=5): multi_list_sum Oren C 0.0258s (~3.08× C).
+						   - 2026-02-19: C backend boxed list dot loop (sum += xs[i] * ys[i]) now uses all_int fast path:
+						     - Compiler: `lib/compiler/transpiler.oren` (fast boxed list while with all_int + multiply).
+						     - Bench (M2 Pro, runs=5): dot_product Oren C 0.0172s (~3.62× C) (`benchmarks/results/dot_product_darwin_arm64_20260219_083719.md`).
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
@@ -298,9 +301,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	    - Latest (runs=5): C 0.00838s, Oren C 0.0258s (~3.08×), Oren native 0.0305s (~3.64×), OBC 1.2285s (~146.55×).
 	      - Result: `benchmarks/results/multi_list_sum_darwin_arm64_20260219_083044.md`
 	    - Next: push native ≤3.0× C and Oren C ≤2.5× by tightening boxed list sum/load path further.
-	  - (P1/M) **Dot_product still shows heavy list+multiply overhead (boxed path)**
-	    - Latest (runs=5): C 0.00647s, Oren C 0.209s (~32×), Oren native 0.221s (~34×), OBC 0.897s (~139×).
-	      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_050816.md`
+	  - (P1/M) **Dot_product native still shows heavy list+multiply overhead (boxed path)**
+	    - Latest (runs=5): C 0.004755s, Oren C 0.0172s (~3.62×), Oren native 0.1350s (~28.39×), OBC 0.8929s (~187.77×).
+	      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_083719.md`
 	    - Dot_product_int now improved on native via fast list<int> dot loop:
 	      - native 0.0247s vs C 0.00470s (~5.3×) (`benchmarks/results/dot_product_int_darwin_arm64_20260219_043018.md`).
 	    - Target: native ≤0.03s (≤6× C) for dot_product_int is met; focus shifts to boxed dot_product.
