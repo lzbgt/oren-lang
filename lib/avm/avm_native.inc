@@ -1,6 +1,46 @@
 // Forward decls for helpers defined later in this include.
 static int avm_map_get_key(AvmValue vmap, const char* key, AvmValue* out);
 
+static int64_t avm_oren_type_tag(AvmValue v) {
+    switch (v.type) {
+        case AVM_VAL_NIL: return 0;
+        case AVM_VAL_INT: return 1;
+        case AVM_VAL_FLOAT: return 2;
+        case AVM_VAL_BOOL: return 3;
+        case AVM_VAL_STRING: return 4;
+        case AVM_VAL_LIST: return 6;
+        case AVM_VAL_LIST_INT: return 6;
+        case AVM_VAL_MAP: return 7;
+        case AVM_VAL_FUNC: return 8;
+        case AVM_VAL_BYTES: return 9;
+        case AVM_VAL_I32_BUF: return 10;
+        case AVM_VAL_I64_BUF: return 11;
+        case AVM_VAL_F32_BUF: return 12;
+        case AVM_VAL_F64_BUF: return 13;
+        default: return 0;
+    }
+}
+
+static const char* avm_oren_type_name_from_tag(int64_t tag) {
+    switch (tag) {
+        case 0: return "nil";
+        case 1: return "int";
+        case 2: return "float";
+        case 3: return "bool";
+        case 4: return "string";
+        case 5: return "py_obj";
+        case 6: return "list";
+        case 7: return "map";
+        case 8: return "func";
+        case 9: return "u8_buf";
+        case 10: return "i32_buf";
+        case 11: return "i64_buf";
+        case 12: return "f32_buf";
+        case 13: return "f64_buf";
+        default: return "unknown";
+    }
+}
+
 AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
     AvmValue res; res.type = AVM_VAL_NIL;
     switch(id) {
@@ -1919,14 +1959,22 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
 		            }
 		            break;
 		        }
-		        case 146: { // oren_type_tag(v) -> int
-		            if (nargs > 0) {
-		                res = avm_int((int64_t)args[0].type);
-		            } else {
-		                res = avm_err(AVM_ERR_INVALID_ARG, "oren_type_tag expects (value)");
-		            }
-		            break;
-		        }
+        case 146: { // oren_type_tag(v) -> int
+            if (nargs > 0) {
+                res = avm_int(avm_oren_type_tag(args[0]));
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_type_tag expects (value)");
+            }
+            break;
+        }
+        case 150: { // oren_type_name(v) -> string
+            if (nargs > 0) {
+                res = avm_string(avm_oren_type_name_from_tag(avm_oren_type_tag(args[0])));
+            } else {
+                res = avm_err(AVM_ERR_INVALID_ARG, "oren_type_name expects (value)");
+            }
+            break;
+        }
 		        case 147: { // oren_map_get_str(map, key:string) -> value|nil
 		            if (nargs > 1) {
 		                AvmValue mapv = args[0];

@@ -1,0 +1,15 @@
+fn main() {
+    var i = 0
+    var sum = 0
+    var xs = 0
+    while i < 4 {
+        xs = oren_new_list_int(0)
+        oren_list_int_push(xs, i)
+        var v = oren_list_int_get(xs, 0)
+        sum = sum + v
+        i = i + 1
+    }
+    if sum != 6 {
+        exit(41)
+    }
+}
