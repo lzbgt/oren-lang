@@ -20,6 +20,7 @@
 // @include "runtime_native/010_channels_globals_consts.oren"
 // @include "runtime_native/011_channels_mem.oren"
 // @include "runtime_native/015_raw_alloc.oren"
+// @include "runtime_native/095_arena.oren"
 // @include "runtime_native/020_fork_runtime_init.oren"
 // @include "runtime_native/030_envp_helpers.oren"
 // @include "runtime_native/035_capsule_stubs.oren"
