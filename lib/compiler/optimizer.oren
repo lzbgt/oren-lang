@@ -1075,14 +1075,24 @@ fn _opt_collect_list_int_pushes_stmt(stmt, out) {
     return nil
 }
 
-fn _opt_insert_list_reserve_in_block(block) {
+fn _opt_map_clone(m) {
+    var out = {}
+    if m != nil {
+        for k in m {
+            out[k] = m[k]
+        }
+    }
+    return out
+}
+
+fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_int_new, last_int_safe) {
     if block == nil || block["type"] != "Block" { return nil }
     var ss = block["stmts"]
     if ss == nil { return nil }
 
-    var last_list_lit = {}
-    var last_list_int_new = {}
-    var last_int_safe = {}
+    if last_list_lit == nil { last_list_lit = {} }
+    if last_list_int_new == nil { last_list_int_new = {} }
+    if last_int_safe == nil { last_int_safe = {} }
     var out = []
     var i = 0
     while i < oren_list_len(ss) {
@@ -1161,6 +1171,12 @@ fn _opt_insert_list_reserve_in_block(block) {
                     }
                 }
             }
+            if st["body"] != nil {
+                var snap_list_lit = _opt_map_clone(last_list_lit)
+                var snap_list_int = _opt_map_clone(last_list_int_new)
+                var snap_int = _opt_map_clone(last_int_safe)
+                _opt_insert_list_reserve_in_block(st["body"], snap_list_lit, snap_list_int, snap_int)
+            }
         }
         if st != nil && st["type"] == "For" {
             var cond2 = st["cond"]
@@ -1203,6 +1219,33 @@ fn _opt_insert_list_reserve_in_block(block) {
                     }
                 }
             }
+            if st["body"] != nil {
+                var snap_list_lit2 = _opt_map_clone(last_list_lit)
+                var snap_list_int2 = _opt_map_clone(last_list_int_new)
+                var snap_int2 = _opt_map_clone(last_int_safe)
+                _opt_insert_list_reserve_in_block(st["body"], snap_list_lit2, snap_list_int2, snap_int2)
+            }
+        }
+
+        if st != nil && st["type"] == "If" {
+            var snap_list_lit3 = _opt_map_clone(last_list_lit)
+            var snap_list_int3 = _opt_map_clone(last_list_int_new)
+            var snap_int3 = _opt_map_clone(last_int_safe)
+            if st["consq"] != nil {
+                _opt_insert_list_reserve_in_block(st["consq"], snap_list_lit3, snap_list_int3, snap_int3)
+            }
+            if st["alt"] != nil {
+                var snap_list_lit4 = _opt_map_clone(last_list_lit)
+                var snap_list_int4 = _opt_map_clone(last_list_int_new)
+                var snap_int4 = _opt_map_clone(last_int_safe)
+                _opt_insert_list_reserve_in_block(st["alt"], snap_list_lit4, snap_list_int4, snap_int4)
+            }
+        }
+        if st != nil && st["type"] == "Block" {
+            var snap_list_lit5 = _opt_map_clone(last_list_lit)
+            var snap_list_int5 = _opt_map_clone(last_list_int_new)
+            var snap_int5 = _opt_map_clone(last_int_safe)
+            _opt_insert_list_reserve_in_block(st, snap_list_lit5, snap_list_int5, snap_int5)
         }
 
         oren_list_push(out, st)
@@ -1597,7 +1640,7 @@ fn lower_linked_program_in_place(linked) {
             if trace_opt && i == 0 { print("[opt] tco done") }
             optloops.lower_simple_for_in_block(ss[i]["expr"]["body"])
             optloops.wrap_arena_loops_in_block(ss[i]["expr"]["body"])
-            _opt_insert_list_reserve_in_block(ss[i]["expr"]["body"])
+            _opt_insert_list_reserve_in_block(ss[i]["expr"]["body"], nil, nil, nil)
             optconst.rewrite_const_mod_in_block(ss[i]["expr"]["body"], nil)
             if trace_opt && i == 0 { print("[opt] dce start") }
             dce_block_in_place(ss[i]["expr"]["body"])

@@ -76,7 +76,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Add allocation-site counters for `alloc_churn`/`alloc_drop` to pinpoint dominant allocations.
    - New: `OREN_TRACE_ALLOC_SITE=1` reports list/list_int header+buffer sites (ids 1..4; see `lib/runtime_native/170_lists.oren`).
    - Bench harness supports `OREN_BENCH_TRACE_ALLOC_SITE=1` (native) to capture alloc-site counts in benchmark stdout logs (forces warmups=0; dump happens at exit; use `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD` if you want GC-triggered dumps).
-   - Alloc-site snapshot (arm64, 2026-02-20): `alloc_churn` list_header=20k, list_buf=120k (~6x growth); `alloc_drop` list_header≈10011, list_buf≈10031. Action: fix list_reserve insertion in nested loop patterns so list literals reserve to steady-state capacity.
+   - Alloc-site snapshot (arm64, 2026-02-20): `alloc_churn` list_header=20k, list_buf=20k (reserve now fires); `alloc_drop` list_header≈10011, list_buf≈10031. Next: extend reserve insertion to cover more list literal patterns (e.g., non-empty literals) and list_int.
    - Design + implement loop‑local arenas for list/list_int (compiler escape analysis + arena tracking table).
    - Native runtime scaffolding: `oren_arena_push/pop` + `oren_arena_new_list(_int)` (compiler lowering pending).
    - Arena cap: `OREN_ARENA_CAP_BYTES` spills allocations back to GC when exceeded.
@@ -96,6 +96,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Baseline (arm64 native, 2026-02-19): `array_sum` 3.80× C, `multi_list_push_int` 3.17× C.
    - Extend bounds propagation for reserve/unchecked push.
    - Treat `oren_new_list(0)` as list-literal for reserve insertion (loop bound -> reserve).
+   - Reserve insertion now descends into nested loops with outer list literals.
    - Gate: native `array_sum` and `multi_list_push_int` <= 2x C.
 
 4) **W4 - Tagged value representation convergence** (L)
