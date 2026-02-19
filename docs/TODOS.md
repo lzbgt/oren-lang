@@ -250,6 +250,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 							   - 2026-02-19: arm64 native boxed list dot loop (pattern match + direct list loads + mul) closes native gap:
 							     - Compiler: `lib/compiler/arm64_native_stmt.oren` (fast boxed dot while matcher + direct buffer loads).
 							     - Bench (M2 Pro, runs=5): dot_product native 0.0255s (~5.22× C) (`benchmarks/results/dot_product_darwin_arm64_20260219_084719.md`).
+							   - 2026-02-19: x64 native boxed list dot loop parity landed (matcher + direct buffer loads); benchmarks pending.
+							     - Compiler: `lib/compiler/x64_native_program/060_emit_ops.oren`.
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
