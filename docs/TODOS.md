@@ -302,10 +302,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	      - native 0.1506s vs C 0.00417s (`benchmarks/results/array_sum_darwin_arm64_20260218_220638.md`).
 	    - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` (skip native list index checks) does **not** improve:
 	      - native 0.1482s vs C 0.00399s (`benchmarks/results/array_sum_darwin_arm64_20260218_221223.md`).
-	  - (P2/M) **multi_list_sum boxed list reads now ~3.1× C (Oren C) / ~3.7× native; OBC ~92×**
-	    - Latest (runs=5): C 0.008527s, Oren C 0.026208s (~3.07×), Oren native 0.031299s (~3.67×), OBC 0.783350s (~91.87×).
-	      - Result: `benchmarks/results/multi_list_sum_darwin_arm64_20260219_114309.md`
-	    - Next: push native ≤3.0× C and Oren C ≤2.5× by tightening boxed list sum/load path further; OBC target ≤10× via broader fused loops or unboxed list<int> in AVM.
+  - (P2/M) **multi_list_sum boxed list reads now ~2.1× C (Oren C) / ~3.6× native; OBC ~1.84×**
+    - Latest (runs=5): C 0.008617s, Oren C 0.017878s (~2.07×), Oren native 0.031128s (~3.61×), OBC 0.015860s (~1.84×).
+      - Result: `benchmarks/results/multi_list_sum_darwin_arm64_20260219_130152.md`
+    - Next: push native ≤3.0× C and Oren C ≤2.0× by tightening boxed list sum/load path further; OBC is now near C.
 		  - (P1/M) **Dot_product boxed path now near native target; keep guard + focus on OBC gap**
 		    - Latest (runs=5): C 0.004780s, Oren C 0.017754s (~3.71×), Oren native 0.024412s (~5.11×), OBC 0.547356s (~114.51×).
 		      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_094136.md`
@@ -1165,6 +1165,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
   - 2026-02-19: AVM bytecode emits `LIST_PUSH2_INT_LOOP` / `LIST_PUSH3_INT_LOOP` for multi-list push loops.
     - Compiler: `lib/compiler/codegen_bytecode/000_prelude.oren`, `lib/compiler/codegen_bytecode/030_tail.oren`
     - VM: `lib/avm/avm_vm.c` (opcode implementation), `lib/avm/main.c` (disasm/verify)
+  - 2026-02-19: bytecode now emits list_int push loop opcodes for `list.push` when RHS is a provably non-negative int expression (boxed list fill loops).
+    - Compiler: `lib/compiler/codegen_bytecode/030_tail.oren` (list.push matcher)
+    - Impact: multi_list_sum OBC ~1.84× C (see latest artifact).
   - 2026-02-19: C backend list/map ops skip striped object locks until `spawn` is used (reduces single-thread overhead; main thread wrapper does not enable locks).
      - Override: `OREN_LIST_FORCE_LOCKS=1` forces locks; `OREN_LIST_SKIP_LOCKS=1` disables locks even after threads (perf-only, unsafe).
      - Runtime: `lib/runtime/010_prelude.inc` (`g_threads_started`), `lib/runtime/020_threads_gc.inc` (spawn marks), `lib/runtime/040_lists_maps.inc` (lock gating)

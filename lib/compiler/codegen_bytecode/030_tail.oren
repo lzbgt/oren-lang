@@ -160,7 +160,8 @@ fn _bc_match_list_int_push_call(ctx, expr) {
             }
         }
     }
-    if name != "oren_list_int_push" && name != "STD_list_int_push" { return nil }
+    if name != "oren_list_int_push" && name != "STD_list_int_push" &&
+        name != "oren_list_push" && name != "STD_list_push" { return nil }
     var args = expr["args"]
     if args == nil || oren_list_len(args) != 2 { return nil }
     var list_expr = args[0]
