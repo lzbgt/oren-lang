@@ -1875,6 +1875,8 @@ fn _emit_fast_list_int_dot_while_x64(ctx, op, info, locals, labels, local_fixups
     var mul_count = oren_list_len(muls)
     var unique_lists = false
     if list_count == mul_count * 2 { unique_lists = true }
+    var unroll2 = false
+    if unique_lists == true && mul_count == 1 { unroll2 = true }
     var base = _intr_tmp_push(ctx, iadd(list_count, list_count))
     if oren_type_tag(base) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
 
@@ -1975,10 +1977,66 @@ fn _emit_fast_list_int_dot_while_x64(ctx, op, info, locals, labels, local_fixups
     bytes_extend(ctx["code"], insn_cmp_r64_r64(10, 9))
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_fast_end)
 
+    var l_fast_single = nil
+    if unroll2 == true {
+        l_fast_single = _new_label(ctx, "list_int_dot_single")
+        bytes_extend(ctx["code"], insn_mov_r64_r64(8, 10))
+        bytes_extend(ctx["code"], insn_add_r64_imm32(8, 1))
+        bytes_extend(ctx["code"], insn_cmp_r64_r64(8, 9))
+        _emit_jcc_to_label(ctx, local_fixups, "ge", l_fast_single)
+    }
+
     _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
 
     // sum -> r13
     _emit_mov_r64_mrbp(ctx, 13, 0 - off_sum)
+
+    if unroll2 == true {
+        var mul0 = muls[0]
+        var left0 = mul0["left"]
+        var right0 = mul0["right"]
+        var li_left0 = 0
+        while li_left0 < list_count {
+            if _x64_str_eq_bytes(lists[li_left0], left0) { break }
+            li_left0 = li_left0 + 1
+        }
+        var li_right0 = 0
+        while li_right0 < list_count {
+            if _x64_str_eq_bytes(lists[li_right0], right0) { break }
+            li_right0 = li_right0 + 1
+        }
+        var slot_buf_left0 = _intr_tmp_off(ctx, locals, base + li_left0 * 2 + 1)
+        var slot_buf_right0 = _intr_tmp_off(ctx, locals, base + li_right0 * 2 + 1)
+        if oren_type_tag(slot_buf_left0) == 0 || oren_type_tag(slot_buf_right0) == 0 { _intr_tmp_pop(ctx, base); return nil }
+
+        // left ptr -> r12
+        _emit_mov_r64_mrbp(ctx, 12, 0 - slot_buf_left0)
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(14, 12))              // v0
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(8, 12, 8))       // v1
+        bytes_extend(ctx["code"], insn_add_r64_imm32(12, 16))
+        _emit_mov_mrbp_r64(ctx, 0 - slot_buf_left0, 12)
+
+        // right ptr -> r11
+        _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf_right0)
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(15, 11))             // w0
+        bytes_extend(ctx["code"], insn_mov_r64_mr64_disp(12, 11, 8))     // w1
+        bytes_extend(ctx["code"], insn_add_r64_imm32(11, 16))
+        _emit_mov_mrbp_r64(ctx, 0 - slot_buf_right0, 11)
+
+        bytes_extend(ctx["code"], insn_imul_r64_r64(14, 15))
+        bytes_extend(ctx["code"], insn_add_r64_r64(13, 14))
+        bytes_extend(ctx["code"], insn_imul_r64_r64(8, 12))
+        bytes_extend(ctx["code"], insn_add_r64_r64(13, 8))
+
+        _emit_mov_mrbp_r64(ctx, 0 - off_sum, 13)
+        bytes_extend(ctx["code"], insn_add_r64_imm32(10, 2))
+        _emit_mov_mrbp_r64(ctx, 0 - off_idx, 10)
+        _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
+
+        _emit_label(ctx, labels, l_fast_single)
+        _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
+        _emit_mov_r64_mrbp(ctx, 13, 0 - off_sum)
+    }
 
     var mi = 0
     while mi < oren_list_len(muls) {
