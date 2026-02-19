@@ -67,6 +67,43 @@ fn _bc_is_int_lit_one(expr) {
     return v == "1" || v == "+1"
 }
 
+fn _bc_match_loop_bound(expr) {
+    if expr == nil { return nil }
+    if _bc_is_ident(expr, nil) == true {
+        return {"expr": expr, "name": expr["value"]}
+    }
+    if expr["type"] == "Integer" {
+        return {"expr": expr, "name": nil}
+    }
+    return nil
+}
+
+fn _bc_match_loop_header(cond) {
+    if cond == nil || cond["type"] != "Infix" || cond["op"] != "<" { return nil }
+    var idx_ident = cond["left"]
+    if _bc_is_ident(idx_ident, nil) != true { return nil }
+    var bound = _bc_match_loop_bound(cond["right"])
+    if bound == nil { return nil }
+    var idx_name = idx_ident["value"]
+    if idx_name == nil { return nil }
+    return {"idx_ident": idx_ident, "idx_name": idx_name, "n_expr": bound["expr"], "n_name": bound["name"]}
+}
+
+fn _bc_ident_uncaptured(ctx, name) {
+    if name == nil { return true }
+    var caps = ctx["env_captures"]
+    if caps == nil { return true }
+    if oren_type_tag(caps[name]) != 0 { return false }
+    return true
+}
+
+fn _bc_ident_defined(ctx, name) {
+    if name == nil { return false }
+    if oren_type_tag(ctx["locals"][name]) != 0 { return true }
+    if oren_type_tag(ctx["globals"][name]) != 0 { return true }
+    return false
+}
+
 fn _bc_match_list_index(expr, idx_name) {
     if expr == nil { return nil }
     if expr["type"] != "Index" { return nil }
@@ -391,15 +428,13 @@ fn _bc_emit_store_ident(ctx, ident) {
 
 fn bytecode_try_emit_list_int_push_loop(ctx, stmt) {
     if stmt == nil || stmt["type"] != "While" { return false }
-    var cond = stmt["cond"]
-    if cond == nil || cond["type"] != "Infix" || cond["op"] != "<" { return false }
-    var idx_ident = cond["left"]
-    var n_ident = cond["right"]
-    if _bc_is_ident(idx_ident, nil) != true { return false }
-    if _bc_is_ident(n_ident, nil) != true { return false }
-    var idx_name = idx_ident["value"]
-    var n_name = n_ident["value"]
-    if idx_name == nil || n_name == nil { return false }
+    var header = _bc_match_loop_header(stmt["cond"])
+    if header == nil { return false }
+    var idx_ident = header["idx_ident"]
+    var n_expr = header["n_expr"]
+    var idx_name = header["idx_name"]
+    var n_name = header["n_name"]
+    if idx_name == nil || n_expr == nil { return false }
 
     var body = stmt["body"]
     if body == nil || body["type"] != "Block" { return false }
@@ -417,20 +452,17 @@ fn bytecode_try_emit_list_int_push_loop(ctx, stmt) {
     if rhs == nil { return false }
     // (debug trace removed)
 
-    var caps = ctx["env_captures"]
-    if caps != nil {
-        if oren_type_tag(caps[idx_name]) != 0 { return false }
-        if oren_type_tag(caps[n_name]) != 0 { return false }
-        if oren_type_tag(caps[list_name]) != 0 { return false }
-    }
-    if oren_type_tag(ctx["locals"][idx_name]) == 0 && oren_type_tag(ctx["globals"][idx_name]) == 0 { return false }
-    if oren_type_tag(ctx["locals"][n_name]) == 0 && oren_type_tag(ctx["globals"][n_name]) == 0 { return false }
-    if oren_type_tag(ctx["locals"][list_name]) == 0 && oren_type_tag(ctx["globals"][list_name]) == 0 { return false }
+    if _bc_ident_uncaptured(ctx, idx_name) != true { return false }
+    if _bc_ident_uncaptured(ctx, n_name) != true { return false }
+    if _bc_ident_uncaptured(ctx, list_name) != true { return false }
+    if _bc_ident_defined(ctx, idx_name) != true { return false }
+    if n_name != nil && _bc_ident_defined(ctx, n_name) != true { return false }
+    if _bc_ident_defined(ctx, list_name) != true { return false }
 
     var list_ident = {"type": "Identifier", "value": list_name}
     bytecode_compile_expr(ctx, list_ident)
     bytecode_compile_expr(ctx, idx_ident)
-    bytecode_compile_expr(ctx, n_ident)
+    bytecode_compile_expr(ctx, n_expr)
     _bc_push_int_const(ctx, rhs["mul"])
     _bc_push_int_const(ctx, rhs["add"])
     _bc_push_int_const(ctx, rhs["mod"])
@@ -441,15 +473,13 @@ fn bytecode_try_emit_list_int_push_loop(ctx, stmt) {
 
 fn bytecode_try_emit_list_int_push2_loop(ctx, stmt) {
     if stmt == nil || stmt["type"] != "While" { return false }
-    var cond = stmt["cond"]
-    if cond == nil || cond["type"] != "Infix" || cond["op"] != "<" { return false }
-    var idx_ident = cond["left"]
-    var n_ident = cond["right"]
-    if _bc_is_ident(idx_ident, nil) != true { return false }
-    if _bc_is_ident(n_ident, nil) != true { return false }
-    var idx_name = idx_ident["value"]
-    var n_name = n_ident["value"]
-    if idx_name == nil || n_name == nil { return false }
+    var header2 = _bc_match_loop_header(stmt["cond"])
+    if header2 == nil { return false }
+    var idx_ident = header2["idx_ident"]
+    var n_expr = header2["n_expr"]
+    var idx_name = header2["idx_name"]
+    var n_name = header2["n_name"]
+    if idx_name == nil || n_expr == nil { return false }
 
     var body = stmt["body"]
     if body == nil || body["type"] != "Block" { return false }
@@ -472,24 +502,21 @@ fn bytecode_try_emit_list_int_push2_loop(ctx, stmt) {
     var rhs_b = _bc_parse_nonneg_linear(info_b["value"], idx_name)
     if rhs_a == nil || rhs_b == nil { return false }
 
-    var caps = ctx["env_captures"]
-    if caps != nil {
-        if oren_type_tag(caps[idx_name]) != 0 { return false }
-        if oren_type_tag(caps[n_name]) != 0 { return false }
-        if oren_type_tag(caps[list_a]) != 0 { return false }
-        if oren_type_tag(caps[list_b]) != 0 { return false }
-    }
-    if oren_type_tag(ctx["locals"][idx_name]) == 0 && oren_type_tag(ctx["globals"][idx_name]) == 0 { return false }
-    if oren_type_tag(ctx["locals"][n_name]) == 0 && oren_type_tag(ctx["globals"][n_name]) == 0 { return false }
-    if oren_type_tag(ctx["locals"][list_a]) == 0 && oren_type_tag(ctx["globals"][list_a]) == 0 { return false }
-    if oren_type_tag(ctx["locals"][list_b]) == 0 && oren_type_tag(ctx["globals"][list_b]) == 0 { return false }
+    if _bc_ident_uncaptured(ctx, idx_name) != true { return false }
+    if _bc_ident_uncaptured(ctx, n_name) != true { return false }
+    if _bc_ident_uncaptured(ctx, list_a) != true { return false }
+    if _bc_ident_uncaptured(ctx, list_b) != true { return false }
+    if _bc_ident_defined(ctx, idx_name) != true { return false }
+    if n_name != nil && _bc_ident_defined(ctx, n_name) != true { return false }
+    if _bc_ident_defined(ctx, list_a) != true { return false }
+    if _bc_ident_defined(ctx, list_b) != true { return false }
 
     var list_a_ident = {"type": "Identifier", "value": list_a}
     var list_b_ident = {"type": "Identifier", "value": list_b}
     bytecode_compile_expr(ctx, list_a_ident)
     bytecode_compile_expr(ctx, list_b_ident)
     bytecode_compile_expr(ctx, idx_ident)
-    bytecode_compile_expr(ctx, n_ident)
+    bytecode_compile_expr(ctx, n_expr)
     _bc_push_int_const(ctx, rhs_a["mul"])
     _bc_push_int_const(ctx, rhs_a["add"])
     _bc_push_int_const(ctx, rhs_a["mod"])
@@ -503,15 +530,13 @@ fn bytecode_try_emit_list_int_push2_loop(ctx, stmt) {
 
 fn bytecode_try_emit_list_int_push3_loop(ctx, stmt) {
     if stmt == nil || stmt["type"] != "While" { return false }
-    var cond = stmt["cond"]
-    if cond == nil || cond["type"] != "Infix" || cond["op"] != "<" { return false }
-    var idx_ident = cond["left"]
-    var n_ident = cond["right"]
-    if _bc_is_ident(idx_ident, nil) != true { return false }
-    if _bc_is_ident(n_ident, nil) != true { return false }
-    var idx_name = idx_ident["value"]
-    var n_name = n_ident["value"]
-    if idx_name == nil || n_name == nil { return false }
+    var header3 = _bc_match_loop_header(stmt["cond"])
+    if header3 == nil { return false }
+    var idx_ident = header3["idx_ident"]
+    var n_expr = header3["n_expr"]
+    var idx_name = header3["idx_name"]
+    var n_name = header3["n_name"]
+    if idx_name == nil || n_expr == nil { return false }
 
     var body = stmt["body"]
     if body == nil || body["type"] != "Block" { return false }
@@ -539,19 +564,16 @@ fn bytecode_try_emit_list_int_push3_loop(ctx, stmt) {
     var rhs_c = _bc_parse_nonneg_linear(info_c["value"], idx_name)
     if rhs_a == nil || rhs_b == nil || rhs_c == nil { return false }
 
-    var caps = ctx["env_captures"]
-    if caps != nil {
-        if oren_type_tag(caps[idx_name]) != 0 { return false }
-        if oren_type_tag(caps[n_name]) != 0 { return false }
-        if oren_type_tag(caps[list_a]) != 0 { return false }
-        if oren_type_tag(caps[list_b]) != 0 { return false }
-        if oren_type_tag(caps[list_c]) != 0 { return false }
-    }
-    if oren_type_tag(ctx["locals"][idx_name]) == 0 && oren_type_tag(ctx["globals"][idx_name]) == 0 { return false }
-    if oren_type_tag(ctx["locals"][n_name]) == 0 && oren_type_tag(ctx["globals"][n_name]) == 0 { return false }
-    if oren_type_tag(ctx["locals"][list_a]) == 0 && oren_type_tag(ctx["globals"][list_a]) == 0 { return false }
-    if oren_type_tag(ctx["locals"][list_b]) == 0 && oren_type_tag(ctx["globals"][list_b]) == 0 { return false }
-    if oren_type_tag(ctx["locals"][list_c]) == 0 && oren_type_tag(ctx["globals"][list_c]) == 0 { return false }
+    if _bc_ident_uncaptured(ctx, idx_name) != true { return false }
+    if _bc_ident_uncaptured(ctx, n_name) != true { return false }
+    if _bc_ident_uncaptured(ctx, list_a) != true { return false }
+    if _bc_ident_uncaptured(ctx, list_b) != true { return false }
+    if _bc_ident_uncaptured(ctx, list_c) != true { return false }
+    if _bc_ident_defined(ctx, idx_name) != true { return false }
+    if n_name != nil && _bc_ident_defined(ctx, n_name) != true { return false }
+    if _bc_ident_defined(ctx, list_a) != true { return false }
+    if _bc_ident_defined(ctx, list_b) != true { return false }
+    if _bc_ident_defined(ctx, list_c) != true { return false }
 
     var list_a_ident = {"type": "Identifier", "value": list_a}
     var list_b_ident = {"type": "Identifier", "value": list_b}
@@ -560,7 +582,7 @@ fn bytecode_try_emit_list_int_push3_loop(ctx, stmt) {
     bytecode_compile_expr(ctx, list_b_ident)
     bytecode_compile_expr(ctx, list_c_ident)
     bytecode_compile_expr(ctx, idx_ident)
-    bytecode_compile_expr(ctx, n_ident)
+    bytecode_compile_expr(ctx, n_expr)
     _bc_push_int_const(ctx, rhs_a["mul"])
     _bc_push_int_const(ctx, rhs_a["add"])
     _bc_push_int_const(ctx, rhs_a["mod"])

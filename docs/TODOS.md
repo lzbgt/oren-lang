@@ -79,6 +79,7 @@ Weights reflect expected impact on C parity + breadth of affected code.
 
 7) **W3 — AVM unboxed list<int> payload + opcode lowering** (M)
    - Implement list<int> payload + compiler lowering for OBC (see collections design).
+   - Extend fused list<int> push loop detection to `for` syntax (bytecode backend).
    - Gate: `list_int` fixtures + OBC perf parity for dot/sum loops.
 
 ## P0 (Now)
