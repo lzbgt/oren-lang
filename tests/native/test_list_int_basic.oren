@@ -2,6 +2,7 @@ import list "std:list"
 
 fn main() {
     var xs = list.int_new(2)
+    list.int_reserve(xs, 4)
     list.int_push(xs, 10)
     list.int_push(xs, 20)
 
