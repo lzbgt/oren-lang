@@ -3,6 +3,7 @@ fn main() {
 
     test_core()
     test_arena_list_smoke()
+    test_arena_loop_attrs()
     test_boxed_list_dot_sum()
     test_entropy()
     test_cfg_debug_release()

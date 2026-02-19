@@ -796,3 +796,25 @@ fn test_arena_list_smoke() {
     oren_arena_pop()
     return 0
 }
+
+fn test_arena_loop_attrs() {
+    trace("QI: test_arena_loop_attrs")
+    var sum = 0
+    @oren.arena
+    while sum < 3 {
+        var xs = []
+        oren_list_push(xs, sum)
+        sum = sum + xs[0]
+    }
+    assert_true(sum >= 3, 4110)
+
+    var ys = []
+    var i = 0
+    @oren.noarena
+    while i < 2 {
+        oren_list_push(ys, i)
+        i = i + 1
+    }
+    assert_eq(oren_list_len(ys), 2, 4111)
+    return 0
+}

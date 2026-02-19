@@ -568,6 +568,30 @@ Example (safe per‑OS declaration variants with a fallback):
 @cfg(not_os="windows,linux,macos") fn title() { return "hello" }
 ```
 
+### Arena loop annotations (rolling)
+
+Oren supports opt‑in/out annotations for the arena auto‑loop rewrite:
+
+- `@oren.arena` forces arena evaluation for the loop (still subject to safety checks).
+- `@oren.noarena` disables auto wrapping for that loop.
+
+Example:
+
+```oren
+@oren.arena
+while i < n {
+    var xs = [] // eligible for arena allocation
+    xs.push(i)
+    i = i + 1
+}
+
+@oren.noarena
+while j < n {
+    ys.push(j) // stays on GC heap
+    j = j + 1
+}
+```
+
 ## 2) Values and literals
 
 ### Integers
