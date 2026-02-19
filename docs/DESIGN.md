@@ -94,6 +94,10 @@ plan are tracked in `docs/STATUS.md`.
 
 Tagged value convergence plan (rolling, lean):
 
+- Current facts (rolling):
+  - Native backend still has partial tagging; `oren_type_tag` is best-effort for scalars.
+  - `nil`/`false`/`true` are runtime singleton values in native mode (not raw `0/1`).
+  - AVM uses a tagged `AvmValue` representation (`lib/avm/avm.h`).
 - Define a single **canonical value model** that can be represented in:
   - native backend values,
   - C backend values,
@@ -104,6 +108,9 @@ Tagged value convergence plan (rolling, lean):
   rollout (backend-by-backend switches).
 - Add a fixture gate that asserts the **same observed behavior** across
   native/C/OBC for representative mixed‑type programs.
+  - Fixtures must cover: truthiness, equality, type tags/names, container access,
+    and optional/dynamic value handling.
+  - Gate: parity fixtures + `make test` green on Tier‑1.
 
 ### Bytecode backend (OBC)
 

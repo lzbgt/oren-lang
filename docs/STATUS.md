@@ -131,6 +131,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 3) **Tagged value convergence plan** (L, W4)
    - Define layout and staged migration.
    - Pin semantic invariants (truthiness, equality, type tests) and add cross‑backend fixtures.
+   - Add a backend mapping table (native/C/AVM) and parity fixtures for tags + type names.
    - Add compatibility shims so native/C/OBC can migrate without breaking Tier‑1.
    - Gate: fixtures across all backends.
 
