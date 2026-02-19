@@ -1090,6 +1090,44 @@ fn _opt_block_const_int_value_before(block, idx, name) {
     return nil
 }
 
+fn _opt_block_list_lit_len_before(block, idx, list_name) {
+    if block == nil || block["type"] != "Block" { return nil }
+    if list_name == nil { return nil }
+    var ss = block["stmts"]
+    if ss == nil { return nil }
+    var i = idx - 1
+    while i >= 0 {
+        var st = ss[i]
+        if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
+            var nm = opthelp.is_ident(st["name"])
+            if nm != nil && nm == list_name {
+                if _opt_expr_is_list_lit(st["value"]) != true { return nil }
+                var len = _opt_expr_list_lit_len(st["value"])
+                var j = i + 1
+                while j < idx {
+                    if _opt_stmt_has_list_len_mutation(ss[j], list_name) { return nil }
+                    j = j + 1
+                }
+                return len
+            }
+        } else if st != nil && st["type"] == "Set" {
+            var left = st["left"]
+            if left != nil && left["type"] == "Identifier" && left["value"] == list_name {
+                if _opt_expr_is_list_lit(st["value"]) != true { return nil }
+                var len2 = _opt_expr_list_lit_len(st["value"])
+                var j2 = i + 1
+                while j2 < idx {
+                    if _opt_stmt_has_list_len_mutation(ss[j2], list_name) { return nil }
+                    j2 = j2 + 1
+                }
+                return len2
+            }
+        }
+        i = i - 1
+    }
+    return nil
+}
+
 fn _opt_block_list_len_before(block, idx, name) {
     if block == nil || block["type"] != "Block" { return nil }
     if name == nil { return nil }
@@ -1330,6 +1368,11 @@ fn _opt_loop_simple_bound_value(block, idx, stmt) {
         if rn == nil || rn == left["value"] { return nil }
         var v2 = _opt_block_const_int_value_before(block, idx, rn)
         if v2 != nil { return v2 }
+        var list_name = _opt_block_list_len_before(block, idx, rn)
+        if list_name != nil {
+            var lit_len = _opt_block_list_lit_len_before(block, idx, list_name)
+            if lit_len != nil { return lit_len }
+        }
     }
     return nil
 }
