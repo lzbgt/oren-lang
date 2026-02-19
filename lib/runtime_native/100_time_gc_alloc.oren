@@ -943,10 +943,14 @@ fn native_try_reuse(size) {
         if cur_kind != 0 && cur_kind != 5 {
             if g_gc_reuse_lists != 0 && (cur_kind == 2 || cur_kind == list_int_kind()) {
                 // ok
+            } else if g_gc_reuse_maps != 0 && cur_kind == 3 {
+                // ok
+            } else if g_gc_reuse_structs != 0 && cur_kind == 4 {
+                // ok
             } else {
-            prev = cur
-            cur = next
-            continue
+                prev = cur
+                cur = next
+                continue
             }
         }
         var chunk_ptr = ptr_get(cur)

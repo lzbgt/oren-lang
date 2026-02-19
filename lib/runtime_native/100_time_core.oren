@@ -739,6 +739,10 @@ var g_gc_auto_pending = 0
 var g_gc_reuse_blocks = 0
 // Optional: allow reuse for list/list_int headers when reuse is enabled.
 var g_gc_reuse_lists = 0
+// Optional: allow reuse for map headers when reuse is enabled.
+var g_gc_reuse_maps = 0
+// Optional: allow reuse for struct headers when reuse is enabled.
+var g_gc_reuse_structs = 0
 // Optional tracing: allocation kind counters between sweeps.
 var g_gc_trace_alloc_kind = 0
 // Optional tracing: alloc-index rebuilds/probe exhaustion.
@@ -777,6 +781,8 @@ fn native_runtime_init_gc_mode(default_enabled) {
     g_gc_auto_pending = 0
     g_gc_reuse_blocks = 0
     g_gc_reuse_lists = 0
+    g_gc_reuse_maps = 0
+    g_gc_reuse_structs = 0
     g_gc_trace_alloc_kind = 0
     g_trace_alloc_index = 0
     g_trace_track_alloc_time = 0
@@ -810,6 +816,18 @@ fn native_runtime_init_gc_mode(default_enabled) {
     if v_reuse_lists != 0 {
         if ptr_get_byte(v_reuse_lists) != 0 && ptr_get_byte(v_reuse_lists) != 48 {
             g_gc_reuse_lists = 1
+        }
+    }
+    var v_reuse_maps = native_envp_get_value_ptr("OREN_GC_REUSE_MAPS")
+    if v_reuse_maps != 0 {
+        if ptr_get_byte(v_reuse_maps) != 0 && ptr_get_byte(v_reuse_maps) != 48 {
+            g_gc_reuse_maps = 1
+        }
+    }
+    var v_reuse_structs = native_envp_get_value_ptr("OREN_GC_REUSE_STRUCTS")
+    if v_reuse_structs != 0 {
+        if ptr_get_byte(v_reuse_structs) != 0 && ptr_get_byte(v_reuse_structs) != 48 {
+            g_gc_reuse_structs = 1
         }
     }
 
