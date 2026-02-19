@@ -800,16 +800,17 @@ fn test_arena_list_smoke() {
 fn test_arena_loop_attrs() {
     trace("QI: test_arena_loop_attrs")
     var sum = 0
+    var i = 0
     @oren.arena
-    while sum < 3 {
-        var xs = []
-        oren_list_push(xs, sum)
+    while i < 3 {
+        var xs = [i, i + 1]
         sum = sum + xs[0]
+        i = i + 1
     }
     assert_true(sum >= 3, 4110)
 
     var ys = []
-    var i = 0
+    i = 0
     @oren.noarena
     while i < 2 {
         oren_list_push(ys, i)

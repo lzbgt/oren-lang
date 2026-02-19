@@ -75,11 +75,11 @@ fn _emit_array_literal_expr(ctx, expr, locals) {
 
     var n = oren_list_len(els)
 
-    // list = oren_new_list(0)
+    // list = oren_new_list(n)
     var new_call = {
         "type": "Call",
         "fn": {"type": "Identifier", "token": nil, "value": "oren_new_list"},
-        "args": [{"type": "Integer", "value": "0"}],
+        "args": [{"type": "Integer", "value": oren_int_to_string(n)}],
     }
     _emit_eval_int_to_rax(ctx, new_call, locals)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 {

@@ -270,10 +270,11 @@ Proposed compiler strategy (first slice):
      `arena_new_list` / `arena_new_list_int` (same layout; arena‑backed buffers).
 3) Fallback to GC heap when analysis is uncertain.
 4) Rolling auto‑mode (`OREN_ARENA_AUTO_LOOP=1`):
-   - Wraps simple loops and rewrites loop‑local list allocations only when usage
-     stays in safe list intrinsics (conservative escape check).
-   - Rewrites only **unconditional top‑level** `var`/`assign` list allocations in the loop
-     body (no conditional/nested rewrites).
+  - Wraps simple loops and rewrites loop‑local list allocations only when usage
+    stays in safe list intrinsics (conservative escape check).
+  - Rewrites only **unconditional top‑level** `var`/`assign` list allocations in the loop
+    body (no conditional/nested rewrites).
+  - List literals (empty or non‑empty) are expanded to arena alloc + ordered pushes.
    - Requires the allocation to **dominate first use** in the loop body
      (use‑before‑assign skips rewriting).
    - Only wraps loops without `break`/`return`/`continue` in the same loop body

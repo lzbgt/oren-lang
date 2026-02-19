@@ -411,8 +411,8 @@ fn native_expr_chunk_noncall(ctx, expr) {
     	        var elements = expr["elements"]
     	        var count = oren_list_len(elements)
             
-            // Build runtime list: call oren_new_list(0) then push elements (runtime grows as needed)
-            push_u32_le(ctx["code"], insn_movz(0, 0))
+            // Build runtime list: call oren_new_list(count) then push elements
+            native_compile_expr(ctx, {"type": "Integer", "token": nil, "value": oren_int_to_string(count)})
             var bl_pos_list = bytes_len(ctx["code"])
             push_u32_le(ctx["code"], 0)
             oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_list, "name": "oren_new_list"})
