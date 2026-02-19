@@ -3,6 +3,7 @@ import json
 import os
 import platform
 import shutil
+import shlex
 import statistics
 import subprocess
 import sys
@@ -167,6 +168,8 @@ def main():
     skip_oren_c = int(os.environ.get("OREN_BENCH_SKIP_OREN_C", "0")) == 1
     skip_native = int(os.environ.get("OREN_BENCH_SKIP_NATIVE", "0")) == 1
     program = os.environ.get("OREN_BENCH_PROGRAM", "loop_sum")
+    bench_args_raw = os.environ.get("OREN_BENCH_ARGS", "")
+    bench_args = shlex.split(bench_args_raw) if bench_args_raw else []
     env_all = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_ALL", ""))
     env_c = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_C", ""))
     env_oren_c = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_OREN_C", ""))
@@ -219,13 +222,13 @@ def main():
     env_base = os.environ.copy()
     suites = []
     if not skip_c:
-        suites.append(("c", [str(c_bin)], env_c))
+        suites.append(("c", [str(c_bin), *bench_args], env_c))
     if not skip_oren_c:
-        suites.append(("oren_c", [str(oren_c_bin)], env_oren_c))
+        suites.append(("oren_c", [str(oren_c_bin), *bench_args], env_oren_c))
     if not skip_native:
-        suites.append(("oren_native", [str(oren_native_bin)], env_oren_native))
+        suites.append(("oren_native", [str(oren_native_bin), *bench_args], env_oren_native))
     if not skip_obc:
-        suites.append(("oren_obc", [str(avm_bin), str(obc_out)], env_oren_obc))
+        suites.append(("oren_obc", [str(avm_bin), str(obc_out), *bench_args], env_oren_obc))
     variant_order = [name for name, _, _ in suites]
 
     for name, cmd, extra_env in suites:

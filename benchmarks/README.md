@@ -41,6 +41,7 @@ Optional knobs:
 - `OREN_BENCH_ENV_OREN_C=K=V,...`
 - `OREN_BENCH_ENV_OREN_NATIVE=K=V,...`
 - `OREN_BENCH_ENV_OREN_OBC=K=V,...`
+- `OREN_BENCH_ARGS="arg1 arg2 ..."` (extra CLI args passed to all variants)
 - `OREN_BENCH_ITERS=<n>` (used by `alloc_drop`; default: 10000)
 - `OREN_BENCH_SKIP_OBC=1` (skip AVM/OBC build+run; useful on Windows if `avm.exe` is unavailable)
 - `OREN_BENCH_SKIP_C=1` (skip the pure C baseline build+run)
@@ -66,5 +67,13 @@ Build logs are stored under `build/logs/` with a `bench_build_*` prefix.
 - The OBC benchmark uses `./avm` and runs without explicit capability restrictions.
   On Windows, the runner looks for `.exe` tool suffixes automatically.
 
-If you need a different loop size, change `n` in `benchmarks/loop_sum/loop_sum.oren`
-(and the matching C baseline) so all variants remain comparable.
+`loop_sum` accepts optional CLI args:
+
+- `n` (first arg after program path; `0` allowed)
+- `reps` (second arg; repeat the loop that many times, default 1)
+
+Example:
+
+```bash
+OREN_BENCH_PROGRAM=loop_sum OREN_BENCH_ARGS="2000000 10" python3 benchmarks/run_benchmarks.py
+```

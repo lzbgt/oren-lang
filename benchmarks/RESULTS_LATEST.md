@@ -10,7 +10,7 @@ Legend: `x` = slowdown relative to C median.
 
 | benchmark | C median (s) | Oren C median (x) | Oren native median (x) | Oren OBC median (x) | result file |
 | --- | --- | --- | --- | --- | --- |
-| loop_sum | 0.066145 | 0.348455 (5.27×) | 0.425177 (6.43×) | 0.101388 (1.53×) | `benchmarks/results/loop_sum_darwin_arm64_20260219_141900.md` |
+| loop_sum | 0.066761 | 0.345528 (5.18×) | 0.424858 (6.36×) | 0.102720 (1.54×) | `benchmarks/results/loop_sum_darwin_arm64_20260219_142648.md` |
 | array_sum | 0.004190 | 0.007941 (1.90×) | 0.020951 (5.00×) | 0.010095 (2.41×) | `benchmarks/results/array_sum_darwin_arm64_20260219_130446.md` |
 | array_sum_int | 0.004399 | 0.011875 (2.70×) | 0.021051 (4.79×) | 0.005241 (1.19×) | `benchmarks/results/array_sum_int_darwin_arm64_20260219_123739.md` |
 | multi_list_sum | 0.008349 | 0.017322 (2.07×) | 0.030751 (3.68×) | 0.015799 (1.89×) | `benchmarks/results/multi_list_sum_darwin_arm64_20260219_130703.md` |

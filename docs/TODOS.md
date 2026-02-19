@@ -288,11 +288,12 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - RSS (median): native ~7.75MB, Oren C ~4.47MB, OBC ~9.34MB.
      - Target: native ≤0.50s on M2 with stable RSS (met 2026‑02‑19).
      - Stretch: ≤0.08s by reducing per-alloc tracking overhead and string concat allocations in alloc_drop.
-  - (P1/M) **Loop_sum native still ~6.4× C; Oren C ~5.3×; OBC ~1.53×**
-    - Latest (runs=5, warmups=1): C 0.066145s, Oren C 0.348455s (~5.27×), native 0.425177s (~6.43×), OBC 0.101388s (~1.53×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_141900.md`).
+  - (P1/M) **Loop_sum native still ~6.4× C; Oren C ~5.2×; OBC ~1.54×**
+    - Latest (runs=5, warmups=1): C 0.066761s, Oren C 0.345528s (~5.18×), native 0.424858s (~6.36×), OBC 0.102720s (~1.54×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_142648.md`).
     - Note: OBC speedup comes from emitting fused AVM `INT_LCG_SUM_LOOP` for the LCG+sum loop pattern.
     - New (2026-02-19): C/native backends now emit a fast LCG+sum loop lowering; fast path triggers on `benchmarks/loop_sum/loop_sum.oren`.
     - Remaining gap appears dominated by runtime init + per-process overhead rather than the loop body; quantify init cost and add a fast-init path for pure-int benchmarks.
+    - 2026-02-19: `benchmarks/run_benchmarks.py` now supports `OREN_BENCH_ARGS`, and `loop_sum` accepts `n` + `reps` CLI args to probe steady‑state vs init overhead.
     - Target: native ≤0.25s (≤4× C) and Oren C ≤0.20s (≤3× C) while keeping correctness gates.
   - (P2/S) **Array_sum list access now ~5.0× C (native); Oren C ~1.90×; OBC ~2.41×**
     - Latest: native 0.020951s vs C 0.004190s (`benchmarks/results/array_sum_darwin_arm64_20260219_130446.md`).
