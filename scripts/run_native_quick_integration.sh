@@ -287,6 +287,21 @@ if ! grep -q "\\[arena\\]" "$arena_ret_log" 2>/dev/null; then
 fi
 tail -n 3 "$arena_ret_log" >>"$log"
 
+echo "== arena auto loop for-post continue smoke ==" >>"$log"
+arena_fpc_src="tests/native/test_arena_auto_loop_for_post_continue_smoke.oren"
+arena_fpc_out="build/tmp/${compiler_base}_arena_auto_loop_for_post_continue_smoke${exe_ext}"
+arena_fpc_log="build/logs/${compiler_base}_arena_auto_loop_for_post_continue_smoke.log"
+rm -f "$arena_fpc_log" "$arena_fpc_out" 2>/dev/null || true
+OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_fpc_src" \
+  --backend native --platform "$platform" --debug -o "$arena_fpc_out" >"$arena_fpc_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_fpc_out" >>"$arena_fpc_log" 2>&1
+if ! grep -q "\\[arena\\]" "$arena_fpc_log" 2>/dev/null; then
+  echo "ERROR: arena auto loop for-post continue trace missing (expected [arena] output)" >&2
+  tail -n 80 "$arena_fpc_log" >&2 2>/dev/null || true
+  exit 1
+fi
+tail -n 3 "$arena_fpc_log" >>"$log"
+
 if [[ "$os_key" != "windows" ]]; then
   # Cross-platform CLI robustness smoke:
   # Accept Windows-style `\` separators even on POSIX hosts so scripts/logs are portable.

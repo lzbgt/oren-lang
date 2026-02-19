@@ -1,0 +1,14 @@
+fn main() {
+    var sum = 0
+    for var i = 0; i < 5; i = i + 1 {
+        var xs = []
+        if i == 2 {
+            continue
+        }
+        oren_list_push(xs, i)
+        sum = sum + i
+    }
+    if sum != 8 {
+        exit(48)
+    }
+}

@@ -81,7 +81,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Empty list literals (`[]`) inside eligible loops are rewritten to arena lists in auto mode.
    - Auto-loop wrapping now ignores `continue` inside nested loops (outer loop still eligible).
    - Auto-loop now inserts arena pop on `break`/`return`/`continue` in the same loop body.
-     - `continue` is only allowed for `while` (and `for` loops with no `post` expression).
+     - `continue` is allowed for `while` and `for` loops (post executes outside the arena).
    - Define long‑lived loop policy: per‑iteration sub‑arenas when safe; otherwise loop‑scoped arena with cap + GC spill.
    - Add arena‑lifetime counters (spills, epoch resets) to quantify long‑loop behavior.
    - `OREN_TRACE_ARENA=1` prints arena alloc/spill counters at arena epoch reset.

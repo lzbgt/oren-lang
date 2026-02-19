@@ -1032,7 +1032,7 @@ fn _opt_prepare_loop_arena(block, idx, stmt) {
     if _opt_stmt_contains_arena_push_pop(body) == true { return false }
     var allow_continue = false
     if stmt["type"] == "While" { allow_continue = true }
-    if stmt["type"] == "For" && stmt["post"] == nil { allow_continue = true }
+    if stmt["type"] == "For" { allow_continue = true }
     if _opt_has_continue_stmt(body) == true && allow_continue != true { return false }
     var candidates = []
     _opt_collect_loop_new_list_vars(body, candidates)
