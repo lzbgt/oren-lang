@@ -414,6 +414,10 @@ verify-native-quick: test-native-quick test-native-quick-stage2 test-native-caps
 verify-backend-parity-boxed-list: oren_stage2 avm
 	@./scripts/verify_backend_parity_boxed_list.sh
 
+# Cross-backend parity smoke: list<int> sum/dot output must match (C/native/OBC).
+verify-backend-parity-list-int: oren_stage2 avm
+	@./scripts/verify_backend_parity_list_int.sh
+
 # GUI bring-up smoke (headful, opt-in).
 # This is intentionally NOT part of `make test` or `make verify` because it requires a GUI session.
 verify-ui-smoke-macos: oren

@@ -1,0 +1,53 @@
+import list "std:list"
+
+fn main() {
+    var n = 10000
+    var xs = list.int_new(n)
+    var ys = list.int_new(n)
+    var i = 0
+    while i < n {
+        var v = (i * 3 + 7) % 1000
+        var w = (i * 5 + 11) % 1000
+        list.int_push(xs, v)
+        list.int_push(ys, w)
+        i = i + 1
+    }
+
+    var expected_sum = 0
+    var expected_dot = 0
+    i = 0
+    while i < n {
+        var v2 = (i * 3 + 7) % 1000
+        var w2 = (i * 5 + 11) % 1000
+        expected_sum = expected_sum + v2
+        expected_dot = expected_dot + v2 * w2
+        i = i + 1
+    }
+
+    var sum = 0
+    var dot = 0
+    i = 0
+    while i < n {
+        var xv = xs[i]
+        var yv = ys[i]
+        sum = sum + xv
+        dot = dot + xv * yv
+        i = i + 1
+    }
+
+    if sum != expected_sum {
+        print("list_int_dot_sum: sum mismatch got=" + oren_int_to_string(sum) +
+            " expected=" + oren_int_to_string(expected_sum))
+        exit(1)
+    }
+    if dot != expected_dot {
+        print("list_int_dot_sum: dot mismatch got=" + oren_int_to_string(dot) +
+            " expected=" + oren_int_to_string(expected_dot))
+        exit(2)
+    }
+
+    print("sum=" + oren_int_to_string(sum))
+    print("dot=" + oren_int_to_string(dot))
+    print("ok: list<int> dot sum")
+    return 0
+}

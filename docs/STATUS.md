@@ -35,6 +35,7 @@ Local (fast):
 - `make test`
 - `make verify-native-quick`
 - `make verify-backend-parity-boxed-list`
+- `make verify-backend-parity-list-int`
 - `./scripts/verify_x64_linux_qemu_smoke.sh`
 
 Tier-1 cross-arch (when touching native/runtime/net):
