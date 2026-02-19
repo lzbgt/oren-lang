@@ -13,6 +13,10 @@ fn main() {
     var m = {"k": 1}
     var tm = {"__oren_type": "Widget", "v": 7}
     var b = buffer.u8_new(4)
+    var b32 = buffer.i32_new(2)
+    var b64 = buffer.i64_new(2)
+    var bf32 = buffer.f32_new(2)
+    var bf64 = buffer.f64_new(2)
     var f = id
 
     print("ok: tag parity")
@@ -27,5 +31,9 @@ fn main() {
     emit("type_map", tm)
     emit("func", f)
     emit("u8_buf", b)
+    emit("i32_buf", b32)
+    emit("i64_buf", b64)
+    emit("f32_buf", bf32)
+    emit("f64_buf", bf64)
     return 0
 }
