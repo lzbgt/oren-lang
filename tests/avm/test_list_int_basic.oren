@@ -39,6 +39,34 @@ fn main() {
     assert_eq(list.int_get(ys, 0), 1)
     assert_eq(list.int_get(ys, 3), 0)
 
+    var a = list.int_new(1)
+    var b = list.int_new(1)
+    var k = 0
+    while k < 3 {
+        list.int_push(a, k + 10)
+        list.int_push(b, k * 2)
+        k = k + 1
+    }
+    assert_eq(list.int_len(a), 3)
+    assert_eq(list.int_len(b), 3)
+    assert_eq(list.int_get(a, 2), 12)
+    assert_eq(list.int_get(b, 2), 4)
+
+    var c = list.int_new(1)
+    var d = list.int_new(1)
+    var e = list.int_new(1)
+    for var m = 0; m < 3; m = m + 1 {
+        list.int_push(c, m + 1)
+        list.int_push(d, m + 2)
+        list.int_push(e, m + 3)
+    }
+    assert_eq(list.int_len(c), 3)
+    assert_eq(list.int_len(d), 3)
+    assert_eq(list.int_len(e), 3)
+    assert_eq(list.int_get(c, 2), 3)
+    assert_eq(list.int_get(d, 2), 4)
+    assert_eq(list.int_get(e, 2), 5)
+
     print("avm list<int> OK")
 }
 
