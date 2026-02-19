@@ -831,6 +831,46 @@ fn _opt_is_ident(expr) {
     return expr["value"]
 }
 
+fn _opt_is_len_call(expr) {
+    if expr == nil || expr["type"] != "Call" { return false }
+    var fnn = expr["fn"]
+    if fnn == nil || fnn["type"] != "Identifier" { return false }
+    var nm = fnn["value"]
+    if nm != "oren_list_len" && nm != "oren_list_int_len" && nm != "oren_map_len" && nm != "oren_buf_len" && nm != "oren_string_len" {
+        return false
+    }
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) != 1 { return false }
+    var arg0 = args[0]
+    if arg0 == nil || arg0["type"] != "Identifier" { return false }
+    return true
+}
+
+fn _opt_is_safe_int_expr(expr, last_int_safe) {
+    if expr == nil { return false }
+    var t = expr["type"]
+    if t == "Integer" { return true }
+    if t == "Identifier" {
+        var nm = expr["value"]
+        if nm != nil && last_int_safe != nil && last_int_safe[nm] == true { return true }
+        return false
+    }
+    if _opt_is_len_call(expr) { return true }
+    if t == "Prefix" {
+        var op0 = expr["op"]
+        if op0 == "-" || op0 == "+" { return _opt_is_safe_int_expr(expr["right"], last_int_safe) }
+        return false
+    }
+    if t == "Infix" {
+        var op = expr["op"]
+        if op == "+" || op == "-" || op == "*" {
+            if _opt_is_safe_int_expr(expr["left"], last_int_safe) && _opt_is_safe_int_expr(expr["right"], last_int_safe) { return true }
+        }
+        return false
+    }
+    return false
+}
+
 fn _opt_collect_list_pushes_expr(expr, out) {
     if expr == nil { return nil }
     var t = expr["type"]
@@ -1112,7 +1152,7 @@ fn _opt_insert_list_reserve_in_block(block) {
 
     var last_list_lit = {}
     var last_list_int_new = {}
-    var last_int_lit = {}
+    var last_int_safe = {}
     var out = []
     var i = 0
     while i < oren_list_len(ss) {
@@ -1134,8 +1174,8 @@ fn _opt_insert_list_reserve_in_block(block) {
                 else { last_list_lit[nm] = false }
                 if is_list_int_new { last_list_int_new[nm] = true }
                 else { last_list_int_new[nm] = false }
-                if v != nil && v["type"] == "Integer" { last_int_lit[nm] = true }
-                else { last_int_lit[nm] = false }
+                if _opt_is_safe_int_expr(v, last_int_safe) { last_int_safe[nm] = true }
+                else { last_int_safe[nm] = false }
             }
         }
 
@@ -1147,15 +1187,9 @@ fn _opt_insert_list_reserve_in_block(block) {
                 var left_name = _opt_is_ident(cond["left"])
                 var right = cond["right"]
                 if left_name != nil && right != nil {
-                    if right["type"] == "Integer" {
+                    if _opt_is_safe_int_expr(right, last_int_safe) {
                         n_expr = right
                         n_ok = true
-                    } else if right["type"] == "Identifier" {
-                        var n_name = right["value"]
-                        if n_name != nil && last_int_lit[n_name] == true {
-                            n_expr = right
-                            n_ok = true
-                        }
                     }
                 }
             }
@@ -1195,15 +1229,9 @@ fn _opt_insert_list_reserve_in_block(block) {
                 var left_name2 = _opt_is_ident(cond2["left"])
                 var right2 = cond2["right"]
                 if left_name2 != nil && right2 != nil {
-                    if right2["type"] == "Integer" {
+                    if _opt_is_safe_int_expr(right2, last_int_safe) {
                         n_expr2 = right2
                         n_ok2 = true
-                    } else if right2["type"] == "Identifier" {
-                        var n_name2 = right2["value"]
-                        if n_name2 != nil && last_int_lit[n_name2] == true {
-                            n_expr2 = right2
-                            n_ok2 = true
-                        }
                     }
                 }
             }
@@ -1243,7 +1271,7 @@ fn _opt_insert_list_reserve_in_block(block) {
             for nm2 in assigned {
                 last_list_lit[nm2] = false
                 last_list_int_new[nm2] = false
-                last_int_lit[nm2] = false
+                last_int_safe[nm2] = false
             }
         }
         i = i + 1

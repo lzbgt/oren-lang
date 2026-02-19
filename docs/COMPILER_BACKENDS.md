@@ -229,8 +229,8 @@ Suggested “follow the code” order:
    - `lib/compiler/optimizer.oren`
    - Important note: optimizations must remain semantics-preserving under the chosen evaluation order.
    - Rolling fast path: inserts `oren_list_reserve(list, n)` (or `oren_list_int_reserve`) before
-     simple `while`/`for` push loops when the list was freshly created and `n` is a known int literal
-     in the same block.
+     simple `while`/`for` push loops when the list was freshly created and `n` is a safe int bound
+     (literal, propagated int, or `oren_*_len(ident)` call with simple arithmetic) in the same block.
 
 5) **Backend selection**
    - Bytecode: `lib/compiler/codegen_bytecode/**`

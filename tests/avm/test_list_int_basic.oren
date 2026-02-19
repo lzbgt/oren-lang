@@ -1,0 +1,37 @@
+import list "std:list"
+
+fn fail() {
+    // Force a non-zero VM exit by triggering an index error.
+    var a = [1]
+    var x = a[2]
+    print(x)
+}
+
+fn assert_eq(a, b) {
+    if a != b { fail() }
+}
+
+fn main() {
+    var xs = list.int_new(2)
+    list.int_reserve(xs, 8)
+
+    var i = 0
+    while i < 4 {
+        list.int_push(xs, i * 2)
+        i = i + 1
+    }
+
+    assert_eq(list.int_len(xs), 4)
+    assert_eq(list.int_get(xs, 0), 0)
+    assert_eq(list.int_get(xs, 3), 6)
+
+    xs[1] = 99
+    assert_eq(xs[1], 99)
+
+    list.int_set(xs, 2, 77)
+    assert_eq(list.int_get(xs, 2), 77)
+
+    print("avm list<int> OK")
+}
+
+main()
