@@ -3090,6 +3090,59 @@ list_dot_push:
                                 int fast_sum = (modx_u + modi_u <= mod_u);
                                 if (i_u < end_u) {
                                     if (fast_sum) {
+                                        for (; end_u - i_u >= 4;) {
+                                            x_u = (x_u * mul_u + add_u) % mod_u;
+                                            uint64_t term_x0 = x_u % modx_u;
+                                            uint64_t term_i0 = i_mod;
+                                            sum_u = sum_u + term_x0 + term_i0;
+                                            if (sum_u >= mod_u) {
+                                                sum_u -= mod_u;
+                                            }
+                                            i_mod++;
+                                            if (i_mod >= modi_u) {
+                                                i_mod = 0;
+                                            }
+                                            i_u++;
+
+                                            x_u = (x_u * mul_u + add_u) % mod_u;
+                                            uint64_t term_x1 = x_u % modx_u;
+                                            uint64_t term_i1 = i_mod;
+                                            sum_u = sum_u + term_x1 + term_i1;
+                                            if (sum_u >= mod_u) {
+                                                sum_u -= mod_u;
+                                            }
+                                            i_mod++;
+                                            if (i_mod >= modi_u) {
+                                                i_mod = 0;
+                                            }
+                                            i_u++;
+
+                                            x_u = (x_u * mul_u + add_u) % mod_u;
+                                            uint64_t term_x2 = x_u % modx_u;
+                                            uint64_t term_i2 = i_mod;
+                                            sum_u = sum_u + term_x2 + term_i2;
+                                            if (sum_u >= mod_u) {
+                                                sum_u -= mod_u;
+                                            }
+                                            i_mod++;
+                                            if (i_mod >= modi_u) {
+                                                i_mod = 0;
+                                            }
+                                            i_u++;
+
+                                            x_u = (x_u * mul_u + add_u) % mod_u;
+                                            uint64_t term_x3 = x_u % modx_u;
+                                            uint64_t term_i3 = i_mod;
+                                            sum_u = sum_u + term_x3 + term_i3;
+                                            if (sum_u >= mod_u) {
+                                                sum_u -= mod_u;
+                                            }
+                                            i_mod++;
+                                            if (i_mod >= modi_u) {
+                                                i_mod = 0;
+                                            }
+                                            i_u++;
+                                        }
                                         for (; i_u < end_u; i_u++) {
                                             x_u = (x_u * mul_u + add_u) % mod_u;
                                             uint64_t term_x = x_u % modx_u;
