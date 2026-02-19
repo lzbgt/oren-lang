@@ -278,7 +278,9 @@ Proposed compiler strategy (first slice):
   - `OREN_ARENA_PER_ITER=1` switches auto‑mode to per‑iteration push/pop instead of
     loop‑scoped arenas (helps long‑lived loops).
   - Heuristic: loops without a simple literal upper bound (e.g., `i < 1000`) default
-    to per‑iteration mode to prevent unbounded arena growth.
+    to per‑iteration mode to prevent unbounded arena growth. A const‑int bound stored
+    in a prior local (`var n = 1000; while i < n`) is also treated as bounded if the
+    bound is not reassigned inside the loop.
    - Requires the allocation to **dominate first use** in the loop body
      (use‑before‑assign skips rewriting).
    - Only wraps loops without `break`/`return`/`continue` in the same loop body

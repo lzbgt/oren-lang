@@ -87,7 +87,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Auto-loop now inserts arena pop on `break`/`return`/`continue` in the same loop body.
      - `continue` is allowed for `while` and `for` loops (post executes outside the arena).
    - `OREN_ARENA_PER_ITER=1` switches auto‑mode to per‑iteration push/pop for long‑lived loops.
-   - Heuristic: loops without a simple literal upper bound default to per‑iteration mode.
+   - Heuristic: loops without a simple literal upper bound default to per‑iteration mode;
+     const‑int bounds from prior locals are treated as bounded when not reassigned in the loop.
    - Define long‑lived loop policy:
      - Prefer per‑iteration sub‑arenas when loop trip count is unbounded or long‑lived.
      - Values that escape an iteration allocate in GC/outer arenas (no arena aliasing).
