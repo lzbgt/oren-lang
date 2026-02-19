@@ -283,7 +283,12 @@ fn bytecode_compile_expr(ctx, expr) {
     if expr["type"] == "Index" {
         bytecode_compile_expr(ctx, expr["left"])
         bytecode_compile_expr(ctx, expr["index"])
-        emit_byte(ctx, AVM_GET_INDEX)
+        var rk = expr["recv_kind"]
+        if rk == "list" || rk == "list_int" {
+            emit_byte(ctx, AVM_GET_INDEX_LIST)
+        } else {
+            emit_byte(ctx, AVM_GET_INDEX)
+        }
         return nil
     }
 

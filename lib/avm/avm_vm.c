@@ -581,6 +581,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x40: return "NEW_LIST";
         case 0x41: return "NEW_MAP";
         case 0x42: return "GET_INDEX";
+        case 0x57: return "GET_INDEX_LIST";
         case 0x43: return "SET_INDEX";
         case 0x44: return "CALL_INDIRECT_SPREAD";
         case 0x45: return "SPAWN_CALL_LIST";
@@ -2196,6 +2197,22 @@ select2_done:
                         int idx = avm_map_find_index(obj.as.m, key, &found);
                         if (found) {
                             res = obj.as.m->values[idx];
+                        }
+                    }
+                    vm->stack[vm->sp++] = res;
+                }
+                break;
+            }
+            case 0x57: { // GET_INDEX_LIST
+                if (vm->sp >= 2) {
+                    AvmValue key = vm->stack[--vm->sp];
+                    AvmValue obj = vm->stack[--vm->sp];
+                    AvmValue res = avm_nil();
+
+                    if (obj.type == AVM_VAL_LIST && key.type == AVM_VAL_INT) {
+                        int i = (int)key.as.i;
+                        if (i >= 0 && i < obj.as.l->count) {
+                            res = obj.as.l->items[i];
                         }
                     }
                     vm->stack[vm->sp++] = res;
