@@ -919,6 +919,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_string_char_at" { native_id = 7 }
         if name == "oren_string_slice" { native_id = 8 }
         if name == "oren_string_char_code_at" { native_id = 9 }
+        if name == "oren_string_eq" { native_id = 151 }
         if name == "oren_int_to_string" { native_id = 10 }
         // Container ops (rolling): accept both kernel intrinsics (`oren_*`) and
         // stable-stdlib names (`STD_*`) so bytecode stays fast even if wrapper

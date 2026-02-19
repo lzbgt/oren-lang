@@ -6,6 +6,12 @@ fn emit(label, v) {
 
 fn id(x) { return x }
 
+fn assert_str_eq(label, got, want) {
+    if oren_string_eq(got, want) == true { return 0 }
+    print("tag_parity: " + label + " expected=" + want + " got=" + got)
+    exit(2)
+}
+
 fn main() {
     var xs = [1, 2]
     var xs_int = oren_new_list_int(0)
@@ -35,5 +41,8 @@ fn main() {
     emit("i64_buf", b64)
     emit("f32_buf", bf32)
     emit("f64_buf", bf64)
+
+    assert_str_eq("map", oren_type_name(m), "map")
+    assert_str_eq("type_map", oren_type_name(tm), "Widget")
     return 0
 }

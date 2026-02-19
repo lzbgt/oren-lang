@@ -1984,6 +1984,17 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             }
             break;
         }
+        case 151: { // oren_string_eq(a, b) -> bool
+            if (nargs > 1 && args[0].type == AVM_VAL_STRING && args[1].type == AVM_VAL_STRING) {
+                const char* a = (const char*)args[0].as.p;
+                const char* b = (const char*)args[1].as.p;
+                if (!a || !b) { res = avm_bool(0); }
+                else { res = avm_bool(strcmp(a, b) == 0); }
+            } else {
+                res = avm_bool(0);
+            }
+            break;
+        }
 		        case 147: { // oren_map_get_str(map, key:string) -> value|nil
 		            if (nargs > 1) {
 		                AvmValue mapv = args[0];
