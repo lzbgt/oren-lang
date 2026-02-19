@@ -68,6 +68,17 @@ static unsigned avm_tmp_bucket_index(size_t size) {
     return (unsigned)(h & (uint64_t)(AVM_FREELIST_BUCKETS - 1));
 }
 
+static unsigned avm_list_bucket_index(size_t size) {
+    if (size <= 1) return 0;
+    unsigned idx = 0;
+    size_t v = size;
+    while (v > 1 && idx < (unsigned)(AVM_FREELIST_BUCKETS - 1)) {
+        v >>= 1;
+        idx++;
+    }
+    return idx;
+}
+
 static int avm_tmp_freelist_enabled(AvmVM* owner, size_t size) {
     if (!owner || owner->tmp_freelist_enabled == 0) return 0;
     if (owner->tmp_freelist_cap_bytes == 0) return 0;
@@ -127,7 +138,7 @@ static int avm_list_freelist_enabled(AvmVM* owner, size_t size) {
 
 static AvmAllocHdr* avm_list_freelist_take(AvmVM* owner, size_t size) {
     if (!owner) return NULL;
-    unsigned idx = avm_tmp_bucket_index(size);
+    unsigned idx = avm_list_bucket_index(size);
     if (!owner->list_freelist_buckets[idx]) {
         owner->list_freelist_misses++;
         return NULL;
@@ -159,7 +170,7 @@ static int avm_list_freelist_push(AvmVM* owner, AvmAllocHdr* h) {
         owner->list_freelist_evictions++;
         return 0;
     }
-    unsigned idx = avm_tmp_bucket_index((size_t)h->size);
+    unsigned idx = avm_list_bucket_index((size_t)h->size);
     h->alloc_flags |= AVM_ALLOC_FLAG_FREELIST;
     h->prev = NULL;
     h->next = (AvmAllocHdr*)owner->list_freelist_buckets[idx];
