@@ -221,6 +221,5 @@ def main():
         _prune_results(keep)
 
 
-+if __name__ == "__main__":
-+    main()
-+
+if __name__ == "__main__":
+    main()
