@@ -39,7 +39,7 @@ Authoritative specs/strategy docs:
 - `docs/AVM_AND_OBC.md` (bootstrap spec + “Next-Gen AVM Plan” section)
 - `docs/AVM_AND_OBC.md#avm-swarm-consensus-agent-mobility-design-validation` (swarm validation + mobility model)
 - `docs/AVM_AND_OBC.md#avm-in-avm-multiverse-design-nested-virtual-universes` (nested universes / AVM-in-AVM)
-- `docs/ROADMAP.md` and `docs/OREN_EVOLUTION.md`
+- `docs/EVOLUTION_AND_ROADMAP.md`
 - Practical manual (what works today): `docs/LANGUAGE_MANUAL.md`
 
 ## Status (Current Reality)

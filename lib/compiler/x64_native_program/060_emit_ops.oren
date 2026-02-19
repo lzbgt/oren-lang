@@ -1415,6 +1415,14 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
         return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
     }
 
+    var base = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(base) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    var off_i_mod = _intr_tmp_off(ctx, locals, base)
+    if oren_type_tag(off_i_mod) == 0 || off_i_mod == 0 {
+        _intr_tmp_pop(ctx, base)
+        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    }
+
     var l_slow = _new_label(ctx, "lcg_sum_slow")
     var l_fast_cond = _new_label(ctx, "lcg_sum_cond")
     var l_fast_cond_mod = _new_label(ctx, "lcg_sum_cond_mod")
@@ -1452,6 +1460,12 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     bytes_extend(ctx["code"], insn_mov_r64_imm64(15, mod_x)) // r15 = mod_x
     bytes_extend(ctx["code"], insn_mov_r64_imm64(3, mod_i)) // rbx = mod_i
 
+    // i_mod = i % mod_i (fast path only)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
+    bytes_extend(ctx["code"], insn_cqo())
+    bytes_extend(ctx["code"], insn_idiv_r64(3)) // rbx
+    _emit_mov_mrbp_r64(ctx, 0 - off_i_mod, 2) // rdx
+
     _emit_label(ctx, labels, l_fast_cond)
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx) // rax = i
     _emit_mov_r64_mrbp(ctx, 1, 0 - off_n)   // rcx = n
@@ -1465,6 +1479,7 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     _emit_mov_r64_mrbp(ctx, 10, 0 - off_x)  // r10 = x
     _emit_mov_r64_mrbp(ctx, 11, 0 - off_sum) // r11 = sum
     _emit_mov_r64_mrbp(ctx, 12, 0 - off_mod) // r12 = mod
+    _emit_mov_r64_mrbp(ctx, 7, 0 - off_i_mod) // rdi = i_mod
 
     // x = x*mul + add
     bytes_extend(ctx["code"], insn_imul_r64_r64(10, 13))
@@ -1482,11 +1497,7 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     bytes_extend(ctx["code"], insn_idiv_r64(15))
     bytes_extend(ctx["code"], insn_mov_r64_r64(6, 2)) // rsi = rdx
 
-    // term_i = i % mod_i
-    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
-    bytes_extend(ctx["code"], insn_cqo())
-    bytes_extend(ctx["code"], insn_idiv_r64(3)) // rbx
-    bytes_extend(ctx["code"], insn_mov_r64_r64(7, 2)) // rdi = rdx
+    // term_i = i_mod (incremental)
 
     // sum = sum + term_x + term_i; if (sum >= mod) sum -= mod;
     bytes_extend(ctx["code"], insn_add_r64_r64(11, 6))
@@ -1496,6 +1507,15 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     _emit_jcc_to_label(ctx, local_fixups, "lt", l_sum_skip)
     bytes_extend(ctx["code"], insn_sub_r64_r64(11, 12))
     _emit_label(ctx, labels, l_sum_skip)
+
+    // i_mod = (i_mod + 1); if (i_mod >= mod_i) i_mod = 0
+    bytes_extend(ctx["code"], insn_add_r64_imm32(7, 1))
+    var l_i_mod_ok = _new_label(ctx, "lcg_sum_i_mod_ok")
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(7, 3))
+    _emit_jcc_to_label(ctx, local_fixups, "lt", l_i_mod_ok)
+    bytes_extend(ctx["code"], insn_xor_r64_r64(7, 7))
+    _emit_label(ctx, labels, l_i_mod_ok)
+    _emit_mov_mrbp_r64(ctx, 0 - off_i_mod, 7)
 
     _emit_mov_mrbp_r64(ctx, 0 - off_x, 10)
     _emit_mov_mrbp_r64(ctx, 0 - off_sum, 11)
@@ -1570,6 +1590,7 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     _emit_label(ctx, labels, l_slow)
     _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
     _emit_label(ctx, labels, l_done)
+    _intr_tmp_pop(ctx, base)
     return nil
 }
 

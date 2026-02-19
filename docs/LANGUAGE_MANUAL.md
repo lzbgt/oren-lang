@@ -1696,6 +1696,5 @@ are the canonical incremental contract for what the x64 backend supports today:
 ## 13) Where to go next
 
 - Formal language spec: `docs/LANGUAGE_SPEC.md`
-- Evolution narrative (day0 → “compiler-in-AVM”): `docs/EVOLUTION_GUIDE.md`
-- Roadmap/phases: `docs/ROADMAP.md`
+- Evolution narrative + roadmap (day0 -> compiler-in-AVM, phases): `docs/EVOLUTION_AND_ROADMAP.md`
 - Current task tracker (execution order): `docs/TODOS.md`

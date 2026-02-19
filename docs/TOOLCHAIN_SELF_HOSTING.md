@@ -24,7 +24,7 @@ Oren: oren / oren_stage2 (compiler)
 C: avm (VM)
 ```
 
-This is consistent with the roadmap stance in `docs/ROADMAP.md`: keep bootstrapping practical until language + runtime contracts stabilize.
+This is consistent with the roadmap stance in `docs/EVOLUTION_AND_ROADMAP.md`: keep bootstrapping practical until language + runtime contracts stabilize.
 
 ## What “full self-hosted toolchain” actually requires
 

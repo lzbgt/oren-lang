@@ -1,6 +1,6 @@
 # Docs Index (Canonical Map)
 
-**Last updated:** 2026-02-13  
+**Last updated:** 2026-02-19  
 This folder contains the **canonical specs** and living design notes for Oren (rolling).
 
 ## 1) “Start Here”
@@ -10,9 +10,9 @@ This folder contains the **canonical specs** and living design notes for Oren (r
 - `docs/LANGUAGE_MANUAL.md` — practical guide for writing Oren *today* (examples, idioms, what works now).
 - `docs/LANGUAGE_FEATURE_MATRIX.md` — AI-friendly map: feature → status → implementation → fixtures.
 - `docs/COMPILER_AND_BACKENDS.md` — AI-friendly compiler pipeline + IR map (CoreIR/NativeIR/BytecodeIR direction + current reality).
-- `docs/EVOLUTION_GUIDE.md` — beginner guide: bootstrapping + backends + day0→final evolution narrative.
+- `docs/EVOLUTION_AND_ROADMAP.md` — beginner narrative + evolution rules + roadmap (day0 -> production).
 - `docs/AGENTIC_REQUIREMENTS.md` — top agentic-AI requirements (language + compiler + AVM), prioritized and implementation-ordered.
-- `docs/ROADMAP.md` — what to implement next (phases, priorities).
+- `docs/EVOLUTION_AND_ROADMAP.md` — what to implement next (phases, priorities).
 - `docs/BUILD_AND_VERIFY.md` — how to build, test, and verify the toolchain.
 - `docs/TEST_SYSTEM.md` — how the repo test/build system evolves from Makefile → Oren-native tooling.
 - `docs/STDLIB_LAYERS.md` — builtin syslib vs shipped stdlib separation (no-libc-shims constraint).
@@ -41,7 +41,7 @@ This folder contains the **canonical specs** and living design notes for Oren (r
 
 ## 5) Strategy / Narrative / “Why”
 
-- Overall evolution strategy: `docs/OREN_EVOLUTION.md`
+- Overall evolution strategy: `docs/EVOLUTION_AND_ROADMAP.md`
 - Advanced scenarios (“killer apps”): `docs/ADVANCED_SCENARIOS.md`
 - Swarm consensus + agent mobility: `docs/AVM_AND_OBC.md#avm-swarm-consensus-agent-mobility-design-validation`
 - Nested universes (“AVM in AVM”): `docs/AVM_AND_OBC.md#avm-in-avm-multiverse-design-nested-virtual-universes`

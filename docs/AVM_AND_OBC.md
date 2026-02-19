@@ -896,8 +896,8 @@ This is essential for safely executing LLM-generated or untrusted scripts.
 ### 9) Related Docs
 
 - Agentic requirements (language + compiler + AVM): `docs/AGENTIC_REQUIREMENTS.md`
-- System evolution context: `docs/OREN_EVOLUTION.md`
-- Roadmap: `docs/ROADMAP.md`
+- System evolution context: `docs/EVOLUTION_AND_ROADMAP.md`
+- Roadmap: `docs/EVOLUTION_AND_ROADMAP.md`
 
 ## OBC (Oren Bytecode) — Portability + Module Linking (Rolling)
 

@@ -1370,7 +1370,7 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     }
 
     var base_stack = ctx["stack_size"]
-    var slots = 6 // tick + i + n + x + sum + mod
+    var slots = 7 // tick + i + n + x + sum + mod + i_mod
     var total_bytes = align_up(slots * 8, 16)
     emit_sub_sp_any(ctx, total_bytes)
     ctx["stack_size"] = ctx["stack_size"] + total_bytes
@@ -1382,6 +1382,7 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     var x_off = 24
     var sum_off = 32
     var mod_off = 40
+    var i_mod_off = 48
 
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
@@ -1445,6 +1446,13 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(slow_sum_jumps, {"pos": jpos_mod_small, "cond": 11}) // LT
 
+    // i_mod = i % mod_i (fast path only)
+    emit_ldr_reg_sp_any(ctx, 0, i_off)
+    push_u32_le(ctx["code"], insn_sdiv(1, 0, 28))
+    push_u32_le(ctx["code"], insn_mul(1, 1, 28))
+    push_u32_le(ctx["code"], insn_sub_reg(1, 0, 1))
+    emit_str_reg_sp_any(ctx, 1, i_mod_off)
+
     // Fast loop entry
     var loop_cond_pos = bytes_len(ctx["code"])
     emit_ldr_reg_sp_any(ctx, 20, i_off)
@@ -1455,11 +1463,12 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
 
     native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 255)
 
-    // reload i/x/sum/mod after safepoint
+    // reload i/x/sum/mod/i_mod after safepoint
     emit_ldr_reg_sp_any(ctx, 20, i_off)
     emit_ldr_reg_sp_any(ctx, 23, x_off)
     emit_ldr_reg_sp_any(ctx, 24, sum_off)
     emit_ldr_reg_sp_any(ctx, 22, mod_off)
+    emit_ldr_reg_sp_any(ctx, 2, i_mod_off)
 
     // x = (x*mul + add)
     push_u32_le(ctx["code"], insn_mul(23, 23, 25))
@@ -1475,10 +1484,7 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], insn_mul(0, 0, 27))
     push_u32_le(ctx["code"], insn_sub_reg(1, 23, 0))
 
-    // term_i = i % mod_i
-    push_u32_le(ctx["code"], insn_sdiv(2, 20, 28))
-    push_u32_le(ctx["code"], insn_mul(2, 2, 28))
-    push_u32_le(ctx["code"], insn_sub_reg(2, 20, 2))
+    // term_i = i_mod (incremental)
 
     // sum = sum + term_x + term_i; if (sum >= mod) sum -= mod;
     push_u32_le(ctx["code"], insn_add_reg(24, 24, 1))
@@ -1491,8 +1497,19 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     var sum_skip_off = (sum_skip_pos - jpos_sum_skip) / 4
     set_u32_le(ctx["code"], jpos_sum_skip, insn_b_cond(sum_skip_off, 11)) // LT
 
+    // i_mod = (i_mod + 1); if (i_mod >= mod_i) i_mod = 0;
+    push_u32_le(ctx["code"], insn_add_imm(2, 2, 1))
+    push_u32_le(ctx["code"], insn_cmp_reg(2, 28))
+    var jpos_i_mod_ok = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.lt ok
+    push_u32_le(ctx["code"], insn_movz(2, 0))
+    var i_mod_ok_pos = bytes_len(ctx["code"])
+    var i_mod_ok_off = (i_mod_ok_pos - jpos_i_mod_ok) / 4
+    set_u32_le(ctx["code"], jpos_i_mod_ok, insn_b_cond(i_mod_ok_off, 11)) // LT
+
     emit_str_reg_sp_any(ctx, 23, x_off)
     emit_str_reg_sp_any(ctx, 24, sum_off)
+    emit_str_reg_sp_any(ctx, 2, i_mod_off)
 
     // i++
     push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))

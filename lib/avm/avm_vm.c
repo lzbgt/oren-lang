@@ -3083,24 +3083,36 @@ list_dot_push:
                                 uint64_t end_u = (uint64_t)end;
                                 uint64_t x_u = (uint64_t)x;
                                 uint64_t sum_u = (uint64_t)sum;
+                                uint64_t i_mod = 0;
+                                if (modi_u != 0) {
+                                    i_mod = i_u % modi_u;
+                                }
                                 int fast_sum = (modx_u + modi_u <= mod_u);
                                 if (i_u < end_u) {
                                     if (fast_sum) {
                                         for (; i_u < end_u; i_u++) {
                                             x_u = (x_u * mul_u + add_u) % mod_u;
                                             uint64_t term_x = x_u % modx_u;
-                                            uint64_t term_i = i_u % modi_u;
+                                            uint64_t term_i = i_mod;
                                             sum_u = sum_u + term_x + term_i;
                                             if (sum_u >= mod_u) {
                                                 sum_u -= mod_u;
+                                            }
+                                            i_mod++;
+                                            if (i_mod >= modi_u) {
+                                                i_mod = 0;
                                             }
                                         }
                                     } else {
                                         for (; i_u < end_u; i_u++) {
                                             x_u = (x_u * mul_u + add_u) % mod_u;
                                             uint64_t term_x = x_u % modx_u;
-                                            uint64_t term_i = i_u % modi_u;
+                                            uint64_t term_i = i_mod;
                                             sum_u = (sum_u + term_x + term_i) % mod_u;
+                                            i_mod++;
+                                            if (i_mod >= modi_u) {
+                                                i_mod = 0;
+                                            }
                                         }
                                     }
                                 }

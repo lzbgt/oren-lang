@@ -6,7 +6,7 @@ This document describes the **current Oren language** as accepted by the Stage1 
 It includes both:
 
 - **normative “what exists today”** rules (grounded in compiler behavior and fixtures),
-- **explicitly marked planned design direction** items (tied to `docs/TODOS.md` / `docs/ROADMAP.md`).
+- **explicitly marked planned design direction** items (tied to `docs/TODOS.md` / `docs/EVOLUTION_AND_ROADMAP.md`).
 
 The Go interpreter (`cmd/oren run` / REPL) is a convenience tool and is **not** the reference implementation (it supports only a subset and differs in some semantics like scoping).
 

@@ -19,7 +19,7 @@ Status legend:
 
 - **Implemented**: supported by the Stage1 compiler and used in current code.
 - **Rolling**: supported, but semantics/ABI may still evolve (must stay regression-tested).
-- **Planned**: design intent; track via `docs/TODOS.md` / `docs/ROADMAP.md`.
+- **Planned**: design intent; track via `docs/TODOS.md` / `docs/EVOLUTION_AND_ROADMAP.md`.
 
 Remote x86_64 evidence:
 
@@ -126,4 +126,4 @@ Remote x86_64 evidence:
 | Feature | Status | Where (impl) | Evidence / examples |
 |---|---|---|---|
 | `oren` CLI subcommands + completion | Rolling | CLI: `lib/compiler/compiler/000_prelude.oren`; completion docs | Docs: `docs/CLI_COMPLETION.md` |
-| Package registry (`oren-packages`) integration | Planned | Module resolution + lockfiles + reproducible builds | Track: `docs/TODOS.md`, `docs/ROADMAP.md` |
+| Package registry (`oren-packages`) integration | Planned | Module resolution + lockfiles + reproducible builds | Track: `docs/TODOS.md`, `docs/EVOLUTION_AND_ROADMAP.md` |

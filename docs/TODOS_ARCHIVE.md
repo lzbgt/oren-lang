@@ -1620,7 +1620,7 @@ Focus statement (to avoid roadmap thrash):
    - Move toward capsule-friendly formats (hashable, resumable, policy-bound).
 
 8) **“AVM as Oren built-in library” (libavm embedding)**
-   - Mandatory for the “embed libavm + oren.obc on iOS/edge” story (`docs/OREN_EVOLUTION.md`).
+   - Mandatory for the “embed libavm + oren.obc on iOS/edge” story (`docs/EVOLUTION_AND_ROADMAP.md`).
    - Minimal no-rewrite path:
      - stabilize a small `libavm` C API: `avm_run_bytes(...) -> {result, hashes, record_log_bytes, snapshot_bytes}`
      - provide Oren bindings in a standard module (so Oren programs can spawn child universes without shelling out)

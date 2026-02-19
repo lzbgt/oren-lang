@@ -198,7 +198,12 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 				         - Status after root-slot + pinning hardening: still reproduces under `OREN_GC_REUSE_BLOCKS=1` (list magic == list ptr).
 				         - trace: list is tracked (kind=2) but header magic is clobbered; likely a remaining GC root/stack spill issue or alloc-index duplication.
 				         - Next steps: verify GC pin consumers (compiler/serde/renamer), audit select + netpoll pointer roots, and validate stack/register spill discipline at safepoints.
-						   - 2026-02-19: C backend list<int> fast loops expanded (string-safe matching + fast push fill, raw accumulator):
+                           - 2026-02-19: native LCG sum loops avoid per-iter `i % mod_i` division via incremental `i_mod` (arm64/x64) and AVM `INT_LCG_SUM_LOOP` mirrors the fast path:
+                             - Compiler: `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
+                             - AVM: `lib/avm/avm_vm.c` (unsigned fast path).
+                             - Bench (loop_sum, M2 Pro, runs=5): C 0.066911s, Oren C 0.061087s (~0.91×), Oren native 0.422417s (~6.31×), OBC 0.098599s (~1.47×).
+                             - Artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_155623.md`.
+                           - 2026-02-19: C backend list<int> fast loops expanded (string-safe matching + fast push fill, raw accumulator):
 						     - Compiler: `lib/compiler/transpiler.oren` (`str_eq`, list<int> matcher, fast RHS, fast push fill).
 						     - C runtime: `lib/runtime/040_lists_maps.inc` + `lib/runtime.h` (`oren_string_eq`).
 						     - Bench (M2 Pro, runs=5): array_sum_int Oren C 0.0388s (~10.0× vs C; was 0.0697s), dot_product_int Oren C 0.0720s (~14.6× vs C; was 0.1168s).
@@ -1345,6 +1350,16 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - `lib/compiler/x64_native_program/090_program_entry/010_part_a.oren`
      - `lib/compiler/x64_native_program/090_program_entry/020_part_b.oren`
      - `lib/compiler/x64_native_program/090_program_entry/090_tail.oren`
+
+10) **Consolidate remaining design/plan docs into coherent, non-stub set** (S)
+
+   Goal:
+
+   - Merge the remaining plan docs into a small, organized set without stubs:
+     - `docs/TYPE_SYSTEM_PLAN.md`
+     - `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`
+     - `docs/HPC_SERVER_PLAN.md`
+   - Update references and doc index entries to the new consolidated files.
 
 ## Tier‑1 verification blockers (operational)
 
