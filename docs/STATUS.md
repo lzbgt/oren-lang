@@ -114,6 +114,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Native list-literal lowering now uses `oren_list_push_unchecked` for element pushes.
    - Native list/list_int push intrinsics now call unchecked push on the grow slow-path to avoid duplicate validation.
    - Reserve insertion now rewrites safe loop-local list.push to `oren_list_push_unchecked` when the list is created from a literal/new_list(0) and not reassigned in the loop body.
+   - List<int> loops now rewrite safe `list_int_push` to `oren_list_int_push_unchecked` when the pushed value is provably inty.
    - Gate: native `array_sum` and `multi_list_push_int` <= 2x C.
 
 4) **W4 - Tagged value representation convergence** (L)
