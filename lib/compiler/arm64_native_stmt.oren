@@ -600,10 +600,12 @@ fn _arm64_match_mul_const(expr, name) {
     if expr == nil || expr["type"] != "Infix" || expr["op"] != "*" { return nil }
     var left = expr["left"]
     var right = expr["right"]
-    if _arm64_is_ident(left) == name {
+    var left_name = _arm64_is_ident(left)
+    if left_name != nil && _arm64_str_eq_bytes(left_name, name) {
         return _arm64_parse_int_lit_expr(right)
     }
-    if _arm64_is_ident(right) == name {
+    var right_name = _arm64_is_ident(right)
+    if right_name != nil && _arm64_str_eq_bytes(right_name, name) {
         return _arm64_parse_int_lit_expr(left)
     }
     return nil
@@ -622,7 +624,8 @@ fn _arm64_collect_add_terms(expr, out) {
 
 fn _arm64_match_mod_term(expr, name) {
     if expr == nil || expr["type"] != "Infix" || expr["op"] != "%" { return nil }
-    if _arm64_is_ident(expr["left"]) != name { return nil }
+    var left_name = _arm64_is_ident(expr["left"])
+    if left_name == nil || _arm64_str_eq_bytes(left_name, name) != true { return nil }
     var modv = _arm64_parse_int_lit_expr(expr["right"])
     if modv == nil || modv <= 0 { return nil }
     return modv
@@ -630,7 +633,8 @@ fn _arm64_match_mod_term(expr, name) {
 
 fn _arm64_match_lcg_update(stmt, x_name) {
     if stmt == nil || stmt["type"] != "Assign" { return nil }
-    if _arm64_is_ident(stmt["name"]) != x_name { return nil }
+    var name = _arm64_is_ident(stmt["name"])
+    if name == nil || _arm64_str_eq_bytes(name, x_name) != true { return nil }
     var val = stmt["value"]
     if val == nil || val["type"] != "Infix" || val["op"] != "%" { return nil }
     var mod_ident = val["right"]
@@ -650,10 +654,12 @@ fn _arm64_match_lcg_update(stmt, x_name) {
 
 fn _arm64_match_sum_mod_update(stmt, sum_name, x_name, idx_name, mod_name) {
     if stmt == nil || stmt["type"] != "Assign" { return nil }
-    if _arm64_is_ident(stmt["name"]) != sum_name { return nil }
+    var name = _arm64_is_ident(stmt["name"])
+    if name == nil || _arm64_str_eq_bytes(name, sum_name) != true { return nil }
     var val = stmt["value"]
     if val == nil || val["type"] != "Infix" || val["op"] != "%" { return nil }
-    if _arm64_is_ident(val["right"]) != mod_name { return nil }
+    var mod_rhs = _arm64_is_ident(val["right"])
+    if mod_rhs == nil || _arm64_str_eq_bytes(mod_rhs, mod_name) != true { return nil }
     var terms = []
     _arm64_collect_add_terms(val["left"], terms)
     if oren_list_len(terms) != 3 { return nil }
@@ -663,7 +669,8 @@ fn _arm64_match_sum_mod_update(stmt, sum_name, x_name, idx_name, mod_name) {
     var ti = 0
     while ti < oren_list_len(terms) {
         var t = terms[ti]
-        if _arm64_is_ident(t) == sum_name {
+        var tname = _arm64_is_ident(t)
+        if tname != nil && _arm64_str_eq_bytes(tname, sum_name) {
             saw_sum = true
             ti = ti + 1
             continue
@@ -1351,6 +1358,7 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     var add = info["add"]
     var mod_x = info["mod_x"]
     var mod_i = info["mod_i"]
+    var sum_cap = mod_x + mod_i
 
     var idx_fp_off = _arm64_local_fp_off(ctx, idx_name)
     var n_fp_off = _arm64_local_fp_off(ctx, n_name)
@@ -1392,6 +1400,7 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     emit_str_reg_sp_any(ctx, 0, mod_off)
 
     var slow_jumps = []
+    var slow_sum_jumps = []
 
     // mod <= 0 => slow
     emit_ldr_reg_sp_any(ctx, 0, mod_off)
@@ -1400,11 +1409,41 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(slow_jumps, {"pos": jpos_mod_le, "cond": 13}) // LE
 
+    // i/n/x/sum < 0 => slow-sum path (signed semantics)
+    emit_ldr_reg_sp_any(ctx, 0, i_off)
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+    var jpos_i_neg = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_sum_jumps, {"pos": jpos_i_neg, "cond": 11}) // LT
+    emit_ldr_reg_sp_any(ctx, 0, n_off)
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+    var jpos_n_neg = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_sum_jumps, {"pos": jpos_n_neg, "cond": 11}) // LT
+    emit_ldr_reg_sp_any(ctx, 0, x_off)
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+    var jpos_x_neg = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_sum_jumps, {"pos": jpos_x_neg, "cond": 11}) // LT
+    emit_ldr_reg_sp_any(ctx, 0, sum_off)
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+    var jpos_sum_neg = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_sum_jumps, {"pos": jpos_sum_neg, "cond": 11}) // LT
+
     // preload constants (callee-saved regs)
     emit_load_i64_imm(ctx, 25, mul)
     emit_load_i64_imm(ctx, 26, add)
     emit_load_i64_imm(ctx, 27, mod_x)
     emit_load_i64_imm(ctx, 28, mod_i)
+    emit_load_i64_imm(ctx, 19, sum_cap)
+
+    // mod < (mod_x + mod_i) => slow-sum path (full modulo)
+    emit_ldr_reg_sp_any(ctx, 0, mod_off)
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 19))
+    var jpos_mod_small = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(slow_sum_jumps, {"pos": jpos_mod_small, "cond": 11}) // LT
 
     // Fast loop entry
     var loop_cond_pos = bytes_len(ctx["code"])
@@ -1412,6 +1451,79 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     emit_ldr_reg_sp_any(ctx, 21, n_off)
     push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
     var jpos_fast_end = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.ge end
+
+    native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 255)
+
+    // reload i/x/sum/mod after safepoint
+    emit_ldr_reg_sp_any(ctx, 20, i_off)
+    emit_ldr_reg_sp_any(ctx, 23, x_off)
+    emit_ldr_reg_sp_any(ctx, 24, sum_off)
+    emit_ldr_reg_sp_any(ctx, 22, mod_off)
+
+    // x = (x*mul + add)
+    push_u32_le(ctx["code"], insn_mul(23, 23, 25))
+    push_u32_le(ctx["code"], insn_add_reg(23, 23, 26))
+
+    // x = x % mod
+    push_u32_le(ctx["code"], insn_sdiv(0, 23, 22))
+    push_u32_le(ctx["code"], insn_mul(0, 0, 22))
+    push_u32_le(ctx["code"], insn_sub_reg(23, 23, 0))
+
+    // term_x = x % mod_x
+    push_u32_le(ctx["code"], insn_sdiv(0, 23, 27))
+    push_u32_le(ctx["code"], insn_mul(0, 0, 27))
+    push_u32_le(ctx["code"], insn_sub_reg(1, 23, 0))
+
+    // term_i = i % mod_i
+    push_u32_le(ctx["code"], insn_sdiv(2, 20, 28))
+    push_u32_le(ctx["code"], insn_mul(2, 2, 28))
+    push_u32_le(ctx["code"], insn_sub_reg(2, 20, 2))
+
+    // sum = sum + term_x + term_i; if (sum >= mod) sum -= mod;
+    push_u32_le(ctx["code"], insn_add_reg(24, 24, 1))
+    push_u32_le(ctx["code"], insn_add_reg(24, 24, 2))
+    push_u32_le(ctx["code"], insn_cmp_reg(24, 22))
+    var jpos_sum_skip = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.lt skip
+    push_u32_le(ctx["code"], insn_sub_reg(24, 24, 22))
+    var sum_skip_pos = bytes_len(ctx["code"])
+    var sum_skip_off = (sum_skip_pos - jpos_sum_skip) / 4
+    set_u32_le(ctx["code"], jpos_sum_skip, insn_b_cond(sum_skip_off, 11)) // LT
+
+    emit_str_reg_sp_any(ctx, 23, x_off)
+    emit_str_reg_sp_any(ctx, 24, sum_off)
+
+    // i++
+    push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
+    emit_str_reg_sp_any(ctx, 20, i_off)
+
+    var back_pos = bytes_len(ctx["code"])
+    var back_off = (loop_cond_pos - back_pos) / 4
+    push_u32_le(ctx["code"], insn_b(back_off))
+
+    var fast_end_pos = bytes_len(ctx["code"])
+    var end_off = (fast_end_pos - jpos_fast_end) / 4
+    set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
+
+    var jpos_skip_slow_sum = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b loop_end
+
+    // Slow-sum path: patch all sum-fast failures here and emit full-mod loop.
+    var slow_sum_pos = bytes_len(ctx["code"])
+    var ssi = 0
+    while ssi < oren_list_len(slow_sum_jumps) {
+        var sj = slow_sum_jumps[ssi]
+        var soff = (slow_sum_pos - sj["pos"]) / 4
+        set_u32_le(ctx["code"], sj["pos"], insn_b_cond(soff, sj["cond"]))
+        ssi = ssi + 1
+    }
+
+    var slow_loop_cond_pos = bytes_len(ctx["code"])
+    emit_ldr_reg_sp_any(ctx, 20, i_off)
+    emit_ldr_reg_sp_any(ctx, 21, n_off)
+    push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
+    var jpos_slow_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
     native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 255)
@@ -1455,13 +1567,17 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
     emit_str_reg_sp_any(ctx, 20, i_off)
 
-    var back_pos = bytes_len(ctx["code"])
-    var back_off = (loop_cond_pos - back_pos) / 4
-    push_u32_le(ctx["code"], insn_b(back_off))
+    var slow_back_pos = bytes_len(ctx["code"])
+    var slow_back_off = (slow_loop_cond_pos - slow_back_pos) / 4
+    push_u32_le(ctx["code"], insn_b(slow_back_off))
 
-    var fast_end_pos = bytes_len(ctx["code"])
-    var end_off = (fast_end_pos - jpos_fast_end) / 4
-    set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
+    var slow_end_pos = bytes_len(ctx["code"])
+    var slow_end_off = (slow_end_pos - jpos_slow_end) / 4
+    set_u32_le(ctx["code"], jpos_slow_end, insn_b_cond(slow_end_off, 10)) // GE
+
+    var loop_end_pos = bytes_len(ctx["code"])
+    var skip_sum_off = (loop_end_pos - jpos_skip_slow_sum) / 4
+    set_u32_le(ctx["code"], jpos_skip_slow_sum, insn_b(skip_sum_off))
 
     // Update locals after loop exit.
     emit_ldr_reg_sp_any(ctx, 20, i_off)
