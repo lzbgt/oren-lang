@@ -316,6 +316,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		      - native 0.2271s vs C 0.00509s (`benchmarks/results/dot_product_darwin_arm64_20260218_221234.md`).
 		   - Likely work: focus on OBC/AVM hot loop path and consider vectorized inner loop for `a[i]*b[i]` on native backend.
 		   - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
+		   - OBC/AVM note (fact): bytecode `GET_INDEX` (opcode 0x42) handles list+map checks each access (see `lib/avm/avm_vm.c`), so dot_product loops pay per-iteration dispatch + type checks.
+		     - Next: consider a specialized bytecode opcode for list-int get (or a fused dot/sum super-instruction) to reduce interpreter overhead on tight loops.
 			  - (P1/S) **multi_list_push_int regression guard**
 			    - Latest (runs=5): C 0.00832s, Oren C 0.0792s (~9.52×), Oren native 0.0312s (~3.75×), OBC 1.227s (~147.55×).
 			      - Result: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_064308.md`
