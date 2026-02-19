@@ -61,6 +61,12 @@ Results are written to:
 
 Build logs are stored under `build/logs/` with a `bench_build_*` prefix.
 
+Update the canonical snapshot table after a batch run:
+
+```bash
+python3 benchmarks/update_latest.py --prune
+```
+
 Repo policy (rolling): keep only the result files referenced by `benchmarks/RESULTS_LATEST.md`
 to avoid long-lived archives. Older files may be pruned after updating the snapshot.
 
