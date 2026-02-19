@@ -1341,6 +1341,12 @@ fn _emit_fast_list_int_get_sum_while_x64(ctx, op, info, locals, labels, local_fi
 
     // sum -> r13
     _emit_mov_r64_mrbp(ctx, 13, 0 - off_sum)
+    // idx_offset = i * 8 (reuse for all list loads)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(12, 10))
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(12, 3))
+    // idx_offset = i * 8 (reuse for all list loads)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(12, 10))
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(12, 3))
 
     var pi = 0
     while pi < oren_list_len(loads) {
@@ -1354,10 +1360,9 @@ fn _emit_fast_list_int_get_sum_while_x64(ctx, op, info, locals, labels, local_fi
         if oren_type_tag(slot_buf2) == 0 { _intr_tmp_pop(ctx, base); return nil }
 
         _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf2)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(12, 10))
-        bytes_extend(ctx["code"], insn_shl_r64_imm8(12, 3))
-        bytes_extend(ctx["code"], insn_add_r64_r64(12, 11))
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(14, 12))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(14, 11))
+        bytes_extend(ctx["code"], insn_add_r64_r64(14, 12))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(14, 14))
         bytes_extend(ctx["code"], insn_add_r64_r64(13, 14))
 
         pi = pi + 1
@@ -1962,17 +1967,15 @@ fn _emit_fast_list_int_dot_while_x64(ctx, op, info, locals, labels, local_fixups
 
         // left value -> r14
         _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf_left)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(12, 10))
-        bytes_extend(ctx["code"], insn_shl_r64_imm8(12, 3))
-        bytes_extend(ctx["code"], insn_add_r64_r64(12, 11))
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(14, 12))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(14, 11))
+        bytes_extend(ctx["code"], insn_add_r64_r64(14, 12))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(14, 14))
 
         // right value -> r15
         _emit_mov_r64_mrbp(ctx, 11, 0 - slot_buf_right)
-        bytes_extend(ctx["code"], insn_mov_r64_r64(12, 10))
-        bytes_extend(ctx["code"], insn_shl_r64_imm8(12, 3))
-        bytes_extend(ctx["code"], insn_add_r64_r64(12, 11))
-        bytes_extend(ctx["code"], insn_mov_r64_mr64(15, 12))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(15, 11))
+        bytes_extend(ctx["code"], insn_add_r64_r64(15, 12))
+        bytes_extend(ctx["code"], insn_mov_r64_mr64(15, 15))
 
         bytes_extend(ctx["code"], insn_imul_r64_r64(14, 15))
         bytes_extend(ctx["code"], insn_add_r64_r64(13, 14))
