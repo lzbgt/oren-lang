@@ -68,8 +68,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: fixtures pass; no backend-only semantics.
 
 5) **W3 - SIMD/typed-buffer parity on native (x64 + arm64)** (M)
-   - SSE2 baseline on x64; scalar equivalence gated.
-   - Gate: native `dot_product_int` <= 2x C.
+    - SSE2 baseline on x64; scalar equivalence gated.
+    - Wire list_int dot loops to SIMD kernels (or typed-buffer views) where safe.
+    - Read-only list_int sum/dot loops now use a 1023 safepoint mask on native.
+    - Gate: native `dot_product_int` <= 2x C.
 
 6) **W3 - AVM allocation fast paths + typed buffers** (M)
    - Arena/slab alloc for short-lived lists/structs.

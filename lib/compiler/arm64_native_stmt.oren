@@ -1071,7 +1071,7 @@ fn _arm64_emit_while_generic(ctx, stmt) {
     push_u32_le(ctx["code"], 0) 
 
     // GC safepoint on loop entry (parity with C backend), throttled for performance.
-    native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 255)
+    native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 1023)
     
     native_compile_stmt(ctx, stmt["body"])
 
@@ -1593,7 +1593,7 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     var jpos_slow_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
-    native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 255)
+    native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 1023)
 
     // reload i/x/sum/mod after safepoint
     emit_ldr_reg_sp_any(ctx, 20, i_off)
