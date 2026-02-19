@@ -1053,6 +1053,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    Recent measurements (arm64-macos, M2 Pro; runs=5, warmup=1):
 
   - 2026-02-19:
+    - AVM list<int> push loop (OBC refresh):
+      - `array_sum_int` (2M elems): C 0.004327s; Oren C 0.011515s (~2.66×); Oren native 0.020331s (~4.70×); OBC 0.263552s (~60.9×)
+      - `dot_product_int` (2M elems): C 0.005524s; Oren C 0.018334s (~3.32×); Oren native 0.025093s (~4.54×); OBC 0.553466s (~100.2×)
+      - `multi_list_push_int` (2M elems): C 0.008312s; Oren C 0.080861s (~9.73×); Oren native 0.030877s (~3.71×); OBC 1.216925s (~146.4×)
     - baseline:
       - `array_sum_int` (2M elems): C 0.00535s; Oren C 0.21096s (~39.4×); Oren native 0.21361s (~39.9×); OBC 0.62902s (~117.5×)
       - `dot_product_int` (2M elems): C 0.00639s; Oren C 0.35846s (~56.1×); Oren native 0.36297s (~56.8×); OBC 0.90223s (~141.2×)
@@ -1077,6 +1081,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
   Artifacts:
 
+  - `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_103614.md`
+  - `benchmarks/results/dot_product_int_darwin_arm64_20260219_103604.md`
+  - `benchmarks/results/array_sum_int_darwin_arm64_20260219_103557.md`
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_062657.md`
   - `benchmarks/results/array_sum_int_darwin_arm64_20260219_062648.md`
   - `benchmarks/results/dot_product_int_darwin_arm64_20260219_061903.md`
@@ -1129,7 +1136,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - Compiler: `lib/compiler/transpiler.oren` (`_transpiler_fast_nonneg_rhs`)
   - 2026-02-19: fast list<int> push loops now defer list count updates to the end of the loop (no per-iter count store).
     - Compiler: `lib/compiler/transpiler.oren` (fast list<int> push while emit)
-   - 2026-02-19: C backend list/map ops skip striped object locks until `spawn` is used (reduces single-thread overhead; main thread wrapper does not enable locks).
+  - 2026-02-19: AVM bytecode list<int> push loops now emit `LIST_PUSH_INT_LOOP` for linear RHS with optional `%` (mul/add/mod).
+    - Compiler: `lib/compiler/codegen_bytecode/000_prelude.oren`, `lib/compiler/codegen_bytecode/030_tail.oren`
+    - VM: `lib/avm/avm_vm.c` (opcode implementation), `lib/avm/main.c` (disasm/verify)
+  - 2026-02-19: C backend list/map ops skip striped object locks until `spawn` is used (reduces single-thread overhead; main thread wrapper does not enable locks).
      - Override: `OREN_LIST_FORCE_LOCKS=1` forces locks; `OREN_LIST_SKIP_LOCKS=1` disables locks even after threads (perf-only, unsafe).
      - Runtime: `lib/runtime/010_prelude.inc` (`g_threads_started`), `lib/runtime/020_threads_gc.inc` (spawn marks), `lib/runtime/040_lists_maps.inc` (lock gating)
 
@@ -1152,7 +1162,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - Blocker (2026-02-19): local docker CLI returns `EOF` for `docker ps` (cannot access Tier‑1 container `c7e5f7bd9f5c`); restore docker daemon/CLI access.
   - Reduce Oren C boxing cost in list<int> loops by avoiding intermediate `OrenValue` temporaries where possible (keep fast-path bounds checks).
   - Audit compiler internal string comparisons under the native backend; prefer `str_eq`/string-aware helpers to avoid pointer-eq traps in name matching.
-  - Add AVM bytecode unboxed list<int> ops or confirm boxed fallback and document its perf cost.
+  - Extend AVM list<int> bytecode fast paths beyond push (e.g. LIST_SUM_INT / LIST_DOT_INT / indexed sum loop) or adopt unboxed list<int> storage in AVM; target OBC <= ~10× C on list<int> benchmarks.
   - Audit root `README.md` + key docs for outdated build/test/bench/remote instructions; refresh to match current rolling workflows.
 
 ## P1 (Soon)

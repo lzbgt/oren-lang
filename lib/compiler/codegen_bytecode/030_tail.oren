@@ -81,6 +81,100 @@ fn _bc_match_list_index(expr, idx_name) {
     return left["value"]
 }
 
+fn _bc_parse_nonneg_int_lit(expr) {
+    if expr == nil || expr["type"] != "Integer" { return nil }
+    var v = intparse.parse_int_lit(expr["value"])
+    if oren_is_err(v) == true { return nil }
+    if v < 0 { return nil }
+    return v
+}
+
+fn _bc_parse_nonneg_linear_core(expr, idx_name) {
+    if expr == nil { return nil }
+    var et = expr["type"]
+    if et == "Integer" {
+        var v = _bc_parse_nonneg_int_lit(expr)
+        if v == nil { return nil }
+        return {"mul": 0, "add": v}
+    }
+    if et == "Identifier" {
+        var name = expr["value"]
+        if name != nil && name == idx_name { return {"mul": 1, "add": 0} }
+        return nil
+    }
+    if et == "Infix" {
+        var op = expr["op"]
+        if op == "+" {
+            var left = _bc_parse_nonneg_linear_core(expr["left"], idx_name)
+            if left == nil { return nil }
+            var right = _bc_parse_nonneg_linear_core(expr["right"], idx_name)
+            if right == nil { return nil }
+            return {"mul": left["mul"] + right["mul"], "add": left["add"] + right["add"]}
+        }
+        if op == "*" {
+            var left2 = _bc_parse_nonneg_linear_core(expr["left"], idx_name)
+            if left2 == nil { return nil }
+            var right2 = _bc_parse_nonneg_linear_core(expr["right"], idx_name)
+            if right2 == nil { return nil }
+            if left2["mul"] == 0 {
+                return {"mul": right2["mul"] * left2["add"], "add": right2["add"] * left2["add"]}
+            }
+            if right2["mul"] == 0 {
+                return {"mul": left2["mul"] * right2["add"], "add": left2["add"] * right2["add"]}
+            }
+            return nil
+        }
+    }
+    return nil
+}
+
+fn _bc_parse_nonneg_linear(expr, idx_name) {
+    if expr == nil { return nil }
+    if expr["type"] == "Infix" && expr["op"] == "%" {
+        var rv = _bc_parse_nonneg_int_lit(expr["right"])
+        if rv == nil || rv <= 0 { return nil }
+        var left = _bc_parse_nonneg_linear_core(expr["left"], idx_name)
+        if left == nil { return nil }
+        return {"mul": left["mul"], "add": left["add"], "mod": rv}
+    }
+    var base = _bc_parse_nonneg_linear_core(expr, idx_name)
+    if base == nil { return nil }
+    return {"mul": base["mul"], "add": base["add"], "mod": 0}
+}
+
+fn _bc_match_list_int_push_call(ctx, expr) {
+    if expr == nil || expr["type"] != "Call" { return nil }
+    var fn_node = expr["fn"]
+    if fn_node == nil { return nil }
+    var name = ""
+    if fn_node["type"] == "Identifier" {
+        name = fn_node["value"]
+    }
+    if fn_node["type"] == "Member" {
+        if fn_node["left"]["type"] == "Identifier" {
+            var left = fn_node["left"]["value"]
+            var prop = fn_node["prop"]["value"]
+            var alias = ctx["aliases"][left]
+            if alias != nil {
+                name = alias + prop
+            }
+        }
+    }
+    if name != "oren_list_int_push" && name != "STD_list_int_push" { return nil }
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) != 2 { return nil }
+    var list_expr = args[0]
+    if list_expr == nil || list_expr["type"] != "Identifier" { return nil }
+    return {"list": list_expr["value"], "value": args[1]}
+}
+
+fn _bc_push_int_const(ctx, v) {
+    // Integer constants are stored as numeric values, not string literals.
+    var idx = add_constant(ctx, {"type": "Integer", "value": v})
+    emit_byte(ctx, AVM_PUSH_CONST)
+    emit_u16(ctx, idx)
+}
+
 fn _bc_match_sum_update(stmt, sum_name, idx_name) {
     if stmt == nil { return nil }
     if stmt["type"] != "Assign" { return nil }
@@ -131,6 +225,56 @@ fn _bc_emit_store_ident(ctx, ident) {
     bytecode_error(ctx, "bytecode backend: undefined variable in assignment: " + name)
     emit_byte(ctx, AVM_POP)
     return nil
+}
+
+fn bytecode_try_emit_list_int_push_loop(ctx, stmt) {
+    if stmt == nil || stmt["type"] != "While" { return false }
+    var cond = stmt["cond"]
+    if cond == nil || cond["type"] != "Infix" || cond["op"] != "<" { return false }
+    var idx_ident = cond["left"]
+    var n_ident = cond["right"]
+    if _bc_is_ident(idx_ident, nil) != true { return false }
+    if _bc_is_ident(n_ident, nil) != true { return false }
+    var idx_name = idx_ident["value"]
+    var n_name = n_ident["value"]
+    if idx_name == nil || n_name == nil { return false }
+
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return false }
+    var stmts = body["stmts"]
+    if stmts == nil || oren_list_len(stmts) != 2 { return false }
+    if _bc_match_simple_inc(stmts[1], idx_name) != true { return false }
+
+    var push_stmt = stmts[0]
+    if push_stmt == nil || push_stmt["type"] != "ExprStmt" { return false }
+    var call_info = _bc_match_list_int_push_call(ctx, push_stmt["expr"])
+    if call_info == nil { return false }
+    var list_name = call_info["list"]
+    if list_name == nil { return false }
+    var rhs = _bc_parse_nonneg_linear(call_info["value"], idx_name)
+    if rhs == nil { return false }
+    // (debug trace removed)
+
+    var caps = ctx["env_captures"]
+    if caps != nil {
+        if oren_type_tag(caps[idx_name]) != 0 { return false }
+        if oren_type_tag(caps[n_name]) != 0 { return false }
+        if oren_type_tag(caps[list_name]) != 0 { return false }
+    }
+    if oren_type_tag(ctx["locals"][idx_name]) == 0 && oren_type_tag(ctx["globals"][idx_name]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][n_name]) == 0 && oren_type_tag(ctx["globals"][n_name]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][list_name]) == 0 && oren_type_tag(ctx["globals"][list_name]) == 0 { return false }
+
+    var list_ident = {"type": "Identifier", "value": list_name}
+    bytecode_compile_expr(ctx, list_ident)
+    bytecode_compile_expr(ctx, idx_ident)
+    bytecode_compile_expr(ctx, n_ident)
+    _bc_push_int_const(ctx, rhs["mul"])
+    _bc_push_int_const(ctx, rhs["add"])
+    _bc_push_int_const(ctx, rhs["mod"])
+    emit_byte(ctx, AVM_LIST_PUSH_INT_LOOP)
+    _bc_emit_store_ident(ctx, idx_ident)
+    return true
 }
 
 fn bytecode_try_emit_list_dot(ctx, stmt) {
@@ -356,6 +500,7 @@ fn bytecode_compile_stmt(ctx, stmt) {
     }
     
     if stmt["type"] == "While" {
+        if bytecode_try_emit_list_int_push_loop(ctx, stmt) == true { return nil }
         if bytecode_try_emit_list_dot(ctx, stmt) == true { return nil }
         var start_pc = oren_list_len(ctx["code"])
         bytecode_compile_expr(ctx, stmt["cond"])

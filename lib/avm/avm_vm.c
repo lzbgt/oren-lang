@@ -664,6 +664,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x58: return "LIST_DOT";
         case 0x59: return "LIST_PUSH_INT";
         case 0x5A: return "LIST_PUSH";
+        case 0x5B: return "LIST_PUSH_INT_LOOP";
         case 0x43: return "SET_INDEX";
         case 0x44: return "CALL_INDIRECT_SPREAD";
         case 0x45: return "SPAWN_CALL_LIST";
@@ -2439,6 +2440,62 @@ list_dot_push:
                     list->items[list->count++] = val;
                     if (list->all_int && val.type != AVM_VAL_INT) list->all_int = 0;
                     vm->stack[vm->sp++] = avm_nil();
+                }
+                break;
+            }
+            case 0x5B: { // LIST_PUSH_INT_LOOP
+                if (vm->sp >= 6) {
+                    AvmValue modv = vm->stack[--vm->sp];
+                    AvmValue addv = vm->stack[--vm->sp];
+                    AvmValue mulv = vm->stack[--vm->sp];
+                    AvmValue endv = vm->stack[--vm->sp];
+                    AvmValue idxv = vm->stack[--vm->sp];
+                    AvmValue obj = vm->stack[--vm->sp];
+                    if (obj.type != AVM_VAL_LIST || !obj.as.l ||
+                        idxv.type != AVM_VAL_INT || endv.type != AVM_VAL_INT ||
+                        mulv.type != AVM_VAL_INT || addv.type != AVM_VAL_INT ||
+                        modv.type != AVM_VAL_INT) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push_loop expects (list, idx, end, mul, add, mod)");
+                        break;
+                    }
+                    AvmList* list = obj.as.l;
+                    int64_t i = idxv.as.i;
+                    int64_t end = endv.as.i;
+                    int64_t mul = mulv.as.i;
+                    int64_t add = addv.as.i;
+                    int64_t mod = modv.as.i;
+                    int64_t final_i = i;
+                    if (mod < 0) {
+                        vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push_loop mod must be >= 0");
+                        break;
+                    }
+                    if (i < end) {
+                        int64_t iters = end - i;
+                        int64_t new_count = (int64_t)list->count + iters;
+                        if (new_count > (int64_t)INT_MAX) {
+                            AvmValue e = avm_err(AVM_ERR_INVALID_ARG, "list_int_push_loop size overflow");
+                            avm_abort(vm, e);
+                            vm->stack[vm->sp++] = e;
+                            break;
+                        }
+                        if (list->capacity < (int)new_count) {
+                            if (!avm_list_ensure_cap(list, (int)new_count)) {
+                                AvmValue e = avm_alloc_fail_value();
+                                avm_abort(vm, e);
+                                vm->stack[vm->sp++] = e;
+                                break;
+                            }
+                        }
+                        for (; i < end; i++) {
+                            int64_t v = avm_i64_add_wrap(avm_i64_mul_wrap(i, mul), add);
+                            if (mod > 0) {
+                                v = v % mod;
+                            }
+                            list->items[list->count++] = avm_int(v);
+                        }
+                        final_i = end;
+                    }
+                    vm->stack[vm->sp++] = avm_int(final_i);
                 }
                 break;
             }
