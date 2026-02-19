@@ -61,6 +61,13 @@ static AvmAllocHdr* avm_alloc_hdr_from_ptr(void* p) {
     return h;
 }
 
+static unsigned avm_tmp_bucket_index(size_t size) {
+    uint64_t h = (uint64_t)size;
+    h ^= h >> 7;
+    h ^= h >> 13;
+    return (unsigned)(h & (uint64_t)(AVM_TMP_FREELIST_BUCKETS - 1));
+}
+
 static int avm_tmp_freelist_enabled(AvmVM* owner, size_t size) {
     if (!owner || owner->tmp_freelist_enabled == 0) return 0;
     if (owner->tmp_freelist_cap_bytes == 0) return 0;
@@ -69,13 +76,18 @@ static int avm_tmp_freelist_enabled(AvmVM* owner, size_t size) {
 }
 
 static AvmAllocHdr* avm_tmp_freelist_take(AvmVM* owner, size_t size) {
-    if (!owner || owner->tmp_freelist_head == NULL) return NULL;
+    if (!owner) return NULL;
+    unsigned idx = avm_tmp_bucket_index(size);
+    if (!owner->tmp_freelist_buckets[idx]) {
+        owner->tmp_freelist_misses++;
+        return NULL;
+    }
     AvmAllocHdr* prev = NULL;
-    AvmAllocHdr* cur = (AvmAllocHdr*)owner->tmp_freelist_head;
+    AvmAllocHdr* cur = (AvmAllocHdr*)owner->tmp_freelist_buckets[idx];
     while (cur) {
         if (cur->size == size) {
             if (prev) prev->next = cur->next;
-            else owner->tmp_freelist_head = cur->next;
+            else owner->tmp_freelist_buckets[idx] = cur->next;
             cur->next = NULL;
             cur->prev = NULL;
             if (owner->tmp_freelist_bytes >= cur->size) owner->tmp_freelist_bytes -= cur->size;
@@ -97,10 +109,11 @@ static int avm_tmp_freelist_push(AvmVM* owner, AvmAllocHdr* h) {
         owner->tmp_freelist_evictions++;
         return 0;
     }
+    unsigned idx = avm_tmp_bucket_index((size_t)h->size);
     h->alloc_flags |= AVM_ALLOC_FLAG_TMP_FREE;
     h->prev = NULL;
-    h->next = (AvmAllocHdr*)owner->tmp_freelist_head;
-    owner->tmp_freelist_head = h;
+    h->next = (AvmAllocHdr*)owner->tmp_freelist_buckets[idx];
+    owner->tmp_freelist_buckets[idx] = h;
     owner->tmp_freelist_bytes += h->size;
     return 1;
 }
@@ -364,18 +377,20 @@ void avm_release_unreachable_allocs(AvmVM* vm) {
 
 void avm_release_tmp_freelist(AvmVM* vm) {
     if (!vm) return;
-    AvmAllocHdr* h = (AvmAllocHdr*)vm->tmp_freelist_head;
-    while (h) {
-        AvmAllocHdr* next = h->next;
-        h->magic = 0;
-        if (h->alloc_backend == 1) {
-            size_t total = sizeof(AvmAllocHdr) + (size_t)h->size;
-            (void)munmap((void*)h, total);
-        } else {
-            free(h);
+    for (int bi = 0; bi < AVM_TMP_FREELIST_BUCKETS; bi++) {
+        AvmAllocHdr* h = (AvmAllocHdr*)vm->tmp_freelist_buckets[bi];
+        while (h) {
+            AvmAllocHdr* next = h->next;
+            h->magic = 0;
+            if (h->alloc_backend == 1) {
+                size_t total = sizeof(AvmAllocHdr) + (size_t)h->size;
+                (void)munmap((void*)h, total);
+            } else {
+                free(h);
+            }
+            h = next;
         }
-        h = next;
+        vm->tmp_freelist_buckets[bi] = NULL;
     }
-    vm->tmp_freelist_head = NULL;
     vm->tmp_freelist_bytes = 0;
 }

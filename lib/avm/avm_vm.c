@@ -804,7 +804,7 @@ AvmVM* avm_new() {
     vm->heap_used_bytes = 0;
     vm->heap_allocs_head = NULL;
     vm->tmp_freelist_enabled = 0;
-    vm->tmp_freelist_head = NULL;
+    for (int i = 0; i < AVM_TMP_FREELIST_BUCKETS; i++) vm->tmp_freelist_buckets[i] = NULL;
     vm->tmp_freelist_bytes = 0;
     vm->tmp_freelist_cap_bytes = 0;
     vm->tmp_freelist_max_block_bytes = 0;
