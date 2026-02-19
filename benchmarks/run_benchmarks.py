@@ -442,11 +442,23 @@ def main():
     programs_raw = os.environ.get("OREN_BENCH_PROGRAMS", "").strip()
     bench_args_raw = os.environ.get("OREN_BENCH_ARGS", "")
     bench_args = shlex.split(bench_args_raw) if bench_args_raw else []
+    trace_alloc_site = int(os.environ.get("OREN_BENCH_TRACE_ALLOC_SITE", "0")) == 1
+    trace_alloc_site_cap = os.environ.get("OREN_BENCH_TRACE_ALLOC_SITE_CAP", "").strip()
     env_all = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_ALL", ""))
     env_c = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_C", ""))
     env_oren_c = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_OREN_C", ""))
     env_oren_native = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_OREN_NATIVE", ""))
     env_oren_obc = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_OREN_OBC", ""))
+
+    if trace_alloc_site:
+        if output_check:
+            output_check = False
+        if not save_stdout:
+            save_stdout = True
+        env_oren_native = dict(env_oren_native)
+        env_oren_native["OREN_TRACE_ALLOC_SITE"] = "1"
+        if trace_alloc_site_cap:
+            env_oren_native["OREN_TRACE_ALLOC_SITE_CAP"] = trace_alloc_site_cap
 
     config = BenchConfig(
         runs=runs,

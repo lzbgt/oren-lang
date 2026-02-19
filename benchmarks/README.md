@@ -49,6 +49,8 @@ Optional knobs:
 - `OREN_BENCH_OUTPUT_CHECK=0` (skip stdout consistency check; useful for trace/instrumentation)
 - `OREN_BENCH_SKIP_BUILD=1` (reuse existing artifacts; fail if missing)
 - `OREN_BENCH_SAVE_STDOUT=1` (save per-variant stdout under `build/logs/bench_stdout_*`)
+- `OREN_BENCH_TRACE_ALLOC_SITE=1` (native-only; forces stdout capture and disables output checks to allow `[alloc_site]` trace lines)
+- `OREN_BENCH_TRACE_ALLOC_SITE_CAP=<n>` (optional cap for native alloc-site table; forwarded to `OREN_TRACE_ALLOC_SITE_CAP`)
 - `OREN_BENCH_PROGRAM=<name|all|name1,name2>` (default: `loop_sum`)
 - `OREN_BENCH_PROGRAMS=name1,name2` (explicit list; overrides `OREN_BENCH_PROGRAM`)
 - `OREN_BENCH_UPDATE_LATEST=1` (update `benchmarks/RESULTS_LATEST.md` after run)
