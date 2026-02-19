@@ -28,10 +28,10 @@ Notes:
   ~5.08× (Oren C) and ~6.32× (native). The fast path triggers; remaining gap appears dominated by
   runtime init + per-process overhead rather than the loop body. Next: quantify init cost and
   explore a fast-init path for pure-int benchmarks.
-- loop_sum init-only (args `0 1`, n=0 reps=1): C 0.002128s, Oren C 0.002437s (~1.15×), native 0.002609s (~1.23×), OBC 0.002730s (~1.28×).
-  - Result: `benchmarks/results/loop_sum_darwin_arm64_20260219_144914.md`
-- loop_sum steady-state (args `2000000 10`, 20M total iters): C 0.068589s, Oren C 0.355774s (~5.19×), native 0.434835s (~6.34×), OBC 0.103215s (~1.50×).
-  - Result: `benchmarks/results/loop_sum_darwin_arm64_20260219_144919.md`
+- loop_sum init-only (args `0 1`, n=0 reps=1): C 0.001835s, Oren C 0.002316s (~1.26×), native 0.002503s (~1.36×), OBC 0.002300s (~1.25×).
+  - Result: `benchmarks/results/loop_sum_darwin_arm64_20260219_145921.md`
+- loop_sum steady-state (args `2000000 10`, 20M total iters): C 0.066291s, Oren C 0.346269s (~5.22×), native 0.427593s (~6.45×), OBC 0.102247s (~1.54×).
+  - Result: `benchmarks/results/loop_sum_darwin_arm64_20260219_145925.md`
 - array_sum (boxed list) now lands near ~5.0× C on native; Oren C is ~1.90× C and OBC ~2.41× after list.push loop opcodes were emitted for boxed fill loops.
 - multi_list_sum highlights boxed list access across multiple arrays; Oren C is now ~2.1× C while native is ~3.7× C. OBC is ~0.0158s (~1.89×) after emitting list_int push loops for list.push (boxed) in the fill loop.
 - array_sum_int OBC holds at ~0.0058s (~1.17× C); dot_product_int and multi_list_push_int now also land near C after multi-list push loop opcodes (~1.89× and ~1.39×, respectively). C-backend multi_list_push_int improved to ~4.54× after enabling -O2 by default.

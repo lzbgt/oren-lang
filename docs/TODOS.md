@@ -294,8 +294,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - New (2026-02-19): C/native backends now emit a fast LCG+sum loop lowering; fast path triggers on `benchmarks/loop_sum/loop_sum.oren`.
     - Remaining gap appears dominated by runtime init + per-process overhead rather than the loop body; quantify init cost and add a fast-init path for pure-int benchmarks.
     - 2026-02-19: `benchmarks/run_benchmarks.py` now supports `OREN_BENCH_ARGS`, and `loop_sum` accepts `n` + `reps` CLI args to probe steady‑state vs init overhead.
-    - 2026-02-19: loop_sum init-only (args `0 1`): C 0.002128s, Oren C 0.002437s (~1.15×), native 0.002609s (~1.23×), OBC 0.002730s (~1.28×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_144914.md`).
-    - 2026-02-19: loop_sum steady-state (args `2000000 10`): C 0.068589s, Oren C 0.355774s (~5.19×), native 0.434835s (~6.34×), OBC 0.103215s (~1.50×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_144919.md`).
+    - 2026-02-19: loop_sum init-only (args `0 1`): C 0.001835s, Oren C 0.002316s (~1.26×), native 0.002503s (~1.36×), OBC 0.002300s (~1.25×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_145921.md`).
+    - 2026-02-19: loop_sum steady-state (args `2000000 10`): C 0.066291s, Oren C 0.346269s (~5.22×), native 0.427593s (~6.45×), OBC 0.102247s (~1.54×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_145925.md`).
     - 2026-02-19: benchmark runner now injects `--` and a synthetic argv[0] for AVM runs so OBC arg parsing matches C/native.
     - 2026-02-19: AVM scheduler now lazy-inits on first spawn/chan/select/yield; non-concurrency programs skip scheduler setup overhead.
     - Target: native ≤0.25s (≤4× C) and Oren C ≤0.20s (≤3× C) while keeping correctness gates.
