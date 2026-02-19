@@ -98,6 +98,24 @@ Tagged value convergence plan (rolling, lean):
   - Native backend still has partial tagging; `oren_type_tag` is best-effort for scalars.
   - `nil`/`false`/`true` are runtime singleton values in native mode (not raw `0/1`).
   - AVM uses a tagged `AvmValue` representation (`lib/avm/avm.h`).
+- OrenType tag map (v0, shared across backends):
+
+| Tag | Name | Notes |
+| --- | --- | --- |
+| 0 | nil | canonical null |
+| 1 | int | may also represent float in native v0 |
+| 2 | float | defined in C/AVM |
+| 3 | bool | `false`/`true` singletons |
+| 4 | string | UTF‑8 bytes |
+| 5 | py_obj | optional Python embedding |
+| 6 | list | list + list<int> |
+| 7 | map | deterministic ordered map |
+| 8 | func | first‑class function values |
+| 9 | u8_buf | typed buffer |
+| 10 | i32_buf | typed buffer |
+| 11 | i64_buf | typed buffer |
+| 12 | f32_buf | typed buffer |
+| 13 | f64_buf | typed buffer |
 - Define a single **canonical value model** that can be represented in:
   - native backend values,
   - C backend values,

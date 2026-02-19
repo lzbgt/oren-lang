@@ -1,0 +1,26 @@
+import buffer "std:buffer"
+
+fn emit(label, v) {
+    print(label + ":" + oren_int_to_string(oren_type_tag(v)) + ":" + oren_type_name(v))
+}
+
+fn id(x) { return x }
+
+fn main() {
+    var xs = [1, 2]
+    var m = {"k": 1}
+    var b = buffer.u8_new(4)
+    var f = id
+
+    print("ok: tag parity")
+    emit("nil", nil)
+    emit("true", true)
+    emit("false", false)
+    emit("int", 1)
+    emit("string", "hi")
+    emit("list", xs)
+    emit("map", m)
+    emit("func", f)
+    emit("u8_buf", b)
+    return 0
+}

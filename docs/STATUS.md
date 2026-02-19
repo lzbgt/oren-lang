@@ -37,6 +37,7 @@ Local (fast):
 - `make verify-native-quick`
 - `make verify-backend-parity-boxed-list`
 - `make verify-backend-parity-list-int`
+- `make verify-backend-parity-tags`
 - `./scripts/verify_x64_linux_qemu_smoke.sh`
 
 Remote verify scripts support `OREN_REMOTE_SCP_TIMEOUT_SECS` to bound scp hangs.
@@ -132,6 +133,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Define layout and staged migration.
    - Pin semantic invariants (truthiness, equality, type tests) and add cross‑backend fixtures.
    - Add a backend mapping table (native/C/AVM) and parity fixtures for tags + type names.
+   - Parity gate: `tests/fixtures/tag_parity_smoke.oren` + `make verify-backend-parity-tags`.
    - Add compatibility shims so native/C/OBC can migrate without breaking Tier‑1.
    - Gate: fixtures across all backends.
 

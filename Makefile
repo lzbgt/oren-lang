@@ -421,6 +421,10 @@ verify-backend-parity-boxed-list: oren_stage2 avm
 verify-backend-parity-list-int: oren_stage2 avm
 	@./scripts/verify_backend_parity_list_int.sh
 
+# Cross-backend parity smoke: tagged values + type names must match (C/native/OBC).
+verify-backend-parity-tags: oren_stage2 avm
+	@./scripts/verify_backend_parity_tags.sh
+
 # GUI bring-up smoke (headful, opt-in).
 # This is intentionally NOT part of `make test` or `make verify` because it requires a GUI session.
 verify-ui-smoke-macos: oren
