@@ -13,7 +13,7 @@ Legend: `x` = slowdown relative to C median.
 | loop_sum | 0.065908 | 1.036931 (15.73×) | 0.416340 (6.32×) | 5.663661 (85.93×) | `benchmarks/results/loop_sum_darwin_arm64_20260219_055656.md` |
 | array_sum | 0.003835 | 0.073876 (19.26×) | 0.019664 (5.13×) | 0.623274 (162.52×) | `benchmarks/results/array_sum_darwin_arm64_20260219_080150.md` |
 | array_sum_int | 0.003855 | 0.011250 (2.92×) | 0.020406 (5.29×) | 0.622709 (161.53×) | `benchmarks/results/array_sum_int_darwin_arm64_20260219_064250.md` |
-| multi_list_sum | 0.008178 | 0.183123 (22.39×) | 0.030481 (3.73×) | 1.228275 (150.19×) | `benchmarks/results/multi_list_sum_darwin_arm64_20260219_082046.md` |
+| multi_list_sum | 0.008383 | 0.025794 (3.08×) | 0.030489 (3.64×) | 1.228532 (146.55×) | `benchmarks/results/multi_list_sum_darwin_arm64_20260219_083044.md` |
 | dot_product | 0.006472 | 0.209131 (32.31×) | 0.221092 (34.16×) | 0.896550 (138.53×) | `benchmarks/results/dot_product_darwin_arm64_20260219_050816.md` |
 | dot_product_int | 0.004823 | 0.017694 (3.67×) | 0.025182 (5.22×) | 0.892456 (185.04×) | `benchmarks/results/dot_product_int_darwin_arm64_20260219_064258.md` |
 | alloc_churn | 0.004082 | 0.069660 (17.07×) | 0.162040 (39.70×) | 0.388069 (95.07×) | `benchmarks/results/alloc_churn_darwin_arm64_20260219_045329.md` |
@@ -23,4 +23,4 @@ Notes:
 
 - alloc_churn/alloc_drop are allocation-heavy; they highlight tracking and GC overhead.
 - array_sum (boxed list) now lands near ~5.1× C on native after fast-path fixes; biggest gaps remain alloc_churn/alloc_drop and boxed dot_product.
-- multi_list_sum highlights boxed list access across multiple arrays; Oren C remains ~22.4× C while native is ~3.7× C.
+- multi_list_sum highlights boxed list access across multiple arrays; Oren C is now ~3.1× C while native is ~3.6× C.

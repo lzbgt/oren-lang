@@ -11,6 +11,13 @@ static void oren_list_grow(OrenList* l, int newCap) {
     l->capacity = newCap;
 }
 
+void oren_list_reserve(OrenList* l, int newCap) {
+    if (!l) return;
+    if (newCap <= l->capacity) return;
+    if (newCap < 1) newCap = 1;
+    oren_list_grow(l, newCap);
+}
+
 static inline int oren_list_int_check_value(OrenValue v) {
     if (v.type != OREN_TYPE_INT) {
         oren_panic("list_int expects int");

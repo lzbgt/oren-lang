@@ -128,6 +128,9 @@ void oren_roots_push(OrenValue* slot);
 void oren_roots_push_value(OrenValue v);
 void oren_roots_reset(size_t mark);
 
+// List utilities (internal fast paths).
+void oren_list_reserve(struct OrenList* l, int new_cap);
+
 	extern OrenValue OREN_NIL;
 	extern OrenValue OREN_TRUE;
 	extern OrenValue OREN_FALSE;

@@ -333,6 +333,33 @@ fn _transpiler_is_list_int_push_call(t, exp) {
     return list_name
 }
 
+fn _transpiler_is_list_push_call(t, exp) {
+    if exp == nil || exp["type"] != "Call" { return nil }
+    if exp["fn"] == nil { return nil }
+    var nm = nil
+    if exp["fn"]["type"] == "Identifier" {
+        nm = exp["fn"]["value"]
+    } else if exp["fn"]["type"] == "Member" {
+        var ns = ns_resolve(t, exp["fn"])
+        if ns != nil {
+            nm = ns["name"]
+        } else {
+            var left = exp["fn"]["left"]
+            var prop = exp["fn"]["prop"]
+            if left != nil && prop != nil && left["type"] == "Identifier" && left["value"] == "list" {
+                if prop["value"] == "push" { nm = "STD_list_push" }
+            }
+        }
+    }
+    if nm == nil { return nil }
+    if str_eq(nm, "oren_list_push") != true && str_eq(nm, "STD_list_push") != true { return nil }
+    var args = exp["args"]
+    if args == nil || oren_list_len(args) != 2 { return nil }
+    var list_name = _transpiler_is_ident(args[0])
+    if list_name == nil { return nil }
+    return list_name
+}
+
 fn _transpiler_is_sum_add_list_get(t, stmt, idx_name) {
     if stmt == nil || stmt["type"] != "Assign" { return nil }
     var sum_name = _transpiler_is_ident(stmt["name"])
@@ -736,6 +763,46 @@ fn _transpiler_match_fast_list_int_push_while(t, stmt) {
     return {"idx": idx_name, "n": n_name, "lists": lists, "pushes": pushes, "body_len": n - 1}
 }
 
+fn _transpiler_match_fast_list_push_while(t, stmt) {
+    if stmt == nil || stmt["type"] != "While" { return nil }
+    var cond = stmt["cond"]
+    if cond == nil || cond["type"] != "Infix" { return nil }
+    if cond["op"] != "<" { return nil }
+    var idx_name = _transpiler_is_ident(cond["left"])
+    var n_name = _transpiler_is_ident(cond["right"])
+    if idx_name == nil || n_name == nil { return nil }
+    var body = stmt["body"]["stmts"]
+    if body == nil { return nil }
+    var n = oren_list_len(body)
+    if n < 1 { return nil }
+    var last = body[n - 1]
+    if _transpiler_is_simple_inc(last, idx_name) != true { return nil }
+    var lists = []
+    var pushes = []
+    var i = 0
+    while i < n - 1 {
+        var st = body[i]
+        if st == nil || st["type"] != "ExprStmt" { return nil }
+        var exp = st["expr"]
+        var list_name = _transpiler_is_list_push_call(t, exp)
+        if list_name == nil { return nil }
+        if list_contains(lists, list_name) { return nil }
+        var args = exp["args"]
+        var value_expr = args[1]
+        if _transpiler_fast_nonneg_rhs(t, value_expr, idx_name, idx_name) == nil { return nil }
+        oren_list_push(lists, list_name)
+        oren_list_push(pushes, {"list": list_name, "value": value_expr})
+        i = i + 1
+    }
+    if oren_list_len(lists) == 0 { return nil }
+    var pi = 0
+    while pi < oren_list_len(pushes) {
+        if _transpiler_expr_uses_any_ident(pushes[pi]["value"], lists) { return nil }
+        pi = pi + 1
+    }
+    return {"idx": idx_name, "n": n_name, "lists": lists, "pushes": pushes, "body_len": n - 1}
+}
+
 fn _transpiler_emit_fast_list_int_push_while(t, stmt, info) {
     var idx_name = info["idx"]
     var n_name = info["n"]
@@ -777,9 +844,9 @@ fn _transpiler_emit_fast_list_int_push_while(t, stmt, info) {
         oren_list_push(parts, "if (" + fast_ok + ") {")
         oren_list_push(parts, "    if (" + list_tmp + ".type != OREN_TYPE_LIST || " + list_tmp + ".as.list_val == NULL) { " + fast_ok + " = 0; } else {")
         oren_list_push(parts, "        " + ptr_tmp + " = " + list_tmp + ".as.list_val;")
-        oren_list_push(parts, "        if ((long long)" + ptr_tmp + "->capacity < " + n_int + ") { " + fast_ok + " = 0; }")
-        oren_list_push(parts, "        else if ((long long)" + ptr_tmp + "->count != " + i_int + ") { " + fast_ok + " = 0; }")
-        oren_list_push(parts, "        else { " + items_tmp + " = " + ptr_tmp + "->items; }")
+        oren_list_push(parts, "        if ((long long)" + ptr_tmp + "->count != " + i_int + ") { " + fast_ok + " = 0; }")
+        oren_list_push(parts, "        else { if ((long long)" + ptr_tmp + "->capacity < " + n_int + ") { oren_list_reserve(" + ptr_tmp + ", (int)" + n_int + "); }")
+        oren_list_push(parts, "            if ((long long)" + ptr_tmp + "->capacity < " + n_int + ") { " + fast_ok + " = 0; } else { " + items_tmp + " = " + ptr_tmp + "->items; } }")
         oren_list_push(parts, "    }")
         oren_list_push(parts, "}")
         li = li + 1
@@ -814,6 +881,102 @@ fn _transpiler_emit_fast_list_int_push_while(t, stmt, info) {
             var v_out = transpile_expression(t, value_expr)
             oren_list_push(parts, "        " + items_tmp2 + "[" + i_int + "] = " + v_out + ";")
         }
+        pi = pi + 1
+    }
+    oren_list_push(parts, "        " + i_int + "++;")
+    oren_list_push(parts, "    }")
+    var ci = 0
+    while ci < oren_list_len(lists) {
+        var list_name2 = lists[ci]
+        var ptr_tmp3 = list_ptrs[list_name2]
+        oren_list_push(parts, "    " + ptr_tmp3 + "->count = (int)" + i_int + ";")
+        ci = ci + 1
+    }
+    oren_list_push(parts, "    " + c_ident(idx_name) + " = oren_int(" + i_int + ");")
+    t["fast_list_items"] = prev_fast_items
+    t["fast_idx_name"] = prev_fast_idx_name
+    t["fast_idx_c"] = prev_fast_idx_c
+    t["inty"] = inty_fast_before
+
+    oren_list_push(parts, "} else " + slow)
+    oren_list_push(parts, "}")
+
+    t["inty"] = inty_after
+    return _transpiler_join_parts(parts)
+}
+
+fn _transpiler_emit_fast_list_push_while(t, stmt, info) {
+    var idx_name = info["idx"]
+    var n_name = info["n"]
+    var lists = info["lists"]
+    var pushes = info["pushes"]
+
+    var inty_before = _transpiler_inty_clone(_transpiler_inty_list(t))
+    var slow = _transpiler_emit_while_basic(t, stmt)
+    var inty_after = _transpiler_inty_clone(_transpiler_inty_list(t))
+    t["inty"] = _transpiler_inty_clone(inty_before)
+
+    var fast_ok = tmp_gensym(t, "list_fast_ok")
+    var n_int = tmp_gensym(t, "list_fast_n")
+    var i_int = tmp_gensym(t, "list_fast_i")
+
+    var parts = []
+    oren_list_push(parts, "{")
+    oren_list_push(parts, CH_LF)
+    oren_list_push(parts, "int " + fast_ok + " = 1;")
+    oren_list_push(parts, "long long " + n_int + " = 0;")
+    oren_list_push(parts, "long long " + i_int + " = 0;")
+    oren_list_push(parts, "if (" + c_ident(n_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + n_int + " = " + c_ident(n_name) + ".as.int_val; if (" + n_int + " < 0) " + fast_ok + " = 0; }")
+    oren_list_push(parts, "if (" + c_ident(idx_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + i_int + " = " + c_ident(idx_name) + ".as.int_val; if (" + i_int + " < 0) " + fast_ok + " = 0; }")
+    oren_list_push(parts, "if (" + fast_ok + " && oren_list_locking_needed()) { " + fast_ok + " = 0; }")
+
+    var list_items = {}
+    var list_ptrs = {}
+    var li = 0
+    while li < oren_list_len(lists) {
+        var ln = lists[li]
+        var list_tmp = tmp_gensym(t, "list_fast_list")
+        var ptr_tmp = tmp_gensym(t, "list_fast_ptr")
+        var items_tmp = tmp_gensym(t, "list_fast_items")
+        list_items[ln] = items_tmp
+        list_ptrs[ln] = ptr_tmp
+        oren_list_push(parts, "OrenValue " + list_tmp + " = " + c_ident(ln) + ";")
+        oren_list_push(parts, "OrenList* " + ptr_tmp + " = NULL;")
+        oren_list_push(parts, "OrenValue* " + items_tmp + " = NULL;")
+        oren_list_push(parts, "if (" + fast_ok + ") {")
+        oren_list_push(parts, "    if (" + list_tmp + ".type != OREN_TYPE_LIST || " + list_tmp + ".as.list_val == NULL) { " + fast_ok + " = 0; } else {")
+        oren_list_push(parts, "        " + ptr_tmp + " = " + list_tmp + ".as.list_val;")
+        oren_list_push(parts, "        if ((long long)" + ptr_tmp + "->count != " + i_int + ") { " + fast_ok + " = 0; }")
+        oren_list_push(parts, "        else { if ((long long)" + ptr_tmp + "->capacity < " + n_int + ") { oren_list_reserve(" + ptr_tmp + ", (int)" + n_int + "); }")
+        oren_list_push(parts, "            if ((long long)" + ptr_tmp + "->capacity < " + n_int + ") { " + fast_ok + " = 0; } else { " + items_tmp + " = " + ptr_tmp + "->items; } }")
+        oren_list_push(parts, "    }")
+        oren_list_push(parts, "}")
+        li = li + 1
+    }
+
+    oren_list_push(parts, "if (" + fast_ok + ") {")
+    var inty_fast_before = _transpiler_inty_clone(_transpiler_inty_list(t))
+    var prev_fast_items = t["fast_list_items"]
+    var prev_fast_idx_name = t["fast_idx_name"]
+    var prev_fast_idx_c = t["fast_idx_c"]
+    t["fast_list_items"] = nil
+    t["fast_idx_name"] = idx_name
+    t["fast_idx_c"] = i_int
+    oren_list_push(parts, "    while (" + i_int + " < " + n_int + ") {")
+    var pi = 0
+    while pi < oren_list_len(pushes) {
+        var push = pushes[pi]
+        var list_name = push["list"]
+        var value_expr = push["value"]
+        var items_tmp2 = list_items[list_name]
+        var fast_v = _transpiler_fast_nonneg_rhs(t, value_expr, idx_name, i_int)
+        var v_u = tmp_gensym(t, "list_fast_val_u")
+        var v_ll = tmp_gensym(t, "list_fast_val_ll")
+        oren_list_push(parts, "        uint64_t " + v_u + " = " + fast_v + ";")
+        oren_list_push(parts, "        long long " + v_ll + " = 0;")
+        oren_list_push(parts, "        memcpy(&" + v_ll + ", &" + v_u + ", sizeof(" + v_ll + "));")
+        oren_list_push(parts, "        " + items_tmp2 + "[" + i_int + "].type = OREN_TYPE_INT;")
+        oren_list_push(parts, "        " + items_tmp2 + "[" + i_int + "].as.int_val = " + v_ll + ";")
         pi = pi + 1
     }
     oren_list_push(parts, "        " + i_int + "++;")
@@ -1848,6 +2011,8 @@ fn transpile_statement(t, stmt) {
         return v_expr + ";"
     }
     if stmt["type"] == "While" {
+        var fast_push_box = _transpiler_match_fast_list_push_while(t, stmt)
+        if fast_push_box != nil { return _transpiler_emit_fast_list_push_while(t, stmt, fast_push_box) }
         var fast_push = _transpiler_match_fast_list_int_push_while(t, stmt)
         if fast_push != nil { return _transpiler_emit_fast_list_int_push_while(t, stmt, fast_push) }
         var fast = _transpiler_match_fast_list_int_while(t, stmt)

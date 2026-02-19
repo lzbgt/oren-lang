@@ -238,8 +238,12 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						     - Compiler: `lib/compiler/transpiler.oren`.
 						     - Bench (M2 Pro, runs=5): array_sum Oren C 0.0739s (~19.26× C) (`benchmarks/results/array_sum_darwin_arm64_20260219_080150.md`).
 						   - 2026-02-19: added `multi_list_sum` benchmark (boxed lists; three list reads per loop + sum):
-						     - Bench (M2 Pro, runs=5): C 0.00818s, Oren C 0.1831s (~22.39×), Oren native 0.0305s (~3.73×), OBC 1.2283s (~150.19×).
-						     - Artifact: `benchmarks/results/multi_list_sum_darwin_arm64_20260219_082046.md`.
+						     - Bench (M2 Pro, runs=5): C 0.00838s, Oren C 0.0258s (~3.08×), Oren native 0.0305s (~3.64×), OBC 1.2285s (~146.55×).
+						     - Artifact: `benchmarks/results/multi_list_sum_darwin_arm64_20260219_083044.md`.
+						   - 2026-02-19: C backend boxed list push fast path now reserves capacity and writes int payloads directly:
+						     - Compiler: `lib/compiler/transpiler.oren` (fast list.push while + reserve).
+						     - Runtime: `lib/runtime/040_lists_maps.inc` (`oren_list_reserve`) + list all_int tracking.
+						     - Bench (M2 Pro, runs=5): multi_list_sum Oren C 0.0258s (~3.08× C).
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
@@ -290,10 +294,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	      - native 0.1506s vs C 0.00417s (`benchmarks/results/array_sum_darwin_arm64_20260218_220638.md`).
 	    - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` (skip native list index checks) does **not** improve:
 	      - native 0.1482s vs C 0.00399s (`benchmarks/results/array_sum_darwin_arm64_20260218_221223.md`).
-	  - (P2/M) **multi_list_sum boxed list reads still ~22× C (Oren C) / ~3.7× native**
-	    - Latest (runs=5): C 0.00818s, Oren C 0.1831s (~22.39×), Oren native 0.0305s (~3.73×), OBC 1.2283s (~150.19×).
-	      - Result: `benchmarks/results/multi_list_sum_darwin_arm64_20260219_082046.md`
-	    - Next: reduce per-iteration type checks on boxed list sums or route multi-load loops through unboxed list<int> kernels.
+	  - (P2/M) **multi_list_sum boxed list reads now ~3.1× C (Oren C) / ~3.6× native**
+	    - Latest (runs=5): C 0.00838s, Oren C 0.0258s (~3.08×), Oren native 0.0305s (~3.64×), OBC 1.2285s (~146.55×).
+	      - Result: `benchmarks/results/multi_list_sum_darwin_arm64_20260219_083044.md`
+	    - Next: push native ≤3.0× C and Oren C ≤2.5× by tightening boxed list sum/load path further.
 	  - (P1/M) **Dot_product still shows heavy list+multiply overhead (boxed path)**
 	    - Latest (runs=5): C 0.00647s, Oren C 0.209s (~32×), Oren native 0.221s (~34×), OBC 0.897s (~139×).
 	      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_050816.md`
