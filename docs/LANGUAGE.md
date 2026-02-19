@@ -41,7 +41,7 @@ When you change behavior (compiler/runtime/stdlib):
 This section is a brief “map” for AI agents (and maintainers) to connect a language feature to the implementation that enforces it.
 
 For a rolling “agent cache” of subtle internals (name resolution, lowering patterns, cross-backend contracts),
-see `docs/COMPILER_BACKENDS.md`.
+see `docs/DESIGN.md#backend-outputs`.
 
 ### Compiler front-end (parsing + AST)
 
@@ -132,7 +132,7 @@ What it is *not* (yet):
 
 Important: some safety guardrails are **always-on** and do not require `--typecheck`:
 
-- The compiler rejects `bool/int/float == nil` comparisons (`nil-compare guard:` diagnostics). See `docs/COMPILER_BACKENDS.md`.
+- The compiler rejects `bool/int/float == nil` comparisons (`nil-compare guard:` diagnostics). See `docs/DESIGN.md#backend-outputs`.
   - Key rule: **scalars are never nil**. Comparing a numeric/bool value to `nil` is always a bug (even if the value originated from a dynamic source).
   - Safe pattern for “optional config”: compare the **dynamic** value to `nil`, then cast:
     - `var t = cfg["timeout_ms"]; var timeout_ms = 1000; if t != nil { timeout_ms = i64(t) }`
@@ -269,7 +269,7 @@ Resolution rules (current compiler behavior):
 
 If stdlib root cannot be resolved, `import "std:..."` is a hard compile error.
 
-See also: `docs/RUNTIME.md` (distribution story and future embedding).
+See also: `docs/DESIGN.md#runtime-and-stdlib-layering` (distribution story and future embedding).
 
 ### Selected stdlib modules (rolling; evidence-backed)
 
@@ -295,10 +295,10 @@ These stdlib modules exist today and are exercised by regression fixtures:
 
 For the detailed NET/TLS behavior and design constraints (determinism, pinning, providers), use the dedicated docs:
 
-- `docs/RUNTIME.md`
-- `docs/RUNTIME.md`
-- `docs/RUNTIME.md`
-- `docs/RUNTIME.md`
+- `docs/DESIGN.md#runtime-and-stdlib-layering`
+- `docs/DESIGN.md#runtime-and-stdlib-layering`
+- `docs/DESIGN.md#runtime-and-stdlib-layering`
+- `docs/DESIGN.md#runtime-and-stdlib-layering`
 
 ### FFI symbols (`ffi name`)
 
@@ -426,9 +426,9 @@ Notes (rolling):
 - `ffi` is a low-level escape hatch intended primarily for native interop and experiments.
 - In **capsule** mode, `ffi` declarations are rejected (FFI bypasses capability gating).
   - Native backend:
-    - **macOS** supports binding against `libSystem` for `ffi` calls (see `docs/COMPILER_BACKENDS.md#native-backend-overview`).
+    - **macOS** supports binding against `libSystem` for `ffi` calls (see `docs/DESIGN.md#native-backend-overview`).
     - **Windows x64** supports `ffi` via lazy `LoadLibraryA`/`GetProcAddress` stubs.
-      - `--link` adds DLLs to the resolver search list (see `docs/COMPILER_BACKENDS.md#native-backend-overview`).
+      - `--link` adds DLLs to the resolver search list (see `docs/DESIGN.md#native-backend-overview`).
       - `@ffi.link("...")` can attach a dynamic library directly to an `ffi` declaration (portable form; maps to `--link`).
       - `@ffi.dll("name.dll")` can also attach a DLL directly to an `ffi` declaration (Windows convenience; useful for stdlib).
       - `@ffi.ret("i32"|"u32"|"void"|"ptr"|"usize")` can declare ABI return width/kind for some C-style APIs:
@@ -437,10 +437,10 @@ Notes (rolling):
         - `"void"`: force the return value to 0 for expression contexts.
         - `"ptr"` / `"usize"`: pointer-sized / `size_t` returns. On Tier‑1 (arm64/x64), these are 64-bit returns and do not require normalization, but the annotation is accepted as ABI metadata (and future 32-bit targets can lower it correctly).
       - `@ffi.export` can export a top-level function symbol for callback-style interop (currently: arm64-macos + linux/arm64 + linux/x64 + windows/x64 native; see `docs/LANGUAGE.md`).
-    - **Linux x64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/COMPILER_BACKENDS.md#native-backend-overview`).
-    - **Linux arm64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/COMPILER_BACKENDS.md#native-backend-overview`).
+    - **Linux x64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/DESIGN.md#native-backend-overview`).
+    - **Linux arm64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/DESIGN.md#native-backend-overview`).
   - C backend:
-    - Oren does not have a stabilized “typed C FFI” surface yet, but you can still link extra C by compiling the emitted C yourself (see `docs/COMPILER_BACKENDS.md#c-backend-design-and-abi`).
+    - Oren does not have a stabilized “typed C FFI” surface yet, but you can still link extra C by compiling the emitted C yourself (see `docs/DESIGN.md#c-backend-design-and-abi`).
 
 FFI sugar (rolling ergonomics):
 
@@ -684,8 +684,8 @@ Notes:
   - These embedded literals live in the binary’s constant/data segment and are **not tracked as GC heap allocations** (they are “static”).
   - Dynamically created strings (concatenation, slicing, parsing) still allocate and are GC-managed as usual.
   - References:
-    - `docs/COMPILER_BACKENDS.md#native-runtime-layout` (literal pool + runtime init)
-    - `docs/COMPILER_BACKENDS.md#native-backend-performance-playbook` (why this matters for hot paths)
+    - `docs/DESIGN.md#native-runtime-layout` (literal pool + runtime init)
+    - `docs/DESIGN.md#native-backend-performance-playbook` (why this matters for hot paths)
 
 ## 3) Variables and assignment
 
@@ -1313,7 +1313,7 @@ oren_map_set_str(m, key, 123)
 print(oren_int_to_string(oren_map_get_str(m, key)))
 ```
 
-Rolling note: map keys are restricted to a small set of runtime types (see `docs/AVM.md` and runtime code for the exact set).
+Rolling note: map keys are restricted to a small set of runtime types (see `docs/DESIGN.md#avm-and-obc-bootstrap-spec-summary` and runtime code for the exact set).
 
 ### Typed buffers (HPC)
 
@@ -1327,7 +1327,7 @@ Examples of native/AVM intrinsics include:
 - `oren_buf_load_f32(buf, idx)`
 - `oren_buf_store_f32(buf, idx, val)`
 
-See `docs/STATUS.md` and `docs/AVM.md#avm-neon-mapping-plan-arm64-no-jit-first` for direction and design constraints.
+See `docs/STATUS.md` and `docs/DESIGN.md#avm-neon-mapping-plan-arm64-no-jit-first` for direction and design constraints.
 - `@cap.requires(domain="...")` for capsule/capability gating of host-effectful APIs (see below)
 
 #### Strict attribute mode (compiler option)
@@ -1576,7 +1576,7 @@ Some Tier‑1 fixtures still use small `@cfg(os=...)` glue for other OS differen
 Concurrency in AVM differs from native mode; see:
 
 - `docs/LANGUAGE.md`
-- `docs/AVM.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly`
+- `docs/DESIGN.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly`
 
 ### Channels + select (rolling; AVM + native macOS/Linux)
 
@@ -1744,7 +1744,7 @@ The spec defines syntax/semantics. This section exists to help AI agents locate 
 It is **not** normative, but it should be kept accurate.
 
 For a rolling “agent cache” of subtle internals (name resolution, lowering patterns, cross-backend contracts),
-see `docs/COMPILER_BACKENDS.md`.
+see `docs/DESIGN.md#backend-outputs`.
 
 Compiler pipeline (high level):
 
@@ -2545,7 +2545,7 @@ Backend behavior (rolling):
 
 - **AVM backend**: `spawn` creates a **deterministic VM task** (green thread) scheduled by the AVM runtime.
   - `oren_join(handle)` and `oren_yield()` are VM opcodes (portable, snapshot-safe).
-  - See `docs/AVM.md` (Next-Gen plan section: tasks + channels + select).
+  - See `docs/DESIGN.md#avm-and-obc-bootstrap-spec-summary` (Next-Gen plan section: tasks + channels + select).
 	- **C backend**: `spawn` uses `pthread_create` and returns a pointer-like handle.
 	  - `oren_join(handle)` waits and returns the spawned function’s return value.
 	  - `oren_detach(handle)` / `oren_join_all()` exist in the C runtime (rolling; not yet mirrored in native runtime).
@@ -2589,7 +2589,7 @@ Backend behavior (rolling):
 Design direction:
 
 - A future language-level `select { case ... }` syntax is planned as sugar over `oren_select(...)`,
-  after the CoreIR + scheduler model stabilizes (see `docs/LANGUAGE.md` and `docs/RUNTIME.md`).
+  after the CoreIR + scheduler model stabilizes (see `docs/LANGUAGE.md` and `docs/DESIGN.md#runtime-and-stdlib-layering`).
 
 ### Functions
 - `fn name(params) { ... }` defines a named function.
@@ -2640,7 +2640,7 @@ Stdlib wrapper (rolling):
 Native backend note:
 
   - Until native value tagging is fully implemented, numeric immediates (`int`/`float`) may still be indistinguishable in some native-mode paths, so `oren_type_tag` is best-effort for those values.
-    - Track: `docs/COMPILER_BACKENDS.md#native-tagged-value-representation`
+    - Track: `docs/DESIGN.md#native-tagged-value-representation`
     - Rolling implementation detail: `nil`, `false`, and `true` are **runtime singleton values** in native mode (not raw `0/1`), so `0` (int zero) remains distinct from `nil`/`false` in the common case.
     - Rolling reflection v0 for structs: user-defined `struct` values are map-shaped today, but constructors tag them with `{"__oren_type":"TypeName", ...}`, so `oren_type_name(TypeName(...))` returns `"TypeName"` instead of `"map"`.
       - `__oren_type` is a **reserved** struct key; user code must not declare a field named `__oren_type` (compile-time error).
@@ -4102,7 +4102,7 @@ value representations to get performance and bring-up velocity.
 
 Relevant existing docs:
 
-- Dynamic value representation work: `docs/COMPILER_BACKENDS.md#native-tagged-value-representation`
+- Dynamic value representation work: `docs/DESIGN.md#native-tagged-value-representation`
 - Object model direction: `docs/LANGUAGE.md`
 - Type-system stabilization direction: `docs/STATUS.md`
 - Attribute contract: `docs/LANGUAGE.md`
@@ -4229,9 +4229,9 @@ This is needed for safe “memcpy style” FFI tooling, but it must not leak int
 
 ## 8) Related work (tracked elsewhere)
 
-- Value representation refactor targets: `docs/COMPILER_BACKENDS.md#native-tagged-value-representation`
+- Value representation refactor targets: `docs/DESIGN.md#native-tagged-value-representation`
 - Type-system stabilization targets: `docs/STATUS.md`
-- Stdlibrary layering (crypto/net split): `docs/RUNTIME.md`
+- Stdlibrary layering (crypto/net split): `docs/DESIGN.md#runtime-and-stdlib-layering`
 
 ## Oren Object Model (Traits/Protocols + Composition)
 
@@ -4633,8 +4633,8 @@ Implementation guardrails (native backend contributors):
 Implications:
 
 - There is no **production-grade** GMP/netpoller (true async IO + channels/select across Tier‑1) in native yet.
-  - However, macOS/Linux already have an early green-task scheduler + netpoll integration for pipe/socket readiness (rolling; see `docs/RUNTIME.md`).
-  - Windows has a correctness-first in-memory channel implementation so `oren_select` works for channels even without IOCP (see `docs/RUNTIME.md`).
+  - However, macOS/Linux already have an early green-task scheduler + netpoll integration for pipe/socket readiness (rolling; see `docs/DESIGN.md#runtime-and-stdlib-layering`).
+  - Windows has a correctness-first in-memory channel implementation so `oren_select` works for channels even without IOCP (see `docs/DESIGN.md#runtime-and-stdlib-layering`).
   - Windows also has a rolling v0 socket netpoll path (WinSock `select()` over a small watched set) so green-task `oren_fd_wait_*` can be scheduler-driven, but IOCP is still the intended long-term implementation.
 - A “mutex” cannot coordinate across `spawn` on POSIX v0, because forked processes do not share the address space.
 
@@ -4701,7 +4701,7 @@ Source of truth:
 
 - Native: `lib/runtime_native/010_channels_globals_consts.oren`, `lib/runtime_native/011_channels_mem.oren`, `lib/runtime_native/245_select.oren`
 - AVM: `lib/avm/avm_vm.c` opcodes `SELECT_RECV` / `SELECT`
-- Docs: `docs/RUNTIME.md`
+- Docs: `docs/DESIGN.md#runtime-and-stdlib-layering`
 
 ### 3. Atomics (native)
 
@@ -4729,9 +4729,9 @@ The following are *design goals* but are not implemented today as stable primiti
 
 Implementation plan is tracked in `docs/STATUS.md` and the deeper design docs:
 
-- `docs/RUNTIME.md`
-- `docs/RUNTIME.md`
-- `docs/AVM.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly`
+- `docs/DESIGN.md#runtime-and-stdlib-layering`
+- `docs/DESIGN.md#runtime-and-stdlib-layering`
+- `docs/DESIGN.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly`
 
 ## 4) AVM notes
 
@@ -4743,7 +4743,7 @@ For AVM execution (interpreter-only environments), concurrency primitives must:
 
 See:
 
-- `docs/AVM.md` (Next-Gen plan section)
+- `docs/DESIGN.md#avm-and-obc-bootstrap-spec-summary` (Next-Gen plan section)
 - `docs/STATUS.md`
 
 ## Stack Safety (Recursion, Call Depth, and Deterministic Failure)
@@ -4942,5 +4942,5 @@ Status:
 
 ## Related Work / Constraints
 
-- Backend unification direction: `docs/COMPILER_BACKENDS.md`
-- AVM semantics + determinism: `docs/AVM.md`
+- Backend unification direction: `docs/DESIGN.md#backend-outputs`
+- AVM semantics + determinism: `docs/DESIGN.md#avm-and-obc-bootstrap-spec-summary`

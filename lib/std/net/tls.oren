@@ -8,7 +8,7 @@
 //
 // Status (2026-01-08, rolling):
 // - macOS provider is the first bring-up target (SecureTransport via Security.framework).
-// - Other Tier‑1 OS providers (Windows Schannel, Linux OpenSSL) are tracked in `docs/RUNTIME.md`.
+// - Other Tier‑1 OS providers (Windows Schannel, Linux OpenSSL) are tracked in `docs/DESIGN.md#tls-provider-availability`.
 //
 // API (v0, rolling):
 // - `wrap_client(fd, server_name, timeout_ms, opts)` -> {"ok":1,"conn":map} or {"ok":0,"err":string}
@@ -117,14 +117,14 @@ fn win_cleanup() {
 fn wrap_client(fd, server_name, timeout_ms, opts) {
     if fd == nil { fd = -1 }
     if fd >= 0 { tcp.close(fd) }
-    return {"ok": 0, "err": "tls.wrap_client: TLS provider not implemented for this OS yet (see docs/RUNTIME.md)"}
+    return {"ok": 0, "err": "tls.wrap_client: TLS provider not implemented for this OS yet (see docs/DESIGN.md#tls-provider-availability)"}
 }
 
 @cfg(not_os="macos,linux,windows")
 fn wrap_server_pkcs12(fd, timeout_ms, pkcs12_bytes, passphrase, opts) {
     if fd == nil { fd = -1 }
     if fd >= 0 { tcp.close(fd) }
-    return {"ok": 0, "err": "tls.wrap_server: TLS provider not implemented for this OS yet (see docs/RUNTIME.md)"}
+    return {"ok": 0, "err": "tls.wrap_server: TLS provider not implemented for this OS yet (see docs/DESIGN.md#tls-provider-availability)"}
 }
 
 @cfg(not_os="macos,linux,windows")
@@ -144,12 +144,12 @@ fn close(conn) {
 
 @cfg(not_os="macos,linux,windows")
 fn peer_cert_sha256_hex(conn) {
-    return {"ok": 0, "err": "tls.peer_cert_sha256_hex: not implemented (see docs/RUNTIME.md)"}
+    return {"ok": 0, "err": "tls.peer_cert_sha256_hex: not implemented (see docs/DESIGN.md#tls-provider-availability)"}
 }
 
 @cfg(not_os="macos,linux,windows")
 fn negotiated_alpn(conn) {
-    return {"ok": 0, "err": "tls.negotiated_alpn: not implemented (see docs/RUNTIME.md)"}
+    return {"ok": 0, "err": "tls.negotiated_alpn: not implemented (see docs/DESIGN.md#tls-provider-availability)"}
 }
 
 // --- Provider dispatch (Tier‑1) ---

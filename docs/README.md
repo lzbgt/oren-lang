@@ -70,14 +70,9 @@ Local cross-backend microbenchmarks live under `benchmarks/`:
 
 - `docs/LANGUAGE.md` — manual + spec + appendices (single canonical language doc)
 
-**Compiler + backends (implementation)**
+**Design (compiler/runtime/AVM)**
 
-- `docs/COMPILER_BACKENDS.md` — compiler pipeline + C/native/bytecode backends
-- `docs/AVM.md` — AVM spec + roadmap + OBC distribution
-
-**Stdlib + system design**
-
-- `docs/RUNTIME.md` — stdlib/runtime layers + networking/IO architecture
+- `docs/DESIGN.md` — architecture, backends, runtime layering, AVM/OBC summary
 
 **Platform + tooling**
 

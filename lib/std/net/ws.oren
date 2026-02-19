@@ -6,7 +6,7 @@
 //   - hostname hosts resolve via DNS A:
 //     - pass an explicit resolver config (`ws.connect_resolver`)
 //     - or use `dns.default_resolver` (env `OREN_DNS_SERVER`, else `/etc/resolv.conf` on POSIX)
-// - wss://<host>[:port][/path] (TLS wrapper; provider availability is OS-dependent; see docs/RUNTIME.md)
+// - wss://<host>[:port][/path] (TLS wrapper; provider availability is OS-dependent; see docs/DESIGN.md#tls-provider-availability)
 // - Text frames (opcode=1) for small messages
 // - Client frames are masked (required by RFC6455); server frames are unmasked
 //
@@ -92,7 +92,7 @@ fn _starts_with(s, prefix) {
 fn _parse_ws_url(url) {
     // Supported:
     //   ws://<host>[:port][/path]
-    //   wss://<host>[:port][/path]   (TLS provider availability is OS-dependent; see docs/RUNTIME.md)
+    //   wss://<host>[:port][/path]   (TLS provider availability is OS-dependent; see docs/DESIGN.md#tls-provider-availability)
     //
     // Where <host> can be an IPv4 literal or a hostname (resolved separately).
     //

@@ -177,7 +177,7 @@ Tracing knobs (bounded output; prints timing summaries):
 
 Performance guardrails and “what to do when it gets slow” live in:
 
-- `docs/COMPILER_BACKENDS.md#native-backend-performance-playbook`
+- `docs/DESIGN.md#native-backend-performance-playbook`
 
 ### Native Runtime Object Cache (Native Backend; Tier‑1 throughput)
 
@@ -390,8 +390,8 @@ Current status:
 - **macOS (Mach-O):** uses dyld binding opcodes and GOT stubs; this enables basic FFI against `libSystem` and any dylibs you load via `--link` / `@ffi.link(...)`.
 - **Windows x64 (PE):** uses lazy `LoadLibraryA`/`GetProcAddress` stubs; `--link` / `@ffi.link(...)` adds DLLs to the resolver search list (kernel32 is searched by default). For convenience, `@ffi.dll("name.dll")` can attach a DLL directly to an `ffi` declaration.
 - **Linux (ELF):**
-  - **x64-linux:** dynamic linking is enabled when at least one link dependency exists (via `--link` or `@ffi.link(...)`), and `ffi` works via a lazy `dlsym` resolver (see `docs/COMPILER_BACKENDS.md#native-backend-overview`).
-  - **arm64-linux:** same as x64-linux (see `docs/COMPILER_BACKENDS.md#native-backend-overview`).
+  - **x64-linux:** dynamic linking is enabled when at least one link dependency exists (via `--link` or `@ffi.link(...)`), and `ffi` works via a lazy `dlsym` resolver (see `docs/DESIGN.md#native-backend-overview`).
+  - **arm64-linux:** same as x64-linux (see `docs/DESIGN.md#native-backend-overview`).
 
 ### Usage
 Declare the external symbol using the `ffi` keyword, then call it like a regular function.
@@ -717,7 +717,7 @@ Rolling note (fixtures vs ABI):
 
 - Some Tier‑1 fixtures use **test-only runtime hooks** (example: `oren_green_debug_*`) to make scheduling regressions deterministic while the native scheduler is still evolving.
   - Those hooks are not stable ABI and should not be used in stdlib or user-facing examples.
-  - Reference: `docs/RUNTIME.md` (“Test-only debug API: `oren_green_debug_*`”).
+  - Reference: `docs/DESIGN.md#runtime-and-stdlib-layering` (“Test-only debug API: `oren_green_debug_*`”).
 
 Rolling rule: **Oren source should be backend-universal** when the program is within the supported feature set of that backend.
 When a source file is intended to be backend-specific (e.g. AVM domain tests), it should be documented as such in-file.
@@ -912,7 +912,7 @@ However, a small amount of `@cfg(os=...)` glue is still sometimes necessary at t
 
 - FFI library naming / attachment (`@ffi.link("...")` vs `@ffi.dll("...")`).
 - OS-specific process semantics (e.g. TLS loopback servers may use `fork+exec` on macOS to avoid
-  fork-unsafety around Security/CoreFoundation; see `docs/RUNTIME.md`).
+  fork-unsafety around Security/CoreFoundation; see `docs/DESIGN.md#runtime-and-stdlib-layering`).
 - Temporary bring-up gaps (e.g. POSIX pipe-fd readiness is not supported on Windows yet; Windows has a rolling select-v0 socket netpoll path,
   but IOCP integration is still pending for production-grade readiness and for any future HANDLE-based readiness story).
 
@@ -933,7 +933,7 @@ When investigating “why did `oren build` take >10s?” regressions, use the bo
 
 For a deeper “what regressed and how do we keep it bounded” playbook (rolling):
 
-- `docs/COMPILER_BACKENDS.md#native-backend-performance-playbook`
+- `docs/DESIGN.md#native-backend-performance-playbook`
 
 ## Logs and artifacts
 
@@ -1036,8 +1036,8 @@ A real package manager requires more than “downloading some files”:
 
 If the end-goal includes AVM multiverse updates and signed modules, the package manager needs to integrate with the trust model in:
 
-- `docs/AVM.md`
-- `docs/AVM.md`
+- `docs/DESIGN.md#avm-and-obc-bootstrap-spec-summary`
+- `docs/DESIGN.md#avm-and-obc-bootstrap-spec-summary`
 - `docs/TOOLCHAIN_PLATFORMS.md`
 
 In other words: the package manager is also a **supply chain system**, not just a convenience.
@@ -1111,12 +1111,12 @@ Authoritative end-to-end instructions live in `docs/TOOLCHAIN_PLATFORMS.md` (thi
 ### C backend (portable bootstrapping path)
 The C backend transpiles Oren to C, then relies on the host C toolchain to compile/link. This is still the “most portable” path and remains useful as a fallback.
 
-For details, see `docs/COMPILER_BACKENDS.md#c-backend-design-and-abi`.
+For details, see `docs/DESIGN.md#c-backend-design-and-abi`.
 
 ### Native backend (syscall-first, no host SDK headers)
 The native backend emits Mach-O (macOS arm64) or ELF (Linux arm64) directly.
 
-Design constraints and ABI tables are documented in `docs/COMPILER_BACKENDS.md#native-backend-overview`.
+Design constraints and ABI tables are documented in `docs/DESIGN.md#native-backend-overview`.
 
 ### Bytecode backend (AVM)
 The bytecode backend emits `.obc` for the AVM prototype.
@@ -1239,7 +1239,7 @@ The high-level pipeline is:
    - native Mach-O/ELF (`--backend native`)
    - AVM bytecode (`--backend bytecode`)
 
-For the C backend, the toolchain invocation is explicit and overrideable (see `docs/COMPILER_BACKENDS.md#c-backend-design-and-abi`).
+For the C backend, the toolchain invocation is explicit and overrideable (see `docs/DESIGN.md#c-backend-design-and-abi`).
 
 If you prefer to compile the generated C yourself, use `--emit-c` and then run the compile/link step manually.
 

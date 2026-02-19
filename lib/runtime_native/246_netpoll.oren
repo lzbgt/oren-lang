@@ -16,7 +16,7 @@
 // - This does not provide a general cancellation map; callers must make token use safe (e.g. token points to a long-lived object).
 // - Windows readiness defaults to select-v0. When `OREN_NETPOLL_WIN_IOCP=1`, IOCP is used with a
 //   readiness bridge (zero-byte overlapped WSARecv/WSASend) for green-task waits; full completion-based
-//   socket ops remain future work (see `docs/RUNTIME.md`).
+//   socket ops remain future work (see `docs/DESIGN.md#runtime-and-stdlib-layering`).
 
 var g_netpoll_inited = 0
 var g_netpoll_fd = 0

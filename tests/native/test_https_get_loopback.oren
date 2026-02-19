@@ -74,7 +74,7 @@ fn _find_header_end(buf, used) {
 
 @cfg(not_os="macos,linux,windows")
 fn main() {
-    // HTTPS/TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/RUNTIME.md.
+    // HTTPS/TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/DESIGN.md#tls-provider-availability.
     exit(0)
 }
 

@@ -57,7 +57,7 @@ fn u16be_at(p, off) {
 
 @cfg(not_os="macos,linux,windows")
 fn main() {
-    // TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/RUNTIME.md.
+    // TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/DESIGN.md#tls-provider-availability.
     exit(0)
 }
 
@@ -433,7 +433,7 @@ fn main_client() {
     }
 
     // macOS SecureTransport: ALPN negotiation/observation is currently treated as best-effort;
-    // the loopback fixture does not assert a negotiated protocol yet (tracked in docs/RUNTIME.md).
+    // the loopback fixture does not assert a negotiated protocol yet (tracked in docs/DESIGN.md#tls-provider-availability).
     var ar = tls.negotiated_alpn(conn)
     if oren_map_get_str(ar, "ok") != 1 {
         tls.close(conn)

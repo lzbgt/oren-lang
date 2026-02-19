@@ -405,7 +405,7 @@ fn oren_fd_wait_select_one(fd, want_write, timeout_ms) {
     //   u32 fd_count @0
     //   u32 pad      @4
     //   SOCKET fd_array[0] @8
-    var set_bytes = 8 + 8 * 64 // FD_SETSIZE=64 (rolling v0 cap; see `docs/RUNTIME.md`)
+    var set_bytes = 8 + 8 * 64 // FD_SETSIZE=64 (rolling v0 cap; see `docs/DESIGN.md#runtime-and-stdlib-layering`)
     var fds = malloc(set_bytes)
     if fds == 0 { return 0 - 12 } // ENOMEM
     var zi = 0

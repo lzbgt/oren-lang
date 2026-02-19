@@ -5,7 +5,7 @@ fn native_call_chunk_040_lowering_d(ctx, fn_name, expr, args) {
                 // Intrinsic: dot product over raw f32 pointers, returning f64 bits.
                 // Signature: simd_dot_f32_ptr(a_ptr, b_ptr, n) -> f64bits
                 //
-                // Determinism rule (matches docs/AVM.md#avm-neon-mapping-plan-arm64-no-jit-first intent):
+                // Determinism rule (matches docs/DESIGN.md#avm-neon-mapping-plan-arm64-no-jit-first intent):
                 // - multiply in f64 (widen f32->f64) and accumulate in *scalar* f64 in the same element order
                 //   as the scalar loop (no reassociation).
                 var args6 = expr["args"]
