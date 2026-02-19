@@ -239,6 +239,7 @@ endif
 		tests/avm/test_list_sum_opcodes.oren \
 		tests/avm/test_list_dot_opcodes.oren \
 		tests/avm/test_list_int_basic.oren \
+		tests/avm/test_list_freelist_env.oren \
 		tests/avm/test_ui_color_v0.oren \
 		tests/avm/test_ui_layout_v0.oren \
 		tests/avm/test_ui_patch_v0.oren \
@@ -566,6 +567,7 @@ test-avm: oren avm
 					avm_args="--deny-by-default --allow-domains 0,4,6 --net-backend vnet --net-fixtures-hex 41564d4e45543031010000000100000075020000006f6b --print-run-json" ;; \
 				test_vproc_fixtures) \
 					avm_args="--deny-by-default --allow-domains 0,5,6 --proc-backend vproc --proc-exit-code 7 --proc-fixtures-hex 41564d505243303101000000070000006563686f20686900000000 --print-run-json" ;; \
+				test_list_freelist_env) avm_env="AVM_LIST_FREELIST=1 AVM_LIST_FREELIST_BYTES=1048576 AVM_LIST_FREELIST_MAX_BLOCK_BYTES=65536" ;; \
 			esac; \
 			outf="build/logs/avm_$${name}.out"; \
 			set +e; \

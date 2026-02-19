@@ -108,6 +108,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Baseline (OBC, 2026-02-19): `alloc_churn` 63.04× C, `alloc_drop` 2.50× C.
    - Arena/slab alloc for short-lived lists/structs.
    - TMP freelist for `AVM_ALLOC_KIND_TMP` (env: `AVM_TMP_FREELIST=1`, cap via `AVM_TMP_FREELIST_BYTES`, block cap via `AVM_TMP_FREELIST_MAX_BLOCK_BYTES`).
+   - List freelist for `AVM_ALLOC_KIND_LIST` + `AVM_ALLOC_KIND_LIST_INT` (env: `AVM_LIST_FREELIST=1`, cap via `AVM_LIST_FREELIST_BYTES`, block cap via `AVM_LIST_FREELIST_MAX_BLOCK_BYTES`).
    - Gate: OBC `alloc_churn` <= 10x C; AVM SIMD test suite passes.
 
 7) **W3 - AVM unboxed list<int> payload + lowering** (M)

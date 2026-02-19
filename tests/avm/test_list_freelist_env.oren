@@ -1,0 +1,67 @@
+import list "std:list"
+
+fn fail(code) {
+    exit(code)
+}
+
+fn test_boxed() {
+    var n = 64
+    var sum = 0
+    var i = 0
+    while i < n {
+        var xs = []
+        var j = 0
+        while j < 33 {
+            list.push(xs, i + j)
+            j = j + 1
+        }
+        sum = sum + xs[0] + xs[32]
+        i = i + 1
+    }
+
+    var expected = 0
+    i = 0
+    while i < n {
+        expected = expected + i + (i + 32)
+        i = i + 1
+    }
+
+    if sum != expected {
+        fail(41)
+    }
+}
+
+fn test_list_int() {
+    var n = 48
+    var sum = 0
+    var i = 0
+    while i < n {
+        var ys = list.int_new(1)
+        var j = 0
+        while j < 33 {
+            list.int_push(ys, i + j)
+            j = j + 1
+        }
+        sum = sum + list.int_get(ys, 0) + list.int_get(ys, 32)
+        i = i + 1
+    }
+
+    var expected = 0
+    i = 0
+    while i < n {
+        expected = expected + i + (i + 32)
+        i = i + 1
+    }
+
+    if sum != expected {
+        fail(42)
+    }
+}
+
+fn main() {
+    test_boxed()
+    test_list_int()
+    print("ok: avm list freelist env")
+}
+
+main()

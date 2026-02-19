@@ -3535,6 +3535,27 @@ int main(int argc, char** argv) {
             vm->tmp_freelist_max_block_bytes = tmp_block_cap;
         }
 
+        const char* list_free_env = getenv("AVM_LIST_FREELIST");
+        const char* list_free_bytes_env = getenv("AVM_LIST_FREELIST_BYTES");
+        const char* list_free_block_env = getenv("AVM_LIST_FREELIST_MAX_BLOCK_BYTES");
+        int list_enable = 0;
+        if (list_free_env && list_free_env[0]) {
+            if (list_free_env[0] != '0') list_enable = 1;
+        } else if (list_free_bytes_env && list_free_bytes_env[0]) {
+            list_enable = 1;
+        }
+        if (list_enable) {
+            uint64_t list_cap = 0;
+            uint64_t list_block_cap = 0;
+            if (list_free_bytes_env && list_free_bytes_env[0]) list_cap = strtoull(list_free_bytes_env, NULL, 10);
+            if (list_cap == 0) list_cap = 1024ull * 1024ull; // default 1 MiB cap
+            if (list_free_block_env && list_free_block_env[0]) list_block_cap = strtoull(list_free_block_env, NULL, 10);
+            if (list_block_cap == 0) list_block_cap = 64ull * 1024ull; // default 64 KiB block cap
+            vm->list_freelist_enabled = 1;
+            vm->list_freelist_cap_bytes = list_cap;
+            vm->list_freelist_max_block_bytes = list_block_cap;
+        }
+
         // Deterministic record/replay (rolling):
         // - AVM_RECORD_LOG: path to write a native-call replay log (FS domain currently).
         // - AVM_REPLAY_LOG: path to read a native-call replay log (FS domain currently).

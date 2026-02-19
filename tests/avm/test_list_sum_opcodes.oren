@@ -1,4 +1,4 @@
-import list "../lib/std/list.oren"
+import list "std:list"
 
 fn test_list_sum() {
     var n = 1000
