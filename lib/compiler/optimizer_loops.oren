@@ -1,4 +1,5 @@
 import ast "ast.oren"
+import intparse "int_lit.oren"
 import opthelp "optimizer_helpers.oren"
 
 fn _opt_has_continue_stmt(stmt) {
@@ -1263,10 +1264,49 @@ fn _opt_loop_has_simple_bound(block, idx, stmt) {
     return false
 }
 
+var OREN_ARENA_LONG_LIVED_BOUND_LIMIT = -1
+
+fn _opt_arena_long_lived_bound_limit() {
+    if OREN_ARENA_LONG_LIVED_BOUND_LIMIT >= 0 { return OREN_ARENA_LONG_LIVED_BOUND_LIMIT }
+    var limit = 1000000
+    var v = oren_env("OREN_ARENA_LONG_LIVED_BOUND")
+    if v != nil && v != "" {
+        var parsed = intparse.parse_int_lit(v)
+        if !oren_is_err(parsed) && parsed > 0 { limit = parsed }
+        else { limit = 0 }
+    }
+    OREN_ARENA_LONG_LIVED_BOUND_LIMIT = limit
+    return limit
+}
+
+fn _opt_loop_simple_bound_value(block, idx, stmt) {
+    if stmt == nil { return nil }
+    var cond = stmt["cond"]
+    if cond == nil { return nil }
+    if cond["type"] != "Infix" { return nil }
+    var op = cond["op"]
+    if op != "<" && op != "<=" { return nil }
+    var left = cond["left"]
+    var right = cond["right"]
+    if left == nil || left["type"] != "Identifier" { return nil }
+    if right == nil { return nil }
+    if _opt_is_const_int_expr(right) != true { return nil }
+    var v = intparse.parse_int_lit(right["value"])
+    if oren_is_err(v) { return nil }
+    return v
+}
+
 fn _opt_loop_is_long_lived(block, idx, stmt) {
     if stmt == nil { return false }
     if stmt["type"] != "While" && stmt["type"] != "For" { return false }
-    if _opt_loop_has_simple_bound(block, idx, stmt) { return false }
+    if _opt_loop_has_simple_bound(block, idx, stmt) {
+        var limit = _opt_arena_long_lived_bound_limit()
+        if limit > 0 {
+            var bound = _opt_loop_simple_bound_value(block, idx, stmt)
+            if bound != nil && bound >= limit { return true }
+        }
+        return false
+    }
     return true
 }
 
