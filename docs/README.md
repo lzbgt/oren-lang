@@ -51,7 +51,7 @@ make avm
 
 Details and platform-specific notes live in:
 
-- `docs/TOOLCHAIN_PLATFORMS.md` — build/test/self-hosting, Tier‑1 targets, portability notes, remote x64 workflow
+- `docs/DESIGN.md` — design + toolchain, build/test/self-hosting, Tier‑1 targets, portability notes, remote x64 workflow
 
 ## 3) Benchmarks (perf sanity)
 
@@ -70,13 +70,9 @@ Local cross-backend microbenchmarks live under `benchmarks/`:
 
 - `docs/LANGUAGE.md` — manual + spec + appendices (single canonical language doc)
 
-**Design (compiler/runtime/AVM)**
+**Design + toolchain (compiler/runtime/AVM/platforms)**
 
-- `docs/DESIGN.md` — architecture, backends, runtime layering, AVM/OBC summary
-
-**Platform + tooling**
-
-- `docs/TOOLCHAIN_PLATFORMS.md` — build/test/self-hosting + Tier‑1 portability
+- `docs/DESIGN.md` — architecture, backends, runtime layering, AVM/OBC summary, and toolchain/platform notes
 
 ## 5) Rolling policy (no stubs)
 

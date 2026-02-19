@@ -7,7 +7,7 @@
 // `oren_map_set_str` / `oren_map_get_str` without runtime key-kind inference.
 //
 // Gated by `OREN_REMOTE_RUN=1` and executed on Win11 + WSL2 x86_64.
-// See: docs/TOOLCHAIN_PLATFORMS.md
+// See: docs/DESIGN.md
 
 fn main() {
     // Empty map => key kind is not known at compile-time.

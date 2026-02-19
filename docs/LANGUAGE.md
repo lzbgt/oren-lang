@@ -86,7 +86,7 @@ Oren is an **agent-native**, syscall-first language and toolchain:
   - Tier‑1 targets (rolling intent): `arm64` and `x86_64` across **macOS / Linux / Windows**.
   - Practical reality today:
     - macOS `arm64` is the most feature-complete native backend surface.
-    - Linux/Windows `x86_64` (`--arch x64`) is Tier‑1 intent but still a growing bring-up subset (see `docs/STATUS.md` and `docs/TOOLCHAIN_PLATFORMS.md` for real-hardware validation).
+    - Linux/Windows `x86_64` (`--arch x64`) is Tier‑1 intent but still a growing bring-up subset (see `docs/STATUS.md` and `docs/DESIGN.md` for real-hardware validation).
 - **Portable** mode: compiles to `.obc` bytecode executed by AVM, supporting determinism, snapshots, and capability-governed virtualized domains (FS/NET/PROC/ENV/TIME).
 
 ## 0.1) Compiler CLI quick reference (modern, machine-friendly)
@@ -103,7 +103,7 @@ The Stage1 compiler (`./oren`) is intended to behave like a modern tool (Python 
   - `oren completion bash`
   - `oren completion zsh`
 
-See `docs/TOOLCHAIN_PLATFORMS.md` for activation instructions.
+See `docs/DESIGN.md` for activation instructions.
 
 ### 0.1.1) `--typecheck` mode (rolling, opt-in)
 
@@ -177,14 +177,14 @@ By default, the compiler picks the **runtime host platform** when `--platform` i
 Cross-compile examples:
 
 ```bash
-# Linux ELF (run it on Linux, or via the Win11 (WSL2 optional) workflow in `docs/TOOLCHAIN_PLATFORMS.md`)
+# Linux ELF (run it on Linux, or via the Win11 (WSL2 optional) workflow in `docs/DESIGN.md`)
 ./oren build your_prog.oren --backend native --platform arm64-linux -o build/your_prog_linux
 
 # Windows PE (run it on Windows)
 ./oren build your_prog.oren --backend native --platform x64-windows -o build/your_prog_win.exe
 ```
 
-Note: `--platform arm64-linux` / `--platform x64-linux` outputs a Linux ELF; run it on Linux (or via the Win11 (WSL2 optional) remote workflow in `docs/TOOLCHAIN_PLATFORMS.md`).
+Note: `--platform arm64-linux` / `--platform x64-linux` outputs a Linux ELF; run it on Linux (or via the Win11 (WSL2 optional) remote workflow in `docs/DESIGN.md`).
 
 Build and run **bytecode** on AVM:
 
@@ -481,7 +481,7 @@ Why `@cfg` exists (and when to use it):
 
 Portability guide (recommended reading):
 
-- `docs/TOOLCHAIN_PLATFORMS.md` explains the “keep `@cfg` at the boundary” rule and gives concrete patterns for tests and stdlib.
+- `docs/DESIGN.md` explains the “keep `@cfg` at the boundary” rule and gives concrete patterns for tests and stdlib.
 
 Rolling note (FFI ergonomics):
 
@@ -1611,8 +1611,8 @@ Backend notes (rolling):
 
 The authoritative build/test workflow is in:
 
-- `docs/TOOLCHAIN_PLATFORMS.md`
-- `docs/TOOLCHAIN_PLATFORMS.md`
+- `docs/DESIGN.md`
+- `docs/DESIGN.md`
 
 ### Machine-readable diagnostics (`OREN_DIAG`)
 
@@ -1698,7 +1698,7 @@ are the canonical incremental contract for what the x64 backend supports today:
 
 - `tests/fixtures/x64_*_main.oren` are intended to compile under the native backend for Linux ELF + Windows PE (`./oren build ... --backend native --platform x64-linux` / `x64-windows`).
 - Remote execution (Win11, WSL2 optional) is opt-in and can be done by copying the built artifact to a real x86_64 host.
-- High-signal Tier‑1 fixtures (remote x86_64 gate; run via `scripts/verify_native_matrix.sh --targets x64-win-tier1` / `x64-wsl-tier1` with `--tier1-src <fixture>`; see `docs/TOOLCHAIN_PLATFORMS.md`):
+- High-signal Tier‑1 fixtures (remote x86_64 gate; run via `scripts/verify_native_matrix.sh --targets x64-win-tier1` / `x64-wsl-tier1` with `--tier1-src <fixture>`; see `docs/DESIGN.md`):
   - Closures + varargs: `tests/fixtures/tier1_native_lambda_varargs_main.oren`
   - Maps (empty map + dynamic string key kind): `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren`
   - Strings (`+`, `len`, `slice`): `tests/fixtures/tier1_native_string_ops_main.oren`
@@ -2059,7 +2059,7 @@ Non-normative guidance (rolling):
 - Prefer platform-independent APIs in stdlib. `@cfg` exists for *boundary bindings* that cannot be fully abstracted (FFI library names, syscall layouts, per-OS constants).
 - In tests, `@cfg` is acceptable when it gates tiny platform-specific declarations, but the behavior under test should remain consistent across Tier‑1 platforms whenever possible.
 - If broad algorithmic code needs heavy `@cfg`, treat it as a design smell and consider lifting the platform differences into a dedicated stdlib module.
-- See `docs/TOOLCHAIN_PLATFORMS.md` for concrete “keep `@cfg` at the boundary” patterns.
+- See `docs/DESIGN.md` for concrete “keep `@cfg` at the boundary” patterns.
 
 Supported attachment sites (rolling v0):
 

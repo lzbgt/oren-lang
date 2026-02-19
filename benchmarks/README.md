@@ -34,7 +34,8 @@ Optional knobs:
 - `OREN_BENCH_RUNS=<n>` (default: 5)
 - `OREN_BENCH_WARMUPS=<n>` (default: 1)
 - `OREN_BENCH_RSS=1` (capture per-run max RSS via `/usr/bin/time`)
-- `OREN_BENCH_PROGRAM=<name>` (default: `loop_sum`)
+- `OREN_BENCH_PROGRAM=<name|all|name1,name2>` (default: `loop_sum`)
+- `OREN_BENCH_PROGRAMS=name1,name2` (explicit list; overrides `OREN_BENCH_PROGRAM`)
 - `OREN_BENCH_CC=<compiler>` (override C compiler; auto-detects `cc/clang/gcc` otherwise)
 - `OREN_BENCH_ENV_ALL=K=V,...` (apply env overrides to all variants)
 - `OREN_BENCH_ENV_C=K=V,...`
@@ -79,4 +80,10 @@ Example:
 
 ```bash
 OREN_BENCH_PROGRAM=loop_sum OREN_BENCH_ARGS="2000000 10" python3 benchmarks/run_benchmarks.py
+```
+
+Run every benchmark:
+
+```bash
+OREN_BENCH_PROGRAM=all python3 benchmarks/run_benchmarks.py
 ```

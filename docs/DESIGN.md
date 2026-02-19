@@ -1,9 +1,9 @@
-# Design (Language + Compiler + Runtime + AVM)
+# Design + Toolchain (Language + Compiler + Runtime + AVM)
 
 **Last updated:** 2026-02-19
 
-This document is the lean, canonical design reference. It merges the former
-compiler/backend, runtime/stdlib, and AVM documents into one place.
+This document is the lean, canonical design + toolchain reference. It merges the former
+compiler/backend, runtime/stdlib, AVM, and toolchain/platform docs into one place.
 
 Scope: high-signal facts that remain true in rolling mode. For exact semantics,
 trust code + fixtures first (see `tests/` and `docs/STATUS.md`).
@@ -69,7 +69,7 @@ Dynamic linking (rolling):
 - Linux: dynamic ELF + `dlsym` resolver when at least one `--link`/`@ffi.link` is present.
 - Windows: lazy `LoadLibraryA`/`GetProcAddress` stubs.
 
-Native tagged value representation is not fully converged yet; track in `docs/STATUS.md`.
+Native tagged value representation is still converging; track gates in `docs/STATUS.md`.
 
 ### Native runtime layout
 
@@ -86,16 +86,6 @@ Key levers for hot paths:
 - Allocation fast paths (reuse, slabs).
 
 Gates live in `docs/STATUS.md`.
-
-### Native backend guardrails
-
-Avoid backend-only semantics. Track invariants in `docs/STATUS.md` and keep
-fixtures aligned across backends.
-
-### Native backend code reuse plan
-
-Rolling direction: reduce arm64/x64 divergence by sharing lowering and helpers,
-leaving only target-specific emit.
 
 ### Native tagged value representation
 
@@ -186,25 +176,19 @@ Evidence:
 
 ### AVM concurrency model (deterministic, syscall-first, aligned multiverse-friendly)
 
-AVM does not implement deterministic task scheduling yet. The direction is
-single-thread deterministic scheduling with explicit budgets and effect gating.
-Track in `docs/STATUS.md`.
+AVM runs single-threaded today. Deterministic scheduling and explicit budgeting
+remain rolling work items tracked in `docs/STATUS.md`.
 
 ### AVM NEON mapping plan (arm64, no-JIT-first)
 
-SIMD in AVM (arm64 NEON) is gated and must remain deterministic.
-Track gating and test coverage in `docs/STATUS.md`.
+SIMD in AVM is gated and must remain deterministic. Tracking and coverage live
+in `docs/STATUS.md`.
 
 ### AVM in AVM multiverse design (nested virtual universes)
 
 Nested AVM execution is supported behind capability gating (Domain AVM). The
-design direction is deterministic, budgeted child universes with virtualized
-effects and snapshot/restore semantics. Track in `docs/STATUS.md`.
-
-### AVM swarm consensus (agent mobility design validation)
-
-Result hashing exists in the AVM state. Swarm consensus is rolling and tracked
-in `docs/STATUS.md`.
+direction is deterministic, budgeted child universes with virtualized effects
+and snapshot/restore semantics. Track in `docs/STATUS.md`.
 
 ---
 
@@ -222,11 +206,116 @@ The weighted performance tracker and gates live in `docs/STATUS.md`.
 
 ---
 
-## Platform and toolchain
+## Toolchain + Platforms (build, verify, portability)
 
-Tier-1 intent targets: `arm64-macos`, `arm64-linux`, `x64-linux`, `x64-windows`.
+### Bootstrapping (stage0 -> stage2)
 
-Build/test/self-hosting details live in `docs/TOOLCHAIN_PLATFORMS.md`.
+Prereqs: Go 1.20+, a C compiler, and `make`.
+
+Canonical fast path:
+
+```bash
+make bootstrap   # stage0 Go compiler
+make            # stage1 self-hosted compiler
+make stage2     # stage2 self-host
+```
+
+Notes (rolling):
+
+- `make stage2` is the repo-supported entrypoint because the bootstrap backend can vary by host.
+  - Default: Stage 2 is bootstrapped via the native backend on Tier-1 hosts.
+  - Use the legacy C-backend bootstrap if needed: `make stage2 OREN_STAGE2_BACKEND=c`.
+- Windows hosts default to MSVC `cl.exe` for C-backend builds. Stage0 and stage1 auto-configure
+  MSVC via `vswhere.exe` and `VsDevCmd.bat` / `vcvars64.bat` when `--cc` is not provided.
+  - Overrides: `OREN_MSVC_VSWHERE`, `OREN_MSVC_INSTALL_PATH`, `OREN_MSVC_DEV_CMD`.
+  - One-off MSVC commands: `scripts/win_msvc_cmd.cmd <cmd> ...`.
+
+### Building programs
+
+```bash
+./oren build your_prog.oren --backend {c|native|bytecode} -o build/your_prog
+```
+
+- `--platform <arch>-<os>` (or `OREN_PLATFORM`) selects the target; default is host.
+- Default outputs when `-o/--out` is omitted:
+  - `build/targets/<arch>-<os>/<backend>/<basename>` (native/c)
+  - `build/targets/<arch>-windows/<backend>/<basename>.exe` (native/c, Windows)
+  - `build/targets/avm/bytecode/<basename>.obc` (bytecode)
+
+When using `--emit-c`, avoid generating `*.oren.c` next to sources. Keep emitted C under
+`build/` (or a temp dir) to prevent Makefile implicit-rule coupling.
+
+### Build caches (performance-critical)
+
+- Build cache (default on): `build/cache` (override `--cache-dir` / `OREN_CACHE_DIR`, disable `OREN_NO_CACHE=1`).
+- Native runtime AST cache (native backend):
+  - disable: `OREN_NATIVE_RUNTIME_ASTBIN_CACHE=0`
+  - override dir: `OREN_NATIVE_RUNTIME_ASTBIN_CACHE_DIR=<dir>`
+  - seed dir: `OREN_NATIVE_RUNTIME_ASTBIN_SEED_DIR=<dir>` (use `make astbin-seed`)
+- Native runtime object cache (native backend, Tier-1 throughput):
+  - disable: `OREN_NATIVE_RUNTIME_OBJ_CACHE=0`
+  - override dir: `OREN_NATIVE_RUNTIME_OBJ_CACHE_DIR=<dir>`
+  - seed dir: `OREN_NATIVE_RUNTIME_OBJ_SEED_DIR=<dir>` (use `make rtobj-seed`)
+
+### Verification (fast path)
+
+Local (fast):
+
+- `make test`
+- `make verify-native-quick`
+- `make test-native-all`
+
+Cross-arch Tier-1 matrix (when touching native/runtime/net):
+
+- `./scripts/verify_native_matrix.sh`
+- `./scripts/verify_native_net_matrix.sh`
+- `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win`
+- `./scripts/verify_stage0_windows_bootstrap.sh`
+
+Local x64-linux execution (QEMU in the Linux container):
+
+- `make verify-x64-linux-qemu`
+- optional: `make verify-x64-linux-qemu-net`, `make verify-x64-linux-qemu-tls`
+
+### Remote x64 workflow (Win11 + WSL2 optional)
+
+The x64 Tier-1 gates run on a remote Windows 11 host (WSL2 optional) via the scripts above.
+Prefer using the scripts; they own the copy/run logic and logging.
+
+Notes (rolling):
+
+- Remote staging uses `G:\work` by default (C: is often full on the host).
+- Logs are stored under `project-doc/remote/<timestamp>/...`.
+- If the default host/proxy is unreachable, override via the script flags/env (see script headers).
+
+### Portability + `@cfg`
+
+Rules of thumb:
+
+- Keep `@cfg` at the boundary; tests should share a core and hide platform glue behind tiny `@cfg` wrappers.
+- Prefer portable stdlib APIs over per-file `@cfg` where possible.
+- Use `@cfg` primarily for FFI bindings, constants, and syscall layout differences.
+
+### AVM tooling
+
+`./avm` includes disassembly and trace tooling. Run `./avm --help` for the current CLI surface.
+
+### CLI completion
+
+Shell completion is generated by the compiler:
+
+- `oren completion bash`
+- `oren completion zsh`
+
+One-shot activation:
+
+```bash
+source <(oren completion bash)
+```
+
+```zsh
+source <(oren completion zsh)
+```
 
 ---
 
@@ -235,5 +324,4 @@ Build/test/self-hosting details live in `docs/TOOLCHAIN_PLATFORMS.md`.
 - Entry point: `docs/README.md`
 - Language manual + spec: `docs/LANGUAGE.md`
 - Status, tracker, feature matrix: `docs/STATUS.md`
-- Platforms/toolchain: `docs/TOOLCHAIN_PLATFORMS.md`
 - Sources of truth: `tests/` and `lib/`
