@@ -824,7 +824,8 @@ fn dce_block_in_place(block) {
 // when:
 // - `n` is an int literal or a local that was most-recently assigned an int literal, and
 // - the list was most-recently assigned a list literal (`[]`) in the same block.
-// - or the list was most-recently assigned `oren_new_list_int(...)` in the same block.
+// - or the list was most-recently assigned `oren_new_list_int(...)` in the same block,
+// - or the list was most-recently assigned an int-only list literal in the same block (list_int only).
 //
 // This is intentionally conservative to avoid introducing new runtime panics when
 // `n` or `list` are not the expected types.
@@ -1324,13 +1325,14 @@ fn _opt_map_clone(m) {
     return out
 }
 
-fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, last_list_int_new, last_int_safe) {
+fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, last_list_lit_intsafe, last_list_int_new, last_int_safe) {
     if block == nil || block["type"] != "Block" { return nil }
     var ss = block["stmts"]
     if ss == nil { return nil }
 
     if last_list_lit == nil { last_list_lit = {} }
     if last_list_lit_len == nil { last_list_lit_len = {} }
+    if last_list_lit_intsafe == nil { last_list_lit_intsafe = {} }
     if last_list_int_new == nil { last_list_int_new = {} }
     if last_int_safe == nil { last_int_safe = {} }
     var out = []
@@ -1345,6 +1347,7 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                 var is_list_int_new = false
                 var is_list_new_zero = false
                 var lit_len = -1
+                var lit_int_safe = false
                 if v != nil && v["type"] == "Call" {
                     var fnv = v["fn"]
                     if fnv != nil && fnv["type"] == "Identifier" {
@@ -1365,13 +1368,26 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                     last_list_lit[nm] = true
                     var els = v["elements"]
                     if els != nil { lit_len = oren_list_len(els) }
+                    lit_int_safe = true
+                    if els != nil {
+                        var ei = 0
+                        while ei < oren_list_len(els) {
+                            if _opt_is_safe_int_expr(els[ei], last_int_safe) != true {
+                                lit_int_safe = false
+                                break
+                            }
+                            ei = ei + 1
+                        }
+                    }
                 } else if is_list_new_zero == true {
                     last_list_lit[nm] = true
                     lit_len = 0
+                    lit_int_safe = false
                 } else {
                     last_list_lit[nm] = false
                 }
                 last_list_lit_len[nm] = lit_len
+                last_list_lit_intsafe[nm] = lit_int_safe
                 if is_list_int_new { last_list_int_new[nm] = true }
                 else { last_list_int_new[nm] = false }
                 if _opt_is_safe_int_expr(v, last_int_safe) { last_int_safe[nm] = true }
@@ -1423,10 +1439,20 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                 }
                 if pushes_int != nil {
                     for list_namei in pushes_int {
-                        if last_list_int_new[list_namei] == true && pushes[list_namei] != true {
+                        var int_ok = last_list_int_new[list_namei] == true
+                        if int_ok != true && last_list_lit[list_namei] == true && last_list_lit_intsafe[list_namei] == true {
+                            int_ok = true
+                        }
+                        if int_ok == true && pushes[list_namei] != true {
+                            var reserve_expri = n_expr
+                            var lit_leni = last_list_lit_len[list_namei]
+                            if lit_leni != nil && lit_leni > 0 {
+                                reserve_expri = ast.new_infix(nil, n_expr, "+",
+                                    {"type": "Integer", "token": nil, "value": oren_int_to_string(lit_leni)})
+                            }
                             var calli = ast.new_call(nil,
                                 {"type": "Identifier", "token": nil, "value": "oren_list_int_reserve"},
-                                [{"type": "Identifier", "token": nil, "value": list_namei}, n_expr])
+                                [{"type": "Identifier", "token": nil, "value": list_namei}, reserve_expri])
                             oren_list_push(out, ast.new_expr_stmt(nil, calli))
                         }
                     }
@@ -1443,7 +1469,11 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                 if pushes_int != nil && assigned != nil && safe_ints != nil {
                     var safe_lists_int = {}
                     for list_namei2 in pushes_int {
-                        if last_list_int_new[list_namei2] == true && pushes[list_namei2] != true && assigned[list_namei2] != true {
+                        var int_ok2 = last_list_int_new[list_namei2] == true
+                        if int_ok2 != true && last_list_lit[list_namei2] == true && last_list_lit_intsafe[list_namei2] == true {
+                            int_ok2 = true
+                        }
+                        if int_ok2 == true && pushes[list_namei2] != true && assigned[list_namei2] != true {
                             safe_lists_int[list_namei2] = true
                         }
                     }
@@ -1453,9 +1483,10 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
             if st["body"] != nil {
                 var snap_list_lit = _opt_map_clone(last_list_lit)
                 var snap_list_lit_len = _opt_map_clone(last_list_lit_len)
+                var snap_list_lit_intsafe = _opt_map_clone(last_list_lit_intsafe)
                 var snap_list_int = _opt_map_clone(last_list_int_new)
                 var snap_int = _opt_map_clone(last_int_safe)
-                _opt_insert_list_reserve_in_block(st["body"], snap_list_lit, snap_list_lit_len, snap_list_int, snap_int)
+                _opt_insert_list_reserve_in_block(st["body"], snap_list_lit, snap_list_lit_len, snap_list_lit_intsafe, snap_list_int, snap_int)
             }
         }
         if st != nil && st["type"] == "For" {
@@ -1502,10 +1533,20 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                 }
                 if pushes2_int != nil {
                     for list_name2i in pushes2_int {
-                        if last_list_int_new[list_name2i] == true && pushes2[list_name2i] != true {
+                        var int_ok3 = last_list_int_new[list_name2i] == true
+                        if int_ok3 != true && last_list_lit[list_name2i] == true && last_list_lit_intsafe[list_name2i] == true {
+                            int_ok3 = true
+                        }
+                        if int_ok3 == true && pushes2[list_name2i] != true {
+                            var reserve_expr2i = n_expr2
+                            var lit_len2i = last_list_lit_len[list_name2i]
+                            if lit_len2i != nil && lit_len2i > 0 {
+                                reserve_expr2i = ast.new_infix(nil, n_expr2, "+",
+                                    {"type": "Integer", "token": nil, "value": oren_int_to_string(lit_len2i)})
+                            }
                             var call2i = ast.new_call(nil,
                                 {"type": "Identifier", "token": nil, "value": "oren_list_int_reserve"},
-                                [{"type": "Identifier", "token": nil, "value": list_name2i}, n_expr2])
+                                [{"type": "Identifier", "token": nil, "value": list_name2i}, reserve_expr2i])
                             oren_list_push(out, ast.new_expr_stmt(nil, call2i))
                         }
                     }
@@ -1522,7 +1563,11 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                 if pushes2_int != nil && assigned2 != nil && safe_ints2 != nil {
                     var safe_lists2_int = {}
                     for list_name4 in pushes2_int {
-                        if last_list_int_new[list_name4] == true && pushes2[list_name4] != true && assigned2[list_name4] != true {
+                        var int_ok4 = last_list_int_new[list_name4] == true
+                        if int_ok4 != true && last_list_lit[list_name4] == true && last_list_lit_intsafe[list_name4] == true {
+                            int_ok4 = true
+                        }
+                        if int_ok4 == true && pushes2[list_name4] != true && assigned2[list_name4] != true {
                             safe_lists2_int[list_name4] = true
                         }
                     }
@@ -1532,34 +1577,38 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
             if st["body"] != nil {
                 var snap_list_lit2 = _opt_map_clone(last_list_lit)
                 var snap_list_lit_len2 = _opt_map_clone(last_list_lit_len)
+                var snap_list_lit_intsafe2 = _opt_map_clone(last_list_lit_intsafe)
                 var snap_list_int2 = _opt_map_clone(last_list_int_new)
                 var snap_int2 = _opt_map_clone(last_int_safe)
-                _opt_insert_list_reserve_in_block(st["body"], snap_list_lit2, snap_list_lit_len2, snap_list_int2, snap_int2)
+                _opt_insert_list_reserve_in_block(st["body"], snap_list_lit2, snap_list_lit_len2, snap_list_lit_intsafe2, snap_list_int2, snap_int2)
             }
         }
 
         if st != nil && st["type"] == "If" {
             var snap_list_lit3 = _opt_map_clone(last_list_lit)
             var snap_list_lit_len3 = _opt_map_clone(last_list_lit_len)
+            var snap_list_lit_intsafe3 = _opt_map_clone(last_list_lit_intsafe)
             var snap_list_int3 = _opt_map_clone(last_list_int_new)
             var snap_int3 = _opt_map_clone(last_int_safe)
             if st["consq"] != nil {
-                _opt_insert_list_reserve_in_block(st["consq"], snap_list_lit3, snap_list_lit_len3, snap_list_int3, snap_int3)
+                _opt_insert_list_reserve_in_block(st["consq"], snap_list_lit3, snap_list_lit_len3, snap_list_lit_intsafe3, snap_list_int3, snap_int3)
             }
             if st["alt"] != nil {
                 var snap_list_lit4 = _opt_map_clone(last_list_lit)
                 var snap_list_lit_len4 = _opt_map_clone(last_list_lit_len)
+                var snap_list_lit_intsafe4 = _opt_map_clone(last_list_lit_intsafe)
                 var snap_list_int4 = _opt_map_clone(last_list_int_new)
                 var snap_int4 = _opt_map_clone(last_int_safe)
-                _opt_insert_list_reserve_in_block(st["alt"], snap_list_lit4, snap_list_lit_len4, snap_list_int4, snap_int4)
+                _opt_insert_list_reserve_in_block(st["alt"], snap_list_lit4, snap_list_lit_len4, snap_list_lit_intsafe4, snap_list_int4, snap_int4)
             }
         }
         if st != nil && st["type"] == "Block" {
             var snap_list_lit5 = _opt_map_clone(last_list_lit)
             var snap_list_lit_len5 = _opt_map_clone(last_list_lit_len)
+            var snap_list_lit_intsafe5 = _opt_map_clone(last_list_lit_intsafe)
             var snap_list_int5 = _opt_map_clone(last_list_int_new)
             var snap_int5 = _opt_map_clone(last_int_safe)
-            _opt_insert_list_reserve_in_block(st, snap_list_lit5, snap_list_lit_len5, snap_list_int5, snap_int5)
+            _opt_insert_list_reserve_in_block(st, snap_list_lit5, snap_list_lit_len5, snap_list_lit_intsafe5, snap_list_int5, snap_int5)
         }
 
         oren_list_push(out, st)
@@ -1569,6 +1618,7 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
             for nm2 in assigned {
                 last_list_lit[nm2] = false
                 last_list_lit_len[nm2] = -1
+                last_list_lit_intsafe[nm2] = false
                 last_list_int_new[nm2] = false
                 last_int_safe[nm2] = false
             }
@@ -1955,7 +2005,7 @@ fn lower_linked_program_in_place(linked) {
             if trace_opt && i == 0 { print("[opt] tco done") }
             optloops.lower_simple_for_in_block(ss[i]["expr"]["body"])
             optloops.wrap_arena_loops_in_block(ss[i]["expr"]["body"])
-            _opt_insert_list_reserve_in_block(ss[i]["expr"]["body"], nil, nil, nil, nil)
+            _opt_insert_list_reserve_in_block(ss[i]["expr"]["body"], nil, nil, nil, nil, nil)
             optconst.rewrite_const_mod_in_block(ss[i]["expr"]["body"], nil)
             if trace_opt && i == 0 { print("[opt] dce start") }
             dce_block_in_place(ss[i]["expr"]["body"])
