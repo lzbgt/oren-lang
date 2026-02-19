@@ -638,9 +638,13 @@ fn _arm64_match_lcg_update(stmt, x_name) {
     if name == nil || _arm64_str_eq_bytes(name, x_name) != true { return nil }
     var val = stmt["value"]
     if val == nil || val["type"] != "Infix" || val["op"] != "%" { return nil }
-    var mod_ident = val["right"]
-    var mod_name = _arm64_is_ident(mod_ident)
-    if mod_name == nil { return nil }
+    var mod_expr = val["right"]
+    var mod_name = _arm64_is_ident(mod_expr)
+    var mod_const = nil
+    if mod_name == nil {
+        mod_const = _arm64_parse_int_lit_expr(mod_expr)
+        if mod_const == nil { return nil }
+    }
     var left = val["left"]
     if left == nil || left["type"] != "Infix" || left["op"] != "+" { return nil }
     var mul = _arm64_match_mul_const(left["left"], x_name)
@@ -650,17 +654,23 @@ fn _arm64_match_lcg_update(stmt, x_name) {
         add = _arm64_parse_int_lit_expr(left["left"])
     }
     if mul == nil || add == nil { return nil }
-    return {"mul": mul, "add": add, "mod": mod_name}
+    return {"mul": mul, "add": add, "mod": mod_name, "mod_const": mod_const}
 }
 
-fn _arm64_match_sum_mod_update(stmt, sum_name, x_name, idx_name, mod_name) {
+fn _arm64_match_sum_mod_update(stmt, sum_name, x_name, idx_name, mod_name, mod_const) {
     if stmt == nil || stmt["type"] != "Assign" { return nil }
     var name = _arm64_is_ident(stmt["name"])
     if name == nil || _arm64_str_eq_bytes(name, sum_name) != true { return nil }
     var val = stmt["value"]
     if val == nil || val["type"] != "Infix" || val["op"] != "%" { return nil }
+    var mod_ok = false
     var mod_rhs = _arm64_is_ident(val["right"])
-    if mod_rhs == nil || _arm64_str_eq_bytes(mod_rhs, mod_name) != true { return nil }
+    if mod_rhs != nil && mod_name != nil && _arm64_str_eq_bytes(mod_rhs, mod_name) == true { mod_ok = true }
+    if mod_ok != true && mod_const != nil {
+        var mod_lit = _arm64_parse_int_lit_expr(val["right"])
+        if mod_lit != nil && mod_lit == mod_const { mod_ok = true }
+    }
+    if mod_ok != true { return nil }
     var terms = []
     _arm64_collect_add_terms(val["left"], terms)
     if oren_list_len(terms) != 3 { return nil }
@@ -728,10 +738,14 @@ fn _arm64_match_fast_lcg_sum_while(ctx, stmt) {
     var lcg = _arm64_match_lcg_update(lcg_stmt, x_name)
     if lcg == nil { return nil }
     var mod_name = lcg["mod"]
-    if mod_name == nil { return nil }
-    if _arm64_str_eq_bytes(mod_name, idx_name) || _arm64_str_eq_bytes(mod_name, n_name) || _arm64_str_eq_bytes(mod_name, x_name) { return nil }
-    if _arm64_local_fp_off(ctx, mod_name) == nil { return nil }
-    if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": mod_name}) != true { return nil }
+    var mod_const = lcg["mod_const"]
+    if mod_name != nil {
+        if _arm64_str_eq_bytes(mod_name, idx_name) || _arm64_str_eq_bytes(mod_name, n_name) || _arm64_str_eq_bytes(mod_name, x_name) { return nil }
+        if _arm64_local_fp_off(ctx, mod_name) == nil { return nil }
+        if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": mod_name}) != true { return nil }
+    } else {
+        if mod_const == nil || mod_const <= 0 { return nil }
+    }
 
     if sum_stmt == nil || sum_stmt["type"] != "Assign" { return nil }
     var sum_name = _arm64_is_ident(sum_stmt["name"])
@@ -740,7 +754,7 @@ fn _arm64_match_fast_lcg_sum_while(ctx, stmt) {
     if _arm64_local_fp_off(ctx, sum_name) == nil { return nil }
     if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": sum_name}) != true { return nil }
 
-    var sum_info = _arm64_match_sum_mod_update(sum_stmt, sum_name, x_name, idx_name, mod_name)
+    var sum_info = _arm64_match_sum_mod_update(sum_stmt, sum_name, x_name, idx_name, mod_name, mod_const)
     if sum_info == nil { return nil }
     if exprm.native_expr_is_inty(ctx, sum_stmt["value"]) != true { return nil }
 
@@ -750,6 +764,7 @@ fn _arm64_match_fast_lcg_sum_while(ctx, stmt) {
         "x": x_name,
         "sum": sum_name,
         "mod": mod_name,
+        "mod_const": mod_const,
         "mul": lcg["mul"],
         "add": lcg["add"],
         "mod_x": sum_info["mod_x"],
@@ -1370,6 +1385,7 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     var x_name = info["x"]
     var sum_name = info["sum"]
     var mod_name = info["mod"]
+    var mod_const = info["mod_const"]
     var mul = info["mul"]
     var add = info["add"]
     var mod_x = info["mod_x"]
@@ -1380,10 +1396,14 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     var n_fp_off = _arm64_local_fp_off(ctx, n_name)
     var x_fp_off = _arm64_local_fp_off(ctx, x_name)
     var sum_fp_off = _arm64_local_fp_off(ctx, sum_name)
-    var mod_fp_off = _arm64_local_fp_off(ctx, mod_name)
-    if idx_fp_off == nil || n_fp_off == nil || x_fp_off == nil || sum_fp_off == nil || mod_fp_off == nil {
+    var mod_fp_off = nil
+    if mod_name != nil { mod_fp_off = _arm64_local_fp_off(ctx, mod_name) }
+    if idx_fp_off == nil || n_fp_off == nil || x_fp_off == nil || sum_fp_off == nil {
         return _arm64_emit_while_generic(ctx, stmt)
     }
+    if mod_name != nil && mod_fp_off == nil { return _arm64_emit_while_generic(ctx, stmt) }
+    if mod_name == nil && mod_const == nil { return _arm64_emit_while_generic(ctx, stmt) }
+    if mod_name == nil && mod_const <= 0 { return _arm64_emit_while_generic(ctx, stmt) }
 
     var base_stack = ctx["stack_size"]
     var slots = 6 // tick + i + n + x + sum + mod
@@ -1412,8 +1432,13 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     emit_str_reg_sp_any(ctx, 0, x_off)
     emit_ldr_reg_fp_any(ctx, 0, sum_fp_off)
     emit_str_reg_sp_any(ctx, 0, sum_off)
-    emit_ldr_reg_fp_any(ctx, 0, mod_fp_off)
-    emit_str_reg_sp_any(ctx, 0, mod_off)
+    if mod_name != nil {
+        emit_ldr_reg_fp_any(ctx, 0, mod_fp_off)
+        emit_str_reg_sp_any(ctx, 0, mod_off)
+    } else {
+        emit_load_i64_imm(ctx, 0, mod_const)
+        emit_str_reg_sp_any(ctx, 0, mod_off)
+    }
 
     var slow_jumps = []
     var slow_sum_jumps = []

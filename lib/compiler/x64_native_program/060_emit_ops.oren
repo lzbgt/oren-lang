@@ -450,9 +450,13 @@ fn _x64_match_mod_term(expr, name) {
 
 fn _x64_match_lcg_update(expr, x_name) {
     if expr == nil || expr["type"] != "Infix" || expr["op"] != "%" { return nil }
-    var mod_ident = expr["right"]
-    var mod_name = _x64_is_ident(mod_ident)
-    if mod_name == nil { return nil }
+    var mod_expr = expr["right"]
+    var mod_name = _x64_is_ident(mod_expr)
+    var mod_const = nil
+    if mod_name == nil {
+        mod_const = _x64_parse_int_lit_expr(mod_expr)
+        if mod_const == nil { return nil }
+    }
     var left = expr["left"]
     if left == nil || left["type"] != "Infix" || left["op"] != "+" { return nil }
     var mul = _x64_match_mul_const(left["left"], x_name)
@@ -462,13 +466,19 @@ fn _x64_match_lcg_update(expr, x_name) {
         add = _x64_parse_int_lit_expr(left["left"])
     }
     if mul == nil || add == nil { return nil }
-    return {"mul": mul, "add": add, "mod": mod_name}
+    return {"mul": mul, "add": add, "mod": mod_name, "mod_const": mod_const}
 }
 
-fn _x64_match_sum_mod_update(expr, sum_name, x_name, idx_name, mod_name) {
+fn _x64_match_sum_mod_update(expr, sum_name, x_name, idx_name, mod_name, mod_const) {
     if expr == nil || expr["type"] != "Infix" || expr["op"] != "%" { return nil }
+    var mod_ok = false
     var mod_rhs = _x64_is_ident(expr["right"])
-    if mod_rhs == nil || _x64_str_eq_bytes(mod_rhs, mod_name) != true { return nil }
+    if mod_rhs != nil && mod_name != nil && _x64_str_eq_bytes(mod_rhs, mod_name) == true { mod_ok = true }
+    if mod_ok != true && mod_const != nil {
+        var mod_lit = _x64_parse_int_lit_expr(expr["right"])
+        if mod_lit != nil && mod_lit == mod_const { mod_ok = true }
+    }
+    if mod_ok != true { return nil }
     var terms = []
     _x64_collect_add_terms(expr["left"], terms)
     if oren_list_len(terms) != 3 { return nil }
@@ -535,10 +545,14 @@ fn _x64_match_fast_lcg_sum_while(ctx, op, locals) {
     var lcg = _x64_match_lcg_update(lcg_op["expr"], x_name)
     if lcg == nil { return nil }
     var mod_name = lcg["mod"]
-    if mod_name == nil { return nil }
-    if _x64_str_eq_bytes(mod_name, idx_name) || _x64_str_eq_bytes(mod_name, n_name) || _x64_str_eq_bytes(mod_name, x_name) { return nil }
-    if oren_type_tag(locals[mod_name]) == 0 { return nil }
-    if ctx["locals_inty"] != nil && ctx["locals_inty"][mod_name] != true { return nil }
+    var mod_const = lcg["mod_const"]
+    if mod_name != nil {
+        if _x64_str_eq_bytes(mod_name, idx_name) || _x64_str_eq_bytes(mod_name, n_name) || _x64_str_eq_bytes(mod_name, x_name) { return nil }
+        if oren_type_tag(locals[mod_name]) == 0 { return nil }
+        if ctx["locals_inty"] != nil && ctx["locals_inty"][mod_name] != true { return nil }
+    } else {
+        if mod_const == nil || mod_const <= 0 { return nil }
+    }
 
     if sum_op == nil || sum_op["op"] != "assign_i32" { return nil }
     var sum_name = sum_op["name"]
@@ -547,7 +561,7 @@ fn _x64_match_fast_lcg_sum_while(ctx, op, locals) {
     if oren_type_tag(locals[sum_name]) == 0 { return nil }
     if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] != true { return nil }
 
-    var sum_info = _x64_match_sum_mod_update(sum_op["expr"], sum_name, x_name, idx_name, mod_name)
+    var sum_info = _x64_match_sum_mod_update(sum_op["expr"], sum_name, x_name, idx_name, mod_name, mod_const)
     if sum_info == nil { return nil }
     if _x64_expr_is_inty(ctx, sum_op["expr"]) != true { return nil }
 
@@ -557,6 +571,7 @@ fn _x64_match_fast_lcg_sum_while(ctx, op, locals) {
         "x": x_name,
         "sum": sum_name,
         "mod": mod_name,
+        "mod_const": mod_const,
         "mul": lcg["mul"],
         "add": lcg["add"],
         "mod_x": sum_info["mod_x"],
@@ -1377,6 +1392,7 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     var x_name = info["x"]
     var sum_name = info["sum"]
     var mod_name = info["mod"]
+    var mod_const = info["mod_const"]
     var mul = info["mul"]
     var add = info["add"]
     var mod_x = info["mod_x"]
@@ -1387,9 +1403,13 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     var off_n = locals[n_name]
     var off_x = locals[x_name]
     var off_sum = locals[sum_name]
-    var off_mod = locals[mod_name]
+    var off_mod = nil
+    if mod_name != nil { off_mod = locals[mod_name] }
     if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 || oren_type_tag(off_x) == 0 ||
-       oren_type_tag(off_sum) == 0 || oren_type_tag(off_mod) == 0 {
+       oren_type_tag(off_sum) == 0 || (mod_name != nil && oren_type_tag(off_mod) == 0) {
+        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    }
+    if mod_name == nil && (mod_const == nil || mod_const <= 0) {
         return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
     }
     var off_tick = locals["$tmp_gc_tick"]
@@ -1413,7 +1433,11 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     var l_done = _new_label(ctx, "lcg_sum_done")
 
     // mod <= 0 => slow
-    _emit_mov_r64_mrbp(ctx, 12, 0 - off_mod)
+    if mod_name != nil {
+        _emit_mov_r64_mrbp(ctx, 12, 0 - off_mod)
+    } else {
+        bytes_extend(ctx["code"], insn_mov_r64_imm64(12, mod_const))
+    }
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 0))
     _emit_jcc_to_label(ctx, local_fixups, "le", l_slow)
 
@@ -1450,7 +1474,11 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     _emit_mov_r64_mrbp(ctx, 1, 0 - off_n)   // rcx = n
     _emit_mov_r64_mrbp(ctx, 10, 0 - off_x)  // r10 = x
     _emit_mov_r64_mrbp(ctx, 11, 0 - off_sum) // r11 = sum
-    _emit_mov_r64_mrbp(ctx, 12, 0 - off_mod) // r12 = mod
+    if mod_name != nil {
+        _emit_mov_r64_mrbp(ctx, 12, 0 - off_mod) // r12 = mod
+    } else {
+        bytes_extend(ctx["code"], insn_mov_r64_imm64(12, mod_const))
+    }
 
     // i_mod = i % mod_i (fast path only)
     bytes_extend(ctx["code"], insn_mov_r64_r64(0, 9))
@@ -1551,7 +1579,11 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx) // rax = i
     _emit_mov_r64_mrbp(ctx, 10, 0 - off_x)  // r10 = x
     _emit_mov_r64_mrbp(ctx, 11, 0 - off_sum) // r11 = sum
-    _emit_mov_r64_mrbp(ctx, 12, 0 - off_mod) // r12 = mod
+    if mod_name != nil {
+        _emit_mov_r64_mrbp(ctx, 12, 0 - off_mod) // r12 = mod
+    } else {
+        bytes_extend(ctx["code"], insn_mov_r64_imm64(12, mod_const))
+    }
 
     // x = x*mul + add
     bytes_extend(ctx["code"], insn_imul_r64_r64(10, 13))

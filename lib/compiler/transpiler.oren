@@ -855,9 +855,13 @@ fn _transpiler_match_lcg_update(stmt, x_name) {
     if name == nil || str_eq(name, x_name) != true { return nil }
     var val = stmt["value"]
     if val == nil || val["type"] != "Infix" || val["op"] != "%" { return nil }
-    var mod_ident = val["right"]
-    var mod_name = _transpiler_is_ident(mod_ident)
-    if mod_name == nil { return nil }
+    var mod_expr = val["right"]
+    var mod_name = _transpiler_is_ident(mod_expr)
+    var mod_const = nil
+    if mod_name == nil {
+        mod_const = _transpiler_parse_int_lit_expr(mod_expr)
+        if mod_const == nil { return nil }
+    }
     var left = val["left"]
     if left == nil || left["type"] != "Infix" || left["op"] != "+" { return nil }
     var mul = _transpiler_match_mul_const(left["left"], x_name)
@@ -867,17 +871,23 @@ fn _transpiler_match_lcg_update(stmt, x_name) {
         add = _transpiler_parse_int_lit_expr(left["left"])
     }
     if mul == nil || add == nil { return nil }
-    return {"mul": mul, "add": add, "mod": mod_name}
+    return {"mul": mul, "add": add, "mod": mod_name, "mod_const": mod_const}
 }
 
-fn _transpiler_match_sum_mod_update(stmt, sum_name, x_name, idx_name, mod_name) {
+fn _transpiler_match_sum_mod_update(stmt, sum_name, x_name, idx_name, mod_name, mod_const) {
     if stmt == nil || stmt["type"] != "Assign" { return nil }
     var name = _transpiler_is_ident(stmt["name"])
     if name == nil || str_eq(name, sum_name) != true { return nil }
     var val = stmt["value"]
     if val == nil || val["type"] != "Infix" || val["op"] != "%" { return nil }
+    var mod_ok = false
     var mod_rhs = _transpiler_is_ident(val["right"])
-    if mod_rhs == nil || str_eq(mod_rhs, mod_name) != true { return nil }
+    if mod_rhs != nil && mod_name != nil && str_eq(mod_rhs, mod_name) == true { mod_ok = true }
+    if mod_ok != true && mod_const != nil {
+        var mod_lit = _transpiler_parse_int_lit_expr(val["right"])
+        if mod_lit != nil && mod_lit == mod_const { mod_ok = true }
+    }
+    if mod_ok != true { return nil }
     var terms = []
     _transpiler_collect_add_terms(val["left"], terms)
     if oren_list_len(terms) != 3 { return nil }
@@ -1124,17 +1134,21 @@ fn _transpiler_match_fast_lcg_sum_while(t, stmt) {
     var lcg = _transpiler_match_lcg_update(lcg_stmt, x_name)
     if lcg == nil { return nil }
     var mod_name = lcg["mod"]
-    if mod_name == nil { return nil }
-    if str_eq(mod_name, idx_name) || str_eq(mod_name, n_name) || str_eq(mod_name, x_name) { return nil }
-    var mod_const = _transpiler_const_get(t, mod_name)
-    if oren_type_tag(mod_const) != 1 || mod_const <= 0 { mod_const = nil }
+    var mod_const = lcg["mod_const"]
+    if mod_name != nil {
+        if str_eq(mod_name, idx_name) || str_eq(mod_name, n_name) || str_eq(mod_name, x_name) { return nil }
+        var mod_const2 = _transpiler_const_get(t, mod_name)
+        if oren_type_tag(mod_const2) == 1 && mod_const2 > 0 { mod_const = mod_const2 }
+    } else {
+        if mod_const == nil || mod_const <= 0 { return nil }
+    }
 
     if sum_stmt == nil || sum_stmt["type"] != "Assign" { return nil }
     var sum_name = _transpiler_is_ident(sum_stmt["name"])
     if sum_name == nil { return nil }
     if str_eq(sum_name, idx_name) || str_eq(sum_name, n_name) || str_eq(sum_name, x_name) { return nil }
 
-    var sum_info = _transpiler_match_sum_mod_update(sum_stmt, sum_name, x_name, idx_name, mod_name)
+    var sum_info = _transpiler_match_sum_mod_update(sum_stmt, sum_name, x_name, idx_name, mod_name, mod_const)
     if sum_info == nil { return nil }
 
     return {
@@ -1411,7 +1425,9 @@ fn _transpiler_emit_fast_lcg_sum_while(t, stmt, info) {
     oren_list_push(parts, "if (" + c_ident(x_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + x_ll + " = " + c_ident(x_name) + ".as.int_val; if (" + x_ll + " < 0) " + fast_ok + " = 0; else " + x_u + " = (uint64_t)" + x_ll + "; }")
     oren_list_push(parts, "if (" + c_ident(sum_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + sum_ll + " = " + c_ident(sum_name) + ".as.int_val; if (" + sum_ll + " < 0) " + fast_ok + " = 0; else " + sum_u + " = (uint64_t)" + sum_ll + "; }")
     if mod_const != nil {
-        oren_list_push(parts, "if (" + c_ident(mod_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + mod_ll + " = " + c_ident(mod_name) + ".as.int_val; if (" + mod_ll + " != " + int_str(mod_const) + ") " + fast_ok + " = 0; }")
+        if mod_name != nil {
+            oren_list_push(parts, "if (" + c_ident(mod_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + mod_ll + " = " + c_ident(mod_name) + ".as.int_val; if (" + mod_ll + " != " + int_str(mod_const) + ") " + fast_ok + " = 0; }")
+        }
     } else {
         oren_list_push(parts, "if (" + c_ident(mod_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + mod_ll + " = " + c_ident(mod_name) + ".as.int_val; if (" + mod_ll + " <= 0) " + fast_ok + " = 0; else " + mod_u + " = (uint64_t)" + mod_ll + "; }")
     }
