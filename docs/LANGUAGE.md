@@ -573,6 +573,7 @@ Example (safe per‑OS declaration variants with a fallback):
 Oren supports opt‑in/out annotations for the arena auto‑loop rewrite:
 
 - `@oren.arena` forces arena evaluation for the loop (still subject to safety checks).
+- `@oren.arena_iter` forces per‑iteration arena push/pop for the loop (use for long‑lived loops).
 - `@oren.noarena` disables auto wrapping for that loop.
 
 Example:
@@ -589,6 +590,14 @@ while i < n {
 while j < n {
     ys.push(j) // stays on GC heap
     j = j + 1
+}
+
+@oren.arena_iter
+while true {
+    var tmp = []
+    tmp.push(i)
+    i = i + 1
+    if i == 10 { break }
 }
 ```
 

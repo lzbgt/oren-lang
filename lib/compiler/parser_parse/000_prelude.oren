@@ -397,6 +397,21 @@ fn _attrs_all_cfg(attrs) {
     return true
 }
 
+fn _attrs_all_arena_loop(attrs) {
+    if attrs == nil { return false }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a != nil {
+            if a["type"] != "Attr" { return false }
+            var nm = a["name"]
+            if nm != "oren.arena" && nm != "oren.arena_iter" && nm != "oren.noarena" { return false }
+        }
+        i = i + 1
+    }
+    return true
+}
+
 fn _attrs_count_name(attrs, nm) {
     if attrs == nil || nm == nil { return 0 }
     var n = 0
@@ -459,6 +474,10 @@ fn attach_attrs_to_stmt(p, stmt, attrs) {
 
     // Allow statement-level @cfg (rolling).
     if _attrs_all_cfg(attrs) == true {
+        stmt["attrs"] = _merge_attrs(stmt["attrs"], attrs)
+        return nil
+    }
+    if (stmt["type"] == "While" || stmt["type"] == "For") && _attrs_all_arena_loop(attrs) == true {
         stmt["attrs"] = _merge_attrs(stmt["attrs"], attrs)
         return nil
     }

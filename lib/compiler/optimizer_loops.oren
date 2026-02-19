@@ -1181,7 +1181,8 @@ fn _opt_prepare_loop_arena(block, idx, stmt) {
     if stmt == nil { return false }
     if stmt["type"] != "While" && stmt["type"] != "For" { return false }
     if _opt_stmt_has_attr(stmt, "oren.noarena") == true { return false }
-    var force = _opt_stmt_has_attr(stmt, "oren.arena")
+    var force_iter = _opt_stmt_has_attr(stmt, "oren.arena_iter")
+    var force = _opt_stmt_has_attr(stmt, "oren.arena") || force_iter
     if _opt_arena_auto_enabled() != true && force != true { return false }
     var body = stmt["body"]
     if body == nil || body["type"] != "Block" {
@@ -1194,7 +1195,7 @@ fn _opt_prepare_loop_arena(block, idx, stmt) {
     if stmt["type"] == "While" { allow_continue = true }
     if stmt["type"] == "For" { allow_continue = true }
     if _opt_has_continue_stmt(body) == true && allow_continue != true { return false }
-    var per_iter = _opt_arena_per_iter_enabled() || _opt_loop_is_long_lived(block, idx, stmt)
+    var per_iter = _opt_arena_per_iter_enabled() || force_iter || _opt_loop_is_long_lived(block, idx, stmt)
     var candidates = []
     _opt_collect_loop_new_list_vars(body, candidates)
     var safe_vars = []

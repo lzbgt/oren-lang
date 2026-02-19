@@ -122,6 +122,7 @@ fn new_parser(l) {
     oren_list_push(known, "oren.release")
     // Arena auto-loop annotations (compiler-only).
     oren_list_push(known, "oren.arena")
+    oren_list_push(known, "oren.arena_iter")
     oren_list_push(known, "oren.noarena")
     // Native backend FFI metadata: attach a platform-specific library to an `ffi` decl.
     // Examples:

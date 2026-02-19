@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-02-19
+**Last updated:** 2026-02-20
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
@@ -56,13 +56,13 @@ Periodic perf gates (when touching performance-critical paths):
 
 ---
 
-## Performance parity tracker (weighted, 2026-02-19 baseline)
+## Performance parity tracker (weighted, 2026-02-20 baseline)
 
-Baseline reference: `benchmarks/RESULTS_LATEST.md` (M2 Pro, 2026-02-19).
+Baseline reference: `benchmarks/RESULTS_LATEST.md` (M2 Pro, 2026-02-20).
 Weights reflect expected impact on C parity and breadth of affected code.
 
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
-   - Baseline (arm64 native, 2026-02-19): `loop_sum` 3.38× C, `dot_product` 5.06× C.
+   - Baseline (arm64 native, 2026-02-20): `loop_sum` 3.42× C, `dot_product` 5.31× C.
    - Expand inty propagation and arithmetic fast paths.
    - Split runtime init vs steady-state cost and quantify the init gap (see `benchmarks/RESULTS_LATEST.md` notes).
    - Const-divisor `%` is now inlined for literal/const RHS (arm64 + x64).
@@ -71,7 +71,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
-   - Baseline (arm64 native, 2026-02-19): `alloc_churn` 63.04× C, `alloc_drop` 37.66× C.
+   - Baseline (arm64 native, 2026-02-20): `alloc_churn` 26.39× C, `alloc_drop` 34.32× C.
    - Fix and enable reuse paths (`OREN_GC_REUSE_BLOCKS`) when correct.
    - Add allocation-site counters for `alloc_churn`/`alloc_drop` to pinpoint dominant allocations.
    - New: `OREN_TRACE_ALLOC_SITE=1` reports list/list_int header+buffer sites (ids 1..4; see `lib/runtime_native/170_lists.oren`).
@@ -91,6 +91,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Auto-loop now inserts arena pop on `break`/`return`/`continue` in the same loop body.
      - `continue` is allowed for `while` and `for` loops (post executes outside the arena).
    - `OREN_ARENA_PER_ITER=1` switches auto‑mode to per‑iteration push/pop for long‑lived loops.
+   - `@oren.arena_iter` forces per‑iteration push/pop on a loop (even if auto mode is off).
    - Heuristic: loops without a simple literal upper bound default to per‑iteration mode;
      const‑int bounds from prior locals are treated as bounded when not reassigned in the loop.
    - Define long‑lived loop policy:
@@ -104,7 +105,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
 
 3) **W4 - List reserve + unchecked push** (M)
-   - Baseline (arm64 native, 2026-02-19): `array_sum` 3.80× C, `multi_list_push_int` 3.17× C.
+   - Baseline (arm64 native, 2026-02-20): `array_sum` 3.80× C, `multi_list_push_int` 3.09× C.
    - Extend bounds propagation for reserve/unchecked push.
    - Treat `oren_new_list(0)` as list-literal for reserve insertion (loop bound -> reserve).
    - Reserve insertion now descends into nested loops with outer list literals and adds list literal length to the reserve amount when known.
@@ -116,21 +117,21 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: fixtures pass; no backend-only semantics.
 
 5) **W3 - SIMD/typed-buffer parity on native (x64 + arm64)** (M)
-    - Baseline (arm64 native, 2026-02-19): `dot_product_int` 4.42× C.
+    - Baseline (arm64 native, 2026-02-20): `dot_product_int` 4.39× C.
     - SSE2 baseline on x64; scalar equivalence gated.
     - Wire list_int dot loops to SIMD kernels (or typed-buffer views) where safe.
     - Read-only list_int sum/dot loops now use a 1023 safepoint mask on native.
     - Gate: native `dot_product_int` <= 2x C.
 
 6) **W3 - AVM allocation fast paths + typed buffers** (M)
-   - Baseline (OBC, 2026-02-19): `alloc_churn` 63.04× C, `alloc_drop` 2.50× C.
+   - Baseline (OBC, 2026-02-20): `alloc_churn` 61.78× C, `alloc_drop` 2.59× C.
    - Arena/slab alloc for short-lived lists/structs.
    - TMP freelist for `AVM_ALLOC_KIND_TMP` (env: `AVM_TMP_FREELIST=1`, cap via `AVM_TMP_FREELIST_BYTES`, block cap via `AVM_TMP_FREELIST_MAX_BLOCK_BYTES`).
    - List freelist for `AVM_ALLOC_KIND_LIST` + `AVM_ALLOC_KIND_LIST_INT` (env: `AVM_LIST_FREELIST=1`, cap via `AVM_LIST_FREELIST_BYTES`, block cap via `AVM_LIST_FREELIST_MAX_BLOCK_BYTES`).
    - Gate: OBC `alloc_churn` <= 10x C; AVM SIMD test suite passes.
 
 7) **W3 - AVM unboxed list<int> payload + lowering** (M)
-   - Baseline (OBC, 2026-02-19): `dot_product_int` 1.94× C, `array_sum_int` 1.18× C.
+   - Baseline (OBC, 2026-02-20): `dot_product_int` 1.80× C, `array_sum_int` 1.15× C.
    - Implement list<int> payload + OBC lowering.
    - Gate: list<int> fixtures + OBC perf parity for dot/sum loops.
 
@@ -166,7 +167,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 3) **AVM allocation slabs + list<int> lowering** (M, W3)
 4) **Deterministic AVM scheduler (budgeted)** (L, W3)
 5) **Loop‑local arena prototype for list/list_int** (L, W5)
-   - Implemented: `@oren.arena` / `@oren.noarena` override auto loop wrapping.
+   - Implemented: `@oren.arena` / `@oren.arena_iter` / `@oren.noarena` override auto loop wrapping.
 
 ## P2 (Later)
 
