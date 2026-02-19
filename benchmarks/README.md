@@ -37,6 +37,8 @@ Optional knobs:
 - `OREN_BENCH_OUTPUT_CHECK=0` (skip stdout consistency check; useful for trace/instrumentation)
 - `OREN_BENCH_PROGRAM=<name|all|name1,name2>` (default: `loop_sum`)
 - `OREN_BENCH_PROGRAMS=name1,name2` (explicit list; overrides `OREN_BENCH_PROGRAM`)
+- `OREN_BENCH_UPDATE_LATEST=1` (update `benchmarks/RESULTS_LATEST.md` after run)
+- `OREN_BENCH_UPDATE_LATEST_PRUNE=1` (with UPDATE_LATEST, prune stale result files)
 - `OREN_BENCH_CC=<compiler>` (override C compiler; auto-detects `cc/clang/gcc` otherwise)
 - `OREN_BENCH_ENV_ALL=K=V,...` (apply env overrides to all variants)
 - `OREN_BENCH_ENV_C=K=V,...`

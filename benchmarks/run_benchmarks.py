@@ -448,6 +448,12 @@ def main():
     if len(programs) > 1:
         print(f"Completed {len(programs)} benchmarks: {', '.join(programs)}")
 
+    if int(os.environ.get("OREN_BENCH_UPDATE_LATEST", "0")) == 1:
+        cmd = [sys.executable, str(ROOT / "benchmarks" / "update_latest.py")]
+        if int(os.environ.get("OREN_BENCH_UPDATE_LATEST_PRUNE", "0")) == 1:
+            cmd.append("--prune")
+        subprocess.run(cmd, cwd=ROOT, check=True)
+
 
 if __name__ == "__main__":
     main()
