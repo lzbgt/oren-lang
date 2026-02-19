@@ -1,5 +1,6 @@
 #include "avm_internal.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -2305,6 +2306,56 @@ select2_done:
                     AvmValue list_b = vm->stack[--vm->sp];
                     AvmValue list_a = vm->stack[--vm->sp];
                     AvmValue one = avm_int(1);
+                    if (list_a.type == AVM_VAL_LIST && list_b.type == AVM_VAL_LIST &&
+                        idx.type == AVM_VAL_INT && n.type == AVM_VAL_INT &&
+                        sum.type == AVM_VAL_INT) {
+                        int64_t i64 = idx.as.i;
+                        int64_t end64 = n.as.i;
+                        if (i64 >= 0 && i64 <= (int64_t)INT_MAX &&
+                            end64 >= (int64_t)INT_MIN && end64 <= (int64_t)INT_MAX &&
+                            list_a.as.l && list_b.as.l) {
+                            int i = (int)i64;
+                            int end = (int)end64;
+                            if (i < end) {
+                                int count_a = list_a.as.l->count;
+                                int count_b = list_b.as.l->count;
+                                int64_t acc = sum.as.i;
+                                if (end <= count_a && end <= count_b) {
+                                    for (; i < end; i++) {
+                                        AvmValue va = list_a.as.l->items[i];
+                                        AvmValue vb = list_b.as.l->items[i];
+                                        if (va.type != AVM_VAL_INT || vb.type != AVM_VAL_INT) {
+                                            idx = avm_int(i);
+                                            sum = avm_int(acc);
+                                            goto list_dot_slow;
+                                        }
+                                        acc = avm_i64_add_wrap(acc, avm_i64_mul_wrap(va.as.i, vb.as.i));
+                                    }
+                                } else {
+                                    for (; i < end; i++) {
+                                        if (i < 0 || i >= count_a || i >= count_b) {
+                                            sum = avm_nil();
+                                            idx = avm_int(end);
+                                            goto list_dot_push;
+                                        }
+                                        AvmValue va = list_a.as.l->items[i];
+                                        AvmValue vb = list_b.as.l->items[i];
+                                        if (va.type != AVM_VAL_INT || vb.type != AVM_VAL_INT) {
+                                            idx = avm_int(i);
+                                            sum = avm_int(acc);
+                                            goto list_dot_slow;
+                                        }
+                                        acc = avm_i64_add_wrap(acc, avm_i64_mul_wrap(va.as.i, vb.as.i));
+                                    }
+                                }
+                                sum = avm_int(acc);
+                                idx = avm_int(i);
+                                goto list_dot_push;
+                            }
+                        }
+                    }
+
+list_dot_slow:
                     while (1) {
                         AvmValue cond = avm_lt_values(idx, n);
                         if (!avm_truthy(cond)) break;
@@ -2317,6 +2368,7 @@ select2_done:
                         idx = avm_add_values(vm, idx, one, &ok);
                         if (!ok || !vm->running) break;
                     }
+list_dot_push:
                     vm->stack[vm->sp++] = idx;
                     vm->stack[vm->sp++] = sum;
                 }
