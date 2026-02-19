@@ -79,6 +79,9 @@ Results are written to:
 - `benchmarks/results/<program>_<platform>_<timestamp>.md`
 - `benchmarks/results/<program>_<platform>_<timestamp>.json`
 
+When `OREN_BENCH_TRACE_ALLOC_SITE=1`, result JSON includes an `alloc_site` section
+with per-run counts and median/mean summaries (native-only).
+
 Build logs are stored under `build/logs/` with a `bench_build_*` prefix.
 
 Update the canonical snapshot table after a batch run:

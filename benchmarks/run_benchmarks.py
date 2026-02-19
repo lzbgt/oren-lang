@@ -20,6 +20,10 @@ RESULTS_DIR = ROOT / "benchmarks" / "results"
 DEFAULT_RUNS = 5
 DEFAULT_WARMUPS = 1
 DEFAULT_RSS = 0
+ALLOC_SITE_RE = re.compile(
+    r"\[alloc_site\]\s+total=(\d+)\s+list_header=(\d+)\s+list_int_header=(\d+)\s+"
+    r"list_buf=(\d+)\s+list_int_buf=(\d+)"
+)
 
 
 def _parse_env_overrides(raw):
@@ -84,6 +88,23 @@ def _parse_rss_bytes(time_path):
                 except Exception:
                     return None
     return None
+
+
+def _parse_alloc_site_output(text):
+    if not text:
+        return []
+    out = []
+    for match in ALLOC_SITE_RE.finditer(text):
+        out.append(
+            {
+                "total": int(match.group(1)),
+                "list_header": int(match.group(2)),
+                "list_int_header": int(match.group(3)),
+                "list_buf": int(match.group(4)),
+                "list_int_buf": int(match.group(5)),
+            }
+        )
+    return out
 
 
 def _time_cmd(cmd, runs, warmups, env=None, rss_enabled=False, rss_dir=None, collect_output=False):
@@ -283,6 +304,7 @@ def _run_one(program, cfg: BenchConfig):
 
     results = {}
     outputs = {}
+    alloc_sites = {}
     rss_results = {}
 
     env_base = os.environ.copy()
@@ -333,6 +355,9 @@ def _run_one(program, cfg: BenchConfig):
                 "max_bytes": max(rss),
             }
         outputs[name] = out
+        alloc_runs = _parse_alloc_site_output(out)
+        if alloc_runs:
+            alloc_sites[name] = alloc_runs
 
     if cfg.save_stdout:
         for name, out in outputs.items():
@@ -379,6 +404,34 @@ def _run_one(program, cfg: BenchConfig):
     payload = {"meta": meta, "results": results}
     if cfg.rss_enabled and rss_results:
         payload["rss"] = rss_results
+    if alloc_sites:
+        alloc_summary = {}
+        for name, runs in alloc_sites.items():
+            if not runs:
+                continue
+            def _med(key):
+                return int(statistics.median([r[key] for r in runs]))
+            def _mean(key):
+                return int(statistics.mean([r[key] for r in runs]))
+            alloc_summary[name] = {
+                "runs": runs,
+                "median": {
+                    "total": _med("total"),
+                    "list_header": _med("list_header"),
+                    "list_int_header": _med("list_int_header"),
+                    "list_buf": _med("list_buf"),
+                    "list_int_buf": _med("list_int_buf"),
+                },
+                "mean": {
+                    "total": _mean("total"),
+                    "list_header": _mean("list_header"),
+                    "list_int_header": _mean("list_int_header"),
+                    "list_buf": _mean("list_buf"),
+                    "list_int_buf": _mean("list_int_buf"),
+                },
+            }
+        if alloc_summary:
+            payload["alloc_site"] = alloc_summary
 
     host_tag = _host_tag()
     json_path = RESULTS_DIR / f"{program}_{host_tag}_{ts}.json"
@@ -424,6 +477,24 @@ def _run_one(program, cfg: BenchConfig):
             r = rss_results[name]
             lines.append(
                 f"| {name} | {r['median_bytes']} | {r['mean_bytes']} | {r['min_bytes']} | {r['max_bytes']} |"
+            )
+    if alloc_sites:
+        lines.append("")
+        lines.append("## Alloc sites (median counts)")
+        lines.append("")
+        lines.append("| variant | total | list_header | list_int_header | list_buf | list_int_buf |")
+        lines.append("| --- | --- | --- | --- | --- | --- |")
+        for name in variant_order:
+            if name not in alloc_sites:
+                continue
+            runs = alloc_sites[name]
+            if not runs:
+                continue
+            def _med_line(key):
+                return int(statistics.median([r[key] for r in runs]))
+            lines.append(
+                f"| {name} | {_med_line('total')} | {_med_line('list_header')} | "
+                f"{_med_line('list_int_header')} | {_med_line('list_buf')} | {_med_line('list_int_buf')} |"
             )
     lines.append("")
     lines.append(f"Output checksum (stdout): `{first_out}`")
