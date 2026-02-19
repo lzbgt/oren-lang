@@ -354,9 +354,36 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
             break;
         }
         case 17: { // oren_write_bytes
-            if (nargs > 1 && args[0].type == AVM_VAL_STRING && args[1].type == AVM_VAL_LIST) {
+            if (nargs > 1 && args[0].type == AVM_VAL_STRING &&
+                (args[1].type == AVM_VAL_LIST || args[1].type == AVM_VAL_BYTES)) {
                 char* path = (char*)args[0].as.p;
-                AvmList* list = args[1].as.l;
+                uint8_t* buf = NULL;
+                int len = 0;
+                int owns_buf = 0;
+
+                if (args[1].type == AVM_VAL_BYTES) {
+                    AvmBytes* b = args[1].as.b;
+                    if (!b) { res = avm_err(AVM_ERR_INVALID_ARG, "write_bytes: null u8 buffer"); break; }
+                    if (b->len < 0) { res = avm_err(AVM_ERR_INVALID_ARG, "write_bytes: invalid u8 buffer length"); break; }
+                    if (b->len > 0 && !b->data) { res = avm_err(AVM_ERR_INVALID_ARG, "write_bytes: u8_buf payload is nil"); break; }
+                    buf = b->data;
+                    len = b->len;
+                } else {
+                    AvmList* list = args[1].as.l;
+                    if (!list) { res = avm_err(AVM_ERR_INVALID_ARG, "write_bytes: list is nil"); break; }
+                    len = list->count;
+                    buf = (uint8_t*)avm_heap_malloc_k((size_t)len, AVM_ALLOC_KIND_BYTES);
+                    if (!buf && len > 0) {
+                        res = avm_alloc_fail_value();
+                        avm_abort(vm, res);
+                        break;
+                    }
+                    owns_buf = 1;
+                    for (int i = 0; i < len; i++) {
+                        buf[i] = (uint8_t)list->items[i].as.i;
+                    }
+                }
+
                 // Preflight: ensure record log can store this entry BEFORE performing any filesystem effects.
                 if (vm && vm->log_budget_bytes > 0 && (vm->record_log || vm->record_log_bytes)) {
                     uint8_t dom = 0;
@@ -366,32 +393,28 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
                         AvmValue e = avm_err_domop(AVM_ERR_BUDGET, "budget exceeded (log)", (int)dom, (int)capop);
                         avm_abort(vm, e);
                         res = e;
+                        if (owns_buf) avm_heap_free(buf);
                         break;
                     }
                 }
-                uint8_t* buf = (uint8_t*)avm_heap_malloc_k((size_t)list->count, AVM_ALLOC_KIND_BYTES);
-                if (!buf && list->count > 0) {
-                    res = avm_alloc_fail_value();
-                    avm_abort(vm, res);
-                    break;
-                }
-                for(int i=0; i<list->count; i++) {
-                    buf[i] = (uint8_t)list->items[i].as.i;
-                }
+
                 FILE* f = fopen(path, "wb");
                 if (!f) {
                     int err = errno;
                     char msg[512];
                     snprintf(msg, sizeof(msg), "cannot open file for write: %s (errno=%d)", path, err);
-                    avm_heap_free(buf);
+                    if (owns_buf) avm_heap_free(buf);
                     res = avm_err(avm_err_from_errno(err), msg);
                     break;
                 }
-                if (!avm_io_charge(vm, (uint64_t)list->count, 1, 2)) { fclose(f); avm_heap_free(buf); break; }
-                size_t n = fwrite(buf, 1, (size_t)list->count, f);
+                if (!avm_io_charge(vm, (uint64_t)len, 1, 2)) { fclose(f); if (owns_buf) avm_heap_free(buf); break; }
+                size_t n = 0;
+                if (len > 0) {
+                    n = fwrite(buf, 1, (size_t)len, f);
+                }
                 fclose(f);
-                avm_heap_free(buf);
-                if (n != (size_t)list->count) {
+                if (owns_buf) avm_heap_free(buf);
+                if (n != (size_t)len) {
                     res = avm_err(AVM_ERR_IO, "write_bytes: short write");
                     break;
                 }

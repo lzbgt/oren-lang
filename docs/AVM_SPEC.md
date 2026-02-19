@@ -140,7 +140,7 @@ Source of truth (rolling): `lib/avm/avm_native.inc` `avm_call_native(...)`.
 14. oren_index_set(container, index, value) -> nil
 15. int_mod
 16. oren_bytes_from_string
-17. oren_write_bytes
+17. oren_write_bytes (list<int 0..255> or u8_buf)
 18. oren_read_bytes
 19. oren_err(code, msg)
 20. oren_is_err(v) -> bool

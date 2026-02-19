@@ -1195,7 +1195,7 @@ The C backend recognizes a few builtin functions and lowers them directly:
 
 ## Runtime Builtins (Self-Hosting and Native Backend)
 The self-hosted compiler and the (in-progress) native backend rely on a few additional runtime helpers:
-- `oren_write_bytes(path, bytes)` writes a list of byte values (`0..255`) to a file (binary-safe).
+- `oren_write_bytes(path, bytes)` writes bytes (`list<int 0..255>` or `u8_buf`) to a file (binary-safe).
 - `oren_read_bytes(path)` reads a file as a list of byte values (`0..255`) (binary-safe; preserves `0x00`).
 - `oren_bytes_from_string(s)` converts a string to a list of byte values (`0..255`).
 - `oren_sha256_range(bytes, start, length)` computes SHA-256 over a subrange of a byte list and returns a 32-byte list.
