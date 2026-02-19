@@ -79,6 +79,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New: `OREN_TRACE_ALLOC_SITE=1` reports list/list_int header+buffer sites (ids 1..4; see `lib/runtime_native/170_lists.oren`).
    - Bench harness supports `OREN_BENCH_TRACE_ALLOC_SITE=1` (native) to capture alloc-site counts in benchmark stdout logs (forces warmups=0; dump happens at exit; use `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD` if you want GC-triggered dumps).
    - When trace alloc-site is enabled, benchmark result JSON records `alloc_site` counts + medians.
+   - Bench harness supports `OREN_BENCH_TRACE_ARENA=1` (native) to capture arena alloc/spill counters; results JSON records `arena_trace` medians (optional cap via `OREN_BENCH_TRACE_ARENA_CAP_BYTES`).
    - Alloc-site snapshot (arm64, 2026-02-20): `alloc_churn` list_header=20k, list_buf=20k (reserve now fires); `alloc_drop` list_header≈10011, list_buf≈10031. Next: extend reserve insertion to cover more list literal patterns (e.g., non-empty literals) and list_int.
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, OBC/OREN_C skipped):
      - `alloc_churn` 25.90× C, `alloc_drop` 38.26× C (see `benchmarks/RESULTS_LATEST.md`).

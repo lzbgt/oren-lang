@@ -24,6 +24,10 @@ ALLOC_SITE_RE = re.compile(
     r"\[alloc_site\]\s+total=(\d+)\s+list_header=(\d+)\s+list_int_header=(\d+)\s+"
     r"list_buf=(\d+)\s+list_int_buf=(\d+)"
 )
+ARENA_RE = re.compile(
+    r"\[arena\]\s+allocs=(\d+)\s+alloc_bytes=(\d+)\s+spills=(\d+)\s+spill_bytes=(\d+)\s+"
+    r"push=(\d+)\s+pop=(\d+)\s+epoch_reset=(\d+)\s+mmap_fail=(\d+)"
+)
 
 
 def _parse_env_overrides(raw):
@@ -102,6 +106,26 @@ def _parse_alloc_site_output(text):
                 "list_int_header": int(match.group(3)),
                 "list_buf": int(match.group(4)),
                 "list_int_buf": int(match.group(5)),
+            }
+        )
+    return out
+
+
+def _parse_arena_output(text):
+    if not text:
+        return []
+    out = []
+    for match in ARENA_RE.finditer(text):
+        out.append(
+            {
+                "allocs": int(match.group(1)),
+                "alloc_bytes": int(match.group(2)),
+                "spills": int(match.group(3)),
+                "spill_bytes": int(match.group(4)),
+                "push": int(match.group(5)),
+                "pop": int(match.group(6)),
+                "epoch_reset": int(match.group(7)),
+                "mmap_fail": int(match.group(8)),
             }
         )
     return out
@@ -305,6 +329,7 @@ def _run_one(program, cfg: BenchConfig):
     results = {}
     outputs = {}
     alloc_sites = {}
+    arena_traces = {}
     rss_results = {}
 
     env_base = os.environ.copy()
@@ -358,6 +383,9 @@ def _run_one(program, cfg: BenchConfig):
         alloc_runs = _parse_alloc_site_output(out)
         if alloc_runs:
             alloc_sites[name] = alloc_runs
+        arena_runs = _parse_arena_output(out)
+        if arena_runs:
+            arena_traces[name] = arena_runs
 
     if cfg.save_stdout:
         for name, out in outputs.items():
@@ -432,6 +460,40 @@ def _run_one(program, cfg: BenchConfig):
             }
         if alloc_summary:
             payload["alloc_site"] = alloc_summary
+    if arena_traces:
+        arena_summary = {}
+        for name, runs in arena_traces.items():
+            if not runs:
+                continue
+            def _med_arena(key):
+                return int(statistics.median([r[key] for r in runs]))
+            def _mean_arena(key):
+                return int(statistics.mean([r[key] for r in runs]))
+            arena_summary[name] = {
+                "runs": runs,
+                "median": {
+                    "allocs": _med_arena("allocs"),
+                    "alloc_bytes": _med_arena("alloc_bytes"),
+                    "spills": _med_arena("spills"),
+                    "spill_bytes": _med_arena("spill_bytes"),
+                    "push": _med_arena("push"),
+                    "pop": _med_arena("pop"),
+                    "epoch_reset": _med_arena("epoch_reset"),
+                    "mmap_fail": _med_arena("mmap_fail"),
+                },
+                "mean": {
+                    "allocs": _mean_arena("allocs"),
+                    "alloc_bytes": _mean_arena("alloc_bytes"),
+                    "spills": _mean_arena("spills"),
+                    "spill_bytes": _mean_arena("spill_bytes"),
+                    "push": _mean_arena("push"),
+                    "pop": _mean_arena("pop"),
+                    "epoch_reset": _mean_arena("epoch_reset"),
+                    "mmap_fail": _mean_arena("mmap_fail"),
+                },
+            }
+        if arena_summary:
+            payload["arena_trace"] = arena_summary
 
     host_tag = _host_tag()
     json_path = RESULTS_DIR / f"{program}_{host_tag}_{ts}.json"
@@ -496,6 +558,26 @@ def _run_one(program, cfg: BenchConfig):
                 f"| {name} | {_med_line('total')} | {_med_line('list_header')} | "
                 f"{_med_line('list_int_header')} | {_med_line('list_buf')} | {_med_line('list_int_buf')} |"
             )
+    if arena_traces:
+        lines.append("")
+        lines.append("## Arena trace (median counts)")
+        lines.append("")
+        lines.append("| variant | allocs | alloc_bytes | spills | spill_bytes | push | pop | epoch_reset | mmap_fail |")
+        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+        for name in variant_order:
+            if name not in arena_traces:
+                continue
+            runs = arena_traces[name]
+            if not runs:
+                continue
+            def _med_arena_line(key):
+                return int(statistics.median([r[key] for r in runs]))
+            lines.append(
+                f"| {name} | {_med_arena_line('allocs')} | {_med_arena_line('alloc_bytes')} | "
+                f"{_med_arena_line('spills')} | {_med_arena_line('spill_bytes')} | "
+                f"{_med_arena_line('push')} | {_med_arena_line('pop')} | "
+                f"{_med_arena_line('epoch_reset')} | {_med_arena_line('mmap_fail')} |"
+            )
     lines.append("")
     lines.append(f"Output checksum (stdout): `{first_out}`")
     lines.append("")
@@ -526,6 +608,8 @@ def main():
     trace_alloc_site_gc_threshold = os.environ.get(
         "OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD", ""
     ).strip()
+    trace_arena = int(os.environ.get("OREN_BENCH_TRACE_ARENA", "0")) == 1
+    trace_arena_cap = os.environ.get("OREN_BENCH_TRACE_ARENA_CAP_BYTES", "").strip()
     env_all = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_ALL", ""))
     env_c = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_C", ""))
     env_oren_c = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_OREN_C", ""))
@@ -546,7 +630,17 @@ def main():
         if trace_alloc_site_gc_threshold:
             env_oren_native["OREN_GC_AUTO"] = "1"
             env_oren_native["OREN_GC_ALLOC_THRESHOLD"] = trace_alloc_site_gc_threshold
+    if trace_arena:
+        if output_check:
+            output_check = False
+        if not save_stdout:
+            save_stdout = True
+        env_oren_native = dict(env_oren_native)
+        env_oren_native["OREN_TRACE_ARENA"] = "1"
+        if trace_arena_cap:
+            env_oren_native["OREN_ARENA_CAP_BYTES"] = trace_arena_cap
 
+    collect_output = trace_alloc_site or trace_arena
     config = BenchConfig(
         runs=runs,
         warmups=warmups,
@@ -554,7 +648,7 @@ def main():
         output_check=output_check,
         skip_build=skip_build,
         save_stdout=save_stdout,
-        collect_output=trace_alloc_site,
+        collect_output=collect_output,
         skip_obc=skip_obc,
         skip_c=skip_c,
         skip_oren_c=skip_oren_c,
