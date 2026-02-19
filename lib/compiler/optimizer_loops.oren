@@ -1060,6 +1060,36 @@ fn _opt_block_const_int_before(block, idx, name) {
     return false
 }
 
+fn _opt_block_const_int_value_before(block, idx, name) {
+    if block == nil || block["type"] != "Block" { return nil }
+    if name == nil { return nil }
+    var ss = block["stmts"]
+    if ss == nil { return nil }
+    var i = idx - 1
+    while i >= 0 {
+        var st = ss[i]
+        if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
+            var nm = opthelp.is_ident(st["name"])
+            if nm != nil && nm == name {
+                if _opt_is_const_int_expr(st["value"]) != true { return nil }
+                var parsed = intparse.parse_int_lit(st["value"]["value"])
+                if oren_is_err(parsed) { return nil }
+                return parsed
+            }
+        } else if st != nil && st["type"] == "Set" {
+            var left = st["left"]
+            if left != nil && left["type"] == "Identifier" && left["value"] == name {
+                if _opt_is_const_int_expr(st["value"]) != true { return nil }
+                var parsed2 = intparse.parse_int_lit(st["value"]["value"])
+                if oren_is_err(parsed2) { return nil }
+                return parsed2
+            }
+        }
+        i = i - 1
+    }
+    return nil
+}
+
 fn _opt_block_list_len_before(block, idx, name) {
     if block == nil || block["type"] != "Block" { return nil }
     if name == nil { return nil }
@@ -1290,10 +1320,18 @@ fn _opt_loop_simple_bound_value(block, idx, stmt) {
     var right = cond["right"]
     if left == nil || left["type"] != "Identifier" { return nil }
     if right == nil { return nil }
-    if _opt_is_const_int_expr(right) != true { return nil }
-    var v = intparse.parse_int_lit(right["value"])
-    if oren_is_err(v) { return nil }
-    return v
+    if _opt_is_const_int_expr(right) == true {
+        var v = intparse.parse_int_lit(right["value"])
+        if oren_is_err(v) { return nil }
+        return v
+    }
+    if right["type"] == "Identifier" {
+        var rn = right["value"]
+        if rn == nil || rn == left["value"] { return nil }
+        var v2 = _opt_block_const_int_value_before(block, idx, rn)
+        if v2 != nil { return v2 }
+    }
+    return nil
 }
 
 fn _opt_loop_is_long_lived(block, idx, stmt) {
