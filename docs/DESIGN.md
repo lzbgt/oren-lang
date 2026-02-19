@@ -235,6 +235,9 @@ Proposed compiler strategy (first slice):
    - Replace `oren_new_list` / `oren_new_list_int` + grow paths with
      `arena_new_list` / `arena_new_list_int` (same layout; arena‑backed buffers).
 3) Fallback to GC heap when analysis is uncertain.
+4) Rolling auto‑mode (`OREN_ARENA_AUTO_LOOP=1`):
+   - Wraps simple loops and rewrites loop‑local list allocations only when usage
+     stays in safe list intrinsics (conservative escape check).
 
 Runtime design (native):
 

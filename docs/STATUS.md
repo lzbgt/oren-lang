@@ -77,7 +77,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Design + implement loop‑local arenas for list/list_int (compiler escape analysis + arena tracking table).
    - Native runtime scaffolding: `oren_arena_push/pop` + `oren_arena_new_list(_int)` (compiler lowering pending).
    - Arena cap: `OREN_ARENA_CAP_BYTES` spills allocations back to GC when exceeded.
-   - Compiler: `OREN_ARENA_AUTO_LOOP=1` wraps simple loops that call `oren_arena_new_list(_int)` with push/pop.
+   - Compiler: `OREN_ARENA_AUTO_LOOP=1` wraps simple loops; it can also rewrite loop‑local `oren_new_list(_int)` vars to arena allocs when usage is limited to safe list ops.
    - Define long‑lived loop policy: per‑iteration sub‑arenas when safe; otherwise loop‑scoped arena with cap + GC spill.
    - Add arena‑lifetime counters (spills, epoch resets) to quantify long‑loop behavior.
    - `OREN_TRACE_ARENA=1` prints arena alloc/spill counters at arena epoch reset.
