@@ -590,6 +590,10 @@ static VerifyResult verify_program_region(
             len = 1;
             pop = 14; // list_a, list_b, list_c, idx, end, mul_a, add_a, mod_a, mul_b, add_b, mod_b, mul_c, add_c, mod_c
             push = 1; // idx
+        } else if (op == 0x61) { // INT_LCG_SUM_LOOP
+            len = 1;
+            pop = 9; // x, sum, idx, end, mul, add, mod, mod_x, mod_i
+            push = 3; // idx, sum, x
         } else if (op == 0x5C) { // LIST_SUM_INT_LOOP
             len = 1;
             pop = 4; // list, idx, n, sum
@@ -1777,6 +1781,7 @@ static const char* op_name(uint8_t op) {
         case 0x5D: return "LIST_SUM3_INT_LOOP";
         case 0x5F: return "LIST_PUSH2_INT_LOOP";
         case 0x60: return "LIST_PUSH3_INT_LOOP";
+        case 0x61: return "INT_LCG_SUM_LOOP";
         case 0x43: return "SET_INDEX";
         case 0x45: return "SPAWN_CALL_LIST";
         case 0x54: return "SPAWN_CALL_SPREAD";

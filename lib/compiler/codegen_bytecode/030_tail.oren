@@ -240,6 +240,106 @@ fn _bc_match_sum_list_update(ctx, stmt, sum_name, idx_name) {
     return {"list": list_name}
 }
 
+fn _bc_parse_int_lit(expr) {
+    if expr == nil || expr["type"] != "Integer" { return nil }
+    var v = intparse.parse_int_lit(expr["value"])
+    if oren_is_err(v) == true { return nil }
+    return v
+}
+
+fn _bc_match_mul_const(expr, name) {
+    if expr == nil || expr["type"] != "Infix" || expr["op"] != "*" { return nil }
+    var left = expr["left"]
+    var right = expr["right"]
+    if _bc_is_ident(left, name) {
+        return _bc_parse_int_lit(right)
+    }
+    if _bc_is_ident(right, name) {
+        return _bc_parse_int_lit(left)
+    }
+    return nil
+}
+
+fn _bc_match_lcg_update(stmt, x_name) {
+    if stmt == nil || stmt["type"] != "Assign" { return nil }
+    if _bc_is_ident(stmt["name"], x_name) != true { return nil }
+    var val = stmt["value"]
+    if val == nil || val["type"] != "Infix" || val["op"] != "%" { return nil }
+    var mod_ident = val["right"]
+    if _bc_is_ident(mod_ident, nil) != true { return nil }
+    var mod_name = mod_ident["value"]
+    if mod_name == nil { return nil }
+    var left = val["left"]
+    if left == nil || left["type"] != "Infix" || left["op"] != "+" { return nil }
+    var mul = _bc_match_mul_const(left["left"], x_name)
+    var add = _bc_parse_int_lit(left["right"])
+    if mul == nil || add == nil {
+        mul = _bc_match_mul_const(left["right"], x_name)
+        add = _bc_parse_int_lit(left["left"])
+    }
+    if mul == nil || add == nil { return nil }
+    return {"mul": mul, "add": add, "mod": mod_name}
+}
+
+fn _bc_collect_add_terms(expr, out) {
+    if expr == nil { return out }
+    if expr["type"] == "Infix" && expr["op"] == "+" {
+        out = _bc_collect_add_terms(expr["left"], out)
+        out = _bc_collect_add_terms(expr["right"], out)
+        return out
+    }
+    oren_list_push(out, expr)
+    return out
+}
+
+fn _bc_match_mod_term(expr, name) {
+    if expr == nil || expr["type"] != "Infix" || expr["op"] != "%" { return nil }
+    if _bc_is_ident(expr["left"], name) != true { return nil }
+    var modv = _bc_parse_int_lit(expr["right"])
+    if modv == nil || modv <= 0 { return nil }
+    return modv
+}
+
+fn _bc_match_sum_mod_update(stmt, sum_name, x_name, idx_name, mod_name) {
+    if stmt == nil || stmt["type"] != "Assign" { return nil }
+    if _bc_is_ident(stmt["name"], sum_name) != true { return nil }
+    var val = stmt["value"]
+    if val == nil || val["type"] != "Infix" || val["op"] != "%" { return nil }
+    if _bc_is_ident(val["right"], mod_name) != true { return nil }
+    var terms = []
+    _bc_collect_add_terms(val["left"], terms)
+    if oren_list_len(terms) != 3 { return nil }
+    var saw_sum = false
+    var mod_x = nil
+    var mod_i = nil
+    var ti = 0
+    while ti < oren_list_len(terms) {
+        var t = terms[ti]
+        if _bc_is_ident(t, sum_name) {
+            saw_sum = true
+            ti = ti + 1
+            continue
+        }
+        var mx = _bc_match_mod_term(t, x_name)
+        if mx != nil {
+            if mod_x != nil { return nil }
+            mod_x = mx
+            ti = ti + 1
+            continue
+        }
+        var mi = _bc_match_mod_term(t, idx_name)
+        if mi != nil {
+            if mod_i != nil { return nil }
+            mod_i = mi
+            ti = ti + 1
+            continue
+        }
+        return nil
+    }
+    if saw_sum != true || mod_x == nil || mod_i == nil { return nil }
+    return {"mod_x": mod_x, "mod_i": mod_i}
+}
+
 fn _bc_match_simple_inc(stmt, idx_name) {
     if stmt == nil { return false }
     if stmt["type"] != "Assign" { return false }
@@ -459,6 +559,79 @@ fn bytecode_try_emit_list_int_push3_loop(ctx, stmt) {
     _bc_push_int_const(ctx, rhs_c["add"])
     _bc_push_int_const(ctx, rhs_c["mod"])
     emit_byte(ctx, AVM_LIST_PUSH3_INT_LOOP)
+    _bc_emit_store_ident(ctx, idx_ident)
+    return true
+}
+
+fn bytecode_try_emit_int_lcg_sum_loop(ctx, stmt) {
+    if stmt == nil || stmt["type"] != "While" { return false }
+    var cond = stmt["cond"]
+    if cond == nil || cond["type"] != "Infix" || cond["op"] != "<" { return false }
+    var idx_ident = cond["left"]
+    var n_ident = cond["right"]
+    if _bc_is_ident(idx_ident, nil) != true { return false }
+    if _bc_is_ident(n_ident, nil) != true { return false }
+    var idx_name = idx_ident["value"]
+    var n_name = n_ident["value"]
+    if idx_name == nil || n_name == nil { return false }
+
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return false }
+    var stmts = body["stmts"]
+    if stmts == nil || oren_list_len(stmts) != 3 { return false }
+
+    var lcg_stmt = stmts[0]
+    var sum_stmt = stmts[1]
+    var inc_stmt = stmts[2]
+
+    if lcg_stmt == nil || lcg_stmt["type"] != "Assign" { return false }
+    var x_ident = lcg_stmt["name"]
+    if _bc_is_ident(x_ident, nil) != true { return false }
+    var x_name = x_ident["value"]
+    if x_name == nil || x_name == idx_name || x_name == n_name { return false }
+
+    var lcg = _bc_match_lcg_update(lcg_stmt, x_name)
+    if lcg == nil { return false }
+    var mod_name = lcg["mod"]
+    if mod_name == nil || mod_name == idx_name || mod_name == n_name || mod_name == x_name { return false }
+
+    if sum_stmt == nil || sum_stmt["type"] != "Assign" { return false }
+    var sum_ident = sum_stmt["name"]
+    if _bc_is_ident(sum_ident, nil) != true { return false }
+    var sum_name = sum_ident["value"]
+    if sum_name == nil || sum_name == idx_name || sum_name == n_name || sum_name == x_name { return false }
+
+    var sum_info = _bc_match_sum_mod_update(sum_stmt, sum_name, x_name, idx_name, mod_name)
+    if sum_info == nil { return false }
+
+    if _bc_match_simple_inc(inc_stmt, idx_name) != true { return false }
+
+    var caps = ctx["env_captures"]
+    if caps != nil {
+        if oren_type_tag(caps[x_name]) != 0 { return false }
+        if oren_type_tag(caps[sum_name]) != 0 { return false }
+        if oren_type_tag(caps[idx_name]) != 0 { return false }
+        if oren_type_tag(caps[n_name]) != 0 { return false }
+        if oren_type_tag(caps[mod_name]) != 0 { return false }
+    }
+    if oren_type_tag(ctx["locals"][x_name]) == 0 && oren_type_tag(ctx["globals"][x_name]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][sum_name]) == 0 && oren_type_tag(ctx["globals"][sum_name]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][idx_name]) == 0 && oren_type_tag(ctx["globals"][idx_name]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][n_name]) == 0 && oren_type_tag(ctx["globals"][n_name]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][mod_name]) == 0 && oren_type_tag(ctx["globals"][mod_name]) == 0 { return false }
+
+    bytecode_compile_expr(ctx, x_ident)
+    bytecode_compile_expr(ctx, sum_ident)
+    bytecode_compile_expr(ctx, idx_ident)
+    bytecode_compile_expr(ctx, n_ident)
+    _bc_push_int_const(ctx, lcg["mul"])
+    _bc_push_int_const(ctx, lcg["add"])
+    bytecode_compile_expr(ctx, {"type": "Identifier", "value": mod_name})
+    _bc_push_int_const(ctx, sum_info["mod_x"])
+    _bc_push_int_const(ctx, sum_info["mod_i"])
+    emit_byte(ctx, AVM_INT_LCG_SUM_LOOP)
+    _bc_emit_store_ident(ctx, x_ident)
+    _bc_emit_store_ident(ctx, sum_ident)
     _bc_emit_store_ident(ctx, idx_ident)
     return true
 }
@@ -816,6 +989,7 @@ fn bytecode_compile_stmt(ctx, stmt) {
         if bytecode_try_emit_list_int_push3_loop(ctx, stmt) == true { return nil }
         if bytecode_try_emit_list_int_push2_loop(ctx, stmt) == true { return nil }
         if bytecode_try_emit_list_int_push_loop(ctx, stmt) == true { return nil }
+        if bytecode_try_emit_int_lcg_sum_loop(ctx, stmt) == true { return nil }
         if bytecode_try_emit_list_sum3_loop(ctx, stmt) == true { return nil }
         if bytecode_try_emit_list_sum_loop(ctx, stmt) == true { return nil }
         if bytecode_try_emit_list_dot(ctx, stmt) == true { return nil }

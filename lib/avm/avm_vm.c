@@ -123,6 +123,24 @@ static inline AvmValue avm_add_values(AvmVM* vm, AvmValue a, AvmValue b, int* ok
     return avm_nil();
 }
 
+static inline AvmValue avm_mod_values(AvmVM* vm, AvmValue a, AvmValue b, int* ok) {
+    if (ok) *ok = 1;
+    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) {
+        if (b.as.i == 0) {
+            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "modulo by zero"));
+            if (ok) *ok = 0;
+            return avm_nil();
+        }
+        if (avm_i64_is_min(a.as.i) && b.as.i == -1) {
+            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "modulo overflow (i64_min % -1)"));
+            if (ok) *ok = 0;
+            return avm_nil();
+        }
+        return avm_int(a.as.i % b.as.i);
+    }
+    return avm_nil();
+}
+
 // --- Cooperative Tasks (rolling, AVM v1 direction) ---
 //
 // This implements a minimal, VM-internal cooperative concurrency model to support:
@@ -691,6 +709,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x5D: return "LIST_SUM3_INT_LOOP";
         case 0x5F: return "LIST_PUSH2_INT_LOOP";
         case 0x60: return "LIST_PUSH3_INT_LOOP";
+        case 0x61: return "INT_LCG_SUM_LOOP";
         case 0x43: return "SET_INDEX";
         case 0x44: return "CALL_INDIRECT_SPREAD";
         case 0x45: return "SPAWN_CALL_LIST";
@@ -2977,6 +2996,81 @@ list_dot_push:
                         final_i = end;
                     }
                     vm->stack[vm->sp++] = avm_int(final_i);
+                }
+                break;
+            }
+            case 0x61: { // INT_LCG_SUM_LOOP
+                if (vm->sp >= 9) {
+                    AvmValue modiv = vm->stack[--vm->sp];
+                    AvmValue modxv = vm->stack[--vm->sp];
+                    AvmValue modv = vm->stack[--vm->sp];
+                    AvmValue addv = vm->stack[--vm->sp];
+                    AvmValue mulv = vm->stack[--vm->sp];
+                    AvmValue endv = vm->stack[--vm->sp];
+                    AvmValue idxv = vm->stack[--vm->sp];
+                    AvmValue sumv = vm->stack[--vm->sp];
+                    AvmValue xv = vm->stack[--vm->sp];
+                    AvmValue one = avm_int(1);
+                    if (xv.type == AVM_VAL_INT && sumv.type == AVM_VAL_INT &&
+                        idxv.type == AVM_VAL_INT && endv.type == AVM_VAL_INT &&
+                        mulv.type == AVM_VAL_INT && addv.type == AVM_VAL_INT &&
+                        modv.type == AVM_VAL_INT && modxv.type == AVM_VAL_INT &&
+                        modiv.type == AVM_VAL_INT) {
+                        int64_t mod = modv.as.i;
+                        int64_t modx = modxv.as.i;
+                        int64_t modi = modiv.as.i;
+                        if (mod > 0 && modx > 0 && modi > 0) {
+                            int64_t i = idxv.as.i;
+                            int64_t end = endv.as.i;
+                            int64_t x = xv.as.i;
+                            int64_t sum = sumv.as.i;
+                            int64_t mul = mulv.as.i;
+                            int64_t add = addv.as.i;
+                            if (i < end) {
+                                for (; i < end; i++) {
+                                    x = avm_i64_add_wrap(avm_i64_mul_wrap(x, mul), add);
+                                    x = x % mod;
+                                    int64_t term_x = x % modx;
+                                    int64_t term_i = i % modi;
+                                    sum = avm_i64_add_wrap(sum, term_x);
+                                    sum = avm_i64_add_wrap(sum, term_i);
+                                    sum = sum % mod;
+                                }
+                            }
+                            idxv = avm_int(i);
+                            sumv = avm_int(sum);
+                            xv = avm_int(x);
+                            goto lcg_sum_push;
+                        }
+                    }
+
+                    while (1) {
+                        AvmValue cond = avm_lt_values(idxv, endv);
+                        if (!avm_truthy(cond)) break;
+                        int ok = 1;
+                        AvmValue mul = avm_mul_values(xv, mulv);
+                        AvmValue tmp = avm_add_values(vm, mul, addv, &ok);
+                        if (!ok || !vm->running) break;
+                        xv = avm_mod_values(vm, tmp, modv, &ok);
+                        if (!ok || !vm->running) break;
+                        AvmValue term_x = avm_mod_values(vm, xv, modxv, &ok);
+                        if (!ok || !vm->running) break;
+                        AvmValue term_i = avm_mod_values(vm, idxv, modiv, &ok);
+                        if (!ok || !vm->running) break;
+                        tmp = avm_add_values(vm, sumv, term_x, &ok);
+                        if (!ok || !vm->running) break;
+                        tmp = avm_add_values(vm, tmp, term_i, &ok);
+                        if (!ok || !vm->running) break;
+                        sumv = avm_mod_values(vm, tmp, modv, &ok);
+                        if (!ok || !vm->running) break;
+                        idxv = avm_add_values(vm, idxv, one, &ok);
+                        if (!ok || !vm->running) break;
+                    }
+
+lcg_sum_push:
+                    vm->stack[vm->sp++] = idxv;
+                    vm->stack[vm->sp++] = sumv;
+                    vm->stack[vm->sp++] = xv;
                 }
                 break;
             }
