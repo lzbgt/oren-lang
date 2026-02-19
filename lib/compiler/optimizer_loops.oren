@@ -961,6 +961,27 @@ fn _opt_arena_per_iter_enabled() {
     return oren_env("OREN_ARENA_PER_ITER") != nil
 }
 
+fn _opt_loop_has_simple_bound(stmt) {
+    if stmt == nil { return false }
+    var cond = stmt["cond"]
+    if cond == nil { return false }
+    if cond["type"] != "Infix" { return false }
+    var op = cond["op"]
+    if op != "<" && op != "<=" { return false }
+    var left = cond["left"]
+    var right = cond["right"]
+    if left == nil || left["type"] != "Identifier" { return false }
+    if right == nil || right["type"] != "Integer" { return false }
+    return true
+}
+
+fn _opt_loop_is_long_lived(stmt) {
+    if stmt == nil { return false }
+    if stmt["type"] != "While" && stmt["type"] != "For" { return false }
+    if _opt_loop_has_simple_bound(stmt) { return false }
+    return true
+}
+
 fn _opt_stmt_has_attr(stmt, name) {
     if stmt == nil { return false }
     var attrs = stmt["attrs"]
@@ -1080,7 +1101,7 @@ fn _opt_prepare_loop_arena(block, idx, stmt) {
     if stmt["type"] == "While" { allow_continue = true }
     if stmt["type"] == "For" { allow_continue = true }
     if _opt_has_continue_stmt(body) == true && allow_continue != true { return false }
-    var per_iter = _opt_arena_per_iter_enabled()
+    var per_iter = _opt_arena_per_iter_enabled() || _opt_loop_is_long_lived(stmt)
     var candidates = []
     _opt_collect_loop_new_list_vars(body, candidates)
     var safe_vars = []
