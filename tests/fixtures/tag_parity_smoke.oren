@@ -8,6 +8,8 @@ fn id(x) { return x }
 
 fn main() {
     var xs = [1, 2]
+    var xs_int = oren_new_list_int(0)
+    oren_list_int_push(xs_int, 1)
     var m = {"k": 1}
     var b = buffer.u8_new(4)
     var f = id
@@ -19,6 +21,7 @@ fn main() {
     emit("int", 1)
     emit("string", "hi")
     emit("list", xs)
+    emit("list_int", xs_int)
     emit("map", m)
     emit("func", f)
     emit("u8_buf", b)
