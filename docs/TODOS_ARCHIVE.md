@@ -802,7 +802,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Added minimal progress markers for the WSL step (`[wsl] unpack/build/run`) while keeping build output quiet.
 - References:
   - Script: `tools/verify_obc_portability.sh`
-  - Docs: `docs/OBC_PORTABILITY.md`
+  - Docs: `docs/OBC.md`
   - Make target: `make obc-portability`
 
 ## Archived (2025-12-21) — Native SIMD scale/axpy + matmul scratch reuse (HPC)

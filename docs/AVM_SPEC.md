@@ -46,7 +46,7 @@ AVM is a lightweight, stack-based virtual machine designed for executing Oren co
   - payload prefix: ASCII `"OREN_OBX\n1\n"`
   - payload is a binary table of exports + relocations used by a linker
   - this constant is also intentionally not referenced by bytecode
-  - see `docs/OBC_MODULE_LINKING.md`
+  - see `docs/OBC.md`
 - Rolling convention: `.obc` may include an **unused** `BYTES` constant containing an “OREN_SIG” signature payload:
   - payload prefix: ASCII `"OREN_SIG\n1\n"`
   - payload contains an ed25519 signature over a canonical `.obc` hash (excluding OREN_SIG constants)

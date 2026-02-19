@@ -688,7 +688,7 @@ Oren’s “restricted environment” track (iOS/App Store, Web, Edge) requires:
 This doc is a fact-first bridge between:
 
 - multiverse execution (`docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes`),
-- bytecode module linking (`docs/OBC_MODULE_LINKING.md`),
+- bytecode module linking (`docs/OBC.md`),
 - stdlib distribution/resolution (`docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md`),
 - and the repo-wide roadmap (`docs/TODOS.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md`).
 
@@ -699,7 +699,7 @@ This doc is a fact-first bridge between:
 ### 1) Terminology (concrete)
 
 - **OBC**: an `.obc` bytecode program executed by the AVM interpreter.
-- **OBX**: linker metadata embedded as an unused `BYTES` constant inside `.obc` (exports + relocs). AVM ignores it at runtime. See `docs/OBC_MODULE_LINKING.md`.
+- **OBX**: linker metadata embedded as an unused `BYTES` constant inside `.obc` (exports + relocs). AVM ignores it at runtime. See `docs/OBC.md`.
 - **Universe**: one AVM instance with its own budgets, deterministic TIME/RNG, and capability allow mask.
 - **Child universe / nesting**: running one `.obc` inside another via a governance boundary (caps + budgets + virtual backends).
 
@@ -776,7 +776,7 @@ What it requires (not fully implemented today):
 
 Current repo status (fact):
 
-- Compile-time linking exists via OBX (`docs/OBC_MODULE_LINKING.md`).
+- Compile-time linking exists via OBX (`docs/OBC.md`).
 - Runtime dynamic module loading is explicitly a **non-goal** of the current OBX v0 format.
 
 Therefore, treat Model B as a later step once the module ABI is stable and the security model is precise.
@@ -798,7 +798,7 @@ The “iOS-safe” end state is:
 Key supporting docs:
 
 - `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes` (compiler-in-AVM section)
-- `docs/OBC_MODULE_LINKING.md` (precompiled stdlib bundle + relocations)
+- `docs/OBC.md` (precompiled stdlib bundle + relocations)
 - `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md` (stdlib specifiers + distribution models)
 
 ---

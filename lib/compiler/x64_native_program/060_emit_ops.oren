@@ -406,6 +406,159 @@ fn _x64_is_sum_add_list_mul_get(ctx, op, idx_name) {
     return {"sum": sum_name, "left": mul_info["left"], "right": mul_info["right"]}
 }
 
+fn _x64_parse_int_lit_expr(expr) {
+    if expr == nil || expr["type"] != "Integer" { return nil }
+    var v = intparse.parse_int_lit(expr["value"])
+    if oren_is_err(v) == true { return nil }
+    return v
+}
+
+fn _x64_match_mul_const(expr, name) {
+    if expr == nil || expr["type"] != "Infix" || expr["op"] != "*" { return nil }
+    var left = expr["left"]
+    var right = expr["right"]
+    if _x64_is_ident(left) == name {
+        return _x64_parse_int_lit_expr(right)
+    }
+    if _x64_is_ident(right) == name {
+        return _x64_parse_int_lit_expr(left)
+    }
+    return nil
+}
+
+fn _x64_collect_add_terms(expr, out) {
+    if expr == nil { return out }
+    if expr["type"] == "Infix" && expr["op"] == "+" {
+        out = _x64_collect_add_terms(expr["left"], out)
+        out = _x64_collect_add_terms(expr["right"], out)
+        return out
+    }
+    oren_list_push(out, expr)
+    return out
+}
+
+fn _x64_match_mod_term(expr, name) {
+    if expr == nil || expr["type"] != "Infix" || expr["op"] != "%" { return nil }
+    if _x64_is_ident(expr["left"]) != name { return nil }
+    var modv = _x64_parse_int_lit_expr(expr["right"])
+    if modv == nil || modv <= 0 { return nil }
+    return modv
+}
+
+fn _x64_match_lcg_update(expr, x_name) {
+    if expr == nil || expr["type"] != "Infix" || expr["op"] != "%" { return nil }
+    var mod_ident = expr["right"]
+    var mod_name = _x64_is_ident(mod_ident)
+    if mod_name == nil { return nil }
+    var left = expr["left"]
+    if left == nil || left["type"] != "Infix" || left["op"] != "+" { return nil }
+    var mul = _x64_match_mul_const(left["left"], x_name)
+    var add = _x64_parse_int_lit_expr(left["right"])
+    if mul == nil || add == nil {
+        mul = _x64_match_mul_const(left["right"], x_name)
+        add = _x64_parse_int_lit_expr(left["left"])
+    }
+    if mul == nil || add == nil { return nil }
+    return {"mul": mul, "add": add, "mod": mod_name}
+}
+
+fn _x64_match_sum_mod_update(expr, sum_name, x_name, idx_name, mod_name) {
+    if expr == nil || expr["type"] != "Infix" || expr["op"] != "%" { return nil }
+    if _x64_is_ident(expr["right"]) != mod_name { return nil }
+    var terms = []
+    _x64_collect_add_terms(expr["left"], terms)
+    if oren_list_len(terms) != 3 { return nil }
+    var saw_sum = false
+    var mod_x = nil
+    var mod_i = nil
+    var ti = 0
+    while ti < oren_list_len(terms) {
+        var t = terms[ti]
+        if _x64_is_ident(t) == sum_name {
+            saw_sum = true
+            ti = ti + 1
+            continue
+        }
+        var mx = _x64_match_mod_term(t, x_name)
+        if mx != nil {
+            if mod_x != nil { return nil }
+            mod_x = mx
+            ti = ti + 1
+            continue
+        }
+        var mi = _x64_match_mod_term(t, idx_name)
+        if mi != nil {
+            if mod_i != nil { return nil }
+            mod_i = mi
+            ti = ti + 1
+            continue
+        }
+        return nil
+    }
+    if saw_sum != true || mod_x == nil || mod_i == nil { return nil }
+    return {"mod_x": mod_x, "mod_i": mod_i}
+}
+
+fn _x64_match_fast_lcg_sum_while(ctx, op, locals) {
+    if op == nil || op["op"] != "while" { return nil }
+    if locals == nil { return nil }
+    var cond = op["cond"]
+    if cond == nil || cond["type"] != "Infix" { return nil }
+    if cond["op"] != "<" { return nil }
+    var idx_name = _x64_is_ident(cond["left"])
+    var n_name = _x64_is_ident(cond["right"])
+    if idx_name == nil || n_name == nil { return nil }
+    if oren_type_tag(locals[idx_name]) == 0 || oren_type_tag(locals[n_name]) == 0 { return nil }
+    if ctx["locals_inty"] != nil {
+        if ctx["locals_inty"][idx_name] != true { return nil }
+        if ctx["locals_inty"][n_name] != true { return nil }
+    }
+    var body = op["body"]
+    if body == nil || oren_list_len(body) != 3 { return nil }
+
+    var lcg_op = body[0]
+    var sum_op = body[1]
+    var inc_op = body[2]
+    if _x64_is_simple_inc_op(inc_op, idx_name) != true { return nil }
+
+    if lcg_op == nil || lcg_op["op"] != "assign_i32" { return nil }
+    var x_name = lcg_op["name"]
+    if x_name == nil || _x64_str_eq_bytes(x_name, idx_name) || _x64_str_eq_bytes(x_name, n_name) { return nil }
+    if oren_type_tag(locals[x_name]) == 0 { return nil }
+    if ctx["locals_inty"] != nil && ctx["locals_inty"][x_name] != true { return nil }
+
+    var lcg = _x64_match_lcg_update(lcg_op["expr"], x_name)
+    if lcg == nil { return nil }
+    var mod_name = lcg["mod"]
+    if mod_name == nil { return nil }
+    if _x64_str_eq_bytes(mod_name, idx_name) || _x64_str_eq_bytes(mod_name, n_name) || _x64_str_eq_bytes(mod_name, x_name) { return nil }
+    if oren_type_tag(locals[mod_name]) == 0 { return nil }
+    if ctx["locals_inty"] != nil && ctx["locals_inty"][mod_name] != true { return nil }
+
+    if sum_op == nil || sum_op["op"] != "assign_i32" { return nil }
+    var sum_name = sum_op["name"]
+    if sum_name == nil { return nil }
+    if _x64_str_eq_bytes(sum_name, idx_name) || _x64_str_eq_bytes(sum_name, n_name) || _x64_str_eq_bytes(sum_name, x_name) { return nil }
+    if oren_type_tag(locals[sum_name]) == 0 { return nil }
+    if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] != true { return nil }
+
+    var sum_info = _x64_match_sum_mod_update(sum_op["expr"], sum_name, x_name, idx_name, mod_name)
+    if sum_info == nil { return nil }
+    if _x64_expr_is_inty(ctx, sum_op["expr"]) != true { return nil }
+
+    return {
+        "idx": idx_name,
+        "n": n_name,
+        "x": x_name,
+        "sum": sum_name,
+        "mod": mod_name,
+        "mul": lcg["mul"],
+        "add": lcg["add"],
+        "mod_x": sum_info["mod_x"],
+        "mod_i": sum_info["mod_i"]
+    }
+}
+
 fn _x64_match_fast_list_int_push_while(ctx, op, locals) {
     if op == nil || op["op"] != "while" { return nil }
     if locals == nil { return nil }
@@ -1231,6 +1384,110 @@ fn _emit_fast_list_int_get_sum_while_x64(ctx, op, info, locals, labels, local_fi
     return nil
 }
 
+fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
+    if ctx == nil || op == nil || info == nil { return nil }
+    if locals == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    if ctx["runtime_injected"] != true { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+
+    var idx_name = info["idx"]
+    var n_name = info["n"]
+    var x_name = info["x"]
+    var sum_name = info["sum"]
+    var mod_name = info["mod"]
+    var mul = info["mul"]
+    var add = info["add"]
+    var mod_x = info["mod_x"]
+    var mod_i = info["mod_i"]
+
+    var off_idx = locals[idx_name]
+    var off_n = locals[n_name]
+    var off_x = locals[x_name]
+    var off_sum = locals[sum_name]
+    var off_mod = locals[mod_name]
+    if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 || oren_type_tag(off_x) == 0 ||
+       oren_type_tag(off_sum) == 0 || oren_type_tag(off_mod) == 0 {
+        return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    }
+
+    var l_slow = _new_label(ctx, "lcg_sum_slow")
+    var l_fast_cond = _new_label(ctx, "lcg_sum_cond")
+    var l_fast_end = _new_label(ctx, "lcg_sum_end")
+    var l_done = _new_label(ctx, "lcg_sum_done")
+
+    // mod <= 0 => slow
+    _emit_mov_r64_mrbp(ctx, 12, 0 - off_mod)
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(12, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "le", l_slow)
+
+    // constants in callee-saved regs (survive runtime calls)
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(13, mul))  // r13 = mul
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(14, add))  // r14 = add
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(15, mod_x)) // r15 = mod_x
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(3, mod_i)) // rbx = mod_i
+
+    _emit_label(ctx, labels, l_fast_cond)
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx) // rax = i
+    _emit_mov_r64_mrbp(ctx, 1, 0 - off_n)   // rcx = n
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 1))
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_fast_end)
+
+    _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
+
+    // reload i/x/sum/mod
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx) // rax = i
+    _emit_mov_r64_mrbp(ctx, 10, 0 - off_x)  // r10 = x
+    _emit_mov_r64_mrbp(ctx, 11, 0 - off_sum) // r11 = sum
+    _emit_mov_r64_mrbp(ctx, 12, 0 - off_mod) // r12 = mod
+
+    // x = x*mul + add
+    bytes_extend(ctx["code"], insn_imul_r64_r64(10, 13))
+    bytes_extend(ctx["code"], insn_add_r64_r64(10, 14))
+
+    // x = x % mod
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_cqo())
+    bytes_extend(ctx["code"], insn_idiv_r64(12))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2)) // r10 = rdx
+
+    // term_x = x % mod_x
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+    bytes_extend(ctx["code"], insn_cqo())
+    bytes_extend(ctx["code"], insn_idiv_r64(15))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(6, 2)) // rsi = rdx
+
+    // term_i = i % mod_i
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
+    bytes_extend(ctx["code"], insn_cqo())
+    bytes_extend(ctx["code"], insn_idiv_r64(3)) // rbx
+    bytes_extend(ctx["code"], insn_mov_r64_r64(7, 2)) // rdi = rdx
+
+    // sum = (sum + term_x + term_i) % mod
+    bytes_extend(ctx["code"], insn_add_r64_r64(11, 6))
+    bytes_extend(ctx["code"], insn_add_r64_r64(11, 7))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
+    bytes_extend(ctx["code"], insn_cqo())
+    bytes_extend(ctx["code"], insn_idiv_r64(12))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 2)) // r11 = rdx
+
+    _emit_mov_mrbp_r64(ctx, 0 - off_x, 10)
+    _emit_mov_mrbp_r64(ctx, 0 - off_sum, 11)
+
+    // i++
+    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
+    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 1))
+    _emit_mov_mrbp_r64(ctx, 0 - off_idx, 0)
+
+    _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
+
+    _emit_label(ctx, labels, l_fast_end)
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+
+    _emit_label(ctx, labels, l_slow)
+    _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+    _emit_label(ctx, labels, l_done)
+    return nil
+}
+
 fn _emit_fast_list_get_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
     if ctx == nil || op == nil || info == nil { return nil }
     if locals == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
@@ -1890,31 +2147,36 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_label(ctx, labels, end_label)
         } else if op["op"] == "while" {
-            var fast_info = _x64_match_fast_list_int_push_while(ctx, op, locals)
-            if fast_info != nil {
-                _emit_fast_list_int_push_while_x64(ctx, op, fast_info, locals, labels, local_fixups, epilogue_label, platform)
+            var fast_lcg = _x64_match_fast_lcg_sum_while(ctx, op, locals)
+            if fast_lcg != nil {
+                _emit_fast_lcg_sum_while_x64(ctx, op, fast_lcg, locals, labels, local_fixups, epilogue_label, platform)
             } else {
-                var fast_box_push = _x64_match_fast_list_push_while(ctx, op, locals)
-                if fast_box_push != nil {
-                    _emit_fast_list_push_while_x64(ctx, op, fast_box_push, locals, labels, local_fixups, epilogue_label, platform)
+                var fast_info = _x64_match_fast_list_int_push_while(ctx, op, locals)
+                if fast_info != nil {
+                    _emit_fast_list_int_push_while_x64(ctx, op, fast_info, locals, labels, local_fixups, epilogue_label, platform)
                 } else {
-                    var fast_dot = _x64_match_fast_list_int_dot_while(ctx, op, locals)
-                    if fast_dot != nil {
-                    _emit_fast_list_int_dot_while_x64(ctx, op, fast_dot, locals, labels, local_fixups, epilogue_label, platform)
+                    var fast_box_push = _x64_match_fast_list_push_while(ctx, op, locals)
+                    if fast_box_push != nil {
+                        _emit_fast_list_push_while_x64(ctx, op, fast_box_push, locals, labels, local_fixups, epilogue_label, platform)
                     } else {
-                        var fast_box_dot = _x64_match_fast_list_dot_while(ctx, op, locals)
-                        if fast_box_dot != nil {
-                        _emit_fast_list_dot_while_x64(ctx, op, fast_box_dot, locals, labels, local_fixups, epilogue_label, platform)
+                        var fast_dot = _x64_match_fast_list_int_dot_while(ctx, op, locals)
+                        if fast_dot != nil {
+                            _emit_fast_list_int_dot_while_x64(ctx, op, fast_dot, locals, labels, local_fixups, epilogue_label, platform)
                         } else {
-                            var fast_get = _x64_match_fast_list_int_get_sum_while(ctx, op, locals)
-                            if fast_get != nil {
-                                _emit_fast_list_int_get_sum_while_x64(ctx, op, fast_get, locals, labels, local_fixups, epilogue_label, platform)
+                            var fast_box_dot = _x64_match_fast_list_dot_while(ctx, op, locals)
+                            if fast_box_dot != nil {
+                                _emit_fast_list_dot_while_x64(ctx, op, fast_box_dot, locals, labels, local_fixups, epilogue_label, platform)
                             } else {
-                                var fast_box_get = _x64_match_fast_list_get_sum_while(ctx, op, locals)
-                                if fast_box_get != nil {
-                                    _emit_fast_list_get_sum_while_x64(ctx, op, fast_box_get, locals, labels, local_fixups, epilogue_label, platform)
+                                var fast_get = _x64_match_fast_list_int_get_sum_while(ctx, op, locals)
+                                if fast_get != nil {
+                                    _emit_fast_list_int_get_sum_while_x64(ctx, op, fast_get, locals, labels, local_fixups, epilogue_label, platform)
                                 } else {
-                                    _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+                                    var fast_box_get = _x64_match_fast_list_get_sum_while(ctx, op, locals)
+                                    if fast_box_get != nil {
+                                        _emit_fast_list_get_sum_while_x64(ctx, op, fast_box_get, locals, labels, local_fixups, epilogue_label, platform)
+                                    } else {
+                                        _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+                                    }
                                 }
                             }
                         }

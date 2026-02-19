@@ -40,7 +40,8 @@ Some earlier discussions referenced a `ui-idea.md` scratch file.
 
 To avoid stale pointers, `ui-idea.md` now exists as a **short redirect** to the current design docs.
 
-Treat this document (`docs/GUI.md`) and the shim plan (`docs/GUI_PLATFORM_SHIMS.md`) as the current source of truth.
+Treat this document (`docs/GUI.md`) as the current source of truth for GUI design, shim bring-up, and the
+optional ImGui shell.
 
 ## 0.2) Where Dear ImGui fits (and where it doesn't)
 
@@ -59,7 +60,8 @@ Design note (fact-based):
 - This matches Oren’s rolling need for reliable “window + input + present” loops on Tier‑1, while still
   keeping Oren’s UI semantics in `std:ui`.
 
-See `docs/GUI_IMGUI_SHELL.md` for the concrete integration shape and the in-repo upstream snapshots.
+See the “Optional bring-up shell: Dear ImGui” section below for the concrete integration shape and
+the in-repo upstream snapshots.
 
 ## 1) Recommended architecture: UI bytecode + native shell + UI capability domain
 
@@ -274,9 +276,165 @@ Oren’s native backend should interact with this shim via FFI:
 
 This keeps the core repo syscall-first while acknowledging that GUI requires platform frameworks.
 
-For an actionable v0 bring-up plan (RGBA framebuffer shims per OS, minimal ABI), see:
+### 3.1) Platform shim bring-up plan (OrenUI v0)
 
-- `docs/GUI_PLATFORM_SHIMS.md`
+Current repo state (fact):
+
+- In-tree shim header: `native/orenui/orenui.h`
+- macOS shim implementation exists: `native/orenui/cocoa/orenui_cocoa.m`
+- Windows shim bring-up exists: `native/orenui/win32/orenui_win32.c` (v0 skeleton; window + present + pump)
+- Linux/X11 shim bring-up exists: `native/orenui/x11/orenui_x11.c` (v0 skeleton; window + present + pump)
+- Smoke gate (macOS-only; requires GUI session): `scripts/verify_ui_smoke_macos.sh` (`make verify-ui-smoke-macos`)
+- Smoke gate (Windows; requires GUI session): `scripts/verify_ui_smoke_windows.sh` (`make verify-ui-smoke-windows`)
+  - MSVC environment is auto-configured via `scripts/win_msvc_cmd.cmd` (no VS Developer Prompt required).
+- Smoke gate (Linux; requires X11 GUI session + dev libs): `scripts/verify_ui_smoke_linux.sh` (`make verify-ui-smoke-linux`)
+  - Build detail: links with `-pthread` + `libX11` (some distros still require explicit pthread linkage).
+- Missing today (still true):
+  - Stable input/event schema (v0 currently only supports close/pump reliably).
+  - DPI/scale reporting beyond “best-effort scale=1”.
+  - Wayland support (future; X11 is the v0 target).
+
+v0 must do:
+
+1) Create a window with a pixel surface (RGBA).
+2) Pump OS events (mouse, keyboard, resize, close).
+3) Present a provided RGBA framebuffer to the window at interactive rates.
+4) Provide DPI scale (or at least a stable “scale=1” until implemented).
+
+v0 must not do:
+
+- Implement layout/widgets/state (belongs in `std:ui/*`).
+- Expose platform APIs directly to user Oren code (avoid Win32/X11/Cocoa leakage).
+- Require a GPU API just to show pixels.
+
+Recommended v0 boundary: “RGBA blit shell”
+
+- UI core:
+  - `std:ui/render`: tree → deterministic command buffer
+  - `std:ui/raster`: commands → RGBA bytes
+- Shim:
+  - `present_rgba(win_id, w, h, rgba_bytes, stride)` → display
+  - `poll_event(win_id, timeout_ms)` → return next event
+
+This matches the existing headless rasterizer, so platform shims can start by “just blitting pixels”
+without committing to a GPU backend.
+
+ABI surface options (choose one for implementation):
+
+Option A (preferred): C ABI + flat POD (no structs in v0)
+
+- Repo fact (today): the v0 ABI in `native/orenui/orenui.h` intentionally avoids `struct`/`union` parameters.
+- Events are returned via an `int64[5]` out buffer (`orenui_poll_event(..., out5_i64_ptr)`).
+
+Event payloads (v0, implemented):
+
+- `ORENUI_EV_CLOSE`:
+  - `out[0]=1`, rest `0`
+- `ORENUI_EV_RESIZE`:
+  - `out[0]=2`, `out[1]=w`, `out[2]=h`
+- `ORENUI_EV_MOUSE_MOVE`:
+  - `out[0]=3`, `out[1]=x`, `out[2]=y`, `out[3]=mods`
+- `ORENUI_EV_MOUSE_DOWN` / `ORENUI_EV_MOUSE_UP`:
+  - `out[0]=4/5`, `out[1]=btn (1=left,2=middle,3=right)`, `out[2]=x`, `out[3]=y`, `out[4]=mods`
+- `ORENUI_EV_KEY_DOWN` / `ORENUI_EV_KEY_UP`:
+  - `out[0]=6/7`, `out[1]=key (platform raw)`, `out[2]=mods`
+- `ORENUI_EV_TEXT`:
+  - `out[0]=8`, `out[1]=codepoint (best-effort)`, `out[2]=mods`
+
+Notes:
+
+- `mods` bitmask (v0): `1=shift`, `2=ctrl`, `4=alt`, `8=super` (best-effort across OSes).
+- Key codes are currently platform-raw; a stable cross-platform key enum is a future layer.
+- Unicode text is best-effort in v0; full IME and surrogate pairing are future work.
+
+Suggested C ABI (v0):
+
+- Window lifecycle:
+  - `int32_t orenui_open_window(const char* title_utf8, int32_t w, int32_t h);`
+  - `void orenui_close_window(int32_t win_id);`
+  - `void orenui_set_title(int32_t win_id, const char* title_utf8);` (optional)
+- Frame:
+  - `int32_t orenui_begin_frame(int32_t win_id, struct OrenUIFrameInfo* out);`
+  - `int32_t orenui_present_rgba(int32_t win_id, int32_t w, int32_t h, const uint8_t* rgba, int32_t stride);`
+- Events:
+  - Implemented (repo): `int32_t orenui_poll_event(int32_t win_id, int32_t timeout_ms, int64_t out5_i64_ptr);`
+    - returns: `0 = none`, `1 = event`, `<0 = error`
+    - `out[0] = type`, `out[1..4] = payload` (see `native/orenui/orenui.h`)
+
+Future (v1+):
+
+- Switch to explicit `struct OrenUIEvent` / `struct OrenUIFrameInfo` once Oren FFI has a stable
+  “struct by pointer” story.
+
+Option B: C ABI returning “event maps” (slower, but closer to Oren values)
+
+- Pros: matches the event map examples in this doc directly.
+- Cons: requires JSON parsing in the event loop (extra allocations + latency), harder to keep stable across backends.
+
+Unless we absolutely need this for AVM-first integration, prefer Option A.
+
+Per-platform v0 implementation notes (RGBA blit):
+
+Windows (`x64-windows`)
+
+- Window creation: `CreateWindowExW` + message loop (`PeekMessageW` / `GetMessageW`)
+- Blit strategy (v0):
+  - `StretchDIBits` (simple) or
+  - `CreateDIBSection` + `BitBlt` (often faster)
+- Events:
+  - mouse: `WM_MOUSEMOVE`, `WM_LBUTTONDOWN`/`UP`, `WM_RBUTTONDOWN`/`UP`, etc.
+  - keyboard: `WM_KEYDOWN`/`UP`, `WM_CHAR`
+  - resize: `WM_SIZE`
+  - close: `WM_CLOSE`
+- DPI:
+  - start with `scale=1` unless `WM_DPICHANGED`/`GetDpiForWindow` is used.
+
+Linux (`arm64-linux`, `x64-linux`)
+
+- Start with X11 for reach; Wayland can be added later.
+- Window creation: Xlib (`XOpenDisplay`, `XCreateSimpleWindow`, `XMapWindow`)
+- Event pump: `XPending`/`XNextEvent`
+- Blit strategy (v0):
+  - `XPutImage` with an `XImage` that wraps the RGBA buffer (conversion may be required)
+  - later: XShm for performance
+- DPI:
+  - v0: `scale=1`
+  - later: derive from Xft/DPI settings or per-monitor info
+
+macOS (`arm64-macos`)
+
+- Window creation: `NSApplication` + `NSWindow` + `NSView`
+- Event pump: `-[NSApp nextEventMatchingMask:untilDate:inMode:dequeue:]`
+- Blit strategy (v0):
+  - create `CGImage`/`CGBitmapContext` from RGBA bytes and draw in `drawRect`
+  - later: Metal texture upload path (v1)
+- DPI:
+  - `backingScaleFactor` on the window/screen
+
+Bring-up hazard (observed):
+
+- If the host program is not a traditional Cocoa `main()` that calls `-[NSApplication run]`,
+  “per-call” `@autoreleasepool { ... }` blocks inside a shim can crash under repeated use.
+  Prefer a single long-lived pool owned by the shell (or reintroduce pools only after the
+  run loop ownership model is settled).
+
+Concrete v0 deliverables (what to build next):
+
+1) Finalize the shim ABI (`native/orenui/orenui.h`):
+   - lock a minimal set of v0 calls (open/close/poll/begin_frame/present_rgba)
+   - lock the `OrenUIEvent` tagged union layout
+2) macOS (`arm64-macos`):
+   - keep iterating `native/orenui/cocoa/orenui_cocoa.m` until the v0 ABI is fully implemented
+   - keep `scripts/verify_ui_smoke_macos.sh` green (headful; opt-in)
+3) Windows (`x64-windows`):
+   - add `native/orenui/win32/*` implementing the same ABI using Win32 + GDI (RGBA blit)
+   - keep `scripts/verify_ui_smoke_windows.sh` green (headful; opt-in)
+4) Linux (`x64-linux`, `arm64-linux`):
+   - add `native/orenui/x11/*` implementing the same ABI using Xlib + XPutImage (v0)
+   - keep `scripts/verify_ui_smoke_linux.sh` green (headful; opt-in; WSL2 is not a GUI target by default)
+5) Oren-side integration:
+   - done: `std:ui/host` bindings exist (`lib/std/ui/host.oren`) and convert the flat `int64[5]` payload into an event map
+   - done: `examples/ui_hello.oren` opens a window and draws a `std:ui` frame (uses `std:ui/host`)
 
 ## 4) Packaging model
 
@@ -352,29 +510,75 @@ These are still valuable but should not be the only correctness story.
 
 ### Optional bring-up shell: Dear ImGui (integration candidate)
 
-Dear ImGui is a widely used, “bloat-free” immediate-mode C++ UI library with many platform/render backends.
-For Oren, the most promising use is **not** “replace the planned portable UI core with ImGui”, but:
+Oren’s planned UI stack is retained-mode and portable at the `std:ui/*` level.
+Dear ImGui is immediate-mode and does **not** replace the Oren app UI API.
 
-- use ImGui as a **cross-platform shell layer** (window + input pump + GPU backend)
-- keep Oren’s **portable UI core** (`std:ui/*`) as the source of truth (tree/layout/diff/render/raster)
+Non-conflicting roles:
 
-Concretely, a minimal bring-up path is:
+1) **Devtools / inspector overlay** (recommended)
+   - layout inspector / widget tree explorer
+   - perf overlays (layout/raster timing, allocations, GC stats)
+   - debug consoles / REPL surfaces
+2) **Bring-up shell shortcut** (optional, non-blocking)
+   - provides “window + input + GPU present” earlier on platforms with mature ImGui backends
+   - keeps `std:ui` as the portable user API
 
-1) Oren UI core renders into an RGBA framebuffer (already implemented: `std:ui/raster`)
-2) A tiny native shell uploads the buffer as a texture and displays it each frame
-3) Input events are translated into the Oren event schema and fed back into the VM/UI core
+Why ImGui does not replace `std:ui`:
 
-This is attractive because it reduces the “platform shim” surface area early:
+- ImGui is immediate-mode (great for tooling, not a declarative retained-mode widget system).
+- Oren UI must be deterministic for AVM/headless tests.
+- Long-term Oren UI needs stable reflection + data binding; ImGui is intentionally minimal.
 
-- we don’t need to commit to Metal vs D3D vs Vulkan immediately (ImGui backends already exist)
-- we can bring up “window + present” quickly while preserving deterministic headless testing
+Practical integration shape (recommended):
 
-Tradeoffs (why this stays optional):
+- Keep ImGui out of the language core and out of `std:ui` semantics.
+- `std:ui/*` stays the stable API (layout/render/raster + event model).
+- Platform shims (`native/orenui/*`) remain the thin “window + event pump + present” layer.
+- An ImGui path can exist as an **optional shell**:
+  - `native/orenui/imgui_shell/*` (or `native/orenshell_imgui/*`) compiled as a shared library
+  - provides the same C ABI as other platform shims (or a superset ABI for devtools only)
+  - can host an ImGui overlay and/or drive presentation through an existing renderer backend
 
-- ImGui is immediate-mode: great for tools/debug UIs, but it is not a declarative retained-mode widget system.
-- The long-run production API for Oren apps should still be the stable, portable `std:ui` model, not a C++-FFI-heavy surface.
+Why ImGui is a good fit for Oren’s “no-bloat” philosophy (facts):
 
-Upstream reference material (downloaded into this repo for auditing): `project-doc/web/github.com/ocornut/imgui/`.
+- **Bloat-free core + no external deps:** self-contained and renderer-agnostic (see upstream README).
+- **Decoupled rendering:** outputs draw lists / vertex buffers for your pipeline.
+- **Small surface area:** immediate-mode API with minimal “state synchronization” overhead.
+- **Mature cross-platform backend ecosystem:** upstream maintains multiple platform/render backends.
+- **License:** MIT (see upstream license).
+
+Known limitations (fact; important for Oren UI long-term):
+
+- Upstream explicitly targets programmer tools (not full end-user UI), and does not aim to solve
+  full i18n text shaping or accessibility out of the box. This is why it remains optional.
+
+Backend audit (sources in-repo):
+
+- `project-doc/web/github.com/ocornut/imgui/20260113/docs_BACKENDS.md`
+- `project-doc/web/github.com/ocornut/imgui/20260113/docs_README.md`
+- `project-doc/web/github.com/ocornut/imgui/20260113/docs_FAQ.md`
+- `project-doc/web/github.com/ocornut/imgui/20260113/root_index.json` / `docs_index.json` (GitHub API snapshots)
+
+Tier‑1 constraints (Oren):
+
+- Tier‑1 targets (rolling): `arm64-macos`, `arm64-linux`, `x64-windows`, `x64-linux`.
+- The repo’s Tier‑1 x64 Linux environment is currently validated via **WSL2** for CI-like bring-up.
+  WSL2 is not a reliable GUI target by default. Treat Linux GUI as a real Linux desktop session target,
+  not as part of remote WSL2 smoke gates.
+
+Next actions (non-blocking):
+
+- Keep bringing up `native/orenui/*` per-platform shims (RGBA present + input pump).
+- Once one shim is stable, add an opt-in ImGui overlay build that can:
+  - attach to the same window
+  - show Oren UI debug state (frame timings, command buffer stats)
+- Defer any “use ImGui to render Oren UI widgets” until Oren’s retained-mode UI API is stable.
+
+Suggested backend choices (Tier‑1 oriented; not commitments):
+
+- **Windows x64:** Win32 window + D3D11 renderer backend.
+- **macOS arm64:** Cocoa window + Metal backend (avoid OpenGL as the primary path).
+- **Linux x64:** X11 window + OpenGL backend (widest reach; Wayland can come later).
 
 ## 6.1) Current implementation status (v0)
 

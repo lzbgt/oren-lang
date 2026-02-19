@@ -231,14 +231,14 @@ production maturity requires both implementation *and* regression coverage.
 - **Stdlib resolution/distribution**
   - “User friendly imports” vs embedding vs precompiled `.obc` bundles needs a single
     coherent model that works for both native and AVM.
-  - Related docs: `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md`, `docs/OBC_MODULE_LINKING.md`
+  - Related docs: `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md`, `docs/OBC.md`
 
 - **Packages + registry + reproducible builds**
   - For production, the language needs a coherent “package → build artifact” story:
     - module naming / resolution,
     - lockfiles, hashes, deterministic builds,
     - support for precompiled `.obc` libraries (OBX exports/relocs) in AVM.
-  - Track: `docs/OBC_MODULE_LINKING.md`, `docs/TOOLCHAIN_SELF_HOSTING.md`, `docs/TODOS.md` (P1.2, P1.4).
+  - Track: `docs/OBC.md`, `docs/TOOLCHAIN_SELF_HOSTING.md`, `docs/TODOS.md` (P1.2, P1.4).
 
 - **Trust / signing / update channels for multiverse**
   - Multiverse implies “code moves between universes”; production needs a root-of-trust:

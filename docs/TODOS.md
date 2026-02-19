@@ -288,9 +288,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - RSS (median): native ~7.75MB, Oren C ~4.47MB, OBC ~9.34MB.
      - Target: native ≤0.50s on M2 with stable RSS (met 2026‑02‑19).
      - Stretch: ≤0.08s by reducing per-alloc tracking overhead and string concat allocations in alloc_drop.
-  - (P1/M) **Loop_sum native still ~6.4× C; Oren C ~5.3×; OBC ~1.53×**
-    - Latest (runs=5, warmups=1): C 0.065691s, Oren C 0.345414s (~5.26×), native 0.422405s (~6.43×), OBC 0.100786s (~1.53×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_132532.md`).
+  - (P1/M) **Loop_sum native still ~6.4× C; Oren C ~5.2×; OBC ~1.52×**
+    - Latest (runs=5, warmups=1): C 0.066929s, Oren C 0.347221s (~5.19×), native 0.425688s (~6.36×), OBC 0.101455s (~1.52×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_135452.md`).
     - Note: OBC speedup comes from emitting fused AVM `INT_LCG_SUM_LOOP` for the LCG+sum loop pattern.
+    - New (2026-02-19): C/native backends now emit a fast LCG+sum loop lowering; verify it triggers on `benchmarks/loop_sum/loop_sum.oren` and profile remaining overhead.
     - Target: native ≤0.25s (≤4× C) and Oren C ≤0.20s (≤3× C) while keeping correctness gates.
   - (P2/S) **Array_sum list access now ~5.0× C (native); Oren C ~1.90×; OBC ~2.41×**
     - Latest: native 0.020951s vs C 0.004190s (`benchmarks/results/array_sum_darwin_arm64_20260219_130446.md`).
@@ -557,9 +558,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    Docs:
 
-	   - `docs/GUI.md`, `docs/GUI_PLATFORM_SHIMS.md`
-	   - Optional Dear ImGui shell/overlay: `docs/GUI_IMGUI_SHELL.md` (devtools + bring-up accelerator, not the app UI API)
-	     - Upstream reference snapshots (verbatim) live under `project-doc/web/github.com/ocornut/imgui/` (do not rely on memory/folklore).
+	   - `docs/GUI.md` (architecture, shim bring-up plan, optional Dear ImGui shell/overlay)
+	     - Upstream reference snapshots (verbatim) live under `project-doc/web/github.com/ocornut/imgui/`
+	       (do not rely on memory/folklore).
 	     - Latest snapshot (fact): `project-doc/web/github.com/ocornut/imgui/20260113/`
 	   - Historical pointer: `ui-idea.md` (redirect to the above; avoids stale references)
 
@@ -1192,8 +1193,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - Blocker (2026-02-19): local docker CLI returns `EOF` for `docker ps` (cannot access Tier‑1 container `c7e5f7bd9f5c`); restore docker daemon/CLI access.
   - Reduce Oren C boxing cost in list<int> loops by avoiding intermediate `OrenValue` temporaries where possible (keep fast-path bounds checks).
   - Audit compiler internal string comparisons under the native backend; prefer `str_eq`/string-aware helpers to avoid pointer-eq traps in name matching.
+  - Split oversized compiler backends into smaller, testable modules (SOLID): `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/x64_native_program/060_emit_ops.oren`, and `lib/compiler/transpiler.oren`.
   - Extend AVM list<int> bytecode fast paths beyond push (e.g. LIST_SUM_INT / LIST_DOT_INT / indexed sum loop) or adopt unboxed list<int> storage in AVM; target OBC <= ~10× C on list<int> benchmarks.
   - Audit root `README.md` + key docs for outdated build/test/bench/remote instructions; refresh to match current rolling workflows, and continue design-doc consolidation (merge overlapping design specs into canonical docs; remove stubs/duplicates).
+    - 2026-02-19: merged GUI platform shim + ImGui shell docs into `docs/GUI.md`; removed `docs/GUI_PLATFORM_SHIMS.md` and `docs/GUI_IMGUI_SHELL.md` and updated references.
+    - 2026-02-19: merged OBC portability + module linking docs into `docs/OBC.md`; removed `docs/OBC_MODULE_LINKING.md` and `docs/OBC_PORTABILITY.md` and updated references.
 
 ## P1 (Soon)
 
@@ -1221,7 +1225,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    References:
 
    - `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes` (compiler-in-AVM section)
-   - `docs/OBC_MODULE_LINKING.md` (OBX v0 for compile-time linking)
+   - `docs/OBC.md` (OBX v0 for compile-time linking)
    - `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md` (stdlib distribution models)
    - `docs/AVM_DESIGN.md#avm-plugins-nesting-obc-first-ios-safe-rolling` (plugin model A vs B; tracker split)
 

@@ -22,6 +22,7 @@ This folder contains the **canonical specs** and living design notes for Oren (r
 
 - Language: `docs/LANGUAGE_SPEC.md`
 - AVM (bootstrap spec + next-gen plan section): `docs/AVM_SPEC.md`
+- OBC portability + module linking (OBX): `docs/OBC.md`
 
 ## 3) Runtime / Backend Design
 
