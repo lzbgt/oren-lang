@@ -167,6 +167,7 @@ class BenchConfig:
     warmups: int
     rss_enabled: bool
     output_check: bool
+    skip_build: bool
     skip_obc: bool
     skip_c: bool
     skip_oren_c: bool
@@ -236,29 +237,41 @@ def _run_one(program, cfg: BenchConfig):
     oren_bin = _resolve_exe(ROOT / "oren_stage2")
     c_compiler = _pick_c_compiler()
 
-    if not cfg.skip_c:
-        _run(
-            _c_compile_cmd(c_compiler, c_bin, bench_dir / f"{program}.c"),
-            log_path=LOG_DIR / f"bench_build_c_{program}_{ts}.log",
-        )
-    if not cfg.skip_oren_c:
-        _run(
-            [str(oren_bin), "build", str(bench_src), "--backend", "c", "--no-debug", "-o", str(oren_c_bin)],
-            log_path=LOG_DIR / f"bench_build_oren_c_{program}_{ts}.log",
-        )
-    if not cfg.skip_native:
-        _run(
-            [str(oren_bin), "build", str(bench_src), "--backend", "native", "--no-debug", "-o", str(oren_native_bin)],
-            log_path=LOG_DIR / f"bench_build_oren_native_{program}_{ts}.log",
-        )
-    if not cfg.skip_obc:
-        _run(
-            [str(oren_bin), "build", str(bench_src), "--backend", "bytecode", "-o", str(obc_out)],
-            log_path=LOG_DIR / f"bench_build_oren_obc_{program}_{ts}.log",
-        )
+    if not cfg.skip_build:
+        if not cfg.skip_c:
+            _run(
+                _c_compile_cmd(c_compiler, c_bin, bench_dir / f"{program}.c"),
+                log_path=LOG_DIR / f"bench_build_c_{program}_{ts}.log",
+            )
+        if not cfg.skip_oren_c:
+            _run(
+                [str(oren_bin), "build", str(bench_src), "--backend", "c", "--no-debug", "-o", str(oren_c_bin)],
+                log_path=LOG_DIR / f"bench_build_oren_c_{program}_{ts}.log",
+            )
+        if not cfg.skip_native:
+            _run(
+                [str(oren_bin), "build", str(bench_src), "--backend", "native", "--no-debug", "-o", str(oren_native_bin)],
+                log_path=LOG_DIR / f"bench_build_oren_native_{program}_{ts}.log",
+            )
+        if not cfg.skip_obc:
+            _run(
+                [str(oren_bin), "build", str(bench_src), "--backend", "bytecode", "-o", str(obc_out)],
+                log_path=LOG_DIR / f"bench_build_oren_obc_{program}_{ts}.log",
+            )
 
-    if not cfg.skip_obc and not avm_bin.exists():
-        _run(["make", "avm"], log_path=LOG_DIR / f"bench_build_avm_{ts}.log")
+        if not cfg.skip_obc and not avm_bin.exists():
+            _run(["make", "avm"], log_path=LOG_DIR / f"bench_build_avm_{ts}.log")
+    else:
+        if not cfg.skip_c and not c_bin.exists():
+            raise RuntimeError(f"missing C binary for {program}: {c_bin} (disable OREN_BENCH_SKIP_BUILD)")
+        if not cfg.skip_oren_c and not oren_c_bin.exists():
+            raise RuntimeError(f"missing Oren C binary for {program}: {oren_c_bin} (disable OREN_BENCH_SKIP_BUILD)")
+        if not cfg.skip_native and not oren_native_bin.exists():
+            raise RuntimeError(f"missing native binary for {program}: {oren_native_bin} (disable OREN_BENCH_SKIP_BUILD)")
+        if not cfg.skip_obc and not obc_out.exists():
+            raise RuntimeError(f"missing OBC output for {program}: {obc_out} (disable OREN_BENCH_SKIP_BUILD)")
+        if not cfg.skip_obc and not avm_bin.exists():
+            raise RuntimeError(f"missing AVM binary: {avm_bin} (disable OREN_BENCH_SKIP_BUILD)")
 
     results = {}
     outputs = {}
@@ -336,6 +349,7 @@ def _run_one(program, cfg: BenchConfig):
         "program": program,
         "output": first_out,
         "output_check": cfg.output_check,
+        "skip_build": cfg.skip_build,
         "rss_enabled": cfg.rss_enabled,
         "skip_obc": cfg.skip_obc,
         "env_overrides": {
@@ -411,6 +425,7 @@ def main():
     warmups = int(os.environ.get("OREN_BENCH_WARMUPS", DEFAULT_WARMUPS))
     rss_enabled = int(os.environ.get("OREN_BENCH_RSS", DEFAULT_RSS)) == 1
     output_check = int(os.environ.get("OREN_BENCH_OUTPUT_CHECK", "1")) == 1
+    skip_build = int(os.environ.get("OREN_BENCH_SKIP_BUILD", "0")) == 1
     skip_obc = int(os.environ.get("OREN_BENCH_SKIP_OBC", "0")) == 1
     skip_c = int(os.environ.get("OREN_BENCH_SKIP_C", "0")) == 1
     skip_oren_c = int(os.environ.get("OREN_BENCH_SKIP_OREN_C", "0")) == 1
@@ -430,6 +445,7 @@ def main():
         warmups=warmups,
         rss_enabled=rss_enabled,
         output_check=output_check,
+        skip_build=skip_build,
         skip_obc=skip_obc,
         skip_c=skip_c,
         skip_oren_c=skip_oren_c,
