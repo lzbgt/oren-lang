@@ -86,6 +86,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Auto-loop wrapping now ignores `continue` inside nested loops (outer loop still eligible).
    - Auto-loop now inserts arena pop on `break`/`return`/`continue` in the same loop body.
      - `continue` is allowed for `while` and `for` loops (post executes outside the arena).
+   - `OREN_ARENA_PER_ITER=1` switches auto‑mode to per‑iteration push/pop for long‑lived loops.
    - Define long‑lived loop policy:
      - Prefer per‑iteration sub‑arenas when loop trip count is unbounded or long‑lived.
      - Values that escape an iteration allocate in GC/outer arenas (no arena aliasing).

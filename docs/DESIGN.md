@@ -275,6 +275,8 @@ Proposed compiler strategy (first slice):
   - Rewrites only **unconditional top‑level** `var`/`assign` list allocations in the loop
     body (no conditional/nested rewrites).
   - List literals (empty or non‑empty) are expanded to arena alloc + ordered pushes.
+  - `OREN_ARENA_PER_ITER=1` switches auto‑mode to per‑iteration push/pop instead of
+    loop‑scoped arenas (helps long‑lived loops).
    - Requires the allocation to **dominate first use** in the loop body
      (use‑before‑assign skips rewriting).
    - Only wraps loops without `break`/`return`/`continue` in the same loop body

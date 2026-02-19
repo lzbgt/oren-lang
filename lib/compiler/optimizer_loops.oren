@@ -957,6 +957,10 @@ fn _opt_arena_auto_enabled() {
     return oren_env("OREN_ARENA_AUTO_LOOP") != nil
 }
 
+fn _opt_arena_per_iter_enabled() {
+    return oren_env("OREN_ARENA_PER_ITER") != nil
+}
+
 fn _opt_stmt_has_attr(stmt, name) {
     if stmt == nil { return false }
     var attrs = stmt["attrs"]
@@ -1076,6 +1080,7 @@ fn _opt_prepare_loop_arena(block, idx, stmt) {
     if stmt["type"] == "While" { allow_continue = true }
     if stmt["type"] == "For" { allow_continue = true }
     if _opt_has_continue_stmt(body) == true && allow_continue != true { return false }
+    var per_iter = _opt_arena_per_iter_enabled()
     var candidates = []
     _opt_collect_loop_new_list_vars(body, candidates)
     var safe_vars = []
@@ -1105,14 +1110,25 @@ fn _opt_prepare_loop_arena(block, idx, stmt) {
     var ss = body["stmts"]
     if ss == nil { ss = []; body["stmts"] = ss }
     var out = []
-    oren_list_push(out, _opt_make_arena_stmt("oren_arena_push"))
+    if per_iter == true { oren_list_push(out, _opt_make_arena_stmt("oren_arena_push")) }
     var i = 0
     while i < oren_list_len(ss) {
         oren_list_push(out, ss[i])
         i = i + 1
     }
-    oren_list_push(out, _opt_make_arena_stmt("oren_arena_pop"))
+    if per_iter == true { oren_list_push(out, _opt_make_arena_stmt("oren_arena_pop")) }
     body["stmts"] = out
+    if per_iter != true {
+        var out2 = []
+        oren_list_push(out2, _opt_make_arena_stmt("oren_arena_push"))
+        var i2 = 0
+        while i2 < oren_list_len(body["stmts"]) {
+            oren_list_push(out2, body["stmts"][i2])
+            i2 = i2 + 1
+        }
+        oren_list_push(out2, _opt_make_arena_stmt("oren_arena_pop"))
+        body["stmts"] = out2
+    }
     return true
 }
 
