@@ -12,6 +12,17 @@ var g_arena_bytes_used = 0
 var g_arena_bytes_cap = 0
 var g_arena_inited = 0
 
+// Arena tracing (optional; enable via OREN_TRACE_ARENA=1).
+var g_arena_trace_enabled = 0
+var g_arena_alloc_count = 0
+var g_arena_alloc_bytes = 0
+var g_arena_spill_count = 0
+var g_arena_spill_bytes = 0
+var g_arena_push_count = 0
+var g_arena_pop_count = 0
+var g_arena_epoch_reset_count = 0
+var g_arena_mmap_fail_count = 0
+
 // Arena tracking table (ptr -> node). Cleared when arena depth returns to 0.
 var g_arena_table_ptr = 0
 var g_arena_table_cap = 0
@@ -38,6 +49,32 @@ fn native_arena_init_once() {
     return 0
 }
 
+fn native_arena_trace_enable() {
+    g_arena_trace_enabled = 1
+    return 0
+}
+
+fn native_arena_trace_dump_and_reset() {
+    if g_arena_trace_enabled == 0 { return 0 }
+    print("[arena] allocs=" + oren_int_to_string(g_arena_alloc_count) +
+        " alloc_bytes=" + oren_int_to_string(g_arena_alloc_bytes) +
+        " spills=" + oren_int_to_string(g_arena_spill_count) +
+        " spill_bytes=" + oren_int_to_string(g_arena_spill_bytes) +
+        " push=" + oren_int_to_string(g_arena_push_count) +
+        " pop=" + oren_int_to_string(g_arena_pop_count) +
+        " epoch_reset=" + oren_int_to_string(g_arena_epoch_reset_count) +
+        " mmap_fail=" + oren_int_to_string(g_arena_mmap_fail_count))
+    g_arena_alloc_count = 0
+    g_arena_alloc_bytes = 0
+    g_arena_spill_count = 0
+    g_arena_spill_bytes = 0
+    g_arena_push_count = 0
+    g_arena_pop_count = 0
+    g_arena_epoch_reset_count = 0
+    g_arena_mmap_fail_count = 0
+    return 0
+}
+
 fn native_arena_alloc_raw(size) {
     if g_arena_depth <= 0 { return 0 }
     if size <= 0 { return 0 }
@@ -45,7 +82,13 @@ fn native_arena_alloc_raw(size) {
     var want = native_arena_align16(size)
     if g_arena_bytes_cap > 0 {
         var next = g_arena_bytes_used + want
-        if next > g_arena_bytes_cap { return 0 }
+        if next > g_arena_bytes_cap {
+            if g_arena_trace_enabled != 0 {
+                g_arena_spill_count = g_arena_spill_count + 1
+                g_arena_spill_bytes = g_arena_spill_bytes + want
+            }
+            return 0
+        }
     }
     var cur = g_arena_ptr
     var lim = g_arena_limit
@@ -53,18 +96,38 @@ fn native_arena_alloc_raw(size) {
         var chunk = native_arena_chunk_size()
         if want > chunk { chunk = want }
         var base = sys_mmap_private_anon(chunk)
-        if base == 0 { return 0 }
-        if base == -1 { return 0 }
-        if native_is_neg_i64(base) == true { return 0 }
-        if base < 4096 { return 0 }
+        if base == 0 {
+            if g_arena_trace_enabled != 0 { g_arena_mmap_fail_count = g_arena_mmap_fail_count + 1 }
+            return 0
+        }
+        if base == -1 {
+            if g_arena_trace_enabled != 0 { g_arena_mmap_fail_count = g_arena_mmap_fail_count + 1 }
+            return 0
+        }
+        if native_is_neg_i64(base) == true {
+            if g_arena_trace_enabled != 0 { g_arena_mmap_fail_count = g_arena_mmap_fail_count + 1 }
+            return 0
+        }
+        if base < 4096 {
+            if g_arena_trace_enabled != 0 { g_arena_mmap_fail_count = g_arena_mmap_fail_count + 1 }
+            return 0
+        }
         g_arena_base = base
         g_arena_ptr = iadd(base, want)
         g_arena_limit = iadd(base, chunk)
         g_arena_bytes_used = g_arena_bytes_used + want
+        if g_arena_trace_enabled != 0 {
+            g_arena_alloc_count = g_arena_alloc_count + 1
+            g_arena_alloc_bytes = g_arena_alloc_bytes + want
+        }
         return base
     }
     g_arena_ptr = iadd(cur, want)
     g_arena_bytes_used = g_arena_bytes_used + want
+    if g_arena_trace_enabled != 0 {
+        g_arena_alloc_count = g_arena_alloc_count + 1
+        g_arena_alloc_bytes = g_arena_alloc_bytes + want
+    }
     return cur
 }
 
@@ -198,12 +261,14 @@ fn native_arena_alloc_k(size, kind) {
 fn native_arena_push() {
     if g_arena_inited == 0 { native_arena_init_once() }
     g_arena_depth = g_arena_depth + 1
+    if g_arena_trace_enabled != 0 { g_arena_push_count = g_arena_push_count + 1 }
     return 0
 }
 
 fn native_arena_pop() {
     if g_arena_depth <= 0 { return 0 }
     g_arena_depth = g_arena_depth - 1
+    if g_arena_trace_enabled != 0 { g_arena_pop_count = g_arena_pop_count + 1 }
     if g_arena_depth == 0 {
         if g_arena_base != 0 {
             g_arena_ptr = g_arena_base
@@ -214,6 +279,10 @@ fn native_arena_pop() {
         g_arena_bytes_used = 0
         native_arena_table_clear()
         native_find_cache_clear()
+        if g_arena_trace_enabled != 0 {
+            g_arena_epoch_reset_count = g_arena_epoch_reset_count + 1
+            native_arena_trace_dump_and_reset()
+        }
     }
     return 0
 }

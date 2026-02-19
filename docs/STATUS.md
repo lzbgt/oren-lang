@@ -78,6 +78,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Compiler: `OREN_ARENA_AUTO_LOOP=1` wraps simple loops that call `oren_arena_new_list(_int)` with push/pop.
    - Define long‑lived loop policy: per‑iteration sub‑arenas when safe; otherwise loop‑scoped arena with cap + GC spill.
    - Add arena‑lifetime counters (spills, epoch resets) to quantify long‑loop behavior.
+   - `OREN_TRACE_ARENA=1` prints arena alloc/spill counters at arena epoch reset.
    - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
 
 3) **W4 - List reserve + unchecked push** (M)
