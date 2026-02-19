@@ -1037,7 +1037,9 @@ void avm_run(AvmVM* vm) {
         vm->pc++;
 
         // Tracing is best-effort and must never affect program semantics.
-        (void)trace_emit_step(vm, op_pc, op);
+        if (vm->trace_hash_enabled || vm->trace_bytes_enabled) {
+            (void)trace_emit_step(vm, op_pc, op);
+        }
         if (vm->trace_enabled && (!vm->trace_limit || vm->gas_executed <= vm->trace_limit)) {
             FILE* out = vm->trace_out ? vm->trace_out : stderr;
             fprintf(out, "TRACE pc=%d op=0x%02x %s sp=%d fp=%d depth=%d gas=%llu\n",
