@@ -61,14 +61,7 @@ static AvmAllocHdr* avm_alloc_hdr_from_ptr(void* p) {
     return h;
 }
 
-static unsigned avm_tmp_bucket_index(size_t size) {
-    uint64_t h = (uint64_t)size;
-    h ^= h >> 7;
-    h ^= h >> 13;
-    return (unsigned)(h & (uint64_t)(AVM_FREELIST_BUCKETS - 1));
-}
-
-static unsigned avm_list_bucket_index(size_t size) {
+static unsigned avm_freelist_bucket_index(size_t size) {
     if (size <= 1) return 0;
     unsigned idx = 0;
     size_t v = size;
@@ -88,7 +81,7 @@ static int avm_tmp_freelist_enabled(AvmVM* owner, size_t size) {
 
 static AvmAllocHdr* avm_tmp_freelist_take(AvmVM* owner, size_t size) {
     if (!owner) return NULL;
-    unsigned idx = avm_tmp_bucket_index(size);
+    unsigned idx = avm_freelist_bucket_index(size);
     if (!owner->tmp_freelist_buckets[idx]) {
         owner->tmp_freelist_misses++;
         return NULL;
@@ -120,7 +113,7 @@ static int avm_tmp_freelist_push(AvmVM* owner, AvmAllocHdr* h) {
         owner->tmp_freelist_evictions++;
         return 0;
     }
-    unsigned idx = avm_tmp_bucket_index((size_t)h->size);
+    unsigned idx = avm_freelist_bucket_index((size_t)h->size);
     h->alloc_flags |= AVM_ALLOC_FLAG_FREELIST;
     h->prev = NULL;
     h->next = (AvmAllocHdr*)owner->tmp_freelist_buckets[idx];
@@ -138,7 +131,7 @@ static int avm_list_freelist_enabled(AvmVM* owner, size_t size) {
 
 static AvmAllocHdr* avm_list_freelist_take(AvmVM* owner, size_t size) {
     if (!owner) return NULL;
-    unsigned idx = avm_list_bucket_index(size);
+    unsigned idx = avm_freelist_bucket_index(size);
     if (!owner->list_freelist_buckets[idx]) {
         owner->list_freelist_misses++;
         return NULL;
@@ -170,7 +163,7 @@ static int avm_list_freelist_push(AvmVM* owner, AvmAllocHdr* h) {
         owner->list_freelist_evictions++;
         return 0;
     }
-    unsigned idx = avm_list_bucket_index((size_t)h->size);
+    unsigned idx = avm_freelist_bucket_index((size_t)h->size);
     h->alloc_flags |= AVM_ALLOC_FLAG_FREELIST;
     h->prev = NULL;
     h->next = (AvmAllocHdr*)owner->list_freelist_buckets[idx];
