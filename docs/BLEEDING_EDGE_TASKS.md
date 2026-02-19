@@ -8,7 +8,7 @@ kept in sync with `docs/STATUS.md`.
 
 ---
 
-## User/client goals (bleeding-edge)
+## As a user/client, bleeding-edge features I want
 
 - Deterministic execution with capability-gated effects (FS/NET/PROC/ENV/TIME/RNG) across backends.
 - Performance parity with C on hot loops and allocation-heavy workloads.
@@ -16,7 +16,7 @@ kept in sync with `docs/STATUS.md`.
 - Portable bytecode (AVM) that runs deterministically and supports sandboxed execution.
 - Tooling reliability: fast incremental builds, stable CLI, reproducible outputs.
 
-## Architect/designer goals (bleeding-edge)
+## As a system architect/designer, bleeding-edge features I want
 
 - Converged tagged-value representation across native/C/AVM (one model, staged migration).
 - Deterministic scheduler (native + AVM) with explicit budgets and safe GC interaction.

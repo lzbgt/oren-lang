@@ -86,7 +86,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Auto-loop wrapping now ignores `continue` inside nested loops (outer loop still eligible).
    - Auto-loop now inserts arena pop on `break`/`return`/`continue` in the same loop body.
      - `continue` is allowed for `while` and `for` loops (post executes outside the arena).
-   - Define long‑lived loop policy: per‑iteration sub‑arenas when safe; values that escape an iteration must allocate in GC/outer arenas; otherwise loop‑scoped arena with cap + GC spill.
+   - Define long‑lived loop policy:
+     - Prefer per‑iteration sub‑arenas when loop trip count is unbounded or long‑lived.
+     - Values that escape an iteration allocate in GC/outer arenas (no arena aliasing).
+     - Loop‑scoped arenas must enforce `OREN_ARENA_CAP_BYTES` and spill to GC beyond cap.
+     - Add periodic epoch resets for long‑running loops to prevent unbounded growth.
    - Add arena‑lifetime counters (spills, epoch resets) to quantify long‑loop behavior.
    - `OREN_TRACE_ARENA=1` prints arena alloc/spill counters at arena epoch reset.
    - Arena tracking table now resets via epoch generation bump (avoids O(cap) clears per iteration).
@@ -132,6 +136,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 2) **Perf parity W5: allocation/GC** (L, W5)
    - Execute item 2 in the performance tracker (alloc_churn + alloc_drop).
+   - Include long‑lived loop arena policy (per‑iteration sub‑arenas + spill + epoch reset).
    - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
 
 3) **Tagged value convergence plan** (L, W4)
@@ -152,7 +157,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 2) **SIMD/typed buffer bring-up on x64** (M, W3)
 3) **AVM allocation slabs + list<int> lowering** (M, W3)
 4) **Deterministic AVM scheduler (budgeted)** (L, W3)
-6) **Loop‑local arena prototype for list/list_int** (L, W5)
+5) **Loop‑local arena prototype for list/list_int** (L, W5)
 
 ## P2 (Later)
 
