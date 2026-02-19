@@ -13,7 +13,6 @@ No archives. No stubs. When a task is done enough, summarize it and move on.
 - Tie work to a regression gate (benchmark or test).
 - Update fixtures and this doc when behavior changes.
 - High-level goals live in `docs/BLEEDING_EDGE_TASKS.md`.
-- High-level goals live in `docs/BLEEDING_EDGE_TASKS.md`.
 
 ---
 
@@ -65,6 +64,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Split runtime init vs steady-state cost and quantify the init gap (see `benchmarks/RESULTS_LATEST.md` notes).
    - Const-divisor `%` is now inlined for literal/const RHS (arm64 + x64).
    - Boxed list dot/get-sum regression guard added to native QI (2026-02-19).
+   - Fast-loop safepoints now reset GC tick after safepoint to avoid tick spills (arm64 list-sum, x64 LCG sum).
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
@@ -131,6 +131,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 1) **Allow non-macOS hosts for partial targets** (S, W2)
 2) **Package manager / signed module workflow** (M, W2)
+3) **Refactor oversized native emitters (>2000 lines)** (M, W2)
 
 ---
 
