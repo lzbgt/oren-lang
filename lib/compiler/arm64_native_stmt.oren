@@ -1511,11 +1511,10 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
     var jpos_tick_skip_slow = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ne skip
-    emit_str_reg_sp_any(ctx, 9, tick_off)
     var bl_tick_slow = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_tick_slow, "name": "oren_gc_safepoint"})
-    emit_ldr_reg_sp_any(ctx, 9, tick_off)
+    push_u32_le(ctx["code"], insn_movz(9, 0)) // reset tick after safepoint
     push_u32_le(ctx["code"], insn_movz(10, 1023))
     var tick_skip_pos_slow = bytes_len(ctx["code"])
     var tick_skip_off_slow = (tick_skip_pos_slow - jpos_tick_skip_slow) / 4
