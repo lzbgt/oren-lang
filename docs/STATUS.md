@@ -110,6 +110,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Treat `oren_new_list(0)` as list-literal for reserve insertion (loop bound -> reserve).
    - Reserve insertion now descends into nested loops with outer list literals and adds list literal length to the reserve amount when known.
    - Native array literal lowering now calls `oren_new_list(n)` (pre-reserve capacity).
+   - Native list-literal lowering now uses `oren_list_push_unchecked` for element pushes.
    - Gate: native `array_sum` and `multi_list_push_int` <= 2x C.
 
 4) **W4 - Tagged value representation convergence** (L)

@@ -841,7 +841,7 @@ fn _opt_rewrite_new_list_in_stmt(stmt, safe_vars) {
                         var ei = 0
                         while ei < oren_list_len(els) {
                             var push_call = ast.new_call(st["token"],
-                                {"type": "Identifier", "token": nil, "value": "oren_list_push"},
+                                {"type": "Identifier", "token": nil, "value": "oren_list_push_unchecked"},
                                 [{"type": "Identifier", "token": nil, "value": nm3}, els[ei]])
                             oren_list_push(out, {"type": "ExprStmt", "token": st["token"], "expr": push_call})
                             ei = ei + 1

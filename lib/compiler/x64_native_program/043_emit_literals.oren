@@ -93,7 +93,7 @@ fn _emit_array_literal_expr(ctx, expr, locals) {
     while i < n {
         var push_call = {
             "type": "Call",
-            "fn": {"type": "Identifier", "token": nil, "value": "oren_list_push"},
+            "fn": {"type": "Identifier", "token": nil, "value": "oren_list_push_unchecked"},
             "args": [{"type": "Identifier", "token": nil, "value": hn}, els[i]],
         }
         _emit_eval_int_to_rax(ctx, push_call, locals)
