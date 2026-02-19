@@ -156,6 +156,6 @@ echo "- If you see 'x64 native v0: missing ABI arg reg', treat it as a backend b
   echo "  - on remote Win11, also inspect: project-doc/remote/<timestamp>/stage2_windows_env.log"
   echo "  - if the log is only a few lines and mentions a backslash path like 'examples\\myapp',"
   echo "    it often indicates a stale/out-of-date remote compiler binary; sync+rebuild stage2 and re-run the Tier-1 gates:"
-  echo "      - docs/REMOTE_X64_ENV.md (sync+rebuild sequence)"
+  echo "      - docs/TOOLCHAIN_PLATFORMS.md (sync+rebuild sequence)"
   echo "      - ./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win"
   echo "- If the log is huge, rerun with smaller output: --max 30 --tail 80"

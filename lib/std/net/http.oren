@@ -7,7 +7,7 @@
 //   - either pass an explicit resolver config (`http.get_text_resolver`)
 //   - or rely on `dns.default_resolver` (env `OREN_DNS_SERVER`, else `/etc/resolv.conf` on POSIX)
 // - Content-Length and Transfer-Encoding: chunked bodies
-// - https:// via `std:net/tls` when a TLS provider exists for the target OS (see docs/NET_TLS.md)
+// - https:// via `std:net/tls` when a TLS provider exists for the target OS (see docs/RUNTIME.md)
 //
 // The goal is to provide a stable module path for native Oren libraries to build on
 // while we iterate toward a full production NET stack (HTTP/2 + WebSocket + TLS + DNS).
@@ -85,7 +85,7 @@ fn _starts_with(s, prefix) {
 fn _parse_http_url(url) {
     // Supported:
     //   http://<host>[:port][/path]
-    //   https://<host>[:port][/path]  (TLS provider availability is OS-dependent; see docs/NET_TLS.md)
+    //   https://<host>[:port][/path]  (TLS provider availability is OS-dependent; see docs/RUNTIME.md)
     //
     // Where <host> can be an IPv4 literal or a hostname (resolved separately).
     //
@@ -385,7 +385,7 @@ fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
     //   {"ok":0, "err":string}
     //
     // Notes:
-    // - supports http:// and https:// (TLS provider availability is OS-dependent; see docs/NET_TLS.md)
+    // - supports http:// and https:// (TLS provider availability is OS-dependent; see docs/RUNTIME.md)
     // - connection-close only (no keep-alive pooling yet)
     // - headers are returned as a list of owned strings (caller may free via `response_free`)
     //
@@ -449,7 +449,7 @@ fn get_response_resolver_opts(url, timeout_ms, resolver, opts) {
         }
 
         // NOTE: deterministic pinning is enforced by `std:net/tls` itself when
-        // `tls_opts["pin_cert_sha256_hex"]` is provided (see docs/NET_TLS.md).
+        // `tls_opts["pin_cert_sha256_hex"]` is provided (see docs/RUNTIME.md).
     }
 
     var req = _build_get_request(host, path)

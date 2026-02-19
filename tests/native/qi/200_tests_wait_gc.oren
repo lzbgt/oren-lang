@@ -1,6 +1,6 @@
 fn test_wait_on_addr_mismatch_is_success() {
     trace("QI: test_wait_on_addr_mismatch_is_success")
-    // Contract (docs/CONCURRENCY_MODEL.md):
+    // Contract (docs/LANGUAGE.md):
     // - `oren_wait_on_addr(addr, expected, timeout_us)` waits while *addr == expected
     // - if *addr != expected, it must return 0 immediately (no error)
     //

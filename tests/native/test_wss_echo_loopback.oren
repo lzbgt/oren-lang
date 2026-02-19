@@ -56,7 +56,7 @@ fn u16be_at(p, off) {
 
 @cfg(not_os="macos,linux,windows")
 fn main() {
-    // WSS/TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/NET_TLS.md.
+    // WSS/TLS provider bring-up starts on macOS; other Tier‑1 OS providers are tracked in docs/RUNTIME.md.
     exit(0)
 }
 

@@ -5,7 +5,7 @@
 // `oren_track_alloc(k, ..., 1)`, and rely on compiler lowering to treat that as a `string`
 // kind hint so native codegen selects `oren_map_get_str`.
 //
-// Gated by `OREN_REMOTE_RUN=1` (Win11 + WSL2 x86_64). See: docs/REMOTE_X64_ENV.md
+// Gated by `OREN_REMOTE_RUN=1` (Win11 + WSL2 x86_64). See: docs/TOOLCHAIN_PLATFORMS.md
 
 fn main() {
     var m = {}

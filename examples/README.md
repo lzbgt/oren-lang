@@ -37,5 +37,5 @@ make examples-test
 ## Running notes
 
 - Linux ELF and Windows PE artifacts are not runnable on macOS hosts.
-  - Use a Linux machine or the Win11+WSL2 remote workflow: `docs/REMOTE_X64_ENV.md`.
+  - Use a Linux machine or the Win11+WSL2 remote workflow: `docs/TOOLCHAIN_PLATFORMS.md`.
 

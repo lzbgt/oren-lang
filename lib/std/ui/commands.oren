@@ -6,7 +6,7 @@
 // - headless rasterizer and future platform shims can share a single validator
 // - tests can assert that emitters produce valid command buffers
 //
-// See `docs/GUI.md` for the current v0 schema.
+// See `docs/RUNTIME.md` for the current v0 schema.
 
 import ui_color "std:ui/color"
 
