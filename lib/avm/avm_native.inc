@@ -1969,7 +1969,16 @@ AvmValue avm_call_native(AvmVM* vm, uint16_t id, AvmValue* args, int nargs) {
         }
         case 150: { // oren_type_name(v) -> string
             if (nargs > 0) {
-                res = avm_string(avm_oren_type_name_from_tag(avm_oren_type_tag(args[0])));
+                AvmValue v = args[0];
+                if (v.type == AVM_VAL_MAP) {
+                    AvmValue outv;
+                    if (avm_map_get_key(v, "__oren_type", &outv)) {
+                        if (outv.type == AVM_VAL_STRING) { res = outv; break; }
+                    }
+                    res = avm_string("map");
+                } else {
+                    res = avm_string(avm_oren_type_name_from_tag(avm_oren_type_tag(v)));
+                }
             } else {
                 res = avm_err(AVM_ERR_INVALID_ARG, "oren_type_name expects (value)");
             }

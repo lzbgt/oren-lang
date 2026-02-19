@@ -11,6 +11,7 @@ fn main() {
     var xs_int = oren_new_list_int(0)
     oren_list_int_push(xs_int, 1)
     var m = {"k": 1}
+    var tm = {"__oren_type": "Widget", "v": 7}
     var b = buffer.u8_new(4)
     var f = id
 
@@ -23,6 +24,7 @@ fn main() {
     emit("list", xs)
     emit("list_int", xs_int)
     emit("map", m)
+    emit("type_map", tm)
     emit("func", f)
     emit("u8_buf", b)
     return 0
