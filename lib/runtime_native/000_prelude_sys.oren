@@ -269,6 +269,7 @@ fn oren_exit(code) {
     // - `sys_exit(code)` is lowered directly to the platform syscall and does not return.
     // - This wrapper exists so source-level `exit(...)` works consistently across backends.
     if code == nil { code = 0 }
+    native_alloc_site_dump_and_reset()
     sys_exit(code)
     return 0
 }

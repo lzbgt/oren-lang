@@ -107,6 +107,18 @@ fn native_alloc_site_reset() {
     return 0
 }
 
+fn native_alloc_site_dump_and_reset() {
+    if g_trace_alloc_site == 0 { return 0 }
+    if g_alloc_site_ptr == 0 { return 0 }
+    print("[alloc_site] total=" + oren_int_to_string(g_alloc_site_total) +
+        " list_header=" + oren_int_to_string(native_alloc_site_get(1)) +
+        " list_int_header=" + oren_int_to_string(native_alloc_site_get(2)) +
+        " list_buf=" + oren_int_to_string(native_alloc_site_get(3)) +
+        " list_int_buf=" + oren_int_to_string(native_alloc_site_get(4)))
+    native_alloc_site_reset()
+    return 0
+}
+
 // Alloc-index tracing (optional; gated by g_trace_alloc_index).
 var g_alloc_index_rebuild_count = 0
 var g_alloc_index_rebuild_ns = 0
@@ -1984,16 +1996,7 @@ fn native_gc_collect() {
         g_gc_alloc_kind_raw = 0
         g_gc_alloc_kind_other = 0
     }
-    if g_trace_alloc_site != 0 {
-        if g_alloc_site_ptr != 0 {
-            print("[alloc_site] total=" + oren_int_to_string(g_alloc_site_total) +
-                " list_header=" + oren_int_to_string(native_alloc_site_get(1)) +
-                " list_int_header=" + oren_int_to_string(native_alloc_site_get(2)) +
-                " list_buf=" + oren_int_to_string(native_alloc_site_get(3)) +
-                " list_int_buf=" + oren_int_to_string(native_alloc_site_get(4)))
-            native_alloc_site_reset()
-        }
-    }
+    native_alloc_site_dump_and_reset()
     if g_trace_alloc_index != 0 {
         print("[alloc_index] rebuilds=" + oren_int_to_string(g_alloc_index_rebuild_count) +
             " rebuild_ns=" + oren_int_to_string(g_alloc_index_rebuild_ns) +

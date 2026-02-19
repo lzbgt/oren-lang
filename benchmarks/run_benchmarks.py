@@ -86,12 +86,13 @@ def _parse_rss_bytes(time_path):
     return None
 
 
-def _time_cmd(cmd, runs, warmups, env=None, rss_enabled=False, rss_dir=None):
+def _time_cmd(cmd, runs, warmups, env=None, rss_enabled=False, rss_dir=None, collect_output=False):
     for _ in range(warmups):
         _run(cmd, env=env)
     times = []
     rss = []
     out_sample = None
+    out_all = []
     for _ in range(runs):
         time_path = None
         if rss_enabled and rss_dir is not None:
@@ -102,8 +103,13 @@ def _time_cmd(cmd, runs, warmups, env=None, rss_enabled=False, rss_dir=None):
             rss_bytes = _parse_rss_bytes(time_path)
             if rss_bytes is not None:
                 rss.append(rss_bytes)
-        if out_sample is None:
+        if collect_output:
+            if out:
+                out_all.append(out.strip())
+        elif out_sample is None:
             out_sample = out.strip()
+    if collect_output:
+        return times, rss, "\n".join([s for s in out_all if s])
     return times, rss, out_sample
 
 
@@ -169,6 +175,7 @@ class BenchConfig:
     output_check: bool
     skip_build: bool
     save_stdout: bool
+    collect_output: bool
     skip_obc: bool
     skip_c: bool
     skip_oren_c: bool
@@ -308,6 +315,7 @@ def _run_one(program, cfg: BenchConfig):
             env=env,
             rss_enabled=cfg.rss_enabled,
             rss_dir=rss_dir,
+            collect_output=cfg.collect_output,
         )
         results[name] = {
             "runs": times,
@@ -444,6 +452,9 @@ def main():
     bench_args = shlex.split(bench_args_raw) if bench_args_raw else []
     trace_alloc_site = int(os.environ.get("OREN_BENCH_TRACE_ALLOC_SITE", "0")) == 1
     trace_alloc_site_cap = os.environ.get("OREN_BENCH_TRACE_ALLOC_SITE_CAP", "").strip()
+    trace_alloc_site_gc_threshold = os.environ.get(
+        "OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD", ""
+    ).strip()
     env_all = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_ALL", ""))
     env_c = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_C", ""))
     env_oren_c = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_OREN_C", ""))
@@ -455,10 +466,15 @@ def main():
             output_check = False
         if not save_stdout:
             save_stdout = True
+        if warmups != 0:
+            warmups = 0
         env_oren_native = dict(env_oren_native)
         env_oren_native["OREN_TRACE_ALLOC_SITE"] = "1"
         if trace_alloc_site_cap:
             env_oren_native["OREN_TRACE_ALLOC_SITE_CAP"] = trace_alloc_site_cap
+        if trace_alloc_site_gc_threshold:
+            env_oren_native["OREN_GC_AUTO"] = "1"
+            env_oren_native["OREN_GC_ALLOC_THRESHOLD"] = trace_alloc_site_gc_threshold
 
     config = BenchConfig(
         runs=runs,
@@ -467,6 +483,7 @@ def main():
         output_check=output_check,
         skip_build=skip_build,
         save_stdout=save_stdout,
+        collect_output=trace_alloc_site,
         skip_obc=skip_obc,
         skip_c=skip_c,
         skip_oren_c=skip_oren_c,
