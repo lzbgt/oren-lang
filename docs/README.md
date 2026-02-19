@@ -26,7 +26,7 @@ This folder contains the **canonical specs** and living design notes for Oren (r
 
 ## 3) Runtime / Backend Design
 
-- Syscall-first native runtime plan (no C shims): `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`
+- Core system plans (type system, syscall-first runtime, HPC): `docs/CORE_SYSTEM_PLANS.md`
 - Native backend notes: `docs/COMPILER_AND_BACKENDS.md#native-backend-overview`
 - C backend notes: `docs/COMPILER_AND_BACKENDS.md#c-backend-design-and-abi`
 - Collections + container ops + unboxed list<int> design: `docs/DESIGN_COLLECTIONS.md`

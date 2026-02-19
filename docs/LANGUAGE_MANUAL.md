@@ -1317,7 +1317,7 @@ Examples of native/AVM intrinsics include:
 - `oren_buf_load_f32(buf, idx)`
 - `oren_buf_store_f32(buf, idx, val)`
 
-See `docs/HPC_SERVER_PLAN.md` and `docs/AVM_AND_OBC.md#avm-neon-mapping-plan-arm64-no-jit-first` for direction and design constraints.
+See `docs/CORE_SYSTEM_PLANS.md` and `docs/AVM_AND_OBC.md#avm-neon-mapping-plan-arm64-no-jit-first` for direction and design constraints.
 - `@cap.requires(domain="...")` for capsule/capability gating of host-effectful APIs (see below)
 
 #### Strict attribute mode (compiler option)

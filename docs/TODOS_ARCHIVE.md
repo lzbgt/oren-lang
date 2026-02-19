@@ -1031,7 +1031,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 - Casting: compiler lowers builtin cast sugar (`u8(x)`, `i32(x)`, `f32(x)`, `bool(x)`, endian spellings like `u16be(x)`) into deterministic rewrites (no dynamic call overhead).
 - Casting: added `lib/std/casts.oren` as an optional clarity layer matching annotation lowering.
 - Tests: added regression module test `tests/modules/test_cast_sugar.oren` and wired it into `cmd/previous test runner`.
-- Docs: added `docs/TYPE_SYSTEM_PLAN.md` to guide gradual typing → generics/traits.
+- Docs: added `docs/CORE_SYSTEM_PLANS.md` to guide gradual typing -> generics/traits.
 - Stdlib: added `lib/std/linalg.oren` (scalar-first `dot_*`, `axpy_*`, `matmul_*`) with module test `tests/modules/test_linalg.oren` and previous test runner wiring.
 - Verified: `make test` on macOS + linux docker runner (`./tools/oretest_linux_docker.sh`) pass.
 
@@ -1768,7 +1768,7 @@ Priority model:
 
 - Completed / detailed history: `docs/TODOS_ARCHIVE.md`
 - Platform focus right now: **macOS arm64 first** (but avoid designs that block Linux arm64 later).
-- Roadmap driver: production **server-side HPC** requirements (Eigen/BLAS-like workloads), see `docs/HPC_SERVER_PLAN.md`.
+- Roadmap driver: production **server-side HPC** requirements (Eigen/BLAS-like workloads), see `docs/CORE_SYSTEM_PLANS.md`.
 
 ## Rules (Enforced For Every Task)
 

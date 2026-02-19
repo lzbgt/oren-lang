@@ -10,7 +10,7 @@ runtime **without relying on libc/pthreads shims**.
 
 Related:
 
-- `docs/SYSCALL_FIRST_RUNTIME_PLAN.md` (syscall-first runtime boundary)
+- `docs/CORE_SYSTEM_PLANS.md` (syscall-first runtime boundary)
 - `docs/CONCURRENCY_MODEL.md` (language-level concurrency surface)
 - `docs/AVM_AND_OBC.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly` (deterministic concurrency inside AVM; different goal)
 

@@ -93,7 +93,7 @@ Relevant existing docs:
 
 - Dynamic value representation work: `docs/COMPILER_AND_BACKENDS.md#native-tagged-value-representation`
 - Object model direction: `docs/OBJECT_MODEL.md`
-- Type-system stabilization direction: `docs/TYPE_SYSTEM_PLAN.md`
+- Type-system stabilization direction: `docs/CORE_SYSTEM_PLANS.md`
 - Attribute contract: `docs/ATTRIBUTES.md`
 
 Key constraints for reflection v1:
@@ -219,5 +219,5 @@ This is needed for safe “memcpy style” FFI tooling, but it must not leak int
 ## 8) Related work (tracked elsewhere)
 
 - Value representation refactor targets: `docs/COMPILER_AND_BACKENDS.md#native-tagged-value-representation`
-- Type-system stabilization targets: `docs/TYPE_SYSTEM_PLAN.md`
+- Type-system stabilization targets: `docs/CORE_SYSTEM_PLANS.md`
 - Stdlibrary layering (crypto/net split): `docs/STDLIB_LAYERS.md`

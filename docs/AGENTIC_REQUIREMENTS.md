@@ -256,6 +256,6 @@ This ordering is chosen to unlock “agent-grade” behavior early without requi
 
 - Docs index: `docs/README.md`
 - AVM spec (bootstrap + Next-Gen plan section): `docs/AVM_AND_OBC.md`
-- Syscall-first runtime plan: `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`
+- Syscall-first runtime plan: `docs/CORE_SYSTEM_PLANS.md`
 - Language spec: `docs/LANGUAGE_SPEC.md`
 - Concurrency model: `docs/CONCURRENCY_MODEL.md`

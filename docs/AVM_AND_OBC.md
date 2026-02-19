@@ -1444,7 +1444,7 @@ This document defines what “concurrency” should mean for **AVM** in the AI/a
 
 - AVM supports **nested universes** (AVM-in-AVM) (`docs/AVM_AND_OBC.md#avm-in-avm-multiverse-design-nested-virtual-universes`)
 - AVM targets restricted environments (iOS/Web/Edge) and must stay **no-JIT-first**
-- Oren’s native runtime roadmap is **syscall-first** and avoids libc/pthreads (`docs/SYSCALL_FIRST_RUNTIME_PLAN.md`)
+- Oren’s native runtime roadmap is **syscall-first** and avoids libc/pthreads (`docs/CORE_SYSTEM_PLANS.md`)
 
 The key requirement is not raw throughput; it is **deterministic, governable concurrency** that composes with:
 

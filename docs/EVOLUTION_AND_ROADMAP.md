@@ -293,6 +293,7 @@ Canonical references for deeper detail:
 
 - AVM spec + Next-Gen plan: `docs/AVM_AND_OBC.md`
 - Agentic requirements: `docs/AGENTIC_REQUIREMENTS.md`
+- Core system plans (type system, syscall-first runtime, HPC): `docs/CORE_SYSTEM_PLANS.md`
 - Backends overview: `docs/COMPILER_AND_BACKENDS.md`
 - Self-hosting: `docs/SELF_HOSTING.md`
 - Toolchain bootstrap: `docs/TOOLCHAIN_SELF_HOSTING.md`

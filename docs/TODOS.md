@@ -1356,10 +1356,13 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
    Goal:
 
    - Merge the remaining plan docs into a small, organized set without stubs:
-     - `docs/TYPE_SYSTEM_PLAN.md`
-     - `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`
-     - `docs/HPC_SERVER_PLAN.md`
-   - Update references and doc index entries to the new consolidated files.
+     - `docs/CORE_SYSTEM_PLANS.md` (replaces type system, syscall-first runtime, and HPC plans)
+   - Update references and doc index entries to the new consolidated file.
+
+   Status (fact):
+
+   - 2026-02-19: merged type system + syscall-first runtime + HPC plans into `docs/CORE_SYSTEM_PLANS.md`
+     and updated references; removed the legacy files.
 
 ## Tier‑1 verification blockers (operational)
 
