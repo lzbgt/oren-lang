@@ -65,6 +65,11 @@ case "$uname_s" in
   *) echo "unsupported host OS: $uname_s" >&2; exit 2 ;;
 esac
 
+if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
+  # Slightly more headroom on macOS to avoid flaky quick-integration timeouts.
+  run_timeout_secs=8
+fi
+
 arch_key=""
 case "$uname_m" in
   arm64|aarch64) arch_key="arm64" ;;
