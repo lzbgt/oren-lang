@@ -232,6 +232,17 @@ fn bytes_set_u32_le(b, offset, n) {
     return nil
 }
 
+fn bytes_set_u16_le(b, offset, n) {
+    // Patch a u16 into an existing bytes builder (little-endian).
+    var used = _bytes_len_raw(b)
+    if offset < 0 || offset + 1 >= used { oren_fail(1, "bytes_set_u16_le: index out of bounds") }
+    var dstp = oren_buf_data_ptr_unchecked(b["buf"])
+    if dstp == 0 { oren_fail(1, "bytes_set_u16_le: buf data ptr is nil") }
+    ptr_set_byte(iadd(dstp, offset + 0), _int_mod_pos(n, 256))
+    ptr_set_byte(iadd(dstp, offset + 1), _int_mod_pos(n / 256, 256))
+    return nil
+}
+
 fn bytes_set_u64_le(b, offset, n) {
     // Patch a u64 into an existing bytes builder (little-endian).
     //

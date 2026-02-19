@@ -558,6 +558,64 @@ OrenValue oren_bytes_set_u8(OrenValue bytes, OrenValue index, OrenValue value) {
     return oren_int(v);
 }
 
+OrenValue oren_bytes_unpack(OrenValue bytes) {
+    if (!(bytes.type == OREN_TYPE_LIST || bytes.type == OREN_TYPE_U8_BUF)) {
+        return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_unpack expects list<int> or u8_buf"));
+    }
+    int count = 0;
+    if (bytes.type == OREN_TYPE_LIST) {
+        if (!bytes.as.list_val) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_unpack: list is nil"));
+        count = bytes.as.list_val->count;
+    } else {
+        OrenBuf* b = bytes.as.buf_val;
+        if (!b || b->elem_size != 1u) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_unpack: expected u8_buf"));
+        if (b->len > (uint32_t)INT_MAX) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_unpack: length too large"));
+        count = (int)b->len;
+    }
+    if (count < 0) count = 0;
+
+    OrenList* list = malloc(sizeof(OrenList));
+    oren_register_alloc(list, OREN_ALLOC_LIST);
+    list->count = count;
+    list->capacity = count;
+    list->items = NULL;
+    list->all_int = 1;
+    if (count > 0) {
+        list->items = malloc(sizeof(OrenValue) * (size_t)count);
+        if (!list->items) {
+            return oren_err(oren_int(OREN_ERR_INTERNAL), oren_string("bytes_unpack: alloc failed"));
+        }
+    }
+
+    lock_collections();
+    if (bytes.type == OREN_TYPE_LIST) {
+        OrenList* src = bytes.as.list_val;
+        for (int i = 0; i < count; i++) {
+            OrenValue v = src->items[i];
+            if (v.type != OREN_TYPE_INT || v.as.int_val < 0 || v.as.int_val > 255) {
+                unlock_collections();
+                return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_unpack: expected list<int 0..255>"));
+            }
+            list->items[i] = oren_int(v.as.int_val);
+        }
+    } else {
+        OrenBuf* b = bytes.as.buf_val;
+        if (count > 0 && !b->data) {
+            unlock_collections();
+            return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_unpack: u8_buf payload is nil"));
+        }
+        for (int i = 0; i < count; i++) {
+            list->items[i] = oren_int((int64_t)b->data[i]);
+        }
+    }
+    unlock_collections();
+
+    OrenValue out;
+    out.type = OREN_TYPE_LIST;
+    out.as.list_val = list;
+    return out;
+}
+
 OrenValue oren_bytes_get_u16_be(OrenValue bytes, OrenValue index) {
     if (index.type != OREN_TYPE_INT) return oren_err(oren_int(OREN_ERR_INVALID_ARG), oren_string("bytes_get_u16_be expects (bytes:list<int>|u8_buf, idx:int)"));
     int idx = (int)index.as.int_val;

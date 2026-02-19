@@ -3,10 +3,10 @@ fn bytecode_compile_function(ctx, stmt) {
     var name = stmt["name"]
     
     emit_byte(ctx, AVM_JMP32)
-    var jump_skip_idx = oren_list_len(ctx["code"])
+    var jump_skip_idx = bytes.bytes_len(ctx["code"])
     emit_i32(ctx, 0)
     
-    var start_pc = oren_list_len(ctx["code"])
+    var start_pc = bytes.bytes_len(ctx["code"])
     // Map values that can be 0 are stored 1-based so 0 is representable while still using `nil`
     // as the sentinel for "missing" (decode at use sites via `enc-1`).
     ctx["functions"][name] = start_pc + 1
@@ -68,7 +68,7 @@ fn bytecode_compile_function(ctx, stmt) {
     emit_u16(ctx, idx)
     emit_byte(ctx, AVM_RET)
     
-    var end_pc = oren_list_len(ctx["code"])
+    var end_pc = bytes.bytes_len(ctx["code"])
     patch_u32(ctx, jump_skip_idx, end_pc - (jump_skip_idx + 4))
     
     ctx["locals"] = old_locals

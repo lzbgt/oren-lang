@@ -131,26 +131,26 @@ fn bytecode_compile_expr(ctx, expr) {
         bytecode_compile_expr(ctx, expr["cond"])
         
         emit_byte(ctx, AVM_JMP_IF32)
-        var jump_then_idx = oren_list_len(ctx["code"])
+        var jump_then_idx = bytes.bytes_len(ctx["code"])
         emit_i32(ctx, 0)
         
         emit_byte(ctx, AVM_JMP32)
-        var jump_else_idx = oren_list_len(ctx["code"])
+        var jump_else_idx = bytes.bytes_len(ctx["code"])
         emit_i32(ctx, 0)
         
-        var then_start = oren_list_len(ctx["code"])
+        var then_start = bytes.bytes_len(ctx["code"])
         bytecode_compile_stmt(ctx, expr["consq"])
         
         emit_byte(ctx, AVM_JMP32)
-        var jump_end_idx = oren_list_len(ctx["code"])
+        var jump_end_idx = bytes.bytes_len(ctx["code"])
         emit_i32(ctx, 0)
         
-        var else_start = oren_list_len(ctx["code"])
+        var else_start = bytes.bytes_len(ctx["code"])
         if expr["alt"] != nil {
             bytecode_compile_stmt(ctx, expr["alt"])
         }
         
-        var end_pc = oren_list_len(ctx["code"])
+        var end_pc = bytes.bytes_len(ctx["code"])
         
         patch_u32(ctx, jump_then_idx, then_start - (jump_then_idx + 4))
         patch_u32(ctx, jump_else_idx, else_start - (jump_else_idx + 4))
@@ -260,7 +260,7 @@ fn bytecode_compile_expr(ctx, expr) {
                 }
                 if ctx["declared_funcs"][name] == true || ctx["allow_undef"] == true {
                     emit_byte(ctx, AVM_PUSH_FUNC32)
-                    var fpos = oren_list_len(ctx["code"])
+                    var fpos = bytes.bytes_len(ctx["code"])
                     emit_u32(ctx, 0)
                     oren_list_push(ctx["fun_fixups"], {"pos": fpos, "name": name})
                     return nil
@@ -415,7 +415,7 @@ fn bytecode_compile_expr(ctx, expr) {
         }
         if ctx["declared_funcs"][name] == true {
             emit_byte(ctx, AVM_PUSH_FUNC32)
-            var fpos = oren_list_len(ctx["code"])
+            var fpos = bytes.bytes_len(ctx["code"])
             emit_u32(ctx, 0)
             oren_list_push(ctx["fun_fixups"], {"pos": fpos, "name": name})
             return nil
@@ -434,7 +434,7 @@ fn bytecode_compile_expr(ctx, expr) {
             bytecode_compile_expr(ctx, expr["left"])
 
             emit_byte(ctx, AVM_JMP_IF32)
-            var jump_eval_right = oren_list_len(ctx["code"])
+            var jump_eval_right = bytes.bytes_len(ctx["code"])
             emit_i32(ctx, 0)
 
             // left is falsey
@@ -442,28 +442,28 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_byte(ctx, AVM_PUSH_CONST)
             emit_u16(ctx, f_idx)
             emit_byte(ctx, AVM_JMP32)
-            var jump_end = oren_list_len(ctx["code"])
+            var jump_end = bytes.bytes_len(ctx["code"])
             emit_i32(ctx, 0)
 
-            var eval_right_pc = oren_list_len(ctx["code"])
+            var eval_right_pc = bytes.bytes_len(ctx["code"])
             bytecode_compile_expr(ctx, expr["right"])
             emit_byte(ctx, AVM_JMP_IF32)
-            var jump_push_true = oren_list_len(ctx["code"])
+            var jump_push_true = bytes.bytes_len(ctx["code"])
             emit_i32(ctx, 0)
 
             // right falsey
             emit_byte(ctx, AVM_PUSH_CONST)
             emit_u16(ctx, f_idx)
             emit_byte(ctx, AVM_JMP32)
-            var jump_end2 = oren_list_len(ctx["code"])
+            var jump_end2 = bytes.bytes_len(ctx["code"])
             emit_i32(ctx, 0)
 
-            var push_true_pc = oren_list_len(ctx["code"])
+            var push_true_pc = bytes.bytes_len(ctx["code"])
             var t_idx = add_constant(ctx, {"type": "Bool", "value": 1})
             emit_byte(ctx, AVM_PUSH_CONST)
             emit_u16(ctx, t_idx)
 
-            var end_pc = oren_list_len(ctx["code"])
+            var end_pc = bytes.bytes_len(ctx["code"])
             patch_u32(ctx, jump_eval_right, eval_right_pc - (jump_eval_right + 4))
             patch_u32(ctx, jump_push_true, push_true_pc - (jump_push_true + 4))
             patch_u32(ctx, jump_end, end_pc - (jump_end + 4))
@@ -476,14 +476,14 @@ fn bytecode_compile_expr(ctx, expr) {
             bytecode_compile_expr(ctx, expr["left"])
 
             emit_byte(ctx, AVM_JMP_IF32)
-            var jump_push_true_left = oren_list_len(ctx["code"])
+            var jump_push_true_left = bytes.bytes_len(ctx["code"])
             emit_i32(ctx, 0)
 
             // eval right
-            var eval_right_pc = oren_list_len(ctx["code"])
+            var eval_right_pc = bytes.bytes_len(ctx["code"])
             bytecode_compile_expr(ctx, expr["right"])
             emit_byte(ctx, AVM_JMP_IF32)
-            var jump_push_true_right = oren_list_len(ctx["code"])
+            var jump_push_true_right = bytes.bytes_len(ctx["code"])
             emit_i32(ctx, 0)
 
             // right falsey
@@ -491,15 +491,15 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_byte(ctx, AVM_PUSH_CONST)
             emit_u16(ctx, f_idx)
             emit_byte(ctx, AVM_JMP32)
-            var jump_end = oren_list_len(ctx["code"])
+            var jump_end = bytes.bytes_len(ctx["code"])
             emit_i32(ctx, 0)
 
-            var push_true_pc = oren_list_len(ctx["code"])
+            var push_true_pc = bytes.bytes_len(ctx["code"])
             var t_idx = add_constant(ctx, {"type": "Bool", "value": 1})
             emit_byte(ctx, AVM_PUSH_CONST)
             emit_u16(ctx, t_idx)
 
-            var end_pc = oren_list_len(ctx["code"])
+            var end_pc = bytes.bytes_len(ctx["code"])
             patch_u32(ctx, jump_push_true_left, push_true_pc - (jump_push_true_left + 4))
             patch_u32(ctx, jump_push_true_right, push_true_pc - (jump_push_true_right + 4))
             patch_u32(ctx, jump_end, end_pc - (jump_end + 4))
@@ -560,7 +560,7 @@ fn bytecode_compile_expr(ctx, expr) {
             bytecode_compile_expr(ctx, expr["right"])
 
             emit_byte(ctx, AVM_JMP_IF32)
-            var jump_truthy = oren_list_len(ctx["code"])
+            var jump_truthy = bytes.bytes_len(ctx["code"])
             emit_i32(ctx, 0)
 
             // falsey -> true
@@ -568,16 +568,16 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_byte(ctx, AVM_PUSH_CONST)
             emit_u16(ctx, t_idx)
             emit_byte(ctx, AVM_JMP32)
-            var jump_end = oren_list_len(ctx["code"])
+            var jump_end = bytes.bytes_len(ctx["code"])
             emit_i32(ctx, 0)
 
             // truthy -> false
-            var truthy_pc = oren_list_len(ctx["code"])
+            var truthy_pc = bytes.bytes_len(ctx["code"])
             var f_idx = add_constant(ctx, {"type": "Bool", "value": 0})
             emit_byte(ctx, AVM_PUSH_CONST)
             emit_u16(ctx, f_idx)
 
-            var end_pc = oren_list_len(ctx["code"])
+            var end_pc = bytes.bytes_len(ctx["code"])
             patch_u32(ctx, jump_truthy, truthy_pc - (jump_truthy + 4))
             patch_u32(ctx, jump_end, end_pc - (jump_end + 4))
             return nil
@@ -1185,7 +1185,7 @@ fn bytecode_compile_expr(ctx, expr) {
         }
         
         emit_byte(ctx, AVM_CALL32)
-        var call_pos = oren_list_len(ctx["code"])
+        var call_pos = bytes.bytes_len(ctx["code"])
         emit_u32(ctx, 0)
         if fixed >= 0 {
             emit_byte(ctx, fixed + 1)

@@ -168,6 +168,41 @@ fn _bc_match_list_int_push_call(ctx, expr) {
     return {"list": list_expr["value"], "value": args[1]}
 }
 
+fn _bc_match_list_int_get_call(ctx, expr, idx_name) {
+    if expr == nil || expr["type"] != "Call" { return nil }
+    var fn_node = expr["fn"]
+    if fn_node == nil { return nil }
+    var name = ""
+    if fn_node["type"] == "Identifier" {
+        name = fn_node["value"]
+    }
+    if fn_node["type"] == "Member" {
+        if fn_node["left"]["type"] == "Identifier" {
+            var left = fn_node["left"]["value"]
+            var prop = fn_node["prop"]["value"]
+            var alias = ctx["aliases"][left]
+            if alias != nil {
+                name = alias + prop
+            }
+        }
+    }
+    if name != "oren_list_int_get" && name != "STD_list_int_get" { return nil }
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) != 2 { return nil }
+    var list_expr = args[0]
+    var idx_expr = args[1]
+    if list_expr == nil || list_expr["type"] != "Identifier" { return nil }
+    if idx_expr == nil || idx_expr["type"] != "Identifier" { return nil }
+    if idx_name != nil && idx_expr["value"] != idx_name { return nil }
+    return list_expr["value"]
+}
+
+fn _bc_match_list_int_get_expr(ctx, expr, idx_name) {
+    var list_name = _bc_match_list_index(expr, idx_name)
+    if list_name != nil { return list_name }
+    return _bc_match_list_int_get_call(ctx, expr, idx_name)
+}
+
 fn _bc_push_int_const(ctx, v) {
     // Integer constants are stored as numeric values, not string literals.
     var idx = add_constant(ctx, {"type": "Integer", "value": v})
@@ -188,6 +223,20 @@ fn _bc_match_sum_update(stmt, sum_name, idx_name) {
     var list_b = _bc_match_list_index(mul["right"], idx_name)
     if list_a == nil || list_b == nil { return nil }
     return {"list_a": list_a, "list_b": list_b}
+}
+
+fn _bc_match_sum_list_update(ctx, stmt, sum_name, idx_name) {
+    if stmt == nil { return nil }
+    if stmt["type"] != "Assign" { return nil }
+    if _bc_is_ident(stmt["name"], sum_name) != true { return nil }
+    var val = stmt["value"]
+    if val == nil || val["type"] != "Infix" || val["op"] != "+" { return nil }
+    if _bc_is_ident(val["left"], sum_name) != true { return nil }
+    var rhs = val["right"]
+    if rhs == nil { return nil }
+    var list_name = _bc_match_list_int_get_expr(ctx, rhs, idx_name)
+    if list_name == nil { return nil }
+    return {"list": list_name}
 }
 
 fn _bc_match_simple_inc(stmt, idx_name) {
@@ -277,6 +326,59 @@ fn bytecode_try_emit_list_int_push_loop(ctx, stmt) {
     return true
 }
 
+fn bytecode_try_emit_list_sum_loop(ctx, stmt) {
+    if stmt == nil || stmt["type"] != "While" { return false }
+    var cond = stmt["cond"]
+    if cond == nil || cond["type"] != "Infix" || cond["op"] != "<" { return false }
+    var idx_ident = cond["left"]
+    var n_ident = cond["right"]
+    if _bc_is_ident(idx_ident, nil) != true { return false }
+    if _bc_is_ident(n_ident, nil) != true { return false }
+    var idx_name = idx_ident["value"]
+    var n_name = n_ident["value"]
+    if idx_name == nil || n_name == nil { return false }
+
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return false }
+    var stmts = body["stmts"]
+    if stmts == nil || oren_list_len(stmts) != 2 { return false }
+
+    var sum_stmt = stmts[0]
+    if sum_stmt == nil || sum_stmt["type"] != "Assign" { return false }
+    var sum_ident = sum_stmt["name"]
+    if _bc_is_ident(sum_ident, nil) != true { return false }
+    var sum_name = sum_ident["value"]
+    if sum_name == nil || sum_name == idx_name { return false }
+    var sum_info = _bc_match_sum_list_update(ctx, sum_stmt, sum_name, idx_name)
+    if sum_info == nil { return false }
+    var list_name = sum_info["list"]
+    if list_name == nil { return false }
+
+    if _bc_match_simple_inc(stmts[1], idx_name) != true { return false }
+
+    var caps = ctx["env_captures"]
+    if caps != nil {
+        if oren_type_tag(caps[sum_name]) != 0 { return false }
+        if oren_type_tag(caps[idx_name]) != 0 { return false }
+        if oren_type_tag(caps[n_name]) != 0 { return false }
+        if oren_type_tag(caps[list_name]) != 0 { return false }
+    }
+    if oren_type_tag(ctx["locals"][sum_name]) == 0 && oren_type_tag(ctx["globals"][sum_name]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][idx_name]) == 0 && oren_type_tag(ctx["globals"][idx_name]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][n_name]) == 0 && oren_type_tag(ctx["globals"][n_name]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][list_name]) == 0 && oren_type_tag(ctx["globals"][list_name]) == 0 { return false }
+
+    var list_ident = {"type": "Identifier", "value": list_name}
+    bytecode_compile_expr(ctx, list_ident)
+    bytecode_compile_expr(ctx, idx_ident)
+    bytecode_compile_expr(ctx, n_ident)
+    bytecode_compile_expr(ctx, sum_ident)
+    emit_byte(ctx, AVM_LIST_SUM_INT_LOOP)
+    _bc_emit_store_ident(ctx, sum_ident)
+    _bc_emit_store_ident(ctx, idx_ident)
+    return true
+}
+
 fn bytecode_try_emit_list_dot(ctx, stmt) {
     if stmt == nil || stmt["type"] != "While" { return false }
     var cond = stmt["cond"]
@@ -337,7 +439,7 @@ fn bytecode_compile_stmt(ctx, stmt) {
             return nil
         }
         emit_byte(ctx, AVM_JMP32)
-        var jidx = oren_list_len(ctx["code"])
+        var jidx = bytes.bytes_len(ctx["code"])
         emit_i32(ctx, 0)
         oren_list_push(loop["break_jumps"], jidx)
         return nil
@@ -350,7 +452,7 @@ fn bytecode_compile_stmt(ctx, stmt) {
             return nil
         }
         emit_byte(ctx, AVM_JMP32)
-        var jidx2 = oren_list_len(ctx["code"])
+        var jidx2 = bytes.bytes_len(ctx["code"])
         emit_i32(ctx, 0)
         oren_list_push(loop2["continue_jumps"], jidx2)
         return nil
@@ -501,19 +603,20 @@ fn bytecode_compile_stmt(ctx, stmt) {
     
     if stmt["type"] == "While" {
         if bytecode_try_emit_list_int_push_loop(ctx, stmt) == true { return nil }
+        if bytecode_try_emit_list_sum_loop(ctx, stmt) == true { return nil }
         if bytecode_try_emit_list_dot(ctx, stmt) == true { return nil }
-        var start_pc = oren_list_len(ctx["code"])
+        var start_pc = bytes.bytes_len(ctx["code"])
         bytecode_compile_expr(ctx, stmt["cond"])
         
         emit_byte(ctx, AVM_JMP_IF32)
-        var jump_body_idx = oren_list_len(ctx["code"])
+        var jump_body_idx = bytes.bytes_len(ctx["code"])
         emit_i32(ctx, 0)
         
         emit_byte(ctx, AVM_JMP32)
-        var jump_end_idx = oren_list_len(ctx["code"])
+        var jump_end_idx = bytes.bytes_len(ctx["code"])
         emit_i32(ctx, 0)
         
-        var body_start = oren_list_len(ctx["code"])
+        var body_start = bytes.bytes_len(ctx["code"])
 
         // Loop context: patchable break/continue.
         var prev_loop = ctx["loop_ctx"]
@@ -523,11 +626,11 @@ fn bytecode_compile_stmt(ctx, stmt) {
         ctx["loop_ctx"] = prev_loop
         
         emit_byte(ctx, AVM_JMP32)
-        var jump_back_idx = oren_list_len(ctx["code"])
+        var jump_back_idx = bytes.bytes_len(ctx["code"])
         var off_back = start_pc - (jump_back_idx + 4)
         emit_i32(ctx, off_back)
         
-        var end_pc = oren_list_len(ctx["code"])
+        var end_pc = bytes.bytes_len(ctx["code"])
         
         patch_u32(ctx, jump_body_idx, body_start - (jump_body_idx + 4))
         patch_u32(ctx, jump_end_idx, end_pc - (jump_end_idx + 4))
@@ -555,7 +658,7 @@ fn bytecode_compile_stmt(ctx, stmt) {
         // for init; cond; post { body }
         if stmt["init"] != nil { bytecode_compile_stmt(ctx, stmt["init"]) }
 
-        var start_pc = oren_list_len(ctx["code"])
+        var start_pc = bytes.bytes_len(ctx["code"])
         if stmt["cond"] != nil {
             bytecode_compile_expr(ctx, stmt["cond"])
         } else {
@@ -565,14 +668,14 @@ fn bytecode_compile_stmt(ctx, stmt) {
         }
 
         emit_byte(ctx, AVM_JMP_IF32)
-        var jump_body_idx = oren_list_len(ctx["code"])
+        var jump_body_idx = bytes.bytes_len(ctx["code"])
         emit_i32(ctx, 0)
 
         emit_byte(ctx, AVM_JMP32)
-        var jump_end_idx = oren_list_len(ctx["code"])
+        var jump_end_idx = bytes.bytes_len(ctx["code"])
         emit_i32(ctx, 0)
 
-        var body_start = oren_list_len(ctx["code"])
+        var body_start = bytes.bytes_len(ctx["code"])
 
         // Continue should jump to post, which we only know after compiling the body.
         var prev_loop = ctx["loop_ctx"]
@@ -581,18 +684,18 @@ fn bytecode_compile_stmt(ctx, stmt) {
         bytecode_compile_stmt(ctx, stmt["body"])
 
         // Post clause (continue target)
-        var post_start = oren_list_len(ctx["code"])
+        var post_start = bytes.bytes_len(ctx["code"])
         loop["continue_target"] = post_start
         if stmt["post"] != nil { bytecode_compile_stmt(ctx, stmt["post"]) }
 
         ctx["loop_ctx"] = prev_loop
 
         emit_byte(ctx, AVM_JMP32)
-        var jump_back_idx = oren_list_len(ctx["code"])
+        var jump_back_idx = bytes.bytes_len(ctx["code"])
         var off_back = start_pc - (jump_back_idx + 4)
         emit_i32(ctx, off_back)
 
-        var end_pc = oren_list_len(ctx["code"])
+        var end_pc = bytes.bytes_len(ctx["code"])
 
         patch_u32(ctx, jump_body_idx, body_start - (jump_body_idx + 4))
         patch_u32(ctx, jump_end_idx, end_pc - (jump_end_idx + 4))
@@ -739,33 +842,35 @@ fn bytecode_compile_program(linked, config) {
         }
         k = k + 1
     }
-    
+
+    // Finalize bytecode buffer for consumers that still expect list<int>.
+    // Keep a u8_buf copy for faster bytecode emission.
+    var code_buf = bytes.bytes_finalize(ctx["code"])
+    ctx["code_buf"] = code_buf
+    var code_list = oren_bytes_unpack(code_buf)
+    if !oren_is_err(code_list) { ctx["code"] = code_list }
+
     return ctx
 }
 
-fn emit_u64_le(bytes, n) {
+fn emit_u64_le(out, n) {
     // Bit-exact for signed ints too (needed for float64 bit patterns).
     var i = 0
     while i < 8 {
-        oren_list_push(bytes, (n >> (i * 8)) & 255)
+        bytes.bytes_push(out, (n >> (i * 8)) & 255)
         i = i + 1
     }
 }
 
-fn emit_u32_le(bytes, n) {
-    var i = 0
-    while i < 4 {
-        oren_list_push(bytes, n & 255)
-        n = n / 256
-        i = i + 1
-    }
+fn emit_u32_le(out, n) {
+    bytes.bytes_push_u32_le(out, n)
 }
 
 fn bytecode_emit_program(out_path, ctx) {
-    var bytes = []
+    var out = bytes.bytes_new()
     // Magic: 0x0ECD (CD 0E)
-    oren_list_push(bytes, 205)
-    oren_list_push(bytes, 14)
+    bytes.bytes_push(out, 205)
+    bytes.bytes_push(out, 14)
     
     // Constants
     var consts = ctx["constants"]
@@ -781,67 +886,73 @@ fn bytecode_emit_program(out_path, ctx) {
     }
     var n_consts = oren_list_len(consts)
     // Count (u16)
-    oren_list_push(bytes, n_consts & 255)
-    oren_list_push(bytes, (n_consts / 256) & 255)
+    bytes.bytes_push_u16_le(out, n_consts)
     
     var i = 0
     while i < n_consts {
         var c = consts[i]
         if c["type"] == "Nil" {
-            oren_list_push(bytes, 0) // Type NIL
+            bytes.bytes_push(out, 0) // Type NIL
         }
         if c["type"] == "Integer" {
-            oren_list_push(bytes, 1) // Type INT
-            emit_u64_le(bytes, c["value"])
+            bytes.bytes_push(out, 1) // Type INT
+            emit_u64_le(out, c["value"])
         }
         if c["type"] == "Bool" {
-            oren_list_push(bytes, 2) // Type BOOL (u8: 0|1)
+            bytes.bytes_push(out, 2) // Type BOOL (u8: 0|1)
             var b = c["value"]
             if b != 0 { b = 1 }
-            oren_list_push(bytes, b)
+            bytes.bytes_push(out, b)
         }
         if c["type"] == "Float" {
             // Type FLOAT (rolling): IEEE-754 f64 bits as u64 little-endian.
-            oren_list_push(bytes, 3)
-            emit_u64_le(bytes, c["value"])
+            bytes.bytes_push(out, 3)
+            emit_u64_le(out, c["value"])
         }
         if c["type"] == "String" {
-            oren_list_push(bytes, 4) // Type STRING
+            bytes.bytes_push(out, 4) // Type STRING
             var s = c["value"]
             var s_bytes = oren_bytes_from_string(s)
             var len = oren_list_len(s_bytes)
-            oren_list_push(bytes, len & 255)
-            oren_list_push(bytes, (len / 256) & 255)
-            var k = 0
-            while k < len {
-                oren_list_push(bytes, s_bytes[k])
-                k = k + 1
-            }
+            bytes.bytes_push_u16_le(out, len)
+            bytes.bytes_extend_list(out, s_bytes)
         }
         if c["type"] == "Bytes" {
             // Type BYTES (rolling): u32 length + raw bytes
-            oren_list_push(bytes, 8)
+            bytes.bytes_push(out, 8)
             var b = c["value"]
-            var blen = oren_list_len(b)
-            emit_u32_le(bytes, blen)
-            var k2 = 0
-            while k2 < blen {
-                oren_list_push(bytes, b[k2])
-                k2 = k2 + 1
+            var blen = oren_buf_len(b)
+            if oren_is_err(blen) { blen = oren_list_len(b) }
+            emit_u32_le(out, blen)
+            if oren_is_u8_buf(b) == true {
+                bytes.bytes_extend_u8_buf(out, b)
+            } else {
+                bytes.bytes_extend_list(out, b)
             }
         }
         i = i + 1
     }
     
     // Code
-    var code = ctx["code"]
-    var i_code = 0
-    while i_code < oren_list_len(code) {
-        oren_list_push(bytes, code[i_code])
-        i_code = i_code + 1
+    var code_buf = ctx["code_buf"]
+    if code_buf != nil && oren_is_u8_buf(code_buf) == true {
+        bytes.bytes_extend_u8_buf(out, code_buf)
+    } else {
+        var code = ctx["code"]
+        var i_code = 0
+        while i_code < oren_list_len(code) {
+            bytes.bytes_push(out, code[i_code])
+            i_code = i_code + 1
+        }
     }
     
-    var w = oren_write_bytes(out_path, bytes)
+    var out_buf = bytes.bytes_finalize(out)
+    var w = oren_write_bytes(out_path, out_buf)
+    if oren_is_err(w) {
+        // Fallback to list<int> for AVM runtimes without u8_buf write support.
+        var out_list = oren_bytes_unpack(out_buf)
+        if !oren_is_err(out_list) { w = oren_write_bytes(out_path, out_list) }
+    }
     if oren_is_err(w) {
         var msg = oren_err_msg(w)
         var e = "Failed to write bytecode: " + out_path
@@ -850,5 +961,7 @@ fn bytecode_emit_program(out_path, ctx) {
         print(e)
         oren_exit(1)
     }
-    return bytes
+    var out_list2 = oren_bytes_unpack(out_buf)
+    if oren_is_err(out_list2) { return out_buf }
+    return out_list2
 }

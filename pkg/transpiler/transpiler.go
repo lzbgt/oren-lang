@@ -11,6 +11,7 @@ import (
 type Transpiler struct {
 	lines            []string
 	indentation      int
+	indentStr        string
 	definedFunctions map[string]struct{}
 	tmpCounter       int
 
@@ -43,6 +44,7 @@ func NewWithBaseDir(baseDir string) *Transpiler {
 	return &Transpiler{
 		lines:            []string{},
 		indentation:      0,
+		indentStr:        "",
 		definedFunctions: make(map[string]struct{}),
 		lambdaByPtr:      make(map[*ast.FunctionLiteral]string),
 		baseDir:          baseDir,
@@ -90,6 +92,7 @@ func (t *Transpiler) Transpile(program *ast.Program) (string, error) {
 	// Reset state so a Transpiler can be reused.
 	t.lines = nil
 	t.indentation = 0
+	t.indentStr = ""
 	t.definedFunctions = make(map[string]struct{})
 	t.lambdaCounter = 0
 	t.lambdaByPtr = make(map[*ast.FunctionLiteral]string)
@@ -738,19 +741,21 @@ func maybeAddCapture(name string, declared map[string]struct{}, seen map[string]
 }
 
 func (t *Transpiler) emit(s string) {
-	indent := ""
-	for i := 0; i < t.indentation; i++ {
-		indent += "    "
-	}
-	t.lines = append(t.lines, indent+s)
+	t.lines = append(t.lines, t.indentStr+s)
 }
 
 func (t *Transpiler) indent() {
 	t.indentation++
+	t.indentStr += "    "
 }
 
 func (t *Transpiler) unindent() {
 	t.indentation--
+	if len(t.indentStr) >= 4 {
+		t.indentStr = t.indentStr[:len(t.indentStr)-4]
+	} else {
+		t.indentStr = ""
+	}
 }
 
 func (t *Transpiler) functionSignature(fn *ast.FunctionLiteral) string {

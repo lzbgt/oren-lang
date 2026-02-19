@@ -166,6 +166,16 @@ fn oren_bytes_unpack(bytes) {
     var n = oren_bytes_len(bytes)
     if oren_is_err(n) { return n }
     var out = oren_new_list(n)
+    if native_bytes_is_u8_buf(bytes) == true {
+        var data = native_buf_data_ptr(bytes)
+        if data == 0 && n > 0 { return oren_err(4, "bytes_unpack: u8_buf payload is nil") }
+        var i = 0
+        while i < n {
+            oren_list_push(out, ptr_get_byte(data + i) & 255)
+            i = i + 1
+        }
+        return out
+    }
     var i = 0
     while i < n {
         var b = oren_bytes_get_u8(bytes, i)

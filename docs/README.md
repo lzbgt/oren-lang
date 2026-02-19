@@ -29,6 +29,7 @@ This folder contains the **canonical specs** and living design notes for Oren (r
 - Syscall-first native runtime plan (no C shims): `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`
 - Native backend notes: `docs/NATIVE_BACKEND.md`
 - C backend notes: `docs/C_BACKEND.md`
+- Collections + container ops + unboxed list<int> design: `docs/DESIGN_COLLECTIONS.md`
 - Memory notes: `docs/MEMORY.md`
 - Windows IOCP netpoller design: `docs/WINDOWS_IOCP_NETPOLL.md`
 - Remote x86_64 (Win11, WSL2 optional) workflow: `docs/REMOTE_X64_ENV.md`

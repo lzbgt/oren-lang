@@ -57,7 +57,7 @@ Remote x86_64 evidence:
 
 | Feature | Status | Where (impl) | Evidence / examples |
 |---|---|---|---|
-| List literal `[]` and indexing `xs[i]` | Rolling | Shared lowering + backend intrinsics; C uses runtime helpers | Tests: `tests/native/fixtures/**`; Docs: `docs/DESIGN_CONTAINER_OPS.md` |
+| List literal `[]` and indexing `xs[i]` | Rolling | Shared lowering + backend intrinsics; C uses runtime helpers | Tests: `tests/native/fixtures/**`; Docs: `docs/DESIGN_COLLECTIONS.md` |
 | List `push/len` as operations (no wrapper overhead) | Rolling | Lowering: `lib/compiler/impl_lowering.oren`; Intrinsics: `oren_list_len`, `oren_list_push` (returns `nil`) | Track: `docs/TODOS.md` (P0.4); Internals: `docs/IMPLEMENTATION_NOTES.md` |
 | `slice_view` / `clone` / `slice_copy` | Rolling | Stdlib: `lib/std/list.oren` (`clone`, `slice_copy`, `slice_view`) | Manual: `docs/LANGUAGE_MANUAL.md` (List helpers); Track: `docs/TODOS.md` (P0.4) |
 | Map literal `{}` and indexing `m[k]` / `m[k]=v` | Rolling | Parser + lowering; C/AVM: dynamic keys; Native: key-kind must be deterministic | Tests: `tests/native/test_integration_suite.oren`; Manual: `docs/LANGUAGE_MANUAL.md` “Maps” |

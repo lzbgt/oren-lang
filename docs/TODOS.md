@@ -297,7 +297,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	      - Oren C: 0.0739s; OBC/AVM: 0.6233s (same run).
 	    - Target: native ≤0.03s met 2026‑02‑19; next target is Oren C ≤0.05s (boxed list access + add lowering).
 	    - Notes: `OREN_LIST_ASSUME_LIST=1` and `OREN_NATIVE_ASSUME_LIST_INDEX=1` did **not** improve (see 2026‑02‑18 results below).
-	    - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
+	    - Design: `docs/DESIGN_COLLECTIONS.md`
 	    - 2026-02-18: `OREN_LIST_ASSUME_LIST=1` (skip list validation) does **not** improve:
 	      - native 0.1506s vs C 0.00417s (`benchmarks/results/array_sum_darwin_arm64_20260218_220638.md`).
 	    - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` (skip native list index checks) does **not** improve:
@@ -319,7 +319,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		    - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` does **not** improve boxed dot_product:
 		      - native 0.2271s vs C 0.00509s (`benchmarks/results/dot_product_darwin_arm64_20260218_221234.md`).
 		   - Likely work: focus on OBC/AVM hot loop path and consider vectorized inner loop for `a[i]*b[i]` on native backend.
-		   - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
+		   - Design: `docs/DESIGN_COLLECTIONS.md`
 		   - OBC/AVM note (fact): bytecode `GET_INDEX` (opcode 0x42) handles list+map checks each access (see `lib/avm/avm_vm.c`), so dot_product loops pay per-iteration dispatch + type checks.
 		     - 2026-02-19: added `GET_INDEX_LIST` (opcode 0x57) and emit it when `recv_kind` is list/list_int (bytecode backend); no meaningful improvement alone.
 		     - 2026-02-19: added fused `LIST_DOT` (opcode 0x58) for `sum += a[i]*b[i]` loops; OBC dot_product now ~0.586s on M2 Pro.

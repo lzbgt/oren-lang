@@ -40,6 +40,7 @@ var AVM_LIST_DOT = 88
 var AVM_LIST_PUSH_INT = 89
 var AVM_LIST_PUSH = 90
 var AVM_LIST_PUSH_INT_LOOP = 91
+var AVM_LIST_SUM_INT_LOOP = 92
 // Build a list from fixed stack values plus a spread list (rolling).
 // stack: [... fixed_values spread_list] NEW_LIST_SPREAD u16_fixed -> [... list]
 var AVM_NEW_LIST_SPREAD = 86       // 0x56
@@ -104,7 +105,7 @@ fn bytecode_error(ctx, msg) {
 
 fn new_bytecode_ctx() {
     return {
-        "code": [],
+        "code": bytes.bytes_new(),
         "constants": [],
         "constant_map": {},
         "locals": {},
@@ -399,12 +400,11 @@ fn lambda_free_vars(fun) {
 }
 
 fn emit_byte(ctx, b) {
-    oren_list_push(ctx["code"], b)
+    bytes.bytes_push(ctx["code"], b)
 }
 
 fn emit_u16(ctx, n) {
-    emit_byte(ctx, n & 255)
-    emit_byte(ctx, (n / 256) & 255)
+    bytes.bytes_push_u16_le(ctx["code"], n)
 }
 
 fn emit_i16(ctx, n) {
@@ -415,16 +415,7 @@ fn emit_i16(ctx, n) {
 
 fn patch_u16(ctx, idx, n) {
     if n < 0 { n = n + 65536 }
-    var low = n & 255
-    var high = (n / 256) & 255
-    // ctx["code"] is list. Oren list update?
-    // list[idx] = val.
-    // Oren AST uses list[i].
-    // Runtime oren_index_set.
-    // Yes, list index set works.
-    var code = ctx["code"]
-    code[idx] = low
-    code[idx+1] = high
+    bytes.bytes_set_u16_le(ctx["code"], idx, n)
 }
 
 fn emit_load_local(ctx, idx) {
@@ -460,10 +451,7 @@ fn emit_store_local(ctx, idx) {
 }
 
 fn emit_u32(ctx, n) {
-    emit_byte(ctx, n & 255)
-    emit_byte(ctx, (n / 256) & 255)
-    emit_byte(ctx, (n / 65536) & 255)
-    emit_byte(ctx, (n / 16777216) & 255)
+    bytes.bytes_push_u32_le(ctx["code"], n)
 }
 
 fn emit_i32(ctx, n) {
@@ -473,15 +461,7 @@ fn emit_i32(ctx, n) {
 
 fn patch_u32(ctx, idx, n) {
     if n < 0 { n = n + 4294967296 }
-    var b0 = n & 255
-    var b1 = (n / 256) & 255
-    var b2 = (n / 65536) & 255
-    var b3 = (n / 16777216) & 255
-    var code = ctx["code"]
-    code[idx] = b0
-    code[idx+1] = b1
-    code[idx+2] = b2
-    code[idx+3] = b3
+    bytes.bytes_set_u32_le(ctx["code"], idx, n)
 }
 
 fn add_constant(ctx, val) {

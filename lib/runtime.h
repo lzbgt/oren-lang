@@ -747,6 +747,8 @@ OrenValue oren_read_bytes(OrenValue path);
 	OrenValue oren_bytes_from_string(OrenValue s);
 // Build a string from list<int 0..255> (inverse of bytes_from_string).
 OrenValue oren_string_from_bytes(OrenValue bytes);
+// Convert bytes (list<int> or u8_buf) to list<int 0..255>.
+OrenValue oren_bytes_unpack(OrenValue bytes);
 
 // --- TIME (C backend runtime) ---
 //
