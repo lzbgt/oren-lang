@@ -665,6 +665,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x59: return "LIST_PUSH_INT";
         case 0x5A: return "LIST_PUSH";
         case 0x5B: return "LIST_PUSH_INT_LOOP";
+        case 0x5C: return "LIST_SUM_INT_LOOP";
         case 0x43: return "SET_INDEX";
         case 0x44: return "CALL_INDIRECT_SPREAD";
         case 0x45: return "SPAWN_CALL_LIST";
@@ -2414,6 +2415,10 @@ list_dot_push:
                             break;
                         }
                     }
+                    if (list->count == 0) {
+                        // list_int_push is only used for list<int> writes; mark int-fast.
+                        list->all_int = 1;
+                    }
                     list->items[list->count++] = val;
                     // list_int_push enforces int values, so keep all_int true if already set.
                     vm->stack[vm->sp++] = avm_nil();
@@ -2469,6 +2474,10 @@ list_dot_push:
                         vm->stack[vm->sp++] = avm_err(AVM_ERR_INVALID_ARG, "list_int_push_loop mod must be >= 0");
                         break;
                     }
+                    if (list->count == 0) {
+                        // list_int_push_loop only writes ints; mark int-fast.
+                        list->all_int = 1;
+                    }
                     if (i < end) {
                         int64_t iters = end - i;
                         int64_t new_count = (int64_t)list->count + iters;
@@ -2496,6 +2505,85 @@ list_dot_push:
                         final_i = end;
                     }
                     vm->stack[vm->sp++] = avm_int(final_i);
+                }
+                break;
+            }
+            case 0x5C: { // LIST_SUM_INT_LOOP
+                if (vm->sp >= 4) {
+                    AvmValue sum = vm->stack[--vm->sp];
+                    AvmValue n = vm->stack[--vm->sp];
+                    AvmValue idx = vm->stack[--vm->sp];
+                    AvmValue list = vm->stack[--vm->sp];
+                    AvmValue one = avm_int(1);
+                    if (list.type == AVM_VAL_LIST &&
+                        idx.type == AVM_VAL_INT && n.type == AVM_VAL_INT &&
+                        sum.type == AVM_VAL_INT) {
+                        int64_t i64 = idx.as.i;
+                        int64_t end64 = n.as.i;
+                        if (i64 >= 0 && i64 <= (int64_t)INT_MAX &&
+                            end64 >= (int64_t)INT_MIN && end64 <= (int64_t)INT_MAX &&
+                            list.as.l) {
+                            int i = (int)i64;
+                            int end = (int)end64;
+                            if (i < end) {
+                                int count = list.as.l->count;
+                                int64_t acc = sum.as.i;
+                                int all_int = list.as.l->all_int;
+                                if (end <= count) {
+                                    if (all_int) {
+                                        for (; i < end; i++) {
+                                            AvmValue va = list.as.l->items[i];
+                                            acc = avm_i64_add_wrap(acc, va.as.i);
+                                        }
+                                    } else {
+                                        for (; i < end; i++) {
+                                            AvmValue va = list.as.l->items[i];
+                                            if (va.type != AVM_VAL_INT) {
+                                                idx = avm_int(i);
+                                                sum = avm_int(acc);
+                                                goto list_sum_slow;
+                                            }
+                                            acc = avm_i64_add_wrap(acc, va.as.i);
+                                        }
+                                    }
+                                } else {
+                                    for (; i < end; i++) {
+                                        if (i < 0 || i >= count) {
+                                            sum = avm_nil();
+                                            idx = avm_int(end);
+                                            goto list_sum_push;
+                                        }
+                                        AvmValue va = list.as.l->items[i];
+                                        if (!all_int && va.type != AVM_VAL_INT) {
+                                            idx = avm_int(i);
+                                            sum = avm_int(acc);
+                                            goto list_sum_slow;
+                                        }
+                                        acc = avm_i64_add_wrap(acc, va.as.i);
+                                    }
+                                }
+                                sum = avm_int(acc);
+                                idx = avm_int(i);
+                                goto list_sum_push;
+                            }
+                        }
+                    }
+
+list_sum_slow:
+                    while (1) {
+                        AvmValue cond = avm_lt_values(idx, n);
+                        if (!avm_truthy(cond)) break;
+                        AvmValue va = avm_list_get_value(list, idx);
+                        int ok = 1;
+                        sum = avm_add_values(vm, sum, va, &ok);
+                        if (!ok || !vm->running) break;
+                        idx = avm_add_values(vm, idx, one, &ok);
+                        if (!ok || !vm->running) break;
+                    }
+
+list_sum_push:
+                    vm->stack[vm->sp++] = idx;
+                    vm->stack[vm->sp++] = sum;
                 }
                 break;
             }
