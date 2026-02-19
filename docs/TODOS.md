@@ -307,10 +307,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	      - Result: `benchmarks/results/multi_list_sum_darwin_arm64_20260219_083044.md`
 	    - Next: push native ≤3.0× C and Oren C ≤2.5× by tightening boxed list sum/load path further.
 		  - (P1/M) **Dot_product boxed path now near native target; keep guard + focus on OBC gap**
-		    - Latest (runs=5): C 0.004775s, Oren C 0.017432s (~3.65×), Oren native 0.025363s (~5.31×), OBC 0.894463s (~187.32×).
-		      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_090209.md`
-		    - Target: native ≤0.03s (≤6× C) met 2026-02-19; next target is Oren C ≤0.015s and OBC improvements.
-		    - 2026-02-19: `GET_INDEX_LIST` opcode landed for OBC (list recv_kind); current dot_product OBC numbers remain essentially unchanged.
+		    - Latest (runs=5): C 0.004907s, Oren C 0.017621s (~3.59×), Oren native 0.024677s (~5.03×), OBC 0.586239s (~119.47×).
+		      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_091521.md`
+		    - Target: native ≤0.03s (≤6× C) met 2026-02-19; next target is Oren C ≤0.015s and further OBC improvements.
+		    - 2026-02-19: `GET_INDEX_LIST` opcode landed for OBC (list recv_kind); dot_product OBC numbers remained essentially unchanged at ~0.89s.
+		    - 2026-02-19: added fused `LIST_DOT` opcode + compiler pattern match; dot_product OBC improved to ~0.586s (~119× C).
 		    - 2026-02-18: `OREN_LIST_ASSUME_LIST=1` does **not** improve boxed dot_product:
 		      - native 0.2309s vs C 0.00499s (`benchmarks/results/dot_product_darwin_arm64_20260218_220721.md`).
 		    - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` does **not** improve boxed dot_product:
@@ -318,8 +319,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 		   - Likely work: focus on OBC/AVM hot loop path and consider vectorized inner loop for `a[i]*b[i]` on native backend.
 		   - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
 		   - OBC/AVM note (fact): bytecode `GET_INDEX` (opcode 0x42) handles list+map checks each access (see `lib/avm/avm_vm.c`), so dot_product loops pay per-iteration dispatch + type checks.
-		     - 2026-02-19: added `GET_INDEX_LIST` (opcode 0x57) and emit it when `recv_kind` is list/list_int (bytecode backend); benchmark pending to quantify impact.
-		     - Next: consider a fused dot/sum super-instruction to reduce interpreter overhead further.
+		     - 2026-02-19: added `GET_INDEX_LIST` (opcode 0x57) and emit it when `recv_kind` is list/list_int (bytecode backend); no meaningful improvement alone.
+		     - 2026-02-19: added fused `LIST_DOT` (opcode 0x58) for `sum += a[i]*b[i]` loops; OBC dot_product now ~0.586s on M2 Pro.
+		     - Next: consider widening LIST_DOT for typed buffers (i32/f64) or a list<int> specialization to reduce per-iteration type checks further.
 			  - (P1/S) **multi_list_push_int regression guard**
 			    - Latest (runs=5): C 0.00832s, Oren C 0.0792s (~9.52×), Oren native 0.0312s (~3.75×), OBC 1.227s (~147.55×).
 			      - Result: `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_064308.md`

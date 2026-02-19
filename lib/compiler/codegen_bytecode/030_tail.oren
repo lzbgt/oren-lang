@@ -53,6 +53,137 @@ fn bytecode_collect_locals_stmt(ctx, stmt) {
     return nil
 }
 
+fn _bc_is_ident(expr, name) {
+    if expr == nil { return false }
+    if expr["type"] != "Identifier" { return false }
+    if name == nil { return true }
+    return expr["value"] == name
+}
+
+fn _bc_is_int_lit_one(expr) {
+    if expr == nil { return false }
+    if expr["type"] != "Integer" { return false }
+    var v = expr["value"]
+    return v == "1" || v == "+1"
+}
+
+fn _bc_match_list_index(expr, idx_name) {
+    if expr == nil { return nil }
+    if expr["type"] != "Index" { return nil }
+    var rk = expr["recv_kind"]
+    if rk == nil { return nil }
+    if rk != "list" && rk != "list_int" { return nil }
+    var idx = expr["index"]
+    if idx == nil || idx["type"] != "Identifier" { return nil }
+    if idx_name != nil && idx["value"] != idx_name { return nil }
+    var left = expr["left"]
+    if left == nil || left["type"] != "Identifier" { return nil }
+    return left["value"]
+}
+
+fn _bc_match_sum_update(stmt, sum_name, idx_name) {
+    if stmt == nil { return nil }
+    if stmt["type"] != "Assign" { return nil }
+    if _bc_is_ident(stmt["name"], sum_name) != true { return nil }
+    var val = stmt["value"]
+    if val == nil || val["type"] != "Infix" || val["op"] != "+" { return nil }
+    if _bc_is_ident(val["left"], sum_name) != true { return nil }
+    var mul = val["right"]
+    if mul == nil || mul["type"] != "Infix" || mul["op"] != "*" { return nil }
+    var list_a = _bc_match_list_index(mul["left"], idx_name)
+    var list_b = _bc_match_list_index(mul["right"], idx_name)
+    if list_a == nil || list_b == nil { return nil }
+    return {"list_a": list_a, "list_b": list_b}
+}
+
+fn _bc_match_simple_inc(stmt, idx_name) {
+    if stmt == nil { return false }
+    if stmt["type"] != "Assign" { return false }
+    if _bc_is_ident(stmt["name"], idx_name) != true { return false }
+    var val = stmt["value"]
+    if val == nil || val["type"] != "Infix" || val["op"] != "+" { return false }
+    if _bc_is_ident(val["left"], idx_name) != true { return false }
+    if _bc_is_int_lit_one(val["right"]) != true { return false }
+    return true
+}
+
+fn _bc_emit_store_ident(ctx, ident) {
+    var name = ident["value"]
+    var caps = ctx["env_captures"]
+    if caps != nil {
+        var cidx = caps[name]
+        if oren_type_tag(cidx) != 0 {
+            bytecode_error(ctx, "bytecode backend: cannot assign to captured var '" + name + "' (capture-by-value)")
+            return nil
+        }
+    }
+    var loc = ctx["locals"][name]
+    if oren_type_tag(loc) != 0 {
+        emit_store_local(ctx, loc - 1)
+        return nil
+    }
+    var glob = ctx["globals"][name]
+    if oren_type_tag(glob) != 0 {
+        emit_byte(ctx, AVM_STORE_GLOBAL)
+        emit_u16(ctx, glob - 1)
+        return nil
+    }
+    bytecode_error(ctx, "bytecode backend: undefined variable in assignment: " + name)
+    emit_byte(ctx, AVM_POP)
+    return nil
+}
+
+fn bytecode_try_emit_list_dot(ctx, stmt) {
+    if stmt == nil || stmt["type"] != "While" { return false }
+    var cond = stmt["cond"]
+    if cond == nil || cond["type"] != "Infix" || cond["op"] != "<" { return false }
+    var idx_ident = cond["left"]
+    var n_ident = cond["right"]
+    if _bc_is_ident(idx_ident, nil) != true { return false }
+    if _bc_is_ident(n_ident, nil) != true { return false }
+    var idx_name = idx_ident["value"]
+    var n_name = n_ident["value"]
+    if idx_name == nil || n_name == nil { return false }
+
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return false }
+    var stmts = body["stmts"]
+    if stmts == nil || oren_list_len(stmts) != 2 { return false }
+
+    var sum_stmt = stmts[0]
+    if sum_stmt == nil || sum_stmt["type"] != "Assign" { return false }
+    var sum_ident = sum_stmt["name"]
+    if _bc_is_ident(sum_ident, nil) != true { return false }
+    var sum_name = sum_ident["value"]
+    if sum_name == nil || sum_name == idx_name { return false }
+
+    var mul_info = _bc_match_sum_update(sum_stmt, sum_name, idx_name)
+    if mul_info == nil { return false }
+
+    if _bc_match_simple_inc(stmts[1], idx_name) != true { return false }
+
+    var caps = ctx["env_captures"]
+    if caps != nil {
+        if oren_type_tag(caps[sum_name]) != 0 { return false }
+        if oren_type_tag(caps[idx_name]) != 0 { return false }
+    }
+    if oren_type_tag(ctx["locals"][sum_name]) == 0 && oren_type_tag(ctx["globals"][sum_name]) == 0 { return false }
+    if oren_type_tag(ctx["locals"][idx_name]) == 0 && oren_type_tag(ctx["globals"][idx_name]) == 0 { return false }
+
+    var list_a_ident = {"type": "Identifier", "value": mul_info["list_a"]}
+    var list_b_ident = {"type": "Identifier", "value": mul_info["list_b"]}
+
+    bytecode_compile_expr(ctx, list_a_ident)
+    bytecode_compile_expr(ctx, list_b_ident)
+    bytecode_compile_expr(ctx, idx_ident)
+    bytecode_compile_expr(ctx, n_ident)
+    bytecode_compile_expr(ctx, sum_ident)
+    emit_byte(ctx, AVM_LIST_DOT)
+    _bc_emit_store_ident(ctx, sum_ident)
+    _bc_emit_store_ident(ctx, idx_ident)
+    return true
+}
+
 fn bytecode_compile_stmt(ctx, stmt) {
     if ctx != nil && ctx["fatal"] == true { return nil }
     if stmt["type"] == "Break" {
@@ -225,6 +356,7 @@ fn bytecode_compile_stmt(ctx, stmt) {
     }
     
     if stmt["type"] == "While" {
+        if bytecode_try_emit_list_dot(ctx, stmt) == true { return nil }
         var start_pc = oren_list_len(ctx["code"])
         bytecode_compile_expr(ctx, stmt["cond"])
         

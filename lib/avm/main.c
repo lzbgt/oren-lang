@@ -559,6 +559,10 @@ static VerifyResult verify_program_region(
             len = 1;
             pop = 2;
             push = 1;
+        } else if (op == 0x58) { // LIST_DOT
+            len = 1;
+            pop = 5; // list_a, list_b, idx, n, sum
+            push = 2; // idx, sum
         } else if (op == 0x43) { // SET_INDEX
             len = 1;
             pop = 3;
@@ -1726,6 +1730,7 @@ static const char* op_name(uint8_t op) {
         case 0x41: return "NEW_MAP";
         case 0x42: return "GET_INDEX";
         case 0x57: return "GET_INDEX_LIST";
+        case 0x58: return "LIST_DOT";
         case 0x43: return "SET_INDEX";
         case 0x45: return "SPAWN_CALL_LIST";
         case 0x54: return "SPAWN_CALL_SPREAD";

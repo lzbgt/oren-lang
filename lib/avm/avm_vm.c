@@ -40,6 +40,83 @@ static inline int avm_i64_is_min(int64_t x) {
     return x == ((int64_t)-9223372036854775807LL - 1LL);
 }
 
+static inline int avm_truthy(AvmValue v) {
+    if (v.type == AVM_VAL_BOOL) return v.as.i != 0;
+    if (v.type == AVM_VAL_INT) return v.as.i != 0;
+    if (v.type == AVM_VAL_NIL) return 0;
+    return 1;
+}
+
+static inline AvmValue avm_list_get_value(AvmValue obj, AvmValue key) {
+    AvmValue res = avm_nil();
+    if (obj.type == AVM_VAL_LIST && key.type == AVM_VAL_INT) {
+        int i = (int)key.as.i;
+        if (i >= 0 && i < obj.as.l->count) {
+            res = obj.as.l->items[i];
+        }
+    }
+    return res;
+}
+
+static inline AvmValue avm_lt_values(AvmValue a, AvmValue b) {
+    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) return avm_bool(a.as.i < b.as.i);
+    if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_FLOAT) return avm_bool(a.as.f < b.as.f);
+    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_FLOAT) return avm_bool((double)a.as.i < b.as.f);
+    if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_INT) return avm_bool(a.as.f < (double)b.as.i);
+    if (a.type == AVM_VAL_STRING && b.type == AVM_VAL_STRING) return avm_bool(strcmp((char*)a.as.p, (char*)b.as.p) < 0);
+    return avm_nil();
+}
+
+static inline AvmValue avm_mul_values(AvmValue a, AvmValue b) {
+    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) {
+        return avm_int(avm_i64_mul_wrap(a.as.i, b.as.i));
+    }
+    if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_FLOAT) {
+        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f * b.as.f; return r;
+    }
+    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_FLOAT) {
+        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = (double)a.as.i * b.as.f; return r;
+    }
+    if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_INT) {
+        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f * (double)b.as.i; return r;
+    }
+    return avm_nil();
+}
+
+static inline AvmValue avm_add_values(AvmVM* vm, AvmValue a, AvmValue b, int* ok) {
+    if (ok) *ok = 1;
+    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT) {
+        return avm_int(avm_i64_add_wrap(a.as.i, b.as.i));
+    }
+    if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_FLOAT) {
+        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f + b.as.f; return r;
+    }
+    if (a.type == AVM_VAL_INT && b.type == AVM_VAL_FLOAT) {
+        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = (double)a.as.i + b.as.f; return r;
+    }
+    if (a.type == AVM_VAL_FLOAT && b.type == AVM_VAL_INT) {
+        AvmValue r; r.type = AVM_VAL_FLOAT; r.as.f = a.as.f + (double)b.as.i; return r;
+    }
+    if (a.type == AVM_VAL_STRING && b.type == AVM_VAL_STRING) {
+        const char* sa = a.as.p ? (const char*)a.as.p : "";
+        const char* sb = b.as.p ? (const char*)b.as.p : "";
+        size_t la = strlen(sa);
+        size_t lb = strlen(sb);
+        char* s = (char*)avm_heap_malloc_k(la + lb + 1, AVM_ALLOC_KIND_STRING);
+        if (!s) {
+            AvmValue e = avm_alloc_fail_value();
+            avm_abort(vm, e);
+            if (ok) *ok = 0;
+            return e;
+        }
+        memcpy(s, sa, la);
+        memcpy(s + la, sb, lb);
+        s[la + lb] = 0;
+        AvmValue r; r.type = AVM_VAL_STRING; r.as.p = s; return r;
+    }
+    return avm_nil();
+}
+
 // --- Cooperative Tasks (rolling, AVM v1 direction) ---
 //
 // This implements a minimal, VM-internal cooperative concurrency model to support:
@@ -582,6 +659,7 @@ const char* avm_op_name(uint8_t op) {
         case 0x41: return "NEW_MAP";
         case 0x42: return "GET_INDEX";
         case 0x57: return "GET_INDEX_LIST";
+        case 0x58: return "LIST_DOT";
         case 0x43: return "SET_INDEX";
         case 0x44: return "CALL_INDIRECT_SPREAD";
         case 0x45: return "SPAWN_CALL_LIST";
@@ -2216,6 +2294,31 @@ select2_done:
                         }
                     }
                     vm->stack[vm->sp++] = res;
+                }
+                break;
+            }
+            case 0x58: { // LIST_DOT
+                if (vm->sp >= 5) {
+                    AvmValue sum = vm->stack[--vm->sp];
+                    AvmValue n = vm->stack[--vm->sp];
+                    AvmValue idx = vm->stack[--vm->sp];
+                    AvmValue list_b = vm->stack[--vm->sp];
+                    AvmValue list_a = vm->stack[--vm->sp];
+                    AvmValue one = avm_int(1);
+                    while (1) {
+                        AvmValue cond = avm_lt_values(idx, n);
+                        if (!avm_truthy(cond)) break;
+                        AvmValue va = avm_list_get_value(list_a, idx);
+                        AvmValue vb = avm_list_get_value(list_b, idx);
+                        AvmValue mul = avm_mul_values(va, vb);
+                        int ok = 1;
+                        sum = avm_add_values(vm, sum, mul, &ok);
+                        if (!ok || !vm->running) break;
+                        idx = avm_add_values(vm, idx, one, &ok);
+                        if (!ok || !vm->running) break;
+                    }
+                    vm->stack[vm->sp++] = idx;
+                    vm->stack[vm->sp++] = sum;
                 }
                 break;
             }
