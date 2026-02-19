@@ -680,6 +680,7 @@ fn _opt_add_safe_var(out, name, kind) {
     return nil
 }
 
+// Conservative: only collect unconditional top-level list allocations (no nested control flow).
 fn _opt_collect_loop_new_list_vars(stmt, out) {
     if stmt == nil { return nil }
     var t = stmt["type"]
@@ -712,45 +713,7 @@ fn _opt_collect_loop_new_list_vars(stmt, out) {
         }
         return nil
     }
-    if t == "If" {
-        _opt_collect_loop_new_list_vars(stmt["consq"], out)
-        if stmt["alt"] != nil { _opt_collect_loop_new_list_vars(stmt["alt"], out) }
-        return nil
-    }
     if t == "While" || t == "For" { return nil }
-    if t == "Switch" {
-        var cases = stmt["cases"]
-        if cases != nil {
-            var ci = 0
-            while ci < oren_list_len(cases) {
-                var c = cases[ci]
-                if c != nil { _opt_collect_loop_new_list_vars(c["body"], out) }
-                ci = ci + 1
-            }
-        }
-        if stmt["default"] != nil { _opt_collect_loop_new_list_vars(stmt["default"], out) }
-        return nil
-    }
-    if t == "ExprStmt" {
-        var e = stmt["expr"]
-        if e != nil && e["type"] == "If" {
-            _opt_collect_loop_new_list_vars(e["consq"], out)
-            if e["alt"] != nil { _opt_collect_loop_new_list_vars(e["alt"], out) }
-        }
-        if e != nil && e["type"] == "Switch" {
-            var cases2 = e["cases"]
-            if cases2 != nil {
-                var ci2 = 0
-                while ci2 < oren_list_len(cases2) {
-                    var c2 = cases2[ci2]
-                    if c2 != nil { _opt_collect_loop_new_list_vars(c2["body"], out) }
-                    ci2 = ci2 + 1
-                }
-            }
-            if e["default"] != nil { _opt_collect_loop_new_list_vars(e["default"], out) }
-        }
-        return nil
-    }
     return nil
 }
 
@@ -825,45 +788,7 @@ fn _opt_rewrite_new_list_in_stmt(stmt, safe_vars) {
         }
         return changed
     }
-    if t == "If" {
-        if _opt_rewrite_new_list_in_stmt(stmt["consq"], safe_vars) { changed = true }
-        if stmt["alt"] != nil && _opt_rewrite_new_list_in_stmt(stmt["alt"], safe_vars) { changed = true }
-        return changed
-    }
     if t == "While" || t == "For" { return false }
-    if t == "Switch" {
-        var cases = stmt["cases"]
-        if cases != nil {
-            var ci = 0
-            while ci < oren_list_len(cases) {
-                var c = cases[ci]
-                if c != nil && _opt_rewrite_new_list_in_stmt(c["body"], safe_vars) { changed = true }
-                ci = ci + 1
-            }
-        }
-        if stmt["default"] != nil && _opt_rewrite_new_list_in_stmt(stmt["default"], safe_vars) { changed = true }
-        return changed
-    }
-    if t == "ExprStmt" {
-        var e = stmt["expr"]
-        if e != nil && e["type"] == "If" {
-            if _opt_rewrite_new_list_in_stmt(e["consq"], safe_vars) { changed = true }
-            if e["alt"] != nil && _opt_rewrite_new_list_in_stmt(e["alt"], safe_vars) { changed = true }
-        }
-        if e != nil && e["type"] == "Switch" {
-            var cases2 = e["cases"]
-            if cases2 != nil {
-                var ci2 = 0
-                while ci2 < oren_list_len(cases2) {
-                    var c2 = cases2[ci2]
-                    if c2 != nil && _opt_rewrite_new_list_in_stmt(c2["body"], safe_vars) { changed = true }
-                    ci2 = ci2 + 1
-                }
-            }
-            if e["default"] != nil && _opt_rewrite_new_list_in_stmt(e["default"], safe_vars) { changed = true }
-        }
-        return changed
-    }
     return false
 }
 

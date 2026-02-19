@@ -78,7 +78,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Design + implement loop‑local arenas for list/list_int (compiler escape analysis + arena tracking table).
    - Native runtime scaffolding: `oren_arena_push/pop` + `oren_arena_new_list(_int)` (compiler lowering pending).
    - Arena cap: `OREN_ARENA_CAP_BYTES` spills allocations back to GC when exceeded.
-   - Compiler: `OREN_ARENA_AUTO_LOOP=1` wraps simple loops; it can also rewrite loop‑local `oren_new_list(_int)` vars to arena allocs when usage is limited to safe list ops.
+   - Compiler: `OREN_ARENA_AUTO_LOOP=1` wraps simple loops; it can rewrite **unconditional top‑level** loop‑local `oren_new_list(_int)` vars to arena allocs when usage is limited to safe list ops.
    - Empty list literals (`[]`) inside eligible loops are rewritten to arena lists in auto mode.
    - Auto-loop wrapping now ignores `continue` inside nested loops (outer loop still eligible).
    - Auto-loop now inserts arena pop on `break`/`return`/`continue` in the same loop body.

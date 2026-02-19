@@ -1,0 +1,17 @@
+fn main() {
+    var xs = nil
+    var i = 0
+    while i < 2 {
+        if i == 0 {
+            xs = []
+            oren_list_push(xs, 1)
+        }
+        if i == 1 {
+            if xs == nil { exit(41) }
+            if oren_list_len(xs) != 1 { exit(42) }
+            oren_list_push(xs, 2)
+        }
+        i = i + 1
+    }
+    if oren_list_len(xs) != 2 { exit(43) }
+}
