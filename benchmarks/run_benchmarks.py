@@ -168,6 +168,7 @@ class BenchConfig:
     rss_enabled: bool
     output_check: bool
     skip_build: bool
+    save_stdout: bool
     skip_obc: bool
     skip_c: bool
     skip_oren_c: bool
@@ -325,6 +326,11 @@ def _run_one(program, cfg: BenchConfig):
             }
         outputs[name] = out
 
+    if cfg.save_stdout:
+        for name, out in outputs.items():
+            out_path = LOG_DIR / f"bench_stdout_{program}_{name}_{ts}.log"
+            out_path.write_text(out + "\n", encoding="utf-8")
+
     # Output consistency check (can be disabled for tracing/instrumentation).
     first_out = None
     for name, out in outputs.items():
@@ -349,6 +355,7 @@ def _run_one(program, cfg: BenchConfig):
         "program": program,
         "output": first_out,
         "output_check": cfg.output_check,
+        "save_stdout": cfg.save_stdout,
         "skip_build": cfg.skip_build,
         "rss_enabled": cfg.rss_enabled,
         "skip_obc": cfg.skip_obc,
@@ -426,6 +433,7 @@ def main():
     rss_enabled = int(os.environ.get("OREN_BENCH_RSS", DEFAULT_RSS)) == 1
     output_check = int(os.environ.get("OREN_BENCH_OUTPUT_CHECK", "1")) == 1
     skip_build = int(os.environ.get("OREN_BENCH_SKIP_BUILD", "0")) == 1
+    save_stdout = int(os.environ.get("OREN_BENCH_SAVE_STDOUT", "0")) == 1
     skip_obc = int(os.environ.get("OREN_BENCH_SKIP_OBC", "0")) == 1
     skip_c = int(os.environ.get("OREN_BENCH_SKIP_C", "0")) == 1
     skip_oren_c = int(os.environ.get("OREN_BENCH_SKIP_OREN_C", "0")) == 1
@@ -446,6 +454,7 @@ def main():
         rss_enabled=rss_enabled,
         output_check=output_check,
         skip_build=skip_build,
+        save_stdout=save_stdout,
         skip_obc=skip_obc,
         skip_c=skip_c,
         skip_oren_c=skip_oren_c,
