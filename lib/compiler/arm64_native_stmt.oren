@@ -1266,13 +1266,6 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     // reload i + sum after safepoint
     emit_ldr_reg_sp_any(ctx, 20, i_off)
     emit_ldr_reg_sp_any(ctx, 23, sum_off)
-    // idx_offset = i * 8 (reuse for all list loads)
-    emit_load_i64_imm(ctx, 22, 8)
-    push_u32_le(ctx["code"], insn_mul(24, 20, 22))
-    // idx_offset = i * 8 (reuse for all list loads)
-    emit_load_i64_imm(ctx, 22, 8)
-    push_u32_le(ctx["code"], insn_mul(24, 20, 22))
-
     var pi = 0
     while pi < oren_list_len(loads) {
         var list_name2 = loads[pi]
@@ -1285,6 +1278,8 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
 
         // addr = buf + i*8 ; load value
         emit_ldr_reg_sp_any(ctx, 21, buf_slot2)
+        emit_load_i64_imm(ctx, 22, 8)
+        push_u32_le(ctx["code"], insn_mul(24, 20, 22))
         push_u32_le(ctx["code"], insn_add_reg(24, 21, 24))
         push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
 
@@ -2024,16 +2019,18 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
 
         // left value
         emit_ldr_reg_sp_any(ctx, 21, buf_left)
-        push_u32_le(ctx["code"], insn_add_reg(25, 21, 24))
-        push_u32_le(ctx["code"], insn_ldr_ptr(25, 25))
+        push_u32_le(ctx["code"], insn_mul(24, 20, 22))
+        push_u32_le(ctx["code"], insn_add_reg(24, 21, 24))
+        push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
 
         // right value
         emit_ldr_reg_sp_any(ctx, 26, buf_right)
-        push_u32_le(ctx["code"], insn_add_reg(27, 26, 24))
-        push_u32_le(ctx["code"], insn_ldr_ptr(27, 27))
+        push_u32_le(ctx["code"], insn_mul(24, 20, 22))
+        push_u32_le(ctx["code"], insn_add_reg(24, 26, 24))
+        push_u32_le(ctx["code"], insn_ldr_ptr(24, 24))
 
         // sum += left * right
-        push_u32_le(ctx["code"], insn_mul(25, 25, 27))
+        push_u32_le(ctx["code"], insn_mul(25, 25, 24))
         push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
 
         mi = mi + 1

@@ -2,20 +2,11 @@
 
 **Last updated:** 2026-02-19
 
-This file merges build/test/self‑hosting workflow with platform portability notes. Use it for
-compiler bootstrap steps, verification flows, and Tier‑1 platform details.
+Canonical toolchain + platform guide: bootstrap, build, verify, and Tier‑1 portability notes.
 
 ---
 
 # Toolchain and Verification (Rolling)
-
-This document consolidates build, test, and self-hosting workflows.
-
-## Building and Verifying Oren
-
-This guide documents the complete process of building the Oren compiler from source (bootstrapping), using it to build applications, and validating Tier‑1 targets in rolling mode (including remote x86_64 workflows where needed).
-
-For a concise “what is Tier‑1 and how do I prove it” index, see `docs/TOOLCHAIN_PLATFORMS.md`.
 
 ## 1. Bootstrapping Oren (Stage 0 to Self-Hosting)
 

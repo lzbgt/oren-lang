@@ -53,6 +53,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
    - Expand inty propagation and arithmetic fast paths.
    - Const-divisor `%` is now inlined for literal/const RHS (arm64 + x64).
+   - Add boxed list dot/get-sum correctness fixtures so native fast paths can't silently regress.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
@@ -95,6 +96,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
 3) **Tagged value convergence plan** (L, W4)
    - Define layout and staged migration.
    - Gate: fixtures across all backends.
+
+4) **Boxed list dot/get-sum fast-path regression guard** (S, W4)
+   - Add a native fixture that exercises boxed list dot and compares against C backend.
+   - Gate: `dot_product` output checksum matches across C/native/OBC.
 
 ## P1 (Soon)
 
