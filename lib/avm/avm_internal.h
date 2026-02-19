@@ -168,6 +168,7 @@ void avm_heap_free(void* p);
 
 AvmValue avm_alloc_fail_value(void);
 void avm_release_unreachable_allocs(AvmVM* vm);
+void avm_release_tmp_freelist(AvmVM* vm);
 
 // --- Budgets ---
 int avm_io_charge(AvmVM* vm, uint64_t bytes, int domain, int op);

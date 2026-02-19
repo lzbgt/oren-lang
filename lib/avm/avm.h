@@ -195,6 +195,15 @@ typedef struct {
     uint64_t heap_budget_bytes;
     uint64_t heap_used_bytes;
     void* heap_allocs_head; // internal: outstanding heap allocations (for leak-free teardown)
+    // TMP freelist (rolling): best-effort reuse for short-lived allocations.
+    int tmp_freelist_enabled;
+    void* tmp_freelist_head;
+    uint64_t tmp_freelist_bytes;
+    uint64_t tmp_freelist_cap_bytes;
+    uint64_t tmp_freelist_max_block_bytes;
+    uint64_t tmp_freelist_hits;
+    uint64_t tmp_freelist_misses;
+    uint64_t tmp_freelist_evictions;
 
     // I/O budget (rolling): counts bytes read/written via host effect domains (FS first).
     // 0 means "no limit".

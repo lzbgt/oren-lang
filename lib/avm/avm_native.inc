@@ -7689,6 +7689,10 @@ AvmValue avm_call_native2(AvmVM* vm, uint8_t domain, uint16_t op, AvmValue* args
                 } else {
                     child->log_budget_bytes = vm ? vm->log_budget_bytes : 0;
                 }
+                // TMP freelist config (inherit from parent by default).
+                child->tmp_freelist_enabled = vm ? vm->tmp_freelist_enabled : 0;
+                child->tmp_freelist_cap_bytes = vm ? vm->tmp_freelist_cap_bytes : 0;
+                child->tmp_freelist_max_block_bytes = vm ? vm->tmp_freelist_max_block_bytes : 0;
 
                 // VirtualFS knobs (optional; default is safe vfs backend).
                 if (avm_map_get_key(cfg, "fs_backend", &v)) child->fs_backend_kind = (int)avm_value_u64(v, (uint64_t)child->fs_backend_kind);

@@ -803,6 +803,14 @@ AvmVM* avm_new() {
     vm->heap_budget_bytes = 0;
     vm->heap_used_bytes = 0;
     vm->heap_allocs_head = NULL;
+    vm->tmp_freelist_enabled = 0;
+    vm->tmp_freelist_head = NULL;
+    vm->tmp_freelist_bytes = 0;
+    vm->tmp_freelist_cap_bytes = 0;
+    vm->tmp_freelist_max_block_bytes = 0;
+    vm->tmp_freelist_hits = 0;
+    vm->tmp_freelist_misses = 0;
+    vm->tmp_freelist_evictions = 0;
     vm->io_budget_bytes = 0;
     vm->io_used_bytes = 0;
     vm->log_budget_bytes = 0;
@@ -859,6 +867,8 @@ void avm_free(AvmVM* vm) {
     avm_release_heap_all(vm);
     // Release any remaining unreachable heap allocations (leak-free teardown).
     avm_release_unreachable_allocs(vm);
+    // Release TMP freelist allocations (if enabled).
+    avm_release_tmp_freelist(vm);
 
     // Leak guard (must never fire): after teardown, no heap allocations should remain.
     // This is failure-only (no output on success) and intentionally fatal so leak

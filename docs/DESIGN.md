@@ -211,6 +211,7 @@ Hot-loop parity depends on compiler + runtime cooperation:
 
 - Inty propagation and lowering to native arithmetic fast paths.
 - Typed buffers and SIMD kernels (native + AVM).
+- AVM TMP freelist (env-gated) for short-lived allocations.
 
 ---
 

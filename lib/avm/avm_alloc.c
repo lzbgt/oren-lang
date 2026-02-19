@@ -21,14 +21,16 @@ typedef struct AvmAllocHdr {
     uint32_t alloc_pc;   // best-effort VM pc at allocation time (rolling)
     uint8_t alloc_kind;  // best-effort classification (rolling)
     uint8_t alloc_backend; // 0=malloc, 1=mmap (rolling)
+    uint8_t alloc_flags; // rolling flags (see AVM_ALLOC_FLAG_*)
     // Pad so `sizeof(AvmAllocHdr)` is 64 bytes.
     // This enables 64-byte-aligned user pointers for BUF allocations when using posix_memalign.
-    uint8_t _pad0[6];
+    uint8_t _pad0[5];
     struct AvmAllocHdr* prev;
     struct AvmAllocHdr* next;
 } AvmAllocHdr;
 
 static const uint64_t AVM_ALLOC_MAGIC = 0x41564d414c4c4f43ull; // "AVMALLOC"
+static const uint8_t AVM_ALLOC_FLAG_TMP_FREE = 1u << 0;
 
 static AvmVM* g_alloc_owner = NULL;
 static int g_alloc_unbudgeted = 0;
@@ -59,6 +61,50 @@ static AvmAllocHdr* avm_alloc_hdr_from_ptr(void* p) {
     return h;
 }
 
+static int avm_tmp_freelist_enabled(AvmVM* owner, size_t size) {
+    if (!owner || owner->tmp_freelist_enabled == 0) return 0;
+    if (owner->tmp_freelist_cap_bytes == 0) return 0;
+    if (owner->tmp_freelist_max_block_bytes > 0 && size > owner->tmp_freelist_max_block_bytes) return 0;
+    return 1;
+}
+
+static AvmAllocHdr* avm_tmp_freelist_take(AvmVM* owner, size_t size) {
+    if (!owner || owner->tmp_freelist_head == NULL) return NULL;
+    AvmAllocHdr* prev = NULL;
+    AvmAllocHdr* cur = (AvmAllocHdr*)owner->tmp_freelist_head;
+    while (cur) {
+        if (cur->size == size) {
+            if (prev) prev->next = cur->next;
+            else owner->tmp_freelist_head = cur->next;
+            cur->next = NULL;
+            cur->prev = NULL;
+            if (owner->tmp_freelist_bytes >= cur->size) owner->tmp_freelist_bytes -= cur->size;
+            else owner->tmp_freelist_bytes = 0;
+            owner->tmp_freelist_hits++;
+            return cur;
+        }
+        prev = cur;
+        cur = cur->next;
+    }
+    owner->tmp_freelist_misses++;
+    return NULL;
+}
+
+static int avm_tmp_freelist_push(AvmVM* owner, AvmAllocHdr* h) {
+    if (!owner || !h) return 0;
+    if (!avm_tmp_freelist_enabled(owner, (size_t)h->size)) return 0;
+    if (owner->tmp_freelist_bytes + h->size > owner->tmp_freelist_cap_bytes) {
+        owner->tmp_freelist_evictions++;
+        return 0;
+    }
+    h->alloc_flags |= AVM_ALLOC_FLAG_TMP_FREE;
+    h->prev = NULL;
+    h->next = (AvmAllocHdr*)owner->tmp_freelist_head;
+    owner->tmp_freelist_head = h;
+    owner->tmp_freelist_bytes += h->size;
+    return 1;
+}
+
 void* avm_heap_malloc_k(size_t size, uint8_t kind) {
     g_last_alloc_err = 0;
     AvmVM* owner = g_alloc_owner;
@@ -70,6 +116,31 @@ void* avm_heap_malloc_k(size_t size, uint8_t kind) {
         if (owner->heap_used_bytes + size > owner->heap_budget_bytes) {
             g_last_alloc_err = AVM_ERR_BUDGET;
             return NULL;
+        }
+    }
+
+    if (kind == AVM_ALLOC_KIND_TMP && avm_tmp_freelist_enabled(owner, size)) {
+        AvmAllocHdr* fh = avm_tmp_freelist_take(owner, size);
+        if (fh) {
+            fh->owner = owner;
+            fh->charged_size = (!g_alloc_unbudgeted && owner) ? size : 0;
+            fh->alloc_id = owner ? owner->alloc_next_id++ : 0;
+            fh->alloc_pc = owner ? (uint32_t)owner->pc : 0;
+            fh->alloc_kind = kind;
+            fh->alloc_flags &= (uint8_t)(~AVM_ALLOC_FLAG_TMP_FREE);
+            fh->prev = NULL;
+            fh->next = NULL;
+            if (owner) {
+                fh->next = (AvmAllocHdr*)owner->heap_allocs_head;
+                if (fh->next) fh->next->prev = fh;
+                owner->heap_allocs_head = fh;
+            }
+            if (fh->charged_size && owner) owner->heap_used_bytes += fh->charged_size;
+            if (owner && owner->trace_bytes_enabled && fh->charged_size > 0) {
+                uint32_t pc = (uint32_t)owner->pc;
+                (void)trace_emit_alloc_bytes(owner, pc, fh->alloc_id, fh->alloc_kind, (uint32_t)fh->size, (uint32_t)fh->charged_size);
+            }
+            return (void*)(fh + 1);
         }
     }
 
@@ -111,6 +182,7 @@ void* avm_heap_malloc_k(size_t size, uint8_t kind) {
     h->alloc_id = 0;
     h->alloc_pc = owner ? (uint32_t)owner->pc : 0;
     h->alloc_kind = kind;
+    h->alloc_flags = 0;
     // alloc_backend is already set in the allocation path above.
     h->prev = NULL;
     h->next = NULL;
@@ -139,6 +211,7 @@ void avm_heap_free(void* p) {
         free(p);
         return;
     }
+    if (h->alloc_flags & AVM_ALLOC_FLAG_TMP_FREE) return;
 
     // Best-effort diagnostics: free events go to trace BYTES only (not TRACE_HASH).
     // Skip unbudgeted allocations (charged_size==0) to avoid recursion & noise.
@@ -157,6 +230,9 @@ void avm_heap_free(void* p) {
 
         if (h->charged_size && h->owner->heap_used_bytes >= h->charged_size) h->owner->heap_used_bytes -= h->charged_size;
         else if (h->charged_size) h->owner->heap_used_bytes = 0;
+    }
+    if (h->owner && h->alloc_kind == AVM_ALLOC_KIND_TMP && avm_tmp_freelist_push(h->owner, h)) {
+        return;
     }
     h->magic = 0;
     if (h->alloc_backend == 1) {
@@ -225,6 +301,8 @@ void* avm_heap_realloc_k(void* p, size_t new_size, uint8_t kind) {
     nh->alloc_id = h->alloc_id;
     nh->alloc_pc = owner ? (uint32_t)owner->pc : 0;
     nh->alloc_kind = kind ? kind : h->alloc_kind;
+    nh->alloc_backend = 0;
+    nh->alloc_flags = 0;
     nh->prev = NULL;
     nh->next = NULL;
 
@@ -272,9 +350,32 @@ void avm_release_unreachable_allocs(AvmVM* vm) {
         if (h->charged_size && vm->heap_used_bytes >= h->charged_size) vm->heap_used_bytes -= h->charged_size;
         else if (h->charged_size) vm->heap_used_bytes = 0;
         h->magic = 0;
-        free(h);
+        if (h->alloc_backend == 1) {
+            size_t total = sizeof(AvmAllocHdr) + (size_t)h->size;
+            (void)munmap((void*)h, total);
+        } else {
+            free(h);
+        }
         h = next;
     }
     vm->heap_allocs_head = NULL;
     vm->heap_used_bytes = 0;
+}
+
+void avm_release_tmp_freelist(AvmVM* vm) {
+    if (!vm) return;
+    AvmAllocHdr* h = (AvmAllocHdr*)vm->tmp_freelist_head;
+    while (h) {
+        AvmAllocHdr* next = h->next;
+        h->magic = 0;
+        if (h->alloc_backend == 1) {
+            size_t total = sizeof(AvmAllocHdr) + (size_t)h->size;
+            (void)munmap((void*)h, total);
+        } else {
+            free(h);
+        }
+        h = next;
+    }
+    vm->tmp_freelist_head = NULL;
+    vm->tmp_freelist_bytes = 0;
 }

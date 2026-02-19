@@ -3513,6 +3513,28 @@ int main(int argc, char** argv) {
             }
         }
 
+        // TMP freelist (best-effort perf): enabled only when requested via env.
+        const char* tmp_free_env = getenv("AVM_TMP_FREELIST");
+        const char* tmp_free_bytes_env = getenv("AVM_TMP_FREELIST_BYTES");
+        const char* tmp_free_block_env = getenv("AVM_TMP_FREELIST_MAX_BLOCK_BYTES");
+        int tmp_enable = 0;
+        if (tmp_free_env && tmp_free_env[0]) {
+            if (tmp_free_env[0] != '0') tmp_enable = 1;
+        } else if (tmp_free_bytes_env && tmp_free_bytes_env[0]) {
+            tmp_enable = 1;
+        }
+        if (tmp_enable) {
+            uint64_t tmp_cap = 0;
+            uint64_t tmp_block_cap = 0;
+            if (tmp_free_bytes_env && tmp_free_bytes_env[0]) tmp_cap = strtoull(tmp_free_bytes_env, NULL, 10);
+            if (tmp_cap == 0) tmp_cap = 1024ull * 1024ull; // default 1 MiB cap
+            if (tmp_free_block_env && tmp_free_block_env[0]) tmp_block_cap = strtoull(tmp_free_block_env, NULL, 10);
+            if (tmp_block_cap == 0) tmp_block_cap = 64ull * 1024ull; // default 64 KiB block cap
+            vm->tmp_freelist_enabled = 1;
+            vm->tmp_freelist_cap_bytes = tmp_cap;
+            vm->tmp_freelist_max_block_bytes = tmp_block_cap;
+        }
+
         // Deterministic record/replay (rolling):
         // - AVM_RECORD_LOG: path to write a native-call replay log (FS domain currently).
         // - AVM_REPLAY_LOG: path to read a native-call replay log (FS domain currently).
