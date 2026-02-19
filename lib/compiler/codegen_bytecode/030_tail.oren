@@ -919,8 +919,8 @@ fn bytecode_try_emit_list_sum_loop(ctx, stmt) {
     bytecode_compile_expr(ctx, n_ident)
     bytecode_compile_expr(ctx, sum_ident)
     emit_byte(ctx, AVM_LIST_SUM_INT_LOOP)
-    _bc_emit_store_ident(ctx, sum_ident)
     _bc_emit_store_ident(ctx, idx_ident)
+    _bc_emit_store_ident(ctx, sum_ident)
     return true
 }
 
@@ -993,8 +993,8 @@ fn bytecode_try_emit_list_sum3_loop(ctx, stmt) {
     bytecode_compile_expr(ctx, n_ident)
     bytecode_compile_expr(ctx, sum_ident)
     emit_byte(ctx, AVM_LIST_SUM3_INT_LOOP)
-    _bc_emit_store_ident(ctx, sum_ident)
     _bc_emit_store_ident(ctx, idx_ident)
+    _bc_emit_store_ident(ctx, sum_ident)
     return true
 }
 
