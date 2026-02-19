@@ -287,6 +287,36 @@ if grep -q "\\[arena\\]" "$arena_lit_skip_log" 2>/dev/null; then
 fi
 tail -n 3 "$arena_lit_skip_log" >>"$log"
 
+echo "== arena auto loop use-before-assign skip smoke ==" >>"$log"
+arena_use_before_src="tests/native/test_arena_auto_loop_use_before_assign_skip_smoke.oren"
+arena_use_before_out="build/tmp/${compiler_base}_arena_auto_loop_use_before_assign_skip_smoke${exe_ext}"
+arena_use_before_log="build/logs/${compiler_base}_arena_auto_loop_use_before_assign_skip_smoke.log"
+rm -f "$arena_use_before_log" "$arena_use_before_out" 2>/dev/null || true
+OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_use_before_src" \
+  --backend native --platform "$platform" --debug -o "$arena_use_before_out" >"$arena_use_before_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_use_before_out" >>"$arena_use_before_log" 2>&1
+if grep -q "\\[arena\\]" "$arena_use_before_log" 2>/dev/null; then
+  echo "ERROR: arena auto loop use-before-assign should skip (unexpected [arena] output)" >&2
+  tail -n 80 "$arena_use_before_log" >&2 2>/dev/null || true
+  exit 1
+fi
+tail -n 3 "$arena_use_before_log" >>"$log"
+
+echo "== arena auto loop list<int> use-before-assign skip smoke ==" >>"$log"
+arena_int_use_before_src="tests/native/test_arena_auto_loop_list_int_use_before_assign_skip_smoke.oren"
+arena_int_use_before_out="build/tmp/${compiler_base}_arena_auto_loop_list_int_use_before_assign_skip_smoke${exe_ext}"
+arena_int_use_before_log="build/logs/${compiler_base}_arena_auto_loop_list_int_use_before_assign_skip_smoke.log"
+rm -f "$arena_int_use_before_log" "$arena_int_use_before_out" 2>/dev/null || true
+OREN_ARENA_AUTO_LOOP=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$arena_int_use_before_src" \
+  --backend native --platform "$platform" --debug -o "$arena_int_use_before_out" >"$arena_int_use_before_log" 2>&1
+OREN_TRACE_ARENA=1 run_with_timeout "$run_timeout_secs" "$arena_int_use_before_out" >>"$arena_int_use_before_log" 2>&1
+if grep -q "\\[arena\\]" "$arena_int_use_before_log" 2>/dev/null; then
+  echo "ERROR: arena auto loop list<int> use-before-assign should skip (unexpected [arena] output)" >&2
+  tail -n 80 "$arena_int_use_before_log" >&2 2>/dev/null || true
+  exit 1
+fi
+tail -n 3 "$arena_int_use_before_log" >>"$log"
+
 echo "== arena auto loop empty list literal smoke ==" >>"$log"
 arena_lit_src="tests/native/test_arena_auto_loop_empty_list_smoke.oren"
 arena_lit_out="build/tmp/${compiler_base}_arena_auto_loop_empty_list_smoke${exe_ext}"

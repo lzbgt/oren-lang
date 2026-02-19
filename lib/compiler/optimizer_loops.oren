@@ -729,6 +729,36 @@ fn _opt_block_has_ident_after(block, idx, name) {
     return false
 }
 
+fn _opt_stmt_is_new_list_assign(stmt, name) {
+    if stmt == nil || name == nil { return nil }
+    var t = stmt["type"]
+    if t == "Var" || t == "Assign" {
+        var nm = opthelp.is_ident(stmt["name"])
+        if nm != nil && nm == name {
+            var kind = _opt_expr_is_new_list_call(stmt["value"])
+            if kind != nil { return kind }
+            if _opt_expr_is_empty_list_lit(stmt["value"]) { return "list_lit" }
+        }
+    }
+    return nil
+}
+
+fn _opt_loop_first_assign_dominates(body, name) {
+    if body == nil || body["type"] != "Block" { return false }
+    var ss = body["stmts"]
+    if ss == nil { return false }
+    var i = 0
+    while i < oren_list_len(ss) {
+        var st = ss[i]
+        if st != nil {
+            if _opt_stmt_is_new_list_assign(st, name) != nil { return true }
+            if _opt_stmt_has_ident(st, name) { return false }
+        }
+        i = i + 1
+    }
+    return false
+}
+
 fn _opt_rewrite_new_list_in_stmt(stmt, safe_vars) {
     if stmt == nil { return false }
     var changed = false
@@ -1001,7 +1031,8 @@ fn _opt_prepare_loop_arena(block, idx, stmt) {
                 var nm = e["name"]
                 if nm != nil {
                     if _opt_stmt_has_unsafe_list_use(body, nm) != true &&
-                       _opt_block_has_ident_after(block, idx + 1, nm) != true {
+                       _opt_block_has_ident_after(block, idx + 1, nm) != true &&
+                       _opt_loop_first_assign_dominates(body, nm) == true {
                         _opt_add_safe_var(safe_vars, nm, e["kind"])
                     }
                 }

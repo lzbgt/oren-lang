@@ -267,6 +267,8 @@ Proposed compiler strategy (first slice):
      stays in safe list intrinsics (conservative escape check).
    - Rewrites only **unconditional top‑level** `var`/`assign` list allocations in the loop
      body (no conditional/nested rewrites).
+   - Requires the allocation to **dominate first use** in the loop body
+     (use‑before‑assign skips rewriting).
    - Only wraps loops without `break`/`return`/`continue` in the same loop body
      (nested-loop `continue` does not block the outer loop).
    - When wrapped, `break`/`return`/`continue` in the same loop body get a pre‑exit
