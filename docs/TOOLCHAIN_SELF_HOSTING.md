@@ -90,7 +90,7 @@ A real package manager requires more than “downloading some files”:
 
 If the end-goal includes AVM multiverse updates and signed modules, the package manager needs to integrate with the trust model in:
 
-- `docs/APPSTORE_ROOTCA_AND_UPDATES.md`
+- `docs/AVM_AND_OBC.md`
 - `docs/CERT_CHAIN_FORMAT.md`
 - `docs/CODESIGN.md`
 

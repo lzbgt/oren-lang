@@ -188,7 +188,7 @@ Rolling implementation note (current repo):
 - This repo implements compile-time linking via an “OBX” metadata payload embedded as an
   unused `BYTES` constant in `.obc` (exports + relocations), then concatenates/patches
   bytecode to produce a single self-contained program.
-- See `docs/OBC.md`.
+- See `docs/AVM_AND_OBC.md`.
 
 However, this requires a concrete “linking/loading” story:
 

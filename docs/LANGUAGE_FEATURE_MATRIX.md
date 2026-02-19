@@ -97,15 +97,15 @@ Remote x86_64 evidence:
 | Select (`oren_select_recv`, `oren_select`) | Rolling (AVM + native) | AVM: `SELECT_RECV`/`SELECT` opcodes (`lib/avm/avm_vm.c`); Native: POSIX kqueue/epoll select over pipe channels + Windows select over mem channels (`lib/runtime_native/245_select.oren`) | Native evidence: `tests/native/test_integration_suite.oren` (`test_select_primitives`). AVM evidence: `tests/avm/test_smoke_suite.oren` |
 | Capsule model (native capability gating) | Rolling | Native runtime + syscall emit constraints | Fixtures: `tests/native/fixtures/capsule_*` |
 | AVM execution of `.obc` | Rolling | Runtime: `lib/avm/**`; codegen: `lib/compiler/codegen_bytecode/**` | Examples: `examples/avm_*`; Tests: `tests/avm/**` |
-| Capability domains (CORE/FS/TIME/RNG/NET/PROC/EXIT/ENV/AVM) | Rolling | `.obc` verifier + dispatch: `lib/avm/avm_native.inc`, `lib/avm/main.c` | Spec: `docs/AVM_SPEC.md` (domains vs backends); fixtures cover capsule constraints |
-| VirtualFS backend (`vfs`) for deterministic simulation | Rolling | Backend selection + fixtures: `lib/avm/main.c`; VFS ops + snapshot codec: `lib/avm/avm_native.inc` | Spec: `docs/AVM_SPEC.md` (VirtualFS / `AVMVFS01`) |
-| VirtualPROC backend (`vproc`) for deterministic subprocess stubs | Rolling | Backend selection + fixtures: `lib/avm/main.c` | Spec: `docs/AVM_SPEC.md` (`AVM_PROC_BACKEND=vproc`, `AVM_PROC_FIXTURES_HEX=...`) |
-| VirtualNET backend (`vnet`) for deterministic network stubs | Rolling | Backend selection + fixtures: `lib/avm/main.c` | Spec: `docs/AVM_SPEC.md` (`AVM_NET_BACKEND=vnet`, `AVM_NET_FIXTURES_HEX=...`) |
-| `.obc` signature verification (`--require-sig`) | Rolling | Sig verifier: `lib/avm/avm_sig.c` | Spec: `docs/AVM_SPEC.md`; tools: `cmd/orensign/main.go` |
-| Delegated signing via embedded cert chain (`OREN_CERTS`) | Rolling | Cert parser: `lib/avm/avm_cert.c`; chain verify: `lib/avm/avm_sig.c` | Docs: `docs/CERT_CHAIN_FORMAT.md`, `docs/APPSTORE_ROOTCA_AND_UPDATES.md` |
-| Strict verification mode (`--verify-strict`) | Rolling | CLI + verifier gating: `lib/avm/main.c` | Spec: `docs/AVM_SPEC.md` (strict verification); help: `lib/avm/avm_help.inc` |
-| Nested universes (“AVM in AVM” / multiverse host service) | Rolling (gated) | AVM domain dispatch: `lib/avm/avm_native.inc` (Domain 8: AVM) | Docs: `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes` (model + constraints) |
-| Swarm / consensus outcome hashing | Rolling (in progress) | Job hash + result selection: `lib/avm/avm_state.inc`, `lib/avm/avm.h` | Docs: `docs/AVM_DESIGN.md#avm-swarm-consensus-agent-mobility-design-validation` |
+| Capability domains (CORE/FS/TIME/RNG/NET/PROC/EXIT/ENV/AVM) | Rolling | `.obc` verifier + dispatch: `lib/avm/avm_native.inc`, `lib/avm/main.c` | Spec: `docs/AVM_AND_OBC.md` (domains vs backends); fixtures cover capsule constraints |
+| VirtualFS backend (`vfs`) for deterministic simulation | Rolling | Backend selection + fixtures: `lib/avm/main.c`; VFS ops + snapshot codec: `lib/avm/avm_native.inc` | Spec: `docs/AVM_AND_OBC.md` (VirtualFS / `AVMVFS01`) |
+| VirtualPROC backend (`vproc`) for deterministic subprocess stubs | Rolling | Backend selection + fixtures: `lib/avm/main.c` | Spec: `docs/AVM_AND_OBC.md` (`AVM_PROC_BACKEND=vproc`, `AVM_PROC_FIXTURES_HEX=...`) |
+| VirtualNET backend (`vnet`) for deterministic network stubs | Rolling | Backend selection + fixtures: `lib/avm/main.c` | Spec: `docs/AVM_AND_OBC.md` (`AVM_NET_BACKEND=vnet`, `AVM_NET_FIXTURES_HEX=...`) |
+| `.obc` signature verification (`--require-sig`) | Rolling | Sig verifier: `lib/avm/avm_sig.c` | Spec: `docs/AVM_AND_OBC.md`; tools: `cmd/orensign/main.go` |
+| Delegated signing via embedded cert chain (`OREN_CERTS`) | Rolling | Cert parser: `lib/avm/avm_cert.c`; chain verify: `lib/avm/avm_sig.c` | Docs: `docs/CERT_CHAIN_FORMAT.md`, `docs/AVM_AND_OBC.md` |
+| Strict verification mode (`--verify-strict`) | Rolling | CLI + verifier gating: `lib/avm/main.c` | Spec: `docs/AVM_AND_OBC.md` (strict verification); help: `lib/avm/avm_help.inc` |
+| Nested universes (“AVM in AVM” / multiverse host service) | Rolling (gated) | AVM domain dispatch: `lib/avm/avm_native.inc` (Domain 8: AVM) | Docs: `docs/AVM_AND_OBC.md#avm-in-avm-multiverse-design-nested-virtual-universes` (model + constraints) |
+| Swarm / consensus outcome hashing | Rolling (in progress) | Job hash + result selection: `lib/avm/avm_state.inc`, `lib/avm/avm.h` | Docs: `docs/AVM_AND_OBC.md#avm-swarm-consensus-agent-mobility-design-validation` |
 | Compiler-in-AVM | Planned | Bytecode compiler + AVM host interface constraints | Track: `docs/TODOS.md` (P0.10), `docs/TOOLCHAIN_SELF_HOSTING.md` |
 
 ## HPC / SIMD (Tier‑1 HPC: arm64 NEON now, x86_64 SSE/AVX next)
@@ -118,7 +118,7 @@ Remote x86_64 evidence:
 | SIMD intrinsics (arm64 NEON) | Rolling (arm64 macOS/Linux); Planned (x86_64) | Native arm64 codegen lowers `simd_*` intrinsics: `lib/compiler/arm64_native_expr/**` | Spec lists the intrinsic family: `docs/LANGUAGE_SPEC.md` (“Native Backend Intrinsics”) |
 | SIMD-backed typed-buffer kernels (dot/axpy/gemm/etc.) | Rolling (arm64 macOS/Linux); Planned (x86_64) | Runtime dispatch in `lib/runtime_native/typed_buffers/**` + arm64 intrinsic lowering; scalar fallbacks exist for all `simd_*_ptr` entrypoints in `lib/runtime_native/typed_buffers/005_simd_scalar_fallback.oren` | Opt-in via `OREN_ENABLE_SIMD=1` (or disable with `OREN_NO_SIMD=1`). Must remain deterministic. |
 | x86_64 SIMD plan (SSE2 baseline, AVX2 optional) | Planned | x64 native codegen + runtime kernel implementations | Track under `docs/TODOS.md` (HPC item) until we have an x86_64 SIMD parity suite (scalar vs SIMD) and stable feature detection for Linux+Windows |
-| AVM SIMD (NEON) | Planned / Rolling (gated) | Build/runtime gating exists (`AVM_ENABLE_SIMD=1`, arm64 NEON): `lib/avm/avm_native.c`, `lib/avm/main.c` | Design constraints: `docs/AVM_DESIGN.md#avm-neon-mapping-plan-arm64-no-jit-first` (determinism-first); not treated as mature until fully covered by AVM tests |
+| AVM SIMD (NEON) | Planned / Rolling (gated) | Build/runtime gating exists (`AVM_ENABLE_SIMD=1`, arm64 NEON): `lib/avm/avm_native.c`, `lib/avm/main.c` | Design constraints: `docs/AVM_AND_OBC.md#avm-neon-mapping-plan-arm64-no-jit-first` (determinism-first); not treated as mature until fully covered by AVM tests |
 | HPC roadmap (math/linalg + perf harness) | Rolling (in progress) | Design docs: `docs/HPC_SERVER_PLAN.md`, typed-buffer + linalg layers | Tracker: `docs/TODOS.md` (P1.3) |
 
 ## Tooling / ecosystem

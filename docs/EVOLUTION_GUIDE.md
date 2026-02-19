@@ -79,7 +79,7 @@ These are not competing ideas; they form an evolution ladder.
 
 Doc:
 
-- `docs/BACKEND_ARCHITECTURE.md#c-backend-design-and-abi`
+- `docs/COMPILER_AND_BACKENDS.md#c-backend-design-and-abi`
 
 Purpose:
 
@@ -106,7 +106,7 @@ Important: the production goal for the **native syscall-first runtime** is diffe
 
 Docs:
 
-- `docs/BACKEND_ARCHITECTURE.md#native-backend-overview`
+- `docs/COMPILER_AND_BACKENDS.md#native-backend-overview`
 - `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`
 
 What “syscall-first” means in this repo:
@@ -145,10 +145,10 @@ That’s why the syscall boundary must be designed first and kept small.
 
 Docs:
 
-- `docs/AVM_SPEC.md` (bootstrap spec + Next-Gen AVM Plan section)
-- `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes` (nested universes)
-- `docs/AVM_DESIGN.md#avm-swarm-consensus-agent-mobility-design-validation` (swarm validation/mobility)
-- `docs/AVM_DESIGN.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly` (deterministic tasks design)
+- `docs/AVM_AND_OBC.md` (bootstrap spec + Next-Gen AVM Plan section)
+- `docs/AVM_AND_OBC.md#avm-in-avm-multiverse-design-nested-virtual-universes` (nested universes)
+- `docs/AVM_AND_OBC.md#avm-swarm-consensus-agent-mobility-design-validation` (swarm validation/mobility)
+- `docs/AVM_AND_OBC.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly` (deterministic tasks design)
 
 AVM exists because there are real environments where:
 
@@ -194,7 +194,7 @@ This is the key to:
 
 Doc:
 
-- `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes`
+- `docs/AVM_AND_OBC.md#avm-in-avm-multiverse-design-nested-virtual-universes`
 
 “Nested universes” are a pragmatic agent primitive:
 
@@ -268,8 +268,8 @@ This is the guiding story of “how languages get built” applied to Oren’s g
 - “What to do next”: `docs/TODOS.md`
 - “How to build/test”: `docs/BUILD_AND_VERIFY.md`
 - “Syscall-first runtime plan”: `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`
-- “AVM bootstrap spec”: `docs/AVM_SPEC.md`
-- “Multiverse design”: `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes`
+- “AVM bootstrap spec”: `docs/AVM_AND_OBC.md`
+- “Multiverse design”: `docs/AVM_AND_OBC.md#avm-in-avm-multiverse-design-nested-virtual-universes`
 
 ---
 

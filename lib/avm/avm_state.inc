@@ -2301,7 +2301,9 @@ int avm_snapshot(AvmVM* vm, const char* path) {
             if (!write_u32_le(f, (uint32_t)s->task_count)) { fclose(f); objtable_free(&objs); return 1; }
             if (!write_u32_le(f, (uint32_t)s->ready_len)) { fclose(f); objtable_free(&objs); return 1; }
             for (int i = 0; i < s->ready_len; i++) {
-                if (!write_u32_le(f, (uint32_t)s->ready[i])) { fclose(f); objtable_free(&objs); return 1; }
+                int idx = s->ready_head + i;
+                if (idx >= s->ready_cap) idx -= s->ready_cap;
+                if (!write_u32_le(f, (uint32_t)s->ready[idx])) { fclose(f); objtable_free(&objs); return 1; }
             }
             if (!write_u32_le(f, (uint32_t)s->select_len)) { fclose(f); objtable_free(&objs); return 1; }
             for (int i = 0; i < s->select_len; i++) {
@@ -2981,6 +2983,7 @@ int avm_restore(AvmVM* vm, const char* path) {
                 s->ready = NULL;
                 s->ready_len = (int)ready_len;
                 s->ready_cap = (int)ready_len;
+                s->ready_head = 0;
                 s->select_waiters = NULL;
                 s->select_len = (int)select_len;
                 s->select_cap = (int)select_len;

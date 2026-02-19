@@ -832,7 +832,7 @@ Backend behavior (rolling):
 
 - **AVM backend**: `spawn` creates a **deterministic VM task** (green thread) scheduled by the AVM runtime.
   - `oren_join(handle)` and `oren_yield()` are VM opcodes (portable, snapshot-safe).
-  - See `docs/AVM_SPEC.md` (Next-Gen plan section: tasks + channels + select).
+  - See `docs/AVM_AND_OBC.md` (Next-Gen plan section: tasks + channels + select).
 	- **C backend**: `spawn` uses `pthread_create` and returns a pointer-like handle.
 	  - `oren_join(handle)` waits and returns the spawned function’s return value.
 	  - `oren_detach(handle)` / `oren_join_all()` exist in the C runtime (rolling; not yet mirrored in native runtime).
@@ -927,7 +927,7 @@ Stdlib wrapper (rolling):
 Native backend note:
 
   - Until native value tagging is fully implemented, numeric immediates (`int`/`float`) may still be indistinguishable in some native-mode paths, so `oren_type_tag` is best-effort for those values.
-    - Track: `docs/BACKEND_ARCHITECTURE.md#native-tagged-value-representation`
+    - Track: `docs/COMPILER_AND_BACKENDS.md#native-tagged-value-representation`
     - Rolling implementation detail: `nil`, `false`, and `true` are **runtime singleton values** in native mode (not raw `0/1`), so `0` (int zero) remains distinct from `nil`/`false` in the common case.
     - Rolling reflection v0 for structs: user-defined `struct` values are map-shaped today, but constructors tag them with `{"__oren_type":"TypeName", ...}`, so `oren_type_name(TypeName(...))` returns `"TypeName"` instead of `"map"`.
       - `__oren_type` is a **reserved** struct key; user code must not declare a field named `__oren_type` (compile-time error).

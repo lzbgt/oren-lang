@@ -123,7 +123,7 @@ Rolling rules:
 
 ## Native value semantics: never rely on `scalar == nil`
 
-Rolling invariant (until `docs/BACKEND_ARCHITECTURE.md#native-tagged-value-representation` lands):
+Rolling invariant (until `docs/COMPILER_AND_BACKENDS.md#native-tagged-value-representation` lands):
 
 - The native backend is still rolling toward a fully tagged value model; do not treat scalars as “optionals” via `nil`.
 - Native mode now uses **runtime singleton values** for `nil/false/true` (distinct non-zero pointers stored in globals), which removes the worst historical `0/nil/false` aliasing footguns.

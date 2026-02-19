@@ -802,7 +802,7 @@ This file preserves the previous long-form rolling TODO list (history + detailed
   - Added minimal progress markers for the WSL step (`[wsl] unpack/build/run`) while keeping build output quiet.
 - References:
   - Script: `tools/verify_obc_portability.sh`
-  - Docs: `docs/OBC.md`
+  - Docs: `docs/AVM_AND_OBC.md`
   - Make target: `make obc-portability`
 
 ## Archived (2025-12-21) — Native SIMD scale/axpy + matmul scratch reuse (HPC)
@@ -835,9 +835,9 @@ This file preserves the previous long-form rolling TODO list (history + detailed
 
 - Compressed `docs/TODOS.md` back to a short “top items only” tracker (rolling rule: 5–10 items).
 - The detailed x86_64 bring-up notes remain in git history and in the dedicated design docs:
-  - `docs/BACKEND_ARCHITECTURE.md#native-backend-overview`
-  - `docs/BACKEND_ARCHITECTURE.md#native-backend-code-reuse-plan`
-  - `docs/BACKEND_ARCHITECTURE.md`
+  - `docs/COMPILER_AND_BACKENDS.md#native-backend-overview`
+  - `docs/COMPILER_AND_BACKENDS.md#native-backend-code-reuse-plan`
+  - `docs/COMPILER_AND_BACKENDS.md`
   - `docs/REMOTE_X64_ENV.md`
 
 ## Archived (2025-12-28) — Map key-kind determinism + typed map ops parity (native/C)
@@ -1567,7 +1567,7 @@ Focus statement (to avoid roadmap thrash):
 1) **AVM deterministic cooperative tasks (concurrency model; mandatory for agents)**
    - This is the production “agent loop” primitive: structured concurrency without OS-thread nondeterminism.
    - Implement a single-threaded deterministic scheduler first (FIFO ready queue + deterministic wake ordering).
-   - Minimal surface (design in `docs/AVM_DESIGN.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly`):
+   - Minimal surface (design in `docs/AVM_AND_OBC.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly`):
      - spawn/join tasks
      - channels + select
      - integration with budgets + deterministic TIME + snapshot/restore
@@ -1715,7 +1715,7 @@ Focus statement (to avoid roadmap thrash):
 ## 2025-12-20 (Recent)
 
 - `previous test runner`: added a repeated-run determinism guard for `tests/avm/test_smoke_suite.oren` (rerun scalar mode, require `RESULT_HASH` + `TRACE_HASH` match).
-- Docs: clarified that AVM FLOAT constants are wired end-to-end and documented const tag `3` as float64 bit-pattern in the bootstrap spec (`docs/AVM_SPEC.md`).
+- Docs: clarified that AVM FLOAT constants are wired end-to-end and documented const tag `3` as float64 bit-pattern in the bootstrap spec (`docs/AVM_AND_OBC.md`).
 - Compiler: added `///` doc comments (lexer/parser) and exported docs in metadata JSON for functions/structs/traits (covered by `tests/modules/test_metadata_attrs.oren`).
 
 ## 2025-12-21 (Recent)
@@ -1854,7 +1854,7 @@ These are “project laws”. If a task can’t follow these, we *change the tas
       - C runtime: `oren_buf_gemm_i32_4x4_slice_into` now has an optional NEON fast path (wrap semantics; scalar fallback authoritative).
       - Native runtime (macOS arm64): `simd_dot_f32_ptr` is validated; `simd_dot_f32_4_ptr` / `simd_gemm_f32_4x4_ptr` are still disabled pending correctness fixes (scalar fallback remains authoritative).
       - For the authoritative implementation details and native_id mapping, see:
-        - `docs/AVM_DESIGN.md#avm-neon-mapping-plan-arm64-no-jit-first`
+        - `docs/AVM_AND_OBC.md#avm-neon-mapping-plan-arm64-no-jit-first`
         - `lib/std/linalg.oren`
         - `lib/runtime_buf.c`
         - `lib/avm/avm_native.inc`

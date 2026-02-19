@@ -15,12 +15,12 @@ Authoritative end-to-end instructions live in `docs/BUILD_AND_VERIFY.md` (this f
 ### C backend (portable bootstrapping path)
 The C backend transpiles Oren to C, then relies on the host C toolchain to compile/link. This is still the “most portable” path and remains useful as a fallback.
 
-For details, see `docs/BACKEND_ARCHITECTURE.md#c-backend-design-and-abi`.
+For details, see `docs/COMPILER_AND_BACKENDS.md#c-backend-design-and-abi`.
 
 ### Native backend (syscall-first, no host SDK headers)
 The native backend emits Mach-O (macOS arm64) or ELF (Linux arm64) directly.
 
-Design constraints and ABI tables are documented in `docs/BACKEND_ARCHITECTURE.md#native-backend-overview`.
+Design constraints and ABI tables are documented in `docs/COMPILER_AND_BACKENDS.md#native-backend-overview`.
 
 ### Bytecode backend (AVM)
 The bytecode backend emits `.obc` for the AVM prototype.
@@ -143,7 +143,7 @@ The high-level pipeline is:
    - native Mach-O/ELF (`--backend native`)
    - AVM bytecode (`--backend bytecode`)
 
-For the C backend, the toolchain invocation is explicit and overrideable (see `docs/BACKEND_ARCHITECTURE.md#c-backend-design-and-abi`).
+For the C backend, the toolchain invocation is explicit and overrideable (see `docs/COMPILER_AND_BACKENDS.md#c-backend-design-and-abi`).
 
 If you prefer to compile the generated C yourself, use `--emit-c` and then run the compile/link step manually.
 

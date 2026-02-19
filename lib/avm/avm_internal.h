@@ -92,6 +92,7 @@ typedef struct {
     int* ready;
     int ready_len;
     int ready_cap;
+    int ready_head;
 
     // Deterministic scheduling quantum (in semantic steps/gas).
     int quantum_steps;

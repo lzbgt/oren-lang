@@ -171,8 +171,8 @@ The model is:
 
 References:
 
-- `docs/AVM_SPEC.md` (VirtualFS/VirtualNET/VirtualPROC backends)
-- `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes` (nested universes / host service constraints)
+- `docs/AVM_AND_OBC.md` (VirtualFS/VirtualNET/VirtualPROC backends)
+- `docs/AVM_AND_OBC.md#avm-in-avm-multiverse-design-nested-virtual-universes` (nested universes / host service constraints)
 
 ### 3.3 Current native status: `spawn` is rolling toward green tasks + N:M
 
@@ -198,7 +198,7 @@ Once CoreIR + scheduler are stable, we want a language-level `select` statement 
 
 The exact surface syntax is intentionally deferred until:
 
-- CoreIR is the canonical semantics owner (`docs/BACKEND_ARCHITECTURE.md`)
+- CoreIR is the canonical semantics owner (`docs/COMPILER_AND_BACKENDS.md`)
 - native scheduler exists (`docs/NATIVE_GMP_SCHEDULER.md`)
 
 But the semantic target is already stable:

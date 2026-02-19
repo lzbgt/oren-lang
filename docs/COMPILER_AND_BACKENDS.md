@@ -1,4 +1,411 @@
-# Backend Architecture & Design
+# Compiler + Backend Architecture (Rolling)
+
+This document consolidates the compiler architecture notes, IR/internal implementation map, and backend architecture/design into a single reference. It merges the prior standalone docs to reduce drift while the repo remains in rolling mode.
+
+Merged sources (legacy paths; removed after merge):
+- docs/COMPILER_ARCHITECTURE.md
+- docs/IR_AND_COMPILER_INTERNALS.md
+- docs/BACKEND_ARCHITECTURE.md
+
+## Contents
+- Compiler Architecture Notes (Rolling)
+- IR and Compiler Internals (Rolling, AI-Friendly)
+- Backend Architecture & Design
+
+
+## Compiler Architecture Notes (Rolling)
+
+**Last updated:** 2026-01-11
+
+This document captures **high-signal invariants and mental models** for working on the Oren compiler
+without re-learning the same failure modes repeatedly.
+
+It is intentionally an index + checklist; deep dives live in the linked docs.
+
+## 0) What “the compiler” is (today)
+
+Oren has **one front-end** (parser + module linking + lowering passes) and can emit:
+
+1) **Native binaries** (Tier‑1 targets: `arm64-macos`, `arm64-linux`, `x64-linux`, `x64-windows`)
+2) **C backend outputs** (portable bring-up; relies on a host C toolchain)
+3) **AVM bytecode** (`.obc`) for sandboxed deterministic execution
+
+The bootstrapping story uses multiple stages:
+
+- **stage0**: Go bootstrap (builds stage1 on the host; includes Windows VS2022/MSVC detection)
+- **stage1**: Oren compiler built with the C backend (portable baseline)
+- **stage2**: Oren compiler built with the native backend (self-host direction)
+
+See:
+
+- `docs/TOOLCHAIN_SELF_HOSTING.md`
+- `docs/BUILD_AND_VERIFY.md`
+- `docs/COMPILER_AND_BACKENDS.md#native-backend-overview`
+
+## 1) Artifact kinds and where they come from
+
+- `--backend native`:
+  - ELF (`.so`) for Linux `--lib`
+  - PE (`.dll`) for Windows `--lib`
+  - Mach‑O for macOS (executables / dylib where supported)
+- `--backend c`: emits `.c` (and typically compiles+links it via `--cc`)
+- `--backend bytecode`: emits `.obc`
+
+The tool also supports header-based scanning for `--lib` outputs:
+
+- `oren scan foo.{dylib,so,dll}` prefers parsing the generated `foo.h` (cross-platform).
+
+See:
+
+- `docs/BUILD_AND_VERIFY.md` (`--lib` output expectations and scan behavior)
+
+## 2) Build pipeline phases (mental model)
+
+When debugging failures, separate:
+
+1) **Parse + AST** (syntax/grammar)
+2) **Module linking** (imports, `@cfg` filtering, symbol binding)
+3) **Lowering passes** (impl/trait lowering, pack-view lowering, sugar lowering, etc.)
+4) **Backend-specific codegen** (native vs C vs bytecode)
+5) **Runtime/toolchain integration** (native runtime bundles, C toolchain selection, dynamic linking)
+
+Common “where it broke” questions:
+
+- If something is platform-dependent, it usually lives in (4) or (5).
+- If something is “same on all backends”, it should be caught in (1)–(3).
+
+## 3) Guardrails (things we *must not regress*)
+
+### 3.1 Scalar vs nil comparisons are correctness bugs
+
+Rolling invariant:
+
+- Do **not** treat numeric/bool scalars as optionals via `== nil`.
+
+Enforcement:
+
+- An always-on compiler pass rejects `bool/int/float == nil` when the scalar side is provable:
+  - literals / casts / locally-proven scalars
+  - calls to functions with explicit scalar return annotations (e.g. `fn f(): i64`)
+  - “later scalar use” (best-effort scan, e.g. `i64(x)` after `if x == nil { ... }`)
+
+Docs:
+
+- `docs/COMPILER_GOTCHAS.md` (“Native value semantics: never rely on scalar == nil”)
+- `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md` (guardrail wording)
+
+Regression fixtures (must fail):
+
+- `tests/fixtures/typecheck_bad_numeric_nil.oren`
+- `tests/fixtures/typecheck_bad_bool_nil.oren`
+- `tests/fixtures/nil_guard_bad_late_scalar_nil_compare.oren`
+- `tests/fixtures/nil_guard_bad_late_scalar_nil_compare_top_level.oren`
+- `tests/fixtures/nil_guard_bad_annotated_call_nil_compare.oren`
+
+### 3.2 Spawn/join portability: workers return values (don’t `exit(...)`)
+
+Rolling rule:
+
+- Spawned workers should **return** values; `oren_join(_timeout)` is the portability boundary.
+- Do not call `exit(...)` inside spawned workers (breaks join return semantics; unsafe on Windows).
+
+Docs:
+
+- `docs/LANGUAGE_MANUAL.md` (spawn notes)
+- `docs/TEST_SYSTEM.md` (why some fixtures use small `@cfg` glue)
+
+### 3.3 Native string literals are constant-section data (not GC objects)
+
+Rolling rule:
+
+- Embedded literals are pooled into `cstr0` and must not be tracked as heap allocations.
+
+Docs:
+
+- `docs/COMPILER_GOTCHAS.md` (“Native strings: embedded literal pool must not hit GC tracking”)
+
+## 4) Windows C backend toolchain selection (cl.exe vs cc)
+
+Policy (Tier‑1 Windows host):
+
+- Default C backend compiler is **MSVC `cl.exe`** (not `cc`).
+- The compiler emits a temporary `.cmd` wrapper that:
+  - resolves Visual Studio (direct probes + `vswhere.exe`)
+  - runs `VsDevCmd.bat` / `vcvars64.bat`
+  - invokes `cl.exe` with a minimal deterministic arg set
+- Cross-compiling `--platform x64-windows --backend c` from a non-Windows host is **not**
+  an implicit default; it requires an explicit `--cc` (e.g. MinGW) to opt in.
+
+See:
+
+- `docs/BUILD_AND_VERIFY.md` (Windows C backend policy)
+- `docs/REMOTE_X64_ENV.md` (Win11 (WSL2 optional) workflow)
+
+## 5) Performance and hang-debugging entry points
+
+Fast regression/diagnosis helpers:
+
+- `make test` (native quick integration; bounded)
+- `./scripts/bench_native_compile_one_file.sh` (bounded compile-one-file benchmark)
+
+Primary playbook:
+
+- `docs/COMPILER_AND_BACKENDS.md#native-backend-performance-playbook`
+
+When a build step “hangs”, prefer:
+
+- adding **bounded trace markers** (opt-in env flags) over dumping huge logs
+- using existing per-step timeouts in `scripts/*` and escalating only when necessary
+
+## IR and Compiler Internals (Rolling, AI-Friendly)
+
+**Last updated:** 2026-01-10  
+
+This document is an **implementation map** for AI agents and maintainers:
+
+- what “IR” means in this repo today (rolling reality),
+- what the pipeline stages are,
+- where the core data structures live,
+- what **CoreIR** is intended to become (the semantics-owning boundary),
+- and what has already landed (CoreIR v0 scaffold).
+
+It complements:
+
+- `docs/LANGUAGE_MANUAL.md` (user-facing “how to write Oren today”)
+- `docs/LANGUAGE_SPEC.md` (grammar + semantics intent)
+- `docs/COMPILER_AND_BACKENDS.md` (high-level architecture + invariants)
+- `docs/COMPILER_AND_BACKENDS.md#native-backend-code-reuse-plan` (native backend reuse direction)
+
+## 1) Terminology: “IR” in rolling v0
+
+Oren is rolling. The word “IR” is used in two ways:
+
+1) **Current reality (today):**
+   - The compiler mostly operates on a **JSON-map AST** (mutable tree of `{type: ...}` nodes).
+   - Most “lowering passes” are **AST rewrites** (backend-neutral).
+   - Backends (C/native/bytecode) often still operate directly on this lowered AST.
+
+2) **Target architecture (North Star):**
+   - Introduce a canonical, backend-independent **CoreIR** that *owns semantics*.
+   - Backends become thin adapters: `CoreIR -> BackendIR -> output`.
+
+The goal is not “IR for its own sake”; the goal is:
+
+- semantic parity across backends,
+- maximal code reuse between arm64 and x86_64,
+- deterministic behavior for AVM/multiverse workflows.
+
+## 2) High-level pipeline (where to read code)
+
+The pipeline is implemented in Oren itself under `lib/compiler/`.
+
+Suggested “follow the code” order:
+
+1) **Lexer / Parser**
+   - Tokens: `lib/compiler/token.oren`
+   - Lexer: `lib/compiler/lexer.oren`
+   - Parser entry: `lib/compiler/parser.oren`
+   - Parser internals: `lib/compiler/parser_core.oren`, `lib/compiler/parser_parse/**`
+   - AST constructors (node shapes): `lib/compiler/ast.oren`
+
+2) **Linking / modules**
+   - Module linking: `lib/compiler/compiler/020_modules_linking.oren`
+   - Generic specialization call rewrite: `lib/compiler/generic_call_lowering.oren`
+
+3) **Name resolution / type hints / “static-first” rewrites**
+   - Renamer: `lib/compiler/renamer.oren`
+   - Type name resolve: `lib/compiler/type_name_resolve.oren`
+   - Type annotation lowering: `lib/compiler/type_ann_lowering.oren`
+   - Impl/traits lowering (method sugar, recv-kind hints, etc.): `lib/compiler/impl_lowering.oren`
+
+4) **Optimizer (rolling)**
+   - `lib/compiler/optimizer.oren`
+   - Important note: optimizations must remain semantics-preserving under the chosen evaluation order.
+
+5) **Backend selection**
+   - Bytecode: `lib/compiler/codegen_bytecode/**`
+   - C backend: `lib/compiler/transpiler.oren`
+   - Native backends:
+     - arm64 facade: `lib/compiler/codegen_arm64.oren`
+     - x86_64 facade: `lib/compiler/codegen_x64.oren`
+
+### Native runtime injection (compiler-side)
+
+Both native backends ultimately want the same model:
+
+- compile user program + the Oren “native runtime” sources into one output binary
+- the runtime sources are modularized using a tiny include directive:
+  - `// @include "relative/path.oren"`
+- includes are expanded at compile time (compiler-side), then parsed as normal Oren source.
+
+Implementation:
+
+- Shared include expander: `lib/compiler/native_runtime_inject.oren`
+- arm64 native injects runtime by default: `lib/compiler/arm64_native_program.oren`
+- x86_64 native injects runtime by default: `lib/compiler/x64_native_program/090_program_entry.oren`
+  - Tier‑1 rule: runtime injection is mandatory on x86_64; debug uses narrower fixtures/matrices rather than a runtime toggle.
+
+- Shared injection + post-injection DCE: `lib/compiler/native_runtime_bundle.oren`
+  - tags injected statements as runtime vs user (so backends do not rely on indices)
+  - Tier-1 invariant: the injected runtime must not contain top-level executable statements
+  - startup order: `native_runtime_init` runs first; then a synthesized `__top_level__` runs user global initializers and top-level statements
+    - runtime global initializers are **not** executed in `__top_level__` (runtime init owns runtime globals)
+  - compiler guardrail: constant-like runtime globals with non-zero initializers must be assigned in `native_runtime_init` (so Tier‑1 does not depend on top-level init order).
+
+- the injected native runtime references syscall stubs (`sys_*`) that must be correctly lowered by the backend.
+
+The CLI entry and dispatch live under `lib/compiler/compiler/**` (including `040_build_pipeline.oren`).
+
+### Native FFI: internal name vs external symbol (module-exportability invariant)
+
+Native backends support FFI declarations via `ffi name` (plus optional `@ffi.link(...)` / `@ffi.dll(...)` and `@ffi.ret(...)` attributes).
+
+Rolling constraint that matters for stdlib and portability:
+
+- Oren’s module system **prefixes** top-level symbols to avoid collisions (example: `STD_ffi_libc_strlen`).
+- But the OS dynamic loader / resolver (`dlsym`, `GetProcAddress`, Mach‑O binds) must look up the **original external symbol** (example: `"strlen"`).
+
+To make FFI declarations module-exportable, the compiler stores both names on `FFI` AST nodes:
+
+- `name.value`: the **internal** symbol name after renaming (what call sites refer to)
+- `link_name`: the **external** symbol name used for resolution (stable; not renamed)
+
+This enables the stdlib to provide platform-neutral wrappers like:
+
+- `lib/std/ffi/libc.oren` (platform-gated library attachment, call sites stay `libc.strlen(...)`)
+- `tests/native/test_std_ffi_libc_smoke.oren` (regression fixture)
+
+If you touch module renaming / namespace resolution / FFI lowering, keep this invariant and re-run:
+
+- `make verify-x64-linux-qemu` (covers x64-linux + the libc smoke)
+
+Implementation pointers:
+
+- AST node shape: `lib/compiler/ast.oren` (`FFI` now has `link_name`)
+- Renaming: `lib/compiler/renamer.oren` (renames `FFI.name`, never touches `link_name`)
+- x64 backend: `lib/compiler/x64_native_program/072_ffi.oren` + call emission in `lib/compiler/x64_native_program/040_emit_expr.oren`
+- arm64 backend: `lib/compiler/arm64_native_stmt.oren` + platform object writers (`lib/compiler/arm64_macho.oren`, `lib/compiler/arm64_elf.oren`)
+
+## 3) Current “IR”: AST and LinkedProgram shapes
+
+### 3.1 AST node shape (rolling)
+
+AST nodes are plain maps, typically with:
+
+- `type`: a string tag (`"Function"`, `"Call"`, `"If"`, …)
+- `token`: optional token metadata (file/line/col)
+- node-specific fields (e.g., `"left"`, `"right"`, `"body"`, `"params"`, …)
+
+Canonical constructors are in `lib/compiler/ast.oren`.
+
+### 3.2 LinkedProgram shape (rolling)
+
+Module linking produces a “linked” program map that backends consume.
+
+The exact fields evolve, but common keys include:
+
+- `statements`: flattened top-level statement list after module resolution
+- `aliases`: import alias map (used by capture analysis to avoid capturing module names)
+- `type_ns`: type namespace map (used by type-name resolution / impl lowering)
+
+Backends should treat unknown fields as “future expansion” and avoid relying on map iteration order.
+
+## 4) CoreIR: what it is supposed to mean
+
+CoreIR is the intended semantics-owning boundary:
+
+- It encodes evaluation order and short-circuit rules explicitly.
+- It owns container operation semantics (`xs[i]`, `xs[i]=v`, `len`, `push`) in a backend-neutral way.
+- It owns callable semantics (closures + varargs + spread + indirect calls).
+- It exposes a stable “effect model” surface so AVM/capsules/native share the same conceptual domains.
+
+Backends should not “decide what `for` means” or “how `...rest` is represented”.
+Those decisions must be centralized, deterministic, and regression-tested.
+
+References:
+
+- Architecture: `docs/COMPILER_AND_BACKENDS.md`
+- Native reuse direction: `docs/COMPILER_AND_BACKENDS.md#native-backend-code-reuse-plan`
+
+## 5) CoreIR v0 scaffold (what exists today)
+
+We are introducing CoreIR incrementally.
+
+The first landed piece is a minimal **CoreIR v0 scaffold**:
+
+- `lib/compiler/coreir.oren`
+
+What it does (today):
+
+- deterministic extraction of top-level function declarations
+- collects metadata needed by multiple backends:
+  - `declared_functions` (map)
+  - `func_decl_order` (list; source order)
+  - `func_arity` (map)
+  - `func_varargs_fixed` (map)
+
+Initial consumer (today):
+
+- x86_64 native backend prepass:
+  - `lib/compiler/x64_native_program/080_functions_compile.oren`
+- Bytecode backend prepass (declared funcs + varargs map):
+  - `lib/compiler/codegen_bytecode/030_tail.oren`
+- C backend transpiler prepass (direct-call + varargs lowering metadata):
+  - `lib/compiler/transpiler.oren`
+
+Why this matters:
+
+- It removes the first piece of duplicated semantic metadata extraction.
+- It makes arm64 and x86_64 converge on the same deterministic function/varargs facts.
+- It is a safe stepping stone toward moving call canonicalization into CoreIR next.
+
+## 6) Next CoreIR expansions (prioritized)
+
+This is the suggested “rolling-safe” order to expand CoreIR while continuously keeping backends working:
+
+1) **Call canonicalization**
+   - Represent every call as one of:
+     - `CallDirect(name, args...)`
+     - `CallIndirect(fn_value, args_list)`
+     - `CallSpreadDirect(name, fixed_args..., spread_list)`
+     - `CallSpreadIndirect(fn_value, fixed_args..., spread_list)`
+   - Lower varargs (`...rest`) and spread (`xs...`) deterministically at CoreIR boundary.
+   - Motivation: this is the highest cross-backend coupling surface (C/native/bytecode/AVM).
+
+2) **Container ops canonicalization**
+   - Treat `xs[i]`, `xs[i]=v`, `len(xs)`, `push(xs, v)` as CoreIR ops with deterministic error behavior.
+   - Ensure “hot path is not a stdlib call” for builtins.
+   - Motivation: performance and semantic parity across backends.
+
+3) **Effect model encoding**
+   - Encode effectful operations as domain/op calls (conceptually aligned with AVM) so:
+     - AVM enforces by policy
+     - native/C enforce via capsule runtime policy and deterministic errors
+
+4) **NativeIR extraction for arm64+x86_64 reuse**
+   - Once CoreIR is stable for “meaning”, lower to a machine-ish NativeIR for ISA selection:
+     - `Load/StoreLocal`, `Const`, `BinOp`, `Cmp`, `Branch`, `Call`, `Return`, …
+   - This reduces duplication between `arm64_native_*` and `x64_native_program/**`.
+
+Track these items in `docs/TODOS.md` (CoreIR boundary section).
+
+## 7) Practical guidance (for contributors / agents)
+
+When you modify semantics in a lowering pass:
+
+- update the relevant section(s) in:
+  - `docs/LANGUAGE_SPEC.md` (normative intent)
+  - `docs/LANGUAGE_MANUAL.md` (practical usage)
+  - `docs/LANGUAGE_FEATURE_MATRIX.md` (status + evidence)
+- ensure there is a fixture or integration test that exercises the semantic contract.
+
+When you add a new backend feature:
+
+- first add/extend a shared lowering pass or CoreIR rule if the feature is semantic,
+- then add the backend implementation,
+- then add fixtures that run under multiple backends (where possible).
+
+## Backend Architecture & Design
 
 This document consolidates the backend design, ABI, and performance guidance for the C, native, and bytecode backends. It merges the prior backend design docs into a single source of truth to reduce drift while Oren is in rolling mode.
 
@@ -22,7 +429,7 @@ This document describes the architecture needed to keep those components:
    - If a language feature behaves differently across backends, that is a bug (unless explicitly documented as a rolling limitation).
 
 2) **Determinism is a first‑class constraint.**
-   - For AVM/multiverse, we need deterministic execution under budgets and virtualized backends (see `docs/AVM_SPEC.md`).
+   - For AVM/multiverse, we need deterministic execution under budgets and virtualized backends (see `docs/AVM_AND_OBC.md`).
    - For native, we need deterministic build outputs when requested (`--deterministic`).
 
 3) **Capabilities are explicit.**
@@ -37,9 +444,9 @@ This document describes the architecture needed to keep those components:
 
 Today the repo already has:
 
-- A production‑oriented **C backend** (architecture neutral via the host C toolchain): `docs/BACKEND_ARCHITECTURE.md#c-backend-design-and-abi`
-- A high‑performance **native backend** (arm64 rich; x86_64 bring‑up): `docs/BACKEND_ARCHITECTURE.md#native-backend-overview`
-- A portable **bytecode backend** emitting `.obc`, executed by **AVM**: `docs/AVM_SPEC.md`
+- A production‑oriented **C backend** (architecture neutral via the host C toolchain): `docs/COMPILER_AND_BACKENDS.md#c-backend-design-and-abi`
+- A high‑performance **native backend** (arm64 rich; x86_64 bring‑up): `docs/COMPILER_AND_BACKENDS.md#native-backend-overview`
+- A portable **bytecode backend** emitting `.obc`, executed by **AVM**: `docs/AVM_AND_OBC.md`
 
 To keep this scalable, we need a structure that avoids re‑implementing semantics per backend.
 
@@ -83,7 +490,7 @@ Concrete mapping:
 - **C backend**: `CoreIR -> C-IR (or C AST) -> C source -> toolchain`
 - **Native backend**: `CoreIR -> NativeIR -> ISA selection + ABI -> object format`
 
-`NativeIR` here matches the direction in `docs/BACKEND_ARCHITECTURE.md#native-backend-code-reuse-plan`.
+`NativeIR` here matches the direction in `docs/COMPILER_AND_BACKENDS.md#native-backend-code-reuse-plan`.
 
 Key rule: **only Stage A decides semantics**. Stage B should never decide what “`for` means” or how `...rest` is represented.
 
@@ -98,8 +505,8 @@ The single biggest cross-backend semantic surface is **callables**:
 
 The repo already has a strong direction:
 
-- C backend: uniform callable ABI via `oren_call_obj(...)` / `oren_call_obj_list(...)` (`docs/BACKEND_ARCHITECTURE.md#c-backend-design-and-abi`)
-- AVM: explicit `PUSH_FUNC`, `MAKE_CLOSURE`, `CALL_INDIRECT` (see `docs/AVM_SPEC.md`)
+- C backend: uniform callable ABI via `oren_call_obj(...)` / `oren_call_obj_list(...)` (`docs/COMPILER_AND_BACKENDS.md#c-backend-design-and-abi`)
+- AVM: explicit `PUSH_FUNC`, `MAKE_CLOSURE`, `CALL_INDIRECT` (see `docs/AVM_AND_OBC.md`)
 - Native (arm64): runtime helpers exist (`lib/runtime_native/120_first_class_fn.oren`) and callable lowering is being centralized (`lib/compiler/native_callable.oren`)
 
 ### Canonical callable model (recommended)
@@ -256,7 +663,7 @@ This is useful for experiments, but the long-term goal is “Option B” (native
 
 The native backend emits machine code directly for:
 
-For “do not regress” invariants (and the regression gates that enforce them), see `docs/BACKEND_ARCHITECTURE.md#native-backend-guardrails`.
+For “do not regress” invariants (and the regression gates that enforce them), see `docs/COMPILER_AND_BACKENDS.md#native-backend-guardrails`.
 
 - **ARM64** (primary): macOS (Mach-O) and Linux (ELF)
 - **x86_64** (Tier 1; rolling evolution): Linux (ELF) and Windows (PE32+)
@@ -305,7 +712,7 @@ bring-up fixtures are **ABI facts**, not language constraints.
   - **Lists / Maps (Tier‑1; runtime-defined semantics)**:
     - Both arm64 and x86_64 lower container ops to the **shared injected native runtime** (same source bundle).
     - List and map literals lower through runtime helpers (`oren_new_list` + `oren_list_push`, `oren_new_map` + `oren_map_set_*`) so container semantics do not diverge between architectures.
-    - Indexing is polymorphic: `xs[i]` / `m[k]` dispatches based on **tracked allocation metadata** (see `docs/BACKEND_ARCHITECTURE.md#native-runtime-layout`).
+    - Indexing is polymorphic: `xs[i]` / `m[k]` dispatches based on **tracked allocation metadata** (see `docs/COMPILER_AND_BACKENDS.md#native-runtime-layout`).
   - **Modules**: `import` loads code (merged).
 
 - **Memory & Concurrency**:
@@ -527,7 +934,7 @@ The quick native integration fixture asserts these properties:
 This document is **design guidance** for converging the **native backend** (arm64 + x86_64) onto a production‑grade **tagged value** model that is consistent with:
 
 - the **C backend** value model (`lib/runtime.h`: `OrenValue { type, union }`)
-- the **AVM** value model (tagged value types + tagged constants; see `docs/AVM_SPEC.md`)
+- the **AVM** value model (tagged value types + tagged constants; see `docs/AVM_AND_OBC.md`)
 - the language semantics in `docs/LANGUAGE_SPEC.md` (type‑strict equality, `nil` distinct from `false`, etc.)
 
 ### 0) Why this is urgent (current mismatch)

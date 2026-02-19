@@ -38,7 +38,7 @@ Requirements:
 
 Swarm implication:
 
-- deterministic mode is the substrate for “k-of-n verification” and swarm consensus on result/state hashes (see `docs/AVM_DESIGN.md#avm-swarm-consensus-agent-mobility-design-validation`).
+- deterministic mode is the substrate for “k-of-n verification” and swarm consensus on result/state hashes (see `docs/AVM_AND_OBC.md#avm-swarm-consensus-agent-mobility-design-validation`).
 
 ### 1.2 Snapshot / restore (resumability)
 
@@ -190,7 +190,7 @@ Rationale:
 
 Design reference:
 
-- `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes`
+- `docs/AVM_AND_OBC.md#avm-in-avm-multiverse-design-nested-virtual-universes`
 
 ### 3.5 Deterministic trace + explainability surfaces (agent debugging)
 
@@ -222,7 +222,7 @@ Bootstrap status (rolling, implementation reality as of 2025-12-15):
   - `TRACE_BYTES_HEX ...` (trace stream as data; hex for transport)
   Trace capture must **not** affect program semantics: if trace bytes hit budget, AVM truncates (disables further capture) rather than aborting execution.
   Trace bytes storage is governed by `AVM_TRACE_BYTES` and is isolated from `AVM_MEM_BYTES` (program heap budget).
-- Deterministic scheduling (tasks) is not implemented yet; see `docs/AVM_DESIGN.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly` for the design direction.
+- Deterministic scheduling (tasks) is not implemented yet; see `docs/AVM_AND_OBC.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly` for the design direction.
 
 ### 3.6 Governance-ready module boundaries (SOLID on bytecode artifacts)
 
@@ -255,7 +255,7 @@ This ordering is chosen to unlock “agent-grade” behavior early without requi
 ## 5) Canonical References
 
 - Docs index: `docs/README.md`
-- AVM spec (bootstrap + Next-Gen plan section): `docs/AVM_SPEC.md`
+- AVM spec (bootstrap + Next-Gen plan section): `docs/AVM_AND_OBC.md`
 - Syscall-first runtime plan: `docs/SYSCALL_FIRST_RUNTIME_PLAN.md`
 - Language spec: `docs/LANGUAGE_SPEC.md`
 - Concurrency model: `docs/CONCURRENCY_MODEL.md`

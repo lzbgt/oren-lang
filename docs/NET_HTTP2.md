@@ -120,7 +120,7 @@ Current rolling status (2026-01-10):
 
 Remaining work:
 
-- Full semantic parity still requires the tagged value model described in `docs/BACKEND_ARCHITECTURE.md#native-tagged-value-representation` (notably: robust `int` vs `float` tagging in native mode).
+- Full semantic parity still requires the tagged value model described in `docs/COMPILER_AND_BACKENDS.md#native-tagged-value-representation` (notably: robust `int` vs `float` tagging in native mode).
 
 ## How To Verify
 

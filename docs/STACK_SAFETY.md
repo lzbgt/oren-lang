@@ -194,5 +194,5 @@ Status:
 
 ## Related Work / Constraints
 
-- Backend unification direction: `docs/BACKEND_ARCHITECTURE.md`
-- AVM semantics + determinism: `docs/AVM_SPEC.md`
+- Backend unification direction: `docs/COMPILER_AND_BACKENDS.md`
+- AVM semantics + determinism: `docs/AVM_AND_OBC.md`

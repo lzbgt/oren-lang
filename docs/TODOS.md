@@ -66,7 +66,7 @@ Local x64 (compile-only confidence, even if remote is down):
 
 References:
 
-- Perf playbook: `docs/BACKEND_ARCHITECTURE.md#native-backend-performance-playbook`
+- Perf playbook: `docs/COMPILER_AND_BACKENDS.md#native-backend-performance-playbook`
 - Remote x64 workflow: `docs/REMOTE_X64_ENV.md`
 - Language docs baseline: `docs/LANGUAGE_MANUAL.md`, `docs/LANGUAGE_SPEC.md`, `docs/LANGUAGE_FEATURE_MATRIX.md`, `docs/LANGUAGE_STATUS_AND_GAPS.md`
   - Last sync (fact): 2026-01-11
@@ -464,7 +464,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    Deliverables (design → implementation):
 
-   - finish the tagged-value plan: `docs/BACKEND_ARCHITECTURE.md#native-tagged-value-representation`
+   - finish the tagged-value plan: `docs/COMPILER_AND_BACKENDS.md#native-tagged-value-representation`
    - stabilize reflection APIs: `docs/REFLECTION_V1.md`
    - define how varargs elements carry type info so userland (fmt/ffi/serde) is robust
    - audit “optional string/env” checks across stdlib/compiler: avoid `v != 0` presence tests (under singleton-`nil`, `nil != 0` is true); standardize on `v != nil && v != 0 && v != ""` or a helper
@@ -1141,7 +1141,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
   - 2026-02-19: AVM gained unboxed list<int> storage + NEW_LIST_INT (0x5E) with snapshot/hash/serialization support; bytecode emits NEW_LIST_INT for `oren_new_list_int`.
     - Bench impact: OBC `array_sum_int` now ~1.24× C; multi-list push opcodes bring `dot_product_int` and `multi_list_push_int` near C (see latest measurements above).
   - 2026-02-19: C backend builds now pass -O2 by default (MSVC `/O2`); multi_list_push_int Oren C dropped to ~3.97× C on M2 Pro.
-  - 2026-02-19: AVM spec consolidation: merged `AVM_SPEC_V1` into `docs/AVM_SPEC.md` (Next-Gen AVM Plan section) and updated references.
+  - 2026-02-19: AVM spec consolidation: merged `AVM_SPEC_V1` into `docs/AVM_AND_OBC.md` (Next-Gen AVM Plan section) and updated references.
   - 2026-02-19: list<int> index syntax now hits native fast-loop hoists after inty propagation update.
     - Compiler: `lib/compiler/arm64_native_expr/000_prelude.oren`, `lib/compiler/x64_native_program/047_emit_float_intrinsics.oren`,
       `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
@@ -1175,6 +1175,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
   - 2026-02-19: C backend list/map ops skip striped object locks until `spawn` is used (reduces single-thread overhead; main thread wrapper does not enable locks).
      - Override: `OREN_LIST_FORCE_LOCKS=1` forces locks; `OREN_LIST_SKIP_LOCKS=1` disables locks even after threads (perf-only, unsafe).
      - Runtime: `lib/runtime/010_prelude.inc` (`g_threads_started`), `lib/runtime/020_threads_gc.inc` (spawn marks), `lib/runtime/040_lists_maps.inc` (lock gating)
+  - 2026-02-19: AVM scheduler ready queue switched to a ring buffer (O(1) pop; no per-pop memmove); snapshot serializes queue order.
+    - VM: `lib/avm/avm_vm.c`, `lib/avm/avm_internal.h`
+    - Snapshot: `lib/avm/avm_state.inc`
+  - 2026-02-19: design doc consolidation: merged AVM/OBC + compiler/backends design docs into `docs/AVM_AND_OBC.md` + `docs/COMPILER_AND_BACKENDS.md`; removed legacy design docs and updated references.
 
    x64‑windows status:
 
@@ -1197,9 +1201,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
   - Audit compiler internal string comparisons under the native backend; prefer `str_eq`/string-aware helpers to avoid pointer-eq traps in name matching.
   - Split oversized compiler backends into smaller, testable modules (SOLID): `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/x64_native_program/060_emit_ops.oren`, and `lib/compiler/transpiler.oren`.
   - Extend AVM list<int> bytecode fast paths beyond push (e.g. LIST_SUM_INT / LIST_DOT_INT / indexed sum loop) or adopt unboxed list<int> storage in AVM; target OBC <= ~10× C on list<int> benchmarks.
-  - Audit root `README.md` + key docs for outdated build/test/bench/remote instructions; refresh to match current rolling workflows, and continue design-doc consolidation (merge overlapping design specs into canonical docs; remove stubs/duplicates).
+  - AVM hot-loop dispatch: evaluate direct-threaded dispatch or a fast-path opcode loop (no tracing/breakpoints) to reduce per-op overhead; validate on `loop_sum` + `array_sum_int`.
+  - Audit root `README.md` + key docs for outdated build/test/bench/remote instructions; refresh to match current rolling workflows.
+    - Remaining consolidation target: unify the language/runtime model docs (`docs/OBJECT_MODEL.md`, `docs/MEMORY.md`, `docs/STACK_SAFETY.md`, `docs/CONCURRENCY_MODEL.md`) into a single canonical doc.
     - 2026-02-19: merged GUI platform shim + ImGui shell docs into `docs/GUI.md`; removed `docs/GUI_PLATFORM_SHIMS.md` and `docs/GUI_IMGUI_SHELL.md` and updated references.
-    - 2026-02-19: merged OBC portability + module linking docs into `docs/OBC.md`; removed `docs/OBC_MODULE_LINKING.md` and `docs/OBC_PORTABILITY.md` and updated references.
+    - 2026-02-19: merged OBC portability + module linking docs into `docs/AVM_AND_OBC.md`; removed `docs/OBC_MODULE_LINKING.md` and `docs/OBC_PORTABILITY.md` and updated references.
 
 ## P1 (Soon)
 
@@ -1207,7 +1213,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    References:
 
-   - `docs/APPSTORE_ROOTCA_AND_UPDATES.md`
+   - `docs/AVM_AND_OBC.md`
    - `docs/CERT_CHAIN_FORMAT.md`
 
 2) **Stackless recursion beyond TCO (heap call frames)** (L)
@@ -1226,10 +1232,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 
    References:
 
-   - `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes` (compiler-in-AVM section)
-   - `docs/OBC.md` (OBX v0 for compile-time linking)
+   - `docs/AVM_AND_OBC.md#avm-in-avm-multiverse-design-nested-virtual-universes` (compiler-in-AVM section)
+   - `docs/AVM_AND_OBC.md` (OBX v0 for compile-time linking)
    - `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md` (stdlib distribution models)
-   - `docs/AVM_DESIGN.md#avm-plugins-nesting-obc-first-ios-safe-rolling` (plugin model A vs B; tracker split)
+   - `docs/AVM_AND_OBC.md#avm-plugins-nesting-obc-first-ios-safe-rolling` (plugin model A vs B; tracker split)
 
 	   Status (fact):
 

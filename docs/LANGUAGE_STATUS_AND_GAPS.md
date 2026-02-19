@@ -30,7 +30,7 @@ This doc answers: “what’s real today?” and “what’s missing to reach th
 
 Related plugin/nesting model notes:
 
-- `docs/AVM_DESIGN.md#avm-plugins-nesting-obc-first-ios-safe-rolling`
+- `docs/AVM_AND_OBC.md#avm-plugins-nesting-obc-first-ios-safe-rolling`
 
 ## Implemented Today (Evidence-Backed)
 
@@ -189,7 +189,7 @@ production maturity requires both implementation *and* regression coverage.
       - Local emit sanity (compile-only): `make verify-native-x64-compile` (builds stage1+stage2 and emits x64-linux + x64-windows artifacts).
       - Native Windows bootstrap gate (stage0 -> stage1 -> stage2, then compile+run a tiny exe): `scripts/verify_windows_stage2_from_stage1.sh` (`make verify-stage2-win`).
       - Remote run gate: `scripts/verify_selfhost_x64_compiler.sh` builds x64 compiler binaries and runs them on Win11 (WSL2 optional) to compile+run a tiny native program.
-    - Track: `docs/TODOS.md` (P0.1–P0.3), `docs/BACKEND_ARCHITECTURE.md#native-backend-overview`.
+    - Track: `docs/TODOS.md` (P0.1–P0.3), `docs/COMPILER_AND_BACKENDS.md#native-backend-overview`.
 
   - **Async IO + scheduler integration (planned)**
     - Today, NET fd waits are runtime helpers that block OS threads (`lib/runtime_native/240_tcp.oren`).
@@ -231,21 +231,21 @@ production maturity requires both implementation *and* regression coverage.
 - **Stdlib resolution/distribution**
   - “User friendly imports” vs embedding vs precompiled `.obc` bundles needs a single
     coherent model that works for both native and AVM.
-  - Related docs: `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md`, `docs/OBC.md`
+  - Related docs: `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md`, `docs/AVM_AND_OBC.md`
 
 - **Packages + registry + reproducible builds**
   - For production, the language needs a coherent “package → build artifact” story:
     - module naming / resolution,
     - lockfiles, hashes, deterministic builds,
     - support for precompiled `.obc` libraries (OBX exports/relocs) in AVM.
-  - Track: `docs/OBC.md`, `docs/TOOLCHAIN_SELF_HOSTING.md`, `docs/TODOS.md` (P1.2, P1.4).
+  - Track: `docs/AVM_AND_OBC.md`, `docs/TOOLCHAIN_SELF_HOSTING.md`, `docs/TODOS.md` (P1.2, P1.4).
 
 - **Trust / signing / update channels for multiverse**
   - Multiverse implies “code moves between universes”; production needs a root-of-trust:
     - signed `.obc` artifacts, cert chains, key rotation,
     - developer identity / org delegation model,
     - update and patch workflows that do not break determinism.
-  - Track: `docs/APPSTORE_ROOTCA_AND_UPDATES.md`, `docs/CERT_CHAIN_FORMAT.md`, `docs/TODOS.md` (P1.1).
+  - Track: `docs/AVM_AND_OBC.md`, `docs/CERT_CHAIN_FORMAT.md`, `docs/TODOS.md` (P1.1).
 
 ## How to Use This Doc
 

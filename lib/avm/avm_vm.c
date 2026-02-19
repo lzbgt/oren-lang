@@ -205,20 +205,33 @@ static int sched_ready_push(AvmSched* s, int tid) {
     if (tid < 0) return 0;
     if (s->ready_len + 1 > s->ready_cap) {
         int new_cap = s->ready_cap ? s->ready_cap * 2 : 16;
-        int* n = (int*)realloc(s->ready, sizeof(int) * (size_t)new_cap);
+        int* n = (int*)malloc(sizeof(int) * (size_t)new_cap);
         if (!n) return 0;
+        for (int i = 0; i < s->ready_len; i++) {
+            int idx = s->ready_head + i;
+            if (idx >= s->ready_cap) idx -= s->ready_cap;
+            n[i] = s->ready[idx];
+        }
+        if (s->ready) free(s->ready);
         s->ready = n;
         s->ready_cap = new_cap;
+        s->ready_head = 0;
     }
-    s->ready[s->ready_len++] = tid;
+    if (s->ready_cap <= 0) return 0;
+    int tail = s->ready_head + s->ready_len;
+    if (tail >= s->ready_cap) tail -= s->ready_cap;
+    s->ready[tail] = tid;
+    s->ready_len++;
     return 1;
 }
 
 static int sched_ready_pop(AvmSched* s, int* out_tid) {
     if (!s || s->ready_len <= 0) return 0;
-    int tid = s->ready[0];
-    for (int i = 1; i < s->ready_len; i++) s->ready[i - 1] = s->ready[i];
+    int tid = s->ready[s->ready_head];
+    s->ready_head++;
+    if (s->ready_head >= s->ready_cap) s->ready_head = 0;
     s->ready_len--;
+    if (s->ready_len == 0) s->ready_head = 0;
     if (out_tid) *out_tid = tid;
     return 1;
 }
@@ -334,6 +347,7 @@ static AvmSched* avm_sched_ensure(AvmVM* vm) {
     s->ready = NULL;
     s->ready_len = 0;
     s->ready_cap = 0;
+    s->ready_head = 0;
     s->select_waiters = NULL;
     s->select_len = 0;
     s->select_cap = 0;

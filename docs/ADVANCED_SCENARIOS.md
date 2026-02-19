@@ -5,7 +5,7 @@ This document outlines advanced architectural capabilities where Oren and AVM pr
 See also:
 
 - `docs/AGENTIC_REQUIREMENTS.md`
-- `docs/AVM_SPEC.md` (Next-Gen plan section)
+- `docs/AVM_AND_OBC.md` (Next-Gen plan section)
 
 ---
 
@@ -51,7 +51,7 @@ See also:
 
 Design validation and a concrete path to implementation:
 
-- `docs/AVM_DESIGN.md#avm-swarm-consensus-agent-mobility-design-validation`
+- `docs/AVM_AND_OBC.md#avm-swarm-consensus-agent-mobility-design-validation`
 
 ## 5. Nested Universes ("AVM in AVM")
 
@@ -65,4 +65,4 @@ Design validation and a concrete path to implementation:
 
 Design feasibility and a concrete staged plan:
 
-- `docs/AVM_DESIGN.md#avm-in-avm-multiverse-design-nested-virtual-universes`
+- `docs/AVM_AND_OBC.md#avm-in-avm-multiverse-design-nested-virtual-universes`

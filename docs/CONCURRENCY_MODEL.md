@@ -198,7 +198,7 @@ Implementation plan is tracked in `docs/TODOS.md` and the deeper design docs:
 
 - `docs/NATIVE_GMP_SCHEDULER.md`
 - `docs/ASYNC_IO_AND_SELECT.md`
-- `docs/AVM_DESIGN.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly`
+- `docs/AVM_AND_OBC.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly`
 
 ## 4) AVM notes
 
@@ -210,5 +210,5 @@ For AVM execution (interpreter-only environments), concurrency primitives must:
 
 See:
 
-- `docs/AVM_SPEC.md` (Next-Gen plan section)
+- `docs/AVM_AND_OBC.md` (Next-Gen plan section)
 - `docs/AGENTIC_REQUIREMENTS.md`

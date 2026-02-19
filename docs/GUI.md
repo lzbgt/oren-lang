@@ -81,7 +81,7 @@ This is consistent with the existing AVM design direction:
 - capability domains define *what effect is requested*
 - the backend defines *where the effect is executed*
 
-See `docs/AVM_SPEC.md` (bootstrap spec + Next-Gen AVM Plan section) for the domain/op model and governance direction.
+See `docs/AVM_AND_OBC.md` (bootstrap spec + Next-Gen AVM Plan section) for the domain/op model and governance direction.
 
 ### Why this is the best “first production” choice
 

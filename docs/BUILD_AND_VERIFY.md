@@ -164,7 +164,7 @@ Tracing knobs (bounded output; prints timing summaries):
 
 Performance guardrails and “what to do when it gets slow” live in:
 
-- `docs/BACKEND_ARCHITECTURE.md#native-backend-performance-playbook`
+- `docs/COMPILER_AND_BACKENDS.md#native-backend-performance-playbook`
 
 ### Native Runtime Object Cache (Native Backend; Tier‑1 throughput)
 
@@ -377,8 +377,8 @@ Current status:
 - **macOS (Mach-O):** uses dyld binding opcodes and GOT stubs; this enables basic FFI against `libSystem` and any dylibs you load via `--link` / `@ffi.link(...)`.
 - **Windows x64 (PE):** uses lazy `LoadLibraryA`/`GetProcAddress` stubs; `--link` / `@ffi.link(...)` adds DLLs to the resolver search list (kernel32 is searched by default). For convenience, `@ffi.dll("name.dll")` can attach a DLL directly to an `ffi` declaration.
 - **Linux (ELF):**
-  - **x64-linux:** dynamic linking is enabled when at least one link dependency exists (via `--link` or `@ffi.link(...)`), and `ffi` works via a lazy `dlsym` resolver (see `docs/BACKEND_ARCHITECTURE.md#native-backend-overview`).
-  - **arm64-linux:** same as x64-linux (see `docs/BACKEND_ARCHITECTURE.md#native-backend-overview`).
+  - **x64-linux:** dynamic linking is enabled when at least one link dependency exists (via `--link` or `@ffi.link(...)`), and `ffi` works via a lazy `dlsym` resolver (see `docs/COMPILER_AND_BACKENDS.md#native-backend-overview`).
+  - **arm64-linux:** same as x64-linux (see `docs/COMPILER_AND_BACKENDS.md#native-backend-overview`).
 
 ### Usage
 Declare the external symbol using the `ffi` keyword, then call it like a regular function.

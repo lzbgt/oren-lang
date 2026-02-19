@@ -155,7 +155,7 @@ The Agent will write whatever syntax we tell it to. The adoption depends entirel
 
 References for the current AVM direction:
 
-- AVM spec (bootstrap + Next-Gen plan section): `docs/AVM_SPEC.md`
+- AVM spec (bootstrap + Next-Gen plan section): `docs/AVM_AND_OBC.md`
 - Agentic requirements (end-to-end): `docs/AGENTIC_REQUIREMENTS.md`
 
 ---

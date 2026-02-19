@@ -150,7 +150,7 @@ Naming note:
 Docs that reference this contract:
 
 - `docs/LANGUAGE_SPEC.md` (builtin container sugar section)
-- `docs/AVM_SPEC.md` (native id map)
+- `docs/AVM_AND_OBC.md` (native id map)
 
 ---
 
@@ -295,7 +295,7 @@ Implementation:
 Rolling note (native backend):
 
 - Native values are not fully tagged yet; numeric immediates (`int`/`bool`/`float`) may be indistinguishable in native mode (so `oren_type_tag` can return `1` for multiple numeric kinds).
-- Track the full fix: `docs/BACKEND_ARCHITECTURE.md#native-tagged-value-representation`
+- Track the full fix: `docs/COMPILER_AND_BACKENDS.md#native-tagged-value-representation`
 
 Evidence:
 
