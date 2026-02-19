@@ -13,8 +13,8 @@ Legend: `x` = slowdown relative to C median.
 | loop_sum | 0.066337 | 1.048363 (15.80×) | 0.422936 (6.38×) | 5.854739 (88.26×) | `benchmarks/results/loop_sum_darwin_arm64_20260219_103439.md` |
 | array_sum | 0.004190 | 0.007941 (1.90×) | 0.020951 (5.00×) | 0.010095 (2.41×) | `benchmarks/results/array_sum_darwin_arm64_20260219_130446.md` |
 | array_sum_int | 0.004399 | 0.011875 (2.70×) | 0.021051 (4.79×) | 0.005241 (1.19×) | `benchmarks/results/array_sum_int_darwin_arm64_20260219_123739.md` |
-| multi_list_sum | 0.008617 | 0.017878 (2.07×) | 0.031128 (3.61×) | 0.015860 (1.84×) | `benchmarks/results/multi_list_sum_darwin_arm64_20260219_130152.md` |
-| multi_list_push_int | 0.010435 | 0.041430 (3.97×) | 0.034321 (3.29×) | 0.012781 (1.22×) | `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_125343.md` |
+| multi_list_sum | 0.008349 | 0.017322 (2.07×) | 0.030751 (3.68×) | 0.015799 (1.89×) | `benchmarks/results/multi_list_sum_darwin_arm64_20260219_130703.md` |
+| multi_list_push_int | 0.008171 | 0.037124 (4.54×) | 0.030914 (3.78×) | 0.011365 (1.39×) | `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_130710.md` |
 | dot_product | 0.005407 | 0.012672 (2.34×) | 0.025681 (4.75×) | 0.012785 (2.36×) | `benchmarks/results/dot_product_darwin_arm64_20260219_130440.md` |
 | dot_product_int | 0.005468 | 0.019166 (3.51×) | 0.026497 (4.85×) | 0.010319 (1.89×) | `benchmarks/results/dot_product_int_darwin_arm64_20260219_123740.md` |
 | alloc_churn | 0.004082 | 0.069660 (17.07×) | 0.162040 (39.70×) | 0.388069 (95.07×) | `benchmarks/results/alloc_churn_darwin_arm64_20260219_045329.md` |
@@ -24,6 +24,6 @@ Notes:
 
 - alloc_churn/alloc_drop are allocation-heavy; they highlight tracking and GC overhead.
 - array_sum (boxed list) now lands near ~5.0× C on native; Oren C is ~1.90× C and OBC ~2.41× after list.push loop opcodes were emitted for boxed fill loops.
-- multi_list_sum highlights boxed list access across multiple arrays; Oren C is now ~2.1× C while native is ~3.6× C. OBC dropped to ~0.016s (~1.84×) after emitting list_int push loops for list.push (boxed) in the fill loop.
-- array_sum_int OBC holds at ~0.0052s (~1.19× C); dot_product_int and multi_list_push_int now also land near C after multi-list push loop opcodes (~1.89× and ~1.22×, respectively). C-backend multi_list_push_int improved to ~3.97× after enabling -O2 by default.
+- multi_list_sum highlights boxed list access across multiple arrays; Oren C is now ~2.1× C while native is ~3.7× C. OBC is ~0.0158s (~1.89×) after emitting list_int push loops for list.push (boxed) in the fill loop.
+- array_sum_int OBC holds at ~0.0052s (~1.19× C); dot_product_int and multi_list_push_int now also land near C after multi-list push loop opcodes (~1.89× and ~1.39×, respectively). C-backend multi_list_push_int improved to ~4.54× after enabling -O2 by default.
 - dot_product (boxed) now ~2.34× C on Oren C and ~4.75× C on native; OBC is ~2.36× after list.push loop opcodes removed the fill-loop overhead (LIST_DOT already handles the inner loop).
