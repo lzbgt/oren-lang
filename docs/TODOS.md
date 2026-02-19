@@ -230,13 +230,13 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						     - Bench (M2 Pro, runs=5): dot_product_int native 0.0252s (~5.22× C) (`benchmarks/results/dot_product_int_darwin_arm64_20260219_064258.md`).
 						   - 2026-02-19: native boxed list push loop (pattern match + direct buffer stores + deferred count updates) for `list.push`:
 						     - Compiler: `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
-						     - Bench (M2 Pro, runs=5): array_sum native 0.0196s (~5.04× C) (`benchmarks/results/array_sum_darwin_arm64_20260219_075538.md`).
+						     - Bench (M2 Pro, runs=5): array_sum native 0.0197s (~5.13× C) (`benchmarks/results/array_sum_darwin_arm64_20260219_080150.md`).
 						   - 2026-02-19: native boxed list get-sum loop inlines string-check+iadd (avoid `oren_add` call) and skips string checks when sum is inty:
 						     - Compiler: `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
-						     - Bench (M2 Pro, runs=5): array_sum native 0.0196s (~5.04× C) (`benchmarks/results/array_sum_darwin_arm64_20260219_075538.md`).
+						     - Bench (M2 Pro, runs=5): array_sum native 0.0197s (~5.13× C) (`benchmarks/results/array_sum_darwin_arm64_20260219_080150.md`).
 						   - 2026-02-19: Oren C boxed list get-sum fast path (C backend) avoids `oren_list_get`/`oren_add` overhead:
 						     - Compiler: `lib/compiler/transpiler.oren`.
-						     - Bench (M2 Pro, runs=5): array_sum Oren C 0.0730s (~18.73× C) (`benchmarks/results/array_sum_darwin_arm64_20260219_075538.md`).
+						     - Bench (M2 Pro, runs=5): array_sum Oren C 0.0739s (~19.26× C) (`benchmarks/results/array_sum_darwin_arm64_20260219_080150.md`).
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
@@ -277,9 +277,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - Latest: native 0.4386s vs C 0.0695s (`benchmarks/results/loop_sum_darwin_arm64_20260219_002240.md`).
        - Oren C: 1.2065s; OBC/AVM: 5.9393s (same run).
      - Target: native ≤0.25s (≤4× C) while keeping correctness gates.
-	  - (P2/S) **Array_sum list access now ~5.0× C (native); Oren C still ~18.7× C**
-	    - Latest: native 0.0196s vs C 0.003897s (`benchmarks/results/array_sum_darwin_arm64_20260219_075538.md`).
-	      - Oren C: 0.0730s; OBC/AVM: 0.6217s (same run).
+	  - (P2/S) **Array_sum list access now ~5.1× C (native); Oren C still ~19.3× C**
+	    - Latest: native 0.0197s vs C 0.003835s (`benchmarks/results/array_sum_darwin_arm64_20260219_080150.md`).
+	      - Oren C: 0.0739s; OBC/AVM: 0.6233s (same run).
 	    - Target: native ≤0.03s met 2026‑02‑19; next target is Oren C ≤0.05s (boxed list access + add lowering).
 	    - Notes: `OREN_LIST_ASSUME_LIST=1` and `OREN_NATIVE_ASSUME_LIST_INDEX=1` did **not** improve (see 2026‑02‑18 results below).
 	    - Design: `docs/DESIGN_UNBOXED_LIST_INT.md`
