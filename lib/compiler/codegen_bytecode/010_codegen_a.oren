@@ -772,7 +772,7 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_byte(ctx, AVM_NEW_LIST_INT)
             return nil
         }
-        if name == "oren_list_push" || name == "STD_list_push" {
+        if name == "oren_list_push" || name == "STD_list_push" || name == "oren_list_push_unchecked" {
             if oren_list_len(expr["args"]) != 2 {
             bytecode_error(ctx, "bytecode backend: oren_list_push expects (list, val)")
             return nil
@@ -782,7 +782,7 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_byte(ctx, AVM_LIST_PUSH)
             return nil
         }
-        if name == "oren_list_int_push" || name == "STD_list_int_push" {
+        if name == "oren_list_int_push" || name == "STD_list_int_push" || name == "oren_list_int_push_unchecked" {
             if oren_list_len(expr["args"]) != 2 {
             bytecode_error(ctx, "bytecode backend: oren_list_int_push expects (list, int)")
             return nil
@@ -927,8 +927,8 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_list_len" || name == "STD_list_len" { native_id = 12 }
         if name == "oren_list_int_len" { native_id = 12 }
         // Note: `oren_list_push` returns `nil` (cross-backend contract).
-        if name == "oren_list_push" || name == "STD_list_push" { native_id = 13 }
-        if name == "oren_list_int_push" { native_id = 149 }
+        if name == "oren_list_push" || name == "STD_list_push" || name == "oren_list_push_unchecked" { native_id = 13 }
+        if name == "oren_list_int_push" || name == "oren_list_int_push_unchecked" { native_id = 149 }
         if name == "oren_index_set" { native_id = 14 }
         if name == "int_mod" { native_id = 15 }
         if name == "oren_bytes_from_string" { native_id = 16 }

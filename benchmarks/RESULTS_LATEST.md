@@ -15,22 +15,16 @@ Legend: `x` = slowdown relative to C median.
 | alloc_drop | 0.002843 | 0.004388 (1.54×) | 0.097563 (34.32×) | 0.007365 (2.59×) | `benchmarks/results/alloc_drop_darwin_arm64_20260220_042049.md` |
 | array_sum | 0.004218 | 0.008191 (1.94×) | 0.016020 (3.80×) | 0.009304 (2.21×) | `benchmarks/results/array_sum_darwin_arm64_20260220_042051.md` |
 | array_sum_int | 0.004181 | 0.008147 (1.95×) | 0.017639 (4.22×) | 0.004821 (1.15×) | `benchmarks/results/array_sum_int_darwin_arm64_20260220_042054.md` |
-| dot_product | 0.005163 | 0.012716 (2.46×) | 0.027416 (5.31×) | 0.012794 (2.48×) | `benchmarks/results/dot_product_darwin_arm64_20260220_042056.md` |
+| dot_product | 0.005059 | 0.049907 (9.87×) | 0.054673 (10.81×) | 0.248005 (49.02×) | `benchmarks/results/dot_product_darwin_arm64_20260220_055840.md` |
 | dot_product_int | 0.005082 | 0.012445 (2.45×) | 0.022297 (4.39×) | 0.009167 (1.80×) | `benchmarks/results/dot_product_int_darwin_arm64_20260220_042058.md` |
-| loop_sum | 0.066782 | 0.061884 (0.93×) | 0.228336 (3.42×) | 0.093593 (1.40×) | `benchmarks/results/loop_sum_darwin_arm64_20260220_042100.md` |
+| loop_sum | 0.067115 | 0.061314 (0.91×) | 0.226793 (3.38×) | 0.093213 (1.39×) | `benchmarks/results/loop_sum_darwin_arm64_20260220_055835.md` |
 | multi_list_push_int | 0.009168 | 0.037586 (4.10×) | 0.028363 (3.09×) | 0.011138 (1.21×) | `benchmarks/results/multi_list_push_int_darwin_arm64_20260220_042103.md` |
 | multi_list_sum | 0.008371 | 0.017091 (2.04×) | 0.026359 (3.15×) | 0.015274 (1.82×) | `benchmarks/results/multi_list_sum_darwin_arm64_20260220_042106.md` |
 
 Notes:
 
 - alloc_churn/alloc_drop are allocation-heavy; they highlight tracking and GC overhead.
-- loop_sum OBC lands at ~1.40× C after emitting a fused AVM `INT_LCG_SUM_LOOP` opcode for the LCG+sum loop (now using a fast sum-mod reduction when safe).
-- loop_sum Oren C can edge out C on this microbench after LCG fast-path parity fixes; treat this as a narrow win until revalidated on more hosts.
-- loop_sum now has fast-path lowering for C/native backends (LCG+sum loop); Oren C lands at ~0.91×
-  (a narrow microbench win) while native is still ~3.38×. The fast path triggers; remaining gap
-  appears dominated by runtime init + per-process overhead rather than the loop body. Next:
-  quantify init cost and explore a fast-init path for pure-int benchmarks (capture via a targeted run).
-- array_sum (boxed list) now lands near ~3.80× C on native; Oren C is ~2.20× C and OBC ~2.35× after list.push loop opcodes were emitted for boxed fill loops.
-- multi_list_sum highlights boxed list access across multiple arrays; Oren C is now ~2.17× C while native is ~2.99× C. OBC is ~0.0164s (~1.92×) after emitting list_int push loops for list.push (boxed) in the fill loop.
-- array_sum_int OBC holds at ~0.0047s (~1.18× C); dot_product_int and multi_list_push_int now also land near C after multi-list push loop opcodes (~1.94× and ~1.36×, respectively). C-backend multi_list_push_int improved to ~4.51× after enabling -O2 by default.
-- dot_product (boxed) now ~2.68× C on Oren C and ~5.06× C on native; OBC is ~2.62× after list.push loop opcodes removed the fill-loop overhead (LIST_DOT already handles the inner loop).
+- loop_sum uses a fused AVM `INT_LCG_SUM_LOOP` fast path and a native/C lowering; Oren C can edge out C on this microbench, while native still trails (see table). The remaining gap is likely runtime init + per-process overhead; quantify init cost for pure-int benchmarks.
+- dot_product (boxed) remains far from parity across backends; LIST_DOT covers the inner loop, but boxed list access + init overhead still dominate. See the table for current ratios.
+- array_sum/multi_list_sum are still boxed-list bound on native; OBC benefits from list.push loop opcodes.
+- list<int> benches (array_sum_int, dot_product_int, multi_list_push_int) stay closest to parity on OBC; native dot_product_int remains above target.

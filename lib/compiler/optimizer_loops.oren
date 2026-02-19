@@ -1043,6 +1043,28 @@ fn _opt_block_const_int_before(block, idx, name) {
     return false
 }
 
+fn _opt_block_assign_before(block, idx, name) {
+    if block == nil || block["type"] != "Block" { return false }
+    if name == nil { return false }
+    var ss = block["stmts"]
+    if ss == nil { return false }
+    var i = idx - 1
+    while i >= 0 {
+        var st = ss[i]
+        if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
+            var nm = opthelp.is_ident(st["name"])
+            if nm != nil && nm == name { return true }
+        } else if st != nil && st["type"] == "Set" {
+            var left = st["left"]
+            if left != nil && left["type"] == "Identifier" && left["value"] == name {
+                return true
+            }
+        }
+        i = i - 1
+    }
+    return false
+}
+
 fn _opt_loop_has_simple_bound(block, idx, stmt) {
     if stmt == nil { return false }
     var cond = stmt["cond"]
@@ -1064,6 +1086,7 @@ fn _opt_loop_has_simple_bound(block, idx, stmt) {
             if _opt_stmt_assigns_ident(stmt["post"], rn) { return false }
         }
         if _opt_block_const_int_before(block, idx, rn) { return true }
+        if _opt_block_assign_before(block, idx, rn) { return true }
     }
     return false
 }
