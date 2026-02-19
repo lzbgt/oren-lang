@@ -117,7 +117,7 @@ endif
 # AVM C build flags (rolling):
 # - Keep AVM deterministic across platforms (no fast-math, no FP contraction/FMA drift).
 # - Keep this narrow: AVM consensus semantics depend on stable float behavior.
-AVM_CFLAGS ?= -O2
+AVM_CFLAGS ?= -O3
 AVM_DETERMINISM_CFLAGS ?= -fno-fast-math -ffp-contract=off
 # AVM is a portable C program. Keep its toolchain independent from the stage0/stage1
 # bring-up toolchain (which is MSVC on Windows by default).
