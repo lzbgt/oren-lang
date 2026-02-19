@@ -116,6 +116,12 @@ Tagged value convergence plan (rolling, lean):
 | 11 | i64_buf | typed buffer |
 | 12 | f32_buf | typed buffer |
 | 13 | f64_buf | typed buffer |
+- Backend mapping (rolling):
+  - C backend: `lib/runtime.h` `OrenType` enum is the source of truth.
+  - AVM: `AvmType` differs internally, but `oren_type_tag` maps to OrenType tags
+    (`AVM_VAL_LIST` and `AVM_VAL_LIST_INT` both map to tag 6).
+  - Native: `oren_type_tag` is best‑effort for scalars; container/buffer tags match
+    OrenType and list<int> reports tag 6 (list) until full tagging lands.
 - Define a single **canonical value model** that can be represented in:
   - native backend values,
   - C backend values,

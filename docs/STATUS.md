@@ -116,6 +116,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 4) **W4 - Tagged value representation convergence** (L)
    - Canonical tagged layout across native/C/AVM.
+   - Tag parity fixture now asserts numeric tag values across backends (`tests/fixtures/tag_parity_smoke.oren`).
    - Gate: fixtures pass; no backend-only semantics.
 
 5) **W3 - SIMD/typed-buffer parity on native (x64 + arm64)** (M)

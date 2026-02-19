@@ -6,6 +6,13 @@ fn emit(label, v) {
 
 fn id(x) { return x }
 
+fn assert_tag_eq(label, got, want) {
+    if got == want { return 0 }
+    print("tag_parity: " + label + " expected_tag=" + oren_int_to_string(want) +
+          " got_tag=" + oren_int_to_string(got))
+    exit(3)
+}
+
 fn assert_str_eq(label, got, want) {
     if oren_string_eq(got, want) == true { return 0 }
     print("tag_parity: " + label + " expected=" + want + " got=" + got)
@@ -41,6 +48,21 @@ fn main() {
     emit("i64_buf", b64)
     emit("f32_buf", bf32)
     emit("f64_buf", bf64)
+
+    assert_tag_eq("nil", oren_type_tag(nil), 0)
+    assert_tag_eq("bool_true", oren_type_tag(true), 3)
+    assert_tag_eq("bool_false", oren_type_tag(false), 3)
+    assert_tag_eq("int", oren_type_tag(1), 1)
+    assert_tag_eq("string", oren_type_tag("hi"), 4)
+    assert_tag_eq("list", oren_type_tag(xs), 6)
+    assert_tag_eq("list_int", oren_type_tag(xs_int), 6)
+    assert_tag_eq("map", oren_type_tag(m), 7)
+    assert_tag_eq("func", oren_type_tag(f), 8)
+    assert_tag_eq("u8_buf", oren_type_tag(b), 9)
+    assert_tag_eq("i32_buf", oren_type_tag(b32), 10)
+    assert_tag_eq("i64_buf", oren_type_tag(b64), 11)
+    assert_tag_eq("f32_buf", oren_type_tag(bf32), 12)
+    assert_tag_eq("f64_buf", oren_type_tag(bf64), 13)
 
     assert_str_eq("map", oren_type_name(m), "map")
     assert_str_eq("type_map", oren_type_name(tm), "Widget")
