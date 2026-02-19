@@ -1,0 +1,78 @@
+import list "../lib/std/list.oren"
+
+fn test_list_sum() {
+    var n = 1000
+    var xs = []
+    var i = 0
+    while i < n {
+        list.push(xs, (i * 3 + 7) % 1000)
+        i = i + 1
+    }
+
+    var expected = 0
+    i = 0
+    while i < n {
+        expected = expected + (i * 3 + 7) % 1000
+        i = i + 1
+    }
+
+    var sum = 0
+    i = 0
+    while i < n {
+        sum = sum + xs[i]
+        i = i + 1
+    }
+
+    if sum != expected {
+        print("avm list_sum mismatch got=" + oren_int_to_string(sum) +
+            " expected=" + oren_int_to_string(expected))
+        exit(1)
+    }
+    return 0
+}
+
+fn test_list_sum3() {
+    var n = 1000
+    var a = []
+    var b = []
+    var c = []
+    var i = 0
+    while i < n {
+        list.push(a, (i * 3 + 7) % 1000)
+        list.push(b, (i * 5 + 11) % 1000)
+        list.push(c, (i * 7 + 13) % 1000)
+        i = i + 1
+    }
+
+    var expected = 0
+    i = 0
+    while i < n {
+        expected = expected + (i * 3 + 7) % 1000
+        expected = expected + (i * 5 + 11) % 1000
+        expected = expected + (i * 7 + 13) % 1000
+        i = i + 1
+    }
+
+    var sum = 0
+    i = 0
+    while i < n {
+        sum = sum + a[i]
+        sum = sum + b[i]
+        sum = sum + c[i]
+        i = i + 1
+    }
+
+    if sum != expected {
+        print("avm list_sum3 mismatch got=" + oren_int_to_string(sum) +
+            " expected=" + oren_int_to_string(expected))
+        exit(2)
+    }
+    return 0
+}
+
+fn main() {
+    test_list_sum()
+    test_list_sum3()
+    print("ok: avm list sum opcodes")
+    return 0
+}
