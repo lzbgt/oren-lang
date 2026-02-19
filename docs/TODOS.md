@@ -58,7 +58,7 @@ Weights reflect expected impact on C parity + breadth of affected code.
    - Gate: native `alloc_churn` ≤ 8× C; native `alloc_drop` ≤ 5× C; Oren C `alloc_churn` ≤ 5× C.
 
 3) **W4 — List reserve + fast push** (M)
-   - Generalize reserve insertion beyond literal `n` and add list<int> reserve.
+   - Generalize reserve insertion beyond literal `n` (list<int> reserve now wired for literal bounds).
    - Route compiler‑proven lists to unchecked push when safe.
    - Gate: native `array_sum` and `multi_list_push_int` ≤ 2× C.
 
