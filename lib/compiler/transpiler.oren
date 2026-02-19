@@ -1353,6 +1353,10 @@ fn _transpiler_emit_fast_lcg_sum_while(t, stmt, info) {
     var mod_x = info["mod_x"]
     var mod_i = info["mod_i"]
     var mod_const = info["mod_const"]
+    var sum_fast_ok = false
+    if mod_const != nil {
+        if mod_x + mod_i <= mod_const { sum_fast_ok = true }
+    }
 
     var inty_before = _transpiler_inty_clone(_transpiler_inty_list(t))
     var slow = _transpiler_emit_while_basic(t, stmt)
@@ -1406,13 +1410,47 @@ fn _transpiler_emit_fast_lcg_sum_while(t, stmt, info) {
     }
 
     oren_list_push(parts, "if (" + fast_ok + ") {")
-    oren_list_push(parts, "    while (" + i_u + " < " + n_u + ") {")
-    oren_list_push(parts, "        " + x_u + " = (" + x_u + " * lcg_mul + lcg_add) % " + mod_expr + ";")
-    oren_list_push(parts, "        uint64_t lcg_term_x = " + x_u + " % lcg_mod_x;")
-    oren_list_push(parts, "        uint64_t lcg_term_i = " + i_u + " % lcg_mod_i;")
-    oren_list_push(parts, "        " + sum_u + " = (" + sum_u + " + lcg_term_x + lcg_term_i) % " + mod_expr + ";")
-    oren_list_push(parts, "        " + i_u + " = " + i_u + " + 1;")
-    oren_list_push(parts, "    }")
+    if sum_fast_ok {
+        oren_list_push(parts, "    while (" + i_u + " < " + n_u + ") {")
+        oren_list_push(parts, "        " + x_u + " = (" + x_u + " * lcg_mul + lcg_add) % " + mod_expr + ";")
+        oren_list_push(parts, "        uint64_t lcg_term_x = " + x_u + " % lcg_mod_x;")
+        oren_list_push(parts, "        uint64_t lcg_term_i = " + i_u + " % lcg_mod_i;")
+        oren_list_push(parts, "        " + sum_u + " = " + sum_u + " + lcg_term_x + lcg_term_i;")
+        oren_list_push(parts, "        if (" + sum_u + " >= " + mod_expr + ") { " + sum_u + " -= " + mod_expr + "; }")
+        oren_list_push(parts, "        " + i_u + " = " + i_u + " + 1;")
+        oren_list_push(parts, "    }")
+    } else if mod_const == nil {
+        var sum_fast = tmp_gensym(t, "lcg_sum_fast")
+        var sum_cap = int_str(mod_x + mod_i)
+        oren_list_push(parts, "    int " + sum_fast + " = 0;")
+        oren_list_push(parts, "    if ((uint64_t)" + sum_cap + " <= " + mod_expr + ") { " + sum_fast + " = 1; }")
+        oren_list_push(parts, "    if (" + sum_fast + ") {")
+        oren_list_push(parts, "        while (" + i_u + " < " + n_u + ") {")
+        oren_list_push(parts, "            " + x_u + " = (" + x_u + " * lcg_mul + lcg_add) % " + mod_expr + ";")
+        oren_list_push(parts, "            uint64_t lcg_term_x = " + x_u + " % lcg_mod_x;")
+        oren_list_push(parts, "            uint64_t lcg_term_i = " + i_u + " % lcg_mod_i;")
+        oren_list_push(parts, "            " + sum_u + " = " + sum_u + " + lcg_term_x + lcg_term_i;")
+        oren_list_push(parts, "            if (" + sum_u + " >= " + mod_expr + ") { " + sum_u + " -= " + mod_expr + "; }")
+        oren_list_push(parts, "            " + i_u + " = " + i_u + " + 1;")
+        oren_list_push(parts, "        }")
+        oren_list_push(parts, "    } else {")
+        oren_list_push(parts, "        while (" + i_u + " < " + n_u + ") {")
+        oren_list_push(parts, "            " + x_u + " = (" + x_u + " * lcg_mul + lcg_add) % " + mod_expr + ";")
+        oren_list_push(parts, "            uint64_t lcg_term_x = " + x_u + " % lcg_mod_x;")
+        oren_list_push(parts, "            uint64_t lcg_term_i = " + i_u + " % lcg_mod_i;")
+        oren_list_push(parts, "            " + sum_u + " = (" + sum_u + " + lcg_term_x + lcg_term_i) % " + mod_expr + ";")
+        oren_list_push(parts, "            " + i_u + " = " + i_u + " + 1;")
+        oren_list_push(parts, "        }")
+        oren_list_push(parts, "    }")
+    } else {
+        oren_list_push(parts, "    while (" + i_u + " < " + n_u + ") {")
+        oren_list_push(parts, "        " + x_u + " = (" + x_u + " * lcg_mul + lcg_add) % " + mod_expr + ";")
+        oren_list_push(parts, "        uint64_t lcg_term_x = " + x_u + " % lcg_mod_x;")
+        oren_list_push(parts, "        uint64_t lcg_term_i = " + i_u + " % lcg_mod_i;")
+        oren_list_push(parts, "        " + sum_u + " = (" + sum_u + " + lcg_term_x + lcg_term_i) % " + mod_expr + ";")
+        oren_list_push(parts, "        " + i_u + " = " + i_u + " + 1;")
+        oren_list_push(parts, "    }")
+    }
     oren_list_push(parts, "    " + x_ll + " = (long long)" + x_u + ";")
     oren_list_push(parts, "    " + sum_ll + " = (long long)" + sum_u + ";")
     oren_list_push(parts, "    " + i_ll + " = (long long)" + i_u + ";")

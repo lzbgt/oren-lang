@@ -10,7 +10,7 @@ Legend: `x` = slowdown relative to C median.
 
 | benchmark | C median (s) | Oren C median (x) | Oren native median (x) | Oren OBC median (x) | result file |
 | --- | --- | --- | --- | --- | --- |
-| loop_sum | 0.070953 | 0.360361 (5.08×) | 0.448654 (6.32×) | 0.103690 (1.46×) | `benchmarks/results/loop_sum_darwin_arm64_20260219_144327.md` |
+| loop_sum | 0.069655 | 0.349441 (5.02×) | 0.426707 (6.13×) | 0.100273 (1.44×) | `benchmarks/results/loop_sum_darwin_arm64_20260219_152215.md` |
 | array_sum | 0.004190 | 0.007941 (1.90×) | 0.020951 (5.00×) | 0.010095 (2.41×) | `benchmarks/results/array_sum_darwin_arm64_20260219_130446.md` |
 | array_sum_int | 0.004914 | 0.010160 (2.07×) | 0.022312 (4.54×) | 0.005768 (1.17×) | `benchmarks/results/array_sum_int_darwin_arm64_20260219_144341.md` |
 | multi_list_sum | 0.008349 | 0.017322 (2.07×) | 0.030751 (3.68×) | 0.015799 (1.89×) | `benchmarks/results/multi_list_sum_darwin_arm64_20260219_130703.md` |
@@ -23,15 +23,15 @@ Legend: `x` = slowdown relative to C median.
 Notes:
 
 - alloc_churn/alloc_drop are allocation-heavy; they highlight tracking and GC overhead.
-- loop_sum OBC lands at ~1.46× C after emitting a fused AVM `INT_LCG_SUM_LOOP` opcode for the LCG+sum loop.
+- loop_sum OBC lands at ~1.44× C after emitting a fused AVM `INT_LCG_SUM_LOOP` opcode for the LCG+sum loop (now using a fast sum-mod reduction when safe).
 - loop_sum now has fast-path lowering for C/native backends (LCG+sum loop), but the M2 baseline is still
   ~5.08× (Oren C) and ~6.32× (native). The fast path triggers; remaining gap appears dominated by
   runtime init + per-process overhead rather than the loop body. Next: quantify init cost and
   explore a fast-init path for pure-int benchmarks.
 - loop_sum init-only (args `0 1`, n=0 reps=1): C 0.001835s, Oren C 0.002316s (~1.26×), native 0.002503s (~1.36×), OBC 0.002300s (~1.25×).
   - Result: `benchmarks/results/loop_sum_darwin_arm64_20260219_145921.md`
-- loop_sum steady-state (args `2000000 10`, 20M total iters): C 0.066291s, Oren C 0.346269s (~5.22×), native 0.427593s (~6.45×), OBC 0.102247s (~1.54×).
-  - Result: `benchmarks/results/loop_sum_darwin_arm64_20260219_145925.md`
+- loop_sum steady-state (args `2000000 10`, 20M total iters): C 0.069655s, Oren C 0.349441s (~5.02×), native 0.426707s (~6.13×), OBC 0.100273s (~1.44×).
+  - Result: `benchmarks/results/loop_sum_darwin_arm64_20260219_152215.md`
 - array_sum (boxed list) now lands near ~5.0× C on native; Oren C is ~1.90× C and OBC ~2.41× after list.push loop opcodes were emitted for boxed fill loops.
 - multi_list_sum highlights boxed list access across multiple arrays; Oren C is now ~2.1× C while native is ~3.7× C. OBC is ~0.0158s (~1.89×) after emitting list_int push loops for list.push (boxed) in the fill loop.
 - array_sum_int OBC holds at ~0.0058s (~1.17× C); dot_product_int and multi_list_push_int now also land near C after multi-list push loop opcodes (~1.89× and ~1.39×, respectively). C-backend multi_list_push_int improved to ~4.54× after enabling -O2 by default.

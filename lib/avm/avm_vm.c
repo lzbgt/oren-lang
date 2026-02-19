@@ -169,6 +169,8 @@ enum {
 };
 
 static void avm_sched_free(AvmVM* vm);
+static AvmSched* avm_sched_ensure(AvmVM* vm);
+static void task_save_from_vm(AvmVM* vm, AvmTask* t);
 
 static AvmSched* avm_sched_get(AvmVM* vm) {
     return vm ? (AvmSched*)vm->sched : NULL;
@@ -3071,6 +3073,42 @@ list_dot_push:
                             int64_t sum = sumv.as.i;
                             int64_t mul = mulv.as.i;
                             int64_t add = addv.as.i;
+                            if (i >= 0 && end >= 0 && x >= 0 && sum >= 0) {
+                                uint64_t mod_u = (uint64_t)mod;
+                                uint64_t modx_u = (uint64_t)modx;
+                                uint64_t modi_u = (uint64_t)modi;
+                                uint64_t mul_u = (uint64_t)mul;
+                                uint64_t add_u = (uint64_t)add;
+                                uint64_t i_u = (uint64_t)i;
+                                uint64_t end_u = (uint64_t)end;
+                                uint64_t x_u = (uint64_t)x;
+                                uint64_t sum_u = (uint64_t)sum;
+                                int fast_sum = (modx_u + modi_u <= mod_u);
+                                if (i_u < end_u) {
+                                    if (fast_sum) {
+                                        for (; i_u < end_u; i_u++) {
+                                            x_u = (x_u * mul_u + add_u) % mod_u;
+                                            uint64_t term_x = x_u % modx_u;
+                                            uint64_t term_i = i_u % modi_u;
+                                            sum_u = sum_u + term_x + term_i;
+                                            if (sum_u >= mod_u) {
+                                                sum_u -= mod_u;
+                                            }
+                                        }
+                                    } else {
+                                        for (; i_u < end_u; i_u++) {
+                                            x_u = (x_u * mul_u + add_u) % mod_u;
+                                            uint64_t term_x = x_u % modx_u;
+                                            uint64_t term_i = i_u % modi_u;
+                                            sum_u = (sum_u + term_x + term_i) % mod_u;
+                                        }
+                                    }
+                                }
+                                idxv = avm_int((int64_t)i_u);
+                                sumv = avm_int((int64_t)sum_u);
+                                xv = avm_int((int64_t)x_u);
+                                goto lcg_sum_push;
+                            }
                             if (i < end) {
                                 for (; i < end; i++) {
                                     x = avm_i64_add_wrap(avm_i64_mul_wrap(x, mul), add);

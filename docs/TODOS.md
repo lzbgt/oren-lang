@@ -295,7 +295,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - Remaining gap appears dominated by runtime init + per-process overhead rather than the loop body; quantify init cost and add a fast-init path for pure-int benchmarks.
     - 2026-02-19: `benchmarks/run_benchmarks.py` now supports `OREN_BENCH_ARGS`, and `loop_sum` accepts `n` + `reps` CLI args to probe steady‑state vs init overhead.
     - 2026-02-19: loop_sum init-only (args `0 1`): C 0.001835s, Oren C 0.002316s (~1.26×), native 0.002503s (~1.36×), OBC 0.002300s (~1.25×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_145921.md`).
-    - 2026-02-19: loop_sum steady-state (args `2000000 10`): C 0.066291s, Oren C 0.346269s (~5.22×), native 0.427593s (~6.45×), OBC 0.102247s (~1.54×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_145925.md`).
+    - 2026-02-19: loop_sum steady-state (args `2000000 10`): C 0.069655s, Oren C 0.349441s (~5.02×), native 0.426707s (~6.13×), OBC 0.100273s (~1.44×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_152215.md`).
     - 2026-02-19: benchmark runner now injects `--` and a synthetic argv[0] for AVM runs so OBC arg parsing matches C/native.
     - 2026-02-19: AVM scheduler now lazy-inits on first spawn/chan/select/yield; non-concurrency programs skip scheduler setup overhead.
     - Target: native ≤0.25s (≤4× C) and Oren C ≤0.20s (≤3× C) while keeping correctness gates.
@@ -1182,6 +1182,8 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
   - 2026-02-19: AVM scheduler ready queue switched to a ring buffer (O(1) pop; no per-pop memmove); snapshot serializes queue order.
     - VM: `lib/avm/avm_vm.c`, `lib/avm/avm_internal.h`
     - Snapshot: `lib/avm/avm_state.inc`
+  - 2026-02-19: AVM `INT_LCG_SUM_LOOP` now uses an unsigned fast path with a single-subtract sum reduction when `modx+modi <= mod`.
+    - Result: loop_sum OBC ~1.44× C (`benchmarks/results/loop_sum_darwin_arm64_20260219_152215.md`).
   - 2026-02-19: design doc consolidation: merged AVM/OBC + compiler/backends design docs into `docs/AVM_AND_OBC.md` + `docs/COMPILER_AND_BACKENDS.md`; removed legacy design docs and updated references.
 
    x64‑windows status:
@@ -1202,6 +1204,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
   - Capture x64 benchmarks for the new native list<int> fast push-loop (ported to `lib/compiler/x64_native_program/060_emit_ops.oren`); validate parity and safety.
     - Blocker (2026-02-19): local docker CLI returns `EOF` for `docker ps` (cannot access Tier‑1 container `c7e5f7bd9f5c`); restore docker daemon/CLI access.
   - Reduce Oren C boxing cost in list<int> loops by avoiding intermediate `OrenValue` temporaries where possible (keep fast-path bounds checks).
+  - Investigate native backend self-host parity: `oren_stage2` (native) does **not** emit the C-backend fast LCG loop, while `./oren` (C backend) does. This is a correctness/perf regression that blocks C-backend parity.
   - Audit compiler internal string comparisons under the native backend; prefer `str_eq`/string-aware helpers to avoid pointer-eq traps in name matching.
   - Split oversized compiler backends into smaller, testable modules (SOLID): `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/x64_native_program/060_emit_ops.oren`, and `lib/compiler/transpiler.oren`.
   - Extend AVM list<int> bytecode fast paths beyond push (e.g. LIST_SUM_INT / LIST_DOT_INT / indexed sum loop) or adopt unboxed list<int> storage in AVM; target OBC <= ~10× C on list<int> benchmarks.
