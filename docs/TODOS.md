@@ -1078,8 +1078,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
       - `array_sum_int` (2M elems): C 0.004389s; Oren C 0.012024s (~2.74×); Oren native 0.020845s (~4.75×); OBC 0.621412s (~141.6×)
       - `dot_product_int` (2M elems): C 0.004965s; Oren C 0.018847s (~3.80×); Oren native 0.024758s (~4.99×); OBC 0.890157s (~179.3×)
    - 2026-02-18:
-     - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
-     - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
+    - `array_sum_int` (2M elems): C 0.00433s; Oren C 0.20694s (~48×); Oren native 0.22581s (~52×); OBC 0.65623s (~152×)
+    - `dot_product_int` (2M elems): C 0.00541s; Oren C 0.34218s (~63×); Oren native 0.37757s (~70×); OBC 0.94236s (~174×)
+  - Next: **Unboxed list<int> payload in AVM/OBC** (design in `docs/DESIGN_COLLECTIONS.md` §4B) to cut boxed payload overhead and push OBC toward ≤10× C.
 
   Artifacts:
 

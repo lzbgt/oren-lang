@@ -802,7 +802,7 @@ fn bytecode_compile_expr(ctx, expr) {
             }
             bytecode_compile_expr(ctx, expr["args"][0])
             bytecode_compile_expr(ctx, expr["args"][1])
-            emit_byte(ctx, AVM_GET_INDEX)
+            emit_byte(ctx, AVM_GET_INDEX_LIST)
             return nil
         }
         if name == "oren_list_int_set" {

@@ -171,6 +171,68 @@ Native backend lowering:
 
 ---
 
+## 4B) Unboxed `list<int>` in AVM / OBC (rolling)
+
+### Context
+
+OBC/AVM remains far from C on list-heavy benchmarks because list payloads are boxed
+as `AvmValue[]`. Fused opcodes reduce dispatch overhead, but each iteration still
+loads boxed values and pays memory bandwidth + tag overhead.
+
+### Goals
+
+- Unbox AVM `list<int>` payloads to reduce per-element overhead.
+- Preserve deterministic execution and snapshot/restore correctness.
+- Keep the change explicit and opt-in for rolling safety.
+
+### Non-goals
+
+- Generalize to all list element types.
+- Replace boxed lists across the board.
+- Add JIT/host-specific SIMD in the interpreter.
+
+### Proposed representation (rolling)
+
+Introduce a dedicated list-int payload in AVM rather than overloading boxed lists:
+
+Option A (explicit value type):
+- Add `AVM_VAL_LIST_INT` and `AvmListInt`:
+  - `count`, `capacity`, `int64_t* items`
+- Update `GET_INDEX` / `SET_INDEX` and list ops to accept both list kinds.
+
+Option B (dual payload in AvmList):
+- Extend `AvmList` with `int64_t* int_items` + `int has_int_items`.
+- `oren_new_list_int` allocates `int_items` and sets `all_int = 1`.
+- Non-int writes drop `int_items` and fall back to boxed semantics.
+
+Option A is clearer and avoids dual-payload edge cases, but requires a new value
+type and broader VM handling. Option B minimizes value-type churn but is trickier
+to keep correct under mixed list operations.
+
+### Bytecode lowering (preferred)
+
+- Lower `oren_new_list_int(cap)` to a new opcode (e.g. `NEW_LIST_INT`) that returns
+  the unboxed list-int value.
+- Lower `oren_list_int_push` / `oren_list_int_get` / `oren_list_int_set` to dedicated
+  opcodes that operate on list-int payloads.
+- Extend `LIST_SUM_INT_LOOP` / `LIST_DOT` / `LIST_SUM3_INT_LOOP` to fast-path list-int
+  payloads using `int64_t*` directly.
+
+### Snapshot + determinism
+
+- Snapshot encoder/decoder must handle the new list-int value type or payload.
+- Hashing and trace output must be identical across hosts (no platform-specific
+  float behavior; int64 only).
+
+### Rollout (AVM)
+
+1) Add list-int payload (Option A or B) + serialization support.
+2) Add bytecode opcodes + lowering for list-int new/push/get/set.
+3) Update fused loop ops to use `int64_t*` payload when available.
+4) Add AVM-focused benchmarks for list-int loops and integrate into `RESULTS_LATEST.md`.
+
+---
+
 ## 5) Interaction between container ops and `list<int>`
 
 - `push(xs, v)` on a `list<int>` should lower to `oren_list_int_push` once the
@@ -207,4 +269,3 @@ Native backend lowering:
 - Syntax choice: `list.int_new`, annotation, or new literal form.
 - Standard library surface for dual dispatch (`list` vs `list<int>`).
 - Behavior for `nil` in `list<int>` (likely disallow).
-
