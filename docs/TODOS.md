@@ -72,6 +72,39 @@ References:
   - Last sync (fact): 2026-01-11
 - 2026-02-13: `@cfg` supports statement-level filtering, `debug`/`release` selectors, and the `@debug`/`@release` shorthand (see `docs/ATTRIBUTES.md`).
 
+## Perf parity tracker (weighted, 2026-02-19 baseline)
+
+Baseline reference: `benchmarks/RESULTS_LATEST.md` (M2 Pro, 2026-02-19).
+
+Weights reflect expected impact on C-parity + breadth of code affected.
+
+1) **W5 — Native integer hot-loop parity (loop_sum, dot_product)** (L)
+   - Expand `inty` propagation and arithmetic fast paths so inner loops avoid runtime helpers
+     (`oren_add`, `oren_mod`, etc.) in both arm64 and x64 native emitters.
+   - Add/verify fastmod reductions for constant modulus in native backends (mirror OBC fastmod).
+   - Gate: native `loop_sum` and `dot_product` ≤ 2× C on Tier‑1 arm64 + x64.
+
+2) **W5 — Allocation/GC overhead reduction (alloc_churn/alloc_drop)** (L)
+   - Fix `OREN_GC_REUSE_BLOCKS` correctness and enable by default once stable.
+   - Reduce per-alloc tracking overhead (alloc-index + metadata) and add reuse/slab paths for
+     small, hot allocations (lists, maps, structs).
+   - Gate: native `alloc_churn` ≤ 8× C; native `alloc_drop` ≤ 5× C; Oren C `alloc_churn` ≤ 5× C.
+
+3) **W4 — List push/len fast paths + reserve** (M)
+   - Add `oren_list_reserve` / `oren_list_int_reserve` and emit them when loops have a known trip count.
+   - Route local, compiler-proven list allocations to `oren_list_push_unchecked` where safe.
+   - Gate: native `array_sum` and `multi_list_push_int` ≤ 2× C.
+
+4) **W3 — AVM allocation fast path (OBC)** (M)
+   - Add arena/slab allocation for short‑lived list/struct values and reduce per-alloc bookkeeping.
+   - Consider specialized VM helpers for allocation-heavy patterns (`alloc_churn`).
+   - Gate: OBC `alloc_churn` ≤ 10× C.
+
+5) **W3 — Native list<int>/buffer SIMD parity** (M)
+   - Ensure list<int> → typed-buffer lowering reaches SIMD kernels on native.
+   - Bring up x64 SIMD baseline (SSE2) with scalar-equivalence gates.
+   - Gate: native `dot_product_int` ≤ 2× C (arm64 + x64).
+
 ## P0 (Now)
 
 Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N groundwork** is the current focus area (see item 9).
@@ -235,6 +268,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
                              - Build: `Makefile` (`AVM_CFLAGS ?= -O3`).
                              - Bench (loop_sum, M2 Pro, runs=5): C 0.065980s, Oren C 0.060040s (~0.91×), Oren native 0.419561s (~6.36×), OBC 0.092398s (~1.40×).
                              - Artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_170217.md`.
+                           - 2026-02-19: AVM loop opcodes extracted into `lib/avm/avm_ops_loops.h` to start splitting `avm_vm.c` (SOLID, perf-safe).
                            - 2026-02-19: loop_sum init-only/steady-state refresh (quantify init overhead vs body):
                              - Init-only (args `0 1`): C 0.002027s, Oren C 0.002278s (~1.12×), native 0.002368s (~1.17×), OBC 0.002109s (~1.04×).
                                - Artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_161557.md`.
@@ -1254,6 +1288,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
   - Extend AVM list<int> bytecode fast paths beyond push (e.g. LIST_SUM_INT / LIST_DOT_INT / indexed sum loop) or adopt unboxed list<int> storage in AVM; target OBC <= ~10× C on list<int> benchmarks.
   - AVM hot-loop dispatch: evaluate direct-threaded dispatch or a fast-path opcode loop (no tracing/breakpoints) to reduce per-op overhead; validate on `loop_sum` + `array_sum_int`.
   - Audit root `README.md` + key docs for outdated build/test/bench/remote instructions; refresh to match current rolling workflows.
+    - 2026-02-19: merged root `README.md` orientation into `docs/README.md` (single start doc); trimmed README to a concise entry point.
     - Remaining consolidation target: unify the language/runtime model docs (`docs/OBJECT_MODEL.md`, `docs/MEMORY.md`, `docs/STACK_SAFETY.md`, `docs/CONCURRENCY_MODEL.md`) into a single canonical doc.
     - 2026-02-19: merged GUI platform shim + ImGui shell docs into `docs/GUI.md`; removed `docs/GUI_PLATFORM_SHIMS.md` and `docs/GUI_IMGUI_SHELL.md` and updated references.
     - 2026-02-19: merged OBC portability + module linking docs into `docs/AVM_AND_OBC.md`; removed `docs/OBC_MODULE_LINKING.md` and `docs/OBC_PORTABILITY.md` and updated references.
