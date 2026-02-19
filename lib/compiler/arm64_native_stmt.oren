@@ -1130,6 +1130,9 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
 
     var base_stack = ctx["stack_size"]
     var list_count = oren_list_len(lists)
+    var load_count = oren_list_len(loads)
+    var unique_lists = false
+    if list_count == load_count { unique_lists = true }
     var slots = 4 + list_count * 2 // tick + i + n + sum + (list, buf)*N
     var total_bytes = align_up(slots * 8, 16)
     emit_sub_sp_any(ctx, total_bytes)
@@ -1239,6 +1242,20 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_sum_flag, "name": "native_is_string_ptr"})
     push_u32_le(ctx["code"], insn_mov_reg(26, 0))
 
+    if unique_lists {
+        emit_ldr_reg_sp_any(ctx, 20, i_off)
+        emit_load_i64_imm(ctx, 21, 8)
+        push_u32_le(ctx["code"], insn_mul(22, 20, 21))
+        var li_init = 0
+        while li_init < list_count {
+            var buf_slot_init = list_base_off + li_init * 16 + 8
+            emit_ldr_reg_sp_any(ctx, 23, buf_slot_init)
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 22))
+            emit_str_reg_sp_any(ctx, 23, buf_slot_init)
+            li_init = li_init + 1
+        }
+    }
+
     // Fast loop entry
     var loop_cond_pos = bytes_len(ctx["code"])
     emit_ldr_reg_sp_any(ctx, 20, i_off)
@@ -1275,12 +1292,20 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
         }
         var buf_slot2 = list_base_off + list_index * 16 + 8
 
-        // addr = buf + i*8 ; load value
-        emit_ldr_reg_sp_any(ctx, 21, buf_slot2)
-        emit_load_i64_imm(ctx, 22, 8)
-        push_u32_le(ctx["code"], insn_mul(24, 20, 22))
-        push_u32_le(ctx["code"], insn_add_reg(24, 21, 24))
-        push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
+        if unique_lists {
+            emit_ldr_reg_sp_any(ctx, 24, buf_slot2)
+            push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
+            emit_load_i64_imm(ctx, 22, 8)
+            push_u32_le(ctx["code"], insn_add_reg(24, 24, 22))
+            emit_str_reg_sp_any(ctx, 24, buf_slot2)
+        } else {
+            // addr = buf + i*8 ; load value
+            emit_ldr_reg_sp_any(ctx, 21, buf_slot2)
+            emit_load_i64_imm(ctx, 22, 8)
+            push_u32_le(ctx["code"], insn_mul(24, 20, 22))
+            push_u32_le(ctx["code"], insn_add_reg(24, 21, 24))
+            push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
+        }
 
         if sum_inty == true {
             // sum is known int => oren_add reduces to iadd
@@ -1690,6 +1715,9 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
 
     var base_stack = ctx["stack_size"]
     var list_count = oren_list_len(lists)
+    var load_count = oren_list_len(loads)
+    var unique_lists = false
+    if list_count == load_count { unique_lists = true }
     var slots = 4 + list_count * 2 // tick + i + n + sum + (list, buf)*N
     var total_bytes = align_up(slots * 8, 16)
     emit_sub_sp_any(ctx, total_bytes)
@@ -1791,6 +1819,20 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         li = li + 1
     }
 
+    if unique_lists {
+        emit_ldr_reg_sp_any(ctx, 20, i_off)
+        emit_load_i64_imm(ctx, 21, 8)
+        push_u32_le(ctx["code"], insn_mul(22, 20, 21))
+        var li_init = 0
+        while li_init < list_count {
+            var buf_slot_init = list_base_off + li_init * 16 + 8
+            emit_ldr_reg_sp_any(ctx, 23, buf_slot_init)
+            push_u32_le(ctx["code"], insn_add_reg(23, 23, 22))
+            emit_str_reg_sp_any(ctx, 23, buf_slot_init)
+            li_init = li_init + 1
+        }
+    }
+
     // Fast loop entry
     var loop_cond_pos = bytes_len(ctx["code"])
     emit_ldr_reg_sp_any(ctx, 20, i_off)
@@ -1805,8 +1847,10 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     emit_ldr_reg_sp_any(ctx, 20, i_off)
     emit_ldr_reg_sp_any(ctx, 23, sum_off)
     emit_load_i64_imm(ctx, 22, 8)
-    // idx_offset = i * 8 (reuse for all list loads)
-    push_u32_le(ctx["code"], insn_mul(24, 20, 22))
+    if unique_lists != true {
+        // idx_offset = i * 8 (reuse for all list loads)
+        push_u32_le(ctx["code"], insn_mul(24, 20, 22))
+    }
 
     var pi = 0
     while pi < oren_list_len(loads) {
@@ -1818,10 +1862,17 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         }
         var buf_slot2 = list_base_off + list_index * 16 + 8
 
-        // addr = buf + i*8 ; load value
-        emit_ldr_reg_sp_any(ctx, 21, buf_slot2)
-        push_u32_le(ctx["code"], insn_add_reg(25, 21, 24))
-        push_u32_le(ctx["code"], insn_ldr_ptr(25, 25))
+        if unique_lists {
+            emit_ldr_reg_sp_any(ctx, 24, buf_slot2)
+            push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
+            push_u32_le(ctx["code"], insn_add_reg(24, 24, 22))
+            emit_str_reg_sp_any(ctx, 24, buf_slot2)
+        } else {
+            // addr = buf + i*8 ; load value
+            emit_ldr_reg_sp_any(ctx, 21, buf_slot2)
+            push_u32_le(ctx["code"], insn_add_reg(25, 21, 24))
+            push_u32_le(ctx["code"], insn_ldr_ptr(25, 25))
+        }
         push_u32_le(ctx["code"], insn_add_reg(23, 23, 25))
 
         pi = pi + 1
