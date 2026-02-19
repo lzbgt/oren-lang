@@ -4077,6 +4077,20 @@ int main(int argc, char** argv) {
                     (unsigned long long)st.maps_count,
                     (unsigned long long)st.map_entries,
                     (unsigned long long)st.approx_total_bytes);
+                printf("FREELIST_STATS tmp_enabled=%d tmp_bytes=%llu tmp_cap=%llu tmp_hits=%llu tmp_misses=%llu tmp_evictions=%llu "
+                       "list_enabled=%d list_bytes=%llu list_cap=%llu list_hits=%llu list_misses=%llu list_evictions=%llu\n",
+                    vm->tmp_freelist_enabled ? 1 : 0,
+                    (unsigned long long)vm->tmp_freelist_bytes,
+                    (unsigned long long)vm->tmp_freelist_cap_bytes,
+                    (unsigned long long)vm->tmp_freelist_hits,
+                    (unsigned long long)vm->tmp_freelist_misses,
+                    (unsigned long long)vm->tmp_freelist_evictions,
+                    vm->list_freelist_enabled ? 1 : 0,
+                    (unsigned long long)vm->list_freelist_bytes,
+                    (unsigned long long)vm->list_freelist_cap_bytes,
+                    (unsigned long long)vm->list_freelist_hits,
+                    (unsigned long long)vm->list_freelist_misses,
+                    (unsigned long long)vm->list_freelist_evictions);
             } else {
                 printf("MEM_STATS_ERROR\n");
             }
