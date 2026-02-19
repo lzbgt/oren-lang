@@ -96,23 +96,29 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 ## P0 (Now)
 
-1) **Native scheduler / green-task integration** (L, W4)
-   - Keep syscall-first constraints.
-   - Gate: `make test` + Tier-1 matrix.
+1) **Perf parity W5: native hot loops** (L, W5)
+   - Execute item 1 in the performance tracker (loop_sum + dot_product).
+   - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
-2) **Perf parity W5 items** (L, W5)
-   - Execute items 1-2 in the performance tracker.
+2) **Perf parity W5: allocation/GC** (L, W5)
+   - Execute item 2 in the performance tracker (alloc_churn + alloc_drop).
+   - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
 
 3) **Tagged value convergence plan** (L, W4)
    - Define layout and staged migration.
    - Gate: fixtures across all backends.
+
+4) **Native scheduler / green-task integration** (L, W4)
+   - Keep syscall-first constraints.
+   - Gate: `make test` + Tier-1 matrix.
 
 ## P1 (Soon)
 
 1) **Reserve + unchecked push generalization** (M, W4)
 2) **SIMD/typed buffer bring-up on x64** (M, W3)
 3) **AVM allocation slabs + list<int> lowering** (M, W3)
-4) **Tooling reliability: SSH/scp timeouts in verify scripts** (S, W2)
+4) **Deterministic AVM scheduler (budgeted)** (L, W3)
+5) **Tooling reliability: SSH/scp timeouts in verify scripts** (S, W2)
 
 ## P2 (Later)
 
