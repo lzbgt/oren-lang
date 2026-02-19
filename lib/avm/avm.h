@@ -63,6 +63,7 @@ typedef struct AvmList {
     AvmValue* items;
     int count;
     int capacity;
+    int all_int;
 } AvmList;
 
 typedef struct AvmMap {

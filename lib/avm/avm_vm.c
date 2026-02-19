@@ -249,6 +249,7 @@ static AvmValue make_pair_list(AvmVM* vm, AvmValue a, AvmValue b) {
     if (!list) return avm_alloc_fail_value();
     list->count = 2;
     list->capacity = 2;
+    list->all_int = (a.type == AVM_VAL_INT && b.type == AVM_VAL_INT);
     list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * 2u, AVM_ALLOC_KIND_LIST);
     if (!list->items) { avm_heap_free(list); return avm_alloc_fail_value(); }
     list->items[0] = a;
@@ -1688,15 +1689,18 @@ void avm_run(AvmVM* vm) {
                 if (!list) { avm_abort(vm, avm_alloc_fail_value()); break; }
                 list->count = total;
                 list->capacity = total;
+                list->all_int = 1;
                 list->items = NULL;
                 if (total > 0) {
                     list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)total, AVM_ALLOC_KIND_LIST);
                     if (!list->items) { avm_heap_free(list); avm_abort(vm, avm_alloc_fail_value()); break; }
                     for (int i = 0; i < (int)fixed; i++) {
                         list->items[i] = vm->stack[fn_idx + 1 + i];
+                        if (list->all_int && list->items[i].type != AVM_VAL_INT) list->all_int = 0;
                     }
                     for (int i = 0; i < sl->count; i++) {
                         list->items[(int)fixed + i] = sl->items[i];
+                        if (list->all_int && list->items[(int)fixed + i].type != AVM_VAL_INT) list->all_int = 0;
                     }
                 }
                 AvmValue args_list;
@@ -1788,6 +1792,7 @@ void avm_run(AvmVM* vm) {
                 if (!list) { avm_abort(vm, avm_alloc_fail_value()); break; }
                 list->count = total;
                 list->capacity = total;
+                list->all_int = 1;
                 list->items = NULL;
                 if (total > 0) {
                     list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)total, AVM_ALLOC_KIND_LIST);
@@ -1795,9 +1800,11 @@ void avm_run(AvmVM* vm) {
                     int base = vm->sp - (int)fixed - 1;
                     for (int i = 0; i < (int)fixed; i++) {
                         list->items[i] = vm->stack[base + i];
+                        if (list->all_int && list->items[i].type != AVM_VAL_INT) list->all_int = 0;
                     }
                     for (int i = 0; i < sl->count; i++) {
                         list->items[(int)fixed + i] = sl->items[i];
+                        if (list->all_int && list->items[(int)fixed + i].type != AVM_VAL_INT) list->all_int = 0;
                     }
                 }
 
@@ -2133,6 +2140,7 @@ select2_done:
                 if (!env_list) { avm_abort(vm, avm_alloc_fail_value()); break; }
                 env_list->count = (int)ncap;
                 env_list->capacity = (int)ncap;
+                env_list->all_int = 1;
                 env_list->items = NULL;
                 if (ncap > 0) {
                     env_list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)ncap, AVM_ALLOC_KIND_LIST);
@@ -2142,6 +2150,7 @@ select2_done:
                     int start = vm->sp - 1 - (int)ncap;
                     for (int i = 0; i < (int)ncap; i++) {
                         env_list->items[i] = vm->stack[start + i];
+                        if (env_list->all_int && env_list->items[i].type != AVM_VAL_INT) env_list->all_int = 0;
                     }
                 }
 
@@ -2206,6 +2215,7 @@ select2_done:
                 if (!list) { avm_abort(vm, avm_alloc_fail_value()); break; }
                 list->count = (int)len;
                 list->capacity = (int)len;
+                list->all_int = 1;
                 list->items = NULL;
                 if (len > 0) {
                     list->items = (AvmValue*)avm_heap_malloc_k(sizeof(AvmValue) * (size_t)list->capacity, AVM_ALLOC_KIND_LIST);
@@ -2214,6 +2224,7 @@ select2_done:
                     // the last pushed value becomes the last element in the list.
                     for (int i = (int)len - 1; i >= 0; i--) {
                         list->items[i] = vm->stack[--vm->sp];
+                        if (list->all_int && list->items[i].type != AVM_VAL_INT) list->all_int = 0;
                     }
                 }
                 AvmValue res;
@@ -2320,16 +2331,25 @@ select2_done:
                                 int count_a = list_a.as.l->count;
                                 int count_b = list_b.as.l->count;
                                 int64_t acc = sum.as.i;
+                                int all_int = list_a.as.l->all_int && list_b.as.l->all_int;
                                 if (end <= count_a && end <= count_b) {
-                                    for (; i < end; i++) {
-                                        AvmValue va = list_a.as.l->items[i];
-                                        AvmValue vb = list_b.as.l->items[i];
-                                        if (va.type != AVM_VAL_INT || vb.type != AVM_VAL_INT) {
-                                            idx = avm_int(i);
-                                            sum = avm_int(acc);
-                                            goto list_dot_slow;
+                                    if (all_int) {
+                                        for (; i < end; i++) {
+                                            AvmValue va = list_a.as.l->items[i];
+                                            AvmValue vb = list_b.as.l->items[i];
+                                            acc = avm_i64_add_wrap(acc, avm_i64_mul_wrap(va.as.i, vb.as.i));
                                         }
-                                        acc = avm_i64_add_wrap(acc, avm_i64_mul_wrap(va.as.i, vb.as.i));
+                                    } else {
+                                        for (; i < end; i++) {
+                                            AvmValue va = list_a.as.l->items[i];
+                                            AvmValue vb = list_b.as.l->items[i];
+                                            if (va.type != AVM_VAL_INT || vb.type != AVM_VAL_INT) {
+                                                idx = avm_int(i);
+                                                sum = avm_int(acc);
+                                                goto list_dot_slow;
+                                            }
+                                            acc = avm_i64_add_wrap(acc, avm_i64_mul_wrap(va.as.i, vb.as.i));
+                                        }
                                     }
                                 } else {
                                     for (; i < end; i++) {
@@ -2340,7 +2360,7 @@ select2_done:
                                         }
                                         AvmValue va = list_a.as.l->items[i];
                                         AvmValue vb = list_b.as.l->items[i];
-                                        if (va.type != AVM_VAL_INT || vb.type != AVM_VAL_INT) {
+                                        if (!all_int && (va.type != AVM_VAL_INT || vb.type != AVM_VAL_INT)) {
                                             idx = avm_int(i);
                                             sum = avm_int(acc);
                                             goto list_dot_slow;
@@ -2384,12 +2404,14 @@ list_dot_push:
                         int i = (int)key.as.i;
                         if (i >= 0 && i < obj.as.l->count) {
                             obj.as.l->items[i] = val;
+                            if (obj.as.l->all_int && val.type != AVM_VAL_INT) obj.as.l->all_int = 0;
                         } else if (i == obj.as.l->count) {
                             if (!avm_list_ensure_cap(obj.as.l, obj.as.l->count + 1)) {
                                 avm_abort(vm, avm_alloc_fail_value());
                                 break;
                             }
                             obj.as.l->items[obj.as.l->count++] = val;
+                            if (obj.as.l->all_int && val.type != AVM_VAL_INT) obj.as.l->all_int = 0;
                         }
                     } else if (obj.type == AVM_VAL_MAP) {
                         if (!avm_map_key_supported(key)) {

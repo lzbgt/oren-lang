@@ -880,7 +880,7 @@ fn bytecode_compile_expr(ctx, expr) {
         if name == "oren_list_int_len" { native_id = 12 }
         // Note: `oren_list_push` returns `nil` (cross-backend contract).
         if name == "oren_list_push" || name == "STD_list_push" { native_id = 13 }
-        if name == "oren_list_int_push" { native_id = 13 }
+        if name == "oren_list_int_push" { native_id = 149 }
         if name == "oren_index_set" { native_id = 14 }
         if name == "int_mod" { native_id = 15 }
         if name == "oren_bytes_from_string" { native_id = 16 }

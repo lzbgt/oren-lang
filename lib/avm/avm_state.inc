@@ -709,6 +709,7 @@ static int rr_read_value(FILE* f, AvmValue* out) {
             if (!list) { ok = 0; break; }
             list->count = (int)aux;
             list->capacity = (int)aux;
+            list->all_int = 1;
             list->items = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)aux);
             if (!list->items && aux > 0) { free(list); ok = 0; break; }
             obj_ptrs[id] = list;
@@ -780,8 +781,10 @@ static int rr_read_value(FILE* f, AvmValue* out) {
             ((char*)obj_ptrs[id])[aux] = 0;
         } else if (t == 2) {
             AvmList* list = (AvmList*)obj_ptrs[id];
+            list->all_int = 1;
             for (uint32_t i = 0; i < aux; i++) {
                 if (!decode_value(f, obj_types, obj_ptrs, obj_count, &list->items[i])) { ok = 0; break; }
+                if (list->all_int && list->items[i].type != AVM_VAL_INT) list->all_int = 0;
             }
             if (!ok) break;
         } else if (t == 3) {
@@ -956,6 +959,7 @@ static int rr_read_value_mem(const AvmBytes* in, uint32_t* pos, AvmValue* out) {
             if (!list) { ok = 0; break; }
             list->count = (int)aux;
             list->capacity = (int)aux;
+            list->all_int = 1;
             list->items = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)aux);
             if (!list->items && aux > 0) { free(list); ok = 0; break; }
             obj_ptrs[id] = list;
@@ -1030,8 +1034,10 @@ static int rr_read_value_mem(const AvmBytes* in, uint32_t* pos, AvmValue* out) {
             ((char*)obj_ptrs[id])[aux] = 0;
         } else if (t == 2) {
             AvmList* list = (AvmList*)obj_ptrs[id];
+            list->all_int = 1;
             for (uint32_t i = 0; i < aux; i++) {
                 if (!decode_value_mem(in, &cur, obj_types, obj_ptrs, obj_count, &list->items[i])) { ok = 0; break; }
+                if (list->all_int && list->items[i].type != AVM_VAL_INT) list->all_int = 0;
             }
             if (!ok) break;
         } else if (t == 3) {
@@ -2381,6 +2387,7 @@ int avm_restore(AvmVM* vm, const char* path) {
             if (!list) { ok = 0; break; }
             list->count = (int)aux;
             list->capacity = (int)aux;
+            list->all_int = 1;
             list->items = (AvmValue*)malloc(sizeof(AvmValue) * (size_t)aux);
             if (!list->items && aux > 0) { free(list); ok = 0; break; }
             obj_ptrs[id] = list;
@@ -2454,8 +2461,10 @@ int avm_restore(AvmVM* vm, const char* path) {
             ((char*)obj_ptrs[id])[aux] = 0;
         } else if (t == 2) {
             AvmList* list = (AvmList*)obj_ptrs[id];
+            list->all_int = 1;
             for (uint32_t i = 0; i < aux; i++) {
                 if (!decode_value(f, obj_types, obj_ptrs, obj_count, &list->items[i])) { ok = 0; break; }
+                if (list->all_int && list->items[i].type != AVM_VAL_INT) list->all_int = 0;
             }
             if (!ok) break;
         } else if (t == 3) {
