@@ -99,7 +99,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - `OREN_ARENA_PER_ITER=1` switches auto‑mode to per‑iteration push/pop for long‑lived loops.
    - `@oren.arena_iter` forces per‑iteration push/pop on a loop (even if auto mode is off).
    - Heuristic: loops without a simple literal upper bound default to per‑iteration mode;
-     const‑int bounds or prior locals assigned before the loop are treated as bounded when not reassigned.
+     const‑int bounds, prior locals, or `list_len` locals assigned before the loop are treated as bounded when not reassigned.
    - Define long‑lived loop policy:
      - Prefer per‑iteration sub‑arenas when loop trip count is unbounded or long‑lived.
      - Values that escape an iteration allocate in GC/outer arenas (no arena aliasing).
