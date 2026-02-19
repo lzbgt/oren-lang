@@ -34,6 +34,7 @@ BUILD_COMPILER_TIMEOUT_SECS="${OREN_SELFHOST_COMPILER_BUILD_TIMEOUT_SECS:-1200}"
 # - running the compiler to compile a tiny file should still be bounded.
 REMOTE_COMPILE_TIMEOUT_SECS="${OREN_SELFHOST_REMOTE_COMPILE_TIMEOUT_SECS:-120}"
 REMOTE_RUN_TIMEOUT_SECS="${OREN_SELFHOST_REMOTE_RUN_TIMEOUT_SECS:-30}"
+SCP_TIMEOUT_SECS="${OREN_REMOTE_SCP_TIMEOUT_SECS:-120}"
 SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-3}"
 
 TARGETS_CSV="x64-win,x64-wsl"
@@ -62,6 +63,7 @@ Env overrides:
   OREN_SELFHOST_COMPILER_BUILD_TIMEOUT_SECS (default: 1200)
   OREN_SELFHOST_REMOTE_COMPILE_TIMEOUT_SECS (default: 120)
   OREN_SELFHOST_REMOTE_RUN_TIMEOUT_SECS (default: 30)
+  OREN_REMOTE_SCP_TIMEOUT_SECS (default: 120)
   OREN_CANON_I32_ABORT   (optional) set to 1 to hard-fail on non-canonical i32 values in the self-host gate
 EOF
 }
@@ -256,7 +258,7 @@ scp_put() {
   local attempt=1
   while true; do
     set +e
-    "${SCP[@]}" "$src" "$dst"
+    run_with_timeout "$SCP_TIMEOUT_SECS" "${SCP[@]}" "$src" "$dst"
     local rc=$?
     set -e
     if [[ "$rc" -eq 0 ]]; then

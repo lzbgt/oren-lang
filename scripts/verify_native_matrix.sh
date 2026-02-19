@@ -57,6 +57,7 @@ LIBMATH_SRC="examples/libmath.oren"
 LINUX_DOCKER_ID="${OREN_LINUX_DOCKER_ID:-c7e5f7bd9f5c}"
 BUILD_TIMEOUT_SECS="${OREN_NATIVE_BUILD_TIMEOUT_SECS:-10}"
 SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-6}"
+SCP_TIMEOUT_SECS="${OREN_REMOTE_SCP_TIMEOUT_SECS:-120}"
 
 REMOTE_HOST="${OREN_REMOTE_X64_HOST:-lzbgt@pc.work}"
 REMOTE_PROXY="${OREN_REMOTE_X64_PROXY:-ProxyCommand=socat - PROXY:hubstack.cn:%h:%p,proxyport=6002}"
@@ -105,6 +106,7 @@ Env overrides:
   OREN_REMOTE_X64_WIN_ROOT (default: C:\Users\<user>\tmp_oren) remote Windows staging root
   OREN_REMOTE_X64_WSL_ROOT (default: /mnt/c/Users/<user>/tmp_oren) remote WSL staging root
   OREN_REMOTE_X64_SSH_ROOT (default: tmp_oren) scp/sftp staging root (Windows OpenSSH path)
+  OREN_REMOTE_SCP_TIMEOUT_SECS (default: 120)
   OREN_CANON_I32_ABORT   (optional) set to 1 to hard-fail on non-canonical i32 values on all targets
 
 Notes:
@@ -584,7 +586,7 @@ remote_upload() {
   local attempt=1
   while true; do
     set +e
-    "${scp_base[@]}" "$src" "${REMOTE_HOST}:${remote_unix_root}/${dst_name}"
+    run_with_timeout "$SCP_TIMEOUT_SECS" "${scp_base[@]}" "$src" "${REMOTE_HOST}:${remote_unix_root}/${dst_name}"
     local rc=$?
     set -e
     if [[ "$rc" -eq 0 ]]; then

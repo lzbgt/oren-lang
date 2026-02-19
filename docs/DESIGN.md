@@ -92,6 +92,19 @@ Gates live in `docs/STATUS.md`.
 Tagged value convergence is still rolling. The canonical model and migration
 plan are tracked in `docs/STATUS.md`.
 
+Tagged value convergence plan (rolling, lean):
+
+- Define a single **canonical value model** that can be represented in:
+  - native backend values,
+  - C backend values,
+  - AVM values (`AvmValue`).
+- Pin the **semantic invariants** (truthiness, equality, type tests) and ensure
+  every backend honors the same edge cases.
+- Stage the migration with **compat shims** so fixtures remain valid during
+  rollout (backend-by-backend switches).
+- Add a fixture gate that asserts the **same observed behavior** across
+  native/C/OBC for representative mixed‑type programs.
+
 ### Bytecode backend (OBC)
 
 - Compiler: `lib/compiler/codegen_bytecode/`.

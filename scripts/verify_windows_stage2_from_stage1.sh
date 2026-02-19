@@ -30,6 +30,7 @@ STAGE2_BUILD_TIMEOUT_SECS="${OREN_STAGE2_BUILD_TIMEOUT_SECS:-240}"
 REMOTE_COMPILE_TIMEOUT_SECS="${OREN_STAGE2_REMOTE_COMPILE_TIMEOUT_SECS:-120}"
 REMOTE_RUN_TIMEOUT_SECS="${OREN_STAGE2_REMOTE_RUN_TIMEOUT_SECS:-30}"
 SCP_RETRIES="${OREN_REMOTE_SCP_RETRIES:-3}"
+SCP_TIMEOUT_SECS="${OREN_REMOTE_SCP_TIMEOUT_SECS:-120}"
 REMOTE_PROGRESS="${OREN_REMOTE_PROGRESS:-0}"
 
 log() { printf '%s\n' "$*"; }
@@ -68,6 +69,7 @@ Env overrides:
   OREN_REMOTE_STAGE2_BOOTSTRAP_DIR (default: tmp_oren/stage2_from_stage1)
   OREN_REMOTE_X64_WIN_ROOT (default: C:\Users\<user>\tmp_oren) remote Windows staging root
   OREN_REMOTE_X64_SSH_ROOT (default: tmp_oren) scp/sftp staging root (Windows OpenSSH path)
+  OREN_REMOTE_SCP_TIMEOUT_SECS (default: 120)
 EOF
 }
 
@@ -183,7 +185,7 @@ scp_retry() {
   local dst="$2"
   local i=1
   while true; do
-    if "${SCP[@]}" "$src" "$dst"; then
+    if run_with_timeout "$SCP_TIMEOUT_SECS" "${SCP[@]}" "$src" "$dst"; then
       return 0
     fi
     if [[ "$i" -ge "$SCP_RETRIES" ]]; then

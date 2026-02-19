@@ -39,6 +39,8 @@ Local (fast):
 - `make verify-backend-parity-list-int`
 - `./scripts/verify_x64_linux_qemu_smoke.sh`
 
+Remote verify scripts support `OREN_REMOTE_SCP_TIMEOUT_SECS` to bound scp hangs.
+
 Tier-1 cross-arch (when touching native/runtime/net):
 
 - `./scripts/verify_native_matrix.sh`
@@ -121,6 +123,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 3) **Tagged value convergence plan** (L, W4)
    - Define layout and staged migration.
+   - Pin semantic invariants (truthiness, equality, type tests) and add cross‑backend fixtures.
+   - Add compatibility shims so native/C/OBC can migrate without breaking Tier‑1.
    - Gate: fixtures across all backends.
 
 4) **Native scheduler / green-task integration** (L, W4)
@@ -133,7 +137,6 @@ Weights reflect expected impact on C parity and breadth of affected code.
 2) **SIMD/typed buffer bring-up on x64** (M, W3)
 3) **AVM allocation slabs + list<int> lowering** (M, W3)
 4) **Deterministic AVM scheduler (budgeted)** (L, W3)
-5) **Tooling reliability: SSH/scp timeouts in verify scripts** (S, W2)
 6) **Loop‑local arena prototype for list/list_int** (L, W5)
 
 ## P2 (Later)
