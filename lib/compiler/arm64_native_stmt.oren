@@ -1421,6 +1421,8 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
     emit_str_reg_sp_any(ctx, 9, tick_off)
+    // safepoint mask (restore after runtime calls)
+    push_u32_le(ctx["code"], insn_movz(10, 1023))
 
     // load i/n/x/sum/mod locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -1514,7 +1516,7 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_tick_slow, "name": "oren_gc_safepoint"})
     emit_ldr_reg_sp_any(ctx, 9, tick_off)
-    push_u32_le(ctx["code"], insn_movz(10, 255))
+    push_u32_le(ctx["code"], insn_movz(10, 1023))
     var tick_skip_pos_slow = bytes_len(ctx["code"])
     var tick_skip_off_slow = (tick_skip_pos_slow - jpos_tick_skip_slow) / 4
     set_u32_le(ctx["code"], jpos_tick_skip_slow, insn_b_cond(tick_skip_off_slow, 1)) // NE
