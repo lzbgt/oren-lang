@@ -48,6 +48,7 @@ fn _compile_function_v0(ctx, fn_node, platform) {
     // conservative local-tracking scheme to decide when to emit SSE2 scalar ops.
     ctx["locals_floaty"] = {}
     ctx["locals_inty"] = {}
+    ctx["locals_int_const"] = {}
 
     var ops = _analyze_supported_fn_body(ctx, fn_node)
     if ops == nil { return nil }

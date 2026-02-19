@@ -2217,6 +2217,9 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             if ctx["locals_inty"] != nil {
                 ctx["locals_inty"][op["name"]] = _x64_expr_is_inty(ctx, op["expr"])
             }
+            if ctx["locals_int_const"] != nil {
+                ctx["locals_int_const"][op["name"]] = _x64_expr_int_const(ctx, op["expr"])
+            }
             _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
             _emit_mov_mrbp_r64(ctx, 0 - off, 0)
@@ -2229,6 +2232,9 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
             }
             if ctx["locals_inty"] != nil {
                 ctx["locals_inty"][op["name"]] = _x64_expr_is_inty(ctx, op["expr"])
+            }
+            if ctx["locals_int_const"] != nil {
+                ctx["locals_int_const"][op["name"]] = _x64_expr_int_const(ctx, op["expr"])
             }
             _emit_eval_int_to_rax(ctx, op["expr"], locals)
             if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return nil }
@@ -2247,6 +2253,9 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
                 }
                 if ctx["globals_inty"] != nil {
                     ctx["globals_inty"][name] = _x64_expr_is_inty(ctx, op["expr"])
+                }
+                if ctx["globals_int_const"] != nil {
+                    ctx["globals_int_const"][name] = _x64_expr_int_const(ctx, op["expr"])
                 }
 
                 // r10 = &global_slot ; *(u64*)r10 = rax

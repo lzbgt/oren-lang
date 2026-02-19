@@ -110,6 +110,27 @@ fn _x64_expr_is_inty(ctx, expr) {
     return false
 }
 
+fn _x64_expr_int_const(ctx, expr) {
+    if expr == nil { return nil }
+    if expr["type"] == "Integer" {
+        var n = intparse.parse_int_lit(expr["value"])
+        if oren_is_err(n) { _x64_err_invalid_int_lit(ctx, expr["value"]); return nil }
+        return n
+    }
+    if expr["type"] == "Identifier" {
+        var name = expr["value"]
+        if ctx != nil && ctx["locals_int_const"] != nil {
+            var v = ctx["locals_int_const"][name]
+            if oren_type_tag(v) != 0 { return v }
+        }
+        if ctx != nil && ctx["globals_int_const"] != nil {
+            var v2 = ctx["globals_int_const"][name]
+            if oren_type_tag(v2) != 0 { return v2 }
+        }
+    }
+    return nil
+}
+
 fn _emit_float64_binop_x64(ctx, op, left_expr, right_expr, locals) {
     // Emit float64 arithmetic:
     // - operands are either float bits (if floaty) or ints (converted via cvtsi2sd)

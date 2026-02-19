@@ -415,6 +415,7 @@ fn _x64_new_ctx(linked, platform) {
     ctx["globals"] = {}
     ctx["globals_floaty"] = {}
     ctx["globals_inty"] = {}
+    ctx["globals_int_const"] = {}
     // Named function declarations (name -> arity) collected before codegen.
     ctx["func_arity"] = {}
     // Named function varargs mapping (name -> fixed param count). Presence means varargs.

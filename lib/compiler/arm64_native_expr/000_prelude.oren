@@ -356,6 +356,23 @@ fn native_expr_is_inty(ctx, expr) {
     return false
 }
 
+fn native_expr_int_const(ctx, expr) {
+    if expr == nil { return nil }
+    if expr["type"] == "Integer" { return int_from_string(expr["value"]) }
+    if expr["type"] == "Identifier" {
+        var name = expr["value"]
+        if ctx != nil && ctx["locals_int_const"] != nil {
+            var v2 = ctx["locals_int_const"][name]
+            if oren_type_tag(v2) != 0 { return v2 }
+        }
+        if ctx != nil && ctx["globals_int_const"] != nil {
+            var v3 = ctx["globals_int_const"][name]
+            if oren_type_tag(v3) != 0 { return v3 }
+        }
+    }
+    return nil
+}
+
 fn native_expr_is_list_stringy(ctx, expr) {
     // Heuristic for "list of strings" propagation in the native backend.
     // This is used to make `xs[i] == "lit"` work when `xs` comes from known APIs like `oren_readdir`.

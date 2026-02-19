@@ -860,19 +860,16 @@ fn native_expr_chunk_noncall(ctx, expr) {
                     //
                     // This avoids a runtime call for hot loops like loop_sum while preserving
                     // deterministic semantics (div0 / i64_min% -1 still route to oren_mod).
-                    var rhs = expr["right"]
-                    if rhs != nil && rhs["type"] == "Integer" {
-                        var b = rhs["value"]
-                        if b != 0 && b != -1 {
-                            // X1 = a, X0 = b
-                            // q = a / b
-                            push_u32_le(ctx["code"], insn_sdiv(2, 1, 0))
-                            // q*b
-                            push_u32_le(ctx["code"], insn_mul(2, 2, 0))
-                            // r = a - q*b
-                            push_u32_le(ctx["code"], insn_sub_reg(0, 1, 2))
-                            return true
-                        }
+                    var rhs_const = native_expr_int_const(ctx, expr["right"])
+                    if rhs_const != nil && rhs_const != 0 && rhs_const != -1 {
+                        // X1 = a, X0 = b
+                        // q = a / b
+                        push_u32_le(ctx["code"], insn_sdiv(2, 1, 0))
+                        // q*b
+                        push_u32_le(ctx["code"], insn_mul(2, 2, 0))
+                        // r = a - q*b
+                        push_u32_le(ctx["code"], insn_sub_reg(0, 1, 2))
+                        return true
                     }
 
                     // Deterministic modulo semantics are implemented in the native runtime helper.
