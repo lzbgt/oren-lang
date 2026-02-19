@@ -10,7 +10,7 @@ Legend: `x` = slowdown relative to C median.
 
 | benchmark | C median (s) | Oren C median (x) | Oren native median (x) | Oren OBC median (x) | result file |
 | --- | --- | --- | --- | --- | --- |
-| loop_sum | 0.066911 | 0.061087 (0.91×) | 0.422417 (6.31×) | 0.098599 (1.47×) | `benchmarks/results/loop_sum_darwin_arm64_20260219_155623.md` |
+| loop_sum | 0.067083 | 0.060393 (0.90×) | 0.422314 (6.30×) | 0.098364 (1.47×) | `benchmarks/results/loop_sum_darwin_arm64_20260219_161357.md` |
 | array_sum | 0.004190 | 0.007941 (1.90×) | 0.020951 (5.00×) | 0.010095 (2.41×) | `benchmarks/results/array_sum_darwin_arm64_20260219_130446.md` |
 | array_sum_int | 0.004914 | 0.010160 (2.07×) | 0.022312 (4.54×) | 0.005768 (1.17×) | `benchmarks/results/array_sum_int_darwin_arm64_20260219_144341.md` |
 | multi_list_sum | 0.008349 | 0.017322 (2.07×) | 0.030751 (3.68×) | 0.015799 (1.89×) | `benchmarks/results/multi_list_sum_darwin_arm64_20260219_130703.md` |
@@ -25,8 +25,8 @@ Notes:
 - alloc_churn/alloc_drop are allocation-heavy; they highlight tracking and GC overhead.
 - loop_sum OBC lands at ~1.47× C after emitting a fused AVM `INT_LCG_SUM_LOOP` opcode for the LCG+sum loop (now using a fast sum-mod reduction when safe).
 - loop_sum Oren C can edge out C on this microbench after LCG fast-path parity fixes; treat this as a narrow win until revalidated on more hosts.
-- loop_sum now has fast-path lowering for C/native backends (LCG+sum loop); Oren C lands at ~0.91×
-  (a narrow microbench win) while native is still ~6.31×. The fast path triggers; remaining gap
+- loop_sum now has fast-path lowering for C/native backends (LCG+sum loop); Oren C lands at ~0.90×
+  (a narrow microbench win) while native is still ~6.30×. The fast path triggers; remaining gap
   appears dominated by runtime init + per-process overhead rather than the loop body. Next:
   quantify init cost and explore a fast-init path for pure-int benchmarks.
 - loop_sum init-only (args `0 1`, n=0 reps=1): C 0.001835s, Oren C 0.002316s (~1.26×), native 0.002503s (~1.36×), OBC 0.002300s (~1.25×).

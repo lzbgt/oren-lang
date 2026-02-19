@@ -203,6 +203,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
                              - AVM: `lib/avm/avm_vm.c` (unsigned fast path).
                              - Bench (loop_sum, M2 Pro, runs=5): C 0.066911s, Oren C 0.061087s (~0.91×), Oren native 0.422417s (~6.31×), OBC 0.098599s (~1.47×).
                              - Artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_155623.md`.
+                           - 2026-02-19: native LCG sum loops keep the GC tick in registers and only spill on safepoint to reduce per-iter stack traffic:
+                             - Compiler: `lib/compiler/arm64_native_stmt.oren`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
+                             - Bench (loop_sum, M2 Pro, runs=5): C 0.067083s, Oren C 0.060393s (~0.90×), Oren native 0.422314s (~6.30×), OBC 0.098364s (~1.47×).
+                             - Artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_161357.md`.
                            - 2026-02-19: C backend list<int> fast loops expanded (string-safe matching + fast push fill, raw accumulator):
 						     - Compiler: `lib/compiler/transpiler.oren` (`str_eq`, list<int> matcher, fast RHS, fast push fill).
 						     - C runtime: `lib/runtime/040_lists_maps.inc` + `lib/runtime.h` (`oren_string_eq`).

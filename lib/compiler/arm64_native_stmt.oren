@@ -1126,9 +1126,10 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     var sum_off = 24
     var list_base_off = 32
 
-    // init tick=0
+    // init tick=0 and safepoint mask=255 (keep tick in X9; spill only on safepoint)
     push_u32_le(ctx["code"], insn_movz(9, 0))
     emit_str_reg_sp_any(ctx, 9, tick_off)
+    push_u32_le(ctx["code"], insn_movz(10, 255))
 
     // load i/n/sum locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -1230,7 +1231,21 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
-    native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 255)
+    // Inline throttled safepoint without per-iter tick loads/stores.
+    push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
+    push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))
+    push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
+    var jpos_tick_skip = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.ne skip
+    emit_str_reg_sp_any(ctx, 9, tick_off)
+    var bl_tick = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_tick, "name": "oren_gc_safepoint"})
+    emit_ldr_reg_sp_any(ctx, 9, tick_off)
+    push_u32_le(ctx["code"], insn_movz(10, 255))
+    var tick_skip_pos = bytes_len(ctx["code"])
+    var tick_skip_off = (tick_skip_pos - jpos_tick_skip) / 4
+    set_u32_le(ctx["code"], jpos_tick_skip, insn_b_cond(tick_skip_off, 1)) // NE
 
     // reload i + sum after safepoint
     emit_ldr_reg_sp_any(ctx, 20, i_off)
@@ -1461,7 +1476,21 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
-    native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 255)
+    // Inline throttled safepoint without per-iter tick loads/stores.
+    push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
+    push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))
+    push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
+    var jpos_tick_skip_slow = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.ne skip
+    emit_str_reg_sp_any(ctx, 9, tick_off)
+    var bl_tick_slow = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_tick_slow, "name": "oren_gc_safepoint"})
+    emit_ldr_reg_sp_any(ctx, 9, tick_off)
+    push_u32_le(ctx["code"], insn_movz(10, 255))
+    var tick_skip_pos_slow = bytes_len(ctx["code"])
+    var tick_skip_off_slow = (tick_skip_pos_slow - jpos_tick_skip_slow) / 4
+    set_u32_le(ctx["code"], jpos_tick_skip_slow, insn_b_cond(tick_skip_off_slow, 1)) // NE
 
     // reload i/x/sum/mod/i_mod after safepoint
     emit_ldr_reg_sp_any(ctx, 20, i_off)
