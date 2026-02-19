@@ -297,6 +297,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - 2026-02-19: loop_sum init-only (args `0 1`): C 0.002128s, Oren C 0.002437s (~1.15×), native 0.002609s (~1.23×), OBC 0.002730s (~1.28×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_144914.md`).
     - 2026-02-19: loop_sum steady-state (args `2000000 10`): C 0.068589s, Oren C 0.355774s (~5.19×), native 0.434835s (~6.34×), OBC 0.103215s (~1.50×) (`benchmarks/results/loop_sum_darwin_arm64_20260219_144919.md`).
     - 2026-02-19: benchmark runner now injects `--` and a synthetic argv[0] for AVM runs so OBC arg parsing matches C/native.
+    - 2026-02-19: AVM scheduler now lazy-inits on first spawn/chan/select/yield; non-concurrency programs skip scheduler setup overhead.
     - Target: native ≤0.25s (≤4× C) and Oren C ≤0.20s (≤3× C) while keeping correctness gates.
   - (P2/S) **Array_sum list access now ~5.0× C (native); Oren C ~1.90×; OBC ~2.41×**
     - Latest: native 0.020951s vs C 0.004190s (`benchmarks/results/array_sum_darwin_arm64_20260219_130446.md`).

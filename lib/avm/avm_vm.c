@@ -174,6 +174,16 @@ static AvmSched* avm_sched_get(AvmVM* vm) {
     return vm ? (AvmSched*)vm->sched : NULL;
 }
 
+static AvmSched* avm_sched_lazy_ensure(AvmVM* vm, AvmSched* sched) {
+    if (sched && sched->init) return sched;
+    sched = avm_sched_ensure(vm);
+    if (!sched) return NULL;
+    sched->current_tid = 0;
+    // Sync main task state now that scheduler exists.
+    task_save_from_vm(vm, &sched->tasks[0]);
+    return sched;
+}
+
 int avm_sched_is_trivial(AvmVM* vm) {
     AvmSched* s = avm_sched_get(vm);
     if (!s) return 1;
@@ -961,15 +971,7 @@ void avm_run(AvmVM* vm) {
     AvmVM* prev_owner = NULL;
     avm_alloc_owner_push(vm, &prev_owner);
 
-    AvmSched* sched = avm_sched_ensure(vm);
-    if (!sched) {
-        avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "out of memory (scheduler init)"));
-        avm_alloc_owner_pop(prev_owner);
-        return;
-    }
-    sched->current_tid = 0;
-    // Ensure the main task state is in sync before any potential yields/switches.
-    task_save_from_vm(vm, &sched->tasks[0]);
+    AvmSched* sched = avm_sched_get(vm);
 
     vm->running = 1;
     vm->exit_code = 0;
@@ -1721,7 +1723,10 @@ void avm_run(AvmVM* vm) {
             }
             case AVM_OP_SPAWN_CALL_LIST: { // SPAWN_CALL_LIST
                 // stack: [... fn args_list] -> [... handle_int]
-                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (!sched) {
+                    sched = avm_sched_lazy_ensure(vm, sched);
+                    if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "out of memory (scheduler init)")); break; }
+                }
                 if (vm->sp < 2) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on SPAWN_CALL_LIST")); break; }
                 AvmValue args_list = vm->stack[--vm->sp];
                 AvmValue fnv = vm->stack[--vm->sp];
@@ -1733,7 +1738,10 @@ void avm_run(AvmVM* vm) {
             }
             case 0x54: { // SPAWN_CALL_SPREAD u16_fixed
                 // stack: [... fn fixed_args spread_list] -> [... handle_int]
-                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (!sched) {
+                    sched = avm_sched_lazy_ensure(vm, sched);
+                    if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "out of memory (scheduler init)")); break; }
+                }
                 if (vm->pc + 2 > vm->prog->code_len) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "truncated SPAWN_CALL_SPREAD")); break; }
                 uint16_t fixed = code[vm->pc++];
                 fixed |= (uint16_t)code[vm->pc++] << 8;
@@ -1883,7 +1891,10 @@ void avm_run(AvmVM* vm) {
             }
             case AVM_OP_JOIN: { // JOIN
                 // stack: [... handle] -> [... ret] (blocks if not done)
-                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (!sched) {
+                    sched = avm_sched_lazy_ensure(vm, sched);
+                    if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "out of memory (scheduler init)")); break; }
+                }
                 if (vm->sp < 1) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on JOIN")); break; }
                 AvmValue hv = vm->stack[--vm->sp];
                 if (hv.type != AVM_VAL_INT) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "JOIN expects int handle")); break; }
@@ -1918,7 +1929,10 @@ void avm_run(AvmVM* vm) {
             }
             case AVM_OP_JOIN_TIMEOUT: { // JOIN_TIMEOUT
                 // stack: [... handle timeout_ms] -> [... ret_or_timeout]
-                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (!sched) {
+                    sched = avm_sched_lazy_ensure(vm, sched);
+                    if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "out of memory (scheduler init)")); break; }
+                }
                 if (vm->sp < 2) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on JOIN_TIMEOUT")); break; }
                 AvmValue tv = vm->stack[--vm->sp];
                 AvmValue hv = vm->stack[--vm->sp];
@@ -1998,14 +2012,20 @@ void avm_run(AvmVM* vm) {
                 continue;
             }
             case AVM_OP_CHAN_NEW: { // CHAN_NEW
-                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (!sched) {
+                    sched = avm_sched_lazy_ensure(vm, sched);
+                    if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "out of memory (scheduler init)")); break; }
+                }
                 int hid = sched_chan_new(sched);
                 if (hid <= 0) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "CHAN_NEW failed")); break; }
                 vm->stack[vm->sp++] = avm_int((int64_t)hid);
                 break;
             }
             case AVM_OP_CHAN_SEND: { // CHAN_SEND
-                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (!sched) {
+                    sched = avm_sched_lazy_ensure(vm, sched);
+                    if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "out of memory (scheduler init)")); break; }
+                }
                 if (vm->sp < 2) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on CHAN_SEND")); break; }
                 AvmValue val = vm->stack[--vm->sp];
                 AvmValue hv = vm->stack[--vm->sp];
@@ -2026,7 +2046,10 @@ void avm_run(AvmVM* vm) {
                 break;
             }
             case AVM_OP_CHAN_RECV: { // CHAN_RECV
-                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (!sched) {
+                    sched = avm_sched_lazy_ensure(vm, sched);
+                    if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "out of memory (scheduler init)")); break; }
+                }
                 if (vm->sp < 1) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on CHAN_RECV")); break; }
                 AvmValue hv = vm->stack[--vm->sp];
                 if (hv.type != AVM_VAL_INT) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "CHAN_RECV expects int channel")); break; }
@@ -2057,7 +2080,10 @@ void avm_run(AvmVM* vm) {
                 continue;
             }
             case AVM_OP_SELECT_RECV: { // SELECT_RECV
-                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (!sched) {
+                    sched = avm_sched_lazy_ensure(vm, sched);
+                    if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "out of memory (scheduler init)")); break; }
+                }
                 if (vm->sp < 1) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on SELECT_RECV")); break; }
                 AvmValue lv = vm->stack[--vm->sp];
                 if (lv.type != AVM_VAL_LIST || !lv.as.l) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "SELECT_RECV expects list")); break; }
@@ -2109,7 +2135,10 @@ select_done:
                 break;
             }
             case AVM_OP_SELECT: { // SELECT
-                if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "scheduler missing")); break; }
+                if (!sched) {
+                    sched = avm_sched_lazy_ensure(vm, sched);
+                    if (!sched) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "out of memory (scheduler init)")); break; }
+                }
                 if (vm->sp < 1) { avm_abort(vm, avm_err(AVM_ERR_INTERNAL, "stack underflow on SELECT")); break; }
                 AvmValue lv = vm->stack[--vm->sp];
                 if (lv.type != AVM_VAL_LIST || !lv.as.l) { avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "SELECT expects list")); break; }
