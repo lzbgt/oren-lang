@@ -771,3 +771,28 @@ fn test_select_idle_does_not_spin_cpu() {
     trace("QI: idle spin: joined")
     return 0
 }
+
+fn test_arena_list_smoke() {
+    trace("QI: test_arena_list_smoke")
+    oren_arena_push()
+    var xs = oren_arena_new_list(8)
+    if xs == 0 { fail(4100) }
+    oren_list_push(xs, 1)
+    oren_list_push(xs, 2)
+    assert_eq(oren_list_len(xs), 2, 4101)
+    var ys = oren_arena_new_list_int(8)
+    if ys == 0 { fail(4102) }
+    oren_list_int_push(ys, 10)
+    oren_list_int_push(ys, 20)
+    assert_eq(oren_list_int_len(ys), 2, 4103)
+    oren_arena_pop()
+
+    // Ensure arena can be reused after reset.
+    oren_arena_push()
+    var zs = oren_arena_new_list(4)
+    if zs == 0 { fail(4104) }
+    oren_list_push(zs, 7)
+    assert_eq(oren_list_len(zs), 1, 4105)
+    oren_arena_pop()
+    return 0
+}

@@ -1,0 +1,243 @@
+// --- Arena allocation (native runtime; rolling) ---
+//
+// Purpose: fast, resettable allocation for loop-local objects to reduce GC overhead.
+// This is a best-effort primitive; callers must ensure arena lifetimes do not escape.
+
+// Arena state (single arena shared across the process).
+var g_arena_depth = 0
+var g_arena_ptr = 0
+var g_arena_limit = 0
+var g_arena_base = 0
+
+// Arena tracking table (ptr -> node). Cleared when arena depth returns to 0.
+var g_arena_table_ptr = 0
+var g_arena_table_cap = 0
+var g_arena_table_len = 0
+
+fn native_arena_chunk_size() { return 1048576 } // 1 MiB (rolling)
+
+fn native_arena_align16(n) {
+    var out = n
+    var rem = out % 16
+    if rem != 0 { out = iadd(out, 16 - rem) }
+    return out
+}
+
+fn native_arena_alloc_raw(size) {
+    if g_arena_depth <= 0 { return 0 }
+    if size <= 0 { return 0 }
+    var want = native_arena_align16(size)
+    var cur = g_arena_ptr
+    var lim = g_arena_limit
+    if cur == 0 || iadd(cur, want) > lim {
+        var chunk = native_arena_chunk_size()
+        if want > chunk { chunk = want }
+        var base = sys_mmap_private_anon(chunk)
+        if base == 0 { return 0 }
+        if base == -1 { return 0 }
+        if native_is_neg_i64(base) == true { return 0 }
+        if base < 4096 { return 0 }
+        g_arena_base = base
+        g_arena_ptr = iadd(base, want)
+        g_arena_limit = iadd(base, chunk)
+        return base
+    }
+    g_arena_ptr = iadd(cur, want)
+    return cur
+}
+
+fn native_arena_table_clear() {
+    if g_arena_table_ptr == 0 { return 0 }
+    var i = 0
+    while i < g_arena_table_cap {
+        ptr_set(iadd(g_arena_table_ptr, i * 8), 0)
+        i = i + 1
+    }
+    g_arena_table_len = 0
+    return 0
+}
+
+fn native_arena_table_init_min(min_cap) {
+    if g_arena_table_cap != 0 { return 0 }
+    var cap = 1024
+    if min_cap != nil && min_cap > cap {
+        while cap < min_cap { cap = cap * 2 }
+    }
+    if cap > 1048576 { cap = 1048576 }
+    var bytes = cap * 8
+    var table = native_malloc_raw_or_mmap(bytes)
+    if table == 0 { return 0 }
+    g_arena_table_ptr = table
+    g_arena_table_cap = cap
+    native_arena_table_clear()
+    return 0
+}
+
+fn native_arena_table_grow() {
+    if g_arena_table_cap == 0 { return 0 }
+    var old_ptr = g_arena_table_ptr
+    var old_cap = g_arena_table_cap
+    var new_cap = old_cap * 2
+    if new_cap < 1024 { new_cap = 1024 }
+    if new_cap > 1048576 { return 0 }
+    var bytes = new_cap * 8
+    var new_ptr = native_malloc_raw_or_mmap(bytes)
+    if new_ptr == 0 { return 0 }
+    var i = 0
+    while i < new_cap {
+        ptr_set(iadd(new_ptr, i * 8), 0)
+        i = i + 1
+    }
+    g_arena_table_ptr = new_ptr
+    g_arena_table_cap = new_cap
+    g_arena_table_len = 0
+    var j = 0
+    while j < old_cap {
+        var slot = ptr_get(iadd(old_ptr, j * 8))
+        if slot != 0 { native_arena_table_put(slot) }
+        j = j + 1
+    }
+    return 0
+}
+
+fn native_arena_table_put(node) {
+    if g_arena_table_cap == 0 { native_arena_table_init_min(1024) }
+    if g_arena_table_ptr == 0 { return 0 }
+    if g_arena_table_len * 4 >= g_arena_table_cap * 3 {
+        native_arena_table_grow()
+    }
+    var p = ptr_get(node)
+    if p == 0 { return 0 }
+    var mask = g_arena_table_cap - 1
+    var idx = native_alloc_index_hash(p) & mask
+    var rem = g_arena_table_cap
+    while true {
+        if rem <= 0 { return 0 }
+        rem = rem - 1
+        var slot = ptr_get(iadd(g_arena_table_ptr, idx * 8))
+        if slot == 0 {
+            ptr_set(iadd(g_arena_table_ptr, idx * 8), node)
+            g_arena_table_len = g_arena_table_len + 1
+            return 0
+        }
+        if ptr_get(slot) == p {
+            ptr_set(iadd(g_arena_table_ptr, idx * 8), node)
+            return 0
+        }
+        idx = iadd(idx, 1) & mask
+    }
+    return 0
+}
+
+fn native_arena_find_node_nolock(ptr) {
+    if g_arena_depth <= 0 { return 0 }
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    if g_arena_table_ptr == 0 || g_arena_table_cap == 0 { return 0 }
+    var mask = g_arena_table_cap - 1
+    var idx = native_alloc_index_hash(ptr) & mask
+    var rem = g_arena_table_cap
+    while true {
+        if rem <= 0 { return 0 }
+        rem = rem - 1
+        var slot = ptr_get(iadd(g_arena_table_ptr, idx * 8))
+        if slot == 0 { return 0 }
+        if ptr_get(slot) == ptr { return slot }
+        idx = iadd(idx, 1) & mask
+    }
+    return 0
+}
+
+fn native_arena_track(ptr, size, kind) {
+    if g_arena_depth <= 0 { return ptr }
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return ptr }
+    var node = native_arena_alloc_raw(48)
+    if node == 0 { return ptr }
+    ptr_set(node, ptr)
+    ptr_set(iadd(node, 8), size)
+    ptr_set(iadd(node, 16), kind)
+    ptr_set(iadd(node, 24), 0)
+    ptr_set(iadd(node, 32), 0)
+    ptr_set(iadd(node, 40), native_node_magic())
+    native_arena_table_put(node)
+    return ptr
+}
+
+fn native_arena_alloc_k(size, kind) {
+    var p = native_arena_alloc_raw(size)
+    if p != 0 {
+        native_arena_track(p, size, kind)
+        return p
+    }
+    return malloc_k(size, kind)
+}
+
+fn native_arena_push() {
+    g_arena_depth = g_arena_depth + 1
+    return 0
+}
+
+fn native_arena_pop() {
+    if g_arena_depth <= 0 { return 0 }
+    g_arena_depth = g_arena_depth - 1
+    if g_arena_depth == 0 {
+        if g_arena_base != 0 {
+            g_arena_ptr = g_arena_base
+        } else {
+            g_arena_ptr = 0
+            g_arena_limit = 0
+        }
+        native_arena_table_clear()
+        native_find_cache_clear()
+    }
+    return 0
+}
+
+@oren.keep
+fn oren_arena_push() { return native_arena_push() }
+
+@oren.keep
+fn oren_arena_pop() { return native_arena_pop() }
+
+fn native_arena_new_list(cap) {
+    if cap < 0 { cap = 0 }
+    var total = 32
+    if cap > 0 { total = total + cap * 8 }
+    var header = native_arena_alloc_k(total, 2)
+    if header == 0 { exit(200) }
+    if header == -1 { exit(200) }
+    var buf = 0
+    if cap > 0 { buf = iadd(header, 32) }
+    ptr_set(iadd(header, 0), 0)
+    ptr_set(iadd(header, 8), cap)
+    ptr_set(iadd(header, 16), buf)
+    ptr_set(iadd(header, 24), list_magic())
+    return header
+}
+
+fn native_arena_new_list_int(cap) {
+    if cap < 0 { cap = 0 }
+    var total = 32
+    if cap > 0 { total = total + cap * 8 }
+    var header = native_arena_alloc_k(total, list_int_kind())
+    if header == 0 { exit(200) }
+    if header == -1 { exit(200) }
+    var buf = 0
+    if cap > 0 { buf = iadd(header, 32) }
+    ptr_set(iadd(header, 0), 0)
+    ptr_set(iadd(header, 8), cap)
+    ptr_set(iadd(header, 16), buf)
+    ptr_set(iadd(header, 24), list_magic())
+    return header
+}
+
+@oren.keep
+fn oren_arena_new_list(cap) {
+    return native_arena_new_list(cap)
+}
+
+@oren.keep
+fn oren_arena_new_list_int(cap) {
+    return native_arena_new_list_int(cap)
+}

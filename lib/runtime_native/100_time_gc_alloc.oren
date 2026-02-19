@@ -1564,6 +1564,16 @@ fn oren_find_node(ptr) {
         if ptr - g_find_cache_ptr0 == 0 { return g_find_cache_node0 }
         if ptr - g_find_cache_ptr1 == 0 { return g_find_cache_node1 }
     }
+    var arena_hit = native_arena_find_node_nolock(ptr)
+    if arena_hit != 0 {
+        if g_runtime_single_threaded == 1 {
+            g_find_cache_ptr1 = g_find_cache_ptr0
+            g_find_cache_node1 = g_find_cache_node0
+            g_find_cache_ptr0 = ptr
+            g_find_cache_node0 = arena_hit
+        }
+        return arena_hit
+    }
     acquire_lock()
     var hit = native_alloc_index_get(ptr)
     if hit != 0 {
@@ -1680,6 +1690,10 @@ fn native_gc_find_node_nolock(ptr) {
     if oren_globals() == 0 { return 0 }
     if ptr == 0 { return 0 }
     if ptr < 4096 { return 0 }
+
+    // Arena allocations are tracked outside the GC heap but still need classification.
+    var arena_hit = native_arena_find_node_nolock(ptr)
+    if arena_hit != 0 { return arena_hit }
 
     // Fast path: allocation index lookup without the global lock.
     var hit = native_alloc_index_get(ptr)

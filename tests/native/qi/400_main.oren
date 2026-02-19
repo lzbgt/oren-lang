@@ -2,6 +2,7 @@ fn main() {
     if oren_getenv("OREN_QI_TRACE") != 0 { g_qi_trace_on = 1 }
 
     test_core()
+    test_arena_list_smoke()
     test_boxed_list_dot_sum()
     test_entropy()
     test_cfg_debug_release()
