@@ -211,6 +211,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
                              - Compiler: `lib/compiler/arm64_native_stmt.oren`.
                              - Bench (loop_sum, M2 Pro, runs=5): C 0.066657s, Oren C 0.060621s (~0.91×), Oren native 0.422603s (~6.34×), OBC 0.098458s (~1.48×).
                              - Artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_162414.md`.
+                           - 2026-02-19: x64 fast LCG sum loop keeps i/x/sum/i_mod in registers and only spills on safepoint or loop exit:
+                             - Compiler: `lib/compiler/x64_native_program/060_emit_ops.oren`.
+                             - Bench (loop_sum, M2 Pro, runs=5): C 0.066425s, Oren C 0.060638s (~0.91×), Oren native 0.417932s (~6.29×), OBC 0.097393s (~1.47×).
+                             - Artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_162847.md`.
                            - 2026-02-19: loop_sum init-only/steady-state refresh (quantify init overhead vs body):
                              - Init-only (args `0 1`): C 0.002027s, Oren C 0.002278s (~1.12×), native 0.002368s (~1.17×), OBC 0.002109s (~1.04×).
                                - Artifact: `benchmarks/results/loop_sum_darwin_arm64_20260219_161557.md`.

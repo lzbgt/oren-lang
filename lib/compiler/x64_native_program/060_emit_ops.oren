@@ -1464,20 +1464,24 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     bytes_extend(ctx["code"], insn_mov_r64_imm64(15, mod_x)) // r15 = mod_x
     bytes_extend(ctx["code"], insn_mov_r64_imm64(3, mod_i)) // rbx = mod_i
 
-    // tick (r8) and mask (r9) for throttled safepoint
+    // tick (r8) for throttled safepoint
     bytes_extend(ctx["code"], insn_xor_r64_r64(8, 8))
-    bytes_extend(ctx["code"], insn_mov_r64_imm64(9, 255))
+
+    // load loop vars into regs once
+    _emit_mov_r64_mrbp(ctx, 9, 0 - off_idx) // r9 = i
+    _emit_mov_r64_mrbp(ctx, 1, 0 - off_n)   // rcx = n
+    _emit_mov_r64_mrbp(ctx, 10, 0 - off_x)  // r10 = x
+    _emit_mov_r64_mrbp(ctx, 11, 0 - off_sum) // r11 = sum
+    _emit_mov_r64_mrbp(ctx, 12, 0 - off_mod) // r12 = mod
 
     // i_mod = i % mod_i (fast path only)
-    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 9))
     bytes_extend(ctx["code"], insn_cqo())
     bytes_extend(ctx["code"], insn_idiv_r64(3)) // rbx
-    _emit_mov_mrbp_r64(ctx, 0 - off_i_mod, 2) // rdx
+    bytes_extend(ctx["code"], insn_mov_r64_r64(7, 2)) // rdi = rdx
 
     _emit_label(ctx, labels, l_fast_cond)
-    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx) // rax = i
-    _emit_mov_r64_mrbp(ctx, 1, 0 - off_n)   // rcx = n
-    bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 1))
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(9, 1))
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_fast_end)
 
     // Inline throttled safepoint without per-iter tick loads/stores.
@@ -1488,17 +1492,18 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     var l_sp_skip = _new_label(ctx, "lcg_sum_sp_skip")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_sp_skip)
     _emit_mov_mrbp_r64(ctx, 0 - off_tick, 8)
+    _emit_mov_mrbp_r64(ctx, 0 - off_idx, 9)
+    _emit_mov_mrbp_r64(ctx, 0 - off_x, 10)
+    _emit_mov_mrbp_r64(ctx, 0 - off_sum, 11)
+    _emit_mov_mrbp_r64(ctx, 0 - off_i_mod, 7)
     _emit_call_rel32_named_x64(ctx, "oren_gc_safepoint")
     _emit_mov_r64_mrbp(ctx, 8, 0 - off_tick)
-    bytes_extend(ctx["code"], insn_mov_r64_imm64(9, 255))
+    _emit_mov_r64_mrbp(ctx, 9, 0 - off_idx)
+    _emit_mov_r64_mrbp(ctx, 10, 0 - off_x)
+    _emit_mov_r64_mrbp(ctx, 11, 0 - off_sum)
+    _emit_mov_r64_mrbp(ctx, 7, 0 - off_i_mod)
+    _emit_mov_r64_mrbp(ctx, 1, 0 - off_n)
     _emit_label(ctx, labels, l_sp_skip)
-
-    // reload i/x/sum/mod
-    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx) // rax = i
-    _emit_mov_r64_mrbp(ctx, 10, 0 - off_x)  // r10 = x
-    _emit_mov_r64_mrbp(ctx, 11, 0 - off_sum) // r11 = sum
-    _emit_mov_r64_mrbp(ctx, 12, 0 - off_mod) // r12 = mod
-    _emit_mov_r64_mrbp(ctx, 7, 0 - off_i_mod) // rdi = i_mod
 
     // x = x*mul + add
     bytes_extend(ctx["code"], insn_imul_r64_r64(10, 13))
@@ -1534,19 +1539,15 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     _emit_jcc_to_label(ctx, local_fixups, "lt", l_i_mod_ok)
     bytes_extend(ctx["code"], insn_xor_r64_r64(7, 7))
     _emit_label(ctx, labels, l_i_mod_ok)
-    _emit_mov_mrbp_r64(ctx, 0 - off_i_mod, 7)
-
-    _emit_mov_mrbp_r64(ctx, 0 - off_x, 10)
-    _emit_mov_mrbp_r64(ctx, 0 - off_sum, 11)
-
     // i++
-    _emit_mov_r64_mrbp(ctx, 0, 0 - off_idx)
-    bytes_extend(ctx["code"], insn_add_r64_imm32(0, 1))
-    _emit_mov_mrbp_r64(ctx, 0 - off_idx, 0)
+    bytes_extend(ctx["code"], insn_add_r64_imm32(9, 1))
 
     _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
 
     _emit_label(ctx, labels, l_fast_end)
+    _emit_mov_mrbp_r64(ctx, 0 - off_idx, 9)
+    _emit_mov_mrbp_r64(ctx, 0 - off_x, 10)
+    _emit_mov_mrbp_r64(ctx, 0 - off_sum, 11)
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
     _emit_label(ctx, labels, l_fast_cond_mod)
