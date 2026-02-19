@@ -135,6 +135,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - Baseline (arm64 native, 2026-02-20): `dot_product_int` 4.39× C.
     - SSE2 baseline on x64; scalar equivalence gated.
     - Wire list_int dot loops to SIMD kernels (or typed-buffer views) where safe.
+    - arm64 native fast list_int get-sum loops unroll by 2 when lists are unique.
     - x64 native fast list_int dot loops unroll by 2 when lists are unique (multi-mul supported).
     - x64 native fast list_int get-sum loops unroll by 2 when lists are unique.
     - Read-only list_int sum/dot loops now use a 1023 safepoint mask on native.
