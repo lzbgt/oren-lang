@@ -52,6 +52,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
    - Expand inty propagation and arithmetic fast paths.
+   - Const-divisor `%` is now inlined for literal/const RHS (arm64 + x64).
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
@@ -176,4 +177,3 @@ Status legend:
 | arm64 NEON intrinsics | Rolling | `lib/compiler/arm64_native_expr/**` | `tests/native/test_simd_suite.oren` |
 | x64 SIMD baseline (SSE2) | Planned | x64 codegen + runtime kernels | Track in this file |
 | AVM SIMD (NEON, gated) | Planned/Rolling | `lib/avm/avm_native.c` | Track in this file |
-
