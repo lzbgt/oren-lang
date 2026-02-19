@@ -998,7 +998,7 @@ fn native_expr_chunk_noncall(ctx, expr) {
                     if op == "<=" { fcond = 13 }
                     if op == ">=" { fcond = 10 }
                     // Return a real boolean value (native runtime singleton), not raw 0/1.
-                    // This keeps `&&/||/if` semantics consistent with `docs/LANGUAGE_SPEC.md`.
+                    // This keeps `&&/||/if` semantics consistent with `docs/LANGUAGE.md`.
                     var gname_cmp0 = ctx["rt_g_storage_name"]
                     if gname_cmp0 == nil {
                         var match_cmp0 = nil

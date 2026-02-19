@@ -51,8 +51,8 @@ make avm
 
 Details and platform-specific notes live in:
 
-- `docs/TOOLCHAIN.md` — build/test/self-hosting + verification flow
-- `docs/PLATFORMS.md` — Tier‑1 targets, portability notes, remote x64 workflow
+- `docs/TOOLCHAIN_PLATFORMS.md` — build/test/self-hosting + verification flow
+- `docs/TOOLCHAIN_PLATFORMS.md` — Tier‑1 targets, portability notes, remote x64 workflow
 
 ## 3) Benchmarks (perf sanity)
 
@@ -70,34 +70,20 @@ Local cross-backend microbenchmarks live under `benchmarks/`:
 
 **Language (user-facing)**
 
-- `docs/LANGUAGE_MANUAL.md` — how to write Oren today
-- `docs/LANGUAGE_SPEC.md` — grammar + semantics intent
-- `docs/LANGUAGE_APPENDICES.md` — attributes, traits, reflection, object/memory/concurrency/stack model
+- `docs/LANGUAGE.md` — manual + spec + appendices (single canonical language doc)
 
 **Compiler + backends (implementation)**
 
-- `docs/COMPILER.md` — compiler pipeline, IR map, implementation notes, gotchas
-- `docs/BACKENDS.md` — C/native/bytecode backends + perf playbook
-- `docs/AVM_SPEC.md` — bootstrap AVM spec + instruction set
-- `docs/AVM_ROADMAP.md` — next‑gen AVM plan + multiverse design
-- `docs/OBC_DISTRIBUTION.md` — OBC portability/linking + signing model
+- `docs/COMPILER_BACKENDS.md` — compiler pipeline + C/native/bytecode backends
+- `docs/AVM.md` — AVM spec + roadmap + OBC distribution
 
 **Stdlib + system design**
 
-- `docs/STDLIB_AND_RUNTIME.md` — stdlib layers, module resolution, collections, GUI, scheduler
-
-**Networking + IO**
-
-- `docs/NETWORKING_IO.md` — async IO, TLS/HTTP2/WS, netpoll
+- `docs/RUNTIME.md` — stdlib/runtime layers + networking/IO architecture
 
 **Platform + tooling**
 
-- `docs/TOOLCHAIN.md` — build, test, self-hosting, CLI/codesign
-- `docs/PLATFORMS.md` — portability, Tier‑1 matrix, remote x64
-
-**Other**
-
-- `docs/STATUS_AND_ROADMAP.md` — comparisons + scenarios (kept lean)
+- `docs/TOOLCHAIN_PLATFORMS.md` — build/test/self-hosting + Tier‑1 portability
 
 ## 5) Rolling policy (no stubs)
 

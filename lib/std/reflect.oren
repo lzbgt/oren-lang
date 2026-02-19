@@ -6,8 +6,8 @@
 // - boundary checks in stdlib (avoid calling string ops on non-strings in native mode)
 //
 // This is intentionally minimal and does NOT attempt to expose full type metadata yet.
-// Full reflection v1 is tracked in `docs/LANGUAGE_APPENDICES.md` and depends on the tagged value plan
-// (`docs/BACKENDS.md#native-tagged-value-representation`).
+// Full reflection v1 is tracked in `docs/LANGUAGE.md` and depends on the tagged value plan
+// (`docs/COMPILER_BACKENDS.md#native-tagged-value-representation`).
 
 // Stable tag numbers (matches `lib/runtime.h` OrenType enum values).
 // Note: native backend is still rolling toward fully tagged values; `tag(v)` is best-effort there

@@ -1551,7 +1551,7 @@ fn _tco_ident(name) { return {"type": "Identifier", "token": nil, "value": name}
 fn _tco_expr_has_call(e) {
     // Conservative effect marker for optimizer transforms that can change call order.
     //
-    // Oren's evaluation order is not fully specified (see docs/LANGUAGE_SPEC.md), so we only
+    // Oren's evaluation order is not fully specified (see docs/LANGUAGE.md), so we only
     // apply non-trivial recursion rewrites when we can prove there are no calls in the
     // affected expressions. This is a pragmatic v0 rule to keep transforms safe.
     if e == nil { return false }

@@ -268,7 +268,7 @@ fn kind_from_ann_type(ann) {
     // Typed buffers: `[]i32`, `[]f64`, ...
     //
     // The parser encodes typed buffers as `[]T` in annotation strings (see
-    // `docs/LANGUAGE_MANUAL.md`), so treat any `[]...` annotation as a buffer-kind hint.
+    // `docs/LANGUAGE.md`), so treat any `[]...` annotation as a buffer-kind hint.
     if oren_string_len(ann) >= 2 && oren_string_slice(ann, 0, 2) == "[]" { return "buf" }
     return nil
 }

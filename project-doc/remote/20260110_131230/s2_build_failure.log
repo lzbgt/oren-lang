@@ -1,3 +1,0 @@
-x64 pe: failed to write: build/targets/x64-windows/native/examples\myapp
-x64 pe: write error code=1
-x64 pe: write error msg=write_bytes: sys_open failed

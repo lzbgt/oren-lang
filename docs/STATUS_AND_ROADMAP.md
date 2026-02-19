@@ -34,7 +34,7 @@ This doc answers: “what’s real today?” and “what’s missing to reach th
 
 Related plugin/nesting model notes:
 
-- `docs/AVM_ROADMAP.md#avm-plugins-nesting-obc-first-ios-safe-rolling`
+- `docs/AVM.md#avm-plugins-nesting-obc-first-ios-safe-rolling`
 
 ## Implemented Today (Evidence-Backed)
 
@@ -64,7 +64,7 @@ Related plugin/nesting model notes:
 
 - **Attributes + strict mode**
   - `tests/native/fixtures/strict_attrs_ok.oren` / `strict_attrs_bad.oren`
-  - See also `docs/LANGUAGE_APPENDICES.md`
+  - See also `docs/LANGUAGE.md`
 - **Conditional compilation (`@cfg`, `@debug`/`@release`, `debug { ... }`/`release { ... }`)**
   - Statement-level filtering + debug/release gating is exercised by:
     - `tests/native/cfg_os_select.oren`
@@ -94,12 +94,12 @@ Related plugin/nesting model notes:
   - native backend (arm64 mature; x86_64 rolling bring-up)
 - **Tier‑1 intent for x86_64**
   - Local build existence + format checks are validated by the curated runner.
-  - Real-hardware x86_64 run validation is opt-in (Win11, WSL2 optional): `docs/PLATFORMS.md`
+  - Real-hardware x86_64 run validation is opt-in (Win11, WSL2 optional): `docs/TOOLCHAIN_PLATFORMS.md`
     - Rolling note (2026-02-13): the current remote host has Win11 online, but WSL2 is not installed/enabled yet.
     - Tier‑1 TIME substrate (Linux+Windows): `tests/native/test_time_suite.oren` (expects `oren_sleep_ms` + wall/mono time to work without libc)
     - Tier‑1 RNG substrate (Linux+Windows): `tests/native/test_quick_integration_native.oren` asserts `oren_getentropy` works (and Tier‑1 WebSocket uses it for client key + masking).
     - Tier‑1 parity fixture (closures + varargs): `tests/fixtures/tier1_native_lambda_varargs_main.oren` (remote x86_64 gate via `scripts/verify_native_matrix.sh --targets x64-win-tier1` / `x64-wsl-tier1` with `--tier1-src ...`)
-    - Tier‑1 parity fixture (map dynamic key-kind on empty maps): `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (remote x86_64 gate via `scripts/verify_native_matrix.sh` Tier‑1 targets; see `docs/PLATFORMS.md`)
+    - Tier‑1 parity fixture (map dynamic key-kind on empty maps): `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (remote x86_64 gate via `scripts/verify_native_matrix.sh` Tier‑1 targets; see `docs/TOOLCHAIN_PLATFORMS.md`)
     - Tier‑1 parity fixture (map get via dynamic key; nil-key miss semantics): `tests/fixtures/tier1_native_map_get_dynamic_key_main.oren` (remote x86_64 gate via `scripts/verify_native_matrix.sh` Tier‑1 targets)
     - Tier‑1 parity fixture (string ops: `+` / `len` / `slice`): `tests/fixtures/tier1_native_string_ops_main.oren` (remote x86_64 gate via `scripts/verify_native_matrix.sh` Tier‑1 targets)
     - Tier‑1 parity fixture (float literals + `+ - * /` + casts `f32/i64`): `tests/fixtures/tier1_native_float_ops_main.oren` (remote x86_64 gate via `scripts/verify_native_matrix.sh` Tier‑1 targets)
@@ -156,14 +156,14 @@ production maturity requires both implementation *and* regression coverage.
   - AVM has `--call-depth-max`.
   - C backend has `OREN_CALL_DEPTH_MAX` env (`0` disables the deterministic guard).
   - Native backend supports `oren build --call-depth-max <n>` (compile-time default) and `OREN_CALL_DEPTH_MAX` (runtime override, including x64 entry stubs; `0` disables).
-  - Design: `docs/LANGUAGE_APPENDICES.md`
+  - Design: `docs/LANGUAGE.md`
 - **Remove native map “key kind” heuristics**
   - Any heuristic that guesses key types (e.g. based on numeric range) is a semantics risk.
   - Direction: a tagged value model or explicit key typing at IR level.
   - Rolling status:
     - Native backends (arm64 + x64): “magic numeric range” key typing is removed from compiler lowering/codegen decisions; when key kind is not inferable statically, native codegen can perform a runtime dispatch via tracking metadata (`oren_find_node(key).kind == STRING` → string key; else treat as int key). The native runtime still keeps a small-int fast path (`key < 4096`) to avoid allocation-list scans; this is a bring-up optimization, not a semantics rule. Tagged values remain the full fix.
     - x64 native now also propagates `recv_kind` on `Index` so codegen can avoid dynamic LIST/MAP dispatch when the receiver kind is known (still validates runtime magic; remaining unknown cases need a principled representation)
-    - Tier‑1 x86_64 evidence (empty map + dynamic string key): `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (remote x86_64 Tier‑1 gate; see `docs/PLATFORMS.md`)
+    - Tier‑1 x86_64 evidence (empty map + dynamic string key): `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (remote x86_64 Tier‑1 gate; see `docs/TOOLCHAIN_PLATFORMS.md`)
 - **Varargs/spread parity (all backends + indirect calls)**
   - Varargs must be “boring and correct”: same semantics everywhere, including closures.
   - Rolling status: x64 native supports `fn (x, ...rest) { ... }` lambdas; see Tier‑1 parity fixture above.
@@ -179,7 +179,7 @@ production maturity requires both implementation *and* regression coverage.
       - TIME substrate is now proved by `tests/native/test_time_suite.oren` on Win11 (sleep + gettimeofday shims).
       - RNG substrate is now proved by `tests/native/test_quick_integration_native.oren` (asserts `oren_getentropy` works).
       - NET substrate is now regression-gated by `scripts/verify_native_net_matrix.sh`:
-        - Loopback-only TCP/UDP + HTTP GET + WebSocket echo are covered on Win11 (WSL2 optional) via `tests/native/test_net_suite.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren` (see `docs/PLATFORMS.md`).
+        - Loopback-only TCP/UDP + HTTP GET + WebSocket echo are covered on Win11 (WSL2 optional) via `tests/native/test_net_suite.oren`, `tests/native/test_http_get_loopback.oren`, `tests/native/test_ws_echo_loopback.oren` (see `docs/TOOLCHAIN_PLATFORMS.md`).
         - TLS/HTTPS/WSS are now proved on Win11 (WSL2 optional) + macOS + Linux via `scripts/verify_native_net_matrix.sh` (fixtures: `tests/native/test_tls_loopback.oren`, `tests/native/test_https_get_loopback.oren`, `tests/native/test_wss_echo_loopback.oren`).
     - FFI substrate (Tier‑1 Windows, rolling):
       - `ffi name` is implemented via lazy `LoadLibraryA`/`GetProcAddress` stubs in the x64 backend.
@@ -193,12 +193,12 @@ production maturity requires both implementation *and* regression coverage.
       - Local emit sanity (compile-only): `make verify-native-x64-compile` (builds stage1+stage2 and emits x64-linux + x64-windows artifacts).
       - Native Windows bootstrap gate (stage0 -> stage1 -> stage2, then compile+run a tiny exe): `scripts/verify_windows_stage2_from_stage1.sh` (`make verify-stage2-win`).
       - Remote run gate: `scripts/verify_selfhost_x64_compiler.sh` builds x64 compiler binaries and runs them on Win11 (WSL2 optional) to compile+run a tiny native program.
-    - Track: `docs/TODOS.md` (P0.1–P0.3), `docs/BACKENDS.md#native-backend-overview`.
+    - Track: `docs/TODOS.md` (P0.1–P0.3), `docs/COMPILER_BACKENDS.md#native-backend-overview`.
 
   - **Async IO + scheduler integration (planned)**
     - Today, NET fd waits are runtime helpers that block OS threads (`lib/runtime_native/240_tcp.oren`).
     - The production direction is a native scheduler + netpoller so IO readiness can feed channels and `select`.
-    - Track: `docs/TODOS.md` (P1.3), `docs/NETWORKING_IO.md`.
+    - Track: `docs/TODOS.md` (P1.3), `docs/RUNTIME.md`.
 
 ### P1: Tooling quality (modern compiler UX)
 
@@ -207,7 +207,7 @@ production maturity requires both implementation *and* regression coverage.
     - `oren build|emit-c|meta|dump|scan|completion`
     - `oren --help` and `oren <cmd> --help`
     - machine-readable help: `oren --help=json`
-    - completion scripts: `oren completion bash|zsh` (see `docs/TOOLCHAIN.md`)
+    - completion scripts: `oren completion bash|zsh` (see `docs/TOOLCHAIN_PLATFORMS.md`)
   - Remaining “production polish” gaps:
     - consistent exit codes for all parse/validation errors
     - env/flag precedence is now standardized:
@@ -235,21 +235,21 @@ production maturity requires both implementation *and* regression coverage.
 - **Stdlib resolution/distribution**
   - “User friendly imports” vs embedding vs precompiled `.obc` bundles needs a single
     coherent model that works for both native and AVM.
-  - Related docs: `docs/STDLIB_AND_RUNTIME.md`, `docs/OBC_DISTRIBUTION.md`
+  - Related docs: `docs/RUNTIME.md`, `docs/AVM.md`
 
 - **Packages + registry + reproducible builds**
   - For production, the language needs a coherent “package → build artifact” story:
     - module naming / resolution,
     - lockfiles, hashes, deterministic builds,
     - support for precompiled `.obc` libraries (OBX exports/relocs) in AVM.
-  - Track: `docs/OBC_DISTRIBUTION.md`, `docs/TOOLCHAIN.md`, `docs/TODOS.md` (P1.2, P1.4).
+  - Track: `docs/AVM.md`, `docs/TOOLCHAIN_PLATFORMS.md`, `docs/TODOS.md` (P1.2, P1.4).
 
 - **Trust / signing / update channels for multiverse**
   - Multiverse implies “code moves between universes”; production needs a root-of-trust:
     - signed `.obc` artifacts, cert chains, key rotation,
     - developer identity / org delegation model,
     - update and patch workflows that do not break determinism.
-  - Track: `docs/AVM_ROADMAP.md`, `docs/OBC_DISTRIBUTION.md`, `docs/TODOS.md` (P1.1).
+  - Track: `docs/AVM.md`, `docs/AVM.md`, `docs/TODOS.md` (P1.1).
 
 ## How to Use This Doc
 
@@ -270,8 +270,8 @@ This document is a **quick index** for AI agents and maintainers:
 
 It complements:
 
-- `docs/LANGUAGE_MANUAL.md` (how to write Oren today),
-- `docs/LANGUAGE_SPEC.md` (grammar + semantics),
+- `docs/LANGUAGE.md` (how to write Oren today),
+- `docs/LANGUAGE.md` (grammar + semantics),
 - `docs/STATUS_AND_ROADMAP.md` (production gaps, evidence-backed).
 
 Status legend:
@@ -283,7 +283,7 @@ Status legend:
 Remote x86_64 evidence:
 
 - “remote x86_64 Tier‑1 gate” means the fixture is validated on real x86_64 hardware (Win11, WSL2 optional)
-  via `scripts/verify_native_matrix.sh` (see `docs/PLATFORMS.md`).
+  via `scripts/verify_native_matrix.sh` (see `docs/TOOLCHAIN_PLATFORMS.md`).
 
 ## Core language
 
@@ -301,7 +301,7 @@ Remote x86_64 evidence:
 | Varargs (`...rest`) + spread calls | Rolling | Parser marks `is_varargs`; Tier‑1 native uses the uniform callable ABI (`fn_obj` + `args_list`): x86_64 lowers spread via `oren_call_obj_spread` and varargs named calls via `__oren_fnwrap_*` wrappers (`lib/compiler/x64_native_program/044_emit_call_expr.oren`, runtime helper: `lib/runtime_native/130_printing.oren`) | Tier‑1 closure parity: `tests/fixtures/tier1_native_lambda_varargs_main.oren` (remote x86_64 Tier‑1 gate) |
 | Control flow: `if/else`, `while`, `for`, `switch/case` | Implemented/Rolling | Parser + lowering; `for x in ...` is sugar in lowering | Example: `examples/hello.oren`; Tests: `tests/native/` + `tests/avm/test_switch.oren` |
 | `match` | Rolling | Parser contextual keyword + lowering into deterministic control flow | Tests: `tests/modules/test_match_enum.oren` |
-| `enum` | Rolling | Lowered as tagged-map constructors | Tests: `tests/modules/test_match_enum.oren`; Spec: `docs/LANGUAGE_SPEC.md` “enum/match” section |
+| `enum` | Rolling | Lowered as tagged-map constructors | Tests: `tests/modules/test_match_enum.oren`; Spec: `docs/LANGUAGE.md` “enum/match” section |
 
 ## Types and “static-first” constructs
 
@@ -316,10 +316,10 @@ Remote x86_64 evidence:
 
 | Feature | Status | Where (impl) | Evidence / examples |
 |---|---|---|---|
-| List literal `[]` and indexing `xs[i]` | Rolling | Shared lowering + backend intrinsics; C uses runtime helpers | Tests: `tests/native/fixtures/**`; Docs: `docs/STDLIB_AND_RUNTIME.md` |
-| List `push/len` as operations (no wrapper overhead) | Rolling | Lowering: `lib/compiler/impl_lowering.oren`; Intrinsics: `oren_list_len`, `oren_list_push` (returns `nil`) | Track: `docs/TODOS.md` (P0.4); Internals: `docs/COMPILER.md` |
-| `slice_view` / `clone` / `slice_copy` | Rolling | Stdlib: `lib/std/list.oren` (`clone`, `slice_copy`, `slice_view`) | Manual: `docs/LANGUAGE_MANUAL.md` (List helpers); Track: `docs/TODOS.md` (P0.4) |
-| Map literal `{}` and indexing `m[k]` / `m[k]=v` | Rolling | Parser + lowering; C/AVM: dynamic keys; Native: key-kind must be deterministic | Tests: `tests/native/test_integration_suite.oren`; Manual: `docs/LANGUAGE_MANUAL.md` “Maps” |
+| List literal `[]` and indexing `xs[i]` | Rolling | Shared lowering + backend intrinsics; C uses runtime helpers | Tests: `tests/native/fixtures/**`; Docs: `docs/RUNTIME.md` |
+| List `push/len` as operations (no wrapper overhead) | Rolling | Lowering: `lib/compiler/impl_lowering.oren`; Intrinsics: `oren_list_len`, `oren_list_push` (returns `nil`) | Track: `docs/TODOS.md` (P0.4); Internals: `docs/COMPILER_BACKENDS.md` |
+| `slice_view` / `clone` / `slice_copy` | Rolling | Stdlib: `lib/std/list.oren` (`clone`, `slice_copy`, `slice_view`) | Manual: `docs/LANGUAGE.md` (List helpers); Track: `docs/TODOS.md` (P0.4) |
+| Map literal `{}` and indexing `m[k]` / `m[k]=v` | Rolling | Parser + lowering; C/AVM: dynamic keys; Native: key-kind must be deterministic | Tests: `tests/native/test_integration_suite.oren`; Manual: `docs/LANGUAGE.md` “Maps” |
 | Map dynamic string keys on empty maps (Tier‑1 x86_64) | Rolling | x64 native uses tracked-allocation metadata for key-kind inference; no syntax heuristics | Tier‑1 remote fixture: `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (remote x86_64 Tier‑1 gate) |
 | Map get with dynamic string key (Tier‑1 x86_64) | Rolling | x64 native map lookup must infer key kind from value metadata and perform string compare when needed | Tier‑1 remote fixture: `tests/fixtures/tier1_native_map_get_dynamic_key_main.oren` (remote x86_64 Tier‑1 gate) |
 | Deterministic map iteration | Rolling | C runtime keeps keys sorted; native runtime sorts lazily on demand; x86_64 native runs with **full native runtime injection** (Tier‑1 mandatory) | Tests: `tests/native/test_integration_suite.oren` (map iteration); Tier‑1 x86_64: `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren` (remote x86_64 Tier‑1 gate); Runtime: `lib/runtime_native/160_iteration.oren`, `lib/runtime_native/130_printing.oren` |
@@ -337,18 +337,18 @@ Remote x86_64 evidence:
 | Deterministic diagnostics (`OREN_DIAG`) | Rolling | Runtime + emit points (native/C) | Fixtures: `tests/native/fixtures/diag_fail.oren` |
 | Runtime reflection helpers (`oren_type_tag`, `oren_type_name`) | Rolling (native+C; AVM planned) | C runtime: `lib/runtime/040_lists_maps.inc`; Native runtime: `lib/runtime_native/130_printing.oren` | Native quick integration: `tests/native/test_quick_integration_native.oren` (`test_type_tag_varargs`) |
 | Native stack traces (`stack_trace`, `resolve_symbol`) on Tier‑1 x86_64 | Rolling | Runtime: `lib/runtime_native/000_prelude_sys.oren` (`stack_trace`); x64 native: `resolve_symbol` intrinsic over the embedded symtab (`lib/compiler/x64_native_program/043_emit_stack_intrinsics.oren`, reserved by `lib/compiler/x64_native_program/010_data_io.oren` `_data_reserve_symtab`) | Tier‑1 remote fixture: `tests/fixtures/tier1_native_stacktrace_main.oren` (remote x86_64 Tier‑1 gate) |
-| Stack safety (call depth guard) | Rolling | AVM flag; C env; native guards | Docs: `docs/LANGUAGE_APPENDICES.md`; fixtures: `tests/native/fixtures/call_depth_overflow.oren` |
-| Tail-call optimization | Rolling (subset) | Lowering/codegen passes | Docs: `docs/LANGUAGE_APPENDICES.md` |
+| Stack safety (call depth guard) | Rolling | AVM flag; C env; native guards | Docs: `docs/LANGUAGE.md`; fixtures: `tests/native/fixtures/call_depth_overflow.oren` |
+| Tail-call optimization | Rolling (subset) | Lowering/codegen passes | Docs: `docs/LANGUAGE.md` |
 | Native runtime injection (`lib/runtime_native.oren` expanded includes) | Rolling | Shared include expander: `lib/compiler/native_runtime_inject.oren`; arm64 native injects by default: `lib/compiler/arm64_native_program.oren`; x86_64 native injects by default: `lib/compiler/x64_native_program/090_program_entry.oren` (capsule builds use `lib/runtime_native_capsule.oren`; DCE keeps `@oren.keep` functions and treats `native_capsule_sys_*` as an internal ABI surface so fixup-only symbols are not dropped) | Tier‑1 x86_64 gate: `scripts/verify_native_matrix.sh --targets x64-win-tier1,x64-wsl-tier1` |
 | Process args (`oren_args()`) on Tier‑1 native | Rolling | Runtime globals: `lib/runtime_native/020_fork_runtime_init.oren` (`native_runtime_set_args`); consumer: `lib/runtime_native/210_args.oren`; x86_64 entry stubs populate argc/argv (Linux: SysV entry stack; Windows: synthesized from `GetCommandLineW` + `CommandLineToArgvW` + UTF‑8 conversion) in `lib/compiler/x64_native_program/090_program_entry.oren` | Tier‑1 remote fixture: `tests/fixtures/tier1_native_args_main.oren` (remote x86_64 Tier‑1 gate) |
-| TIME substrate (`oren_sleep_ms`, `oren_time_unix_ns`, `oren_time_mono_raw`) on Tier‑1 native | Rolling | Runtime: `lib/runtime_native/100_time.oren`; x86_64 syscall lowering: Linux `lib/compiler/x64_native_program/046_emit_sys_intrinsics.oren`, Windows `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren` + PE IAT: `lib/compiler/x64_pe.oren` | Suites: `tests/native/test_time_suite.oren`; remote Win11 validation path: `docs/PLATFORMS.md` |
+| TIME substrate (`oren_sleep_ms`, `oren_time_unix_ns`, `oren_time_mono_raw`) on Tier‑1 native | Rolling | Runtime: `lib/runtime_native/100_time.oren`; x86_64 syscall lowering: Linux `lib/compiler/x64_native_program/046_emit_sys_intrinsics.oren`, Windows `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows.oren` + PE IAT: `lib/compiler/x64_pe.oren` | Suites: `tests/native/test_time_suite.oren`; remote Win11 validation path: `docs/TOOLCHAIN_PLATFORMS.md` |
 | RNG substrate (OS entropy: `oren_getentropy`) + `std:crypto/rand` | Rolling | Native runtime: `lib/runtime_native/102_entropy.oren` (`@cap.requires(domain="RNG")`); C runtime: `lib/runtime/025_entropy.inc`; Stdlib wrapper: `lib/std/crypto/rand.oren` | Native quick integration asserts `oren_getentropy` works: `tests/native/test_quick_integration_native.oren`. WebSocket uses it for `Sec-WebSocket-Key` + masking: `lib/std/net/ws.oren` (exercised by `tests/native/test_ws_echo_loopback.oren`, Tier‑1 NET gate: `scripts/verify_native_net_matrix.sh`). |
-| NET substrate (TCP/UDP + fd wait) on Tier‑1 native | Rolling | Runtime: `lib/runtime_native/240_tcp.oren`, `lib/runtime_native/250_udp.oren` (includes `oren_udp_recvfrom_into_with_addr` for src sockaddr capture); x86_64 syscall lowering: Linux `lib/compiler/x64_native_program/046_emit_sys_intrinsics.oren`; Windows `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net.oren` + PE IAT: `lib/compiler/x64_pe.oren` | Suite: `tests/native/test_net_suite.oren`; Tier‑1 cross‑arch gate: `scripts/verify_native_net_matrix.sh` (see `docs/PLATFORMS.md`) |
+| NET substrate (TCP/UDP + fd wait) on Tier‑1 native | Rolling | Runtime: `lib/runtime_native/240_tcp.oren`, `lib/runtime_native/250_udp.oren` (includes `oren_udp_recvfrom_into_with_addr` for src sockaddr capture); x86_64 syscall lowering: Linux `lib/compiler/x64_native_program/046_emit_sys_intrinsics.oren`; Windows `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_net.oren` + PE IAT: `lib/compiler/x64_pe.oren` | Suite: `tests/native/test_net_suite.oren`; Tier‑1 cross‑arch gate: `scripts/verify_native_net_matrix.sh` (see `docs/TOOLCHAIN_PLATFORMS.md`) |
 | DNS v0 stdlib (UDP A query; explicit server + best-effort system default resolver) | Rolling | Stdlib: `lib/std/net/dns.oren` (built on `std:net/udp`, OS entropy via `std:crypto/rand` for txid); default resolver selection reads `OREN_DNS_SERVER` when set, else: POSIX parses `/etc/resolv.conf` (IPv4 only), Windows uses iphlpapi `GetNetworkParams` (IPv4 only); no TCP fallback, no AAAA yet | Loopback regression: `tests/native/test_dns_loopback.oren`; Tier‑1 cross‑arch gate: `scripts/verify_native_net_matrix.sh` |
-| TLS v0 stdlib (secure stream wrapper; PKCS#12 server; client opts for pinning) | Rolling (macOS/Linux/Windows) | Primary implementation: `lib/std/net/tls.oren`; providers: macOS `lib/std/net/tls_macos_securetransport.oren` (Security.framework), Linux `lib/std/net/tls_linux_openssl.oren` (OpenSSL), Windows `lib/std/net/tls_windows_schannel.oren` (Schannel/SSPI). Convenience facade: `lib/std/crypto/tls.oren` (alias-layer over `std:net/tls` while the TLS crypto-core split is implemented). Surface: `tls.connect`, `tls.wrap_client`, `tls.wrap_server_pkcs12`, `tls.read_into`, `tls.write_from`, `tls.close`, `tls.peer_cert_sha256_hex`, `tls.negotiated_alpn`. See `docs/NETWORKING_IO.md`. | Loopback regression: `tests/native/test_tls_loopback.oren`; HTTPS/WSS use the same TLS substrate: `tests/native/test_https_get_loopback.oren`, `tests/native/test_wss_echo_loopback.oren` |
-| HTTP/1.1 GET stdlib (`http://` + `https://` when TLS available; Content-Length + chunked; IPv4 + hostname via DNS A) | Rolling | Stdlib: `lib/std/net/http.oren` (built on `std:net/tcp`); hostname support via explicit resolver injection (`http.get_text_resolver` / `http.get_response_resolver`) or system `dns.default_resolver`; structured response API returns `{status, headers, body}`; `https://` support is enabled via `std:net/tls` on macOS/Linux/Windows (see `docs/NETWORKING_IO.md`). | Loopback regression: `tests/native/test_http_get_loopback.oren` (hostname + status/header assertions) and `tests/native/test_https_get_loopback.oren` (TLS/HTTPS loopback); Tier‑1 cross‑arch gate: `scripts/verify_native_net_matrix.sh` |
+| TLS v0 stdlib (secure stream wrapper; PKCS#12 server; client opts for pinning) | Rolling (macOS/Linux/Windows) | Primary implementation: `lib/std/net/tls.oren`; providers: macOS `lib/std/net/tls_macos_securetransport.oren` (Security.framework), Linux `lib/std/net/tls_linux_openssl.oren` (OpenSSL), Windows `lib/std/net/tls_windows_schannel.oren` (Schannel/SSPI). Convenience facade: `lib/std/crypto/tls.oren` (alias-layer over `std:net/tls` while the TLS crypto-core split is implemented). Surface: `tls.connect`, `tls.wrap_client`, `tls.wrap_server_pkcs12`, `tls.read_into`, `tls.write_from`, `tls.close`, `tls.peer_cert_sha256_hex`, `tls.negotiated_alpn`. See `docs/RUNTIME.md`. | Loopback regression: `tests/native/test_tls_loopback.oren`; HTTPS/WSS use the same TLS substrate: `tests/native/test_https_get_loopback.oren`, `tests/native/test_wss_echo_loopback.oren` |
+| HTTP/1.1 GET stdlib (`http://` + `https://` when TLS available; Content-Length + chunked; IPv4 + hostname via DNS A) | Rolling | Stdlib: `lib/std/net/http.oren` (built on `std:net/tcp`); hostname support via explicit resolver injection (`http.get_text_resolver` / `http.get_response_resolver`) or system `dns.default_resolver`; structured response API returns `{status, headers, body}`; `https://` support is enabled via `std:net/tls` on macOS/Linux/Windows (see `docs/RUNTIME.md`). | Loopback regression: `tests/native/test_http_get_loopback.oren` (hostname + status/header assertions) and `tests/native/test_https_get_loopback.oren` (TLS/HTTPS loopback); Tier‑1 cross‑arch gate: `scripts/verify_native_net_matrix.sh` |
 | HTTP/2 (framing core + ALPN `h2`; HPACK/streams planned) | Rolling (framing + HPACK encode/decode v0) | Framing core: `lib/std/net/http2.oren` (preface + frame header encode/decode + SETTINGS payload codec). Loopback framing smoke: `tests/native/test_http2_preface_loopback.oren` (preface + SETTINGS/ACK + PING/ACK). HPACK core: `lib/std/net/hpack.oren` (static+dynamic tables, Huffman encode/decode, header block encode/decode). Minimal client facade: `lib/std/net/http2_client.oren` (handshake + single-stream request/response on top of TLS+framing+HPACK). HTTP/2 request/response loopback: `tests/native/test_http2_headers_loopback.oren` (client uses `std:net/http2_client`; server uses `std:net/http2` primitives; covers HEADERS + CONTINUATION + DATA over TLS; includes SETTINGS payload + SETTINGS/ACK). Stream muxing is still planned and tracked in `docs/TODOS.md`. | Tier‑1 cross‑arch gate: `scripts/verify_native_net_matrix.sh` runs the HTTP/2 fixtures (stage1 + stage2; macOS+Linux+Win11 (WSL2 optional)). |
-| WebSocket v0 stdlib (`ws://` + `wss://` when TLS available; masked text frames; ping/pong; hostname via DNS A) | Rolling | Stdlib: `lib/std/net/ws.oren` (built on `std:net/tcp`, `std:crypto/sha1`, `std:encoding/base64`, `std:crypto/rand`); hostname support via explicit resolver injection (`ws.connect_resolver`) or POSIX `dns.default_resolver`; `wss://` support is enabled via `std:net/tls` on macOS/Linux/Windows (see `docs/NETWORKING_IO.md`). | Loopback regression: `tests/native/test_ws_echo_loopback.oren` (ws://, includes hostname path + ping/pong) and `tests/native/test_wss_echo_loopback.oren` (wss:// loopback); Tier‑1 cross‑arch gate: `scripts/verify_native_net_matrix.sh` |
+| WebSocket v0 stdlib (`ws://` + `wss://` when TLS available; masked text frames; ping/pong; hostname via DNS A) | Rolling | Stdlib: `lib/std/net/ws.oren` (built on `std:net/tcp`, `std:crypto/sha1`, `std:encoding/base64`, `std:crypto/rand`); hostname support via explicit resolver injection (`ws.connect_resolver`) or POSIX `dns.default_resolver`; `wss://` support is enabled via `std:net/tls` on macOS/Linux/Windows (see `docs/RUNTIME.md`). | Loopback regression: `tests/native/test_ws_echo_loopback.oren` (ws://, includes hostname path + ping/pong) and `tests/native/test_wss_echo_loopback.oren` (wss:// loopback); Tier‑1 cross‑arch gate: `scripts/verify_native_net_matrix.sh` |
 | PROC substrate (`oren_proc_spawn`, `oren_system`) on Tier‑1 native | Rolling | Runtime: `lib/runtime_native/260_threads.oren`; POSIX: `fork/execve/wait4`; Windows: `sys_win_createprocess` lowered by `lib/compiler/x64_native_program/046_emit_sys_intrinsics_windows_proc.oren` + PE IAT: `lib/compiler/x64_pe.oren` | POSIX coverage: native integration suite exercises `oren_system_timeout` (`tests/native/test_integration_suite.oren`). Windows proof (Tier‑1 remote gate): `scripts/verify_native_matrix.sh --targets x64-win-tier1` runs `tests/fixtures/tier1_native_smoke_main.oren` on Win11 (WSL2 optional) (fixture calls `oren_system("echo tier1 smoke proc ok")`). |
 | `spawn` + `oren_join(_timeout)` on Tier‑1 native | Rolling | Runtime join: `lib/runtime_native/260_threads.oren`; Spawn: `oren_spawn_call_list` in `lib/runtime_native/120_first_class_fn.oren` prefers green tasks (N:1) and falls back when `OREN_NO_GREEN=1` (POSIX: fork+pipe; Windows: runtime-owned OS thread). x86_64 spawn lowering routes through the runtime helper (`lib/compiler/x64_native_program/044_emit_call_expr.oren`). | Native suites: `tests/native/test_integration_suite.oren` (`test_spawn_join_timeout`, `test_spawn_join_timeout_probe_zero`) + `tests/native/test_smoke_suite.oren` (spawn/join). Tier‑1 x86_64 remote fixture: `tests/fixtures/tier1_native_spawn_join_main.oren` (remote x86_64 Tier‑1 gate). |
 | Atomics (`atomic_add`, `atomic_cas`) | Rolling | ARM64: `lib/compiler/arm64_native_expr/**` (LL/SC lowering); x86_64: `lib/compiler/x64_native_program/040_emit_expr.oren` (LOCK XADD / CMPXCHG) | Native tests: `tests/native/test_atomics.oren`; Tier‑1 x86_64 fixture: `tests/fixtures/tier1_native_atomics_main.oren` (remote x86_64 Tier‑1 gate) |
@@ -356,35 +356,35 @@ Remote x86_64 evidence:
 | Select (`oren_select_recv`, `oren_select`) | Rolling (AVM + native) | AVM: `SELECT_RECV`/`SELECT` opcodes (`lib/avm/avm_vm.c`); Native: POSIX kqueue/epoll select over pipe channels + Windows select over mem channels (`lib/runtime_native/245_select.oren`) | Native evidence: `tests/native/test_integration_suite.oren` (`test_select_primitives`). AVM evidence: `tests/avm/test_smoke_suite.oren` |
 | Capsule model (native capability gating) | Rolling | Native runtime + syscall emit constraints | Fixtures: `tests/native/fixtures/capsule_*` |
 | AVM execution of `.obc` | Rolling | Runtime: `lib/avm/**`; codegen: `lib/compiler/codegen_bytecode/**` | Examples: `examples/avm_*`; Tests: `tests/avm/**` |
-| Capability domains (CORE/FS/TIME/RNG/NET/PROC/EXIT/ENV/AVM) | Rolling | `.obc` verifier + dispatch: `lib/avm/avm_native.inc`, `lib/avm/main.c` | Spec: `docs/AVM_SPEC.md` (domains vs backends); fixtures cover capsule constraints |
-| VirtualFS backend (`vfs`) for deterministic simulation | Rolling | Backend selection + fixtures: `lib/avm/main.c`; VFS ops + snapshot codec: `lib/avm/avm_native.inc` | Spec: `docs/AVM_SPEC.md` (VirtualFS / `AVMVFS01`) |
-| VirtualPROC backend (`vproc`) for deterministic subprocess stubs | Rolling | Backend selection + fixtures: `lib/avm/main.c` | Spec: `docs/AVM_SPEC.md` (`AVM_PROC_BACKEND=vproc`, `AVM_PROC_FIXTURES_HEX=...`) |
-| VirtualNET backend (`vnet`) for deterministic network stubs | Rolling | Backend selection + fixtures: `lib/avm/main.c` | Spec: `docs/AVM_SPEC.md` (`AVM_NET_BACKEND=vnet`, `AVM_NET_FIXTURES_HEX=...`) |
-| `.obc` signature verification (`--require-sig`) | Rolling | Sig verifier: `lib/avm/avm_sig.c` | Spec: `docs/OBC_DISTRIBUTION.md`; tools: `cmd/orensign/main.go` |
-| Delegated signing via embedded cert chain (`OREN_CERTS`) | Rolling | Cert parser: `lib/avm/avm_cert.c`; chain verify: `lib/avm/avm_sig.c` | Docs: `docs/OBC_DISTRIBUTION.md` |
-| Strict verification mode (`--verify-strict`) | Rolling | CLI + verifier gating: `lib/avm/main.c` | Spec: `docs/AVM_SPEC.md` (strict verification); help: `lib/avm/avm_help.inc` |
-| Nested universes (“AVM in AVM” / multiverse host service) | Rolling (gated) | AVM domain dispatch: `lib/avm/avm_native.inc` (Domain 8: AVM) | Docs: `docs/AVM_ROADMAP.md#avm-in-avm-multiverse-design-nested-virtual-universes` (model + constraints) |
-| Swarm / consensus outcome hashing | Rolling (in progress) | Job hash + result selection: `lib/avm/avm_state.inc`, `lib/avm/avm.h` | Docs: `docs/AVM_ROADMAP.md#avm-swarm-consensus-agent-mobility-design-validation` |
-| Compiler-in-AVM | Planned | Bytecode compiler + AVM host interface constraints | Track: `docs/TODOS.md` (P0.10), `docs/TOOLCHAIN.md` |
+| Capability domains (CORE/FS/TIME/RNG/NET/PROC/EXIT/ENV/AVM) | Rolling | `.obc` verifier + dispatch: `lib/avm/avm_native.inc`, `lib/avm/main.c` | Spec: `docs/AVM.md` (domains vs backends); fixtures cover capsule constraints |
+| VirtualFS backend (`vfs`) for deterministic simulation | Rolling | Backend selection + fixtures: `lib/avm/main.c`; VFS ops + snapshot codec: `lib/avm/avm_native.inc` | Spec: `docs/AVM.md` (VirtualFS / `AVMVFS01`) |
+| VirtualPROC backend (`vproc`) for deterministic subprocess stubs | Rolling | Backend selection + fixtures: `lib/avm/main.c` | Spec: `docs/AVM.md` (`AVM_PROC_BACKEND=vproc`, `AVM_PROC_FIXTURES_HEX=...`) |
+| VirtualNET backend (`vnet`) for deterministic network stubs | Rolling | Backend selection + fixtures: `lib/avm/main.c` | Spec: `docs/AVM.md` (`AVM_NET_BACKEND=vnet`, `AVM_NET_FIXTURES_HEX=...`) |
+| `.obc` signature verification (`--require-sig`) | Rolling | Sig verifier: `lib/avm/avm_sig.c` | Spec: `docs/AVM.md`; tools: `cmd/orensign/main.go` |
+| Delegated signing via embedded cert chain (`OREN_CERTS`) | Rolling | Cert parser: `lib/avm/avm_cert.c`; chain verify: `lib/avm/avm_sig.c` | Docs: `docs/AVM.md` |
+| Strict verification mode (`--verify-strict`) | Rolling | CLI + verifier gating: `lib/avm/main.c` | Spec: `docs/AVM.md` (strict verification); help: `lib/avm/avm_help.inc` |
+| Nested universes (“AVM in AVM” / multiverse host service) | Rolling (gated) | AVM domain dispatch: `lib/avm/avm_native.inc` (Domain 8: AVM) | Docs: `docs/AVM.md#avm-in-avm-multiverse-design-nested-virtual-universes` (model + constraints) |
+| Swarm / consensus outcome hashing | Rolling (in progress) | Job hash + result selection: `lib/avm/avm_state.inc`, `lib/avm/avm.h` | Docs: `docs/AVM.md#avm-swarm-consensus-agent-mobility-design-validation` |
+| Compiler-in-AVM | Planned | Bytecode compiler + AVM host interface constraints | Track: `docs/TODOS.md` (P0.10), `docs/TOOLCHAIN_PLATFORMS.md` |
 
 ## HPC / SIMD (Tier‑1 HPC: arm64 NEON now, x86_64 SSE/AVX next)
 
 | Feature | Status | Where (impl) | Evidence / notes |
 |---|---|---|---|
-| Typed buffers (`[]i32`, `[]f32`, `[]f64`, …) | Rolling | Stdlib/runtime surfaces under `lib/std/buffer.oren` + `lib/runtime_native/typed_buffers/**` | Manual: `docs/LANGUAGE_MANUAL.md` (Typed buffers section) |
+| Typed buffers (`[]i32`, `[]f32`, `[]f64`, …) | Rolling | Stdlib/runtime surfaces under `lib/std/buffer.oren` + `lib/runtime_native/typed_buffers/**` | Manual: `docs/LANGUAGE.md` (Typed buffers section) |
 | Native SIMD toggle | Rolling | Native runtime parses `OREN_ENABLE_SIMD` / `OREN_NO_SIMD`: `lib/runtime_native/040_capsule_core.oren` | Exercise via `tests/native/test_simd_suite.oren` (run once with `OREN_NO_SIMD=1`, then with `OREN_ENABLE_SIMD=1`, and compare stable outputs) |
 | SIMD determinism contract (scalar is authoritative) | Rolling | Runtime dispatch chooses scalar vs SIMD; tests enforce equivalence | Determinism guard: SIMD must remain bit-identical to scalar for covered kernels; reduction order is fixed (no reassociation). Primary suite: `tests/native/test_simd_suite.oren` |
-| SIMD intrinsics (arm64 NEON) | Rolling (arm64 macOS/Linux); Planned (x86_64) | Native arm64 codegen lowers `simd_*` intrinsics: `lib/compiler/arm64_native_expr/**` | Spec lists the intrinsic family: `docs/LANGUAGE_SPEC.md` (“Native Backend Intrinsics”) |
+| SIMD intrinsics (arm64 NEON) | Rolling (arm64 macOS/Linux); Planned (x86_64) | Native arm64 codegen lowers `simd_*` intrinsics: `lib/compiler/arm64_native_expr/**` | Spec lists the intrinsic family: `docs/LANGUAGE.md` (“Native Backend Intrinsics”) |
 | SIMD-backed typed-buffer kernels (dot/axpy/gemm/etc.) | Rolling (arm64 macOS/Linux); Planned (x86_64) | Runtime dispatch in `lib/runtime_native/typed_buffers/**` + arm64 intrinsic lowering; scalar fallbacks exist for all `simd_*_ptr` entrypoints in `lib/runtime_native/typed_buffers/005_simd_scalar_fallback.oren` | Opt-in via `OREN_ENABLE_SIMD=1` (or disable with `OREN_NO_SIMD=1`). Must remain deterministic. |
 | x86_64 SIMD plan (SSE2 baseline, AVX2 optional) | Planned | x64 native codegen + runtime kernel implementations | Track under `docs/TODOS.md` (HPC item) until we have an x86_64 SIMD parity suite (scalar vs SIMD) and stable feature detection for Linux+Windows |
-| AVM SIMD (NEON) | Planned / Rolling (gated) | Build/runtime gating exists (`AVM_ENABLE_SIMD=1`, arm64 NEON): `lib/avm/avm_native.c`, `lib/avm/main.c` | Design constraints: `docs/AVM_ROADMAP.md#avm-neon-mapping-plan-arm64-no-jit-first` (determinism-first); not treated as mature until fully covered by AVM tests |
+| AVM SIMD (NEON) | Planned / Rolling (gated) | Build/runtime gating exists (`AVM_ENABLE_SIMD=1`, arm64 NEON): `lib/avm/avm_native.c`, `lib/avm/main.c` | Design constraints: `docs/AVM.md#avm-neon-mapping-plan-arm64-no-jit-first` (determinism-first); not treated as mature until fully covered by AVM tests |
 | HPC roadmap (math/linalg + perf harness) | Rolling (in progress) | Design docs: `docs/STATUS_AND_ROADMAP.md`, typed-buffer + linalg layers | Tracker: `docs/TODOS.md` (P1.3) |
 
 ## Tooling / ecosystem
 
 | Feature | Status | Where (impl) | Evidence / examples |
 |---|---|---|---|
-| `oren` CLI subcommands + completion | Rolling | CLI: `lib/compiler/compiler/000_prelude.oren`; completion docs | Docs: `docs/TOOLCHAIN.md` |
+| `oren` CLI subcommands + completion | Rolling | CLI: `lib/compiler/compiler/000_prelude.oren`; completion docs | Docs: `docs/TOOLCHAIN_PLATFORMS.md` |
 | Package registry (`oren-packages`) integration | Planned | Module resolution + lockfiles + reproducible builds | Track: `docs/TODOS.md`, `docs/STATUS_AND_ROADMAP.md` |
 
 ## Core System Plans: Type System, Syscall-First Runtime, and HPC
@@ -980,12 +980,12 @@ Execution priority: runtime capability and determinism over syntax sugar.
 
 Canonical references for deeper detail:
 
-- AVM spec + Next-Gen plan: `docs/AVM_SPEC.md`, `docs/AVM_ROADMAP.md`
+- AVM spec + Next-Gen plan: `docs/AVM.md`, `docs/AVM.md`
 - Agentic requirements: `docs/STATUS_AND_ROADMAP.md`
 - Core system plans (type system, syscall-first runtime, HPC): `docs/STATUS_AND_ROADMAP.md`
-- Backends overview: `docs/BACKENDS.md`
-- Self-hosting: `docs/TOOLCHAIN.md`
-- Toolchain bootstrap: `docs/TOOLCHAIN.md`
+- Backends overview: `docs/COMPILER_BACKENDS.md`
+- Self-hosting: `docs/TOOLCHAIN_PLATFORMS.md`
+- Toolchain bootstrap: `docs/TOOLCHAIN_PLATFORMS.md`
 - Active tracker: `docs/TODOS.md`
 
 ## Agentic-AI Requirements (Language + Compiler + AVM)
@@ -1028,7 +1028,7 @@ Requirements:
 
 Swarm implication:
 
-- deterministic mode is the substrate for “k-of-n verification” and swarm consensus on result/state hashes (see `docs/AVM_ROADMAP.md#avm-swarm-consensus-agent-mobility-design-validation`).
+- deterministic mode is the substrate for “k-of-n verification” and swarm consensus on result/state hashes (see `docs/AVM.md#avm-swarm-consensus-agent-mobility-design-validation`).
 
 ### 1.2 Snapshot / restore (resumability)
 
@@ -1180,7 +1180,7 @@ Rationale:
 
 Design reference:
 
-- `docs/AVM_ROADMAP.md#avm-in-avm-multiverse-design-nested-virtual-universes`
+- `docs/AVM.md#avm-in-avm-multiverse-design-nested-virtual-universes`
 
 ### 3.5 Deterministic trace + explainability surfaces (agent debugging)
 
@@ -1212,7 +1212,7 @@ Bootstrap status (rolling, implementation reality as of 2025-12-15):
   - `TRACE_BYTES_HEX ...` (trace stream as data; hex for transport)
   Trace capture must **not** affect program semantics: if trace bytes hit budget, AVM truncates (disables further capture) rather than aborting execution.
   Trace bytes storage is governed by `AVM_TRACE_BYTES` and is isolated from `AVM_MEM_BYTES` (program heap budget).
-- Deterministic scheduling (tasks) is not implemented yet; see `docs/AVM_ROADMAP.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly` for the design direction.
+- Deterministic scheduling (tasks) is not implemented yet; see `docs/AVM.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly` for the design direction.
 
 ### 3.6 Governance-ready module boundaries (SOLID on bytecode artifacts)
 
@@ -1245,10 +1245,10 @@ This ordering is chosen to unlock “agent-grade” behavior early without requi
 ## 5) Canonical References
 
 - Docs index: `docs/README.md`
-- AVM spec (bootstrap + Next-Gen plan section): `docs/AVM_SPEC.md`, `docs/AVM_ROADMAP.md`
+- AVM spec (bootstrap + Next-Gen plan section): `docs/AVM.md`, `docs/AVM.md`
 - Syscall-first runtime plan: `docs/STATUS_AND_ROADMAP.md`
-- Language spec: `docs/LANGUAGE_SPEC.md`
-- Concurrency model: `docs/LANGUAGE_APPENDICES.md`
+- Language spec: `docs/LANGUAGE.md`
+- Concurrency model: `docs/LANGUAGE.md`
 
 ## Oren vs. Zig: Strategic Comparison
 
@@ -1294,7 +1294,7 @@ This document outlines the design philosophy of Oren by comparing it to Zig, hig
 *   **Zig:** Targets virtually every CPU and OS (x86, ARM, RISC-V, WASM, Windows).
 *   **Oren (rolling):** Tier‑1 intent is:
     *   `arm64-macos`, `arm64-linux`, `x64-windows`, `x64-linux`
-    *   See `docs/PLATFORMS.md` for the current fact-based status and gates.
+    *   See `docs/TOOLCHAIN_PLATFORMS.md` for the current fact-based status and gates.
     *   **Impact:** still smaller platform surface than Zig, but no longer “ARM64 only” in rolling mode.
 
 ### 3. Safety & Type Maturity
@@ -1318,7 +1318,7 @@ This document outlines advanced architectural capabilities where Oren and AVM pr
 See also:
 
 - `docs/STATUS_AND_ROADMAP.md`
-- `docs/AVM_ROADMAP.md` (Next-Gen plan section)
+- `docs/AVM.md` (Next-Gen plan section)
 
 ---
 
@@ -1364,7 +1364,7 @@ See also:
 
 Design validation and a concrete path to implementation:
 
-- `docs/AVM_ROADMAP.md#avm-swarm-consensus-agent-mobility-design-validation`
+- `docs/AVM.md#avm-swarm-consensus-agent-mobility-design-validation`
 
 ## 5. Nested Universes ("AVM in AVM")
 
@@ -1378,4 +1378,4 @@ Design validation and a concrete path to implementation:
 
 Design feasibility and a concrete staged plan:
 
-- `docs/AVM_ROADMAP.md#avm-in-avm-multiverse-design-nested-virtual-universes`
+- `docs/AVM.md#avm-in-avm-multiverse-design-nested-virtual-universes`

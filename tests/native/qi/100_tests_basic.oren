@@ -129,7 +129,7 @@ fn test_core() {
     if false == n0 { fail(1008) }
     if n0 != nil { fail(1009) }
 
-    // Truthiness parity (docs/LANGUAGE_SPEC.md):
+    // Truthiness parity (docs/LANGUAGE.md):
     // - falsey: `nil`, `false`
     // - truthy: everything else (including int 0)
     if 0 { } else { fail(1010) }
