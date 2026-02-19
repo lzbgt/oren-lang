@@ -350,6 +350,36 @@ fn oren_list_int_push(list, value) {
     return nil
 }
 
+// Unsafe/fast-path (tooling/internal): list<int> push without find_node/magic/value checks.
+// Used by compiler hot paths where list provenance + value type are already validated.
+@oren.keep
+fn oren_list_int_push_unchecked(list, value) {
+    if list == nil { oren_panic("list_int_push_unchecked on nil"); return nil }
+    var count = ptr_get(iadd(list, 0))
+    var cap = ptr_get(iadd(list, 8))
+    var buf = ptr_get(iadd(list, 16))
+    if count >= cap {
+        var new_cap = cap * 2
+        if new_cap < 4 { new_cap = 4 }
+        var new_buf = malloc_k(new_cap * 8, 0)
+        if new_buf == 0 { exit(211) }
+        if new_buf == -1 { exit(211) }
+        native_alloc_site_bump(_alloc_site_list_int_buf())
+        var i = 0
+        while i < count {
+            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+            i = iadd(i, 1)
+        }
+        buf = new_buf
+        cap = new_cap
+        ptr_set(iadd(list, 8), cap)
+        ptr_set(iadd(list, 16), buf)
+    }
+    ptr_set(iadd(buf, count * 8), value)
+    ptr_set(iadd(list, 0), iadd(count, 1))
+    return nil
+}
+
 @oren.keep
 fn oren_list_int_get(list, idx) {
     if list == nil { oren_panic("list_int_get on nil"); return nil }

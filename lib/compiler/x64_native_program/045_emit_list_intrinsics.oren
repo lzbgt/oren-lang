@@ -306,8 +306,8 @@ fn _emit_list_push_intrinsic_v0_x64(ctx, expr, locals) {
     bytes_extend(ctx["code"], insn_cmp_r64_r64(9, 10))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_fast)
 
-    // Slow path: call runtime oren_list_push(list, value), then return nil.
-    _emit_call_rel32_2args_x64(ctx, locals, "oren_list_push", off_list, off_val)
+    // Slow path: call runtime oren_list_push_unchecked(list, value), then return nil.
+    _emit_call_rel32_2args_x64(ctx, locals, "oren_list_push_unchecked", off_list, off_val)
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 
@@ -443,8 +443,8 @@ fn _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals) {
     bytes_extend(ctx["code"], insn_cmp_r64_r64(9, 10))
     _emit_jcc_to_label(ctx, local_fixups, "l", l_fast)
 
-    // Slow path: call runtime oren_list_int_push(list, value), then return nil.
-    _emit_call_rel32_2args_x64(ctx, locals, "oren_list_int_push", off_list, off_val)
+    // Slow path: call runtime oren_list_int_push_unchecked(list, value), then return nil.
+    _emit_call_rel32_2args_x64(ctx, locals, "oren_list_int_push_unchecked", off_list, off_val)
     bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
     _emit_jmp_to_label(ctx, local_fixups, l_done)
 

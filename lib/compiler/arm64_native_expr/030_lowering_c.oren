@@ -259,10 +259,10 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var br_fast = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
-                // Slow path: call runtime oren_list_push(list, value)
+                // Slow path: call runtime oren_list_push_unchecked(list, value)
                 var bl_pos = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_list_push"})
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_list_push_unchecked"})
                 var br_done2 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
@@ -389,10 +389,10 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 var br_fast_i = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
-                // Slow path: call runtime oren_list_int_push(list, value)
+                // Slow path: call runtime oren_list_int_push_unchecked(list, value)
                 var bl_pos_i = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_i, "name": "oren_list_int_push"})
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos_i, "name": "oren_list_int_push_unchecked"})
                 var br_done2i = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
 
