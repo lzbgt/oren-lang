@@ -240,6 +240,15 @@ Non‑goals (initial slice):
 - Replacing GC for long‑lived objects.
 - Arena support for maps/structs until list paths are stable.
 
+Long‑lived loop policy (hybrid):
+
+- Prefer **per‑iteration sub‑arenas** when escape analysis proves values do not
+  cross iteration boundaries (safe to reset each iteration).
+- Otherwise use a **loop‑scoped arena with budgets**: enforce a size cap and
+  spill to GC once the cap is reached.
+- For non‑terminating loops, optional **epoch rotation** can reclaim arena pages
+  at safe points (still respecting escape analysis and cross‑iteration safety).
+
 Tracking/gates:
 
 - `alloc_churn`/`alloc_drop` should show near‑zero GC activity for arena‑eligible loops.

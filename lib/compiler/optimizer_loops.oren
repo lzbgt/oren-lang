@@ -121,9 +121,9 @@ fn _opt_has_break_or_return_stmt(stmt) {
 
 fn _opt_is_call_named(expr, name) {
     if expr == nil || expr["type"] != "Call" { return false }
-    var fn = expr["fn"]
-    if fn == nil || fn["type"] != "Identifier" { return false }
-    return fn["value"] == name
+    var fn_expr = expr["fn"]
+    if fn_expr == nil || fn_expr["type"] != "Identifier" { return false }
+    return fn_expr["value"] == name
 }
 
 fn _opt_expr_contains_arena_alloc(expr) {
