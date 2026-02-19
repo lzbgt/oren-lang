@@ -1059,6 +1059,42 @@ fn _opt_insert_list_reserve_in_block(block) {
                 }
             }
         }
+        if st != nil && st["type"] == "For" {
+            var cond2 = st["cond"]
+            var n_expr2 = nil
+            var n_ok2 = false
+            if cond2 != nil && cond2["type"] == "Infix" && cond2["op"] == "<" {
+                var left_name2 = _opt_is_ident(cond2["left"])
+                var right2 = cond2["right"]
+                if left_name2 != nil && right2 != nil {
+                    if right2["type"] == "Integer" {
+                        n_expr2 = right2
+                        n_ok2 = true
+                    } else if right2["type"] == "Identifier" {
+                        var n_name2 = right2["value"]
+                        if n_name2 != nil && last_int_lit[n_name2] == true {
+                            n_expr2 = right2
+                            n_ok2 = true
+                        }
+                    }
+                }
+            }
+
+            if n_ok2 {
+                var pushes2 = {}
+                _opt_collect_list_pushes_stmt(st["body"], pushes2)
+                if pushes2 != nil {
+                    for list_name2 in pushes2 {
+                        if last_list_lit[list_name2] == true {
+                            var call2 = ast.new_call(nil,
+                                {"type": "Identifier", "token": nil, "value": "oren_list_reserve"},
+                                [{"type": "Identifier", "token": nil, "value": list_name2}, n_expr2])
+                            oren_list_push(out, ast.new_expr_stmt(nil, call2))
+                        }
+                    }
+                }
+            }
+        }
 
         oren_list_push(out, st)
         if is_top_assign != true {
