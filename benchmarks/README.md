@@ -35,6 +35,12 @@ Full sweep (all benchmarks + snapshot update + pruning):
 make benchmarks
 ```
 
+Update the snapshot from existing result files:
+
+```bash
+make benchmarks-update
+```
+
 Optional knobs:
 
 - `OREN_BENCH_RUNS=<n>` (default: 5)

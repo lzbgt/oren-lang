@@ -1,6 +1,6 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: examples-cross-compile-smoke
-.PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux benchmarks
+.PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux benchmarks benchmarks-update
 .PHONY: verify-native-x64-compile
 .PHONY: verify-native-x64-selfhost-compile
 .PHONY: verify-x64-linux-qemu
@@ -523,6 +523,10 @@ bench-native-compile: oren_stage2
 # Full benchmark sweep + snapshot update (logs to build/logs/benchmarks-all-*.log).
 benchmarks: oren_stage2
 		@./scripts/run_benchmarks_all.sh
+
+# Update the latest benchmark snapshot from existing result JSON files.
+benchmarks-update:
+		@python3 benchmarks/update_latest.py --prune
 
 # Lightweight rolling perf tripwire: ensure rtobj-hit compile-one-file stays under threshold.
 perf-guard-native-hit: oren_stage2
