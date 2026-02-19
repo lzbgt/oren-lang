@@ -108,6 +108,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Add arena‑lifetime counters (spills, epoch resets) to quantify long‑loop behavior.
    - `OREN_TRACE_ARENA=1` prints arena alloc/spill counters at arena epoch reset.
    - Arena tracking table now resets via epoch generation bump (avoids O(cap) clears per iteration).
+   - Arena push/pop now checkpoint ptr/limit/base/bytes_used and use per‑depth tracking tables; nested arenas restore state and clear the popped table to prevent long‑lived loop growth.
    - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
 
 3) **W4 - List reserve + unchecked push** (M)
