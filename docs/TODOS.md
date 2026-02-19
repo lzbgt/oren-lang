@@ -307,9 +307,10 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 	      - Result: `benchmarks/results/multi_list_sum_darwin_arm64_20260219_083044.md`
 	    - Next: push native ≤3.0× C and Oren C ≤2.5× by tightening boxed list sum/load path further.
 		  - (P1/M) **Dot_product boxed path now near native target; keep guard + focus on OBC gap**
-		    - Latest (runs=5): C 0.004889s, Oren C 0.017255s (~3.53×), Oren native 0.025528s (~5.22×), OBC 0.893932s (~182.85×).
-		      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_084719.md`
+		    - Latest (runs=5): C 0.004775s, Oren C 0.017432s (~3.65×), Oren native 0.025363s (~5.31×), OBC 0.894463s (~187.32×).
+		      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_090209.md`
 		    - Target: native ≤0.03s (≤6× C) met 2026-02-19; next target is Oren C ≤0.015s and OBC improvements.
+		    - 2026-02-19: `GET_INDEX_LIST` opcode landed for OBC (list recv_kind); current dot_product OBC numbers remain essentially unchanged.
 		    - 2026-02-18: `OREN_LIST_ASSUME_LIST=1` does **not** improve boxed dot_product:
 		      - native 0.2309s vs C 0.00499s (`benchmarks/results/dot_product_darwin_arm64_20260218_220721.md`).
 		    - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` does **not** improve boxed dot_product:
