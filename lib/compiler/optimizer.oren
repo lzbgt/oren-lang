@@ -1,5 +1,6 @@
 import ast "ast.oren"
 import intparse "int_lit.oren"
+import optloops "optimizer_loops.oren"
 
 // Optimizer baseline (rolling, conservative).
 //
@@ -1946,6 +1947,7 @@ fn lower_linked_program_in_place(linked) {
             if trace_opt && i == 0 { print("[opt] tco start") }
             _tco_function_in_place(ss[i]["expr"])
             if trace_opt && i == 0 { print("[opt] tco done") }
+            optloops.lower_simple_for_in_block(ss[i]["expr"]["body"])
             _opt_insert_list_reserve_in_block(ss[i]["expr"]["body"])
             _opt_rewrite_const_mod_in_block(ss[i]["expr"]["body"], nil)
             if trace_opt && i == 0 { print("[opt] dce start") }

@@ -1,0 +1,175 @@
+import ast "ast.oren"
+
+fn _opt_has_continue_stmt(stmt) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "Continue" { return true }
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        if ss == nil { return false }
+        var i = 0
+        while i < oren_list_len(ss) {
+            if _opt_has_continue_stmt(ss[i]) { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if t == "If" {
+        if _opt_has_continue_stmt(stmt["consq"]) { return true }
+        if stmt["alt"] != nil && _opt_has_continue_stmt(stmt["alt"]) { return true }
+        return false
+    }
+    if t == "While" || t == "For" {
+        return _opt_has_continue_stmt(stmt["body"])
+    }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && _opt_has_continue_stmt(c["body"]) { return true }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil && _opt_has_continue_stmt(stmt["default"]) { return true }
+        return false
+    }
+    if t == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "If" {
+            if _opt_has_continue_stmt(e["consq"]) { return true }
+            if e["alt"] != nil && _opt_has_continue_stmt(e["alt"]) { return true }
+        }
+        if e != nil && e["type"] == "Switch" {
+            var cases2 = e["cases"]
+            if cases2 != nil {
+                var ci2 = 0
+                while ci2 < oren_list_len(cases2) {
+                    var c2 = cases2[ci2]
+                    if c2 != nil && _opt_has_continue_stmt(c2["body"]) { return true }
+                    ci2 = ci2 + 1
+                }
+            }
+            if e["default"] != nil && _opt_has_continue_stmt(e["default"]) { return true }
+        }
+        return false
+    }
+    if t == "Function" { return false }
+    return false
+}
+
+fn _opt_lower_simple_for_stmt(stmt) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "Block" { return lower_simple_for_in_block(stmt) }
+    if t == "If" {
+        var changed = false
+        if stmt["consq"] != nil {
+            if lower_simple_for_in_block(stmt["consq"]) { changed = true }
+        }
+        if stmt["alt"] != nil {
+            if lower_simple_for_in_block(stmt["alt"]) { changed = true }
+        }
+        return changed
+    }
+    if t == "While" {
+        if stmt["body"] != nil { return lower_simple_for_in_block(stmt["body"]) }
+        return false
+    }
+    if t == "For" {
+        if stmt["body"] != nil { lower_simple_for_in_block(stmt["body"]) }
+        return false
+    }
+    if t == "Switch" {
+        var changed2 = false
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && lower_simple_for_in_block(c["body"]) { changed2 = true }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil {
+            if lower_simple_for_in_block(stmt["default"]) { changed2 = true }
+        }
+        return changed2
+    }
+    if t == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "If" {
+            var c1 = false
+            if lower_simple_for_in_block(e["consq"]) { c1 = true }
+            if e["alt"] != nil && lower_simple_for_in_block(e["alt"]) { c1 = true }
+            return c1
+        }
+        if e != nil && e["type"] == "Switch" {
+            var c2 = false
+            var cases2 = e["cases"]
+            if cases2 != nil {
+                var ci2 = 0
+                while ci2 < oren_list_len(cases2) {
+                    var c = cases2[ci2]
+                    if c != nil && lower_simple_for_in_block(c["body"]) { c2 = true }
+                    ci2 = ci2 + 1
+                }
+            }
+            if e["default"] != nil && lower_simple_for_in_block(e["default"]) { c2 = true }
+            return c2
+        }
+        return false
+    }
+    return false
+}
+
+fn lower_simple_for_in_block(block) {
+    if block == nil || block["type"] != "Block" { return false }
+    var ss = block["stmts"]
+    if ss == nil { return false }
+
+    var out = []
+    var changed = false
+    var i = 0
+    while i < oren_list_len(ss) {
+        var st = ss[i]
+        if st == nil {
+            oren_list_push(out, st)
+            i = i + 1
+            continue
+        }
+
+        if st["type"] == "For" {
+            if st["body"] != nil { _opt_lower_simple_for_stmt(st["body"]) }
+            var post = st["post"]
+            var has_continue = _opt_has_continue_stmt(st["body"])
+            if has_continue == true && post != nil {
+                oren_list_push(out, st)
+                i = i + 1
+                continue
+            }
+            var body = st["body"]
+            if body == nil || body["type"] != "Block" {
+                body = ast.new_block(st["token"])
+                if st["body"] != nil { body["stmts"] = [st["body"]] }
+            }
+            if post != nil { oren_list_push(body["stmts"], post) }
+            var cond = st["cond"]
+            if cond == nil { cond = ast.new_boolean(st["token"], true) }
+            var w = ast.new_while(st["token"], cond, body)
+            if st["init"] != nil { oren_list_push(out, st["init"]) }
+            oren_list_push(out, w)
+            changed = true
+            i = i + 1
+            continue
+        }
+
+        if _opt_lower_simple_for_stmt(st) == true { changed = true }
+        oren_list_push(out, st)
+        i = i + 1
+    }
+
+    if changed { block["stmts"] = out }
+    return changed
+}

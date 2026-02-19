@@ -228,6 +228,7 @@ Suggested “follow the code” order:
 4) **Optimizer (rolling)**
    - `lib/compiler/optimizer.oren`
    - Important note: optimizations must remain semantics-preserving under the chosen evaluation order.
+   - Normalizes simple `for` loops (without `continue`+post hazards) into `while` loops to unlock fast-loop lowering.
    - Rolling fast path: inserts `oren_list_reserve(list, n)` (or `oren_list_int_reserve`) before
      simple `while`/`for` push loops when the list was freshly created and `n` is a safe int bound
      (literal, propagated int, or `oren_*_len(ident)` call with simple arithmetic) in the same block.
