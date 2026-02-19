@@ -237,6 +237,7 @@ endif
 		tests/avm/test_vnet_no_host_net.oren \
 		tests/avm/test_switch.oren \
 		tests/avm/test_list_sum_opcodes.oren \
+		tests/avm/test_list_dot_opcodes.oren \
 		tests/avm/test_list_int_basic.oren \
 		tests/avm/test_ui_color_v0.oren \
 		tests/avm/test_ui_layout_v0.oren \

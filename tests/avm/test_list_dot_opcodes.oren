@@ -1,0 +1,35 @@
+import list "../lib/std/list.oren"
+
+fn main() {
+    var n = 1000
+    var xs = []
+    var ys = []
+    var i = 0
+    while i < n {
+        list.push(xs, (i * 3 + 7) % 1000)
+        list.push(ys, (i * 5 + 11) % 1000)
+        i = i + 1
+    }
+
+    var expected = 0
+    i = 0
+    while i < n {
+        expected = expected + ((i * 3 + 7) % 1000) * ((i * 5 + 11) % 1000)
+        i = i + 1
+    }
+
+    var sum = 0
+    i = 0
+    while i < n {
+        sum = sum + xs[i] * ys[i]
+        i = i + 1
+    }
+
+    if sum != expected {
+        print("avm list_dot mismatch got=" + oren_int_to_string(sum) +
+            " expected=" + oren_int_to_string(expected))
+        exit(1)
+    }
+    print("ok: avm list dot opcode")
+    return 0
+}
