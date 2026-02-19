@@ -104,6 +104,14 @@ fn _bc_ident_defined(ctx, name) {
     return false
 }
 
+fn _bc_match_for_init(stmt, idx_name) {
+    if stmt == nil { return true }
+    if idx_name == nil { return false }
+    if stmt["type"] != "Var" && stmt["type"] != "Assign" { return false }
+    if _bc_is_ident(stmt["name"], idx_name) != true { return false }
+    return true
+}
+
 fn _bc_match_list_index(expr, idx_name) {
     if expr == nil { return nil }
     if expr["type"] != "Index" { return nil }
@@ -471,6 +479,54 @@ fn bytecode_try_emit_list_int_push_loop(ctx, stmt) {
     return true
 }
 
+fn bytecode_try_emit_list_int_push_loop_for(ctx, stmt) {
+    if stmt == nil || stmt["type"] != "For" { return false }
+    if stmt["cond"] == nil { return false }
+    var header = _bc_match_loop_header(stmt["cond"])
+    if header == nil { return false }
+    var idx_ident = header["idx_ident"]
+    var n_expr = header["n_expr"]
+    var idx_name = header["idx_name"]
+    var n_name = header["n_name"]
+    if idx_name == nil || n_expr == nil { return false }
+    if _bc_match_for_init(stmt["init"], idx_name) != true { return false }
+    if stmt["post"] == nil { return false }
+    if _bc_match_simple_inc(stmt["post"], idx_name) != true { return false }
+
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return false }
+    var stmts = body["stmts"]
+    if stmts == nil || oren_list_len(stmts) != 1 { return false }
+
+    var push_stmt = stmts[0]
+    if push_stmt == nil || push_stmt["type"] != "ExprStmt" { return false }
+    var call_info = _bc_match_list_int_push_call(ctx, push_stmt["expr"])
+    if call_info == nil { return false }
+    var list_name = call_info["list"]
+    if list_name == nil { return false }
+    var rhs = _bc_parse_nonneg_linear(call_info["value"], idx_name)
+    if rhs == nil { return false }
+
+    if _bc_ident_uncaptured(ctx, idx_name) != true { return false }
+    if _bc_ident_uncaptured(ctx, n_name) != true { return false }
+    if _bc_ident_uncaptured(ctx, list_name) != true { return false }
+    if _bc_ident_defined(ctx, idx_name) != true { return false }
+    if n_name != nil && _bc_ident_defined(ctx, n_name) != true { return false }
+    if _bc_ident_defined(ctx, list_name) != true { return false }
+
+    if stmt["init"] != nil { bytecode_compile_stmt(ctx, stmt["init"]) }
+    var list_ident = {"type": "Identifier", "value": list_name}
+    bytecode_compile_expr(ctx, list_ident)
+    bytecode_compile_expr(ctx, idx_ident)
+    bytecode_compile_expr(ctx, n_expr)
+    _bc_push_int_const(ctx, rhs["mul"])
+    _bc_push_int_const(ctx, rhs["add"])
+    _bc_push_int_const(ctx, rhs["mod"])
+    emit_byte(ctx, AVM_LIST_PUSH_INT_LOOP)
+    _bc_emit_store_ident(ctx, idx_ident)
+    return true
+}
+
 fn bytecode_try_emit_list_int_push2_loop(ctx, stmt) {
     if stmt == nil || stmt["type"] != "While" { return false }
     var header2 = _bc_match_loop_header(stmt["cond"])
@@ -511,6 +567,67 @@ fn bytecode_try_emit_list_int_push2_loop(ctx, stmt) {
     if _bc_ident_defined(ctx, list_a) != true { return false }
     if _bc_ident_defined(ctx, list_b) != true { return false }
 
+    var list_a_ident = {"type": "Identifier", "value": list_a}
+    var list_b_ident = {"type": "Identifier", "value": list_b}
+    bytecode_compile_expr(ctx, list_a_ident)
+    bytecode_compile_expr(ctx, list_b_ident)
+    bytecode_compile_expr(ctx, idx_ident)
+    bytecode_compile_expr(ctx, n_expr)
+    _bc_push_int_const(ctx, rhs_a["mul"])
+    _bc_push_int_const(ctx, rhs_a["add"])
+    _bc_push_int_const(ctx, rhs_a["mod"])
+    _bc_push_int_const(ctx, rhs_b["mul"])
+    _bc_push_int_const(ctx, rhs_b["add"])
+    _bc_push_int_const(ctx, rhs_b["mod"])
+    emit_byte(ctx, AVM_LIST_PUSH2_INT_LOOP)
+    _bc_emit_store_ident(ctx, idx_ident)
+    return true
+}
+
+fn bytecode_try_emit_list_int_push2_loop_for(ctx, stmt) {
+    if stmt == nil || stmt["type"] != "For" { return false }
+    if stmt["cond"] == nil { return false }
+    var header2 = _bc_match_loop_header(stmt["cond"])
+    if header2 == nil { return false }
+    var idx_ident = header2["idx_ident"]
+    var n_expr = header2["n_expr"]
+    var idx_name = header2["idx_name"]
+    var n_name = header2["n_name"]
+    if idx_name == nil || n_expr == nil { return false }
+    if _bc_match_for_init(stmt["init"], idx_name) != true { return false }
+    if stmt["post"] == nil { return false }
+    if _bc_match_simple_inc(stmt["post"], idx_name) != true { return false }
+
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return false }
+    var stmts = body["stmts"]
+    if stmts == nil || oren_list_len(stmts) != 2 { return false }
+
+    var push_a = stmts[0]
+    var push_b = stmts[1]
+    if push_a == nil || push_a["type"] != "ExprStmt" { return false }
+    if push_b == nil || push_b["type"] != "ExprStmt" { return false }
+    var info_a = _bc_match_list_int_push_call(ctx, push_a["expr"])
+    var info_b = _bc_match_list_int_push_call(ctx, push_b["expr"])
+    if info_a == nil || info_b == nil { return false }
+    var list_a = info_a["list"]
+    var list_b = info_b["list"]
+    if list_a == nil || list_b == nil { return false }
+    if list_a == list_b { return false }
+    var rhs_a = _bc_parse_nonneg_linear(info_a["value"], idx_name)
+    var rhs_b = _bc_parse_nonneg_linear(info_b["value"], idx_name)
+    if rhs_a == nil || rhs_b == nil { return false }
+
+    if _bc_ident_uncaptured(ctx, idx_name) != true { return false }
+    if _bc_ident_uncaptured(ctx, n_name) != true { return false }
+    if _bc_ident_uncaptured(ctx, list_a) != true { return false }
+    if _bc_ident_uncaptured(ctx, list_b) != true { return false }
+    if _bc_ident_defined(ctx, idx_name) != true { return false }
+    if n_name != nil && _bc_ident_defined(ctx, n_name) != true { return false }
+    if _bc_ident_defined(ctx, list_a) != true { return false }
+    if _bc_ident_defined(ctx, list_b) != true { return false }
+
+    if stmt["init"] != nil { bytecode_compile_stmt(ctx, stmt["init"]) }
     var list_a_ident = {"type": "Identifier", "value": list_a}
     var list_b_ident = {"type": "Identifier", "value": list_b}
     bytecode_compile_expr(ctx, list_a_ident)
@@ -575,6 +692,79 @@ fn bytecode_try_emit_list_int_push3_loop(ctx, stmt) {
     if _bc_ident_defined(ctx, list_b) != true { return false }
     if _bc_ident_defined(ctx, list_c) != true { return false }
 
+    var list_a_ident = {"type": "Identifier", "value": list_a}
+    var list_b_ident = {"type": "Identifier", "value": list_b}
+    var list_c_ident = {"type": "Identifier", "value": list_c}
+    bytecode_compile_expr(ctx, list_a_ident)
+    bytecode_compile_expr(ctx, list_b_ident)
+    bytecode_compile_expr(ctx, list_c_ident)
+    bytecode_compile_expr(ctx, idx_ident)
+    bytecode_compile_expr(ctx, n_expr)
+    _bc_push_int_const(ctx, rhs_a["mul"])
+    _bc_push_int_const(ctx, rhs_a["add"])
+    _bc_push_int_const(ctx, rhs_a["mod"])
+    _bc_push_int_const(ctx, rhs_b["mul"])
+    _bc_push_int_const(ctx, rhs_b["add"])
+    _bc_push_int_const(ctx, rhs_b["mod"])
+    _bc_push_int_const(ctx, rhs_c["mul"])
+    _bc_push_int_const(ctx, rhs_c["add"])
+    _bc_push_int_const(ctx, rhs_c["mod"])
+    emit_byte(ctx, AVM_LIST_PUSH3_INT_LOOP)
+    _bc_emit_store_ident(ctx, idx_ident)
+    return true
+}
+
+fn bytecode_try_emit_list_int_push3_loop_for(ctx, stmt) {
+    if stmt == nil || stmt["type"] != "For" { return false }
+    if stmt["cond"] == nil { return false }
+    var header3 = _bc_match_loop_header(stmt["cond"])
+    if header3 == nil { return false }
+    var idx_ident = header3["idx_ident"]
+    var n_expr = header3["n_expr"]
+    var idx_name = header3["idx_name"]
+    var n_name = header3["n_name"]
+    if idx_name == nil || n_expr == nil { return false }
+    if _bc_match_for_init(stmt["init"], idx_name) != true { return false }
+    if stmt["post"] == nil { return false }
+    if _bc_match_simple_inc(stmt["post"], idx_name) != true { return false }
+
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return false }
+    var stmts = body["stmts"]
+    if stmts == nil || oren_list_len(stmts) != 3 { return false }
+
+    var push_a = stmts[0]
+    var push_b = stmts[1]
+    var push_c = stmts[2]
+    if push_a == nil || push_a["type"] != "ExprStmt" { return false }
+    if push_b == nil || push_b["type"] != "ExprStmt" { return false }
+    if push_c == nil || push_c["type"] != "ExprStmt" { return false }
+    var info_a = _bc_match_list_int_push_call(ctx, push_a["expr"])
+    var info_b = _bc_match_list_int_push_call(ctx, push_b["expr"])
+    var info_c = _bc_match_list_int_push_call(ctx, push_c["expr"])
+    if info_a == nil || info_b == nil || info_c == nil { return false }
+    var list_a = info_a["list"]
+    var list_b = info_b["list"]
+    var list_c = info_c["list"]
+    if list_a == nil || list_b == nil || list_c == nil { return false }
+    if list_a == list_b || list_a == list_c || list_b == list_c { return false }
+    var rhs_a = _bc_parse_nonneg_linear(info_a["value"], idx_name)
+    var rhs_b = _bc_parse_nonneg_linear(info_b["value"], idx_name)
+    var rhs_c = _bc_parse_nonneg_linear(info_c["value"], idx_name)
+    if rhs_a == nil || rhs_b == nil || rhs_c == nil { return false }
+
+    if _bc_ident_uncaptured(ctx, idx_name) != true { return false }
+    if _bc_ident_uncaptured(ctx, n_name) != true { return false }
+    if _bc_ident_uncaptured(ctx, list_a) != true { return false }
+    if _bc_ident_uncaptured(ctx, list_b) != true { return false }
+    if _bc_ident_uncaptured(ctx, list_c) != true { return false }
+    if _bc_ident_defined(ctx, idx_name) != true { return false }
+    if n_name != nil && _bc_ident_defined(ctx, n_name) != true { return false }
+    if _bc_ident_defined(ctx, list_a) != true { return false }
+    if _bc_ident_defined(ctx, list_b) != true { return false }
+    if _bc_ident_defined(ctx, list_c) != true { return false }
+
+    if stmt["init"] != nil { bytecode_compile_stmt(ctx, stmt["init"]) }
     var list_a_ident = {"type": "Identifier", "value": list_a}
     var list_b_ident = {"type": "Identifier", "value": list_b}
     var list_c_ident = {"type": "Identifier", "value": list_c}
@@ -1086,6 +1276,9 @@ fn bytecode_compile_stmt(ctx, stmt) {
     }
 
     if stmt["type"] == "For" {
+        if bytecode_try_emit_list_int_push3_loop_for(ctx, stmt) == true { return nil }
+        if bytecode_try_emit_list_int_push2_loop_for(ctx, stmt) == true { return nil }
+        if bytecode_try_emit_list_int_push_loop_for(ctx, stmt) == true { return nil }
         // for { body }
         // for cond { body }
         // for init; cond; post { body }
