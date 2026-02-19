@@ -240,6 +240,8 @@ Proposed compiler strategy (first slice):
      stays in safe list intrinsics (conservative escape check).
    - Only wraps loops without `break`/`return`/`continue` in the same loop body
      (nested-loop `continue` does not block the outer loop).
+   - When wrapped, `break`/`return`/`continue` in the same loop body get a pre‑exit
+     `arena_pop`; `continue` is only allowed for `while` (or `for` with no `post`).
 
 Runtime design (native):
 

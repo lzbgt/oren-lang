@@ -80,7 +80,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Compiler: `OREN_ARENA_AUTO_LOOP=1` wraps simple loops; it can also rewrite loop‑local `oren_new_list(_int)` vars to arena allocs when usage is limited to safe list ops.
    - Empty list literals (`[]`) inside eligible loops are rewritten to arena lists in auto mode.
    - Auto-loop wrapping now ignores `continue` inside nested loops (outer loop still eligible).
-   - Remaining gap: handle `break`/`continue`/`return` in the same loop body by inserting arena pop on those control-flow paths.
+   - Auto-loop now inserts arena pop on `break`/`return`/`continue` in the same loop body.
+     - `continue` is only allowed for `while` (and `for` loops with no `post` expression).
    - Define long‑lived loop policy: per‑iteration sub‑arenas when safe; otherwise loop‑scoped arena with cap + GC spill.
    - Add arena‑lifetime counters (spills, epoch resets) to quantify long‑loop behavior.
    - `OREN_TRACE_ARENA=1` prints arena alloc/spill counters at arena epoch reset.

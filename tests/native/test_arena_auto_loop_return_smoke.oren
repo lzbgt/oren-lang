@@ -1,0 +1,19 @@
+fn loop_sum(n) {
+    var i = 0
+    var sum = 0
+    while true {
+        var xs = []
+        if i >= n {
+            return sum
+        }
+        oren_list_push(xs, i)
+        sum = sum + i
+        i = i + 1
+    }
+}
+
+fn main() {
+    if loop_sum(4) != 6 {
+        exit(47)
+    }
+}
