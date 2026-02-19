@@ -1,4 +1,276 @@
-# Remote x86_64 Dev Environment (Win11, WSL2 optional) — Access + Workflow (Rolling)
+# Platforms and Portability (Rolling)
+
+This document consolidates platform support, portability notes, and remote validation workflows.
+
+## Portability Guide (Rolling): when to use `@cfg`
+
+Oren’s goal is **portable source code** across Tier‑1 targets:
+
+- `arm64-macos`
+- `arm64-linux`
+- `x64-linux`
+- `x64-windows`
+
+The language provides `@cfg(...)` conditional compilation (see `docs/LANGUAGE_MANUAL.md` and
+`docs/LANGUAGE_SPEC.md`), but in a production language it should be treated as a **boundary tool**:
+
+- good: isolate unavoidable OS differences behind a stable API
+- bad: sprinkle `@cfg` throughout application logic
+
+This document gives concrete rules for *where `@cfg` belongs* in Oren code and tests.
+
+## 1) Rule of thumb
+
+Use `@cfg(...)` only when **the surface you must call does not exist** on another Tier‑1 OS/arch, or
+when the ABI/layout is truly platform-specific.
+
+If the code is “regular logic” (parsing, maps/lists, formatting, protocol logic), do **not** use `@cfg`:
+push the OS differences into stdlib or into a tiny shim module.
+
+## 2) Prefer stdlib portability over per-file `@cfg`
+
+### Prefer portable APIs
+
+Examples of portable APIs (Tier‑1 intent):
+
+- `std:net/tcp`, `std:net/udp`, `std:net/dns` (network sockets + resolver)
+- `std:net/tls` (TLS over sockets)
+- `std:crypto/*` (PEM, rand, TLS core helpers)
+- `std:ui/*` (retained-mode UI core: layout/render/raster; OS integration is a shim)
+
+If you need to `@cfg` around a commonly-used concept, that is usually a signal that the stdlib is
+missing a “portable core + per-platform backend” split.
+
+### Example pattern: portable API + `@cfg` backend selection
+
+The recommended shape is:
+
+- one portable module exports the public API
+- per-platform modules implement the OS-specific pieces and are `@cfg`-gated
+- consumers import only the portable module
+
+Sketch:
+
+```oren
+// std:crypto/tls_provider (portable surface)
+fn tls_client_connect(...) {
+    return _tls_client_connect_impl(...)
+}
+
+@cfg(os="windows") fn _tls_client_connect_impl(...) { return schannel_connect(...) }
+@cfg(os="macos")   fn _tls_client_connect_impl(...) { return securetransport_connect(...) }
+@cfg(os="linux")   fn _tls_client_connect_impl(...) { return openssl_connect(...) }
+```
+
+The key constraint is: the public API should remain stable; only the private implementation changes.
+
+## 3) FFI: avoid `@cfg` by using portable aliases when available
+
+If the intent is “call libc”, do not write three variants:
+
+```oren
+@cfg(os="linux")  @ffi.link("libc.so.6") ffi { ... }
+@cfg(os="macos")  @ffi.link("libSystem.B.dylib") ffi { ... }
+@cfg(os="windows") @ffi.dll("msvcrt.dll") ffi { ... }
+```
+
+Prefer:
+
+```oren
+@ffi.libc
+ffi { /* ... */ }
+```
+
+Notes:
+
+- `@ffi.libc` is the portability mechanism; it keeps library naming out of user code.
+- Use `@cfg` for FFI only when there is **no** portable alias and the ABI truly differs.
+
+## 4) Tests/fixtures: keep `@cfg` at the boundary
+
+Tier‑1 fixtures are part of the “living spec”. They should be:
+
+- small
+- deterministic
+- **portable**
+
+If a fixture needs platform glue, the preferred approach is:
+
+1) keep the core test logic portable (protocol logic, state machines, invariants)
+2) gate only the platform-specific declarations:
+   - FFI imports / DLL names (if no alias exists)
+   - syscall struct layouts
+   - OS-only behavior knobs required to run the test safely
+
+Bad pattern (hard to maintain):
+
+- `@cfg` inside core logic branches for “how the algorithm works”.
+
+Good pattern:
+
+- `@cfg` is used only to select *how to access the same abstract capability* on each platform.
+
+### Why fixtures sometimes still use `@cfg`
+
+Some subsystems legitimately have different host constraints:
+
+- TLS providers differ per OS (SChannel / SecureTransport / OpenSSL)
+- process spawning APIs differ (Win32 CreateProcess vs POSIX fork/exec)
+- UI needs OS windowing APIs (Win32/X11/Cocoa)
+
+The correctness requirement is: those differences must be hidden behind a stable userland API, and the
+portable logic (including protocol semantics) should not fork into per-OS variants.
+
+## 5) When `@cfg` is unavoidable
+
+Use `@cfg` when:
+
+- you are writing a thin OS bridge (syscalls, windowing, IOCP/epoll/kqueue)
+- the ABI layout or calling convention differs (FFI return kinds, struct packing)
+- you are binding to an OS-owned subsystem where “portable emulation” would be incorrect or unsafe
+
+In those cases:
+
+- keep the `@cfg` module small
+- keep the stable API above it strict and well-tested
+- add a Tier‑1 gate so regressions are caught early
+
+
+## Tier‑1 Support Matrix (Rolling)
+
+This document is a *fact-based* index of what Oren intends to support as “Tier‑1”, and **how to verify it**.
+It is not a promise that every cell is currently green; the goal is to make gaps explicit and to keep the
+verification commands easy to run.
+
+If this file disagrees with reality, treat the verification commands (and their results) as the source of truth,
+then update this doc in the same change.
+
+## Tier‑1 targets (goal)
+
+Tier‑1 is defined as:
+
+- `arm64-macos` (primary dev host)
+- `arm64-linux` (Linux/aarch64 via the pinned toolchain container)
+- `x64-linux` (Linux/x86_64)
+- `x64-windows` (Windows 11 + MSVC/VS2022; remote host)
+
+## Backends (compiler outputs)
+
+Oren can emit three “families” of artifacts:
+
+- **Native backend**: target-native machine code + runtime capsule (intended: Tier‑1 across all targets).
+- **C backend**: C code + host C toolchain (used by stage0 bootstrap; also supported as a backend).
+- **AVM bytecode**: portable `.obc` intended to be platform-neutral (still treated as rolling until fully proven).
+
+FFI portability note (rolling):
+
+- When importing from the platform C library, prefer `@ffi.libc` (portable alias) instead of per‑OS library names.
+  - Tier‑1 mapping: Windows=`msvcrt.dll`, Linux=`libc.so.6`, macOS=`libSystem.B.dylib`.
+  - See: `docs/LANGUAGE_APPENDICES.md` (`@ffi.libc`) and fixture `tests/native/ffi_libc_portable.oren`.
+
+## Stage pipeline (self-host)
+
+Definitions:
+
+- **stage0**: `./oren_bootstrap` (Go; uses C backend)
+- **stage1**: `./oren` (self-hosted)
+- **stage2**: `./oren_stage2` (self-hosted; default rolling compiler)
+
+### What “Tier‑1 self-host” means
+
+For a target `<arch>-<os>`, the Tier‑1 goal is:
+
+1) Stage0 can build stage1 for that OS (bootstrap path)
+2) Stage1 can build stage2 (native backend)
+3) Stage2 can compile and run representative programs (native + runtime), including sensitive surfaces:
+   - FFI ABI correctness
+   - GC + allocator safety
+   - Threads/tasks/async runtime surfaces (as they evolve)
+   - NET/TLS/HTTP/WS loopback where applicable
+
+## Verification commands (how to prove it)
+
+The Makefile and `scripts/` define the *supported* verification entrypoints. Prefer these over ad-hoc commands.
+
+### Local (host)
+
+The primary development host is `arm64-macos`, but the Makefile verification entrypoints are intentionally
+host-agnostic (they delegate to `scripts/` which enforce prerequisites and/or select the right execution mode).
+When a command is host-specific (e.g. “remote Windows”), it is called out explicitly.
+
+- Build stage1 + stage2 (native backend): `make stage2`
+- Fast stage1 + stage2 smoke (native): `make verify-native-quick`
+- Perf tripwire (rtobj-hit compile-one-file bound): `make perf-guard-native-hit`
+- Compile-only cross x64 targets (native backend): `make verify-native-x64-compile`
+  - This compile-only gate also covers native shared-library emission (`--lib`):
+    - `x64-linux`: ELF `.so` + generated header
+    - `x64-windows`: PE `.dll` + generated header
+- Compile-only shared-lib emission across all Tier‑1 targets (no foreign execution): `make examples-cross-compile-smoke`
+- Execute x64-linux artifacts (QEMU): `make verify-x64-linux-qemu`
+- Execute x64-linux NET fixtures (QEMU): `make verify-x64-linux-qemu-net`
+- Execute x64-linux TLS fixtures (QEMU): `make verify-x64-linux-qemu-tls`
+
+### Cross-host matrix (local + container + remote)
+
+These scripts are the intended long-run gate for Tier‑1 parity:
+
+- Native quick integration matrix (stage1 + stage2): `./scripts/verify_native_matrix.sh`
+- NET/TLS/HTTP/WS loopback matrix (stage1 + stage2): `./scripts/verify_native_net_matrix.sh`
+- x64 self-host parity (stage2 correctness on real x86_64): `./scripts/verify_selfhost_x64_compiler.sh`
+
+See `docs/PLATFORMS.md` for how the remote Windows host (WSL2 optional) is configured and how logs are fetched.
+
+HTTP/2 note (rolling but verified):
+
+- HTTP/2 is implemented as a deterministic framing + HPACK bring-up layer and is verified by the NET matrix
+  (ALPN `h2`, preface, SETTINGS/ACK, PING/ACK, HEADERS/CONTINUATION/DATA loopback).
+  - Source: `lib/std/net/http2.oren`, `lib/std/net/hpack.oren`
+  - Evidence: `tests/native/test_http2_*_loopback.oren` (see `docs/STATUS_AND_ROADMAP.md`)
+
+### Remote connectivity (fact-based)
+
+Some networks/proxies do not resolve the default remote hostname (`pc.work`). When remote access is unavailable,
+prefer keeping local gates green (`make verify-native-x64-compile`, QEMU x64-linux), and collect logs when
+the host becomes reachable again.
+
+Remote override knobs:
+
+- `OREN_REMOTE_X64_HOST=<user@IP>` (recommended when `pc.work` is not resolvable)
+- `OREN_REMOTE_X64_PROXY=` (empty to disable the proxy if you have direct SSH access)
+
+## Windows toolchain policy (MSVC bring-up)
+
+For Tier‑1 Windows, the intended C toolchain is **MSVC (VS2022) `cl.exe`**.
+
+- Stage0 (`oren_bootstrap.exe`) supports `--cc cl` and will auto-configure the MSVC environment by locating
+  VS via `vswhere.exe` and calling `VsDevCmd.bat` / `vcvars64.bat` before invoking `cl.exe`.
+- Stage1/stage2 (self-hosted compilers) default `--cc` to `cl.exe` **only on Windows hosts** when targeting
+  the Windows C backend, and use a similar “temporary `.cmd` wrapper” technique to avoid quoting pitfalls.
+- Cross-compiling C-backend outputs to Windows from a non-Windows host is intentionally *not* implicit; it
+  requires an explicit `--cc` cross toolchain (opt-in, e.g. MinGW).
+
+## Current high-leverage gaps (keep this short)
+
+When something is not green, record the *smallest actionable next step* and the verification that must be made green.
+
+- x64-windows: stage2 native backend still needs continuous “compile + run” proof on a real Windows host
+  (not just compile-only from macOS).
+  - Primary gates:
+    - `./scripts/verify_selfhost_x64_compiler.sh --targets x64-win` (compiler runs on Win11 and compiles+runs a tiny native program)
+    - `./scripts/verify_windows_stage2_from_stage1.sh` (stage0→stage1→stage2 on Win11)
+  - Last known green (fact): 2026-01-13 (see `docs/TODOS.md`).
+- Remote reliability: keep remote log capture bounded and reproducible; use
+  `scripts/fetch_remote_file.sh --analyze` + `scripts/analyze_stage2_failure_log.sh` for triage.
+  - If the build appears to hang, enable bounded parse progress for include-aggregators:
+    - `OREN_REMOTE_PROGRESS=1 make verify-stage2-win` (rate-limited; avoids huge logs).
+
+## Cross-platform path robustness
+
+- Oren accepts Windows-style `\` separators in CLI paths across hosts (macOS/Linux/Windows). This is a
+  correctness requirement because remote Win11 logs/scripts often contain backslash paths.
+  - Gate: `./scripts/verify_selfhost_x64_compiler.sh --targets x64-wsl,x64-win` includes a Windows backslash-path compile+run step.
+
+## Remote x86_64 Dev Environment (Win11, WSL2 optional) — Access + Workflow (Rolling)
 
 This repo now has an x86_64 native backend bring-up path (Linux ELF + Windows PE).
 To test it on real x86_64 machines, we use a remote Win11 host (WSL2 optional).
@@ -143,7 +415,6 @@ This is intentionally **opt-in** because building the compiler for x64 can be sl
 Rolling status:
 
 - As of 2026-01-08, the x64 self-host compiler run gate passes on the remote Win11 (WSL2 optional) host (when WSL2 is available).
-  - Root-cause + fix notes live in `docs/TODOS_ARCHIVE.md`.
 
 ```bash
 # Builds x64-linux and x64-windows compiler binaries (native backend),

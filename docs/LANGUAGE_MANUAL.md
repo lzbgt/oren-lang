@@ -15,8 +15,8 @@ Oren is designed to be usable by **humans and AI agents**. In rolling mode, the 
 This manual therefore follows a strict grounding rule:
 
 - **If you need the truth for execution semantics, trust code + fixtures first.**
-  - Canonical “what works today” snapshot: `docs/LANGUAGE_STATUS_AND_GAPS.md`
-  - AI-friendly feature index: `docs/LANGUAGE_FEATURE_MATRIX.md`
+  - Canonical “what works today” snapshot: `docs/STATUS_AND_ROADMAP.md`
+  - AI-friendly feature index: `docs/STATUS_AND_ROADMAP.md`
   - Living spec fixtures: `tests/native/fixtures/`, `tests/modules/`, `tests/avm/`
   - Runnable integrated examples: `examples/` (suite: `make examples-test`)
 
@@ -31,7 +31,7 @@ When you change behavior (compiler/runtime/stdlib):
 This section is a brief “map” for AI agents (and maintainers) to connect a language feature to the implementation that enforces it.
 
 For a rolling “agent cache” of subtle internals (name resolution, lowering patterns, cross-backend contracts),
-see `docs/IMPLEMENTATION_NOTES.md`.
+see `docs/COMPILER.md`.
 
 ### Compiler front-end (parsing + AST)
 
@@ -76,7 +76,7 @@ Oren is an **agent-native**, syscall-first language and toolchain:
   - Tier‑1 targets (rolling intent): `arm64` and `x86_64` across **macOS / Linux / Windows**.
   - Practical reality today:
     - macOS `arm64` is the most feature-complete native backend surface.
-    - Linux/Windows `x86_64` (`--arch x64`) is Tier‑1 intent but still a growing bring-up subset (see `docs/TODOS.md` and `docs/REMOTE_X64_ENV.md` for real-hardware validation).
+    - Linux/Windows `x86_64` (`--arch x64`) is Tier‑1 intent but still a growing bring-up subset (see `docs/TODOS.md` and `docs/PLATFORMS.md` for real-hardware validation).
 - **Portable** mode: compiles to `.obc` bytecode executed by AVM, supporting determinism, snapshots, and capability-governed virtualized domains (FS/NET/PROC/ENV/TIME).
 
 ## 0.1) Compiler CLI quick reference (modern, machine-friendly)
@@ -93,7 +93,7 @@ The Stage1 compiler (`./oren`) is intended to behave like a modern tool (Python 
   - `oren completion bash`
   - `oren completion zsh`
 
-See `docs/CLI_COMPLETION.md` for activation instructions.
+See `docs/TOOLCHAIN.md` for activation instructions.
 
 ### 0.1.1) `--typecheck` mode (rolling, opt-in)
 
@@ -122,7 +122,7 @@ What it is *not* (yet):
 
 Important: some safety guardrails are **always-on** and do not require `--typecheck`:
 
-- The compiler rejects `bool/int/float == nil` comparisons (`nil-compare guard:` diagnostics). See `docs/COMPILER_GOTCHAS.md`.
+- The compiler rejects `bool/int/float == nil` comparisons (`nil-compare guard:` diagnostics). See `docs/COMPILER.md`.
   - Key rule: **scalars are never nil**. Comparing a numeric/bool value to `nil` is always a bug (even if the value originated from a dynamic source).
   - Safe pattern for “optional config”: compare the **dynamic** value to `nil`, then cast:
     - `var t = cfg["timeout_ms"]; var timeout_ms = 1000; if t != nil { timeout_ms = i64(t) }`
@@ -167,14 +167,14 @@ By default, the compiler picks the **runtime host platform** when `--platform` i
 Cross-compile examples:
 
 ```bash
-# Linux ELF (run it on Linux, or via the Win11 (WSL2 optional) workflow in `docs/REMOTE_X64_ENV.md`)
+# Linux ELF (run it on Linux, or via the Win11 (WSL2 optional) workflow in `docs/PLATFORMS.md`)
 ./oren build your_prog.oren --backend native --platform arm64-linux -o build/your_prog_linux
 
 # Windows PE (run it on Windows)
 ./oren build your_prog.oren --backend native --platform x64-windows -o build/your_prog_win.exe
 ```
 
-Note: `--platform arm64-linux` / `--platform x64-linux` outputs a Linux ELF; run it on Linux (or via the Win11 (WSL2 optional) remote workflow in `docs/REMOTE_X64_ENV.md`).
+Note: `--platform arm64-linux` / `--platform x64-linux` outputs a Linux ELF; run it on Linux (or via the Win11 (WSL2 optional) remote workflow in `docs/PLATFORMS.md`).
 
 Build and run **bytecode** on AVM:
 
@@ -259,7 +259,7 @@ Resolution rules (current compiler behavior):
 
 If stdlib root cannot be resolved, `import "std:..."` is a hard compile error.
 
-See also: `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md` (distribution story and future embedding).
+See also: `docs/STDLIB_AND_RUNTIME.md` (distribution story and future embedding).
 
 ### Selected stdlib modules (rolling; evidence-backed)
 
@@ -285,10 +285,10 @@ These stdlib modules exist today and are exercised by regression fixtures:
 
 For the detailed NET/TLS behavior and design constraints (determinism, pinning, providers), use the dedicated docs:
 
-- `docs/NET_TLS.md`
-- `docs/NET_HTTP2.md`
-- `docs/NET_WEBSOCKET.md`
-- `docs/ASYNC_IO_AND_SELECT.md`
+- `docs/NETWORKING_IO.md`
+- `docs/NETWORKING_IO.md`
+- `docs/NETWORKING_IO.md`
+- `docs/NETWORKING_IO.md`
 
 ### FFI symbols (`ffi name`)
 
@@ -416,9 +416,9 @@ Notes (rolling):
 - `ffi` is a low-level escape hatch intended primarily for native interop and experiments.
 - In **capsule** mode, `ffi` declarations are rejected (FFI bypasses capability gating).
   - Native backend:
-    - **macOS** supports binding against `libSystem` for `ffi` calls (see `docs/COMPILER_AND_BACKENDS.md#native-backend-overview`).
+    - **macOS** supports binding against `libSystem` for `ffi` calls (see `docs/BACKENDS.md#native-backend-overview`).
     - **Windows x64** supports `ffi` via lazy `LoadLibraryA`/`GetProcAddress` stubs.
-      - `--link` adds DLLs to the resolver search list (see `docs/COMPILER_AND_BACKENDS.md#native-backend-overview`).
+      - `--link` adds DLLs to the resolver search list (see `docs/BACKENDS.md#native-backend-overview`).
       - `@ffi.link("...")` can attach a dynamic library directly to an `ffi` declaration (portable form; maps to `--link`).
       - `@ffi.dll("name.dll")` can also attach a DLL directly to an `ffi` declaration (Windows convenience; useful for stdlib).
       - `@ffi.ret("i32"|"u32"|"void"|"ptr"|"usize")` can declare ABI return width/kind for some C-style APIs:
@@ -426,11 +426,11 @@ Notes (rolling):
         - `"u32"`: zero-extend the 32-bit return to i64.
         - `"void"`: force the return value to 0 for expression contexts.
         - `"ptr"` / `"usize"`: pointer-sized / `size_t` returns. On Tier‑1 (arm64/x64), these are 64-bit returns and do not require normalization, but the annotation is accepted as ABI metadata (and future 32-bit targets can lower it correctly).
-      - `@ffi.export` can export a top-level function symbol for callback-style interop (currently: arm64-macos + linux/arm64 + linux/x64 + windows/x64 native; see `docs/ATTRIBUTES.md`).
-    - **Linux x64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/COMPILER_AND_BACKENDS.md#native-backend-overview`).
-    - **Linux arm64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/COMPILER_AND_BACKENDS.md#native-backend-overview`).
+      - `@ffi.export` can export a top-level function symbol for callback-style interop (currently: arm64-macos + linux/arm64 + linux/x64 + windows/x64 native; see `docs/LANGUAGE_APPENDICES.md`).
+    - **Linux x64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/BACKENDS.md#native-backend-overview`).
+    - **Linux arm64** supports `ffi` when `--link` is used (dynamic ELF + `dlsym` resolver). Without `--link`, calling an `ffi` symbol panics (see `docs/BACKENDS.md#native-backend-overview`).
   - C backend:
-    - Oren does not have a stabilized “typed C FFI” surface yet, but you can still link extra C by compiling the emitted C yourself (see `docs/COMPILER_AND_BACKENDS.md#c-backend-design-and-abi`).
+    - Oren does not have a stabilized “typed C FFI” surface yet, but you can still link extra C by compiling the emitted C yourself (see `docs/BACKENDS.md#c-backend-design-and-abi`).
 
 FFI sugar (rolling ergonomics):
 
@@ -471,7 +471,7 @@ Why `@cfg` exists (and when to use it):
 
 Portability guide (recommended reading):
 
-- `docs/PORTABILITY_GUIDE.md` explains the “keep `@cfg` at the boundary” rule and gives concrete patterns for tests and stdlib.
+- `docs/PLATFORMS.md` explains the “keep `@cfg` at the boundary” rule and gives concrete patterns for tests and stdlib.
 
 Rolling note (FFI ergonomics):
 
@@ -674,8 +674,8 @@ Notes:
   - These embedded literals live in the binary’s constant/data segment and are **not tracked as GC heap allocations** (they are “static”).
   - Dynamically created strings (concatenation, slicing, parsing) still allocate and are GC-managed as usual.
   - References:
-    - `docs/COMPILER_AND_BACKENDS.md#native-runtime-layout` (literal pool + runtime init)
-    - `docs/COMPILER_AND_BACKENDS.md#native-backend-performance-playbook` (why this matters for hot paths)
+    - `docs/BACKENDS.md#native-runtime-layout` (literal pool + runtime init)
+    - `docs/BACKENDS.md#native-backend-performance-playbook` (why this matters for hot paths)
 
 ## 3) Variables and assignment
 
@@ -823,7 +823,7 @@ var sum = 0
 for x: i32 in r { sum = sum + x }
 ```
 
-For deeper details and the long-term polymorphism plan (static-first, optional `dyn Trait` later), see `docs/TRAITS_AND_POLYMORPHISM.md`.
+For deeper details and the long-term polymorphism plan (static-first, optional `dyn Trait` later), see `docs/LANGUAGE_APPENDICES.md`.
 
 ### `switch` / `case` (multi-branch dispatch)
 
@@ -1107,7 +1107,7 @@ Notes (rolling):
 - This is still **compile-time rewriting** (no vtable / no dynamic dispatch). Do not confuse it with
   the planned `dyn Trait` direction.
 
-See `docs/TRAITS_AND_POLYMORPHISM.md` for the design rationale and constraints.
+See `docs/LANGUAGE_APPENDICES.md` for the design rationale and constraints.
 
 ## 7) Structs, attributes, and deterministic metadata
 
@@ -1133,7 +1133,7 @@ In the current rolling implementation, `class` is similar to `struct`:
 
 - Constructor syntax is the same (`Rect(...)`).
 - Field access is the same (`r.tl`, `r.br`).
-- Values are represented as runtime map-shaped objects (see `docs/OBJECT_MODEL.md`).
+- Values are represented as runtime map-shaped objects (see `docs/LANGUAGE_APPENDICES.md`).
 
 Oren’s long-term direction is “traits + composition”, not inheritance-first OOP; consider `class` a compatibility/ergonomics feature rather than a design center.
 
@@ -1196,7 +1196,7 @@ Common builtins:
 - `@abi` for ABI/layout metadata
 - `@pack` for packed “view over bytes” structs (network packet parsing)
 - `@serde(...)` for serialization metadata (json/yaml/cbor)
-- `@cfg(...)` for conditional compilation by target platform (`--platform`) — see `docs/ATTRIBUTES.md`
+- `@cfg(...)` for conditional compilation by target platform (`--platform`) — see `docs/LANGUAGE_APPENDICES.md`
 
 ## 8) Containers (lists, maps, buffers)
 
@@ -1303,7 +1303,7 @@ oren_map_set_str(m, key, 123)
 print(oren_int_to_string(oren_map_get_str(m, key)))
 ```
 
-Rolling note: map keys are restricted to a small set of runtime types (see `docs/AVM_AND_OBC.md` and runtime code for the exact set).
+Rolling note: map keys are restricted to a small set of runtime types (see `docs/AVM_SPEC.md` and runtime code for the exact set).
 
 ### Typed buffers (HPC)
 
@@ -1317,7 +1317,7 @@ Examples of native/AVM intrinsics include:
 - `oren_buf_load_f32(buf, idx)`
 - `oren_buf_store_f32(buf, idx, val)`
 
-See `docs/CORE_SYSTEM_PLANS.md` and `docs/AVM_AND_OBC.md#avm-neon-mapping-plan-arm64-no-jit-first` for direction and design constraints.
+See `docs/STATUS_AND_ROADMAP.md` and `docs/AVM_ROADMAP.md#avm-neon-mapping-plan-arm64-no-jit-first` for direction and design constraints.
 - `@cap.requires(domain="...")` for capsule/capability gating of host-effectful APIs (see below)
 
 #### Strict attribute mode (compiler option)
@@ -1565,8 +1565,8 @@ Some Tier‑1 fixtures still use small `@cfg(os=...)` glue for other OS differen
 
 Concurrency in AVM differs from native mode; see:
 
-- `docs/CONCURRENCY_MODEL.md`
-- `docs/AVM_AND_OBC.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly`
+- `docs/LANGUAGE_APPENDICES.md`
+- `docs/AVM_ROADMAP.md#avm-concurrency-model-deterministic-syscall-first-aligned-multiverse-friendly`
 
 ### Channels + select (rolling; AVM + native macOS/Linux)
 
@@ -1601,8 +1601,8 @@ Backend notes (rolling):
 
 The authoritative build/test workflow is in:
 
-- `docs/BUILD_AND_VERIFY.md`
-- `docs/TEST_SYSTEM.md`
+- `docs/TOOLCHAIN.md`
+- `docs/TOOLCHAIN.md`
 
 ### Machine-readable diagnostics (`OREN_DIAG`)
 
@@ -1688,7 +1688,7 @@ are the canonical incremental contract for what the x64 backend supports today:
 
 - `tests/fixtures/x64_*_main.oren` are intended to compile under the native backend for Linux ELF + Windows PE (`./oren build ... --backend native --platform x64-linux` / `x64-windows`).
 - Remote execution (Win11, WSL2 optional) is opt-in and can be done by copying the built artifact to a real x86_64 host.
-- High-signal Tier‑1 fixtures (remote x86_64 gate; run via `scripts/verify_native_matrix.sh --targets x64-win-tier1` / `x64-wsl-tier1` with `--tier1-src <fixture>`; see `docs/REMOTE_X64_ENV.md`):
+- High-signal Tier‑1 fixtures (remote x86_64 gate; run via `scripts/verify_native_matrix.sh --targets x64-win-tier1` / `x64-wsl-tier1` with `--tier1-src <fixture>`; see `docs/PLATFORMS.md`):
   - Closures + varargs: `tests/fixtures/tier1_native_lambda_varargs_main.oren`
   - Maps (empty map + dynamic string key kind): `tests/fixtures/tier1_native_map_dynamic_keykind_main.oren`
   - Strings (`+`, `len`, `slice`): `tests/fixtures/tier1_native_string_ops_main.oren`
@@ -1696,5 +1696,5 @@ are the canonical incremental contract for what the x64 backend supports today:
 ## 13) Where to go next
 
 - Formal language spec: `docs/LANGUAGE_SPEC.md`
-- Evolution narrative + roadmap (day0 -> compiler-in-AVM, phases): `docs/EVOLUTION_AND_ROADMAP.md`
+- Evolution narrative + roadmap (day0 -> compiler-in-AVM, phases): `docs/STATUS_AND_ROADMAP.md`
 - Current task tracker (execution order): `docs/TODOS.md`

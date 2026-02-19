@@ -334,7 +334,7 @@ fn _x64_emit_ffi_resolver_win64(ctx, platform, dlls) {
 }
 
 fn _x64_emit_ffi_stub_linux(ctx, nm) {
-    // Linux x64: unresolved imports are stubbed today (docs/NATIVE_BACKEND.md).
+    // Linux x64: unresolved imports are stubbed today (docs/BACKENDS.md).
     // Emit: call oren_panic("ffi unresolved: <name>") (does not return)
     if ctx == nil { return nil }
     if nm == nil || nm == "" { return nil }

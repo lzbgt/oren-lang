@@ -6,7 +6,7 @@ This document describes the **current Oren language** as accepted by the Stage1 
 It includes both:
 
 - **normative “what exists today”** rules (grounded in compiler behavior and fixtures),
-- **explicitly marked planned design direction** items (tied to `docs/TODOS.md` / `docs/EVOLUTION_AND_ROADMAP.md`).
+- **explicitly marked planned design direction** items (tied to `docs/TODOS.md` / `docs/STATUS_AND_ROADMAP.md`).
 
 The Go interpreter (`cmd/oren run` / REPL) is a convenience tool and is **not** the reference implementation (it supports only a subset and differs in some semantics like scoping).
 
@@ -14,15 +14,15 @@ The Go interpreter (`cmd/oren run` / REPL) is a convenience tool and is **not** 
 
 This repo is in rolling mode. To keep the spec precise for both humans and AI agents, we use the following status markers:
 
-- **Implemented**: works today and should have fixture evidence (see `tests/**` and `docs/LANGUAGE_STATUS_AND_GAPS.md`).
+- **Implemented**: works today and should have fixture evidence (see `tests/**` and `docs/STATUS_AND_ROADMAP.md`).
 - **Rolling**: implemented but not stabilized (ABI/format/details may change; still regression-tested).
 - **Planned**: design intent; not implemented yet (must link to `docs/TODOS.md` or other canonical design docs).
 
 If an AI agent needs the most “ground-truth” behavior, prioritize:
 
 - `docs/LANGUAGE_MANUAL.md` (practical usage today),
-- `docs/LANGUAGE_STATUS_AND_GAPS.md` (evidence-backed “what works today” + missing gaps),
-- `docs/LANGUAGE_FEATURE_MATRIX.md` (feature → status → implementation → fixtures),
+- `docs/STATUS_AND_ROADMAP.md` (evidence-backed “what works today” + missing gaps),
+- `docs/STATUS_AND_ROADMAP.md` (feature → status → implementation → fixtures),
 - the fixtures under `tests/native/fixtures/`, `tests/modules/`, `tests/avm/` (living spec).
 
 ## Non-normative: Implementation map (for maintainers and agents)
@@ -31,7 +31,7 @@ The spec defines syntax/semantics. This section exists to help AI agents locate 
 It is **not** normative, but it should be kept accurate.
 
 For a rolling “agent cache” of subtle internals (name resolution, lowering patterns, cross-backend contracts),
-see `docs/IMPLEMENTATION_NOTES.md`.
+see `docs/COMPILER.md`.
 
 Compiler pipeline (high level):
 
@@ -346,7 +346,7 @@ Non-normative guidance (rolling):
 - Prefer platform-independent APIs in stdlib. `@cfg` exists for *boundary bindings* that cannot be fully abstracted (FFI library names, syscall layouts, per-OS constants).
 - In tests, `@cfg` is acceptable when it gates tiny platform-specific declarations, but the behavior under test should remain consistent across Tier‑1 platforms whenever possible.
 - If broad algorithmic code needs heavy `@cfg`, treat it as a design smell and consider lifting the platform differences into a dedicated stdlib module.
-- See `docs/PORTABILITY_GUIDE.md` for concrete “keep `@cfg` at the boundary” patterns.
+- See `docs/PLATFORMS.md` for concrete “keep `@cfg` at the boundary” patterns.
 
 Supported attachment sites (rolling v0):
 
@@ -832,7 +832,7 @@ Backend behavior (rolling):
 
 - **AVM backend**: `spawn` creates a **deterministic VM task** (green thread) scheduled by the AVM runtime.
   - `oren_join(handle)` and `oren_yield()` are VM opcodes (portable, snapshot-safe).
-  - See `docs/AVM_AND_OBC.md` (Next-Gen plan section: tasks + channels + select).
+  - See `docs/AVM_ROADMAP.md` (Next-Gen plan section: tasks + channels + select).
 	- **C backend**: `spawn` uses `pthread_create` and returns a pointer-like handle.
 	  - `oren_join(handle)` waits and returns the spawned function’s return value.
 	  - `oren_detach(handle)` / `oren_join_all()` exist in the C runtime (rolling; not yet mirrored in native runtime).
@@ -846,7 +846,7 @@ Backend behavior (rolling):
 		    (`oren_spawn_call_list`) as POSIX.
 		    - `oren_join(handle)` waits via `WaitForSingleObject` and returns the worker’s result.
 		    - `oren_join_timeout(handle, timeout_ms)` exists and returns `-60` on timeout (rolling contract).
-		  - Note: this is a rolling convergence surface; the long-term direction is a unified thread-based substrate on all native targets (see `docs/CONCURRENCY_MODEL.md`).
+		  - Note: this is a rolling convergence surface; the long-term direction is a unified thread-based substrate on all native targets (see `docs/LANGUAGE_APPENDICES.md`).
 
 #### Channels + `oren_select*` (rolling; AVM + native)
 
@@ -876,7 +876,7 @@ Backend behavior (rolling):
 Design direction:
 
 - A future language-level `select { case ... }` syntax is planned as sugar over `oren_select(...)`,
-  after the CoreIR + scheduler model stabilizes (see `docs/CONCURRENCY_MODEL.md` and `docs/NATIVE_GMP_SCHEDULER.md`).
+  after the CoreIR + scheduler model stabilizes (see `docs/LANGUAGE_APPENDICES.md` and `docs/STDLIB_AND_RUNTIME.md`).
 
 ### Functions
 - `fn name(params) { ... }` defines a named function.
@@ -927,7 +927,7 @@ Stdlib wrapper (rolling):
 Native backend note:
 
   - Until native value tagging is fully implemented, numeric immediates (`int`/`float`) may still be indistinguishable in some native-mode paths, so `oren_type_tag` is best-effort for those values.
-    - Track: `docs/COMPILER_AND_BACKENDS.md#native-tagged-value-representation`
+    - Track: `docs/BACKENDS.md#native-tagged-value-representation`
     - Rolling implementation detail: `nil`, `false`, and `true` are **runtime singleton values** in native mode (not raw `0/1`), so `0` (int zero) remains distinct from `nil`/`false` in the common case.
     - Rolling reflection v0 for structs: user-defined `struct` values are map-shaped today, but constructors tag them with `{"__oren_type":"TypeName", ...}`, so `oren_type_name(TypeName(...))` returns `"TypeName"` instead of `"map"`.
       - `__oren_type` is a **reserved** struct key; user code must not declare a field named `__oren_type` (compile-time error).
@@ -1098,8 +1098,8 @@ Planned evolution (minimal rewrite):
 `match` is a **contextual keyword**: it may still be used as an identifier (e.g. `var match = 1`) unless the parser sees the statement form `match <expr> { ... }`.
 **Status update (rolling):** `trait` and `impl` syntax are now accepted by the parser as compile-time-only constructs.
 - `trait` declarations have no runtime effect yet.
-- `impl Trait for Type { ... }` is lowered deterministically into plain top-level `fn`s (see `docs/OBJECT_MODEL.md`).
-- Design direction: Oren is **static-first** (`trait` = compile-time dispatch) with **explicit opt-in** runtime polymorphism (`dyn Trait`) when needed. See `docs/TRAITS_AND_POLYMORPHISM.md`.
+- `impl Trait for Type { ... }` is lowered deterministically into plain top-level `fn`s (see `docs/LANGUAGE_APPENDICES.md`).
+- Design direction: Oren is **static-first** (`trait` = compile-time dispatch) with **explicit opt-in** runtime polymorphism (`dyn Trait`) when needed. See `docs/LANGUAGE_APPENDICES.md`.
 
 #### Rolling extension: blanket impl (`impl Trait for any`)
 
@@ -1336,7 +1336,7 @@ Intrinsics are part of the “reserved surface” (prefix `oren_`, `sys_`) and m
       - `@ffi.ret("void")`: ABI void return (force return register to 0 for expression contexts).
       - `@ffi.ret("ptr")`: ABI pointer-sized return (Tier‑1: 64-bit; no normalization today).
       - `@ffi.ret("usize")`: ABI `size_t`/`usize` return (Tier‑1: 64-bit; no normalization today).
-      - `@ffi.export`: export a top-level function symbol for callback-style interop (native backend only; see `docs/ATTRIBUTES.md` for platform status and requirements like `@oren.keep`).
+      - `@ffi.export`: export a top-level function symbol for callback-style interop (native backend only; see `docs/LANGUAGE_APPENDICES.md` for platform status and requirements like `@oren.keep`).
 
     Rolling sugar:
 

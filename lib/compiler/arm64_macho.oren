@@ -30,7 +30,7 @@ fn macho_diag_escape(msg) {
 // - Xcode SDK headers (build dependency)
 // - system-provided Mach-O headers (may change / may not exist in sandboxed environments)
 //
-// See also: docs/refs/* and docs/NATIVE_BACKEND.md
+// See also: docs/refs/* and docs/BACKENDS.md
 fn macho_magic_64() { return 4277009103 } // 0xFEEDFACF
 fn macho_cpu_type_arm64() { return 16777228 } // 0x0100000C
 

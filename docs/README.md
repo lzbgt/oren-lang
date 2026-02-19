@@ -51,9 +51,8 @@ make avm
 
 Details and platform-specific notes live in:
 
-- `docs/BUILD_AND_VERIFY.md`
-- `docs/TIER1_SUPPORT_MATRIX.md`
-- `docs/REMOTE_X64_ENV.md`
+- `docs/TOOLCHAIN.md` — build/test/self-hosting + verification flow
+- `docs/PLATFORMS.md` — Tier‑1 targets, portability notes, remote x64 workflow
 
 ## 3) Benchmarks (perf sanity)
 
@@ -66,60 +65,39 @@ Local cross-backend microbenchmarks live under `benchmarks/`:
 
 **Start here / trackers**
 
-- `docs/TODOS.md` — single source-of-truth task tracker (rolling priority order)
-- `docs/LANGUAGE_STATUS_AND_GAPS.md` — fact-first snapshot of what works vs missing
-- `docs/EVOLUTION_AND_ROADMAP.md` — evolution narrative + roadmap
-- `docs/AGENTIC_REQUIREMENTS.md` — agentic requirements and order of operations
+- `docs/TODOS.md` — single source-of-truth task tracker (weighted + gated)
+- `docs/STATUS_AND_ROADMAP.md` — feature matrix, gaps, roadmap, agentic requirements
 
 **Language (user-facing)**
 
 - `docs/LANGUAGE_MANUAL.md` — how to write Oren today
 - `docs/LANGUAGE_SPEC.md` — grammar + semantics intent
-- `docs/LANGUAGE_FEATURE_MATRIX.md` — feature → status → implementation → tests
-- `docs/ATTRIBUTES.md` — attribute cookbook + deterministic metadata contract
-- `docs/COMPILER_GOTCHAS.md` — known hazards + invariants
+- `docs/LANGUAGE_APPENDICES.md` — attributes, traits, reflection, object/memory/concurrency/stack model
 
 **Compiler + backends (implementation)**
 
-- `docs/COMPILER_AND_BACKENDS.md` — compiler pipeline, IR map, backend design, perf playbook
-- `docs/IMPLEMENTATION_NOTES.md` — deep internal notes
-- `docs/TOOLCHAIN_SELF_HOSTING.md` — stage0→stage1→stage2 bootstrapping model
-- `docs/SELF_HOSTING.md` — self-hosting requirements and contracts
-
-**AVM + OBC (VM + determinism)**
-
-- `docs/AVM_AND_OBC.md` — AVM/OBC spec + next-gen plan
-- `docs/STACK_SAFETY.md` — call-depth / recursion guard model
-- `docs/CONCURRENCY_MODEL.md` — concurrency + IPC semantics
+- `docs/COMPILER.md` — compiler pipeline, IR map, implementation notes, gotchas
+- `docs/BACKENDS.md` — C/native/bytecode backends + perf playbook
+- `docs/AVM_SPEC.md` — bootstrap AVM spec + instruction set
+- `docs/AVM_ROADMAP.md` — next‑gen AVM plan + multiverse design
+- `docs/OBC_DISTRIBUTION.md` — OBC portability/linking + signing model
 
 **Stdlib + system design**
 
-- `docs/STDLIB_LAYERS.md` — builtin syslib vs shipped stdlib separation
-- `docs/STDLIB_RESOLUTION_AND_DISTRIBUTION.md` — module resolution + distribution
-- `docs/DESIGN_COLLECTIONS.md` — lists/maps/containers design
-- `docs/MEMORY.md` — memory model notes
+- `docs/STDLIB_AND_RUNTIME.md` — stdlib layers, module resolution, collections, GUI, scheduler
 
 **Networking + IO**
 
-- `docs/NET_TLS.md`
-- `docs/NET_HTTP2.md`
-- `docs/NET_WEBSOCKET.md`
-- `docs/ASYNC_IO_AND_SELECT.md`
-- `docs/WINDOWS_IOCP_NETPOLL.md`
+- `docs/NETWORKING_IO.md` — async IO, TLS/HTTP2/WS, netpoll
 
 **Platform + tooling**
 
-- `docs/BUILD_AND_VERIFY.md`
-- `docs/TEST_SYSTEM.md`
-- `docs/PORTABILITY_GUIDE.md`
-- `docs/REMOTE_X64_ENV.md`
-- `docs/TIER1_SUPPORT_MATRIX.md`
+- `docs/TOOLCHAIN.md` — build, test, self-hosting, CLI/codesign
+- `docs/PLATFORMS.md` — portability, Tier‑1 matrix, remote x64
 
 **Other**
 
-- `docs/ADVANCED_SCENARIOS.md` — “killer app” scenarios
-- `docs/COMPARISON.md` — comparison notes
-- `docs/GUI.md` — UI direction
+- `docs/STATUS_AND_ROADMAP.md` — comparisons + scenarios (kept lean)
 
 ## 5) Rolling policy (no stubs)
 
