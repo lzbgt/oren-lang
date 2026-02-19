@@ -72,6 +72,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Fix and enable reuse paths (`OREN_GC_REUSE_BLOCKS`) when correct.
    - Add allocation-site counters for `alloc_churn`/`alloc_drop` to pinpoint dominant allocations.
    - New: `OREN_TRACE_ALLOC_SITE=1` reports list/list_int header+buffer sites (ids 1..4; see `lib/runtime_native/170_lists.oren`).
+   - Design + implement loop‑local arenas for list/list_int (compiler escape analysis + arena tracking table).
    - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
 
 3) **W4 - List reserve + unchecked push** (M)
@@ -127,6 +128,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 3) **AVM allocation slabs + list<int> lowering** (M, W3)
 4) **Deterministic AVM scheduler (budgeted)** (L, W3)
 5) **Tooling reliability: SSH/scp timeouts in verify scripts** (S, W2)
+6) **Loop‑local arena prototype for list/list_int** (L, W5)
 
 ## P2 (Later)
 

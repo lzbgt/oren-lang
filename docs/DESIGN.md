@@ -198,6 +198,52 @@ Hot-loop parity depends on compiler + runtime cooperation:
 
 - Inty propagation and lowering to native arithmetic fast paths.
 - Typed buffers and SIMD kernels (native + AVM).
+
+---
+
+## Region / arena allocation plan (rolling)
+
+Goal: reduce GC overhead in hot loops by allocating short‑lived objects in a
+resettable arena instead of the GC heap.
+
+Constraints:
+
+- Preserve determinism and safety (no use‑after‑free; no hidden lifetime extension).
+- Work under current native runtime model (`oren_find_node` checks + list magic).
+- Keep behavior identical across backends unless explicitly gated.
+
+Proposed compiler strategy (first slice):
+
+1) Escape analysis for loop‑local allocations (lists + list<int>):
+   - Only adopt arena for allocations that do not escape the loop body
+     (not returned, not stored in globals, not captured by closures).
+2) Lowering:
+   - Insert `arena_push()` at loop entry and `arena_pop()` at loop exit.
+   - Replace `oren_new_list` / `oren_new_list_int` + grow paths with
+     `arena_new_list` / `arena_new_list_int` (same layout; arena‑backed buffers).
+3) Fallback to GC heap when analysis is uncertain.
+
+Runtime design (native):
+
+- Arena allocates raw pages via `sys_mmap_private_anon`, with a bump pointer.
+- `arena_push()` records a mark; `arena_pop()` rewinds the bump pointer and
+  invalidates arena tracking for that generation.
+- Arena objects must still be classified by `oren_find_node` so list operations
+  remain safe. This requires a **separate arena tracking table**:
+  - entries map `ptr -> {kind, gen}` (not GC‑managed).
+  - on `arena_pop`, bump a generation counter and reset the table (or lazily
+    ignore stale generations).
+
+Non‑goals (initial slice):
+
+- Cross‑thread arenas or shared ownership.
+- Replacing GC for long‑lived objects.
+- Arena support for maps/structs until list paths are stable.
+
+Tracking/gates:
+
+- `alloc_churn`/`alloc_drop` should show near‑zero GC activity for arena‑eligible loops.
+- Keep `make test` and Tier‑1 parity fixtures green.
 - List<int> dot loops: consider an i32-range guard + SIMD dot kernel (accumulating in i64) to
   unlock NEON/SSE2 parity without changing language semantics.
 - Allocation fast paths (small object slabs, reuse).
