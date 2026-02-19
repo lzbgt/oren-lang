@@ -939,11 +939,15 @@ fn native_try_reuse(size) {
             continue
         }
         var cur_kind = ptr_get(iadd(cur, 16))
-        // Reuse guardrail (rolling): only reuse raw/misc blocks for now.
+        // Reuse guardrail (rolling): only reuse raw/misc blocks unless list reuse is enabled.
         if cur_kind != 0 && cur_kind != 5 {
+            if g_gc_reuse_lists != 0 && (cur_kind == 2 || cur_kind == list_int_kind()) {
+                // ok
+            } else {
             prev = cur
             cur = next
             continue
+            }
         }
         var chunk_ptr = ptr_get(cur)
         var chunk_size = ptr_get(iadd(cur, 8))
