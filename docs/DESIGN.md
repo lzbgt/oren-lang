@@ -252,6 +252,12 @@ Constraints:
 - Work under current native runtime model (`oren_find_node` checks + list magic).
 - Keep behavior identical across backends unless explicitly gated.
 
+Hot‑path selection (rolling):
+
+- Auto mode targets syntactic `while`/`for` loops that allocate list/list_int in the loop body.
+- Heuristics stay conservative: skip complex control flow or uncertain escapes.
+- Planned: explicit opt‑in/out annotations once the escape analysis is stable.
+
 Proposed compiler strategy (first slice):
 
 1) Escape analysis for loop‑local allocations (lists + list<int>):
@@ -298,10 +304,10 @@ Long‑lived loop policy (hybrid):
 - Any value that escapes the iteration (stored in outer scope, returned, or
   captured) must allocate in the GC heap or an outer long‑lived arena; the
   loop arena is reserved for iteration‑local temps.
-- Otherwise use a **loop‑scoped arena with budgets**: enforce a size cap and
-  spill to GC once the cap is reached.
-- For non‑terminating loops, optional **epoch rotation** can reclaim arena pages
-  at safe points (spilled allocations remain in GC).
+- Otherwise use a **loop‑scoped arena with budgets**: enforce `OREN_ARENA_CAP_BYTES`
+  and spill to GC once the cap is reached.
+- For non‑terminating loops, **epoch rotation** reclaims arena pages at safe points
+  (spilled allocations remain in GC).
 
 Tracking/gates:
 

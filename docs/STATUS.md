@@ -158,6 +158,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 3) **AVM allocation slabs + list<int> lowering** (M, W3)
 4) **Deterministic AVM scheduler (budgeted)** (L, W3)
 5) **Loop‑local arena prototype for list/list_int** (L, W5)
+   - Planned: explicit opt‑in/out annotations once escape analysis is stable.
 
 ## P2 (Later)
 
