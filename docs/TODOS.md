@@ -292,11 +292,11 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
      - Latest: native 0.4386s vs C 0.0695s (`benchmarks/results/loop_sum_darwin_arm64_20260219_002240.md`).
        - Oren C: 1.2065s; OBC/AVM: 5.9393s (same run).
      - Target: native ≤0.25s (≤4× C) while keeping correctness gates.
-	  - (P2/S) **Array_sum list access now ~5.1× C (native); Oren C still ~19.3× C**
-	    - Latest: native 0.0197s vs C 0.003835s (`benchmarks/results/array_sum_darwin_arm64_20260219_080150.md`).
-	      - Oren C: 0.0739s; OBC/AVM: 0.6233s (same run).
-	    - Target: native ≤0.03s met 2026‑02‑19; next target is Oren C ≤0.05s (boxed list access + add lowering).
-	    - Notes: `OREN_LIST_ASSUME_LIST=1` and `OREN_NATIVE_ASSUME_LIST_INDEX=1` did **not** improve (see 2026‑02‑18 results below).
+  - (P2/S) **Array_sum list access now ~5.0× C (native); Oren C ~1.90×; OBC ~2.41×**
+    - Latest: native 0.020951s vs C 0.004190s (`benchmarks/results/array_sum_darwin_arm64_20260219_130446.md`).
+      - Oren C: 0.007941s; OBC/AVM: 0.010095s (same run).
+    - Target: native ≤0.03s met 2026‑02‑19; next target is Oren C ≤0.006s and OBC ≤0.009s.
+    - Notes: `OREN_LIST_ASSUME_LIST=1` and `OREN_NATIVE_ASSUME_LIST_INDEX=1` did **not** improve (see 2026‑02‑18 results below).
 	    - Design: `docs/DESIGN_COLLECTIONS.md`
 	    - 2026-02-18: `OREN_LIST_ASSUME_LIST=1` (skip list validation) does **not** improve:
 	      - native 0.1506s vs C 0.00417s (`benchmarks/results/array_sum_darwin_arm64_20260218_220638.md`).
@@ -306,14 +306,15 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - Latest (runs=5): C 0.008617s, Oren C 0.017878s (~2.07×), Oren native 0.031128s (~3.61×), OBC 0.015860s (~1.84×).
       - Result: `benchmarks/results/multi_list_sum_darwin_arm64_20260219_130152.md`
     - Next: push native ≤3.0× C and Oren C ≤2.0× by tightening boxed list sum/load path further; OBC is now near C.
-		  - (P1/M) **Dot_product boxed path now near native target; keep guard + focus on OBC gap**
-		    - Latest (runs=5): C 0.004780s, Oren C 0.017754s (~3.71×), Oren native 0.024412s (~5.11×), OBC 0.547356s (~114.51×).
-		      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_094136.md`
-		    - Target: native ≤0.03s (≤6× C) met 2026-02-19; next target is Oren C ≤0.015s and further OBC improvements.
-		    - 2026-02-19: `GET_INDEX_LIST` opcode landed for OBC (list recv_kind); dot_product OBC numbers remained essentially unchanged at ~0.89s.
-		     - 2026-02-19: added fused `LIST_DOT` opcode + compiler pattern match; dot_product OBC improved to ~0.586s (~119× C).
-		    - 2026-02-19: `LIST_DOT` int fast-path (AVM) trimmed OBC to ~0.574s (~121× C).
-		    - 2026-02-19: `LIST_PUSH` opcode for boxed list.push reduced OBC to ~0.547s (~115× C).
+  - (P1/M) **Dot_product boxed path now near native target; OBC now near C**
+    - Latest (runs=5): C 0.005407s, Oren C 0.012672s (~2.34×), Oren native 0.025681s (~4.75×), OBC 0.012785s (~2.36×).
+      - Result: `benchmarks/results/dot_product_darwin_arm64_20260219_130440.md`
+    - Target: native ≤0.03s (≤6× C) met 2026-02-19; next target is Oren C ≤0.011s and OBC ≤0.011s.
+    - 2026-02-19: `GET_INDEX_LIST` opcode landed for OBC (list recv_kind); dot_product OBC numbers remained essentially unchanged at ~0.89s.
+    - 2026-02-19: added fused `LIST_DOT` opcode + compiler pattern match; dot_product OBC improved to ~0.586s (~119× C).
+    - 2026-02-19: `LIST_DOT` int fast-path (AVM) trimmed OBC to ~0.574s (~121× C).
+    - 2026-02-19: `LIST_PUSH` opcode for boxed list.push reduced OBC to ~0.547s (~115× C).
+    - 2026-02-19: list.push loop opcodes for boxed lists removed fill-loop overhead; OBC now ~2.36× C.
 		    - 2026-02-18: `OREN_LIST_ASSUME_LIST=1` does **not** improve boxed dot_product:
 		      - native 0.2309s vs C 0.00499s (`benchmarks/results/dot_product_darwin_arm64_20260218_220721.md`).
 		    - 2026-02-18: `OREN_NATIVE_ASSUME_LIST_INDEX=1` does **not** improve boxed dot_product:
@@ -1167,7 +1168,7 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
     - VM: `lib/avm/avm_vm.c` (opcode implementation), `lib/avm/main.c` (disasm/verify)
   - 2026-02-19: bytecode now emits list_int push loop opcodes for `list.push` when RHS is a provably non-negative int expression (boxed list fill loops).
     - Compiler: `lib/compiler/codegen_bytecode/030_tail.oren` (list.push matcher)
-    - Impact: multi_list_sum OBC ~1.84× C (see latest artifact).
+    - Impact: multi_list_sum OBC ~1.84× C; array_sum OBC ~2.41× C; dot_product OBC ~2.36× C (latest artifacts).
   - 2026-02-19: C backend list/map ops skip striped object locks until `spawn` is used (reduces single-thread overhead; main thread wrapper does not enable locks).
      - Override: `OREN_LIST_FORCE_LOCKS=1` forces locks; `OREN_LIST_SKIP_LOCKS=1` disables locks even after threads (perf-only, unsafe).
      - Runtime: `lib/runtime/010_prelude.inc` (`g_threads_started`), `lib/runtime/020_threads_gc.inc` (spawn marks), `lib/runtime/040_lists_maps.inc` (lock gating)
