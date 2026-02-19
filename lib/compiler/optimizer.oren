@@ -1093,14 +1093,25 @@ fn _opt_insert_list_reserve_in_block(block) {
             if nm != nil {
                 var v = st["value"]
                 var is_list_int_new = false
+                var is_list_new_zero = false
                 if v != nil && v["type"] == "Call" {
                     var fnv = v["fn"]
                     if fnv != nil && fnv["type"] == "Identifier" {
                         var fn_name = fnv["value"]
                         if fn_name == "oren_new_list_int" { is_list_int_new = true }
+                        if fn_name == "oren_new_list" {
+                            var args0 = v["args"]
+                            if args0 != nil && oren_list_len(args0) >= 1 {
+                                var cap0 = args0[0]
+                                if cap0 != nil && cap0["type"] == "Integer" && cap0["value"] == "0" {
+                                    is_list_new_zero = true
+                                }
+                            }
+                        }
                     }
                 }
                 if v != nil && v["type"] == "Array" { last_list_lit[nm] = true }
+                else if is_list_new_zero == true { last_list_lit[nm] = true }
                 else { last_list_lit[nm] = false }
                 if is_list_int_new { last_list_int_new[nm] = true }
                 else { last_list_int_new[nm] = false }

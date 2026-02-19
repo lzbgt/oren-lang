@@ -86,6 +86,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 3) **W4 - List reserve + unchecked push** (M)
    - Baseline (arm64 native, 2026-02-19): `array_sum` 3.80× C, `multi_list_push_int` 3.17× C.
    - Extend bounds propagation for reserve/unchecked push.
+   - Treat `oren_new_list(0)` as list-literal for reserve insertion (loop bound -> reserve).
    - Gate: native `array_sum` and `multi_list_push_int` <= 2x C.
 
 4) **W4 - Tagged value representation convergence** (L)
