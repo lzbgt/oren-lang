@@ -128,8 +128,11 @@ void oren_roots_push(OrenValue* slot);
 void oren_roots_push_value(OrenValue v);
 void oren_roots_reset(size_t mark);
 
-// List utilities (internal fast paths).
-void oren_list_reserve(struct OrenList* l, int new_cap);
+// List utilities.
+// - `oren_list_reserve_raw` is an internal fast path that operates on raw list pointers.
+// - `oren_list_reserve` is the OrenValue-level wrapper used by compiled Oren code.
+void oren_list_reserve_raw(struct OrenList* l, int new_cap);
+OrenValue oren_list_reserve(OrenValue list, OrenValue new_cap);
 
 	extern OrenValue OREN_NIL;
 	extern OrenValue OREN_TRUE;

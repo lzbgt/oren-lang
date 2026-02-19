@@ -11,11 +11,31 @@ static void oren_list_grow(OrenList* l, int newCap) {
     l->capacity = newCap;
 }
 
-void oren_list_reserve(OrenList* l, int newCap) {
+void oren_list_reserve_raw(OrenList* l, int newCap) {
     if (!l) return;
     if (newCap <= l->capacity) return;
     if (newCap < 1) newCap = 1;
     oren_list_grow(l, newCap);
+}
+
+OrenValue oren_list_reserve(OrenValue list, OrenValue new_cap) {
+    if (list.type == OREN_TYPE_NIL) return OREN_NIL;
+    if (new_cap.type == OREN_TYPE_NIL) return OREN_NIL;
+    if (new_cap.type == OREN_TYPE_BOOL) {
+        oren_panic("list_reserve expects int (got bool)");
+        return OREN_NIL;
+    }
+    if (new_cap.type != OREN_TYPE_INT) {
+        oren_panic("list_reserve expects int (got pointer)");
+        return OREN_NIL;
+    }
+    if (new_cap.as.int_val < 0) return OREN_NIL;
+    if (list.type != OREN_TYPE_LIST || list.as.list_val == NULL) {
+        oren_panic("list_reserve on non-list");
+        return OREN_NIL;
+    }
+    oren_list_reserve_raw(list.as.list_val, (int)new_cap.as.int_val);
+    return OREN_NIL;
 }
 
 static inline int oren_list_int_check_value(OrenValue v) {
