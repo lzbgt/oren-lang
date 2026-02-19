@@ -214,6 +214,8 @@ Hot-loop parity depends on compiler + runtime cooperation:
 
 - Inty propagation and lowering to native arithmetic fast paths.
 - Typed buffers and SIMD kernels (native + AVM).
+- List<int> dot loops: consider an i32-range guard + SIMD dot kernel (accumulating in i64) to
+  unlock NEON/SSE2 parity without changing language semantics.
 - Allocation fast paths (small object slabs, reuse).
 
 The weighted performance tracker and gates live in `docs/STATUS.md`.
