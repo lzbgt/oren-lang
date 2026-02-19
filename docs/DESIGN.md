@@ -256,7 +256,8 @@ Hot‑path selection (rolling):
 
 - Auto mode targets syntactic `while`/`for` loops that allocate list/list_int in the loop body.
 - Heuristics stay conservative: skip complex control flow or uncertain escapes.
-- Planned: explicit opt‑in/out annotations once the escape analysis is stable.
+- Explicit opt‑in/out annotations are supported: `@oren.arena` forces evaluation for
+  a loop, `@oren.noarena` disables auto wrapping for that loop.
 
 Proposed compiler strategy (first slice):
 

@@ -916,6 +916,19 @@ fn _opt_arena_auto_enabled() {
     return oren_env("OREN_ARENA_AUTO_LOOP") != nil
 }
 
+fn _opt_stmt_has_attr(stmt, name) {
+    if stmt == nil { return false }
+    var attrs = stmt["attrs"]
+    if attrs == nil { return false }
+    var i = 0
+    while i < oren_list_len(attrs) {
+        var a = attrs[i]
+        if a != nil && a["name"] == name { return true }
+        i = i + 1
+    }
+    return false
+}
+
 fn _opt_make_arena_stmt(name) {
     var id = {"type": "Identifier", "token": nil, "value": name}
     var call = {"type": "Call", "token": nil, "fn": id, "args": []}
@@ -1006,9 +1019,11 @@ fn _opt_insert_arena_pop_in_block(block, allow_continue) {
 }
 
 fn _opt_prepare_loop_arena(block, idx, stmt) {
-    if _opt_arena_auto_enabled() != true { return false }
     if stmt == nil { return false }
     if stmt["type"] != "While" && stmt["type"] != "For" { return false }
+    if _opt_stmt_has_attr(stmt, "oren.noarena") == true { return false }
+    var force = _opt_stmt_has_attr(stmt, "oren.arena")
+    if _opt_arena_auto_enabled() != true && force != true { return false }
     var body = stmt["body"]
     if body == nil || body["type"] != "Block" {
         body = ast.new_block(stmt["token"])
@@ -1061,7 +1076,6 @@ fn _opt_prepare_loop_arena(block, idx, stmt) {
 }
 
 fn wrap_arena_loops_in_block(block) {
-    if _opt_arena_auto_enabled() != true { return false }
     if block == nil || block["type"] != "Block" { return false }
     var ss = block["stmts"]
     if ss == nil { return false }
