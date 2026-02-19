@@ -966,7 +966,8 @@ fn _transpiler_emit_fast_list_get_sum_while(t, stmt, info) {
     var fast_ok = tmp_gensym(t, "list_fast_ok")
     var n_int = tmp_gensym(t, "list_fast_n")
     var i_int = tmp_gensym(t, "list_fast_i")
-    var sum_ll = tmp_gensym(t, "list_fast_sum")
+    var sum_u = tmp_gensym(t, "list_fast_sum_u")
+    var sum_ll = tmp_gensym(t, "list_fast_sum_ll")
     var fast_sum_ok = tmp_gensym(t, "list_fast_sum_ok")
     var parts = []
     oren_list_push(parts, "{")
@@ -974,6 +975,7 @@ fn _transpiler_emit_fast_list_get_sum_while(t, stmt, info) {
     oren_list_push(parts, "int " + fast_ok + " = 1;")
     oren_list_push(parts, "long long " + n_int + " = 0;")
     oren_list_push(parts, "long long " + i_int + " = 0;")
+    oren_list_push(parts, "uint64_t " + sum_u + " = 0;")
     oren_list_push(parts, "long long " + sum_ll + " = 0;")
     oren_list_push(parts, "int " + fast_sum_ok + " = 0;")
     oren_list_push(parts, "if (" + c_ident(n_name) + ".type != OREN_TYPE_INT) { " + fast_ok + " = 0; } else { " + n_int + " = " + c_ident(n_name) + ".as.int_val; if (" + n_int + " < 0) " + fast_ok + " = 0; }")
@@ -1005,7 +1007,7 @@ fn _transpiler_emit_fast_list_get_sum_while(t, stmt, info) {
     oren_list_push(parts, fast_sum_ok + " = " + fast_ok + ";")
     oren_list_push(parts, "if (" + fast_sum_ok + ") {")
     oren_list_push(parts, "    if (" + c_ident(sum_name) + ".type != OREN_TYPE_INT) { " + fast_sum_ok + " = 0; }")
-    oren_list_push(parts, "    else { " + sum_ll + " = " + c_ident(sum_name) + ".as.int_val; }")
+    oren_list_push(parts, "    else { " + sum_u + " = (uint64_t)" + c_ident(sum_name) + ".as.int_val; }")
     oren_list_push(parts, "}")
 
     oren_list_push(parts, "if (" + fast_sum_ok + ") {")
@@ -1017,7 +1019,7 @@ fn _transpiler_emit_fast_list_get_sum_while(t, stmt, info) {
         var v_tmp2 = tmp_gensym(t, "list_fast_val")
         oren_list_push(parts, "        OrenValue " + v_tmp2 + " = " + items_tmp2 + "[" + i_int + "];")
         oren_list_push(parts, "        if (" + v_tmp2 + ".type != OREN_TYPE_INT) { " + fast_sum_ok + " = 0; break; }")
-        oren_list_push(parts, "        " + sum_ll + " += " + v_tmp2 + ".as.int_val;")
+        oren_list_push(parts, "        " + sum_u + " += (uint64_t)" + v_tmp2 + ".as.int_val;")
         pi = pi + 1
     }
     oren_list_push(parts, "        if (!" + fast_sum_ok + ") { break; }")
@@ -1026,6 +1028,7 @@ fn _transpiler_emit_fast_list_get_sum_while(t, stmt, info) {
     oren_list_push(parts, "}")
 
     oren_list_push(parts, "if (" + fast_sum_ok + ") {")
+    oren_list_push(parts, "    memcpy(&" + sum_ll + ", &" + sum_u + ", sizeof(" + sum_ll + "));")
     oren_list_push(parts, "    " + c_ident(sum_name) + " = oren_int(" + sum_ll + ");")
     oren_list_push(parts, "    " + c_ident(idx_name) + " = oren_int(" + i_int + ");")
     oren_list_push(parts, "} else { " + slow + " }")
