@@ -266,10 +266,13 @@ Long‑lived loop policy (hybrid):
 
 - Prefer **per‑iteration sub‑arenas** when escape analysis proves values do not
   cross iteration boundaries (safe to reset each iteration).
+- Any value that escapes the iteration (stored in outer scope, returned, or
+  captured) must allocate in the GC heap or an outer long‑lived arena; the
+  loop arena is reserved for iteration‑local temps.
 - Otherwise use a **loop‑scoped arena with budgets**: enforce a size cap and
   spill to GC once the cap is reached.
 - For non‑terminating loops, optional **epoch rotation** can reclaim arena pages
-  at safe points (still respecting escape analysis and cross‑iteration safety).
+  at safe points (spilled allocations remain in GC).
 
 Tracking/gates:
 
