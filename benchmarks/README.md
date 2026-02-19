@@ -15,6 +15,7 @@ Benchmarks:
 - `dot_product` (two-array dot product; stresses loads, multiply, and loop)
 - `dot_product_int` (list<int> dot product; evaluates unboxed list<int> path)
 - `multi_list_push_int` (three list<int> pushes per loop + sum; stresses unboxed list<int> push throughput)
+- `multi_list_sum` (three boxed list reads per loop + sum; stresses boxed list access + add lowering)
 - `alloc_churn` (allocation churn with periodic GC to surface leaks)
 - `alloc_drop` (allocation churn with periodic drops to surface GC/root leaks; respects `OREN_BENCH_ITERS`)
 

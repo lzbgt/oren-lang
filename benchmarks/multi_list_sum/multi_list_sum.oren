@@ -1,0 +1,28 @@
+import list "std:list"
+
+fn main() {
+    var n = 2000000
+    var xs = []
+    var ys = []
+    var zs = []
+
+    var i = 0
+    while i < n {
+        list.push(xs, (i * 3 + 7) % 1000)
+        list.push(ys, (i * 5 + 11) % 1000)
+        list.push(zs, (i * 7 + 13) % 1000)
+        i = i + 1
+    }
+
+    var sum = 0
+    i = 0
+    while i < n {
+        sum = sum + xs[i]
+        sum = sum + ys[i]
+        sum = sum + zs[i]
+        i = i + 1
+    }
+
+    print(sum)
+    return 0
+}

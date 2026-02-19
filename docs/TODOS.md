@@ -237,6 +237,9 @@ Rolling priority override (2026-01-16): **Native scheduler / GMP greenlet M:N gr
 						   - 2026-02-19: Oren C boxed list get-sum fast path (C backend) avoids `oren_list_get`/`oren_add` overhead:
 						     - Compiler: `lib/compiler/transpiler.oren`.
 						     - Bench (M2 Pro, runs=5): array_sum Oren C 0.0739s (~19.26× C) (`benchmarks/results/array_sum_darwin_arm64_20260219_080150.md`).
+						   - 2026-02-19: added `multi_list_sum` benchmark (boxed lists; three list reads per loop + sum):
+						     - Bench (M2 Pro, runs=5): C 0.00823s, Oren C 0.1824s (~22.15×), Oren native 0.0304s (~3.70×), OBC 1.229s (~149×).
+						     - Artifact: `benchmarks/results/multi_list_sum_darwin_arm64_20260219_080434.md`.
 					   - 2026-01-16: fixed a module-parse parallelism deadlock when stage2 `spawn` is cooperative green tasks (thread-mode but not truly concurrent):
 				     - Root cause: the thread-mode join loop polled `oren_is_done(...)` and slept without driving the green scheduler, so spawned workers never ran (hangs x64 compile-only suite).
 				     - Fix: detect cooperative spawn and join sequentially (each join drives the scheduler): `lib/compiler/compiler/020_modules_linking.oren` (`_ml_spawn_is_cooperative`).
