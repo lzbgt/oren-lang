@@ -1385,7 +1385,7 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     }
 
     var base_stack = ctx["stack_size"]
-    var slots = 7 // tick + i + n + x + sum + mod + i_mod
+    var slots = 6 // tick + i + n + x + sum + mod
     var total_bytes = align_up(slots * 8, 16)
     emit_sub_sp_any(ctx, total_bytes)
     ctx["stack_size"] = ctx["stack_size"] + total_bytes
@@ -1397,7 +1397,6 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     var x_off = 24
     var sum_off = 32
     var mod_off = 40
-    var i_mod_off = 48
 
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
@@ -1461,17 +1460,20 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(slow_sum_jumps, {"pos": jpos_mod_small, "cond": 11}) // LT
 
+    // Load loop vars into callee-saved regs once.
+    emit_ldr_reg_sp_any(ctx, 20, i_off)
+    emit_ldr_reg_sp_any(ctx, 21, n_off)
+    emit_ldr_reg_sp_any(ctx, 23, x_off)
+    emit_ldr_reg_sp_any(ctx, 24, sum_off)
+    emit_ldr_reg_sp_any(ctx, 22, mod_off)
+
     // i_mod = i % mod_i (fast path only)
-    emit_ldr_reg_sp_any(ctx, 0, i_off)
-    push_u32_le(ctx["code"], insn_sdiv(1, 0, 28))
+    push_u32_le(ctx["code"], insn_sdiv(1, 20, 28))
     push_u32_le(ctx["code"], insn_mul(1, 1, 28))
-    push_u32_le(ctx["code"], insn_sub_reg(1, 0, 1))
-    emit_str_reg_sp_any(ctx, 1, i_mod_off)
+    push_u32_le(ctx["code"], insn_sub_reg(2, 20, 1))
 
     // Fast loop entry
     var loop_cond_pos = bytes_len(ctx["code"])
-    emit_ldr_reg_sp_any(ctx, 20, i_off)
-    emit_ldr_reg_sp_any(ctx, 21, n_off)
     push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
@@ -1491,13 +1493,6 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     var tick_skip_pos_slow = bytes_len(ctx["code"])
     var tick_skip_off_slow = (tick_skip_pos_slow - jpos_tick_skip_slow) / 4
     set_u32_le(ctx["code"], jpos_tick_skip_slow, insn_b_cond(tick_skip_off_slow, 1)) // NE
-
-    // reload i/x/sum/mod/i_mod after safepoint
-    emit_ldr_reg_sp_any(ctx, 20, i_off)
-    emit_ldr_reg_sp_any(ctx, 23, x_off)
-    emit_ldr_reg_sp_any(ctx, 24, sum_off)
-    emit_ldr_reg_sp_any(ctx, 22, mod_off)
-    emit_ldr_reg_sp_any(ctx, 2, i_mod_off)
 
     // x = (x*mul + add)
     push_u32_le(ctx["code"], insn_mul(23, 23, 25))
@@ -1536,13 +1531,8 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     var i_mod_ok_off = (i_mod_ok_pos - jpos_i_mod_ok) / 4
     set_u32_le(ctx["code"], jpos_i_mod_ok, insn_b_cond(i_mod_ok_off, 11)) // LT
 
-    emit_str_reg_sp_any(ctx, 23, x_off)
-    emit_str_reg_sp_any(ctx, 24, sum_off)
-    emit_str_reg_sp_any(ctx, 2, i_mod_off)
-
     // i++
     push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
-    emit_str_reg_sp_any(ctx, 20, i_off)
 
     var back_pos = bytes_len(ctx["code"])
     var back_off = (loop_cond_pos - back_pos) / 4
@@ -1551,6 +1541,11 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     var fast_end_pos = bytes_len(ctx["code"])
     var end_off = (fast_end_pos - jpos_fast_end) / 4
     set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
+
+    // spill final fast-loop state for locals update
+    emit_str_reg_sp_any(ctx, 20, i_off)
+    emit_str_reg_sp_any(ctx, 23, x_off)
+    emit_str_reg_sp_any(ctx, 24, sum_off)
 
     var jpos_skip_slow_sum = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b loop_end
