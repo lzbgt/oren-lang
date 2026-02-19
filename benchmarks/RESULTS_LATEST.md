@@ -12,8 +12,8 @@ Legend: `x` = slowdown relative to C median.
 | --- | --- | --- | --- | --- | --- |
 | loop_sum | 0.066337 | 1.048363 (15.80×) | 0.422936 (6.38×) | 5.854739 (88.26×) | `benchmarks/results/loop_sum_darwin_arm64_20260219_103439.md` |
 | array_sum | 0.003835 | 0.073876 (19.27×) | 0.019664 (5.13×) | 0.623274 (162.54×) | `benchmarks/results/array_sum_darwin_arm64_20260219_080150.md` |
-| array_sum_int | 0.004327 | 0.011515 (2.66×) | 0.020331 (4.70×) | 0.263552 (60.91×) | `benchmarks/results/array_sum_int_darwin_arm64_20260219_103557.md` |
-| multi_list_sum | 0.008383 | 0.025794 (3.08×) | 0.030489 (3.64×) | 1.228532 (146.55×) | `benchmarks/results/multi_list_sum_darwin_arm64_20260219_083044.md` |
+| array_sum_int | 0.004311 | 0.012183 (2.83×) | 0.021544 (5.00×) | 0.010703 (2.48×) | `benchmarks/results/array_sum_int_darwin_arm64_20260219_113013.md` |
+| multi_list_sum | 0.009779 | 0.028961 (2.96×) | 0.032866 (3.36×) | 1.236973 (126.49×) | `benchmarks/results/multi_list_sum_darwin_arm64_20260219_113021.md` |
 | multi_list_push_int | 0.008312 | 0.080861 (9.73×) | 0.030877 (3.71×) | 1.216925 (146.41×) | `benchmarks/results/multi_list_push_int_darwin_arm64_20260219_103614.md` |
 | dot_product | 0.004780 | 0.017754 (3.71×) | 0.024412 (5.11×) | 0.547356 (114.51×) | `benchmarks/results/dot_product_darwin_arm64_20260219_094136.md` |
 | dot_product_int | 0.005524 | 0.018334 (3.32×) | 0.025093 (4.54×) | 0.553466 (100.20×) | `benchmarks/results/dot_product_int_darwin_arm64_20260219_103604.md` |
@@ -25,5 +25,5 @@ Notes:
 - alloc_churn/alloc_drop are allocation-heavy; they highlight tracking and GC overhead.
 - array_sum (boxed list) now lands near ~5.1× C on native after fast-path fixes; biggest gaps remain alloc_churn/alloc_drop and boxed dot_product.
 - multi_list_sum highlights boxed list access across multiple arrays; Oren C is now ~3.1× C while native is ~3.6× C.
-- array_sum_int OBC improved to ~0.264s (~61× C) after LIST_PUSH_INT_LOOP; dot_product_int still ~100×, multi_list_push_int ~146×.
+- array_sum_int OBC dropped to ~0.0107s (~2.48× C) after LIST_SUM_INT_LOOP; dot_product_int still ~100×, multi_list_push_int ~146×.
 - dot_product (boxed) now ~3.6× C on Oren C and ~5.1× C on native; OBC is ~115× after LIST_DOT fast path and remains the largest gap.
