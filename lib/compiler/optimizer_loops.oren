@@ -2,6 +2,16 @@ import ast "ast.oren"
 import intparse "int_lit.oren"
 import opthelp "optimizer_helpers.oren"
 
+var ARENA_TRACE_BUDGET = 200
+
+fn _opt_arena_trace(msg) {
+    if oren_env("OREN_TRACE_ARENA_LOOPS") == nil { return nil }
+    if ARENA_TRACE_BUDGET <= 0 { return nil }
+    ARENA_TRACE_BUDGET = ARENA_TRACE_BUDGET - 1
+    print(msg)
+    return nil
+}
+
 fn _opt_has_continue_stmt(stmt) {
     if stmt == nil { return false }
     var t = stmt["type"]
@@ -1485,24 +1495,40 @@ fn _opt_insert_arena_pop_in_block(block, allow_break, allow_continue) {
 fn _opt_prepare_loop_arena(block, idx, stmt, parent_forced, parent_noarena) {
     if stmt == nil { return false }
     if stmt["type"] != "While" && stmt["type"] != "For" { return false }
-    if _opt_stmt_has_attr(stmt, "oren.noarena") == true { return false }
+    if _opt_stmt_has_attr(stmt, "oren.noarena") == true {
+        _opt_arena_trace("[arena_loop] skip=noarena")
+        return false
+    }
     var force_iter = _opt_stmt_has_attr(stmt, "oren.arena_iter")
     var force = _opt_stmt_has_attr(stmt, "oren.arena") || force_iter
-    if parent_forced == true && force != true { return false }
-    if parent_noarena == true && force != true { return false }
-    if _opt_arena_auto_enabled() != true && force != true { return false }
+    if parent_forced == true && force != true {
+        _opt_arena_trace("[arena_loop] skip=parent_forced")
+        return false
+    }
+    if parent_noarena == true && force != true {
+        _opt_arena_trace("[arena_loop] skip=parent_noarena")
+        return false
+    }
+    if _opt_arena_auto_enabled() != true && force != true {
+        _opt_arena_trace("[arena_loop] skip=auto_disabled")
+        return false
+    }
     var body = stmt["body"]
     if body == nil || body["type"] != "Block" {
         body = ast.new_block(stmt["token"])
         if stmt["body"] != nil { body["stmts"] = [stmt["body"]] }
         stmt["body"] = body
     }
-    if _opt_stmt_contains_arena_push_pop(body) == true { return false }
+    if _opt_stmt_contains_arena_push_pop(body) == true {
+        _opt_arena_trace("[arena_loop] skip=has_arena_calls")
+        return false
+    }
     var allow_continue = false
     if stmt["type"] == "While" { allow_continue = true }
     if stmt["type"] == "For" { allow_continue = true }
     if _opt_has_continue_stmt(body) == true && allow_continue != true { return false }
-    var per_iter = _opt_arena_per_iter_enabled() || force_iter || _opt_loop_is_long_lived(block, idx, stmt)
+    var long_lived = _opt_loop_is_long_lived(block, idx, stmt)
+    var per_iter = _opt_arena_per_iter_enabled() || force_iter || long_lived
     var candidates = []
     _opt_collect_loop_new_list_vars(body, candidates)
     var safe_vars = []
@@ -1527,8 +1553,23 @@ fn _opt_prepare_loop_arena(block, idx, stmt, parent_forced, parent_noarena) {
     if safe_vars != nil && oren_list_len(safe_vars) > 0 {
         did_rewrite = _opt_rewrite_new_list_in_stmt(body, safe_vars)
     }
-    if _opt_stmt_contains_arena_alloc(body) != true && did_rewrite != true { return false }
+    if _opt_stmt_contains_arena_alloc(body) != true && did_rewrite != true {
+        _opt_arena_trace("[arena_loop] skip=no_arena_alloc")
+        return false
+    }
 
+    var safe_len = 0
+    if safe_vars != nil { safe_len = oren_list_len(safe_vars) }
+    var per_iter_i = 0
+    if per_iter == true { per_iter_i = 1 }
+    var long_lived_i = 0
+    if long_lived == true { long_lived_i = 1 }
+    var rewrite_i = 0
+    if did_rewrite == true { rewrite_i = 1 }
+    _opt_arena_trace("[arena_loop] wrap per_iter=" + oren_int_to_string(per_iter_i) +
+        " long_lived=" + oren_int_to_string(long_lived_i) +
+        " safe_vars=" + oren_int_to_string(safe_len) +
+        " rewrite=" + oren_int_to_string(rewrite_i))
     if per_iter == true {
         _opt_insert_arena_pop_in_block(body, true, allow_continue)
         var ss = body["stmts"]

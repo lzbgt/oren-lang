@@ -64,6 +64,8 @@ Optional knobs:
 - `OREN_BENCH_ENV_OREN_C=K=V,...`
 - `OREN_BENCH_ENV_OREN_NATIVE=K=V,...`
 - `OREN_BENCH_ENV_OREN_OBC=K=V,...`
+- `OREN_BENCH_ENV_BUILD=K=V,...` (apply env overrides to all build steps)
+- `OREN_BENCH_ENV_BUILD_OREN=K=V,...` (apply env overrides to Oren build steps)
 - `OREN_BENCH_ARGS="arg1 arg2 ..."` (extra CLI args passed to all variants)
 - `OREN_BENCH_ITERS=<n>` (used by `alloc_drop`; default: 10000)
 - `OREN_BENCH_SKIP_OBC=1` (skip AVM/OBC build+run; useful on Windows if `avm.exe` is unavailable)

@@ -257,6 +257,8 @@ class BenchConfig:
     env_oren_c: dict
     env_oren_native: dict
     env_oren_obc: dict
+    env_build_all: dict
+    env_build_oren: dict
 
 
 def _split_program_list(raw):
@@ -317,29 +319,37 @@ def _run_one(program, cfg: BenchConfig):
     c_compiler = _pick_c_compiler()
 
     if not cfg.skip_build:
+        build_env_base = os.environ.copy()
+        build_env_base.update(cfg.env_build_all)
+        build_env_oren = build_env_base.copy()
+        build_env_oren.update(cfg.env_build_oren)
         if not cfg.skip_c:
             _run(
                 _c_compile_cmd(c_compiler, c_bin, bench_dir / f"{program}.c"),
+                env=build_env_base,
                 log_path=LOG_DIR / f"bench_build_c_{program}_{ts}.log",
             )
         if not cfg.skip_oren_c:
             _run(
                 [str(oren_bin), "build", str(bench_src), "--backend", "c", "--no-debug", "-o", str(oren_c_bin)],
+                env=build_env_oren,
                 log_path=LOG_DIR / f"bench_build_oren_c_{program}_{ts}.log",
             )
         if not cfg.skip_native:
             _run(
                 [str(oren_bin), "build", str(bench_src), "--backend", "native", "--no-debug", "-o", str(oren_native_bin)],
+                env=build_env_oren,
                 log_path=LOG_DIR / f"bench_build_oren_native_{program}_{ts}.log",
             )
         if not cfg.skip_obc:
             _run(
                 [str(oren_bin), "build", str(bench_src), "--backend", "bytecode", "-o", str(obc_out)],
+                env=build_env_oren,
                 log_path=LOG_DIR / f"bench_build_oren_obc_{program}_{ts}.log",
             )
 
         if not cfg.skip_obc and not avm_bin.exists():
-            _run(["make", "avm"], log_path=LOG_DIR / f"bench_build_avm_{ts}.log")
+            _run(["make", "avm"], env=build_env_base, log_path=LOG_DIR / f"bench_build_avm_{ts}.log")
     else:
         if not cfg.skip_c and not c_bin.exists():
             raise RuntimeError(f"missing C binary for {program}: {c_bin} (disable OREN_BENCH_SKIP_BUILD)")
@@ -460,6 +470,8 @@ def _run_one(program, cfg: BenchConfig):
             "oren_c": cfg.env_oren_c,
             "oren_native": cfg.env_oren_native,
             "oren_obc": cfg.env_oren_obc,
+            "build_all": cfg.env_build_all,
+            "build_oren": cfg.env_build_oren,
         },
     }
 
@@ -651,6 +663,8 @@ def main():
     env_oren_c = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_OREN_C", ""))
     env_oren_native = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_OREN_NATIVE", ""))
     env_oren_obc = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_OREN_OBC", ""))
+    env_build_all = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_BUILD", ""))
+    env_build_oren = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_BUILD_OREN", ""))
 
     if trace_alloc_site:
         if output_check:
@@ -699,6 +713,8 @@ def main():
         env_oren_c=env_oren_c,
         env_oren_native=env_oren_native,
         env_oren_obc=env_oren_obc,
+        env_build_all=env_build_all,
+        env_build_oren=env_build_oren,
     )
 
     programs = _resolve_programs(ROOT / "benchmarks", program_raw, programs_raw)
