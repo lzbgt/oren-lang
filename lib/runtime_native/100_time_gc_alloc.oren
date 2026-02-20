@@ -56,6 +56,10 @@ var g_gc_reuse_try_count = 0
 var g_gc_reuse_hit_count = 0
 var g_gc_reuse_miss_count = 0
 var g_gc_reuse_hit_bytes = 0
+// Freed-list debug ring (optional; set via OREN_TRACE_GC_FREED_LISTS).
+var g_freed_list_ptrs = 0
+var g_freed_list_cap = 0
+var g_freed_list_head = 0
 
 // --- Alloc-site tracing (optional) ---
 // Fixed-capacity counter table gated by g_trace_alloc_site.
@@ -1023,6 +1027,53 @@ fn native_try_reuse(size) {
     return 0
 }
 
+fn native_gc_freed_list_init() {
+    if g_trace_freed_lists == 0 { return 0 }
+    if g_freed_list_ptrs != 0 { return 0 }
+    var cap = g_trace_freed_lists_cap
+    if cap <= 0 { cap = 1024 }
+    // Round to power of two for mask.
+    var pow2 = 1
+    while pow2 < cap { pow2 = pow2 * 2 }
+    cap = pow2
+    var bytes = cap * 8
+    var buf = native_malloc_raw_or_mmap(bytes)
+    if buf == 0 { return 0 }
+    var i = 0
+    while i < bytes {
+        ptr_set_byte(buf + i, 0)
+        i = i + 1
+    }
+    g_freed_list_ptrs = buf
+    g_freed_list_cap = cap
+    g_freed_list_head = 0
+    return 0
+}
+
+fn native_gc_freed_list_record(ptr) {
+    if g_trace_freed_lists == 0 { return 0 }
+    if g_freed_list_ptrs == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    var idx = g_freed_list_head & (g_freed_list_cap - 1)
+    ptr_set(g_freed_list_ptrs + idx * 8, ptr)
+    g_freed_list_head = g_freed_list_head + 1
+    return 0
+}
+
+fn native_gc_freed_list_seen(ptr) {
+    if g_trace_freed_lists == 0 { return 0 }
+    if g_freed_list_ptrs == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    var cap = g_freed_list_cap
+    var i = 0
+    while i < cap {
+        var v = ptr_get(g_freed_list_ptrs + i * 8)
+        if v == ptr { return 1 }
+        i = i + 1
+    }
+    return 0
+}
+
 var g_panicking = 0
 // Single-thread fast path (native runtime):
 // The self-host compiler and most tooling run single-threaded. Avoid taking the global lock
@@ -1650,6 +1701,11 @@ fn oren_find_node(ptr) {
             return hit
         }
     }
+    if g_trace_freed_lists != 0 {
+        if native_gc_freed_list_seen(ptr) != 0 {
+            print("[gc_freed_list_use] ptr=" + oren_int_to_string(ptr))
+        }
+    }
 
     // Critical perf rule (native runtime):
     // If the alloc-index is initialized and we missed, treat it as "not tracked" and return 0.
@@ -1986,6 +2042,9 @@ fn native_gc_collect() {
                 ptr_set(iadd(cur_sweep, 32), global_get_free_nodes())
                 global_set_free_nodes(cur_sweep)
             } else {
+                if kind == 2 || kind == list_int_kind() {
+                    native_gc_freed_list_record(p)
+                }
                 // Mark node as freed so stale index entries can't resurrect it.
                 ptr_set(iadd(cur_sweep, 24), 1)
                 ptr_set(iadd(cur_sweep, 32), global_get_free_blocks())

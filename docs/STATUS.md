@@ -82,6 +82,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New: `OREN_GC_REUSE_MAPS=1` / `OREN_GC_REUSE_STRUCTS=1` allow reuse for map/struct headers (rolling guardrail).
    - New: `OREN_GC_REUSE_ZERO=1` zero-fills reused blocks by default when reuse is enabled (set `OREN_GC_REUSE_ZERO=0` to disable).
    - New: `OREN_TRACE_GC_REUSE_VERBOSE=1` logs capped reuse hits (cap via `OREN_TRACE_GC_REUSE_VERBOSE_CAP`).
+   - New: `OREN_TRACE_GC_FREED_LISTS=1` records freed list pointers; `OREN_TRACE_GC_FREED_LISTS_CAP=<n>` controls ring size.
    - GC init now registers the main thread for stack scanning to avoid missing roots during auto-GC reuse tests.
    - New: `OREN_TRACE_GC_REUSE=1` prints reuse tries/hits/misses at GC sweep.
    - Reuse experiment (arm64, 2026-02-20, reuse flags enabled during native run):
@@ -90,6 +91,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - `alloc_churn` segfaults when list reuse is forced (`OREN_GC_REUSE_LISTS_UNSAFE=1`); last trace: tries=10001 hits=3 misses=10001 hit_bytes=5248.
      - Verbose reuse hits show alternating kind=0 and kind=2 (list header) 32-byte chunks before crash
        (captured in local bench run logs).
+     - Freed-list tracing (`OREN_TRACE_GC_FREED_LISTS=1`) did not catch a reuse-after-free before crash.
      - `alloc_churn` runs when list reuse is guarded off (auto-GC) with reuse blocks only:
        tries=9989 hits≈4987 misses≈5005 hit_bytes≈5.11 MiB (see `benchmarks/results/alloc_churn_darwin_arm64_20260220_083057.md`).
      - `alloc_drop` (runs=1) 12.13s with GC reuse traces (see `benchmarks/results/alloc_drop_darwin_arm64_20260220_081737.md`).
