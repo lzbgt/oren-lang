@@ -236,10 +236,17 @@ fn oren_list_reserve(list, new_cap) {
     if new_cap <= cap { return nil }
     var count = ptr_get(iadd(list, 0))
     var buf = ptr_get(iadd(list, 16))
-    var new_buf = malloc_k(new_cap * 8, 0)
+    var new_buf = 0
+    var use_arena = false
+    if native_arena_find_node_nolock(list) != 0 { use_arena = true }
+    if use_arena == true {
+        new_buf = native_arena_alloc_k(new_cap * 8, 0)
+    } else {
+        new_buf = malloc_k(new_cap * 8, 0)
+        if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(_alloc_site_list_buf()) }
+    }
     if new_buf == 0 { exit(211) }
     if new_buf == -1 { exit(211) }
-    native_alloc_site_bump(_alloc_site_list_buf())
     var i = 0
     while i < count {
         ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -396,10 +403,17 @@ fn oren_list_int_reserve(list, new_cap) {
     if new_cap <= cap { return nil }
     var count = ptr_get(iadd(list, 0))
     var buf = ptr_get(iadd(list, 16))
-    var new_buf = malloc_k(new_cap * 8, 0)
+    var new_buf = 0
+    var use_arena = false
+    if native_arena_find_node_nolock(list) != 0 { use_arena = true }
+    if use_arena == true {
+        new_buf = native_arena_alloc_k(new_cap * 8, 0)
+    } else {
+        new_buf = malloc_k(new_cap * 8, 0)
+        if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(_alloc_site_list_int_buf()) }
+    }
     if new_buf == 0 { exit(211) }
     if new_buf == -1 { exit(211) }
-    native_alloc_site_bump(_alloc_site_list_int_buf())
     var i = 0
     while i < count {
         ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))

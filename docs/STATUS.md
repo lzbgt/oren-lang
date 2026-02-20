@@ -153,6 +153,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      arena calls into C/bytecode builds (rolling, 2026-02-20).
    - New: arena-loop trace now reports candidate rejection reasons (`unsafe_use`, `used_after_loop`,
      `assign_not_dominate`) plus `candidates=0` when no list allocs are seen (rolling, 2026-02-20).
+   - New: list_reserve/list_int_reserve now allocate buffers from the arena when the list header is arena-tracked,
+     avoiding GC buffer allocations for arena lists (rolling, 2026-02-20).
    - New trace (arm64, 2026-02-20, manual compile with `OREN_TRACE_ARENA_LOOPS=1`):
      - `alloc_churn`: outer loop wraps (`safe_vars=1`, `rewrite=1`); inner loop shows `candidates=0` then `skip=no_arena_alloc`.
      - `alloc_drop`: main loop drops list literal `l` as `unsafe_use` (escapes via `keep`), then `skip=no_arena_alloc`.
