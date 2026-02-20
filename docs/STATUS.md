@@ -118,6 +118,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
       `list_debug node_ptr=<ptr> size=32 kind=2 freed=0 next=<ptr>` with node_in_allocs=0 and node_in_free_blocks=0
       at dump time (node already unlinked, index still resolves).
     - Reordered alloc-index removal to run after free-list dumps so list_debug can resolve nodes (rolling, 2026-02-20).
+    - Corruption reproduces even with reuse disabled: `OREN_GC_REUSE_BLOCKS=0` still shows free-list headers
+      with len/cap=128 and list_debug node_ptr/next but node_in_allocs=0, node_in_free_blocks=0 (arm64, 2026-02-20).
      - Reuse guard now enforces strict header sizing: inline-buffer headers require chunk==32+cap*8; out-of-line headers require chunk==32 (rolling, 2026-02-20).
      - Strict header sizing guard still segfaults; guard_bad_list=276 (local run, 2026-02-20).
      - Reuse now rejects alloc-index mismatches for reused pointers (rolling, 2026-02-20).
