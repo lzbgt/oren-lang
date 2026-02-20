@@ -852,6 +852,37 @@ fn _opt_sink_list_lit_into_if(block) {
                     }
                 }
             }
+            if st != nil && nxt != nil && st["type"] == "Var" && nxt["type"] == "If" {
+                var nm2 = opthelp.is_ident(st["name"])
+                var v0 = st["value"]
+                if nm2 != nil && (v0 == nil || v0["type"] == "Nil" || _opt_expr_is_empty_list_lit(v0) == true) {
+                    if _opt_expr_has_ident(nxt["cond"], nm2) != true &&
+                       (nxt["alt"] == nil || _opt_stmt_has_ident(nxt["alt"], nm2) != true) &&
+                       _opt_block_has_ident_after(block, i + 2, nm2) != true {
+                        var consq2 = nxt["consq"]
+                        if consq2 == nil || consq2["type"] != "Block" {
+                            var nb2 = ast.new_block(nxt["token"])
+                            if consq2 != nil { nb2["stmts"] = [consq2] }
+                            consq2 = nb2
+                            nxt["consq"] = consq2
+                        }
+                        var css2 = consq2["stmts"]
+                        if css2 != nil && oren_list_len(css2) > 0 {
+                            var first = css2[0]
+                            if first != nil && first["type"] == "Assign" {
+                                var nm3 = opthelp.is_ident(first["name"])
+                                if nm3 != nil && _opt_str_eq(nm3, nm2) == true && _opt_expr_is_list_lit(first["value"]) == true {
+                                    first["type"] = "Var"
+                                    oren_list_push(out, nxt)
+                                    changed = true
+                                    i = i + 2
+                                    continue
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         oren_list_push(out, ss[i])
         i = i + 1

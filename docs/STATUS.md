@@ -159,6 +159,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - `alloc_drop` 0.166s native; arena_loop now detects bound=10000 but still skip=no_arena_alloc.
    - New: optimizer sinks side-effect-free list literals into immediate `if` blocks when the list
      is only used in the true branch, avoiding allocations on the false path (rolling, 2026-02-20).
+   - New: if a list is predeclared as nil/empty and only assigned a list literal in the true branch,
+     the assignment is converted to a branch-local `var` (rolling, 2026-02-20).
    - New run (arm64, 2026-02-20, post list-literal sinking, runs=1, warmups=0):
      - `alloc_drop` 0.158s native (single run; compare to prior 0.166–0.171s).
    - New run (arm64, 2026-02-20, post list-literal sinking, runs=5, warmups=0):
