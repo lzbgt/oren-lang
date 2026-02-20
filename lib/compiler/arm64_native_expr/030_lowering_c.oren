@@ -280,6 +280,14 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_add_imm(4, 4, 1))
                 push_u32_le(ctx["code"], insn_str_ptr(4, 0))     // *(list) = count+1
 
+                if ctx["trace_native_list_hdr"] != nil {
+                    emit_load_i64_imm(ctx, 1, 4) // list_push
+                    emit_load_i64_imm(ctx, 2, 2) // LIST
+                    var bl_trace = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace, "name": "oren_trace_list_header"})
+                }
+
                 var done_pos2 = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_done2, insn_b((done_pos2 - br_done2) / 4))
 
@@ -409,6 +417,14 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 // count++
                 push_u32_le(ctx["code"], insn_add_imm(4, 4, 1))
                 push_u32_le(ctx["code"], insn_str_ptr(4, 0))     // *(list) = count+1
+
+                if ctx["trace_native_list_hdr"] != nil {
+                    emit_load_i64_imm(ctx, 1, 7) // list_int_push
+                    emit_load_i64_imm(ctx, 2, 8) // LIST_INT
+                    var bl_trace_i = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace_i, "name": "oren_trace_list_header"})
+                }
 
                 var done_pos2i = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_done2i, insn_b((done_pos2i - br_done2i) / 4))

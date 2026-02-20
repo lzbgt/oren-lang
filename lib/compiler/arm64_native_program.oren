@@ -280,6 +280,13 @@ fn _arm64_new_ctx(linked, platform) {
     while z < 8 { bytes_push(ctx["data"], 0); z = z + 1 }
     ctx["heap_ptr_slot_enc"] = heap_ptr_slot_off + 1
 
+    // Bounded debug knob:
+    // Enable fast-path list header tracing without per-call env lookups.
+    //   OREN_TRACE_NATIVE_LIST_HDR=1 ./oren_stage2 build ... --platform arm64-macos --no-cache
+    if oren_env("OREN_TRACE_NATIVE_LIST_HDR") != nil {
+        ctx["trace_native_list_hdr"] = 1
+    }
+
     return ctx
 }
 

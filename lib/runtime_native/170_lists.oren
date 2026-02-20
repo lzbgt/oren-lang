@@ -132,6 +132,11 @@ fn _list_trace_emit(op, list, kind) {
 }
 
 @oren.keep
+fn oren_trace_list_header(list, op, kind) {
+    return _list_trace_emit(op, list, kind)
+}
+
+@oren.keep
 fn oren_list_len(list) {
     if list == nil { return 0 }
     if _list_assume_list_enabled() != true {
