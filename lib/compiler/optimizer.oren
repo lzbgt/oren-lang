@@ -1506,6 +1506,10 @@ fn _opt_list_lit_safe_int_elements(expr, safe_ints) {
 }
 
 fn _opt_lower_int_only_lists_in_block(block) {
+    return _opt_lower_int_only_lists_in_block_opts(block, false)
+}
+
+fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty) {
     if block == nil || block["type"] != "Block" { return nil }
     var ss = block["stmts"]
     if ss == nil { return nil }
@@ -1528,6 +1532,9 @@ fn _opt_lower_int_only_lists_in_block(block) {
                     if lit_elems != nil {
                         if list_state[nm] == nil { list_state[nm] = true }
                         _opt_list_init_add_elems(list_inits, nm, st, lit_elems)
+                    } else if allow_empty == true && _opt_is_empty_list_lit(st["value"]) {
+                        if list_state[nm] == nil { list_state[nm] = true }
+                        _opt_list_init_add(list_inits, nm, st)
                     } else if st["value"] != nil && st["value"]["type"] == "Array" {
                         _opt_list_state_mark_unsafe(list_state, nm)
                     } else {
@@ -2735,7 +2742,8 @@ fn lower_linked_program_in_place(linked) {
             if trace_opt && i == 0 { print("[opt] tco done") }
             optloops.lower_simple_for_in_block(ss[i]["expr"]["body"])
             optloops.sink_list_lit_into_if(ss[i]["expr"]["body"])
-            _opt_lower_int_only_lists_in_block(ss[i]["expr"]["body"])
+            var lower_allow_empty = false
+            _opt_lower_int_only_lists_in_block_opts(ss[i]["expr"]["body"], lower_allow_empty)
             optloops.wrap_arena_loops_in_block(ss[i]["expr"]["body"])
             _opt_insert_list_reserve_in_block(ss[i]["expr"]["body"], nil, nil, nil, nil, nil)
             optconst.rewrite_const_mod_in_block(ss[i]["expr"]["body"], nil)

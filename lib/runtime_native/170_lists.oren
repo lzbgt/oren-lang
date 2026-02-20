@@ -258,7 +258,11 @@ fn oren_list_reserve(list, new_cap) {
     var use_arena = false
     if native_arena_find_node_nolock(list) != 0 { use_arena = true }
     if use_arena == true {
-        new_buf = native_arena_alloc_k(new_cap * 8, 0)
+        new_buf = native_arena_alloc_raw(new_cap * 8)
+        if new_buf == 0 {
+            new_buf = malloc_k(new_cap * 8, 0)
+            if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(_alloc_site_list_buf()) }
+        }
     } else {
         new_buf = malloc_k(new_cap * 8, 0)
         if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(_alloc_site_list_buf()) }
@@ -459,7 +463,11 @@ fn oren_list_int_reserve(list, new_cap) {
     var use_arena = false
     if native_arena_find_node_nolock(list) != 0 { use_arena = true }
     if use_arena == true {
-        new_buf = native_arena_alloc_k(new_cap * 8, 0)
+        new_buf = native_arena_alloc_raw(new_cap * 8)
+        if new_buf == 0 {
+            new_buf = malloc_k(new_cap * 8, 0)
+            if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(_alloc_site_list_int_buf()) }
+        }
     } else {
         new_buf = malloc_k(new_cap * 8, 0)
         if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(_alloc_site_list_int_buf()) }
@@ -496,7 +504,11 @@ fn oren_list_int_push(list, value) {
         var use_arena = false
         if native_arena_find_node_nolock(list) != 0 { use_arena = true }
         if use_arena == true {
-            new_buf = native_arena_alloc_k(new_cap * 8, 0)
+            new_buf = native_arena_alloc_raw(new_cap * 8)
+            if new_buf == 0 {
+                new_buf = malloc_k(new_cap * 8, 0)
+                if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(_alloc_site_list_int_buf()) }
+            }
         } else {
             new_buf = malloc_k(new_cap * 8, 0)
             if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(_alloc_site_list_int_buf()) }
@@ -534,7 +546,11 @@ fn oren_list_int_push_unchecked(list, value) {
         var use_arena = false
         if native_arena_find_node_nolock(list) != 0 { use_arena = true }
         if use_arena == true {
-            new_buf = native_arena_alloc_k(new_cap * 8, 0)
+            new_buf = native_arena_alloc_raw(new_cap * 8)
+            if new_buf == 0 {
+                new_buf = malloc_k(new_cap * 8, 0)
+                if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(_alloc_site_list_int_buf()) }
+            }
         } else {
             new_buf = malloc_k(new_cap * 8, 0)
             if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(_alloc_site_list_int_buf()) }
@@ -642,7 +658,11 @@ fn oren_list_push(list, value) {
 	        var use_arena = false
 	        if native_arena_find_node_nolock(list) != 0 { use_arena = true }
 	        if use_arena == true {
-	            new_buf = native_arena_alloc_k(new_cap * 8, 0)
+	            new_buf = native_arena_alloc_raw(new_cap * 8)
+	            if new_buf == 0 {
+	                new_buf = malloc_k(new_cap * 8, 0)
+	                if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(_alloc_site_list_buf()) }
+	            }
 	        } else {
 	            new_buf = malloc_k(new_cap * 8, 0)
 	            if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(_alloc_site_list_buf()) }
@@ -682,7 +702,11 @@ fn oren_list_push_unchecked(list, value) {
 	        var use_arena = false
 	        if native_arena_find_node_nolock(list) != 0 { use_arena = true }
 	        if use_arena == true {
-	            new_buf = native_arena_alloc_k(new_cap * 8, 0)
+	            new_buf = native_arena_alloc_raw(new_cap * 8)
+	            if new_buf == 0 {
+	                new_buf = malloc_k(new_cap * 8, 0)
+	                if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(_alloc_site_list_buf()) }
+	            }
 	        } else {
 	            new_buf = malloc_k(new_cap * 8, 0)
 	            if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(_alloc_site_list_buf()) }

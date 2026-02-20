@@ -115,9 +115,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - List header trace (`OREN_TRACE_LIST_HEADER=1`, cap=50) emitted no `[list_hdr]` lines during alloc_churn, suggesting the hot path bypasses list runtime helpers (local run, 2026-02-20).
     - List trace now re-checks env after runtime init (uses `oren_env` + refresh even if cached off); `native_envp_get_value_ptr` falls back to argv when envp missing (rolling, 2026-02-20).
     - New alloc_churn trace (`OREN_TRACE_LIST_HEADER=1`, cap=20) shows `op=1` new_list, `op=3` reserve to cap=128, then `op=5` list_push_unchecked; no `op=4` fast-path list_push seen (local run, 2026-02-20).
-    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)` and `oren_list_new_cap(cap)`
+   - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)` and `oren_list_new_cap(cap)`
       as list constructors and propagates list metadata across simple alias assignments, extending reserve/unchecked-push rewrites
       (rolling, 2026-02-20).
+   - New: list/list_int reserve + unchecked push now try `native_arena_alloc_raw` for arena-backed buffers
+     and fall back to `malloc_k` (cuts alloc-index tracking overhead on arena hot paths; rolling, 2026-02-20).
     - Reuse + list trace run (arm64, 2026-02-20, reuse+trace flags): still segfaults; reuse summary
       tries=7951 hits=54 misses=7900 hit_bytes=57472 guard_bad_list=105. List trace shows only `op=1/3/5`;
       free-list headers still report len/cap=128 with chunk=32 (same corruption pattern).
@@ -377,8 +379,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Native list-literal lowering now uses `oren_list_push_unchecked` for element pushes.
    - Native list/list_int push intrinsics now call unchecked push on the grow slow-path to avoid duplicate validation.
    - Loop reserve insertion does not rewrite push calls (keeps the intrinsic fast path); it only adds `*_reserve` pre-loop.
-   - New: int-only lists created from empty literals are auto-lowered to list<int> in the optimizer
-     (rewrites list.push/get/len/set/reserve to list_int ops when the list does not escape; rolling, 2026-02-20).
+   - Rolling: empty list literal lowering to list<int> is **temporarily disabled** due to cross-block escape issues;
+     non-empty int-only literals still lower (re-enable with explicit escape analysis; 2026-02-20).
    - Native fast list_int push loops now accept `list_int_push_unchecked` calls to preserve the fast path after list<int> lowering (rolling, 2026-02-20).
    - List<int> reserve insertion now accepts int-only list literals (including empty literals).
    - Gate: native `array_sum` and `multi_list_push_int` <= 2x C.
