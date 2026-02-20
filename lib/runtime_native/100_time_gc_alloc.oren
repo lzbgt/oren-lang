@@ -60,6 +60,10 @@ var g_gc_reuse_hit_bytes = 0
 var g_freed_list_ptrs = 0
 var g_freed_list_cap = 0
 var g_freed_list_head = 0
+// Stack range trace (optional; set via OREN_TRACE_GC_STACK_RANGES).
+var g_stack_range_ptrs = 0
+var g_stack_range_cap = 0
+var g_stack_range_len = 0
 
 // --- Alloc-site tracing (optional) ---
 // Fixed-capacity counter table gated by g_trace_alloc_site.
@@ -720,6 +724,7 @@ fn native_gc_scan_stack() {
     var trace = native_envp_get_value_ptr("OREN_TRACE_GC_STACK")
     var trace_on = 0
     if trace != 0 && ptr_get_byte(trace) != 0 { trace_on = 1 }
+    if g_trace_gc_stack_ranges != 0 { native_gc_stack_range_reset() }
     var sp = get_sp()
     var cur_tid = sys_gettid()
     var THREAD_NODE_FLAG_OS_THREAD = 1
@@ -818,6 +823,9 @@ fn native_gc_scan_stack() {
                 } else {
                     end = start
                 }
+                if g_trace_gc_stack_ranges != 0 {
+                    native_gc_stack_range_push(start, end)
+                }
                 if trace_on != 0 {
                     var node_tid = 0
                     if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 { node_tid = ptr_get(iadd(cur, 56)) }
@@ -834,10 +842,11 @@ fn native_gc_scan_stack() {
                           " node_tid=" + oren_int_to_string(node_tid))
                 }
 
-                while start < end {
-                    var val = ptr_get(start)
+                var scan_ptr = start
+                while scan_ptr < end {
+                    var val = ptr_get(scan_ptr)
                     oren_mark_value(val)
-                    start = iadd(start, 8)
+                    scan_ptr = iadd(scan_ptr, 8)
                 }
             }
         } else {
@@ -1007,11 +1016,14 @@ fn native_try_reuse(size) {
             release_lock()
             if g_gc_reuse_verbose != 0 && g_gc_reuse_verbose_left > 0 {
                 g_gc_reuse_verbose_left = g_gc_reuse_verbose_left - 1
+                var in_stack = 0
+                if g_trace_gc_stack_ranges != 0 { in_stack = native_gc_stack_range_contains(out) }
                 print("[gc_reuse_hit] kind=" + oren_int_to_string(cur_kind) +
                     " want=" + oren_int_to_string(size) +
                     " chunk=" + oren_int_to_string(chunk_size) +
                     " ptr=" + oren_int_to_string(out) +
-                    " node=" + oren_int_to_string(cur))
+                    " node=" + oren_int_to_string(cur) +
+                    " in_stack=" + oren_int_to_string(in_stack))
             }
             if trace_reuse {
                 g_gc_reuse_hit_count = g_gc_reuse_hit_count + 1
@@ -1069,6 +1081,57 @@ fn native_gc_freed_list_seen(ptr) {
     while i < cap {
         var v = ptr_get(g_freed_list_ptrs + i * 8)
         if v == ptr { return 1 }
+        i = i + 1
+    }
+    return 0
+}
+
+fn native_gc_stack_range_init() {
+    if g_trace_gc_stack_ranges == 0 { return 0 }
+    if g_stack_range_ptrs != 0 { return 0 }
+    var cap = g_trace_gc_stack_ranges_cap
+    if cap <= 0 { cap = 64 }
+    var bytes = cap * 16
+    var buf = native_malloc_raw_or_mmap(bytes)
+    if buf == 0 { return 0 }
+    var i = 0
+    while i < bytes {
+        ptr_set_byte(buf + i, 0)
+        i = i + 1
+    }
+    g_stack_range_ptrs = buf
+    g_stack_range_cap = cap
+    g_stack_range_len = 0
+    return 0
+}
+
+fn native_gc_stack_range_reset() {
+    if g_trace_gc_stack_ranges == 0 { return 0 }
+    g_stack_range_len = 0
+    return 0
+}
+
+fn native_gc_stack_range_push(start, end) {
+    if g_trace_gc_stack_ranges == 0 { return 0 }
+    if g_stack_range_ptrs == 0 { return 0 }
+    if g_stack_range_len >= g_stack_range_cap { return 0 }
+    var off = g_stack_range_len * 16
+    ptr_set(g_stack_range_ptrs + off, start)
+    ptr_set(g_stack_range_ptrs + off + 8, end)
+    g_stack_range_len = g_stack_range_len + 1
+    return 0
+}
+
+fn native_gc_stack_range_contains(ptr) {
+    if g_trace_gc_stack_ranges == 0 { return 0 }
+    if g_stack_range_ptrs == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    var i = 0
+    while i < g_stack_range_len {
+        var off = i * 16
+        var start = ptr_get(g_stack_range_ptrs + off)
+        var end = ptr_get(g_stack_range_ptrs + off + 8)
+        if ptr >= start && ptr < end { return 1 }
         i = i + 1
     }
     return 0
