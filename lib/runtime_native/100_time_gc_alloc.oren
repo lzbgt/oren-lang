@@ -1001,6 +1001,14 @@ fn native_try_reuse(size) {
 
             var out = chunk_ptr
             release_lock()
+            if g_gc_reuse_verbose != 0 && g_gc_reuse_verbose_left > 0 {
+                g_gc_reuse_verbose_left = g_gc_reuse_verbose_left - 1
+                print("[gc_reuse_hit] kind=" + oren_int_to_string(cur_kind) +
+                    " want=" + oren_int_to_string(size) +
+                    " chunk=" + oren_int_to_string(chunk_size) +
+                    " ptr=" + oren_int_to_string(out) +
+                    " node=" + oren_int_to_string(cur))
+            }
             if trace_reuse {
                 g_gc_reuse_hit_count = g_gc_reuse_hit_count + 1
                 g_gc_reuse_hit_bytes = g_gc_reuse_hit_bytes + chunk_size

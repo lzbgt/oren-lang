@@ -757,6 +757,10 @@ var g_trace_alloc_site = 0
 var g_trace_arena = 0
 // Optional tracing: reuse stats (tries/hits/misses).
 var g_trace_gc_reuse = 0
+// Optional tracing: verbose reuse hit logging (capped).
+var g_gc_reuse_verbose = 0
+var g_gc_reuse_verbose_cap = 0
+var g_gc_reuse_verbose_left = 0
 var g_alloc_site_ptr = 0
 var g_alloc_site_cap = 0
 var g_alloc_site_total = 0
@@ -794,6 +798,9 @@ fn native_runtime_init_gc_mode(default_enabled) {
     g_trace_alloc_site = 0
     g_trace_arena = 0
     g_trace_gc_reuse = 0
+    g_gc_reuse_verbose = 0
+    g_gc_reuse_verbose_cap = 0
+    g_gc_reuse_verbose_left = 0
     g_alloc_site_ptr = 0
     g_alloc_site_cap = 0
     g_alloc_site_total = 0
@@ -891,6 +898,21 @@ fn native_runtime_init_gc_mode(default_enabled) {
         if ptr_get_byte(v_trace_reuse) != 0 && ptr_get_byte(v_trace_reuse) != 48 {
             g_trace_gc_reuse = 1
         }
+    }
+    var v_reuse_verbose = native_envp_get_value_ptr("OREN_TRACE_GC_REUSE_VERBOSE")
+    if v_reuse_verbose != 0 {
+        if ptr_get_byte(v_reuse_verbose) != 0 && ptr_get_byte(v_reuse_verbose) != 48 {
+            g_gc_reuse_verbose = 1
+        }
+    }
+    var v_reuse_verbose_cap = native_envp_get_value_ptr("OREN_TRACE_GC_REUSE_VERBOSE_CAP")
+    if v_reuse_verbose_cap != 0 {
+        var cap = native_parse_i64_dec_cstr_or_neg1(v_reuse_verbose_cap)
+        if cap > 0 { g_gc_reuse_verbose_cap = cap }
+    }
+    if g_gc_reuse_verbose != 0 {
+        if g_gc_reuse_verbose_cap <= 0 { g_gc_reuse_verbose_cap = 50 }
+        g_gc_reuse_verbose_left = g_gc_reuse_verbose_cap
     }
     var v_trace_arena = native_envp_get_value_ptr("OREN_TRACE_ARENA")
     if v_trace_arena != 0 {
