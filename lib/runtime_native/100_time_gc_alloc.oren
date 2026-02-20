@@ -1032,7 +1032,13 @@ fn native_try_reuse(size) {
     // Simple first-fit from the free list.
     var prev = 0
     var cur = global_get_free_blocks()
+    var scan_left = g_gc_reuse_scan_cap
+    var scan_capped = scan_left > 0
     while cur != 0 {
+        if scan_capped {
+            if scan_left <= 0 { break }
+            scan_left = scan_left - 1
+        }
         var next = ptr_get(iadd(cur, 32))
         // Validate the free-block node before trusting it.
         if cur < 4096 {
