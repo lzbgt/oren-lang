@@ -29,6 +29,7 @@ fn _alloc_site_list_int_buf() { return 4 }
 	    ptr_set(iadd(header, 8), cap)     // capacity
 	    ptr_set(iadd(header, 16), buf)    // data buffer
 	    ptr_set(iadd(header, 24), list_magic())
+        _list_trace_emit(1, header, 2) // new_list
 	    return header
 			}
 
@@ -50,6 +51,7 @@ fn oren_new_list_int(cap) {
     ptr_set(iadd(header, 8), cap)     // capacity
     ptr_set(iadd(header, 16), buf)    // data buffer
     ptr_set(iadd(header, 24), list_magic())
+    _list_trace_emit(2, header, list_int_kind()) // new_list_int
     return header
 }
 
@@ -77,6 +79,8 @@ fn oren_list_new_cap(cap) {
 // When set, skip `oren_find_node`/magic checks in list ops.
 // Enable with OREN_LIST_ASSUME_LIST=1.
 var g_list_assume_list = -1
+var g_trace_list_header = -1
+var g_trace_list_header_cap = 0
 
 fn _list_assume_list_enabled() {
     if g_list_assume_list != -1 { return g_list_assume_list == 1 }
@@ -87,6 +91,44 @@ fn _list_assume_list_enabled() {
         g_list_assume_list = 0
     }
     return g_list_assume_list == 1
+}
+
+fn _list_trace_enabled() {
+    if g_trace_list_header != -1 { return g_trace_list_header == 1 }
+    var v = native_envp_get_value_ptr("OREN_TRACE_LIST_HEADER")
+    if v != 0 && ptr_get_byte(v) != 0 && ptr_get_byte(v) != 48 {
+        g_trace_list_header = 1
+    } else {
+        g_trace_list_header = 0
+    }
+    var v_cap = native_envp_get_value_ptr("OREN_TRACE_LIST_HEADER_CAP")
+    if v_cap != 0 {
+        var cap = native_parse_i64_dec_cstr_or_neg1(v_cap)
+        if cap > 0 { g_trace_list_header_cap = cap }
+    }
+    if g_trace_list_header == 1 && g_trace_list_header_cap <= 0 {
+        g_trace_list_header_cap = 1024
+    }
+    return g_trace_list_header == 1
+}
+
+fn _list_trace_emit(op, list, kind) {
+    if _list_trace_enabled() != true { return 0 }
+    if g_trace_list_header_cap <= 0 { return 0 }
+    if list == 0 || list < 4096 { return 0 }
+    g_trace_list_header_cap = g_trace_list_header_cap - 1
+    var len = ptr_get(iadd(list, 0))
+    var cap = ptr_get(iadd(list, 8))
+    var buf = ptr_get(iadd(list, 16))
+    var magic = ptr_get(iadd(list, 24))
+    print("[list_hdr] op=" + oren_int_to_string(op) +
+        " list=" + oren_int_to_string(list) +
+        " kind=" + oren_int_to_string(kind) +
+        " len=" + oren_int_to_string(len) +
+        " cap=" + oren_int_to_string(cap) +
+        " buf=" + oren_int_to_string(buf) +
+        " magic=" + oren_int_to_string(magic))
+    return 0
 }
 
 @oren.keep
@@ -155,6 +197,7 @@ fn oren_list_reserve(list, new_cap) {
     }
     ptr_set(iadd(list, 8), new_cap)
     ptr_set(iadd(list, 16), new_buf)
+    _list_trace_emit(3, list, 2) // list_reserve
     return nil
 }
 
@@ -313,6 +356,7 @@ fn oren_list_int_reserve(list, new_cap) {
     }
     ptr_set(iadd(list, 8), new_cap)
     ptr_set(iadd(list, 16), new_buf)
+    _list_trace_emit(6, list, list_int_kind()) // list_int_reserve
     return nil
 }
 
@@ -347,6 +391,7 @@ fn oren_list_int_push(list, value) {
     }
     ptr_set(iadd(buf, count * 8), value)
     ptr_set(iadd(list, 0), iadd(count, 1))
+    _list_trace_emit(7, list, list_int_kind()) // list_int_push
     return nil
 }
 
@@ -377,6 +422,7 @@ fn oren_list_int_push_unchecked(list, value) {
     }
     ptr_set(iadd(buf, count * 8), value)
     ptr_set(iadd(list, 0), iadd(count, 1))
+    _list_trace_emit(8, list, list_int_kind()) // list_int_push_unchecked
     return nil
 }
 
@@ -477,6 +523,7 @@ fn oren_list_push(list, value) {
 	    }
     ptr_set(iadd(buf, count * 8), value)
     ptr_set(iadd(list, 0), iadd(count, 1))
+    _list_trace_emit(4, list, 2) // list_push
     // Language-level semantics: `oren_list_push` is statement-like and returns `nil`.
     // (The list header pointer is stable and does not need to be returned.)
     return nil
@@ -509,6 +556,7 @@ fn oren_list_push_unchecked(list, value) {
     }
     ptr_set(iadd(buf, count * 8), value)
     ptr_set(iadd(list, 0), iadd(count, 1))
+    _list_trace_emit(5, list, 2) // list_push_unchecked
     return nil
 }
 
