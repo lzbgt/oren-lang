@@ -1,0 +1,275 @@
+{
+  "meta": {
+    "timestamp": "20260220_134542",
+    "host": "Bruce-Mac",
+    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu_brand": "Apple M2 Pro",
+    "cpu_cores": "10",
+    "mem_bytes": "17179869184",
+    "git_rev": "cea926edf266a03fe5c8080a4b90eb9c82168e01",
+    "c_compiler": "cc",
+    "runs": 1,
+    "warmups": 0,
+    "program": "alloc_churn",
+    "output": "199990000",
+    "output_check": false,
+    "save_stdout": true,
+    "skip_build": false,
+    "rss_enabled": false,
+    "skip_obc": false,
+    "env_overrides": {
+      "all": {},
+      "c": {},
+      "oren_c": {},
+      "oren_native": {
+        "OREN_TRACE_ALLOC_SITE": "1",
+        "OREN_GC_AUTO": "1",
+        "OREN_GC_ALLOC_THRESHOLD": "1000"
+      },
+      "oren_obc": {},
+      "build_all": {},
+      "build_oren": {}
+    }
+  },
+  "results": {
+    "c": {
+      "runs": [
+        0.004499665985349566
+      ],
+      "median_s": 0.004499665985349566,
+      "mean_s": 0.004499665985349566,
+      "min_s": 0.004499665985349566,
+      "max_s": 0.004499665985349566
+    },
+    "oren_c": {
+      "runs": [
+        0.030411291983909905
+      ],
+      "median_s": 0.030411291983909905,
+      "mean_s": 0.030411291983909905,
+      "min_s": 0.030411291983909905,
+      "max_s": 0.030411291983909905
+    },
+    "oren_native": {
+      "runs": [
+        5.8724508750019595
+      ],
+      "median_s": 5.8724508750019595,
+      "mean_s": 5.8724508750019595,
+      "min_s": 5.8724508750019595,
+      "max_s": 5.8724508750019595
+    },
+    "oren_obc": {
+      "runs": [
+        0.17261741700349376
+      ],
+      "median_s": 0.17261741700349376,
+      "mean_s": 0.17261741700349376,
+      "min_s": 0.17261741700349376,
+      "max_s": 0.17261741700349376
+    }
+  },
+  "alloc_site": {
+    "oren_native": {
+      "runs": [
+        {
+          "total": 58,
+          "list_header": 29,
+          "list_int_header": 0,
+          "list_buf": 29,
+          "list_int_buf": 0
+        },
+        {
+          "total": 116,
+          "list_header": 58,
+          "list_int_header": 0,
+          "list_buf": 58,
+          "list_int_buf": 0
+        },
+        {
+          "total": 236,
+          "list_header": 118,
+          "list_int_header": 0,
+          "list_buf": 118,
+          "list_int_buf": 0
+        },
+        {
+          "total": 470,
+          "list_header": 235,
+          "list_int_header": 0,
+          "list_buf": 235,
+          "list_int_buf": 0
+        },
+        {
+          "total": 944,
+          "list_header": 472,
+          "list_int_header": 0,
+          "list_buf": 472,
+          "list_int_buf": 0
+        },
+        {
+          "total": 222,
+          "list_header": 111,
+          "list_int_header": 0,
+          "list_buf": 111,
+          "list_int_buf": 0
+        },
+        {
+          "total": 1844,
+          "list_header": 922,
+          "list_int_header": 0,
+          "list_buf": 922,
+          "list_int_buf": 0
+        },
+        {
+          "total": 204,
+          "list_header": 102,
+          "list_int_header": 0,
+          "list_buf": 102,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 2048,
+          "list_header": 1024,
+          "list_int_header": 0,
+          "list_buf": 1024,
+          "list_int_buf": 0
+        },
+        {
+          "total": 1090,
+          "list_header": 545,
+          "list_int_header": 0,
+          "list_buf": 545,
+          "list_int_buf": 0
+        }
+      ],
+      "median": {
+        "total": 2048,
+        "list_header": 1024,
+        "list_int_header": 0,
+        "list_buf": 1024,
+        "list_int_buf": 0
+      },
+      "mean": {
+        "total": 1538,
+        "list_header": 769,
+        "list_int_header": 0,
+        "list_buf": 769,
+        "list_int_buf": 0
+      }
+    }
+  }
+}

@@ -86,6 +86,29 @@ fn _linetab_record_tok(ctx, tok) {
     return nil
 }
 
+fn _emit_gc_safepoint_call_x64(ctx) {
+    // Spill callee-saved regs so conservative GC sees register-held pointers.
+    // Includes Win64 non-volatiles (rdi/rsi) for parity.
+    bytes_extend(ctx["code"], insn_push_r64(3))  // rbx
+    bytes_extend(ctx["code"], insn_push_r64(5))  // rbp
+    bytes_extend(ctx["code"], insn_push_r64(7))  // rdi
+    bytes_extend(ctx["code"], insn_push_r64(6))  // rsi
+    bytes_extend(ctx["code"], insn_push_r64(12)) // r12
+    bytes_extend(ctx["code"], insn_push_r64(13)) // r13
+    bytes_extend(ctx["code"], insn_push_r64(14)) // r14
+    bytes_extend(ctx["code"], insn_push_r64(15)) // r15
+    _emit_call_rel32_named_x64(ctx, "oren_gc_safepoint")
+    bytes_extend(ctx["code"], insn_pop_r64(15))
+    bytes_extend(ctx["code"], insn_pop_r64(14))
+    bytes_extend(ctx["code"], insn_pop_r64(13))
+    bytes_extend(ctx["code"], insn_pop_r64(12))
+    bytes_extend(ctx["code"], insn_pop_r64(6))
+    bytes_extend(ctx["code"], insn_pop_r64(7))
+    bytes_extend(ctx["code"], insn_pop_r64(5))
+    bytes_extend(ctx["code"], insn_pop_r64(3))
+    return nil
+}
+
 fn _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, tick_mask) {
     // PERF:
     // Calling `oren_gc_safepoint()` on every loop iteration dominates lexer/parser loops.
@@ -108,7 +131,7 @@ fn _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, tick_mask
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
     var skip = _new_label(ctx, "gc_sp_skip")
     _emit_jcc_to_label(ctx, local_fixups, "ne", skip)
-    _emit_call_rel32_named_x64(ctx, "oren_gc_safepoint")
+    _emit_gc_safepoint_call_x64(ctx)
     _emit_label(ctx, labels, skip)
     return nil
 }
@@ -1556,7 +1579,7 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     _emit_mov_mrbp_r64(ctx, 0 - off_x, 10)
     _emit_mov_mrbp_r64(ctx, 0 - off_sum, 11)
     _emit_mov_mrbp_r64(ctx, 0 - off_i_mod, 7)
-    _emit_call_rel32_named_x64(ctx, "oren_gc_safepoint")
+    _emit_gc_safepoint_call_x64(ctx)
     bytes_extend(ctx["code"], insn_xor_r64_r64(8, 8)) // reset tick after safepoint
     _emit_mov_r64_mrbp(ctx, 9, 0 - off_idx)
     _emit_mov_r64_mrbp(ctx, 10, 0 - off_x)
@@ -1623,7 +1646,7 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
     var l_sp_skip_mod = _new_label(ctx, "lcg_sum_sp_skip_mod")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_sp_skip_mod)
-    _emit_call_rel32_named_x64(ctx, "oren_gc_safepoint")
+    _emit_gc_safepoint_call_x64(ctx)
     bytes_extend(ctx["code"], insn_xor_r64_r64(8, 8)) // reset tick after safepoint
     bytes_extend(ctx["code"], insn_mov_r64_imm64(9, 255))
     _emit_label(ctx, labels, l_sp_skip_mod)

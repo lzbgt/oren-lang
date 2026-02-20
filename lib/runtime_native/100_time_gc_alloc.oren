@@ -171,6 +171,25 @@ fn native_alloc_index_mmap_table(bytes) {
     return q
 }
 
+fn native_parse_int_cstr(ptr) {
+    if ptr == 0 { return 0 }
+    var i = 0
+    var neg = 0
+    var b0 = ptr_get_byte(ptr)
+    if b0 == 45 { neg = 1; i = 1 }
+    if b0 == 43 { i = 1 }
+    var v = 0
+    while true {
+        var b = ptr_get_byte(iadd(ptr, i))
+        if b == 0 { break }
+        if b < 48 || b > 57 { break }
+        v = v * 10 + (b - 48)
+        i = i + 1
+    }
+    if neg == 1 { v = 0 - v }
+    return v
+}
+
 fn trace_list_track_enabled() {
     if g_trace_list_track == 1 { return true }
     var v = native_envp_get_value_ptr("OREN_TRACE_LIST_TRACK")
@@ -178,6 +197,11 @@ fn trace_list_track_enabled() {
     if ptr_get_byte(v) != 0 && ptr_get_byte(v) != 48 {
         g_trace_list_track = 1
         g_trace_list_track_cap = 1024
+        var cap_ptr = native_envp_get_value_ptr("OREN_TRACE_LIST_TRACK_CAP")
+        if cap_ptr != 0 {
+            var cap = native_parse_int_cstr(cap_ptr)
+            if cap > 0 { g_trace_list_track_cap = cap }
+        }
         return true
     }
     g_trace_list_track = 0

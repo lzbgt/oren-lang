@@ -150,10 +150,21 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - `alloc_churn` panics: `list_reserve on non-list` after `[alloc_site] total=1536 list_header=768 list_buf=768`.
        New trace: stage=1 (node missing), magic matches, count/cap/buf=0, list_debug node=0,
        arena_depth=0 (no arena node or range) (local run log: `build/logs/bench_run_alloc_churn_20260220_132405/oren_native/run_0.log`).
-   - New: `OREN_TRACE_LIST_TRACK=1` logs alloc-index insert/remove events for list/list_int headers (cap=1024, rolling, 2026-02-20).
+   - New: `OREN_TRACE_LIST_TRACK=1` logs alloc-index insert/remove events for list/list_int headers
+     (cap=1024; override with `OREN_TRACE_LIST_TRACK_CAP`, rolling, 2026-02-20).
+   - New: native GC safepoints now spill callee‑saved registers to the stack before calling
+     `oren_gc_safepoint` (arm64: x19–x28; x64: rbx/rbp/rdi/rsi/r12–r15) so conservative stack scans
+     see register‑held pointers (rolling, 2026-02-20).
    - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=1000`,
      `OREN_TRACE_LIST_TRACK=1`, runs=1): `alloc_churn` completes at 5.035s with list_header=1024, list_buf=1024
      (see `alloc_churn_darwin_arm64_20260220_134105.md`; list_track logs in `build/logs/bench_run_alloc_churn_20260220_133619/oren_native/run_0.log`).
+   - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=1000`,
+     `OREN_TRACE_LIST_TRACK=1`, `OREN_TRACE_LIST_TRACK_CAP=5000`, runs=1): `alloc_churn` 5.872s with list_header=1024, list_buf=1024
+     (see `alloc_churn_darwin_arm64_20260220_134542.md`; list_track log has no `remove` lines:
+     `build/logs/bench_run_alloc_churn_20260220_134542/oren_native/run_0.log`).
+   - Trace alloc-site (arm64, 2026-02-20, same env, runs=1): `alloc_churn` 5.752s with list_header=1024, list_buf=1024
+     (see `alloc_churn_darwin_arm64_20260220_135825.md`; list_track log has no `remove` lines:
+     `build/logs/bench_run_alloc_churn_20260220_135825/oren_native/run_0.log`).
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, native only):
      - `alloc_churn` 1620× C, `alloc_drop` 60.18× C (C baseline from `benchmarks/RESULTS_LATEST.md`; no improvement vs default).
      - `OREN_BENCH_TRACE_ARENA=1` emitted no `[arena]` lines for alloc_churn/alloc_drop (likely no arena push/pop in these benches).
