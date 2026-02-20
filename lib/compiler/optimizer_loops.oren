@@ -819,6 +819,51 @@ fn _opt_sink_list_lit_into_if(block) {
     var changed = false
     var i = 0
     while i < oren_list_len(ss) {
+        if i + 2 < oren_list_len(ss) {
+            var st0 = ss[i]
+            var st1 = ss[i + 1]
+            var nxt0 = ss[i + 2]
+            if st0 != nil && st1 != nil && nxt0 != nil && (st0["type"] == "Var" || st0["type"] == "Assign") &&
+               (st1["type"] == "Var" || st1["type"] == "Assign") && nxt0["type"] == "If" {
+                var nm0 = opthelp.is_ident(st0["name"])
+                var nm1 = opthelp.is_ident(st1["name"])
+                if nm0 != nil && nm1 != nil && _opt_str_eq(nm0, nm1) != true {
+                    if _opt_expr_is_list_lit(st1["value"]) == true &&
+                       _opt_expr_is_side_effect_free(st1["value"]) == true &&
+                       _opt_expr_has_ident(st1["value"], nm0) == true &&
+                       _opt_expr_is_side_effect_free(st0["value"]) == true {
+                        if _opt_expr_has_ident(nxt0["cond"], nm1) != true &&
+                           _opt_expr_has_ident(nxt0["cond"], nm0) != true &&
+                           (nxt0["alt"] == nil || _opt_stmt_has_ident(nxt0["alt"], nm1) != true) &&
+                           (nxt0["alt"] == nil || _opt_stmt_has_ident(nxt0["alt"], nm0) != true) &&
+                           _opt_block_has_ident_after(block, i + 3, nm1) != true &&
+                           _opt_block_has_ident_after(block, i + 3, nm0) != true &&
+                           _opt_stmt_has_ident(nxt0["consq"], nm1) == true {
+                            var consq0 = nxt0["consq"]
+                            if consq0 == nil || consq0["type"] != "Block" {
+                                var nb0 = ast.new_block(nxt0["token"])
+                                if consq0 != nil { nb0["stmts"] = [consq0] }
+                                consq0 = nb0
+                                nxt0["consq"] = consq0
+                            }
+                            var css0 = consq0["stmts"]
+                            if css0 == nil { css0 = []; consq0["stmts"] = css0 }
+                            var new_css0 = [st0, st1]
+                            var ci0 = 0
+                            while ci0 < oren_list_len(css0) {
+                                oren_list_push(new_css0, css0[ci0])
+                                ci0 = ci0 + 1
+                            }
+                            consq0["stmts"] = new_css0
+                            oren_list_push(out, nxt0)
+                            changed = true
+                            i = i + 3
+                            continue
+                        }
+                    }
+                }
+            }
+        }
         if i + 1 < oren_list_len(ss) {
             var st = ss[i]
             var nxt = ss[i + 1]

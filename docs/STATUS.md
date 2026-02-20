@@ -157,6 +157,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      avoiding GC buffer allocations for arena lists (rolling, 2026-02-20).
    - New: list-literal sinking now recurses into nested blocks (loops/ifs/switch cases) so branch-local lists inside
      loops are elided when unused on false paths (rolling, 2026-02-20).
+   - New: list-literal sinking now hoists a single preceding side-effect-free temp used only by the list literal
+     into the same branch (rolling, 2026-02-20).
    - New run (arm64, 2026-02-20, post recursive list-literal sinking, runs=5, warmups=1):
      - `alloc_churn` median 3.404s native; `alloc_drop` median 0.145s native
        (see `alloc_churn_darwin_arm64_20260220_124216.md`, `alloc_drop_darwin_arm64_20260220_124239.md`).
@@ -199,7 +201,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
       (see `alloc_churn_darwin_arm64_20260220_123817.md`, `alloc_drop_darwin_arm64_20260220_123822.md`).
    - New run (arm64, 2026-02-20, recursive list-literal sinking + `OREN_ARENA_AUTO_LOOP=1`, runs=5, warmups=1):
      - `alloc_churn` median 3.532s native; `alloc_drop` median 0.148s native
-       (see `alloc_churn_darwin_arm64_20260220_124354.md`, `alloc_drop_darwin_arm64_20260220_124417.md`).
+      (see `alloc_churn_darwin_arm64_20260220_124354.md`, `alloc_drop_darwin_arm64_20260220_124417.md`).
+   - New run (arm64, 2026-02-20, temp+list-literal sinking, runs=5, warmups=1):
+     - `alloc_churn` median 3.406s native; `alloc_drop` median 0.145s native
+       (see `alloc_churn_darwin_arm64_20260220_124753.md`, `alloc_drop_darwin_arm64_20260220_124816.md`).
    - Design + implement loop‑local arenas for list/list_int (compiler escape analysis + arena tracking table).
    - Native runtime scaffolding: `oren_arena_push/pop` + `oren_arena_new_list(_int)` (compiler lowering pending).
    - Arena cap: `OREN_ARENA_CAP_BYTES` spills allocations back to GC when exceeded.
