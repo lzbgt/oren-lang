@@ -1327,8 +1327,28 @@ fn _opt_list_init_add(inits, name, stmt) {
     if inits == nil || name == nil || stmt == nil { return nil }
     var xs = inits[name]
     if xs == nil { xs = []; inits[name] = xs }
-    oren_list_push(xs, stmt)
+    oren_list_push(xs, {"stmt": stmt, "elements": nil})
     return nil
+}
+
+fn _opt_list_init_add_elems(inits, name, stmt, elements) {
+    if inits == nil || name == nil || stmt == nil { return nil }
+    var xs = inits[name]
+    if xs == nil { xs = []; inits[name] = xs }
+    oren_list_push(xs, {"stmt": stmt, "elements": elements})
+    return nil
+}
+
+fn _opt_list_lit_safe_int_elements(expr, safe_ints) {
+    if expr == nil || expr["type"] != "Array" { return nil }
+    var els = expr["elements"]
+    if els == nil { return [] }
+    var i = 0
+    while i < oren_list_len(els) {
+        if _opt_is_safe_int_expr(els[i], safe_ints) != true { return nil }
+        i = i + 1
+    }
+    return els
 }
 
 fn _opt_lower_int_only_lists_in_block(block) {
@@ -1346,11 +1366,22 @@ fn _opt_lower_int_only_lists_in_block(block) {
         if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
             var nm = opthelp.is_ident(st["name"])
             if nm != nil {
-                if _opt_is_empty_list_lit(st["value"]) {
+                var init_call = _opt_call_name(st["value"])
+                if init_call == "oren_new_list_int" {
                     if list_state[nm] == nil { list_state[nm] = true }
-                    _opt_list_init_add(list_inits, nm, st)
                 } else {
-                    _opt_list_state_mark_unsafe(list_state, nm)
+                    var lit_elems = _opt_list_lit_safe_int_elements(st["value"], safe_ints)
+                    if lit_elems != nil {
+                        if list_state[nm] == nil { list_state[nm] = true }
+                        _opt_list_init_add_elems(list_inits, nm, st, lit_elems)
+                    } else if st["value"] != nil && st["value"]["type"] == "Array" {
+                        _opt_list_state_mark_unsafe(list_state, nm)
+                    } else if _opt_is_empty_list_lit(st["value"]) {
+                        if list_state[nm] == nil { list_state[nm] = true }
+                        _opt_list_init_add(list_inits, nm, st)
+                    } else {
+                        _opt_list_state_mark_unsafe(list_state, nm)
+                    }
                 }
                 if _opt_is_safe_int_expr(st["value"], safe_ints) { safe_ints[nm] = true }
                 else { safe_ints[nm] = false }
@@ -1359,28 +1390,55 @@ fn _opt_lower_int_only_lists_in_block(block) {
         i = i + 1
     }
 
-    for nm2 in list_inits {
-        if _opt_list_state_is_safe(list_state, nm2) {
-            var xs2 = list_inits[nm2]
-            if xs2 != nil {
-                var i2 = 0
-                while i2 < oren_list_len(xs2) {
-                    var st2 = xs2[i2]
-                    if st2 != nil {
-                        st2["value"] = ast.new_call(nil,
-                            {"type": "Identifier", "token": nil, "value": "oren_new_list_int"},
-                            [{"type": "Integer", "token": nil, "value": "0"}])
+    var out = []
+    var j = 0
+    while j < oren_list_len(ss) {
+        var stj = ss[j]
+        var rewritten = false
+        if stj != nil && (stj["type"] == "Var" || stj["type"] == "Assign") {
+            var nmj = opthelp.is_ident(stj["name"])
+            if nmj != nil && _opt_list_state_is_safe(list_state, nmj) {
+                var xsj = list_inits[nmj]
+                if xsj != nil {
+                    var k = 0
+                    while k < oren_list_len(xsj) {
+                        var info = xsj[k]
+                        if info != nil && info["stmt"] == stj {
+                            var elemsj = info["elements"]
+                            var cap = 0
+                            if elemsj != nil { cap = oren_list_len(elemsj) }
+                            stj["value"] = ast.new_call(nil,
+                                {"type": "Identifier", "token": nil, "value": "oren_new_list_int"},
+                                [{"type": "Integer", "token": nil, "value": oren_int_to_string(cap)}])
+                            oren_list_push(out, stj)
+                            if elemsj != nil {
+                                var ei = 0
+                                while ei < oren_list_len(elemsj) {
+                                    var push_call = ast.new_call(nil,
+                                        {"type": "Identifier", "token": nil, "value": "oren_list_int_push"},
+                                        [{"type": "Identifier", "token": nil, "value": nmj}, elemsj[ei]])
+                                    oren_list_push(out, ast.new_expr_stmt(nil, push_call))
+                                    ei = ei + 1
+                                }
+                            }
+                            rewritten = true
+                            break
+                        }
+                        k = k + 1
                     }
-                    i2 = i2 + 1
                 }
             }
         }
+        if rewritten != true { oren_list_push(out, stj) }
+        j = j + 1
     }
 
-    var j = 0
-    while j < oren_list_len(ss) {
-        _opt_rewrite_list_int_stmt(ss[j], list_state)
-        j = j + 1
+    block["stmts"] = out
+
+    var j2 = 0
+    while j2 < oren_list_len(out) {
+        _opt_rewrite_list_int_stmt(out[j2], list_state)
+        j2 = j2 + 1
     }
     return nil
 }
