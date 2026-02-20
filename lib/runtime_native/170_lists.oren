@@ -316,6 +316,15 @@ fn native_list_reserve_panic(list, new_cap, stage) {
         print("trace: list_reserve node=" + oren_int_to_string(node) +
               " kind=" + oren_int_to_string(ptr_get(iadd(node, 16))))
     }
+    var arena_node = native_arena_find_node_nolock(list)
+    var in_arena = 0
+    if g_arena_base != 0 && list >= g_arena_base && list < g_arena_limit { in_arena = 1 }
+    print("trace: list_reserve arena_depth=" + oren_int_to_string(g_arena_depth) +
+          " arena_node=" + oren_int_to_string(arena_node) +
+          " arena_base=" + oren_int_to_string(g_arena_base) +
+          " arena_ptr=" + oren_int_to_string(g_arena_ptr) +
+          " arena_limit=" + oren_int_to_string(g_arena_limit) +
+          " arena_range=" + oren_int_to_string(in_arena))
     if list != 0 && list >= 4096 {
         print("trace: list_reserve magic=" + oren_int_to_string(ptr_get(iadd(list, 24))) +
               " want=" + oren_int_to_string(list_magic()))
