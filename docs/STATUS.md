@@ -173,6 +173,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Trace alloc-site (arm64, 2026-02-20, same env, runs=1): `alloc_drop` 0.609s with list_header=821, list_buf=2
      (see `alloc_drop_darwin_arm64_20260220_140749.md`; list_track log has no `remove` lines:
      `build/logs/bench_run_alloc_drop_20260220_140749/oren_native/run_0.log`).
+   - Trace alloc-site (arm64, 2026-02-20, `OREN_GC_REUSE_BLOCKS=1`, `OREN_GC_REUSE_LISTS=0`, same env, runs=1):
+     `alloc_drop` 75.897s with list_header=26, list_buf=0 (see `alloc_drop_darwin_arm64_20260220_140954.md`);
+     list_track log now shows many `remove` lines (see `build/logs/bench_run_alloc_drop_20260220_140954/oren_native/run_0.log`).
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, native only):
      - `alloc_churn` 1620× C, `alloc_drop` 60.18× C (C baseline from `benchmarks/RESULTS_LATEST.md`; no improvement vs default).
      - `OREN_BENCH_TRACE_ARENA=1` emitted no `[arena]` lines for alloc_churn/alloc_drop (likely no arena push/pop in these benches).
