@@ -2261,6 +2261,7 @@ fn native_gc_collect() {
     var sweep_buf = 0
     var sweep_raw = 0
     var sweep_other = 0
+    var sweep_rebuild_index = 0
     if trace_on {
         sweep_t0 = oren_time_now_ns()
     }
@@ -2389,12 +2390,15 @@ fn native_gc_collect() {
             }
             if p != 0 && p >= 4096 {
                 // Prevent stale alloc-index hits for freed objects (reuse mode only).
-                if g_gc_reuse_blocks != 0 {
-                    native_alloc_index_remove_ptr(p)
-                }
+                // Bulk-rebuild the index once per sweep to avoid per-free hash probes.
+                if g_gc_reuse_blocks != 0 { sweep_rebuild_index = 1 }
             }
         }
         cur_sweep = next_node
+    }
+
+    if sweep_rebuild_index != 0 {
+        native_alloc_index_rebuild_live()
     }
 
     if trace_on {

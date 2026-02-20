@@ -186,6 +186,17 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `alloc_drop` 15.729s with list_header=1423, list_buf=4 (see `alloc_drop_darwin_arm64_20260220_141832.md`);
      alloc_index_remove counts ≈5700 per sweep with avg ~1–2µs and spikes to ~12–17µs
      (log: `build/logs/bench_run_alloc_drop_20260220_141832/oren_native/run_0.log`).
+   - New: alloc-index cleanup during GC sweep now defers to a bulk rebuild when reuse blocks are enabled
+     (avoids per-free remove probes; rolling, 2026-02-20).
+   - Trace alloc-site (arm64, 2026-02-20, `OREN_GC_REUSE_BLOCKS=1`, `OREN_GC_REUSE_LISTS=0`,
+     `OREN_TRACE_ALLOC_INDEX=1`, `OREN_TRACE_ALLOC_INDEX_REMOVE_TIME=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=10000`, runs=1):
+     `alloc_drop` 15.275s with list_header=1417, list_buf=4 (see `alloc_drop_darwin_arm64_20260220_142335.md`);
+     alloc_index_remove count=0; alloc_index rebuilds ~34–39µs
+     (log: `build/logs/bench_run_alloc_drop_20260220_142335/oren_native/run_0.log`).
+   - Trace alloc-site (arm64, 2026-02-20, same env, runs=1):
+     `alloc_churn` 10.282s with list_header=4979, list_buf=4979 (see `alloc_churn_darwin_arm64_20260220_142427.md`);
+     alloc_index_remove count=0; alloc_index rebuilds ~67–73µs
+     (log: `build/logs/bench_run_alloc_churn_20260220_142427/oren_native/run_0.log`).
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, native only):
      - `alloc_churn` 1620× C, `alloc_drop` 60.18× C (C baseline from `benchmarks/RESULTS_LATEST.md`; no improvement vs default).
      - `OREN_BENCH_TRACE_ARENA=1` emitted no `[arena]` lines for alloc_churn/alloc_drop (likely no arena push/pop in these benches).

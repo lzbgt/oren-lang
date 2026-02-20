@@ -1,0 +1,132 @@
+{
+  "meta": {
+    "timestamp": "20260220_142427",
+    "host": "Bruce-Mac",
+    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu_brand": "Apple M2 Pro",
+    "cpu_cores": "10",
+    "mem_bytes": "17179869184",
+    "git_rev": "cb554a2ebab07336146d3adc484738429c8956db",
+    "c_compiler": "cc",
+    "runs": 1,
+    "warmups": 0,
+    "program": "alloc_churn",
+    "output": "199990000",
+    "output_check": false,
+    "save_stdout": true,
+    "skip_build": false,
+    "rss_enabled": false,
+    "skip_obc": false,
+    "env_overrides": {
+      "all": {},
+      "c": {},
+      "oren_c": {},
+      "oren_native": {
+        "OREN_GC_REUSE_BLOCKS": "1",
+        "OREN_GC_REUSE_LISTS": "0",
+        "OREN_TRACE_ALLOC_INDEX": "1",
+        "OREN_TRACE_ALLOC_INDEX_REMOVE_TIME": "1",
+        "OREN_TRACE_ALLOC_SITE": "1",
+        "OREN_GC_AUTO": "1",
+        "OREN_GC_ALLOC_THRESHOLD": "10000"
+      },
+      "oren_obc": {},
+      "build_all": {},
+      "build_oren": {}
+    }
+  },
+  "results": {
+    "c": {
+      "runs": [
+        0.003523999999742955
+      ],
+      "median_s": 0.003523999999742955,
+      "mean_s": 0.003523999999742955,
+      "min_s": 0.003523999999742955,
+      "max_s": 0.003523999999742955
+    },
+    "oren_c": {
+      "runs": [
+        0.030451708007603884
+      ],
+      "median_s": 0.030451708007603884,
+      "mean_s": 0.030451708007603884,
+      "min_s": 0.030451708007603884,
+      "max_s": 0.030451708007603884
+    },
+    "oren_native": {
+      "runs": [
+        10.281764749990543
+      ],
+      "median_s": 10.281764749990543,
+      "mean_s": 10.281764749990543,
+      "min_s": 10.281764749990543,
+      "max_s": 10.281764749990543
+    },
+    "oren_obc": {
+      "runs": [
+        0.16277354198973626
+      ],
+      "median_s": 0.16277354198973626,
+      "mean_s": 0.16277354198973626,
+      "min_s": 0.16277354198973626,
+      "max_s": 0.16277354198973626
+    }
+  },
+  "alloc_site": {
+    "oren_native": {
+      "runs": [
+        {
+          "total": 10000,
+          "list_header": 5000,
+          "list_int_header": 0,
+          "list_buf": 5000,
+          "list_int_buf": 0
+        },
+        {
+          "total": 9958,
+          "list_header": 4979,
+          "list_int_header": 0,
+          "list_buf": 4979,
+          "list_int_buf": 0
+        },
+        {
+          "total": 9958,
+          "list_header": 4979,
+          "list_int_header": 0,
+          "list_buf": 4979,
+          "list_int_buf": 0
+        },
+        {
+          "total": 9958,
+          "list_header": 4979,
+          "list_int_header": 0,
+          "list_buf": 4979,
+          "list_int_buf": 0
+        },
+        {
+          "total": 126,
+          "list_header": 63,
+          "list_int_header": 0,
+          "list_buf": 63,
+          "list_int_buf": 0
+        }
+      ],
+      "median": {
+        "total": 9958,
+        "list_header": 4979,
+        "list_int_header": 0,
+        "list_buf": 4979,
+        "list_int_buf": 0
+      },
+      "mean": {
+        "total": 8000,
+        "list_header": 4000,
+        "list_int_header": 0,
+        "list_buf": 4000,
+        "list_int_buf": 0
+      }
+    }
+  }
+}
