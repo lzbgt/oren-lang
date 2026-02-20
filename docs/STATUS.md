@@ -82,7 +82,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New: `OREN_GC_REUSE_MAPS=1` / `OREN_GC_REUSE_STRUCTS=1` allow reuse for map/struct headers (rolling guardrail).
    - New: `OREN_GC_REUSE_ZERO=1` zero-fills reused blocks by default when reuse is enabled (set `OREN_GC_REUSE_ZERO=0` to disable).
    - New: `OREN_GC_REUSE_SCAN_CAP=<n>` limits the free-list scan length during reuse (0 = unbounded).
-   - New: `OREN_TRACE_GC_REUSE=1` now reports `scan_steps` and `scan_cap_hits` to quantify free-list scan cost.
+   - New: `OREN_TRACE_GC_REUSE=1` now reports `scan_steps`, `scan_cap_hits`, and `scan_steps_cap`
+     to quantify free-list scan cost under a cap.
    - New: `OREN_GC_REUSE_BUCKETS=1` enables size-bucketed free lists (<=64/<=256/<=1024/>1024 bytes).
    - New: `OREN_TRACE_GC_REUSE_VERBOSE=1` logs capped reuse hits (cap via `OREN_TRACE_GC_REUSE_VERBOSE_CAP`).
    - New: `OREN_TRACE_GC_FREED_LISTS=1` records freed list pointers; `OREN_TRACE_GC_FREED_LISTS_CAP=<n>` controls ring size.
@@ -247,6 +248,15 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Trace reuse (arm64, 2026-02-20, same env, output check disabled): `alloc_churn` 13.245s with gc_reuse
      scan_steps min=5.6k, max=19.7M, avg=9.9M across 40 sweeps
      (see `alloc_churn_darwin_arm64_20260220_145934.md`; log: `build/logs/bench_run_alloc_churn_20260220_145934/oren_native/run_0.log`).
+   - Trace reuse (arm64, 2026-02-20, reuse blocks + buckets on, `OREN_GC_REUSE_SCAN_CAP=32`,
+     `OREN_GC_AUTO=1`, `OREN_GC_ALLOC_THRESHOLD=1000`, `OREN_TRACE_GC_REUSE=1`, output check disabled):
+     `alloc_drop` 6.812s with gc_reuse scan_steps min=369, max=36.6k, avg=35.1k; scan_steps_cap
+     min=429, max=36.9k, avg=34.5k; scan_cap_hits min=12, max=1114, avg=1041 across 72 sweeps
+     (see `alloc_drop_darwin_arm64_20260220_150730.md`; log: `build/logs/bench_run_alloc_drop_20260220_150730/oren_native/run_0.log`).
+   - Trace reuse (arm64, 2026-02-20, same env, output check disabled): `alloc_churn` 7.687s with gc_reuse
+     scan_steps min=375, max=65.5k, avg=62.1k; scan_steps_cap min=429, max=65.3k, avg=60.4k;
+     scan_cap_hits min=12, max=1975, avg=1828 across 40 sweeps
+     (see `alloc_churn_darwin_arm64_20260220_150745.md`; log: `build/logs/bench_run_alloc_churn_20260220_150745/oren_native/run_0.log`).
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, native only):
      - `alloc_churn` 1620× C, `alloc_drop` 60.18× C (C baseline from `benchmarks/RESULTS_LATEST.md`; no improvement vs default).
      - `OREN_BENCH_TRACE_ARENA=1` emitted no `[arena]` lines for alloc_churn/alloc_drop (likely no arena push/pop in these benches).

@@ -60,6 +60,7 @@ var g_gc_reuse_guard_live_count = 0
 var g_gc_reuse_guard_bad_list_count = 0
 var g_gc_reuse_scan_steps = 0
 var g_gc_reuse_scan_cap_hits = 0
+var g_gc_reuse_scan_steps_at_cap = 0
 // Freed-list debug ring (optional; set via OREN_TRACE_GC_FREED_LISTS).
 var g_freed_list_ptrs = 0
 var g_freed_list_cap = 0
@@ -1115,7 +1116,9 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
     var cur = ptr_get(head_ptr)
     var scan_left = g_gc_reuse_scan_cap
     var scan_capped = scan_left > 0
+    var scan_steps = 0
     while cur != 0 {
+        scan_steps = scan_steps + 1
         if trace_reuse { g_gc_reuse_scan_steps = g_gc_reuse_scan_steps + 1 }
         if scan_capped {
             if scan_left <= 0 { break }
@@ -1289,6 +1292,7 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
     }
     if scan_capped && scan_left <= 0 {
         if trace_reuse { g_gc_reuse_scan_cap_hits = g_gc_reuse_scan_cap_hits + 1 }
+        if trace_reuse { g_gc_reuse_scan_steps_at_cap = g_gc_reuse_scan_steps_at_cap + scan_steps }
     }
     return 0
 }
@@ -2525,6 +2529,7 @@ fn native_gc_collect() {
             " hit_bytes=" + oren_int_to_string(g_gc_reuse_hit_bytes) +
             " scan_steps=" + oren_int_to_string(g_gc_reuse_scan_steps) +
             " scan_cap_hits=" + oren_int_to_string(g_gc_reuse_scan_cap_hits) +
+            " scan_steps_cap=" + oren_int_to_string(g_gc_reuse_scan_steps_at_cap) +
             " guard_live=" + oren_int_to_string(g_gc_reuse_guard_live_count) +
             " guard_bad_list=" + oren_int_to_string(g_gc_reuse_guard_bad_list_count))
         g_gc_reuse_try_count = 0
@@ -2533,6 +2538,7 @@ fn native_gc_collect() {
         g_gc_reuse_hit_bytes = 0
         g_gc_reuse_scan_steps = 0
         g_gc_reuse_scan_cap_hits = 0
+        g_gc_reuse_scan_steps_at_cap = 0
         g_gc_reuse_guard_live_count = 0
         g_gc_reuse_guard_bad_list_count = 0
     }
