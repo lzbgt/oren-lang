@@ -62,7 +62,7 @@ Baseline reference: `benchmarks/RESULTS_LATEST.md` (M2 Pro, 2026-02-20).
 Weights reflect expected impact on C parity and breadth of affected code.
 
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
-   - Baseline (arm64 native, 2026-02-20): `loop_sum` 3.42× C, `dot_product` 9.97× C.
+   - Baseline (arm64 native, 2026-02-20): `loop_sum` 3.42× C, `dot_product` 1258.73× C.
    - Expand inty propagation and arithmetic fast paths.
    - Split runtime init vs steady-state cost and quantify the init gap (see `benchmarks/RESULTS_LATEST.md` notes).
    - Const-divisor `%` is now inlined for literal/const RHS (arm64 + x64).
@@ -73,7 +73,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
-   - Baseline (arm64 native, 2026-02-20): `alloc_churn` 21.05× C, `alloc_drop` 33.60× C.
+   - Baseline (arm64 native, 2026-02-20): `alloc_churn` 1555.84× C, `alloc_drop` 58.99× C.
    - Fix and enable reuse paths (`OREN_GC_REUSE_BLOCKS`) when correct.
    - Add allocation-site counters for `alloc_churn`/`alloc_drop` to pinpoint dominant allocations.
    - New: `OREN_TRACE_ALLOC_SITE=1` reports list/list_int header+buffer sites (ids 1..4; see `lib/runtime_native/170_lists.oren`).
@@ -172,7 +172,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
 
 3) **W4 - List reserve + unchecked push** (M)
-   - Baseline (arm64 native, 2026-02-20): `array_sum` 5.12× C, `multi_list_push_int` 2.56× C.
+   - Baseline (arm64 native, 2026-02-20): `array_sum` 772.52× C, `multi_list_push_int` 3.15× C.
    - Extend bounds propagation for reserve/unchecked push.
    - Treat `oren_new_list(0)` as list-literal for reserve insertion (loop bound -> reserve).
    - Reserve insertion now descends into nested loops with outer list literals and adds list literal length to the reserve amount when known.
@@ -190,7 +190,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: fixtures pass; no backend-only semantics.
 
 5) **W3 - SIMD/typed-buffer parity on native (x64 + arm64)** (M)
-    - Baseline (arm64 native, 2026-02-20): `dot_product_int` 3.59× C.
+    - Baseline (arm64 native, 2026-02-20): `dot_product_int` 4.38× C.
     - SSE2 baseline on x64; scalar equivalence gated.
     - Wire list_int dot loops to SIMD kernels (or typed-buffer views) where safe.
     - arm64 native fast list_int dot loops unroll by 2 when lists are unique.
