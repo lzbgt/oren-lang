@@ -155,6 +155,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `assign_not_dominate`) plus `candidates=0` when no list allocs are seen (rolling, 2026-02-20).
    - New: list_reserve/list_int_reserve now allocate buffers from the arena when the list header is arena-tracked,
      avoiding GC buffer allocations for arena lists (rolling, 2026-02-20).
+   - New: list-literal sinking now recurses into nested blocks (loops/ifs/switch cases) so branch-local lists inside
+     loops are elided when unused on false paths (rolling, 2026-02-20).
+   - New run (arm64, 2026-02-20, post recursive list-literal sinking, runs=5, warmups=1):
+     - `alloc_churn` median 3.404s native; `alloc_drop` median 0.145s native
+       (see `alloc_churn_darwin_arm64_20260220_124216.md`, `alloc_drop_darwin_arm64_20260220_124239.md`).
    - New trace (arm64, 2026-02-20, manual compile with `OREN_TRACE_ARENA_LOOPS=1`):
      - `alloc_churn`: outer loop wraps (`safe_vars=1`, `rewrite=1`); inner loop shows `candidates=0` then `skip=no_arena_alloc`.
      - `alloc_drop`: main loop drops list literal `l` as `unsafe_use` (escapes via `keep`), then `skip=no_arena_alloc`.

@@ -892,7 +892,46 @@ fn _opt_sink_list_lit_into_if(block) {
 }
 
 fn sink_list_lit_into_if(block) {
-    return _opt_sink_list_lit_into_if(block)
+    if block == nil || block["type"] != "Block" { return false }
+    var changed = _opt_sink_list_lit_into_if(block)
+    var ss = block["stmts"]
+    if ss == nil { return changed }
+    var i = 0
+    while i < oren_list_len(ss) {
+        var st = ss[i]
+        if st != nil {
+            var t = st["type"]
+            if t == "While" || t == "For" {
+                if st["body"] != nil && st["body"]["type"] == "Block" {
+                    if sink_list_lit_into_if(st["body"]) { changed = true }
+                }
+            } else if t == "If" {
+                if st["consq"] != nil && st["consq"]["type"] == "Block" {
+                    if sink_list_lit_into_if(st["consq"]) { changed = true }
+                }
+                if st["alt"] != nil && st["alt"]["type"] == "Block" {
+                    if sink_list_lit_into_if(st["alt"]) { changed = true }
+                }
+            } else if t == "Switch" {
+                var cases = st["cases"]
+                if cases != nil {
+                    var ci = 0
+                    while ci < oren_list_len(cases) {
+                        var c = cases[ci]
+                        if c != nil && c["body"] != nil && c["body"]["type"] == "Block" {
+                            if sink_list_lit_into_if(c["body"]) { changed = true }
+                        }
+                        ci = ci + 1
+                    }
+                }
+                if st["default"] != nil && st["default"]["type"] == "Block" {
+                    if sink_list_lit_into_if(st["default"]) { changed = true }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return changed
 }
 
 fn _opt_stmt_is_new_list_assign(stmt, name) {
