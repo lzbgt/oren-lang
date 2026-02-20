@@ -257,6 +257,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
      scan_steps min=375, max=65.5k, avg=62.1k; scan_steps_cap min=429, max=65.3k, avg=60.4k;
      scan_cap_hits min=12, max=1975, avg=1828 across 40 sweeps
      (see `alloc_churn_darwin_arm64_20260220_150745.md`; log: `build/logs/bench_run_alloc_churn_20260220_150745/oren_native/run_0.log`).
+   - New run (arm64, 2026-02-20, arena auto-loop default on for native, runs=1):
+     `alloc_churn` 0.406s, `alloc_drop` 0.176s
+     (see `alloc_churn_darwin_arm64_20260220_151926.md`, `alloc_drop_darwin_arm64_20260220_151923.md`).
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, native only):
      - `alloc_churn` 1620× C, `alloc_drop` 60.18× C (C baseline from `benchmarks/RESULTS_LATEST.md`; no improvement vs default).
      - `OREN_BENCH_TRACE_ARENA=1` emitted no `[arena]` lines for alloc_churn/alloc_drop (likely no arena push/pop in these benches).
@@ -268,6 +271,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New: C backend defines arena push/pop/new_list fallbacks (GC allocs) so auto-loop builds don't fail (rolling, 2026-02-20).
    - New: arena auto-loop wrapping is now gated to the native backend via optimizer config to avoid injecting
      arena calls into C/bytecode builds (rolling, 2026-02-20).
+   - New: arena auto-loop is enabled by default for native builds (set `OREN_ARENA_AUTO_LOOP=0` to disable).
+   - New: long-lived arena bound default lowered to 1024 iterations (override via `OREN_ARENA_LONG_LIVED_BOUND`).
    - New: arena-loop trace now reports candidate rejection reasons (`unsafe_use`, `used_after_loop`,
      `assign_not_dominate`) plus `candidates=0` when no list allocs are seen (rolling, 2026-02-20).
    - New: list_reserve/list_int_reserve now allocate buffers from the arena when the list header is arena-tracked,

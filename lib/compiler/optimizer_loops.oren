@@ -1286,7 +1286,12 @@ fn _opt_stmt_contains_arena_push_pop(stmt) {
 }
 
 fn _opt_arena_auto_enabled() {
-    return oren_env("OREN_ARENA_AUTO_LOOP") != nil
+    var v = oren_env("OREN_ARENA_AUTO_LOOP")
+    if v == nil { return true }
+    if _opt_str_eq(v, "0") { return false }
+    if _opt_str_eq(v, "false") { return false }
+    if _opt_str_eq(v, "off") { return false }
+    return true
 }
 
 fn _opt_arena_per_iter_enabled() {
@@ -1707,7 +1712,7 @@ var OREN_ARENA_LONG_LIVED_BOUND_LIMIT = -1
 
 fn _opt_arena_long_lived_bound_limit() {
     if OREN_ARENA_LONG_LIVED_BOUND_LIMIT >= 0 { return OREN_ARENA_LONG_LIVED_BOUND_LIMIT }
-    var limit = 1000000
+    var limit = 1024
     var v = oren_env("OREN_ARENA_LONG_LIVED_BOUND")
     if v != nil && v != "" {
         var parsed = intparse.parse_int_lit(v)

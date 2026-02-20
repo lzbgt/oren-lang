@@ -1,0 +1,69 @@
+{
+  "meta": {
+    "timestamp": "20260220_151926",
+    "host": "Bruce-Mac",
+    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu_brand": "Apple M2 Pro",
+    "cpu_cores": "10",
+    "mem_bytes": "17179869184",
+    "git_rev": "1154b5a7662c794154ed13cc8a770627c0af5aae",
+    "c_compiler": "cc",
+    "runs": 1,
+    "warmups": 1,
+    "program": "alloc_churn",
+    "output": "199990000",
+    "output_check": true,
+    "save_stdout": false,
+    "skip_build": false,
+    "rss_enabled": false,
+    "skip_obc": false,
+    "env_overrides": {
+      "all": {},
+      "c": {},
+      "oren_c": {},
+      "oren_native": {},
+      "oren_obc": {},
+      "build_all": {},
+      "build_oren": {}
+    }
+  },
+  "results": {
+    "c": {
+      "runs": [
+        0.002768625010503456
+      ],
+      "median_s": 0.002768625010503456,
+      "mean_s": 0.002768625010503456,
+      "min_s": 0.002768625010503456,
+      "max_s": 0.002768625010503456
+    },
+    "oren_c": {
+      "runs": [
+        0.03060095800901763
+      ],
+      "median_s": 0.03060095800901763,
+      "mean_s": 0.03060095800901763,
+      "min_s": 0.03060095800901763,
+      "max_s": 0.03060095800901763
+    },
+    "oren_native": {
+      "runs": [
+        0.4055726670194417
+      ],
+      "median_s": 0.4055726670194417,
+      "mean_s": 0.4055726670194417,
+      "min_s": 0.4055726670194417,
+      "max_s": 0.4055726670194417
+    },
+    "oren_obc": {
+      "runs": [
+        0.1656317499873694
+      ],
+      "median_s": 0.1656317499873694,
+      "mean_s": 0.1656317499873694,
+      "min_s": 0.1656317499873694,
+      "max_s": 0.1656317499873694
+    }
+  }
+}
