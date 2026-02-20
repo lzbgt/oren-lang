@@ -1235,15 +1235,18 @@ fn native_gc_list_header_ok(ptr, kind, chunk_size) {
     if len < 0 || cap < 0 { return 0 }
     if len > cap { return 0 }
     if cap > 1073741824 { return 0 } // guard against corrupted caps
+    var inline_buf = iadd(ptr, 32)
     if cap == 0 {
         if buf != 0 { return 0 }
+        if chunk_size != 32 { return 0 }
     } else {
         if buf == 0 { return 0 }
         if buf < 4096 { return 0 }
-        var inline_buf = iadd(ptr, 32)
         if buf == inline_buf {
             var need = 32 + cap * 8
-            if chunk_size < need { return 0 }
+            if chunk_size != need { return 0 }
+        } else {
+            if chunk_size != 32 { return 0 }
         }
     }
     return 1
