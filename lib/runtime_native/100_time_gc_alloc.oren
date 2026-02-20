@@ -1010,6 +1010,7 @@ fn native_try_reuse(size) {
             }
             if g_gc_reuse_lists != 0 && (cur_kind == 2 || cur_kind == list_int_kind()) {
                 if native_gc_list_header_ok(chunk_ptr, cur_kind, chunk_size) == 0 {
+                    native_gc_list_header_dump(chunk_ptr, chunk_size)
                     if prev == 0 {
                         global_set_free_blocks(next)
                     } else {
@@ -1246,6 +1247,24 @@ fn native_gc_list_header_ok(ptr, kind, chunk_size) {
         }
     }
     return 1
+}
+
+fn native_gc_list_header_dump(ptr, chunk_size) {
+    if g_trace_gc_reuse_bad_list == 0 { return 0 }
+    if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
+    if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
+    g_trace_gc_reuse_bad_list_cap = g_trace_gc_reuse_bad_list_cap - 1
+    var len = ptr_get(iadd(ptr, 0))
+    var cap = ptr_get(iadd(ptr, 8))
+    var buf = ptr_get(iadd(ptr, 16))
+    var magic = ptr_get(iadd(ptr, 24))
+    print("[gc_reuse_bad_list] ptr=" + oren_int_to_string(ptr) +
+        " chunk=" + oren_int_to_string(chunk_size) +
+        " len=" + oren_int_to_string(len) +
+        " cap=" + oren_int_to_string(cap) +
+        " buf=" + oren_int_to_string(buf) +
+        " magic=" + oren_int_to_string(magic))
+    return 0
 }
 
 var g_panicking = 0
