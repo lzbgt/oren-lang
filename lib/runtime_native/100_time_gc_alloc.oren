@@ -140,6 +140,8 @@ var g_alloc_index_rebuild_ns = 0
 var g_alloc_index_rebuild_allocs = 0
 var g_alloc_index_rebuild_static = 0
 var g_alloc_index_probe_exhausted_count = 0
+var g_alloc_index_remove_time_total_ns = 0
+var g_alloc_index_remove_time_count = 0
 
 // List tracking diagnostics (optional).
 var g_trace_list_track = -1
@@ -152,6 +154,16 @@ var g_track_alloc_time_list_ns = 0
 var g_track_alloc_time_list_count = 0
 var g_track_alloc_time_other_ns = 0
 var g_track_alloc_time_other_count = 0
+
+fn trace_alloc_index_remove_finish(t0) {
+    if g_trace_alloc_index_remove_time == 0 { return 0 }
+    if t0 <= 0 { return 0 }
+    var dt = oren_time_now_ns() - t0
+    if dt < 0 { return 0 }
+    g_alloc_index_remove_time_total_ns = g_alloc_index_remove_time_total_ns + dt
+    g_alloc_index_remove_time_count = g_alloc_index_remove_time_count + 1
+    return 0
+}
 
 fn native_alloc_index_mmap_table(bytes) {
     // IMPORTANT (Tier‑1 correctness):
@@ -590,17 +602,24 @@ fn native_alloc_index_put_node(node) {
 fn native_alloc_index_remove_ptr(ptr) {
     if ptr == 0 || ptr < 4096 { return 0 }
     if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+    var trace_remove = g_trace_alloc_index_remove_time != 0
+    var t0 = 0
+    if trace_remove { t0 = oren_time_now_ns() }
     var mask = g_alloc_index_cap - 1
     var idx = native_alloc_index_hash(ptr) & mask
     var rem = g_alloc_index_cap
     while true {
         if rem <= 0 {
             g_alloc_index_probe_exhausted = 1
+            trace_alloc_index_remove_finish(t0)
             return 0
         }
         rem = rem - 1
         var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
-        if slot == 0 { return 0 }
+        if slot == 0 {
+            trace_alloc_index_remove_finish(t0)
+            return 0
+        }
         if slot - g_alloc_index_tomb != 0 {
             if slot < 4096 {
                 idx = iadd(idx, 1) & mask
@@ -617,11 +636,13 @@ fn native_alloc_index_remove_ptr(ptr) {
                 }
                 ptr_set(iadd(g_alloc_index_ptr, idx << 3), g_alloc_index_tomb)
                 if g_alloc_index_len > 0 { g_alloc_index_len = g_alloc_index_len - 1 }
+                trace_alloc_index_remove_finish(t0)
                 return 0
             }
         }
         idx = iadd(idx, 1) & mask
     }
+    trace_alloc_index_remove_finish(t0)
     return 0
 }
 
@@ -2440,6 +2461,17 @@ fn native_gc_collect() {
         g_alloc_index_rebuild_allocs = 0
         g_alloc_index_rebuild_static = 0
         g_alloc_index_probe_exhausted_count = 0
+    }
+    if g_trace_alloc_index_remove_time != 0 {
+        var avg = 0
+        if g_alloc_index_remove_time_count > 0 {
+            avg = g_alloc_index_remove_time_total_ns / g_alloc_index_remove_time_count
+        }
+        print("[alloc_index_remove] count=" + oren_int_to_string(g_alloc_index_remove_time_count) +
+            " total_ns=" + oren_int_to_string(g_alloc_index_remove_time_total_ns) +
+            " avg_ns=" + oren_int_to_string(avg))
+        g_alloc_index_remove_time_total_ns = 0
+        g_alloc_index_remove_time_count = 0
     }
     if g_trace_track_alloc_time != 0 {
         print("[track_alloc] total_count=" + oren_int_to_string(g_track_alloc_time_total_count) +
