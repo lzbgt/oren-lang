@@ -151,6 +151,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New run (arm64, 2026-02-20, compile-time auto-loop + trace after backend gating, runs=1, warmups=0):
      - `alloc_churn` 0.361s native; arena trace allocs=40000, push=1, pop=1, epoch_reset=1.
      - `arena_loop` trace shows bound=20000, long_lived=0, per_iter=0; C/bytecode builds skip=backend.
+   - New: const-int bound detection now resolves simple identifier aliases (e.g., `limit = fallback`)
+     but aborts if any intervening control-flow assigns to the bound (rolling, 2026-02-20).
    - New run (arm64, 2026-02-20, compile-time auto-loop + trace on alloc_drop, runs=1, warmups=0):
      - `alloc_drop` 0.171s native; arena_loop reports bound missing / skip=no_arena_alloc (no arena rewrites).
    - Design + implement loop‑local arenas for list/list_int (compiler escape analysis + arena tracking table).

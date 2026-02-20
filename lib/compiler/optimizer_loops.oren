@@ -994,6 +994,22 @@ fn _opt_is_const_int_expr(expr) {
     return expr != nil && expr["type"] == "Integer"
 }
 
+fn _opt_const_int_value_from_expr(expr, block, idx, self_name) {
+    if expr == nil { return nil }
+    if _opt_is_const_int_expr(expr) == true {
+        var v0 = intparse.parse_int_lit(expr["value"])
+        if oren_is_err(v0) { return nil }
+        return v0
+    }
+    if expr["type"] == "Identifier" {
+        var nm = expr["value"]
+        if nm == nil { return nil }
+        if self_name != nil && _opt_str_eq(nm, self_name) { return nil }
+        return _opt_block_const_int_value_before(block, idx, nm)
+    }
+    return nil
+}
+
 fn _opt_expr_is_list_len_call(expr) {
     if expr == nil || expr["type"] != "Call" { return nil }
     var fn_expr = expr["fn"]
@@ -1083,7 +1099,8 @@ fn _opt_block_const_int_before(block, idx, name) {
                     " eq=" + oren_int_to_string(eq))
             }
             if nm != nil && _opt_str_eq(nm, name) {
-                var is_const = _opt_is_const_int_expr(st["value"])
+                var is_const = false
+                if _opt_const_int_value_from_expr(st["value"], block, i, name) != nil { is_const = true }
                 if oren_env("OREN_TRACE_ARENA_LOOPS") != nil {
                     var vtype = "nil"
                     if st["value"] != nil { vtype = st["value"]["type"] }
@@ -1098,7 +1115,8 @@ fn _opt_block_const_int_before(block, idx, name) {
         } else if st != nil && st["type"] == "Set" {
             var left = st["left"]
             if left != nil && left["type"] == "Identifier" && _opt_str_eq(left["value"], name) {
-                var is_const2 = _opt_is_const_int_expr(st["value"])
+                var is_const2 = false
+                if _opt_const_int_value_from_expr(st["value"], block, i, name) != nil { is_const2 = true }
                 if oren_env("OREN_TRACE_ARENA_LOOPS") != nil {
                     var vtype2 = "nil"
                     if st["value"] != nil { vtype2 = st["value"]["type"] }
@@ -1110,6 +1128,8 @@ fn _opt_block_const_int_before(block, idx, name) {
                 }
                 return is_const2
             }
+        } else if st != nil {
+            if _opt_stmt_assigns_ident(st, name) { return false }
         }
         i = i - 1
     }
@@ -1130,19 +1150,19 @@ fn _opt_block_const_int_value_before(block, idx, name) {
         if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
             var nm = opthelp.is_ident(st["name"])
             if nm != nil && _opt_str_eq(nm, name) {
-                if _opt_is_const_int_expr(st["value"]) != true { return nil }
-                var parsed = intparse.parse_int_lit(st["value"]["value"])
-                if oren_is_err(parsed) { return nil }
-                return parsed
+                var v0 = _opt_const_int_value_from_expr(st["value"], block, i, name)
+                if v0 == nil { return nil }
+                return v0
             }
         } else if st != nil && st["type"] == "Set" {
             var left = st["left"]
             if left != nil && left["type"] == "Identifier" && _opt_str_eq(left["value"], name) {
-                if _opt_is_const_int_expr(st["value"]) != true { return nil }
-                var parsed2 = intparse.parse_int_lit(st["value"]["value"])
-                if oren_is_err(parsed2) { return nil }
-                return parsed2
+                var v1 = _opt_const_int_value_from_expr(st["value"], block, i, name)
+                if v1 == nil { return nil }
+                return v1
             }
+        } else if st != nil {
+            if _opt_stmt_assigns_ident(st, name) { return nil }
         }
         i = i - 1
     }
