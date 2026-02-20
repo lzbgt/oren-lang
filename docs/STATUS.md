@@ -78,12 +78,17 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Add allocation-site counters for `alloc_churn`/`alloc_drop` to pinpoint dominant allocations.
    - New: `OREN_TRACE_ALLOC_SITE=1` reports list/list_int header+buffer sites (ids 1..4; see `lib/runtime_native/170_lists.oren`).
    - New: `OREN_GC_REUSE_LISTS=1` allows reuse for list/list_int headers when `OREN_GC_REUSE_BLOCKS=1` (rolling guardrail).
+     - Rolling safety: list reuse is disabled when `OREN_GC_AUTO=1` unless `OREN_GC_REUSE_LISTS_UNSAFE=1`.
    - New: `OREN_GC_REUSE_MAPS=1` / `OREN_GC_REUSE_STRUCTS=1` allow reuse for map/struct headers (rolling guardrail).
+   - New: `OREN_GC_REUSE_ZERO=1` zero-fills reused blocks by default when reuse is enabled (set `OREN_GC_REUSE_ZERO=0` to disable).
+   - GC init now registers the main thread for stack scanning to avoid missing roots during auto-GC reuse tests.
    - New: `OREN_TRACE_GC_REUSE=1` prints reuse tries/hits/misses at GC sweep.
    - Reuse experiment (arm64, 2026-02-20, reuse flags enabled during native run):
      - `alloc_churn` 769.01× C, `alloc_drop` 1190.02× C (see `benchmarks/results/alloc_*_20260220_075738.md`).
    - Reuse trace (arm64, 2026-02-20, `OREN_GC_AUTO=1`, `OREN_GC_ALLOC_THRESHOLD=10000`, reuse flags enabled):
-     - `alloc_churn` segfaults during GC reuse; last trace: tries=10001 hits=3 misses=10001 hit_bytes=5248.
+     - `alloc_churn` segfaults when list reuse is forced (`OREN_GC_REUSE_LISTS_UNSAFE=1`); last trace: tries=10001 hits=3 misses=10001 hit_bytes=5248.
+     - `alloc_churn` runs when list reuse is guarded off (auto-GC) with reuse blocks only:
+       tries=9989 hits≈4987 misses≈5005 hit_bytes≈5.11 MiB (see `benchmarks/results/alloc_churn_darwin_arm64_20260220_083057.md`).
      - `alloc_drop` (runs=1) 12.13s with GC reuse traces (see `benchmarks/results/alloc_drop_darwin_arm64_20260220_081737.md`).
    - Bench harness supports `OREN_BENCH_TRACE_ALLOC_SITE=1` (native) to capture alloc-site counts in benchmark stdout logs (forces warmups=0; dump happens at exit; use `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD` if you want GC-triggered dumps).
    - When trace alloc-site is enabled, benchmark result JSON records `alloc_site` counts + medians.

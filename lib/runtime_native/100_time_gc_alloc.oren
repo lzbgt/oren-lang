@@ -972,6 +972,13 @@ fn native_try_reuse(size) {
             continue
         }
         if chunk_size >= size {
+            if g_gc_reuse_zero != 0 && size > 0 {
+                var zi = 0
+                while zi < size {
+                    ptr_set_byte(iadd(chunk_ptr, zi), 0)
+                    zi = zi + 1
+                }
+            }
             // Unlink from free list.
             if prev == 0 {
                 global_set_free_blocks(next)
