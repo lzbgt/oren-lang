@@ -1055,6 +1055,27 @@ fn native_try_reuse(size) {
             ptr_set(iadd(cur, 40), native_node_magic())
             global_set_allocs(cur)
             native_alloc_index_put_node(cur)
+            if g_gc_reuse_blocks != 0 {
+                var idx_node = native_alloc_index_get(chunk_ptr)
+                if idx_node != cur {
+                    if prev == 0 {
+                        global_set_free_blocks(next)
+                    } else {
+                        ptr_set(iadd(prev, 32), next)
+                    }
+                    // Recycle node back to free_nodes and avoid returning a mismatched pointer.
+                    ptr_set(cur, 0)
+                    ptr_set(iadd(cur, 8), 48)
+                    ptr_set(iadd(cur, 16), 0)
+                    ptr_set(iadd(cur, 24), 0)
+                    ptr_set(iadd(cur, 40), native_node_magic())
+                    ptr_set(iadd(cur, 32), global_get_free_nodes())
+                    global_set_free_nodes(cur)
+                    if trace_reuse { g_gc_reuse_guard_bad_list_count = g_gc_reuse_guard_bad_list_count + 1 }
+                    cur = next
+                    continue
+                }
+            }
 
             var out = chunk_ptr
             release_lock()
