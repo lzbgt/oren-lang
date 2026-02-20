@@ -165,6 +165,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - `alloc_drop` 0.158s native (single run; compare to prior 0.166–0.171s).
    - New run (arm64, 2026-02-20, post list-literal sinking, runs=5, warmups=0):
      - `alloc_drop` median 0.156s native; mean 0.156s (see `alloc_drop_darwin_arm64_20260220_115810.md`).
+   - New run (arm64, 2026-02-20, post list-literal assign scoping, runs=5, warmups=0):
+     - `alloc_drop` median 0.155s native; mean 0.155s (see `alloc_drop_darwin_arm64_20260220_120356.md`).
    - Design + implement loop‑local arenas for list/list_int (compiler escape analysis + arena tracking table).
    - Native runtime scaffolding: `oren_arena_push/pop` + `oren_arena_new_list(_int)` (compiler lowering pending).
    - Arena cap: `OREN_ARENA_CAP_BYTES` spills allocations back to GC when exceeded.
