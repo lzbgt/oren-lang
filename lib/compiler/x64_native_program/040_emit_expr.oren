@@ -698,6 +698,14 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
         var nm = fn_expr["value"]
         var nm_len = 0
         if nm != nil { nm_len = oren_string_len(nm) }
+        if nm == "oren_gc_safepoint" {
+            if args == nil || oren_list_len(args) == 0 {
+                if expr["spread"] == nil {
+                    _emit_gc_safepoint_call_x64(ctx)
+                    return nil
+                }
+            }
+        }
 
         // PERF (x64 self-host builds):
         // Most compiler-internal calls (encoder helpers, backend emitters, etc) are *not* `oren_*`.

@@ -132,6 +132,7 @@ fn native_expr_chunk_call(ctx, expr) {
             }
     
             var fn_name = fn_expr["value"]
+            var args = expr["args"]
             // If the identifier is a local/global, it's a variable call => treat as indirect call.
             //
             // IMPORTANT (Tier‑1 native + injected runtime):
@@ -151,6 +152,14 @@ fn native_expr_chunk_call(ctx, expr) {
                     // Runtime-object cache (and some compilation modes) seed `ctx["functions"]` with
                     // already-emitted function entry points. Treat those names as direct-callable.
                     is_fn = true
+                }
+            }
+            if is_fn == true && fn_name == "oren_gc_safepoint" {
+                if args == nil || oren_list_len(args) == 0 {
+                    if expr["spread"] == nil {
+                        native_emit_gc_safepoint_call_expr(ctx)
+                        return true
+                    }
                 }
             }
             if ctx["locals"][fn_name] != nil || (ctx["globals"][fn_name] != nil && is_fn != true) {
@@ -268,9 +277,6 @@ fn native_expr_chunk_call(ctx, expr) {
                 return true
             }
     
-
-    var args = expr["args"]
-
     if native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) { return true }
     if native_call_chunk_040_lowering_d(ctx, fn_name, expr, args) { return true }
     if native_call_chunk_050_lowering_e(ctx, fn_name, expr, args) { return true }
