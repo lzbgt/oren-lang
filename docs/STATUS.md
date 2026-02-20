@@ -110,6 +110,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - Reuse guard now enforces strict header sizing: inline-buffer headers require chunk==32+cap*8; out-of-line headers require chunk==32 (rolling, 2026-02-20).
      - Strict header sizing guard still segfaults; guard_bad_list=276 (local run, 2026-02-20).
      - Reuse now rejects alloc-index mismatches for reused pointers (rolling, 2026-02-20).
+     - Alloc-index guard run still segfaults; guard_bad_list=275 (local run, 2026-02-20).
      - `alloc_churn` runs when list reuse is guarded off (auto-GC) with reuse blocks only:
        tries=9989 hits≈4987 misses≈5005 hit_bytes≈5.11 MiB (see `benchmarks/results/alloc_churn_darwin_arm64_20260220_083057.md`).
      - `alloc_drop` (runs=1) 12.13s with GC reuse traces (see `benchmarks/results/alloc_drop_darwin_arm64_20260220_081737.md`).
