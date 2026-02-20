@@ -155,6 +155,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      but aborts if any intervening control-flow assigns to the bound (rolling, 2026-02-20).
    - New run (arm64, 2026-02-20, compile-time auto-loop + trace on alloc_drop, runs=1, warmups=0):
      - `alloc_drop` 0.171s native; arena_loop reports bound missing / skip=no_arena_alloc (no arena rewrites).
+   - New run (arm64, 2026-02-20, compile-time auto-loop + trace after alias-bound fix, runs=1, warmups=0):
+     - `alloc_drop` 0.166s native; arena_loop now detects bound=10000 but still skip=no_arena_alloc.
    - Design + implement loop‑local arenas for list/list_int (compiler escape analysis + arena tracking table).
    - Native runtime scaffolding: `oren_arena_push/pop` + `oren_arena_new_list(_int)` (compiler lowering pending).
    - Arena cap: `OREN_ARENA_CAP_BYTES` spills allocations back to GC when exceeded.
