@@ -128,17 +128,15 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - Reuse now rejects alloc-index mismatches for reused pointers (rolling, 2026-02-20).
      - Alloc-index guard run still segfaults; guard_bad_list=275 (local run, 2026-02-20).
      - `alloc_churn` runs when list reuse is guarded off (auto-GC) with reuse blocks only:
-       tries=9989 hits≈4987 misses≈5005 hit_bytes≈5.11 MiB (see `benchmarks/results/alloc_churn_darwin_arm64_20260220_083057.md`).
-     - `alloc_drop` (runs=1) 12.13s with GC reuse traces (see `benchmarks/results/alloc_drop_darwin_arm64_20260220_081737.md`).
+       tries=9989 hits≈4987 misses≈5005 hit_bytes≈5.11 MiB (local run, 2026-02-20).
+     - `alloc_drop` (runs=1) 12.13s with GC reuse traces (local run, 2026-02-20).
    - Bench harness supports `OREN_BENCH_TRACE_ALLOC_SITE=1` (native) to capture alloc-site counts in benchmark stdout logs (forces warmups=0; dump happens at exit; use `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD` if you want GC-triggered dumps).
    - When trace alloc-site is enabled, benchmark result JSON records `alloc_site` counts + medians.
    - Bench harness supports `OREN_BENCH_TRACE_ARENA=1` (native) to capture arena alloc/spill counters; results JSON records `arena_trace` medians (optional cap via `OREN_BENCH_TRACE_ARENA_CAP_BYTES`).
    - Bench harness supports `OREN_BENCH_SAVE_RUN_LOGS=1` (per-run stdout logs) and `OREN_BENCH_RUN_LOG_TEE=1` (tee to console) for trace-heavy runs like GC reuse.
    - Alloc-site snapshot (arm64, 2026-02-20): `alloc_churn` list_header=20k, list_buf=20k; `alloc_drop` list_header≈10011, list_buf≈31 (post list_int literal reserve).
-   - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, OBC/OREN_C skipped):
-     - `alloc_churn` 25.90× C, `alloc_drop` 38.26× C (see `benchmarks/RESULTS_LATEST.md`).
-   - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1`, OBC/OREN_C skipped):
-     - `alloc_churn` 24.82× C, `alloc_drop` 38.16× C (see `benchmarks/results/alloc_*_20260220_041633.md`).
+   - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, native only):
+     - `alloc_churn` 1620× C, `alloc_drop` 60.18× C (C baseline from `benchmarks/RESULTS_LATEST.md`; no improvement vs default).
    - Design + implement loop‑local arenas for list/list_int (compiler escape analysis + arena tracking table).
    - Native runtime scaffolding: `oren_arena_push/pop` + `oren_arena_new_list(_int)` (compiler lowering pending).
    - Arena cap: `OREN_ARENA_CAP_BYTES` spills allocations back to GC when exceeded.
