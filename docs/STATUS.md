@@ -93,6 +93,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - Verbose reuse hits show alternating kind=0 and kind=2 (list header) 32-byte chunks before crash
        (captured in local bench run logs).
      - Freed-list tracing (`OREN_TRACE_GC_FREED_LISTS=1`) did not catch a reuse-after-free before crash.
+     - Stack range tracing (`OREN_TRACE_GC_STACK_RANGES=1`) shows reuse-hit ptrs with in_stack=0.
      - `alloc_churn` runs when list reuse is guarded off (auto-GC) with reuse blocks only:
        tries=9989 hits≈4987 misses≈5005 hit_bytes≈5.11 MiB (see `benchmarks/results/alloc_churn_darwin_arm64_20260220_083057.md`).
      - `alloc_drop` (runs=1) 12.13s with GC reuse traces (see `benchmarks/results/alloc_drop_darwin_arm64_20260220_081737.md`).
