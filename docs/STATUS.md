@@ -73,7 +73,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
-   - Baseline (arm64 native, 2026-02-20): `alloc_churn` 1555.84× C, `alloc_drop` 58.99× C.
+   - Baseline (arm64 native, 2026-02-20): `alloc_churn` 48.57× C, `alloc_drop` 56.17× C.
    - Fix and enable reuse paths (`OREN_GC_REUSE_BLOCKS`) when correct.
    - Add allocation-site counters for `alloc_churn`/`alloc_drop` to pinpoint dominant allocations.
    - New: `OREN_TRACE_ALLOC_SITE=1` reports list/list_int header+buffer sites (ids 1..4; see `lib/runtime_native/170_lists.oren`).
@@ -257,9 +257,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
      scan_steps min=375, max=65.5k, avg=62.1k; scan_steps_cap min=429, max=65.3k, avg=60.4k;
      scan_cap_hits min=12, max=1975, avg=1828 across 40 sweeps
      (see `alloc_churn_darwin_arm64_20260220_150745.md`; log: `build/logs/bench_run_alloc_churn_20260220_150745/oren_native/run_0.log`).
-   - New run (arm64, 2026-02-20, arena auto-loop default on for native, runs=1):
-     `alloc_churn` 3.887s, `alloc_drop` 0.178s
-     (see `alloc_churn_darwin_arm64_20260220_153502.md`, `alloc_drop_darwin_arm64_20260220_153459.md`).
+   - New run (arm64, 2026-02-20, runs=5, warmups=1):
+     `alloc_churn` 0.131s (48.57× C), `alloc_drop` 0.160s (56.17× C)
+     (see `alloc_churn_darwin_arm64_20260220_154700.md`, `alloc_drop_darwin_arm64_20260220_154657.md`).
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, native only):
      - `alloc_churn` 1620× C, `alloc_drop` 60.18× C (C baseline from `benchmarks/RESULTS_LATEST.md`; no improvement vs default).
      - `OREN_BENCH_TRACE_ARENA=1` emitted no `[arena]` lines for alloc_churn/alloc_drop (likely no arena push/pop in these benches).
@@ -273,8 +273,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      arena calls into C/bytecode builds (rolling, 2026-02-20).
    - New: arena auto-loop is enabled by default for native builds (set `OREN_ARENA_AUTO_LOOP=0` to disable).
    - New: long-lived arena bound default lowered to 1024 iterations (override via `OREN_ARENA_LONG_LIVED_BOUND`).
-   - New: safe loop-local lists now rewrite `list_push` -> `list_push_unchecked` and insert a pre-loop
-     `list_reserve` when a constant push bound is detected (rolling, 2026-02-20).
+   - New: safe loop-local lists now insert a pre-loop `list_reserve` when a constant push bound is detected
+     (rolling, 2026-02-20).
    - New: list/list_int push paths allocate growth buffers from the arena when the list header is arena-tracked
      (rolling, 2026-02-20).
    - New: arena-loop trace now reports candidate rejection reasons (`unsafe_use`, `used_after_loop`,
@@ -375,8 +375,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Native array literal lowering now calls `oren_new_list(n)` (pre-reserve capacity).
    - Native list-literal lowering now uses `oren_list_push_unchecked` for element pushes.
    - Native list/list_int push intrinsics now call unchecked push on the grow slow-path to avoid duplicate validation.
-   - Reserve insertion now rewrites safe loop-local list.push to `oren_list_push_unchecked` when the list is created from a literal/new_list(0) and not reassigned in the loop body.
-   - List<int> loops now rewrite safe `list_int_push` to `oren_list_int_push_unchecked` when the pushed value is provably inty.
+   - Loop reserve insertion does not rewrite push calls (keeps the intrinsic fast path); it only adds `*_reserve` pre-loop.
    - List<int> reserve insertion now accepts int-only list literals (including empty literals).
    - Gate: native `array_sum` and `multi_list_push_int` <= 2x C.
 
