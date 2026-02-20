@@ -84,7 +84,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New: `OREN_TRACE_GC_REUSE_VERBOSE=1` logs capped reuse hits (cap via `OREN_TRACE_GC_REUSE_VERBOSE_CAP`).
    - New: `OREN_TRACE_GC_FREED_LISTS=1` records freed list pointers; `OREN_TRACE_GC_FREED_LISTS_CAP=<n>` controls ring size.
    - New: `OREN_TRACE_GC_STACK_RANGES=1` captures stack scan ranges per collection (cap via `OREN_TRACE_GC_STACK_RANGES_CAP`).
-   - Verbose reuse logs now include `in_roots` (root slots/global roots) alongside `in_stack`.
+   - Verbose reuse logs now include `in_roots` plus `root_kind` (1=gc_pin, 2=runtime roots, 3=global roots) and `root_idx`, alongside `in_stack`.
    - Reuse guard now restores free-list nodes that are still referenced by roots/stack; `[gc_reuse]` includes `guard_live`.
    - GC init now registers the main thread for stack scanning to avoid missing roots during auto-GC reuse tests.
    - New: `OREN_TRACE_GC_REUSE=1` prints reuse tries/hits/misses at GC sweep.
