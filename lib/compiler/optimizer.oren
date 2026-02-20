@@ -1355,7 +1355,7 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                     if fnv != nil && fnv["type"] == "Identifier" {
                         var fn_name = fnv["value"]
                         if fn_name == "oren_new_list_int" { list_int_new = true }
-                        if fn_name == "oren_new_list" {
+                        if fn_name == "oren_new_list" || fn_name == "oren_list_new_cap" {
                             list_lit = true
                             lit_len = 0
                             lit_int_safe = false

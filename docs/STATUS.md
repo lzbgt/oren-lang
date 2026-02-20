@@ -110,8 +110,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - List header trace (`OREN_TRACE_LIST_HEADER=1`, cap=50) emitted no `[list_hdr]` lines during alloc_churn, suggesting the hot path bypasses list runtime helpers (local run, 2026-02-20).
     - List trace now re-checks env after runtime init (uses `oren_env` + refresh even if cached off); `native_envp_get_value_ptr` falls back to argv when envp missing (rolling, 2026-02-20).
     - New alloc_churn trace (`OREN_TRACE_LIST_HEADER=1`, cap=20) shows `op=1` new_list, `op=3` reserve to cap=128, then `op=5` list_push_unchecked; no `op=4` fast-path list_push seen (local run, 2026-02-20).
-    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)` as a list constructor and
-      propagates list metadata across simple alias assignments, extending reserve/unchecked-push rewrites (rolling, 2026-02-20).
+    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)` and `oren_list_new_cap(cap)`
+      as list constructors and propagates list metadata across simple alias assignments, extending reserve/unchecked-push rewrites
+      (rolling, 2026-02-20).
     - Reuse + list trace run (arm64, 2026-02-20, reuse+trace flags): still segfaults; reuse summary
       tries=7951 hits=54 misses=7900 hit_bytes=57472 guard_bad_list=105. List trace shows only `op=1/3/5`;
       free-list headers still report len/cap=128 with chunk=32 (same corruption pattern).
@@ -171,6 +172,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - `alloc_drop` median 0.156s native; mean 0.156s (see `alloc_drop_darwin_arm64_20260220_115810.md`).
    - New run (arm64, 2026-02-20, post list-literal assign scoping, runs=5, warmups=0):
      - `alloc_drop` median 0.155s native; mean 0.155s (see `alloc_drop_darwin_arm64_20260220_120356.md`).
+   - New run (arm64, 2026-02-20, bench harness default, runs=5, warmups=1):
+     - `alloc_churn` median 3.409s native; `alloc_drop` median 0.145s native
+       (see `alloc_churn_darwin_arm64_20260220_121545.md`, `alloc_drop_darwin_arm64_20260220_121608.md`).
    - Design + implement loop‑local arenas for list/list_int (compiler escape analysis + arena tracking table).
    - Native runtime scaffolding: `oren_arena_push/pop` + `oren_arena_new_list(_int)` (compiler lowering pending).
    - Arena cap: `OREN_ARENA_CAP_BYTES` spills allocations back to GC when exceeded.
