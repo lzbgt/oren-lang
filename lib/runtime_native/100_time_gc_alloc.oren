@@ -141,6 +141,10 @@ var g_alloc_index_rebuild_allocs = 0
 var g_alloc_index_rebuild_static = 0
 var g_alloc_index_probe_exhausted_count = 0
 
+// List tracking diagnostics (optional).
+var g_trace_list_track = -1
+var g_trace_list_track_cap = 0
+
 // track_alloc timing (optional; gated by g_trace_track_alloc_time).
 var g_track_alloc_time_total_ns = 0
 var g_track_alloc_time_total_count = 0
@@ -165,6 +169,26 @@ fn native_alloc_index_mmap_table(bytes) {
     if q < 0 { exit(313) }
     if q < 4096 { exit(314) }
     return q
+}
+
+fn trace_list_track_enabled() {
+    if g_trace_list_track == 1 { return true }
+    var v = native_envp_get_value_ptr("OREN_TRACE_LIST_TRACK")
+    if v == 0 { return false }
+    if ptr_get_byte(v) != 0 && ptr_get_byte(v) != 48 {
+        g_trace_list_track = 1
+        g_trace_list_track_cap = 1024
+        return true
+    }
+    g_trace_list_track = 0
+    return false
+}
+
+fn trace_list_track_consume() {
+    if trace_list_track_enabled() != true { return 0 }
+    if g_trace_list_track_cap <= 0 { return 0 }
+    g_trace_list_track_cap = g_trace_list_track_cap - 1
+    return 1
 }
 
 fn native_alloc_index_hash(ptr) {
@@ -508,6 +532,14 @@ fn native_alloc_index_put_node(node) {
             if first_tomb >= 0 { idx = first_tomb }
             ptr_set(iadd(g_alloc_index_ptr, idx << 3), node)
             g_alloc_index_len = iadd(g_alloc_index_len, 1)
+            var kind = ptr_get(iadd(node, 16))
+            if kind == 2 || kind == list_int_kind() {
+                if trace_list_track_consume() != 0 {
+                    print("[list_track] index_put ptr=" + oren_int_to_string(ptr) +
+                          " kind=" + oren_int_to_string(kind) +
+                          " node=" + oren_int_to_string(node))
+                }
+            }
             return 0
         }
         if slot - g_alloc_index_tomb == 0 {
@@ -515,6 +547,14 @@ fn native_alloc_index_put_node(node) {
         } else {
             if ptr_get(slot) - ptr == 0 {
                 ptr_set(iadd(g_alloc_index_ptr, idx << 3), node)
+                var kind2 = ptr_get(iadd(node, 16))
+                if kind2 == 2 || kind2 == list_int_kind() {
+                    if trace_list_track_consume() != 0 {
+                        print("[list_track] index_put ptr=" + oren_int_to_string(ptr) +
+                              " kind=" + oren_int_to_string(kind2) +
+                              " node=" + oren_int_to_string(node))
+                    }
+                }
                 return 0
             }
         }
@@ -543,6 +583,14 @@ fn native_alloc_index_remove_ptr(ptr) {
                 continue
             }
             if ptr_get(slot) - ptr == 0 {
+                var kind = ptr_get(iadd(slot, 16))
+                if kind == 2 || kind == list_int_kind() {
+                    if trace_list_track_consume() != 0 {
+                        print("[list_track] remove ptr=" + oren_int_to_string(ptr) +
+                              " kind=" + oren_int_to_string(kind) +
+                              " node=" + oren_int_to_string(slot))
+                    }
+                }
                 ptr_set(iadd(g_alloc_index_ptr, idx << 3), g_alloc_index_tomb)
                 if g_alloc_index_len > 0 { g_alloc_index_len = g_alloc_index_len - 1 }
                 return 0
@@ -1470,6 +1518,16 @@ fn oren_track_alloc_new(ptr, size, kind) {
         native_alloc_index_put_node(node)
         if native_alloc_index_get(ptr) == 0 {
             native_alloc_index_rebuild_live()
+        }
+        if kind == 2 || kind == list_int_kind() {
+            if trace_list_track_consume() != 0 {
+                var hit = native_alloc_index_get(ptr)
+                print("[list_track] alloc ptr=" + oren_int_to_string(ptr) +
+                      " kind=" + oren_int_to_string(kind) +
+                      " size=" + oren_int_to_string(size) +
+                      " node=" + oren_int_to_string(node) +
+                      " idx_hit=" + oren_int_to_string(hit))
+            }
         }
     }
 
