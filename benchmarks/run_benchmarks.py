@@ -49,7 +49,7 @@ def _parse_env_overrides(raw):
     return out
 
 
-def _run(cmd, env=None, log_path=None, time_path=None):
+def _run(cmd, env=None, log_path=None, time_path=None, tee=False):
     start = time.perf_counter()
     if time_path:
         time_path.parent.mkdir(parents=True, exist_ok=True)
@@ -60,7 +60,18 @@ def _run(cmd, env=None, log_path=None, time_path=None):
     if log_path:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("w", encoding="utf-8") as f:
-            proc = subprocess.run(cmd, cwd=ROOT, env=env, stdout=f, stderr=subprocess.STDOUT, text=True)
+            proc = subprocess.run(
+                cmd,
+                cwd=ROOT,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            if proc.stdout:
+                f.write(proc.stdout)
+                if tee:
+                    print(proc.stdout, end="")
     else:
         proc = subprocess.run(cmd, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     dt = time.perf_counter() - start
@@ -131,18 +142,31 @@ def _parse_arena_output(text):
     return out
 
 
-def _time_cmd(cmd, runs, warmups, env=None, rss_enabled=False, rss_dir=None, collect_output=False):
+def _time_cmd(
+    cmd,
+    runs,
+    warmups,
+    env=None,
+    rss_enabled=False,
+    rss_dir=None,
+    collect_output=False,
+    run_log_path=None,
+    run_log_tee=False,
+):
     for _ in range(warmups):
         _run(cmd, env=env)
     times = []
     rss = []
     out_sample = None
     out_all = []
-    for _ in range(runs):
+    for run_idx in range(runs):
         time_path = None
         if rss_enabled and rss_dir is not None:
             time_path = rss_dir / f"time_{len(times)}.log"
-        dt, out = _run(cmd, env=env, time_path=time_path)
+        log_path = None
+        if run_log_path is not None:
+            log_path = run_log_path / f"run_{run_idx}.log"
+        dt, out = _run(cmd, env=env, time_path=time_path, log_path=log_path, tee=run_log_tee)
         times.append(dt)
         if rss_enabled:
             rss_bytes = _parse_rss_bytes(time_path)
@@ -220,6 +244,8 @@ class BenchConfig:
     output_check: bool
     skip_build: bool
     save_stdout: bool
+    save_run_logs: bool
+    run_log_tee: bool
     collect_output: bool
     skip_obc: bool
     skip_c: bool
@@ -333,6 +359,9 @@ def _run_one(program, cfg: BenchConfig):
     rss_results = {}
 
     env_base = os.environ.copy()
+    run_log_root = None
+    if cfg.save_run_logs:
+        run_log_root = LOG_DIR / f"bench_run_{program}_{ts}"
     suites = []
     if not cfg.skip_c:
         suites.append(("c", [str(c_bin), *cfg.bench_args], cfg.env_c))
@@ -355,6 +384,9 @@ def _run_one(program, cfg: BenchConfig):
         rss_dir = None
         if cfg.rss_enabled:
             rss_dir = LOG_DIR / f"bench_rss_{name}_{ts}"
+        run_log_path = None
+        if run_log_root is not None:
+            run_log_path = run_log_root / name
         times, rss, out = _time_cmd(
             cmd,
             runs=cfg.runs,
@@ -363,6 +395,8 @@ def _run_one(program, cfg: BenchConfig):
             rss_enabled=cfg.rss_enabled,
             rss_dir=rss_dir,
             collect_output=cfg.collect_output,
+            run_log_path=run_log_path,
+            run_log_tee=cfg.run_log_tee,
         )
         results[name] = {
             "runs": times,
@@ -595,6 +629,8 @@ def main():
     output_check = int(os.environ.get("OREN_BENCH_OUTPUT_CHECK", "1")) == 1
     skip_build = int(os.environ.get("OREN_BENCH_SKIP_BUILD", "0")) == 1
     save_stdout = int(os.environ.get("OREN_BENCH_SAVE_STDOUT", "0")) == 1
+    save_run_logs = int(os.environ.get("OREN_BENCH_SAVE_RUN_LOGS", "0")) == 1
+    run_log_tee = int(os.environ.get("OREN_BENCH_RUN_LOG_TEE", "0")) == 1
     skip_obc = int(os.environ.get("OREN_BENCH_SKIP_OBC", "0")) == 1
     skip_c = int(os.environ.get("OREN_BENCH_SKIP_C", "0")) == 1
     skip_oren_c = int(os.environ.get("OREN_BENCH_SKIP_OREN_C", "0")) == 1
@@ -639,6 +675,8 @@ def main():
         env_oren_native["OREN_TRACE_ARENA"] = "1"
         if trace_arena_cap:
             env_oren_native["OREN_ARENA_CAP_BYTES"] = trace_arena_cap
+    if run_log_tee and not save_run_logs:
+        save_run_logs = True
 
     collect_output = trace_alloc_site or trace_arena
     config = BenchConfig(
@@ -648,6 +686,8 @@ def main():
         output_check=output_check,
         skip_build=skip_build,
         save_stdout=save_stdout,
+        save_run_logs=save_run_logs,
+        run_log_tee=run_log_tee,
         collect_output=collect_output,
         skip_obc=skip_obc,
         skip_c=skip_c,
