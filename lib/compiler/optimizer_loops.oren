@@ -1152,28 +1152,6 @@ fn _opt_block_list_len_before(block, idx, name) {
     return nil
 }
 
-fn _opt_block_assign_before(block, idx, name) {
-    if block == nil || block["type"] != "Block" { return false }
-    if name == nil { return false }
-    var ss = block["stmts"]
-    if ss == nil { return false }
-    var i = idx - 1
-    while i >= 0 {
-        var st = ss[i]
-        if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
-            var nm = opthelp.is_ident(st["name"])
-            if nm != nil && nm == name { return true }
-        } else if st != nil && st["type"] == "Set" {
-            var left = st["left"]
-            if left != nil && left["type"] == "Identifier" && left["value"] == name {
-                return true
-            }
-        }
-        i = i - 1
-    }
-    return false
-}
-
 fn _opt_expr_has_list_len_mutation(expr, list_name) {
     if expr == nil || list_name == nil { return false }
     var t = expr["type"]
@@ -1313,7 +1291,6 @@ fn _opt_loop_has_simple_bound(block, idx, stmt) {
             if _opt_stmt_assigns_ident(stmt["post"], rn) { return false }
         }
         if _opt_block_const_int_before(block, idx, rn) { return true }
-        if _opt_block_assign_before(block, idx, rn) { return true }
         var list_name = _opt_block_list_len_before(block, idx, rn)
         if list_name != nil {
             if _opt_stmt_assigns_ident(stmt["body"], list_name) { return false }

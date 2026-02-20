@@ -120,6 +120,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - Reordered alloc-index removal to run after free-list dumps so list_debug can resolve nodes (rolling, 2026-02-20).
     - Corruption reproduces even with reuse disabled: `OREN_GC_REUSE_BLOCKS=0` still shows free-list headers
       with len/cap=128 and list_debug node_ptr/next but node_in_allocs=0, node_in_free_blocks=0 (arm64, 2026-02-20).
+    - New trace: `OREN_TRACE_LIST_CORRUPT=1` (cap via `OREN_TRACE_LIST_CORRUPT_CAP`) logs suspicious list headers
+      during reserve/push_unchecked (invalid magic or buf) and dumps list_debug state (rolling, 2026-02-20).
+    - List header reuse guard now treats chunk_size==32 as separate-buffer lists even if buf==list+32 (avoids false bad-list hits when allocator places buffers adjacent; rolling, 2026-02-20).
      - Reuse guard now enforces strict header sizing: inline-buffer headers require chunk==32+cap*8; out-of-line headers require chunk==32 (rolling, 2026-02-20).
      - Strict header sizing guard still segfaults; guard_bad_list=276 (local run, 2026-02-20).
      - Reuse now rejects alloc-index mismatches for reused pointers (rolling, 2026-02-20).
@@ -152,7 +155,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - `OREN_ARENA_PER_ITER=1` switches auto‑mode to per‑iteration push/pop for long‑lived loops.
    - `@oren.arena_iter` forces per‑iteration push/pop on a loop (even if auto mode is off).
    - Heuristic: loops without a simple literal upper bound default to per‑iteration mode;
-     const‑int bounds, prior locals, or `list_len` locals assigned before the loop are treated as bounded when not reassigned.
+     const‑int bounds (including prior locals assigned a literal) or `list_len` locals assigned before the loop
+     are treated as bounded when not reassigned.
      - New: const‑int bounds (including prior locals assigned a literal) and `list_len` locals of
        list literals >= `OREN_ARENA_LONG_LIVED_BOUND` (default 1,000,000) are treated as long‑lived
        (per‑iteration).
