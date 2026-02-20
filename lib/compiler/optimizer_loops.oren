@@ -181,6 +181,50 @@ fn _opt_expr_is_empty_list_lit(expr) {
     return _opt_expr_list_lit_len(expr) == 0
 }
 
+fn _opt_expr_is_side_effect_free(expr) {
+    if expr == nil { return true }
+    var t = expr["type"]
+    if t == "Integer" || t == "Float" || t == "String" || t == "Boolean" || t == "Nil" { return true }
+    if t == "Identifier" { return true }
+    if t == "Prefix" { return _opt_expr_is_side_effect_free(expr["right"]) }
+    if t == "Infix" {
+        if _opt_expr_is_side_effect_free(expr["left"]) != true { return false }
+        return _opt_expr_is_side_effect_free(expr["right"])
+    }
+    if t == "Array" {
+        var els = expr["elements"]
+        if els != nil {
+            var i = 0
+            while i < oren_list_len(els) {
+                if _opt_expr_is_side_effect_free(els[i]) != true { return false }
+                i = i + 1
+            }
+        }
+        return true
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        if ps != nil {
+            var i2 = 0
+            while i2 < oren_list_len(ps) {
+                var p = ps[i2]
+                if p != nil {
+                    if _opt_expr_is_side_effect_free(p["key"]) != true { return false }
+                    if _opt_expr_is_side_effect_free(p["value"]) != true { return false }
+                }
+                i2 = i2 + 1
+            }
+        }
+        return true
+    }
+    if t == "Index" {
+        if _opt_expr_is_side_effect_free(expr["left"]) != true { return false }
+        return _opt_expr_is_side_effect_free(expr["index"])
+    }
+    if t == "Member" { return _opt_expr_is_side_effect_free(expr["left"]) }
+    return false
+}
+
 fn _opt_expr_contains_new_list(expr) {
     if expr == nil { return false }
     var t = expr["type"]
@@ -765,6 +809,59 @@ fn _opt_block_has_ident_after(block, idx, name) {
         i = i + 1
     }
     return false
+}
+
+fn _opt_sink_list_lit_into_if(block) {
+    if block == nil || block["type"] != "Block" { return false }
+    var ss = block["stmts"]
+    if ss == nil { return false }
+    var out = []
+    var changed = false
+    var i = 0
+    while i < oren_list_len(ss) {
+        if i + 1 < oren_list_len(ss) {
+            var st = ss[i]
+            var nxt = ss[i + 1]
+            if st != nil && nxt != nil && (st["type"] == "Var" || st["type"] == "Assign") && nxt["type"] == "If" {
+                var nm = opthelp.is_ident(st["name"])
+                if nm != nil && _opt_expr_is_list_lit(st["value"]) == true && _opt_expr_is_side_effect_free(st["value"]) == true {
+                    if _opt_expr_has_ident(nxt["cond"], nm) != true &&
+                       (nxt["alt"] == nil || _opt_stmt_has_ident(nxt["alt"], nm) != true) &&
+                       _opt_block_has_ident_after(block, i + 2, nm) != true &&
+                       _opt_stmt_has_ident(nxt["consq"], nm) == true {
+                        var consq = nxt["consq"]
+                        if consq == nil || consq["type"] != "Block" {
+                            var nb = ast.new_block(nxt["token"])
+                            if consq != nil { nb["stmts"] = [consq] }
+                            consq = nb
+                            nxt["consq"] = consq
+                        }
+                        var css = consq["stmts"]
+                        if css == nil { css = []; consq["stmts"] = css }
+                        var new_css = [st]
+                        var ci = 0
+                        while ci < oren_list_len(css) {
+                            oren_list_push(new_css, css[ci])
+                            ci = ci + 1
+                        }
+                        consq["stmts"] = new_css
+                        oren_list_push(out, nxt)
+                        changed = true
+                        i = i + 2
+                        continue
+                    }
+                }
+            }
+        }
+        oren_list_push(out, ss[i])
+        i = i + 1
+    }
+    if changed { block["stmts"] = out }
+    return changed
+}
+
+fn sink_list_lit_into_if(block) {
+    return _opt_sink_list_lit_into_if(block)
 }
 
 fn _opt_stmt_is_new_list_assign(stmt, name) {

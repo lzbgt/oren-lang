@@ -157,6 +157,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - `alloc_drop` 0.171s native; arena_loop reports bound missing / skip=no_arena_alloc (no arena rewrites).
    - New run (arm64, 2026-02-20, compile-time auto-loop + trace after alias-bound fix, runs=1, warmups=0):
      - `alloc_drop` 0.166s native; arena_loop now detects bound=10000 but still skip=no_arena_alloc.
+   - New: optimizer sinks side-effect-free list literals into immediate `if` blocks when the list
+     is only used in the true branch, avoiding allocations on the false path (rolling, 2026-02-20).
+   - New run (arm64, 2026-02-20, post list-literal sinking, runs=1, warmups=0):
+     - `alloc_drop` 0.158s native (single run; compare to prior 0.166–0.171s).
    - Design + implement loop‑local arenas for list/list_int (compiler escape analysis + arena tracking table).
    - Native runtime scaffolding: `oren_arena_push/pop` + `oren_arena_new_list(_int)` (compiler lowering pending).
    - Arena cap: `OREN_ARENA_CAP_BYTES` spills allocations back to GC when exceeded.

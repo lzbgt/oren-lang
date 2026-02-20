@@ -2007,6 +2007,7 @@ fn lower_linked_program_in_place(linked) {
             _tco_function_in_place(ss[i]["expr"])
             if trace_opt && i == 0 { print("[opt] tco done") }
             optloops.lower_simple_for_in_block(ss[i]["expr"]["body"])
+            optloops.sink_list_lit_into_if(ss[i]["expr"]["body"])
             optloops.wrap_arena_loops_in_block(ss[i]["expr"]["body"])
             _opt_insert_list_reserve_in_block(ss[i]["expr"]["body"], nil, nil, nil, nil, nil)
             optconst.rewrite_const_mod_in_block(ss[i]["expr"]["body"], nil)
