@@ -747,6 +747,8 @@ var g_gc_reuse_structs = 0
 var g_gc_reuse_zero = 0
 // Optional: cap the free-list scan length during reuse (0 = unbounded).
 var g_gc_reuse_scan_cap = 0
+// Optional: size-bucketed free lists for reuse (default off).
+var g_gc_reuse_buckets = 0
 // Optional tracing: allocation kind counters between sweeps.
 var g_gc_trace_alloc_kind = 0
 // Optional tracing: alloc-index rebuilds/probe exhaustion.
@@ -809,6 +811,7 @@ fn native_runtime_init_gc_mode(default_enabled) {
     g_gc_reuse_structs = 0
     g_gc_reuse_zero = 0
     g_gc_reuse_scan_cap = 0
+    g_gc_reuse_buckets = 0
     g_gc_trace_alloc_kind = 0
     g_trace_alloc_index = 0
     g_trace_alloc_index_remove_time = 0
@@ -893,6 +896,12 @@ fn native_runtime_init_gc_mode(default_enabled) {
     if v_reuse_scan_cap != 0 {
         var scan_cap = native_parse_i64_dec_cstr_or_neg1(v_reuse_scan_cap)
         if scan_cap > 0 { g_gc_reuse_scan_cap = scan_cap }
+    }
+    var v_reuse_buckets = native_envp_get_value_ptr("OREN_GC_REUSE_BUCKETS")
+    if v_reuse_buckets != 0 {
+        if ptr_get_byte(v_reuse_buckets) != 0 && ptr_get_byte(v_reuse_buckets) != 48 {
+            g_gc_reuse_buckets = 1
+        }
     }
 
     var v_trace_alloc = native_envp_get_value_ptr("OREN_TRACE_GC_ALLOC_KIND")

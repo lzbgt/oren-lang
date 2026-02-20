@@ -134,6 +134,9 @@ var GLOBAL_OFF_ARGV = 48
 var GLOBAL_OFF_LOCK_RECURSE_COUNT = 56
 var GLOBAL_OFF_ENVP = 64
 var GLOBAL_OFF_FREE_BLOCKS = 72
+var GLOBAL_OFF_FREE_BLOCKS_64 = 448
+var GLOBAL_OFF_FREE_BLOCKS_256 = 456
+var GLOBAL_OFF_FREE_BLOCKS_1024 = 464
 var GLOBAL_OFF_CAPSULE_MODE = 80
 var GLOBAL_OFF_CAP_ALLOW_MASK = 88
 var GLOBAL_OFF_FS_ALLOW_PREFIXES_PTR = 96
@@ -199,6 +202,16 @@ fn global_set_free_nodes(v) { ptr_set(iadd(oren_globals(), 24), v) }
 
 fn global_get_free_blocks() { return ptr_get(iadd(oren_globals(), 72)) }
 fn global_set_free_blocks(v) { ptr_set(iadd(oren_globals(), 72), v) }
+fn global_get_free_blocks_64() { return ptr_get(iadd(oren_globals(), 448)) }
+fn global_set_free_blocks_64(v) { ptr_set(iadd(oren_globals(), 448), v) }
+fn global_get_free_blocks_256() { return ptr_get(iadd(oren_globals(), 456)) }
+fn global_set_free_blocks_256(v) { ptr_set(iadd(oren_globals(), 456), v) }
+fn global_get_free_blocks_1024() { return ptr_get(iadd(oren_globals(), 464)) }
+fn global_set_free_blocks_1024(v) { ptr_set(iadd(oren_globals(), 464), v) }
+fn global_free_blocks_ptr() { return iadd(oren_globals(), 72) }
+fn global_free_blocks_64_ptr() { return iadd(oren_globals(), 448) }
+fn global_free_blocks_256_ptr() { return iadd(oren_globals(), 456) }
+fn global_free_blocks_1024_ptr() { return iadd(oren_globals(), 464) }
 
 fn global_get_threads() { return ptr_get(iadd(oren_globals(), 32)) }
 fn global_set_threads(v) { ptr_set(iadd(oren_globals(), 32), v) }

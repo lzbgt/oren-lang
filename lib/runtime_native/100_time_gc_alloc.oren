@@ -1023,17 +1023,96 @@ fn native_try_reuse_node(size) {
     return 0
 }
 
-@oren.keep
-fn native_try_reuse(size) {
-    // Default-off gate: reuse is still rolling and must be explicitly enabled.
-    if g_gc_reuse_blocks == 0 { return 0 }
+fn native_free_blocks_bucket_for_size(size) {
+    if g_gc_reuse_buckets == 0 { return 3 }
+    if size <= 64 { return 0 }
+    if size <= 256 { return 1 }
+    if size <= 1024 { return 2 }
+    return 3
+}
+
+fn native_free_blocks_bucket_ptr(bucket) {
+    if bucket == 0 { return global_free_blocks_64_ptr() }
+    if bucket == 1 { return global_free_blocks_256_ptr() }
+    if bucket == 2 { return global_free_blocks_1024_ptr() }
+    return global_free_blocks_ptr()
+}
+
+fn native_free_blocks_push(node, chunk_size) {
     if oren_globals() == 0 { return 0 }
-    var trace_reuse = g_trace_gc_reuse != 0
-    if trace_reuse { g_gc_reuse_try_count = g_gc_reuse_try_count + 1 }
-    acquire_lock()
-    // Simple first-fit from the free list.
+    var bucket = native_free_blocks_bucket_for_size(chunk_size)
+    var head_ptr = native_free_blocks_bucket_ptr(bucket)
+    var head = ptr_get(head_ptr)
+    ptr_set(iadd(node, 32), head)
+    ptr_set(head_ptr, node)
+    return 0
+}
+
+fn native_free_blocks_remove_node_in_list(head_ptr, node) {
     var prev = 0
-    var cur = global_get_free_blocks()
+    var cur = ptr_get(head_ptr)
+    while cur != 0 {
+        var next = ptr_get(iadd(cur, 32))
+        if cur == node {
+            if prev == 0 {
+                ptr_set(head_ptr, next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            return 1
+        }
+        prev = cur
+        cur = next
+    }
+    return 0
+}
+
+fn native_free_blocks_remove_node(node) {
+    if g_gc_reuse_buckets == 0 {
+        return native_free_blocks_remove_node_in_list(global_free_blocks_ptr(), node)
+    }
+    if native_free_blocks_remove_node_in_list(global_free_blocks_64_ptr(), node) != 0 { return 1 }
+    if native_free_blocks_remove_node_in_list(global_free_blocks_256_ptr(), node) != 0 { return 1 }
+    if native_free_blocks_remove_node_in_list(global_free_blocks_1024_ptr(), node) != 0 { return 1 }
+    if native_free_blocks_remove_node_in_list(global_free_blocks_ptr(), node) != 0 { return 1 }
+    return 0
+}
+
+fn native_free_blocks_take_by_ptr_in_list(head_ptr, ptr) {
+    var prev = 0
+    var cur = ptr_get(head_ptr)
+    while cur != 0 {
+        var next = ptr_get(iadd(cur, 32))
+        if ptr_get(cur) == ptr {
+            if prev == 0 {
+                ptr_set(head_ptr, next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            return cur
+        }
+        prev = cur
+        cur = next
+    }
+    return 0
+}
+
+fn native_free_blocks_take_by_ptr(ptr) {
+    if g_gc_reuse_buckets == 0 {
+        return native_free_blocks_take_by_ptr_in_list(global_free_blocks_ptr(), ptr)
+    }
+    var node = native_free_blocks_take_by_ptr_in_list(global_free_blocks_64_ptr(), ptr)
+    if node != 0 { return node }
+    node = native_free_blocks_take_by_ptr_in_list(global_free_blocks_256_ptr(), ptr)
+    if node != 0 { return node }
+    node = native_free_blocks_take_by_ptr_in_list(global_free_blocks_1024_ptr(), ptr)
+    if node != 0 { return node }
+    return native_free_blocks_take_by_ptr_in_list(global_free_blocks_ptr(), ptr)
+}
+
+fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
+    var prev = 0
+    var cur = ptr_get(head_ptr)
     var scan_left = g_gc_reuse_scan_cap
     var scan_capped = scan_left > 0
     while cur != 0 {
@@ -1046,7 +1125,7 @@ fn native_try_reuse(size) {
         // Validate the free-block node before trusting it.
         if cur < 4096 {
             if prev == 0 {
-                global_set_free_blocks(next)
+                ptr_set(head_ptr, next)
             } else {
                 ptr_set(iadd(prev, 32), next)
             }
@@ -1055,7 +1134,7 @@ fn native_try_reuse(size) {
         }
         if ptr_get(iadd(cur, 40)) != native_node_magic() {
             if prev == 0 {
-                global_set_free_blocks(next)
+                ptr_set(head_ptr, next)
             } else {
                 ptr_set(iadd(prev, 32), next)
             }
@@ -1081,7 +1160,7 @@ fn native_try_reuse(size) {
         var chunk_size = ptr_get(iadd(cur, 8))
         if chunk_ptr < 4096 || chunk_size <= 0 {
             if prev == 0 {
-                global_set_free_blocks(next)
+                ptr_set(head_ptr, next)
             } else {
                 ptr_set(iadd(prev, 32), next)
             }
@@ -1096,7 +1175,7 @@ fn native_try_reuse(size) {
             }
             if guard_live != 0 {
                 if prev == 0 {
-                    global_set_free_blocks(next)
+                    ptr_set(head_ptr, next)
                 } else {
                     ptr_set(iadd(prev, 32), next)
                 }
@@ -1114,7 +1193,7 @@ fn native_try_reuse(size) {
                 if native_gc_list_header_ok(chunk_ptr, cur_kind, chunk_size) == 0 {
                     native_gc_list_header_dump(chunk_ptr, chunk_size)
                     if prev == 0 {
-                        global_set_free_blocks(next)
+                        ptr_set(head_ptr, next)
                     } else {
                         ptr_set(iadd(prev, 32), next)
                     }
@@ -1140,7 +1219,7 @@ fn native_try_reuse(size) {
             }
             // Unlink from free list.
             if prev == 0 {
-                global_set_free_blocks(next)
+                ptr_set(head_ptr, next)
             } else {
                 ptr_set(iadd(prev, 32), next)
             }
@@ -1160,11 +1239,6 @@ fn native_try_reuse(size) {
             if g_gc_reuse_blocks != 0 {
                 var idx_node = native_alloc_index_get(chunk_ptr)
                 if idx_node != cur {
-                    if prev == 0 {
-                        global_set_free_blocks(next)
-                    } else {
-                        ptr_set(iadd(prev, 32), next)
-                    }
                     // Recycle node back to free_nodes and avoid returning a mismatched pointer.
                     ptr_set(cur, 0)
                     ptr_set(iadd(cur, 8), 48)
@@ -1215,6 +1289,27 @@ fn native_try_reuse(size) {
     }
     if scan_capped && scan_left <= 0 {
         if trace_reuse { g_gc_reuse_scan_cap_hits = g_gc_reuse_scan_cap_hits + 1 }
+    }
+    return 0
+}
+
+@oren.keep
+fn native_try_reuse(size) {
+    // Default-off gate: reuse is still rolling and must be explicitly enabled.
+    if g_gc_reuse_blocks == 0 { return 0 }
+    if oren_globals() == 0 { return 0 }
+    var trace_reuse = g_trace_gc_reuse != 0
+    if trace_reuse { g_gc_reuse_try_count = g_gc_reuse_try_count + 1 }
+    acquire_lock()
+    var out = 0
+    var bucket = native_free_blocks_bucket_for_size(size)
+    var b = bucket
+    while true {
+        var head_ptr = native_free_blocks_bucket_ptr(b)
+        out = native_try_reuse_from_list(head_ptr, size, trace_reuse)
+        if out != 0 { return out }
+        if b >= 3 { break }
+        b = b + 1
     }
     release_lock()
     if trace_reuse { g_gc_reuse_miss_count = g_gc_reuse_miss_count + 1 }
@@ -1700,21 +1795,7 @@ fn oren_track_alloc(ptr, size, kind) {
     if hit != 0 {
         if g_gc_reuse_blocks != 0 {
             // Reuse mode: ensure this node is not still in the free list.
-            var prev_free = 0
-            var cur_free = global_get_free_blocks()
-            while cur_free != 0 {
-                if cur_free == hit {
-                    var next_free = ptr_get(iadd(cur_free, 32))
-                    if prev_free == 0 {
-                        global_set_free_blocks(next_free)
-                    } else {
-                        ptr_set(iadd(prev_free, 32), next_free)
-                    }
-                    break
-                }
-                prev_free = cur_free
-                cur_free = ptr_get(iadd(cur_free, 32))
-            }
+            native_free_blocks_remove_node(hit)
         }
         if size != 0 { ptr_set(iadd(hit, 8), size) }
         if kind != 0 {
@@ -1758,52 +1839,40 @@ fn oren_track_alloc(ptr, size, kind) {
 
     // If it exists in the free list (reused pointer or manual re-track),
     // move it back into allocs to avoid duplicate nodes pointing at the same ptr.
-    var prev = 0
-    var cur = global_get_free_blocks()
-    while cur != 0 {
-        if ptr_get(cur) == ptr {
-            var next = ptr_get(iadd(cur, 32))
-            if prev == 0 {
-                global_set_free_blocks(next)
-            } else {
-                ptr_set(iadd(prev, 32), next)
-            }
-
-            ptr_set(iadd(cur, 8), size)
-            ptr_set(iadd(cur, 16), kind)
-            ptr_set(iadd(cur, 24), 0)
-            ptr_set(iadd(cur, 32), global_get_allocs())
-            ptr_set(iadd(cur, 40), native_node_magic())
-            global_set_allocs(cur)
-            native_alloc_index_put_node(cur)
-            if native_alloc_index_get(ptr) == 0 {
-                native_alloc_index_rebuild_live()
-            }
-            if oren_getenv("OREN_TRACE_TRACK_ALLOC") != 0 && kind == 3 {
-                var chk2 = native_alloc_index_get(ptr)
-                if chk2 == 0 {
-                    print("trace: track_alloc miss_after_free ptr=" + oren_int_to_string(ptr))
-                } else {
-                    print("trace: track_alloc hit_after_free node=" + oren_int_to_string(chk2) +
-                          " node_ptr=" + oren_int_to_string(ptr_get(chk2)) +
-                          " node_kind=" + oren_int_to_string(ptr_get(iadd(chk2, 16))))
-                }
-            }
-
-            if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
-                g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
-                if g_gc_alloc_threshold > 0 && g_gc_allocs_since_collect >= g_gc_alloc_threshold {
-                    g_gc_allocs_since_collect = 0
-                    g_gc_auto_pending = 1
-                }
-            }
-
-            release_lock()
-            if trace_time { _trace_track_alloc_time_finish(t0, kind) }
-            return ptr
+    var cur = native_free_blocks_take_by_ptr(ptr)
+    if cur != 0 {
+        ptr_set(iadd(cur, 8), size)
+        ptr_set(iadd(cur, 16), kind)
+        ptr_set(iadd(cur, 24), 0)
+        ptr_set(iadd(cur, 32), global_get_allocs())
+        ptr_set(iadd(cur, 40), native_node_magic())
+        global_set_allocs(cur)
+        native_alloc_index_put_node(cur)
+        if native_alloc_index_get(ptr) == 0 {
+            native_alloc_index_rebuild_live()
         }
-        prev = cur
-        cur = ptr_get(iadd(cur, 32))
+        if oren_getenv("OREN_TRACE_TRACK_ALLOC") != 0 && kind == 3 {
+            var chk2 = native_alloc_index_get(ptr)
+            if chk2 == 0 {
+                print("trace: track_alloc miss_after_free ptr=" + oren_int_to_string(ptr))
+            } else {
+                print("trace: track_alloc hit_after_free node=" + oren_int_to_string(chk2) +
+                      " node_ptr=" + oren_int_to_string(ptr_get(chk2)) +
+                      " node_kind=" + oren_int_to_string(ptr_get(iadd(chk2, 16))))
+            }
+        }
+
+        if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
+            g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
+            if g_gc_alloc_threshold > 0 && g_gc_allocs_since_collect >= g_gc_alloc_threshold {
+                g_gc_allocs_since_collect = 0
+                g_gc_auto_pending = 1
+            }
+        }
+
+        release_lock()
+        if trace_time { _trace_track_alloc_time_finish(t0, kind) }
+        return ptr
     }
 
     // Allocate a new tracking node (raw, untracked by GC).
@@ -2397,8 +2466,8 @@ fn native_gc_collect() {
                 }
                 // Mark node as freed so stale index entries can't resurrect it.
                 ptr_set(iadd(cur_sweep, 24), 1)
-                ptr_set(iadd(cur_sweep, 32), global_get_free_blocks())
-                global_set_free_blocks(cur_sweep)
+                var free_sz = ptr_get(iadd(cur_sweep, 8))
+                native_free_blocks_push(cur_sweep, free_sz)
             }
             if p != 0 && p >= 4096 {
                 // Prevent stale alloc-index hits for freed objects (reuse mode only).

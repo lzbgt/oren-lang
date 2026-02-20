@@ -839,8 +839,8 @@ fn free(ptr) {
             } else {
                 // Mark node as freed so stale index entries can't resurrect it.
                 ptr_set(iadd(cur, 24), 1)
-                ptr_set(iadd(cur, 32), global_get_free_blocks())
-                global_set_free_blocks(cur)
+                var free_sz = ptr_get(iadd(cur, 8))
+                native_free_blocks_push(cur, free_sz)
             }
             // Avoid stale single-thread find-cache hits for freed pointers (reuse mode only).
             if native_envp_get_value_ptr("OREN_GC_REUSE_BLOCKS") != 0 {
