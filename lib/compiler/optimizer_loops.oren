@@ -181,11 +181,35 @@ fn _opt_expr_is_empty_list_lit(expr) {
     return _opt_expr_list_lit_len(expr) == 0
 }
 
+fn _opt_is_side_effect_free_call_name(name) {
+    if name == nil { return false }
+    if _opt_str_eq(name, "oren_int_to_string") { return true }
+    return false
+}
+
 fn _opt_expr_is_side_effect_free(expr) {
     if expr == nil { return true }
     var t = expr["type"]
     if t == "Integer" || t == "Float" || t == "String" || t == "Boolean" || t == "Nil" { return true }
     if t == "Identifier" { return true }
+    if t == "Call" {
+        var fn_expr = expr["fn"]
+        var fn_name = nil
+        if fn_expr != nil && fn_expr["type"] == "Identifier" { fn_name = fn_expr["value"] }
+        if _opt_is_side_effect_free_call_name(fn_name) != true { return false }
+        var args = expr["args"]
+        if args != nil {
+            var i0 = 0
+            while i0 < oren_list_len(args) {
+                if _opt_expr_is_side_effect_free(args[i0]) != true { return false }
+                i0 = i0 + 1
+            }
+        }
+        if expr["spread"] != nil {
+            if _opt_expr_is_side_effect_free(expr["spread"]) != true { return false }
+        }
+        return true
+    }
     if t == "Prefix" { return _opt_expr_is_side_effect_free(expr["right"]) }
     if t == "Infix" {
         if _opt_expr_is_side_effect_free(expr["left"]) != true { return false }
@@ -489,6 +513,80 @@ fn _opt_expr_has_ident(expr, name) {
     }
     if t == "Function" { return _opt_stmt_has_ident(expr["body"], name) }
     return false
+}
+
+fn _opt_ident_list_has(list, name) {
+    if list == nil || name == nil { return false }
+    var i = 0
+    while i < oren_list_len(list) {
+        if _opt_str_eq(list[i], name) { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _opt_ident_list_add(list, name) {
+    if list == nil || name == nil { return nil }
+    if _opt_ident_list_has(list, name) { return nil }
+    oren_list_push(list, name)
+    return nil
+}
+
+fn _opt_expr_collect_idents(expr, out) {
+    if expr == nil || out == nil { return nil }
+    var t = expr["type"]
+    if t == "Identifier" { return _opt_ident_list_add(out, expr["value"]) }
+    if t == "Call" {
+        _opt_expr_collect_idents(expr["fn"], out)
+        var args = expr["args"]
+        if args != nil {
+            var i = 0
+            while i < oren_list_len(args) {
+                _opt_expr_collect_idents(args[i], out)
+                i = i + 1
+            }
+        }
+        if expr["spread"] != nil { _opt_expr_collect_idents(expr["spread"], out) }
+        return nil
+    }
+    if t == "Infix" || t == "Assign" {
+        _opt_expr_collect_idents(expr["left"], out)
+        _opt_expr_collect_idents(expr["right"], out)
+        return nil
+    }
+    if t == "Prefix" { return _opt_expr_collect_idents(expr["right"], out) }
+    if t == "Array" {
+        var els = expr["elements"]
+        if els != nil {
+            var i2 = 0
+            while i2 < oren_list_len(els) {
+                _opt_expr_collect_idents(els[i2], out)
+                i2 = i2 + 1
+            }
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        if ps != nil {
+            var i3 = 0
+            while i3 < oren_list_len(ps) {
+                var p = ps[i3]
+                if p != nil {
+                    _opt_expr_collect_idents(p["key"], out)
+                    _opt_expr_collect_idents(p["value"], out)
+                }
+                i3 = i3 + 1
+            }
+        }
+        return nil
+    }
+    if t == "Index" {
+        _opt_expr_collect_idents(expr["left"], out)
+        return _opt_expr_collect_idents(expr["index"], out)
+    }
+    if t == "Member" { return _opt_expr_collect_idents(expr["left"], out) }
+    return nil
 }
 
 fn _opt_stmt_has_ident(stmt, name) {
@@ -819,51 +917,6 @@ fn _opt_sink_list_lit_into_if(block) {
     var changed = false
     var i = 0
     while i < oren_list_len(ss) {
-        if i + 2 < oren_list_len(ss) {
-            var st0 = ss[i]
-            var st1 = ss[i + 1]
-            var nxt0 = ss[i + 2]
-            if st0 != nil && st1 != nil && nxt0 != nil && (st0["type"] == "Var" || st0["type"] == "Assign") &&
-               (st1["type"] == "Var" || st1["type"] == "Assign") && nxt0["type"] == "If" {
-                var nm0 = opthelp.is_ident(st0["name"])
-                var nm1 = opthelp.is_ident(st1["name"])
-                if nm0 != nil && nm1 != nil && _opt_str_eq(nm0, nm1) != true {
-                    if _opt_expr_is_list_lit(st1["value"]) == true &&
-                       _opt_expr_is_side_effect_free(st1["value"]) == true &&
-                       _opt_expr_has_ident(st1["value"], nm0) == true &&
-                       _opt_expr_is_side_effect_free(st0["value"]) == true {
-                        if _opt_expr_has_ident(nxt0["cond"], nm1) != true &&
-                           _opt_expr_has_ident(nxt0["cond"], nm0) != true &&
-                           (nxt0["alt"] == nil || _opt_stmt_has_ident(nxt0["alt"], nm1) != true) &&
-                           (nxt0["alt"] == nil || _opt_stmt_has_ident(nxt0["alt"], nm0) != true) &&
-                           _opt_block_has_ident_after(block, i + 3, nm1) != true &&
-                           _opt_block_has_ident_after(block, i + 3, nm0) != true &&
-                           _opt_stmt_has_ident(nxt0["consq"], nm1) == true {
-                            var consq0 = nxt0["consq"]
-                            if consq0 == nil || consq0["type"] != "Block" {
-                                var nb0 = ast.new_block(nxt0["token"])
-                                if consq0 != nil { nb0["stmts"] = [consq0] }
-                                consq0 = nb0
-                                nxt0["consq"] = consq0
-                            }
-                            var css0 = consq0["stmts"]
-                            if css0 == nil { css0 = []; consq0["stmts"] = css0 }
-                            var new_css0 = [st0, st1]
-                            var ci0 = 0
-                            while ci0 < oren_list_len(css0) {
-                                oren_list_push(new_css0, css0[ci0])
-                                ci0 = ci0 + 1
-                            }
-                            consq0["stmts"] = new_css0
-                            oren_list_push(out, nxt0)
-                            changed = true
-                            i = i + 3
-                            continue
-                        }
-                    }
-                }
-            }
-        }
         if i + 1 < oren_list_len(ss) {
             var st = ss[i]
             var nxt = ss[i + 1]
@@ -883,7 +936,45 @@ fn _opt_sink_list_lit_into_if(block) {
                         }
                         var css = consq["stmts"]
                         if css == nil { css = []; consq["stmts"] = css }
-                        var new_css = [st]
+                        var pre = []
+                        var needed = []
+                        _opt_expr_collect_idents(st["value"], needed)
+                        var pi = i - 1
+                        while pi >= 0 {
+                            var pst = ss[pi]
+                            if pst == nil { break }
+                            if pst["type"] != "Var" && pst["type"] != "Assign" { break }
+                            var pnm = opthelp.is_ident(pst["name"])
+                            if pnm == nil { break }
+                            if _opt_str_eq(pnm, nm) { break }
+                            if _opt_ident_list_has(needed, pnm) != true { break }
+                            if _opt_expr_is_side_effect_free(pst["value"]) != true { break }
+                            if _opt_expr_has_ident(nxt["cond"], pnm) == true { break }
+                            if nxt["alt"] != nil && _opt_stmt_has_ident(nxt["alt"], pnm) == true { break }
+                            if _opt_block_has_ident_after(block, i + 2, pnm) == true { break }
+                            oren_list_push(pre, pst)
+                            _opt_expr_collect_idents(pst["value"], needed)
+                            pi = pi - 1
+                        }
+                        var pre_rev = []
+                        var pri = oren_list_len(pre) - 1
+                        while pri >= 0 {
+                            oren_list_push(pre_rev, pre[pri])
+                            pri = pri - 1
+                        }
+                        if oren_list_len(pre_rev) > 0 {
+                            var keep_len = oren_list_len(out) - oren_list_len(pre_rev)
+                            if keep_len < 0 { keep_len = 0 }
+                            var out2 = []
+                            var oi = 0
+                            while oi < keep_len {
+                                oren_list_push(out2, out[oi])
+                                oi = oi + 1
+                            }
+                            out = out2
+                        }
+                        var new_css = pre_rev
+                        oren_list_push(new_css, st)
                         var ci = 0
                         while ci < oren_list_len(css) {
                             oren_list_push(new_css, css[ci])
