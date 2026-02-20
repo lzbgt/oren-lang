@@ -104,6 +104,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - List reuse guard drops corrupt list headers (guard_bad_list>0) but segfault persists (local run, 2026-02-20).
      - Bad-list trace shows repeated header with chunk=32 but len/cap=128, buf=ptr+32, magic=1279870019 (local run, 2026-02-20).
      - Bad-list trace run hung (killed after ~14 min); summary showed guard_bad_list=291 (local run, 2026-02-20).
+     - Free-list trace shows list frees already have len/cap=128 with chunk=32 and bad magic (same ptr+32 buf), so headers are corrupt before reuse (local run, 2026-02-20).
      - `alloc_churn` runs when list reuse is guarded off (auto-GC) with reuse blocks only:
        tries=9989 hits≈4987 misses≈5005 hit_bytes≈5.11 MiB (see `benchmarks/results/alloc_churn_darwin_arm64_20260220_083057.md`).
      - `alloc_drop` (runs=1) 12.13s with GC reuse traces (see `benchmarks/results/alloc_drop_darwin_arm64_20260220_081737.md`).
