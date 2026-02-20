@@ -1,0 +1,249 @@
+{
+  "meta": {
+    "timestamp": "20260220_130727",
+    "host": "Bruce-Mac",
+    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu_brand": "Apple M2 Pro",
+    "cpu_cores": "10",
+    "mem_bytes": "17179869184",
+    "git_rev": "42583193fbec19df25ab51bbdd36dada84c0c1a1",
+    "c_compiler": "cc",
+    "runs": 5,
+    "warmups": 0,
+    "program": "alloc_churn",
+    "output": "199990000\n199990000\n199990000\n199990000\n199990000",
+    "output_check": false,
+    "save_stdout": true,
+    "skip_build": false,
+    "rss_enabled": false,
+    "skip_obc": false,
+    "env_overrides": {
+      "all": {},
+      "c": {},
+      "oren_c": {},
+      "oren_native": {
+        "OREN_TRACE_ALLOC_SITE": "1",
+        "OREN_GC_AUTO": "1",
+        "OREN_GC_ALLOC_THRESHOLD": "10000"
+      },
+      "oren_obc": {},
+      "build_all": {},
+      "build_oren": {}
+    }
+  },
+  "results": {
+    "c": {
+      "runs": [
+        0.0028329999768175185,
+        0.0031094170117285103,
+        0.002631167008075863,
+        0.0026548329915385693,
+        0.002666125015821308
+      ],
+      "median_s": 0.002666125015821308,
+      "mean_s": 0.0027789084007963536,
+      "min_s": 0.002631167008075863,
+      "max_s": 0.0031094170117285103
+    },
+    "oren_c": {
+      "runs": [
+        0.03096620799624361,
+        0.030456916021648794,
+        0.03013295802520588,
+        0.030208208016119897,
+        0.03036549998796545
+      ],
+      "median_s": 0.03036549998796545,
+      "mean_s": 0.030425958009436725,
+      "min_s": 0.03013295802520588,
+      "max_s": 0.03096620799624361
+    },
+    "oren_native": {
+      "runs": [
+        4.204488749994198,
+        4.2144118750002235,
+        4.217130207980517,
+        4.204577374999644,
+        4.214783958013868
+      ],
+      "median_s": 4.2144118750002235,
+      "mean_s": 4.21107843319769,
+      "min_s": 4.204488749994198,
+      "max_s": 4.217130207980517
+    },
+    "oren_obc": {
+      "runs": [
+        0.16615449998062104,
+        0.16336850001243874,
+        0.16339337499812245,
+        0.16468950000125915,
+        0.16264195900293998
+      ],
+      "median_s": 0.16339337499812245,
+      "mean_s": 0.16404956679907629,
+      "min_s": 0.16264195900293998,
+      "max_s": 0.16615449998062104
+    }
+  },
+  "alloc_site": {
+    "oren_native": {
+      "runs": [
+        {
+          "total": 10238,
+          "list_header": 5119,
+          "list_int_header": 0,
+          "list_buf": 5119,
+          "list_int_buf": 0
+        },
+        {
+          "total": 10240,
+          "list_header": 5120,
+          "list_int_header": 0,
+          "list_buf": 5120,
+          "list_int_buf": 0
+        },
+        {
+          "total": 10240,
+          "list_header": 5120,
+          "list_int_header": 0,
+          "list_buf": 5120,
+          "list_int_buf": 0
+        },
+        {
+          "total": 9282,
+          "list_header": 4641,
+          "list_int_header": 0,
+          "list_buf": 4641,
+          "list_int_buf": 0
+        },
+        {
+          "total": 10238,
+          "list_header": 5119,
+          "list_int_header": 0,
+          "list_buf": 5119,
+          "list_int_buf": 0
+        },
+        {
+          "total": 10240,
+          "list_header": 5120,
+          "list_int_header": 0,
+          "list_buf": 5120,
+          "list_int_buf": 0
+        },
+        {
+          "total": 10240,
+          "list_header": 5120,
+          "list_int_header": 0,
+          "list_buf": 5120,
+          "list_int_buf": 0
+        },
+        {
+          "total": 9282,
+          "list_header": 4641,
+          "list_int_header": 0,
+          "list_buf": 4641,
+          "list_int_buf": 0
+        },
+        {
+          "total": 10238,
+          "list_header": 5119,
+          "list_int_header": 0,
+          "list_buf": 5119,
+          "list_int_buf": 0
+        },
+        {
+          "total": 10240,
+          "list_header": 5120,
+          "list_int_header": 0,
+          "list_buf": 5120,
+          "list_int_buf": 0
+        },
+        {
+          "total": 10240,
+          "list_header": 5120,
+          "list_int_header": 0,
+          "list_buf": 5120,
+          "list_int_buf": 0
+        },
+        {
+          "total": 9282,
+          "list_header": 4641,
+          "list_int_header": 0,
+          "list_buf": 4641,
+          "list_int_buf": 0
+        },
+        {
+          "total": 10238,
+          "list_header": 5119,
+          "list_int_header": 0,
+          "list_buf": 5119,
+          "list_int_buf": 0
+        },
+        {
+          "total": 10240,
+          "list_header": 5120,
+          "list_int_header": 0,
+          "list_buf": 5120,
+          "list_int_buf": 0
+        },
+        {
+          "total": 10240,
+          "list_header": 5120,
+          "list_int_header": 0,
+          "list_buf": 5120,
+          "list_int_buf": 0
+        },
+        {
+          "total": 9282,
+          "list_header": 4641,
+          "list_int_header": 0,
+          "list_buf": 4641,
+          "list_int_buf": 0
+        },
+        {
+          "total": 10238,
+          "list_header": 5119,
+          "list_int_header": 0,
+          "list_buf": 5119,
+          "list_int_buf": 0
+        },
+        {
+          "total": 10240,
+          "list_header": 5120,
+          "list_int_header": 0,
+          "list_buf": 5120,
+          "list_int_buf": 0
+        },
+        {
+          "total": 10240,
+          "list_header": 5120,
+          "list_int_header": 0,
+          "list_buf": 5120,
+          "list_int_buf": 0
+        },
+        {
+          "total": 9282,
+          "list_header": 4641,
+          "list_int_header": 0,
+          "list_buf": 4641,
+          "list_int_buf": 0
+        }
+      ],
+      "median": {
+        "total": 10239,
+        "list_header": 5119,
+        "list_int_header": 0,
+        "list_buf": 5119,
+        "list_int_buf": 0
+      },
+      "mean": {
+        "total": 10000,
+        "list_header": 5000,
+        "list_int_header": 0,
+        "list_buf": 5000,
+        "list_int_buf": 0
+      }
+    }
+  }
+}

@@ -143,6 +143,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, warmups=0):
      - `alloc_drop` list_header=10011, list_buf=31 (see `alloc_drop_darwin_arm64_20260220_130348.md`).
      - `alloc_churn` list_header=20000, list_buf=20000 (see `alloc_churn_darwin_arm64_20260220_130551.md`).
+   - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=10000`, warmups=0):
+     - `alloc_churn` list_header=5119, list_buf=5119 (see `alloc_churn_darwin_arm64_20260220_130727.md`).
+     - `alloc_drop` list_header=1794, list_buf=6 (see `alloc_drop_darwin_arm64_20260220_130750.md`).
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, native only):
      - `alloc_churn` 1620× C, `alloc_drop` 60.18× C (C baseline from `benchmarks/RESULTS_LATEST.md`; no improvement vs default).
      - `OREN_BENCH_TRACE_ARENA=1` emitted no `[arena]` lines for alloc_churn/alloc_drop (likely no arena push/pop in these benches).
