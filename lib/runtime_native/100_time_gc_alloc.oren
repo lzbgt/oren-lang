@@ -57,6 +57,7 @@ var g_gc_reuse_hit_count = 0
 var g_gc_reuse_miss_count = 0
 var g_gc_reuse_hit_bytes = 0
 var g_gc_reuse_guard_live_count = 0
+var g_gc_reuse_guard_bad_list_count = 0
 // Freed-list debug ring (optional; set via OREN_TRACE_GC_FREED_LISTS).
 var g_freed_list_ptrs = 0
 var g_freed_list_cap = 0
@@ -1007,6 +1008,26 @@ fn native_try_reuse(size) {
                 cur = next
                 continue
             }
+            if g_gc_reuse_lists != 0 && (cur_kind == 2 || cur_kind == list_int_kind()) {
+                if native_gc_list_header_ok(chunk_ptr, cur_kind, chunk_size) == 0 {
+                    if prev == 0 {
+                        global_set_free_blocks(next)
+                    } else {
+                        ptr_set(iadd(prev, 32), next)
+                    }
+                    // Drop this block from reuse and recycle the tracking node.
+                    ptr_set(cur, 0)
+                    ptr_set(iadd(cur, 8), 48)
+                    ptr_set(iadd(cur, 16), 0)
+                    ptr_set(iadd(cur, 24), 0)
+                    ptr_set(iadd(cur, 40), native_node_magic())
+                    ptr_set(iadd(cur, 32), global_get_free_nodes())
+                    global_set_free_nodes(cur)
+                    if trace_reuse { g_gc_reuse_guard_bad_list_count = g_gc_reuse_guard_bad_list_count + 1 }
+                    cur = next
+                    continue
+                }
+            }
             if g_gc_reuse_zero != 0 && size > 0 {
                 var zi = 0
                 while zi < size {
@@ -1200,6 +1221,31 @@ fn native_gc_root_find(ptr) {
 fn native_gc_root_has_ptr(ptr) {
     if native_gc_root_find(ptr) != 0 { return 1 }
     return 0
+}
+
+fn native_gc_list_header_ok(ptr, kind, chunk_size) {
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    if chunk_size < 32 { return 0 }
+    if ptr_get(iadd(ptr, 24)) != list_magic() { return 0 }
+    var len = ptr_get(iadd(ptr, 0))
+    var cap = ptr_get(iadd(ptr, 8))
+    var buf = ptr_get(iadd(ptr, 16))
+    if len < 0 || cap < 0 { return 0 }
+    if len > cap { return 0 }
+    if cap > 1073741824 { return 0 } // guard against corrupted caps
+    if cap == 0 {
+        if buf != 0 { return 0 }
+    } else {
+        if buf == 0 { return 0 }
+        if buf < 4096 { return 0 }
+        var inline_buf = iadd(ptr, 32)
+        if buf == inline_buf {
+            var need = 32 + cap * 8
+            if chunk_size < need { return 0 }
+        }
+    }
+    return 1
 }
 
 var g_panicking = 0
@@ -2223,12 +2269,14 @@ fn native_gc_collect() {
             " hits=" + oren_int_to_string(g_gc_reuse_hit_count) +
             " misses=" + oren_int_to_string(g_gc_reuse_miss_count) +
             " hit_bytes=" + oren_int_to_string(g_gc_reuse_hit_bytes) +
-            " guard_live=" + oren_int_to_string(g_gc_reuse_guard_live_count))
+            " guard_live=" + oren_int_to_string(g_gc_reuse_guard_live_count) +
+            " guard_bad_list=" + oren_int_to_string(g_gc_reuse_guard_bad_list_count))
         g_gc_reuse_try_count = 0
         g_gc_reuse_hit_count = 0
         g_gc_reuse_miss_count = 0
         g_gc_reuse_hit_bytes = 0
         g_gc_reuse_guard_live_count = 0
+        g_gc_reuse_guard_bad_list_count = 0
     }
     native_alloc_site_dump_and_reset()
     if g_trace_alloc_index != 0 {
