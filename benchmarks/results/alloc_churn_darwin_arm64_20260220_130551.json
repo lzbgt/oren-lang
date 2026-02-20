@@ -1,0 +1,142 @@
+{
+  "meta": {
+    "timestamp": "20260220_130551",
+    "host": "Bruce-Mac",
+    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu_brand": "Apple M2 Pro",
+    "cpu_cores": "10",
+    "mem_bytes": "17179869184",
+    "git_rev": "0e8efeb26cf6726d422513b1a0bc00d0943eb11e",
+    "c_compiler": "cc",
+    "runs": 5,
+    "warmups": 0,
+    "program": "alloc_churn",
+    "output": "199990000\n199990000\n199990000\n199990000\n199990000",
+    "output_check": false,
+    "save_stdout": true,
+    "skip_build": false,
+    "rss_enabled": false,
+    "skip_obc": false,
+    "env_overrides": {
+      "all": {},
+      "c": {},
+      "oren_c": {},
+      "oren_native": {
+        "OREN_TRACE_ALLOC_SITE": "1"
+      },
+      "oren_obc": {},
+      "build_all": {},
+      "build_oren": {}
+    }
+  },
+  "results": {
+    "c": {
+      "runs": [
+        0.002875125006539747,
+        0.00270866701612249,
+        0.0026154159859288484,
+        0.0026485410053282976,
+        0.0026399590133223683
+      ],
+      "median_s": 0.0026485410053282976,
+      "mean_s": 0.0026975416054483502,
+      "min_s": 0.0026154159859288484,
+      "max_s": 0.002875125006539747
+    },
+    "oren_c": {
+      "runs": [
+        0.031204458995489404,
+        0.030541791988071054,
+        0.03064545799861662,
+        0.03058383398456499,
+        0.03141529200365767
+      ],
+      "median_s": 0.03064545799861662,
+      "mean_s": 0.03087816699407995,
+      "min_s": 0.030541791988071054,
+      "max_s": 0.03141529200365767
+    },
+    "oren_native": {
+      "runs": [
+        3.7619835830118973,
+        3.7478222089994233,
+        3.758490125008393,
+        3.760204792022705,
+        3.7508181250013877
+      ],
+      "median_s": 3.758490125008393,
+      "mean_s": 3.755863766808761,
+      "min_s": 3.7478222089994233,
+      "max_s": 3.7619835830118973
+    },
+    "oren_obc": {
+      "runs": [
+        0.16641800000797957,
+        0.16271891599171795,
+        0.16399179201107472,
+        0.16420495900092646,
+        0.16319774999283254
+      ],
+      "median_s": 0.16399179201107472,
+      "mean_s": 0.16410628340090624,
+      "min_s": 0.16271891599171795,
+      "max_s": 0.16641800000797957
+    }
+  },
+  "alloc_site": {
+    "oren_native": {
+      "runs": [
+        {
+          "total": 40000,
+          "list_header": 20000,
+          "list_int_header": 0,
+          "list_buf": 20000,
+          "list_int_buf": 0
+        },
+        {
+          "total": 40000,
+          "list_header": 20000,
+          "list_int_header": 0,
+          "list_buf": 20000,
+          "list_int_buf": 0
+        },
+        {
+          "total": 40000,
+          "list_header": 20000,
+          "list_int_header": 0,
+          "list_buf": 20000,
+          "list_int_buf": 0
+        },
+        {
+          "total": 40000,
+          "list_header": 20000,
+          "list_int_header": 0,
+          "list_buf": 20000,
+          "list_int_buf": 0
+        },
+        {
+          "total": 40000,
+          "list_header": 20000,
+          "list_int_header": 0,
+          "list_buf": 20000,
+          "list_int_buf": 0
+        }
+      ],
+      "median": {
+        "total": 40000,
+        "list_header": 20000,
+        "list_int_header": 0,
+        "list_buf": 20000,
+        "list_int_buf": 0
+      },
+      "mean": {
+        "total": 40000,
+        "list_header": 20000,
+        "list_int_header": 0,
+        "list_buf": 20000,
+        "list_int_buf": 0
+      }
+    }
+  }
+}
