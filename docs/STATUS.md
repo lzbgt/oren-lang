@@ -143,6 +143,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New run (arm64, 2026-02-20, compile-time auto-loop via `OREN_BENCH_ENV_BUILD_OREN`, runs=1, warmups=0):
      - `alloc_churn` 5.17s (native only), arena trace shows per-iteration allocs=2, push=1, pop=1 (per-iter active; perf worse).
      - `arena_loop` trace still marks alloc_churn's outer loop as long-lived despite `n=20000`; investigate bound detection.
+   - New: arena loop bound detection now compares identifier names by value (string equality) in optimizer loops,
+     fixing const-int bound lookups that were previously missing when strings were not pointer-equal (rolling, 2026-02-20).
    - Design + implement loop‑local arenas for list/list_int (compiler escape analysis + arena tracking table).
    - Native runtime scaffolding: `oren_arena_push/pop` + `oren_arena_new_list(_int)` (compiler lowering pending).
    - Arena cap: `OREN_ARENA_CAP_BYTES` spills allocations back to GC when exceeded.
