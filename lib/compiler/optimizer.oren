@@ -1412,10 +1412,14 @@ fn _opt_lower_int_only_lists_in_block(block) {
                                 [{"type": "Integer", "token": nil, "value": oren_int_to_string(cap)}])
                             oren_list_push(out, stj)
                             if elemsj != nil {
+                                var push_name = "oren_list_int_push"
+                                if _opt_backend_allows_list_int_unchecked() == true {
+                                    push_name = "oren_list_int_push_unchecked"
+                                }
                                 var ei = 0
                                 while ei < oren_list_len(elemsj) {
                                     var push_call = ast.new_call(nil,
-                                        {"type": "Identifier", "token": nil, "value": "oren_list_int_push"},
+                                        {"type": "Identifier", "token": nil, "value": push_name},
                                         [{"type": "Identifier", "token": nil, "value": nmj}, elemsj[ei]])
                                     oren_list_push(out, ast.new_expr_stmt(nil, push_call))
                                     ei = ei + 1
