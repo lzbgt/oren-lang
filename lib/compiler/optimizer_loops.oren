@@ -1779,6 +1779,9 @@ fn _opt_prepare_loop_arena(block, idx, stmt, parent_forced, parent_noarena) {
     var candidates = []
     _opt_collect_loop_new_list_vars(body, candidates)
     var safe_vars = []
+    if candidates == nil || oren_list_len(candidates) == 0 {
+        _opt_arena_trace("[arena_loop] candidates=0")
+    }
     if candidates != nil {
         var ci = 0
         while ci < oren_list_len(candidates) {
@@ -1786,10 +1789,20 @@ fn _opt_prepare_loop_arena(block, idx, stmt, parent_forced, parent_noarena) {
             if e != nil {
                 var nm = e["name"]
                 if nm != nil {
-                    if _opt_stmt_has_unsafe_list_use(body, nm) != true &&
-                       _opt_block_has_ident_after(block, idx + 1, nm) != true &&
-                       _opt_loop_first_assign_dominates(body, nm) == true {
+                    var reason = nil
+                    if _opt_stmt_has_unsafe_list_use(body, nm) == true {
+                        reason = "unsafe_use"
+                    } else if _opt_block_has_ident_after(block, idx + 1, nm) == true {
+                        reason = "used_after_loop"
+                    } else if _opt_loop_first_assign_dominates(body, nm) != true {
+                        reason = "assign_not_dominate"
+                    } else {
                         _opt_add_safe_var(safe_vars, nm, e["kind"])
+                    }
+                    if reason != nil {
+                        _opt_arena_trace("[arena_loop] candidate_drop name=" + nm +
+                            " kind=" + e["kind"] +
+                            " reason=" + reason)
                     }
                 }
             }

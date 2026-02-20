@@ -151,6 +151,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New: C backend defines arena push/pop/new_list fallbacks (GC allocs) so auto-loop builds don't fail (rolling, 2026-02-20).
    - New: arena auto-loop wrapping is now gated to the native backend via optimizer config to avoid injecting
      arena calls into C/bytecode builds (rolling, 2026-02-20).
+   - New: arena-loop trace now reports candidate rejection reasons (`unsafe_use`, `used_after_loop`,
+     `assign_not_dominate`) plus `candidates=0` when no list allocs are seen (rolling, 2026-02-20).
    - New run (arm64, 2026-02-20, compile-time auto-loop + trace after backend gating, runs=1, warmups=0):
      - `alloc_churn` 0.361s native; arena trace allocs=40000, push=1, pop=1, epoch_reset=1.
      - `arena_loop` trace shows bound=20000, long_lived=0, per_iter=0; C/bytecode builds skip=backend.
