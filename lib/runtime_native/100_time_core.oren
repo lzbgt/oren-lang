@@ -753,6 +753,8 @@ var g_trace_track_alloc_time = 0
 var g_trace_alloc_site = 0
 // Optional tracing: arena allocation counters.
 var g_trace_arena = 0
+// Optional tracing: reuse stats (tries/hits/misses).
+var g_trace_gc_reuse = 0
 var g_alloc_site_ptr = 0
 var g_alloc_site_cap = 0
 var g_alloc_site_total = 0
@@ -788,6 +790,7 @@ fn native_runtime_init_gc_mode(default_enabled) {
     g_trace_track_alloc_time = 0
     g_trace_alloc_site = 0
     g_trace_arena = 0
+    g_trace_gc_reuse = 0
     g_alloc_site_ptr = 0
     g_alloc_site_cap = 0
     g_alloc_site_total = 0
@@ -853,6 +856,12 @@ fn native_runtime_init_gc_mode(default_enabled) {
     if v_trace_site != 0 {
         if ptr_get_byte(v_trace_site) != 0 && ptr_get_byte(v_trace_site) != 48 {
             g_trace_alloc_site = 1
+        }
+    }
+    var v_trace_reuse = native_envp_get_value_ptr("OREN_TRACE_GC_REUSE")
+    if v_trace_reuse != 0 {
+        if ptr_get_byte(v_trace_reuse) != 0 && ptr_get_byte(v_trace_reuse) != 48 {
+            g_trace_gc_reuse = 1
         }
     }
     var v_trace_arena = native_envp_get_value_ptr("OREN_TRACE_ARENA")
