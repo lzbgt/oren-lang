@@ -1267,6 +1267,24 @@ fn native_gc_list_header_dump(ptr, chunk_size) {
     return 0
 }
 
+fn native_gc_free_list_header_dump(ptr, chunk_size, kind) {
+    if g_trace_gc_free_list_headers == 0 { return 0 }
+    if g_trace_gc_free_list_headers_cap <= 0 { return 0 }
+    g_trace_gc_free_list_headers_cap = g_trace_gc_free_list_headers_cap - 1
+    var len = ptr_get(iadd(ptr, 0))
+    var cap = ptr_get(iadd(ptr, 8))
+    var buf = ptr_get(iadd(ptr, 16))
+    var magic = ptr_get(iadd(ptr, 24))
+    print("[gc_free_list] ptr=" + oren_int_to_string(ptr) +
+        " chunk=" + oren_int_to_string(chunk_size) +
+        " kind=" + oren_int_to_string(kind) +
+        " len=" + oren_int_to_string(len) +
+        " cap=" + oren_int_to_string(cap) +
+        " buf=" + oren_int_to_string(buf) +
+        " magic=" + oren_int_to_string(magic))
+    return 0
+}
+
 var g_panicking = 0
 // Single-thread fast path (native runtime):
 // The self-host compiler and most tooling run single-threaded. Avoid taking the global lock
@@ -2236,6 +2254,10 @@ fn native_gc_collect() {
                 global_set_free_nodes(cur_sweep)
             } else {
                 if kind == 2 || kind == list_int_kind() {
+                    var sz_free = ptr_get(iadd(cur_sweep, 8))
+                    if p != 0 && p >= 4096 {
+                        native_gc_free_list_header_dump(p, sz_free, kind)
+                    }
                     native_gc_freed_list_record(p)
                 }
                 // Mark node as freed so stale index entries can't resurrect it.
