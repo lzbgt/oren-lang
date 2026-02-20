@@ -240,6 +240,13 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New run (arm64, 2026-02-20, reuse blocks on, `OREN_GC_REUSE_BUCKETS=1`, `OREN_GC_ALLOC_THRESHOLD=1000`, warmups=1):
      `alloc_drop` 3.189s (see `alloc_drop_darwin_arm64_20260220_145625.md`);
      `alloc_churn` 7.154s (see `alloc_churn_darwin_arm64_20260220_145710.md`).
+   - Trace reuse (arm64, 2026-02-20, reuse blocks + buckets on, `OREN_GC_AUTO=1`, `OREN_GC_ALLOC_THRESHOLD=1000`,
+     `OREN_TRACE_GC_REUSE=1`, output check disabled): `alloc_drop` 18.747s with gc_reuse
+     scan_steps min=8.4k, max=22.4M, avg=11.4M across 72 sweeps
+     (see `alloc_drop_darwin_arm64_20260220_145851.md`; log: `build/logs/bench_run_alloc_drop_20260220_145851/oren_native/run_0.log`).
+   - Trace reuse (arm64, 2026-02-20, same env, output check disabled): `alloc_churn` 13.245s with gc_reuse
+     scan_steps min=5.6k, max=19.7M, avg=9.9M across 40 sweeps
+     (see `alloc_churn_darwin_arm64_20260220_145934.md`; log: `build/logs/bench_run_alloc_churn_20260220_145934/oren_native/run_0.log`).
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, native only):
      - `alloc_churn` 1620× C, `alloc_drop` 60.18× C (C baseline from `benchmarks/RESULTS_LATEST.md`; no improvement vs default).
      - `OREN_BENCH_TRACE_ARENA=1` emitted no `[arena]` lines for alloc_churn/alloc_drop (likely no arena push/pop in these benches).
