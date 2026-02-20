@@ -114,6 +114,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
       tries=7951 hits=54 misses=7900 hit_bytes=57472 guard_bad_list=105. List trace shows only `op=1/3/5`;
       free-list headers still report len/cap=128 with chunk=32 (same corruption pattern).
     - Free-list header dump now calls `native_list_debug_node` on invalid headers to capture node/alloc-index state (rolling, 2026-02-20).
+    - Fresh reuse trace with list_debug (arm64, 2026-02-20): invalid free-list headers show
+      `list_debug node_ptr=<ptr> size=32 kind=2 freed=0 next=<ptr>` with node_in_allocs=0 and node_in_free_blocks=0
+      at dump time (node already unlinked, index still resolves).
+    - Reordered alloc-index removal to run after free-list dumps so list_debug can resolve nodes (rolling, 2026-02-20).
      - Reuse guard now enforces strict header sizing: inline-buffer headers require chunk==32+cap*8; out-of-line headers require chunk==32 (rolling, 2026-02-20).
      - Strict header sizing guard still segfaults; guard_bad_list=276 (local run, 2026-02-20).
      - Reuse now rejects alloc-index mismatches for reused pointers (rolling, 2026-02-20).

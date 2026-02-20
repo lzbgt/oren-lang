@@ -2251,12 +2251,6 @@ fn native_gc_collect() {
             }
 
             var p = ptr_get(cur_sweep)
-            if p != 0 && p >= 4096 {
-                // Prevent stale alloc-index hits for freed objects (reuse mode only).
-                if g_gc_reuse_blocks != 0 {
-                    native_alloc_index_remove_ptr(p)
-                }
-            }
             if kind == 9 {
                 // RAW_MMAP: return memory to OS immediately (do not keep in free_blocks).
                 if p != 0 {
@@ -2291,6 +2285,12 @@ fn native_gc_collect() {
                 ptr_set(iadd(cur_sweep, 24), 1)
                 ptr_set(iadd(cur_sweep, 32), global_get_free_blocks())
                 global_set_free_blocks(cur_sweep)
+            }
+            if p != 0 && p >= 4096 {
+                // Prevent stale alloc-index hits for freed objects (reuse mode only).
+                if g_gc_reuse_blocks != 0 {
+                    native_alloc_index_remove_ptr(p)
+                }
             }
         }
         cur_sweep = next_node
