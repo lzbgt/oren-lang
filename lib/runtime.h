@@ -238,6 +238,11 @@ OrenValue oren_list_get(OrenValue list, OrenValue index);
 OrenValue oren_list_set(OrenValue list, OrenValue index, OrenValue value);
 // list<int> helpers (native fast path; C backend uses boxed ints).
 OrenValue oren_new_list_int(OrenValue cap);
+// Arena helpers (C backend fallback; arenas are no-ops and allocate via GC).
+OrenValue oren_arena_push(void);
+OrenValue oren_arena_pop(void);
+OrenValue oren_arena_new_list(OrenValue cap);
+OrenValue oren_arena_new_list_int(OrenValue cap);
 OrenValue oren_list_int_len(OrenValue list);
 OrenValue oren_list_int_push(OrenValue list, OrenValue value);
 OrenValue oren_list_int_get(OrenValue list, OrenValue index);

@@ -1984,6 +1984,9 @@ fn lower_linked_program_in_place(linked) {
     var trace_opt = oren_env("OREN_TRACE_OPTIMIZER") != nil
     if trace_opt { print("[opt] enter") }
     if linked == nil { return nil }
+    var backend = nil
+    if linked["config"] != nil { backend = linked["config"]["backend"] }
+    optloops.set_backend(backend)
 
     // Fold expressions first (so DCE sees simplified RHS).
     var ss = linked["statements"]

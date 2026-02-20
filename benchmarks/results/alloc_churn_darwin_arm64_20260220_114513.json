@@ -1,0 +1,110 @@
+{
+  "meta": {
+    "timestamp": "20260220_114513",
+    "host": "Bruce-Mac",
+    "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu_brand": "Apple M2 Pro",
+    "cpu_cores": "10",
+    "mem_bytes": "17179869184",
+    "git_rev": "d7fd4083eec6f78324207a68acc84f65abe638e9",
+    "c_compiler": "cc",
+    "runs": 1,
+    "warmups": 0,
+    "program": "alloc_churn",
+    "output": "199990000",
+    "output_check": false,
+    "save_stdout": true,
+    "skip_build": false,
+    "rss_enabled": false,
+    "skip_obc": false,
+    "env_overrides": {
+      "all": {},
+      "c": {},
+      "oren_c": {},
+      "oren_native": {
+        "OREN_TRACE_ARENA": "1"
+      },
+      "oren_obc": {},
+      "build_all": {},
+      "build_oren": {
+        "OREN_ARENA_AUTO_LOOP": "1",
+        "OREN_TRACE_ARENA_LOOPS": "1"
+      }
+    }
+  },
+  "results": {
+    "c": {
+      "runs": [
+        0.002829750010278076
+      ],
+      "median_s": 0.002829750010278076,
+      "mean_s": 0.002829750010278076,
+      "min_s": 0.002829750010278076,
+      "max_s": 0.002829750010278076
+    },
+    "oren_c": {
+      "runs": [
+        0.030797374987741932
+      ],
+      "median_s": 0.030797374987741932,
+      "mean_s": 0.030797374987741932,
+      "min_s": 0.030797374987741932,
+      "max_s": 0.030797374987741932
+    },
+    "oren_native": {
+      "runs": [
+        0.36099429201567546
+      ],
+      "median_s": 0.36099429201567546,
+      "mean_s": 0.36099429201567546,
+      "min_s": 0.36099429201567546,
+      "max_s": 0.36099429201567546
+    },
+    "oren_obc": {
+      "runs": [
+        0.16379970900015905
+      ],
+      "median_s": 0.16379970900015905,
+      "mean_s": 0.16379970900015905,
+      "min_s": 0.16379970900015905,
+      "max_s": 0.16379970900015905
+    }
+  },
+  "arena_trace": {
+    "oren_native": {
+      "runs": [
+        {
+          "allocs": 40000,
+          "alloc_bytes": 1600000,
+          "spills": 0,
+          "spill_bytes": 0,
+          "push": 1,
+          "pop": 1,
+          "epoch_reset": 1,
+          "mmap_fail": 0
+        }
+      ],
+      "median": {
+        "allocs": 40000,
+        "alloc_bytes": 1600000,
+        "spills": 0,
+        "spill_bytes": 0,
+        "push": 1,
+        "pop": 1,
+        "epoch_reset": 1,
+        "mmap_fail": 0
+      },
+      "mean": {
+        "allocs": 40000,
+        "alloc_bytes": 1600000,
+        "spills": 0,
+        "spill_bytes": 0,
+        "push": 1,
+        "pop": 1,
+        "epoch_reset": 1,
+        "mmap_fail": 0
+      }
+    }
+  }
+}

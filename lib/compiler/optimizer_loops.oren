@@ -3,10 +3,21 @@ import intparse "int_lit.oren"
 import opthelp "optimizer_helpers.oren"
 
 var ARENA_TRACE_BUDGET = 200
+var OPTLOOPS_BACKEND = nil
 
 fn _opt_str_eq(a, b) {
     if oren_is_string(a) && oren_is_string(b) { return oren_string_eq(a, b) }
     return a == b
+}
+
+fn set_backend(name) {
+    OPTLOOPS_BACKEND = name
+    return nil
+}
+
+fn _opt_arena_backend_allows() {
+    if OPTLOOPS_BACKEND == nil { return true }
+    return _opt_str_eq(OPTLOOPS_BACKEND, "native")
 }
 
 fn _opt_arena_trace(msg) {
@@ -1555,6 +1566,10 @@ fn _opt_insert_arena_pop_in_block(block, allow_break, allow_continue) {
 fn _opt_prepare_loop_arena(block, idx, stmt, parent_forced, parent_noarena) {
     if stmt == nil { return false }
     if stmt["type"] != "While" && stmt["type"] != "For" { return false }
+    if _opt_arena_backend_allows() != true {
+        _opt_arena_trace("[arena_loop] skip=backend")
+        return false
+    }
     if _opt_stmt_has_attr(stmt, "oren.noarena") == true {
         _opt_arena_trace("[arena_loop] skip=noarena")
         return false
