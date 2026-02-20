@@ -197,6 +197,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `alloc_churn` 10.282s with list_header=4979, list_buf=4979 (see `alloc_churn_darwin_arm64_20260220_142427.md`);
      alloc_index_remove count=0; alloc_index rebuilds ~67–73µs
      (log: `build/logs/bench_run_alloc_churn_20260220_142427/oren_native/run_0.log`).
+   - New run (arm64, 2026-02-20, reuse blocks on, `OREN_GC_ALLOC_THRESHOLD=10000`, warmups=1):
+     `alloc_drop` 3.412s (see `alloc_drop_darwin_arm64_20260220_142827.md`);
+     `alloc_churn` 7.341s (see `alloc_churn_darwin_arm64_20260220_142844.md`).
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, native only):
      - `alloc_churn` 1620× C, `alloc_drop` 60.18× C (C baseline from `benchmarks/RESULTS_LATEST.md`; no improvement vs default).
      - `OREN_BENCH_TRACE_ARENA=1` emitted no `[arena]` lines for alloc_churn/alloc_drop (likely no arena push/pop in these benches).
