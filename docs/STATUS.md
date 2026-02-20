@@ -147,8 +147,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - `alloc_churn` list_header=5119, list_buf=5119 (see `alloc_churn_darwin_arm64_20260220_130727.md`).
      - `alloc_drop` list_header=1794, list_buf=6 (see `alloc_drop_darwin_arm64_20260220_130750.md`).
    - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=1000`, warmups=0):
-     - `alloc_churn` panics: `list_reserve on non-list` after `[alloc_site] total=1536 list_header=768 list_buf=768`
-       (local run log: `build/logs/bench_run_alloc_churn_20260220_130927/oren_native/run_0.log`).
+     - `alloc_churn` panics: `list_reserve on non-list` after `[alloc_site] total=1536 list_header=768 list_buf=768`.
+       New trace: stage=1 (node missing), magic matches, count/cap/buf=0, list_debug node=0
+       (local run log: `build/logs/bench_run_alloc_churn_20260220_131957/oren_native/run_0.log`).
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, native only):
      - `alloc_churn` 1620× C, `alloc_drop` 60.18× C (C baseline from `benchmarks/RESULTS_LATEST.md`; no improvement vs default).
      - `OREN_BENCH_TRACE_ARENA=1` emitted no `[arena]` lines for alloc_churn/alloc_drop (likely no arena push/pop in these benches).
@@ -164,6 +165,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `assign_not_dominate`) plus `candidates=0` when no list allocs are seen (rolling, 2026-02-20).
    - New: list_reserve/list_int_reserve now allocate buffers from the arena when the list header is arena-tracked,
      avoiding GC buffer allocations for arena lists (rolling, 2026-02-20).
+   - New: list validation now accepts arena-tracked nodes when `OREN_LIST_ASSUME_LIST=0`, so list_len/reserve/get/set/push
+     do not treat arena lists as non-lists during safety checks (rolling, 2026-02-20).
    - New: list-literal sinking now recurses into nested blocks (loops/ifs/switch cases) so branch-local lists inside
      loops are elided when unused on false paths (rolling, 2026-02-20).
    - New: list-literal sinking now hoists contiguous side-effect-free temps used only by the list literal
