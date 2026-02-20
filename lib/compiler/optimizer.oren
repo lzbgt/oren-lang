@@ -912,21 +912,24 @@ fn _opt_call_name(expr) {
 fn _opt_list_int_call_is_safe(nm, args, safe_ints) {
     if nm == nil { return false }
     if args == nil || oren_list_len(args) < 1 { return false }
-    if nm == "oren_list_len" || nm == "STD_list_len" { return true }
-    if nm == "oren_list_push" || nm == "STD_list_push" {
+    if nm == "oren_list_len" || nm == "STD_list_len" || nm == "oren_list_int_len" || nm == "STD_list_int_len" {
+        return true
+    }
+    if nm == "oren_list_push" || nm == "STD_list_push" || nm == "oren_list_int_push" || nm == "STD_list_int_push" {
         if oren_list_len(args) < 2 { return false }
         return _opt_is_safe_int_expr(args[1], safe_ints)
     }
-    if nm == "oren_list_get" || nm == "STD_list_get" {
+    if nm == "oren_list_get" || nm == "STD_list_get" || nm == "oren_list_int_get" || nm == "STD_list_int_get" {
         if oren_list_len(args) < 2 { return false }
         return _opt_is_safe_int_expr(args[1], safe_ints)
     }
-    if nm == "oren_list_set" || nm == "STD_list_set" {
+    if nm == "oren_list_set" || nm == "STD_list_set" || nm == "oren_list_int_set" || nm == "STD_list_int_set" {
         if oren_list_len(args) < 3 { return false }
         if _opt_is_safe_int_expr(args[1], safe_ints) != true { return false }
         return _opt_is_safe_int_expr(args[2], safe_ints)
     }
-    if nm == "oren_list_reserve" || nm == "STD_list_reserve" {
+    if nm == "oren_list_reserve" || nm == "STD_list_reserve" ||
+        nm == "oren_list_int_reserve" || nm == "STD_list_int_reserve" {
         if oren_list_len(args) < 2 { return false }
         return _opt_is_safe_int_expr(args[1], safe_ints)
     }

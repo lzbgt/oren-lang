@@ -4,6 +4,9 @@ fn main() {
     var n = 10000
     var xs = list.int_new(n)
     var ys = list.int_new(n)
+    var lit = [1, 2, 3, 4]
+    if list.int_len(lit) != 4 { exit(10) }
+    if list.int_get(lit, 2) != 3 { exit(11) }
     var i = 0
     while i < n {
         var v = (i * 3 + 7) % 1000
