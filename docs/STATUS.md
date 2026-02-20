@@ -177,7 +177,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
        (see `alloc_churn_darwin_arm64_20260220_121545.md`, `alloc_drop_darwin_arm64_20260220_121608.md`).
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1`, runs=5, warmups=1):
      - `alloc_churn` median 3.643s native; `alloc_drop` median 0.152s native
-       (see `alloc_churn_darwin_arm64_20260220_122103.md`, `alloc_drop_darwin_arm64_20260220_122127.md`).
+      (see `alloc_churn_darwin_arm64_20260220_122103.md`, `alloc_drop_darwin_arm64_20260220_122127.md`).
+     - Note: this run set the flag at runtime only; compile-time auto-loop was not enabled.
+   - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` via build env, runs=5, warmups=1):
+     - `alloc_churn` median 3.526s native; `alloc_drop` median 0.147s native
+       (see `alloc_churn_darwin_arm64_20260220_122307.md`, `alloc_drop_darwin_arm64_20260220_122330.md`).
    - Design + implement loop‑local arenas for list/list_int (compiler escape analysis + arena tracking table).
    - Native runtime scaffolding: `oren_arena_push/pop` + `oren_arena_new_list(_int)` (compiler lowering pending).
    - Arena cap: `OREN_ARENA_CAP_BYTES` spills allocations back to GC when exceeded.
