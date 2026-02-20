@@ -140,6 +140,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `OREN_BENCH_ENV_BUILD_OREN` (Oren build steps only).
    - Bench harness supports `OREN_BENCH_SAVE_RUN_LOGS=1` (per-run stdout logs) and `OREN_BENCH_RUN_LOG_TEE=1` (tee to console) for trace-heavy runs like GC reuse.
    - Alloc-site snapshot (arm64, 2026-02-20): `alloc_churn` list_header=20k, list_buf=20k; `alloc_drop` list_header≈10011, list_buf≈31 (post list_int literal reserve).
+   - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, warmups=0):
+     - `alloc_drop` list_header=10011, list_buf=31 (see `alloc_drop_darwin_arm64_20260220_130348.md`).
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, native only):
      - `alloc_churn` 1620× C, `alloc_drop` 60.18× C (C baseline from `benchmarks/RESULTS_LATEST.md`; no improvement vs default).
      - `OREN_BENCH_TRACE_ARENA=1` emitted no `[arena]` lines for alloc_churn/alloc_drop (likely no arena push/pop in these benches).
