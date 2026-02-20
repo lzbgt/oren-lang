@@ -62,7 +62,7 @@ Baseline reference: `benchmarks/RESULTS_LATEST.md` (M2 Pro, 2026-02-20).
 Weights reflect expected impact on C parity and breadth of affected code.
 
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
-   - Baseline (arm64 native, 2026-02-20): `loop_sum` 3.42× C, `dot_product` 517.11× C.
+   - Baseline (arm64 native, 2026-02-20): `loop_sum` 3.42× C, `dot_product` 4.13× C.
    - Expand inty propagation and arithmetic fast paths.
    - Split runtime init vs steady-state cost and quantify the init gap (see `benchmarks/RESULTS_LATEST.md` notes).
    - Const-divisor `%` is now inlined for literal/const RHS (arm64 + x64).
@@ -368,7 +368,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
 
 3) **W4 - List reserve + unchecked push** (M)
-   - Baseline (arm64 native, 2026-02-20): `array_sum` 331.85× C, `multi_list_push_int` 3.15× C.
+   - Baseline (arm64 native, 2026-02-20): `array_sum` 4.02× C, `multi_list_push_int` 3.15× C.
    - Extend bounds propagation for reserve/unchecked push.
    - Treat `oren_new_list(0)` as list-literal for reserve insertion (loop bound -> reserve).
    - Reserve insertion now descends into nested loops with outer list literals and adds list literal length to the reserve amount when known.
@@ -378,6 +378,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Loop reserve insertion does not rewrite push calls (keeps the intrinsic fast path); it only adds `*_reserve` pre-loop.
    - New: int-only lists created from empty literals are auto-lowered to list<int> in the optimizer
      (rewrites list.push/get/len/set/reserve to list_int ops when the list does not escape; rolling, 2026-02-20).
+   - Native fast list_int push loops now accept `list_int_push_unchecked` calls to preserve the fast path after list<int> lowering (rolling, 2026-02-20).
    - List<int> reserve insertion now accepts int-only list literals (including empty literals).
    - Gate: native `array_sum` and `multi_list_push_int` <= 2x C.
 

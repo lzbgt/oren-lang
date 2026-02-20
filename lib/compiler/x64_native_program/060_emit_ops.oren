@@ -245,7 +245,7 @@ fn _x64_is_list_int_push_call(ctx, exp) {
         }
     }
     if nm == nil { return nil }
-    if nm != "oren_list_int_push" && nm != "STD_list_int_push" { return nil }
+    if nm != "oren_list_int_push" && nm != "STD_list_int_push" && nm != "oren_list_int_push_unchecked" { return nil }
     var args = exp["args"]
     if args == nil || oren_list_len(args) != 2 { return nil }
     var list_name = _x64_is_ident(args[0])
