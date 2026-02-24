@@ -493,6 +493,10 @@ fn native_arena_new_list(cap) {
     ptr_set(iadd(header, 8), cap)
     ptr_set(iadd(header, 16), buf)
     ptr_set(iadd(header, 24), list_magic())
+    if trace_list_track_consume() != 0 {
+        print("[list_track] arena_alloc ptr=" + oren_int_to_string(header) +
+              " kind=2 size=" + oren_int_to_string(total))
+    }
     return header
 }
 
@@ -510,6 +514,11 @@ fn native_arena_new_list_int(cap) {
     ptr_set(iadd(header, 8), cap)
     ptr_set(iadd(header, 16), buf)
     ptr_set(iadd(header, 24), list_magic())
+    if trace_list_track_consume() != 0 {
+        print("[list_track] arena_alloc ptr=" + oren_int_to_string(header) +
+              " kind=" + oren_int_to_string(list_int_kind()) +
+              " size=" + oren_int_to_string(total))
+    }
     return header
 }
 

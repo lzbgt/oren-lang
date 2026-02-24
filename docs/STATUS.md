@@ -189,17 +189,21 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - `alloc_churn` list_header=20000, list_buf=0.
      - `alloc_drop` list_header=1794, list_buf=6.
    - New: list-track now logs `track_alloc` events in `oren_track_alloc` when `OREN_TRACE_LIST_TRACK=1`
-     (rolling, 2026-02-25). However, `alloc_churn` still emitted no `[list_track]` lines with
-     `OREN_TRACE_LIST_TRACK=1` + cap=50 (local run, 2026-02-25), suggesting list header tracking may bypass
-     `oren_track_alloc` / alloc-index instrumentation (likely `malloc_k` path).
+     (rolling, 2026-02-25). `alloc_churn` now emits `[list_track] arena_alloc` lines under auto arenas,
+     confirming list headers are arena-backed in the default benchmark build.
    - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=1000`, warmups=0):
      - `alloc_churn` panics: `list_reserve on non-list` after `[alloc_site] total=1536 list_header=768 list_buf=768`.
        New trace: stage=1 (node missing), magic matches, count/cap/buf=0, list_debug node=0,
        arena_depth=0 (no arena node or range) (local run log: `build/logs/bench_run_alloc_churn_20260220_132405/oren_native/run_0.log`).
    - New: `OREN_TRACE_LIST_TRACK=1` logs alloc-index insert/remove events for list/list_int headers
      (cap=1024; override with `OREN_TRACE_LIST_TRACK_CAP`, rolling, 2026-02-20).
+   - New: `OREN_TRACE_TRACK_ALLOC_NEW=1` logs early `oren_track_alloc_new` events
+     (cap via `OREN_TRACE_TRACK_ALLOC_NEW_CAP`, rolling, 2026-02-25).
    - New: `OREN_TRACE_ALLOC_INDEX_REMOVE_TIME=1` prints alloc-index remove timing stats at GC sweep
      (rolling, 2026-02-20).
+   - Trace list-track (arm64, 2026-02-25, `OREN_TRACE_LIST_TRACK=1`, cap=5): `alloc_churn` emits
+     `[list_track] arena_alloc` lines, confirming list headers are arena-backed under auto loop arenas.
+     Use `OREN_ARENA_AUTO_LOOP=0` when you need GC-tracked list headers for reuse debugging.
    - New: native GC safepoints now spill callee‑saved registers to the stack before calling
      `oren_gc_safepoint` (arm64: x19–x28; x64: rbx/rbp/rdi/rsi/r12–r15) so conservative stack scans
      see register‑held pointers (rolling, 2026-02-20).
@@ -463,6 +467,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      (`@oren.arena`, `@oren.arena_iter`, `@oren.noarena`) are already implemented.
    - Investigate list header tracking path for `malloc_k`: `OREN_TRACE_LIST_TRACK` still emits no lines
      in `alloc_churn` (2026-02-25); add trace hooks or wire list tracking in the `malloc_k` path.
+   - Separate arena vs GC allocations in perf diagnostics; `alloc_churn` defaults to arena-backed lists
+     (use `OREN_ARENA_AUTO_LOOP=0` to force GC-tracked list headers when debugging reuse).
    - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
 
 2) **Perf parity W5: native hot loops** (L, W5)

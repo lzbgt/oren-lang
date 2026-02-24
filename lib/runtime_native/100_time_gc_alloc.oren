@@ -154,6 +154,8 @@ var g_alloc_index_remove_time_count = 0
 // List tracking diagnostics (optional).
 var g_trace_list_track = -1
 var g_trace_list_track_cap = 0
+var g_trace_track_alloc_new = -1
+var g_trace_track_alloc_new_cap = 0
 
 // track_alloc timing (optional; gated by g_trace_track_alloc_time).
 var g_track_alloc_time_total_ns = 0
@@ -222,6 +224,7 @@ fn trace_list_track_enabled() {
             var cap = native_parse_int_cstr(cap_ptr)
             if cap > 0 { g_trace_list_track_cap = cap }
         }
+        print("[list_track] enabled cap=" + oren_int_to_string(g_trace_list_track_cap))
         return true
     }
     g_trace_list_track = 0
@@ -232,6 +235,31 @@ fn trace_list_track_consume() {
     if trace_list_track_enabled() != true { return 0 }
     if g_trace_list_track_cap <= 0 { return 0 }
     g_trace_list_track_cap = g_trace_list_track_cap - 1
+    return 1
+}
+
+fn trace_track_alloc_new_enabled() {
+    if g_trace_track_alloc_new == 1 { return true }
+    var v = native_envp_get_value_ptr("OREN_TRACE_TRACK_ALLOC_NEW")
+    if v == 0 { return false }
+    if ptr_get_byte(v) != 0 && ptr_get_byte(v) != 48 {
+        g_trace_track_alloc_new = 1
+        g_trace_track_alloc_new_cap = 1024
+        var cap_ptr = native_envp_get_value_ptr("OREN_TRACE_TRACK_ALLOC_NEW_CAP")
+        if cap_ptr != 0 {
+            var cap = native_parse_int_cstr(cap_ptr)
+            if cap > 0 { g_trace_track_alloc_new_cap = cap }
+        }
+        return true
+    }
+    g_trace_track_alloc_new = 0
+    return false
+}
+
+fn trace_track_alloc_new_consume() {
+    if trace_track_alloc_new_enabled() != true { return 0 }
+    if g_trace_track_alloc_new_cap <= 0 { return 0 }
+    g_trace_track_alloc_new_cap = g_trace_track_alloc_new_cap - 1
     return 1
 }
 
@@ -1693,6 +1721,12 @@ fn oren_track_alloc_new(ptr, size, kind) {
         native_alloc_index_put_node(node)
         if native_alloc_index_get(ptr) == 0 {
             native_alloc_index_rebuild_live()
+        }
+        if trace_track_alloc_new_consume() != 0 {
+            print("[track_alloc_new] ptr=" + oren_int_to_string(ptr) +
+                  " kind=" + oren_int_to_string(kind) +
+                  " size=" + oren_int_to_string(size) +
+                  " node=" + oren_int_to_string(node))
         }
         if kind == 2 || kind == list_int_kind() {
             if trace_list_track_consume() != 0 {
