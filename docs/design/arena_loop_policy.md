@@ -32,8 +32,11 @@ performance gap while keeping correctness and determinism intact.
   `iter_spill_bytes`) to diagnose cap behavior (rolling).
   - Trace run (arm64, 2026-02-25, `OREN_ARENA_ITER_CAP_BYTES=262144`) shows `iter_spills=0`
     for alloc_churn, indicating the cap is not binding.
-  - Trace run (arm64, 2026-02-25) for alloc_drop emitted no `[arena]` lines, indicating
-    the loop is not arena-wrapped under current heuristics.
+- Trace run (arm64, 2026-02-25) for alloc_drop emitted no `[arena]` lines, indicating
+  the loop is not arena-wrapped under current heuristics.
+- Arena-loop trace (arm64, 2026-02-25) shows alloc_drop drops the list literal
+  candidate as `unsafe_use` and ends with `skip=no_arena_alloc`, so arenas do
+  not apply under current safety rules.
 - GC reuse and list header integrity are still rolling; reuse is guarded and
   tracing is available (`OREN_TRACE_GC_REUSE`, `OREN_TRACE_LIST_TRACK`, etc.).
 

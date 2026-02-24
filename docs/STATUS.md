@@ -263,6 +263,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
      the loop is not arena-wrapped (log:
      `build/logs/bench_iter_cap_256k_trace_drop_20260225_032316.log`,
      run log: `build/logs/bench_run_alloc_drop_20260225_032316/oren_native/run_0.log`).
+   - Arena-loop trace (arm64, 2026-02-25, `OREN_TRACE_ARENA_LOOPS=1` compile):
+     alloc_drop inner loop drops the list literal candidate as `unsafe_use` and
+     ends with `skip=no_arena_alloc`, so the loop is not wrapped by arenas
+     (log: `build/logs/alloc_drop_arena_loop_trace_20260225_032643.log`).
    - Repro across scan caps (arm64, 2026-02-25, direct native run with reuse + auto arenas off):
      scan_cap=1000/5000/20000 each shows `[gc_reuse_hit] kind=0` followed by
      `[gc_reuse_bad_list] chunk=32 len=128 cap=128 buf=ptr+32 magic=1279870019`
