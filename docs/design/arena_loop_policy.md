@@ -30,6 +30,8 @@ performance gap while keeping correctness and determinism intact.
   a per-iteration cap via `OREN_ARENA_ITER_CAP_BYTES` (rolling).
 - `OREN_TRACE_ARENA=1` now reports per-iter counters (`iter_push/pop`, `iter_spills`,
   `iter_spill_bytes`) to diagnose cap behavior (rolling).
+  - Trace run (arm64, 2026-02-25, `OREN_ARENA_ITER_CAP_BYTES=262144`) shows `iter_spills=0`
+    for alloc_churn, indicating the cap is not binding.
 - GC reuse and list header integrity are still rolling; reuse is guarded and
   tracing is available (`OREN_TRACE_GC_REUSE`, `OREN_TRACE_LIST_TRACK`, etc.).
 

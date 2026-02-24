@@ -253,6 +253,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
      runs=3/warmups=1, native+C only): `alloc_churn` 6.51s vs C 0.003024s (2153×);
      `alloc_drop` 0.2753s vs C 0.003061s (89.9×). Still worse than baseline (log:
      `build/logs/bench_iter_cap_1m_20260225_031326.log`).
+   - Trace run (arm64, 2026-02-25, `OREN_TRACE_ARENA=1`, `OREN_ARENA_ITER_CAP_BYTES=262144`):
+     alloc_churn run emitted 20,000 `[arena]` lines with `iter_spills=0` (cap not binding);
+     benchmark aborted with output mismatch due to trace (log:
+     `build/logs/bench_iter_cap_256k_trace_20260225_031951.log`,
+     run log: `build/logs/bench_run_alloc_churn_20260225_031951/oren_native/run_0.log`).
    - Repro across scan caps (arm64, 2026-02-25, direct native run with reuse + auto arenas off):
      scan_cap=1000/5000/20000 each shows `[gc_reuse_hit] kind=0` followed by
      `[gc_reuse_bad_list] chunk=32 len=128 cap=128 buf=ptr+32 magic=1279870019`
