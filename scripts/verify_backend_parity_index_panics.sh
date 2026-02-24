@@ -96,6 +96,7 @@ run_expect_panic() {
 
 cases=(
   "index_set_negative|tests/native/fixtures/index_set_negative.oren|INDEX_OOB"
+  "index_get_oob|tests/native/fixtures/index_get_oob.oren|INDEX_OOB"
 )
 
 for entry in "${cases[@]}"; do

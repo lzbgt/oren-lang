@@ -1,0 +1,6 @@
+// Native + C backend fixture:
+// index get out-of-bounds must be a deterministic runtime panic.
+
+var xs = ["a"]
+var x = xs[1]
+print(x)

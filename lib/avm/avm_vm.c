@@ -2382,14 +2382,18 @@ select2_done:
 
                     if (obj.type == AVM_VAL_LIST && key.type == AVM_VAL_INT) {
                         int i = (int)key.as.i;
-                        if (i >= 0 && i < obj.as.l->count) {
-                            res = obj.as.l->items[i];
+                        if (i < 0 || i >= obj.as.l->count) {
+                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "index out of bounds"));
+                            break;
                         }
+                        res = obj.as.l->items[i];
                     } else if (obj.type == AVM_VAL_LIST_INT && key.type == AVM_VAL_INT) {
                         int i = (int)key.as.i;
-                        if (i >= 0 && i < obj.as.li->count) {
-                            res = avm_int(obj.as.li->items[i]);
+                        if (i < 0 || i >= obj.as.li->count) {
+                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "index out of bounds"));
+                            break;
                         }
+                        res = avm_int(obj.as.li->items[i]);
                     } else if (obj.type == AVM_VAL_MAP) {
                         if (!avm_map_key_supported(key)) {
                             avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "map key type not supported (need nil/bool/int/string)"));
@@ -2413,14 +2417,18 @@ select2_done:
 
                     if (obj.type == AVM_VAL_LIST && key.type == AVM_VAL_INT) {
                         int i = (int)key.as.i;
-                        if (i >= 0 && i < obj.as.l->count) {
-                            res = obj.as.l->items[i];
+                        if (i < 0 || i >= obj.as.l->count) {
+                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "index out of bounds"));
+                            break;
                         }
+                        res = obj.as.l->items[i];
                     } else if (obj.type == AVM_VAL_LIST_INT && key.type == AVM_VAL_INT) {
                         int i = (int)key.as.i;
-                        if (i >= 0 && i < obj.as.li->count) {
-                            res = avm_int(obj.as.li->items[i]);
+                        if (i < 0 || i >= obj.as.li->count) {
+                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "index out of bounds"));
+                            break;
                         }
+                        res = avm_int(obj.as.li->items[i]);
                     }
                     vm->stack[vm->sp++] = res;
                 }
