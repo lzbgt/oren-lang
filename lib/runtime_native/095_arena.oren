@@ -13,6 +13,8 @@ var g_arena_bytes_cap = 0
 var g_arena_inited = 0
 var g_arena_auto_enabled = 1
 var g_arena_auto_inited = 0
+var g_arena_iter_cap_inited = 0
+var g_arena_iter_bytes_cap = 0
 
 // Arena tracing (optional; enable via OREN_TRACE_ARENA=1).
 var g_arena_trace_enabled = 0
@@ -89,7 +91,7 @@ fn native_arena_align16(n) {
     return out
 }
 
-fn native_arena_stack_entry_bytes() { return 32 }
+fn native_arena_stack_entry_bytes() { return 48 }
 fn native_arena_table_stack_entry_bytes() { return 32 }
 
 fn native_arena_stack_ensure(depth) {
@@ -98,26 +100,31 @@ fn native_arena_stack_ensure(depth) {
     var cap = g_arena_stack_cap
     if cap <= 0 { cap = 8 }
     while cap < depth { cap = cap * 2 }
-    var bytes = cap * native_arena_stack_entry_bytes()
+    var entry = native_arena_stack_entry_bytes()
+    var bytes = cap * entry
     var new_ptr = native_malloc_raw_or_mmap(bytes)
     if new_ptr == 0 { return 0 }
     var i = 0
     while i < cap {
-        var off = i * 32
+        var off = i * entry
         ptr_set(iadd(new_ptr, off), 0)
         ptr_set(iadd(new_ptr, off + 8), 0)
         ptr_set(iadd(new_ptr, off + 16), 0)
         ptr_set(iadd(new_ptr, off + 24), 0)
+        ptr_set(iadd(new_ptr, off + 32), 0)
+        ptr_set(iadd(new_ptr, off + 40), 0)
         i = i + 1
     }
     if g_arena_stack_ptr != 0 {
         var j = 0
         while j < g_arena_stack_cap {
-            var offj = j * 32
+            var offj = j * entry
             ptr_set(iadd(new_ptr, offj), ptr_get(iadd(g_arena_stack_ptr, offj)))
             ptr_set(iadd(new_ptr, offj + 8), ptr_get(iadd(g_arena_stack_ptr, offj + 8)))
             ptr_set(iadd(new_ptr, offj + 16), ptr_get(iadd(g_arena_stack_ptr, offj + 16)))
             ptr_set(iadd(new_ptr, offj + 24), ptr_get(iadd(g_arena_stack_ptr, offj + 24)))
+            ptr_set(iadd(new_ptr, offj + 32), ptr_get(iadd(g_arena_stack_ptr, offj + 32)))
+            ptr_set(iadd(new_ptr, offj + 40), ptr_get(iadd(g_arena_stack_ptr, offj + 40)))
             j = j + 1
         }
     }
@@ -128,21 +135,24 @@ fn native_arena_stack_ensure(depth) {
 
 fn native_arena_stack_save(depth) {
     if g_arena_stack_ptr == 0 { return 0 }
-    var off = (depth - 1) * 32
+    var off = (depth - 1) * native_arena_stack_entry_bytes()
     ptr_set(iadd(g_arena_stack_ptr, off), g_arena_ptr)
     ptr_set(iadd(g_arena_stack_ptr, off + 8), g_arena_limit)
     ptr_set(iadd(g_arena_stack_ptr, off + 16), g_arena_base)
     ptr_set(iadd(g_arena_stack_ptr, off + 24), g_arena_bytes_used)
+    ptr_set(iadd(g_arena_stack_ptr, off + 32), g_arena_bytes_cap)
+    ptr_set(iadd(g_arena_stack_ptr, off + 40), 0)
     return 0
 }
 
 fn native_arena_stack_restore(depth) {
     if g_arena_stack_ptr == 0 { return 0 }
-    var off = (depth - 1) * 32
+    var off = (depth - 1) * native_arena_stack_entry_bytes()
     g_arena_ptr = ptr_get(iadd(g_arena_stack_ptr, off))
     g_arena_limit = ptr_get(iadd(g_arena_stack_ptr, off + 8))
     g_arena_base = ptr_get(iadd(g_arena_stack_ptr, off + 16))
     g_arena_bytes_used = ptr_get(iadd(g_arena_stack_ptr, off + 24))
+    g_arena_bytes_cap = ptr_get(iadd(g_arena_stack_ptr, off + 32))
     return 0
 }
 
@@ -196,6 +206,19 @@ fn native_arena_init_once() {
         if cap > 0 { g_arena_bytes_cap = cap }
     }
     return 0
+}
+
+fn native_arena_iter_cap() {
+    if g_arena_iter_cap_inited == 0 {
+        g_arena_iter_cap_inited = 1
+        g_arena_iter_bytes_cap = 0
+        var v_cap = native_envp_get_value_ptr("OREN_ARENA_ITER_CAP_BYTES")
+        if v_cap != 0 {
+            var cap = native_parse_i64_dec_cstr_or_neg1(v_cap)
+            if cap > 0 { g_arena_iter_bytes_cap = cap }
+        }
+    }
+    return g_arena_iter_bytes_cap
 }
 
 fn native_arena_trace_enable() {
@@ -497,6 +520,13 @@ fn native_arena_push() {
     return 0
 }
 
+fn native_arena_iter_push() {
+    native_arena_push()
+    var cap = native_arena_iter_cap()
+    if cap > 0 { g_arena_bytes_cap = cap }
+    return 0
+}
+
 fn native_arena_pop() {
     if g_arena_depth <= 0 { return 0 }
     var depth = g_arena_depth
@@ -527,6 +557,12 @@ fn oren_arena_push() { return native_arena_push() }
 
 @oren.keep
 fn oren_arena_pop() { return native_arena_pop() }
+
+@oren.keep
+fn oren_arena_iter_push() { return native_arena_iter_push() }
+
+@oren.keep
+fn oren_arena_iter_pop() { return native_arena_pop() }
 
 fn native_arena_new_list(cap) {
     if cap < 0 { cap = 0 }

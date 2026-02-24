@@ -547,6 +547,7 @@ until perf + parity gates are within range.
    - Execute item 2 in the performance tracker (alloc_churn + alloc_drop).
    - Include long‑lived loop arena policy (per‑iteration sub‑arenas + spill + epoch reset).
    - Design spec: `docs/design/arena_loop_policy.md` (loop arena policy + GC reuse safety).
+   - New: per-iteration loops use `oren_arena_iter_push/pop` with optional cap via `OREN_ARENA_ITER_CAP_BYTES` (rolling).
    - Fold loop‑local arena prototype for list/list_int into this track; override annotations
      (`@oren.arena`, `@oren.arena_iter`, `@oren.noarena`) are already implemented.
    - Confirmed GC-path list tracking after disabling auto arenas (`OREN_ARENA_AUTO_LOOP=0` runtime via

@@ -1322,6 +1322,8 @@ fn _opt_stmt_contains_arena_push_pop(stmt) {
         if e != nil && e["type"] == "Call" {
             if _opt_is_call_named(e, "oren_arena_push") { return true }
             if _opt_is_call_named(e, "oren_arena_pop") { return true }
+            if _opt_is_call_named(e, "oren_arena_iter_push") { return true }
+            if _opt_is_call_named(e, "oren_arena_iter_pop") { return true }
         }
         return false
     }
@@ -1870,36 +1872,36 @@ fn _opt_make_arena_stmt(name) {
     return {"type": "ExprStmt", "token": nil, "expr": call}
 }
 
-fn _opt_insert_arena_pop_in_stmt(stmt, allow_break, allow_continue) {
+fn _opt_insert_arena_pop_in_stmt(stmt, allow_break, allow_continue, pop_name) {
     if stmt == nil { return nil }
     var t = stmt["type"]
     if t == "Break" {
         if allow_break != true { return stmt }
         var blk_break = ast.new_block(stmt["token"])
-        blk_break["stmts"] = [_opt_make_arena_stmt("oren_arena_pop"), stmt]
+        blk_break["stmts"] = [_opt_make_arena_stmt(pop_name), stmt]
         return blk_break
     }
     if t == "Return" {
         var blk = ast.new_block(stmt["token"])
-        blk["stmts"] = [_opt_make_arena_stmt("oren_arena_pop"), stmt]
+        blk["stmts"] = [_opt_make_arena_stmt(pop_name), stmt]
         return blk
     }
     if t == "Continue" {
         if allow_continue != true { return stmt }
         var blk_continue = ast.new_block(stmt["token"])
-        blk_continue["stmts"] = [_opt_make_arena_stmt("oren_arena_pop"), stmt]
+        blk_continue["stmts"] = [_opt_make_arena_stmt(pop_name), stmt]
         return blk_continue
     }
     if t == "Block" {
-        _opt_insert_arena_pop_in_block(stmt, allow_break, allow_continue)
+        _opt_insert_arena_pop_in_block(stmt, allow_break, allow_continue, pop_name)
         return stmt
     }
     if t == "If" {
         if stmt["consq"] != nil {
-            stmt["consq"] = _opt_insert_arena_pop_in_stmt(stmt["consq"], allow_break, allow_continue)
+            stmt["consq"] = _opt_insert_arena_pop_in_stmt(stmt["consq"], allow_break, allow_continue, pop_name)
         }
         if stmt["alt"] != nil {
-            stmt["alt"] = _opt_insert_arena_pop_in_stmt(stmt["alt"], allow_break, allow_continue)
+            stmt["alt"] = _opt_insert_arena_pop_in_stmt(stmt["alt"], allow_break, allow_continue, pop_name)
         }
         return stmt
     }
@@ -1910,21 +1912,21 @@ fn _opt_insert_arena_pop_in_stmt(stmt, allow_break, allow_continue) {
             while ci < oren_list_len(cases) {
                 var c = cases[ci]
                 if c != nil && c["body"] != nil {
-                    c["body"] = _opt_insert_arena_pop_in_stmt(c["body"], allow_break, allow_continue)
+                    c["body"] = _opt_insert_arena_pop_in_stmt(c["body"], allow_break, allow_continue, pop_name)
                 }
                 ci = ci + 1
             }
         }
         if stmt["default"] != nil {
-            stmt["default"] = _opt_insert_arena_pop_in_stmt(stmt["default"], allow_break, allow_continue)
+            stmt["default"] = _opt_insert_arena_pop_in_stmt(stmt["default"], allow_break, allow_continue, pop_name)
         }
         return stmt
     }
     if t == "ExprStmt" {
         var e = stmt["expr"]
         if e != nil && e["type"] == "If" {
-            if e["consq"] != nil { e["consq"] = _opt_insert_arena_pop_in_stmt(e["consq"], allow_break, allow_continue) }
-            if e["alt"] != nil { e["alt"] = _opt_insert_arena_pop_in_stmt(e["alt"], allow_break, allow_continue) }
+            if e["consq"] != nil { e["consq"] = _opt_insert_arena_pop_in_stmt(e["consq"], allow_break, allow_continue, pop_name) }
+            if e["alt"] != nil { e["alt"] = _opt_insert_arena_pop_in_stmt(e["alt"], allow_break, allow_continue, pop_name) }
         }
         if e != nil && e["type"] == "Switch" {
             var cases2 = e["cases"]
@@ -1933,12 +1935,12 @@ fn _opt_insert_arena_pop_in_stmt(stmt, allow_break, allow_continue) {
                 while ci2 < oren_list_len(cases2) {
                     var c2 = cases2[ci2]
                     if c2 != nil && c2["body"] != nil {
-                        c2["body"] = _opt_insert_arena_pop_in_stmt(c2["body"], allow_break, allow_continue)
+                        c2["body"] = _opt_insert_arena_pop_in_stmt(c2["body"], allow_break, allow_continue, pop_name)
                     }
                     ci2 = ci2 + 1
                 }
             }
-            if e["default"] != nil { e["default"] = _opt_insert_arena_pop_in_stmt(e["default"], allow_break, allow_continue) }
+            if e["default"] != nil { e["default"] = _opt_insert_arena_pop_in_stmt(e["default"], allow_break, allow_continue, pop_name) }
         }
         return stmt
     }
@@ -1947,7 +1949,7 @@ fn _opt_insert_arena_pop_in_stmt(stmt, allow_break, allow_continue) {
     return stmt
 }
 
-fn _opt_insert_arena_pop_in_block(block, allow_break, allow_continue) {
+fn _opt_insert_arena_pop_in_block(block, allow_break, allow_continue, pop_name) {
     if block == nil || block["type"] != "Block" { return false }
     var ss = block["stmts"]
     if ss == nil { return false }
@@ -1956,7 +1958,7 @@ fn _opt_insert_arena_pop_in_block(block, allow_break, allow_continue) {
     var i = 0
     while i < oren_list_len(ss) {
         var st = ss[i]
-        var ns = _opt_insert_arena_pop_in_stmt(st, allow_break, allow_continue)
+        var ns = _opt_insert_arena_pop_in_stmt(st, allow_break, allow_continue, pop_name)
         if ns != st { changed = true }
         oren_list_push(out, ns)
         i = i + 1
@@ -2094,22 +2096,22 @@ fn _opt_prepare_loop_arena(block, idx, stmt, parent_forced, parent_noarena) {
         " safe_vars=" + oren_int_to_string(safe_len) +
         " rewrite=" + oren_int_to_string(rewrite_i))
     if per_iter == true {
-        _opt_insert_arena_pop_in_block(body, true, allow_continue)
+        _opt_insert_arena_pop_in_block(body, true, allow_continue, "oren_arena_iter_pop")
         var ss = body["stmts"]
         if ss == nil { ss = []; body["stmts"] = ss }
         var out = []
-        oren_list_push(out, _opt_make_arena_stmt("oren_arena_push"))
+        oren_list_push(out, _opt_make_arena_stmt("oren_arena_iter_push"))
         var i = 0
         while i < oren_list_len(ss) {
             oren_list_push(out, ss[i])
             i = i + 1
         }
-        oren_list_push(out, _opt_make_arena_stmt("oren_arena_pop"))
+        oren_list_push(out, _opt_make_arena_stmt("oren_arena_iter_pop"))
         body["stmts"] = out
         return true
     }
 
-    _opt_insert_arena_pop_in_block(body, false, false)
+    _opt_insert_arena_pop_in_block(body, false, false, "oren_arena_pop")
     if block != nil && block["type"] == "Block" && block["stmts"] != nil {
         var wrap = ast.new_block(stmt["token"])
         wrap["stmts"] = [_opt_make_arena_stmt("oren_arena_push"), stmt, _opt_make_arena_stmt("oren_arena_pop")]

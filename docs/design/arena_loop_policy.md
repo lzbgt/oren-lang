@@ -26,6 +26,8 @@ performance gap while keeping correctness and determinism intact.
   `OREN_ARENA_AUTO_LOOP=0` via `oren_arena_new_list_auto`.
 - List headers are arena-backed by default in benchmark builds; list-track
   traces confirm `arena_alloc` events in `alloc_churn`.
+- Per-iteration loop scopes now use `oren_arena_iter_push/pop` and can apply
+  a per-iteration cap via `OREN_ARENA_ITER_CAP_BYTES` (rolling).
 - GC reuse and list header integrity are still rolling; reuse is guarded and
   tracing is available (`OREN_TRACE_GC_REUSE`, `OREN_TRACE_LIST_TRACK`, etc.).
 
@@ -64,7 +66,7 @@ Treat each hot loop iteration as a short-lived arena frame. The arena frame:
 - Ensure benchmarks can force GC-tracked list headers with
   `OREN_ARENA_AUTO_LOOP=0`.
 
-### Phase 1: explicit per-iteration arenas
+### Phase 1: explicit per-iteration arenas (rolling)
 
 - Introduce a loop-iteration arena frame with:
   - a fixed byte budget per iteration,
@@ -116,7 +118,6 @@ Treat each hot loop iteration as a short-lived arena frame. The arena frame:
 
 ## Next steps
 
-1) Wire explicit per-iteration frame bookkeeping in the native runtime.
-2) Add spill accounting and trace exposure (per-loop counters).
+1) Validate per-iteration cap behavior under `alloc_churn`/`alloc_drop`.
+2) Add per-loop spill accounting if the global counters are too coarse.
 3) Re-run `alloc_churn`/`alloc_drop` with arena auto on/off to confirm deltas.
-
