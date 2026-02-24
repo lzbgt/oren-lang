@@ -75,6 +75,7 @@ Local cross-backend microbenchmarks live under `benchmarks/`:
 
 - `docs/DESIGN.md` — architecture, backends, runtime layering, AVM/OBC summary, and toolchain/platform notes
 - `docs/design/tagged_values.md` — staged tagged-value convergence plan and migration gates
+- `docs/design/arena_loop_policy.md` — loop arena policy + GC reuse safety (alloc/GC perf track)
 
 ## 5) Rolling policy (no stubs)
 

@@ -43,6 +43,37 @@ Design intent is bleeding‑edge (determinism + capability gating + AVM), but ex
 
 ---
 
+## Production readiness scorecard (weighted, rolling snapshot)
+
+Weighted categories map directly to the tracker items below; W5 dominates "how far"
+Oren is from LLVM/rustc/GCC/zig/go parity today.
+
+1) **W5 - Semantic parity (tagged values + fixtures)**
+   - Native tagged values are still rolling; `oren_type_tag` is best‑effort for scalars.
+   - Cross‑backend parity is enforced via fixtures, not a stabilized ABI.
+
+2) **W5 - Performance parity (hot loops + alloc/GC)**
+   - Baselines: `loop_sum` 3.42× C, `dot_product` 4.13× C; `alloc_churn` 1463× C, `alloc_drop` 62× C (arm64).
+   - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
+
+3) **W5 - Runtime robustness (GC reuse + allocator invariants)**
+   - GC reuse paths are experimental; list header corruption investigations are ongoing.
+   - Guardrails and traces exist, but correctness gates are not yet stable.
+
+4) **W4 - Platform breadth (Tier‑1 intent targets)**
+   - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
+
+5) **W3 - Tooling/ABI stability**
+   - ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
+
+6) **W3 - Docs fidelity + regression gates**
+   - Docs are grounded in fixtures/tests; gaps get surfaced via parity gates.
+
+7) **W2 - Structural/SOLID debt**
+   - Oversized files are tracked for refactor once perf + parity converge.
+
+---
+
 ## Regression gates (run first)
 
 Local (fast):
@@ -224,6 +255,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Post-guard trace (arm64, 2026-02-25, direct native run with reuse + auto arenas off):
      no `[gc_reuse_bad_list]` lines; gc_reuse summary shows guard_bad_list=0
      (log: `build/logs/alloc_churn_direct_reuse_post_guard_20260225_025057.log`).
+   - Higher-verbosity reuse trace (arm64, 2026-02-25, same env with verbose cap=50):
+     still no `[gc_reuse_bad_list]`; reuse hits>1k, guard_bad_list=0
+     (log: `build/logs/alloc_churn_direct_reuse_post_guard_verbose_20260225_025542.log`).
    - Trace alloc_churn reuse (arm64, 2026-02-25, same reuse env as above) ran >3 min
      and was terminated to keep iteration fast; no trace output captured.
    - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=1000`, warmups=0):
@@ -506,9 +540,13 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 ## P0 (Now)
 
+P0 focuses on the W5/W4 scorecard items. Structural/SOLID refactors remain P2
+until perf + parity gates are within range.
+
 1) **Perf parity W5: allocation/GC** (L, W5)
    - Execute item 2 in the performance tracker (alloc_churn + alloc_drop).
    - Include long‑lived loop arena policy (per‑iteration sub‑arenas + spill + epoch reset).
+   - Design spec: `docs/design/arena_loop_policy.md` (loop arena policy + GC reuse safety).
    - Fold loop‑local arena prototype for list/list_int into this track; override annotations
      (`@oren.arena`, `@oren.arena_iter`, `@oren.noarena`) are already implemented.
    - Confirmed GC-path list tracking after disabling auto arenas (`OREN_ARENA_AUTO_LOOP=0` runtime via
