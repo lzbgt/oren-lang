@@ -1,6 +1,6 @@
 # Latest Benchmark Snapshot (Apple M2 Pro, macOS-26.3-arm64-arm-64bit-Mach-O, arm64)
 
-**Date:** 2026-02-24  
+**Date:** 2026-02-25  
 **Host:** Bruce-Mac, Apple M2 Pro (10 cores, 17179869184 bytes)
 
 This snapshot summarizes the **latest** benchmark artifacts under `benchmarks/results/`.
@@ -17,7 +17,7 @@ Legend: `x` = slowdown relative to C median.
 | array_sum_int | 0.003865 | 0.007937 (2.05×) | 0.015926 (4.12×) | 0.004629 (1.20×) | `benchmarks/results/array_sum_int_darwin_arm64_20260220_104956.md` |
 | dot_product | 0.005011 | 0.012893 (2.57×) | 0.020850 (4.16×) | 0.376919 (75.22×) | `benchmarks/results/dot_product_darwin_arm64_20260220_162856.md` |
 | dot_product_int | 0.004929 | 0.013228 (2.68×) | 0.021600 (4.38×) | 0.009287 (1.88×) | `benchmarks/results/dot_product_int_darwin_arm64_20260220_105040.md` |
-| loop_sum | 0.065636 | 0.060110 (0.92×) | 0.224186 (3.42×) | 0.091977 (1.40×) | `benchmarks/results/loop_sum_darwin_arm64_20260220_105042.md` |
+| loop_sum | 0.070930 | 0.064682 (0.91×) | 0.239029 (3.37×) | 0.098480 (1.39×) | `benchmarks/results/loop_sum_darwin_arm64_20260225_003439.md` |
 | multi_list_push_int | 0.008798 | 0.038419 (4.37×) | 0.027695 (3.15×) | 0.011052 (1.26×) | `benchmarks/results/multi_list_push_int_darwin_arm64_20260220_105047.md` |
 | multi_list_sum | 0.008649 | 0.038789 (4.48×) | 0.026920 (3.11×) | 0.305721 (35.35×) | `benchmarks/results/multi_list_sum_darwin_arm64_20260220_162900.md` |
 
