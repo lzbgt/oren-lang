@@ -261,6 +261,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Repeat post list-trace cache (arm64, 2026-02-25, runs=3/warmups=1, native+C only):
      `alloc_churn` 0.237s vs C 0.002871s (82.6×); `alloc_drop` 0.159s vs C 0.003137s (50.8×)
      (log: `build/logs/bench_post_list_trace_cache_repeat_20260225_033511.log`).
+   - Post list-trace cache (arm64, 2026-02-25, runs=5/warmups=1, native+C only):
+     `alloc_churn` 0.225s vs C 0.003204s (70.3×); `alloc_drop` 0.1568s vs C 0.003079s (50.9×)
+     (log: `build/logs/bench_post_list_trace_cache_runs5_20260225_033625.log`).
    - Trace run (arm64, 2026-02-25, `OREN_TRACE_ARENA=1`, `OREN_ARENA_ITER_CAP_BYTES=262144`):
      alloc_churn run emitted 20,000 `[arena]` lines with `iter_spills=0` (cap not binding);
      benchmark aborted with output mismatch due to trace (log:
