@@ -258,6 +258,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
      benchmark aborted with output mismatch due to trace (log:
      `build/logs/bench_iter_cap_256k_trace_20260225_031951.log`,
      run log: `build/logs/bench_run_alloc_churn_20260225_031951/oren_native/run_0.log`).
+   - Trace run (arm64, 2026-02-25, `OREN_TRACE_ARENA=1`, `OREN_ARENA_ITER_CAP_BYTES=262144`,
+     `OREN_BENCH_OUTPUT_CHECK=0`): alloc_drop run emitted **no** `[arena]` lines, indicating
+     the loop is not arena-wrapped (log:
+     `build/logs/bench_iter_cap_256k_trace_drop_20260225_032316.log`,
+     run log: `build/logs/bench_run_alloc_drop_20260225_032316/oren_native/run_0.log`).
    - Repro across scan caps (arm64, 2026-02-25, direct native run with reuse + auto arenas off):
      scan_cap=1000/5000/20000 each shows `[gc_reuse_hit] kind=0` followed by
      `[gc_reuse_bad_list] chunk=32 len=128 cap=128 buf=ptr+32 magic=1279870019`
