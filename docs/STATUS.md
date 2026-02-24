@@ -243,6 +243,14 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `alloc_drop` 0.2746s vs C 0.003064s (89.6×). This is worse than baseline; cap size
      likely too small for the current allocation profile (log:
      `build/logs/bench_iter_cap_20260225_030936.log`).
+   - Per-iter cap experiment (arm64, 2026-02-25, `OREN_ARENA_ITER_CAP_BYTES=262144`,
+     runs=3/warmups=1, native+C only): `alloc_churn` 6.50s vs C 0.003316s (1961×);
+     `alloc_drop` 0.2745s vs C 0.003150s (87.1×). Still worse than baseline (log:
+     `build/logs/bench_iter_cap_256k_20260225_031225.log`).
+   - Per-iter cap experiment (arm64, 2026-02-25, `OREN_ARENA_ITER_CAP_BYTES=1048576`,
+     runs=3/warmups=1, native+C only): `alloc_churn` 6.51s vs C 0.003024s (2153×);
+     `alloc_drop` 0.2753s vs C 0.003061s (89.9×). Still worse than baseline (log:
+     `build/logs/bench_iter_cap_1m_20260225_031326.log`).
    - Repro across scan caps (arm64, 2026-02-25, direct native run with reuse + auto arenas off):
      scan_cap=1000/5000/20000 each shows `[gc_reuse_hit] kind=0` followed by
      `[gc_reuse_bad_list] chunk=32 len=128 cap=128 buf=ptr+32 magic=1279870019`
@@ -553,7 +561,7 @@ until perf + parity gates are within range.
    - Include long‑lived loop arena policy (per‑iteration sub‑arenas + spill + epoch reset).
    - Design spec: `docs/design/arena_loop_policy.md` (loop arena policy + GC reuse safety).
    - New: per-iteration loops use `oren_arena_iter_push/pop` with optional cap via `OREN_ARENA_ITER_CAP_BYTES` (rolling).
-   - Next: tune `OREN_ARENA_ITER_CAP_BYTES` (64 KiB worsens alloc_churn/alloc_drop; try larger caps or adaptive).
+   - Next: tune `OREN_ARENA_ITER_CAP_BYTES` (64 KiB / 256 KiB / 1 MiB all worsen alloc_churn/alloc_drop; likely need adaptive or different arena policy).
    - Fold loop‑local arena prototype for list/list_int into this track; override annotations
      (`@oren.arena`, `@oren.arena_iter`, `@oren.noarena`) are already implemented.
    - Confirmed GC-path list tracking after disabling auto arenas (`OREN_ARENA_AUTO_LOOP=0` runtime via
