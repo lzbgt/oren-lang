@@ -53,6 +53,7 @@ Local (fast):
 - `make verify-backend-parity-list-int`
 - `make verify-backend-parity-tags`
 - `make verify-backend-parity-arith-panics`
+- `make verify-backend-parity-index-panics`
 - `./scripts/verify_x64_linux_qemu_smoke.sh`
 
 Remote verify scripts support `OREN_REMOTE_SCP_TIMEOUT_SECS` to bound scp hangs.
@@ -461,6 +462,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 4) **Cross-backend parity gates** (M, W4)
    - Expand fixtures where gaps remain; keep C/native/OBC output aligned.
+   - New: `make verify-backend-parity-index-panics` enforces negative index assignment panics across backends (rolling, 2026-02-24).
    - Gate: parity scripts + `make test` remain green.
 
 5) **Native scheduler / green-task integration** (L, W4)

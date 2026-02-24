@@ -3057,29 +3057,43 @@ list_dot_push:
                             break;
                         }
                         int idx = (int)key.as.i;
+                        if (idx < 0) {
+                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "index out of bounds"));
+                            break;
+                        }
                         AvmListInt* list = obj.as.li;
-                        if (idx >= 0 && idx < list->count) {
+                        if (idx < list->count) {
                             list->items[idx] = val.as.i;
-                        } else if (idx == list->count) {
-                            if (!avm_list_int_ensure_cap(list, list->count + 1)) {
+                        } else {
+                            if (!avm_list_int_ensure_cap(list, idx + 1)) {
                                 avm_abort(vm, avm_alloc_fail_value());
                                 break;
+                            }
+                            while (list->count < idx) {
+                                list->items[list->count++] = 0;
                             }
                             list->items[list->count++] = val.as.i;
                         }
                     } else if (obj.type == AVM_VAL_LIST && key.type == AVM_VAL_INT) {
                         int i = (int)key.as.i;
-                        if (i >= 0 && i < obj.as.l->count) {
+                        if (i < 0) {
+                            avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "index out of bounds"));
+                            break;
+                        }
+                        if (i < obj.as.l->count) {
                             obj.as.l->items[i] = val;
-                            if (obj.as.l->all_int && val.type != AVM_VAL_INT) obj.as.l->all_int = 0;
-                        } else if (i == obj.as.l->count) {
-                            if (!avm_list_ensure_cap(obj.as.l, obj.as.l->count + 1)) {
+                        } else {
+                            if (!avm_list_ensure_cap(obj.as.l, i + 1)) {
                                 avm_abort(vm, avm_alloc_fail_value());
                                 break;
                             }
+                            if (obj.as.l->all_int && i > obj.as.l->count) obj.as.l->all_int = 0;
+                            while (obj.as.l->count < i) {
+                                obj.as.l->items[obj.as.l->count++] = avm_nil();
+                            }
                             obj.as.l->items[obj.as.l->count++] = val;
-                            if (obj.as.l->all_int && val.type != AVM_VAL_INT) obj.as.l->all_int = 0;
                         }
+                        if (obj.as.l->all_int && val.type != AVM_VAL_INT) obj.as.l->all_int = 0;
                     } else if (obj.type == AVM_VAL_MAP) {
                         if (!avm_map_key_supported(key)) {
                             avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "map key type not supported (need nil/bool/int/string)"));

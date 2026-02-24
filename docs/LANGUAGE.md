@@ -1700,6 +1700,7 @@ This is intentional: fixtures are small, high-signal, and regression-friendly.
   - Modulo by zero: `tests/native/fixtures/arith_mod0.oren`
   - Modulo overflow (`i64_min % -1`): `tests/native/fixtures/arith_mod_overflow.oren`
   - Shift count out of range (SHL/SHR): `tests/native/fixtures/arith_shift_oob.oren`, `tests/native/fixtures/arith_shift_oob_shr.oren`
+  - Negative index assignment: `tests/native/fixtures/index_set_negative.oren`
   - Deterministic recursion guard (call depth): `tests/native/fixtures/call_depth_overflow.oren`
 
 - **Struct field assignment (rolling semantics)**:
@@ -2776,7 +2777,7 @@ Non-goal:
 ### Lists
 - List literal: `[a, b, c]`
 - Indexing: `xs[i]` (0-based)
-- Index assignment: `xs[i] = v` (must be in-bounds)
+- Index assignment: `xs[i] = v` (grows list to length `i+1`; new slots are `nil`; negative indices are a runtime panic)
 
 ### Maps
 - Map literal: `{key: value, ...}`

@@ -1,6 +1,6 @@
 .PHONY: all clean bootstrap test verify stage1 stage2 examples-test examples-test-inner
 .PHONY: examples-cross-compile-smoke
-.PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick verify-backend-parity-arith-panics verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux benchmarks benchmarks-update
+.PHONY: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2 verify-native-quick verify-backend-parity-arith-panics verify-backend-parity-index-panics verify-ui-smoke-macos verify-ui-smoke-windows verify-ui-smoke-linux benchmarks benchmarks-update
 .PHONY: verify-native-x64-compile
 .PHONY: verify-native-x64-selfhost-compile
 .PHONY: verify-x64-linux-qemu
@@ -428,6 +428,10 @@ verify-backend-parity-tags: oren_stage2 avm
 # Cross-backend parity smoke: arithmetic panic semantics (div0).
 verify-backend-parity-arith-panics: oren_stage2 avm
 	@./scripts/verify_backend_parity_arith_panics.sh
+
+# Cross-backend parity smoke: index panic semantics (negative index assignment).
+verify-backend-parity-index-panics: oren_stage2 avm
+	@./scripts/verify_backend_parity_index_panics.sh
 
 # GUI bring-up smoke (headful, opt-in).
 # This is intentionally NOT part of `make test` or `make verify` because it requires a GUI session.
