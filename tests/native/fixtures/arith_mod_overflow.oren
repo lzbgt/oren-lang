@@ -1,0 +1,6 @@
+// Native + C backend fixture:
+// i64_min % -1 must be a deterministic runtime panic (overflow).
+
+var i64_min = 0 - (1 << 63)
+var x = i64_min % -1
+print(x)

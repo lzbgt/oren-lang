@@ -620,7 +620,9 @@ Integer arithmetic (rolling v0):
 - `int % int` is the signed remainder consistent with trunc-toward-zero division (remainder has the same sign as the dividend).
 - Invalid cases are deterministic runtime panics:
   - division by zero
+  - modulo by zero
   - signed overflow (`i64_min / -1`)
+  - modulo overflow (`i64_min % -1`)
 
 Examples:
 
@@ -1695,7 +1697,9 @@ This is intentional: fixtures are small, high-signal, and regression-friendly.
 - **Deterministic runtime panics** (`OREN_DIAG kind=panic code=1`):
   - Division by zero: `tests/native/fixtures/arith_div0.oren`
   - Signed overflow (`i64_min / -1`): `tests/native/fixtures/arith_div_overflow.oren`
-  - Shift count out of range: `tests/native/fixtures/arith_shift_oob.oren`
+  - Modulo by zero: `tests/native/fixtures/arith_mod0.oren`
+  - Modulo overflow (`i64_min % -1`): `tests/native/fixtures/arith_mod_overflow.oren`
+  - Shift count out of range (SHL/SHR): `tests/native/fixtures/arith_shift_oob.oren`, `tests/native/fixtures/arith_shift_oob_shr.oren`
   - Deterministic recursion guard (call depth): `tests/native/fixtures/call_depth_overflow.oren`
 
 - **Struct field assignment (rolling semantics)**:
@@ -2749,7 +2753,9 @@ Non-goal:
   - `int % int` is the signed remainder consistent with trunc-toward-zero division (i.e. `a == (a / b) * b + (a % b)` and the remainder has the same sign as `a`).
   - Invalid cases are deterministic runtime panics:
     - division by zero
+    - modulo by zero
     - signed overflow (`i64_min / -1`)
+    - modulo overflow (`i64_min % -1`)
   - If either operand is `float`, arithmetic is performed in `float`.
   - `string + string` concatenates.
 - `==` / `!=` are type-strict in the runtime (e.g., `1 == 1.0` is false).

@@ -97,7 +97,10 @@ run_expect_panic() {
 cases=(
   "arith_div0|tests/native/fixtures/arith_div0.oren|division by zero"
   "arith_div_overflow|tests/native/fixtures/arith_div_overflow.oren|division overflow (i64_min / -1)"
+  "arith_mod0|tests/native/fixtures/arith_mod0.oren|modulo by zero"
+  "arith_mod_overflow|tests/native/fixtures/arith_mod_overflow.oren|modulo overflow (i64_min % -1)"
   "arith_shift_oob|tests/native/fixtures/arith_shift_oob.oren|SHIFT_OOB"
+  "arith_shift_oob_shr|tests/native/fixtures/arith_shift_oob_shr.oren|SHIFT_OOB"
 )
 
 for entry in "${cases[@]}"; do
