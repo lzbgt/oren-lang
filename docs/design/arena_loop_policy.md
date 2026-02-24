@@ -28,6 +28,8 @@ performance gap while keeping correctness and determinism intact.
   traces confirm `arena_alloc` events in `alloc_churn`.
 - Per-iteration loop scopes now use `oren_arena_iter_push/pop` and can apply
   a per-iteration cap via `OREN_ARENA_ITER_CAP_BYTES` (rolling).
+- `OREN_TRACE_ARENA=1` now reports per-iter counters (`iter_push/pop`, `iter_spills`,
+  `iter_spill_bytes`) to diagnose cap behavior (rolling).
 - GC reuse and list header integrity are still rolling; reuse is guarded and
   tracing is available (`OREN_TRACE_GC_REUSE`, `OREN_TRACE_LIST_TRACK`, etc.).
 

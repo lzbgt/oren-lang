@@ -222,6 +222,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New: list-track now logs `track_alloc` events in `oren_track_alloc` when `OREN_TRACE_LIST_TRACK=1`
      (rolling, 2026-02-25). `alloc_churn` now emits `[list_track] arena_alloc` lines under auto arenas,
      confirming list headers are arena-backed in the default benchmark build.
+   - New: `OREN_TRACE_ARENA=1` now reports per-iter arena counters (`iter_push/pop`, `iter_spills`,
+     `iter_spill_bytes`) to diagnose per-iteration caps (rolling, 2026-02-25).
    - Trace list-track (arm64, 2026-02-25, `OREN_ARENA_AUTO_LOOP=0` runtime via bench env):
      `alloc_churn` emits `[list_track] index_put/alloc` lines (log:
      `build/logs/bench_run_alloc_churn_20260225_020630/oren_native/run_0.log`),

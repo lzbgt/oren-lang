@@ -26,6 +26,11 @@ var g_arena_push_count = 0
 var g_arena_pop_count = 0
 var g_arena_epoch_reset_count = 0
 var g_arena_mmap_fail_count = 0
+var g_arena_iter_active = 0
+var g_arena_iter_push_count = 0
+var g_arena_iter_pop_count = 0
+var g_arena_iter_spill_count = 0
+var g_arena_iter_spill_bytes = 0
 
 // Arena stack (per-depth checkpoints for ptr/limit/base/bytes_used).
 var g_arena_stack_ptr = 0
@@ -141,7 +146,7 @@ fn native_arena_stack_save(depth) {
     ptr_set(iadd(g_arena_stack_ptr, off + 16), g_arena_base)
     ptr_set(iadd(g_arena_stack_ptr, off + 24), g_arena_bytes_used)
     ptr_set(iadd(g_arena_stack_ptr, off + 32), g_arena_bytes_cap)
-    ptr_set(iadd(g_arena_stack_ptr, off + 40), 0)
+    ptr_set(iadd(g_arena_stack_ptr, off + 40), g_arena_iter_active)
     return 0
 }
 
@@ -153,6 +158,7 @@ fn native_arena_stack_restore(depth) {
     g_arena_base = ptr_get(iadd(g_arena_stack_ptr, off + 16))
     g_arena_bytes_used = ptr_get(iadd(g_arena_stack_ptr, off + 24))
     g_arena_bytes_cap = ptr_get(iadd(g_arena_stack_ptr, off + 32))
+    g_arena_iter_active = ptr_get(iadd(g_arena_stack_ptr, off + 40))
     return 0
 }
 
@@ -234,6 +240,10 @@ fn native_arena_trace_dump_and_reset() {
         " spill_bytes=" + oren_int_to_string(g_arena_spill_bytes) +
         " push=" + oren_int_to_string(g_arena_push_count) +
         " pop=" + oren_int_to_string(g_arena_pop_count) +
+        " iter_push=" + oren_int_to_string(g_arena_iter_push_count) +
+        " iter_pop=" + oren_int_to_string(g_arena_iter_pop_count) +
+        " iter_spills=" + oren_int_to_string(g_arena_iter_spill_count) +
+        " iter_spill_bytes=" + oren_int_to_string(g_arena_iter_spill_bytes) +
         " epoch_reset=" + oren_int_to_string(g_arena_epoch_reset_count) +
         " mmap_fail=" + oren_int_to_string(g_arena_mmap_fail_count))
     g_arena_alloc_count = 0
@@ -242,6 +252,10 @@ fn native_arena_trace_dump_and_reset() {
     g_arena_spill_bytes = 0
     g_arena_push_count = 0
     g_arena_pop_count = 0
+    g_arena_iter_push_count = 0
+    g_arena_iter_pop_count = 0
+    g_arena_iter_spill_count = 0
+    g_arena_iter_spill_bytes = 0
     g_arena_epoch_reset_count = 0
     g_arena_mmap_fail_count = 0
     return 0
@@ -258,6 +272,10 @@ fn native_arena_alloc_raw(size) {
             if g_arena_trace_enabled != 0 {
                 g_arena_spill_count = g_arena_spill_count + 1
                 g_arena_spill_bytes = g_arena_spill_bytes + want
+                if g_arena_iter_active != 0 {
+                    g_arena_iter_spill_count = g_arena_iter_spill_count + 1
+                    g_arena_iter_spill_bytes = g_arena_iter_spill_bytes + want
+                }
             }
             return 0
         }
@@ -524,7 +542,14 @@ fn native_arena_iter_push() {
     native_arena_push()
     var cap = native_arena_iter_cap()
     if cap > 0 { g_arena_bytes_cap = cap }
+    g_arena_iter_active = 1
+    if g_arena_trace_enabled != 0 { g_arena_iter_push_count = g_arena_iter_push_count + 1 }
     return 0
+}
+
+fn native_arena_iter_pop() {
+    if g_arena_trace_enabled != 0 { g_arena_iter_pop_count = g_arena_iter_pop_count + 1 }
+    return native_arena_pop()
 }
 
 fn native_arena_pop() {
@@ -562,7 +587,7 @@ fn oren_arena_pop() { return native_arena_pop() }
 fn oren_arena_iter_push() { return native_arena_iter_push() }
 
 @oren.keep
-fn oren_arena_iter_pop() { return native_arena_pop() }
+fn oren_arena_iter_pop() { return native_arena_iter_pop() }
 
 fn native_arena_new_list(cap) {
     if cap < 0 { cap = 0 }
