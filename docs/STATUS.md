@@ -217,6 +217,13 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `[gc_reuse_bad_list_site] ptr=... site=1 mode=1 size=32` confirms bad list headers
      come from GC list header allocations (site=1, mode=1). Log:
      `build/logs/alloc_churn_direct_reuse_list_alloc_ring_20260225_023407.log`.
+   - List header ring shows `list_reserve` op with `buf=ptr+32` after growth on a header
+     whose allocation chunk is still 32 bytes (adjacent external buffer). The GC reuse
+     list-header guard now treats `buf==ptr+32 && chunk_size==32` as valid to avoid
+     false bad-list hits (rolling, 2026-02-25).
+   - Post-guard trace (arm64, 2026-02-25, direct native run with reuse + auto arenas off):
+     no `[gc_reuse_bad_list]` lines; gc_reuse summary shows guard_bad_list=0
+     (log: `build/logs/alloc_churn_direct_reuse_post_guard_20260225_025057.log`).
    - Trace alloc_churn reuse (arm64, 2026-02-25, same reuse env as above) ran >3 min
      and was terminated to keep iteration fast; no trace output captured.
    - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=1000`, warmups=0):
@@ -232,6 +239,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
      Ring buffer size for bad-list correlation via `OREN_TRACE_LIST_ALLOC_RING_CAP`
      (default 4096); `gc_reuse_bad_list` now emits a matching `[gc_reuse_bad_list_site]`
      line when the pointer is still in the ring (rolling, 2026-02-25).
+   - New: `OREN_TRACE_LIST_HDR_RING=1` records list header mutations (new/reserve ops only)
+     in a ring; `OREN_TRACE_LIST_HDR_RING_CAP` controls size (default 4096). When a
+     `gc_reuse_bad_list` is reported, the ring is searched and matching `[list_hdr_ring]`
+     entries are emitted (rolling, 2026-02-25).
    - New: `OREN_TRACE_ALLOC_INDEX_REMOVE_TIME=1` prints alloc-index remove timing stats at GC sweep
      (rolling, 2026-02-20).
    - Trace list-track (arm64, 2026-02-25, `OREN_TRACE_LIST_TRACK=1`, cap=5): `alloc_churn` emits

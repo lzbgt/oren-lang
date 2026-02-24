@@ -83,6 +83,10 @@ var g_trace_list_header = -1
 var g_trace_list_header_cap = 0
 var g_trace_list_corrupt = -1
 var g_trace_list_corrupt_cap = 0
+var g_trace_list_hdr_ring = -1
+var g_trace_list_hdr_ring_cap = 0
+var g_trace_list_hdr_ring_ptr = 0
+var g_trace_list_hdr_ring_head = 0
 
 fn _list_assume_list_enabled() {
     if g_list_assume_list != -1 { return g_list_assume_list == 1 }
@@ -118,6 +122,89 @@ fn _list_trace_enabled() {
     return true
 }
 
+fn _list_hdr_ring_enabled() {
+    if g_trace_list_hdr_ring == 1 { return true }
+    var v = native_envp_get_value_ptr("OREN_TRACE_LIST_HDR_RING")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_list_hdr_ring == -1 { g_trace_list_hdr_ring = 0 }
+        return false
+    }
+    g_trace_list_hdr_ring = 1
+    var v_cap = native_envp_get_value_ptr("OREN_TRACE_LIST_HDR_RING_CAP")
+    if v_cap != 0 && ptr_get_byte(v_cap) != 0 {
+        var cap = oren_int_from_string(v_cap)
+        if cap > 0 { g_trace_list_hdr_ring_cap = cap }
+    }
+    if g_trace_list_hdr_ring_cap <= 0 { g_trace_list_hdr_ring_cap = 4096 }
+    var bytes = g_trace_list_hdr_ring_cap * 56
+    var buf = native_malloc_raw_or_mmap(bytes)
+    if buf == 0 { g_trace_list_hdr_ring = 0; return false }
+    var i = 0
+    while i < g_trace_list_hdr_ring_cap {
+        var off = i * 56
+        ptr_set(iadd(buf, off), 0)
+        ptr_set(iadd(buf, off + 8), 0)
+        ptr_set(iadd(buf, off + 16), 0)
+        ptr_set(iadd(buf, off + 24), 0)
+        ptr_set(iadd(buf, off + 32), 0)
+        ptr_set(iadd(buf, off + 40), 0)
+        ptr_set(iadd(buf, off + 48), 0)
+        i = i + 1
+    }
+    g_trace_list_hdr_ring_ptr = buf
+    g_trace_list_hdr_ring_head = 0
+    return true
+}
+
+fn _list_hdr_ring_put(op, list, kind) {
+    if _list_hdr_ring_enabled() != true { return 0 }
+    if g_trace_list_hdr_ring_ptr == 0 { return 0 }
+    if g_trace_list_hdr_ring_cap <= 0 { return 0 }
+    if list == 0 || list < 4096 { return 0 }
+    if op != 1 && op != 2 && op != 3 && op != 6 { return 0 }
+    var idx = g_trace_list_hdr_ring_head % g_trace_list_hdr_ring_cap
+    var off = idx * 56
+    var base = g_trace_list_hdr_ring_ptr
+    ptr_set(iadd(base, off), list)
+    ptr_set(iadd(base, off + 8), op)
+    ptr_set(iadd(base, off + 16), ptr_get(iadd(list, 0)))
+    ptr_set(iadd(base, off + 24), ptr_get(iadd(list, 8)))
+    ptr_set(iadd(base, off + 32), ptr_get(iadd(list, 16)))
+    ptr_set(iadd(base, off + 40), ptr_get(iadd(list, 24)))
+    ptr_set(iadd(base, off + 48), kind)
+    g_trace_list_hdr_ring_head = g_trace_list_hdr_ring_head + 1
+    return 0
+}
+
+@oren.keep
+fn native_list_header_ring_dump(list) {
+    if g_trace_list_hdr_ring_ptr == 0 { return 0 }
+    if g_trace_list_hdr_ring_cap <= 0 { return 0 }
+    if list == 0 || list < 4096 { return 0 }
+    var base = g_trace_list_hdr_ring_ptr
+    var i = 0
+    while i < g_trace_list_hdr_ring_cap {
+        var off = i * 56
+        var p = ptr_get(iadd(base, off))
+        if p == list {
+            var op = ptr_get(iadd(base, off + 8))
+            var len = ptr_get(iadd(base, off + 16))
+            var cap = ptr_get(iadd(base, off + 24))
+            var buf = ptr_get(iadd(base, off + 32))
+            var magic = ptr_get(iadd(base, off + 40))
+            var kind = ptr_get(iadd(base, off + 48))
+            print("[list_hdr_ring] list=" + oren_int_to_string(list) +
+                  " op=" + oren_int_to_string(op) +
+                  " kind=" + oren_int_to_string(kind) +
+                  " len=" + oren_int_to_string(len) +
+                  " cap=" + oren_int_to_string(cap) +
+                  " buf=" + oren_int_to_string(buf) +
+                  " magic=" + oren_int_to_string(magic))
+        }
+        i = i + 1
+    }
+    return 0
+}
 fn _list_corrupt_enabled() {
     if g_trace_list_corrupt == 1 { return true }
     var v = native_envp_get_value_ptr("OREN_TRACE_LIST_CORRUPT")
@@ -183,9 +270,10 @@ fn _list_alloc_buf(list, bytes, alloc_site, err_code) {
 }
 
 fn _list_trace_emit(op, list, kind) {
+    if list == 0 || list < 4096 { return 0 }
+    _list_hdr_ring_put(op, list, kind)
     if _list_trace_enabled() != true { return 0 }
     if g_trace_list_header_cap <= 0 { return 0 }
-    if list == 0 || list < 4096 { return 0 }
     g_trace_list_header_cap = g_trace_list_header_cap - 1
     var len = ptr_get(iadd(list, 0))
     var cap = ptr_get(iadd(list, 8))
