@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals + Derived Tasks
 
-**Last updated:** 2026-02-19
+**Last updated:** 2026-02-24
 
 This doc captures the bleeding-edge feature goals (user/client + architect/designer)
 and turns them into concrete task buckets. It is intentionally short and
@@ -38,6 +38,7 @@ kept in sync with `docs/STATUS.md`.
 
 3) **Cross-backend parity gates**
    - Expand fixtures where gaps remain; keep C/native/OBC output aligned.
+   - Arithmetic panic parity now covers `div0`, `div_overflow`, and `shift_oob`.
    - Gate: parity scripts + `make test` remain green.
 
 4) **Tagged value convergence plan (native/C/AVM)**

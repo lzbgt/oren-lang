@@ -67,37 +67,17 @@ if [[ "$os_key" == "windows" ]]; then
   exe_ext=".exe"
 fi
 
-src="tests/native/fixtures/arith_div0.oren"
-out_c="build/tmp/arith_div0_c${exe_ext}"
-out_native="build/tmp/arith_div0_native${exe_ext}"
-out_obc="build/tmp/arith_div0.obc"
-
-log_c="build/logs/arith_div0_c_build.log"
-log_native="build/logs/arith_div0_native_build.log"
-log_obc="build/logs/arith_div0_obc_build.log"
-run_c="build/logs/arith_div0_c_run.log"
-run_native="build/logs/arith_div0_native_run.log"
-run_obc="build/logs/arith_div0_obc_run.log"
-
-rm -f "$out_c" "$out_native" "$out_obc" "$log_c" "$log_native" "$log_obc" \
-  "$run_c" "$run_native" "$run_obc" 2>/dev/null || true
-
-echo "== build: C backend ==" >&2
-run_with_timeout "$build_timeout_secs" "$COMPILER" build "$src" --backend c -o "$out_c" >"$log_c" 2>&1
-test -f "$out_c" || { echo "FAIL: missing $out_c" >&2; tail -n 120 "$log_c" >&2 || true; exit 3; }
-
-echo "== build: native backend ==" >&2
-run_with_timeout "$build_timeout_secs" "$COMPILER" build "$src" --backend native --platform "$platform" --no-debug -o "$out_native" >"$log_native" 2>&1
-test -f "$out_native" || { echo "FAIL: missing $out_native" >&2; tail -n 120 "$log_native" >&2 || true; exit 4; }
-
-echo "== build: bytecode backend ==" >&2
-run_with_timeout "$build_timeout_secs" "$COMPILER" build "$src" --backend bytecode -o "$out_obc" >"$log_obc" 2>&1
-test -f "$out_obc" || { echo "FAIL: missing $out_obc" >&2; tail -n 120 "$log_obc" >&2 || true; exit 5; }
-
 run_expect_panic() {
   local label="$1"
   local out="$2"
+  local expect="$3"
+  local grep_flags=()
   shift 2
+  shift 1
+  if [[ "$expect" == "SHIFT_OOB" ]]; then
+    expect="shift count out of range (need 0..63)"
+    grep_flags=(-i)
+  fi
   set +e
   run_with_timeout "$run_timeout_secs" "$@" >"$out" 2>&1
   local rc=$?
@@ -107,20 +87,55 @@ run_expect_panic() {
     cat "$out" >&2
     exit 6
   fi
-  grep -F "division by zero" "$out" >/dev/null || {
-    echo "FAIL: $label output missing division by zero message" >&2
+  grep "${grep_flags[@]}" -F "$expect" "$out" >/dev/null || {
+    echo "FAIL: $label output missing expected message ($expect)" >&2
     cat "$out" >&2
     exit 7
   }
 }
 
-echo "== run: C backend (expect panic) ==" >&2
-run_expect_panic "c" "$run_c" "$out_c"
+cases=(
+  "arith_div0|tests/native/fixtures/arith_div0.oren|division by zero"
+  "arith_div_overflow|tests/native/fixtures/arith_div_overflow.oren|division overflow (i64_min / -1)"
+  "arith_shift_oob|tests/native/fixtures/arith_shift_oob.oren|SHIFT_OOB"
+)
 
-echo "== run: native backend (expect panic) ==" >&2
-run_expect_panic "native" "$run_native" "$out_native"
+for entry in "${cases[@]}"; do
+  IFS="|" read -r name src expect_msg <<<"$entry"
+  out_c="build/tmp/${name}_c${exe_ext}"
+  out_native="build/tmp/${name}_native${exe_ext}"
+  out_obc="build/tmp/${name}.obc"
 
-echo "== run: OBC (avm) (expect error) ==" >&2
-run_expect_panic "obc" "$run_obc" ./avm "$out_obc"
+  log_c="build/logs/${name}_c_build.log"
+  log_native="build/logs/${name}_native_build.log"
+  log_obc="build/logs/${name}_obc_build.log"
+  run_c="build/logs/${name}_c_run.log"
+  run_native="build/logs/${name}_native_run.log"
+  run_obc="build/logs/${name}_obc_run.log"
 
-echo "OK: arith_div0 panic parity" >&2
+  rm -f "$out_c" "$out_native" "$out_obc" "$log_c" "$log_native" "$log_obc" \
+    "$run_c" "$run_native" "$run_obc" 2>/dev/null || true
+
+  echo "== build: C backend ($name) ==" >&2
+  run_with_timeout "$build_timeout_secs" "$COMPILER" build "$src" --backend c -o "$out_c" >"$log_c" 2>&1
+  test -f "$out_c" || { echo "FAIL: missing $out_c" >&2; tail -n 120 "$log_c" >&2 || true; exit 3; }
+
+  echo "== build: native backend ($name) ==" >&2
+  run_with_timeout "$build_timeout_secs" "$COMPILER" build "$src" --backend native --platform "$platform" --no-debug -o "$out_native" >"$log_native" 2>&1
+  test -f "$out_native" || { echo "FAIL: missing $out_native" >&2; tail -n 120 "$log_native" >&2 || true; exit 4; }
+
+  echo "== build: bytecode backend ($name) ==" >&2
+  run_with_timeout "$build_timeout_secs" "$COMPILER" build "$src" --backend bytecode -o "$out_obc" >"$log_obc" 2>&1
+  test -f "$out_obc" || { echo "FAIL: missing $out_obc" >&2; tail -n 120 "$log_obc" >&2 || true; exit 5; }
+
+  echo "== run: C backend ($name) ==" >&2
+  run_expect_panic "c" "$run_c" "$expect_msg" "$out_c"
+
+  echo "== run: native backend ($name) ==" >&2
+  run_expect_panic "native" "$run_native" "$expect_msg" "$out_native"
+
+  echo "== run: OBC (avm) ($name) ==" >&2
+  run_expect_panic "obc" "$run_obc" "$expect_msg" ./avm "$out_obc"
+done
+
+echo "OK: arithmetic panic parity" >&2

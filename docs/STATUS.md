@@ -443,7 +443,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Define layout and staged migration.
    - Pin semantic invariants (truthiness, equality, type tests) and add cross‑backend fixtures.
    - Expand `tests/fixtures/tag_parity_smoke.oren` to cover truthiness (ints/floats), type‑strict equality (`==`/`!=`), mixed numeric + string comparisons (`< <= > >=`), cross‑type equality (string/int, bool/int), and mixed map key kinds (int vs string) (rolling, 2026-02-24).
-   - New: `make verify-backend-parity-arith-panics` enforces cross-backend panic parity for `div0` (rolling, 2026-02-24).
+   - New: `make verify-backend-parity-arith-panics` enforces cross-backend panic parity for `div0`, `div_overflow`, and `shift_oob` (rolling, 2026-02-24).
    - Backend mapping table (native/C/AVM) captured in `docs/DESIGN.md`.
    - Tag parity fixture now asserts `oren_type_name` across backends.
    - Parity gate: `tests/fixtures/tag_parity_smoke.oren` + `make verify-backend-parity-tags`.
@@ -459,7 +459,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Execute item 1 in the performance tracker (loop_sum + dot_product).
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
-4) **Native scheduler / green-task integration** (L, W4)
+4) **Cross-backend parity gates** (M, W4)
+   - Expand fixtures where gaps remain; keep C/native/OBC output aligned.
+   - Gate: parity scripts + `make test` remain green.
+
+5) **Native scheduler / green-task integration** (L, W4)
    - Keep syscall-first constraints.
    - Gate: `make test` + Tier-1 matrix.
 
