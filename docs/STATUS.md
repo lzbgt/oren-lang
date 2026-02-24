@@ -188,6 +188,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Trace alloc-site (arm64, 2026-02-25, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=10000`, warmups=0):
      - `alloc_churn` list_header=20000, list_buf=0.
      - `alloc_drop` list_header=1794, list_buf=6.
+   - New: list-track now logs `track_alloc` events in `oren_track_alloc` when `OREN_TRACE_LIST_TRACK=1`
+     (rolling, 2026-02-25). However, `alloc_churn` still emitted no `[list_track]` lines with
+     `OREN_TRACE_LIST_TRACK=1` + cap=50 (local run, 2026-02-25), suggesting list header tracking may bypass
+     `oren_track_alloc` / alloc-index instrumentation (likely `malloc_k` path).
    - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=1000`, warmups=0):
      - `alloc_churn` panics: `list_reserve on non-list` after `[alloc_site] total=1536 list_header=768 list_buf=768`.
        New trace: stage=1 (node missing), magic matches, count/cap/buf=0, list_debug node=0,
@@ -457,6 +461,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Include long‑lived loop arena policy (per‑iteration sub‑arenas + spill + epoch reset).
    - Fold loop‑local arena prototype for list/list_int into this track; override annotations
      (`@oren.arena`, `@oren.arena_iter`, `@oren.noarena`) are already implemented.
+   - Investigate list header tracking path for `malloc_k`: `OREN_TRACE_LIST_TRACK` still emits no lines
+     in `alloc_churn` (2026-02-25); add trace hooks or wire list tracking in the `malloc_k` path.
    - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
 
 2) **Perf parity W5: native hot loops** (L, W5)

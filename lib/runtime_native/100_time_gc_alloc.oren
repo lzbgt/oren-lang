@@ -235,6 +235,16 @@ fn trace_list_track_consume() {
     return 1
 }
 
+fn trace_list_track_alloc(ptr, kind, size, mode) {
+    if kind != 2 && kind != list_int_kind() { return 0 }
+    if trace_list_track_consume() == 0 { return 0 }
+    print("[list_track] track_alloc ptr=" + oren_int_to_string(ptr) +
+          " kind=" + oren_int_to_string(kind) +
+          " size=" + oren_int_to_string(size) +
+          " mode=" + oren_int_to_string(mode))
+    return 0
+}
+
 fn native_alloc_index_hash(ptr) {
     // Multiplicative hash (Knuth) for 64-bit keys. Shift away low alignment bits.
     var x = ptr / 16
@@ -1837,6 +1847,7 @@ fn oren_track_alloc(ptr, size, kind) {
                       " node_kind=" + oren_int_to_string(ptr_get(iadd(chk, 16))))
             }
         }
+        trace_list_track_alloc(ptr, ptr_get(iadd(hit, 16)), ptr_get(iadd(hit, 8)), 1)
         // Auto-GC accounting: treat tracking as allocation event (compiler emits this after malloc).
         if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
             g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
@@ -1883,6 +1894,7 @@ fn oren_track_alloc(ptr, size, kind) {
             }
         }
 
+        trace_list_track_alloc(ptr, ptr_get(iadd(cur, 16)), ptr_get(iadd(cur, 8)), 2)
         release_lock()
         if trace_time { _trace_track_alloc_time_finish(t0, kind) }
         return ptr
@@ -1912,6 +1924,7 @@ fn oren_track_alloc(ptr, size, kind) {
                       " node_kind=" + oren_int_to_string(ptr_get(iadd(chk3, 16))))
             }
         }
+        trace_list_track_alloc(ptr, kind, size, 3)
     }
 
     if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
