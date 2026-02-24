@@ -191,6 +191,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New: list-track now logs `track_alloc` events in `oren_track_alloc` when `OREN_TRACE_LIST_TRACK=1`
      (rolling, 2026-02-25). `alloc_churn` now emits `[list_track] arena_alloc` lines under auto arenas,
      confirming list headers are arena-backed in the default benchmark build.
+   - Trace list-track (arm64, 2026-02-25, `OREN_ARENA_AUTO_LOOP=0` runtime via bench env):
+     `alloc_churn` emits `[list_track] index_put/alloc` lines (log:
+     `build/logs/bench_run_alloc_churn_20260225_020630/oren_native/run_0.log`),
+     confirming GC-tracked list headers when auto arenas are disabled at runtime.
    - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=1000`, warmups=0):
      - `alloc_churn` panics: `list_reserve on non-list` after `[alloc_site] total=1536 list_header=768 list_buf=768`.
        New trace: stage=1 (node missing), magic matches, count/cap/buf=0, list_debug node=0,
@@ -467,9 +471,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Include long‑lived loop arena policy (per‑iteration sub‑arenas + spill + epoch reset).
    - Fold loop‑local arena prototype for list/list_int into this track; override annotations
      (`@oren.arena`, `@oren.arena_iter`, `@oren.noarena`) are already implemented.
-   - Confirm GC-path list tracking after disabling auto arenas (`OREN_ARENA_AUTO_LOOP=0` runtime via
-     `oren_arena_new_list_auto`); if `alloc_churn` still lacks `[list_track] track_alloc` lines,
-     wire list tracking in the `malloc_k` path.
+   - Confirmed GC-path list tracking after disabling auto arenas (`OREN_ARENA_AUTO_LOOP=0` runtime via
+     `oren_arena_new_list_auto`); no `malloc_k` list-track wiring needed unless future traces regress.
    - Separate arena vs GC allocations in perf diagnostics; `alloc_churn` defaults to arena-backed lists
      (use runtime `OREN_ARENA_AUTO_LOOP=0` or build-time env to force GC-tracked list headers when debugging reuse).
    - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
