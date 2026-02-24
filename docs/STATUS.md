@@ -223,6 +223,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      (cap=1024; override with `OREN_TRACE_LIST_TRACK_CAP`, rolling, 2026-02-20).
    - New: `OREN_TRACE_TRACK_ALLOC_NEW=1` logs early `oren_track_alloc_new` events
      (cap via `OREN_TRACE_TRACK_ALLOC_NEW_CAP`, rolling, 2026-02-25).
+   - New: `OREN_TRACE_LIST_ALLOC=1` logs list header allocations with alloc-site id and mode
+     (1=GC, 2=arena); cap via `OREN_TRACE_LIST_ALLOC_CAP` (rolling, 2026-02-25).
    - New: `OREN_TRACE_ALLOC_INDEX_REMOVE_TIME=1` prints alloc-index remove timing stats at GC sweep
      (rolling, 2026-02-20).
    - Trace list-track (arm64, 2026-02-25, `OREN_TRACE_LIST_TRACK=1`, cap=5): `alloc_churn` emits

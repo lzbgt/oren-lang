@@ -2,8 +2,8 @@
 // Layout: [count][capacity][buffer_ptr][magic]
 fn list_int_kind() { return 8 } // LIST_INT (unboxed int list)
 	@oren.keep
-	fn oren_new_list(cap) {
-	    if cap < 0 { cap = 0 }
+fn oren_new_list(cap) {
+    if cap < 0 { cap = 0 }
 	    // Performance (native tooling / stage2-native compiler):
 	    // Allocate header + initial buffer in a single tracked block to cut allocation+tracking
 	    // overhead in half for the common "many small lists" workload (AST/IR graphs).
@@ -16,17 +16,19 @@ fn list_int_kind() { return 8 } // LIST_INT (unboxed int list)
     var header = malloc_k(total, 2)
     if header == 0 { exit(200) }
     if header == -1 { exit(200) }
-    native_alloc_site_bump(_alloc_site_list_header())
-	    var buf = 0
+    var site = _alloc_site_list_header()
+    native_alloc_site_bump(site)
+    var buf = 0
 	    if cap > 0 {
 	        buf = iadd(header, 32)
 	    }
 	    ptr_set(iadd(header, 0), 0)       // count
 	    ptr_set(iadd(header, 8), cap)     // capacity
 	    ptr_set(iadd(header, 16), buf)    // data buffer
-	    ptr_set(iadd(header, 24), list_magic())
-        _list_trace_emit(1, header, 2) // new_list
-	    return header
+    ptr_set(iadd(header, 24), list_magic())
+    trace_list_alloc_emit(header, 2, total, site, 1)
+    _list_trace_emit(1, header, 2) // new_list
+    return header
 			}
 
 // --- List<int> (unboxed) ---
@@ -38,7 +40,8 @@ fn oren_new_list_int(cap) {
     var header = malloc_k(total, list_int_kind())
     if header == 0 { exit(200) }
     if header == -1 { exit(200) }
-    native_alloc_site_bump(_alloc_site_list_int_header())
+    var site = _alloc_site_list_int_header()
+    native_alloc_site_bump(site)
     var buf = 0
     if cap > 0 {
         buf = iadd(header, 32)
@@ -47,6 +50,7 @@ fn oren_new_list_int(cap) {
     ptr_set(iadd(header, 8), cap)     // capacity
     ptr_set(iadd(header, 16), buf)    // data buffer
     ptr_set(iadd(header, 24), list_magic())
+    trace_list_alloc_emit(header, list_int_kind(), total, site, 1)
     _list_trace_emit(2, header, list_int_kind()) // new_list_int
     return header
 }

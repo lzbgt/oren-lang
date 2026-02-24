@@ -156,6 +156,8 @@ var g_trace_list_track = -1
 var g_trace_list_track_cap = 0
 var g_trace_track_alloc_new = -1
 var g_trace_track_alloc_new_cap = 0
+var g_trace_list_alloc = -1
+var g_trace_list_alloc_cap = 0
 
 // track_alloc timing (optional; gated by g_trace_track_alloc_time).
 var g_track_alloc_time_total_ns = 0
@@ -229,6 +231,37 @@ fn trace_list_track_enabled() {
     }
     g_trace_list_track = 0
     return false
+}
+
+fn trace_list_alloc_enabled() {
+    if g_trace_list_alloc == 1 { return true }
+    var v = native_envp_get_value_ptr("OREN_TRACE_LIST_ALLOC")
+    if v == 0 { return false }
+    if ptr_get_byte(v) != 0 && ptr_get_byte(v) != 48 {
+        g_trace_list_alloc = 1
+        g_trace_list_alloc_cap = 1024
+        var cap_ptr = native_envp_get_value_ptr("OREN_TRACE_LIST_ALLOC_CAP")
+        if cap_ptr != 0 {
+            var cap = native_parse_int_cstr(cap_ptr)
+            if cap > 0 { g_trace_list_alloc_cap = cap }
+        }
+        print("[list_alloc] enabled cap=" + oren_int_to_string(g_trace_list_alloc_cap))
+        return true
+    }
+    g_trace_list_alloc = 0
+    return false
+}
+
+fn trace_list_alloc_emit(ptr, kind, size, site, mode) {
+    if trace_list_alloc_enabled() != true { return 0 }
+    if g_trace_list_alloc_cap <= 0 { return 0 }
+    g_trace_list_alloc_cap = g_trace_list_alloc_cap - 1
+    print("[list_alloc] ptr=" + oren_int_to_string(ptr) +
+          " kind=" + oren_int_to_string(kind) +
+          " size=" + oren_int_to_string(size) +
+          " site=" + oren_int_to_string(site) +
+          " mode=" + oren_int_to_string(mode))
+    return 0
 }
 
 fn trace_list_track_consume() {

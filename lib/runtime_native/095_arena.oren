@@ -535,13 +535,15 @@ fn native_arena_new_list(cap) {
     var header = native_arena_alloc_k(total, 2)
     if header == 0 { exit(200) }
     if header == -1 { exit(200) }
-    native_alloc_site_bump(_alloc_site_list_header())
+    var site = _alloc_site_list_header()
+    native_alloc_site_bump(site)
     var buf = 0
     if cap > 0 { buf = iadd(header, 32) }
     ptr_set(iadd(header, 0), 0)
     ptr_set(iadd(header, 8), cap)
     ptr_set(iadd(header, 16), buf)
     ptr_set(iadd(header, 24), list_magic())
+    trace_list_alloc_emit(header, 2, total, site, 2)
     if trace_list_track_consume() != 0 {
         print("[list_track] arena_alloc ptr=" + oren_int_to_string(header) +
               " kind=2 size=" + oren_int_to_string(total))
@@ -556,13 +558,15 @@ fn native_arena_new_list_int(cap) {
     var header = native_arena_alloc_k(total, list_int_kind())
     if header == 0 { exit(200) }
     if header == -1 { exit(200) }
-    native_alloc_site_bump(_alloc_site_list_int_header())
+    var site = _alloc_site_list_int_header()
+    native_alloc_site_bump(site)
     var buf = 0
     if cap > 0 { buf = iadd(header, 32) }
     ptr_set(iadd(header, 0), 0)
     ptr_set(iadd(header, 8), cap)
     ptr_set(iadd(header, 16), buf)
     ptr_set(iadd(header, 24), list_magic())
+    trace_list_alloc_emit(header, list_int_kind(), total, site, 2)
     if trace_list_track_consume() != 0 {
         print("[list_track] arena_alloc ptr=" + oren_int_to_string(header) +
               " kind=" + oren_int_to_string(list_int_kind()) +
