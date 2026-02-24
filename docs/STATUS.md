@@ -29,6 +29,20 @@ Oren is "mature" when all are reliably true on Tier-1 targets
 
 ---
 
+## Production readiness gap (rolling snapshot)
+
+Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/zig/go):
+
+- **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
+- **Performance parity**: native hot loops remain >2× C and allocation/GC is far from target (see perf tracker baselines: `loop_sum` 3.42×, `dot_product` 4.13×; `alloc_churn` 1463×, `alloc_drop` 62× on arm64).
+- **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
+- **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
+- **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
+
+Design intent is bleeding‑edge (determinism + capability gating + AVM), but execution maturity is still in the rolling phase.
+
+---
+
 ## Regression gates (run first)
 
 Local (fast):
@@ -424,16 +438,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 ## P0 (Now)
 
-1) **Perf parity W5: native hot loops** (L, W5)
-   - Execute item 1 in the performance tracker (loop_sum + dot_product).
-   - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
-
-2) **Perf parity W5: allocation/GC** (L, W5)
-   - Execute item 2 in the performance tracker (alloc_churn + alloc_drop).
-   - Include long‑lived loop arena policy (per‑iteration sub‑arenas + spill + epoch reset).
-   - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
-
-3) **Tagged value convergence plan** (L, W4)
+1) **Tagged value convergence plan** (L, W5)
    - Define layout and staged migration.
    - Pin semantic invariants (truthiness, equality, type tests) and add cross‑backend fixtures.
    - Backend mapping table (native/C/AVM) captured in `docs/DESIGN.md`.
@@ -441,6 +446,15 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Parity gate: `tests/fixtures/tag_parity_smoke.oren` + `make verify-backend-parity-tags`.
    - Add compatibility shims so native/C/OBC can migrate without breaking Tier‑1.
    - Gate: fixtures across all backends.
+
+2) **Perf parity W5: allocation/GC** (L, W5)
+   - Execute item 2 in the performance tracker (alloc_churn + alloc_drop).
+   - Include long‑lived loop arena policy (per‑iteration sub‑arenas + spill + epoch reset).
+   - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
+
+3) **Perf parity W5: native hot loops** (L, W5)
+   - Execute item 1 in the performance tracker (loop_sum + dot_product).
+   - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 4) **Native scheduler / green-task integration** (L, W4)
    - Keep syscall-first constraints.

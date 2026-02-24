@@ -74,6 +74,7 @@ Local cross-backend microbenchmarks live under `benchmarks/`:
 **Design + toolchain (compiler/runtime/AVM/platforms)**
 
 - `docs/DESIGN.md` — architecture, backends, runtime layering, AVM/OBC summary, and toolchain/platform notes
+- `docs/design/tagged_values.md` — staged tagged-value convergence plan and migration gates
 
 ## 5) Rolling policy (no stubs)
 
