@@ -150,6 +150,54 @@ fn main() {
         print("tag_parity: mixed_ge expected true")
         exit(15)
     }
+    if "a" < "b" {
+        // ok
+    } else {
+        print("tag_parity: string_lt expected true")
+        exit(16)
+    }
+    if "b" > "a" {
+        // ok
+    } else {
+        print("tag_parity: string_gt expected true")
+        exit(17)
+    }
+    if "a" <= "a" {
+        // ok
+    } else {
+        print("tag_parity: string_le expected true")
+        exit(18)
+    }
+    if "b" >= "b" {
+        // ok
+    } else {
+        print("tag_parity: string_ge expected true")
+        exit(19)
+    }
+    if "a" == "a" {
+        // ok
+    } else {
+        print("tag_parity: string_eq expected true")
+        exit(20)
+    }
+    if "a" != "a" {
+        print("tag_parity: string_ne expected false")
+        exit(21)
+    }
+    if "1" == 1 {
+        print("tag_parity: str_int_eq expected false")
+        exit(22)
+    }
+    if "1" != 1 {
+        // ok
+    } else {
+        print("tag_parity: str_int_ne expected true")
+        exit(23)
+    }
+    if true == 1 {
+        print("tag_parity: bool_int_eq expected false")
+        exit(24)
+    }
     var mk = {"1": 10, 1: 20}
     if mk["1"] != 10 {
         print("tag_parity: map_str_key mismatch")
