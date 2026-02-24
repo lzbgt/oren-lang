@@ -28,23 +28,24 @@ kept in sync with `docs/STATUS.md`.
 
 ## Derived tasks to work on (linked to `docs/STATUS.md`)
 
-1) **W5 perf parity: hot loops (loop_sum, dot_product)**
-   - Close native gap vs C and keep cross-backend semantics aligned.
-   - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
-
-2) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
+1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
    - Gate: `alloc_churn` native <= 8x C; `alloc_drop` native <= 5x C.
 
-3) **Cross-backend parity gates**
+2) **W5 perf parity: hot loops (loop_sum, dot_product)**
+   - Close native gap vs C and keep cross-backend semantics aligned.
+   - New: loop_sum init/steady split instrumentation via `OREN_BENCH_INIT_SPLIT=1`.
+   - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
+
+3) **W5 tagged value convergence plan (native/C/AVM)**
+   - One canonical model + staged migration.
+   - Gate: fixtures across all backends.
+
+4) **Cross-backend parity gates**
    - Expand fixtures where gaps remain; keep C/native/OBC output aligned.
    - Arithmetic panic parity now covers `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob`.
    - Index panic parity covers negative list index assignment + list get out-of-bounds + non-container index get + unsupported map key get/set.
    - Gate: parity scripts + `make test` remain green.
-
-4) **Tagged value convergence plan (native/C/AVM)**
-   - One canonical model + staged migration.
-   - Gate: fixtures across all backends.
 
 5) **Deterministic schedulers (native + AVM)**
    - Budgeted execution and GC-safe scheduling.

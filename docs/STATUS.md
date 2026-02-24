@@ -81,6 +81,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Baseline (arm64 native, 2026-02-20): `loop_sum` 3.42× C, `dot_product` 4.13× C.
    - Expand inty propagation and arithmetic fast paths.
    - Split runtime init vs steady-state cost and quantify the init gap (see `benchmarks/RESULTS_LATEST.md` notes).
+     - New: `OREN_BENCH_INIT_SPLIT=1` adds loop_sum init/steady estimation (see `benchmarks/README.md`).
    - Const-divisor `%` is now inlined for literal/const RHS (arm64 + x64).
    - Boxed list dot/get-sum regression guard added to native QI (2026-02-19).
    - Fast-loop safepoints now reset GC tick after safepoint to avoid tick spills (arm64 list-sum, x64 LCG sum).
@@ -440,7 +441,17 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 ## P0 (Now)
 
-1) **Tagged value convergence plan** (L, W5)
+1) **Perf parity W5: allocation/GC** (L, W5)
+   - Execute item 2 in the performance tracker (alloc_churn + alloc_drop).
+   - Include long‑lived loop arena policy (per‑iteration sub‑arenas + spill + epoch reset).
+   - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
+
+2) **Perf parity W5: native hot loops** (L, W5)
+   - Execute item 1 in the performance tracker (loop_sum + dot_product).
+   - Init/steady split instrumentation is now available via `OREN_BENCH_INIT_SPLIT=1` (see `benchmarks/README.md`).
+   - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
+
+3) **Tagged value convergence plan** (L, W5)
    - Define layout and staged migration.
    - Pin semantic invariants (truthiness, equality, type tests) and add cross‑backend fixtures.
    - Expand `tests/fixtures/tag_parity_smoke.oren` to cover truthiness (ints/floats), type‑strict equality (`==`/`!=`), mixed numeric + string comparisons (`< <= > >=`), cross‑type equality (string/int, bool/int), and mixed map key kinds (int vs string) (rolling, 2026-02-24).
@@ -450,15 +461,6 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Parity gate: `tests/fixtures/tag_parity_smoke.oren` + `make verify-backend-parity-tags`.
    - Add compatibility shims so native/C/OBC can migrate without breaking Tier‑1.
    - Gate: fixtures across all backends.
-
-2) **Perf parity W5: allocation/GC** (L, W5)
-   - Execute item 2 in the performance tracker (alloc_churn + alloc_drop).
-   - Include long‑lived loop arena policy (per‑iteration sub‑arenas + spill + epoch reset).
-   - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
-
-3) **Perf parity W5: native hot loops** (L, W5)
-   - Execute item 1 in the performance tracker (loop_sum + dot_product).
-   - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 4) **Cross-backend parity gates** (M, W4)
    - Expand fixtures where gaps remain; keep C/native/OBC output aligned.

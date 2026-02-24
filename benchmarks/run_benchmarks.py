@@ -20,6 +20,8 @@ RESULTS_DIR = ROOT / "benchmarks" / "results"
 DEFAULT_RUNS = 5
 DEFAULT_WARMUPS = 1
 DEFAULT_RSS = 0
+DEFAULT_INIT_SPLIT_REPS = 10
+DEFAULT_LOOP_SUM_N = 20000000
 ALLOC_SITE_RE = re.compile(
     r"\[alloc_site\]\s+total=(\d+)\s+list_header=(\d+)\s+list_int_header=(\d+)\s+"
     r"list_buf=(\d+)\s+list_int_buf=(\d+)"
@@ -252,6 +254,9 @@ class BenchConfig:
     skip_oren_c: bool
     skip_native: bool
     bench_args: list[str]
+    init_split: bool
+    init_split_reps: int
+    init_split_n: int | None
     env_all: dict
     env_c: dict
     env_oren_c: dict
@@ -372,20 +377,32 @@ def _run_one(program, cfg: BenchConfig):
     run_log_root = None
     if cfg.save_run_logs:
         run_log_root = LOG_DIR / f"bench_run_{program}_{ts}"
-    suites = []
+    suite_specs = []
     if not cfg.skip_c:
-        suites.append(("c", [str(c_bin), *cfg.bench_args], cfg.env_c))
+        suite_specs.append(("c", cfg.env_c))
     if not cfg.skip_oren_c:
-        suites.append(("oren_c", [str(oren_c_bin), *cfg.bench_args], cfg.env_oren_c))
+        suite_specs.append(("oren_c", cfg.env_oren_c))
     if not cfg.skip_native:
-        suites.append(("oren_native", [str(oren_native_bin), *cfg.bench_args], cfg.env_oren_native))
+        suite_specs.append(("oren_native", cfg.env_oren_native))
     if not cfg.skip_obc:
-        # AVM args are the list after `--` (no implicit argv[0]); inject obc path as argv[0]
-        # to match native/C semantics and keep cross-backend benchmarks aligned.
-        obc_args = [str(obc_out), *cfg.bench_args]
-        obc_cmd = [str(avm_bin), str(obc_out), "--", *obc_args]
-        suites.append(("oren_obc", obc_cmd, cfg.env_oren_obc))
-    variant_order = [name for name, _, _ in suites]
+        suite_specs.append(("oren_obc", cfg.env_oren_obc))
+
+    def _build_cmd(name, args):
+        if name == "c":
+            return [str(c_bin), *args]
+        if name == "oren_c":
+            return [str(oren_c_bin), *args]
+        if name == "oren_native":
+            return [str(oren_native_bin), *args]
+        if name == "oren_obc":
+            # AVM args are the list after `--` (no implicit argv[0]); inject obc path as argv[0]
+            # to match native/C semantics and keep cross-backend benchmarks aligned.
+            obc_args = [str(obc_out), *args]
+            return [str(avm_bin), str(obc_out), "--", *obc_args]
+        raise RuntimeError(f"unknown benchmark variant: {name}")
+
+    suites = [(name, _build_cmd(name, cfg.bench_args), extra_env) for name, extra_env in suite_specs]
+    variant_order = [name for name, _ in suite_specs]
 
     for name, cmd, extra_env in suites:
         env = env_base.copy()
@@ -430,6 +447,56 @@ def _run_one(program, cfg: BenchConfig):
         arena_runs = _parse_arena_output(out)
         if arena_runs:
             arena_traces[name] = arena_runs
+
+    init_split = {}
+    if cfg.init_split and program == "loop_sum" and suite_specs:
+        split_reps = cfg.init_split_reps
+        if split_reps < 2:
+            raise RuntimeError("OREN_BENCH_INIT_SPLIT_REPS must be >= 2")
+        split_n = cfg.init_split_n
+        if split_n is None:
+            if cfg.bench_args:
+                try:
+                    split_n = int(cfg.bench_args[0])
+                except ValueError:
+                    split_n = DEFAULT_LOOP_SUM_N
+            else:
+                split_n = DEFAULT_LOOP_SUM_N
+        split_args_short = [str(split_n), "1"]
+        split_args_long = [str(split_n), str(split_reps)]
+        for name, extra_env in suite_specs:
+            env = env_base.copy()
+            env.update(cfg.env_all)
+            env.update(extra_env)
+            cmd_short = _build_cmd(name, split_args_short)
+            cmd_long = _build_cmd(name, split_args_long)
+            times_short, _, _ = _time_cmd(
+                cmd_short,
+                runs=cfg.runs,
+                warmups=cfg.warmups,
+                env=env,
+                rss_enabled=False,
+            )
+            times_long, _, _ = _time_cmd(
+                cmd_long,
+                runs=cfg.runs,
+                warmups=cfg.warmups,
+                env=env,
+                rss_enabled=False,
+            )
+            med_short = statistics.median(times_short)
+            med_long = statistics.median(times_long)
+            steady = (med_long - med_short) / (split_reps - 1)
+            init = med_short - steady
+            init_split[name] = {
+                "n": split_n,
+                "reps_short": 1,
+                "reps_long": split_reps,
+                "median_short_s": med_short,
+                "median_long_s": med_long,
+                "init_s": init,
+                "steady_s": steady,
+            }
 
     if cfg.save_stdout:
         for name, out in outputs.items():
@@ -476,6 +543,8 @@ def _run_one(program, cfg: BenchConfig):
     }
 
     payload = {"meta": meta, "results": results}
+    if init_split:
+        payload["init_split"] = init_split
     if cfg.rss_enabled and rss_results:
         payload["rss"] = rss_results
     if alloc_sites:
@@ -651,6 +720,9 @@ def main():
     programs_raw = os.environ.get("OREN_BENCH_PROGRAMS", "").strip()
     bench_args_raw = os.environ.get("OREN_BENCH_ARGS", "")
     bench_args = shlex.split(bench_args_raw) if bench_args_raw else []
+    init_split = int(os.environ.get("OREN_BENCH_INIT_SPLIT", "0")) == 1
+    init_split_reps_raw = os.environ.get("OREN_BENCH_INIT_SPLIT_REPS", str(DEFAULT_INIT_SPLIT_REPS)).strip()
+    init_split_n_raw = os.environ.get("OREN_BENCH_INIT_SPLIT_N", "").strip()
     trace_alloc_site = int(os.environ.get("OREN_BENCH_TRACE_ALLOC_SITE", "0")) == 1
     trace_alloc_site_cap = os.environ.get("OREN_BENCH_TRACE_ALLOC_SITE_CAP", "").strip()
     trace_alloc_site_gc_threshold = os.environ.get(
@@ -665,6 +737,16 @@ def main():
     env_oren_obc = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_OREN_OBC", ""))
     env_build_all = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_BUILD", ""))
     env_build_oren = _parse_env_overrides(os.environ.get("OREN_BENCH_ENV_BUILD_OREN", ""))
+    try:
+        init_split_reps = int(init_split_reps_raw)
+    except ValueError as exc:
+        raise RuntimeError(f"invalid OREN_BENCH_INIT_SPLIT_REPS={init_split_reps_raw!r}") from exc
+    init_split_n = None
+    if init_split_n_raw:
+        try:
+            init_split_n = int(init_split_n_raw)
+        except ValueError as exc:
+            raise RuntimeError(f"invalid OREN_BENCH_INIT_SPLIT_N={init_split_n_raw!r}") from exc
 
     if trace_alloc_site:
         if output_check:
@@ -708,6 +790,9 @@ def main():
         skip_oren_c=skip_oren_c,
         skip_native=skip_native,
         bench_args=bench_args,
+        init_split=init_split,
+        init_split_reps=init_split_reps,
+        init_split_n=init_split_n,
         env_all=env_all,
         env_c=env_c,
         env_oren_c=env_oren_c,
