@@ -207,6 +207,12 @@ Weights reflect expected impact on C parity and breadth of affected code.
      hit `[gc_reuse_bad_list]` quickly (chunk=32 len/cap=128 buf=ptr+32 magic=1279870019)
      with a preceding `[gc_reuse_hit] kind=0` (log:
      `build/logs/alloc_churn_direct_reuse_cap_20260225_021657.log`).
+   - Repro across scan caps (arm64, 2026-02-25, direct native run with reuse + auto arenas off):
+     scan_cap=1000/5000/20000 each shows `[gc_reuse_hit] kind=0` followed by
+     `[gc_reuse_bad_list] chunk=32 len=128 cap=128 buf=ptr+32 magic=1279870019`
+     (logs: `build/logs/alloc_churn_direct_reuse_cap1000_20260225_021833.log`,
+     `build/logs/alloc_churn_direct_reuse_cap5000_20260225_021853.log`,
+     `build/logs/alloc_churn_direct_reuse_cap20000_20260225_021913.log`).
    - Trace alloc_churn reuse (arm64, 2026-02-25, same reuse env as above) ran >3 min
      and was terminated to keep iteration fast; no trace output captured.
    - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=1000`, warmups=0):
