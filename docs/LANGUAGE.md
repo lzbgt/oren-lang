@@ -1703,6 +1703,7 @@ This is intentional: fixtures are small, high-signal, and regression-friendly.
   - Negative index assignment: `tests/native/fixtures/index_set_negative.oren`
   - Index get out-of-bounds: `tests/native/fixtures/index_get_oob.oren`
   - Index get on non-container: `tests/native/fixtures/index_get_non_container.oren`
+  - Map index set with unsupported key: `tests/native/fixtures/index_set_map_bad_key.oren`
   - Deterministic recursion guard (call depth): `tests/native/fixtures/call_depth_overflow.oren`
 
 - **Struct field assignment (rolling semantics)**:
