@@ -107,6 +107,7 @@ fn _list_find_node(list) {
 
 fn _list_trace_enabled() {
     if g_trace_list_header == 1 { return true }
+    if g_trace_list_header == 0 { return false }
     var v = native_envp_get_value_ptr("OREN_TRACE_LIST_HEADER")
     if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
         if g_trace_list_header == -1 { g_trace_list_header = 0 }
@@ -124,6 +125,7 @@ fn _list_trace_enabled() {
 
 fn _list_hdr_ring_enabled() {
     if g_trace_list_hdr_ring == 1 { return true }
+    if g_trace_list_hdr_ring == 0 { return false }
     var v = native_envp_get_value_ptr("OREN_TRACE_LIST_HDR_RING")
     if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
         if g_trace_list_hdr_ring == -1 { g_trace_list_hdr_ring = 0 }
@@ -207,6 +209,7 @@ fn native_list_header_ring_dump(list) {
 }
 fn _list_corrupt_enabled() {
     if g_trace_list_corrupt == 1 { return true }
+    if g_trace_list_corrupt == 0 { return false }
     var v = native_envp_get_value_ptr("OREN_TRACE_LIST_CORRUPT")
     if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
         if g_trace_list_corrupt == -1 { g_trace_list_corrupt = 0 }

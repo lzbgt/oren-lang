@@ -194,6 +194,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
       during reserve/push_unchecked (invalid magic or buf) and dumps list_debug state (rolling, 2026-02-20).
    - List header reuse guard now treats chunk_size==32 as separate-buffer lists even if buf==list+32 (avoids false bad-list hits when allocator places buffers adjacent; rolling, 2026-02-20).
    - List header reuse guard now accepts external-buffer lists whose header allocation still includes stale inline storage (chunk_size > 32 with buf != list+32), avoiding false bad-list hits after growth (rolling, 2026-02-24).
+   - List trace env checks now cache false after first lookup (`OREN_TRACE_LIST_HEADER`,
+     `OREN_TRACE_LIST_HDR_RING`, `OREN_TRACE_LIST_CORRUPT`) to avoid per-op env scans (rolling, 2026-02-25).
      - Reuse guard enforces inline-buffer sizing: chunk==32+cap*8 when buf==list+32; out-of-line headers accept any chunk>=32 (rolling, 2026-02-24).
      - Prior strict header sizing guard (out-of-line required chunk==32) still segfaulted; guard_bad_list=276 (local run, 2026-02-20).
      - Reuse now rejects alloc-index mismatches for reused pointers (rolling, 2026-02-20).
