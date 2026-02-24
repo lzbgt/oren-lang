@@ -486,6 +486,7 @@ fn native_arena_new_list(cap) {
     var header = native_arena_alloc_k(total, 2)
     if header == 0 { exit(200) }
     if header == -1 { exit(200) }
+    native_alloc_site_bump(_alloc_site_list_header())
     var buf = 0
     if cap > 0 { buf = iadd(header, 32) }
     ptr_set(iadd(header, 0), 0)
@@ -502,6 +503,7 @@ fn native_arena_new_list_int(cap) {
     var header = native_arena_alloc_k(total, list_int_kind())
     if header == 0 { exit(200) }
     if header == -1 { exit(200) }
+    native_alloc_site_bump(_alloc_site_list_int_header())
     var buf = 0
     if cap > 0 { buf = iadd(header, 32) }
     ptr_set(iadd(header, 0), 0)

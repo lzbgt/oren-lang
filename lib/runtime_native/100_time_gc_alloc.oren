@@ -73,6 +73,11 @@ var g_stack_range_len = 0
 // --- Alloc-site tracing (optional) ---
 // Fixed-capacity counter table gated by g_trace_alloc_site.
 // Site IDs are defined by the call sites (runtime helpers).
+fn _alloc_site_list_header() { return 1 }
+fn _alloc_site_list_int_header() { return 2 }
+fn _alloc_site_list_buf() { return 3 }
+fn _alloc_site_list_int_buf() { return 4 }
+
 fn native_alloc_site_init(cap) {
     if g_trace_alloc_site == 0 { return 0 }
     if g_alloc_site_ptr != 0 { return g_alloc_site_ptr }

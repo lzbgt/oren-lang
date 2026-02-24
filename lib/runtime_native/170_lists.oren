@@ -1,10 +1,6 @@
 // --- Lists ---
 // Layout: [count][capacity][buffer_ptr][magic]
 fn list_int_kind() { return 8 } // LIST_INT (unboxed int list)
-fn _alloc_site_list_header() { return 1 }
-fn _alloc_site_list_int_header() { return 2 }
-fn _alloc_site_list_buf() { return 3 }
-fn _alloc_site_list_int_buf() { return 4 }
 	@oren.keep
 	fn oren_new_list(cap) {
 	    if cap < 0 { cap = 0 }

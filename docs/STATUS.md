@@ -183,6 +183,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=10000`, warmups=0):
      - `alloc_churn` list_header=5119, list_buf=5119 (see `alloc_churn_darwin_arm64_20260220_130727.md`).
      - `alloc_drop` list_header=1794, list_buf=6 (see `alloc_drop_darwin_arm64_20260220_130750.md`).
+   - New: arena list header allocations now bump alloc-site counters (native `native_arena_new_list(_int)`)
+     so arena-backed list headers show up in `OREN_BENCH_TRACE_ALLOC_SITE` runs (rolling, 2026-02-25).
+   - Trace alloc-site (arm64, 2026-02-25, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=10000`, warmups=0):
+     - `alloc_churn` list_header=20000, list_buf=0.
+     - `alloc_drop` list_header=1794, list_buf=6.
    - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=1000`, warmups=0):
      - `alloc_churn` panics: `list_reserve on non-list` after `[alloc_site] total=1536 list_header=768 list_buf=768`.
        New trace: stage=1 (node missing), magic matches, count/cap/buf=0, list_debug node=0,
