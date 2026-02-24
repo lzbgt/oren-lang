@@ -124,6 +124,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      but `alloc_churn` remains far above target in the 2026-02-24 snapshot (rolling).
    - New: list/list_int reserve + unchecked push now try `native_arena_alloc_raw` for arena-backed buffers
      and fall back to `malloc_k` (cuts alloc-index tracking overhead on arena hot paths; rolling, 2026-02-20).
+   - New: list/list_int set growth now uses arena-backed buffer allocation when list headers are arena-tracked,
+     matching reserve/push behavior (rolling, 2026-02-24).
     - Reuse + list trace run (arm64, 2026-02-20, reuse+trace flags): still segfaults; reuse summary
       tries=7951 hits=54 misses=7900 hit_bytes=57472 guard_bad_list=105. List trace shows only `op=1/3/5`;
       free-list headers still report len/cap=128 with chunk=32 (same corruption pattern).
