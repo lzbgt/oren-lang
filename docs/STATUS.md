@@ -115,9 +115,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - List header trace (`OREN_TRACE_LIST_HEADER=1`, cap=50) emitted no `[list_hdr]` lines during alloc_churn, suggesting the hot path bypasses list runtime helpers (local run, 2026-02-20).
     - List trace now re-checks env after runtime init (uses `oren_env` + refresh even if cached off); `native_envp_get_value_ptr` falls back to argv when envp missing (rolling, 2026-02-20).
     - New alloc_churn trace (`OREN_TRACE_LIST_HEADER=1`, cap=20) shows `op=1` new_list, `op=3` reserve to cap=128, then `op=5` list_push_unchecked; no `op=4` fast-path list_push seen (local run, 2026-02-20).
-   - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)` and `oren_list_new_cap(cap)`
-      as list constructors and propagates list metadata across simple alias assignments, extending reserve/unchecked-push rewrites
-      (rolling, 2026-02-20).
+   - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
+     and `oren_arena_new_list(cap)` as list constructors and propagates list metadata across simple alias assignments,
+     extending reserve/unchecked-push rewrites (rolling, 2026-02-24).
    - New: list/list_int reserve + unchecked push now try `native_arena_alloc_raw` for arena-backed buffers
      and fall back to `malloc_k` (cuts alloc-index tracking overhead on arena hot paths; rolling, 2026-02-20).
     - Reuse + list trace run (arm64, 2026-02-20, reuse+trace flags): still segfaults; reuse summary
