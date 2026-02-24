@@ -532,12 +532,20 @@ fn _emit_generic_call_expr_v0(ctx, expr, locals, nm, args) {
         _emit_list_int_len_intrinsic_v0_x64(ctx, expr, locals)
         return nil
     }
+    if nm == "oren_list_int_len_unchecked" || nm == "STD_list_int_len_unchecked" {
+        _emit_list_int_len_unchecked_intrinsic_v0_x64(ctx, expr, locals)
+        return nil
+    }
     if nm == "oren_list_int_push" || nm == "STD_list_int_push" {
         _emit_list_int_push_intrinsic_v0_x64(ctx, expr, locals)
         return nil
     }
     if nm == "oren_list_int_get" || nm == "STD_list_int_get" {
         _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals)
+        return nil
+    }
+    if nm == "oren_list_int_get_unchecked" || nm == "STD_list_int_get_unchecked" {
+        _emit_list_int_get_unchecked_intrinsic_v0_x64(ctx, expr, locals)
         return nil
     }
     if nm == "oren_list_int_set" || nm == "STD_list_int_set" {

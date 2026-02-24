@@ -653,9 +653,11 @@ fn _opt_is_safe_list_call_name(name) {
     if _opt_str_eq(name, "oren_list_get") || _opt_str_eq(name, "STD_list_get") { return true }
     if _opt_str_eq(name, "oren_list_set") || _opt_str_eq(name, "STD_list_set") { return true }
     if _opt_str_eq(name, "oren_list_int_len") || _opt_str_eq(name, "STD_list_int_len") { return true }
+    if _opt_str_eq(name, "oren_list_int_len_unchecked") || _opt_str_eq(name, "STD_list_int_len_unchecked") { return true }
     if _opt_str_eq(name, "oren_list_int_reserve") || _opt_str_eq(name, "STD_list_int_reserve") { return true }
     if _opt_str_eq(name, "oren_list_int_push") || _opt_str_eq(name, "STD_list_int_push") { return true }
     if _opt_str_eq(name, "oren_list_int_get") || _opt_str_eq(name, "STD_list_int_get") { return true }
+    if _opt_str_eq(name, "oren_list_int_get_unchecked") || _opt_str_eq(name, "STD_list_int_get_unchecked") { return true }
     if _opt_str_eq(name, "oren_list_int_set") || _opt_str_eq(name, "STD_list_int_set") { return true }
     return false
 }

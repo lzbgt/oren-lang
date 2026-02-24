@@ -438,6 +438,14 @@ fn oren_list_int_len(list) {
     return ptr_get(iadd(list, 0))
 }
 
+// Unsafe/fast-path (tooling/internal): list<int> len without find_node/magic checks.
+// Used by compiler hot paths where list provenance is already validated.
+@oren.keep
+fn oren_list_int_len_unchecked(list) {
+    if list == nil { return 0 }
+    return ptr_get(iadd(list, 0))
+}
+
 @oren.keep
 fn oren_list_int_reserve(list, new_cap) {
     if list == nil { return nil }
@@ -580,6 +588,18 @@ fn oren_list_int_get(list, idx) {
     if node == 0 { oren_panic("list_int_get on non-list"); return nil }
     if ptr_get(iadd(node, 16)) != list_int_kind() { oren_panic("list_int_get on non-list"); return nil }
     if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_int_get on non-list"); return nil }
+    var count = ptr_get(iadd(list, 0))
+    if idx < 0 { oren_panic("Index out of bounds (negative)"); return nil }
+    if idx >= count { oren_panic("Index out of bounds"); return nil }
+    var buf = ptr_get(iadd(list, 16))
+    return ptr_get(iadd(buf, idx * 8))
+}
+
+// Unsafe/fast-path (tooling/internal): list<int> get without find_node/magic checks.
+// Bounds + nil checks remain to keep semantics identical for safe list<int> paths.
+@oren.keep
+fn oren_list_int_get_unchecked(list, idx) {
+    if list == nil { oren_panic("list_int_get_unchecked on nil"); return nil }
     var count = ptr_get(iadd(list, 0))
     if idx < 0 { oren_panic("Index out of bounds (negative)"); return nil }
     if idx >= count { oren_panic("Index out of bounds"); return nil }

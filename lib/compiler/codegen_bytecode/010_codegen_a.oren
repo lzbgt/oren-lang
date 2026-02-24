@@ -822,7 +822,8 @@ fn bytecode_compile_expr(ctx, expr) {
             emit_u16(ctx, nil_idx_ri)
             return nil
         }
-        if name == "oren_list_int_get" {
+        if name == "oren_list_int_get" || name == "STD_list_int_get" ||
+            name == "oren_list_int_get_unchecked" || name == "STD_list_int_get_unchecked" {
             if oren_list_len(expr["args"]) != 2 {
             bytecode_error(ctx, "bytecode backend: oren_list_int_get expects (list, idx)")
             return nil
@@ -925,7 +926,8 @@ fn bytecode_compile_expr(ctx, expr) {
         // stable-stdlib names (`STD_*`) so bytecode stays fast even if wrapper
         // inlining is skipped for some reason.
         if name == "oren_list_len" || name == "STD_list_len" { native_id = 12 }
-        if name == "oren_list_int_len" { native_id = 12 }
+        if name == "oren_list_int_len" || name == "STD_list_int_len" ||
+            name == "oren_list_int_len_unchecked" || name == "STD_list_int_len_unchecked" { native_id = 12 }
         // Note: `oren_list_push` returns `nil` (cross-backend contract).
         if name == "oren_list_push" || name == "STD_list_push" || name == "oren_list_push_unchecked" { native_id = 13 }
         if name == "oren_list_int_push" || name == "oren_list_int_push_unchecked" { native_id = 149 }

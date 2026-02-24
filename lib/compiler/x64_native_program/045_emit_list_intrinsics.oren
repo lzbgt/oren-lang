@@ -199,6 +199,58 @@ fn _emit_list_int_len_intrinsic_v0_x64(ctx, expr, locals) {
     return nil
 }
 
+fn _emit_list_int_len_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
+    if ctx == nil { return nil }
+    if locals == nil { err(ctx, "x64 native v0: oren_list_int_len_unchecked requires locals"); return nil }
+    if ctx["runtime_injected"] != true {
+        err(ctx, "x64 native v0: oren_list_int_len_unchecked requires injected native runtime")
+        return nil
+    }
+    if expr == nil { err(ctx, "x64 native v0: missing oren_list_int_len_unchecked expr"); return nil }
+    if expr["spread"] != nil { err(ctx, "x64 native v0: oren_list_int_len_unchecked does not support spread"); return nil }
+
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) != 1 {
+        err(ctx, "x64 native v0: oren_list_int_len_unchecked expects 1 arg")
+        return nil
+    }
+
+    var base = _intr_tmp_push(ctx, 1)
+    if oren_type_tag(base) == 0 { return nil }
+    var off_list = _intr_tmp_off(ctx, locals, base + 0)
+    if oren_type_tag(off_list) == 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // LTR eval: list -> spill
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - off_list, 0)
+
+    // list -> rdx
+    _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
+
+    var labels = {}
+    var local_fixups = []
+    var l_non_nil = _new_label(ctx, "list_int_len_unchecked_non_nil")
+    var l_done = _new_label(ctx, "list_int_len_unchecked_done")
+
+    // nil => 0
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(0, 0))
+    _emit_jmp_to_label(ctx, local_fixups, l_done)
+
+    _emit_label(ctx, labels, l_non_nil)
+
+    // count = *(list + 0)
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
 fn _emit_list_push_intrinsic_v0_x64(ctx, expr, locals) {
     // Intrinsic: list push fast-path (in-bounds capacity case), fallback to runtime for growth.
     //
@@ -584,6 +636,96 @@ fn _emit_list_int_get_intrinsic_v0_x64(ctx, expr, locals) {
     // load value -> rax
     bytes_extend(ctx["code"], insn_mov_r64_r64(0, 11))
     bytes_extend(ctx["code"], insn_mov_rax_mrax())
+
+    _emit_label(ctx, labels, l_done)
+    _patch_local_fixups(ctx, labels, local_fixups)
+    _intr_tmp_pop(ctx, base)
+    return nil
+}
+
+fn _emit_list_int_get_unchecked_intrinsic_v0_x64(ctx, expr, locals) {
+    // Intrinsic: list<int> get fast-path (bounds-checked, unchecked list headers).
+    //
+    // Signature: oren_list_int_get_unchecked(list, idx) -> int
+    if ctx == nil { return nil }
+    if locals == nil { err(ctx, "x64 native v0: oren_list_int_get_unchecked requires locals"); return nil }
+    if ctx["runtime_injected"] != true {
+        err(ctx, "x64 native v0: oren_list_int_get_unchecked requires injected native runtime")
+        return nil
+    }
+    if expr == nil { err(ctx, "x64 native v0: missing oren_list_int_get_unchecked expr"); return nil }
+    if expr["spread"] != nil { err(ctx, "x64 native v0: oren_list_int_get_unchecked does not support spread"); return nil }
+
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) != 2 {
+        err(ctx, "x64 native v0: oren_list_int_get_unchecked expects 2 args")
+        return nil
+    }
+
+    var base = _intr_tmp_push(ctx, 2)
+    if oren_type_tag(base) == 0 { return nil }
+    var off_list = _intr_tmp_off(ctx, locals, base + 0)
+    var off_idx = _intr_tmp_off(ctx, locals, base + 1)
+    if oren_type_tag(off_list) == 0 || oren_type_tag(off_idx) == 0 { _intr_tmp_pop(ctx, base); return nil }
+
+    // LTR eval: list -> spill
+    _emit_eval_int_to_rax(ctx, args[0], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - off_list, 0)
+
+    // idx -> spill
+    _emit_eval_int_to_rax(ctx, args[1], locals)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { _intr_tmp_pop(ctx, base); return nil }
+    _emit_mov_mrbp_r64(ctx, 0 - off_idx, 0)
+
+    // list -> rdx
+    _emit_mov_r64_mrbp(ctx, 2, 0 - off_list)
+
+    var labels = {}
+    var local_fixups = []
+    var l_non_nil = _new_label(ctx, "list_int_get_unchecked_non_nil")
+    var l_idx_nonneg = _new_label(ctx, "list_int_get_unchecked_idx_nonneg")
+    var l_idx_ok = _new_label(ctx, "list_int_get_unchecked_idx_ok")
+    var l_done = _new_label(ctx, "list_int_get_unchecked_done")
+
+    // nil => panic
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(2, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "ne", l_non_nil)
+    _emit_abort_panic_str(ctx, "list_int_get_unchecked on nil")
+    _emit_label(ctx, labels, l_non_nil)
+
+    // restore idx
+    _emit_mov_r64_mrbp(ctx, 8, 0 - off_idx) // r8 = idx
+
+    // count -> r9
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2))
+    bytes_extend(ctx["code"], insn_mov_rax_mrax())
+    bytes_extend(ctx["code"], insn_mov_r64_r64(9, 0))
+
+    // idx < 0 => panic
+    bytes_extend(ctx["code"], insn_cmp_r64_imm32(8, 0))
+    _emit_jcc_to_label(ctx, local_fixups, "ge", l_idx_nonneg)
+    _emit_abort_panic_str(ctx, "Index out of bounds (negative)")
+    _emit_label(ctx, labels, l_idx_nonneg)
+
+    // idx >= count => panic
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(8, 9))
+    _emit_jcc_to_label(ctx, local_fixups, "l", l_idx_ok)
+    _emit_abort_panic_str(ctx, "Index out of bounds")
+    _emit_label(ctx, labels, l_idx_ok)
+
+    // buf -> r11
+    bytes_extend(ctx["code"], insn_mov_r64_r64(11, 2))
+    bytes_extend(ctx["code"], insn_add_r64_imm32(11, 16))
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(11, 11))
+
+    // addr = buf + idx*8
+    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 8))
+    bytes_extend(ctx["code"], insn_shl_r64_imm8(10, 3))
+    bytes_extend(ctx["code"], insn_add_r64_r64(10, 11))
+
+    // value -> rax
+    bytes_extend(ctx["code"], insn_mov_r64_mr64(0, 10))
 
     _emit_label(ctx, labels, l_done)
     _patch_local_fixups(ctx, labels, local_fixups)

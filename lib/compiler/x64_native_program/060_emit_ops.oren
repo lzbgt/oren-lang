@@ -308,7 +308,8 @@ fn _x64_is_list_int_get_call(ctx, exp, idx_name) {
         }
     }
     if nm == nil { return nil }
-    if nm != "oren_list_int_get" && nm != "STD_list_int_get" { return nil }
+    if nm != "oren_list_int_get" && nm != "STD_list_int_get" &&
+        nm != "oren_list_int_get_unchecked" && nm != "STD_list_int_get_unchecked" { return nil }
     var args = exp["args"]
     if args == nil || oren_list_len(args) != 2 { return nil }
     var list_name = _x64_is_ident(args[0])

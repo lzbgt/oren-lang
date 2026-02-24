@@ -841,7 +841,8 @@ fn _opt_is_len_call(expr) {
     var fnn = expr["fn"]
     if fnn == nil || fnn["type"] != "Identifier" { return false }
     var nm = fnn["value"]
-    if nm != "oren_list_len" && nm != "oren_list_int_len" && nm != "oren_map_len" && nm != "oren_buf_len" && nm != "oren_string_len" {
+    if nm != "oren_list_len" && nm != "oren_list_int_len" && nm != "oren_list_int_len_unchecked" &&
+        nm != "oren_map_len" && nm != "oren_buf_len" && nm != "oren_string_len" {
         return false
     }
     var args = expr["args"]
@@ -912,14 +913,18 @@ fn _opt_call_name(expr) {
 fn _opt_list_int_call_is_safe(nm, args, safe_ints) {
     if nm == nil { return false }
     if args == nil || oren_list_len(args) < 1 { return false }
-    if nm == "oren_list_len" || nm == "STD_list_len" || nm == "oren_list_int_len" || nm == "STD_list_int_len" {
+    if nm == "oren_list_len" || nm == "STD_list_len" ||
+        nm == "oren_list_int_len" || nm == "STD_list_int_len" ||
+        nm == "oren_list_int_len_unchecked" || nm == "STD_list_int_len_unchecked" {
         return true
     }
     if nm == "oren_list_push" || nm == "STD_list_push" || nm == "oren_list_int_push" || nm == "STD_list_int_push" {
         if oren_list_len(args) < 2 { return false }
         return _opt_is_safe_int_expr(args[1], safe_ints)
     }
-    if nm == "oren_list_get" || nm == "STD_list_get" || nm == "oren_list_int_get" || nm == "STD_list_int_get" {
+    if nm == "oren_list_get" || nm == "STD_list_get" ||
+        nm == "oren_list_int_get" || nm == "STD_list_int_get" ||
+        nm == "oren_list_int_get_unchecked" || nm == "STD_list_int_get_unchecked" {
         if oren_list_len(args) < 2 { return false }
         return _opt_is_safe_int_expr(args[1], safe_ints)
     }
@@ -1634,7 +1639,9 @@ fn _opt_rewrite_list_int_expr(expr, list_state) {
     if t == "Index" {
         var list_name = opthelp.is_ident(expr["left"])
         if list_name != nil && _opt_list_state_is_safe(list_state, list_name) {
-            var fnn = {"type": "Identifier", "token": nil, "value": "oren_list_int_get"}
+            var get_name = "oren_list_int_get"
+            if _opt_backend_allows_list_int_unchecked() == true { get_name = "oren_list_int_get_unchecked" }
+            var fnn = {"type": "Identifier", "token": nil, "value": get_name}
             var args = [expr["left"], expr["index"]]
             return ast.new_call(expr["token"], fnn, args)
         }
@@ -1650,7 +1657,18 @@ fn _opt_rewrite_list_int_expr(expr, list_state) {
             if recv_name != nil && _opt_list_state_is_safe(list_state, recv_name) {
                 var new_nm = _opt_list_int_rewrite_name(nm)
                 if new_nm != nil {
+                    if _opt_backend_allows_list_int_unchecked() == true {
+                        if new_nm == "oren_list_int_len" { new_nm = "oren_list_int_len_unchecked" }
+                        if new_nm == "oren_list_int_get" { new_nm = "oren_list_int_get_unchecked" }
+                    }
                     expr["fn"] = {"type": "Identifier", "token": nil, "value": new_nm}
+                } else if _opt_backend_allows_list_int_unchecked() == true {
+                    if nm == "oren_list_int_len" || nm == "STD_list_int_len" {
+                        expr["fn"] = {"type": "Identifier", "token": nil, "value": "oren_list_int_len_unchecked"}
+                    }
+                    if nm == "oren_list_int_get" || nm == "STD_list_int_get" {
+                        expr["fn"] = {"type": "Identifier", "token": nil, "value": "oren_list_int_get_unchecked"}
+                    }
                 }
             }
         }

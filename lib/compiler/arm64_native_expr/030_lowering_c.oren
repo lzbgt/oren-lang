@@ -93,7 +93,41 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 return true
             }
 
-            if fn_name == "oren_list_int_len" {
+            if fn_name == "oren_list_int_len_unchecked" || fn_name == "STD_list_int_len_unchecked" {
+                // Intrinsic: list<int> length (fast-path, unchecked).
+                //
+                // Runtime layout: [count][capacity][buffer_ptr][magic]
+                // - nil list => 0
+                var args0iu = expr["args"]
+                if args0iu == nil || oren_list_len(args0iu) != 1 {
+                    native_error(ctx, expr["token"], "native backend: oren_list_int_len_unchecked expects 1 argument")
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    return true
+                }
+
+                native_compile_expr(ctx, args0iu[0]) // list -> X0
+
+                // nil => 0
+                push_u32_le(ctx["code"], insn_movz(1, 0))
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
+                var br_non_nil_iu = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], insn_movz(0, 0))
+                var br_done_iu = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+
+                var non_nil_pos_iu = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_non_nil_iu, insn_b_cond((non_nil_pos_iu - br_non_nil_iu) / 4, 1)) // NE
+
+                // count
+                emit_load_ptr_from_base_plus(ctx, 0, 0, 0)
+
+                var done_pos_iu = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_done_iu, insn_b((done_pos_iu - br_done_iu) / 4))
+                return true
+            }
+
+            if fn_name == "oren_list_int_len" || fn_name == "STD_list_int_len" {
                 // Intrinsic: list<int> length (fast-path, no runtime call).
                 //
                 // Runtime layout: [count][capacity][buffer_ptr][magic]
@@ -434,7 +468,75 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 return true
             }
 
-            if fn_name == "oren_list_int_get" {
+            if fn_name == "oren_list_int_get_unchecked" || fn_name == "STD_list_int_get_unchecked" {
+                // Intrinsic: list<int> get fast-path (bounds-checked, unchecked list headers).
+                //
+                // Signature: oren_list_int_get_unchecked(list, idx) -> int
+                var args2iu = expr["args"]
+                if args2iu == nil || oren_list_len(args2iu) != 2 {
+                    native_error(ctx, expr["token"], "native backend: oren_list_int_get_unchecked expects 2 arguments")
+                    push_u32_le(ctx["code"], insn_movz(0, 0))
+                    return true
+                }
+
+                // Eval list -> stack
+                native_compile_expr(ctx, args2iu[0]) // list -> X0
+                push_u32_le(ctx["code"], insn_sub_sp(16))
+                push_u32_le(ctx["code"], insn_str_x0_sp(0))
+                ctx["stack_size"] = ctx["stack_size"] + 16
+
+                // Eval idx -> X0
+                native_compile_expr(ctx, args2iu[1])
+
+                // Pop list -> X1
+                push_u32_le(ctx["code"], insn_ldr_reg_sp(1, 0))
+                push_u32_le(ctx["code"], insn_add_sp(16))
+                ctx["stack_size"] = ctx["stack_size"] - 16
+
+                // Save list/idx in callee-saved regs.
+                push_u32_le(ctx["code"], insn_mov_reg(20, 0)) // X20 = idx
+                push_u32_le(ctx["code"], insn_mov_reg(19, 1)) // X19 = list
+                push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // X0 = list
+
+                // nil => panic
+                push_u32_le(ctx["code"], insn_movz(2, 0))
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 2))
+                var br_non_nil_gu = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "list_int_get_unchecked on nil")
+                var non_nil_pos_gu = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_non_nil_gu, insn_b_cond((non_nil_pos_gu - br_non_nil_gu) / 4, 1)) // NE
+
+                // count
+                emit_load_ptr_from_base_plus(ctx, 3, 0, 0) // X3 = count
+
+                // idx < 0 => panic
+                push_u32_le(ctx["code"], insn_movz(4, 0))
+                push_u32_le(ctx["code"], insn_cmp_reg(20, 4))
+                var br_idx_nonneg_u = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "Index out of bounds (negative)")
+                var idx_nonneg_pos_u = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_idx_nonneg_u, insn_b_cond((idx_nonneg_pos_u - br_idx_nonneg_u) / 4, 10)) // GE
+
+                // idx >= count => panic
+                push_u32_le(ctx["code"], insn_cmp_reg(20, 3))
+                var br_idx_ok_u = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                native_emit_panic(ctx, "Index out of bounds")
+                var idx_ok_pos_u = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_idx_ok_u, insn_b_cond((idx_ok_pos_u - br_idx_ok_u) / 4, 11)) // LT
+
+                // buf + idx*8
+                emit_load_ptr_from_base_plus(ctx, 4, 0, 16) // X4 = buf
+                emit_load_i64_imm(ctx, 5, 8)
+                push_u32_le(ctx["code"], insn_mul(6, 20, 5))     // X6 = idx*8
+                push_u32_le(ctx["code"], insn_add_reg(6, 4, 6))  // X6 = buf + off
+                push_u32_le(ctx["code"], insn_ldr_ptr(0, 6))     // X0 = *(addr)
+                return true
+            }
+
+            if fn_name == "oren_list_int_get" || fn_name == "STD_list_int_get" {
                 // Intrinsic: list<int> get fast-path (bounds-checked).
                 //
                 // Signature: oren_list_int_get(list, idx) -> int
