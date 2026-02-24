@@ -83,7 +83,7 @@ run_expect_panic() {
     grep_flags=(-i -E)
     use_fixed=0
   elif [[ "$expect" == "MAP_KEY_UNSUPPORTED" ]]; then
-    expect="map key type not supported|map_set: unsupported key type"
+    expect="map key type not supported|map_set: unsupported key type|map_get: unsupported key type"
     grep_flags=(-i -E)
     use_fixed=0
   fi
@@ -116,6 +116,7 @@ cases=(
   "index_get_oob|tests/native/fixtures/index_get_oob.oren|INDEX_OOB"
   "index_get_non_container|tests/native/fixtures/index_get_non_container.oren|INDEX_NON_CONTAINER"
   "index_set_map_bad_key|tests/native/fixtures/index_set_map_bad_key.oren|MAP_KEY_UNSUPPORTED"
+  "index_get_map_bad_key|tests/native/fixtures/index_get_map_bad_key.oren|MAP_KEY_UNSUPPORTED"
 )
 
 for entry in "${cases[@]}"; do

@@ -1,0 +1,7 @@
+// Native + C backend fixture:
+// map index get with unsupported key type must be a deterministic runtime panic.
+
+var m = {}
+var k = [1]
+var v = m[k]
+print(v)

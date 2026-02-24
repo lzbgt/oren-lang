@@ -1346,7 +1346,8 @@ OrenValue oren_map_get(OrenValue map, OrenValue key) {
     OrenMap* m = map.as.map_val;
     if (!m) return OREN_NIL;
     if (!(key.type == OREN_TYPE_NIL || key.type == OREN_TYPE_BOOL || key.type == OREN_TYPE_INT || key.type == OREN_TYPE_STRING)) {
-        return OREN_NIL;
+        oren_panic("map key type not supported (need nil/bool/int/string)");
+        return OREN_NIL; // Should not be reached
     }
 
     pthread_mutex_t* mu = oren_obj_lock_for_ptr(m);
