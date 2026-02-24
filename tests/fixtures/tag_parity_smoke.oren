@@ -107,6 +107,8 @@ fn main() {
     assert_true("truth_list_int", xs_int)
     assert_true("truth_empty_map", empty_map)
     assert_true("truth_map", m)
+    assert_true("truth_float_zero", 0.0)
+    assert_true("truth_float_neg", -1.25)
 
     if 1 == 1.0 {
         print("tag_parity: int_float_eq expected false")
@@ -121,6 +123,32 @@ fn main() {
     if 1 != 1 {
         print("tag_parity: int_eq expected true")
         exit(7)
+    }
+    if 1.0 != 1.0 {
+        print("tag_parity: float_eq expected true")
+        exit(11)
+    }
+    if 1 < 2.0 {
+        // ok
+    } else {
+        print("tag_parity: mixed_lt expected true")
+        exit(12)
+    }
+    if 2.0 <= 2 {
+        // ok
+    } else {
+        print("tag_parity: mixed_le expected true")
+        exit(13)
+    }
+    if 3.0 > 4 {
+        print("tag_parity: mixed_gt expected false")
+        exit(14)
+    }
+    if 4.0 >= 4 {
+        // ok
+    } else {
+        print("tag_parity: mixed_ge expected true")
+        exit(15)
     }
     var mk = {"1": 10, 1: 20}
     if mk["1"] != 10 {

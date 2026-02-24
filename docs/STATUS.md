@@ -441,7 +441,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 1) **Tagged value convergence plan** (L, W5)
    - Define layout and staged migration.
    - Pin semantic invariants (truthiness, equality, type tests) and add cross‑backend fixtures.
-   - Expand `tests/fixtures/tag_parity_smoke.oren` to cover truthiness, type‑strict equality (`==`/`!=`), and mixed map key kinds (int vs string) (rolling, 2026-02-24).
+   - Expand `tests/fixtures/tag_parity_smoke.oren` to cover truthiness (ints/floats), type‑strict equality (`==`/`!=`), mixed numeric comparisons (`< <= > >=`), and mixed map key kinds (int vs string) (rolling, 2026-02-24).
    - Backend mapping table (native/C/AVM) captured in `docs/DESIGN.md`.
    - Tag parity fixture now asserts `oren_type_name` across backends.
    - Parity gate: `tests/fixtures/tag_parity_smoke.oren` + `make verify-backend-parity-tags`.
