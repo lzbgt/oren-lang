@@ -52,6 +52,7 @@ Local (fast):
 - `make verify-backend-parity-boxed-list`
 - `make verify-backend-parity-list-int`
 - `make verify-backend-parity-tags`
+- `make verify-backend-parity-arith-panics`
 - `./scripts/verify_x64_linux_qemu_smoke.sh`
 
 Remote verify scripts support `OREN_REMOTE_SCP_TIMEOUT_SECS` to bound scp hangs.
@@ -442,6 +443,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Define layout and staged migration.
    - Pin semantic invariants (truthiness, equality, type tests) and add cross‑backend fixtures.
    - Expand `tests/fixtures/tag_parity_smoke.oren` to cover truthiness (ints/floats), type‑strict equality (`==`/`!=`), mixed numeric + string comparisons (`< <= > >=`), cross‑type equality (string/int, bool/int), and mixed map key kinds (int vs string) (rolling, 2026-02-24).
+   - New: `make verify-backend-parity-arith-panics` enforces cross-backend panic parity for `div0` (rolling, 2026-02-24).
    - Backend mapping table (native/C/AVM) captured in `docs/DESIGN.md`.
    - Tag parity fixture now asserts `oren_type_name` across backends.
    - Parity gate: `tests/fixtures/tag_parity_smoke.oren` + `make verify-backend-parity-tags`.
