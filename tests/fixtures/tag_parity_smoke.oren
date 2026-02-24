@@ -112,9 +112,24 @@ fn main() {
         print("tag_parity: int_float_eq expected false")
         exit(6)
     }
+    if 1 != 1.0 {
+        // ok
+    } else {
+        print("tag_parity: int_float_ne expected true")
+        exit(8)
+    }
     if 1 != 1 {
         print("tag_parity: int_eq expected true")
         exit(7)
+    }
+    var mk = {"1": 10, 1: 20}
+    if mk["1"] != 10 {
+        print("tag_parity: map_str_key mismatch")
+        exit(9)
+    }
+    if mk[1] != 20 {
+        print("tag_parity: map_int_key mismatch")
+        exit(10)
     }
     return 0
 }
