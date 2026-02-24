@@ -463,6 +463,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 4) **Cross-backend parity gates** (M, W4)
    - Expand fixtures where gaps remain; keep C/native/OBC output aligned.
    - New: `make verify-backend-parity-index-panics` enforces negative index assignment panics across backends (rolling, 2026-02-24).
+   - Open: list index get out-of-bounds parity (AVM GET_INDEX returns nil; native/C panic) — decide semantics + add gate.
    - Gate: parity scripts + `make test` remain green.
 
 5) **Native scheduler / green-task integration** (L, W4)
