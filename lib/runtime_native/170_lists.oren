@@ -103,14 +103,14 @@ fn _list_find_node(list) {
 
 fn _list_trace_enabled() {
     if g_trace_list_header == 1 { return true }
-    var v = oren_env("OREN_TRACE_LIST_HEADER")
-    if v == nil || v == "" {
+    var v = native_envp_get_value_ptr("OREN_TRACE_LIST_HEADER")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
         if g_trace_list_header == -1 { g_trace_list_header = 0 }
         return false
     }
     g_trace_list_header = 1
-    var v_cap = oren_env("OREN_TRACE_LIST_HEADER_CAP")
-    if v_cap != nil && v_cap != "" {
+    var v_cap = native_envp_get_value_ptr("OREN_TRACE_LIST_HEADER_CAP")
+    if v_cap != 0 && ptr_get_byte(v_cap) != 0 {
         var cap = oren_int_from_string(v_cap)
         if cap > 0 { g_trace_list_header_cap = cap }
     }
@@ -120,14 +120,14 @@ fn _list_trace_enabled() {
 
 fn _list_corrupt_enabled() {
     if g_trace_list_corrupt == 1 { return true }
-    var v = oren_env("OREN_TRACE_LIST_CORRUPT")
-    if v == nil || v == "" {
+    var v = native_envp_get_value_ptr("OREN_TRACE_LIST_CORRUPT")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
         if g_trace_list_corrupt == -1 { g_trace_list_corrupt = 0 }
         return false
     }
     g_trace_list_corrupt = 1
-    var v_cap = oren_env("OREN_TRACE_LIST_CORRUPT_CAP")
-    if v_cap != nil && v_cap != "" {
+    var v_cap = native_envp_get_value_ptr("OREN_TRACE_LIST_CORRUPT_CAP")
+    if v_cap != 0 && ptr_get_byte(v_cap) != 0 {
         var cap = oren_int_from_string(v_cap)
         if cap > 0 { g_trace_list_corrupt_cap = cap }
     }
@@ -489,6 +489,7 @@ fn oren_list_int_reserve(list, new_cap) {
     }
     ptr_set(iadd(list, 8), new_cap)
     ptr_set(iadd(list, 16), new_buf)
+    _list_corrupt_check(list, 11) // list_int_reserve
     _list_trace_emit(6, list, list_int_kind()) // list_int_reserve
     return nil
 }
@@ -535,6 +536,7 @@ fn oren_list_int_push(list, value) {
     }
     ptr_set(iadd(buf, count * 8), value)
     ptr_set(iadd(list, 0), iadd(count, 1))
+    _list_corrupt_check(list, 12) // list_int_push
     _list_trace_emit(7, list, list_int_kind()) // list_int_push
     return nil
 }
@@ -577,6 +579,7 @@ fn oren_list_int_push_unchecked(list, value) {
     }
     ptr_set(iadd(buf, count * 8), value)
     ptr_set(iadd(list, 0), iadd(count, 1))
+    _list_corrupt_check(list, 13) // list_int_push_unchecked
     _list_trace_emit(8, list, list_int_kind()) // list_int_push_unchecked
     return nil
 }
@@ -652,6 +655,7 @@ fn oren_list_int_set(list, idx, value) {
 
     ptr_set(iadd(buf, idx * 8), value)
     if want > count { ptr_set(iadd(list, 0), want) }
+    _list_corrupt_check(list, 14) // list_int_set
     return value
 }
 
@@ -701,6 +705,7 @@ fn oren_list_push(list, value) {
 	    }
     ptr_set(iadd(buf, count * 8), value)
     ptr_set(iadd(list, 0), iadd(count, 1))
+    _list_corrupt_check(list, 3) // list_push
     _list_trace_emit(4, list, 2) // list_push
     // Language-level semantics: `oren_list_push` is statement-like and returns `nil`.
     // (The list header pointer is stable and does not need to be returned.)
@@ -873,5 +878,6 @@ fn oren_list_set(list, idx, value) {
 
     ptr_set(iadd(buf, idx * 8), value)
     if want > count { ptr_set(iadd(list, 0), want) }
+    _list_corrupt_check(list, 4) // list_set
     return value
 }

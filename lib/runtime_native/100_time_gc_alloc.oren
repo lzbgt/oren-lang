@@ -1467,10 +1467,14 @@ fn native_gc_list_header_ok(ptr, kind, chunk_size) {
     } else {
         if buf == 0 { return 0 }
         if buf < 4096 { return 0 }
-        if chunk_size == 32 { return 1 }
-        var need = 32 + cap * 8
-        if chunk_size != need { return 0 }
-        if buf != inline_buf { return 0 }
+        if buf == inline_buf {
+            var need = 32 + cap * 8
+            if chunk_size != need { return 0 }
+            return 1
+        }
+        // External buffer: header allocation may still include stale inline storage
+        // from the initial capacity. Accept any >=32 chunk size here.
+        return 1
     }
     return 1
 }

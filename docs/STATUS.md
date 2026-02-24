@@ -115,7 +115,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - Bad-list trace run hung (killed after ~14 min); summary showed guard_bad_list=291 (local run, 2026-02-20).
     - Free-list trace shows list frees already have len/cap=128 with chunk=32 and bad magic (same ptr+32 buf), so headers are corrupt before reuse (local run, 2026-02-20).
     - List header trace (`OREN_TRACE_LIST_HEADER=1`, cap=50) emitted no `[list_hdr]` lines during alloc_churn, suggesting the hot path bypasses list runtime helpers (local run, 2026-02-20).
-    - List trace now re-checks env after runtime init (uses `oren_env` + refresh even if cached off); `native_envp_get_value_ptr` falls back to argv when envp missing (rolling, 2026-02-20).
+    - List trace now re-checks env after runtime init (uses `native_envp_get_value_ptr` + refresh even if cached off); envp lookup falls back to argv when envp missing (rolling, 2026-02-24).
     - New alloc_churn trace (`OREN_TRACE_LIST_HEADER=1`, cap=20) shows `op=1` new_list, `op=3` reserve to cap=128, then `op=5` list_push_unchecked; no `op=4` fast-path list_push seen (local run, 2026-02-20).
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
      and `oren_arena_new_list(cap)` as list constructors and propagates list metadata across simple alias assignments,
@@ -136,9 +136,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
       with len/cap=128 and list_debug node_ptr/next but node_in_allocs=0, node_in_free_blocks=0 (arm64, 2026-02-20).
     - New trace: `OREN_TRACE_LIST_CORRUPT=1` (cap via `OREN_TRACE_LIST_CORRUPT_CAP`) logs suspicious list headers
       during reserve/push_unchecked (invalid magic or buf) and dumps list_debug state (rolling, 2026-02-20).
-    - List header reuse guard now treats chunk_size==32 as separate-buffer lists even if buf==list+32 (avoids false bad-list hits when allocator places buffers adjacent; rolling, 2026-02-20).
-     - Reuse guard now enforces strict header sizing: inline-buffer headers require chunk==32+cap*8; out-of-line headers require chunk==32 (rolling, 2026-02-20).
-     - Strict header sizing guard still segfaults; guard_bad_list=276 (local run, 2026-02-20).
+   - List header reuse guard now treats chunk_size==32 as separate-buffer lists even if buf==list+32 (avoids false bad-list hits when allocator places buffers adjacent; rolling, 2026-02-20).
+   - List header reuse guard now accepts external-buffer lists whose header allocation still includes stale inline storage (chunk_size > 32 with buf != list+32), avoiding false bad-list hits after growth (rolling, 2026-02-24).
+     - Reuse guard enforces inline-buffer sizing: chunk==32+cap*8 when buf==list+32; out-of-line headers accept any chunk>=32 (rolling, 2026-02-24).
+     - Prior strict header sizing guard (out-of-line required chunk==32) still segfaulted; guard_bad_list=276 (local run, 2026-02-20).
      - Reuse now rejects alloc-index mismatches for reused pointers (rolling, 2026-02-20).
      - Alloc-index guard run still segfaults; guard_bad_list=275 (local run, 2026-02-20).
      - `alloc_churn` runs when list reuse is guarded off (auto-GC) with reuse blocks only:
