@@ -450,6 +450,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
 1) **Perf parity W5: allocation/GC** (L, W5)
    - Execute item 2 in the performance tracker (alloc_churn + alloc_drop).
    - Include long‑lived loop arena policy (per‑iteration sub‑arenas + spill + epoch reset).
+   - Fold loop‑local arena prototype for list/list_int into this track; override annotations
+     (`@oren.arena`, `@oren.arena_iter`, `@oren.noarena`) are already implemented.
    - Gate: native `alloc_churn` <= 8x C; native `alloc_drop` <= 5x C.
 
 2) **Perf parity W5: native hot loops** (L, W5)
@@ -461,7 +463,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Define layout and staged migration.
    - Pin semantic invariants (truthiness, equality, type tests) and add cross‑backend fixtures.
    - Expand `tests/fixtures/tag_parity_smoke.oren` to cover truthiness (ints/floats), type‑strict equality (`==`/`!=`), mixed numeric + string comparisons (`< <= > >=`), cross‑type equality (string/int, bool/int), and mixed map key kinds (int vs string) (rolling, 2026-02-24).
-   - New: `make verify-backend-parity-arith-panics` enforces cross-backend panic parity for `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob` (rolling, 2026-02-24).
+   - New: `make verify-backend-parity-arith-panics` enforces cross-backend panic parity for `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob` (shl/shr) (rolling, 2026-02-24).
    - Backend mapping table (native/C/AVM) captured in `docs/DESIGN.md`.
    - Tag parity fixture now asserts `oren_type_name` across backends.
    - Parity gate: `tests/fixtures/tag_parity_smoke.oren` + `make verify-backend-parity-tags`.
@@ -483,8 +485,6 @@ Weights reflect expected impact on C parity and breadth of affected code.
 2) **SIMD/typed buffer bring-up on x64** (M, W3)
 3) **AVM allocation slabs + list<int> lowering** (M, W3)
 4) **Deterministic AVM scheduler (budgeted)** (L, W3)
-5) **Loop‑local arena prototype for list/list_int** (L, W5)
-   - Implemented: `@oren.arena` / `@oren.arena_iter` / `@oren.noarena` override auto loop wrapping.
 
 ## P2 (Later)
 

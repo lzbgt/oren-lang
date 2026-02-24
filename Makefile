@@ -425,7 +425,7 @@ verify-backend-parity-list-int: oren_stage2 avm
 verify-backend-parity-tags: oren_stage2 avm
 	@./scripts/verify_backend_parity_tags.sh
 
-# Cross-backend parity smoke: arithmetic panic semantics (div0).
+# Cross-backend parity smoke: arithmetic panic semantics (div0/div_overflow/mod0/mod_overflow/shift_oob).
 verify-backend-parity-arith-panics: oren_stage2 avm
 	@./scripts/verify_backend_parity_arith_panics.sh
 
