@@ -2404,6 +2404,9 @@ select2_done:
                         if (found) {
                             res = obj.as.m->values[idx];
                         }
+                    } else {
+                        avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "index get on non-list/map"));
+                        break;
                     }
                     vm->stack[vm->sp++] = res;
                 }
@@ -2429,6 +2432,9 @@ select2_done:
                             break;
                         }
                         res = avm_int(obj.as.li->items[i]);
+                    } else {
+                        avm_abort(vm, avm_err(AVM_ERR_INVALID_ARG, "index get on non-list/map"));
+                        break;
                     }
                     vm->stack[vm->sp++] = res;
                 }

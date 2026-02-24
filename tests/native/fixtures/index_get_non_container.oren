@@ -1,0 +1,6 @@
+// Native + C backend fixture:
+// index get on a non-container must be a deterministic runtime panic.
+
+var x = 123
+var y = x[0]
+print(y)

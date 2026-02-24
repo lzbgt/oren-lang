@@ -72,11 +72,16 @@ run_expect_panic() {
   local out="$2"
   local expect="$3"
   local grep_flags=()
+  local use_fixed=1
   shift 2
   shift 1
   if [[ "$expect" == "INDEX_OOB" ]]; then
     expect="index out of bounds"
     grep_flags=(-i)
+  elif [[ "$expect" == "INDEX_NON_CONTAINER" ]]; then
+    expect="index( get|ing)? on non-(list|container|list/map)|indexing on non-container"
+    grep_flags=(-i -E)
+    use_fixed=0
   fi
   set +e
   run_with_timeout "$run_timeout_secs" "$@" >"$out" 2>&1
@@ -87,16 +92,25 @@ run_expect_panic() {
     cat "$out" >&2
     exit 6
   fi
-  grep "${grep_flags[@]}" -F "$expect" "$out" >/dev/null || {
-    echo "FAIL: $label output missing expected message ($expect)" >&2
-    cat "$out" >&2
-    exit 7
-  }
+  if [[ "$use_fixed" -eq 1 ]]; then
+    grep "${grep_flags[@]}" -F "$expect" "$out" >/dev/null || {
+      echo "FAIL: $label output missing expected message ($expect)" >&2
+      cat "$out" >&2
+      exit 7
+    }
+  else
+    grep "${grep_flags[@]}" "$expect" "$out" >/dev/null || {
+      echo "FAIL: $label output missing expected message ($expect)" >&2
+      cat "$out" >&2
+      exit 7
+    }
+  fi
 }
 
 cases=(
   "index_set_negative|tests/native/fixtures/index_set_negative.oren|INDEX_OOB"
   "index_get_oob|tests/native/fixtures/index_get_oob.oren|INDEX_OOB"
+  "index_get_non_container|tests/native/fixtures/index_get_non_container.oren|INDEX_NON_CONTAINER"
 )
 
 for entry in "${cases[@]}"; do

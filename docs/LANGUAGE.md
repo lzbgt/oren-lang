@@ -1702,6 +1702,7 @@ This is intentional: fixtures are small, high-signal, and regression-friendly.
   - Shift count out of range (SHL/SHR): `tests/native/fixtures/arith_shift_oob.oren`, `tests/native/fixtures/arith_shift_oob_shr.oren`
   - Negative index assignment: `tests/native/fixtures/index_set_negative.oren`
   - Index get out-of-bounds: `tests/native/fixtures/index_get_oob.oren`
+  - Index get on non-container: `tests/native/fixtures/index_get_non_container.oren`
   - Deterministic recursion guard (call depth): `tests/native/fixtures/call_depth_overflow.oren`
 
 - **Struct field assignment (rolling semantics)**:
@@ -2777,7 +2778,7 @@ Non-goal:
 
 ### Lists
 - List literal: `[a, b, c]`
-- Indexing: `xs[i]` (0-based; out-of-bounds is a runtime panic)
+- Indexing: `xs[i]` (0-based; out-of-bounds or non-container access is a runtime panic)
 - Index assignment: `xs[i] = v` (grows list to length `i+1`; new slots are `nil`; negative indices are a runtime panic)
 
 ### Maps

@@ -39,7 +39,7 @@ kept in sync with `docs/STATUS.md`.
 3) **Cross-backend parity gates**
    - Expand fixtures where gaps remain; keep C/native/OBC output aligned.
    - Arithmetic panic parity now covers `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob`.
-   - Index panic parity covers negative list index assignment + list get out-of-bounds.
+   - Index panic parity covers negative list index assignment + list get out-of-bounds + non-container index get.
    - Gate: parity scripts + `make test` remain green.
 
 4) **Tagged value convergence plan (native/C/AVM)**

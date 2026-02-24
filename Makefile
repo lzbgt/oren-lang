@@ -429,7 +429,7 @@ verify-backend-parity-tags: oren_stage2 avm
 verify-backend-parity-arith-panics: oren_stage2 avm
 	@./scripts/verify_backend_parity_arith_panics.sh
 
-# Cross-backend parity smoke: index panic semantics (negative index assignment, get out-of-bounds).
+# Cross-backend parity smoke: index panic semantics (negative index assignment, get out-of-bounds, non-container get).
 verify-backend-parity-index-panics: oren_stage2 avm
 	@./scripts/verify_backend_parity_index_panics.sh
 
