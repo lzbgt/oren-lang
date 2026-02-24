@@ -194,6 +194,22 @@ fn test_core() {
     assert_eq(ys[2], 2, 3215)
     assert_eq(ys[3], 3, 3216)
 
+    trace("QI: test_core empty list lowering int")
+    var li = []
+    oren_list_push(li, 1)
+    oren_list_int_push(li, 2)
+    assert_eq(oren_list_int_len(li), 2, 3220)
+    assert_eq(oren_list_int_get(li, 0), 1, 3221)
+    assert_eq(oren_list_int_get(li, 1), 2, 3222)
+
+    trace("QI: test_core empty list stays boxed")
+    var lb = []
+    var m0 = {"k": 1}
+    oren_list_push(lb, m0)
+    assert_eq(oren_list_len(lb), 1, 3223)
+    var m1 = oren_list_get(lb, 0)
+    assert_eq(m1["k"], 1, 3224)
+
     trace("QI: test_core typed buffer views")
     // Typed-buffer view iteration (std/buffer protocol):
     // - slice view:   [buf, off, len]
