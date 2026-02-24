@@ -961,6 +961,12 @@ fn _opt_list_state_mark_unsafe(list_state, name) {
     return nil
 }
 
+fn _opt_list_touch_mark(list_touch, name) {
+    if list_touch == nil || name == nil { return nil }
+    list_touch[name] = true
+    return nil
+}
+
 fn _opt_map_clone_safe(m) {
     var out = {}
     if m != nil {
@@ -969,6 +975,65 @@ fn _opt_map_clone_safe(m) {
         }
     }
     return out
+}
+
+fn _opt_safe_ints_invalidate_in_stmt(stmt, safe_ints) {
+    if stmt == nil || safe_ints == nil { return nil }
+    var t = stmt["type"]
+    if t == "Var" || t == "Assign" {
+        var nm = opthelp.is_ident(stmt["name"])
+        if nm != nil { safe_ints[nm] = false }
+        return nil
+    }
+    if t == "Set" {
+        var left = stmt["left"]
+        if left != nil && left["type"] == "Identifier" {
+            var nm2 = left["value"]
+            if nm2 != nil { safe_ints[nm2] = false }
+        }
+        return nil
+    }
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        if ss != nil {
+            var i = 0
+            while i < oren_list_len(ss) {
+                _opt_safe_ints_invalidate_in_stmt(ss[i], safe_ints)
+                i = i + 1
+            }
+        }
+        return nil
+    }
+    if t == "If" {
+        _opt_safe_ints_invalidate_in_stmt(stmt["consq"], safe_ints)
+        if stmt["alt"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["alt"], safe_ints) }
+        return nil
+    }
+    if t == "While" {
+        _opt_safe_ints_invalidate_in_stmt(stmt["body"], safe_ints)
+        return nil
+    }
+    if t == "For" {
+        if stmt["init"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["init"], safe_ints) }
+        if stmt["post"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["post"], safe_ints) }
+        if stmt["body"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["body"], safe_ints) }
+        return nil
+    }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil { _opt_safe_ints_invalidate_in_stmt(c["body"], safe_ints) }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["default"], safe_ints) }
+        return nil
+    }
+    if t == "Function" { return nil }
+    return nil
 }
 
 fn _opt_scan_list_int_uses_expr(expr, list_state, safe_ints) {
@@ -1030,6 +1095,8 @@ fn _opt_scan_list_int_uses_expr(expr, list_state, safe_ints) {
         _opt_scan_list_int_uses_expr(expr["cond"], list_state, safe_ints)
         _opt_scan_list_int_uses_stmt(expr["consq"], list_state, _opt_map_clone_safe(safe_ints))
         if expr["alt"] != nil { _opt_scan_list_int_uses_stmt(expr["alt"], list_state, _opt_map_clone_safe(safe_ints)) }
+        _opt_safe_ints_invalidate_in_stmt(expr["consq"], safe_ints)
+        if expr["alt"] != nil { _opt_safe_ints_invalidate_in_stmt(expr["alt"], safe_ints) }
         return nil
     }
     if t == "Function" {
@@ -1075,6 +1142,15 @@ fn _opt_scan_list_int_uses_expr(expr, list_state, safe_ints) {
             }
         }
         if expr["default"] != nil { _opt_scan_list_int_uses_stmt(expr["default"], list_state, _opt_map_clone_safe(safe_ints)) }
+        if cases != nil {
+            var ci2 = 0
+            while ci2 < oren_list_len(cases) {
+                var c2 = cases[ci2]
+                if c2 != nil && c2["body"] != nil { _opt_safe_ints_invalidate_in_stmt(c2["body"], safe_ints) }
+                ci2 = ci2 + 1
+            }
+        }
+        if expr["default"] != nil { _opt_safe_ints_invalidate_in_stmt(expr["default"], safe_ints) }
         return nil
     }
     return nil
@@ -1256,11 +1332,14 @@ fn _opt_scan_list_int_uses_stmt(stmt, list_state, safe_ints) {
         _opt_scan_list_int_uses_expr(stmt["cond"], list_state, safe_ints)
         _opt_scan_list_int_uses_stmt(stmt["consq"], list_state, _opt_map_clone_safe(safe_ints))
         if stmt["alt"] != nil { _opt_scan_list_int_uses_stmt(stmt["alt"], list_state, _opt_map_clone_safe(safe_ints)) }
+        _opt_safe_ints_invalidate_in_stmt(stmt["consq"], safe_ints)
+        if stmt["alt"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["alt"], safe_ints) }
         return nil
     }
     if t == "While" {
         _opt_scan_list_int_uses_expr(stmt["cond"], list_state, safe_ints)
         _opt_scan_list_int_uses_stmt(stmt["body"], list_state, _opt_map_clone_safe(safe_ints))
+        _opt_safe_ints_invalidate_in_stmt(stmt["body"], safe_ints)
         return nil
     }
     if t == "For" {
@@ -1268,6 +1347,9 @@ fn _opt_scan_list_int_uses_stmt(stmt, list_state, safe_ints) {
         if stmt["cond"] != nil { _opt_scan_list_int_uses_expr(stmt["cond"], list_state, safe_ints) }
         if stmt["post"] != nil { _opt_scan_list_int_uses_stmt(stmt["post"], list_state, safe_ints) }
         if stmt["body"] != nil { _opt_scan_list_int_uses_stmt(stmt["body"], list_state, _opt_map_clone_safe(safe_ints)) }
+        if stmt["init"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["init"], safe_ints) }
+        if stmt["post"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["post"], safe_ints) }
+        if stmt["body"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["body"], safe_ints) }
         return nil
     }
     if t == "Block" {
@@ -1304,6 +1386,242 @@ fn _opt_scan_list_int_uses_stmt(stmt, list_state, safe_ints) {
             }
         }
         if stmt["default"] != nil { _opt_scan_list_int_uses_stmt(stmt["default"], list_state, _opt_map_clone_safe(safe_ints)) }
+        if cases != nil {
+            var ci2 = 0
+            while ci2 < oren_list_len(cases) {
+                var c2 = cases[ci2]
+                if c2 != nil && c2["body"] != nil { _opt_safe_ints_invalidate_in_stmt(c2["body"], safe_ints) }
+                ci2 = ci2 + 1
+            }
+        }
+        if stmt["default"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["default"], safe_ints) }
+        return nil
+    }
+    if t == "Function" { return nil }
+    return nil
+}
+
+fn _opt_list_int_call_establishes_int(nm, args, safe_ints) {
+    if nm == nil { return false }
+    if args == nil || oren_list_len(args) < 1 { return false }
+    if nm == "oren_list_push" || nm == "STD_list_push" ||
+       nm == "oren_list_int_push" || nm == "STD_list_int_push" {
+        if oren_list_len(args) < 2 { return false }
+        return _opt_is_safe_int_expr(args[1], safe_ints)
+    }
+    if nm == "oren_list_set" || nm == "STD_list_set" ||
+       nm == "oren_list_int_set" || nm == "STD_list_int_set" {
+        if oren_list_len(args) < 3 { return false }
+        return _opt_is_safe_int_expr(args[2], safe_ints)
+    }
+    return false
+}
+
+fn _opt_mark_list_int_touch_in_expr(expr, list_state, safe_ints, list_touch) {
+    if expr == nil { return nil }
+    var t = expr["type"]
+    if t == "Call" {
+        var nm = _opt_call_name(expr)
+        var args = expr["args"]
+        if nm != nil && args != nil && oren_list_len(args) > 0 {
+            var recv_name = opthelp.is_ident(args[0])
+            if recv_name != nil && _opt_list_state_is_candidate(list_state, recv_name) {
+                if _opt_list_int_call_establishes_int(nm, args, safe_ints) == true {
+                    _opt_list_touch_mark(list_touch, recv_name)
+                }
+            }
+        }
+        if expr["fn"] != nil { _opt_mark_list_int_touch_in_expr(expr["fn"], list_state, safe_ints, list_touch) }
+        if args != nil {
+            var i = 0
+            while i < oren_list_len(args) {
+                _opt_mark_list_int_touch_in_expr(args[i], list_state, safe_ints, list_touch)
+                i = i + 1
+            }
+        }
+        if expr["spread"] != nil { _opt_mark_list_int_touch_in_expr(expr["spread"], list_state, safe_ints, list_touch) }
+        return nil
+    }
+    if t == "Index" {
+        _opt_mark_list_int_touch_in_expr(expr["left"], list_state, safe_ints, list_touch)
+        _opt_mark_list_int_touch_in_expr(expr["index"], list_state, safe_ints, list_touch)
+        return nil
+    }
+    if t == "Prefix" { return _opt_mark_list_int_touch_in_expr(expr["right"], list_state, safe_ints, list_touch) }
+    if t == "Infix" {
+        _opt_mark_list_int_touch_in_expr(expr["left"], list_state, safe_ints, list_touch)
+        _opt_mark_list_int_touch_in_expr(expr["right"], list_state, safe_ints, list_touch)
+        return nil
+    }
+    if t == "If" {
+        _opt_mark_list_int_touch_in_expr(expr["cond"], list_state, safe_ints, list_touch)
+        _opt_mark_list_int_touch_in_stmt(expr["consq"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        if expr["alt"] != nil {
+            _opt_mark_list_int_touch_in_stmt(expr["alt"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        }
+        _opt_safe_ints_invalidate_in_stmt(expr["consq"], safe_ints)
+        if expr["alt"] != nil { _opt_safe_ints_invalidate_in_stmt(expr["alt"], safe_ints) }
+        return nil
+    }
+    if t == "Function" {
+        if expr["body"] != nil {
+            _opt_mark_list_int_touch_in_stmt(expr["body"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        }
+        return nil
+    }
+    if t == "Array" {
+        var els = expr["elements"]
+        if els != nil {
+            var i2 = 0
+            while i2 < oren_list_len(els) {
+                _opt_mark_list_int_touch_in_expr(els[i2], list_state, safe_ints, list_touch)
+                i2 = i2 + 1
+            }
+        }
+        if expr["spread"] != nil { _opt_mark_list_int_touch_in_expr(expr["spread"], list_state, safe_ints, list_touch) }
+        return nil
+    }
+    if t == "Map" {
+        var ps = expr["pairs"]
+        if ps != nil {
+            var i3 = 0
+            while i3 < oren_list_len(ps) {
+                if ps[i3] != nil {
+                    _opt_mark_list_int_touch_in_expr(ps[i3]["key"], list_state, safe_ints, list_touch)
+                    _opt_mark_list_int_touch_in_expr(ps[i3]["value"], list_state, safe_ints, list_touch)
+                }
+                i3 = i3 + 1
+            }
+        }
+        return nil
+    }
+    if t == "Member" { return _opt_mark_list_int_touch_in_expr(expr["left"], list_state, safe_ints, list_touch) }
+    if t == "Switch" {
+        _opt_mark_list_int_touch_in_expr(expr["cond"], list_state, safe_ints, list_touch)
+        var cases = expr["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil {
+                    _opt_mark_list_int_touch_in_stmt(c["body"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+                }
+                ci = ci + 1
+            }
+        }
+        if expr["default"] != nil {
+            _opt_mark_list_int_touch_in_stmt(expr["default"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        }
+        if cases != nil {
+            var ci2 = 0
+            while ci2 < oren_list_len(cases) {
+                var c2 = cases[ci2]
+                if c2 != nil && c2["body"] != nil { _opt_safe_ints_invalidate_in_stmt(c2["body"], safe_ints) }
+                ci2 = ci2 + 1
+            }
+        }
+        if expr["default"] != nil { _opt_safe_ints_invalidate_in_stmt(expr["default"], safe_ints) }
+        return nil
+    }
+    return nil
+}
+
+fn _opt_mark_list_int_touch_in_stmt(stmt, list_state, safe_ints, list_touch) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "ExprStmt" { return _opt_mark_list_int_touch_in_expr(stmt["expr"], list_state, safe_ints, list_touch) }
+    if t == "Return" { return _opt_mark_list_int_touch_in_expr(stmt["value"], list_state, safe_ints, list_touch) }
+    if t == "Var" || t == "Assign" {
+        return _opt_mark_list_int_touch_in_expr(stmt["value"], list_state, safe_ints, list_touch)
+    }
+    if t == "Set" {
+        var left = stmt["left"]
+        if left != nil && left["type"] == "Index" {
+            var list_name = opthelp.is_ident(left["left"])
+            if list_name != nil && _opt_list_state_is_candidate(list_state, list_name) {
+                if _opt_is_safe_int_expr(stmt["value"], safe_ints) == true {
+                    _opt_list_touch_mark(list_touch, list_name)
+                }
+            }
+        }
+        _opt_mark_list_int_touch_in_expr(stmt["left"], list_state, safe_ints, list_touch)
+        _opt_mark_list_int_touch_in_expr(stmt["value"], list_state, safe_ints, list_touch)
+        return nil
+    }
+    if t == "If" {
+        _opt_mark_list_int_touch_in_expr(stmt["cond"], list_state, safe_ints, list_touch)
+        _opt_mark_list_int_touch_in_stmt(stmt["consq"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        if stmt["alt"] != nil {
+            _opt_mark_list_int_touch_in_stmt(stmt["alt"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        }
+        _opt_safe_ints_invalidate_in_stmt(stmt["consq"], safe_ints)
+        if stmt["alt"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["alt"], safe_ints) }
+        return nil
+    }
+    if t == "While" {
+        _opt_mark_list_int_touch_in_expr(stmt["cond"], list_state, safe_ints, list_touch)
+        _opt_mark_list_int_touch_in_stmt(stmt["body"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        _opt_safe_ints_invalidate_in_stmt(stmt["body"], safe_ints)
+        return nil
+    }
+    if t == "For" {
+        if stmt["init"] != nil { _opt_mark_list_int_touch_in_stmt(stmt["init"], list_state, safe_ints, list_touch) }
+        if stmt["cond"] != nil { _opt_mark_list_int_touch_in_expr(stmt["cond"], list_state, safe_ints, list_touch) }
+        if stmt["post"] != nil { _opt_mark_list_int_touch_in_stmt(stmt["post"], list_state, safe_ints, list_touch) }
+        if stmt["body"] != nil {
+            _opt_mark_list_int_touch_in_stmt(stmt["body"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        }
+        if stmt["init"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["init"], safe_ints) }
+        if stmt["post"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["post"], safe_ints) }
+        if stmt["body"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["body"], safe_ints) }
+        return nil
+    }
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        if ss != nil {
+            var snap_ints = _opt_map_clone_safe(safe_ints)
+            var i = 0
+            while i < oren_list_len(ss) {
+                _opt_mark_list_int_touch_in_stmt(ss[i], list_state, snap_ints, list_touch)
+                _opt_safe_ints_invalidate_in_stmt(ss[i], snap_ints)
+                var st0 = ss[i]
+                if st0 != nil && (st0["type"] == "Var" || st0["type"] == "Assign") {
+                    var nm0 = opthelp.is_ident(st0["name"])
+                    if nm0 != nil {
+                        if _opt_is_safe_int_expr(st0["value"], snap_ints) { snap_ints[nm0] = true }
+                        else { snap_ints[nm0] = false }
+                    }
+                }
+                i = i + 1
+            }
+        }
+        return nil
+    }
+    if t == "Switch" {
+        _opt_mark_list_int_touch_in_expr(stmt["cond"], list_state, safe_ints, list_touch)
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil {
+                    _opt_mark_list_int_touch_in_stmt(c["body"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+                }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil {
+            _opt_mark_list_int_touch_in_stmt(stmt["default"], list_state, _opt_map_clone_safe(safe_ints), list_touch)
+        }
+        if cases != nil {
+            var ci2 = 0
+            while ci2 < oren_list_len(cases) {
+                var c2 = cases[ci2]
+                if c2 != nil && c2["body"] != nil { _opt_safe_ints_invalidate_in_stmt(c2["body"], safe_ints) }
+                ci2 = ci2 + 1
+            }
+        }
+        if stmt["default"] != nil { _opt_safe_ints_invalidate_in_stmt(stmt["default"], safe_ints) }
         return nil
     }
     if t == "Function" { return nil }
@@ -1515,12 +1833,15 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty) {
     if ss == nil { return nil }
     var list_state = {}
     var list_inits = {}
+    var list_touch = {}
+    var list_empty_inits = {}
     var safe_ints = {}
 
     var i = 0
     while i < oren_list_len(ss) {
         var st = ss[i]
         _opt_scan_list_int_uses_stmt(st, list_state, safe_ints)
+        _opt_mark_list_int_touch_in_stmt(st, list_state, safe_ints, list_touch)
         if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
             var nm = opthelp.is_ident(st["name"])
             if nm != nil {
@@ -1535,6 +1856,7 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty) {
                     } else if allow_empty == true && _opt_is_empty_list_lit(st["value"]) {
                         if list_state[nm] == nil { list_state[nm] = true }
                         _opt_list_init_add(list_inits, nm, st)
+                        list_empty_inits[nm] = true
                     } else if st["value"] != nil && st["value"]["type"] == "Array" {
                         _opt_list_state_mark_unsafe(list_state, nm)
                     } else {
@@ -1546,6 +1868,14 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty) {
             }
         }
         i = i + 1
+    }
+
+    if list_empty_inits != nil {
+        for k in list_empty_inits {
+            if list_touch[k] != true {
+                _opt_list_state_mark_unsafe(list_state, k)
+            }
+        }
     }
 
     var out = []
@@ -2742,7 +3072,7 @@ fn lower_linked_program_in_place(linked) {
             if trace_opt && i == 0 { print("[opt] tco done") }
             optloops.lower_simple_for_in_block(ss[i]["expr"]["body"])
             optloops.sink_list_lit_into_if(ss[i]["expr"]["body"])
-            var lower_allow_empty = false
+            var lower_allow_empty = true
             _opt_lower_int_only_lists_in_block_opts(ss[i]["expr"]["body"], lower_allow_empty)
             optloops.wrap_arena_loops_in_block(ss[i]["expr"]["body"])
             _opt_insert_list_reserve_in_block(ss[i]["expr"]["body"], nil, nil, nil, nil, nil)

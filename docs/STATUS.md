@@ -379,8 +379,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Native list-literal lowering now uses `oren_list_push_unchecked` for element pushes.
    - Native list/list_int push intrinsics now call unchecked push on the grow slow-path to avoid duplicate validation.
    - Loop reserve insertion does not rewrite push calls (keeps the intrinsic fast path); it only adds `*_reserve` pre-loop.
-   - Rolling: empty list literal lowering to list<int> is **temporarily disabled** due to cross-block escape issues;
-     non-empty int-only literals still lower (re-enable with explicit escape analysis; 2026-02-20).
+   - Rolling: empty list literals lower to list<int> only when the same block establishes
+     an int element via `list_push`/`list_set` (cross‑block empties stay boxed; 2026-02-20).
    - Native fast list_int push loops now accept `list_int_push_unchecked` calls to preserve the fast path after list<int> lowering (rolling, 2026-02-20).
    - List<int> reserve insertion now accepts int-only list literals (including empty literals).
    - Gate: native `array_sum` and `multi_list_push_int` <= 2x C.
@@ -454,6 +454,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
 2) **Package manager / signed module workflow** (M, W2)
 3) **Refactor oversized native emitters (>2000 lines)** (M, W2)
 4) **Refactor `lib/runtime_native/100_time_gc_alloc.oren` (>2000 lines)** (M, W2)
+5) **Refactor `lib/compiler/optimizer.oren` (>2000 lines)** (M, W2)
 
 ---
 
