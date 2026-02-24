@@ -1849,6 +1849,16 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty) {
     if block == nil || block["type"] != "Block" { return nil }
     var ss = block["stmts"]
     if ss == nil { return nil }
+    var block_locals = {}
+    var li = 0
+    while li < oren_list_len(ss) {
+        var stl = ss[li]
+        if stl != nil && stl["type"] == "Var" {
+            var nml = opthelp.is_ident(stl["name"])
+            if nml != nil { block_locals[nml] = true }
+        }
+        li = li + 1
+    }
     var list_state = {}
     var list_inits = {}
     var list_touch = {}
@@ -1863,6 +1873,10 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty) {
         if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
             var nm = opthelp.is_ident(st["name"])
             if nm != nil {
+                if st["type"] == "Assign" && block_locals[nm] != true {
+                    i = i + 1
+                    continue
+                }
                 var init_call = _opt_call_name(st["value"])
                 if init_call == "oren_new_list_int" {
                     if list_state[nm] == nil { list_state[nm] = true }
@@ -1950,6 +1964,48 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty) {
         _opt_rewrite_list_int_stmt(out[j2], list_state)
         j2 = j2 + 1
     }
+
+    var k = 0
+    while k < oren_list_len(out) {
+        _opt_lower_int_only_lists_in_stmt(out[k], allow_empty)
+        k = k + 1
+    }
+    return nil
+}
+
+fn _opt_lower_int_only_lists_in_stmt(stmt, allow_empty) {
+    if stmt == nil { return nil }
+    var t = stmt["type"]
+    if t == "Block" { return _opt_lower_int_only_lists_in_block_opts(stmt, allow_empty) }
+    if t == "If" {
+        _opt_lower_int_only_lists_in_stmt(stmt["consq"], allow_empty)
+        if stmt["alt"] != nil { _opt_lower_int_only_lists_in_stmt(stmt["alt"], allow_empty) }
+        return nil
+    }
+    if t == "While" || t == "For" {
+        if stmt["body"] != nil { _opt_lower_int_only_lists_in_stmt(stmt["body"], allow_empty) }
+        return nil
+    }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && c["body"] != nil { _opt_lower_int_only_lists_in_stmt(c["body"], allow_empty) }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil { _opt_lower_int_only_lists_in_stmt(stmt["default"], allow_empty) }
+        return nil
+    }
+    if t == "ExprStmt" && stmt["expr"] != nil && stmt["expr"]["type"] == "If" {
+        var e = stmt["expr"]
+        _opt_lower_int_only_lists_in_stmt(e["consq"], allow_empty)
+        if e["alt"] != nil { _opt_lower_int_only_lists_in_stmt(e["alt"], allow_empty) }
+        return nil
+    }
+    if t == "Function" { return nil }
     return nil
 }
 

@@ -1,6 +1,6 @@
-# Latest Benchmark Snapshot (Apple M2 Pro, macOS-26.2-arm64-arm-64bit-Mach-O, arm64)
+# Latest Benchmark Snapshot (Apple M2 Pro, macOS-26.3-arm64-arm-64bit-Mach-O, arm64)
 
-**Date:** 2026-02-20  
+**Date:** 2026-02-24  
 **Host:** Bruce-Mac, Apple M2 Pro (10 cores, 17179869184 bytes)
 
 This snapshot summarizes the **latest** benchmark artifacts under `benchmarks/results/`.
@@ -11,8 +11,8 @@ Legend: `x` = slowdown relative to C median.
 
 | benchmark | C median (s) | Oren C median (x) | Oren native median (x) | Oren OBC median (x) | result file |
 | --- | --- | --- | --- | --- | --- |
-| alloc_churn | 0.002706 | 0.030406 (11.24×) | 0.131451 (48.57×) | 0.164121 (60.65×) | `benchmarks/results/alloc_churn_darwin_arm64_20260220_154700.md` |
-| alloc_drop | 0.002856 | 0.004390 (1.54×) | 0.160444 (56.17×) | 0.006616 (2.32×) | `benchmarks/results/alloc_drop_darwin_arm64_20260220_154657.md` |
+| alloc_churn | 0.003029 | 0.032142 (10.61×) | 4.433411 (1463.70×) | 0.173998 (57.45×) | `benchmarks/results/alloc_churn_darwin_arm64_20260224_203730.md` |
+| alloc_drop | 0.003118 | 0.004599 (1.48×) | 0.194828 (62.49×) | 0.007305 (2.34×) | `benchmarks/results/alloc_drop_darwin_arm64_20260224_203801.md` |
 | array_sum | 0.003928 | 0.008314 (2.12×) | 0.015737 (4.01×) | 0.144631 (36.82×) | `benchmarks/results/array_sum_darwin_arm64_20260220_162853.md` |
 | array_sum_int | 0.003865 | 0.007937 (2.05×) | 0.015926 (4.12×) | 0.004629 (1.20×) | `benchmarks/results/array_sum_int_darwin_arm64_20260220_104956.md` |
 | dot_product | 0.005011 | 0.012893 (2.57×) | 0.020850 (4.16×) | 0.376919 (75.22×) | `benchmarks/results/dot_product_darwin_arm64_20260220_162856.md` |

@@ -56,9 +56,9 @@ Periodic perf gates (when touching performance-critical paths):
 
 ---
 
-## Performance parity tracker (weighted, 2026-02-20 baseline)
+## Performance parity tracker (weighted, 2026-02-24 baseline)
 
-Baseline reference: `benchmarks/RESULTS_LATEST.md` (M2 Pro, 2026-02-20).
+Baseline reference: `benchmarks/RESULTS_LATEST.md` (M2 Pro, 2026-02-24).
 Weights reflect expected impact on C parity and breadth of affected code.
 
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
@@ -76,7 +76,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
-   - Baseline (arm64 native, 2026-02-20): `alloc_churn` 48.57× C, `alloc_drop` 56.17× C.
+   - Baseline (arm64 native, 2026-02-24): `alloc_churn` 1463.70× C, `alloc_drop` 62.49× C.
    - Fix and enable reuse paths (`OREN_GC_REUSE_BLOCKS`) when correct.
    - Add allocation-site counters for `alloc_churn`/`alloc_drop` to pinpoint dominant allocations.
    - New: `OREN_TRACE_ALLOC_SITE=1` reports list/list_int header+buffer sites (ids 1..4; see `lib/runtime_native/170_lists.oren`).
@@ -120,6 +120,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
      and `oren_arena_new_list(cap)` as list constructors and propagates list metadata across simple alias assignments,
      extending reserve/unchecked-push rewrites (rolling, 2026-02-24).
+   - New: fast list/list_int push while-loops now accept constant upper bounds (arm64/x64/transpiler),
+     but `alloc_churn` remains far above target in the 2026-02-24 snapshot (rolling).
    - New: list/list_int reserve + unchecked push now try `native_arena_alloc_raw` for arena-backed buffers
      and fall back to `malloc_k` (cuts alloc-index tracking overhead on arena hot paths; rolling, 2026-02-20).
     - Reuse + list trace run (arm64, 2026-02-20, reuse+trace flags): still segfaults; reuse summary

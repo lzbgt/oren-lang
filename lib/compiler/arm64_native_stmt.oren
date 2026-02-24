@@ -799,12 +799,24 @@ fn _arm64_match_fast_list_int_push_while(ctx, stmt) {
     if cond == nil || cond["type"] != "Infix" { return nil }
     if cond["op"] != "<" { return nil }
     var idx_name = _arm64_is_ident(cond["left"])
-    var n_name = _arm64_is_ident(cond["right"])
-    if idx_name == nil || n_name == nil { return nil }
+    var right = cond["right"]
+    var n_name = _arm64_is_ident(right)
+    var n_const = nil
+    if n_name == nil {
+        if right == nil || right["type"] != "Integer" { return nil }
+        var v = intparse.parse_int_lit(right["value"])
+        if oren_is_err(v) { return nil }
+        n_const = v
+    }
+    if idx_name == nil { return nil }
     if _arm64_local_fp_off(ctx, idx_name) == nil { return nil }
-    if _arm64_local_fp_off(ctx, n_name) == nil { return nil }
     if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": idx_name}) != true { return nil }
-    if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": n_name}) != true { return nil }
+    if n_name != nil {
+        if _arm64_local_fp_off(ctx, n_name) == nil { return nil }
+        if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": n_name}) != true { return nil }
+    } else if n_const < 0 {
+        return nil
+    }
     var body = stmt["body"]
     if body == nil || body["type"] != "Block" { return nil }
     var stmts = body["stmts"]
@@ -836,7 +848,7 @@ fn _arm64_match_fast_list_int_push_while(ctx, stmt) {
         if _arm64_expr_uses_any_ident(pushes[pi]["value"], lists) { return nil }
         pi = pi + 1
     }
-    return {"idx": idx_name, "n": n_name, "lists": lists, "pushes": pushes}
+    return {"idx": idx_name, "n": n_name, "n_const": n_const, "lists": lists, "pushes": pushes}
 }
 
 fn _arm64_match_fast_list_push_while(ctx, stmt) {
@@ -845,12 +857,24 @@ fn _arm64_match_fast_list_push_while(ctx, stmt) {
     if cond == nil || cond["type"] != "Infix" { return nil }
     if cond["op"] != "<" { return nil }
     var idx_name = _arm64_is_ident(cond["left"])
-    var n_name = _arm64_is_ident(cond["right"])
-    if idx_name == nil || n_name == nil { return nil }
+    var right = cond["right"]
+    var n_name = _arm64_is_ident(right)
+    var n_const = nil
+    if n_name == nil {
+        if right == nil || right["type"] != "Integer" { return nil }
+        var v = intparse.parse_int_lit(right["value"])
+        if oren_is_err(v) { return nil }
+        n_const = v
+    }
+    if idx_name == nil { return nil }
     if _arm64_local_fp_off(ctx, idx_name) == nil { return nil }
-    if _arm64_local_fp_off(ctx, n_name) == nil { return nil }
     if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": idx_name}) != true { return nil }
-    if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": n_name}) != true { return nil }
+    if n_name != nil {
+        if _arm64_local_fp_off(ctx, n_name) == nil { return nil }
+        if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": n_name}) != true { return nil }
+    } else if n_const < 0 {
+        return nil
+    }
     var body = stmt["body"]
     if body == nil || body["type"] != "Block" { return nil }
     var stmts = body["stmts"]
@@ -881,7 +905,7 @@ fn _arm64_match_fast_list_push_while(ctx, stmt) {
         if _arm64_expr_uses_any_ident(pushes[pi]["value"], lists) { return nil }
         pi = pi + 1
     }
-    return {"idx": idx_name, "n": n_name, "lists": lists, "pushes": pushes}
+    return {"idx": idx_name, "n": n_name, "n_const": n_const, "lists": lists, "pushes": pushes}
 }
 
 fn _arm64_match_fast_list_int_dot_while(ctx, stmt) {
@@ -2559,11 +2583,15 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
 
     var idx_name = info["idx"]
     var n_name = info["n"]
+    var n_const = info["n_const"]
     var lists = info["lists"]
     var pushes = info["pushes"]
     var idx_fp_off = _arm64_local_fp_off(ctx, idx_name)
-    var n_fp_off = _arm64_local_fp_off(ctx, n_name)
-    if idx_fp_off == nil || n_fp_off == nil { return _arm64_emit_while_generic(ctx, stmt) }
+    var n_fp_off = nil
+    if n_name != nil { n_fp_off = _arm64_local_fp_off(ctx, n_name) }
+    if idx_fp_off == nil { return _arm64_emit_while_generic(ctx, stmt) }
+    if n_name != nil && n_fp_off == nil { return _arm64_emit_while_generic(ctx, stmt) }
+    if n_name == nil && n_const == nil { return _arm64_emit_while_generic(ctx, stmt) }
 
     var base_stack = ctx["stack_size"]
     var list_count = oren_list_len(lists)
@@ -2585,8 +2613,13 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     // load i/n locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
     emit_str_reg_sp_any(ctx, 0, i_off)
-    emit_ldr_reg_fp_any(ctx, 0, n_fp_off)
-    emit_str_reg_sp_any(ctx, 0, n_off)
+    if n_fp_off != nil {
+        emit_ldr_reg_fp_any(ctx, 0, n_fp_off)
+        emit_str_reg_sp_any(ctx, 0, n_off)
+    } else {
+        emit_load_i64_imm(ctx, 0, n_const)
+        emit_str_reg_sp_any(ctx, 0, n_off)
+    }
 
     var slow_jumps = []
 
@@ -2778,11 +2811,15 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
 
     var idx_name = info["idx"]
     var n_name = info["n"]
+    var n_const = info["n_const"]
     var lists = info["lists"]
     var pushes = info["pushes"]
     var idx_fp_off = _arm64_local_fp_off(ctx, idx_name)
-    var n_fp_off = _arm64_local_fp_off(ctx, n_name)
-    if idx_fp_off == nil || n_fp_off == nil { return _arm64_emit_while_generic(ctx, stmt) }
+    var n_fp_off = nil
+    if n_name != nil { n_fp_off = _arm64_local_fp_off(ctx, n_name) }
+    if idx_fp_off == nil { return _arm64_emit_while_generic(ctx, stmt) }
+    if n_name != nil && n_fp_off == nil { return _arm64_emit_while_generic(ctx, stmt) }
+    if n_name == nil && n_const == nil { return _arm64_emit_while_generic(ctx, stmt) }
 
     var base_stack = ctx["stack_size"]
     var list_count = oren_list_len(lists)
@@ -2804,8 +2841,13 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
     // load i/n locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
     emit_str_reg_sp_any(ctx, 0, i_off)
-    emit_ldr_reg_fp_any(ctx, 0, n_fp_off)
-    emit_str_reg_sp_any(ctx, 0, n_off)
+    if n_fp_off != nil {
+        emit_ldr_reg_fp_any(ctx, 0, n_fp_off)
+        emit_str_reg_sp_any(ctx, 0, n_off)
+    } else {
+        emit_load_i64_imm(ctx, 0, n_const)
+        emit_str_reg_sp_any(ctx, 0, n_off)
+    }
 
     var slow_jumps = []
 

@@ -610,14 +610,25 @@ fn _x64_match_fast_list_int_push_while(ctx, op, locals) {
     if cond == nil || cond["type"] != "Infix" { return nil }
     if cond["op"] != "<" { return nil }
     var idx_name = _x64_is_ident(cond["left"])
-    var n_name = _x64_is_ident(cond["right"])
-    if idx_name == nil || n_name == nil { return nil }
+    var right = cond["right"]
+    var n_name = _x64_is_ident(right)
+    var n_const = nil
+    if n_name == nil {
+        n_const = _x64_parse_int_lit_expr(right)
+        if n_const == nil { return nil }
+    }
+    if idx_name == nil { return nil }
     var off_idx = locals[idx_name]
-    var off_n = locals[n_name]
-    if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 { return nil }
+    if oren_type_tag(off_idx) == 0 { return nil }
     if ctx["locals_inty"] != nil {
         if ctx["locals_inty"][idx_name] != true { return nil }
-        if ctx["locals_inty"][n_name] != true { return nil }
+        if n_name != nil && ctx["locals_inty"][n_name] != true { return nil }
+    }
+    if n_name != nil {
+        var off_n = locals[n_name]
+        if oren_type_tag(off_n) == 0 { return nil }
+    } else if n_const < 0 {
+        return nil
     }
     var body = op["body"]
     if body == nil { return nil }
@@ -648,7 +659,7 @@ fn _x64_match_fast_list_int_push_while(ctx, op, locals) {
         if _x64_expr_uses_any_ident(pushes[pi]["value"], lists) { return nil }
         pi = pi + 1
     }
-    return {"idx": idx_name, "n": n_name, "lists": lists, "pushes": pushes}
+    return {"idx": idx_name, "n": n_name, "n_const": n_const, "lists": lists, "pushes": pushes}
 }
 
 fn _x64_match_fast_list_push_while(ctx, op, locals) {
@@ -658,14 +669,25 @@ fn _x64_match_fast_list_push_while(ctx, op, locals) {
     if cond == nil || cond["type"] != "Infix" { return nil }
     if cond["op"] != "<" { return nil }
     var idx_name = _x64_is_ident(cond["left"])
-    var n_name = _x64_is_ident(cond["right"])
-    if idx_name == nil || n_name == nil { return nil }
+    var right = cond["right"]
+    var n_name = _x64_is_ident(right)
+    var n_const = nil
+    if n_name == nil {
+        n_const = _x64_parse_int_lit_expr(right)
+        if n_const == nil { return nil }
+    }
+    if idx_name == nil { return nil }
     var off_idx = locals[idx_name]
-    var off_n = locals[n_name]
-    if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 { return nil }
+    if oren_type_tag(off_idx) == 0 { return nil }
     if ctx["locals_inty"] != nil {
         if ctx["locals_inty"][idx_name] != true { return nil }
-        if ctx["locals_inty"][n_name] != true { return nil }
+        if n_name != nil && ctx["locals_inty"][n_name] != true { return nil }
+    }
+    if n_name != nil {
+        var off_n = locals[n_name]
+        if oren_type_tag(off_n) == 0 { return nil }
+    } else if n_const < 0 {
+        return nil
     }
     var body = op["body"]
     if body == nil { return nil }
@@ -695,7 +717,7 @@ fn _x64_match_fast_list_push_while(ctx, op, locals) {
         if _x64_expr_uses_any_ident(pushes[pi]["value"], lists) { return nil }
         pi = pi + 1
     }
-    return {"idx": idx_name, "n": n_name, "lists": lists, "pushes": pushes}
+    return {"idx": idx_name, "n": n_name, "n_const": n_const, "lists": lists, "pushes": pushes}
 }
 
 fn _x64_match_fast_list_int_get_sum_while(ctx, op, locals) {
@@ -918,16 +940,32 @@ fn _emit_fast_list_int_push_while_x64(ctx, op, info, locals, labels, local_fixup
 
     var idx_name = info["idx"]
     var n_name = info["n"]
+    var n_const = info["n_const"]
     var lists = info["lists"]
     var pushes = info["pushes"]
 
     var off_idx = locals[idx_name]
-    var off_n = locals[n_name]
-    if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    var off_n = nil
+    if n_name != nil { off_n = locals[n_name] }
+    if oren_type_tag(off_idx) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    if n_name != nil && oren_type_tag(off_n) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    if n_name == nil && n_const == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
 
     var list_count = oren_list_len(lists)
-    var base = _intr_tmp_push(ctx, iadd(list_count, list_count))
+    var extra = 0
+    if n_name == nil { extra = 1 }
+    var base = _intr_tmp_push(ctx, iadd(list_count, list_count) + extra)
     if oren_type_tag(base) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    if n_name == nil {
+        var n_slot = _intr_tmp_off(ctx, locals, base + list_count * 2)
+        if oren_type_tag(n_slot) == 0 {
+            _intr_tmp_pop(ctx, base)
+            return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+        }
+        bytes_extend(ctx["code"], insn_mov_r64_imm64(0, n_const))
+        _emit_mov_mrbp_r64(ctx, 0 - n_slot, 0)
+        off_n = n_slot
+    }
 
     var l_slow = _new_label(ctx, "list_int_push_slow")
     var l_fast_cond = _new_label(ctx, "list_int_push_cond")
@@ -1096,16 +1134,32 @@ fn _emit_fast_list_push_while_x64(ctx, op, info, locals, labels, local_fixups, e
 
     var idx_name = info["idx"]
     var n_name = info["n"]
+    var n_const = info["n_const"]
     var lists = info["lists"]
     var pushes = info["pushes"]
 
     var off_idx = locals[idx_name]
-    var off_n = locals[n_name]
-    if oren_type_tag(off_idx) == 0 || oren_type_tag(off_n) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    var off_n = nil
+    if n_name != nil { off_n = locals[n_name] }
+    if oren_type_tag(off_idx) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    if n_name != nil && oren_type_tag(off_n) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    if n_name == nil && n_const == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
 
     var list_count = oren_list_len(lists)
-    var base = _intr_tmp_push(ctx, iadd(list_count, list_count))
+    var extra = 0
+    if n_name == nil { extra = 1 }
+    var base = _intr_tmp_push(ctx, iadd(list_count, list_count) + extra)
     if oren_type_tag(base) == 0 { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
+    if n_name == nil {
+        var n_slot = _intr_tmp_off(ctx, locals, base + list_count * 2)
+        if oren_type_tag(n_slot) == 0 {
+            _intr_tmp_pop(ctx, base)
+            return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil)
+        }
+        bytes_extend(ctx["code"], insn_mov_r64_imm64(0, n_const))
+        _emit_mov_mrbp_r64(ctx, 0 - n_slot, 0)
+        off_n = n_slot
+    }
 
     var l_slow = _new_label(ctx, "list_push_slow")
     var l_fast_cond = _new_label(ctx, "list_push_cond")
