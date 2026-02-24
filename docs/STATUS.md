@@ -201,6 +201,12 @@ Weights reflect expected impact on C parity and breadth of affected code.
      run completes; list_track emits `track_alloc` (mode=3), and GC reuse reports
      guard_bad_list=0 with scan_steps in the 2–4.6M range (log:
      `build/logs/bench_run_alloc_drop_20260225_021248/oren_native/run_0.log`).
+   - Trace alloc_churn direct reuse (arm64, 2026-02-25, direct native run with
+     `OREN_ARENA_AUTO_LOOP=0`, `OREN_GC_REUSE_BLOCKS=1`, `OREN_GC_REUSE_LISTS=1`,
+     `OREN_GC_REUSE_LISTS_UNSAFE=1`, `OREN_GC_REUSE_SCAN_CAP=5000`):
+     hit `[gc_reuse_bad_list]` quickly (chunk=32 len/cap=128 buf=ptr+32 magic=1279870019)
+     with a preceding `[gc_reuse_hit] kind=0` (log:
+     `build/logs/alloc_churn_direct_reuse_cap_20260225_021657.log`).
    - Trace alloc_churn reuse (arm64, 2026-02-25, same reuse env as above) ran >3 min
      and was terminated to keep iteration fast; no trace output captured.
    - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=1000`, warmups=0):
