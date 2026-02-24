@@ -300,6 +300,9 @@ Proposed compiler strategy (first slice):
   - Rewrites only **unconditional top‑level** `var`/`assign` list allocations in the loop
     body (no conditional/nested rewrites).
   - List literals (empty or non‑empty) are expanded to arena alloc + ordered pushes.
+  - Auto rewrites target `oren_arena_new_list_auto` / `oren_arena_new_list_int_auto`
+    so runtime `OREN_ARENA_AUTO_LOOP=0` can force GC-backed list headers for debugging;
+    explicit `@oren.arena` stays on `oren_arena_new_list(_int)`.
   - `OREN_ARENA_PER_ITER=1` switches auto‑mode to per‑iteration push/pop instead of
     loop‑scoped arenas (helps long‑lived loops).
   - Heuristic: loops without a simple literal upper bound (e.g., `i < 1000`) default

@@ -243,6 +243,8 @@ OrenValue oren_arena_push(void);
 OrenValue oren_arena_pop(void);
 OrenValue oren_arena_new_list(OrenValue cap);
 OrenValue oren_arena_new_list_int(OrenValue cap);
+OrenValue oren_arena_new_list_auto(OrenValue cap);
+OrenValue oren_arena_new_list_int_auto(OrenValue cap);
 OrenValue oren_list_int_len(OrenValue list);
 OrenValue oren_list_int_push(OrenValue list, OrenValue value);
 OrenValue oren_list_int_get(OrenValue list, OrenValue index);

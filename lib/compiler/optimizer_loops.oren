@@ -371,6 +371,8 @@ fn _opt_expr_contains_arena_alloc(expr) {
     if t == "Call" {
         if _opt_is_call_named(expr, "oren_arena_new_list") { return true }
         if _opt_is_call_named(expr, "oren_arena_new_list_int") { return true }
+        if _opt_is_call_named(expr, "oren_arena_new_list_auto") { return true }
+        if _opt_is_call_named(expr, "oren_arena_new_list_int_auto") { return true }
         var args = expr["args"]
         if args != nil {
             var i = 0
@@ -1102,7 +1104,7 @@ fn _opt_loop_first_assign_dominates(body, name) {
     return false
 }
 
-fn _opt_rewrite_new_list_in_stmt(stmt, safe_vars) {
+fn _opt_rewrite_new_list_in_stmt(stmt, safe_vars, arena_ctor, arena_int_ctor) {
     if stmt == nil { return false }
     var changed = false
     var t = stmt["type"]
@@ -1115,13 +1117,13 @@ fn _opt_rewrite_new_list_in_stmt(stmt, safe_vars) {
             if kind != nil {
                 var fn_expr = v["fn"]
                 if fn_expr != nil && fn_expr["type"] == "Identifier" {
-                    if kind2 == "list" || kind2 == "list_lit" { fn_expr["value"] = "oren_arena_new_list" }
-                    else { fn_expr["value"] = "oren_arena_new_list_int" }
+                    if kind2 == "list" || kind2 == "list_lit" { fn_expr["value"] = arena_ctor }
+                    else { fn_expr["value"] = arena_int_ctor }
                     changed = true
                 }
             } else if kind2 == "list_lit" && _opt_expr_is_empty_list_lit(v) {
                 stmt["value"] = ast.new_call(stmt["token"],
-                    {"type": "Identifier", "token": nil, "value": "oren_arena_new_list"},
+                    {"type": "Identifier", "token": nil, "value": arena_ctor},
                     [{"type": "Integer", "token": nil, "value": "0"}])
                 changed = true
             }
@@ -1137,13 +1139,13 @@ fn _opt_rewrite_new_list_in_stmt(stmt, safe_vars) {
             if kindb != nil {
                 var fn_exprb = v2["fn"]
                 if fn_exprb != nil && fn_exprb["type"] == "Identifier" {
-                    if kind2b == "list" || kind2b == "list_lit" { fn_exprb["value"] = "oren_arena_new_list" }
-                    else { fn_exprb["value"] = "oren_arena_new_list_int" }
+                    if kind2b == "list" || kind2b == "list_lit" { fn_exprb["value"] = arena_ctor }
+                    else { fn_exprb["value"] = arena_int_ctor }
                     changed = true
                 }
             } else if kind2b == "list_lit" && _opt_expr_is_empty_list_lit(v2) {
                 stmt["value"] = ast.new_call(stmt["token"],
-                    {"type": "Identifier", "token": nil, "value": "oren_arena_new_list"},
+                    {"type": "Identifier", "token": nil, "value": arena_ctor},
                     [{"type": "Integer", "token": nil, "value": "0"}])
                 changed = true
             }
@@ -1161,14 +1163,14 @@ fn _opt_rewrite_new_list_in_stmt(stmt, safe_vars) {
                 var nm3 = opthelp.is_ident(st["name"])
                 var k3 = _opt_safe_var_kind(safe_vars, nm3)
                 if (st["type"] == "Var" || st["type"] == "Assign") && nm3 != nil && k3 == "list_lit" {
-                    var lit_len = _opt_expr_list_lit_len(st["value"])
-                    if lit_len >= 0 {
-                        var els = st["value"]["elements"]
-                        if els == nil { els = [] }
-                        var ctor = "oren_arena_new_list"
-                        var call = ast.new_call(st["token"],
-                            {"type": "Identifier", "token": nil, "value": ctor},
-                            [{"type": "Integer", "token": nil, "value": oren_int_to_string(lit_len)}])
+                        var lit_len = _opt_expr_list_lit_len(st["value"])
+                        if lit_len >= 0 {
+                            var els = st["value"]["elements"]
+                            if els == nil { els = [] }
+                            var ctor = arena_ctor
+                            var call = ast.new_call(st["token"],
+                                {"type": "Identifier", "token": nil, "value": ctor},
+                                [{"type": "Integer", "token": nil, "value": oren_int_to_string(lit_len)}])
                         var init = {"type": st["type"], "token": st["token"], "name": st["name"], "value": call}
                         if st["attrs"] != nil { init["attrs"] = st["attrs"] }
                         oren_list_push(out, init)
@@ -1185,7 +1187,7 @@ fn _opt_rewrite_new_list_in_stmt(stmt, safe_vars) {
                         continue
                     }
                 }
-                if _opt_rewrite_new_list_in_stmt(st, safe_vars) { changed = true }
+                if _opt_rewrite_new_list_in_stmt(st, safe_vars, arena_ctor, arena_int_ctor) { changed = true }
             }
             oren_list_push(out, st)
             i = i + 1
@@ -1205,8 +1207,9 @@ fn _opt_expr_is_empty_list_ctor(expr) {
         if fn_expr != nil && fn_expr["type"] == "Identifier" {
             var nm = fn_expr["value"]
             if _opt_str_eq(nm, "oren_new_list") || _opt_str_eq(nm, "oren_arena_new_list") ||
-               _opt_str_eq(nm, "STD_new_list") || _opt_str_eq(nm, "STD_arena_new_list") ||
-               _opt_str_eq(nm, "oren_new_list_int") || _opt_str_eq(nm, "oren_arena_new_list_int") {
+               _opt_str_eq(nm, "oren_arena_new_list_auto") || _opt_str_eq(nm, "STD_new_list") ||
+               _opt_str_eq(nm, "STD_arena_new_list") || _opt_str_eq(nm, "oren_new_list_int") ||
+               _opt_str_eq(nm, "oren_arena_new_list_int") || _opt_str_eq(nm, "oren_arena_new_list_int_auto") {
                 var args = expr["args"]
                 if args != nil && oren_list_len(args) == 1 {
                     var a0 = args[0]
@@ -2060,9 +2063,15 @@ fn _opt_prepare_loop_arena(block, idx, stmt, parent_forced, parent_noarena) {
             ci = ci + 1
         }
     }
+    var arena_ctor = "oren_arena_new_list_auto"
+    var arena_int_ctor = "oren_arena_new_list_int_auto"
+    if force == true {
+        arena_ctor = "oren_arena_new_list"
+        arena_int_ctor = "oren_arena_new_list_int"
+    }
     var did_rewrite = false
     if safe_vars != nil && oren_list_len(safe_vars) > 0 {
-        did_rewrite = _opt_rewrite_new_list_in_stmt(body, safe_vars)
+        did_rewrite = _opt_rewrite_new_list_in_stmt(body, safe_vars, arena_ctor, arena_int_ctor)
         if _opt_insert_list_reserve_in_block(body, safe_vars) == true {
             did_rewrite = true
         }

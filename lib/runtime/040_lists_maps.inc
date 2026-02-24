@@ -427,6 +427,8 @@ OrenValue oren_arena_push(void) { return OREN_NIL; }
 OrenValue oren_arena_pop(void) { return OREN_NIL; }
 OrenValue oren_arena_new_list(OrenValue cap) { return oren_list_new_cap(cap); }
 OrenValue oren_arena_new_list_int(OrenValue cap) { return oren_new_list_int(cap); }
+OrenValue oren_arena_new_list_auto(OrenValue cap) { return oren_arena_new_list(cap); }
+OrenValue oren_arena_new_list_int_auto(OrenValue cap) { return oren_arena_new_list_int(cap); }
 
 OrenValue oren_list_int_len(OrenValue list) {
     return oren_list_len(list);
