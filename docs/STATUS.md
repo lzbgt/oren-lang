@@ -195,6 +195,14 @@ Weights reflect expected impact on C parity and breadth of affected code.
      `alloc_churn` emits `[list_track] index_put/alloc` lines (log:
      `build/logs/bench_run_alloc_churn_20260225_020630/oren_native/run_0.log`),
      confirming GC-tracked list headers when auto arenas are disabled at runtime.
+   - Trace alloc_drop reuse (arm64, 2026-02-25, `OREN_BENCH_ITERS=2000`,
+     `OREN_GC_AUTO=1`, `OREN_GC_ALLOC_THRESHOLD=2000`, `OREN_GC_REUSE_BLOCKS=1`,
+     `OREN_GC_REUSE_LISTS=1`, `OREN_GC_REUSE_LISTS_UNSAFE=1`):
+     run completes; list_track emits `track_alloc` (mode=3), and GC reuse reports
+     guard_bad_list=0 with scan_steps in the 2–4.6M range (log:
+     `build/logs/bench_run_alloc_drop_20260225_021248/oren_native/run_0.log`).
+   - Trace alloc_churn reuse (arm64, 2026-02-25, same reuse env as above) ran >3 min
+     and was terminated to keep iteration fast; no trace output captured.
    - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=1000`, warmups=0):
      - `alloc_churn` panics: `list_reserve on non-list` after `[alloc_site] total=1536 list_header=768 list_buf=768`.
        New trace: stage=1 (node missing), magic matches, count/cap/buf=0, list_debug node=0,
