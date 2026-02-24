@@ -89,6 +89,9 @@ Results are written to:
 When `OREN_BENCH_TRACE_ALLOC_SITE=1`, result JSON includes an `alloc_site` section
 with per-run counts and median/mean summaries (native-only).
 
+When `OREN_BENCH_INIT_SPLIT=1`, result JSON includes `init_split`, and the result
+markdown includes an “Init/steady split” section for loop_sum.
+
 Build logs are stored under `build/logs/` with a `bench_build_*` prefix.
 
 Update the canonical snapshot table after a batch run:

@@ -693,6 +693,21 @@ def _run_one(program, cfg: BenchConfig):
                 f"{_med_arena_line('push')} | {_med_arena_line('pop')} | "
                 f"{_med_arena_line('epoch_reset')} | {_med_arena_line('mmap_fail')} |"
             )
+    if init_split:
+        lines.append("")
+        lines.append("## Init/steady split (seconds)")
+        lines.append("")
+        lines.append("| variant | n | reps_short | reps_long | median_short | median_long | init | steady |")
+        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
+        for name in variant_order:
+            if name not in init_split:
+                continue
+            r = init_split[name]
+            lines.append(
+                f"| {name} | {r['n']} | {r['reps_short']} | {r['reps_long']} | "
+                f"{r['median_short_s']:.6f} | {r['median_long_s']:.6f} | "
+                f"{r['init_s']:.6f} | {r['steady_s']:.6f} |"
+            )
     lines.append("")
     lines.append(f"Output checksum (stdout): `{first_out}`")
     lines.append("")
