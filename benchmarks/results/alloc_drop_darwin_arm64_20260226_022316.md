@@ -1,4 +1,4 @@
-# alloc_drop benchmark (20260225_233617)
+# alloc_drop benchmark (20260226_022316)
 
 ## Host
 
@@ -8,12 +8,12 @@
 - cpu: Apple M2 Pro
 - cpu_cores: 10
 - mem_bytes: 17179869184
-- git_rev: 3be1b4679a1c76b14e25fcfcb3a75bd8c32b9c41
+- git_rev: 097ec52cb5347bce974f3625167395a5aa06dc42
 - runs: 5 (warmups: 1)
 
 ## Env (OREN_*)
 
-- OREN_BENCH_PROGRAM=all
+- OREN_BENCH_PROGRAMS=alloc_churn,alloc_drop
 - OREN_BENCH_UPDATE_LATEST=1
 - OREN_BENCH_UPDATE_LATEST_PRUNE=1
 
@@ -21,9 +21,9 @@
 
 | variant | median | mean | min | max |
 | --- | --- | --- | --- | --- |
-| c | 0.003191 | 0.003188 | 0.003104 | 0.003312 |
-| oren_c | 0.002811 | 0.002887 | 0.002690 | 0.003154 |
-| oren_native | 0.004579 | 0.004552 | 0.004377 | 0.004619 |
-| oren_obc | 0.004276 | 0.004407 | 0.004251 | 0.004743 |
+| c | 0.002951 | 0.002934 | 0.002862 | 0.002988 |
+| oren_c | 0.002516 | 0.002513 | 0.002480 | 0.002547 |
+| oren_native | 0.006713 | 0.006753 | 0.006684 | 0.006835 |
+| oren_obc | 0.003900 | 0.003877 | 0.003809 | 0.003920 |
 
 Output checksum (stdout): `alloc_drop keep=11`

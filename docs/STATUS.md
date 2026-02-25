@@ -34,7 +34,7 @@ Oren is "mature" when all are reliably true on Tier-1 targets
 Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/zig/go):
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
-- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.38×, `dot_product` 4.32×; `alloc_churn` 46.65×, `alloc_drop` 1.44× on arm64, 2026-02-25).
+- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.38×, `dot_product` 4.32×; `alloc_churn` 5.98×, `alloc_drop` 2.27× on arm64, 2026-02-26).
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -53,8 +53,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Cross‑backend parity is enforced via fixtures, not a stabilized ABI.
 
 2) **W5 - Performance parity (hot loops + alloc/GC)**
-   - Baselines: `loop_sum` 3.38× C, `dot_product` 4.32× C; `alloc_churn` 46.65× C, `alloc_drop` 1.44× C (arm64, 2026-02-25).
-   - Priority: allocation/GC remains the largest perf gap vs C; the latest alloc_churn run regressed sharply and needs root-cause first.
+   - Baselines: `loop_sum` 3.38× C, `dot_product` 4.32× C; `alloc_churn` 5.98× C, `alloc_drop` 2.27× C (arm64, 2026-02-26).
+   - Priority: hot loops remain above the 2× gate; allocation/GC is now within the 8×/5× gates on arm64.
    - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
 
 3) **W5 - Runtime robustness (GC reuse + allocator invariants)**
@@ -162,8 +162,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
-   - Baseline (arm64 native, 2026-02-25): `alloc_churn` 46.65× C, `alloc_drop` 1.44× C.
-   - Investigate alloc_churn regression in latest snapshot (see `benchmarks/RESULTS_LATEST.md`).
+   - Baseline (arm64 native, 2026-02-26): `alloc_churn` 5.98× C, `alloc_drop` 2.27× C.
    - `alloc_churn` and `alloc_drop` are now within the 8×/5× gates on arm64.
    - Alloc-site trace (arm64, 2026-02-25, `OREN_BENCH_TRACE_ALLOC_SITE=1`, warmups=0):
      - `alloc_churn` median total=2 (list_int_header=1, list_int_buf=1, list_header=0, list_buf=0).
@@ -194,20 +193,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - Arm64 fast list push while-loops now emit list header traces on the count update (rolling, 2026-02-25).
    - GC init now registers the main thread for stack scanning to avoid missing roots during auto-GC reuse tests.
    - New: `OREN_TRACE_GC_REUSE=1` prints reuse tries/hits/misses at GC sweep.
-   - Reuse experiment (arm64, 2026-02-20, reuse flags enabled during native run):
-     - `alloc_churn` 769.01× C, `alloc_drop` 1190.02× C (see `benchmarks/results/alloc_*_20260220_075738.md`).
-   - Reuse trace (arm64, 2026-02-20, `OREN_GC_AUTO=1`, `OREN_GC_ALLOC_THRESHOLD=10000`, reuse flags enabled):
-     - `alloc_churn` segfaults when list reuse is forced (`OREN_GC_REUSE_LISTS_UNSAFE=1`); last trace: tries=10001 hits=3 misses=10001 hit_bytes=5248.
-     - Verbose reuse hits show alternating kind=0 and kind=2 (list header) 32-byte chunks before crash
-       (captured in local bench run logs).
-     - Freed-list tracing (`OREN_TRACE_GC_FREED_LISTS=1`) did not catch a reuse-after-free before crash.
-     - Stack range tracing (`OREN_TRACE_GC_STACK_RANGES=1`) shows reuse-hit ptrs with in_stack=0.
-     - Reuse live-guard (roots/stack) still segfaults; guard_live=0 in reuse summary (local run, 2026-02-20).
-     - Root provenance tracing shows in_roots=0 (root_kind/root_idx=0) on reuse hits before crash (local run, 2026-02-20).
-     - List reuse guard drops corrupt list headers (guard_bad_list>0) but segfault persists (local run, 2026-02-20).
-     - Bad-list trace shows repeated header with chunk=32 but len/cap=128, buf=ptr+32, magic=1279870019 (local run, 2026-02-20).
-     - Bad-list trace run hung (killed after ~14 min); summary showed guard_bad_list=291 (local run, 2026-02-20).
-    - Free-list trace shows list frees already have len/cap=128 with chunk=32 and bad magic (same ptr+32 buf), so headers are corrupt before reuse (local run, 2026-02-20).
+   - Historical GC reuse experiments (2026-02-20) showed list header corruption before reuse; detailed traces live under `build/logs/`.
     - List trace now re-checks env when envp/argv/argc change to avoid caching off before runtime init (rolling, 2026-02-25).
     - New alloc_churn trace (arm64, 2026-02-25, `OREN_TRACE_NATIVE_LIST_HDR=1` + `OREN_TRACE_LIST_HEADER=1`, cap=200):
       - `op=6` list_int_reserve to cap=128 (per list), followed by `op=7` list_int_push count update after the fast loop.
@@ -262,15 +248,15 @@ Weights reflect expected impact on C parity and breadth of affected code.
         is cleared for this run.
     - New: alloc-site tracing now counts arena list buffers; alloc_churn native trace shows
       list_int_header=20000, list_int_buf=20000 (total=40000) under `OREN_BENCH_TRACE_ALLOC_SITE=1`
-      (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_014758.md`).
+      (log: `build/logs/bench_alloc_churn_alloc_site_20260225_234114.log`).
     - New: `OREN_TRACE_LIST_RESERVE_BYTES=1` prints reserve allocation/copy totals at shutdown; alloc_churn
       reports list_int_alloc_bytes=20480000 with 20000 reserve calls and zero copy bytes
       (log: `build/logs/alloc_churn_run_reserve_bytes_20260226_020050.log`).
-   - New: loop list reuse brings alloc_churn to ~6.37× C (arm64, 2026-02-26),
-      within the 8× gate; now default-on with opt-out via `OREN_OPT_LOOP_LIST_REUSE=0`
-      (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_020521.md`).
-    - New: loop list reuse keeps alloc_drop at ~2.56× C (arm64, 2026-02-26),
-      within the 5× gate (log: `benchmarks/results/alloc_drop_darwin_arm64_20260226_020709.md`).
+   - New: loop list reuse brings alloc_churn to ~5.98× C (arm64, 2026-02-26),
+      within the 8× gate; default-on with opt-out via `OREN_OPT_LOOP_LIST_REUSE=0`
+     (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_022314.md`).
+    - New: loop list reuse keeps alloc_drop at ~2.27× C (arm64, 2026-02-26),
+      within the 5× gate (log: `benchmarks/results/alloc_drop_darwin_arm64_20260226_022316.md`).
     - New: reuse escape smoke (`test_loop_list_reuse_escape_smoke`) added to native quick integration
       to guard against incorrect reuse when lists escape (2026-02-26).
     - Fix: loop list reuse now skips unsafe list uses (escape/alias), enabling default-on reuse while
@@ -288,7 +274,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New: loop list reuse hoists safe, non-escaping list allocations out of loops and replaces per-iter
      init with `*_clear_unchecked` calls; default-on with opt-out via `OREN_OPT_LOOP_LIST_REUSE=0`.
      - Reuse smoke: `test_arena_auto_loop_smoke` passes with reuse enabled on arm64 macOS (2026-02-25).
-   - `alloc_churn` native was 7.23× C in the earlier 2026-02-25 snapshot; latest snapshot regressed to 46.65× C.
+   - `alloc_churn` native was 46.65× C in the 2026-02-25 snapshot; latest snapshot is 5.98× C (2026-02-26).
    - Alloc-site trace (arm64, 2026-02-25, `OREN_BENCH_TRACE_ALLOC_SITE=1`, native-only):
      median total=20000, list_int_header=20000, list_header=0, list_buf=0, list_int_buf=0
      (log: `build/logs/bench_alloc_churn_alloc_site_20260225_234114.log`).
@@ -305,7 +291,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Bench run with no-cache env (arm64, 2026-02-26, `OREN_TRACE_LIST_BUF=1` + `OREN_TRACE_LIST_RESERVE=1`):
      no list_buf events appeared and reserve trace did not surface in build logs (log: `build/logs/bench_alloc_churn_nocache_list_buf_20260226_001246.log`).
    - List literal sinking now handles `ExprStmt` if-forms, reducing `alloc_drop` list-header churn
-     (alloc-site median list_header=105 in 2026-02-25 trace; latest `alloc_drop` native 1.44× C).
+     (alloc-site median list_header=105 in 2026-02-25 trace; latest `alloc_drop` native 2.27× C).
    - New: fast list/list_int push while-loops now accept constant upper bounds (arm64/x64/transpiler),
      and `alloc_drop` is now within target on the 2026-02-25 snapshot (rolling).
    - New: list/list_int reserve + unchecked push now try `native_arena_alloc_raw` for arena-backed buffers
@@ -341,13 +327,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Bench harness supports compile-time env overrides via `OREN_BENCH_ENV_BUILD` (all build steps) and
      `OREN_BENCH_ENV_BUILD_OREN` (Oren build steps only).
    - Bench harness supports `OREN_BENCH_SAVE_RUN_LOGS=1` (per-run stdout logs) and `OREN_BENCH_RUN_LOG_TEE=1` (tee to console) for trace-heavy runs like GC reuse.
-   - Alloc-site snapshot (arm64, 2026-02-20): `alloc_churn` list_header=20k, list_buf=20k; `alloc_drop` list_header≈10011, list_buf≈31 (post list_int literal reserve).
-   - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, warmups=0):
-     - `alloc_drop` list_header=10011, list_buf=31 (see `alloc_drop_darwin_arm64_20260220_130348.md`).
-     - `alloc_churn` list_header=20000, list_buf=20000 (see `alloc_churn_darwin_arm64_20260220_130551.md`).
-   - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=10000`, warmups=0):
-     - `alloc_churn` list_header=5119, list_buf=5119 (see `alloc_churn_darwin_arm64_20260220_130727.md`).
-     - `alloc_drop` list_header=1794, list_buf=6 (see `alloc_drop_darwin_arm64_20260220_130750.md`).
+   - Alloc-site snapshots from trace runs are stored under `build/logs/` (results files are pruned per policy).
    - New: arena list header allocations now bump alloc-site counters (native `native_arena_new_list(_int)`)
      so arena-backed list headers show up in `OREN_BENCH_TRACE_ALLOC_SITE` runs (rolling, 2026-02-25).
    - Trace alloc-site (arm64, 2026-02-25, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=10000`, warmups=0):
@@ -462,101 +442,62 @@ Weights reflect expected impact on C parity and breadth of affected code.
      (arm64 + x64), not just loop‑injected safepoints (rolling, 2026-02-20).
    - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=1000`,
      `OREN_TRACE_LIST_TRACK=1`, runs=1): `alloc_churn` completes at 5.035s with list_header=1024, list_buf=1024
-     (see `alloc_churn_darwin_arm64_20260220_134105.md`; list_track logs in `build/logs/bench_run_alloc_churn_20260220_133619/oren_native/run_0.log`).
    - Trace alloc-site (arm64, 2026-02-20, `OREN_BENCH_TRACE_ALLOC_SITE=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=1000`,
      `OREN_TRACE_LIST_TRACK=1`, `OREN_TRACE_LIST_TRACK_CAP=5000`, runs=1): `alloc_churn` 5.872s with list_header=1024, list_buf=1024
-     (see `alloc_churn_darwin_arm64_20260220_134542.md`; list_track log has no `remove` lines:
      `build/logs/bench_run_alloc_churn_20260220_134542/oren_native/run_0.log`).
    - Trace alloc-site (arm64, 2026-02-20, same env, runs=1): `alloc_churn` 5.752s with list_header=1024, list_buf=1024
-     (see `alloc_churn_darwin_arm64_20260220_135825.md`; list_track log has no `remove` lines:
      `build/logs/bench_run_alloc_churn_20260220_135825/oren_native/run_0.log`).
    - Trace alloc-site (arm64, 2026-02-20, same env, after safepoint spill wrapper for explicit calls, runs=1):
-     `alloc_churn` 5.769s with list_header=1024, list_buf=1024 (see `alloc_churn_darwin_arm64_20260220_140537.md`;
      list_track log has no `remove` lines: `build/logs/bench_run_alloc_churn_20260220_140537/oren_native/run_0.log`).
    - Trace alloc-site (arm64, 2026-02-20, same env, runs=1): `alloc_drop` 0.609s with list_header=821, list_buf=2
-     (see `alloc_drop_darwin_arm64_20260220_140749.md`; list_track log has no `remove` lines:
      `build/logs/bench_run_alloc_drop_20260220_140749/oren_native/run_0.log`).
    - Trace alloc-site (arm64, 2026-02-20, `OREN_GC_REUSE_BLOCKS=1`, `OREN_GC_REUSE_LISTS=0`, same env, runs=1):
-     `alloc_drop` 75.897s with list_header=26, list_buf=0 (see `alloc_drop_darwin_arm64_20260220_140954.md`);
      list_track log now shows many `remove` lines (see `build/logs/bench_run_alloc_drop_20260220_140954/oren_native/run_0.log`).
    - Trace alloc-site (arm64, 2026-02-20, `OREN_GC_REUSE_BLOCKS=1`, `OREN_GC_REUSE_LISTS=0`,
      `OREN_TRACE_ALLOC_INDEX_REMOVE_TIME=1`, runs=1): `alloc_drop` 18.034s with list_header=137, list_buf=0
-     (see `alloc_drop_darwin_arm64_20260220_141623.md`); alloc_index_remove averages ~0.6–0.9µs per call with
      spikes to ~4.1µs, counts ≈550 per sweep (log: `build/logs/bench_run_alloc_drop_20260220_141623/oren_native/run_0.log`).
    - Trace alloc-site (arm64, 2026-02-20, same env but `OREN_GC_ALLOC_THRESHOLD=10000`, runs=1):
-     `alloc_drop` 15.729s with list_header=1423, list_buf=4 (see `alloc_drop_darwin_arm64_20260220_141832.md`);
      alloc_index_remove counts ≈5700 per sweep with avg ~1–2µs and spikes to ~12–17µs
      (log: `build/logs/bench_run_alloc_drop_20260220_141832/oren_native/run_0.log`).
    - New: alloc-index cleanup during GC sweep now defers to a bulk rebuild when reuse blocks are enabled
      (avoids per-free remove probes; rolling, 2026-02-20).
    - Trace alloc-site (arm64, 2026-02-20, `OREN_GC_REUSE_BLOCKS=1`, `OREN_GC_REUSE_LISTS=0`,
      `OREN_TRACE_ALLOC_INDEX=1`, `OREN_TRACE_ALLOC_INDEX_REMOVE_TIME=1`, `OREN_BENCH_TRACE_ALLOC_SITE_GC_THRESHOLD=10000`, runs=1):
-     `alloc_drop` 15.275s with list_header=1417, list_buf=4 (see `alloc_drop_darwin_arm64_20260220_142335.md`);
      alloc_index_remove count=0; alloc_index rebuilds ~34–39µs
      (log: `build/logs/bench_run_alloc_drop_20260220_142335/oren_native/run_0.log`).
    - Trace alloc-site (arm64, 2026-02-20, same env, runs=1):
-     `alloc_churn` 10.282s with list_header=4979, list_buf=4979 (see `alloc_churn_darwin_arm64_20260220_142427.md`);
      alloc_index_remove count=0; alloc_index rebuilds ~67–73µs
      (log: `build/logs/bench_run_alloc_churn_20260220_142427/oren_native/run_0.log`).
    - New run (arm64, 2026-02-20, reuse blocks on, `OREN_GC_ALLOC_THRESHOLD=10000`, warmups=1):
-     `alloc_drop` 3.412s (see `alloc_drop_darwin_arm64_20260220_142827.md`);
-     `alloc_churn` 7.341s (see `alloc_churn_darwin_arm64_20260220_142844.md`).
    - New run (arm64, 2026-02-20, reuse blocks on, default GC threshold, warmups=1):
-     `alloc_drop` 3.192s (see `alloc_drop_darwin_arm64_20260220_143016.md`);
-     `alloc_churn` 7.215s (see `alloc_churn_darwin_arm64_20260220_143032.md`).
    - New run (arm64, 2026-02-20, reuse blocks on, `OREN_GC_ALLOC_THRESHOLD=10000`, `OREN_GC_REUSE_ZERO=0`, warmups=1):
-     `alloc_drop` 3.216s (see `alloc_drop_darwin_arm64_20260220_143057.md`);
-     `alloc_churn` 7.268s (see `alloc_churn_darwin_arm64_20260220_143113.md`).
    - New run (arm64, 2026-02-20, reuse blocks on, `OREN_GC_ALLOC_THRESHOLD=1000`, warmups=1):
-     `alloc_drop` 3.207s (see `alloc_drop_darwin_arm64_20260220_143257.md`);
-     `alloc_churn` 7.105s (see `alloc_churn_darwin_arm64_20260220_143312.md`).
    - New run (arm64, 2026-02-20, reuse blocks off, `OREN_GC_ALLOC_THRESHOLD=1000`, warmups=1):
-     `alloc_drop` 0.178s (see `alloc_drop_darwin_arm64_20260220_143341.md`);
-     `alloc_churn` 4.028s (see `alloc_churn_darwin_arm64_20260220_143351.md`).
    - New run (arm64, 2026-02-20, reuse blocks on, `OREN_GC_REUSE_ZERO=0`, warmups=1):
-     `alloc_drop` 3.399s (see `alloc_drop_darwin_arm64_20260220_143539.md`);
-     `alloc_churn` 7.156s (see `alloc_churn_darwin_arm64_20260220_143555.md`).
    - New run (arm64, 2026-02-20, reuse blocks off, `OREN_GC_REUSE_ZERO=0`, warmups=1):
-     `alloc_drop` 0.179s (see `alloc_drop_darwin_arm64_20260220_143620.md`);
-     `alloc_churn` 4.025s (see `alloc_churn_darwin_arm64_20260220_143628.md`).
    - New run (arm64, 2026-02-20, reuse blocks on, `OREN_GC_ALLOC_THRESHOLD=1000`, `OREN_GC_REUSE_SCAN_CAP=32`, warmups=1):
-     `alloc_drop` 3.232s (see `alloc_drop_darwin_arm64_20260220_143913.md`);
-     `alloc_churn` 7.262s (see `alloc_churn_darwin_arm64_20260220_143946.md`).
    - New run (arm64, 2026-02-20, reuse blocks on, `OREN_GC_ALLOC_THRESHOLD=1000`, `OREN_GC_REUSE_SCAN_CAP=8`, warmups=1):
-     `alloc_drop` 3.259s (see `alloc_drop_darwin_arm64_20260220_144118.md`);
-     `alloc_churn` 7.225s (see `alloc_churn_darwin_arm64_20260220_144134.md`).
    - New run (arm64, 2026-02-20, reuse blocks on, `OREN_GC_ALLOC_THRESHOLD=1000`, `OREN_GC_REUSE_SCAN_CAP=4`, warmups=1):
-     `alloc_drop` 3.199s (see `alloc_drop_darwin_arm64_20260220_144306.md`);
-     `alloc_churn` 7.275s (see `alloc_churn_darwin_arm64_20260220_144325.md`).
    - Trace reuse (arm64, 2026-02-20, `OREN_GC_AUTO=1`, `OREN_GC_ALLOC_THRESHOLD=1000`, reuse blocks on,
      `OREN_TRACE_GC_REUSE=1`, output check disabled): `alloc_drop` 19.056s with gc_reuse
      scan_steps min=8.4k, max=22.4M, avg=11.4M across 72 sweeps
-     (see `alloc_drop_darwin_arm64_20260220_144740.md`; log: `build/logs/bench_run_alloc_drop_20260220_144740/oren_native/run_0.log`).
    - Trace reuse (arm64, 2026-02-20, same env, output check disabled): `alloc_churn` 10.387s with gc_reuse
      scan_steps min=90, max=10.3M, avg=5.2M across 40 sweeps
-     (see `alloc_churn_darwin_arm64_20260220_144835.md`; log: `build/logs/bench_run_alloc_churn_20260220_144835/oren_native/run_0.log`).
    - New run (arm64, 2026-02-20, reuse blocks on, `OREN_GC_REUSE_BUCKETS=1`, `OREN_GC_ALLOC_THRESHOLD=1000`, warmups=1):
-     `alloc_drop` 3.189s (see `alloc_drop_darwin_arm64_20260220_145625.md`);
-     `alloc_churn` 7.154s (see `alloc_churn_darwin_arm64_20260220_145710.md`).
    - Trace reuse (arm64, 2026-02-20, reuse blocks + buckets on, `OREN_GC_AUTO=1`, `OREN_GC_ALLOC_THRESHOLD=1000`,
      `OREN_TRACE_GC_REUSE=1`, output check disabled): `alloc_drop` 18.747s with gc_reuse
      scan_steps min=8.4k, max=22.4M, avg=11.4M across 72 sweeps
-     (see `alloc_drop_darwin_arm64_20260220_145851.md`; log: `build/logs/bench_run_alloc_drop_20260220_145851/oren_native/run_0.log`).
    - Trace reuse (arm64, 2026-02-20, same env, output check disabled): `alloc_churn` 13.245s with gc_reuse
      scan_steps min=5.6k, max=19.7M, avg=9.9M across 40 sweeps
-     (see `alloc_churn_darwin_arm64_20260220_145934.md`; log: `build/logs/bench_run_alloc_churn_20260220_145934/oren_native/run_0.log`).
    - Trace reuse (arm64, 2026-02-20, reuse blocks + buckets on, `OREN_GC_REUSE_SCAN_CAP=32`,
      `OREN_GC_AUTO=1`, `OREN_GC_ALLOC_THRESHOLD=1000`, `OREN_TRACE_GC_REUSE=1`, output check disabled):
      `alloc_drop` 6.812s with gc_reuse scan_steps min=369, max=36.6k, avg=35.1k; scan_steps_cap
      min=429, max=36.9k, avg=34.5k; scan_cap_hits min=12, max=1114, avg=1041 across 72 sweeps
-     (see `alloc_drop_darwin_arm64_20260220_150730.md`; log: `build/logs/bench_run_alloc_drop_20260220_150730/oren_native/run_0.log`).
    - Trace reuse (arm64, 2026-02-20, same env, output check disabled): `alloc_churn` 7.687s with gc_reuse
      scan_steps min=375, max=65.5k, avg=62.1k; scan_steps_cap min=429, max=65.3k, avg=60.4k;
      scan_cap_hits min=12, max=1975, avg=1828 across 40 sweeps
-     (see `alloc_churn_darwin_arm64_20260220_150745.md`; log: `build/logs/bench_run_alloc_churn_20260220_150745/oren_native/run_0.log`).
    - New run (arm64, 2026-02-20, runs=5, warmups=1):
      `alloc_churn` 0.131s (48.57× C), `alloc_drop` 0.160s (56.17× C)
-     (see `alloc_churn_darwin_arm64_20260220_154700.md`, `alloc_drop_darwin_arm64_20260220_154657.md`).
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` + `OREN_ARENA_PER_ITER=1`, native only):
      - `alloc_churn` 1620× C, `alloc_drop` 60.18× C (C baseline from `benchmarks/RESULTS_LATEST.md`; no improvement vs default).
      - `OREN_BENCH_TRACE_ARENA=1` emitted no `[arena]` lines for alloc_churn/alloc_drop (likely no arena push/pop in these benches).
@@ -589,7 +530,6 @@ Weights reflect expected impact on C parity and breadth of affected code.
      that build strings for list literals (rolling, 2026-02-20).
    - New run (arm64, 2026-02-20, post recursive list-literal sinking, runs=5, warmups=1):
      - `alloc_churn` median 3.404s native; `alloc_drop` median 0.145s native
-       (see `alloc_churn_darwin_arm64_20260220_124216.md`, `alloc_drop_darwin_arm64_20260220_124239.md`).
    - New trace (arm64, 2026-02-20, manual compile with `OREN_TRACE_ARENA_LOOPS=1`):
      - `alloc_churn`: outer loop wraps (`safe_vars=1`, `rewrite=1`); inner loop shows `candidates=0` then `skip=no_arena_alloc`.
      - `alloc_drop`: main loop drops list literal `l` as `unsafe_use` (escapes via `keep`), then `skip=no_arena_alloc`.
@@ -597,7 +537,6 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - `alloc_churn` 0.361s native; arena trace allocs=40000, push=1, pop=1, epoch_reset=1.
      - `arena_loop` trace shows bound=20000, long_lived=0, per_iter=0; C/bytecode builds skip=backend.
    - New run (arm64, 2026-02-20, compile-time auto-loop, runs=5, warmups=0):
-     - `alloc_churn` median 0.340s native; mean 0.342s (see `alloc_churn_darwin_arm64_20260220_120618.md`).
    - New: const-int bound detection now resolves simple identifier aliases (e.g., `limit = fallback`)
      but aborts if any intervening control-flow assigns to the bound (rolling, 2026-02-20).
    - New run (arm64, 2026-02-20, compile-time auto-loop + trace on alloc_drop, runs=1, warmups=0):
@@ -611,28 +550,20 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New run (arm64, 2026-02-20, post list-literal sinking, runs=1, warmups=0):
      - `alloc_drop` 0.158s native (single run; compare to prior 0.166–0.171s).
    - New run (arm64, 2026-02-20, post list-literal sinking, runs=5, warmups=0):
-     - `alloc_drop` median 0.156s native; mean 0.156s (see `alloc_drop_darwin_arm64_20260220_115810.md`).
    - New run (arm64, 2026-02-20, post list-literal assign scoping, runs=5, warmups=0):
-     - `alloc_drop` median 0.155s native; mean 0.155s (see `alloc_drop_darwin_arm64_20260220_120356.md`).
    - New run (arm64, 2026-02-20, bench harness default, runs=5, warmups=1):
      - `alloc_churn` median 3.409s native; `alloc_drop` median 0.145s native
-       (see `alloc_churn_darwin_arm64_20260220_121545.md`, `alloc_drop_darwin_arm64_20260220_121608.md`).
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1`, runs=5, warmups=1):
      - `alloc_churn` median 3.643s native; `alloc_drop` median 0.152s native
-      (see `alloc_churn_darwin_arm64_20260220_122103.md`, `alloc_drop_darwin_arm64_20260220_122127.md`).
      - Note: this run set the flag at runtime only; compile-time auto-loop was not enabled.
    - New run (arm64, 2026-02-20, `OREN_ARENA_AUTO_LOOP=1` via build env, runs=5, warmups=1):
      - `alloc_churn` median 3.526s native; `alloc_drop` median 0.147s native
-       (see `alloc_churn_darwin_arm64_20260220_122307.md`, `alloc_drop_darwin_arm64_20260220_122330.md`).
    - New run (arm64, 2026-02-20, arena-backed reserve buffers + `OREN_ARENA_AUTO_LOOP=1`, runs=5, warmups=1):
      - `alloc_churn` median 0.324s native; `alloc_drop` median 0.150s native
-      (see `alloc_churn_darwin_arm64_20260220_123817.md`, `alloc_drop_darwin_arm64_20260220_123822.md`).
    - New run (arm64, 2026-02-20, recursive list-literal sinking + `OREN_ARENA_AUTO_LOOP=1`, runs=5, warmups=1):
      - `alloc_churn` median 3.532s native; `alloc_drop` median 0.148s native
-      (see `alloc_churn_darwin_arm64_20260220_124354.md`, `alloc_drop_darwin_arm64_20260220_124417.md`).
    - New run (arm64, 2026-02-20, temp+list-literal sinking, runs=5, warmups=1):
      - `alloc_churn` median 3.404s native; `alloc_drop` median 0.144s native
-       (see `alloc_churn_darwin_arm64_20260220_130107.md`, `alloc_drop_darwin_arm64_20260220_130131.md`).
    - Design + implement loop‑local arenas for list/list_int (compiler escape analysis + arena tracking table).
    - Native runtime scaffolding: `oren_arena_push/pop` + `oren_arena_new_list(_int)` (compiler lowering pending).
    - Arena cap: `OREN_ARENA_CAP_BYTES` spills allocations back to GC when exceeded.
