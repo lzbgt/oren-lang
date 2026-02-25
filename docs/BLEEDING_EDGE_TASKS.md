@@ -65,6 +65,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New: `OREN_TRACE_LIST_RESERVE_BYTES=1` reports reserve allocation/copy totals at shutdown:
      alloc_churn shows list_int_alloc_bytes=20480000 with 20000 reserve calls and zero copy bytes
      (log: `build/logs/alloc_churn_run_reserve_bytes_20260226_020050.log`).
+   - New: opt-in `OREN_OPT_LOOP_LIST_REUSE=1` cuts alloc_churn to ~6.37× C (arm64, 2026-02-26),
+     within the 8× gate, but still opt-in pending correctness hardening
+     (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_020521.md`).
    - Next: keep `alloc_drop` within target while auditing other alloc/GC workloads for regressions.
    - Gate: `alloc_churn` native <= 8x C; `alloc_drop` native <= 5x C.
 
