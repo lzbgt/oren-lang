@@ -309,17 +309,24 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
 	                // Bump-pointer heap in X28 (ptr) / X27 (limit); reuse free blocks if available.
 	                native_compile_expr(ctx, args[0]) // size -> X0
 	    
-	                // Align size up to 16: size = (size + 15) & ~15
-	                push_u32_le(ctx["code"], insn_add_imm(0, 0, 15))
-	                push_u32_le(ctx["code"], insn_movn(1, 15))      // X1 = ~0xF
-	                push_u32_le(ctx["code"], insn_and_reg(0, 0, 1)) // X0 = aligned size
-	                push_u32_le(ctx["code"], insn_mov_reg(9, 0))    // save size in X9
-	                
-	                if fn_name == "malloc_k" {
-	                    // kind -> X10 (must be preserved across reuse and syscalls)
-	                    native_compile_expr(ctx, args[1])
-	                    push_u32_le(ctx["code"], insn_mov_reg(10, 0))
-	                }
+                // Align size up to 16: size = (size + 15) & ~15
+                push_u32_le(ctx["code"], insn_add_imm(0, 0, 15))
+                push_u32_le(ctx["code"], insn_movn(1, 15))      // X1 = ~0xF
+                push_u32_le(ctx["code"], insn_and_reg(0, 0, 1)) // X0 = aligned size
+                push_u32_le(ctx["code"], insn_mov_reg(9, 0))    // save size in X9
+                
+                if fn_name == "malloc_k" {
+                    // kind -> X10 (must be preserved across reuse and syscalls)
+                    // Preserve X9 across kind eval (native_compile_expr may clobber it).
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_reg_sp(9, 0))
+                    ctx["stack_size"] = ctx["stack_size"] + 16
+                    native_compile_expr(ctx, args[1])
+                    push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 0))
+                    push_u32_le(ctx["code"], insn_add_sp(16))
+                    ctx["stack_size"] = ctx["stack_size"] - 16
+                    push_u32_le(ctx["code"], insn_mov_reg(10, 0))
+                }
 	    
 	                // SAVE X9 (and X10 for malloc_k) across helper call.
 	                if fn_name == "malloc_k" {

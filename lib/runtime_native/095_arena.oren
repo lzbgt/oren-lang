@@ -593,6 +593,7 @@ fn native_arena_new_list(cap) {
     if cap < 0 { cap = 0 }
     var total = 32
     if cap > 0 { total = total + cap * 8 }
+    _list_new_cap_emit(2, cap, total, 2)
     var header = native_arena_alloc_k(total, 2)
     if header == 0 { exit(200) }
     if header == -1 { exit(200) }
@@ -616,6 +617,7 @@ fn native_arena_new_list_int(cap) {
     if cap < 0 { cap = 0 }
     var total = 32
     if cap > 0 { total = total + cap * 8 }
+    _list_new_cap_emit(list_int_kind(), cap, total, 2)
     var header = native_arena_alloc_k(total, list_int_kind())
     if header == 0 { exit(200) }
     if header == -1 { exit(200) }

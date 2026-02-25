@@ -4,15 +4,16 @@ fn list_int_kind() { return 8 } // LIST_INT (unboxed int list)
 	@oren.keep
 fn oren_new_list(cap) {
     if cap < 0 { cap = 0 }
-	    // Performance (native tooling / stage2-native compiler):
+    // Performance (native tooling / stage2-native compiler):
 	    // Allocate header + initial buffer in a single tracked block to cut allocation+tracking
 	    // overhead in half for the common "many small lists" workload (AST/IR graphs).
 	    //
 	    // Layout remains stable:
 	    //   [count][capacity][buffer_ptr][magic]
 	    // When cap>0, buffer_ptr points to inline storage at header+32.
-	    var total = 32
-	    if cap > 0 { total = total + cap * 8 }
+    var total = 32
+    if cap > 0 { total = total + cap * 8 }
+    _list_new_cap_emit(2, cap, total, 1)
     var header = malloc_k(total, 2)
     if header == 0 { exit(200) }
     if header == -1 { exit(200) }
@@ -37,6 +38,7 @@ fn oren_new_list_int(cap) {
     if cap < 0 { cap = 0 }
     var total = 32
     if cap > 0 { total = total + cap * 8 }
+    _list_new_cap_emit(list_int_kind(), cap, total, 1)
     var header = malloc_k(total, list_int_kind())
     if header == 0 { exit(200) }
     if header == -1 { exit(200) }
@@ -93,6 +95,11 @@ var g_trace_list_hdr_ring_head = 0
 var g_trace_list_hdr_ring_envp = 0
 var g_trace_list_hdr_ring_argv = 0
 var g_trace_list_hdr_ring_argc = 0
+var g_trace_list_new_cap = -1
+var g_trace_list_new_cap_limit = 0
+var g_trace_list_new_cap_envp = 0
+var g_trace_list_new_cap_argv = 0
+var g_trace_list_new_cap_argc = 0
 
 fn _list_assume_list_enabled() {
     if g_list_assume_list != -1 { return g_list_assume_list == 1 }
@@ -190,6 +197,54 @@ fn _list_hdr_ring_enabled() {
     g_trace_list_hdr_ring_ptr = buf
     g_trace_list_hdr_ring_head = 0
     return true
+}
+
+fn _list_new_cap_enabled() {
+    if g_trace_list_new_cap == 1 { return true }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_list_new_cap == 0 {
+        if cur_envp == g_trace_list_new_cap_envp &&
+           cur_argv == g_trace_list_new_cap_argv &&
+           cur_argc == g_trace_list_new_cap_argc {
+            return false
+        }
+    }
+    var v = native_envp_get_value_ptr("OREN_TRACE_LIST_NEW_CAP")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_list_new_cap == -1 || g_trace_list_new_cap == 0 {
+            g_trace_list_new_cap = 0
+            g_trace_list_new_cap_envp = cur_envp
+            g_trace_list_new_cap_argv = cur_argv
+            g_trace_list_new_cap_argc = cur_argc
+        }
+        return false
+    }
+    g_trace_list_new_cap = 1
+    g_trace_list_new_cap_envp = cur_envp
+    g_trace_list_new_cap_argv = cur_argv
+    g_trace_list_new_cap_argc = cur_argc
+    g_trace_list_new_cap_limit = 1048576
+    var v_cap = native_envp_get_value_ptr("OREN_TRACE_LIST_NEW_CAP_LIMIT")
+    if v_cap != 0 && ptr_get_byte(v_cap) != 0 {
+        var cap = oren_int_from_string(v_cap)
+        if cap > 0 { g_trace_list_new_cap_limit = cap }
+    }
+    print("[list_new_cap] enabled limit=" + oren_int_to_string(g_trace_list_new_cap_limit))
+    return true
+}
+
+fn _list_new_cap_emit(kind, cap, total, mode) {
+    if _list_new_cap_enabled() != true { return 0 }
+    var limit = g_trace_list_new_cap_limit
+    if limit <= 0 { limit = 1048576 }
+    if cap < limit && total < limit { return 0 }
+    print("[list_new_cap] kind=" + oren_int_to_string(kind) +
+          " cap=" + oren_int_to_string(cap) +
+          " total=" + oren_int_to_string(total) +
+          " mode=" + oren_int_to_string(mode))
+    return 0
 }
 
 fn _list_hdr_ring_put(op, list, kind) {

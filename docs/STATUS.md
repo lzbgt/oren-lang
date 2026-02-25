@@ -192,6 +192,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
       - list_int allocations are tracked with a huge `size` (~6.12e9) at `oren_track_alloc_new` time, before header fields
         are initialized (len/cap/magic = 0), which means the corruption is already present in the `size` argument passed
         into tracking (log: `build/logs/bench_run_alloc_churn_20260225_203557/oren_native/run_0.log`).
+    - New: arm64 native `malloc_k` preserves size across kind-eval (compiler fix, 2026-02-25).
+      - Follow-up alloc_churn trace with `OREN_TRACE_LIST_NEW_CAP=1` + `OREN_TRACE_LIST_TRACK_SIZE=1` shows no list allocations
+        with size >= 1 MiB, suggesting the huge-size tracking corruption may be resolved (log: `build/logs/bench_run_alloc_churn_20260225_205122/oren_native/run_0.log`).
+      - TODO: re-run GC free-list trace (`OREN_TRACE_GC_FREE_LIST_HEADERS=1`, `OREN_GC_AUTO=1`) to confirm node sizes are sane.
     - Partial alloc_drop free-list trace (arm64, 2026-02-25, `OREN_TRACE_GC_FREE_LIST_HEADERS=1`): list headers free with normal
       chunk sizes (32/64) and valid magic (log: `build/logs/alloc_drop_free_list_trace_20260225_200437.log`).
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
