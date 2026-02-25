@@ -199,6 +199,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
         `chunk=32` and no huge sizes (log: `build/logs/bench_run_alloc_churn_20260225_210209/oren_native/run_0.log`).
       - NOTE: a heavier trace run (GC auto + list header/native list traces) triggered `list_int_reserve on non-list` panic; needs triage
         to confirm whether the trace stack or GC path can still corrupt list metadata (log: `build/logs/bench_run_alloc_churn_20260225_205603/oren_native/run_0.log`).
+      - New: same GC auto trace without `OREN_TRACE_NATIVE_LIST_HDR` completes and shows sane free-list chunks + list headers, suggesting the
+        panic is tied to native list tracing (log: `build/logs/bench_run_alloc_churn_20260225_210329/oren_native/run_0.log`).
     - Partial alloc_drop free-list trace (arm64, 2026-02-25, `OREN_TRACE_GC_FREE_LIST_HEADERS=1`): list headers free with normal
       chunk sizes (32/64) and valid magic (log: `build/logs/alloc_drop_free_list_trace_20260225_200437.log`).
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
