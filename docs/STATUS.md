@@ -180,6 +180,12 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - List trace now re-checks env when envp/argv/argc change to avoid caching off before runtime init (rolling, 2026-02-25).
     - New alloc_churn trace (arm64, 2026-02-25, `OREN_TRACE_NATIVE_LIST_HDR=1` + `OREN_TRACE_LIST_HEADER=1`, cap=200):
       - `op=6` list_int_reserve to cap=128 (per list), followed by `op=7` list_int_push count update after the fast loop.
+    - New alloc_churn free-list trace (arm64, 2026-02-25, `OREN_ARENA_AUTO_LOOP=0`, `OREN_TRACE_GC_FREE_LIST_HEADERS=1`,
+      `OREN_TRACE_LIST_HEADER=1`, `OREN_GC_ALLOC_THRESHOLD=1000`): list_int headers free with len/cap=128 and magic ok, but
+      free-list `chunk` sizes are huge (~6.16e9) and `freed_bytes` spikes, suggesting tracking-node size corruption even when
+      header fields look valid (log: `build/logs/alloc_churn_free_list_trace_20260225_200907.log`).
+    - Partial alloc_drop free-list trace (arm64, 2026-02-25, `OREN_TRACE_GC_FREE_LIST_HEADERS=1`): list headers free with normal
+      chunk sizes (32/64) and valid magic (log: `build/logs/alloc_drop_free_list_trace_20260225_200437.log`).
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
      `oren_arena_new_list(cap)`, and `oren_arena_new_list_auto(cap)` as list constructors and propagates list metadata across simple alias assignments,
      extending reserve/unchecked-push rewrites (rolling, 2026-02-24).
@@ -630,6 +636,7 @@ until perf + parity gates are within range.
    - Expand fast-path tracing on native emitters (arm64 + x64) to pin header writes (`OREN_TRACE_NATIVE_LIST_HDR=1`).
      - Done: arm64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-25).
      - Next: correlate list_hdr traces with free-list header dumps to find the first corrupt write.
+     - Investigate list_int tracking-node size corruption (alloc_churn free-list traces show huge chunk sizes despite valid headers).
    - Gate: no header corruption under alloc benches with reuse disabled; reuse paths stay guarded until verified.
 
 4) **Tagged value convergence plan** (L, W5)
