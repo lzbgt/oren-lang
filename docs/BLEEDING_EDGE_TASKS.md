@@ -46,6 +46,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace: list_alloc + arena trace (arm64, 2026-02-26) shows list_int headers with `mode=2` (arena ctor) but
      `OREN_TRACE_ARENA=1` reports `allocs=0`, suggesting arena allocs are spilling to malloc or trace enable is late
      (log: `build/logs/alloc_churn_manual_run_list_alloc_arena_20260226_002922.log`).
+   - New: `OREN_TRACE_ARENA_SPILL=1` reports spill reasons (depth=0, size<=0, cap, mmap failure) to explain
+     `mode=2` list allocations with `allocs=0` (rolling, 2026-02-26).
+   - Trace: native build (runtime cache disabled) shows arena allocs=3, no spills; prior `allocs=0` was from
+     a non-native build artifact (log: `build/logs/alloc_churn_manual_run_arena_spill_native_20260226_003939.log`).
    - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added.
      Alloc_churn run emits no `[list_reserve]`/`[list_buf]` lines (log: `build/logs/alloc_churn_manual_run_reserve_default_20260226_002457.log`),
      so reserve path likely isn’t executed in the native fast loop or is elided before runtime.

@@ -244,6 +244,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - New: list_alloc + arena trace (arm64, 2026-02-26) shows list_int headers with `mode=2` (arena ctor) while
       `OREN_TRACE_ARENA=1` reports `allocs=0`, suggesting arena allocs are spilling to malloc or trace enable is late
       (log: `build/logs/alloc_churn_manual_run_list_alloc_arena_20260226_002922.log`).
+    - New: `OREN_TRACE_ARENA_SPILL=1` reports arena spill reasons (depth=0, size<=0, cap, mmap failure) to explain
+      `mode=2` list allocations with `allocs=0` in arena traces (rolling, 2026-02-26).
+    - New: when built with `--backend native` (runtime cache disabled), alloc_churn shows arena allocs=3 with no spills,
+      confirming arena is active and prior `allocs=0` was from a non-native build artifact
+      (log: `build/logs/alloc_churn_manual_run_arena_spill_native_20260226_003939.log`).
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
      `oren_arena_new_list(cap)`, and `oren_arena_new_list_auto(cap)` as list constructors and propagates list metadata across simple alias assignments,
      extending reserve/unchecked-push rewrites (rolling, 2026-02-24).

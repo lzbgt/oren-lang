@@ -31,6 +31,9 @@ var g_arena_iter_push_count = 0
 var g_arena_iter_pop_count = 0
 var g_arena_iter_spill_count = 0
 var g_arena_iter_spill_bytes = 0
+var g_arena_trace_spill = -1
+var g_arena_trace_spill_cap = 0
+var g_arena_last_spill_reason = 0
 
 // Arena stack (per-depth checkpoints for ptr/limit/base/bytes_used).
 var g_arena_stack_ptr = 0
@@ -232,6 +235,37 @@ fn native_arena_trace_enable() {
     return 0
 }
 
+fn native_arena_trace_spill_enabled() {
+    if g_arena_trace_spill == 1 { return true }
+    if g_arena_trace_spill == 0 { return false }
+    var v = native_envp_get_value_ptr("OREN_TRACE_ARENA_SPILL")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        g_arena_trace_spill = 0
+        return false
+    }
+    g_arena_trace_spill = 1
+    var v_cap = native_envp_get_value_ptr("OREN_TRACE_ARENA_SPILL_CAP")
+    if v_cap != 0 && ptr_get_byte(v_cap) != 0 {
+        var cap = native_parse_i64_dec_cstr_or_neg1(v_cap)
+        if cap > 0 { g_arena_trace_spill_cap = cap }
+    }
+    if g_arena_trace_spill_cap <= 0 { g_arena_trace_spill_cap = 128 }
+    return true
+}
+
+fn native_arena_trace_spill_emit(size, kind, reason) {
+    if native_arena_trace_spill_enabled() != true { return 0 }
+    if g_arena_trace_spill_cap <= 0 { return 0 }
+    g_arena_trace_spill_cap = g_arena_trace_spill_cap - 1
+    print("[arena_spill] reason=" + oren_int_to_string(reason) +
+          " size=" + oren_int_to_string(size) +
+          " kind=" + oren_int_to_string(kind) +
+          " depth=" + oren_int_to_string(g_arena_depth) +
+          " used=" + oren_int_to_string(g_arena_bytes_used) +
+          " cap=" + oren_int_to_string(g_arena_bytes_cap))
+    return 0
+}
+
 fn native_arena_trace_dump_and_reset() {
     if g_arena_trace_enabled == 0 { return 0 }
     print("[arena] allocs=" + oren_int_to_string(g_arena_alloc_count) +
@@ -262,8 +296,8 @@ fn native_arena_trace_dump_and_reset() {
 }
 
 fn native_arena_alloc_raw(size) {
-    if g_arena_depth <= 0 { return 0 }
-    if size <= 0 { return 0 }
+    if g_arena_depth <= 0 { g_arena_last_spill_reason = 1; return 0 }
+    if size <= 0 { g_arena_last_spill_reason = 2; return 0 }
     if g_arena_inited == 0 { native_arena_init_once() }
     var want = native_arena_align16(size)
     if g_arena_bytes_cap > 0 {
@@ -277,6 +311,7 @@ fn native_arena_alloc_raw(size) {
                     g_arena_iter_spill_bytes = g_arena_iter_spill_bytes + want
                 }
             }
+            g_arena_last_spill_reason = 3
             return 0
         }
     }
@@ -288,18 +323,22 @@ fn native_arena_alloc_raw(size) {
         var base = sys_mmap_private_anon(chunk)
         if base == 0 {
             if g_arena_trace_enabled != 0 { g_arena_mmap_fail_count = g_arena_mmap_fail_count + 1 }
+            g_arena_last_spill_reason = 4
             return 0
         }
         if base == -1 {
             if g_arena_trace_enabled != 0 { g_arena_mmap_fail_count = g_arena_mmap_fail_count + 1 }
+            g_arena_last_spill_reason = 4
             return 0
         }
         if native_is_neg_i64(base) == true {
             if g_arena_trace_enabled != 0 { g_arena_mmap_fail_count = g_arena_mmap_fail_count + 1 }
+            g_arena_last_spill_reason = 4
             return 0
         }
         if base < 4096 {
             if g_arena_trace_enabled != 0 { g_arena_mmap_fail_count = g_arena_mmap_fail_count + 1 }
+            g_arena_last_spill_reason = 4
             return 0
         }
         g_arena_base = base
@@ -310,6 +349,7 @@ fn native_arena_alloc_raw(size) {
             g_arena_alloc_count = g_arena_alloc_count + 1
             g_arena_alloc_bytes = g_arena_alloc_bytes + want
         }
+        g_arena_last_spill_reason = 0
         return base
     }
     g_arena_ptr = iadd(cur, want)
@@ -318,6 +358,7 @@ fn native_arena_alloc_raw(size) {
         g_arena_alloc_count = g_arena_alloc_count + 1
         g_arena_alloc_bytes = g_arena_alloc_bytes + want
     }
+    g_arena_last_spill_reason = 0
     return cur
 }
 
@@ -522,6 +563,9 @@ fn native_arena_alloc_k(size, kind) {
     if p != 0 {
         native_arena_track(p, size, kind)
         return p
+    }
+    if g_arena_last_spill_reason != 0 {
+        native_arena_trace_spill_emit(size, kind, g_arena_last_spill_reason)
     }
     return malloc_k(size, kind)
 }
