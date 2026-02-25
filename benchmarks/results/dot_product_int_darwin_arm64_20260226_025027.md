@@ -1,4 +1,4 @@
-# dot_product benchmark (20260226_023814)
+# dot_product_int benchmark (20260226_025027)
 
 ## Host
 
@@ -8,12 +8,12 @@
 - cpu: Apple M2 Pro
 - cpu_cores: 10
 - mem_bytes: 17179869184
-- git_rev: b9035ad3f494037525571658e74b4eb73361e5bd
+- git_rev: fb19789ed2ceb7ef2ccff76a96a66de60d6bc967
 - runs: 5 (warmups: 1)
 
 ## Env (OREN_*)
 
-- OREN_BENCH_PROGRAM=all
+- OREN_BENCH_PROGRAMS=dot_product,dot_product_int
 - OREN_BENCH_UPDATE_LATEST=1
 - OREN_BENCH_UPDATE_LATEST_PRUNE=1
 
@@ -21,9 +21,9 @@
 
 | variant | median | mean | min | max |
 | --- | --- | --- | --- | --- |
-| c | 0.005442 | 0.005497 | 0.005391 | 0.005633 |
-| oren_c | 0.012820 | 0.012753 | 0.012561 | 0.012975 |
-| oren_native | 0.023512 | 0.023305 | 0.022414 | 0.023848 |
-| oren_obc | 0.388749 | 0.389243 | 0.388017 | 0.391772 |
+| c | 0.005296 | 0.005334 | 0.005244 | 0.005459 |
+| oren_c | 0.015252 | 0.015576 | 0.014632 | 0.016924 |
+| oren_native | 0.021807 | 0.021827 | 0.021603 | 0.022140 |
+| oren_obc | 0.379132 | 0.377784 | 0.374489 | 0.379643 |
 
 Output checksum (stdout): `507588000000`

@@ -503,7 +503,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0) // patched: b.ge single
     }
 
-    gc.native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 1023)
+    gc.native_emit_gc_safepoint_inline_tick(ctx, 4095)
 
     // reload i + sum after safepoint
     emit_ldr_reg_sp_any(ctx, 20, i_off)
