@@ -448,7 +448,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      Ring buffer size for bad-list correlation via `OREN_TRACE_LIST_ALLOC_RING_CAP`
      (default 4096); `gc_reuse_bad_list` now emits a matching `[gc_reuse_bad_list_site]`
      line when the pointer is still in the ring (rolling, 2026-02-25).
-   - New: `OREN_TRACE_LIST_HDR_RING=1` records list header mutations (new/reserve/push ops)
+   - New: `OREN_TRACE_LIST_HDR_RING=1` records list header mutations (new/reserve/push/set/clear ops,
+     including list<int> variants)
      in a ring; `OREN_TRACE_LIST_HDR_RING_CAP` controls size (default 4096). When a
      `gc_reuse_bad_list` is reported, the ring is searched and matching `[list_hdr_ring]`
      entries are emitted (rolling, 2026-02-25).

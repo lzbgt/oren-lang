@@ -504,7 +504,8 @@ fn _list_hdr_ring_put(op, list, kind) {
     if g_trace_list_hdr_ring_ptr == 0 { return 0 }
     if g_trace_list_hdr_ring_cap <= 0 { return 0 }
     if list == 0 || list < 4096 { return 0 }
-    if op != 1 && op != 2 && op != 3 && op != 4 && op != 5 && op != 6 && op != 7 && op != 8 { return 0 }
+    if op != 1 && op != 2 && op != 3 && op != 4 && op != 5 && op != 6 && op != 7 && op != 8 &&
+       op != 9 && op != 10 && op != 11 && op != 12 { return 0 }
     var idx = g_trace_list_hdr_ring_head % g_trace_list_hdr_ring_cap
     var off = idx * 56
     var base = g_trace_list_hdr_ring_ptr
@@ -705,6 +706,7 @@ fn oren_list_clear(list) {
         if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_clear on non-list"); return nil }
     }
     ptr_set(iadd(list, 0), 0)
+    _list_trace_emit(10, list, 2) // list_clear
     return nil
 }
 
@@ -955,6 +957,7 @@ fn oren_list_int_clear(list) {
     if ptr_get(iadd(node, 16)) != list_int_kind() { _list_trace_dump(list); oren_panic("list_int_clear on non-list"); return nil }
     if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("list_int_clear on non-list"); return nil }
     ptr_set(iadd(list, 0), 0)
+    _list_trace_emit(12, list, list_int_kind()) // list_int_clear
     return nil
 }
 
@@ -1163,6 +1166,7 @@ fn oren_list_int_set(list, idx, value) {
     ptr_set(iadd(buf, idx * 8), value)
     if want > count { ptr_set(iadd(list, 0), want) }
     _list_corrupt_check(list, 14) // list_int_set
+    _list_trace_emit(11, list, list_int_kind()) // list_int_set
     return value
 }
 
@@ -1360,5 +1364,6 @@ fn oren_list_set(list, idx, value) {
     ptr_set(iadd(buf, idx * 8), value)
     if want > count { ptr_set(iadd(list, 0), want) }
     _list_corrupt_check(list, 4) // list_set
+    _list_trace_emit(9, list, 2) // list_set
     return value
 }
