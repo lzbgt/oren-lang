@@ -104,6 +104,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     - New: defer capsule-only NET/PROC tables to `native_runtime_capsule_init` to reduce non-capsule runtime init cost; remeasure init/steady split (2026-02-25).
     - Measured: native init 0.003006s, steady 0.223682s (arm64 macOS, 2026-02-26).
     - New: native LCG fast loops use reciprocal fastmod when mod constants fit (arm64 + x64).
+    - New: dot_product native improved to 2.43× C (arm64 macOS, 2026-02-26).
+    - New: arm64 list<int> get-sum + dot loops keep i/sum in registers across iterations (2026-02-26).
     - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
    - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
    - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
@@ -126,6 +128,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Gate: deterministic fixtures + Tier-1 matrix.
 
 7) **SIMD + typed-buffer kernels for list<int> hot paths**
+   - Baseline (arm64 native, 2026-02-26): `dot_product_int` 2.55× C.
    - arm64 NEON + x64 SSE2 baseline; keep scalar equivalence.
    - Gate: `dot_product_int` native <= 2x C.
 

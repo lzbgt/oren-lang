@@ -119,6 +119,7 @@ fn insn_setcc_al(cc) { return core.insn_setcc_al(cc) }
 fn insn_imul_r32_imm32(reg, imm32) { return core.insn_imul_r32_imm32(reg, imm32) }
 fn insn_imul_r64_imm32(reg, imm32) { return core.insn_imul_r64_imm32(reg, imm32) }
 fn insn_imul_r64_r64(dst, src) { return core.insn_imul_r64_r64(dst, src) }
+fn insn_mul_r64(reg) { return core.insn_mul_r64(reg) }
 fn insn_and_r64_imm32(reg, imm32) { return core.insn_and_r64_imm32(reg, imm32) }
 fn insn_or_r64_imm32(reg, imm32) { return core.insn_or_r64_imm32(reg, imm32) }
 fn insn_xor_r64_imm32(reg, imm32) { return core.insn_xor_r64_imm32(reg, imm32) }
