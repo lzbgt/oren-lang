@@ -768,4 +768,3 @@ fn _x64_match_fast_list_dot_while(ctx, op, locals) {
     if oren_list_len(muls) == 0 { return nil }
     return {"idx": idx_name, "n": n_name, "sum": sum_name, "lists": lists, "muls": muls}
 }
-

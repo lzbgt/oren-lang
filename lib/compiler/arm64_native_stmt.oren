@@ -25,6 +25,70 @@ fn scope_current_codegen(ctx) { return core.scope_current_codegen(ctx) }
 fn scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_inty, prev_int_const, prev_stringy, prev_list_stringy) { return core.scope_mark_declared_codegen(ctx, name, prev_off, prev_floaty, prev_inty, prev_int_const, prev_stringy, prev_list_stringy) }
 fn scope_exit_codegen(ctx) { return core.scope_exit_codegen(ctx) }
 
+fn _arm64_list_name_in_fast(list_name, lists) {
+    if list_name == nil || lists == nil { return false }
+    var i = 0
+    while i < oren_list_len(lists) {
+        if loopm._arm64_str_eq_bytes(lists[i], list_name) == true { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _arm64_reserve_call_info(stmt) {
+    if stmt == nil || stmt["type"] != "ExprStmt" { return nil }
+    var expr = stmt["expr"]
+    if expr == nil || expr["type"] != "Call" { return nil }
+    var fn0 = expr["fn"]
+    if fn0 == nil || fn0["type"] != "Identifier" { return nil }
+    var nm = fn0["value"]
+    var kind = nil
+    if nm == "oren_list_int_reserve" || nm == "STD_list_int_reserve" { kind = "list_int" }
+    else if nm == "oren_list_reserve" || nm == "STD_list_reserve" { kind = "list" }
+    else { return nil }
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) < 2 { return nil }
+    var recv = args[0]
+    if recv == nil || recv["type"] != "Identifier" { return nil }
+    return {"kind": kind, "list": recv["value"], "cap_expr": args[1]}
+}
+
+fn _arm64_reserve_cap_matches_fast(res_info, fast_info) {
+    if res_info == nil || fast_info == nil { return false }
+    var cap_expr = res_info["cap_expr"]
+    if cap_expr == nil { return false }
+    var n_name = fast_info["n"]
+    var n_const = fast_info["n_const"]
+    if n_name != nil {
+        if cap_expr["type"] == "Identifier" && loopm._arm64_str_eq_bytes(cap_expr["value"], n_name) == true { return true }
+    } else if n_const != nil {
+        if cap_expr["type"] == "Integer" {
+            var v = intparse.parse_int_lit(cap_expr["value"])
+            if oren_is_err(v) != true && v == n_const { return true }
+        }
+    }
+    return false
+}
+
+fn _arm64_should_skip_reserve_stmt(cur, next, ctx) {
+    var res_info = _arm64_reserve_call_info(cur)
+    if res_info == nil || next == nil { return false }
+    if next["type"] != "While" { return false }
+    if res_info["kind"] == "list_int" {
+        var fast_info = loopm._arm64_match_fast_list_int_push_while(ctx, next)
+        if fast_info == nil { return false }
+        if _arm64_list_name_in_fast(res_info["list"], fast_info["lists"]) != true { return false }
+        return _arm64_reserve_cap_matches_fast(res_info, fast_info)
+    }
+    if res_info["kind"] == "list" {
+        var fast_info2 = loopm._arm64_match_fast_list_push_while(ctx, next)
+        if fast_info2 == nil { return false }
+        if _arm64_list_name_in_fast(res_info["list"], fast_info2["lists"]) != true { return false }
+        return _arm64_reserve_cap_matches_fast(res_info, fast_info2)
+    }
+    return false
+}
+
 fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
 fn push_u64_le(buf, n) { return core.push_u64_le(buf, n) }
 fn push_u32_be(buf, n) { return core.push_u32_be(buf, n) }
@@ -238,7 +302,14 @@ fn native_compile_stmt_inner(ctx, stmt) {
         var i = 0
         var falls_through = true
         while i < oren_list_len(stmts) {
-            var r = native_compile_stmt(ctx, stmts[i])
+            var cur = stmts[i]
+            var next = nil
+            if i + 1 < oren_list_len(stmts) { next = stmts[i + 1] }
+            if _arm64_should_skip_reserve_stmt(cur, next, ctx) == true {
+                i = i + 1
+                continue
+            }
+            var r = native_compile_stmt(ctx, cur)
             if r == false {
                 falls_through = false
                 break

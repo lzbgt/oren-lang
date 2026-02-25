@@ -1,3 +1,78 @@
+fn _x64_str_eq_bytes_local(a, b) {
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _x64_list_name_in_fast(list_name, lists) {
+    if list_name == nil || lists == nil { return false }
+    var i = 0
+    while i < oren_list_len(lists) {
+        if _x64_str_eq_bytes_local(lists[i], list_name) == true { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _x64_reserve_call_info(op) {
+    if op == nil || op["op"] != "expr" { return nil }
+    var expr = op["expr"]
+    if expr == nil || expr["type"] != "Call" { return nil }
+    var fn0 = expr["fn"]
+    if fn0 == nil || fn0["type"] != "Identifier" { return nil }
+    var nm = fn0["value"]
+    var kind = nil
+    if nm == "oren_list_int_reserve" || nm == "STD_list_int_reserve" { kind = "list_int" }
+    else if nm == "oren_list_reserve" || nm == "STD_list_reserve" { kind = "list" }
+    else { return nil }
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) < 2 { return nil }
+    var recv = args[0]
+    if recv == nil || recv["type"] != "Identifier" { return nil }
+    return {"kind": kind, "list": recv["value"], "cap_expr": args[1]}
+}
+
+fn _x64_reserve_cap_matches_fast(res_info, fast_info) {
+    if res_info == nil || fast_info == nil { return false }
+    var cap_expr = res_info["cap_expr"]
+    if cap_expr == nil { return false }
+    var n_name = fast_info["n"]
+    var n_const = fast_info["n_const"]
+    if n_name != nil {
+        if cap_expr["type"] == "Identifier" && _x64_str_eq_bytes_local(cap_expr["value"], n_name) == true { return true }
+    } else if n_const != nil {
+        if cap_expr["type"] == "Integer" && cap_expr["value"] == oren_int_to_string(n_const) { return true }
+    }
+    return false
+}
+
+fn _x64_should_skip_reserve_op(op, next, ctx, locals) {
+    var res_info = _x64_reserve_call_info(op)
+    if res_info == nil || next == nil { return false }
+    if next["op"] != "while" { return false }
+    if res_info["kind"] == "list_int" {
+        var fast_info = _x64_match_fast_list_int_push_while(ctx, next, locals)
+        if fast_info == nil { return false }
+        if _x64_list_name_in_fast(res_info["list"], fast_info["lists"]) != true { return false }
+        return _x64_reserve_cap_matches_fast(res_info, fast_info)
+    }
+    if res_info["kind"] == "list" {
+        var fast_info2 = _x64_match_fast_list_push_while(ctx, next, locals)
+        if fast_info2 == nil { return false }
+        if _x64_list_name_in_fast(res_info["list"], fast_info2["lists"]) != true { return false }
+        return _x64_reserve_cap_matches_fast(res_info, fast_info2)
+    }
+    return false
+}
+
 fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platform, loop_cond_label, loop_end_label) {
     var n = 0
     if ops != nil { n = oren_list_len(ops) }
@@ -13,6 +88,12 @@ fn _emit_ops_in_fn(ctx, ops, locals, labels, local_fixups, epilogue_label, platf
     while j < n {
         var op = ops[j]
         if op == nil { j = j + 1; continue }
+        var next = nil
+        if j + 1 < n { next = ops[j + 1] }
+        if _x64_should_skip_reserve_op(op, next, ctx, locals) == true {
+            j = j + 1
+            continue
+        }
         if trace && core.int_mod(j, trace_stride) == 0 {
             var opk = op["op"]
             if opk == nil { opk = "?" }

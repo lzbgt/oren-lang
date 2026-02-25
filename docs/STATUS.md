@@ -239,8 +239,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - Partial alloc_drop free-list trace (arm64, 2026-02-25, `OREN_TRACE_GC_FREE_LIST_HEADERS=1`): list headers free with normal
       chunk sizes (32/64) and valid magic (log: `build/logs/alloc_drop_free_list_trace_20260225_200437.log`).
     - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added; alloc_churn run
-      emits no `[list_reserve]`/`[list_buf]` lines (log: `build/logs/alloc_churn_manual_run_reserve_default_20260226_002457.log`),
-      implying the native fast path is not calling the runtime reserve path or the call is elided before runtime.
+      now emits `[list_reserve]` + `[list_buf]` lines, confirming runtime reserve execution
+      (log: `build/logs/alloc_churn_run_trace_20260226_013845.log`).
     - New: list_alloc + arena trace (arm64, 2026-02-26) shows list_int headers with `mode=2` (arena ctor) while
       `OREN_TRACE_ARENA=1` reports `allocs=0`, suggesting arena allocs are spilling to malloc or trace enable is late
       (log: `build/logs/alloc_churn_manual_run_list_alloc_arena_20260226_002922.log`).
@@ -257,9 +257,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - New: alloc_churn native run with `OREN_TRACE_NATIVE_LIST_RESERVE=1` + `OREN_TRACE_LIST_RESERVE_RT=1` shows
       list<int> reserve executes at runtime and allocates 1024-byte buffers via `_list_alloc_buf`
       (log: `build/logs/alloc_churn_manual_run_trace_reserve_fast2_20260226_004803.log`).
-      - Trace also shows a second `list_int_reserve` call with `cap=128` and `new_cap=128` on the same list,
-        implying the fast-loop reserve path is called even after the pre-reserve (investigate cap compare or
-        duplicate reserve insertion).
+      - Follow-up reserve trace shows stage=1/2 pairs per list with no duplicate stage=1 per list
+        (log: `build/logs/alloc_churn_run_trace_20260226_013845.log`), so the earlier redundant-reserve suspicion
+        is cleared for this run.
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
      `oren_arena_new_list(cap)`, and `oren_arena_new_list_auto(cap)` as list constructors and propagates list metadata across simple alias assignments,
      extending reserve/unchecked-push rewrites (rolling, 2026-02-24).
@@ -746,6 +746,8 @@ until perf + parity gates are within range.
 
 6) **Native scheduler / green-task integration** (L, W4)
    - Keep syscall-first constraints.
+   - Note: `test_green_global_runq_fairness` returned -60 once during `make test` on 2026-02-26; rerun passed.
+     Treat as a potential flake and keep an eye on fairness/timeout robustness.
    - Gate: `make test` + Tier-1 matrix.
 
 ## P1 (Soon)
