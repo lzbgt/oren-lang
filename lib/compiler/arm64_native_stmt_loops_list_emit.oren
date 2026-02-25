@@ -1087,7 +1087,7 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
-    gc.native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 255)
+    gc.native_emit_gc_safepoint_inline_tick(ctx, 4095)
 
     // reload i + sum after safepoint
     emit_ldr_reg_sp_any(ctx, 20, i_off)
@@ -1347,7 +1347,7 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
-    gc.native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 255)
+    gc.native_emit_gc_safepoint_inline_tick(ctx, 4095)
 
     // Keep idx local updated for value expressions.
     emit_str_reg_fp_any(ctx, 20, idx_fp_off)

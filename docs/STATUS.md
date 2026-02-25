@@ -636,7 +636,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
 
 7) **W3 - AVM unboxed list<int> payload + lowering** (M)
    - Baseline (OBC, 2026-02-26): `dot_product_int` 71.58× C, `array_sum_int` 58.29× C.
-   - Baseline (native, 2026-02-26): `array_sum_int` 3.80× C, `multi_list_sum` 3.18× C.
+   - Baseline (native, 2026-02-26): `array_sum` 3.62× C, `dot_product` 4.30× C,
+     `array_sum_int` 3.80× C, `multi_list_sum` 3.18× C.
    - Implement list<int> payload + OBC lowering.
    - Gate: list<int> fixtures + OBC perf parity for dot/sum loops.
 
