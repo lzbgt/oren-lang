@@ -101,6 +101,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `OREN_TRACE_TRACK_ALLOC_NEW_SIZE_MIN=32768` (stdout check disabled) logged
      `size=160000 kind=0` in each native run log
      (`build/logs/bench_run_alloc_churn_20260226_050943/oren_native/run_*.log`).
+   - Trace: pre-track tag `[alloc_req]` did not appear in the native run logs above
+     (only `[track_alloc_new_size]` emitted), so the pre-track hook may not be firing
+     for runtime allocations yet (investigate compiler/runtime bundle flag propagation).
    - New: `OREN_TRACE_NATIVE_ALLOC_REQ=1` emits a native-side pre-track trace
      (`oren_trace_alloc_request`) before `oren_track_alloc_new` to catch size corruption at the call site.
    - Instrument `malloc_k`/arena callers to log size+cap before tracking when `size` is implausible, and audit
