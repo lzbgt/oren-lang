@@ -1,0 +1,96 @@
+import core "arm64_core.oren"
+
+// GC safepoint helpers factored out of arm64_native_stmt.oren to keep stmt emission lean.
+
+fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
+fn bytes_len(b) { return core.bytes_len(b) }
+fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
+
+fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
+fn insn_and_reg(rd, rn, rm) { return core.insn_and_reg(rd, rn, rm) }
+fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
+fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
+fn insn_ldp_pair_post(rt, rt2, rn, offset) { return core.insn_ldp_pair_post(rt, rt2, rn, offset) }
+fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
+fn insn_stp_pair_pre(rt, rt2, rn, offset) { return core.insn_stp_pair_pre(rt, rt2, rn, offset) }
+
+fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
+fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
+
+fn native_emit_gc_safepoint_call(ctx) {
+    // Spill callee-saved regs so conservative GC sees register-held pointers.
+    push_u32_le(ctx["code"], insn_stp_pair_pre(19, 20, 31, -16))
+    push_u32_le(ctx["code"], insn_stp_pair_pre(21, 22, 31, -16))
+    push_u32_le(ctx["code"], insn_stp_pair_pre(23, 24, 31, -16))
+    push_u32_le(ctx["code"], insn_stp_pair_pre(25, 26, 31, -16))
+    push_u32_le(ctx["code"], insn_stp_pair_pre(27, 28, 31, -16))
+
+    var bl_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_pos, "name": "oren_gc_safepoint"})
+
+    push_u32_le(ctx["code"], insn_ldp_pair_post(27, 28, 31, 16))
+    push_u32_le(ctx["code"], insn_ldp_pair_post(25, 26, 31, 16))
+    push_u32_le(ctx["code"], insn_ldp_pair_post(23, 24, 31, 16))
+    push_u32_le(ctx["code"], insn_ldp_pair_post(21, 22, 31, 16))
+    push_u32_le(ctx["code"], insn_ldp_pair_post(19, 20, 31, 16))
+    return nil
+}
+
+fn native_emit_gc_safepoint_throttled(ctx, loop_base_stack, tick_mask) {
+    // PERF:
+    // Calling `oren_gc_safepoint()` on every loop iteration dominates lexer/parser loops.
+    // Emit a cheap counter+mask gate so we only call into the runtime periodically.
+    //
+    // Contract:
+    // - Caller must ensure a u64 tick slot exists at loop_base_stack (offset 0 when SP==base).
+    // - Uses X9/X10 as scratch (caller-saved).
+    //
+    // tick = tick + 1; if (tick & mask) != 0 => skip; else call safepoint.
+    var tick_off = ctx["stack_size"] - loop_base_stack
+    // Load tick into X9.
+    emit_ldr_reg_sp_any(ctx, 9, tick_off)
+    // tick++
+    push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
+    emit_str_reg_sp_any(ctx, 9, tick_off)
+    // if ((tick & mask) != 0) goto skip
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
+    push_u32_le(ctx["code"], insn_and_reg(9, 9, 10))
+    push_u32_le(ctx["code"], insn_cmp_reg(9, 31))
+    var jskip_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.ne skip
+
+    native_emit_gc_safepoint_call(ctx)
+
+    var after_call = bytes_len(ctx["code"])
+    var off = (after_call - jskip_pos) / 4
+    // cond=1 is NE in the AArch64 condition-code encoding.
+    set_u32_le(ctx["code"], jskip_pos, insn_b_cond(off, 1))
+    return nil
+}
+
+fn native_emit_gc_safepoint_inline_tick(ctx, tick_mask) {
+    // PERF:
+    // Inline tick update for hot loops that do not allocate inside the body.
+    //
+    // Contract:
+    // - Caller initializes X9=0 and X10=tick_mask before entering the loop.
+    // - Uses X11 as scratch (caller-saved).
+    //
+    // tick = tick + 1; if (tick & mask) != 0 => skip; else call safepoint.
+    push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
+    push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))
+    push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
+    var jskip_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.ne skip
+
+    native_emit_gc_safepoint_call(ctx)
+    // Reset tick/mask after runtime call (caller-saved regs).
+    push_u32_le(ctx["code"], insn_movz(9, 0))
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
+
+    var after_call = bytes_len(ctx["code"])
+    var off = (after_call - jskip_pos) / 4
+    set_u32_le(ctx["code"], jskip_pos, insn_b_cond(off, 1)) // NE
+    return nil
+}

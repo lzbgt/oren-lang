@@ -70,8 +70,18 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 6) **W3 - Docs fidelity + regression gates**
    - Docs are grounded in fixtures/tests; gaps get surfaced via parity gates.
 
-7) **W2 - Structural/SOLID debt**
-   - Oversized files are tracked for refactor once perf + parity converge.
+7) **W3 - Structural/SOLID debt**
+   - Large source files remain a maintainability risk; measured (non-generated, non-web) >2000 lines:
+     - `lib/compiler/arm64_native_stmt.oren` (~4582)
+     - `lib/avm/main.c` (~4149)
+     - `lib/compiler/transpiler.oren` (~3451)
+     - `lib/compiler/optimizer.oren` (~3225)
+     - `lib/avm/avm_vm.c` (~3214)
+     - `lib/compiler/optimizer_loops.oren` (~2906)
+     - `lib/runtime_native/100_time_gc_alloc.oren` (~2818)
+     - `lib/compiler/x64_native_program/060_emit_ops.oren` (~2668)
+   - Started the split: GC safepoint helpers moved out of `lib/compiler/arm64_native_stmt.oren` into
+     `lib/compiler/arm64_native_gc.oren` (2026-02-25).
 
 ---
 
