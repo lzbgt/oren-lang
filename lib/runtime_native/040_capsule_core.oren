@@ -72,6 +72,7 @@ fn native_runtime_capsule_init() {
     if ptr_get_byte(v_capsule) == 48 { return 0 } // '0'
 
     global_set_capsule_mode(1)
+    native_runtime_capsule_alloc_tables()
 
     var k_allow = "OREN_CAP_ALLOW_DOMAINS"
     var v_allow = native_envp_get_value_ptr(k_allow)

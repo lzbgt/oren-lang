@@ -109,6 +109,80 @@ fn native_init_epoll_event_layout_linux() {
     return 0
 }
 
+fn native_runtime_capsule_alloc_tables() {
+    var trace_init = native_envp_get_value_ptr("OREN_TRACE_RUNTIME_INIT")
+    var trace_init_on = false
+    var trace_t0 = 0
+    if trace_init != 0 {
+        if ptr_get_byte(trace_init) != 0 {
+            trace_init_on = true
+            trace_t0 = oren_time_mono_ns()
+        }
+    }
+
+    if global_get_net_fd_caps_ptr() == 0 {
+        // NET per-fd capability tags (capsule hardening).
+        var max_fds = 4096
+        var caps = native_malloc_raw_or_mmap(max_fds)
+        if caps == 0 { exit(302) }
+        var zi = 0
+        while zi < max_fds {
+            ptr_set_byte(caps + zi, 0)
+            zi = zi + 1
+        }
+        global_set_net_fd_caps_ptr(caps)
+        global_set_net_fd_caps_len(max_fds)
+        if trace_init_on {
+            var t2 = oren_time_mono_ns()
+            print("runtime_capsule_init: net_fd_caps ns=" + oren_int_to_string(t2 - trace_t0))
+        }
+    }
+
+    if global_get_net_fd_caps_map_keys_ptr() == 0 || global_get_net_fd_caps_map_vals_ptr() == 0 {
+        // NET fd kind overflow map (capsule hardening).
+        var map_cap = 16384
+        var keys = native_malloc_raw_or_mmap(map_cap * 8)
+        var vals = native_malloc_raw_or_mmap(map_cap)
+        if keys == 0 || vals == 0 { exit(303) }
+        var zi2 = 0
+        while zi2 < map_cap {
+            ptr_set(iadd(keys, zi2 * 8), 0)
+            ptr_set_byte(vals + zi2, 0)
+            zi2 = zi2 + 1
+        }
+        global_set_net_fd_caps_map_keys_ptr(keys)
+        global_set_net_fd_caps_map_vals_ptr(vals)
+        global_set_net_fd_caps_map_cap(map_cap)
+        global_set_net_fd_caps_map_len(0)
+        global_set_net_fd_caps_lock(0)
+        if trace_init_on {
+            var t3 = oren_time_mono_ns()
+            print("runtime_capsule_init: net_fd_caps_map ns=" + oren_int_to_string(t3 - trace_t0))
+        }
+    }
+
+    if global_get_proc_allowed_pids_ptr() == 0 {
+        // PROC allowed pid table (capsule hardening).
+        var pid_cap = 1024
+        var ptab = native_malloc_raw_or_mmap(pid_cap * 8)
+        if ptab == 0 { exit(304) }
+        var zi3 = 0
+        while zi3 < pid_cap {
+            ptr_set(iadd(ptab, zi3 * 8), 0)
+            zi3 = zi3 + 1
+        }
+        global_set_proc_allowed_pids_ptr(ptab)
+        global_set_proc_allowed_pids_len(0)
+        global_set_proc_allowed_pids_cap(pid_cap)
+        if trace_init_on {
+            var t4 = oren_time_mono_ns()
+            print("runtime_capsule_init: proc_pids ns=" + oren_int_to_string(t4 - trace_t0))
+            print("runtime_capsule_init: total ns=" + oren_int_to_string(t4 - trace_t0))
+        }
+    }
+    return 0
+}
+
 @oren.keep
 fn native_runtime_init(target_os) {
     // The native backend is still rolling and does not reliably run global initializers
@@ -362,84 +436,17 @@ fn native_runtime_init(target_os) {
     ptr_set(iadd(g_storage, 304), 0)    // call_depth
     ptr_set(iadd(g_storage, 312), 8192) // call_depth_max
 
-    // NET per-fd capability tags (rolling; capsule hardening).
-    // We intentionally keep this simple: a byte-per-fd kind table.
-    //
-    // NOTE:
-    // - This is not a general-purpose fd table; it only exists to prevent bypass
-    //   via raw `sys_*` NET syscalls in capsule mode.
-    // - Allocation uses malloc_raw so GC never reclaims it.
-    var max_fds = 4096
-    var caps = native_malloc_raw_or_mmap(max_fds)
-    if caps == 0 { exit(302) }
-    var zi = 0
-    while zi < max_fds {
-        ptr_set_byte(caps + zi, 0)
-        zi = zi + 1
-    }
-    global_set_net_fd_caps_ptr(caps)
-    global_set_net_fd_caps_len(max_fds)
-    if trace_init_on {
-        var t2 = oren_time_mono_ns()
-        print("runtime_init: net_fd_caps ns=" + oren_int_to_string(t2 - trace_t0))
-    }
-
-    // NET fd kind overflow map (rolling; capsule hardening).
-    //
-    // Why:
-    // - POSIX fds are small dense integers, so a byte-per-fd table is efficient.
-    // - Windows SOCKET/HANDLE values are pointer-sized and can be large/sparse, so an
-    //   array indexed by fd is not viable.
-    //
-    // Approach:
-    // - Keep the small dense table for fast-path fds < max_fds.
-    // - Add an open-addressing hash map for any fd >= max_fds (and for future sparse cases).
-    //
-    // Encoding:
-    // - keys are stored as (fd + 2), with:
-    //     0 => empty
-    //     1 => tombstone
-    // - vals is a byte-per-entry kind.
-    var map_cap = 16384
-    var keys = native_malloc_raw_or_mmap(map_cap * 8)
-    var vals = native_malloc_raw_or_mmap(map_cap)
-    if keys == 0 || vals == 0 { exit(303) }
-    zi = 0
-    while zi < map_cap {
-        ptr_set(iadd(keys, zi * 8), 0)
-        ptr_set_byte(vals + zi, 0)
-        zi = zi + 1
-    }
-    global_set_net_fd_caps_map_keys_ptr(keys)
-    global_set_net_fd_caps_map_vals_ptr(vals)
-    global_set_net_fd_caps_map_cap(map_cap)
+    // Capsule-only tables are allocated lazily in native_runtime_capsule_init.
+    global_set_net_fd_caps_ptr(0)
+    global_set_net_fd_caps_len(0)
+    global_set_net_fd_caps_map_keys_ptr(0)
+    global_set_net_fd_caps_map_vals_ptr(0)
+    global_set_net_fd_caps_map_cap(0)
     global_set_net_fd_caps_map_len(0)
     global_set_net_fd_caps_lock(0)
-    if trace_init_on {
-        var t3 = oren_time_mono_ns()
-        print("runtime_init: net_fd_caps_map ns=" + oren_int_to_string(t3 - trace_t0))
-    }
-
-    // PROC allowed pid table (rolling; capsule hardening).
-    //
-    // Tracks subprocess pids created by syscall-first spawn so raw sys_wait4/sys_kill
-    // cannot target arbitrary host processes in capsule mode.
-    var pid_cap = 1024
-    var ptab = native_malloc_raw_or_mmap(pid_cap * 8)
-    if ptab == 0 { exit(304) }
-    zi = 0
-    while zi < pid_cap {
-        ptr_set(iadd(ptab, zi * 8), 0)
-        zi = zi + 1
-    }
-    global_set_proc_allowed_pids_ptr(ptab)
+    global_set_proc_allowed_pids_ptr(0)
     global_set_proc_allowed_pids_len(0)
-    global_set_proc_allowed_pids_cap(pid_cap)
-    if trace_init_on {
-        var t4 = oren_time_mono_ns()
-        print("runtime_init: proc_pids ns=" + oren_int_to_string(t4 - trace_t0))
-        print("runtime_init: total ns=" + oren_int_to_string(t4 - trace_t0))
-    }
+    global_set_proc_allowed_pids_cap(0)
     return 0
 }
 

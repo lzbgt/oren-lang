@@ -144,6 +144,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Expand inty propagation and arithmetic fast paths.
    - Split runtime init vs steady-state cost and quantify the init gap (see `benchmarks/RESULTS_LATEST.md` notes).
      - New: `OREN_BENCH_INIT_SPLIT=1` adds loop_sum init/steady estimation (see `benchmarks/README.md`).
+     - New: capsule-only NET/PROC tables now allocate in `native_runtime_capsule_init` to reduce non-capsule runtime init cost; remeasure init/steady split (2026-02-25).
      - New: `OREN_TRACE_RUNTIME_INIT=1` prints native_runtime_init phase timings.
    - Init/steady split (loop_sum, arm64 macOS, 2026-02-26, n=20,000,000; reps=1 vs 10; 5 runs):
       - C: init ~0.000000s, steady 0.067377s
