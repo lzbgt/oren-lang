@@ -51,6 +51,18 @@ def _parse_env_overrides(raw):
     return out
 
 
+def _bench_env_snapshot():
+    drop_tokens = ("KEY", "TOKEN", "PASS", "SECRET")
+    out = {}
+    for key, val in os.environ.items():
+        if not key.startswith("OREN_"):
+            continue
+        if any(tok in key for tok in drop_tokens):
+            continue
+        out[key] = val
+    return dict(sorted(out.items()))
+
+
 def _run(cmd, env=None, log_path=None, time_path=None, tee=False):
     start = time.perf_counter()
     if time_path:
@@ -542,7 +554,10 @@ def _run_one(program, cfg: BenchConfig):
         },
     }
 
+    env_snapshot = _bench_env_snapshot()
     payload = {"meta": meta, "results": results}
+    if env_snapshot:
+        payload["env"] = env_snapshot
     if init_split:
         payload["init_split"] = init_split
     if cfg.rss_enabled and rss_results:
@@ -633,6 +648,12 @@ def _run_one(program, cfg: BenchConfig):
     lines.append(f"- git_rev: {meta['git_rev']}")
     lines.append(f"- runs: {cfg.runs} (warmups: {cfg.warmups})")
     lines.append("")
+    if env_snapshot:
+        lines.append("## Env (OREN_*)")
+        lines.append("")
+        for key, val in env_snapshot.items():
+            lines.append(f"- {key}={val}")
+        lines.append("")
     lines.append("## Results (seconds)")
     lines.append("")
     lines.append("| variant | median | mean | min | max |")

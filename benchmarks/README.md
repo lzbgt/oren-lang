@@ -92,6 +92,9 @@ with per-run counts and median/mean summaries (native-only).
 When `OREN_BENCH_INIT_SPLIT=1`, result JSON includes `init_split`, and the result
 markdown includes an “Init/steady split” section for loop_sum.
 
+Result JSON/markdown include an `env` snapshot of `OREN_*` variables (filtered to
+exclude obvious secret tokens) to aid reproducibility.
+
 Build logs are stored under `build/logs/` with a `bench_build_*` prefix.
 
 Update the canonical snapshot table after a batch run:

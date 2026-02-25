@@ -11,15 +11,15 @@ Legend: `x` = slowdown relative to C median.
 
 | benchmark | C median (s) | Oren C median (x) | Oren native median (x) | Oren OBC median (x) | result file |
 | --- | --- | --- | --- | --- | --- |
-| alloc_churn | 0.002713 | 0.012436 (4.58×) | 0.019613 (7.23×) | 0.161827 (59.64×) | `benchmarks/results/alloc_churn_darwin_arm64_20260225_190747.md` |
-| alloc_drop | 0.002962 | 0.002495 (0.84×) | 0.006860 (2.32×) | 0.003884 (1.31×) | `benchmarks/results/alloc_drop_darwin_arm64_20260225_190750.md` |
-| array_sum | 0.004043 | 0.007865 (1.95×) | 0.016664 (4.12×) | 0.255961 (63.31×) | `benchmarks/results/array_sum_darwin_arm64_20260225_190752.md` |
-| array_sum_int | 0.004099 | 0.007589 (1.85×) | 0.016575 (4.04×) | 0.253680 (61.90×) | `benchmarks/results/array_sum_int_darwin_arm64_20260225_190756.md` |
-| dot_product | 0.005063 | 0.012267 (2.42×) | 0.021772 (4.30×) | 0.378822 (74.82×) | `benchmarks/results/dot_product_darwin_arm64_20260225_190800.md` |
-| dot_product_int | 0.005270 | 0.012725 (2.41×) | 0.021602 (4.10×) | 0.374764 (71.11×) | `benchmarks/results/dot_product_int_darwin_arm64_20260225_190805.md` |
-| loop_sum | 0.066414 | 0.061959 (0.93×) | 0.227022 (3.42×) | 0.094341 (1.42×) | `benchmarks/results/loop_sum_darwin_arm64_20260225_190809.md` |
-| multi_list_push_int | 0.008086 | 0.036685 (4.54×) | 0.027417 (3.39×) | 0.520932 (64.42×) | `benchmarks/results/multi_list_push_int_darwin_arm64_20260225_190814.md` |
-| multi_list_sum | 0.008515 | 0.036903 (4.33×) | 0.027307 (3.21×) | 0.523693 (61.51×) | `benchmarks/results/multi_list_sum_darwin_arm64_20260225_190820.md` |
+| alloc_churn | 0.002971 | 0.014580 (4.91×) | 0.138609 (46.65×) | 0.165586 (55.73×) | `benchmarks/results/alloc_churn_darwin_arm64_20260225_233615.md` |
+| alloc_drop | 0.003191 | 0.002811 (0.88×) | 0.004579 (1.44×) | 0.004276 (1.34×) | `benchmarks/results/alloc_drop_darwin_arm64_20260225_233617.md` |
+| array_sum | 0.004628 | 0.009425 (2.04×) | 0.018602 (4.02×) | 0.260376 (56.26×) | `benchmarks/results/array_sum_darwin_arm64_20260225_233618.md` |
+| array_sum_int | 0.004614 | 0.009722 (2.11×) | 0.018277 (3.96×) | 0.257964 (55.91×) | `benchmarks/results/array_sum_int_darwin_arm64_20260225_233620.md` |
+| dot_product | 0.005544 | 0.015172 (2.74×) | 0.023952 (4.32×) | 0.387434 (69.88×) | `benchmarks/results/dot_product_darwin_arm64_20260225_233622.md` |
+| dot_product_int | 0.006003 | 0.015416 (2.57×) | 0.023476 (3.91×) | 0.378694 (63.08×) | `benchmarks/results/dot_product_int_darwin_arm64_20260225_233625.md` |
+| loop_sum | 0.068523 | 0.062938 (0.92×) | 0.231521 (3.38×) | 0.095251 (1.39×) | `benchmarks/results/loop_sum_darwin_arm64_20260225_233628.md` |
+| multi_list_push_int | 0.009164 | 0.040005 (4.37×) | 0.029287 (3.20×) | 0.526419 (57.45×) | `benchmarks/results/multi_list_push_int_darwin_arm64_20260225_233632.md` |
+| multi_list_sum | 0.009747 | 0.041721 (4.28×) | 0.029655 (3.04×) | 0.531158 (54.49×) | `benchmarks/results/multi_list_sum_darwin_arm64_20260225_233636.md` |
 
 Notes:
 
