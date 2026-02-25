@@ -34,7 +34,7 @@ Oren is "mature" when all are reliably true on Tier-1 targets
 Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/zig/go):
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
-- **Performance parity**: native hot loops remain >2× C and allocation/GC is far from target (see perf tracker baselines: `loop_sum` 3.37×, `dot_product` 4.16×; `alloc_churn` 6.81×, `alloc_drop` 2.30× on arm64, 2026-02-25).
+- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.40×, `dot_product` 4.15×; `alloc_churn` 6.81×, `alloc_drop` 2.30× on arm64, 2026-02-25).
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -53,7 +53,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Cross‑backend parity is enforced via fixtures, not a stabilized ABI.
 
 2) **W5 - Performance parity (hot loops + alloc/GC)**
-   - Baselines: `loop_sum` 3.37× C, `dot_product` 4.16× C; `alloc_churn` 6.81× C, `alloc_drop` 2.30× C (arm64, 2026-02-25).
+   - Baselines: `loop_sum` 3.40× C, `dot_product` 4.15× C; `alloc_churn` 6.81× C, `alloc_drop` 2.30× C (arm64, 2026-02-25).
    - Priority: allocation/GC remains the largest perf gap vs C; keep it first among W5 items.
    - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
 
@@ -110,16 +110,16 @@ Baseline reference: `benchmarks/RESULTS_LATEST.md` (M2 Pro, 2026-02-25).
 Weights reflect expected impact on C parity and breadth of affected code.
 
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
-   - Baseline (arm64 native, snapshot 2026-02-25): `loop_sum` 3.37× C, `dot_product` 4.16× C.
+   - Baseline (arm64 native, snapshot 2026-02-25): `loop_sum` 3.40× C, `dot_product` 4.15× C.
    - Expand inty propagation and arithmetic fast paths.
    - Split runtime init vs steady-state cost and quantify the init gap (see `benchmarks/RESULTS_LATEST.md` notes).
      - New: `OREN_BENCH_INIT_SPLIT=1` adds loop_sum init/steady estimation (see `benchmarks/README.md`).
      - New: `OREN_TRACE_RUNTIME_INIT=1` prints native_runtime_init phase timings.
-     - Init/steady split (loop_sum, arm64 macOS, 2026-02-25, n=20,000,000; reps=1 vs 10; 3 runs):
-       - C: init -0.0004s (noise), steady 0.0705s
-       - Oren C: init 0.0034s, steady 0.0599s
-       - Native: init 0.0177s, steady 0.2293s
-       - OBC: init 0.0020s, steady 0.0934s
+    - Init/steady split (loop_sum, arm64 macOS, 2026-02-25, n=20,000,000; reps=1 vs 10; 3 runs):
+      - C: init 0.001951s, steady 0.065097s
+      - Oren C: init 0.002742s, steady 0.059115s
+      - Native: init 0.001843s, steady 0.226715s
+      - OBC: init 0.002587s, steady 0.091738s
    - Const-divisor `%` is now inlined for literal/const RHS (arm64 + x64).
    - Boxed list dot/get-sum regression guard added to native QI (2026-02-19).
    - Fast-loop safepoints now reset GC tick after safepoint to avoid tick spills (arm64 list-sum, x64 LCG sum).
