@@ -34,7 +34,7 @@ Oren is "mature" when all are reliably true on Tier-1 targets
 Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/zig/go):
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
-- **Performance parity**: native hot loops remain >2× C and allocation/GC is far from target (see perf tracker baselines: `loop_sum` 3.42×, `dot_product` 4.13×; `alloc_churn` 1463×, `alloc_drop` 62× on arm64).
+- **Performance parity**: native hot loops remain >2× C and allocation/GC is far from target (see perf tracker baselines: `loop_sum` 3.37×, `dot_product` 4.16×; `alloc_churn` 42.23×, `alloc_drop` 50.41× on arm64, 2026-02-25).
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -53,7 +53,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Cross‑backend parity is enforced via fixtures, not a stabilized ABI.
 
 2) **W5 - Performance parity (hot loops + alloc/GC)**
-   - Baselines: `loop_sum` 3.42× C, `dot_product` 4.13× C; `alloc_churn` 1463× C, `alloc_drop` 62× C (arm64).
+   - Baselines: `loop_sum` 3.37× C, `dot_product` 4.16× C; `alloc_churn` 42.23× C, `alloc_drop` 50.41× C (arm64, 2026-02-25).
+   - Priority: allocation/GC remains the largest perf gap vs C; keep it first among W5 items.
    - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
 
 3) **W5 - Runtime robustness (GC reuse + allocator invariants)**
@@ -103,13 +104,13 @@ Periodic perf gates (when touching performance-critical paths):
 
 ---
 
-## Performance parity tracker (weighted, 2026-02-24 baseline)
+## Performance parity tracker (weighted, 2026-02-25 baseline)
 
-Baseline reference: `benchmarks/RESULTS_LATEST.md` (M2 Pro, 2026-02-24).
+Baseline reference: `benchmarks/RESULTS_LATEST.md` (M2 Pro, 2026-02-25).
 Weights reflect expected impact on C parity and breadth of affected code.
 
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
-   - Baseline (arm64 native, 2026-02-20): `loop_sum` 3.42× C, `dot_product` 4.13× C.
+   - Baseline (arm64 native, snapshot 2026-02-25): `loop_sum` 3.37× C, `dot_product` 4.16× C.
    - Expand inty propagation and arithmetic fast paths.
    - Split runtime init vs steady-state cost and quantify the init gap (see `benchmarks/RESULTS_LATEST.md` notes).
      - New: `OREN_BENCH_INIT_SPLIT=1` adds loop_sum init/steady estimation (see `benchmarks/README.md`).
@@ -130,7 +131,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
-   - Baseline (arm64 native, 2026-02-24): `alloc_churn` 1463.70× C, `alloc_drop` 62.49× C.
+   - Baseline (arm64 native, 2026-02-25): `alloc_churn` 42.23× C, `alloc_drop` 50.41× C.
+   - Alloc-site trace (arm64, 2026-02-25, `OREN_BENCH_TRACE_ALLOC_SITE=1`, warmups=0):
+     - `alloc_churn` median total=20000 (list_int_header=20000, list_buf=0, list_int_buf=0).
+     - `alloc_drop` median total=10042 (list_header=10011, list_buf=31, list_int_header=0, list_int_buf=0).
    - Fix and enable reuse paths (`OREN_GC_REUSE_BLOCKS`) when correct.
    - Add allocation-site counters for `alloc_churn`/`alloc_drop` to pinpoint dominant allocations.
    - New: `OREN_TRACE_ALLOC_SITE=1` reports list/list_int header+buffer sites (ids 1..4; see `lib/runtime_native/170_lists.oren`).
@@ -182,7 +186,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - Safety: list<int> lowering now skips candidates assigned in nested control-flow blocks
        to avoid mixed list/list<int> rewrites (fixes arena auto-loop use-before-assign smoke; rolling, 2026-02-25).
    - New: fast list/list_int push while-loops now accept constant upper bounds (arm64/x64/transpiler),
-     but `alloc_churn` remains far above target in the 2026-02-24 snapshot (rolling).
+     but `alloc_churn` remains far above target in the 2026-02-25 snapshot (rolling).
    - New: list/list_int reserve + unchecked push now try `native_arena_alloc_raw` for arena-backed buffers
      and fall back to `malloc_k` (cuts alloc-index tracking overhead on arena hot paths; rolling, 2026-02-20).
    - New: list/list_int set growth now uses arena-backed buffer allocation when list headers are arena-tracked,
