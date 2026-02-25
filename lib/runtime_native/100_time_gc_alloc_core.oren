@@ -1,0 +1,1829 @@
+// --- GC alloc core (native runtime) ---
+//
+// Core tracking, reuse, locks, roots, and find-node paths.
+
+var g_panicking = 0
+var g_runtime_single_threaded = 1
+var g_oren_gc_pin = 0
+var g_runtime_root_slots = 0
+var g_runtime_root_len = 0
+var g_runtime_root_cap = 0
+var g_find_cache_ptr0 = 0
+var g_find_cache_node0 = 0
+var g_find_cache_ptr1 = 0
+var g_find_cache_node1 = 0
+
+fn native_gc_scan_stack() {
+    if g_gc_enabled == 0 { return 0 }
+    var trace = native_envp_get_value_ptr("OREN_TRACE_GC_STACK")
+    var trace_on = 0
+    if trace != 0 && ptr_get_byte(trace) != 0 { trace_on = 1 }
+    if g_trace_gc_stack_ranges != 0 { native_gc_stack_range_reset() }
+    var sp = get_sp()
+    var cur_tid = sys_gettid()
+    var THREAD_NODE_FLAG_OS_THREAD = 1
+    var THREAD_NODE_FLAG_STW_PARKED = 2
+    var cur = global_get_threads()
+    
+    while cur != 0 {
+        var top = ptr_get(cur)
+        var flags = ptr_get(iadd(cur, 48))
+        // Atomic read (best-effort) for saved_sp visibility.
+        var saved_ptr = iadd(cur, 8)
+        var saved = 0
+        var sched_saved = 0
+        var backup_saved = 0
+        var stack_size = 0
+        if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+            saved_ptr = iadd(cur, 80) // stw_saved_sp
+            sched_saved = ptr_get(iadd(cur, 72))
+            backup_saved = ptr_get(iadd(cur, 8))
+            stack_size = ptr_get(iadd(cur, 88))
+        }
+        saved = ptr_get(saved_ptr)
+        if (flags & THREAD_NODE_FLAG_STW_PARKED) != 0 && saved == 0 {
+            // Best-effort: wait briefly for saved_sp visibility (weak ordering / late park).
+            var tries = 0
+            while tries < 10 && saved == 0 {
+                oren_wait_on_addr(saved_ptr, 0, 1000)
+                saved = ptr_get(saved_ptr)
+                if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 {
+                    backup_saved = ptr_get(iadd(cur, 8))
+                }
+                tries = tries + 1
+            }
+        }
+        var start = 0
+        var max_scan = 8388608 // 8MB safety cap (rolling; avoids scanning bogus ranges)
+        
+        // Current stack selection (Tier‑1 correctness):
+        //
+        // When multiple OS threads exist, their stacks can be mapped close together. A naive
+        // "sp within 8MB below top" heuristic can misidentify a different OS thread as current,
+        // causing the scanner to read across an unmapped gap between stacks (SIGBUS).
+        //
+        // Prefer a stable OS-thread identity:
+        // - `sys_gettid()` returns a stable per-OS-thread id on Tier‑1 targets.
+        // - `oren_register_thread` stores it at node+56 for OS-thread nodes.
+        if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 && cur_tid != 0 {
+            var tid = ptr_get(iadd(cur, 56))
+            if tid == cur_tid {
+                if sp < top { start = sp }
+            }
+        } else {
+            // Fallback heuristic (green stacks registered via `oren_register_stack`).
+            if sp < top {
+                var diff = top - sp
+                if diff < max_scan { start = sp }
+            }
+        }
+        
+        if start == 0 {
+            // Saved stack pointer path (non-current thread).
+            //
+            // Rolling safety: thread nodes can be corrupted by buggy codegen / allocator invariants.
+            // Treat suspicious saved/top pairs as "skip this node" rather than crashing.
+            if saved != 0 {
+                if saved < top {
+                    // Always start at `saved` (which is expected to be a real SP within the stack).
+                    // We clamp the scan span below, so we never need to synthesize `top-max_scan`
+                    // (which can fall into unmapped guard pages on small stacks).
+                    start = saved
+                }
+            }
+            if start == 0 && sched_saved != 0 {
+                if sched_saved < top { start = sched_saved }
+            }
+            if start == 0 && backup_saved != 0 {
+                if backup_saved < top { start = backup_saved }
+            }
+            if start == 0 && stack_size > 0 {
+                var scan_sz = stack_size
+                if scan_sz > max_scan { scan_sz = max_scan }
+                if top > scan_sz { start = top - scan_sz }
+            }
+        }
+        
+        if start != 0 {
+            // Reject obviously bogus pointers (avoid crashing on low/null-ish addresses).
+            if start < 4096 || top < 4096 {
+                // skip
+            } else {
+                // Clamp scan window so we never walk arbitrary/unmapped ranges.
+                var end = top
+                if end > start {
+                    var span = end - start
+                    if span > max_scan { end = start + max_scan }
+                } else {
+                    end = start
+                }
+                if g_trace_gc_stack_ranges != 0 {
+                    native_gc_stack_range_push(start, end)
+                }
+                if trace_on != 0 {
+                    var node_tid = 0
+                    if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 { node_tid = ptr_get(iadd(cur, 56)) }
+                    print("trace: gc_stack node=" + oren_int_to_string(cur) +
+                          " top=" + oren_int_to_string(top) +
+                          " saved=" + oren_int_to_string(saved) +
+                          " sched=" + oren_int_to_string(sched_saved) +
+                          " backup=" + oren_int_to_string(backup_saved) +
+                          " stack_size=" + oren_int_to_string(stack_size) +
+                          " flags=" + oren_int_to_string(flags) +
+                          " start=" + oren_int_to_string(start) +
+                          " end=" + oren_int_to_string(end) +
+                          " cur_tid=" + oren_int_to_string(cur_tid) +
+                          " node_tid=" + oren_int_to_string(node_tid))
+                }
+
+                var scan_ptr = start
+                while scan_ptr < end {
+                    var val = ptr_get(scan_ptr)
+                    oren_mark_value(val)
+                    scan_ptr = iadd(scan_ptr, 8)
+                }
+            }
+        } else {
+            if trace_on != 0 {
+                var node_tid0 = 0
+                if (flags & THREAD_NODE_FLAG_OS_THREAD) != 0 { node_tid0 = ptr_get(iadd(cur, 56)) }
+                print("trace: gc_stack skip node=" + oren_int_to_string(cur) +
+                      " top=" + oren_int_to_string(top) +
+                      " saved=" + oren_int_to_string(saved) +
+                      " sched=" + oren_int_to_string(sched_saved) +
+                      " backup=" + oren_int_to_string(backup_saved) +
+                      " stack_size=" + oren_int_to_string(stack_size) +
+                      " flags=" + oren_int_to_string(flags) +
+                      " sp=" + oren_int_to_string(sp) +
+                      " cur_tid=" + oren_int_to_string(cur_tid) +
+                      " node_tid=" + oren_int_to_string(node_tid0))
+            }
+        }
+        
+        cur = ptr_get(iadd(cur, 16))
+    }
+    return 0
+}
+
+// Node layout: [ptr, size, kind, freed, next, magic] (6 * 8 = 48 bytes)
+// Offsets: 0=ptr, 8=size, 16=kind, 24=freed, 32=next, 40=magic
+
+fn native_node_magic() { return 5717241888024741957 } // 0x4f52454e4e4f4445 ("ORENNODE")
+
+// Try to reuse a raw node allocation (used by malloc_raw callers like root lists).
+// This must NOT reuse freed "blocks" (which are tracked allocation records pointing at object memory),
+// otherwise we'd lose pointers to freed object memory and create leaks/corruption.
+@oren.keep
+
+fn native_try_reuse_node(size) {
+    // Rolling robustness: disable raw-node reuse for now.
+    //
+    // Rationale:
+    // - `malloc_raw` is used for runtime metadata nodes (alloc tracking nodes, root nodes, thread nodes).
+    // - A single corrupted node in the free-nodes list can cause allocator to return an invalid pointer,
+    //   which then crashes in `oren_track_alloc` with small addresses like 0xF.
+    // - Tier‑1 correctness is higher priority than micro-optimizing metadata reuse during rolling.
+    //
+    // TODO: re-enable after we harden free-node list integrity + add determinism guards.
+    return 0
+
+    if oren_globals() == 0 { return 0 }
+    acquire_lock()
+    var prev = 0
+    var cur = global_get_free_nodes()
+    while cur != 0 {
+        var node_size = ptr_get(iadd(cur, 8))
+        if ptr_get(iadd(cur, 40)) != native_node_magic() {
+            var next_bad = ptr_get(iadd(cur, 32))
+            if prev == 0 {
+                global_set_free_nodes(next_bad)
+            } else {
+                ptr_set(iadd(prev, 32), next_bad)
+            }
+            cur = next_bad
+            continue
+        }
+        if node_size >= size {
+            var next = ptr_get(iadd(cur, 32))
+            if prev == 0 {
+                global_set_free_nodes(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            // Clear next pointer; caller will overwrite fields.
+            ptr_set(iadd(cur, 32), 0)
+            release_lock()
+            return cur
+        }
+        prev = cur
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return 0
+}
+
+
+fn native_free_blocks_bucket_for_size(size) {
+    if g_gc_reuse_buckets == 0 { return 3 }
+    if size <= 64 { return 0 }
+    if size <= 256 { return 1 }
+    if size <= 1024 { return 2 }
+    return 3
+}
+
+
+fn native_free_blocks_bucket_ptr(bucket) {
+    if bucket == 0 { return global_free_blocks_64_ptr() }
+    if bucket == 1 { return global_free_blocks_256_ptr() }
+    if bucket == 2 { return global_free_blocks_1024_ptr() }
+    return global_free_blocks_ptr()
+}
+
+
+fn native_free_blocks_push(node, chunk_size) {
+    if oren_globals() == 0 { return 0 }
+    var bucket = native_free_blocks_bucket_for_size(chunk_size)
+    var head_ptr = native_free_blocks_bucket_ptr(bucket)
+    var head = ptr_get(head_ptr)
+    ptr_set(iadd(node, 32), head)
+    ptr_set(head_ptr, node)
+    return 0
+}
+
+
+fn native_free_blocks_remove_node_in_list(head_ptr, node) {
+    var prev = 0
+    var cur = ptr_get(head_ptr)
+    while cur != 0 {
+        var next = ptr_get(iadd(cur, 32))
+        if cur == node {
+            if prev == 0 {
+                ptr_set(head_ptr, next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            return 1
+        }
+        prev = cur
+        cur = next
+    }
+    return 0
+}
+
+
+fn native_free_blocks_remove_node(node) {
+    if g_gc_reuse_buckets == 0 {
+        return native_free_blocks_remove_node_in_list(global_free_blocks_ptr(), node)
+    }
+    if native_free_blocks_remove_node_in_list(global_free_blocks_64_ptr(), node) != 0 { return 1 }
+    if native_free_blocks_remove_node_in_list(global_free_blocks_256_ptr(), node) != 0 { return 1 }
+    if native_free_blocks_remove_node_in_list(global_free_blocks_1024_ptr(), node) != 0 { return 1 }
+    if native_free_blocks_remove_node_in_list(global_free_blocks_ptr(), node) != 0 { return 1 }
+    return 0
+}
+
+
+fn native_free_blocks_take_by_ptr_in_list(head_ptr, ptr) {
+    var prev = 0
+    var cur = ptr_get(head_ptr)
+    while cur != 0 {
+        var next = ptr_get(iadd(cur, 32))
+        if ptr_get(cur) == ptr {
+            if prev == 0 {
+                ptr_set(head_ptr, next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            return cur
+        }
+        prev = cur
+        cur = next
+    }
+    return 0
+}
+
+
+fn native_free_blocks_take_by_ptr(ptr) {
+    if g_gc_reuse_buckets == 0 {
+        return native_free_blocks_take_by_ptr_in_list(global_free_blocks_ptr(), ptr)
+    }
+    var node = native_free_blocks_take_by_ptr_in_list(global_free_blocks_64_ptr(), ptr)
+    if node != 0 { return node }
+    node = native_free_blocks_take_by_ptr_in_list(global_free_blocks_256_ptr(), ptr)
+    if node != 0 { return node }
+    node = native_free_blocks_take_by_ptr_in_list(global_free_blocks_1024_ptr(), ptr)
+    if node != 0 { return node }
+    return native_free_blocks_take_by_ptr_in_list(global_free_blocks_ptr(), ptr)
+}
+
+
+fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
+    var prev = 0
+    var cur = ptr_get(head_ptr)
+    var scan_left = g_gc_reuse_scan_cap
+    var scan_capped = scan_left > 0
+    var scan_steps = 0
+    while cur != 0 {
+        scan_steps = scan_steps + 1
+        if trace_reuse { g_gc_reuse_scan_steps = g_gc_reuse_scan_steps + 1 }
+        if scan_capped {
+            if scan_left <= 0 { break }
+            scan_left = scan_left - 1
+        }
+        var next = ptr_get(iadd(cur, 32))
+        // Validate the free-block node before trusting it.
+        if cur < 4096 {
+            if prev == 0 {
+                ptr_set(head_ptr, next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            cur = next
+            continue
+        }
+        if ptr_get(iadd(cur, 40)) != native_node_magic() {
+            if prev == 0 {
+                ptr_set(head_ptr, next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            cur = next
+            continue
+        }
+        var cur_kind = ptr_get(iadd(cur, 16))
+        // Reuse guardrail (rolling): only reuse raw/misc blocks unless list reuse is enabled.
+        if cur_kind != 0 && cur_kind != 5 {
+            if g_gc_reuse_lists != 0 && (cur_kind == 2 || cur_kind == list_int_kind()) {
+                // ok
+            } else if g_gc_reuse_maps != 0 && cur_kind == 3 {
+                // ok
+            } else if g_gc_reuse_structs != 0 && cur_kind == 4 {
+                // ok
+            } else {
+                prev = cur
+                cur = next
+                continue
+            }
+        }
+        var chunk_ptr = ptr_get(cur)
+        var chunk_size = ptr_get(iadd(cur, 8))
+        if chunk_ptr < 4096 || chunk_size <= 0 {
+            if prev == 0 {
+                ptr_set(head_ptr, next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            cur = next
+            continue
+        }
+        if chunk_size >= size {
+            var guard_live = 0
+            if native_gc_root_has_ptr(chunk_ptr) != 0 { guard_live = 1 }
+            if guard_live == 0 && g_trace_gc_stack_ranges != 0 {
+                if native_gc_stack_range_contains(chunk_ptr) != 0 { guard_live = 1 }
+            }
+            if guard_live != 0 {
+                if prev == 0 {
+                    ptr_set(head_ptr, next)
+                } else {
+                    ptr_set(iadd(prev, 32), next)
+                }
+                // Restore the node as live to avoid reusing a potentially rooted pointer.
+                ptr_set(iadd(cur, 24), 0) // not freed, not marked
+                ptr_set(iadd(cur, 32), global_get_allocs())
+                ptr_set(iadd(cur, 40), native_node_magic())
+                global_set_allocs(cur)
+                native_alloc_index_put_node(cur)
+                if trace_reuse { g_gc_reuse_guard_live_count = g_gc_reuse_guard_live_count + 1 }
+                cur = next
+                continue
+            }
+            if g_gc_reuse_lists != 0 && (cur_kind == 2 || cur_kind == list_int_kind()) {
+                if native_gc_list_header_ok(chunk_ptr, cur_kind, chunk_size) == 0 {
+                    native_gc_list_header_dump(chunk_ptr, chunk_size)
+                    if prev == 0 {
+                        ptr_set(head_ptr, next)
+                    } else {
+                        ptr_set(iadd(prev, 32), next)
+                    }
+                    // Drop this block from reuse and recycle the tracking node.
+                    ptr_set(cur, 0)
+                    ptr_set(iadd(cur, 8), 48)
+                    ptr_set(iadd(cur, 16), 0)
+                    ptr_set(iadd(cur, 24), 0)
+                    ptr_set(iadd(cur, 40), native_node_magic())
+                    ptr_set(iadd(cur, 32), global_get_free_nodes())
+                    global_set_free_nodes(cur)
+                    if trace_reuse { g_gc_reuse_guard_bad_list_count = g_gc_reuse_guard_bad_list_count + 1 }
+                    cur = next
+                    continue
+                }
+            }
+            if g_gc_reuse_zero != 0 && size > 0 {
+                var zi = 0
+                while zi < size {
+                    ptr_set_byte(iadd(chunk_ptr, zi), 0)
+                    zi = zi + 1
+                }
+            }
+            // Unlink from free list.
+            if prev == 0 {
+                ptr_set(head_ptr, next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+
+            // Reactivate this tracking node by placing it back into allocs.
+            // NOTE:
+            // - We keep chunk_size (capacity) as-is; size is the requested logical size.
+            // - kind defaults to 5 (misc). Callers may later call `oren_track_alloc(...)`
+            //   to specialize kind (e.g. string/list/map/struct/func).
+            ptr_set(iadd(cur, 8), size)
+            ptr_set(iadd(cur, 16), 5)
+            ptr_set(iadd(cur, 24), 0) // not freed, not marked
+            ptr_set(iadd(cur, 32), global_get_allocs())
+            ptr_set(iadd(cur, 40), native_node_magic())
+            global_set_allocs(cur)
+            native_alloc_index_put_node(cur)
+            if g_gc_reuse_blocks != 0 {
+                var idx_node = native_alloc_index_get(chunk_ptr)
+                if idx_node != cur {
+                    // Recycle node back to free_nodes and avoid returning a mismatched pointer.
+                    ptr_set(cur, 0)
+                    ptr_set(iadd(cur, 8), 48)
+                    ptr_set(iadd(cur, 16), 0)
+                    ptr_set(iadd(cur, 24), 0)
+                    ptr_set(iadd(cur, 40), native_node_magic())
+                    ptr_set(iadd(cur, 32), global_get_free_nodes())
+                    global_set_free_nodes(cur)
+                    if trace_reuse { g_gc_reuse_guard_bad_list_count = g_gc_reuse_guard_bad_list_count + 1 }
+                    cur = next
+                    continue
+                }
+            }
+
+            var out = chunk_ptr
+            release_lock()
+            if g_gc_reuse_verbose != 0 && g_gc_reuse_verbose_left > 0 {
+                g_gc_reuse_verbose_left = g_gc_reuse_verbose_left - 1
+                var in_stack = 0
+                if g_trace_gc_stack_ranges != 0 { in_stack = native_gc_stack_range_contains(out) }
+                var root_info = native_gc_root_find(out)
+                var in_roots = 0
+                var root_kind = 0
+                var root_idx = 0
+                if root_info != 0 {
+                    in_roots = 1
+                    root_kind = root_info / 4294967296
+                    root_idx = root_info % 4294967296
+                }
+                print("[gc_reuse_hit] kind=" + oren_int_to_string(cur_kind) +
+                    " want=" + oren_int_to_string(size) +
+                    " chunk=" + oren_int_to_string(chunk_size) +
+                    " ptr=" + oren_int_to_string(out) +
+                    " node=" + oren_int_to_string(cur) +
+                    " in_stack=" + oren_int_to_string(in_stack) +
+                    " in_roots=" + oren_int_to_string(in_roots) +
+                    " root_kind=" + oren_int_to_string(root_kind) +
+                    " root_idx=" + oren_int_to_string(root_idx))
+            }
+            if trace_reuse {
+                g_gc_reuse_hit_count = g_gc_reuse_hit_count + 1
+                g_gc_reuse_hit_bytes = g_gc_reuse_hit_bytes + chunk_size
+            }
+            return out
+        }
+        prev = cur
+        cur = next
+    }
+    if scan_capped && scan_left <= 0 {
+        if trace_reuse { g_gc_reuse_scan_cap_hits = g_gc_reuse_scan_cap_hits + 1 }
+        if trace_reuse { g_gc_reuse_scan_steps_at_cap = g_gc_reuse_scan_steps_at_cap + scan_steps }
+    }
+    return 0
+}
+
+@oren.keep
+
+fn native_try_reuse(size) {
+    // Default-off gate: reuse is still rolling and must be explicitly enabled.
+    if g_gc_reuse_blocks == 0 { return 0 }
+    if oren_globals() == 0 { return 0 }
+    var trace_reuse = g_trace_gc_reuse != 0
+    if trace_reuse { g_gc_reuse_try_count = g_gc_reuse_try_count + 1 }
+    acquire_lock()
+    var out = 0
+    var bucket = native_free_blocks_bucket_for_size(size)
+    var b = bucket
+    while true {
+        var head_ptr = native_free_blocks_bucket_ptr(b)
+        out = native_try_reuse_from_list(head_ptr, size, trace_reuse)
+        if out != 0 { return out }
+        if b >= 3 { break }
+        b = b + 1
+    }
+    release_lock()
+    if trace_reuse { g_gc_reuse_miss_count = g_gc_reuse_miss_count + 1 }
+    return 0
+}
+
+
+fn native_gc_freed_list_init() {
+    if g_trace_freed_lists == 0 { return 0 }
+    if g_freed_list_ptrs != 0 { return 0 }
+    var cap = g_trace_freed_lists_cap
+    if cap <= 0 { cap = 1024 }
+    // Round to power of two for mask.
+    var pow2 = 1
+    while pow2 < cap { pow2 = pow2 * 2 }
+    cap = pow2
+    var bytes = cap * 8
+    var buf = native_malloc_raw_or_mmap(bytes)
+    if buf == 0 { return 0 }
+    var i = 0
+    while i < bytes {
+        ptr_set_byte(buf + i, 0)
+        i = i + 1
+    }
+    g_freed_list_ptrs = buf
+    g_freed_list_cap = cap
+    g_freed_list_head = 0
+    return 0
+}
+
+
+fn native_gc_freed_list_record(ptr) {
+    if g_trace_freed_lists == 0 { return 0 }
+    if g_freed_list_ptrs == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    var idx = g_freed_list_head & (g_freed_list_cap - 1)
+    ptr_set(g_freed_list_ptrs + idx * 8, ptr)
+    g_freed_list_head = g_freed_list_head + 1
+    return 0
+}
+
+
+fn native_gc_freed_list_seen(ptr) {
+    if g_trace_freed_lists == 0 { return 0 }
+    if g_freed_list_ptrs == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    var cap = g_freed_list_cap
+    var i = 0
+    while i < cap {
+        var v = ptr_get(g_freed_list_ptrs + i * 8)
+        if v == ptr { return 1 }
+        i = i + 1
+    }
+    return 0
+}
+
+
+fn native_gc_stack_range_init() {
+    if g_trace_gc_stack_ranges == 0 { return 0 }
+    if g_stack_range_ptrs != 0 { return 0 }
+    var cap = g_trace_gc_stack_ranges_cap
+    if cap <= 0 { cap = 64 }
+    var bytes = cap * 16
+    var buf = native_malloc_raw_or_mmap(bytes)
+    if buf == 0 { return 0 }
+    var i = 0
+    while i < bytes {
+        ptr_set_byte(buf + i, 0)
+        i = i + 1
+    }
+    g_stack_range_ptrs = buf
+    g_stack_range_cap = cap
+    g_stack_range_len = 0
+    return 0
+}
+
+
+fn native_gc_stack_range_reset() {
+    if g_trace_gc_stack_ranges == 0 { return 0 }
+    g_stack_range_len = 0
+    return 0
+}
+
+
+fn native_gc_stack_range_push(start, end) {
+    if g_trace_gc_stack_ranges == 0 { return 0 }
+    if g_stack_range_ptrs == 0 { return 0 }
+    if g_stack_range_len >= g_stack_range_cap { return 0 }
+    var off = g_stack_range_len * 16
+    ptr_set(g_stack_range_ptrs + off, start)
+    ptr_set(g_stack_range_ptrs + off + 8, end)
+    g_stack_range_len = g_stack_range_len + 1
+    return 0
+}
+
+
+fn native_gc_stack_range_contains(ptr) {
+    if g_trace_gc_stack_ranges == 0 { return 0 }
+    if g_stack_range_ptrs == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    var i = 0
+    while i < g_stack_range_len {
+        var off = i * 16
+        var start = ptr_get(g_stack_range_ptrs + off)
+        var end = ptr_get(g_stack_range_ptrs + off + 8)
+        if ptr >= start && ptr < end { return 1 }
+        i = i + 1
+    }
+    return 0
+}
+
+
+fn native_gc_root_find(ptr) {
+    // Encodes: (kind << 32) | index. kind: 1=gc_pin, 2=runtime_root_slot, 3=global_roots list.
+    if ptr == 0 { return 0 }
+    if g_oren_gc_pin == ptr { return 4294967296 } // 1 << 32
+    if g_runtime_root_slots != 0 && g_runtime_root_len > 0 {
+        var ri = 0
+        while ri < g_runtime_root_len {
+            if ptr_get(g_runtime_root_slots + ri * 8) == ptr {
+                return 8589934592 + ri // 2 << 32
+            }
+            ri = ri + 1
+        }
+    }
+    var r = global_get_roots()
+    var gi = 0
+    while r != 0 {
+        var slot = ptr_get(r)
+        if slot != 0 {
+            if ptr_get(slot) == ptr { return 12884901888 + gi } // 3 << 32
+        }
+        r = ptr_get(iadd(r, 32))
+        gi = gi + 1
+    }
+    return 0
+}
+
+
+fn native_gc_root_has_ptr(ptr) {
+    if native_gc_root_find(ptr) != 0 { return 1 }
+    return 0
+}
+
+
+fn native_gc_list_header_ok(ptr, kind, chunk_size) {
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    if chunk_size < 32 { return 0 }
+    if ptr_get(iadd(ptr, 24)) != list_magic() { return 0 }
+    var len = ptr_get(iadd(ptr, 0))
+    var cap = ptr_get(iadd(ptr, 8))
+    var buf = ptr_get(iadd(ptr, 16))
+    if len < 0 || cap < 0 { return 0 }
+    if len > cap { return 0 }
+    if cap > 1073741824 { return 0 } // guard against corrupted caps
+    var inline_buf = iadd(ptr, 32)
+    if cap == 0 {
+        if buf != 0 { return 0 }
+        if chunk_size != 32 { return 0 }
+    } else {
+        if buf == 0 { return 0 }
+        if buf < 4096 { return 0 }
+        if buf == inline_buf {
+            var need = 32 + cap * 8
+            if chunk_size == 32 { return 1 } // external buf adjacent to header (no inline storage)
+            if chunk_size != need { return 0 }
+            return 1
+        }
+        // External buffer: header allocation may still include stale inline storage
+        // from the initial capacity. Accept any >=32 chunk size here.
+        return 1
+    }
+    return 1
+}
+
+
+fn native_gc_list_header_dump(ptr, chunk_size) {
+    if g_trace_gc_reuse_bad_list == 0 { return 0 }
+    if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
+    if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
+    g_trace_gc_reuse_bad_list_cap = g_trace_gc_reuse_bad_list_cap - 1
+    var len = ptr_get(iadd(ptr, 0))
+    var cap = ptr_get(iadd(ptr, 8))
+    var buf = ptr_get(iadd(ptr, 16))
+    var magic = ptr_get(iadd(ptr, 24))
+    print("[gc_reuse_bad_list] ptr=" + oren_int_to_string(ptr) +
+        " chunk=" + oren_int_to_string(chunk_size) +
+        " len=" + oren_int_to_string(len) +
+        " cap=" + oren_int_to_string(cap) +
+        " buf=" + oren_int_to_string(buf) +
+        " magic=" + oren_int_to_string(magic))
+    trace_list_alloc_ring_dump(ptr)
+    native_list_header_ring_dump(ptr)
+    return 0
+}
+
+
+fn native_gc_free_list_header_dump(ptr, chunk_size, kind, node_ptr) {
+    if g_trace_gc_free_list_headers == 0 { return 0 }
+    if g_trace_gc_free_list_headers_cap <= 0 { return 0 }
+    g_trace_gc_free_list_headers_cap = g_trace_gc_free_list_headers_cap - 1
+    var len = ptr_get(iadd(ptr, 0))
+    var cap = ptr_get(iadd(ptr, 8))
+    var buf = ptr_get(iadd(ptr, 16))
+    var magic = ptr_get(iadd(ptr, 24))
+    print("[gc_free_list] ptr=" + oren_int_to_string(ptr) +
+        " chunk=" + oren_int_to_string(chunk_size) +
+        " kind=" + oren_int_to_string(kind) +
+        " len=" + oren_int_to_string(len) +
+        " cap=" + oren_int_to_string(cap) +
+        " buf=" + oren_int_to_string(buf) +
+        " magic=" + oren_int_to_string(magic))
+    if chunk_size > 1048576 {
+        var node_magic = 0
+        var node_next = 0
+        var node_freed = 0
+        if node_ptr != 0 {
+            node_magic = ptr_get(iadd(node_ptr, 40))
+            node_next = ptr_get(iadd(node_ptr, 32))
+            node_freed = ptr_get(iadd(node_ptr, 24))
+        }
+        print("[gc_free_list_node] node=" + oren_int_to_string(node_ptr) +
+              " size=" + oren_int_to_string(chunk_size) +
+              " kind=" + oren_int_to_string(kind) +
+              " freed=" + oren_int_to_string(node_freed) +
+              " next=" + oren_int_to_string(node_next) +
+              " magic=" + oren_int_to_string(node_magic))
+        native_list_header_ring_dump(ptr)
+    }
+    if native_gc_list_header_ok(ptr, kind, chunk_size) == 0 {
+        native_list_debug_node(ptr)
+    }
+    return 0
+}
+
+// Single-thread fast path (native runtime):
+// The self-host compiler and most tooling run single-threaded. Avoid taking the global lock
+// in that mode, because `oren_find_node` and container ops are extremely lock-heavy.
+//
+// This is automatically disabled once a second thread is registered.
+
+
+fn acquire_lock() {
+    if g_panicking == 1 { return 0 }
+    if oren_globals() == 0 { return 0 }
+    if g_runtime_single_threaded == 1 { return 0 }
+    
+    var tid = sys_gettid()
+    // NOTE: use literal offsets (native backend global var init/write is still rolling).
+    // lock_owner_tid lives at globals +16.
+    var lock_ptr = iadd(oren_globals(), 16)
+    var owner = ptr_get(lock_ptr)
+    
+    if owner == tid {
+        // lock_recurse_count lives at globals +56.
+        var count_ptr = iadd(oren_globals(), 56)
+        var count = ptr_get(count_ptr)
+        ptr_set(count_ptr, iadd(count, 1))
+        return 0
+    }
+    
+    var spin = 0
+	    while atomic_cas(lock_ptr, 0, tid) != 0 {
+	        if g_panicking == 1 { return 0 }
+	        spin = iadd(spin, 1)
+	        // Park after a small amount of spinning to avoid burning CPU.
+	        if spin > 1000 {
+	            // Wait while lock owner hasn't changed.
+	            var owner_now = ptr_get(lock_ptr)
+	            if owner_now != 0 {
+	                // STW GC robustness:
+	                // Never sleep forever here. If a collector requests STW while this thread is parked
+	                // in a kernel wait, it cannot reach a safepoint and STW can deadlock.
+	                //
+	                // Instead: poll safepoints and sleep in short bounded waits.
+	                oren_gc_safepoint()
+	                // 1ms bounded wait: keep it cheap, but guarantee forward progress under STW.
+	                oren_wait_on_addr(lock_ptr, owner_now, 1000)
+	            }
+	            spin = 0
+	        }
+	    }
+    
+    var count_ptr = iadd(oren_globals(), 56)
+    ptr_set(count_ptr, 1)
+    return 0
+}
+
+
+fn release_lock() {
+    if g_panicking == 1 { return 0 }
+    if oren_globals() == 0 { return 0 }
+    if g_runtime_single_threaded == 1 { return 0 }
+    
+    var tid = sys_gettid()
+    var lock_ptr = iadd(oren_globals(), 16)
+    var owner = ptr_get(lock_ptr)
+    
+    if owner != tid {
+        return 0
+    }
+    
+    var count_ptr = iadd(oren_globals(), 56)
+    var count = ptr_get(count_ptr)
+    if count > 1 {
+        ptr_set(count_ptr, count - 1)
+        return 0
+    }
+    
+    ptr_set(count_ptr, 0)
+    atomic_cas(lock_ptr, tid, 0)
+    // Wake any waiters that parked in acquire_lock.
+    oren_wake_all_addr(lock_ptr)
+    return 0
+}
+
+
+fn oren_track_alloc_new(ptr, size, kind) {
+    if oren_globals() == 0 { return ptr }
+    // Safety: do not allow tracking metadata to be attached to non-pointers.
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return ptr }
+
+    // IMPORTANT (native runtime model):
+    // Embedded string literals (cstr0 pool) must not be tracked as GC-managed allocations.
+    if kind == 1 && g_cstr0_set_cap != 0 {
+        if native_cstr0_set_has(ptr) != 0 { return ptr }
+    }
+
+    // Reuse mode can return previously-tracked pointers; defer to the full tracker.
+    if g_gc_reuse_blocks != 0 { return oren_track_alloc(ptr, size, kind) }
+
+    var trace_time = g_trace_track_alloc_time != 0
+    var t0 = 0
+    if trace_time { t0 = oren_time_now_ns() }
+
+    acquire_lock()
+
+    if g_gc_trace_alloc_kind != 0 {
+        g_gc_alloc_kind_total = g_gc_alloc_kind_total + 1
+        if kind == 2 {
+            g_gc_alloc_kind_list = g_gc_alloc_kind_list + 1
+        } else if kind == list_int_kind() {
+            g_gc_alloc_kind_list_int = g_gc_alloc_kind_list_int + 1
+        } else if kind == 3 {
+            g_gc_alloc_kind_map = g_gc_alloc_kind_map + 1
+        } else if kind == 4 {
+            g_gc_alloc_kind_struct = g_gc_alloc_kind_struct + 1
+        } else if kind == 6 {
+            g_gc_alloc_kind_func = g_gc_alloc_kind_func + 1
+        } else if kind == 7 {
+            g_gc_alloc_kind_buf = g_gc_alloc_kind_buf + 1
+        } else if kind == 9 {
+            g_gc_alloc_kind_raw = g_gc_alloc_kind_raw + 1
+        } else {
+            g_gc_alloc_kind_other = g_gc_alloc_kind_other + 1
+        }
+    }
+
+    if g_alloc_index_cap == 0 {
+        native_alloc_index_init_min(1024)
+        native_alloc_index_rebuild_live()
+    }
+
+    var node = native_malloc_raw_or_mmap(48)
+    if node != 0 {
+        ptr_set(node, ptr)
+        ptr_set(iadd(node, 8), size)
+        ptr_set(iadd(node, 16), kind)
+        ptr_set(iadd(node, 24), 0) // not freed, not marked
+        ptr_set(iadd(node, 32), global_get_allocs())
+        ptr_set(iadd(node, 40), native_node_magic())
+        global_set_allocs(node)
+        native_alloc_index_put_node(node)
+        if native_alloc_index_get(ptr) == 0 {
+            native_alloc_index_rebuild_live()
+        }
+        if trace_track_alloc_new_consume() != 0 {
+            print("[track_alloc_new] ptr=" + oren_int_to_string(ptr) +
+                  " kind=" + oren_int_to_string(kind) +
+                  " size=" + oren_int_to_string(size) +
+                  " node=" + oren_int_to_string(node))
+        }
+        if kind == 2 || kind == list_int_kind() {
+            if trace_list_track_consume() != 0 {
+                var hit = native_alloc_index_get(ptr)
+                print("[list_track] alloc ptr=" + oren_int_to_string(ptr) +
+                      " kind=" + oren_int_to_string(kind) +
+                      " size=" + oren_int_to_string(size) +
+                      " node=" + oren_int_to_string(node) +
+                      " idx_hit=" + oren_int_to_string(hit))
+            }
+            trace_list_track_size_emit(ptr, kind, size, 0)
+        }
+    }
+
+    if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
+        g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
+        if g_gc_alloc_threshold > 0 && g_gc_allocs_since_collect >= g_gc_alloc_threshold {
+            g_gc_allocs_since_collect = 0
+            g_gc_auto_pending = 1
+        }
+    }
+
+    release_lock()
+    if trace_time { _trace_track_alloc_time_finish(t0, kind) }
+    return ptr
+}
+
+@oren.keep
+
+fn oren_track_alloc(ptr, size, kind) {
+    if oren_globals() == 0 { return ptr }
+    // Safety: do not allow tracking metadata to be attached to non-pointers.
+    // Many runtime helpers use `oren_find_node(x)` + `node.kind` as the single source of truth
+    // for whether it is safe to dereference `x` as a container header.
+    //
+    // If user code could call `oren_track_alloc(50000, ..., kind=LIST)`, later code might
+    // treat 50000 as a list pointer and dereference arbitrary memory. Filter this here.
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return ptr }
+
+    // IMPORTANT (native runtime model):
+    // Embedded string literals (cstr0 pool) live in the binary's data segment and must not be
+    // tracked as GC-managed allocations or even as static-kind nodes. The runtime recognizes
+    // them via the startup-built cstr0 membership set (`oren_init_static_cstr0_table`).
+    //
+    // Guardrail: if compiler/codegen accidentally calls `oren_track_alloc(literal, ...)`,
+    // treat it as a no-op so we never create tracking nodes pointing into static data.
+    if kind == 1 && g_cstr0_set_cap != 0 {
+        if native_cstr0_set_has(ptr) != 0 { return ptr }
+    }
+    if oren_getenv("OREN_TRACE_TRACK_ALLOC") != 0 {
+        if kind == 3 {
+            print("trace: track_alloc ptr=" + oren_int_to_string(ptr) +
+                  " size=" + oren_int_to_string(size) +
+                  " kind=" + oren_int_to_string(kind) +
+                  " idx_ptr=" + oren_int_to_string(g_alloc_index_ptr) +
+                  " idx_cap=" + oren_int_to_string(g_alloc_index_cap))
+        }
+    }
+    var trace_time = g_trace_track_alloc_time != 0
+    var t0 = 0
+    if trace_time { t0 = oren_time_now_ns() }
+
+    acquire_lock()
+
+    if g_gc_trace_alloc_kind != 0 {
+        g_gc_alloc_kind_total = g_gc_alloc_kind_total + 1
+        if kind == 2 {
+            g_gc_alloc_kind_list = g_gc_alloc_kind_list + 1
+        } else if kind == list_int_kind() {
+            g_gc_alloc_kind_list_int = g_gc_alloc_kind_list_int + 1
+        } else if kind == 3 {
+            g_gc_alloc_kind_map = g_gc_alloc_kind_map + 1
+        } else if kind == 4 {
+            g_gc_alloc_kind_struct = g_gc_alloc_kind_struct + 1
+        } else if kind == 6 {
+            g_gc_alloc_kind_func = g_gc_alloc_kind_func + 1
+        } else if kind == 7 {
+            g_gc_alloc_kind_buf = g_gc_alloc_kind_buf + 1
+        } else if kind == 9 {
+            g_gc_alloc_kind_raw = g_gc_alloc_kind_raw + 1
+        } else {
+            g_gc_alloc_kind_other = g_gc_alloc_kind_other + 1
+        }
+    }
+
+    // Ensure the alloc-index exists before we rely on it for de-duplication.
+    // This is a one-time cost in early init; it prevents duplicate tracking nodes.
+    if g_alloc_index_cap == 0 {
+        native_alloc_index_init_min(1024)
+        native_alloc_index_rebuild_live()
+    }
+
+    // De-duplicate (critical perf):
+    // Use the alloc-index hash table instead of scanning the full allocs list.
+    // The compiler self-host workload can create millions of allocations; an O(n) scan here
+    // makes `malloc + track` degrade to O(n^2) and can look like a hang.
+    var hit = native_alloc_index_get(ptr)
+    if hit == 0 && g_alloc_index_probe_exhausted != 0 {
+        // Rare corruption guard: rebuild once and retry.
+        g_alloc_index_probe_exhausted = 0
+        native_alloc_index_rebuild_live()
+        hit = native_alloc_index_get(ptr)
+    }
+    if hit == 0 && g_gc_reuse_blocks != 0 {
+        // Reuse mode: avoid duplicate tracking nodes if the index missed.
+        var cur_live = global_get_allocs()
+        while cur_live != 0 {
+            if ptr_get(cur_live) == ptr {
+                if size != 0 { ptr_set(iadd(cur_live, 8), size) }
+                if kind != 0 {
+                    ptr_set(iadd(cur_live, 16), kind)
+                } else {
+                    ptr_set(iadd(cur_live, 16), 0)
+                }
+                ptr_set(iadd(cur_live, 24), 0)
+                ptr_set(iadd(cur_live, 40), native_node_magic())
+                native_alloc_index_put_node(cur_live)
+                release_lock()
+                return ptr
+            }
+            cur_live = ptr_get(iadd(cur_live, 32))
+        }
+    }
+    if hit != 0 {
+        if g_gc_reuse_blocks != 0 {
+            // Reuse mode: ensure this node is not still in the free list.
+            native_free_blocks_remove_node(hit)
+        }
+        if size != 0 { ptr_set(iadd(hit, 8), size) }
+        if kind != 0 {
+            ptr_set(iadd(hit, 16), kind)
+        } else {
+            // Reuse mode: allow kind=0 to overwrite stale kinds (raw buffers).
+            if g_gc_reuse_blocks != 0 {
+                ptr_set(iadd(hit, 16), 0)
+            }
+        }
+        // Clear "freed" and mark flags on re-track.
+        ptr_set(iadd(hit, 24), 0)
+        ptr_set(iadd(hit, 40), native_node_magic())
+        native_alloc_index_put_node(hit)
+        if native_alloc_index_get(ptr) == 0 {
+            // Rolling robustness: force rebuild if the index didn't pick up the update.
+            native_alloc_index_rebuild_live()
+        }
+        if oren_getenv("OREN_TRACE_TRACK_ALLOC") != 0 && kind == 3 {
+            var chk = native_alloc_index_get(ptr)
+            if chk == 0 {
+                print("trace: track_alloc miss_after_hit ptr=" + oren_int_to_string(ptr))
+            } else {
+                print("trace: track_alloc hit_after_hit node=" + oren_int_to_string(chk) +
+                      " node_ptr=" + oren_int_to_string(ptr_get(chk)) +
+                      " node_kind=" + oren_int_to_string(ptr_get(iadd(chk, 16))))
+            }
+        }
+        trace_list_track_alloc(ptr, ptr_get(iadd(hit, 16)), ptr_get(iadd(hit, 8)), 1)
+        trace_list_track_size_emit(ptr, ptr_get(iadd(hit, 16)), ptr_get(iadd(hit, 8)), 1)
+        // Auto-GC accounting: treat tracking as allocation event (compiler emits this after malloc).
+        if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
+            g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
+            if g_gc_alloc_threshold > 0 && g_gc_allocs_since_collect >= g_gc_alloc_threshold {
+                g_gc_allocs_since_collect = 0
+                g_gc_auto_pending = 1
+            }
+        }
+        release_lock()
+        if trace_time { _trace_track_alloc_time_finish(t0, kind) }
+        return ptr
+    }
+
+    // If it exists in the free list (reused pointer or manual re-track),
+    // move it back into allocs to avoid duplicate nodes pointing at the same ptr.
+    var cur = native_free_blocks_take_by_ptr(ptr)
+    if cur != 0 {
+        ptr_set(iadd(cur, 8), size)
+        ptr_set(iadd(cur, 16), kind)
+        ptr_set(iadd(cur, 24), 0)
+        ptr_set(iadd(cur, 32), global_get_allocs())
+        ptr_set(iadd(cur, 40), native_node_magic())
+        global_set_allocs(cur)
+        native_alloc_index_put_node(cur)
+        if native_alloc_index_get(ptr) == 0 {
+            native_alloc_index_rebuild_live()
+        }
+        if oren_getenv("OREN_TRACE_TRACK_ALLOC") != 0 && kind == 3 {
+            var chk2 = native_alloc_index_get(ptr)
+            if chk2 == 0 {
+                print("trace: track_alloc miss_after_free ptr=" + oren_int_to_string(ptr))
+            } else {
+                print("trace: track_alloc hit_after_free node=" + oren_int_to_string(chk2) +
+                      " node_ptr=" + oren_int_to_string(ptr_get(chk2)) +
+                      " node_kind=" + oren_int_to_string(ptr_get(iadd(chk2, 16))))
+            }
+        }
+
+        if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
+            g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
+            if g_gc_alloc_threshold > 0 && g_gc_allocs_since_collect >= g_gc_alloc_threshold {
+                g_gc_allocs_since_collect = 0
+                g_gc_auto_pending = 1
+            }
+        }
+
+        trace_list_track_alloc(ptr, ptr_get(iadd(cur, 16)), ptr_get(iadd(cur, 8)), 2)
+        trace_list_track_size_emit(ptr, ptr_get(iadd(cur, 16)), ptr_get(iadd(cur, 8)), 2)
+        release_lock()
+        if trace_time { _trace_track_alloc_time_finish(t0, kind) }
+        return ptr
+    }
+
+    // Allocate a new tracking node (raw, untracked by GC).
+    var node = native_malloc_raw_or_mmap(48)
+    if node != 0 {
+        ptr_set(node, ptr)
+        ptr_set(iadd(node, 8), size)
+        ptr_set(iadd(node, 16), kind)
+        ptr_set(iadd(node, 24), 0) // not freed, not marked
+        ptr_set(iadd(node, 32), global_get_allocs())
+        ptr_set(iadd(node, 40), native_node_magic())
+        global_set_allocs(node)
+        native_alloc_index_put_node(node)
+        if native_alloc_index_get(ptr) == 0 {
+            native_alloc_index_rebuild_live()
+        }
+        if oren_getenv("OREN_TRACE_TRACK_ALLOC") != 0 && kind == 3 {
+            var chk3 = native_alloc_index_get(ptr)
+            if chk3 == 0 {
+                print("trace: track_alloc miss_after_new ptr=" + oren_int_to_string(ptr))
+            } else {
+                print("trace: track_alloc hit_after_new node=" + oren_int_to_string(chk3) +
+                      " node_ptr=" + oren_int_to_string(ptr_get(chk3)) +
+                      " node_kind=" + oren_int_to_string(ptr_get(iadd(chk3, 16))))
+            }
+        }
+        trace_list_track_alloc(ptr, kind, size, 3)
+        trace_list_track_size_emit(ptr, kind, size, 3)
+    }
+
+    if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
+        g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
+        if g_gc_alloc_threshold > 0 && g_gc_allocs_since_collect >= g_gc_alloc_threshold {
+            g_gc_allocs_since_collect = 0
+            g_gc_auto_pending = 1
+        }
+    }
+
+    release_lock()
+    if trace_time { _trace_track_alloc_time_finish(t0, kind) }
+    return ptr
+}
+
+
+fn native_gc_register_root(ptr) {
+    if g_gc_enabled == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    acquire_lock()
+    
+    var node = native_malloc_raw_or_mmap(48)
+    if node != 0 {
+        ptr_set(node, ptr)
+        ptr_set(iadd(node, 8), 0)
+        ptr_set(iadd(node, 16), 0) // kind 0 for root
+        ptr_set(iadd(node, 24), 0)
+        ptr_set(iadd(node, 32), global_get_roots())
+        global_set_roots(node)
+    }
+    
+    release_lock()
+    return 0
+}
+
+
+fn native_gc_unregister_root(ptr) {
+    if g_gc_enabled == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    acquire_lock()
+
+    var prev = 0
+    var cur = global_get_roots()
+    while cur != 0 {
+        var next = ptr_get(iadd(cur, 32))
+        if ptr_get(cur) == ptr {
+            if prev == 0 {
+                global_set_roots(next)
+            } else {
+                ptr_set(iadd(prev, 32), next)
+            }
+            // Reuse node storage via free list.
+            ptr_set(cur, 0)
+            ptr_set(iadd(cur, 8), 48)
+            ptr_set(iadd(cur, 40), native_node_magic())
+            ptr_set(iadd(cur, 16), 0)
+            ptr_set(iadd(cur, 24), 0)
+            ptr_set(iadd(cur, 32), global_get_free_nodes())
+            global_set_free_nodes(cur)
+            release_lock()
+            return 0
+        }
+        prev = cur
+        cur = next
+    }
+
+    release_lock()
+    return 0
+}
+
+// --- Compiler/tooling GC pin (Tier‑1 parity with C backend) ---
+//
+// The self-hosted compiler uses `oren_gc_pin(x)` as a cheap way to keep a composite
+// object graph alive across deep recursive traversals (renamer/parser/serde lowering)
+// when auto-GC is enabled with bounded stack scanning.
+//
+// Native runtime does not have the C backend's per-thread pin slot, so we implement a
+// best-effort process-wide pin that registers/unregisters the pinned pointer as a GC root.
+//
+// Contract matches the C backend:
+// - returns previous pin value
+// - caller may restore the previous pin (stack discipline)
+// Runtime root slots (native): a small raw array of pinned values for runtime hot paths.
+// This avoids relying on register/stack discovery during conservative GC.
+
+
+fn native_gc_root_init_min(min_cap) {
+    if g_runtime_root_cap != 0 { return 0 }
+    if min_cap < 16 { min_cap = 16 }
+    // Round up to a power of two for simplicity.
+    var cap = 1
+    while cap < min_cap { cap = cap * 2 }
+    var bytes = cap * 8
+    var buf = native_malloc_raw_or_mmap(bytes)
+    if buf == 0 { return 0 - 12 }
+    // Zero the slots for deterministic scans.
+    var i = 0
+    while i < bytes {
+        ptr_set_byte(buf + i, 0)
+        i = i + 1
+    }
+    g_runtime_root_slots = buf
+    g_runtime_root_cap = cap
+    g_runtime_root_len = 0
+    return 0
+}
+
+
+fn native_gc_root_push(v) {
+    if g_gc_enabled == 0 { return 0 }
+    if v == 0 { return 0 }
+    acquire_lock()
+    if g_runtime_root_cap == 0 {
+        native_gc_root_init_min(128)
+    }
+    if g_runtime_root_slots != 0 && g_runtime_root_len < g_runtime_root_cap {
+        ptr_set(g_runtime_root_slots + g_runtime_root_len * 8, v)
+        g_runtime_root_len = g_runtime_root_len + 1
+    }
+    release_lock()
+    return 0
+}
+
+
+fn native_gc_root_pop(n) {
+    if g_gc_enabled == 0 { return 0 }
+    if n <= 0 { return 0 }
+    acquire_lock()
+    var cur = g_runtime_root_len
+    if cur <= 0 {
+        g_runtime_root_len = 0
+    } else {
+        if n >= cur { g_runtime_root_len = 0 }
+        else { g_runtime_root_len = cur - n }
+    }
+    release_lock()
+    return 0
+}
+
+// `oren_find_node` is a hot path in native v0 because many container/string operations
+// validate pointers via tracked metadata (Tier‑1 safety).
+//
+// Keep a tiny MRU cache for single-threaded compiler/tooling workloads to reduce repeated
+// alloc-index probes for the same few pointers.
+//
+// Correctness note:
+// - This cache is best-effort and is cleared on `native_gc_collect()` because sweep may
+//   recycle tracking nodes.
+
+
+fn native_find_cache_clear() {
+    g_find_cache_ptr0 = 0
+    g_find_cache_node0 = 0
+    g_find_cache_ptr1 = 0
+    g_find_cache_node1 = 0
+    return 0
+}
+
+@oren.keep
+
+fn oren_gc_pin(v) {
+    if g_gc_enabled == 0 { return 0 }
+    var prev = g_oren_gc_pin
+    g_oren_gc_pin = v
+    return prev
+}
+
+@oren.keep
+
+fn oren_find_node(ptr) {
+    if oren_globals() == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    // Native runtime safety/perf rule:
+    // - Small integers are not pointers; don't scan the alloc list for them.
+    // - This also avoids accidental "pointer probing" semantics in places like map key-kind inference.
+    if ptr < 4096 { return 0 }
+
+    // Single-threaded fast path: avoid repeated hash probes for the same ptrs.
+    if g_runtime_single_threaded == 1 {
+        // Pointer identity compare MUST be primitive (not string-aware `==`).
+        if ptr - g_find_cache_ptr0 == 0 { return g_find_cache_node0 }
+        if ptr - g_find_cache_ptr1 == 0 { return g_find_cache_node1 }
+    }
+    var arena_hit = native_arena_find_node_nolock(ptr)
+    if arena_hit != 0 {
+        if g_runtime_single_threaded == 1 {
+            g_find_cache_ptr1 = g_find_cache_ptr0
+            g_find_cache_node1 = g_find_cache_node0
+            g_find_cache_ptr0 = ptr
+            g_find_cache_node0 = arena_hit
+        }
+        return arena_hit
+    }
+    acquire_lock()
+    var hit = native_alloc_index_get(ptr)
+    if hit != 0 {
+        if g_runtime_single_threaded == 1 {
+            g_find_cache_ptr1 = g_find_cache_ptr0
+            g_find_cache_node1 = g_find_cache_node0
+            g_find_cache_ptr0 = ptr
+            g_find_cache_node0 = hit
+        }
+        release_lock()
+        return hit
+    }
+
+    // If probing exhausted, the table is likely corrupted/saturated. Rebuild it once and retry.
+    if g_alloc_index_probe_exhausted != 0 {
+        g_alloc_index_probe_exhausted = 0
+        native_alloc_index_rebuild_live()
+        hit = native_alloc_index_get(ptr)
+        if hit != 0 {
+            if g_runtime_single_threaded == 1 {
+                g_find_cache_ptr1 = g_find_cache_ptr0
+                g_find_cache_node1 = g_find_cache_node0
+                g_find_cache_ptr0 = ptr
+                g_find_cache_node0 = hit
+            }
+            release_lock()
+            return hit
+        }
+    }
+    if g_trace_freed_lists != 0 {
+        if native_gc_freed_list_seen(ptr) != 0 {
+            print("[gc_freed_list_use] ptr=" + oren_int_to_string(ptr))
+        }
+    }
+
+    // Critical perf rule (native runtime):
+    // If the alloc-index is initialized and we missed, treat it as "not tracked" and return 0.
+    // Scanning the full alloc list on misses is catastrophically slow for compiler workloads
+    // because many pointers (embedded literals, argv/envp, raw buffers) are intentionally untracked.
+    if g_alloc_index_ptr != 0 && g_alloc_index_cap != 0 {
+        // Rolling safety: when reuse is enabled, fall back to a one-off scan on misses to avoid
+        // false negatives from stale index entries (correctness > perf in reuse experiments).
+        if g_gc_reuse_blocks != 0 {
+            var cur_recover = global_get_allocs()
+            while cur_recover != 0 {
+                if ptr_get(cur_recover) == ptr {
+                    native_alloc_index_put_node(cur_recover)
+                    if g_runtime_single_threaded == 1 {
+                        g_find_cache_ptr1 = g_find_cache_ptr0
+                        g_find_cache_node1 = g_find_cache_node0
+                        g_find_cache_ptr0 = ptr
+                        g_find_cache_node0 = cur_recover
+                    }
+                    release_lock()
+                    return cur_recover
+                }
+                cur_recover = ptr_get(iadd(cur_recover, 32))
+            }
+        }
+        release_lock()
+        return 0
+    }
+
+    // Fallback for early init only: linear scan when the index isn't initialized yet.
+    var cur = global_get_allocs()
+    while cur != 0 {
+        if ptr_get(cur) == ptr {
+            native_alloc_index_put_node(cur)
+            if g_runtime_single_threaded == 1 {
+                g_find_cache_ptr1 = g_find_cache_ptr0
+                g_find_cache_node1 = g_find_cache_node0
+                g_find_cache_ptr0 = ptr
+                g_find_cache_node0 = cur
+            }
+            release_lock()
+            return cur
+        }
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return 0
+}
+
+@oren.keep
+
+fn oren_gc_safepoint() {
+    if g_gc_enabled == 0 { return 0 }
+    // STW safepoint: if a collector requests stop-the-world, park here.
+    native_gc_stw_poll_and_park()
+    if g_gc_auto_enabled == 0 { return 0 }
+    if g_gc_auto_pending == 0 { return 0 }
+    if native_gc_single_threaded() == false { return 0 }
+    g_gc_auto_pending = 0
+    native_gc_collect()
+    return 0
+}
+
+// Tier‑1 parity: provide `oren_gc_collect()` so compiler-internal modules can request
+// a collection without depending on the C backend runtime.
+//
+// Native backend note:
+// - This is a best-effort stopgap until the compiler's memory story is fully bounded
+//   by arena allocation + explicit phase ownership.
+@oren.keep
+
+fn oren_gc_collect() {
+    if g_gc_enabled == 0 { return 0 }
+    if native_gc_single_threaded() == true {
+        native_gc_collect()
+        return 0
+    }
+
+    // Multi-OS-thread path: request STW, collect, then release.
+    native_gc_stw_begin()
+    native_gc_collect()
+    native_gc_stw_end()
+    return 0
+}
+
+
+fn native_gc_find_node_nolock(ptr) {
+    if oren_globals() == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+
+    // Arena allocations are tracked outside the GC heap but still need classification.
+    var arena_hit = native_arena_find_node_nolock(ptr)
+    if arena_hit != 0 { return arena_hit }
+
+    // Fast path: allocation index lookup without the global lock.
+    var hit = native_alloc_index_get(ptr)
+    if hit != 0 { return hit }
+
+    // If probing exhausted, rebuild once and retry.
+    if g_alloc_index_probe_exhausted != 0 {
+        g_alloc_index_probe_exhausted = 0
+        native_alloc_index_rebuild_live()
+        hit = native_alloc_index_get(ptr)
+        if hit != 0 { return hit }
+    }
+
+    // Early init fallback: linear scan when the index isn't initialized yet.
+    if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 {
+        var cur = global_get_allocs()
+        while cur != 0 {
+            if ptr_get(cur) - ptr == 0 { return cur }
+            cur = ptr_get(iadd(cur, 32))
+        }
+    }
+    return 0
+}
+
+
+fn oren_mark_value(val) {
+    if g_gc_enabled == 0 { return 0 }
+    if val == 0 { return 0 }
+    
+    var node = native_gc_find_node_nolock(val)
+    if node != 0 {
+        var kind = ptr_get(iadd(node, 16))
+        // Static-kind strings (size=0) are classification-only pointers:
+        // - They are not GC-managed and must not participate in mark/sweep.
+        // - Embedded cstr0 literals are typically *not tracked at all* (recognized via `native_cstr0_set_has`).
+        if kind == 1 {
+            if ptr_get(iadd(node, 8)) == 0 { return 0 }
+        }
+
+        // Mark it (and avoid infinite recursion on cyclic structures).
+        var marked = ptr_get(iadd(node, 24))
+        if marked == -1 { return 0 }
+        ptr_set(iadd(node, 24), -1)
+
+        if kind == 2 { // LIST
+            var count = ptr_get(val)
+            var buf = ptr_get(iadd(val, 16))
+            if buf != 0 {
+                var i = 0
+                while i < count {
+                    var item = ptr_get(iadd(buf, i * 8))
+                    oren_mark_value(item)
+                    i = i + 1
+                }
+                oren_mark_value(buf)
+            }
+        }
+        if kind == list_int_kind() { // LIST_INT (unboxed)
+            var buf = ptr_get(iadd(val, 16))
+            if buf != 0 { oren_mark_value(buf) }
+        }
+        if kind == 3 { // MAP
+            var count = ptr_get(iadd(val, 0))
+            var buf = ptr_get(iadd(val, 16))
+            var i = 0
+            while i < count {
+                // Entry layout (24 bytes): [key][key_kind][value]
+                var base = i * 24
+                var k = ptr_get(iadd(buf, base + 0))
+                var k_kind = ptr_get(iadd(buf, base + 8))
+                var v = ptr_get(iadd(buf, base + 16))
+                if k_kind == 1 { oren_mark_value(k) }
+                oren_mark_value(v)
+                i = i + 1
+            }
+            // Keep the entries buffer alive (tracked allocation).
+            oren_mark_value(buf)
+        }
+        if kind == 6 { // FUNC (closure env)
+            var env = ptr_get(iadd(val, 8))
+            oren_mark_value(env)
+        }
+        if kind == 7 { // BUF (typed buffers)
+            // Buffer header holds an owned payload pointer at +16.
+            // Keep the payload alive while the header is reachable.
+            var buf = ptr_get(iadd(val, 16))
+            oren_mark_value(buf)
+        }
+        if kind == 4 { // STRUCT (conservative scan)
+            // Rolling contract (native runtime):
+            // Struct allocations are tagged with kind=STRUCT so GC can scan fields conservatively.
+            //
+            // We do not have a type descriptor here, so we conservatively treat every 8-byte slot
+            // in the payload as a potential pointer.
+            var sz = ptr_get(iadd(node, 8))
+            if sz > 0 {
+                var off = 0
+                while off + 8 <= sz {
+                    var v = ptr_get(iadd(val, off))
+                    oren_mark_value(v)
+                    off = off + 8
+                }
+            }
+        }
+    }
+    return 0
+}
+
+
+fn native_gc_collect() {
+    if g_gc_enabled == 0 { return 0 }
+    native_find_cache_clear()
+    var trace_sweep = native_envp_get_value_ptr("OREN_TRACE_GC_SWEEP")
+    var trace_on = trace_sweep != 0
+    var sweep_t0 = 0
+    var sweep_nodes = 0
+    var sweep_live = 0
+    var sweep_freed = 0
+    var sweep_bytes = 0
+    var sweep_list = 0
+    var sweep_list_int = 0
+    var sweep_map = 0
+    var sweep_struct = 0
+    var sweep_func = 0
+    var sweep_buf = 0
+    var sweep_raw = 0
+    var sweep_other = 0
+    var sweep_rebuild_index = 0
+    if trace_on {
+        sweep_t0 = oren_time_now_ns()
+    }
+    // 1) Clear marks (keep this phase allocation-free and leaf-ish).
+    var cur_clear = global_get_allocs()
+    while cur_clear != 0 {
+        if ptr_get(iadd(cur_clear, 24)) == -1 {
+            ptr_set(iadd(cur_clear, 24), 0)
+        }
+        cur_clear = ptr_get(iadd(cur_clear, 32))
+    }
+    
+    // 2) Mark stack
+    native_gc_scan_stack()
+
+    // 3) Mark roots
+    // Process-wide pin (matches C backend `gc_pin` semantics).
+    if g_oren_gc_pin != 0 {
+        oren_mark_value(g_oren_gc_pin)
+    }
+    // Runtime root slots (best-effort, rolling).
+    if g_runtime_root_slots != 0 && g_runtime_root_len > 0 {
+        var ri = 0
+        while ri < g_runtime_root_len {
+            var rv = ptr_get(g_runtime_root_slots + ri * 8)
+            if rv != 0 { oren_mark_value(rv) }
+            ri = ri + 1
+        }
+    }
+    var r = global_get_roots()
+    while r != 0 {
+        var slot = ptr_get(r)
+        if slot != 0 {
+            var val = ptr_get(slot)
+            oren_mark_value(val)
+        }
+        r = ptr_get(iadd(r, 32))
+    }
+    
+    // 4) Sweep
+    //
+    // Rolling robustness:
+    // Avoid reusing locals across phases. The native backend's stack/local lowering is still
+    // rolling, and reusing the same var name across multiple loops has been a real source of
+    // miscompilations (manifesting as runaway recursion / stack corruption in GC).
+    var prev = 0
+    var cur_sweep = global_get_allocs()
+    while cur_sweep != 0 {
+        var next_node = ptr_get(iadd(cur_sweep, 32))
+        if trace_on {
+            sweep_nodes = sweep_nodes + 1
+        }
+        if ptr_get(iadd(cur_sweep, 24)) == -1 {
+            // Live
+            ptr_set(iadd(cur_sweep, 24), 0)
+            prev = cur_sweep
+            if trace_on {
+                sweep_live = sweep_live + 1
+            }
+        } else {
+            // Garbage
+            var kind = ptr_get(iadd(cur_sweep, 16))
+            if trace_on {
+                sweep_freed = sweep_freed + 1
+                var sz_drop = ptr_get(iadd(cur_sweep, 8))
+                if sz_drop > 0 { sweep_bytes = sweep_bytes + sz_drop }
+                if kind == 2 {
+                    sweep_list = sweep_list + 1
+                } else if kind == list_int_kind() {
+                    sweep_list_int = sweep_list_int + 1
+                } else if kind == 3 {
+                    sweep_map = sweep_map + 1
+                } else if kind == 4 {
+                    sweep_struct = sweep_struct + 1
+                } else if kind == 6 {
+                    sweep_func = sweep_func + 1
+                } else if kind == 7 {
+                    sweep_buf = sweep_buf + 1
+                } else if kind == 9 {
+                    sweep_raw = sweep_raw + 1
+                } else {
+                    sweep_other = sweep_other + 1
+                }
+            }
+            if prev == 0 {
+                global_set_allocs(next_node)
+            } else {
+                ptr_set(iadd(prev, 32), next_node)
+            }
+
+            var p = ptr_get(cur_sweep)
+            if kind == 9 {
+                // RAW_MMAP: return memory to OS immediately (do not keep in free_blocks).
+                if p != 0 {
+                    var base = p - raw_hdr_size()
+                    if ptr_get(base + 0) == raw_magic() {
+                        var total = ptr_get(base + 8)
+                        var backend = ptr_get(base + 16)
+                        if backend == 1 && total > 0 {
+                            // best-effort
+                            sys_munmap(base, total)
+                        }
+                    }
+                }
+
+                // Reuse the tracking node storage via free_nodes list.
+                ptr_set(cur_sweep, 0)
+                ptr_set(iadd(cur_sweep, 8), 48)
+                ptr_set(iadd(cur_sweep, 40), native_node_magic())
+                ptr_set(iadd(cur_sweep, 16), 0)
+                ptr_set(iadd(cur_sweep, 24), 0)
+                ptr_set(iadd(cur_sweep, 32), global_get_free_nodes())
+                global_set_free_nodes(cur_sweep)
+            } else {
+                if kind == 2 || kind == list_int_kind() {
+                    var sz_free = ptr_get(iadd(cur_sweep, 8))
+                    if p != 0 && p >= 4096 {
+                        native_gc_free_list_header_dump(p, sz_free, kind, cur_sweep)
+                    }
+                    native_gc_freed_list_record(p)
+                }
+                // Mark node as freed so stale index entries can't resurrect it.
+                ptr_set(iadd(cur_sweep, 24), 1)
+                var free_sz = ptr_get(iadd(cur_sweep, 8))
+                native_free_blocks_push(cur_sweep, free_sz)
+            }
+            if p != 0 && p >= 4096 {
+                // Prevent stale alloc-index hits for freed objects (reuse mode only).
+                // Bulk-rebuild the index once per sweep to avoid per-free hash probes.
+                if g_gc_reuse_blocks != 0 { sweep_rebuild_index = 1 }
+            }
+        }
+        cur_sweep = next_node
+    }
+
+    if sweep_rebuild_index != 0 {
+        native_alloc_index_rebuild_live()
+    }
+
+    if trace_on {
+        var sweep_dt = oren_time_now_ns() - sweep_t0
+        print("[gc_sweep] nodes=" + oren_int_to_string(sweep_nodes) +
+            " live=" + oren_int_to_string(sweep_live) +
+            " freed=" + oren_int_to_string(sweep_freed) +
+            " freed_bytes=" + oren_int_to_string(sweep_bytes) +
+            " dt_ns=" + oren_int_to_string(sweep_dt) +
+            " freed_kinds=list:" + oren_int_to_string(sweep_list) +
+            " list_int:" + oren_int_to_string(sweep_list_int) +
+            " map:" + oren_int_to_string(sweep_map) +
+            " struct:" + oren_int_to_string(sweep_struct) +
+            " func:" + oren_int_to_string(sweep_func) +
+            " buf:" + oren_int_to_string(sweep_buf) +
+            " raw:" + oren_int_to_string(sweep_raw) +
+            " other:" + oren_int_to_string(sweep_other))
+    }
+    if g_gc_trace_alloc_kind != 0 {
+        print("[gc_alloc] total=" + oren_int_to_string(g_gc_alloc_kind_total) +
+            " list=" + oren_int_to_string(g_gc_alloc_kind_list) +
+            " list_int=" + oren_int_to_string(g_gc_alloc_kind_list_int) +
+            " map=" + oren_int_to_string(g_gc_alloc_kind_map) +
+            " struct=" + oren_int_to_string(g_gc_alloc_kind_struct) +
+            " func=" + oren_int_to_string(g_gc_alloc_kind_func) +
+            " buf=" + oren_int_to_string(g_gc_alloc_kind_buf) +
+            " raw=" + oren_int_to_string(g_gc_alloc_kind_raw) +
+            " other=" + oren_int_to_string(g_gc_alloc_kind_other))
+        g_gc_alloc_kind_total = 0
+        g_gc_alloc_kind_list = 0
+        g_gc_alloc_kind_list_int = 0
+        g_gc_alloc_kind_map = 0
+        g_gc_alloc_kind_struct = 0
+        g_gc_alloc_kind_func = 0
+        g_gc_alloc_kind_buf = 0
+        g_gc_alloc_kind_raw = 0
+        g_gc_alloc_kind_other = 0
+    }
+    if g_trace_gc_reuse != 0 {
+        print("[gc_reuse] tries=" + oren_int_to_string(g_gc_reuse_try_count) +
+            " hits=" + oren_int_to_string(g_gc_reuse_hit_count) +
+            " misses=" + oren_int_to_string(g_gc_reuse_miss_count) +
+            " hit_bytes=" + oren_int_to_string(g_gc_reuse_hit_bytes) +
+            " scan_steps=" + oren_int_to_string(g_gc_reuse_scan_steps) +
+            " scan_cap_hits=" + oren_int_to_string(g_gc_reuse_scan_cap_hits) +
+            " scan_steps_cap=" + oren_int_to_string(g_gc_reuse_scan_steps_at_cap) +
+            " guard_live=" + oren_int_to_string(g_gc_reuse_guard_live_count) +
+            " guard_bad_list=" + oren_int_to_string(g_gc_reuse_guard_bad_list_count))
+        g_gc_reuse_try_count = 0
+        g_gc_reuse_hit_count = 0
+        g_gc_reuse_miss_count = 0
+        g_gc_reuse_hit_bytes = 0
+        g_gc_reuse_scan_steps = 0
+        g_gc_reuse_scan_cap_hits = 0
+        g_gc_reuse_scan_steps_at_cap = 0
+        g_gc_reuse_guard_live_count = 0
+        g_gc_reuse_guard_bad_list_count = 0
+    }
+    native_alloc_site_dump_and_reset()
+    if g_trace_alloc_index != 0 {
+        print("[alloc_index] rebuilds=" + oren_int_to_string(g_alloc_index_rebuild_count) +
+            " rebuild_ns=" + oren_int_to_string(g_alloc_index_rebuild_ns) +
+            " rebuild_allocs=" + oren_int_to_string(g_alloc_index_rebuild_allocs) +
+            " rebuild_static=" + oren_int_to_string(g_alloc_index_rebuild_static) +
+            " probe_exhausted=" + oren_int_to_string(g_alloc_index_probe_exhausted_count) +
+            " len=" + oren_int_to_string(g_alloc_index_len) +
+            " cap=" + oren_int_to_string(g_alloc_index_cap))
+        g_alloc_index_rebuild_count = 0
+        g_alloc_index_rebuild_ns = 0
+        g_alloc_index_rebuild_allocs = 0
+        g_alloc_index_rebuild_static = 0
+        g_alloc_index_probe_exhausted_count = 0
+    }
+    if g_trace_alloc_index_remove_time != 0 {
+        var avg = 0
+        if g_alloc_index_remove_time_count > 0 {
+            avg = g_alloc_index_remove_time_total_ns / g_alloc_index_remove_time_count
+        }
+        print("[alloc_index_remove] count=" + oren_int_to_string(g_alloc_index_remove_time_count) +
+            " total_ns=" + oren_int_to_string(g_alloc_index_remove_time_total_ns) +
+            " avg_ns=" + oren_int_to_string(avg))
+        g_alloc_index_remove_time_total_ns = 0
+        g_alloc_index_remove_time_count = 0
+    }
+    if g_trace_track_alloc_time != 0 {
+        print("[track_alloc] total_count=" + oren_int_to_string(g_track_alloc_time_total_count) +
+            " total_ns=" + oren_int_to_string(g_track_alloc_time_total_ns) +
+            " list_count=" + oren_int_to_string(g_track_alloc_time_list_count) +
+            " list_ns=" + oren_int_to_string(g_track_alloc_time_list_ns) +
+            " other_count=" + oren_int_to_string(g_track_alloc_time_other_count) +
+            " other_ns=" + oren_int_to_string(g_track_alloc_time_other_ns))
+        g_track_alloc_time_total_ns = 0
+        g_track_alloc_time_total_count = 0
+        g_track_alloc_time_list_ns = 0
+        g_track_alloc_time_list_count = 0
+        g_track_alloc_time_other_ns = 0
+        g_track_alloc_time_other_count = 0
+    }
+    return 0
+}

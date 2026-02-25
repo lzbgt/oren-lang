@@ -5,7 +5,7 @@
 // It previously grew beyond the repo's large-file comfort limit; split into:
 // - 100_time_core.oren: TIME primitives + monotonic time + GC config helpers
 // - 100_time_gc_stw.oren: stop-the-world safepoint protocol
-// - 100_time_gc_alloc.oren: GC alloc index + cstr0/static tracking + tooling pins
+// - 100_time_gc_alloc.oren: GC alloc index + cstr0/static tracking + tooling pins (split)
 //
 // NOTE: include order is semantically significant.
 
