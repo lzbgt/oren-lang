@@ -41,19 +41,32 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 	                push_u32_le(ctx["code"], 0)
 	                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node, "name": "oren_find_node"})
 	
-	                // node == 0 => panic
-	                push_u32_le(ctx["code"], insn_movz(1, 0))
-	                push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
-	                var br_node_nonzero = bytes_len(ctx["code"])
-	                push_u32_le(ctx["code"], 0)
+                // node == 0 => fallback on magic or panic
+                push_u32_le(ctx["code"], insn_movz(1, 0))
+                push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
+                var br_node_nonzero = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                // Fallback: if magic matches, accept even if untracked.
+                push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // X0 = list
+                emit_load_ptr_from_base_plus(ctx, 1, 0, 24)   // X1 = magic
+                emit_load_i64_imm(ctx, 2, 1279870019)         // X2 = 'LIST'
+                push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+                var br_magic_ok0 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.EQ magic_ok
                 // Panic helper with diagnostics.
                 push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // X0 = list
                 emit_load_i64_imm(ctx, 1, 1)                 // X1 = stage (node==0)
                 var bl_list_panic0 = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_list_panic0, "name": "native_list_len_panic"})
-	                var node_ok_pos = bytes_len(ctx["code"])
-	                set_u32_le(ctx["code"], br_node_nonzero, insn_b_cond((node_ok_pos - br_node_nonzero) / 4, 1)) // NE
+                var magic_ok_pos0 = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_magic_ok0, insn_b_cond((magic_ok_pos0 - br_magic_ok0) / 4, 0)) // EQ
+                // count (fallback)
+                emit_load_ptr_from_base_plus(ctx, 0, 19, 0)
+                var br_done_fallback0 = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                var node_ok_pos = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_node_nonzero, insn_b_cond((node_ok_pos - br_node_nonzero) / 4, 1)) // NE
 	
 	                // kind = *(node + 16); require kind==LIST
 	                emit_load_ptr_from_base_plus(ctx, 1, 0, 16)   // X1 = kind
@@ -90,6 +103,7 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 
                 var done_pos = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_done, insn_b((done_pos - br_done) / 4))
+                set_u32_le(ctx["code"], br_done_fallback0, insn_b((done_pos - br_done_fallback0) / 4))
                 return true
             }
 
@@ -164,12 +178,25 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], 0)
                 oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_find_node_i, "name": "oren_find_node"})
 
-                // node == 0 => panic
+                // node == 0 => fallback on magic or panic
                 push_u32_le(ctx["code"], insn_movz(1, 0))
                 push_u32_le(ctx["code"], insn_cmp_reg(0, 1))
                 var br_node_nonzero_i = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
+                // Fallback: if magic matches, accept even if untracked.
+                push_u32_le(ctx["code"], insn_mov_reg(0, 19)) // X0 = list
+                emit_load_ptr_from_base_plus(ctx, 1, 0, 24)   // X1 = magic
+                emit_load_i64_imm(ctx, 2, 1279870019)         // X2 = 'LIST'
+                push_u32_le(ctx["code"], insn_cmp_reg(1, 2))
+                var br_magic_ok_i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0) // B.EQ magic_ok
                 native_emit_panic(ctx, "list_int_len on non-list")
+                var magic_ok_pos_i = bytes_len(ctx["code"])
+                set_u32_le(ctx["code"], br_magic_ok_i, insn_b_cond((magic_ok_pos_i - br_magic_ok_i) / 4, 0)) // EQ
+                // count (fallback)
+                emit_load_ptr_from_base_plus(ctx, 0, 19, 0)
+                var br_done_fallback_i = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
                 var node_ok_pos_i = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_node_nonzero_i, insn_b_cond((node_ok_pos_i - br_node_nonzero_i) / 4, 1)) // NE
 
@@ -199,6 +226,7 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
 
                 var done_pos_i = bytes_len(ctx["code"])
                 set_u32_le(ctx["code"], br_done_i, insn_b((done_pos_i - br_done_i) / 4))
+                set_u32_le(ctx["code"], br_done_fallback_i, insn_b((done_pos_i - br_done_fallback_i) / 4))
                 return true
             }
 

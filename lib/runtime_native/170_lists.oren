@@ -20,17 +20,21 @@ fn oren_new_list(cap) {
     var site = _alloc_site_list_header()
     native_alloc_site_bump(site)
     var buf = 0
-	    if cap > 0 {
-	        buf = iadd(header, 32)
-	    }
-	    ptr_set(iadd(header, 0), 0)       // count
-	    ptr_set(iadd(header, 8), cap)     // capacity
-	    ptr_set(iadd(header, 16), buf)    // data buffer
+    if cap > 0 {
+        buf = iadd(header, 32)
+    }
+    ptr_set(iadd(header, 0), 0)       // count
+    ptr_set(iadd(header, 8), cap)     // capacity
+    ptr_set(iadd(header, 16), buf)    // data buffer
     ptr_set(iadd(header, 24), list_magic())
+    if native_alloc_index_get(header) == 0 {
+        var rec = native_alloc_index_recover_ptr(header)
+        if rec == 0 { oren_track_alloc_new(header, total, 2) }
+    }
     trace_list_alloc_emit(header, 2, total, site, 1)
     _list_trace_emit(1, header, 2) // new_list
     return header
-			}
+}
 
 // --- List<int> (unboxed) ---
 @oren.keep
@@ -52,6 +56,10 @@ fn oren_new_list_int(cap) {
     ptr_set(iadd(header, 8), cap)     // capacity
     ptr_set(iadd(header, 16), buf)    // data buffer
     ptr_set(iadd(header, 24), list_magic())
+    if native_alloc_index_get(header) == 0 {
+        var rec2 = native_alloc_index_recover_ptr(header)
+        if rec2 == 0 { oren_track_alloc_new(header, total, list_int_kind()) }
+    }
     trace_list_alloc_emit(header, list_int_kind(), total, site, 1)
     _list_trace_emit(2, header, list_int_kind()) // new_list_int
     return header
@@ -687,6 +695,24 @@ fn oren_list_len(list) {
         // Rely on the tracked-alloc metadata (native) / runtime tracking (C) to discriminate.
         var node = _list_find_node(list)
         if node == 0 {
+            native_alloc_index_rebuild_live()
+            node = _list_find_node(list)
+        }
+        if node == 0 {
+            node = native_alloc_index_recover_ptr(list)
+        }
+        if node == 0 {
+            if list >= 4096 && ptr_get(iadd(list, 24)) == list_magic() {
+                var cap = ptr_get(iadd(list, 8))
+                if cap >= 0 && cap < 1048576 {
+                    var total = 32
+                    if cap > 0 { total = total + cap * 8 }
+                    oren_track_alloc_new(list, total, 2)
+                    node = _list_find_node(list)
+                }
+            }
+        }
+        if node == 0 {
             print("trace: list_len node=0 list=" + oren_int_to_string(list))
             oren_panic("list_len on non-list")
             return 0
@@ -950,6 +976,24 @@ fn oren_is_list_int(v) {
 fn oren_list_int_len(list) {
     if list == nil { return 0 }
     var node = _list_find_node(list)
+    if node == 0 {
+        native_alloc_index_rebuild_live()
+        node = _list_find_node(list)
+    }
+    if node == 0 {
+        node = native_alloc_index_recover_ptr(list)
+    }
+    if node == 0 {
+        if list >= 4096 && ptr_get(iadd(list, 24)) == list_magic() {
+            var cap = ptr_get(iadd(list, 8))
+            if cap >= 0 && cap < 1048576 {
+                var total = 32
+                if cap > 0 { total = total + cap * 8 }
+                oren_track_alloc_new(list, total, list_int_kind())
+                node = _list_find_node(list)
+            }
+        }
+    }
     if node == 0 { _list_trace_dump(list); oren_panic("list_int_len on non-list"); return 0 }
     if ptr_get(iadd(node, 16)) != list_int_kind() { _list_trace_dump(list); oren_panic("list_int_len on non-list"); return 0 }
     if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("list_int_len on non-list"); return 0 }

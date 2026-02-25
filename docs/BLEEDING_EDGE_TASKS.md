@@ -135,6 +135,18 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      to recover from stale alloc-index state during green-task churn (rolling, 2026-02-26).
    - Fix: green scheduler struct allocations now rebuild/force GC tracking before tagging kind=STRUCT,
      preventing args-list GC under `OREN_GREEN_POLL_CACHE=1` (2026-02-25).
+   - Fix: map checks now rebuild the alloc-index once on non-map detection to avoid false panics
+     under GC churn (rolling, 2026-02-26).
+   - Fix: list len checks now rebuild the alloc-index once on non-list detection to reduce
+     false panics when the index is stale under GC churn (rolling, 2026-02-26).
+   - Fix: alloc-index recovery now scans live allocs on map/list misses to reinsert
+     missing nodes before panicking (rolling, 2026-02-26).
+   - Fix: list/map constructors now re-track headers when alloc-index misses, preventing
+     untracked container headers under GC stress (rolling, 2026-02-26).
+   - Fix: map/list check paths now re-track headers on alloc-index misses when magic+cap look sane,
+     reducing false panics during GC stress (rolling, 2026-02-26).
+   - Fix: arm64/x64 `oren_list_len` intrinsics now fall back to magic+count on untracked headers
+     to avoid false panics under GC stress (rolling, 2026-02-26).
    - New: `OREN_TRACE_ALLOC_INDEX=1` now reports alloc-index rebuild stats
      (`[alloc_index] rebuild allocs=... static=... dt_ms=...`) to quantify how often
      the fallback path runs under green-task churn (2026-02-26).

@@ -1420,6 +1420,26 @@ fn oren_find_node(ptr) {
     return 0
 }
 
+// Best-effort recovery when the alloc-index misses a live pointer.
+// Scans the alloc list and re-inserts the matching node into the index.
+fn native_alloc_index_recover_ptr(ptr) {
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+    acquire_lock()
+    var cur = global_get_allocs()
+    while cur != 0 {
+        if ptr_get(cur) - ptr == 0 {
+            native_alloc_index_put_node(cur)
+            release_lock()
+            return cur
+        }
+        cur = ptr_get(iadd(cur, 32))
+    }
+    release_lock()
+    return 0
+}
+
 @oren.keep
 
 fn oren_gc_safepoint() {

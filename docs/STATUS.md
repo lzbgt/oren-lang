@@ -66,6 +66,13 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New: list corruption checks now flag len/cap invariants and reserve-fail traces log header fields (2026-02-25).
    - New: green scheduler struct allocations now rebuild/force GC tracking before tagging kind=STRUCT,
      preventing args-list GC under `OREN_GREEN_POLL_CACHE=1` (2026-02-25).
+   - New: map checks rebuild the alloc-index once on non-map detection to avoid false panics under GC churn (2026-02-26).
+   - New: list len checks rebuild the alloc-index once on non-list detection to avoid false panics under GC churn (2026-02-26).
+   - New: alloc-index recovery scans live allocs on map/list misses to reinsert missing nodes before panicking (2026-02-26).
+   - New: list/map constructors re-track headers when alloc-index misses to prevent untracked containers under GC stress (2026-02-26).
+   - New: map/list checks re-track headers on alloc-index misses when magic+cap look sane to reduce false panics (2026-02-26).
+   - New: arm64/x64 `oren_list_len` intrinsics now fall back to magic+count on untracked headers
+     to avoid false panics under GC stress (2026-02-26).
 
 4) **W4 - Platform breadth (Tier‑1 intent targets)**
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
