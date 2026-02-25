@@ -485,6 +485,13 @@ fn _x64_new_ctx(linked, platform) {
     if oren_env("OREN_TRACE_X64_ARRAY_LIT") != nil {
         ctx["trace_x64_array_lit"] = 1
     }
+
+    // Bounded debug knob:
+    // Enable fast-path list header tracing without per-call env lookups.
+    //   OREN_TRACE_NATIVE_LIST_HDR=1 ./oren_stage2 build ... --platform x64-linux --no-cache
+    if oren_env("OREN_TRACE_NATIVE_LIST_HDR") != nil {
+        ctx["trace_native_list_hdr"] = 1
+    }
     return ctx
 }
 

@@ -159,7 +159,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - Trace rejected list headers with `OREN_TRACE_GC_REUSE_BAD_LIST=1` (cap via `OREN_TRACE_GC_REUSE_BAD_LIST_CAP`).
     - Trace freed list headers with `OREN_TRACE_GC_FREE_LIST_HEADERS=1` (cap via `OREN_TRACE_GC_FREE_LIST_HEADERS_CAP`).
     - Trace list header writes with `OREN_TRACE_LIST_HEADER=1` (cap via `OREN_TRACE_LIST_HEADER_CAP`).
-    - New: `OREN_TRACE_NATIVE_LIST_HDR=1` enables arm64 fast‑path list header tracing (calls `oren_trace_list_header` on list/list_int push fast paths).
+   - New: `OREN_TRACE_NATIVE_LIST_HDR=1` enables arm64 + x64 fast‑path list header tracing (calls `oren_trace_list_header` on list/list_int push fast paths).
    - GC init now registers the main thread for stack scanning to avoid missing roots during auto-GC reuse tests.
    - New: `OREN_TRACE_GC_REUSE=1` prints reuse tries/hits/misses at GC sweep.
    - Reuse experiment (arm64, 2026-02-20, reuse flags enabled during native run):
@@ -190,7 +190,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - Safety: list<int> lowering now skips candidates assigned in nested control-flow blocks
        to avoid mixed list/list<int> rewrites (fixes arena auto-loop use-before-assign smoke; rolling, 2026-02-25).
    - New: loop list reuse hoists safe, non-escaping list allocations out of loops and replaces per-iter
-     init with `*_clear_unchecked` calls; gated by `OREN_OPT_LOOP_LIST_REUSE` (default on; rolling, 2026-02-25).
+     init with `*_clear_unchecked` calls; gated by `OREN_OPT_LOOP_LIST_REUSE` (default off; opt-in while hoist ordering is hardened).
    - `alloc_churn` native improved to 7.23× C in the 2026-02-25 snapshot.
    - List literal sinking now handles `ExprStmt` if-forms, reducing `alloc_drop` list-header churn
      (alloc-site median list_header=105; `alloc_drop` native 2.32× C).
@@ -623,7 +623,12 @@ until perf + parity gates are within range.
    - Init/steady split instrumentation is now available via `OREN_BENCH_INIT_SPLIT=1` (see `benchmarks/README.md`).
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
-3) **Tagged value convergence plan** (L, W5)
+3) **Runtime robustness W5: GC reuse + list header integrity** (L, W5)
+   - Root-cause list header corruption (alloc_churn/alloc_drop traces point to pre-reuse corruption).
+   - Expand fast-path tracing on native emitters (arm64 + x64) to pin header writes (`OREN_TRACE_NATIVE_LIST_HDR=1`).
+   - Gate: no header corruption under alloc benches with reuse disabled; reuse paths stay guarded until verified.
+
+4) **Tagged value convergence plan** (L, W5)
    - Define layout and staged migration.
    - Pin semantic invariants (truthiness, equality, type tests) and add cross‑backend fixtures.
    - Expand `tests/fixtures/tag_parity_smoke.oren` to cover truthiness (ints/floats), type‑strict equality (`==`/`!=`), mixed numeric + string comparisons (`< <= > >=`), cross‑type equality (string/int, bool/int), and mixed map key kinds (int vs string) (rolling, 2026-02-24).
@@ -634,12 +639,12 @@ until perf + parity gates are within range.
    - Add compatibility shims so native/C/OBC can migrate without breaking Tier‑1.
    - Gate: fixtures across all backends.
 
-4) **Cross-backend parity gates** (M, W4)
+5) **Cross-backend parity gates** (M, W4)
    - Expand fixtures where gaps remain; keep C/native/OBC output aligned.
    - New: `make verify-backend-parity-index-panics` enforces negative index assignment + list get out-of-bounds + non-container index get + unsupported map key get/set panics across backends (rolling, 2026-02-24).
    - Gate: parity scripts + `make test` remain green.
 
-5) **Native scheduler / green-task integration** (L, W4)
+6) **Native scheduler / green-task integration** (L, W4)
    - Keep syscall-first constraints.
    - Gate: `make test` + Tier-1 matrix.
 

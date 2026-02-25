@@ -34,35 +34,40 @@ kept in sync with `docs/STATUS.md`.
    - Next: keep `alloc_drop` within target while auditing other alloc/GC workloads for regressions.
    - Gate: `alloc_churn` native <= 8x C; `alloc_drop` native <= 5x C.
 
-2) **W5 perf parity: hot loops (loop_sum, dot_product)**
+2) **W5 runtime robustness: GC reuse + list header integrity**
+   - Root-cause list header corruption before enabling reuse paths.
+   - Expand fast-path tracing in native emitters to pinpoint header writes.
+   - Gate: no header corruption under `alloc_churn`/`alloc_drop` with reuse disabled; reuse remains guarded.
+
+3) **W5 perf parity: hot loops (loop_sum, dot_product)**
    - Close native gap vs C and keep cross-backend semantics aligned.
    - New: loop_sum init/steady split instrumentation via `OREN_BENCH_INIT_SPLIT=1`.
    - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
    - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
 
-3) **W5 tagged value convergence plan (native/C/AVM)**
+4) **W5 tagged value convergence plan (native/C/AVM)**
    - One canonical model + staged migration.
    - Gate: fixtures across all backends.
 
-4) **Cross-backend parity gates**
+5) **Cross-backend parity gates**
    - Expand fixtures where gaps remain; keep C/native/OBC output aligned.
    - Arithmetic panic parity now covers `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob` (shl/shr).
    - Index panic parity covers negative list index assignment + list get out-of-bounds + non-container index get + unsupported map key get/set.
    - Gate: parity scripts + `make test` remain green.
 
-5) **Deterministic schedulers (native + AVM)**
+6) **Deterministic schedulers (native + AVM)**
    - Budgeted execution and GC-safe scheduling.
    - Gate: deterministic fixtures + Tier-1 matrix.
 
-6) **SIMD + typed-buffer kernels for list<int> hot paths**
+7) **SIMD + typed-buffer kernels for list<int> hot paths**
    - arm64 NEON + x64 SSE2 baseline; keep scalar equivalence.
    - Gate: `dot_product_int` native <= 2x C.
 
-7) **AVM unboxed list<int> payload + lowering**
+8) **AVM unboxed list<int> payload + lowering**
    - Improve OBC parity for dot/sum loops.
    - Gate: list<int> fixtures + OBC perf parity.
 
-8) **Tooling reliability and reproducibility**
+9) **Tooling reliability and reproducibility**
    - Keep build/test/bench workflows stable and fast.
    - Gate: `make test`, `make benchmarks`, and snapshot updates are deterministic.
 

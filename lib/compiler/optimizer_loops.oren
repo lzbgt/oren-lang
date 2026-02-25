@@ -925,6 +925,18 @@ fn _opt_block_has_ident_before(block, idx, name) {
     return false
 }
 
+fn _opt_block_find_stmt_index(block, stmt) {
+    if block == nil || block["type"] != "Block" { return nil }
+    var ss = block["stmts"]
+    if ss == nil { return nil }
+    var i = 0
+    while i < oren_list_len(ss) {
+        if ss[i] == stmt { return i }
+        i = i + 1
+    }
+    return nil
+}
+
 fn _opt_block_has_unsafe_list_use(block, name) {
     if block == nil || block["type"] != "Block" { return false }
     var ss = block["stmts"]
@@ -1539,17 +1551,37 @@ fn _opt_rewrite_loop_list_reuse(block, idx, loop_stmt, safe_vars) {
     var bs = block["stmts"]
     if bs == nil { return changed }
     var out = []
+    var inserted = false
     var bi = 0
     while bi < oren_list_len(bs) {
-        if bi == idx {
+        var cur = bs[bi]
+        if inserted != true && cur == loop_stmt {
             var hi = 0
             while hi < oren_list_len(hoists) {
                 oren_list_push(out, hoists[hi])
                 hi = hi + 1
             }
+            inserted = true
         }
-        oren_list_push(out, bs[bi])
+        oren_list_push(out, cur)
         bi = bi + 1
+    }
+    if inserted != true && idx >= 0 {
+        // Fallback: insert at the original index if the loop statement was replaced.
+        var out2 = []
+        var bi2 = 0
+        while bi2 < oren_list_len(out) {
+            if bi2 == idx {
+                var hi2 = 0
+                while hi2 < oren_list_len(hoists) {
+                    oren_list_push(out2, hoists[hi2])
+                    hi2 = hi2 + 1
+                }
+            }
+            oren_list_push(out2, out[bi2])
+            bi2 = bi2 + 1
+        }
+        out = out2
     }
     block["stmts"] = out
     return true
@@ -1907,11 +1939,12 @@ fn _opt_arena_auto_enabled() {
 
 fn _opt_loop_list_reuse_enabled() {
     var v = oren_env("OREN_OPT_LOOP_LIST_REUSE")
-    if v == nil { return true }
-    if _opt_str_eq(v, "0") { return false }
-    if _opt_str_eq(v, "false") { return false }
-    if _opt_str_eq(v, "off") { return false }
-    return true
+    // Rolling safety: default off until scope/hoist ordering is fully hardened.
+    if v == nil { return false }
+    if _opt_str_eq(v, "1") { return true }
+    if _opt_str_eq(v, "true") { return true }
+    if _opt_str_eq(v, "on") { return true }
+    return false
 }
 
 fn _opt_arena_per_iter_enabled() {
@@ -2663,11 +2696,35 @@ fn _opt_prepare_loop_arena(block, idx, stmt, parent_forced, parent_noarena) {
         return true
     }
 
+    var loop_idx = idx
+    if block != nil {
+        var idx2 = _opt_block_find_stmt_index(block, stmt)
+        if idx2 != nil { loop_idx = idx2 }
+    }
+
     _opt_insert_arena_pop_in_block(body, false, false, "oren_arena_pop")
     if block != nil && block["type"] == "Block" && block["stmts"] != nil {
         var wrap = ast.new_block(stmt["token"])
         wrap["stmts"] = [_opt_make_arena_stmt("oren_arena_push"), stmt, _opt_make_arena_stmt("oren_arena_pop")]
-        block["stmts"][idx] = wrap
+        var bs2 = block["stmts"]
+        var out2 = []
+        var replaced = false
+        var bi2 = 0
+        while bi2 < oren_list_len(bs2) {
+            var cur2 = bs2[bi2]
+            if replaced != true && cur2 == stmt {
+                oren_list_push(out2, wrap)
+                replaced = true
+            } else {
+                oren_list_push(out2, cur2)
+            }
+            bi2 = bi2 + 1
+        }
+        if replaced == true {
+            block["stmts"] = out2
+        } else {
+            block["stmts"][loop_idx] = wrap
+        }
     }
     return true
 }
