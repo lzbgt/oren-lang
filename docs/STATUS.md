@@ -646,7 +646,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
 ## P0 (Now)
 
 P0 focuses on the W5/W4 scorecard items. Structural/SOLID refactors remain P2
-until perf + parity gates are within range.
+until perf + parity gates are within range. Reweight: runtime robustness + tagged
+value convergence are W5 blockers; performance work must preserve correctness and
+traceability.
 
 1) **Perf parity W5: allocation/GC** (L, W5)
    - Execute item 2 in the performance tracker (alloc_churn + alloc_drop).
@@ -655,6 +657,8 @@ until perf + parity gates are within range.
    - New: per-iteration loops use `oren_arena_iter_push/pop` with optional cap via `OREN_ARENA_ITER_CAP_BYTES` (rolling).
    - Next: tune `OREN_ARENA_ITER_CAP_BYTES` (64 KiB / 256 KiB / 1 MiB all worsen alloc_churn/alloc_drop; likely need adaptive or different arena policy).
    - Next: re-run `alloc_churn`/`alloc_drop` benchmarks now that empty-list lowering can propagate int-safe context across nested blocks (list<int> emit-c verified).
+   - Fix: loop list reset now requires first-assign dominance in the loop body to avoid auto-arena on use-before-assign patterns
+     (keeps `test_arena_auto_loop_use_before_assign_skip_smoke` stable).
    - Fold loop‑local arena prototype for list/list_int into this track; override annotations
      (`@oren.arena`, `@oren.arena_iter`, `@oren.noarena`) are already implemented.
    - Confirmed GC-path list tracking after disabling auto arenas (`OREN_ARENA_AUTO_LOOP=0` runtime via
@@ -672,6 +676,7 @@ until perf + parity gates are within range.
    - Root-cause list header corruption (alloc_churn/alloc_drop traces point to pre-reuse corruption).
    - Expand fast-path tracing on native emitters (arm64 + x64) to pin header writes (`OREN_TRACE_NATIVE_LIST_HDR=1`).
      - Done: arm64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-25).
+     - Done: x64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-26).
      - Next: correlate list_hdr traces with free-list header dumps to find the first corrupt write.
      - Investigate list_int tracking-node size corruption (alloc_churn free-list traces show huge chunk sizes despite valid headers).
    - Gate: no header corruption under alloc benches with reuse disabled; reuse paths stay guarded until verified.
@@ -681,6 +686,7 @@ until perf + parity gates are within range.
    - Pin semantic invariants (truthiness, equality, type tests) and add cross‑backend fixtures.
    - Expand `tests/fixtures/tag_parity_smoke.oren` to cover truthiness (ints/floats), type‑strict equality (`==`/`!=`), mixed numeric + string comparisons (`< <= > >=`), cross‑type equality (string/int, bool/int), and mixed map key kinds (int vs string) (rolling, 2026-02-24).
    - New: `make verify-backend-parity-arith-panics` enforces cross-backend panic parity for `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob` (shl/shr) (rolling, 2026-02-24).
+   - Fix: native stringy inference no longer treats empty list literals as list<string> (prevents strcmp on list pointers; restores list equality semantics, 2026-02-26).
    - Backend mapping table (native/C/AVM) captured in `docs/DESIGN.md`.
    - Tag parity fixture now asserts `oren_type_name` across backends.
    - Parity gate: `tests/fixtures/tag_parity_smoke.oren` + `make verify-backend-parity-tags`.

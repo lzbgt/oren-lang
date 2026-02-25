@@ -406,6 +406,7 @@ fn native_expr_is_list_stringy(ctx, expr) {
         // Array literal -> runtime list. If all elements are stringy, treat as list-of-strings.
         var els = expr["elements"]
         if els == nil { return false }
+        if oren_list_len(els) == 0 { return false }
         var i = 0
         while i < oren_list_len(els) {
             if native_expr_is_stringy(ctx, els[i]) != true { return false }

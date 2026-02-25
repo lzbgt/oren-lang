@@ -16,6 +16,30 @@ fn _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label
     return nil
 }
 
+fn _emit_trace_list_header_x64(ctx, list_reg, op, kind) {
+    if ctx == nil { return nil }
+    if ctx["trace_native_list_hdr"] == nil { return nil }
+
+    var a0_enc = abi.int_arg_reg(ctx["abi"], 0)
+    var a1_enc = abi.int_arg_reg(ctx["abi"], 1)
+    var a2_enc = abi.int_arg_reg(ctx["abi"], 2)
+    if oren_type_tag(a0_enc) == 0 || oren_type_tag(a1_enc) == 0 || oren_type_tag(a2_enc) == 0 {
+        err(ctx, "x64 native v0: missing ABI arg regs for list trace")
+        return nil
+    }
+
+    var a0 = a0_enc - 1
+    var a1 = a1_enc - 1
+    var a2 = a2_enc - 1
+    if a0 != list_reg { bytes_extend(ctx["code"], insn_mov_r64_r64(a0, list_reg)) }
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(a1, op))
+    bytes_extend(ctx["code"], insn_mov_r32_imm32(a2, kind))
+    var call_pos = bytes_len(ctx["code"])
+    bytes_extend(ctx["code"], insn_call_rel32(0))
+    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_pos, "name": "oren_trace_list_header"})
+    return nil
+}
+
 fn _emit_fast_list_int_push_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
     if ctx == nil || op == nil || info == nil { return nil }
     if locals == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
@@ -211,6 +235,7 @@ fn _emit_fast_list_int_push_while_x64(ctx, op, info, locals, labels, local_fixup
         if oren_type_tag(slot_list3) == 0 { _intr_tmp_pop(ctx, base); return nil }
         _emit_mov_r64_mrbp(ctx, 13, 0 - slot_list3)
         bytes_extend(ctx["code"], insn_mov_mr64_r64(13, 10))
+        _emit_trace_list_header_x64(ctx, 13, 7, 8) // list_int_push / LIST_INT
         li2 = li2 + 1
     }
     _emit_jmp_to_label(ctx, local_fixups, l_done)
@@ -405,6 +430,7 @@ fn _emit_fast_list_push_while_x64(ctx, op, info, locals, labels, local_fixups, e
         if oren_type_tag(slot_list3) == 0 { _intr_tmp_pop(ctx, base); return nil }
         _emit_mov_r64_mrbp(ctx, 13, 0 - slot_list3)
         bytes_extend(ctx["code"], insn_mov_mr64_r64(13, 10))
+        _emit_trace_list_header_x64(ctx, 13, 4, 2) // list_push / LIST
         li2 = li2 + 1
     }
     _emit_jmp_to_label(ctx, local_fixups, l_done)

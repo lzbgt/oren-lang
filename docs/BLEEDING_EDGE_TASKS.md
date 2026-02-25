@@ -32,6 +32,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 - W5 items remain the top leverage path to production parity (perf + semantic + runtime robustness).
 - W4/W3 follow; W3 large-file refactors are currently complete.
 - New: alloc_churn is back within the 8× gate after default-on loop list reuse; keep monitoring for regressions.
+- Reweight: runtime robustness + tagged-value convergence are now explicit W5 blockers; perf work must preserve correctness.
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
@@ -74,6 +75,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      to catch incorrect reuse when lists escape (2026-02-26).
    - Fix: loop list reuse now skips unsafe list uses (escape/alias), enabling default-on reuse
      while remaining correctness-safe under `test_loop_list_reuse_escape_smoke` (2026-02-26).
+   - Fix: loop list reset now requires first-assign dominance in the loop body, avoiding auto-arena
+     on use-before-assign patterns (`test_arena_auto_loop_use_before_assign_skip_smoke`, 2026-02-26).
    - Next: keep `alloc_drop` within target while auditing other alloc/GC workloads for regressions.
    - Gate: `alloc_churn` native <= 8x C; `alloc_drop` native <= 5x C.
 
@@ -90,6 +93,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Instrument `malloc_k`/arena callers to log size+cap before tracking when `size` is implausible, and audit
      native codegen for size/arg clobbers when new regressions appear.
    - Expand fast-path tracing in native emitters to pinpoint header writes.
+   - New: x64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-26).
    - Gate: no header corruption under `alloc_churn`/`alloc_drop` with reuse disabled; reuse remains guarded.
 
 3) **W5 perf parity: hot loops (loop_sum, dot_product)**
@@ -102,6 +106,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 4) **W5 tagged value convergence plan (native/C/AVM)**
    - One canonical model + staged migration.
+   - Fix: native stringy inference no longer treats empty list literals as list<string> (avoids strcmp on list pointers; restores list equality semantics, 2026-02-26).
    - Gate: fixtures across all backends.
 
 5) **Cross-backend parity gates**
