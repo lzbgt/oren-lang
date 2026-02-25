@@ -319,6 +319,47 @@ fn _arm64_sym_entries_push_unique(sym_seen, sym_entries, off, name) {
     return nil
 }
 
+fn _arm64_emit_global_roots_init(ctx) {
+    if ctx == nil { return 0 }
+    var name = "__oren_global_roots_init"
+    if ctx["functions"] != nil && ctx["functions"][name] != nil {
+        if ctx["errors"] != nil {
+            oren_list_push(ctx["errors"], "arm64 native: reserved function name " + name + " already defined")
+        }
+        return 0
+    }
+    var start = bytes_len(ctx["code"])
+    if ctx["functions"] != nil { ctx["functions"][name] = start }
+    // Prologue: save FP/LR.
+    push_u32_le(ctx["code"], insn_stp_pre())
+    push_u32_le(ctx["code"], insn_mov_fp_sp())
+    var gmap = ctx["globals"]
+    if gmap != nil {
+        var gi = 0
+        var pair = [nil, nil]
+        while 1 {
+            var okg = oren_iter_next_entry(gmap, gi, pair)
+            if okg == 0 { break }
+            var off_enc = pair[1]
+            if oren_type_tag(off_enc) == 1 {
+                var off = off_enc - 1
+                var adr_root_pos = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_root_pos, "data_off": off})
+                var bl_root = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_root, "name": "native_gc_register_root"})
+            }
+            gi = gi + 1
+        }
+    }
+    // Epilogue: restore FP/LR and return.
+    push_u32_le(ctx["code"], insn_ldp_post())
+    push_u32_le(ctx["code"], insn_ret())
+    return 0
+}
+
 fn _arm64_rtobj_apply_to_ctx(ctx, meta) {
     if ctx == nil || meta == nil { return false }
     if ctx["errors"] == nil { ctx["errors"] = [] }
@@ -1400,28 +1441,10 @@ fn native_compile_program_arm64(linked, platform) {
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_init_gc, "name": "native_runtime_init_gc_mode"})
 
     // Register global slots as GC roots (native parity with C backend).
-    // Do this after GC mode init so native_gc_register_root is active.
-    var gmap = ctx["globals"]
-    if gmap != nil {
-        var gi = 0
-        var pair = [nil, nil]
-        while 1 {
-            var okg = oren_iter_next_entry(gmap, gi, pair)
-            if okg == 0 { break }
-            var off_enc = pair[1]
-            if off_enc != nil && oren_type_tag(off_enc) == 1 {
-                var off = off_enc - 1
-                var adr_root_pos = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_root_pos, "data_off": off})
-                var bl_root = bytes_len(ctx["code"])
-                push_u32_le(ctx["code"], 0)
-                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_root, "name": "native_gc_register_root"})
-            }
-            gi = gi + 1
-        }
-    }
+    // Emit the root-registration helper after globals are allocated, then call it here.
+    var bl_roots = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_roots, "name": "__oren_global_roots_init"})
 
     if platform["debug"] == true {
         var debug_adr_pos = bytes_len(ctx["code"])
@@ -1648,6 +1671,8 @@ fn native_compile_program_arm64(linked, platform) {
     var runtime_decls = prep["runtime_decls"]
     var user_decls = prep["user_decls"]
     var top_stmt = prep["top_stmt"]
+    _arm64_emit_global_roots_init(ctx)
+    if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 
     // Compile runtime declarations (functions/types/ffi), but not runtime global initializers.
     var i = 0
