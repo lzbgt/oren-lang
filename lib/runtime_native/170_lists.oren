@@ -120,6 +120,10 @@ var g_trace_list_reserve_alloc_bytes_list = 0
 var g_trace_list_reserve_alloc_bytes_list_int = 0
 var g_trace_list_reserve_calls_list = 0
 var g_trace_list_reserve_calls_list_int = 0
+var g_trace_list_reserve_fail = -1
+var g_trace_list_reserve_fail_envp = 0
+var g_trace_list_reserve_fail_argv = 0
+var g_trace_list_reserve_fail_argc = 0
 
 fn _list_assume_list_enabled() {
     if g_list_assume_list != -1 { return g_list_assume_list == 1 }
@@ -320,6 +324,61 @@ fn _list_reserve_trace_enabled() {
     }
     if g_trace_list_reserve_cap <= 0 { g_trace_list_reserve_cap = 128 }
     return true
+}
+
+fn _list_reserve_fail_enabled() {
+    if g_trace_list_reserve_fail == 1 { return true }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_list_reserve_fail == 0 {
+        if cur_envp == g_trace_list_reserve_fail_envp &&
+           cur_argv == g_trace_list_reserve_fail_argv &&
+           cur_argc == g_trace_list_reserve_fail_argc {
+            return false
+        }
+    }
+    var v = native_envp_get_value_ptr("OREN_TRACE_LIST_RESERVE_FAIL")
+    if v == 0 {
+        if g_trace_list_reserve_fail == -1 || g_trace_list_reserve_fail == 0 {
+            g_trace_list_reserve_fail = 0
+            g_trace_list_reserve_fail_envp = cur_envp
+            g_trace_list_reserve_fail_argv = cur_argv
+            g_trace_list_reserve_fail_argc = cur_argc
+        }
+        return false
+    }
+    if ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        g_trace_list_reserve_fail = 0
+        g_trace_list_reserve_fail_envp = cur_envp
+        g_trace_list_reserve_fail_argv = cur_argv
+        g_trace_list_reserve_fail_argc = cur_argc
+        return false
+    }
+    g_trace_list_reserve_fail = 1
+    g_trace_list_reserve_fail_envp = cur_envp
+    g_trace_list_reserve_fail_argv = cur_argv
+    g_trace_list_reserve_fail_argc = cur_argc
+    return true
+}
+
+fn _list_reserve_fail_emit(stage, list, node, expected_kind, new_cap) {
+    if _list_reserve_fail_enabled() != true { return 0 }
+    print("[list_reserve_fail] stage=" + oren_int_to_string(stage) +
+          " list=" + oren_int_to_string(list) +
+          " node=" + oren_int_to_string(node) +
+          " expect_kind=" + oren_int_to_string(expected_kind) +
+          " new_cap=" + oren_int_to_string(new_cap))
+    if node != 0 {
+        var nk = ptr_get(iadd(node, 16))
+        var magic = 0
+        if list != 0 && list >= 4096 {
+            magic = ptr_get(iadd(list, 24))
+        }
+        print("[list_reserve_fail] node_kind=" + oren_int_to_string(nk) +
+              " list_magic=" + oren_int_to_string(magic))
+    }
+    return 0
 }
 
 fn _list_reserve_bytes_enabled() {
@@ -666,14 +725,26 @@ fn oren_list_reserve(list, new_cap) {
         // Safety: do not dereference arbitrary large integers as pointers.
         var node = _list_find_node(list)
         if node == 0 {
+            // Best-effort: rebuild alloc index in case it is stale/corrupted.
+            native_alloc_index_rebuild_live()
+            node = _list_find_node(list)
+        }
+        if node == 0 {
             native_list_reserve_panic(list, new_cap, 1)
             oren_panic("list_reserve on non-list")
             return nil
         }
-        if ptr_get(iadd(node, 16)) != 2 {
-            native_list_reserve_panic(list, new_cap, 2)
-            oren_panic("list_reserve on non-list")
-            return nil
+        var k = ptr_get(iadd(node, 16))
+        if k != 2 {
+            native_alloc_index_rebuild_live()
+            node = _list_find_node(list)
+            k = 0
+            if node != 0 { k = ptr_get(iadd(node, 16)) }
+            if k != 2 {
+                native_list_reserve_panic(list, new_cap, 2)
+                oren_panic("list_reserve on non-list")
+                return nil
+            }
         }
         if ptr_get(iadd(list, 24)) != list_magic() {
             native_list_reserve_panic(list, new_cap, 3)
@@ -899,9 +970,32 @@ fn oren_list_int_reserve(list, new_cap) {
     }
     if new_cap < 0 { return nil }
     var node = _list_find_node(list)
-    if node == 0 { oren_panic("list_int_reserve on non-list"); return nil }
-    if ptr_get(iadd(node, 16)) != list_int_kind() { oren_panic("list_int_reserve on non-list"); return nil }
-    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_int_reserve on non-list"); return nil }
+    if node == 0 {
+        native_alloc_index_rebuild_live()
+        node = _list_find_node(list)
+    }
+    if node == 0 {
+        _list_reserve_fail_emit(1, list, node, list_int_kind(), new_cap)
+        oren_panic("list_int_reserve on non-list")
+        return nil
+    }
+    var k = ptr_get(iadd(node, 16))
+    if k != list_int_kind() {
+        native_alloc_index_rebuild_live()
+        node = _list_find_node(list)
+        k = 0
+        if node != 0 { k = ptr_get(iadd(node, 16)) }
+        if k != list_int_kind() {
+            _list_reserve_fail_emit(2, list, node, list_int_kind(), new_cap)
+            oren_panic("list_int_reserve on non-list")
+            return nil
+        }
+    }
+    if ptr_get(iadd(list, 24)) != list_magic() {
+        _list_reserve_fail_emit(3, list, node, list_int_kind(), new_cap)
+        oren_panic("list_int_reserve on non-list")
+        return nil
+    }
     var cap = ptr_get(iadd(list, 8))
     var count = ptr_get(iadd(list, 0))
     var buf = ptr_get(iadd(list, 16))

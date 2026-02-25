@@ -125,6 +125,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace: even with `OREN_NATIVE_RESOLVE_SYMBOL=1` (rtobj disabled), alloc_churn panic stacks still
      resolve as `???` (log: `build/logs/bench_run_alloc_churn_20260226_053529/oren_native/run_0.log`);
      resolve-symbol likely needs ASLR slide awareness or debug‑info embedding to make traces actionable.
+   - New: `OREN_TRACE_LIST_RESERVE_FAIL=1` prints list/node metadata when `list_int_reserve` fails
+     (stage + list ptr + node kind + list magic) to debug the non-list corruption path (2026-02-26).
+   - Fix: list/list_int reserve now rebuilds the alloc index once on non-list detection before panicking,
+     to recover from stale alloc-index state during green-task churn (rolling, 2026-02-26).
    - New: `OREN_TRACE_NATIVE_ALLOC_REQ=1` emits a native-side pre-track trace
      (`oren_trace_alloc_request`) before `oren_track_alloc_new` to catch size corruption at the call site.
    - Instrument `malloc_k`/arena callers to log size+cap before tracking when `size` is implausible, and audit
