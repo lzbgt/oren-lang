@@ -72,7 +72,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 
 7) **W3 - Structural/SOLID debt**
    - Large source files remain a maintainability risk; measured (non-generated, non-web) >2000 lines:
-     - `lib/compiler/x64_native_program/060_emit_ops.oren` (~2668)
+     - (none currently)
    - Splits underway:
      - GC safepoint helpers moved out of `lib/compiler/arm64_native_stmt.oren` into
        `lib/compiler/arm64_native_gc.oren` (2026-02-25).
@@ -95,6 +95,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
        (all <2000 lines, 2026-02-25).
      - `lib/avm/avm_vm.c` split into focused VM modules (`avm_vm_core`,
        `avm_vm_sched`, `avm_vm_values`, `avm_vm_list_ops`)
+       (all <2000 lines, 2026-02-25).
+     - `lib/compiler/x64_native_program/060_emit_ops.oren` split into focused emit modules
+       (`055_emit_ops_locals`, `056_emit_ops_match`, `057_emit_ops_while_emit`)
        (all <2000 lines, 2026-02-25).
 
 ---
