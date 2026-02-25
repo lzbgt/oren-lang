@@ -129,8 +129,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      resolve-symbol likely needs ASLR slide awareness or debug‑info embedding if we need it again.
    - New: `OREN_TRACE_LIST_RESERVE_FAIL=1` prints list/node metadata when `list_int_reserve` fails
      (stage + list ptr + node kind + list magic) to debug the non-list corruption path (2026-02-26).
+   - New: reserve-fail tracing now includes list header fields (len/cap/buf/magic), and
+     list corruption checks flag len>cap/negative or cap==0 with nonzero len/buf (2026-02-25).
    - Fix: list/list_int reserve now rebuilds the alloc index once on non-list detection before panicking,
      to recover from stale alloc-index state during green-task churn (rolling, 2026-02-26).
+   - Fix: green scheduler struct allocations now rebuild/force GC tracking before tagging kind=STRUCT,
+     preventing args-list GC under `OREN_GREEN_POLL_CACHE=1` (2026-02-25).
    - New: `OREN_TRACE_ALLOC_INDEX=1` now reports alloc-index rebuild stats
      (`[alloc_index] rebuild allocs=... static=... dt_ms=...`) to quantify how often
      the fallback path runs under green-task churn (2026-02-26).

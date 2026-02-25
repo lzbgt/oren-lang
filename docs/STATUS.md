@@ -63,6 +63,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 3) **W5 - Runtime robustness (GC reuse + allocator invariants)**
    - GC reuse paths are experimental; list header corruption investigations are ongoing.
    - Guardrails and traces exist, but correctness gates are not yet stable.
+   - New: list corruption checks now flag len/cap invariants and reserve-fail traces log header fields (2026-02-25).
+   - New: green scheduler struct allocations now rebuild/force GC tracking before tagging kind=STRUCT,
+     preventing args-list GC under `OREN_GREEN_POLL_CACHE=1` (2026-02-25).
 
 4) **W4 - Platform breadth (Tier‑1 intent targets)**
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.

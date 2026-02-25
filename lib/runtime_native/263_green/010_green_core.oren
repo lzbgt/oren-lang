@@ -473,7 +473,16 @@ fn _green_alloc_struct(size) {
     // Match the behavior of `oren_alloc_struct`: allocate via the compiler's special-cased
     // malloc and then tag the node kind as STRUCT so GC can scan fields conservatively.
     var ptr = malloc(size)
-    var node = oren_find_node(ptr)
+    var node = native_gc_find_node_nolock(ptr)
+    if node == 0 {
+        native_alloc_index_rebuild_live()
+        node = native_gc_find_node_nolock(ptr)
+    }
+    if node == 0 && oren_globals() != 0 {
+        // Last-resort: ensure the struct is tracked so GC can scan scheduler state.
+        oren_track_alloc_new(ptr, size, 4)
+        node = native_gc_find_node_nolock(ptr)
+    }
     if node != 0 {
         // node.kind at offset 16
         ptr_set(iadd(node, 16), 4)

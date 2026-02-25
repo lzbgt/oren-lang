@@ -369,14 +369,23 @@ fn _list_reserve_fail_emit(stage, list, node, expected_kind, new_cap) {
           " node=" + oren_int_to_string(node) +
           " expect_kind=" + oren_int_to_string(expected_kind) +
           " new_cap=" + oren_int_to_string(new_cap))
+    var hdr_len = 0
+    var hdr_cap = 0
+    var hdr_buf = 0
+    var hdr_magic = 0
+    if list != 0 && list >= 4096 {
+        hdr_len = ptr_get(iadd(list, 0))
+        hdr_cap = ptr_get(iadd(list, 8))
+        hdr_buf = ptr_get(iadd(list, 16))
+        hdr_magic = ptr_get(iadd(list, 24))
+    }
+    print("[list_reserve_fail] hdr_len=" + oren_int_to_string(hdr_len) +
+          " hdr_cap=" + oren_int_to_string(hdr_cap) +
+          " hdr_buf=" + oren_int_to_string(hdr_buf) +
+          " hdr_magic=" + oren_int_to_string(hdr_magic))
     if node != 0 {
         var nk = ptr_get(iadd(node, 16))
-        var magic = 0
-        if list != 0 && list >= 4096 {
-            magic = ptr_get(iadd(list, 24))
-        }
-        print("[list_reserve_fail] node_kind=" + oren_int_to_string(nk) +
-              " list_magic=" + oren_int_to_string(magic))
+        print("[list_reserve_fail] node_kind=" + oren_int_to_string(nk))
     }
     return 0
 }
@@ -578,10 +587,14 @@ fn _list_corrupt_check(list, stage) {
     var bad = 0
     if magic != list_magic() {
         bad = 1
+    } else if cap < 0 || len < 0 {
+        bad = 1
     } else if cap == 0 {
+        if len != 0 { bad = 1 }
         if buf != 0 { bad = 1 }
     } else {
         if buf == 0 || buf < 4096 { bad = 1 }
+        if len > cap { bad = 1 }
     }
     if bad == 0 { return 0 }
     g_trace_list_corrupt_cap = g_trace_list_corrupt_cap - 1
@@ -1014,6 +1027,7 @@ fn oren_list_int_reserve(list, new_cap) {
         oren_panic("list_int_reserve on non-list")
         return nil
     }
+    _list_corrupt_check(list, 10) // list_int_reserve (pre)
     var cap = ptr_get(iadd(list, 8))
     var count = ptr_get(iadd(list, 0))
     var buf = ptr_get(iadd(list, 16))
