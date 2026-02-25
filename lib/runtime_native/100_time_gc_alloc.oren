@@ -1645,7 +1645,7 @@ fn native_gc_list_header_dump(ptr, chunk_size) {
     return 0
 }
 
-fn native_gc_free_list_header_dump(ptr, chunk_size, kind) {
+fn native_gc_free_list_header_dump(ptr, chunk_size, kind, node_ptr) {
     if g_trace_gc_free_list_headers == 0 { return 0 }
     if g_trace_gc_free_list_headers_cap <= 0 { return 0 }
     g_trace_gc_free_list_headers_cap = g_trace_gc_free_list_headers_cap - 1
@@ -1660,6 +1660,23 @@ fn native_gc_free_list_header_dump(ptr, chunk_size, kind) {
         " cap=" + oren_int_to_string(cap) +
         " buf=" + oren_int_to_string(buf) +
         " magic=" + oren_int_to_string(magic))
+    if chunk_size > 1048576 {
+        var node_magic = 0
+        var node_next = 0
+        var node_freed = 0
+        if node_ptr != 0 {
+            node_magic = ptr_get(iadd(node_ptr, 40))
+            node_next = ptr_get(iadd(node_ptr, 32))
+            node_freed = ptr_get(iadd(node_ptr, 24))
+        }
+        print("[gc_free_list_node] node=" + oren_int_to_string(node_ptr) +
+              " size=" + oren_int_to_string(chunk_size) +
+              " kind=" + oren_int_to_string(kind) +
+              " freed=" + oren_int_to_string(node_freed) +
+              " next=" + oren_int_to_string(node_next) +
+              " magic=" + oren_int_to_string(node_magic))
+        native_list_header_ring_dump(ptr)
+    }
     if native_gc_list_header_ok(ptr, kind, chunk_size) == 0 {
         native_list_debug_node(ptr)
     }
@@ -2625,7 +2642,7 @@ fn native_gc_collect() {
                 if kind == 2 || kind == list_int_kind() {
                     var sz_free = ptr_get(iadd(cur_sweep, 8))
                     if p != 0 && p >= 4096 {
-                        native_gc_free_list_header_dump(p, sz_free, kind)
+                        native_gc_free_list_header_dump(p, sz_free, kind, cur_sweep)
                     }
                     native_gc_freed_list_record(p)
                 }

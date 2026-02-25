@@ -184,6 +184,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
       `OREN_TRACE_LIST_HEADER=1`, `OREN_GC_ALLOC_THRESHOLD=1000`): list_int headers free with len/cap=128 and magic ok, but
       free-list `chunk` sizes are huge (~6.16e9) and `freed_bytes` spikes, suggesting tracking-node size corruption even when
       header fields look valid (log: `build/logs/alloc_churn_free_list_trace_20260225_200907.log`).
+    - New alloc_churn free-list trace with list_hdr_ring (arm64, 2026-02-25, `OREN_TRACE_LIST_HDR_RING=1`):
+      - list_hdr_ring shows `op=2/6/7` (new_list_int/reserve/push) with valid len/cap/magic before free, while
+        `gc_free_list_node` reports huge `size` with intact node magic, reinforcing that the tracking-node size field is corrupt
+        rather than the list header itself (log: `build/logs/alloc_churn_free_list_trace_20260225_202512.log`).
     - Partial alloc_drop free-list trace (arm64, 2026-02-25, `OREN_TRACE_GC_FREE_LIST_HEADERS=1`): list headers free with normal
       chunk sizes (32/64) and valid magic (log: `build/logs/alloc_drop_free_list_trace_20260225_200437.log`).
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
