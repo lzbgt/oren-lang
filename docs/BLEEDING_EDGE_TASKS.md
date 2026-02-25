@@ -36,6 +36,10 @@ kept in sync with `docs/STATUS.md`.
 
 2) **W5 runtime robustness: GC reuse + list header integrity**
    - Root-cause list header corruption before enabling reuse paths.
+   - New: list_int allocations show huge `size` at `oren_track_alloc_new` time (before header init), so track the
+     corruption back to size propagation (possible 32-bit -> 64-bit zero-extend gap or bad `cap` propagation).
+   - Instrument `malloc_k`/arena callers to log size+cap before tracking when `size` is implausible, and audit
+     native codegen for zero-extension on list capacity arithmetic.
    - Expand fast-path tracing in native emitters to pinpoint header writes.
    - Gate: no header corruption under `alloc_churn`/`alloc_drop` with reuse disabled; reuse remains guarded.
 

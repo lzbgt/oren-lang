@@ -154,6 +154,8 @@ var g_alloc_index_remove_time_count = 0
 // List tracking diagnostics (optional).
 var g_trace_list_track = -1
 var g_trace_list_track_cap = 0
+var g_trace_list_track_size = -1
+var g_trace_list_track_size_cap = 0
 var g_trace_track_alloc_new = -1
 var g_trace_track_alloc_new_cap = 0
 var g_trace_list_alloc = -1
@@ -233,6 +235,25 @@ fn trace_list_track_enabled() {
         return true
     }
     g_trace_list_track = 0
+    return false
+}
+
+fn trace_list_track_size_enabled() {
+    if g_trace_list_track_size == 1 { return true }
+    var v = native_envp_get_value_ptr("OREN_TRACE_LIST_TRACK_SIZE")
+    if v == 0 { return false }
+    if ptr_get_byte(v) != 0 && ptr_get_byte(v) != 48 {
+        g_trace_list_track_size = 1
+        g_trace_list_track_size_cap = 1024
+        var cap_ptr = native_envp_get_value_ptr("OREN_TRACE_LIST_TRACK_SIZE_CAP")
+        if cap_ptr != 0 {
+            var cap = native_parse_int_cstr(cap_ptr)
+            if cap > 0 { g_trace_list_track_size_cap = cap }
+        }
+        print("[list_track_size] enabled cap=" + oren_int_to_string(g_trace_list_track_size_cap))
+        return true
+    }
+    g_trace_list_track_size = 0
     return false
 }
 
@@ -340,6 +361,13 @@ fn trace_list_track_consume() {
     return 1
 }
 
+fn trace_list_track_size_consume() {
+    if trace_list_track_size_enabled() != true { return 0 }
+    if g_trace_list_track_size_cap <= 0 { return 0 }
+    g_trace_list_track_size_cap = g_trace_list_track_size_cap - 1
+    return 1
+}
+
 fn trace_track_alloc_new_enabled() {
     if g_trace_track_alloc_new == 1 { return true }
     var v = native_envp_get_value_ptr("OREN_TRACE_TRACK_ALLOC_NEW")
@@ -371,6 +399,28 @@ fn trace_list_track_alloc(ptr, kind, size, mode) {
     print("[list_track] track_alloc ptr=" + oren_int_to_string(ptr) +
           " kind=" + oren_int_to_string(kind) +
           " size=" + oren_int_to_string(size) +
+          " mode=" + oren_int_to_string(mode))
+    return 0
+}
+
+fn trace_list_track_size_emit(ptr, kind, size, mode) {
+    if kind != 2 && kind != list_int_kind() { return 0 }
+    if size < 1048576 { return 0 }
+    if trace_list_track_size_consume() == 0 { return 0 }
+    var len = ptr_get(iadd(ptr, 0))
+    var cap = ptr_get(iadd(ptr, 8))
+    var buf = ptr_get(iadd(ptr, 16))
+    var magic = ptr_get(iadd(ptr, 24))
+    var expected = 32
+    if cap > 0 && cap < 1048576 { expected = expected + cap * 8 }
+    print("[list_track_size] ptr=" + oren_int_to_string(ptr) +
+          " kind=" + oren_int_to_string(kind) +
+          " size=" + oren_int_to_string(size) +
+          " expected=" + oren_int_to_string(expected) +
+          " len=" + oren_int_to_string(len) +
+          " cap=" + oren_int_to_string(cap) +
+          " buf=" + oren_int_to_string(buf) +
+          " magic=" + oren_int_to_string(magic) +
           " mode=" + oren_int_to_string(mode))
     return 0
 }
@@ -1859,6 +1909,7 @@ fn oren_track_alloc_new(ptr, size, kind) {
                       " node=" + oren_int_to_string(node) +
                       " idx_hit=" + oren_int_to_string(hit))
             }
+            trace_list_track_size_emit(ptr, kind, size, 0)
         }
     }
 
@@ -2004,6 +2055,7 @@ fn oren_track_alloc(ptr, size, kind) {
             }
         }
         trace_list_track_alloc(ptr, ptr_get(iadd(hit, 16)), ptr_get(iadd(hit, 8)), 1)
+        trace_list_track_size_emit(ptr, ptr_get(iadd(hit, 16)), ptr_get(iadd(hit, 8)), 1)
         // Auto-GC accounting: treat tracking as allocation event (compiler emits this after malloc).
         if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
             g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
@@ -2051,6 +2103,7 @@ fn oren_track_alloc(ptr, size, kind) {
         }
 
         trace_list_track_alloc(ptr, ptr_get(iadd(cur, 16)), ptr_get(iadd(cur, 8)), 2)
+        trace_list_track_size_emit(ptr, ptr_get(iadd(cur, 16)), ptr_get(iadd(cur, 8)), 2)
         release_lock()
         if trace_time { _trace_track_alloc_time_finish(t0, kind) }
         return ptr
@@ -2081,6 +2134,7 @@ fn oren_track_alloc(ptr, size, kind) {
             }
         }
         trace_list_track_alloc(ptr, kind, size, 3)
+        trace_list_track_size_emit(ptr, kind, size, 3)
     }
 
     if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {

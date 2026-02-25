@@ -188,6 +188,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
       - list_hdr_ring shows `op=2/6/7` (new_list_int/reserve/push) with valid len/cap/magic before free, while
         `gc_free_list_node` reports huge `size` with intact node magic, reinforcing that the tracking-node size field is corrupt
         rather than the list header itself (log: `build/logs/alloc_churn_free_list_trace_20260225_202512.log`).
+    - New alloc_churn track-size trace (arm64, 2026-02-25, `OREN_TRACE_LIST_TRACK_SIZE=1`):
+      - list_int allocations are tracked with a huge `size` (~6.12e9) at `oren_track_alloc_new` time, before header fields
+        are initialized (len/cap/magic = 0), which means the corruption is already present in the `size` argument passed
+        into tracking (log: `build/logs/bench_run_alloc_churn_20260225_203557/oren_native/run_0.log`).
     - Partial alloc_drop free-list trace (arm64, 2026-02-25, `OREN_TRACE_GC_FREE_LIST_HEADERS=1`): list headers free with normal
       chunk sizes (32/64) and valid magic (log: `build/logs/alloc_drop_free_list_trace_20260225_200437.log`).
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
