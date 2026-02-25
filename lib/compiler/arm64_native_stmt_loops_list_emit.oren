@@ -210,9 +210,13 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
         }
     }
 
+    // Keep i/sum in registers across iterations.
+    emit_ldr_reg_sp_any(ctx, 20, i_off)
+    emit_ldr_reg_sp_any(ctx, 23, sum_off)
+    emit_load_i64_imm(ctx, 22, 8)
+
     // Fast loop entry
     var loop_cond_pos = bytes_len(ctx["code"])
-    emit_ldr_reg_sp_any(ctx, 20, i_off)
     emit_ldr_reg_sp_any(ctx, 21, n_off)
     push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
     var jpos_fast_end = bytes_len(ctx["code"])
@@ -231,9 +235,6 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     var tick_skip_off = (tick_skip_pos - jpos_tick_skip) / 4
     set_u32_le(ctx["code"], jpos_tick_skip, insn_b_cond(tick_skip_off, 1)) // NE
 
-    // reload i + sum after safepoint
-    emit_ldr_reg_sp_any(ctx, 20, i_off)
-    emit_ldr_reg_sp_any(ctx, 23, sum_off)
     var pi = 0
     while pi < oren_list_len(loads) {
         var list_name2 = loads[pi]
@@ -247,13 +248,11 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
         if unique_lists {
             emit_ldr_reg_sp_any(ctx, 24, buf_slot2)
             push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
-            emit_load_i64_imm(ctx, 22, 8)
             push_u32_le(ctx["code"], insn_add_reg(24, 24, 22))
             emit_str_reg_sp_any(ctx, 24, buf_slot2)
         } else {
             // addr = buf + i*8 ; load value
             emit_ldr_reg_sp_any(ctx, 21, buf_slot2)
-            emit_load_i64_imm(ctx, 22, 8)
             push_u32_le(ctx["code"], insn_mul(24, 20, 22))
             push_u32_le(ctx["code"], insn_add_reg(24, 21, 24))
             push_u32_le(ctx["code"], insn_ldr_ptr(25, 24))
@@ -310,11 +309,8 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
         pi = pi + 1
     }
 
-    emit_str_reg_sp_any(ctx, 23, sum_off)
-
     // i++
     push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
-    emit_str_reg_sp_any(ctx, 20, i_off)
 
     var back_pos = bytes_len(ctx["code"])
     var back_off = (loop_cond_pos - back_pos) / 4
@@ -325,9 +321,7 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
 
     // Update idx/sum locals after loop exit.
-    emit_ldr_reg_sp_any(ctx, 20, i_off)
     emit_str_reg_fp_any(ctx, 20, idx_fp_off)
-    emit_ldr_reg_sp_any(ctx, 23, sum_off)
     emit_str_reg_fp_any(ctx, 23, sum_fp_off)
 
     var jpos_skip_slow = bytes_len(ctx["code"])
@@ -1053,20 +1047,19 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
         }
     }
 
+    // Keep i/sum in registers across iterations.
+    emit_ldr_reg_sp_any(ctx, 20, i_off)
+    emit_ldr_reg_sp_any(ctx, 23, sum_off)
+    emit_load_i64_imm(ctx, 22, 8)
+
     // Fast loop entry
     var loop_cond_pos = bytes_len(ctx["code"])
-    emit_ldr_reg_sp_any(ctx, 20, i_off)
     emit_ldr_reg_sp_any(ctx, 21, n_off)
     push_u32_le(ctx["code"], insn_cmp_reg(20, 21))
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
     gc.native_emit_gc_safepoint_inline_tick(ctx, 4095)
-
-    // reload i + sum after safepoint
-    emit_ldr_reg_sp_any(ctx, 20, i_off)
-    emit_ldr_reg_sp_any(ctx, 23, sum_off)
-    emit_load_i64_imm(ctx, 22, 8)
 
     var mi = 0
     while mi < oren_list_len(muls) {
@@ -1123,11 +1116,8 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
         mi = mi + 1
     }
 
-    emit_str_reg_sp_any(ctx, 23, sum_off)
-
     // i++
     push_u32_le(ctx["code"], insn_add_imm(20, 20, 1))
-    emit_str_reg_sp_any(ctx, 20, i_off)
 
     var back_pos = bytes_len(ctx["code"])
     var back_off = (loop_cond_pos - back_pos) / 4
@@ -1138,9 +1128,7 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
     set_u32_le(ctx["code"], jpos_fast_end, insn_b_cond(end_off, 10)) // GE
 
     // Update idx/sum locals after loop exit.
-    emit_ldr_reg_sp_any(ctx, 20, i_off)
     emit_str_reg_fp_any(ctx, 20, idx_fp_off)
-    emit_ldr_reg_sp_any(ctx, 23, sum_off)
     emit_str_reg_fp_any(ctx, 23, sum_fp_off)
 
     var jpos_skip_slow = bytes_len(ctx["code"])
