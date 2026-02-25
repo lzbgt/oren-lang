@@ -298,6 +298,7 @@ fn _arm64_new_ctx(linked, platform) {
         if trace_hdr_env == nil { print("[arm64] trace_native_list_hdr env=nil") }
         else { print("[arm64] trace_native_list_hdr env=" + trace_hdr_env) }
         if ctx["trace_native_list_hdr"] != nil { print("[arm64] trace_native_list_hdr=1") }
+        if ctx["trace_native_alloc_req"] != nil { print("[arm64] trace_native_alloc_req=1") }
     }
 
     return ctx

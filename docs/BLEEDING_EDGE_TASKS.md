@@ -35,6 +35,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 - Reweight: runtime robustness + tagged-value convergence are now explicit W5 blockers; perf work must preserve correctness.
 - Reweight: regression gate integrity (AVM build + parity tags) is promoted to W4 because it blocks W5 progress when broken.
 - Reweight: essential language feature completeness is promoted to W4 (see `docs/LANGUAGE.md` planned features).
+- Reweight: rtobj cache hash must reflect trace codegen flags (alloc_req/list_hdr/list_reserve) to keep runtime tracing
+  consistent under cache hits; treat as a W5 runtime robustness gate.
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
@@ -104,6 +106,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace: pre-track tag `[alloc_req]` did not appear in the native run logs above
      (only `[track_alloc_new_size]` emitted), so the pre-track hook may not be firing
      for runtime allocations yet (investigate compiler/runtime bundle flag propagation).
+   - Fix: pin `oren_track_alloc_new` + `oren_trace_alloc_request` with `@oren.keep` so DCE does not drop
+     fixup-only runtime helpers on non-rtobj builds (2026-02-26).
+   - Fix: rtobj runtime hash now salts trace codegen flags (`OREN_TRACE_NATIVE_ALLOC_REQ`,
+     `OREN_TRACE_NATIVE_LIST_HDR`, `OREN_TRACE_NATIVE_LIST_RESERVE`) so cached runtime objects rebuild
+     with pre-track tracing enabled (2026-02-26).
    - New: `OREN_TRACE_NATIVE_ALLOC_REQ=1` emits a native-side pre-track trace
      (`oren_trace_alloc_request`) before `oren_track_alloc_new` to catch size corruption at the call site.
    - Instrument `malloc_k`/arena callers to log size+cap before tracking when `size` is implausible, and audit

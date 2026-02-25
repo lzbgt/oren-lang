@@ -157,6 +157,33 @@ fn _rtobj_string_eq(a, b) {
     return true
 }
 
+fn _rtobj_env_enabled(name) {
+    var v = oren_env(name)
+    if v == nil || v == "" { return false }
+    if _rtobj_string_eq(v, "0") { return false }
+    if _rtobj_string_eq(v, "false") { return false }
+    return true
+}
+
+fn _rtobj_runtime_hash_opts() {
+    // Salt the runtime hash with compile-time knobs that change native codegen.
+    // Keep tags short to preserve filesystem-friendly cache keys.
+    var opts = ""
+    if _rtobj_env_enabled("OREN_TRACE_NATIVE_ALLOC_REQ") {
+        if opts != "" { opts = opts + "," }
+        opts = opts + "alloc_req"
+    }
+    if _rtobj_env_enabled("OREN_TRACE_NATIVE_LIST_HDR") {
+        if opts != "" { opts = opts + "," }
+        opts = opts + "list_hdr"
+    }
+    if _rtobj_env_enabled("OREN_TRACE_NATIVE_LIST_RESERVE") {
+        if opts != "" { opts = opts + "," }
+        opts = opts + "list_reserve"
+    }
+    return opts
+}
+
 fn _rtobj_key_extract_between(key, a, b) {
     if key == nil { return "" }
     if a < 0 || b < 0 { return "" }
@@ -641,6 +668,7 @@ fn rtobj_runtime_hash(ctx, runtime_path) {
         t0 = oren_time_now_ns()
         print("[rtobj] hash start path=" + runtime_path)
     }
+    var hash_opts = _rtobj_runtime_hash_opts()
 
     var runtime_src = nil
     var runtime_parts = nil
@@ -656,7 +684,8 @@ fn rtobj_runtime_hash(ctx, runtime_path) {
         var cached = _rtobj_runtime_hash_cache_try_load(runtime_path)
         if cached != nil && cached != "" {
             if trace { print("[rtobj] hash cache hit") }
-            return cached
+            if hash_opts == "" { return cached }
+            return cached + "_opt_" + hash_opts
         }
 
         runtime_parts = []
@@ -705,7 +734,8 @@ fn rtobj_runtime_hash(ctx, runtime_path) {
         // Best-effort persist so subsequent compiler invocations can avoid re-expanding + hashing.
         _rtobj_runtime_hash_cache_store(runtime_path, h, runtime_files)
     }
-    return h
+    if hash_opts == "" { return h }
+    return h + "_opt_" + hash_opts
 }
 
 fn rtobj_cache_key(backend, platform, runtime_hash) {

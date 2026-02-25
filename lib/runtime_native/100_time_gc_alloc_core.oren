@@ -839,6 +839,7 @@ fn release_lock() {
 }
 
 
+@oren.keep
 fn oren_track_alloc_new(ptr, size, kind) {
     if oren_globals() == 0 { return ptr }
     // Safety: do not allow tracking metadata to be attached to non-pointers.
