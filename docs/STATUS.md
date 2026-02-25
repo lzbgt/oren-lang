@@ -157,6 +157,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Arm64 fast list_int get-sum loops now accept `list_int_get_unchecked` calls to preserve the fast path after rewriting (rolling, 2026-02-24).
    - Arm64 list<int> get-sum + dot fast loops use inline safepoint ticks (register-based) while keeping the stack tick slot to avoid the offset regression (rolling, 2026-02-25).
    - Safepoint throttling for list<int> hot loops: arm64 list<int> sum/dot mask=4095; x64 list<int> sum/dot mask=1023.
+   - X64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023 to reduce hot-loop overhead (rolling, 2026-02-25).
    - TODO: root-cause the arm64 offset regression when removing the tick stack slot and safely eliminate the unused slot.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 

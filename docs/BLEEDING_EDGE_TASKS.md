@@ -57,6 +57,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Close native gap vs C and keep cross-backend semantics aligned.
    - New: loop_sum init/steady split instrumentation via `OREN_BENCH_INIT_SPLIT=1`.
    - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
+   - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
    - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
 
 4) **W5 tagged value convergence plan (native/C/AVM)**
