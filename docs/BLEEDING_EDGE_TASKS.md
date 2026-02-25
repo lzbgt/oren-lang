@@ -136,6 +136,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `[alloc_index] rebuild allocs=0 static=0 dt_ms=0` line (log:
      `build/logs/bench_run_alloc_churn_20260226_055407/oren_native/run_0.log`), suggesting
      no rebuild pressure in this baseline after the fallback fix (2026-02-26).
+   - Trace: quick integration run with `OREN_TRACE_ALLOC_INDEX=1` emitted two rebuild events
+     (summary shows `rebuilds=2`, `rebuild_ns=114000`, `rebuild_allocs=0`, `rebuild_static=0`;
+     log: `build/logs/oren_stage2_native_quick_integration.log`), indicating early-runtime
+     rebuilds but no tracked allocs in the table (2026-02-26).
    - New: `OREN_TRACE_NATIVE_ALLOC_REQ=1` emits a native-side pre-track trace
      (`oren_trace_alloc_request`) before `oren_track_alloc_new` to catch size corruption at the call site.
    - Instrument `malloc_k`/arena callers to log size+cap before tracking when `size` is implausible, and audit
