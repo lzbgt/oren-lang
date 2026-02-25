@@ -132,6 +132,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New: `OREN_TRACE_ALLOC_INDEX=1` now reports alloc-index rebuild stats
      (`[alloc_index] rebuild allocs=... static=... dt_ms=...`) to quantify how often
      the fallback path runs under green-task churn (2026-02-26).
+   - Trace: alloc_churn native run with `OREN_TRACE_ALLOC_INDEX=1` emitted a single
+     `[alloc_index] rebuild allocs=0 static=0 dt_ms=0` line (log:
+     `build/logs/bench_run_alloc_churn_20260226_055407/oren_native/run_0.log`), suggesting
+     no rebuild pressure in this baseline after the fallback fix (2026-02-26).
    - New: `OREN_TRACE_NATIVE_ALLOC_REQ=1` emits a native-side pre-track trace
      (`oren_trace_alloc_request`) before `oren_track_alloc_new` to catch size corruption at the call site.
    - Instrument `malloc_k`/arena callers to log size+cap before tracking when `size` is implausible, and audit
