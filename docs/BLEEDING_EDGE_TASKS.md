@@ -28,6 +28,10 @@ kept in sync with `docs/STATUS.md`.
 
 ## Derived tasks to work on (linked to `docs/STATUS.md`)
 
+Priority weights (rolling, refreshed after `avm_vm.c` split):
+- W5 items remain the top leverage path to production parity (perf + semantic + runtime robustness).
+- W4/W3 follow; remaining W3 large-file target is the x64 emit ops module.
+
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
    - Baseline (arm64 native, 2026-02-25): `alloc_churn` 7.23× C, `alloc_drop` 2.32× C.
@@ -88,7 +92,9 @@ kept in sync with `docs/STATUS.md`.
    - Done: `lib/avm/main.c` split into CLI-focused modules
      (`avm_cli_util`, `avm_cli_verify`, `avm_cli_policy`, `avm_cli_fs`,
      `avm_cli_disasm`, `avm_cli_dump`) (<2000 lines each, 2026-02-25).
-   - Next targets: `lib/avm/avm_vm.c`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
+   - Done: `lib/avm/avm_vm.c` split into focused VM modules (`avm_vm_core`,
+     `avm_vm_sched`, `avm_vm_values`, `avm_vm_list_ops`) (<2000 lines each, 2026-02-25).
+   - Next targets: `lib/compiler/x64_native_program/060_emit_ops.oren`.
 
 10) **Tooling reliability and reproducibility**
    - Keep build/test/bench workflows stable and fast.
