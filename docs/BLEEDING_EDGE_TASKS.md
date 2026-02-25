@@ -37,6 +37,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 - Reweight: essential language feature completeness is promoted to W4 (see `docs/LANGUAGE.md` planned features).
 - Reweight: rtobj cache hash must reflect trace codegen flags (alloc_req/list_hdr/list_reserve) to keep runtime tracing
   consistent under cache hits; treat as a W5 runtime robustness gate.
+- Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate; prioritize fixes that move
+  semantic parity, runtime robustness, or perf parity metrics.
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
@@ -132,6 +134,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New: `OREN_TRACE_ALLOC_INDEX=1` now reports alloc-index rebuild stats
      (`[alloc_index] rebuild allocs=... static=... dt_ms=...`) to quantify how often
      the fallback path runs under green-task churn (2026-02-26).
+   - New: `OREN_TRACE_ALLOC_INDEX_REBUILD_CAP=<n>` panics when rebuilds exceed `n` (trace-only guardrail)
+     to catch runaway rebuild loops during corruption hunts (rolling, 2026-02-26).
    - Trace: alloc_churn native run with `OREN_TRACE_ALLOC_INDEX=1` emitted a single
      `[alloc_index] rebuild allocs=0 static=0 dt_ms=0` line (log:
      `build/logs/bench_run_alloc_churn_20260226_055407/oren_native/run_0.log`), suggesting

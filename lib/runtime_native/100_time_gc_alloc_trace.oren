@@ -33,6 +33,7 @@ var g_alloc_index_rebuild_static = 0
 var g_alloc_index_probe_exhausted_count = 0
 var g_alloc_index_remove_time_total_ns = 0
 var g_alloc_index_remove_time_count = 0
+var g_alloc_index_rebuild_cap = 0
 var g_trace_list_track = -1
 var g_trace_list_track_cap = 0
 var g_trace_list_track_size = -1

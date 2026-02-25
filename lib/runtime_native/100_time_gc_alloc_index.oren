@@ -537,13 +537,11 @@ fn native_alloc_index_rebuild_live() {
         print("[alloc_index] rebuild allocs=" + oren_int_to_string(count_allocs) +
               " static=" + oren_int_to_string(count_static) +
               " dt_ms=" + oren_int_to_string(dt / 1000000))
-    }
-    if trace {
-        var dt = oren_time_now_ns() - t0
-        g_alloc_index_rebuild_count = g_alloc_index_rebuild_count + 1
-        g_alloc_index_rebuild_ns = g_alloc_index_rebuild_ns + dt
-        g_alloc_index_rebuild_allocs = g_alloc_index_rebuild_allocs + count_allocs
-        g_alloc_index_rebuild_static = g_alloc_index_rebuild_static + count_static
+        if g_alloc_index_rebuild_cap > 0 && g_alloc_index_rebuild_count > g_alloc_index_rebuild_cap {
+            print("[alloc_index] rebuild cap exceeded cap=" + oren_int_to_string(g_alloc_index_rebuild_cap) +
+                  " count=" + oren_int_to_string(g_alloc_index_rebuild_count))
+            oren_panic("alloc_index rebuild cap exceeded")
+        }
     }
     return 0
 }

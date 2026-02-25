@@ -671,6 +671,7 @@ P0 focuses on the W5/W4 scorecard items. Structural/SOLID refactors remain P2
 until perf + parity gates are within range. Reweight: runtime robustness + tagged
 value convergence are W5 blockers; performance work must preserve correctness and
 traceability.
+Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate.
 
 1) **Perf parity W5: allocation/GC** (L, W5)
    - Execute item 2 in the performance tracker (alloc_churn + alloc_drop).
@@ -701,6 +702,8 @@ traceability.
      - Done: x64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-26).
      - Next: correlate list_hdr traces with free-list header dumps to find the first corrupt write.
      - Investigate list_int tracking-node size corruption (alloc_churn free-list traces show huge chunk sizes despite valid headers).
+   - New: `OREN_TRACE_ALLOC_INDEX_REBUILD_CAP=<n>` panics when rebuilds exceed `n` (trace-only guardrail)
+     to catch runaway rebuild loops during corruption hunts (rolling, 2026-02-26).
    - Gate: no header corruption under alloc benches with reuse disabled; reuse paths stay guarded until verified.
 
 4) **Tagged value convergence plan** (L, W5)
