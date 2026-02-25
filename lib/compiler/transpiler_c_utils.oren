@@ -1,0 +1,258 @@
+import intparse "int_lit.oren"
+
+import tcore "transpiler_core.oren"
+
+
+
+// C backend naming/escaping utilities extracted from transpiler.oren.
+
+
+
+fn str_eq(a, b) { return tcore.str_eq(a, b) }
+
+
+
+var CH_QUOTE = "\""
+
+var CH_BACKSLASH = "\\"
+
+var CH_LF = "\n"
+
+var CH_CR = "\r"
+
+var CH_TAB = "\t"
+
+
+
+fn fun_varargs_fixed(fun) {
+    // Returns fixed-parameter count for a varargs function, or -1 if not varargs.
+    //
+    // Varargs syntax: fn f(a, b, ...rest) { }
+    // Internally: `rest` is bound to a list of extra args.
+    var params = fun["params"]
+    if params == nil { return -1 }
+    var n = oren_list_len(params)
+    if n == 0 { return -1 }
+    var last = params[n - 1]
+    if last != nil && last["is_varargs"] == true {
+        return n - 1
+    }
+    return -1
+}
+
+fn trim_trailing_underscores(s) {
+    var end = oren_string_len(s)
+    while end > 0 {
+        if oren_string_char_at(s, end - 1) != "_" { break }
+        end = end - 1
+    }
+    return oren_string_slice(s, 0, end)
+}
+
+fn is_c_keyword(s) {
+    if s == nil { return false }
+    // Minimal set: enough to avoid obvious collisions in generated C.
+    if s == "auto" { return true }
+    if s == "break" { return true }
+    if s == "case" { return true }
+    if s == "char" { return true }
+    if s == "const" { return true }
+    if s == "continue" { return true }
+    if s == "default" { return true }
+    if s == "do" { return true }
+    if s == "double" { return true }
+    if s == "else" { return true }
+    if s == "enum" { return true }
+    if s == "extern" { return true }
+    if s == "float" { return true }
+    if s == "for" { return true }
+    if s == "goto" { return true }
+    if s == "if" { return true }
+    if s == "inline" { return true }
+    if s == "int" { return true }
+    if s == "long" { return true }
+    if s == "register" { return true }
+    if s == "restrict" { return true }
+    if s == "return" { return true }
+    if s == "short" { return true }
+    if s == "signed" { return true }
+    if s == "sizeof" { return true }
+    if s == "static" { return true }
+    if s == "struct" { return true }
+    if s == "switch" { return true }
+    if s == "typedef" { return true }
+    if s == "union" { return true }
+    if s == "unsigned" { return true }
+    if s == "void" { return true }
+    if s == "volatile" { return true }
+    if s == "while" { return true }
+    return false
+}
+
+fn c_ident(name) {
+    // The parser may generate internal identifiers containing '@' (for `for x in ...` sugar).
+    // Those are valid in the Oren AST but not valid C identifiers.
+    if name == nil || name == "" { return "_" }
+
+    var bs = oren_bytes_from_string(name)
+    var out = []
+    var i = 0
+    while i < oren_list_len(bs) {
+        var b = bs[i]
+        var ok = 0
+        // '_' or A-Z or a-z or 0-9
+        if b == 95 { ok = 1 }
+        if b >= 65 && b <= 90 { ok = 1 }
+        if b >= 97 && b <= 122 { ok = 1 }
+        if b >= 48 && b <= 57 { ok = 1 }
+        if ok == 0 { b = 95 }
+
+        // Leading digit is not allowed in C identifiers.
+        if i == 0 && b >= 48 && b <= 57 {
+            oren_list_push(out, 95)
+        }
+        oren_list_push(out, b)
+        i = i + 1
+    }
+
+    var s = oren_string_from_bytes(out)
+    if s == nil || s == "" { s = "_" }
+    if is_c_keyword(s) { s = "oren_" + s }
+    return s
+}
+
+fn c_fn_name(name) {
+    if str_eq(name, "main") { return "__oren_user_main" }
+    return c_ident(name)
+}
+
+fn ns_resolve(t, exp) {
+    if exp == nil { return nil }
+    var et = exp["type"]
+    if et == "Identifier" {
+        var name = exp["value"]
+        if t["aliases"][name] != nil { return {"name": t["aliases"][name], "is_ns": true} }
+        if t["type_ns"][name] == true { return {"name": name, "is_ns": true} }
+        return nil
+    }
+    if et == "Member" {
+        var left = ns_resolve(t, exp["left"])
+        if left == nil { return nil }
+        if left["is_ns"] != true { return nil }
+        var base = trim_trailing_underscores(left["name"])
+        var name2 = base + "_" + exp["prop"]["value"]
+        var is_ns2 = false
+        if t["type_ns"][name2] == true { is_ns2 = true }
+        return {"name": name2, "is_ns": is_ns2}
+    }
+    return nil
+}
+
+fn type_ctor_name(type_decl) {
+    return c_ident(type_decl["name"]["value"])
+}
+
+fn type_ctor_sig(type_decl) {
+    var params = ""
+    var i = 0
+    while i < oren_list_len(type_decl["fields"]) {
+        if i > 0 { params = params + ", " }
+        params = params + "OrenValue " + c_ident(type_decl["fields"][i]["value"])
+        i = i + 1
+    }
+    return "OrenValue " + type_ctor_name(type_decl) + "(" + params + ")"
+}
+
+fn contains_curly_braces(s) {
+    var i = 0
+    var len = oren_string_len(s)
+    while i < len - 1 {
+        if oren_string_char_at(s, i) == "{" {
+            if oren_string_char_at(s, i + 1) == "}" { return true }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn c_escape_string(s) {
+    var out = ""
+    var i = 0
+    while i < oren_string_len(s) {
+        var ch = oren_string_char_at(s, i)
+        var piece = ""
+        if ch == CH_BACKSLASH { piece = "\\\\" }
+        if ch == CH_QUOTE { piece = "\\\"" }
+        if ch == CH_LF { piece = "\\n" }
+        if ch == CH_CR { piece = "\\r" }
+        if ch == CH_TAB { piece = "\\t" }
+        if piece == "" { piece = ch }
+        out = out + piece
+        i = i + 1
+    }
+    return out
+}
+
+fn int_str(n) { return oren_int_to_string(n) }
+
+fn parse_int_lit(s) {
+    // Transpiler int literal parser for the C backend.
+    //
+    // We cannot emit `oren_int(<raw literal>)` for prefixed literals like `0o17`
+    // because C does not have `0o`/`0b` integer literal syntax.
+    //
+    // Parse the literal at compile time and emit a decimal constant.
+    return intparse.parse_int_lit_strict(s)
+}
+
+fn function_sig(func_decl) {
+    var params = ""
+    var i = 0
+    while i < oren_list_len(func_decl["params"]) {
+        if i > 0 { params = params + ", " }
+        params = params + "OrenValue " + c_ident(func_decl["params"][i]["value"])
+        i = i + 1
+    }
+    return "OrenValue " + c_fn_name(func_decl["name"]) + "(" + params + ")"
+}
+
+fn fnwrap_name(name) {
+    return c_fn_name(name) + "__oren_fnwrap"
+}
+
+fn fnwrap_sig_by_name(name) {
+    return "OrenValue " + fnwrap_name(name) + "(void* env, int argc, OrenValue* argv)"
+}
+
+fn lambda_sig_by_name(name) {
+    return "OrenValue " + name + "(void* env, int argc, OrenValue* argv)"
+}
+
+fn is_builtin_ident_name(name) {
+    if str_eq(name, "print") { return true }
+    if str_eq(name, "py_import") { return true }
+    if str_eq(name, "py_release") { return true }
+    if str_eq(name, "system") { return true }
+    if str_eq(name, "exit") { return true }
+    return false
+}
+
+fn is_non_capturable_ident_name(name) {
+    if name == nil || name == "" { return true }
+    if is_builtin_ident_name(name) { return true }
+    if starts_with(name, "oren_") { return true }
+    if starts_with(name, "sys_") { return true }
+    return false
+}
+
+fn starts_with(s, prefix) {
+    var sl = oren_string_len(s)
+    var pl = oren_string_len(prefix)
+    if sl < pl { return false }
+    var i = 0
+    while i < pl {
+        if oren_string_char_at(s, i) != oren_string_char_at(prefix, i) { return false }
+        i = i + 1
+    }
+    return true
+}

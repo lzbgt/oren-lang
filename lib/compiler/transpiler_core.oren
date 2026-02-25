@@ -1,0 +1,123 @@
+// Transpiler core helpers extracted from transpiler.oren.
+
+var _CH_LF = "\n"
+
+
+
+fn new_transpiler() {
+    return {
+        "lines": [],
+        "chunks": [],
+        // Cache indentation pads by level to avoid repeated allocations.
+        "pad_cache": {0: ""},
+        // Flush accumulated lines into `chunks` when this many are buffered.
+        // Keeps peak memory bounded during large transpiles (e.g. stage2 self-hosting).
+        "flush_lines": 512,
+        "indent": 0,
+        "functions": [],
+        "func_varargs_fixed": {},
+        "aliases": {},
+        "type_ns": {},
+        "lambda_defs": [],
+        "lambda_counter": 0,
+        "const_ints": {},
+    }
+}
+
+fn _transpiler_get_pad(t) {
+    var ind = t["indent"]
+    if ind == nil { ind = 0 }
+    var cache = t["pad_cache"]
+    if cache == nil { cache = {0: ""}; t["pad_cache"] = cache }
+    var pad = cache[ind]
+    if pad != nil { return pad }
+    pad = ""
+    var i = 0
+    while i < ind {
+        pad = pad + "    "
+        i = i + 1
+    }
+    cache[ind] = pad
+    return pad
+}
+
+fn _transpiler_flush_lines(t, add_trailing_sep) {
+    if t == nil { return nil }
+    var lines = t["lines"]
+    if lines == nil || oren_list_len(lines) == 0 { return nil }
+    var chunk = list_join(lines, _CH_LF)
+    if chunk != nil && chunk != "" {
+        if t["chunks"] == nil { t["chunks"] = [] }
+        oren_list_push(t["chunks"], chunk)
+        if add_trailing_sep == true {
+            oren_list_push(t["chunks"], _CH_LF)
+        }
+    }
+    t["lines"] = []
+    return nil
+}
+
+fn emit(t, s) {
+    var pad = _transpiler_get_pad(t)
+    oren_list_push(t["lines"], pad + s)
+
+    var limit = t["flush_lines"]
+    if limit != nil && oren_list_len(t["lines"]) >= limit {
+        _transpiler_flush_lines(t, true)
+    }
+}
+
+fn indent_more(t) { t["indent"] = t["indent"] + 1 }
+
+fn indent_less(t) { t["indent"] = t["indent"] - 1 }
+
+fn _transpiler_join_parts(parts) {
+    if parts == nil { return "" }
+    if oren_list_len(parts) == 0 { return "" }
+    // Prefer the runtime join helper so we do a single allocation (O(n) time/mem).
+    // This matters for stage2 self-hosting where we join extremely large parts lists.
+    return oren_string_join(parts)
+}
+
+fn list_join(lines, sep) {
+    // NOTE: naive `out = out + ...` in a loop is O(n^2) and can blow up memory
+    // when transpiling large programs (e.g. stage2 self-hosting).
+    //
+    // Build a parts list and join via pairwise concatenation to keep it near-linear.
+    if lines == nil { return "" }
+    var n = oren_list_len(lines)
+    if n == 0 { return "" }
+    var parts = []
+    var i = 0
+    while i < n {
+        oren_list_push(parts, lines[i])
+        if i < n - 1 { oren_list_push(parts, sep) }
+        i = i + 1
+    }
+    return _transpiler_join_parts(parts)
+}
+
+fn list_contains(lst, val) {
+    var i = 0
+    var n = oren_list_len(lst)
+    while i < n {
+        if str_eq(lst[i], val) { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn str_eq(a, b) {
+    if oren_is_string(a) && oren_is_string(b) {
+        return oren_string_eq(a, b)
+    }
+    return a == b
+}
+
+fn tmp_gensym(t, prefix) {
+    // Deterministic gensym for internal temporaries in emitted C.
+    if t["tmp_counter"] == nil { t["tmp_counter"] = 0 }
+    var n = t["tmp_counter"]
+    t["tmp_counter"] = n + 1
+    return "__oren_" + prefix + "_" + oren_int_to_string(n)
+}

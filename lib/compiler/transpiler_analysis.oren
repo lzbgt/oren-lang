@@ -1,0 +1,842 @@
+import tcore "transpiler_core.oren"
+
+import cutils "transpiler_c_utils.oren"
+
+
+
+// Analysis + matching helpers extracted from transpiler.oren.
+
+
+
+fn list_contains(lst, val) { return tcore.list_contains(lst, val) }
+
+fn str_eq(a, b) { return tcore.str_eq(a, b) }
+
+fn ns_resolve(t, exp) { return cutils.ns_resolve(t, exp) }
+
+fn parse_int_lit(s) { return cutils.parse_int_lit(s) }
+
+fn int_str(n) { return cutils.int_str(n) }
+
+
+
+fn _transpiler_inty_list(t) {
+    if t["inty"] == nil { t["inty"] = [] }
+    return t["inty"]
+}
+
+fn _transpiler_inty_clone(xs) {
+    var out = []
+    if xs == nil { return out }
+    var i = 0
+    while i < oren_list_len(xs) {
+        oren_list_push(out, xs[i])
+        i = i + 1
+    }
+    return out
+}
+
+fn _transpiler_inty_remove(xs, name) {
+    if xs == nil { return [] }
+    var out = []
+    var i = 0
+    while i < oren_list_len(xs) {
+        if str_eq(xs[i], name) != true { oren_list_push(out, xs[i]) }
+        i = i + 1
+    }
+    return out
+}
+
+fn _transpiler_inty_set(t, name, ok) {
+    var xs = _transpiler_inty_list(t)
+    if ok {
+        if list_contains(xs, name) == false {
+            oren_list_push(xs, name)
+        }
+        return nil
+    }
+    t["inty"] = _transpiler_inty_remove(xs, name)
+    return nil
+}
+
+fn _transpiler_inty_intersect(a, b) {
+    var out = []
+    if a == nil || b == nil { return out }
+    var i = 0
+    while i < oren_list_len(a) {
+        if list_contains(b, a[i]) { oren_list_push(out, a[i]) }
+        i = i + 1
+    }
+    return out
+}
+
+fn _transpiler_const_map(t) {
+    if t["const_ints"] == nil { t["const_ints"] = {} }
+    return t["const_ints"]
+}
+
+fn _transpiler_const_get(t, name) {
+    var m = _transpiler_const_map(t)
+    return m[name]
+}
+
+fn _transpiler_const_set(t, name, val) {
+    var m = _transpiler_const_map(t)
+    m[name] = val
+    return nil
+}
+
+fn _transpiler_const_clear(t, name) {
+    var m = _transpiler_const_map(t)
+    m[name] = nil
+    return nil
+}
+
+fn _transpiler_const_reset(t) {
+    t["const_ints"] = {}
+    return nil
+}
+
+fn _transpiler_expr_is_inty(t, exp) {
+    if exp == nil { return false }
+    var et = exp["type"]
+    if et == "Integer" { return true }
+    if et == "Identifier" {
+        var name_id = exp["value"]
+        var ok = list_contains(_transpiler_inty_list(t), name_id)
+        return ok
+    }
+    if et == "Call" {
+        var nm = nil
+        if exp["fn"] != nil {
+            if exp["fn"]["type"] == "Identifier" {
+                nm = exp["fn"]["value"]
+            } else if exp["fn"]["type"] == "Member" {
+                var ns = ns_resolve(t, exp["fn"])
+                if ns != nil {
+                    nm = ns["name"]
+                } else {
+                    var left = exp["fn"]["left"]
+                    var prop = exp["fn"]["prop"]
+                    if left != nil && prop != nil && left["type"] == "Identifier" && left["value"] == "list" {
+                        if prop["value"] == "int_get" { nm = "STD_list_int_get" }
+                        if prop["value"] == "int_len" { nm = "STD_list_int_len" }
+                        if prop["value"] == "len" { nm = "STD_list_len" }
+                    }
+                }
+            }
+        }
+        if nm == nil { return false }
+        if str_eq(nm, "oren_int") { return true }
+        if str_eq(nm, "oren_trunc_int") { return true }
+        if str_eq(nm, "oren_f32_to_u32_bits") { return true }
+        if str_eq(nm, "oren_f64_to_u64_bits") { return true }
+        if str_eq(nm, "oren_list_int_get") || str_eq(nm, "STD_list_int_get") { return true }
+        if str_eq(nm, "oren_list_int_len") || str_eq(nm, "STD_list_int_len") { return true }
+        if str_eq(nm, "oren_list_int_set") || str_eq(nm, "STD_list_int_set") { return true }
+        if str_eq(nm, "oren_list_len") || str_eq(nm, "STD_list_len") { return true }
+        if str_eq(nm, "oren_map_len") { return true }
+        if str_eq(nm, "oren_string_len") { return true }
+        if str_eq(nm, "oren_buf_len") { return true }
+        if str_eq(nm, "oren_buf_load_u8") || str_eq(nm, "oren_buf_load_u8_unchecked") { return true }
+        if str_eq(nm, "oren_buf_load_i32") || str_eq(nm, "oren_buf_load_i64") { return true }
+        if str_eq(nm, "oren_buf_dot_i32") || str_eq(nm, "oren_buf_dot_i32_slice") || str_eq(nm, "oren_buf_dot_i32_strided") { return true }
+        if str_eq(nm, "oren_buf_reduce_sum_i32") { return true }
+        return false
+    }
+    if et == "Prefix" {
+        var op = exp["op"]
+        if op == "-" || op == "~" {
+            return _transpiler_expr_is_inty(t, exp["right"])
+        }
+        return false
+    }
+    if et == "Infix" {
+        var op = exp["op"]
+        if op == "+" || op == "-" || op == "*" || op == "/" || op == "%" ||
+           op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>" {
+            return _transpiler_expr_is_inty(t, exp["left"]) &&
+                   _transpiler_expr_is_inty(t, exp["right"])
+        }
+        return false
+    }
+    return false
+}
+
+fn _transpiler_is_ident(exp) {
+    if exp == nil { return nil }
+    if exp["type"] == "Identifier" { return exp["value"] }
+    return nil
+}
+
+fn _transpiler_is_int_lit(exp, val) {
+    if exp == nil || exp["type"] != "Integer" { return false }
+    if val == nil { return false }
+    return parse_int_lit(exp["value"]) == val
+}
+
+fn _transpiler_is_list_int_get_call(t, exp, idx_name) {
+    if exp == nil { return nil }
+    if exp["type"] == "Index" {
+        if exp["recv_kind"] != "list_int" { return nil }
+        var list_name0 = _transpiler_is_ident(exp["left"])
+        var idx0 = _transpiler_is_ident(exp["index"])
+        if list_name0 == nil || idx0 == nil { return nil }
+        if str_eq(idx0, idx_name) != true { return nil }
+        return list_name0
+    }
+    if exp["type"] != "Call" { return nil }
+    if exp["fn"] == nil { return nil }
+    var nm = nil
+    if exp["fn"]["type"] == "Identifier" {
+        nm = exp["fn"]["value"]
+    } else if exp["fn"]["type"] == "Member" {
+        var ns = ns_resolve(t, exp["fn"])
+        if ns != nil {
+            nm = ns["name"]
+        } else {
+            var left = exp["fn"]["left"]
+            var prop = exp["fn"]["prop"]
+            if left != nil && prop != nil && left["type"] == "Identifier" && left["value"] == "list" {
+                if prop["value"] == "int_get" { nm = "STD_list_int_get" }
+            }
+        }
+    }
+    if nm == nil { return nil }
+    if str_eq(nm, "oren_list_int_get") != true && str_eq(nm, "STD_list_int_get") != true { return nil }
+    var args = exp["args"]
+    if args == nil || oren_list_len(args) != 2 { return nil }
+    var list_name = _transpiler_is_ident(args[0])
+    var idx = _transpiler_is_ident(args[1])
+    if list_name == nil || idx == nil { return nil }
+    if str_eq(idx, idx_name) != true { return nil }
+    return list_name
+}
+
+fn _transpiler_is_list_get_call(t, exp, idx_name) {
+    if exp == nil { return nil }
+    if exp["type"] == "Index" {
+        var rk = exp["recv_kind"]
+        if rk != nil && rk != "list" { return nil }
+        var list_name0 = _transpiler_is_ident(exp["left"])
+        var idx0 = _transpiler_is_ident(exp["index"])
+        if list_name0 == nil || idx0 == nil { return nil }
+        if str_eq(idx0, idx_name) != true { return nil }
+        return list_name0
+    }
+    if exp["type"] != "Call" { return nil }
+    if exp["fn"] == nil { return nil }
+    var nm = nil
+    if exp["fn"]["type"] == "Identifier" {
+        nm = exp["fn"]["value"]
+    } else if exp["fn"]["type"] == "Member" {
+        var ns = ns_resolve(t, exp["fn"])
+        if ns != nil {
+            nm = ns["name"]
+        } else {
+            var left = exp["fn"]["left"]
+            var prop = exp["fn"]["prop"]
+            if left != nil && prop != nil && left["type"] == "Identifier" && left["value"] == "list" {
+                if prop["value"] == "get" { nm = "STD_list_get" }
+            }
+        }
+    }
+    if nm == nil { return nil }
+    if str_eq(nm, "oren_list_get") != true && str_eq(nm, "STD_list_get") != true { return nil }
+    var args = exp["args"]
+    if args == nil || oren_list_len(args) != 2 { return nil }
+    var list_name = _transpiler_is_ident(args[0])
+    var idx = _transpiler_is_ident(args[1])
+    if list_name == nil || idx == nil { return nil }
+    if str_eq(idx, idx_name) != true { return nil }
+    return list_name
+}
+
+fn _transpiler_is_list_int_push_call(t, exp) {
+    if exp == nil || exp["type"] != "Call" { return nil }
+    if exp["fn"] == nil { return nil }
+    var nm = nil
+    if exp["fn"]["type"] == "Identifier" {
+        nm = exp["fn"]["value"]
+    } else if exp["fn"]["type"] == "Member" {
+        var ns = ns_resolve(t, exp["fn"])
+        if ns != nil {
+            nm = ns["name"]
+        } else {
+            var left = exp["fn"]["left"]
+            var prop = exp["fn"]["prop"]
+            if left != nil && prop != nil && left["type"] == "Identifier" && left["value"] == "list" {
+                if prop["value"] == "int_push" { nm = "STD_list_int_push" }
+            }
+        }
+    }
+    if nm == nil { return nil }
+    if str_eq(nm, "oren_list_int_push") != true && str_eq(nm, "STD_list_int_push") != true { return nil }
+    var args = exp["args"]
+    if args == nil || oren_list_len(args) != 2 { return nil }
+    var list_name = _transpiler_is_ident(args[0])
+    if list_name == nil { return nil }
+    return list_name
+}
+
+fn _transpiler_is_list_push_call(t, exp) {
+    if exp == nil || exp["type"] != "Call" { return nil }
+    if exp["fn"] == nil { return nil }
+    var nm = nil
+    if exp["fn"]["type"] == "Identifier" {
+        nm = exp["fn"]["value"]
+    } else if exp["fn"]["type"] == "Member" {
+        var ns = ns_resolve(t, exp["fn"])
+        if ns != nil {
+            nm = ns["name"]
+        } else {
+            var left = exp["fn"]["left"]
+            var prop = exp["fn"]["prop"]
+            if left != nil && prop != nil && left["type"] == "Identifier" && left["value"] == "list" {
+                if prop["value"] == "push" { nm = "STD_list_push" }
+            }
+        }
+    }
+    if nm == nil { return nil }
+    if str_eq(nm, "oren_list_push") != true && str_eq(nm, "STD_list_push") != true { return nil }
+    var args = exp["args"]
+    if args == nil || oren_list_len(args) != 2 { return nil }
+    var list_name = _transpiler_is_ident(args[0])
+    if list_name == nil { return nil }
+    return list_name
+}
+
+fn _transpiler_is_sum_add_list_get(t, stmt, idx_name) {
+    if stmt == nil || stmt["type"] != "Assign" { return nil }
+    var sum_name = _transpiler_is_ident(stmt["name"])
+    if sum_name == nil { return nil }
+    var v = stmt["value"]
+    if v == nil || v["type"] != "Infix" { return nil }
+    if v["op"] != "+" { return nil }
+    var left = _transpiler_is_ident(v["left"])
+    if left == nil || str_eq(left, sum_name) != true { return nil }
+    var list_name = _transpiler_is_list_get_call(t, v["right"], idx_name)
+    if list_name == nil { return nil }
+    return {"sum": sum_name, "list": list_name}
+}
+
+fn _transpiler_expr_collect_list_int_gets(t, exp, idx_name, lists) {
+    if exp == nil { return {"ok": true, "lists": lists, "uses_idx": false} }
+    var et = exp["type"]
+    if et == "Identifier" {
+        if str_eq(exp["value"], idx_name) { return {"ok": true, "lists": lists, "uses_idx": true} }
+        return {"ok": true, "lists": lists, "uses_idx": false}
+    }
+    var list_name = _transpiler_is_list_int_get_call(t, exp, idx_name)
+    if list_name != nil {
+        if list_contains(lists, list_name) == false {
+            oren_list_push(lists, list_name)
+        }
+        return {"ok": true, "lists": lists, "uses_idx": false}
+    }
+    if et == "Index" {
+        var list_name2 = _transpiler_is_list_int_get_call(t, exp, idx_name)
+        if list_name2 != nil {
+            if list_contains(lists, list_name2) == false {
+                oren_list_push(lists, list_name2)
+            }
+            return {"ok": true, "lists": lists, "uses_idx": false}
+        }
+        return {"ok": false, "lists": lists, "uses_idx": false}
+    }
+    if et == "Call" {
+        var nm = nil
+        if exp["fn"] != nil {
+            if exp["fn"]["type"] == "Identifier" {
+                nm = exp["fn"]["value"]
+            } else if exp["fn"]["type"] == "Member" {
+                var ns2 = ns_resolve(t, exp["fn"])
+                if ns2 != nil { nm = ns2["name"] }
+            }
+        }
+        if nm == nil {
+            if exp["fn"] != nil && exp["fn"]["type"] == "Member" {
+                var leftm = exp["fn"]["left"]
+                var propm = exp["fn"]["prop"]
+                if leftm != nil && propm != nil && leftm["type"] == "Identifier" && leftm["value"] == "list" {
+                    if propm["value"] == "int_get" { nm = "STD_list_int_get" }
+                }
+            }
+        }
+        if nm == nil { return {"ok": false, "lists": lists, "uses_idx": false} }
+        if str_eq(nm, "oren_list_int_get") || str_eq(nm, "STD_list_int_get") {
+            if _transpiler_is_list_int_get_call(t, exp, idx_name) == nil {
+                return {"ok": false, "lists": lists, "uses_idx": false}
+            }
+        } else if str_eq(nm, "oren_int") {
+            // allow
+        } else {
+            return {"ok": false, "lists": lists, "uses_idx": false}
+        }
+        var args = exp["args"]
+        var j = 0
+        while j < oren_list_len(args) {
+            var r = _transpiler_expr_collect_list_int_gets(t, args[j], idx_name, lists)
+            if r["ok"] != true { return r }
+            if r["uses_idx"] == true { return r }
+            lists = r["lists"]
+            j = j + 1
+        }
+        return {"ok": true, "lists": lists, "uses_idx": false}
+    }
+    if et == "Prefix" {
+        return _transpiler_expr_collect_list_int_gets(t, exp["right"], idx_name, lists)
+    }
+    if et == "Infix" {
+        var r1 = _transpiler_expr_collect_list_int_gets(t, exp["left"], idx_name, lists)
+        if r1["ok"] != true || r1["uses_idx"] == true { return r1 }
+        var r2 = _transpiler_expr_collect_list_int_gets(t, exp["right"], idx_name, r1["lists"])
+        return r2
+    }
+    if et == "Array" {
+        var xs = exp["elements"]
+        var i = 0
+        while i < oren_list_len(xs) {
+            var r = _transpiler_expr_collect_list_int_gets(t, xs[i], idx_name, lists)
+            if r["ok"] != true || r["uses_idx"] == true { return r }
+            lists = r["lists"]
+            i = i + 1
+        }
+        return {"ok": true, "lists": lists, "uses_idx": false}
+    }
+    if et == "Hash" {
+        var ps = exp["pairs"]
+        var i2 = 0
+        while i2 < oren_list_len(ps) {
+            var r1h = _transpiler_expr_collect_list_int_gets(t, ps[i2]["key"], idx_name, lists)
+            if r1h["ok"] != true || r1h["uses_idx"] == true { return r1h }
+            var r2h = _transpiler_expr_collect_list_int_gets(t, ps[i2]["value"], idx_name, r1h["lists"])
+            if r2h["ok"] != true || r2h["uses_idx"] == true { return r2h }
+            lists = r2h["lists"]
+            i2 = i2 + 1
+        }
+        return {"ok": true, "lists": lists, "uses_idx": false}
+    }
+    if et == "Index" {
+        var rli = _transpiler_expr_collect_list_int_gets(t, exp["left"], idx_name, lists)
+        if rli["ok"] != true || rli["uses_idx"] == true { return rli }
+        var rri = _transpiler_expr_collect_list_int_gets(t, exp["index"], idx_name, rli["lists"])
+        return rri
+    }
+    if et == "If" {
+        return {"ok": false, "lists": lists, "uses_idx": false}
+    }
+    return {"ok": true, "lists": lists, "uses_idx": false}
+}
+
+fn _transpiler_expr_collect_list_gets(t, exp, idx_name, lists) {
+    if exp == nil { return {"ok": true, "lists": lists, "uses_idx": false} }
+    var et = exp["type"]
+    if et == "Identifier" {
+        if str_eq(exp["value"], idx_name) { return {"ok": true, "lists": lists, "uses_idx": true} }
+        return {"ok": true, "lists": lists, "uses_idx": false}
+    }
+    var list_name = _transpiler_is_list_get_call(t, exp, idx_name)
+    if list_name != nil {
+        if list_contains(lists, list_name) == false {
+            oren_list_push(lists, list_name)
+        }
+        return {"ok": true, "lists": lists, "uses_idx": false}
+    }
+    if et == "Index" {
+        var list_name2 = _transpiler_is_list_get_call(t, exp, idx_name)
+        if list_name2 != nil {
+            if list_contains(lists, list_name2) == false {
+                oren_list_push(lists, list_name2)
+            }
+            return {"ok": true, "lists": lists, "uses_idx": false}
+        }
+        return {"ok": false, "lists": lists, "uses_idx": false}
+    }
+    if et == "Call" {
+        var nm = nil
+        if exp["fn"] != nil {
+            if exp["fn"]["type"] == "Identifier" {
+                nm = exp["fn"]["value"]
+            } else if exp["fn"]["type"] == "Member" {
+                var ns2 = ns_resolve(t, exp["fn"])
+                if ns2 != nil { nm = ns2["name"] }
+            }
+        }
+        if nm == nil {
+            if exp["fn"] != nil && exp["fn"]["type"] == "Member" {
+                var leftm = exp["fn"]["left"]
+                var propm = exp["fn"]["prop"]
+                if leftm != nil && propm != nil && leftm["type"] == "Identifier" && leftm["value"] == "list" {
+                    if propm["value"] == "get" { nm = "STD_list_get" }
+                }
+            }
+        }
+        if nm == nil { return {"ok": false, "lists": lists, "uses_idx": false} }
+        if str_eq(nm, "oren_list_get") || str_eq(nm, "STD_list_get") {
+            if _transpiler_is_list_get_call(t, exp, idx_name) == nil {
+                return {"ok": false, "lists": lists, "uses_idx": false}
+            }
+        } else if str_eq(nm, "oren_int") {
+            // allow
+        } else {
+            return {"ok": false, "lists": lists, "uses_idx": false}
+        }
+        var args = exp["args"]
+        var j = 0
+        while j < oren_list_len(args) {
+            var r = _transpiler_expr_collect_list_gets(t, args[j], idx_name, lists)
+            if r["ok"] != true { return r }
+            if r["uses_idx"] == true { return r }
+            lists = r["lists"]
+            j = j + 1
+        }
+        return {"ok": true, "lists": lists, "uses_idx": false}
+    }
+    if et == "Prefix" {
+        return _transpiler_expr_collect_list_gets(t, exp["right"], idx_name, lists)
+    }
+    if et == "Infix" {
+        var r1 = _transpiler_expr_collect_list_gets(t, exp["left"], idx_name, lists)
+        if r1["ok"] != true || r1["uses_idx"] == true { return r1 }
+        var r2 = _transpiler_expr_collect_list_gets(t, exp["right"], idx_name, r1["lists"])
+        return r2
+    }
+    if et == "Array" {
+        var xs = exp["elements"]
+        var i = 0
+        while i < oren_list_len(xs) {
+            var r = _transpiler_expr_collect_list_gets(t, xs[i], idx_name, lists)
+            if r["ok"] != true || r["uses_idx"] == true { return r }
+            lists = r["lists"]
+            i = i + 1
+        }
+        return {"ok": true, "lists": lists, "uses_idx": false}
+    }
+    if et == "Hash" {
+        var ps = exp["pairs"]
+        var i2 = 0
+        while i2 < oren_list_len(ps) {
+            var r1h = _transpiler_expr_collect_list_gets(t, ps[i2]["key"], idx_name, lists)
+            if r1h["ok"] != true || r1h["uses_idx"] == true { return r1h }
+            var r2h = _transpiler_expr_collect_list_gets(t, ps[i2]["value"], idx_name, r1h["lists"])
+            if r2h["ok"] != true || r2h["uses_idx"] == true { return r2h }
+            lists = r2h["lists"]
+            i2 = i2 + 1
+        }
+        return {"ok": true, "lists": lists, "uses_idx": false}
+    }
+    if et == "Index" {
+        var rli = _transpiler_expr_collect_list_gets(t, exp["left"], idx_name, lists)
+        if rli["ok"] != true || rli["uses_idx"] == true { return rli }
+        var rri = _transpiler_expr_collect_list_gets(t, exp["index"], idx_name, rli["lists"])
+        return rri
+    }
+    if et == "If" {
+        return {"ok": false, "lists": lists, "uses_idx": false}
+    }
+    return {"ok": true, "lists": lists, "uses_idx": false}
+}
+
+fn _transpiler_stmt_collect_list_gets(t, stmt, idx_name, lists) {
+    if stmt == nil { return {"ok": true, "lists": lists, "uses_idx": false} }
+    var stype = stmt["type"]
+    if stype == "Var" {
+        return _transpiler_expr_collect_list_gets(t, stmt["value"], idx_name, lists)
+    }
+    if stype == "Assign" {
+        if stmt["name"] != nil && str_eq(stmt["name"]["value"], idx_name) {
+            return {"ok": false, "lists": lists, "uses_idx": false}
+        }
+        return _transpiler_expr_collect_list_gets(t, stmt["value"], idx_name, lists)
+    }
+    if stype == "ExprStmt" {
+        if stmt["expr"] != nil && stmt["expr"]["type"] == "If" { return {"ok": false, "lists": lists, "uses_idx": false} }
+        return _transpiler_expr_collect_list_gets(t, stmt["expr"], idx_name, lists)
+    }
+    if stype == "Return" {
+        return _transpiler_expr_collect_list_gets(t, stmt["value"], idx_name, lists)
+    }
+    if stype == "Set" || stype == "While" || stype == "For" || stype == "Block" || stype == "Spawn" {
+        return {"ok": false, "lists": lists, "uses_idx": false}
+    }
+    return {"ok": false, "lists": lists, "uses_idx": false}
+}
+
+fn _transpiler_stmt_collect_list_int_gets(t, stmt, idx_name, lists) {
+    if stmt == nil { return {"ok": true, "lists": lists, "uses_idx": false} }
+    var stype = stmt["type"]
+    if stype == "Var" {
+        return _transpiler_expr_collect_list_int_gets(t, stmt["value"], idx_name, lists)
+    }
+    if stype == "Assign" {
+        if stmt["name"] != nil && str_eq(stmt["name"]["value"], idx_name) {
+            return {"ok": false, "lists": lists, "uses_idx": false}
+        }
+        return _transpiler_expr_collect_list_int_gets(t, stmt["value"], idx_name, lists)
+    }
+    if stype == "ExprStmt" {
+        if stmt["expr"] != nil && stmt["expr"]["type"] == "If" { return {"ok": false, "lists": lists, "uses_idx": false} }
+        return _transpiler_expr_collect_list_int_gets(t, stmt["expr"], idx_name, lists)
+    }
+    if stype == "Return" {
+        return _transpiler_expr_collect_list_int_gets(t, stmt["value"], idx_name, lists)
+    }
+    if stype == "Set" || stype == "While" || stype == "For" || stype == "Block" || stype == "Spawn" {
+        return {"ok": false, "lists": lists, "uses_idx": false}
+    }
+    return {"ok": false, "lists": lists, "uses_idx": false}
+}
+
+fn _transpiler_expr_uses_ident(exp, name) {
+    if exp == nil || name == nil { return false }
+    var et = exp["type"]
+    if et == "Identifier" { return str_eq(exp["value"], name) }
+    if et == "Integer" || et == "Float" || et == "String" || et == "Boolean" || et == "Nil" { return false }
+    if et == "Prefix" { return _transpiler_expr_uses_ident(exp["right"], name) }
+    if et == "Infix" {
+        if _transpiler_expr_uses_ident(exp["left"], name) { return true }
+        return _transpiler_expr_uses_ident(exp["right"], name)
+    }
+    if et == "Call" {
+        if _transpiler_expr_uses_ident(exp["fn"], name) { return true }
+        var args = exp["args"]
+        var i = 0
+        while i < oren_list_len(args) {
+            if _transpiler_expr_uses_ident(args[i], name) { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if et == "Member" {
+        return _transpiler_expr_uses_ident(exp["left"], name)
+    }
+    if et == "Index" {
+        if _transpiler_expr_uses_ident(exp["left"], name) { return true }
+        return _transpiler_expr_uses_ident(exp["index"], name)
+    }
+    if et == "Array" {
+        var xs = exp["elements"]
+        var j = 0
+        while j < oren_list_len(xs) {
+            if _transpiler_expr_uses_ident(xs[j], name) { return true }
+            j = j + 1
+        }
+        return false
+    }
+    if et == "Hash" {
+        var ps = exp["pairs"]
+        var k = 0
+        while k < oren_list_len(ps) {
+            if _transpiler_expr_uses_ident(ps[k]["key"], name) { return true }
+            if _transpiler_expr_uses_ident(ps[k]["value"], name) { return true }
+            k = k + 1
+        }
+        return false
+    }
+    if et == "If" || et == "Function" { return true }
+    return true
+}
+
+fn _transpiler_expr_uses_any_ident(exp, names) {
+    if exp == nil || names == nil { return false }
+    var i = 0
+    while i < oren_list_len(names) {
+        if _transpiler_expr_uses_ident(exp, names[i]) { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _transpiler_fast_int_rhs(t, exp, idx_name, list_items, idx_c) {
+    if exp == nil { return nil }
+    var et = exp["type"]
+    if et == "Integer" {
+        return "(uint64_t)" + int_str(parse_int_lit(exp["value"]))
+    }
+    if et == "Call" || et == "Index" {
+        var list_name = _transpiler_is_list_int_get_call(t, exp, idx_name)
+        if list_name == nil {
+            list_name = _transpiler_is_list_get_call(t, exp, idx_name)
+        }
+        if list_name == nil { return nil }
+        if list_items == nil { return nil }
+        var items = list_items[list_name]
+        if items == nil { return nil }
+        return "(uint64_t)" + items + "[" + idx_c + "].as.int_val"
+    }
+    if et == "Prefix" {
+        if exp["op"] != "-" { return nil }
+        var right = _transpiler_fast_int_rhs(t, exp["right"], idx_name, list_items, idx_c)
+        if right == nil { return nil }
+        return "(0ull - " + right + ")"
+    }
+    if et == "Infix" {
+        var op = exp["op"]
+        if op != "*" && op != "+" && op != "-" { return nil }
+        var left = _transpiler_fast_int_rhs(t, exp["left"], idx_name, list_items, idx_c)
+        if left == nil { return nil }
+        var right = _transpiler_fast_int_rhs(t, exp["right"], idx_name, list_items, idx_c)
+        if right == nil { return nil }
+        return "(" + left + " " + op + " " + right + ")"
+    }
+    return nil
+}
+
+fn _transpiler_fast_nonneg_rhs(t, exp, idx_name, idx_c) {
+    if exp == nil { return nil }
+    var et = exp["type"]
+    if et == "Integer" {
+        var v = parse_int_lit(exp["value"])
+        if v < 0 { return nil }
+        return "(uint64_t)" + int_str(v)
+    }
+    if et == "Identifier" {
+        var name = exp["value"]
+        if name != nil && str_eq(name, idx_name) { return "(uint64_t)" + idx_c }
+        return nil
+    }
+    if et == "Infix" {
+        var op = exp["op"]
+        if op != "+" && op != "*" && op != "%" { return nil }
+        var left = _transpiler_fast_nonneg_rhs(t, exp["left"], idx_name, idx_c)
+        if left == nil { return nil }
+        var right = exp["right"]
+        if op == "%" {
+            if right == nil || right["type"] != "Integer" { return nil }
+            var rv = parse_int_lit(right["value"])
+            if rv <= 0 { return nil }
+            return "(" + left + " % (uint64_t)" + int_str(rv) + ")"
+        }
+        var right_s = _transpiler_fast_nonneg_rhs(t, right, idx_name, idx_c)
+        if right_s == nil { return nil }
+        return "(" + left + " " + op + " " + right_s + ")"
+    }
+    return nil
+}
+
+fn _transpiler_is_simple_inc(stmt, idx_name) {
+    if stmt == nil || stmt["type"] != "Assign" { return false }
+    if stmt["name"] == nil || str_eq(stmt["name"]["value"], idx_name) != true { return false }
+    var v = stmt["value"]
+    if v == nil || v["type"] != "Infix" { return false }
+    if v["op"] != "+" { return false }
+    var left = _transpiler_is_ident(v["left"])
+    if left == nil || str_eq(left, idx_name) != true { return false }
+    if _transpiler_is_int_lit(v["right"], 1) { return true }
+    return false
+}
+
+fn _transpiler_parse_int_lit_expr(expr) {
+    if expr == nil || expr["type"] != "Integer" { return nil }
+    return parse_int_lit(expr["value"])
+}
+
+fn _transpiler_match_mul_const(expr, name) {
+    if expr == nil || expr["type"] != "Infix" || expr["op"] != "*" { return nil }
+    var left = expr["left"]
+    var right = expr["right"]
+    var left_name = _transpiler_is_ident(left)
+    if left_name != nil && str_eq(left_name, name) {
+        return _transpiler_parse_int_lit_expr(right)
+    }
+    var right_name = _transpiler_is_ident(right)
+    if right_name != nil && str_eq(right_name, name) {
+        return _transpiler_parse_int_lit_expr(left)
+    }
+    return nil
+}
+
+fn _transpiler_collect_add_terms(expr, out) {
+    if expr == nil { return out }
+    if expr["type"] == "Infix" && expr["op"] == "+" {
+        out = _transpiler_collect_add_terms(expr["left"], out)
+        out = _transpiler_collect_add_terms(expr["right"], out)
+        return out
+    }
+    oren_list_push(out, expr)
+    return out
+}
+
+fn _transpiler_match_mod_term(expr, name) {
+    if expr == nil || expr["type"] != "Infix" || expr["op"] != "%" { return nil }
+    var left_name = _transpiler_is_ident(expr["left"])
+    if left_name == nil || str_eq(left_name, name) != true { return nil }
+    var modv = _transpiler_parse_int_lit_expr(expr["right"])
+    if modv == nil || modv <= 0 { return nil }
+    return modv
+}
+
+fn _transpiler_match_lcg_update(stmt, x_name) {
+    if stmt == nil || stmt["type"] != "Assign" { return nil }
+    var name = _transpiler_is_ident(stmt["name"])
+    if name == nil || str_eq(name, x_name) != true { return nil }
+    var val = stmt["value"]
+    if val == nil || val["type"] != "Infix" || val["op"] != "%" { return nil }
+    var mod_expr = val["right"]
+    var mod_name = _transpiler_is_ident(mod_expr)
+    var mod_const = nil
+    if mod_name == nil {
+        mod_const = _transpiler_parse_int_lit_expr(mod_expr)
+        if mod_const == nil { return nil }
+    }
+    var left = val["left"]
+    if left == nil || left["type"] != "Infix" || left["op"] != "+" { return nil }
+    var mul = _transpiler_match_mul_const(left["left"], x_name)
+    var add = _transpiler_parse_int_lit_expr(left["right"])
+    if mul == nil || add == nil {
+        mul = _transpiler_match_mul_const(left["right"], x_name)
+        add = _transpiler_parse_int_lit_expr(left["left"])
+    }
+    if mul == nil || add == nil { return nil }
+    return {"mul": mul, "add": add, "mod": mod_name, "mod_const": mod_const}
+}
+
+fn _transpiler_match_sum_mod_update(stmt, sum_name, x_name, idx_name, mod_name, mod_const) {
+    if stmt == nil || stmt["type"] != "Assign" { return nil }
+    var name = _transpiler_is_ident(stmt["name"])
+    if name == nil || str_eq(name, sum_name) != true { return nil }
+    var val = stmt["value"]
+    if val == nil || val["type"] != "Infix" || val["op"] != "%" { return nil }
+    var mod_ok = false
+    var mod_rhs = _transpiler_is_ident(val["right"])
+    if mod_rhs != nil && mod_name != nil && str_eq(mod_rhs, mod_name) == true { mod_ok = true }
+    if mod_ok != true && mod_const != nil {
+        var mod_lit = _transpiler_parse_int_lit_expr(val["right"])
+        if mod_lit != nil && mod_lit == mod_const { mod_ok = true }
+    }
+    if mod_ok != true { return nil }
+    var terms = []
+    _transpiler_collect_add_terms(val["left"], terms)
+    if oren_list_len(terms) != 3 { return nil }
+    var saw_sum = false
+    var mod_x = nil
+    var mod_i = nil
+    var ti = 0
+    while ti < oren_list_len(terms) {
+        var t = terms[ti]
+        var tname = _transpiler_is_ident(t)
+        if tname != nil && str_eq(tname, sum_name) {
+            saw_sum = true
+            ti = ti + 1
+            continue
+        }
+        var mx = _transpiler_match_mod_term(t, x_name)
+        if mx != nil {
+            if mod_x != nil { return nil }
+            mod_x = mx
+            ti = ti + 1
+            continue
+        }
+        var mi = _transpiler_match_mod_term(t, idx_name)
+        if mi != nil {
+            if mod_i != nil { return nil }
+            mod_i = mi
+            ti = ti + 1
+            continue
+        }
+        return nil
+    }
+    if saw_sum != true || mod_x == nil || mod_i == nil { return nil }
+    return {"mod_x": mod_x, "mod_i": mod_i}
+}
