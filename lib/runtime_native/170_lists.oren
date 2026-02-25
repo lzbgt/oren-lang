@@ -100,6 +100,8 @@ var g_trace_list_new_cap_limit = 0
 var g_trace_list_new_cap_envp = 0
 var g_trace_list_new_cap_argv = 0
 var g_trace_list_new_cap_argc = 0
+var g_trace_list_buf = -1
+var g_trace_list_buf_cap = 0
 
 fn _list_assume_list_enabled() {
     if g_list_assume_list != -1 { return g_list_assume_list == 1 }
@@ -235,6 +237,24 @@ fn _list_new_cap_enabled() {
     return true
 }
 
+fn _list_buf_trace_enabled() {
+    if g_trace_list_buf == 1 { return true }
+    if g_trace_list_buf == 0 { return false }
+    var v = native_envp_get_value_ptr("OREN_TRACE_LIST_BUF")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_list_buf == -1 { g_trace_list_buf = 0 }
+        return false
+    }
+    g_trace_list_buf = 1
+    var v_cap = native_envp_get_value_ptr("OREN_TRACE_LIST_BUF_CAP")
+    if v_cap != 0 && ptr_get_byte(v_cap) != 0 {
+        var cap = oren_int_from_string(v_cap)
+        if cap > 0 { g_trace_list_buf_cap = cap }
+    }
+    if g_trace_list_buf_cap <= 0 { g_trace_list_buf_cap = 128 }
+    return true
+}
+
 fn _list_new_cap_emit(kind, cap, total, mode) {
     if _list_new_cap_enabled() != true { return 0 }
     var limit = g_trace_list_new_cap_limit
@@ -358,6 +378,22 @@ fn _list_alloc_buf(list, bytes, alloc_site, err_code) {
     }
     if new_buf == 0 { exit(err_code) }
     if new_buf == -1 { exit(err_code) }
+    if _list_buf_trace_enabled() == true {
+        if g_trace_list_buf_cap > 0 {
+            g_trace_list_buf_cap = g_trace_list_buf_cap - 1
+            var kind = 0
+            if list != 0 && list >= 4096 {
+                var node = _list_find_node(list)
+                if node != 0 { kind = ptr_get(iadd(node, 16)) }
+            }
+            print("[list_buf] list=" + oren_int_to_string(list) +
+                  " kind=" + oren_int_to_string(kind) +
+                  " bytes=" + oren_int_to_string(bytes) +
+                  " site=" + oren_int_to_string(alloc_site) +
+                  " arena=" + oren_int_to_string(use_arena) +
+                  " buf=" + oren_int_to_string(new_buf))
+        }
+    }
     return new_buf
 }
 
