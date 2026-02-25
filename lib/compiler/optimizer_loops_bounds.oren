@@ -1,0 +1,507 @@
+import intparse "int_lit.oren"
+import opthelp "optimizer_helpers.oren"
+
+var ARENA_TRACE_BUDGET = 200
+
+fn _opt_str_eq(a, b) {
+    if oren_is_string(a) && oren_is_string(b) { return oren_string_eq(a, b) }
+    return a == b
+}
+
+fn _opt_arena_trace(msg) {
+    if oren_env("OREN_TRACE_ARENA_LOOPS") == nil { return nil }
+    if ARENA_TRACE_BUDGET <= 0 { return nil }
+    ARENA_TRACE_BUDGET = ARENA_TRACE_BUDGET - 1
+    print(msg)
+    return nil
+}
+
+fn _opt_expr_list_lit_len(expr) {
+    if expr == nil || expr["type"] != "Array" { return -1 }
+    var els = expr["elements"]
+    if els == nil { return 0 }
+    return oren_list_len(els)
+}
+
+fn _opt_expr_is_list_lit(expr) {
+    return _opt_expr_list_lit_len(expr) >= 0
+}
+
+fn _opt_is_const_int_expr(expr) {
+    return expr != nil && expr["type"] == "Integer"
+}
+
+fn _opt_const_int_value_from_expr(expr, block, idx, self_name) {
+    if expr == nil { return nil }
+    if _opt_is_const_int_expr(expr) == true {
+        var v0 = intparse.parse_int_lit(expr["value"])
+        if oren_is_err(v0) { return nil }
+        return v0
+    }
+    if expr["type"] == "Identifier" {
+        var nm = expr["value"]
+        if nm == nil { return nil }
+        if self_name != nil && _opt_str_eq(nm, self_name) { return nil }
+        return _opt_block_const_int_value_before(block, idx, nm)
+    }
+    return nil
+}
+
+fn _opt_expr_is_list_len_call(expr) {
+    if expr == nil || expr["type"] != "Call" { return nil }
+    var fn_expr = expr["fn"]
+    if fn_expr == nil || fn_expr["type"] != "Identifier" { return nil }
+    var nm = fn_expr["value"]
+    if _opt_str_eq(nm, "oren_list_len") != true &&
+       _opt_str_eq(nm, "STD_list_len") != true &&
+       _opt_str_eq(nm, "oren_list_int_len") != true &&
+       _opt_str_eq(nm, "STD_list_int_len") != true {
+        return nil
+    }
+    var args = expr["args"]
+    if args == nil || oren_list_len(args) != 1 { return nil }
+    var arg0 = args[0]
+    if arg0 == nil || arg0["type"] != "Identifier" { return nil }
+    return arg0["value"]
+}
+
+fn _opt_stmt_assigns_ident(stmt, name) {
+    if stmt == nil || name == nil { return false }
+    var t = stmt["type"]
+    if t == "Var" || t == "Assign" {
+        var nm = opthelp.is_ident(stmt["name"])
+        if nm != nil && _opt_str_eq(nm, name) { return true }
+        return false
+    }
+    if t == "Set" {
+        var left = stmt["left"]
+        if left != nil && left["type"] == "Identifier" && _opt_str_eq(left["value"], name) { return true }
+        return false
+    }
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        if ss != nil {
+            var i = 0
+            while i < oren_list_len(ss) {
+                if _opt_stmt_assigns_ident(ss[i], name) { return true }
+                i = i + 1
+            }
+        }
+        return false
+    }
+    if t == "While" {
+        return _opt_stmt_assigns_ident(stmt["body"], name)
+    }
+    if t == "For" {
+        if _opt_stmt_assigns_ident(stmt["init"], name) { return true }
+        if _opt_stmt_assigns_ident(stmt["post"], name) { return true }
+        return _opt_stmt_assigns_ident(stmt["body"], name)
+    }
+    if t == "If" {
+        if _opt_stmt_assigns_ident(stmt["consq"], name) { return true }
+        if stmt["alt"] != nil && _opt_stmt_assigns_ident(stmt["alt"], name) { return true }
+        return false
+    }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && _opt_stmt_assigns_ident(c["body"], name) { return true }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil && _opt_stmt_assigns_ident(stmt["default"], name) { return true }
+        return false
+    }
+    if t == "Function" { return false }
+    return false
+}
+
+fn _opt_block_const_int_before(block, idx, name) {
+    if block == nil || block["type"] != "Block" { return false }
+    if name == nil { return false }
+    var ss = block["stmts"]
+    if ss == nil { return false }
+    var i = idx - 1
+    while i >= 0 {
+        var st = ss[i]
+        if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
+            var nm = opthelp.is_ident(st["name"])
+            if oren_env("OREN_TRACE_ARENA_LOOPS") != nil && nm != nil {
+                var eq = 0
+                if _opt_str_eq(nm, name) { eq = 1 }
+                _opt_arena_trace("[arena_loop] bound_scan_seen name=" + nm +
+                    " eq=" + oren_int_to_string(eq))
+            }
+            if nm != nil && _opt_str_eq(nm, name) {
+                var is_const = false
+                if _opt_const_int_value_from_expr(st["value"], block, i, name) != nil { is_const = true }
+                if oren_env("OREN_TRACE_ARENA_LOOPS") != nil {
+                    var vtype = "nil"
+                    if st["value"] != nil { vtype = st["value"]["type"] }
+                    var ci = 0
+                    if is_const == true { ci = 1 }
+                    _opt_arena_trace("[arena_loop] bound_scan name=" + name +
+                        " value_type=" + vtype +
+                        " const=" + oren_int_to_string(ci))
+                }
+                return is_const
+            }
+        } else if st != nil && st["type"] == "Set" {
+            var left = st["left"]
+            if left != nil && left["type"] == "Identifier" && _opt_str_eq(left["value"], name) {
+                var is_const2 = false
+                if _opt_const_int_value_from_expr(st["value"], block, i, name) != nil { is_const2 = true }
+                if oren_env("OREN_TRACE_ARENA_LOOPS") != nil {
+                    var vtype2 = "nil"
+                    if st["value"] != nil { vtype2 = st["value"]["type"] }
+                    var ci2 = 0
+                    if is_const2 == true { ci2 = 1 }
+                    _opt_arena_trace("[arena_loop] bound_scan name=" + name +
+                        " value_type=" + vtype2 +
+                        " const=" + oren_int_to_string(ci2))
+                }
+                return is_const2
+            }
+        } else if st != nil {
+            if _opt_stmt_assigns_ident(st, name) { return false }
+        }
+        i = i - 1
+    }
+    if oren_env("OREN_TRACE_ARENA_LOOPS") != nil {
+        _opt_arena_trace("[arena_loop] bound_scan miss name=" + name)
+    }
+    return false
+}
+
+fn _opt_block_const_int_value_before(block, idx, name) {
+    if block == nil || block["type"] != "Block" { return nil }
+    if name == nil { return nil }
+    var ss = block["stmts"]
+    if ss == nil { return nil }
+    var i = idx - 1
+    while i >= 0 {
+        var st = ss[i]
+        if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
+            var nm = opthelp.is_ident(st["name"])
+            if nm != nil && _opt_str_eq(nm, name) {
+                var v0 = _opt_const_int_value_from_expr(st["value"], block, i, name)
+                if v0 == nil { return nil }
+                return v0
+            }
+        } else if st != nil && st["type"] == "Set" {
+            var left = st["left"]
+            if left != nil && left["type"] == "Identifier" && _opt_str_eq(left["value"], name) {
+                var v1 = _opt_const_int_value_from_expr(st["value"], block, i, name)
+                if v1 == nil { return nil }
+                return v1
+            }
+        } else if st != nil {
+            if _opt_stmt_assigns_ident(st, name) { return nil }
+        }
+        i = i - 1
+    }
+    return nil
+}
+
+fn _opt_block_list_lit_len_before(block, idx, list_name) {
+    if block == nil || block["type"] != "Block" { return nil }
+    if list_name == nil { return nil }
+    var ss = block["stmts"]
+    if ss == nil { return nil }
+    var i = idx - 1
+    while i >= 0 {
+        var st = ss[i]
+        if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
+            var nm = opthelp.is_ident(st["name"])
+            if nm != nil && _opt_str_eq(nm, list_name) {
+                if _opt_expr_is_list_lit(st["value"]) != true { return nil }
+                var len = _opt_expr_list_lit_len(st["value"])
+                var j = i + 1
+                while j < idx {
+                    if _opt_stmt_has_list_len_mutation(ss[j], list_name) { return nil }
+                    j = j + 1
+                }
+                return len
+            }
+        } else if st != nil && st["type"] == "Set" {
+            var left = st["left"]
+            if left != nil && left["type"] == "Identifier" && _opt_str_eq(left["value"], list_name) {
+                if _opt_expr_is_list_lit(st["value"]) != true { return nil }
+                var len2 = _opt_expr_list_lit_len(st["value"])
+                var j2 = i + 1
+                while j2 < idx {
+                    if _opt_stmt_has_list_len_mutation(ss[j2], list_name) { return nil }
+                    j2 = j2 + 1
+                }
+                return len2
+            }
+        }
+        i = i - 1
+    }
+    return nil
+}
+
+fn _opt_block_list_len_before(block, idx, name) {
+    if block == nil || block["type"] != "Block" { return nil }
+    if name == nil { return nil }
+    var ss = block["stmts"]
+    if ss == nil { return nil }
+    var i = idx - 1
+    while i >= 0 {
+        var st = ss[i]
+        if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
+            var nm = opthelp.is_ident(st["name"])
+            if nm != nil && _opt_str_eq(nm, name) {
+                return _opt_expr_is_list_len_call(st["value"])
+            }
+        } else if st != nil && st["type"] == "Set" {
+            var left = st["left"]
+            if left != nil && left["type"] == "Identifier" && _opt_str_eq(left["value"], name) {
+                return _opt_expr_is_list_len_call(st["value"])
+            }
+        }
+        i = i - 1
+    }
+    return nil
+}
+
+fn _opt_expr_has_list_len_mutation(expr, list_name) {
+    if expr == nil || list_name == nil { return false }
+    var t = expr["type"]
+    if t == "Call" {
+        var fn_expr = expr["fn"]
+        var fn_name = nil
+        if fn_expr != nil && fn_expr["type"] == "Identifier" { fn_name = fn_expr["value"] }
+        if _opt_str_eq(fn_name, "oren_list_push") || _opt_str_eq(fn_name, "STD_list_push") ||
+           _opt_str_eq(fn_name, "oren_list_push_unchecked") || _opt_str_eq(fn_name, "STD_list_push_unchecked") ||
+           _opt_str_eq(fn_name, "oren_list_int_push") || _opt_str_eq(fn_name, "STD_list_int_push") ||
+           _opt_str_eq(fn_name, "oren_list_int_push_unchecked") || _opt_str_eq(fn_name, "STD_list_int_push_unchecked") {
+            var args = expr["args"]
+            if args != nil && oren_list_len(args) > 0 {
+                var a0 = args[0]
+                if a0 != nil && a0["type"] == "Identifier" && _opt_str_eq(a0["value"], list_name) {
+                    return true
+                }
+            }
+        }
+        if _opt_expr_has_list_len_mutation(fn_expr, list_name) { return true }
+        var args2 = expr["args"]
+        if args2 != nil {
+            var i2 = 0
+            while i2 < oren_list_len(args2) {
+                if _opt_expr_has_list_len_mutation(args2[i2], list_name) { return true }
+                i2 = i2 + 1
+            }
+        }
+        if expr["spread"] != nil && _opt_expr_has_list_len_mutation(expr["spread"], list_name) { return true }
+        return false
+    }
+    if t == "Index" {
+        if _opt_expr_has_list_len_mutation(expr["left"], list_name) { return true }
+        return _opt_expr_has_list_len_mutation(expr["index"], list_name)
+    }
+    if t == "Member" {
+        return _opt_expr_has_list_len_mutation(expr["left"], list_name)
+    }
+    if t == "Prefix" { return _opt_expr_has_list_len_mutation(expr["right"], list_name) }
+    if t == "Infix" {
+        if _opt_expr_has_list_len_mutation(expr["left"], list_name) { return true }
+        return _opt_expr_has_list_len_mutation(expr["right"], list_name)
+    }
+    if t == "If" {
+        if _opt_expr_has_list_len_mutation(expr["cond"], list_name) { return true }
+        if _opt_stmt_has_list_len_mutation(expr["consq"], list_name) { return true }
+        if expr["alt"] != nil && _opt_stmt_has_list_len_mutation(expr["alt"], list_name) { return true }
+        return false
+    }
+    if t == "Switch" {
+        var cases = expr["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && _opt_stmt_has_list_len_mutation(c["body"], list_name) { return true }
+                ci = ci + 1
+            }
+        }
+        if expr["default"] != nil && _opt_stmt_has_list_len_mutation(expr["default"], list_name) { return true }
+        return false
+    }
+    if t == "Function" { return _opt_stmt_has_list_len_mutation(expr["body"], list_name) }
+    return false
+}
+
+fn _opt_stmt_has_list_len_mutation(stmt, list_name) {
+    if stmt == nil || list_name == nil { return false }
+    var t = stmt["type"]
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        if ss != nil {
+            var i = 0
+            while i < oren_list_len(ss) {
+                if _opt_stmt_has_list_len_mutation(ss[i], list_name) { return true }
+                i = i + 1
+            }
+        }
+        return false
+    }
+    if t == "Var" || t == "Assign" { return _opt_expr_has_list_len_mutation(stmt["value"], list_name) }
+    if t == "Set" {
+        if _opt_expr_has_list_len_mutation(stmt["left"], list_name) { return true }
+        return _opt_expr_has_list_len_mutation(stmt["value"], list_name)
+    }
+    if t == "Return" { return _opt_expr_has_list_len_mutation(stmt["value"], list_name) }
+    if t == "ExprStmt" { return _opt_expr_has_list_len_mutation(stmt["expr"], list_name) }
+    if t == "While" {
+        if _opt_expr_has_list_len_mutation(stmt["cond"], list_name) { return true }
+        return _opt_stmt_has_list_len_mutation(stmt["body"], list_name)
+    }
+    if t == "For" {
+        if _opt_stmt_has_list_len_mutation(stmt["init"], list_name) { return true }
+        if _opt_expr_has_list_len_mutation(stmt["cond"], list_name) { return true }
+        if _opt_expr_has_list_len_mutation(stmt["post"], list_name) { return true }
+        return _opt_stmt_has_list_len_mutation(stmt["body"], list_name)
+    }
+    if t == "If" {
+        if _opt_expr_has_list_len_mutation(stmt["cond"], list_name) { return true }
+        if _opt_stmt_has_list_len_mutation(stmt["consq"], list_name) { return true }
+        if stmt["alt"] != nil && _opt_stmt_has_list_len_mutation(stmt["alt"], list_name) { return true }
+        return false
+    }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && _opt_stmt_has_list_len_mutation(c["body"], list_name) { return true }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil && _opt_stmt_has_list_len_mutation(stmt["default"], list_name) { return true }
+        return false
+    }
+    if t == "Function" { return _opt_stmt_has_list_len_mutation(stmt["body"], list_name) }
+    return false
+}
+
+fn _opt_loop_has_simple_bound(block, idx, stmt) {
+    if stmt == nil { return false }
+    var cond = stmt["cond"]
+    if cond == nil { return false }
+    if cond["type"] != "Infix" { return false }
+    var op = cond["op"]
+    if op != "<" && op != "<=" { return false }
+    var left = cond["left"]
+    var right = cond["right"]
+    if left == nil || left["type"] != "Identifier" { return false }
+    if right == nil { return false }
+    if _opt_is_const_int_expr(right) { return true }
+    if right["type"] == "Identifier" {
+        var rn = right["value"]
+        if rn == nil || _opt_str_eq(rn, left["value"]) { return false }
+        if _opt_stmt_assigns_ident(stmt["body"], rn) { return false }
+        if stmt["type"] == "For" {
+            if _opt_stmt_assigns_ident(stmt["init"], rn) { return false }
+            if _opt_stmt_assigns_ident(stmt["post"], rn) { return false }
+        }
+        var has_const = _opt_block_const_int_before(block, idx, rn)
+        if has_const == true { return true }
+        var list_name = _opt_block_list_len_before(block, idx, rn)
+        if oren_env("OREN_TRACE_ARENA_LOOPS") != nil {
+            var ln = "nil"
+            if list_name != nil { ln = list_name }
+            var ci3 = 0
+            if has_const == true { ci3 = 1 }
+            _opt_arena_trace("[arena_loop] bound_check name=" + rn +
+                " const=" + oren_int_to_string(ci3) +
+                " list_len=" + ln)
+        }
+        if list_name != nil {
+            if _opt_stmt_assigns_ident(stmt["body"], list_name) { return false }
+            if stmt["type"] == "For" {
+                if _opt_stmt_assigns_ident(stmt["init"], list_name) { return false }
+                if _opt_stmt_assigns_ident(stmt["post"], list_name) { return false }
+            }
+            if _opt_stmt_has_list_len_mutation(stmt["body"], list_name) { return false }
+            if stmt["type"] == "For" {
+                if _opt_stmt_has_list_len_mutation(stmt["init"], list_name) { return false }
+                if _opt_stmt_has_list_len_mutation(stmt["post"], list_name) { return false }
+            }
+            return true
+        }
+    }
+    return false
+}
+
+var OREN_ARENA_LONG_LIVED_BOUND_LIMIT = -1
+
+fn _opt_arena_long_lived_bound_limit() {
+    if OREN_ARENA_LONG_LIVED_BOUND_LIMIT >= 0 { return OREN_ARENA_LONG_LIVED_BOUND_LIMIT }
+    var limit = 1024
+    var v = oren_env("OREN_ARENA_LONG_LIVED_BOUND")
+    if v != nil && v != "" {
+        var parsed = intparse.parse_int_lit(v)
+        if !oren_is_err(parsed) && parsed > 0 { limit = parsed }
+        else { limit = 0 }
+    }
+    OREN_ARENA_LONG_LIVED_BOUND_LIMIT = limit
+    return limit
+}
+
+fn _opt_loop_simple_bound_value(block, idx, stmt) {
+    if stmt == nil { return nil }
+    var cond = stmt["cond"]
+    if cond == nil { return nil }
+    if cond["type"] != "Infix" { return nil }
+    var op = cond["op"]
+    if op != "<" && op != "<=" { return nil }
+    var left = cond["left"]
+    var right = cond["right"]
+    if left == nil || left["type"] != "Identifier" { return nil }
+    if right == nil { return nil }
+    if _opt_is_const_int_expr(right) == true {
+        var v = intparse.parse_int_lit(right["value"])
+        if oren_is_err(v) { return nil }
+        return v
+    }
+    if right["type"] == "Identifier" {
+        var rn = right["value"]
+        if rn == nil || _opt_str_eq(rn, left["value"]) { return nil }
+        var v2 = _opt_block_const_int_value_before(block, idx, rn)
+        if v2 != nil { return v2 }
+        var list_name = _opt_block_list_len_before(block, idx, rn)
+        if list_name != nil {
+            var lit_len = _opt_block_list_lit_len_before(block, idx, list_name)
+            if lit_len != nil { return lit_len }
+        }
+    }
+    return nil
+}
+
+fn _opt_loop_is_long_lived(block, idx, stmt) {
+    if stmt == nil { return false }
+    if stmt["type"] != "While" && stmt["type"] != "For" { return false }
+    if _opt_loop_has_simple_bound(block, idx, stmt) {
+        var limit = _opt_arena_long_lived_bound_limit()
+        if oren_env("OREN_TRACE_ARENA_LOOPS") != nil {
+            var bound = _opt_loop_simple_bound_value(block, idx, stmt)
+            var bval = -1
+            if bound != nil { bval = bound }
+            _opt_arena_trace("[arena_loop] bound limit=" + oren_int_to_string(limit) +
+                " bound=" + oren_int_to_string(bval))
+        }
+        if limit > 0 {
+            var bound = _opt_loop_simple_bound_value(block, idx, stmt)
+            if bound != nil && bound >= limit { return true }
+        }
+        return false
+    }
+    if oren_env("OREN_TRACE_ARENA_LOOPS") != nil {
+        _opt_arena_trace("[arena_loop] bound missing")
+    }
+    return true
+}
