@@ -534,6 +534,16 @@ fn native_alloc_index_rebuild_live() {
         g_alloc_index_rebuild_ns = g_alloc_index_rebuild_ns + dt
         g_alloc_index_rebuild_allocs = g_alloc_index_rebuild_allocs + count_allocs
         g_alloc_index_rebuild_static = g_alloc_index_rebuild_static + count_static
+        print("[alloc_index] rebuild allocs=" + oren_int_to_string(count_allocs) +
+              " static=" + oren_int_to_string(count_static) +
+              " dt_ms=" + oren_int_to_string(dt / 1000000))
+    }
+    if trace {
+        var dt = oren_time_now_ns() - t0
+        g_alloc_index_rebuild_count = g_alloc_index_rebuild_count + 1
+        g_alloc_index_rebuild_ns = g_alloc_index_rebuild_ns + dt
+        g_alloc_index_rebuild_allocs = g_alloc_index_rebuild_allocs + count_allocs
+        g_alloc_index_rebuild_static = g_alloc_index_rebuild_static + count_static
     }
     return 0
 }
@@ -632,4 +642,3 @@ fn oren_init_static_cstr0_table(table_ptr) {
     release_lock()
     return 0
 }
-

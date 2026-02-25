@@ -129,6 +129,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      (stage + list ptr + node kind + list magic) to debug the non-list corruption path (2026-02-26).
    - Fix: list/list_int reserve now rebuilds the alloc index once on non-list detection before panicking,
      to recover from stale alloc-index state during green-task churn (rolling, 2026-02-26).
+   - New: `OREN_TRACE_ALLOC_INDEX=1` now reports alloc-index rebuild stats
+     (`[alloc_index] rebuild allocs=... static=... dt_ms=...`) to quantify how often
+     the fallback path runs under green-task churn (2026-02-26).
    - New: `OREN_TRACE_NATIVE_ALLOC_REQ=1` emits a native-side pre-track trace
      (`oren_trace_alloc_request`) before `oren_track_alloc_new` to catch size corruption at the call site.
    - Instrument `malloc_k`/arena callers to log size+cap before tracking when `size` is implausible, and audit
