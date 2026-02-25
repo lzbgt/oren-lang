@@ -469,11 +469,20 @@ fn _opt_map_clone(m) {
     return out
 }
 
+fn _opt_list_reserve_expr_hint(expr) {
+    if expr == nil { return "nil" }
+    var t = expr["type"]
+    if t == "Identifier" { return expr["value"] }
+    if t == "Integer" { return expr["value"] }
+    return t
+}
+
 
 fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, last_list_lit_intsafe, last_list_int_new, last_int_safe) {
     if block == nil || block["type"] != "Block" { return nil }
     var ss = block["stmts"]
     if ss == nil { return nil }
+    var trace = oren_env("OREN_TRACE_LIST_RESERVE") != nil
 
     if last_list_lit == nil { last_list_lit = {} }
     if last_list_lit_len == nil { last_list_lit_len = {} }
@@ -581,6 +590,10 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                                 {"type": "Identifier", "token": nil, "value": "oren_list_reserve"},
                                 [{"type": "Identifier", "token": nil, "value": list_name}, reserve_expr])
                             oren_list_push(out, ast.new_expr_stmt(nil, call))
+                            if trace {
+                                print("[opt] list_reserve name=" + list_name +
+                                      " n=" + _opt_list_reserve_expr_hint(reserve_expr))
+                            }
                         }
                     }
                 }
@@ -601,6 +614,10 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                                 {"type": "Identifier", "token": nil, "value": "oren_list_int_reserve"},
                                 [{"type": "Identifier", "token": nil, "value": list_namei}, reserve_expri])
                             oren_list_push(out, ast.new_expr_stmt(nil, calli))
+                            if trace {
+                                print("[opt] list_int_reserve name=" + list_namei +
+                                      " n=" + _opt_list_reserve_expr_hint(reserve_expri))
+                            }
                         }
                     }
                 }
@@ -675,6 +692,10 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                                 {"type": "Identifier", "token": nil, "value": "oren_list_reserve"},
                                 [{"type": "Identifier", "token": nil, "value": list_name2}, reserve_expr2])
                             oren_list_push(out, ast.new_expr_stmt(nil, call2))
+                            if trace {
+                                print("[opt] list_reserve name=" + list_name2 +
+                                      " n=" + _opt_list_reserve_expr_hint(reserve_expr2))
+                            }
                         }
                     }
                 }
@@ -695,6 +716,10 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
                                 {"type": "Identifier", "token": nil, "value": "oren_list_int_reserve"},
                                 [{"type": "Identifier", "token": nil, "value": list_name2i}, reserve_expr2i])
                             oren_list_push(out, ast.new_expr_stmt(nil, call2i))
+                            if trace {
+                                print("[opt] list_int_reserve name=" + list_name2i +
+                                      " n=" + _opt_list_reserve_expr_hint(reserve_expr2i))
+                            }
                         }
                     }
                 }
@@ -777,4 +802,3 @@ fn _opt_insert_list_reserve_in_block(block, last_list_lit, last_list_lit_len, la
 }
 
 // --- Tail-call optimization (TCO): direct self tail recursion (rolling, conservative) ---
-

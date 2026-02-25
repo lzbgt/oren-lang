@@ -38,6 +38,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New: latest snapshot shows a large alloc_churn regression; root-cause before re-enabling reuse paths.
    - Trace: alloc_churn alloc-site median counts show list_int_header=20000 and list_buf/list_int_buf=0 (native-only trace, 2026-02-25).
    - Trace: list_alloc shows list_int headers sized at 32 bytes (cap=0, arena mode) with no list_buf events even when enabled; investigate reserve/fast-path behavior (2026-02-25).
+   - Trace: optimizer inserts `oren_list_int_reserve(xs, 128)` for alloc_churn (`OREN_TRACE_LIST_RESERVE=1`, 2026-02-26).
    - Next: keep `alloc_drop` within target while auditing other alloc/GC workloads for regressions.
    - Gate: `alloc_churn` native <= 8x C; `alloc_drop` native <= 5x C.
 

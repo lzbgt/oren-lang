@@ -188,7 +188,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - Trace rejected list headers with `OREN_TRACE_GC_REUSE_BAD_LIST=1` (cap via `OREN_TRACE_GC_REUSE_BAD_LIST_CAP`).
     - Trace freed list headers with `OREN_TRACE_GC_FREE_LIST_HEADERS=1` (cap via `OREN_TRACE_GC_FREE_LIST_HEADERS_CAP`).
    - Trace list header writes with `OREN_TRACE_LIST_HEADER=1` (cap via `OREN_TRACE_LIST_HEADER_CAP`).
-   - Trace list buffer allocations with `OREN_TRACE_LIST_BUF=1` (cap via `OREN_TRACE_LIST_BUF_CAP`).
+- Trace list buffer allocations with `OREN_TRACE_LIST_BUF=1` (cap via `OREN_TRACE_LIST_BUF_CAP`).
+- Trace optimizer list reserve insertion with `OREN_TRACE_LIST_RESERVE=1`.
    - New: `OREN_TRACE_NATIVE_LIST_HDR=1` enables arm64 + x64 fast‑path list header tracing (calls `oren_trace_list_header` on list/list_int push fast paths).
      - Arm64 fast list push while-loops now emit list header traces on the count update (rolling, 2026-02-25).
    - GC init now registers the main thread for stack scanning to avoid missing roots during auto-GC reuse tests.
@@ -257,6 +258,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - List alloc trace (arm64, 2026-02-25, `OREN_TRACE_LIST_ALLOC=1`, cap=20): list_int headers
      are allocated at size=32 (cap=0) in arena mode (mode=2), and no list buffer allocations
      were observed even with `OREN_TRACE_LIST_BUF=1` (log: `build/logs/bench_alloc_churn_list_alloc_buf_20260225_235415.log`).
+   - Compiler trace (arm64, 2026-02-26, `OREN_TRACE_LIST_RESERVE=1`): `alloc_churn` inserts
+     `oren_list_int_reserve(xs, 128)` (log: `build/logs/bench_build_oren_native_alloc_churn_20260226_000335.log`).
    - List literal sinking now handles `ExprStmt` if-forms, reducing `alloc_drop` list-header churn
      (alloc-site median list_header=105 in 2026-02-25 trace; latest `alloc_drop` native 1.44× C).
    - New: fast list/list_int push while-loops now accept constant upper bounds (arm64/x64/transpiler),
