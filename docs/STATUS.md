@@ -191,6 +191,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
        to avoid mixed list/list<int> rewrites (fixes arena auto-loop use-before-assign smoke; rolling, 2026-02-25).
    - New: loop list reuse hoists safe, non-escaping list allocations out of loops and replaces per-iter
      init with `*_clear_unchecked` calls; gated by `OREN_OPT_LOOP_LIST_REUSE` (default off; opt-in while hoist ordering is hardened).
+     - Opt-in smoke: `OREN_OPT_LOOP_LIST_REUSE=1` builds and runs `test_arena_auto_loop_smoke` on arm64 macOS (2026-02-25).
    - `alloc_churn` native improved to 7.23× C in the 2026-02-25 snapshot.
    - List literal sinking now handles `ExprStmt` if-forms, reducing `alloc_drop` list-header churn
      (alloc-site median list_header=105; `alloc_drop` native 2.32× C).
