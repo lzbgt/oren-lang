@@ -194,6 +194,28 @@ fn main() {
         print("tag_parity: str_int_ne expected true")
         exit(23)
     }
+    var la = []
+    var lb = []
+    var lc = la
+    if la == lb {
+        print("tag_parity: list_eq expected false")
+        exit(25)
+    }
+    if la != lc {
+        print("tag_parity: list_alias_eq expected true")
+        exit(26)
+    }
+    var lia = oren_new_list_int(0)
+    var lib = oren_new_list_int(0)
+    var lic = lia
+    if lia == lib {
+        print("tag_parity: list_int_eq expected false")
+        exit(27)
+    }
+    if lia != lic {
+        print("tag_parity: list_int_alias_eq expected true")
+        exit(28)
+    }
     if true == 1 {
         print("tag_parity: bool_int_eq expected false")
         exit(24)

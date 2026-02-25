@@ -685,6 +685,7 @@ traceability.
    - Define layout and staged migration.
    - Pin semantic invariants (truthiness, equality, type tests) and add cross‑backend fixtures.
    - Expand `tests/fixtures/tag_parity_smoke.oren` to cover truthiness (ints/floats), type‑strict equality (`==`/`!=`), mixed numeric + string comparisons (`< <= > >=`), cross‑type equality (string/int, bool/int), and mixed map key kinds (int vs string) (rolling, 2026-02-24).
+   - New: tag parity now asserts list/list_int identity equality (`==`/`!=`) for alias vs distinct lists (rolling, 2026-02-26).
    - New: `make verify-backend-parity-arith-panics` enforces cross-backend panic parity for `div0`, `div_overflow`, `mod0`, `mod_overflow`, and `shift_oob` (shl/shr) (rolling, 2026-02-24).
    - Fix: native stringy inference no longer treats empty list literals as list<string> (prevents strcmp on list pointers; restores list equality semantics, 2026-02-26).
    - Backend mapping table (native/C/AVM) captured in `docs/DESIGN.md`.
