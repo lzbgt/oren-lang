@@ -331,7 +331,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - Corruption reproduces even with reuse disabled: `OREN_GC_REUSE_BLOCKS=0` still shows free-list headers
       with len/cap=128 and list_debug node_ptr/next but node_in_allocs=0, node_in_free_blocks=0 (arm64, 2026-02-20).
     - New trace: `OREN_TRACE_LIST_CORRUPT=1` (cap via `OREN_TRACE_LIST_CORRUPT_CAP`) logs suspicious list headers
-      during reserve/push_unchecked (invalid magic or buf) and dumps list_debug state (rolling, 2026-02-20).
+      during reserve/push_unchecked (invalid magic or buf), dumps list_debug state, and emits list_alloc/list_hdr
+      ring matches when enabled (rolling, 2026-02-20).
    - List header reuse guard now treats chunk_size==32 as separate-buffer lists even if buf==list+32 (avoids false bad-list hits when allocator places buffers adjacent; rolling, 2026-02-20).
    - List header reuse guard now accepts external-buffer lists whose header allocation still includes stale inline storage (chunk_size > 32 with buf != list+32), avoiding false bad-list hits after growth (rolling, 2026-02-24).
    - List trace env checks now cache false after first lookup (`OREN_TRACE_LIST_HEADER`,
@@ -447,7 +448,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
      Ring buffer size for bad-list correlation via `OREN_TRACE_LIST_ALLOC_RING_CAP`
      (default 4096); `gc_reuse_bad_list` now emits a matching `[gc_reuse_bad_list_site]`
      line when the pointer is still in the ring (rolling, 2026-02-25).
-   - New: `OREN_TRACE_LIST_HDR_RING=1` records list header mutations (new/reserve ops only)
+   - New: `OREN_TRACE_LIST_HDR_RING=1` records list header mutations (new/reserve/push ops)
      in a ring; `OREN_TRACE_LIST_HDR_RING_CAP` controls size (default 4096). When a
      `gc_reuse_bad_list` is reported, the ring is searched and matching `[list_hdr_ring]`
      entries are emitted (rolling, 2026-02-25).

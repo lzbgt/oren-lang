@@ -504,7 +504,7 @@ fn _list_hdr_ring_put(op, list, kind) {
     if g_trace_list_hdr_ring_ptr == 0 { return 0 }
     if g_trace_list_hdr_ring_cap <= 0 { return 0 }
     if list == 0 || list < 4096 { return 0 }
-    if op != 1 && op != 2 && op != 3 && op != 6 && op != 7 { return 0 }
+    if op != 1 && op != 2 && op != 3 && op != 4 && op != 5 && op != 6 && op != 7 && op != 8 { return 0 }
     var idx = g_trace_list_hdr_ring_head % g_trace_list_hdr_ring_cap
     var off = idx * 56
     var base = g_trace_list_hdr_ring_ptr
@@ -591,6 +591,8 @@ fn _list_corrupt_check(list, stage) {
         " buf=" + oren_int_to_string(buf) +
         " magic=" + oren_int_to_string(magic))
     native_list_debug_node(list)
+    trace_list_alloc_ring_dump(list)
+    native_list_header_ring_dump(list)
     return 0
 }
 
