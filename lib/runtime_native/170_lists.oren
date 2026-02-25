@@ -81,6 +81,9 @@ fn oren_list_new_cap(cap) {
 var g_list_assume_list = -1
 var g_trace_list_header = -1
 var g_trace_list_header_cap = 0
+var g_trace_list_header_envp = 0
+var g_trace_list_header_argv = 0
+var g_trace_list_header_argc = 0
 var g_trace_list_corrupt = -1
 var g_trace_list_corrupt_cap = 0
 var g_trace_list_hdr_ring = -1
@@ -107,10 +110,24 @@ fn _list_find_node(list) {
 
 fn _list_trace_enabled() {
     if g_trace_list_header == 1 { return true }
-    if g_trace_list_header == 0 { return false }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_list_header == 0 {
+        if cur_envp == g_trace_list_header_envp &&
+           cur_argv == g_trace_list_header_argv &&
+           cur_argc == g_trace_list_header_argc {
+            return false
+        }
+    }
     var v = native_envp_get_value_ptr("OREN_TRACE_LIST_HEADER")
     if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
-        if g_trace_list_header == -1 { g_trace_list_header = 0 }
+        if g_trace_list_header == -1 || g_trace_list_header == 0 {
+            g_trace_list_header = 0
+            g_trace_list_header_envp = cur_envp
+            g_trace_list_header_argv = cur_argv
+            g_trace_list_header_argc = cur_argc
+        }
         return false
     }
     g_trace_list_header = 1

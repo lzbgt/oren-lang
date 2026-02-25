@@ -283,8 +283,15 @@ fn _arm64_new_ctx(linked, platform) {
     // Bounded debug knob:
     // Enable fast-path list header tracing without per-call env lookups.
     //   OREN_TRACE_NATIVE_LIST_HDR=1 ./oren_stage2 build ... --platform arm64-macos --no-cache
-    if oren_env("OREN_TRACE_NATIVE_LIST_HDR") != nil {
+    var trace_hdr_env = oren_env("OREN_TRACE_NATIVE_LIST_HDR")
+    if trace_hdr_env != nil {
         ctx["trace_native_list_hdr"] = 1
+    }
+    var trace_compile = oren_env("OREN_TRACE_ARM64_NATIVE_COMPILE")
+    if trace_compile != nil && trace_compile != "" {
+        if trace_hdr_env == nil { print("[arm64] trace_native_list_hdr env=nil") }
+        else { print("[arm64] trace_native_list_hdr env=" + trace_hdr_env) }
+        if ctx["trace_native_list_hdr"] != nil { print("[arm64] trace_native_list_hdr=1") }
     }
 
     return ctx

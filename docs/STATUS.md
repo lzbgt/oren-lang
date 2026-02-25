@@ -160,6 +160,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - Trace freed list headers with `OREN_TRACE_GC_FREE_LIST_HEADERS=1` (cap via `OREN_TRACE_GC_FREE_LIST_HEADERS_CAP`).
     - Trace list header writes with `OREN_TRACE_LIST_HEADER=1` (cap via `OREN_TRACE_LIST_HEADER_CAP`).
    - New: `OREN_TRACE_NATIVE_LIST_HDR=1` enables arm64 + x64 fast‑path list header tracing (calls `oren_trace_list_header` on list/list_int push fast paths).
+     - Arm64 fast list push while-loops now emit list header traces on the count update (rolling, 2026-02-25).
    - GC init now registers the main thread for stack scanning to avoid missing roots during auto-GC reuse tests.
    - New: `OREN_TRACE_GC_REUSE=1` prints reuse tries/hits/misses at GC sweep.
    - Reuse experiment (arm64, 2026-02-20, reuse flags enabled during native run):
@@ -176,9 +177,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - Bad-list trace shows repeated header with chunk=32 but len/cap=128, buf=ptr+32, magic=1279870019 (local run, 2026-02-20).
      - Bad-list trace run hung (killed after ~14 min); summary showed guard_bad_list=291 (local run, 2026-02-20).
     - Free-list trace shows list frees already have len/cap=128 with chunk=32 and bad magic (same ptr+32 buf), so headers are corrupt before reuse (local run, 2026-02-20).
-    - List header trace (`OREN_TRACE_LIST_HEADER=1`, cap=50) emitted no `[list_hdr]` lines during alloc_churn, suggesting the hot path bypasses list runtime helpers (local run, 2026-02-20).
-    - List trace now re-checks env after runtime init (uses `native_envp_get_value_ptr` + refresh even if cached off); envp lookup falls back to argv when envp missing (rolling, 2026-02-24).
-    - New alloc_churn trace (`OREN_TRACE_LIST_HEADER=1`, cap=20) shows `op=1` new_list, `op=3` reserve to cap=128, then `op=5` list_push_unchecked; no `op=4` fast-path list_push seen (local run, 2026-02-20).
+    - List trace now re-checks env when envp/argv/argc change to avoid caching off before runtime init (rolling, 2026-02-25).
+    - New alloc_churn trace (arm64, 2026-02-25, `OREN_TRACE_NATIVE_LIST_HDR=1` + `OREN_TRACE_LIST_HEADER=1`, cap=200):
+      - `op=6` list_int_reserve to cap=128 (per list), followed by `op=7` list_int_push count update after the fast loop.
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
      `oren_arena_new_list(cap)`, and `oren_arena_new_list_auto(cap)` as list constructors and propagates list metadata across simple alias assignments,
      extending reserve/unchecked-push rewrites (rolling, 2026-02-24).
@@ -627,6 +628,8 @@ until perf + parity gates are within range.
 3) **Runtime robustness W5: GC reuse + list header integrity** (L, W5)
    - Root-cause list header corruption (alloc_churn/alloc_drop traces point to pre-reuse corruption).
    - Expand fast-path tracing on native emitters (arm64 + x64) to pin header writes (`OREN_TRACE_NATIVE_LIST_HDR=1`).
+     - Done: arm64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-25).
+     - Next: correlate list_hdr traces with free-list header dumps to find the first corrupt write.
    - Gate: no header corruption under alloc benches with reuse disabled; reuse paths stay guarded until verified.
 
 4) **Tagged value convergence plan** (L, W5)
