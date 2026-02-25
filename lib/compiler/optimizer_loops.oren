@@ -925,6 +925,254 @@ fn _opt_block_has_ident_before(block, idx, name) {
     return false
 }
 
+fn _opt_block_has_unsafe_list_use(block, name) {
+    if block == nil || block["type"] != "Block" { return false }
+    var ss = block["stmts"]
+    if ss == nil { return false }
+    var i = 0
+    while i < oren_list_len(ss) {
+        if _opt_stmt_has_unsafe_list_use(ss[i], name) { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _opt_expr_has_unsafe_list_use_for_reset(expr, name) {
+    if expr == nil { return false }
+    var t = expr["type"]
+    if t == "Identifier" { return _opt_str_eq(expr["value"], name) }
+    if t == "Call" {
+        var fn_expr = expr["fn"]
+        var fn_name = nil
+        if fn_expr != nil && fn_expr["type"] == "Identifier" { fn_name = fn_expr["value"] }
+        var args = expr["args"]
+        if fn_name != nil && _opt_is_safe_list_call_name(fn_name) {
+            if args != nil {
+                var i = 0
+                while i < oren_list_len(args) {
+                    var arg = args[i]
+                    if i == 0 {
+                        if _opt_expr_has_ident(arg, name) {
+                            if arg == nil || arg["type"] != "Identifier" || _opt_str_eq(arg["value"], name) != true {
+                                return true
+                            }
+                        }
+                    } else {
+                        if _opt_expr_has_unsafe_list_use_for_reset(arg, name) { return true }
+                    }
+                    i = i + 1
+                }
+            }
+            if expr["spread"] != nil && _opt_expr_has_unsafe_list_use_for_reset(expr["spread"], name) { return true }
+            return false
+        }
+        if _opt_expr_has_unsafe_list_use_for_reset(fn_expr, name) { return true }
+        if args != nil {
+            var i2 = 0
+            while i2 < oren_list_len(args) {
+                if _opt_expr_has_unsafe_list_use_for_reset(args[i2], name) { return true }
+                i2 = i2 + 1
+            }
+        }
+        if expr["spread"] != nil && _opt_expr_has_unsafe_list_use_for_reset(expr["spread"], name) { return true }
+        return false
+    }
+    if t == "Index" {
+        var left = expr["left"]
+        var idx = expr["index"]
+        if _opt_expr_has_unsafe_list_use_for_reset(idx, name) { return true }
+        if left != nil && left["type"] == "Identifier" && _opt_str_eq(left["value"], name) { return false }
+        return _opt_expr_has_unsafe_list_use_for_reset(left, name)
+    }
+    if t == "Member" {
+        var left2 = expr["left"]
+        if left2 != nil && left2["type"] == "Identifier" && _opt_str_eq(left2["value"], name) { return true }
+        return _opt_expr_has_unsafe_list_use_for_reset(left2, name)
+    }
+    if t == "Infix" || t == "Assign" {
+        if _opt_expr_has_unsafe_list_use_for_reset(expr["left"], name) { return true }
+        return _opt_expr_has_unsafe_list_use_for_reset(expr["right"], name)
+    }
+    if t == "Prefix" { return _opt_expr_has_unsafe_list_use_for_reset(expr["right"], name) }
+    if t == "Array" {
+        var els = expr["elements"]
+        if els != nil {
+            var i3 = 0
+            while i3 < oren_list_len(els) {
+                if _opt_expr_has_unsafe_list_use_for_reset(els[i3], name) { return true }
+                i3 = i3 + 1
+            }
+        }
+        return false
+    }
+    if t == "Hash" {
+        var ps = expr["pairs"]
+        if ps != nil {
+            var i4 = 0
+            while i4 < oren_list_len(ps) {
+                var p = ps[i4]
+                if p != nil {
+                    if _opt_expr_has_unsafe_list_use_for_reset(p["key"], name) { return true }
+                    if _opt_expr_has_unsafe_list_use_for_reset(p["value"], name) { return true }
+                }
+                i4 = i4 + 1
+            }
+        }
+        return false
+    }
+    if t == "If" {
+        if _opt_expr_has_unsafe_list_use_for_reset(expr["cond"], name) { return true }
+        if _opt_stmt_has_unsafe_list_use_for_reset(expr["consq"], name) { return true }
+        if expr["alt"] != nil && _opt_stmt_has_unsafe_list_use_for_reset(expr["alt"], name) { return true }
+        return false
+    }
+    if t == "Switch" {
+        var cases = expr["cases"]
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && _opt_stmt_has_unsafe_list_use_for_reset(c["body"], name) { return true }
+                ci = ci + 1
+            }
+        }
+        if expr["default"] != nil && _opt_stmt_has_unsafe_list_use_for_reset(expr["default"], name) { return true }
+        return false
+    }
+    if t == "Function" { return _opt_stmt_has_ident(expr["body"], name) }
+    return false
+}
+
+fn _opt_stmt_has_unsafe_list_use_for_reset(stmt, name) {
+    if stmt == nil || name == nil { return false }
+    var t = stmt["type"]
+    if t == "Assign" {
+        var nm = opthelp.is_ident(stmt["name"])
+        if nm != nil && _opt_str_eq(nm, name) {
+            if _opt_expr_is_empty_list_ctor(stmt["value"]) == true { return false }
+            return true
+        }
+    }
+    if t == "Set" {
+        var left = stmt["left"]
+        if left != nil && left["type"] == "Identifier" && _opt_str_eq(left["value"], name) {
+            if _opt_expr_is_empty_list_ctor(stmt["value"]) == true { return false }
+            return true
+        }
+    }
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        if ss != nil {
+            var i = 0
+            while i < oren_list_len(ss) {
+                if _opt_stmt_has_unsafe_list_use_for_reset(ss[i], name) { return true }
+                i = i + 1
+            }
+        }
+        return false
+    }
+    if t == "Var" || t == "Assign" {
+        var nm2 = opthelp.is_ident(stmt["name"])
+        var v2 = stmt["value"]
+        if nm2 != nil && _opt_str_eq(nm2, name) {
+            if _opt_expr_is_new_list_call(v2) != nil || _opt_expr_is_list_lit(v2) == true {
+                if _opt_expr_has_unsafe_list_use_for_reset(v2, name) { return true }
+                return false
+            }
+            return true
+        }
+        return _opt_expr_has_unsafe_list_use_for_reset(v2, name)
+    }
+    if t == "Set" {
+        var left2 = stmt["left"]
+        if left2 != nil {
+            if left2["type"] == "Index" {
+                var base = left2["left"]
+                var idx = left2["index"]
+                if _opt_expr_has_unsafe_list_use_for_reset(idx, name) { return true }
+                if base == nil || base["type"] != "Identifier" || _opt_str_eq(base["value"], name) != true {
+                    if _opt_expr_has_unsafe_list_use_for_reset(base, name) { return true }
+                }
+            } else if _opt_expr_has_unsafe_list_use_for_reset(left2, name) {
+                return true
+            }
+        }
+        return _opt_expr_has_unsafe_list_use_for_reset(stmt["value"], name)
+    }
+    if t == "Return" { return _opt_expr_has_unsafe_list_use_for_reset(stmt["value"], name) }
+    if t == "ExprStmt" { return _opt_expr_has_unsafe_list_use_for_reset(stmt["expr"], name) }
+    if t == "While" || t == "For" {
+        if t == "For" {
+            if _opt_stmt_has_unsafe_list_use_for_reset(stmt["init"], name) { return true }
+            if _opt_expr_has_unsafe_list_use_for_reset(stmt["cond"], name) { return true }
+            if _opt_expr_has_unsafe_list_use_for_reset(stmt["post"], name) { return true }
+        }
+        if _opt_expr_has_unsafe_list_use_for_reset(stmt["cond"], name) { return true }
+        return _opt_stmt_has_unsafe_list_use_for_reset(stmt["body"], name)
+    }
+    if t == "If" {
+        if _opt_expr_has_unsafe_list_use_for_reset(stmt["cond"], name) { return true }
+        if _opt_stmt_has_unsafe_list_use_for_reset(stmt["consq"], name) { return true }
+        if stmt["alt"] != nil && _opt_stmt_has_unsafe_list_use_for_reset(stmt["alt"], name) { return true }
+        return false
+    }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        if cases != nil {
+            var ci2 = 0
+            while ci2 < oren_list_len(cases) {
+                var c2 = cases[ci2]
+                if c2 != nil && _opt_stmt_has_unsafe_list_use_for_reset(c2["body"], name) { return true }
+                ci2 = ci2 + 1
+            }
+        }
+        if stmt["default"] != nil && _opt_stmt_has_unsafe_list_use_for_reset(stmt["default"], name) { return true }
+        return false
+    }
+    if t == "Function" { return _opt_stmt_has_ident(stmt["body"], name) }
+    return false
+}
+
+fn _opt_block_has_unsafe_list_use_for_reset(block, name) {
+    if block == nil || block["type"] != "Block" { return false }
+    var ss = block["stmts"]
+    if ss == nil { return false }
+    var i = 0
+    while i < oren_list_len(ss) {
+        if _opt_stmt_has_unsafe_list_use_for_reset(ss[i], name) {
+            var st = ss[i]
+            var t = "nil"
+            if st != nil { t = st["type"] }
+            _opt_arena_trace("[arena_loop] list_reset unsafe_stmt=" + t + " name=" + name)
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn _opt_find_list_ctor_before(block, idx, name) {
+    if block == nil || block["type"] != "Block" { return nil }
+    var ss = block["stmts"]
+    if ss == nil { return nil }
+    var kind = nil
+    var i = 0
+    while i < idx {
+        var st = ss[i]
+        if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
+            var nm = opthelp.is_ident(st["name"])
+            if nm != nil && _opt_str_eq(nm, name) {
+                var k = _opt_expr_is_new_list_call(st["value"])
+                if k == nil && _opt_expr_is_list_lit(st["value"]) { k = "list_lit" }
+                if k == nil { return nil }
+                kind = k
+            }
+        }
+        i = i + 1
+    }
+    return kind
+}
+
 fn _opt_sink_list_lit_into_if(block) {
     if block == nil || block["type"] != "Block" { return false }
     var ss = block["stmts"]
@@ -1286,6 +1534,166 @@ fn _opt_rewrite_loop_list_reuse(block, idx, loop_stmt, safe_vars) {
     }
     block["stmts"] = out
     return true
+}
+
+fn _opt_rewrite_loop_list_reset_in_stmt(stmt, reset_vars, block, idx) {
+    if stmt == nil { return false }
+    var t = stmt["type"]
+    if t == "Assign" {
+        var nm = opthelp.is_ident(stmt["name"])
+        if nm != nil && _opt_expr_is_empty_list_ctor(stmt["value"]) == true {
+            var kind = _opt_safe_var_kind(reset_vars, nm)
+            if kind == nil {
+                if _opt_block_has_unsafe_list_use_for_reset(block, nm) == true {
+                    _opt_add_safe_var(reset_vars, nm, "skip")
+                    _opt_arena_trace("[arena_loop] list_reset skip=unsafe name=" + nm)
+                    return false
+                }
+                var k = _opt_find_list_ctor_before(block, idx, nm)
+                if k == nil {
+                    _opt_add_safe_var(reset_vars, nm, "skip")
+                    _opt_arena_trace("[arena_loop] list_reset skip=kind name=" + nm)
+                    return false
+                }
+                _opt_add_safe_var(reset_vars, nm, k)
+                kind = k
+            }
+            if kind != nil && _opt_str_eq(kind, "skip") != true {
+                var clear_fn = "oren_list_clear_unchecked"
+                if _opt_str_eq(kind, "list_int") { clear_fn = "oren_list_int_clear_unchecked" }
+                var call = ast.new_call(stmt["token"],
+                    {"type": "Identifier", "token": nil, "value": clear_fn},
+                    [{"type": "Identifier", "token": nil, "value": nm}])
+                stmt["type"] = "ExprStmt"
+                stmt["expr"] = call
+                stmt["name"] = nil
+                stmt["value"] = nil
+                _opt_arena_trace("[arena_loop] list_reset name=" + nm + " kind=" + kind)
+                return true
+            }
+        }
+        return false
+    }
+    if t == "Set" {
+        var left = stmt["left"]
+        if left != nil && left["type"] == "Identifier" {
+            var nm2 = left["value"]
+            if nm2 != nil && _opt_expr_is_empty_list_ctor(stmt["value"]) == true {
+                var kind2 = _opt_safe_var_kind(reset_vars, nm2)
+                if kind2 == nil {
+                    if _opt_block_has_unsafe_list_use_for_reset(block, nm2) == true {
+                        _opt_add_safe_var(reset_vars, nm2, "skip")
+                        _opt_arena_trace("[arena_loop] list_reset skip=unsafe name=" + nm2)
+                        return false
+                    }
+                    var k2 = _opt_find_list_ctor_before(block, idx, nm2)
+                    if k2 == nil {
+                        _opt_add_safe_var(reset_vars, nm2, "skip")
+                        _opt_arena_trace("[arena_loop] list_reset skip=kind name=" + nm2)
+                        return false
+                    }
+                    _opt_add_safe_var(reset_vars, nm2, k2)
+                    kind2 = k2
+                }
+                if kind2 != nil && _opt_str_eq(kind2, "skip") != true {
+                    var clear_fn2 = "oren_list_clear_unchecked"
+                    if _opt_str_eq(kind2, "list_int") { clear_fn2 = "oren_list_int_clear_unchecked" }
+                    var call2 = ast.new_call(stmt["token"],
+                        {"type": "Identifier", "token": nil, "value": clear_fn2},
+                        [{"type": "Identifier", "token": nil, "value": nm2}])
+                    stmt["type"] = "ExprStmt"
+                    stmt["expr"] = call2
+                    stmt["left"] = nil
+                    stmt["value"] = nil
+                    _opt_arena_trace("[arena_loop] list_reset name=" + nm2 + " kind=" + kind2)
+                    return true
+                }
+            }
+        }
+        return false
+    }
+    if t == "Block" {
+        var ss = stmt["stmts"]
+        if ss == nil { return false }
+        var changed = false
+        var i = 0
+        while i < oren_list_len(ss) {
+            if _opt_rewrite_loop_list_reset_in_stmt(ss[i], reset_vars, block, idx) == true { changed = true }
+            i = i + 1
+        }
+        return changed
+    }
+    if t == "If" {
+        var changed2 = false
+        if _opt_rewrite_loop_list_reset_in_stmt(stmt["consq"], reset_vars, block, idx) == true { changed2 = true }
+        if stmt["alt"] != nil {
+            if _opt_rewrite_loop_list_reset_in_stmt(stmt["alt"], reset_vars, block, idx) == true { changed2 = true }
+        }
+        return changed2
+    }
+    if t == "Switch" {
+        var cases = stmt["cases"]
+        var changed3 = false
+        if cases != nil {
+            var ci = 0
+            while ci < oren_list_len(cases) {
+                var c = cases[ci]
+                if c != nil && _opt_rewrite_loop_list_reset_in_stmt(c["body"], reset_vars, block, idx) == true {
+                    changed3 = true
+                }
+                ci = ci + 1
+            }
+        }
+        if stmt["default"] != nil {
+            if _opt_rewrite_loop_list_reset_in_stmt(stmt["default"], reset_vars, block, idx) == true {
+                changed3 = true
+            }
+        }
+        return changed3
+    }
+    if t == "ExprStmt" {
+        var e = stmt["expr"]
+        if e != nil && e["type"] == "If" {
+            var changed4 = false
+            if _opt_rewrite_loop_list_reset_in_stmt(e["consq"], reset_vars, block, idx) == true { changed4 = true }
+            if e["alt"] != nil {
+                if _opt_rewrite_loop_list_reset_in_stmt(e["alt"], reset_vars, block, idx) == true { changed4 = true }
+            }
+            return changed4
+        }
+        if e != nil && e["type"] == "Switch" {
+            var cases2 = e["cases"]
+            var changed5 = false
+            if cases2 != nil {
+                var ci2 = 0
+                while ci2 < oren_list_len(cases2) {
+                    var c2 = cases2[ci2]
+                    if c2 != nil && _opt_rewrite_loop_list_reset_in_stmt(c2["body"], reset_vars, block, idx) == true {
+                        changed5 = true
+                    }
+                    ci2 = ci2 + 1
+                }
+            }
+            if e["default"] != nil {
+                if _opt_rewrite_loop_list_reset_in_stmt(e["default"], reset_vars, block, idx) == true {
+                    changed5 = true
+                }
+            }
+            return changed5
+        }
+        return false
+    }
+    if t == "While" || t == "For" || t == "Function" { return false }
+    return false
+}
+
+fn _opt_rewrite_loop_list_reset(block, idx, loop_stmt) {
+    if block == nil || block["type"] != "Block" { return false }
+    if loop_stmt == nil { return false }
+    var body = loop_stmt["body"]
+    if body == nil || body["type"] != "Block" { return false }
+    var reset_vars = []
+    return _opt_rewrite_loop_list_reset_in_stmt(body, reset_vars, block, idx)
 }
 
 fn _opt_expr_is_empty_list_ctor(expr) {
@@ -2197,6 +2605,9 @@ fn _opt_prepare_loop_arena(block, idx, stmt, parent_forced, parent_noarena) {
     }
     if _opt_loop_list_reuse_enabled() == true {
         if _opt_rewrite_loop_list_reuse(block, idx, stmt, safe_vars) == true {
+            did_rewrite = true
+        }
+        if _opt_rewrite_loop_list_reset(block, idx, stmt) == true {
             did_rewrite = true
         }
     }

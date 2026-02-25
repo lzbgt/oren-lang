@@ -1,4 +1,4 @@
-# alloc_drop benchmark (20260225_172548)
+# alloc_drop benchmark (20260225_174657)
 
 ## Host
 
@@ -8,16 +8,16 @@
 - cpu: Apple M2 Pro
 - cpu_cores: 10
 - mem_bytes: 17179869184
-- git_rev: b518e165c781173172cc2583b6aa257c44821ecb
+- git_rev: 6240cf5215bca1fe71539407cc941eb97bcbcd95
 - runs: 5 (warmups: 1)
 
 ## Results (seconds)
 
 | variant | median | mean | min | max |
 | --- | --- | --- | --- | --- |
-| c | 0.002971 | 0.002987 | 0.002828 | 0.003195 |
-| oren_c | 0.005544 | 0.005206 | 0.004544 | 0.005747 |
-| oren_native | 0.149707 | 0.149977 | 0.148260 | 0.151903 |
-| oren_obc | 0.007813 | 0.007803 | 0.007641 | 0.007967 |
+| c | 0.002954 | 0.002974 | 0.002721 | 0.003329 |
+| oren_c | 0.004877 | 0.004846 | 0.004484 | 0.005207 |
+| oren_native | 0.158792 | 0.158691 | 0.155571 | 0.161981 |
+| oren_obc | 0.007393 | 0.007296 | 0.006826 | 0.007701 |
 
 Output checksum (stdout): `alloc_drop keep=11`
