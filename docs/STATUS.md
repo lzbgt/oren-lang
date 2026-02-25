@@ -254,6 +254,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Alloc-site trace (arm64, 2026-02-25, `OREN_BENCH_TRACE_ALLOC_SITE=1`, native-only):
      median total=20000, list_int_header=20000, list_header=0, list_buf=0, list_int_buf=0
      (log: `build/logs/bench_alloc_churn_alloc_site_20260225_234114.log`).
+   - List alloc trace (arm64, 2026-02-25, `OREN_TRACE_LIST_ALLOC=1`, cap=20): list_int headers
+     are allocated at size=32 (cap=0) in arena mode (mode=2), and no list buffer allocations
+     were observed even with `OREN_TRACE_LIST_BUF=1` (log: `build/logs/bench_alloc_churn_list_alloc_buf_20260225_235415.log`).
    - List literal sinking now handles `ExprStmt` if-forms, reducing `alloc_drop` list-header churn
      (alloc-site median list_header=105 in 2026-02-25 trace; latest `alloc_drop` native 1.44× C).
    - New: fast list/list_int push while-loops now accept constant upper bounds (arm64/x64/transpiler),
