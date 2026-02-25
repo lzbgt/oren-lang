@@ -102,8 +102,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     - New: loop_sum init/steady split instrumentation via `OREN_BENCH_INIT_SPLIT=1`.
       - Latest split (2026-02-26, n=20,000,000): native steady ~0.224922s vs C ~0.067377s (≈3.34× steady-state).
     - New: defer capsule-only NET/PROC tables to `native_runtime_capsule_init` to reduce non-capsule runtime init cost; remeasure init/steady split (2026-02-25).
-    - Measured: native init 0.002592s, steady 0.223975s (arm64 macOS, 2026-02-26).
-   - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
+    - Measured: native init 0.003006s, steady 0.223682s (arm64 macOS, 2026-02-26).
+    - New: native LCG fast loops use reciprocal fastmod when mod constants fit (arm64 + x64).
+    - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
    - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
    - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
 

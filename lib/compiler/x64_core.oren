@@ -1562,6 +1562,19 @@ fn insn_idiv_r64(reg) {
     return out
 }
 
+fn insn_mul_r64(reg) {
+    // mul r/m64 => REX.W F7 /4
+    // modrm: 11 reg=100 rm=(reg&7) => 0xE0 | (reg&7)
+    if reg < 0 || reg > 15 { return nil }
+    var rex = 72 // 0x48 (REX.W)
+    if reg >= 8 { rex = rex + 1 } // REX.B
+    var out = _insn_pool_get()
+    bytes_push(out, rex)
+    bytes_push(out, 247)
+    bytes_push(out, 224 + int_mod(reg, 8))
+    return out
+}
+
 fn insn_div_r64(reg) {
     // div r/m64 => REX.W F7 /6
     // modrm: 11 reg=110 rm=(reg&7) => 0xF0 | (reg&7)

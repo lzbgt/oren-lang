@@ -1057,6 +1057,14 @@ fn insn_mul(rd, rn, rm) {
     return 2600467456 + (rm * 65536) + (32 * 1024) + (rn * 32) + rd
 }
 
+fn insn_umulh(rd, rn, rm) {
+    // UMULH Xd, Xn, Xm
+    // Verified via clang:
+    //   umulh x3, x4, x5 => 0x9BC57C83
+    // Base: 0x9BC07C00
+    return 2613201920 + (rm * 65536) + (rn * 32) + rd
+}
+
 fn insn_udiv(rd, rn, rm) {
     // UDIV Xrd, Xrn, Xrm
     return 2596276224 + (rm * 65536) + (rn * 32) + rd // base 0x9AC00800

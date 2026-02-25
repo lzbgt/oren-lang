@@ -40,6 +40,37 @@ fn _emit_trace_list_header_x64(ctx, list_reg, op, kind) {
     return nil
 }
 
+fn _x64_fastmod_recip_u64(d) {
+    if d == nil { return nil }
+    if d < 3 { return nil }
+    // Keep math in signed i64 range: require d <= 2^31-1.
+    if d > 2147483647 { return nil }
+    var base = 4294967296
+    var q1 = base / d
+    var r1 = base - (q1 * d)
+    var q0 = (r1 * base) / d
+    return (q1 * base) + q0
+}
+
+fn _emit_fastmod_u64_const_x64(ctx, n_reg, d_reg, recip, dst_reg, tmp_recip_reg, labels, local_fixups, tag) {
+    if ctx == nil || recip == nil { return nil }
+    if tmp_recip_reg == nil { return nil }
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(tmp_recip_reg, recip))
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, n_reg)) // rax = n
+    bytes_extend(ctx["code"], insn_mul_r64(tmp_recip_reg)) // rdx:rax = n * recip
+    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 2)) // rax = q (high)
+    bytes_extend(ctx["code"], insn_imul_r64_r64(0, d_reg)) // rax = q * d
+    bytes_extend(ctx["code"], insn_mov_r64_r64(2, n_reg)) // rdx = n
+    bytes_extend(ctx["code"], insn_sub_r64_r64(2, 0)) // rdx = r
+    bytes_extend(ctx["code"], insn_cmp_r64_r64(2, d_reg))
+    var l_ok = _new_label(ctx, "fastmod_ok_" + tag)
+    _emit_jcc_to_label(ctx, local_fixups, "lt", l_ok)
+    bytes_extend(ctx["code"], insn_sub_r64_r64(2, d_reg))
+    _emit_label(ctx, labels, l_ok)
+    if dst_reg != 2 { bytes_extend(ctx["code"], insn_mov_r64_r64(dst_reg, 2)) }
+    return nil
+}
+
 fn _emit_fast_list_int_push_while_x64(ctx, op, info, locals, labels, local_fixups, epilogue_label, platform) {
     if ctx == nil || op == nil || info == nil { return nil }
     if locals == nil { return _emit_while_generic_x64(ctx, op, locals, labels, local_fixups, epilogue_label, platform, nil, nil) }
@@ -661,6 +692,16 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     var mod_x = info["mod_x"]
     var mod_i = info["mod_i"]
     var sum_cap = mod_x + mod_i
+    var mod_recip = nil
+    var modx_recip = nil
+    var modi_recip = nil
+    var use_fastmod = false
+    if mod_const != nil {
+        mod_recip = _x64_fastmod_recip_u64(mod_const)
+        modx_recip = _x64_fastmod_recip_u64(mod_x)
+        modi_recip = _x64_fastmod_recip_u64(mod_i)
+        if mod_recip != nil && modx_recip != nil && modi_recip != nil { use_fastmod = true }
+    }
 
     var off_idx = locals[idx_name]
     var off_n = locals[n_name]
@@ -744,10 +785,14 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     }
 
     // i_mod = i % mod_i (fast path only)
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 9))
-    bytes_extend(ctx["code"], insn_xor_r64_r64(2, 2)) // rdx = 0
-    bytes_extend(ctx["code"], insn_div_r64(3)) // rbx
-    bytes_extend(ctx["code"], insn_mov_r64_r64(7, 2)) // rdi = rdx
+    if use_fastmod == true {
+        _emit_fastmod_u64_const_x64(ctx, 9, 3, modi_recip, 7, 6, labels, local_fixups, "lcg_i_mod")
+    } else {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 9))
+        bytes_extend(ctx["code"], insn_xor_r64_r64(2, 2)) // rdx = 0
+        bytes_extend(ctx["code"], insn_div_r64(3)) // rbx
+        bytes_extend(ctx["code"], insn_mov_r64_r64(7, 2)) // rdi = rdx
+    }
 
     _emit_label(ctx, labels, l_fast_cond)
     bytes_extend(ctx["code"], insn_cmp_r64_r64(9, 1))
@@ -778,16 +823,24 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     bytes_extend(ctx["code"], insn_add_r64_r64(10, 14))
 
     // x = x % mod
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_xor_r64_r64(2, 2)) // rdx = 0
-    bytes_extend(ctx["code"], insn_div_r64(12))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2)) // r10 = rdx
+    if use_fastmod == true {
+        _emit_fastmod_u64_const_x64(ctx, 10, 12, mod_recip, 10, 6, labels, local_fixups, "lcg_mod")
+    } else {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_xor_r64_r64(2, 2)) // rdx = 0
+        bytes_extend(ctx["code"], insn_div_r64(12))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(10, 2)) // r10 = rdx
+    }
 
     // term_x = x % mod_x
-    bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
-    bytes_extend(ctx["code"], insn_xor_r64_r64(2, 2)) // rdx = 0
-    bytes_extend(ctx["code"], insn_div_r64(15))
-    bytes_extend(ctx["code"], insn_mov_r64_r64(6, 2)) // rsi = rdx
+    if use_fastmod == true {
+        _emit_fastmod_u64_const_x64(ctx, 10, 15, modx_recip, 6, 6, labels, local_fixups, "lcg_mod_x")
+    } else {
+        bytes_extend(ctx["code"], insn_mov_r64_r64(0, 10))
+        bytes_extend(ctx["code"], insn_xor_r64_r64(2, 2)) // rdx = 0
+        bytes_extend(ctx["code"], insn_div_r64(15))
+        bytes_extend(ctx["code"], insn_mov_r64_r64(6, 2)) // rsi = rdx
+    }
 
     // term_i = i_mod (incremental)
 
