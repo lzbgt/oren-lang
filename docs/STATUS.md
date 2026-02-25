@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-02-26
+**Last updated:** 2026-02-25
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
@@ -66,6 +66,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 
 5) **W3 - Tooling/ABI stability**
    - ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
+   - AVM build/parity gate integrity is tracked as a W4 blocker when broken (select case parsing + helper exports; 2026-02-25).
 
 6) **W3 - Docs fidelity + regression gates**
    - Docs are grounded in fixtures/tests; gaps get surfaced via parity gates.
@@ -114,6 +115,8 @@ Local (fast):
 - `make verify-backend-parity-arith-panics`
 - `make verify-backend-parity-index-panics`
 - `./scripts/verify_x64_linux_qemu_smoke.sh`
+
+Note: `make verify-backend-parity-tags` depends on AVM CLI/VM build; keep select-case parsing + helper visibility in sync with the split.
 
 Remote verify scripts support `OREN_REMOTE_SCP_TIMEOUT_SECS` to bound scp hangs.
 

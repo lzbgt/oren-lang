@@ -130,7 +130,7 @@ void free_bytes_obj(AvmBytes* b) {
     free(b);
 }
 
-static int add_trusted_pubkey_32(uint8_t out_pks[][32], size_t* out_count, size_t cap, const uint8_t* pk32) {
+int add_trusted_pubkey_32(uint8_t out_pks[][32], size_t* out_count, size_t cap, const uint8_t* pk32) {
     if (!out_pks || !out_count || !pk32) return 0;
     if (*out_count >= cap) return 0;
     memcpy(out_pks[*out_count], pk32, 32);

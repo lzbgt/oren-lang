@@ -5,6 +5,8 @@
 #include "avm_int_math.h"
 #include "avm_vm_values.h"
 
+#include <limits.h>
+
 static inline void avm_op_int_lcg_sum_loop(AvmVM* vm) {
     if (vm->sp < 9) return;
     AvmValue modiv = vm->stack[--vm->sp];

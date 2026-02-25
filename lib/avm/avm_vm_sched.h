@@ -6,6 +6,7 @@
 AvmSched* avm_sched_get(AvmVM* vm);
 AvmSched* avm_sched_lazy_ensure(AvmVM* vm, AvmSched* sched);
 void avm_sched_free(AvmVM* vm);
+AvmValue make_pair_list(AvmVM* vm, AvmValue a, AvmValue b);
 
 int sched_ready_push(AvmSched* s, int tid);
 int sched_ready_pop(AvmSched* s, int* out_tid);

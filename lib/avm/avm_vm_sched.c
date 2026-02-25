@@ -4,7 +4,6 @@
 #include <string.h>
 
 static void task_load_into_vm(AvmVM* vm, AvmTask* t);
-static AvmValue make_pair_list(AvmVM* vm, AvmValue a, AvmValue b);
 static AvmSched* avm_sched_ensure(AvmVM* vm);
 static int chan_recv_waiter_pop(AvmChan* ch, int* out_tid);
 static int chan_queue_push(AvmChan* ch, AvmValue v);
@@ -129,7 +128,7 @@ static void task_load_into_vm(AvmVM* vm, AvmTask* t) {
     }
 }
 
-static AvmValue make_pair_list(AvmVM* vm, AvmValue a, AvmValue b) {
+AvmValue make_pair_list(AvmVM* vm, AvmValue a, AvmValue b) {
     AvmList* list = (AvmList*)avm_heap_malloc_k(sizeof(AvmList), AVM_ALLOC_KIND_LIST);
     if (!list) return avm_alloc_fail_value();
     list->count = 2;

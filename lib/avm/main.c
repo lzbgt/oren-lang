@@ -5,11 +5,23 @@
 #include "avm_cli_policy.h"
 #include "avm_cli_util.h"
 #include "avm_cli_verify.h"
+#include "avm_sig.h"
 #include "sha256.h"
 #include "avm_help.inc"
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static void sha_u8(AvmSha256Ctx* h, uint8_t v) { avm_sha256_update(h, &v, 1); }
+static void sha_u32_le(AvmSha256Ctx* h, uint32_t v) {
+    uint8_t b[4];
+    b[0] = (uint8_t)(v & 0xFFu);
+    b[1] = (uint8_t)((v >> 8) & 0xFFu);
+    b[2] = (uint8_t)((v >> 16) & 0xFFu);
+    b[3] = (uint8_t)((v >> 24) & 0xFFu);
+    avm_sha256_update(h, b, 4);
+}
 
 int main(int argc, char** argv) {
     const char* obc_path = NULL;

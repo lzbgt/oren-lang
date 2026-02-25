@@ -35,6 +35,31 @@ enum {
     ,AVM_OP_SELECT         = 0x4D   // stack: [... list<case>] -> [... [idx,payload]] (recv or send)
 };
 
+static int select_case_parse(AvmValue v, int* out_kind, int64_t* out_chid, AvmValue* out_sendv) {
+    if (!out_kind || !out_chid || !out_sendv) return 0;
+    if (v.type != AVM_VAL_LIST || !v.as.l) return 0;
+    AvmList* lst = v.as.l;
+    if (lst->count < 2) return 0;
+    AvmValue kindv = lst->items[0];
+    AvmValue chidv = lst->items[1];
+    if (kindv.type != AVM_VAL_INT || chidv.type != AVM_VAL_INT) return 0;
+    int kind = (int)kindv.as.i;
+    if (kind == 0) { // recv: [0, ch]
+        *out_kind = 0;
+        *out_chid = chidv.as.i;
+        *out_sendv = avm_nil();
+        return 1;
+    }
+    if (kind == 1) { // send: [1, ch, val]
+        if (lst->count < 3) return 0;
+        *out_kind = 1;
+        *out_chid = chidv.as.i;
+        *out_sendv = lst->items[2];
+        return 1;
+    }
+    return 0;
+}
+
 static AvmValue avm_func_new(AvmVM* vm, uint32_t addr, AvmValue env) {
     (void)vm;
     AvmFunc* fn = (AvmFunc*)avm_heap_malloc_k(sizeof(AvmFunc), AVM_ALLOC_KIND_FUNC);

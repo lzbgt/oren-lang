@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals + Derived Tasks
 
-**Last updated:** 2026-02-26
+**Last updated:** 2026-02-25
 
 This doc captures the bleeding-edge feature goals (user/client + architect/designer)
 and turns them into concrete task buckets. It is intentionally short and
@@ -33,6 +33,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 - W4/W3 follow; W3 large-file refactors are currently complete.
 - New: alloc_churn is back within the 8× gate after default-on loop list reuse; keep monitoring for regressions.
 - Reweight: runtime robustness + tagged-value convergence are now explicit W5 blockers; perf work must preserve correctness.
+- Reweight: regression gate integrity (AVM build + parity tags) is promoted to W4 because it blocks W5 progress when broken.
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
@@ -149,6 +150,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 10) **Tooling reliability and reproducibility**
    - Keep build/test/bench workflows stable and fast.
+   - Fix AVM build breaks that block `make verify-backend-parity-tags` (select case parsing + helper visibility + headers).
    - Gate: `make test`, `make benchmarks`, and snapshot updates are deterministic.
 
 ---
