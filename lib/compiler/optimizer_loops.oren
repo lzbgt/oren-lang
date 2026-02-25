@@ -1184,19 +1184,28 @@ fn _opt_sink_list_lit_into_if(block) {
         if i + 1 < oren_list_len(ss) {
             var st = ss[i]
             var nxt = ss[i + 1]
-            if st != nil && nxt != nil && (st["type"] == "Var" || st["type"] == "Assign") && nxt["type"] == "If" {
+            var if_stmt = nil
+            if nxt != nil {
+                if nxt["type"] == "If" {
+                    if_stmt = nxt
+                } else if nxt["type"] == "ExprStmt" {
+                    var ne = nxt["expr"]
+                    if ne != nil && ne["type"] == "If" { if_stmt = ne }
+                }
+            }
+            if st != nil && if_stmt != nil && (st["type"] == "Var" || st["type"] == "Assign") {
                 var nm = opthelp.is_ident(st["name"])
                 if nm != nil && _opt_expr_is_list_lit(st["value"]) == true && _opt_expr_is_side_effect_free(st["value"]) == true {
-                    if _opt_expr_has_ident(nxt["cond"], nm) != true &&
-                       (nxt["alt"] == nil || _opt_stmt_has_ident(nxt["alt"], nm) != true) &&
+                    if _opt_expr_has_ident(if_stmt["cond"], nm) != true &&
+                       (if_stmt["alt"] == nil || _opt_stmt_has_ident(if_stmt["alt"], nm) != true) &&
                        _opt_block_has_ident_after(block, i + 2, nm) != true &&
-                       _opt_stmt_has_ident(nxt["consq"], nm) == true {
-                        var consq = nxt["consq"]
+                       _opt_stmt_has_ident(if_stmt["consq"], nm) == true {
+                        var consq = if_stmt["consq"]
                         if consq == nil || consq["type"] != "Block" {
-                            var nb = ast.new_block(nxt["token"])
+                            var nb = ast.new_block(if_stmt["token"])
                             if consq != nil { nb["stmts"] = [consq] }
                             consq = nb
-                            nxt["consq"] = consq
+                            if_stmt["consq"] = consq
                         }
                         var css = consq["stmts"]
                         if css == nil { css = []; consq["stmts"] = css }
@@ -1213,8 +1222,8 @@ fn _opt_sink_list_lit_into_if(block) {
                             if _opt_str_eq(pnm, nm) { break }
                             if _opt_ident_list_has(needed, pnm) != true { break }
                             if _opt_expr_is_side_effect_free(pst["value"]) != true { break }
-                            if _opt_expr_has_ident(nxt["cond"], pnm) == true { break }
-                            if nxt["alt"] != nil && _opt_stmt_has_ident(nxt["alt"], pnm) == true { break }
+                            if _opt_expr_has_ident(if_stmt["cond"], pnm) == true { break }
+                            if if_stmt["alt"] != nil && _opt_stmt_has_ident(if_stmt["alt"], pnm) == true { break }
                             if _opt_block_has_ident_after(block, i + 2, pnm) == true { break }
                             oren_list_push(pre, pst)
                             _opt_expr_collect_idents(pst["value"], needed)
@@ -1252,19 +1261,19 @@ fn _opt_sink_list_lit_into_if(block) {
                     }
                 }
             }
-            if st != nil && nxt != nil && st["type"] == "Var" && nxt["type"] == "If" {
+            if st != nil && if_stmt != nil && st["type"] == "Var" {
                 var nm2 = opthelp.is_ident(st["name"])
                 var v0 = st["value"]
                 if nm2 != nil && (v0 == nil || v0["type"] == "Nil" || _opt_expr_is_empty_list_lit(v0) == true) {
-                    if _opt_expr_has_ident(nxt["cond"], nm2) != true &&
-                       (nxt["alt"] == nil || _opt_stmt_has_ident(nxt["alt"], nm2) != true) &&
+                    if _opt_expr_has_ident(if_stmt["cond"], nm2) != true &&
+                       (if_stmt["alt"] == nil || _opt_stmt_has_ident(if_stmt["alt"], nm2) != true) &&
                        _opt_block_has_ident_after(block, i + 2, nm2) != true {
-                        var consq2 = nxt["consq"]
+                        var consq2 = if_stmt["consq"]
                         if consq2 == nil || consq2["type"] != "Block" {
-                            var nb2 = ast.new_block(nxt["token"])
+                            var nb2 = ast.new_block(if_stmt["token"])
                             if consq2 != nil { nb2["stmts"] = [consq2] }
                             consq2 = nb2
-                            nxt["consq"] = consq2
+                            if_stmt["consq"] = consq2
                         }
                         var css2 = consq2["stmts"]
                         if css2 != nil && oren_list_len(css2) > 0 {
@@ -1311,6 +1320,16 @@ fn sink_list_lit_into_if(block) {
                 }
                 if st["alt"] != nil && st["alt"]["type"] == "Block" {
                     if sink_list_lit_into_if(st["alt"]) { changed = true }
+                }
+            } else if t == "ExprStmt" {
+                var e = st["expr"]
+                if e != nil && e["type"] == "If" {
+                    if e["consq"] != nil && e["consq"]["type"] == "Block" {
+                        if sink_list_lit_into_if(e["consq"]) { changed = true }
+                    }
+                    if e["alt"] != nil && e["alt"]["type"] == "Block" {
+                        if sink_list_lit_into_if(e["alt"]) { changed = true }
+                    }
                 }
             } else if t == "Switch" {
                 var cases = st["cases"]
