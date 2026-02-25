@@ -85,7 +85,10 @@ kept in sync with `docs/STATUS.md`.
    - Done: `lib/compiler/optimizer_loops.oren` split into list/arena modules (<2000 lines each).
    - Done: `lib/compiler/optimizer.oren` split into core/fold/DCE/list-int/list-reserve/TCO modules (<2000 lines each).
    - Done: `lib/runtime_native/100_time_gc_alloc.oren` split into trace/index/core modules (<2000 lines each).
-   - Next targets: `lib/avm/main.c`, `lib/avm/avm_vm.c`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
+   - Done: `lib/avm/main.c` split into CLI-focused modules
+     (`avm_cli_util`, `avm_cli_verify`, `avm_cli_policy`, `avm_cli_fs`,
+     `avm_cli_disasm`, `avm_cli_dump`) (<2000 lines each, 2026-02-25).
+   - Next targets: `lib/avm/avm_vm.c`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
 
 10) **Tooling reliability and reproducibility**
    - Keep build/test/bench workflows stable and fast.
