@@ -17,7 +17,7 @@ Legend: `x` = slowdown relative to C median.
 | array_sum_int | 0.004350 | 0.009034 (2.08×) | 0.016525 (3.80×) | 0.253592 (58.29×) | `benchmarks/results/array_sum_int_darwin_arm64_20260226_025143.md` |
 | dot_product | 0.005299 | 0.014907 (2.81×) | 0.022779 (4.30×) | 0.385132 (72.69×) | `benchmarks/results/dot_product_darwin_arm64_20260226_025518.md` |
 | dot_product_int | 0.005296 | 0.015252 (2.88×) | 0.021807 (4.12×) | 0.379132 (71.58×) | `benchmarks/results/dot_product_int_darwin_arm64_20260226_025027.md` |
-| loop_sum | 0.067295 | 0.061099 (0.91×) | 0.228440 (3.39×) | 0.093538 (1.39×) | `benchmarks/results/loop_sum_darwin_arm64_20260226_024748.md` |
+| loop_sum | 0.066599 | 0.063136 (0.95×) | 0.228830 (3.44×) | 0.093418 (1.40×) | `benchmarks/results/loop_sum_darwin_arm64_20260226_035410.md` |
 | multi_list_push_int | 0.008423 | 0.037022 (4.40×) | 0.028302 (3.36×) | 0.533589 (63.35×) | `benchmarks/results/multi_list_push_int_darwin_arm64_20260226_023828.md` |
 | multi_list_sum | 0.008727 | 0.040382 (4.63×) | 0.027744 (3.18×) | 0.531214 (60.87×) | `benchmarks/results/multi_list_sum_darwin_arm64_20260226_025146.md` |
 
