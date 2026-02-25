@@ -332,7 +332,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
       with len/cap=128 and list_debug node_ptr/next but node_in_allocs=0, node_in_free_blocks=0 (arm64, 2026-02-20).
     - New trace: `OREN_TRACE_LIST_CORRUPT=1` (cap via `OREN_TRACE_LIST_CORRUPT_CAP`) logs suspicious list headers
       during reserve/push_unchecked (invalid magic or buf), dumps list_debug state, and emits list_alloc/list_hdr
-      ring matches when enabled (rolling, 2026-02-20).
+      ring matches when enabled (rolling, 2026-02-20). List_len/list_reserve panics now also dump ring matches.
    - List header reuse guard now treats chunk_size==32 as separate-buffer lists even if buf==list+32 (avoids false bad-list hits when allocator places buffers adjacent; rolling, 2026-02-20).
    - List header reuse guard now accepts external-buffer lists whose header allocation still includes stale inline storage (chunk_size > 32 with buf != list+32), avoiding false bad-list hits after growth (rolling, 2026-02-24).
    - List trace env checks now cache false after first lookup (`OREN_TRACE_LIST_HEADER`,

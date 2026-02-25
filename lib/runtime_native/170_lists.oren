@@ -796,6 +796,10 @@ fn native_list_len_panic(list, stage) {
     if stage == 3 {
         native_list_debug_node(list)
     }
+    if list != 0 && list >= 4096 {
+        trace_list_alloc_ring_dump(list)
+        native_list_header_ring_dump(list)
+    }
     oren_panic("list_len on non-list")
     return 0
 }
@@ -831,6 +835,10 @@ fn native_list_reserve_panic(list, new_cap, stage) {
     }
     if stage == 1 {
         native_list_debug_node(list)
+    }
+    if list != 0 && list >= 4096 {
+        trace_list_alloc_ring_dump(list)
+        native_list_header_ring_dump(list)
     }
 }
 
