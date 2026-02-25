@@ -249,6 +249,14 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - New: when built with `--backend native` (runtime cache disabled), alloc_churn shows arena allocs=3 with no spills,
       confirming arena is active and prior `allocs=0` was from a non-native build artifact
       (log: `build/logs/alloc_churn_manual_run_arena_spill_native_20260226_003939.log`).
+    - New: `OREN_TRACE_NATIVE_LIST_RESERVE=1` emits a fast-loop reserve trace call to
+      `oren_trace_list_reserve_fast(...)` so we can verify whether the native fast loop
+      actually calls reserve at runtime (rolling, 2026-02-26).
+    - New: list buffer trace (`OREN_TRACE_LIST_BUF=1`) now re-checks envp/argv/argc to avoid caching
+      off before runtime init, mirroring list header trace behavior (rolling, 2026-02-26).
+    - New: alloc_churn native run with `OREN_TRACE_NATIVE_LIST_RESERVE=1` + `OREN_TRACE_LIST_RESERVE_RT=1` shows
+      list<int> reserve executes at runtime and allocates 1024-byte buffers via `_list_alloc_buf`
+      (log: `build/logs/alloc_churn_manual_run_trace_reserve_fast2_20260226_004803.log`).
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
      `oren_arena_new_list(cap)`, and `oren_arena_new_list_auto(cap)` as list constructors and propagates list metadata across simple alias assignments,
      extending reserve/unchecked-push rewrites (rolling, 2026-02-24).

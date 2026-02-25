@@ -102,6 +102,9 @@ var g_trace_list_new_cap_argv = 0
 var g_trace_list_new_cap_argc = 0
 var g_trace_list_buf = -1
 var g_trace_list_buf_cap = 0
+var g_trace_list_buf_envp = 0
+var g_trace_list_buf_argv = 0
+var g_trace_list_buf_argc = 0
 var g_trace_list_reserve = -1
 var g_trace_list_reserve_cap = 0
 var g_trace_list_reserve_envp = 0
@@ -244,13 +247,30 @@ fn _list_new_cap_enabled() {
 
 fn _list_buf_trace_enabled() {
     if g_trace_list_buf == 1 { return true }
-    if g_trace_list_buf == 0 { return false }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_list_buf == 0 {
+        if cur_envp == g_trace_list_buf_envp &&
+           cur_argv == g_trace_list_buf_argv &&
+           cur_argc == g_trace_list_buf_argc {
+            return false
+        }
+    }
     var v = native_envp_get_value_ptr("OREN_TRACE_LIST_BUF")
     if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
-        if g_trace_list_buf == -1 { g_trace_list_buf = 0 }
+        if g_trace_list_buf == -1 || g_trace_list_buf == 0 {
+            g_trace_list_buf = 0
+            g_trace_list_buf_envp = cur_envp
+            g_trace_list_buf_argv = cur_argv
+            g_trace_list_buf_argc = cur_argc
+        }
         return false
     }
     g_trace_list_buf = 1
+    g_trace_list_buf_envp = cur_envp
+    g_trace_list_buf_argv = cur_argv
+    g_trace_list_buf_argc = cur_argc
     var v_cap = native_envp_get_value_ptr("OREN_TRACE_LIST_BUF_CAP")
     if v_cap != 0 && ptr_get_byte(v_cap) != 0 {
         var cap = oren_int_from_string(v_cap)
@@ -308,6 +328,20 @@ fn _list_reserve_trace_emit(kind, list, cap, new_cap, buf, stage) {
           " buf=" + oren_int_to_string(buf) +
           " arena=" + oren_int_to_string(arena))
     return 0
+}
+
+// Trace helper for native fast loops: logs reserve intent even if the runtime reserve path is elided.
+@oren.keep
+fn oren_trace_list_reserve_fast(list, new_cap, kind) {
+    if list == nil { return nil }
+    var cap = 0
+    var buf = 0
+    if list >= 4096 {
+        cap = ptr_get(iadd(list, 8))
+        buf = ptr_get(iadd(list, 16))
+    }
+    _list_reserve_trace_emit(kind, list, cap, new_cap, buf, 9)
+    return nil
 }
 
 fn _list_new_cap_emit(kind, cap, total, mode) {

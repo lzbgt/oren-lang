@@ -50,6 +50,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `mode=2` list allocations with `allocs=0` (rolling, 2026-02-26).
    - Trace: native build (runtime cache disabled) shows arena allocs=3, no spills; prior `allocs=0` was from
      a non-native build artifact (log: `build/logs/alloc_churn_manual_run_arena_spill_native_20260226_003939.log`).
+   - New: `OREN_TRACE_NATIVE_LIST_RESERVE=1` inserts a fast-loop trace call to verify runtime reserve execution
+     (rolling, 2026-02-26).
+   - New: list buffer trace now re-checks envp/argv/argc to avoid caching off before runtime init
+     (rolling, 2026-02-26).
+   - Trace: alloc_churn native run with fast-loop reserve tracing shows list<int> reserve executes
+     and allocates 1024-byte buffers via `_list_alloc_buf` (log: `build/logs/alloc_churn_manual_run_trace_reserve_fast2_20260226_004803.log`).
    - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added.
      Alloc_churn run emits no `[list_reserve]`/`[list_buf]` lines (log: `build/logs/alloc_churn_manual_run_reserve_default_20260226_002457.log`),
      so reserve path likely isn’t executed in the native fast loop or is elided before runtime.

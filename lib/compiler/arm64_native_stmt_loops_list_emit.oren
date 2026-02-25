@@ -1194,6 +1194,8 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
 fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     if ctx == nil || stmt == nil || info == nil { return nil }
 
+    var trace_reserve = oren_env("OREN_TRACE_NATIVE_LIST_RESERVE") != nil
+
     var idx_name = info["idx"]
     var n_name = info["n"]
     var n_const = info["n_const"]
@@ -1303,6 +1305,14 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
         var jpos_cap_ok = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0) // patched: b.ge cap_ok
         // list_reserve(list, n)
+        if trace_reserve {
+            emit_ldr_reg_sp_any(ctx, 0, list_slot) // list
+            emit_ldr_reg_sp_any(ctx, 1, n_off)     // new_cap
+            emit_load_i64_imm(ctx, 2, 8)
+            var bl_trace_reserve = bytes_len(ctx["code"])
+            push_u32_le(ctx["code"], 0)
+            oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace_reserve, "name": "oren_trace_list_reserve_fast"})
+        }
         emit_ldr_reg_sp_any(ctx, 0, list_slot) // list
         emit_ldr_reg_sp_any(ctx, 1, n_off)     // new_cap
         var bl_reserve = bytes_len(ctx["code"])
