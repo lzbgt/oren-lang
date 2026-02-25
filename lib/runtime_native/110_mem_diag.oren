@@ -89,6 +89,7 @@ fn native_mem_free_nodes_count() {
 @oren.keep
 fn native_gc_shutdown() {
     native_alloc_site_dump_and_reset()
+    native_list_reserve_bytes_dump_and_reset()
     return 0
 }
 

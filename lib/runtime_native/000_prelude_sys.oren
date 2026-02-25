@@ -270,6 +270,7 @@ fn oren_exit(code) {
     // - This wrapper exists so source-level `exit(...)` works consistently across backends.
     if code == nil { code = 0 }
     native_alloc_site_dump_and_reset()
+    native_list_reserve_bytes_dump_and_reset()
     sys_exit(code)
     return 0
 }

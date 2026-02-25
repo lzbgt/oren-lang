@@ -263,6 +263,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - New: alloc-site tracing now counts arena list buffers; alloc_churn native trace shows
       list_int_header=20000, list_int_buf=20000 (total=40000) under `OREN_BENCH_TRACE_ALLOC_SITE=1`
       (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_014758.md`).
+    - New: `OREN_TRACE_LIST_RESERVE_BYTES=1` prints reserve allocation/copy totals at shutdown; alloc_churn
+      reports list_int_alloc_bytes=20480000 with 20000 reserve calls and zero copy bytes
+      (log: `build/logs/alloc_churn_run_reserve_bytes_20260226_020050.log`).
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
      `oren_arena_new_list(cap)`, and `oren_arena_new_list_auto(cap)` as list constructors and propagates list metadata across simple alias assignments,
      extending reserve/unchecked-push rewrites (rolling, 2026-02-24).

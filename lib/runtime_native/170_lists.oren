@@ -110,6 +110,16 @@ var g_trace_list_reserve_cap = 0
 var g_trace_list_reserve_envp = 0
 var g_trace_list_reserve_argv = 0
 var g_trace_list_reserve_argc = 0
+var g_trace_list_reserve_bytes = -1
+var g_trace_list_reserve_bytes_envp = 0
+var g_trace_list_reserve_bytes_argv = 0
+var g_trace_list_reserve_bytes_argc = 0
+var g_trace_list_reserve_copy_bytes_list = 0
+var g_trace_list_reserve_copy_bytes_list_int = 0
+var g_trace_list_reserve_alloc_bytes_list = 0
+var g_trace_list_reserve_alloc_bytes_list_int = 0
+var g_trace_list_reserve_calls_list = 0
+var g_trace_list_reserve_calls_list_int = 0
 
 fn _list_assume_list_enabled() {
     if g_list_assume_list != -1 { return g_list_assume_list == 1 }
@@ -310,6 +320,80 @@ fn _list_reserve_trace_enabled() {
     }
     if g_trace_list_reserve_cap <= 0 { g_trace_list_reserve_cap = 128 }
     return true
+}
+
+fn _list_reserve_bytes_enabled() {
+    if g_trace_list_reserve_bytes == 1 { return true }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_list_reserve_bytes == 0 {
+        if cur_envp == g_trace_list_reserve_bytes_envp &&
+           cur_argv == g_trace_list_reserve_bytes_argv &&
+           cur_argc == g_trace_list_reserve_bytes_argc {
+            return false
+        }
+    }
+    var v = native_envp_get_value_ptr("OREN_TRACE_LIST_RESERVE_BYTES")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_list_reserve_bytes == -1 || g_trace_list_reserve_bytes == 0 {
+            g_trace_list_reserve_bytes = 0
+            g_trace_list_reserve_bytes_envp = cur_envp
+            g_trace_list_reserve_bytes_argv = cur_argv
+            g_trace_list_reserve_bytes_argc = cur_argc
+        }
+        return false
+    }
+    g_trace_list_reserve_bytes = 1
+    g_trace_list_reserve_bytes_envp = cur_envp
+    g_trace_list_reserve_bytes_argv = cur_argv
+    g_trace_list_reserve_bytes_argc = cur_argc
+    return true
+}
+
+fn _list_reserve_bytes_bump(kind, count, new_cap) {
+    if _list_reserve_bytes_enabled() != true { return 0 }
+    if new_cap <= 0 { return 0 }
+    var alloc_bytes = new_cap * 8
+    var copy_bytes = 0
+    if count > 0 { copy_bytes = count * 8 }
+    if kind == list_int_kind() {
+        g_trace_list_reserve_copy_bytes_list_int = g_trace_list_reserve_copy_bytes_list_int + copy_bytes
+        g_trace_list_reserve_alloc_bytes_list_int = g_trace_list_reserve_alloc_bytes_list_int + alloc_bytes
+        g_trace_list_reserve_calls_list_int = g_trace_list_reserve_calls_list_int + 1
+    } else {
+        g_trace_list_reserve_copy_bytes_list = g_trace_list_reserve_copy_bytes_list + copy_bytes
+        g_trace_list_reserve_alloc_bytes_list = g_trace_list_reserve_alloc_bytes_list + alloc_bytes
+        g_trace_list_reserve_calls_list = g_trace_list_reserve_calls_list + 1
+    }
+    return 0
+}
+
+fn native_list_reserve_bytes_dump_and_reset() {
+    if _list_reserve_bytes_enabled() != true { return 0 }
+    var total_alloc = g_trace_list_reserve_alloc_bytes_list + g_trace_list_reserve_alloc_bytes_list_int
+    var total_copy = g_trace_list_reserve_copy_bytes_list + g_trace_list_reserve_copy_bytes_list_int
+    if total_alloc == 0 &&
+       total_copy == 0 &&
+       g_trace_list_reserve_calls_list == 0 &&
+       g_trace_list_reserve_calls_list_int == 0 {
+        return 0
+    }
+    print("[list_reserve_bytes] alloc_total=" + oren_int_to_string(total_alloc) +
+          " copy_total=" + oren_int_to_string(total_copy) +
+          " list_alloc_bytes=" + oren_int_to_string(g_trace_list_reserve_alloc_bytes_list) +
+          " list_copy_bytes=" + oren_int_to_string(g_trace_list_reserve_copy_bytes_list) +
+          " list_calls=" + oren_int_to_string(g_trace_list_reserve_calls_list) +
+          " list_int_alloc_bytes=" + oren_int_to_string(g_trace_list_reserve_alloc_bytes_list_int) +
+          " list_int_copy_bytes=" + oren_int_to_string(g_trace_list_reserve_copy_bytes_list_int) +
+          " list_int_calls=" + oren_int_to_string(g_trace_list_reserve_calls_list_int))
+    g_trace_list_reserve_copy_bytes_list = 0
+    g_trace_list_reserve_copy_bytes_list_int = 0
+    g_trace_list_reserve_alloc_bytes_list = 0
+    g_trace_list_reserve_alloc_bytes_list_int = 0
+    g_trace_list_reserve_calls_list = 0
+    g_trace_list_reserve_calls_list_int = 0
+    return 0
 }
 
 fn _list_reserve_trace_emit(kind, list, cap, new_cap, buf, stage) {
@@ -608,6 +692,7 @@ fn oren_list_reserve(list, new_cap) {
         ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
         i = i + 1
     }
+    _list_reserve_bytes_bump(2, count, new_cap)
     ptr_set(iadd(list, 8), new_cap)
     ptr_set(iadd(list, 16), new_buf)
     _list_reserve_trace_emit(2, list, new_cap, new_cap, new_buf, 2)
@@ -828,6 +913,7 @@ fn oren_list_int_reserve(list, new_cap) {
         ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
         i = i + 1
     }
+    _list_reserve_bytes_bump(list_int_kind(), count, new_cap)
     ptr_set(iadd(list, 8), new_cap)
     ptr_set(iadd(list, 16), new_buf)
     _list_reserve_trace_emit(list_int_kind(), list, new_cap, new_cap, new_buf, 2)
@@ -857,6 +943,7 @@ fn oren_list_int_push(list, value) {
             ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
             i = iadd(i, 1)
         }
+        _list_reserve_bytes_bump(list_int_kind(), count, new_cap)
         buf = new_buf
         cap = new_cap
         ptr_set(iadd(list, 8), cap)
@@ -886,6 +973,7 @@ fn oren_list_int_push_unchecked(list, value) {
             ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
             i = iadd(i, 1)
         }
+        _list_reserve_bytes_bump(list_int_kind(), count, new_cap)
         buf = new_buf
         cap = new_cap
         ptr_set(iadd(list, 8), cap)
@@ -950,6 +1038,7 @@ fn oren_list_int_set(list, idx, value) {
             ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
             i = iadd(i, 1)
         }
+        _list_reserve_bytes_bump(list_int_kind(), count, new_cap)
         // Initialize new slots to 0.
         while i < want {
             ptr_set(iadd(new_buf, i * 8), 0)
@@ -991,11 +1080,12 @@ fn oren_list_push(list, value) {
 		        if new_cap < 4 { new_cap = 4 }
 	        var new_buf = _list_alloc_buf(list, new_cap * 8, _alloc_site_list_buf(), 211)
 		        var i = 0
-		        while i < count {
-		            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
-		            i = iadd(i, 1)
+	        while i < count {
+	            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
+	            i = iadd(i, 1)
 	        }
-	        buf = new_buf
+	        _list_reserve_bytes_bump(2, count, new_cap)
+        buf = new_buf
 	        cap = new_cap
 	        ptr_set(iadd(list, 8), cap)
 	        ptr_set(iadd(list, 16), buf)
@@ -1026,6 +1116,7 @@ fn oren_list_push_unchecked(list, value) {
 	            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
 	            i = iadd(i, 1)
         }
+        _list_reserve_bytes_bump(2, count, new_cap)
         buf = new_buf
         cap = new_cap
         ptr_set(iadd(list, 8), cap)
@@ -1120,6 +1211,11 @@ fn oren_list_set(list, idx, value) {
         while i < count {
             ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
             i = iadd(i, 1)
+        }
+        if is_list_int != 0 {
+            _list_reserve_bytes_bump(list_int_kind(), count, new_cap)
+        } else {
+            _list_reserve_bytes_bump(2, count, new_cap)
         }
         if is_list_int != 0 {
             // Initialize new slots to 0 for list<int>.

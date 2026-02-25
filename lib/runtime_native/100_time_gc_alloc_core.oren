@@ -1786,6 +1786,7 @@ fn native_gc_collect() {
         g_gc_reuse_guard_bad_list_count = 0
     }
     native_alloc_site_dump_and_reset()
+    native_list_reserve_bytes_dump_and_reset()
     if g_trace_alloc_index != 0 {
         print("[alloc_index] rebuilds=" + oren_int_to_string(g_alloc_index_rebuild_count) +
             " rebuild_ns=" + oren_int_to_string(g_alloc_index_rebuild_ns) +
