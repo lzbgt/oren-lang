@@ -30,8 +30,8 @@ kept in sync with `docs/STATUS.md`.
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
-   - Baseline (arm64 native, 2026-02-25): `alloc_churn` 42.23× C, `alloc_drop` 50.41× C.
-   - Next: capture alloc-site counts with list<int> lowering enabled to pinpoint remaining overhead.
+   - Baseline (arm64 native, 2026-02-25): `alloc_churn` 6.82× C, `alloc_drop` 50.39× C.
+   - Next: focus on `alloc_drop` list-header churn now that loop list reuse is in (alloc-site confirms `alloc_churn` header reuse).
    - Gate: `alloc_churn` native <= 8x C; `alloc_drop` native <= 5x C.
 
 2) **W5 perf parity: hot loops (loop_sum, dot_product)**

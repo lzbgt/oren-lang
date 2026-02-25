@@ -329,6 +329,28 @@ fn oren_list_len(list) {
 }
 
 @oren.keep
+fn oren_list_clear(list) {
+    if list == nil { return nil }
+    if _list_assume_list_enabled() != true {
+        var node = _list_find_node(list)
+        if node == 0 { oren_panic("list_clear on non-list"); return nil }
+        var k = ptr_get(iadd(node, 16))
+        if k != 2 { oren_panic("list_clear on non-list"); return nil }
+        if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_clear on non-list"); return nil }
+    }
+    ptr_set(iadd(list, 0), 0)
+    return nil
+}
+
+// Unsafe/fast-path (tooling/internal): clear list without find_node/magic checks.
+@oren.keep
+fn oren_list_clear_unchecked(list) {
+    if list == nil { return nil }
+    ptr_set(iadd(list, 0), 0)
+    return nil
+}
+
+@oren.keep
 fn oren_list_reserve(list, new_cap) {
     if list == nil { return nil }
     if new_cap == nil { return nil }
@@ -540,6 +562,25 @@ fn oren_list_int_len(list) {
 fn oren_list_int_len_unchecked(list) {
     if list == nil { return 0 }
     return ptr_get(iadd(list, 0))
+}
+
+@oren.keep
+fn oren_list_int_clear(list) {
+    if list == nil { return nil }
+    var node = _list_find_node(list)
+    if node == 0 { oren_panic("list_int_clear on non-list"); return nil }
+    if ptr_get(iadd(node, 16)) != list_int_kind() { oren_panic("list_int_clear on non-list"); return nil }
+    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_int_clear on non-list"); return nil }
+    ptr_set(iadd(list, 0), 0)
+    return nil
+}
+
+// Unsafe/fast-path (tooling/internal): list<int> clear without find_node/magic checks.
+@oren.keep
+fn oren_list_int_clear_unchecked(list) {
+    if list == nil { return nil }
+    ptr_set(iadd(list, 0), 0)
+    return nil
 }
 
 @oren.keep

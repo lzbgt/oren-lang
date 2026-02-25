@@ -913,6 +913,18 @@ fn _opt_block_has_ident_after(block, idx, name) {
     return false
 }
 
+fn _opt_block_has_ident_before(block, idx, name) {
+    if block == nil || block["type"] != "Block" { return false }
+    var ss = block["stmts"]
+    if ss == nil { return false }
+    var i = 0
+    while i < idx {
+        if _opt_stmt_has_ident(ss[i], name) { return true }
+        i = i + 1
+    }
+    return false
+}
+
 fn _opt_sink_list_lit_into_if(block) {
     if block == nil || block["type"] != "Block" { return false }
     var ss = block["stmts"]
@@ -1199,6 +1211,83 @@ fn _opt_rewrite_new_list_in_stmt(stmt, safe_vars, arena_ctor, arena_int_ctor) {
     return false
 }
 
+fn _opt_rewrite_loop_list_reuse(block, idx, loop_stmt, safe_vars) {
+    if block == nil || block["type"] != "Block" { return false }
+    if loop_stmt == nil { return false }
+    var body = loop_stmt["body"]
+    if body == nil || body["type"] != "Block" { return false }
+    var ss = body["stmts"]
+    if ss == nil { return false }
+    if safe_vars != nil { _opt_arena_trace("[arena_loop] list_reuse enter safe_vars=" + oren_int_to_string(oren_list_len(safe_vars))) }
+    var hoists = []
+    var changed = false
+    var i = 0
+    while i < oren_list_len(ss) {
+        var st = ss[i]
+        if st != nil && st["type"] == "Var" {
+            var nm = opthelp.is_ident(st["name"])
+            var kind = _opt_safe_var_kind(safe_vars, nm)
+            if nm != nil && kind != nil {
+                if _opt_block_has_ident_before(block, idx, nm) == true {
+                    _opt_arena_trace("[arena_loop] list_reuse skip=prior_use name=" + nm)
+                    i = i + 1
+                    continue
+                }
+                var v = st["value"]
+                if _opt_expr_is_list_ctor_any(v) != true {
+                    _opt_arena_trace("[arena_loop] list_reuse skip=ctor name=" + nm)
+                    i = i + 1
+                    continue
+                }
+                var j = i + 1
+                var reassigned = false
+                while j < oren_list_len(ss) {
+                    if _opt_stmt_assigns_ident(ss[j], nm) == true {
+                        reassigned = true
+                        break
+                    }
+                    j = j + 1
+                }
+                if reassigned == true {
+                    _opt_arena_trace("[arena_loop] list_reuse skip=reassign name=" + nm)
+                    i = i + 1
+                    continue
+                }
+                var clear_fn = "oren_list_clear_unchecked"
+                if kind == "list_int" { clear_fn = "oren_list_int_clear_unchecked" }
+                var call = ast.new_call(st["token"],
+                    {"type": "Identifier", "token": nil, "value": clear_fn},
+                    [{"type": "Identifier", "token": nil, "value": nm}])
+                ss[i] = {"type": "ExprStmt", "token": st["token"], "expr": call}
+                var init = {"type": "Var", "token": st["token"], "name": st["name"], "value": v}
+                if st["attrs"] != nil { init["attrs"] = st["attrs"] }
+                oren_list_push(hoists, init)
+                _opt_arena_trace("[arena_loop] list_reuse name=" + nm + " kind=" + kind)
+                changed = true
+            }
+        }
+        i = i + 1
+    }
+    if changed != true || hoists == nil || oren_list_len(hoists) == 0 { return changed }
+    var bs = block["stmts"]
+    if bs == nil { return changed }
+    var out = []
+    var bi = 0
+    while bi < oren_list_len(bs) {
+        if bi == idx {
+            var hi = 0
+            while hi < oren_list_len(hoists) {
+                oren_list_push(out, hoists[hi])
+                hi = hi + 1
+            }
+        }
+        oren_list_push(out, bs[bi])
+        bi = bi + 1
+    }
+    block["stmts"] = out
+    return true
+}
+
 fn _opt_expr_is_empty_list_ctor(expr) {
     if expr == nil { return false }
     if _opt_expr_is_empty_list_lit(expr) == true { return true }
@@ -1215,6 +1304,25 @@ fn _opt_expr_is_empty_list_ctor(expr) {
                     var a0 = args[0]
                     if a0 != nil && a0["type"] == "Integer" && _opt_str_eq(a0["value"], "0") { return true }
                 }
+            }
+        }
+    }
+    return false
+}
+
+fn _opt_expr_is_list_ctor_any(expr) {
+    if expr == nil { return false }
+    if _opt_expr_is_empty_list_lit(expr) == true { return true }
+    if expr["type"] == "Call" {
+        var fn_expr = expr["fn"]
+        if fn_expr != nil && fn_expr["type"] == "Identifier" {
+            var nm = fn_expr["value"]
+            if _opt_str_eq(nm, "oren_new_list") || _opt_str_eq(nm, "oren_list_new_cap") ||
+               _opt_str_eq(nm, "oren_arena_new_list") || _opt_str_eq(nm, "oren_arena_new_list_auto") ||
+               _opt_str_eq(nm, "STD_new_list") || _opt_str_eq(nm, "STD_arena_new_list") ||
+               _opt_str_eq(nm, "oren_new_list_int") || _opt_str_eq(nm, "oren_arena_new_list_int") ||
+               _opt_str_eq(nm, "oren_arena_new_list_int_auto") {
+                return true
             }
         }
     }
@@ -1363,6 +1471,15 @@ fn _opt_stmt_contains_arena_push_pop(stmt) {
 
 fn _opt_arena_auto_enabled() {
     var v = oren_env("OREN_ARENA_AUTO_LOOP")
+    if v == nil { return true }
+    if _opt_str_eq(v, "0") { return false }
+    if _opt_str_eq(v, "false") { return false }
+    if _opt_str_eq(v, "off") { return false }
+    return true
+}
+
+fn _opt_loop_list_reuse_enabled() {
+    var v = oren_env("OREN_OPT_LOOP_LIST_REUSE")
     if v == nil { return true }
     if _opt_str_eq(v, "0") { return false }
     if _opt_str_eq(v, "false") { return false }
@@ -2075,6 +2192,11 @@ fn _opt_prepare_loop_arena(block, idx, stmt, parent_forced, parent_noarena) {
     if safe_vars != nil && oren_list_len(safe_vars) > 0 {
         did_rewrite = _opt_rewrite_new_list_in_stmt(body, safe_vars, arena_ctor, arena_int_ctor)
         if _opt_insert_list_reserve_in_block(body, safe_vars) == true {
+            did_rewrite = true
+        }
+    }
+    if _opt_loop_list_reuse_enabled() == true {
+        if _opt_rewrite_loop_list_reuse(block, idx, stmt, safe_vars) == true {
             did_rewrite = true
         }
     }
