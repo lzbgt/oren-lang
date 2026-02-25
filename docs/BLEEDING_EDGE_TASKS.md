@@ -111,6 +111,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Fix: rtobj runtime hash now salts trace codegen flags (`OREN_TRACE_NATIVE_ALLOC_REQ`,
      `OREN_TRACE_NATIVE_LIST_HDR`, `OREN_TRACE_NATIVE_LIST_RESERVE`) so cached runtime objects rebuild
      with pre-track tracing enabled (2026-02-26).
+   - Trace: loop_sum native run with `OREN_TRACE_NATIVE_ALLOC_REQ=1` +
+     `OREN_TRACE_TRACK_ALLOC_NEW_SIZE=1` (min=1 cap=10) shows `[alloc_req]` under rtobj cache hits,
+     confirming the trace hook fires with the salted rtobj hash
+     (log: `build/logs/bench_run_loop_sum_20260226_053253/oren_native/run_0.log`).
+   - Trace: alloc_churn native run with `OREN_TRACE_NATIVE_ALLOC_REQ=1` +
+     `OREN_TRACE_TRACK_ALLOC_NEW_SIZE_MIN=32768` failed with `list_int_reserve on non-list` panic
+     (log: `build/logs/bench_run_alloc_churn_20260226_053122/oren_native/run_0.log`); keep tracking
+     the reserve-on-non-list corruption path (2026-02-26).
    - New: `OREN_TRACE_NATIVE_ALLOC_REQ=1` emits a native-side pre-track trace
      (`oren_trace_alloc_request`) before `oren_track_alloc_new` to catch size corruption at the call site.
    - Instrument `malloc_k`/arena callers to log size+cap before tracking when `size` is implausible, and audit
