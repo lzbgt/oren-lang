@@ -266,15 +266,15 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - New: `OREN_TRACE_LIST_RESERVE_BYTES=1` prints reserve allocation/copy totals at shutdown; alloc_churn
       reports list_int_alloc_bytes=20480000 with 20000 reserve calls and zero copy bytes
       (log: `build/logs/alloc_churn_run_reserve_bytes_20260226_020050.log`).
-   - New: opt-in `OREN_OPT_LOOP_LIST_REUSE=1` brings alloc_churn to ~6.37× C (arm64, 2026-02-26),
-      within the 8× gate; still opt-in pending hoist ordering + correctness hardening
+   - New: loop list reuse brings alloc_churn to ~6.37× C (arm64, 2026-02-26),
+      within the 8× gate; now default-on with opt-out via `OREN_OPT_LOOP_LIST_REUSE=0`
       (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_020521.md`).
-    - New: opt-in `OREN_OPT_LOOP_LIST_REUSE=1` keeps alloc_drop at ~2.56× C (arm64, 2026-02-26),
+    - New: loop list reuse keeps alloc_drop at ~2.56× C (arm64, 2026-02-26),
       within the 5× gate (log: `benchmarks/results/alloc_drop_darwin_arm64_20260226_020709.md`).
-    - New: opt-in reuse escape smoke (`test_loop_list_reuse_escape_smoke`) added to native quick integration
+    - New: reuse escape smoke (`test_loop_list_reuse_escape_smoke`) added to native quick integration
       to guard against incorrect reuse when lists escape (2026-02-26).
-    - Fix: loop list reuse now skips unsafe list uses (escape/alias), keeping reuse opt-in but
-      correctness-safe under `test_loop_list_reuse_escape_smoke` (2026-02-26).
+    - Fix: loop list reuse now skips unsafe list uses (escape/alias), enabling default-on reuse while
+      remaining correctness-safe under `test_loop_list_reuse_escape_smoke` (2026-02-26).
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
      `oren_arena_new_list(cap)`, and `oren_arena_new_list_auto(cap)` as list constructors and propagates list metadata across simple alias assignments,
      extending reserve/unchecked-push rewrites (rolling, 2026-02-24).
@@ -286,8 +286,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - Safety: list<int> lowering now skips candidates assigned in nested control-flow blocks
        to avoid mixed list/list<int> rewrites (fixes arena auto-loop use-before-assign smoke; rolling, 2026-02-25).
    - New: loop list reuse hoists safe, non-escaping list allocations out of loops and replaces per-iter
-     init with `*_clear_unchecked` calls; gated by `OREN_OPT_LOOP_LIST_REUSE` (default off; opt-in while hoist ordering is hardened).
-     - Opt-in smoke: `OREN_OPT_LOOP_LIST_REUSE=1` builds and runs `test_arena_auto_loop_smoke` on arm64 macOS (2026-02-25).
+     init with `*_clear_unchecked` calls; default-on with opt-out via `OREN_OPT_LOOP_LIST_REUSE=0`.
+     - Reuse smoke: `test_arena_auto_loop_smoke` passes with reuse enabled on arm64 macOS (2026-02-25).
    - `alloc_churn` native was 7.23× C in the earlier 2026-02-25 snapshot; latest snapshot regressed to 46.65× C.
    - Alloc-site trace (arm64, 2026-02-25, `OREN_BENCH_TRACE_ALLOC_SITE=1`, native-only):
      median total=20000, list_int_header=20000, list_header=0, list_buf=0, list_int_buf=0

@@ -182,12 +182,15 @@ fn _opt_arena_auto_enabled() {
 
 fn _opt_loop_list_reuse_enabled() {
     var v = oren_env("OREN_OPT_LOOP_LIST_REUSE")
-    // Rolling safety: default off until scope/hoist ordering is fully hardened.
-    if v == nil { return false }
+    // Rolling safety: default on with opt-out once escape/alias checks are in place.
+    if v == nil { return true }
+    if listm._opt_str_eq(v, "0") { return false }
+    if listm._opt_str_eq(v, "false") { return false }
+    if listm._opt_str_eq(v, "off") { return false }
     if listm._opt_str_eq(v, "1") { return true }
     if listm._opt_str_eq(v, "true") { return true }
     if listm._opt_str_eq(v, "on") { return true }
-    return false
+    return true
 }
 
 fn _opt_arena_per_iter_enabled() {
