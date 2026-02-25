@@ -333,6 +333,45 @@ fn test_core() {
     trace("QI: test_core end")
 }
 
+fn test_list_set_clear_stress() {
+    trace("QI: test_list_set_clear_stress")
+    var xs = []
+    var li = []
+    oren_list_int_push(li, 0)
+    var i = 0
+    while i < 64 {
+        oren_list_set(xs, i, i)
+        // list_set should route to list<int> fast path when the list is unboxed.
+        oren_list_set(li, i, i)
+        i = i + 1
+    }
+    assert_eq(oren_list_len(xs), 64, 3300)
+    assert_eq(oren_list_int_len(li), 64, 3301)
+    oren_gc_collect()
+    i = 0
+    while i < 64 {
+        assert_eq(xs[i], i, 3302)
+        assert_eq(oren_list_int_get(li, i), i, 3303)
+        i = i + 1
+    }
+    oren_list_clear(xs)
+    oren_list_int_clear(li)
+    assert_eq(oren_list_len(xs), 0, 3304)
+    assert_eq(oren_list_int_len(li), 0, 3305)
+
+    // Exercise list<int> set growth after a clear.
+    i = 0
+    while i < 32 {
+        oren_list_int_set(li, i, i + 1)
+        i = i + 1
+    }
+    assert_eq(oren_list_int_len(li), 32, 3306)
+    assert_eq(oren_list_int_get(li, 0), 1, 3307)
+    assert_eq(oren_list_int_get(li, 31), 32, 3308)
+    oren_gc_collect()
+    return 0
+}
+
 fn test_boxed_list_dot_sum() {
     trace("QI: test_boxed_list_dot_sum")
     var n = 4096
