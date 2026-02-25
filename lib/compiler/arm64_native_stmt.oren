@@ -1802,8 +1802,6 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
     emit_str_reg_sp_any(ctx, 9, tick_off)
-    // inline safepoint mask (restored after runtime calls)
-    push_u32_le(ctx["code"], insn_movz(10, 4095))
 
     // load i/n/sum locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -1920,7 +1918,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0) // patched: b.ge single
     }
 
-    native_emit_gc_safepoint_inline_tick(ctx, 4095)
+    native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 1023)
 
     // reload i + sum after safepoint
     emit_ldr_reg_sp_any(ctx, 20, i_off)
@@ -1968,7 +1966,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         var single_off = (fast_single_pos - jpos_fast_single) / 4
         set_u32_le(ctx["code"], jpos_fast_single, insn_b_cond(single_off, 10)) // GE
 
-        native_emit_gc_safepoint_inline_tick(ctx, 4095)
+        native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 1023)
 
         // reload i + sum after safepoint
         emit_ldr_reg_sp_any(ctx, 20, i_off)
@@ -2079,8 +2077,6 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
     emit_str_reg_sp_any(ctx, 9, tick_off)
-    // inline safepoint mask (restored after runtime calls)
-    push_u32_le(ctx["code"], insn_movz(10, 4095))
 
     // load i/n/sum locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
@@ -2259,7 +2255,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         var single_off = (fast_single_pos - jpos_fast_single) / 4
         set_u32_le(ctx["code"], jpos_fast_single, insn_b_cond(single_off, 10)) // GE
 
-        native_emit_gc_safepoint_inline_tick(ctx, 4095)
+        native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 1023)
 
         // reload i + sum after safepoint
         emit_ldr_reg_sp_any(ctx, 20, i_off)
