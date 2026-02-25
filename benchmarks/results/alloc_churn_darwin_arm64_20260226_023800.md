@@ -1,4 +1,4 @@
-# multi_list_sum benchmark (20260225_233636)
+# alloc_churn benchmark (20260226_023800)
 
 ## Host
 
@@ -8,7 +8,7 @@
 - cpu: Apple M2 Pro
 - cpu_cores: 10
 - mem_bytes: 17179869184
-- git_rev: 3be1b4679a1c76b14e25fcfcb3a75bd8c32b9c41
+- git_rev: b9035ad3f494037525571658e74b4eb73361e5bd
 - runs: 5 (warmups: 1)
 
 ## Env (OREN_*)
@@ -21,9 +21,9 @@
 
 | variant | median | mean | min | max |
 | --- | --- | --- | --- | --- |
-| c | 0.009747 | 0.009789 | 0.009693 | 0.010041 |
-| oren_c | 0.041721 | 0.041794 | 0.041102 | 0.042414 |
-| oren_native | 0.029655 | 0.029691 | 0.028999 | 0.030580 |
-| oren_obc | 0.531158 | 0.531545 | 0.527093 | 0.537314 |
+| c | 0.002931 | 0.002962 | 0.002865 | 0.003079 |
+| oren_c | 0.012568 | 0.012557 | 0.012386 | 0.012697 |
+| oren_native | 0.018404 | 0.018439 | 0.018282 | 0.018602 |
+| oren_obc | 0.167005 | 0.166888 | 0.164980 | 0.169295 |
 
-Output checksum (stdout): `2995000000`
+Output checksum (stdout): `199990000`

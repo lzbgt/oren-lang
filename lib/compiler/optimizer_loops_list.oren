@@ -1436,11 +1436,6 @@ fn _opt_rewrite_loop_list_reuse(block, idx, loop_stmt, safe_vars) {
                     i = i + 1
                     continue
                 }
-                if _opt_block_has_unsafe_list_use(body, nm) == true {
-                    _opt_arena_trace("[arena_loop] list_reuse skip=unsafe name=" + nm)
-                    i = i + 1
-                    continue
-                }
                 var v = st["value"]
                 if _opt_expr_is_list_ctor_any(v) != true {
                     _opt_arena_trace("[arena_loop] list_reuse skip=ctor name=" + nm)

@@ -1,4 +1,4 @@
-# array_sum_int benchmark (20260225_233620)
+# alloc_drop benchmark (20260226_023803)
 
 ## Host
 
@@ -8,7 +8,7 @@
 - cpu: Apple M2 Pro
 - cpu_cores: 10
 - mem_bytes: 17179869184
-- git_rev: 3be1b4679a1c76b14e25fcfcb3a75bd8c32b9c41
+- git_rev: b9035ad3f494037525571658e74b4eb73361e5bd
 - runs: 5 (warmups: 1)
 
 ## Env (OREN_*)
@@ -21,9 +21,9 @@
 
 | variant | median | mean | min | max |
 | --- | --- | --- | --- | --- |
-| c | 0.004614 | 0.004556 | 0.004384 | 0.004640 |
-| oren_c | 0.009722 | 0.009888 | 0.009608 | 0.010660 |
-| oren_native | 0.018277 | 0.018234 | 0.017961 | 0.018420 |
-| oren_obc | 0.257964 | 0.257464 | 0.255127 | 0.259444 |
+| c | 0.002957 | 0.002951 | 0.002885 | 0.003066 |
+| oren_c | 0.002527 | 0.002579 | 0.002457 | 0.002697 |
+| oren_native | 0.006985 | 0.006986 | 0.006892 | 0.007104 |
+| oren_obc | 0.003942 | 0.003933 | 0.003855 | 0.003990 |
 
-Output checksum (stdout): `999000000`
+Output checksum (stdout): `alloc_drop keep=11`

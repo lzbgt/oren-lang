@@ -35,7 +35,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
-   - Baseline (arm64 native, 2026-02-26): `alloc_churn` 5.98× C, `alloc_drop` 2.27× C.
+   - Baseline (arm64 native, 2026-02-26): `alloc_churn` 6.28× C, `alloc_drop` 2.36× C.
    - New: latest snapshot keeps alloc_churn within the 8× gate; reuse is default-on with escape/alias guardrails.
    - Trace: alloc_churn alloc-site median counts show list_int_header=20000 and list_buf/list_int_buf=0 (native-only trace, 2026-02-25).
    - Trace: list_alloc shows list_int headers sized at 32 bytes (cap=0, arena mode) with no list_buf events even when enabled; investigate reserve/fast-path behavior (2026-02-25).
@@ -65,11 +65,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New: `OREN_TRACE_LIST_RESERVE_BYTES=1` reports reserve allocation/copy totals at shutdown:
      alloc_churn shows list_int_alloc_bytes=20480000 with 20000 reserve calls and zero copy bytes
      (log: `build/logs/alloc_churn_run_reserve_bytes_20260226_020050.log`).
-   - New: loop list reuse cuts alloc_churn to ~5.98× C (arm64, 2026-02-26),
+   - New: loop list reuse cuts alloc_churn to ~6.28× C (arm64, 2026-02-26),
      within the 8× gate; default-on with opt-out via `OREN_OPT_LOOP_LIST_REUSE=0`
-     (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_022314.md`).
-   - New: loop list reuse keeps alloc_drop at ~2.27× C (arm64, 2026-02-26),
-     within the 5× gate (log: `benchmarks/results/alloc_drop_darwin_arm64_20260226_022316.md`).
+     (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_023800.md`).
+   - New: loop list reuse keeps alloc_drop at ~2.36× C (arm64, 2026-02-26),
+     within the 5× gate (log: `benchmarks/results/alloc_drop_darwin_arm64_20260226_023803.md`).
    - New: reuse escape smoke (`test_loop_list_reuse_escape_smoke`) added to native quick integration
      to catch incorrect reuse when lists escape (2026-02-26).
    - Fix: loop list reuse now skips unsafe list uses (escape/alias), enabling default-on reuse
