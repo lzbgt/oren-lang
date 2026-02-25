@@ -1063,7 +1063,7 @@ fn _emit_fast_list_int_push_while_x64(ctx, op, info, locals, labels, local_fixup
     bytes_extend(ctx["code"], insn_cmp_r64_r64(0, 9))
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_fast_end)
 
-    _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
+    _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
 
     var pi = 0
     while pi < oren_list_len(pushes) {
@@ -1429,7 +1429,7 @@ fn _emit_fast_list_int_get_sum_while_x64(ctx, op, info, locals, labels, local_fi
         _emit_jcc_to_label(ctx, local_fixups, "ge", l_fast_single)
     }
 
-    _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
+    _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
 
     // sum -> r13
     _emit_mov_r64_mrbp(ctx, 13, 0 - off_sum)
@@ -1464,7 +1464,7 @@ fn _emit_fast_list_int_get_sum_while_x64(ctx, op, info, locals, labels, local_fi
         _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
 
         _emit_label(ctx, labels, l_fast_single)
-        _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
+        _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
         _emit_mov_r64_mrbp(ctx, 13, 0 - off_sum)
     }
 
@@ -1887,7 +1887,7 @@ fn _emit_fast_list_get_sum_while_x64(ctx, op, info, locals, labels, local_fixups
     bytes_extend(ctx["code"], insn_cmp_r64_r64(10, 9))
     _emit_jcc_to_label(ctx, local_fixups, "ge", l_fast_end)
 
-    _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
+        _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
 
     // sum -> r13
     _emit_mov_r64_mrbp(ctx, 13, 0 - off_sum)
@@ -2109,7 +2109,7 @@ fn _emit_fast_list_int_dot_while_x64(ctx, op, info, locals, labels, local_fixups
         _emit_jcc_to_label(ctx, local_fixups, "ge", l_fast_single)
     }
 
-    _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
+    _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
 
     // sum -> r13
     _emit_mov_r64_mrbp(ctx, 13, 0 - off_sum)
@@ -2162,7 +2162,7 @@ fn _emit_fast_list_int_dot_while_x64(ctx, op, info, locals, labels, local_fixups
         _emit_jmp_to_label(ctx, local_fixups, l_fast_cond)
 
         _emit_label(ctx, labels, l_fast_single)
-        _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 255)
+        _emit_gc_safepoint_throttled_x64(ctx, locals, labels, local_fixups, 1023)
         _emit_mov_r64_mrbp(ctx, 13, 0 - off_sum)
     }
 

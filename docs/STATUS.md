@@ -34,7 +34,7 @@ Oren is "mature" when all are reliably true on Tier-1 targets
 Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/zig/go):
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
-- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.42×, `dot_product` 4.60×; `alloc_churn` 6.81×, `alloc_drop` 2.33× on arm64, 2026-02-25).
+- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.37×, `dot_product` 3.97×; `alloc_churn` 6.22×, `alloc_drop` 2.34× on arm64, 2026-02-25).
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -53,7 +53,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Cross‑backend parity is enforced via fixtures, not a stabilized ABI.
 
 2) **W5 - Performance parity (hot loops + alloc/GC)**
-   - Baselines: `loop_sum` 3.42× C, `dot_product` 4.60× C; `alloc_churn` 6.81× C, `alloc_drop` 2.33× C (arm64, 2026-02-25).
+   - Baselines: `loop_sum` 3.37× C, `dot_product` 3.97× C; `alloc_churn` 6.22× C, `alloc_drop` 2.34× C (arm64, 2026-02-25).
    - Priority: allocation/GC remains the largest perf gap vs C; keep it first among W5 items.
    - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
 
@@ -110,7 +110,7 @@ Baseline reference: `benchmarks/RESULTS_LATEST.md` (M2 Pro, 2026-02-25).
 Weights reflect expected impact on C parity and breadth of affected code.
 
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
-   - Baseline (arm64 native, snapshot 2026-02-25): `loop_sum` 3.42× C, `dot_product` 4.60× C.
+   - Baseline (arm64 native, snapshot 2026-02-25): `loop_sum` 3.37× C, `dot_product` 3.97× C.
    - Expand inty propagation and arithmetic fast paths.
    - Split runtime init vs steady-state cost and quantify the init gap (see `benchmarks/RESULTS_LATEST.md` notes).
      - New: `OREN_BENCH_INIT_SPLIT=1` adds loop_sum init/steady estimation (see `benchmarks/README.md`).
@@ -129,11 +129,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Safe list<int> get/len now rewrite to unchecked header paths (`oren_list_int_get_unchecked`, `oren_list_int_len_unchecked`) on native backends (rolling, 2026-02-24).
    - Arm64 fast list_int get-sum loops now accept `list_int_get_unchecked` calls to preserve the fast path after rewriting (rolling, 2026-02-24).
    - New: arm64 list<int> get-sum + dot fast loops now use inline safepoint ticks (register-based) to avoid per-iter stack traffic (rolling, 2026-02-25).
-   - Investigate dot_product native variance/regression (4.60× vs prior 4.15× snapshot) and confirm if safepoint change is neutral or requires tuning.
+   - New: safepoint throttling increased for list<int> hot loops (arm64 list<int> sum/dot mask=4095; x64 list<int> sum/dot mask=1023).
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
-   - Baseline (arm64 native, 2026-02-25): `alloc_churn` 6.81× C, `alloc_drop` 2.33× C.
+   - Baseline (arm64 native, 2026-02-25): `alloc_churn` 6.22× C, `alloc_drop` 2.34× C.
    - `alloc_churn` and `alloc_drop` are now within the 8×/5× gates on arm64.
    - Alloc-site trace (arm64, 2026-02-25, `OREN_BENCH_TRACE_ALLOC_SITE=1`, warmups=0):
      - `alloc_churn` median total=2 (list_int_header=1, list_int_buf=1, list_header=0, list_buf=0).
@@ -190,9 +190,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
        to avoid mixed list/list<int> rewrites (fixes arena auto-loop use-before-assign smoke; rolling, 2026-02-25).
    - New: loop list reuse hoists safe, non-escaping list allocations out of loops and replaces per-iter
      init with `*_clear_unchecked` calls; gated by `OREN_OPT_LOOP_LIST_REUSE` (default on; rolling, 2026-02-25).
-     - `alloc_churn` native improved to 6.81× C in the 2026-02-25 snapshot.
+     - `alloc_churn` native improved to 6.22× C in the 2026-02-25 snapshot.
      - List literal sinking now handles `ExprStmt` if-forms, reducing `alloc_drop` list-header churn
-       (alloc-site median list_header=105; `alloc_drop` native 2.33× C).
+       (alloc-site median list_header=105; `alloc_drop` native 2.34× C).
    - New: fast list/list_int push while-loops now accept constant upper bounds (arm64/x64/transpiler),
      and `alloc_drop` is now within target on the 2026-02-25 snapshot (rolling).
    - New: list/list_int reserve + unchecked push now try `native_arena_alloc_raw` for arena-backed buffers
@@ -573,14 +573,14 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: fixtures pass; no backend-only semantics.
 
 5) **W3 - SIMD/typed-buffer parity on native (x64 + arm64)** (M)
-    - Baseline (arm64 native, 2026-02-20): `dot_product_int` 4.38× C.
+    - Baseline (arm64 native, 2026-02-25): `dot_product_int` 4.04× C.
     - SSE2 baseline on x64; scalar equivalence gated.
     - Wire list_int dot loops to SIMD kernels (or typed-buffer views) where safe.
     - arm64 native fast list_int dot loops unroll by 2 when lists are unique.
     - arm64 native fast list_int get-sum loops unroll by 2 when lists are unique.
     - x64 native fast list_int dot loops unroll by 2 when lists are unique (multi-mul supported).
     - x64 native fast list_int get-sum loops unroll by 2 when lists are unique.
-    - Read-only list_int sum/dot loops now use a 1023 safepoint mask on native.
+    - Read-only list_int sum/dot loops now use higher safepoint masks on native (arm64=4095, x64=1023).
     - Gate: native `dot_product_int` <= 2x C.
 
 6) **W3 - AVM allocation fast paths + typed buffers** (M)
