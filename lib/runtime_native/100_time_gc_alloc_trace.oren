@@ -389,9 +389,21 @@ fn trace_track_alloc_new_size_emit(ptr, size, kind) {
     return 0
 }
 
+fn trace_alloc_request_emit(ptr, size, kind) {
+    if trace_track_alloc_new_size_enabled() != true { return 0 }
+    if size < g_trace_track_alloc_new_size_min { return 0 }
+    if g_trace_track_alloc_new_size_cap <= 0 { return 0 }
+    g_trace_track_alloc_new_size_cap = g_trace_track_alloc_new_size_cap - 1
+    print("[alloc_req] ptr=" + oren_int_to_string(ptr) +
+          " kind=" + oren_int_to_string(kind) +
+          " size=" + oren_int_to_string(size) +
+          " min=" + oren_int_to_string(g_trace_track_alloc_new_size_min))
+    return 0
+}
+
 @oren.keep
 fn oren_trace_alloc_request(ptr, size, kind) {
-    return trace_track_alloc_new_size_emit(ptr, size, kind)
+    return trace_alloc_request_emit(ptr, size, kind)
 }
 
 
