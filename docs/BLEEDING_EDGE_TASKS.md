@@ -40,6 +40,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace: list_alloc shows list_int headers sized at 32 bytes (cap=0, arena mode) with no list_buf events even when enabled; investigate reserve/fast-path behavior (2026-02-25).
    - Trace: optimizer inserts `oren_list_int_reserve(xs, 128)` for alloc_churn (`OREN_TRACE_LIST_RESERVE=1`, 2026-02-26).
    - Trace: combined runtime trace still shows only list_int header allocs (size=32, mode=2) and no list_buf events; reserve trace did not appear in that build log (2026-02-26).
+   - Trace: manual no-cache build confirms `list_int_reserve(xs, 128)` insertion for alloc_churn (`bench_alloc_churn_manual_build_20260226_001017.log`).
    - Next: keep `alloc_drop` within target while auditing other alloc/GC workloads for regressions.
    - Gate: `alloc_churn` native <= 8x C; `alloc_drop` native <= 5x C.
 

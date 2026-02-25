@@ -263,6 +263,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Combined trace (arm64, 2026-02-26, `OREN_TRACE_LIST_RESERVE=1` + `OREN_TRACE_LIST_ALLOC=1` + `OREN_TRACE_LIST_BUF=1`):
      runtime still shows list_int header allocations (size=32, mode=2) and no list_buf events; compile log did not emit
      list_reserve prints in this run (log: `build/logs/bench_alloc_churn_list_all_20260226_000614.log`).
+   - Manual build trace (arm64, 2026-02-26, `OREN_TRACE_LIST_RESERVE=1` + `OREN_TRACE_OPTIMIZER=1`, `--no-cache`):
+     `alloc_churn` prints `list_int_reserve name=xs n=128` (log: `build/logs/bench_alloc_churn_manual_build_20260226_001017.log`).
    - List literal sinking now handles `ExprStmt` if-forms, reducing `alloc_drop` list-header churn
      (alloc-site median list_header=105 in 2026-02-25 trace; latest `alloc_drop` native 1.44× C).
    - New: fast list/list_int push while-loops now accept constant upper bounds (arm64/x64/transpiler),
