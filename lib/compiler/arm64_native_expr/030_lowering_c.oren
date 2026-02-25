@@ -315,11 +315,16 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_str_ptr(4, 0))     // *(list) = count+1
 
                 if ctx["trace_native_list_hdr"] != nil {
+                    // GC safety: keep the list pointer on stack so trace-time allocations
+                    // don't lose the only live reference (GC scans the stack, not registers).
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
                     emit_load_i64_imm(ctx, 1, 4) // list_push
                     emit_load_i64_imm(ctx, 2, 2) // LIST
                     var bl_trace = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace, "name": "oren_trace_list_header"})
+                    push_u32_le(ctx["code"], insn_add_sp(16))
                 }
 
                 var done_pos2 = bytes_len(ctx["code"])
@@ -453,11 +458,16 @@ fn native_call_chunk_030_lowering_c(ctx, fn_name, expr, args) {
                 push_u32_le(ctx["code"], insn_str_ptr(4, 0))     // *(list) = count+1
 
                 if ctx["trace_native_list_hdr"] != nil {
+                    // GC safety: keep the list pointer on stack so trace-time allocations
+                    // don't lose the only live reference (GC scans the stack, not registers).
+                    push_u32_le(ctx["code"], insn_sub_sp(16))
+                    push_u32_le(ctx["code"], insn_str_x0_sp(0))
                     emit_load_i64_imm(ctx, 1, 7) // list_int_push
                     emit_load_i64_imm(ctx, 2, 8) // LIST_INT
                     var bl_trace_i = bytes_len(ctx["code"])
                     push_u32_le(ctx["code"], 0)
                     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace_i, "name": "oren_trace_list_header"})
+                    push_u32_le(ctx["code"], insn_add_sp(16))
                 }
 
                 var done_pos2i = bytes_len(ctx["code"])

@@ -42,7 +42,8 @@ kept in sync with `docs/STATUS.md`.
      huge-size tracking corruption is gone before re-enabling reuse.
    - New: GC auto + heavy list tracing can trigger `list_int_reserve on non-list` panic; triage whether this is a
      trace-only artifact or a real metadata corruption under GC.
-   - New: GC auto trace without `OREN_TRACE_NATIVE_LIST_HDR` completes cleanly, so isolate native list trace hooks.
+   - New: GC auto trace with `OREN_TRACE_NATIVE_LIST_HDR=1` completes cleanly after spilling list ptr to stack in
+     the trace hook; keep this guard.
    - Instrument `malloc_k`/arena callers to log size+cap before tracking when `size` is implausible, and audit
      native codegen for size/arg clobbers when new regressions appear.
    - Expand fast-path tracing in native emitters to pinpoint header writes.
