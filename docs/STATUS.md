@@ -257,6 +257,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - New: alloc_churn native run with `OREN_TRACE_NATIVE_LIST_RESERVE=1` + `OREN_TRACE_LIST_RESERVE_RT=1` shows
       list<int> reserve executes at runtime and allocates 1024-byte buffers via `_list_alloc_buf`
       (log: `build/logs/alloc_churn_manual_run_trace_reserve_fast2_20260226_004803.log`).
+      - Trace also shows a second `list_int_reserve` call with `cap=128` and `new_cap=128` on the same list,
+        implying the fast-loop reserve path is called even after the pre-reserve (investigate cap compare or
+        duplicate reserve insertion).
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
      `oren_arena_new_list(cap)`, and `oren_arena_new_list_auto(cap)` as list constructors and propagates list metadata across simple alias assignments,
      extending reserve/unchecked-push rewrites (rolling, 2026-02-24).

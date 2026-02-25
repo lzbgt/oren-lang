@@ -56,6 +56,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      (rolling, 2026-02-26).
    - Trace: alloc_churn native run with fast-loop reserve tracing shows list<int> reserve executes
      and allocates 1024-byte buffers via `_list_alloc_buf` (log: `build/logs/alloc_churn_manual_run_trace_reserve_fast2_20260226_004803.log`).
+     - Note: trace shows a second `list_int_reserve` call with `cap=128` and `new_cap=128` on the same list,
+       implying redundant reserve calls (likely from fast-loop check despite pre-reserve). Investigate.
    - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added.
      Alloc_churn run emits no `[list_reserve]`/`[list_buf]` lines (log: `build/logs/alloc_churn_manual_run_reserve_default_20260226_002457.log`),
      so reserve path likely isn’t executed in the native fast loop or is elided before runtime.
