@@ -269,6 +269,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - New: opt-in `OREN_OPT_LOOP_LIST_REUSE=1` brings alloc_churn to ~6.37× C (arm64, 2026-02-26),
       within the 8× gate; still opt-in pending hoist ordering + correctness hardening
       (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_020521.md`).
+    - New: opt-in `OREN_OPT_LOOP_LIST_REUSE=1` keeps alloc_drop at ~2.56× C (arm64, 2026-02-26),
+      within the 5× gate (log: `benchmarks/results/alloc_drop_darwin_arm64_20260226_020709.md`).
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
      `oren_arena_new_list(cap)`, and `oren_arena_new_list_auto(cap)` as list constructors and propagates list metadata across simple alias assignments,
      extending reserve/unchecked-push rewrites (rolling, 2026-02-24).

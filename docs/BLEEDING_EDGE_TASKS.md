@@ -68,6 +68,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New: opt-in `OREN_OPT_LOOP_LIST_REUSE=1` cuts alloc_churn to ~6.37× C (arm64, 2026-02-26),
      within the 8× gate, but still opt-in pending correctness hardening
      (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_020521.md`).
+   - New: opt-in `OREN_OPT_LOOP_LIST_REUSE=1` keeps alloc_drop at ~2.56× C (arm64, 2026-02-26),
+     within the 5× gate (log: `benchmarks/results/alloc_drop_darwin_arm64_20260226_020709.md`).
    - Next: keep `alloc_drop` within target while auditing other alloc/GC workloads for regressions.
    - Gate: `alloc_churn` native <= 8x C; `alloc_drop` native <= 5x C.
 
