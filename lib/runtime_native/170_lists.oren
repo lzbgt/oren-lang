@@ -457,6 +457,7 @@ fn _list_alloc_buf(list, bytes, alloc_site, err_code) {
     var new_buf = 0
     if use_arena == true {
         new_buf = native_arena_alloc_raw(bytes)
+        if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(alloc_site) }
         if new_buf == 0 {
             new_buf = malloc_k(bytes, 0)
             if new_buf != 0 && new_buf != -1 { native_alloc_site_bump(alloc_site) }

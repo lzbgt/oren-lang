@@ -59,6 +59,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` shows stage=1/2 pairs per list and
      `[list_buf]` allocations; no duplicate stage=1 per list (log: `build/logs/alloc_churn_run_trace_20260226_013845.log`).
      The earlier “redundant reserve call” suspicion is cleared for this run; keep watching in future traces.
+   - New: alloc-site tracing now counts arena list buffers; alloc_churn shows list_int_buf=20000 and
+     list_int_header=20000 (total=40000) in native runs with `OREN_BENCH_TRACE_ALLOC_SITE=1`
+     (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_014758.md`).
    - Next: keep `alloc_drop` within target while auditing other alloc/GC workloads for regressions.
    - Gate: `alloc_churn` native <= 8x C; `alloc_drop` native <= 5x C.
 
