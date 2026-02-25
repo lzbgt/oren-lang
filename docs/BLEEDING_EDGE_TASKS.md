@@ -70,6 +70,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_020521.md`).
    - New: opt-in `OREN_OPT_LOOP_LIST_REUSE=1` keeps alloc_drop at ~2.56× C (arm64, 2026-02-26),
      within the 5× gate (log: `benchmarks/results/alloc_drop_darwin_arm64_20260226_020709.md`).
+   - New: opt-in reuse escape smoke (`test_loop_list_reuse_escape_smoke`) added to native quick integration
+     to catch incorrect reuse when lists escape (2026-02-26).
+   - Fix: loop list reuse now skips unsafe list uses (escape/alias), keeping reuse opt-in but correctness-safe
+     under `test_loop_list_reuse_escape_smoke` (2026-02-26).
    - Next: keep `alloc_drop` within target while auditing other alloc/GC workloads for regressions.
    - Gate: `alloc_churn` native <= 8x C; `alloc_drop` native <= 5x C.
 

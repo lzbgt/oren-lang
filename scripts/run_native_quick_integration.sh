@@ -407,6 +407,16 @@ if ! grep -q "\\[arena\\]" "$arena_fpc_log" 2>/dev/null; then
 fi
 tail -n 3 "$arena_fpc_log" >>"$log"
 
+echo "== loop list reuse escape smoke (opt-in) ==" >>"$log"
+reuse_src="tests/native/test_loop_list_reuse_escape_smoke.oren"
+reuse_out="build/tmp/${compiler_base}_loop_list_reuse_escape_smoke${exe_ext}"
+reuse_log="build/logs/${compiler_base}_loop_list_reuse_escape_smoke.log"
+rm -f "$reuse_log" "$reuse_out" 2>/dev/null || true
+OREN_OPT_LOOP_LIST_REUSE=1 run_with_timeout "$build_timeout_secs" "$compiler" build "$reuse_src" \
+  --backend native --platform "$platform" --debug -o "$reuse_out" >"$reuse_log" 2>&1
+run_with_timeout "$run_timeout_secs" "$reuse_out" >>"$reuse_log" 2>&1
+tail -n 3 "$reuse_log" >>"$log"
+
 if [[ "$os_key" != "windows" ]]; then
   # Cross-platform CLI robustness smoke:
   # Accept Windows-style `\` separators even on POSIX hosts so scripts/logs are portable.
