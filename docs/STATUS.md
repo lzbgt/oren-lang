@@ -250,6 +250,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
      init with `*_clear_unchecked` calls; gated by `OREN_OPT_LOOP_LIST_REUSE` (default off; opt-in while hoist ordering is hardened).
      - Opt-in smoke: `OREN_OPT_LOOP_LIST_REUSE=1` builds and runs `test_arena_auto_loop_smoke` on arm64 macOS (2026-02-25).
    - `alloc_churn` native was 7.23× C in the earlier 2026-02-25 snapshot; latest snapshot regressed to 46.65× C.
+   - Alloc-site trace (arm64, 2026-02-25, `OREN_BENCH_TRACE_ALLOC_SITE=1`, native-only):
+     median total=20000, list_int_header=20000, list_header=0, list_buf=0, list_int_buf=0
+     (log: `build/logs/bench_alloc_churn_alloc_site_20260225_234114.log`).
    - List literal sinking now handles `ExprStmt` if-forms, reducing `alloc_drop` list-header churn
      (alloc-site median list_header=105 in 2026-02-25 trace; latest `alloc_drop` native 1.44× C).
    - New: fast list/list_int push while-loops now accept constant upper bounds (arm64/x64/transpiler),

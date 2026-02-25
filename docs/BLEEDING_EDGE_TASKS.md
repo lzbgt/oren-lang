@@ -36,6 +36,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Enable safe reuse paths and reduce tracking overhead.
    - Baseline (arm64 native, 2026-02-25): `alloc_churn` 46.65× C, `alloc_drop` 1.44× C.
    - New: latest snapshot shows a large alloc_churn regression; root-cause before re-enabling reuse paths.
+   - Trace: alloc_churn alloc-site median counts show list_int_header=20000 and list_buf/list_int_buf=0 (native-only trace, 2026-02-25).
    - Next: keep `alloc_drop` within target while auditing other alloc/GC workloads for regressions.
    - Gate: `alloc_churn` native <= 8x C; `alloc_drop` native <= 5x C.
 
