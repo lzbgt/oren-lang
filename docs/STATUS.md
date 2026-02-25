@@ -34,7 +34,7 @@ Oren is "mature" when all are reliably true on Tier-1 targets
 Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/zig/go):
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
-- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.39×, `dot_product` 2.57×; `alloc_churn` 6.28×, `alloc_drop` 2.36× on arm64, 2026-02-26).
+- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.40×, `dot_product` 2.57×; `alloc_churn` 6.28×, `alloc_drop` 2.36× on arm64, 2026-02-26).
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -53,7 +53,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Cross‑backend parity is enforced via fixtures, not a stabilized ABI.
 
 2) **W5 - Performance parity (hot loops + alloc/GC)**
-   - Baselines: `loop_sum` 3.39× C, `dot_product` 2.57× C; `alloc_churn` 6.28× C, `alloc_drop` 2.36× C (arm64, 2026-02-26).
+   - Baselines: `loop_sum` 3.40× C, `dot_product` 2.57× C; `alloc_churn` 6.28× C, `alloc_drop` 2.36× C (arm64, 2026-02-26).
    - Priority: hot loops remain above the 2× gate; allocation/GC is now within the 8×/5× gates on arm64.
    - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
 
@@ -140,7 +140,7 @@ Baseline reference: `benchmarks/RESULTS_LATEST.md` (M2 Pro, 2026-02-26).
 Weights reflect expected impact on C parity and breadth of affected code.
 
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
-   - Baseline (arm64 native, snapshot 2026-02-26): `loop_sum` 3.39× C, `dot_product` 2.57× C.
+   - Baseline (arm64 native, snapshot 2026-02-26): `loop_sum` 3.40× C, `dot_product` 2.57× C.
    - Expand inty propagation and arithmetic fast paths.
    - Split runtime init vs steady-state cost and quantify the init gap (see `benchmarks/RESULTS_LATEST.md` notes).
      - New: `OREN_BENCH_INIT_SPLIT=1` adds loop_sum init/steady estimation (see `benchmarks/README.md`).
@@ -165,6 +165,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - X64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023 to reduce hot-loop overhead (rolling, 2026-02-25).
    - Arm64 list<int> get-sum + dot fast loops now keep i/sum in registers across iterations to reduce stack traffic (rolling, 2026-02-26).
    - Arm64 boxed list get-sum + dot fast loops now keep i/sum in registers across iterations to reduce stack traffic (rolling, 2026-02-26).
+   - LCG fast loop safepoint mask now 4095 on arm64 + x64 (rolling, 2026-02-26).
    - TODO: root-cause the arm64 offset regression when removing the tick stack slot and safely eliminate the unused slot.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 

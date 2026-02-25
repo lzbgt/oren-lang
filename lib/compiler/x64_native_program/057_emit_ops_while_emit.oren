@@ -801,7 +801,7 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     // Inline throttled safepoint without per-iter tick loads/stores.
     bytes_extend(ctx["code"], insn_add_r64_imm32(8, 1))
     bytes_extend(ctx["code"], insn_mov_r64_r64(0, 8))
-    bytes_extend(ctx["code"], insn_and_r64_imm32(0, 1023))
+    bytes_extend(ctx["code"], insn_and_r64_imm32(0, 4095))
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
     var l_sp_skip = _new_label(ctx, "lcg_sum_sp_skip")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_sp_skip)
@@ -880,13 +880,13 @@ fn _emit_fast_lcg_sum_while_x64(ctx, op, info, locals, labels, local_fixups, epi
     // Inline throttled safepoint without per-iter tick loads/stores.
     bytes_extend(ctx["code"], insn_add_r64_imm32(8, 1))
     bytes_extend(ctx["code"], insn_mov_r64_r64(0, 8))
-    bytes_extend(ctx["code"], insn_and_r64_imm32(0, 255))
+    bytes_extend(ctx["code"], insn_and_r64_imm32(0, 4095))
     bytes_extend(ctx["code"], insn_cmp_r64_imm32(0, 0))
     var l_sp_skip_mod = _new_label(ctx, "lcg_sum_sp_skip_mod")
     _emit_jcc_to_label(ctx, local_fixups, "ne", l_sp_skip_mod)
     _emit_gc_safepoint_call_x64(ctx)
     bytes_extend(ctx["code"], insn_xor_r64_r64(8, 8)) // reset tick after safepoint
-    bytes_extend(ctx["code"], insn_mov_r64_imm64(9, 255))
+    bytes_extend(ctx["code"], insn_mov_r64_imm64(9, 4095))
     _emit_label(ctx, labels, l_sp_skip_mod)
 
     // reload i/x/sum/mod

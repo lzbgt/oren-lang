@@ -107,6 +107,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     - New: dot_product native at 2.57× C (arm64 macOS, 2026-02-26).
     - New: arm64 list<int> get-sum + dot loops keep i/sum in registers across iterations (2026-02-26).
     - New: arm64 boxed list get-sum + dot loops keep i/sum in registers across iterations (2026-02-26).
+    - New: LCG fast loop safepoint mask raised to 4095 on arm64 + x64 (2026-02-26).
     - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
    - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
    - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
