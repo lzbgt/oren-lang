@@ -1,3 +1,5 @@
+var g_qi_global_root_list = []
+
 fn test_entropy() {
     trace("QI: test_entropy")
     // Smoke: OS entropy surface must exist and be bounded (no hangs).
@@ -336,7 +338,8 @@ fn test_core() {
 fn test_list_set_clear_stress() {
     trace("QI: test_list_set_clear_stress")
     var xs = []
-    var li = []
+    // Ensure list<int> header so list_set/list_int_set exercise unboxed paths.
+    var li = oren_new_list_int(0)
     oren_list_int_push(li, 0)
     var i = 0
     while i < 64 {
@@ -369,6 +372,21 @@ fn test_list_set_clear_stress() {
     assert_eq(oren_list_int_get(li, 0), 1, 3307)
     assert_eq(oren_list_int_get(li, 31), 32, 3308)
     oren_gc_collect()
+    return 0
+}
+
+fn test_global_roots_survive_gc() {
+    trace("QI: test_global_roots_survive_gc")
+    g_qi_global_root_list = []
+    var i = 0
+    while i < 32 {
+        oren_list_push(g_qi_global_root_list, i)
+        i = i + 1
+    }
+    oren_gc_collect()
+    assert_eq(oren_list_len(g_qi_global_root_list), 32, 3320)
+    assert_eq(g_qi_global_root_list[5], 5, 3321)
+    assert_eq(g_qi_global_root_list[31], 31, 3322)
     return 0
 }
 

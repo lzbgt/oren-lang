@@ -3,6 +3,7 @@ fn main() {
 
     test_core()
     test_list_set_clear_stress()
+    test_global_roots_survive_gc()
     test_arena_list_smoke()
     test_arena_loop_attrs()
     test_boxed_list_dot_sum()

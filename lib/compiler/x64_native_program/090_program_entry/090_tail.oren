@@ -910,6 +910,31 @@ fn native_compile_program_x64(linked, platform) {
         _emit_windows_write_cstr(ctx, "ENTRY: gc_mode ok")
     }
 
+    // Register global slots as GC roots (native parity with C backend).
+    // Do this after GC mode init so native_gc_register_root is active.
+    var gmap = ctx["globals"]
+    if gmap != nil {
+        var gi = 0
+        var pair = [nil, nil]
+        var arg_reg = 7 // rdi
+        if platform != nil && platform["os"] == "windows" { arg_reg = 1 } // rcx
+        while 1 {
+            var okg = oren_iter_next_entry(gmap, gi, pair)
+            if okg == 0 { break }
+            var off_enc = pair[1]
+            if off_enc != nil && oren_type_tag(off_enc) == 1 {
+                var off = off_enc - 1
+                var lea_pos = bytes_len(ctx["code"])
+                bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(arg_reg, 0))
+                oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})
+                var call_root_pos = bytes_len(ctx["code"])
+                bytes_extend(ctx["code"], insn_call_rel32(0))
+                oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_root_pos, "name": "native_gc_register_root"})
+            }
+            gi = gi + 1
+        }
+    }
+
     // Register main thread for GC/stack safety (allow skip for bisecting entry crashes).
     if skip_register_thread != true {
         if trace_entry && platform != nil && platform["os"] == "windows" {

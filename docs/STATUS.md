@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-02-26
+**Last updated:** 2026-02-25
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
@@ -333,6 +333,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - New trace: `OREN_TRACE_LIST_CORRUPT=1` (cap via `OREN_TRACE_LIST_CORRUPT_CAP`) logs suspicious list headers
       during reserve/push_unchecked (invalid magic or buf), dumps list_debug state, and emits list_alloc/list_hdr
       ring matches when enabled (rolling, 2026-02-20). List_len/list_reserve and list_int panics now also dump ring matches.
+   - New: list indexing (`xs[i]`) rebuilds alloc-index once on non-container detection before panicking
+     to avoid false panics from stale index state (rolling, 2026-02-26).
    - List header reuse guard now treats chunk_size==32 as separate-buffer lists even if buf==list+32 (avoids false bad-list hits when allocator places buffers adjacent; rolling, 2026-02-20).
    - List header reuse guard now accepts external-buffer lists whose header allocation still includes stale inline storage (chunk_size > 32 with buf != list+32), avoiding false bad-list hits after growth (rolling, 2026-02-24).
    - List trace env checks now cache false after first lookup (`OREN_TRACE_LIST_HEADER`,
@@ -706,6 +708,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      - Investigate list_int tracking-node size corruption (alloc_churn free-list traces show huge chunk sizes despite valid headers).
    - New: `OREN_TRACE_ALLOC_INDEX_REBUILD_CAP=<n>` panics when rebuilds exceed `n` (trace-only guardrail)
      to catch runaway rebuild loops during corruption hunts (rolling, 2026-02-26).
+   - Fix: native entry stubs now register all global slots as GC roots before top-level execution,
+     preventing GC from collecting globals such as test lists (rolling, 2026-02-25).
    - Gate: no header corruption under alloc benches with reuse disabled; reuse paths stay guarded until verified.
 
 4) **Tagged value convergence plan** (L, W5)

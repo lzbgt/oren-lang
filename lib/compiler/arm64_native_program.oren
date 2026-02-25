@@ -1399,6 +1399,30 @@ fn native_compile_program_arm64(linked, platform) {
     push_u32_le(ctx["code"], 0)
     oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_init_gc, "name": "native_runtime_init_gc_mode"})
 
+    // Register global slots as GC roots (native parity with C backend).
+    // Do this after GC mode init so native_gc_register_root is active.
+    var gmap = ctx["globals"]
+    if gmap != nil {
+        var gi = 0
+        var pair = [nil, nil]
+        while 1 {
+            var okg = oren_iter_next_entry(gmap, gi, pair)
+            if okg == 0 { break }
+            var off_enc = pair[1]
+            if off_enc != nil && oren_type_tag(off_enc) == 1 {
+                var off = off_enc - 1
+                var adr_root_pos = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_root_pos, "data_off": off})
+                var bl_root = bytes_len(ctx["code"])
+                push_u32_le(ctx["code"], 0)
+                oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_root, "name": "native_gc_register_root"})
+            }
+            gi = gi + 1
+        }
+    }
+
     if platform["debug"] == true {
         var debug_adr_pos = bytes_len(ctx["code"])
         push_u32_le(ctx["code"], 0)

@@ -598,6 +598,8 @@ fn _list_corrupt_check(list, stage) {
 
 fn _list_trace_dump(list) {
     if list == 0 || list < 4096 { return 0 }
+    print("trace: list_trace_dump list=" + oren_int_to_string(list))
+    native_list_debug_node(list)
     trace_list_alloc_ring_dump(list)
     native_list_header_ring_dump(list)
     return 0
@@ -1251,7 +1253,11 @@ fn oren_list_get(list, idx) {
         // Safety: do not dereference arbitrary large integers as pointers.
         // `x[i]` is defined for lists and maps; reject other values deterministically.
         var node = _list_find_node(list)
-        if node == 0 { oren_panic("Indexing on non-container"); return nil }
+        if node == 0 {
+            native_alloc_index_rebuild_live()
+            node = _list_find_node(list)
+        }
+        if node == 0 { _list_trace_dump(list); oren_panic("Indexing on non-container"); return nil }
 	    var kind = ptr_get(iadd(node, 16))
 	    if kind != 2 && kind != list_int_kind() {
 	        if kind == 3 {
@@ -1259,11 +1265,28 @@ fn oren_list_get(list, idx) {
                 // Key kind is selected by `oren_map_get` using tracking metadata.
                 return oren_map_get(list, idx)
             }
-            oren_panic("Indexing on non-container")
-		    return nil
+            native_alloc_index_rebuild_live()
+            node = _list_find_node(list)
+            if node != 0 {
+                kind = ptr_get(iadd(node, 16))
+                if kind == 3 {
+                    return oren_map_get(list, idx)
+                }
+                if kind == 2 || kind == list_int_kind() {
+                    // fall through to list handling
+                } else {
+                    _list_trace_dump(list)
+                    oren_panic("Indexing on non-container")
+                    return nil
+                }
+            } else {
+                _list_trace_dump(list)
+                oren_panic("Indexing on non-container")
+                return nil
+            }
 	    }
-	    if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("Indexing on non-list"); return nil }
-	    count = ptr_get(iadd(list, 0))
+	    if ptr_get(iadd(list, 24)) != list_magic() { _list_trace_dump(list); oren_panic("Indexing on non-list"); return nil }
+        count = ptr_get(iadd(list, 0))
     } else {
         count = ptr_get(iadd(list, 0))
     }
