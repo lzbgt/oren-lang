@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-02-25
+**Last updated:** 2026-02-26
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
@@ -234,10 +234,16 @@ Weights reflect expected impact on C parity and breadth of affected code.
         panic is tied to native list tracing (log: `build/logs/bench_run_alloc_churn_20260225_210329/oren_native/run_0.log`).
       - New: after spilling list ptr to stack around `oren_trace_list_header`, GC auto trace with `OREN_TRACE_NATIVE_LIST_HDR=1` completes
         cleanly with sane free-list chunks (log: `build/logs/bench_run_alloc_churn_20260225_210830/oren_native/run_0.log`).
-      - New: alloc_drop with the same native trace knobs also completes cleanly and shows sane free-list chunks
+    - New: alloc_drop with the same native trace knobs also completes cleanly and shows sane free-list chunks
         (log: `build/logs/bench_run_alloc_drop_20260225_211047/oren_native/run_0.log`).
     - Partial alloc_drop free-list trace (arm64, 2026-02-25, `OREN_TRACE_GC_FREE_LIST_HEADERS=1`): list headers free with normal
       chunk sizes (32/64) and valid magic (log: `build/logs/alloc_drop_free_list_trace_20260225_200437.log`).
+    - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added; alloc_churn run
+      emits no `[list_reserve]`/`[list_buf]` lines (log: `build/logs/alloc_churn_manual_run_reserve_default_20260226_002457.log`),
+      implying the native fast path is not calling the runtime reserve path or the call is elided before runtime.
+    - New: list_alloc + arena trace (arm64, 2026-02-26) shows list_int headers with `mode=2` (arena ctor) while
+      `OREN_TRACE_ARENA=1` reports `allocs=0`, suggesting arena allocs are spilling to malloc or trace enable is late
+      (log: `build/logs/alloc_churn_manual_run_list_alloc_arena_20260226_002922.log`).
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
      `oren_arena_new_list(cap)`, and `oren_arena_new_list_auto(cap)` as list constructors and propagates list metadata across simple alias assignments,
      extending reserve/unchecked-push rewrites (rolling, 2026-02-24).

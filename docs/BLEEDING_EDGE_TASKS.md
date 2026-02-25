@@ -1,6 +1,6 @@
 # Bleeding-Edge Goals + Derived Tasks
 
-**Last updated:** 2026-02-25
+**Last updated:** 2026-02-26
 
 This doc captures the bleeding-edge feature goals (user/client + architect/designer)
 and turns them into concrete task buckets. It is intentionally short and
@@ -31,6 +31,7 @@ kept in sync with `docs/STATUS.md`.
 Priority weights (rolling, refreshed after x64 emit ops split):
 - W5 items remain the top leverage path to production parity (perf + semantic + runtime robustness).
 - W4/W3 follow; W3 large-file refactors are currently complete.
+- New: alloc_churn regression + arena/reserve path is P0 until root-cause is clear.
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
@@ -42,6 +43,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace: combined runtime trace still shows only list_int header allocs (size=32, mode=2) and no list_buf events; reserve trace did not appear in that build log (2026-02-26).
    - Trace: manual no-cache build confirms `list_int_reserve(xs, 128)` insertion for alloc_churn (`bench_alloc_churn_manual_build_20260226_001017.log`).
    - Trace: bench run with no-cache env still shows no list_buf events and no reserve trace in build logs (2026-02-26).
+   - Trace: list_alloc + arena trace (arm64, 2026-02-26) shows list_int headers with `mode=2` (arena ctor) but
+     `OREN_TRACE_ARENA=1` reports `allocs=0`, suggesting arena allocs are spilling to malloc or trace enable is late
+     (log: `build/logs/alloc_churn_manual_run_list_alloc_arena_20260226_002922.log`).
+   - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added.
+     Alloc_churn run emits no `[list_reserve]`/`[list_buf]` lines (log: `build/logs/alloc_churn_manual_run_reserve_default_20260226_002457.log`),
+     so reserve path likely isn’t executed in the native fast loop or is elided before runtime.
    - Next: keep `alloc_drop` within target while auditing other alloc/GC workloads for regressions.
    - Gate: `alloc_churn` native <= 8x C; `alloc_drop` native <= 5x C.
 

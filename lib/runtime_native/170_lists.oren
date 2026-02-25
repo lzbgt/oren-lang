@@ -102,6 +102,11 @@ var g_trace_list_new_cap_argv = 0
 var g_trace_list_new_cap_argc = 0
 var g_trace_list_buf = -1
 var g_trace_list_buf_cap = 0
+var g_trace_list_reserve = -1
+var g_trace_list_reserve_cap = 0
+var g_trace_list_reserve_envp = 0
+var g_trace_list_reserve_argv = 0
+var g_trace_list_reserve_argc = 0
 
 fn _list_assume_list_enabled() {
     if g_list_assume_list != -1 { return g_list_assume_list == 1 }
@@ -253,6 +258,56 @@ fn _list_buf_trace_enabled() {
     }
     if g_trace_list_buf_cap <= 0 { g_trace_list_buf_cap = 128 }
     return true
+}
+
+fn _list_reserve_trace_enabled() {
+    if g_trace_list_reserve == 1 { return true }
+    var cur_envp = global_get_envp()
+    var cur_argv = global_get_argv()
+    var cur_argc = global_get_argc()
+    if g_trace_list_reserve == 0 {
+        if cur_envp == g_trace_list_reserve_envp &&
+           cur_argv == g_trace_list_reserve_argv &&
+           cur_argc == g_trace_list_reserve_argc {
+            return false
+        }
+    }
+    var v = native_envp_get_value_ptr("OREN_TRACE_LIST_RESERVE_RT")
+    if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
+        if g_trace_list_reserve == -1 || g_trace_list_reserve == 0 {
+            g_trace_list_reserve = 0
+            g_trace_list_reserve_envp = cur_envp
+            g_trace_list_reserve_argv = cur_argv
+            g_trace_list_reserve_argc = cur_argc
+        }
+        return false
+    }
+    g_trace_list_reserve = 1
+    var v_cap = native_envp_get_value_ptr("OREN_TRACE_LIST_RESERVE_RT_CAP")
+    if v_cap != 0 && ptr_get_byte(v_cap) != 0 {
+        var cap = oren_int_from_string(v_cap)
+        if cap > 0 { g_trace_list_reserve_cap = cap }
+    }
+    if g_trace_list_reserve_cap <= 0 { g_trace_list_reserve_cap = 128 }
+    return true
+}
+
+fn _list_reserve_trace_emit(kind, list, cap, new_cap, buf, stage) {
+    if _list_reserve_trace_enabled() != true { return 0 }
+    if g_trace_list_reserve_cap <= 0 { return 0 }
+    g_trace_list_reserve_cap = g_trace_list_reserve_cap - 1
+    var arena = 0
+    if list != 0 && list >= 4096 {
+        if native_arena_find_node_nolock(list) != 0 { arena = 1 }
+    }
+    print("[list_reserve] kind=" + oren_int_to_string(kind) +
+          " stage=" + oren_int_to_string(stage) +
+          " list=" + oren_int_to_string(list) +
+          " cap=" + oren_int_to_string(cap) +
+          " new_cap=" + oren_int_to_string(new_cap) +
+          " buf=" + oren_int_to_string(buf) +
+          " arena=" + oren_int_to_string(arena))
+    return 0
 }
 
 fn _list_new_cap_emit(kind, cap, total, mode) {
@@ -508,9 +563,10 @@ fn oren_list_reserve(list, new_cap) {
         }
     }
     var cap = ptr_get(iadd(list, 8))
-    if new_cap <= cap { return nil }
     var count = ptr_get(iadd(list, 0))
     var buf = ptr_get(iadd(list, 16))
+    _list_reserve_trace_emit(2, list, cap, new_cap, buf, 1)
+    if new_cap <= cap { return nil }
     var new_buf = _list_alloc_buf(list, new_cap * 8, _alloc_site_list_buf(), 211)
     var i = 0
     while i < count {
@@ -519,6 +575,7 @@ fn oren_list_reserve(list, new_cap) {
     }
     ptr_set(iadd(list, 8), new_cap)
     ptr_set(iadd(list, 16), new_buf)
+    _list_reserve_trace_emit(2, list, new_cap, new_cap, new_buf, 2)
     _list_corrupt_check(list, 1) // list_reserve
     _list_trace_emit(3, list, 2) // list_reserve
     return nil
@@ -726,9 +783,10 @@ fn oren_list_int_reserve(list, new_cap) {
     if ptr_get(iadd(node, 16)) != list_int_kind() { oren_panic("list_int_reserve on non-list"); return nil }
     if ptr_get(iadd(list, 24)) != list_magic() { oren_panic("list_int_reserve on non-list"); return nil }
     var cap = ptr_get(iadd(list, 8))
-    if new_cap <= cap { return nil }
     var count = ptr_get(iadd(list, 0))
     var buf = ptr_get(iadd(list, 16))
+    _list_reserve_trace_emit(list_int_kind(), list, cap, new_cap, buf, 1)
+    if new_cap <= cap { return nil }
     var new_buf = _list_alloc_buf(list, new_cap * 8, _alloc_site_list_int_buf(), 211)
     var i = 0
     while i < count {
@@ -737,6 +795,7 @@ fn oren_list_int_reserve(list, new_cap) {
     }
     ptr_set(iadd(list, 8), new_cap)
     ptr_set(iadd(list, 16), new_buf)
+    _list_reserve_trace_emit(list_int_kind(), list, new_cap, new_cap, new_buf, 2)
     _list_corrupt_check(list, 11) // list_int_reserve
     _list_trace_emit(6, list, list_int_kind()) // list_int_reserve
     return nil
