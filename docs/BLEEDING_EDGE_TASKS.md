@@ -37,6 +37,7 @@ kept in sync with `docs/STATUS.md`.
 2) **W5 perf parity: hot loops (loop_sum, dot_product)**
    - Close native gap vs C and keep cross-backend semantics aligned.
    - New: loop_sum init/steady split instrumentation via `OREN_BENCH_INIT_SPLIT=1`.
+   - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
    - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
 
 3) **W5 tagged value convergence plan (native/C/AVM)**

@@ -309,6 +309,32 @@ fn native_emit_gc_safepoint_throttled(ctx, loop_base_stack, tick_mask) {
     return nil
 }
 
+fn native_emit_gc_safepoint_inline_tick(ctx, tick_mask) {
+    // PERF:
+    // Inline tick update for hot loops that do not allocate inside the body.
+    //
+    // Contract:
+    // - Caller initializes X9=0 and X10=tick_mask before entering the loop.
+    // - Uses X11 as scratch (caller-saved).
+    //
+    // tick = tick + 1; if (tick & mask) != 0 => skip; else call safepoint.
+    push_u32_le(ctx["code"], insn_add_imm(9, 9, 1))
+    push_u32_le(ctx["code"], insn_and_reg(11, 9, 10))
+    push_u32_le(ctx["code"], insn_cmp_reg(11, 31))
+    var jskip_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0) // patched: b.ne skip
+
+    native_emit_gc_safepoint_call(ctx)
+    // Reset tick/mask after runtime call (caller-saved regs).
+    push_u32_le(ctx["code"], insn_movz(9, 0))
+    push_u32_le(ctx["code"], insn_movz(10, tick_mask))
+
+    var after_call = bytes_len(ctx["code"])
+    var off = (after_call - jskip_pos) / 4
+    set_u32_le(ctx["code"], jskip_pos, insn_b_cond(off, 1)) // NE
+    return nil
+}
+
 fn _arm64_is_ident(exp) {
     if exp == nil { return nil }
     if exp["type"] == "Identifier" { return exp["value"] }
@@ -1488,6 +1514,14 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
     emit_str_reg_sp_any(ctx, 9, tick_off)
+    // inline safepoint mask (restored after runtime calls)
+    push_u32_le(ctx["code"], insn_movz(10, 1023))
+    // inline safepoint mask (restored after runtime calls)
+    push_u32_le(ctx["code"], insn_movz(10, 1023))
+    // inline safepoint mask (restored after runtime calls)
+    push_u32_le(ctx["code"], insn_movz(10, 1023))
+    // inline safepoint mask (restored after runtime calls)
+    push_u32_le(ctx["code"], insn_movz(10, 1023))
     // safepoint mask (restore after runtime calls)
     push_u32_le(ctx["code"], insn_movz(10, 1023))
 
@@ -1892,7 +1926,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         push_u32_le(ctx["code"], 0) // patched: b.ge single
     }
 
-    native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 1023)
+    native_emit_gc_safepoint_inline_tick(ctx, 1023)
 
     // reload i + sum after safepoint
     emit_ldr_reg_sp_any(ctx, 20, i_off)
@@ -1940,7 +1974,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
         var single_off = (fast_single_pos - jpos_fast_single) / 4
         set_u32_le(ctx["code"], jpos_fast_single, insn_b_cond(single_off, 10)) // GE
 
-        native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 1023)
+        native_emit_gc_safepoint_inline_tick(ctx, 1023)
 
         // reload i + sum after safepoint
         emit_ldr_reg_sp_any(ctx, 20, i_off)
@@ -2229,7 +2263,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
         var single_off = (fast_single_pos - jpos_fast_single) / 4
         set_u32_le(ctx["code"], jpos_fast_single, insn_b_cond(single_off, 10)) // GE
 
-        native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 1023)
+        native_emit_gc_safepoint_inline_tick(ctx, 1023)
 
         // reload i + sum after safepoint
         emit_ldr_reg_sp_any(ctx, 20, i_off)
