@@ -41,6 +41,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace: optimizer inserts `oren_list_int_reserve(xs, 128)` for alloc_churn (`OREN_TRACE_LIST_RESERVE=1`, 2026-02-26).
    - Trace: combined runtime trace still shows only list_int header allocs (size=32, mode=2) and no list_buf events; reserve trace did not appear in that build log (2026-02-26).
    - Trace: manual no-cache build confirms `list_int_reserve(xs, 128)` insertion for alloc_churn (`bench_alloc_churn_manual_build_20260226_001017.log`).
+   - Trace: bench run with no-cache env still shows no list_buf events and no reserve trace in build logs (2026-02-26).
    - Next: keep `alloc_drop` within target while auditing other alloc/GC workloads for regressions.
    - Gate: `alloc_churn` native <= 8x C; `alloc_drop` native <= 5x C.
 
