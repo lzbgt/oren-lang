@@ -1,0 +1,361 @@
+import optcore "optimizer_core.oren"
+
+fn opt_trace(msg) { return optcore.opt_trace(msg) }
+fn is_int_lit(e) { return optcore.is_int_lit(e) }
+fn parse_int(s) { return optcore.parse_int(s) }
+fn small_int(n) { return optcore.small_int(n) }
+fn int_lit(n) { return optcore.int_lit(n) }
+fn bool_lit(v) { return optcore.bool_lit(v) }
+fn is_nil_lit(e) { return optcore.is_nil_lit(e) }
+fn is_bool_lit(e) { return optcore.is_bool_lit(e) }
+fn is_string_lit(e) { return optcore.is_string_lit(e) }
+fn streq_bytes(a, b) { return optcore.streq_bytes(a, b) }
+fn expr_is_trivial_literal(e) { return optcore.expr_is_trivial_literal(e) }
+
+fn nn_env_new() { return [{}] }
+
+
+fn nn_env_push(env) {
+    var out = []
+    var i = 0
+    while i < oren_list_len(env) {
+        oren_list_push(out, env[i])
+        i = i + 1
+    }
+    oren_list_push(out, {})
+    return out
+}
+
+
+fn nn_env_clone(env) {
+    if env == nil { return nn_env_new() }
+    var out = []
+    var i = 0
+    while i < oren_list_len(env) {
+        var frame = env[i]
+        var f2 = {}
+        if frame != nil {
+            for k in frame {
+                f2[k] = frame[k]
+            }
+        }
+        oren_list_push(out, f2)
+        i = i + 1
+    }
+    if oren_list_len(out) == 0 { return nn_env_new() }
+    return out
+}
+
+
+fn nn_env_set(env, name, state) {
+    if env == nil { return nil }
+    if name == nil { return nil }
+    env[oren_list_len(env) - 1][name] = state
+    return nil
+}
+
+
+fn nn_env_get(env, name) {
+    if env == nil { return 0 }
+    if name == nil { return 0 }
+    var i = oren_list_len(env) - 1
+    while i >= 0 {
+        var v = env[i][name]
+        if v != nil { return v }
+        i = i - 1
+    }
+    return 0
+}
+
+
+fn expr_is_definitely_non_nil_trivial(e, nn_env) {
+    if e == nil { return false }
+    var t = e["type"]
+    if t == "Identifier" {
+        return nn_env_get(nn_env, e["value"]) == 1
+    }
+    // Any literal form other than `nil` is non-nil.
+    if t == "Integer" || t == "Float" || t == "String" || t == "Boolean" { return true }
+    return false
+}
+
+
+fn fold_type_strict_eq(op, left, right, nn_env) {
+    if op != "==" && op != "!=" { return nil }
+
+    // Literal-vs-literal folds (type-strict equality).
+    if expr_is_trivial_literal(left) && expr_is_trivial_literal(right) {
+        var lt = "nil"
+        var rt = "nil"
+        if left != nil && left["type"] != nil { lt = left["type"] }
+        if right != nil && right["type"] != nil { rt = right["type"] }
+
+        if lt == "Nil" && rt == "Nil" { return bool_lit(op == "==") }
+
+        if lt == "Boolean" && rt == "Boolean" {
+            var eqb = left["value"] == right["value"]
+            if op == "!=" { eqb = !eqb }
+            return bool_lit(eqb)
+        }
+
+        if lt == "Integer" && rt == "Integer" {
+            var av = parse_int(left["value"])
+            var bv = parse_int(right["value"])
+            if !oren_is_err(av) && !oren_is_err(bv) {
+                var eqi = av == bv
+                if op == "!=" { eqi = !eqi }
+                return bool_lit(eqi)
+            }
+        }
+
+        if lt == "String" && rt == "String" {
+            var eqs = streq_bytes(left["value"], right["value"])
+            if op == "!=" { eqs = !eqs }
+            return bool_lit(eqs)
+        }
+
+        // Different literal types are never equal (type-strict).
+        if lt != rt {
+            return bool_lit(op == "!=")
+        }
+    }
+
+    // Flow-sensitive folds for side-effect-free identifiers vs nil.
+    if nn_env != nil {
+        if (left != nil && left["type"] == "Identifier" && is_nil_lit(right)) ||
+           (right != nil && right["type"] == "Identifier" && is_nil_lit(left)) {
+            var id = left
+            if id["type"] != "Identifier" { id = right }
+            var st = nn_env_get(nn_env, id["value"])
+            if st == 1 { return bool_lit(op == "!=") }
+        }
+    }
+
+    return nil
+}
+
+
+fn fold_infix(op, a, b) {
+    // Only fold when both sides are small int literals.
+    if !is_int_lit(a) || !is_int_lit(b) { return nil }
+    var av = parse_int(a["value"])
+    var bv = parse_int(b["value"])
+    if oren_is_err(av) || oren_is_err(bv) { return nil }
+    if !small_int(av) || !small_int(bv) { return nil }
+
+    if op == "+" { return int_lit(av + bv) }
+    if op == "-" { return int_lit(av - bv) }
+    if op == "*" { return int_lit(av * bv) }
+
+    // Avoid folding ops that can trap or are semantics-sensitive without a full model.
+    // - "/" can trap on div0
+    // - shifts can trap on invalid counts (backend-dependent today)
+    return nil
+}
+
+
+fn is_zero(e) {
+    if !is_int_lit(e) { return false }
+    var n = parse_int(e["value"])
+    return !oren_is_err(n) && n == 0
+}
+
+
+fn is_one(e) {
+    if !is_int_lit(e) { return false }
+    var n = parse_int(e["value"])
+    return !oren_is_err(n) && n == 1
+}
+
+
+fn fold_peephole_infix(op, left, right) {
+    // Simple algebraic identities (safe).
+    if op == "+" {
+        if is_zero(right) { return left }
+        if is_zero(left) { return right }
+    }
+    if op == "-" {
+        if is_zero(right) { return left }
+    }
+    if op == "*" {
+        if is_one(right) { return left }
+        if is_one(left) { return right }
+        // NOTE: Do NOT fold `x * 0` to `0` here: that would drop evaluation of `x`
+        // (and any side effects) without a purity analysis. Keep it conservative.
+    }
+    return nil
+}
+
+
+fn fold_expr(e, nn_env) {
+    if e == nil { return nil }
+    var t = e["type"]
+    opt_trace("[opt] fold_expr t=" + t)
+    if t == "Prefix" {
+        e["right"] = fold_expr(e["right"], nn_env)
+        return e
+    }
+    if t == "Infix" {
+        opt_trace("[opt] infix: left fold start")
+        e["left"] = fold_expr(e["left"], nn_env)
+        opt_trace("[opt] infix: left fold done")
+        opt_trace("[opt] infix: right fold start")
+        e["right"] = fold_expr(e["right"], nn_env)
+        opt_trace("[opt] infix: right fold done")
+        // constant fold
+        var op = e["op"]
+        opt_trace("[opt] infix: op=" + op)
+        var folded = fold_infix(op, e["left"], e["right"])
+        opt_trace("[opt] infix: fold_infix done")
+        if folded != nil { return folded }
+        var folded_eq = fold_type_strict_eq(op, e["left"], e["right"], nn_env)
+        if folded_eq != nil { return folded_eq }
+        // peepholes
+        var peep = fold_peephole_infix(op, e["left"], e["right"])
+        opt_trace("[opt] infix: fold_peephole done")
+        if peep != nil { return peep }
+        return e
+    }
+    if t == "If" {
+        e["cond"] = fold_expr(e["cond"], nn_env)
+
+        // Fold branches in isolation (do not let flow-sensitive facts leak across control-flow).
+        var snap = nn_env_clone(nn_env)
+        fold_stmt(e["consq"], nn_env_push(nn_env_clone(snap)))
+        if e["alt"] != nil { fold_stmt(e["alt"], nn_env_push(nn_env_clone(snap))) }
+        return e
+    }
+    if t == "Array" {
+        var xs = e["elements"]
+        var i = 0
+        while i < oren_list_len(xs) {
+            xs[i] = fold_expr(xs[i], nn_env)
+            i = i + 1
+        }
+        return e
+    }
+    if t == "Hash" {
+        var ps = e["pairs"]
+        var i2 = 0
+        while i2 < oren_list_len(ps) {
+            ps[i2]["key"] = fold_expr(ps[i2]["key"], nn_env)
+            ps[i2]["value"] = fold_expr(ps[i2]["value"], nn_env)
+            i2 = i2 + 1
+        }
+        return e
+    }
+    if t == "Index" {
+        e["left"] = fold_expr(e["left"], nn_env)
+        e["index"] = fold_expr(e["index"], nn_env)
+        return e
+    }
+    if t == "Member" {
+        e["left"] = fold_expr(e["left"], nn_env)
+        return e
+    }
+    if t == "SpawnExpr" {
+        e["call"] = fold_expr(e["call"], nn_env)
+        return e
+    }
+    if t == "Call" {
+        e["fn"] = fold_expr(e["fn"], nn_env)
+        var args = e["args"]
+        if args == nil {
+            opt_trace("[opt] call: args is nil (treat as 0 args)")
+        } else {
+            var i3 = 0
+            while i3 < oren_list_len(args) {
+                args[i3] = fold_expr(args[i3], nn_env)
+                i3 = i3 + 1
+            }
+        }
+        if e["spread"] != nil { e["spread"] = fold_expr(e["spread"], nn_env) }
+        return e
+    }
+    if t == "Function" {
+        // New flow environment for function locals.
+        fold_stmt(e["body"], nn_env_push(nn_env_new()))
+        return e
+    }
+    return e
+}
+
+
+fn fold_stmt(s, nn_env) {
+    if s == nil { return nil }
+    var t = s["type"]
+    opt_trace("[opt] fold_stmt t=" + t)
+    if t == "Block" {
+        var ss = s["stmts"]
+        var env2 = nn_env_push(nn_env)
+        var i = 0
+        while i < oren_list_len(ss) {
+            fold_stmt(ss[i], env2)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Var" {
+        s["value"] = fold_expr(s["value"], nn_env)
+        if nn_env != nil {
+            var nm = s["name"]
+            if nm != nil && nm["type"] == "Identifier" {
+                var name = nm["value"]
+                var rhs = s["value"]
+                if expr_is_definitely_non_nil_trivial(rhs, nn_env) {
+                    nn_env_set(nn_env, name, 1)
+                } else {
+                    nn_env_set(nn_env, name, 0)
+                }
+            }
+        }
+        return nil
+    }
+    if t == "Assign" {
+        s["value"] = fold_expr(s["value"], nn_env)
+        if nn_env != nil {
+            var left = s["left"]
+            if left != nil && left["type"] == "Identifier" {
+                var name2 = left["value"]
+                var rhs2 = s["value"]
+                if expr_is_definitely_non_nil_trivial(rhs2, nn_env) {
+                    nn_env_set(nn_env, name2, 1)
+                } else {
+                    nn_env_set(nn_env, name2, 0)
+                }
+            }
+        }
+        return nil
+    }
+    if t == "Set" {
+        s["left"] = fold_expr(s["left"], nn_env)
+        s["value"] = fold_expr(s["value"], nn_env)
+        return nil
+    }
+    if t == "ExprStmt" {
+        s["expr"] = fold_expr(s["expr"], nn_env)
+        return nil
+    }
+    if t == "Return" {
+        opt_trace("[opt] return: fold value start")
+        s["value"] = fold_expr(s["value"], nn_env)
+        opt_trace("[opt] return: fold value done")
+        return nil
+    }
+    if t == "While" {
+        s["cond"] = fold_expr(s["cond"], nn_env)
+        // Fold loop body in isolation (loop-carried facts are not tracked here).
+        fold_stmt(s["body"], nn_env_push(nn_env_clone(nn_env)))
+        return nil
+    }
+    if t == "For" {
+        var snap2 = nn_env_clone(nn_env)
+        fold_stmt(s["init"], nn_env_push(nn_env_clone(snap2)))
+        s["cond"] = fold_expr(s["cond"], nn_env)
+        s["post"] = fold_expr(s["post"], nn_env)
+        fold_stmt(s["body"], nn_env_push(nn_env_clone(snap2)))
+        return nil
+    }
+    return nil
+}
+

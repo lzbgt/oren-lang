@@ -83,7 +83,8 @@ kept in sync with `docs/STATUS.md`.
    - Done: `lib/compiler/arm64_native_stmt.oren` split into loop/list/runtime modules (<2000 lines each).
    - Done: `lib/compiler/transpiler.oren` split into core/analysis/C-utils/lambda modules (<2000 lines each).
    - Done: `lib/compiler/optimizer_loops.oren` split into list/arena modules (<2000 lines each).
-   - Next targets: `lib/compiler/optimizer.oren`, `lib/runtime_native/100_time_gc_alloc.oren`,
+   - Done: `lib/compiler/optimizer.oren` split into core/fold/DCE/list-int/list-reserve/TCO modules (<2000 lines each).
+   - Next targets: `lib/runtime_native/100_time_gc_alloc.oren`,
      `lib/avm/main.c`, `lib/avm/avm_vm.c`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
 
 10) **Tooling reliability and reproducibility**

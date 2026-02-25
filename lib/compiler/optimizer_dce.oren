@@ -1,0 +1,398 @@
+import optcore "optimizer_core.oren"
+
+fn expr_trivial(e) { return optcore.expr_trivial(e) }
+
+fn env_new() { return [{}] }
+
+
+fn env_push(env) {
+    // Create a new env stack (do not mutate the parent env list).
+    var out = []
+    var i = 0
+    while i < oren_list_len(env) {
+        oren_list_push(out, env[i])
+        i = i + 1
+    }
+    oren_list_push(out, {})
+    return out
+}
+
+
+fn env_pop(env) {
+    if oren_list_len(env) <= 1 { return env }
+    var out = []
+    var i = 0
+    while i < oren_list_len(env) - 1 {
+        oren_list_push(out, env[i])
+        i = i + 1
+    }
+    return out
+}
+
+
+fn env_set(env, name) {
+    if name == nil { return nil }
+    env[oren_list_len(env) - 1][name] = true
+    return nil
+}
+
+
+fn env_has(env, name) {
+    if name == nil { return false }
+    var i = oren_list_len(env) - 1
+    while i >= 0 {
+        if env[i][name] == true { return true }
+        i = i - 1
+    }
+    return false
+}
+
+
+fn collect_uses_expr(e, uses, env) {
+    if e == nil { return nil }
+    var t = e["type"]
+    if t == "Identifier" {
+        var nm = e["value"]
+        if nm != nil && !env_has(env, nm) {
+            if uses[nm] == nil { uses[nm] = 0 }
+            uses[nm] = uses[nm] + 1
+        }
+        return nil
+    }
+    if t == "Prefix" {
+        collect_uses_expr(e["right"], uses, env)
+        return nil
+    }
+    if t == "Infix" {
+        collect_uses_expr(e["left"], uses, env)
+        collect_uses_expr(e["right"], uses, env)
+        return nil
+    }
+    if t == "If" {
+        collect_uses_expr(e["cond"], uses, env)
+        collect_uses_stmt(e["consq"], uses, env)
+        if e["alt"] != nil { collect_uses_stmt(e["alt"], uses, env) }
+        return nil
+    }
+    if t == "Array" {
+        var xs = e["elements"]
+        var i = 0
+        while i < oren_list_len(xs) {
+            collect_uses_expr(xs[i], uses, env)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var ps = e["pairs"]
+        var i2 = 0
+        while i2 < oren_list_len(ps) {
+            collect_uses_expr(ps[i2]["key"], uses, env)
+            collect_uses_expr(ps[i2]["value"], uses, env)
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    if t == "Index" {
+        collect_uses_expr(e["left"], uses, env)
+        collect_uses_expr(e["index"], uses, env)
+        return nil
+    }
+    if t == "Member" {
+        collect_uses_expr(e["left"], uses, env)
+        return nil
+    }
+    if t == "SpawnExpr" {
+        collect_uses_expr(e["call"], uses, env)
+        return nil
+    }
+    if t == "Call" {
+        collect_uses_expr(e["fn"], uses, env)
+        var args = e["args"]
+        var i3 = 0
+        while i3 < oren_list_len(args) {
+            collect_uses_expr(args[i3], uses, env)
+            i3 = i3 + 1
+        }
+        if e["spread"] != nil { collect_uses_expr(e["spread"], uses, env) }
+        return nil
+    }
+    if t == "Function" {
+        // New local scope for params + locals.
+        var new_env = env_push(env)
+        var params = e["params"]
+        if params != nil {
+            var pi = 0
+            while pi < oren_list_len(params) {
+                var id = params[pi]
+                if id != nil && id["type"] == "Identifier" {
+                    env_set(new_env, id["value"])
+                }
+                pi = pi + 1
+            }
+        }
+        collect_uses_stmt(e["body"], uses, new_env)
+        return nil
+    }
+    return nil
+}
+
+
+fn collect_uses_stmt(s, uses, env) {
+    if s == nil { return nil }
+    var t = s["type"]
+    if t == "Block" {
+        var new_env = env_push(env)
+        var ss = s["stmts"]
+        var i = 0
+        while i < oren_list_len(ss) {
+            collect_uses_stmt(ss[i], uses, new_env)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Var" {
+        // Note: don't count the LHS as a use.
+        collect_uses_expr(s["value"], uses, env)
+        // Bind the name only for *locals* (not top-level).
+        // Top-level vars are globals and must remain visible to functions/imported code.
+        if oren_list_len(env) > 1 {
+            var nm = s["name"]
+            if nm != nil && nm["type"] == "Identifier" {
+                env_set(env, nm["value"])
+            }
+        }
+        return nil
+    }
+    if t == "Assign" {
+        // Do not count LHS as a read.
+        collect_uses_expr(s["value"], uses, env)
+        return nil
+    }
+    if t == "Set" {
+        // Member/index bases are reads.
+        collect_uses_expr(s["left"], uses, env)
+        collect_uses_expr(s["value"], uses, env)
+        return nil
+    }
+    if t == "ExprStmt" {
+        collect_uses_expr(s["expr"], uses, env)
+        return nil
+    }
+    if t == "Return" {
+        collect_uses_expr(s["value"], uses, env)
+        return nil
+    }
+    if t == "While" {
+        collect_uses_expr(s["cond"], uses, env)
+        collect_uses_stmt(s["body"], uses, env)
+        return nil
+    }
+    if t == "For" {
+        var new_env = env_push(env)
+        collect_uses_stmt(s["init"], uses, new_env)
+        collect_uses_expr(s["cond"], uses, new_env)
+        collect_uses_expr(s["post"], uses, new_env)
+        collect_uses_stmt(s["body"], uses, new_env)
+        return nil
+    }
+    return nil
+}
+
+
+fn collect_reads_expr(e, reads) {
+    // Count identifier reads (conservative; may over-count due to shadowing).
+    if e == nil { return nil }
+    var t = e["type"]
+    if t == "Identifier" {
+        var nm = e["value"]
+        if nm != nil {
+            if reads[nm] == nil { reads[nm] = 0 }
+            reads[nm] = reads[nm] + 1
+        }
+        return nil
+    }
+    if t == "Prefix" {
+        collect_reads_expr(e["right"], reads)
+        return nil
+    }
+    if t == "Infix" {
+        collect_reads_expr(e["left"], reads)
+        collect_reads_expr(e["right"], reads)
+        return nil
+    }
+    if t == "If" {
+        collect_reads_expr(e["cond"], reads)
+        collect_reads_stmt(e["consq"], reads)
+        if e["alt"] != nil { collect_reads_stmt(e["alt"], reads) }
+        return nil
+    }
+    if t == "Array" {
+        var xs = e["elements"]
+        var i = 0
+        while i < oren_list_len(xs) {
+            collect_reads_expr(xs[i], reads)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Hash" {
+        var ps = e["pairs"]
+        var i2 = 0
+        while i2 < oren_list_len(ps) {
+            collect_reads_expr(ps[i2]["key"], reads)
+            collect_reads_expr(ps[i2]["value"], reads)
+            i2 = i2 + 1
+        }
+        return nil
+    }
+    if t == "Index" {
+        collect_reads_expr(e["left"], reads)
+        collect_reads_expr(e["index"], reads)
+        return nil
+    }
+    if t == "Member" {
+        collect_reads_expr(e["left"], reads)
+        return nil
+    }
+    if t == "SpawnExpr" {
+        collect_reads_expr(e["call"], reads)
+        return nil
+    }
+    if t == "Call" {
+        collect_reads_expr(e["fn"], reads)
+        var args = e["args"]
+        var i3 = 0
+        while i3 < oren_list_len(args) {
+            collect_reads_expr(args[i3], reads)
+            i3 = i3 + 1
+        }
+        if e["spread"] != nil { collect_reads_expr(e["spread"], reads) }
+        return nil
+    }
+    if t == "Function" {
+        // Captures are real reads; include nested functions.
+        collect_reads_stmt(e["body"], reads)
+        return nil
+    }
+    return nil
+}
+
+
+fn collect_reads_stmt(s, reads) {
+    if s == nil { return nil }
+    var t = s["type"]
+    if t == "Block" {
+        var ss = s["stmts"]
+        var i = 0
+        while i < oren_list_len(ss) {
+            collect_reads_stmt(ss[i], reads)
+            i = i + 1
+        }
+        return nil
+    }
+    if t == "Var" {
+        collect_reads_expr(s["value"], reads)
+        return nil
+    }
+    if t == "Assign" {
+        // LHS is a write; don't count it as a read.
+        collect_reads_expr(s["value"], reads)
+        return nil
+    }
+    if t == "Set" {
+        // Member/index bases are reads.
+        collect_reads_expr(s["left"], reads)
+        collect_reads_expr(s["value"], reads)
+        return nil
+    }
+    if t == "ExprStmt" {
+        collect_reads_expr(s["expr"], reads)
+        return nil
+    }
+    if t == "Return" {
+        collect_reads_expr(s["value"], reads)
+        return nil
+    }
+    if t == "While" {
+        collect_reads_expr(s["cond"], reads)
+        collect_reads_stmt(s["body"], reads)
+        return nil
+    }
+    if t == "For" {
+        collect_reads_stmt(s["init"], reads)
+        collect_reads_expr(s["cond"], reads)
+        collect_reads_expr(s["post"], reads)
+        collect_reads_stmt(s["body"], reads)
+        return nil
+    }
+    if t == "Function" {
+        collect_reads_stmt(s["body"], reads)
+        return nil
+    }
+    return nil
+}
+
+
+fn dce_block_in_place(block) {
+    // DCE only for locals inside blocks (function bodies), never for top-level globals.
+    if block == nil || block["type"] != "Block" { return nil }
+
+    // Recurse first.
+    var ss = block["stmts"]
+    var i = 0
+    while i < oren_list_len(ss) {
+        var st = ss[i]
+        if st != nil && st["type"] == "Block" { dce_block_in_place(st) }
+        if st != nil && st["type"] == "While" { dce_block_in_place(st["body"]) }
+        if st != nil && st["type"] == "For" { dce_block_in_place(st["body"]) }
+        if st != nil && st["type"] == "ExprStmt" && st["expr"] != nil && st["expr"]["type"] == "Function" {
+            dce_block_in_place(st["expr"]["body"])
+        }
+        i = i + 1
+    }
+
+    // Collect reads in this block (including nested blocks).
+    var reads = {}
+    i = 0
+    while i < oren_list_len(ss) {
+        collect_reads_stmt(ss[i], reads)
+        i = i + 1
+    }
+
+    var out = []
+    i = 0
+    while i < oren_list_len(ss) {
+        var st2 = ss[i]
+        if st2 != nil && st2["type"] == "Var" {
+            var nm = st2["name"]
+            if nm != nil && nm["type"] == "Identifier" {
+                var name = nm["value"]
+                if name != nil && (reads[name] == nil || reads[name] == 0) {
+                    if expr_trivial(st2["value"]) {
+                        i = i + 1
+                        continue
+                    }
+                }
+            }
+        }
+        oren_list_push(out, st2)
+        i = i + 1
+    }
+    block["stmts"] = out
+    return nil
+}
+
+// --- List reserve insertion (rolling, conservative) ---
+//
+// Insert `oren_list_reserve(list, n)` (or `oren_list_int_reserve`) before
+// `while i < n { list.push(...) }` loops
+// when:
+// - `n` is an int literal or a local that was most-recently assigned an int literal, and
+// - the list was most-recently assigned a list literal (`[]`) in the same block.
+// - or the list was most-recently assigned `oren_new_list_int(...)` in the same block,
+// - or the list was most-recently assigned an int-only list literal in the same block (list_int only).
+//
+// This is intentionally conservative to avoid introducing new runtime panics when
+// `n` or `list` are not the expected types.
+

@@ -1,0 +1,120 @@
+import intparse "int_lit.oren"
+
+var OPT_TRACE_BUDGET = 200
+var OPT_BACKEND = nil
+
+fn set_backend(backend) { OPT_BACKEND = backend; return nil }
+
+fn opt_trace(msg) {
+    if oren_env("OREN_TRACE_OPTIMIZER") == nil { return nil }
+    if OPT_TRACE_BUDGET <= 0 { return nil }
+    OPT_TRACE_BUDGET = OPT_TRACE_BUDGET - 1
+    print(msg)
+    return nil
+}
+
+
+fn _opt_trace_list_int(msg) {
+    if oren_env("OREN_TRACE_LIST_INT") == nil { return nil }
+    print(msg)
+    return nil
+}
+
+
+fn _opt_backend_allows_list_int_unchecked() {
+    if OPT_BACKEND == nil { return true }
+    return OPT_BACKEND != "c"
+}
+
+
+fn is_int_lit(e) {
+    return e != nil && e["type"] == "Integer" && e["value"] != nil
+}
+
+
+fn parse_int(s) { return intparse.parse_int_lit(s) }
+
+
+fn abs_int(n) {
+    if n < 0 { return -n }
+    return n
+}
+
+
+fn small_int(n) {
+    // Keep folds safely within host integer range.
+    // (We intentionally do not assume i64 wrap semantics for the compiler itself.)
+    return abs_int(n) <= 1000000000
+}
+
+
+fn int_lit(n) {
+    return {"type": "Integer", "token": nil, "value": oren_int_to_string(n)}
+}
+
+
+fn bool_lit(v) {
+    return {"type": "Boolean", "token": nil, "value": v}
+}
+
+
+fn is_nil_lit(e) {
+    return e != nil && e["type"] == "Nil"
+}
+
+
+fn is_bool_lit(e) {
+    return e != nil && e["type"] == "Boolean" && e["value"] != nil
+}
+
+
+fn is_string_lit(e) {
+    return e != nil && e["type"] == "String" && e["value"] != nil
+}
+
+
+fn streq_bytes(a, b) {
+    if a == nil || b == nil { return false }
+    var na = oren_string_len(a)
+    var nb = oren_string_len(b)
+    if na != nb { return false }
+    var i = 0
+    while i < na {
+        if oren_string_byte_at_unchecked(a, i) != oren_string_byte_at_unchecked(b, i) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+
+fn expr_is_trivial_literal(e) {
+    // Trivial, side-effect-free literal/value forms.
+    if e == nil { return true }
+    var t = e["type"]
+    if t == "Integer" || t == "Float" || t == "String" || t == "Boolean" || t == "Nil" { return true }
+    return false
+}
+
+// Non-nil analysis (flow-sensitive, very conservative).
+//
+// Primary use-case: make `x == nil` safe in the native backend when `x` is known to be non-nil
+// (e.g. numeric locals like `var n = 0`).
+//
+// State encoding:
+// - 0: unknown
+// - 1: definitely non-nil at this point
+//
+// Note:
+// - We intentionally do not track "definitely nil" here.
+//   This optimizer runs before multiple compiler passes (including DCE), and the AST can contain
+//   control-flow forms that this pass does not fully model; treating a local as "definitely nil"
+//   can incorrectly fold away later reads and cause downstream passes to drop required locals.
+
+fn expr_trivial(e) {
+    // Trivial, side-effect-free RHS suitable for DCE removal when unused.
+    if e == nil { return true }
+    if e["type"] == "Integer" || e["type"] == "Float" || e["type"] == "String" || e["type"] == "Boolean" || e["type"] == "Nil" { return true }
+    if e["type"] == "Identifier" { return true }
+    return false
+}
+

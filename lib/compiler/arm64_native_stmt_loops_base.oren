@@ -20,6 +20,15 @@ fn emit_add_sp_any(ctx, bytes) { return core.emit_add_sp_any(ctx, bytes) }
 fn emit_sub_sp_any(ctx, bytes) { return core.emit_sub_sp_any(ctx, bytes) }
 fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
 
+var NATIVE_COMPILE_EXPR = nil
+var NATIVE_COMPILE_STMT = nil
+
+fn _arm64_set_compile_hooks(expr_fn, stmt_fn) {
+    NATIVE_COMPILE_EXPR = expr_fn
+    NATIVE_COMPILE_STMT = stmt_fn
+    return nil
+}
+
 fn _arm64_restore_stack_to(ctx, base_stack) {
     // Rolling safety: keep runtime SP and compile-time `ctx["stack_size"]` consistent.
     //
@@ -90,7 +99,8 @@ fn _arm64_emit_while_generic(ctx, stmt) {
     var loop = {"prev": prev_loop, "base_stack": loop_base_stack, "start_pos": start_pos, "continue_pos": start_pos, "break_jumps": [], "continue_jumps": []}
     ctx["loop_ctx"] = loop
 
-    native_compile_expr(ctx, stmt["cond"])
+    if NATIVE_COMPILE_EXPR == nil || NATIVE_COMPILE_STMT == nil { return nil }
+    NATIVE_COMPILE_EXPR(ctx, stmt["cond"])
     _arm64_emit_truthy_norm_in_x0(ctx, stmt["token"])
 
     // Stack discipline: condition temporaries must not leak across the loop branch.
@@ -105,7 +115,7 @@ fn _arm64_emit_while_generic(ctx, stmt) {
     // GC safepoint on loop entry (parity with C backend), throttled for performance.
     gc.native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 1023)
 
-    native_compile_stmt(ctx, stmt["body"])
+    NATIVE_COMPILE_STMT(ctx, stmt["body"])
 
     // Ensure stack is restored to the loop base before iterating.
     var loop_delta = ctx["stack_size"] - loop_base_stack

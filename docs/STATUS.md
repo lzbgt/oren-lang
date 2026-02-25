@@ -73,7 +73,6 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 7) **W3 - Structural/SOLID debt**
    - Large source files remain a maintainability risk; measured (non-generated, non-web) >2000 lines:
      - `lib/avm/main.c` (~4149)
-     - `lib/compiler/optimizer.oren` (~3225)
      - `lib/avm/avm_vm.c` (~3214)
      - `lib/runtime_native/100_time_gc_alloc.oren` (~2818)
      - `lib/compiler/x64_native_program/060_emit_ops.oren` (~2668)
@@ -87,6 +86,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
        `lib/compiler/arm64_native_stmt_loops_base.oren`,
        `lib/compiler/arm64_native_stmt_runtime.oren` (all <2000 lines, 2026-02-25).
      - `lib/compiler/transpiler.oren` split into focused core/analysis/C-utils/lambda modules
+       (all <2000 lines, 2026-02-25).
+     - `lib/compiler/optimizer.oren` split into focused core/fold/DCE/list-int/list-reserve/TCO modules
        (all <2000 lines, 2026-02-25).
      - `lib/compiler/optimizer_loops.oren` split into `lib/compiler/optimizer_loops_list.oren` and
        `lib/compiler/optimizer_loops_arena.oren` (both <2000 lines, 2026-02-25).

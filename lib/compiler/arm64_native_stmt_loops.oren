@@ -9,26 +9,26 @@ import basem "arm64_native_stmt_loops_base.oren"
 // List-loop delegates (defined in arm64_native_stmt_loops_list.oren).
 fn _arm64_is_list_int_push_call(ctx, stmt) { return listm._arm64_is_list_int_push_call(ctx, stmt) }
 fn _arm64_is_list_push_call(ctx, stmt) { return listm._arm64_is_list_push_call(ctx, stmt) }
-fn _arm64_is_list_int_get_call(ctx, stmt) { return listm._arm64_is_list_int_get_call(ctx, stmt) }
-fn _arm64_is_list_get_call(ctx, stmt) { return listm._arm64_is_list_get_call(ctx, stmt) }
-fn _arm64_is_sum_add_list_int_get(ctx, stmt) { return listm._arm64_is_sum_add_list_int_get(ctx, stmt) }
-fn _arm64_is_sum_add_list_get(ctx, stmt) { return listm._arm64_is_sum_add_list_get(ctx, stmt) }
-fn _arm64_is_list_int_mul_get(ctx, stmt) { return listm._arm64_is_list_int_mul_get(ctx, stmt) }
-fn _arm64_is_list_mul_get(ctx, stmt) { return listm._arm64_is_list_mul_get(ctx, stmt) }
-fn _arm64_is_sum_add_list_int_mul_get(ctx, stmt) { return listm._arm64_is_sum_add_list_int_mul_get(ctx, stmt) }
-fn _arm64_is_sum_add_list_mul_get(ctx, stmt) { return listm._arm64_is_sum_add_list_mul_get(ctx, stmt) }
+fn _arm64_is_list_int_get_call(ctx, stmt, idx_name) { return listm._arm64_is_list_int_get_call(ctx, stmt, idx_name) }
+fn _arm64_is_list_get_call(ctx, stmt, idx_name) { return listm._arm64_is_list_get_call(ctx, stmt, idx_name) }
+fn _arm64_is_sum_add_list_int_get(ctx, stmt, idx_name) { return listm._arm64_is_sum_add_list_int_get(ctx, stmt, idx_name) }
+fn _arm64_is_sum_add_list_get(ctx, stmt, idx_name) { return listm._arm64_is_sum_add_list_get(ctx, stmt, idx_name) }
+fn _arm64_is_list_int_mul_get(ctx, stmt, idx_name) { return listm._arm64_is_list_int_mul_get(ctx, stmt, idx_name) }
+fn _arm64_is_list_mul_get(ctx, stmt, idx_name) { return listm._arm64_is_list_mul_get(ctx, stmt, idx_name) }
+fn _arm64_is_sum_add_list_int_mul_get(ctx, stmt, idx_name) { return listm._arm64_is_sum_add_list_int_mul_get(ctx, stmt, idx_name) }
+fn _arm64_is_sum_add_list_mul_get(ctx, stmt, idx_name) { return listm._arm64_is_sum_add_list_mul_get(ctx, stmt, idx_name) }
 fn _arm64_match_fast_list_int_push_while(ctx, stmt) { return listm._arm64_match_fast_list_int_push_while(ctx, stmt) }
 fn _arm64_match_fast_list_push_while(ctx, stmt) { return listm._arm64_match_fast_list_push_while(ctx, stmt) }
 fn _arm64_match_fast_list_int_dot_while(ctx, stmt) { return listm._arm64_match_fast_list_int_dot_while(ctx, stmt) }
 fn _arm64_match_fast_list_dot_while(ctx, stmt) { return listm._arm64_match_fast_list_dot_while(ctx, stmt) }
 fn _arm64_match_fast_list_int_get_sum_while(ctx, stmt) { return listm._arm64_match_fast_list_int_get_sum_while(ctx, stmt) }
 fn _arm64_match_fast_list_get_sum_while(ctx, stmt) { return listm._arm64_match_fast_list_get_sum_while(ctx, stmt) }
-fn _arm64_emit_fast_list_get_sum_while(ctx, stmt) { return listemit._arm64_emit_fast_list_get_sum_while(ctx, stmt) }
-fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt) { return listemit._arm64_emit_fast_list_int_get_sum_while(ctx, stmt) }
-fn _arm64_emit_fast_list_int_dot_while(ctx, stmt) { return listemit._arm64_emit_fast_list_int_dot_while(ctx, stmt) }
-fn _arm64_emit_fast_list_dot_while(ctx, stmt) { return listemit._arm64_emit_fast_list_dot_while(ctx, stmt) }
-fn _arm64_emit_fast_list_int_push_while(ctx, stmt) { return listemit._arm64_emit_fast_list_int_push_while(ctx, stmt) }
-fn _arm64_emit_fast_list_push_while(ctx, stmt) { return listemit._arm64_emit_fast_list_push_while(ctx, stmt) }
+fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) { return listemit._arm64_emit_fast_list_get_sum_while(ctx, stmt, info) }
+fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) { return listemit._arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) }
+fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) { return listemit._arm64_emit_fast_list_int_dot_while(ctx, stmt, info) }
+fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) { return listemit._arm64_emit_fast_list_dot_while(ctx, stmt, info) }
+fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) { return listemit._arm64_emit_fast_list_int_push_while(ctx, stmt, info) }
+fn _arm64_emit_fast_list_push_while(ctx, stmt, info) { return listemit._arm64_emit_fast_list_push_while(ctx, stmt, info) }
 
 // Core helpers (mirrors arm64_native_stmt.oren for loop emitters).
 fn bytes_new() { return core.bytes_new() }
@@ -91,6 +91,7 @@ fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
 fn _arm64_restore_stack_to(ctx, base_stack) { return basem._arm64_restore_stack_to(ctx, base_stack) }
 fn _arm64_emit_truthy_norm_in_x0(ctx, tok) { return basem._arm64_emit_truthy_norm_in_x0(ctx, tok) }
 fn _arm64_emit_while_generic(ctx, stmt) { return basem._arm64_emit_while_generic(ctx, stmt) }
+fn _arm64_set_compile_hooks(expr_fn, stmt_fn) { return basem._arm64_set_compile_hooks(expr_fn, stmt_fn) }
 
 
 
@@ -690,4 +691,3 @@ fn _arm64_emit_fast_lcg_sum_while(ctx, stmt, info) {
     _arm64_restore_stack_to(ctx, base_stack)
     return nil
 }
-
