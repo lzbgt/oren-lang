@@ -31,6 +31,12 @@ fn opt_trace(msg) {
     return nil
 }
 
+fn _opt_trace_list_int(msg) {
+    if oren_env("OREN_TRACE_LIST_INT") == nil { return nil }
+    print(msg)
+    return nil
+}
+
 fn _opt_backend_allows_list_int_unchecked() {
     if OPT_BACKEND == nil { return true }
     return OPT_BACKEND != "c"
@@ -962,13 +968,17 @@ fn _opt_list_state_is_safe(list_state, name) {
 
 fn _opt_list_state_mark_unsafe(list_state, name) {
     if list_state == nil || name == nil { return nil }
-    if list_state[name] != nil { list_state[name] = false }
+    if list_state[name] != nil {
+        list_state[name] = false
+        _opt_trace_list_int("[opt] list_int unsafe name=" + name)
+    }
     return nil
 }
 
 fn _opt_list_touch_mark(list_touch, name) {
     if list_touch == nil || name == nil { return nil }
     list_touch[name] = true
+    _opt_trace_list_int("[opt] list_int touch name=" + name)
     return nil
 }
 
@@ -1842,10 +1852,10 @@ fn _opt_list_lit_safe_int_elements(expr, safe_ints) {
 }
 
 fn _opt_lower_int_only_lists_in_block(block) {
-    return _opt_lower_int_only_lists_in_block_opts(block, false)
+    return _opt_lower_int_only_lists_in_block_opts(block, false, nil)
 }
 
-fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty) {
+fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty, safe_ints_seed) {
     if block == nil || block["type"] != "Block" { return nil }
     var ss = block["stmts"]
     if ss == nil { return nil }
@@ -1863,13 +1873,34 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty) {
     var list_inits = {}
     var list_touch = {}
     var list_empty_inits = {}
-    var safe_ints = {}
+    var list_ctor_rewrite = {}
+    var assigned_nested = {}
+    var safe_ints = _opt_map_clone_safe(safe_ints_seed)
+
+    var ai = 0
+    while ai < oren_list_len(ss) {
+        var stn = ss[ai]
+        if stn != nil {
+            var tn = stn["type"]
+            if tn == "If" || tn == "While" || tn == "For" || tn == "Switch" || tn == "Block" {
+                opthelp.collect_assigned_names_stmt(assigned_nested, stn)
+            } else if tn == "ExprStmt" {
+                var en = stn["expr"]
+                if en != nil && (en["type"] == "If" || en["type"] == "Switch") {
+                    opthelp.collect_assigned_names_stmt(assigned_nested, stn)
+                }
+            }
+        }
+        ai = ai + 1
+    }
 
     var i = 0
     while i < oren_list_len(ss) {
         var st = ss[i]
+        var safe_ints_touch = _opt_map_clone_safe(safe_ints)
+        _opt_lower_int_only_lists_in_stmt(st, allow_empty, safe_ints_touch)
         _opt_scan_list_int_uses_stmt(st, list_state, safe_ints)
-        _opt_mark_list_int_touch_in_stmt(st, list_state, safe_ints, list_touch)
+        _opt_mark_list_int_touch_in_stmt(st, list_state, safe_ints_touch, list_touch)
         if st != nil && (st["type"] == "Var" || st["type"] == "Assign") {
             var nm = opthelp.is_ident(st["name"])
             if nm != nil {
@@ -1878,17 +1909,29 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty) {
                     continue
                 }
                 var init_call = _opt_call_name(st["value"])
-                if init_call == "oren_new_list_int" {
+                var ctor_int = nil
+                if init_call == "oren_new_list" || init_call == "oren_list_new_cap" { ctor_int = "oren_new_list_int" }
+                if init_call == "oren_arena_new_list" { ctor_int = "oren_arena_new_list_int" }
+                if init_call == "oren_arena_new_list_auto" { ctor_int = "oren_arena_new_list_int_auto" }
+                if init_call == "oren_new_list_int" || init_call == "oren_arena_new_list_int" || init_call == "oren_arena_new_list_int_auto" {
                     if list_state[nm] == nil { list_state[nm] = true }
+                    _opt_trace_list_int("[opt] list_int candidate name=" + nm + " src=" + init_call)
+                } else if ctor_int != nil {
+                    if list_state[nm] == nil { list_state[nm] = true }
+                    list_ctor_rewrite[nm] = ctor_int
+                    list_empty_inits[nm] = true
+                    _opt_trace_list_int("[opt] list_int candidate name=" + nm + " src=" + init_call)
                 } else {
                     var lit_elems = _opt_list_lit_safe_int_elements(st["value"], safe_ints)
                     if lit_elems != nil {
                         if list_state[nm] == nil { list_state[nm] = true }
                         _opt_list_init_add_elems(list_inits, nm, st, lit_elems)
+                        _opt_trace_list_int("[opt] list_int candidate name=" + nm + " src=lit")
                     } else if allow_empty == true && _opt_is_empty_list_lit(st["value"]) {
                         if list_state[nm] == nil { list_state[nm] = true }
                         _opt_list_init_add(list_inits, nm, st)
                         list_empty_inits[nm] = true
+                        _opt_trace_list_int("[opt] list_int candidate name=" + nm + " src=empty_lit")
                     } else if st["value"] != nil && st["value"]["type"] == "Array" {
                         _opt_list_state_mark_unsafe(list_state, nm)
                     } else {
@@ -1905,7 +1948,16 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty) {
     if list_empty_inits != nil {
         for k in list_empty_inits {
             if list_touch[k] != true {
+                _opt_trace_list_int("[opt] list_int empty_untouched name=" + k)
                 _opt_list_state_mark_unsafe(list_state, k)
+            }
+        }
+    }
+    if assigned_nested != nil {
+        for k2 in assigned_nested {
+            if _opt_list_state_is_candidate(list_state, k2) == true {
+                _opt_trace_list_int("[opt] list_int nested_assign name=" + k2)
+                _opt_list_state_mark_unsafe(list_state, k2)
             }
         }
     }
@@ -1945,10 +1997,24 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty) {
                                     ei = ei + 1
                                 }
                             }
+                            _opt_trace_list_int("[opt] list_int rewrite init name=" + nmj)
                             rewritten = true
                             break
                         }
                         k = k + 1
+                    }
+                }
+                if rewritten != true {
+                    var ctor_rewrite = list_ctor_rewrite[nmj]
+                    if ctor_rewrite != nil {
+                        var v = stj["value"]
+                        if v != nil && v["type"] == "Call" {
+                            var fnv = v["fn"]
+                            if fnv != nil && fnv["type"] == "Identifier" {
+                                fnv["value"] = ctor_rewrite
+                                _opt_trace_list_int("[opt] list_int rewrite ctor name=" + nmj + " ctor=" + ctor_rewrite)
+                            }
+                        }
                     }
                 }
             }
@@ -1964,26 +2030,20 @@ fn _opt_lower_int_only_lists_in_block_opts(block, allow_empty) {
         _opt_rewrite_list_int_stmt(out[j2], list_state)
         j2 = j2 + 1
     }
-
-    var k = 0
-    while k < oren_list_len(out) {
-        _opt_lower_int_only_lists_in_stmt(out[k], allow_empty)
-        k = k + 1
-    }
     return nil
 }
 
-fn _opt_lower_int_only_lists_in_stmt(stmt, allow_empty) {
+fn _opt_lower_int_only_lists_in_stmt(stmt, allow_empty, safe_ints_seed) {
     if stmt == nil { return nil }
     var t = stmt["type"]
-    if t == "Block" { return _opt_lower_int_only_lists_in_block_opts(stmt, allow_empty) }
+    if t == "Block" { return _opt_lower_int_only_lists_in_block_opts(stmt, allow_empty, safe_ints_seed) }
     if t == "If" {
-        _opt_lower_int_only_lists_in_stmt(stmt["consq"], allow_empty)
-        if stmt["alt"] != nil { _opt_lower_int_only_lists_in_stmt(stmt["alt"], allow_empty) }
+        _opt_lower_int_only_lists_in_stmt(stmt["consq"], allow_empty, safe_ints_seed)
+        if stmt["alt"] != nil { _opt_lower_int_only_lists_in_stmt(stmt["alt"], allow_empty, safe_ints_seed) }
         return nil
     }
     if t == "While" || t == "For" {
-        if stmt["body"] != nil { _opt_lower_int_only_lists_in_stmt(stmt["body"], allow_empty) }
+        if stmt["body"] != nil { _opt_lower_int_only_lists_in_stmt(stmt["body"], allow_empty, safe_ints_seed) }
         return nil
     }
     if t == "Switch" {
@@ -1992,17 +2052,17 @@ fn _opt_lower_int_only_lists_in_stmt(stmt, allow_empty) {
             var ci = 0
             while ci < oren_list_len(cases) {
                 var c = cases[ci]
-                if c != nil && c["body"] != nil { _opt_lower_int_only_lists_in_stmt(c["body"], allow_empty) }
+                if c != nil && c["body"] != nil { _opt_lower_int_only_lists_in_stmt(c["body"], allow_empty, safe_ints_seed) }
                 ci = ci + 1
             }
         }
-        if stmt["default"] != nil { _opt_lower_int_only_lists_in_stmt(stmt["default"], allow_empty) }
+        if stmt["default"] != nil { _opt_lower_int_only_lists_in_stmt(stmt["default"], allow_empty, safe_ints_seed) }
         return nil
     }
     if t == "ExprStmt" && stmt["expr"] != nil && stmt["expr"]["type"] == "If" {
         var e = stmt["expr"]
-        _opt_lower_int_only_lists_in_stmt(e["consq"], allow_empty)
-        if e["alt"] != nil { _opt_lower_int_only_lists_in_stmt(e["alt"], allow_empty) }
+        _opt_lower_int_only_lists_in_stmt(e["consq"], allow_empty, safe_ints_seed)
+        if e["alt"] != nil { _opt_lower_int_only_lists_in_stmt(e["alt"], allow_empty, safe_ints_seed) }
         return nil
     }
     if t == "Function" { return nil }
@@ -3151,7 +3211,7 @@ fn lower_linked_program_in_place(linked) {
             optloops.lower_simple_for_in_block(ss[i]["expr"]["body"])
             optloops.sink_list_lit_into_if(ss[i]["expr"]["body"])
             var lower_allow_empty = true
-            _opt_lower_int_only_lists_in_block_opts(ss[i]["expr"]["body"], lower_allow_empty)
+            _opt_lower_int_only_lists_in_block_opts(ss[i]["expr"]["body"], lower_allow_empty, nil)
             optloops.wrap_arena_loops_in_block(ss[i]["expr"]["body"])
             _opt_insert_list_reserve_in_block(ss[i]["expr"]["body"], nil, nil, nil, nil, nil)
             optconst.rewrite_const_mod_in_block(ss[i]["expr"]["body"], nil)

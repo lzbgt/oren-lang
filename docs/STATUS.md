@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-02-24
+**Last updated:** 2026-02-25
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
@@ -174,6 +174,13 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New: list-reserve/unchecked-push generalization now treats `oren_new_list(cap)`, `oren_list_new_cap(cap)`,
      `oren_arena_new_list(cap)`, and `oren_arena_new_list_auto(cap)` as list constructors and propagates list metadata across simple alias assignments,
      extending reserve/unchecked-push rewrites (rolling, 2026-02-24).
+   - New: list<int> lowering now propagates safe-int context across nested blocks, so empty list literals
+     that push ints derived from outer-scope loop indices lower to list<int> (rolling, 2026-02-25).
+     - Verified: `alloc_churn` emit-c now uses `oren_new_list_int`, `oren_list_int_reserve`,
+       `oren_list_int_push_fast`, and `oren_list_int_get_fast` (log: `build/logs/emit_c_alloc_churn_listint_20260225_035210.log`).
+     - New: `OREN_TRACE_LIST_INT=1` logs list<int> lowering decisions (candidate/touch/unsafe/rewrite).
+     - Safety: list<int> lowering now skips candidates assigned in nested control-flow blocks
+       to avoid mixed list/list<int> rewrites (fixes arena auto-loop use-before-assign smoke; rolling, 2026-02-25).
    - New: fast list/list_int push while-loops now accept constant upper bounds (arm64/x64/transpiler),
      but `alloc_churn` remains far above target in the 2026-02-24 snapshot (rolling).
    - New: list/list_int reserve + unchecked push now try `native_arena_alloc_raw` for arena-backed buffers
@@ -589,6 +596,7 @@ until perf + parity gates are within range.
    - Design spec: `docs/design/arena_loop_policy.md` (loop arena policy + GC reuse safety).
    - New: per-iteration loops use `oren_arena_iter_push/pop` with optional cap via `OREN_ARENA_ITER_CAP_BYTES` (rolling).
    - Next: tune `OREN_ARENA_ITER_CAP_BYTES` (64 KiB / 256 KiB / 1 MiB all worsen alloc_churn/alloc_drop; likely need adaptive or different arena policy).
+   - Next: re-run `alloc_churn`/`alloc_drop` benchmarks now that empty-list lowering can propagate int-safe context across nested blocks (list<int> emit-c verified).
    - Fold loop‑local arena prototype for list/list_int into this track; override annotations
      (`@oren.arena`, `@oren.arena_iter`, `@oren.noarena`) are already implemented.
    - Confirmed GC-path list tracking after disabling auto arenas (`OREN_ARENA_AUTO_LOOP=0` runtime via
