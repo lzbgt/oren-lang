@@ -1,0 +1,147 @@
+import core "arm64_core.oren"
+import gc "arm64_native_gc.oren"
+import rt "arm64_native_stmt_runtime.oren"
+
+// Shared loop helpers extracted from arm64_native_stmt_loops.oren.
+
+fn bytes_len(b) { return core.bytes_len(b) }
+fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
+fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
+
+fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
+fn insn_b(off) { return core.insn_b(off) }
+fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
+fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
+fn insn_ldr_ptr_off(rd, rn, offset) { return core.insn_ldr_ptr_off(rd, rn, offset) }
+fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
+fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
+
+fn emit_add_sp_any(ctx, bytes) { return core.emit_add_sp_any(ctx, bytes) }
+fn emit_sub_sp_any(ctx, bytes) { return core.emit_sub_sp_any(ctx, bytes) }
+fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
+
+fn _arm64_restore_stack_to(ctx, base_stack) {
+    // Rolling safety: keep runtime SP and compile-time `ctx["stack_size"]` consistent.
+    //
+    // Historically some expression lowering leaked temporary stack slots (delta > 0).
+    // In rare cases mis-accounting can also pop too much (delta < 0). Both are
+    // correctness bugs because they can make later locals overlap earlier locals.
+    var delta = ctx["stack_size"] - base_stack
+    if delta == 0 { return nil }
+    if delta > 0 {
+        emit_add_sp_any(ctx, delta)
+    } else {
+        emit_sub_sp_any(ctx, 0 - delta)
+    }
+    ctx["stack_size"] = base_stack
+    return nil
+}
+
+fn _arm64_emit_truthy_norm_in_x0(ctx, tok) {
+    // Normalize the value in X0 to a raw 0/1 truthiness bit (stored in X0),
+    // using language truthiness rules:
+    // - `nil` is falsey
+    // - `false` is falsey
+    // - everything else is truthy (including int 0)
+    //
+    // This helper is used in statement conditions (if/while/for) where the
+    // exact input value is not needed after branching.
+    //
+    // Scratch regs: X9..X11.
+    rt._arm64_emit_load_g_storage_ptr(ctx, tok, 9) // X9 = g_storage
+    push_u32_le(ctx["code"], insn_ldr_ptr_off(10, 9, 368)) // X10 = nil singleton
+    push_u32_le(ctx["code"], insn_ldr_ptr_off(11, 9, 376)) // X11 = false singleton
+
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 10))
+    var br_false0 = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 11))
+    var br_false1 = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+
+    // truthy => X0 = 1
+    push_u32_le(ctx["code"], insn_movz(0, 1))
+    var br_done = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+
+    // falsey => X0 = 0
+    var false_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], insn_movz(0, 0))
+
+    var done_pos = bytes_len(ctx["code"])
+    set_u32_le(ctx["code"], br_false0, insn_b_cond((false_pos - br_false0) / 4, 0)) // EQ
+    set_u32_le(ctx["code"], br_false1, insn_b_cond((false_pos - br_false1) / 4, 0)) // EQ
+    set_u32_le(ctx["code"], br_done, insn_b((done_pos - br_done) / 4))
+    return nil
+}
+
+fn _arm64_emit_while_generic(ctx, stmt) {
+    // GC tick local for throttling safepoints (u64 at SP+0 when at loop base).
+    push_u32_le(ctx["code"], insn_sub_sp(16))
+    ctx["stack_size"] = ctx["stack_size"] + 16
+    push_u32_le(ctx["code"], insn_movz(9, 0))
+    emit_str_reg_sp_any(ctx, 9, 0)
+
+    var loop_base_stack = ctx["stack_size"]
+    var start_pos = bytes_len(ctx["code"])
+
+    var prev_loop = ctx["loop_ctx"]
+    var loop = {"prev": prev_loop, "base_stack": loop_base_stack, "start_pos": start_pos, "continue_pos": start_pos, "break_jumps": [], "continue_jumps": []}
+    ctx["loop_ctx"] = loop
+
+    native_compile_expr(ctx, stmt["cond"])
+    _arm64_emit_truthy_norm_in_x0(ctx, stmt["token"])
+
+    // Stack discipline: condition temporaries must not leak across the loop branch.
+    var cond_delta = ctx["stack_size"] - loop_base_stack
+    if cond_delta != 0 { _arm64_restore_stack_to(ctx, loop_base_stack) }
+
+    push_u32_le(ctx["code"], insn_cmp_reg(0, 31))
+
+    var jump_end_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+
+    // GC safepoint on loop entry (parity with C backend), throttled for performance.
+    gc.native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 1023)
+
+    native_compile_stmt(ctx, stmt["body"])
+
+    // Ensure stack is restored to the loop base before iterating.
+    var loop_delta = ctx["stack_size"] - loop_base_stack
+    if loop_delta != 0 { _arm64_restore_stack_to(ctx, loop_base_stack) }
+
+    var loop_back_pos = bytes_len(ctx["code"])
+    var back_off = (start_pos - loop_back_pos) / 4
+    push_u32_le(ctx["code"], insn_b(back_off))
+
+    var end_target = bytes_len(ctx["code"])
+    var end_off = (end_target - jump_end_pos) / 4
+    set_u32_le(ctx["code"], jump_end_pos, insn_b_cond(end_off, 0))
+
+    // Patch any breaks emitted inside the loop body to jump here.
+    var bi = 0
+    while bi < oren_list_len(loop["break_jumps"]) {
+        var bpos = loop["break_jumps"][bi]
+        var boff = (end_target - bpos) / 4
+        set_u32_le(ctx["code"], bpos, insn_b(boff))
+        bi = bi + 1
+    }
+
+    // Patch any continues that were emitted before the continue target was known.
+    var ci = 0
+    while ci < oren_list_len(loop["continue_jumps"]) {
+        var cpos = loop["continue_jumps"][ci]
+        var coff = (loop["continue_pos"] - cpos) / 4
+        set_u32_le(ctx["code"], cpos, insn_b(coff))
+        ci = ci + 1
+    }
+
+    // Pop loop context
+    ctx["loop_ctx"] = prev_loop
+
+    // Pop GC tick local
+    push_u32_le(ctx["code"], insn_add_sp(16))
+    ctx["stack_size"] = ctx["stack_size"] - 16
+    return nil
+}

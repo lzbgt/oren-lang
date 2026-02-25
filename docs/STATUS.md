@@ -72,7 +72,6 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 
 7) **W3 - Structural/SOLID debt**
    - Large source files remain a maintainability risk; measured (non-generated, non-web) >2000 lines:
-     - `lib/compiler/arm64_native_stmt.oren` (~4582)
      - `lib/avm/main.c` (~4149)
      - `lib/compiler/transpiler.oren` (~3451)
      - `lib/compiler/optimizer.oren` (~3225)
@@ -82,6 +81,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Splits underway:
      - GC safepoint helpers moved out of `lib/compiler/arm64_native_stmt.oren` into
        `lib/compiler/arm64_native_gc.oren` (2026-02-25).
+     - `lib/compiler/arm64_native_stmt.oren` split into focused loop/list/runtime modules:
+       `lib/compiler/arm64_native_stmt_loops.oren`,
+       `lib/compiler/arm64_native_stmt_loops_list.oren`,
+       `lib/compiler/arm64_native_stmt_loops_list_emit.oren`,
+       `lib/compiler/arm64_native_stmt_loops_base.oren`,
+       `lib/compiler/arm64_native_stmt_runtime.oren` (all <2000 lines, 2026-02-25).
      - `lib/compiler/optimizer_loops.oren` split into `lib/compiler/optimizer_loops_list.oren` and
        `lib/compiler/optimizer_loops_arena.oren` (both <2000 lines, 2026-02-25).
 

@@ -1,0 +1,689 @@
+import core "arm64_core.oren"
+import exprm "arm64_native_expr.oren"
+import intparse "int_lit.oren"
+import basem "arm64_native_stmt_loops_base.oren"
+
+// List-loop helpers extracted from arm64_native_stmt_loops.oren.
+
+fn bytes_new() { return core.bytes_new() }
+fn bytes_push(b, v) { return core.bytes_push(b, v) }
+fn bytes_extend(b, other) { return core.bytes_extend(b, other) }
+fn bytes_extend_list(b, xs) { return core.bytes_extend_list(b, xs) }
+fn bytes_len(b) { return core.bytes_len(b) }
+fn bytes_finalize(b) { return core.bytes_finalize(b) }
+fn set_u32_le(buf, offset, n) { return core.set_u32_le(buf, offset, n) }
+fn align_up(n, align) { return core.align_up(n, align) }
+fn ceil_div(a, b) { return core.ceil_div(a, b) }
+fn int_mod(a, b) { return core.int_mod(a, b) }
+
+fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
+fn push_u64_le(buf, n) { return core.push_u64_le(buf, n) }
+fn push_u32_be(buf, n) { return core.push_u32_be(buf, n) }
+
+fn insn_add_imm(rd, rn, imm) { return core.insn_add_imm(rd, rn, imm) }
+fn insn_add_sp(imm) { return core.insn_add_sp(imm) }
+fn insn_add_reg(rd, rn, rm) { return core.insn_add_reg(rd, rn, rm) }
+fn insn_and_reg(rd, rn, rm) { return core.insn_and_reg(rd, rn, rm) }
+fn insn_b(off) { return core.insn_b(off) }
+fn insn_b_cond(off, cond) { return core.insn_b_cond(off, cond) }
+fn emit_add_sp_any(ctx, bytes) { return core.emit_add_sp_any(ctx, bytes) }
+fn emit_sub_sp_any(ctx, bytes) { return core.emit_sub_sp_any(ctx, bytes) }
+fn insn_cmp_reg(rn, rm) { return core.insn_cmp_reg(rn, rm) }
+fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
+fn insn_ldr_ptr_off(rd, rn, offset) { return core.insn_ldr_ptr_off(rd, rn, offset) }
+fn insn_ldr_reg_sp(reg, offset) { return core.insn_ldr_reg_sp(reg, offset) }
+fn insn_ldur_reg(rt, rn, offset) { return core.insn_ldur_reg(rt, rn, offset) }
+fn insn_mov_fp_sp() { return core.insn_mov_fp_sp() }
+fn insn_mov_reg(rd, rn) { return core.insn_mov_reg(rd, rn) }
+fn insn_mov_sp_fp() { return core.insn_mov_sp_fp() }
+fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
+fn insn_mul(rd, rn, rm) { return core.insn_mul(rd, rn, rm) }
+fn insn_ret() { return core.insn_ret() }
+fn insn_stp_pre() { return core.insn_stp_pre() }
+fn insn_stp_pair_pre(rt, rt2, rn, offset) { return core.insn_stp_pair_pre(rt, rt2, rn, offset) }
+fn insn_ldp_pair_post(rt, rt2, rn, offset) { return core.insn_ldp_pair_post(rt, rt2, rn, offset) }
+fn insn_stur_reg(rt, rn, offset) { return core.insn_stur_reg(rt, rn, offset) }
+fn insn_str_ptr(rt, rn) { return core.insn_str_ptr(rt, rn) }
+fn insn_str_ptr_off(rt, rn, offset) { return core.insn_str_ptr_off(rt, rn, offset) }
+fn insn_str_reg_sp(reg, offset) { return core.insn_str_reg_sp(reg, offset) }
+fn insn_str_x0_sp(offset) { return core.insn_str_x0_sp(offset) }
+fn insn_sub_reg(rd, rn, rm) { return core.insn_sub_reg(rd, rn, rm) }
+fn insn_sub_sp(imm) { return core.insn_sub_sp(imm) }
+fn insn_sdiv(rd, rn, rm) { return core.insn_sdiv(rd, rn, rm) }
+fn insn_udiv(rd, rn, rm) { return core.insn_udiv(rd, rn, rm) }
+
+fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
+fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
+fn emit_ldr_reg_fp_any(ctx, reg, offset) { return core.emit_ldr_reg_fp_any(ctx, reg, offset) }
+fn emit_str_reg_fp_any(ctx, reg, offset) { return core.emit_str_reg_fp_any(ctx, reg, offset) }
+fn emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) { return core.emit_load_ptr_from_base_plus(ctx, dst, base, offset_bytes) }
+fn emit_load_i64_imm(ctx, reg, val) { return core.emit_load_i64_imm(ctx, reg, val) }
+
+// Delegate expression compilation to the expr module.
+fn native_compile_expr(ctx, expr) { return exprm.native_compile_expr(ctx, expr) }
+fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
+fn _arm64_restore_stack_to(ctx, base_stack) { return basem._arm64_restore_stack_to(ctx, base_stack) }
+fn _arm64_emit_truthy_norm_in_x0(ctx, tok) { return basem._arm64_emit_truthy_norm_in_x0(ctx, tok) }
+fn _arm64_emit_while_generic(ctx, stmt) { return basem._arm64_emit_while_generic(ctx, stmt) }
+
+
+
+fn _arm64_str_eq_bytes(a, b) {
+    // Stable string equality for compiler passes.
+    // Avoid depending on runtime `==` semantics (stage1 C runtime vs stage2 native runtime).
+    if a == nil && b == nil { return true }
+    if a == nil || b == nil { return false }
+    var la = oren_string_len(a)
+    var lb = oren_string_len(b)
+    if la != lb { return false }
+    var i = 0
+    while i < la {
+        if (oren_string_byte_at_unchecked(a, i) & 255) != (oren_string_byte_at_unchecked(b, i) & 255) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+fn _arm64_is_ident(exp) {
+    if exp == nil { return nil }
+    if exp["type"] == "Identifier" { return exp["value"] }
+    return nil
+}
+
+fn _arm64_local_fp_off(ctx, name) {
+    if ctx == nil { return nil }
+    if ctx["locals"] == nil { return nil }
+    var enc = ctx["locals"][name]
+    if oren_type_tag(enc) == 0 { return nil }
+    return enc - 1
+}
+
+fn _arm64_is_simple_inc(stmt, idx_name) {
+    if stmt == nil || stmt["type"] != "Assign" { return false }
+    if stmt["name"] == nil || stmt["name"]["type"] != "Identifier" { return false }
+    if _arm64_str_eq_bytes(stmt["name"]["value"], idx_name) != true { return false }
+    var v = stmt["value"]
+    if v == nil || v["type"] != "Infix" { return false }
+    if v["op"] != "+" { return false }
+    var left = _arm64_is_ident(v["left"])
+    if left == nil || _arm64_str_eq_bytes(left, idx_name) != true { return false }
+    if v["right"] == nil || v["right"]["type"] != "Integer" { return false }
+    if v["right"]["value"] != "1" { return false }
+    return true
+}
+
+fn _arm64_list_contains(xs, value) {
+    if xs == nil { return false }
+    var i = 0
+    while i < oren_list_len(xs) {
+        if _arm64_str_eq_bytes(xs[i], value) { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _arm64_expr_uses_ident(exp, name) {
+    if exp == nil || name == nil { return false }
+    var et = exp["type"]
+    if et == "Identifier" { return _arm64_str_eq_bytes(exp["value"], name) }
+    if et == "Integer" || et == "Float" || et == "String" || et == "Boolean" || et == "Nil" { return false }
+    if et == "Prefix" { return _arm64_expr_uses_ident(exp["right"], name) }
+    if et == "Infix" {
+        if _arm64_expr_uses_ident(exp["left"], name) { return true }
+        return _arm64_expr_uses_ident(exp["right"], name)
+    }
+    if et == "Call" {
+        if _arm64_expr_uses_ident(exp["fn"], name) { return true }
+        var args = exp["args"]
+        var i = 0
+        while i < oren_list_len(args) {
+            if _arm64_expr_uses_ident(args[i], name) { return true }
+            i = i + 1
+        }
+        return false
+    }
+    if et == "Member" {
+        return _arm64_expr_uses_ident(exp["left"], name)
+    }
+    if et == "Index" {
+        if _arm64_expr_uses_ident(exp["left"], name) { return true }
+        return _arm64_expr_uses_ident(exp["index"], name)
+    }
+    if et == "Array" {
+        var xs = exp["elements"]
+        var j = 0
+        while j < oren_list_len(xs) {
+            if _arm64_expr_uses_ident(xs[j], name) { return true }
+            j = j + 1
+        }
+        return false
+    }
+    if et == "Hash" {
+        var ps = exp["pairs"]
+        var k = 0
+        while k < oren_list_len(ps) {
+            if _arm64_expr_uses_ident(ps[k]["key"], name) { return true }
+            if _arm64_expr_uses_ident(ps[k]["value"], name) { return true }
+            k = k + 1
+        }
+        return false
+    }
+    if et == "If" || et == "Function" { return true }
+    return true
+}
+
+fn _arm64_expr_uses_any_ident(exp, names) {
+    if exp == nil || names == nil { return false }
+    var i = 0
+    while i < oren_list_len(names) {
+        if _arm64_expr_uses_ident(exp, names[i]) { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn _arm64_is_list_int_push_call(ctx, exp) {
+    if exp == nil || exp["type"] != "Call" { return nil }
+    if exp["fn"] == nil { return nil }
+    var nm = nil
+    if exp["fn"]["type"] == "Identifier" {
+        nm = exp["fn"]["value"]
+    } else if exp["fn"]["type"] == "Member" {
+        var nsr = exprm.native_ns_resolve(ctx, exp["fn"])
+        if nsr != nil {
+            nm = nsr["name"]
+        } else {
+            var left = exp["fn"]["left"]
+            var prop = exp["fn"]["prop"]
+            if left != nil && prop != nil && left["type"] == "Identifier" && left["value"] == "list" {
+                if prop["value"] == "int_push" { nm = "STD_list_int_push" }
+            }
+        }
+    }
+    if nm == nil { return nil }
+    if nm != "oren_list_int_push" && nm != "STD_list_int_push" && nm != "oren_list_int_push_unchecked" { return nil }
+    var args = exp["args"]
+    if args == nil || oren_list_len(args) != 2 { return nil }
+    var list_name = _arm64_is_ident(args[0])
+    if list_name == nil { return nil }
+    return {"list": list_name, "value": args[1]}
+}
+
+fn _arm64_is_list_push_call(ctx, exp) {
+    if exp == nil || exp["type"] != "Call" { return nil }
+    if exp["fn"] == nil { return nil }
+    var nm = nil
+    if exp["fn"]["type"] == "Identifier" {
+        nm = exp["fn"]["value"]
+    } else if exp["fn"]["type"] == "Member" {
+        var nsr = exprm.native_ns_resolve(ctx, exp["fn"])
+        if nsr != nil {
+            nm = nsr["name"]
+        } else {
+            var left = exp["fn"]["left"]
+            var prop = exp["fn"]["prop"]
+            if left != nil && prop != nil && left["type"] == "Identifier" && left["value"] == "list" {
+                if prop["value"] == "push" { nm = "STD_list_push" }
+            }
+        }
+    }
+    if nm == nil { return nil }
+    if nm != "oren_list_push" && nm != "STD_list_push" { return nil }
+    var args = exp["args"]
+    if args == nil || oren_list_len(args) != 2 { return nil }
+    var list_name = _arm64_is_ident(args[0])
+    if list_name == nil { return nil }
+    return {"list": list_name, "value": args[1]}
+}
+
+fn _arm64_is_list_int_get_call(ctx, exp, idx_name) {
+    if exp == nil { return nil }
+    if exp["type"] == "Index" {
+        if exp["recv_kind"] != "list_int" { return nil }
+        var list_name0 = _arm64_is_ident(exp["left"])
+        var idx0 = _arm64_is_ident(exp["index"])
+        if list_name0 == nil || idx0 == nil { return nil }
+        if _arm64_str_eq_bytes(idx0, idx_name) != true { return nil }
+        return list_name0
+    }
+    if exp["type"] != "Call" { return nil }
+    if exp["fn"] == nil { return nil }
+    var nm = nil
+    if exp["fn"]["type"] == "Identifier" {
+        nm = exp["fn"]["value"]
+    } else if exp["fn"]["type"] == "Member" {
+        var nsr = exprm.native_ns_resolve(ctx, exp["fn"])
+        if nsr != nil {
+            nm = nsr["name"]
+        } else {
+            var left = exp["fn"]["left"]
+            var prop = exp["fn"]["prop"]
+            if left != nil && prop != nil && left["type"] == "Identifier" && left["value"] == "list" {
+                if prop["value"] == "int_get" { nm = "STD_list_int_get" }
+            }
+        }
+    }
+    if nm == nil { return nil }
+    if nm != "oren_list_int_get" && nm != "STD_list_int_get" &&
+        nm != "oren_list_int_get_unchecked" && nm != "STD_list_int_get_unchecked" { return nil }
+    var args = exp["args"]
+    if args == nil || oren_list_len(args) != 2 { return nil }
+    var list_name = _arm64_is_ident(args[0])
+    var idx = _arm64_is_ident(args[1])
+    if list_name == nil || idx == nil { return nil }
+    if _arm64_str_eq_bytes(idx, idx_name) != true { return nil }
+    return list_name
+}
+
+fn _arm64_is_list_get_call(ctx, exp, idx_name) {
+    if exp == nil { return nil }
+    if exp["type"] == "Index" {
+        var list_name0 = _arm64_is_ident(exp["left"])
+        var idx0 = _arm64_is_ident(exp["index"])
+        if list_name0 == nil || idx0 == nil { return nil }
+        if _arm64_str_eq_bytes(idx0, idx_name) != true { return nil }
+        return list_name0
+    }
+    if exp["type"] != "Call" { return nil }
+    if exp["fn"] == nil { return nil }
+    var nm = nil
+    if exp["fn"]["type"] == "Identifier" {
+        nm = exp["fn"]["value"]
+    } else if exp["fn"]["type"] == "Member" {
+        var nsr = exprm.native_ns_resolve(ctx, exp["fn"])
+        if nsr != nil {
+            nm = nsr["name"]
+        } else {
+            var left = exp["fn"]["left"]
+            var prop = exp["fn"]["prop"]
+            if left != nil && prop != nil && left["type"] == "Identifier" && left["value"] == "list" {
+                if prop["value"] == "get" { nm = "STD_list_get" }
+            }
+        }
+    }
+    if nm == nil { return nil }
+    if nm != "oren_list_get" && nm != "STD_list_get" { return nil }
+    var args = exp["args"]
+    if args == nil || oren_list_len(args) != 2 { return nil }
+    var list_name = _arm64_is_ident(args[0])
+    var idx = _arm64_is_ident(args[1])
+    if list_name == nil || idx == nil { return nil }
+    if _arm64_str_eq_bytes(idx, idx_name) != true { return nil }
+    return list_name
+}
+
+fn _arm64_is_sum_add_list_int_get(ctx, stmt, idx_name) {
+    if stmt == nil || stmt["type"] != "Assign" { return nil }
+    if stmt["name"] == nil || stmt["name"]["type"] != "Identifier" { return nil }
+    var sum_name = stmt["name"]["value"]
+    var v = stmt["value"]
+    if v == nil || v["type"] != "Infix" { return nil }
+    if v["op"] != "+" { return nil }
+    var left = _arm64_is_ident(v["left"])
+    if left == nil || _arm64_str_eq_bytes(left, sum_name) != true { return nil }
+    var list_name = _arm64_is_list_int_get_call(ctx, v["right"], idx_name)
+    if list_name == nil { return nil }
+    return {"sum": sum_name, "list": list_name}
+}
+
+fn _arm64_is_sum_add_list_get(ctx, stmt, idx_name) {
+    if stmt == nil || stmt["type"] != "Assign" { return nil }
+    if stmt["name"] == nil || stmt["name"]["type"] != "Identifier" { return nil }
+    var sum_name = stmt["name"]["value"]
+    var v = stmt["value"]
+    if v == nil || v["type"] != "Infix" { return nil }
+    if v["op"] != "+" { return nil }
+    var left = _arm64_is_ident(v["left"])
+    if left == nil || _arm64_str_eq_bytes(left, sum_name) != true { return nil }
+    var list_name = _arm64_is_list_get_call(ctx, v["right"], idx_name)
+    if list_name == nil { return nil }
+    return {"sum": sum_name, "list": list_name}
+}
+
+fn _arm64_is_list_int_mul_get(ctx, exp, idx_name) {
+    if exp == nil || exp["type"] != "Infix" { return nil }
+    if exp["op"] != "*" { return nil }
+    var left_list = _arm64_is_list_int_get_call(ctx, exp["left"], idx_name)
+    var right_list = _arm64_is_list_int_get_call(ctx, exp["right"], idx_name)
+    if left_list == nil || right_list == nil { return nil }
+    return {"left": left_list, "right": right_list}
+}
+
+fn _arm64_is_list_mul_get(ctx, exp, idx_name) {
+    if exp == nil || exp["type"] != "Infix" { return nil }
+    if exp["op"] != "*" { return nil }
+    var left_list = _arm64_is_list_get_call(ctx, exp["left"], idx_name)
+    var right_list = _arm64_is_list_get_call(ctx, exp["right"], idx_name)
+    if left_list == nil || right_list == nil { return nil }
+    return {"left": left_list, "right": right_list}
+}
+
+fn _arm64_is_sum_add_list_int_mul_get(ctx, stmt, idx_name) {
+    if stmt == nil || stmt["type"] != "Assign" { return nil }
+    if stmt["name"] == nil || stmt["name"]["type"] != "Identifier" { return nil }
+    var sum_name = stmt["name"]["value"]
+    var v = stmt["value"]
+    if v == nil || v["type"] != "Infix" { return nil }
+    if v["op"] != "+" { return nil }
+    var left = _arm64_is_ident(v["left"])
+    if left == nil || _arm64_str_eq_bytes(left, sum_name) != true { return nil }
+    var mul_info = _arm64_is_list_int_mul_get(ctx, v["right"], idx_name)
+    if mul_info == nil { return nil }
+    return {"sum": sum_name, "left": mul_info["left"], "right": mul_info["right"]}
+}
+
+fn _arm64_is_sum_add_list_mul_get(ctx, stmt, idx_name) {
+    if stmt == nil || stmt["type"] != "Assign" { return nil }
+    if stmt["name"] == nil || stmt["name"]["type"] != "Identifier" { return nil }
+    var sum_name = stmt["name"]["value"]
+    var v = stmt["value"]
+    if v == nil || v["type"] != "Infix" { return nil }
+    if v["op"] != "+" { return nil }
+    var left = _arm64_is_ident(v["left"])
+    if left == nil || _arm64_str_eq_bytes(left, sum_name) != true { return nil }
+    var mul_info = _arm64_is_list_mul_get(ctx, v["right"], idx_name)
+    if mul_info == nil { return nil }
+    return {"sum": sum_name, "left": mul_info["left"], "right": mul_info["right"]}
+}
+
+fn _arm64_match_fast_list_int_push_while(ctx, stmt) {
+    if stmt == nil || stmt["type"] != "While" { return nil }
+    var cond = stmt["cond"]
+    if cond == nil || cond["type"] != "Infix" { return nil }
+    if cond["op"] != "<" { return nil }
+    var idx_name = _arm64_is_ident(cond["left"])
+    var right = cond["right"]
+    var n_name = _arm64_is_ident(right)
+    var n_const = nil
+    if n_name == nil {
+        if right == nil || right["type"] != "Integer" { return nil }
+        var v = intparse.parse_int_lit(right["value"])
+        if oren_is_err(v) { return nil }
+        n_const = v
+    }
+    if idx_name == nil { return nil }
+    if _arm64_local_fp_off(ctx, idx_name) == nil { return nil }
+    if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": idx_name}) != true { return nil }
+    if n_name != nil {
+        if _arm64_local_fp_off(ctx, n_name) == nil { return nil }
+        if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": n_name}) != true { return nil }
+    } else if n_const < 0 {
+        return nil
+    }
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return nil }
+    var stmts = body["stmts"]
+    if stmts == nil { return nil }
+    var n = oren_list_len(stmts)
+    if n < 1 { return nil }
+    var last = stmts[n - 1]
+    if _arm64_is_simple_inc(last, idx_name) != true { return nil }
+    var lists = []
+    var pushes = []
+    var i = 0
+    while i < n - 1 {
+        var st = stmts[i]
+        if st == nil || st["type"] != "ExprStmt" { return nil }
+        var exp = st["expr"]
+        var info = _arm64_is_list_int_push_call(ctx, exp)
+        if info == nil { return nil }
+        var list_name = info["list"]
+        if _arm64_local_fp_off(ctx, list_name) == nil { return nil }
+        if _arm64_list_contains(lists, list_name) { return nil }
+        if exprm.native_expr_is_inty(ctx, info["value"]) != true { return nil }
+        oren_list_push(lists, list_name)
+        oren_list_push(pushes, info)
+        i = i + 1
+    }
+    if oren_list_len(lists) == 0 { return nil }
+    var pi = 0
+    while pi < oren_list_len(pushes) {
+        if _arm64_expr_uses_any_ident(pushes[pi]["value"], lists) { return nil }
+        pi = pi + 1
+    }
+    return {"idx": idx_name, "n": n_name, "n_const": n_const, "lists": lists, "pushes": pushes}
+}
+
+fn _arm64_match_fast_list_push_while(ctx, stmt) {
+    if stmt == nil || stmt["type"] != "While" { return nil }
+    var cond = stmt["cond"]
+    if cond == nil || cond["type"] != "Infix" { return nil }
+    if cond["op"] != "<" { return nil }
+    var idx_name = _arm64_is_ident(cond["left"])
+    var right = cond["right"]
+    var n_name = _arm64_is_ident(right)
+    var n_const = nil
+    if n_name == nil {
+        if right == nil || right["type"] != "Integer" { return nil }
+        var v = intparse.parse_int_lit(right["value"])
+        if oren_is_err(v) { return nil }
+        n_const = v
+    }
+    if idx_name == nil { return nil }
+    if _arm64_local_fp_off(ctx, idx_name) == nil { return nil }
+    if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": idx_name}) != true { return nil }
+    if n_name != nil {
+        if _arm64_local_fp_off(ctx, n_name) == nil { return nil }
+        if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": n_name}) != true { return nil }
+    } else if n_const < 0 {
+        return nil
+    }
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return nil }
+    var stmts = body["stmts"]
+    if stmts == nil { return nil }
+    var n = oren_list_len(stmts)
+    if n < 1 { return nil }
+    var last = stmts[n - 1]
+    if _arm64_is_simple_inc(last, idx_name) != true { return nil }
+    var lists = []
+    var pushes = []
+    var i = 0
+    while i < n - 1 {
+        var st = stmts[i]
+        if st == nil || st["type"] != "ExprStmt" { return nil }
+        var exp = st["expr"]
+        var info = _arm64_is_list_push_call(ctx, exp)
+        if info == nil { return nil }
+        var list_name = info["list"]
+        if _arm64_local_fp_off(ctx, list_name) == nil { return nil }
+        if _arm64_list_contains(lists, list_name) { return nil }
+        oren_list_push(lists, list_name)
+        oren_list_push(pushes, info)
+        i = i + 1
+    }
+    if oren_list_len(lists) == 0 { return nil }
+    var pi = 0
+    while pi < oren_list_len(pushes) {
+        if _arm64_expr_uses_any_ident(pushes[pi]["value"], lists) { return nil }
+        pi = pi + 1
+    }
+    return {"idx": idx_name, "n": n_name, "n_const": n_const, "lists": lists, "pushes": pushes}
+}
+
+fn _arm64_match_fast_list_int_dot_while(ctx, stmt) {
+    if stmt == nil || stmt["type"] != "While" { return nil }
+    var cond = stmt["cond"]
+    if cond == nil || cond["type"] != "Infix" { return nil }
+    if cond["op"] != "<" { return nil }
+    var idx_name = _arm64_is_ident(cond["left"])
+    var n_name = _arm64_is_ident(cond["right"])
+    if idx_name == nil || n_name == nil { return nil }
+    if _arm64_local_fp_off(ctx, idx_name) == nil { return nil }
+    if _arm64_local_fp_off(ctx, n_name) == nil { return nil }
+    if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": idx_name}) != true { return nil }
+    if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": n_name}) != true { return nil }
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return nil }
+    var stmts = body["stmts"]
+    if stmts == nil { return nil }
+    var n = oren_list_len(stmts)
+    if n < 1 { return nil }
+    var last = stmts[n - 1]
+    if _arm64_is_simple_inc(last, idx_name) != true { return nil }
+    var sum_name = nil
+    var lists = []
+    var muls = []
+    var i = 0
+    while i < n - 1 {
+        var st = stmts[i]
+        var info = _arm64_is_sum_add_list_int_mul_get(ctx, st, idx_name)
+        if info == nil { return nil }
+        if sum_name == nil { sum_name = info["sum"] }
+        else if _arm64_str_eq_bytes(sum_name, info["sum"]) != true { return nil }
+        if _arm64_local_fp_off(ctx, sum_name) == nil { return nil }
+        if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] != true { return nil }
+        if exprm.native_expr_is_inty(ctx, st["value"]) != true { return nil }
+        var left_list = info["left"]
+        var right_list = info["right"]
+        if _arm64_local_fp_off(ctx, left_list) == nil { return nil }
+        if _arm64_local_fp_off(ctx, right_list) == nil { return nil }
+        if _arm64_list_contains(lists, left_list) == false { oren_list_push(lists, left_list) }
+        if _arm64_list_contains(lists, right_list) == false { oren_list_push(lists, right_list) }
+        oren_list_push(muls, {"left": left_list, "right": right_list})
+        i = i + 1
+    }
+    if sum_name == nil { return nil }
+    if oren_list_len(muls) == 0 { return nil }
+    return {"idx": idx_name, "n": n_name, "sum": sum_name, "lists": lists, "muls": muls}
+}
+
+fn _arm64_match_fast_list_dot_while(ctx, stmt) {
+    if stmt == nil || stmt["type"] != "While" { return nil }
+    var cond = stmt["cond"]
+    if cond == nil || cond["type"] != "Infix" { return nil }
+    if cond["op"] != "<" { return nil }
+    var idx_name = _arm64_is_ident(cond["left"])
+    var n_name = _arm64_is_ident(cond["right"])
+    if idx_name == nil || n_name == nil { return nil }
+    if _arm64_local_fp_off(ctx, idx_name) == nil { return nil }
+    if _arm64_local_fp_off(ctx, n_name) == nil { return nil }
+    if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": idx_name}) != true { return nil }
+    if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": n_name}) != true { return nil }
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return nil }
+    var stmts = body["stmts"]
+    if stmts == nil { return nil }
+    var n = oren_list_len(stmts)
+    if n < 1 { return nil }
+    var last = stmts[n - 1]
+    if _arm64_is_simple_inc(last, idx_name) != true { return nil }
+    var sum_name = nil
+    var lists = []
+    var muls = []
+    var i = 0
+    while i < n - 1 {
+        var st = stmts[i]
+        var info = _arm64_is_sum_add_list_mul_get(ctx, st, idx_name)
+        if info == nil { return nil }
+        if sum_name == nil { sum_name = info["sum"] }
+        else if _arm64_str_eq_bytes(sum_name, info["sum"]) != true { return nil }
+        if _arm64_local_fp_off(ctx, sum_name) == nil { return nil }
+        if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] != true { return nil }
+        var left_list = info["left"]
+        var right_list = info["right"]
+        if _arm64_local_fp_off(ctx, left_list) == nil { return nil }
+        if _arm64_local_fp_off(ctx, right_list) == nil { return nil }
+        if _arm64_list_contains(lists, left_list) == false { oren_list_push(lists, left_list) }
+        if _arm64_list_contains(lists, right_list) == false { oren_list_push(lists, right_list) }
+        oren_list_push(muls, {"left": left_list, "right": right_list})
+        i = i + 1
+    }
+    if sum_name == nil { return nil }
+    if oren_list_len(muls) == 0 { return nil }
+    return {"idx": idx_name, "n": n_name, "sum": sum_name, "lists": lists, "muls": muls}
+}
+
+fn _arm64_match_fast_list_int_get_sum_while(ctx, stmt) {
+    if stmt == nil || stmt["type"] != "While" { return nil }
+    var cond = stmt["cond"]
+    if cond == nil || cond["type"] != "Infix" { return nil }
+    if cond["op"] != "<" { return nil }
+    var idx_name = _arm64_is_ident(cond["left"])
+    var n_name = _arm64_is_ident(cond["right"])
+    if idx_name == nil || n_name == nil { return nil }
+    if _arm64_local_fp_off(ctx, idx_name) == nil { return nil }
+    if _arm64_local_fp_off(ctx, n_name) == nil { return nil }
+    if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": idx_name}) != true { return nil }
+    if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": n_name}) != true { return nil }
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return nil }
+    var stmts = body["stmts"]
+    if stmts == nil { return nil }
+    var n = oren_list_len(stmts)
+    if n < 1 { return nil }
+    var last = stmts[n - 1]
+    if _arm64_is_simple_inc(last, idx_name) != true { return nil }
+    var sum_name = nil
+    var lists = []
+    var loads = []
+    var i = 0
+    while i < n - 1 {
+        var st = stmts[i]
+        var info = _arm64_is_sum_add_list_int_get(ctx, st, idx_name)
+        if info == nil { return nil }
+        if sum_name == nil { sum_name = info["sum"] }
+        else if _arm64_str_eq_bytes(sum_name, info["sum"]) != true { return nil }
+        if _arm64_local_fp_off(ctx, sum_name) == nil { return nil }
+        if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] != true { return nil }
+        if exprm.native_expr_is_inty(ctx, st["value"]) != true { return nil }
+        var list_name = info["list"]
+        if _arm64_local_fp_off(ctx, list_name) == nil { return nil }
+        if _arm64_list_contains(lists, list_name) == false { oren_list_push(lists, list_name) }
+        oren_list_push(loads, list_name)
+        i = i + 1
+    }
+    if sum_name == nil { return nil }
+    if oren_list_len(loads) == 0 { return nil }
+    return {"idx": idx_name, "n": n_name, "sum": sum_name, "lists": lists, "loads": loads}
+}
+
+fn _arm64_match_fast_list_get_sum_while(ctx, stmt) {
+    if stmt == nil || stmt["type"] != "While" { return nil }
+    var cond = stmt["cond"]
+    if cond == nil || cond["type"] != "Infix" { return nil }
+    if cond["op"] != "<" { return nil }
+    var idx_name = _arm64_is_ident(cond["left"])
+    var n_name = _arm64_is_ident(cond["right"])
+    if idx_name == nil || n_name == nil { return nil }
+    if _arm64_local_fp_off(ctx, idx_name) == nil { return nil }
+    if _arm64_local_fp_off(ctx, n_name) == nil { return nil }
+    if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": idx_name}) != true { return nil }
+    if exprm.native_expr_is_inty(ctx, {"type": "Identifier", "value": n_name}) != true { return nil }
+    var body = stmt["body"]
+    if body == nil || body["type"] != "Block" { return nil }
+    var stmts = body["stmts"]
+    if stmts == nil { return nil }
+    var n = oren_list_len(stmts)
+    if n < 1 { return nil }
+    var last = stmts[n - 1]
+    if _arm64_is_simple_inc(last, idx_name) != true { return nil }
+    var sum_name = nil
+    var lists = []
+    var loads = []
+    var i = 0
+    while i < n - 1 {
+        var st = stmts[i]
+        var info = _arm64_is_sum_add_list_get(ctx, st, idx_name)
+        if info == nil { return nil }
+        if sum_name == nil { sum_name = info["sum"] }
+        else if _arm64_str_eq_bytes(sum_name, info["sum"]) != true { return nil }
+        if _arm64_local_fp_off(ctx, sum_name) == nil { return nil }
+        var list_name = info["list"]
+        if _arm64_local_fp_off(ctx, list_name) == nil { return nil }
+        if _arm64_list_contains(lists, list_name) == false { oren_list_push(lists, list_name) }
+        oren_list_push(loads, list_name)
+        i = i + 1
+    }
+    if sum_name == nil { return nil }
+    if oren_list_len(loads) == 0 { return nil }
+    var sum_inty = false
+    if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] == true { sum_inty = true }
+    return {"idx": idx_name, "n": n_name, "sum": sum_name, "lists": lists, "loads": loads, "sum_inty": sum_inty}
+}
+
+
+
+
+
+

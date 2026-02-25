@@ -80,9 +80,11 @@ kept in sync with `docs/STATUS.md`.
 9) **W3 structural/SOLID refactors (large files)**
    - Split high-churn, 2000+ line modules into focused units with clear boundaries.
    - Started: GC safepoint helpers moved to `lib/compiler/arm64_native_gc.oren`.
+   - Done: `lib/compiler/arm64_native_stmt.oren` split into loop/list/runtime modules (<2000 lines each).
    - Done: `lib/compiler/optimizer_loops.oren` split into list/arena modules (<2000 lines each).
-   - Next targets: `lib/compiler/arm64_native_stmt.oren`,
-     `lib/compiler/transpiler.oren`, `lib/runtime_native/100_time_gc_alloc.oren`.
+   - Next targets: `lib/compiler/transpiler.oren`, `lib/compiler/optimizer.oren`,
+     `lib/runtime_native/100_time_gc_alloc.oren`, `lib/avm/main.c`,
+     `lib/avm/avm_vm.c`, `lib/compiler/x64_native_program/060_emit_ops.oren`.
 
 10) **Tooling reliability and reproducibility**
    - Keep build/test/bench workflows stable and fast.

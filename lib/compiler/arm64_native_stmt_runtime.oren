@@ -1,0 +1,62 @@
+import core "arm64_core.oren"
+import exprm "arm64_native_expr.oren"
+
+// Runtime globals helpers extracted from arm64_native_stmt.oren.
+
+fn bytes_len(b) { return core.bytes_len(b) }
+fn push_u32_le(buf, n) { return core.push_u32_le(buf, n) }
+fn insn_ldr_ptr(rd, rn) { return core.insn_ldr_ptr(rd, rn) }
+fn insn_movz(reg, imm16) { return core.insn_movz(reg, imm16) }
+
+fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
+
+fn _arm64_rt_resolve_g_storage_name(ctx) {
+    // Resolve the runtime's `g_storage` global symbol name once and cache it in ctx.
+    // We use a suffix match because module linking prefixes global names.
+    if ctx == nil { return nil }
+    var gname = ctx["rt_g_storage_name"]
+    if gname != nil { return gname }
+    if ctx["globals"] == nil { return nil }
+    var match = nil
+    var match_count = 0
+    for k in ctx["globals"] {
+        // ends_with(k, "g_storage")
+        var klen = oren_string_len(k)
+        var slen = 9
+        if klen >= slen {
+            var ok = true
+            var j = 0
+            while j < slen {
+                if oren_string_char_at(k, klen - slen + j) != oren_string_char_at("g_storage", j) { ok = false; break }
+                j = j + 1
+            }
+            if ok {
+                match = k
+                match_count = match_count + 1
+                if match_count > 1 { break }
+            }
+        }
+    }
+    if match_count == 1 {
+        ctx["rt_g_storage_name"] = match
+        return match
+    }
+    return nil
+}
+
+fn _arm64_emit_load_g_storage_ptr(ctx, tok, dst_reg) {
+    // dst_reg = g_storage (pointer to runtime globals storage).
+    var gname = _arm64_rt_resolve_g_storage_name(ctx)
+    if gname == nil || ctx == nil || ctx["globals"] == nil || ctx["globals"][gname] == nil {
+        native_error(ctx, tok, "native backend: missing runtime global g_storage")
+        push_u32_le(ctx["code"], insn_movz(dst_reg, 0))
+        return nil
+    }
+    var goff = ctx["globals"][gname] - 1
+    var adr_pos = bytes_len(ctx["code"])
+    push_u32_le(ctx["code"], 0)
+    push_u32_le(ctx["code"], 0)
+    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_pos, "data_off": goff, "reg": dst_reg})
+    push_u32_le(ctx["code"], insn_ldr_ptr(dst_reg, dst_reg))
+    return nil
+}
