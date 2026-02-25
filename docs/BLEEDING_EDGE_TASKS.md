@@ -30,7 +30,7 @@ kept in sync with `docs/STATUS.md`.
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
-   - Baseline (arm64 native, 2026-02-25): `alloc_churn` 6.00× C, `alloc_drop` 2.30× C.
+   - Baseline (arm64 native, 2026-02-25): `alloc_churn` 7.23× C, `alloc_drop` 2.32× C.
    - Next: keep `alloc_drop` within target while auditing other alloc/GC workloads for regressions.
    - Gate: `alloc_churn` native <= 8x C; `alloc_drop` native <= 5x C.
 
