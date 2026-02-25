@@ -389,6 +389,11 @@ fn trace_track_alloc_new_size_emit(ptr, size, kind) {
     return 0
 }
 
+@oren.keep
+fn oren_trace_alloc_request(ptr, size, kind) {
+    return trace_track_alloc_new_size_emit(ptr, size, kind)
+}
+
 
 fn trace_list_track_alloc(ptr, kind, size, mode) {
     if kind != 2 && kind != list_int_kind() { return 0 }

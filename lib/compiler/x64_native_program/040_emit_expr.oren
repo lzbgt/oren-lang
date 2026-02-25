@@ -1139,23 +1139,29 @@ fn _emit_eval_int_to_rax(ctx, expr, locals) {
             //   and "raw bytes" that must not be scanned).
             //
             // x64 native v0 tracks `malloc` allocations by default (via injected runtime tracking).
-	            if nm == "malloc" {
-	                var tmp0 = locals["$tmp0"]
-	                if oren_type_tag(tmp0) == 0 { err(ctx, "x64 native v0: missing $tmp0 slot for malloc tracking"); return nil }
+            if nm == "malloc" {
+                var tmp0 = locals["$tmp0"]
+                if oren_type_tag(tmp0) == 0 { err(ctx, "x64 native v0: missing $tmp0 slot for malloc tracking"); return nil }
                 // r12 = ptr ; r13 = aligned_size ; r10 = kind(0)
                 bytes_extend(ctx["code"], insn_mov_r64_r64(12, 0))
                 _emit_mov_r64_mrbp(ctx, 13, 0 - tmp0) // tmp0 holds the aligned allocation size
                 bytes_extend(ctx["code"], insn_mov_r32_imm32(10, 0))
+                if ctx["trace_native_alloc_req"] != nil {
+                    _emit_trace_alloc_request_x64(ctx, locals, 12, 13, 10)
+                }
                 _emit_track_alloc_x64(ctx, locals, 12, 13, 10)
                 bytes_extend(ctx["code"], insn_mov_r64_r64(0, 12))
             }
-	            if nm == "malloc_k" {
-	                var tmp0b = locals["$tmp0"]
-	                if oren_type_tag(tmp0b) == 0 { err(ctx, "x64 native v0: missing $tmp0 slot for malloc_k tracking"); _intr_tmp_pop(ctx, base); return nil }
+            if nm == "malloc_k" {
+                var tmp0b = locals["$tmp0"]
+                if oren_type_tag(tmp0b) == 0 { err(ctx, "x64 native v0: missing $tmp0 slot for malloc_k tracking"); _intr_tmp_pop(ctx, base); return nil }
                 // r12 = ptr ; r13 = aligned_size ; r10 = kind
                 bytes_extend(ctx["code"], insn_mov_r64_r64(12, 0))
                 _emit_mov_r64_mrbp(ctx, 13, 0 - tmp0b)
                 _emit_mov_r64_mrbp(ctx, 10, 0 - tmp_kind)
+                if ctx["trace_native_alloc_req"] != nil {
+                    _emit_trace_alloc_request_x64(ctx, locals, 12, 13, 10)
+                }
                 _emit_track_alloc_x64(ctx, locals, 12, 13, 10)
                 bytes_extend(ctx["code"], insn_mov_r64_r64(0, 12))
                 _intr_tmp_pop(ctx, base)

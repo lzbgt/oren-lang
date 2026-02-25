@@ -492,6 +492,12 @@ fn _x64_new_ctx(linked, platform) {
     if oren_env("OREN_TRACE_NATIVE_LIST_HDR") != nil {
         ctx["trace_native_list_hdr"] = 1
     }
+    // Bounded debug knob:
+    // Enable pre-track alloc request tracing for malloc/malloc_k.
+    //   OREN_TRACE_NATIVE_ALLOC_REQ=1 ./oren_stage2 build ... --platform x64-linux --no-cache
+    if oren_env("OREN_TRACE_NATIVE_ALLOC_REQ") != nil {
+        ctx["trace_native_alloc_req"] = 1
+    }
     return ctx
 }
 

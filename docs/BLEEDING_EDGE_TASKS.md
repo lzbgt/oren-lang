@@ -97,6 +97,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace: alloc_churn run with `OREN_TRACE_TRACK_ALLOC_NEW_SIZE_MIN=65536` emitted
      `[track_alloc_new_size] ... size=160000 kind=0` and caused benchmark stdout mismatch
      (log: `build/logs/bench_alloc_churn_track_alloc_size_min64k_20260226_045645.log`).
+   - New: `OREN_TRACE_NATIVE_ALLOC_REQ=1` emits a native-side pre-track trace
+     (`oren_trace_alloc_request`) before `oren_track_alloc_new` to catch size corruption at the call site.
    - Instrument `malloc_k`/arena callers to log size+cap before tracking when `size` is implausible, and audit
      native codegen for size/arg clobbers when new regressions appear.
    - Expand fast-path tracing in native emitters to pinpoint header writes.

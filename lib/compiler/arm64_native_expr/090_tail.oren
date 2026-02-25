@@ -510,23 +510,59 @@ fn native_call_chunk_090_tail(ctx, fn_name, expr, args) {
                 set_u32_le(ctx["code"], jump_end_malloc, insn_b((end_target - jump_end_malloc) / 4))
                 set_u32_le(ctx["code"], jump_use_chunk, insn_b_cond((chunk_target - jump_use_chunk) / 4, 11)) // LT -> chunk
     
-	                var track_target = bytes_len(ctx["code"])
-	                if fn_name == "malloc" {
-	                    // Track allocation (kind = misc)
-	                    push_u32_le(ctx["code"], insn_mov_reg(1, 9))    // X1 = size
-	                    push_u32_le(ctx["code"], insn_movz(2, 5))       // kind = 5
-	                    var bl_track_pos = bytes_len(ctx["code"])
-	                    push_u32_le(ctx["code"], 0)
-	                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track_pos, "name": "oren_track_alloc_new"})
-	                }
-	                if fn_name == "malloc_k" {
-	                    // Track allocation with caller-provided kind.
-	                    push_u32_le(ctx["code"], insn_mov_reg(1, 9))    // X1 = size
-	                    push_u32_le(ctx["code"], insn_mov_reg(2, 10))   // X2 = kind
-	                    var bl_track_pos2 = bytes_len(ctx["code"])
-	                    push_u32_le(ctx["code"], 0)
-	                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track_pos2, "name": "oren_track_alloc_new"})
-	                }
+                var track_target = bytes_len(ctx["code"])
+                if fn_name == "malloc" {
+                    // Track allocation (kind = misc)
+                    push_u32_le(ctx["code"], insn_mov_reg(1, 9))    // X1 = size
+                    push_u32_le(ctx["code"], insn_movz(2, 5))       // kind = 5
+                    if ctx["trace_native_alloc_req"] != nil {
+                        // Trace alloc request before tracking to catch size corruption.
+                        push_u32_le(ctx["code"], insn_sub_sp(32))
+                        push_u32_le(ctx["code"], insn_str_reg_sp(0, 0))
+                        push_u32_le(ctx["code"], insn_str_reg_sp(9, 8))
+                        push_u32_le(ctx["code"], insn_str_reg_sp(10, 16))
+                        ctx["stack_size"] = ctx["stack_size"] + 32
+                        push_u32_le(ctx["code"], insn_mov_reg(1, 9)) // X1 = size
+                        push_u32_le(ctx["code"], insn_movz(2, 5))    // kind = 5
+                        var bl_trace_pos = bytes_len(ctx["code"])
+                        push_u32_le(ctx["code"], 0)
+                        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace_pos, "name": "oren_trace_alloc_request"})
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 8))
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(10, 16))
+                        push_u32_le(ctx["code"], insn_add_sp(32))
+                        ctx["stack_size"] = ctx["stack_size"] - 32
+                    }
+                    var bl_track_pos = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track_pos, "name": "oren_track_alloc_new"})
+                }
+                if fn_name == "malloc_k" {
+                    // Track allocation with caller-provided kind.
+                    push_u32_le(ctx["code"], insn_mov_reg(1, 9))    // X1 = size
+                    push_u32_le(ctx["code"], insn_mov_reg(2, 10))   // X2 = kind
+                    if ctx["trace_native_alloc_req"] != nil {
+                        // Trace alloc request before tracking to catch size corruption.
+                        push_u32_le(ctx["code"], insn_sub_sp(32))
+                        push_u32_le(ctx["code"], insn_str_reg_sp(0, 0))
+                        push_u32_le(ctx["code"], insn_str_reg_sp(9, 8))
+                        push_u32_le(ctx["code"], insn_str_reg_sp(10, 16))
+                        ctx["stack_size"] = ctx["stack_size"] + 32
+                        push_u32_le(ctx["code"], insn_mov_reg(1, 9))  // X1 = size
+                        push_u32_le(ctx["code"], insn_mov_reg(2, 10)) // X2 = kind
+                        var bl_trace_pos2 = bytes_len(ctx["code"])
+                        push_u32_le(ctx["code"], 0)
+                        oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_trace_pos2, "name": "oren_trace_alloc_request"})
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(0, 0))
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(9, 8))
+                        push_u32_le(ctx["code"], insn_ldr_reg_sp(10, 16))
+                        push_u32_le(ctx["code"], insn_add_sp(32))
+                        ctx["stack_size"] = ctx["stack_size"] - 32
+                    }
+                    var bl_track_pos2 = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_track_pos2, "name": "oren_track_alloc_new"})
+                }
 	                
 	                // Return path
 	                var malloc_end = bytes_len(ctx["code"])
