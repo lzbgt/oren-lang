@@ -205,8 +205,10 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - Trace rejected list headers with `OREN_TRACE_GC_REUSE_BAD_LIST=1` (cap via `OREN_TRACE_GC_REUSE_BAD_LIST_CAP`).
     - Trace freed list headers with `OREN_TRACE_GC_FREE_LIST_HEADERS=1` (cap via `OREN_TRACE_GC_FREE_LIST_HEADERS_CAP`).
    - Trace list header writes with `OREN_TRACE_LIST_HEADER=1` (cap via `OREN_TRACE_LIST_HEADER_CAP`).
-- Trace list buffer allocations with `OREN_TRACE_LIST_BUF=1` (cap via `OREN_TRACE_LIST_BUF_CAP`).
-- Trace optimizer list reserve insertion with `OREN_TRACE_LIST_RESERVE=1`.
+   - Trace list buffer allocations with `OREN_TRACE_LIST_BUF=1` (cap via `OREN_TRACE_LIST_BUF_CAP`).
+   - Trace optimizer list reserve insertion with `OREN_TRACE_LIST_RESERVE=1`.
+   - Trace implausible `track_alloc_new` sizes with `OREN_TRACE_TRACK_ALLOC_NEW_SIZE=1`
+     (default min 1<<30; tunable via `OREN_TRACE_TRACK_ALLOC_NEW_SIZE_MIN`/`_CAP`).
    - New: `OREN_TRACE_NATIVE_LIST_HDR=1` enables arm64 + x64 fast‑path list header tracing (calls `oren_trace_list_header` on list/list_int push fast paths).
      - Arm64 fast list push while-loops now emit list header traces on the count update (rolling, 2026-02-25).
    - GC init now registers the main thread for stack scanning to avoid missing roots during auto-GC reuse tests.

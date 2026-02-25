@@ -92,6 +92,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      trace-only artifact or a real metadata corruption under GC.
    - New: GC auto trace with `OREN_TRACE_NATIVE_LIST_HDR=1` completes cleanly after spilling list ptr to stack in
      the trace hook; keep this guard.
+   - New: `OREN_TRACE_TRACK_ALLOC_NEW_SIZE=1` logs implausible `track_alloc_new` sizes
+     (default min 1<<30; tunable via `OREN_TRACE_TRACK_ALLOC_NEW_SIZE_MIN`/`_CAP`) to catch size corruption early.
    - Instrument `malloc_k`/arena callers to log size+cap before tracking when `size` is implausible, and audit
      native codegen for size/arg clobbers when new regressions appear.
    - Expand fast-path tracing in native emitters to pinpoint header writes.

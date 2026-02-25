@@ -39,6 +39,9 @@ var g_trace_list_track_size = -1
 var g_trace_list_track_size_cap = 0
 var g_trace_track_alloc_new = -1
 var g_trace_track_alloc_new_cap = 0
+var g_trace_track_alloc_new_size = -1
+var g_trace_track_alloc_new_size_cap = 0
+var g_trace_track_alloc_new_size_min = 0
 var g_trace_list_alloc = -1
 var g_trace_list_alloc_cap = 0
 var g_trace_list_alloc_ring_ptr = 0
@@ -348,6 +351,42 @@ fn trace_track_alloc_new_consume() {
     if g_trace_track_alloc_new_cap <= 0 { return 0 }
     g_trace_track_alloc_new_cap = g_trace_track_alloc_new_cap - 1
     return 1
+}
+
+fn trace_track_alloc_new_size_enabled() {
+    if g_trace_track_alloc_new_size == 1 { return true }
+    var v = native_envp_get_value_ptr("OREN_TRACE_TRACK_ALLOC_NEW_SIZE")
+    if v == 0 { return false }
+    if ptr_get_byte(v) != 0 && ptr_get_byte(v) != 48 {
+        g_trace_track_alloc_new_size = 1
+        g_trace_track_alloc_new_size_cap = 256
+        g_trace_track_alloc_new_size_min = 1073741824 // 1 << 30
+        var cap_ptr = native_envp_get_value_ptr("OREN_TRACE_TRACK_ALLOC_NEW_SIZE_CAP")
+        if cap_ptr != 0 {
+            var cap = native_parse_int_cstr(cap_ptr)
+            if cap > 0 { g_trace_track_alloc_new_size_cap = cap }
+        }
+        var min_ptr = native_envp_get_value_ptr("OREN_TRACE_TRACK_ALLOC_NEW_SIZE_MIN")
+        if min_ptr != 0 {
+            var minv = native_parse_int_cstr(min_ptr)
+            if minv > 0 { g_trace_track_alloc_new_size_min = minv }
+        }
+        return true
+    }
+    g_trace_track_alloc_new_size = 0
+    return false
+}
+
+fn trace_track_alloc_new_size_emit(ptr, size, kind) {
+    if trace_track_alloc_new_size_enabled() != true { return 0 }
+    if size < g_trace_track_alloc_new_size_min { return 0 }
+    if g_trace_track_alloc_new_size_cap <= 0 { return 0 }
+    g_trace_track_alloc_new_size_cap = g_trace_track_alloc_new_size_cap - 1
+    print("[track_alloc_new_size] ptr=" + oren_int_to_string(ptr) +
+          " kind=" + oren_int_to_string(kind) +
+          " size=" + oren_int_to_string(size) +
+          " min=" + oren_int_to_string(g_trace_track_alloc_new_size_min))
+    return 0
 }
 
 
