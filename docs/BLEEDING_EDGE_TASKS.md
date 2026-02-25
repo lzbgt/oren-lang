@@ -119,6 +119,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `OREN_TRACE_TRACK_ALLOC_NEW_SIZE_MIN=32768` failed with `list_int_reserve on non-list` panic
      (log: `build/logs/bench_run_alloc_churn_20260226_053122/oren_native/run_0.log`); keep tracking
      the reserve-on-non-list corruption path (2026-02-26).
+   - Trace: alloc_churn native baseline (no trace env) still panics with `list_int_reserve on non-list`
+     (log: `build/logs/bench_run_alloc_churn_20260226_053425/oren_native/run_0.log`), so the corruption
+     is not trace‑specific (2026-02-26).
+   - Trace: even with `OREN_NATIVE_RESOLVE_SYMBOL=1` (rtobj disabled), alloc_churn panic stacks still
+     resolve as `???` (log: `build/logs/bench_run_alloc_churn_20260226_053529/oren_native/run_0.log`);
+     resolve-symbol likely needs ASLR slide awareness or debug‑info embedding to make traces actionable.
    - New: `OREN_TRACE_NATIVE_ALLOC_REQ=1` emits a native-side pre-track trace
      (`oren_trace_alloc_request`) before `oren_track_alloc_new` to catch size corruption at the call site.
    - Instrument `malloc_k`/arena callers to log size+cap before tracking when `size` is implausible, and audit
