@@ -617,7 +617,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: fixtures pass; no backend-only semantics.
 
 5) **W3 - SIMD/typed-buffer parity on native (x64 + arm64)** (M)
-    - Baseline (arm64 native, 2026-02-25): `dot_product_int` 3.99× C.
+    - Baseline (arm64 native, 2026-02-26): `dot_product_int` 4.12× C.
     - SSE2 baseline on x64; scalar equivalence gated.
     - Wire list_int dot loops to SIMD kernels (or typed-buffer views) where safe.
     - arm64 native fast list_int dot loops unroll by 2 when lists are unique.
@@ -635,7 +635,8 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: OBC `alloc_churn` <= 10x C; AVM SIMD test suite passes.
 
 7) **W3 - AVM unboxed list<int> payload + lowering** (M)
-   - Baseline (OBC, 2026-02-20): `dot_product_int` 1.80× C, `array_sum_int` 1.15× C.
+   - Baseline (OBC, 2026-02-26): `dot_product_int` 71.58× C, `array_sum_int` 58.29× C.
+   - Baseline (native, 2026-02-26): `array_sum_int` 3.80× C, `multi_list_sum` 3.18× C.
    - Implement list<int> payload + OBC lowering.
    - Gate: list<int> fixtures + OBC perf parity for dot/sum loops.
 
