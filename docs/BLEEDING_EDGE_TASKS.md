@@ -119,12 +119,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `OREN_TRACE_TRACK_ALLOC_NEW_SIZE_MIN=32768` failed with `list_int_reserve on non-list` panic
      (log: `build/logs/bench_run_alloc_churn_20260226_053122/oren_native/run_0.log`); keep tracking
      the reserve-on-non-list corruption path (2026-02-26).
-   - Trace: alloc_churn native baseline (no trace env) still panics with `list_int_reserve on non-list`
-     (log: `build/logs/bench_run_alloc_churn_20260226_053425/oren_native/run_0.log`), so the corruption
-     is not trace‑specific (2026-02-26).
-   - Trace: even with `OREN_NATIVE_RESOLVE_SYMBOL=1` (rtobj disabled), alloc_churn panic stacks still
-     resolve as `???` (log: `build/logs/bench_run_alloc_churn_20260226_053529/oren_native/run_0.log`);
-     resolve-symbol likely needs ASLR slide awareness or debug‑info embedding to make traces actionable.
+   - Trace: alloc_churn native baseline now completes after the alloc-index rebuild fallback
+     (log: `build/logs/bench_run_alloc_churn_20260226_054752/oren_native/run_0.log`); earlier panic
+     logs remain as reference (e.g., `bench_run_alloc_churn_20260226_053425`).
+   - Trace: when forcing `OREN_NATIVE_RESOLVE_SYMBOL=1` during the earlier panic, stacks still
+     resolved as `???` (log: `build/logs/bench_run_alloc_churn_20260226_053529/oren_native/run_0.log`);
+     resolve-symbol likely needs ASLR slide awareness or debug‑info embedding if we need it again.
    - New: `OREN_TRACE_LIST_RESERVE_FAIL=1` prints list/node metadata when `list_int_reserve` fails
      (stage + list ptr + node kind + list magic) to debug the non-list corruption path (2026-02-26).
    - Fix: list/list_int reserve now rebuilds the alloc index once on non-list detection before panicking,
