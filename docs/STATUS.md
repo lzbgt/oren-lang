@@ -34,10 +34,13 @@ Oren is "mature" when all are reliably true on Tier-1 targets
 Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/zig/go):
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
-- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.40×, `dot_product` 2.57×; `alloc_churn` 6.28×, `alloc_drop` 2.36× on arm64, 2026-02-26).
+- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.33×, `dot_product` 2.57×; `alloc_churn` 6.28×, `alloc_drop` 2.36× on arm64, 2026-02-26).
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
+- **Feature set maturity**: essential modern features are still planned (see `docs/LANGUAGE.md`):
+  `yield`/stackless coroutines, built-in `assert`/`test`, structured error model, visibility boundaries,
+  first-class bytes + typed buffers, and variadic ergonomics; dynamic module loading and user-defined methods remain unimplemented.
 
 Design intent is bleeding‑edge (determinism + capability gating + AVM), but execution maturity is still in the rolling phase.
 
@@ -53,7 +56,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Cross‑backend parity is enforced via fixtures, not a stabilized ABI.
 
 2) **W5 - Performance parity (hot loops + alloc/GC)**
-   - Baselines: `loop_sum` 3.40× C, `dot_product` 2.57× C; `alloc_churn` 6.28× C, `alloc_drop` 2.36× C (arm64, 2026-02-26).
+   - Baselines: `loop_sum` 3.33× C, `dot_product` 2.57× C; `alloc_churn` 6.28× C, `alloc_drop` 2.36× C (arm64, 2026-02-26).
    - Priority: hot loops remain above the 2× gate; allocation/GC is now within the 8×/5× gates on arm64.
    - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
 
@@ -64,14 +67,20 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 4) **W4 - Platform breadth (Tier‑1 intent targets)**
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
 
-5) **W3 - Tooling/ABI stability**
+5) **W4 - Feature set completeness (essential modern features)**
+   - Planned (not yet implemented): `yield`/stackless coroutines, built-in `assert`/`test`,
+     structured error model, visibility boundaries, bytes + typed buffers, variadic ergonomics
+     (see `docs/LANGUAGE.md` "Planned (Essential Modern Language Features)").
+   - Not implemented: dynamic module loading; user-defined methods/inheritance (see `docs/LANGUAGE.md`).
+
+6) **W3 - Tooling/ABI stability**
    - ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
    - AVM build/parity gate integrity is tracked as a W4 blocker when broken (select case parsing + helper exports; 2026-02-25).
 
-6) **W3 - Docs fidelity + regression gates**
+7) **W3 - Docs fidelity + regression gates**
    - Docs are grounded in fixtures/tests; gaps get surfaced via parity gates.
 
-7) **W3 - Structural/SOLID debt**
+8) **W3 - Structural/SOLID debt**
    - Large source files remain a maintainability risk; measured (non-generated, non-web) >2000 lines:
      - (none currently)
    - Splits underway:
@@ -140,7 +149,7 @@ Baseline reference: `benchmarks/RESULTS_LATEST.md` (M2 Pro, 2026-02-26).
 Weights reflect expected impact on C parity and breadth of affected code.
 
 1) **W5 - Native integer hot-loop parity (loop_sum, dot_product)** (L)
-   - Baseline (arm64 native, snapshot 2026-02-26): `loop_sum` 3.40× C, `dot_product` 2.57× C.
+   - Baseline (arm64 native, snapshot 2026-02-26): `loop_sum` 3.33× C, `dot_product` 2.57× C.
    - Expand inty propagation and arithmetic fast paths.
    - Split runtime init vs steady-state cost and quantify the init gap (see `benchmarks/RESULTS_LATEST.md` notes).
      - New: `OREN_BENCH_INIT_SPLIT=1` adds loop_sum init/steady estimation (see `benchmarks/README.md`).
@@ -166,6 +175,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Arm64 list<int> get-sum + dot fast loops now keep i/sum in registers across iterations to reduce stack traffic (rolling, 2026-02-26).
    - Arm64 boxed list get-sum + dot fast loops now keep i/sum in registers across iterations to reduce stack traffic (rolling, 2026-02-26).
    - LCG fast loop safepoint mask now 4095 on arm64 + x64 (rolling, 2026-02-26).
+   - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - TODO: root-cause the arm64 offset regression when removing the tick stack slot and safely eliminate the unused slot.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 

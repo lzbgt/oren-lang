@@ -34,6 +34,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 - New: alloc_churn is back within the 8× gate after default-on loop list reuse; keep monitoring for regressions.
 - Reweight: runtime robustness + tagged-value convergence are now explicit W5 blockers; perf work must preserve correctness.
 - Reweight: regression gate integrity (AVM build + parity tags) is promoted to W4 because it blocks W5 progress when broken.
+- Reweight: essential language feature completeness is promoted to W4 (see `docs/LANGUAGE.md` planned features).
 
 1) **W5 perf parity: allocation/GC (alloc_churn, alloc_drop)**
    - Enable safe reuse paths and reduce tracking overhead.
@@ -108,6 +109,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     - New: arm64 list<int> get-sum + dot loops keep i/sum in registers across iterations (2026-02-26).
     - New: arm64 boxed list get-sum + dot loops keep i/sum in registers across iterations (2026-02-26).
     - New: LCG fast loop safepoint mask raised to 4095 on arm64 + x64 (2026-02-26).
+    - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
    - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
    - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
@@ -138,7 +140,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Improve OBC parity for dot/sum loops.
    - Gate: list<int> fixtures + OBC perf parity.
 
-9) **W3 structural/SOLID refactors (large files)**
+9) **W4 feature set completeness (essential modern features)**
+   - Implement across backends (C/native/OBC): `yield`/stackless coroutines, built-in `assert`/`test`,
+     structured error model, visibility boundaries, bytes + typed buffers, variadic ergonomics.
+   - Not implemented yet: dynamic module loading; user-defined methods/inheritance (track when design lands).
+   - Gate: feature fixtures across backends + updated `docs/LANGUAGE.md`/`docs/STATUS.md`.
+
+10) **W3 structural/SOLID refactors (large files)**
    - Split high-churn, 2000+ line modules into focused units with clear boundaries.
    - Started: GC safepoint helpers moved to `lib/compiler/arm64_native_gc.oren`.
    - Done: `lib/compiler/arm64_native_stmt.oren` split into loop/list/runtime modules (<2000 lines each).
@@ -156,7 +164,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      (<2000 lines each, 2026-02-25).
    - Next targets: none (current non-generated sources are <2000 lines).
 
-10) **Tooling reliability and reproducibility**
+11) **Tooling reliability and reproducibility**
    - Keep build/test/bench workflows stable and fast.
    - Fix AVM build breaks that block `make verify-backend-parity-tags` (select case parsing + helper visibility + headers).
    - Gate: `make test`, `make benchmarks`, and snapshot updates are deterministic.
