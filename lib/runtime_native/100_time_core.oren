@@ -779,6 +779,7 @@ var g_trace_gc_reuse_bad_list_ring_recent = 0
 var g_trace_gc_reuse_bad_list_ring_pre = 0
 var g_trace_gc_reuse_bad_list_kind_flip = 0
 var g_trace_gc_reuse_list_hdr_trace = 0
+var g_trace_gc_list_hdr_ok_cap = 0
 var g_trace_gc_reuse_node_magic = 0
 var g_trace_gc_reuse_node_magic_cap = 0
 var g_trace_gc_reuse_alloc_node = 0
@@ -863,6 +864,7 @@ fn native_runtime_init_gc_mode(default_enabled) {
     g_trace_gc_reuse_bad_list_ring_pre = 0
     g_trace_gc_reuse_bad_list_kind_flip = 0
     g_trace_gc_reuse_list_hdr_trace = 0
+    g_trace_gc_list_hdr_ok_cap = 0
     g_trace_gc_reuse_node_magic = 0
     g_trace_gc_reuse_node_magic_cap = 0
     g_trace_gc_reuse_alloc_node = 0
@@ -1077,6 +1079,11 @@ fn native_runtime_init_gc_mode(default_enabled) {
             g_trace_gc_reuse_list_hdr_trace = cap
             g_gc_reuse_list_hdr_trace_cap = cap
         }
+    }
+    var v_trace_hdr_ok = native_envp_get_value_ptr("OREN_TRACE_GC_LIST_HDR_OK")
+    if v_trace_hdr_ok != 0 {
+        var cap = native_parse_i64_dec_cstr_or_neg1(v_trace_hdr_ok)
+        if cap > 0 { g_trace_gc_list_hdr_ok_cap = cap }
     }
     var v_trace_node_magic = native_envp_get_value_ptr("OREN_TRACE_GC_REUSE_NODE_MAGIC")
     if v_trace_node_magic != 0 {

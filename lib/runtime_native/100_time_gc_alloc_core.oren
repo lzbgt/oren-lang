@@ -881,6 +881,21 @@ fn native_gc_list_header_ok_impl(ptr, kind, chunk_size, allow_poison) {
     if ptr == 0 { return 0 }
     if ptr < 4096 { return 0 }
     if chunk_size < 32 { return 0 }
+    if g_trace_gc_list_hdr_ok_cap > 0 {
+        var len = ptr_get(iadd(ptr, 0))
+        var cap = ptr_get(iadd(ptr, 8))
+        var buf = ptr_get(iadd(ptr, 16))
+        var magic = ptr_get(iadd(ptr, 24))
+        print("[gc_list_hdr_ok] ptr=" + oren_int_to_string(ptr) +
+            " kind=" + oren_int_to_string(kind) +
+            " chunk=" + oren_int_to_string(chunk_size) +
+            " len=" + oren_int_to_string(len) +
+            " cap=" + oren_int_to_string(cap) +
+            " buf=" + oren_int_to_string(buf) +
+            " magic=" + oren_int_to_string(magic) +
+            " allow_poison=" + oren_int_to_string(allow_poison))
+        g_trace_gc_list_hdr_ok_cap = g_trace_gc_list_hdr_ok_cap - 1
+    }
     var magic = ptr_get(iadd(ptr, 24))
     if magic != list_magic() {
         if allow_poison == 0 { return 0 }

@@ -217,6 +217,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: list-hdr reuse scan run with `OREN_TRACE_GC_REUSE_LIST_HDR=8` segfaulted
     quickly and emitted no `[gc_reuse_list_hdr]` lines (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_listhdr_20260227.log`, 2026-02-27).
+  - Tool: list header validation now optionally logs `[gc_list_hdr_ok]` before
+    `native_gc_list_header_ok_impl` returns (`OREN_TRACE_GC_LIST_HDR_OK=<n>`)
+    to capture raw header fields even if validation fails (rolling, 2026-02-27).
+  - Trace: list header ok trace emitted entries (e.g., `kind=8` and `kind=2`)
+    before a segfault (log:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_hdr_ok_20260227.log`, 2026-02-27).
   - Trace: ring-recent run logs `[list_hdr_ring_recent]` entries for the bad list pointer
     (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent.log`, 2026-02-26).
   - Trace: correlator output now includes `[list_hdr_ring_recent]` blocks for the bad list
