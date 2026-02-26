@@ -197,6 +197,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     - New: dot_product native at 2.57× C (arm64 macOS, 2026-02-26).
     - New: arm64 list<int> get-sum + dot loops keep i/sum in registers across iterations (2026-02-26).
     - New: arm64 boxed list get-sum + dot loops keep i/sum in registers across iterations (2026-02-26).
+    - Fix: arm64 boxed fast list dot loop now initializes X10 tick mask before inline safepoint ticks (2026-02-26).
     - New: LCG fast loop safepoint mask raised to 4095 on arm64 + x64 (2026-02-26).
     - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
     - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.

@@ -971,6 +971,8 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
     if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
+    // inline safepoint mask (restored after runtime calls)
+    push_u32_le(ctx["code"], insn_movz(10, 4095))
 
     // load i/n/sum locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
