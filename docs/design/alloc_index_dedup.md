@@ -50,3 +50,9 @@ hard-coded number:
 2) Record `dedup_hits` from the `[alloc_index]` line in the log.
 3) Set `DEDUP_CAP` to a safe multiple of the observed peak (e.g., 2–4×) so normal
    churn does not trip the guardrail, while true regressions still surface quickly.
+
+Helper:
+
+- `scripts/suggest_alloc_index_dedup_cap.sh [--run] [log_path]`
+  - Runs GC-stress (optional) and suggests a cap from `dedup_hits` with a configurable
+    multiplier (`DEDUP_CAP_MULT`, default 4).

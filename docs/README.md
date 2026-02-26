@@ -78,6 +78,7 @@ Local cross-backend microbenchmarks live under `benchmarks/`:
 - `docs/design/tagged_values.md` — staged tagged-value convergence plan and migration gates
 - `docs/design/arena_loop_policy.md` — loop arena policy + GC reuse safety (alloc/GC perf track)
 - `docs/design/alloc_index_dedup.md` — alloc-index de-dup for `track_alloc_new` under reuse/GC churn
+- `scripts/suggest_alloc_index_dedup_cap.sh` — suggest a `dedup_hits` guardrail cap from logs
 
 ## 5) Rolling policy (no stubs)
 
