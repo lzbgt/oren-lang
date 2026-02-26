@@ -813,6 +813,7 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
     if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
     if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
     g_trace_gc_reuse_bad_list_cap = g_trace_gc_reuse_bad_list_cap - 1
+    g_gc_reuse_bad_list_prints = g_gc_reuse_bad_list_prints + 1
     var len = ptr_get(iadd(ptr, 0))
     var cap = ptr_get(iadd(ptr, 8))
     var buf = ptr_get(iadd(ptr, 16))
@@ -2090,6 +2091,7 @@ fn native_gc_collect() {
         var reuse_scan_steps_at_cap = g_gc_reuse_scan_steps_at_cap
         var reuse_guard_live = g_gc_reuse_guard_live_count
         var reuse_guard_bad = g_gc_reuse_guard_bad_list_count
+        var reuse_bad_prints = g_gc_reuse_bad_list_prints
         var take_by_ptr = g_gc_free_list_take_by_ptr_hits
         var take_reuse = g_gc_free_list_take_reuse_hits
         if g_trace_gc_reuse != 0 {
@@ -2111,6 +2113,7 @@ fn native_gc_collect() {
                 " scan_cap_hits=" + oren_int_to_string(reuse_scan_cap_hits) +
                 " guard_live=" + oren_int_to_string(reuse_guard_live) +
                 " guard_bad_list=" + oren_int_to_string(reuse_guard_bad) +
+                " bad_list_prints=" + oren_int_to_string(reuse_bad_prints) +
                 " take_total=" + oren_int_to_string(take_by_ptr + take_reuse) +
                 " take_by_ptr=" + oren_int_to_string(take_by_ptr) +
                 " take_reuse=" + oren_int_to_string(take_reuse))
@@ -2124,6 +2127,7 @@ fn native_gc_collect() {
         g_gc_reuse_scan_steps_at_cap = 0
         g_gc_reuse_guard_live_count = 0
         g_gc_reuse_guard_bad_list_count = 0
+        g_gc_reuse_bad_list_prints = 0
         g_gc_free_list_take_by_ptr_hits = 0
         g_gc_free_list_take_reuse_hits = 0
     } else if take_traced {

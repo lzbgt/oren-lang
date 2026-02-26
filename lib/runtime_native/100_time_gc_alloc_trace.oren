@@ -17,6 +17,7 @@ var g_gc_reuse_miss_count = 0
 var g_gc_reuse_hit_bytes = 0
 var g_gc_reuse_guard_live_count = 0
 var g_gc_reuse_guard_bad_list_count = 0
+var g_gc_reuse_bad_list_prints = 0
 var g_gc_reuse_scan_steps = 0
 var g_gc_reuse_scan_cap_hits = 0
 var g_gc_reuse_scan_steps_at_cap = 0
