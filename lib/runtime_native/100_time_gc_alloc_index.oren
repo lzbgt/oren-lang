@@ -264,6 +264,29 @@ fn native_alloc_index_put_node(node) {
     if node == 0 { return 0 }
     var ptr = ptr_get(node)
     if ptr == 0 || ptr < 4096 { return 0 }
+    if g_trace_alloc_index != 0 {
+        var kind = ptr_get(iadd(node, 16))
+        if kind == 2 || kind == list_int_kind() {
+            var size = ptr_get(iadd(node, 8))
+            if size >= 1073741824 {
+                var len = ptr_get(iadd(ptr, 0))
+                var cap = ptr_get(iadd(ptr, 8))
+                var buf = ptr_get(iadd(ptr, 16))
+                var magic = ptr_get(iadd(ptr, 24))
+                var expected = 32
+                if cap > 0 && cap < 1048576 { expected = expected + cap * 8 }
+                print("[alloc_index_size] ptr=" + oren_int_to_string(ptr) +
+                      " node=" + oren_int_to_string(node) +
+                      " kind=" + oren_int_to_string(kind) +
+                      " size=" + oren_int_to_string(size) +
+                      " expected=" + oren_int_to_string(expected) +
+                      " len=" + oren_int_to_string(len) +
+                      " cap=" + oren_int_to_string(cap) +
+                      " buf=" + oren_int_to_string(buf) +
+                      " magic=" + oren_int_to_string(magic))
+            }
+        }
+    }
     if ptr_get(iadd(node, 40)) != native_node_magic() {
         ptr_set(iadd(node, 40), native_node_magic())
     }
