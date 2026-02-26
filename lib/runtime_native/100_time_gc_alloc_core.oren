@@ -2195,7 +2195,11 @@ fn native_gc_register_root_tag(ptr, tag) {
     if g_trace_gc_register_root != 0 && g_trace_gc_register_root_cap > 0 {
         var t = _gc_register_root_tag_name(tag)
         var skip = 0
-        if t == "" && tag == nil && g_trace_gc_register_root_all == 0 { skip = 1 }
+        var nilv = global_get_value_nil()
+        if t == "" && g_trace_gc_register_root_all == 0 {
+            if tag == nil { skip = 1 }
+            if skip == 0 && nilv != 0 && tag == nilv { skip = 1 }
+        }
         if skip == 0 {
             g_trace_gc_register_root_cap = g_trace_gc_register_root_cap - 1
             var in_storage = 0
