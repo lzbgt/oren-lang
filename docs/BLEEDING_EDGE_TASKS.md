@@ -154,7 +154,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - New: `make verify-native-quick-gc` runs the standard native quick verify plus GC-stress
      quick integration to catch tracking regressions (rolling, 2026-02-26).
    - New: `OREN_TRACE_ALLOC_INDEX=1` now reports alloc-index rebuild stats
-     (`[alloc_index] rebuild allocs=... static=... dt_ms=...`) to quantify how often
+     (`[alloc_index] rebuild allocs=... static=... dt_ms=... dedup_hits=...`) to quantify how often
      the fallback path runs under green-task churn (2026-02-26).
    - New: `OREN_TRACE_ALLOC_INDEX_REBUILD_CAP=<n>` panics when rebuilds exceed `n` (trace-only guardrail)
      to catch runaway rebuild loops during corruption hunts (rolling, 2026-02-26).

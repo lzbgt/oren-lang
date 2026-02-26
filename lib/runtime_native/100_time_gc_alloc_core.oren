@@ -897,6 +897,7 @@ fn oren_track_alloc_new(ptr, size, kind) {
         hit = native_alloc_index_get(ptr)
     }
     if hit != 0 {
+        g_alloc_index_dedup_hits = g_alloc_index_dedup_hits + 1
         if g_gc_reuse_blocks != 0 {
             native_free_blocks_remove_node(hit)
         }
@@ -1858,6 +1859,7 @@ fn native_gc_collect() {
             " rebuild_allocs=" + oren_int_to_string(g_alloc_index_rebuild_allocs) +
             " rebuild_static=" + oren_int_to_string(g_alloc_index_rebuild_static) +
             " probe_exhausted=" + oren_int_to_string(g_alloc_index_probe_exhausted_count) +
+            " dedup_hits=" + oren_int_to_string(g_alloc_index_dedup_hits) +
             " len=" + oren_int_to_string(g_alloc_index_len) +
             " cap=" + oren_int_to_string(g_alloc_index_cap))
         g_alloc_index_rebuild_count = 0
@@ -1865,6 +1867,7 @@ fn native_gc_collect() {
         g_alloc_index_rebuild_allocs = 0
         g_alloc_index_rebuild_static = 0
         g_alloc_index_probe_exhausted_count = 0
+        g_alloc_index_dedup_hits = 0
     }
     if g_trace_alloc_index_remove_time != 0 {
         var avg = 0
