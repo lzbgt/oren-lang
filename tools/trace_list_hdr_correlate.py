@@ -63,6 +63,24 @@ def summarize_recent(entries, max_items=16) -> str:
         seq = seq[:max_items]
     return " -> ".join([f"{op}:{kind}" for op, kind in seq])
 
+def compare_recent_sequences(seq_a, seq_b):
+    if seq_a == seq_b:
+        return None
+    out = []
+    max_len = max(len(seq_a), len(seq_b))
+    for i in range(max_len):
+        a = seq_a[i] if i < len(seq_a) else None
+        b = seq_b[i] if i < len(seq_b) else None
+        if a == b:
+            continue
+        if a is None:
+            out.append(f"+{i}:{b[0]}:{b[1]}")
+        elif b is None:
+            out.append(f"-{i}:{a[0]}:{a[1]}")
+        else:
+            out.append(f"{i}:{a[0]}:{a[1]}->{b[0]}:{b[1]}")
+    return out
+
 
 def fmt_gc(entry) -> str:
     return (
@@ -77,6 +95,7 @@ def main() -> int:
     max_out = max(1, args.max)
     per_ptr = collections.defaultdict(lambda: collections.deque(maxlen=limit))
     per_ptr_recent = collections.defaultdict(list)
+    per_ptr_recent_hits = collections.defaultdict(list)
     recent_order = []
     events = []
     pending_gc = None
@@ -148,6 +167,8 @@ def main() -> int:
                 if not m:
                     continue
                 ptr, chunk, kind, ln, cap, buf, magic = map(int, m.groups())
+                if ptr in per_ptr_recent:
+                    per_ptr_recent_hits[ptr].append(list(per_ptr_recent[ptr]))
                 event = {
                     "ptr": ptr,
                     "chunk": chunk,
@@ -207,6 +228,26 @@ def main() -> int:
             recent_emitted += 1
             if recent_emitted >= max_out:
                 break
+
+    if per_ptr_recent_hits:
+        for ptr, hits in per_ptr_recent_hits.items():
+            if len(hits) < 2:
+                continue
+            print(f"[list_hdr_ring_recent_delta] list={ptr} hits={len(hits)}")
+            prev_seq = None
+            for idx, entries in enumerate(hits):
+                seq_pairs = []
+                last = None
+                for entry in entries:
+                    key = (entry["op"], entry["kind"])
+                    if key != last:
+                        seq_pairs.append(key)
+                        last = key
+                if prev_seq is not None:
+                    delta = compare_recent_sequences(prev_seq, seq_pairs)
+                    if delta:
+                        print(f"  delta hit={idx} changes={' '.join(delta)}")
+                prev_seq = seq_pairs
 
     return 0
 

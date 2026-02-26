@@ -882,6 +882,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringcap512.log`, 2026-02-27;
       correlate:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringcap512_correlate.log`, 2026-02-27).
+    - Trace: correlator delta output shows no per-hit deltas for kind-flip2 (single bad-list
+      sample in correlate output) (log:
+      `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_kindflip2_correlate.log`, 2026-02-27).
     - Trace: ring-recent run logs `[list_hdr_ring_recent]` entries for the bad list pointer
       (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent.log`, 2026-02-26).
     - Trace: correlator output now includes `[list_hdr_ring_recent]` blocks for the bad list
@@ -908,7 +911,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Tool: correlator accepts ring-all `idx=` entries to match `list_hdr_ring` dumps
       when `OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL=1` is set (rolling, 2026-02-26).
     - Tool: correlator now ingests `[list_hdr_ring_recent]` and emits recent-op blocks
-      for bad-list pointers, including a summarized op sequence (rolling, 2026-02-26).
+      for bad-list pointers, including a summarized op sequence and per-hit deltas
+      across successive bad-list events (rolling, 2026-02-26).
     - Trace: correlate output for the alloc-node/dup run now captures the ring entry alongside
       the `gc_free_list` sample (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_allocnode_dup2_correlate.log`, 2026-02-26).
