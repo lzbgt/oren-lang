@@ -272,6 +272,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     with repeated bad-list entries (run_status=124 timeout), indicating reuse hits
     even without per-take logging
     (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_takecount_200_cap128.log`, 2026-02-26).
+  - New: `OREN_TRACE_GC_REUSE_SUMMARY=1` prints a per-GC summary line that includes
+    reuse stats plus free-list take counters (and auto-enables reuse tracing),
+    to correlate bad-list bursts with reuse/take activity (2026-02-26).
+  - Trace: per-GC summary run (`OREN_BENCH_ITERS=200`, `OREN_BENCH_LIST_LEN=64`,
+    `OREN_BENCH_GC_EVERY=50`, `OREN_GC_REUSE_SCAN_CAP=128`) logged
+    `[gc_reuse_summary] tries=363 hits=0 ... take_total=0` while still emitting
+    repeated bad-list entries, indicating bad-list triggers can occur without reuse hits
+    in this short run (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_200_cap128.log`, 2026-02-26).
   - New: alloc_churn trace harness now records run_status/run_timed_out/run_elapsed_sec
     and line-buffer command in the env log for timeout diagnostics (2026-02-26).
   - Next: determine why free-list take traces remain sparse under reuse (single put/take

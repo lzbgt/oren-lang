@@ -763,6 +763,8 @@ var g_trace_alloc_site = 0
 var g_trace_arena = 0
 // Optional tracing: reuse stats (tries/hits/misses).
 var g_trace_gc_reuse = 0
+// Optional tracing: per-GC summary line (reuse + free-list take counters).
+var g_trace_gc_reuse_summary = 0
 // Optional tracing: freed list pointers to catch UAF under reuse.
 var g_trace_freed_lists = 0
 var g_trace_freed_lists_cap = 0
@@ -834,6 +836,7 @@ fn native_runtime_init_gc_mode(default_enabled) {
     g_trace_alloc_site = 0
     g_trace_arena = 0
     g_trace_gc_reuse = 0
+    g_trace_gc_reuse_summary = 0
     g_trace_freed_lists = 0
     g_trace_freed_lists_cap = 0
     g_trace_gc_stack_ranges = 0
@@ -980,6 +983,13 @@ fn native_runtime_init_gc_mode(default_enabled) {
     var v_trace_reuse = native_envp_get_value_ptr("OREN_TRACE_GC_REUSE")
     if v_trace_reuse != 0 {
         if ptr_get_byte(v_trace_reuse) != 0 && ptr_get_byte(v_trace_reuse) != 48 {
+            g_trace_gc_reuse = 1
+        }
+    }
+    var v_trace_reuse_summary = native_envp_get_value_ptr("OREN_TRACE_GC_REUSE_SUMMARY")
+    if v_trace_reuse_summary != 0 {
+        if ptr_get_byte(v_trace_reuse_summary) != 0 && ptr_get_byte(v_trace_reuse_summary) != 48 {
+            g_trace_gc_reuse_summary = 1
             g_trace_gc_reuse = 1
         }
     }
