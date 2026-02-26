@@ -911,6 +911,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       logged a single summary line with `bad_list_prints=0` followed by repeated bad-list
       entries, suggesting summary timing does not capture subsequent bad-list prints
       in short timeouts (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_500_gc10.log`, 2026-02-26).
+    - Trace: 180s timeout run (`OREN_BENCH_ITERS=1000`, `OREN_BENCH_GC_EVERY=10`) still
+      logged one summary line with `bad_list_prints=0` followed by bad-list prints
+      counting down 10→1, reinforcing the gap between summary and later bad-list logs
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_1000_gc10_t180.log`, 2026-02-26).
     - New: bad-list logs now include `prints=<n>` so each `[gc_reuse_bad_list]` line can be
       correlated directly with the running bad-list counter (2026-02-26).
     - Trace: bad-list log `prints=<n>` counts down as expected (5→1) in
