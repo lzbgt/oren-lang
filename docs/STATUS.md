@@ -1019,6 +1019,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Tool: ptr-guard now logs `[list_hdr_ring_ptr_guard_set]` whenever the guard slot changes,
       capturing the new value + reason (env_enable/corrupt/g_storage/dup_seen_head_ptr) and
       the current op/list/kind (one-shot, 2026-02-27).
+    - Tool: ptr-guard now logs `[list_hdr_ring_ptr_guard_changed]` if the guard slot changes
+      outside the helper (detects unexpected writes; one-shot per change, 2026-02-27).
     - Trace: precheck+guard4 run shows a single `[list_hdr_ring_ptr_guard_set]` (env_enable)
       and no subsequent guard flips before timeout (log:
       `build/logs/alloc_churn_trace_precheck_guard4_20260227.log`, 2026-02-27).
