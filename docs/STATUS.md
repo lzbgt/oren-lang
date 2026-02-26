@@ -203,6 +203,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - LCG fast loop safepoint mask now 4095 on arm64 + x64 (rolling, 2026-02-26).
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
+   - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`):
+     - loop_sum: `while_generic` tick_off=0 (stacks=160/176/224, slots=2, bytes=16).
+     - dot_product: `fast_list_int_push_while` tick_off=0 (stack=208, slots=7, bytes=64);
+       `fast_list_int_dot_while` tick_off=0 (stack=224, slots=8, bytes=64);
+       `while_generic` tick_off=0 (stacks=224/240, slots=2, bytes=16).
    - TODO: root-cause the arm64 offset regression when removing the tick stack slot and safely eliminate the unused slot.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
