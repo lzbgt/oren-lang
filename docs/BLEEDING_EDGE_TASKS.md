@@ -304,6 +304,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/global_slots_idx433_after_stage2.log`, 2026-02-27).
   - Tool: ptr-guard now logs `[list_hdr_ring_ptr_guard_corrupt]` if the guard slot value
     exceeds 1 and looks like a tracked alloc/free pointer (one-shot, 2026-02-27).
+  - Tool: ptr-guard now logs `[list_hdr_ring_ptr_guard_set]` whenever the guard slot changes,
+    capturing the new value + reason (env_enable/corrupt/g_storage/dup_seen_head_ptr) and
+    the current op/list/kind (one-shot, 2026-02-27).
   - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
     during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
     are already corrupted before reuse validation (rolling, 2026-02-27).

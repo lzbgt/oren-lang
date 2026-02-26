@@ -258,7 +258,7 @@ fn _list_hdr_ring_enabled() {
     g_trace_list_hdr_ring_head = 0
     var v_guard = native_envp_get_value_ptr("OREN_TRACE_LIST_HDR_RING_PTR_GUARD")
     if v_guard != 0 && ptr_get_byte(v_guard) != 0 && ptr_get_byte(v_guard) != 48 {
-        g_trace_list_hdr_ring_ptr_guard = 1
+        _list_hdr_ring_set_ptr_guard(1, "env_enable", 0, 0, 0)
     }
     var v_dup = native_envp_get_value_ptr("OREN_TRACE_LIST_HDR_RING_DUP")
     if v_dup != 0 && ptr_get_byte(v_dup) != 0 && ptr_get_byte(v_dup) != 48 {
@@ -299,6 +299,21 @@ fn _list_hdr_ring_enabled() {
         }
     }
     return true
+}
+
+fn _list_hdr_ring_set_ptr_guard(val, reason, op, list, kind) {
+    if g_trace_list_hdr_ring_ptr_guard != val {
+        var r = ""
+        if reason != nil { r = reason }
+        print("[list_hdr_ring_ptr_guard_set] val=" + oren_int_to_string(val) +
+              " prev=" + oren_int_to_string(g_trace_list_hdr_ring_ptr_guard) +
+              " reason=" + r +
+              " op=" + oren_int_to_string(op) +
+              " list=" + oren_int_to_string(list) +
+              " kind=" + oren_int_to_string(kind))
+    }
+    g_trace_list_hdr_ring_ptr_guard = val
+    return nil
 }
 
 fn _list_new_cap_enabled() {
@@ -621,7 +636,7 @@ fn _list_hdr_ring_put(op, list, kind) {
                   " allocs=" + oren_int_to_string(allocs) +
                   " free_other=" + oren_int_to_string(free_other))
         }
-        g_trace_list_hdr_ring_ptr_guard = 0
+        _list_hdr_ring_set_ptr_guard(0, "corrupt", op, list, kind)
     }
 
     if g_trace_list_hdr_ring_ptr_guard != 0 && g_storage != 0 {
@@ -633,7 +648,7 @@ fn _list_hdr_ring_put(op, list, kind) {
                   " dup_seen_ptr=" + oren_int_to_string(g_trace_list_hdr_ring_dup_seen_ptr) +
                   " head=" + oren_int_to_string(g_trace_list_hdr_ring_head) +
                   " dup_seen_head=" + oren_int_to_string(g_trace_list_hdr_ring_dup_seen_head))
-            g_trace_list_hdr_ring_ptr_guard = 0
+            _list_hdr_ring_set_ptr_guard(0, "g_storage", op, list, kind)
         }
     }
 
@@ -649,7 +664,7 @@ fn _list_hdr_ring_put(op, list, kind) {
                       " op=" + oren_int_to_string(op) +
                       " list=" + oren_int_to_string(list) +
                       " kind=" + oren_int_to_string(kind))
-                g_trace_list_hdr_ring_ptr_guard = 0
+                _list_hdr_ring_set_ptr_guard(0, "dup_seen_head_ptr", op, list, kind)
             }
         }
     }
