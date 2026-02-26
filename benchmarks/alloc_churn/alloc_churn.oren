@@ -1,7 +1,32 @@
+fn _env_int(key, fallback) {
+    var env = oren_env(key)
+    var out = fallback
+    if env != nil {
+        var n = 0
+        var i = 0
+        var neg = 0
+        if oren_string_len(env) > 0 {
+            var b0 = oren_string_char_code_at(env, 0)
+            if b0 == 45 { neg = 1; i = 1 }
+            if b0 == 43 { i = 1 }
+        }
+        while i < oren_string_len(env) {
+            var b = oren_string_char_code_at(env, i)
+            if b < 48 || b > 57 { break }
+            n = n * 10 + (b - 48)
+            i = i + 1
+        }
+        if neg == 1 { n = 0 - n }
+        if n != 0 { out = n }
+    }
+    return out
+}
+
 fn main() {
     // Allocation churn to surface leaks / GC regressions.
     // Note: we trigger GC periodically to keep live set bounded.
     var n = 20000
+    var gc_every = _env_int("OREN_BENCH_GC_EVERY", 0)
     var i = 0
     var acc = 0
     while i < n {
@@ -12,6 +37,9 @@ fn main() {
             j = j + 1
         }
         acc = acc + xs[0]
+        if gc_every > 0 && i > 0 {
+            if (i % gc_every) == 0 { oren_gc_collect() }
+        }
         i = i + 1
     }
     print(acc)

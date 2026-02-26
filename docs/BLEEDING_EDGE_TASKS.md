@@ -144,6 +144,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `OREN_TRACE_TRACK_ALLOC_NEW_SIZE_MIN=32768` failed with `list_int_reserve on non-list` panic
      (log: `build/logs/bench_run_alloc_churn_20260226_053122/oren_native/run_0.log`); keep tracking
      the reserve-on-non-list corruption path (2026-02-26).
+   - Trace: alloc_churn with `OREN_BENCH_GC_EVERY=1000` + `OREN_TRACE_GC_SWEEP=1` (and `OREN_ARENA_AUTO_LOOP=0`)
+     shows GC sweeps but `freed_kinds` list/list_int=0, so free-list header dumps never fire; likely
+     list headers remain live under conservative scan (log: `build/logs/alloc_churn_native_gc_sweep_20260226_163932.log`).
    - Trace: alloc_churn native baseline now completes after the alloc-index rebuild fallback
      (log: `build/logs/bench_run_alloc_churn_20260226_054752/oren_native/run_0.log`); earlier panic
      logs remain as reference (e.g., `bench_run_alloc_churn_20260226_053425`).

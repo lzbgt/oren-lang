@@ -323,6 +323,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
         (log: `build/logs/bench_run_alloc_drop_20260225_211047/oren_native/run_0.log`).
     - Partial alloc_drop free-list trace (arm64, 2026-02-25, `OREN_TRACE_GC_FREE_LIST_HEADERS=1`): list headers free with normal
       chunk sizes (32/64) and valid magic (log: `build/logs/alloc_drop_free_list_trace_20260225_200437.log`).
+    - Trace: alloc_churn with `OREN_BENCH_GC_EVERY=1000` + `OREN_TRACE_GC_SWEEP=1` (and `OREN_ARENA_AUTO_LOOP=0`)
+      shows GC sweeps but `freed_kinds` list/list_int=0, so free-list header dumps never fire; likely
+      list headers remain live under conservative scan (log: `build/logs/alloc_churn_native_gc_sweep_20260226_163932.log`).
     - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added; alloc_churn run
       now emits `[list_reserve]` + `[list_buf]` lines, confirming runtime reserve execution
       (log: `build/logs/alloc_churn_run_trace_20260226_013845.log`).
