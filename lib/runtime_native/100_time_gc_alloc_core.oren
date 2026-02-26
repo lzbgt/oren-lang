@@ -922,6 +922,13 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
     if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
     if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
     g_gc_reuse_bad_list_triggers = g_gc_reuse_bad_list_triggers + 1
+    if g_trace_gc_reuse_bad_list_ring_pre > 0 && g_gc_reuse_bad_list_pre_dumped == 0 {
+        if g_trace_list_hdr_ring_ptr == 0 {
+            native_list_header_ring_force_enable()
+        }
+        native_list_header_ring_dump_last_pre(ptr, g_trace_gc_reuse_bad_list_ring_pre)
+        g_gc_reuse_bad_list_pre_dumped = 1
+    }
     if g_trace_gc_reuse_summary != 0 {
         var take_by_ptr = g_gc_free_list_take_by_ptr_hits
         var take_reuse = g_gc_free_list_take_reuse_hits
@@ -2349,6 +2356,7 @@ fn native_gc_collect() {
         g_gc_reuse_bad_list_triggers = 0
         g_gc_reuse_bad_list_last_kind = 0
         g_gc_reuse_bad_list_kind_flip_count = 0
+        g_gc_reuse_bad_list_pre_dumped = 0
         g_gc_free_list_take_by_ptr_hits = 0
         g_gc_free_list_take_reuse_hits = 0
     } else if take_traced {

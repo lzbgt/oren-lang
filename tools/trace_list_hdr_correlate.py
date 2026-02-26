@@ -12,7 +12,7 @@ LIST_HDR_RING_RE = re.compile(
     r"\[list_hdr_ring\] (?:idx=\d+\s+)?list=(\d+) op=(\d+) kind=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+)"
 )
 LIST_HDR_RING_RECENT_RE = re.compile(
-    r"\[list_hdr_ring_recent\] list=(\d+) idx=(\d+) age=(\d+) op=(\d+) kind=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+)"
+    r"\[list_hdr_ring_(recent|pre)\] list=(\d+) idx=(\d+) age=(\d+) op=(\d+) kind=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+)"
 )
 GC_FREE_RE = re.compile(
     r"\[gc_free_list\] ptr=(\d+) chunk=(\d+) kind=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+)"
@@ -140,6 +140,7 @@ def main() -> int:
                 m = LIST_HDR_RING_RECENT_RE.search(line)
                 if m:
                     (
+                        tag,
                         ptr,
                         idx,
                         age,
@@ -149,12 +150,21 @@ def main() -> int:
                         cap,
                         buf,
                         magic,
-                    ) = map(int, m.groups())
+                    ) = m.groups()
+                    ptr = int(ptr)
+                    idx = int(idx)
+                    age = int(age)
+                    op = int(op)
+                    kind = int(kind)
+                    ln = int(ln)
+                    cap = int(cap)
+                    buf = int(buf)
+                    magic = int(magic)
                     if ptr not in per_ptr_recent:
                         recent_order.append(ptr)
                     per_ptr_recent[ptr].append(
                         {
-                            "src": "list_hdr_ring_recent",
+                            "src": f"list_hdr_ring_{tag}",
                             "idx": idx,
                             "age": age,
                             "op": op,

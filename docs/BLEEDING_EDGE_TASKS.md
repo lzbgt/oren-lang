@@ -188,6 +188,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (logs: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_1000_ringcap512_recent128_20260227.log`,
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_1000_ringcap512_recent128_20260227_correlate.log`,
     2026-02-27).
+  - Trace: pre-bad-list ring snapshot (`OREN_TRACE_GC_REUSE_BAD_LIST_RING_PRE=64`) emits
+    `[list_hdr_ring_pre]` before the first bad-list print; sequence remains `1:2`
+    (logs: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_pre64_recent64_20260227.log`,
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_pre64_recent64_20260227_correlate.log`,
+    2026-02-27).
   - Trace: ring-recent run logs `[list_hdr_ring_recent]` entries for the bad list pointer
     (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent.log`, 2026-02-26).
   - Trace: correlator output now includes `[list_hdr_ring_recent]` blocks for the bad list
@@ -219,6 +224,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Tool: correlator now captures recent-op deltas keyed off `gc_reuse_bad_list`
     (via subsequent `list_hdr_ring_recent` lines) and annotates delta sources
     to handle logs with sparse `gc_free_list` samples (rolling, 2026-02-27).
+  - Tool: correlator parses `[list_hdr_ring_pre]` entries to keep pre-bad-list
+    snapshots alongside recent-op sequences (rolling, 2026-02-27).
   - Trace: correlate output for the alloc-node/dup run now captures the ring entry alongside
     the `gc_free_list` sample (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_allocnode_dup2_correlate.log`, 2026-02-26).
