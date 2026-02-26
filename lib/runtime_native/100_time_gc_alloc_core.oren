@@ -831,6 +831,14 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
     }
     g_trace_gc_reuse_bad_list_cap = g_trace_gc_reuse_bad_list_cap - 1
     g_gc_reuse_bad_list_prints = g_gc_reuse_bad_list_prints + 1
+    if g_trace_gc_reuse_bad_list_safe != 0 {
+        print("[gc_reuse_bad_list] prints=" + oren_int_to_string(g_gc_reuse_bad_list_prints) +
+            " ptr=" + oren_int_to_string(ptr) +
+            " chunk=" + oren_int_to_string(chunk_size) +
+            " node=" + oren_int_to_string(node_ptr) +
+            " safe=1")
+        return 0
+    }
     var len = ptr_get(iadd(ptr, 0))
     var cap = ptr_get(iadd(ptr, 8))
     var buf = ptr_get(iadd(ptr, 16))
