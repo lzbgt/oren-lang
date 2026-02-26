@@ -852,6 +852,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: block-reuse only (lists disabled) still segfaulted under `OREN_BENCH_LIST_LEN=64`;
       no bad-list events were emitted, suggesting the crash is not limited to list reuse
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_blocks_only.log`, 2026-02-26).
+    - Trace: no-reuse `OREN_BENCH_LIST_LEN=64` still completes cleanly after guardrail
+      changes; only `chunk=32` frees observed
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_noreuse_len64_postguard.log`, 2026-02-26).
   - Note: `make test` saw a one-off segfault in `test-native-quick-stage2`
     (log: `build/logs/make_test_20260226_172510.log`); rerun passed
     (log: `build/logs/make_test_native_quick_stage2_20260226_172724.log`). Track for flakes.
