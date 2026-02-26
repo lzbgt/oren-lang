@@ -570,6 +570,22 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
                         " freed=" + oren_int_to_string(ptr_get(iadd(cur, 24))) +
                         " freed_seen=" + oren_int_to_string(freed_seen))
                 }
+                if g_trace_gc_reuse_list_hdr_trace > 0 && chunk_ptr >= 4096 {
+                    var hdr_len = ptr_get(iadd(chunk_ptr, 0))
+                    var hdr_cap = ptr_get(iadd(chunk_ptr, 8))
+                    var hdr_buf = ptr_get(iadd(chunk_ptr, 16))
+                    var hdr_magic = ptr_get(iadd(chunk_ptr, 24))
+                    print("[gc_reuse_list_hdr] node=" + oren_int_to_string(cur) +
+                        " ptr=" + oren_int_to_string(chunk_ptr) +
+                        " kind=" + oren_int_to_string(cur_kind) +
+                        " size=" + oren_int_to_string(size) +
+                        " chunk=" + oren_int_to_string(chunk_size) +
+                        " len=" + oren_int_to_string(hdr_len) +
+                        " cap=" + oren_int_to_string(hdr_cap) +
+                        " buf=" + oren_int_to_string(hdr_buf) +
+                        " magic=" + oren_int_to_string(hdr_magic))
+                    g_trace_gc_reuse_list_hdr_trace = g_trace_gc_reuse_list_hdr_trace - 1
+                }
                 if native_gc_list_header_ok_allow_poison(chunk_ptr, cur_kind, chunk_size) == 0 {
                     native_gc_list_header_dump(chunk_ptr, chunk_size, cur)
                     if prev == 0 {
@@ -2377,6 +2393,9 @@ fn native_gc_collect() {
         g_gc_reuse_bad_list_kind_flip_count = 0
         g_gc_reuse_bad_list_pre_dumped = 0
         g_gc_reuse_bad_list_last_ring_head = 0
+        if g_trace_gc_reuse_list_hdr_trace == 0 {
+            g_trace_gc_reuse_list_hdr_trace = g_gc_reuse_list_hdr_trace_cap
+        }
         g_gc_free_list_take_by_ptr_hits = 0
         g_gc_free_list_take_reuse_hits = 0
     } else if take_traced {
