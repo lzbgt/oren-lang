@@ -153,6 +153,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `OREN_TRACE_GC_FREE_LIST_HEADERS=1` now shows list header frees with `len/cap=128` and `chunk=32`,
      confirming GC can free list headers once conservative roots are reduced
      (log: `build/logs/alloc_churn_trace_hdr_ring_20260226_164630.log`).
+   - New: `OREN_BENCH_FORCE_LIST_INT=1` forces alloc_churn to use list<int> ops so GC traces can
+     surface list_int header frees directly (2026-02-26).
+   - Trace: alloc_churn with `FORCE_LIST_INT=1` + `CLEAR_LIST=1` + `SMALL_INTS=1` now shows
+     free-list dumps for list_int headers (kind=8, len/cap=128), alongside list (kind=2)
+     headers, confirming list_int frees are visible under GC traces
+     (log: `build/logs/alloc_churn_trace_list_int_20260226_165002.log`).
    - Trace: alloc_churn native baseline now completes after the alloc-index rebuild fallback
      (log: `build/logs/bench_run_alloc_churn_20260226_054752/oren_native/run_0.log`); earlier panic
      logs remain as reference (e.g., `bench_run_alloc_churn_20260226_053425`).
