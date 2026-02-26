@@ -198,6 +198,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (logs: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_1000_pre128_recent128_20260227.log`,
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_1000_pre128_recent128_20260227_correlate.log`,
     2026-02-27).
+  - Trace: pre-bad-list dump-all (filtered) still shows only `op=1 kind=2` entries for
+    the bad pointer; no earlier ops appear (logs:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_pre64_recent64_dumpall_20260227.log`,
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_pre64_recent64_dumpall_20260227_correlate.log`,
+    2026-02-27).
   - Trace: ring-recent run logs `[list_hdr_ring_recent]` entries for the bad list pointer
     (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent.log`, 2026-02-26).
   - Trace: correlator output now includes `[list_hdr_ring_recent]` blocks for the bad list

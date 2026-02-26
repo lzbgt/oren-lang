@@ -927,6 +927,10 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
             native_list_header_ring_force_enable()
         }
         native_list_header_ring_dump_last_pre(ptr, g_trace_gc_reuse_bad_list_ring_pre)
+        if g_trace_list_hdr_ring_ptr != 0 {
+            native_list_header_ring_filter_set(ptr)
+            native_list_header_ring_dump_all()
+        }
         g_gc_reuse_bad_list_pre_dumped = 1
     }
     if g_trace_gc_reuse_summary != 0 {
