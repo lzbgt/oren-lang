@@ -148,6 +148,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringall.log`, 2026-02-26).
   - New: ring-all dumps now filter to the bad-list pointer (one-shot) via
     `native_list_header_ring_filter_set`, reducing noise in ring-all logs (rolling, 2026-02-26).
+  - New: ring-all filter emits `[list_hdr_ring_filter_miss]` when no ring entries match
+    the filtered pointer, signaling missing ring capture (rolling, 2026-02-26).
+  - Trace: ring-all filter run (miss warning enabled) still finds a matching ring entry;
+    no `[list_hdr_ring_filter_miss]` emitted (log:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringall_filter_miss.log`, 2026-02-26).
   - Trace: ring-all filter run emits a single `list_hdr_ring idx=...` line for the bad pointer
     (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringall_filter.log`, 2026-02-26).
   - Tool: `tools/trace_list_hdr_correlate.py` now includes `[list_hdr_ring]` entries when

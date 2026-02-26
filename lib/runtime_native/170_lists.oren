@@ -618,6 +618,7 @@ fn native_list_header_ring_dump_all() {
     if g_trace_list_hdr_ring_cap <= 0 { return 0 }
     var base = g_trace_list_hdr_ring_ptr
     var filter_ptr = g_trace_list_hdr_ring_filter_ptr
+    var printed = 0
     var i = 0
     while i < g_trace_list_hdr_ring_cap {
         var off = i * 56
@@ -637,8 +638,12 @@ fn native_list_header_ring_dump_all() {
                   " cap=" + oren_int_to_string(cap) +
                   " buf=" + oren_int_to_string(buf) +
                   " magic=" + oren_int_to_string(magic))
+            printed = printed + 1
         }
         i = i + 1
+    }
+    if filter_ptr != 0 && printed == 0 {
+        print("[list_hdr_ring_filter_miss] list=" + oren_int_to_string(filter_ptr))
     }
     if filter_ptr != 0 {
         g_trace_list_hdr_ring_filter_ptr = 0
