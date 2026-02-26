@@ -833,7 +833,8 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
     if g_trace_list_hdr_ring_ptr == 0 {
         native_list_header_ring_force_enable()
     }
-    print("[gc_reuse_bad_list] ptr=" + oren_int_to_string(ptr) +
+    print("[gc_reuse_bad_list] prints=" + oren_int_to_string(g_gc_reuse_bad_list_prints) +
+        " ptr=" + oren_int_to_string(ptr) +
         " chunk=" + oren_int_to_string(chunk_size) +
         " len=" + oren_int_to_string(len) +
         " cap=" + oren_int_to_string(cap) +
