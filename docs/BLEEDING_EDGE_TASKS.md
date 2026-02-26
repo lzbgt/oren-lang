@@ -295,6 +295,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `root_slot_offset=3464` (`root_slot_index=433`) and no `[list_hdr_ring_ptr_guard]` lines
     were emitted; run timed out at 120s (log:
     `build/logs/alloc_churn_trace_precheck_guard_20260226.log`, 2026-02-26).
+  - Trace: precheck+guard2 run (ptr guard enabled) still hits bad-list; stale root remains
+    `root_slot_offset=3464` (`root_slot_index=433`) and no guard lines emitted; run timed out
+    at 120s (log:
+    `build/logs/alloc_churn_trace_precheck_guard2_20260227.log`, 2026-02-27).
   - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
     during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
     are already corrupted before reuse validation (rolling, 2026-02-27).
