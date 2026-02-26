@@ -17,6 +17,34 @@ fn insn_stp_pair_pre(rt, rt2, rn, offset) { return core.insn_stp_pair_pre(rt, rt
 fn emit_ldr_reg_sp_any(ctx, reg, offset) { return core.emit_ldr_reg_sp_any(ctx, reg, offset) }
 fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, reg, offset) }
 
+var ARM64_TRACE_GC_TICK_OFF = -1
+var ARM64_TRACE_GC_TICK_ALL = false
+
+fn _arm64_trace_gc_tick_off_enabled() {
+    if ARM64_TRACE_GC_TICK_OFF == 1 { return true }
+    if ARM64_TRACE_GC_TICK_OFF == 0 { return false }
+    var v = oren_env("OREN_TRACE_ARM64_GC_TICK_OFF")
+    if v == nil || v == "" {
+        ARM64_TRACE_GC_TICK_OFF = 0
+        return false
+    }
+    if v == "all" { ARM64_TRACE_GC_TICK_ALL = true }
+    ARM64_TRACE_GC_TICK_OFF = 1
+    return true
+}
+
+fn _arm64_trace_gc_tick_off(ctx, loop_base_stack, tick_off, tick_mask) {
+    if !_arm64_trace_gc_tick_off_enabled() { return nil }
+    if ARM64_TRACE_GC_TICK_ALL != true && tick_off >= 0 { return nil }
+    var stack_size = 0
+    if ctx != nil { stack_size = ctx["stack_size"] }
+    print("[arm64_gc_tick_off] tick_off=" + oren_int_to_string(tick_off) +
+        " base=" + oren_int_to_string(loop_base_stack) +
+        " stack=" + oren_int_to_string(stack_size) +
+        " mask=" + oren_int_to_string(tick_mask))
+    return nil
+}
+
 fn native_emit_gc_safepoint_call(ctx) {
     // Spill callee-saved regs so conservative GC sees register-held pointers.
     push_u32_le(ctx["code"], insn_stp_pair_pre(19, 20, 31, -16))
@@ -48,6 +76,7 @@ fn native_emit_gc_safepoint_throttled(ctx, loop_base_stack, tick_mask) {
     //
     // tick = tick + 1; if (tick & mask) != 0 => skip; else call safepoint.
     var tick_off = ctx["stack_size"] - loop_base_stack
+    _arm64_trace_gc_tick_off(ctx, loop_base_stack, tick_off, tick_mask)
     // Load tick into X9.
     emit_ldr_reg_sp_any(ctx, 9, tick_off)
     // tick++
