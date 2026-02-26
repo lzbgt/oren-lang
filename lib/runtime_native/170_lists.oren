@@ -320,9 +320,25 @@ fn _list_hdr_ring_set_ptr_guard(val, reason, op, list, kind) {
 
 fn _list_hdr_ring_check_ptr_guard_change(op, list, kind) {
     if g_trace_list_hdr_ring_ptr_guard == 0 { return 0 }
-    if g_trace_list_hdr_ring_ptr_guard_last - g_trace_list_hdr_ring_ptr_guard == 0 { return 0 }
+    var last = g_trace_list_hdr_ring_ptr_guard_last
+    if last != 0 && last != 1 {
+        var allocs = 0
+        var free_other = 0
+        if last > 4096 {
+            allocs = native_gc_ptr_in_allocs(last)
+            free_other = native_free_blocks_count_ptr_in_list(global_free_blocks_ptr(), last)
+        }
+        print("[list_hdr_ring_ptr_guard_last_corrupt] val=" + oren_int_to_string(last) +
+              " guard=" + oren_int_to_string(g_trace_list_hdr_ring_ptr_guard) +
+              " allocs=" + oren_int_to_string(allocs) +
+              " free_other=" + oren_int_to_string(free_other) +
+              " op=" + oren_int_to_string(op) +
+              " list=" + oren_int_to_string(list) +
+              " kind=" + oren_int_to_string(kind))
+    }
+    if last - g_trace_list_hdr_ring_ptr_guard == 0 { return 0 }
     print("[list_hdr_ring_ptr_guard_changed] val=" + oren_int_to_string(g_trace_list_hdr_ring_ptr_guard) +
-          " prev=" + oren_int_to_string(g_trace_list_hdr_ring_ptr_guard_last) +
+          " prev=" + oren_int_to_string(last) +
           " op=" + oren_int_to_string(op) +
           " list=" + oren_int_to_string(list) +
           " kind=" + oren_int_to_string(kind))

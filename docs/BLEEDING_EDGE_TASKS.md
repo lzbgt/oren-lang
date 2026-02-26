@@ -702,6 +702,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace: GC-stress quick integration with list-reserve-fail + corrupt tracing enabled
      saw no list_reserve/list_corrupt events; alloc-index rebuilds remained zero
      (log: `build/logs/native_quick_gc_trace_20260226_084741.log`).
+   - New: guard poll now logs `[list_hdr_ring_ptr_guard_last_corrupt]` when
+     `g_trace_list_hdr_ring_ptr_guard_last` is not 0/1 to catch unexpected writes (2026-02-27).
+   - Trace: global slots dump maps `idx=434` / `off=3472` to
+     `g_trace_list_hdr_ring_ptr_guard_last` after rebuilding stage2
+     (log: `build/logs/alloc_churn_build_globals_idx434_manual_20260227.log`).
+   - Trace: precheck_guard9 (cached build) still shows `root_slot_offset=3472` with
+     `guard_last=1` and no guard-last-corrupt logs (log:
+     `build/logs/alloc_churn_trace_precheck_guard9_20260227.log`).
+   - Trace: precheck_guard9 (no-cache build) still shows `root_slot_offset=3472` with
+     `guard_last=1` and no guard-last-corrupt logs (log:
+     `build/logs/alloc_churn_trace_precheck_guard9_nc_20260227.log`).
    - Next: audit native codegen for size/arg clobbers when new regressions appear.
    - Expand fast-path tracing in native emitters to pinpoint header writes.
    - New: x64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-26).
