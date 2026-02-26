@@ -957,6 +957,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       `[gc_freed_list_use]` was reported before the bad-list corruption, indicating the
       overwrite likely happens without a tracked alloc-index lookup (log:
       `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_300_gc150_cap64_freed.log`, 2026-02-26).
+    - New: precheck now reports `freed_seen=1` when freed-list tracking is enabled; latest
+      trace shows the corrupted reuse candidate was present in the freed list at precheck time
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_300_gc150_cap64_freed_seen.log`, 2026-02-26).
     - Trace: with `bad_list_triggers` enabled, summary still showed `bad_list_triggers=0`
       while bad-list prints followed (now with `len=0 cap=1 buf=2 magic=3` in the corrupted
       header fields), so the summary window continues to miss later bad-list events
