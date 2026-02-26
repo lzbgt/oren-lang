@@ -915,6 +915,16 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       logged one summary line with `bad_list_prints=0` followed by bad-list prints
       counting down 10→1, reinforcing the gap between summary and later bad-list logs
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_1000_gc10_t180.log`, 2026-02-26).
+    - New: `gc_reuse_summary` now reports `bad_list_triggers` (counter incremented before
+      cap check) alongside `bad_list_prints`, to detect bad-list triggers that occur after
+      the summary window (2026-02-26).
+    - Trace: with `bad_list_triggers` enabled, summary still showed `bad_list_triggers=0`
+      while bad-list prints followed (now with `len=0 cap=1 buf=2 magic=3` in the corrupted
+      header fields), so the summary window continues to miss later bad-list events
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_200_cap128d.log`, 2026-02-26).
+    - Trace: even with `bad_list_triggers` reported, summary still showed
+      `bad_list_triggers=0` while bad-list prints counted down 10→1, indicating triggers
+      can occur after the summary snapshot (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_200_cap128d.log`, 2026-02-26).
     - New: bad-list logs now include `prints=<n>` so each `[gc_reuse_bad_list]` line can be
       correlated directly with the running bad-list counter (2026-02-26).
     - Trace: bad-list log `prints=<n>` counts down as expected (5→1) in
