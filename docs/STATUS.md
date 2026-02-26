@@ -877,6 +877,11 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: kind-flip summary shows `kind_flip=0`; only the first bad-list dump emits
       recent-op entries (duplicates within the dump reflect ring state, not repeated dumps)
       (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_kindflip2.log`, 2026-02-27).
+    - Trace: ring-cap 512 run still shows `op=1` entries for the bad list pointer with the
+      same recent-op sequence (`1:2`) despite larger ring history (log:
+      `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringcap512.log`, 2026-02-27;
+      correlate:
+      `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringcap512_correlate.log`, 2026-02-27).
     - Trace: ring-recent run logs `[list_hdr_ring_recent]` entries for the bad list pointer
       (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent.log`, 2026-02-26).
     - Trace: correlator output now includes `[list_hdr_ring_recent]` blocks for the bad list
