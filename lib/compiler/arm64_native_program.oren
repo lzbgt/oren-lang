@@ -319,6 +319,47 @@ fn _arm64_sym_entries_push_unique(sym_seen, sym_entries, off, name) {
     return nil
 }
 
+fn _arm64_trace_global_slots(ctx, label) {
+    var v = oren_env("OREN_TRACE_GLOBAL_SLOTS")
+    if v == nil || v == "" { return nil }
+    if native_env_str_eq(v, "0") || native_env_str_eq(v, "false") { return nil }
+    if ctx == nil { return nil }
+    var gmap = ctx["globals"]
+    if gmap == nil { return nil }
+
+    var filter_name = oren_env("OREN_TRACE_GLOBAL_SLOT_NAME")
+    var filter_off = oren_env("OREN_TRACE_GLOBAL_SLOT_OFF")
+    var filter_idx = oren_env("OREN_TRACE_GLOBAL_SLOT_INDEX")
+    var want_off = nil
+    var want_idx = nil
+    if filter_off != nil && filter_off != "" { want_off = core.int_from_string(filter_off) }
+    if filter_idx != nil && filter_idx != "" { want_idx = core.int_from_string(filter_idx) }
+
+    var hdr = "[arm64_globals]"
+    if label != nil && label != "" { hdr = hdr + " " + label }
+    print(hdr)
+    var gi = 0
+    var pair = [nil, nil]
+    while 1 {
+        var okg = oren_iter_next_entry(gmap, gi, pair)
+        if okg == 0 { break }
+        var name = pair[0]
+        var off_enc = pair[1]
+        if name == nil || oren_type_tag(off_enc) != 1 { gi = gi + 1; continue }
+        var off = off_enc - 1
+        var idx = off / 8
+        var match = true
+        if filter_name != nil && filter_name != "" && native_env_str_eq(filter_name, name) != true { match = false }
+        if want_off != nil && off != want_off { match = false }
+        if want_idx != nil && idx != want_idx { match = false }
+        if match {
+            print("[arm64_globals] name=" + name + " off=" + oren_int_to_string(off) + " idx=" + oren_int_to_string(idx))
+        }
+        gi = gi + 1
+    }
+    return nil
+}
+
 fn _arm64_emit_global_roots_init(ctx) {
     if ctx == nil { return 0 }
     var name = "__oren_global_roots_init"
@@ -1671,6 +1712,7 @@ fn native_compile_program_arm64(linked, platform) {
     var runtime_decls = prep["runtime_decls"]
     var user_decls = prep["user_decls"]
     var top_stmt = prep["top_stmt"]
+    _arm64_trace_global_slots(ctx, "after_prepare_globals")
     _arm64_emit_global_roots_init(ctx)
     if ctx["errors"] != nil && oren_list_len(ctx["errors"]) > 0 { return ctx }
 

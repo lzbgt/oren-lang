@@ -283,6 +283,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     at offset 3456 (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_precheck_state5_20260226.log`,
     2026-02-26).
+  - Trace: compile-time global slot dump (`OREN_TRACE_GLOBAL_SLOTS=1`,
+    `OREN_TRACE_GLOBAL_SLOT_OFF=3456`) maps the stale root slot to
+    `g_trace_list_hdr_ring_dup_seen_head` (alloc_churn build, 2026-02-26).
+  - Tool: list header ring ptr guard (`OREN_TRACE_LIST_HDR_RING_PTR_GUARD=1`) logs if the
+    ring buffer pointer or dup-seen buffer pointer equals `g_storage` (one-shot, 2026-02-26).
+  - Trace: precheck+guard run (ptr guard enabled) still hits bad-list; stale root now reports
+    `root_slot_offset=3464` (`root_slot_index=433`) and no `[list_hdr_ring_ptr_guard]` lines
+    were emitted; run timed out at 120s (log:
+    `build/logs/alloc_churn_trace_precheck_guard_20260226.log`, 2026-02-26).
   - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
     during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
     are already corrupted before reuse validation (rolling, 2026-02-27).
