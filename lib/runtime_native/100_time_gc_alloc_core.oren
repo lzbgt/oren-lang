@@ -1125,6 +1125,7 @@ fn native_gc_free_list_header_dump(ptr, chunk_size, kind, node_ptr) {
         var rem = g_trace_gc_free_list_hdr_ring_seen - (g_trace_gc_free_list_hdr_ring_seen / every) * every
         if rem == 0 {
             if g_trace_gc_free_list_hdr_ring_all != 0 {
+                native_list_header_ring_filter_set(ptr)
                 native_list_header_ring_dump_all()
             } else {
                 native_list_header_ring_dump(ptr)

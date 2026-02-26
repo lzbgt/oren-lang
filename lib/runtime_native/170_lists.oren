@@ -115,6 +115,7 @@ var g_trace_list_hdr_ring_head = 0
 var g_trace_list_hdr_ring_envp = 0
 var g_trace_list_hdr_ring_argv = 0
 var g_trace_list_hdr_ring_argc = 0
+var g_trace_list_hdr_ring_filter_ptr = 0
 var g_trace_list_new_cap = -1
 var g_trace_list_new_cap_limit = 0
 var g_trace_list_new_cap_envp = 0
@@ -606,15 +607,22 @@ fn native_list_header_ring_dump(list) {
 }
 
 @oren.keep
+fn native_list_header_ring_filter_set(list) {
+    g_trace_list_hdr_ring_filter_ptr = list
+    return 0
+}
+
+@oren.keep
 fn native_list_header_ring_dump_all() {
     if g_trace_list_hdr_ring_ptr == 0 { return 0 }
     if g_trace_list_hdr_ring_cap <= 0 { return 0 }
     var base = g_trace_list_hdr_ring_ptr
+    var filter_ptr = g_trace_list_hdr_ring_filter_ptr
     var i = 0
     while i < g_trace_list_hdr_ring_cap {
         var off = i * 56
         var p = ptr_get(iadd(base, off))
-        if p != 0 {
+        if p != 0 && (filter_ptr == 0 || p - filter_ptr == 0) {
             var op = ptr_get(iadd(base, off + 8))
             var len = ptr_get(iadd(base, off + 16))
             var cap = ptr_get(iadd(base, off + 24))
@@ -631,6 +639,9 @@ fn native_list_header_ring_dump_all() {
                   " magic=" + oren_int_to_string(magic))
         }
         i = i + 1
+    }
+    if filter_ptr != 0 {
+        g_trace_list_hdr_ring_filter_ptr = 0
     }
     return 0
 }

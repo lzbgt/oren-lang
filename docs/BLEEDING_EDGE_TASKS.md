@@ -146,6 +146,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `guard_bad_magic/guard_alloc_node/guard_alloc_index_dup=0` while emitting
     `list_hdr_ring idx=...` entries (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringall.log`, 2026-02-26).
+  - New: ring-all dumps now filter to the bad-list pointer (one-shot) via
+    `native_list_header_ring_filter_set`, reducing noise in ring-all logs (rolling, 2026-02-26).
+  - Trace: ring-all filter run emits a single `list_hdr_ring idx=...` line for the bad pointer
+    (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringall_filter.log`, 2026-02-26).
   - Tool: `tools/trace_list_hdr_correlate.py` now includes `[list_hdr_ring]` entries when
     correlating `gc_free_list` samples (rolling, 2026-02-26).
   - Tool: correlator accepts ring-all `idx=` entries to match `list_hdr_ring` dumps
@@ -156,6 +160,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: ring-all correlate output captures the matching ring entry for the
     free-list sample (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringall_correlate.log`, 2026-02-26).
+  - Trace: ring-all filter correlate output captures only the filtered ring entry
+    (log:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringall_filter_correlate.log`, 2026-02-26).
   - Trace: follow-up bad-list safe run shows corrupted header fields (`len=4122543214814507828`,
     `cap=13879`, `buf=0`, `magic=0`) while precheck still reports `freed_seen=0`; node_kind
     flips (1 -> 0) and node_size (32 -> 48) between prints for the same node (log:
