@@ -203,6 +203,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     - Trace (arm64 compile, 2026-02-26, `OREN_TRACE_ARM64_LOOP_STACK=1`): loop_sum + dot_product emitters report tick_off=0 across
       `while_generic` and list<int> fast loops (push/dot), with stack bases matching current stack size.
     - Stage2 trace rebuilds with `OREN_TRACE_ARM64_LOOP_STACK=1` (2026-02-26) completed without GC list-header corruption.
+    - New debug knob: `OREN_ARM64_FAST_LIST_INT_DOT_NO_TICK_SLOT=1` removes the tick slot for `fast_list_int_dot_while` to
+      isolate arm64 tick-offset regressions (trace kind=`fast_list_int_dot_while_no_tick`).
     - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
     - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
     - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
