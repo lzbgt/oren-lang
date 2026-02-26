@@ -38,3 +38,15 @@ index lookups, causing false "untracked" detections in container checks.
 
 - `make test`
 - GC-stress quick integration (see `test-native-quick-gc-stress-stage2` target).
+
+## Operational guidance (caps)
+
+`OREN_TRACE_ALLOC_INDEX_DEDUP_CAP` is a **trace-only** guardrail. Choose a cap
+based on observed dedup behavior in your current workload rather than a fixed
+hard-coded number:
+
+1) Run a representative stress test with tracing enabled:
+   - `OREN_TRACE_ALLOC_INDEX=1` (optionally with `make test-native-quick-gc-stress-stage2`).
+2) Record `dedup_hits` from the `[alloc_index]` line in the log.
+3) Set `DEDUP_CAP` to a safe multiple of the observed peak (e.g., 2–4×) so normal
+   churn does not trip the guardrail, while true regressions still surface quickly.
