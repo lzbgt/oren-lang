@@ -1366,11 +1366,21 @@ fn oren_find_node(ptr) {
     // - This also avoids accidental "pointer probing" semantics in places like map key-kind inference.
     if ptr < 4096 { return 0 }
 
+    var wl = _green_world_lock_host_enter()
+
     // Single-threaded fast path: avoid repeated hash probes for the same ptrs.
     if g_runtime_single_threaded == 1 {
         // Pointer identity compare MUST be primitive (not string-aware `==`).
-        if ptr - g_find_cache_ptr0 == 0 { return g_find_cache_node0 }
-        if ptr - g_find_cache_ptr1 == 0 { return g_find_cache_node1 }
+        if ptr - g_find_cache_ptr0 == 0 {
+            var out0 = g_find_cache_node0
+            _green_world_lock_host_exit(wl)
+            return out0
+        }
+        if ptr - g_find_cache_ptr1 == 0 {
+            var out1 = g_find_cache_node1
+            _green_world_lock_host_exit(wl)
+            return out1
+        }
     }
     var arena_hit = native_arena_find_node_nolock(ptr)
     if arena_hit != 0 {
@@ -1380,6 +1390,7 @@ fn oren_find_node(ptr) {
             g_find_cache_ptr0 = ptr
             g_find_cache_node0 = arena_hit
         }
+        _green_world_lock_host_exit(wl)
         return arena_hit
     }
     acquire_lock()
@@ -1392,6 +1403,7 @@ fn oren_find_node(ptr) {
             g_find_cache_node0 = hit
         }
         release_lock()
+        _green_world_lock_host_exit(wl)
         return hit
     }
 
@@ -1408,6 +1420,7 @@ fn oren_find_node(ptr) {
                 g_find_cache_node0 = hit
             }
             release_lock()
+            _green_world_lock_host_exit(wl)
             return hit
         }
     }
@@ -1436,12 +1449,14 @@ fn oren_find_node(ptr) {
                         g_find_cache_node0 = cur_recover
                     }
                     release_lock()
+                    _green_world_lock_host_exit(wl)
                     return cur_recover
                 }
                 cur_recover = ptr_get(iadd(cur_recover, 32))
             }
         }
         release_lock()
+        _green_world_lock_host_exit(wl)
         return 0
     }
 
@@ -1457,11 +1472,13 @@ fn oren_find_node(ptr) {
                 g_find_cache_node0 = cur
             }
             release_lock()
+            _green_world_lock_host_exit(wl)
             return cur
         }
         cur = ptr_get(iadd(cur, 32))
     }
     release_lock()
+    _green_world_lock_host_exit(wl)
     return 0
 }
 
@@ -1509,8 +1526,10 @@ fn oren_gc_safepoint() {
 
 fn oren_gc_collect() {
     if g_gc_enabled == 0 { return 0 }
+    var wl = _green_world_lock_host_enter()
     if native_gc_single_threaded() == true {
         native_gc_collect()
+        _green_world_lock_host_exit(wl)
         return 0
     }
 
@@ -1518,6 +1537,7 @@ fn oren_gc_collect() {
     native_gc_stw_begin()
     native_gc_collect()
     native_gc_stw_end()
+    _green_world_lock_host_exit(wl)
     return 0
 }
 

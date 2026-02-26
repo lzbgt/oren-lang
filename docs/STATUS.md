@@ -71,6 +71,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      on non-list headers to reduce false positives under GC churn (2026-02-26).
    - Fix: host-thread green spawn/join now uses world-lock critical sections when enabled,
      preventing races in multi-worker world-lock mode (2026-02-26).
+   - Fix: host metadata lookups (`oren_find_node`) now enter the world lock when workers
+     are active, avoiding list/map metadata races during world-lock tests (2026-02-26).
    - Verified: dot_product Oren C benchmark build/run now completes without list-header corruption
      after aligned-header fix (log: `build/logs/bench_dot_product_oren_c_20260226_155530.log`).
    - Verified: dot_product_int Oren C benchmark build/run completes without list-header corruption

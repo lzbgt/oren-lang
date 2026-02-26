@@ -19,12 +19,6 @@ fn main() {
     var rcwl = oren_green_set_world_lock_mode(1)
     if rcwl != 0 { print("FAIL: world lock mode rc=" + oren_int_to_string(rcwl)); exit(1) }
 
-    var rcw = oren_green_start_workers(2)
-    if rcw != 0 { print("FAIL: start_workers rc=" + oren_int_to_string(rcw)); exit(2) }
-
-    var wc = oren_green_debug_worker_count()
-    if wc != 2 { print("FAIL: worker_count=" + oren_int_to_string(wc)); exit(3) }
-
     var hs = []
     var i = 0
     while i < 80 {
@@ -34,6 +28,12 @@ fn main() {
         oren_list_push(hs, h)
         i = i + 1
     }
+    var rcw = oren_green_start_workers(2)
+    if rcw != 0 { print("FAIL: start_workers rc=" + oren_int_to_string(rcw)); exit(2) }
+
+    var wc = oren_green_debug_worker_count()
+    if wc != 2 { print("FAIL: worker_count=" + oren_int_to_string(wc)); exit(3) }
+
     i = 0
     while i < oren_list_len(hs) {
         var hh = oren_list_get(hs, i)

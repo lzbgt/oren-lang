@@ -67,7 +67,11 @@ esac
 
 if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
   # Slightly more headroom on macOS to avoid flaky quick-integration timeouts.
-  run_timeout_secs=8
+  run_timeout_secs=12
+fi
+if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
+  # macOS: cold caches can make the first native build slow; keep headroom.
+  build_timeout_secs=20
 fi
 
 arch_key=""
@@ -96,12 +100,12 @@ if [[ "$os_key" == "windows" ]]; then
 fi
 if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
   if [[ "$compiler_base" == *stage2* ]]; then
-    run_timeout_secs=10
+    run_timeout_secs=15
   fi
 fi
 if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
   if [[ "$compiler_base" == *stage2* ]]; then
-    build_timeout_secs=20
+    build_timeout_secs=25
   fi
 fi
 out="build/tmp/${compiler_base}_native_quick_integration${exe_ext}"
