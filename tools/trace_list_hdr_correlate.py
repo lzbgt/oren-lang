@@ -8,6 +8,9 @@ import sys
 LIST_HDR_RE = re.compile(
     r"\[list_hdr\] op=(\d+) list=(\d+) kind=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+)"
 )
+LIST_HDR_RING_RE = re.compile(
+    r"\[list_hdr_ring\] list=(\d+) op=(\d+) kind=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+)"
+)
 GC_FREE_RE = re.compile(
     r"\[gc_free_list\] ptr=(\d+) chunk=(\d+) kind=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+)"
 )
@@ -35,7 +38,7 @@ def parse_args() -> argparse.Namespace:
 
 def fmt_hdr(entry) -> str:
     return (
-        f"op={entry['op']} kind={entry['kind']} len={entry['len']} "
+        f"src={entry['src']} op={entry['op']} kind={entry['kind']} len={entry['len']} "
         f"cap={entry['cap']} buf={entry['buf']} magic={entry['magic']}"
     )
 
@@ -52,7 +55,8 @@ def main() -> int:
     limit = max(1, args.limit)
     max_out = max(1, args.max)
     per_ptr = collections.defaultdict(lambda: collections.deque(maxlen=limit))
-    emitted = 0
+    events = []
+    pending_gc = None
 
     try:
         with open(args.log, "r", encoding="utf-8", errors="ignore") as fh:
@@ -62,6 +66,7 @@ def main() -> int:
                     op, ptr, kind, ln, cap, buf, magic = map(int, m.groups())
                     per_ptr[ptr].append(
                         {
+                            "src": "list_hdr",
                             "op": op,
                             "kind": kind,
                             "len": ln,
@@ -71,24 +76,58 @@ def main() -> int:
                         }
                     )
                     continue
+                m = LIST_HDR_RING_RE.search(line)
+                if m:
+                    ptr, op, kind, ln, cap, buf, magic = map(int, m.groups())
+                    ring_entry = {
+                        "src": "list_hdr_ring",
+                        "op": op,
+                        "kind": kind,
+                        "len": ln,
+                        "cap": cap,
+                        "buf": buf,
+                        "magic": magic,
+                    }
+                    if pending_gc is not None and pending_gc["ptr"] == ptr:
+                        pending_gc["ring_entries"].append(ring_entry)
+                    continue
 
                 m = GC_FREE_RE.search(line)
                 if not m:
                     continue
                 ptr, chunk, kind, ln, cap, buf, magic = map(int, m.groups())
-                emitted += 1
-                print(f"[gc_free_list] {fmt_gc({'ptr': ptr, 'chunk': chunk, 'kind': kind, 'len': ln, 'cap': cap, 'buf': buf, 'magic': magic})}")
-                entries = list(per_ptr.get(ptr, ()))
-                if not entries:
-                    print("  list_hdr: none")
-                else:
-                    for idx, entry in enumerate(entries):
-                        print(f"  list_hdr[{idx}] {fmt_hdr(entry)}")
-                if emitted >= max_out:
-                    break
+                event = {
+                    "ptr": ptr,
+                    "chunk": chunk,
+                    "kind": kind,
+                    "len": ln,
+                    "cap": cap,
+                    "buf": buf,
+                    "magic": magic,
+                    "entries": list(per_ptr.get(ptr, ())),
+                    "ring_entries": [],
+                }
+                events.append(event)
+                pending_gc = event
     except OSError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+
+    emitted = 0
+    for event in events:
+        emitted += 1
+        print(f"[gc_free_list] {fmt_gc(event)}")
+        entries = event["entries"]
+        ring_entries = event["ring_entries"]
+        if not entries and not ring_entries:
+            print("  list_hdr: none")
+        else:
+            for idx, entry in enumerate(entries):
+                print(f"  list_hdr[{idx}] {fmt_hdr(entry)}")
+            for idx, entry in enumerate(ring_entries):
+                print(f"  list_hdr_ring[{idx}] {fmt_hdr(entry)}")
+        if emitted >= max_out:
+            break
 
     return 0
 

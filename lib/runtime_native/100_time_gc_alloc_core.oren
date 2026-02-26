@@ -400,6 +400,18 @@ fn native_free_blocks_take_by_ptr(ptr) {
     return native_free_blocks_take_by_ptr_in_list(global_free_blocks_ptr(), ptr)
 }
 
+fn native_gc_node_in_allocs(node) {
+    if node == 0 { return 0 }
+    var cur = global_get_allocs()
+    var limit = 200000
+    while cur != 0 && limit > 0 {
+        if cur - node == 0 { return 1 }
+        cur = ptr_get(iadd(cur, 32))
+        limit = limit - 1
+    }
+    return 0
+}
+
 
 fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
     var prev = 0
@@ -460,6 +472,23 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
             cur = next
             continue
         }
+        if g_trace_gc_reuse_alloc_node != 0 {
+            if native_gc_node_in_allocs(cur) != 0 {
+                if g_trace_gc_reuse_alloc_node_cap > 0 {
+                    g_trace_gc_reuse_alloc_node_cap = g_trace_gc_reuse_alloc_node_cap - 1
+                    print("[gc_reuse_alloc_node] node=" + oren_int_to_string(cur) +
+                        " kind=" + oren_int_to_string(cur_kind))
+                }
+                if trace_reuse { g_gc_reuse_guard_alloc_node_count = g_gc_reuse_guard_alloc_node_count + 1 }
+                if prev == 0 {
+                    ptr_set(head_ptr, next)
+                } else {
+                    ptr_set(iadd(prev, 32), next)
+                }
+                cur = next
+                continue
+            }
+        }
         // Reuse guardrail (rolling): only reuse raw/misc blocks unless list reuse is enabled.
         if cur_kind != 0 && cur_kind != 5 {
             if g_gc_reuse_lists != 0 && (cur_kind == 2 || cur_kind == list_int_kind()) {
@@ -476,6 +505,25 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
         }
         var chunk_ptr = ptr_get(cur)
         var chunk_size = ptr_get(iadd(cur, 8))
+        if g_trace_gc_reuse_alloc_index_dup != 0 && chunk_ptr >= 4096 {
+            var idx_dup = native_alloc_index_get(chunk_ptr)
+            if idx_dup != 0 && idx_dup - cur != 0 {
+                if g_trace_gc_reuse_alloc_index_dup_cap > 0 {
+                    g_trace_gc_reuse_alloc_index_dup_cap = g_trace_gc_reuse_alloc_index_dup_cap - 1
+                    print("[gc_reuse_alloc_index_dup] node=" + oren_int_to_string(cur) +
+                        " idx=" + oren_int_to_string(idx_dup) +
+                        " ptr=" + oren_int_to_string(chunk_ptr))
+                }
+                if trace_reuse { g_gc_reuse_guard_alloc_index_dup_count = g_gc_reuse_guard_alloc_index_dup_count + 1 }
+                if prev == 0 {
+                    ptr_set(head_ptr, next)
+                } else {
+                    ptr_set(iadd(prev, 32), next)
+                }
+                cur = next
+                continue
+            }
+        }
         if chunk_ptr < 4096 || chunk_size <= 0 {
             if prev == 0 {
                 ptr_set(head_ptr, next)
@@ -884,6 +932,9 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
             " scan_cap_hits=" + oren_int_to_string(g_gc_reuse_scan_cap_hits) +
             " guard_live=" + oren_int_to_string(g_gc_reuse_guard_live_count) +
             " guard_bad_list=" + oren_int_to_string(g_gc_reuse_guard_bad_list_count) +
+            " guard_bad_magic=" + oren_int_to_string(g_gc_reuse_guard_bad_node_magic_count) +
+            " guard_alloc_node=" + oren_int_to_string(g_gc_reuse_guard_alloc_node_count) +
+            " guard_alloc_index_dup=" + oren_int_to_string(g_gc_reuse_guard_alloc_index_dup_count) +
             " bad_list_triggers=" + oren_int_to_string(g_gc_reuse_bad_list_triggers) +
             " bad_list_prints=" + oren_int_to_string(g_gc_reuse_bad_list_prints) +
             " take_total=" + oren_int_to_string(take_by_ptr + take_reuse) +
@@ -2215,6 +2266,8 @@ fn native_gc_collect() {
         var reuse_guard_live = g_gc_reuse_guard_live_count
         var reuse_guard_bad = g_gc_reuse_guard_bad_list_count
         var reuse_guard_bad_magic = g_gc_reuse_guard_bad_node_magic_count
+        var reuse_guard_alloc_node = g_gc_reuse_guard_alloc_node_count
+        var reuse_guard_alloc_index_dup = g_gc_reuse_guard_alloc_index_dup_count
         var reuse_bad_prints = g_gc_reuse_bad_list_prints
         var reuse_bad_triggers = g_gc_reuse_bad_list_triggers
         var take_by_ptr = g_gc_free_list_take_by_ptr_hits
@@ -2229,7 +2282,9 @@ fn native_gc_collect() {
                 " scan_steps_cap=" + oren_int_to_string(reuse_scan_steps_at_cap) +
                 " guard_live=" + oren_int_to_string(reuse_guard_live) +
                 " guard_bad_list=" + oren_int_to_string(reuse_guard_bad) +
-                " guard_bad_magic=" + oren_int_to_string(reuse_guard_bad_magic))
+                " guard_bad_magic=" + oren_int_to_string(reuse_guard_bad_magic) +
+                " guard_alloc_node=" + oren_int_to_string(reuse_guard_alloc_node) +
+                " guard_alloc_index_dup=" + oren_int_to_string(reuse_guard_alloc_index_dup))
         }
         if g_trace_gc_reuse_summary != 0 {
             print("[gc_reuse_summary] tries=" + oren_int_to_string(reuse_tries) +
@@ -2240,6 +2295,8 @@ fn native_gc_collect() {
                 " guard_live=" + oren_int_to_string(reuse_guard_live) +
                 " guard_bad_list=" + oren_int_to_string(reuse_guard_bad) +
                 " guard_bad_magic=" + oren_int_to_string(reuse_guard_bad_magic) +
+                " guard_alloc_node=" + oren_int_to_string(reuse_guard_alloc_node) +
+                " guard_alloc_index_dup=" + oren_int_to_string(reuse_guard_alloc_index_dup) +
                 " bad_list_triggers=" + oren_int_to_string(reuse_bad_triggers) +
                 " bad_list_prints=" + oren_int_to_string(reuse_bad_prints) +
                 " take_total=" + oren_int_to_string(take_by_ptr + take_reuse) +
@@ -2256,6 +2313,8 @@ fn native_gc_collect() {
         g_gc_reuse_guard_live_count = 0
         g_gc_reuse_guard_bad_list_count = 0
         g_gc_reuse_guard_bad_node_magic_count = 0
+        g_gc_reuse_guard_alloc_node_count = 0
+        g_gc_reuse_guard_alloc_index_dup_count = 0
         g_gc_reuse_bad_list_prints = 0
         g_gc_reuse_bad_list_triggers = 0
         g_gc_free_list_take_by_ptr_hits = 0

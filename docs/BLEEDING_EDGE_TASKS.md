@@ -132,6 +132,21 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     context (one-shot, rolling, 2026-02-26).
   - New: `native_list_debug_node` now reports membership in free-block bucket lists
     (64/256/1024/other) to disambiguate reuse corruption (rolling, 2026-02-26).
+  - New: reuse scan can optionally detect nodes still present in allocs
+    (`OREN_TRACE_GC_REUSE_ALLOC_NODE=1`) and counts `guard_alloc_node` in summaries (rolling, 2026-02-26).
+  - New: reuse scan can detect alloc-index duplicate nodes via
+    `OREN_TRACE_GC_REUSE_ALLOC_INDEX_DUP=1` and counts `guard_alloc_index_dup` (rolling, 2026-02-26).
+  - New: bad-list summary now reports `guard_bad_magic`, `guard_alloc_node`, and
+    `guard_alloc_index_dup` to avoid missing guard signals in trace logs (rolling, 2026-02-26).
+  - Trace: poison+reuse with alloc-node/alloc-index-dup tracing still hits bad-list while
+    `guard_bad_magic/guard_alloc_node/guard_alloc_index_dup` remain 0; no
+    `[gc_reuse_alloc_*]` prints observed (log:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_allocnode_dup2.log`, 2026-02-26).
+  - Tool: `tools/trace_list_hdr_correlate.py` now includes `[list_hdr_ring]` entries when
+    correlating `gc_free_list` samples (rolling, 2026-02-26).
+  - Trace: correlate output for the alloc-node/dup run now captures the ring entry alongside
+    the `gc_free_list` sample (log:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_allocnode_dup2_correlate.log`, 2026-02-26).
   - Trace: follow-up bad-list safe run shows corrupted header fields (`len=4122543214814507828`,
     `cap=13879`, `buf=0`, `magic=0`) while precheck still reports `freed_seen=0`; node_kind
     flips (1 -> 0) and node_size (32 -> 48) between prints for the same node (log:
@@ -212,7 +227,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     samples alongside `[gc_free_list]` without extra ring flags
     (log: `build/logs/alloc_churn_trace_gc_ring_20260226_172250.log`).
   - Tool: `tools/trace_list_hdr_correlate.py --log <log> --limit 5 --max 50` correlates
-    `[list_hdr]` traces with `[gc_free_list]` samples to spot the last header writes.
+    `[list_hdr]` and `[list_hdr_ring]` traces with `[gc_free_list]` samples to spot the last header writes.
   - Tool: `tools/run_alloc_churn_trace.sh [tag]` builds + runs alloc_churn and records
     OREN/AVM env + logs for reproducible trace runs. Use `ALLOC_CHURN_RUN_TIMEOUT_SECS`
     to bound long-running traces.
