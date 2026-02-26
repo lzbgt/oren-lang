@@ -288,6 +288,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `g_trace_list_hdr_ring_dup_seen_head` (alloc_churn build, 2026-02-26).
   - Tool: list header ring ptr guard (`OREN_TRACE_LIST_HDR_RING_PTR_GUARD=1`) logs if the
     ring buffer pointer or dup-seen buffer pointer equals `g_storage` (one-shot, 2026-02-26).
+  - Tool: list header ring ptr guard now also checks `g_trace_list_hdr_ring_dup_seen_head` and
+    logs `[list_hdr_ring_dup_seen_head_ptr]` if it looks like a tracked alloc/free pointer
+    (one-shot, 2026-02-27).
   - Trace: precheck+guard run (ptr guard enabled) still hits bad-list; stale root now reports
     `root_slot_offset=3464` (`root_slot_index=433`) and no `[list_hdr_ring_ptr_guard]` lines
     were emitted; run timed out at 120s (log:

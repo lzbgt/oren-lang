@@ -624,6 +624,23 @@ fn _list_hdr_ring_put(op, list, kind) {
             g_trace_list_hdr_ring_ptr_guard = 0
         }
     }
+
+    if g_trace_list_hdr_ring_ptr_guard != 0 {
+        var dup_head = g_trace_list_hdr_ring_dup_seen_head
+        if dup_head > 4294967296 {
+            var allocs = native_gc_ptr_in_allocs(dup_head)
+            var free_other = native_free_blocks_count_ptr_in_list(global_free_blocks_ptr(), dup_head)
+            if allocs > 0 || free_other > 0 {
+                print("[list_hdr_ring_dup_seen_head_ptr] head=" + oren_int_to_string(dup_head) +
+                      " allocs=" + oren_int_to_string(allocs) +
+                      " free_other=" + oren_int_to_string(free_other) +
+                      " op=" + oren_int_to_string(op) +
+                      " list=" + oren_int_to_string(list) +
+                      " kind=" + oren_int_to_string(kind))
+                g_trace_list_hdr_ring_ptr_guard = 0
+            }
+        }
+    }
     if list == 0 || list < 4096 { return 0 }
     if op != 1 && op != 2 && op != 3 && op != 4 && op != 5 && op != 6 && op != 7 && op != 8 &&
        op != 9 && op != 10 && op != 11 && op != 12 && op != 90 && op != 91 { return 0 }
