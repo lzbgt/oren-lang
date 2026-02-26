@@ -700,6 +700,11 @@ fn _list_hdr_ring_put(op, list, kind) {
     return 0
 }
 
+fn native_list_header_ring_put_gc(list, kind, op) {
+    if list == 0 || list < 4096 { return 0 }
+    return _list_hdr_ring_put(op, list, kind)
+}
+
 @oren.keep
 fn native_list_header_ring_dump(list) {
     if g_trace_list_hdr_ring_ptr == 0 { return 0 }

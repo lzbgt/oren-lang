@@ -923,6 +923,12 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: ring-put watch (pre=64) emitted no `[list_hdr_ring_put]` lines, suggesting
       no list header trace ops for the bad pointer after the pre dump (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_ringput_20260227.log`, 2026-02-27).
+    - Tool: GC list header poison + bad-list dumps now emit ring ops (`op=90` for poison,
+      `op=91` for bad-list) via `native_list_header_ring_put_gc` to confirm ring advances
+      even when list tracing is inactive (rolling, 2026-02-26).
+    - Trace: ringgc run (poison+reuse, ring ops enabled) segfaulted before emitting any
+      output; run log is empty (log:
+      `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_ringgc_20260226.log`, 2026-02-27).
     - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
       during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
       are already corrupted before reuse validation (rolling, 2026-02-27).

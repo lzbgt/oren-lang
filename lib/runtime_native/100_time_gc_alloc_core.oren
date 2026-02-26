@@ -952,12 +952,18 @@ fn native_gc_list_header_poison(ptr, kind) {
     if ptr == 0 { return 0 }
     if ptr < 4096 { return 0 }
     if kind != 2 && kind != list_int_kind() { return 0 }
+    native_list_header_ring_put_gc(ptr, kind, 90)
     ptr_set(iadd(ptr, 24), list_magic_poison())
     return 0
 }
 
 
 fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
+    var ring_kind = 0
+    if node_ptr != 0 {
+        ring_kind = ptr_get(iadd(node_ptr, 16))
+    }
+    native_list_header_ring_put_gc(ptr, ring_kind, 91)
     if g_trace_gc_reuse_bad_list == 0 { return 0 }
     if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
     if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
