@@ -840,6 +840,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_badlist.log`, 2026-02-26).
     - New: bad-list safe trace now prints header + node fields (len/cap/buf/magic + node kind/size)
       to reduce follow-up repros (rolling, 2026-02-26).
+    - New: first bad-list safe print now triggers `native_list_debug_node` for alloc-index
+      context (one-shot, rolling, 2026-02-26).
     - Trace: follow-up bad-list safe run shows corrupted header fields (`len=4122543214814507828`,
       `cap=13879`, `buf=0`, `magic=0`) while precheck still reports `freed_seen=0`; node_kind
       flips (1 -> 0) and node_size (32 -> 48) between prints for the same node (log:
