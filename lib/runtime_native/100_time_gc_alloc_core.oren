@@ -1141,6 +1141,8 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
         " free256=" + oren_int_to_string(free256) +
         " free1024=" + oren_int_to_string(free1024) +
         " free_other=" + oren_int_to_string(free_other) +
+        " guard=" + oren_int_to_string(g_trace_list_hdr_ring_ptr_guard) +
+        " guard_last=" + oren_int_to_string(g_trace_list_hdr_ring_ptr_guard_last) +
         " in_roots=" + oren_int_to_string(in_roots) +
         " root_kind=" + oren_int_to_string(root_kind) +
         " root_idx=" + oren_int_to_string(root_idx) +
