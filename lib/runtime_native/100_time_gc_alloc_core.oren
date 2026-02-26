@@ -349,6 +349,34 @@ fn native_free_blocks_take_by_ptr_in_list(head_ptr, ptr) {
             } else {
                 ptr_set(iadd(prev, 32), next)
             }
+            if g_trace_gc_free_list_take != 0 && g_trace_gc_free_list_take_cap > 0 {
+                g_trace_gc_free_list_take_cap = g_trace_gc_free_list_take_cap - 1
+                var take_ptr = ptr_get(cur)
+                var take_kind = ptr_get(iadd(cur, 16))
+                var take_size = ptr_get(iadd(cur, 8))
+                var take_freed = ptr_get(iadd(cur, 24))
+                var take_magic = ptr_get(iadd(cur, 40))
+                var len = 0
+                var cap = 0
+                var buf = 0
+                var magic = 0
+                if take_ptr != 0 && take_ptr >= 4096 && (take_kind == 2 || take_kind == list_int_kind()) {
+                    len = ptr_get(iadd(take_ptr, 0))
+                    cap = ptr_get(iadd(take_ptr, 8))
+                    buf = ptr_get(iadd(take_ptr, 16))
+                    magic = ptr_get(iadd(take_ptr, 24))
+                }
+                print("[gc_free_list_take] node=" + oren_int_to_string(cur) +
+                      " ptr=" + oren_int_to_string(take_ptr) +
+                      " kind=" + oren_int_to_string(take_kind) +
+                      " size=" + oren_int_to_string(take_size) +
+                      " freed=" + oren_int_to_string(take_freed) +
+                      " node_magic=" + oren_int_to_string(take_magic) +
+                      " len=" + oren_int_to_string(len) +
+                      " cap=" + oren_int_to_string(cap) +
+                      " buf=" + oren_int_to_string(buf) +
+                      " magic=" + oren_int_to_string(magic))
+            }
             return cur
         }
         prev = cur
@@ -480,6 +508,29 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
                     ptr_set_byte(iadd(chunk_ptr, zi), 0)
                     zi = zi + 1
                 }
+            }
+            if g_trace_gc_free_list_take != 0 && g_trace_gc_free_list_take_cap > 0 {
+                g_trace_gc_free_list_take_cap = g_trace_gc_free_list_take_cap - 1
+                var len = 0
+                var cap = 0
+                var buf = 0
+                var magic = 0
+                if chunk_ptr != 0 && chunk_ptr >= 4096 && (cur_kind == 2 || cur_kind == list_int_kind()) {
+                    len = ptr_get(iadd(chunk_ptr, 0))
+                    cap = ptr_get(iadd(chunk_ptr, 8))
+                    buf = ptr_get(iadd(chunk_ptr, 16))
+                    magic = ptr_get(iadd(chunk_ptr, 24))
+                }
+                print("[gc_free_list_take] node=" + oren_int_to_string(cur) +
+                      " ptr=" + oren_int_to_string(chunk_ptr) +
+                      " kind=" + oren_int_to_string(cur_kind) +
+                      " size=" + oren_int_to_string(chunk_size) +
+                      " freed=" + oren_int_to_string(ptr_get(iadd(cur, 24))) +
+                      " node_magic=" + oren_int_to_string(ptr_get(iadd(cur, 40))) +
+                      " len=" + oren_int_to_string(len) +
+                      " cap=" + oren_int_to_string(cap) +
+                      " buf=" + oren_int_to_string(buf) +
+                      " magic=" + oren_int_to_string(magic))
             }
             // Unlink from free list.
             if prev == 0 {

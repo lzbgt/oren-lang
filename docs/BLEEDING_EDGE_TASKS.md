@@ -234,6 +234,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_noreuse_len64_postguard.log`, 2026-02-26).
   - New: `OREN_TRACE_GC_FREE_LIST_PUT=1` logs nodes as they enter free lists (cap via
     `OREN_TRACE_GC_FREE_LIST_PUT_CAP`).
+  - New: `OREN_TRACE_GC_FREE_LIST_TAKE=1` logs nodes as they are removed from free lists
+    (cap via `OREN_TRACE_GC_FREE_LIST_TAKE_CAP`).
   - Trace: free-list put logs show list/list_int nodes inserted with freed=1 and intact
     magic/len/cap; bad-list events still show corrupted header fields
     (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freeput.log`, 2026-02-26).
@@ -241,6 +243,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     in any free-list put logs before `[gc_reuse_bad_list]`, suggesting it enters reuse
     without a visible free-list insertion in the current trace window
     (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freeput2.log`, 2026-02-26).
+  - Trace: free-list take logging captured a single put/take pair (freed flipped to 0
+    on take); no bad-list events observed before timeout
+    (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freetake.log`, 2026-02-26).
   - Trace: alloc_churn with `OREN_ARENA_AUTO_LOOP=0` + free-list ring tracing (cap=200)
     still shows only `chunk=32` list/list_int header frees; large chunk sizes remain
     unreproduced under arena-off GC stress
@@ -376,6 +381,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      (log: `build/logs/make_test_native_quick_20260226_183115.log`). Track as a potential flake.
    - Note: `make test` exited with `test-native-quick` Error 143 (log: `build/logs/make_test_20260226_191243.log`);
      rerun `make test-native-quick` passed (log: `build/logs/make_test_native_quick_20260226_191323.log`).
+   - Note: `make test` exited with `test-native-quick` Error 143 (log: `build/logs/make_test_20260226_193526.log`);
+     rerun `make test-native-quick` passed (log: `build/logs/make_test_native_quick_20260226_193613.log`).
    - Gate: deterministic fixtures + Tier-1 matrix.
 
 7) **SIMD + typed-buffer kernels for list<int> hot paths**

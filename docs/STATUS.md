@@ -857,6 +857,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_noreuse_len64_postguard.log`, 2026-02-26).
     - New: `OREN_TRACE_GC_FREE_LIST_PUT=1` logs nodes as they enter free lists (cap via
       `OREN_TRACE_GC_FREE_LIST_PUT_CAP`).
+    - New: `OREN_TRACE_GC_FREE_LIST_TAKE=1` logs nodes as they are removed from free lists
+      (cap via `OREN_TRACE_GC_FREE_LIST_TAKE_CAP`).
     - Trace: free-list put logs show list/list_int nodes inserted with freed=1 and intact
       magic/len/cap; bad-list events still show corrupted header fields
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freeput.log`, 2026-02-26).
@@ -864,6 +866,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       in any free-list put logs before `[gc_reuse_bad_list]`, suggesting it enters reuse
       without a visible free-list insertion in the current trace window
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freeput2.log`, 2026-02-26).
+    - Trace: free-list take logging captured a single put/take pair (freed flipped to 0
+      on take); no bad-list events observed before timeout
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freetake.log`, 2026-02-26).
   - Note: `make test` saw a one-off segfault in `test-native-quick-stage2`
     (log: `build/logs/make_test_20260226_172510.log`); rerun passed
     (log: `build/logs/make_test_native_quick_stage2_20260226_172724.log`). Track for flakes.
@@ -900,6 +905,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      (log: `build/logs/make_test_native_quick_20260226_183115.log`). Track as a potential flake.
    - Note: `make test` exited with `test-native-quick` Error 143 (log: `build/logs/make_test_20260226_191243.log`);
      rerun `make test-native-quick` passed (log: `build/logs/make_test_native_quick_20260226_191323.log`).
+   - Note: `make test` exited with `test-native-quick` Error 143 (log: `build/logs/make_test_20260226_193526.log`);
+     rerun `make test-native-quick` passed (log: `build/logs/make_test_native_quick_20260226_193613.log`).
     - Gate: `make test` + Tier-1 matrix.
 
 ## P1 (Soon)
