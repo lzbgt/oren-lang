@@ -237,6 +237,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: free-list put logs show list/list_int nodes inserted with freed=1 and intact
     magic/len/cap; bad-list events still show corrupted header fields
     (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freeput.log`, 2026-02-26).
+  - Trace: even with `OREN_TRACE_GC_FREE_LIST_PUT_CAP=2000`, the bad ptr did not appear
+    in any free-list put logs before `[gc_reuse_bad_list]`, suggesting it enters reuse
+    without a visible free-list insertion in the current trace window
+    (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freeput2.log`, 2026-02-26).
   - Trace: alloc_churn with `OREN_ARENA_AUTO_LOOP=0` + free-list ring tracing (cap=200)
     still shows only `chunk=32` list/list_int header frees; large chunk sizes remain
     unreproduced under arena-off GC stress

@@ -860,6 +860,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: free-list put logs show list/list_int nodes inserted with freed=1 and intact
       magic/len/cap; bad-list events still show corrupted header fields
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freeput.log`, 2026-02-26).
+    - Trace: even with `OREN_TRACE_GC_FREE_LIST_PUT_CAP=2000`, the bad ptr did not appear
+      in any free-list put logs before `[gc_reuse_bad_list]`, suggesting it enters reuse
+      without a visible free-list insertion in the current trace window
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freeput2.log`, 2026-02-26).
   - Note: `make test` saw a one-off segfault in `test-native-quick-stage2`
     (log: `build/logs/make_test_20260226_172510.log`); rerun passed
     (log: `build/logs/make_test_native_quick_stage2_20260226_172724.log`). Track for flakes.
