@@ -168,6 +168,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: alloc_churn with `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` now emits `[list_hdr_ring]`
     samples alongside `[gc_free_list]` without extra ring flags
     (log: `build/logs/alloc_churn_trace_gc_ring_20260226_172250.log`).
+  - Tool: `tools/trace_list_hdr_correlate.py --log <log> --limit 5 --max 50` correlates
+    `[list_hdr]` traces with `[gc_free_list]` samples to spot the last header writes.
   - New: free-list header dumps now emit `[gc_free_list_size_mismatch]` when list/list_int
     headers have a non-32 tracked size to catch tracking-node size corruption (2026-02-26).
   - Trace: alloc_churn with `OREN_TRACE_GC_FREE_LIST_HEADERS=1` (cap=200) now shows
