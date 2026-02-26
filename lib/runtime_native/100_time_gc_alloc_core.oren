@@ -995,6 +995,9 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
         " node=" + oren_int_to_string(node_ptr) +
         " node_kind=" + oren_int_to_string(node_kind) +
         " node_size=" + oren_int_to_string(node_size))
+    if idx_node == 0 {
+        native_alloc_index_scan_ptr_debug(ptr, node_ptr)
+    }
     g_gc_reuse_bad_list_rebuild_trace = 1
     if g_gc_reuse_bad_list_last_ptr - ptr == 0 {
         if g_gc_reuse_bad_list_last_idx_node != 0 && idx_node == 0 {

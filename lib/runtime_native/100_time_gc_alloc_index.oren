@@ -688,6 +688,56 @@ fn native_alloc_index_rebuild_live() {
     return 0
 }
 
+fn native_alloc_index_scan_ptr_debug(ptr, node_ptr) {
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+    var cap = g_alloc_index_cap
+    var hash_idx = native_alloc_index_hash(ptr) & (cap - 1)
+    var found = 0
+    var found_idx = 0
+    var found_slot = 0
+    var i = 0
+    while i < cap {
+        var slot = ptr_get(iadd(g_alloc_index_ptr, i << 3))
+        if slot != 0 {
+            if slot - g_alloc_index_tomb != 0 {
+                if slot >= 4096 {
+                    if ptr_get(slot) - ptr == 0 {
+                        found = 1
+                        found_idx = i
+                        found_slot = slot
+                        break
+                    }
+                }
+            }
+        }
+        i = iadd(i, 1)
+    }
+    if found != 0 {
+        var kind = ptr_get(iadd(found_slot, 16))
+        var size = ptr_get(iadd(found_slot, 8))
+        var flags = ptr_get(iadd(found_slot, 24))
+        var magic = ptr_get(iadd(found_slot, 40))
+        print("[gc_reuse_bad_list_index_scan] ptr=" + oren_int_to_string(ptr) +
+            " node=" + oren_int_to_string(node_ptr) +
+            " found=1 idx=" + oren_int_to_string(found_idx) +
+            " hash_idx=" + oren_int_to_string(hash_idx) +
+            " cap=" + oren_int_to_string(cap) +
+            " slot=" + oren_int_to_string(found_slot) +
+            " kind=" + oren_int_to_string(kind) +
+            " size=" + oren_int_to_string(size) +
+            " flags=" + oren_int_to_string(flags) +
+            " magic=" + oren_int_to_string(magic))
+    } else {
+        print("[gc_reuse_bad_list_index_scan] ptr=" + oren_int_to_string(ptr) +
+            " node=" + oren_int_to_string(node_ptr) +
+            " found=0 hash_idx=" + oren_int_to_string(hash_idx) +
+            " cap=" + oren_int_to_string(cap))
+    }
+    return found
+}
+
 @oren.keep
 
 fn oren_track_static(ptr, kind) {
