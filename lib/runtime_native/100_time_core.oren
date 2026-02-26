@@ -781,6 +781,8 @@ var g_trace_gc_free_list_put_cap = 0
 // Optional tracing: log when nodes are taken from free lists.
 var g_trace_gc_free_list_take = 0
 var g_trace_gc_free_list_take_cap = 0
+// Optional tracing: dump free-list take counters at shutdown.
+var g_trace_gc_free_list_take_count = 0
 // Optional tracing: dump list_hdr ring on free-list samples.
 var g_trace_gc_free_list_hdr_ring = 0
 var g_trace_gc_free_list_hdr_ring_every = 0
@@ -844,6 +846,7 @@ fn native_runtime_init_gc_mode(default_enabled) {
     g_trace_gc_free_list_put_cap = 0
     g_trace_gc_free_list_take = 0
     g_trace_gc_free_list_take_cap = 0
+    g_trace_gc_free_list_take_count = 0
     g_trace_gc_free_list_hdr_ring = 0
     g_trace_gc_free_list_hdr_ring_every = 0
     g_trace_gc_free_list_hdr_ring_cap = 0
@@ -1040,6 +1043,12 @@ fn native_runtime_init_gc_mode(default_enabled) {
     }
     if g_trace_gc_free_list_take != 0 && g_trace_gc_free_list_take_cap <= 0 {
         g_trace_gc_free_list_take_cap = 64
+    }
+    var v_trace_free_list_take_count = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_TAKE_COUNT")
+    if v_trace_free_list_take_count != 0 {
+        if ptr_get_byte(v_trace_free_list_take_count) != 0 && ptr_get_byte(v_trace_free_list_take_count) != 48 {
+            g_trace_gc_free_list_take_count = 1
+        }
     }
     var v_trace_free_list_ring = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING")
     if v_trace_free_list_ring != 0 {

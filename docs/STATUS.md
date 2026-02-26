@@ -881,6 +881,15 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: lowering GC interval to `OREN_BENCH_GC_EVERY=100` still emitted only a single
       put/take pair; run_status=124 (timeout) recorded in env log
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freetake4_gc100.log`, 2026-02-26).
+    - New: `OREN_TRACE_GC_FREE_LIST_TAKE_COUNT=1` prints total/by_ptr/reuse take counts at shutdown
+      to distinguish sparse activity from log truncation (2026-02-26).
+    - New: `OREN_BENCH_ITERS=<n>` overrides alloc_churn iteration count (default 20000) to
+      shorten trace runs when heavy GC logging is enabled (2026-02-26).
+    - Trace: small-iteration run with `OREN_BENCH_ITERS=50`, `OREN_BENCH_LIST_LEN=8`,
+      `OREN_BENCH_GC_EVERY=10`, `OREN_GC_REUSE_SCAN_CAP=128` emitted
+      `[gc_free_list_take_count] ... reuse=6` plus repeated bad-list entries, confirming
+      reuse hits occur even when per-take logs are sparse
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len8_takecount_50_cap128.log`, 2026-02-26).
     - New: alloc_churn trace harness now records run_status/run_timed_out/run_elapsed_sec
       and line-buffer command in the env log for timeout diagnostics (2026-02-26).
     - Next: determine why free-list take traces remain sparse under reuse (single put/take

@@ -25,7 +25,7 @@ fn _env_int(key, fallback) {
 fn main() {
     // Allocation churn to surface leaks / GC regressions.
     // Note: we trigger GC periodically to keep live set bounded.
-    var n = 20000
+    var n = _env_int("OREN_BENCH_ITERS", 20000)
     var gc_every = _env_int("OREN_BENCH_GC_EVERY", 0)
     var clear_list = _env_int("OREN_BENCH_CLEAR_LIST", 0)
     var small_ints = _env_int("OREN_BENCH_SMALL_INTS", 0)

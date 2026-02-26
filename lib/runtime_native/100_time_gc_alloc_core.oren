@@ -377,6 +377,7 @@ fn native_free_blocks_take_by_ptr_in_list(head_ptr, ptr) {
                       " buf=" + oren_int_to_string(buf) +
                       " magic=" + oren_int_to_string(magic))
             }
+            g_gc_free_list_take_by_ptr_hits = g_gc_free_list_take_by_ptr_hits + 1
             return cur
         }
         prev = cur
@@ -532,6 +533,7 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
                       " buf=" + oren_int_to_string(buf) +
                       " magic=" + oren_int_to_string(magic))
             }
+            g_gc_free_list_take_reuse_hits = g_gc_free_list_take_reuse_hits + 1
             // Unlink from free list.
             if prev == 0 {
                 ptr_set(head_ptr, next)
@@ -2095,6 +2097,14 @@ fn native_gc_collect() {
         g_gc_reuse_scan_steps_at_cap = 0
         g_gc_reuse_guard_live_count = 0
         g_gc_reuse_guard_bad_list_count = 0
+    }
+    if g_trace_gc_free_list_take_count != 0 {
+        print("[gc_free_list_take_count] total=" +
+            oren_int_to_string(g_gc_free_list_take_by_ptr_hits + g_gc_free_list_take_reuse_hits) +
+            " by_ptr=" + oren_int_to_string(g_gc_free_list_take_by_ptr_hits) +
+            " reuse=" + oren_int_to_string(g_gc_free_list_take_reuse_hits))
+        g_gc_free_list_take_by_ptr_hits = 0
+        g_gc_free_list_take_reuse_hits = 0
     }
     native_alloc_site_dump_and_reset()
     native_list_reserve_bytes_dump_and_reset()
