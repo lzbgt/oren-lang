@@ -151,6 +151,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      tracking entries under reuse/GC churn (rolling, 2026-02-26).
    - New: `make test-native-quick-gc-stress-stage2` runs quick integration with forced GC
      (`OREN_GC_ALLOC_THRESHOLD=20000`) and longer timeouts (rolling, 2026-02-26).
+   - New: `make verify-native-quick-gc` runs the standard native quick verify plus GC-stress
+     quick integration to catch tracking regressions (rolling, 2026-02-26).
    - New: `OREN_TRACE_ALLOC_INDEX=1` now reports alloc-index rebuild stats
      (`[alloc_index] rebuild allocs=... static=... dt_ms=...`) to quantify how often
      the fallback path runs under green-task churn (2026-02-26).

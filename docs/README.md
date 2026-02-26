@@ -32,6 +32,7 @@ Build + test:
 make bootstrap   # build stage0 Go compiler
 make            # build stage1 self-hosted compiler
 make test       # fast native smoke
+make verify-native-quick-gc  # includes forced-GC quick integration (stage2)
 ```
 
 Build and run a hello binary (C backend by default):

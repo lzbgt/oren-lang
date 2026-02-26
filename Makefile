@@ -419,6 +419,10 @@ test-native-capsule-smoke-stage2: oren_stage2 rtobj-seed astbin-seed
 verify-native-quick: test-native-quick test-native-quick-stage2 test-native-capsule-smoke-stage2
 	@echo "verify-native-quick OK"
 
+# GC-stress verify: include forced-GC quick integration to catch tracking regressions.
+verify-native-quick-gc: verify-native-quick test-native-quick-gc-stress-stage2
+	@echo "verify-native-quick-gc OK"
+
 # Cross-backend parity smoke: boxed list sum/dot output must match (C/native/OBC).
 verify-backend-parity-boxed-list: oren_stage2 avm
 	@./scripts/verify_backend_parity_boxed_list.sh
