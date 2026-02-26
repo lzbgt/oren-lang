@@ -168,6 +168,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: alloc_churn with `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` now emits `[list_hdr_ring]`
     samples alongside `[gc_free_list]` without extra ring flags
     (log: `build/logs/alloc_churn_trace_gc_ring_20260226_172250.log`).
+  - Trace: alloc_churn with `OREN_TRACE_GC_FREE_LIST_HEADERS=1` (cap=200) now shows
+    only `chunk=32` list/list_int header frees; large chunk sizes from earlier traces
+    did not reproduce (log: `build/logs/alloc_churn_trace_gc_hdrsize_20260226_173253.log`).
    - New: `OREN_BENCH_LIST_LEN=<n>` lets alloc_churn reduce per-list pushes during trace runs so
      list_hdr ring entries survive until GC sweep samples (2026-02-26).
    - Trace: alloc_churn native baseline now completes after the alloc-index rebuild fallback
