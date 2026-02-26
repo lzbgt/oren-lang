@@ -920,6 +920,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: ring state shows head did not advance between bad-list events
       (`head=357`, `delta=0`) in the 500-iter ringstate run (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_ringstate_20260227.log`, 2026-02-27).
+    - Trace: ring-put watch (pre=64) emitted no `[list_hdr_ring_put]` lines, suggesting
+      no list header trace ops for the bad pointer after the pre dump (log:
+      `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_ringput_20260227.log`, 2026-02-27).
     - Trace: ring-recent run logs `[list_hdr_ring_recent]` entries for the bad list pointer
       (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent.log`, 2026-02-26).
     - Trace: correlator output now includes `[list_hdr_ring_recent]` blocks for the bad list
