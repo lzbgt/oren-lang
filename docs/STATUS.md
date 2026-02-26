@@ -806,6 +806,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Done: x64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-26).
     - Next: correlate list_hdr traces with free-list header dumps to find the first corrupt write.
     - Investigate list_int tracking-node size corruption (alloc_churn free-list traces show huge chunk sizes despite valid headers).
+    - New: size-mismatch traces now dump `list_hdr_ring` (when ring capture is active) to
+      show the last header writes for the mismatched pointer (2026-02-26).
   - Note: `make test` saw a one-off segfault in `test-native-quick-stage2`
     (log: `build/logs/make_test_20260226_172510.log`); rerun passed
     (log: `build/logs/make_test_native_quick_stage2_20260226_172724.log`). Track for flakes.
@@ -837,6 +839,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
    - Keep syscall-first constraints.
    - Note: `test_green_global_runq_fairness` returned -60 once during `make test` on 2026-02-26; rerun passed.
      Treat as a potential flake and keep an eye on fairness/timeout robustness.
+   - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`
+     (log: `build/logs/make_test_20260226_183026.log`); rerun `make test-native-quick` passed
+     (log: `build/logs/make_test_native_quick_20260226_183115.log`). Track as a potential flake.
    - Gate: `make test` + Tier-1 matrix.
 
 ## P1 (Soon)
@@ -849,6 +854,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
    - Investigate repeated `/v1/tools` polling failures from `index-*.js`
      (fetch to `https://127.0.0.1:54513/v1/agents/agent1/proxy/api/v1/tools?...`).
      Source not located in this repo yet; need the owning component path to proceed.
+   - New: UI at `http://127.0.0.1:54514/` reports frequent failed fetches to
+     `https://127.0.0.1:54513/v1/agents/agent1/proxy/api/v1/tools?tools=host&yolo=1&host_policy=full&session_id=...`,
+     suggesting aggressive polling + scheme/port mismatch (2026-02-26).
 
 ## P2 (Later)
 

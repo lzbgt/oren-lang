@@ -178,6 +178,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (log: `build/logs/alloc_churn_trace_repro_reuse_20260226e.log`).
   - New: free-list header dumps now emit `[gc_free_list_size_mismatch]` when list/list_int
     headers have a non-32 tracked size to catch tracking-node size corruption (2026-02-26).
+  - New: size-mismatch traces now dump `list_hdr_ring` (when ring capture is active) to
+    show the last header writes for the mismatched pointer (2026-02-26).
   - Trace: alloc_churn with `OREN_TRACE_GC_FREE_LIST_HEADERS=1` (cap=200) now shows
     only `chunk=32` list/list_int header frees; large chunk sizes from earlier traces
     did not reproduce (log: `build/logs/alloc_churn_trace_gc_hdrsize_20260226_173253.log`).
@@ -311,6 +313,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Budgeted execution and GC-safe scheduling.
    - New: `test_green_global_runq_fairness` returned -60 once during `make test` on 2026-02-26; rerun passed.
      Treat as a potential flake and investigate fairness/timeout robustness before tightening gates.
+   - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`
+     (log: `build/logs/make_test_20260226_183026.log`); rerun `make test-native-quick` passed
+     (log: `build/logs/make_test_native_quick_20260226_183115.log`). Track as a potential flake.
    - Gate: deterministic fixtures + Tier-1 matrix.
 
 7) **SIMD + typed-buffer kernels for list<int> hot paths**
@@ -349,6 +354,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
 11) **Tooling reliability and reproducibility**
    - Keep build/test/bench workflows stable and fast.
    - Fix AVM build breaks that block `make verify-backend-parity-tags` (select case parsing + helper visibility + headers).
+   - Investigate repeated `/v1/tools` polling failures from `index-*.js`
+     (fetch to `https://127.0.0.1:54513/v1/agents/agent1/proxy/api/v1/tools?...`).
+     New: UI at `http://127.0.0.1:54514/` reports frequent failed fetches to
+     `https://127.0.0.1:54513/v1/agents/agent1/proxy/api/v1/tools?tools=host&yolo=1&host_policy=full&session_id=...`,
+     suggesting aggressive polling + scheme/port mismatch (2026-02-26).
    - Gate: `make test`, `make benchmarks`, and snapshot updates are deterministic.
 
 ---

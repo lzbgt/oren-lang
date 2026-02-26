@@ -782,6 +782,7 @@ fn native_gc_free_list_header_dump(ptr, chunk_size, kind, node_ptr) {
     var buf = ptr_get(iadd(ptr, 16))
     var magic = ptr_get(iadd(ptr, 24))
     var ring_dumped = 0
+    var mismatch = 0
     var expected_size = 32
     if cap > 0 && cap < 1048576 {
         if buf == iadd(ptr, 32) {
@@ -789,6 +790,7 @@ fn native_gc_free_list_header_dump(ptr, chunk_size, kind, node_ptr) {
         }
     }
     if chunk_size != expected_size {
+        mismatch = 1
         var node_magic2 = 0
         var node_next2 = 0
         var node_freed2 = 0
@@ -813,6 +815,10 @@ fn native_gc_free_list_header_dump(ptr, chunk_size, kind, node_ptr) {
         " cap=" + oren_int_to_string(cap) +
         " buf=" + oren_int_to_string(buf) +
         " magic=" + oren_int_to_string(magic))
+    if mismatch == 1 && ring_dumped == 0 && g_trace_list_hdr_ring_ptr != 0 {
+        native_list_header_ring_dump(ptr)
+        ring_dumped = 1
+    }
     if chunk_size > 1048576 {
         var node_magic = 0
         var node_next = 0
