@@ -918,6 +918,12 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - New: `gc_reuse_summary` now reports `bad_list_triggers` (counter incremented before
       cap check) alongside `bad_list_prints`, to detect bad-list triggers that occur after
       the summary window (2026-02-26).
+    - New: bad-list dumps now emit `[gc_reuse_summary_at_bad_list]` snapshots when
+      `OREN_TRACE_GC_REUSE_SUMMARY=1`, capturing reuse/take counters at the moment a
+      bad-list is detected (2026-02-26).
+    - Trace: summary-at-bad-list run segfaulted before emitting any bad-list logs
+      (run_status=139), so no `[gc_reuse_summary_at_bad_list]` lines captured yet
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_200_cap128e.log`, 2026-02-26).
     - Trace: with `bad_list_triggers` enabled, summary still showed `bad_list_triggers=0`
       while bad-list prints followed (now with `len=0 cap=1 buf=2 magic=3` in the corrupted
       header fields), so the summary window continues to miss later bad-list events
