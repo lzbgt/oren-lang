@@ -147,6 +147,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      reducing false panics during GC stress (rolling, 2026-02-26).
    - Fix: arm64/x64 `oren_list_len` intrinsics now fall back to magic+count on untracked headers
      to avoid false panics under GC stress (rolling, 2026-02-26).
+   - Fix: `oren_track_alloc_new` now de-duplicates existing alloc-index nodes to avoid duplicate
+     tracking entries under reuse/GC churn (rolling, 2026-02-26).
+   - New: `make test-native-quick-gc-stress-stage2` runs quick integration with forced GC
+     (`OREN_GC_ALLOC_THRESHOLD=20000`) and longer timeouts (rolling, 2026-02-26).
    - New: `OREN_TRACE_ALLOC_INDEX=1` now reports alloc-index rebuild stats
      (`[alloc_index] rebuild allocs=... static=... dt_ms=...`) to quantify how often
      the fallback path runs under green-task churn (2026-02-26).

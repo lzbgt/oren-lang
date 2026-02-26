@@ -405,6 +405,12 @@ test-native-quick: oren
 test-native-quick-stage2: oren_stage2
 		@./scripts/run_native_quick_integration.sh "./$(OREN_STAGE2_BIN)"
 
+# GC-stress native quick integration (stage2): force frequent GC to catch tracking issues.
+test-native-quick-gc-stress-stage2: oren_stage2
+		@OREN_NATIVE_BUILD_TIMEOUT_SECS=60 OREN_NATIVE_RUN_TIMEOUT_SECS=60 \
+		  OREN_GC_AUTO=1 OREN_GC_ALLOC_THRESHOLD=20000 \
+		  ./scripts/run_native_quick_integration.sh "./$(OREN_STAGE2_BIN)"
+
 # Capsule smoke (stage2): build+run a minimal pure-compute capsule fixture.
 test-native-capsule-smoke-stage2: oren_stage2 rtobj-seed astbin-seed
 		@./scripts/run_native_capsule_smoke.sh "./$(OREN_STAGE2_BIN)"

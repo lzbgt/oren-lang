@@ -889,6 +889,48 @@ fn oren_track_alloc_new(ptr, size, kind) {
         native_alloc_index_rebuild_live()
     }
 
+    // De-dup: if a live tracking node already exists for this ptr, update and reuse it.
+    var hit = native_alloc_index_get(ptr)
+    if hit == 0 && g_alloc_index_probe_exhausted != 0 {
+        g_alloc_index_probe_exhausted = 0
+        native_alloc_index_rebuild_live()
+        hit = native_alloc_index_get(ptr)
+    }
+    if hit != 0 {
+        if g_gc_reuse_blocks != 0 {
+            native_free_blocks_remove_node(hit)
+        }
+        if size != 0 { ptr_set(iadd(hit, 8), size) }
+        if kind != 0 { ptr_set(iadd(hit, 16), kind) }
+        ptr_set(iadd(hit, 24), 0) // not freed, not marked
+        ptr_set(iadd(hit, 40), native_node_magic())
+        native_alloc_index_put_node(hit)
+        if native_alloc_index_get(ptr) == 0 {
+            native_alloc_index_rebuild_live()
+        }
+        if kind == 2 || kind == list_int_kind() {
+            if trace_list_track_consume() != 0 {
+                var hit2 = native_alloc_index_get(ptr)
+                print("[list_track] alloc ptr=" + oren_int_to_string(ptr) +
+                      " kind=" + oren_int_to_string(kind) +
+                      " size=" + oren_int_to_string(size) +
+                      " node=" + oren_int_to_string(hit) +
+                      " idx_hit=" + oren_int_to_string(hit2))
+            }
+            trace_list_track_size_emit(ptr, kind, size, 0)
+        }
+        if g_gc_enabled != 0 && g_gc_auto_enabled != 0 && g_gc_auto_pending == 0 && native_gc_single_threaded() {
+            g_gc_allocs_since_collect = g_gc_allocs_since_collect + 1
+            if g_gc_alloc_threshold > 0 && g_gc_allocs_since_collect >= g_gc_alloc_threshold {
+                g_gc_allocs_since_collect = 0
+                g_gc_auto_pending = 1
+            }
+        }
+        release_lock()
+        if trace_time { _trace_track_alloc_time_finish(t0, kind) }
+        return ptr
+    }
+
     var node = native_malloc_raw_or_mmap(48)
     if node != 0 {
         ptr_set(node, ptr)

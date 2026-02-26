@@ -73,6 +73,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - New: map/list checks re-track headers on alloc-index misses when magic+cap look sane to reduce false panics (2026-02-26).
    - New: arm64/x64 `oren_list_len` intrinsics now fall back to magic+count on untracked headers
      to avoid false panics under GC stress (2026-02-26).
+   - New: `oren_track_alloc_new` now de-duplicates existing alloc-index nodes to prevent duplicate
+     tracking entries under reuse/GC churn (2026-02-26).
+   - New: `make test-native-quick-gc-stress-stage2` runs quick integration with forced GC
+     (`OREN_GC_ALLOC_THRESHOLD=20000`) and longer timeouts (2026-02-26).
 
 4) **W4 - Platform breadth (Tier‑1 intent targets)**
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
