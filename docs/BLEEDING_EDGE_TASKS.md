@@ -307,6 +307,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Tool: ptr-guard now logs `[list_hdr_ring_ptr_guard_set]` whenever the guard slot changes,
     capturing the new value + reason (env_enable/corrupt/g_storage/dup_seen_head_ptr) and
     the current op/list/kind (one-shot, 2026-02-27).
+  - Trace: precheck+guard4 run shows a single `[list_hdr_ring_ptr_guard_set]` (env_enable)
+    and no subsequent guard flips before timeout (log:
+    `build/logs/alloc_churn_trace_precheck_guard4_20260227.log`, 2026-02-27).
   - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
     during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
     are already corrupted before reuse validation (rolling, 2026-02-27).
