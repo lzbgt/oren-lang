@@ -953,6 +953,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       reappeared as corrupted during reuse (len=3544957662233047860 cap=12342 buf=0 magic=0).
       This points to post-free overwrite / UAF of list header memory (log:
       `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_300_gc150_cap64_precheck_put.log`, 2026-02-26).
+    - Trace: with freed-list tracking enabled (`OREN_TRACE_GC_FREED_LISTS=1`), no
+      `[gc_freed_list_use]` was reported before the bad-list corruption, indicating the
+      overwrite likely happens without a tracked alloc-index lookup (log:
+      `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_300_gc150_cap64_freed.log`, 2026-02-26).
     - Trace: with `bad_list_triggers` enabled, summary still showed `bad_list_triggers=0`
       while bad-list prints followed (now with `len=0 cap=1 buf=2 magic=3` in the corrupted
       header fields), so the summary window continues to miss later bad-list events
