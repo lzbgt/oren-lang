@@ -206,6 +206,7 @@ fn oren_call_obj_spread(fn_obj, fixed_args, spread_list) {
 }
 
 fn list_magic() { return 1279870019 } // 'LIST'
+fn list_magic_poison() { return list_magic() ^ 1515870810 } // 0x5A5A5A5A xor
 fn map_magic() { return 1296121168 } // 'MAP\0' (rolling; used only for type discrimination in native runtime)
 
 // --- Native map fast index (Tier‑1 perf/correctness) ---

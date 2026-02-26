@@ -98,10 +98,13 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      correlate the last header writes with corrupted free-list entries (2026-02-26).
    - Fix: host-thread green spawn/join now uses world-lock critical sections when enabled,
      preventing races in multi-worker world-lock mode (2026-02-26).
-   - Fix: host metadata lookups (`oren_find_node`) now enter the world lock when workers
-     are active, avoiding list/map metadata races during world-lock tests (2026-02-26).
-   - Verified: dot_product Oren C benchmark build/run now completes without list-header corruption
-     after aligned-header fix (log: `build/logs/bench_dot_product_oren_c_20260226_155530.log`).
+  - Fix: host metadata lookups (`oren_find_node`) now enter the world lock when workers
+    are active, avoiding list/map metadata races during world-lock tests (2026-02-26).
+  - New: optional list header poisoning on GC free sets magic to `list_magic_poison`
+    (`OREN_GC_POISON_LIST_HEADERS=1`); reuse precheck tolerates poison while GC mark
+    remains strict to surface UAF (2026-02-26).
+  - Verified: dot_product Oren C benchmark build/run now completes without list-header corruption
+    after aligned-header fix (log: `build/logs/bench_dot_product_oren_c_20260226_155530.log`).
    - Verified: dot_product_int Oren C benchmark build/run completes without list-header corruption
      after aligned-header fix (log: `build/logs/bench_dot_product_int_oren_c_20260226_155726.log`).
    - Verified: dot_product_int Oren native benchmark build/run completes without list-header corruption

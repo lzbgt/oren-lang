@@ -111,6 +111,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      and to fail fast on bad headers (2026-02-26).
    - New: GC mark now validates list/list_int headers and panics on corruption
      before scanning payloads (2026-02-26).
+   - New: optional list header poisoning on GC free sets magic to `list_magic_poison`
+     (`OREN_GC_POISON_LIST_HEADERS=1`); reuse precheck tolerates poison while GC mark
+     remains strict to surface use-after-free (2026-02-26).
 
 4) **W4 - Platform breadth (Tier‑1 intent targets)**
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
@@ -130,7 +133,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 
 8) **W3 - Structural/SOLID debt**
    - Large source files remain a maintainability risk; measured (non-generated, non-web) >2000 lines:
-     - (none currently)
+     - `lib/runtime_native/100_time_gc_alloc_core.oren` (~2237 lines; split GC sweep/reuse/list-header helpers)
    - Splits underway:
      - GC safepoint helpers moved out of `lib/compiler/arm64_native_stmt.oren` into
        `lib/compiler/arm64_native_gc.oren` (2026-02-25).
@@ -1027,6 +1030,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
    - Note: `make test` exited with `test-native-quick-stage2` Error 143
      (log: `build/logs/make_test_20260226_212743.log`); rerun `make test-native-quick`
      completed (log: `build/logs/make_test_native_quick_20260226_212955.log`). Track as a flake.
+   - Note: `make test` exited with `test-native-quick` Error 143
+     (log: `build/logs/make_test_20260226_215921.log`); rerun `make test-native-quick`
+     segfaulted once (log: `build/logs/make_test_native_quick_20260226_220029.log`)
+     then passed (log: `build/logs/make_test_native_quick_20260226_220102.log`). Track as a flake.
     - Gate: `make test` + Tier-1 matrix.
 
 ## P1 (Soon)

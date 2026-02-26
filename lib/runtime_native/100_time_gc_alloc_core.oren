@@ -497,7 +497,7 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
                         " freed=" + oren_int_to_string(ptr_get(iadd(cur, 24))) +
                         " freed_seen=" + oren_int_to_string(freed_seen))
                 }
-                if native_gc_list_header_ok(chunk_ptr, cur_kind, chunk_size) == 0 {
+                if native_gc_list_header_ok_allow_poison(chunk_ptr, cur_kind, chunk_size) == 0 {
                     native_gc_list_header_dump(chunk_ptr, chunk_size, cur)
                     if prev == 0 {
                         ptr_set(head_ptr, next)
@@ -788,11 +788,16 @@ fn native_gc_root_has_ptr(ptr) {
 }
 
 
-fn native_gc_list_header_ok(ptr, kind, chunk_size) {
+fn native_gc_list_header_ok_impl(ptr, kind, chunk_size, allow_poison) {
     if ptr == 0 { return 0 }
     if ptr < 4096 { return 0 }
     if chunk_size < 32 { return 0 }
-    if ptr_get(iadd(ptr, 24)) != list_magic() { return 0 }
+    var magic = ptr_get(iadd(ptr, 24))
+    if magic != list_magic() {
+        if allow_poison == 0 { return 0 }
+        if g_gc_poison_list_headers == 0 { return 0 }
+        if magic != list_magic_poison() { return 0 }
+    }
     var len = ptr_get(iadd(ptr, 0))
     var cap = ptr_get(iadd(ptr, 8))
     var buf = ptr_get(iadd(ptr, 16))
@@ -819,6 +824,23 @@ fn native_gc_list_header_ok(ptr, kind, chunk_size) {
         return 1
     }
     return 1
+}
+
+fn native_gc_list_header_ok(ptr, kind, chunk_size) {
+    return native_gc_list_header_ok_impl(ptr, kind, chunk_size, 0)
+}
+
+fn native_gc_list_header_ok_allow_poison(ptr, kind, chunk_size) {
+    return native_gc_list_header_ok_impl(ptr, kind, chunk_size, 1)
+}
+
+fn native_gc_list_header_poison(ptr, kind) {
+    if g_gc_poison_list_headers == 0 { return 0 }
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    if kind != 2 && kind != list_int_kind() { return 0 }
+    ptr_set(iadd(ptr, 24), list_magic_poison())
+    return 0
 }
 
 
@@ -1004,7 +1026,7 @@ fn native_gc_free_list_header_dump(ptr, chunk_size, kind, node_ptr) {
             ring_dumped = 1
         }
     }
-    if native_gc_list_header_ok(ptr, kind, chunk_size) == 0 {
+    if native_gc_list_header_ok_allow_poison(ptr, kind, chunk_size) == 0 {
         if ring_dumped == 0 {
             native_list_header_ring_dump(ptr)
         }
@@ -2068,6 +2090,7 @@ fn native_gc_collect() {
                         native_gc_free_list_header_dump(p, sz_free, kind, cur_sweep)
                     }
                     native_gc_freed_list_record(p)
+                    native_gc_list_header_poison(p, kind)
                 }
                 // Mark node as freed so stale index entries can't resurrect it.
                 ptr_set(iadd(cur_sweep, 24), 1)

@@ -799,6 +799,8 @@ var g_trace_gc_free_list_hdr_ring_all = 0
 var g_gc_reuse_verbose = 0
 var g_gc_reuse_verbose_cap = 0
 var g_gc_reuse_verbose_left = 0
+// Optional GC guard: poison freed list headers to catch UAF.
+var g_gc_poison_list_headers = 0
 var g_alloc_site_ptr = 0
 var g_alloc_site_cap = 0
 var g_alloc_site_total = 0
@@ -862,6 +864,7 @@ fn native_runtime_init_gc_mode(default_enabled) {
     g_gc_reuse_verbose = 0
     g_gc_reuse_verbose_cap = 0
     g_gc_reuse_verbose_left = 0
+    g_gc_poison_list_headers = 0
     g_alloc_site_ptr = 0
     g_alloc_site_cap = 0
     g_alloc_site_total = 0
@@ -933,6 +936,12 @@ fn native_runtime_init_gc_mode(default_enabled) {
     if v_reuse_buckets != 0 {
         if ptr_get_byte(v_reuse_buckets) != 0 && ptr_get_byte(v_reuse_buckets) != 48 {
             g_gc_reuse_buckets = 1
+        }
+    }
+    var v_poison_lists = native_envp_get_value_ptr("OREN_GC_POISON_LIST_HEADERS")
+    if v_poison_lists != 0 {
+        if ptr_get_byte(v_poison_lists) != 0 && ptr_get_byte(v_poison_lists) != 48 {
+            g_gc_poison_list_headers = 1
         }
     }
 
