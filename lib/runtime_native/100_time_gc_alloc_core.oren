@@ -12,6 +12,10 @@ var g_find_cache_ptr0 = 0
 var g_find_cache_node0 = 0
 var g_find_cache_ptr1 = 0
 var g_find_cache_node1 = 0
+var g_trace_gc_root_slots = 0
+var g_trace_gc_root_slots_cap = 0
+var g_trace_gc_root_slots_span = 0
+var g_trace_gc_root_slots_checked = 0
 
 fn native_gc_scan_stack() {
     if g_gc_enabled == 0 { return 0 }
@@ -1156,6 +1160,59 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
         " root_node_kind=" + oren_int_to_string(root_node_kind) +
         " root_node_size=" + oren_int_to_string(root_node_size) +
         " root_node_magic=" + oren_int_to_string(root_node_magic))
+    if g_trace_gc_root_slots_checked == 0 {
+        var v_roots = native_envp_get_value_ptr("OREN_TRACE_GC_ROOT_SLOTS")
+        if v_roots != 0 && ptr_get_byte(v_roots) != 0 && ptr_get_byte(v_roots) != 48 {
+            g_trace_gc_root_slots = 1
+        }
+        var v_cap = native_envp_get_value_ptr("OREN_TRACE_GC_ROOT_SLOTS_CAP")
+        if v_cap != 0 {
+            var cap = native_parse_i64_dec_cstr_or_neg1(v_cap)
+            if cap > 0 { g_trace_gc_root_slots_cap = cap }
+        }
+        var v_span = native_envp_get_value_ptr("OREN_TRACE_GC_ROOT_SLOTS_SPAN")
+        if v_span != 0 {
+            var span = native_parse_i64_dec_cstr_or_neg1(v_span)
+            if span > 0 { g_trace_gc_root_slots_span = span }
+        }
+        if g_trace_gc_root_slots_cap <= 0 { g_trace_gc_root_slots_cap = 4 }
+        if g_trace_gc_root_slots_span <= 0 { g_trace_gc_root_slots_span = 2 }
+        g_trace_gc_root_slots_checked = 1
+    }
+    if g_trace_gc_root_slots != 0 && g_trace_gc_root_slots_cap > 0 && in_roots != 0 && root_kind == 3 && root_count > 0 {
+        g_trace_gc_root_slots_cap = g_trace_gc_root_slots_cap - 1
+        var span = g_trace_gc_root_slots_span
+        var base_idx = root_idx
+        if base_idx < 0 { base_idx = 0 }
+        if base_idx >= root_count {
+            print("[gc_root_slots] idx_oob idx=" + oren_int_to_string(root_idx) +
+                  " count=" + oren_int_to_string(root_count))
+            base_idx = root_count - 1
+        }
+        var start = base_idx - span
+        if start < 0 { start = 0 }
+        var end = base_idx + span
+        if end >= root_count { end = root_count - 1 }
+        print("[gc_root_slots] idx=" + oren_int_to_string(root_idx) +
+              " count=" + oren_int_to_string(root_count) +
+              " start=" + oren_int_to_string(start) +
+              " end=" + oren_int_to_string(end))
+        var ri = start
+        while ri <= end {
+            var rnode = native_gc_root_node_at_idx(ri)
+            var rptr = 0
+            var rval = 0
+            if rnode != 0 {
+                rptr = ptr_get(rnode)
+                if rptr != 0 && rptr >= 4096 { rval = ptr_get(rptr) }
+            }
+            print("[gc_root_slots] i=" + oren_int_to_string(ri) +
+                  " node=" + oren_int_to_string(rnode) +
+                  " ptr=" + oren_int_to_string(rptr) +
+                  " val=" + oren_int_to_string(rval))
+            ri = ri + 1
+        }
+    }
     if idx_node == 0 {
         var scan_node = node_ptr
         if g_gc_reuse_bad_list_last_ptr - ptr == 0 && g_gc_reuse_bad_list_last_idx_node != 0 {
