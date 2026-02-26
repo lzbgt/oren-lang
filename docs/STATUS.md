@@ -834,6 +834,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: no-reuse + `OREN_BENCH_LIST_LEN=64` completes cleanly; still only `chunk=32`
       frees and no size mismatches
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_noreuse_len64.log`, 2026-02-26).
+    - Trace: reuse + bad-list tracing hit `[gc_reuse_bad_list]` with corrupt header fields
+      (len=4 cap=5 buf=6 magic=7) and timed out; indicates reuse guardrail catches corrupted
+      list headers under reuse stress
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_badlist.log`, 2026-02-26).
   - Note: `make test` saw a one-off segfault in `test-native-quick-stage2`
     (log: `build/logs/make_test_20260226_172510.log`); rerun passed
     (log: `build/logs/make_test_native_quick_stage2_20260226_172724.log`). Track for flakes.

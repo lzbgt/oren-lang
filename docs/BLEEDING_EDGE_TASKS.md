@@ -211,6 +211,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: no-reuse + `OREN_BENCH_LIST_LEN=64` completes cleanly; still only `chunk=32`
     frees and no size mismatches
     (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_noreuse_len64.log`, 2026-02-26).
+  - Trace: reuse + bad-list tracing hit `[gc_reuse_bad_list]` with corrupt header fields
+    (len=4 cap=5 buf=6 magic=7) and timed out; indicates reuse guardrail catches corrupted
+    list headers under reuse stress
+    (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_badlist.log`, 2026-02-26).
   - Trace: alloc_churn with `OREN_ARENA_AUTO_LOOP=0` + free-list ring tracing (cap=200)
     still shows only `chunk=32` list/list_int header frees; large chunk sizes remain
     unreproduced under arena-off GC stress
