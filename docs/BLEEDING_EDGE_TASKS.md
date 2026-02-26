@@ -157,6 +157,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_TRACE_GC_REUSE_BAD_LIST_RING_RECENT=<n>` and `[list_hdr_ring_recent]` (rolling, 2026-02-26).
   - Trace: ring-recent run logs `[list_hdr_ring_recent]` entries for the bad list pointer
     (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent.log`, 2026-02-26).
+  - Trace: correlator output now includes `[list_hdr_ring_recent]` blocks for the bad list
+    pointer (log:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent_correlate.log`, 2026-02-26).
   - New: `OREN_TRACE_LIST_HDR_RING_DUP=1` logs `[list_hdr_ring_dup]` when the ring buffer
     already contains the same list pointer; per-pointer suppression uses
     `OREN_TRACE_LIST_HDR_RING_DUP_SEEN_CAP` (default 64) to avoid repeat logs
@@ -172,6 +175,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     correlating `gc_free_list` samples (rolling, 2026-02-26).
   - Tool: correlator accepts ring-all `idx=` entries to match `list_hdr_ring` dumps
     when `OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL=1` is set (rolling, 2026-02-26).
+  - Tool: correlator now ingests `[list_hdr_ring_recent]` and emits recent-op blocks
+    for bad-list pointers (rolling, 2026-02-26).
   - Trace: correlate output for the alloc-node/dup run now captures the ring entry alongside
     the `gc_free_list` sample (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_allocnode_dup2_correlate.log`, 2026-02-26).
