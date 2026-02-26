@@ -34,7 +34,7 @@ Oren is "mature" when all are reliably true on Tier-1 targets
 Oren is not yet at production parity with industrial compilers (LLVM/rustc/GCC/zig/go):
 
 - **Semantic maturity**: tagged value model is still rolling in native; `oren_type_tag` is best‑effort for scalars and cross‑backend parity is still enforced via fixtures (see `docs/DESIGN.md`).
-- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.33×, `dot_product` 2.57×; `alloc_churn` 6.28×, `alloc_drop` 2.36× on arm64, 2026-02-26).
+- **Performance parity**: native hot loops remain >2× C (see perf tracker baselines: `loop_sum` 3.33×, `dot_product` 2.57×; `alloc_churn` 6.62×, `alloc_drop` 1.28× on arm64, 2026-02-26).
 - **Runtime robustness**: GC reuse and allocator paths are still experimental; list header corruption investigations are ongoing (tracked below).
 - **Platform breadth**: Tier‑1 intent targets are arm64‑macOS, arm64‑linux, x64‑linux, x64‑windows; x64 targets are still in rolling bring‑up.
 - **Tooling/ABI stability**: ABI/opcode stability is explicitly rolling; compatibility guarantees are not declared.
@@ -56,7 +56,7 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Cross‑backend parity is enforced via fixtures, not a stabilized ABI.
 
 2) **W5 - Performance parity (hot loops + alloc/GC)**
-   - Baselines: `loop_sum` 3.33× C, `dot_product` 2.57× C; `alloc_churn` 6.28× C, `alloc_drop` 2.36× C (arm64, 2026-02-26).
+   - Baselines: `loop_sum` 3.33× C, `dot_product` 2.57× C; `alloc_churn` 6.62× C, `alloc_drop` 1.28× C (arm64, 2026-02-26).
    - Priority: hot loops remain above the 2× gate; allocation/GC is now within the 8×/5× gates on arm64.
    - Target gates: loops <= 2× C; alloc_churn <= 8× C; alloc_drop <= 5× C.
 
@@ -249,7 +249,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
 2) **W5 - Allocation/GC overhead reduction (alloc_churn, alloc_drop)** (L)
-   - Baseline (arm64 native, 2026-02-26): `alloc_churn` 6.28× C, `alloc_drop` 2.36× C.
+   - Baseline (arm64 native, 2026-02-26): `alloc_churn` 6.62× C, `alloc_drop` 1.28× C.
    - `alloc_churn` and `alloc_drop` are now within the 8×/5× gates on arm64.
    - Alloc-site trace (arm64, 2026-02-25, `OREN_BENCH_TRACE_ALLOC_SITE=1`, warmups=0):
      - `alloc_churn` median total=2 (list_int_header=1, list_int_buf=1, list_header=0, list_buf=0).
@@ -349,11 +349,11 @@ Weights reflect expected impact on C parity and breadth of affected code.
     - New: `OREN_TRACE_LIST_RESERVE_BYTES=1` prints reserve allocation/copy totals at shutdown; alloc_churn
       reports list_int_alloc_bytes=20480000 with 20000 reserve calls and zero copy bytes
       (log: `build/logs/alloc_churn_run_reserve_bytes_20260226_020050.log`).
-   - New: loop list reuse brings alloc_churn to ~6.28× C (arm64, 2026-02-26),
+   - New: loop list reuse brings alloc_churn to ~6.62× C (arm64, 2026-02-26),
       within the 8× gate; default-on with opt-out via `OREN_OPT_LOOP_LIST_REUSE=0`
-     (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_023800.md`).
-    - New: loop list reuse keeps alloc_drop at ~2.36× C (arm64, 2026-02-26),
-      within the 5× gate (log: `benchmarks/results/alloc_drop_darwin_arm64_20260226_023803.md`).
+     (log: `benchmarks/results/alloc_churn_darwin_arm64_20260226_161846.md`).
+    - New: loop list reuse keeps alloc_drop at ~1.28× C (arm64, 2026-02-26),
+      within the 5× gate (log: `benchmarks/results/alloc_drop_darwin_arm64_20260226_161849.md`).
     - New: reuse escape smoke (`test_loop_list_reuse_escape_smoke`) added to native quick integration
       to guard against incorrect reuse when lists escape (2026-02-26).
     - Fix: loop list reuse now skips unsafe list uses (escape/alias), enabling default-on reuse while
@@ -371,7 +371,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - New: loop list reuse hoists safe, non-escaping list allocations out of loops and replaces per-iter
      init with `*_clear_unchecked` calls; default-on with opt-out via `OREN_OPT_LOOP_LIST_REUSE=0`.
      - Reuse smoke: `test_arena_auto_loop_smoke` passes with reuse enabled on arm64 macOS (2026-02-25).
-   - `alloc_churn` native was 46.65× C in the 2026-02-25 snapshot; latest snapshot is 6.28× C (2026-02-26).
+   - `alloc_churn` native was 46.65× C in the 2026-02-25 snapshot; latest snapshot is 6.62× C (2026-02-26).
    - Alloc-site trace (arm64, 2026-02-25, `OREN_BENCH_TRACE_ALLOC_SITE=1`, native-only):
      median total=20000, list_int_header=20000, list_header=0, list_buf=0, list_int_buf=0
      (log: `build/logs/bench_alloc_churn_alloc_site_20260225_234114.log`).
@@ -388,7 +388,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Bench run with no-cache env (arm64, 2026-02-26, `OREN_TRACE_LIST_BUF=1` + `OREN_TRACE_LIST_RESERVE=1`):
      no list_buf events appeared and reserve trace did not surface in build logs (log: `build/logs/bench_alloc_churn_nocache_list_buf_20260226_001246.log`).
    - List literal sinking now handles `ExprStmt` if-forms, reducing `alloc_drop` list-header churn
-     (alloc-site median list_header=105 in 2026-02-25 trace; latest `alloc_drop` native 2.36× C).
+     (alloc-site median list_header=105 in 2026-02-25 trace; latest `alloc_drop` native 1.28× C).
    - New: fast list/list_int push while-loops now accept constant upper bounds (arm64/x64/transpiler),
      and `alloc_drop` is now within target on the 2026-02-25 snapshot (rolling).
    - New: list/list_int reserve + unchecked push now try `native_arena_alloc_raw` for arena-backed buffers
