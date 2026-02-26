@@ -939,6 +939,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: ring-all run after enabling op=90/91 in ring filter shows `op=90` entries
       for poisoned list headers (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc20_100_ringall3_20260227.log`, 2026-02-27).
+    - Trace: ringbad run (iters=300) still shows `op=90` poison entries but no
+      `gc_reuse_bad_list` events before segfault (log:
+      `build/logs/alloc_churn_trace_poison_reuse_len64_gc20_300_ringbad_20260227.log`, 2026-02-27).
     - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
       during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
       are already corrupted before reuse validation (rolling, 2026-02-27).
