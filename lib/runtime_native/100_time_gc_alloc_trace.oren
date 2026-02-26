@@ -25,6 +25,7 @@ var g_gc_reuse_bad_list_triggers = 0
 var g_gc_reuse_bad_list_last_kind = 0
 var g_gc_reuse_bad_list_kind_flip_count = 0
 var g_gc_reuse_bad_list_pre_dumped = 0
+var g_gc_reuse_bad_list_last_ring_head = 0
 var g_gc_reuse_scan_steps = 0
 var g_gc_reuse_scan_cap_hits = 0
 var g_gc_reuse_scan_steps_at_cap = 0
