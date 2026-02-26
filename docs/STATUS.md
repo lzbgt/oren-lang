@@ -812,6 +812,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       no size mismatches (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_ring2.log`, 2026-02-26).
     - Trace: longer header ring capture (cap=2000, ring=256) still shows only `chunk=32` frees and
       no size mismatches (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_ring3.log`, 2026-02-26).
+    - Trace: reuse-enabled alloc_churn (blocks+lists unsafe) still shows only `chunk=32` frees
+      and no size mismatches; reuse stats show large scan_steps in later windows
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse1.log`, 2026-02-26).
   - Note: `make test` saw a one-off segfault in `test-native-quick-stage2`
     (log: `build/logs/make_test_20260226_172510.log`); rerun passed
     (log: `build/logs/make_test_native_quick_stage2_20260226_172724.log`). Track for flakes.
