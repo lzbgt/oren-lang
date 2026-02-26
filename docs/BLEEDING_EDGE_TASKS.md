@@ -252,6 +252,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: `OREN_BENCH_LIST_LEN=128` with free-list take logging (timeout 120s) still
     emitted only a single put/take pair and no bad-list events before timeout
     (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len128_freetake.log`, 2026-02-26).
+  - Trace: free-list take logging with line-buffered output still emitted only a single
+    put/take pair; run_status=124 (timeout) recorded in env log
+    (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freetake3.log`, 2026-02-26).
+  - New: alloc_churn trace harness now records run_status/run_timed_out/run_elapsed_sec
+    and line-buffer command in the env log for timeout diagnostics (2026-02-26).
   - Next: determine why free-list take traces remain sparse under reuse (single put/take
     pair per 120s run); consider forcing line-buffered logging or recording timeout/exit
     status in the trace harness to confirm log completeness.
