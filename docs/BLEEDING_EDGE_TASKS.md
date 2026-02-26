@@ -234,6 +234,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     entries now show `op=91` dumps with corrupted header fields and `op=90` poison
     right before the bad-list detection (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_precheck_ringbad_20260227.log`, 2026-02-27).
+  - Trace: precheck+idx run logs `gc_reuse_bad_list_idx` showing alloc-index presence
+    on the first bad-list hit (idx_node set) and missing index on the second hit,
+    while node kind/size flips from `1/32` to `0/48` (log:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_precheck_idx_20260227.log`, 2026-02-27).
   - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
     during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
     are already corrupted before reuse validation (rolling, 2026-02-27).

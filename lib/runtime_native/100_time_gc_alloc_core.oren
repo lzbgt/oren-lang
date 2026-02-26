@@ -975,6 +975,26 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
     if g_trace_gc_reuse_bad_list == 0 { return 0 }
     if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
     if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
+    var idx_node = native_alloc_index_get(ptr)
+    var idx_kind = 0
+    var idx_size = 0
+    if idx_node != 0 {
+        idx_kind = ptr_get(iadd(idx_node, 16))
+        idx_size = ptr_get(iadd(idx_node, 8))
+    }
+    var node_kind = 0
+    var node_size = 0
+    if node_ptr != 0 {
+        node_kind = ptr_get(iadd(node_ptr, 16))
+        node_size = ptr_get(iadd(node_ptr, 8))
+    }
+    print("[gc_reuse_bad_list_idx] ptr=" + oren_int_to_string(ptr) +
+        " idx_node=" + oren_int_to_string(idx_node) +
+        " idx_kind=" + oren_int_to_string(idx_kind) +
+        " idx_size=" + oren_int_to_string(idx_size) +
+        " node=" + oren_int_to_string(node_ptr) +
+        " node_kind=" + oren_int_to_string(node_kind) +
+        " node_size=" + oren_int_to_string(node_size))
     g_gc_reuse_bad_list_triggers = g_gc_reuse_bad_list_triggers + 1
     if g_trace_list_hdr_ring_ptr != 0 {
         var ring_head = g_trace_list_hdr_ring_head
