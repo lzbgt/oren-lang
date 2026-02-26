@@ -995,6 +995,15 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
         " node=" + oren_int_to_string(node_ptr) +
         " node_kind=" + oren_int_to_string(node_kind) +
         " node_size=" + oren_int_to_string(node_size))
+    if g_gc_reuse_bad_list_last_ptr - ptr == 0 {
+        if g_gc_reuse_bad_list_last_idx_node != 0 && idx_node == 0 {
+            print("[gc_reuse_bad_list_idx_flip] ptr=" + oren_int_to_string(ptr) +
+                " prev_idx_node=" + oren_int_to_string(g_gc_reuse_bad_list_last_idx_node) +
+                " node=" + oren_int_to_string(node_ptr))
+        }
+    }
+    g_gc_reuse_bad_list_last_ptr = ptr
+    g_gc_reuse_bad_list_last_idx_node = idx_node
     g_gc_reuse_bad_list_triggers = g_gc_reuse_bad_list_triggers + 1
     if g_trace_list_hdr_ring_ptr != 0 {
         var ring_head = g_trace_list_hdr_ring_head
@@ -2542,6 +2551,8 @@ fn native_gc_collect() {
         g_gc_reuse_bad_list_prints = 0
         g_gc_reuse_bad_list_triggers = 0
         g_gc_reuse_bad_list_last_kind = 0
+        g_gc_reuse_bad_list_last_ptr = 0
+        g_gc_reuse_bad_list_last_idx_node = 0
         g_gc_reuse_bad_list_kind_flip_count = 0
         g_gc_reuse_bad_list_pre_dumped = 0
         g_gc_reuse_bad_list_last_ring_head = 0
