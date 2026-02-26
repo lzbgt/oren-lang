@@ -1030,6 +1030,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: precheck+guard5 run still shows only the initial `[list_hdr_ring_ptr_guard_set]`
       (env_enable); no `[list_hdr_ring_ptr_guard_changed]` emitted before timeout (log:
       `build/logs/alloc_churn_trace_precheck_guard5_20260227.log`, 2026-02-27).
+    - Trace: precheck+guard6 run still shows only the initial `[list_hdr_ring_ptr_guard_set]`
+      (env_enable); no `[list_hdr_ring_ptr_guard_changed]` emitted before timeout (log:
+      `build/logs/alloc_churn_trace_precheck_guard6_20260227.log`, 2026-02-27).
     - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
       during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
       are already corrupted before reuse validation (rolling, 2026-02-27).
