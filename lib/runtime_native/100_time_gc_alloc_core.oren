@@ -432,6 +432,34 @@ fn native_gc_node_in_allocs(node) {
     return 0
 }
 
+fn native_gc_ptr_in_allocs(ptr) {
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    var cur = global_get_allocs()
+    var limit = 200000
+    var count = 0
+    while cur != 0 && limit > 0 {
+        if ptr_get(cur) - ptr == 0 { count = count + 1 }
+        cur = ptr_get(iadd(cur, 32))
+        limit = limit - 1
+    }
+    return count
+}
+
+fn native_free_blocks_count_ptr_in_list(head_ptr, ptr) {
+    if ptr == 0 { return 0 }
+    if ptr < 4096 { return 0 }
+    var cur = ptr_get(head_ptr)
+    var limit = 200000
+    var count = 0
+    while cur != 0 && limit > 0 {
+        if ptr_get(cur) - ptr == 0 { count = count + 1 }
+        cur = ptr_get(iadd(cur, 32))
+        limit = limit - 1
+    }
+    return count
+}
+
 
 fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
     var prev = 0
@@ -1019,6 +1047,39 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
         " node=" + oren_int_to_string(node_ptr) +
         " node_kind=" + oren_int_to_string(node_kind) +
         " node_size=" + oren_int_to_string(node_size))
+    var allocs_count = native_gc_ptr_in_allocs(ptr)
+    var free64 = 0
+    var free256 = 0
+    var free1024 = 0
+    var free_other = 0
+    if g_gc_reuse_buckets == 0 {
+        free_other = native_free_blocks_count_ptr_in_list(global_free_blocks_ptr(), ptr)
+    } else {
+        free64 = native_free_blocks_count_ptr_in_list(global_free_blocks_64_ptr(), ptr)
+        free256 = native_free_blocks_count_ptr_in_list(global_free_blocks_256_ptr(), ptr)
+        free1024 = native_free_blocks_count_ptr_in_list(global_free_blocks_1024_ptr(), ptr)
+        free_other = native_free_blocks_count_ptr_in_list(global_free_blocks_ptr(), ptr)
+    }
+    var free_total = free64 + free256 + free1024 + free_other
+    var root_info = native_gc_root_find(ptr)
+    var in_roots = 0
+    var root_kind = 0
+    var root_idx = 0
+    if root_info != 0 {
+        in_roots = 1
+        root_kind = root_info / 4294967296
+        root_idx = root_info % 4294967296
+    }
+    print("[gc_reuse_bad_list_ptr_state] ptr=" + oren_int_to_string(ptr) +
+        " allocs=" + oren_int_to_string(allocs_count) +
+        " free_total=" + oren_int_to_string(free_total) +
+        " free64=" + oren_int_to_string(free64) +
+        " free256=" + oren_int_to_string(free256) +
+        " free1024=" + oren_int_to_string(free1024) +
+        " free_other=" + oren_int_to_string(free_other) +
+        " in_roots=" + oren_int_to_string(in_roots) +
+        " root_kind=" + oren_int_to_string(root_kind) +
+        " root_idx=" + oren_int_to_string(root_idx))
     if idx_node == 0 {
         var scan_node = node_ptr
         if g_gc_reuse_bad_list_last_ptr - ptr == 0 && g_gc_reuse_bad_list_last_idx_node != 0 {
