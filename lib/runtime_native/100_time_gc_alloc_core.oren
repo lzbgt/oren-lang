@@ -242,6 +242,33 @@ fn native_free_blocks_bucket_ptr(bucket) {
 
 fn native_free_blocks_push(node, chunk_size) {
     if oren_globals() == 0 { return 0 }
+    if g_trace_gc_free_list_put != 0 && g_trace_gc_free_list_put_cap > 0 {
+        g_trace_gc_free_list_put_cap = g_trace_gc_free_list_put_cap - 1
+        var ptr = ptr_get(node)
+        var kind = ptr_get(iadd(node, 16))
+        var freed = ptr_get(iadd(node, 24))
+        var node_magic = ptr_get(iadd(node, 40))
+        var len = 0
+        var cap = 0
+        var buf = 0
+        var magic = 0
+        if ptr != 0 && ptr >= 4096 && (kind == 2 || kind == list_int_kind()) {
+            len = ptr_get(iadd(ptr, 0))
+            cap = ptr_get(iadd(ptr, 8))
+            buf = ptr_get(iadd(ptr, 16))
+            magic = ptr_get(iadd(ptr, 24))
+        }
+        print("[gc_free_list_put] node=" + oren_int_to_string(node) +
+              " ptr=" + oren_int_to_string(ptr) +
+              " kind=" + oren_int_to_string(kind) +
+              " size=" + oren_int_to_string(chunk_size) +
+              " freed=" + oren_int_to_string(freed) +
+              " node_magic=" + oren_int_to_string(node_magic) +
+              " len=" + oren_int_to_string(len) +
+              " cap=" + oren_int_to_string(cap) +
+              " buf=" + oren_int_to_string(buf) +
+              " magic=" + oren_int_to_string(magic))
+    }
     if chunk_size >= 1073741824 || chunk_size < 0 {
         var ptr = ptr_get(node)
         var kind = ptr_get(iadd(node, 16))

@@ -232,6 +232,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: no-reuse `OREN_BENCH_LIST_LEN=64` still completes cleanly after guardrail
     changes; only `chunk=32` frees observed
     (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_noreuse_len64_postguard.log`, 2026-02-26).
+  - New: `OREN_TRACE_GC_FREE_LIST_PUT=1` logs nodes as they enter free lists (cap via
+    `OREN_TRACE_GC_FREE_LIST_PUT_CAP`).
+  - Trace: free-list put logs show list/list_int nodes inserted with freed=1 and intact
+    magic/len/cap; bad-list events still show corrupted header fields
+    (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freeput.log`, 2026-02-26).
   - Trace: alloc_churn with `OREN_ARENA_AUTO_LOOP=0` + free-list ring tracing (cap=200)
     still shows only `chunk=32` list/list_int header frees; large chunk sizes remain
     unreproduced under arena-off GC stress
