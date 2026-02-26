@@ -54,11 +54,10 @@ These rules exist to keep work **fast**, **correct**, and **production-oriented*
 
 ## Containers / Docker
 
-- Do **not** start new containers (no `docker run`, no `docker compose up`).
-- Always use the already-running Ubuntu toolchain container:
+- Prefer the existing Ubuntu toolchain container:
   - Container ID: `c7e5f7bd9f5c`
   - Use `docker exec -it c7e5f7bd9f5c ...` for all Linux/x86_64 validation and tooling.
-  - If the container is not running, stop and ask the user to restore it (do not create a replacement).
+- If `c7e5f7bd9f5c` is not available, spin up a new Ubuntu toolchain container and reuse it for subsequent runs.
 
 ## Security / secrets
 

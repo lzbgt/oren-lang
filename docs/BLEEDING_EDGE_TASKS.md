@@ -217,6 +217,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     - Trace (arm64 stage2 compile, 2026-02-26, `build/tmp/boxed_dot.oren`,
       `OREN_ARM64_FAST_LIST_DOT_NO_TICK_SLOT=1` + `OREN_TRACE_ARM64_LOOP_STACK=1`):
       `fast_list_dot_while_no_tick` tick_off=-1, slots=7, bytes=64, stack/base=224.
+    - Trace (arm64 stage2 compile, 2026-02-26, `build/tmp/boxed_dot.oren`,
+      `OREN_ARM64_FAST_LIST_DOT_NO_TICK_SLOT=1` + `OREN_TRACE_ARM64_GC_TICK_OFF=all`):
+      tick_off=0 at throttled safepoints (base/stack 160, 240; mask=1023), no negative offsets observed.
     - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
     - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
     - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
