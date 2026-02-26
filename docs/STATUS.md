@@ -938,8 +938,17 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Tool: list header kind tracing now logs `[gc_list_hdr_kind]` at reuse + mark call sites
       (`OREN_TRACE_GC_LIST_HDR_KIND=<n>`) to capture the kind/ptr source before validation
       (rolling, 2026-02-27).
-    - Trace: `[gc_list_hdr_kind]` emitted `src=mark_list_int` with `kind=8` (unexpected) before
-      segfault (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_hdr_kind_20260227.log`,
+    - Trace: `[gc_list_hdr_kind]` emitted `src=mark_list_int` with `kind=8` (list_int_kind)
+      before segfault (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_hdr_kind_20260227.log`,
+      2026-02-27).
+    - Tool: allocation kind change tracing logs `[alloc_kind_change]` when a tracked node’s
+      kind changes during `oren_track_alloc*` (`OREN_TRACE_ALLOC_KIND_CHANGE=<n>`), including
+      initial list/list_int retags from `kind=0`, to catch unexpected retagging (rolling, 2026-02-27).
+    - Trace: alloc-kind-change run emitted no `[alloc_kind_change]` lines before segfault
+      (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_kindchange_20260227.log`,
+      2026-02-27).
+    - Trace: alloc-kind-change re-run (cap=32) segfaulted before emitting any output; run log
+      is empty (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_kindchange2_20260226.log`,
       2026-02-27).
     - Trace: ring-recent run logs `[list_hdr_ring_recent]` entries for the bad list pointer
       (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent.log`, 2026-02-26).
