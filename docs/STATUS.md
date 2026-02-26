@@ -135,6 +135,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `OREN_TRACE_GC_ROOT_MATCHES=1` shows three root slots (idx 35/117/182) whose
      slot values equal the bad-list ptr with `slot_off=2376..3552` (all outside the 512B
      boot globals range) (`alloc_churn_trace_precheck_guard15_nc_20260227.log`, 2026-02-27).
+   - Trace: compile-time global slot mapping shows `slot_off=2376/2896/3584` correspond to
+     `g_gc_reuse_bad_list_triggers`, `g_runtime_root_len`, and `g_trace_list_header`,
+     suggesting global int slots are being overwritten by bad-list pointers
+     (`alloc_churn_globals_trace_20260227_072238.log`, 2026-02-27).
    - Trace: pending root tags now flush once envp-derived tracing is enabled, showing
      runtime init’s `value_nil/false/true` registrations with `pending=1`
      (`alloc_churn_trace_precheck_guard22_nc_20260226.log`, 2026-02-26).
@@ -142,6 +146,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      roots are skipped unless `OREN_TRACE_GC_REGISTER_ROOT_ALL=1` is set. New summary
      knob `OREN_TRACE_GC_ROOT_SLOT_SUMMARY=1` reports boot vs non-boot root slots
      (sample cap via `OREN_TRACE_GC_ROOT_SLOT_SUMMARY_CAP`, 2026-02-27).
+   - Tool: `OREN_TRACE_GC_GLOBAL_GUARD=1` logs when `g_gc_reuse_bad_list_triggers`,
+     `g_runtime_root_len`, or `g_trace_list_header` hold pointer-like values to help
+     pinpoint corruption timing (rolling, 2026-02-27).
 
 4) **W4 - Platform breadth (Tier‑1 intent targets)**
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
@@ -1056,6 +1063,12 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       in `native_gc_root_find`, widening coverage beyond reuse precheck (2026-02-27).
     - Tool: bad-list ptr state log now includes `guard` + `guard_last` to confirm whether
       `g_trace_list_hdr_ring_ptr_guard` changed when stale roots are reported (2026-02-27).
+    - Trace: compile-time global slot mapping shows stale-root offsets `2376/2896/3584` align to
+      `g_gc_reuse_bad_list_triggers`, `g_runtime_root_len`, and `g_trace_list_header`,
+      indicating non-pointer globals are being overwritten by bad-list pointers
+      (`alloc_churn_globals_trace_20260227_072238.log`, 2026-02-27).
+    - Tool: `OREN_TRACE_GC_GLOBAL_GUARD=1` logs when those globals hold pointer-like values
+      to narrow down corruption timing (rolling, 2026-02-27).
     - Trace: precheck+guard4 run shows a single `[list_hdr_ring_ptr_guard_set]` (env_enable)
       and no subsequent guard flips before timeout (log:
       `build/logs/alloc_churn_trace_precheck_guard4_20260227.log`, 2026-02-27).

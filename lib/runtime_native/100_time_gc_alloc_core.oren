@@ -46,6 +46,11 @@ var g_trace_gc_root_slot_summary = 0
 var g_trace_gc_root_slot_summary_cap = 0
 var g_trace_gc_root_slot_summary_checked = 0
 var g_trace_gc_root_slot_summary_done = 0
+var g_trace_gc_global_guard = 0
+var g_trace_gc_global_guard_checked = 0
+var g_trace_gc_global_guard_last_bad_list = 0
+var g_trace_gc_global_guard_last_root_len = 0
+var g_trace_gc_global_guard_last_list_hdr = 0
 
 fn _gc_register_root_tag_name(tag) {
     if tag == 1 { return "runtime_init/value_nil" }
@@ -128,6 +133,38 @@ fn _gc_register_root_pending_emit() {
     if n > 5 { _gc_register_root_print(g_trace_gc_register_root_pending_ptr5, g_trace_gc_register_root_pending_tag5, 1) }
     if n > 6 { _gc_register_root_print(g_trace_gc_register_root_pending_ptr6, g_trace_gc_register_root_pending_tag6, 1) }
     if n > 7 { _gc_register_root_print(g_trace_gc_register_root_pending_ptr7, g_trace_gc_register_root_pending_tag7, 1) }
+    return 0
+}
+
+fn _gc_global_guard_poll(where) {
+    if g_trace_gc_global_guard_checked == 0 {
+        var v_guard = native_envp_get_value_ptr("OREN_TRACE_GC_GLOBAL_GUARD")
+        if v_guard != 0 && ptr_get_byte(v_guard) != 0 && ptr_get_byte(v_guard) != 48 {
+            g_trace_gc_global_guard = 1
+        }
+        g_trace_gc_global_guard_checked = 1
+    }
+    if g_trace_gc_global_guard == 0 { return 0 }
+    var v_bad = g_gc_reuse_bad_list_triggers
+    var v_root = g_runtime_root_len
+    var v_hdr = g_trace_list_header
+    var bad = 0
+    if v_bad < 0 || v_bad >= 4096 { bad = 1 }
+    if v_root < 0 || v_root >= 4096 { bad = 1 }
+    if v_hdr != -1 && v_hdr != 0 && v_hdr != 1 { bad = 1 }
+    if bad == 0 { return 0 }
+    if v_bad - g_trace_gc_global_guard_last_bad_list == 0 &&
+       v_root - g_trace_gc_global_guard_last_root_len == 0 &&
+       v_hdr - g_trace_gc_global_guard_last_list_hdr == 0 {
+        return 0
+    }
+    g_trace_gc_global_guard_last_bad_list = v_bad
+    g_trace_gc_global_guard_last_root_len = v_root
+    g_trace_gc_global_guard_last_list_hdr = v_hdr
+    print("[gc_global_guard] where=" + where +
+        " bad_list_triggers=" + oren_int_to_string(v_bad) +
+        " runtime_root_len=" + oren_int_to_string(v_root) +
+        " trace_list_header=" + oren_int_to_string(v_hdr))
     return 0
 }
 
@@ -580,6 +617,7 @@ fn native_free_blocks_count_ptr_in_list(head_ptr, ptr) {
 
 
 fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
+    _gc_global_guard_poll("gc_reuse")
     var prev = 0
     var cur = ptr_get(head_ptr)
     var scan_left = g_gc_reuse_scan_cap
@@ -2827,6 +2865,7 @@ fn native_gc_collect() {
     if trace_on {
         sweep_t0 = oren_time_now_ns()
     }
+    _gc_global_guard_poll("gc_collect")
     // 1) Clear marks (keep this phase allocation-free and leaf-ish).
     var cur_clear = global_get_allocs()
     while cur_clear != 0 {
