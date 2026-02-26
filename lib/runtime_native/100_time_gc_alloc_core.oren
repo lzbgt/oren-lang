@@ -23,6 +23,7 @@ var g_trace_gc_register_root = 0
 var g_trace_gc_register_root_cap = 0
 var g_trace_gc_register_root_checked = 0
 var g_trace_gc_register_root_all = 0
+var g_trace_gc_register_root_envp_checked = 0
 var g_trace_gc_root_slot_summary = 0
 var g_trace_gc_root_slot_summary_cap = 0
 var g_trace_gc_root_slot_summary_checked = 0
@@ -2174,6 +2175,15 @@ fn oren_track_alloc(ptr, size, kind) {
 fn native_gc_register_root_tag(ptr, tag) {
     if g_gc_enabled == 0 { return 0 }
     if ptr == 0 { return 0 }
+    if g_trace_gc_register_root_checked != 0 &&
+       g_trace_gc_register_root == 0 &&
+       g_trace_gc_register_root_all == 0 &&
+       g_trace_gc_register_root_envp_checked == 0 {
+        if global_get_envp() != 0 {
+            g_trace_gc_register_root_checked = 0
+            g_trace_gc_register_root_envp_checked = 1
+        }
+    }
     if g_trace_gc_register_root_checked == 0 {
         var v_rr = native_envp_get_value_ptr("OREN_TRACE_GC_REGISTER_ROOT")
         if v_rr != 0 && ptr_get_byte(v_rr) != 0 && ptr_get_byte(v_rr) != 48 {
