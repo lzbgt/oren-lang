@@ -10,6 +10,7 @@ bin="${tmp_dir}/alloc_churn_trace_${tag}"
 build_log="${log_dir}/alloc_churn_build_${tag}.log"
 run_log="${log_dir}/alloc_churn_trace_${tag}.log"
 env_log="${log_dir}/alloc_churn_env_${tag}.log"
+timeout_bin="$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || echo "")"
 
 {
   echo "tag=${tag}"
@@ -26,6 +27,20 @@ env_log="${log_dir}/alloc_churn_env_${tag}.log"
   env | rg '^(OREN|AVM)_' | sort
 } > "${env_log}"
 
-./oren_stage2 build benchmarks/alloc_churn/alloc_churn.oren --backend native --no-debug -o "${bin}" > "${build_log}" 2>&1
-"${bin}" > "${run_log}" 2>&1
+build_env=(env)
+while IFS='=' read -r name _; do
+  case "$name" in
+    OREN_*|AVM_*) build_env+=("-u" "$name") ;;
+  esac
+done < <(env)
+if [[ -n "${OREN_PLATFORM:-}" ]]; then
+  build_env+=("OREN_PLATFORM=${OREN_PLATFORM}")
+fi
+
+"${build_env[@]}" ./oren_stage2 build benchmarks/alloc_churn/alloc_churn.oren --backend native --no-debug -o "${bin}" > "${build_log}" 2>&1
+if [[ -n "${ALLOC_CHURN_RUN_TIMEOUT_SECS:-}" && -n "${timeout_bin}" ]]; then
+  "${timeout_bin}" -k 2 "${ALLOC_CHURN_RUN_TIMEOUT_SECS}" "${bin}" > "${run_log}" 2>&1
+else
+  "${bin}" > "${run_log}" 2>&1
+fi
 echo "${tag}"
