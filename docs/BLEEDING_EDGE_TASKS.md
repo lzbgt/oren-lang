@@ -246,6 +246,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: free-list take logging captured a single put/take pair (freed flipped to 0
     on take); no bad-list events observed before timeout
     (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freetake.log`, 2026-02-26).
+  - Trace: free-list take logging with cap=2000 again emitted only a single put/take pair
+    (two-line log) and no bad-list events before timeout
+    (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freetake2.log`, 2026-02-26).
+  - Trace: `OREN_BENCH_LIST_LEN=128` with free-list take logging (timeout 120s) still
+    emitted only a single put/take pair and no bad-list events before timeout
+    (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len128_freetake.log`, 2026-02-26).
+  - Next: determine why free-list take traces remain sparse under reuse (single put/take
+    pair per 120s run); consider forcing line-buffered logging or recording timeout/exit
+    status in the trace harness to confirm log completeness.
   - Trace: alloc_churn with `OREN_ARENA_AUTO_LOOP=0` + free-list ring tracing (cap=200)
     still shows only `chunk=32` list/list_int header frees; large chunk sizes remain
     unreproduced under arena-off GC stress

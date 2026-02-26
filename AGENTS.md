@@ -55,9 +55,10 @@ These rules exist to keep work **fast**, **correct**, and **production-oriented*
 ## Containers / Docker
 
 - Prefer the existing Ubuntu toolchain container:
-  - Container name: `c7e5f7bd9f5c` (current ID: `4d31759fc170`).
+  - Container name: `c7e5f7bd9f5c` (current ID: `4d31759fc170`, 2026-02-26).
   - Use `docker exec -it c7e5f7bd9f5c ...` (or the ID) for all Linux/x86_64 validation and tooling.
-- If `c7e5f7bd9f5c` is not available, then spin up new containers for reuse.
+- If `c7e5f7bd9f5c` is not available, then spin up a new Ubuntu toolchain container for reuse
+  and update this section with the new name/ID.
 
 ## Security / secrets
 

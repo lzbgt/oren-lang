@@ -869,6 +869,15 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: free-list take logging captured a single put/take pair (freed flipped to 0
       on take); no bad-list events observed before timeout
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freetake.log`, 2026-02-26).
+    - Trace: free-list take logging with cap=2000 again emitted only a single put/take pair
+      (two-line log) and no bad-list events before timeout
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freetake2.log`, 2026-02-26).
+    - Trace: `OREN_BENCH_LIST_LEN=128` with free-list take logging (timeout 120s) still
+      emitted only a single put/take pair and no bad-list events before timeout
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len128_freetake.log`, 2026-02-26).
+    - Next: determine why free-list take traces remain sparse under reuse (single put/take
+      pair per 120s run); consider forcing line-buffered logging or recording timeout/exit
+      status in trace harness to confirm log completeness.
   - Note: `make test` saw a one-off segfault in `test-native-quick-stage2`
     (log: `build/logs/make_test_20260226_172510.log`); rerun passed
     (log: `build/logs/make_test_native_quick_stage2_20260226_172724.log`). Track for flakes.
