@@ -225,6 +225,7 @@ fn native_runtime_init(target_os) {
     g_alloc_index_len = 0
     g_alloc_index_probe_exhausted = 0
     g_alloc_index_dedup_hits = 0
+    g_alloc_index_dedup_cap = 0
     g_static_allocs = 0
     g_cstr0_set_ptr = 0
     g_cstr0_set_cap = 0

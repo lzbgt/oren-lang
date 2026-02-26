@@ -81,6 +81,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      quick integration to catch tracking regressions (2026-02-26).
    - New: `OREN_TRACE_ALLOC_INDEX=1` now reports `dedup_hits` for alloc-index de-dup
      in `oren_track_alloc_new` (2026-02-26).
+   - New: `OREN_TRACE_ALLOC_INDEX_DEDUP_CAP=<n>` panics when dedup hits exceed `n`
+     (trace-only guardrail, 2026-02-26).
 
 4) **W4 - Platform breadth (Tier‑1 intent targets)**
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.

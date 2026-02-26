@@ -1862,6 +1862,11 @@ fn native_gc_collect() {
             " dedup_hits=" + oren_int_to_string(g_alloc_index_dedup_hits) +
             " len=" + oren_int_to_string(g_alloc_index_len) +
             " cap=" + oren_int_to_string(g_alloc_index_cap))
+        if g_alloc_index_dedup_cap > 0 && g_alloc_index_dedup_hits > g_alloc_index_dedup_cap {
+            print("[alloc_index] dedup cap exceeded cap=" + oren_int_to_string(g_alloc_index_dedup_cap) +
+                  " hits=" + oren_int_to_string(g_alloc_index_dedup_hits))
+            oren_panic("alloc_index dedup cap exceeded")
+        }
         g_alloc_index_rebuild_count = 0
         g_alloc_index_rebuild_ns = 0
         g_alloc_index_rebuild_allocs = 0
