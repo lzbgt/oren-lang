@@ -989,6 +989,12 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       allocs (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_precheck_state_20260226.log`,
       2026-02-26).
+    - Trace: precheck+state5 run logs root slot details for the stale root:
+      `root_slot_offset=3456` (`root_slot_index=432`) with `root_slot_val` equal to the bad ptr
+      and `root_count=3` (duplicate roots). Confirms the root slot lives inside `g_storage`
+      at offset 3456 (log:
+      `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_precheck_state5_20260226.log`,
+      2026-02-26).
     - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
       during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
       are already corrupted before reuse validation (rolling, 2026-02-27).
