@@ -177,6 +177,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `OREN_TRACE_TRACK_ALLOC_NEW_SIZE=1` triggers (2026-02-26).
    - New: list growth/reserve now guards `cap > 1<<30` to catch corrupted headers before
      overflow/alloc (2026-02-26).
+   - New: GC mark now validates list/list_int headers and panics on corruption before
+     scanning payloads (2026-02-26).
    - Trace: GC-stress quick integration with list-reserve-fail + corrupt tracing enabled
      saw no list_reserve/list_corrupt events; alloc-index rebuilds remained zero
      (log: `build/logs/native_quick_gc_trace_20260226_084741.log`).

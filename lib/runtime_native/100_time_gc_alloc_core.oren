@@ -1573,6 +1573,14 @@ fn oren_mark_value(val) {
         ptr_set(iadd(node, 24), -1)
 
         if kind == 2 { // LIST
+            var chunk_size = ptr_get(iadd(node, 8))
+            if native_gc_list_header_ok(val, kind, chunk_size) == 0 {
+                print("trace: gc list corrupt list=" + oren_int_to_string(val) +
+                      " chunk=" + oren_int_to_string(chunk_size))
+                native_gc_list_header_dump(val, chunk_size)
+                oren_panic("gc list header corrupt")
+                return 0
+            }
             var count = ptr_get(val)
             var buf = ptr_get(iadd(val, 16))
             if buf != 0 {
@@ -1586,6 +1594,14 @@ fn oren_mark_value(val) {
             }
         }
         if kind == list_int_kind() { // LIST_INT (unboxed)
+            var chunk_size = ptr_get(iadd(node, 8))
+            if native_gc_list_header_ok(val, kind, chunk_size) == 0 {
+                print("trace: gc list_int corrupt list=" + oren_int_to_string(val) +
+                      " chunk=" + oren_int_to_string(chunk_size))
+                native_gc_list_header_dump(val, chunk_size)
+                oren_panic("gc list_int header corrupt")
+                return 0
+            }
             var buf = ptr_get(iadd(val, 16))
             if buf != 0 { oren_mark_value(buf) }
         }
