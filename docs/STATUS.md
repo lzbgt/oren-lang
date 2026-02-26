@@ -935,6 +935,12 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: list header ok trace emitted entries (e.g., `kind=8` and `kind=2`)
       before a segfault (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_hdr_ok_20260227.log`, 2026-02-27).
+    - Tool: list header kind tracing now logs `[gc_list_hdr_kind]` at reuse + mark call sites
+      (`OREN_TRACE_GC_LIST_HDR_KIND=<n>`) to capture the kind/ptr source before validation
+      (rolling, 2026-02-27).
+    - Trace: `[gc_list_hdr_kind]` emitted `src=mark_list_int` with `kind=8` (unexpected) before
+      segfault (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_hdr_kind_20260227.log`,
+      2026-02-27).
     - Trace: ring-recent run logs `[list_hdr_ring_recent]` entries for the bad list pointer
       (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent.log`, 2026-02-26).
     - Trace: correlator output now includes `[list_hdr_ring_recent]` blocks for the bad list
