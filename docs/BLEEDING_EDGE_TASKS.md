@@ -160,6 +160,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: correlator output now includes `[list_hdr_ring_recent]` blocks for the bad list
     pointer (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent_correlate.log`, 2026-02-26).
+  - Trace: ring-recent (n=16) run still reports repeated `op=1` entries for the bad list pointer;
+    correlator sequence remains `1:2` (log:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent16.log`, 2026-02-26;
+    correlate:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent16_correlate.log`, 2026-02-26).
   - New: `OREN_TRACE_LIST_HDR_RING_DUP=1` logs `[list_hdr_ring_dup]` when the ring buffer
     already contains the same list pointer; per-pointer suppression uses
     `OREN_TRACE_LIST_HDR_RING_DUP_SEEN_CAP` (default 64) to avoid repeat logs
