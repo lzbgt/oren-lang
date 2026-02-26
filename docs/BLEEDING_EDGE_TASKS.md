@@ -90,6 +90,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Root-cause list header corruption before enabling reuse paths.
    - Repro (2026-02-26): `benchmarks/run_benchmarks.py` dot_product Oren C build panicked with
      `gc list header corrupt` (log: `build/logs/bench_build_oren_c_dot_product_20260226_145741.log`).
+   - Fix: GC list header validation now accepts 16-byte aligned inline header sizes to avoid
+     false corruption on small caps (2026-02-26).
+   - Fix: list_reserve now attempts alloc-index recover + header re-track before panicking
+     on non-list headers to reduce false positives under GC churn (2026-02-26).
+   - Fix: host-thread green spawn/join now uses world-lock critical sections when enabled,
+     preventing races in multi-worker world-lock mode (2026-02-26).
    - New: list_int allocations show huge `size` at `oren_track_alloc_new` time (before header init), so track the
      corruption back to size propagation (possible 32-bit -> 64-bit zero-extend gap or bad `cap` propagation).
    - New: arm64 native `malloc_k` now preserves size across kind-eval; re-run free-list traces to confirm the

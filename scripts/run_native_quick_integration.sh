@@ -99,6 +99,11 @@ if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_RUN_TIMEOUT_SECS:-}" ]]; then
     run_timeout_secs=10
   fi
 fi
+if [[ "$os_key" == "macos" && -z "${OREN_NATIVE_BUILD_TIMEOUT_SECS:-}" ]]; then
+  if [[ "$compiler_base" == *stage2* ]]; then
+    build_timeout_secs=20
+  fi
+fi
 out="build/tmp/${compiler_base}_native_quick_integration${exe_ext}"
 log="build/logs/${compiler_base}_native_quick_integration.log"
 

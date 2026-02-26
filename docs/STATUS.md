@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-02-25
+**Last updated:** 2026-02-26
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
@@ -65,6 +65,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Guardrails and traces exist, but correctness gates are not yet stable.
    - Repro (2026-02-26): `benchmarks/run_benchmarks.py` dot_product Oren C build panicked with
      `gc list header corrupt` (log: `build/logs/bench_build_oren_c_dot_product_20260226_145741.log`).
+   - Fix: GC list header validation now accepts 16-byte aligned inline header sizes to avoid
+     false corruption on small caps (2026-02-26).
+   - Fix: list_reserve now attempts alloc-index recover + header re-track before panicking
+     on non-list headers to reduce false positives under GC churn (2026-02-26).
+   - Fix: host-thread green spawn/join now uses world-lock critical sections when enabled,
+     preventing races in multi-worker world-lock mode (2026-02-26).
    - New: list corruption checks now flag len/cap invariants and reserve-fail traces log header fields (2026-02-25).
    - New: green scheduler struct allocations now rebuild/force GC tracking before tagging kind=STRUCT,
      preventing args-list GC under `OREN_GREEN_POLL_CACHE=1` (2026-02-25).

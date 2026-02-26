@@ -661,8 +661,12 @@ fn _green_spawn_alloc_g(fn_obj, args_list) {
 
 @oren.keep
 fn oren_green_spawn(fn_obj, args_list) {
+    var wl = _green_world_lock_host_enter()
     var g = _green_spawn_alloc_g(fn_obj, args_list)
-    if g == 0 { return 0 }
+    if g == 0 {
+        _green_world_lock_host_exit(wl)
+        return 0
+    }
 
     // Spawning policy (rolling, GMP-ready):
     // - If we're currently inside a green task, enqueue locally to the current P (locality).
@@ -675,6 +679,7 @@ fn oren_green_spawn(fn_obj, args_list) {
     } else {
         _green_global_runq_push(g)
     }
+    _green_world_lock_host_exit(wl)
     return g
 }
 
@@ -694,8 +699,12 @@ fn oren_green_debug_spawn_call_list_to_p(p_id, fn_obj, args_list) {
     var ts0 = _green_thread_state_for_current_thread_or0()
     if ts0 != 0 && ptr_get(ts0 + green_t_off_current_g()) != 0 { return 0 }
 
+    var wl = _green_world_lock_host_enter()
     var g = _green_spawn_alloc_g(fn_obj, args_list)
-    if g == 0 { return 0 }
+    if g == 0 {
+        _green_world_lock_host_exit(wl)
+        return 0
+    }
 
     var s = _green_get_state()
     if s == 0 { return 0 }
@@ -706,6 +715,7 @@ fn oren_green_debug_spawn_call_list_to_p(p_id, fn_obj, args_list) {
         _green_runq_push_locked(p, s, g)
     }
     _green_lock_release()
+    _green_world_lock_host_exit(wl)
     return g
 }
 
@@ -740,22 +750,29 @@ fn oren_green_join_timeout(g, timeout_ms) {
         }
 
 	        // Stage N2 worker mode: the scheduler runs on background OS threads; join blocks on addr.
-	        if g_green_workers_started != 0 {
-	            var state_ptr = g + green_g_off_state()
-	            while true {
-	                var cur = ptr_get(state_ptr)
-	                if cur == green_g_state_done() { break }
-	                // STW GC robustness:
-	                // A host-thread joiner is still an OS thread that must be able to reach safepoints.
-	                // Avoid sleeping forever in a kernel wait here.
-	                oren_gc_safepoint()
-	                var rcw = oren_wait_on_addr(state_ptr, cur, 10000) // 10ms
-	                if rcw != 0 && rcw != -60 { return rcw }
-	            }
-	            var r2 = ptr_get(g + green_g_off_result())
-	            _green_cleanup_g(g)
-	            return r2
-	        }
+        if g_green_workers_started != 0 {
+            var state_ptr = g + green_g_off_state()
+            while true {
+                var wl0 = _green_world_lock_host_enter()
+                var cur = ptr_get(state_ptr)
+                if cur == green_g_state_done() {
+                    _green_world_lock_host_exit(wl0)
+                    break
+                }
+                _green_world_lock_host_exit(wl0)
+                // STW GC robustness:
+                // A host-thread joiner is still an OS thread that must be able to reach safepoints.
+                // Avoid sleeping forever in a kernel wait here.
+                oren_gc_safepoint()
+                var rcw = oren_wait_on_addr(state_ptr, cur, 10000) // 10ms
+                if rcw != 0 && rcw != -60 { return rcw }
+            }
+            var wl1 = _green_world_lock_host_enter()
+            var r2 = ptr_get(g + green_g_off_result())
+            _green_cleanup_g(g)
+            _green_world_lock_host_exit(wl1)
+            return r2
+        }
 
         // Stage N1: drive the scheduler on this OS thread.
         while ptr_get(g + green_g_off_state()) != green_g_state_done() {
@@ -820,18 +837,27 @@ fn oren_green_join_timeout(g, timeout_ms) {
         var state_ptr2 = g + green_g_off_state()
         var timeout_us = t * 1000
         while true {
+            var wl2 = _green_world_lock_host_enter()
             var cur2 = ptr_get(state_ptr2)
-            if cur2 == green_g_state_done() { break }
+            if cur2 == green_g_state_done() {
+                _green_world_lock_host_exit(wl2)
+                break
+            }
+            _green_world_lock_host_exit(wl2)
             var rcw2 = oren_wait_on_addr(state_ptr2, cur2, timeout_us)
             if rcw2 == -60 {
+                var wl3 = _green_world_lock_host_enter()
                 ptr_set(g + green_g_off_detached(), 1)
+                _green_world_lock_host_exit(wl3)
                 return -60
             }
             if rcw2 != 0 { return rcw2 }
             // Woken or spurious; re-check state.
         }
+        var wl4 = _green_world_lock_host_enter()
         var r_done = ptr_get(g + green_g_off_result())
         _green_cleanup_g(g)
+        _green_world_lock_host_exit(wl4)
         return r_done
     }
 

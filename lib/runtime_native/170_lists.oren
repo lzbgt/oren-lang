@@ -815,6 +815,20 @@ fn oren_list_reserve(list, new_cap) {
             node = _list_find_node(list)
         }
         if node == 0 {
+            node = native_alloc_index_recover_ptr(list)
+        }
+        if node == 0 {
+            if list >= 4096 && ptr_get(iadd(list, 24)) == list_magic() {
+                var cap2 = ptr_get(iadd(list, 8))
+                if cap2 >= 0 && cap2 < 1048576 {
+                    var total2 = 32
+                    if cap2 > 0 { total2 = total2 + cap2 * 8 }
+                    oren_track_alloc_new(list, total2, 2)
+                    node = _list_find_node(list)
+                }
+            }
+        }
+        if node == 0 {
             native_list_reserve_panic(list, new_cap, 1)
             oren_panic("list_reserve on non-list")
             return nil
@@ -825,6 +839,19 @@ fn oren_list_reserve(list, new_cap) {
             node = _list_find_node(list)
             k = 0
             if node != 0 { k = ptr_get(iadd(node, 16)) }
+            if k != 2 {
+                if list >= 4096 && ptr_get(iadd(list, 24)) == list_magic() {
+                    var cap3 = ptr_get(iadd(list, 8))
+                    if cap3 >= 0 && cap3 < 1048576 {
+                        var total3 = 32
+                        if cap3 > 0 { total3 = total3 + cap3 * 8 }
+                        oren_track_alloc_new(list, total3, 2)
+                        node = _list_find_node(list)
+                        k = 0
+                        if node != 0 { k = ptr_get(iadd(node, 16)) }
+                    }
+                }
+            }
             if k != 2 {
                 native_list_reserve_panic(list, new_cap, 2)
                 oren_panic("list_reserve on non-list")

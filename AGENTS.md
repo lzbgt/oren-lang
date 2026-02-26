@@ -57,7 +57,7 @@ These rules exist to keep work **fast**, **correct**, and **production-oriented*
 - Prefer the existing Ubuntu toolchain container:
   - Container ID: `c7e5f7bd9f5c`
   - Use `docker exec -it c7e5f7bd9f5c ...` for all Linux/x86_64 validation and tooling.
-- If `c7e5f7bd9f5c` is not available, spin up a new Ubuntu toolchain container and reuse it for subsequent runs.
+- If `c7e5f7bd9f5c` is not available, then spin up new containers for reuse.
 
 ## Security / secrets
 

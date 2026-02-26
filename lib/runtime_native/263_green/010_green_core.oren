@@ -643,6 +643,32 @@ fn _green_world_lock_release() {
     return 0
 }
 
+fn _green_world_lock_host_enabled() {
+    if g_green_world_lock_enabled == 0 { return 0 }
+    if g_green_workers_started == 0 { return 0 }
+    if g_green_worker_count <= 1 { return 0 }
+    if g_green_world_lock_word == 0 { return 0 }
+    return 1
+}
+
+fn _green_world_lock_host_enter() {
+    if _green_world_lock_host_enabled() == 0 { return 0 }
+    var lock_ptr = g_green_world_lock_word
+    if lock_ptr == 0 { return 0 }
+    var tid = sys_gettid()
+    if tid == 0 { return 0 }
+    if ptr_get(lock_ptr) == tid { return 2 } // already held by this thread
+    _green_world_lock_acquire()
+    return 1
+}
+
+fn _green_world_lock_host_exit(token) {
+    if token == 1 {
+        _green_world_lock_release()
+    }
+    return 0
+}
+
 @oren.keep
 fn oren_green_debug_worker_tid(worker_id) {
     // Fixture helper: get worker tid for worker_id (reserved P id).
