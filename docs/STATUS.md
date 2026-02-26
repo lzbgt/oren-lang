@@ -819,6 +819,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       `OREN_TRACE_GC_SWEEP=1`, `OREN_TRACE_LIST_CORRUPT=1`) segfaulted quickly; first
       sweep/reuse summary emitted before crash (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_sweep.log`, 2026-02-26).
+    - Trace: poison+GC sweep with list reuse disabled (blocks reuse on) still segfaulted
+      (log: `build/logs/alloc_churn_trace_poison_nolistreuse_len64_gc50_200_sweep.log`, 2026-02-26).
+    - Trace: poison+GC sweep with reuse blocks disabled completes cleanly (log:
+      `build/logs/alloc_churn_trace_poison_noreuse_len64_gc50_200_sweep.log`, 2026-02-26).
     - Trace: reuse-enabled alloc_churn (blocks+lists unsafe) still shows only `chunk=32` frees
       and no size mismatches; reuse stats show large scan_steps in later windows
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse1.log`, 2026-02-26).

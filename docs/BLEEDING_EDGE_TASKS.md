@@ -107,6 +107,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `OREN_TRACE_GC_SWEEP=1`, `OREN_TRACE_LIST_CORRUPT=1`) segfaulted quickly; first
     sweep/reuse summary emitted before crash (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_sweep.log`, 2026-02-26).
+  - Trace: poison+GC sweep with list reuse disabled (blocks reuse on) still segfaulted
+    (log: `build/logs/alloc_churn_trace_poison_nolistreuse_len64_gc50_200_sweep.log`, 2026-02-26).
+  - Trace: poison+GC sweep with reuse blocks disabled completes cleanly (log:
+    `build/logs/alloc_churn_trace_poison_noreuse_len64_gc50_200_sweep.log`, 2026-02-26).
   - Verified: dot_product Oren C benchmark build/run now completes without list-header corruption
     after aligned-header fix (log: `build/logs/bench_dot_product_oren_c_20260226_155530.log`).
    - Verified: dot_product_int Oren C benchmark build/run completes without list-header corruption
