@@ -1011,6 +1011,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       `root_slot_offset=3464` (`root_slot_index=433`) and no guard lines emitted; run timed out
       at 120s (log:
       `build/logs/alloc_churn_trace_precheck_guard2_20260227.log`, 2026-02-27).
+    - Trace: compile-time global slot dump after rebuilding stage2 maps slot 3464/index 433 to
+      `g_trace_list_hdr_ring_ptr_guard` (log:
+      `build/logs/global_slots_idx433_after_stage2.log`, 2026-02-27).
     - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
       during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
       are already corrupted before reuse validation (rolling, 2026-02-27).
