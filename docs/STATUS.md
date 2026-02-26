@@ -63,6 +63,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
 3) **W5 - Runtime robustness (GC reuse + allocator invariants)**
    - GC reuse paths are experimental; list header corruption investigations are ongoing.
    - Guardrails and traces exist, but correctness gates are not yet stable.
+   - Repro (2026-02-26): `benchmarks/run_benchmarks.py` dot_product Oren C build panicked with
+     `gc list header corrupt` (log: `build/logs/bench_build_oren_c_dot_product_20260226_145741.log`).
    - New: list corruption checks now flag len/cap invariants and reserve-fail traces log header fields (2026-02-25).
    - New: green scheduler struct allocations now rebuild/force GC tracking before tagging kind=STRUCT,
      preventing args-list GC under `OREN_GREEN_POLL_CACHE=1` (2026-02-25).
