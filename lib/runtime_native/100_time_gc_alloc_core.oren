@@ -269,6 +269,26 @@ fn native_free_blocks_push(node, chunk_size) {
               " buf=" + oren_int_to_string(buf) +
               " magic=" + oren_int_to_string(magic))
     }
+    if g_trace_gc_reuse_bad_list != 0 {
+        var ptr_bad = ptr_get(node)
+        var kind_bad = ptr_get(iadd(node, 16))
+        if ptr_bad != 0 && ptr_bad >= 4096 && (kind_bad == 2 || kind_bad == list_int_kind()) {
+            if native_gc_list_header_ok_allow_poison(ptr_bad, kind_bad, chunk_size) == 0 {
+                var len_bad = ptr_get(iadd(ptr_bad, 0))
+                var cap_bad = ptr_get(iadd(ptr_bad, 8))
+                var buf_bad = ptr_get(iadd(ptr_bad, 16))
+                var magic_bad = ptr_get(iadd(ptr_bad, 24))
+                print("[gc_free_list_put_bad_hdr] node=" + oren_int_to_string(node) +
+                      " ptr=" + oren_int_to_string(ptr_bad) +
+                      " kind=" + oren_int_to_string(kind_bad) +
+                      " size=" + oren_int_to_string(chunk_size) +
+                      " len=" + oren_int_to_string(len_bad) +
+                      " cap=" + oren_int_to_string(cap_bad) +
+                      " buf=" + oren_int_to_string(buf_bad) +
+                      " magic=" + oren_int_to_string(magic_bad))
+            }
+        }
+    }
     if chunk_size >= 1073741824 || chunk_size < 0 {
         var ptr = ptr_get(node)
         var kind = ptr_get(iadd(node, 16))

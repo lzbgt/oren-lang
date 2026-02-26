@@ -266,6 +266,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     run timed out at 120s (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_precheck_fix_20260226.log`,
     2026-02-26).
+  - Trace: precheck+putbad run emitted no `[gc_free_list_put_bad_hdr]` lines before
+    the bad-list hit (suggests list header is still valid when pushed to free list);
+    scan still shows `found=0` after second hit. Run timed out at 120s (log:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_precheck_putbad_20260226.log`,
+    2026-02-26).
   - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
     during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
     are already corrupted before reuse validation (rolling, 2026-02-27).
