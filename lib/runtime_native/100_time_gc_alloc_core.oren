@@ -242,6 +242,34 @@ fn native_free_blocks_bucket_ptr(bucket) {
 
 fn native_free_blocks_push(node, chunk_size) {
     if oren_globals() == 0 { return 0 }
+    if chunk_size >= 1073741824 || chunk_size < 0 {
+        var ptr = ptr_get(node)
+        var kind = ptr_get(iadd(node, 16))
+        var expected = 0
+        var len = 0
+        var cap = 0
+        var buf = 0
+        var magic = 0
+        if ptr != 0 && ptr >= 4096 && (kind == 2 || kind == list_int_kind()) {
+            len = ptr_get(iadd(ptr, 0))
+            cap = ptr_get(iadd(ptr, 8))
+            buf = ptr_get(iadd(ptr, 16))
+            magic = ptr_get(iadd(ptr, 24))
+            expected = 32
+            if cap > 0 && cap < 1048576 {
+                if buf == iadd(ptr, 32) { expected = expected + cap * 8 }
+            }
+        }
+        print("[free_blocks_size] node=" + oren_int_to_string(node) +
+              " ptr=" + oren_int_to_string(ptr) +
+              " kind=" + oren_int_to_string(kind) +
+              " size=" + oren_int_to_string(chunk_size) +
+              " expected=" + oren_int_to_string(expected) +
+              " len=" + oren_int_to_string(len) +
+              " cap=" + oren_int_to_string(cap) +
+              " buf=" + oren_int_to_string(buf) +
+              " magic=" + oren_int_to_string(magic))
+    }
     var bucket = native_free_blocks_bucket_for_size(chunk_size)
     var head_ptr = native_free_blocks_bucket_ptr(bucket)
     var head = ptr_get(head_ptr)
