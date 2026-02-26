@@ -927,6 +927,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: lower scan cap (`OREN_GC_REUSE_SCAN_CAP=64`, bad-list cap=3) still
       segfaulted before emitting bad-list logs; summary only
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_200_cap64.log`, 2026-02-26).
+    - New: bad-list ring dumps now skip when `cap` is implausible (>=1,048,576) to reduce
+      segfault risk when corrupted headers point into unmapped memory (2026-02-26).
     - Trace: with `bad_list_triggers` enabled, summary still showed `bad_list_triggers=0`
       while bad-list prints followed (now with `len=0 cap=1 buf=2 magic=3` in the corrupted
       header fields), so the summary window continues to miss later bad-list events
@@ -998,7 +1000,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 5) **Local agent UI polling/backoff** (S, W3)
    - Investigate repeated `/v1/tools` polling failures from `index-*.js`
      (fetch to `https://127.0.0.1:54513/v1/agents/agent1/proxy/api/v1/tools?...`).
-     Source not located in this repo yet; need the owning component path to proceed.
+    Searched this repo (`rg "agent1/proxy"`, `rg "v1/tools"`): no references found; need the
+    owning component path to proceed.
    - New: UI at `http://127.0.0.1:54514/` reports frequent failed fetches to
      `https://127.0.0.1:54513/v1/agents/agent1/proxy/api/v1/tools?tools=host&yolo=1&host_policy=full&session_id=...`,
      suggesting aggressive polling + scheme/port mismatch (2026-02-26).

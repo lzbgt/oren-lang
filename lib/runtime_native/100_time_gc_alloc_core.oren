@@ -863,10 +863,14 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
         " node_freed=" + oren_int_to_string(node_freed) +
         " node_next=" + oren_int_to_string(node_next) +
         " node_magic=" + oren_int_to_string(node_magic))
-    trace_list_alloc_ring_dump(ptr)
-    native_list_header_ring_dump(ptr)
-    if g_trace_list_hdr_ring_ptr != 0 {
-        native_list_header_ring_dump_all()
+    if cap >= 0 && cap < 1048576 {
+        trace_list_alloc_ring_dump(ptr)
+        native_list_header_ring_dump(ptr)
+        if g_trace_list_hdr_ring_ptr != 0 {
+            native_list_header_ring_dump_all()
+        }
+    } else {
+        print("[gc_reuse_bad_list] ring_dump_skipped cap=" + oren_int_to_string(cap))
     }
     return 0
 }

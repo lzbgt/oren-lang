@@ -499,6 +499,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Fix AVM build breaks that block `make verify-backend-parity-tags` (select case parsing + helper visibility + headers).
    - Investigate repeated `/v1/tools` polling failures from `index-*.js`
      (fetch to `https://127.0.0.1:54513/v1/agents/agent1/proxy/api/v1/tools?...`).
+     Repo search (`rg "agent1/proxy"`, `rg "v1/tools"`) found no references here; need the
+     owning component path to proceed.
      New: UI at `http://127.0.0.1:54514/` reports frequent failed fetches to
      `https://127.0.0.1:54513/v1/agents/agent1/proxy/api/v1/tools?tools=host&yolo=1&host_policy=full&session_id=...`,
      suggesting aggressive polling + scheme/port mismatch (2026-02-26).
