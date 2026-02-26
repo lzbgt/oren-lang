@@ -929,6 +929,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_200_cap64.log`, 2026-02-26).
     - New: bad-list ring dumps now skip when `cap` is implausible (>=1,048,576) to reduce
       segfault risk when corrupted headers point into unmapped memory (2026-02-26).
+    - Trace: with ring-dump guard enabled, summary-only run still segfaulted before bad-list logs
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_200_cap64_guard.log`, 2026-02-26).
     - Trace: with `bad_list_triggers` enabled, summary still showed `bad_list_triggers=0`
       while bad-list prints followed (now with `len=0 cap=1 buf=2 magic=3` in the corrupted
       header fields), so the summary window continues to miss later bad-list events
