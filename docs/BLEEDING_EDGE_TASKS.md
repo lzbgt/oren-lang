@@ -101,6 +101,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace: alloc_churn run with `OREN_TRACE_TRACK_ALLOC_NEW_SIZE_MIN=65536` emitted
      `[track_alloc_new_size] ... size=160000 kind=0` and caused benchmark stdout mismatch
      (log: `build/logs/bench_alloc_churn_track_alloc_size_min64k_20260226_045645.log`).
+   - Trace: new list alloc request tracing confirms `size=160000` is a list_int buffer
+     (`cap=20000`, bytes=160000) in alloc_churn, so the size log is expected
+     (log: `build/logs/bench_run_alloc_churn_20260226_084444/oren_native/run_0.log`).
    - Trace: alloc_churn native-only run with `OREN_TRACE_NATIVE_ALLOC_REQ=1` +
      `OREN_TRACE_TRACK_ALLOC_NEW_SIZE_MIN=32768` (stdout check disabled) logged
      `size=160000 kind=0` in each native run log
