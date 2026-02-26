@@ -878,6 +878,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: free-list take logging with line-buffered output still emitted only a single
       put/take pair; run_status=124 (timeout) recorded in env log
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freetake3.log`, 2026-02-26).
+    - Trace: lowering GC interval to `OREN_BENCH_GC_EVERY=100` still emitted only a single
+      put/take pair; run_status=124 (timeout) recorded in env log
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_freetake4_gc100.log`, 2026-02-26).
     - New: alloc_churn trace harness now records run_status/run_timed_out/run_elapsed_sec
       and line-buffer command in the env log for timeout diagnostics (2026-02-26).
     - Next: determine why free-list take traces remain sparse under reuse (single put/take
