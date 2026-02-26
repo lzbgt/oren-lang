@@ -838,6 +838,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       single list header (ptr `4341780128`, kind=2, cap=0); `freed_seen=0` in precheck and
       `guard_bad_list` incremented (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_badlist.log`, 2026-02-26).
+    - New: bad-list safe trace now prints header + node fields (len/cap/buf/magic + node kind/size)
+      to reduce follow-up repros (rolling, 2026-02-26).
     - Trace: reuse-enabled alloc_churn (blocks+lists unsafe) still shows only `chunk=32` frees
       and no size mismatches; reuse stats show large scan_steps in later windows
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse1.log`, 2026-02-26).
