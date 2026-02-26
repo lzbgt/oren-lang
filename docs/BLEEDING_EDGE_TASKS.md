@@ -111,6 +111,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (log: `build/logs/alloc_churn_trace_poison_nolistreuse_len64_gc50_200_sweep.log`, 2026-02-26).
   - Trace: poison+GC sweep with reuse blocks disabled completes cleanly (log:
     `build/logs/alloc_churn_trace_poison_noreuse_len64_gc50_200_sweep.log`, 2026-02-26).
+  - New: reuse scan now drops nodes with bad `native_node_magic` and can trace via
+    `OREN_TRACE_GC_REUSE_NODE_MAGIC=1` (rolling, 2026-02-26).
   - Verified: dot_product Oren C benchmark build/run now completes without list-header corruption
     after aligned-header fix (log: `build/logs/bench_dot_product_oren_c_20260226_155530.log`).
    - Verified: dot_product_int Oren C benchmark build/run completes without list-header corruption

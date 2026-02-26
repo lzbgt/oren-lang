@@ -823,6 +823,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       (log: `build/logs/alloc_churn_trace_poison_nolistreuse_len64_gc50_200_sweep.log`, 2026-02-26).
     - Trace: poison+GC sweep with reuse blocks disabled completes cleanly (log:
       `build/logs/alloc_churn_trace_poison_noreuse_len64_gc50_200_sweep.log`, 2026-02-26).
+    - New: reuse scan now drops nodes with bad `native_node_magic` and can trace via
+      `OREN_TRACE_GC_REUSE_NODE_MAGIC=1` (rolling, 2026-02-26).
     - Trace: reuse-enabled alloc_churn (blocks+lists unsafe) still shows only `chunk=32` frees
       and no size mismatches; reuse stats show large scan_steps in later windows
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse1.log`, 2026-02-26).
@@ -1042,6 +1044,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      (log: `build/logs/make_test_20260226_215921.log`); rerun `make test-native-quick`
      segfaulted once (log: `build/logs/make_test_native_quick_20260226_220029.log`)
      then passed (log: `build/logs/make_test_native_quick_20260226_220102.log`). Track as a flake.
+   - Note: `make test` exited with `test-native-quick` Error 143
+     (log: `build/logs/make_test_20260226_221229.log`); rerun `make test-native-quick`
+     passed (log: `build/logs/make_test_native_quick_20260226_221331.log`). Track as a flake.
     - Gate: `make test` + Tier-1 matrix.
 
 ## P1 (Soon)
