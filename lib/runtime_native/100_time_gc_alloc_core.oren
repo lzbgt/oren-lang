@@ -1125,8 +1125,9 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
             if root_node_ptr != 0 && root_node_ptr >= 4096 {
                 root_slot_val = ptr_get(root_node_ptr)
                 if g_storage != 0 && root_node_ptr >= g_storage {
-                    var off = root_node_ptr - g_storage
-                    if off >= 0 && off < 1048576 {
+                    var g_end = iadd(g_storage, global_storage_bytes())
+                    if root_node_ptr < g_end {
+                        var off = root_node_ptr - g_storage
                         root_slot_offset = off
                         root_slot_index = off / 8
                     }

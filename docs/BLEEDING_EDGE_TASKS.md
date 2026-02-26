@@ -713,6 +713,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace: precheck_guard9 (no-cache build) still shows `root_slot_offset=3472` with
      `guard_last=1` and no guard-last-corrupt logs (log:
      `build/logs/alloc_churn_trace_precheck_guard9_nc_20260227.log`).
+   - Trace: after bounding root-slot offsets to the 512-byte boot globals storage,
+     precheck_guard10 reports `root_slot_offset=-1` while bad-list roots persist (log:
+     `build/logs/alloc_churn_trace_precheck_guard10_nc_20260227.log`, 2026-02-27).
    - Next: audit native codegen for size/arg clobbers when new regressions appear.
    - Expand fast-path tracing in native emitters to pinpoint header writes.
    - New: x64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-26).

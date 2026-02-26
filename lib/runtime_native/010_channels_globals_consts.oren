@@ -179,6 +179,11 @@ var GLOBAL_OFF_GC_STW_STATE = 424
 var GLOBAL_OFF_GC_STW_PARKED = 432
 var GLOBAL_OFF_GC_STW_OWNER_NODE = 440
 
+// Boot globals storage length (bytes).
+// Must match native runtime object data prefix layout in `rtobj.RUNTIME_OBJ_DATA_PREFIX_LEN`
+// (boot globals storage blob is 512 bytes).
+fn global_storage_bytes() { return 512 }
+
 // Reserve extra room for rolling ABI growth.
 var GLOBAL_SLOTS_RESERVED = 56
 

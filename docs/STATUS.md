@@ -122,6 +122,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `root_slot_offset=3472` while `guard_last=1` and no guard-last-corrupt logs; suggests
      root-slot offset may not reflect g_storage (`alloc_churn_trace_precheck_guard9_20260227.log`,
      `alloc_churn_trace_precheck_guard9_nc_20260227.log`, 2026-02-27).
+   - Trace: after bounding root-slot offsets to `boot_globals_storage` (512 bytes),
+     precheck_guard10 now reports `root_slot_offset=-1` while bad-list roots persist,
+     confirming the earlier 3472 offset was outside g_storage
+     (`alloc_churn_trace_precheck_guard10_nc_20260227.log`, 2026-02-27).
 
 4) **W4 - Platform breadth (Tier‑1 intent targets)**
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
