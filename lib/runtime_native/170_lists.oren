@@ -1,6 +1,18 @@
 // --- Lists ---
 // Layout: [count][capacity][buffer_ptr][magic]
 fn list_int_kind() { return 8 } // LIST_INT (unboxed int list)
+fn list_max_cap() { return 1073741824 } // 1 << 30 (matches GC list cap corruption guard)
+
+fn _list_bytes_for_cap(cap) {
+    if cap <= 0 { return 0 }
+    if cap > list_max_cap() {
+        print("trace: list_cap too large cap=" + oren_int_to_string(cap) +
+              " max=" + oren_int_to_string(list_max_cap()))
+        oren_panic("list cap too large")
+        return 0
+    }
+    return cap * 8
+}
 	@oren.keep
 fn oren_new_list(cap) {
     if cap < 0 { cap = 0 }
@@ -11,8 +23,7 @@ fn oren_new_list(cap) {
     // Layout remains stable:
     //   [count][capacity][buffer_ptr][magic]
     // When cap>0, buffer_ptr points to inline storage at header+32.
-    var total = 32
-    if cap > 0 { total = total + cap * 8 }
+    var total = 32 + _list_bytes_for_cap(cap)
     _list_hdr_req_trace_emit(2, cap, total, 1)
     _list_new_cap_emit(2, cap, total, 1)
     var header = malloc_k(total, 2)
@@ -41,8 +52,7 @@ fn oren_new_list(cap) {
 @oren.keep
 fn oren_new_list_int(cap) {
     if cap < 0 { cap = 0 }
-    var total = 32
-    if cap > 0 { total = total + cap * 8 }
+    var total = 32 + _list_bytes_for_cap(cap)
     _list_hdr_req_trace_emit(list_int_kind(), cap, total, 1)
     _list_new_cap_emit(list_int_kind(), cap, total, 1)
     var header = malloc_k(total, list_int_kind())
@@ -828,11 +838,22 @@ fn oren_list_reserve(list, new_cap) {
         }
     }
     var cap = ptr_get(iadd(list, 8))
+    if cap < 0 {
+        native_list_reserve_panic(list, new_cap, 4)
+        oren_panic("list_reserve on corrupt list")
+        return nil
+    }
+    if cap > list_max_cap() {
+        native_list_reserve_panic(list, new_cap, 5)
+        oren_panic("list_reserve on corrupt list")
+        return nil
+    }
     var count = ptr_get(iadd(list, 0))
     var buf = ptr_get(iadd(list, 16))
     _list_reserve_trace_emit(2, list, cap, new_cap, buf, 1)
     if new_cap <= cap { return nil }
-    var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, 2, _alloc_site_list_buf(), 211)
+    var bytes = _list_bytes_for_cap(new_cap)
+    var new_buf = _list_alloc_buf(list, bytes, new_cap, 2, _alloc_site_list_buf(), 211)
     var i = 0
     while i < count {
         ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -1097,11 +1118,22 @@ fn oren_list_int_reserve(list, new_cap) {
     }
     _list_corrupt_check(list, 10) // list_int_reserve (pre)
     var cap = ptr_get(iadd(list, 8))
+    if cap < 0 {
+        _list_reserve_fail_emit(4, list, node, list_int_kind(), new_cap)
+        oren_panic("list_int_reserve on corrupt list")
+        return nil
+    }
+    if cap > list_max_cap() {
+        _list_reserve_fail_emit(5, list, node, list_int_kind(), new_cap)
+        oren_panic("list_int_reserve on corrupt list")
+        return nil
+    }
     var count = ptr_get(iadd(list, 0))
     var buf = ptr_get(iadd(list, 16))
     _list_reserve_trace_emit(list_int_kind(), list, cap, new_cap, buf, 1)
     if new_cap <= cap { return nil }
-    var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 211)
+    var bytes = _list_bytes_for_cap(new_cap)
+    var new_buf = _list_alloc_buf(list, bytes, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 211)
     var i = 0
     while i < count {
         ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -1129,9 +1161,15 @@ fn oren_list_int_push(list, value) {
     var cap = ptr_get(iadd(list, 8))
     var buf = ptr_get(iadd(list, 16))
     if count >= cap {
+        if cap < 0 || cap > list_max_cap() {
+            _list_trace_dump(list)
+            oren_panic("list_int_push on corrupt list")
+            return nil
+        }
         var new_cap = cap * 2
         if new_cap < 4 { new_cap = 4 }
-        var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 211)
+        var bytes = _list_bytes_for_cap(new_cap)
+        var new_buf = _list_alloc_buf(list, bytes, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 211)
         var i = 0
         while i < count {
             ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -1159,9 +1197,14 @@ fn oren_list_int_push_unchecked(list, value) {
     var cap = ptr_get(iadd(list, 8))
     var buf = ptr_get(iadd(list, 16))
     if count >= cap {
+        if cap < 0 || cap > list_max_cap() {
+            oren_panic("list_int_push_unchecked on corrupt list")
+            return nil
+        }
         var new_cap = cap * 2
         if new_cap < 4 { new_cap = 4 }
-        var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 211)
+        var bytes = _list_bytes_for_cap(new_cap)
+        var new_buf = _list_alloc_buf(list, bytes, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 211)
         var i = 0
         while i < count {
             ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -1222,10 +1265,16 @@ fn oren_list_int_set(list, idx, value) {
     var buf = ptr_get(iadd(list, 16))
 
     if want > cap {
+        if cap < 0 || cap > list_max_cap() {
+            _list_trace_dump(list)
+            oren_panic("list_int_set on corrupt list")
+            return nil
+        }
         var new_cap = cap * 2
         if new_cap < 4 { new_cap = 4 }
         if new_cap < want { new_cap = want }
-        var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 212)
+        var bytes = _list_bytes_for_cap(new_cap)
+        var new_buf = _list_alloc_buf(list, bytes, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 212)
 
         var i = 0
         while i < count {
@@ -1271,9 +1320,15 @@ fn oren_list_push(list, value) {
 	    var cap = ptr_get(iadd(list, 8))
 			    var buf = ptr_get(iadd(list, 16))
 			    if count >= cap {
-		        var new_cap = cap * 2
-		        if new_cap < 4 { new_cap = 4 }
-	        var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, 2, _alloc_site_list_buf(), 211)
+			        if cap < 0 || cap > list_max_cap() {
+			            _list_trace_dump(list)
+			            oren_panic("list_push on corrupt list")
+			            return nil
+			        }
+			        var new_cap = cap * 2
+			        if new_cap < 4 { new_cap = 4 }
+		        var bytes = _list_bytes_for_cap(new_cap)
+		        var new_buf = _list_alloc_buf(list, bytes, new_cap, 2, _alloc_site_list_buf(), 211)
 		        var i = 0
 	        while i < count {
 	            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -1303,9 +1358,14 @@ fn oren_list_push_unchecked(list, value) {
     var cap = ptr_get(iadd(list, 8))
 	    var buf = ptr_get(iadd(list, 16))
 	    if count >= cap {
+	        if cap < 0 || cap > list_max_cap() {
+	            oren_panic("list_push_unchecked on corrupt list")
+	            return nil
+	        }
 	        var new_cap = cap * 2
 	        if new_cap < 4 { new_cap = 4 }
-	        var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, 2, _alloc_site_list_buf(), 211)
+	        var bytes = _list_bytes_for_cap(new_cap)
+	        var new_buf = _list_alloc_buf(list, bytes, new_cap, 2, _alloc_site_list_buf(), 211)
 	        var i = 0
 	        while i < count {
 	            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -1416,6 +1476,11 @@ fn oren_list_set(list, idx, value) {
 	    var buf = ptr_get(iadd(list, 16))
 
     if want > cap {
+        if cap < 0 || cap > list_max_cap() {
+            _list_trace_dump(list)
+            oren_panic("list_set on corrupt list")
+            return nil
+        }
         var new_cap = cap * 2
         if new_cap < 4 { new_cap = 4 }
         if new_cap < want { new_cap = want }
@@ -1425,7 +1490,8 @@ fn oren_list_set(list, idx, value) {
             alloc_site = _alloc_site_list_int_buf()
             kind = list_int_kind()
         }
-        var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, kind, alloc_site, 212)
+        var bytes = _list_bytes_for_cap(new_cap)
+        var new_buf = _list_alloc_buf(list, bytes, new_cap, kind, alloc_site, 212)
 
         var i = 0
         while i < count {
