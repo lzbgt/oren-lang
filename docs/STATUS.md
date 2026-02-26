@@ -208,6 +208,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
      - dot_product: `fast_list_int_push_while` tick_off=0 (stack=208, slots=7, bytes=64);
        `fast_list_int_dot_while` tick_off=0 (stack=224, slots=8, bytes=64);
        `while_generic` tick_off=0 (stacks=224/240, slots=2, bytes=16).
+   - Stage2 trace rebuilds with `OREN_TRACE_ARM64_LOOP_STACK=1` (2026-02-26) completed without GC list-header corruption.
    - TODO: root-cause the arm64 offset regression when removing the tick stack slot and safely eliminate the unused slot.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
