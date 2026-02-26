@@ -854,11 +854,20 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       `guard_bad_magic/guard_alloc_node/guard_alloc_index_dup` remain 0; no
       `[gc_reuse_alloc_*]` prints observed (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_allocnode_dup2.log`, 2026-02-26).
+    - Trace: ring-all bad-list run (`OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL=1`) still shows
+      `guard_bad_magic/guard_alloc_node/guard_alloc_index_dup=0` while emitting
+      `list_hdr_ring idx=...` entries (log:
+      `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringall.log`, 2026-02-26).
     - Tool: `tools/trace_list_hdr_correlate.py` now includes `[list_hdr_ring]` entries when
       correlating `gc_free_list` samples (rolling, 2026-02-26).
+    - Tool: correlator accepts ring-all `idx=` entries to match `list_hdr_ring` dumps
+      when `OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL=1` is set (rolling, 2026-02-26).
     - Trace: correlate output for the alloc-node/dup run now captures the ring entry alongside
       the `gc_free_list` sample (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_allocnode_dup2_correlate.log`, 2026-02-26).
+    - Trace: ring-all correlate output captures the matching ring entry for the
+      free-list sample (log:
+      `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringall_correlate.log`, 2026-02-26).
     - Trace: follow-up bad-list safe run shows corrupted header fields (`len=4122543214814507828`,
       `cap=13879`, `buf=0`, `magic=0`) while precheck still reports `freed_seen=0`; node_kind
       flips (1 -> 0) and node_size (32 -> 48) between prints for the same node (log:
