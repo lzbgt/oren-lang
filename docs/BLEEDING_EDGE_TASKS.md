@@ -198,6 +198,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: reuse + scan cap + `OREN_BENCH_LIST_LEN=128` crashed (segfault) but still showed
     only `chunk=32` frees before the crash; reuse stats showed large scan_steps with cap hits
     (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len128.log`, 2026-02-26).
+  - Trace: reuse + scan cap + `OREN_GC_REUSE_BUCKETS=1` + `OREN_BENCH_LIST_LEN=128`
+    also segfaulted; still only `chunk=32` frees before the crash; reuse stats show large
+    scan_steps with cap hits
+    (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len128_buckets.log`, 2026-02-26).
   - Trace: alloc_churn with `OREN_ARENA_AUTO_LOOP=0` + free-list ring tracing (cap=200)
     still shows only `chunk=32` list/list_int header frees; large chunk sizes remain
     unreproduced under arena-off GC stress
