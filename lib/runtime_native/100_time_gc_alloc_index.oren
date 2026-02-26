@@ -203,6 +203,8 @@ fn native_alloc_index_get(ptr) {
     if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
     var mask = g_alloc_index_cap - 1
     var idx = native_alloc_index_hash(ptr) & mask
+    var bad_ptr = g_gc_reuse_bad_list_last_ptr
+    var bad_node = g_gc_reuse_bad_list_last_idx_node
     // Bound probing to avoid non-termination if the table becomes corrupted or saturated.
     // If we cannot find an empty slot within `cap` probes, treat as a miss.
     var rem = g_alloc_index_cap
@@ -239,13 +241,35 @@ fn native_alloc_index_get(ptr) {
             }
             if ptr_get(iadd(slot, 40)) != native_node_magic() {
                 // Corrupted/alien entry: tombstone it so future probes skip it.
+                if bad_ptr != 0 {
+                    var slot_ptr = ptr_get(slot)
+                    if slot_ptr - bad_ptr == 0 || (bad_node != 0 && slot - bad_node == 0) {
+                        var slot_magic = ptr_get(iadd(slot, 40))
+                        print("[gc_reuse_bad_list_index] event=tombstone_magic ptr=" + oren_int_to_string(bad_ptr) +
+                            " slot=" + oren_int_to_string(slot) +
+                            " slot_ptr=" + oren_int_to_string(slot_ptr) +
+                            " magic=" + oren_int_to_string(slot_magic) +
+                            " bad_node=" + oren_int_to_string(bad_node))
+                    }
+                }
                 ptr_set(iadd(g_alloc_index_ptr, idx << 3), g_alloc_index_tomb)
                 idx = iadd(idx, 1) & mask
                 continue
             }
             // Skip freed nodes that might still be in the index (reuse mode).
             // Node flags: -1 = marked, 0 = live/unmarked, 1 = freed.
-            if ptr_get(iadd(slot, 24)) - 1 == 0 {
+            var flags = ptr_get(iadd(slot, 24))
+            if flags - 1 == 0 {
+                if bad_ptr != 0 {
+                    var slot_ptr2 = ptr_get(slot)
+                    if slot_ptr2 - bad_ptr == 0 || (bad_node != 0 && slot - bad_node == 0) {
+                        print("[gc_reuse_bad_list_index] event=tombstone_freed ptr=" + oren_int_to_string(bad_ptr) +
+                            " slot=" + oren_int_to_string(slot) +
+                            " slot_ptr=" + oren_int_to_string(slot_ptr2) +
+                            " flags=" + oren_int_to_string(flags) +
+                            " bad_node=" + oren_int_to_string(bad_node))
+                    }
+                }
                 ptr_set(iadd(g_alloc_index_ptr, idx << 3), g_alloc_index_tomb)
                 if g_alloc_index_len > 0 { g_alloc_index_len = g_alloc_index_len - 1 }
                 idx = iadd(idx, 1) & mask
@@ -264,6 +288,10 @@ fn native_alloc_index_put_node(node) {
     if node == 0 { return 0 }
     var ptr = ptr_get(node)
     if ptr == 0 || ptr < 4096 { return 0 }
+    var bad_ptr = g_gc_reuse_bad_list_last_ptr
+    var bad_node = g_gc_reuse_bad_list_last_idx_node
+    var trace_bad = 0
+    if bad_ptr != 0 && ptr - bad_ptr == 0 { trace_bad = 1 }
     if g_trace_alloc_index != 0 {
         var kind = ptr_get(iadd(node, 16))
         if kind == 2 || kind == list_int_kind() {
@@ -417,12 +445,35 @@ fn native_alloc_index_put_node(node) {
                           " node=" + oren_int_to_string(node))
                 }
             }
+            if trace_bad != 0 {
+                var size = ptr_get(iadd(node, 8))
+                print("[gc_reuse_bad_list_index] event=insert ptr=" + oren_int_to_string(ptr) +
+                    " node=" + oren_int_to_string(node) +
+                    " idx=" + oren_int_to_string(idx) +
+                    " kind=" + oren_int_to_string(kind) +
+                    " size=" + oren_int_to_string(size) +
+                    " bad_node=" + oren_int_to_string(bad_node))
+            }
             return 0
         }
         if slot - g_alloc_index_tomb == 0 {
             if first_tomb < 0 { first_tomb = idx }
         } else {
             if ptr_get(slot) - ptr == 0 {
+                if trace_bad != 0 {
+                    var old_kind = ptr_get(iadd(slot, 16))
+                    var old_size = ptr_get(iadd(slot, 8))
+                    var new_kind = ptr_get(iadd(node, 16))
+                    var new_size = ptr_get(iadd(node, 8))
+                    print("[gc_reuse_bad_list_index] event=replace ptr=" + oren_int_to_string(ptr) +
+                        " old=" + oren_int_to_string(slot) +
+                        " old_kind=" + oren_int_to_string(old_kind) +
+                        " old_size=" + oren_int_to_string(old_size) +
+                        " new=" + oren_int_to_string(node) +
+                        " new_kind=" + oren_int_to_string(new_kind) +
+                        " new_size=" + oren_int_to_string(new_size) +
+                        " bad_node=" + oren_int_to_string(bad_node))
+                }
                 ptr_set(iadd(g_alloc_index_ptr, idx << 3), node)
                 var kind2 = ptr_get(iadd(node, 16))
                 if kind2 == 2 || kind2 == list_int_kind() {
@@ -444,6 +495,9 @@ fn native_alloc_index_put_node(node) {
 fn native_alloc_index_remove_ptr(ptr) {
     if ptr == 0 || ptr < 4096 { return 0 }
     if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+    var bad_ptr = g_gc_reuse_bad_list_last_ptr
+    var trace_bad = 0
+    if bad_ptr != 0 && ptr - bad_ptr == 0 { trace_bad = 1 }
     var trace_remove = g_trace_alloc_index_remove_time != 0
     var t0 = 0
     if trace_remove { t0 = oren_time_now_ns() }
@@ -453,12 +507,21 @@ fn native_alloc_index_remove_ptr(ptr) {
     while true {
         if rem <= 0 {
             g_alloc_index_probe_exhausted = 1
+            if trace_bad != 0 {
+                print("[gc_reuse_bad_list_index] event=remove_miss ptr=" + oren_int_to_string(ptr) +
+                    " reason=probe_exhausted cap=" + oren_int_to_string(g_alloc_index_cap))
+            }
             trace_alloc_index_remove_finish(t0)
             return 0
         }
         rem = rem - 1
         var slot = ptr_get(iadd(g_alloc_index_ptr, idx << 3))
         if slot == 0 {
+            if trace_bad != 0 {
+                print("[gc_reuse_bad_list_index] event=remove_miss ptr=" + oren_int_to_string(ptr) +
+                    " reason=slot0 idx=" + oren_int_to_string(idx) +
+                    " cap=" + oren_int_to_string(g_alloc_index_cap))
+            }
             trace_alloc_index_remove_finish(t0)
             return 0
         }
@@ -475,6 +538,16 @@ fn native_alloc_index_remove_ptr(ptr) {
                               " kind=" + oren_int_to_string(kind) +
                               " node=" + oren_int_to_string(slot))
                     }
+                }
+                if trace_bad != 0 {
+                    var size = ptr_get(iadd(slot, 8))
+                    print("[gc_reuse_bad_list_index] event=remove ptr=" + oren_int_to_string(ptr) +
+                        " slot=" + oren_int_to_string(slot) +
+                        " kind=" + oren_int_to_string(kind) +
+                        " size=" + oren_int_to_string(size) +
+                        " idx=" + oren_int_to_string(idx) +
+                        " cap=" + oren_int_to_string(g_alloc_index_cap) +
+                        " len=" + oren_int_to_string(g_alloc_index_len))
                 }
                 ptr_set(iadd(g_alloc_index_ptr, idx << 3), g_alloc_index_tomb)
                 if g_alloc_index_len > 0 { g_alloc_index_len = g_alloc_index_len - 1 }
