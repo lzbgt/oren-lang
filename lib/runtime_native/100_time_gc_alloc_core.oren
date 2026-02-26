@@ -954,6 +954,14 @@ fn native_gc_list_header_poison(ptr, kind) {
     if kind != 2 && kind != list_int_kind() { return 0 }
     native_list_header_ring_put_gc(ptr, kind, 90)
     ptr_set(iadd(ptr, 24), list_magic_poison())
+    if g_trace_gc_free_list_hdr_ring_all != 0 && g_trace_gc_list_hdr_poison_dumped == 0 {
+        g_trace_gc_list_hdr_poison_dumped = 1
+        if g_trace_list_hdr_ring_ptr == 0 {
+            native_list_header_ring_force_enable()
+        }
+        native_list_header_ring_filter_set(ptr)
+        native_list_header_ring_dump_all()
+    }
     return 0
 }
 

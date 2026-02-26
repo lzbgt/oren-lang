@@ -924,8 +924,11 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       no list header trace ops for the bad pointer after the pre dump (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_ringput_20260227.log`, 2026-02-27).
     - Tool: GC list header poison + bad-list dumps now emit ring ops (`op=90` for poison,
-      `op=91` for bad-list) via `native_list_header_ring_put_gc` to confirm ring advances
-      even when list tracing is inactive (rolling, 2026-02-26).
+      `op=91` for bad-list) via `native_list_header_ring_put_gc`; ring op filter now
+      accepts these codes to surface them in dumps (rolling, 2026-02-27).
+    - Tool: first list-header poison can optionally trigger a one-shot ring-all dump
+      (gated by `OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL=1`) to confirm `op=90` visibility
+      in ring logs (rolling, 2026-02-27).
     - Trace: ringgc run (poison+reuse, ring ops enabled) segfaulted before emitting any
       output; run log is empty (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_ringgc_20260226.log`, 2026-02-27).
@@ -933,6 +936,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       output and a `gc_reuse_summary` before segfault; no bad-list triggers observed
       in that log (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc20_100_ringall_20260227.log`, 2026-02-27).
+    - Trace: ring-all run after enabling op=90/91 in ring filter shows `op=90` entries
+      for poisoned list headers (log:
+      `build/logs/alloc_churn_trace_poison_reuse_len64_gc20_100_ringall3_20260227.log`, 2026-02-27).
     - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
       during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
       are already corrupted before reuse validation (rolling, 2026-02-27).

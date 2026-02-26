@@ -788,6 +788,7 @@ var g_trace_gc_reuse_alloc_node = 0
 var g_trace_gc_reuse_alloc_node_cap = 0
 var g_trace_gc_reuse_alloc_index_dup = 0
 var g_trace_gc_reuse_alloc_index_dup_cap = 0
+var g_trace_gc_list_hdr_poison_dumped = 0
 var g_trace_gc_reuse_precheck = 0
 var g_trace_gc_reuse_precheck_cap = 0
 // Optional tracing: dump list headers at free time.
@@ -875,6 +876,7 @@ fn native_runtime_init_gc_mode(default_enabled) {
     g_trace_gc_reuse_alloc_node_cap = 0
     g_trace_gc_reuse_alloc_index_dup = 0
     g_trace_gc_reuse_alloc_index_dup_cap = 0
+    g_trace_gc_list_hdr_poison_dumped = 0
     g_trace_gc_free_list_headers = 0
     g_trace_gc_free_list_headers_cap = 0
     g_trace_gc_free_list_put = 0

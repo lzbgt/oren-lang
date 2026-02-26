@@ -608,7 +608,7 @@ fn _list_hdr_ring_put(op, list, kind) {
     if g_trace_list_hdr_ring_cap <= 0 { return 0 }
     if list == 0 || list < 4096 { return 0 }
     if op != 1 && op != 2 && op != 3 && op != 4 && op != 5 && op != 6 && op != 7 && op != 8 &&
-       op != 9 && op != 10 && op != 11 && op != 12 { return 0 }
+       op != 9 && op != 10 && op != 11 && op != 12 && op != 90 && op != 91 { return 0 }
     if g_trace_list_hdr_ring_watch_ptr != 0 &&
        g_trace_list_hdr_ring_watch_left > 0 &&
        g_trace_list_hdr_ring_watch_ptr - list == 0 {
