@@ -933,6 +933,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_200_cap64_guard.log`, 2026-02-26).
     - Trace: lower-stress run (`GC_EVERY=200`, `ITERS=100`) completed cleanly but produced no
       bad-list or reuse summary output (run log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_100_gc200_cap64_guard.log`, 2026-02-26).
+    - Trace: medium-stress run (`GC_EVERY=200`, `ITERS=500`) still segfaulted before bad-list logs;
+      summary only (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_500_gc200_cap64_guard.log`, 2026-02-26).
     - Trace: with `bad_list_triggers` enabled, summary still showed `bad_list_triggers=0`
       while bad-list prints followed (now with `len=0 cap=1 buf=2 magic=3` in the corrupted
       header fields), so the summary window continues to miss later bad-list events
