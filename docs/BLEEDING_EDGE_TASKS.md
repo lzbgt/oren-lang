@@ -94,6 +94,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      false corruption on small caps (2026-02-26).
    - Fix: list_reserve now attempts alloc-index recover + header re-track before panicking
      on non-list headers to reduce false positives under GC churn (2026-02-26).
+   - New: free-list header dumps now include list_hdr ring traces when validation fails, to
+     correlate the last header writes with corrupted free-list entries (2026-02-26).
    - Fix: host-thread green spawn/join now uses world-lock critical sections when enabled,
      preventing races in multi-worker world-lock mode (2026-02-26).
    - Fix: host metadata lookups (`oren_find_node`) now enter the world lock when workers

@@ -729,6 +729,7 @@ fn native_gc_free_list_header_dump(ptr, chunk_size, kind, node_ptr) {
     var cap = ptr_get(iadd(ptr, 8))
     var buf = ptr_get(iadd(ptr, 16))
     var magic = ptr_get(iadd(ptr, 24))
+    var ring_dumped = 0
     print("[gc_free_list] ptr=" + oren_int_to_string(ptr) +
         " chunk=" + oren_int_to_string(chunk_size) +
         " kind=" + oren_int_to_string(kind) +
@@ -752,8 +753,12 @@ fn native_gc_free_list_header_dump(ptr, chunk_size, kind, node_ptr) {
               " next=" + oren_int_to_string(node_next) +
               " magic=" + oren_int_to_string(node_magic))
         native_list_header_ring_dump(ptr)
+        ring_dumped = 1
     }
     if native_gc_list_header_ok(ptr, kind, chunk_size) == 0 {
+        if ring_dumped == 0 {
+            native_list_header_ring_dump(ptr)
+        }
         native_list_debug_node(ptr)
     }
     return 0
