@@ -828,6 +828,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: reuse + scan cap + `OREN_BENCH_LIST_LEN=64` also segfaulted; still only
       `chunk=32` frees before the crash; reuse stats show large scan_steps with cap hits
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64.log`, 2026-02-26).
+    - Trace: reuse + scan cap + `OREN_BENCH_LIST_LEN=64` with verbose reuse logging also
+      segfaulted; captured `[gc_reuse_hit]` lines for small/medium chunks before crash
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_verbose.log`, 2026-02-26).
   - Note: `make test` saw a one-off segfault in `test-native-quick-stage2`
     (log: `build/logs/make_test_20260226_172510.log`); rerun passed
     (log: `build/logs/make_test_native_quick_stage2_20260226_172724.log`). Track for flakes.
