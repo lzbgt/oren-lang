@@ -122,6 +122,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: poison+reuse (list reuse on) with node-magic tracing segfaulted after a second sweep;
     reuse summaries show `guard_bad_magic=0` but `guard_bad_list=6` before crash (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_magic.log`, 2026-02-26).
+  - Trace: poison+reuse with bad-list safe tracing timed out with repeated bad-list hits on a
+    single list header (ptr `4341780128`, kind=2, cap=0); `freed_seen=0` in precheck and
+    `guard_bad_list` incremented (log:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_badlist.log`, 2026-02-26).
   - Verified: dot_product Oren C benchmark build/run now completes without list-header corruption
     after aligned-header fix (log: `build/logs/bench_dot_product_oren_c_20260226_155530.log`).
    - Verified: dot_product_int Oren C benchmark build/run completes without list-header corruption

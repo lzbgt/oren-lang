@@ -834,6 +834,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: poison+reuse (list reuse on) with node-magic tracing segfaulted after a second sweep;
       reuse summaries show `guard_bad_magic=0` but `guard_bad_list=6` before crash (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_magic.log`, 2026-02-26).
+    - Trace: poison+reuse with bad-list safe tracing timed out with repeated bad-list hits on a
+      single list header (ptr `4341780128`, kind=2, cap=0); `freed_seen=0` in precheck and
+      `guard_bad_list` incremented (log:
+      `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_badlist.log`, 2026-02-26).
     - Trace: reuse-enabled alloc_churn (blocks+lists unsafe) still shows only `chunk=32` frees
       and no size mismatches; reuse stats show large scan_steps in later windows
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse1.log`, 2026-02-26).
