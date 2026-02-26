@@ -183,6 +183,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: alloc_churn with `OREN_TRACE_GC_FREE_LIST_HEADERS=1` (cap=200) now shows
     only `chunk=32` list/list_int header frees; large chunk sizes from earlier traces
     did not reproduce (log: `build/logs/alloc_churn_trace_gc_hdrsize_20260226_173253.log`).
+  - Trace: alloc_churn with header ring capture + forced list_int + GC every 1000
+    still shows only `chunk=32` frees and no size mismatches
+    (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_ring2.log`, 2026-02-26).
   - Trace: alloc_churn with `OREN_ARENA_AUTO_LOOP=0` + free-list ring tracing (cap=200)
     still shows only `chunk=32` list/list_int header frees; large chunk sizes remain
     unreproduced under arena-off GC stress
