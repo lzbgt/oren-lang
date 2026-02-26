@@ -117,6 +117,9 @@ var g_trace_list_hdr_ring_argv = 0
 var g_trace_list_hdr_ring_argc = 0
 var g_trace_list_hdr_ring_dup = 0
 var g_trace_list_hdr_ring_dup_cap = 0
+var g_trace_list_hdr_ring_dup_seen_ptr = 0
+var g_trace_list_hdr_ring_dup_seen_cap = 0
+var g_trace_list_hdr_ring_dup_seen_head = 0
 var g_trace_list_hdr_ring_filter_ptr = 0
 var g_trace_list_new_cap = -1
 var g_trace_list_new_cap_limit = 0
@@ -259,6 +262,32 @@ fn _list_hdr_ring_enabled() {
     }
     if g_trace_list_hdr_ring_dup != 0 && g_trace_list_hdr_ring_dup_cap <= 0 {
         g_trace_list_hdr_ring_dup_cap = 64
+    }
+    if g_trace_list_hdr_ring_dup != 0 {
+        var v_dup_seen_cap = native_envp_get_value_ptr("OREN_TRACE_LIST_HDR_RING_DUP_SEEN_CAP")
+        if v_dup_seen_cap != 0 && ptr_get_byte(v_dup_seen_cap) != 0 {
+            var cap = oren_int_from_string(v_dup_seen_cap)
+            if cap > 0 { g_trace_list_hdr_ring_dup_seen_cap = cap }
+        }
+        if g_trace_list_hdr_ring_dup_seen_cap <= 0 {
+            g_trace_list_hdr_ring_dup_seen_cap = g_trace_list_hdr_ring_dup_cap
+        }
+        if g_trace_list_hdr_ring_dup_seen_cap <= 0 {
+            g_trace_list_hdr_ring_dup_seen_cap = 64
+        }
+        if g_trace_list_hdr_ring_dup_seen_ptr == 0 {
+            var bytes = g_trace_list_hdr_ring_dup_seen_cap * 8
+            var dup_buf = native_malloc_raw_or_mmap(bytes)
+            if dup_buf != 0 {
+                var k = 0
+                while k < g_trace_list_hdr_ring_dup_seen_cap {
+                    ptr_set(iadd(dup_buf, k * 8), 0)
+                    k = k + 1
+                }
+                g_trace_list_hdr_ring_dup_seen_ptr = dup_buf
+                g_trace_list_hdr_ring_dup_seen_head = 0
+            }
+        }
     }
     return true
 }
@@ -604,17 +633,40 @@ fn _list_hdr_ring_put(op, list, kind) {
             i = i + 1
         }
         if found != 0 {
-            g_trace_list_hdr_ring_dup_cap = g_trace_list_hdr_ring_dup_cap - 1
-            print("[list_hdr_ring_dup] list=" + oren_int_to_string(list) +
-                  " prev_idx=" + oren_int_to_string(found_idx) +
-                  " prev_op=" + oren_int_to_string(found_op) +
-                  " prev_kind=" + oren_int_to_string(found_kind) +
-                  " prev_len=" + oren_int_to_string(found_len) +
-                  " prev_cap=" + oren_int_to_string(found_cap) +
-                  " prev_buf=" + oren_int_to_string(found_buf) +
-                  " prev_magic=" + oren_int_to_string(found_magic) +
-                  " new_op=" + oren_int_to_string(op) +
-                  " new_kind=" + oren_int_to_string(kind))
+            var dup_seen_ptr = g_trace_list_hdr_ring_dup_seen_ptr
+            var dup_seen_cap = g_trace_list_hdr_ring_dup_seen_cap
+            var already = 0
+            if dup_seen_ptr != 0 && dup_seen_cap > 0 {
+                var j = 0
+                while j < dup_seen_cap {
+                    var seen_ptr = ptr_get(iadd(dup_seen_ptr, j * 8))
+                    if seen_ptr == list {
+                        already = 1
+                        break
+                    }
+                    j = j + 1
+                }
+            }
+            var do_print = 1
+            if already != 0 { do_print = 0 }
+            if do_print != 0 {
+                g_trace_list_hdr_ring_dup_cap = g_trace_list_hdr_ring_dup_cap - 1
+                print("[list_hdr_ring_dup] list=" + oren_int_to_string(list) +
+                      " prev_idx=" + oren_int_to_string(found_idx) +
+                      " prev_op=" + oren_int_to_string(found_op) +
+                      " prev_kind=" + oren_int_to_string(found_kind) +
+                      " prev_len=" + oren_int_to_string(found_len) +
+                      " prev_cap=" + oren_int_to_string(found_cap) +
+                      " prev_buf=" + oren_int_to_string(found_buf) +
+                      " prev_magic=" + oren_int_to_string(found_magic) +
+                      " new_op=" + oren_int_to_string(op) +
+                      " new_kind=" + oren_int_to_string(kind))
+                if dup_seen_ptr != 0 && dup_seen_cap > 0 {
+                    var insert_idx = g_trace_list_hdr_ring_dup_seen_head % dup_seen_cap
+                    ptr_set(iadd(dup_seen_ptr, insert_idx * 8), list)
+                    g_trace_list_hdr_ring_dup_seen_head = g_trace_list_hdr_ring_dup_seen_head + 1
+                }
+            }
         }
     }
     var idx = g_trace_list_hdr_ring_head % g_trace_list_hdr_ring_cap
