@@ -330,6 +330,10 @@ fn _list_hdr_ring_check_ptr_guard_change(op, list, kind) {
     return 0
 }
 
+fn list_hdr_ring_guard_poll(op, list, kind) {
+    return _list_hdr_ring_check_ptr_guard_change(op, list, kind)
+}
+
 fn _list_new_cap_enabled() {
     if g_trace_list_new_cap == 1 { return true }
     var cur_envp = global_get_envp()
