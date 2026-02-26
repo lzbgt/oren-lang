@@ -840,6 +840,11 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_badlist.log`, 2026-02-26).
     - New: bad-list guardrail now force-enables list_hdr_ring so reuse corruption dumps
       can capture the last header writes even when ring tracing was not otherwise enabled.
+    - New: bad-list guardrail now dumps full list_hdr_ring snapshot to avoid missing pointer
+      correlation when ring sampling is sparse.
+    - Trace: bad-list run with full ring dump still did not show any list_hdr_ring entries
+      for the corrupted pointer, suggesting the bad header was never recorded in the ring
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_badlist_ring2.log`, 2026-02-26).
   - Note: `make test` saw a one-off segfault in `test-native-quick-stage2`
     (log: `build/logs/make_test_20260226_172510.log`); rerun passed
     (log: `build/logs/make_test_native_quick_stage2_20260226_172724.log`). Track for flakes.

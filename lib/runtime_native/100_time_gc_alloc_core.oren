@@ -748,6 +748,9 @@ fn native_gc_list_header_dump(ptr, chunk_size) {
         " magic=" + oren_int_to_string(magic))
     trace_list_alloc_ring_dump(ptr)
     native_list_header_ring_dump(ptr)
+    if g_trace_list_hdr_ring_ptr != 0 {
+        native_list_header_ring_dump_all()
+    }
     return 0
 }
 

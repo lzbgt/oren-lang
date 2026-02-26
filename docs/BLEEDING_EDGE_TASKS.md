@@ -217,6 +217,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_badlist.log`, 2026-02-26).
   - New: bad-list guardrail now force-enables list_hdr_ring so reuse corruption dumps
     can capture the last header writes even when ring tracing was not otherwise enabled.
+  - New: bad-list guardrail now dumps full list_hdr_ring snapshot to avoid missing pointer
+    correlation when ring sampling is sparse.
+  - Trace: bad-list run with full ring dump still did not show any list_hdr_ring entries
+    for the corrupted pointer, suggesting the bad header was never recorded in the ring
+    (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_badlist_ring2.log`, 2026-02-26).
   - Trace: alloc_churn with `OREN_ARENA_AUTO_LOOP=0` + free-list ring tracing (cap=200)
     still shows only `chunk=32` list/list_int header frees; large chunk sizes remain
     unreproduced under arena-off GC stress
