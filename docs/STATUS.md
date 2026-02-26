@@ -929,6 +929,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: ringgc run (poison+reuse, ring ops enabled) segfaulted before emitting any
       output; run log is empty (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_ringgc_20260226.log`, 2026-02-27).
+    - Trace: ring-all run with reduced iters emits `[gc_free_list]` + `[list_hdr_ring]`
+      output and a `gc_reuse_summary` before segfault; no bad-list triggers observed
+      in that log (log:
+      `build/logs/alloc_churn_trace_poison_reuse_len64_gc20_100_ringall_20260227.log`, 2026-02-27).
     - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
       during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
       are already corrupted before reuse validation (rolling, 2026-02-27).
