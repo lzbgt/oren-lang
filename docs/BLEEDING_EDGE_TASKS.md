@@ -192,6 +192,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: reuse-enabled alloc_churn (blocks+lists unsafe) still shows only `chunk=32`
     frees and no size mismatches; reuse stats show large scan_steps in later windows
     (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse1.log`, 2026-02-26).
+  - Trace: reuse + scan cap (`OREN_GC_REUSE_SCAN_CAP=4096`) still shows only `chunk=32` frees
+    and no size mismatches; reuse stats show scan_cap_hits with reduced scan_steps
+    (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_scan_cap.log`, 2026-02-26).
   - Trace: alloc_churn with `OREN_ARENA_AUTO_LOOP=0` + free-list ring tracing (cap=200)
     still shows only `chunk=32` list/list_int header frees; large chunk sizes remain
     unreproduced under arena-off GC stress

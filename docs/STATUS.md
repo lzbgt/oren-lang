@@ -815,6 +815,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: reuse-enabled alloc_churn (blocks+lists unsafe) still shows only `chunk=32` frees
       and no size mismatches; reuse stats show large scan_steps in later windows
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse1.log`, 2026-02-26).
+    - Trace: reuse + scan cap (`OREN_GC_REUSE_SCAN_CAP=4096`) still shows only `chunk=32` frees
+      and no size mismatches; reuse stats show scan_cap_hits with reduced scan_steps
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_scan_cap.log`, 2026-02-26).
   - Note: `make test` saw a one-off segfault in `test-native-quick-stage2`
     (log: `build/logs/make_test_20260226_172510.log`); rerun passed
     (log: `build/logs/make_test_native_quick_stage2_20260226_172724.log`). Track for flakes.
