@@ -943,6 +943,11 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       ring dumps when tracing (2026-02-26).
     - Trace: safe mode + `GC_EVERY=150`, `ITERS=300` still segfaulted before bad-list logs;
       summary only (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_300_gc150_cap64_safe.log`, 2026-02-26).
+    - New: `OREN_TRACE_GC_REUSE_PRECHECK=1` logs list reuse candidates before
+      header validation (cap via `OREN_TRACE_GC_REUSE_PRECHECK_CAP`, default 64, 2026-02-26).
+    - Trace: precheck run (`GC_EVERY=150`, `ITERS=300`) captured repeated bad-list events for the
+      same node/ptr (len=3762810489372947252 cap=13366 buf=0 magic=0) and completed without
+      a segfault (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_300_gc150_cap64_precheck.log`, 2026-02-26).
     - Trace: with `bad_list_triggers` enabled, summary still showed `bad_list_triggers=0`
       while bad-list prints followed (now with `len=0 cap=1 buf=2 magic=3` in the corrupted
       header fields), so the summary window continues to miss later bad-list events
@@ -1003,6 +1008,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
      (log: `build/logs/make_test_20260226_202338.log`);
      rerun `make test-native-quick` failed once (log: `build/logs/make_test_native_quick_20260226_202537.log`)
      then passed (log: `build/logs/make_test_native_quick_20260226_202606.log`). Track as a flake.
+   - Note: `make test` exited with `test-native-quick-stage2` Error 143
+     (log: `build/logs/make_test_20260226_213359.log`); rerun `make test-native-quick`
+     failed once (log: `build/logs/make_test_native_quick_20260226_213622.log`)
+     then passed (log: `build/logs/make_test_native_quick_20260226_213712.log`). Track as a flake.
    - Note: `make test` exited with `test-native-quick-stage2` Error 143
      (log: `build/logs/make_test_20260226_212743.log`); rerun `make test-native-quick`
      completed (log: `build/logs/make_test_native_quick_20260226_212955.log`). Track as a flake.

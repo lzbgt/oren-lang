@@ -483,6 +483,15 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
                 continue
             }
             if g_gc_reuse_lists != 0 && (cur_kind == 2 || cur_kind == list_int_kind()) {
+                if g_trace_gc_reuse_precheck != 0 && g_trace_gc_reuse_precheck_cap > 0 {
+                    g_trace_gc_reuse_precheck_cap = g_trace_gc_reuse_precheck_cap - 1
+                    print("[gc_reuse_precheck] node=" + oren_int_to_string(cur) +
+                        " ptr=" + oren_int_to_string(chunk_ptr) +
+                        " kind=" + oren_int_to_string(cur_kind) +
+                        " size=" + oren_int_to_string(size) +
+                        " chunk=" + oren_int_to_string(chunk_size) +
+                        " freed=" + oren_int_to_string(ptr_get(iadd(cur, 24))))
+                }
                 if native_gc_list_header_ok(chunk_ptr, cur_kind, chunk_size) == 0 {
                     native_gc_list_header_dump(chunk_ptr, chunk_size, cur)
                     if prev == 0 {

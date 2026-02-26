@@ -775,6 +775,8 @@ var g_trace_gc_stack_ranges_cap = 0
 var g_trace_gc_reuse_bad_list = 0
 var g_trace_gc_reuse_bad_list_cap = 0
 var g_trace_gc_reuse_bad_list_safe = 0
+var g_trace_gc_reuse_precheck = 0
+var g_trace_gc_reuse_precheck_cap = 0
 // Optional tracing: dump list headers at free time.
 var g_trace_gc_free_list_headers = 0
 var g_trace_gc_free_list_headers_cap = 0
@@ -1021,6 +1023,20 @@ fn native_runtime_init_gc_mode(default_enabled) {
         if ptr_get_byte(v_trace_bad_list_safe) != 0 && ptr_get_byte(v_trace_bad_list_safe) != 48 {
             g_trace_gc_reuse_bad_list_safe = 1
         }
+    }
+    var v_trace_reuse_precheck = native_envp_get_value_ptr("OREN_TRACE_GC_REUSE_PRECHECK")
+    if v_trace_reuse_precheck != 0 {
+        if ptr_get_byte(v_trace_reuse_precheck) != 0 && ptr_get_byte(v_trace_reuse_precheck) != 48 {
+            g_trace_gc_reuse_precheck = 1
+        }
+    }
+    var v_trace_reuse_precheck_cap = native_envp_get_value_ptr("OREN_TRACE_GC_REUSE_PRECHECK_CAP")
+    if v_trace_reuse_precheck_cap != 0 {
+        var cap = native_parse_i64_dec_cstr_or_neg1(v_trace_reuse_precheck_cap)
+        if cap > 0 { g_trace_gc_reuse_precheck_cap = cap }
+    }
+    if g_trace_gc_reuse_precheck != 0 && g_trace_gc_reuse_precheck_cap <= 0 {
+        g_trace_gc_reuse_precheck_cap = 64
     }
     var v_trace_free_list = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HEADERS")
     if v_trace_free_list != 0 {
