@@ -8,11 +8,12 @@ fn oren_new_list(cap) {
 	    // Allocate header + initial buffer in a single tracked block to cut allocation+tracking
 	    // overhead in half for the common "many small lists" workload (AST/IR graphs).
 	    //
-	    // Layout remains stable:
-	    //   [count][capacity][buffer_ptr][magic]
-	    // When cap>0, buffer_ptr points to inline storage at header+32.
+    // Layout remains stable:
+    //   [count][capacity][buffer_ptr][magic]
+    // When cap>0, buffer_ptr points to inline storage at header+32.
     var total = 32
     if cap > 0 { total = total + cap * 8 }
+    _list_hdr_req_trace_emit(2, cap, total, 1)
     _list_new_cap_emit(2, cap, total, 1)
     var header = malloc_k(total, 2)
     if header == 0 { exit(200) }
@@ -42,6 +43,7 @@ fn oren_new_list_int(cap) {
     if cap < 0 { cap = 0 }
     var total = 32
     if cap > 0 { total = total + cap * 8 }
+    _list_hdr_req_trace_emit(list_int_kind(), cap, total, 1)
     _list_new_cap_emit(list_int_kind(), cap, total, 1)
     var header = malloc_k(total, list_int_kind())
     if header == 0 { exit(200) }
@@ -504,6 +506,27 @@ fn oren_trace_list_reserve_fast(list, new_cap, kind) {
     return nil
 }
 
+fn _list_hdr_req_trace_emit(kind, cap, total, mode) {
+    if trace_track_alloc_new_size_should_emit(total) != true { return 0 }
+    print("[list_hdr_req] kind=" + oren_int_to_string(kind) +
+          " cap=" + oren_int_to_string(cap) +
+          " total=" + oren_int_to_string(total) +
+          " mode=" + oren_int_to_string(mode) +
+          " min=" + oren_int_to_string(g_trace_track_alloc_new_size_min))
+    return 0
+}
+
+fn _list_buf_req_trace_emit(list, kind, new_cap, bytes, use_arena) {
+    if trace_track_alloc_new_size_should_emit(bytes) != true { return 0 }
+    print("[list_buf_req] list=" + oren_int_to_string(list) +
+          " kind=" + oren_int_to_string(kind) +
+          " cap=" + oren_int_to_string(new_cap) +
+          " bytes=" + oren_int_to_string(bytes) +
+          " arena=" + oren_int_to_string(use_arena) +
+          " min=" + oren_int_to_string(g_trace_track_alloc_new_size_min))
+    return 0
+}
+
 fn _list_new_cap_emit(kind, cap, total, mode) {
     if _list_new_cap_enabled() != true { return 0 }
     var limit = g_trace_list_new_cap_limit
@@ -626,9 +649,10 @@ fn _list_trace_dump(list) {
     return 0
 }
 
-fn _list_alloc_buf(list, bytes, alloc_site, err_code) {
+fn _list_alloc_buf(list, bytes, new_cap, kind, alloc_site, err_code) {
     var use_arena = false
     if native_arena_find_node_nolock(list) != 0 { use_arena = true }
+    _list_buf_req_trace_emit(list, kind, new_cap, bytes, use_arena)
     var new_buf = 0
     if use_arena == true {
         new_buf = native_arena_alloc_raw(bytes)
@@ -808,7 +832,7 @@ fn oren_list_reserve(list, new_cap) {
     var buf = ptr_get(iadd(list, 16))
     _list_reserve_trace_emit(2, list, cap, new_cap, buf, 1)
     if new_cap <= cap { return nil }
-    var new_buf = _list_alloc_buf(list, new_cap * 8, _alloc_site_list_buf(), 211)
+    var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, 2, _alloc_site_list_buf(), 211)
     var i = 0
     while i < count {
         ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -1077,7 +1101,7 @@ fn oren_list_int_reserve(list, new_cap) {
     var buf = ptr_get(iadd(list, 16))
     _list_reserve_trace_emit(list_int_kind(), list, cap, new_cap, buf, 1)
     if new_cap <= cap { return nil }
-    var new_buf = _list_alloc_buf(list, new_cap * 8, _alloc_site_list_int_buf(), 211)
+    var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 211)
     var i = 0
     while i < count {
         ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -1107,7 +1131,7 @@ fn oren_list_int_push(list, value) {
     if count >= cap {
         var new_cap = cap * 2
         if new_cap < 4 { new_cap = 4 }
-        var new_buf = _list_alloc_buf(list, new_cap * 8, _alloc_site_list_int_buf(), 211)
+        var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 211)
         var i = 0
         while i < count {
             ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -1137,7 +1161,7 @@ fn oren_list_int_push_unchecked(list, value) {
     if count >= cap {
         var new_cap = cap * 2
         if new_cap < 4 { new_cap = 4 }
-        var new_buf = _list_alloc_buf(list, new_cap * 8, _alloc_site_list_int_buf(), 211)
+        var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 211)
         var i = 0
         while i < count {
             ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -1201,7 +1225,7 @@ fn oren_list_int_set(list, idx, value) {
         var new_cap = cap * 2
         if new_cap < 4 { new_cap = 4 }
         if new_cap < want { new_cap = want }
-        var new_buf = _list_alloc_buf(list, new_cap * 8, _alloc_site_list_int_buf(), 212)
+        var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, list_int_kind(), _alloc_site_list_int_buf(), 212)
 
         var i = 0
         while i < count {
@@ -1249,7 +1273,7 @@ fn oren_list_push(list, value) {
 			    if count >= cap {
 		        var new_cap = cap * 2
 		        if new_cap < 4 { new_cap = 4 }
-	        var new_buf = _list_alloc_buf(list, new_cap * 8, _alloc_site_list_buf(), 211)
+	        var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, 2, _alloc_site_list_buf(), 211)
 		        var i = 0
 	        while i < count {
 	            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -1281,7 +1305,7 @@ fn oren_list_push_unchecked(list, value) {
 	    if count >= cap {
 	        var new_cap = cap * 2
 	        if new_cap < 4 { new_cap = 4 }
-	        var new_buf = _list_alloc_buf(list, new_cap * 8, _alloc_site_list_buf(), 211)
+	        var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, 2, _alloc_site_list_buf(), 211)
 	        var i = 0
 	        while i < count {
 	            ptr_set(iadd(new_buf, i * 8), ptr_get(iadd(buf, i * 8)))
@@ -1396,8 +1420,12 @@ fn oren_list_set(list, idx, value) {
         if new_cap < 4 { new_cap = 4 }
         if new_cap < want { new_cap = want }
         var alloc_site = _alloc_site_list_buf()
-        if is_list_int != 0 { alloc_site = _alloc_site_list_int_buf() }
-        var new_buf = _list_alloc_buf(list, new_cap * 8, alloc_site, 212)
+        var kind = 2
+        if is_list_int != 0 {
+            alloc_site = _alloc_site_list_int_buf()
+            kind = list_int_kind()
+        }
+        var new_buf = _list_alloc_buf(list, new_cap * 8, new_cap, kind, alloc_site, 212)
 
         var i = 0
         while i < count {

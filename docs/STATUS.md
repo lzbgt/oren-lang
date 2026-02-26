@@ -83,6 +83,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      in `oren_track_alloc_new` (2026-02-26).
    - New: `OREN_TRACE_ALLOC_INDEX_DEDUP_CAP=<n>` panics when dedup hits exceed `n`
      (trace-only guardrail, 2026-02-26).
+   - New: list header/buffer alloc requests emit cap/bytes context when
+     `OREN_TRACE_TRACK_ALLOC_NEW_SIZE=1` triggers (`[list_hdr_req]`, `[list_buf_req]`, 2026-02-26).
 
 4) **W4 - Platform breadth (Tier‑1 intent targets)**
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.

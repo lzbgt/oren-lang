@@ -170,8 +170,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      rebuilds but no tracked allocs in the table (2026-02-26).
    - New: `OREN_TRACE_NATIVE_ALLOC_REQ=1` emits a native-side pre-track trace
      (`oren_trace_alloc_request`) before `oren_track_alloc_new` to catch size corruption at the call site.
-   - Instrument `malloc_k`/arena callers to log size+cap before tracking when `size` is implausible, and audit
-     native codegen for size/arg clobbers when new regressions appear.
+   - New: list header/buffer alloc request trace logs size+cap before tracking when
+     `OREN_TRACE_TRACK_ALLOC_NEW_SIZE=1` triggers (2026-02-26).
+   - Next: audit native codegen for size/arg clobbers when new regressions appear.
    - Expand fast-path tracing in native emitters to pinpoint header writes.
    - New: x64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-26).
    - Gate: no header corruption under `alloc_churn`/`alloc_drop` with reuse disabled; reuse remains guarded.
