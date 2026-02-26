@@ -6,10 +6,10 @@ import sys
 
 
 LIST_HDR_RE = re.compile(
-    r"\\[list_hdr\\] op=(\\d+) list=(\\d+) kind=(\\d+) len=(-?\\d+) cap=(-?\\d+) buf=(\\d+) magic=(-?\\d+)"
+    r"\[list_hdr\] op=(\d+) list=(\d+) kind=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+)"
 )
 GC_FREE_RE = re.compile(
-    r"\\[gc_free_list\\] ptr=(\\d+) chunk=(\\d+) kind=(\\d+) len=(-?\\d+) cap=(-?\\d+) buf=(\\d+) magic=(-?\\d+)"
+    r"\[gc_free_list\] ptr=(\d+) chunk=(\d+) kind=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+)"
 )
 
 
