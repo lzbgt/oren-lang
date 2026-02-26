@@ -602,6 +602,10 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
                     } else {
                         ptr_set(iadd(prev, 32), next)
                     }
+                    if chunk_ptr >= 4096 {
+                        // Keep alloc-index consistent when recycling a bad-list node.
+                        native_alloc_index_remove_ptr(chunk_ptr)
+                    }
                     // Drop this block from reuse and recycle the tracking node.
                     ptr_set(cur, 0)
                     ptr_set(iadd(cur, 8), 48)
