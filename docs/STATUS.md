@@ -1005,6 +1005,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
    - New: UI at `http://127.0.0.1:54514/` reports frequent failed fetches to
      `https://127.0.0.1:54513/v1/agents/agent1/proxy/api/v1/tools?tools=host&yolo=1&host_policy=full&session_id=...`,
      suggesting aggressive polling + scheme/port mismatch (2026-02-26).
+   - Update: located UI in the `agent` repo (`ui/src/App.tsx`, `ui/src/hooks/useUiSettings.ts`).
+     Added loopback scheme inference (use window protocol when base has no scheme) and reduced
+     tools query refetch pressure (staleTime + backoff). UI build ok
+     (log: `/Users/zongbaolu/work/agent/build/logs/ui_build_20260226_211713.log`, 2026-02-26).
 
 ## P2 (Later)
 
