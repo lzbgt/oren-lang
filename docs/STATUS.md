@@ -130,6 +130,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      global-roots entry at `i=35` points to a slot pointer outside g_storage whose value
      equals the bad-list ptr, indicating the root list is pointing at a non-g_storage slot
      (`alloc_churn_trace_precheck_guard13_nc_20260227.log`, 2026-02-27).
+   - Trace: `OREN_TRACE_GC_REGISTER_ROOT=1` shows early roots registered at
+     `slot_off=-8` (g_storage slot) and `slot_off=528..560` (heap spill slots);
+     `OREN_TRACE_GC_ROOT_MATCHES=1` shows three root slots (idx 35/117/182) whose
+     slot values equal the bad-list ptr with `slot_off=2376..3552` (all outside the 512B
+     boot globals range) (`alloc_churn_trace_precheck_guard15_nc_20260227.log`, 2026-02-27).
 
 4) **W4 - Platform breadth (Tier‑1 intent targets)**
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.

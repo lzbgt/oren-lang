@@ -16,6 +16,12 @@ var g_trace_gc_root_slots = 0
 var g_trace_gc_root_slots_cap = 0
 var g_trace_gc_root_slots_span = 0
 var g_trace_gc_root_slots_checked = 0
+var g_trace_gc_root_matches = 0
+var g_trace_gc_root_matches_cap = 0
+var g_trace_gc_root_matches_checked = 0
+var g_trace_gc_register_root = 0
+var g_trace_gc_register_root_cap = 0
+var g_trace_gc_register_root_checked = 0
 
 fn native_gc_scan_stack() {
     if g_gc_enabled == 0 { return 0 }
@@ -1222,6 +1228,50 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
             ri = ri + 1
         }
     }
+    if g_trace_gc_root_matches_checked == 0 {
+        var v_matches = native_envp_get_value_ptr("OREN_TRACE_GC_ROOT_MATCHES")
+        if v_matches != 0 && ptr_get_byte(v_matches) != 0 && ptr_get_byte(v_matches) != 48 {
+            g_trace_gc_root_matches = 1
+        }
+        var v_mcap = native_envp_get_value_ptr("OREN_TRACE_GC_ROOT_MATCHES_CAP")
+        if v_mcap != 0 {
+            var capm = native_parse_i64_dec_cstr_or_neg1(v_mcap)
+            if capm > 0 { g_trace_gc_root_matches_cap = capm }
+        }
+        if g_trace_gc_root_matches_cap <= 0 { g_trace_gc_root_matches_cap = 8 }
+        g_trace_gc_root_matches_checked = 1
+    }
+    if g_trace_gc_root_matches != 0 && g_trace_gc_root_matches_cap > 0 && in_roots != 0 && root_kind == 3 {
+        var curm = global_get_roots()
+        var gim = 0
+        var limitm = 200000
+        while curm != 0 && limitm > 0 {
+            var slotm = ptr_get(curm)
+            if slotm != 0 {
+                var valm = 0
+                if slotm >= 4096 { valm = ptr_get(slotm) }
+                if valm - ptr == 0 {
+                    var slot_off = 0
+                    var slot_off_ok = 0
+                    if g_storage != 0 && slotm >= g_storage {
+                        slot_off = slotm - g_storage
+                        if slot_off >= 0 && slot_off < 1048576 { slot_off_ok = 1 }
+                    }
+                    print("[gc_root_match] idx=" + oren_int_to_string(gim) +
+                          " node=" + oren_int_to_string(curm) +
+                          " slot=" + oren_int_to_string(slotm) +
+                          " val=" + oren_int_to_string(valm) +
+                          " slot_off=" + oren_int_to_string(slot_off) +
+                          " slot_off_ok=" + oren_int_to_string(slot_off_ok))
+                    g_trace_gc_root_matches_cap = g_trace_gc_root_matches_cap - 1
+                    if g_trace_gc_root_matches_cap <= 0 { break }
+                }
+            }
+            curm = ptr_get(iadd(curm, 32))
+            gim = gim + 1
+            limitm = limitm - 1
+        }
+    }
     if idx_node == 0 {
         var scan_node = node_ptr
         if g_gc_reuse_bad_list_last_ptr - ptr == 0 && g_gc_reuse_bad_list_last_idx_node != 0 {
@@ -2043,6 +2093,38 @@ fn oren_track_alloc(ptr, size, kind) {
 fn native_gc_register_root(ptr) {
     if g_gc_enabled == 0 { return 0 }
     if ptr == 0 { return 0 }
+    if g_trace_gc_register_root_checked == 0 {
+        var v_rr = native_envp_get_value_ptr("OREN_TRACE_GC_REGISTER_ROOT")
+        if v_rr != 0 && ptr_get_byte(v_rr) != 0 && ptr_get_byte(v_rr) != 48 {
+            g_trace_gc_register_root = 1
+        }
+        var v_rcap = native_envp_get_value_ptr("OREN_TRACE_GC_REGISTER_ROOT_CAP")
+        if v_rcap != 0 {
+            var capr = native_parse_i64_dec_cstr_or_neg1(v_rcap)
+            if capr > 0 { g_trace_gc_register_root_cap = capr }
+        }
+        if g_trace_gc_register_root_cap <= 0 { g_trace_gc_register_root_cap = 16 }
+        g_trace_gc_register_root_checked = 1
+    }
+    if g_trace_gc_register_root != 0 && g_trace_gc_register_root_cap > 0 {
+        g_trace_gc_register_root_cap = g_trace_gc_register_root_cap - 1
+        var in_storage = 0
+        if g_storage != 0 {
+            var g_end = iadd(g_storage, global_storage_bytes())
+            if ptr >= g_storage && ptr < g_end { in_storage = 1 }
+        }
+        var off = 0
+        var off_ok = 0
+        if g_storage != 0 && ptr >= g_storage {
+            off = ptr - g_storage
+            if off >= 0 && off < 1048576 { off_ok = 1 }
+        }
+        print("[gc_register_root] ptr=" + oren_int_to_string(ptr) +
+              " in_g_storage=" + oren_int_to_string(in_storage) +
+              " g_storage=" + oren_int_to_string(g_storage) +
+              " slot_off=" + oren_int_to_string(off) +
+              " slot_off_ok=" + oren_int_to_string(off_ok))
+    }
     acquire_lock()
     
     var node = native_malloc_raw_or_mmap(48)
