@@ -973,6 +973,11 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       field was cleared). `found=0` for the original ptr; run timed out at 120s (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_precheck_scan2_20260226.log`,
       2026-02-26).
+    - Trace: precheck+fix run (after removing bad-list ptr from alloc-index) still shows
+      `gc_reuse_bad_list_index_scan found=0` on the second hit (no remaining node slot observed);
+      run timed out at 120s (log:
+      `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_precheck_fix_20260226.log`,
+      2026-02-26).
     - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
       during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
       are already corrupted before reuse validation (rolling, 2026-02-27).
