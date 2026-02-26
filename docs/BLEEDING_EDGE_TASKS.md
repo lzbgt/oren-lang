@@ -205,6 +205,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     2026-02-27).
   - Tool: bad-list dumps now log `[list_hdr_ring_state]` (head/cap/delta) per trigger
     to confirm whether the ring advances between bad-list events (rolling, 2026-02-27).
+  - Trace: ring state shows head did not advance between bad-list events
+    (`head=357`, `delta=0`) in the 500-iter ringstate run (log:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_ringstate_20260227.log`, 2026-02-27).
   - Trace: ring-recent run logs `[list_hdr_ring_recent]` entries for the bad list pointer
     (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent.log`, 2026-02-26).
   - Trace: correlator output now includes `[list_hdr_ring_recent]` blocks for the bad list
