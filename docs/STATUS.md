@@ -842,6 +842,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       to reduce follow-up repros (rolling, 2026-02-26).
     - New: first bad-list safe print now triggers `native_list_debug_node` for alloc-index
       context (one-shot, rolling, 2026-02-26).
+    - New: `native_list_debug_node` now reports membership in free-block bucket lists
+      (64/256/1024/other) to disambiguate reuse corruption (rolling, 2026-02-26).
     - Trace: follow-up bad-list safe run shows corrupted header fields (`len=4122543214814507828`,
       `cap=13879`, `buf=0`, `magic=0`) while precheck still reports `freed_seen=0`; node_kind
       flips (1 -> 0) and node_size (32 -> 48) between prints for the same node (log:
@@ -1072,6 +1074,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
    - Note: `make test` exited with `test-native-quick` Error 143
      (log: `build/logs/make_test_20260226_221229.log`); rerun `make test-native-quick`
      passed (log: `build/logs/make_test_native_quick_20260226_221331.log`). Track as a flake.
+   - Note: `make test` exited with `test-native-quick` Error 143
+     (log: `build/logs/make_test_20260226_223629.log`); rerun `make test-native-quick`
+     passed (log: `build/logs/make_test_native_quick_20260226_223727.log`). Track as a flake.
     - Gate: `make test` + Tier-1 matrix.
 
 ## P1 (Soon)

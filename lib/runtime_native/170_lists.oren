@@ -1087,6 +1087,44 @@ fn native_list_debug_node(list) {
     } else {
         print("trace: list_debug node_in_free_blocks=0")
     }
+
+    // Scan free blocks buckets for node membership (bounded; trace-only).
+    var seen_free_64 = 0
+    var seen_free_256 = 0
+    var seen_free_1024 = 0
+    var seen_free_other = 0
+    var cur_free_64 = ptr_get(global_free_blocks_64_ptr())
+    limit = 200000
+    while cur_free_64 != 0 && limit > 0 {
+        if cur_free_64 - node == 0 { seen_free_64 = 1; break }
+        cur_free_64 = ptr_get(iadd(cur_free_64, 32))
+        limit = limit - 1
+    }
+    var cur_free_256 = ptr_get(global_free_blocks_256_ptr())
+    limit = 200000
+    while cur_free_256 != 0 && limit > 0 {
+        if cur_free_256 - node == 0 { seen_free_256 = 1; break }
+        cur_free_256 = ptr_get(iadd(cur_free_256, 32))
+        limit = limit - 1
+    }
+    var cur_free_1024 = ptr_get(global_free_blocks_1024_ptr())
+    limit = 200000
+    while cur_free_1024 != 0 && limit > 0 {
+        if cur_free_1024 - node == 0 { seen_free_1024 = 1; break }
+        cur_free_1024 = ptr_get(iadd(cur_free_1024, 32))
+        limit = limit - 1
+    }
+    var cur_free_other = ptr_get(global_free_blocks_ptr())
+    limit = 200000
+    while cur_free_other != 0 && limit > 0 {
+        if cur_free_other - node == 0 { seen_free_other = 1; break }
+        cur_free_other = ptr_get(iadd(cur_free_other, 32))
+        limit = limit - 1
+    }
+    print("trace: list_debug node_in_free_blocks_64=" + oren_int_to_string(seen_free_64) +
+          " node_in_free_blocks_256=" + oren_int_to_string(seen_free_256) +
+          " node_in_free_blocks_1024=" + oren_int_to_string(seen_free_1024) +
+          " node_in_free_blocks_other=" + oren_int_to_string(seen_free_other))
     return 0
 }
 
