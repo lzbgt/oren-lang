@@ -924,6 +924,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: summary-at-bad-list run segfaulted before emitting any bad-list logs
       (run_status=139), so no `[gc_reuse_summary_at_bad_list]` lines captured yet
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_200_cap128e.log`, 2026-02-26).
+    - Trace: lower scan cap (`OREN_GC_REUSE_SCAN_CAP=64`, bad-list cap=3) still
+      segfaulted before emitting bad-list logs; summary only
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_200_cap64.log`, 2026-02-26).
     - Trace: with `bad_list_triggers` enabled, summary still showed `bad_list_triggers=0`
       while bad-list prints followed (now with `len=0 cap=1 buf=2 magic=3` in the corrupted
       header fields), so the summary window continues to miss later bad-list events
