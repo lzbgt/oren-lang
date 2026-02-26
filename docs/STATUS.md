@@ -77,6 +77,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      after aligned-header fix (log: `build/logs/bench_dot_product_oren_c_20260226_155530.log`).
    - Verified: dot_product_int Oren C benchmark build/run completes without list-header corruption
      after aligned-header fix (log: `build/logs/bench_dot_product_int_oren_c_20260226_155726.log`).
+   - Verified: dot_product_int Oren native benchmark build/run completes without list-header corruption
+     after aligned-header fix (log: `build/logs/bench_dot_product_int_native_20260226_161550.log`).
+   - Verified: dot_product Oren native benchmark build/run completes without list-header corruption
+     after aligned-header fix (log: `build/logs/bench_dot_product_native_20260226_161555.log`).
    - New: list corruption checks now flag len/cap invariants and reserve-fail traces log header fields (2026-02-25).
    - New: green scheduler struct allocations now rebuild/force GC tracking before tagging kind=STRUCT,
      preventing args-list GC under `OREN_GREEN_POLL_CACHE=1` (2026-02-25).

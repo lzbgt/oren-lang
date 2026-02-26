@@ -102,6 +102,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      after aligned-header fix (log: `build/logs/bench_dot_product_oren_c_20260226_155530.log`).
    - Verified: dot_product_int Oren C benchmark build/run completes without list-header corruption
      after aligned-header fix (log: `build/logs/bench_dot_product_int_oren_c_20260226_155726.log`).
+   - Verified: dot_product_int Oren native benchmark build/run completes without list-header corruption
+     after aligned-header fix (log: `build/logs/bench_dot_product_int_native_20260226_161550.log`).
+   - Verified: dot_product Oren native benchmark build/run completes without list-header corruption
+     after aligned-header fix (log: `build/logs/bench_dot_product_native_20260226_161555.log`).
    - New: list_int allocations show huge `size` at `oren_track_alloc_new` time (before header init), so track the
      corruption back to size propagation (possible 32-bit -> 64-bit zero-extend gap or bad `cap` propagation).
    - New: arm64 native `malloc_k` now preserves size across kind-eval; re-run free-list traces to confirm the
