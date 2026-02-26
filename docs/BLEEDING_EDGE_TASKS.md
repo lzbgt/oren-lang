@@ -177,6 +177,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     still shows only `chunk=32` list/list_int header frees; large chunk sizes remain
     unreproduced under arena-off GC stress
     (log: `build/logs/alloc_churn_trace_gc_arenaoff_20260226_173516.log`).
+  - Trace: longer arena-off run (`OREN_TRACE_GC_FREE_LIST_HEADERS_CAP=2000`) still shows
+    no size mismatches or non-32 chunks
+    (log: `build/logs/alloc_churn_trace_gc_arenaoff_long_20260226_174106.log`).
    - New: `OREN_BENCH_LIST_LEN=<n>` lets alloc_churn reduce per-list pushes during trace runs so
      list_hdr ring entries survive until GC sweep samples (2026-02-26).
    - Trace: alloc_churn native baseline now completes after the alloc-index rebuild fallback
