@@ -697,10 +697,18 @@ fn native_alloc_index_scan_ptr_debug(ptr, node_ptr) {
     var found = 0
     var found_idx = 0
     var found_slot = 0
+    var found_node = 0
+    var found_node_idx = 0
+    var found_node_slot = 0
     var i = 0
     while i < cap {
         var slot = ptr_get(iadd(g_alloc_index_ptr, i << 3))
         if slot != 0 {
+            if node_ptr != 0 && slot - node_ptr == 0 {
+                found_node = 1
+                found_node_idx = i
+                found_node_slot = slot
+            }
             if slot - g_alloc_index_tomb != 0 {
                 if slot >= 4096 {
                     if ptr_get(slot) - ptr == 0 {
@@ -730,6 +738,25 @@ fn native_alloc_index_scan_ptr_debug(ptr, node_ptr) {
             " flags=" + oren_int_to_string(flags) +
             " magic=" + oren_int_to_string(magic))
     } else {
+        if found_node != 0 {
+            var node_ptr_now = ptr_get(found_node_slot)
+            var node_kind = ptr_get(iadd(found_node_slot, 16))
+            var node_size = ptr_get(iadd(found_node_slot, 8))
+            var node_flags = ptr_get(iadd(found_node_slot, 24))
+            var node_magic = ptr_get(iadd(found_node_slot, 40))
+            print("[gc_reuse_bad_list_index_scan] ptr=" + oren_int_to_string(ptr) +
+                " node=" + oren_int_to_string(node_ptr) +
+                " found=0 found_node=1 node_idx=" + oren_int_to_string(found_node_idx) +
+                " hash_idx=" + oren_int_to_string(hash_idx) +
+                " cap=" + oren_int_to_string(cap) +
+                " slot=" + oren_int_to_string(found_node_slot) +
+                " node_ptr=" + oren_int_to_string(node_ptr_now) +
+                " node_kind=" + oren_int_to_string(node_kind) +
+                " node_size=" + oren_int_to_string(node_size) +
+                " node_flags=" + oren_int_to_string(node_flags) +
+                " node_magic=" + oren_int_to_string(node_magic))
+            return 0
+        }
         print("[gc_reuse_bad_list_index_scan] ptr=" + oren_int_to_string(ptr) +
             " node=" + oren_int_to_string(node_ptr) +
             " found=0 hash_idx=" + oren_int_to_string(hash_idx) +
