@@ -948,6 +948,11 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: precheck run (`GC_EVERY=150`, `ITERS=300`) captured repeated bad-list events for the
       same node/ptr (len=3762810489372947252 cap=13366 buf=0 magic=0) and completed without
       a segfault (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_300_gc150_cap64_precheck.log`, 2026-02-26).
+    - Trace: precheck + free-list put (`OREN_TRACE_GC_FREE_LIST_PUT=1`) shows the same ptr had
+      a valid empty-list header at free time (len=0 cap=0 buf=0 magic=1279870019), but later
+      reappeared as corrupted during reuse (len=3544957662233047860 cap=12342 buf=0 magic=0).
+      This points to post-free overwrite / UAF of list header memory (log:
+      `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_summary_300_gc150_cap64_precheck_put.log`, 2026-02-26).
     - Trace: with `bad_list_triggers` enabled, summary still showed `bad_list_triggers=0`
       while bad-list prints followed (now with `len=0 cap=1 buf=2 magic=3` in the corrupted
       header fields), so the summary window continues to miss later bad-list events
