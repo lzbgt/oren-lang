@@ -980,6 +980,9 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
         if g_gc_reuse_bad_list_prints == 1 {
             native_list_debug_node(ptr)
         }
+        if g_trace_gc_reuse_bad_list_ring_recent > 0 {
+            native_list_header_ring_dump_last(ptr, g_trace_gc_reuse_bad_list_ring_recent)
+        }
         return 0
     }
     var len = ptr_get(iadd(ptr, 0))

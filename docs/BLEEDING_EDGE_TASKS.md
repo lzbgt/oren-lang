@@ -153,6 +153,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: ring-all filter run (miss warning enabled) still finds a matching ring entry;
     no `[list_hdr_ring_filter_miss]` emitted (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringall_filter_miss.log`, 2026-02-26).
+  - New: bad-list dumps can emit the most recent list header ops for that pointer via
+    `OREN_TRACE_GC_REUSE_BAD_LIST_RING_RECENT=<n>` and `[list_hdr_ring_recent]` (rolling, 2026-02-26).
+  - Trace: ring-recent run logs `[list_hdr_ring_recent]` entries for the bad list pointer
+    (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent.log`, 2026-02-26).
   - New: `OREN_TRACE_LIST_HDR_RING_DUP=1` logs `[list_hdr_ring_dup]` when the ring buffer
     already contains the same list pointer; per-pointer suppression uses
     `OREN_TRACE_LIST_HDR_RING_DUP_SEEN_CAP` (default 64) to avoid repeat logs

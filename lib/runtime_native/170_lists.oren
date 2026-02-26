@@ -216,8 +216,10 @@ fn _list_hdr_ring_enabled() {
     if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
         var v_gc = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING")
         var v_gc_all = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL")
+        var v_recent = native_envp_get_value_ptr("OREN_TRACE_GC_REUSE_BAD_LIST_RING_RECENT")
         if (v_gc == 0 || ptr_get_byte(v_gc) == 0 || ptr_get_byte(v_gc) == 48) &&
-           (v_gc_all == 0 || ptr_get_byte(v_gc_all) == 0 || ptr_get_byte(v_gc_all) == 48) {
+           (v_gc_all == 0 || ptr_get_byte(v_gc_all) == 0 || ptr_get_byte(v_gc_all) == 48) &&
+           (v_recent == 0 || ptr_get_byte(v_recent) == 0 || ptr_get_byte(v_recent) == 48) {
             if g_trace_list_hdr_ring == -1 || g_trace_list_hdr_ring == 0 {
                 g_trace_list_hdr_ring = 0
                 g_trace_list_hdr_ring_envp = cur_envp
@@ -709,6 +711,49 @@ fn native_list_header_ring_dump(list) {
                   " magic=" + oren_int_to_string(magic))
         }
         i = i + 1
+    }
+    return 0
+}
+
+@oren.keep
+fn native_list_header_ring_dump_last(list, limit) {
+    if g_trace_list_hdr_ring_ptr == 0 { return 0 }
+    if g_trace_list_hdr_ring_cap <= 0 { return 0 }
+    if list == 0 || list < 4096 { return 0 }
+    if limit <= 0 { return 0 }
+    var cap = g_trace_list_hdr_ring_cap
+    var head = g_trace_list_hdr_ring_head
+    var base = g_trace_list_hdr_ring_ptr
+    var printed = 0
+    var step = 0
+    while step < cap && printed < limit {
+        var idx = head - 1 - step
+        if idx < 0 {
+            var add = ((-idx) / cap) + 1
+            idx = idx + add * cap
+        }
+        idx = idx - (idx / cap) * cap
+        var off = idx * 56
+        var p = ptr_get(iadd(base, off))
+        if p == list {
+            var op = ptr_get(iadd(base, off + 8))
+            var len = ptr_get(iadd(base, off + 16))
+            var cap_v = ptr_get(iadd(base, off + 24))
+            var buf = ptr_get(iadd(base, off + 32))
+            var magic = ptr_get(iadd(base, off + 40))
+            var kind = ptr_get(iadd(base, off + 48))
+            print("[list_hdr_ring_recent] list=" + oren_int_to_string(list) +
+                  " idx=" + oren_int_to_string(idx) +
+                  " age=" + oren_int_to_string(step) +
+                  " op=" + oren_int_to_string(op) +
+                  " kind=" + oren_int_to_string(kind) +
+                  " len=" + oren_int_to_string(len) +
+                  " cap=" + oren_int_to_string(cap_v) +
+                  " buf=" + oren_int_to_string(buf) +
+                  " magic=" + oren_int_to_string(magic))
+            printed = printed + 1
+        }
+        step = step + 1
     }
     return 0
 }
