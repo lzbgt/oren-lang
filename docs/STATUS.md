@@ -865,6 +865,11 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: ring-all filter run (miss warning enabled) still finds a matching ring entry;
       no `[list_hdr_ring_filter_miss]` emitted (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringall_filter_miss.log`, 2026-02-26).
+    - New: `OREN_TRACE_LIST_HDR_RING_DUP=1` logs `[list_hdr_ring_dup]` when the ring buffer
+      already contains the same list pointer (cap via `OREN_TRACE_LIST_HDR_RING_DUP_CAP`,
+      default 64, 2026-02-26).
+    - Trace: ring-dup run emits repeated `[list_hdr_ring_dup]` hits for list_int headers
+      (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringdup.log`, 2026-02-26).
     - Trace: ring-all filter run emits a single `list_hdr_ring idx=...` line for the bad pointer
       (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringall_filter.log`, 2026-02-26).
     - Tool: `tools/trace_list_hdr_correlate.py` now includes `[list_hdr_ring]` entries when

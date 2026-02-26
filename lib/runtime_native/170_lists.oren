@@ -115,6 +115,8 @@ var g_trace_list_hdr_ring_head = 0
 var g_trace_list_hdr_ring_envp = 0
 var g_trace_list_hdr_ring_argv = 0
 var g_trace_list_hdr_ring_argc = 0
+var g_trace_list_hdr_ring_dup = 0
+var g_trace_list_hdr_ring_dup_cap = 0
 var g_trace_list_hdr_ring_filter_ptr = 0
 var g_trace_list_new_cap = -1
 var g_trace_list_new_cap_limit = 0
@@ -246,6 +248,18 @@ fn _list_hdr_ring_enabled() {
     }
     g_trace_list_hdr_ring_ptr = buf
     g_trace_list_hdr_ring_head = 0
+    var v_dup = native_envp_get_value_ptr("OREN_TRACE_LIST_HDR_RING_DUP")
+    if v_dup != 0 && ptr_get_byte(v_dup) != 0 && ptr_get_byte(v_dup) != 48 {
+        g_trace_list_hdr_ring_dup = 1
+    }
+    var v_dup_cap = native_envp_get_value_ptr("OREN_TRACE_LIST_HDR_RING_DUP_CAP")
+    if v_dup_cap != 0 && ptr_get_byte(v_dup_cap) != 0 {
+        var cap = oren_int_from_string(v_dup_cap)
+        if cap > 0 { g_trace_list_hdr_ring_dup_cap = cap }
+    }
+    if g_trace_list_hdr_ring_dup != 0 && g_trace_list_hdr_ring_dup_cap <= 0 {
+        g_trace_list_hdr_ring_dup_cap = 64
+    }
     return true
 }
 
@@ -562,6 +576,47 @@ fn _list_hdr_ring_put(op, list, kind) {
     if list == 0 || list < 4096 { return 0 }
     if op != 1 && op != 2 && op != 3 && op != 4 && op != 5 && op != 6 && op != 7 && op != 8 &&
        op != 9 && op != 10 && op != 11 && op != 12 { return 0 }
+    if g_trace_list_hdr_ring_dup != 0 && g_trace_list_hdr_ring_dup_cap > 0 {
+        var base = g_trace_list_hdr_ring_ptr
+        var i = 0
+        var found = 0
+        var found_idx = 0
+        var found_op = 0
+        var found_len = 0
+        var found_cap = 0
+        var found_buf = 0
+        var found_magic = 0
+        var found_kind = 0
+        while i < g_trace_list_hdr_ring_cap {
+            var off = i * 56
+            var p = ptr_get(iadd(base, off))
+            if p == list {
+                found = 1
+                found_idx = i
+                found_op = ptr_get(iadd(base, off + 8))
+                found_len = ptr_get(iadd(base, off + 16))
+                found_cap = ptr_get(iadd(base, off + 24))
+                found_buf = ptr_get(iadd(base, off + 32))
+                found_magic = ptr_get(iadd(base, off + 40))
+                found_kind = ptr_get(iadd(base, off + 48))
+                break
+            }
+            i = i + 1
+        }
+        if found != 0 {
+            g_trace_list_hdr_ring_dup_cap = g_trace_list_hdr_ring_dup_cap - 1
+            print("[list_hdr_ring_dup] list=" + oren_int_to_string(list) +
+                  " prev_idx=" + oren_int_to_string(found_idx) +
+                  " prev_op=" + oren_int_to_string(found_op) +
+                  " prev_kind=" + oren_int_to_string(found_kind) +
+                  " prev_len=" + oren_int_to_string(found_len) +
+                  " prev_cap=" + oren_int_to_string(found_cap) +
+                  " prev_buf=" + oren_int_to_string(found_buf) +
+                  " prev_magic=" + oren_int_to_string(found_magic) +
+                  " new_op=" + oren_int_to_string(op) +
+                  " new_kind=" + oren_int_to_string(kind))
+        }
+    }
     var idx = g_trace_list_hdr_ring_head % g_trace_list_hdr_ring_cap
     var off = idx * 56
     var base = g_trace_list_hdr_ring_ptr
