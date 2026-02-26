@@ -159,6 +159,17 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      free-list dumps for list_int headers (kind=8, len/cap=128), alongside list (kind=2)
      headers, confirming list_int frees are visible under GC traces
      (log: `build/logs/alloc_churn_trace_list_int_20260226_165002.log`).
+   - New: `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` dumps list_hdr ring samples at free-list dump time
+     (tunable via `_EVERY`/`_CAP`) to correlate recent list header writes with freed headers (2026-02-26).
+  - New: `OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL=1` dumps the full ring snapshot (bounded by ring size)
+    for free-list samples when pointer filtering misses (2026-02-26).
+  - New: `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` now auto-enables free-list header dumps +
+    list_hdr ring capture (no separate `OREN_TRACE_LIST_HDR_RING` needed, 2026-02-26).
+  - Trace: alloc_churn with `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` now emits `[list_hdr_ring]`
+    samples alongside `[gc_free_list]` without extra ring flags
+    (log: `build/logs/alloc_churn_trace_gc_ring_20260226_172250.log`).
+   - New: `OREN_BENCH_LIST_LEN=<n>` lets alloc_churn reduce per-list pushes during trace runs so
+     list_hdr ring entries survive until GC sweep samples (2026-02-26).
    - Trace: alloc_churn native baseline now completes after the alloc-index rebuild fallback
      (log: `build/logs/bench_run_alloc_churn_20260226_054752/oren_native/run_0.log`); earlier panic
      logs remain as reference (e.g., `bench_run_alloc_churn_20260226_053425`).

@@ -30,13 +30,15 @@ fn main() {
     var clear_list = _env_int("OREN_BENCH_CLEAR_LIST", 0)
     var small_ints = _env_int("OREN_BENCH_SMALL_INTS", 0)
     var force_list_int = _env_int("OREN_BENCH_FORCE_LIST_INT", 0)
+    var list_len = _env_int("OREN_BENCH_LIST_LEN", 128)
+    var gc_count = 0
     var i = 0
     var acc = 0
     while i < n {
         var xs = []
         if force_list_int != 0 { xs = oren_new_list_int(0) }
         var j = 0
-        while j < 128 {
+        while j < list_len {
             var v = i + j
             if small_ints != 0 { v = j }
             if force_list_int != 0 { oren_list_int_push(xs, v) }
@@ -46,7 +48,11 @@ fn main() {
         if force_list_int != 0 { acc = acc + oren_list_int_get(xs, 0) }
         else { acc = acc + xs[0] }
         if gc_every > 0 && i > 0 {
-            if (i % gc_every) == 0 { oren_gc_collect() }
+            gc_count = gc_count + 1
+            if gc_count == gc_every {
+                gc_count = 0
+                oren_gc_collect()
+            }
         }
         if clear_list != 0 { xs = nil }
         i = i + 1

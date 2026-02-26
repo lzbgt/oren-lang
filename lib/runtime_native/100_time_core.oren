@@ -775,6 +775,13 @@ var g_trace_gc_reuse_bad_list_cap = 0
 // Optional tracing: dump list headers at free time.
 var g_trace_gc_free_list_headers = 0
 var g_trace_gc_free_list_headers_cap = 0
+// Optional tracing: dump list_hdr ring on free-list samples.
+var g_trace_gc_free_list_hdr_ring = 0
+var g_trace_gc_free_list_hdr_ring_every = 0
+var g_trace_gc_free_list_hdr_ring_cap = 0
+var g_trace_gc_free_list_hdr_ring_left = 0
+var g_trace_gc_free_list_hdr_ring_seen = 0
+var g_trace_gc_free_list_hdr_ring_all = 0
 // Optional tracing: verbose reuse hit logging (capped).
 var g_gc_reuse_verbose = 0
 var g_gc_reuse_verbose_cap = 0
@@ -827,6 +834,12 @@ fn native_runtime_init_gc_mode(default_enabled) {
     g_trace_gc_reuse_bad_list_cap = 0
     g_trace_gc_free_list_headers = 0
     g_trace_gc_free_list_headers_cap = 0
+    g_trace_gc_free_list_hdr_ring = 0
+    g_trace_gc_free_list_hdr_ring_every = 0
+    g_trace_gc_free_list_hdr_ring_cap = 0
+    g_trace_gc_free_list_hdr_ring_left = 0
+    g_trace_gc_free_list_hdr_ring_seen = 0
+    g_trace_gc_free_list_hdr_ring_all = 0
     g_gc_reuse_verbose = 0
     g_gc_reuse_verbose_cap = 0
     g_gc_reuse_verbose_left = 0
@@ -989,6 +1002,41 @@ fn native_runtime_init_gc_mode(default_enabled) {
     if v_trace_free_list_cap != 0 {
         var cap = native_parse_i64_dec_cstr_or_neg1(v_trace_free_list_cap)
         if cap > 0 { g_trace_gc_free_list_headers_cap = cap }
+    }
+    var v_trace_free_list_ring = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING")
+    if v_trace_free_list_ring != 0 {
+        if ptr_get_byte(v_trace_free_list_ring) != 0 && ptr_get_byte(v_trace_free_list_ring) != 48 {
+            g_trace_gc_free_list_hdr_ring = 1
+        }
+    }
+    var v_trace_free_list_ring_all = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL")
+    if v_trace_free_list_ring_all != 0 {
+        if ptr_get_byte(v_trace_free_list_ring_all) != 0 && ptr_get_byte(v_trace_free_list_ring_all) != 48 {
+            g_trace_gc_free_list_hdr_ring_all = 1
+        }
+    }
+    var v_trace_free_list_ring_every = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING_EVERY")
+    if v_trace_free_list_ring_every != 0 {
+        var every = native_parse_i64_dec_cstr_or_neg1(v_trace_free_list_ring_every)
+        if every > 0 { g_trace_gc_free_list_hdr_ring_every = every }
+    }
+    var v_trace_free_list_ring_cap = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING_CAP")
+    if v_trace_free_list_ring_cap != 0 {
+        var cap = native_parse_i64_dec_cstr_or_neg1(v_trace_free_list_ring_cap)
+        if cap > 0 { g_trace_gc_free_list_hdr_ring_cap = cap }
+    }
+    if g_trace_gc_free_list_hdr_ring != 0 {
+        if g_trace_gc_free_list_hdr_ring_every <= 0 { g_trace_gc_free_list_hdr_ring_every = 1 }
+        if g_trace_gc_free_list_hdr_ring_cap <= 0 { g_trace_gc_free_list_hdr_ring_cap = 16 }
+        g_trace_gc_free_list_hdr_ring_left = g_trace_gc_free_list_hdr_ring_cap
+        g_trace_gc_free_list_hdr_ring_seen = 0
+    }
+    if g_trace_gc_free_list_hdr_ring != 0 && g_trace_gc_free_list_headers == 0 {
+        g_trace_gc_free_list_headers = 1
+        if g_trace_gc_free_list_headers_cap <= 0 {
+            g_trace_gc_free_list_headers_cap = g_trace_gc_free_list_hdr_ring_cap
+            if g_trace_gc_free_list_headers_cap <= 0 { g_trace_gc_free_list_headers_cap = 16 }
+        }
     }
     if g_trace_freed_lists != 0 {
         if g_trace_freed_lists_cap <= 0 { g_trace_freed_lists_cap = 1024 }

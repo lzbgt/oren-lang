@@ -208,13 +208,18 @@ fn _list_hdr_ring_enabled() {
     }
     var v = native_envp_get_value_ptr("OREN_TRACE_LIST_HDR_RING")
     if v == 0 || ptr_get_byte(v) == 0 || ptr_get_byte(v) == 48 {
-        if g_trace_list_hdr_ring == -1 || g_trace_list_hdr_ring == 0 {
-            g_trace_list_hdr_ring = 0
-            g_trace_list_hdr_ring_envp = cur_envp
-            g_trace_list_hdr_ring_argv = cur_argv
-            g_trace_list_hdr_ring_argc = cur_argc
+        var v_gc = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING")
+        var v_gc_all = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL")
+        if (v_gc == 0 || ptr_get_byte(v_gc) == 0 || ptr_get_byte(v_gc) == 48) &&
+           (v_gc_all == 0 || ptr_get_byte(v_gc_all) == 0 || ptr_get_byte(v_gc_all) == 48) {
+            if g_trace_list_hdr_ring == -1 || g_trace_list_hdr_ring == 0 {
+                g_trace_list_hdr_ring = 0
+                g_trace_list_hdr_ring_envp = cur_envp
+                g_trace_list_hdr_ring_argv = cur_argv
+                g_trace_list_hdr_ring_argc = cur_argc
+            }
+            return false
         }
-        return false
     }
     g_trace_list_hdr_ring = 1
     var v_cap = native_envp_get_value_ptr("OREN_TRACE_LIST_HDR_RING_CAP")
@@ -597,6 +602,42 @@ fn native_list_header_ring_dump(list) {
         }
         i = i + 1
     }
+    return 0
+}
+
+@oren.keep
+fn native_list_header_ring_dump_all() {
+    if g_trace_list_hdr_ring_ptr == 0 { return 0 }
+    if g_trace_list_hdr_ring_cap <= 0 { return 0 }
+    var base = g_trace_list_hdr_ring_ptr
+    var i = 0
+    while i < g_trace_list_hdr_ring_cap {
+        var off = i * 56
+        var p = ptr_get(iadd(base, off))
+        if p != 0 {
+            var op = ptr_get(iadd(base, off + 8))
+            var len = ptr_get(iadd(base, off + 16))
+            var cap = ptr_get(iadd(base, off + 24))
+            var buf = ptr_get(iadd(base, off + 32))
+            var magic = ptr_get(iadd(base, off + 40))
+            var kind = ptr_get(iadd(base, off + 48))
+            print("[list_hdr_ring] idx=" + oren_int_to_string(i) +
+                  " list=" + oren_int_to_string(p) +
+                  " op=" + oren_int_to_string(op) +
+                  " kind=" + oren_int_to_string(kind) +
+                  " len=" + oren_int_to_string(len) +
+                  " cap=" + oren_int_to_string(cap) +
+                  " buf=" + oren_int_to_string(buf) +
+                  " magic=" + oren_int_to_string(magic))
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+@oren.keep
+fn native_list_header_ring_enable() {
+    _list_hdr_ring_enabled()
     return 0
 }
 fn _list_corrupt_enabled() {

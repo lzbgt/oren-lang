@@ -69,8 +69,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      false corruption on small caps (2026-02-26).
    - Fix: list_reserve now attempts alloc-index recover + header re-track before panicking
      on non-list headers to reduce false positives under GC churn (2026-02-26).
-   - New: free-list header dumps now emit list_hdr ring traces when validation fails, to
-     correlate last header writes with corrupted free-list entries (2026-02-26).
+  - New: free-list header dumps now emit list_hdr ring traces when validation fails, to
+    correlate last header writes with corrupted free-list entries (2026-02-26).
+  - New: `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` now auto-enables free-list header dumps
+    and list_hdr ring capture to reduce trace setup friction (2026-02-26).
    - Fix: host-thread green spawn/join now uses world-lock critical sections when enabled,
      preventing races in multi-worker world-lock mode (2026-02-26).
    - Fix: host metadata lookups (`oren_find_node`) now enter the world lock when workers
@@ -338,6 +340,12 @@ Weights reflect expected impact on C parity and breadth of affected code.
       free-list dumps for list_int headers (kind=8, len/cap=128), alongside list (kind=2)
       headers, confirming list_int frees are visible under GC traces
       (log: `build/logs/alloc_churn_trace_list_int_20260226_165002.log`).
+    - New: `OREN_TRACE_GC_FREE_LIST_HDR_RING=1` dumps list_hdr ring samples at free-list dump time
+      (tunable via `_EVERY`/`_CAP`) to correlate recent list header writes with freed headers (2026-02-26).
+    - New: `OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL=1` dumps the full ring snapshot (bounded by ring size)
+      for free-list samples when pointer filtering misses (2026-02-26).
+    - New: `OREN_BENCH_LIST_LEN=<n>` lets alloc_churn reduce per-list pushes during trace runs so
+      list_hdr ring entries survive until GC sweep samples (2026-02-26).
     - New: runtime reserve trace `OREN_TRACE_LIST_RESERVE_RT=1` (cap via `OREN_TRACE_LIST_RESERVE_RT_CAP`) added; alloc_churn run
       now emits `[list_reserve]` + `[list_buf]` lines, confirming runtime reserve execution
       (log: `build/logs/alloc_churn_run_trace_20260226_013845.log`).
@@ -793,11 +801,14 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 
 3) **Runtime robustness W5: GC reuse + list header integrity** (L, W5)
    - Root-cause list header corruption (alloc_churn/alloc_drop traces point to pre-reuse corruption).
-   - Expand fast-path tracing on native emitters (arm64 + x64) to pin header writes (`OREN_TRACE_NATIVE_LIST_HDR=1`).
-     - Done: arm64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-25).
-     - Done: x64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-26).
-     - Next: correlate list_hdr traces with free-list header dumps to find the first corrupt write.
-     - Investigate list_int tracking-node size corruption (alloc_churn free-list traces show huge chunk sizes despite valid headers).
+  - Expand fast-path tracing on native emitters (arm64 + x64) to pin header writes (`OREN_TRACE_NATIVE_LIST_HDR=1`).
+    - Done: arm64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-25).
+    - Done: x64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-26).
+    - Next: correlate list_hdr traces with free-list header dumps to find the first corrupt write.
+    - Investigate list_int tracking-node size corruption (alloc_churn free-list traces show huge chunk sizes despite valid headers).
+  - Note: `make test` saw a one-off segfault in `test-native-quick-stage2`
+    (log: `build/logs/make_test_20260226_172510.log`); rerun passed
+    (log: `build/logs/make_test_native_quick_stage2_20260226_172724.log`). Track for flakes.
    - New: `OREN_TRACE_ALLOC_INDEX_REBUILD_CAP=<n>` panics when rebuilds exceed `n` (trace-only guardrail)
      to catch runaway rebuild loops during corruption hunts (rolling, 2026-02-26).
    - Fix: native entry stubs now register all global slots as GC roots before top-level execution,
@@ -834,6 +845,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
 2) **SIMD/typed buffer bring-up on x64** (M, W3)
 3) **AVM allocation slabs + list<int> lowering** (M, W3)
 4) **Deterministic AVM scheduler (budgeted)** (L, W3)
+5) **Local agent UI polling/backoff** (S, W3)
+   - Investigate repeated `/v1/tools` polling failures from `index-*.js`
+     (fetch to `https://127.0.0.1:54513/v1/agents/agent1/proxy/api/v1/tools?...`).
+     Source not located in this repo yet; need the owning component path to proceed.
 
 ## P2 (Later)
 

@@ -725,6 +725,30 @@ fn native_gc_free_list_header_dump(ptr, chunk_size, kind, node_ptr) {
     if g_trace_gc_free_list_headers == 0 { return 0 }
     if g_trace_gc_free_list_headers_cap <= 0 { return 0 }
     g_trace_gc_free_list_headers_cap = g_trace_gc_free_list_headers_cap - 1
+    if g_trace_gc_free_list_hdr_ring == 0 && g_trace_gc_free_list_hdr_ring_left == 0 {
+        var v_ring = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING")
+        if v_ring != 0 && ptr_get_byte(v_ring) != 0 && ptr_get_byte(v_ring) != 48 {
+            g_trace_gc_free_list_hdr_ring = 1
+            var v_ring_all = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL")
+            if v_ring_all != 0 && ptr_get_byte(v_ring_all) != 0 && ptr_get_byte(v_ring_all) != 48 {
+                g_trace_gc_free_list_hdr_ring_all = 1
+            }
+            var v_every = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING_EVERY")
+            if v_every != 0 {
+                var every = native_parse_i64_dec_cstr_or_neg1(v_every)
+                if every > 0 { g_trace_gc_free_list_hdr_ring_every = every }
+            }
+            var v_cap = native_envp_get_value_ptr("OREN_TRACE_GC_FREE_LIST_HDR_RING_CAP")
+            if v_cap != 0 {
+                var cap = native_parse_i64_dec_cstr_or_neg1(v_cap)
+                if cap > 0 { g_trace_gc_free_list_hdr_ring_cap = cap }
+            }
+            if g_trace_gc_free_list_hdr_ring_every <= 0 { g_trace_gc_free_list_hdr_ring_every = 1 }
+            if g_trace_gc_free_list_hdr_ring_cap <= 0 { g_trace_gc_free_list_hdr_ring_cap = 16 }
+            g_trace_gc_free_list_hdr_ring_left = g_trace_gc_free_list_hdr_ring_cap
+            g_trace_gc_free_list_hdr_ring_seen = 0
+        }
+    }
     var len = ptr_get(iadd(ptr, 0))
     var cap = ptr_get(iadd(ptr, 8))
     var buf = ptr_get(iadd(ptr, 16))
@@ -754,6 +778,24 @@ fn native_gc_free_list_header_dump(ptr, chunk_size, kind, node_ptr) {
               " magic=" + oren_int_to_string(node_magic))
         native_list_header_ring_dump(ptr)
         ring_dumped = 1
+    }
+    if g_trace_gc_free_list_hdr_ring != 0 && g_trace_gc_free_list_hdr_ring_left > 0 {
+        if g_trace_list_hdr_ring_ptr == 0 {
+            native_list_header_ring_enable()
+        }
+        g_trace_gc_free_list_hdr_ring_seen = g_trace_gc_free_list_hdr_ring_seen + 1
+        var every = g_trace_gc_free_list_hdr_ring_every
+        if every <= 0 { every = 1 }
+        var rem = g_trace_gc_free_list_hdr_ring_seen - (g_trace_gc_free_list_hdr_ring_seen / every) * every
+        if rem == 0 {
+            if g_trace_gc_free_list_hdr_ring_all != 0 {
+                native_list_header_ring_dump_all()
+            } else {
+                native_list_header_ring_dump(ptr)
+            }
+            g_trace_gc_free_list_hdr_ring_left = g_trace_gc_free_list_hdr_ring_left - 1
+            ring_dumped = 1
+        }
     }
     if native_gc_list_header_ok(ptr, kind, chunk_size) == 0 {
         if ring_dumped == 0 {
