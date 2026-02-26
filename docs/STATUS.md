@@ -825,6 +825,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       `build/logs/alloc_churn_trace_poison_noreuse_len64_gc50_200_sweep.log`, 2026-02-26).
     - New: reuse scan now drops nodes with bad `native_node_magic` and can trace via
       `OREN_TRACE_GC_REUSE_NODE_MAGIC=1` (rolling, 2026-02-26).
+    - Trace: poison+reuse (list reuse off) with node-magic tracing completed cleanly; no
+      bad-node-magic hits (`guard_bad_magic=0`) in summaries (log:
+      `build/logs/alloc_churn_trace_poison_nolistreuse_len64_gc50_200_magic.log`, 2026-02-26).
     - Trace: reuse-enabled alloc_churn (blocks+lists unsafe) still shows only `chunk=32` frees
       and no size mismatches; reuse stats show large scan_steps in later windows
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse1.log`, 2026-02-26).
