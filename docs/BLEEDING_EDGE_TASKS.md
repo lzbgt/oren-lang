@@ -226,6 +226,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     node_magic and kind=8 when corruption is detected, suggesting the tracked node is
     already marked freed at reuse time
     (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_badlist_node.log`, 2026-02-26).
+  - Trace: block-reuse only (lists disabled) still segfaulted under `OREN_BENCH_LIST_LEN=64`;
+    no bad-list events were emitted, suggesting the crash is not limited to list reuse
+    (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_blocks_only.log`, 2026-02-26).
   - Trace: alloc_churn with `OREN_ARENA_AUTO_LOOP=0` + free-list ring tracing (cap=200)
     still shows only `chunk=32` list/list_int header frees; large chunk sizes remain
     unreproduced under arena-off GC stress

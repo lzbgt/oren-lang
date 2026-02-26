@@ -849,6 +849,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       node_magic and kind=8 when corruption is detected, suggesting the tracked node is
       already marked freed at reuse time
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_badlist_node.log`, 2026-02-26).
+    - Trace: block-reuse only (lists disabled) still segfaulted under `OREN_BENCH_LIST_LEN=64`;
+      no bad-list events were emitted, suggesting the crash is not limited to list reuse
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_blocks_only.log`, 2026-02-26).
   - Note: `make test` saw a one-off segfault in `test-native-quick-stage2`
     (log: `build/logs/make_test_20260226_172510.log`); rerun passed
     (log: `build/logs/make_test_native_quick_stage2_20260226_172724.log`). Track for flakes.
