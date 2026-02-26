@@ -274,7 +274,9 @@ fn native_alloc_index_put_node(node) {
                 var buf = ptr_get(iadd(ptr, 16))
                 var magic = ptr_get(iadd(ptr, 24))
                 var expected = 32
-                if cap > 0 && cap < 1048576 { expected = expected + cap * 8 }
+                if cap > 0 && cap < 1048576 {
+                    if buf == iadd(ptr, 32) { expected = expected + cap * 8 }
+                }
                 print("[alloc_index_size] ptr=" + oren_int_to_string(ptr) +
                       " node=" + oren_int_to_string(node) +
                       " kind=" + oren_int_to_string(kind) +

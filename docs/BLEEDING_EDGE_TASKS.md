@@ -183,7 +183,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     no size mismatches or non-32 chunks
     (log: `build/logs/alloc_churn_trace_gc_arenaoff_long_20260226_174106.log`).
   - New: `OREN_TRACE_ALLOC_INDEX=1` now emits `[alloc_index_size]` for list/list_int nodes
-    when tracked size exceeds 1 GiB to catch alloc-index size corruption (2026-02-26).
+    when tracked size exceeds 1 GiB to catch alloc-index size corruption; expected size
+    accounts for inline buffers when `buf == list+32` (2026-02-26).
    - New: `OREN_BENCH_LIST_LEN=<n>` lets alloc_churn reduce per-list pushes during trace runs so
      list_hdr ring entries survive until GC sweep samples (2026-02-26).
    - Trace: alloc_churn native baseline now completes after the alloc-index rebuild fallback
