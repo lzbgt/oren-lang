@@ -492,6 +492,32 @@ fn native_alloc_index_remove_ptr(ptr) {
 fn native_alloc_index_rebuild_live() {
     // Rebuild the alloc index from the current allocs list (drops tombstones).
     if g_alloc_index_ptr == 0 || g_alloc_index_cap == 0 { return 0 }
+    if g_gc_reuse_bad_list_rebuild_trace != 0 {
+        var ptr = g_gc_reuse_bad_list_last_ptr
+        if ptr != 0 && ptr >= 4096 {
+            var idx_before = native_alloc_index_get(ptr)
+            var idx_kind = 0
+            var idx_size = 0
+            if idx_before != 0 {
+                idx_kind = ptr_get(iadd(idx_before, 16))
+                idx_size = ptr_get(iadd(idx_before, 8))
+            }
+            var node = g_gc_reuse_bad_list_last_idx_node
+            var node_kind = 0
+            var node_size = 0
+            if node != 0 {
+                node_kind = ptr_get(iadd(node, 16))
+                node_size = ptr_get(iadd(node, 8))
+            }
+            print("[gc_reuse_bad_list_rebuild] stage=before ptr=" + oren_int_to_string(ptr) +
+                " idx_before=" + oren_int_to_string(idx_before) +
+                " idx_kind=" + oren_int_to_string(idx_kind) +
+                " idx_size=" + oren_int_to_string(idx_size) +
+                " node=" + oren_int_to_string(node) +
+                " node_kind=" + oren_int_to_string(node_kind) +
+                " node_size=" + oren_int_to_string(node_size))
+        }
+    }
     var trace = g_trace_alloc_index != 0
     var t0 = 0
     var count_allocs = 0
@@ -568,6 +594,23 @@ fn native_alloc_index_rebuild_live() {
                   " count=" + oren_int_to_string(g_alloc_index_rebuild_count))
             oren_panic("alloc_index rebuild cap exceeded")
         }
+    }
+    if g_gc_reuse_bad_list_rebuild_trace != 0 {
+        var ptr2 = g_gc_reuse_bad_list_last_ptr
+        if ptr2 != 0 && ptr2 >= 4096 {
+            var idx_after = native_alloc_index_get(ptr2)
+            var idx_kind2 = 0
+            var idx_size2 = 0
+            if idx_after != 0 {
+                idx_kind2 = ptr_get(iadd(idx_after, 16))
+                idx_size2 = ptr_get(iadd(idx_after, 8))
+            }
+            print("[gc_reuse_bad_list_rebuild] stage=after ptr=" + oren_int_to_string(ptr2) +
+                " idx_after=" + oren_int_to_string(idx_after) +
+                " idx_kind=" + oren_int_to_string(idx_kind2) +
+                " idx_size=" + oren_int_to_string(idx_size2))
+        }
+        g_gc_reuse_bad_list_rebuild_trace = 0
     }
     return 0
 }

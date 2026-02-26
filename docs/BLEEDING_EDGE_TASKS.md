@@ -242,6 +242,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `gc_reuse_bad_list_idx_flip` for the same pointer across successive bad-list hits
     (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_precheck_idxflip_20260227.log`,
     2026-02-27).
+  - Trace: precheck+rebuild run emitted `gc_reuse_bad_list_idx_flip` but no
+    `gc_reuse_bad_list_rebuild` entries (no alloc-index rebuild observed after the bad-list),
+    (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_precheck_rebuild_20260227.log`,
+    2026-02-27).
   - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
     during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
     are already corrupted before reuse validation (rolling, 2026-02-27).
