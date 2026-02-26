@@ -176,7 +176,7 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Tool: correlator accepts ring-all `idx=` entries to match `list_hdr_ring` dumps
     when `OREN_TRACE_GC_FREE_LIST_HDR_RING_ALL=1` is set (rolling, 2026-02-26).
   - Tool: correlator now ingests `[list_hdr_ring_recent]` and emits recent-op blocks
-    for bad-list pointers (rolling, 2026-02-26).
+    for bad-list pointers, including a summarized op sequence (rolling, 2026-02-26).
   - Trace: correlate output for the alloc-node/dup run now captures the ring entry alongside
     the `gc_free_list` sample (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_allocnode_dup2_correlate.log`, 2026-02-26).

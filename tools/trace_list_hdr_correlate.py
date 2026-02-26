@@ -51,6 +51,18 @@ def fmt_recent(entry) -> str:
         f"kind={entry['kind']} len={entry['len']} cap={entry['cap']} buf={entry['buf']} magic={entry['magic']}"
     )
 
+def summarize_recent(entries, max_items=16) -> str:
+    seq = []
+    last = None
+    for entry in entries:
+        key = (entry["op"], entry["kind"])
+        if key != last:
+            seq.append(key)
+            last = key
+    if max_items > 0 and len(seq) > max_items:
+        seq = seq[:max_items]
+    return " -> ".join([f"{op}:{kind}" for op, kind in seq])
+
 
 def fmt_gc(entry) -> str:
     return (
@@ -172,6 +184,9 @@ def main() -> int:
         if recent_entries:
             for idx, entry in enumerate(recent_entries):
                 print(f"  list_hdr_ring_recent[{idx}] {fmt_recent(entry)}")
+            seq = summarize_recent(recent_entries)
+            if seq:
+                print(f"  list_hdr_ring_recent_seq count={len(recent_entries)} uniq={len(seq.split(' -> '))} ops={seq}")
             printed_recent_ptrs.add(event["ptr"])
         if emitted >= max_out:
             break
@@ -186,6 +201,9 @@ def main() -> int:
             print(f"[list_hdr_ring_recent_only] list={ptr}")
             for idx, entry in enumerate(recent_entries):
                 print(f"  list_hdr_ring_recent[{idx}] {fmt_recent(entry)}")
+            seq = summarize_recent(recent_entries)
+            if seq:
+                print(f"  list_hdr_ring_recent_seq count={len(recent_entries)} uniq={len(seq.split(' -> '))} ops={seq}")
             recent_emitted += 1
             if recent_emitted >= max_out:
                 break
