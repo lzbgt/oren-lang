@@ -128,6 +128,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_badlist.log`, 2026-02-26).
   - New: bad-list safe trace now prints header + node fields (len/cap/buf/magic + node kind/size)
     to reduce follow-up repros (rolling, 2026-02-26).
+  - Trace: follow-up bad-list safe run shows corrupted header fields (`len=4122543214814507828`,
+    `cap=13879`, `buf=0`, `magic=0`) while precheck still reports `freed_seen=0`; node_kind
+    flips (1 -> 0) and node_size (32 -> 48) between prints for the same node (log:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_badlist2.log`, 2026-02-26).
   - Verified: dot_product Oren C benchmark build/run now completes without list-header corruption
     after aligned-header fix (log: `build/logs/bench_dot_product_oren_c_20260226_155530.log`).
    - Verified: dot_product_int Oren C benchmark build/run completes without list-header corruption
