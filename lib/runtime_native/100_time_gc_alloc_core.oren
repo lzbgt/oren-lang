@@ -737,6 +737,9 @@ fn native_gc_list_header_dump(ptr, chunk_size) {
     var cap = ptr_get(iadd(ptr, 8))
     var buf = ptr_get(iadd(ptr, 16))
     var magic = ptr_get(iadd(ptr, 24))
+    if g_trace_list_hdr_ring_ptr == 0 {
+        native_list_header_ring_force_enable()
+    }
     print("[gc_reuse_bad_list] ptr=" + oren_int_to_string(ptr) +
         " chunk=" + oren_int_to_string(chunk_size) +
         " len=" + oren_int_to_string(len) +

@@ -640,6 +640,33 @@ fn native_list_header_ring_enable() {
     _list_hdr_ring_enabled()
     return 0
 }
+
+// Force-enable the list header ring for guardrail traces (e.g., reuse bad-list dumps),
+// even if the usual env gates were not set.
+@oren.keep
+fn native_list_header_ring_force_enable() {
+    if g_trace_list_hdr_ring_ptr != 0 { return 0 }
+    if g_trace_list_hdr_ring_cap <= 0 { g_trace_list_hdr_ring_cap = 4096 }
+    var bytes = g_trace_list_hdr_ring_cap * 56
+    var buf = native_malloc_raw_or_mmap(bytes)
+    if buf == 0 { return 0 }
+    var i = 0
+    while i < g_trace_list_hdr_ring_cap {
+        var off = i * 56
+        ptr_set(iadd(buf, off), 0)
+        ptr_set(iadd(buf, off + 8), 0)
+        ptr_set(iadd(buf, off + 16), 0)
+        ptr_set(iadd(buf, off + 24), 0)
+        ptr_set(iadd(buf, off + 32), 0)
+        ptr_set(iadd(buf, off + 40), 0)
+        ptr_set(iadd(buf, off + 48), 0)
+        i = i + 1
+    }
+    g_trace_list_hdr_ring = 1
+    g_trace_list_hdr_ring_ptr = buf
+    g_trace_list_hdr_ring_head = 0
+    return 0
+}
 fn _list_corrupt_enabled() {
     if g_trace_list_corrupt == 1 { return true }
     if g_trace_list_corrupt == 0 { return false }
