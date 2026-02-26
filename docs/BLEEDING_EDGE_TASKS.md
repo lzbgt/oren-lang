@@ -271,6 +271,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     scan still shows `found=0` after second hit. Run timed out at 120s (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_precheck_putbad_20260226.log`,
     2026-02-26).
+  - Trace: precheck+state run shows the bad-list ptr transitions from `allocs=1` on first hit
+    to `allocs=0` and `in_roots=1 (root_kind=3)` on second hit, with no free-list residency
+    (`free_total=0`), implying a stale root keeps the corrupted header alive after it leaves
+    allocs (log:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_precheck_state_20260226.log`,
+    2026-02-26).
   - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
     during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
     are already corrupted before reuse validation (rolling, 2026-02-27).
