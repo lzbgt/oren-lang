@@ -845,6 +845,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: bad-list run with full ring dump still did not show any list_hdr_ring entries
       for the corrupted pointer, suggesting the bad header was never recorded in the ring
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_badlist_ring2.log`, 2026-02-26).
+    - Trace: bad-list logs now include tracking-node fields; observed node_freed=1 with valid
+      node_magic and kind=8 when corruption is detected, suggesting the tracked node is
+      already marked freed at reuse time
+      (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_badlist_node.log`, 2026-02-26).
   - Note: `make test` saw a one-off segfault in `test-native-quick-stage2`
     (log: `build/logs/make_test_20260226_172510.log`); rerun passed
     (log: `build/logs/make_test_native_quick_stage2_20260226_172724.log`). Track for flakes.
@@ -879,7 +883,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
    - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`
      (log: `build/logs/make_test_20260226_183026.log`); rerun `make test-native-quick` passed
      (log: `build/logs/make_test_native_quick_20260226_183115.log`). Track as a potential flake.
-   - Gate: `make test` + Tier-1 matrix.
+   - Note: `make test` exited with `test-native-quick` Error 143 (log: `build/logs/make_test_20260226_191243.log`);
+     rerun `make test-native-quick` passed (log: `build/logs/make_test_native_quick_20260226_191323.log`).
+    - Gate: `make test` + Tier-1 matrix.
 
 ## P1 (Soon)
 

@@ -222,6 +222,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
   - Trace: bad-list run with full ring dump still did not show any list_hdr_ring entries
     for the corrupted pointer, suggesting the bad header was never recorded in the ring
     (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_badlist_ring2.log`, 2026-02-26).
+  - Trace: bad-list logs now include tracking-node fields; observed node_freed=1 with valid
+    node_magic and kind=8 when corruption is detected, suggesting the tracked node is
+    already marked freed at reuse time
+    (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_badlist_node.log`, 2026-02-26).
   - Trace: alloc_churn with `OREN_ARENA_AUTO_LOOP=0` + free-list ring tracing (cap=200)
     still shows only `chunk=32` list/list_int header frees; large chunk sizes remain
     unreproduced under arena-off GC stress
@@ -352,9 +356,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Budgeted execution and GC-safe scheduling.
    - New: `test_green_global_runq_fairness` returned -60 once during `make test` on 2026-02-26; rerun passed.
      Treat as a potential flake and investigate fairness/timeout robustness before tightening gates.
-   - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`
+  - Note: `make test` hit a segfault in `test-native-quick` with `OREN_GREEN_POLL_CACHE=1`
      (log: `build/logs/make_test_20260226_183026.log`); rerun `make test-native-quick` passed
      (log: `build/logs/make_test_native_quick_20260226_183115.log`). Track as a potential flake.
+   - Note: `make test` exited with `test-native-quick` Error 143 (log: `build/logs/make_test_20260226_191243.log`);
+     rerun `make test-native-quick` passed (log: `build/logs/make_test_native_quick_20260226_191323.log`).
    - Gate: deterministic fixtures + Tier-1 matrix.
 
 7) **SIMD + typed-buffer kernels for list<int> hot paths**

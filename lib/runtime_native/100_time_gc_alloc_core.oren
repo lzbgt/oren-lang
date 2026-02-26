@@ -428,7 +428,7 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
             }
             if g_gc_reuse_lists != 0 && (cur_kind == 2 || cur_kind == list_int_kind()) {
                 if native_gc_list_header_ok(chunk_ptr, cur_kind, chunk_size) == 0 {
-                    native_gc_list_header_dump(chunk_ptr, chunk_size)
+                    native_gc_list_header_dump(chunk_ptr, chunk_size, cur)
                     if prev == 0 {
                         ptr_set(head_ptr, next)
                     } else {
@@ -728,7 +728,7 @@ fn native_gc_list_header_ok(ptr, kind, chunk_size) {
 }
 
 
-fn native_gc_list_header_dump(ptr, chunk_size) {
+fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
     if g_trace_gc_reuse_bad_list == 0 { return 0 }
     if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
     if g_trace_gc_reuse_bad_list_cap <= 0 { return 0 }
@@ -737,6 +737,18 @@ fn native_gc_list_header_dump(ptr, chunk_size) {
     var cap = ptr_get(iadd(ptr, 8))
     var buf = ptr_get(iadd(ptr, 16))
     var magic = ptr_get(iadd(ptr, 24))
+    var node_size = 0
+    var node_kind = 0
+    var node_freed = 0
+    var node_next = 0
+    var node_magic = 0
+    if node_ptr != 0 {
+        node_size = ptr_get(iadd(node_ptr, 8))
+        node_kind = ptr_get(iadd(node_ptr, 16))
+        node_freed = ptr_get(iadd(node_ptr, 24))
+        node_next = ptr_get(iadd(node_ptr, 32))
+        node_magic = ptr_get(iadd(node_ptr, 40))
+    }
     if g_trace_list_hdr_ring_ptr == 0 {
         native_list_header_ring_force_enable()
     }
@@ -745,7 +757,13 @@ fn native_gc_list_header_dump(ptr, chunk_size) {
         " len=" + oren_int_to_string(len) +
         " cap=" + oren_int_to_string(cap) +
         " buf=" + oren_int_to_string(buf) +
-        " magic=" + oren_int_to_string(magic))
+        " magic=" + oren_int_to_string(magic) +
+        " node=" + oren_int_to_string(node_ptr) +
+        " node_size=" + oren_int_to_string(node_size) +
+        " node_kind=" + oren_int_to_string(node_kind) +
+        " node_freed=" + oren_int_to_string(node_freed) +
+        " node_next=" + oren_int_to_string(node_next) +
+        " node_magic=" + oren_int_to_string(node_magic))
     trace_list_alloc_ring_dump(ptr)
     native_list_header_ring_dump(ptr)
     if g_trace_list_hdr_ring_ptr != 0 {
@@ -1710,7 +1728,7 @@ fn oren_mark_value(val) {
             if native_gc_list_header_ok(val, kind, chunk_size) == 0 {
                 print("trace: gc list corrupt list=" + oren_int_to_string(val) +
                       " chunk=" + oren_int_to_string(chunk_size))
-                native_gc_list_header_dump(val, chunk_size)
+                native_gc_list_header_dump(val, chunk_size, node)
                 oren_panic("gc list header corrupt")
                 return 0
             }
@@ -1731,7 +1749,7 @@ fn oren_mark_value(val) {
             if native_gc_list_header_ok(val, kind, chunk_size) == 0 {
                 print("trace: gc list_int corrupt list=" + oren_int_to_string(val) +
                       " chunk=" + oren_int_to_string(chunk_size))
-                native_gc_list_header_dump(val, chunk_size)
+                native_gc_list_header_dump(val, chunk_size, node)
                 oren_panic("gc list_int header corrupt")
                 return 0
             }
