@@ -910,6 +910,7 @@ fn native_gc_stack_range_contains(ptr) {
 
 fn native_gc_root_find(ptr) {
     // Encodes: (kind << 32) | index. kind: 1=gc_pin, 2=runtime_root_slot, 3=global_roots list.
+    list_hdr_ring_guard_poll(93, ptr, 0)
     if ptr == 0 { return 0 }
     if g_oren_gc_pin == ptr { return 4294967296 } // 1 << 32
     if g_runtime_root_slots != 0 && g_runtime_root_len > 0 {

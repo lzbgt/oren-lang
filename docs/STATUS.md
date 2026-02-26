@@ -1024,6 +1024,8 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Tool: GC reuse precheck now polls the ptr-guard via `list_hdr_ring_guard_poll` (op=92)
       when `OREN_TRACE_GC_REUSE_PRECHECK=1`, so unexpected writes are detected even if no
       list header ring puts occur (2026-02-27).
+    - Tool: root lookup now polls the ptr-guard via `list_hdr_ring_guard_poll` (op=93)
+      in `native_gc_root_find`, widening coverage beyond reuse precheck (2026-02-27).
     - Trace: precheck+guard4 run shows a single `[list_hdr_ring_ptr_guard_set]` (env_enable)
       and no subsequent guard flips before timeout (log:
       `build/logs/alloc_churn_trace_precheck_guard4_20260227.log`, 2026-02-27).
