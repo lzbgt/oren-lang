@@ -267,6 +267,11 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     `[gc_free_list_take_count] ... reuse=6` plus repeated bad-list entries, confirming
     reuse hits occur even when per-take logs are sparse
     (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len8_takecount_50_cap128.log`, 2026-02-26).
+  - Trace: `OREN_BENCH_ITERS=200`, `OREN_BENCH_LIST_LEN=64`, `OREN_BENCH_GC_EVERY=50`,
+    `OREN_GC_REUSE_SCAN_CAP=128` still reports `[gc_free_list_take_count] ... reuse=6`
+    with repeated bad-list entries (run_status=124 timeout), indicating reuse hits
+    even without per-take logging
+    (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse_len64_takecount_200_cap128.log`, 2026-02-26).
   - New: alloc_churn trace harness now records run_status/run_timed_out/run_elapsed_sec
     and line-buffer command in the env log for timeout diagnostics (2026-02-26).
   - Next: determine why free-list take traces remain sparse under reuse (single put/take
