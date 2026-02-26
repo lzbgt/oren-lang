@@ -1179,22 +1179,31 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
         if g_trace_gc_root_slots_span <= 0 { g_trace_gc_root_slots_span = 2 }
         g_trace_gc_root_slots_checked = 1
     }
-    if g_trace_gc_root_slots != 0 && g_trace_gc_root_slots_cap > 0 && in_roots != 0 && root_kind == 3 && root_count > 0 {
+    if g_trace_gc_root_slots != 0 && g_trace_gc_root_slots_cap > 0 && in_roots != 0 && root_kind == 3 {
         g_trace_gc_root_slots_cap = g_trace_gc_root_slots_cap - 1
+        var root_list_len = 0
+        var root_list_limit = 200000
+        var root_cur = global_get_roots()
+        while root_cur != 0 && root_list_limit > 0 {
+            root_list_len = root_list_len + 1
+            root_cur = ptr_get(iadd(root_cur, 32))
+            root_list_limit = root_list_limit - 1
+        }
         var span = g_trace_gc_root_slots_span
         var base_idx = root_idx
         if base_idx < 0 { base_idx = 0 }
-        if base_idx >= root_count {
+        if base_idx >= root_list_len {
             print("[gc_root_slots] idx_oob idx=" + oren_int_to_string(root_idx) +
-                  " count=" + oren_int_to_string(root_count))
-            base_idx = root_count - 1
+                  " list_len=" + oren_int_to_string(root_list_len))
+            base_idx = root_list_len - 1
         }
         var start = base_idx - span
         if start < 0 { start = 0 }
         var end = base_idx + span
-        if end >= root_count { end = root_count - 1 }
+        if end >= root_list_len { end = root_list_len - 1 }
         print("[gc_root_slots] idx=" + oren_int_to_string(root_idx) +
-              " count=" + oren_int_to_string(root_count) +
+              " list_len=" + oren_int_to_string(root_list_len) +
+              " match_count=" + oren_int_to_string(root_count) +
               " start=" + oren_int_to_string(start) +
               " end=" + oren_int_to_string(end))
         var ri = start

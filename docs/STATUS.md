@@ -126,10 +126,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      precheck_guard10 now reports `root_slot_offset=-1` while bad-list roots persist,
      confirming the earlier 3472 offset was outside g_storage
      (`alloc_churn_trace_precheck_guard10_nc_20260227.log`, 2026-02-27).
-   - Trace: `OREN_TRACE_GC_ROOT_SLOTS=1` shows `root_idx=35` with `root_count=3` (oob),
-     and the global-roots list entries point at slot pointers with `val=0`, suggesting
-     root metadata/index corruption or mismatch (`alloc_churn_trace_precheck_guard12_nc_20260227.log`,
-     2026-02-27).
+   - Trace: `OREN_TRACE_GC_ROOT_SLOTS=1` shows `root_idx=35`, `list_len=409`, and the
+     global-roots entry at `i=35` points to a slot pointer outside g_storage whose value
+     equals the bad-list ptr, indicating the root list is pointing at a non-g_storage slot
+     (`alloc_churn_trace_precheck_guard13_nc_20260227.log`, 2026-02-27).
 
 4) **W4 - Platform breadth (Tier‑1 intent targets)**
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
