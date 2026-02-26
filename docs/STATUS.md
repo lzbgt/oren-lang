@@ -963,6 +963,11 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       run terminated with SIGTERM after ~189s (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_precheck_idxremove_20260226.log`,
       2026-02-26).
+    - Trace: precheck+scan run shows `gc_reuse_bad_list_index_scan found=0` after the second
+      bad-list hit (alloc-index entry not present by full-table scan; `hash_idx=818 cap=2048`);
+      run timed out at 120s (log:
+      `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_precheck_scan_20260226.log`,
+      2026-02-26).
     - Tool: reuse scan can optionally log `[gc_reuse_list_hdr]` for list headers encountered
       during reuse (`OREN_TRACE_GC_REUSE_LIST_HDR=<n>`) to check if list header fields
       are already corrupted before reuse validation (rolling, 2026-02-27).
