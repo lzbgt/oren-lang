@@ -147,6 +147,12 @@ Priority weights (rolling, refreshed after x64 emit ops split):
    - Trace: alloc_churn with `OREN_BENCH_GC_EVERY=1000` + `OREN_TRACE_GC_SWEEP=1` (and `OREN_ARENA_AUTO_LOOP=0`)
      shows GC sweeps but `freed_kinds` list/list_int=0, so free-list header dumps never fire; likely
      list headers remain live under conservative scan (log: `build/logs/alloc_churn_native_gc_sweep_20260226_163932.log`).
+   - New: `alloc_churn` trace knobs `OREN_BENCH_CLEAR_LIST=1` + `OREN_BENCH_SMALL_INTS=1` clear per-iter list roots
+     and reduce conservative false roots so GC frees can surface list headers during corruption hunts (2026-02-26).
+   - Trace: alloc_churn with `OREN_BENCH_CLEAR_LIST=1` + `OREN_BENCH_SMALL_INTS=1` +
+     `OREN_TRACE_GC_FREE_LIST_HEADERS=1` now shows list header frees with `len/cap=128` and `chunk=32`,
+     confirming GC can free list headers once conservative roots are reduced
+     (log: `build/logs/alloc_churn_trace_hdr_ring_20260226_164630.log`).
    - Trace: alloc_churn native baseline now completes after the alloc-index rebuild fallback
      (log: `build/logs/bench_run_alloc_churn_20260226_054752/oren_native/run_0.log`); earlier panic
      logs remain as reference (e.g., `bench_run_alloc_churn_20260226_053425`).

@@ -27,19 +27,24 @@ fn main() {
     // Note: we trigger GC periodically to keep live set bounded.
     var n = 20000
     var gc_every = _env_int("OREN_BENCH_GC_EVERY", 0)
+    var clear_list = _env_int("OREN_BENCH_CLEAR_LIST", 0)
+    var small_ints = _env_int("OREN_BENCH_SMALL_INTS", 0)
     var i = 0
     var acc = 0
     while i < n {
         var xs = []
         var j = 0
         while j < 128 {
-            oren_list_push(xs, i + j)
+            var v = i + j
+            if small_ints != 0 { v = j }
+            oren_list_push(xs, v)
             j = j + 1
         }
         acc = acc + xs[0]
         if gc_every > 0 && i > 0 {
             if (i % gc_every) == 0 { oren_gc_collect() }
         }
+        if clear_list != 0 { xs = nil }
         i = i + 1
     }
     print(acc)
