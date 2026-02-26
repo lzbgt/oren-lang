@@ -135,6 +135,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `OREN_TRACE_GC_ROOT_MATCHES=1` shows three root slots (idx 35/117/182) whose
      slot values equal the bad-list ptr with `slot_off=2376..3552` (all outside the 512B
      boot globals range) (`alloc_churn_trace_precheck_guard15_nc_20260227.log`, 2026-02-27).
+   - Tool: `OREN_TRACE_GC_REGISTER_ROOT` now tags known call sites; untagged entry-stub
+     roots are skipped unless `OREN_TRACE_GC_REGISTER_ROOT_ALL=1` is set. New summary
+     knob `OREN_TRACE_GC_ROOT_SLOT_SUMMARY=1` reports boot vs non-boot root slots
+     (sample cap via `OREN_TRACE_GC_ROOT_SLOT_SUMMARY_CAP`, 2026-02-27).
 
 4) **W4 - Platform breadth (Tier‑1 intent targets)**
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.

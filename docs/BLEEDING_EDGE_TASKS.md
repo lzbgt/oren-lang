@@ -725,6 +725,14 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      `OREN_TRACE_GC_ROOT_MATCHES=1` shows three root slots (idx 35/117/182) whose
      slot values equal the bad-list ptr with `slot_off=2376..3552` (log:
      `build/logs/alloc_churn_trace_precheck_guard15_nc_20260227.log`, 2026-02-27).
+   - Tool: `OREN_TRACE_GC_REGISTER_ROOT` now tags known call sites; untagged entry-stub
+     roots are skipped unless `OREN_TRACE_GC_REGISTER_ROOT_ALL=1` is set. New summary
+     knob `OREN_TRACE_GC_ROOT_SLOT_SUMMARY=1` reports boot vs non-boot root slots
+     (sample cap via `OREN_TRACE_GC_ROOT_SLOT_SUMMARY_CAP`, 2026-02-27).
+   - Trace: `OREN_TRACE_GC_REGISTER_ROOT_ALL=1` logs entry-stub roots with tag=nil
+     (`tag_id` equals the value-nil pointer) and slots spanning `slot_off=0..3872`;
+     tagged call sites did not appear yet (log:
+     `build/logs/alloc_churn_trace_precheck_guard16_nc_20260226d.log`, 2026-02-26).
    - Next: audit native codegen for size/arg clobbers when new regressions appear.
    - Expand fast-path tracing in native emitters to pinpoint header writes.
    - New: x64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-26).

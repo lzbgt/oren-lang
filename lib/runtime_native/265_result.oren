@@ -22,7 +22,7 @@ fn oren_set_result(v) {
         var node = oren_find_node(v)
         if node != 0 {
             if ptr_get(iadd(node, 8)) != 0 {
-                native_gc_register_root(v)
+                native_gc_register_root_tag(v, 6)
             }
         }
     }

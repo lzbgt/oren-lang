@@ -409,9 +409,9 @@ fn native_runtime_init(target_os) {
     global_set_value_false(v_false)
     global_set_value_true(v_true)
     // Root the slots (not the values) so mark phase can load+mark them deterministically.
-    native_gc_register_root(iadd(g_storage, 368))
-    native_gc_register_root(iadd(g_storage, 376))
-    native_gc_register_root(iadd(g_storage, 384))
+    native_gc_register_root_tag(iadd(g_storage, 368), 1)
+    native_gc_register_root_tag(iadd(g_storage, 376), 2)
+    native_gc_register_root_tag(iadd(g_storage, 384), 3)
     if trace_init_on {
         var t1 = oren_time_mono_ns()
         print("runtime_init: globals ns=" + oren_int_to_string(t1 - trace_t0))
