@@ -935,6 +935,7 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
             " guard_bad_magic=" + oren_int_to_string(g_gc_reuse_guard_bad_node_magic_count) +
             " guard_alloc_node=" + oren_int_to_string(g_gc_reuse_guard_alloc_node_count) +
             " guard_alloc_index_dup=" + oren_int_to_string(g_gc_reuse_guard_alloc_index_dup_count) +
+            " kind_flip=" + oren_int_to_string(g_gc_reuse_bad_list_kind_flip_count) +
             " bad_list_triggers=" + oren_int_to_string(g_gc_reuse_bad_list_triggers) +
             " bad_list_prints=" + oren_int_to_string(g_gc_reuse_bad_list_prints) +
             " take_total=" + oren_int_to_string(take_by_ptr + take_reuse) +
@@ -979,8 +980,12 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
             " safe=1")
         var do_recent = 1
         if g_trace_gc_reuse_bad_list_kind_flip != 0 {
-            if g_gc_reuse_bad_list_last_kind != 0 && g_gc_reuse_bad_list_last_kind - node_kind == 0 {
-                do_recent = 0
+            if g_gc_reuse_bad_list_last_kind != 0 {
+                if g_gc_reuse_bad_list_last_kind - node_kind == 0 {
+                    do_recent = 0
+                } else {
+                    g_gc_reuse_bad_list_kind_flip_count = g_gc_reuse_bad_list_kind_flip_count + 1
+                }
             }
         }
         g_gc_reuse_bad_list_last_kind = node_kind
@@ -1013,8 +1018,12 @@ fn native_gc_list_header_dump(ptr, chunk_size, node_ptr) {
     }
     var do_recent = 1
     if g_trace_gc_reuse_bad_list_kind_flip != 0 {
-        if g_gc_reuse_bad_list_last_kind != 0 && g_gc_reuse_bad_list_last_kind - node_kind == 0 {
-            do_recent = 0
+        if g_gc_reuse_bad_list_last_kind != 0 {
+            if g_gc_reuse_bad_list_last_kind - node_kind == 0 {
+                do_recent = 0
+            } else {
+                g_gc_reuse_bad_list_kind_flip_count = g_gc_reuse_bad_list_kind_flip_count + 1
+            }
         }
     }
     g_gc_reuse_bad_list_last_kind = node_kind
@@ -2339,6 +2348,7 @@ fn native_gc_collect() {
         g_gc_reuse_bad_list_prints = 0
         g_gc_reuse_bad_list_triggers = 0
         g_gc_reuse_bad_list_last_kind = 0
+        g_gc_reuse_bad_list_kind_flip_count = 0
         g_gc_free_list_take_by_ptr_hits = 0
         g_gc_free_list_take_reuse_hits = 0
     } else if take_traced {

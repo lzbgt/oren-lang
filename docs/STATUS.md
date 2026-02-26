@@ -869,9 +869,14 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       `OREN_TRACE_GC_REUSE_BAD_LIST_RING_RECENT=<n>` and `[list_hdr_ring_recent]` (rolling, 2026-02-26).
     - New: `OREN_TRACE_GC_REUSE_BAD_LIST_KIND_FLIP=1` only emits recent-op dumps when
       `node_kind` changes across bad-list hits (rolling, 2026-02-26).
+    - New: `gc_reuse_summary_at_bad_list` now reports `kind_flip` when the kind-flip
+      gate is active (rolling, 2026-02-26).
     - Trace: kind-flip run still emits recent-op entries (no suppression observed; node_kind
       still changes in this run) (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_kindflip.log`, 2026-02-26).
+    - Trace: kind-flip summary shows `kind_flip=0`; only the first bad-list dump emits
+      recent-op entries (duplicates within the dump reflect ring state, not repeated dumps)
+      (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_kindflip2.log`, 2026-02-27).
     - Trace: ring-recent run logs `[list_hdr_ring_recent]` entries for the bad list pointer
       (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_ringrecent.log`, 2026-02-26).
     - Trace: correlator output now includes `[list_hdr_ring_recent]` blocks for the bad list
