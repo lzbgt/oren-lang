@@ -945,22 +945,32 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
     var mul_count = oren_list_len(muls)
     var unique_lists = false
     if list_count == mul_count * 2 { unique_lists = true }
+    var keep_tick_slot = true
+    if oren_env("OREN_ARM64_FAST_LIST_DOT_NO_TICK_SLOT") != nil { keep_tick_slot = false }
     var slots = 4 + list_count * 2 // tick + i + n + sum + (list, buf)*N
+    if !keep_tick_slot { slots = 3 + list_count * 2 }
     var total_bytes = align_up(slots * 8, 16)
     emit_sub_sp_any(ctx, total_bytes)
     ctx["stack_size"] = ctx["stack_size"] + total_bytes
 
     var loop_base_stack = ctx["stack_size"]
     var tick_off = 0
-    var i_off = 8
-    var n_off = 16
-    var sum_off = 24
-    var list_base_off = 32
-    listm._arm64_trace_loop_stack(ctx, "fast_list_dot_while", loop_base_stack, slots, tick_off, total_bytes)
+    var slot0 = 8
+    var trace_kind = "fast_list_dot_while"
+    if !keep_tick_slot {
+        tick_off = -1
+        slot0 = 0
+        trace_kind = "fast_list_dot_while_no_tick"
+    }
+    var i_off = slot0
+    var n_off = slot0 + 8
+    var sum_off = slot0 + 16
+    var list_base_off = slot0 + 24
+    listm._arm64_trace_loop_stack(ctx, trace_kind, loop_base_stack, slots, tick_off, total_bytes)
 
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
-    emit_str_reg_sp_any(ctx, 9, tick_off)
+    if keep_tick_slot { emit_str_reg_sp_any(ctx, 9, tick_off) }
 
     // load i/n/sum locals into slots
     emit_ldr_reg_fp_any(ctx, 0, idx_fp_off)
