@@ -65,6 +65,9 @@ fn native_error(ctx, tok, msg) { return exprm.native_error(ctx, tok, msg) }
 fn _arm64_restore_stack_to(ctx, base_stack) { return basem._arm64_restore_stack_to(ctx, base_stack) }
 fn _arm64_emit_truthy_norm_in_x0(ctx, tok) { return basem._arm64_emit_truthy_norm_in_x0(ctx, tok) }
 fn _arm64_emit_while_generic(ctx, stmt) { return basem._arm64_emit_while_generic(ctx, stmt) }
+fn _arm64_trace_loop_stack(ctx, kind, loop_base_stack, slots, tick_off, total_bytes) {
+    return basem._arm64_trace_loop_stack(ctx, kind, loop_base_stack, slots, tick_off, total_bytes)
+}
 
 
 
@@ -681,7 +684,6 @@ fn _arm64_match_fast_list_get_sum_while(ctx, stmt) {
     if ctx["locals_inty"] != nil && ctx["locals_inty"][sum_name] == true { sum_inty = true }
     return {"idx": idx_name, "n": n_name, "sum": sum_name, "lists": lists, "loads": loads, "sum_inty": sum_inty}
 }
-
 
 
 

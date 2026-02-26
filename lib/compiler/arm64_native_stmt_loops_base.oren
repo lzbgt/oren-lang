@@ -23,6 +23,34 @@ fn emit_str_reg_sp_any(ctx, reg, offset) { return core.emit_str_reg_sp_any(ctx, 
 var NATIVE_COMPILE_EXPR = nil
 var NATIVE_COMPILE_STMT = nil
 
+var ARM64_TRACE_LOOP_STACK = -1
+
+fn _arm64_trace_loop_stack_enabled() {
+    if ARM64_TRACE_LOOP_STACK == 1 { return true }
+    if ARM64_TRACE_LOOP_STACK == 0 { return false }
+    var v = oren_env("OREN_TRACE_ARM64_LOOP_STACK")
+    if v == nil || v == "" {
+        ARM64_TRACE_LOOP_STACK = 0
+        return false
+    }
+    ARM64_TRACE_LOOP_STACK = 1
+    return true
+}
+
+fn _arm64_trace_loop_stack(ctx, kind, loop_base_stack, slots, tick_off, total_bytes) {
+    if !_arm64_trace_loop_stack_enabled() { return nil }
+    if ctx == nil { return nil }
+    var stack_size = ctx["stack_size"]
+    var msg = "[arm64_loop_stack] kind=" + kind +
+        " stack=" + oren_int_to_string(stack_size) +
+        " base=" + oren_int_to_string(loop_base_stack) +
+        " slots=" + oren_int_to_string(slots) +
+        " bytes=" + oren_int_to_string(total_bytes) +
+        " tick_off=" + oren_int_to_string(tick_off)
+    print(msg)
+    return nil
+}
+
 fn _arm64_set_compile_hooks(expr_fn, stmt_fn) {
     NATIVE_COMPILE_EXPR = expr_fn
     NATIVE_COMPILE_STMT = stmt_fn
@@ -93,6 +121,7 @@ fn _arm64_emit_while_generic(ctx, stmt) {
     emit_str_reg_sp_any(ctx, 9, 0)
 
     var loop_base_stack = ctx["stack_size"]
+    _arm64_trace_loop_stack(ctx, "while_generic", loop_base_stack, 2, 0, 16)
     var start_pos = bytes_len(ctx["code"])
 
     var prev_loop = ctx["loop_ctx"]

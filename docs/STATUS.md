@@ -202,6 +202,7 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Arm64 boxed list get-sum + dot fast loops now keep i/sum in registers across iterations to reduce stack traffic (rolling, 2026-02-26).
    - LCG fast loop safepoint mask now 4095 on arm64 + x64 (rolling, 2026-02-26).
    - LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (rolling, 2026-02-26).
+   - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 loop emitters to debug tick slot offsets.
    - TODO: root-cause the arm64 offset regression when removing the tick stack slot and safely eliminate the unused slot.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 

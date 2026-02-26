@@ -199,9 +199,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     - New: arm64 boxed list get-sum + dot loops keep i/sum in registers across iterations (2026-02-26).
     - New: LCG fast loop safepoint mask raised to 4095 on arm64 + x64 (2026-02-26).
     - New: LCG fast loop unroll-by-2 on arm64 + x64 to reduce loop overhead (2026-02-26).
+    - New: `OREN_TRACE_ARM64_LOOP_STACK=1` logs loop stack/tick layout for arm64 emitters to debug tick slot offsets.
     - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
-   - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
-   - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
+    - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
+    - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
 
 4) **W5 tagged value convergence plan (native/C/AVM)**
    - One canonical model + staged migration.

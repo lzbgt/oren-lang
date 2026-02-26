@@ -98,6 +98,7 @@ fn _arm64_emit_fast_list_get_sum_while(ctx, stmt, info) {
     var n_off = 16
     var sum_off = 24
     var list_base_off = 32
+    listm._arm64_trace_loop_stack(ctx, "fast_list_get_sum_while", loop_base_stack, slots, tick_off, total_bytes)
 
     // init tick=0 and safepoint mask=255 (keep tick in X9; spill only on safepoint)
     push_u32_le(ctx["code"], insn_movz(9, 0))
@@ -377,6 +378,7 @@ fn _arm64_emit_fast_list_int_get_sum_while(ctx, stmt, info) {
     var n_off = 16
     var sum_off = 24
     var list_base_off = 32
+    listm._arm64_trace_loop_stack(ctx, "fast_list_int_get_sum_while", loop_base_stack, slots, tick_off, total_bytes)
 
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
@@ -639,6 +641,7 @@ fn _arm64_emit_fast_list_int_dot_while(ctx, stmt, info) {
     var n_off = 16
     var sum_off = 24
     var list_base_off = 32
+    listm._arm64_trace_loop_stack(ctx, "fast_list_int_dot_while", loop_base_stack, slots, tick_off, total_bytes)
 
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
@@ -943,6 +946,7 @@ fn _arm64_emit_fast_list_dot_while(ctx, stmt, info) {
     var n_off = 16
     var sum_off = 24
     var list_base_off = 32
+    listm._arm64_trace_loop_stack(ctx, "fast_list_dot_while", loop_base_stack, slots, tick_off, total_bytes)
 
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
@@ -1182,6 +1186,7 @@ fn _arm64_emit_fast_list_int_push_while(ctx, stmt, info) {
     var i_off = 8
     var n_off = 16
     var list_base_off = 24
+    listm._arm64_trace_loop_stack(ctx, "fast_list_int_push_while", loop_base_stack, slots, tick_off, total_bytes)
 
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
@@ -1426,6 +1431,7 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
     var i_off = 8
     var n_off = 16
     var list_base_off = 24
+    listm._arm64_trace_loop_stack(ctx, "fast_list_push_while", loop_base_stack, slots, tick_off, total_bytes)
 
     // init tick=0
     push_u32_le(ctx["code"], insn_movz(9, 0))
