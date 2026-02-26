@@ -24,6 +24,24 @@ var g_trace_gc_register_root_cap = 0
 var g_trace_gc_register_root_checked = 0
 var g_trace_gc_register_root_all = 0
 var g_trace_gc_register_root_envp_checked = 0
+var g_trace_gc_register_root_pending_n = 0
+var g_trace_gc_register_root_pending_flushed = 0
+var g_trace_gc_register_root_pending_ptr0 = 0
+var g_trace_gc_register_root_pending_tag0 = 0
+var g_trace_gc_register_root_pending_ptr1 = 0
+var g_trace_gc_register_root_pending_tag1 = 0
+var g_trace_gc_register_root_pending_ptr2 = 0
+var g_trace_gc_register_root_pending_tag2 = 0
+var g_trace_gc_register_root_pending_ptr3 = 0
+var g_trace_gc_register_root_pending_tag3 = 0
+var g_trace_gc_register_root_pending_ptr4 = 0
+var g_trace_gc_register_root_pending_tag4 = 0
+var g_trace_gc_register_root_pending_ptr5 = 0
+var g_trace_gc_register_root_pending_tag5 = 0
+var g_trace_gc_register_root_pending_ptr6 = 0
+var g_trace_gc_register_root_pending_tag6 = 0
+var g_trace_gc_register_root_pending_ptr7 = 0
+var g_trace_gc_register_root_pending_tag7 = 0
 var g_trace_gc_root_slot_summary = 0
 var g_trace_gc_root_slot_summary_cap = 0
 var g_trace_gc_root_slot_summary_checked = 0
@@ -37,6 +55,80 @@ fn _gc_register_root_tag_name(tag) {
     if tag == 5 { return "green/sched" }
     if tag == 6 { return "result" }
     return ""
+}
+
+fn _gc_register_root_print(ptr, tag, pending) {
+    var in_storage = 0
+    if g_storage != 0 {
+        var g_end = iadd(g_storage, global_storage_bytes())
+        if ptr >= g_storage && ptr < g_end { in_storage = 1 }
+    }
+    var off = 0
+    var off_ok = 0
+    if g_storage != 0 && ptr >= g_storage {
+        off = ptr - g_storage
+        if off >= 0 && off < 1048576 { off_ok = 1 }
+    }
+    var t = _gc_register_root_tag_name(tag)
+    var pend = ""
+    if pending != 0 { pend = " pending=1" }
+    print("[gc_register_root] ptr=" + oren_int_to_string(ptr) +
+          " in_g_storage=" + oren_int_to_string(in_storage) +
+          " g_storage=" + oren_int_to_string(g_storage) +
+          " slot_off=" + oren_int_to_string(off) +
+          " slot_off_ok=" + oren_int_to_string(off_ok) +
+          " tag=" + t +
+          " tag_id=" + oren_int_to_string(tag) + pend)
+}
+
+fn _gc_register_root_pending_add(ptr, tag) {
+    if g_trace_gc_register_root_pending_n >= 8 { return 0 }
+    if g_trace_gc_register_root_pending_n == 0 {
+        g_trace_gc_register_root_pending_ptr0 = ptr
+        g_trace_gc_register_root_pending_tag0 = tag
+    } else if g_trace_gc_register_root_pending_n == 1 {
+        g_trace_gc_register_root_pending_ptr1 = ptr
+        g_trace_gc_register_root_pending_tag1 = tag
+    } else if g_trace_gc_register_root_pending_n == 2 {
+        g_trace_gc_register_root_pending_ptr2 = ptr
+        g_trace_gc_register_root_pending_tag2 = tag
+    } else if g_trace_gc_register_root_pending_n == 3 {
+        g_trace_gc_register_root_pending_ptr3 = ptr
+        g_trace_gc_register_root_pending_tag3 = tag
+    } else if g_trace_gc_register_root_pending_n == 4 {
+        g_trace_gc_register_root_pending_ptr4 = ptr
+        g_trace_gc_register_root_pending_tag4 = tag
+    } else if g_trace_gc_register_root_pending_n == 5 {
+        g_trace_gc_register_root_pending_ptr5 = ptr
+        g_trace_gc_register_root_pending_tag5 = tag
+    } else if g_trace_gc_register_root_pending_n == 6 {
+        g_trace_gc_register_root_pending_ptr6 = ptr
+        g_trace_gc_register_root_pending_tag6 = tag
+    } else if g_trace_gc_register_root_pending_n == 7 {
+        g_trace_gc_register_root_pending_ptr7 = ptr
+        g_trace_gc_register_root_pending_tag7 = tag
+    }
+    g_trace_gc_register_root_pending_n = g_trace_gc_register_root_pending_n + 1
+    return 0
+}
+
+fn _gc_register_root_pending_emit() {
+    if g_trace_gc_register_root_pending_flushed != 0 { return 0 }
+    g_trace_gc_register_root_pending_flushed = 1
+    var n = g_trace_gc_register_root_pending_n
+    if n <= 0 {
+        if g_trace_gc_register_root_all != 0 { print("[gc_register_root_pending] n=0") }
+        return 0
+    }
+    if n > 0 { _gc_register_root_print(g_trace_gc_register_root_pending_ptr0, g_trace_gc_register_root_pending_tag0, 1) }
+    if n > 1 { _gc_register_root_print(g_trace_gc_register_root_pending_ptr1, g_trace_gc_register_root_pending_tag1, 1) }
+    if n > 2 { _gc_register_root_print(g_trace_gc_register_root_pending_ptr2, g_trace_gc_register_root_pending_tag2, 1) }
+    if n > 3 { _gc_register_root_print(g_trace_gc_register_root_pending_ptr3, g_trace_gc_register_root_pending_tag3, 1) }
+    if n > 4 { _gc_register_root_print(g_trace_gc_register_root_pending_ptr4, g_trace_gc_register_root_pending_tag4, 1) }
+    if n > 5 { _gc_register_root_print(g_trace_gc_register_root_pending_ptr5, g_trace_gc_register_root_pending_tag5, 1) }
+    if n > 6 { _gc_register_root_print(g_trace_gc_register_root_pending_ptr6, g_trace_gc_register_root_pending_tag6, 1) }
+    if n > 7 { _gc_register_root_print(g_trace_gc_register_root_pending_ptr7, g_trace_gc_register_root_pending_tag7, 1) }
+    return 0
 }
 
 fn native_gc_scan_stack() {
@@ -2173,13 +2265,18 @@ fn oren_track_alloc(ptr, size, kind) {
 
 
 fn native_gc_register_root_tag(ptr, tag) {
-    if g_gc_enabled == 0 { return 0 }
     if ptr == 0 { return 0 }
+    if g_trace_gc_register_root_pending_flushed == 0 &&
+       g_trace_gc_register_root == 0 &&
+       g_trace_gc_register_root_all == 0 {
+        var t0 = _gc_register_root_tag_name(tag)
+        if t0 != "" { _gc_register_root_pending_add(ptr, tag) }
+    }
     if g_trace_gc_register_root_checked != 0 &&
        g_trace_gc_register_root == 0 &&
        g_trace_gc_register_root_all == 0 &&
        g_trace_gc_register_root_envp_checked == 0 {
-        if global_get_envp() != 0 {
+        if global_get_envp() != 0 || global_get_argv() != 0 {
             g_trace_gc_register_root_checked = 0
             g_trace_gc_register_root_envp_checked = 1
         }
@@ -2202,6 +2299,9 @@ fn native_gc_register_root_tag(ptr, tag) {
         if g_trace_gc_register_root_cap <= 0 { g_trace_gc_register_root_cap = 16 }
         g_trace_gc_register_root_checked = 1
     }
+    if g_trace_gc_register_root != 0 || g_trace_gc_register_root_all != 0 {
+        _gc_register_root_pending_emit()
+    }
     if g_trace_gc_register_root != 0 && g_trace_gc_register_root_cap > 0 {
         var t = _gc_register_root_tag_name(tag)
         var skip = 0
@@ -2212,26 +2312,10 @@ fn native_gc_register_root_tag(ptr, tag) {
         }
         if skip == 0 {
             g_trace_gc_register_root_cap = g_trace_gc_register_root_cap - 1
-            var in_storage = 0
-            if g_storage != 0 {
-                var g_end = iadd(g_storage, global_storage_bytes())
-                if ptr >= g_storage && ptr < g_end { in_storage = 1 }
-            }
-            var off = 0
-            var off_ok = 0
-            if g_storage != 0 && ptr >= g_storage {
-                off = ptr - g_storage
-                if off >= 0 && off < 1048576 { off_ok = 1 }
-            }
-            print("[gc_register_root] ptr=" + oren_int_to_string(ptr) +
-                  " in_g_storage=" + oren_int_to_string(in_storage) +
-                  " g_storage=" + oren_int_to_string(g_storage) +
-                  " slot_off=" + oren_int_to_string(off) +
-                  " slot_off_ok=" + oren_int_to_string(off_ok) +
-                  " tag=" + t +
-                  " tag_id=" + oren_int_to_string(tag))
+            _gc_register_root_print(ptr, tag, 0)
         }
     }
+    if g_gc_enabled == 0 { return 0 }
     acquire_lock()
     
     var node = native_malloc_raw_or_mmap(48)

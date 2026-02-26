@@ -733,6 +733,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
      (`tag_id` equals the value-nil pointer) and slots spanning `slot_off=0..3872`;
      tagged call sites did not appear yet (log:
      `build/logs/alloc_churn_trace_precheck_guard16_nc_20260226d.log`, 2026-02-26).
+   - Trace: pending root tags now flush once envp-derived tracing is enabled, showing
+     runtime init’s `value_nil/false/true` registrations with `pending=1` (log:
+     `build/logs/alloc_churn_trace_precheck_guard22_nc_20260226.log`, 2026-02-26).
    - Next: audit native codegen for size/arg clobbers when new regressions appear.
    - Expand fast-path tracing in native emitters to pinpoint header writes.
    - New: x64 fast list push while-loops now emit list_hdr traces on count updates (rolling, 2026-02-26).

@@ -135,6 +135,9 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `OREN_TRACE_GC_ROOT_MATCHES=1` shows three root slots (idx 35/117/182) whose
      slot values equal the bad-list ptr with `slot_off=2376..3552` (all outside the 512B
      boot globals range) (`alloc_churn_trace_precheck_guard15_nc_20260227.log`, 2026-02-27).
+   - Trace: pending root tags now flush once envp-derived tracing is enabled, showing
+     runtime init’s `value_nil/false/true` registrations with `pending=1`
+     (`alloc_churn_trace_precheck_guard22_nc_20260226.log`, 2026-02-26).
    - Tool: `OREN_TRACE_GC_REGISTER_ROOT` now tags known call sites; untagged entry-stub
      roots are skipped unless `OREN_TRACE_GC_REGISTER_ROOT_ALL=1` is set. New summary
      knob `OREN_TRACE_GC_ROOT_SLOT_SUMMARY=1` reports boot vs non-boot root slots
