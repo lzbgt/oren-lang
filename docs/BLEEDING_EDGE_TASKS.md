@@ -140,6 +140,9 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     (`node_in_allocs=1`) and not in free blocks (`node_in_free_blocks=0`) while the header
     fields are corrupt; node_kind flips 1 -> 0 with node_size 32 -> 48 (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_badlist3.log`, 2026-02-26).
+  - Trace: bucket scans confirm the bad-list node is not in any reuse free-block bucket
+    (`node_in_free_blocks_64/256/1024/other=0`) while still present in allocs (log:
+    `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_badlist4.log`, 2026-02-26).
   - Verified: dot_product Oren C benchmark build/run now completes without list-header corruption
     after aligned-header fix (log: `build/logs/bench_dot_product_oren_c_20260226_155530.log`).
    - Verified: dot_product_int Oren C benchmark build/run completes without list-header corruption

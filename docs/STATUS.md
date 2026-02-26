@@ -852,6 +852,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       (`node_in_allocs=1`) and not in free blocks (`node_in_free_blocks=0`) while the header
       fields are corrupt; node_kind flips 1 -> 0 with node_size 32 -> 48 (log:
       `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_badlist3.log`, 2026-02-26).
+    - Trace: bucket scans confirm the bad-list node is not in any reuse free-block bucket
+      (`node_in_free_blocks_64/256/1024/other=0`) while still present in allocs (log:
+      `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_200_badlist4.log`, 2026-02-26).
     - Trace: reuse-enabled alloc_churn (blocks+lists unsafe) still shows only `chunk=32` frees
       and no size mismatches; reuse stats show large scan_steps in later windows
       (log: `build/logs/alloc_churn_trace_gc_hdr_mismatch_reuse1.log`, 2026-02-26).
