@@ -236,6 +236,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Trace: `alloc_churn` run with size tracing shows `size=160000` corresponds to a list_int
      buffer (`cap=20000`, bytes=160000), so the size log is expected
      (log: `build/logs/bench_run_alloc_churn_20260226_084444/oren_native/run_0.log`).
+   - Trace: GC-stress quick integration with list reserve/corrupt tracing enabled emitted
+     only alloc-index summaries (no list_reserve/list_corrupt events)
+     (log: `build/logs/native_quick_gc_trace_20260226_084741.log`).
    - Trace native pre-track alloc requests with `OREN_TRACE_NATIVE_ALLOC_REQ=1`
      (emits `oren_trace_alloc_request` before `oren_track_alloc_new` on native backends).
    - New: `OREN_TRACE_NATIVE_LIST_HDR=1` enables arm64 + x64 fast‑path list header tracing (calls `oren_trace_list_header` on list/list_int push fast paths).
