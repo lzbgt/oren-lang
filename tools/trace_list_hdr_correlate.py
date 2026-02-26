@@ -17,6 +17,9 @@ LIST_HDR_RING_RECENT_RE = re.compile(
 GC_FREE_RE = re.compile(
     r"\[gc_free_list\] ptr=(\d+) chunk=(\d+) kind=(\d+) len=(-?\d+) cap=(-?\d+) buf=(\d+) magic=(-?\d+)"
 )
+GC_REUSE_BAD_LIST_RE = re.compile(
+    r"\[gc_reuse_bad_list\] .*ptr=(\d+)\b"
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -96,6 +99,7 @@ def main() -> int:
     per_ptr = collections.defaultdict(lambda: collections.deque(maxlen=limit))
     per_ptr_recent = collections.defaultdict(list)
     per_ptr_recent_hits = collections.defaultdict(list)
+    pending_bad_list_recent = collections.Counter()
     recent_order = []
     events = []
     pending_gc = None
@@ -161,6 +165,27 @@ def main() -> int:
                             "magic": magic,
                         }
                     )
+                    if pending_bad_list_recent[ptr] > 0:
+                        per_ptr_recent_hits[ptr].append(
+                            {
+                                "src": "gc_reuse_bad_list_recent",
+                                "entries": list(per_ptr_recent[ptr]),
+                            }
+                        )
+                        pending_bad_list_recent[ptr] -= 1
+                    continue
+
+                m = GC_REUSE_BAD_LIST_RE.search(line)
+                if m:
+                    ptr = int(m.group(1))
+                    pending_bad_list_recent[ptr] += 1
+                    if ptr in per_ptr_recent:
+                        per_ptr_recent_hits[ptr].append(
+                            {
+                                "src": "gc_reuse_bad_list",
+                                "entries": list(per_ptr_recent[ptr]),
+                            }
+                        )
                     continue
 
                 m = GC_FREE_RE.search(line)
@@ -168,7 +193,12 @@ def main() -> int:
                     continue
                 ptr, chunk, kind, ln, cap, buf, magic = map(int, m.groups())
                 if ptr in per_ptr_recent:
-                    per_ptr_recent_hits[ptr].append(list(per_ptr_recent[ptr]))
+                    per_ptr_recent_hits[ptr].append(
+                        {
+                            "src": "gc_free_list",
+                            "entries": list(per_ptr_recent[ptr]),
+                        }
+                    )
                 event = {
                     "ptr": ptr,
                     "chunk": chunk,
@@ -236,6 +266,8 @@ def main() -> int:
             print(f"[list_hdr_ring_recent_delta] list={ptr} hits={len(hits)}")
             prev_seq = None
             for idx, entries in enumerate(hits):
+                src = entries["src"]
+                entries = entries["entries"]
                 seq_pairs = []
                 last = None
                 for entry in entries:
@@ -246,7 +278,7 @@ def main() -> int:
                 if prev_seq is not None:
                     delta = compare_recent_sequences(prev_seq, seq_pairs)
                     if delta:
-                        print(f"  delta hit={idx} changes={' '.join(delta)}")
+                        print(f"  delta hit={idx} src={src} changes={' '.join(delta)}")
                 prev_seq = seq_pairs
 
     return 0
