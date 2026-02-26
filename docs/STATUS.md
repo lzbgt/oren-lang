@@ -220,6 +220,9 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Trace (arm64 stage2 compile, 2026-02-26, `OREN_ARM64_FAST_LIST_DOT_NO_TICK_SLOT=1` +
      `OREN_TRACE_ARM64_LOOP_STACK=1`): dot_product still lowers via list<int> fast loops; no `fast_list_dot_while_no_tick`
      emitted (trace shows `fast_list_int_dot_while` tick_off=0, slots=8, bytes=64, stack/base=224).
+   - Trace (arm64 stage2 compile, 2026-02-26, `build/tmp/boxed_dot.oren`,
+     `OREN_ARM64_FAST_LIST_DOT_NO_TICK_SLOT=1` + `OREN_TRACE_ARM64_LOOP_STACK=1`):
+     `fast_list_dot_while_no_tick` tick_off=-1, slots=7, bytes=64, stack/base=224.
    - TODO: root-cause the arm64 offset regression when removing the tick stack slot and safely eliminate the unused slot.
    - Gate: native `loop_sum` and `dot_product` <= 2x C on arm64 + x64.
 
