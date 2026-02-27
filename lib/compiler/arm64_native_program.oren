@@ -375,12 +375,20 @@ fn _arm64_emit_global_roots_init(ctx) {
     push_u32_le(ctx["code"], insn_stp_pre())
     push_u32_le(ctx["code"], insn_mov_fp_sp())
     var gmap = ctx["globals"]
+    var runtime_globals = ctx["runtime_globals"]
+    var skip_runtime_globals = ctx["skip_runtime_global_roots"]
     if gmap != nil {
         var gi = 0
         var pair = [nil, nil]
         while 1 {
             var okg = oren_iter_next_entry(gmap, gi, pair)
             if okg == 0 { break }
+            var gname = pair[0]
+            if skip_runtime_globals != nil && skip_runtime_globals != 0 &&
+               gname != nil && runtime_globals != nil && runtime_globals[gname] != nil {
+                gi = gi + 1
+                continue
+            }
             var off_enc = pair[1]
             if oren_type_tag(off_enc) == 1 {
                 var off = off_enc - 1
@@ -1158,6 +1166,24 @@ fn _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts) {
     if user_vars == nil { user_vars = [] }
     if user_exec == nil { user_exec = [] }
     if user_ordered == nil { user_ordered = [] }
+
+    if ctx["runtime_globals"] == nil { ctx["runtime_globals"] = {} }
+    var runtime_globals = ctx["runtime_globals"]
+    var v_skip = oren_env("OREN_GC_ROOTS_SKIP_RUNTIME_GLOBALS")
+    if v_skip != nil && v_skip != "" &&
+       native_env_str_eq(v_skip, "0") != true &&
+       native_env_str_eq(v_skip, "false") != true {
+        ctx["skip_runtime_global_roots"] = 1
+    }
+    var ri = 0
+    while ri < oren_list_len(runtime_vars) {
+        var rst = runtime_vars[ri]
+        if rst != nil && rst["name"] != nil {
+            var rnm = rst["name"]["value"]
+            if rnm != nil { runtime_globals[rnm] = true }
+        }
+        ri = ri + 1
+    }
 
     // Allocate runtime globals (zero-initialized; runtime init owns their values).
     var i = 0

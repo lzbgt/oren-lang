@@ -1069,6 +1069,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
       (`alloc_churn_globals_trace_20260227_072238.log`, 2026-02-27).
     - Tool: `OREN_TRACE_GC_GLOBAL_GUARD=1` logs when those globals hold pointer-like values
       to narrow down corruption timing (rolling, 2026-02-27).
+    - Tool: `OREN_GC_ROOTS_SKIP_RUNTIME_GLOBALS=1` (compile-time env) skips registering
+      runtime globals as GC roots to test whether false roots from runtime counters
+      are masking bad-list reuse (rolling, 2026-02-27).
     - Trace: precheck+guard4 run shows a single `[list_hdr_ring_ptr_guard_set]` (env_enable)
       and no subsequent guard flips before timeout (log:
       `build/logs/alloc_churn_trace_precheck_guard4_20260227.log`, 2026-02-27).

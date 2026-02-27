@@ -68,6 +68,24 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
     if user_exec == nil { user_exec = [] }
     if user_ordered == nil { user_ordered = [] }
 
+    if ctx["runtime_globals"] == nil { ctx["runtime_globals"] = {} }
+    var runtime_globals = ctx["runtime_globals"]
+    var v_skip = oren_env("OREN_GC_ROOTS_SKIP_RUNTIME_GLOBALS")
+    if v_skip != nil && v_skip != "" &&
+       x64_env_str_eq(v_skip, "0") != true &&
+       x64_env_str_eq(v_skip, "false") != true {
+        ctx["skip_runtime_global_roots"] = 1
+    }
+    var ri = 0
+    while ri < oren_list_len(runtime_vars) {
+        var rst = runtime_vars[ri]
+        if rst != nil && rst["name"] != nil {
+            var rnm = rst["name"]["value"]
+            if rnm != nil { runtime_globals[rnm] = true }
+        }
+        ri = ri + 1
+    }
+
     // Allocate runtime global slots (always zero-initialized; runtime init owns their values).
     var i = 0
     while i < oren_list_len(runtime_vars) {

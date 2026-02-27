@@ -913,6 +913,8 @@ fn native_compile_program_x64(linked, platform) {
     // Register global slots as GC roots (native parity with C backend).
     // Do this after GC mode init so native_gc_register_root is active.
     var gmap = ctx["globals"]
+    var runtime_globals = ctx["runtime_globals"]
+    var skip_runtime_globals = ctx["skip_runtime_global_roots"]
     if gmap != nil {
         var gi = 0
         var pair = [nil, nil]
@@ -921,6 +923,12 @@ fn native_compile_program_x64(linked, platform) {
         while 1 {
             var okg = oren_iter_next_entry(gmap, gi, pair)
             if okg == 0 { break }
+            var gname = pair[0]
+            if skip_runtime_globals != nil && skip_runtime_globals != 0 &&
+               gname != nil && runtime_globals != nil && runtime_globals[gname] != nil {
+                gi = gi + 1
+                continue
+            }
             var off_enc = pair[1]
             if oren_type_tag(off_enc) == 1 {
                 var off = off_enc - 1
