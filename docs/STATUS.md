@@ -167,6 +167,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      in the allocs list (cap via `OREN_TRACE_GC_FREED_LIVE_CAP`, 2026-02-27).
    - Tool: `OREN_TRACE_GC_ALLOCS_LIST_HDR=1` logs when list headers are inserted into the
      allocs list (cap via `OREN_TRACE_GC_ALLOCS_LIST_HDR_CAP`, 2026-02-27).
+   - Tool: `OREN_TRACE_LIST_HDR_REINIT=1` logs list header reinitialization after
+     allocation/reuse (cap via `OREN_TRACE_LIST_HDR_REINIT_CAP`, 2026-02-27).
    - Trace: bad-list pointer shows `gc_allocs_list_hdr` entries for both `track_alloc_new`
      and later `reuse_take` on the same ptr/node, confirming it was freed and reactivated
      from the free-list before corruption (log:
