@@ -125,6 +125,8 @@ var g_trace_list_corrupt_cap = 0
 var g_trace_list_hdr_reinit = 0
 var g_trace_list_hdr_reinit_cap = 0
 var g_trace_list_hdr_reinit_checked = 0
+var g_trace_list_hdr_reinit_ptr = 0
+var g_trace_list_hdr_reinit_node = 0
 var g_trace_list_hdr_ring = -1
 var g_trace_list_hdr_ring_cap = 0
 var g_trace_list_hdr_ring_ptr = 0
@@ -1149,6 +1151,16 @@ fn _list_hdr_reinit_trace_emit(list, kind, total, cap, prev_len, prev_cap, prev_
             var capv = native_parse_i64_dec_cstr_or_neg1(v_cap)
             if capv > 0 { g_trace_list_hdr_reinit_cap = capv }
         }
+        var v_ptr = native_envp_get_value_ptr("OREN_TRACE_LIST_HDR_REINIT_PTR")
+        if v_ptr != 0 {
+            var ptrv = native_parse_i64_dec_cstr_or_neg1(v_ptr)
+            if ptrv > 0 { g_trace_list_hdr_reinit_ptr = ptrv }
+        }
+        var v_node = native_envp_get_value_ptr("OREN_TRACE_LIST_HDR_REINIT_NODE")
+        if v_node != 0 {
+            var nodev = native_parse_i64_dec_cstr_or_neg1(v_node)
+            if nodev > 0 { g_trace_list_hdr_reinit_node = nodev }
+        }
         if g_trace_list_hdr_reinit_cap <= 0 { g_trace_list_hdr_reinit_cap = 8 }
         g_trace_list_hdr_reinit_checked = 1
     }
@@ -1162,7 +1174,11 @@ fn _list_hdr_reinit_trace_emit(list, kind, total, cap, prev_len, prev_cap, prev_
     var want_magic = list_magic()
     var node = rec_node
     if node == 0 { node = native_alloc_index_get(list) }
-    if node == 0 && seen == 0 && prev_magic - want_poison != 0 && prev_magic - want_magic != 0 { return 0 }
+    if g_trace_list_hdr_reinit_ptr != 0 && list - g_trace_list_hdr_reinit_ptr != 0 { return 0 }
+    if g_trace_list_hdr_reinit_node != 0 && node - g_trace_list_hdr_reinit_node != 0 { return 0 }
+    if g_trace_list_hdr_reinit_ptr == 0 && g_trace_list_hdr_reinit_node == 0 {
+        if node == 0 && seen == 0 && prev_magic - want_poison != 0 && prev_magic - want_magic != 0 { return 0 }
+    }
     g_trace_list_hdr_reinit_cap = g_trace_list_hdr_reinit_cap - 1
     print("[list_hdr_reinit] src=" + src +
           " ptr=" + oren_int_to_string(list) +

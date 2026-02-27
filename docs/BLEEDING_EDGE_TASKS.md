@@ -797,7 +797,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     - Tool: `OREN_TRACE_GC_ALLOCS_LIST_HDR=1` logs when list headers are inserted into the
       allocs list (cap via `OREN_TRACE_GC_ALLOCS_LIST_HDR_CAP`, 2026-02-27).
     - Tool: `OREN_TRACE_LIST_HDR_REINIT=1` logs list header reinitialization after
-      allocation/reuse (cap via `OREN_TRACE_LIST_HDR_REINIT_CAP`, 2026-02-27).
+      allocation/reuse (cap via `OREN_TRACE_LIST_HDR_REINIT_CAP`, filters via
+      `OREN_TRACE_LIST_HDR_REINIT_PTR`/`OREN_TRACE_LIST_HDR_REINIT_NODE`, 2026-02-27).
     - Tool: `OREN_TRACE_GC_LIST_HDR_POISON_NODE=1` logs the allocs-list node and alloc-index
       state when a list header is poisoned during sweep (cap via `OREN_TRACE_GC_LIST_HDR_POISON_NODE_CAP`, 2026-02-27).
     - Trace: poison-node logs show `node_in_allocs=0`, `allocs_count=0`, and `idx_node` matching
