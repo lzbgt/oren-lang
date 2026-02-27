@@ -1072,6 +1072,11 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Tool: `OREN_GC_ROOTS_SKIP_RUNTIME_GLOBALS=1` (compile-time env) skips registering
       runtime globals as GC roots to test whether false roots from runtime counters
       are masking bad-list reuse (rolling, 2026-02-27).
+    - Trace: even with `OREN_GC_ROOTS_SKIP_RUNTIME_GLOBALS=1`, bad-list reuse still hits
+      a stale root (root_idx=146, root_count=2) whose slot pointer lies outside g_storage
+      (`root_slot_offset=-1`), so runtime globals are not the sole source of false roots
+      (`alloc_churn_skiproots_badlist_len64_gc50_200_thr500_ring_20260227_072238.log`,
+      2026-02-27).
     - Trace: precheck+guard4 run shows a single `[list_hdr_ring_ptr_guard_set]` (env_enable)
       and no subsequent guard flips before timeout (log:
       `build/logs/alloc_churn_trace_precheck_guard4_20260227.log`, 2026-02-27).
