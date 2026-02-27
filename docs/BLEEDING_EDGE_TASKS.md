@@ -798,6 +798,16 @@ Priority weights (rolling, refreshed after x64 emit ops split):
       allocs list (cap via `OREN_TRACE_GC_ALLOCS_LIST_HDR_CAP`, 2026-02-27).
     - Tool: `OREN_TRACE_LIST_HDR_REINIT=1` logs list header reinitialization after
       allocation/reuse (cap via `OREN_TRACE_LIST_HDR_REINIT_CAP`, 2026-02-27).
+    - Tool: `OREN_TRACE_GC_LIST_HDR_POISON_NODE=1` logs the allocs-list node and alloc-index
+      state when a list header is poisoned during sweep (cap via `OREN_TRACE_GC_LIST_HDR_POISON_NODE_CAP`, 2026-02-27).
+    - Trace: poison-node logs show `node_in_allocs=0`, `allocs_count=0`, and `idx_node` matching
+      the sweep node at poison time; later `reuse_take` reactivates the same node before the
+      bad-list event, pointing to corruption after reuse rather than a stale allocs entry
+      (`build/logs/alloc_churn_poison_node_20260227_092907.log`, 2026-02-27).
+    - Trace: `OREN_TRACE_LIST_HDR_REINIT=1` emitted no reinit events for the bad-list pointer
+      even with freed-list tracking enabled, suggesting the list constructor path may not
+      run on the reused header (or filtering is still too strict) in this repro
+      (`build/logs/alloc_churn_list_hdr_reinit4_20260227_092441.log`, 2026-02-27).
     - Trace: bad-list pointer shows `gc_allocs_list_hdr` entries for both `track_alloc_new`
       and later `reuse_take` on the same ptr/node, confirming it was freed and reactivated
       from the free-list before corruption (log:
