@@ -792,6 +792,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
       bad-list pointer is not in roots (`in_roots=0`) and `list_debug` still reports `node_in_allocs=1`,
       suggesting a freed header is still tracked as live (log:
       `build/logs/alloc_churn_rootnames_badlist_ringpre_20260227_085849.log`, 2026-02-27).
+    - Tool: `OREN_TRACE_GC_FREED_LIVE=1` reports when a freed list header pointer still appears
+      in the allocs list (cap via `OREN_TRACE_GC_FREED_LIVE_CAP`, 2026-02-27).
 
 4) **W5 tagged value convergence plan (native/C/AVM)**
    - One canonical model + staged migration.
