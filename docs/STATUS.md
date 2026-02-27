@@ -1,6 +1,6 @@
 # Status + Tracker (Rolling)
 
-**Last updated:** 2026-02-26
+**Last updated:** 2026-02-27
 
 This document is intentionally lean: active tracker + feature matrix.
 No archives. No stubs. When a task is done enough, summarize it and move on.
@@ -175,10 +175,10 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      the sweep node at poison time; later `reuse_take` reactivates the same node before the
      bad-list event, pointing to corruption after reuse rather than a stale allocs entry
      (`build/logs/alloc_churn_poison_node_20260227_092907.log`, 2026-02-27).
-   - Trace: `OREN_TRACE_LIST_HDR_REINIT=1` emitted no reinit events for the bad-list pointer
-     even with freed-list tracking enabled, suggesting the list constructor path may not
-     run on the reused header (or filtering is still too strict) in this repro
-     (`build/logs/alloc_churn_list_hdr_reinit4_20260227_092441.log`, 2026-02-27).
+   - Trace: `OREN_TRACE_LIST_HDR_REINIT=1` now logs reinit events when alloc-index nodes are
+     present; latest alloc_churn run shows only `new_list` entries with `prev_magic=0` and
+     `freed_seen=0` (no bad-list event to correlate yet)
+     (`build/logs/alloc_churn_list_hdr_reinit_node2_cap200_20260227_094121.log`, 2026-02-27).
    - Trace: bad-list pointer shows `gc_allocs_list_hdr` entries for both `track_alloc_new`
      and later `reuse_take` on the same ptr/node, confirming it was freed and reactivated
      from the free-list before corruption (log:

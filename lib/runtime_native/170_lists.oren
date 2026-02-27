@@ -35,7 +35,9 @@ fn oren_new_list(cap) {
     var prev_cap = ptr_get(iadd(header, 8))
     var prev_buf = ptr_get(iadd(header, 16))
     var prev_magic = ptr_get(iadd(header, 24))
-    _list_hdr_reinit_trace_emit(header, 2, total, cap, prev_len, prev_cap, prev_buf, prev_magic, "new_list")
+    var rec_node = native_alloc_index_recover_ptr(header)
+    if rec_node == 0 { rec_node = native_alloc_index_get(header) }
+    _list_hdr_reinit_trace_emit(header, 2, total, cap, prev_len, prev_cap, prev_buf, prev_magic, "new_list", rec_node)
     var buf = 0
     if cap > 0 {
         buf = iadd(header, 32)
@@ -45,8 +47,8 @@ fn oren_new_list(cap) {
     ptr_set(iadd(header, 16), buf)    // data buffer
     ptr_set(iadd(header, 24), list_magic())
     if native_alloc_index_get(header) == 0 {
-        var rec = native_alloc_index_recover_ptr(header)
-        if rec == 0 { oren_track_alloc_new(header, total, 2) }
+        if rec_node == 0 { rec_node = native_alloc_index_recover_ptr(header) }
+        if rec_node == 0 { oren_track_alloc_new(header, total, 2) }
     }
     trace_list_alloc_emit(header, 2, total, site, 1)
     _list_trace_emit(1, header, 2) // new_list
@@ -69,7 +71,9 @@ fn oren_new_list_int(cap) {
     var prev_cap = ptr_get(iadd(header, 8))
     var prev_buf = ptr_get(iadd(header, 16))
     var prev_magic = ptr_get(iadd(header, 24))
-    _list_hdr_reinit_trace_emit(header, list_int_kind(), total, cap, prev_len, prev_cap, prev_buf, prev_magic, "new_list_int")
+    var rec2 = native_alloc_index_recover_ptr(header)
+    if rec2 == 0 { rec2 = native_alloc_index_get(header) }
+    _list_hdr_reinit_trace_emit(header, list_int_kind(), total, cap, prev_len, prev_cap, prev_buf, prev_magic, "new_list_int", rec2)
     var buf = 0
     if cap > 0 {
         buf = iadd(header, 32)
@@ -79,7 +83,7 @@ fn oren_new_list_int(cap) {
     ptr_set(iadd(header, 16), buf)    // data buffer
     ptr_set(iadd(header, 24), list_magic())
     if native_alloc_index_get(header) == 0 {
-        var rec2 = native_alloc_index_recover_ptr(header)
+        if rec2 == 0 { rec2 = native_alloc_index_recover_ptr(header) }
         if rec2 == 0 { oren_track_alloc_new(header, total, list_int_kind()) }
     }
     trace_list_alloc_emit(header, list_int_kind(), total, site, 1)
@@ -1134,7 +1138,7 @@ fn _list_trace_emit(op, list, kind) {
     return 0
 }
 
-fn _list_hdr_reinit_trace_emit(list, kind, total, cap, prev_len, prev_cap, prev_buf, prev_magic, src) {
+fn _list_hdr_reinit_trace_emit(list, kind, total, cap, prev_len, prev_cap, prev_buf, prev_magic, src, rec_node) {
     if g_trace_list_hdr_reinit_checked == 0 {
         var v_trace = native_envp_get_value_ptr("OREN_TRACE_LIST_HDR_REINIT")
         if v_trace != 0 && ptr_get_byte(v_trace) != 0 && ptr_get_byte(v_trace) != 48 {
@@ -1156,7 +1160,9 @@ fn _list_hdr_reinit_trace_emit(list, kind, total, cap, prev_len, prev_cap, prev_
     }
     var want_poison = list_magic_poison()
     var want_magic = list_magic()
-    if seen == 0 && prev_magic - want_poison != 0 && prev_magic - want_magic != 0 { return 0 }
+    var node = rec_node
+    if node == 0 { node = native_alloc_index_get(list) }
+    if node == 0 && seen == 0 && prev_magic - want_poison != 0 && prev_magic - want_magic != 0 { return 0 }
     g_trace_list_hdr_reinit_cap = g_trace_list_hdr_reinit_cap - 1
     print("[list_hdr_reinit] src=" + src +
           " ptr=" + oren_int_to_string(list) +
@@ -1167,7 +1173,8 @@ fn _list_hdr_reinit_trace_emit(list, kind, total, cap, prev_len, prev_cap, prev_
           " prev_cap=" + oren_int_to_string(prev_cap) +
           " prev_buf=" + oren_int_to_string(prev_buf) +
           " prev_magic=" + oren_int_to_string(prev_magic) +
-          " freed_seen=" + oren_int_to_string(seen))
+          " freed_seen=" + oren_int_to_string(seen) +
+          " node=" + oren_int_to_string(node))
     return 0
 }
 
