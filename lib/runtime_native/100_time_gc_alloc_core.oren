@@ -2011,6 +2011,10 @@ fn oren_track_alloc_new(ptr, size, kind) {
                     }
                 }
                 if log_kind != 0 {
+                    if g_trace_alloc_kind_change_ptr != 0 && ptr - g_trace_alloc_kind_change_ptr != 0 { log_kind = 0 }
+                    if g_trace_alloc_kind_change_node != 0 && hit - g_trace_alloc_kind_change_node != 0 { log_kind = 0 }
+                }
+                if log_kind != 0 {
                     print("[alloc_kind_change] src=track_alloc_new_hit ptr=" + oren_int_to_string(ptr) +
                         " old=" + oren_int_to_string(old_kind) +
                         " new=" + oren_int_to_string(kind) +
@@ -2190,6 +2194,10 @@ fn oren_track_alloc(ptr, size, kind) {
                             }
                         }
                         if log_kind != 0 {
+                            if g_trace_alloc_kind_change_ptr != 0 && ptr - g_trace_alloc_kind_change_ptr != 0 { log_kind = 0 }
+                            if g_trace_alloc_kind_change_node != 0 && cur_live - g_trace_alloc_kind_change_node != 0 { log_kind = 0 }
+                        }
+                        if log_kind != 0 {
                             print("[alloc_kind_change] src=track_alloc_live ptr=" + oren_int_to_string(ptr) +
                                 " old=" + oren_int_to_string(old_kind) +
                                 " new=" + oren_int_to_string(kind) +
@@ -2227,6 +2235,10 @@ fn oren_track_alloc(ptr, size, kind) {
                     } else if kind == 2 || kind == list_int_kind() {
                         log_kind = 1
                     }
+                }
+                if log_kind != 0 {
+                    if g_trace_alloc_kind_change_ptr != 0 && ptr - g_trace_alloc_kind_change_ptr != 0 { log_kind = 0 }
+                    if g_trace_alloc_kind_change_node != 0 && hit - g_trace_alloc_kind_change_node != 0 { log_kind = 0 }
                 }
                 if log_kind != 0 {
                     print("[alloc_kind_change] src=track_alloc_hit ptr=" + oren_int_to_string(ptr) +
@@ -2291,6 +2303,10 @@ fn oren_track_alloc(ptr, size, kind) {
                 } else if kind == 2 || kind == list_int_kind() {
                     log_kind = 1
                 }
+            }
+            if log_kind != 0 {
+                if g_trace_alloc_kind_change_ptr != 0 && ptr - g_trace_alloc_kind_change_ptr != 0 { log_kind = 0 }
+                if g_trace_alloc_kind_change_node != 0 && cur - g_trace_alloc_kind_change_node != 0 { log_kind = 0 }
             }
             if log_kind != 0 {
                 print("[alloc_kind_change] src=track_alloc_free ptr=" + oren_int_to_string(ptr) +

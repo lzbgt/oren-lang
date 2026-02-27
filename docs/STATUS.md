@@ -1145,9 +1145,10 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Trace: `[gc_list_hdr_kind]` emitted `src=mark_list_int` with `kind=8` (list_int_kind)
       before segfault (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_hdr_kind_20260227.log`,
       2026-02-27).
-    - Tool: allocation kind change tracing logs `[alloc_kind_change]` when a tracked node’s
-      kind changes during `oren_track_alloc*` (`OREN_TRACE_ALLOC_KIND_CHANGE=<n>`), including
-      initial list/list_int retags from `kind=0`, to catch unexpected retagging (rolling, 2026-02-27).
+   - Tool: allocation kind change tracing logs `[alloc_kind_change]` when a tracked node’s
+     kind changes during `oren_track_alloc*` (`OREN_TRACE_ALLOC_KIND_CHANGE=<n>`, optional
+     filters: `OREN_TRACE_ALLOC_KIND_CHANGE_PTR`/`..._NODE`), including initial list/list_int
+     retags from `kind=0`, to catch unexpected retagging (rolling, 2026-02-27).
     - Trace: alloc-kind-change run emitted no `[alloc_kind_change]` lines before segfault
       (log: `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_kindchange_20260227.log`,
       2026-02-27).
