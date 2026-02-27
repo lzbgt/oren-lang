@@ -165,6 +165,12 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
      `build/logs/alloc_churn_rootnames_badlist_ringpre_20260227_085849.log`, 2026-02-27).
    - Tool: `OREN_TRACE_GC_FREED_LIVE=1` reports when a freed list header pointer still appears
      in the allocs list (cap via `OREN_TRACE_GC_FREED_LIVE_CAP`, 2026-02-27).
+   - Tool: `OREN_TRACE_GC_ALLOCS_LIST_HDR=1` logs when list headers are inserted into the
+     allocs list (cap via `OREN_TRACE_GC_ALLOCS_LIST_HDR_CAP`, 2026-02-27).
+   - Trace: bad-list pointer shows `gc_allocs_list_hdr` entries for both `track_alloc_new`
+     and later `reuse_take` on the same ptr/node, confirming it was freed and reactivated
+     from the free-list before corruption (log:
+     `build/logs/alloc_churn_allocs_list_hdr_bigcap_20260227_091142.log`, 2026-02-27).
 
 4) **W4 - Platform breadth (Tier‑1 intent targets)**
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.

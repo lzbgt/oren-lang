@@ -51,6 +51,9 @@ var g_trace_gc_root_names_checked = 0
 var g_trace_gc_freed_live = 0
 var g_trace_gc_freed_live_cap = 0
 var g_trace_gc_freed_live_checked = 0
+var g_trace_gc_allocs_list_hdr = 0
+var g_trace_gc_allocs_list_hdr_cap = 0
+var g_trace_gc_allocs_list_hdr_checked = 0
 var g_trace_gc_global_guard = 0
 var g_trace_gc_global_guard_checked = 0
 var g_trace_gc_global_guard_last_bad_list = 0
@@ -606,6 +609,37 @@ fn native_gc_ptr_in_allocs(ptr) {
     return count
 }
 
+fn _trace_gc_allocs_list_hdr(ptr, kind, size, node, src) {
+    if g_trace_gc_allocs_list_hdr_checked == 0 {
+        var v_trace = native_envp_get_value_ptr("OREN_TRACE_GC_ALLOCS_LIST_HDR")
+        if v_trace != 0 && ptr_get_byte(v_trace) != 0 && ptr_get_byte(v_trace) != 48 {
+            g_trace_gc_allocs_list_hdr = 1
+        }
+        var v_cap = native_envp_get_value_ptr("OREN_TRACE_GC_ALLOCS_LIST_HDR_CAP")
+        if v_cap != 0 {
+            var cap = native_parse_i64_dec_cstr_or_neg1(v_cap)
+            if cap > 0 { g_trace_gc_allocs_list_hdr_cap = cap }
+        }
+        if g_trace_gc_allocs_list_hdr_cap <= 0 { g_trace_gc_allocs_list_hdr_cap = 8 }
+        g_trace_gc_allocs_list_hdr_checked = 1
+    }
+    if g_trace_gc_allocs_list_hdr == 0 { return 0 }
+    if g_trace_gc_allocs_list_hdr_cap <= 0 { return 0 }
+    if kind != 2 && kind != list_int_kind() { return 0 }
+    g_trace_gc_allocs_list_hdr_cap = g_trace_gc_allocs_list_hdr_cap - 1
+    var freed = 0
+    if node != 0 { freed = ptr_get(iadd(node, 24)) }
+    var allocs_count = native_gc_ptr_in_allocs(ptr)
+    print("[gc_allocs_list_hdr] src=" + src +
+        " ptr=" + oren_int_to_string(ptr) +
+        " kind=" + oren_int_to_string(kind) +
+        " size=" + oren_int_to_string(size) +
+        " node=" + oren_int_to_string(node) +
+        " freed=" + oren_int_to_string(freed) +
+        " allocs_count=" + oren_int_to_string(allocs_count))
+    return 0
+}
+
 fn native_free_blocks_count_ptr_in_list(head_ptr, ptr) {
     if ptr == 0 { return 0 }
     if ptr < 4096 { return 0 }
@@ -760,6 +794,7 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
                 ptr_set(iadd(cur, 40), native_node_magic())
                 global_set_allocs(cur)
                 native_alloc_index_put_node(cur)
+                _trace_gc_allocs_list_hdr(chunk_ptr, cur_kind, chunk_size, cur, "reuse_guard_live")
                 if trace_reuse { g_gc_reuse_guard_live_count = g_gc_reuse_guard_live_count + 1 }
                 cur = next
                 continue
@@ -881,6 +916,7 @@ fn native_try_reuse_from_list(head_ptr, size, trace_reuse) {
             ptr_set(iadd(cur, 40), native_node_magic())
             global_set_allocs(cur)
             native_alloc_index_put_node(cur)
+            _trace_gc_allocs_list_hdr(chunk_ptr, cur_kind, chunk_size, cur, "reuse_take")
             if g_gc_reuse_blocks != 0 {
                 var idx_node = native_alloc_index_get(chunk_ptr)
                 if idx_node != cur {
@@ -2236,6 +2272,7 @@ fn oren_track_alloc(ptr, size, kind) {
         ptr_set(iadd(cur, 40), native_node_magic())
         global_set_allocs(cur)
         native_alloc_index_put_node(cur)
+        _trace_gc_allocs_list_hdr(ptr, kind, size, cur, "track_alloc_free")
         if native_alloc_index_get(ptr) == 0 {
             native_alloc_index_rebuild_live()
         }
@@ -2276,6 +2313,7 @@ fn oren_track_alloc(ptr, size, kind) {
         ptr_set(iadd(node, 40), native_node_magic())
         global_set_allocs(node)
         native_alloc_index_put_node(node)
+        _trace_gc_allocs_list_hdr(ptr, kind, size, node, "track_alloc_new")
         if native_alloc_index_get(ptr) == 0 {
             native_alloc_index_rebuild_live()
         }
