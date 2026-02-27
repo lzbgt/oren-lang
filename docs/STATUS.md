@@ -173,7 +173,8 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Tool: `OREN_TRACE_GC_LIST_HDR_POISON_NODE=1` logs the allocs-list node and alloc-index
      state when a list header is poisoned during sweep (cap via `OREN_TRACE_GC_LIST_HDR_POISON_NODE_CAP`, 2026-02-27).
    - Tool: `scripts/repro_bad_list_alloc_churn.sh` brute-forces alloc_churn configs until a
-     `[gc_reuse_bad_list]` hit is found, printing ptr/node filters for follow-up tracing (2026-02-27).
+     `[gc_reuse_bad_list]` hit is found, printing ptr/node filters for follow-up tracing; it
+     continues across crashes and logs non-zero exit statuses (2026-02-27).
    - Trace: poison-node logs show `node_in_allocs=0`, `allocs_count=0`, and `idx_node` matching
      the sweep node at poison time; later `reuse_take` reactivates the same node before the
      bad-list event, pointing to corruption after reuse rather than a stale allocs entry

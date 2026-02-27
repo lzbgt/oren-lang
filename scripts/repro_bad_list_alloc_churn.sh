@@ -37,6 +37,7 @@ for ((i=0; i<RUNS; i++)); do
   ts="$(date +%Y%m%d_%H%M%S)"
   log="$LOG_DIR/alloc_churn_bad_list_auto_${ts}_${i}.log"
 
+  set +e
   env OREN_BENCH_ITERS="$iters" \
       OREN_BENCH_LIST_LEN="$list_len" \
       OREN_BENCH_GC_EVERY="$gc_every" \
@@ -56,6 +57,11 @@ for ((i=0; i<RUNS; i++)); do
       OREN_TRACE_GC_RING_PRE=1 \
       OREN_TRACE_GC_RING_RECENT=1 \
       "$BIN" > "$log"
+  status=$?
+  set -e
+  if [ "$status" -ne 0 ]; then
+    echo "run $i exited status $status (log=$log)" >&2
+  fi
 
   if rg -n "\\[gc_reuse_bad_list\\]" "$log" >/dev/null; then
     line="$(rg -n "\\[gc_reuse_bad_list\\]" "$log" | head -n 1)"
