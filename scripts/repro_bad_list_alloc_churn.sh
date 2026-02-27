@@ -6,6 +6,7 @@ BIN="${BIN:-$ROOT/build/tmp/alloc_churn_badlist}"
 LOG_DIR="${LOG_DIR:-$ROOT/build/logs}"
 RUNS="${RUNS:-10}"
 BUILD="${BUILD:-1}"
+EXTRA_TRACE="${EXTRA_TRACE:-0}"
 
 if ! command -v rg >/dev/null 2>&1; then
   echo "rg is required (ripgrep)." >&2
@@ -38,6 +39,13 @@ for ((i=0; i<RUNS; i++)); do
   log="$LOG_DIR/alloc_churn_bad_list_auto_${ts}_${i}.log"
 
   set +e
+  trace_extra_env=()
+  if [ "$EXTRA_TRACE" != "0" ]; then
+    trace_extra_env+=("OREN_TRACE_GC_REUSE_SUMMARY=1")
+    trace_extra_env+=("OREN_TRACE_GC_LIST_HDR_KIND=64")
+    trace_extra_env+=("OREN_TRACE_GC_LIST_HDR_OK=64")
+  fi
+
   env OREN_BENCH_ITERS="$iters" \
       OREN_BENCH_LIST_LEN="$list_len" \
       OREN_BENCH_GC_EVERY="$gc_every" \
@@ -56,7 +64,8 @@ for ((i=0; i<RUNS; i++)); do
       OREN_TRACE_GC_REUSE_BAD_LIST_RING_RECENT=64 \
       OREN_TRACE_GC_RING_PRE=1 \
       OREN_TRACE_GC_RING_RECENT=1 \
-      "$BIN" > "$log"
+      "${trace_extra_env[@]}" \
+      "$BIN" > "$log" 2>&1
   status=$?
   set -e
   if [ "$status" -ne 0 ]; then

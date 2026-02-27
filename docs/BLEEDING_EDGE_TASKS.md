@@ -339,7 +339,8 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     to capture raw header fields even if validation fails (rolling, 2026-02-27).
   - Tool: `scripts/repro_bad_list_alloc_churn.sh` brute-forces alloc_churn configs until a
     `[gc_reuse_bad_list]` hit is found, printing ptr/node filters for follow-up tracing; it
-    continues across crashes and logs non-zero exit statuses (2026-02-27).
+    continues across crashes, logs non-zero exit statuses, and captures stderr in logs
+    (set `EXTRA_TRACE=1` to include reuse summary + list-hdr kind/ok traces, 2026-02-27).
   - Trace: list header ok trace emitted entries (e.g., `kind=8` and `kind=2`)
     before a segfault (log:
     `build/logs/alloc_churn_trace_poison_reuse_len64_gc50_500_hdr_ok_20260227.log`, 2026-02-27).
