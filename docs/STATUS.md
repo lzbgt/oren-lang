@@ -158,6 +158,11 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Fix: global root registration now skips `g_gc_reuse_bad_list_last_ptr` and
      `g_find_cache_ptr{0,1}`/`g_find_cache_node{0,1}`; repro now reports `in_roots=0`
      for bad-list pointers (log: `build/logs/alloc_churn_rootnames_badlist_len64_gc50_200_thr500_ring_20260227_085139.log`).
+   - Trace: ring pre/recent dump around bad-list shows `op=90` (list_header_poison) then
+     `op=91` (bad-list dump) for the same list pointer, with prior ops `1/5` showing normal growth;
+     bad-list pointer is not in roots (`in_roots=0`) and `list_debug` still reports `node_in_allocs=1`,
+     suggesting a freed header is still tracked as live (log:
+     `build/logs/alloc_churn_rootnames_badlist_ringpre_20260227_085849.log`, 2026-02-27).
 
 4) **W4 - Platform breadth (Tier‑1 intent targets)**
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
