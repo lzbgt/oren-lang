@@ -149,6 +149,15 @@ Oren is from LLVM/rustc/GCC/zig/go parity today.
    - Tool: `OREN_TRACE_GC_GLOBAL_GUARD=1` logs when `g_gc_reuse_bad_list_triggers`,
      `g_runtime_root_len`, or `g_trace_list_header` hold pointer-like values to help
      pinpoint corruption timing (rolling, 2026-02-27).
+   - New: `OREN_TRACE_GC_REGISTER_ROOT_NAMES=1` (compile-time env) emits per-root
+     `[gc_root_name]` lines; bad-list root_idx=256 mapped to `g_gc_reuse_bad_list_last_ptr`
+     (log: `build/logs/alloc_churn_rootnames_badlist_len64_gc50_200_thr500_ring_20260227_083852.log`).
+   - Trace: after skipping only `g_gc_reuse_bad_list_last_ptr`, bad-list root_idx=280 mapped
+     to `g_find_cache_ptr0`, indicating `oren_find_node` MRU cache slots were still rooted
+     (log: `build/logs/alloc_churn_rootnames_badlist_len64_gc50_200_thr500_ring_20260227_084819.log`).
+   - Fix: global root registration now skips `g_gc_reuse_bad_list_last_ptr` and
+     `g_find_cache_ptr{0,1}`/`g_find_cache_node{0,1}`; repro now reports `in_roots=0`
+     for bad-list pointers (log: `build/logs/alloc_churn_rootnames_badlist_len64_gc50_200_thr500_ring_20260227_085139.log`).
 
 4) **W4 - Platform breadth (Tier‑1 intent targets)**
    - arm64 is most mature; x64 Linux/Windows are still in rolling bring‑up.
@@ -1072,6 +1081,9 @@ Reweight: avoid trace-only changes unless they unblock a root-cause or a W5 gate
     - Tool: `OREN_GC_ROOTS_SKIP_RUNTIME_GLOBALS=1` (compile-time env) skips registering
       runtime globals as GC roots to test whether false roots from runtime counters
       are masking bad-list reuse (rolling, 2026-02-27).
+    - Tool: `OREN_TRACE_GC_REGISTER_ROOT_NAMES=1` (compile-time env) emits per-root
+      `[gc_root_name]` entries (name + slot pointer) during entry registration to map
+      non-g_storage roots back to global names (rolling, 2026-02-27).
     - Trace: even with `OREN_GC_ROOTS_SKIP_RUNTIME_GLOBALS=1`, bad-list reuse still hits
       a stale root (root_idx=146, root_count=2) whose slot pointer lies outside g_storage
       (`root_slot_offset=-1`), so runtime globals are not the sole source of false roots

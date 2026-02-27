@@ -46,6 +46,8 @@ var g_trace_gc_root_slot_summary = 0
 var g_trace_gc_root_slot_summary_cap = 0
 var g_trace_gc_root_slot_summary_checked = 0
 var g_trace_gc_root_slot_summary_done = 0
+var g_trace_gc_root_names = 0
+var g_trace_gc_root_names_checked = 0
 var g_trace_gc_global_guard = 0
 var g_trace_gc_global_guard_checked = 0
 var g_trace_gc_global_guard_last_bad_list = 0
@@ -2367,6 +2369,38 @@ fn native_gc_register_root_tag(ptr, tag) {
     }
     
     release_lock()
+    return 0
+}
+
+@oren.keep
+fn native_gc_register_root_name(ptr, name_cstr) {
+    if ptr == 0 { return 0 }
+    if name_cstr == 0 { return 0 }
+    if g_trace_gc_root_names_checked == 0 {
+        var v_names = native_envp_get_value_ptr("OREN_TRACE_GC_REGISTER_ROOT_NAMES")
+        if v_names != 0 && ptr_get_byte(v_names) != 0 && ptr_get_byte(v_names) != 48 {
+            g_trace_gc_root_names = 1
+        }
+        g_trace_gc_root_names_checked = 1
+    }
+    if g_trace_gc_root_names == 0 { return 0 }
+    var in_storage = 0
+    var off = 0
+    var off_ok = 0
+    if g_storage != 0 {
+        var g_end = iadd(g_storage, global_storage_bytes())
+        if ptr >= g_storage && ptr < g_end { in_storage = 1 }
+        if ptr >= g_storage {
+            off = ptr - g_storage
+            if off >= 0 && off < 1048576 { off_ok = 1 }
+        }
+    }
+    var name = oren_intern_cstr(name_cstr)
+    print("[gc_root_name] name=" + name +
+        " ptr=" + oren_int_to_string(ptr) +
+        " in_g_storage=" + oren_int_to_string(in_storage) +
+        " slot_off=" + oren_int_to_string(off) +
+        " slot_off_ok=" + oren_int_to_string(off_ok))
     return 0
 }
 

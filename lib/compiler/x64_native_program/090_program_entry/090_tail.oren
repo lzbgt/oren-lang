@@ -915,15 +915,26 @@ fn native_compile_program_x64(linked, platform) {
     var gmap = ctx["globals"]
     var runtime_globals = ctx["runtime_globals"]
     var skip_runtime_globals = ctx["skip_runtime_global_roots"]
+    var trace_root_names = ctx["trace_gc_root_names"]
     if gmap != nil {
         var gi = 0
         var pair = [nil, nil]
         var arg_reg = 7 // rdi
+        var name_reg = 6 // rsi
         if platform != nil && platform["os"] == "windows" { arg_reg = 1 } // rcx
+        if platform != nil && platform["os"] == "windows" { name_reg = 2 } // rdx
         while 1 {
             var okg = oren_iter_next_entry(gmap, gi, pair)
             if okg == 0 { break }
             var gname = pair[0]
+            if gname == "g_gc_reuse_bad_list_last_ptr" ||
+               gname == "g_find_cache_ptr0" ||
+               gname == "g_find_cache_ptr1" ||
+               gname == "g_find_cache_node0" ||
+               gname == "g_find_cache_node1" {
+                gi = gi + 1
+                continue
+            }
             if skip_runtime_globals != nil && skip_runtime_globals != 0 &&
                gname != nil && runtime_globals != nil && runtime_globals[gname] != nil {
                 gi = gi + 1
@@ -932,6 +943,18 @@ fn native_compile_program_x64(linked, platform) {
             var off_enc = pair[1]
             if oren_type_tag(off_enc) == 1 {
                 var off = off_enc - 1
+                if trace_root_names != nil && trace_root_names != 0 && gname != nil {
+                    var name_off = _data_add_cstr0(ctx, gname)
+                    var lea_ptr_pos = bytes_len(ctx["code"])
+                    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(arg_reg, 0))
+                    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_ptr_pos + 3, "data_off": off})
+                    var lea_name_pos = bytes_len(ctx["code"])
+                    bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(name_reg, 0))
+                    oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_name_pos + 3, "data_off": name_off})
+                    var call_name_pos = bytes_len(ctx["code"])
+                    bytes_extend(ctx["code"], insn_call_rel32(0))
+                    oren_list_push(ctx["fixups"], {"type": "call_rel32", "pos": call_name_pos, "name": "native_gc_register_root_name"})
+                }
                 var lea_pos = bytes_len(ctx["code"])
                 bytes_extend(ctx["code"], insn_lea_r64_rip_disp32(arg_reg, 0))
                 oren_list_push(ctx["fixups"], {"type": "rip_data_lea", "pos": lea_pos + 3, "data_off": off})

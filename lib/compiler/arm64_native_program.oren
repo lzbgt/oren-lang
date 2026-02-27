@@ -377,6 +377,7 @@ fn _arm64_emit_global_roots_init(ctx) {
     var gmap = ctx["globals"]
     var runtime_globals = ctx["runtime_globals"]
     var skip_runtime_globals = ctx["skip_runtime_global_roots"]
+    var trace_root_names = ctx["trace_gc_root_names"]
     if gmap != nil {
         var gi = 0
         var pair = [nil, nil]
@@ -384,6 +385,14 @@ fn _arm64_emit_global_roots_init(ctx) {
             var okg = oren_iter_next_entry(gmap, gi, pair)
             if okg == 0 { break }
             var gname = pair[0]
+            if gname == "g_gc_reuse_bad_list_last_ptr" ||
+               gname == "g_find_cache_ptr0" ||
+               gname == "g_find_cache_ptr1" ||
+               gname == "g_find_cache_node0" ||
+               gname == "g_find_cache_node1" {
+                gi = gi + 1
+                continue
+            }
             if skip_runtime_globals != nil && skip_runtime_globals != 0 &&
                gname != nil && runtime_globals != nil && runtime_globals[gname] != nil {
                 gi = gi + 1
@@ -392,6 +401,20 @@ fn _arm64_emit_global_roots_init(ctx) {
             var off_enc = pair[1]
             if oren_type_tag(off_enc) == 1 {
                 var off = off_enc - 1
+                if trace_root_names != nil && trace_root_names != 0 && gname != nil {
+                    var name_off = exprm.native_data_add_cstr0(ctx, gname)
+                    var adr_ptr_pos = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_ptr_pos, "data_off": off})
+                    var adr_name_pos = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "adr_data", "pos": adr_name_pos, "data_off": name_off, "reg": 1})
+                    var bl_name = bytes_len(ctx["code"])
+                    push_u32_le(ctx["code"], 0)
+                    oren_list_push(ctx["fixups"], {"type": "bl", "pos": bl_name, "name": "native_gc_register_root_name"})
+                }
                 var adr_root_pos = bytes_len(ctx["code"])
                 push_u32_le(ctx["code"], 0)
                 push_u32_le(ctx["code"], 0)
@@ -1169,6 +1192,12 @@ fn _arm64_prepare_top_level_and_globals(ctx, runtime_stmts, user_stmts) {
 
     if ctx["runtime_globals"] == nil { ctx["runtime_globals"] = {} }
     var runtime_globals = ctx["runtime_globals"]
+    var v_trace_names = oren_env("OREN_TRACE_GC_REGISTER_ROOT_NAMES")
+    if v_trace_names != nil && v_trace_names != "" &&
+       native_env_str_eq(v_trace_names, "0") != true &&
+       native_env_str_eq(v_trace_names, "false") != true {
+        ctx["trace_gc_root_names"] = 1
+    }
     var v_skip = oren_env("OREN_GC_ROOTS_SKIP_RUNTIME_GLOBALS")
     if v_skip != nil && v_skip != "" &&
        native_env_str_eq(v_skip, "0") != true &&

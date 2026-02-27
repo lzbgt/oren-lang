@@ -778,6 +778,15 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     - Reduce GC safepoint overhead in alloc-free hot loops (inline tick + higher masks where safe).
     - New: x64 boxed-list fast loops (push/get-sum/dot) now throttle safepoints at mask=1023; re-check perf gates.
     - Gate: `loop_sum` + `dot_product` native <= 2x C on Tier-1.
+    - New: `OREN_TRACE_GC_REGISTER_ROOT_NAMES=1` (compile-time env) emits per-root
+      `[gc_root_name]` lines; bad-list root_idx=256 mapped to `g_gc_reuse_bad_list_last_ptr`
+      (log: `build/logs/alloc_churn_rootnames_badlist_len64_gc50_200_thr500_ring_20260227_083852.log`).
+    - Trace: after skipping only `g_gc_reuse_bad_list_last_ptr`, bad-list root_idx=280 mapped
+      to `g_find_cache_ptr0`, indicating `oren_find_node` MRU cache slots were still rooted
+      (log: `build/logs/alloc_churn_rootnames_badlist_len64_gc50_200_thr500_ring_20260227_084819.log`).
+    - Fix: global root registration now skips `g_gc_reuse_bad_list_last_ptr` and
+      `g_find_cache_ptr{0,1}`/`g_find_cache_node{0,1}`; repro now reports `in_roots=0`
+      for bad-list pointers (log: `build/logs/alloc_churn_rootnames_badlist_len64_gc50_200_thr500_ring_20260227_085139.log`).
 
 4) **W5 tagged value convergence plan (native/C/AVM)**
    - One canonical model + staged migration.

@@ -70,6 +70,12 @@ fn _x64_collect_top_level_globals_and_stmts(ctx, runtime_stmts, user_stmts) {
 
     if ctx["runtime_globals"] == nil { ctx["runtime_globals"] = {} }
     var runtime_globals = ctx["runtime_globals"]
+    var v_trace_names = oren_env("OREN_TRACE_GC_REGISTER_ROOT_NAMES")
+    if v_trace_names != nil && v_trace_names != "" &&
+       x64_env_str_eq(v_trace_names, "0") != true &&
+       x64_env_str_eq(v_trace_names, "false") != true {
+        ctx["trace_gc_root_names"] = 1
+    }
     var v_skip = oren_env("OREN_GC_ROOTS_SKIP_RUNTIME_GLOBALS")
     if v_skip != nil && v_skip != "" &&
        x64_env_str_eq(v_skip, "0") != true &&
