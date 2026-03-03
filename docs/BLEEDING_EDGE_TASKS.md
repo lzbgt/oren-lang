@@ -1134,6 +1134,10 @@ Priority weights (rolling, refreshed after x64 emit ops split):
     native quick integration (logs:
     `build/logs/native_quick_until_world_lock_20260304_030124_run1.log`,
     `build/logs/native_quick_until_world_lock_20260304_030124_run1_inner.log`).
+  - Trace: quick-until-world-lock run with `OREN_QI_STOP_BEFORE_WORLD_LOCK=1`,
+    list trace light enabled but entry-args tracing disabled completed cleanly
+    (logs: `build/logs/native_quick_until_world_lock_20260304_030625_run1.log`,
+    `build/logs/native_quick_until_world_lock_20260304_030625_run1_inner.log`).
   - New: `OREN_QI_STOP_BEFORE_WORLD_LOCK=1` skips the world-lock smoke in
     `triage_stage2_quick_until_world_lock.sh`.
   - Trace: skip-before-world-lock run completed cleanly (log:
