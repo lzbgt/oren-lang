@@ -593,7 +593,10 @@ fn native_compile_stmt_inner(ctx, stmt) {
 
         // GC safepoint on loop entry (parity with C backend), throttled for performance.
         // Call once per 256 iterations by default.
+        var prev_kind = ctx["loop_kind"]
+        ctx["loop_kind"] = "for_loop"
         gc.native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 255)
+        ctx["loop_kind"] = prev_kind
 
         native_compile_stmt(ctx, stmt["body"])
 

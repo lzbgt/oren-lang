@@ -1573,7 +1573,10 @@ fn _arm64_emit_fast_list_push_while(ctx, stmt, info) {
     var jpos_fast_end = bytes_len(ctx["code"])
     push_u32_le(ctx["code"], 0) // patched: b.ge end
 
+    var prev_kind = ctx["loop_kind"]
+    ctx["loop_kind"] = "fast_list_push_while"
     gc.native_emit_gc_safepoint_throttled(ctx, loop_base_stack, 255)
+    ctx["loop_kind"] = prev_kind
 
     // Keep idx local updated for value expressions.
     emit_str_reg_fp_any(ctx, 20, idx_fp_off)
