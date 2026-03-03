@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"oren/pkg/eval"
@@ -76,6 +77,147 @@ func cmdQuote(s string) string {
 		return s
 	}
 	return "\"" + s + "\""
+}
+
+type pythonEmbedInfo struct {
+	Include     string `json:"include"`
+	PlatInclude string `json:"plat_include"`
+	LibDir      string `json:"libdir"`
+	LibPl       string `json:"libpl"`
+	LdLibrary   string `json:"ldlibrary"`
+	Library     string `json:"library"`
+	BasePrefix  string `json:"base_prefix"`
+	Prefix      string `json:"prefix"`
+	Version     string `json:"version"`
+}
+
+func pythonEmbedInfoFromCmd(cmdArgs []string) (pythonEmbedInfo, error) {
+	if len(cmdArgs) == 0 {
+		return pythonEmbedInfo{}, fmt.Errorf("empty python command")
+	}
+	script := strings.Join([]string{
+		"import json, sys, sysconfig",
+		"def get(k):",
+		"    v = sysconfig.get_config_var(k)",
+		"    return v if v is not None else ''",
+		"data = {",
+		"    'include': sysconfig.get_path('include') or '',",
+		"    'plat_include': sysconfig.get_path('platinclude') or '',",
+		"    'libdir': get('LIBDIR'),",
+		"    'libpl': get('LIBPL'),",
+		"    'ldlibrary': get('LDLIBRARY'),",
+		"    'library': get('LIBRARY'),",
+		"    'base_prefix': getattr(sys, 'base_prefix', ''),",
+		"    'prefix': getattr(sys, 'prefix', ''),",
+		"    'version': sysconfig.get_python_version() or '',",
+		"}",
+		"print(json.dumps(data))",
+	}, "\n")
+	args := append([]string{}, cmdArgs[1:]...)
+	args = append(args, "-c", script)
+	out, err := exec.Command(cmdArgs[0], args...).CombinedOutput()
+	if err != nil {
+		return pythonEmbedInfo{}, fmt.Errorf("python embed probe failed (%s): %v (%s)", cmdArgs[0], err, strings.TrimSpace(string(out)))
+	}
+	var info pythonEmbedInfo
+	if err := json.Unmarshal(out, &info); err != nil {
+		return pythonEmbedInfo{}, fmt.Errorf("python embed probe returned invalid JSON: %v (%s)", err, strings.TrimSpace(string(out)))
+	}
+	return info, nil
+}
+
+func pythonEmbedInfoDetect() (pythonEmbedInfo, error) {
+	if env := strings.TrimSpace(os.Getenv("OREN_PYTHON")); env != "" {
+		cmd := strings.Fields(env)
+		if len(cmd) > 0 {
+			return pythonEmbedInfoFromCmd(cmd)
+		}
+	}
+	candidates := [][]string{
+		{"python3"},
+		{"python"},
+		{"py", "-3"},
+	}
+	var lastErr error
+	for _, cmd := range candidates {
+		info, err := pythonEmbedInfoFromCmd(cmd)
+		if err == nil {
+			return info, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no python interpreter found")
+	}
+	return pythonEmbedInfo{}, lastErr
+}
+
+func pythonEmbedFlagsMSVC() ([]string, error) {
+	info, err := pythonEmbedInfoDetect()
+	if err != nil {
+		return nil, err
+	}
+	includes := []string{}
+	if info.Include != "" {
+		includes = append(includes, info.Include)
+	}
+	if info.PlatInclude != "" && info.PlatInclude != info.Include {
+		includes = append(includes, info.PlatInclude)
+	}
+	if len(includes) == 0 {
+		return nil, fmt.Errorf("python embed probe did not report include paths")
+	}
+	libName := info.LdLibrary
+	if libName == "" {
+		libName = info.Library
+	}
+	if libName == "" && info.Version != "" {
+		verParts := strings.Split(info.Version, ".")
+		if len(verParts) >= 2 {
+			libName = "python" + verParts[0] + verParts[1] + ".lib"
+		}
+	}
+	if libName == "" {
+		return nil, fmt.Errorf("python embed probe did not report library name")
+	}
+	libDirs := []string{}
+	for _, d := range []string{info.LibPl, info.LibDir} {
+		if d != "" {
+			libDirs = append(libDirs, d)
+		}
+	}
+	if info.Prefix != "" {
+		libDirs = append(libDirs, filepath.Join(info.Prefix, "libs"))
+	}
+	if info.BasePrefix != "" && info.BasePrefix != info.Prefix {
+		libDirs = append(libDirs, filepath.Join(info.BasePrefix, "libs"))
+	}
+	uniqLibDirs := []string{}
+	seen := map[string]bool{}
+	for _, d := range libDirs {
+		if d == "" {
+			continue
+		}
+		if seen[d] {
+			continue
+		}
+		seen[d] = true
+		uniqLibDirs = append(uniqLibDirs, d)
+	}
+	libDirs = uniqLibDirs
+	if len(libDirs) == 0 {
+		return nil, fmt.Errorf("python embed probe did not report library directories (set OREN_PYTHON to a Python with dev headers)")
+	}
+	flags := []string{"/DOREN_ENABLE_PYTHON"}
+	for _, inc := range includes {
+		flags = append(flags, "/I"+inc)
+	}
+	flags = append(flags, "/link")
+	for _, dir := range libDirs {
+		flags = append(flags, "/LIBPATH:"+dir)
+	}
+	flags = append(flags, libName)
+	return flags, nil
 }
 
 type msvcDevCmd struct {
@@ -334,19 +476,22 @@ func main() {
 			isMSVC := isMSVCCompiler(cc)
 
 			var args []string
-			if isMSVC {
-				// MSVC `cl` does compile+link in one step by default.
-				// Keep this minimal and deterministic: stage0 is a bootstrap path.
-				args = []string{"/nologo", "/std:c11", "/Fe:" + outFilename, cFilename, "lib/runtime.c", "lib/runtime_buf.c", "/Ilib"}
-				if noGC {
-					args = append(args, "/DOREN_NO_GC")
-				}
-				if enablePython {
-					// TODO(bootstrap/windows): plumb Python embedding flags for MSVC.
-					fmt.Printf("ERROR: --python is not supported for stage0 builds with MSVC yet\n")
-					os.Exit(2)
-				}
-			} else {
+				if isMSVC {
+					// MSVC `cl` does compile+link in one step by default.
+					// Keep this minimal and deterministic: stage0 is a bootstrap path.
+					args = []string{"/nologo", "/std:c11", "/Fe:" + outFilename, cFilename, "lib/runtime.c", "lib/runtime_buf.c", "/Ilib"}
+					if noGC {
+						args = append(args, "/DOREN_NO_GC")
+					}
+					if enablePython {
+						pyFlags, err := pythonEmbedFlagsMSVC()
+						if err != nil {
+							fmt.Printf("ERROR: --python MSVC setup failed: %v\n", err)
+							os.Exit(2)
+						}
+						args = append(args, pyFlags...)
+					}
+				} else {
 				args = []string{"-o", outFilename, cFilename, "lib/runtime.c", "lib/runtime_buf.c", "-Ilib", "-pthread"}
 				if noGC {
 					args = append(args, "-DOREN_NO_GC")

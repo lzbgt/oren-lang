@@ -151,7 +151,7 @@ Toolchain selection (C backend, rolling):
 - Default C compiler is `cc` on POSIX hosts.
 - On **Windows hosts**, if `--cc` is not provided, the compiler defaults to **MSVC** `cl.exe` and attempts to auto-configure the VS environment (vswhere + VsDevCmd/vcvars) so a Developer Prompt is not required.
   - Escape hatches: `OREN_MSVC_INSTALL_PATH` (pin VS install root), `OREN_MSVC_VSWHERE` (pin `vswhere.exe` path).
-  - Note: `--python` is not supported when using MSVC `cl.exe` in the rolling C-backend path (you must use a gcc/clang-style compiler via `--cc` if you need Python embedding today).
+  - `--python` is supported under MSVC by querying Python’s `sysconfig` (the bootstrap path tries `python3`, `python`, then `py -3`; override via `OREN_PYTHON=/path/to/python`).
   - When Python embedding is enabled, use `py_release(obj)` to drop long‑lived Python objects and avoid refcount leaks.
 - For **cross-compiling** a C-backend Windows artifact from a non-Windows host, you must pass an explicit cross compiler via `--cc` (the compiler will not auto-pick `cl.exe` off-host).
 
@@ -3156,6 +3156,7 @@ SIMD enablement (rolling):
 
 ### Optional Python FFI
 Python interop is only available when the runtime is built with Python embedding (`-DOREN_ENABLE_PYTHON` / compiler `--python`).
+- Windows note: the stage0 MSVC path derives include/lib flags from `python`/`python3`/`py -3` via `sysconfig` (override with `OREN_PYTHON`).
 - Import: `var math = py_import("math")`
 - Attribute access: `math.sqrt` (Python attribute get)
 - Indexing: `obj[key]` (Python `__getitem__`)
