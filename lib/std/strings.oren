@@ -1,5 +1,16 @@
 import list "std:list"
 
+// Basic wrappers around string intrinsics to avoid direct `oren_*` usage in user code.
+fn len(s) { return oren_string_len(s) }
+
+fn char_at(s, i) { return oren_string_char_at(s, i) }
+
+fn slice(s, start, end) { return oren_string_slice(s, start, end) }
+
+fn to_bytes(s) { return oren_bytes_from_string(s) }
+
+fn from_bytes(bs) { return oren_string_from_bytes(bs) }
+
 fn starts_with(s, prefix) {
     if s == nil || prefix == nil { return false }
     var sb = oren_bytes_from_string(s)

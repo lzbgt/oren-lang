@@ -1850,6 +1850,19 @@ Practical guidance (today):
 fn yield_now() { return oren_yield() }
 ```
 
+  Examples using stdlib wrappers:
+
+```oren
+import strings "std:strings"
+import list "std:list"
+
+fn first_byte(s) {
+    var bs = strings.to_bytes(s)
+    if list.len(bs) == 0 { return nil }
+    return bs[0]
+}
+```
+
 ### Literals
 - **Integer**: one or more digits: `[0-9]+`
 - **Float**: digits, then `.`, then optional digits: `[0-9]+ "." [0-9]*`
