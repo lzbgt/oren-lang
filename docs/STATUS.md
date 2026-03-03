@@ -334,6 +334,14 @@ Weights reflect expected impact on C parity and breadth of affected code.
    - Trace (arm64 stage2 compile, 2026-02-26, `build/tmp/boxed_dot.oren`,
      `OREN_ARM64_FAST_LIST_DOT_NO_TICK_SLOT=1` + `OREN_TRACE_ARM64_GC_TICK_OFF=all`):
      tick_off=0 at throttled safepoints (base/stack 160, 240; mask=1023), no negative offsets observed.
+   - Trace (arm64 stage2 compile, 2026-03-03, `build/tmp/boxed_dot.oren`,
+     `OREN_ARM64_FAST_LIST_DOT_NO_TICK_SLOT=1` + `OREN_TRACE_ARM64_GC_TICK_OFF=all` +
+     `OREN_TRACE_ARM64_LOOP_STACK=1`): tick_off=0 at throttled safepoints (base/stack 160, 240);
+     no negative offsets observed (log: `build/logs/arm64_tick_off_trace_20260303_212831.log`).
+   - Trace (arm64 stage2 compile, 2026-03-03, `benchmarks/dot_product/dot_product.oren`,
+     `OREN_ARM64_FAST_LIST_INT_DOT_NO_TICK_SLOT=1` + `OREN_TRACE_ARM64_GC_TICK_OFF=all` +
+     `OREN_TRACE_ARM64_LOOP_STACK=1`): tick_off=0 at throttled safepoints (base/stack 224, 240);
+     no negative offsets observed (log: `build/logs/arm64_tick_off_trace_intdot_20260303_212850.log`).
    - New: `OREN_TRACE_ARM64_GC_TICK_OFF=1` now tags traces with `kind=<loop_kind>` when available to
      attribute negative tick offsets to a specific loop emitter (2026-03-03).
    - New: arm64 GC tick-off trace now includes the last loop stack snapshot (`last_kind`, `last_base`,
