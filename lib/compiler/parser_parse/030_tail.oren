@@ -469,6 +469,7 @@ fn parse_type_decl(p) {
                 if peek_is(p, token.TOK_SEMICOLON) { parser_next_token(p) }
                 return ast.new_type(tok, name, fields)
             }
+            ident_prefix_validate(p, fid["value"], "field")
             if fattrs != nil && oren_list_len(fattrs) > 0 { fid["attrs"] = fattrs }
 
             // Optional explicit type annotation (rolling, used by packed-byte views).

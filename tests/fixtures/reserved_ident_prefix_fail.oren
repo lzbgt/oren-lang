@@ -1,3 +1,15 @@
 fn oren_bad() {
     return 1
 }
+
+fn sys_bad() {
+    return 2
+}
+
+fn __oren_bad() {
+    return 3
+}
+
+struct Foo {
+    oren_field: i32
+}
