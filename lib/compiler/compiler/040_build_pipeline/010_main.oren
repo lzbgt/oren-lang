@@ -17,6 +17,25 @@ fn _string_strip_trailing_cr(s) {
     return oren_string_slice(s, 0, sl - 1)
 }
 
+fn _string_trim_ws(s) {
+    if s == nil { return s }
+    var sl = oren_string_len(s)
+    var i = 0
+    var j = sl - 1
+    while i < sl {
+        var c = oren_string_char_at_unchecked(s, i)
+        if c == " " || c == "\t" || c == "\n" || c == "\r" { i = i + 1 }
+        else { break }
+    }
+    while j >= i {
+        var c2 = oren_string_char_at_unchecked(s, j)
+        if c2 == " " || c2 == "\t" || c2 == "\n" || c2 == "\r" { j = j - 1 }
+        else { break }
+    }
+    if j < i { return "" }
+    return oren_string_slice(s, i, j + 1)
+}
+
 fn _string_strip_wrapping_quotes(s) {
     if s == nil { return s }
     var sl = oren_string_len(s)
@@ -80,6 +99,16 @@ fn _run_cmd_capture_stdout(cmd_line, out_path) {
         return rc
     }
     return oren_system(cmd_line + " > " + shell_quote(out_path) + " 2>/dev/null")
+}
+
+fn _run_cmd_capture_trim(cmd_line, out_path) {
+    if cmd_line == nil || cmd_line == "" { return nil }
+    if out_path == nil || out_path == "" { return nil }
+    var rc = _run_cmd_capture_stdout(cmd_line, out_path)
+    if rc != 0 { return nil }
+    var s = oren_read_file(out_path)
+    if oren_is_err(s) { return nil }
+    return _string_trim_ws(s)
 }
 
 fn _python_embed_probe_info() {
@@ -1988,7 +2017,19 @@ fn compiler_main() {
             }
             if no_gc { cmd = cmd + " -DOREN_NO_GC" }
             if enable_python {
-                cmd = cmd + " -DOREN_ENABLE_PYTHON $(python3-config --cflags) $(python3-config --embed --ldflags)"
+                if host_win {
+                    var cflags = _run_cmd_capture_trim("python3-config --cflags", "build/tmp/_oren_py_cflags.txt")
+                    var ldflags = _run_cmd_capture_trim("python3-config --embed --ldflags", "build/tmp/_oren_py_ldflags.txt")
+                    if cflags == nil || cflags == "" || ldflags == nil || ldflags == "" {
+                        print("ERROR: --python requires python3-config on PATH (or run under a POSIX shell)")
+                        oren_exit(2)
+                    }
+                    cmd = cmd + " -DOREN_ENABLE_PYTHON " + cflags + " " + ldflags
+                    oren_unlink("build/tmp/_oren_py_cflags.txt")
+                    oren_unlink("build/tmp/_oren_py_ldflags.txt")
+                } else {
+                    cmd = cmd + " -DOREN_ENABLE_PYTHON $(python3-config --cflags) $(python3-config --embed --ldflags)"
+                }
             }
         }
     } else {
